@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     supabase_service_role_key: str = ""
     port: int = 8000
     request_timeout: float = 20.0
-    max_events: int = 2500
+    max_events: int = 10000
     gamma_page_size: int = 200
     max_parallel_book_requests: int = 16
     alert_cooldown_seconds: int = 900
