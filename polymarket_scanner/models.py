@@ -4,8 +4,6 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
-from .config import settings
-
 
 def utcnow() -> datetime:
     return datetime.now(timezone.utc)
@@ -37,19 +35,20 @@ class Market:
     tags: list[str] = field(default_factory=list)
     raw: dict[str, Any] = field(default_factory=dict)
 
+    def token_for_outcome(self, label: str) -> str | None:
+        wanted = label.strip().lower()
+        for i, outcome in enumerate(self.outcomes):
+            if outcome.strip().lower() == wanted and i < len(self.token_ids):
+                return self.token_ids[i]
+        return None
+
     @property
     def yes_token(self) -> str | None:
-        for i, outcome in enumerate(self.outcomes):
-            if outcome.strip().lower() == "yes" and i < len(self.token_ids):
-                return self.token_ids[i]
-        return self.token_ids[0] if self.token_ids else None
+        return self.token_for_outcome("yes") or (self.token_ids[0] if self.token_ids else None)
 
     @property
     def no_token(self) -> str | None:
-        for i, outcome in enumerate(self.outcomes):
-            if outcome.strip().lower() == "no" and i < len(self.token_ids):
-                return self.token_ids[i]
-        return self.token_ids[1] if len(self.token_ids) > 1 else None
+        return self.token_for_outcome("no") or (self.token_ids[1] if len(self.token_ids) > 1 else None)
 
 
 @dataclass(slots=True)
@@ -99,6 +98,8 @@ class Signal:
 
     def fingerprint(self) -> str:
         key = self.metadata.get("fingerprint_key") or self.market_id or self.event_id
-        cooldown = max(60, settings.alert_cooldown_seconds)
-        bucket = int(self.created_at.timestamp() // cooldown)
+        # Keep persistent opportunities from spamming; a fresh alert can recur after
+        # the configured cooldown bucket if the condition is still present.
+        bucket_seconds = int(self.metadata.get("fingerprint_bucket_seconds", 900))
+        bucket = int(self.created_at.timestamp() // max(60, bucket_seconds))
         return f"{self.detector}:{key}:{bucket}"
