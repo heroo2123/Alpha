@@ -4,6 +4,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
+from .config import settings
+
 
 def utcnow() -> datetime:
     return datetime.now(timezone.utc)
@@ -97,5 +99,6 @@ class Signal:
 
     def fingerprint(self) -> str:
         key = self.metadata.get("fingerprint_key") or self.market_id or self.event_id
-        bucket = int(self.created_at.timestamp() // 300)
+        cooldown = max(60, settings.alert_cooldown_seconds)
+        bucket = int(self.created_at.timestamp() // cooldown)
         return f"{self.detector}:{key}:{bucket}"
