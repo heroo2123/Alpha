@@ -1,60 +1,92 @@
-# Polymarket Edge Scanner
+# Polymarket Edge Scanner v0.2
 
-A continuous **signal + audit** bot for Polymarket. It does not place orders. It scans active markets, sends Telegram alerts when a calculable or suspicious pricing inefficiency appears, and paper-tracks every ACTIONABLE signal so the detector itself can be evaluated over time.
+Continuous **signal + audit** scanner for Polymarket. It does **not** place orders. It watches the market and external/official resolution inputs, sends Telegram alerts with exact manual actions and direct market buttons, and paper-tracks ACTIONABLE signals so every detector can be evaluated from real outcomes.
 
-## Detectors in v0.1
+## What changed in v0.2
+
+- **Real-time Polymarket market WebSocket** for book/BBO changes. REST is still used immediately before an ACTIONABLE alert to confirm the quoted asks and displayed size.
+- **Polymarket sports WebSocket** for live/final score state.
+- **Polymarket RTDS crypto feeds** for resolution-aligned crypto boundary checks plus cross-feed divergence watches.
+- **Logical threshold arbitrage** between nested conditions in the same event.
+- **Official BLS release lag** support for CPI/core CPI, unemployment and payroll markets when a BLS API key is configured.
+- Telegram alerts now contain a numbered **WHAT TO DO** section, a clear **SKIP/CHECK** rule and inline buttons that open the exact Polymarket market/event.
+- `/took ALERT_ID STAKE_USD` records trades you actually took, so `/mystats` measures your own results separately from the paper model.
+- `/whoami` makes Telegram chat-ID setup possible without third-party ID bots.
+
+## Detector tiers
 
 ### ACTIONABLE
-1. **Binary buy-both arbitrage** — confirms CLOB asks for YES and NO, includes current taker-fee estimate, and alerts when total cost is materially below $1.
-2. **Neg-risk event underround** — for Polymarket multi-outcome/negative-risk events, confirms the YES ask for every outcome and alerts when buying the entire exhaustive set is below $1 after estimated fees.
-3. **Weather late-day lock** — discovers active “highest temperature” events, extracts the station from the market rules, reads worldwide METAR observations from the US Aviation Weather API, applies Polymarket/NOAA hourly-observation filtering, identifies the bracket containing the observed daily max, and compares a conservative lock-probability model with the executable ask.
+
+1. **Binary buy-both**: YES + NO asks are below $1 after a conservative fee estimate.
+2. **Neg-risk underround**: the complete exhaustive YES basket is below $1 after fees.
+3. **Nested-threshold arbitrage**: buy the looser condition YES plus the stricter condition NO when the logical pair costs below $1.
+4. **Weather late-day lock**: exact station/rules discovery + hourly-observation trend + executable bucket ask. Fast METAR data is a proxy; the alert tells you to verify the official table before execution.
+5. **Sports result lag**: Polymarket sports feed reports the event ended, the result implies a specific outcome, but that outcome remains materially below $1. Official result/rules verification is required.
+6. **Crypto resolution lag**: only when the market's resolution-source text can be matched to a supported Polymarket RTDS feed and a boundary tick is captured.
+7. **Official BLS release lag**: only for markets whose rule/source text references BLS and only after the matching official series value is available.
 
 ### WATCH
-4. **Potential duplicate-market divergence** — text-similar markets with materially different probabilities. These require manual rule verification and are never paper-entered automatically.
-5. **Wide/liquid spread** — high-volume markets with unusually wide spreads that may offer maker/price-discovery opportunities. Not an arbitrage claim.
 
-## Important weather caveat
+8. **Duplicate-market divergence**: similar contracts trading far apart; compare Rules before acting.
+9. **Crypto cross-feed divergence**: Chainlink/reference vs Binance-backed feed disagreement; useful for finding traders looking at the wrong source.
+10. **Wide/liquid spread**: surfaces maker/price-discovery opportunities without calling them arbitrage.
 
-Polymarket weather resolution rules often specify NOAA's WRH Time Series Viewer and its **Show Only Hourly Data** table. v0.1 uses AviationWeather.gov METAR data as a fast, worldwide observation proxy and copies the WRH hourly timestamp rule (US NWS/FAA: minutes 51–59; other platforms: 56–04). The Telegram alert explicitly tells you to verify the NOAA WRH table before a manual trade. This is intentional: an alert is not allowed to pretend the proxy is the final settlement source.
+## Telegram alert format
 
-## Paper tracking
+An ACTIONABLE alert contains:
 
-Every ACTIONABLE alert is inserted into SQLite at the visible executable cost. Structural arbitrages are marked won immediately on the assumption all displayed legs fill at the quoted asks. Directional weather signals remain open until Gamma reports the market closed, then the bot records win/loss and P&L using `PAPER_STAKE_USD`.
+- detector + alert number;
+- current estimated edge;
+- exact quoted ask(s);
+- **WHAT TO DO** numbered steps;
+- a **CHECK / SKIP RULE** explaining when not to chase the alert;
+- `OPEN MARKET` / `OPEN EVENT` buttons;
+- `/took <alert_id> <stake>` shortcut for recording a real trade.
 
-Telegram commands:
+Structural arbitrage alerts explicitly say to use the same number of shares on every required leg and never execute only one leg.
 
-- `/stats` — total alerts, won/lost/open, paper P&L, and P&L by detector.
-- `/recent` — last 10 alerts.
-- `/help` — command reminder.
+## Telegram commands
 
-## Deploy
+- `/whoami` — returns your numeric chat ID during setup.
+- `/stats` — paper-model detector stats.
+- `/mystats` — results for trades you explicitly recorded with `/took`.
+- `/recent` — recent scanner alerts.
+- `/taken` — recent manually recorded trades.
+- `/took ALERT_ID STAKE_USD` — record that you acted on an alert.
+- `/help` — command list.
 
-The repo includes `render.yaml`. A continuously running process is important; GitHub Actions cron is not suitable for immediate market monitoring. On Render, use the Starter web service in the blueprint (free services can sleep, which defeats constant observation). The blueprint also mounts a 1 GB persistent disk at `/var/data` so the SQLite audit history survives restarts/deploys.
+## Deploy on Render
 
-Set these secrets/environment variables in Render:
+`render.yaml` is included. Use an always-on Starter service: sleeping services can miss short-lived opportunities. The blueprint mounts `/var/data` so SQLite history survives restarts.
+
+For the **first deploy**, the blueprint only asks for:
 
 - `TELEGRAM_BOT_TOKEN`
-- `TELEGRAM_CHAT_ID`
 
-Optional tuning variables are shown in `.env.example`.
+After the service is running, open your Telegram bot and send `/whoami`. The bot replies with your numeric ID. In Render, add:
 
-Run locally:
+- `TELEGRAM_CHAT_ID` = that exact number
+
+Then restart/redeploy the service. This avoids using third-party chat-ID bots or putting your bot token into a browser URL.
+
+Optional:
+
+- `BLS_API_KEY` enables official BLS release monitoring. Add it later in Render Environment if you want that detector; the rest of the scanner works without it.
+
+## Run locally
 
 ```bash
 python -m venv .venv
-source .venv/bin/activate   # Windows: .venv\\Scripts\\activate
+source .venv/bin/activate  # Windows: .venv\\Scripts\\activate
 pip install -r requirements.txt
 cp .env.example .env
 uvicorn app:app --host 0.0.0.0 --port 8000
 ```
 
 Health: `GET /health`  
-Stats: `GET /stats`
+Paper stats: `GET /stats`  
+Your recorded-trade stats: `GET /mystats`
 
-## Why the architecture is modular
+## Important execution assumptions
 
-Detectors are pure functions in `polymarket_scanner/detectors.py`; market data, weather, storage, and Telegram are separate modules. That makes it straightforward to add future external-source detectors (sports result lag, crypto index divergence, election-count lag, official-statistics releases, etc.) while retaining one alerting/audit system.
-
-## Safety / execution assumptions
-
-The scanner is advisory and paper-trading only. “Locked” structural edge assumes all legs can actually be filled at the displayed size before the book changes. Weather probabilities are heuristic and should be calibrated from the stored results before sizing real money. Resolution rules always override generic market semantics.
+The scanner is advisory. “ACTIONABLE” means the detector found a mechanically defined condition and then re-checked the candidate order book through REST; it does not mean risk-free or guaranteed profit. Structural arbitrage still requires all legs to fill before the book changes. Known-result detectors still require the market's settlement Rules/source to match the observed official input. Do not chase a price above the alert's quoted limit.
