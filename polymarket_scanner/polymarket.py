@@ -38,7 +38,7 @@ class PolymarketClient:
     def __init__(self) -> None:
         self.http = httpx.AsyncClient(
             timeout=settings.request_timeout,
-            headers={"User-Agent": "polymarket-edge-scanner/0.1 (+github)"},
+            headers={"User-Agent": "polymarket-edge-scanner/0.2 (+github)"},
         )
 
     async def close(self) -> None:
@@ -49,12 +49,9 @@ class PolymarketClient:
         offset = 0
         while len(markets) < settings.max_events:
             params = {
-                "active": "true",
-                "closed": "false",
-                "limit": settings.gamma_page_size,
-                "offset": offset,
-                "order": "volume_24hr",
-                "ascending": "false",
+                "active": "true", "closed": "false",
+                "limit": settings.gamma_page_size, "offset": offset,
+                "order": "volume_24hr", "ascending": "false",
             }
             r = await self.http.get(f"{GAMMA}/events", params=params)
             r.raise_for_status()
@@ -67,41 +64,34 @@ class PolymarketClient:
                 event_slug = event.get("slug") or ""
                 event_title = event.get("title") or ""
                 tags = [str(t.get("slug") or t.get("label") or "") for t in (event.get("tags") or []) if isinstance(t, dict)]
-                for m in event.get("markets") or []:
+                for raw_market in event.get("markets") or []:
+                    m = dict(raw_market)
+                    m["_event"] = event
                     outcomes = [str(x) for x in _json_list(m.get("outcomes"))]
                     token_ids = [str(x) for x in _json_list(m.get("clobTokenIds"))]
                     prices = [_f(x) for x in _json_list(m.get("outcomePrices"))]
-                    markets.append(
-                        Market(
-                            id=str(m.get("id", "")),
-                            event_id=event_id,
-                            event_slug=event_slug,
-                            event_title=event_title,
-                            event_neg_risk=bool(event.get("negRisk") or m.get("negRisk")),
-                            question=m.get("question") or "",
-                            slug=m.get("slug") or "",
-                            condition_id=m.get("conditionId") or "",
-                            outcomes=outcomes,
-                            token_ids=token_ids,
-                            outcome_prices=prices,
-                            best_bid=_f(m.get("bestBid"), None) if m.get("bestBid") is not None else None,
-                            best_ask=_f(m.get("bestAsk"), None) if m.get("bestAsk") is not None else None,
-                            liquidity=_f(m.get("liquidityNum") or m.get("liquidity")),
-                            volume_24h=_f(m.get("volume24hr") or m.get("volume24hrClob") or m.get("volumeNum")),
-                            active=bool(m.get("active", True)),
-                            closed=bool(m.get("closed", False)),
-                            end_date=m.get("endDate") or m.get("endDateIso"),
-                            description=(m.get("description") or event.get("description") or ""),
-                            resolution_source=(m.get("resolutionSource") or event.get("resolutionSource") or ""),
-                            category=(m.get("category") or event.get("category") or ""),
-                            tags=tags,
-                            raw=m,
-                        )
-                    )
+                    markets.append(Market(
+                        id=str(m.get("id", "")), event_id=event_id,
+                        event_slug=event_slug, event_title=event_title,
+                        event_neg_risk=bool(event.get("negRisk") or m.get("negRisk")),
+                        question=m.get("question") or "", slug=m.get("slug") or "",
+                        condition_id=m.get("conditionId") or "", outcomes=outcomes,
+                        token_ids=token_ids, outcome_prices=prices,
+                        best_bid=_f(m.get("bestBid"), None) if m.get("bestBid") is not None else None,
+                        best_ask=_f(m.get("bestAsk"), None) if m.get("bestAsk") is not None else None,
+                        liquidity=_f(m.get("liquidityNum") or m.get("liquidity")),
+                        volume_24h=_f(m.get("volume24hr") or m.get("volume24hrClob") or m.get("volumeNum")),
+                        active=bool(m.get("active", True)), closed=bool(m.get("closed", False)),
+                        end_date=m.get("endDate") or m.get("endDateIso"),
+                        description=(m.get("description") or event.get("description") or ""),
+                        resolution_source=(m.get("resolutionSource") or event.get("resolutionSource") or ""),
+                        category=(m.get("category") or event.get("category") or ""),
+                        tags=tags, raw=m,
+                    ))
             if len(events) < settings.gamma_page_size:
                 break
             offset += settings.gamma_page_size
-        return markets
+        return markets[: settings.max_events]
 
     async def book(self, token_id: str) -> Book | None:
         try:
@@ -110,9 +100,7 @@ class PolymarketClient:
                 return None
             r.raise_for_status()
             x = r.json()
-            bids = [(_f(i.get("price")), _f(i.get("size"))) for i in x.get("bids", [])]
-            asks = [(_f(i.get("price")), _f(i.get("size"))) for i in x.get("asks", [])]
-            return Book(token_id, bids, asks, _f(x.get("last_trade_price"), None), str(x.get("timestamp") or ""))
+            return _book_from_json(token_id, x)
         except Exception:
             return None
 
@@ -128,11 +116,8 @@ class PolymarketClient:
                 result: dict[str, Book] = {}
                 for x in r.json():
                     token = str(x.get("asset_id") or "")
-                    if not token:
-                        continue
-                    bids = [(_f(i.get("price")), _f(i.get("size"))) for i in x.get("bids", [])]
-                    asks = [(_f(i.get("price")), _f(i.get("size"))) for i in x.get("asks", [])]
-                    result[token] = Book(token, bids, asks, _f(x.get("last_trade_price"), None), str(x.get("timestamp") or ""))
+                    if token:
+                        result[token] = _book_from_json(token, x)
                 return result
             except Exception:
                 rows = await asyncio.gather(*(self.book(t) for t in chunk))
@@ -160,6 +145,12 @@ class PolymarketClient:
             return None
 
 
+def _book_from_json(token: str, x: dict) -> Book:
+    bids = [(_f(i.get("price")), _f(i.get("size"))) for i in x.get("bids", [])]
+    asks = [(_f(i.get("price")), _f(i.get("size"))) for i in x.get("asks", [])]
+    return Book(token, bids, asks, _f(x.get("last_trade_price"), None), str(x.get("timestamp") or ""))
+
+
 def taker_fee_per_share(price: float, fee_rate: float = 0.07) -> float:
-    """Conservative generic fee estimate: use the highest current category rate."""
+    """Conservative fee-curve estimate when per-token fee details are unavailable."""
     return fee_rate * price * (1.0 - price)
