@@ -160,5 +160,6 @@ class PolymarketClient:
             return None
 
 
-def taker_fee_per_share(price: float, fee_rate: float = 0.05) -> float:
+def taker_fee_per_share(price: float, fee_rate: float = 0.07) -> float:
+    """Conservative generic fee estimate: use the highest current category rate."""
     return fee_rate * price * (1.0 - price)
