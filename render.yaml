@@ -14,16 +14,28 @@ services:
         sync: false
       - key: TELEGRAM_CHAT_ID
         sync: false
+      - key: BLS_API_KEY
+        sync: false
       - key: SCAN_INTERVAL_SECONDS
-        value: "20"
+        value: "15"
       - key: UNIVERSE_REFRESH_SECONDS
         value: "120"
       - key: WEATHER_REFRESH_SECONDS
         value: "60"
+      - key: MACRO_REFRESH_SECONDS
+        value: "300"
       - key: ACTIONABLE_MIN_EDGE
         value: "0.025"
       - key: PAPER_STAKE_USD
         value: "100"
+      - key: MARKET_WS_ENABLED
+        value: "true"
+      - key: SPORTS_WS_ENABLED
+        value: "true"
+      - key: CRYPTO_RTDS_ENABLED
+        value: "true"
+      - key: KNOWN_OUTCOME_MAX_ASK
+        value: "0.975"
       - key: DB_PATH
         value: /var/data/signals.db
     disk:
