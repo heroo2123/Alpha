@@ -35,7 +35,7 @@ market_stream = LiveMarketStream()
 sports_stream = SportsStream()
 crypto_stream = CryptoRTDS()
 tg = Telegram(store)
-app = FastAPI(title="Polymarket Edge Scanner", version="0.2.4")
+app = FastAPI(title="Polymarket Edge Scanner", version="0.2.5")
 state = {
     "started": time.time(), "last_scan": None, "markets": 0, "tokens": 0, "stations": 0,
     "weather_ready_stations": 0, "weather_refreshing": False, "last_error": None,
@@ -43,6 +43,7 @@ state = {
     "macro": {}, "last_reason": None,
 }
 runner_task: asyncio.Task | None = None
+telegram_task: asyncio.Task | None = None
 
 
 def _all_tokens(markets: list[Market]) -> list[str]:
@@ -148,10 +149,22 @@ async def _notify_started() -> None:
         log.warning("Telegram startup notification failed: %s", exc)
 
 
+async def telegram_command_loop() -> None:
+    """Keep Telegram commands responsive independently of market scan workload."""
+    while True:
+        try:
+            await tg.poll_commands()
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            log.warning("Telegram command poll failed: %s", exc)
+        await asyncio.sleep(0.25)
+
+
 async def scanner_loop():
     markets: list[Market] = []; weather_cache: dict[str, list] = {}
     weather_task: asyncio.Task | None = None
-    last_universe = last_weather = last_macro = last_settle = last_watch = last_tg = 0.0
+    last_universe = last_weather = last_macro = last_settle = last_watch = 0.0
     while True:
         try:
             tick = time.time(); universe_refreshed = weather_refreshed = macro_refreshed = False
@@ -199,9 +212,6 @@ async def scanner_loop():
             if fast_market or macro_refreshed: signals.extend(official_macro_release_lag(markets, books, macro))
             if universe_refreshed or tick - last_watch >= 60:
                 signals.extend(crypto_crossfeed_divergence(markets, crypto_stream))
-                # Duplicate text matching is WATCH-only and relatively CPU-heavy.
-                # Run it off the asyncio event loop so it cannot delay WebSocket
-                # heartbeats, sports/crypto feeds, or actionable market processing.
                 dup_task = asyncio.to_thread(duplicate_divergence, list(markets))
                 spread_task = asyncio.to_thread(wide_spread_watch, list(markets))
                 dup_signals, spread_signals = await asyncio.gather(dup_task, spread_task)
@@ -217,7 +227,6 @@ async def scanner_loop():
                 await tg.send_signal(signal_id, s); log.info("alert %s %s edge=%s", signal_id, s.detector, s.edge)
 
             if tick - last_settle >= 120: await settle_open_paper_trades(); last_settle = tick
-            if tick - last_tg >= 2: await tg.poll_commands(); last_tg = tick
             state["last_scan"] = time.time(); state["last_reason"] = sorted(flags)
             state["market_ws_workers"] = market_stream.connected_workers
             state["sports_ws"] = sports_stream.connected; state["crypto_rtds"] = crypto_stream.connected
@@ -233,14 +242,17 @@ async def scanner_loop():
 
 @app.on_event("startup")
 async def startup():
-    global runner_task
+    global runner_task, telegram_task
     await sports_stream.start(); await crypto_stream.start()
     if runner_task is None: runner_task = asyncio.create_task(scanner_loop())
+    if telegram_task is None: telegram_task = asyncio.create_task(telegram_command_loop())
     asyncio.create_task(_notify_started())
 
 
 @app.on_event("shutdown")
 async def shutdown():
+    if telegram_task:
+        telegram_task.cancel(); await asyncio.gather(telegram_task, return_exceptions=True)
     if runner_task:
         runner_task.cancel(); await asyncio.gather(runner_task, return_exceptions=True)
     await market_stream.close(); await sports_stream.close(); await crypto_stream.close(); await poly.close(); await weather.close(); await macro.close(); await tg.close()
