@@ -35,7 +35,7 @@ market_stream = LiveMarketStream()
 sports_stream = SportsStream()
 crypto_stream = CryptoRTDS()
 tg = Telegram(store)
-app = FastAPI(title="Polymarket Edge Scanner", version="0.3.1")
+app = FastAPI(title="Polymarket Edge Scanner", version="0.3.2")
 state = {
     "started": time.time(), "last_scan": None, "markets": 0, "tokens": 0, "stations": 0,
     "weather_ready_stations": 0, "weather_forecast_ready_stations": 0, "weather_refreshing": False,
@@ -47,14 +47,19 @@ state = {
     "scan_in_progress": False,
     "last_compute_seconds": None,
     "last_universe_seconds": None,
+    "universe_refreshing": False,
     "settlement_in_progress": False,
     "last_settlement_seconds": None,
+    "signal_processing": False,
+    "signal_batches_pending": 0,
 }
 runner_task: asyncio.Task | None = None
 telegram_task: asyncio.Task | None = None
 alert_task: asyncio.Task | None = None
 health_snapshot_task: asyncio.Task | None = None
+signal_task: asyncio.Task | None = None
 alert_queue: asyncio.PriorityQueue = asyncio.PriorityQueue()
+signal_queue: asyncio.Queue[list[Signal]] = asyncio.Queue()
 alert_sequence = itertools.count()
 
 
@@ -71,14 +76,20 @@ def _weather_universe(markets: list[Market]) -> tuple[list[Market], list[str]]:
 
 def _quoted_asks(s: Signal) -> list[float]:
     if len(s.token_ids) == 1:
-        try: return [float(s.metadata.get("ask"))]
-        except (TypeError, ValueError): return []
+        try:
+            return [float(s.metadata.get("ask"))]
+        except (TypeError, ValueError):
+            return []
     if s.detector in {"binary_buy_both", "nested_threshold_arb"}:
-        try: return [float(s.metadata.get("yes_ask")), float(s.metadata.get("no_ask"))]
-        except (TypeError, ValueError): return []
+        try:
+            return [float(s.metadata.get("yes_ask")), float(s.metadata.get("no_ask"))]
+        except (TypeError, ValueError):
+            return []
     if s.detector == "neg_risk_underround":
-        try: return [float(x["ask"]) for x in s.metadata.get("legs", [])]
-        except Exception: return []
+        try:
+            return [float(x["ask"]) for x in s.metadata.get("legs", [])]
+        except Exception:
+            return []
     return []
 
 
@@ -144,7 +155,8 @@ async def confirm_actionable(s: Signal) -> Signal | None:
     quoted = _quoted_asks(s)
     if quoted and len(quoted) == len(asks) and any(a > q + 1e-9 for a, q in zip(asks, quoted)):
         return None
-    fees = sum(taker_fee_per_share(a) for a in asks); cost = sum(asks) + fees
+    fees = sum(taker_fee_per_share(a) for a in asks)
+    cost = sum(asks) + fees
     probability = float(s.metadata.get("lock_probability", 1.0)) if len(asks) == 1 else 1.0
     edge = probability - cost if len(asks) == 1 else 1.0 - cost
     if edge < settings.actionable_min_edge:
@@ -157,7 +169,8 @@ async def confirm_actionable(s: Signal) -> Signal | None:
         log.info("skip actionable %s: only $%.2f simultaneously visible at confirmed asks", s.detector, max_visible_notional)
         return None
 
-    s.entry_cost = cost; s.edge = edge
+    s.entry_cost = cost
+    s.edge = edge
     s.metadata["confirmed_asks"] = asks
     s.metadata["confirmed_sizes"] = sizes
     s.metadata["visible_common_shares"] = common_shares
@@ -204,10 +217,67 @@ async def telegram_alert_loop() -> None:
             alert_queue.task_done()
 
 
+async def signal_processing_loop() -> None:
+    """Verify/persist detector output away from the time-critical scanner loop.
+
+    ACTIONABLE candidates are never intentionally dropped. WATCH candidates are
+    pre-trimmed by the scanner because they are research leads, not trades.
+    """
+    while True:
+        batch = await signal_queue.get()
+        state["signal_batches_pending"] = signal_queue.qsize()
+        state["signal_processing"] = True
+        try:
+            watch_queued = 0
+            for s in batch:
+                try:
+                    s = await confirm_actionable(s)
+                    if s is None:
+                        continue
+                    signal_id = await asyncio.to_thread(store.save_signal, s)
+                    if signal_id is None:
+                        continue
+                    if s.confidence != "ACTIONABLE" and watch_queued >= settings.telegram_watch_per_scan_limit:
+                        state["telegram_watch_dropped"] = int(state.get("telegram_watch_dropped") or 0) + 1
+                        queued = False
+                    else:
+                        queued = enqueue_alert(signal_id, s)
+                        if queued and s.confidence != "ACTIONABLE":
+                            watch_queued += 1
+                    log.info("saved signal %s %s edge=%s telegram_queued=%s", signal_id, s.detector, s.edge, queued)
+                except asyncio.CancelledError:
+                    raise
+                except Exception as exc:
+                    log.warning("signal post-processing failed for %s: %r", getattr(s, "detector", "unknown"), exc)
+        finally:
+            state["signal_processing"] = False
+            signal_queue.task_done()
+            state["signal_batches_pending"] = signal_queue.qsize()
+
+
+def queue_detector_output(signals: list[Signal]) -> None:
+    """Keep every ACTIONABLE candidate; retain only strongest WATCH leads per pass."""
+    ordered = sorted(
+        signals,
+        key=lambda s: (0 if s.confidence == "ACTIONABLE" else 1, -(float(s.edge) if s.edge is not None else -1.0)),
+    )
+    actionables = [s for s in ordered if s.confidence == "ACTIONABLE"]
+    watches = [s for s in ordered if s.confidence != "ACTIONABLE"]
+    watch_keep = max(settings.telegram_watch_per_scan_limit, settings.telegram_watch_per_scan_limit * 2)
+    kept_watches = watches[:watch_keep]
+    dropped = max(0, len(watches) - len(kept_watches))
+    if dropped:
+        state["telegram_watch_dropped"] = int(state.get("telegram_watch_dropped") or 0) + dropped
+    batch = actionables + kept_watches
+    if batch:
+        signal_queue.put_nowait(batch)
+        state["signal_batches_pending"] = signal_queue.qsize()
+
+
 async def settle_open_paper_trades():
     """Resolve closed directional paper signals without serial network latency."""
     rows = [
-        row for row in store.open_directional()
+        row for row in await asyncio.to_thread(store.open_directional)
         if row["detector"] not in {"binary_buy_both", "neg_risk_underround", "nested_threshold_arb"}
     ]
     if not rows:
@@ -230,11 +300,12 @@ async def settle_open_paper_trades():
             prices = json.loads(m.get("outcomePrices") or "[]") if isinstance(m.get("outcomePrices"), str) else (m.get("outcomePrices") or [])
             token_ids = json.loads(row.get("token_ids") or "[]")
             market_tokens = json.loads(m.get("clobTokenIds") or "[]") if isinstance(m.get("clobTokenIds"), str) else (m.get("clobTokenIds") or [])
-            token = token_ids[0] if token_ids else None; idx = market_tokens.index(token) if token in market_tokens else -1
+            token = token_ids[0] if token_ids else None
+            idx = market_tokens.index(token) if token in market_tokens else -1
             if idx < 0 or idx >= len(prices):
                 continue
             won = float(prices[idx]) > 0.99
-            store.resolve(int(row["id"]), won, settings.paper_stake_usd)
+            await asyncio.to_thread(store.resolve, int(row["id"]), won, settings.paper_stake_usd)
             try:
                 await tg.send(f"✅ Paper result #{row['id']}: <b>{'WON' if won else 'LOST'}</b> — {row['title']}")
             except Exception as exc:
@@ -248,9 +319,12 @@ async def _wait_for_feeds(timeout: float) -> set[str]:
     tasks = {name: asyncio.create_task(ev.wait()) for name, ev in pairs.items()}
     done, pending = await asyncio.wait(tasks.values(), timeout=timeout, return_when=asyncio.FIRST_COMPLETED)
     flags = {name for name, task in tasks.items() if task in done}
-    for task in pending: task.cancel()
-    if pending: await asyncio.gather(*pending, return_exceptions=True)
-    for name in flags: pairs[name].clear()
+    for task in pending:
+        task.cancel()
+    if pending:
+        await asyncio.gather(*pending, return_exceptions=True)
+    for name in flags:
+        pairs[name].clear()
     return flags
 
 
@@ -275,6 +349,14 @@ async def telegram_command_loop() -> None:
         await asyncio.sleep(0.25)
 
 
+async def _prepare_universe(refreshed_markets: list[Market]) -> tuple[list[Market], list[str], list[Market], list[str]]:
+    if not refreshed_markets:
+        raise RuntimeError("Gamma discovery returned an empty active universe")
+    tokens = await asyncio.to_thread(_all_tokens, refreshed_markets)
+    weather_markets, stations = await asyncio.to_thread(_weather_universe, refreshed_markets)
+    return refreshed_markets, tokens, weather_markets, stations
+
+
 async def scanner_loop():
     markets: list[Market] = []
     weather_markets: list[Market] = []
@@ -282,11 +364,15 @@ async def scanner_loop():
     weather_cache: dict[str, list] = {}
     weather_task: asyncio.Task | None = None
     settlement_task: asyncio.Task | None = None
+    universe_task: asyncio.Task | None = None
     settlement_started = 0.0
+    universe_started = 0.0
     last_universe = last_weather = last_macro = last_settle = last_watch = 0.0
+
     while True:
         try:
-            tick = time.time(); universe_refreshed = weather_refreshed = macro_refreshed = False
+            tick = time.time()
+            universe_refreshed = weather_refreshed = macro_refreshed = False
 
             if weather_task is not None and weather_task.done():
                 try:
@@ -310,29 +396,50 @@ async def scanner_loop():
                 state["last_settlement_seconds"] = round(time.time() - settlement_started, 3)
                 settlement_task = None
 
-            if not markets or tick - last_universe >= settings.universe_refresh_seconds:
+            # Initial universe must exist before scanning. Every later Gamma refresh
+            # runs in the background so discovery latency cannot freeze live scans.
+            if not markets:
                 universe_started = time.time()
+                refreshed_markets = await poly.active_markets()
+                markets, tokens, weather_markets, stations = await _prepare_universe(refreshed_markets)
+                await market_stream.configure(tokens)
+                state["markets"] = len(markets)
+                state["tokens"] = len(tokens)
+                state["stations"] = len(stations)
+                last_universe = tick
+                universe_refreshed = True
+                state["universe_error"] = None
+                state["last_universe_seconds"] = round(time.time() - universe_started, 3)
+                log.info("initial universe loaded: %d markets / %d tokens / %d weather stations", len(markets), len(tokens), len(stations))
+
+            if universe_task is not None and universe_task.done():
+                state["universe_refreshing"] = False
                 try:
-                    refreshed_markets = await poly.active_markets()
-                    if not refreshed_markets:
-                        raise RuntimeError("Gamma discovery returned an empty active universe")
+                    refreshed_markets = universe_task.result()
+                    prepared_markets, tokens, prepared_weather, prepared_stations = await _prepare_universe(refreshed_markets)
                 except Exception as exc:
                     state["universe_error"] = repr(exc)
-                    if not markets:
-                        raise
-                    last_universe = tick
-                    log.warning("universe refresh failed; keeping %d existing markets: %r", len(markets), exc)
+                    log.warning("background universe refresh failed; keeping %d existing markets: %r", len(markets), exc)
                 else:
-                    markets = refreshed_markets
-                    tokens = await asyncio.to_thread(_all_tokens, markets)
-                    weather_markets, stations = await asyncio.to_thread(_weather_universe, markets)
+                    markets = prepared_markets
+                    weather_markets = prepared_weather
+                    stations = prepared_stations
                     await market_stream.configure(tokens)
-                    state["markets"] = len(markets); state["tokens"] = len(tokens); state["stations"] = len(stations)
-                    last_universe = tick; universe_refreshed = True
+                    state["markets"] = len(markets)
+                    state["tokens"] = len(tokens)
+                    state["stations"] = len(stations)
                     state["universe_error"] = None
-                    log.info("universe refreshed: %d markets / %d tokens / %d weather stations", len(markets), len(tokens), len(stations))
+                    universe_refreshed = True
+                    log.info("background universe refresh applied: %d markets / %d tokens / %d weather stations", len(markets), len(tokens), len(stations))
                 finally:
                     state["last_universe_seconds"] = round(time.time() - universe_started, 3)
+                    universe_task = None
+
+            if universe_task is None and tick - last_universe >= settings.universe_refresh_seconds:
+                universe_started = time.time()
+                universe_task = asyncio.create_task(poly.active_markets())
+                last_universe = tick
+                state["universe_refreshing"] = True
 
             if weather_task is None and (not weather_cache or tick - last_weather >= settings.weather_refresh_seconds):
                 weather_task = asyncio.create_task(_fetch_weather_batch(stations))
@@ -340,13 +447,17 @@ async def scanner_loop():
                 state["weather_refreshing"] = True
 
             if macro.enabled and tick - last_macro >= settings.macro_refresh_seconds:
-                await macro.refresh(); last_macro = tick; macro_refreshed = True
+                await macro.refresh()
+                last_macro = tick
+                macro_refreshed = True
 
             flags = {"fallback"}
             if not universe_refreshed:
                 flags = await _wait_for_feeds(settings.scan_interval_seconds) or {"fallback"}
                 if flags & {"market", "crypto"}:
-                    await asyncio.sleep(settings.websocket_debounce_seconds); market_stream.changed.clear(); crypto_stream.changed.clear()
+                    await asyncio.sleep(settings.websocket_debounce_seconds)
+                    market_stream.changed.clear()
+                    crypto_stream.changed.clear()
 
             books = market_stream.snapshot()
             fast_market = universe_refreshed or bool(flags & {"market", "fallback"})
@@ -375,34 +486,20 @@ async def scanner_loop():
             finally:
                 state["scan_in_progress"] = False
                 state["last_compute_seconds"] = round(time.time() - compute_started, 3)
+
             if run_watch:
                 last_watch = tick
 
-            # ACTIONABLE first, then the strongest WATCH leads. All signals are
-            # still persisted, but only a bounded number of WATCH messages are
-            # pushed to Telegram per pass so the alert queue cannot grow forever.
-            signals = sorted(
-                signals,
-                key=lambda s: (0 if s.confidence == "ACTIONABLE" else 1, -(float(s.edge) if s.edge is not None else -1.0)),
-            )
-            watch_queued = 0
-            for idx, s in enumerate(signals):
-                if idx and idx % 20 == 0:
-                    await asyncio.sleep(0)
-                s = await confirm_actionable(s)
-                if s is None:
-                    continue
-                signal_id = store.save_signal(s)
-                if signal_id is None:
-                    continue
-                if s.confidence != "ACTIONABLE" and watch_queued >= settings.telegram_watch_per_scan_limit:
-                    state["telegram_watch_dropped"] = int(state.get("telegram_watch_dropped") or 0) + 1
-                    queued = False
-                else:
-                    queued = enqueue_alert(signal_id, s)
-                    if queued and s.confidence != "ACTIONABLE":
-                        watch_queued += 1
-                log.info("saved signal %s %s edge=%s telegram_queued=%s", signal_id, s.detector, s.edge, queued)
+            # Detector completion is the scanner heartbeat. Verification, storage,
+            # and Telegram delivery continue independently in their own workers.
+            queue_detector_output(signals)
+            state["last_scan"] = time.time()
+            state["last_reason"] = sorted(flags)
+            state["market_ws_workers"] = market_stream.connected_workers
+            state["sports_ws"] = sports_stream.connected
+            state["crypto_rtds"] = crypto_stream.connected
+            state["macro"] = macro.status()
+            state["last_error"] = None
 
             if settlement_task is None and tick - last_settle >= 120:
                 settlement_started = time.time()
@@ -410,47 +507,58 @@ async def scanner_loop():
                 state["settlement_in_progress"] = True
                 last_settle = tick
 
-            state["last_scan"] = time.time(); state["last_reason"] = sorted(flags)
-            state["market_ws_workers"] = market_stream.connected_workers
-            state["sports_ws"] = sports_stream.connected; state["crypto_rtds"] = crypto_stream.connected
-            state["macro"] = macro.status(); state["last_error"] = None
         except asyncio.CancelledError:
             state["scan_in_progress"] = False
-            for task in (weather_task, settlement_task):
+            for task in (weather_task, settlement_task, universe_task):
                 if task is not None:
                     task.cancel()
-            await asyncio.gather(*(t for t in (weather_task, settlement_task) if t is not None), return_exceptions=True)
+            await asyncio.gather(
+                *(t for t in (weather_task, settlement_task, universe_task) if t is not None),
+                return_exceptions=True,
+            )
             raise
         except Exception as exc:
             state["scan_in_progress"] = False
-            state["last_error"] = repr(exc); log.exception("scanner iteration failed"); await asyncio.sleep(2)
+            state["last_error"] = repr(exc)
+            log.exception("scanner iteration failed")
+            await asyncio.sleep(2)
 
 
 @app.on_event("startup")
 async def startup():
-    global runner_task, telegram_task, alert_task, health_snapshot_task
-    await sports_stream.start(); await crypto_stream.start()
-    if runner_task is None: runner_task = asyncio.create_task(scanner_loop())
+    global runner_task, telegram_task, alert_task, health_snapshot_task, signal_task
+    await sports_stream.start()
+    await crypto_stream.start()
+    if runner_task is None:
+        runner_task = asyncio.create_task(scanner_loop())
     if settings.telegram_commands_in_app and telegram_task is None:
         telegram_task = asyncio.create_task(telegram_command_loop())
     elif not settings.telegram_commands_in_app:
         log.info("in-process Telegram command polling disabled; external command worker owns getUpdates")
-    if alert_task is None: alert_task = asyncio.create_task(telegram_alert_loop())
-    if health_snapshot_task is None: health_snapshot_task = asyncio.create_task(health_snapshot_loop())
+    if alert_task is None:
+        alert_task = asyncio.create_task(telegram_alert_loop())
+    if signal_task is None:
+        signal_task = asyncio.create_task(signal_processing_loop())
+    if health_snapshot_task is None:
+        health_snapshot_task = asyncio.create_task(health_snapshot_loop())
     asyncio.create_task(_notify_started())
 
 
 @app.on_event("shutdown")
 async def shutdown():
-    if health_snapshot_task:
-        health_snapshot_task.cancel(); await asyncio.gather(health_snapshot_task, return_exceptions=True)
-    if alert_task:
-        alert_task.cancel(); await asyncio.gather(alert_task, return_exceptions=True)
-    if telegram_task:
-        telegram_task.cancel(); await asyncio.gather(telegram_task, return_exceptions=True)
-    if runner_task:
-        runner_task.cancel(); await asyncio.gather(runner_task, return_exceptions=True)
-    await market_stream.close(); await sports_stream.close(); await crypto_stream.close(); await poly.close(); await weather.close(); await macro.close(); await tg.close()
+    for task in (health_snapshot_task, signal_task, alert_task, telegram_task, runner_task):
+        if task:
+            task.cancel()
+    tasks = [t for t in (health_snapshot_task, signal_task, alert_task, telegram_task, runner_task) if t]
+    if tasks:
+        await asyncio.gather(*tasks, return_exceptions=True)
+    await market_stream.close()
+    await sports_stream.close()
+    await crypto_stream.close()
+    await poly.close()
+    await weather.close()
+    await macro.close()
+    await tg.close()
 
 
 @app.get("/health")
@@ -459,12 +567,15 @@ async def health():
 
 
 @app.get("/stats")
-async def stats(): return store.stats()
+async def stats():
+    return await asyncio.to_thread(store.stats)
 
 
 @app.get("/mystats")
-async def mystats(): return store.manual_stats()
+async def mystats():
+    return await asyncio.to_thread(store.manual_stats)
 
 
 @app.get("/recent")
-async def recent(): return store.recent(20)
+async def recent():
+    return await asyncio.to_thread(store.recent, 20)
