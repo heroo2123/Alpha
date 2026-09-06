@@ -161,7 +161,7 @@ class Telegram:
             return (["Tap OPEN EVENT below.", f"Buy YES on ALL {len(legs)} listed outcomes using the SAME share count.", "Do not omit any outcome and do not start if any quoted leg has moved higher."], "The basket only works if the outcomes are exhaustive/mutually exclusive and every leg fills.")
         if s.detector == "weather_late_lock":
             ask = m.get("ask"); mx = m.get("observed_max"); unit = m.get("unit", ""); station = m.get("station", "")
-            return (["Tap OPEN MARKET below.", f"Verify the official hourly table still shows a daily max of {mx}°{unit} at {station}.", f"Buy YES on the matching temperature bucket at {float(ask):.3f} or lower; if higher, SKIP.", "Hold to resolution unless you deliberately exit earlier."], "The fast observation feed is a proxy; the market Rules/official settlement source override it.")
+            return (["Tap OPEN MARKET below.", f"Verify the official hourly table still shows a daily max of {mx}°{unit} at {station}.", f"Buy YES on the matching temperature bucket at {float(ask):.3f} or lower; if higher, SKIP.", "Hold to resolution unless you deliberately exit early."], "The fast observation feed is a proxy; the market Rules/official settlement source override it.")
         if s.detector == "duplicate_divergence":
             return (["Open both markets using the buttons.", "Compare the Rules, deadline and resolution source line-by-line.", "Only investigate the cheaper side if the contracts are truly equivalent."], "Similar wording does not prove identical settlement rules.")
         if s.detector == "wide_spread":
@@ -258,22 +258,40 @@ class Telegram:
         last_error = st.get("last_error")
         queue_depth = int(st.get("telegram_alert_queue") or 0)
         dropped = int(st.get("telegram_watch_dropped") or 0)
+        scan_running = bool(st.get("scan_in_progress"))
+        compute_seconds = st.get("last_compute_seconds")
+        command_poll_age = self._age_text(st.get("telegram_last_command_poll"))
+        command_error = st.get("telegram_command_error")
+        alert_error = st.get("telegram_alert_error")
+
+        if scan_running:
+            detector_line = "Detector worker: <b>RUNNING in background</b>"
+        elif compute_seconds is None:
+            detector_line = "Detector worker: <b>waiting for first pass</b>"
+        else:
+            detector_line = f"Detector worker: last pass <b>{float(compute_seconds):.2f}s</b>"
 
         lines = [
             f"{icon} <b>Scanner status: {'HEALTHY' if ok else 'DEGRADED'}</b>",
             f"Last completed scan: <b>{html.escape(last_scan)}</b>",
+            detector_line,
             f"Markets: <b>{markets:,}</b> | Tokens: <b>{tokens:,}</b>",
             f"Polymarket WS workers: <b>{ws_workers}</b>",
             f"Weather: <b>{ready}/{stations}</b> stations ready" + (" (refreshing)" if weather_refreshing else ""),
             f"Sports live feed: {sports}",
             f"Crypto live feed: {crypto}",
+            f"Telegram command poll: <b>{html.escape(command_poll_age)}</b>",
             f"Telegram alert backlog: <b>{queue_depth}</b>" + (f" | WATCH skipped: <b>{dropped}</b>" if dropped else ""),
         ]
+        if command_error:
+            lines.append(f"⚠️ Telegram command error: <code>{html.escape(str(command_error)[:250])}</code>")
+        if alert_error:
+            lines.append(f"⚠️ Telegram alert error: <code>{html.escape(str(alert_error)[:250])}</code>")
         if last_error:
             lines.append(f"⚠️ Scanner error: <code>{html.escape(str(last_error)[:350])}</code>")
         if universe_error:
             lines.append(f"⚠️ Universe refresh: <code>{html.escape(str(universe_error)[:350])}</code>")
-        if not last_error and not universe_error:
+        if not last_error and not universe_error and not command_error and not alert_error:
             lines.append("Errors: <b>none</b>")
         await self.send("\n".join(lines))
 
