@@ -44,14 +44,8 @@ class PolymarketClient:
     async def close(self) -> None:
         await self.http.aclose()
 
-    async def _event_page(self, offset: int) -> list[dict]:
-        """Fetch one Gamma event page with a compatibility fallback.
-
-        Gamma has changed validation around sort fields/page sizes over time. Sorting is
-        not required for the scanner, so if the optimized request is rejected (422),
-        retry with only the stable filter/pagination parameters rather than taking the
-        whole scanner offline.
-        """
+    async def _event_page(self, offset: int, *, tag_slug: str | None = None) -> list[dict]:
+        """Fetch one Gamma event page with a compatibility fallback."""
         page_size = max(1, min(int(settings.gamma_page_size), 100))
         base = {
             "active": "true",
@@ -59,6 +53,8 @@ class PolymarketClient:
             "limit": page_size,
             "offset": offset,
         }
+        if tag_slug:
+            base["tag_slug"] = tag_slug
         preferred = {**base, "order": "volume", "ascending": "false"}
         r = await self.http.get(f"{GAMMA}/events", params=preferred)
         if r.status_code == 422:
@@ -68,47 +64,76 @@ class PolymarketClient:
         events = payload.get("events", []) if isinstance(payload, dict) else payload
         return events if isinstance(events, list) else []
 
+    def _append_events(self, out: list[Market], events: list[dict], seen_market_ids: set[str] | None = None) -> None:
+        seen = seen_market_ids if seen_market_ids is not None else set()
+        for event in events:
+            event_id = str(event.get("id", ""))
+            event_slug = event.get("slug") or ""
+            event_title = event.get("title") or ""
+            tags = [str(t.get("slug") or t.get("label") or "") for t in (event.get("tags") or []) if isinstance(t, dict)]
+            for raw_market in event.get("markets") or []:
+                m = dict(raw_market)
+                market_id = str(m.get("id", ""))
+                if not market_id or market_id in seen:
+                    continue
+                if not bool(m.get("active", True)) or bool(m.get("closed", False)):
+                    continue
+                m["_event"] = event
+                outcomes = [str(x) for x in _json_list(m.get("outcomes"))]
+                token_ids = [str(x) for x in _json_list(m.get("clobTokenIds"))]
+                prices = [_f(x) for x in _json_list(m.get("outcomePrices"))]
+                out.append(Market(
+                    id=market_id, event_id=event_id,
+                    event_slug=event_slug, event_title=event_title,
+                    event_neg_risk=bool(event.get("negRisk") or m.get("negRisk")),
+                    question=m.get("question") or "", slug=m.get("slug") or "",
+                    condition_id=m.get("conditionId") or "", outcomes=outcomes,
+                    token_ids=token_ids, outcome_prices=prices,
+                    best_bid=_f(m.get("bestBid"), None) if m.get("bestBid") is not None else None,
+                    best_ask=_f(m.get("bestAsk"), None) if m.get("bestAsk") is not None else None,
+                    liquidity=_f(m.get("liquidityNum") or m.get("liquidity")),
+                    volume_24h=_f(m.get("volume24hr") or m.get("volume24hrClob") or m.get("volumeNum")),
+                    active=True, closed=False,
+                    end_date=m.get("endDate") or m.get("endDateIso"),
+                    description=(m.get("description") or event.get("description") or ""),
+                    resolution_source=(m.get("resolutionSource") or event.get("resolutionSource") or ""),
+                    category=(m.get("category") or event.get("category") or ""),
+                    tags=tags, raw=m,
+                ))
+                seen.add(market_id)
+
     async def active_markets(self) -> list[Market]:
         markets: list[Market] = []
+        seen: set[str] = set()
         offset = 0
         page_size = max(1, min(int(settings.gamma_page_size), 100))
+
+        # Broad liquid universe, capped for the small free-tier VM.
         while len(markets) < settings.max_events:
             events = await self._event_page(offset)
             if not events:
                 break
-            for event in events:
-                event_id = str(event.get("id", ""))
-                event_slug = event.get("slug") or ""
-                event_title = event.get("title") or ""
-                tags = [str(t.get("slug") or t.get("label") or "") for t in (event.get("tags") or []) if isinstance(t, dict)]
-                for raw_market in event.get("markets") or []:
-                    m = dict(raw_market)
-                    m["_event"] = event
-                    outcomes = [str(x) for x in _json_list(m.get("outcomes"))]
-                    token_ids = [str(x) for x in _json_list(m.get("clobTokenIds"))]
-                    prices = [_f(x) for x in _json_list(m.get("outcomePrices"))]
-                    markets.append(Market(
-                        id=str(m.get("id", "")), event_id=event_id,
-                        event_slug=event_slug, event_title=event_title,
-                        event_neg_risk=bool(event.get("negRisk") or m.get("negRisk")),
-                        question=m.get("question") or "", slug=m.get("slug") or "",
-                        condition_id=m.get("conditionId") or "", outcomes=outcomes,
-                        token_ids=token_ids, outcome_prices=prices,
-                        best_bid=_f(m.get("bestBid"), None) if m.get("bestBid") is not None else None,
-                        best_ask=_f(m.get("bestAsk"), None) if m.get("bestAsk") is not None else None,
-                        liquidity=_f(m.get("liquidityNum") or m.get("liquidity")),
-                        volume_24h=_f(m.get("volume24hr") or m.get("volume24hrClob") or m.get("volumeNum")),
-                        active=bool(m.get("active", True)), closed=bool(m.get("closed", False)),
-                        end_date=m.get("endDate") or m.get("endDateIso"),
-                        description=(m.get("description") or event.get("description") or ""),
-                        resolution_source=(m.get("resolutionSource") or event.get("resolutionSource") or ""),
-                        category=(m.get("category") or event.get("category") or ""),
-                        tags=tags, raw=m,
-                    ))
+            self._append_events(markets, events, seen)
             if len(events) < page_size:
                 break
             offset += page_size
-        return markets[: settings.max_events]
+        markets = markets[: settings.max_events]
+        seen = {m.id for m in markets}
+
+        # Weather is a priority strategy family and must never disappear merely
+        # because a 24h-volume cap filled with other markets first. Gamma's
+        # documented tag_slug filter lets us merge all active Weather events.
+        weather_offset = 0
+        for _ in range(20):  # hard safety cap; normally only a few pages
+            events = await self._event_page(weather_offset, tag_slug="weather")
+            if not events:
+                break
+            self._append_events(markets, events, seen)
+            if len(events) < page_size:
+                break
+            weather_offset += page_size
+
+        return markets
 
     async def book(self, token_id: str) -> Book | None:
         try:
