@@ -35,7 +35,7 @@ market_stream = LiveMarketStream()
 sports_stream = SportsStream()
 crypto_stream = CryptoRTDS()
 tg = Telegram(store)
-app = FastAPI(title="Polymarket Edge Scanner", version="0.2.3")
+app = FastAPI(title="Polymarket Edge Scanner", version="0.2.4")
 state = {
     "started": time.time(), "last_scan": None, "markets": 0, "tokens": 0, "stations": 0,
     "weather_ready_stations": 0, "weather_refreshing": False, "last_error": None,
@@ -70,12 +70,7 @@ def _quoted_asks(s: Signal) -> list[float]:
 
 
 async def _fetch_weather_batch(stations: list[str]) -> dict[str, list]:
-    """Fetch station observations without blocking the main scanner loop.
-
-    AWC permits far more requests than this scanner needs, but using a small
-    semaphore avoids a burst of dozens of concurrent requests while still
-    completing much faster than the old serial loop.
-    """
+    """Fetch station observations without blocking the main scanner loop."""
     sem = asyncio.Semaphore(8)
 
     async def one(station: str) -> tuple[str, list]:
@@ -94,8 +89,6 @@ async def _fetch_weather_batch(stations: list[str]) -> dict[str, list]:
 async def confirm_actionable(s: Signal) -> Signal | None:
     if s.confidence != "ACTIONABLE" or not s.token_ids:
         return s
-    # REST is intentionally used only for the handful of legs in a candidate
-    # ACTIONABLE signal. The whole market book universe lives on WebSockets.
     fresh = await poly.books(s.token_ids)
     if any(t not in fresh or fresh[t].best_ask is None or fresh[t].best_ask_size <= 0 for t in s.token_ids):
         return None
@@ -158,13 +151,11 @@ async def _notify_started() -> None:
 async def scanner_loop():
     markets: list[Market] = []; weather_cache: dict[str, list] = {}
     weather_task: asyncio.Task | None = None
-    weather_task_stations: list[str] = []
     last_universe = last_weather = last_macro = last_settle = last_watch = last_tg = 0.0
     while True:
         try:
             tick = time.time(); universe_refreshed = weather_refreshed = macro_refreshed = False
 
-            # Consume a completed weather refresh, but never wait for it here.
             if weather_task is not None and weather_task.done():
                 try:
                     weather_cache = weather_task.result()
@@ -177,9 +168,6 @@ async def scanner_loop():
 
             if not markets or tick - last_universe >= settings.universe_refresh_seconds:
                 markets = await poly.active_markets(); tokens = _all_tokens(markets)
-                # Do NOT POST the entire token universe to /books here. Initial/full
-                # orderbooks arrive from the public market WebSocket; subsequent
-                # universe changes are incremental WS subscriptions.
                 await market_stream.configure(tokens)
                 state["markets"] = len(markets); state["tokens"] = len(tokens); last_universe = tick; universe_refreshed = True
                 log.info("universe refreshed: %d markets / %d tokens", len(markets), len(tokens))
@@ -187,11 +175,8 @@ async def scanner_loop():
             weather_markets = [m for m in markets if "highest temperature" in f"{m.event_title} {m.question}".lower()]
             stations = sorted({s for m in weather_markets if (s := station_from_market(m))}); state["stations"] = len(stations)
 
-            # Start weather refresh in the background. This keeps structural, sports,
-            # crypto and Telegram processing alive even if an external weather API is slow.
             if weather_task is None and (not weather_cache or tick - last_weather >= settings.weather_refresh_seconds):
-                weather_task_stations = stations
-                weather_task = asyncio.create_task(_fetch_weather_batch(weather_task_stations))
+                weather_task = asyncio.create_task(_fetch_weather_batch(stations))
                 last_weather = tick
                 state["weather_refreshing"] = True
 
@@ -213,7 +198,14 @@ async def scanner_loop():
             if fast_market or "crypto" in flags: signals.extend(crypto_resolution_lag(markets, books, crypto_stream))
             if fast_market or macro_refreshed: signals.extend(official_macro_release_lag(markets, books, macro))
             if universe_refreshed or tick - last_watch >= 60:
-                signals.extend(crypto_crossfeed_divergence(markets, crypto_stream)); signals.extend(duplicate_divergence(markets)); signals.extend(wide_spread_watch(markets)); last_watch = tick
+                signals.extend(crypto_crossfeed_divergence(markets, crypto_stream))
+                # Duplicate text matching is WATCH-only and relatively CPU-heavy.
+                # Run it off the asyncio event loop so it cannot delay WebSocket
+                # heartbeats, sports/crypto feeds, or actionable market processing.
+                dup_task = asyncio.to_thread(duplicate_divergence, list(markets))
+                spread_task = asyncio.to_thread(wide_spread_watch, list(markets))
+                dup_signals, spread_signals = await asyncio.gather(dup_task, spread_task)
+                signals.extend(dup_signals); signals.extend(spread_signals); last_watch = tick
 
             signals.sort(key=lambda x: (x.confidence != "ACTIONABLE", -(x.edge or 0)))
             for s in signals:
@@ -256,7 +248,6 @@ async def shutdown():
 
 @app.get("/health")
 async def health():
-    # Report live transport state even if a scan iteration is currently busy.
     return {
         "ok": state["last_error"] is None,
         **state,
