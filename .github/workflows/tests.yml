@@ -15,4 +15,4 @@ jobs:
       - run: pip install -r requirements-dev.txt
       - run: pytest -q
       - run: python -m py_compile app.py polymarket_scanner/*.py
-      - run: bash -n deploy/oracle/*.sh
+      - run: bash -n deploy/oracle/*.sh deploy/gcp/*.sh
