@@ -74,6 +74,9 @@ PAPER_STAKE_USD=100
 MARKET_WS_ENABLED=true
 SPORTS_WS_ENABLED=true
 CRYPTO_RTDS_ENABLED=true
+MARKET_WS_PRIORITY_TOKEN_LIMIT=3200
+TOP_PRICE_REFRESH_SECONDS=45
+SCANNER_WATCHDOG_STALE_SECONDS=120
 EOF
 chmod 600 "${ENV_FILE}"
 unset TELEGRAM_BOT_TOKEN
@@ -92,7 +95,7 @@ User=${CURRENT_USER}
 WorkingDirectory=${APP_DIR}
 EnvironmentFile=${ENV_FILE}
 Environment=PYTHONUNBUFFERED=1
-ExecStart=${APP_DIR}/.venv/bin/uvicorn app:app --host 127.0.0.1 --port 8000
+ExecStart=${APP_DIR}/.venv/bin/uvicorn app_stable:app --host 127.0.0.1 --port 8000
 Restart=always
 RestartSec=5
 TimeoutStopSec=30
