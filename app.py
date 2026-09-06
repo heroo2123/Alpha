@@ -10,11 +10,16 @@ from datetime import datetime, timezone
 from fastapi import FastAPI
 
 from polymarket_scanner.config import settings
-from polymarket_scanner.detectors import (
-    binary_buy_both, duplicate_divergence, neg_risk_underround, weather_late_lock, wide_spread_watch,
-)
+from polymarket_scanner.detectors import duplicate_divergence, weather_late_lock, wide_spread_watch
 from polymarket_scanner.detectors_v02 import (
-    crypto_crossfeed_divergence, crypto_resolution_lag, nested_threshold_arbitrage, official_macro_release_lag, sports_result_lag,
+    crypto_crossfeed_divergence, crypto_resolution_lag, official_macro_release_lag, sports_result_lag,
+)
+from polymarket_scanner.hardening import (
+    MIN_VISIBLE_NOTIONAL_USD,
+    archive_legacy_structural_stats,
+    hardened_binary_buy_both,
+    hardened_neg_risk_underround,
+    hardened_nested_threshold_arbitrage,
 )
 from polymarket_scanner.macro import MacroClient
 from polymarket_scanner.models import Book, Market, Signal
@@ -28,6 +33,9 @@ logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"), format="%(asctime)s %(
 log = logging.getLogger("polybot")
 
 store = Store(settings.db_path)
+legacy_structural_archived = archive_legacy_structural_stats(settings.db_path)
+if legacy_structural_archived:
+    log.warning("Archived %d legacy structural signals whose paper wins assumed fills", legacy_structural_archived)
 poly = PolymarketClient()
 weather = WeatherClient()
 macro = MacroClient()
@@ -35,13 +43,14 @@ market_stream = LiveMarketStream()
 sports_stream = SportsStream()
 crypto_stream = CryptoRTDS()
 tg = Telegram(store)
-app = FastAPI(title="Polymarket Edge Scanner", version="0.2.6")
+app = FastAPI(title="Polymarket Edge Scanner", version="0.2.7")
 state = {
     "started": time.time(), "last_scan": None, "markets": 0, "tokens": 0, "stations": 0,
     "weather_ready_stations": 0, "weather_refreshing": False, "last_error": None,
     "universe_error": None,
     "market_ws_workers": 0, "sports_ws": False, "crypto_rtds": False,
     "macro": {}, "last_reason": None,
+    "legacy_structural_archived": legacy_structural_archived,
 }
 runner_task: asyncio.Task | None = None
 telegram_task: asyncio.Task | None = None
@@ -89,6 +98,12 @@ async def _fetch_weather_batch(stations: list[str]) -> dict[str, list]:
 
 
 async def confirm_actionable(s: Signal) -> Signal | None:
+    """REST-confirm every ACTIONABLE leg immediately before alerting.
+
+    Besides price, require enough simultaneous top-of-book size to make the alert
+    worth executing manually. The scanner never assumes fills merely because asks
+    existed at one instant.
+    """
     if s.confidence != "ACTIONABLE" or not s.token_ids:
         return s
     fresh = await poly.books(s.token_ids)
@@ -103,15 +118,31 @@ async def confirm_actionable(s: Signal) -> Signal | None:
     edge = probability - cost if len(asks) == 1 else 1.0 - cost
     if edge < settings.actionable_min_edge:
         return None
+
+    sizes = [float(fresh[t].best_ask_size) for t in s.token_ids]
+    common_shares = min(sizes)
+    max_visible_notional = common_shares * cost
+    if max_visible_notional < MIN_VISIBLE_NOTIONAL_USD:
+        log.info(
+            "skip actionable %s: only $%.2f simultaneously visible at confirmed asks",
+            s.detector, max_visible_notional,
+        )
+        return None
+
     s.entry_cost = cost; s.edge = edge
     s.metadata["confirmed_asks"] = asks
-    s.metadata["confirmed_sizes"] = [fresh[t].best_ask_size for t in s.token_ids]
+    s.metadata["confirmed_sizes"] = sizes
+    s.metadata["visible_common_shares"] = common_shares
+    s.metadata["max_visible_notional_usd"] = max_visible_notional
     s.metadata["rest_confirmed_at"] = datetime.now(timezone.utc).isoformat()
     return s
 
 
 async def settle_open_paper_trades():
     for row in store.open_directional():
+        # Structural baskets are deliberately unscored: observing simultaneous asks
+        # is not proof that every leg actually filled. They remain auditable OPEN
+        # alerts rather than being credited as instant paper wins.
         if row["detector"] in {"binary_buy_both", "neg_risk_underround", "nested_threshold_arb"}:
             continue
         m = await poly.market_by_id(str(row["market_id"]))
@@ -189,8 +220,6 @@ async def scanner_loop():
                     state["universe_error"] = repr(exc)
                     if not markets:
                         raise
-                    # Keep the last known-good universe and its live subscriptions.
-                    # Retry on the normal refresh cadence instead of killing scanning.
                     last_universe = tick
                     log.warning("universe refresh failed; keeping %d existing markets: %r", len(markets), exc)
                 else:
@@ -220,7 +249,9 @@ async def scanner_loop():
             books = market_stream.snapshot(); _apply_live_bbo(markets, books)
             signals: list[Signal] = []; fast_market = universe_refreshed or bool(flags & {"market", "fallback"})
             if fast_market:
-                signals.extend(binary_buy_both(markets, books)); signals.extend(neg_risk_underround(markets, books)); signals.extend(nested_threshold_arbitrage(markets, books))
+                signals.extend(hardened_binary_buy_both(markets, books))
+                signals.extend(hardened_neg_risk_underround(markets, books))
+                signals.extend(hardened_nested_threshold_arbitrage(markets, books))
             if weather_cache and (fast_market or weather_refreshed): signals.extend(weather_late_lock(weather_markets, books, weather_cache))
             if fast_market or "sports" in flags: signals.extend(sports_result_lag(markets, books, sports_stream.snapshot()))
             if fast_market or "crypto" in flags: signals.extend(crypto_resolution_lag(markets, books, crypto_stream))
@@ -238,7 +269,8 @@ async def scanner_loop():
                 if s is None: continue
                 signal_id = store.save_signal(s)
                 if signal_id is None: continue
-                if s.confidence == "ACTIONABLE" and s.metadata.get("immediate_settlement"): store.settle_immediate(signal_id, settings.paper_stake_usd)
+                # Never credit a structural signal as an instant paper win. A quote
+                # snapshot is evidence of an opportunity, not evidence of execution.
                 await tg.send_signal(signal_id, s); log.info("alert %s %s edge=%s", signal_id, s.detector, s.edge)
 
             if tick - last_settle >= 120: await settle_open_paper_trades(); last_settle = tick
