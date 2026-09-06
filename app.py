@@ -35,7 +35,7 @@ market_stream = LiveMarketStream()
 sports_stream = SportsStream()
 crypto_stream = CryptoRTDS()
 tg = Telegram(store)
-app = FastAPI(title="Polymarket Edge Scanner", version="0.2.1")
+app = FastAPI(title="Polymarket Edge Scanner", version="0.2.2")
 state = {"started": time.time(), "last_scan": None, "markets": 0, "tokens": 0, "stations": 0, "last_error": None, "market_ws_workers": 0, "sports_ws": False, "crypto_rtds": False, "macro": {}, "last_reason": None}
 runner_task: asyncio.Task | None = None
 
@@ -67,6 +67,8 @@ def _quoted_asks(s: Signal) -> list[float]:
 async def confirm_actionable(s: Signal) -> Signal | None:
     if s.confidence != "ACTIONABLE" or not s.token_ids:
         return s
+    # REST is intentionally used only for the handful of legs in a candidate
+    # ACTIONABLE signal. The whole market book universe lives on WebSockets.
     fresh = await poly.books(s.token_ids)
     if any(t not in fresh or fresh[t].best_ask is None or fresh[t].best_ask_size <= 0 for t in s.token_ids):
         return None
@@ -129,13 +131,15 @@ async def _notify_started() -> None:
 async def scanner_loop():
     markets: list[Market] = []; weather_cache: dict[str, list] = {}
     last_universe = last_weather = last_macro = last_settle = last_watch = last_tg = 0.0
-    initial_books: dict[str, Book] = {}
     while True:
         try:
             tick = time.time(); universe_refreshed = weather_refreshed = macro_refreshed = False
             if not markets or tick - last_universe >= settings.universe_refresh_seconds:
-                markets = await poly.active_markets(); tokens = _all_tokens(markets); initial_books = await poly.books(tokens)
-                market_stream.seed(initial_books); await market_stream.configure(tokens)
+                markets = await poly.active_markets(); tokens = _all_tokens(markets)
+                # Do NOT POST the entire ~20k-token universe to /books here.
+                # Initial/full orderbooks arrive from the public market WebSocket;
+                # subsequent universe changes are incremental WS subscriptions.
+                await market_stream.configure(tokens)
                 state["markets"] = len(markets); state["tokens"] = len(tokens); last_universe = tick; universe_refreshed = True
                 log.info("universe refreshed: %d markets / %d tokens", len(markets), len(tokens))
 
@@ -152,7 +156,7 @@ async def scanner_loop():
                 if flags & {"market", "crypto"}:
                     await asyncio.sleep(settings.websocket_debounce_seconds); market_stream.changed.clear(); crypto_stream.changed.clear()
 
-            books = market_stream.snapshot() or initial_books; _apply_live_bbo(markets, books)
+            books = market_stream.snapshot(); _apply_live_bbo(markets, books)
             signals: list[Signal] = []; fast_market = universe_refreshed or bool(flags & {"market", "fallback"})
             if fast_market:
                 signals.extend(binary_buy_both(markets, books)); signals.extend(neg_risk_underround(markets, books)); signals.extend(nested_threshold_arbitrage(markets, books))
