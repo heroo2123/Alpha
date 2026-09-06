@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     telegram_actionable_min_interval_seconds: float = 1.05
     telegram_watch_min_interval_seconds: float = 1.5
     telegram_watch_backlog_limit: int = 20
+    telegram_watch_per_scan_limit: int = 3
 
     # Live feeds
     market_ws_enabled: bool = True
