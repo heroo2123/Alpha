@@ -111,15 +111,34 @@ def weather_late_lock(markets: list[Market], books: dict[str, Book], weather_cac
         edge = info["probability"] - net_cost
         if ask >= settings.weather_market_price_ceiling or edge < settings.actionable_min_edge:
             continue
-        margin = info["forecast_margin"]
         unit = info["unit"]
+        has_temp_forecast = bool(info.get("forecast_has_temperature"))
+        if has_temp_forecast:
+            margin = float(info["forecast_margin"])
+            forecast_evidence = (
+                f"Remaining-day {info['forecast_provider']} max {info['forecast_remaining_max']:.0f}°{unit}, "
+                f"{margin:.0f}° below the observed high"
+            )
+            forecast_action = (
+                f"Confirm the remaining-day forecast still stays comfortably below that high; "
+                f"this alert saw a max of {info['forecast_remaining_max']:.0f}°{unit}."
+            )
+        else:
+            margin = None
+            forecast_evidence = (
+                f"{info['forecast_provider']} is risk-only (no surface-temperature max); "
+                f"observed temperature is {info['observed_drop']:.0f}°{unit} below the day's high and the stricter fallback gate passed"
+            )
+            forecast_action = (
+                "Confirm the TAF/risk outlook still shows no thunderstorm or major wind-regime change. "
+                "Because no surface-temperature forecast max is available, treat this alert more conservatively."
+            )
         detail = (
             f"{station}: exact {info['settlement_source_kind']} settlement station verified. "
             f"Official-hourly observed max {info['observed_max']:.0f}°{unit}; current {info['current']:.0f}°; "
             f"recent {info['hourly_values']}; latest hourly observation {info['latest_observation_age_minutes']:.0f} min old. "
-            f"Local time {info['local_time']} ({info['timezone']}). Remaining-day {info['forecast_provider']} max "
-            f"{info['forecast_remaining_max']:.0f}°{unit}, {margin:.0f}° below the observed high; "
-            f"max precip probability {info['max_precip_probability']:.0f}%, max cloud {info['max_cloud_cover']:.0f}%; "
+            f"Local time {info['local_time']} ({info['timezone']}). {forecast_evidence}; "
+            f"max precip signal {info['max_precip_probability']:.0f}%, max cloud {info['max_cloud_cover']:.0f}%; "
             f"thunderstorm/front-regime gates clear. Model lock probability {info['probability']:.1%}. "
             f"Matching bucket ask {ask:.3f}, est. fee/share {fee:.4f}, model edge {edge:.2%}."
         )
@@ -135,8 +154,10 @@ def weather_late_lock(markets: list[Market], books: dict[str, Book], weather_cac
                 "lock_probability": info["probability"],
                 "observed_max": info["observed_max"],
                 "unit": unit,
-                "forecast_remaining_max": info["forecast_remaining_max"],
+                "forecast_remaining_max": info.get("forecast_remaining_max"),
                 "forecast_margin": margin,
+                "forecast_has_temperature": has_temp_forecast,
+                "observed_drop": info.get("observed_drop"),
                 "timezone": info["timezone"],
                 "settlement_source_verified": True,
                 "settlement_source_url": info["settlement_source_url"],
@@ -147,10 +168,10 @@ def weather_late_lock(markets: list[Market], books: dict[str, Book], weather_cac
                     "Tap OPEN MARKET below.",
                     f"Open the market Rules and verify the settlement station is still {station} on the NOAA/NWS WRH time-series source.",
                     f"Confirm the official hourly table still shows a daily high of {info['observed_max']:.0f}°{unit} and no newer observation has exceeded it.",
-                    f"Confirm the remaining-day forecast still stays comfortably below that high; this alert saw a max of {info['forecast_remaining_max']:.0f}°{unit}.",
+                    forecast_action,
                     f"Buy YES on the matching bucket at {ask:.3f} or lower. If the ask moved higher or any verification changed, SKIP.",
                 ],
-                "risk_note": "The forecast is advisory, not the settlement source. Skip if the official WRH table, station/date/rules, or remaining-day weather no longer match the alert. A forecast can be wrong.",
+                "risk_note": "Forecast/risk data are advisory, not the settlement source. Skip if the official WRH table, station/date/rules, or remaining-day weather no longer match the alert. Risk forecasts can be wrong.",
             },
         ))
     return out
