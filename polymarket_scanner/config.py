@@ -20,7 +20,9 @@ class Settings(BaseSettings):
     port: int = 8000
     request_timeout: float = 20.0
     max_events: int = 10000
-    gamma_page_size: int = 200
+    # Keep Gamma list pages conservative. The API has changed validation rules over time;
+    # 100 is broadly compatible and still cheap enough for full-universe pagination.
+    gamma_page_size: int = 100
     alert_cooldown_seconds: int = 900
 
     # Live feeds
