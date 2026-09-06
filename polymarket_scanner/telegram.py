@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 import html
+import logging
 import re
 import time
 
@@ -10,14 +12,29 @@ from .config import settings
 from .models import Signal
 from .store import Store
 
+log = logging.getLogger("polybot.telegram")
+
 
 class Telegram:
+    """Telegram transport with isolated command and alert lanes.
+
+    Commands intentionally use a different AsyncClient from signal delivery so a
+    burst of sendMessage calls (or Telegram throttling on those calls) cannot
+    starve getUpdates or command replies.
+    """
+
     def __init__(self, store: Store) -> None:
         self.store = store
         self.token = settings.telegram_bot_token
         self.chat_id = settings.telegram_chat_id
-        self.http = httpx.AsyncClient(timeout=20)
+        limits = httpx.Limits(max_connections=10, max_keepalive_connections=5)
+        self.command_http = httpx.AsyncClient(timeout=20, limits=limits)
+        self.alert_http = httpx.AsyncClient(timeout=20, limits=limits)
+        self.local_http = httpx.AsyncClient(timeout=5, trust_env=False)
         self._commands_registered = False
+        self.last_command_poll_at: float | None = None
+        self.last_command_error: str | None = None
+        self.last_alert_error: str | None = None
 
     @property
     def token_enabled(self) -> bool:
@@ -28,23 +45,76 @@ class Telegram:
         return bool(self.token and self.chat_id)
 
     async def close(self):
-        await self.http.aclose()
+        await asyncio.gather(
+            self.command_http.aclose(),
+            self.alert_http.aclose(),
+            self.local_http.aclose(),
+            return_exceptions=True,
+        )
 
-    async def send_to(self, chat_id: str | int, text: str, reply_markup: dict | None = None) -> None:
+    async def _post_message(
+        self,
+        client: httpx.AsyncClient,
+        chat_id: str | int,
+        text: str,
+        reply_markup: dict | None = None,
+        *,
+        lane: str,
+    ) -> None:
         if not self.token:
             return
-        payload = {"chat_id": chat_id, "text": text, "parse_mode": "HTML", "disable_web_page_preview": True}
+        payload = {
+            "chat_id": chat_id,
+            "text": text,
+            "parse_mode": "HTML",
+            "disable_web_page_preview": True,
+        }
         if reply_markup:
             payload["reply_markup"] = reply_markup
-        r = await self.http.post(f"https://api.telegram.org/bot{self.token}/sendMessage", json=payload)
-        r.raise_for_status()
+
+        url = f"https://api.telegram.org/bot{self.token}/sendMessage"
+        for attempt in range(3):
+            try:
+                r = await client.post(url, json=payload)
+                if r.status_code == 429:
+                    retry_after = 1.0
+                    try:
+                        retry_after = float(r.json().get("parameters", {}).get("retry_after", 1))
+                    except Exception:
+                        pass
+                    await asyncio.sleep(min(max(retry_after, 1.0), 15.0))
+                    continue
+                r.raise_for_status()
+                if lane == "command":
+                    self.last_command_error = None
+                else:
+                    self.last_alert_error = None
+                return
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                if lane == "command":
+                    self.last_command_error = repr(exc)
+                else:
+                    self.last_alert_error = repr(exc)
+                if attempt >= 2:
+                    raise
+                await asyncio.sleep(0.5 * (attempt + 1))
+
+    async def send_to(self, chat_id: str | int, text: str, reply_markup: dict | None = None) -> None:
+        await self._post_message(self.command_http, chat_id, text, reply_markup, lane="command")
 
     async def send(self, text: str, reply_markup: dict | None = None) -> None:
+        """Send a command/control message through the command lane."""
         if self.enabled:
             await self.send_to(self.chat_id, text, reply_markup)
 
+    async def send_alert(self, text: str, reply_markup: dict | None = None) -> None:
+        """Send a scanner alert through the independent alert lane."""
+        if self.enabled:
+            await self._post_message(self.alert_http, self.chat_id, text, reply_markup, lane="alert")
+
     async def ensure_command_menu(self) -> None:
-        """Publish the bot command menu shown by Telegram next to the message box."""
         if not self.token or self._commands_registered:
             return
         commands = [
@@ -57,16 +127,15 @@ class Telegram:
             {"command": "help", "description": "Show command help"},
         ]
         try:
-            r = await self.http.post(
+            r = await self.command_http.post(
                 f"https://api.telegram.org/bot{self.token}/setMyCommands",
                 json={"commands": commands},
                 timeout=10,
             )
             r.raise_for_status()
             self._commands_registered = True
-        except Exception:
-            # Menu registration is cosmetic; never let it disrupt alert delivery.
-            return
+        except Exception as exc:
+            log.warning("Telegram command menu registration failed: %r", exc)
 
     def _buttons(self, s: Signal) -> dict | None:
         links = list(s.metadata.get("links") or [])
@@ -88,10 +157,10 @@ class Telegram:
             y, n = m.get("yes_ask"), m.get("no_ask")
             return (["Tap OPEN MARKET below.", f"Buy YES at {float(y):.3f} or lower AND NO at {float(n):.3f} or lower.", "Use the SAME number of shares on both sides. Never take only one leg.", "If either ask moved above the alert price, SKIP."], "Both legs must fill at the quoted prices/size for the locked payoff to exist.")
         if s.detector == "neg_risk_underround":
-            legs=m.get("legs") or []
+            legs = m.get("legs") or []
             return (["Tap OPEN EVENT below.", f"Buy YES on ALL {len(legs)} listed outcomes using the SAME share count.", "Do not omit any outcome and do not start if any quoted leg has moved higher."], "The basket only works if the outcomes are exhaustive/mutually exclusive and every leg fills.")
         if s.detector == "weather_late_lock":
-            ask=m.get("ask"); mx=m.get("observed_max"); unit=m.get("unit",""); station=m.get("station","")
+            ask = m.get("ask"); mx = m.get("observed_max"); unit = m.get("unit", ""); station = m.get("station", "")
             return (["Tap OPEN MARKET below.", f"Verify the official hourly table still shows a daily max of {mx}°{unit} at {station}.", f"Buy YES on the matching temperature bucket at {float(ask):.3f} or lower; if higher, SKIP.", "Hold to resolution unless you deliberately exit earlier."], "The fast observation feed is a proxy; the market Rules/official settlement source override it.")
         if s.detector == "duplicate_divergence":
             return (["Open both markets using the buttons.", "Compare the Rules, deadline and resolution source line-by-line.", "Only investigate the cheaper side if the contracts are truly equivalent."], "Similar wording does not prove identical settlement rules.")
@@ -125,7 +194,7 @@ class Telegram:
         text = "\n".join(parts)
         if len(text) > 3900:
             text = text[:3850] + "\n…\n(Open the event for the remaining leg details.)"
-        await self.send(text, self._buttons(s))
+        await self.send_alert(text, self._buttons(s))
 
     async def send_stats(self):
         st = self.store.stats()
@@ -141,7 +210,12 @@ class Telegram:
 
     async def send_manual_stats(self):
         st = self.store.manual_stats()
-        await self.send("\n".join(["💼 <b>Your marked-as-taken trades</b>", f"Trades: {st['total']} | Won: {st['won']} | Lost: {st['lost']} | Open: {st['open']}", f"Tracked stake: ${st['stake']:.2f}", f"Estimated P&amp;L (using alert entry): ${st['pnl']:.2f}"]))
+        await self.send("\n".join([
+            "💼 <b>Your marked-as-taken trades</b>",
+            f"Trades: {st['total']} | Won: {st['won']} | Lost: {st['lost']} | Open: {st['open']}",
+            f"Tracked stake: ${st['stake']:.2f}",
+            f"Estimated P&amp;L (using alert entry): ${st['pnl']:.2f}",
+        ]))
 
     @staticmethod
     def _age_text(timestamp: object) -> str:
@@ -158,7 +232,7 @@ class Telegram:
 
     async def send_status(self):
         try:
-            r = await self.http.get("http://127.0.0.1:8000/health", timeout=5)
+            r = await self.local_http.get("http://127.0.0.1:8000/health")
             r.raise_for_status()
             st = r.json()
         except Exception as exc:
@@ -182,6 +256,8 @@ class Telegram:
         last_scan = self._age_text(st.get("last_scan"))
         universe_error = st.get("universe_error")
         last_error = st.get("last_error")
+        queue_depth = int(st.get("telegram_alert_queue") or 0)
+        dropped = int(st.get("telegram_watch_dropped") or 0)
 
         lines = [
             f"{icon} <b>Scanner status: {'HEALTHY' if ok else 'DEGRADED'}</b>",
@@ -191,6 +267,7 @@ class Telegram:
             f"Weather: <b>{ready}/{stations}</b> stations ready" + (" (refreshing)" if weather_refreshing else ""),
             f"Sports live feed: {sports}",
             f"Crypto live feed: {crypto}",
+            f"Telegram alert backlog: <b>{queue_depth}</b>" + (f" | WATCH skipped: <b>{dropped}</b>" if dropped else ""),
         ]
         if last_error:
             lines.append(f"⚠️ Scanner error: <code>{html.escape(str(last_error)[:350])}</code>")
@@ -206,8 +283,17 @@ class Telegram:
         await self.ensure_command_menu()
         offset = int(self.store.get_state("telegram_offset", "0") or 0)
         try:
-            r = await self.http.get(f"https://api.telegram.org/bot{self.token}/getUpdates", params={"offset": offset, "timeout": 1})
+            r = await self.command_http.get(
+                f"https://api.telegram.org/bot{self.token}/getUpdates",
+                params={"offset": offset, "timeout": 1},
+                timeout=5,
+            )
+            r.raise_for_status()
             data = r.json()
+            if not data.get("ok", False):
+                raise RuntimeError(f"Telegram getUpdates failed: {data!r}")
+            self.last_command_poll_at = time.time()
+            self.last_command_error = None
             for update in data.get("result", []):
                 offset = max(offset, int(update["update_id"]) + 1)
                 msg = update.get("message") or {}
@@ -223,18 +309,29 @@ class Telegram:
                 elif low in {"/stats", "stats"}: await self.send_stats()
                 elif low in {"/mystats", "mystats"}: await self.send_manual_stats()
                 elif low in {"/recent", "recent"}:
-                    rows = self.store.recent(10); body = ["🧾 <b>Recent alerts</b>"] + [f"#{x['id']} {html.escape(x['detector'])} — {html.escape(x['status'])} — {html.escape(x['title'][:70])}" for x in rows]; await self.send("\n".join(body))
+                    rows = self.store.recent(10)
+                    body = ["🧾 <b>Recent alerts</b>"] + [f"#{x['id']} {html.escape(x['detector'])} — {html.escape(x['status'])} — {html.escape(x['title'][:70])}" for x in rows]
+                    await self.send("\n".join(body))
                 elif low in {"/taken", "taken"}:
-                    rows = self.store.recent_manual(10); body = ["💼 <b>Recently marked taken</b>"] + [f"Trade #{x['id']} / alert #{x['signal_id']} — ${float(x['stake']):.2f} — {html.escape(x['status'])} — {html.escape(x['title'][:60])}" for x in rows]; await self.send("\n".join(body))
+                    rows = self.store.recent_manual(10)
+                    body = ["💼 <b>Recently marked taken</b>"] + [f"Trade #{x['id']} / alert #{x['signal_id']} — ${float(x['stake']):.2f} — {html.escape(x['status'])} — {html.escape(x['title'][:60])}" for x in rows]
+                    await self.send("\n".join(body))
                 elif low.startswith("/took"):
                     mm = re.match(r"^/took\s+(\d+)\s+([0-9]+(?:\.[0-9]+)?)$", low)
-                    if not mm: await self.send("Use: <code>/took ALERT_ID STAKE_USD</code> — example: <code>/took 137 50</code>.")
+                    if not mm:
+                        await self.send("Use: <code>/took ALERT_ID STAKE_USD</code> — example: <code>/took 137 50</code>.")
                     else:
                         try:
-                            row = self.store.record_manual(int(mm.group(1)), float(mm.group(2))); await self.send(f"✅ Recorded trade #{row['id']} from alert #{row['signal_id']} with ${row['stake']:.2f} stake. Entry/P&amp;L tracking uses the alert's executable-cost estimate.")
-                        except ValueError as exc: await self.send(f"Could not record that trade: {html.escape(str(exc))}")
+                            row = self.store.record_manual(int(mm.group(1)), float(mm.group(2)))
+                            await self.send(f"✅ Recorded trade #{row['id']} from alert #{row['signal_id']} with ${row['stake']:.2f} stake. Entry/P&amp;L tracking uses the alert's executable-cost estimate.")
+                        except ValueError as exc:
+                            await self.send(f"Could not record that trade: {html.escape(str(exc))}")
                 elif low in {"/help", "help", "/start"}:
                     await self.send("Commands:\n/status — live scanner health and feed status\n/stats — verified paper detector performance\n/mystats — trades you marked as taken\n/recent — recent alerts\n/taken — your recent taken trades\n/took ALERT_ID STAKE_USD — mark an alert you actually traded\n/help — this list")
             self.store.set_state("telegram_offset", str(offset))
-        except Exception:
-            return
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            self.last_command_error = repr(exc)
+            log.warning("Telegram getUpdates/command handling failed: %r", exc)
+            raise
