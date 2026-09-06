@@ -2,14 +2,17 @@ from __future__ import annotations
 
 """Lower-load production runtime for the GCP e2-micro.
 
-This module builds on app_stable but cuts the two remaining sources of avoidable
-load on the tiny shared-core VM:
+This module builds on app_stable but cuts the remaining sources of avoidable load
+on the tiny shared-core VM:
 
 * only ~800 priority CLOB tokens are kept on market WebSockets (normally about two
   workers at 400 tokens/connection);
 * complete-universe discovery requests only SELL/best-ask prices from CLOB /prices.
   All actionable detectors need asks; full depth is still fetched with /books by
-  app.confirm_actionable immediately before an ACTIONABLE alert is persisted.
+  app.confirm_actionable immediately before an ACTIONABLE alert is persisted;
+* the fuzzy duplicate-market research WATCH is disabled by default in production.
+  It is a low-confidence O(n^2)-style similarity scan and is not allowed to starve
+  the time-sensitive weather/sports/crypto/actionable lanes on an e2-micro.
 
 Gamma still discovers the complete market universe and the compact ask snapshot
 still covers every discovered token. Sports and crypto retain their dedicated live
@@ -24,13 +27,14 @@ import os
 import time
 
 import app_stable as stable
+import polymarket_scanner.evaluator as evaluator_module
 from polymarket_scanner.models import Book
 from polymarket_scanner.polymarket import CLOB
 
 log = logging.getLogger("polybot.stable_v2")
 app = stable.app
 
-# Two market CLOB workers instead of 8 (and instead of the old ~65-70).  The full
+# Two market CLOB workers instead of 8 (and instead of the old ~65-70). The full
 # universe continues to be refreshed through compact /prices discovery below.
 stable.WS_PRIORITY_TOKEN_LIMIT = max(400, int(os.getenv("MARKET_WS_PRIORITY_TOKEN_LIMIT", "800")))
 
@@ -39,6 +43,26 @@ stable.WS_PRIORITY_TOKEN_LIMIT = max(400, int(os.getenv("MARKET_WS_PRIORITY_TOKE
 stable.TOP_PRICE_REFRESH_SECONDS = max(15.0, float(os.getenv("TOP_PRICE_REFRESH_SECONDS", "20")))
 stable.TOP_PRICE_CHUNK_TOKENS = max(50, min(500, int(os.getenv("TOP_PRICE_CHUNK_TOKENS", "500"))))
 stable.TOP_PRICE_CONCURRENCY = max(1, min(8, int(os.getenv("TOP_PRICE_CONCURRENCY", "4"))))
+
+# SequenceMatcher-based duplicate discovery is useful research, but it compares
+# many pairs and has repeatedly coincided with long worker passes on the e2-micro.
+# Keep the code available everywhere else, but production disables it unless the
+# operator explicitly opts back in.
+ENABLE_DUPLICATE_DIVERGENCE_WATCH = os.getenv("ENABLE_DUPLICATE_DIVERGENCE_WATCH", "0").strip().lower() in {
+    "1", "true", "yes", "on",
+}
+_original_duplicate_divergence = evaluator_module.duplicate_divergence
+
+
+def _duplicate_divergence_production(markets):
+    if not ENABLE_DUPLICATE_DIVERGENCE_WATCH:
+        return []
+    return _original_duplicate_divergence(markets)
+
+
+# evaluate_signals resolves duplicate_divergence from evaluator.py globals at call
+# time, so this removes only that research WATCH from the production hot path.
+evaluator_module.duplicate_divergence = _duplicate_divergence_production
 
 
 async def _fetch_ask_prices(tokens: list[str]) -> dict[str, Book]:
@@ -128,6 +152,7 @@ async def _mark_runtime_v2() -> None:
     stable.base.state["stream_priority_limit"] = stable.WS_PRIORITY_TOKEN_LIMIT
     stable.base.state["price_snapshot_side"] = "SELL/best-ask"
     stable.base.state["price_snapshot_target_seconds"] = stable.TOP_PRICE_REFRESH_SECONDS
+    stable.base.state["duplicate_divergence_watch_enabled"] = ENABLE_DUPLICATE_DIVERGENCE_WATCH
 
 
 # Registered after app_stable's startup handler, purely to make the active runtime
