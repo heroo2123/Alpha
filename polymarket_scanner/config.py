@@ -8,6 +8,10 @@ class Settings(BaseSettings):
 
     telegram_bot_token: str = ""
     telegram_chat_id: str = ""
+    # True for simple single-process deployments. The production VM sets this
+    # false and runs command_worker.py as its own systemd service so Telegram
+    # commands cannot be delayed by scanner CPU/network work.
+    telegram_commands_in_app: bool = True
     scan_interval_seconds: int = 15  # REST/health fallback; WebSocket events wake scans immediately.
     websocket_debounce_seconds: float = 0.35
     universe_refresh_seconds: int = 120
