@@ -25,6 +25,12 @@ class Settings(BaseSettings):
     gamma_page_size: int = 100
     alert_cooldown_seconds: int = 900
 
+    # Telegram burst control. Commands use a separate HTTP client and never wait
+    # behind the alert queue. ACTIONABLE alerts have queue priority over WATCH.
+    telegram_actionable_min_interval_seconds: float = 1.05
+    telegram_watch_min_interval_seconds: float = 2.0
+    telegram_watch_backlog_limit: int = 60
+
     # Live feeds
     market_ws_enabled: bool = True
     sports_ws_enabled: bool = True
