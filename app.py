@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import itertools
 import json
 import logging
 import os
@@ -43,7 +44,7 @@ market_stream = LiveMarketStream()
 sports_stream = SportsStream()
 crypto_stream = CryptoRTDS()
 tg = Telegram(store)
-app = FastAPI(title="Polymarket Edge Scanner", version="0.2.7")
+app = FastAPI(title="Polymarket Edge Scanner", version="0.2.8")
 state = {
     "started": time.time(), "last_scan": None, "markets": 0, "tokens": 0, "stations": 0,
     "weather_ready_stations": 0, "weather_refreshing": False, "last_error": None,
@@ -51,9 +52,13 @@ state = {
     "market_ws_workers": 0, "sports_ws": False, "crypto_rtds": False,
     "macro": {}, "last_reason": None,
     "legacy_structural_archived": legacy_structural_archived,
+    "telegram_watch_dropped": 0,
 }
 runner_task: asyncio.Task | None = None
 telegram_task: asyncio.Task | None = None
+alert_task: asyncio.Task | None = None
+alert_queue: asyncio.PriorityQueue = asyncio.PriorityQueue()
+alert_sequence = itertools.count()
 
 
 def _all_tokens(markets: list[Market]) -> list[str]:
@@ -98,12 +103,7 @@ async def _fetch_weather_batch(stations: list[str]) -> dict[str, list]:
 
 
 async def confirm_actionable(s: Signal) -> Signal | None:
-    """REST-confirm every ACTIONABLE leg immediately before alerting.
-
-    Besides price, require enough simultaneous top-of-book size to make the alert
-    worth executing manually. The scanner never assumes fills merely because asks
-    existed at one instant.
-    """
+    """REST-confirm every ACTIONABLE leg immediately before alerting."""
     if s.confidence != "ACTIONABLE" or not s.token_ids:
         return s
     fresh = await poly.books(s.token_ids)
@@ -123,10 +123,7 @@ async def confirm_actionable(s: Signal) -> Signal | None:
     common_shares = min(sizes)
     max_visible_notional = common_shares * cost
     if max_visible_notional < MIN_VISIBLE_NOTIONAL_USD:
-        log.info(
-            "skip actionable %s: only $%.2f simultaneously visible at confirmed asks",
-            s.detector, max_visible_notional,
-        )
+        log.info("skip actionable %s: only $%.2f simultaneously visible at confirmed asks", s.detector, max_visible_notional)
         return None
 
     s.entry_cost = cost; s.edge = edge
@@ -138,11 +135,50 @@ async def confirm_actionable(s: Signal) -> Signal | None:
     return s
 
 
+def enqueue_alert(signal_id: int, s: Signal) -> bool:
+    """Queue Telegram delivery without ever blocking the scanner.
+
+    ACTIONABLE signals get priority 0. WATCH signals get priority 10 and are
+    suppressed once a large WATCH backlog exists; they remain saved in SQLite.
+    """
+    if not tg.enabled:
+        return False
+    if s.confidence != "ACTIONABLE" and alert_queue.qsize() >= settings.telegram_watch_backlog_limit:
+        state["telegram_watch_dropped"] = int(state.get("telegram_watch_dropped") or 0) + 1
+        log.warning("Telegram WATCH backlog full; suppressing delivery of signal %s (%s)", signal_id, s.detector)
+        return False
+    priority = 0 if s.confidence == "ACTIONABLE" else 10
+    alert_queue.put_nowait((priority, next(alert_sequence), signal_id, s))
+    return True
+
+
+async def telegram_alert_loop() -> None:
+    """Dedicated rate-limited signal sender, independent from command handling."""
+    last_sent = 0.0
+    while True:
+        priority, _seq, signal_id, s = await alert_queue.get()
+        try:
+            interval = (
+                settings.telegram_actionable_min_interval_seconds
+                if priority == 0
+                else settings.telegram_watch_min_interval_seconds
+            )
+            wait_for = interval - (time.monotonic() - last_sent)
+            if wait_for > 0:
+                await asyncio.sleep(wait_for)
+            await tg.send_signal(signal_id, s)
+            last_sent = time.monotonic()
+            log.info("delivered Telegram alert %s %s edge=%s", signal_id, s.detector, s.edge)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            log.warning("Telegram alert delivery failed for %s: %r", signal_id, exc)
+        finally:
+            alert_queue.task_done()
+
+
 async def settle_open_paper_trades():
     for row in store.open_directional():
-        # Structural baskets are deliberately unscored: observing simultaneous asks
-        # is not proof that every leg actually filled. They remain auditable OPEN
-        # alerts rather than being credited as instant paper wins.
         if row["detector"] in {"binary_buy_both", "neg_risk_underround", "nested_threshold_arb"}:
             continue
         m = await poly.market_by_id(str(row["market_id"]))
@@ -176,13 +212,13 @@ async def _notify_started() -> None:
     if not tg.enabled:
         return
     try:
-        await tg.send("🟢 <b>Polymarket Edge Scanner is online</b>\nLive feeds are starting. Use /stats or /help any time.")
+        await tg.send("🟢 <b>Polymarket Edge Scanner is online</b>\nLive feeds are starting. Use /status, /stats or /help any time.")
     except Exception as exc:
         log.warning("Telegram startup notification failed: %s", exc)
 
 
 async def telegram_command_loop() -> None:
-    """Keep Telegram commands responsive independently of market scan workload."""
+    """Keep Telegram commands responsive independently of scan and alert workload."""
     while True:
         try:
             await tg.poll_commands()
@@ -269,9 +305,8 @@ async def scanner_loop():
                 if s is None: continue
                 signal_id = store.save_signal(s)
                 if signal_id is None: continue
-                # Never credit a structural signal as an instant paper win. A quote
-                # snapshot is evidence of an opportunity, not evidence of execution.
-                await tg.send_signal(signal_id, s); log.info("alert %s %s edge=%s", signal_id, s.detector, s.edge)
+                queued = enqueue_alert(signal_id, s)
+                log.info("saved signal %s %s edge=%s telegram_queued=%s", signal_id, s.detector, s.edge, queued)
 
             if tick - last_settle >= 120: await settle_open_paper_trades(); last_settle = tick
             state["last_scan"] = time.time(); state["last_reason"] = sorted(flags)
@@ -289,15 +324,18 @@ async def scanner_loop():
 
 @app.on_event("startup")
 async def startup():
-    global runner_task, telegram_task
+    global runner_task, telegram_task, alert_task
     await sports_stream.start(); await crypto_stream.start()
     if runner_task is None: runner_task = asyncio.create_task(scanner_loop())
     if telegram_task is None: telegram_task = asyncio.create_task(telegram_command_loop())
+    if alert_task is None: alert_task = asyncio.create_task(telegram_alert_loop())
     asyncio.create_task(_notify_started())
 
 
 @app.on_event("shutdown")
 async def shutdown():
+    if alert_task:
+        alert_task.cancel(); await asyncio.gather(alert_task, return_exceptions=True)
     if telegram_task:
         telegram_task.cancel(); await asyncio.gather(telegram_task, return_exceptions=True)
     if runner_task:
@@ -316,13 +354,20 @@ async def health():
         "market_ws_last_message": market_stream.last_message_at,
         "sports_ws_last_message": sports_stream.last_message_at,
         "crypto_rtds_last_message": crypto_stream.last_message_at,
+        "telegram_alert_queue": alert_queue.qsize(),
+        "telegram_last_command_poll": tg.last_command_poll_at,
+        "telegram_command_error": tg.last_command_error,
+        "telegram_alert_error": tg.last_alert_error,
     }
+
 
 @app.get("/stats")
 async def stats(): return store.stats()
 
+
 @app.get("/mystats")
 async def mystats(): return store.manual_stats()
+
 
 @app.get("/recent")
 async def recent(): return store.recent(20)
