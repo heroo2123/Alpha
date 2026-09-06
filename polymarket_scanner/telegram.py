@@ -27,14 +27,28 @@ class Telegram:
         self.store = store
         self.token = settings.telegram_bot_token
         self.chat_id = settings.telegram_chat_id
-        limits = httpx.Limits(max_connections=10, max_keepalive_connections=5)
-        self.command_http = httpx.AsyncClient(timeout=20, limits=limits)
-        self.alert_http = httpx.AsyncClient(timeout=20, limits=limits)
+        self.command_http = self._new_http_client()
+        self.alert_http = self._new_http_client(connect_timeout=8.0)
         self.local_http = httpx.AsyncClient(timeout=5, trust_env=False)
         self._commands_registered = False
         self.last_command_poll_at: float | None = None
         self.last_command_error: str | None = None
         self.last_alert_error: str | None = None
+
+    @staticmethod
+    def _new_http_client(connect_timeout: float = 20.0) -> httpx.AsyncClient:
+        limits = httpx.Limits(max_connections=10, max_keepalive_connections=5)
+        timeout = httpx.Timeout(20.0, connect=connect_timeout)
+        return httpx.AsyncClient(timeout=timeout, limits=limits, trust_env=False)
+
+    async def _reset_alert_http(self) -> httpx.AsyncClient:
+        old = self.alert_http
+        self.alert_http = self._new_http_client(connect_timeout=8.0)
+        try:
+            await old.aclose()
+        except Exception:
+            pass
+        return self.alert_http
 
     @property
     def token_enabled(self) -> bool:
@@ -97,9 +111,11 @@ class Telegram:
                     self.last_command_error = repr(exc)
                 else:
                     self.last_alert_error = repr(exc)
+                    if isinstance(exc, (httpx.ConnectError, httpx.ConnectTimeout, httpx.ReadError, httpx.RemoteProtocolError)):
+                        client = await self._reset_alert_http()
                 if attempt >= 2:
                     raise
-                await asyncio.sleep(0.5 * (attempt + 1))
+                await asyncio.sleep(0.75 * (attempt + 1))
 
     async def send_to(self, chat_id: str | int, text: str, reply_markup: dict | None = None) -> None:
         await self._post_message(self.command_http, chat_id, text, reply_markup, lane="command")
@@ -194,7 +210,27 @@ class Telegram:
         text = "\n".join(parts)
         if len(text) > 3900:
             text = text[:3850] + "\n…\n(Open the event for the remaining leg details.)"
-        await self.send_alert(text, self._buttons(s))
+
+        # ACTIONABLE alerts are never intentionally lost to a transient Telegram
+        # network failure. WATCH leads retain normal bounded retries so a research
+        # message cannot block urgent alerts forever.
+        if s.confidence != "ACTIONABLE":
+            await self.send_alert(text, self._buttons(s))
+            return
+
+        attempt = 0
+        while True:
+            try:
+                await self.send_alert(text, self._buttons(s))
+                return
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                attempt += 1
+                self.last_alert_error = repr(exc)
+                delay = min(30.0, 2.0 ** min(attempt, 5))
+                log.warning("ACTIONABLE Telegram alert %s retry %s in %.1fs after %r", signal_id, attempt, delay, exc)
+                await asyncio.sleep(delay)
 
     async def send_stats(self):
         st = self.store.stats()
