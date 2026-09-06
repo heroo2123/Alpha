@@ -50,6 +50,7 @@ state = {
 runner_task: asyncio.Task | None = None
 telegram_task: asyncio.Task | None = None
 alert_task: asyncio.Task | None = None
+health_snapshot_task: asyncio.Task | None = None
 alert_queue: asyncio.PriorityQueue = asyncio.PriorityQueue()
 alert_sequence = itertools.count()
 
@@ -93,6 +94,45 @@ async def _fetch_weather_batch(stations: list[str]) -> dict[str, list]:
             station, observations = row
             out[station] = observations
     return out
+
+
+def _health_snapshot() -> dict:
+    """Build the live status record shared with the standalone command worker."""
+    return {
+        "ok": state["last_error"] is None,
+        **state,
+        "snapshot_at": time.time(),
+        "market_ws_workers": market_stream.connected_workers,
+        "sports_ws": sports_stream.connected,
+        "crypto_rtds": crypto_stream.connected,
+        "market_ws_last_message": market_stream.last_message_at,
+        "sports_ws_last_message": sports_stream.last_message_at,
+        "crypto_rtds_last_message": crypto_stream.last_message_at,
+        "telegram_alert_queue": alert_queue.qsize(),
+        "telegram_command_mode": "in_app" if settings.telegram_commands_in_app else "external_service",
+        "telegram_last_command_poll": tg.last_command_poll_at if settings.telegram_commands_in_app else None,
+        "telegram_command_error": tg.last_command_error if settings.telegram_commands_in_app else None,
+        "telegram_alert_error": tg.last_alert_error,
+    }
+
+
+async def health_snapshot_loop() -> None:
+    """Persist scanner health without involving the scanner HTTP server.
+
+    The separate Telegram command process reads this record directly from the
+    shared SQLite DB, so /status remains responsive even while uvicorn or a
+    detector pass is busy.
+    """
+    while True:
+        try:
+            snapshot = _health_snapshot()
+            payload = json.dumps(snapshot, separators=(",", ":"), default=str)
+            await asyncio.to_thread(store.set_state, "scanner_health_snapshot", payload)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            log.warning("health snapshot persistence failed: %r", exc)
+        await asyncio.sleep(2.0)
 
 
 async def confirm_actionable(s: Signal) -> Signal | None:
@@ -341,7 +381,7 @@ async def scanner_loop():
 
 @app.on_event("startup")
 async def startup():
-    global runner_task, telegram_task, alert_task
+    global runner_task, telegram_task, alert_task, health_snapshot_task
     await sports_stream.start(); await crypto_stream.start()
     if runner_task is None: runner_task = asyncio.create_task(scanner_loop())
     if settings.telegram_commands_in_app and telegram_task is None:
@@ -349,11 +389,14 @@ async def startup():
     elif not settings.telegram_commands_in_app:
         log.info("in-process Telegram command polling disabled; external command worker owns getUpdates")
     if alert_task is None: alert_task = asyncio.create_task(telegram_alert_loop())
+    if health_snapshot_task is None: health_snapshot_task = asyncio.create_task(health_snapshot_loop())
     asyncio.create_task(_notify_started())
 
 
 @app.on_event("shutdown")
 async def shutdown():
+    if health_snapshot_task:
+        health_snapshot_task.cancel(); await asyncio.gather(health_snapshot_task, return_exceptions=True)
     if alert_task:
         alert_task.cancel(); await asyncio.gather(alert_task, return_exceptions=True)
     if telegram_task:
@@ -365,21 +408,7 @@ async def shutdown():
 
 @app.get("/health")
 async def health():
-    return {
-        "ok": state["last_error"] is None,
-        **state,
-        "market_ws_workers": market_stream.connected_workers,
-        "sports_ws": sports_stream.connected,
-        "crypto_rtds": crypto_stream.connected,
-        "market_ws_last_message": market_stream.last_message_at,
-        "sports_ws_last_message": sports_stream.last_message_at,
-        "crypto_rtds_last_message": crypto_stream.last_message_at,
-        "telegram_alert_queue": alert_queue.qsize(),
-        "telegram_command_mode": "in_app" if settings.telegram_commands_in_app else "external_service",
-        "telegram_last_command_poll": tg.last_command_poll_at if settings.telegram_commands_in_app else None,
-        "telegram_command_error": tg.last_command_error if settings.telegram_commands_in_app else None,
-        "telegram_alert_error": tg.last_alert_error,
-    }
+    return _health_snapshot()
 
 
 @app.get("/stats")
