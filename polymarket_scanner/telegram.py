@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import html
 import re
+import time
 
 import httpx
 
@@ -116,6 +117,63 @@ class Telegram:
         st = self.store.manual_stats()
         await self.send("\n".join(["💼 <b>Your marked-as-taken trades</b>", f"Trades: {st['total']} | Won: {st['won']} | Lost: {st['lost']} | Open: {st['open']}", f"Tracked stake: ${st['stake']:.2f}", f"Estimated P&amp;L (using alert entry): ${st['pnl']:.2f}"]))
 
+    @staticmethod
+    def _age_text(timestamp: object) -> str:
+        try:
+            ts = float(timestamp)
+        except (TypeError, ValueError):
+            return "not completed yet"
+        age = max(0, int(time.time() - ts))
+        if age < 60:
+            return f"{age}s ago"
+        if age < 3600:
+            return f"{age // 60}m {age % 60}s ago"
+        return f"{age // 3600}h {(age % 3600) // 60}m ago"
+
+    async def send_status(self):
+        try:
+            r = await self.http.get("http://127.0.0.1:8000/health", timeout=5)
+            r.raise_for_status()
+            st = r.json()
+        except Exception as exc:
+            await self.send(
+                "🔴 <b>Scanner status unavailable</b>\n"
+                "The Telegram command loop is alive, but the local /health endpoint could not be read.\n"
+                f"Error: <code>{html.escape(type(exc).__name__)}</code>"
+            )
+            return
+
+        ok = bool(st.get("ok"))
+        icon = "🟢" if ok else "🔴"
+        markets = int(st.get("markets") or 0)
+        tokens = int(st.get("tokens") or 0)
+        ws_workers = int(st.get("market_ws_workers") or 0)
+        stations = int(st.get("stations") or 0)
+        ready = int(st.get("weather_ready_stations") or 0)
+        weather_refreshing = bool(st.get("weather_refreshing"))
+        sports = "✅" if st.get("sports_ws") else "❌"
+        crypto = "✅" if st.get("crypto_rtds") else "❌"
+        last_scan = self._age_text(st.get("last_scan"))
+        universe_error = st.get("universe_error")
+        last_error = st.get("last_error")
+
+        lines = [
+            f"{icon} <b>Scanner status: {'HEALTHY' if ok else 'DEGRADED'}</b>",
+            f"Last completed scan: <b>{html.escape(last_scan)}</b>",
+            f"Markets: <b>{markets:,}</b> | Tokens: <b>{tokens:,}</b>",
+            f"Polymarket WS workers: <b>{ws_workers}</b>",
+            f"Weather: <b>{ready}/{stations}</b> stations ready" + (" (refreshing)" if weather_refreshing else ""),
+            f"Sports live feed: {sports}",
+            f"Crypto live feed: {crypto}",
+        ]
+        if last_error:
+            lines.append(f"⚠️ Scanner error: <code>{html.escape(str(last_error)[:350])}</code>")
+        if universe_error:
+            lines.append(f"⚠️ Universe refresh: <code>{html.escape(str(universe_error)[:350])}</code>")
+        if not last_error and not universe_error:
+            lines.append("Errors: <b>none</b>")
+        await self.send("\n".join(lines))
+
     async def poll_commands(self):
         if not self.token_enabled:
             return
@@ -134,7 +192,8 @@ class Telegram:
                     continue
                 if not self.chat_id or incoming_chat != str(self.chat_id):
                     continue
-                if low in {"/stats", "stats"}: await self.send_stats()
+                if low in {"/status", "status"}: await self.send_status()
+                elif low in {"/stats", "stats"}: await self.send_stats()
                 elif low in {"/mystats", "mystats"}: await self.send_manual_stats()
                 elif low in {"/recent", "recent"}:
                     rows = self.store.recent(10); body = ["🧾 <b>Recent alerts</b>"] + [f"#{x['id']} {html.escape(x['detector'])} — {html.escape(x['status'])} — {html.escape(x['title'][:70])}" for x in rows]; await self.send("\n".join(body))
@@ -148,7 +207,7 @@ class Telegram:
                             row = self.store.record_manual(int(mm.group(1)), float(mm.group(2))); await self.send(f"✅ Recorded trade #{row['id']} from alert #{row['signal_id']} with ${row['stake']:.2f} stake. Entry/P&amp;L tracking uses the alert's executable-cost estimate.")
                         except ValueError as exc: await self.send(f"Could not record that trade: {html.escape(str(exc))}")
                 elif low in {"/help", "help", "/start"}:
-                    await self.send("Commands:\n/stats — verified paper detector performance\n/mystats — trades you marked as taken\n/recent — recent alerts\n/taken — your recent taken trades\n/took ALERT_ID STAKE_USD — mark an alert you actually traded\n/help — this list")
+                    await self.send("Commands:\n/status — live scanner health and feed status\n/stats — verified paper detector performance\n/mystats — trades you marked as taken\n/recent — recent alerts\n/taken — your recent taken trades\n/took ALERT_ID STAKE_USD — mark an alert you actually traded\n/help — this list")
             self.store.set_state("telegram_offset", str(offset))
         except Exception:
             return
