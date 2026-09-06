@@ -30,45 +30,25 @@ def threshold(text):
     return None
 
 
-def _norm_rule(value):
-    return ' '.join(str(value or '').lower().split())
-
-
-def _threshold_rule_signature(m):
-    """Keep the optimized search from letting a cheap but rule-incompatible leg hide a valid pair."""
-    q=m.question.lower()
-    currencies=tuple(x for x in ('usd','eur','gbp','jpy','btc','eth','sol','xrp') if re.search(rf'\b{x}\b',q))
-    return (
-        str(m.end_date or ''),
-        _norm_rule(m.resolution_source),
-        _norm_rule(m.description),
-        tuple(sorted(str(x).strip().lower() for x in m.outcomes)),
-        '$' in m.question,
-        '%' in m.question,
-        currencies,
-    )
-
-
 def nested_threshold_arbitrage(markets, books):
     """Find nested-threshold underrounds without quadratic pair explosion.
 
-    For a fixed event/template/rule signature, any looser YES with a higher ask is
-    dominated by the cheapest looser YES already seen. Sorting thresholds therefore
-    lets us inspect every potentially best stricter leg in O(n log n) rather than
-    combinations(rows, 2). Equal thresholds are never paired with each other.
+    For each event/template we sort thresholds from looser to stricter. For a given
+    stricter NO, any previously seen looser YES with a higher ask is dominated by
+    the cheapest prior looser YES, so the useful candidate set is O(n), not O(n²).
+    Rule compatibility is still certified by hardening.py afterward; mismatches may
+    therefore remain visible as WATCH research leads rather than vanishing.
     """
     groups=defaultdict(list); out=[]
     for m in markets:
         p=threshold(m.question)
         if p and m.yes_token and m.no_token:
-            groups[(m.event_id,p[0],p[2],_threshold_rule_signature(m))].append((m,p[1]))
+            groups[(m.event_id,p[0],p[2])].append((m,p[1]))
 
-    for (_,d,_,_),rows in groups.items():
+    for (_,d,_),rows in groups.items():
         if len(rows)<2: continue
-        # Process from looser toward stricter: lower thresholds are looser for
-        # 'above'; higher thresholds are looser for 'below'.
         ordered=sorted(rows,key=lambda row: row[1],reverse=(d=='below'))
-        best_looser=None  # (market, best_yes_ask)
+        best_looser=None  # (market, cheapest_yes_ask)
         i=0
         while i<len(ordered):
             threshold_value=ordered[i][1]
@@ -77,9 +57,6 @@ def nested_threshold_arbitrage(markets, books):
                 j+=1
             same_threshold=ordered[i:j]
 
-            # Current threshold is stricter than every market considered earlier.
-            # Only the cheapest prior YES can produce the best underround for a
-            # given stricter NO; any more expensive looser YES is dominated.
             if best_looser is not None:
                 lm,ay=best_looser
                 for sm,_ in same_threshold:
@@ -91,8 +68,8 @@ def nested_threshold_arbitrage(markets, books):
                     meta={"yes_ask":ay,"no_ask":an,"immediate_settlement":True,"fingerprint_key":f"{lm.id}:{sm.id}","links":links,"action_steps":[f"Open LOOSER and buy YES at {ay:.3f} or lower: {lm.question}",f"Open STRICTER and buy NO at {an:.3f} or lower: {sm.question}","Use the SAME share count on both legs; never take only one leg.","If either quoted ask is now higher, SKIP."],"risk_note":"Glance at both Rules first. The locked payoff only holds if the stricter condition really implies the looser condition and both legs fill."}
                     out.append(Signal('nested_threshold_arb','ACTIONABLE',lm.event_id,lm.id,'Logical threshold arbitrage',f"Looser YES {ay:.3f} + stricter NO {an:.3f}; est. fees {fees:.4f}; edge {edge:.2%}.",market_url(lm),edge,cost,1.0,[lm.yes_token,sm.no_token],meta))
 
-            # Equal thresholds become eligible only for later, strictly tighter
-            # thresholds. Pick the cheapest YES among everything seen so far.
+            # Equal thresholds are not nested with one another. Add their YES books
+            # only after evaluating the current threshold against earlier levels.
             for candidate,_ in same_threshold:
                 y=books.get(candidate.yes_token or '')
                 if not y or y.best_ask is None: continue
