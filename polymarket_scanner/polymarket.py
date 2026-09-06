@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
 from typing import Iterable
 
 import httpx
@@ -43,17 +44,19 @@ class PolymarketClient:
             limits=httpx.Limits(max_connections=24, max_keepalive_connections=12, keepalive_expiry=20.0),
             headers={"User-Agent": "polymarket-edge-scanner/0.2 (+github)"},
         )
+        self._active_cache: list[Market] = []
+        self._active_cache_at: float = 0.0
+        self._active_refresh_task: asyncio.Task | None = None
 
     async def close(self) -> None:
+        if self._active_refresh_task is not None:
+            self._active_refresh_task.cancel()
+            await asyncio.gather(self._active_refresh_task, return_exceptions=True)
+            self._active_refresh_task = None
         await self.http.aclose()
 
     async def _event_page(self, offset: int, *, tag_slug: str | None = None) -> list[dict]:
-        """Fetch one Gamma event page with compatibility and transient-failure retries.
-
-        Gamma discovery is a non-trading, idempotent GET. A single network/5xx/429
-        hiccup must not take the scanner down, so retry with bounded exponential
-        backoff before surfacing the failure to the caller.
-        """
+        """Fetch one Gamma event page with compatibility and transient-failure retries."""
         page_size = max(1, min(int(settings.gamma_page_size), 100))
         base = {
             "active": "true",
@@ -136,16 +139,13 @@ class PolymarketClient:
                 ))
                 seen.add(market_id)
 
-    async def active_markets(self) -> list[Market]:
+    async def _fetch_active_markets(self) -> list[Market]:
         markets: list[Market] = []
         seen: set[str] = set()
         offset = 0
         page_size = max(1, min(int(settings.gamma_page_size), 100))
         page_concurrency = max(1, min(int(settings.gamma_page_concurrency), 16))
 
-        # Broad liquid universe, capped for the small free-tier VM. Gamma offsets
-        # are independent, so fetch several pages in parallel rather than waiting
-        # on dozens of sequential round trips every two minutes.
         exhausted = False
         while len(markets) < settings.max_events and not exhausted:
             offsets = [offset + i * page_size for i in range(page_concurrency)]
@@ -165,9 +165,6 @@ class PolymarketClient:
         markets = markets[: settings.max_events]
         seen = {m.id for m in markets}
 
-        # Weather is a priority strategy family and must never disappear merely
-        # because the broad market cap filled first. Fetch its smaller tag-specific
-        # pagination in parallel too, with a hard 20-page safety cap.
         weather_exhausted = False
         weather_batch = min(4, page_concurrency)
         for first_page in range(0, 20, weather_batch):
@@ -185,6 +182,46 @@ class PolymarketClient:
                 break
 
         return markets
+
+    async def _refresh_active_cache(self) -> None:
+        started = time.time()
+        try:
+            refreshed = await self._fetch_active_markets()
+            if refreshed:
+                self._active_cache = refreshed
+                self._active_cache_at = time.time()
+                log.info("Gamma background universe refresh completed: %d markets in %.1fs", len(refreshed), time.time() - started)
+            else:
+                log.warning("Gamma background universe refresh returned empty; retaining current cache")
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            log.warning("Gamma background universe refresh failed; retaining current cache: %r", exc)
+
+    async def active_markets(self) -> list[Market]:
+        """Return the active universe without blocking recurring scans.
+
+        Startup performs one complete fetch because there is no cache yet. After
+        that, stale caches are refreshed in a background task while callers receive
+        the last known-good universe immediately. This keeps live detector passes
+        running even if Gamma needs tens of seconds to paginate the full market set.
+        """
+        if self._active_refresh_task is not None and self._active_refresh_task.done():
+            await asyncio.gather(self._active_refresh_task, return_exceptions=True)
+            self._active_refresh_task = None
+
+        if not self._active_cache:
+            refreshed = await self._fetch_active_markets()
+            if refreshed:
+                self._active_cache = refreshed
+                self._active_cache_at = time.time()
+            return list(self._active_cache)
+
+        if time.time() - self._active_cache_at >= settings.universe_refresh_seconds:
+            if self._active_refresh_task is None:
+                self._active_refresh_task = asyncio.create_task(self._refresh_active_cache())
+
+        return list(self._active_cache)
 
     async def book(self, token_id: str) -> Book | None:
         try:
