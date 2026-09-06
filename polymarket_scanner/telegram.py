@@ -121,7 +121,7 @@ class Telegram:
                 chat_type = str((msg.get("chat") or {}).get("type") or "")
                 text = (msg.get("text") or "").strip(); low = text.lower()
                 if low in {"/whoami", "whoami", "/start"} and incoming_chat and chat_type == "private" and not self.chat_id:
-                    await self.send_to(incoming_chat, f"Your Telegram chat ID is: <code>{html.escape(incoming_chat)}</code>\n\nPut this exact number in Render as <code>TELEGRAM_CHAT_ID</code>, then redeploy/restart the service.")
+                    await self.send_to(incoming_chat, f"Your Telegram chat ID is: <code>{html.escape(incoming_chat)}</code>\n\nOn the Oracle VM run:\n<code>~/polymarket-edge-scanner/deploy/oracle/set-chat-id.sh {html.escape(incoming_chat)}</code>\n\nFor another deployment, set <code>TELEGRAM_CHAT_ID</code> to this exact number and restart the service.")
                     continue
                 if not self.chat_id or incoming_chat != str(self.chat_id):
                     continue
