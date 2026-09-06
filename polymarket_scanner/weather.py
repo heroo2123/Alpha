@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import math
 import re
 import time
@@ -216,13 +217,20 @@ class WeatherClient:
     def __init__(self) -> None:
         self.http = httpx.AsyncClient(
             timeout=settings.request_timeout,
-            headers={"User-Agent": "polymarket-edge-scanner/0.5 https://github.com/heroo2123/Alpha"},
+            headers={"User-Agent": "polymarket-edge-scanner/0.6 https://github.com/heroo2123/Alpha"},
         )
         self.station_coordinates: dict[str, tuple[float, float]] = {}
         self.forecast_cache: dict[str, ForecastContext] = {}
         self.forecast_retry_after: dict[str, float] = {}
+        self.forecast_tasks: dict[str, asyncio.Task] = {}
+        self._forecast_sem = asyncio.Semaphore(6)
 
     async def close(self) -> None:
+        for task in self.forecast_tasks.values():
+            task.cancel()
+        if self.forecast_tasks:
+            await asyncio.gather(*self.forecast_tasks.values(), return_exceptions=True)
+        self.forecast_tasks.clear()
         await self.http.aclose()
 
     async def _open_meteo_forecast(self, station: str, lat: float, lon: float) -> ForecastContext | None:
@@ -233,7 +241,7 @@ class WeatherClient:
                 "hourly": "temperature_2m,precipitation_probability,cloud_cover,weather_code,pressure_msl,wind_direction_10m,wind_speed_10m",
                 "timezone": "auto",
                 "forecast_days": 2,
-            })
+            }, timeout=6.0)
             r.raise_for_status()
             data = r.json()
             tz_name = str(data.get("timezone") or "")
@@ -277,17 +285,12 @@ class WeatherClient:
             return None
 
     async def _taf_forecast(self, station: str, lat: float, lon: float) -> ForecastContext | None:
-        """Worldwide IPv6-safe risk forecast from NOAA/AWC TAF.
-
-        TAF usually does not include a surface-temperature trajectory, so this is
-        deliberately risk-only: it gates thunderstorms/precipitation/front changes
-        and forces the lock model to use stricter observed-temperature conditions.
-        """
+        """Worldwide IPv6-safe risk forecast from NOAA/AWC TAF."""
         tz_name = STATION_TZ.get(station)
         if not tz_name:
             return None
         try:
-            r = await self.http.get(AWC_TAF, params={"ids": station, "format": "json"})
+            r = await self.http.get(AWC_TAF, params={"ids": station, "format": "json"}, timeout=6.0)
             if r.status_code == 204:
                 return None
             r.raise_for_status()
@@ -344,9 +347,6 @@ class WeatherClient:
             return None
         lat, lon = coords
 
-        # The production Google VM is IPv6-only and api.open-meteo.com has no
-        # usable IPv6 DNS/route there. Do not burn a 20-second timeout for every
-        # station. Dual-stack deployments can opt back in with an environment flag.
         forecast = None
         if settings.weather_open_meteo_enabled:
             forecast = await self._open_meteo_forecast(station, lat, lon)
@@ -356,12 +356,42 @@ class WeatherClient:
             self.forecast_cache[station] = forecast
             self.forecast_retry_after.pop(station, None)
         else:
-            # Some stations do not publish TAFs. Avoid retrying the same miss every
-            # 60-second observation cycle; observations themselves remain usable.
             self.forecast_retry_after[station] = time.time() + FORECAST_REFRESH_SECONDS
         return forecast
 
+    def _fresh_cached_forecast(self, station: str) -> ForecastContext | None:
+        cached = self.forecast_cache.get(station)
+        if not cached:
+            return None
+        if time.time() - cached.fetched_at.timestamp() >= FORECAST_REFRESH_SECONDS:
+            return None
+        return cached
+
+    async def _forecast_background_worker(self, station: str) -> None:
+        try:
+            async with self._forecast_sem:
+                await self._forecast(station)
+        finally:
+            self.forecast_tasks.pop(station, None)
+
+    def _ensure_forecast_background(self, station: str) -> None:
+        if self._fresh_cached_forecast(station) is not None:
+            return
+        if time.time() < self.forecast_retry_after.get(station, 0.0):
+            return
+        if station not in self.station_coordinates:
+            return
+        task = self.forecast_tasks.get(station)
+        if task is None or task.done():
+            self.forecast_tasks[station] = asyncio.create_task(self._forecast_background_worker(station))
+
     async def observations(self, station: str, hours: int = 30) -> ObservationBatch:
+        """Return official METAR observations promptly; refresh forecast separately.
+
+        Slow/missing TAF data must never hold the entire observation batch hostage.
+        A fresh cached forecast is attached when available. Otherwise a bounded
+        background job refreshes it and a later observation cycle will attach it.
+        """
         try:
             r = await self.http.get(AWC, params={"ids": station, "format": "json", "hours": hours})
             if r.status_code == 204:
@@ -386,7 +416,9 @@ class WeatherClient:
                 if temp is None:
                     continue
                 out.append(Observation(dt, float(temp), row.get("rawOb") or ""))
-            forecast = await self._forecast(station)
+            forecast = self._fresh_cached_forecast(station)
+            if forecast is None:
+                self._ensure_forecast_background(station)
             return ObservationBatch(sorted(out, key=lambda x: x.when), forecast=forecast)
         except Exception:
             return ObservationBatch()
@@ -477,8 +509,6 @@ def lock_probability(market: Market, observations: list[Observation], station: s
         if forecast_margin < required_margin:
             return None
     else:
-        # Without a temperature trajectory we only act later and after a stronger
-        # observed retreat from the day's high. TAF still blocks convective/front risk.
         if local_hour < max(settings.weather_lock_min_local_hour, 16.0):
             return None
         if cooling < max(settings.weather_lock_cooling_obs, 3):
