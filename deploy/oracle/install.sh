@@ -42,6 +42,7 @@ else
   rm -rf "${APP_DIR}"
   git clone --depth 1 --branch main "${REPO_URL}" "${APP_DIR}"
 fi
+chmod +x "${APP_DIR}/deploy/oracle/"*.sh 2>/dev/null || true
 
 python3 -m venv "${APP_DIR}/.venv"
 "${APP_DIR}/.venv/bin/python" -m pip install --upgrade pip
