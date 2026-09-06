@@ -14,5 +14,5 @@ jobs:
           python-version: '3.11'
       - run: pip install -r requirements-dev.txt
       - run: pytest -q
-      - run: python -m py_compile app.py app_stable.py polymarket_scanner/*.py
+      - run: python -m py_compile app.py app_stable.py app_stable_v2.py polymarket_scanner/*.py
       - run: bash -n deploy/oracle/*.sh deploy/gcp/*.sh
