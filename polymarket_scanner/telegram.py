@@ -76,7 +76,8 @@ class Telegram:
         icon = "🚨" if s.confidence == "ACTIONABLE" else "👀"
         parts = [f"{icon} <b>{html.escape(s.confidence)} #{signal_id}</b>", f"<b>{html.escape(s.title)}</b>"]
         if s.edge is not None:
-            parts.append(f"\n💰 <b>Estimated edge:</b> {s.edge:.2%}")
+            label = "Estimated executable edge" if s.confidence == "ACTIONABLE" else "Observed/model gap (not certified profit)"
+            parts.append(f"\n💰 <b>{label}:</b> {s.edge:.2%}")
         parts.append("\n" + html.escape(s.detail))
         steps = s.metadata.get("action_steps") or []
         fallback_risk = None
@@ -89,6 +90,9 @@ class Telegram:
         risk = s.metadata.get("risk_note") or fallback_risk
         if risk:
             parts.append("\n⚠️ <b>CHECK / SKIP RULE</b>\n" + html.escape(str(risk)))
+        max_notional = s.metadata.get("max_visible_notional_usd")
+        if s.confidence == "ACTIONABLE" and max_notional is not None:
+            parts.append(f"\n📏 <b>Quoted top-of-book capacity:</b> about ${float(max_notional):.2f} maximum at the confirmed prices. Do not size above this from this alert.")
         if s.confidence == "ACTIONABLE":
             parts.append(f"\n🧾 If you actually take this trade, send <code>/took {signal_id} 50</code> (replace 50 with your US$ stake). I’ll track your taken trades separately from paper signals.")
         text = "\n".join(parts)
@@ -98,9 +102,14 @@ class Telegram:
 
     async def send_stats(self):
         st = self.store.stats()
-        lines = ["📊 <b>Scanner paper stats</b>", f"Actionable: {st['total']} | Won: {st['won']} | Lost: {st['lost']} | Open: {st['open']}", f"Paper P&amp;L: ${st['pnl']:.2f}"]
+        lines = [
+            "📊 <b>Verified paper stats</b>",
+            f"Actionable: {st['total']} | Won: {st['won']} | Lost: {st['lost']} | Open: {st['open']}",
+            f"Resolved paper P&amp;L: ${st['pnl']:.2f}",
+            "ℹ️ Structural arbitrage quote snapshots are no longer auto-counted as wins. They remain unscored unless a genuine outcome/execution result exists.",
+        ]
         for r in st["by_detector"]:
-            lines.append(f"• {html.escape(r['detector'])}: {r['n']} alerts, ${float(r['pnl']):.2f}")
+            lines.append(f"• {html.escape(r['detector'])}: {r['n']} alerts, ${float(r['pnl']):.2f} resolved P&amp;L")
         await self.send("\n".join(lines))
 
     async def send_manual_stats(self):
@@ -139,7 +148,7 @@ class Telegram:
                             row = self.store.record_manual(int(mm.group(1)), float(mm.group(2))); await self.send(f"✅ Recorded trade #{row['id']} from alert #{row['signal_id']} with ${row['stake']:.2f} stake. Entry/P&amp;L tracking uses the alert's executable-cost estimate.")
                         except ValueError as exc: await self.send(f"Could not record that trade: {html.escape(str(exc))}")
                 elif low in {"/help", "help", "/start"}:
-                    await self.send("Commands:\n/stats — paper detector performance\n/mystats — trades you marked as taken\n/recent — recent alerts\n/taken — your recent taken trades\n/took ALERT_ID STAKE_USD — mark an alert you actually traded\n/help — this list")
+                    await self.send("Commands:\n/stats — verified paper detector performance\n/mystats — trades you marked as taken\n/recent — recent alerts\n/taken — your recent taken trades\n/took ALERT_ID STAKE_USD — mark an alert you actually traded\n/help — this list")
             self.store.set_state("telegram_offset", str(offset))
         except Exception:
             return
