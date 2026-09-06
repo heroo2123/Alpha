@@ -7,15 +7,15 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+from .config import settings
 from .models import Signal
 
 
 class TelegramOutbox:
     """Small persistent queue shared by scanner and Telegram command worker.
 
-    The scanner only inserts signal IDs. The standalone command worker owns
-    Telegram networking and marks rows delivered. SQLite makes queued alerts
-    survive either process restarting.
+    ACTIONABLE alerts are never dropped. WATCH alerts are bounded so an extended
+    Telegram outage cannot create an enormous stale research backlog.
     """
 
     def __init__(self, path: str) -> None:
@@ -52,6 +52,14 @@ class TelegramOutbox:
 
     def enqueue_signal(self, signal_id: int, priority: int) -> bool:
         with self._lock, self._conn() as c:
+            if int(priority) >= 10:
+                pending_watch = int(
+                    c.execute(
+                        "SELECT COUNT(*) FROM telegram_outbox WHERE status='PENDING' AND priority>=10"
+                    ).fetchone()[0]
+                )
+                if pending_watch >= int(settings.telegram_watch_backlog_limit):
+                    return False
             cur = c.execute(
                 """
                 INSERT OR IGNORE INTO telegram_outbox(
