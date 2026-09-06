@@ -10,6 +10,7 @@ import httpx
 
 from .config import settings
 from .models import Signal
+from .outbox import TelegramOutbox
 from .store import Store
 
 log = logging.getLogger("polybot.telegram")
@@ -18,15 +19,18 @@ log = logging.getLogger("polybot.telegram")
 class Telegram:
     """Telegram transport with isolated command and alert lanes.
 
-    Commands intentionally use a different AsyncClient from signal delivery so a
-    burst of sendMessage calls (or Telegram throttling on those calls) cannot
-    starve getUpdates or command replies.
+    On the production VM commands run in a standalone process. In that mode the
+    scanner never opens a Telegram alert connection: it persists signal IDs to a
+    SQLite outbox and the command worker owns network delivery. This prevents
+    scanner-side network quirks from losing or delaying alerts.
     """
 
-    def __init__(self, store: Store) -> None:
+    def __init__(self, store: Store, *, alert_delivery_owner: bool = False) -> None:
         self.store = store
         self.token = settings.telegram_bot_token
         self.chat_id = settings.telegram_chat_id
+        self.alert_delivery_owner = alert_delivery_owner
+        self.outbox = TelegramOutbox(settings.db_path)
         self.command_http = self._new_http_client()
         self.alert_http = self._new_http_client(connect_timeout=8.0)
         self.local_http = httpx.AsyncClient(timeout=5, trust_env=False)
@@ -111,7 +115,10 @@ class Telegram:
                     self.last_command_error = repr(exc)
                 else:
                     self.last_alert_error = repr(exc)
-                    if isinstance(exc, (httpx.ConnectError, httpx.ConnectTimeout, httpx.ReadError, httpx.RemoteProtocolError)):
+                    if (
+                        client is self.alert_http
+                        and isinstance(exc, (httpx.ConnectError, httpx.ConnectTimeout, httpx.ReadError, httpx.RemoteProtocolError))
+                    ):
                         client = await self._reset_alert_http()
                 if attempt >= 2:
                     raise
@@ -126,9 +133,10 @@ class Telegram:
             await self.send_to(self.chat_id, text, reply_markup)
 
     async def send_alert(self, text: str, reply_markup: dict | None = None) -> None:
-        """Send a scanner alert through the independent alert lane."""
+        """Send an alert using the delivery owner's known-good Telegram lane."""
         if self.enabled:
-            await self._post_message(self.alert_http, self.chat_id, text, reply_markup, lane="alert")
+            client = self.command_http if self.alert_delivery_owner else self.alert_http
+            await self._post_message(client, self.chat_id, text, reply_markup, lane="alert")
 
     async def ensure_command_menu(self) -> None:
         if not self.token or self._commands_registered:
@@ -185,6 +193,14 @@ class Telegram:
         return ([], None)
 
     async def send_signal(self, signal_id: int, s: Signal) -> None:
+        # Production scanner: never perform Telegram network I/O here. The
+        # standalone command worker owns delivery and drains this persistent queue.
+        if not self.alert_delivery_owner and not settings.telegram_commands_in_app:
+            priority = 0 if s.confidence == "ACTIONABLE" else 10
+            self.outbox.enqueue_signal(signal_id, priority)
+            self.last_alert_error = None
+            return
+
         icon = "🚨" if s.confidence == "ACTIONABLE" else "👀"
         parts = [f"{icon} <b>{html.escape(s.confidence)} #{signal_id}</b>", f"<b>{html.escape(s.title)}</b>"]
         if s.edge is not None:
@@ -211,9 +227,6 @@ class Telegram:
         if len(text) > 3900:
             text = text[:3850] + "\n…\n(Open the event for the remaining leg details.)"
 
-        # ACTIONABLE alerts are never intentionally lost to a transient Telegram
-        # network failure. WATCH leads retain normal bounded retries so a research
-        # message cannot block urgent alerts forever.
         if s.confidence != "ACTIONABLE":
             await self.send_alert(text, self._buttons(s))
             return
@@ -293,12 +306,17 @@ class Telegram:
         universe_error = st.get("universe_error")
         last_error = st.get("last_error")
         queue_depth = int(st.get("telegram_alert_queue") or 0)
+        try:
+            queue_depth += self.outbox.pending_count()
+        except Exception:
+            pass
         dropped = int(st.get("telegram_watch_dropped") or 0)
         scan_running = bool(st.get("scan_in_progress"))
         compute_seconds = st.get("last_compute_seconds")
         command_poll_age = self._age_text(st.get("telegram_last_command_poll"))
         command_error = st.get("telegram_command_error")
-        alert_error = st.get("telegram_alert_error")
+        alert_error = st.get("telegram_alert_error") or self.store.get_state("telegram_outbox_error", "")
+        sports_error = st.get("sports_ws_error")
 
         if scan_running:
             detector_line = "Detector worker: <b>RUNNING in background</b>"
@@ -319,6 +337,8 @@ class Telegram:
             f"Telegram command poll: <b>{html.escape(command_poll_age)}</b>",
             f"Telegram alert backlog: <b>{queue_depth}</b>" + (f" | WATCH skipped: <b>{dropped}</b>" if dropped else ""),
         ]
+        if sports_error and not st.get("sports_ws"):
+            lines.append(f"⚠️ Sports feed: <code>{html.escape(str(sports_error)[:250])}</code>")
         if command_error:
             lines.append(f"⚠️ Telegram command error: <code>{html.escape(str(command_error)[:250])}</code>")
         if alert_error:
@@ -327,7 +347,7 @@ class Telegram:
             lines.append(f"⚠️ Scanner error: <code>{html.escape(str(last_error)[:350])}</code>")
         if universe_error:
             lines.append(f"⚠️ Universe refresh: <code>{html.escape(str(universe_error)[:350])}</code>")
-        if not last_error and not universe_error and not command_error and not alert_error:
+        if not last_error and not universe_error and not command_error and not alert_error and not sports_error:
             lines.append("Errors: <b>none</b>")
         await self.send("\n".join(lines))
 
