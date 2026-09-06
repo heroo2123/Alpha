@@ -111,15 +111,47 @@ def weather_late_lock(markets: list[Market], books: dict[str, Book], weather_cac
         edge = info["probability"] - net_cost
         if ask >= settings.weather_market_price_ceiling or edge < settings.actionable_min_edge:
             continue
+        margin = info["forecast_margin"]
+        unit = info["unit"]
+        detail = (
+            f"{station}: exact {info['settlement_source_kind']} settlement station verified. "
+            f"Official-hourly observed max {info['observed_max']:.0f}°{unit}; current {info['current']:.0f}°; "
+            f"recent {info['hourly_values']}; latest hourly observation {info['latest_observation_age_minutes']:.0f} min old. "
+            f"Local time {info['local_time']} ({info['timezone']}). Remaining-day {info['forecast_provider']} max "
+            f"{info['forecast_remaining_max']:.0f}°{unit}, {margin:.0f}° below the observed high; "
+            f"max precip probability {info['max_precip_probability']:.0f}%, max cloud {info['max_cloud_cover']:.0f}%; "
+            f"thunderstorm/front-regime gates clear. Model lock probability {info['probability']:.1%}. "
+            f"Matching bucket ask {ask:.3f}, est. fee/share {fee:.4f}, model edge {edge:.2%}."
+        )
         out.append(Signal(
             detector="weather_late_lock", confidence="ACTIONABLE", event_id=winner.event_id, market_id=winner.id,
-            title=f"Weather lock candidate: {winner.event_title}",
-            detail=(f"{station}: observed hourly max {info['observed_max']:.0f}°{info['unit']}; current {info['current']:.0f}°; "
-                    f"recent {info['hourly_values']}; local {info['local_time']}; model lock probability {info['probability']:.1%}. "
-                    f"Matching bucket ask {ask:.3f}, est. fee/share {fee:.4f}, model edge {edge:.2%}. Verify the NOAA WRH table before trading."),
+            title=f"Weather high-lock candidate: {winner.event_title}",
+            detail=detail,
             url=market_url(winner), edge=edge, entry_cost=net_cost, theoretical_payout=1.0,
             token_ids=[winner.yes_token],
-            metadata={"station": station, "ask": ask, "lock_probability": info["probability"], "observed_max": info["observed_max"], "unit": info["unit"], "source_note": info["source"], "fingerprint_key": f"{winner.id}:{info['observed_max']}"},
+            metadata={
+                "station": station,
+                "ask": ask,
+                "lock_probability": info["probability"],
+                "observed_max": info["observed_max"],
+                "unit": unit,
+                "forecast_remaining_max": info["forecast_remaining_max"],
+                "forecast_margin": margin,
+                "timezone": info["timezone"],
+                "settlement_source_verified": True,
+                "settlement_source_url": info["settlement_source_url"],
+                "forecast_provider": info["forecast_provider"],
+                "source_note": info["source"],
+                "fingerprint_key": f"{winner.id}:{info['observed_max']}",
+                "action_steps": [
+                    "Tap OPEN MARKET below.",
+                    f"Open the market Rules and verify the settlement station is still {station} on the NOAA/NWS WRH time-series source.",
+                    f"Confirm the official hourly table still shows a daily high of {info['observed_max']:.0f}°{unit} and no newer observation has exceeded it.",
+                    f"Confirm the remaining-day forecast still stays comfortably below that high; this alert saw a max of {info['forecast_remaining_max']:.0f}°{unit}.",
+                    f"Buy YES on the matching bucket at {ask:.3f} or lower. If the ask moved higher or any verification changed, SKIP.",
+                ],
+                "risk_note": "The forecast is advisory, not the settlement source. Skip if the official WRH table, station/date/rules, or remaining-day weather no longer match the alert. A forecast can be wrong.",
+            },
         ))
     return out
 
