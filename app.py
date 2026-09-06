@@ -11,19 +11,10 @@ from datetime import datetime, timezone
 from fastapi import FastAPI
 
 from polymarket_scanner.config import settings
-from polymarket_scanner.detectors import duplicate_divergence, weather_late_lock, wide_spread_watch
-from polymarket_scanner.detectors_v02 import (
-    crypto_crossfeed_divergence, crypto_resolution_lag, official_macro_release_lag, sports_result_lag,
-)
-from polymarket_scanner.hardening import (
-    MIN_VISIBLE_NOTIONAL_USD,
-    archive_legacy_structural_stats,
-    hardened_binary_buy_both,
-    hardened_neg_risk_underround,
-    hardened_nested_threshold_arbitrage,
-)
+from polymarket_scanner.evaluator import evaluate_signals
+from polymarket_scanner.hardening import MIN_VISIBLE_NOTIONAL_USD, archive_legacy_structural_stats
 from polymarket_scanner.macro import MacroClient
-from polymarket_scanner.models import Book, Market, Signal
+from polymarket_scanner.models import Market, Signal
 from polymarket_scanner.polymarket import PolymarketClient, taker_fee_per_share
 from polymarket_scanner.store import Store
 from polymarket_scanner.streams import CryptoRTDS, LiveMarketStream, SportsStream
@@ -44,7 +35,7 @@ market_stream = LiveMarketStream()
 sports_stream = SportsStream()
 crypto_stream = CryptoRTDS()
 tg = Telegram(store)
-app = FastAPI(title="Polymarket Edge Scanner", version="0.2.8")
+app = FastAPI(title="Polymarket Edge Scanner", version="0.2.9")
 state = {
     "started": time.time(), "last_scan": None, "markets": 0, "tokens": 0, "stations": 0,
     "weather_ready_stations": 0, "weather_refreshing": False, "last_error": None,
@@ -53,6 +44,8 @@ state = {
     "macro": {}, "last_reason": None,
     "legacy_structural_archived": legacy_structural_archived,
     "telegram_watch_dropped": 0,
+    "scan_in_progress": False,
+    "last_compute_seconds": None,
 }
 runner_task: asyncio.Task | None = None
 telegram_task: asyncio.Task | None = None
@@ -65,11 +58,11 @@ def _all_tokens(markets: list[Market]) -> list[str]:
     return list(dict.fromkeys(t for m in markets for t in m.token_ids if t))
 
 
-def _apply_live_bbo(markets: list[Market], books: dict[str, Book]) -> None:
-    for m in markets:
-        y = books.get(m.yes_token or "")
-        if y:
-            m.best_bid = y.best_bid; m.best_ask = y.best_ask
+def _weather_universe(markets: list[Market]) -> tuple[list[Market], list[str]]:
+    """Compute weather subset/stations off the uvicorn event loop."""
+    weather_markets = [m for m in markets if "highest temperature" in f"{m.event_title} {m.question}".lower()]
+    stations = sorted({s for m in weather_markets if (s := station_from_market(m))})
+    return weather_markets, stations
 
 
 def _quoted_asks(s: Signal) -> list[float]:
@@ -230,7 +223,10 @@ async def telegram_command_loop() -> None:
 
 
 async def scanner_loop():
-    markets: list[Market] = []; weather_cache: dict[str, list] = {}
+    markets: list[Market] = []
+    weather_markets: list[Market] = []
+    stations: list[str] = []
+    weather_cache: dict[str, list] = {}
     weather_task: asyncio.Task | None = None
     last_universe = last_weather = last_macro = last_settle = last_watch = 0.0
     while True:
@@ -259,14 +255,14 @@ async def scanner_loop():
                     last_universe = tick
                     log.warning("universe refresh failed; keeping %d existing markets: %r", len(markets), exc)
                 else:
-                    markets = refreshed_markets; tokens = _all_tokens(markets)
+                    markets = refreshed_markets
+                    tokens = await asyncio.to_thread(_all_tokens, markets)
+                    weather_markets, stations = await asyncio.to_thread(_weather_universe, markets)
                     await market_stream.configure(tokens)
-                    state["markets"] = len(markets); state["tokens"] = len(tokens); last_universe = tick; universe_refreshed = True
+                    state["markets"] = len(markets); state["tokens"] = len(tokens); state["stations"] = len(stations)
+                    last_universe = tick; universe_refreshed = True
                     state["universe_error"] = None
-                    log.info("universe refreshed: %d markets / %d tokens", len(markets), len(tokens))
-
-            weather_markets = [m for m in markets if "highest temperature" in f"{m.event_title} {m.question}".lower()]
-            stations = sorted({s for m in weather_markets if (s := station_from_market(m))}); state["stations"] = len(stations)
+                    log.info("universe refreshed: %d markets / %d tokens / %d weather stations", len(markets), len(tokens), len(stations))
 
             if weather_task is None and (not weather_cache or tick - last_weather >= settings.weather_refresh_seconds):
                 weather_task = asyncio.create_task(_fetch_weather_batch(stations))
@@ -282,25 +278,40 @@ async def scanner_loop():
                 if flags & {"market", "crypto"}:
                     await asyncio.sleep(settings.websocket_debounce_seconds); market_stream.changed.clear(); crypto_stream.changed.clear()
 
-            books = market_stream.snapshot(); _apply_live_bbo(markets, books)
-            signals: list[Signal] = []; fast_market = universe_refreshed or bool(flags & {"market", "fallback"})
-            if fast_market:
-                signals.extend(hardened_binary_buy_both(markets, books))
-                signals.extend(hardened_neg_risk_underround(markets, books))
-                signals.extend(hardened_nested_threshold_arbitrage(markets, books))
-            if weather_cache and (fast_market or weather_refreshed): signals.extend(weather_late_lock(weather_markets, books, weather_cache))
-            if fast_market or "sports" in flags: signals.extend(sports_result_lag(markets, books, sports_stream.snapshot()))
-            if fast_market or "crypto" in flags: signals.extend(crypto_resolution_lag(markets, books, crypto_stream))
-            if fast_market or macro_refreshed: signals.extend(official_macro_release_lag(markets, books, macro))
-            if universe_refreshed or tick - last_watch >= 60:
-                signals.extend(crypto_crossfeed_divergence(markets, crypto_stream))
-                dup_task = asyncio.to_thread(duplicate_divergence, list(markets))
-                spread_task = asyncio.to_thread(wide_spread_watch, list(markets))
-                dup_signals, spread_signals = await asyncio.gather(dup_task, spread_task)
-                signals.extend(dup_signals); signals.extend(spread_signals); last_watch = tick
+            books = market_stream.snapshot()
+            fast_market = universe_refreshed or bool(flags & {"market", "fallback"})
+            run_watch = universe_refreshed or tick - last_watch >= 60
+            sports_cache = sports_stream.snapshot()
 
-            signals.sort(key=lambda x: (x.confidence != "ACTIONABLE", -(x.edge or 0)))
-            for s in signals:
+            compute_started = time.time()
+            state["scan_in_progress"] = True
+            try:
+                signals = await asyncio.to_thread(
+                    evaluate_signals,
+                    markets,
+                    books,
+                    weather_markets,
+                    weather_cache,
+                    sports_cache,
+                    crypto_stream,
+                    macro,
+                    fast_market=fast_market,
+                    weather_refreshed=weather_refreshed,
+                    sports_trigger="sports" in flags,
+                    crypto_trigger="crypto" in flags,
+                    macro_refreshed=macro_refreshed,
+                    run_watch=run_watch,
+                )
+            finally:
+                state["scan_in_progress"] = False
+                state["last_compute_seconds"] = round(time.time() - compute_started, 3)
+            if run_watch:
+                last_watch = tick
+
+            for idx, s in enumerate(signals):
+                if idx and idx % 20 == 0:
+                    # Yield between SQLite/dedup batches so Telegram/WebSockets stay snappy.
+                    await asyncio.sleep(0)
                 s = await confirm_actionable(s)
                 if s is None: continue
                 signal_id = store.save_signal(s)
@@ -314,11 +325,13 @@ async def scanner_loop():
             state["sports_ws"] = sports_stream.connected; state["crypto_rtds"] = crypto_stream.connected
             state["macro"] = macro.status(); state["last_error"] = None
         except asyncio.CancelledError:
+            state["scan_in_progress"] = False
             if weather_task is not None:
                 weather_task.cancel()
                 await asyncio.gather(weather_task, return_exceptions=True)
             raise
         except Exception as exc:
+            state["scan_in_progress"] = False
             state["last_error"] = repr(exc); log.exception("scanner iteration failed"); await asyncio.sleep(2)
 
 
