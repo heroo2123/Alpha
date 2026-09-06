@@ -131,13 +131,27 @@ def _norm(s: str) -> str:
 
 
 def duplicate_divergence(markets: list[Market]) -> list[Signal]:
+    """Find likely duplicate contracts without repeatedly normalizing every pair.
+
+    The old implementation normalized both questions inside all ~61k pair checks.
+    On a tiny e2-micro that could pin the event loop for tens of seconds. We now
+    normalize once, use SequenceMatcher's cheap upper-bound filters first, and only
+    run the full ratio for pairs that can still meet the configured threshold.
+    """
     candidates = [m for m in markets if m.liquidity >= settings.min_market_liquidity and m.best_ask is not None]
-    out: list[Signal] = []
     candidates = sorted(candidates, key=lambda x: x.liquidity, reverse=True)[:350]
-    for a, b in combinations(candidates, 2):
-        if a.event_id == b.event_id:
+    prepared = [(m, _norm(m.question)) for m in candidates]
+    out: list[Signal] = []
+
+    for (a, na), (b, nb) in combinations(prepared, 2):
+        if a.event_id == b.event_id or not na or not nb:
             continue
-        sim = SequenceMatcher(None, _norm(a.question), _norm(b.question)).ratio()
+        sm = SequenceMatcher(None, na, nb, autojunk=False)
+        if sm.real_quick_ratio() < settings.duplicate_similarity_threshold:
+            continue
+        if sm.quick_ratio() < settings.duplicate_similarity_threshold:
+            continue
+        sim = sm.ratio()
         if sim < settings.duplicate_similarity_threshold:
             continue
         pa = a.outcome_prices[0] if a.outcome_prices else a.best_ask
