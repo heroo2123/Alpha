@@ -44,19 +44,36 @@ class PolymarketClient:
     async def close(self) -> None:
         await self.http.aclose()
 
+    async def _event_page(self, offset: int) -> list[dict]:
+        """Fetch one Gamma event page with a compatibility fallback.
+
+        Gamma has changed validation around sort fields/page sizes over time. Sorting is
+        not required for the scanner, so if the optimized request is rejected (422),
+        retry with only the stable filter/pagination parameters rather than taking the
+        whole scanner offline.
+        """
+        page_size = max(1, min(int(settings.gamma_page_size), 100))
+        base = {
+            "active": "true",
+            "closed": "false",
+            "limit": page_size,
+            "offset": offset,
+        }
+        preferred = {**base, "order": "volume", "ascending": "false"}
+        r = await self.http.get(f"{GAMMA}/events", params=preferred)
+        if r.status_code == 422:
+            r = await self.http.get(f"{GAMMA}/events", params=base)
+        r.raise_for_status()
+        payload = r.json()
+        events = payload.get("events", []) if isinstance(payload, dict) else payload
+        return events if isinstance(events, list) else []
+
     async def active_markets(self) -> list[Market]:
         markets: list[Market] = []
         offset = 0
+        page_size = max(1, min(int(settings.gamma_page_size), 100))
         while len(markets) < settings.max_events:
-            params = {
-                "active": "true", "closed": "false",
-                "limit": settings.gamma_page_size, "offset": offset,
-                "order": "volume_24hr", "ascending": "false",
-            }
-            r = await self.http.get(f"{GAMMA}/events", params=params)
-            r.raise_for_status()
-            payload = r.json()
-            events = payload.get("events", []) if isinstance(payload, dict) else payload
+            events = await self._event_page(offset)
             if not events:
                 break
             for event in events:
@@ -88,9 +105,9 @@ class PolymarketClient:
                         category=(m.get("category") or event.get("category") or ""),
                         tags=tags, raw=m,
                     ))
-            if len(events) < settings.gamma_page_size:
+            if len(events) < page_size:
                 break
-            offset += settings.gamma_page_size
+            offset += page_size
         return markets[: settings.max_events]
 
     async def book(self, token_id: str) -> Book | None:
