@@ -36,12 +36,23 @@ def _ts_seconds(v) -> float:
 
 
 class LiveMarketStream:
-    """Low-latency public CLOB cache; ACTIONABLE alerts are REST-confirmed."""
+    """Low-latency public CLOB cache; ACTIONABLE alerts are REST-confirmed.
+
+    Universe refreshes use Polymarket's documented subscription-update messages
+    instead of tearing down and resending the full ~20k-token subscription set.
+    This matters on metered/free-tier hosts because only small token deltas leave
+    the VM after the initial connection.
+    """
+
     def __init__(self) -> None:
         self.books: dict[str, Book] = {}
         self.changed = asyncio.Event()
-        self._tasks: list[asyncio.Task] = []
+        self._tasks: dict[int, asyncio.Task] = {}
+        self._queues: dict[int, asyncio.Queue] = {}
+        self._worker_tokens: dict[int, set[str]] = {}
+        self._token_owner: dict[str, int] = {}
         self._token_set: set[str] = set()
+        self._next_worker_id = 0
         self.connected_workers = 0
         self.last_message_at: float | None = None
 
@@ -51,30 +62,76 @@ class LiveMarketStream:
     def snapshot(self) -> dict[str, Book]:
         return dict(self.books)
 
+    def _start_worker(self, tokens: Iterable[str]) -> int:
+        worker_id = self._next_worker_id
+        self._next_worker_id += 1
+        token_set = set(tokens)
+        self._worker_tokens[worker_id] = token_set
+        self._queues[worker_id] = asyncio.Queue()
+        for token in token_set:
+            self._token_owner[token] = worker_id
+        self._tasks[worker_id] = asyncio.create_task(self._worker(worker_id))
+        return worker_id
+
     async def configure(self, token_ids: Iterable[str]) -> None:
         tokens = list(dict.fromkeys(t for t in token_ids if t))
         new_set = set(tokens)
+        if not settings.market_ws_enabled:
+            if self._tasks:
+                await self.close()
+            self._token_set = new_set
+            return
         if new_set == self._token_set and self._tasks:
             return
-        self._token_set = new_set
-        for task in self._tasks:
-            task.cancel()
-        if self._tasks:
-            await asyncio.gather(*self._tasks, return_exceptions=True)
-        self._tasks = []
-        self.connected_workers = 0
-        if not settings.market_ws_enabled or not tokens:
-            return
+
         size = max(50, settings.ws_tokens_per_connection)
-        for i, chunk_start in enumerate(range(0, len(tokens), size)):
-            self._tasks.append(asyncio.create_task(self._worker(i, tokens[chunk_start:chunk_start + size])))
+        if not self._tasks:
+            for chunk_start in range(0, len(tokens), size):
+                self._start_worker(tokens[chunk_start:chunk_start + size])
+            self._token_set = new_set
+            return
+
+        removed = self._token_set - new_set
+        unsubscribe_by_worker: dict[int, list[str]] = defaultdict(list)
+        for token in removed:
+            worker_id = self._token_owner.pop(token, None)
+            if worker_id is not None:
+                self._worker_tokens.get(worker_id, set()).discard(token)
+                unsubscribe_by_worker[worker_id].append(token)
+            self.books.pop(token, None)
+        for worker_id, ids in unsubscribe_by_worker.items():
+            queue = self._queues.get(worker_id)
+            if queue and ids:
+                queue.put_nowait({"operation": "unsubscribe", "assets_ids": ids})
+
+        subscribe_by_worker: dict[int, list[str]] = defaultdict(list)
+        for token in new_set - self._token_set:
+            candidates = [wid for wid, owned in self._worker_tokens.items() if len(owned) < size]
+            if candidates:
+                worker_id = min(candidates, key=lambda wid: len(self._worker_tokens[wid]))
+            else:
+                worker_id = self._start_worker([])
+            self._worker_tokens[worker_id].add(token)
+            self._token_owner[token] = worker_id
+            subscribe_by_worker[worker_id].append(token)
+        for worker_id, ids in subscribe_by_worker.items():
+            queue = self._queues.get(worker_id)
+            if queue and ids:
+                queue.put_nowait({"operation": "subscribe", "assets_ids": ids})
+
+        self._token_set = new_set
 
     async def close(self) -> None:
-        for task in self._tasks:
+        for task in self._tasks.values():
             task.cancel()
         if self._tasks:
-            await asyncio.gather(*self._tasks, return_exceptions=True)
-        self._tasks = []
+            await asyncio.gather(*self._tasks.values(), return_exceptions=True)
+        self._tasks = {}
+        self._queues = {}
+        self._worker_tokens = {}
+        self._token_owner = {}
+        self._token_set = set()
+        self.connected_workers = 0
 
     async def _heartbeat(self, ws) -> None:
         while True:
@@ -84,15 +141,44 @@ class LiveMarketStream:
             except Exception:
                 return
 
-    async def _worker(self, worker_id: int, tokens: list[str]) -> None:
+    async def _subscription_sender(self, ws, worker_id: int) -> None:
+        queue = self._queues[worker_id]
+        while True:
+            message = await queue.get()
+            try:
+                await ws.send(json.dumps(message, separators=(",", ":")))
+            except Exception:
+                try:
+                    await ws.close()
+                except Exception:
+                    pass
+                return
+
+    async def _worker(self, worker_id: int) -> None:
         backoff = 1.0
         while True:
+            tokens = list(self._worker_tokens.get(worker_id, set()))
+            if not tokens:
+                await asyncio.sleep(1)
+                continue
             try:
                 async with websockets.connect(MARKET_WS, ping_interval=None, close_timeout=5, max_size=16_000_000) as ws:
-                    await ws.send(json.dumps({"assets_ids": tokens, "type": "market", "custom_feature_enabled": True}))
+                    # Current worker token state is authoritative after reconnect;
+                    # discard queued deltas that are already represented in it.
+                    queue = self._queues[worker_id]
+                    while not queue.empty():
+                        try:
+                            queue.get_nowait()
+                        except asyncio.QueueEmpty:
+                            break
+                    tokens = list(self._worker_tokens.get(worker_id, set()))
+                    if not tokens:
+                        continue
+                    await ws.send(json.dumps({"assets_ids": tokens, "type": "market", "custom_feature_enabled": True}, separators=(",", ":")))
                     self.connected_workers += 1
                     backoff = 1.0
                     hb = asyncio.create_task(self._heartbeat(ws))
+                    sender = asyncio.create_task(self._subscription_sender(ws, worker_id))
                     try:
                         async for raw in ws:
                             self.last_message_at = time.time()
@@ -107,6 +193,8 @@ class LiveMarketStream:
                                     self._apply(row)
                     finally:
                         hb.cancel()
+                        sender.cancel()
+                        await asyncio.gather(hb, sender, return_exceptions=True)
                         self.connected_workers = max(0, self.connected_workers - 1)
             except asyncio.CancelledError:
                 raise
