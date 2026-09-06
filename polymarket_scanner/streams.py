@@ -163,8 +163,6 @@ class LiveMarketStream:
                 continue
             try:
                 async with websockets.connect(MARKET_WS, ping_interval=None, close_timeout=5, max_size=16_000_000) as ws:
-                    # Current worker token state is authoritative after reconnect;
-                    # discard queued deltas that are already represented in it.
                     queue = self._queues[worker_id]
                     while not queue.empty():
                         try:
@@ -265,26 +263,35 @@ class SportsStream:
         while True:
             try:
                 async with websockets.connect(SPORTS_WS, ping_interval=None, close_timeout=5) as ws:
-                    self.connected = True; backoff = 1.0
-                    async for raw in ws:
-                        self.last_message_at = time.time()
-                        if isinstance(raw, str) and raw.upper() == "PING":
-                            await ws.send("PONG"); continue
-                        try:
-                            msg = json.loads(raw)
-                        except Exception:
-                            continue
-                        for row in (msg if isinstance(msg, list) else [msg]):
-                            if not isinstance(row, dict):
+                    self.connected = True
+                    backoff = 1.0
+                    try:
+                        async for raw in ws:
+                            self.last_message_at = time.time()
+                            if isinstance(raw, str) and raw.strip().lower() == "ping":
+                                await ws.send("pong")
                                 continue
-                            slug = str(row.get("slug") or "")
-                            if slug and any(k in row for k in ("score", "ended", "live", "period")):
-                                self.results[slug] = row; self.changed.set()
+                            try:
+                                msg = json.loads(raw)
+                            except Exception:
+                                continue
+                            for row in (msg if isinstance(msg, list) else [msg]):
+                                if not isinstance(row, dict):
+                                    continue
+                                slug = str(row.get("slug") or "")
+                                if slug and any(k in row for k in ("score", "ended", "live", "period")):
+                                    self.results[slug] = row
+                                    self.changed.set()
+                    finally:
+                        self.connected = False
             except asyncio.CancelledError:
+                self.connected = False
                 raise
             except Exception as exc:
-                self.connected = False; log.warning("sports ws disconnected: %s", exc)
-                await asyncio.sleep(backoff); backoff = min(30.0, backoff * 2)
+                self.connected = False
+                log.warning("sports ws disconnected: %s", exc)
+                await asyncio.sleep(backoff)
+                backoff = min(30.0, backoff * 2)
 
 
 @dataclass(slots=True)
