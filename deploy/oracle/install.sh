@@ -8,13 +8,14 @@ DATA_DIR="${HOME}/.${APP_NAME}/data"
 CONFIG_DIR="${HOME}/.${APP_NAME}"
 ENV_FILE="${CONFIG_DIR}/bot.env"
 SERVICE_NAME="${APP_NAME}.service"
+COMMAND_SERVICE="polymarket-edge-command.service"
 CURRENT_USER="$(id -un)"
 
 say() { printf '\n\033[1;36m%s\033[0m\n' "$*"; }
 fail() { printf '\nERROR: %s\n' "$*" >&2; exit 1; }
 
 if [[ "${EUID}" -eq 0 ]]; then
-  fail "Run this installer as the normal SSH user (ubuntu), not as root. It will use sudo when needed."
+  fail "Run this installer as the normal SSH user, not as root. It will use sudo when needed."
 fi
 
 say "Installing system packages"
@@ -24,13 +25,13 @@ if command -v apt-get >/dev/null 2>&1; then
 elif command -v dnf >/dev/null 2>&1; then
   sudo dnf install -y git curl ca-certificates python3 python3-pip
 else
-  fail "Unsupported Linux image. Use Canonical Ubuntu on the Oracle VM."
+  fail "Unsupported Linux image. Use Canonical Ubuntu."
 fi
 
 python3 - <<'PY'
 import sys
 if sys.version_info < (3, 10):
-    raise SystemExit("Python 3.10+ is required. Use the current Canonical Ubuntu image in OCI.")
+    raise SystemExit("Python 3.10+ is required.")
 print("Python", sys.version.split()[0], "OK")
 PY
 
@@ -76,7 +77,7 @@ EOF
 chmod 600 "${ENV_FILE}"
 unset TELEGRAM_BOT_TOKEN
 
-say "Creating systemd 24/7 service"
+say "Creating scanner systemd service"
 TMP_SERVICE="$(mktemp)"
 cat > "${TMP_SERVICE}" <<EOF
 [Unit]
@@ -90,6 +91,7 @@ User=${CURRENT_USER}
 WorkingDirectory=${APP_DIR}
 EnvironmentFile=${ENV_FILE}
 Environment=PYTHONUNBUFFERED=1
+Environment=TELEGRAM_COMMANDS_IN_APP=false
 ExecStart=${APP_DIR}/.venv/bin/uvicorn app:app --host 127.0.0.1 --port 8000
 Restart=always
 RestartSec=5
@@ -102,20 +104,53 @@ WantedBy=multi-user.target
 EOF
 sudo install -m 0644 "${TMP_SERVICE}" "/etc/systemd/system/${SERVICE_NAME}"
 rm -f "${TMP_SERVICE}"
+
+say "Creating isolated Telegram command service"
+TMP_COMMAND="$(mktemp)"
+cat > "${TMP_COMMAND}" <<EOF
+[Unit]
+Description=Polymarket Edge Telegram Command Worker
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=${CURRENT_USER}
+WorkingDirectory=${APP_DIR}
+EnvironmentFile=${ENV_FILE}
+Environment=PYTHONUNBUFFERED=1
+ExecStart=${APP_DIR}/.venv/bin/python ${APP_DIR}/command_worker.py
+Restart=always
+RestartSec=3
+TimeoutStopSec=15
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
+EOF
+sudo install -m 0644 "${TMP_COMMAND}" "/etc/systemd/system/${COMMAND_SERVICE}"
+rm -f "${TMP_COMMAND}"
+
 sudo systemctl daemon-reload
+# Command worker is the only getUpdates consumer. Start it before the scanner.
+sudo systemctl enable --now "${COMMAND_SERVICE}"
 sudo systemctl enable --now "${SERVICE_NAME}"
 
 sleep 3
-if sudo systemctl is-active --quiet "${SERVICE_NAME}"; then
-  say "SUCCESS: scanner is running 24/7"
+if sudo systemctl is-active --quiet "${SERVICE_NAME}" && sudo systemctl is-active --quiet "${COMMAND_SERVICE}"; then
+  say "SUCCESS: scanner and Telegram command worker are running 24/7"
 else
   sudo systemctl status "${SERVICE_NAME}" --no-pager || true
-  fail "Service did not start. See logs with: sudo journalctl -u ${SERVICE_NAME} -n 100 --no-pager"
+  sudo systemctl status "${COMMAND_SERVICE}" --no-pager || true
+  fail "One of the services did not start."
 fi
 
 printf '\nUseful commands:\n'
-printf '  Status:  sudo systemctl status %s\n' "${SERVICE_NAME}"
-printf '  Logs:    sudo journalctl -u %s -f\n' "${SERVICE_NAME}"
+printf '  Scanner:  sudo systemctl status %s\n' "${SERVICE_NAME}"
+printf '  Commands: sudo systemctl status %s\n' "${COMMAND_SERVICE}"
+printf '  Scanner logs:  sudo journalctl -u %s -f\n' "${SERVICE_NAME}"
+printf '  Command logs:  sudo journalctl -u %s -f\n' "${COMMAND_SERVICE}"
 printf '  Health:  curl http://127.0.0.1:8000/health\n'
 printf '  Update:  %s/deploy/oracle/update.sh\n' "${APP_DIR}"
 
