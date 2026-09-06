@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import socket
 import time
 from collections import defaultdict, deque
 from dataclasses import dataclass
@@ -245,6 +246,7 @@ class SportsStream:
         self.changed = asyncio.Event()
         self.last_message_at: float | None = None
         self.connected = False
+        self.last_error: str | None = None
         self._task: asyncio.Task | None = None
 
     async def start(self) -> None:
@@ -262,13 +264,24 @@ class SportsStream:
         backoff = 1.0
         while True:
             try:
-                async with websockets.connect(SPORTS_WS, ping_interval=None, close_timeout=5) as ws:
+                # Production VM has IPv6-only external egress. Force AF_INET6 so
+                # the resolver cannot strand this connection on an IPv4 address.
+                async with websockets.connect(
+                    SPORTS_WS,
+                    open_timeout=15,
+                    close_timeout=5,
+                    ping_interval=20,
+                    ping_timeout=20,
+                    family=socket.AF_INET6,
+                ) as ws:
                     self.connected = True
+                    self.last_error = None
                     backoff = 1.0
                     try:
                         async for raw in ws:
                             self.last_message_at = time.time()
-                            if isinstance(raw, str) and raw.strip().lower() == "ping":
+                            heartbeat = raw.decode("utf-8", "ignore") if isinstance(raw, bytes) else str(raw)
+                            if heartbeat.strip().strip('"').lower() == "ping":
                                 await ws.send("pong")
                                 continue
                             try:
@@ -278,9 +291,10 @@ class SportsStream:
                             for row in (msg if isinstance(msg, list) else [msg]):
                                 if not isinstance(row, dict):
                                     continue
-                                slug = str(row.get("slug") or "")
-                                if slug and any(k in row for k in ("score", "ended", "live", "period")):
-                                    self.results[slug] = row
+                                payload = row.get("payload") if isinstance(row.get("payload"), dict) else row
+                                slug = str(payload.get("slug") or "")
+                                if slug and any(k in payload for k in ("score", "ended", "live", "period")):
+                                    self.results[slug] = payload
                                     self.changed.set()
                     finally:
                         self.connected = False
@@ -289,7 +303,8 @@ class SportsStream:
                 raise
             except Exception as exc:
                 self.connected = False
-                log.warning("sports ws disconnected: %s", exc)
+                self.last_error = repr(exc)
+                log.warning("sports ws disconnected: %r", exc)
                 await asyncio.sleep(backoff)
                 backoff = min(30.0, backoff * 2)
 
