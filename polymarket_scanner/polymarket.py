@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from typing import Iterable
 
 import httpx
@@ -11,6 +12,7 @@ from .models import Book, Market
 
 GAMMA = "https://gamma-api.polymarket.com"
 CLOB = "https://clob.polymarket.com"
+log = logging.getLogger("polybot.polymarket")
 
 
 def _json_list(value) -> list:
@@ -38,6 +40,7 @@ class PolymarketClient:
     def __init__(self) -> None:
         self.http = httpx.AsyncClient(
             timeout=settings.request_timeout,
+            limits=httpx.Limits(max_connections=24, max_keepalive_connections=12, keepalive_expiry=20.0),
             headers={"User-Agent": "polymarket-edge-scanner/0.2 (+github)"},
         )
 
@@ -45,7 +48,12 @@ class PolymarketClient:
         await self.http.aclose()
 
     async def _event_page(self, offset: int, *, tag_slug: str | None = None) -> list[dict]:
-        """Fetch one Gamma event page with a compatibility fallback."""
+        """Fetch one Gamma event page with compatibility and transient-failure retries.
+
+        Gamma discovery is a non-trading, idempotent GET. A single network/5xx/429
+        hiccup must not take the scanner down, so retry with bounded exponential
+        backoff before surfacing the failure to the caller.
+        """
         page_size = max(1, min(int(settings.gamma_page_size), 100))
         base = {
             "active": "true",
@@ -56,13 +64,39 @@ class PolymarketClient:
         if tag_slug:
             base["tag_slug"] = tag_slug
         preferred = {**base, "order": "volume", "ascending": "false"}
-        r = await self.http.get(f"{GAMMA}/events", params=preferred)
-        if r.status_code == 422:
-            r = await self.http.get(f"{GAMMA}/events", params=base)
-        r.raise_for_status()
-        payload = r.json()
-        events = payload.get("events", []) if isinstance(payload, dict) else payload
-        return events if isinstance(events, list) else []
+
+        attempts = 4
+        for attempt in range(attempts):
+            try:
+                r = await self.http.get(f"{GAMMA}/events", params=preferred)
+                if r.status_code == 422:
+                    r = await self.http.get(f"{GAMMA}/events", params=base)
+
+                if r.status_code == 429 or r.status_code >= 500:
+                    if attempt < attempts - 1:
+                        delay = min(4.0, 0.5 * (2 ** attempt))
+                        log.warning(
+                            "Gamma events page transient HTTP %s offset=%s tag=%s; retrying in %.1fs",
+                            r.status_code, offset, tag_slug, delay,
+                        )
+                        await asyncio.sleep(delay)
+                        continue
+
+                r.raise_for_status()
+                payload = r.json()
+                events = payload.get("events", []) if isinstance(payload, dict) else payload
+                return events if isinstance(events, list) else []
+            except httpx.RequestError as exc:
+                if attempt >= attempts - 1:
+                    raise
+                delay = min(4.0, 0.5 * (2 ** attempt))
+                log.warning(
+                    "Gamma events page request failed offset=%s tag=%s attempt=%s/%s: %r; retrying in %.1fs",
+                    offset, tag_slug, attempt + 1, attempts, exc, delay,
+                )
+                await asyncio.sleep(delay)
+
+        return []
 
     def _append_events(self, out: list[Market], events: list[dict], seen_market_ids: set[str] | None = None) -> None:
         seen = seen_market_ids if seen_market_ids is not None else set()
