@@ -100,7 +100,7 @@ async def command_loop(tg: Telegram) -> None:
 
 
 async def alert_delivery_loop(store: Store, tg: Telegram, outbox: TelegramOutbox) -> None:
-    """Drain scanner alerts through the same process that reliably handles commands."""
+    """Drain scanner alerts through a dedicated Telegram transport."""
     last_sent = 0.0
     while True:
         try:
@@ -148,26 +148,30 @@ async def alert_delivery_loop(store: Store, tg: Telegram, outbox: TelegramOutbox
 
 
 async def main() -> None:
-    """Run Telegram commands and scanner-alert delivery outside the scanner process."""
+    """Run commands and alerts as isolated lanes outside the scanner process."""
     store = Store(settings.db_path)
     outbox = TelegramOutbox(settings.db_path)
-    tg = Telegram(store, alert_delivery_owner=True)
-    if not tg.token_enabled:
+
+    # Two Telegram instances deliberately create two independent connection pools.
+    # An alert timeout can therefore never consume or poison the command lane.
+    command_tg = Telegram(store, alert_delivery_owner=False)
+    alert_tg = Telegram(store, alert_delivery_owner=True)
+    if not command_tg.token_enabled:
         raise RuntimeError("TELEGRAM_BOT_TOKEN is not configured")
 
-    await tg.local_http.aclose()
-    tg.local_http = _DatabaseHealthClient(store, tg)  # type: ignore[assignment]
+    await command_tg.local_http.aclose()
+    command_tg.local_http = _DatabaseHealthClient(store, command_tg)  # type: ignore[assignment]
 
-    log.info("standalone Telegram worker started with SQLite scanner heartbeat + persistent alert outbox")
-    command_task = asyncio.create_task(command_loop(tg))
-    alert_task = asyncio.create_task(alert_delivery_loop(store, tg, outbox))
+    log.info("standalone Telegram worker started with isolated command lane + persistent alert outbox")
+    command_task = asyncio.create_task(command_loop(command_tg))
+    alert_task = asyncio.create_task(alert_delivery_loop(store, alert_tg, outbox))
     try:
         await asyncio.gather(command_task, alert_task)
     finally:
         command_task.cancel()
         alert_task.cancel()
         await asyncio.gather(command_task, alert_task, return_exceptions=True)
-        await tg.close()
+        await asyncio.gather(command_tg.close(), alert_tg.close(), return_exceptions=True)
 
 
 if __name__ == "__main__":
