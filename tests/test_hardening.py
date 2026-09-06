@@ -82,11 +82,12 @@ def make_neg_rows(n: int, include_other: bool = True):
     }
     rows = []
     books = {}
+    ask = min(0.25, 0.70 / n)
     for i in range(n):
         raw = dict(children[i])
         raw["_event"] = event
         rows.append(market(str(i), neg=True, raw=raw, description=event["description"]))
-        books[f"y{i}"] = Book(f"y{i}", [], [(0.20 if n >= 5 else 0.25, 100)])
+        books[f"y{i}"] = Book(f"y{i}", [], [(ask, 100)])
     return rows, books
 
 
