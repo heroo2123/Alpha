@@ -17,6 +17,7 @@ class Telegram:
         self.token = settings.telegram_bot_token
         self.chat_id = settings.telegram_chat_id
         self.http = httpx.AsyncClient(timeout=20)
+        self._commands_registered = False
 
     @property
     def token_enabled(self) -> bool:
@@ -41,6 +42,31 @@ class Telegram:
     async def send(self, text: str, reply_markup: dict | None = None) -> None:
         if self.enabled:
             await self.send_to(self.chat_id, text, reply_markup)
+
+    async def ensure_command_menu(self) -> None:
+        """Publish the bot command menu shown by Telegram next to the message box."""
+        if not self.token or self._commands_registered:
+            return
+        commands = [
+            {"command": "status", "description": "Live scanner health and feed status"},
+            {"command": "stats", "description": "Verified paper detector performance"},
+            {"command": "mystats", "description": "Trades you marked as taken"},
+            {"command": "recent", "description": "Show the latest scanner alerts"},
+            {"command": "taken", "description": "Show your recently marked trades"},
+            {"command": "took", "description": "Mark an alert as actually traded"},
+            {"command": "help", "description": "Show command help"},
+        ]
+        try:
+            r = await self.http.post(
+                f"https://api.telegram.org/bot{self.token}/setMyCommands",
+                json={"commands": commands},
+                timeout=10,
+            )
+            r.raise_for_status()
+            self._commands_registered = True
+        except Exception:
+            # Menu registration is cosmetic; never let it disrupt alert delivery.
+            return
 
     def _buttons(self, s: Signal) -> dict | None:
         links = list(s.metadata.get("links") or [])
@@ -177,6 +203,7 @@ class Telegram:
     async def poll_commands(self):
         if not self.token_enabled:
             return
+        await self.ensure_command_menu()
         offset = int(self.store.get_state("telegram_offset", "0") or 0)
         try:
             r = await self.http.get(f"https://api.telegram.org/bot{self.token}/getUpdates", params={"offset": offset, "timeout": 1})
