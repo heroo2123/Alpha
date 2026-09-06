@@ -141,31 +141,48 @@ class PolymarketClient:
         seen: set[str] = set()
         offset = 0
         page_size = max(1, min(int(settings.gamma_page_size), 100))
+        page_concurrency = max(1, min(int(settings.gamma_page_concurrency), 16))
 
-        # Broad liquid universe, capped for the small free-tier VM.
-        while len(markets) < settings.max_events:
-            events = await self._event_page(offset)
-            if not events:
-                break
-            self._append_events(markets, events, seen)
-            if len(events) < page_size:
-                break
-            offset += page_size
+        # Broad liquid universe, capped for the small free-tier VM. Gamma offsets
+        # are independent, so fetch several pages in parallel rather than waiting
+        # on dozens of sequential round trips every two minutes.
+        exhausted = False
+        while len(markets) < settings.max_events and not exhausted:
+            offsets = [offset + i * page_size for i in range(page_concurrency)]
+            pages = await asyncio.gather(*(self._event_page(x) for x in offsets))
+            for events in pages:
+                if not events:
+                    exhausted = True
+                    break
+                self._append_events(markets, events, seen)
+                if len(markets) >= settings.max_events:
+                    break
+                if len(events) < page_size:
+                    exhausted = True
+                    break
+            offset += page_size * page_concurrency
+
         markets = markets[: settings.max_events]
         seen = {m.id for m in markets}
 
         # Weather is a priority strategy family and must never disappear merely
-        # because a 24h-volume cap filled with other markets first. Gamma's
-        # documented tag_slug filter lets us merge all active Weather events.
-        weather_offset = 0
-        for _ in range(20):  # hard safety cap; normally only a few pages
-            events = await self._event_page(weather_offset, tag_slug="weather")
-            if not events:
+        # because the broad market cap filled first. Fetch its smaller tag-specific
+        # pagination in parallel too, with a hard 20-page safety cap.
+        weather_exhausted = False
+        weather_batch = min(4, page_concurrency)
+        for first_page in range(0, 20, weather_batch):
+            offsets = [(first_page + i) * page_size for i in range(weather_batch) if first_page + i < 20]
+            pages = await asyncio.gather(*(self._event_page(x, tag_slug="weather") for x in offsets))
+            for events in pages:
+                if not events:
+                    weather_exhausted = True
+                    break
+                self._append_events(markets, events, seen)
+                if len(events) < page_size:
+                    weather_exhausted = True
+                    break
+            if weather_exhausted:
                 break
-            self._append_events(markets, events, seen)
-            if len(events) < page_size:
-                break
-            weather_offset += page_size
 
         return markets
 
