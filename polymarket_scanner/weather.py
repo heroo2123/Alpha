@@ -13,6 +13,7 @@ from .config import settings
 from .models import Market
 
 AWC = "https://aviationweather.gov/api/data/metar"
+AWC_TAF = "https://aviationweather.gov/api/data/taf"
 OPEN_METEO = "https://api.open-meteo.com/v1/forecast"
 FORECAST_REFRESH_SECONDS = 600
 MAX_OBSERVATION_AGE_MINUTES = 100
@@ -43,19 +44,34 @@ def market_observation_date(market: Market, local_now: datetime):
         return None
 
 
-# Static entries remain a fallback for display/tests, but an ACTIONABLE weather lock
-# also requires a fresh forecast context. Open-Meteo resolves the timezone from the
-# station coordinates, so unknown stations no longer silently fall back to UTC.
+# Known airport timezones. Unknown stations are never treated as UTC for an
+# ACTIONABLE risk-only TAF fallback; they remain unscored until a reliable timezone
+# is available. Open-Meteo, when reachable, can still provide a dynamic timezone.
 STATION_TZ = {
-    "KLGA": "America/New_York", "KJFK": "America/New_York", "KATL": "America/New_York",
-    "KBOS": "America/New_York", "KDCA": "America/New_York", "KPHL": "America/New_York",
-    "KORD": "America/Chicago", "KDAL": "America/Chicago", "KHOU": "America/Chicago",
-    "KDEN": "America/Denver", "KPHX": "America/Phoenix", "KLAX": "America/Los_Angeles",
-    "KSEA": "America/Los_Angeles", "KSFO": "America/Los_Angeles", "KPDX": "America/Los_Angeles",
-    "EGLC": "Europe/London", "EGLL": "Europe/London", "LFPG": "Europe/Paris",
-    "EDDF": "Europe/Berlin", "EHAM": "Europe/Amsterdam", "WMKK": "Asia/Kuala_Lumpur",
-    "WSSS": "Asia/Singapore", "VHHH": "Asia/Hong_Kong", "RJTT": "Asia/Tokyo",
-    "RKSI": "Asia/Seoul", "YSSY": "Australia/Sydney",
+    "KLGA":"America/New_York","KJFK":"America/New_York","KEWR":"America/New_York",
+    "KATL":"America/New_York","KBOS":"America/New_York","KDCA":"America/New_York",
+    "KBWI":"America/New_York","KPHL":"America/New_York","KMIA":"America/New_York",
+    "KMCO":"America/New_York","KTPA":"America/New_York","KCLT":"America/New_York",
+    "KDTW":"America/Detroit","KORD":"America/Chicago","KDAL":"America/Chicago",
+    "KDFW":"America/Chicago","KIAH":"America/Chicago","KHOU":"America/Chicago",
+    "KAUS":"America/Chicago","KSAT":"America/Chicago","KMSP":"America/Chicago",
+    "KDEN":"America/Denver","KSLC":"America/Denver","KPHX":"America/Phoenix",
+    "KLAX":"America/Los_Angeles","KLAS":"America/Los_Angeles","KSEA":"America/Los_Angeles",
+    "KSFO":"America/Los_Angeles","KPDX":"America/Los_Angeles",
+    "CYYZ":"America/Toronto","CYUL":"America/Toronto","CYVR":"America/Vancouver",
+    "EGLC":"Europe/London","EGLL":"Europe/London","EIDW":"Europe/Dublin",
+    "LFPG":"Europe/Paris","EDDF":"Europe/Berlin","EDDM":"Europe/Berlin",
+    "EHAM":"Europe/Amsterdam","LEMD":"Europe/Madrid","LEBL":"Europe/Madrid",
+    "LIRF":"Europe/Rome","LOWW":"Europe/Vienna","LSZH":"Europe/Zurich",
+    "ESSA":"Europe/Stockholm","ENGM":"Europe/Oslo","EKCH":"Europe/Copenhagen",
+    "UUWW":"Europe/Moscow","UUEE":"Europe/Moscow","LTFM":"Europe/Istanbul",
+    "OMDB":"Asia/Dubai","OMAA":"Asia/Dubai","VIDP":"Asia/Kolkata","VABB":"Asia/Kolkata",
+    "VTBS":"Asia/Bangkok","WMKK":"Asia/Kuala_Lumpur","WSSS":"Asia/Singapore",
+    "VHHH":"Asia/Hong_Kong","RCTP":"Asia/Taipei","ZBAA":"Asia/Shanghai",
+    "ZSPD":"Asia/Shanghai","RJTT":"Asia/Tokyo","RKSI":"Asia/Seoul","RPLL":"Asia/Manila",
+    "WIII":"Asia/Jakarta","YSSY":"Australia/Sydney","YMML":"Australia/Melbourne",
+    "YBBN":"Australia/Brisbane","SBGR":"America/Sao_Paulo",
+    "SAEZ":"America/Argentina/Buenos_Aires","FAOR":"Africa/Johannesburg","HECA":"Africa/Cairo",
 }
 
 
@@ -69,7 +85,7 @@ class Observation:
 @dataclass(slots=True)
 class ForecastHour:
     when: datetime
-    temp_c: float
+    temp_c: float | None
     precipitation_probability: float | None = None
     cloud_cover: float | None = None
     weather_code: int | None = None
@@ -87,6 +103,8 @@ class ForecastContext:
     fetched_at: datetime
     hours: list[ForecastHour]
     provider: str = "Open-Meteo best-match forecast"
+    temperature_forecast: bool = True
+    risk_only_reason: str | None = None
 
 
 class ObservationBatch(list):
@@ -102,7 +120,7 @@ def station_from_market(market: Market) -> str | None:
     if match:
         return match.group(1).upper()
     for code in re.findall(r"\b[A-Z]{4}\b", text):
-        if code[0] in "KEYLRVW":
+        if code[0] in "KEYLRVWOCZSUFH":
             return code
     return None
 
@@ -116,8 +134,6 @@ def settlement_source_check(market: Market, station: str) -> dict:
         m = re.search(r"[?&]site=([A-Za-z0-9]{4})", url, re.I)
         if m and m.group(1).upper() == station.upper():
             return {"verified": True, "kind": "NOAA/NWS WRH", "url": url}
-    # Some Gamma payloads split the base source URL from the rule text. Accept only
-    # when the WRH source and exact site code are both present in the combined rules.
     if "weather.gov/wrh/timeseries" in text.lower():
         m = re.search(r"[?&]site=([A-Za-z0-9]{4})", text, re.I)
         if m and m.group(1).upper() == station.upper():
@@ -186,23 +202,28 @@ def _angle_diff(a: float, b: float) -> float:
     return abs((a - b + 180.0) % 360.0 - 180.0)
 
 
+def _cloud_percent(clouds) -> float:
+    mapping = {"SKC": 0.0, "CLR": 0.0, "FEW": 25.0, "SCT": 50.0, "BKN": 75.0, "OVC": 100.0}
+    vals = []
+    for cloud in clouds or []:
+        if isinstance(cloud, dict):
+            vals.append(mapping.get(str(cloud.get("cover") or "").upper(), 0.0))
+    return max(vals, default=0.0)
+
+
 class WeatherClient:
     def __init__(self) -> None:
-        self.http = httpx.AsyncClient(timeout=settings.request_timeout, headers={"User-Agent": "polymarket-edge-scanner/0.3"})
+        self.http = httpx.AsyncClient(
+            timeout=settings.request_timeout,
+            headers={"User-Agent": "polymarket-edge-scanner/0.4 https://github.com/heroo2123/Alpha"},
+        )
         self.station_coordinates: dict[str, tuple[float, float]] = {}
         self.forecast_cache: dict[str, ForecastContext] = {}
 
     async def close(self) -> None:
         await self.http.aclose()
 
-    async def _forecast(self, station: str) -> ForecastContext | None:
-        cached = self.forecast_cache.get(station)
-        if cached and (time.time() - cached.fetched_at.timestamp()) < FORECAST_REFRESH_SECONDS:
-            return cached
-        coords = self.station_coordinates.get(station)
-        if not coords:
-            return None
-        lat, lon = coords
+    async def _open_meteo_forecast(self, station: str, lat: float, lon: float) -> ForecastContext | None:
         try:
             r = await self.http.get(OPEN_METEO, params={
                 "latitude": lat,
@@ -236,29 +257,94 @@ class WeatherClient:
                 def val(seq):
                     if i >= len(seq) or seq[i] is None:
                         return None
-                    try: return float(seq[i])
-                    except (TypeError, ValueError): return None
+                    try:
+                        return float(seq[i])
+                    except (TypeError, ValueError):
+                        return None
                 code = None
                 if i < len(codes) and codes[i] is not None:
-                    try: code = int(codes[i])
-                    except (TypeError, ValueError): pass
+                    try:
+                        code = int(codes[i])
+                    except (TypeError, ValueError):
+                        pass
+                rows.append(ForecastHour(dt, float(temps[i]), val(precip), val(clouds), code, val(pressure), val(wind_dir), val(wind_speed)))
+            if not rows:
+                return None
+            return ForecastContext(station, lat, lon, tz_name, datetime.now(timezone.utc), rows)
+        except Exception:
+            return None
+
+    async def _taf_forecast(self, station: str, lat: float, lon: float) -> ForecastContext | None:
+        """Worldwide IPv6-safe risk forecast from NOAA/AWC TAF.
+
+        TAF usually does not include a surface-temperature trajectory, so this is
+        deliberately risk-only: it gates thunderstorms/precipitation/front changes
+        and forces the lock model to use stricter observed-temperature conditions.
+        """
+        tz_name = STATION_TZ.get(station)
+        if not tz_name:
+            return None
+        try:
+            r = await self.http.get(AWC_TAF, params={"ids": station, "format": "json"})
+            if r.status_code == 204:
+                return None
+            r.raise_for_status()
+            payload = r.json()
+            if not payload:
+                return None
+            taf = payload[0]
+            rows: list[ForecastHour] = []
+            for fcst in taf.get("fcsts") or []:
+                ts = fcst.get("timeFrom")
+                if not isinstance(ts, (int, float)):
+                    continue
+                when = datetime.fromtimestamp(ts, timezone.utc)
+                wdir = None
+                raw_wdir = fcst.get("wdir")
+                if raw_wdir not in (None, "VRB"):
+                    try:
+                        wdir = float(raw_wdir)
+                    except (TypeError, ValueError):
+                        pass
+                wspd = _first_number(fcst, "wspd", "windSpeed")
+                wx = str(fcst.get("wxString") or fcst.get("wx") or "").upper()
+                thunder = "TS" in wx
+                precip = 60.0 if re.search(r"(?:RA|SN|SH|DZ)", wx) else 0.0
                 rows.append(ForecastHour(
-                    when=dt,
-                    temp_c=float(temps[i]),
-                    precipitation_probability=val(precip),
-                    cloud_cover=val(clouds),
-                    weather_code=code,
-                    pressure_msl=val(pressure),
-                    wind_direction=val(wind_dir),
-                    wind_speed=val(wind_speed),
+                    when=when,
+                    temp_c=None,
+                    precipitation_probability=precip,
+                    cloud_cover=_cloud_percent(fcst.get("clouds")),
+                    weather_code=95 if thunder else None,
+                    pressure_msl=None,
+                    wind_direction=wdir,
+                    wind_speed=wspd,
                 ))
             if not rows:
                 return None
-            ctx = ForecastContext(station, lat, lon, tz_name, datetime.now(timezone.utc), rows)
-            self.forecast_cache[station] = ctx
-            return ctx
+            return ForecastContext(
+                station, lat, lon, tz_name, datetime.now(timezone.utc), rows,
+                provider="NOAA/AviationWeather TAF risk forecast",
+                temperature_forecast=False,
+                risk_only_reason="TAF has no reliable surface-temperature maximum; stricter observed-lock gate used",
+            )
         except Exception:
             return None
+
+    async def _forecast(self, station: str) -> ForecastContext | None:
+        cached = self.forecast_cache.get(station)
+        if cached and (time.time() - cached.fetched_at.timestamp()) < FORECAST_REFRESH_SECONDS:
+            return cached
+        coords = self.station_coordinates.get(station)
+        if not coords:
+            return None
+        lat, lon = coords
+        forecast = await self._open_meteo_forecast(station, lat, lon)
+        if forecast is None:
+            forecast = await self._taf_forecast(station, lat, lon)
+        if forecast is not None:
+            self.forecast_cache[station] = forecast
+        return forecast
 
     async def observations(self, station: str, hours: int = 30) -> ObservationBatch:
         try:
@@ -294,11 +380,9 @@ class WeatherClient:
 def lock_probability(market: Market, observations: list[Observation], station: str, now: datetime | None = None) -> dict | None:
     """Conservative late-day daily-high lock model.
 
-    ACTIONABLE output requires: exact NOAA/NWS WRH settlement station, fresh official
-    hourly observations, a dynamically resolved station timezone, enough local-day
-    cooling, and a remaining-day forecast comfortably below the observed high with
-    no strong thunderstorm/front-regime warning. The forecast is advisory only;
-    settlement remains the official WRH table.
+    Exact WRH settlement station and fresh official hourly observations are always
+    required. A full temperature forecast is preferred. If unavailable, an AWC TAF
+    may be used only as a risk gate, with stricter late-day cooling/drop requirements.
     """
     if not observations:
         return None
@@ -349,12 +433,6 @@ def lock_probability(market: Market, observations: list[Observation], station: s
     remaining = [h for h in forecast.hours if h.when.astimezone(tz).date() == local_date and h.when.astimezone(tz) >= floor_now]
     if not remaining:
         return None
-    future_settlement = [_round_settlement(_to_unit(h.temp_c, unit)) for h in remaining]
-    forecast_max = max(future_settlement)
-    forecast_margin = observed_max - forecast_max
-    required_margin = FORECAST_MARGIN_C if unit == "C" else FORECAST_MARGIN_F
-    if forecast_margin < required_margin:
-        return None
 
     thunderstorm = any(h.weather_code in THUNDERSTORM_CODES for h in remaining if h.weather_code is not None)
     wind_pairs = [(h.wind_direction, h.wind_speed) for h in remaining if h.wind_direction is not None and h.wind_speed is not None]
@@ -371,24 +449,54 @@ def lock_probability(market: Market, observations: list[Observation], station: s
     max_precip = max((float(h.precipitation_probability) for h in remaining if h.precipitation_probability is not None), default=0.0)
     max_cloud = max((float(h.cloud_cover) for h in remaining if h.cloud_cover is not None), default=0.0)
     drop = observed_max - current
+    required_margin = FORECAST_MARGIN_C if unit == "C" else FORECAST_MARGIN_F
 
-    # Conservative heuristic probability only after all hard gates above pass.
+    forecast_max = None
+    forecast_margin = None
+    if forecast.temperature_forecast:
+        future_settlement = [_round_settlement(_to_unit(h.temp_c, unit)) for h in remaining if h.temp_c is not None]
+        if not future_settlement:
+            return None
+        forecast_max = max(future_settlement)
+        forecast_margin = observed_max - forecast_max
+        if forecast_margin < required_margin:
+            return None
+    else:
+        # Without a temperature trajectory we only act later and after a stronger
+        # observed retreat from the day's high. TAF still blocks convective/front risk.
+        if local_hour < max(settings.weather_lock_min_local_hour, 16.0):
+            return None
+        if cooling < max(settings.weather_lock_cooling_obs, 3):
+            return None
+        if drop < required_margin:
+            return None
+
     p = settings.weather_lock_min_probability
     if local_hour >= 16: p += 0.010
     if local_hour >= 18: p += 0.010
     if cooling >= 3: p += 0.005
     if cooling >= 4: p += 0.005
-    if forecast_margin >= required_margin + 1: p += 0.010
-    if forecast_margin >= required_margin + 2: p += 0.005
+    if forecast.temperature_forecast and forecast_margin is not None:
+        if forecast_margin >= required_margin + 1: p += 0.010
+        if forecast_margin >= required_margin + 2: p += 0.005
+    else:
+        if drop >= required_margin + 1: p += 0.005
     if drop >= required_margin: p += 0.005
     if max_precip < 30: p += 0.005
-    p = max(settings.weather_lock_min_probability, min(0.985, p))
+    cap = 0.985 if forecast.temperature_forecast else 0.965
+    p = max(settings.weather_lock_min_probability, min(cap, p))
 
+    provider_note = (
+        "advisory forecast/timezone: Open-Meteo best match"
+        if forecast.temperature_forecast
+        else "advisory risk forecast: NOAA/AviationWeather TAF; no surface-temperature max assumed"
+    )
     return {
         "probability": p,
         "observed_max": observed_max,
         "current": current,
         "cooling_obs": cooling,
+        "observed_drop": drop,
         "local_time": local_now.isoformat(timespec="minutes"),
         "timezone": tz_name,
         "unit": unit,
@@ -397,6 +505,8 @@ def lock_probability(market: Market, observations: list[Observation], station: s
         "forecast_remaining_max": forecast_max,
         "forecast_margin": forecast_margin,
         "forecast_required_margin": required_margin,
+        "forecast_has_temperature": forecast.temperature_forecast,
+        "forecast_risk_only_reason": forecast.risk_only_reason,
         "max_precip_probability": max_precip,
         "max_cloud_cover": max_cloud,
         "max_wind_shift_degrees": max_wind_shift,
@@ -408,5 +518,5 @@ def lock_probability(market: Market, observations: list[Observation], station: s
         "settlement_source_url": source["url"],
         "forecast_provider": forecast.provider,
         "forecast_fetched_at": forecast.fetched_at.isoformat(),
-        "source": "Official settlement: NOAA/NWS WRH exact station; observations: AviationWeather METAR; advisory forecast/timezone: Open-Meteo best match",
+        "source": f"Official settlement: NOAA/NWS WRH exact station; observations: AviationWeather METAR; {provider_note}",
     }
