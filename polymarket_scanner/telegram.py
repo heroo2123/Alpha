@@ -197,7 +197,10 @@ class Telegram:
         # standalone command worker owns delivery and drains this persistent queue.
         if not self.alert_delivery_owner and not settings.telegram_commands_in_app:
             priority = 0 if s.confidence == "ACTIONABLE" else 10
-            self.outbox.enqueue_signal(signal_id, priority)
+            # SQLite is shared with the standalone command process. Never perform
+            # a potentially blocking cross-process DB lock wait on the scanner's
+            # asyncio loop: one such wait can stall every WebSocket and heartbeat.
+            await asyncio.to_thread(self.outbox.enqueue_signal, signal_id, priority)
             self.last_alert_error = None
             return
 
