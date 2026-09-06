@@ -29,6 +29,20 @@ def test_threshold_parser_and_nested_arb():
     assert len(s)==1 and s[0].token_ids == ['ly','hn']
 
 
+def test_nested_arb_uses_cheapest_dominating_looser_without_pair_explosion():
+    rows=[]; books={}
+    for i,threshold_value in enumerate(range(100, 2100, 10)):
+        mid=f'm{i}'; yes=f'y{i}'; no=f'n{i}'
+        rows.append(mkt(mid,'e',f'Will BTC be above ${threshold_value} on Dec 31?',yes,no))
+        # Make the 100-threshold YES the cheapest looser, and the final NO cheap.
+        yes_ask=0.10 if i==0 else 0.60
+        no_ask=0.20 if i==len(range(100, 2100, 10))-1 else 0.95
+        books[yes]=Book(yes,[],[(yes_ask,100)])
+        books[no]=Book(no,[],[(no_ask,100)])
+    signals=nested_threshold_arbitrage(rows,books)
+    assert any(s.token_ids == ['y0', f'n{len(rows)-1}'] for s in signals)
+
+
 def test_sports_final_result_lag():
     raw={'_event': {'slug':'team-a-vs-team-b','ended': True, 'score':'3-1'}, 'sportsMarketType':'moneyline'}
     m=mkt('sp','se','Will Team A win?','sy','sn',title='Team A vs Team B',event_slug='team-a-vs-team-b',raw=raw)
