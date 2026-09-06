@@ -38,13 +38,31 @@ class _DatabaseHealthClient:
     async def get(self, _url: str) -> _DatabaseHealthResponse:
         raw = await asyncio.to_thread(self.store.get_state, "scanner_health_snapshot", "")
         if not raw:
-            raise RuntimeError("scanner heartbeat is warming up")
-        try:
-            data = json.loads(raw)
-        except Exception as exc:
-            raise RuntimeError("scanner heartbeat is invalid") from exc
-        if not isinstance(data, dict):
-            raise RuntimeError("scanner heartbeat is invalid")
+            data = {
+                "ok": False, "started": None, "last_scan": None, "markets": 0, "tokens": 0,
+                "stations": 0, "weather_ready_stations": 0, "weather_refreshing": False,
+                "market_ws_workers": 0, "sports_ws": False, "crypto_rtds": False,
+                "telegram_alert_queue": 0, "telegram_watch_dropped": 0,
+                "scan_in_progress": False, "last_compute_seconds": None,
+                "last_error": "scanner heartbeat is warming up", "universe_error": None,
+                "telegram_alert_error": None, "snapshot_at": None,
+            }
+        else:
+            try:
+                decoded = json.loads(raw)
+                data = dict(decoded) if isinstance(decoded, dict) else {}
+            except Exception:
+                data = {}
+            if not data:
+                data = {
+                    "ok": False, "started": None, "last_scan": None, "markets": 0, "tokens": 0,
+                    "stations": 0, "weather_ready_stations": 0, "weather_refreshing": False,
+                    "market_ws_workers": 0, "sports_ws": False, "crypto_rtds": False,
+                    "telegram_alert_queue": 0, "telegram_watch_dropped": 0,
+                    "scan_in_progress": False, "last_compute_seconds": None,
+                    "last_error": "scanner heartbeat record is invalid", "universe_error": None,
+                    "telegram_alert_error": None, "snapshot_at": None,
+                }
 
         data = dict(data)
         data["telegram_last_command_poll"] = self.tg.last_command_poll_at
