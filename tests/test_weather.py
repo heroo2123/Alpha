@@ -52,6 +52,22 @@ def _forecast(code: int = 1) -> ForecastContext:
     )
 
 
+def _taf_risk_forecast(code: int | None = None) -> ForecastContext:
+    tz = ZoneInfo("Europe/Moscow")
+    return ForecastContext(
+        station="UUWW", latitude=55.59, longitude=37.26, timezone_name="Europe/Moscow",
+        fetched_at=datetime(2026, 9, 6, 15, 0, tzinfo=timezone.utc),
+        hours=[
+            ForecastHour(datetime(2026, 9, 6, 18, 0, tzinfo=tz), None, 0, 25, code, None, 220, 8),
+            ForecastHour(datetime(2026, 9, 6, 19, 0, tzinfo=tz), None, 0, 50, None, None, 225, 9),
+            ForecastHour(datetime(2026, 9, 6, 20, 0, tzinfo=tz), None, 0, 75, None, None, 230, 8),
+        ],
+        provider="NOAA/AviationWeather TAF risk forecast",
+        temperature_forecast=False,
+        risk_only_reason="TAF has no reliable surface-temperature maximum; stricter observed-lock gate used",
+    )
+
+
 def _observations(forecast: ForecastContext) -> ObservationBatch:
     rows = [
         Observation(datetime(2026, 9, 6, 10, 0, tzinfo=timezone.utc), 28.0, ""),
@@ -86,3 +102,21 @@ def test_thunderstorm_forecast_blocks_actionable_lock():
     market = _market("https://www.weather.gov/wrh/timeseries?site=UUWW")
     now = datetime(2026, 9, 6, 15, 30, tzinfo=timezone.utc)
     assert lock_probability(market, _observations(_forecast(code=95)), "UUWW", now=now) is None
+
+
+def test_taf_risk_only_fallback_can_lock_with_stricter_observed_retreat():
+    market = _market("https://www.weather.gov/wrh/timeseries?site=UUWW")
+    now = datetime(2026, 9, 6, 15, 30, tzinfo=timezone.utc)  # 18:30 Moscow
+    info = lock_probability(market, _observations(_taf_risk_forecast()), "UUWW", now=now)
+    assert info is not None
+    assert info["forecast_has_temperature"] is False
+    assert info["forecast_remaining_max"] is None
+    assert info["observed_drop"] == 3
+    assert "TAF" in info["forecast_provider"]
+    assert info["probability"] <= 0.965
+
+
+def test_taf_risk_only_thunderstorm_blocks_lock():
+    market = _market("https://www.weather.gov/wrh/timeseries?site=UUWW")
+    now = datetime(2026, 9, 6, 15, 30, tzinfo=timezone.utc)
+    assert lock_probability(market, _observations(_taf_risk_forecast(code=95)), "UUWW", now=now) is None
