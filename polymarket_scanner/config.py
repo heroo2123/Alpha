@@ -31,11 +31,13 @@ class Settings(BaseSettings):
     gamma_page_concurrency: int = 8
     alert_cooldown_seconds: int = 900
 
-    # CPU budget for the Free-Tier/shared-core deployment. Market WebSocket events
-    # still wake the scanner immediately, but the expensive whole-universe structural
-    # basket pass is rate-limited so it cannot pin the e2-micro continuously.
+    # CPU budget for the Free-Tier/shared-core deployment. Generic market-book
+    # updates are extremely frequent, so only detectors that truly depend on those
+    # updates may run on that lane. Feed-specific detectors are independently gated.
     structural_scan_min_interval_seconds: int = 45
     expensive_watch_min_interval_seconds: int = 180
+    weather_fast_scan_min_interval_seconds: float = 1.0
+    crypto_resolution_scan_min_interval_seconds: float = 1.0
 
     # Telegram burst control. Commands use a separate HTTP client and never wait
     # behind the alert queue. ACTIONABLE alerts have queue priority over WATCH.
