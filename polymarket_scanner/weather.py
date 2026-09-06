@@ -46,7 +46,8 @@ def market_observation_date(market: Market, local_now: datetime):
 
 # Known airport timezones. Unknown stations are never treated as UTC for an
 # ACTIONABLE risk-only TAF fallback; they remain unscored until a reliable timezone
-# is available. Open-Meteo, when reachable, can still provide a dynamic timezone.
+# is available. Open-Meteo, when explicitly enabled on a dual-stack host, can still
+# provide a dynamic timezone.
 STATION_TZ = {
     "KLGA":"America/New_York","KJFK":"America/New_York","KEWR":"America/New_York",
     "KATL":"America/New_York","KBOS":"America/New_York","KDCA":"America/New_York",
@@ -215,10 +216,11 @@ class WeatherClient:
     def __init__(self) -> None:
         self.http = httpx.AsyncClient(
             timeout=settings.request_timeout,
-            headers={"User-Agent": "polymarket-edge-scanner/0.4 https://github.com/heroo2123/Alpha"},
+            headers={"User-Agent": "polymarket-edge-scanner/0.5 https://github.com/heroo2123/Alpha"},
         )
         self.station_coordinates: dict[str, tuple[float, float]] = {}
         self.forecast_cache: dict[str, ForecastContext] = {}
+        self.forecast_retry_after: dict[str, float] = {}
 
     async def close(self) -> None:
         await self.http.aclose()
@@ -335,15 +337,28 @@ class WeatherClient:
         cached = self.forecast_cache.get(station)
         if cached and (time.time() - cached.fetched_at.timestamp()) < FORECAST_REFRESH_SECONDS:
             return cached
+        if time.time() < self.forecast_retry_after.get(station, 0.0):
+            return None
         coords = self.station_coordinates.get(station)
         if not coords:
             return None
         lat, lon = coords
-        forecast = await self._open_meteo_forecast(station, lat, lon)
+
+        # The production Google VM is IPv6-only and api.open-meteo.com has no
+        # usable IPv6 DNS/route there. Do not burn a 20-second timeout for every
+        # station. Dual-stack deployments can opt back in with an environment flag.
+        forecast = None
+        if settings.weather_open_meteo_enabled:
+            forecast = await self._open_meteo_forecast(station, lat, lon)
         if forecast is None:
             forecast = await self._taf_forecast(station, lat, lon)
         if forecast is not None:
             self.forecast_cache[station] = forecast
+            self.forecast_retry_after.pop(station, None)
+        else:
+            # Some stations do not publish TAFs. Avoid retrying the same miss every
+            # 60-second observation cycle; observations themselves remain usable.
+            self.forecast_retry_after[station] = time.time() + FORECAST_REFRESH_SECONDS
         return forecast
 
     async def observations(self, station: str, hours: int = 30) -> ObservationBatch:
