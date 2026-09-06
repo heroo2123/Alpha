@@ -35,17 +35,20 @@ market_stream = LiveMarketStream()
 sports_stream = SportsStream()
 crypto_stream = CryptoRTDS()
 tg = Telegram(store)
-app = FastAPI(title="Polymarket Edge Scanner", version="0.3.0")
+app = FastAPI(title="Polymarket Edge Scanner", version="0.3.1")
 state = {
     "started": time.time(), "last_scan": None, "markets": 0, "tokens": 0, "stations": 0,
-    "weather_ready_stations": 0, "weather_refreshing": False, "last_error": None,
-    "universe_error": None,
+    "weather_ready_stations": 0, "weather_forecast_ready_stations": 0, "weather_refreshing": False,
+    "last_error": None, "universe_error": None,
     "market_ws_workers": 0, "sports_ws": False, "crypto_rtds": False,
     "macro": {}, "last_reason": None,
     "legacy_structural_archived": legacy_structural_archived,
     "telegram_watch_dropped": 0,
     "scan_in_progress": False,
     "last_compute_seconds": None,
+    "last_universe_seconds": None,
+    "settlement_in_progress": False,
+    "last_settlement_seconds": None,
 }
 runner_task: asyncio.Task | None = None
 telegram_task: asyncio.Task | None = None
@@ -117,12 +120,7 @@ def _health_snapshot() -> dict:
 
 
 async def health_snapshot_loop() -> None:
-    """Persist scanner health without involving the scanner HTTP server.
-
-    The separate Telegram command process reads this record directly from the
-    shared SQLite DB, so /status remains responsive even while uvicorn or a
-    detector pass is busy.
-    """
+    """Persist scanner health without involving the scanner HTTP server."""
     while True:
         try:
             snapshot = _health_snapshot()
@@ -169,11 +167,7 @@ async def confirm_actionable(s: Signal) -> Signal | None:
 
 
 def enqueue_alert(signal_id: int, s: Signal) -> bool:
-    """Queue Telegram delivery without ever blocking the scanner.
-
-    ACTIONABLE signals get priority 0. WATCH signals get priority 10 and are
-    suppressed once a large WATCH backlog exists; they remain saved in SQLite.
-    """
+    """Queue Telegram delivery without ever blocking the scanner."""
     if not tg.enabled:
         return False
     if s.confidence != "ACTIONABLE" and alert_queue.qsize() >= settings.telegram_watch_backlog_limit:
@@ -211,10 +205,25 @@ async def telegram_alert_loop() -> None:
 
 
 async def settle_open_paper_trades():
-    for row in store.open_directional():
-        if row["detector"] in {"binary_buy_both", "neg_risk_underround", "nested_threshold_arb"}:
+    """Resolve closed directional paper signals without serial network latency."""
+    rows = [
+        row for row in store.open_directional()
+        if row["detector"] not in {"binary_buy_both", "neg_risk_underround", "nested_threshold_arb"}
+    ]
+    if not rows:
+        return
+
+    sem = asyncio.Semaphore(8)
+
+    async def fetch(row: dict):
+        async with sem:
+            return row, await poly.market_by_id(str(row["market_id"]))
+
+    results = await asyncio.gather(*(fetch(row) for row in rows), return_exceptions=True)
+    for result in results:
+        if not isinstance(result, tuple):
             continue
-        m = await poly.market_by_id(str(row["market_id"]))
+        row, m = result
         if not m or not m.get("closed"):
             continue
         try:
@@ -222,10 +231,14 @@ async def settle_open_paper_trades():
             token_ids = json.loads(row.get("token_ids") or "[]")
             market_tokens = json.loads(m.get("clobTokenIds") or "[]") if isinstance(m.get("clobTokenIds"), str) else (m.get("clobTokenIds") or [])
             token = token_ids[0] if token_ids else None; idx = market_tokens.index(token) if token in market_tokens else -1
-            if idx < 0 or idx >= len(prices): continue
+            if idx < 0 or idx >= len(prices):
+                continue
             won = float(prices[idx]) > 0.99
             store.resolve(int(row["id"]), won, settings.paper_stake_usd)
-            await tg.send(f"✅ Paper result #{row['id']}: <b>{'WON' if won else 'LOST'}</b> — {row['title']}")
+            try:
+                await tg.send(f"✅ Paper result #{row['id']}: <b>{'WON' if won else 'LOST'}</b> — {row['title']}")
+            except Exception as exc:
+                log.warning("paper-result Telegram notification failed for %s: %r", row["id"], exc)
         except Exception as exc:
             log.warning("settlement parse failed for %s: %s", row["id"], exc)
 
@@ -251,11 +264,7 @@ async def _notify_started() -> None:
 
 
 async def telegram_command_loop() -> None:
-    """Single-process fallback command loop.
-
-    Production VM deployments set TELEGRAM_COMMANDS_IN_APP=false and run
-    command_worker.py as a separate systemd service instead.
-    """
+    """Single-process fallback command loop."""
     while True:
         try:
             await tg.poll_commands()
@@ -272,6 +281,8 @@ async def scanner_loop():
     stations: list[str] = []
     weather_cache: dict[str, list] = {}
     weather_task: asyncio.Task | None = None
+    settlement_task: asyncio.Task | None = None
+    settlement_started = 0.0
     last_universe = last_weather = last_macro = last_settle = last_watch = 0.0
     while True:
         try:
@@ -281,13 +292,26 @@ async def scanner_loop():
                 try:
                     weather_cache = weather_task.result()
                     state["weather_ready_stations"] = sum(bool(v) for v in weather_cache.values())
+                    state["weather_forecast_ready_stations"] = sum(
+                        bool(v) and getattr(v, "forecast", None) is not None for v in weather_cache.values()
+                    )
                     weather_refreshed = True
                 except Exception as exc:
                     log.warning("weather batch refresh failed: %s", exc)
                 weather_task = None
                 state["weather_refreshing"] = False
 
+            if settlement_task is not None and settlement_task.done():
+                try:
+                    settlement_task.result()
+                except Exception as exc:
+                    log.warning("background settlement pass failed: %r", exc)
+                state["settlement_in_progress"] = False
+                state["last_settlement_seconds"] = round(time.time() - settlement_started, 3)
+                settlement_task = None
+
             if not markets or tick - last_universe >= settings.universe_refresh_seconds:
+                universe_started = time.time()
                 try:
                     refreshed_markets = await poly.active_markets()
                     if not refreshed_markets:
@@ -307,6 +331,8 @@ async def scanner_loop():
                     last_universe = tick; universe_refreshed = True
                     state["universe_error"] = None
                     log.info("universe refreshed: %d markets / %d tokens / %d weather stations", len(markets), len(tokens), len(stations))
+                finally:
+                    state["last_universe_seconds"] = round(time.time() - universe_started, 3)
 
             if weather_task is None and (not weather_cache or tick - last_weather >= settings.weather_refresh_seconds):
                 weather_task = asyncio.create_task(_fetch_weather_batch(stations))
@@ -352,27 +378,48 @@ async def scanner_loop():
             if run_watch:
                 last_watch = tick
 
+            # ACTIONABLE first, then the strongest WATCH leads. All signals are
+            # still persisted, but only a bounded number of WATCH messages are
+            # pushed to Telegram per pass so the alert queue cannot grow forever.
+            signals = sorted(
+                signals,
+                key=lambda s: (0 if s.confidence == "ACTIONABLE" else 1, -(float(s.edge) if s.edge is not None else -1.0)),
+            )
+            watch_queued = 0
             for idx, s in enumerate(signals):
                 if idx and idx % 20 == 0:
-                    # Yield between SQLite/dedup batches so Telegram/WebSockets stay snappy.
                     await asyncio.sleep(0)
                 s = await confirm_actionable(s)
-                if s is None: continue
+                if s is None:
+                    continue
                 signal_id = store.save_signal(s)
-                if signal_id is None: continue
-                queued = enqueue_alert(signal_id, s)
+                if signal_id is None:
+                    continue
+                if s.confidence != "ACTIONABLE" and watch_queued >= settings.telegram_watch_per_scan_limit:
+                    state["telegram_watch_dropped"] = int(state.get("telegram_watch_dropped") or 0) + 1
+                    queued = False
+                else:
+                    queued = enqueue_alert(signal_id, s)
+                    if queued and s.confidence != "ACTIONABLE":
+                        watch_queued += 1
                 log.info("saved signal %s %s edge=%s telegram_queued=%s", signal_id, s.detector, s.edge, queued)
 
-            if tick - last_settle >= 120: await settle_open_paper_trades(); last_settle = tick
+            if settlement_task is None and tick - last_settle >= 120:
+                settlement_started = time.time()
+                settlement_task = asyncio.create_task(settle_open_paper_trades())
+                state["settlement_in_progress"] = True
+                last_settle = tick
+
             state["last_scan"] = time.time(); state["last_reason"] = sorted(flags)
             state["market_ws_workers"] = market_stream.connected_workers
             state["sports_ws"] = sports_stream.connected; state["crypto_rtds"] = crypto_stream.connected
             state["macro"] = macro.status(); state["last_error"] = None
         except asyncio.CancelledError:
             state["scan_in_progress"] = False
-            if weather_task is not None:
-                weather_task.cancel()
-                await asyncio.gather(weather_task, return_exceptions=True)
+            for task in (weather_task, settlement_task):
+                if task is not None:
+                    task.cancel()
+            await asyncio.gather(*(t for t in (weather_task, settlement_task) if t is not None), return_exceptions=True)
             raise
         except Exception as exc:
             state["scan_in_progress"] = False
