@@ -35,7 +35,7 @@ market_stream = LiveMarketStream()
 sports_stream = SportsStream()
 crypto_stream = CryptoRTDS()
 tg = Telegram(store)
-app = FastAPI(title="Polymarket Edge Scanner", version="0.2.9")
+app = FastAPI(title="Polymarket Edge Scanner", version="0.3.0")
 state = {
     "started": time.time(), "last_scan": None, "markets": 0, "tokens": 0, "stations": 0,
     "weather_ready_stations": 0, "weather_refreshing": False, "last_error": None,
@@ -211,7 +211,11 @@ async def _notify_started() -> None:
 
 
 async def telegram_command_loop() -> None:
-    """Keep Telegram commands responsive independently of scan and alert workload."""
+    """Single-process fallback command loop.
+
+    Production VM deployments set TELEGRAM_COMMANDS_IN_APP=false and run
+    command_worker.py as a separate systemd service instead.
+    """
     while True:
         try:
             await tg.poll_commands()
@@ -340,7 +344,10 @@ async def startup():
     global runner_task, telegram_task, alert_task
     await sports_stream.start(); await crypto_stream.start()
     if runner_task is None: runner_task = asyncio.create_task(scanner_loop())
-    if telegram_task is None: telegram_task = asyncio.create_task(telegram_command_loop())
+    if settings.telegram_commands_in_app and telegram_task is None:
+        telegram_task = asyncio.create_task(telegram_command_loop())
+    elif not settings.telegram_commands_in_app:
+        log.info("in-process Telegram command polling disabled; external command worker owns getUpdates")
     if alert_task is None: alert_task = asyncio.create_task(telegram_alert_loop())
     asyncio.create_task(_notify_started())
 
@@ -368,8 +375,9 @@ async def health():
         "sports_ws_last_message": sports_stream.last_message_at,
         "crypto_rtds_last_message": crypto_stream.last_message_at,
         "telegram_alert_queue": alert_queue.qsize(),
-        "telegram_last_command_poll": tg.last_command_poll_at,
-        "telegram_command_error": tg.last_command_error,
+        "telegram_command_mode": "in_app" if settings.telegram_commands_in_app else "external_service",
+        "telegram_last_command_poll": tg.last_command_poll_at if settings.telegram_commands_in_app else None,
+        "telegram_command_error": tg.last_command_error if settings.telegram_commands_in_app else None,
         "telegram_alert_error": tg.last_alert_error,
     }
 
