@@ -35,10 +35,11 @@ market_stream = LiveMarketStream()
 sports_stream = SportsStream()
 crypto_stream = CryptoRTDS()
 tg = Telegram(store)
-app = FastAPI(title="Polymarket Edge Scanner", version="0.2.5")
+app = FastAPI(title="Polymarket Edge Scanner", version="0.2.6")
 state = {
     "started": time.time(), "last_scan": None, "markets": 0, "tokens": 0, "stations": 0,
     "weather_ready_stations": 0, "weather_refreshing": False, "last_error": None,
+    "universe_error": None,
     "market_ws_workers": 0, "sports_ws": False, "crypto_rtds": False,
     "macro": {}, "last_reason": None,
 }
@@ -180,10 +181,24 @@ async def scanner_loop():
                 state["weather_refreshing"] = False
 
             if not markets or tick - last_universe >= settings.universe_refresh_seconds:
-                markets = await poly.active_markets(); tokens = _all_tokens(markets)
-                await market_stream.configure(tokens)
-                state["markets"] = len(markets); state["tokens"] = len(tokens); last_universe = tick; universe_refreshed = True
-                log.info("universe refreshed: %d markets / %d tokens", len(markets), len(tokens))
+                try:
+                    refreshed_markets = await poly.active_markets()
+                    if not refreshed_markets:
+                        raise RuntimeError("Gamma discovery returned an empty active universe")
+                except Exception as exc:
+                    state["universe_error"] = repr(exc)
+                    if not markets:
+                        raise
+                    # Keep the last known-good universe and its live subscriptions.
+                    # Retry on the normal refresh cadence instead of killing scanning.
+                    last_universe = tick
+                    log.warning("universe refresh failed; keeping %d existing markets: %r", len(markets), exc)
+                else:
+                    markets = refreshed_markets; tokens = _all_tokens(markets)
+                    await market_stream.configure(tokens)
+                    state["markets"] = len(markets); state["tokens"] = len(tokens); last_universe = tick; universe_refreshed = True
+                    state["universe_error"] = None
+                    log.info("universe refreshed: %d markets / %d tokens", len(markets), len(tokens))
 
             weather_markets = [m for m in markets if "highest temperature" in f"{m.event_title} {m.question}".lower()]
             stations = sorted({s for m in weather_markets if (s := station_from_market(m))}); state["stations"] = len(stations)
