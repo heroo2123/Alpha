@@ -1,5 +1,6 @@
 import asyncio
 
+import httpx
 import pytest
 
 import command_worker_trade_only as trade_worker
@@ -12,6 +13,7 @@ class FakeResponse:
         self._body = body if body is not None else {"ok": True, "result": {"message_id": 123}}
 
     def json(self):
+        self._body if not isinstance(self._body, Exception) else (_ for _ in ()).throw(self._body)
         return self._body
 
     def raise_for_status(self):
@@ -26,7 +28,10 @@ class FakeClient:
 
     async def post(self, _url, json=None):
         self.calls += 1
-        return self.responses.pop(0)
+        item = self.responses.pop(0)
+        if isinstance(item, Exception):
+            raise item
+        return item
 
 
 def _tg():
@@ -43,27 +48,63 @@ def _no_sleep(monkeypatch):
     monkeypatch.setattr(trade_worker.asyncio, "sleep", no_sleep)
 
 
-def test_three_429s_never_become_success(monkeypatch):
+def test_alert_429_is_explicit_no_delivery_and_not_blindly_retried(monkeypatch):
+    _no_sleep(monkeypatch)
+    client = FakeClient([
+        FakeResponse(429, {"ok": False, "parameters": {"retry_after": 1}}),
+        FakeResponse(200, {"ok": True, "result": {"message_id": 999}}),
+    ])
+    with pytest.raises(trade_worker.DeliveryRetryable, match="rate limited"):
+        asyncio.run(trade_worker._safe_post_message(_tg(), client, "1", "x", lane="alert"))
+    # The outbox, not the HTTP helper, owns any later retry after revalidation.
+    assert client.calls == 1
+
+
+def test_command_lane_may_retry_429(monkeypatch):
     _no_sleep(monkeypatch)
     client = FakeClient([
         FakeResponse(429, {"ok": False, "parameters": {"retry_after": 1}}),
         FakeResponse(429, {"ok": False, "parameters": {"retry_after": 1}}),
         FakeResponse(429, {"ok": False, "parameters": {"retry_after": 1}}),
     ])
-    with pytest.raises(RuntimeError, match="rate limited|send failed"):
-        asyncio.run(trade_worker._safe_post_message(_tg(), client, "1", "x", lane="alert"))
+    with pytest.raises(RuntimeError, match="rate limited"):
+        asyncio.run(trade_worker._safe_post_message(_tg(), client, "1", "x", lane="command"))
     assert client.calls == 3
+
+
+def test_alert_transport_timeout_is_uncertain_and_never_retried(monkeypatch):
+    _no_sleep(monkeypatch)
+    client = FakeClient([httpx.ReadTimeout("timeout"), FakeResponse()])
+    with pytest.raises(trade_worker.DeliveryUncertain, match="uncertain"):
+        asyncio.run(trade_worker._safe_post_message(_tg(), client, "1", "x", lane="alert"))
+    assert client.calls == 1
+
+
+def test_alert_5xx_is_uncertain(monkeypatch):
+    _no_sleep(monkeypatch)
+    client = FakeClient([FakeResponse(502, {"ok": False})])
+    with pytest.raises(trade_worker.DeliveryUncertain, match="502"):
+        asyncio.run(trade_worker._safe_post_message(_tg(), client, "1", "x", lane="alert"))
+    assert client.calls == 1
 
 
 def test_http_200_requires_telegram_ok_and_receipt(monkeypatch):
     _no_sleep(monkeypatch)
     rejected = FakeClient([FakeResponse(200, {"ok": False}) for _ in range(3)])
-    with pytest.raises(RuntimeError, match="rejected|send failed"):
+    with pytest.raises(RuntimeError, match="rejected"):
         asyncio.run(trade_worker._safe_post_message(_tg(), rejected, "1", "x", lane="command"))
 
     missing_receipt = FakeClient([FakeResponse(200, {"ok": True, "result": {}}) for _ in range(3)])
-    with pytest.raises(RuntimeError, match="message_id|send failed"):
+    with pytest.raises(RuntimeError, match="message_id"):
         asyncio.run(trade_worker._safe_post_message(_tg(), missing_receipt, "1", "x", lane="command"))
+
+
+def test_alert_missing_receipt_is_uncertain(monkeypatch):
+    _no_sleep(monkeypatch)
+    client = FakeClient([FakeResponse(200, {"ok": True, "result": {}})])
+    with pytest.raises(trade_worker.DeliveryUncertain, match="message_id"):
+        asyncio.run(trade_worker._safe_post_message(_tg(), client, "1", "x", lane="alert"))
+    assert client.calls == 1
 
 
 def test_success_returns_message_receipt(monkeypatch):
