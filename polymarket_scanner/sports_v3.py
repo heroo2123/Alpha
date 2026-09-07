@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import json
 import re
+import sqlite3
+from pathlib import Path
 
 from .config import settings
 from .detectors import market_url
@@ -8,6 +11,7 @@ from .models import Book, Market, Signal
 from .polymarket import taker_fee_per_share
 
 SPORTS_MAPPING_VERSION = "home_away_v3_match_moneyline_only"
+SPORTS_DETECTOR = "sports_result_lag_v3"
 
 _BAD_STATUS_WORDS = re.compile(
     r"\b(?:cancelled|canceled|postponed|suspended|abandoned|void|no\s+contest|delayed)\b",
@@ -21,9 +25,53 @@ _UNSUPPORTED_MARKET_WORDS = re.compile(
 _SIGNED_LINE = re.compile(r"(?:^|[\s(])[-+]\d+(?:\.\d+)?(?:[\s)]|$)")
 
 
+def quarantine_pre_v3_sports_history(db_path: str) -> int:
+    """Make every legacy sports_result_lag row fail the old-valid-version audit.
+
+    The v2 home/away fix corrected title orientation but Astra showed that spread,
+    period and cancellation semantics remained unsafe. Preserve those rows and their
+    recorded outcomes for forensic audit, but rewrite only the mapping-version tag so
+    Store._sports_pre_fix classifies them as KNOWN_BUG_EXCLUDED. New v3 signals use a
+    separate detector ID and therefore begin a clean prospective sample.
+    """
+    path = Path(db_path)
+    if not path.exists():
+        return 0
+    marker_key = "sports_pre_v3_quarantined"
+    changed = 0
+    with sqlite3.connect(path) as c:
+        c.row_factory = sqlite3.Row
+        c.execute("CREATE TABLE IF NOT EXISTS bot_state (key TEXT PRIMARY KEY, value TEXT)")
+        marker = c.execute("SELECT value FROM bot_state WHERE key=?", (marker_key,)).fetchone()
+        if marker:
+            return 0
+        rows = c.execute(
+            "SELECT id,metadata FROM signals WHERE detector='sports_result_lag'"
+        ).fetchall()
+        for row in rows:
+            try:
+                meta = json.loads(row["metadata"] or "{}")
+            except Exception:
+                meta = {}
+            if not isinstance(meta, dict):
+                meta = {}
+            meta["sports_mapping_version"] = "PRE_V3_QUARANTINED"
+            meta["sports_quarantine_reason"] = (
+                "pre-v3 sports logic did not safely distinguish spreads/periods/cancellations"
+            )
+            c.execute(
+                "UPDATE signals SET metadata=? WHERE id=?",
+                (json.dumps(meta, separators=(",", ":")), int(row["id"])),
+            )
+            changed += 1
+        c.execute(
+            "INSERT INTO bot_state(key,value) VALUES(?,?)",
+            (marker_key, str(changed)),
+        )
+    return changed
+
+
 def _score(value: object) -> tuple[float, float] | None:
-    # Accept a simple home-away pair only. Strings containing 3+ numeric components
-    # are often period/set breakdowns and must not be interpreted as final score.
     parts = re.findall(r"\d+(?:\.\d+)?", str(value or ""))
     if len(parts) != 2:
         return None
@@ -45,7 +93,6 @@ def _team_mentioned(question: str, team: str) -> bool:
         return False
     if re.search(rf"\b{re.escape(t)}\b", q):
         return True
-    # Allow a reasonably specific final nickname only; never short generic aliases.
     last = t.split()[-1] if t.split() else ""
     return len(last) >= 4 and re.search(rf"\b{re.escape(last)}\b", q) is not None
 
@@ -94,9 +141,6 @@ def _supported_match_moneyline(m: Market) -> tuple[bool, str]:
     ).strip().lower()
     if raw_type and raw_type not in {"moneyline", "money_line", "match winner", "match_winner", "winner"}:
         return False, f"explicit sports market type '{raw_type}' is not supported"
-
-    # The adapter intentionally supports only a direct question about one team's
-    # outright match win. Numeric target/handicap language has already been rejected.
     if "win" not in q.lower():
         return False, "question is not a direct match-winner contract"
     return True, "narrow match-moneyline semantics passed"
@@ -127,7 +171,6 @@ def sports_result_lag_v3(markets: list[Market], books: dict[str, Book], cache: d
             continue
         home_score, away_score = score
         if home_score == away_score:
-            # A tie needs draw/overtime/rules semantics; never infer team NO blindly.
             continue
 
         home_team = str(payload.get("homeTeam") or payload.get("home_team") or "").strip()
@@ -137,7 +180,7 @@ def sports_result_lag_v3(markets: list[Market], books: dict[str, Book], cache: d
 
         home_match = _team_mentioned(m.question, home_team)
         away_match = _team_mentioned(m.question, away_team)
-        if home_match == away_match:  # both or neither -> ambiguous
+        if home_match == away_match:
             continue
 
         if home_match:
@@ -167,7 +210,7 @@ def sports_result_lag_v3(markets: list[Market], books: dict[str, Book], cache: d
             f"{selected_team} {'won' if truth else 'did not win'}"
         )
         out.append(Signal(
-            detector="sports_result_lag",
+            detector=SPORTS_DETECTOR,
             confidence="ACTIONABLE",
             event_id=m.event_id,
             market_id=m.id,
