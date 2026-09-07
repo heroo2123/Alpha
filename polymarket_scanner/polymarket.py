@@ -16,6 +16,10 @@ CLOB = "https://clob.polymarket.com"
 log = logging.getLogger("polybot.polymarket")
 
 
+class UniverseIncompleteError(RuntimeError):
+    """Gamma pagination could not prove a complete configured universe snapshot."""
+
+
 def _json_list(value) -> list:
     if value is None:
         return []
@@ -47,6 +51,13 @@ class PolymarketClient:
         self._active_cache: list[Market] = []
         self._active_cache_at: float = 0.0
         self._active_refresh_task: asyncio.Task | None = None
+        self._active_cache_complete: bool = False
+        self._active_cache_reason: str = "uninitialized"
+        self._active_last_error: str | None = None
+        self._active_last_attempt_at: float = 0.0
+        self._active_last_success_at: float = 0.0
+        self._fetch_complete: bool = False
+        self._fetch_reason: str = "not fetched"
 
     async def close(self) -> None:
         if self._active_refresh_task is not None:
@@ -54,6 +65,34 @@ class PolymarketClient:
             await asyncio.gather(self._active_refresh_task, return_exceptions=True)
             self._active_refresh_task = None
         await self.http.aclose()
+
+    def universe_status(self, *, now: float | None = None) -> dict:
+        """Return explicit authority/freshness diagnostics for the cached universe.
+
+        A populated cache is not automatically authoritative. Production may use a
+        briefly stale last-known-good snapshot for resilience, but it must suppress
+        detector output when the configured hard stale age is exceeded or when the
+        fetch hit a configured pagination/cap boundary before exhaustion.
+        """
+        current = time.time() if now is None else float(now)
+        age = current - self._active_cache_at if self._active_cache_at > 0 else None
+        max_stale = max(float(settings.universe_refresh_seconds), float(settings.universe_max_stale_seconds))
+        hard_stale = age is None or age > max_stale
+        refreshing = bool(self._active_refresh_task is not None and not self._active_refresh_task.done())
+        safe = bool(self._active_cache) and self._active_cache_complete and not hard_stale
+        return {
+            "safe_for_detection": safe,
+            "market_count": len(self._active_cache),
+            "complete": bool(self._active_cache_complete),
+            "completeness_reason": self._active_cache_reason,
+            "cache_age_seconds": age,
+            "max_stale_seconds": max_stale,
+            "hard_stale": hard_stale,
+            "refresh_in_progress": refreshing,
+            "last_attempt_at": self._active_last_attempt_at or None,
+            "last_success_at": self._active_last_success_at or None,
+            "last_error": self._active_last_error,
+        }
 
     async def _event_page(self, offset: int, *, tag_slug: str | None = None) -> list[dict]:
         """Fetch one Gamma event page with compatibility and transient-failure retries."""
@@ -139,32 +178,50 @@ class PolymarketClient:
                 ))
                 seen.add(market_id)
 
+    @staticmethod
+    def _pagination_terminal_index(pages: list[list[dict]], page_size: int) -> int | None:
+        for i, events in enumerate(pages):
+            if len(events) < page_size:
+                if any(bool(later) for later in pages[i + 1:]):
+                    raise UniverseIncompleteError(
+                        "Gamma pagination produced data after a short/empty page; snapshot is internally inconsistent"
+                    )
+                return i
+        return None
+
     async def _fetch_active_markets(self) -> list[Market]:
         markets: list[Market] = []
         seen: set[str] = set()
         offset = 0
         page_size = max(1, min(int(settings.gamma_page_size), 100))
         page_concurrency = max(1, min(int(settings.gamma_page_concurrency), 16))
+        market_cap = max(1, int(settings.max_events))
 
+        self._fetch_complete = False
+        self._fetch_reason = "Gamma fetch in progress"
         exhausted = False
-        while len(markets) < settings.max_events and not exhausted:
+        while not exhausted:
             offsets = [offset + i * page_size for i in range(page_concurrency)]
             pages = await asyncio.gather(*(self._event_page(x) for x in offsets))
-            for events in pages:
-                if not events:
-                    exhausted = True
-                    break
+            terminal = self._pagination_terminal_index(pages, page_size)
+            usable_pages = pages if terminal is None else pages[: terminal + 1]
+
+            for events in usable_pages:
                 self._append_events(markets, events, seen)
-                if len(markets) >= settings.max_events:
-                    break
-                if len(events) < page_size:
-                    exhausted = True
-                    break
+                if len(markets) >= market_cap:
+                    self._fetch_reason = (
+                        f"configured market cap {market_cap} reached before Gamma pagination exhausted"
+                    )
+                    raise UniverseIncompleteError(self._fetch_reason)
+
+            if terminal is not None:
+                exhausted = True
             offset += page_size * page_concurrency
 
-        markets = markets[: settings.max_events]
-        seen = {m.id for m in markets}
-
+        # The general query proved exhaustion before the cap. Weather-tag pages are
+        # retained only as a compatibility supplement; completeness does not depend
+        # on their finite supplement loop because the untagged active query already
+        # reached its natural end.
         weather_exhausted = False
         weather_batch = min(4, page_concurrency)
         for first_page in range(0, 20, weather_batch):
@@ -181,45 +238,62 @@ class PolymarketClient:
             if weather_exhausted:
                 break
 
+        self._fetch_complete = True
+        self._fetch_reason = "Gamma active-event pagination exhausted before configured market cap"
         return markets
+
+    def _accept_active_snapshot(self, refreshed: list[Market]) -> None:
+        if not refreshed:
+            raise UniverseIncompleteError("Gamma active universe was empty")
+        if not self._fetch_complete:
+            raise UniverseIncompleteError(self._fetch_reason or "Gamma universe completeness was not proven")
+        now = time.time()
+        self._active_cache = refreshed
+        self._active_cache_at = now
+        self._active_last_success_at = now
+        self._active_cache_complete = True
+        self._active_cache_reason = self._fetch_reason
+        self._active_last_error = None
 
     async def _refresh_active_cache(self) -> None:
         started = time.time()
+        self._active_last_attempt_at = started
         try:
             refreshed = await self._fetch_active_markets()
-            if refreshed:
-                self._active_cache = refreshed
-                self._active_cache_at = time.time()
-                log.info("Gamma background universe refresh completed: %d markets in %.1fs", len(refreshed), time.time() - started)
-            else:
-                log.warning("Gamma background universe refresh returned empty; retaining current cache")
+            self._accept_active_snapshot(refreshed)
+            log.info("Gamma background universe refresh completed: %d markets in %.1fs", len(refreshed), time.time() - started)
         except asyncio.CancelledError:
             raise
         except Exception as exc:
-            log.warning("Gamma background universe refresh failed; retaining current cache: %r", exc)
+            self._active_last_error = repr(exc)
+            log.warning("Gamma background universe refresh failed; retaining current cache only within stale limit: %r", exc)
 
     async def active_markets(self) -> list[Market]:
-        """Return the active universe without blocking recurring scans.
+        """Return the last complete active universe, with bounded stale reuse.
 
         Startup performs one complete fetch because there is no cache yet. After
-        that, stale caches are refreshed in a background task while callers receive
-        the last known-good universe immediately. This keeps live detector passes
-        running even if Gamma needs tens of seconds to paginate the full market set.
+        that, brief Gamma failures may reuse the last complete snapshot while a
+        refresh runs. ``universe_status`` independently marks that snapshot unsafe
+        after ``universe_max_stale_seconds``; app_trade_only suppresses detector
+        output at that point even though the base scanner may keep data for diagnosis.
         """
         if self._active_refresh_task is not None and self._active_refresh_task.done():
             await asyncio.gather(self._active_refresh_task, return_exceptions=True)
             self._active_refresh_task = None
 
         if not self._active_cache:
-            refreshed = await self._fetch_active_markets()
-            if refreshed:
-                self._active_cache = refreshed
-                self._active_cache_at = time.time()
+            self._active_last_attempt_at = time.time()
+            try:
+                refreshed = await self._fetch_active_markets()
+                self._accept_active_snapshot(refreshed)
+            except Exception as exc:
+                self._active_last_error = repr(exc)
+                raise
             return list(self._active_cache)
 
-        if time.time() - self._active_cache_at >= settings.universe_refresh_seconds:
-            if self._active_refresh_task is None:
-                self._active_refresh_task = asyncio.create_task(self._refresh_active_cache())
+        age = time.time() - self._active_cache_at
+        if age >= settings.universe_refresh_seconds and self._active_refresh_task is None:
+            self._active_refresh_task = asyncio.create_task(self._refresh_active_cache())
 
         return list(self._active_cache)
 
