@@ -2,19 +2,41 @@
 set -Eeuo pipefail
 APP_NAME="polymarket-edge-scanner"
 APP_DIR="${HOME}/${APP_NAME}"
+CONFIG_DIR="${HOME}/.${APP_NAME}"
+RELEASE_FILE="${CONFIG_DIR}/release.sha"
 SERVICE_NAME="${APP_NAME}.service"
 COMMAND_SERVICE="polymarket-edge-command.service"
+RELEASE_SHA="${ALPHA_RELEASE_SHA:-${1:-}}"
 
-[[ -d "${APP_DIR}/.git" ]] || { echo "App not found at ${APP_DIR}" >&2; exit 1; }
+fail(){ printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 
-echo "Updating from GitHub main..."
-git -C "${APP_DIR}" fetch origin main
-git -C "${APP_DIR}" reset --hard origin/main
+[[ -d "${APP_DIR}/.git" ]] || fail "App not found at ${APP_DIR}"
+[[ -x "${APP_DIR}/deploy/release-pin.sh" ]] || fail "Missing immutable release helper; update the checkout manually only after review"
+[[ "${RELEASE_SHA}" =~ ^[0-9a-fA-F]{40}$ ]] \
+  || fail "Usage: $0 <40-character-authorized-release-SHA> (or set ALPHA_RELEASE_SHA)"
+
+printf 'Updating to immutable release %s...\n' "${RELEASE_SHA}"
+bash "${APP_DIR}/deploy/release-pin.sh" "${APP_DIR}" "${RELEASE_SHA}" "${RELEASE_FILE}"
+
+# A pinned historical commit is not deployable merely because it exists on main.
+# It must also preserve the current P0 fail-closed production policy.
 "${APP_DIR}/.venv/bin/pip" install -r "${APP_DIR}/requirements.txt"
+"${APP_DIR}/.venv/bin/python" - <<'PY'
+from polymarket_scanner.trade_only import promoted_detectors
+assert promoted_detectors() == (), f"P0 containment violated: promoted detectors={promoted_detectors()}"
+print("P0 containment verified: 0 promoted TRADE NOW detectors")
+PY
 
-# Ensure the VM uses one dedicated Telegram getUpdates owner.
+# Ensure the VM uses the canonical scanner entrypoint, a single Telegram getUpdates
+# owner, and the release-SHA runtime attestation.
 bash "${APP_DIR}/deploy/oracle/setup-command-service.sh"
+
+ACTUAL_SHA="$(git -C "${APP_DIR}" rev-parse HEAD)"
+RECORDED_SHA="$(tr -d '[:space:]' < "${RELEASE_FILE}")"
+[[ "${ACTUAL_SHA}" == "${RECORDED_SHA}" && "${ACTUAL_SHA}" == "${RELEASE_SHA,,}" ]] \
+  || fail "Post-update release attestation failed"
 
 sleep 2
 sudo systemctl --no-pager --full status "${SERVICE_NAME}"
 sudo systemctl --no-pager --full status "${COMMAND_SERVICE}"
+printf 'Running immutable release: %s\n' "${ACTUAL_SHA}"
