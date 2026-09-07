@@ -20,7 +20,13 @@ from .macro import MacroClient
 from .models import Book, Market, Signal
 from .sports_v3 import sports_result_lag_v3 as sports_result_lag
 from .streams import CryptoRTDS
-from .weather_contracts import settlement_safe_weather_markets
+from .weather_contracts import (
+    WEATHER_CONTRACT_ADAPTER,
+    WEATHER_FRIEND_MODEL_VERSION,
+    WEATHER_LATE_MODEL_VERSION,
+    settlement_safe_weather_cache,
+    settlement_safe_weather_markets,
+)
 from .weather_friend import friend_style_weather_lock
 
 log = logging.getLogger("polybot.evaluator")
@@ -68,6 +74,15 @@ def _apply_live_bbo(markets: list[Market], books: dict[str, Book]) -> None:
         if book:
             market.best_bid = book.best_bid
             market.best_ask = book.best_ask
+
+
+def _version_weather_signals(signals: list[Signal], model_version: str) -> list[Signal]:
+    """Stamp only prospective contract-safe evidence with the repaired model version."""
+    for signal in signals:
+        signal.metadata["weather_model_version"] = model_version
+        signal.metadata["weather_contract_adapter"] = WEATHER_CONTRACT_ADAPTER
+        signal.metadata["weather_contract_temporal_safe"] = True
+    return signals
 
 
 def evaluate_signals(
@@ -120,9 +135,16 @@ def evaluate_signals(
 
     if weather_cache and weather_due:
         _last_weather_fast_at = now
+        # The strict boundary owns source host/station, explicit bucket units,
+        # required market date, causal observation timestamps and forecast freshness.
+        # Legacy detector math sees only these sanitized copies. Old v1 samples are
+        # not silently mixed with prospective V2 contract-safe evidence.
         certified_weather = settlement_safe_weather_markets(weather_markets)
-        signals.extend(_safe("weather_late_lock", weather_late_lock, certified_weather, books, weather_cache))
-        signals.extend(_safe("weather_friend_lock", friend_style_weather_lock, certified_weather, books, weather_cache))
+        certified_cache = settlement_safe_weather_cache(weather_cache)
+        late = _safe("weather_late_lock", weather_late_lock, certified_weather, books, certified_cache)
+        friend = _safe("weather_friend_lock", friend_style_weather_lock, certified_weather, books, certified_cache)
+        signals.extend(_version_weather_signals(late, WEATHER_LATE_MODEL_VERSION))
+        signals.extend(_version_weather_signals(friend, WEATHER_FRIEND_MODEL_VERSION))
 
     # Compatibility symbol name retained for runtime-responsiveness monkeypatch tests;
     # the function bound to it is the fail-closed v3 match-moneyline adapter.
