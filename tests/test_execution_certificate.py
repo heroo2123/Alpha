@@ -6,6 +6,7 @@ import pytest
 
 from polymarket_scanner.execution_certificate import (
     EXECUTION_CERTIFICATE_TTL_SECONDS,
+    FEE_PRECISION_QUANTUM_USD,
     build_execution_certificate,
     validate_execution_certificate,
 )
@@ -98,21 +99,27 @@ def test_build_and_validate_exact_clob_v2_certificate():
     ok, reason, derived = validate_execution_certificate(signal)
     assert ok is True, reason
     assert derived is not None
-    assert derived["cost"] == Decimal("0.92475")
+    # Raw e=1 fee is 0.012375/share. The certificate adds one full 0.00001
+    # protocol precision quantum / 5-share minimum = 0.000002/share as a safe bound.
+    assert Decimal(cert["legs"][0]["raw_fee_per_share"]) == Decimal("0.012375")
+    assert Decimal(cert["legs"][0]["fee_rounding_pad_per_share"]) == FEE_PRECISION_QUANTUM_USD / Decimal("5")
+    assert Decimal(cert["legs"][0]["fee_per_share"]) == Decimal("0.012377")
+    assert derived["cost"] == Decimal("0.924754")
     assert derived["safe_common"] == Decimal("50")
     assert cert["legs"][0]["outcome"] == "Yes"
     assert cert["legs"][1]["outcome"] == "No"
     assert cert["legs"][0]["url"].startswith("https://polymarket.com/event/test-event")
 
 
-def test_fee_bearing_exponent_two_matches_official_v2_curve():
+def test_fee_bearing_exponent_two_matches_official_v2_curve_plus_rounding_bound():
     signal = _signal()
     poly = _Poly(_info(exponent=2), _books())
     cert = asyncio.run(build_execution_certificate(signal, poly, [_raw_market()]))
     signal.metadata["execution_certificate"] = cert
 
     assert cert["legs"][0]["fee_exponent"] == "2"
-    assert Decimal(cert["legs"][0]["fee_per_share"]) == Decimal("0.0030628125")
+    assert Decimal(cert["legs"][0]["raw_fee_per_share"]) == Decimal("0.0030628125")
+    assert Decimal(cert["legs"][0]["fee_per_share"]) == Decimal("0.0030648125")
     ok, reason, _ = validate_execution_certificate(signal)
     assert ok is True, reason
 
@@ -124,6 +131,19 @@ def test_fractional_fee_exponent_is_supported_and_self_validating():
     signal.metadata["execution_certificate"] = cert
 
     assert cert["legs"][0]["fee_exponent"] == "1.5"
+    ok, reason, _ = validate_execution_certificate(signal)
+    assert ok is True, reason
+
+
+def test_zero_fee_market_gets_no_rounding_pad():
+    signal = _signal()
+    poly = _Poly(_info(rate="0", exponent=0), _books())
+    cert = asyncio.run(build_execution_certificate(signal, poly, [_raw_market()]))
+    signal.metadata["execution_certificate"] = cert
+
+    assert Decimal(cert["legs"][0]["raw_fee_per_share"]) == 0
+    assert Decimal(cert["legs"][0]["fee_rounding_pad_per_share"]) == 0
+    assert Decimal(cert["legs"][0]["fee_per_share"]) == 0
     ok, reason, _ = validate_execution_certificate(signal)
     assert ok is True, reason
 
@@ -165,6 +185,18 @@ def test_tampered_fee_is_rejected_after_build():
     assert "arithmetic" in reason
 
 
+def test_tampered_rounding_bound_is_rejected_after_build():
+    signal = _signal()
+    poly = _Poly(_info(), _books())
+    cert = asyncio.run(build_execution_certificate(signal, poly, [_raw_market()]))
+    cert["legs"][0]["fee_rounding_pad_per_share"] = "0"
+    signal.metadata["execution_certificate"] = cert
+
+    ok, reason, _ = validate_execution_certificate(signal)
+    assert ok is False
+    assert "rounding bound" in reason
+
+
 def test_expired_certificate_is_rejected_after_build():
     signal = _signal()
     poly = _Poly(_info(), _books())
@@ -180,7 +212,7 @@ def test_expired_certificate_is_rejected_after_build():
 
 def test_future_certificate_is_rejected():
     signal = _signal()
-    poly = _Poly(_info(rate="0"), _books())
+    poly = _Poly(_info(rate="0", exponent=0), _books())
     cert = asyncio.run(build_execution_certificate(signal, poly, [_raw_market()]))
     future = datetime.now(timezone.utc) + timedelta(minutes=5)
     cert["checked_at"] = future.isoformat()
