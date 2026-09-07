@@ -27,6 +27,19 @@ def _init_repo(path: Path) -> None:
     _git(path, "config", "user.name", "Release Test")
 
 
+def _write_hardened_release_shape(repo: Path) -> None:
+    (repo / "deploy/oracle").mkdir(parents=True, exist_ok=True)
+    (repo / "app_trade_only.py").write_text("app = object()\n")
+    (repo / "command_worker_trade_only.py").write_text("# worker\n")
+    (repo / "deploy/verify-runtime-release.sh").write_text("#!/usr/bin/env bash\nexit 0\n")
+    (repo / "deploy/oracle/setup-command-service.sh").write_text(
+        "#!/usr/bin/env bash\n"
+        "verify-runtime-release.sh\n"
+        "app_trade_only:app\n"
+        "command_worker_trade_only.py\n"
+    )
+
+
 def test_production_deploy_scripts_do_not_select_mutable_main_as_runtime_revision():
     paths = [
         ROOT / "deploy/oracle/install.sh",
@@ -77,14 +90,11 @@ def test_runtime_release_verifier_accepts_exact_clean_commit_and_rejects_dirty_t
     assert "tracked working tree differs" in dirty.stderr
 
 
-def test_release_pin_checks_out_explicit_main_ancestor_and_records_it(tmp_path: Path):
+def test_release_pin_checks_out_explicit_hardened_main_ancestor_and_records_it(tmp_path: Path):
     source = tmp_path / "source"
     source.mkdir()
     _init_repo(source)
-    # The release helper intentionally refuses pre-hardening revisions that do not
-    # carry the canonical trade-only runtime files.
-    (source / "app_trade_only.py").write_text("app = object()\n")
-    (source / "command_worker_trade_only.py").write_text("# worker\n")
+    _write_hardened_release_shape(source)
     (source / "value.txt").write_text("reviewed\n")
     _git(source, "add", ".")
     _git(source, "commit", "-m", "reviewed")
@@ -108,6 +118,33 @@ def test_release_pin_checks_out_explicit_main_ancestor_and_records_it(tmp_path: 
     assert _git(checkout, "rev-parse", "HEAD") == reviewed_sha
     assert marker.read_text().strip() == reviewed_sha
     assert (checkout / "value.txt").read_text() == "reviewed\n"
+
+
+def test_release_pin_rejects_pre_attestation_main_ancestor(tmp_path: Path):
+    source = tmp_path / "source"
+    source.mkdir()
+    _init_repo(source)
+    (source / "app_trade_only.py").write_text("app = object()\n")
+    (source / "command_worker_trade_only.py").write_text("# old worker\n")
+    _git(source, "add", ".")
+    _git(source, "commit", "-m", "pre-attestation")
+    old_sha = _git(source, "rev-parse", "HEAD")
+
+    _write_hardened_release_shape(source)
+    _git(source, "add", ".")
+    _git(source, "commit", "-m", "attested")
+
+    remote = tmp_path / "remote.git"
+    _run("git", "clone", "--bare", str(source), str(remote))
+    checkout = tmp_path / "checkout"
+    _run("git", "clone", str(remote), str(checkout))
+
+    marker = tmp_path / "release.sha"
+    pin = ROOT / "deploy/release-pin.sh"
+    result = _run("bash", str(pin), str(checkout), old_sha, str(marker), check=False)
+    assert result.returncode != 0
+    assert "predates runtime release attestation" in result.stderr
+    assert not marker.exists()
 
 
 def test_release_pin_rejects_malformed_release_id(tmp_path: Path):
