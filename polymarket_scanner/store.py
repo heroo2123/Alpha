@@ -11,7 +11,9 @@ from .models import Signal
 
 
 STRUCTURAL_DETECTORS = {"binary_buy_both", "neg_risk_underround", "nested_threshold_arb"}
-EXPERIMENTAL_RESOLUTION_DETECTORS = {"weather_friend_lock"}
+EXPERIMENTAL_RESOLUTION_DETECTORS = {"weather_friend_lock", "weather_late_lock"}
+SPORTS_MAPPING_VERSION = "home_away_v2"
+SPORTS_PRE_FIX_GROUP = "sports_result_lag_PRE_FIX_BUG"
 
 
 class Store:
@@ -93,30 +95,44 @@ class Store:
             c.execute("UPDATE signals SET status='WON', pnl=?, resolved_at=? WHERE id=?", (pnl, now, signal_id))
             self._resolve_manual_conn(c, signal_id, True, float(row["theoretical_payout"]), now)
 
-    def open_directional(self):
-        """Return paper signals whose selected token can be objectively resolved.
+    @staticmethod
+    def _meta(raw: object) -> dict:
+        if isinstance(raw, dict):
+            return raw
+        if not raw:
+            return {}
+        try:
+            value = json.loads(str(raw))
+            return value if isinstance(value, dict) else {}
+        except Exception:
+            return {}
 
-        Normal ACTIONABLE single-market signals remain scoreable. The friend-style
-        weather lane is intentionally WATCH-only, but we still resolve it after the
-        market closes so its heuristic can accumulate honest experimental evidence.
-        Structural multi-leg arbitrage is explicitly excluded: settlement does not
-        prove that every quoted leg was actually executable/fillable.
+    @classmethod
+    def _sports_pre_fix(cls, row: dict) -> bool:
+        if str(row.get("detector") or "") != "sports_result_lag":
+            return False
+        return cls._meta(row.get("metadata")).get("sports_mapping_version") != SPORTS_MAPPING_VERSION
+
+    def open_directional(self):
+        """Return signals whose selected token can be objectively resolved.
+
+        Structural multi-leg quote math is excluded because settlement cannot prove
+        fills. Both weather lanes are scored experimentally. Sports alerts created
+        before the explicit home/away mapping fix are quarantined and are not allowed
+        to accumulate more apparent strategy results.
         """
-        structural = tuple(sorted(STRUCTURAL_DETECTORS))
-        qmarks = ",".join("?" for _ in structural)
         with self._conn() as c:
-            return [dict(r) for r in c.execute(
-                f"""
-                SELECT * FROM signals
-                WHERE status='OPEN' AND market_id IS NOT NULL
-                  AND (
-                    (confidence='ACTIONABLE' AND detector NOT IN ({qmarks}))
-                    OR detector='weather_friend_lock'
-                  )
-                ORDER BY id
-                """,
-                structural,
+            rows = [dict(r) for r in c.execute(
+                "SELECT * FROM signals WHERE status='OPEN' AND market_id IS NOT NULL ORDER BY id"
             )]
+        out = []
+        for row in rows:
+            detector = str(row.get("detector") or "")
+            if detector in STRUCTURAL_DETECTORS or self._sports_pre_fix(row):
+                continue
+            if str(row.get("confidence") or "") == "ACTIONABLE" or detector in EXPERIMENTAL_RESOLUTION_DETECTORS:
+                out.append(row)
+        return out
 
     def resolve(self, signal_id: int, won: bool, stake: float) -> None:
         with self._lock, self._conn() as c:
@@ -137,6 +153,8 @@ class Store:
             sig = c.execute("SELECT * FROM signals WHERE id=?", (signal_id,)).fetchone()
             if not sig or sig["confidence"] != "ACTIONABLE" or not sig["entry_cost"]:
                 raise ValueError("unknown/non-actionable alert id")
+            if self._sports_pre_fix(dict(sig)):
+                raise ValueError("that sports alert came from the pre-fix home/away mapping bug and is quarantined")
             now = datetime.now(timezone.utc).isoformat()
             status = "OPEN"
             pnl = None
@@ -159,18 +177,6 @@ class Store:
             c.execute("UPDATE manual_trades SET status=?,pnl=?,resolved_at=? WHERE id=?", ("WON" if won else "LOST", pnl, now, row["id"]))
 
     @staticmethod
-    def _meta(raw: object) -> dict:
-        if isinstance(raw, dict):
-            return raw
-        if not raw:
-            return {}
-        try:
-            value = json.loads(str(raw))
-            return value if isinstance(value, dict) else {}
-        except Exception:
-            return {}
-
-    @staticmethod
     def _resolved_return(row: dict) -> float | None:
         """Return per-$1 paper return from the stored executable-cost estimate."""
         status = str(row.get("status") or "")
@@ -187,17 +193,19 @@ class Store:
     def stats(self) -> dict:
         """Evidence-based audit of every stored scanner signal.
 
-        The legacy top-level keys are retained for compatibility with older clients.
-        New ``audit`` and ``detectors`` fields deliberately separate resolution-
-        scored directional ideas, execution-unverified structural opportunities,
-        experimental WATCH outcomes, and research-only noise.
+        Valid resolution evidence, experimental weather evidence, structural quote
+        math, research WATCHs, legacy synthetic rows, and the known pre-fix sports
+        implementation bug are deliberately reported as different evidence classes.
         """
         with self._conn() as c:
             rows = [dict(r) for r in c.execute("SELECT * FROM signals ORDER BY id")]
 
         groups: dict[str, list[dict]] = defaultdict(list)
         for row in rows:
-            groups[str(row.get("detector") or "unknown")].append(row)
+            detector = str(row.get("detector") or "unknown")
+            if self._sports_pre_fix(row):
+                detector = SPORTS_PRE_FIX_GROUP
+            groups[detector].append(row)
 
         detector_rows: list[dict] = []
         resolved_pnl = 0.0
@@ -205,6 +213,10 @@ class Store:
         structural_actionable = 0
         research_unscored = 0
         experimental_total = experimental_resolved = 0
+        experimental_won = experimental_lost = 0
+        experimental_pnl = 0.0
+        bug_total = bug_resolved = 0
+        bug_pnl = 0.0
 
         for detector, items in groups.items():
             actionable = sum(str(r.get("confidence")) == "ACTIONABLE" for r in items)
@@ -231,18 +243,21 @@ class Store:
                     visible.append(value)
             avg_visible = sum(visible) / len(visible) if visible else None
 
-            if detector in STRUCTURAL_DETECTORS:
+            if detector == SPORTS_PRE_FIX_GROUP:
+                evidence = "KNOWN_BUG_EXCLUDED"
+                bug_total += len(items)
+                bug_resolved += resolved
+                bug_pnl += pnl
+            elif detector in STRUCTURAL_DETECTORS:
                 evidence = "EXECUTION_UNVERIFIED"
                 structural_actionable += actionable
             elif detector in EXPERIMENTAL_RESOLUTION_DETECTORS:
                 evidence = "EXPERIMENTAL_RESOLUTION"
                 experimental_total += len(items)
                 experimental_resolved += resolved
-                directional_total += len(items)
-                directional_resolved += resolved
-                directional_won += won
-                directional_lost += lost
-                resolved_pnl += pnl
+                experimental_won += won
+                experimental_lost += lost
+                experimental_pnl += pnl
             elif actionable > 0 or resolved > 0:
                 evidence = "RESOLUTION_SCORED"
                 scoreable = [r for r in items if str(r.get("confidence")) == "ACTIONABLE"]
@@ -273,13 +288,12 @@ class Store:
                 "avg_visible_notional": avg_visible,
             })
 
-        # Put actual resolution evidence first, then structural/actionable evidence,
-        # then large research-only buckets. This keeps the Telegram report useful.
         evidence_rank = {
             "RESOLUTION_SCORED": 0,
             "EXPERIMENTAL_RESOLUTION": 1,
-            "EXECUTION_UNVERIFIED": 2,
-            "RESEARCH_UNSCORED": 3,
+            "KNOWN_BUG_EXCLUDED": 2,
+            "EXECUTION_UNVERIFIED": 3,
+            "RESEARCH_UNSCORED": 4,
         }
         detector_rows.sort(key=lambda r: (evidence_rank.get(r["evidence"], 9), -int(r["resolved"]), -int(r["n"]), r["detector"]))
 
@@ -293,8 +307,10 @@ class Store:
         for r in rows:
             detector = str(r.get("detector") or "")
             eligible = (
-                detector in EXPERIMENTAL_RESOLUTION_DETECTORS
-                or (str(r.get("confidence")) == "ACTIONABLE" and detector not in STRUCTURAL_DETECTORS)
+                str(r.get("confidence")) == "ACTIONABLE"
+                and detector not in STRUCTURAL_DETECTORS
+                and detector not in EXPERIMENTAL_RESOLUTION_DETECTORS
+                and not self._sports_pre_fix(r)
             )
             if eligible:
                 value = self._resolved_return(r)
@@ -302,12 +318,10 @@ class Store:
                     resolved_returns.append(value)
         avg_resolved_return = sum(resolved_returns) / len(resolved_returns) if resolved_returns else None
 
-        # Legacy compatibility: /stats clients historically expect these keys to
-        # describe ACTIONABLE directional paper performance. Structural quote math
-        # never contributes to won/lost/P&L here.
         legacy_by_detector = [
             {"detector": r["detector"], "n": r["actionable"], "pnl": r["pnl"]}
-            for r in detector_rows if r["actionable"] > 0
+            for r in detector_rows
+            if r["actionable"] > 0 and r["evidence"] not in {"KNOWN_BUG_EXCLUDED", "EXPERIMENTAL_RESOLUTION"}
         ]
         return {
             "total": actionable_total,
@@ -333,6 +347,12 @@ class Store:
                 "research_unscored": research_unscored,
                 "experimental_total": experimental_total,
                 "experimental_resolved": experimental_resolved,
+                "experimental_won": experimental_won,
+                "experimental_lost": experimental_lost,
+                "experimental_pnl": float(experimental_pnl),
+                "known_bug_excluded": bug_total,
+                "known_bug_resolved": bug_resolved,
+                "known_bug_pnl": float(bug_pnl),
             },
             "detectors": detector_rows,
         }
