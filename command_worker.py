@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import html
 import json
 import logging
 import os
@@ -86,6 +87,91 @@ class _DatabaseHealthClient:
         return None
 
 
+class AuditTelegram(Telegram):
+    """Telegram command transport whose /stats is an evidence audit, not a counter."""
+
+    @staticmethod
+    def _pct(value: object) -> str:
+        if value is None:
+            return "n/a"
+        try:
+            return f"{float(value):.1%}"
+        except (TypeError, ValueError):
+            return "n/a"
+
+    async def send_stats(self):
+        st = await asyncio.to_thread(self.store.stats)
+        audit = st.get("audit") or {}
+        detectors = st.get("detectors") or []
+
+        resolved = int(audit.get("directional_resolved") or 0)
+        won = int(audit.get("directional_won") or 0)
+        lost = int(audit.get("directional_lost") or 0)
+        lines = [
+            "📊 <b>Signal audit — evidence, not alert count</b>",
+            f"Stored alerts: <b>{int(audit.get('all_alerts') or 0):,}</b> | ACTIONABLE: <b>{int(audit.get('actionable') or 0):,}</b> | WATCH: <b>{int(audit.get('watch') or 0):,}</b>",
+            f"Resolution-scoreable: <b>{int(audit.get('directional_total') or 0):,}</b> | Resolved: <b>{resolved:,}</b> | Open: <b>{int(audit.get('directional_open') or 0):,}</b>",
+            f"Resolved outcomes: <b>{won}W / {lost}L</b> | Win rate: <b>{self._pct(audit.get('win_rate'))}</b>",
+            f"Resolved paper P&amp;L: <b>${float(audit.get('resolved_pnl') or 0.0):.2f}</b> | Avg return/resolved signal: <b>{self._pct(audit.get('avg_resolved_return'))}</b>",
+            f"Structural ACTIONABLEs: <b>{int(audit.get('structural_actionable_unverified') or 0):,}</b> execution-unverified — <b>NOT counted as profit</b>",
+            f"Research-only WATCHs: <b>{int(audit.get('research_unscored') or 0):,}</b> — no P&amp;L claim",
+        ]
+        legacy = int(audit.get("legacy_excluded") or 0)
+        if legacy:
+            lines.append(f"Legacy synthetic structural rows excluded: <b>{legacy:,}</b>")
+        exp_total = int(audit.get("experimental_total") or 0)
+        if exp_total:
+            lines.append(
+                f"Friend-weather experiment: <b>{int(audit.get('experimental_resolved') or 0):,}/{exp_total:,}</b> resolved"
+            )
+
+        lines.append("\n<b>By detector</b>")
+        for row in detectors[:14]:
+            detector = html.escape(str(row.get("detector") or "unknown"))
+            evidence = str(row.get("evidence") or "")
+            n = int(row.get("n") or 0)
+            actionable = int(row.get("actionable") or 0)
+            watch = int(row.get("watch") or 0)
+            r = int(row.get("resolved") or 0)
+            rw = int(row.get("won") or 0)
+            rl = int(row.get("lost") or 0)
+            avg_edge = self._pct(row.get("avg_edge"))
+
+            if evidence == "RESOLUTION_SCORED":
+                lines.append(
+                    f"• <b>{detector}</b> [SCORED]: {actionable} A | {r} resolved ({rw}W/{rl}L) | "
+                    f"P&amp;L ${float(row.get('pnl') or 0.0):.2f} | avg return {self._pct(row.get('avg_return'))}"
+                )
+            elif evidence == "EXPERIMENTAL_RESOLUTION":
+                lines.append(
+                    f"• <b>{detector}</b> [EXPERIMENT]: {n} WATCH | {r} resolved ({rw}W/{rl}L) | "
+                    f"paper P&amp;L ${float(row.get('pnl') or 0.0):.2f}"
+                )
+            elif evidence == "EXECUTION_UNVERIFIED":
+                capacity = row.get("avg_visible_notional")
+                cap_text = f" | avg quoted capacity ${float(capacity):.0f}" if capacity is not None else ""
+                lines.append(
+                    f"• <b>{detector}</b> [UNVERIFIED EXECUTION]: {actionable} A / {watch} W | avg quoted edge {avg_edge}{cap_text}"
+                )
+            else:
+                lines.append(f"• <b>{detector}</b> [RESEARCH]: {n} alerts ({watch} WATCH) | unscored")
+
+        if len(detectors) > 14:
+            lines.append(f"… {len(detectors) - 14} smaller detector groups omitted from this Telegram view.")
+
+        lines.extend([
+            "\nℹ️ <b>Interpretation</b>",
+            "SCORED = the selected outcome later resolved WIN/LOSS.",
+            "EXPERIMENT = outcome can be scored, but the detector is not yet promoted to ACTIONABLE.",
+            "UNVERIFIED EXECUTION = quote math may be valid, but we do not pretend every leg filled.",
+            "RESEARCH = discovery/noise monitor; alert count is not evidence of profit.",
+        ])
+        text = "\n".join(lines)
+        if len(text) > 3900:
+            text = text[:3850] + "\n…\n(Report truncated; the database retains the full audit.)"
+        await self.send(text)
+
+
 async def command_loop(tg: Telegram) -> None:
     while True:
         try:
@@ -154,7 +240,7 @@ async def main() -> None:
 
     # Two Telegram instances deliberately create two independent connection pools.
     # An alert timeout can therefore never consume or poison the command lane.
-    command_tg = Telegram(store, alert_delivery_owner=False)
+    command_tg = AuditTelegram(store, alert_delivery_owner=False)
     alert_tg = Telegram(store, alert_delivery_owner=True)
     if not command_tg.token_enabled:
         raise RuntimeError("TELEGRAM_BOT_TOKEN is not configured")
@@ -162,7 +248,7 @@ async def main() -> None:
     await command_tg.local_http.aclose()
     command_tg.local_http = _DatabaseHealthClient(store, command_tg)  # type: ignore[assignment]
 
-    log.info("standalone Telegram worker started with isolated command lane + persistent alert outbox")
+    log.info("standalone Telegram worker started with isolated command lane + persistent alert outbox + evidence audit stats")
     command_task = asyncio.create_task(command_loop(command_tg))
     alert_task = asyncio.create_task(alert_delivery_loop(store, alert_tg, outbox))
     try:
