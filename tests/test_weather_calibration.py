@@ -1,9 +1,13 @@
 import asyncio
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
 import polymarket_scanner.trade_only as trade_only
+from polymarket_scanner.execution_certificate import (
+    EXECUTION_CERTIFICATE_TTL_SECONDS,
+    EXECUTION_CERTIFICATE_VERSION,
+)
 from polymarket_scanner.models import Book, Signal
 from polymarket_scanner.store import Store
 from polymarket_scanner.weather_calibration import (
@@ -116,9 +120,50 @@ def _trade_weather_signal() -> Signal:
     )
 
 
+def _weather_execution_cert():
+    checked = datetime.now(timezone.utc)
+    expires = checked + timedelta(seconds=EXECUTION_CERTIFICATE_TTL_SECONDS)
+    return {
+        "version": EXECUTION_CERTIFICATE_VERSION,
+        "checked_at": checked.isoformat(),
+        "expires_at": expires.isoformat(),
+        "ttl_seconds": EXECUTION_CERTIFICATE_TTL_SECONDS,
+        "legs": [{
+            "market_id": "m1",
+            "condition_id": "c1",
+            "token_id": "yes-token",
+            "question": "Will today's high be in this bucket?",
+            "outcome": "Yes",
+            "ask": "0.925",
+            "safe_limit": "0.925",
+            "safe_limit_text": "0.925",
+            "tick_size": "0.001",
+            "minimum_order_size": "5",
+            "visible_best_ask_size": "100",
+            "book_timestamp": "",
+            "fee_rate": "0",
+            "fee_exponent": 0,
+            "fee_taker_only": True,
+            "fee_per_share": "0",
+            "cost_per_share": "0.925",
+            "url": "https://polymarket.com/market/weather-test",
+        }],
+        "combined_cost": "0.925",
+        "common_visible_shares": "100",
+        "capacity_fraction": "0.50",
+        "safe_common_shares": "50.00",
+        "capacity_usd": "46.25000",
+        "minimum_bundle_shares": "5",
+        "minimum_bundle_notional_usd": "4.625",
+        "depth_basis": "CURRENT_BATCH_BEST_ASK_WITH_50_PERCENT_SAFETY_HAIRCUT_UNCALIBRATED",
+        "fee_basis": "test",
+    }
+
+
 def test_promoted_weather_cannot_use_raw_heuristic_as_money_probability(monkeypatch):
     monkeypatch.setitem(trade_only._CERTIFICATIONS, "weather_late_lock", "WEATHER_SEMANTICS_VERIFIED")
     signal = _trade_weather_signal()
+    signal.metadata["execution_certificate"] = _weather_execution_cert()
     assert trade_only.mark_trade_readiness(signal) is False
     assert "calibration" in signal.metadata["trade_ready_reason"]
 
@@ -132,19 +177,47 @@ def test_promoted_weather_uses_calibration_lower_bound_not_raw_score(monkeypatch
         "calibrated_probability_lower_bound": 0.94,
     })
 
+    class FakeResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "mts": "0.001",
+                "mos": "5",
+                "t": [
+                    {"t": "yes-token", "o": "Yes"},
+                    {"t": "no-token", "o": "No"},
+                ],
+                "fd": {"r": 0, "e": 0, "to": True},
+                "itode": False,
+            }
+
+    class FakeHTTP:
+        async def get(self, _url):
+            return FakeResponse()
+
     class FakePoly:
+        def __init__(self):
+            self.http = FakeHTTP()
+
         async def market_by_id(self, _mid):
             return {
+                "id": "m1",
+                "conditionId": "c1",
+                "question": "Will today's high be in this bucket?",
+                "slug": "weather-test",
                 "active": True,
                 "closed": False,
                 "acceptingOrders": True,
                 "enableOrderBook": True,
                 "clobTokenIds": '["yes-token", "no-token"]',
+                "outcomes": '["Yes", "No"]',
             }
 
         async def books(self, _tokens):
-            # Raw heuristic 0.999 would make this look profitable, but a 0.94
-            # conservative empirical floor cannot clear the production edge gate.
+            # Raw heuristic 0.999 would look profitable. The prospective empirical
+            # lower bound 0.94 minus the current exact ask 0.925 is only 1.5%.
             return {"yes-token": Book("yes-token", bids=[], asks=[(0.925, 100.0)])}
 
     assert asyncio.run(trade_only.refresh_trade_readiness(signal, FakePoly())) is False
