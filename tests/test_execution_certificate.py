@@ -105,11 +105,27 @@ def test_build_and_validate_exact_clob_v2_certificate():
     assert cert["legs"][0]["url"].startswith("https://polymarket.com/event/test-event")
 
 
-def test_fee_bearing_non_one_exponent_fails_closed():
+def test_fee_bearing_exponent_two_matches_official_v2_curve():
     signal = _signal()
     poly = _Poly(_info(exponent=2), _books())
-    with pytest.raises(ValueError, match="fee exponent is unsupported"):
-        asyncio.run(build_execution_certificate(signal, poly, [_raw_market()]))
+    cert = asyncio.run(build_execution_certificate(signal, poly, [_raw_market()]))
+    signal.metadata["execution_certificate"] = cert
+
+    assert cert["legs"][0]["fee_exponent"] == "2"
+    assert Decimal(cert["legs"][0]["fee_per_share"]) == Decimal("0.0030628125")
+    ok, reason, _ = validate_execution_certificate(signal)
+    assert ok is True, reason
+
+
+def test_fractional_fee_exponent_is_supported_and_self_validating():
+    signal = _signal()
+    poly = _Poly(_info(exponent="1.5"), _books())
+    cert = asyncio.run(build_execution_certificate(signal, poly, [_raw_market()]))
+    signal.metadata["execution_certificate"] = cert
+
+    assert cert["legs"][0]["fee_exponent"] == "1.5"
+    ok, reason, _ = validate_execution_certificate(signal)
+    assert ok is True, reason
 
 
 def test_taker_delay_fails_closed():
