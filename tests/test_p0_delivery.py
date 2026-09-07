@@ -1,10 +1,14 @@
 import asyncio
+import time
+from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 
 import httpx
 import pytest
 
 import command_worker_trade_only as trade_worker
 from polymarket_scanner.telegram import Telegram
+from polymarket_scanner.trade_only import TradeNowPreSendInvalid
 
 
 class FakeResponse:
@@ -39,6 +43,7 @@ def _tg():
     tg.token = "123:SECRET"
     tg.last_command_error = None
     tg.last_alert_error = None
+    tg._trade_alert_not_after_epoch = None
     return tg
 
 
@@ -46,6 +51,71 @@ def _no_sleep(monkeypatch):
     async def no_sleep(_seconds):
         return None
     monkeypatch.setattr(trade_worker.asyncio, "sleep", no_sleep)
+
+
+def test_alert_expired_certificate_is_suppressed_before_any_http_call():
+    tg = _tg()
+    tg._trade_alert_not_after_epoch = time.time() - 1.0
+    client = FakeClient([FakeResponse()])
+
+    with pytest.raises(trade_worker.worker.AlertSuppressed, match="expiry"):
+        asyncio.run(trade_worker._safe_post_message(tg, client, "1", "x", lane="alert"))
+    assert client.calls == 0
+
+
+def test_alert_near_expiry_is_suppressed_with_network_headroom():
+    tg = _tg()
+    tg._trade_alert_not_after_epoch = time.time() + 0.2
+    client = FakeClient([FakeResponse()])
+
+    with pytest.raises(trade_worker.worker.AlertSuppressed, match="expiry"):
+        asyncio.run(trade_worker._safe_post_message(tg, client, "1", "x", lane="alert"))
+    assert client.calls == 0
+
+
+def test_alert_with_enough_certificate_life_may_cross_network_boundary():
+    tg = _tg()
+    tg._trade_alert_not_after_epoch = time.time() + 5.0
+    client = FakeClient([FakeResponse(200, {"ok": True, "result": {"message_id": 456}})])
+
+    result = asyncio.run(trade_worker._safe_post_message(tg, client, "1", "x", lane="alert"))
+    assert result == 456
+    assert client.calls == 1
+
+
+def test_command_lane_ignores_financial_certificate_deadline():
+    tg = _tg()
+    tg._trade_alert_not_after_epoch = time.time() - 10.0
+    client = FakeClient([FakeResponse(200, {"ok": True, "result": {"message_id": 457}})])
+
+    result = asyncio.run(trade_worker._safe_post_message(tg, client, "1", "status", lane="command"))
+    assert result == 457
+    assert client.calls == 1
+
+
+def test_guarded_send_maps_local_pre_send_failure_to_suppressed_and_clears_deadline(monkeypatch):
+    signal = SimpleNamespace(
+        detector="binary_buy_both",
+        metadata={
+            "trade_ready_expires_at": (datetime.now(timezone.utc) + timedelta(seconds=5)).isoformat()
+        },
+    )
+    tg = _tg()
+    tg.store = SimpleNamespace(path="unused.db")
+
+    async def ready(_signal, _poly):
+        return True
+
+    async def fail_before_transport(_tg, _signal_id, _signal):
+        raise TradeNowPreSendInvalid("expired while rendering")
+
+    monkeypatch.setattr(trade_worker, "_poly", lambda: object())
+    monkeypatch.setattr(trade_worker, "refresh_trade_readiness", ready)
+    monkeypatch.setattr(trade_worker, "send_trade_now", fail_before_transport)
+
+    with pytest.raises(trade_worker.worker.AlertSuppressed, match="expired while rendering"):
+        asyncio.run(trade_worker._guarded_send_signal(tg, 1, signal))
+    assert tg._trade_alert_not_after_epoch is None
 
 
 def test_alert_429_is_explicit_no_delivery_and_not_blindly_retried(monkeypatch):
