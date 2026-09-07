@@ -1,3 +1,6 @@
+from datetime import datetime, timedelta, timezone
+
+import polymarket_scanner.trade_only as trade_only
 from polymarket_scanner.models import Signal
 from polymarket_scanner.trade_only import TRADE_READY_VERSION, is_trade_ready, mark_trade_readiness, promoted_detectors
 
@@ -17,13 +20,17 @@ def _signal(detector="binary_buy_both", confidence="ACTIONABLE", cert="BINARY_CO
         token_ids=["yes", "no"],
         metadata={
             "certification_status": cert,
-            "rest_confirmed_at": "2026-09-07T00:00:00+00:00",
+            "rest_confirmed_at": datetime.now(timezone.utc).isoformat(),
             "confirmed_asks": [0.48, 0.47],
             "confirmed_sizes": [100.0, 100.0],
             "visible_common_shares": 100.0,
             "max_visible_notional_usd": 96.0,
         },
     )
+
+
+def _promote_binary(monkeypatch):
+    monkeypatch.setitem(trade_only._CERTIFICATIONS, "binary_buy_both", "BINARY_COMPLEMENT_VERIFIED")
 
 
 def test_p0_containment_promotes_no_detectors():
@@ -60,4 +67,37 @@ def test_old_trade_ready_metadata_cannot_bypass_empty_registry():
     s = _signal()
     s.metadata["trade_ready"] = True
     s.metadata["trade_ready_version"] = TRADE_READY_VERSION
+    assert is_trade_ready(s) is False
+
+
+def test_promoted_gate_accepts_only_fresh_certificate(monkeypatch):
+    _promote_binary(monkeypatch)
+    s = _signal()
+    assert mark_trade_readiness(s) is True
+    assert is_trade_ready(s) is True
+
+
+def test_promoted_gate_rejects_expired_rest_confirmation(monkeypatch):
+    _promote_binary(monkeypatch)
+    s = _signal()
+    s.metadata["rest_confirmed_at"] = (datetime.now(timezone.utc) - timedelta(seconds=30)).isoformat()
+    assert mark_trade_readiness(s) is False
+    assert is_trade_ready(s) is False
+    assert "expired" in s.metadata["trade_ready_reason"]
+
+
+def test_promoted_gate_rejects_nonfinite_values(monkeypatch):
+    _promote_binary(monkeypatch)
+    s = _signal()
+    s.metadata["confirmed_asks"] = [float("nan"), 0.47]
+    assert mark_trade_readiness(s) is False
+    assert is_trade_ready(s) is False
+    assert "nonfinite" in s.metadata["trade_ready_reason"]
+
+
+def test_promoted_gate_rejects_future_confirmation(monkeypatch):
+    _promote_binary(monkeypatch)
+    s = _signal()
+    s.metadata["rest_confirmed_at"] = (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat()
+    assert mark_trade_readiness(s) is False
     assert is_trade_ready(s) is False
