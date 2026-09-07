@@ -36,13 +36,60 @@ def _ts_seconds(v) -> float:
     return x / 1000.0 if x > 10_000_000_000 else x
 
 
-class LiveMarketStream:
-    """Low-latency public CLOB cache; ACTIONABLE alerts are REST-confirmed.
+def _strict_ts_seconds(v) -> float | None:
+    try:
+        x = float(v)
+    except (TypeError, ValueError):
+        return None
+    if not (x > 0):
+        return None
+    return x / 1000.0 if x > 10_000_000_000 else x
 
-    Universe refreshes use Polymarket's documented subscription-update messages
-    instead of tearing down and resending the full ~20k-token subscription set.
-    This matters on metered/free-tier hosts because only small token deltas leave
-    the VM after the initial connection.
+
+def _valid_price(v) -> float | None:
+    x = _f(v)
+    if x is None or not (0.0 < x < 1.0):
+        return None
+    return x
+
+
+def _valid_size(v) -> float | None:
+    x = _f(v)
+    if x is None or x < 0.0:
+        return None
+    return x
+
+
+def _levels(rows) -> list[tuple[float, float]] | None:
+    out: dict[float, float] = {}
+    for row in rows or []:
+        if not isinstance(row, dict):
+            return None
+        price = _valid_price(row.get("price"))
+        size = _valid_size(row.get("size"))
+        if price is None or size is None:
+            return None
+        if size > 0:
+            out[price] = out.get(price, 0.0) + size
+    return list(out.items())
+
+
+def _same_price(a: float | None, b: float | None) -> bool:
+    if a is None or b is None:
+        return a is None and b is None
+    return abs(a - b) <= 1e-12
+
+
+class LiveMarketStream:
+    """Low-latency public CLOB cache with reconnect-safe depth reconstruction.
+
+    Polymarket's market-channel ``price_change`` rows identify the exact aggregate
+    price level and its new size. We apply those level changes to the latest full
+    ``book`` snapshot instead of retaining a stale top-level size. Every reconnect
+    starts a new epoch and invalidates the worker's cached books until a new full
+    snapshot arrives, so pre-disconnect state cannot leak into the new connection.
+
+    ACTIONABLE alerts are still independently REST-confirmed at delivery time.
     """
 
     def __init__(self) -> None:
@@ -54,14 +101,26 @@ class LiveMarketStream:
         self._token_owner: dict[str, int] = {}
         self._token_set: set[str] = set()
         self._next_worker_id = 0
+        self._worker_epoch: dict[int, int] = {}
+        self._snapshot_epoch: dict[str, int] = {}
+        self._token_remote_ts: dict[str, float] = {}
         self.connected_workers = 0
         self.last_message_at: float | None = None
+        self.last_valid_update_at: float | None = None
+        self.last_full_book_at: float | None = None
+        self.invalidated_books = 0
+        self.out_of_order_ignored = 0
 
     def seed(self, books: dict[str, Book]) -> None:
-        self.books.update(books)
+        # Seed data is discovery-only and must not masquerade as a synchronized WS
+        # book. It can be used until a worker owns the token; reconnect invalidation
+        # will remove it before incremental WS deltas are accepted.
+        self.books.update({token: book.clone() for token, book in books.items()})
 
     def snapshot(self) -> dict[str, Book]:
-        return dict(self.books)
+        # Return isolated Book objects. Detector code must never mutate the live cache
+        # through a shallow dict copy.
+        return {token: book.clone() for token, book in self.books.items()}
 
     def _start_worker(self, tokens: Iterable[str]) -> int:
         worker_id = self._next_worker_id
@@ -69,10 +128,39 @@ class LiveMarketStream:
         token_set = set(tokens)
         self._worker_tokens[worker_id] = token_set
         self._queues[worker_id] = asyncio.Queue()
+        self._worker_epoch[worker_id] = 0
         for token in token_set:
             self._token_owner[token] = worker_id
         self._tasks[worker_id] = asyncio.create_task(self._worker(worker_id))
         return worker_id
+
+    def _invalidate_token(self, token: str, *, count: bool = True) -> None:
+        existed = token in self.books or token in self._snapshot_epoch
+        self.books.pop(token, None)
+        self._snapshot_epoch.pop(token, None)
+        self._token_remote_ts.pop(token, None)
+        if count and existed:
+            self.invalidated_books += 1
+            self.changed.set()
+
+    def _begin_worker_epoch(self, worker_id: int) -> int:
+        epoch = int(self._worker_epoch.get(worker_id, 0)) + 1
+        self._worker_epoch[worker_id] = epoch
+        for token in tuple(self._worker_tokens.get(worker_id, set())):
+            self._invalidate_token(token)
+        return epoch
+
+    def _token_allowed(self, token: str, worker_id: int | None) -> bool:
+        if worker_id is None:
+            return True  # unit-test/direct application compatibility
+        return self._token_owner.get(token) == worker_id and token in self._worker_tokens.get(worker_id, set())
+
+    def _epoch_for(self, token: str, worker_id: int | None, epoch: int | None) -> int:
+        if epoch is not None:
+            return int(epoch)
+        if worker_id is not None:
+            return int(self._worker_epoch.get(worker_id, 0))
+        return int(self._snapshot_epoch.get(token, 0))
 
     async def configure(self, token_ids: Iterable[str]) -> None:
         tokens = list(dict.fromkeys(t for t in token_ids if t))
@@ -99,7 +187,7 @@ class LiveMarketStream:
             if worker_id is not None:
                 self._worker_tokens.get(worker_id, set()).discard(token)
                 unsubscribe_by_worker[worker_id].append(token)
-            self.books.pop(token, None)
+            self._invalidate_token(token)
         for worker_id, ids in unsubscribe_by_worker.items():
             queue = self._queues.get(worker_id)
             if queue and ids:
@@ -114,6 +202,7 @@ class LiveMarketStream:
                 worker_id = self._start_worker([])
             self._worker_tokens[worker_id].add(token)
             self._token_owner[token] = worker_id
+            self._invalidate_token(token, count=False)
             subscribe_by_worker[worker_id].append(token)
         for worker_id, ids in subscribe_by_worker.items():
             queue = self._queues.get(worker_id)
@@ -132,6 +221,10 @@ class LiveMarketStream:
         self._worker_tokens = {}
         self._token_owner = {}
         self._token_set = set()
+        self._worker_epoch = {}
+        self._snapshot_epoch = {}
+        self._token_remote_ts = {}
+        self.books = {}
         self.connected_workers = 0
 
     async def _heartbeat(self, ws) -> None:
@@ -173,6 +266,7 @@ class LiveMarketStream:
                     tokens = list(self._worker_tokens.get(worker_id, set()))
                     if not tokens:
                         continue
+                    epoch = self._begin_worker_epoch(worker_id)
                     await ws.send(json.dumps({"assets_ids": tokens, "type": "market", "custom_feature_enabled": True}, separators=(",", ":")))
                     self.connected_workers += 1
                     backoff = 1.0
@@ -180,7 +274,8 @@ class LiveMarketStream:
                     sender = asyncio.create_task(self._subscription_sender(ws, worker_id))
                     try:
                         async for raw in ws:
-                            self.last_message_at = time.time()
+                            received_at = time.time()
+                            self.last_message_at = received_at
                             if raw in {"PONG", "pong"}:
                                 continue
                             try:
@@ -189,12 +284,17 @@ class LiveMarketStream:
                                 continue
                             for row in (msg if isinstance(msg, list) else [msg]):
                                 if isinstance(row, dict):
-                                    self._apply(row)
+                                    self._apply(row, worker_id=worker_id, epoch=epoch, received_at=received_at)
                     finally:
                         hb.cancel()
                         sender.cancel()
                         await asyncio.gather(hb, sender, return_exceptions=True)
                         self.connected_workers = max(0, self.connected_workers - 1)
+                        # Anything reconstructed in this epoch is invalid once the
+                        # connection is gone. The next connection must re-snapshot.
+                        for token in tuple(self._worker_tokens.get(worker_id, set())):
+                            if self._snapshot_epoch.get(token) == epoch:
+                                self._invalidate_token(token)
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
@@ -202,40 +302,138 @@ class LiveMarketStream:
                 await asyncio.sleep(backoff)
                 backoff = min(30.0, backoff * 2)
 
-    def _apply(self, msg: dict) -> None:
+    def _message_is_new_enough(self, token: str, remote_ts: float) -> bool:
+        prior = self._token_remote_ts.get(token)
+        if prior is not None and remote_ts < prior:
+            self.out_of_order_ignored += 1
+            return False
+        return True
+
+    def _apply(self, msg: dict, *, worker_id: int | None = None, epoch: int | None = None, received_at: float | None = None) -> None:
         typ = msg.get("event_type") or msg.get("type")
+        received = float(received_at if received_at is not None else time.time())
+        remote_ts = _strict_ts_seconds(msg.get("timestamp"))
+        if remote_ts is None:
+            return
         changed = False
+
         if typ == "book":
             token = str(msg.get("asset_id") or "")
-            if token:
-                bids = [(_f(x.get("price"), 0.0), _f(x.get("size"), 0.0)) for x in msg.get("bids", [])]
-                asks = [(_f(x.get("price"), 0.0), _f(x.get("size"), 0.0)) for x in msg.get("asks", [])]
-                self.books[token] = Book(token, bids, asks, timestamp=str(msg.get("timestamp") or ""))
-                changed = True
+            if not token or not self._token_allowed(token, worker_id) or not self._message_is_new_enough(token, remote_ts):
+                return
+            bids = _levels(msg.get("bids", []))
+            asks = _levels(msg.get("asks", []))
+            if bids is None or asks is None:
+                self._invalidate_token(token)
+                return
+            current_epoch = self._epoch_for(token, worker_id, epoch)
+            self.books[token] = Book(
+                token,
+                bids,
+                asks,
+                timestamp=str(msg.get("timestamp") or ""),
+                received_at=received,
+                source="clob_ws_book",
+                source_epoch=current_epoch,
+                book_hash=str(msg.get("hash") or "") or None,
+            )
+            self._snapshot_epoch[token] = current_epoch
+            self._token_remote_ts[token] = remote_ts
+            self.last_valid_update_at = received
+            self.last_full_book_at = received
+            changed = True
+
         elif typ == "price_change":
+            current_epoch_by_token: dict[str, int] = {}
             for row in msg.get("price_changes") or msg.get("changes") or []:
-                token = str(row.get("asset_id") or "")
-                if not token:
+                if not isinstance(row, dict):
                     continue
-                old = self.books.get(token) or Book(token, [], [])
-                bb = _f(row.get("best_bid"), old.best_bid); ba = _f(row.get("best_ask"), old.best_ask)
-                bid_size = old.best_bid_size if bb is not None and bb == old.best_bid else 0.0
-                ask_size = old.best_ask_size if ba is not None and ba == old.best_ask else 0.0
-                old.bids = [] if bb is None else [(bb, bid_size)]
-                old.asks = [] if ba is None else [(ba, ask_size)]
-                old.timestamp = str(msg.get("timestamp") or "")
-                self.books[token] = old
+                token = str(row.get("asset_id") or "")
+                if not token or not self._token_allowed(token, worker_id):
+                    continue
+                current_epoch = self._epoch_for(token, worker_id, epoch)
+                current_epoch_by_token[token] = current_epoch
+                # Incremental deltas are meaningless until the current connection has
+                # supplied a full snapshot for this token.
+                if self._snapshot_epoch.get(token) != current_epoch or token not in self.books:
+                    continue
+                if not self._message_is_new_enough(token, remote_ts):
+                    continue
+
+                price = _valid_price(row.get("price"))
+                size = _valid_size(row.get("size"))
+                side = str(row.get("side") or "").strip().upper()
+                if price is None or size is None or side not in {"BUY", "SELL"}:
+                    self._invalidate_token(token)
+                    continue
+
+                old = self.books[token]
+                bids = dict(old.bids)
+                asks = dict(old.asks)
+                levels = bids if side == "BUY" else asks
+                if size == 0.0:
+                    levels.pop(price, None)
+                else:
+                    levels[price] = size
+
+                candidate = Book(
+                    token,
+                    list(bids.items()),
+                    list(asks.items()),
+                    last_trade_price=old.last_trade_price,
+                    timestamp=str(msg.get("timestamp") or ""),
+                    received_at=received,
+                    source="clob_ws_price_change",
+                    source_epoch=current_epoch,
+                    book_hash=str(row.get("hash") or msg.get("hash") or old.book_hash or "") or None,
+                )
+
+                declared_bid = _valid_price(row.get("best_bid")) if row.get("best_bid") not in {None, ""} else None
+                declared_ask = _valid_price(row.get("best_ask")) if row.get("best_ask") not in {None, ""} else None
+                if row.get("best_bid") not in {None, ""} and declared_bid is None:
+                    self._invalidate_token(token)
+                    continue
+                if row.get("best_ask") not in {None, ""} and declared_ask is None:
+                    self._invalidate_token(token)
+                    continue
+                if declared_bid is not None and not _same_price(candidate.best_bid, declared_bid):
+                    self._invalidate_token(token)
+                    continue
+                if declared_ask is not None and not _same_price(candidate.best_ask, declared_ask):
+                    self._invalidate_token(token)
+                    continue
+
+                self.books[token] = candidate
+                self._token_remote_ts[token] = remote_ts
+                self.last_valid_update_at = received
                 changed = True
+
         elif typ == "best_bid_ask":
             token = str(msg.get("asset_id") or "")
-            if token:
-                old = self.books.get(token) or Book(token, [], [])
-                bb, ba = _f(msg.get("best_bid")), _f(msg.get("best_ask"))
-                old.bids = [] if bb is None else [(bb, old.best_bid_size if bb == old.best_bid else 0.0)]
-                old.asks = [] if ba is None else [(ba, old.best_ask_size if ba == old.best_ask else 0.0)]
-                old.timestamp = str(msg.get("timestamp") or "")
-                self.books[token] = old
-                changed = True
+            if not token or not self._token_allowed(token, worker_id):
+                return
+            current_epoch = self._epoch_for(token, worker_id, epoch)
+            if self._snapshot_epoch.get(token) != current_epoch or token not in self.books:
+                return
+            if not self._message_is_new_enough(token, remote_ts):
+                return
+            # best_bid_ask carries prices but no aggregate sizes. It may confirm our
+            # reconstructed top of book, but it must never refresh or invent size.
+            declared_bid = _valid_price(msg.get("best_bid")) if msg.get("best_bid") not in {None, ""} else None
+            declared_ask = _valid_price(msg.get("best_ask")) if msg.get("best_ask") not in {None, ""} else None
+            if msg.get("best_bid") not in {None, ""} and declared_bid is None:
+                self._invalidate_token(token)
+                return
+            if msg.get("best_ask") not in {None, ""} and declared_ask is None:
+                self._invalidate_token(token)
+                return
+            old = self.books[token]
+            if not _same_price(old.best_bid, declared_bid) or not _same_price(old.best_ask, declared_ask):
+                self._invalidate_token(token)
+                return
+            self._token_remote_ts[token] = remote_ts
+            self.last_valid_update_at = received
+
         if changed:
             self.changed.set()
 
