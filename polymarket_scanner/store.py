@@ -195,12 +195,19 @@ class Store:
         self.resolve_payout(signal_id, 1.0 if won else 0.0, stake)
 
     def record_manual(self, signal_id: int, stake: float, actual_entry_cost: float | None = None) -> dict:
-        """Record a user-reported actual execution, never an old alert quote.
+        """Record one user-reported execution while the source alert is unresolved.
 
-        ``actual_entry_cost`` is the amount paid per $1 payout unit for a single-leg
-        trade, or the combined cost per complete payout bundle for a multi-leg trade.
-        It is intentionally required. Historical manual rows that used alert quotes
-        remain tagged LEGACY_ALERT_ESTIMATE and are excluded from valid manual stats.
+        ``actual_entry_cost`` is what the user really paid per $1 payout unit for a
+        single-leg trade, or the combined cost per complete payout bundle for a
+        multi-leg trade. It is intentionally required. The execution is recorded OPEN
+        and can only acquire P&L from a *later* settlement write. Once the signal has
+        any resolved/quarantined terminal state or known settlement payout, a new
+        manual trade is rejected: retrospective entry after the answer is known would
+        be look-ahead, not execution evidence.
+
+        A second USER_REPORTED_EXECUTION for the same alert is also rejected. The
+        command surface models one manually executed position per TRADE NOW alert;
+        repeated /took commands must not double-count one fill.
         """
         if isinstance(stake, bool) or not math.isfinite(float(stake)) or float(stake) <= 0:
             raise ValueError("stake must be positive and finite")
@@ -218,30 +225,41 @@ class Store:
             if self._sports_pre_fix(dict(sig)):
                 raise ValueError("that sports alert came from the pre-fix home/away mapping bug and is quarantined")
 
-            now = datetime.now(timezone.utc).isoformat()
-            status = "OPEN"
-            pnl = None
-            payout = None
-            resolved_at = None
-            if str(sig["status"] or "") in RESOLVED_STATUSES and sig["settlement_payout"] is not None:
-                payout = float(sig["settlement_payout"])
-                status = self._status_for_payout(payout)
-                pnl = stake_f / cost_f * payout - stake_f
-                resolved_at = now
+            signal_status = str(sig["status"] or "")
+            if (
+                signal_status != "OPEN"
+                or sig["settlement_payout"] is not None
+                or sig["resolved_at"] is not None
+            ):
+                if signal_status in RESOLVED_STATUSES or sig["settlement_payout"] is not None:
+                    raise ValueError("cannot record an execution after the alert has settled; retrospective P&L is prohibited")
+                raise ValueError("cannot record an execution for an alert that is no longer open")
 
+            existing = c.execute(
+                """
+                SELECT id FROM manual_trades
+                WHERE signal_id=? AND entry_source='USER_REPORTED_EXECUTION'
+                ORDER BY id LIMIT 1
+                """,
+                (signal_id,),
+            ).fetchone()
+            if existing:
+                raise ValueError("an actual execution is already recorded for this alert")
+
+            now = datetime.now(timezone.utc).isoformat()
             cur = c.execute(
                 """
                 INSERT INTO manual_trades(
                     signal_id,stake,entry_cost,entry_source,execution_at,status,pnl,
                     settlement_payout,created_at,resolved_at
-                ) VALUES(?,?,?,'USER_REPORTED_EXECUTION',?,?,?,?,?,?)
+                ) VALUES(?,?,?,'USER_REPORTED_EXECUTION',?,'OPEN',NULL,NULL,?,NULL)
                 """,
-                (signal_id, stake_f, cost_f, now, status, pnl, payout, now, resolved_at),
+                (signal_id, stake_f, cost_f, now, now),
             )
             return {
                 "id": int(cur.lastrowid), "signal_id": signal_id, "stake": stake_f,
                 "entry_cost": cost_f, "entry_source": "USER_REPORTED_EXECUTION",
-                "status": status, "pnl": pnl, "settlement_payout": payout,
+                "status": "OPEN", "pnl": None, "settlement_payout": None,
             }
 
     def _resolve_manual_conn(self, c, signal_id: int, payout: float, now: str) -> None:
