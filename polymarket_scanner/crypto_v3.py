@@ -6,12 +6,13 @@ import time
 
 from .config import settings
 from .detectors import market_url
-from .detectors_v02 import ASSETS, _asset, _end, _meta, _topic, threshold
+from .detectors_v02 import _asset, _end, _meta, _topic, threshold
 from .models import Book, Market, Signal
 from .polymarket import taker_fee_per_share
 from .streams import CryptoRTDS, PriceTick
 
-CRYPTO_FEED_VERSION = "rtds_v3_connected_causal"
+CRYPTO_FEED_VERSION = "rtds_v3_connected_causal_progress"
+FEED_PROGRESS_MAX_AGE_SECONDS = 20.0
 CROSSFEED_MAX_AGE_SECONDS = 20.0
 CROSSFEED_MAX_SKEW_SECONDS = 5.0
 SOURCE_FUTURE_TOLERANCE_SECONDS = 2.0
@@ -34,6 +35,30 @@ def _tick_time_valid(tick: PriceTick | None, *, now_ts: float) -> bool:
         and math.isfinite(price)
         and price > 0.0
         and ts <= now_ts + SOURCE_FUTURE_TOLERANCE_SECONDS
+    )
+
+
+def _fresh_latest(
+    tick: PriceTick | None,
+    *,
+    now_ts: float,
+    max_age_seconds: float = CROSSFEED_MAX_AGE_SECONDS,
+) -> PriceTick | None:
+    if not _tick_time_valid(tick, now_ts=now_ts):
+        return None
+    assert tick is not None
+    age = now_ts - float(tick.ts)
+    if age < -SOURCE_FUTURE_TOLERANCE_SECONDS or age > float(max_age_seconds):
+        return None
+    return tick
+
+
+def _feed_progress_tick(rtds: CryptoRTDS, topic: str, symbol: str, now_ts: float) -> PriceTick | None:
+    """Prove the exact settlement topic/symbol is still producing current data."""
+    return _fresh_latest(
+        rtds.latest(topic, symbol),
+        now_ts=now_ts,
+        max_age_seconds=FEED_PROGRESS_MAX_AGE_SECONDS,
     )
 
 
@@ -61,10 +86,9 @@ def crypto_resolution_lag_v3(
 ) -> list[Signal]:
     """Known crypto-boundary research with explicit feed authority.
 
-    Captured boundary ticks are useful evidence only while the RTDS transport is
-    currently connected and the source timestamps themselves are causal and within
-    the configured market-boundary tolerance. A disconnected process does not turn
-    an old in-memory tick into a new result-lag candidate.
+    Historical boundary ticks are accepted only while the same RTDS topic/symbol is
+    demonstrably advancing now. A socket that remains technically connected but has
+    stopped delivering valid source ticks therefore cannot certify a new lag trade.
     """
     current = time.time() if now_ts is None else float(now_ts)
     if not _connected(rtds):
@@ -77,9 +101,18 @@ def crypto_resolution_lag_v3(
         if not asset or not topic:
             continue
         _, symbol, _ = asset
+        progress = _feed_progress_tick(rtds, topic, symbol, current)
+        if progress is None:
+            continue
+
         winner = None
         detail = ""
-        evidence: dict = {"crypto_feed_version": CRYPTO_FEED_VERSION, "reference_topic": topic}
+        evidence: dict = {
+            "crypto_feed_version": CRYPTO_FEED_VERSION,
+            "reference_topic": topic,
+            "feed_progress_tick_ts": float(progress.ts),
+            "feed_progress_age_seconds": max(0.0, current - float(progress.ts)),
+        }
 
         slug_match = re.search(r"(?:btc|eth|sol|xrp)-updown-(5m|15m|4h)-(\d+)", m.event_slug.lower())
         if slug_match:
@@ -157,16 +190,6 @@ def crypto_resolution_lag_v3(
             meta,
         ))
     return out
-
-
-def _fresh_latest(tick: PriceTick | None, *, now_ts: float) -> PriceTick | None:
-    if not _tick_time_valid(tick, now_ts=now_ts):
-        return None
-    assert tick is not None
-    age = now_ts - float(tick.ts)
-    if age < -SOURCE_FUTURE_TOLERANCE_SECONDS or age > CROSSFEED_MAX_AGE_SECONDS:
-        return None
-    return tick
 
 
 def crypto_crossfeed_divergence_v3(
