@@ -5,12 +5,12 @@ import time
 from collections.abc import Callable
 
 from .config import settings
-from .detectors import duplicate_divergence, weather_late_lock, wide_spread_watch
-from .detectors_v02 import (
-    crypto_crossfeed_divergence,
-    crypto_resolution_lag,
-    official_macro_release_lag,
+from .crypto_v3 import (
+    crypto_crossfeed_divergence_v3 as crypto_crossfeed_divergence,
+    crypto_resolution_lag_v3 as crypto_resolution_lag,
 )
+from .detectors import duplicate_divergence, weather_late_lock, wide_spread_watch
+from .detectors_v02 import official_macro_release_lag
 from .hardening import (
     hardened_binary_buy_both,
     hardened_neg_risk_underround,
