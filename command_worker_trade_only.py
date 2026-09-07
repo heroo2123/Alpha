@@ -91,11 +91,16 @@ async def _guarded_send_signal(self: Telegram, signal_id: int, signal) -> None:
     await send_trade_now(self, signal_id, signal)
 
 
-# Production command/delivery process owns Telegram transport. Keep the base module
-# usable for tests/research, but make the deployed worker's send boundary strict.
-Telegram._post_message = _safe_post_message
-Telegram.send_signal = _guarded_send_signal
+def install_trade_only_policy() -> None:
+    """Patch the production worker only; importing this module must not alter tests."""
+    Telegram._post_message = _safe_post_message
+    Telegram.send_signal = _guarded_send_signal
+
+
+async def main() -> None:
+    install_trade_only_policy()
+    await worker.main()
 
 
 if __name__ == "__main__":
-    asyncio.run(worker.main())
+    asyncio.run(main())
