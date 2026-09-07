@@ -15,6 +15,10 @@ class Settings(BaseSettings):
     scan_interval_seconds: int = 15  # REST/health fallback; WebSocket events wake scans immediately.
     websocket_debounce_seconds: float = 0.35
     universe_refresh_seconds: int = 120
+    # A last-known-good Gamma universe is useful during brief API hiccups, but it
+    # must never remain financially authoritative indefinitely. Production
+    # app_trade_only suppresses detector output once this hard age is exceeded.
+    universe_max_stale_seconds: int = 600
     weather_refresh_seconds: int = 60
     macro_refresh_seconds: int = 300
     actionable_min_edge: float = 0.025
