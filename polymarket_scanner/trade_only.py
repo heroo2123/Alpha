@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 import html
+import json
 import math
 from datetime import datetime, timezone
 from typing import Any
@@ -8,6 +10,7 @@ from typing import Any
 from .config import settings
 from .hardening import MAX_MANUAL_LEGS, MIN_VISIBLE_NOTIONAL_USD
 from .models import Signal
+from .polymarket import taker_fee_per_share
 
 TRADE_READY_VERSION = "trade_now_v1"
 TRADE_READY_TTL_SECONDS = 8.0
@@ -53,16 +56,47 @@ def _confirmation_age_seconds(value: object, now: datetime | None = None) -> flo
     return max(0.0, age)
 
 
+def _json_list(value: object) -> list[str]:
+    if isinstance(value, list):
+        return [str(x) for x in value]
+    if isinstance(value, str):
+        try:
+            decoded = json.loads(value)
+        except Exception:
+            return []
+        return [str(x) for x in decoded] if isinstance(decoded, list) else []
+    return []
+
+
+def _delivery_market_ids(signal: Signal) -> list[str]:
+    """Recover every market whose state must still be open at delivery time."""
+    if signal.detector == "neg_risk_underround":
+        ids = [str(x.get("market_id") or "") for x in (signal.metadata.get("legs") or []) if isinstance(x, dict)]
+        return list(dict.fromkeys(x for x in ids if x))
+    if signal.detector == "nested_threshold_arb":
+        key = str(signal.metadata.get("fingerprint_key") or "")
+        left, sep, right = key.partition(":")
+        if sep and left and right:
+            return [left, right]
+    return [str(signal.market_id)] if signal.market_id else []
+
+
+def _open_market_state(raw: object) -> bool:
+    if not isinstance(raw, dict):
+        return False
+    if raw.get("active") is False or raw.get("closed") is True:
+        return False
+    if raw.get("acceptingOrders") is False or raw.get("enableOrderBook") is False:
+        return False
+    return True
+
+
 def mark_trade_readiness(signal: Signal) -> bool:
     """Mark a freshly REST-confirmed signal as safe for automatic Telegram delivery.
 
-    This is deliberately stricter than detector confidence. Research/experimental
-    signals remain stored and scoreable, but Telegram is reserved for signals whose
-    semantic structure was certified by code AND whose executable order book was
-    refreshed immediately before persistence.
-
-    During P0 containment the promotion registry is intentionally empty, so every
-    signal fails closed before any real-money delivery permission is created.
+    Detector confidence is not permission to trade. A signal must belong to the
+    explicit promotion registry, carry the matching semantic certificate, and have
+    a very recent executable-book confirmation. P0 keeps the registry empty.
     """
     m = signal.metadata
     m["trade_ready"] = False
@@ -128,8 +162,80 @@ def mark_trade_readiness(signal: Signal) -> bool:
     m["trade_ready"] = True
     m["trade_ready_created_at"] = datetime.now(timezone.utc).isoformat()
     m["trade_ready_expires_in_seconds"] = TRADE_READY_TTL_SECONDS
-    m["trade_ready_reason"] = "semantic certification + fresh executable book + edge + capacity passed"
+    m["trade_ready_reason"] = "semantic certification + fresh open market state + executable book + edge + capacity passed"
     return True
+
+
+async def refresh_trade_readiness(signal: Signal, poly) -> bool:
+    """Re-check market state, tokens, prices, size, fees and edge just before send.
+
+    This is the delivery-time boundary Astra's review found missing. A retry never
+    reuses the quote snapshot stored when the detector first fired. If anything is
+    closed, non-tradable, missing, too expensive or too small, the alert fails
+    closed and is suppressed rather than being delivered stale.
+    """
+    m = signal.metadata
+    m["trade_ready"] = False
+
+    if signal.confidence != "ACTIONABLE" or signal.detector not in _CERTIFICATIONS:
+        m["trade_ready_reason"] = "detector is not promoted to TRADE NOW (P0 containment)"
+        return False
+
+    market_ids = _delivery_market_ids(signal)
+    if not market_ids:
+        m["trade_ready_reason"] = "delivery-time market IDs unavailable"
+        return False
+
+    raw_markets = await asyncio.gather(*(poly.market_by_id(mid) for mid in market_ids))
+    if any(not _open_market_state(raw) for raw in raw_markets):
+        m["trade_ready_reason"] = "market closed or not accepting orders at delivery time"
+        return False
+
+    current_tokens: set[str] = set()
+    for raw in raw_markets:
+        if isinstance(raw, dict):
+            current_tokens.update(_json_list(raw.get("clobTokenIds")))
+    if current_tokens and any(str(token) not in current_tokens for token in signal.token_ids):
+        m["trade_ready_reason"] = "market token mapping changed before delivery"
+        return False
+
+    fresh = await poly.books(signal.token_ids)
+    if any(token not in fresh or fresh[token].best_ask is None or fresh[token].best_ask_size <= 0 for token in signal.token_ids):
+        m["trade_ready_reason"] = "one or more executable asks disappeared before delivery"
+        return False
+
+    asks = [float(fresh[token].best_ask) for token in signal.token_ids]
+    sizes = [float(fresh[token].best_ask_size) for token in signal.token_ids]
+    if any(not math.isfinite(x) or x <= 0 or x >= 1 for x in asks):
+        m["trade_ready_reason"] = "delivery-time ask invalid"
+        return False
+    if any(not math.isfinite(x) or x <= 0 for x in sizes):
+        m["trade_ready_reason"] = "delivery-time visible size invalid"
+        return False
+
+    fees = sum(taker_fee_per_share(ask) for ask in asks)
+    cost = sum(asks) + fees
+    probability = 1.0
+    if len(asks) == 1:
+        model_probability = _float(m.get("lock_probability"))
+        if model_probability is not None:
+            probability = model_probability
+    edge = probability - cost if len(asks) == 1 else 1.0 - cost
+    common = min(sizes)
+    capacity = common * cost
+
+    signal.entry_cost = cost
+    signal.edge = edge
+    now = datetime.now(timezone.utc).isoformat()
+    m["confirmed_asks"] = asks
+    m["confirmed_sizes"] = sizes
+    m["visible_common_shares"] = common
+    m["max_visible_notional_usd"] = capacity
+    m["rest_confirmed_at"] = now
+    m["delivery_market_state_at"] = now
+    m["delivery_market_ids"] = market_ids
+    m["delivery_revalidated"] = True
+    return mark_trade_readiness(signal)
 
 
 def is_trade_ready(signal: Signal) -> bool:
@@ -187,8 +293,8 @@ async def send_trade_now(tg, signal_id: int, signal: Signal) -> None:
         f"{len(price_lines) + 1}. Use the SAME share count on every leg.",
         f"{len(price_lines) + 2}. If any live ask is now above the listed maximum or size is smaller, <b>SKIP</b> and wait for a fresh alert.",
         "",
-        f"🛡 Bot checks passed: <b>{html.escape(str(m.get('certification_status') or 'certified'))}</b> + fresh REST order book + fees + edge + visible size.",
-        f"🧾 Took it? Send <code>/took {signal_id} 50</code> (replace 50 with your US$ stake).",
+        f"🛡 Bot checks passed: <b>{html.escape(str(m.get('certification_status') or 'certified'))}</b> + open market + fresh REST order book + fees + edge + visible size.",
+        f"🧾 Took it? Record the actual executed cost when manual accounting is re-enabled after P0.",
     ])
     text = "\n".join(lines)
     await tg.send_alert(text, tg._buttons(signal))
