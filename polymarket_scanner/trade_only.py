@@ -8,11 +8,18 @@ from .hardening import MAX_MANUAL_LEGS, MIN_VISIBLE_NOTIONAL_USD
 from .models import Signal
 
 TRADE_READY_VERSION = "trade_now_v1"
-_CERTIFICATIONS = {
-    "binary_buy_both": "BINARY_COMPLEMENT_VERIFIED",
-    "neg_risk_underround": "NEG_RISK_CERTIFIED",
-    "nested_threshold_arb": "NESTED_RULES_CERTIFIED",
-}
+
+# P0 containment policy (2026-09-07): no detector is promoted to real-money
+# TRADE NOW until its semantic, execution, delivery, accounting and evidence gates
+# are independently satisfied. Research/experimental candidates may still be
+# discovered, stored and scored in the background, but none may reach Telegram as
+# an execution instruction while this registry is empty.
+_CERTIFICATIONS: dict[str, str] = {}
+
+
+def promoted_detectors() -> tuple[str, ...]:
+    """Return the exact detector IDs currently authorized for TRADE NOW."""
+    return tuple(sorted(_CERTIFICATIONS))
 
 
 def _float(value: Any) -> float | None:
@@ -29,6 +36,9 @@ def mark_trade_readiness(signal: Signal) -> bool:
     signals remain stored and scoreable, but Telegram is reserved for signals whose
     semantic structure was certified by code AND whose executable order book was
     refreshed immediately before persistence.
+
+    During P0 containment the promotion registry is intentionally empty, so every
+    signal fails closed before any real-money delivery permission is created.
     """
     m = signal.metadata
     m["trade_ready"] = False
@@ -40,9 +50,7 @@ def mark_trade_readiness(signal: Signal) -> bool:
 
     required_cert = _CERTIFICATIONS.get(signal.detector)
     if required_cert is None:
-        # Sports/crypto/macro/weather remain silent until their clean post-fix
-        # evidence and source/rule automation justify promotion to TRADE NOW.
-        m["trade_ready_reason"] = "detector is not yet promoted to TRADE NOW"
+        m["trade_ready_reason"] = "detector is not promoted to TRADE NOW (P0 containment)"
         return False
     if m.get("certification_status") != required_cert:
         m["trade_ready_reason"] = "detector certification did not pass"
@@ -99,6 +107,7 @@ def is_trade_ready(signal: Signal) -> bool:
         signal.confidence == "ACTIONABLE"
         and signal.metadata.get("trade_ready") is True
         and signal.metadata.get("trade_ready_version") == TRADE_READY_VERSION
+        and signal.detector in _CERTIFICATIONS
     )
 
 
@@ -134,11 +143,12 @@ async def send_trade_now(tg, signal_id: int, signal: Signal) -> None:
         "",
         "✅ <b>EXECUTE</b>",
     ]
-    for i, text in enumerate(_price_lines(signal), 1):
+    price_lines = _price_lines(signal)
+    for i, text in enumerate(price_lines, 1):
         lines.append(f"{i}. {html.escape(text)}")
     lines.extend([
-        f"{len(_price_lines(signal)) + 1}. Use the SAME share count on every leg.",
-        f"{len(_price_lines(signal)) + 2}. If any live ask is now above the listed maximum or size is smaller, <b>SKIP</b> and wait for a fresh alert.",
+        f"{len(price_lines) + 1}. Use the SAME share count on every leg.",
+        f"{len(price_lines) + 2}. If any live ask is now above the listed maximum or size is smaller, <b>SKIP</b> and wait for a fresh alert.",
         "",
         f"🛡 Bot checks passed: <b>{html.escape(str(m.get('certification_status') or 'certified'))}</b> + fresh REST order book + fees + edge + visible size.",
         f"🧾 Took it? Send <code>/took {signal_id} 50</code> (replace 50 with your US$ stake).",
