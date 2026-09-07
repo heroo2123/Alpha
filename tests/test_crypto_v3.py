@@ -82,6 +82,12 @@ def threshold_market() -> Market:
     )
 
 
+def _progress(rtds: FakeRTDS, now_ts: float, *, age: float = 1.0):
+    topic = "crypto_prices_chainlink"
+    symbol = "btc/usd"
+    rtds.latest_map[(topic, symbol)] = PriceTick(topic, symbol, 52000, now_ts - age)
+
+
 def test_resolution_requires_currently_connected_feed():
     rtds = FakeRTDS(connected=False)
     market = updown_market()
@@ -89,10 +95,26 @@ def test_resolution_requires_currently_connected_feed():
     assert crypto_resolution_lag_v3([market], books, rtds, now_ts=1302) == []
 
 
+def test_resolution_requires_same_topic_to_be_advancing_now():
+    rtds = FakeRTDS()
+    topic = "crypto_prices_chainlink"
+    symbol = "btc/usd"
+    rtds.nearest_map[(topic, symbol, 1000.0)] = PriceTick(topic, symbol, 50000, 1000.0)
+    rtds.nearest_map[(topic, symbol, 1300.0)] = PriceTick(topic, symbol, 51000, 1300.0)
+    books = {"up": Book("up", [], [(0.8, 50)])}
+
+    # Socket flag alone is not evidence of progress.
+    assert crypto_resolution_lag_v3([updown_market()], books, rtds, now_ts=1302) == []
+
+    _progress(rtds, 1400, age=21)
+    assert crypto_resolution_lag_v3([updown_market()], books, rtds, now_ts=1400) == []
+
+
 def test_updown_resolution_requires_both_causal_boundary_ticks():
     rtds = FakeRTDS()
     topic = "crypto_prices_chainlink"
     symbol = "btc/usd"
+    _progress(rtds, 1314)
     rtds.nearest_map[(topic, symbol, 1000.0)] = PriceTick(topic, symbol, 50000, 1000.0)
     # End tick is outside the configured ±12 second tolerance even if fake nearest returns it.
     rtds.nearest_map[(topic, symbol, 1300.0)] = PriceTick(topic, symbol, 51000, 1313.0)
@@ -104,6 +126,7 @@ def test_updown_resolution_rejects_future_source_tick():
     rtds = FakeRTDS()
     topic = "crypto_prices_chainlink"
     symbol = "btc/usd"
+    _progress(rtds, 1302)
     rtds.nearest_map[(topic, symbol, 1000.0)] = PriceTick(topic, symbol, 50000, 1000.0)
     rtds.nearest_map[(topic, symbol, 1300.0)] = PriceTick(topic, symbol, 51000, 1305.0)
     books = {"up": Book("up", [], [(0.8, 50)])}
@@ -115,6 +138,7 @@ def test_updown_resolution_accepts_connected_boundary_evidence_and_versions_it()
     rtds = FakeRTDS()
     topic = "crypto_prices_chainlink"
     symbol = "btc/usd"
+    _progress(rtds, 1302)
     rtds.nearest_map[(topic, symbol, 1000.0)] = PriceTick(topic, symbol, 50000, 1000.0)
     rtds.nearest_map[(topic, symbol, 1300.0)] = PriceTick(topic, symbol, 51000, 1300.0)
     books = {"up": Book("up", [], [(0.8, 50)])}
@@ -126,6 +150,7 @@ def test_updown_resolution_accepts_connected_boundary_evidence_and_versions_it()
     assert signal.metadata["crypto_feed_version"] == CRYPTO_FEED_VERSION
     assert signal.metadata["reference_start_tick_ts"] == 1000.0
     assert signal.metadata["reference_end_tick_ts"] == 1300.0
+    assert signal.metadata["feed_progress_age_seconds"] == 1.0
 
 
 def test_threshold_resolution_rejects_bad_boundary_and_accepts_exact_tick():
@@ -134,6 +159,7 @@ def test_threshold_resolution_rejects_bad_boundary_and_accepts_exact_tick():
     symbol = "btc/usd"
     market = threshold_market()
     books = {"yes": Book("yes", [], [(0.8, 50)])}
+    _progress(rtds, 1302)
 
     rtds.nearest_map[(topic, symbol, 1300.0)] = PriceTick(topic, symbol, 51000, 1287.0)
     assert crypto_resolution_lag_v3([market], books, rtds, now_ts=1302) == []
