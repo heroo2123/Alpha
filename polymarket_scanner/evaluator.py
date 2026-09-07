@@ -20,6 +20,7 @@ from .hardening import (
 from .macro import MacroClient
 from .models import Book, Market, Signal
 from .streams import CryptoRTDS
+from .weather_contracts import settlement_safe_weather_markets
 from .weather_friend import friend_style_weather_lock
 
 log = logging.getLogger("polybot.evaluator")
@@ -140,16 +141,16 @@ def evaluate_signals(
         signals.extend(_safe("neg_risk_underround", hardened_neg_risk_underround, markets, books))
         signals.extend(_safe("nested_threshold_arb", hardened_nested_threshold_arbitrage, markets, books))
 
-    # Weather is the only directional detector that intentionally follows generic
-    # CLOB price changes, and it scans only the small weather-market subset.
+    # Weather remains experimental and silent. Before even scoring the hypothesis,
+    # route every contract through the strict WRH/unit boundary. This prevents the
+    # demonstrated F->C rules-text bug and fake-host source substring acceptance
+    # from contaminating new prospective research. Legitimate non-WRH source
+    # families stay silent until their own versioned adapters are implemented.
     if weather_cache and weather_due:
         _last_weather_fast_at = now
-        signals.extend(_safe("weather_late_lock", weather_late_lock, weather_markets, books, weather_cache))
-        # Keep the main ACTIONABLE EV standard intact, but also surface the manual
-        # late-day 90-97.5c high-lock pattern as a clearly labelled WATCH.  This is
-        # the style the user described from a friend: the observed daily high looks
-        # effectively locked while some payout remains in the matching bucket.
-        signals.extend(_safe("weather_friend_lock", friend_style_weather_lock, weather_markets, books, weather_cache))
+        certified_weather = settlement_safe_weather_markets(weather_markets)
+        signals.extend(_safe("weather_late_lock", weather_late_lock, certified_weather, books, weather_cache))
+        signals.extend(_safe("weather_friend_lock", friend_style_weather_lock, certified_weather, books, weather_cache))
 
     # Sports is driven by score/result feed events. A generic market book update
     # no longer causes a full sports pass over the entire universe.
