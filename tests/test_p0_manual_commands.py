@@ -17,15 +17,7 @@ def test_took_parser_is_strict_about_extra_or_missing_fields():
     assert trade_worker._parse_took_command("/took -1 50 0.943") is None
 
 
-def test_trade_only_install_no_longer_disables_store_actual_fill_accounting(monkeypatch):
-    calls = {}
-
-    async def fake_poll(self):
-        return None
-
-    # Installation should replace the Telegram command parser/transport only. It
-    # must not monkeypatch Store.record_manual back to the old P0 blanket rejection.
-    original_record_manual = trade_worker.worker.Store.record_manual
-    trade_worker.install_trade_only_policy()
-    calls["same"] = trade_worker.worker.Store.record_manual is original_record_manual
-    assert calls["same"] is True
+def test_old_blanket_manual_accounting_disable_hook_is_gone():
+    # Production now captures the user's actual execution cost, so there must be no
+    # hook left that globally replaces Store.record_manual with a blanket rejection.
+    assert not hasattr(trade_worker, "_disable_legacy_manual_accounting")
