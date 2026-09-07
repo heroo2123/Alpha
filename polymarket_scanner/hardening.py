@@ -198,12 +198,25 @@ def _is_other_child(child: dict) -> bool:
 
 
 def _neg_risk_certification(rows: list[Market], signal: Signal) -> tuple[bool, str, dict]:
-    proof: dict = {"version": "neg_risk_complete_active_set_v2"}
+    """Fail-closed proof that the purchased YES basket covers the whole parent set.
+
+    Polymarket's NegRiskAdapter enforces mutual exclusion, but its own contract docs
+    explicitly note that an all-false outcome is economically possible if a market
+    was prepared incorrectly. We therefore never infer a $1 floor merely from the
+    negRisk flag/ID. The certificate additionally requires one explicit rule-linked
+    Other fallback and purchases every child in the complete parent list. Closed or
+    omitted children are fatal because one of them could be the sole YES winner.
+    """
+    proof: dict = {"version": "neg_risk_complete_parent_set_v3"}
     if not rows:
         return False, "No event markets were available.", proof
     event = rows[0].raw.get("_event") or {}
     if not bool(event.get("negRisk") or event.get("enableNegRisk")):
         return False, "Parent event is not explicitly flagged as negative-risk by Gamma.", proof
+    if event.get("negRiskAugmented") is True:
+        return False, (
+            "Augmented neg-risk events are not payoff-certified: placeholder/Other membership can change over time."
+        ), proof
 
     raw_children = [x for x in (event.get("markets") or []) if isinstance(x, dict)]
     if not raw_children:
@@ -212,16 +225,24 @@ def _neg_risk_certification(rows: list[Market], signal: Signal) -> tuple[bool, s
     if not neg_id:
         return False, id_reason, proof
 
-    active_raw = [
-        x for x in raw_children
-        if str(x.get("id") or "") and bool(x.get("active", True)) and not bool(x.get("closed", False))
-    ]
-    active_ids = [str(x.get("id")) for x in active_raw]
+    full_ids: list[str] = []
+    for child in raw_children:
+        child_id = str(child.get("id") or "").strip()
+        if not child_id:
+            return False, "A parent child market ID is missing.", proof
+        if type(child.get("active")) is not bool or type(child.get("closed")) is not bool:
+            return False, "A parent child has incomplete active/closed state; complete-set proof fails closed.", proof
+        if child.get("active") is not True or child.get("closed") is not False:
+            return False, (
+                "At least one parent child is inactive/closed; buying only currently open children cannot prove a $1 payout floor."
+            ), proof
+        full_ids.append(child_id)
+
     row_ids = [str(m.id) for m in rows]
-    if len(active_ids) != len(set(active_ids)) or len(row_ids) != len(set(row_ids)):
+    if len(full_ids) != len(set(full_ids)) or len(row_ids) != len(set(row_ids)):
         return False, "Duplicate child market IDs prevent an exhaustive-set proof.", proof
-    if set(active_ids) != set(row_ids) or len(active_ids) != len(row_ids):
-        return False, "The scanner does not hold exactly every active child market in the neg-risk event.", proof
+    if set(full_ids) != set(row_ids) or len(full_ids) != len(row_ids):
+        return False, "The scanner does not hold exactly every child market in the complete neg-risk parent set.", proof
 
     strict_by_id: dict[str, StrictBinary] = {}
     for m in rows:
@@ -230,21 +251,21 @@ def _neg_risk_certification(rows: list[Market], signal: Signal) -> tuple[bool, s
             return False, f"Child {m.id} is not a strict binary market: {reason}.", proof
         strict_by_id[m.id] = strict
 
-    active_other = [x for x in active_raw if _is_other_child(x)]
-    if len(active_other) != 1:
-        return False, "Exactly one ACTIVE 'Other' fallback child was not verified.", proof
-    other_id = str(active_other[0].get("id"))
+    other_children = [x for x in raw_children if _is_other_child(x)]
+    if len(other_children) != 1:
+        return False, "Exactly one open 'Other' fallback child was not verified in the complete parent set.", proof
+    other_id = str(other_children[0].get("id"))
     if other_id not in strict_by_id:
-        return False, "The active 'Other' fallback is not present in the purchased child set.", proof
+        return False, "The open 'Other' fallback is not present in the purchased complete child set.", proof
 
     expected_yes = [strict_by_id[mid].yes_token for mid in row_ids]
     if len(expected_yes) != len(set(expected_yes)):
         return False, "Purchased YES token mapping contains duplicates.", proof
     if len(signal.token_ids) != len(expected_yes) or set(signal.token_ids) != set(expected_yes):
-        return False, "The basket does not purchase the exact YES token of every active child, including Other.", proof
+        return False, "The basket does not purchase the exact YES token of every parent child, including Other.", proof
     other_yes = strict_by_id[other_id].yes_token
     if other_yes not in signal.token_ids:
-        return False, "The active Other YES token is not purchased.", proof
+        return False, "The Other YES token is not purchased.", proof
 
     rules = f"{event.get('description') or ''} {rows[0].description}".lower()
     has_other_rule = bool(
@@ -256,15 +277,18 @@ def _neg_risk_certification(rows: list[Market], signal: Signal) -> tuple[bool, s
 
     proof.update({
         "neg_risk_market_id": neg_id,
-        "active_market_ids": sorted(active_ids),
+        "parent_child_market_ids": sorted(full_ids),
         "purchased_yes_tokens": sorted(signal.token_ids),
-        "active_other_market_id": other_id,
-        "active_other_yes_token": other_yes,
-        "active_child_count": len(active_ids),
+        "other_market_id": other_id,
+        "other_yes_token": other_yes,
+        "complete_parent_child_count": len(full_ids),
+        "all_parent_children_open": True,
+        "neg_risk_augmented": False,
+        "minimum_bundle_payout": 1.0,
     })
     return True, (
-        "Parent/children share one neg-risk ID; every active child is strict binary; the exact YES token "
-        "of every active child is purchased; and exactly one active purchased Other fallback is rule-linked."
+        "Parent/children share one neg-risk ID; every parent child is explicitly open, present and strict binary; "
+        "the exact YES token of every parent child is purchased; and exactly one purchased Other fallback is rule-linked."
     ), proof
 
 
@@ -280,7 +304,7 @@ def hardened_neg_risk_underround(markets: list[Market], books: dict[str, Book]) 
         certified, reason, proof = _neg_risk_certification(rows, s)
         common, notional = _visible_notional(s, books)
         _set_execution_meta(s, common, notional)
-        s.metadata["certification_status"] = "NEG_RISK_ACTIVE_SET_PROOF_V2" if certified else "NOT_ACTIONABLE"
+        s.metadata["certification_status"] = "NEG_RISK_COMPLETE_SET_PROOF_V3" if certified else "NOT_ACTIONABLE"
         s.metadata["certification_reason"] = reason
         s.metadata["payoff_proof"] = proof
         s.metadata["risk_note"] = reason
@@ -302,7 +326,7 @@ def hardened_neg_risk_underround(markets: list[Market], books: dict[str, Book]) 
         else:
             s.metadata["action_steps"] = [
                 "Research-only structural candidate during P0 containment.",
-                "Any future promotion must revalidate every active child and fill every purchased YES leg.",
+                "Any future promotion must revalidate every parent child and fill every purchased YES leg.",
             ]
     return signals
 
