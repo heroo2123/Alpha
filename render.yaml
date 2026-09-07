@@ -4,14 +4,16 @@ services:
     runtime: python
     plan: starter
     autoDeploy: true
-    buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
+    buildCommand: pip install -r requirements.txt && python -c "from polymarket_scanner.trade_only import promoted_detectors; assert promoted_detectors() == (), f'P0 containment violated: {promoted_detectors()}'"
+    startCommand: uvicorn app_trade_only:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.9
       - key: TELEGRAM_BOT_TOKEN
         sync: false
+      - key: TELEGRAM_COMMANDS_IN_APP
+        value: "false"
       - key: SCAN_INTERVAL_SECONDS
         value: "15"
       - key: UNIVERSE_REFRESH_SECONDS
