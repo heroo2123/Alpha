@@ -12,6 +12,7 @@ FRIEND_STYLE_MIN_ASK = 0.90
 FRIEND_STYLE_MAX_ASK = 0.975
 FRIEND_STYLE_MIN_LOCK_PROBABILITY = 0.955
 FRIEND_STYLE_MIN_NET_PAYOUT_LEFT = 0.015
+FRIEND_STYLE_MODEL_VERSION = "friend_uncalibrated_v1"
 
 
 def _market_url(m: Market) -> str:
@@ -28,9 +29,10 @@ def friend_style_weather_lock(
     This lane intentionally does NOT weaken ``weather_late_lock`` ACTIONABLE rules.
     It exists for the manual style the user described: late in the station's local
     day, the official daily high appears locked, but the matching YES bucket still
-    trades around 90-97.5 cents.  These are WATCH leads because the current lock
-    probability is a conservative heuristic rather than a historically calibrated
-    probability model.
+    trades around 90-97.5 cents. These remain research experiments because the
+    current lock score is a heuristic rather than a historically calibrated
+    probability model. Every new row is explicitly versioned so later calibration
+    uses only clean prospective evidence from the current rules/source boundary.
     """
     grouped: dict[str, list[Market]] = defaultdict(list)
     for m in markets:
@@ -95,8 +97,8 @@ def friend_style_weather_lock(
             f"current {current:.0f}°{unit}, {cooling_obs} consecutive non-rising official-hourly observations, "
             f"drop from high {drop:.0f}°{unit}. Local time {local_time}. "
             f"Matching YES ask {ask:.3f}; est. fee/share {fee:.4f}; payout remaining after estimated fee "
-            f"{payout_left:.2%}. Heuristic lock probability {lock_p:.1%}; heuristic model edge {model_edge:.2%}. "
-            f"This is intentionally a WATCH, not a certified trade, because the lock probability is not yet historically calibrated."
+            f"{payout_left:.2%}. Heuristic lock score {lock_p:.1%}; heuristic model edge {model_edge:.2%}. "
+            f"This is intentionally a WATCH, not a certified trade, because the score is not yet historically calibrated."
         )
 
         out.append(Signal(
@@ -122,8 +124,11 @@ def friend_style_weather_lock(
                 "cooling_obs": cooling_obs,
                 "observed_drop": drop,
                 "unit": unit,
+                "settlement_source_verified": True,
                 "settlement_source_url": source_url,
                 "forecast_provider": forecast_provider,
+                "weather_model_version": FRIEND_STYLE_MODEL_VERSION,
+                "experimental_resolution": True,
                 "fingerprint_key": f"{winner.id}:{observed_max}:friend",
                 "action_steps": [
                     "Open the Polymarket market and the official settlement source before considering anything.",
@@ -132,7 +137,7 @@ def friend_style_weather_lock(
                     f"Check the live YES ask. This WATCH was based on {ask:.3f}; if the remaining payout has mostly disappeared, skip it.",
                 ],
                 "risk_note": (
-                    "Friend-style late-lock WATCH only. Do not treat the displayed heuristic probability as calibrated certainty. "
+                    "Friend-style late-lock WATCH only. Do not treat the displayed heuristic score as calibrated certainty. "
                     "The official settlement source and any later/revised observation override this alert."
                 ),
             },
