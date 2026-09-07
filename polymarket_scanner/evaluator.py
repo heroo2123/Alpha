@@ -18,7 +18,7 @@ from .hardening import (
 )
 from .macro import MacroClient
 from .models import Book, Market, Signal
-from .sports_v3 import sports_result_lag_v3
+from .sports_v3 import sports_result_lag_v3 as sports_result_lag
 from .streams import CryptoRTDS
 from .weather_contracts import settlement_safe_weather_markets
 from .weather_friend import friend_style_weather_lock
@@ -46,7 +46,6 @@ def detector_runtime_status() -> dict:
 
 
 def _safe(name: str, fn: Callable, *args) -> list[Signal]:
-    """Keep one detector failure from discarding the rest of a scan pass."""
     global _current_detector, _current_detector_started, _last_detector, _last_detector_seconds
     _current_detector = name
     _current_detector_started = time.monotonic()
@@ -87,40 +86,27 @@ def evaluate_signals(
     macro_refreshed: bool,
     run_watch: bool,
 ) -> list[Signal]:
-    """CPU-heavy detector pass intended to run via ``asyncio.to_thread``."""
     global _last_structural_at, _last_expensive_watch_at, _last_weather_fast_at, _last_crypto_resolution_at
 
     now = time.monotonic()
     structural_due = bool(
         fast_market
-        and (
-            _last_structural_at <= 0
-            or now - _last_structural_at >= settings.structural_scan_min_interval_seconds
-        )
+        and (_last_structural_at <= 0 or now - _last_structural_at >= settings.structural_scan_min_interval_seconds)
     )
     watch_due = bool(
         run_watch
-        and (
-            _last_expensive_watch_at <= 0
-            or now - _last_expensive_watch_at >= settings.expensive_watch_min_interval_seconds
-        )
+        and (_last_expensive_watch_at <= 0 or now - _last_expensive_watch_at >= settings.expensive_watch_min_interval_seconds)
     )
     weather_due = bool(
         weather_refreshed
         or (
             fast_market
-            and (
-                _last_weather_fast_at <= 0
-                or now - _last_weather_fast_at >= settings.weather_fast_scan_min_interval_seconds
-            )
+            and (_last_weather_fast_at <= 0 or now - _last_weather_fast_at >= settings.weather_fast_scan_min_interval_seconds)
         )
     )
     crypto_due = bool(
         crypto_trigger
-        and (
-            _last_crypto_resolution_at <= 0
-            or now - _last_crypto_resolution_at >= settings.crypto_resolution_scan_min_interval_seconds
-        )
+        and (_last_crypto_resolution_at <= 0 or now - _last_crypto_resolution_at >= settings.crypto_resolution_scan_min_interval_seconds)
     )
 
     _apply_live_bbo(markets, books)
@@ -132,20 +118,16 @@ def evaluate_signals(
         signals.extend(_safe("neg_risk_underround", hardened_neg_risk_underround, markets, books))
         signals.extend(_safe("nested_threshold_arb", hardened_nested_threshold_arbitrage, markets, books))
 
-    # Weather remains experimental and silent. Before even scoring the hypothesis,
-    # route every contract through the strict WRH/unit boundary. Legitimate non-WRH
-    # source families stay silent until their own versioned adapters are implemented.
     if weather_cache and weather_due:
         _last_weather_fast_at = now
         certified_weather = settlement_safe_weather_markets(weather_markets)
         signals.extend(_safe("weather_late_lock", weather_late_lock, certified_weather, books, weather_cache))
         signals.extend(_safe("weather_friend_lock", friend_style_weather_lock, certified_weather, books, weather_cache))
 
-    # Sports v3 intentionally evaluates ONLY direct match moneylines with explicit
-    # HOME/AWAY feed fields and a safe terminal state. Spreads, totals, periods,
-    # sets/games, series, draws and cancellation-like cases fail closed.
+    # Compatibility symbol name retained for runtime-responsiveness monkeypatch tests;
+    # the function bound to it is the fail-closed v3 match-moneyline adapter.
     if sports_trigger:
-        signals.extend(_safe("sports_result_lag_v3", sports_result_lag_v3, markets, books, sports_cache))
+        signals.extend(_safe("sports_result_lag_v3", sports_result_lag, markets, books, sports_cache))
 
     if crypto_due:
         _last_crypto_resolution_at = now
