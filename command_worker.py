@@ -109,20 +109,32 @@ class AuditTelegram(Telegram):
         lost = int(audit.get("directional_lost") or 0)
         lines = [
             "📊 <b>Signal audit — evidence, not alert count</b>",
-            f"Stored alerts: <b>{int(audit.get('all_alerts') or 0):,}</b> | ACTIONABLE: <b>{int(audit.get('actionable') or 0):,}</b> | WATCH: <b>{int(audit.get('watch') or 0):,}</b>",
-            f"Resolution-scoreable: <b>{int(audit.get('directional_total') or 0):,}</b> | Resolved: <b>{resolved:,}</b> | Open: <b>{int(audit.get('directional_open') or 0):,}</b>",
-            f"Resolved outcomes: <b>{won}W / {lost}L</b> | Win rate: <b>{self._pct(audit.get('win_rate'))}</b>",
-            f"Resolved paper P&amp;L: <b>${float(audit.get('resolved_pnl') or 0.0):.2f}</b> | Avg return/resolved signal: <b>{self._pct(audit.get('avg_resolved_return'))}</b>",
+            f"Stored alerts: <b>{int(audit.get('all_alerts') or 0):,}</b> | ACTIONABLE stored: <b>{int(audit.get('actionable') or 0):,}</b> | WATCH: <b>{int(audit.get('watch') or 0):,}</b>",
+            f"VALID resolution-scoreable: <b>{int(audit.get('directional_total') or 0):,}</b> | Resolved: <b>{resolved:,}</b> | Open: <b>{int(audit.get('directional_open') or 0):,}</b>",
+            f"Valid resolved outcomes: <b>{won}W / {lost}L</b> | Win rate: <b>{self._pct(audit.get('win_rate'))}</b>",
+            f"Valid resolved paper P&amp;L: <b>${float(audit.get('resolved_pnl') or 0.0):.2f}</b> | Avg return/resolved: <b>{self._pct(audit.get('avg_resolved_return'))}</b>",
             f"Structural ACTIONABLEs: <b>{int(audit.get('structural_actionable_unverified') or 0):,}</b> execution-unverified — <b>NOT counted as profit</b>",
             f"Research-only WATCHs: <b>{int(audit.get('research_unscored') or 0):,}</b> — no P&amp;L claim",
         ]
+
+        bug_total = int(audit.get("known_bug_excluded") or 0)
+        if bug_total:
+            lines.append(
+                f"🧯 Known-bug sports history excluded: <b>{bug_total:,}</b> alerts | "
+                f"{int(audit.get('known_bug_resolved') or 0):,} resolved | recorded pre-fix P&amp;L "
+                f"${float(audit.get('known_bug_pnl') or 0.0):.2f} — retained for audit, <b>NOT strategy evidence</b>"
+            )
+
         legacy = int(audit.get("legacy_excluded") or 0)
         if legacy:
             lines.append(f"Legacy synthetic structural rows excluded: <b>{legacy:,}</b>")
+
         exp_total = int(audit.get("experimental_total") or 0)
         if exp_total:
             lines.append(
-                f"Friend-weather experiment: <b>{int(audit.get('experimental_resolved') or 0):,}/{exp_total:,}</b> resolved"
+                f"🌦 Weather experiments: <b>{int(audit.get('experimental_resolved') or 0):,}/{exp_total:,}</b> resolved | "
+                f"{int(audit.get('experimental_won') or 0)}W/{int(audit.get('experimental_lost') or 0)}L | "
+                f"paper P&amp;L ${float(audit.get('experimental_pnl') or 0.0):.2f}"
             )
 
         lines.append("\n<b>By detector</b>")
@@ -139,13 +151,18 @@ class AuditTelegram(Telegram):
 
             if evidence == "RESOLUTION_SCORED":
                 lines.append(
-                    f"• <b>{detector}</b> [SCORED]: {actionable} A | {r} resolved ({rw}W/{rl}L) | "
+                    f"• <b>{detector}</b> [VALID SCORED]: {actionable} A | {r} resolved ({rw}W/{rl}L) | "
                     f"P&amp;L ${float(row.get('pnl') or 0.0):.2f} | avg return {self._pct(row.get('avg_return'))}"
                 )
             elif evidence == "EXPERIMENTAL_RESOLUTION":
                 lines.append(
-                    f"• <b>{detector}</b> [EXPERIMENT]: {n} WATCH | {r} resolved ({rw}W/{rl}L) | "
+                    f"• <b>{detector}</b> [EXPERIMENT]: {n} alerts | {r} resolved ({rw}W/{rl}L) | "
                     f"paper P&amp;L ${float(row.get('pnl') or 0.0):.2f}"
+                )
+            elif evidence == "KNOWN_BUG_EXCLUDED":
+                lines.append(
+                    f"• <b>{detector}</b> [KNOWN BUG — EXCLUDED]: {n} historical alerts | {r} resolved ({rw}W/{rl}L) | "
+                    f"recorded P&amp;L ${float(row.get('pnl') or 0.0):.2f}"
                 )
             elif evidence == "EXECUTION_UNVERIFIED":
                 capacity = row.get("avg_visible_notional")
@@ -161,8 +178,9 @@ class AuditTelegram(Telegram):
 
         lines.extend([
             "\nℹ️ <b>Interpretation</b>",
-            "SCORED = the selected outcome later resolved WIN/LOSS.",
-            "EXPERIMENT = outcome can be scored, but the detector is not yet promoted to ACTIONABLE.",
+            "VALID SCORED = current detector version; selected outcome later resolved WIN/LOSS.",
+            "EXPERIMENT = outcome is tracked, but detector is not approved as ACTIONABLE.",
+            "KNOWN BUG = historical implementation defect; preserved, but excluded from strategy statistics.",
             "UNVERIFIED EXECUTION = quote math may be valid, but we do not pretend every leg filled.",
             "RESEARCH = discovery/noise monitor; alert count is not evidence of profit.",
         ])
@@ -238,8 +256,6 @@ async def main() -> None:
     store = Store(settings.db_path)
     outbox = TelegramOutbox(settings.db_path)
 
-    # Two Telegram instances deliberately create two independent connection pools.
-    # An alert timeout can therefore never consume or poison the command lane.
     command_tg = AuditTelegram(store, alert_delivery_owner=False)
     alert_tg = Telegram(store, alert_delivery_owner=True)
     if not command_tg.token_enabled:
