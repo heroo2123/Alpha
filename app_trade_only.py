@@ -24,7 +24,12 @@ from polymarket_scanner.backpressure import (
     coalesce_signal_batches,
 )
 from polymarket_scanner.db_ops import configure_database_runtime, database_health
-from polymarket_scanner.settlement import selected_token_payout
+from polymarket_scanner.manual_fills import (
+    ensure_structural_fill_schema,
+    open_structural_trades,
+    resolve_structural_trade,
+)
+from polymarket_scanner.settlement import exact_token_payout, selected_token_payout
 from polymarket_scanner.sports_v3 import quarantine_pre_v3_sports_history
 from polymarket_scanner.trade_only import is_trade_ready, mark_trade_readiness, promoted_detectors
 
@@ -183,7 +188,7 @@ async def _silent_scanner_push(*_args, **_kwargs):
     return None
 
 
-async def _payout_aware_settlement() -> None:
+async def _settle_directional_signals() -> None:
     rows = [
         row for row in await asyncio.to_thread(base.store.open_directional)
         if row["detector"] not in {"binary_buy_both", "neg_risk_underround", "nested_threshold_arb"}
@@ -216,6 +221,72 @@ async def _payout_aware_settlement() -> None:
             base.log.warning("payout-aware settlement failed for %s: %r", row.get("id"), exc)
 
 
+async def _settle_structural_manual_fills() -> None:
+    """Resolve exact per-leg structural executions only when every token is final."""
+    trades = await asyncio.to_thread(open_structural_trades, base.store)
+    if not trades:
+        return
+
+    market_ids = sorted({
+        str(leg.get("market_id") or "")
+        for trade in trades
+        for leg in (trade.get("legs") or [])
+        if str(leg.get("market_id") or "")
+    })
+    if not market_ids:
+        return
+
+    sem = asyncio.Semaphore(8)
+
+    async def fetch(mid: str):
+        async with sem:
+            return mid, await base.poly.market_by_id(mid)
+
+    results = await asyncio.gather(*(fetch(mid) for mid in market_ids), return_exceptions=True)
+    markets = {
+        mid: market
+        for result in results
+        if isinstance(result, tuple)
+        for mid, market in [result]
+        if isinstance(market, dict)
+    }
+
+    for trade in trades:
+        payouts: dict[str, float] = {}
+        complete = True
+        for leg in trade.get("legs") or []:
+            token = str(leg.get("token_id") or "")
+            market = markets.get(str(leg.get("market_id") or ""))
+            payout = exact_token_payout(token, market) if market is not None else None
+            if payout is None:
+                complete = False
+                break
+            payouts[token] = payout
+        if not complete or not payouts:
+            continue
+        try:
+            resolved = await asyncio.to_thread(
+                resolve_structural_trade,
+                base.store,
+                int(trade["id"]),
+                payouts,
+            )
+            if resolved is not None:
+                base.log.info(
+                    "resolved structural manual trade %s: payout/bundle=%.6f pnl=%.6f",
+                    trade["id"],
+                    resolved["total_payout_per_bundle"],
+                    resolved["pnl"],
+                )
+        except Exception as exc:
+            base.log.warning("structural per-leg settlement failed for %s: %r", trade.get("id"), exc)
+
+
+async def _payout_aware_settlement() -> None:
+    await _settle_directional_signals()
+    await _settle_structural_manual_fills()
+
+
 base.evaluate_signals = _trade_only_evaluate_signals
 base.confirm_actionable = _trade_only_confirm
 base.store.save_signal = _trade_only_save_signal
@@ -230,6 +301,7 @@ async def _mark_trade_only_runtime() -> None:
     # healthy. WAL mode is persistent for the database file and benefits the separate
     # command-worker process as well.
     db_runtime = await asyncio.to_thread(configure_database_runtime, base.settings.db_path)
+    await asyncio.to_thread(ensure_structural_fill_schema, base.store)
     quarantined = await asyncio.to_thread(quarantine_pre_v3_sports_history, base.settings.db_path)
     db_health = await asyncio.to_thread(database_health, base.settings.db_path)
     promoted = promoted_detectors()
@@ -239,8 +311,11 @@ async def _mark_trade_only_runtime() -> None:
     base.state["trade_now_promoted_detectors"] = list(promoted)
     base.state["trade_now_promotion_count"] = len(promoted)
     base.state["p0_containment"] = len(promoted) == 0
-    base.state["settlement_mode"] = "EXACT_TOKEN_PAYOUT_V1"
-    base.state["manual_accounting_mode"] = "USER_REPORTED_ACTUAL_COST_V2_PROSPECTIVE_ONLY"
+    base.state["settlement_mode"] = "EXACT_TOKEN_PAYOUT_V2_DIRECTIONAL_PLUS_PER_LEG_STRUCTURAL"
+    base.state["manual_accounting_mode"] = (
+        "DIRECTIONAL_USER_REPORTED_ACTUAL_COST_V2_PLUS_STRUCTURAL_PER_LEG_V1"
+    )
+    base.state["structural_fill_evidence_exchange_verified"] = False
     base.state["sports_detector_version"] = "home_away_v3_match_moneyline_only"
     base.state["sports_pre_v3_quarantined_now"] = quarantined
     base.state["universe_authority"] = base.poly.universe_status()
