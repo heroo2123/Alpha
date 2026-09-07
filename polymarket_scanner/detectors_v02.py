@@ -84,19 +84,54 @@ def _score(v):
     xs=re.findall(r'\d+(?:\.\d+)?',str(v or '')); return (float(xs[0]),float(xs[1])) if len(xs)>=2 else None
 
 
+def _norm_team(value):
+    return ' '.join(re.sub(r'[^a-z0-9 ]+',' ',str(value or '').lower()).split())
+
+
+def _team_mentioned(question, team):
+    q=_norm_team(question); t=_norm_team(team)
+    if not q or not t:
+        return False
+    if t in q:
+        return True
+    # Sports feeds usually provide full team names, while market questions may use
+    # only the nickname (e.g. "Lakers"). A final-token alias is allowed only when
+    # it is specific enough to avoid matching generic short words.
+    last=t.split()[-1] if t.split() else ''
+    return len(last)>=4 and re.search(rf'\b{re.escape(last)}\b',q) is not None
+
+
 def sports_result_lag(markets,books,cache):
+    """Known-result lag detector using the feed's explicit home/away mapping.
+
+    Polymarket's sports score is ``<home>-<away>``. Older builds incorrectly mapped
+    the first team written in the event title to the first score. Event titles are
+    not a safe source of home/away orientation, so moneyline signals now require the
+    sports payload's explicit ``homeTeam``/``awayTeam`` fields. If those fields do
+    not map cleanly to the market question, we skip instead of guessing.
+    """
     out=[]
     for m in markets:
         ev=m.raw.get('_event') or {}; u=cache.get(m.event_slug) or (ev if ev.get('ended') else None)
         if not u or not u.get('ended'): continue
         sc=_score(u.get('score'))
         if not sc: continue
-        home,away=sc; q=m.question.lower(); title=m.event_title; parts=re.split(r'\s+(?:vs\.?|v\.?|@)\s+',title,maxsplit=1,flags=re.I); truth=None; why=''
-        if len(parts)==2:
-            a,b=parts[0].strip(),parts[1].strip()
-            if 'draw' in q: truth=home==away; why=f"final score {home:g}-{away:g}; draw={truth}"
-            elif a.lower() in q and home!=away: truth=home>away; why=f"final score {home:g}-{away:g}; {a} {'won' if truth else 'did not win'}"
-            elif b.lower() in q and home!=away: truth=away>home; why=f"final score {home:g}-{away:g}; {b} {'won' if truth else 'did not win'}"
+        home,away=sc; q=m.question.lower(); truth=None; why=''
+        home_team=str(u.get('homeTeam') or u.get('home_team') or '').strip()
+        away_team=str(u.get('awayTeam') or u.get('away_team') or '').strip()
+
+        if 'draw' in q:
+            truth=home==away; why=f"final score {home:g}-{away:g}; draw={truth}"
+        elif home!=away and home_team and away_team:
+            home_match=_team_mentioned(m.question,home_team)
+            away_match=_team_mentioned(m.question,away_team)
+            # Ambiguous or missing team mapping is never actionable.
+            if home_match != away_match:
+                if home_match:
+                    truth=home>away; why=f"final score {home:g}-{away:g} (home-away); {home_team} {'won' if truth else 'did not win'}"
+                else:
+                    truth=away>home; why=f"final score {home:g}-{away:g} (home-away); {away_team} {'won' if truth else 'did not win'}"
+
         if truth is None:
             mm=re.search(r'\b(over|under)\s+(\d+(?:\.\d+)?)',q)
             if mm:
@@ -106,7 +141,15 @@ def sports_result_lag(markets,books,cache):
         if not b or b.best_ask is None or b.best_ask>settings.known_outcome_max_ask: continue
         ask=b.best_ask; cost=ask+taker_fee_per_share(ask); edge=1-cost
         if edge<settings.actionable_min_edge: continue
-        meta=_meta(m,outcome,ask,'Confirm the final result and any overtime/shootout/postponement rule in the market Rules before buying.',{"fingerprint_key":f"{m.id}:{outcome}","sports_reason":why}); meta['action_steps'].insert(1,f"Confirm official final result: {why}.")
+        meta=_meta(m,outcome,ask,'Confirm the final result and any overtime/shootout/postponement rule in the market Rules before buying.',{
+            "fingerprint_key":f"{m.id}:{outcome}",
+            "sports_reason":why,
+            "sports_mapping_version":"home_away_v2",
+            "sports_home_team":home_team,
+            "sports_away_team":away_team,
+            "sports_home_score":home,
+            "sports_away_score":away,
+        }); meta['action_steps'].insert(1,f"Confirm official final result and home/away mapping: {why}.")
         out.append(Signal('sports_result_lag','ACTIONABLE',m.event_id,m.id,'Sports result known, market still discounted',f"ENDED; {why}. {outcome} ask {ask:.3f}; post-fee edge {edge:.2%}.",market_url(m),edge,cost,1.0,[token],meta))
     return out
 
