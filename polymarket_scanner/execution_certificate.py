@@ -10,7 +10,7 @@ from .hardening import MIN_VISIBLE_NOTIONAL_USD
 from .models import Signal
 from .polymarket import CLOB
 
-EXECUTION_CERTIFICATE_VERSION = "clob_v2_exact_legs_v2"
+EXECUTION_CERTIFICATE_VERSION = "clob_v2_exact_legs_v3"
 EXECUTION_CERTIFICATE_TTL_SECONDS = 8.0
 # Manual execution cannot safely claim 100% of a transient top-of-book size. Until
 # depth-survival is empirically calibrated, advertise only half of simultaneously
@@ -150,22 +150,14 @@ def _parse_clob_info(info: dict) -> dict:
     if not isinstance(fee_details, dict):
         raise ValueError("CLOB V2 fee-curve details missing")
     rate = _decimal(fee_details.get("r"))
-    exponent_raw = _decimal(fee_details.get("e"))
+    exponent = _decimal(fee_details.get("e"))
     taker_only = fee_details.get("to")
     if rate is None or rate < 0 or rate > 1:
         raise ValueError("CLOB fee rate missing/invalid")
-    if exponent_raw is None or exponent_raw < 0 or exponent_raw > 10 or exponent_raw != exponent_raw.to_integral_value():
+    if exponent is None or exponent < 0 or exponent > 10:
         raise ValueError("CLOB fee exponent missing/invalid")
     if type(taker_only) is not bool:
         raise ValueError("CLOB taker-only fee flag missing/invalid")
-
-    exponent = int(exponent_raw)
-    # Current public CLOB V2 documentation publishes fee = C * rate * p * (1-p).
-    # It exposes fd.e as a curve parameter but does not publish a different formula
-    # for non-1 exponents. Never guess a money formula: fee-bearing e != 1 fails
-    # closed until Polymarket documents the semantics or the official SDK is used.
-    if rate > 0 and exponent != 1:
-        raise ValueError("CLOB fee exponent is unsupported by the documented manual fee formula")
     if rate > 0 and taker_only is not True:
         raise ValueError("CLOB fee semantics are not taker-only as expected")
 
@@ -180,14 +172,28 @@ def _parse_clob_info(info: dict) -> dict:
     }
 
 
-def _fee_per_share(price: Decimal, rate: Decimal, exponent: int) -> Decimal:
+def _fee_per_share(price: Decimal, rate: Decimal, exponent: Decimal) -> Decimal:
+    """Mirror Polymarket's official py-clob-client-v2 fee-curve calculation.
+
+    The V2 SDK computes platform_fee_rate = rate * (p * (1-p)) ** exponent.
+    For an equal-share bundle that is the platform fee per purchased share before
+    protocol precision rounding. We retain Decimal arithmetic and validate it again
+    at the final gate instead of trusting detector metadata.
+    """
     if rate == 0:
         return Decimal("0")
-    if exponent != 1:
-        raise ValueError("unsupported fee exponent")
     if price <= 0 or price >= 1:
         raise ValueError("fee calculation price outside open interval")
-    return rate * price * (Decimal("1") - price)
+    if exponent < 0 or exponent > 10:
+        raise ValueError("fee calculation exponent outside supported interval")
+    base = price * (Decimal("1") - price)
+    try:
+        fee = rate * (base ** exponent)
+    except (InvalidOperation, OverflowError) as exc:
+        raise ValueError("CLOB fee curve could not be evaluated") from exc
+    if not fee.is_finite() or fee < 0:
+        raise ValueError("CLOB fee curve produced an invalid value")
+    return fee
 
 
 async def build_execution_certificate(signal: Signal, poly, raw_markets: list[dict]) -> dict:
@@ -195,8 +201,8 @@ async def build_execution_certificate(signal: Signal, poly, raw_markets: list[di
 
     Detector-time quote metadata is never trusted. The certificate verifies current
     Gamma/CLOB token mapping, exact named outcome, current market parameters, current
-    best ask/visible size, tick alignment, minimum order and the documented taker fee
-    formula. Unknown or contradictory fields fail closed. Taker-order-delay markets
+    best ask/visible size, tick alignment, minimum order and the official V2 SDK fee
+    curve. Unknown or contradictory fields fail closed. Taker-order-delay markets
     are rejected for the current human-click product.
     """
     if not signal.token_ids or len(set(map(str, signal.token_ids))) != len(signal.token_ids):
@@ -256,7 +262,7 @@ async def build_execution_certificate(signal: Signal, poly, raw_markets: list[di
             "visible_best_ask_size": str(size),
             "book_timestamp": str(getattr(book, "timestamp", "") or ""),
             "fee_rate": str(info["rate"]),
-            "fee_exponent": info["exponent"],
+            "fee_exponent": str(info["exponent"]),
             "fee_taker_only": info["taker_only"],
             "fee_per_share": str(fee),
             "cost_per_share": str(leg_cost),
@@ -300,7 +306,7 @@ async def build_execution_certificate(signal: Signal, poly, raw_markets: list[di
         "minimum_bundle_shares": str(min_bundle_shares),
         "minimum_bundle_notional_usd": str(minimum_notional),
         "depth_basis": "CURRENT_BATCH_BEST_ASK_WITH_50_PERCENT_SAFETY_HAIRCUT_UNCALIBRATED",
-        "fee_basis": "DOCUMENTED_CLOB_V2_TAKER_FORMULA_RATE_X_P_X_1_MINUS_P; non-1 fee exponent rejected",
+        "fee_basis": "OFFICIAL_PY_CLOB_CLIENT_V2_RATE_X_P_TIMES_1_MINUS_P_TO_EXPONENT; per-share pre-rounding curve",
     }
 
 
@@ -356,20 +362,19 @@ def validate_execution_certificate(
         limit = _positive(leg.get("safe_limit"))
         tick = _positive(leg.get("tick_size"))
         rate = _decimal(leg.get("fee_rate"))
-        exponent_raw = _decimal(leg.get("fee_exponent"))
+        exponent = _decimal(leg.get("fee_exponent"))
         taker_only = leg.get("fee_taker_only")
         fee = _decimal(leg.get("fee_per_share"))
         leg_cost = _positive(leg.get("cost_per_share"))
         visible = _positive(leg.get("visible_best_ask_size"))
         minimum = _positive(leg.get("minimum_order_size"))
-        if None in {ask, limit, tick, rate, exponent_raw, fee, leg_cost, visible, minimum}:
+        if None in {ask, limit, tick, rate, exponent, fee, leg_cost, visible, minimum}:
             return False, "execution leg contains missing/nonfinite numeric fields", None
         assert ask is not None and limit is not None and tick is not None
-        assert rate is not None and exponent_raw is not None and fee is not None
+        assert rate is not None and exponent is not None and fee is not None
         assert leg_cost is not None and visible is not None and minimum is not None
-        if exponent_raw != exponent_raw.to_integral_value():
-            return False, "execution fee exponent is non-integral", None
-        exponent = int(exponent_raw)
+        if exponent < 0 or exponent > 10:
+            return False, "execution fee exponent outside supported interval", None
         if type(taker_only) is not bool or (rate > 0 and taker_only is not True):
             return False, "execution taker-fee semantics invalid", None
         try:
@@ -413,7 +418,7 @@ def validate_execution_certificate(
     if capacity < Decimal(str(MIN_VISIBLE_NOTIONAL_USD)):
         return False, "execution capacity below manual dollar floor", None
 
-    return True, "fresh exact named CLOB V2 legs + tick + minimum + documented fee formula + conservative depth passed", {
+    return True, "fresh exact named CLOB V2 legs + tick + minimum + official SDK fee curve + conservative depth passed", {
         "cost": recomputed,
         "common_visible": common,
         "safe_common": safe_common,
