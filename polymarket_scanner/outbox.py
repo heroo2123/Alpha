@@ -122,23 +122,25 @@ class TelegramOutbox:
             )
             return bool(cur.rowcount)
 
-    def recover_abandoned_claims(self) -> int:
-        """Quarantine in-flight rows after a worker restart instead of duplicating.
+    def recover_abandoned_claims(self, max_age_seconds: float = 60.0) -> int:
+        """Quarantine stale in-flight rows instead of duplicating them.
 
-        If the old process died after Telegram accepted the message but before the
-        local SENT commit, no local database can prove which side happened. Such a
-        row becomes UNCERTAIN and requires a new freshly generated signal; it is
-        never automatically resent.
+        A second healthy worker must not steal a row actively being delivered by the
+        first one, so only claims older than ``max_age_seconds`` are quarantined.
+        After a crashed worker, the surviving/restarted process periodically moves
+        those stale SENDING rows to UNCERTAIN. No automatic resend is attempted.
         """
+        cutoff = time.time() - max(1.0, float(max_age_seconds))
         with self._lock, self._conn() as c:
             cur = c.execute(
                 """
                 UPDATE telegram_outbox
                 SET status='UNCERTAIN', sent_at=NULL,
-                    last_error='worker restarted while delivery was in-flight; not retried to avoid duplicate',
+                    last_error='delivery claim expired without a local Telegram receipt; not retried to avoid duplicate',
                     claimed_at=NULL
-                WHERE status='SENDING'
-                """
+                WHERE status='SENDING' AND (claimed_at IS NULL OR claimed_at <= ?)
+                """,
+                (cutoff,),
             )
             return int(cur.rowcount or 0)
 
