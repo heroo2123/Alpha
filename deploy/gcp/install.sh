@@ -7,7 +7,8 @@ APP_DIR="${HOME}/${APP_NAME}"
 DATA_DIR="${HOME}/.${APP_NAME}/data"
 CONFIG_DIR="${HOME}/.${APP_NAME}"
 ENV_FILE="${CONFIG_DIR}/bot.env"
-SERVICE_NAME="${APP_NAME}.service"
+SCANNER_SERVICE="${APP_NAME}.service"
+COMMAND_SERVICE="polymarket-edge-command.service"
 CURRENT_USER="$(id -un)"
 SWAPFILE="/swapfile"
 
@@ -51,6 +52,14 @@ python3 -m venv "${APP_DIR}/.venv"
 "${APP_DIR}/.venv/bin/python" -m pip install --upgrade pip
 "${APP_DIR}/.venv/bin/pip" install -r "${APP_DIR}/requirements.txt"
 
+# P0 containment is a release invariant: an installer must never silently restore
+# an older promoted-detector policy.
+"${APP_DIR}/.venv/bin/python" - <<'PY'
+from polymarket_scanner.trade_only import promoted_detectors
+assert promoted_detectors() == (), f"P0 containment violated: promoted detectors={promoted_detectors()}"
+print("P0 containment verified: 0 promoted TRADE NOW detectors")
+PY
+
 mkdir -p "${DATA_DIR}" "${CONFIG_DIR}"
 chmod 700 "${DATA_DIR}" "${CONFIG_DIR}"
 
@@ -65,6 +74,7 @@ IFS= read -r TELEGRAM_CHAT_ID </dev/tty
 cat > "${ENV_FILE}" <<EOF
 TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
 TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+TELEGRAM_COMMANDS_IN_APP=false
 DB_PATH=${DATA_DIR}/signals.db
 SCAN_INTERVAL_SECONDS=15
 UNIVERSE_REFRESH_SECONDS=120
@@ -74,18 +84,18 @@ PAPER_STAKE_USD=100
 MARKET_WS_ENABLED=true
 SPORTS_WS_ENABLED=true
 CRYPTO_RTDS_ENABLED=true
-MARKET_WS_PRIORITY_TOKEN_LIMIT=3200
+MARKET_WS_PRIORITY_TOKEN_LIMIT=800
 TOP_PRICE_REFRESH_SECONDS=45
 SCANNER_WATCHDOG_STALE_SECONDS=120
 EOF
 chmod 600 "${ENV_FILE}"
 unset TELEGRAM_BOT_TOKEN
 
-say "Creating 24/7 systemd service"
-TMP_SERVICE="$(mktemp)"
-cat > "${TMP_SERVICE}" <<EOF
+say "Creating canonical trade-only scanner service"
+TMP_SCANNER="$(mktemp)"
+cat > "${TMP_SCANNER}" <<EOF
 [Unit]
-Description=Polymarket Edge Scanner
+Description=Polymarket Edge Scanner (trade-only policy, silent research)
 Wants=network-online.target
 After=network-online.target
 
@@ -95,7 +105,8 @@ User=${CURRENT_USER}
 WorkingDirectory=${APP_DIR}
 EnvironmentFile=${ENV_FILE}
 Environment=PYTHONUNBUFFERED=1
-ExecStart=${APP_DIR}/.venv/bin/uvicorn app_stable:app --host 127.0.0.1 --port 8000
+Environment=TELEGRAM_COMMANDS_IN_APP=false
+ExecStart=${APP_DIR}/.venv/bin/uvicorn app_trade_only:app --host 127.0.0.1 --port 8000
 Restart=always
 RestartSec=5
 TimeoutStopSec=30
@@ -105,18 +116,61 @@ PrivateTmp=true
 [Install]
 WantedBy=multi-user.target
 EOF
-sudo install -m 0644 "${TMP_SERVICE}" "/etc/systemd/system/${SERVICE_NAME}"
-rm -f "${TMP_SERVICE}"
-sudo systemctl daemon-reload
-sudo systemctl enable --now "${SERVICE_NAME}"
+sudo install -m 0644 "${TMP_SCANNER}" "/etc/systemd/system/${SCANNER_SERVICE}"
+rm -f "${TMP_SCANNER}"
 
+say "Creating canonical trade-only Telegram command/delivery service"
+TMP_COMMAND="$(mktemp)"
+cat > "${TMP_COMMAND}" <<EOF
+[Unit]
+Description=Polymarket Edge Telegram Command Worker (trade-only policy)
+Wants=network-online.target
+After=network-online.target ${SCANNER_SERVICE}
+
+[Service]
+Type=simple
+User=${CURRENT_USER}
+WorkingDirectory=${APP_DIR}
+EnvironmentFile=${ENV_FILE}
+Environment=PYTHONUNBUFFERED=1
+ExecStart=${APP_DIR}/.venv/bin/python ${APP_DIR}/command_worker_trade_only.py
+Restart=always
+RestartSec=3
+TimeoutStopSec=15
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
+EOF
+sudo install -m 0644 "${TMP_COMMAND}" "/etc/systemd/system/${COMMAND_SERVICE}"
+rm -f "${TMP_COMMAND}"
+
+sudo systemctl daemon-reload
+sudo systemctl enable "${SCANNER_SERVICE}" "${COMMAND_SERVICE}" >/dev/null
+sudo systemctl restart "${SCANNER_SERVICE}"
+sleep 2
+sudo systemctl restart "${COMMAND_SERVICE}"
 sleep 3
-sudo systemctl is-active --quiet "${SERVICE_NAME}" || {
-  sudo systemctl status "${SERVICE_NAME}" --no-pager || true
+
+sudo systemctl is-active --quiet "${SCANNER_SERVICE}" || {
+  sudo systemctl status "${SCANNER_SERVICE}" --no-pager || true
   fail "Scanner service failed to start."
 }
+sudo systemctl is-active --quiet "${COMMAND_SERVICE}" || {
+  sudo systemctl status "${COMMAND_SERVICE}" --no-pager || true
+  fail "Command service failed to start."
+}
 
-say "Base installation complete"
+say "Runtime authority attestation"
+echo "Commit: $(git -C "${APP_DIR}" rev-parse HEAD)"
+echo "Scanner ExecStart:"
+sudo systemctl show -p ExecStart "${SCANNER_SERVICE}"
+echo "Command ExecStart:"
+sudo systemctl show -p ExecStart "${COMMAND_SERVICE}"
+echo "Promoted TRADE NOW detectors: 0 (P0 containment)"
+
+echo
 echo "Scanner health:"
 curl -fsS http://127.0.0.1:8000/health || true
 echo
