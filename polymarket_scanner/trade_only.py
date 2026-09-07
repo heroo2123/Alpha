@@ -16,7 +16,7 @@ from .hardening import MAX_MANUAL_LEGS
 from .models import Signal
 from .weather_calibration import WEATHER_CALIBRATION_VERSION, WEATHER_DETECTORS
 
-TRADE_READY_VERSION = "trade_now_v2_exact_clob"
+TRADE_READY_VERSION = "trade_now_v3_depth_limits"
 TRADE_READY_TTL_SECONDS = EXECUTION_CERTIFICATE_TTL_SECONDS
 
 
@@ -331,6 +331,7 @@ async def send_trade_now(tg, signal_id: int, signal: Signal) -> None:
             raise TradeNowPreSendInvalid(cert_reason)
 
         cost = float(derived["cost"])
+        top_cost = float(derived["top_cost"])
         capacity = float(derived["capacity"])
         safe_common = float(derived["safe_common"])
         minimum_bundle = float(derived["minimum_bundle_shares"])
@@ -344,9 +345,10 @@ async def send_trade_now(tg, signal_id: int, signal: Signal) -> None:
             f"🚨 <b>TRADE NOW #{signal_id}</b>",
             f"<b>{html.escape(signal.title)}</b>",
             "",
-            f"💰 Post-fee edge: <b>{edge:.2%}</b>",
-            f"💵 Certified combined cost: <b>{cost:.4f}</b> per $1 payout unit",
-            f"🧾 Taker fee model: <b>{total_fee:.5f}</b> per equal-share bundle",
+            f"💰 Worst-case post-fee edge at MAX prices: <b>{edge:.2%}</b>",
+            f"💵 Current combined ask cost: <b>{top_cost:.4f}</b> per $1 payout unit",
+            f"🛑 Maximum certified combined cost: <b>{cost:.4f}</b> at the listed MAX prices",
+            f"🧾 Worst-case taker fee model: <b>{total_fee:.5f}</b> per equal-share bundle",
             f"📏 Conservative capacity: <b>about ${capacity:.2f}</b> | max {safe_common:.2f} equal shares",
             f"📦 Minimum executable equal-share bundle: <b>{minimum_bundle:.2f} shares</b>",
             f"⏱ Checked <b>{_format_utc(derived['checked_at'])}</b> | expires <b>{_format_utc(derived['expires_at'])}</b>",
@@ -360,17 +362,30 @@ async def send_trade_now(tg, signal_id: int, signal: Signal) -> None:
         for i, leg in enumerate(legs, 1):
             outcome = html.escape(str(leg["outcome"]))
             question = html.escape(str(leg["question"]))
-            limit_text = html.escape(str(leg["safe_limit_text"]))
+            ask_text = html.escape(str(leg["ask"]))
+            # Render from the validator-checked numeric field, never from a separate
+            # presentation string that could disagree with the certified limit.
+            limit_text = html.escape(str(leg["safe_limit"]))
+            safe_depth = float(leg["safe_depth_to_limit"])
             fee = float(leg["fee_per_share"])
             url = html.escape(str(leg["url"]), quote=True)
-            lines.append(f"{i}. <b>BUY {outcome} ≤ {limit_text}</b> — {question}")
-            lines.append(f"   Fee model: {fee:.5f}/share | <a href=\"{url}\">open market</a>")
+            lines.append(
+                f"{i}. <b>BUY {outcome}</b> — current ask <b>{ask_text}</b> | MAX <b>{limit_text}</b> — {question}"
+            )
+            lines.append(
+                f"   Safe depth to MAX: {safe_depth:.2f} shares (50% displayed-depth haircut) | "
+                f"worst-case fee {fee:.5f}/share | <a href=\"{url}\">open market</a>"
+            )
 
         if len(legs) > 1:
             lines.append(f"{len(legs) + 1}. Use the <b>SAME share count</b> on every leg.")
+            lines.append(
+                "⚠️ Manual multi-leg execution is non-atomic. Do not start unless every leg is available; "
+                "after any partial fill this certificate no longer applies and no unwind economics are certified."
+            )
         lines.extend([
             "",
-            "🛑 <b>SKIP THE WHOLE TRADE</b> if any listed ask is now above its maximum, visible size is smaller, the market is paused/closed, or any leg cannot be filled.",
+            "🛑 <b>SKIP THE WHOLE TRADE</b> if any current ask is above its MAX, safe depth to MAX is below your intended equal-share size, the market is paused/closed, or any leg cannot be filled.",
             "🛡 This alert was rebuilt from current Gamma identity/state + one current CLOB book batch + current CLOB V2 market parameters.",
             "🧾 Took it? Record your actual executed cost; alert quotes are never used as realized P&amp;L.",
         ])
