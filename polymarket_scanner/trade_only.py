@@ -19,6 +19,11 @@ from .weather_calibration import WEATHER_CALIBRATION_VERSION, WEATHER_DETECTORS
 TRADE_READY_VERSION = "trade_now_v2_exact_clob"
 TRADE_READY_TTL_SECONDS = EXECUTION_CERTIFICATE_TTL_SECONDS
 
+
+class TradeNowPreSendInvalid(RuntimeError):
+    """A local fail-closed condition occurred before Telegram transport was invoked."""
+
+
 # P0 containment policy (2026-09-07): no detector is promoted to real-money
 # TRADE NOW until its semantic, execution, delivery, accounting and evidence gates
 # are independently satisfied. Research/experimental candidates may still be
@@ -311,58 +316,80 @@ def _format_utc(value: datetime) -> str:
 
 
 async def send_trade_now(tg, signal_id: int, signal: Signal) -> None:
-    """Render and send only from the still-fresh exact execution certificate."""
-    if not is_trade_ready(signal):
-        # Never silently return here: the delivery worker would otherwise mark the
-        # durable intent SENT even though no Telegram request was attempted.
-        raise RuntimeError("TRADE NOW certificate expired or became invalid before send")
+    """Render and send only from the still-fresh exact execution certificate.
 
-    cert_ok, cert_reason, derived = validate_execution_certificate(signal)
-    if not cert_ok or derived is None:
-        raise RuntimeError(cert_reason)
+    Every exception raised before tg.send_alert() is explicitly classified as local
+    pre-send suppression. Transport exceptions are allowed to escape unchanged so
+    the delivery worker can distinguish retryable, rejected and uncertain outcomes.
+    """
+    try:
+        if not is_trade_ready(signal):
+            raise TradeNowPreSendInvalid("TRADE NOW certificate expired or became invalid before send")
 
-    cost = float(derived["cost"])
-    capacity = float(derived["capacity"])
-    safe_common = float(derived["safe_common"])
-    minimum_bundle = float(derived["minimum_bundle_shares"])
-    legs = derived["legs"]
-    edge, reason = _edge_from_certificate(signal, cost)
-    if edge is None:
-        raise RuntimeError(reason)
+        cert_ok, cert_reason, derived = validate_execution_certificate(signal)
+        if not cert_ok or derived is None:
+            raise TradeNowPreSendInvalid(cert_reason)
 
-    total_fee = sum(float(leg["fee_per_share"]) for leg in legs)
-    lines = [
-        f"🚨 <b>TRADE NOW #{signal_id}</b>",
-        f"<b>{html.escape(signal.title)}</b>",
-        "",
-        f"💰 Post-fee edge: <b>{edge:.2%}</b>",
-        f"💵 Certified combined cost: <b>{cost:.4f}</b> per $1 payout unit",
-        f"🧾 Taker fee model: <b>{total_fee:.5f}</b> per equal-share bundle",
-        f"📏 Conservative capacity: <b>about ${capacity:.2f}</b> | max {safe_common:.2f} equal shares",
-        f"📦 Minimum executable equal-share bundle: <b>{minimum_bundle:.2f} shares</b>",
-        f"⏱ Checked <b>{_format_utc(derived['checked_at'])}</b> | expires <b>{_format_utc(derived['expires_at'])}</b>",
-    ]
-    if signal.detector in WEATHER_DETECTORS:
-        probability = _weather_probability_floor(signal)
-        if probability is not None:
-            lines.append(f"🌦 Conservative calibrated probability floor: <b>{probability:.2%}</b>")
+        cost = float(derived["cost"])
+        capacity = float(derived["capacity"])
+        safe_common = float(derived["safe_common"])
+        minimum_bundle = float(derived["minimum_bundle_shares"])
+        legs = derived["legs"]
+        edge, reason = _edge_from_certificate(signal, cost)
+        if edge is None:
+            raise TradeNowPreSendInvalid(reason)
 
-    lines.extend(["", "✅ <b>EXECUTE EXACTLY THESE LEGS</b>"])
-    for i, leg in enumerate(legs, 1):
-        outcome = html.escape(str(leg["outcome"]))
-        question = html.escape(str(leg["question"]))
-        limit_text = html.escape(str(leg["safe_limit_text"]))
-        fee = float(leg["fee_per_share"])
-        url = html.escape(str(leg["url"]), quote=True)
-        lines.append(f"{i}. <b>BUY {outcome} ≤ {limit_text}</b> — {question}")
-        lines.append(f"   Fee model: {fee:.5f}/share | <a href=\"{url}\">open market</a>")
+        total_fee = sum(float(leg["fee_per_share"]) for leg in legs)
+        lines = [
+            f"🚨 <b>TRADE NOW #{signal_id}</b>",
+            f"<b>{html.escape(signal.title)}</b>",
+            "",
+            f"💰 Post-fee edge: <b>{edge:.2%}</b>",
+            f"💵 Certified combined cost: <b>{cost:.4f}</b> per $1 payout unit",
+            f"🧾 Taker fee model: <b>{total_fee:.5f}</b> per equal-share bundle",
+            f"📏 Conservative capacity: <b>about ${capacity:.2f}</b> | max {safe_common:.2f} equal shares",
+            f"📦 Minimum executable equal-share bundle: <b>{minimum_bundle:.2f} shares</b>",
+            f"⏱ Checked <b>{_format_utc(derived['checked_at'])}</b> | expires <b>{_format_utc(derived['expires_at'])}</b>",
+        ]
+        if signal.detector in WEATHER_DETECTORS:
+            probability = _weather_probability_floor(signal)
+            if probability is not None:
+                lines.append(f"🌦 Conservative calibrated probability floor: <b>{probability:.2%}</b>")
 
-    if len(legs) > 1:
-        lines.append(f"{len(legs) + 1}. Use the <b>SAME share count</b> on every leg.")
-    lines.extend([
-        "",
-        "🛑 <b>SKIP THE WHOLE TRADE</b> if any listed ask is now above its maximum, visible size is smaller, the market is paused/closed, or any leg cannot be filled.",
-        "🛡 This alert was rebuilt from current Gamma identity/state + one current CLOB book batch + current CLOB V2 market parameters.",
-        "🧾 Took it? Record your actual executed cost; alert quotes are never used as realized P&amp;L.",
-    ])
-    await tg.send_alert("\n".join(lines), tg._buttons(signal))
+        lines.extend(["", "✅ <b>EXECUTE EXACTLY THESE LEGS</b>"])
+        for i, leg in enumerate(legs, 1):
+            outcome = html.escape(str(leg["outcome"]))
+            question = html.escape(str(leg["question"]))
+            limit_text = html.escape(str(leg["safe_limit_text"]))
+            fee = float(leg["fee_per_share"])
+            url = html.escape(str(leg["url"]), quote=True)
+            lines.append(f"{i}. <b>BUY {outcome} ≤ {limit_text}</b> — {question}")
+            lines.append(f"   Fee model: {fee:.5f}/share | <a href=\"{url}\">open market</a>")
+
+        if len(legs) > 1:
+            lines.append(f"{len(legs) + 1}. Use the <b>SAME share count</b> on every leg.")
+        lines.extend([
+            "",
+            "🛑 <b>SKIP THE WHOLE TRADE</b> if any listed ask is now above its maximum, visible size is smaller, the market is paused/closed, or any leg cannot be filled.",
+            "🛡 This alert was rebuilt from current Gamma identity/state + one current CLOB book batch + current CLOB V2 market parameters.",
+            "🧾 Took it? Record your actual executed cost; alert quotes are never used as realized P&amp;L.",
+        ])
+        text = "\n".join(lines)
+        buttons = tg._buttons(signal)
+
+        # Rendering itself consumes time. Recheck the short-lived certificate at the
+        # last synchronous boundary before handing the request to Telegram transport.
+        if not is_trade_ready(signal):
+            raise TradeNowPreSendInvalid("TRADE NOW certificate expired while rendering the alert")
+    except asyncio.CancelledError:
+        raise
+    except TradeNowPreSendInvalid:
+        raise
+    except Exception as exc:
+        raise TradeNowPreSendInvalid(
+            f"TRADE NOW failed locally before Telegram transport: {type(exc).__name__}"
+        ) from exc
+
+    # Do not wrap transport exceptions below this line. Once network I/O starts the
+    # worker must preserve the exact delivery state (retryable/rejected/uncertain).
+    await tg.send_alert(text, buttons)
