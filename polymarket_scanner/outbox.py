@@ -14,8 +14,11 @@ from .models import Signal
 class TelegramOutbox:
     """Small persistent queue shared by scanner and Telegram command worker.
 
-    ACTIONABLE alerts are never dropped. WATCH alerts are bounded so an extended
-    Telegram outage cannot create an enormous stale research backlog.
+    ACTIONABLE alerts are never silently discarded. WATCH alerts are bounded so an
+    extended Telegram outage cannot create an enormous stale research backlog.
+    Safety policy may explicitly SUPPRESS a row; that is a terminal state distinct
+    from SENT so audit output never claims that Telegram accepted a message that was
+    intentionally withheld.
     """
 
     def __init__(self, path: str) -> None:
@@ -101,6 +104,17 @@ class TelegramOutbox:
                 WHERE id=?
                 """,
                 (time.time(), int(outbox_id)),
+            )
+
+    def mark_suppressed(self, outbox_id: int, reason: str) -> None:
+        with self._lock, self._conn() as c:
+            c.execute(
+                """
+                UPDATE telegram_outbox
+                SET status='SUPPRESSED', sent_at=NULL, last_error=?
+                WHERE id=?
+                """,
+                (str(reason)[:1000], int(outbox_id)),
             )
 
     def mark_failed(self, outbox_id: int, error: str) -> None:
