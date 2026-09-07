@@ -13,6 +13,7 @@ import asyncio
 import app as base
 import app_stable_v2 as stable_v2
 from polymarket_scanner.settlement import selected_token_payout
+from polymarket_scanner.sports_v3 import quarantine_pre_v3_sports_history
 from polymarket_scanner.trade_only import is_trade_ready, mark_trade_readiness, promoted_detectors
 
 app = stable_v2.app
@@ -36,18 +37,10 @@ def _trade_only_enqueue(signal_id, signal):
 
 
 async def _silent_scanner_push(*_args, **_kwargs):
-    # The standalone command service owns user-facing control/status messages.
-    # Scanner startup/paper-result chatter stays silent in trade-only mode.
     return None
 
 
 async def _payout_aware_settlement() -> None:
-    """Resolve research outcomes from the exact final token payout, not a bool guess.
-
-    This production override fixes the historical ``price > .99 else LOST`` shortcut.
-    A disputed/partial payout such as 0.5 is persisted as RESOLVED_PARTIAL and its
-    exact payout is used for paper P&L. Ambiguous token mappings fail closed.
-    """
     rows = [
         row for row in await asyncio.to_thread(base.store.open_directional)
         if row["detector"] not in {"binary_buy_both", "neg_risk_underround", "nested_threshold_arb"}
@@ -80,7 +73,6 @@ async def _payout_aware_settlement() -> None:
             base.log.warning("payout-aware settlement failed for %s: %r", row.get("id"), exc)
 
 
-# app.py resolves these globals dynamically from its own module namespace.
 base.confirm_actionable = _trade_only_confirm
 base.enqueue_alert = _trade_only_enqueue
 base.settle_open_paper_trades = _payout_aware_settlement
@@ -88,6 +80,7 @@ base.tg.send = _silent_scanner_push
 
 
 async def _mark_trade_only_runtime() -> None:
+    quarantined = await asyncio.to_thread(quarantine_pre_v3_sports_history, base.settings.db_path)
     promoted = promoted_detectors()
     base.state["telegram_delivery_mode"] = "TRADE_NOW_ONLY"
     base.state["silent_research_enabled"] = True
@@ -96,6 +89,8 @@ async def _mark_trade_only_runtime() -> None:
     base.state["p0_containment"] = len(promoted) == 0
     base.state["settlement_mode"] = "EXACT_TOKEN_PAYOUT_V1"
     base.state["manual_accounting_mode"] = "P0_DISABLED_UNTIL_ACTUAL_FILL_CAPTURE"
+    base.state["sports_detector_version"] = "home_away_v3_match_moneyline_only"
+    base.state["sports_pre_v3_quarantined_now"] = quarantined
 
 
 app.add_event_handler("startup", _mark_trade_only_runtime)
