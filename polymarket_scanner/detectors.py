@@ -80,6 +80,12 @@ def neg_risk_underround(markets: list[Market], books: dict[str, Book]) -> list[S
 
 
 def weather_late_lock(markets: list[Market], books: dict[str, Book], weather_cache: dict[str, list]) -> list[Signal]:
+    """Generate high-lock weather candidates as an experimental WATCH lane.
+
+    The lock model has not yet accumulated enough clean resolved samples to justify
+    ACTIONABLE status. We still persist entry cost and selected token so the audit
+    can score the hypothesis after settlement without encouraging execution.
+    """
     out: list[Signal] = []
     grouped: dict[str, list[Market]] = defaultdict(list)
     for m in markets:
@@ -143,8 +149,8 @@ def weather_late_lock(markets: list[Market], books: dict[str, Book], weather_cac
             f"Matching bucket ask {ask:.3f}, est. fee/share {fee:.4f}, model edge {edge:.2%}."
         )
         out.append(Signal(
-            detector="weather_late_lock", confidence="ACTIONABLE", event_id=winner.event_id, market_id=winner.id,
-            title=f"Weather high-lock candidate: {winner.event_title}",
+            detector="weather_late_lock", confidence="WATCH", event_id=winner.event_id, market_id=winner.id,
+            title=f"Weather high-lock experiment: {winner.event_title}",
             detail=detail,
             url=market_url(winner), edge=edge, entry_cost=net_cost, theoretical_payout=1.0,
             token_ids=[winner.yes_token],
@@ -163,15 +169,16 @@ def weather_late_lock(markets: list[Market], books: dict[str, Book], weather_cac
                 "settlement_source_url": info["settlement_source_url"],
                 "forecast_provider": info["forecast_provider"],
                 "source_note": info["source"],
+                "weather_model_version": "uncalibrated_v1",
+                "experimental_resolution": True,
                 "fingerprint_key": f"{winner.id}:{info['observed_max']}",
                 "action_steps": [
-                    "Tap OPEN MARKET below.",
-                    f"Open the market Rules and verify the settlement station is still {station} on the NOAA/NWS WRH time-series source.",
-                    f"Confirm the official hourly table still shows a daily high of {info['observed_max']:.0f}°{unit} and no newer observation has exceeded it.",
+                    "Open the market and official settlement source for research verification.",
+                    f"Verify the settlement station is {station} and the official hourly table still shows {info['observed_max']:.0f}°{unit} as the daily high.",
                     forecast_action,
-                    f"Buy YES on the matching bucket at {ask:.3f} or lower. If the ask moved higher or any verification changed, SKIP.",
+                    "Do NOT execute this from the alert yet. Record it as an experiment until the detector has enough resolved calibration evidence.",
                 ],
-                "risk_note": "Forecast/risk data are advisory, not the settlement source. Skip if the official WRH table, station/date/rules, or remaining-day weather no longer match the alert. Risk forecasts can be wrong.",
+                "risk_note": "EXPERIMENT ONLY: this weather lock probability is not historically calibrated. The scanner will score the selected bucket after resolution before this lane can be promoted to ACTIONABLE.",
             },
         ))
     return out
