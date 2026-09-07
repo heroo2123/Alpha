@@ -5,6 +5,7 @@ import html
 import json
 import logging
 import os
+import re
 import time
 
 from polymarket_scanner.config import settings
@@ -16,7 +17,24 @@ logging.basicConfig(
     level=os.getenv("LOG_LEVEL", "INFO"),
     format="%(asctime)s %(levelname)s %(message)s",
 )
+# httpx INFO logs include full request URLs; Telegram Bot API URLs contain the bot
+# token in the path. Never allow those URLs into journald at ordinary INFO level.
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
 log = logging.getLogger("polybot.command_worker")
+
+
+class AlertSuppressed(Exception):
+    """Terminal safety-policy decision: do not send and do not call it SENT."""
+
+
+def _sanitize_error(value: object) -> str:
+    text = str(value)
+    token = str(settings.telegram_bot_token or "")
+    if token:
+        text = text.replace(token, "<redacted-bot-token>")
+    text = re.sub(r"/bot[^/\s]+/", "/bot<redacted>/", text)
+    return text[:1000]
 
 
 class _DatabaseHealthResponse:
@@ -197,7 +215,7 @@ async def command_loop(tg: Telegram) -> None:
         except asyncio.CancelledError:
             raise
         except Exception as exc:
-            log.warning("Telegram command poll failed: %r", exc)
+            log.warning("Telegram command poll failed: %s", _sanitize_error(exc))
             await asyncio.sleep(1.0)
         else:
             await asyncio.sleep(0.10)
@@ -233,10 +251,17 @@ async def alert_delivery_loop(store: Store, tg: Telegram, outbox: TelegramOutbox
                 await tg.send_signal(int(item["signal_id"]), signal)
             except asyncio.CancelledError:
                 raise
+            except AlertSuppressed as exc:
+                reason = _sanitize_error(exc) or "suppressed by safety policy"
+                await asyncio.to_thread(outbox.mark_suppressed, int(item["id"]), reason)
+                await asyncio.to_thread(store.set_state, "telegram_outbox_error", "")
+                log.info("suppressed persistent Telegram alert %s: %s", item["signal_id"], reason)
+                continue
             except Exception as exc:
-                await asyncio.to_thread(outbox.mark_failed, int(item["id"]), repr(exc))
-                await asyncio.to_thread(store.set_state, "telegram_outbox_error", repr(exc))
-                log.warning("persistent Telegram alert %s failed: %r", item["signal_id"], exc)
+                safe = _sanitize_error(exc)
+                await asyncio.to_thread(outbox.mark_failed, int(item["id"]), safe)
+                await asyncio.to_thread(store.set_state, "telegram_outbox_error", safe)
+                log.warning("persistent Telegram alert %s failed: %s", item["signal_id"], safe)
                 await asyncio.sleep(0.25)
                 continue
 
@@ -247,7 +272,7 @@ async def alert_delivery_loop(store: Store, tg: Telegram, outbox: TelegramOutbox
         except asyncio.CancelledError:
             raise
         except Exception as exc:
-            log.exception("Telegram outbox delivery loop failed: %r", exc)
+            log.exception("Telegram outbox delivery loop failed: %s", _sanitize_error(exc))
             await asyncio.sleep(1.0)
 
 
