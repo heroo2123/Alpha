@@ -1,5 +1,6 @@
 import asyncio
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 
 import pytest
 
@@ -97,8 +98,8 @@ def test_build_and_validate_exact_clob_v2_certificate():
     ok, reason, derived = validate_execution_certificate(signal)
     assert ok is True, reason
     assert derived is not None
-    assert str(derived["cost"]) == "0.92475"
-    assert str(derived["safe_common"]) == "50.000"
+    assert derived["cost"] == Decimal("0.92475")
+    assert derived["safe_common"] == Decimal("50")
     assert cert["legs"][0]["outcome"] == "Yes"
     assert cert["legs"][1]["outcome"] == "No"
     assert cert["legs"][0]["url"].startswith("https://polymarket.com/event/test-event")
