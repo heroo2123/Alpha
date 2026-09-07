@@ -79,7 +79,7 @@ def test_binary_proof_requires_exact_yes_no_labels_and_tokens():
     assert "labels" in signals[0].metadata["certification_reason"].lower()
 
 
-def make_neg_rows(n: int, include_other: bool = True, *, other_active: bool = True):
+def make_neg_rows(n: int, include_other: bool = True, *, other_active: bool = True, augmented: bool = False):
     children = []
     for i in range(n):
         is_other = include_other and i == n - 1
@@ -99,6 +99,8 @@ def make_neg_rows(n: int, include_other: bool = True, *, other_active: bool = Tr
         "description": "If no listed candidate wins, this market will resolve to Other.",
         "markets": children,
     }
+    if augmented:
+        event["negRiskAugmented"] = True
     rows = []
     books = {}
     ask = min(0.25, 0.70 / max(1, n))
@@ -113,30 +115,67 @@ def make_neg_rows(n: int, include_other: bool = True, *, other_active: bool = Tr
     return rows, books
 
 
-def test_neg_risk_requires_active_purchased_other_fallback():
+def test_neg_risk_requires_complete_open_parent_set_and_other_fallback():
     rows, books = make_neg_rows(3, include_other=False)
     signals = hardened_neg_risk_underround(rows, books)
     assert len(signals) == 1
     assert signals[0].confidence == "WATCH"
     assert "other" in signals[0].metadata["certification_reason"].lower()
 
-    # Astra counterexample class: a CLOSED Other must not certify the active basket.
+    # Astra counterexample class: omitting a CLOSED child is unsafe even if it is
+    # called Other. The omitted child could be the sole YES winner.
     rows, books = make_neg_rows(4, include_other=True, other_active=False)
     signals = hardened_neg_risk_underround(rows, books)
     assert len(signals) == 1
     assert signals[0].confidence == "WATCH"
-    assert "active 'other'" in signals[0].metadata["certification_reason"].lower()
+    assert "inactive/closed" in signals[0].metadata["certification_reason"].lower()
 
 
-def test_small_neg_risk_proof_includes_exact_active_other_yes():
+def test_neg_risk_rejects_closed_named_child_even_when_other_is_open():
+    rows, books = make_neg_rows(4, include_other=True)
+    event = rows[0].raw["_event"]
+    event["markets"][0]["active"] = False
+    event["markets"][0]["closed"] = True
+    # Simulate the normal universe shape: the closed child disappears from scanner rows.
+    rows = [row for row in rows if row.id != "0"]
+    books.pop("y0")
+
+    signals = hardened_neg_risk_underround(rows, books)
+    assert len(signals) == 1
+    assert signals[0].confidence == "WATCH"
+    assert "inactive/closed" in signals[0].metadata["certification_reason"].lower()
+
+
+def test_neg_risk_rejects_missing_raw_child_state_instead_of_defaulting_open():
+    rows, books = make_neg_rows(3, include_other=True)
+    rows[0].raw["_event"]["markets"][0].pop("active")
+    signals = hardened_neg_risk_underround(rows, books)
+    assert len(signals) == 1
+    assert signals[0].confidence == "WATCH"
+    assert "incomplete active/closed state" in signals[0].metadata["certification_reason"].lower()
+
+
+def test_augmented_neg_risk_is_not_payoff_certified():
+    rows, books = make_neg_rows(3, include_other=True, augmented=True)
+    signals = hardened_neg_risk_underround(rows, books)
+    assert len(signals) == 1
+    assert signals[0].confidence == "WATCH"
+    assert "augmented" in signals[0].metadata["certification_reason"].lower()
+
+
+def test_small_neg_risk_proof_includes_complete_parent_set_and_other_yes():
     rows, books = make_neg_rows(3, include_other=True)
     signals = hardened_neg_risk_underround(rows, books)
     assert len(signals) == 1
     assert signals[0].confidence == "ACTIONABLE"
-    assert signals[0].metadata["certification_status"] == "NEG_RISK_ACTIVE_SET_PROOF_V2"
+    assert signals[0].metadata["certification_status"] == "NEG_RISK_COMPLETE_SET_PROOF_V3"
     proof = signals[0].metadata["payoff_proof"]
-    assert proof["active_other_market_id"] == "2"
-    assert proof["active_other_yes_token"] == "y2"
+    assert proof["version"] == "neg_risk_complete_parent_set_v3"
+    assert proof["other_market_id"] == "2"
+    assert proof["other_yes_token"] == "y2"
+    assert proof["parent_child_market_ids"] == ["0", "1", "2"]
+    assert proof["all_parent_children_open"] is True
+    assert proof["minimum_bundle_payout"] == 1.0
     assert "y2" in proof["purchased_yes_tokens"]
     assert signals[0].metadata["immediate_settlement"] is False
 
