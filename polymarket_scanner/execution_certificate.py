@@ -10,8 +10,9 @@ from .hardening import MIN_VISIBLE_NOTIONAL_USD
 from .models import Signal
 from .polymarket import CLOB
 
-EXECUTION_CERTIFICATE_VERSION = "clob_v2_exact_legs_v3"
+EXECUTION_CERTIFICATE_VERSION = "clob_v2_exact_legs_v4"
 EXECUTION_CERTIFICATE_TTL_SECONDS = 8.0
+FEE_PRECISION_QUANTUM_USD = Decimal("0.00001")
 # Manual execution cannot safely claim 100% of a transient top-of-book size. Until
 # depth-survival is empirically calibrated, advertise only half of simultaneously
 # visible best-ask depth. This is a risk haircut, not a fill guarantee.
@@ -172,14 +173,8 @@ def _parse_clob_info(info: dict) -> dict:
     }
 
 
-def _fee_per_share(price: Decimal, rate: Decimal, exponent: Decimal) -> Decimal:
-    """Mirror Polymarket's official py-clob-client-v2 fee-curve calculation.
-
-    The V2 SDK computes platform_fee_rate = rate * (p * (1-p)) ** exponent.
-    For an equal-share bundle that is the platform fee per purchased share before
-    protocol precision rounding. We retain Decimal arithmetic and validate it again
-    at the final gate instead of trusting detector metadata.
-    """
+def _raw_fee_per_share(price: Decimal, rate: Decimal, exponent: Decimal) -> Decimal:
+    """Mirror Polymarket's official py-clob-client-v2 fee-curve calculation."""
     if rate == 0:
         return Decimal("0")
     if price <= 0 or price >= 1:
@@ -196,14 +191,37 @@ def _fee_per_share(price: Decimal, rate: Decimal, exponent: Decimal) -> Decimal:
     return fee
 
 
+def _conservative_fee_per_share(
+    price: Decimal,
+    rate: Decimal,
+    exponent: Decimal,
+    minimum_order_size: Decimal,
+) -> tuple[Decimal, Decimal]:
+    """Return raw SDK curve plus a safe upper bound for 5-decimal fee rounding.
+
+    Polymarket states charged fees are rounded to 0.00001 USDC. For any executable
+    order C >= the leg's minimum size, one full precision quantum divided by that
+    minimum is a conservative per-share upper bound on rounding error. It is more
+    conservative than round-to-nearest, by design, and avoids overstating edge.
+    """
+    raw = _raw_fee_per_share(price, rate, exponent)
+    if rate == 0:
+        return raw, Decimal("0")
+    if minimum_order_size <= 0:
+        raise ValueError("minimum order size invalid for fee precision bound")
+    pad = FEE_PRECISION_QUANTUM_USD / minimum_order_size
+    return raw, pad
+
+
 async def build_execution_certificate(signal: Signal, poly, raw_markets: list[dict]) -> dict:
     """Build a short-lived exact-leg certificate from current Gamma + CLOB V2 data.
 
     Detector-time quote metadata is never trusted. The certificate verifies current
     Gamma/CLOB token mapping, exact named outcome, current market parameters, current
     best ask/visible size, tick alignment, minimum order and the official V2 SDK fee
-    curve. Unknown or contradictory fields fail closed. Taker-order-delay markets
-    are rejected for the current human-click product.
+    curve. Fee economics include a conservative bound for protocol precision rounding.
+    Unknown or contradictory fields fail closed. Taker-order-delay markets are rejected
+    for the current human-click product.
     """
     if not signal.token_ids or len(set(map(str, signal.token_ids))) != len(signal.token_ids):
         raise ValueError("signal token list is empty or duplicated")
@@ -246,7 +264,10 @@ async def build_execution_certificate(signal: Signal, poly, raw_markets: list[di
         if size < minimum:
             raise ValueError("visible best-ask size is below the market minimum order size")
 
-        fee = _fee_per_share(ask, info["rate"], info["exponent"])
+        raw_fee, rounding_pad = _conservative_fee_per_share(
+            ask, info["rate"], info["exponent"], minimum
+        )
+        fee = raw_fee + rounding_pad
         leg_cost = ask + fee
         legs.append({
             "market_id": ctx["market_id"],
@@ -264,6 +285,8 @@ async def build_execution_certificate(signal: Signal, poly, raw_markets: list[di
             "fee_rate": str(info["rate"]),
             "fee_exponent": str(info["exponent"]),
             "fee_taker_only": info["taker_only"],
+            "raw_fee_per_share": str(raw_fee),
+            "fee_rounding_pad_per_share": str(rounding_pad),
             "fee_per_share": str(fee),
             "cost_per_share": str(leg_cost),
             "url": ctx["url"],
@@ -271,7 +294,7 @@ async def build_execution_certificate(signal: Signal, poly, raw_markets: list[di
 
     cost = sum((_decimal(leg["cost_per_share"]) or Decimal("0") for leg in legs), Decimal("0"))
     if cost <= 0 or cost >= 1:
-        raise ValueError("combined exact CLOB cost is not below the $1 payout unit")
+        raise ValueError("combined conservative CLOB cost is not below the $1 payout unit")
 
     visible_values = [_positive(leg["visible_best_ask_size"]) for leg in legs]
     minimum_values = [_positive(leg["minimum_order_size"]) for leg in legs]
@@ -306,7 +329,7 @@ async def build_execution_certificate(signal: Signal, poly, raw_markets: list[di
         "minimum_bundle_shares": str(min_bundle_shares),
         "minimum_bundle_notional_usd": str(minimum_notional),
         "depth_basis": "CURRENT_BATCH_BEST_ASK_WITH_50_PERCENT_SAFETY_HAIRCUT_UNCALIBRATED",
-        "fee_basis": "OFFICIAL_PY_CLOB_CLIENT_V2_RATE_X_P_TIMES_1_MINUS_P_TO_EXPONENT; per-share pre-rounding curve",
+        "fee_basis": "OFFICIAL_PY_CLOB_CLIENT_V2_CURVE_PLUS_CONSERVATIVE_5_DECIMAL_PROTOCOL_ROUNDING_BOUND",
     }
 
 
@@ -378,9 +401,16 @@ def validate_execution_certificate(
         if type(taker_only) is not bool or (rate > 0 and taker_only is not True):
             return False, "execution taker-fee semantics invalid", None
         try:
-            expected_fee = _fee_per_share(ask, rate, exponent)
+            expected_raw, expected_pad = _conservative_fee_per_share(ask, rate, exponent, minimum)
         except ValueError:
             return False, "execution fee curve is unsupported", None
+        expected_fee = expected_raw + expected_pad
+        raw_field = _decimal(leg.get("raw_fee_per_share"))
+        pad_field = _decimal(leg.get("fee_rounding_pad_per_share"))
+        if raw_field is not None and raw_field != expected_raw:
+            return False, "execution raw fee curve arithmetic failed", None
+        if pad_field is not None and pad_field != expected_pad:
+            return False, "execution fee rounding bound arithmetic failed", None
         if ask >= 1 or limit != ask or fee != expected_fee or leg_cost != ask + fee or not _aligned_to_tick(limit, tick):
             return False, "execution price/fee/limit arithmetic failed", None
         if visible < minimum:
@@ -391,7 +421,7 @@ def validate_execution_certificate(
 
     declared_cost = _decimal(cert.get("combined_cost"))
     if declared_cost is None or declared_cost != recomputed or recomputed <= 0 or recomputed >= 1:
-        return False, "execution combined cost does not equal exact leg sum", None
+        return False, "execution combined cost does not equal conservative leg sum", None
 
     common = min(visible_sizes)
     min_bundle = max(minimums)
@@ -418,7 +448,7 @@ def validate_execution_certificate(
     if capacity < Decimal(str(MIN_VISIBLE_NOTIONAL_USD)):
         return False, "execution capacity below manual dollar floor", None
 
-    return True, "fresh exact named CLOB V2 legs + tick + minimum + official SDK fee curve + conservative depth passed", {
+    return True, "fresh exact named CLOB V2 legs + tick + minimum + official SDK fee curve + conservative fee precision/depth passed", {
         "cost": recomputed,
         "common_visible": common,
         "safe_common": safe_common,
