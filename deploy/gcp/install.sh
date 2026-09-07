@@ -174,6 +174,9 @@ sudo systemctl is-active --quiet "${COMMAND_SERVICE}" || {
   fail "Command service failed to start."
 }
 
+say "Installing verified daily SQLite backup/restore check"
+bash "${APP_DIR}/deploy/setup-db-backup-service.sh"
+
 say "Runtime authority attestation"
 ACTUAL_SHA="$(git -C "${APP_DIR}" rev-parse HEAD)"
 RECORDED_SHA="$(tr -d '[:space:]' < "${RELEASE_FILE}")"
