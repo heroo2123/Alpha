@@ -1,5 +1,6 @@
 import json
 import sqlite3
+import time
 
 from polymarket_scanner.models import Book, Market, Signal
 from polymarket_scanner.sports_v3 import (
@@ -47,6 +48,7 @@ def feed(**extra):
         "homeTeam": "Home FC",
         "awayTeam": "Away FC",
         "status": "final",
+        "last_update": time.time(),
     }
     payload.update(extra)
     return {"home-v-away": payload}
@@ -63,6 +65,7 @@ def test_v3_match_moneyline_uses_explicit_home_away_and_clean_version():
     assert s.metadata["trade_outcome"] == "NO"
     assert s.token_ids == ["n-m1"]
     assert "home-away" in s.metadata["sports_reason"]
+    assert s.metadata["sports_source_age_seconds"] is not None
 
 
 def test_v3_rejects_spreads_even_when_team_winner_is_known():
@@ -102,6 +105,38 @@ def test_v3_rejects_missing_or_ambiguous_team_mapping():
 
     both = mkt("Will Home FC or Away FC win?")
     assert sports_result_lag_v3([both], books, feed()) == []
+
+
+def test_v3_rejects_missing_stale_or_future_terminal_timestamps():
+    m = mkt("Will Home FC win?")
+    books = {"y-m1": Book("y-m1", [], [(0.20, 50)])}
+    now = 2_000_000_000.0
+
+    missing = feed()
+    missing["home-v-away"].pop("last_update", None)
+    assert sports_result_lag_v3([m], books, missing, now_ts=now) == []
+
+    stale = feed(last_update=now - 121)
+    assert sports_result_lag_v3([m], books, stale, now_ts=now) == []
+
+    future = feed(last_update=now + 6)
+    assert sports_result_lag_v3([m], books, future, now_ts=now) == []
+
+    fresh = feed(last_update=now - 5)
+    signals = sports_result_lag_v3([m], books, fresh, now_ts=now)
+    assert len(signals) == 1
+    assert signals[0].metadata["sports_source_age_seconds"] == 5.0
+
+
+def test_v3_accepts_iso_finished_timestamp_as_causal_terminal_evidence():
+    m = mkt("Will Home FC win?")
+    books = {"y-m1": Book("y-m1", [], [(0.20, 50)])}
+    now = 2_000_000_000.0
+    payload = feed(last_update=None, finished_timestamp="2033-05-18T03:33:15+00:00")
+    # 2033-05-18T03:33:15Z = 1999999995
+    signals = sports_result_lag_v3([m], books, payload, now_ts=now)
+    assert len(signals) == 1
+    assert signals[0].metadata["sports_source_age_seconds"] == 5.0
 
 
 def test_pre_v3_history_is_quarantined_without_erasing_forensic_pnl(tmp_path):
