@@ -11,7 +11,7 @@ RELEASE_SHA="${ALPHA_RELEASE_SHA:-${1:-}}"
 fail(){ printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 
 [[ -d "${APP_DIR}/.git" ]] || fail "App not found at ${APP_DIR}"
-[[ -x "${APP_DIR}/deploy/release-pin.sh" ]] || fail "Missing immutable release helper; update the checkout manually only after review"
+[[ -f "${APP_DIR}/deploy/release-pin.sh" ]] || fail "Missing immutable release helper; update the checkout manually only after review"
 [[ "${RELEASE_SHA}" =~ ^[0-9a-fA-F]{40}$ ]] \
   || fail "Usage: $0 <40-character-authorized-release-SHA> (or set ALPHA_RELEASE_SHA)"
 
@@ -28,8 +28,9 @@ print("P0 containment verified: 0 promoted TRADE NOW detectors")
 PY
 
 # Ensure the VM uses the canonical scanner entrypoint, a single Telegram getUpdates
-# owner, and the release-SHA runtime attestation.
+# owner, release-SHA runtime attestation, and verified database backups.
 bash "${APP_DIR}/deploy/oracle/setup-command-service.sh"
+bash "${APP_DIR}/deploy/setup-db-backup-service.sh"
 
 ACTUAL_SHA="$(git -C "${APP_DIR}" rev-parse HEAD)"
 RECORDED_SHA="$(tr -d '[:space:]' < "${RELEASE_FILE}")"
