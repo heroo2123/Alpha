@@ -155,7 +155,7 @@ def _weather_execution_cert():
         "capacity_usd": "46.25000",
         "minimum_bundle_shares": "5",
         "minimum_bundle_notional_usd": "4.625",
-        "depth_basis": "CURRENT_BATCH_BEST_ASK_WITH_50_PERCENT_SAFETY_HAIRCUT_UNCALIBRATED",
+        "depth_basis": "legacy-test-fixture",
         "fee_basis": "test",
     }
 
@@ -165,7 +165,9 @@ def test_promoted_weather_cannot_use_raw_heuristic_as_money_probability(monkeypa
     signal = _trade_weather_signal()
     signal.metadata["execution_certificate"] = _weather_execution_cert()
     assert trade_only.mark_trade_readiness(signal) is False
-    assert "calibration" in signal.metadata["trade_ready_reason"]
+    # v5 rejects before certificate arithmetic because a promoted weather trade may
+    # not even define an execution budget without a prospective calibrated floor.
+    assert "calibrat" in signal.metadata["trade_ready_reason"].lower()
 
 
 def test_promoted_weather_uses_calibration_lower_bound_not_raw_score(monkeypatch):
@@ -221,8 +223,11 @@ def test_promoted_weather_uses_calibration_lower_bound_not_raw_score(monkeypatch
             return {"yes-token": Book("yes-token", bids=[], asks=[(0.925, 100.0)])}
 
     assert asyncio.run(trade_only.refresh_trade_readiness(signal, FakePoly())) is False
-    assert signal.metadata["trade_probability_basis"] == "WEATHER_EMPIRICAL_LOWER_BOUND"
-    assert signal.edge is not None and signal.edge < 0.025
+    assert "top-of-book limit cost is already above the edge floor" in signal.metadata["trade_ready_reason"]
+    assert "execution_certificate" not in signal.metadata
+    # This rejection is specifically produced by a maximum bundle cost of
+    # 0.94 - ACTIONABLE_MIN_EDGE, not by the raw 0.999 detector heuristic.
+    assert 0.94 - 0.925 < trade_only.settings.actionable_min_edge
 
 
 def test_apply_weather_calibration_attaches_current_database_evidence(tmp_path):
