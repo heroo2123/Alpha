@@ -230,7 +230,11 @@ def _certificate_edge_budget(signal: Signal) -> tuple[Decimal, Decimal]:
     if str(signal.detector).startswith("weather_"):
         payout = _decimal(signal.metadata.get("calibrated_probability_lower_bound"))
         if payout is None or payout <= 0 or payout > 1:
-            raise ValueError("weather depth planning requires calibrated probability lower bound")
+            raise ValueError(
+                "weather calibration gate did not pass: depth planning requires calibrated probability lower bound"
+            )
+        signal.metadata["trade_probability_basis"] = "WEATHER_EMPIRICAL_LOWER_BOUND"
+        signal.metadata["trade_probability"] = float(payout)
     else:
         payout = _decimal(signal.theoretical_payout)
         if payout != Decimal("1"):
@@ -267,6 +271,21 @@ async def build_execution_certificate(signal: Signal, poly, raw_markets: list[di
     Multi-leg manual execution remains non-atomic. This certificate proves price/depth
     conditions at one instant; it does not claim to solve partial-fill/unwind risk.
     """
+    # Rebuilding execution evidence invalidates every detector-time economic estimate
+    # immediately. If any identity/book/depth/fee step below fails, stale quote math
+    # must not remain visible as though it were current execution evidence.
+    signal.edge = None
+    signal.entry_cost = None
+    for key in (
+        "confirmed_asks",
+        "confirmed_sizes",
+        "visible_common_shares",
+        "safe_common_shares",
+        "max_visible_notional_usd",
+        "rest_confirmed_at",
+    ):
+        signal.metadata.pop(key, None)
+
     if not signal.token_ids or len(set(map(str, signal.token_ids))) != len(signal.token_ids):
         raise ValueError("signal token list is empty or duplicated")
 
