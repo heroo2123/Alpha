@@ -58,6 +58,13 @@ class Book:
     asks: list[tuple[float, float]]
     last_trade_price: float | None = None
     timestamp: str | None = None
+    # Local receipt/provenance metadata is intentionally separate from the remote
+    # timestamp. Remote clocks and reconnect ordering cannot be used as freshness
+    # evidence by themselves.
+    received_at: float | None = None
+    source: str | None = None
+    source_epoch: int | None = None
+    book_hash: str | None = None
 
     @property
     def best_bid(self) -> float | None:
@@ -78,6 +85,20 @@ class Book:
         if self.best_ask is None:
             return 0.0
         return sum(s for p, s in self.asks if p == self.best_ask)
+
+    def clone(self) -> "Book":
+        """Return an isolated snapshot so callers cannot mutate the live cache."""
+        return Book(
+            token_id=self.token_id,
+            bids=list(self.bids),
+            asks=list(self.asks),
+            last_trade_price=self.last_trade_price,
+            timestamp=self.timestamp,
+            received_at=self.received_at,
+            source=self.source,
+            source_epoch=self.source_epoch,
+            book_hash=self.book_hash,
+        )
 
 
 @dataclass(slots=True)
