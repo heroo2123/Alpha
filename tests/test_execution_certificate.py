@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -87,11 +88,10 @@ def _books():
     }
 
 
-@pytest.mark.asyncio
-async def test_build_and_validate_exact_clob_v2_certificate():
+def test_build_and_validate_exact_clob_v2_certificate():
     signal = _signal()
     poly = _Poly(_info(), _books())
-    cert = await build_execution_certificate(signal, poly, [_raw_market()])
+    cert = asyncio.run(build_execution_certificate(signal, poly, [_raw_market()]))
     signal.metadata["execution_certificate"] = cert
 
     ok, reason, derived = validate_execution_certificate(signal)
@@ -104,47 +104,42 @@ async def test_build_and_validate_exact_clob_v2_certificate():
     assert cert["legs"][0]["url"].startswith("https://polymarket.com/event/test-event")
 
 
-@pytest.mark.asyncio
-async def test_fee_bearing_non_one_exponent_fails_closed():
+def test_fee_bearing_non_one_exponent_fails_closed():
     signal = _signal()
     poly = _Poly(_info(exponent=2), _books())
     with pytest.raises(ValueError, match="fee exponent is unsupported"):
-        await build_execution_certificate(signal, poly, [_raw_market()])
+        asyncio.run(build_execution_certificate(signal, poly, [_raw_market()]))
 
 
-@pytest.mark.asyncio
-async def test_taker_delay_fails_closed():
+def test_taker_delay_fails_closed():
     signal = _signal()
     poly = _Poly(_info(delayed=True), _books())
     with pytest.raises(ValueError, match="taker-order delay"):
-        await build_execution_certificate(signal, poly, [_raw_market()])
+        asyncio.run(build_execution_certificate(signal, poly, [_raw_market()]))
 
 
-@pytest.mark.asyncio
-async def test_gamma_clob_outcome_disagreement_fails_closed():
+def test_gamma_clob_outcome_disagreement_fails_closed():
     signal = _signal()
     info = _info()
     info["t"][1]["o"] = "Maybe"
     poly = _Poly(info, _books())
     with pytest.raises(ValueError, match="mapping disagrees"):
-        await build_execution_certificate(signal, poly, [_raw_market()])
+        asyncio.run(build_execution_certificate(signal, poly, [_raw_market()]))
 
 
-@pytest.mark.asyncio
-async def test_missing_leg_book_fails_closed():
+def test_missing_leg_book_fails_closed():
     signal = _signal()
     books = _books()
     del books["no"]
     poly = _Poly(_info(), books)
     with pytest.raises(ValueError, match="order books are missing"):
-        await build_execution_certificate(signal, poly, [_raw_market()])
+        asyncio.run(build_execution_certificate(signal, poly, [_raw_market()]))
 
 
-@pytest.mark.asyncio
-async def test_tampered_fee_is_rejected_after_build():
+def test_tampered_fee_is_rejected_after_build():
     signal = _signal()
     poly = _Poly(_info(), _books())
-    cert = await build_execution_certificate(signal, poly, [_raw_market()])
+    cert = asyncio.run(build_execution_certificate(signal, poly, [_raw_market()]))
     cert["legs"][0]["fee_per_share"] = "0"
     signal.metadata["execution_certificate"] = cert
 
@@ -153,11 +148,10 @@ async def test_tampered_fee_is_rejected_after_build():
     assert "arithmetic" in reason
 
 
-@pytest.mark.asyncio
-async def test_expired_certificate_is_rejected_after_build():
+def test_expired_certificate_is_rejected_after_build():
     signal = _signal()
     poly = _Poly(_info(), _books())
-    cert = await build_execution_certificate(signal, poly, [_raw_market()])
+    cert = asyncio.run(build_execution_certificate(signal, poly, [_raw_market()]))
     signal.metadata["execution_certificate"] = cert
 
     checked = datetime.fromisoformat(cert["checked_at"])
@@ -167,11 +161,10 @@ async def test_expired_certificate_is_rejected_after_build():
     assert "expired" in reason
 
 
-@pytest.mark.asyncio
-async def test_future_certificate_is_rejected():
+def test_future_certificate_is_rejected():
     signal = _signal()
     poly = _Poly(_info(rate="0"), _books())
-    cert = await build_execution_certificate(signal, poly, [_raw_market()])
+    cert = asyncio.run(build_execution_certificate(signal, poly, [_raw_market()]))
     future = datetime.now(timezone.utc) + timedelta(minutes=5)
     cert["checked_at"] = future.isoformat()
     cert["expires_at"] = (future + timedelta(seconds=EXECUTION_CERTIFICATE_TTL_SECONDS)).isoformat()
