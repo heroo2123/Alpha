@@ -6,9 +6,14 @@ Builds on the stable v2 scanner. Detector/research behavior and storage stay int
 only delivery policy changes. WATCH/experimental signals remain stored/scored in the
 background. During the P0 containment phase the promoted registry is intentionally
 empty, so no financial alert may be queued for Telegram.
+
+Production additionally treats market-data authority as a detector gate: an old
+local market list may remain in memory for diagnostics, but a Gamma universe that is
+truncated or older than the hard stale limit cannot generate new signals.
 """
 
 import asyncio
+import time
 
 import app as base
 import app_stable_v2 as stable_v2
@@ -21,9 +26,75 @@ app = stable_v2.app
 
 _original_confirm_actionable = base.confirm_actionable
 _original_save_signal = base.store.save_signal
+_original_evaluate_signals = base.evaluate_signals
+
+# Whole-universe price snapshots are discovery data, not execution evidence. They
+# may be incomplete because some tokens have no usable top ask. Surface that ratio
+# explicitly, and suppress broad structural discovery if the snapshot itself stops
+# advancing for several target intervals. Exact TRADE NOW execution is separately
+# rebuilt from live CLOB books at delivery time.
+_BROAD_PRICE_DEPENDENT = {
+    "binary_buy_both", "neg_risk_underround", "nested_threshold_arb",
+    "duplicate_divergence", "wide_spread",
+}
+
+
+def _price_discovery_status() -> dict:
+    stable = stable_v2.stable
+    total = len(stable._full_tokens)
+    usable = len(stable._price_books)
+    snapshot_at = stable._price_snapshot_at
+    age = time.time() - float(snapshot_at) if snapshot_at is not None else None
+    stale_after = max(90.0, float(stable.TOP_PRICE_REFRESH_SECONDS) * 3.0)
+    stale = age is None or age > stale_after
+    coverage = (usable / total) if total else 0.0
+    return {
+        "target_tokens": total,
+        "usable_price_tokens": usable,
+        "usable_coverage_ratio": coverage,
+        "snapshot_at": snapshot_at,
+        "snapshot_age_seconds": age,
+        "stale_after_seconds": stale_after,
+        "stale": stale,
+        "last_error": stable._price_refresh_error,
+    }
+
+
+def _trade_only_evaluate_signals(*args, **kwargs):
+    """Fail closed when production discovery authority is stale/incomplete."""
+    universe = base.poly.universe_status()
+    price = _price_discovery_status()
+    base.state["universe_authority"] = universe
+    base.state["universe_safe_for_detection"] = bool(universe.get("safe_for_detection"))
+    base.state["price_discovery_authority"] = price
+
+    if not universe.get("safe_for_detection"):
+        base.state["detector_suppression_reason"] = (
+            "Gamma universe is truncated, missing, or beyond the hard stale limit"
+        )
+        return []
+
+    signals = _original_evaluate_signals(*args, **kwargs)
+    if price["stale"]:
+        before = len(signals)
+        signals = [signal for signal in signals if signal.detector not in _BROAD_PRICE_DEPENDENT]
+        suppressed = before - len(signals)
+        base.state["broad_price_signals_suppressed"] = suppressed
+        base.state["detector_suppression_reason"] = (
+            "whole-universe price discovery is stale; broad price-dependent detectors suppressed"
+        )
+    else:
+        base.state["broad_price_signals_suppressed"] = 0
+        base.state["detector_suppression_reason"] = None
+    return signals
 
 
 async def _trade_only_confirm(signal):
+    # A candidate can sit in the post-processing queue after discovery authority
+    # changes. Recheck the universe before any ACTIONABLE confirmation/persistence.
+    universe = base.poly.universe_status()
+    if not universe.get("safe_for_detection"):
+        return None
     confirmed = await _original_confirm_actionable(signal)
     if confirmed is None:
         return None
@@ -82,6 +153,7 @@ async def _payout_aware_settlement() -> None:
             base.log.warning("payout-aware settlement failed for %s: %r", row.get("id"), exc)
 
 
+base.evaluate_signals = _trade_only_evaluate_signals
 base.confirm_actionable = _trade_only_confirm
 base.store.save_signal = _trade_only_save_signal
 base.enqueue_alert = _trade_only_enqueue
@@ -99,9 +171,12 @@ async def _mark_trade_only_runtime() -> None:
     base.state["trade_now_promotion_count"] = len(promoted)
     base.state["p0_containment"] = len(promoted) == 0
     base.state["settlement_mode"] = "EXACT_TOKEN_PAYOUT_V1"
-    base.state["manual_accounting_mode"] = "USER_REPORTED_ACTUAL_COST_V1"
+    base.state["manual_accounting_mode"] = "USER_REPORTED_ACTUAL_COST_V2_PROSPECTIVE_ONLY"
     base.state["sports_detector_version"] = "home_away_v3_match_moneyline_only"
     base.state["sports_pre_v3_quarantined_now"] = quarantined
+    base.state["universe_authority"] = base.poly.universe_status()
+    base.state["universe_safe_for_detection"] = False
+    base.state["price_discovery_authority"] = _price_discovery_status()
 
 
 app.add_event_handler("startup", _mark_trade_only_runtime)
