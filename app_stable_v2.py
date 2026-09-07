@@ -43,6 +43,10 @@ stable.WS_PRIORITY_TOKEN_LIMIT = max(400, int(os.getenv("MARKET_WS_PRIORITY_TOKE
 stable.TOP_PRICE_REFRESH_SECONDS = max(15.0, float(os.getenv("TOP_PRICE_REFRESH_SECONDS", "20")))
 stable.TOP_PRICE_CHUNK_TOKENS = max(50, min(500, int(os.getenv("TOP_PRICE_CHUNK_TOKENS", "500"))))
 stable.TOP_PRICE_CONCURRENCY = max(1, min(8, int(os.getenv("TOP_PRICE_CONCURRENCY", "4"))))
+WS_BOOK_MAX_STALE_SECONDS = max(
+    5.0,
+    min(60.0, float(os.getenv("WS_BOOK_MAX_STALE_SECONDS", str(stable.TOP_PRICE_REFRESH_SECONDS * 1.5)))),
+)
 
 # SequenceMatcher-based duplicate discovery is useful research, but it compares
 # many pairs and has repeatedly coincided with long worker passes on the e2-micro.
@@ -100,6 +104,7 @@ async def _fetch_ask_prices(tokens: list[str]) -> dict[str, Book]:
                     payload = await asyncio.to_thread(json.loads, text)
                     if not isinstance(payload, dict):
                         return {}
+                    received_at = time.time()
 
                     out: dict[str, Book] = {}
                     for token in chunk:
@@ -120,6 +125,8 @@ async def _fetch_ask_prices(tokens: list[str]) -> dict[str, Book]:
                             bids=[],
                             asks=[(ask, 0.0)],
                             timestamp="price-discovery",
+                            received_at=received_at,
+                            source="clob_rest_prices",
                         )
                     return out
                 except asyncio.CancelledError:
@@ -142,9 +149,60 @@ async def _fetch_ask_prices(tokens: list[str]) -> dict[str, Book]:
     return merged
 
 
+def _merged_book_snapshot_v2() -> dict[str, Book]:
+    """Prefer the freshest independently received source for every hot token.
+
+    The old implementation unconditionally overlaid WebSocket books on the broad
+    REST `/prices` snapshot. A disconnected/stalled WS token could therefore replace
+    a newer REST price with an old book. WS depth now wins only when it has a local
+    receipt timestamp at least as new as the REST discovery row and is itself within
+    a bounded freshness window. Otherwise the broad REST ask remains authoritative
+    for discovery and actionable candidates are still re-fetched with full REST books.
+    """
+    now = time.time()
+    merged = {token: book.clone() for token, book in stable._price_books.items()}
+    ws_books = stable._original_stream_snapshot()
+    ws_used = 0
+    ws_stale_or_older = 0
+
+    for token, ws_book in ws_books.items():
+        ws_received = ws_book.received_at
+        if ws_received is None or not math.isfinite(float(ws_received)):
+            ws_stale_or_older += 1
+            continue
+        ws_received = float(ws_received)
+        if now - ws_received > WS_BOOK_MAX_STALE_SECONDS:
+            ws_stale_or_older += 1
+            continue
+        rest_book = merged.get(token)
+        rest_received = (
+            float(rest_book.received_at)
+            if rest_book is not None and rest_book.received_at is not None
+            else float(stable._price_snapshot_at or 0.0)
+        )
+        if rest_received > 0.0 and ws_received < rest_received:
+            ws_stale_or_older += 1
+            continue
+        merged[token] = ws_book.clone()
+        ws_used += 1
+
+    stable.base.state["ws_books_authoritative"] = ws_used
+    stable.base.state["ws_books_stale_or_older"] = ws_stale_or_older
+    stable.base.state["ws_book_max_stale_seconds"] = WS_BOOK_MAX_STALE_SECONDS
+    stable.base.state["market_ws_last_valid_update"] = stable.base.market_stream.last_valid_update_at
+    stable.base.state["market_ws_last_full_book"] = stable.base.market_stream.last_full_book_at
+    stable.base.state["market_ws_book_invalidations"] = stable.base.market_stream.invalidated_books
+    stable.base.state["market_ws_out_of_order_ignored"] = stable.base.market_stream.out_of_order_ignored
+    return merged
+
+
 # app_stable._top_price_loop resolves this global each cycle, so replacing it here
 # changes the production discovery transport without duplicating the scanner logic.
 stable._fetch_top_prices = _fetch_ask_prices
+# app_stable installed its original merged-snapshot function on the stream object at
+# import time. Replace that bound hook too, not only the module global.
+stable._merged_book_snapshot = _merged_book_snapshot_v2
+stable.base.market_stream.snapshot = _merged_book_snapshot_v2
 
 
 async def _mark_runtime_v2() -> None:
@@ -152,6 +210,7 @@ async def _mark_runtime_v2() -> None:
     stable.base.state["stream_priority_limit"] = stable.WS_PRIORITY_TOKEN_LIMIT
     stable.base.state["price_snapshot_side"] = "SELL/best-ask"
     stable.base.state["price_snapshot_target_seconds"] = stable.TOP_PRICE_REFRESH_SECONDS
+    stable.base.state["ws_book_max_stale_seconds"] = WS_BOOK_MAX_STALE_SECONDS
     stable.base.state["duplicate_divergence_watch_enabled"] = ENABLE_DUPLICATE_DIVERGENCE_WATCH
 
 
