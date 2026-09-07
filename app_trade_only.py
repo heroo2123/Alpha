@@ -1,16 +1,16 @@
 from __future__ import annotations
 
-"""Production runtime: silent research, Telegram reserved for TRADE NOW only.
+"""Production runtime: silent research, Telegram reserved for explicitly promoted TRADE NOW only.
 
 Builds on the stable v2 scanner. Detector/research behavior and storage stay intact;
 only delivery policy changes. WATCH/experimental signals remain stored/scored in the
-background, while Telegram receives only signals that pass the strict trade-ready
-gate after fresh REST order-book confirmation.
+background. During the P0 containment phase the promoted registry is intentionally
+empty, so no financial alert may be queued for Telegram.
 """
 
 import app as base
 import app_stable_v2 as stable_v2
-from polymarket_scanner.trade_only import is_trade_ready, mark_trade_readiness
+from polymarket_scanner.trade_only import is_trade_ready, mark_trade_readiness, promoted_detectors
 
 app = stable_v2.app
 
@@ -45,8 +45,12 @@ base.tg.send = _silent_scanner_push
 
 
 async def _mark_trade_only_runtime() -> None:
+    promoted = promoted_detectors()
     base.state["telegram_delivery_mode"] = "TRADE_NOW_ONLY"
     base.state["silent_research_enabled"] = True
+    base.state["trade_now_promoted_detectors"] = list(promoted)
+    base.state["trade_now_promotion_count"] = len(promoted)
+    base.state["p0_containment"] = len(promoted) == 0
 
 
 app.add_event_handler("startup", _mark_trade_only_runtime)
