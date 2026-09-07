@@ -1,5 +1,5 @@
 from polymarket_scanner.models import Signal
-from polymarket_scanner.trade_only import TRADE_READY_VERSION, is_trade_ready, mark_trade_readiness
+from polymarket_scanner.trade_only import TRADE_READY_VERSION, is_trade_ready, mark_trade_readiness, promoted_detectors
 
 
 def _signal(detector="binary_buy_both", confidence="ACTIONABLE", cert="BINARY_COMPLEMENT_VERIFIED"):
@@ -26,11 +26,16 @@ def _signal(detector="binary_buy_both", confidence="ACTIONABLE", cert="BINARY_CO
     )
 
 
-def test_certified_rest_confirmed_structural_signal_is_trade_ready():
+def test_p0_containment_promotes_no_detectors():
+    assert promoted_detectors() == ()
+
+
+def test_previous_structural_certificate_is_not_trade_ready_during_containment():
     s = _signal()
-    assert mark_trade_readiness(s) is True
-    assert is_trade_ready(s) is True
+    assert mark_trade_readiness(s) is False
+    assert is_trade_ready(s) is False
     assert s.metadata["trade_ready_version"] == TRADE_READY_VERSION
+    assert "P0 containment" in s.metadata["trade_ready_reason"]
 
 
 def test_watch_is_never_trade_ready():
@@ -48,18 +53,11 @@ def test_unpromoted_sports_actionable_stays_silent():
     s.edge = 0.095
     assert mark_trade_readiness(s) is False
     assert is_trade_ready(s) is False
-    assert "not yet promoted" in s.metadata["trade_ready_reason"]
+    assert "not promoted" in s.metadata["trade_ready_reason"]
 
 
-def test_missing_rest_confirmation_is_silent():
+def test_old_trade_ready_metadata_cannot_bypass_empty_registry():
     s = _signal()
-    s.metadata.pop("rest_confirmed_at")
-    assert mark_trade_readiness(s) is False
-    assert is_trade_ready(s) is False
-
-
-def test_insufficient_visible_capacity_is_silent():
-    s = _signal()
-    s.metadata["max_visible_notional_usd"] = 2.0
-    assert mark_trade_readiness(s) is False
+    s.metadata["trade_ready"] = True
+    s.metadata["trade_ready_version"] = TRADE_READY_VERSION
     assert is_trade_ready(s) is False
