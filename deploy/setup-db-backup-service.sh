@@ -12,7 +12,7 @@ CURRENT_USER="$(id -un)"
 
 fail(){ printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 
-[[ -x "${APP_DIR}/deploy/run-db-backup.sh" ]] || fail "missing backup runner"
+[[ -f "${APP_DIR}/deploy/run-db-backup.sh" ]] || fail "missing backup runner"
 [[ -f "${APP_DIR}/deploy/verify-runtime-release.sh" ]] || fail "missing runtime release verifier"
 [[ -f "${ENV_FILE}" ]] || fail "missing environment file: ${ENV_FILE}"
 [[ -f "${RELEASE_FILE}" ]] || fail "missing immutable release marker: ${RELEASE_FILE}"
