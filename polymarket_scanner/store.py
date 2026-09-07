@@ -3,10 +3,15 @@ from __future__ import annotations
 import json
 import sqlite3
 import threading
+from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 
 from .models import Signal
+
+
+STRUCTURAL_DETECTORS = {"binary_buy_both", "neg_risk_underround", "nested_threshold_arb"}
+EXPERIMENTAL_RESOLUTION_DETECTORS = {"weather_friend_lock"}
 
 
 class Store:
@@ -89,8 +94,29 @@ class Store:
             self._resolve_manual_conn(c, signal_id, True, float(row["theoretical_payout"]), now)
 
     def open_directional(self):
+        """Return paper signals whose selected token can be objectively resolved.
+
+        Normal ACTIONABLE single-market signals remain scoreable. The friend-style
+        weather lane is intentionally WATCH-only, but we still resolve it after the
+        market closes so its heuristic can accumulate honest experimental evidence.
+        Structural multi-leg arbitrage is explicitly excluded: settlement does not
+        prove that every quoted leg was actually executable/fillable.
+        """
+        structural = tuple(sorted(STRUCTURAL_DETECTORS))
+        qmarks = ",".join("?" for _ in structural)
         with self._conn() as c:
-            return [dict(r) for r in c.execute("SELECT * FROM signals WHERE status='OPEN' AND market_id IS NOT NULL AND confidence='ACTIONABLE' ORDER BY id")]
+            return [dict(r) for r in c.execute(
+                f"""
+                SELECT * FROM signals
+                WHERE status='OPEN' AND market_id IS NOT NULL
+                  AND (
+                    (confidence='ACTIONABLE' AND detector NOT IN ({qmarks}))
+                    OR detector='weather_friend_lock'
+                  )
+                ORDER BY id
+                """,
+                structural,
+            )]
 
     def resolve(self, signal_id: int, won: bool, stake: float) -> None:
         with self._lock, self._conn() as c:
@@ -132,15 +158,184 @@ class Store:
             pnl = stake / cost * payout - stake if won else -stake
             c.execute("UPDATE manual_trades SET status=?,pnl=?,resolved_at=? WHERE id=?", ("WON" if won else "LOST", pnl, now, row["id"]))
 
+    @staticmethod
+    def _meta(raw: object) -> dict:
+        if isinstance(raw, dict):
+            return raw
+        if not raw:
+            return {}
+        try:
+            value = json.loads(str(raw))
+            return value if isinstance(value, dict) else {}
+        except Exception:
+            return {}
+
+    @staticmethod
+    def _resolved_return(row: dict) -> float | None:
+        """Return per-$1 paper return from the stored executable-cost estimate."""
+        status = str(row.get("status") or "")
+        if status not in {"WON", "LOST"}:
+            return None
+        try:
+            cost = float(row.get("entry_cost") or 0.0)
+        except (TypeError, ValueError):
+            return None
+        if cost <= 0:
+            return None
+        return (1.0 / cost - 1.0) if status == "WON" else -1.0
+
     def stats(self) -> dict:
+        """Evidence-based audit of every stored scanner signal.
+
+        The legacy top-level keys are retained for compatibility with older clients.
+        New ``audit`` and ``detectors`` fields deliberately separate resolution-
+        scored directional ideas, execution-unverified structural opportunities,
+        experimental WATCH outcomes, and research-only noise.
+        """
         with self._conn() as c:
-            total = c.execute("SELECT COUNT(*) FROM signals WHERE confidence='ACTIONABLE'").fetchone()[0]
-            won = c.execute("SELECT COUNT(*) FROM signals WHERE confidence='ACTIONABLE' AND status='WON'").fetchone()[0]
-            lost = c.execute("SELECT COUNT(*) FROM signals WHERE confidence='ACTIONABLE' AND status='LOST'").fetchone()[0]
-            open_ = c.execute("SELECT COUNT(*) FROM signals WHERE status='OPEN' AND confidence='ACTIONABLE'").fetchone()[0]
-            pnl = c.execute("SELECT COALESCE(SUM(pnl),0) FROM signals WHERE confidence='ACTIONABLE'").fetchone()[0]
-            by_detector = [dict(r) for r in c.execute("SELECT detector, COUNT(*) n, COALESCE(SUM(pnl),0) pnl FROM signals WHERE confidence='ACTIONABLE' GROUP BY detector ORDER BY pnl DESC")]
-            return {"total": total, "won": won, "lost": lost, "open": open_, "pnl": float(pnl), "by_detector": by_detector}
+            rows = [dict(r) for r in c.execute("SELECT * FROM signals ORDER BY id")]
+
+        groups: dict[str, list[dict]] = defaultdict(list)
+        for row in rows:
+            groups[str(row.get("detector") or "unknown")].append(row)
+
+        detector_rows: list[dict] = []
+        resolved_pnl = 0.0
+        directional_total = directional_resolved = directional_won = directional_lost = 0
+        structural_actionable = 0
+        research_unscored = 0
+        experimental_total = experimental_resolved = 0
+
+        for detector, items in groups.items():
+            actionable = sum(str(r.get("confidence")) == "ACTIONABLE" for r in items)
+            watch = sum(str(r.get("confidence")) == "WATCH" for r in items)
+            legacy = sum(str(r.get("confidence")) == "LEGACY_THEORETICAL" or str(r.get("status")) == "LEGACY_THEORETICAL" for r in items)
+            won = sum(str(r.get("status")) == "WON" for r in items)
+            lost = sum(str(r.get("status")) == "LOST" for r in items)
+            resolved = won + lost
+            open_ = sum(str(r.get("status")) == "OPEN" for r in items)
+            pnl = sum(float(r.get("pnl") or 0.0) for r in items if str(r.get("status")) in {"WON", "LOST"})
+            edges = [float(r["edge"]) for r in items if r.get("edge") is not None]
+            returns = [x for r in items if (x := self._resolved_return(r)) is not None]
+            avg_edge = sum(edges) / len(edges) if edges else None
+            avg_return = sum(returns) / len(returns) if returns else None
+
+            visible = []
+            for r in items:
+                meta = self._meta(r.get("metadata"))
+                try:
+                    value = float(meta.get("max_visible_notional_usd"))
+                except (TypeError, ValueError):
+                    continue
+                if value >= 0:
+                    visible.append(value)
+            avg_visible = sum(visible) / len(visible) if visible else None
+
+            if detector in STRUCTURAL_DETECTORS:
+                evidence = "EXECUTION_UNVERIFIED"
+                structural_actionable += actionable
+            elif detector in EXPERIMENTAL_RESOLUTION_DETECTORS:
+                evidence = "EXPERIMENTAL_RESOLUTION"
+                experimental_total += len(items)
+                experimental_resolved += resolved
+                directional_total += len(items)
+                directional_resolved += resolved
+                directional_won += won
+                directional_lost += lost
+                resolved_pnl += pnl
+            elif actionable > 0 or resolved > 0:
+                evidence = "RESOLUTION_SCORED"
+                scoreable = [r for r in items if str(r.get("confidence")) == "ACTIONABLE"]
+                score_resolved = [r for r in scoreable if str(r.get("status")) in {"WON", "LOST"}]
+                directional_total += len(scoreable)
+                directional_resolved += len(score_resolved)
+                directional_won += sum(str(r.get("status")) == "WON" for r in score_resolved)
+                directional_lost += sum(str(r.get("status")) == "LOST" for r in score_resolved)
+                resolved_pnl += sum(float(r.get("pnl") or 0.0) for r in score_resolved)
+            else:
+                evidence = "RESEARCH_UNSCORED"
+                research_unscored += len(items)
+
+            detector_rows.append({
+                "detector": detector,
+                "evidence": evidence,
+                "n": len(items),
+                "actionable": actionable,
+                "watch": watch,
+                "legacy": legacy,
+                "resolved": resolved,
+                "won": won,
+                "lost": lost,
+                "open": open_,
+                "pnl": float(pnl),
+                "avg_edge": avg_edge,
+                "avg_return": avg_return,
+                "avg_visible_notional": avg_visible,
+            })
+
+        # Put actual resolution evidence first, then structural/actionable evidence,
+        # then large research-only buckets. This keeps the Telegram report useful.
+        evidence_rank = {
+            "RESOLUTION_SCORED": 0,
+            "EXPERIMENTAL_RESOLUTION": 1,
+            "EXECUTION_UNVERIFIED": 2,
+            "RESEARCH_UNSCORED": 3,
+        }
+        detector_rows.sort(key=lambda r: (evidence_rank.get(r["evidence"], 9), -int(r["resolved"]), -int(r["n"]), r["detector"]))
+
+        all_alerts = len(rows)
+        actionable_total = sum(str(r.get("confidence")) == "ACTIONABLE" for r in rows)
+        watch_total = sum(str(r.get("confidence")) == "WATCH" for r in rows)
+        legacy_total = sum(str(r.get("confidence")) == "LEGACY_THEORETICAL" or str(r.get("status")) == "LEGACY_THEORETICAL" for r in rows)
+        win_rate = directional_won / directional_resolved if directional_resolved else None
+
+        resolved_returns = []
+        for r in rows:
+            detector = str(r.get("detector") or "")
+            eligible = (
+                detector in EXPERIMENTAL_RESOLUTION_DETECTORS
+                or (str(r.get("confidence")) == "ACTIONABLE" and detector not in STRUCTURAL_DETECTORS)
+            )
+            if eligible:
+                value = self._resolved_return(r)
+                if value is not None:
+                    resolved_returns.append(value)
+        avg_resolved_return = sum(resolved_returns) / len(resolved_returns) if resolved_returns else None
+
+        # Legacy compatibility: /stats clients historically expect these keys to
+        # describe ACTIONABLE directional paper performance. Structural quote math
+        # never contributes to won/lost/P&L here.
+        legacy_by_detector = [
+            {"detector": r["detector"], "n": r["actionable"], "pnl": r["pnl"]}
+            for r in detector_rows if r["actionable"] > 0
+        ]
+        return {
+            "total": actionable_total,
+            "won": directional_won,
+            "lost": directional_lost,
+            "open": max(0, directional_total - directional_resolved) + structural_actionable,
+            "pnl": float(resolved_pnl),
+            "by_detector": legacy_by_detector,
+            "audit": {
+                "all_alerts": all_alerts,
+                "actionable": actionable_total,
+                "watch": watch_total,
+                "legacy_excluded": legacy_total,
+                "directional_total": directional_total,
+                "directional_resolved": directional_resolved,
+                "directional_open": max(0, directional_total - directional_resolved),
+                "directional_won": directional_won,
+                "directional_lost": directional_lost,
+                "resolved_pnl": float(resolved_pnl),
+                "win_rate": win_rate,
+                "avg_resolved_return": avg_resolved_return,
+                "structural_actionable_unverified": structural_actionable,
+                "research_unscored": research_unscored,
+                "experimental_total": experimental_total,
+                "experimental_resolved": experimental_resolved,
+            },
+            "detectors": detector_rows,
+        }
 
     def manual_stats(self) -> dict:
         with self._conn() as c:
