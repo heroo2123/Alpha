@@ -45,3 +45,24 @@ def test_outbox_persists_prioritizes_actionable_and_bounds_watch(tmp_path, monke
     assert due is not None
     assert due["signal_id"] == actionable_id
     assert due["priority"] == 0
+
+
+def test_suppressed_row_is_terminal_and_not_reported_as_sent(tmp_path):
+    db = str(tmp_path / "signals.db")
+    store = Store(db)
+    outbox = TelegramOutbox(db)
+    signal_id = store.save_signal(_signal("legacy-actionable", "ACTIONABLE"))
+    assert signal_id is not None
+    assert outbox.enqueue_signal(signal_id, 0) is True
+
+    due = outbox.next_due()
+    assert due is not None
+    outbox.mark_suppressed(due["id"], "P0 containment")
+
+    assert outbox.pending_count() == 0
+    assert outbox.next_due() is None
+    with outbox._conn() as c:
+        row = c.execute("SELECT status, sent_at, last_error FROM telegram_outbox WHERE id=?", (due["id"],)).fetchone()
+    assert row["status"] == "SUPPRESSED"
+    assert row["sent_at"] is None
+    assert "P0 containment" in row["last_error"]
