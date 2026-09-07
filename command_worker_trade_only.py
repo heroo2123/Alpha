@@ -10,6 +10,7 @@ from polymarket_scanner.config import settings
 from polymarket_scanner.polymarket import PolymarketClient
 from polymarket_scanner.telegram import Telegram
 from polymarket_scanner.trade_only import refresh_trade_readiness, send_trade_now
+from polymarket_scanner.weather_calibration import WEATHER_DETECTORS, apply_weather_calibration
 
 
 class DeliveryRetryable(Exception):
@@ -161,6 +162,11 @@ async def _safe_post_message(
 async def _guarded_send_signal(self: Telegram, signal_id: int, signal) -> None:
     # Every delivery attempt must rebuild executable evidence from current Gamma +
     # CLOB state. Stored detector-time quotes are never trusted on a retry.
+    # Weather additionally recomputes its prospective calibration from the current
+    # clean resolved database here, so a stale/forged metadata flag cannot promote
+    # an uncalibrated heuristic into a money instruction.
+    if signal.detector in WEATHER_DETECTORS:
+        await asyncio.to_thread(apply_weather_calibration, signal, self.store.path)
     if not await refresh_trade_readiness(signal, _poly()):
         reason = str(signal.metadata.get("trade_ready_reason") or "not TRADE NOW eligible")
         raise worker.AlertSuppressed(reason)
