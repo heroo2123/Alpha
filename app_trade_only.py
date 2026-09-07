@@ -12,6 +12,7 @@ import asyncio
 
 import app as base
 import app_stable_v2 as stable_v2
+from polymarket_scanner.atomic_delivery import persist_trade_now_intent
 from polymarket_scanner.settlement import selected_token_payout
 from polymarket_scanner.sports_v3 import quarantine_pre_v3_sports_history
 from polymarket_scanner.trade_only import is_trade_ready, mark_trade_readiness, promoted_detectors
@@ -19,7 +20,7 @@ from polymarket_scanner.trade_only import is_trade_ready, mark_trade_readiness, 
 app = stable_v2.app
 
 _original_confirm_actionable = base.confirm_actionable
-_original_enqueue_alert = base.enqueue_alert
+_original_save_signal = base.store.save_signal
 
 
 async def _trade_only_confirm(signal):
@@ -30,10 +31,18 @@ async def _trade_only_confirm(signal):
     return confirmed
 
 
-def _trade_only_enqueue(signal_id, signal):
-    if not is_trade_ready(signal):
-        return False
-    return _original_enqueue_alert(signal_id, signal)
+def _trade_only_save_signal(signal):
+    """Persist promoted financial intent atomically; keep research storage generic."""
+    if is_trade_ready(signal):
+        return persist_trade_now_intent(base.store, signal, priority=0)
+    return _original_save_signal(signal)
+
+
+def _trade_only_enqueue(_signal_id, signal):
+    # TRADE NOW signals were already inserted into telegram_outbox in the same
+    # SQLite transaction as their signal row. Never create an intermediate volatile
+    # alert queue hop. Silent research remains stored but is not delivered.
+    return is_trade_ready(signal)
 
 
 async def _silent_scanner_push(*_args, **_kwargs):
@@ -74,6 +83,7 @@ async def _payout_aware_settlement() -> None:
 
 
 base.confirm_actionable = _trade_only_confirm
+base.store.save_signal = _trade_only_save_signal
 base.enqueue_alert = _trade_only_enqueue
 base.settle_open_paper_trades = _payout_aware_settlement
 base.tg.send = _silent_scanner_push
@@ -83,12 +93,13 @@ async def _mark_trade_only_runtime() -> None:
     quarantined = await asyncio.to_thread(quarantine_pre_v3_sports_history, base.settings.db_path)
     promoted = promoted_detectors()
     base.state["telegram_delivery_mode"] = "TRADE_NOW_ONLY"
+    base.state["delivery_persistence_mode"] = "ATOMIC_SIGNAL_OUTBOX_V1"
     base.state["silent_research_enabled"] = True
     base.state["trade_now_promoted_detectors"] = list(promoted)
     base.state["trade_now_promotion_count"] = len(promoted)
     base.state["p0_containment"] = len(promoted) == 0
     base.state["settlement_mode"] = "EXACT_TOKEN_PAYOUT_V1"
-    base.state["manual_accounting_mode"] = "P0_DISABLED_UNTIL_ACTUAL_FILL_CAPTURE"
+    base.state["manual_accounting_mode"] = "USER_REPORTED_ACTUAL_COST_V1"
     base.state["sports_detector_version"] = "home_away_v3_match_moneyline_only"
     base.state["sports_pre_v3_quarantined_now"] = quarantined
 
