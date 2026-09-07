@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import html
+import re
 import time
 
 import httpx
@@ -33,6 +35,28 @@ def _poly() -> PolymarketClient:
     if _delivery_poly is None:
         _delivery_poly = PolymarketClient()
     return _delivery_poly
+
+
+def _parse_took_command(text: str) -> tuple[int, float, float] | None:
+    """Parse /took ALERT_ID STAKE_USD ACTUAL_COST only.
+
+    ACTUAL_COST is the user's genuinely executed cost per $1 payout unit. For a
+    multi-leg complete-set trade it is the combined cost of all filled legs for one
+    equal-share bundle. Two-argument legacy syntax is intentionally rejected.
+    """
+    match = re.fullmatch(
+        r"/took\s+(\d+)\s+([0-9]+(?:\.[0-9]+)?)\s+([0-9]+(?:\.[0-9]+)?)",
+        text.strip(),
+        flags=re.I,
+    )
+    if not match:
+        return None
+    signal_id = int(match.group(1))
+    stake = float(match.group(2))
+    actual_cost = float(match.group(3))
+    if signal_id <= 0 or stake <= 0 or actual_cost <= 0:
+        return None
+    return signal_id, stake, actual_cost
 
 
 async def _safe_post_message(
@@ -257,26 +281,139 @@ async def _trade_delivery_loop(store, tg: Telegram, outbox) -> None:
             await asyncio.sleep(1.0)
 
 
-def _disable_legacy_manual_accounting() -> None:
-    """Do not let /took create retrospective P&L from an old alert quote during P0."""
-    original = worker.Store.record_manual
+async def _safe_manual_stats(self: Telegram) -> None:
+    st = await asyncio.to_thread(self.store.manual_stats)
+    lines = [
+        "💼 <b>Your actual-fill trade ledger</b>",
+        f"Valid trades: <b>{int(st['total'])}</b> | Won: <b>{int(st['won'])}</b> | Lost: <b>{int(st['lost'])}</b> | Partial: <b>{int(st.get('partial') or 0)}</b> | Open: <b>{int(st['open'])}</b>",
+        f"Tracked stake: <b>${float(st['stake']):.2f}</b>",
+        f"P&amp;L from your reported execution costs + actual settlement payouts: <b>${float(st['pnl']):.2f}</b>",
+    ]
+    legacy = int(st.get("legacy_excluded") or 0)
+    if legacy:
+        lines.append(f"Legacy alert-price rows excluded from valid P&amp;L: <b>{legacy}</b>")
+    await self.send("\n".join(lines))
 
-    def guarded_record_manual(self, signal_id: int, stake: float):
-        raise ValueError(
-            "manual trade accounting is disabled during P0 because the current /took command "
-            "does not capture your actual executed price. Existing historical rows are preserved."
+
+async def _safe_poll_commands(self: Telegram) -> None:
+    """Production command parser with actual-fill-only manual accounting."""
+    if not self.token_enabled:
+        return
+    await self.ensure_command_menu()
+    offset = int(await asyncio.to_thread(self.store.get_state, "telegram_offset", "0") or 0)
+    try:
+        response = await self.command_http.get(
+            f"https://api.telegram.org/bot{self.token}/getUpdates",
+            params={"offset": offset, "timeout": 1},
+            timeout=5,
         )
+        response.raise_for_status()
+        data = response.json()
+        if not data.get("ok", False):
+            raise RuntimeError("Telegram getUpdates returned ok=false")
+        self.last_command_poll_at = time.time()
+        self.last_command_error = None
 
-    guarded_record_manual.__name__ = getattr(original, "__name__", "record_manual")
-    worker.Store.record_manual = guarded_record_manual
+        for update in data.get("result", []):
+            offset = max(offset, int(update["update_id"]) + 1)
+            msg = update.get("message") or {}
+            incoming_chat = str((msg.get("chat") or {}).get("id") or "")
+            chat_type = str((msg.get("chat") or {}).get("type") or "")
+            text = str(msg.get("text") or "").strip()
+            low = text.lower()
+
+            if low in {"/whoami", "whoami", "/start"} and incoming_chat and chat_type == "private" and not self.chat_id:
+                await self.send_to(
+                    incoming_chat,
+                    f"Your Telegram chat ID is: <code>{html.escape(incoming_chat)}</code>\n\n"
+                    "Set <code>TELEGRAM_CHAT_ID</code> to this exact value and restart the command service.",
+                )
+                continue
+            if not self.chat_id or incoming_chat != str(self.chat_id):
+                continue
+
+            if low in {"/status", "status"}:
+                await self.send_status()
+            elif low in {"/stats", "stats"}:
+                await self.send_stats()
+            elif low in {"/mystats", "mystats"}:
+                await self.send_manual_stats()
+            elif low in {"/recent", "recent"}:
+                rows = await asyncio.to_thread(self.store.recent, 10)
+                body = ["🧾 <b>Recent alerts</b>"] + [
+                    f"#{x['id']} {html.escape(str(x['detector']))} — {html.escape(str(x['status']))} — {html.escape(str(x['title'])[:70])}"
+                    for x in rows
+                ]
+                await self.send("\n".join(body))
+            elif low in {"/taken", "taken"}:
+                rows = await asyncio.to_thread(self.store.recent_manual, 10)
+                body = ["💼 <b>Recently recorded actual-fill trades</b>"]
+                for row in rows:
+                    source = str(row.get("entry_source") or "")
+                    if source != "USER_REPORTED_EXECUTION":
+                        continue
+                    body.append(
+                        f"Trade #{row['id']} / alert #{row['signal_id']} — stake ${float(row['stake']):.2f} — "
+                        f"actual cost {float(row['entry_cost']):.4f} — {html.escape(str(row['status']))} — "
+                        f"{html.escape(str(row['title'])[:55])}"
+                    )
+                if len(body) == 1:
+                    body.append("No valid actual-fill trades recorded yet.")
+                await self.send("\n".join(body))
+            elif low.startswith("/took"):
+                parsed = _parse_took_command(text)
+                if parsed is None:
+                    await self.send(
+                        "Use: <code>/took ALERT_ID STAKE_USD ACTUAL_COST</code>\n"
+                        "Example: <code>/took 137 50 0.943</code>\n\n"
+                        "ACTUAL_COST must be what you really paid per $1 payout unit. "
+                        "For a multi-leg trade, enter the combined cost of one equal-share complete bundle. "
+                        "The old two-number command is rejected because an alert quote is not an execution."
+                    )
+                else:
+                    signal_id, stake, actual_cost = parsed
+                    try:
+                        row = await asyncio.to_thread(
+                            self.store.record_manual,
+                            signal_id,
+                            stake,
+                            actual_cost,
+                        )
+                        await self.send(
+                            f"✅ Recorded actual trade #{row['id']} from alert #{row['signal_id']}.\n"
+                            f"Stake: <b>${float(row['stake']):.2f}</b> | actual executed cost: <b>{float(row['entry_cost']):.4f}</b>.\n"
+                            "Future P&amp;L uses this execution cost and the actual settlement payout—not the old alert quote."
+                        )
+                    except ValueError as exc:
+                        await self.send(f"Could not record that trade: {html.escape(str(exc))}")
+            elif low in {"/help", "help", "/start"}:
+                await self.send(
+                    "Commands:\n"
+                    "/status — live scanner health and feed status\n"
+                    "/stats — evidence audit for scanner detectors\n"
+                    "/mystats — P&amp;L from your actual recorded fills\n"
+                    "/recent — recent stored scanner alerts\n"
+                    "/taken — your recent valid actual-fill trades\n"
+                    "/took ALERT_ID STAKE_USD ACTUAL_COST — record a trade you really executed\n"
+                    "/help — this list"
+                )
+
+        await asyncio.to_thread(self.store.set_state, "telegram_offset", str(offset))
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:
+        self.last_command_error = worker._sanitize_error(exc)
+        worker.log.warning("Telegram getUpdates/command handling failed: %s", self.last_command_error)
+        raise
 
 
 def install_trade_only_policy() -> None:
     """Patch only the deployed trade-only process; research/test modules stay generic."""
     Telegram._post_message = _safe_post_message
     Telegram.send_signal = _guarded_send_signal
+    Telegram.send_manual_stats = _safe_manual_stats
+    Telegram.poll_commands = _safe_poll_commands
     worker.alert_delivery_loop = _trade_delivery_loop
-    _disable_legacy_manual_accounting()
 
 
 async def main() -> None:
