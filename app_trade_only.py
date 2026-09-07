@@ -23,6 +23,7 @@ from polymarket_scanner.backpressure import (
     SIGNAL_QUEUE_MAX_BATCHES,
     coalesce_signal_batches,
 )
+from polymarket_scanner.db_ops import configure_database_runtime, database_health
 from polymarket_scanner.settlement import selected_token_payout
 from polymarket_scanner.sports_v3 import quarantine_pre_v3_sports_history
 from polymarket_scanner.trade_only import is_trade_ready, mark_trade_readiness, promoted_detectors
@@ -156,14 +157,9 @@ def _bounded_queue_detector_output(signals):
         base.state["signal_batches_pending"] = base.signal_queue.qsize()
         return
 
-    # The queue was drained synchronously above, so this cannot block. Keep the
-    # QueueFull branch fail-safe in case a future concurrent producer is introduced.
     try:
         base.signal_queue.put_nowait(batch)
     except asyncio.QueueFull:
-        # Never silently drop unique ACTIONABLE work. This branch should be
-        # unreachable with the current single event-loop producer; make it visible
-        # and retain the existing queue rather than corrupting task accounting.
         base.state["signal_backpressure_error"] = "bounded signal queue unexpectedly full after coalescing"
         base.log.error(base.state["signal_backpressure_error"])
         return
@@ -230,7 +226,12 @@ base.tg.send = _silent_scanner_push
 
 
 async def _mark_trade_only_runtime() -> None:
+    # Configure WAL/quick-check off the event loop before declaring this runtime
+    # healthy. WAL mode is persistent for the database file and benefits the separate
+    # command-worker process as well.
+    db_runtime = await asyncio.to_thread(configure_database_runtime, base.settings.db_path)
     quarantined = await asyncio.to_thread(quarantine_pre_v3_sports_history, base.settings.db_path)
+    db_health = await asyncio.to_thread(database_health, base.settings.db_path)
     promoted = promoted_detectors()
     base.state["telegram_delivery_mode"] = "TRADE_NOW_ONLY"
     base.state["delivery_persistence_mode"] = "ATOMIC_SIGNAL_OUTBOX_V1"
@@ -248,6 +249,8 @@ async def _mark_trade_only_runtime() -> None:
     base.state["signal_queue_max_batches"] = SIGNAL_QUEUE_MAX_BATCHES
     base.state["signal_watch_retention"] = RESEARCH_WATCH_RETENTION
     base.state["signal_backpressure_mode"] = "COALESCE_DUPLICATES_KEEP_ALL_UNIQUE_ACTIONABLE_BOUND_WATCH"
+    base.state["sqlite_runtime"] = db_runtime
+    base.state["sqlite_health"] = db_health
 
 
 app.add_event_handler("startup", _mark_trade_only_runtime)
