@@ -18,6 +18,11 @@ import time
 import app as base
 import app_stable_v2 as stable_v2
 from polymarket_scanner.atomic_delivery import persist_trade_now_intent
+from polymarket_scanner.backpressure import (
+    RESEARCH_WATCH_RETENTION,
+    SIGNAL_QUEUE_MAX_BATCHES,
+    coalesce_signal_batches,
+)
 from polymarket_scanner.settlement import selected_token_payout
 from polymarket_scanner.sports_v3 import quarantine_pre_v3_sports_history
 from polymarket_scanner.trade_only import is_trade_ready, mark_trade_readiness, promoted_detectors
@@ -27,6 +32,11 @@ app = stable_v2.app
 _original_confirm_actionable = base.confirm_actionable
 _original_save_signal = base.store.save_signal
 _original_evaluate_signals = base.evaluate_signals
+
+# Replace the unbounded base queue before FastAPI startup. base.signal_processing_loop
+# resolves this module global at runtime, so the worker automatically consumes the
+# bounded queue below without duplicating its processing logic.
+base.signal_queue = asyncio.Queue(maxsize=SIGNAL_QUEUE_MAX_BATCHES)
 
 # Whole-universe price snapshots are discovery data, not execution evidence. They
 # may be incomplete because some tokens have no usable top ask. Surface that ratio
@@ -116,6 +126,63 @@ def _trade_only_enqueue(_signal_id, signal):
     return is_trade_ready(signal)
 
 
+def _bounded_queue_detector_output(signals):
+    """Coalesce all pending candidate batches into one bounded latest-state batch.
+
+    Every unique ACTIONABLE episode survives. Repeated observations are replaced by
+    their newest copy, and only WATCH/research rows are capped. This prevents a slow
+    SQLite/network phase from turning a burst of scanner wakes into an unbounded
+    stale-work queue while preserving future financial-candidate availability.
+    """
+    if not signals:
+        return
+
+    pending_batches = []
+    drained = 0
+    while True:
+        try:
+            pending = base.signal_queue.get_nowait()
+        except asyncio.QueueEmpty:
+            break
+        pending_batches.append(pending)
+        base.signal_queue.task_done()
+        drained += 1
+
+    batch, stats = coalesce_signal_batches(
+        [*pending_batches, signals],
+        watch_limit=RESEARCH_WATCH_RETENTION,
+    )
+    if not batch:
+        base.state["signal_batches_pending"] = base.signal_queue.qsize()
+        return
+
+    # The queue was drained synchronously above, so this cannot block. Keep the
+    # QueueFull branch fail-safe in case a future concurrent producer is introduced.
+    try:
+        base.signal_queue.put_nowait(batch)
+    except asyncio.QueueFull:
+        # Never silently drop unique ACTIONABLE work. This branch should be
+        # unreachable with the current single event-loop producer; make it visible
+        # and retain the existing queue rather than corrupting task accounting.
+        base.state["signal_backpressure_error"] = "bounded signal queue unexpectedly full after coalescing"
+        base.log.error(base.state["signal_backpressure_error"])
+        return
+
+    base.state["signal_batches_pending"] = base.signal_queue.qsize()
+    base.state["signal_queue_max_batches"] = SIGNAL_QUEUE_MAX_BATCHES
+    base.state["signal_batches_coalesced_total"] = int(
+        base.state.get("signal_batches_coalesced_total") or 0
+    ) + drained
+    base.state["signal_duplicate_episodes_coalesced_total"] = int(
+        base.state.get("signal_duplicate_episodes_coalesced_total") or 0
+    ) + int(stats["duplicate_episodes_coalesced"])
+    base.state["signal_watch_dropped_backpressure_total"] = int(
+        base.state.get("signal_watch_dropped_backpressure_total") or 0
+    ) + int(stats["watch_dropped"])
+    base.state["signal_queue_last_coalesce"] = stats
+    base.state["signal_backpressure_error"] = None
+
+
 async def _silent_scanner_push(*_args, **_kwargs):
     return None
 
@@ -157,6 +224,7 @@ base.evaluate_signals = _trade_only_evaluate_signals
 base.confirm_actionable = _trade_only_confirm
 base.store.save_signal = _trade_only_save_signal
 base.enqueue_alert = _trade_only_enqueue
+base.queue_detector_output = _bounded_queue_detector_output
 base.settle_open_paper_trades = _payout_aware_settlement
 base.tg.send = _silent_scanner_push
 
@@ -177,6 +245,9 @@ async def _mark_trade_only_runtime() -> None:
     base.state["universe_authority"] = base.poly.universe_status()
     base.state["universe_safe_for_detection"] = False
     base.state["price_discovery_authority"] = _price_discovery_status()
+    base.state["signal_queue_max_batches"] = SIGNAL_QUEUE_MAX_BATCHES
+    base.state["signal_watch_retention"] = RESEARCH_WATCH_RETENTION
+    base.state["signal_backpressure_mode"] = "COALESCE_DUPLICATES_KEEP_ALL_UNIQUE_ACTIONABLE_BOUND_WATCH"
 
 
 app.add_event_handler("startup", _mark_trade_only_runtime)
