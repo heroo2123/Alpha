@@ -483,21 +483,110 @@ class Store:
             "detectors": detector_rows,
         }
 
+    @staticmethod
+    def _audit_time(value: object) -> datetime | None:
+        if not value:
+            return None
+        try:
+            parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        except (TypeError, ValueError):
+            return None
+        if parsed.tzinfo is None:
+            return None
+        return parsed.astimezone(timezone.utc)
+
     def manual_stats(self) -> dict:
+        """Return only prospective user-reported executions as valid manual P&L.
+
+        Historical rows are never rewritten. Instead they are classified at read
+        time and excluded from the valid totals when they came from a known-bug
+        sports version, predate execution timestamps, were recorded at/after known
+        settlement, or represent a structural multi-leg basket without per-leg fill
+        evidence. This preserves the audit trail while preventing old rows from
+        masquerading as trustworthy realized performance.
+        """
         with self._conn() as c:
-            valid_where = "entry_source='USER_REPORTED_EXECUTION'"
-            total = c.execute(f"SELECT COUNT(*) FROM manual_trades WHERE {valid_where}").fetchone()[0]
-            won = c.execute(f"SELECT COUNT(*) FROM manual_trades WHERE {valid_where} AND status='WON'").fetchone()[0]
-            lost = c.execute(f"SELECT COUNT(*) FROM manual_trades WHERE {valid_where} AND status='LOST'").fetchone()[0]
-            partial = c.execute(f"SELECT COUNT(*) FROM manual_trades WHERE {valid_where} AND status='RESOLVED_PARTIAL'").fetchone()[0]
-            open_ = c.execute(f"SELECT COUNT(*) FROM manual_trades WHERE {valid_where} AND status='OPEN'").fetchone()[0]
-            stake = c.execute(f"SELECT COALESCE(SUM(stake),0) FROM manual_trades WHERE {valid_where}").fetchone()[0]
-            pnl = c.execute(f"SELECT COALESCE(SUM(pnl),0) FROM manual_trades WHERE {valid_where}").fetchone()[0]
-            legacy = c.execute("SELECT COUNT(*) FROM manual_trades WHERE entry_source!='USER_REPORTED_EXECUTION'").fetchone()[0]
-            return {
-                "total": total, "won": won, "lost": lost, "partial": partial, "open": open_,
-                "stake": float(stake), "pnl": float(pnl), "legacy_excluded": int(legacy),
+            rows = [dict(r) for r in c.execute(
+                """
+                SELECT
+                    m.id,m.signal_id,m.stake,m.entry_cost,m.entry_source,m.execution_at,
+                    m.status,m.pnl,m.settlement_payout,m.created_at,m.resolved_at,
+                    s.detector AS signal_detector,s.metadata AS signal_metadata,
+                    s.status AS signal_status,s.resolved_at AS signal_resolved_at
+                FROM manual_trades m
+                LEFT JOIN signals s ON s.id=m.signal_id
+                ORDER BY m.id
+                """
+            )]
+
+        valid: list[dict] = []
+        legacy_excluded = 0
+        known_bug_excluded = 0
+        timing_unknown_excluded = 0
+        retrospective_excluded = 0
+        structural_unverified_excluded = 0
+        orphan_excluded = 0
+
+        for row in rows:
+            if str(row.get("entry_source") or "") != "USER_REPORTED_EXECUTION":
+                legacy_excluded += 1
+                continue
+            detector = str(row.get("signal_detector") or "")
+            if not detector:
+                orphan_excluded += 1
+                continue
+            signal_like = {
+                "detector": detector,
+                "metadata": row.get("signal_metadata"),
             }
+            if self._sports_pre_fix(signal_like):
+                known_bug_excluded += 1
+                continue
+            execution_at = self._audit_time(row.get("execution_at"))
+            if execution_at is None:
+                timing_unknown_excluded += 1
+                continue
+            signal_resolved_at = self._audit_time(row.get("signal_resolved_at"))
+            if row.get("signal_resolved_at") and signal_resolved_at is None:
+                timing_unknown_excluded += 1
+                continue
+            if signal_resolved_at is not None and execution_at >= signal_resolved_at:
+                retrospective_excluded += 1
+                continue
+            if detector in STRUCTURAL_DETECTORS:
+                # A combined user-entered cost is useful personal history, but it is
+                # not evidence that every required leg/quantity/fee filled. Keep it
+                # visible only as an exclusion until per-leg fill records exist.
+                structural_unverified_excluded += 1
+                continue
+            valid.append(row)
+
+        won = sum(str(row.get("status") or "") == "WON" for row in valid)
+        lost = sum(str(row.get("status") or "") == "LOST" for row in valid)
+        partial = sum(str(row.get("status") or "") == "RESOLVED_PARTIAL" for row in valid)
+        open_ = sum(str(row.get("status") or "") == "OPEN" for row in valid)
+        stake = sum(float(row.get("stake") or 0.0) for row in valid)
+        pnl = sum(float(row.get("pnl") or 0.0) for row in valid if row.get("pnl") is not None)
+        excluded_total = (
+            legacy_excluded + known_bug_excluded + timing_unknown_excluded
+            + retrospective_excluded + structural_unverified_excluded + orphan_excluded
+        )
+        return {
+            "total": len(valid),
+            "won": won,
+            "lost": lost,
+            "partial": partial,
+            "open": open_,
+            "stake": float(stake),
+            "pnl": float(pnl),
+            "legacy_excluded": legacy_excluded,
+            "known_bug_excluded": known_bug_excluded,
+            "timing_unknown_excluded": timing_unknown_excluded,
+            "retrospective_excluded": retrospective_excluded,
+            "structural_unverified_excluded": structural_unverified_excluded,
+            "orphan_excluded": orphan_excluded,
+            "excluded_total": excluded_total,
+        }
 
     def recent(self, limit: int = 10):
         with self._conn() as c:
