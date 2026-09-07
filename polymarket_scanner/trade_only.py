@@ -11,6 +11,7 @@ from .config import settings
 from .hardening import MAX_MANUAL_LEGS, MIN_VISIBLE_NOTIONAL_USD
 from .models import Signal
 from .polymarket import taker_fee_per_share
+from .weather_calibration import WEATHER_CALIBRATION_VERSION, WEATHER_DETECTORS
 
 TRADE_READY_VERSION = "trade_now_v1"
 TRADE_READY_TTL_SECONDS = 8.0
@@ -91,12 +92,32 @@ def _open_market_state(raw: object) -> bool:
     return True
 
 
+def _weather_probability_floor(signal: Signal) -> float | None:
+    """Return only a prospective empirical lower bound, never the raw heuristic."""
+    if signal.detector not in WEATHER_DETECTORS:
+        return None
+    m = signal.metadata
+    if m.get("weather_calibration_version") != WEATHER_CALIBRATION_VERSION:
+        return None
+    if m.get("weather_calibration_ready") is not True:
+        return None
+    floor = _float(m.get("calibrated_probability_lower_bound"))
+    if floor is None or floor <= 0.0 or floor > 1.0:
+        return None
+    return floor
+
+
 def mark_trade_readiness(signal: Signal) -> bool:
     """Mark a freshly REST-confirmed signal as safe for automatic Telegram delivery.
 
     Detector confidence is not permission to trade. A signal must belong to the
     explicit promotion registry, carry the matching semantic certificate, and have
     a very recent executable-book confirmation. P0 keeps the registry empty.
+
+    Weather has one additional irreversible rule: a heuristic lock score can never
+    be used as a money probability. Even after explicit detector promotion, weather
+    requires a prospective empirical calibration sample and uses only its
+    conservative lower confidence bound for the final edge calculation.
     """
     m = signal.metadata
     m["trade_ready"] = False
@@ -136,17 +157,32 @@ def mark_trade_readiness(signal: Signal) -> bool:
         m["trade_ready_reason"] = "confirmed price/size data not executable"
         return False
 
-    edge = _float(signal.edge)
     cost = _float(signal.entry_cost)
     capacity = _float(m.get("max_visible_notional_usd"))
-    if edge is None or edge < settings.actionable_min_edge:
-        m["trade_ready_reason"] = "post-confirmation edge below TRADE NOW floor"
-        return False
     if cost is None or cost <= 0 or cost >= 1:
         m["trade_ready_reason"] = "post-confirmation combined cost invalid"
         return False
     if capacity is None or capacity < MIN_VISIBLE_NOTIONAL_USD:
         m["trade_ready_reason"] = "visible executable capacity below manual floor"
+        return False
+
+    if signal.detector in WEATHER_DETECTORS:
+        if len(signal.token_ids) != 1:
+            m["trade_ready_reason"] = "weather TRADE NOW must be a single selected bucket token"
+            return False
+        probability_floor = _weather_probability_floor(signal)
+        if probability_floor is None:
+            m["trade_ready_reason"] = "weather empirical calibration gate did not pass"
+            return False
+        edge = probability_floor - cost
+        signal.edge = edge
+        m["trade_probability_basis"] = "WEATHER_EMPIRICAL_LOWER_BOUND"
+        m["trade_probability"] = probability_floor
+    else:
+        edge = _float(signal.edge)
+
+    if edge is None or edge < settings.actionable_min_edge:
+        m["trade_ready_reason"] = "post-confirmation edge below TRADE NOW floor"
         return False
 
     if signal.detector == "binary_buy_both" and len(signal.token_ids) != 2:
@@ -162,7 +198,13 @@ def mark_trade_readiness(signal: Signal) -> bool:
     m["trade_ready"] = True
     m["trade_ready_created_at"] = datetime.now(timezone.utc).isoformat()
     m["trade_ready_expires_in_seconds"] = TRADE_READY_TTL_SECONDS
-    m["trade_ready_reason"] = "semantic certification + fresh open market state + executable book + edge + capacity passed"
+    if signal.detector in WEATHER_DETECTORS:
+        m["trade_ready_reason"] = (
+            "semantic certification + prospective empirical weather calibration lower bound + "
+            "fresh open market state + executable book + fees + edge + visible size passed"
+        )
+    else:
+        m["trade_ready_reason"] = "semantic certification + fresh open market state + executable book + fees + edge + visible size passed"
     return True
 
 
@@ -173,12 +215,20 @@ async def refresh_trade_readiness(signal: Signal, poly) -> bool:
     reuses the quote snapshot stored when the detector first fired. If anything is
     closed, non-tradable, missing, too expensive or too small, the alert fails
     closed and is suppressed rather than being delivered stale.
+
+    For weather, the detector's raw lock score is deliberately ignored here. Only a
+    calibration lower bound attached from the clean resolved database may supply the
+    probability side of the edge calculation.
     """
     m = signal.metadata
     m["trade_ready"] = False
 
     if signal.confidence != "ACTIONABLE" or signal.detector not in _CERTIFICATIONS:
         m["trade_ready_reason"] = "detector is not promoted to TRADE NOW (P0 containment)"
+        return False
+
+    if signal.detector in WEATHER_DETECTORS and _weather_probability_floor(signal) is None:
+        m["trade_ready_reason"] = "weather empirical calibration gate did not pass"
         return False
 
     market_ids = _delivery_market_ids(signal)
@@ -215,12 +265,20 @@ async def refresh_trade_readiness(signal: Signal, poly) -> bool:
 
     fees = sum(taker_fee_per_share(ask) for ask in asks)
     cost = sum(asks) + fees
-    probability = 1.0
-    if len(asks) == 1:
-        model_probability = _float(m.get("lock_probability"))
-        if model_probability is not None:
-            probability = model_probability
-    edge = probability - cost if len(asks) == 1 else 1.0 - cost
+    if signal.detector in WEATHER_DETECTORS:
+        probability = _weather_probability_floor(signal)
+        if probability is None:
+            m["trade_ready_reason"] = "weather empirical calibration gate did not pass"
+            return False
+        edge = probability - cost
+        m["trade_probability_basis"] = "WEATHER_EMPIRICAL_LOWER_BOUND"
+        m["trade_probability"] = probability
+    else:
+        # Non-weather one-leg known-outcome adapters (e.g. terminal sports/crypto)
+        # only become promotable after their own semantic certification, at which
+        # point the payoff is objectively known and the probability side is 1.0.
+        edge = 1.0 - cost
+
     common = min(sizes)
     capacity = common * cost
 
@@ -245,6 +303,8 @@ def is_trade_ready(signal: Signal) -> bool:
         and signal.metadata.get("trade_ready_version") == TRADE_READY_VERSION
         and signal.detector in _CERTIFICATIONS
     ):
+        return False
+    if signal.detector in WEATHER_DETECTORS and _weather_probability_floor(signal) is None:
         return False
     age = _confirmation_age_seconds(signal.metadata.get("rest_confirmed_at"))
     return age is not None and age <= TRADE_READY_TTL_SECONDS
@@ -283,9 +343,12 @@ async def send_trade_now(tg, signal_id: int, signal: Signal) -> None:
         f"💵 Combined confirmed cost: <b>{cost:.4f}</b> per $1 payout",
         f"📏 Visible capacity: <b>about ${capacity:.2f}</b> | common size {common:.2f} shares",
         f"⏱ Certificate expires <b>{TRADE_READY_TTL_SECONDS:.0f}s</b> after REST confirmation.",
-        "",
-        "✅ <b>EXECUTE</b>",
     ]
+    if signal.detector in WEATHER_DETECTORS:
+        probability = _weather_probability_floor(signal)
+        if probability is not None:
+            lines.append(f"🌦 Conservative calibrated probability floor: <b>{probability:.2%}</b>.")
+    lines.extend(["", "✅ <b>EXECUTE</b>"])
     price_lines = _price_lines(signal)
     for i, text in enumerate(price_lines, 1):
         lines.append(f"{i}. {html.escape(text)}")
@@ -294,7 +357,7 @@ async def send_trade_now(tg, signal_id: int, signal: Signal) -> None:
         f"{len(price_lines) + 2}. If any live ask is now above the listed maximum or size is smaller, <b>SKIP</b> and wait for a fresh alert.",
         "",
         f"🛡 Bot checks passed: <b>{html.escape(str(m.get('certification_status') or 'certified'))}</b> + open market + fresh REST order book + fees + edge + visible size.",
-        f"🧾 Took it? Record the actual executed cost when manual accounting is re-enabled after P0.",
+        "🧾 Took it? Record your actual executed cost; alert quotes are never used as realized P&L.",
     ])
     text = "\n".join(lines)
     await tg.send_alert(text, tg._buttons(signal))
