@@ -1,4 +1,5 @@
 import sqlite3
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -22,6 +23,32 @@ def _signal(*, cost: float = 0.8) -> Signal:
         token_ids=["yes-token"],
         metadata={"sports_mapping_version": "home_away_v2"},
     )
+
+
+def _manual_insert(
+    db: str,
+    signal_id: int,
+    *,
+    execution_at: str | None,
+    status: str = "WON",
+    pnl: float | None = 25.0,
+    entry_source: str = "USER_REPORTED_EXECUTION",
+) -> None:
+    with sqlite3.connect(db) as c:
+        c.execute(
+            """
+            INSERT INTO manual_trades(
+                signal_id,stake,entry_cost,entry_source,execution_at,status,pnl,
+                settlement_payout,created_at,resolved_at
+            ) VALUES(?,?,?,?,?,?,?,?,?,?)
+            """,
+            (
+                signal_id, 100.0, 0.8, entry_source, execution_at, status, pnl,
+                1.0 if status == "WON" else None,
+                execution_at or "2026-09-07T00:00:00+00:00",
+                "2026-09-07T01:00:00+00:00" if status != "OPEN" else None,
+            ),
+        )
 
 
 def test_partial_settlement_is_not_coerced_to_full_loss(tmp_path):
@@ -75,8 +102,6 @@ def test_manual_trade_requires_actual_cost_and_resolves_only_after_execution(tmp
     with pytest.raises(ValueError, match="actual executed cost"):
         store.record_manual(signal_id, 100.0)
 
-    # Record the genuine execution while the alert is still unresolved. It must not
-    # have any realized P&L until a later settlement write occurs.
     trade = store.record_manual(signal_id, 100.0, 0.90)
     assert trade["entry_source"] == "USER_REPORTED_EXECUTION"
     assert trade["entry_cost"] == pytest.approx(0.90)
@@ -101,8 +126,12 @@ def test_manual_trade_requires_actual_cost_and_resolves_only_after_execution(tmp
     resolved = next(x for x in rows if x["id"] == trade["id"])
     assert resolved["status"] == "WON"
     assert resolved["pnl"] == pytest.approx(100.0 / 0.90 - 100.0)
-    # If the stale alert quote (0.80) had been reused, this would have been $25.
     assert resolved["pnl"] != pytest.approx(25.0)
+
+    stats = store.manual_stats()
+    assert stats["total"] == 1
+    assert stats["won"] == 1
+    assert stats["excluded_total"] == 0
 
 
 def test_manual_trade_after_known_settlement_is_rejected(tmp_path):
@@ -148,19 +177,85 @@ def test_legacy_manual_rows_are_excluded_from_valid_manual_stats(tmp_path):
     signal_id = store.save_signal(_signal())
     assert signal_id is not None
 
-    with sqlite3.connect(db) as c:
-        c.execute(
-            """
-            INSERT INTO manual_trades(signal_id,stake,entry_cost,status,pnl,created_at)
-            VALUES(?,?,?,?,?,?)
-            """,
-            (signal_id, 50.0, 0.8, "WON", 12.5, "2026-09-07T00:00:00+00:00"),
-        )
+    _manual_insert(
+        db,
+        signal_id,
+        execution_at=None,
+        entry_source="LEGACY_ALERT_ESTIMATE",
+    )
 
     stats = store.manual_stats()
     assert stats["total"] == 0
     assert stats["pnl"] == 0.0
     assert stats["legacy_excluded"] == 1
+    assert stats["excluded_total"] == 1
+
+
+def test_pre_fix_sports_manual_row_is_quarantined_without_rewriting(tmp_path):
+    db = str(tmp_path / "signals.db")
+    store = Store(db)
+    bad = _signal()
+    bad.metadata = {"sports_mapping_version": "old_title_order_bug"}
+    signal_id = store.save_signal(bad)
+    assert signal_id is not None
+    execution_at = datetime(2026, 9, 7, 0, 0, tzinfo=timezone.utc).isoformat()
+    _manual_insert(db, signal_id, execution_at=execution_at)
+
+    stats = store.manual_stats()
+    assert stats["total"] == 0
+    assert stats["known_bug_excluded"] == 1
+    assert stats["pnl"] == 0.0
+
+    with sqlite3.connect(db) as c:
+        row = c.execute("SELECT entry_source,status,pnl FROM manual_trades").fetchone()
+    assert row == ("USER_REPORTED_EXECUTION", "WON", 25.0)
+
+
+def test_historical_retrospective_manual_row_is_excluded_without_rewrite(tmp_path):
+    db = str(tmp_path / "signals.db")
+    store = Store(db)
+    signal_id = store.save_signal(_signal())
+    assert signal_id is not None
+    store.resolve_payout(signal_id, 1.0, 100.0)
+    signal = store.get_signal(signal_id)
+    resolved_at = datetime.fromisoformat(signal["resolved_at"])
+    execution_at = (resolved_at + timedelta(seconds=5)).isoformat()
+    _manual_insert(db, signal_id, execution_at=execution_at)
+
+    stats = store.manual_stats()
+    assert stats["total"] == 0
+    assert stats["retrospective_excluded"] == 1
+    assert stats["pnl"] == 0.0
+
+
+def test_manual_row_without_execution_timestamp_is_not_valid_evidence(tmp_path):
+    db = str(tmp_path / "signals.db")
+    store = Store(db)
+    signal_id = store.save_signal(_signal())
+    assert signal_id is not None
+    _manual_insert(db, signal_id, execution_at=None)
+
+    stats = store.manual_stats()
+    assert stats["total"] == 0
+    assert stats["timing_unknown_excluded"] == 1
+
+
+def test_structural_combined_cost_row_is_separate_unverified_evidence(tmp_path):
+    db = str(tmp_path / "signals.db")
+    store = Store(db)
+    structural = _signal()
+    structural.detector = "binary_buy_both"
+    structural.token_ids = ["yes", "no"]
+    structural.metadata = {"fingerprint_key": "structural"}
+    signal_id = store.save_signal(structural)
+    assert signal_id is not None
+
+    execution_at = datetime(2026, 9, 7, 0, 0, tzinfo=timezone.utc).isoformat()
+    _manual_insert(db, signal_id, execution_at=execution_at, status="OPEN", pnl=None)
+    stats = store.manual_stats()
+    assert stats["total"] == 0
+    assert stats["structural_unverified_excluded"] == 1
+    assert stats["stake"] == 0.0
 
 
 def test_synthetic_structural_settlement_is_disabled(tmp_path):
