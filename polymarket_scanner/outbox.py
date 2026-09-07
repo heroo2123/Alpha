@@ -12,13 +12,19 @@ from .models import Signal
 
 
 class TelegramOutbox:
-    """Small persistent queue shared by scanner and Telegram command worker.
+    """Persistent scanner -> Telegram queue with fail-closed delivery states.
 
-    ACTIONABLE alerts are never silently discarded. WATCH alerts are bounded so an
-    extended Telegram outage cannot create an enormous stale research backlog.
-    Safety policy may explicitly SUPPRESS a row; that is a terminal state distinct
-    from SENT so audit output never claims that Telegram accepted a message that was
-    intentionally withheld.
+    Production delivery is deliberately not an at-least-once queue. A money alert
+    that may already have reached Telegram must never be retried blindly after a
+    worker crash or ambiguous network failure, because a duplicate stale TRADE NOW
+    instruction is worse than missing one opportunity. The lifecycle is therefore:
+
+      PENDING -> SENDING -> SENT
+                         -> SUPPRESSED   (policy / revalidation failed)
+                         -> UNCERTAIN    (delivery may have happened; never auto-retry)
+                SENDING -> PENDING      (only for a confirmed no-delivery failure)
+
+    A separate atomic claim prevents two command workers from sending the same row.
     """
 
     def __init__(self, path: str) -> None:
@@ -46,19 +52,26 @@ class TelegramOutbox:
                     last_error TEXT,
                     created_at REAL NOT NULL,
                     sent_at REAL,
+                    claimed_at REAL,
                     FOREIGN KEY(signal_id) REFERENCES signals(id)
                 );
                 CREATE INDEX IF NOT EXISTS idx_telegram_outbox_pending
                     ON telegram_outbox(status, priority, next_attempt_at, id);
                 """
             )
+            # Existing production databases predate the claim column. SQLite has no
+            # ADD COLUMN IF NOT EXISTS on all supported versions, so inspect first.
+            cols = {str(row[1]) for row in c.execute("PRAGMA table_info(telegram_outbox)")}
+            if "claimed_at" not in cols:
+                c.execute("ALTER TABLE telegram_outbox ADD COLUMN claimed_at REAL")
 
     def enqueue_signal(self, signal_id: int, priority: int) -> bool:
         with self._lock, self._conn() as c:
             if int(priority) >= 10:
                 pending_watch = int(
                     c.execute(
-                        "SELECT COUNT(*) FROM telegram_outbox WHERE status='PENDING' AND priority>=10"
+                        "SELECT COUNT(*) FROM telegram_outbox "
+                        "WHERE status IN ('PENDING','SENDING') AND priority>=10"
                     ).fetchone()[0]
                 )
                 if pending_watch >= int(settings.telegram_watch_backlog_limit):
@@ -77,7 +90,7 @@ class TelegramOutbox:
         with self._conn() as c:
             return int(
                 c.execute(
-                    "SELECT COUNT(*) FROM telegram_outbox WHERE status='PENDING'"
+                    "SELECT COUNT(*) FROM telegram_outbox WHERE status IN ('PENDING','SENDING')"
                 ).fetchone()[0]
             )
 
@@ -95,13 +108,47 @@ class TelegramOutbox:
             ).fetchone()
             return dict(row) if row else None
 
+    def claim(self, outbox_id: int) -> bool:
+        """Atomically reserve one due row for exactly one delivery worker."""
+        now = time.time()
+        with self._lock, self._conn() as c:
+            cur = c.execute(
+                """
+                UPDATE telegram_outbox
+                SET status='SENDING', claimed_at=?
+                WHERE id=? AND status='PENDING' AND next_attempt_at <= ?
+                """,
+                (now, int(outbox_id), now),
+            )
+            return bool(cur.rowcount)
+
+    def recover_abandoned_claims(self) -> int:
+        """Quarantine in-flight rows after a worker restart instead of duplicating.
+
+        If the old process died after Telegram accepted the message but before the
+        local SENT commit, no local database can prove which side happened. Such a
+        row becomes UNCERTAIN and requires a new freshly generated signal; it is
+        never automatically resent.
+        """
+        with self._lock, self._conn() as c:
+            cur = c.execute(
+                """
+                UPDATE telegram_outbox
+                SET status='UNCERTAIN', sent_at=NULL,
+                    last_error='worker restarted while delivery was in-flight; not retried to avoid duplicate',
+                    claimed_at=NULL
+                WHERE status='SENDING'
+                """
+            )
+            return int(cur.rowcount or 0)
+
     def mark_sent(self, outbox_id: int) -> None:
         with self._lock, self._conn() as c:
             c.execute(
                 """
                 UPDATE telegram_outbox
-                SET status='SENT', sent_at=?, last_error=NULL
-                WHERE id=?
+                SET status='SENT', sent_at=?, last_error=NULL, claimed_at=NULL
+                WHERE id=? AND status='SENDING'
                 """,
                 (time.time(), int(outbox_id)),
             )
@@ -111,28 +158,48 @@ class TelegramOutbox:
             c.execute(
                 """
                 UPDATE telegram_outbox
-                SET status='SUPPRESSED', sent_at=NULL, last_error=?
-                WHERE id=?
+                SET status='SUPPRESSED', sent_at=NULL, last_error=?, claimed_at=NULL
+                WHERE id=? AND status='SENDING'
+                """,
+                (str(reason)[:1000], int(outbox_id)),
+            )
+
+    def mark_uncertain(self, outbox_id: int, reason: str) -> None:
+        """Terminal state for a send whose Telegram receipt is unknown."""
+        with self._lock, self._conn() as c:
+            c.execute(
+                """
+                UPDATE telegram_outbox
+                SET status='UNCERTAIN', sent_at=NULL, last_error=?, claimed_at=NULL
+                WHERE id=? AND status='SENDING'
                 """,
                 (str(reason)[:1000], int(outbox_id)),
             )
 
     def mark_failed(self, outbox_id: int, error: str) -> None:
+        """Requeue only failures known to have produced no Telegram message."""
         with self._lock, self._conn() as c:
             row = c.execute(
-                "SELECT attempts FROM telegram_outbox WHERE id=?",
+                "SELECT attempts FROM telegram_outbox WHERE id=? AND status='SENDING'",
                 (int(outbox_id),),
             ).fetchone()
-            attempts = int(row["attempts"] if row else 0) + 1
+            if not row:
+                return
+            attempts = int(row["attempts"] or 0) + 1
             delay = min(60.0, 2.0 ** min(attempts, 6))
             c.execute(
                 """
                 UPDATE telegram_outbox
-                SET attempts=?, next_attempt_at=?, last_error=?
-                WHERE id=?
+                SET status='PENDING', attempts=?, next_attempt_at=?, last_error=?, claimed_at=NULL
+                WHERE id=? AND status='SENDING'
                 """,
                 (attempts, time.time() + delay, str(error)[:1000], int(outbox_id)),
             )
+
+    def status(self, outbox_id: int) -> dict | None:
+        with self._conn() as c:
+            row = c.execute("SELECT * FROM telegram_outbox WHERE id=?", (int(outbox_id),)).fetchone()
+            return dict(row) if row else None
 
     @staticmethod
     def signal_from_row(row: dict) -> Signal:
