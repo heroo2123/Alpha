@@ -129,6 +129,30 @@ def _leg_count_ok(signal: Signal) -> tuple[bool, str]:
     return True, ""
 
 
+def _apply_certificate_economics(signal: Signal, derived: dict) -> tuple[float, float, float, float]:
+    """Overwrite detector-time execution estimates with immutable certificate values.
+
+    This happens even when the candidate is subsequently rejected for insufficient
+    edge. Audits and UI must never retain a stale detector-time price/edge after a
+    newer exact CLOB certificate has been built.
+    """
+    cost = float(derived["cost"])
+    capacity = float(derived["capacity"])
+    common = float(derived["common_visible"])
+    safe_common = float(derived["safe_common"])
+    legs = derived["legs"]
+
+    signal.entry_cost = cost
+    m = signal.metadata
+    m["confirmed_asks"] = [float(leg["ask"]) for leg in legs]
+    m["confirmed_sizes"] = [float(leg["visible_best_ask_size"]) for leg in legs]
+    m["visible_common_shares"] = common
+    m["safe_common_shares"] = safe_common
+    m["max_visible_notional_usd"] = capacity
+    m["rest_confirmed_at"] = derived["checked_at"].isoformat()
+    return cost, capacity, common, safe_common
+
+
 def mark_trade_readiness(signal: Signal) -> bool:
     """Authorize only a fresh, self-validating exact CLOB execution certificate."""
     m = signal.metadata
@@ -157,33 +181,30 @@ def mark_trade_readiness(signal: Signal) -> bool:
         m["trade_ready_reason"] = cert_reason
         return False
 
-    cost = float(derived["cost"])
-    capacity = float(derived["capacity"])
-    common = float(derived["common_visible"])
-    safe_common = float(derived["safe_common"])
+    try:
+        cost, capacity, common, safe_common = _apply_certificate_economics(signal, derived)
+    except (TypeError, ValueError, OverflowError, KeyError):
+        signal.edge = None
+        m["trade_ready_reason"] = "execution certificate derived values could not be canonicalized"
+        return False
     if not all(math.isfinite(x) for x in (cost, capacity, common, safe_common)):
+        signal.edge = None
         m["trade_ready_reason"] = "execution certificate derived nonfinite values"
         return False
 
     edge, reason = _edge_from_certificate(signal, cost)
-    if edge is None:
-        m["trade_ready_reason"] = reason
+    if edge is None or not math.isfinite(edge):
+        signal.edge = None
+        m["trade_ready_reason"] = reason or "post-certificate edge invalid"
         return False
-    if not math.isfinite(edge) or edge < settings.actionable_min_edge:
+
+    # Store the fresh economics before deciding whether they are good enough. A
+    # rejection must not leave the older detector-time edge behind.
+    signal.edge = edge
+    if edge < settings.actionable_min_edge:
         m["trade_ready_reason"] = "post-certificate edge below TRADE NOW floor"
         return False
 
-    # Canonical money fields are overwritten from the immutable certificate so old
-    # detector-time estimates cannot leak into Telegram or accounting metadata.
-    signal.entry_cost = cost
-    signal.edge = edge
-    legs = derived["legs"]
-    m["confirmed_asks"] = [float(leg["ask"]) for leg in legs]
-    m["confirmed_sizes"] = [float(leg["visible_best_ask_size"]) for leg in legs]
-    m["visible_common_shares"] = common
-    m["safe_common_shares"] = safe_common
-    m["max_visible_notional_usd"] = capacity
-    m["rest_confirmed_at"] = derived["checked_at"].isoformat()
     m["trade_ready"] = True
     m["trade_ready_created_at"] = derived["checked_at"].isoformat()
     m["trade_ready_expires_at"] = derived["expires_at"].isoformat()
@@ -230,6 +251,7 @@ async def refresh_trade_readiness(signal: Signal, poly) -> bool:
         return False
 
     if signal.detector in WEATHER_DETECTORS and _weather_probability_floor(signal) is None:
+        signal.edge = None
         m["trade_ready_reason"] = "weather empirical calibration gate did not pass"
         return False
 
