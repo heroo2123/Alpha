@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import html
+import math
+from datetime import datetime, timezone
 from typing import Any
 
 from .config import settings
@@ -8,6 +10,7 @@ from .hardening import MAX_MANUAL_LEGS, MIN_VISIBLE_NOTIONAL_USD
 from .models import Signal
 
 TRADE_READY_VERSION = "trade_now_v1"
+TRADE_READY_TTL_SECONDS = 8.0
 
 # P0 containment policy (2026-09-07): no detector is promoted to real-money
 # TRADE NOW until its semantic, execution, delivery, accounting and evidence gates
@@ -23,10 +26,31 @@ def promoted_detectors() -> tuple[str, ...]:
 
 
 def _float(value: Any) -> float | None:
+    if value is None or isinstance(value, bool):
+        return None
     try:
-        return float(value)
+        number = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    return number if math.isfinite(number) else None
+
+
+def _confirmation_age_seconds(value: object, now: datetime | None = None) -> float | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     except (TypeError, ValueError):
         return None
+    if parsed.tzinfo is None:
+        return None
+    current = now or datetime.now(timezone.utc)
+    age = (current.astimezone(timezone.utc) - parsed.astimezone(timezone.utc)).total_seconds()
+    # A future timestamp is not evidence of freshness; only tolerate tiny clock
+    # jitter. Anything materially future-dated fails closed.
+    if age < -1.0:
+        return None
+    return max(0.0, age)
 
 
 def mark_trade_readiness(signal: Signal) -> bool:
@@ -55,8 +79,13 @@ def mark_trade_readiness(signal: Signal) -> bool:
     if m.get("certification_status") != required_cert:
         m["trade_ready_reason"] = "detector certification did not pass"
         return False
-    if not m.get("rest_confirmed_at"):
-        m["trade_ready_reason"] = "fresh REST order-book confirmation missing"
+
+    confirmation_age = _confirmation_age_seconds(m.get("rest_confirmed_at"))
+    if confirmation_age is None:
+        m["trade_ready_reason"] = "valid REST confirmation timestamp missing"
+        return False
+    if confirmation_age > TRADE_READY_TTL_SECONDS:
+        m["trade_ready_reason"] = "REST confirmation already expired"
         return False
 
     asks = list(m.get("confirmed_asks") or [])
@@ -64,13 +93,12 @@ def mark_trade_readiness(signal: Signal) -> bool:
     if len(asks) != len(signal.token_ids) or len(sizes) != len(signal.token_ids) or not signal.token_ids:
         m["trade_ready_reason"] = "confirmed leg count does not match signal"
         return False
-    try:
-        asks_f = [float(x) for x in asks]
-        sizes_f = [float(x) for x in sizes]
-    except (TypeError, ValueError):
-        m["trade_ready_reason"] = "confirmed price/size data invalid"
+    asks_f = [_float(x) for x in asks]
+    sizes_f = [_float(x) for x in sizes]
+    if any(x is None for x in asks_f) or any(x is None for x in sizes_f):
+        m["trade_ready_reason"] = "confirmed price/size data invalid or nonfinite"
         return False
-    if any(x <= 0 or x >= 1 for x in asks_f) or any(x <= 0 for x in sizes_f):
+    if any(x <= 0 or x >= 1 for x in asks_f if x is not None) or any(x <= 0 for x in sizes_f if x is not None):
         m["trade_ready_reason"] = "confirmed price/size data not executable"
         return False
 
@@ -98,28 +126,36 @@ def mark_trade_readiness(signal: Signal) -> bool:
         return False
 
     m["trade_ready"] = True
+    m["trade_ready_created_at"] = datetime.now(timezone.utc).isoformat()
+    m["trade_ready_expires_in_seconds"] = TRADE_READY_TTL_SECONDS
     m["trade_ready_reason"] = "semantic certification + fresh executable book + edge + capacity passed"
     return True
 
 
 def is_trade_ready(signal: Signal) -> bool:
-    return bool(
+    if not (
         signal.confidence == "ACTIONABLE"
         and signal.metadata.get("trade_ready") is True
         and signal.metadata.get("trade_ready_version") == TRADE_READY_VERSION
         and signal.detector in _CERTIFICATIONS
-    )
+    ):
+        return False
+    age = _confirmation_age_seconds(signal.metadata.get("rest_confirmed_at"))
+    return age is not None and age <= TRADE_READY_TTL_SECONDS
 
 
 def _price_lines(signal: Signal) -> list[str]:
-    asks = [float(x) for x in (signal.metadata.get("confirmed_asks") or [])]
-    if signal.detector == "binary_buy_both" and len(asks) == 2:
-        return [f"Buy YES ≤ {asks[0]:.3f}", f"Buy NO ≤ {asks[1]:.3f}"]
-    if signal.detector == "nested_threshold_arb" and len(asks) == 2:
-        return [f"Leg 1 ≤ {asks[0]:.3f}", f"Leg 2 ≤ {asks[1]:.3f}"]
+    asks = [_float(x) for x in (signal.metadata.get("confirmed_asks") or [])]
+    if any(x is None for x in asks):
+        return []
+    clean = [float(x) for x in asks if x is not None]
+    if signal.detector == "binary_buy_both" and len(clean) == 2:
+        return [f"Buy YES ≤ {clean[0]:.3f}", f"Buy NO ≤ {clean[1]:.3f}"]
+    if signal.detector == "nested_threshold_arb" and len(clean) == 2:
+        return [f"Leg 1 ≤ {clean[0]:.3f}", f"Leg 2 ≤ {clean[1]:.3f}"]
     if signal.detector == "neg_risk_underround":
-        return [f"Leg {i} YES ≤ {ask:.3f}" for i, ask in enumerate(asks, 1)]
-    return [f"Entry ≤ {asks[0]:.3f}"] if asks else []
+        return [f"Leg {i} YES ≤ {ask:.3f}" for i, ask in enumerate(clean, 1)]
+    return [f"Entry ≤ {clean[0]:.3f}"] if clean else []
 
 
 async def send_trade_now(tg, signal_id: int, signal: Signal) -> None:
@@ -128,10 +164,10 @@ async def send_trade_now(tg, signal_id: int, signal: Signal) -> None:
         return
 
     m = signal.metadata
-    edge = float(signal.edge or 0.0)
-    cost = float(signal.entry_cost or 0.0)
-    capacity = float(m.get("max_visible_notional_usd") or 0.0)
-    common = float(m.get("visible_common_shares") or 0.0)
+    edge = _float(signal.edge) or 0.0
+    cost = _float(signal.entry_cost) or 0.0
+    capacity = _float(m.get("max_visible_notional_usd")) or 0.0
+    common = _float(m.get("visible_common_shares")) or 0.0
 
     lines = [
         f"🚨 <b>TRADE NOW #{signal_id}</b>",
@@ -140,6 +176,7 @@ async def send_trade_now(tg, signal_id: int, signal: Signal) -> None:
         f"💰 Post-fee edge: <b>{edge:.2%}</b>",
         f"💵 Combined confirmed cost: <b>{cost:.4f}</b> per $1 payout",
         f"📏 Visible capacity: <b>about ${capacity:.2f}</b> | common size {common:.2f} shares",
+        f"⏱ Certificate expires <b>{TRADE_READY_TTL_SECONDS:.0f}s</b> after REST confirmation.",
         "",
         "✅ <b>EXECUTE</b>",
     ]
