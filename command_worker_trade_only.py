@@ -4,6 +4,7 @@ import asyncio
 import html
 import re
 import time
+from datetime import datetime
 
 import httpx
 
@@ -11,8 +12,18 @@ import command_worker as worker
 from polymarket_scanner.config import settings
 from polymarket_scanner.polymarket import PolymarketClient
 from polymarket_scanner.telegram import Telegram
-from polymarket_scanner.trade_only import refresh_trade_readiness, send_trade_now
+from polymarket_scanner.trade_only import (
+    TradeNowPreSendInvalid,
+    refresh_trade_readiness,
+    send_trade_now,
+)
 from polymarket_scanner.weather_calibration import WEATHER_DETECTORS, apply_weather_calibration
+
+# Do not initiate a financial Telegram request at the ragged edge of an execution
+# certificate. The certificate is only 8 seconds long; retain one second of headroom
+# for the Bot API request handoff. This does not claim the alert remains executable
+# after delivery—the message itself still carries explicit prices/skip conditions.
+TRADE_ALERT_MIN_NETWORK_REMAINING_SECONDS = 1.0
 
 
 class DeliveryRetryable(Exception):
@@ -59,6 +70,22 @@ def _parse_took_command(text: str) -> tuple[int, float, float] | None:
     return signal_id, stake, actual_cost
 
 
+def _certificate_deadline_epoch(signal) -> float | None:
+    value = signal.metadata.get("trade_ready_expires_at")
+    if not isinstance(value, str) or not value.strip():
+        cert = signal.metadata.get("execution_certificate")
+        value = cert.get("expires_at") if isinstance(cert, dict) else None
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return None
+    if parsed.tzinfo is None:
+        return None
+    return parsed.timestamp()
+
+
 async def _safe_post_message(
     self: Telegram,
     client: httpx.AsyncClient,
@@ -94,6 +121,22 @@ async def _safe_post_message(
     attempts = 3 if lane == "command" else 1
 
     for attempt in range(attempts):
+        # This is the last boundary at which we can still prove Telegram has not
+        # seen the financial instruction. If the certificate is expired/almost
+        # expired, classify it as SUPPRESSED—not UNCERTAIN—and make zero HTTP calls.
+        if lane == "alert":
+            deadline = getattr(self, "_trade_alert_not_after_epoch", None)
+            if deadline is not None:
+                try:
+                    remaining = float(deadline) - time.time()
+                except (TypeError, ValueError, OverflowError):
+                    remaining = -1.0
+                if remaining < TRADE_ALERT_MIN_NETWORK_REMAINING_SECONDS:
+                    self.last_alert_error = (
+                        "TRADE NOW execution certificate expired/too close to expiry before Telegram request"
+                    )
+                    raise worker.AlertSuppressed(self.last_alert_error)
+
         try:
             response = await client.post(url, json=payload)
         except asyncio.CancelledError:
@@ -194,7 +237,20 @@ async def _guarded_send_signal(self: Telegram, signal_id: int, signal) -> None:
     if not await refresh_trade_readiness(signal, _poly()):
         reason = str(signal.metadata.get("trade_ready_reason") or "not TRADE NOW eligible")
         raise worker.AlertSuppressed(reason)
-    await send_trade_now(self, signal_id, signal)
+
+    deadline = _certificate_deadline_epoch(signal)
+    if deadline is None:
+        raise worker.AlertSuppressed("TRADE NOW certificate has no valid delivery expiry")
+
+    # The delivery loop is single-owner/single-send, so this per-instance guard is
+    # not shared across concurrent financial sends. It is cleared on every outcome.
+    self._trade_alert_not_after_epoch = deadline
+    try:
+        await send_trade_now(self, signal_id, signal)
+    except TradeNowPreSendInvalid as exc:
+        raise worker.AlertSuppressed(str(exc)) from None
+    finally:
+        self._trade_alert_not_after_epoch = None
 
 
 async def _trade_delivery_loop(store, tg: Telegram, outbox) -> None:
