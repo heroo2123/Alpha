@@ -49,6 +49,12 @@ python3 -m venv "${APP_DIR}/.venv"
 "${APP_DIR}/.venv/bin/python" -m pip install --upgrade pip
 "${APP_DIR}/.venv/bin/pip" install -r "${APP_DIR}/requirements.txt"
 
+"${APP_DIR}/.venv/bin/python" - <<'PY'
+from polymarket_scanner.trade_only import promoted_detectors
+assert promoted_detectors() == (), f"P0 containment violated: promoted detectors={promoted_detectors()}"
+print("P0 containment verified: 0 promoted TRADE NOW detectors")
+PY
+
 mkdir -p "${DATA_DIR}" "${CONFIG_DIR}"
 chmod 700 "${CONFIG_DIR}" "${DATA_DIR}"
 
@@ -64,6 +70,7 @@ IFS= read -r TELEGRAM_CHAT_ID </dev/tty
 cat > "${ENV_FILE}" <<EOF
 TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
 TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+TELEGRAM_COMMANDS_IN_APP=false
 DB_PATH=${DATA_DIR}/signals.db
 SCAN_INTERVAL_SECONDS=15
 UNIVERSE_REFRESH_SECONDS=120
@@ -77,11 +84,11 @@ EOF
 chmod 600 "${ENV_FILE}"
 unset TELEGRAM_BOT_TOKEN
 
-say "Creating scanner systemd service"
+say "Creating trade-only scanner systemd service"
 TMP_SERVICE="$(mktemp)"
 cat > "${TMP_SERVICE}" <<EOF
 [Unit]
-Description=Polymarket Edge Scanner
+Description=Polymarket Edge Scanner (trade-only policy, silent research)
 Wants=network-online.target
 After=network-online.target
 
@@ -92,7 +99,7 @@ WorkingDirectory=${APP_DIR}
 EnvironmentFile=${ENV_FILE}
 Environment=PYTHONUNBUFFERED=1
 Environment=TELEGRAM_COMMANDS_IN_APP=false
-ExecStart=${APP_DIR}/.venv/bin/uvicorn app:app --host 127.0.0.1 --port 8000
+ExecStart=${APP_DIR}/.venv/bin/uvicorn app_trade_only:app --host 127.0.0.1 --port 8000
 Restart=always
 RestartSec=5
 TimeoutStopSec=30
@@ -105,13 +112,13 @@ EOF
 sudo install -m 0644 "${TMP_SERVICE}" "/etc/systemd/system/${SERVICE_NAME}"
 rm -f "${TMP_SERVICE}"
 
-say "Creating isolated Telegram command service"
+say "Creating isolated trade-only Telegram command service"
 TMP_COMMAND="$(mktemp)"
 cat > "${TMP_COMMAND}" <<EOF
 [Unit]
-Description=Polymarket Edge Telegram Command Worker
+Description=Polymarket Edge Telegram Command Worker (trade-only policy)
 Wants=network-online.target
-After=network-online.target
+After=network-online.target ${SERVICE_NAME}
 
 [Service]
 Type=simple
@@ -119,7 +126,7 @@ User=${CURRENT_USER}
 WorkingDirectory=${APP_DIR}
 EnvironmentFile=${ENV_FILE}
 Environment=PYTHONUNBUFFERED=1
-ExecStart=${APP_DIR}/.venv/bin/python ${APP_DIR}/command_worker.py
+ExecStart=${APP_DIR}/.venv/bin/python ${APP_DIR}/command_worker_trade_only.py
 Restart=always
 RestartSec=3
 TimeoutStopSec=15
@@ -133,9 +140,10 @@ sudo install -m 0644 "${TMP_COMMAND}" "/etc/systemd/system/${COMMAND_SERVICE}"
 rm -f "${TMP_COMMAND}"
 
 sudo systemctl daemon-reload
-# Command worker is the only getUpdates consumer. Start it before the scanner.
-sudo systemctl enable --now "${COMMAND_SERVICE}"
-sudo systemctl enable --now "${SERVICE_NAME}"
+sudo systemctl enable "${SERVICE_NAME}" "${COMMAND_SERVICE}" >/dev/null
+sudo systemctl restart "${SERVICE_NAME}"
+sleep 2
+sudo systemctl restart "${COMMAND_SERVICE}"
 
 sleep 3
 if sudo systemctl is-active --quiet "${SERVICE_NAME}" && sudo systemctl is-active --quiet "${COMMAND_SERVICE}"; then
@@ -145,6 +153,13 @@ else
   sudo systemctl status "${COMMAND_SERVICE}" --no-pager || true
   fail "One of the services did not start."
 fi
+
+echo "Commit: $(git -C "${APP_DIR}" rev-parse HEAD)"
+echo "Scanner ExecStart:"
+sudo systemctl show -p ExecStart "${SERVICE_NAME}"
+echo "Command ExecStart:"
+sudo systemctl show -p ExecStart "${COMMAND_SERVICE}"
+echo "Promoted TRADE NOW detectors: 0 (P0 containment)"
 
 printf '\nUseful commands:\n'
 printf '  Scanner:  sudo systemctl status %s\n' "${SERVICE_NAME}"
