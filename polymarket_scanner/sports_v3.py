@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 import re
 import sqlite3
+import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 from .config import settings
@@ -110,19 +112,64 @@ def _strict_binary_token(m: Market, outcome: str) -> str | None:
     return tokens[labels.index(wanted)]
 
 
-def _terminal_feed(payload: dict) -> tuple[bool, str]:
+def _sports_source_timestamp(payload: dict) -> float | None:
+    """Extract a causal timestamp from current sports-feed field variants.
+
+    Current Polymarket sports payloads expose ``last_update``/``updated_at`` on some
+    adapters and ``finished_timestamp`` on terminal examples. Unknown/missing time is
+    not fresh evidence for a result-lag trade.
+    """
+    for key in (
+        "last_update", "lastUpdate", "updated_at", "updatedAt",
+        "finished_timestamp", "finishedTimestamp",
+    ):
+        raw = payload.get(key)
+        if raw in {None, ""}:
+            continue
+        if isinstance(raw, bool):
+            continue
+        try:
+            numeric = float(raw)
+        except (TypeError, ValueError):
+            numeric = None
+        if numeric is not None:
+            if numeric > 10_000_000_000:
+                numeric /= 1000.0
+            if numeric > 0:
+                return numeric
+        try:
+            parsed = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+        except (TypeError, ValueError):
+            continue
+        if parsed.tzinfo is None:
+            continue
+        return parsed.astimezone(timezone.utc).timestamp()
+    return None
+
+
+def _terminal_feed(payload: dict, *, now_ts: float | None = None) -> tuple[bool, str, float | None, float | None]:
     if payload.get("ended") is not True:
-        return False, "sports feed has not explicitly ended the event"
+        return False, "sports feed has not explicitly ended the event", None, None
     for key in ("cancelled", "canceled", "postponed", "suspended", "abandoned", "void"):
         if payload.get(key) is True:
-            return False, f"sports feed marks event {key}"
+            return False, f"sports feed marks event {key}", None, None
     status_text = " ".join(
         str(payload.get(key) or "")
         for key in ("status", "state", "gameStatus", "game_status", "reason")
     )
     if _BAD_STATUS_WORDS.search(status_text):
-        return False, f"sports feed terminal status is unsafe: {status_text.strip()}"
-    return True, "feed explicitly ended with no cancellation/postponement marker"
+        return False, f"sports feed terminal status is unsafe: {status_text.strip()}", None, None
+
+    source_ts = _sports_source_timestamp(payload)
+    if source_ts is None:
+        return False, "sports terminal result lacks a parseable source timestamp", None, None
+    current = time.time() if now_ts is None else float(now_ts)
+    age = current - source_ts
+    if age < -5.0:
+        return False, "sports terminal result is future-dated", source_ts, age
+    if age > float(settings.sports_result_max_age_seconds):
+        return False, "sports terminal result is older than the configured result-lag window", source_ts, age
+    return True, "feed explicitly ended recently with no cancellation/postponement marker", source_ts, max(0.0, age)
 
 
 def _supported_match_moneyline(m: Market) -> tuple[bool, str]:
@@ -146,20 +193,28 @@ def _supported_match_moneyline(m: Market) -> tuple[bool, str]:
     return True, "narrow match-moneyline semantics passed"
 
 
-def sports_result_lag_v3(markets: list[Market], books: dict[str, Book], cache: dict[str, dict]) -> list[Signal]:
+def sports_result_lag_v3(
+    markets: list[Market],
+    books: dict[str, Book],
+    cache: dict[str, dict],
+    *,
+    now_ts: float | None = None,
+) -> list[Signal]:
     """Fail-closed sports known-result experiment.
 
     Only direct match moneylines are evaluated. Spreads, totals, draws, periods,
     sets/games, series and cancellation-like states are deliberately skipped until
     they have their own rule-aware adapters. Score orientation is always HOME-AWAY
-    from explicit feed team fields, never event-title order.
+    from explicit feed team fields, never event-title order. A terminal result must
+    also carry a recent causal feed timestamp; a cached ancient final cannot become a
+    new result-lag candidate simply because the socket later reconnects.
     """
     out: list[Signal] = []
     for m in markets:
         payload = cache.get(m.event_slug)
         if not isinstance(payload, dict):
             continue
-        terminal, terminal_reason = _terminal_feed(payload)
+        terminal, terminal_reason, source_ts, source_age = _terminal_feed(payload, now_ts=now_ts)
         if not terminal:
             continue
         supported, scope_reason = _supported_match_moneyline(m)
@@ -233,6 +288,8 @@ def sports_result_lag_v3(markets: list[Market], books: dict[str, Book], cache: d
                 "sports_home_score": home_score,
                 "sports_away_score": away_score,
                 "sports_terminal_reason": terminal_reason,
+                "sports_source_timestamp": source_ts,
+                "sports_source_age_seconds": source_age,
                 "sports_scope_reason": scope_reason,
                 "experimental_resolution": True,
                 "action_steps": [
