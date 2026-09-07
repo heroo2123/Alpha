@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import sqlite3
 import threading
 from collections import defaultdict
@@ -14,6 +15,7 @@ STRUCTURAL_DETECTORS = {"binary_buy_both", "neg_risk_underround", "nested_thresh
 EXPERIMENTAL_RESOLUTION_DETECTORS = {"weather_friend_lock", "weather_late_lock"}
 SPORTS_MAPPING_VERSION = "home_away_v2"
 SPORTS_PRE_FIX_GROUP = "sports_result_lag_PRE_FIX_BUG"
+RESOLVED_STATUSES = {"WON", "LOST", "RESOLVED_PARTIAL"}
 
 
 class Store:
@@ -48,6 +50,7 @@ class Store:
                 metadata TEXT,
                 status TEXT NOT NULL DEFAULT 'OPEN',
                 pnl REAL,
+                settlement_payout REAL,
                 created_at TEXT NOT NULL,
                 resolved_at TEXT
             );
@@ -58,8 +61,11 @@ class Store:
                 signal_id INTEGER NOT NULL,
                 stake REAL NOT NULL,
                 entry_cost REAL NOT NULL,
+                entry_source TEXT NOT NULL DEFAULT 'LEGACY_ALERT_ESTIMATE',
+                execution_at TEXT,
                 status TEXT NOT NULL DEFAULT 'OPEN',
                 pnl REAL,
+                settlement_payout REAL,
                 created_at TEXT NOT NULL,
                 resolved_at TEXT,
                 FOREIGN KEY(signal_id) REFERENCES signals(id)
@@ -67,6 +73,20 @@ class Store:
             CREATE INDEX IF NOT EXISTS idx_manual_signal ON manual_trades(signal_id);
             CREATE TABLE IF NOT EXISTS bot_state (key TEXT PRIMARY KEY, value TEXT);
             """)
+
+            signal_cols = {str(row[1]) for row in c.execute("PRAGMA table_info(signals)")}
+            if "settlement_payout" not in signal_cols:
+                c.execute("ALTER TABLE signals ADD COLUMN settlement_payout REAL")
+
+            manual_cols = {str(row[1]) for row in c.execute("PRAGMA table_info(manual_trades)")}
+            if "entry_source" not in manual_cols:
+                c.execute(
+                    "ALTER TABLE manual_trades ADD COLUMN entry_source TEXT NOT NULL DEFAULT 'LEGACY_ALERT_ESTIMATE'"
+                )
+            if "execution_at" not in manual_cols:
+                c.execute("ALTER TABLE manual_trades ADD COLUMN execution_at TEXT")
+            if "settlement_payout" not in manual_cols:
+                c.execute("ALTER TABLE manual_trades ADD COLUMN settlement_payout REAL")
 
     def save_signal(self, s: Signal) -> int | None:
         with self._lock, self._conn() as c:
@@ -85,15 +105,10 @@ class Store:
             return dict(row) if row else None
 
     def settle_immediate(self, signal_id: int, stake: float) -> None:
-        with self._lock, self._conn() as c:
-            row = c.execute("SELECT entry_cost,theoretical_payout FROM signals WHERE id=?", (signal_id,)).fetchone()
-            if not row or not row["entry_cost"] or not row["theoretical_payout"]:
-                return
-            shares = stake / float(row["entry_cost"])
-            pnl = shares * float(row["theoretical_payout"]) - stake
-            now = datetime.now(timezone.utc).isoformat()
-            c.execute("UPDATE signals SET status='WON', pnl=?, resolved_at=? WHERE id=?", (pnl, now, signal_id))
-            self._resolve_manual_conn(c, signal_id, True, float(row["theoretical_payout"]), now)
+        """Legacy API intentionally disabled: quote snapshots are not executions."""
+        raise RuntimeError(
+            "synthetic immediate settlement is disabled; structural quote math cannot be booked as realized P&L"
+        )
 
     @staticmethod
     def _meta(raw: object) -> dict:
@@ -112,6 +127,14 @@ class Store:
         if str(row.get("detector") or "") != "sports_result_lag":
             return False
         return cls._meta(row.get("metadata")).get("sports_mapping_version") != SPORTS_MAPPING_VERSION
+
+    @staticmethod
+    def _status_for_payout(payout: float) -> str:
+        if payout >= 1.0 - 1e-9:
+            return "WON"
+        if payout <= 1e-9:
+            return "LOST"
+        return "RESOLVED_PARTIAL"
 
     def open_directional(self):
         """Return signals whose selected token can be objectively resolved.
@@ -134,61 +157,138 @@ class Store:
                 out.append(row)
         return out
 
-    def resolve(self, signal_id: int, won: bool, stake: float) -> None:
+    def resolve_payout(self, signal_id: int, payout: float, stake: float) -> dict | None:
+        """Resolve using the actual final payout of the selected token (0..1).
+
+        A disputed/partial market such as a 0.5 payout is therefore neither silently
+        converted to a full loss nor treated as a normal win. P&L uses that exact
+        payout vector component.
+        """
+        if isinstance(payout, bool) or not math.isfinite(float(payout)):
+            raise ValueError("settlement payout must be finite")
+        payout_f = float(payout)
+        if payout_f < 0.0 or payout_f > 1.0:
+            raise ValueError("settlement payout must be between 0 and 1")
+        if isinstance(stake, bool) or not math.isfinite(float(stake)) or float(stake) <= 0:
+            raise ValueError("stake must be positive and finite")
+
         with self._lock, self._conn() as c:
             row = c.execute("SELECT entry_cost FROM signals WHERE id=?", (signal_id,)).fetchone()
-            if not row or not row["entry_cost"]:
-                return
+            if not row or row["entry_cost"] is None:
+                return None
             cost = float(row["entry_cost"])
-            shares = stake / cost
-            pnl = shares - stake if won else -stake
+            if not math.isfinite(cost) or cost <= 0:
+                return None
+            shares = float(stake) / cost
+            pnl = shares * payout_f - float(stake)
             now = datetime.now(timezone.utc).isoformat()
-            c.execute("UPDATE signals SET status=?, pnl=?, resolved_at=? WHERE id=?", ("WON" if won else "LOST", pnl, now, signal_id))
-            self._resolve_manual_conn(c, signal_id, won, 1.0, now)
+            status = self._status_for_payout(payout_f)
+            c.execute(
+                "UPDATE signals SET status=?, pnl=?, settlement_payout=?, resolved_at=? WHERE id=?",
+                (status, pnl, payout_f, now, signal_id),
+            )
+            self._resolve_manual_conn(c, signal_id, payout_f, now)
+            return {"status": status, "payout": payout_f, "pnl": pnl}
 
-    def record_manual(self, signal_id: int, stake: float) -> dict:
-        if stake <= 0:
-            raise ValueError("stake must be positive")
+    def resolve(self, signal_id: int, won: bool, stake: float) -> None:
+        """Compatibility wrapper for old tests/callers; new code should pass payout."""
+        self.resolve_payout(signal_id, 1.0 if won else 0.0, stake)
+
+    def record_manual(self, signal_id: int, stake: float, actual_entry_cost: float | None = None) -> dict:
+        """Record a user-reported actual execution, never an old alert quote.
+
+        ``actual_entry_cost`` is the amount paid per $1 payout unit for a single-leg
+        trade, or the combined cost per complete payout bundle for a multi-leg trade.
+        It is intentionally required. Historical manual rows that used alert quotes
+        remain tagged LEGACY_ALERT_ESTIMATE and are excluded from valid manual stats.
+        """
+        if isinstance(stake, bool) or not math.isfinite(float(stake)) or float(stake) <= 0:
+            raise ValueError("stake must be positive and finite")
+        if actual_entry_cost is None:
+            raise ValueError("actual executed cost is required; do not use the old alert quote")
+        if isinstance(actual_entry_cost, bool) or not math.isfinite(float(actual_entry_cost)) or float(actual_entry_cost) <= 0:
+            raise ValueError("actual executed cost must be positive and finite")
+
+        stake_f = float(stake)
+        cost_f = float(actual_entry_cost)
         with self._lock, self._conn() as c:
             sig = c.execute("SELECT * FROM signals WHERE id=?", (signal_id,)).fetchone()
-            if not sig or sig["confidence"] != "ACTIONABLE" or not sig["entry_cost"]:
+            if not sig or sig["confidence"] != "ACTIONABLE":
                 raise ValueError("unknown/non-actionable alert id")
             if self._sports_pre_fix(dict(sig)):
                 raise ValueError("that sports alert came from the pre-fix home/away mapping bug and is quarantined")
+
             now = datetime.now(timezone.utc).isoformat()
             status = "OPEN"
             pnl = None
+            payout = None
             resolved_at = None
-            if sig["status"] == "WON":
-                payout = float(sig["theoretical_payout"] or 1.0)
-                pnl = stake / float(sig["entry_cost"]) * payout - stake
-                status = "WON"; resolved_at = now
-            elif sig["status"] == "LOST":
-                pnl = -stake; status = "LOST"; resolved_at = now
-            cur = c.execute("INSERT INTO manual_trades(signal_id,stake,entry_cost,status,pnl,created_at,resolved_at) VALUES(?,?,?,?,?,?,?)",
-                            (signal_id, stake, float(sig["entry_cost"]), status, pnl, now, resolved_at))
-            return {"id": int(cur.lastrowid), "signal_id": signal_id, "stake": stake, "entry_cost": float(sig["entry_cost"]), "status": status, "pnl": pnl}
+            if str(sig["status"] or "") in RESOLVED_STATUSES and sig["settlement_payout"] is not None:
+                payout = float(sig["settlement_payout"])
+                status = self._status_for_payout(payout)
+                pnl = stake_f / cost_f * payout - stake_f
+                resolved_at = now
 
-    def _resolve_manual_conn(self, c, signal_id: int, won: bool, payout: float, now: str) -> None:
-        rows = c.execute("SELECT id,stake,entry_cost FROM manual_trades WHERE signal_id=? AND status='OPEN'", (signal_id,)).fetchall()
+            cur = c.execute(
+                """
+                INSERT INTO manual_trades(
+                    signal_id,stake,entry_cost,entry_source,execution_at,status,pnl,
+                    settlement_payout,created_at,resolved_at
+                ) VALUES(?,?,?,'USER_REPORTED_EXECUTION',?,?,?,?,?,?)
+                """,
+                (signal_id, stake_f, cost_f, now, status, pnl, payout, now, resolved_at),
+            )
+            return {
+                "id": int(cur.lastrowid), "signal_id": signal_id, "stake": stake_f,
+                "entry_cost": cost_f, "entry_source": "USER_REPORTED_EXECUTION",
+                "status": status, "pnl": pnl, "settlement_payout": payout,
+            }
+
+    def _resolve_manual_conn(self, c, signal_id: int, payout: float, now: str) -> None:
+        rows = c.execute(
+            """
+            SELECT id,stake,entry_cost FROM manual_trades
+            WHERE signal_id=? AND status='OPEN' AND entry_source='USER_REPORTED_EXECUTION'
+            """,
+            (signal_id,),
+        ).fetchall()
+        status = self._status_for_payout(payout)
         for row in rows:
-            stake = float(row["stake"]); cost = float(row["entry_cost"])
-            pnl = stake / cost * payout - stake if won else -stake
-            c.execute("UPDATE manual_trades SET status=?,pnl=?,resolved_at=? WHERE id=?", ("WON" if won else "LOST", pnl, now, row["id"]))
+            stake = float(row["stake"])
+            cost = float(row["entry_cost"])
+            pnl = stake / cost * payout - stake
+            c.execute(
+                "UPDATE manual_trades SET status=?,pnl=?,settlement_payout=?,resolved_at=? WHERE id=?",
+                (status, pnl, payout, now, row["id"]),
+            )
 
     @staticmethod
     def _resolved_return(row: dict) -> float | None:
-        """Return per-$1 paper return from the stored executable-cost estimate."""
+        """Return per-$1 paper return from entry cost and actual settlement payout."""
         status = str(row.get("status") or "")
-        if status not in {"WON", "LOST"}:
+        if status not in RESOLVED_STATUSES:
             return None
         try:
             cost = float(row.get("entry_cost") or 0.0)
         except (TypeError, ValueError):
             return None
-        if cost <= 0:
+        if cost <= 0 or not math.isfinite(cost):
             return None
-        return (1.0 / cost - 1.0) if status == "WON" else -1.0
+        raw_payout = row.get("settlement_payout")
+        if raw_payout is None:
+            # Backward-compatible audit of historical rows only. New settlements
+            # always persist the payout explicitly.
+            payout = 1.0 if status == "WON" else 0.0 if status == "LOST" else None
+            if payout is None:
+                return None
+        else:
+            try:
+                payout = float(raw_payout)
+            except (TypeError, ValueError):
+                return None
+        if not math.isfinite(payout) or payout < 0 or payout > 1:
+            return None
+        return payout / cost - 1.0
 
     def stats(self) -> dict:
         """Evidence-based audit of every stored scanner signal.
@@ -209,11 +309,11 @@ class Store:
 
         detector_rows: list[dict] = []
         resolved_pnl = 0.0
-        directional_total = directional_resolved = directional_won = directional_lost = 0
+        directional_total = directional_resolved = directional_won = directional_lost = directional_partial = 0
         structural_actionable = 0
         research_unscored = 0
         experimental_total = experimental_resolved = 0
-        experimental_won = experimental_lost = 0
+        experimental_won = experimental_lost = experimental_partial = 0
         experimental_pnl = 0.0
         bug_total = bug_resolved = 0
         bug_pnl = 0.0
@@ -224,9 +324,10 @@ class Store:
             legacy = sum(str(r.get("confidence")) == "LEGACY_THEORETICAL" or str(r.get("status")) == "LEGACY_THEORETICAL" for r in items)
             won = sum(str(r.get("status")) == "WON" for r in items)
             lost = sum(str(r.get("status")) == "LOST" for r in items)
-            resolved = won + lost
+            partial = sum(str(r.get("status")) == "RESOLVED_PARTIAL" for r in items)
+            resolved = won + lost + partial
             open_ = sum(str(r.get("status")) == "OPEN" for r in items)
-            pnl = sum(float(r.get("pnl") or 0.0) for r in items if str(r.get("status")) in {"WON", "LOST"})
+            pnl = sum(float(r.get("pnl") or 0.0) for r in items if str(r.get("status")) in RESOLVED_STATUSES)
             edges = [float(r["edge"]) for r in items if r.get("edge") is not None]
             returns = [x for r in items if (x := self._resolved_return(r)) is not None]
             avg_edge = sum(edges) / len(edges) if edges else None
@@ -257,15 +358,17 @@ class Store:
                 experimental_resolved += resolved
                 experimental_won += won
                 experimental_lost += lost
+                experimental_partial += partial
                 experimental_pnl += pnl
             elif actionable > 0 or resolved > 0:
                 evidence = "RESOLUTION_SCORED"
                 scoreable = [r for r in items if str(r.get("confidence")) == "ACTIONABLE"]
-                score_resolved = [r for r in scoreable if str(r.get("status")) in {"WON", "LOST"}]
+                score_resolved = [r for r in scoreable if str(r.get("status")) in RESOLVED_STATUSES]
                 directional_total += len(scoreable)
                 directional_resolved += len(score_resolved)
                 directional_won += sum(str(r.get("status")) == "WON" for r in score_resolved)
                 directional_lost += sum(str(r.get("status")) == "LOST" for r in score_resolved)
+                directional_partial += sum(str(r.get("status")) == "RESOLVED_PARTIAL" for r in score_resolved)
                 resolved_pnl += sum(float(r.get("pnl") or 0.0) for r in score_resolved)
             else:
                 evidence = "RESEARCH_UNSCORED"
@@ -281,6 +384,7 @@ class Store:
                 "resolved": resolved,
                 "won": won,
                 "lost": lost,
+                "partial": partial,
                 "open": open_,
                 "pnl": float(pnl),
                 "avg_edge": avg_edge,
@@ -301,7 +405,8 @@ class Store:
         actionable_total = sum(str(r.get("confidence")) == "ACTIONABLE" for r in rows)
         watch_total = sum(str(r.get("confidence")) == "WATCH" for r in rows)
         legacy_total = sum(str(r.get("confidence")) == "LEGACY_THEORETICAL" or str(r.get("status")) == "LEGACY_THEORETICAL" for r in rows)
-        win_rate = directional_won / directional_resolved if directional_resolved else None
+        decided = directional_won + directional_lost
+        win_rate = directional_won / decided if decided else None
 
         resolved_returns = []
         for r in rows:
@@ -327,6 +432,7 @@ class Store:
             "total": actionable_total,
             "won": directional_won,
             "lost": directional_lost,
+            "partial": directional_partial,
             "open": max(0, directional_total - directional_resolved) + structural_actionable,
             "pnl": float(resolved_pnl),
             "by_detector": legacy_by_detector,
@@ -340,6 +446,7 @@ class Store:
                 "directional_open": max(0, directional_total - directional_resolved),
                 "directional_won": directional_won,
                 "directional_lost": directional_lost,
+                "directional_partial": directional_partial,
                 "resolved_pnl": float(resolved_pnl),
                 "win_rate": win_rate,
                 "avg_resolved_return": avg_resolved_return,
@@ -349,6 +456,7 @@ class Store:
                 "experimental_resolved": experimental_resolved,
                 "experimental_won": experimental_won,
                 "experimental_lost": experimental_lost,
+                "experimental_partial": experimental_partial,
                 "experimental_pnl": float(experimental_pnl),
                 "known_bug_excluded": bug_total,
                 "known_bug_resolved": bug_resolved,
@@ -359,13 +467,19 @@ class Store:
 
     def manual_stats(self) -> dict:
         with self._conn() as c:
-            total = c.execute("SELECT COUNT(*) FROM manual_trades").fetchone()[0]
-            won = c.execute("SELECT COUNT(*) FROM manual_trades WHERE status='WON'").fetchone()[0]
-            lost = c.execute("SELECT COUNT(*) FROM manual_trades WHERE status='LOST'").fetchone()[0]
-            open_ = c.execute("SELECT COUNT(*) FROM manual_trades WHERE status='OPEN'").fetchone()[0]
-            stake = c.execute("SELECT COALESCE(SUM(stake),0) FROM manual_trades").fetchone()[0]
-            pnl = c.execute("SELECT COALESCE(SUM(pnl),0) FROM manual_trades").fetchone()[0]
-            return {"total": total, "won": won, "lost": lost, "open": open_, "stake": float(stake), "pnl": float(pnl)}
+            valid_where = "entry_source='USER_REPORTED_EXECUTION'"
+            total = c.execute(f"SELECT COUNT(*) FROM manual_trades WHERE {valid_where}").fetchone()[0]
+            won = c.execute(f"SELECT COUNT(*) FROM manual_trades WHERE {valid_where} AND status='WON'").fetchone()[0]
+            lost = c.execute(f"SELECT COUNT(*) FROM manual_trades WHERE {valid_where} AND status='LOST'").fetchone()[0]
+            partial = c.execute(f"SELECT COUNT(*) FROM manual_trades WHERE {valid_where} AND status='RESOLVED_PARTIAL'").fetchone()[0]
+            open_ = c.execute(f"SELECT COUNT(*) FROM manual_trades WHERE {valid_where} AND status='OPEN'").fetchone()[0]
+            stake = c.execute(f"SELECT COALESCE(SUM(stake),0) FROM manual_trades WHERE {valid_where}").fetchone()[0]
+            pnl = c.execute(f"SELECT COALESCE(SUM(pnl),0) FROM manual_trades WHERE {valid_where}").fetchone()[0]
+            legacy = c.execute("SELECT COUNT(*) FROM manual_trades WHERE entry_source!='USER_REPORTED_EXECUTION'").fetchone()[0]
+            return {
+                "total": total, "won": won, "lost": lost, "partial": partial, "open": open_,
+                "stake": float(stake), "pnl": float(pnl), "legacy_excluded": int(legacy),
+            }
 
     def recent(self, limit: int = 10):
         with self._conn() as c:
@@ -373,7 +487,14 @@ class Store:
 
     def recent_manual(self, limit: int = 10):
         with self._conn() as c:
-            return [dict(r) for r in c.execute("SELECT m.id,m.signal_id,m.stake,m.status,m.pnl,s.title FROM manual_trades m JOIN signals s ON s.id=m.signal_id ORDER BY m.id DESC LIMIT ?", (limit,))]
+            return [dict(r) for r in c.execute(
+                """
+                SELECT m.id,m.signal_id,m.stake,m.entry_cost,m.entry_source,m.status,m.pnl,s.title
+                FROM manual_trades m JOIN signals s ON s.id=m.signal_id
+                ORDER BY m.id DESC LIMIT ?
+                """,
+                (limit,),
+            )]
 
     def get_state(self, key: str, default: str = "") -> str:
         with self._conn() as c:
