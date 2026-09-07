@@ -10,7 +10,6 @@ from .detectors_v02 import (
     crypto_crossfeed_divergence,
     crypto_resolution_lag,
     official_macro_release_lag,
-    sports_result_lag,
 )
 from .hardening import (
     hardened_binary_buy_both,
@@ -19,6 +18,7 @@ from .hardening import (
 )
 from .macro import MacroClient
 from .models import Book, Market, Signal
+from .sports_v3 import sports_result_lag_v3
 from .streams import CryptoRTDS
 from .weather_contracts import settlement_safe_weather_markets
 from .weather_friend import friend_style_weather_lock
@@ -53,9 +53,6 @@ def _safe(name: str, fn: Callable, *args) -> list[Signal]:
     try:
         return list(fn(*args))
     except Exception as exc:
-        # Crypto RTDS is updated by the asyncio WebSocket task while this worker
-        # thread reads it. A rare concurrent-cache race should merely skip that
-        # detector for one pass; REST confirmation still protects ACTIONABLE legs.
         log.warning("detector %s failed in worker: %r", name, exc)
         return []
     finally:
@@ -90,13 +87,7 @@ def evaluate_signals(
     macro_refreshed: bool,
     run_watch: bool,
 ) -> list[Signal]:
-    """CPU-heavy detector pass intended to run via ``asyncio.to_thread``.
-
-    Generic CLOB updates can arrive almost continuously. Only structural book-edge
-    and weather-price checks belong on that lane. Sports and crypto known-outcome
-    detectors are driven by their own feeds, so unrelated CLOB traffic must not
-    force another full ~13k-market pass.
-    """
+    """CPU-heavy detector pass intended to run via ``asyncio.to_thread``."""
     global _last_structural_at, _last_expensive_watch_at, _last_weather_fast_at, _last_crypto_resolution_at
 
     now = time.monotonic()
@@ -142,30 +133,24 @@ def evaluate_signals(
         signals.extend(_safe("nested_threshold_arb", hardened_nested_threshold_arbitrage, markets, books))
 
     # Weather remains experimental and silent. Before even scoring the hypothesis,
-    # route every contract through the strict WRH/unit boundary. This prevents the
-    # demonstrated F->C rules-text bug and fake-host source substring acceptance
-    # from contaminating new prospective research. Legitimate non-WRH source
-    # families stay silent until their own versioned adapters are implemented.
+    # route every contract through the strict WRH/unit boundary. Legitimate non-WRH
+    # source families stay silent until their own versioned adapters are implemented.
     if weather_cache and weather_due:
         _last_weather_fast_at = now
         certified_weather = settlement_safe_weather_markets(weather_markets)
         signals.extend(_safe("weather_late_lock", weather_late_lock, certified_weather, books, weather_cache))
         signals.extend(_safe("weather_friend_lock", friend_style_weather_lock, certified_weather, books, weather_cache))
 
-    # Sports is driven by score/result feed events. A generic market book update
-    # no longer causes a full sports pass over the entire universe.
+    # Sports v3 intentionally evaluates ONLY direct match moneylines with explicit
+    # HOME/AWAY feed fields and a safe terminal state. Spreads, totals, periods,
+    # sets/games, series, draws and cancellation-like cases fail closed.
     if sports_trigger:
-        signals.extend(_safe("sports_result_lag", sports_result_lag, markets, books, sports_cache))
+        signals.extend(_safe("sports_result_lag_v3", sports_result_lag_v3, markets, books, sports_cache))
 
-    # RTDS ticks can be frequent, so cap known-boundary evaluation at once/second.
-    # It remains near-real-time while avoiding several full-universe regex passes
-    # per second on a shared-core e2-micro.
     if crypto_due:
         _last_crypto_resolution_at = now
         signals.extend(_safe("crypto_resolution_lag", crypto_resolution_lag, markets, books, crypto_stream))
 
-    # Macro releases are rare. Re-check on a fresh official value and on each
-    # structural cadence rather than on every market-book tick.
     if macro_refreshed or structural_due:
         signals.extend(_safe("official_macro_release_lag", official_macro_release_lag, markets, books, macro))
 
