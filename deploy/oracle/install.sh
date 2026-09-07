@@ -165,6 +165,9 @@ else
   fail "One of the services did not start."
 fi
 
+say "Installing verified daily SQLite backup/restore check"
+bash "${APP_DIR}/deploy/setup-db-backup-service.sh"
+
 ACTUAL_SHA="$(git -C "${APP_DIR}" rev-parse HEAD)"
 RECORDED_SHA="$(tr -d '[:space:]' < "${RELEASE_FILE}")"
 [[ "${ACTUAL_SHA}" == "${RECORDED_SHA}" && "${ACTUAL_SHA}" == "${RELEASE_SHA,,}" ]] || fail "Release attestation failed after startup"
