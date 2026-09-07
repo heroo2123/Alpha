@@ -1,8 +1,74 @@
 from datetime import datetime, timedelta, timezone
 
 import polymarket_scanner.trade_only as trade_only
+from polymarket_scanner.execution_certificate import (
+    EXECUTION_CERTIFICATE_TTL_SECONDS,
+    EXECUTION_CERTIFICATE_VERSION,
+)
 from polymarket_scanner.models import Signal
 from polymarket_scanner.trade_only import TRADE_READY_VERSION, is_trade_ready, mark_trade_readiness, promoted_detectors
+
+
+def _execution_cert(*, checked_at=None, expires_at=None):
+    checked = checked_at or datetime.now(timezone.utc)
+    expires = expires_at or (checked + timedelta(seconds=EXECUTION_CERTIFICATE_TTL_SECONDS))
+    return {
+        "version": EXECUTION_CERTIFICATE_VERSION,
+        "checked_at": checked.isoformat(),
+        "expires_at": expires.isoformat(),
+        "ttl_seconds": EXECUTION_CERTIFICATE_TTL_SECONDS,
+        "legs": [
+            {
+                "market_id": "m1",
+                "condition_id": "c1",
+                "token_id": "yes",
+                "question": "Test market?",
+                "outcome": "Yes",
+                "ask": "0.47",
+                "safe_limit": "0.47",
+                "safe_limit_text": "0.47",
+                "tick_size": "0.01",
+                "minimum_order_size": "5",
+                "visible_best_ask_size": "100",
+                "book_timestamp": "",
+                "fee_rate": "0",
+                "fee_exponent": 0,
+                "fee_taker_only": True,
+                "fee_per_share": "0",
+                "cost_per_share": "0.47",
+                "url": "https://polymarket.com/market/test",
+            },
+            {
+                "market_id": "m1",
+                "condition_id": "c1",
+                "token_id": "no",
+                "question": "Test market?",
+                "outcome": "No",
+                "ask": "0.47",
+                "safe_limit": "0.47",
+                "safe_limit_text": "0.47",
+                "tick_size": "0.01",
+                "minimum_order_size": "5",
+                "visible_best_ask_size": "100",
+                "book_timestamp": "",
+                "fee_rate": "0",
+                "fee_exponent": 0,
+                "fee_taker_only": True,
+                "fee_per_share": "0",
+                "cost_per_share": "0.47",
+                "url": "https://polymarket.com/market/test",
+            },
+        ],
+        "combined_cost": "0.94",
+        "common_visible_shares": "100",
+        "capacity_fraction": "0.50",
+        "safe_common_shares": "50.00",
+        "capacity_usd": "47.0000",
+        "minimum_bundle_shares": "5",
+        "minimum_bundle_notional_usd": "4.70",
+        "depth_basis": "CURRENT_BATCH_BEST_ASK_WITH_50_PERCENT_SAFETY_HAIRCUT_UNCALIBRATED",
+        "fee_basis": "test",
+    }
 
 
 def _signal(detector="binary_buy_both", confidence="ACTIONABLE", cert="BINARY_COMPLEMENT_VERIFIED"):
@@ -20,11 +86,7 @@ def _signal(detector="binary_buy_both", confidence="ACTIONABLE", cert="BINARY_CO
         token_ids=["yes", "no"],
         metadata={
             "certification_status": cert,
-            "rest_confirmed_at": datetime.now(timezone.utc).isoformat(),
-            "confirmed_asks": [0.48, 0.47],
-            "confirmed_sizes": [100.0, 100.0],
-            "visible_common_shares": 100.0,
-            "max_visible_notional_usd": 96.0,
+            "execution_certificate": _execution_cert(),
         },
     )
 
@@ -53,11 +115,7 @@ def test_watch_is_never_trade_ready():
 
 def test_unpromoted_sports_actionable_stays_silent():
     s = _signal(detector="sports_result_lag", cert="")
-    s.token_ids = ["winner"]
-    s.metadata["confirmed_asks"] = [0.90]
-    s.metadata["confirmed_sizes"] = [100.0]
-    s.entry_cost = 0.905
-    s.edge = 0.095
+    s.token_ids = ["yes"]
     assert mark_trade_readiness(s) is False
     assert is_trade_ready(s) is False
     assert "not promoted" in s.metadata["trade_ready_reason"]
@@ -70,34 +128,54 @@ def test_old_trade_ready_metadata_cannot_bypass_empty_registry():
     assert is_trade_ready(s) is False
 
 
-def test_promoted_gate_accepts_only_fresh_certificate(monkeypatch):
+def test_promoted_gate_accepts_only_fresh_exact_certificate(monkeypatch):
     _promote_binary(monkeypatch)
     s = _signal()
     assert mark_trade_readiness(s) is True
     assert is_trade_ready(s) is True
+    assert s.entry_cost == 0.94
+    assert abs(float(s.edge) - 0.06) < 1e-12
+    assert s.metadata["safe_common_shares"] == 50.0
 
 
-def test_promoted_gate_rejects_expired_rest_confirmation(monkeypatch):
+def test_promoted_gate_rejects_expired_execution_certificate(monkeypatch):
     _promote_binary(monkeypatch)
     s = _signal()
-    s.metadata["rest_confirmed_at"] = (datetime.now(timezone.utc) - timedelta(seconds=30)).isoformat()
+    checked = datetime.now(timezone.utc) - timedelta(seconds=30)
+    s.metadata["execution_certificate"] = _execution_cert(
+        checked_at=checked,
+        expires_at=checked + timedelta(seconds=EXECUTION_CERTIFICATE_TTL_SECONDS),
+    )
     assert mark_trade_readiness(s) is False
     assert is_trade_ready(s) is False
     assert "expired" in s.metadata["trade_ready_reason"]
 
 
-def test_promoted_gate_rejects_nonfinite_values(monkeypatch):
+def test_promoted_gate_rejects_nonfinite_certificate_values(monkeypatch):
     _promote_binary(monkeypatch)
     s = _signal()
-    s.metadata["confirmed_asks"] = [float("nan"), 0.47]
+    s.metadata["execution_certificate"]["legs"][0]["ask"] = "nan"
     assert mark_trade_readiness(s) is False
     assert is_trade_ready(s) is False
     assert "nonfinite" in s.metadata["trade_ready_reason"]
 
 
-def test_promoted_gate_rejects_future_confirmation(monkeypatch):
+def test_promoted_gate_rejects_future_certificate(monkeypatch):
     _promote_binary(monkeypatch)
     s = _signal()
-    s.metadata["rest_confirmed_at"] = (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat()
+    checked = datetime.now(timezone.utc) + timedelta(minutes=5)
+    s.metadata["execution_certificate"] = _execution_cert(
+        checked_at=checked,
+        expires_at=checked + timedelta(seconds=EXECUTION_CERTIFICATE_TTL_SECONDS),
+    )
     assert mark_trade_readiness(s) is False
     assert is_trade_ready(s) is False
+    assert "future" in s.metadata["trade_ready_reason"]
+
+
+def test_promoted_gate_rejects_tampered_leg_fee(monkeypatch):
+    _promote_binary(monkeypatch)
+    s = _signal()
+    s.metadata["execution_certificate"]["legs"][0]["fee_per_share"] = "0.01"
+    assert mark_trade_readiness(s) is False
+    assert "arithmetic" in s.metadata["trade_ready_reason"]
