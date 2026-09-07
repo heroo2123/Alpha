@@ -24,6 +24,7 @@ from polymarket_scanner.backpressure import (
     coalesce_signal_batches,
 )
 from polymarket_scanner.db_ops import configure_database_runtime, database_health
+from polymarket_scanner.feed_health import feed_progress_snapshot
 from polymarket_scanner.manual_fills import (
     ensure_structural_fill_schema,
     open_structural_trades,
@@ -38,6 +39,7 @@ app = stable_v2.app
 _original_confirm_actionable = base.confirm_actionable
 _original_save_signal = base.store.save_signal
 _original_evaluate_signals = base.evaluate_signals
+_original_health_snapshot = base._health_snapshot
 
 # Replace the unbounded base queue before FastAPI startup. base.signal_processing_loop
 # resolves this module global at runtime, so the worker automatically consumes the
@@ -74,6 +76,16 @@ def _price_discovery_status() -> dict:
         "stale": stale,
         "last_error": stable._price_refresh_error,
     }
+
+
+def _trade_health_snapshot() -> dict:
+    snapshot = _original_health_snapshot()
+    snapshot["feed_progress"] = feed_progress_snapshot(
+        base.market_stream,
+        base.sports_stream,
+        base.crypto_stream,
+    )
+    return snapshot
 
 
 def _trade_only_evaluate_signals(*args, **kwargs):
@@ -293,6 +305,7 @@ base.store.save_signal = _trade_only_save_signal
 base.enqueue_alert = _trade_only_enqueue
 base.queue_detector_output = _bounded_queue_detector_output
 base.settle_open_paper_trades = _payout_aware_settlement
+base._health_snapshot = _trade_health_snapshot
 base.tg.send = _silent_scanner_push
 
 
