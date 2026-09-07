@@ -66,23 +66,80 @@ def test_selected_token_payout_fails_closed_on_bad_mapping_or_open_market():
     }) is None
 
 
-def test_manual_trade_requires_actual_execution_cost(tmp_path):
-    store = Store(str(tmp_path / "signals.db"))
+def test_manual_trade_requires_actual_cost_and_resolves_only_after_execution(tmp_path):
+    db = str(tmp_path / "signals.db")
+    store = Store(db)
     signal_id = store.save_signal(_signal(cost=0.80))
     assert signal_id is not None
 
     with pytest.raises(ValueError, match="actual executed cost"):
         store.record_manual(signal_id, 100.0)
 
-    # Resolve the signal first, then record the user's genuine 0.90 execution.
-    store.resolve_payout(signal_id, 1.0, 100.0)
+    # Record the genuine execution while the alert is still unresolved. It must not
+    # have any realized P&L until a later settlement write occurs.
     trade = store.record_manual(signal_id, 100.0, 0.90)
     assert trade["entry_source"] == "USER_REPORTED_EXECUTION"
     assert trade["entry_cost"] == pytest.approx(0.90)
-    assert trade["status"] == "WON"
-    assert trade["pnl"] == pytest.approx(100.0 / 0.90 - 100.0)
+    assert trade["status"] == "OPEN"
+    assert trade["pnl"] is None
+    assert trade["settlement_payout"] is None
+
+    with sqlite3.connect(db) as c:
+        row = c.execute(
+            "SELECT execution_at,status,pnl,settlement_payout,resolved_at FROM manual_trades WHERE id=?",
+            (trade["id"],),
+        ).fetchone()
+    assert row is not None
+    assert row[0]
+    assert row[1] == "OPEN"
+    assert row[2] is None
+    assert row[3] is None
+    assert row[4] is None
+
+    store.resolve_payout(signal_id, 1.0, 100.0)
+    rows = store.recent_manual(10)
+    resolved = next(x for x in rows if x["id"] == trade["id"])
+    assert resolved["status"] == "WON"
+    assert resolved["pnl"] == pytest.approx(100.0 / 0.90 - 100.0)
     # If the stale alert quote (0.80) had been reused, this would have been $25.
-    assert trade["pnl"] != pytest.approx(25.0)
+    assert resolved["pnl"] != pytest.approx(25.0)
+
+
+def test_manual_trade_after_known_settlement_is_rejected(tmp_path):
+    store = Store(str(tmp_path / "signals.db"))
+    signal_id = store.save_signal(_signal(cost=0.80))
+    assert signal_id is not None
+
+    store.resolve_payout(signal_id, 1.0, 100.0)
+    with pytest.raises(ValueError, match="after the alert has settled|retrospective"):
+        store.record_manual(signal_id, 100.0, 0.90)
+
+    assert store.manual_stats()["total"] == 0
+
+
+def test_duplicate_actual_execution_for_same_alert_is_rejected(tmp_path):
+    store = Store(str(tmp_path / "signals.db"))
+    signal_id = store.save_signal(_signal())
+    assert signal_id is not None
+
+    first = store.record_manual(signal_id, 50.0, 0.82)
+    assert first["status"] == "OPEN"
+    with pytest.raises(ValueError, match="already recorded"):
+        store.record_manual(signal_id, 25.0, 0.81)
+    assert store.manual_stats()["total"] == 1
+
+
+def test_manual_partial_payout_is_applied_only_to_preexisting_execution(tmp_path):
+    store = Store(str(tmp_path / "signals.db"))
+    signal_id = store.save_signal(_signal())
+    assert signal_id is not None
+    trade = store.record_manual(signal_id, 100.0, 0.80)
+
+    store.resolve_payout(signal_id, 0.5, 100.0)
+    rows = store.recent_manual(10)
+    resolved = next(x for x in rows if x["id"] == trade["id"])
+    assert resolved["status"] == "RESOLVED_PARTIAL"
+    assert resolved["pnl"] == pytest.approx(100.0 / 0.80 * 0.5 - 100.0)
 
 
 def test_legacy_manual_rows_are_excluded_from_valid_manual_stats(tmp_path):
