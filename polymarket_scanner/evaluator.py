@@ -20,6 +20,7 @@ from .hardening import (
 from .macro import MacroClient
 from .models import Book, Market, Signal
 from .streams import CryptoRTDS
+from .weather_friend import friend_style_weather_lock
 
 log = logging.getLogger("polybot.evaluator")
 
@@ -144,6 +145,11 @@ def evaluate_signals(
     if weather_cache and weather_due:
         _last_weather_fast_at = now
         signals.extend(_safe("weather_late_lock", weather_late_lock, weather_markets, books, weather_cache))
+        # Keep the main ACTIONABLE EV standard intact, but also surface the manual
+        # late-day 90-97.5c high-lock pattern as a clearly labelled WATCH.  This is
+        # the style the user described from a friend: the observed daily high looks
+        # effectively locked while some payout remains in the matching bucket.
+        signals.extend(_safe("weather_friend_lock", friend_style_weather_lock, weather_markets, books, weather_cache))
 
     # Sports is driven by score/result feed events. A generic market book update
     # no longer causes a full sports pass over the entire universe.
