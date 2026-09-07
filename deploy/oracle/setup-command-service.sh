@@ -5,13 +5,18 @@ APP_NAME="polymarket-edge-scanner"
 APP_DIR="${HOME}/${APP_NAME}"
 CONFIG_DIR="${HOME}/.${APP_NAME}"
 ENV_FILE="${CONFIG_DIR}/bot.env"
+RELEASE_FILE="${CONFIG_DIR}/release.sha"
 SCANNER_SERVICE="${APP_NAME}.service"
 COMMAND_SERVICE="polymarket-edge-command.service"
 CURRENT_USER="$(id -un)"
 
 [[ -d "${APP_DIR}" ]] || { echo "Missing app directory: ${APP_DIR}" >&2; exit 1; }
 [[ -f "${ENV_FILE}" ]] || { echo "Missing env file: ${ENV_FILE}" >&2; exit 1; }
+[[ -f "${RELEASE_FILE}" ]] || { echo "Missing immutable release marker: ${RELEASE_FILE}" >&2; exit 1; }
 [[ -x "${APP_DIR}/.venv/bin/python" ]] || { echo "Missing virtualenv: ${APP_DIR}/.venv" >&2; exit 1; }
+[[ -f "${APP_DIR}/deploy/verify-runtime-release.sh" ]] || { echo "Missing runtime release verifier" >&2; exit 1; }
+
+bash "${APP_DIR}/deploy/verify-runtime-release.sh" "${APP_DIR}" "${RELEASE_FILE}"
 
 "${APP_DIR}/.venv/bin/python" - <<'PY'
 from polymarket_scanner.trade_only import promoted_detectors
@@ -26,13 +31,15 @@ TMP_DROPIN="$(mktemp)"
 cat > "${TMP_DROPIN}" <<EOF
 [Service]
 Environment=TELEGRAM_COMMANDS_IN_APP=false
+ExecStartPre=
+ExecStartPre=/bin/bash ${APP_DIR}/deploy/verify-runtime-release.sh ${APP_DIR} ${RELEASE_FILE}
 ExecStart=
 ExecStart=${APP_DIR}/.venv/bin/uvicorn app_trade_only:app --host 127.0.0.1 --port 8000
 EOF
 sudo install -m 0644 "${TMP_DROPIN}" "/etc/systemd/system/${SCANNER_SERVICE}.d/trade-only-policy.conf"
 rm -f "${TMP_DROPIN}"
 # Remove the older command-only drop-in if present; the canonical file above now
-# owns both the command setting and production entrypoint.
+# owns the command setting and production entrypoint.
 sudo rm -f "/etc/systemd/system/${SCANNER_SERVICE}.d/telegram-command-worker.conf"
 
 TMP_SERVICE="$(mktemp)"
@@ -48,6 +55,7 @@ User=${CURRENT_USER}
 WorkingDirectory=${APP_DIR}
 EnvironmentFile=${ENV_FILE}
 Environment=PYTHONUNBUFFERED=1
+ExecStartPre=/bin/bash ${APP_DIR}/deploy/verify-runtime-release.sh ${APP_DIR} ${RELEASE_FILE}
 ExecStart=${APP_DIR}/.venv/bin/python ${APP_DIR}/command_worker_trade_only.py
 Restart=always
 RestartSec=3
@@ -79,9 +87,14 @@ sudo systemctl is-active "${SCANNER_SERVICE}" || true
 
 echo "Scanner ExecStart:"
 sudo systemctl show -p ExecStart "${SCANNER_SERVICE}"
+echo "Scanner ExecStartPre:"
+sudo systemctl show -p ExecStartPre "${SCANNER_SERVICE}"
 echo "Command ExecStart:"
 sudo systemctl show -p ExecStart "${COMMAND_SERVICE}"
+echo "Command ExecStartPre:"
+sudo systemctl show -p ExecStartPre "${COMMAND_SERVICE}"
 echo "Promoted TRADE NOW detectors: 0 (P0 containment)"
+echo "Authorized immutable release: $(tr -d '[:space:]' < "${RELEASE_FILE}")"
 
 echo
 echo "Send /status now. The command worker is a separate OS process from the scanner."
