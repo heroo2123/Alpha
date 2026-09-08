@@ -3,6 +3,7 @@ import subprocess
 from pathlib import Path
 
 from polymarket_scanner.crypto_v3 import CRYPTO_FEED_VERSION
+from polymarket_scanner.schema_contract import DATABASE_SCHEMA_VERSION
 from polymarket_scanner.sports_v3 import SPORTS_CAUSAL_CACHE_VERSION
 from polymarket_scanner.runtime_manifest import (
     RUNTIME_MANIFEST_VERSION,
@@ -67,6 +68,7 @@ def test_matching_marker_clean_tree_and_release_preflight_are_fully_attested(tmp
     assert manifest["p0_containment"] is True
     assert manifest["promotion_count"] == 0
     assert manifest["versions"]["trade_ready"] == "trade-test"
+    assert manifest["versions"]["database_schema_contract"] == DATABASE_SCHEMA_VERSION
     assert manifest["versions"]["crypto_feed"] == CRYPTO_FEED_VERSION
     assert manifest["versions"]["sports_causal_cache"] == SPORTS_CAUSAL_CACHE_VERSION
     assert len(manifest["nonsecret_safety_policy_sha256"]) == 64
