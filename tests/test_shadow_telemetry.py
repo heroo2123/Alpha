@@ -1,8 +1,11 @@
 import json
+from pathlib import Path
 
 from polymarket_scanner.shadow_telemetry import (
     SHADOW_MAX_ROWS,
     SHADOW_TELEMETRY_VERSION,
+    _reset_shadow_throttle_for_tests,
+    maybe_record_shadow_health_state,
     recent_shadow_samples,
     record_shadow_sample,
 )
@@ -55,6 +58,7 @@ def _snapshot(*, rss: int = 1000, release: str = "a" * 40) -> dict:
             "usable_coverage_ratio": 0.91,
         },
         "runtime_manifest": {"authorized_release_sha": release},
+        "database_schema": {"compatible": True},
         "production_runtime_authority_complete": True,
         "p0_containment": True,
         "universe_safe_for_detection": True,
@@ -121,3 +125,52 @@ def test_shadow_payload_rejects_nonfinite_values_without_invalid_json(tmp_path):
     record_shadow_sample(store, snap, sampled_at=1000.0)
     payload = json.loads(recent_shadow_samples(store, limit=1)[0]["payload_json"])
     assert payload["resources"]["load_average_1m"] is None
+
+
+def test_health_state_sampler_waits_for_schema_and_throttles_to_one_minute(tmp_path):
+    _reset_shadow_throttle_for_tests()
+    store = Store(str(tmp_path / "signals.db"))
+    snap = _snapshot(rss=10)
+
+    blocked = dict(snap)
+    blocked["database_schema"] = {"compatible": False}
+    assert maybe_record_shadow_health_state(
+        store,
+        json.dumps(blocked),
+        monotonic_now=100.0,
+        sampled_at=1000.0,
+    ) is None
+
+    first = maybe_record_shadow_health_state(
+        store,
+        json.dumps(snap),
+        monotonic_now=100.0,
+        sampled_at=1000.0,
+    )
+    assert first is not None
+
+    snap["runtime_resources"]["process_rss_bytes"] = 20
+    assert maybe_record_shadow_health_state(
+        store,
+        json.dumps(snap),
+        monotonic_now=159.9,
+        sampled_at=1059.9,
+    ) is None
+
+    second = maybe_record_shadow_health_state(
+        store,
+        json.dumps(snap),
+        monotonic_now=160.0,
+        sampled_at=1060.0,
+    )
+    assert second is not None
+    rows = recent_shadow_samples(store, limit=10)
+    assert len(rows) == 2
+    assert json.loads(rows[0]["payload_json"])["resources"]["process_rss_bytes"] == 20
+
+
+def test_trade_only_wires_health_persistence_to_shadow_sampler():
+    source = Path("app_trade_only.py").read_text(encoding="utf-8")
+    assert "maybe_record_shadow_health_state" in source
+    assert "_trade_only_set_state" in source
+    assert "base.store.set_state = _trade_only_set_state" in source
