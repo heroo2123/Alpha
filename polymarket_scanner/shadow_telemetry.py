@@ -4,12 +4,16 @@ from __future__ import annotations
 
 import json
 import math
+import threading
 import time
 
 SHADOW_TELEMETRY_VERSION = "shadow_history_v1_60s_14d"
 SHADOW_SAMPLE_SECONDS = 60.0
 SHADOW_RETENTION_DAYS = 14
 SHADOW_MAX_ROWS = int(SHADOW_RETENTION_DAYS * 86400 / SHADOW_SAMPLE_SECONDS)
+
+_THROTTLE_LOCK = threading.Lock()
+_last_sample_monotonic: float | None = None
 
 
 def _finite(value: object) -> float | None:
@@ -200,6 +204,51 @@ def record_shadow_sample(
         "sample_interval_seconds": SHADOW_SAMPLE_SECONDS,
         "payload_scope": "WHITELISTED_SECRET_FREE_OPERATIONAL_EVIDENCE",
     }
+
+
+def maybe_record_shadow_health_state(
+    store,
+    value: str,
+    *,
+    monotonic_now: float | None = None,
+    sampled_at: float | None = None,
+) -> dict | None:
+    """Sample the persisted trade-only health record at most once per minute.
+
+    The normal health snapshot is written every ~2 seconds in ``asyncio.to_thread``.
+    This hook runs in that same worker thread after the latest-state transaction has
+    released the Store lock. It refuses to sample until the production schema gate is
+    visible as compatible, so startup/migration transients never become shadow proof.
+    """
+    global _last_sample_monotonic
+    try:
+        snapshot = json.loads(value)
+    except (TypeError, json.JSONDecodeError):
+        return None
+    if not isinstance(snapshot, dict):
+        return None
+    database_schema = _mapping(snapshot.get("database_schema"))
+    if database_schema.get("compatible") is not True:
+        return None
+
+    current_mono = time.monotonic() if monotonic_now is None else float(monotonic_now)
+    if not math.isfinite(current_mono) or current_mono < 0:
+        return None
+    with _THROTTLE_LOCK:
+        if (
+            _last_sample_monotonic is not None
+            and current_mono - _last_sample_monotonic < SHADOW_SAMPLE_SECONDS
+        ):
+            return None
+        result = record_shadow_sample(store, snapshot, sampled_at=sampled_at)
+        _last_sample_monotonic = current_mono
+        return result
+
+
+def _reset_shadow_throttle_for_tests() -> None:
+    global _last_sample_monotonic
+    with _THROTTLE_LOCK:
+        _last_sample_monotonic = None
 
 
 def recent_shadow_samples(store, *, limit: int = 120) -> list[dict]:
