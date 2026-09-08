@@ -29,19 +29,39 @@ ACTUAL_SHA="$(git -C "${APP_DIR}" rev-parse HEAD)"
   || fail "release-pin: checkout attestation failed (${ACTUAL_SHA} != ${RELEASE_SHA,,})"
 
 # Only commits carrying the complete fail-closed production + release-authority
-# runtime are eligible. Merely containing app_trade_only.py is not enough: this
-# explicitly prevents pinning a pre-attestation historical revision that could start
-# without verifying the recorded SHA/working tree.
+# runtime are eligible. Merely containing app_trade_only.py is not enough. This
+# prevents pinning historical revisions that could start without immutable-release,
+# dependency-preflight, or runtime-manifest evidence.
 [[ -f "${APP_DIR}/app_trade_only.py" ]] || fail "release-pin: pinned commit lacks app_trade_only.py"
 [[ -f "${APP_DIR}/command_worker_trade_only.py" ]] || fail "release-pin: pinned commit lacks command_worker_trade_only.py"
 [[ -f "${APP_DIR}/deploy/verify-runtime-release.sh" ]] || fail "release-pin: pinned commit predates runtime release attestation"
+[[ -f "${APP_DIR}/polymarket_scanner/runtime_manifest.py" ]] || fail "release-pin: pinned commit predates runtime manifest attestation"
+[[ -f "${APP_DIR}/polymarket_scanner/dependency_preflight.py" ]] || fail "release-pin: pinned commit predates dependency preflight authority"
 [[ -f "${APP_DIR}/deploy/oracle/setup-command-service.sh" ]] || fail "release-pin: pinned commit lacks canonical command-service setup"
+[[ -f "${APP_DIR}/deploy/oracle/install.sh" ]] || fail "release-pin: pinned commit lacks Oracle installer"
+[[ -f "${APP_DIR}/deploy/oracle/update.sh" ]] || fail "release-pin: pinned commit lacks Oracle updater"
+[[ -f "${APP_DIR}/deploy/gcp/install.sh" ]] || fail "release-pin: pinned commit lacks GCP installer"
+
 grep -qF 'verify-runtime-release.sh' "${APP_DIR}/deploy/oracle/setup-command-service.sh" \
   || fail "release-pin: pinned Oracle service setup does not enforce runtime release attestation"
 grep -qF 'app_trade_only:app' "${APP_DIR}/deploy/oracle/setup-command-service.sh" \
   || fail "release-pin: pinned Oracle service setup lacks canonical scanner entrypoint"
 grep -qF 'command_worker_trade_only.py' "${APP_DIR}/deploy/oracle/setup-command-service.sh" \
   || fail "release-pin: pinned Oracle service setup lacks canonical command worker"
+grep -qF 'build_runtime_manifest' "${APP_DIR}/app_trade_only.py" \
+  || fail "release-pin: pinned production runtime does not expose runtime manifest attestation"
+for script in \
+  "${APP_DIR}/deploy/oracle/install.sh" \
+  "${APP_DIR}/deploy/oracle/update.sh" \
+  "${APP_DIR}/deploy/gcp/install.sh"
+do
+  grep -qF 'polymarket_scanner.dependency_preflight' "${script}" \
+    || fail "release-pin: pinned deploy path lacks dependency preflight gate (${script})"
+  grep -qF -- '--required-only' "${script}" \
+    || fail "release-pin: pinned deploy path does not fail closed on required dependencies (${script})"
+  grep -qF -- '--release-sha' "${script}" \
+    || fail "release-pin: pinned deploy preflight is not release-bound (${script})"
+done
 
 mkdir -p "$(dirname "${RELEASE_FILE}")"
 printf '%s\n' "${ACTUAL_SHA}" > "${RELEASE_FILE}"
