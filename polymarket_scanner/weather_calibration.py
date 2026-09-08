@@ -9,7 +9,8 @@ from dataclasses import dataclass
 from .models import Signal
 
 WEATHER_DETECTORS = {"weather_late_lock", "weather_friend_lock"}
-WEATHER_CALIBRATION_VERSION = "weather_empirical_bins_v1"
+WEATHER_CALIBRATION_VERSION = "weather_empirical_bins_v2_observation_authority"
+WEATHER_CALIBRATION_EVIDENCE_VERSION = "SETTLEMENT_OBSERVATION_AUTHORITY_V1"
 
 # Prospective evidence gates. These are deliberately conservative and are not an
 # automatic strategy-promotion policy: they only decide whether an empirical
@@ -50,6 +51,7 @@ class WeatherCalibration:
     def as_metadata(self) -> dict:
         return {
             "weather_calibration_version": WEATHER_CALIBRATION_VERSION,
+            "weather_calibration_evidence_version": WEATHER_CALIBRATION_EVIDENCE_VERSION,
             "weather_calibration_detector": self.detector,
             "weather_calibration_model_version": self.model_version,
             "weather_calibration_n": self.total_resolved,
@@ -114,6 +116,36 @@ def _wilson_lower(successes: float, n: int, z: float = WILSON_Z) -> float | None
     return max(0.0, (center - radius) / denom)
 
 
+def _settlement_authoritative_weather_sample(meta: dict) -> bool:
+    """Return True only for explicitly versioned settlement-source observations.
+
+    Contract authority and observation authority are different claims. A market can
+    correctly name NOAA/NWS WRH while the research detector consumes AviationWeather
+    METAR as a proxy. Those proxy rows are useful research history but are not clean
+    calibration labels for a strategy whose edge depends on the exact settlement
+    observation population/precision/correction state.
+
+    Legacy metadata is never grandfathered into this evidence class. A future
+    source-native adapter must deliberately stamp all fields below when it can prove
+    the exact rule-selected observation feed was used prospectively.
+    """
+    if meta.get("weather_contract_source_verified") is not True:
+        return False
+    if meta.get("weather_observation_settlement_authority") is not True:
+        return False
+    if meta.get("weather_calibration_eligible_observations") is not True:
+        return False
+    if str(meta.get("weather_calibration_evidence_version") or "") != WEATHER_CALIBRATION_EVIDENCE_VERSION:
+        return False
+    contract_adapter = str(meta.get("weather_contract_adapter") or "").strip()
+    observation_adapter = str(meta.get("weather_observation_adapter") or "").strip()
+    if not contract_adapter or not observation_adapter:
+        return False
+    if "PROXY" in observation_adapter.upper():
+        return False
+    return True
+
+
 def _load_clean_samples(db_path: str, detector: str, model_version: str) -> list[dict]:
     if detector not in WEATHER_DETECTORS or not model_version:
         return []
@@ -142,7 +174,7 @@ def _load_clean_samples(db_path: str, detector: str, model_version: str) -> list
         meta = _meta(row["metadata"])
         if str(meta.get("weather_model_version") or "") != model_version:
             continue
-        if meta.get("settlement_source_verified") is not True:
+        if not _settlement_authoritative_weather_sample(meta):
             continue
         score = _finite_probability(meta.get("lock_probability"))
         payout = _finite_probability(row["settlement_payout"])
@@ -185,9 +217,9 @@ def calibration_for_score(db_path: str, detector: str, model_version: str, score
 
     reasons = []
     if total < MIN_TOTAL_RESOLVED:
-        reasons.append(f"need {MIN_TOTAL_RESOLVED} clean resolved samples; have {total}")
+        reasons.append(f"need {MIN_TOTAL_RESOLVED} settlement-authoritative resolved samples; have {total}")
     if bin_n < MIN_BIN_RESOLVED:
-        reasons.append(f"need {MIN_BIN_RESOLVED} samples in score bin; have {bin_n}")
+        reasons.append(f"need {MIN_BIN_RESOLVED} settlement-authoritative samples in score bin; have {bin_n}")
     if stations < MIN_DISTINCT_STATIONS:
         reasons.append(f"need {MIN_DISTINCT_STATIONS} distinct stations; have {stations}")
     if overall_brier is None or overall_brier > MAX_BRIER_SCORE:
