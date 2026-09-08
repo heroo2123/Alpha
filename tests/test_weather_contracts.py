@@ -86,6 +86,8 @@ def test_contract_unit_comes_from_question_not_celsius_display_instructions():
     assert safe.raw["weather_contract_station"] == "KORD"
     assert safe.raw["weather_contract_adapter"] == WEATHER_CONTRACT_ADAPTER
     assert safe.raw["weather_contract_target_date"] == "2026-09-07"
+    assert safe.raw["weather_contract_source_priority"] == "resolution_source_primary_only"
+    assert safe.raw["weather_contract_fallback_policy"] == "none_present"
     assert market_unit(safe) == "F"
     assert safe.description == ""
 
@@ -109,8 +111,83 @@ def test_authoritative_wrh_host_station_and_date_are_preserved():
     source = strict_wrh_source(market)
     assert source["verified"] is True
     assert source["station"] == "KORD"
-    assert source["kind"] == "NOAA/NWS WRH strict_v1"
+    assert source["kind"] == "NOAA/NWS WRH primary-only v3"
+    assert source["source_priority"] == "resolution_source_primary_only"
+    assert source["fallback_policy"] == "none_present"
     assert settlement_safe_market(market, now=_now()) is not None
+
+
+def test_wrh_url_only_in_description_cannot_be_promoted_to_primary_source():
+    market = _market(
+        "Will the highest temperature be 71 F or below?",
+        "",
+        "Use https://www.weather.gov/wrh/timeseries?site=KORD for settlement.",
+    )
+    source = strict_wrh_source(market)
+    assert source["verified"] is False
+    assert "resolution_source" in source["reason"]
+    assert settlement_safe_market(market, now=_now()) is None
+
+
+def test_unsupported_primary_with_wrh_fallback_in_description_is_rejected():
+    market = _market(
+        "Will the highest temperature be 71 F or below?",
+        "https://www.wunderground.com/history/daily/us/il/chicago/KORD",
+        "Fallback https://www.weather.gov/wrh/timeseries?site=KORD",
+    )
+    source = strict_wrh_source(market)
+    assert source["verified"] is False
+    assert "primary" in source["reason"]
+    assert settlement_safe_market(market, now=_now()) is None
+
+
+def test_primary_wrh_with_distinct_fallback_url_is_rejected_until_policy_is_modeled():
+    market = _market(
+        "Will the highest temperature be 71 F or below?",
+        "https://www.weather.gov/wrh/timeseries?site=KORD",
+        "If the primary source is unavailable, fallback to https://www.wunderground.com/history/daily/us/il/chicago/KORD.",
+    )
+    source = strict_wrh_source(market)
+    assert source["verified"] is False
+    assert source["station"] == "KORD"
+    assert "secondary/fallback" in source["reason"]
+    assert settlement_safe_market(market, now=_now()) is None
+
+
+def test_primary_wrh_with_named_fallback_but_no_url_is_still_rejected():
+    market = _market(
+        "Will the highest temperature be 71 F or below?",
+        "https://www.weather.gov/wrh/timeseries?site=KORD",
+        "If the primary source is unavailable, use Wunderground as fallback.",
+    )
+    source = strict_wrh_source(market)
+    assert source["verified"] is False
+    assert "fallback/secondary" in source["reason"]
+    assert settlement_safe_market(market, now=_now()) is None
+
+
+def test_same_primary_url_may_be_repeated_in_rules_without_changing_authority():
+    url = "https://www.weather.gov/wrh/timeseries?site=KORD"
+    market = _market(
+        "Will the highest temperature be 71 F or below?",
+        url,
+        f"Primary source: {url}",
+    )
+    source = strict_wrh_source(market)
+    assert source["verified"] is True
+    assert source["url"] == url
+    assert settlement_safe_market(market, now=_now()) is not None
+
+
+def test_multiple_urls_in_dedicated_resolution_source_are_ambiguous_and_rejected():
+    market = _market(
+        "Will the highest temperature be 71 F or below?",
+        "https://www.weather.gov/wrh/timeseries?site=KORD https://www.weather.gov/wrh/timeseries?site=KMDW",
+    )
+    source = strict_wrh_source(market)
+    assert source["verified"] is False
+    assert "exactly one primary URL" in source["reason"]
+    assert settlement_safe_market(market, now=_now()) is None
 
 
 def test_missing_or_wrong_market_date_fails_closed():
