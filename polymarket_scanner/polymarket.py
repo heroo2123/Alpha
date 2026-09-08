@@ -95,7 +95,12 @@ class PolymarketClient:
         }
 
     async def _event_page(self, offset: int, *, tag_slug: str | None = None) -> list[dict]:
-        """Fetch one Gamma event page with compatibility and transient-failure retries."""
+        """Fetch one bounded offset page used only for compatibility supplements.
+
+        Full-universe discovery uses the cursor/keyset endpoint because Gamma now
+        rejects deep offsets. This helper remains only for the finite weather-tag
+        supplement, whose offsets are intentionally kept below the Gamma ceiling.
+        """
         page_size = max(1, min(int(settings.gamma_page_size), 100))
         base = {
             "active": "true",
@@ -139,6 +144,82 @@ class PolymarketClient:
                 await asyncio.sleep(delay)
 
         return []
+
+    async def _event_keyset_page(
+        self,
+        after_cursor: str | None,
+        *,
+        tag_slug: str | None = None,
+    ) -> tuple[list[dict], str | None]:
+        """Fetch one Gamma cursor page and validate the keyset response envelope.
+
+        Deep offset pagination is no longer a valid full-universe contract. Gamma's
+        keyset endpoint returns an ``events`` array plus an opaque ``next_cursor``;
+        that cursor must be sent back as ``after_cursor``. Any malformed envelope,
+        empty page with a continuation cursor, or transport failure fails closed.
+        """
+        page_size = max(1, min(int(settings.gamma_page_size), 100))
+        params: dict[str, object] = {
+            "active": "true",
+            "closed": "false",
+            "limit": page_size,
+        }
+        if after_cursor:
+            params["after_cursor"] = after_cursor
+        if tag_slug:
+            params["tag_slug"] = tag_slug
+
+        attempts = 4
+        for attempt in range(attempts):
+            try:
+                response = await self.http.get(f"{GAMMA}/events/keyset", params=params)
+                if response.status_code == 429 or response.status_code >= 500:
+                    if attempt < attempts - 1:
+                        delay = min(4.0, 0.5 * (2 ** attempt))
+                        log.warning(
+                            "Gamma keyset page transient HTTP %s cursor=%s tag=%s; retrying in %.1fs",
+                            response.status_code,
+                            "set" if after_cursor else "first",
+                            tag_slug,
+                            delay,
+                        )
+                        await asyncio.sleep(delay)
+                        continue
+
+                response.raise_for_status()
+                payload = response.json()
+                if not isinstance(payload, dict):
+                    raise UniverseIncompleteError("Gamma keyset response is not an object")
+                events = payload.get("events")
+                if not isinstance(events, list):
+                    raise UniverseIncompleteError("Gamma keyset response is missing an events list")
+
+                raw_cursor = payload.get("next_cursor")
+                if raw_cursor is not None and not isinstance(raw_cursor, str):
+                    raise UniverseIncompleteError("Gamma keyset next_cursor is malformed")
+                next_cursor = raw_cursor.strip() if isinstance(raw_cursor, str) else ""
+                next_cursor = next_cursor or None
+                if next_cursor is not None and not events:
+                    raise UniverseIncompleteError(
+                        "Gamma keyset returned an empty events page with a continuation cursor"
+                    )
+                return events, next_cursor
+            except httpx.RequestError as exc:
+                if attempt >= attempts - 1:
+                    raise
+                delay = min(4.0, 0.5 * (2 ** attempt))
+                log.warning(
+                    "Gamma keyset request failed cursor=%s tag=%s attempt=%s/%s: %r; retrying in %.1fs",
+                    "set" if after_cursor else "first",
+                    tag_slug,
+                    attempt + 1,
+                    attempts,
+                    exc,
+                    delay,
+                )
+                await asyncio.sleep(delay)
+
+        raise UniverseIncompleteError("Gamma keyset retries exhausted without a usable page")
 
     def _append_events(self, out: list[Market], events: list[dict], seen_market_ids: set[str] | None = None) -> None:
         seen = seen_market_ids if seen_market_ids is not None else set()
@@ -192,36 +273,47 @@ class PolymarketClient:
     async def _fetch_active_markets(self) -> list[Market]:
         markets: list[Market] = []
         seen: set[str] = set()
-        offset = 0
         page_size = max(1, min(int(settings.gamma_page_size), 100))
         page_concurrency = max(1, min(int(settings.gamma_page_concurrency), 16))
         market_cap = max(1, int(settings.max_events))
 
         self._fetch_complete = False
-        self._fetch_reason = "Gamma fetch in progress"
-        exhausted = False
-        while not exhausted:
-            offsets = [offset + i * page_size for i in range(page_concurrency)]
-            pages = await asyncio.gather(*(self._event_page(x) for x in offsets))
-            terminal = self._pagination_terminal_index(pages, page_size)
-            usable_pages = pages if terminal is None else pages[: terminal + 1]
+        self._fetch_reason = "Gamma keyset fetch in progress"
 
-            for events in usable_pages:
-                self._append_events(markets, events, seen)
-                if len(markets) >= market_cap:
-                    self._fetch_reason = (
-                        f"configured market cap {market_cap} reached before Gamma pagination exhausted"
-                    )
-                    raise UniverseIncompleteError(self._fetch_reason)
+        # Full active-universe authority comes only from natural exhaustion of the
+        # cursor/keyset endpoint. Offset pagination is capped server-side and cannot
+        # prove completeness once the active event set grows beyond that ceiling.
+        cursor: str | None = None
+        seen_cursors: set[str] = set()
+        keyset_pages = 0
+        while True:
+            events, next_cursor = await self._event_keyset_page(cursor)
+            keyset_pages += 1
+            self._append_events(markets, events, seen)
 
-            if terminal is not None:
-                exhausted = True
-            offset += page_size * page_concurrency
+            if len(markets) > market_cap or (len(markets) >= market_cap and next_cursor is not None):
+                self._fetch_reason = (
+                    f"configured market cap {market_cap} reached before Gamma keyset pagination exhausted"
+                )
+                raise UniverseIncompleteError(self._fetch_reason)
 
-        # The general query proved exhaustion before the cap. Weather-tag pages are
-        # retained only as a compatibility supplement; completeness does not depend
-        # on their finite supplement loop because the untagged active query already
-        # reached its natural end.
+            if next_cursor is None:
+                break
+            if next_cursor == cursor or next_cursor in seen_cursors:
+                self._fetch_reason = "Gamma keyset pagination repeated a cursor before exhaustion"
+                raise UniverseIncompleteError(self._fetch_reason)
+            seen_cursors.add(next_cursor)
+            cursor = next_cursor
+
+            # Defense in depth against a server that emits endlessly changing cursors.
+            if keyset_pages >= 5000:
+                self._fetch_reason = "Gamma keyset pagination exceeded 5000 pages without exhaustion"
+                raise UniverseIncompleteError(self._fetch_reason)
+
+        # The general keyset query proved exhaustion before the cap. Weather-tag
+        # offset pages are retained only as a bounded compatibility supplement;
+        # completeness no longer depends on them because the untagged keyset walk
+        # already reached its natural end. Their offsets remain below Gamma's cap.
         weather_exhausted = False
         weather_batch = min(4, page_concurrency)
         for first_page in range(0, 20, weather_batch):
@@ -232,6 +324,11 @@ class PolymarketClient:
                     weather_exhausted = True
                     break
                 self._append_events(markets, events, seen)
+                if len(markets) > market_cap:
+                    self._fetch_reason = (
+                        f"configured market cap {market_cap} exceeded by Gamma compatibility supplement"
+                    )
+                    raise UniverseIncompleteError(self._fetch_reason)
                 if len(events) < page_size:
                     weather_exhausted = True
                     break
@@ -239,7 +336,7 @@ class PolymarketClient:
                 break
 
         self._fetch_complete = True
-        self._fetch_reason = "Gamma active-event pagination exhausted before configured market cap"
+        self._fetch_reason = "Gamma active-event keyset pagination exhausted before configured market cap"
         return markets
 
     def _accept_active_snapshot(self, refreshed: list[Market]) -> None:
