@@ -8,6 +8,7 @@ from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 
+from .crypto_v3 import CRYPTO_FEED_VERSION
 from .models import Signal
 
 
@@ -15,6 +16,7 @@ STRUCTURAL_DETECTORS = {"binary_buy_both", "neg_risk_underround", "nested_thresh
 EXPERIMENTAL_RESOLUTION_DETECTORS = {"weather_friend_lock", "weather_late_lock"}
 SPORTS_MAPPING_VERSION = "home_away_v2"
 SPORTS_PRE_FIX_GROUP = "sports_result_lag_PRE_FIX_BUG"
+CRYPTO_PRE_FIX_GROUP = "crypto_resolution_lag_PRE_STRICT_TIMESTAMP_BUG"
 RESOLVED_STATUSES = {"WON", "LOST", "RESOLVED_PARTIAL"}
 
 
@@ -128,6 +130,12 @@ class Store:
             return False
         return cls._meta(row.get("metadata")).get("sports_mapping_version") != SPORTS_MAPPING_VERSION
 
+    @classmethod
+    def _crypto_pre_fix(cls, row: dict) -> bool:
+        if str(row.get("detector") or "") != "crypto_resolution_lag":
+            return False
+        return cls._meta(row.get("metadata")).get("crypto_feed_version") != CRYPTO_FEED_VERSION
+
     @staticmethod
     def _status_for_payout(payout: float) -> str:
         if payout >= 1.0 - 1e-9:
@@ -141,7 +149,8 @@ class Store:
 
         Structural multi-leg quote math is excluded because settlement cannot prove
         fills. Both weather lanes are scored experimentally. Sports alerts created
-        before the explicit home/away mapping fix are quarantined and are not allowed
+        before the explicit home/away mapping fix and crypto-resolution rows created
+        before strict source-timestamp ingestion are quarantined and are not allowed
         to accumulate more apparent strategy results.
         """
         with self._conn() as c:
@@ -151,7 +160,7 @@ class Store:
         out = []
         for row in rows:
             detector = str(row.get("detector") or "")
-            if detector in STRUCTURAL_DETECTORS or self._sports_pre_fix(row):
+            if detector in STRUCTURAL_DETECTORS or self._sports_pre_fix(row) or self._crypto_pre_fix(row):
                 continue
             if str(row.get("confidence") or "") == "ACTIONABLE" or detector in EXPERIMENTAL_RESOLUTION_DETECTORS:
                 out.append(row)
@@ -195,20 +204,7 @@ class Store:
         self.resolve_payout(signal_id, 1.0 if won else 0.0, stake)
 
     def record_manual(self, signal_id: int, stake: float, actual_entry_cost: float | None = None) -> dict:
-        """Record one user-reported execution while the source alert is unresolved.
-
-        ``actual_entry_cost`` is what the user really paid per $1 payout unit for a
-        single-leg trade, or the combined cost per complete payout bundle for a
-        multi-leg trade. It is intentionally required. The execution is recorded OPEN
-        and can only acquire P&L from a *later* settlement write. Once the signal has
-        any resolved/quarantined terminal state or known settlement payout, a new
-        manual trade is rejected: retrospective entry after the answer is known would
-        be look-ahead, not execution evidence.
-
-        A second USER_REPORTED_EXECUTION for the same alert is also rejected. The
-        command surface models one manually executed position per TRADE NOW alert;
-        repeated /took commands must not double-count one fill.
-        """
+        """Record one user-reported execution while the source alert is unresolved."""
         if isinstance(stake, bool) or not math.isfinite(float(stake)) or float(stake) <= 0:
             raise ValueError("stake must be positive and finite")
         if actual_entry_cost is None:
@@ -222,8 +218,11 @@ class Store:
             sig = c.execute("SELECT * FROM signals WHERE id=?", (signal_id,)).fetchone()
             if not sig or sig["confidence"] != "ACTIONABLE":
                 raise ValueError("unknown/non-actionable alert id")
-            if self._sports_pre_fix(dict(sig)):
+            signal_dict = dict(sig)
+            if self._sports_pre_fix(signal_dict):
                 raise ValueError("that sports alert came from the pre-fix home/away mapping bug and is quarantined")
+            if self._crypto_pre_fix(signal_dict):
+                raise ValueError("that crypto alert predates strict source-timestamp ingestion and is quarantined")
 
             signal_status = str(sig["status"] or "")
             if (
@@ -294,8 +293,6 @@ class Store:
             return None
         raw_payout = row.get("settlement_payout")
         if raw_payout is None:
-            # Backward-compatible audit of historical rows only. New settlements
-            # always persist the payout explicitly.
             payout = 1.0 if status == "WON" else 0.0 if status == "LOST" else None
             if payout is None:
                 return None
@@ -309,12 +306,7 @@ class Store:
         return payout / cost - 1.0
 
     def stats(self) -> dict:
-        """Evidence-based audit of every stored scanner signal.
-
-        Valid resolution evidence, experimental weather evidence, structural quote
-        math, research WATCHs, legacy synthetic rows, and the known pre-fix sports
-        implementation bug are deliberately reported as different evidence classes.
-        """
+        """Evidence-based audit of every stored scanner signal."""
         with self._conn() as c:
             rows = [dict(r) for r in c.execute("SELECT * FROM signals ORDER BY id")]
 
@@ -323,6 +315,8 @@ class Store:
             detector = str(row.get("detector") or "unknown")
             if self._sports_pre_fix(row):
                 detector = SPORTS_PRE_FIX_GROUP
+            elif self._crypto_pre_fix(row):
+                detector = CRYPTO_PRE_FIX_GROUP
             groups[detector].append(row)
 
         detector_rows: list[dict] = []
@@ -362,7 +356,7 @@ class Store:
                     visible.append(value)
             avg_visible = sum(visible) / len(visible) if visible else None
 
-            if detector == SPORTS_PRE_FIX_GROUP:
+            if detector in {SPORTS_PRE_FIX_GROUP, CRYPTO_PRE_FIX_GROUP}:
                 evidence = "KNOWN_BUG_EXCLUDED"
                 bug_total += len(items)
                 bug_resolved += resolved
@@ -434,6 +428,7 @@ class Store:
                 and detector not in STRUCTURAL_DETECTORS
                 and detector not in EXPERIMENTAL_RESOLUTION_DETECTORS
                 and not self._sports_pre_fix(r)
+                and not self._crypto_pre_fix(r)
             )
             if eligible:
                 value = self._resolved_return(r)
@@ -496,15 +491,7 @@ class Store:
         return parsed.astimezone(timezone.utc)
 
     def manual_stats(self) -> dict:
-        """Return only prospective user-reported executions as valid manual P&L.
-
-        Historical rows are never rewritten. Instead they are classified at read
-        time and excluded from the valid totals when they came from a known-bug
-        sports version, predate execution timestamps, were recorded at/after known
-        settlement, or represent a structural multi-leg basket without per-leg fill
-        evidence. This preserves the audit trail while preventing old rows from
-        masquerading as trustworthy realized performance.
-        """
+        """Return only prospective user-reported executions as valid manual P&L."""
         with self._conn() as c:
             rows = [dict(r) for r in c.execute(
                 """
@@ -539,7 +526,7 @@ class Store:
                 "detector": detector,
                 "metadata": row.get("signal_metadata"),
             }
-            if self._sports_pre_fix(signal_like):
+            if self._sports_pre_fix(signal_like) or self._crypto_pre_fix(signal_like):
                 known_bug_excluded += 1
                 continue
             execution_at = self._audit_time(row.get("execution_at"))
@@ -554,9 +541,6 @@ class Store:
                 retrospective_excluded += 1
                 continue
             if detector in STRUCTURAL_DETECTORS:
-                # A combined user-entered cost is useful personal history, but it is
-                # not evidence that every required leg/quantity/fee filled. Keep it
-                # visible only as an exclusion until per-leg fill records exist.
                 structural_unverified_excluded += 1
                 continue
             valid.append(row)
@@ -598,8 +582,7 @@ class Store:
                 """
                 SELECT m.id,m.signal_id,m.stake,m.entry_cost,m.entry_source,m.status,m.pnl,s.title
                 FROM manual_trades m JOIN signals s ON s.id=m.signal_id
-                ORDER BY m.id DESC LIMIT ?
-                """,
+                ORDER BY m.id DESC LIMIT ?",
                 (limit,),
             )]
 
