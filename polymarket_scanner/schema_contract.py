@@ -98,3 +98,29 @@ def attest_database_schema(path: str | Path) -> dict:
         }
     )
     return base
+
+
+def require_database_schema(path: str | Path) -> dict:
+    """Return the attestation or abort startup for an incompatible database.
+
+    Production schema creation/migrations run before this guard. Reaching this
+    function with missing tables/columns therefore means the running database does
+    not match the code's persistence contract and must not be treated as healthy.
+    """
+    attestation = attest_database_schema(path)
+    if attestation.get("compatible") is True:
+        return attestation
+
+    missing_tables = list(attestation.get("missing_tables") or [])
+    missing_columns = dict(attestation.get("missing_columns") or {})
+    details: list[str] = []
+    if missing_tables:
+        details.append(f"missing tables={missing_tables}")
+    if missing_columns:
+        details.append(f"missing columns={missing_columns}")
+    if not details:
+        details.append(str(attestation.get("reason") or "unknown schema incompatibility"))
+    raise RuntimeError(
+        f"production database schema incompatible with {DATABASE_SCHEMA_VERSION}: "
+        + "; ".join(details)
+    )
