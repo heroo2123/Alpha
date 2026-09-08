@@ -14,11 +14,15 @@ until its fallback policy is implemented. The target day must be exactly one
 unambiguous Month Day, YYYY date in the event/question identity; missing-year,
 multiple-date and malformed intervals fail closed rather than defaulting to "today".
 
-The temporal data boundary remains fail-closed: future observations cannot enter the
-evidence set, and attached forecast context must itself be fresh and causally
-available.
+The temporal data boundary remains fail-closed: only observations stamped by the
+current exact-identity AWC proxy adapter may enter prospective V4 research, station
+identity must match the cache key, future/non-finite rows are rejected, identical
+same-time duplicates collapse, conflicting same-time temperatures are discarded, and
+attached forecast context must itself be fresh and causally available. AWC remains a
+proxy and is never upgraded here to settlement authority.
 """
 
+import math
 import re
 from dataclasses import replace
 from datetime import date, datetime, timedelta, timezone
@@ -27,6 +31,7 @@ from zoneinfo import ZoneInfo
 
 from .models import Market
 from .weather import (
+    AWC_OBSERVATION_ADAPTER,
     FORECAST_REFRESH_SECONDS,
     Observation,
     ObservationBatch,
@@ -238,12 +243,30 @@ def _aware_utc(value: datetime) -> datetime | None:
         return None
 
 
+def _pick_identical_duplicate(rows: list[Observation]) -> Observation:
+    """Choose a stable representative when same-time duplicates agree on Temp."""
+    # Prefer the most recently received lineage when available. This does not confer
+    # settlement authority; it merely preserves the latest audit metadata for an
+    # otherwise identical proxy temperature.
+    def receipt_key(row: Observation) -> float:
+        received = _aware_utc(getattr(row, "receipt_time", None))
+        return received.timestamp() if received is not None else float("-inf")
+
+    return max(rows, key=receipt_key)
+
+
 def settlement_safe_weather_cache(
     weather_cache: dict[str, list],
     *,
     now: datetime | None = None,
 ) -> dict[str, ObservationBatch]:
-    """Remove non-causal observations and invalidate stale/future forecast context."""
+    """Normalize only causal, exact-lineage AWC proxy observations.
+
+    Prospective V4 evidence accepts no anonymous/legacy Observation rows. Duplicate
+    rows at one meteorological timestamp are harmless only when they agree exactly on
+    temperature; conflicting values are excluded because choosing one would invent a
+    correction/precedence rule that is not certified against WRH settlement history.
+    """
     current = now or datetime.now(timezone.utc)
     if current.tzinfo is None:
         return {}
@@ -256,17 +279,33 @@ def settlement_safe_weather_cache(
         if not station or not isinstance(rows, list):
             continue
 
-        valid_rows: list[Observation] = []
+        grouped: dict[datetime, list[Observation]] = {}
         for row in rows:
             if not isinstance(row, Observation):
+                continue
+            if str(getattr(row, "station_id", "") or "").strip().upper() != station:
+                continue
+            if str(getattr(row, "source_adapter", "") or "") != AWC_OBSERVATION_ADAPTER:
                 continue
             when = _aware_utc(row.when)
             if when is None or when > future_cutoff:
                 continue
             if not isinstance(row.temp_c, (int, float)):
                 continue
-            valid_rows.append(row)
-        valid_rows.sort(key=lambda row: row.when)
+            temp = float(row.temp_c)
+            if not math.isfinite(temp):
+                continue
+            grouped.setdefault(when, []).append(row)
+
+        valid_rows: list[Observation] = []
+        for when in sorted(grouped):
+            candidates = grouped[when]
+            temperatures = {float(row.temp_c) for row in candidates}
+            if len(temperatures) != 1:
+                # Same event time with conflicting temperatures may represent a
+                # correction or feed inconsistency; without WRH parity we choose none.
+                continue
+            valid_rows.append(_pick_identical_duplicate(candidates))
 
         forecast = getattr(rows, "forecast", None)
         if forecast is not None:
