@@ -7,9 +7,9 @@ ACTIONABLE candidates continue through the existing REST full-book confirmation 
 before persistence, and TRADE NOW delivery still rebuilds execution authority again.
 
 This module removes the recurring whole-universe CLOB /prices sweep. Instead, every
-accepted Gamma universe refresh seeds a compact YES/NO BBO snapshot. The bounded
-WebSocket hot set can override it when fresher, while exact candidate confirmation
-remains unchanged.
+accepted Gamma universe refresh seeds a compact YES/NO screening snapshot. The
+bounded WebSocket hot set can override it when fresher, while exact candidate
+confirmation remains unchanged.
 """
 
 import math
@@ -19,7 +19,7 @@ import time
 from .models import Book, Market
 from .production_universe import ProductionPolymarketClient
 
-GAMMA_SCREENING_VERSION = "gamma_bbo_screening_v1_exact_candidate_rest"
+GAMMA_SCREENING_VERSION = "gamma_bbo_screening_v2_partial_sides_exact_candidate_rest"
 RUNTIME_MODE = "complete_gamma_filtered_universe_plus_gamma_bbo_screening"
 
 
@@ -42,46 +42,66 @@ def _strict_yes_no_tokens(market: Market) -> tuple[str, str] | None:
 
 
 def gamma_screening_books(markets: list[Market], *, received_at: float | None = None) -> dict[str, Book]:
-    """Build binary complement BBO books from Gamma's embedded YES best bid/ask.
+    """Build ask-usable binary screening books from Gamma's embedded YES BBO.
 
-    The synthetic level size is 1 share solely so single-leg discovery detectors
-    that require a non-zero visible top level can emit a candidate for subsequent
-    exact REST confirmation. Structural hardening already defers discovery-size
-    gating for ``timestamp='price-discovery'`` rows. No Gamma size is ever treated
-    as certified executable capacity.
+    Gamma can expose only one side of the YES top-of-book. Preserve whatever side is
+    actually usable instead of requiring both bid and ask:
+
+    * YES ask is directly usable to screen YES buys.
+    * YES bid implies the complementary NO ask as ``1 - YES bid``.
+    * When both sides exist, retain both bids as well for spread/anomaly screening.
+
+    A crossed Gamma BBO is deliberately *not* rejected here: ``YES ask < YES bid`` is
+    exactly the discovery anomaly that can imply a binary buy-both underround. Gamma
+    remains screening evidence only; every ACTIONABLE candidate is independently
+    rebuilt from current CLOB full books before persistence/delivery.
+
+    Synthetic level size is 1 share solely so discovery detectors that require a
+    visible top level can emit a candidate for exact REST confirmation. No Gamma size
+    is ever treated as certified executable capacity.
     """
     receipt = time.time() if received_at is None else float(received_at)
     books: dict[str, Book] = {}
+
     for market in markets:
         tokens = _strict_yes_no_tokens(market)
         if tokens is None:
             continue
+
         bid = _valid_price(market.best_bid)
         ask = _valid_price(market.best_ask)
-        if bid is None or ask is None or ask < bid:
-            continue
-        yes_token, no_token = tokens
-        no_bid = _valid_price(1.0 - ask)
-        no_ask = _valid_price(1.0 - bid)
-        if no_bid is None or no_ask is None or no_ask < no_bid:
+        if bid is None and ask is None:
             continue
 
-        books[yes_token] = Book(
-            token_id=yes_token,
-            bids=[(bid, 1.0)],
-            asks=[(ask, 1.0)],
-            timestamp="price-discovery",
-            received_at=receipt,
-            source="gamma_bbo_screening",
-        )
-        books[no_token] = Book(
-            token_id=no_token,
-            bids=[(no_bid, 1.0)],
-            asks=[(no_ask, 1.0)],
-            timestamp="price-discovery",
-            received_at=receipt,
-            source="gamma_bbo_screening",
-        )
+        yes_token, no_token = tokens
+
+        # Only insert a token into the discovery map when an executable ask can be
+        # screened for that token. This keeps len(_price_books) aligned with ask-side
+        # discovery coverage used by health telemetry.
+        if ask is not None:
+            yes_bids = [(bid, 1.0)] if bid is not None else []
+            books[yes_token] = Book(
+                token_id=yes_token,
+                bids=yes_bids,
+                asks=[(ask, 1.0)],
+                timestamp="price-discovery",
+                received_at=receipt,
+                source="gamma_bbo_screening",
+            )
+
+        if bid is not None:
+            no_ask = _valid_price(1.0 - bid)
+            if no_ask is not None:
+                no_bid = _valid_price(1.0 - ask) if ask is not None else None
+                books[no_token] = Book(
+                    token_id=no_token,
+                    bids=[(no_bid, 1.0)] if no_bid is not None else [],
+                    asks=[(no_ask, 1.0)],
+                    timestamp="price-discovery",
+                    received_at=receipt,
+                    source="gamma_bbo_screening",
+                )
+
     return books
 
 
@@ -124,7 +144,7 @@ def install_production_gamma_runtime(stable_v2_module) -> None:
         )
         base.state["price_discovery_diagnostics_version"] = GAMMA_SCREENING_VERSION
         base.state["price_discovery_source"] = (
-            "Gamma embedded BBO screening; exact CLOB books required for candidates"
+            "Gamma embedded ask-side screening; exact CLOB books required for candidates"
         )
         return tokens
 
@@ -145,7 +165,7 @@ def install_production_gamma_runtime(stable_v2_module) -> None:
         base.state["runtime_mode"] = RUNTIME_MODE
         base.state["price_discovery_diagnostics_version"] = GAMMA_SCREENING_VERSION
         base.state["price_discovery_source"] = (
-            "Gamma embedded BBO screening; exact CLOB books required for candidates"
+            "Gamma embedded ask-side screening; exact CLOB books required for candidates"
         )
         base.state["price_snapshot_target_seconds"] = stable.TOP_PRICE_REFRESH_SECONDS
         base.state["price_snapshot_authoritative_transport_complete"] = bool(
