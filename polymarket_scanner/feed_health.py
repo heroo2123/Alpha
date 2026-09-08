@@ -8,7 +8,12 @@ from .crypto_v3 import (
     FEED_PROGRESS_MAX_AGE_SECONDS,
     SOURCE_FUTURE_TOLERANCE_SECONDS,
 )
-from .sports_v3 import _sports_source_timestamp
+from .sports_v3 import (
+    SPORTS_CAUSAL_CACHE_VERSION,
+    _SPORTS_CAUSAL_FLOOR,
+    _SPORTS_CAUSAL_QUARANTINED_AT,
+    _sports_source_timestamp,
+)
 
 
 def _age(now: float, value: object) -> float | None:
@@ -55,12 +60,15 @@ def feed_progress_snapshot(market_stream, sports_stream, crypto_stream, *, now: 
                     sports_source_times.append(float(ts))
     sports_latest = max(sports_source_times) if sports_source_times else None
     sports = {
+        "causal_cache_version": SPORTS_CAUSAL_CACHE_VERSION,
         "connected": bool(getattr(sports_stream, "connected", False)),
         "cached_result_payloads": len(sports_cache) if isinstance(sports_cache, dict) else 0,
         "payloads_with_source_time": len(sports_source_times),
         "last_transport_message_at": getattr(sports_stream, "last_message_at", None),
         "latest_source_timestamp": sports_latest,
         "latest_source_age_seconds": _age(current, sports_latest),
+        "causal_tracked_slugs": len(_SPORTS_CAUSAL_FLOOR),
+        "causal_quarantined_slugs": len(_SPORTS_CAUSAL_QUARANTINED_AT),
         "last_error": getattr(sports_stream, "last_error", None),
     }
 
