@@ -10,13 +10,16 @@ on the tiny shared-core VM:
 * complete-universe discovery requests only SELL/best-ask prices from CLOB /prices.
   All actionable detectors need asks; full depth is still fetched with /books by
   app.confirm_actionable immediately before an ACTIONABLE alert is persisted;
+* a partial HTTP sweep can never replace/timestamp the last complete transport sweep;
+* request/response application bytes and quote-omission classes are measured for
+  future VM egress/cost attestation without pretending they equal cloud billing;
 * the fuzzy duplicate-market research WATCH is disabled by default in production.
   It is a low-confidence O(n^2)-style similarity scan and is not allowed to starve
   the time-sensitive weather/sports/crypto/actionable lanes on an e2-micro.
 
 Gamma still discovers the complete market universe and the compact ask snapshot
-still covers every discovered token. Sports and crypto retain their dedicated live
-feeds. The process watchdog from app_stable remains active.
+attempts every discovered token. Sports and crypto retain their dedicated live feeds.
+The process watchdog from app_stable remains active.
 """
 
 import asyncio
@@ -33,6 +36,7 @@ from polymarket_scanner.polymarket import CLOB
 
 log = logging.getLogger("polybot.stable_v2")
 app = stable.app
+PRICE_DISCOVERY_DIAGNOSTICS_VERSION = "clob_sell_sweep_v3_transport_accounting"
 
 # Two market CLOB workers instead of 8 (and instead of the old ~65-70). The full
 # universe continues to be refreshed through compact /prices discovery below.
@@ -56,6 +60,11 @@ ENABLE_DUPLICATE_DIVERGENCE_WATCH = os.getenv("ENABLE_DUPLICATE_DIVERGENCE_WATCH
     "1", "true", "yes", "on",
 }
 _original_duplicate_divergence = evaluator_module.duplicate_divergence
+_last_price_fetch_diagnostics: dict = {
+    "version": PRICE_DISCOVERY_DIAGNOSTICS_VERSION,
+    "transport_complete": False,
+    "reason": "no price discovery attempt yet",
+}
 
 
 def _duplicate_divergence_production(markets):
@@ -69,32 +78,82 @@ def _duplicate_divergence_production(markets):
 evaluator_module.duplicate_divergence = _duplicate_divergence_production
 
 
+def _request_body_bytes(body: list[dict[str, str]]) -> int:
+    """Measure compact JSON payload bytes at the application layer, not wire billing."""
+    return len(json.dumps(body, separators=(",", ":"), ensure_ascii=False).encode("utf-8"))
+
+
+def _project_request_gib_per_day(request_bytes: int) -> float:
+    if request_bytes <= 0:
+        return 0.0
+    sweeps_per_day = 86400.0 / max(1.0, float(stable.TOP_PRICE_REFRESH_SECONDS))
+    return request_bytes * sweeps_per_day / float(1024 ** 3)
+
+
 async def _fetch_ask_prices(tokens: list[str]) -> dict[str, Book]:
     """Fetch best asks for every discovered CLOB token using bounded concurrency.
 
-    Discovery books intentionally contain no depth. Structural candidates that
-    survive discovery are re-fetched with POST /books in confirm_actionable, where
-    price, visible size and execution capacity are checked immediately before alert.
+    A sweep can contain legitimate unquotable tokens, but it is transport-complete
+    only when every HTTP chunk completed successfully. The caller must not advance
+    the authoritative snapshot timestamp after any failed chunk. Counts distinguish
+    response omission, missing SELL quotes and invalid SELL values so lack of market
+    liquidity is not confused with network failure.
     """
-    if not tokens:
+    global _last_price_fetch_diagnostics
+    unique_tokens = list(dict.fromkeys(str(token) for token in tokens if str(token)))
+    if not unique_tokens:
+        _last_price_fetch_diagnostics = {
+            "version": PRICE_DISCOVERY_DIAGNOSTICS_VERSION,
+            "transport_complete": False,
+            "reason": "no target tokens",
+            "requested_tokens": 0,
+            "chunk_count": 0,
+            "failed_chunks": 0,
+            "usable_tokens": 0,
+            "request_body_bytes": 0,
+            "response_body_bytes": 0,
+            "projected_request_gib_per_day": 0.0,
+        }
         return {}
 
     chunks = [
-        tokens[i:i + stable.TOP_PRICE_CHUNK_TOKENS]
-        for i in range(0, len(tokens), stable.TOP_PRICE_CHUNK_TOKENS)
+        unique_tokens[i:i + stable.TOP_PRICE_CHUNK_TOKENS]
+        for i in range(0, len(unique_tokens), stable.TOP_PRICE_CHUNK_TOKENS)
     ]
     sem = asyncio.Semaphore(stable.TOP_PRICE_CONCURRENCY)
 
-    async def one(chunk: list[str]) -> dict[str, Book]:
+    async def one(chunk: list[str]) -> tuple[dict[str, Book], dict]:
         body = [{"token_id": token, "side": "SELL"} for token in chunk]
+        body_bytes = _request_body_bytes(body)
+        stats = {
+            "requested_tokens": len(chunk),
+            "request_attempts": 0,
+            "request_body_bytes": 0,
+            "response_body_bytes": 0,
+            "response_entries": 0,
+            "response_missing_tokens": 0,
+            "missing_sell_tokens": 0,
+            "invalid_sell_tokens": 0,
+            "usable_tokens": 0,
+            "success": False,
+            "error": None,
+        }
         async with sem:
             for attempt in range(3):
                 try:
+                    stats["request_attempts"] += 1
+                    stats["request_body_bytes"] += body_bytes
                     response = await stable.base.poly.http.post(f"{CLOB}/prices", json=body)
-                    if response.status_code == 429:
-                        if attempt < 2:
-                            await asyncio.sleep(0.75 * (attempt + 1))
-                            continue
+                    try:
+                        stats["response_body_bytes"] += len(response.content)
+                    except Exception:
+                        try:
+                            stats["response_body_bytes"] += len(str(response.text).encode("utf-8"))
+                        except Exception:
+                            pass
+                    if response.status_code == 429 and attempt < 2:
+                        await asyncio.sleep(0.75 * (attempt + 1))
+                        continue
                     response.raise_for_status()
 
                     # JSON decoding tens of thousands of token-price rows repeatedly
@@ -103,22 +162,30 @@ async def _fetch_ask_prices(tokens: list[str]) -> dict[str, Book]:
                     text = response.text
                     payload = await asyncio.to_thread(json.loads, text)
                     if not isinstance(payload, dict):
-                        return {}
+                        raise ValueError("CLOB /prices response was not a JSON object")
                     received_at = time.time()
 
                     out: dict[str, Book] = {}
                     for token in chunk:
+                        if token not in payload:
+                            stats["response_missing_tokens"] += 1
+                            continue
+                        stats["response_entries"] += 1
                         entry = payload.get(token)
                         if not isinstance(entry, dict):
+                            stats["invalid_sell_tokens"] += 1
                             continue
                         raw_ask = entry.get("SELL")
                         if raw_ask is None:
+                            stats["missing_sell_tokens"] += 1
                             continue
                         try:
                             ask = float(raw_ask)
                         except (TypeError, ValueError):
+                            stats["invalid_sell_tokens"] += 1
                             continue
                         if not math.isfinite(ask) or ask <= 0.0 or ask >= 1.0:
+                            stats["invalid_sell_tokens"] += 1
                             continue
                         out[token] = Book(
                             token_id=token,
@@ -128,25 +195,166 @@ async def _fetch_ask_prices(tokens: list[str]) -> dict[str, Book]:
                             received_at=received_at,
                             source="clob_rest_prices",
                         )
-                    return out
+                    stats["usable_tokens"] = len(out)
+                    stats["success"] = True
+                    return out, stats
                 except asyncio.CancelledError:
                     raise
                 except Exception as exc:
+                    stats["error"] = f"{type(exc).__name__}: {exc}"
                     if attempt < 2:
                         await asyncio.sleep(0.25 * (attempt + 1))
                         continue
                     log.debug("ask-price chunk failed (%d tokens): %r", len(chunk), exc)
-                    return {}
-        return {}
+                    return {}, stats
+        return {}, stats
 
     pieces = await asyncio.gather(*(one(chunk) for chunk in chunks), return_exceptions=True)
     merged: dict[str, Book] = {}
-    for piece in pieces:
-        if isinstance(piece, dict):
-            merged.update(piece)
+    chunk_stats: list[dict] = []
+    for index, piece in enumerate(pieces):
+        if isinstance(piece, tuple) and len(piece) == 2 and isinstance(piece[0], dict) and isinstance(piece[1], dict):
+            books, stats = piece
+            merged.update(books)
+            chunk_stats.append(stats)
+        else:
+            error = piece if isinstance(piece, BaseException) else RuntimeError("invalid chunk result")
+            chunk_stats.append({
+                "requested_tokens": len(chunks[index]),
+                "request_attempts": 0,
+                "request_body_bytes": 0,
+                "response_body_bytes": 0,
+                "response_entries": 0,
+                "response_missing_tokens": len(chunks[index]),
+                "missing_sell_tokens": 0,
+                "invalid_sell_tokens": 0,
+                "usable_tokens": 0,
+                "success": False,
+                "error": f"{type(error).__name__}: {error}",
+            })
         # Yield between merge steps on the shared-core VM.
         await asyncio.sleep(0)
+
+    failed_chunks = sum(not bool(row.get("success")) for row in chunk_stats)
+    request_bytes = sum(int(row.get("request_body_bytes") or 0) for row in chunk_stats)
+    response_bytes = sum(int(row.get("response_body_bytes") or 0) for row in chunk_stats)
+    response_entries = sum(int(row.get("response_entries") or 0) for row in chunk_stats)
+    response_missing = sum(int(row.get("response_missing_tokens") or 0) for row in chunk_stats)
+    missing_sell = sum(int(row.get("missing_sell_tokens") or 0) for row in chunk_stats)
+    invalid_sell = sum(int(row.get("invalid_sell_tokens") or 0) for row in chunk_stats)
+    transport_complete = failed_chunks == 0
+    _last_price_fetch_diagnostics = {
+        "version": PRICE_DISCOVERY_DIAGNOSTICS_VERSION,
+        "transport_complete": transport_complete,
+        "reason": (
+            "all CLOB /prices chunks completed"
+            if transport_complete
+            else f"{failed_chunks} of {len(chunks)} CLOB /prices chunks failed"
+        ),
+        "requested_tokens": len(unique_tokens),
+        "chunk_count": len(chunks),
+        "failed_chunks": failed_chunks,
+        "response_entries": response_entries,
+        "response_missing_tokens": response_missing,
+        "missing_sell_tokens": missing_sell,
+        "invalid_sell_tokens": invalid_sell,
+        "usable_tokens": len(merged),
+        "usable_coverage_ratio": len(merged) / len(unique_tokens),
+        "response_entry_ratio": response_entries / len(unique_tokens),
+        "request_body_bytes": request_bytes,
+        "response_body_bytes": response_bytes,
+        "projected_request_gib_per_day": _project_request_gib_per_day(request_bytes),
+        "application_byte_scope": (
+            "JSON request bodies and decoded response bodies only; not TCP/TLS overhead or cloud billing"
+        ),
+        "chunk_errors": [str(row.get("error")) for row in chunk_stats if row.get("error")][:8],
+    }
     return merged
+
+
+def _record_price_attempt(diagnostics: dict) -> None:
+    state = stable.base.state
+    state["price_discovery_last_attempt"] = dict(diagnostics)
+    state["price_discovery_diagnostics_version"] = PRICE_DISCOVERY_DIAGNOSTICS_VERSION
+    state["price_discovery_request_bytes_total"] = int(
+        state.get("price_discovery_request_bytes_total") or 0
+    ) + int(diagnostics.get("request_body_bytes") or 0)
+    state["price_discovery_response_bytes_total"] = int(
+        state.get("price_discovery_response_bytes_total") or 0
+    ) + int(diagnostics.get("response_body_bytes") or 0)
+
+
+def _accept_price_sweep(refreshed: dict[str, Book], diagnostics: dict, *, now: float | None = None) -> bool:
+    """Advance authority only for a transport-complete non-empty sweep."""
+    global _last_price_fetch_diagnostics
+    _last_price_fetch_diagnostics = dict(diagnostics)
+    _record_price_attempt(diagnostics)
+    if not diagnostics.get("transport_complete"):
+        stable._price_refresh_error = str(diagnostics.get("reason") or "partial CLOB /prices sweep")
+        stable.base.state["price_snapshot_error"] = stable._price_refresh_error
+        stable.base.state["price_snapshot_last_attempt_transport_complete"] = False
+        return False
+    if not refreshed:
+        stable._price_refresh_error = "CLOB /prices transport completed but returned no usable token prices"
+        stable.base.state["price_snapshot_error"] = stable._price_refresh_error
+        stable.base.state["price_snapshot_last_attempt_transport_complete"] = True
+        return False
+
+    accepted_at = time.time() if now is None else float(now)
+    stable._price_books = dict(refreshed)
+    stable._price_snapshot_at = accepted_at
+    stable._price_refresh_error = None
+    stable.base.state["price_snapshot_tokens"] = len(refreshed)
+    stable.base.state["price_snapshot_at"] = accepted_at
+    stable.base.state["price_snapshot_error"] = None
+    stable.base.state["price_snapshot_authoritative_transport_complete"] = True
+    stable.base.state["price_snapshot_last_attempt_transport_complete"] = True
+    stable.base.state["price_snapshot_response_missing_tokens"] = int(diagnostics.get("response_missing_tokens") or 0)
+    stable.base.state["price_snapshot_missing_sell_tokens"] = int(diagnostics.get("missing_sell_tokens") or 0)
+    stable.base.state["price_snapshot_invalid_sell_tokens"] = int(diagnostics.get("invalid_sell_tokens") or 0)
+    stable.base.state["price_snapshot_usable_coverage_ratio"] = float(diagnostics.get("usable_coverage_ratio") or 0.0)
+    return True
+
+
+async def _top_price_loop_v2() -> None:
+    """Refresh whole-universe ask discovery without accepting partial HTTP sweeps."""
+    global _last_price_fetch_diagnostics
+    while True:
+        try:
+            tokens = list(stable._full_tokens)
+            if not tokens:
+                await asyncio.sleep(1.0)
+                continue
+            started = time.monotonic()
+            refreshed = await _fetch_ask_prices(tokens)
+            diagnostics = dict(_last_price_fetch_diagnostics)
+            stable.base.state["price_snapshot_seconds"] = round(time.monotonic() - started, 3)
+            if _accept_price_sweep(refreshed, diagnostics):
+                log.info(
+                    "whole-market ask snapshot: %d/%d usable tokens, response-missing=%d, "
+                    "no-ask=%d, invalid=%d in %.2fs; request-body≈%.3f MiB; websocket hot set=%d",
+                    len(refreshed),
+                    len(tokens),
+                    int(diagnostics.get("response_missing_tokens") or 0),
+                    int(diagnostics.get("missing_sell_tokens") or 0),
+                    int(diagnostics.get("invalid_sell_tokens") or 0),
+                    time.monotonic() - started,
+                    float(diagnostics.get("request_body_bytes") or 0) / float(1024 ** 2),
+                    len(stable._priority_tokens),
+                )
+            else:
+                log.warning(
+                    "whole-market ask snapshot not advanced: %s; retaining last complete snapshot",
+                    stable._price_refresh_error,
+                )
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            stable._price_refresh_error = repr(exc)
+            stable.base.state["price_snapshot_error"] = stable._price_refresh_error
+            stable.base.state["price_snapshot_last_attempt_transport_complete"] = False
+            log.warning("whole-market ask-price refresh failed: %r", exc)
+        await asyncio.sleep(stable.TOP_PRICE_REFRESH_SECONDS)
 
 
 def _merged_book_snapshot_v2() -> dict[str, Book]:
@@ -196,9 +404,11 @@ def _merged_book_snapshot_v2() -> dict[str, Book]:
     return merged
 
 
-# app_stable._top_price_loop resolves this global each cycle, so replacing it here
-# changes the production discovery transport without duplicating the scanner logic.
+# app_stable._stable_startup resolves these globals at runtime, so replacing them
+# here changes the production discovery transport/acceptance without duplicating the
+# rest of the scanner lifecycle.
 stable._fetch_top_prices = _fetch_ask_prices
+stable._top_price_loop = _top_price_loop_v2
 # app_stable installed its original merged-snapshot function on the stream object at
 # import time. Replace that bound hook too, not only the module global.
 stable._merged_book_snapshot = _merged_book_snapshot_v2
@@ -206,10 +416,12 @@ stable.base.market_stream.snapshot = _merged_book_snapshot_v2
 
 
 async def _mark_runtime_v2() -> None:
-    stable.base.state["runtime_mode"] = "bounded_ws_plus_full_ask_discovery_v2"
+    stable.base.state["runtime_mode"] = "bounded_ws_plus_full_ask_discovery_v3_complete_sweeps"
     stable.base.state["stream_priority_limit"] = stable.WS_PRIORITY_TOKEN_LIMIT
     stable.base.state["price_snapshot_side"] = "SELL/best-ask"
     stable.base.state["price_snapshot_target_seconds"] = stable.TOP_PRICE_REFRESH_SECONDS
+    stable.base.state["price_discovery_diagnostics_version"] = PRICE_DISCOVERY_DIAGNOSTICS_VERSION
+    stable.base.state["price_snapshot_authoritative_transport_complete"] = False
     stable.base.state["ws_book_max_stale_seconds"] = WS_BOOK_MAX_STALE_SECONDS
     stable.base.state["duplicate_divergence_watch_enabled"] = ENABLE_DUPLICATE_DIVERGENCE_WATCH
 
