@@ -1,3 +1,4 @@
+import json
 import subprocess
 from pathlib import Path
 
@@ -23,27 +24,86 @@ def _repo(tmp_path: Path) -> tuple[Path, str]:
     return repo, _git(repo, "rev-parse", "HEAD")
 
 
-def test_matching_marker_and_clean_tree_are_attested(tmp_path):
+def _preflight(path: Path, sha: str, *, ok: bool = True, failed=None) -> None:
+    path.write_text(
+        json.dumps(
+            {
+                "version": "dependency_preflight_v3_release_bound",
+                "release_sha": sha,
+                "measured_at": "2026-09-08T09:12:00+00:00",
+                "ok": ok,
+                "required_failed": [] if failed is None else failed,
+                "required_max_elapsed_ms": 123.4,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
+def test_matching_marker_clean_tree_and_release_preflight_are_fully_attested(tmp_path):
     repo, sha = _repo(tmp_path)
     marker = tmp_path / "release.sha"
     marker.write_text(sha + "\n", encoding="utf-8")
+    preflight = tmp_path / "dependency-preflight.json"
+    _preflight(preflight, sha)
     manifest = build_runtime_manifest(
         promoted_detectors=(),
         trade_ready_version="trade-test",
         app_dir=repo,
         release_file=marker,
+        preflight_file=preflight,
     )
     assert manifest["version"] == RUNTIME_MANIFEST_VERSION
     assert manifest["authorized_release_sha"] == sha
     assert manifest["git_head_sha"] == sha
     assert manifest["tracked_working_tree_clean"] is True
     assert manifest["production_release_attested"] is True
+    assert manifest["dependency_preflight"]["valid_for_authorized_release"] is True
+    assert manifest["dependency_preflight"]["release_sha"] == sha
+    assert manifest["dependency_preflight"]["required_max_elapsed_ms"] == 123.4
+    assert manifest["production_runtime_authority_complete"] is True
     assert manifest["p0_containment"] is True
     assert manifest["promotion_count"] == 0
     assert manifest["versions"]["trade_ready"] == "trade-test"
     assert len(manifest["nonsecret_safety_policy_sha256"]) == 64
     assert "telegram_bot_token" not in manifest["nonsecret_safety_policy"]
     assert "telegram_chat_id" not in manifest["nonsecret_safety_policy"]
+
+
+def test_preflight_from_different_release_cannot_complete_runtime_authority(tmp_path):
+    repo, sha = _repo(tmp_path)
+    marker = tmp_path / "release.sha"
+    marker.write_text(sha, encoding="utf-8")
+    preflight = tmp_path / "dependency-preflight.json"
+    _preflight(preflight, "0" * 40)
+    manifest = build_runtime_manifest(
+        promoted_detectors=(),
+        trade_ready_version="v",
+        app_dir=repo,
+        release_file=marker,
+        preflight_file=preflight,
+    )
+    assert manifest["production_release_attested"] is True
+    assert manifest["dependency_preflight"]["valid_for_authorized_release"] is False
+    assert "different release" in manifest["dependency_preflight"]["reason"]
+    assert manifest["production_runtime_authority_complete"] is False
+
+
+def test_failed_preflight_cannot_complete_runtime_authority(tmp_path):
+    repo, sha = _repo(tmp_path)
+    marker = tmp_path / "release.sha"
+    marker.write_text(sha, encoding="utf-8")
+    preflight = tmp_path / "dependency-preflight.json"
+    _preflight(preflight, sha, ok=False, failed=["polymarket_clob"])
+    manifest = build_runtime_manifest(
+        promoted_detectors=(),
+        trade_ready_version="v",
+        app_dir=repo,
+        release_file=marker,
+        preflight_file=preflight,
+    )
+    assert manifest["dependency_preflight"]["valid_for_authorized_release"] is False
+    assert manifest["production_runtime_authority_complete"] is False
 
 
 def test_dirty_tracked_tree_fails_runtime_attestation(tmp_path):
@@ -56,6 +116,7 @@ def test_dirty_tracked_tree_fails_runtime_attestation(tmp_path):
     )
     assert manifest["tracked_working_tree_clean"] is False
     assert manifest["production_release_attested"] is False
+    assert manifest["production_runtime_authority_complete"] is False
     assert "dirty" in manifest["release_attestation_reason"]
 
 
@@ -88,6 +149,7 @@ def test_missing_marker_is_explicitly_unattested_not_silently_healthy(tmp_path):
     )
     assert manifest["release_marker_present"] is False
     assert manifest["production_release_attested"] is False
+    assert manifest["production_runtime_authority_complete"] is False
     assert manifest["promotion_count"] == 1
     assert manifest["p0_containment"] is False
     assert "missing" in manifest["release_attestation_reason"]
