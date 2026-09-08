@@ -1,8 +1,21 @@
 from types import SimpleNamespace
 
+import pytest
+
 from polymarket_scanner.crypto_v3 import CRYPTO_FEED_VERSION
 from polymarket_scanner.feed_health import feed_progress_snapshot
+from polymarket_scanner.sports_v3 import (
+    SPORTS_CAUSAL_CACHE_VERSION,
+    _reset_sports_causal_state_for_tests,
+)
 from polymarket_scanner.streams import PriceTick
+
+
+@pytest.fixture(autouse=True)
+def _reset_sports_causal_state():
+    _reset_sports_causal_state_for_tests()
+    yield
+    _reset_sports_causal_state_for_tests()
 
 
 def test_feed_health_separates_transport_from_valid_market_progress():
@@ -59,10 +72,13 @@ def test_feed_health_uses_sports_source_timestamp_not_socket_heartbeat():
     crypto = SimpleNamespace(connected=False, last_message_at=None, latest_ticks={})
 
     snap = feed_progress_snapshot(market, sports, crypto, now=1000.0)["sports"]
+    assert snap["causal_cache_version"] == SPORTS_CAUSAL_CACHE_VERSION
     assert snap["last_transport_message_at"] == 1000.0
     assert snap["latest_source_timestamp"] == 900.0
     assert snap["latest_source_age_seconds"] == 100.0
     assert snap["payloads_with_source_time"] == 1
+    assert snap["causal_tracked_slugs"] == 0
+    assert snap["causal_quarantined_slugs"] == 0
 
 
 def test_feed_health_counts_crypto_fresh_stale_future_and_invalid_ticks():
