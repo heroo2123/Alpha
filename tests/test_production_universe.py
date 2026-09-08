@@ -78,17 +78,12 @@ def test_existing_detector_lanes_are_retained_conservatively():
 
 
 def test_unsupported_sports_scope_is_excluded_when_no_other_lane_matches():
-    # No threshold wording here: this checks the detector-union gate does not retain
-    # an unsupported period-qualified sports contract solely through the sports lane.
     row = _binary("sport-period", "Will Lakers win in the first half?", sportsMarketType="moneyline")
     event = _event(row)
     assert market_matches_existing_detector(event, row) is False
 
 
 def test_multi_lane_market_is_retained_if_any_existing_detector_can_consider_it():
-    # The sports adapter rejects this as a first-half/total contract, but the current
-    # threshold detector can still parse "over 51.5".  The production prefilter is a
-    # union, so the market must remain materialized for that other lane.
     row = _binary("sport-threshold", "Will Lakers win the first half over 51.5?", sportsMarketType="moneyline")
     event = _event(row)
     assert market_matches_existing_detector(event, row) is True
@@ -98,6 +93,16 @@ def test_non_orderable_market_is_excluded_even_if_semantically_relevant():
     row = _binary("weather", "Will the highest temperature in NYC be 80°F?", acceptingOrders=False)
     event = _event(row)
     assert market_matches_existing_detector(event, row) is False
+
+
+def _append(event: dict) -> list[Market]:
+    client = object.__new__(ProductionPolymarketClient)
+    client._discovered_market_count = 0
+    client._materialized_market_count = 0
+    client._fetch_reason = ""
+    out: list[Market] = []
+    client._append_detector_eligible_events(out, [event], set())
+    return out
 
 
 def test_small_neg_risk_parent_keeps_whole_child_set_for_downstream_proof():
@@ -112,16 +117,57 @@ def test_small_neg_risk_parent_keeps_whole_child_set_for_downstream_proof():
         negRiskMarketID="parent",
         description="If no named candidate wins, resolution resolves to Other.",
     )
-    client = object.__new__(ProductionPolymarketClient)
-    client._discovered_market_count = 0
-    client._materialized_market_count = 0
-    client._fetch_reason = ""
-    out = []
-    client._append_detector_eligible_events(out, [event], set())
+    out = _append(event)
     assert len(out) == 3
     parent = out[0].raw["_event"]
     assert len(parent["markets"]) == 3
     assert all(m.raw["_event"] is parent for m in out)
+
+
+def test_small_neg_risk_parent_without_other_rule_is_not_retained_merely_for_flag():
+    children = [
+        _binary("a", "Candidate A", negRiskMarketID="parent"),
+        _binary("b", "Candidate B", negRiskMarketID="parent"),
+        _binary("c", "Candidate C", negRiskMarketID="parent"),
+    ]
+    event = _event(
+        *children,
+        negRisk=True,
+        negRiskMarketID="parent",
+        description="One named candidate will win.",
+    )
+    assert _append(event) == []
+
+
+def test_small_neg_risk_parent_with_closed_child_is_not_retained_for_neg_risk():
+    children = [
+        _binary("a", "Candidate A", negRiskMarketID="parent"),
+        _binary("b", "Candidate B", negRiskMarketID="parent"),
+        _binary("c", "Other candidate", negRiskMarketID="parent", closed=True),
+    ]
+    event = _event(
+        *children,
+        negRisk=True,
+        negRiskMarketID="parent",
+        description="If no named candidate wins, resolution resolves to Other.",
+    )
+    assert _append(event) == []
+
+
+def test_small_augmented_neg_risk_parent_is_not_retained_for_neg_risk():
+    children = [
+        _binary("a", "Candidate A", negRiskMarketID="parent"),
+        _binary("b", "Candidate B", negRiskMarketID="parent"),
+        _binary("c", "Other candidate", negRiskMarketID="parent"),
+    ]
+    event = _event(
+        *children,
+        negRisk=True,
+        negRiskAugmented=True,
+        negRiskMarketID="parent",
+        description="If no named candidate wins, resolution resolves to Other.",
+    )
+    assert _append(event) == []
 
 
 def test_large_neg_risk_parent_is_not_retained_merely_for_neg_risk_flag():
@@ -130,13 +176,7 @@ def test_large_neg_risk_parent_is_not_retained_merely_for_neg_risk_flag():
         for i in range(7)
     ]
     event = _event(*children, negRisk=True, negRiskMarketID="parent")
-    client = object.__new__(ProductionPolymarketClient)
-    client._discovered_market_count = 0
-    client._materialized_market_count = 0
-    client._fetch_reason = ""
-    out = []
-    client._append_detector_eligible_events(out, [event], set())
-    assert out == []
+    assert _append(event) == []
 
 
 def _market() -> Market:
