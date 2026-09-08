@@ -76,7 +76,7 @@ chmod 600 "${RELEASE_FILE}"
 
 say "Required dependency preflight"
 "${APP_DIR}/.venv/bin/python" -m polymarket_scanner.dependency_preflight \
-  --required-only --output "${PREFLIGHT_FILE}"
+  --required-only --release-sha "${RELEASE_SHA,,}" --output "${PREFLIGHT_FILE}"
 chmod 600 "${PREFLIGHT_FILE}"
 
 say "Telegram configuration"
