@@ -31,7 +31,7 @@ from .polymarket import CLOB, GAMMA
 from .streams import MARKET_WS, RTDS_WS, SPORTS_WS
 from .weather import AWC
 
-PREFLIGHT_VERSION = "dependency_preflight_v3_release_bound"
+PREFLIGHT_VERSION = "dependency_preflight_v4_gamma_keyset_release_bound"
 _SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 
 
@@ -94,6 +94,34 @@ async def _http_probe(
     return ProbeResult(name, endpoint, required, ok, detail, elapsed_ms)
 
 
+async def _gamma_keyset_probe(client: httpx.AsyncClient) -> ProbeResult:
+    """Verify the full-universe Gamma pagination contract, not host reachability only."""
+    endpoint = f"{GAMMA}/events/keyset?limit=1&active=true&closed=false"
+    started = time.perf_counter()
+    ok = False
+    detail = "uninitialized"
+    try:
+        response = await client.get(endpoint)
+        status = int(response.status_code)
+        response.raise_for_status()
+        payload = response.json()
+        if not isinstance(payload, dict):
+            detail = f"HTTP {status}; keyset envelope is not an object"
+        elif not isinstance(payload.get("events"), list):
+            detail = f"HTTP {status}; keyset envelope missing events list"
+        else:
+            cursor = payload.get("next_cursor")
+            if cursor is not None and not isinstance(cursor, str):
+                detail = f"HTTP {status}; next_cursor malformed"
+            else:
+                ok = True
+                detail = f"HTTP {status}; Gamma events keyset contract valid"
+    except Exception as exc:
+        detail = f"{type(exc).__name__}: {exc}"
+    elapsed_ms = round((time.perf_counter() - started) * 1000.0, 3)
+    return ProbeResult("polymarket_gamma", endpoint, True, ok, detail, elapsed_ms)
+
+
 async def _ws_probe(
     name: str,
     endpoint: str,
@@ -124,10 +152,10 @@ async def run_dependency_preflight(
     ws_connect: Callable[..., Awaitable] = websockets.connect,
 ) -> dict:
     owned = client is None
-    http = client or httpx.AsyncClient(timeout=6.0, headers={"User-Agent": "polymarket-edge-scanner-preflight/3"})
+    http = client or httpx.AsyncClient(timeout=6.0, headers={"User-Agent": "polymarket-edge-scanner-preflight/4"})
     try:
         tasks = [
-            _http_probe(http, "polymarket_gamma", f"{GAMMA}/markets?limit=1&active=true&closed=false", required=True),
+            _gamma_keyset_probe(http),
             _http_probe(http, "polymarket_clob", f"{CLOB}/time", required=True),
             # Telegram host reachability is required for TRADE NOW delivery. No bot
             # credential is sent; any non-5xx HTTP response proves DNS/TLS/HTTP path.
