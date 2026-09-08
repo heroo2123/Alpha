@@ -14,13 +14,43 @@ from polymarket_scanner.weather_calibration import (
     MIN_BIN_RESOLVED,
     MIN_DISTINCT_STATIONS,
     MIN_TOTAL_RESOLVED,
+    WEATHER_CALIBRATION_EVIDENCE_VERSION,
     WEATHER_CALIBRATION_VERSION,
     apply_weather_calibration,
     calibration_for_score,
 )
 
 
-def _weather_signal(i: int, station: str, *, score: float = 0.99, model_version: str = "uncalibrated_v1") -> Signal:
+def _weather_signal(
+    i: int,
+    station: str,
+    *,
+    score: float = 0.99,
+    model_version: str = "uncalibrated_v1",
+    settlement_authoritative: bool = True,
+) -> Signal:
+    metadata = {
+        "fingerprint_key": f"weather-{i}",
+        "station": station,
+        "lock_probability": score,
+        "weather_model_version": model_version,
+        "settlement_source_verified": True,  # legacy compatibility field, not sufficient by itself
+        "weather_contract_source_verified": True,
+        "weather_contract_adapter": "SYNTHETIC_TEST_CONTRACT_V1",
+    }
+    if settlement_authoritative:
+        metadata.update({
+            "weather_observation_adapter": "SYNTHETIC_SETTLEMENT_TABLE_V1",
+            "weather_observation_settlement_authority": True,
+            "weather_calibration_eligible_observations": True,
+            "weather_calibration_evidence_version": WEATHER_CALIBRATION_EVIDENCE_VERSION,
+        })
+    else:
+        metadata.update({
+            "weather_observation_adapter": "AVIATION_WEATHER_METAR_PROXY_V1",
+            "weather_observation_settlement_authority": False,
+            "weather_calibration_eligible_observations": False,
+        })
     return Signal(
         detector="weather_late_lock",
         confidence="WATCH",
@@ -33,13 +63,7 @@ def _weather_signal(i: int, station: str, *, score: float = 0.99, model_version:
         entry_cost=0.95,
         theoretical_payout=1.0,
         token_ids=[f"token-{i}"],
-        metadata={
-            "fingerprint_key": f"weather-{i}",
-            "station": station,
-            "lock_probability": score,
-            "weather_model_version": model_version,
-            "settlement_source_verified": True,
-        },
+        metadata=metadata,
     )
 
 
@@ -74,7 +98,7 @@ def test_weather_calibration_can_mature_only_with_fixed_clean_evidence(tmp_path)
     assert report.ready is True
 
 
-def test_weather_calibration_excludes_wrong_model_version_and_unverified_source(tmp_path):
+def test_weather_calibration_excludes_wrong_model_version_and_unverified_contract_source(tmp_path):
     store = Store(str(tmp_path / "signals.db"))
     signal = _weather_signal(1, "KORD", model_version="old_buggy_model")
     signal_id = store.save_signal(signal)
@@ -82,7 +106,7 @@ def test_weather_calibration_excludes_wrong_model_version_and_unverified_source(
     store.resolve_payout(signal_id, 1.0, 100.0)
 
     signal2 = _weather_signal(2, "KJFK")
-    signal2.metadata["settlement_source_verified"] = False
+    signal2.metadata["weather_contract_source_verified"] = False
     signal_id2 = store.save_signal(signal2)
     assert signal_id2 is not None
     store.resolve_payout(signal_id2, 1.0, 100.0)
@@ -90,6 +114,67 @@ def test_weather_calibration_excludes_wrong_model_version_and_unverified_source(
     report = calibration_for_score(store.path, "weather_late_lock", "uncalibrated_v1", 0.99)
     assert report.total_resolved == 0
     assert report.ready is False
+
+
+def test_legacy_settlement_source_verified_flag_alone_is_not_clean_calibration_evidence(tmp_path):
+    store = Store(str(tmp_path / "signals.db"))
+    signal = _weather_signal(10, "KORD", settlement_authoritative=False)
+    # Reproduce the historical metadata claim that used to be enough for _load_clean_samples.
+    signal.metadata = {
+        "fingerprint_key": "legacy-weather",
+        "station": "KORD",
+        "lock_probability": 0.99,
+        "weather_model_version": "uncalibrated_v1",
+        "settlement_source_verified": True,
+    }
+    signal_id = store.save_signal(signal)
+    assert signal_id is not None
+    store.resolve_payout(signal_id, 1.0, 100.0)
+
+    report = calibration_for_score(store.path, "weather_late_lock", "uncalibrated_v1", 0.99)
+    assert report.total_resolved == 0
+    assert report.ready is False
+
+
+def test_official_metar_proxy_is_not_settlement_authoritative_calibration_evidence(tmp_path):
+    store = Store(str(tmp_path / "signals.db"))
+    signal = _weather_signal(11, "KORD", settlement_authoritative=False)
+    signal_id = store.save_signal(signal)
+    assert signal_id is not None
+    store.resolve_payout(signal_id, 1.0, 100.0)
+
+    report = calibration_for_score(store.path, "weather_late_lock", "uncalibrated_v1", 0.99)
+    assert report.total_resolved == 0
+    assert report.ready is False
+
+
+def test_proxy_name_cannot_be_upgraded_by_forging_authority_booleans(tmp_path):
+    store = Store(str(tmp_path / "signals.db"))
+    signal = _weather_signal(12, "KORD", settlement_authoritative=False)
+    signal.metadata.update({
+        "weather_observation_settlement_authority": True,
+        "weather_calibration_eligible_observations": True,
+        "weather_calibration_evidence_version": WEATHER_CALIBRATION_EVIDENCE_VERSION,
+    })
+    signal_id = store.save_signal(signal)
+    assert signal_id is not None
+    store.resolve_payout(signal_id, 1.0, 100.0)
+
+    report = calibration_for_score(store.path, "weather_late_lock", "uncalibrated_v1", 0.99)
+    assert report.total_resolved == 0
+    assert report.ready is False
+
+
+def test_missing_calibration_evidence_version_is_excluded_even_with_authority_flags(tmp_path):
+    store = Store(str(tmp_path / "signals.db"))
+    signal = _weather_signal(13, "KORD")
+    signal.metadata.pop("weather_calibration_evidence_version")
+    signal_id = store.save_signal(signal)
+    assert signal_id is not None
+    store.resolve_payout(signal_id, 1.0, 100.0)
+
+    report = calibration_for_score(store.path, "weather_late_lock", "uncalibrated_v1", 0.99)
+    assert report.total_resolved == 0
 
 
 def _trade_weather_signal() -> Signal:
@@ -165,8 +250,6 @@ def test_promoted_weather_cannot_use_raw_heuristic_as_money_probability(monkeypa
     signal = _trade_weather_signal()
     signal.metadata["execution_certificate"] = _weather_execution_cert()
     assert trade_only.mark_trade_readiness(signal) is False
-    # v5 rejects before certificate arithmetic because a promoted weather trade may
-    # not even define an execution budget without a prospective calibrated floor.
     assert "calibrat" in signal.metadata["trade_ready_reason"].lower()
 
 
@@ -218,15 +301,11 @@ def test_promoted_weather_uses_calibration_lower_bound_not_raw_score(monkeypatch
             }
 
         async def books(self, _tokens):
-            # Raw heuristic 0.999 would look profitable. The prospective empirical
-            # lower bound 0.94 minus the current exact ask 0.925 is only 1.5%.
             return {"yes-token": Book("yes-token", bids=[], asks=[(0.925, 100.0)])}
 
     assert asyncio.run(trade_only.refresh_trade_readiness(signal, FakePoly())) is False
     assert "top-of-book limit cost is already above the edge floor" in signal.metadata["trade_ready_reason"]
     assert "execution_certificate" not in signal.metadata
-    # This rejection is specifically produced by a maximum bundle cost of
-    # 0.94 - ACTIONABLE_MIN_EDGE, not by the raw 0.999 detector heuristic.
     assert 0.94 - 0.925 < trade_only.settings.actionable_min_edge
 
 
@@ -237,6 +316,22 @@ def test_apply_weather_calibration_attaches_current_database_evidence(tmp_path):
     candidate = _weather_signal(9999, "KORD", score=0.99)
     assert apply_weather_calibration(candidate, store.path) is True
     assert candidate.metadata["weather_calibration_version"] == WEATHER_CALIBRATION_VERSION
+    assert candidate.metadata["weather_calibration_evidence_version"] == WEATHER_CALIBRATION_EVIDENCE_VERSION
     assert candidate.metadata["weather_calibration_n"] == n
     assert candidate.metadata["weather_calibration_ready"] is True
     assert candidate.metadata["calibrated_probability_lower_bound"] is not None
+
+
+def test_current_proxy_only_history_cannot_mature_calibration(tmp_path):
+    store = Store(str(tmp_path / "signals.db"))
+    n = max(MIN_TOTAL_RESOLVED, MIN_BIN_RESOLVED) + 50
+    for i in range(n):
+        station = f"K{i % max(MIN_DISTINCT_STATIONS, 8):03d}"[-4:]
+        signal_id = store.save_signal(_weather_signal(i, station, settlement_authoritative=False))
+        assert signal_id is not None
+        store.resolve_payout(signal_id, 1.0, 100.0)
+
+    report = calibration_for_score(store.path, "weather_late_lock", "uncalibrated_v1", 0.99)
+    assert report.total_resolved == 0
+    assert report.ready is False
+    assert "settlement-authoritative" in report.reason
