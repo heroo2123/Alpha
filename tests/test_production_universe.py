@@ -59,7 +59,12 @@ def test_existing_detector_lanes_are_retained_conservatively():
         "Will Bitcoin be up or down?",
         description="Resolves using Chainlink 60-second price.",
     )
-    sports_row = _binary("sports", "Will the Lakers win?", sportsMarketType="moneyline")
+    sports_row = _binary(
+        "sports",
+        "Will the Lakers win?",
+        sportsMarketType="moneyline",
+        category="Sports",
+    )
     macro_row = _binary(
         "macro",
         "Will payrolls exceed 100k?",
@@ -77,8 +82,29 @@ def test_existing_detector_lanes_are_retained_conservatively():
     assert all(market_matches_existing_detector(event, row) for row in event["markets"])
 
 
+def test_non_sports_win_question_is_not_materialized_as_sports():
+    row = _binary("election", "Will Candidate A win?", sportsMarketType="moneyline")
+    event = _event(row, category="Politics")
+    assert market_matches_existing_detector(event, row) is False
+
+
+def test_live_sports_feed_slug_keeps_sports_market_even_without_gamma_sports_metadata():
+    row = _binary("odd-sports", "Will the Lakers win?", sportsMarketType="moneyline")
+    event = _event(row, category="")
+    assert market_matches_existing_detector(
+        event,
+        row,
+        live_sports_slugs={"event-slug"},
+    ) is True
+
+
 def test_unsupported_sports_scope_is_excluded_when_no_other_lane_matches():
-    row = _binary("sport-period", "Will Lakers win in the first half?", sportsMarketType="moneyline")
+    row = _binary(
+        "sport-period",
+        "Will Lakers win in the first half?",
+        sportsMarketType="moneyline",
+        category="Sports",
+    )
     event = _event(row)
     assert market_matches_existing_detector(event, row) is False
 
