@@ -110,7 +110,7 @@ def test_repeated_keyset_cursor_fails_closed(monkeypatch):
             await client.close()
 
     monkeypatch.setattr(settings, "max_events", 100)
-    with pytest.raises(UniverseIncompleteError, match="repeated keyset cursor"):
+    with pytest.raises(UniverseIncompleteError, match="repeated a cursor"):
         asyncio.run(run())
 
 
