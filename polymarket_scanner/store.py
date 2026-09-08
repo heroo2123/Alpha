@@ -582,7 +582,8 @@ class Store:
                 """
                 SELECT m.id,m.signal_id,m.stake,m.entry_cost,m.entry_source,m.status,m.pnl,s.title
                 FROM manual_trades m JOIN signals s ON s.id=m.signal_id
-                ORDER BY m.id DESC LIMIT ?",
+                ORDER BY m.id DESC LIMIT ?
+                """,
                 (limit,),
             )]
 
