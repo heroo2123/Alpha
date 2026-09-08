@@ -2,14 +2,20 @@ from __future__ import annotations
 
 """Fail-closed settlement contract boundary for weather research.
 
-This is intentionally narrow. During the P0 repair phase only an explicit bucket
-unit in the market question plus an authoritative NWS WRH time-series URL is
-admitted to the existing weather experiment. Other legitimate source families
-(Wunderground, HKO, etc.) stay silent until they have their own versioned adapters.
+This adapter is intentionally narrow. Only an explicit bucket unit in the market
+question plus a dedicated NWS WRH time-series *primary* resolution source is admitted
+to the current weather experiment. Wunderground, HKO, Dyacon and other legitimate
+families stay silent until they have separate versioned adapters.
 
-V2 additionally makes the temporal boundary explicit: the market date must parse to
-the station's current local date, future observations cannot enter the evidence set,
-and attached forecast context must itself be fresh and causally available.
+V3 makes source precedence explicit. A WRH-looking URL found only in free-form rules
+text is never allowed to become the primary source. Any distinct/fallback source in
+the rules makes this primary-only adapter unsupported until its fallback policy is
+implemented. This deliberately sacrifices coverage rather than silently changing the
+market's settlement authority.
+
+The temporal boundary remains fail-closed: the market date must parse to the
+station's current local date, future observations cannot enter the evidence set, and
+attached forecast context must itself be fresh and causally available.
 """
 
 import re
@@ -28,9 +34,15 @@ from .weather import (
 )
 
 _URL_RE = re.compile(r"https?://[^\s<>\"')]+", re.I)
-WEATHER_CONTRACT_ADAPTER = "NWS_WRH_STRICT_V2"
-WEATHER_LATE_MODEL_VERSION = "uncalibrated_v2_contract_safe"
-WEATHER_FRIEND_MODEL_VERSION = "friend_uncalibrated_v2_contract_safe"
+_FALLBACK_RE = re.compile(
+    r"\b(?:fallback|fall\s+back|alternate(?:ly)?|secondary\s+source|"
+    r"if\s+(?:the\s+)?(?:primary\s+)?source\s+(?:is\s+)?(?:unavailable|missing|down)|"
+    r"wunderground|weather\s+underground|hong\s+kong\s+observatory|dyacon)\b",
+    re.I,
+)
+WEATHER_CONTRACT_ADAPTER = "NWS_WRH_PRIMARY_ONLY_V3"
+WEATHER_LATE_MODEL_VERSION = "uncalibrated_v3_contract_safe"
+WEATHER_FRIEND_MODEL_VERSION = "friend_uncalibrated_v3_contract_safe"
 MAX_CLOCK_SKEW_SECONDS = 5.0
 
 
@@ -45,10 +57,24 @@ def contract_unit_from_question(question: str) -> str | None:
     return next(iter(found)) if len(found) == 1 else None
 
 
+def _clean_url(url: str) -> str:
+    return str(url or "").strip().rstrip(".,;")
+
+
+def _urls(text: object) -> list[str]:
+    out: list[str] = []
+    for raw in _URL_RE.findall(str(text or "")):
+        clean = _clean_url(raw)
+        if clean and clean not in out:
+            out.append(clean)
+    return out
+
+
 def _wrh_url(url: str) -> tuple[str, str] | None:
     """Return (canonical_url, station) only for an authoritative WRH URL."""
+    clean = _clean_url(url)
     try:
-        parsed = urlparse(str(url).rstrip(".,;"))
+        parsed = urlparse(clean)
     except Exception:
         return None
     host = (parsed.hostname or "").lower().rstrip(".")
@@ -65,34 +91,62 @@ def _wrh_url(url: str) -> tuple[str, str] | None:
     station = str(sites[0]).strip().upper()
     if not re.fullmatch(r"[A-Z0-9]{4}", station):
         return None
-    return str(url).rstrip(".,;"), station
+    return clean, station
+
+
+def _source_rejection(reason: str, *, url: str = "", station: str | None = None) -> dict:
+    return {
+        "verified": False,
+        "kind": "unsupported/ambiguous",
+        "url": url,
+        "station": station,
+        "reason": reason,
+        "source_priority": "resolution_source_primary_only",
+        "fallback_policy": "unmodeled",
+    }
 
 
 def strict_wrh_source(market: Market) -> dict:
-    """Find an exact authoritative WRH source and station, never by substring."""
-    # Prefer the dedicated resolution_source field, then inspect rules text. This
-    # still does not prove primary/fallback precedence; ambiguous multiple station
-    # URLs therefore fail closed below.
-    candidates: list[tuple[str, str]] = []
-    for text in (market.resolution_source or "", market.description or ""):
-        for url in _URL_RE.findall(text):
-            parsed = _wrh_url(url)
-            if parsed and parsed not in candidates:
-                candidates.append(parsed)
-    stations = {station for _, station in candidates}
-    if len(candidates) != 1 or len(stations) != 1:
-        return {
-            "verified": False,
-            "kind": "unsupported/ambiguous",
-            "url": "",
-            "station": None,
-        }
-    url, station = candidates[0]
+    """Verify one dedicated WRH primary source and no unmodeled fallback source.
+
+    ``resolution_source`` is the only field allowed to establish primary authority.
+    Rules/description text may repeat that same URL, but cannot introduce another
+    source or fallback policy. A WRH URL found only in description therefore remains
+    unsupported rather than being silently promoted from fallback/reference text.
+    """
+    primary_urls = _urls(market.resolution_source)
+    if len(primary_urls) != 1:
+        return _source_rejection("resolution_source must contain exactly one primary URL")
+
+    parsed_primary = _wrh_url(primary_urls[0])
+    if parsed_primary is None:
+        return _source_rejection("dedicated primary resolution source is not a supported NWS WRH URL")
+    primary_url, station = parsed_primary
+
+    description = str(market.description or "")
+    description_urls = _urls(description)
+    distinct_rule_urls = [url for url in description_urls if url != primary_url]
+    if distinct_rule_urls:
+        return _source_rejection(
+            "rules contain a distinct secondary/fallback URL whose precedence is not modeled",
+            url=primary_url,
+            station=station,
+        )
+    if _FALLBACK_RE.search(description):
+        return _source_rejection(
+            "rules describe a fallback/secondary weather source whose policy is not modeled",
+            url=primary_url,
+            station=station,
+        )
+
     return {
         "verified": True,
-        "kind": "NOAA/NWS WRH strict_v1",
-        "url": url,
+        "kind": "NOAA/NWS WRH primary-only v3",
+        "url": primary_url,
         "station": station,
+        "reason": "dedicated WRH primary source with no unmodeled fallback source",
+        "source_priority": "resolution_source_primary_only",
+        "fallback_policy": "none_present",
     }
 
 
@@ -101,8 +155,9 @@ def settlement_safe_market(market: Market, *, now: datetime | None = None) -> Ma
 
     The legacy weather model reads question+description to infer units and performs
     a substring source check. Supplying only the explicit contract question and the
-    already-validated authoritative URL prevents those demonstrated P0 errors. V2
-    also refuses missing/ambiguous market dates and unknown station timezones.
+    already-validated authoritative URL prevents those demonstrated P0 errors. V3
+    additionally requires explicit primary-source authority and rejects unmodeled
+    fallback/source-priority rules.
     """
     unit = contract_unit_from_question(market.question)
     source = strict_wrh_source(market)
@@ -128,7 +183,7 @@ def settlement_safe_market(market: Market, *, now: datetime | None = None) -> Ma
 
     # Preserve every economic/identity field, but narrow rule inputs consumed by
     # the legacy model to the certified source. The question retains the explicit
-    # bucket unit; the description cannot inject a different display unit.
+    # bucket unit; the description cannot inject a different display unit/source.
     safe = replace(
         market,
         description="",
@@ -139,6 +194,8 @@ def settlement_safe_market(market: Market, *, now: datetime | None = None) -> Ma
     safe.raw["weather_contract_unit"] = unit
     safe.raw["weather_contract_station"] = station
     safe.raw["weather_contract_target_date"] = target_date.isoformat()
+    safe.raw["weather_contract_source_priority"] = source["source_priority"]
+    safe.raw["weather_contract_fallback_policy"] = source["fallback_policy"]
     return safe
 
 
