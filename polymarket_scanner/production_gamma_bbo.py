@@ -15,12 +15,31 @@ confirmation remains unchanged.
 import math
 import os
 import time
+from collections.abc import Callable, Iterable
 
 from .models import Book, Market
 from .production_universe import ProductionPolymarketClient
 
 GAMMA_SCREENING_VERSION = "gamma_bbo_screening_v2_partial_sides_exact_candidate_rest"
 RUNTIME_MODE = "complete_gamma_filtered_universe_plus_gamma_bbo_screening"
+
+# The complete Gamma keyset walk now takes several minutes on the e2-micro. Keep one
+# refresh owner, give startup enough time to finish a full walk, and leave a bounded
+# last-known-good window for transient Gamma failures. These are production-runtime
+# floors; an operator may choose larger values through the dedicated environment
+# variables, but not smaller ones accidentally.
+PRODUCTION_UNIVERSE_REFRESH_SECONDS = max(
+    600,
+    int(os.getenv("PRODUCTION_UNIVERSE_REFRESH_SECONDS", "600")),
+)
+PRODUCTION_UNIVERSE_MAX_STALE_SECONDS = max(
+    1800,
+    int(os.getenv("PRODUCTION_UNIVERSE_MAX_STALE_SECONDS", "1800")),
+)
+PRODUCTION_WATCHDOG_STARTUP_GRACE_SECONDS = max(
+    900.0,
+    float(os.getenv("PRODUCTION_WATCHDOG_STARTUP_GRACE_SECONDS", "900")),
+)
 
 
 def _valid_price(value: object) -> float | None:
@@ -39,6 +58,47 @@ def _strict_yes_no_tokens(market: Market) -> tuple[str, str] | None:
     if sorted(labels) != ["no", "yes"] or len(set(tokens)) != 2 or not all(tokens):
         return None
     return tokens[labels.index("yes")], tokens[labels.index("no")]
+
+
+class ScannerOwnedProductionPolymarketClient(ProductionPolymarketClient):
+    """Production client whose full-universe refresh is owned only by scanner_loop.
+
+    The base ``PolymarketClient.active_markets`` method maintains its own cache and
+    may schedule an internal background refresh. ``app.scanner_loop`` already owns a
+    separate background-universe task, so using both layers makes refresh timing
+    ambiguous and can re-apply a cached snapshot as if it were a fresh traversal.
+
+    In the compact production runtime every call from scanner_loop performs one real,
+    complete Gamma walk. The last accepted snapshot is still retained for authority
+    diagnostics, but no second hidden refresh task is created here.
+    """
+
+    def __init__(
+        self,
+        *,
+        sports_slug_provider: Callable[[], Iterable[str]] | None = None,
+    ) -> None:
+        super().__init__(sports_slug_provider=sports_slug_provider)
+        self._last_full_fetch_seconds: float | None = None
+
+    async def active_markets(self) -> list[Market]:
+        self._active_last_attempt_at = time.time()
+        started = time.monotonic()
+        try:
+            refreshed = await self._fetch_active_markets()
+            self._accept_active_snapshot(refreshed)
+        except Exception as exc:
+            self._active_last_error = repr(exc)
+            raise
+        finally:
+            self._last_full_fetch_seconds = round(time.monotonic() - started, 3)
+        return list(self._active_cache)
+
+    def universe_status(self, *, now: float | None = None) -> dict:
+        status = super().universe_status(now=now)
+        status["refresh_owner"] = "scanner_loop_only"
+        status["last_full_fetch_seconds"] = self._last_full_fetch_seconds
+        return status
 
 
 def gamma_screening_books(markets: list[Market], *, received_at: float | None = None) -> dict[str, Book]:
@@ -118,8 +178,24 @@ def install_production_gamma_runtime(stable_v2_module) -> None:
             "disable that research lane before startup"
         )
 
+    # Tune the large-universe runtime before scanner startup. The outer scanner loop
+    # is the only Gamma refresh owner; the client below performs one real full walk
+    # per scanner-scheduled refresh instead of adding its own background cache task.
+    base.settings.universe_refresh_seconds = max(
+        int(base.settings.universe_refresh_seconds),
+        PRODUCTION_UNIVERSE_REFRESH_SECONDS,
+    )
+    base.settings.universe_max_stale_seconds = max(
+        int(base.settings.universe_max_stale_seconds),
+        PRODUCTION_UNIVERSE_MAX_STALE_SECONDS,
+    )
+    stable.WATCHDOG_STARTUP_GRACE_SECONDS = max(
+        float(stable.WATCHDOG_STARTUP_GRACE_SECONDS),
+        PRODUCTION_WATCHDOG_STARTUP_GRACE_SECONDS,
+    )
+
     old_poly = base.poly
-    production_poly = ProductionPolymarketClient(
+    production_poly = ScannerOwnedProductionPolymarketClient(
         sports_slug_provider=lambda: base.sports_stream.snapshot().keys(),
     )
     base.poly = production_poly
@@ -171,16 +247,23 @@ def install_production_gamma_runtime(stable_v2_module) -> None:
         base.state["price_snapshot_authoritative_transport_complete"] = bool(
             stable._price_snapshot_at is not None
         )
+        base.state["universe_refresh_owner"] = "scanner_loop_only"
+        base.state["universe_refresh_seconds"] = int(base.settings.universe_refresh_seconds)
+        base.state["universe_max_stale_seconds"] = int(base.settings.universe_max_stale_seconds)
+        base.state["watchdog_startup_grace_seconds"] = float(
+            stable.WATCHDOG_STARTUP_GRACE_SECONDS
+        )
 
     base._all_tokens = _all_tokens_with_gamma_screening
     stable._top_price_loop = _gamma_refresh_clock_loop
     stable.TOP_PRICE_REFRESH_SECONDS = max(
         60.0,
-        float(getattr(base.settings, "universe_refresh_seconds", 120)),
+        float(base.settings.universe_refresh_seconds),
     )
 
     base.state["runtime_mode"] = RUNTIME_MODE
     base.state["price_discovery_diagnostics_version"] = GAMMA_SCREENING_VERSION
+    base.state["universe_refresh_owner"] = "scanner_loop_only"
 
     stable.app.router.on_startup.insert(0, _close_replaced_client)
     stable.app.add_event_handler("startup", _mark_gamma_runtime)
