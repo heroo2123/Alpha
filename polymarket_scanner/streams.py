@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import math
 import socket
 import time
 from collections import defaultdict, deque
@@ -28,20 +29,17 @@ def _f(v, default=None):
         return default
 
 
-def _ts_seconds(v) -> float:
-    try:
-        x = float(v)
-    except (TypeError, ValueError):
-        return time.time()
-    return x / 1000.0 if x > 10_000_000_000 else x
+def _ts_seconds(v) -> float | None:
+    """Backward-compatible timestamp parser that never fabricates receipt time."""
+    return _strict_ts_seconds(v)
 
 
 def _strict_ts_seconds(v) -> float | None:
     try:
         x = float(v)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return None
-    if not (x > 0):
+    if not math.isfinite(x) or x <= 0:
         return None
     return x / 1000.0 if x > 10_000_000_000 else x
 
@@ -112,14 +110,9 @@ class LiveMarketStream:
         self.out_of_order_ignored = 0
 
     def seed(self, books: dict[str, Book]) -> None:
-        # Seed data is discovery-only and must not masquerade as a synchronized WS
-        # book. It can be used until a worker owns the token; reconnect invalidation
-        # will remove it before incremental WS deltas are accepted.
         self.books.update({token: book.clone() for token, book in books.items()})
 
     def snapshot(self) -> dict[str, Book]:
-        # Return isolated Book objects. Detector code must never mutate the live cache
-        # through a shallow dict copy.
         return {token: book.clone() for token, book in self.books.items()}
 
     def _start_worker(self, tokens: Iterable[str]) -> int:
@@ -152,7 +145,7 @@ class LiveMarketStream:
 
     def _token_allowed(self, token: str, worker_id: int | None) -> bool:
         if worker_id is None:
-            return True  # unit-test/direct application compatibility
+            return True
         return self._token_owner.get(token) == worker_id and token in self._worker_tokens.get(worker_id, set())
 
     def _epoch_for(self, token: str, worker_id: int | None, epoch: int | None) -> int:
@@ -290,8 +283,6 @@ class LiveMarketStream:
                         sender.cancel()
                         await asyncio.gather(hb, sender, return_exceptions=True)
                         self.connected_workers = max(0, self.connected_workers - 1)
-                        # Anything reconstructed in this epoch is invalid once the
-                        # connection is gone. The next connection must re-snapshot.
                         for token in tuple(self._worker_tokens.get(worker_id, set())):
                             if self._snapshot_epoch.get(token) == epoch:
                                 self._invalidate_token(token)
@@ -353,8 +344,6 @@ class LiveMarketStream:
                     continue
                 current_epoch = self._epoch_for(token, worker_id, epoch)
                 current_epoch_by_token[token] = current_epoch
-                # Incremental deltas are meaningless until the current connection has
-                # supplied a full snapshot for this token.
                 if self._snapshot_epoch.get(token) != current_epoch or token not in self.books:
                     continue
                 if not self._message_is_new_enough(token, remote_ts):
@@ -417,8 +406,6 @@ class LiveMarketStream:
                 return
             if not self._message_is_new_enough(token, remote_ts):
                 return
-            # best_bid_ask carries prices but no aggregate sizes. It may confirm our
-            # reconstructed top of book, but it must never refresh or invent size.
             declared_bid = _valid_price(msg.get("best_bid")) if msg.get("best_bid") not in {None, ""} else None
             declared_ask = _valid_price(msg.get("best_ask")) if msg.get("best_ask") not in {None, ""} else None
             if msg.get("best_bid") not in {None, ""} and declared_bid is None:
@@ -462,8 +449,6 @@ class SportsStream:
         backoff = 1.0
         while True:
             try:
-                # Production VM has IPv6-only external egress. Force AF_INET6 so
-                # the resolver cannot strand this connection on an IPv4 address.
                 async with websockets.connect(
                     SPORTS_WS,
                     open_timeout=15,
@@ -525,7 +510,11 @@ class CryptoRTDS:
         self.history: dict[tuple[str, str], deque[PriceTick]] = defaultdict(lambda: deque(maxlen=20_000))
         self.changed = asyncio.Event()
         self.last_message_at: float | None = None
+        self.last_valid_update_at: float | None = None
         self.connected = False
+        self.invalid_rows = 0
+        self.out_of_order_ignored = 0
+        self.conflicting_timestamp_rows = 0
         self._task: asyncio.Task | None = None
 
     async def start(self) -> None:
@@ -535,6 +524,7 @@ class CryptoRTDS:
     async def close(self) -> None:
         if self._task:
             self._task.cancel(); await asyncio.gather(self._task, return_exceptions=True); self._task = None
+        self.connected = False
 
     def latest(self, topic: str, symbol: str) -> PriceTick | None:
         return self.latest_ticks.get((topic, symbol.lower()))
@@ -571,7 +561,8 @@ class CryptoRTDS:
                             subscriptions.append({"topic": topic, "type": "update", "filters": json.dumps({"symbol": symbol}, separators=(",", ":"))})
                     subscriptions.append({"topic": "crypto_prices", "type": "update"})
                     await ws.send(json.dumps({"action": "subscribe", "subscriptions": subscriptions}))
-                    self.connected = True; backoff = 1.0
+                    self.connected = True
+                    backoff = 1.0
                     hb = asyncio.create_task(self._heartbeat(ws))
                     try:
                         async for raw in ws:
@@ -583,11 +574,16 @@ class CryptoRTDS:
                             self._apply(msg)
                     finally:
                         hb.cancel()
+                        await asyncio.gather(hb, return_exceptions=True)
+                        self.connected = False
             except asyncio.CancelledError:
+                self.connected = False
                 raise
             except Exception as exc:
-                self.connected = False; log.warning("crypto RTDS disconnected: %s", exc)
-                await asyncio.sleep(backoff); backoff = min(30.0, backoff * 2)
+                self.connected = False
+                log.warning("crypto RTDS disconnected: %s", exc)
+                await asyncio.sleep(backoff)
+                backoff = min(30.0, backoff * 2)
 
     def _apply(self, msg) -> None:
         if isinstance(msg, list):
@@ -600,18 +596,50 @@ class CryptoRTDS:
         if not topic.startswith("crypto_prices"):
             return
         payload = msg.get("payload", msg)
-        if isinstance(payload, dict) and isinstance(payload.get("data"), list): rows = payload["data"]
-        elif isinstance(payload, list): rows = payload
-        elif isinstance(payload, dict): rows = [payload]
-        else: rows = []
+        if isinstance(payload, dict) and isinstance(payload.get("data"), list):
+            rows = payload["data"]
+        elif isinstance(payload, list):
+            rows = payload
+        elif isinstance(payload, dict):
+            rows = [payload]
+        else:
+            rows = []
+
         for row in rows:
             if not isinstance(row, dict):
+                self.invalid_rows += 1
                 continue
             symbol = str(row.get("symbol") or (payload.get("symbol") if isinstance(payload, dict) else "")).lower()
             price = _f(row.get("value", row.get("price")))
-            if not symbol or price is None or price <= 0:
+            if not symbol or price is None or not math.isfinite(price) or price <= 0:
+                self.invalid_rows += 1
                 continue
-            ts = _ts_seconds(row.get("timestamp") or row.get("timestamp_ms") or msg.get("timestamp"))
-            tick = PriceTick(topic, symbol, price, ts)
+            ts = _strict_ts_seconds(row.get("timestamp") or row.get("timestamp_ms") or msg.get("timestamp"))
+            if ts is None:
+                self.invalid_rows += 1
+                continue
+
             key = (topic, symbol)
-            self.latest_ticks[key] = tick; self.history[key].append(tick); self.changed.set()
+            prior = self.latest_ticks.get(key)
+            if prior is not None and ts < prior.ts:
+                self.out_of_order_ignored += 1
+                continue
+            if prior is not None and math.isclose(ts, prior.ts, rel_tol=0.0, abs_tol=1e-9):
+                if math.isclose(price, prior.price, rel_tol=0.0, abs_tol=1e-12):
+                    continue
+                # Two different prices for the same source timestamp are ambiguous.
+                # Remove that timestamp from usable state rather than arbitrarily
+                # choosing one. A later valid timestamp can restore the stream.
+                self.conflicting_timestamp_rows += 1
+                self.latest_ticks.pop(key, None)
+                rows_for_key = self.history[key]
+                if rows_for_key and math.isclose(rows_for_key[-1].ts, ts, rel_tol=0.0, abs_tol=1e-9):
+                    rows_for_key.pop()
+                self.changed.set()
+                continue
+
+            tick = PriceTick(topic, symbol, price, ts)
+            self.latest_ticks[key] = tick
+            self.history[key].append(tick)
+            self.last_valid_update_at = time.time()
+            self.changed.set()
