@@ -29,8 +29,12 @@ def _init_repo(path: Path) -> None:
 
 def _write_hardened_release_shape(repo: Path) -> None:
     (repo / "deploy/oracle").mkdir(parents=True, exist_ok=True)
-    (repo / "app_trade_only.py").write_text("app = object()\n")
+    (repo / "deploy/gcp").mkdir(parents=True, exist_ok=True)
+    (repo / "polymarket_scanner").mkdir(parents=True, exist_ok=True)
+    (repo / "app_trade_only.py").write_text("# build_runtime_manifest\napp = object()\n")
     (repo / "command_worker_trade_only.py").write_text("# worker\n")
+    (repo / "polymarket_scanner/runtime_manifest.py").write_text("# runtime manifest\n")
+    (repo / "polymarket_scanner/dependency_preflight.py").write_text("# dependency preflight\n")
     (repo / "deploy/verify-runtime-release.sh").write_text("#!/usr/bin/env bash\nexit 0\n")
     (repo / "deploy/oracle/setup-command-service.sh").write_text(
         "#!/usr/bin/env bash\n"
@@ -38,6 +42,13 @@ def _write_hardened_release_shape(repo: Path) -> None:
         "app_trade_only:app\n"
         "command_worker_trade_only.py\n"
     )
+    preflight_gate = (
+        "#!/usr/bin/env bash\n"
+        "polymarket_scanner.dependency_preflight --required-only --release-sha\n"
+    )
+    (repo / "deploy/oracle/install.sh").write_text(preflight_gate)
+    (repo / "deploy/oracle/update.sh").write_text(preflight_gate)
+    (repo / "deploy/gcp/install.sh").write_text(preflight_gate)
 
 
 def test_production_deploy_scripts_do_not_select_mutable_main_as_runtime_revision():
@@ -144,6 +155,40 @@ def test_release_pin_rejects_pre_attestation_main_ancestor(tmp_path: Path):
     result = _run("bash", str(pin), str(checkout), old_sha, str(marker), check=False)
     assert result.returncode != 0
     assert "predates runtime release attestation" in result.stderr
+    assert not marker.exists()
+
+
+def test_release_pin_rejects_release_that_has_runtime_attestation_but_no_preflight_authority(tmp_path: Path):
+    source = tmp_path / "source"
+    source.mkdir()
+    _init_repo(source)
+    (source / "deploy/oracle").mkdir(parents=True)
+    (source / "app_trade_only.py").write_text("# build_runtime_manifest\napp = object()\n")
+    (source / "command_worker_trade_only.py").write_text("# worker\n")
+    (source / "deploy/verify-runtime-release.sh").write_text("#!/usr/bin/env bash\nexit 0\n")
+    (source / "deploy/oracle/setup-command-service.sh").write_text(
+        "verify-runtime-release.sh\napp_trade_only:app\ncommand_worker_trade_only.py\n"
+    )
+    (source / "polymarket_scanner").mkdir()
+    (source / "polymarket_scanner/runtime_manifest.py").write_text("# manifest\n")
+    _git(source, "add", ".")
+    _git(source, "commit", "-m", "runtime-attested-but-no-preflight")
+    old_sha = _git(source, "rev-parse", "HEAD")
+
+    _write_hardened_release_shape(source)
+    _git(source, "add", ".")
+    _git(source, "commit", "-m", "preflight-authority")
+
+    remote = tmp_path / "remote.git"
+    _run("git", "clone", "--bare", str(source), str(remote))
+    checkout = tmp_path / "checkout"
+    _run("git", "clone", str(remote), str(checkout))
+    marker = tmp_path / "release.sha"
+    result = _run(
+        "bash", str(ROOT / "deploy/release-pin.sh"), str(checkout), old_sha, str(marker), check=False
+    )
+    assert result.returncode != 0
+    assert "predates dependency preflight authority" in result.stderr
     assert not marker.exists()
 
 
