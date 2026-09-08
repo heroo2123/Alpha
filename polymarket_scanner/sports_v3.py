@@ -12,7 +12,7 @@ from .detectors import market_url
 from .models import Book, Market, Signal
 from .polymarket import taker_fee_per_share
 
-SPORTS_MAPPING_VERSION = "home_away_v3_match_moneyline_only"
+SPORTS_MAPPING_VERSION = "home_away_v4_unqualified_match_moneyline_only"
 SPORTS_DETECTOR = "sports_result_lag_v3"
 
 _BAD_STATUS_WORDS = re.compile(
@@ -21,7 +21,9 @@ _BAD_STATUS_WORDS = re.compile(
 )
 _UNSUPPORTED_MARKET_WORDS = re.compile(
     r"\b(?:spread|handicap|over|under|o/u|total|set|period|quarter|half|inning|map|round|"
-    r"series|race\s+to|margin|first\s+to|game\s+\d|set\s+\d|period\s+\d)\b",
+    r"series|race\s+to|margin|first\s+to|game\s+\d|set\s+\d|period\s+\d|"
+    r"regulation|overtime|extra\s+time|shootout|penalt(?:y|ies)|draw\s+no\s+bet|dnb|"
+    r"two[-\s]+way)\b",
     re.I,
 )
 _SIGNED_LINE = re.compile(r"(?:^|[\s(])[-+]\d+(?:\.\d+)?(?:[\s)]|$)")
@@ -178,7 +180,10 @@ def _supported_match_moneyline(m: Market) -> tuple[bool, str]:
     if re.search(r"\bdraw\b", q, re.I):
         return False, "draw contracts require a sport/rules-specific adapter"
     if _UNSUPPORTED_MARKET_WORDS.search(scope) or _SIGNED_LINE.search(q):
-        return False, "spread/total/period/set/game/series semantics are not supported by the match-moneyline adapter"
+        return False, (
+            "spread/total/period/set/game/series or regulation/overtime/shootout-qualified "
+            "semantics are not supported by the match-moneyline adapter"
+        )
 
     raw_type = str(
         m.raw.get("sportsMarketType")
@@ -190,7 +195,7 @@ def _supported_match_moneyline(m: Market) -> tuple[bool, str]:
         return False, f"explicit sports market type '{raw_type}' is not supported"
     if "win" not in q.lower():
         return False, "question is not a direct match-winner contract"
-    return True, "narrow match-moneyline semantics passed"
+    return True, "narrow unqualified match-moneyline semantics passed"
 
 
 def sports_result_lag_v3(
@@ -202,12 +207,13 @@ def sports_result_lag_v3(
 ) -> list[Signal]:
     """Fail-closed sports known-result experiment.
 
-    Only direct match moneylines are evaluated. Spreads, totals, draws, periods,
-    sets/games, series and cancellation-like states are deliberately skipped until
-    they have their own rule-aware adapters. Score orientation is always HOME-AWAY
-    from explicit feed team fields, never event-title order. A terminal result must
-    also carry a recent causal feed timestamp; a cached ancient final cannot become a
-    new result-lag candidate simply because the socket later reconnects.
+    Only direct, unqualified match moneylines are evaluated. Spreads, totals, draws,
+    periods, sets/games, series, regulation-only, overtime/extra-time/shootout and
+    cancellation-like states are deliberately skipped until sport/rules-specific
+    adapters exist. Score orientation is always HOME-AWAY from explicit feed team
+    fields, never event-title order. A terminal result must also carry a recent causal
+    feed timestamp; a cached ancient final cannot become a new result-lag candidate
+    simply because the socket later reconnects.
     """
     out: list[Signal] = []
     for m in markets:
@@ -282,7 +288,7 @@ def sports_result_lag_v3(
                 "fingerprint_key": f"{m.id}:{outcome}:{SPORTS_MAPPING_VERSION}",
                 "sports_reason": why,
                 "sports_mapping_version": SPORTS_MAPPING_VERSION,
-                "sports_semantic_scope": "MATCH_MONEYLINE_ONLY",
+                "sports_semantic_scope": "UNQUALIFIED_MATCH_MONEYLINE_ONLY",
                 "sports_home_team": home_team,
                 "sports_away_team": away_team,
                 "sports_home_score": home_score,
@@ -293,11 +299,11 @@ def sports_result_lag_v3(
                 "sports_scope_reason": scope_reason,
                 "experimental_resolution": True,
                 "action_steps": [
-                    "Research-only sports result-lag candidate during P0 containment.",
+                    "Research-only sports result-lag candidate during containment.",
                 ],
                 "risk_note": (
-                    "Not promoted to TRADE NOW. Only narrow match-moneyline semantics are scored; "
-                    "all spreads/totals/periods/sets/games/series/cancellation cases are skipped."
+                    "Not promoted to TRADE NOW. Only narrow unqualified match-moneyline semantics are scored; "
+                    "all spreads/totals/periods/sets/games/series/regulation/overtime/shootout/cancellation cases are skipped."
                 ),
                 "links": [{"label": "OPEN MARKET", "url": market_url(m)}],
             },
