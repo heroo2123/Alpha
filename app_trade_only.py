@@ -30,9 +30,15 @@ from polymarket_scanner.manual_fills import (
     open_structural_trades,
     resolve_structural_trade,
 )
+from polymarket_scanner.runtime_manifest import build_runtime_manifest
 from polymarket_scanner.settlement import exact_token_payout, selected_token_payout
-from polymarket_scanner.sports_v3 import quarantine_pre_v3_sports_history
-from polymarket_scanner.trade_only import is_trade_ready, mark_trade_readiness, promoted_detectors
+from polymarket_scanner.sports_v3 import SPORTS_MAPPING_VERSION, quarantine_pre_v3_sports_history
+from polymarket_scanner.trade_only import (
+    TRADE_READY_VERSION,
+    is_trade_ready,
+    mark_trade_readiness,
+    promoted_detectors,
+)
 
 app = stable_v2.app
 
@@ -318,6 +324,11 @@ async def _mark_trade_only_runtime() -> None:
     quarantined = await asyncio.to_thread(quarantine_pre_v3_sports_history, base.settings.db_path)
     db_health = await asyncio.to_thread(database_health, base.settings.db_path)
     promoted = promoted_detectors()
+    runtime_manifest = await asyncio.to_thread(
+        build_runtime_manifest,
+        promoted_detectors=promoted,
+        trade_ready_version=TRADE_READY_VERSION,
+    )
     base.state["telegram_delivery_mode"] = "TRADE_NOW_ONLY"
     base.state["delivery_persistence_mode"] = "ATOMIC_SIGNAL_OUTBOX_V1"
     base.state["silent_research_enabled"] = True
@@ -329,8 +340,11 @@ async def _mark_trade_only_runtime() -> None:
         "DIRECTIONAL_USER_REPORTED_ACTUAL_COST_V2_PLUS_STRUCTURAL_PER_LEG_V1"
     )
     base.state["structural_fill_evidence_exchange_verified"] = False
-    base.state["sports_detector_version"] = "home_away_v3_match_moneyline_only"
+    base.state["sports_detector_version"] = SPORTS_MAPPING_VERSION
     base.state["sports_pre_v3_quarantined_now"] = quarantined
+    base.state["runtime_manifest"] = runtime_manifest
+    base.state["production_release_attested"] = runtime_manifest["production_release_attested"]
+    base.state["runtime_policy_sha256"] = runtime_manifest["nonsecret_safety_policy_sha256"]
     base.state["universe_authority"] = base.poly.universe_status()
     base.state["universe_safe_for_detection"] = False
     base.state["price_discovery_authority"] = _price_discovery_status()
