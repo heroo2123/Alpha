@@ -3,6 +3,8 @@ set -Eeuo pipefail
 APP_NAME="polymarket-edge-scanner"
 APP_DIR="${HOME}/${APP_NAME}"
 CONFIG_DIR="${HOME}/.${APP_NAME}"
+DATA_DIR="${CONFIG_DIR}/data"
+BACKUP_DIR="${CONFIG_DIR}/backups"
 RELEASE_FILE="${CONFIG_DIR}/release.sha"
 PREFLIGHT_FILE="${CONFIG_DIR}/dependency-preflight.json"
 SERVICE_NAME="${APP_NAME}.service"
@@ -16,8 +18,16 @@ fail(){ printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 [[ "${RELEASE_SHA}" =~ ^[0-9a-fA-F]{40}$ ]] \
   || fail "Usage: $0 <40-character-authorized-release-SHA> (or set ALPHA_RELEASE_SHA)"
 
-mkdir -p "${CONFIG_DIR}"
-chmod 700 "${CONFIG_DIR}"
+mkdir -p "${CONFIG_DIR}" "${DATA_DIR}" "${BACKUP_DIR}"
+chmod 700 "${CONFIG_DIR}" "${DATA_DIR}" "${BACKUP_DIR}"
+
+# Preserve the currently running database with the currently installed/reviewed
+# runtime before changing Git HEAD, dependencies, unit files, or services.
+if [[ -f "${DATA_DIR}/signals.db" ]]; then
+  [[ -f "${APP_DIR}/deploy/pre-release-backup.sh" ]] \
+    || fail "Existing database found but current release lacks pre-release backup authority"
+  bash "${APP_DIR}/deploy/pre-release-backup.sh" "${APP_DIR}" "${DATA_DIR}" "${BACKUP_DIR}"
+fi
 
 printf 'Updating to immutable release %s...\n' "${RELEASE_SHA}"
 bash "${APP_DIR}/deploy/release-pin.sh" "${APP_DIR}" "${RELEASE_SHA}" "${RELEASE_FILE}"
