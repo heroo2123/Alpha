@@ -1,0 +1,105 @@
+import subprocess
+from pathlib import Path
+
+from polymarket_scanner.runtime_manifest import (
+    RUNTIME_MANIFEST_VERSION,
+    build_runtime_manifest,
+)
+
+
+def _git(cwd: Path, *args: str) -> str:
+    return subprocess.check_output(["git", "-C", str(cwd), *args], text=True).strip()
+
+
+def _repo(tmp_path: Path) -> tuple[Path, str]:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-b", "main", str(repo)], check=True, capture_output=True)
+    subprocess.run(["git", "-C", str(repo), "config", "user.email", "test@example.com"], check=True)
+    subprocess.run(["git", "-C", str(repo), "config", "user.name", "Test"], check=True)
+    (repo / "app.py").write_text("print('ok')\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(repo), "add", "app.py"], check=True)
+    subprocess.run(["git", "-C", str(repo), "commit", "-m", "initial"], check=True, capture_output=True)
+    return repo, _git(repo, "rev-parse", "HEAD")
+
+
+def test_matching_marker_and_clean_tree_are_attested(tmp_path):
+    repo, sha = _repo(tmp_path)
+    marker = tmp_path / "release.sha"
+    marker.write_text(sha + "\n", encoding="utf-8")
+    manifest = build_runtime_manifest(
+        promoted_detectors=(),
+        trade_ready_version="trade-test",
+        app_dir=repo,
+        release_file=marker,
+    )
+    assert manifest["version"] == RUNTIME_MANIFEST_VERSION
+    assert manifest["authorized_release_sha"] == sha
+    assert manifest["git_head_sha"] == sha
+    assert manifest["tracked_working_tree_clean"] is True
+    assert manifest["production_release_attested"] is True
+    assert manifest["p0_containment"] is True
+    assert manifest["promotion_count"] == 0
+    assert manifest["versions"]["trade_ready"] == "trade-test"
+    assert len(manifest["nonsecret_safety_policy_sha256"]) == 64
+    assert "telegram_bot_token" not in manifest["nonsecret_safety_policy"]
+    assert "telegram_chat_id" not in manifest["nonsecret_safety_policy"]
+
+
+def test_dirty_tracked_tree_fails_runtime_attestation(tmp_path):
+    repo, sha = _repo(tmp_path)
+    marker = tmp_path / "release.sha"
+    marker.write_text(sha, encoding="utf-8")
+    (repo / "app.py").write_text("print('changed')\n", encoding="utf-8")
+    manifest = build_runtime_manifest(
+        promoted_detectors=(), trade_ready_version="v", app_dir=repo, release_file=marker
+    )
+    assert manifest["tracked_working_tree_clean"] is False
+    assert manifest["production_release_attested"] is False
+    assert "dirty" in manifest["release_attestation_reason"]
+
+
+def test_mismatched_or_malformed_release_marker_fails_attestation(tmp_path):
+    repo, _ = _repo(tmp_path)
+    marker = tmp_path / "release.sha"
+    marker.write_text("0" * 40, encoding="utf-8")
+    mismatch = build_runtime_manifest(
+        promoted_detectors=(), trade_ready_version="v", app_dir=repo, release_file=marker
+    )
+    assert mismatch["production_release_attested"] is False
+    assert "does not match" in mismatch["release_attestation_reason"]
+
+    marker.write_text("not-a-sha", encoding="utf-8")
+    malformed = build_runtime_manifest(
+        promoted_detectors=(), trade_ready_version="v", app_dir=repo, release_file=marker
+    )
+    assert malformed["authorized_release_sha"] is None
+    assert malformed["production_release_attested"] is False
+    assert "malformed" in malformed["release_attestation_reason"]
+
+
+def test_missing_marker_is_explicitly_unattested_not_silently_healthy(tmp_path):
+    repo, _ = _repo(tmp_path)
+    manifest = build_runtime_manifest(
+        promoted_detectors=["example"],
+        trade_ready_version="v",
+        app_dir=repo,
+        release_file=tmp_path / "missing.sha",
+    )
+    assert manifest["release_marker_present"] is False
+    assert manifest["production_release_attested"] is False
+    assert manifest["promotion_count"] == 1
+    assert manifest["p0_containment"] is False
+    assert "missing" in manifest["release_attestation_reason"]
+
+
+def test_untracked_files_do_not_break_same_tracked_tree_policy_as_systemd_guard(tmp_path):
+    repo, sha = _repo(tmp_path)
+    marker = tmp_path / "release.sha"
+    marker.write_text(sha, encoding="utf-8")
+    (repo / "runtime-data.db").write_text("untracked", encoding="utf-8")
+    manifest = build_runtime_manifest(
+        promoted_detectors=(), trade_ready_version="v", app_dir=repo, release_file=marker
+    )
+    assert manifest["tracked_working_tree_clean"] is True
+    assert manifest["production_release_attested"] is True
