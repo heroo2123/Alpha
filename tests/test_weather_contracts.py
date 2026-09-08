@@ -3,6 +3,7 @@ from zoneinfo import ZoneInfo
 
 from polymarket_scanner.models import Market
 from polymarket_scanner.weather import (
+    AWC_OBSERVATION_ADAPTER,
     ForecastContext,
     ForecastHour,
     Observation,
@@ -67,6 +68,16 @@ def _forecast(fetched_at: datetime) -> ForecastContext:
         timezone_name="America/Chicago",
         fetched_at=fetched_at,
         hours=[ForecastHour(datetime(2026, 9, 7, 16, 0, tzinfo=tz), 24.0)],
+    )
+
+
+def _proxy_obs(when: datetime, temp_c: float, raw: str) -> Observation:
+    return Observation(
+        when=when,
+        temp_c=temp_c,
+        raw=raw,
+        station_id="KORD",
+        source_adapter=AWC_OBSERVATION_ADAPTER,
     )
 
 
@@ -268,9 +279,9 @@ def test_future_observation_is_removed_instead_of_becoming_age_zero():
     now = _now()
     batch = ObservationBatch(
         [
-            Observation(now - timedelta(hours=2), 20.0, "old"),
-            Observation(now - timedelta(hours=1), 21.0, "current"),
-            Observation(now + timedelta(minutes=30), 35.0, "future-bad"),
+            _proxy_obs(now - timedelta(hours=2), 20.0, "old"),
+            _proxy_obs(now - timedelta(hours=1), 21.0, "current"),
+            _proxy_obs(now + timedelta(minutes=30), 35.0, "future-bad"),
         ],
         forecast=_forecast(now - timedelta(minutes=2)),
     )
@@ -283,9 +294,9 @@ def test_future_observation_is_removed_instead_of_becoming_age_zero():
 def test_stale_or_future_forecast_is_invalidated():
     now = _now()
     rows = [
-        Observation(now - timedelta(hours=2), 20.0, "a"),
-        Observation(now - timedelta(hours=1), 21.0, "b"),
-        Observation(now - timedelta(minutes=5), 20.0, "c"),
+        _proxy_obs(now - timedelta(hours=2), 20.0, "a"),
+        _proxy_obs(now - timedelta(hours=1), 21.0, "b"),
+        _proxy_obs(now - timedelta(minutes=5), 20.0, "c"),
     ]
 
     stale = ObservationBatch(rows, forecast=_forecast(now - timedelta(hours=1)))
@@ -302,7 +313,7 @@ def test_forecast_from_wrong_station_is_invalidated():
     forecast = _forecast(now - timedelta(minutes=2))
     forecast.station = "KMDW"
     batch = ObservationBatch(
-        [Observation(now - timedelta(minutes=5), 20.0, "a")],
+        [_proxy_obs(now - timedelta(minutes=5), 20.0, "a")],
         forecast=forecast,
     )
     clean = settlement_safe_weather_cache({"KORD": batch}, now=now)["KORD"]
