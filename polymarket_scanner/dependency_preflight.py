@@ -31,7 +31,7 @@ from .polymarket import CLOB, GAMMA
 from .streams import MARKET_WS, RTDS_WS, SPORTS_WS
 from .weather import AWC
 
-PREFLIGHT_VERSION = "dependency_preflight_v4_gamma_keyset_release_bound"
+PREFLIGHT_VERSION = "dependency_preflight_v5_gamma_keyset_continuation_release_bound"
 _SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 
 
@@ -94,28 +94,59 @@ async def _http_probe(
     return ProbeResult(name, endpoint, required, ok, detail, elapsed_ms)
 
 
+def _validate_gamma_keyset_payload(payload: object, *, label: str) -> tuple[list, str | None]:
+    if not isinstance(payload, dict):
+        raise ValueError(f"{label} keyset envelope is not an object")
+    events = payload.get("events")
+    if not isinstance(events, list):
+        raise ValueError(f"{label} keyset envelope missing events list")
+    cursor = payload.get("next_cursor")
+    if cursor is not None and not isinstance(cursor, str):
+        raise ValueError(f"{label} next_cursor malformed")
+    normalized = cursor.strip() if isinstance(cursor, str) else ""
+    next_cursor = normalized or None
+    if next_cursor is not None and not events:
+        raise ValueError(f"{label} keyset returned empty events with continuation cursor")
+    return events, next_cursor
+
+
 async def _gamma_keyset_probe(client: httpx.AsyncClient) -> ProbeResult:
-    """Verify the full-universe Gamma pagination contract, not host reachability only."""
+    """Verify the real two-page Gamma keyset contract used for full-universe discovery."""
     endpoint = f"{GAMMA}/events/keyset?limit=1&active=true&closed=false"
     started = time.perf_counter()
     ok = False
     detail = "uninitialized"
     try:
-        response = await client.get(endpoint)
-        status = int(response.status_code)
-        response.raise_for_status()
-        payload = response.json()
-        if not isinstance(payload, dict):
-            detail = f"HTTP {status}; keyset envelope is not an object"
-        elif not isinstance(payload.get("events"), list):
-            detail = f"HTTP {status}; keyset envelope missing events list"
+        first = await client.get(endpoint)
+        first_status = int(first.status_code)
+        first.raise_for_status()
+        _events, cursor = _validate_gamma_keyset_payload(first.json(), label="first")
+        if cursor is None:
+            detail = f"HTTP {first_status}; keyset continuation cursor missing"
         else:
-            cursor = payload.get("next_cursor")
-            if cursor is not None and not isinstance(cursor, str):
-                detail = f"HTTP {status}; next_cursor malformed"
+            second = await client.get(
+                f"{GAMMA}/events/keyset",
+                params={
+                    "limit": 1,
+                    "active": "true",
+                    "closed": "false",
+                    "after_cursor": cursor,
+                },
+            )
+            second_status = int(second.status_code)
+            second.raise_for_status()
+            _second_events, second_cursor = _validate_gamma_keyset_payload(
+                second.json(), label="continuation"
+            )
+            if second_cursor == cursor:
+                detail = (
+                    f"HTTP {first_status}/{second_status}; keyset continuation repeated cursor"
+                )
             else:
                 ok = True
-                detail = f"HTTP {status}; Gamma events keyset contract valid"
+                detail = (
+                    f"HTTP {first_status}/{second_status}; Gamma keyset continuation contract valid"
+                )
     except Exception as exc:
         detail = f"{type(exc).__name__}: {exc}"
     elapsed_ms = round((time.perf_counter() - started) * 1000.0, 3)
@@ -152,13 +183,11 @@ async def run_dependency_preflight(
     ws_connect: Callable[..., Awaitable] = websockets.connect,
 ) -> dict:
     owned = client is None
-    http = client or httpx.AsyncClient(timeout=6.0, headers={"User-Agent": "polymarket-edge-scanner-preflight/4"})
+    http = client or httpx.AsyncClient(timeout=6.0, headers={"User-Agent": "polymarket-edge-scanner-preflight/5"})
     try:
         tasks = [
             _gamma_keyset_probe(http),
             _http_probe(http, "polymarket_clob", f"{CLOB}/time", required=True),
-            # Telegram host reachability is required for TRADE NOW delivery. No bot
-            # credential is sent; any non-5xx HTTP response proves DNS/TLS/HTTP path.
             _http_probe(http, "telegram_api_host", "https://api.telegram.org", required=True, require_2xx=False),
             _ws_probe("polymarket_market_ws", MARKET_WS, required=True, connect=ws_connect),
         ]
@@ -178,7 +207,6 @@ async def run_dependency_preflight(
 
 
 def bind_release_sha(summary: dict, release_sha: str | None) -> dict:
-    """Return evidence bound to an exact release SHA, or reject malformed identity."""
     bound = dict(summary)
     if release_sha is None:
         bound["release_sha"] = None
@@ -191,7 +219,6 @@ def bind_release_sha(summary: dict, release_sha: str | None) -> dict:
 
 
 def write_preflight_evidence(summary: dict, output: str | Path) -> Path:
-    """Atomically persist one secret-free preflight summary with owner-only mode."""
     path = Path(output).expanduser()
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = json.dumps(summary, indent=2, sort_keys=True, allow_nan=False) + "\n"
