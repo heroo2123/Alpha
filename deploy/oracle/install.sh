@@ -8,6 +8,7 @@ DATA_DIR="${HOME}/.${APP_NAME}/data"
 CONFIG_DIR="${HOME}/.${APP_NAME}"
 ENV_FILE="${CONFIG_DIR}/bot.env"
 RELEASE_FILE="${CONFIG_DIR}/release.sha"
+PREFLIGHT_FILE="${CONFIG_DIR}/dependency-preflight.json"
 SERVICE_NAME="${APP_NAME}.service"
 COMMAND_SERVICE="polymarket-edge-command.service"
 CURRENT_USER="$(id -un)"
@@ -66,6 +67,11 @@ bash "${APP_DIR}/deploy/verify-runtime-release.sh" "${APP_DIR}" "${RELEASE_FILE}
 mkdir -p "${DATA_DIR}" "${CONFIG_DIR}"
 chmod 700 "${CONFIG_DIR}" "${DATA_DIR}"
 chmod 600 "${RELEASE_FILE}"
+
+say "Required dependency preflight"
+"${APP_DIR}/.venv/bin/python" -m polymarket_scanner.dependency_preflight \
+  --required-only --output "${PREFLIGHT_FILE}"
+chmod 600 "${PREFLIGHT_FILE}"
 
 say "Telegram configuration"
 printf 'Paste the Telegram bot token from @BotFather (input is hidden): ' >/dev/tty
@@ -172,6 +178,7 @@ ACTUAL_SHA="$(git -C "${APP_DIR}" rev-parse HEAD)"
 RECORDED_SHA="$(tr -d '[:space:]' < "${RELEASE_FILE}")"
 [[ "${ACTUAL_SHA}" == "${RECORDED_SHA}" && "${ACTUAL_SHA}" == "${RELEASE_SHA,,}" ]] || fail "Release attestation failed after startup"
 echo "Immutable release: ${ACTUAL_SHA}"
+echo "Required dependency preflight evidence: ${PREFLIGHT_FILE}"
 echo "Scanner ExecStart:"
 sudo systemctl show -p ExecStart "${SERVICE_NAME}"
 echo "Scanner ExecStartPre:"
