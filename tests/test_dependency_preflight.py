@@ -3,10 +3,12 @@ import json
 import stat
 
 import httpx
+import pytest
 
 from polymarket_scanner.dependency_preflight import (
     PREFLIGHT_VERSION,
     ProbeResult,
+    bind_release_sha,
     run_dependency_preflight,
     summarize_preflight,
     write_preflight_evidence,
@@ -104,15 +106,28 @@ def test_required_gamma_or_market_ws_failure_fails_preflight():
     assert summary["optional_total"] == 0
 
 
+def test_release_binding_requires_exact_40_hex_sha():
+    sha = "a" * 40
+    bound = bind_release_sha({"ok": True}, sha.upper())
+    assert bound["release_sha"] == sha
+    assert bind_release_sha({"ok": True}, None)["release_sha"] is None
+    for bad in ("main", "a" * 39, "g" * 40, ""):
+        with pytest.raises(ValueError):
+            bind_release_sha({"ok": True}, bad)
+
+
 def test_preflight_evidence_is_atomic_json_and_owner_only(tmp_path):
     path = tmp_path / "state" / "dependency-preflight.json"
-    summary = {
-        "version": PREFLIGHT_VERSION,
-        "ok": True,
-        "measured_at": "2026-09-08T09:12:00+00:00",
-        "required_failed": [],
-        "results": [],
-    }
+    summary = bind_release_sha(
+        {
+            "version": PREFLIGHT_VERSION,
+            "ok": True,
+            "measured_at": "2026-09-08T09:12:00+00:00",
+            "required_failed": [],
+            "results": [],
+        },
+        "b" * 40,
+    )
     written = write_preflight_evidence(summary, path)
     assert written == path
     assert json.loads(path.read_text()) == summary
