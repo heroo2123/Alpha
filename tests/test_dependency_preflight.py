@@ -46,14 +46,20 @@ def test_preflight_required_endpoints_and_optional_failures_are_separated():
         host = request.url.host
         if host == "gamma-api.polymarket.com":
             gamma_requests.append(request)
+            cursor = request.url.params.get("after_cursor")
+            if cursor is None:
+                return httpx.Response(
+                    200,
+                    json={"events": [{"id": "1"}], "next_cursor": "cursor-2"},
+                )
+            assert cursor == "cursor-2"
             return httpx.Response(
                 200,
-                json={"events": [{"id": "1"}], "next_cursor": "cursor-2"},
+                json={"events": [{"id": "2"}], "next_cursor": "cursor-3"},
             )
         if host == "clob.polymarket.com":
             return httpx.Response(200, text="123")
         if host == "api.telegram.org":
-            # Host reachability only: authentication is deliberately not attempted.
             return httpx.Response(404, text="not found")
         if host == "aviationweather.gov":
             return httpx.Response(503, text="research feed down")
@@ -78,10 +84,16 @@ def test_preflight_required_endpoints_and_optional_failures_are_separated():
     ]
     assert summary["measured_at"].endswith("+00:00")
     assert all(row["elapsed_ms"] is not None and row["elapsed_ms"] >= 0 for row in summary["results"])
-    assert len(gamma_requests) == 1
+    assert len(gamma_requests) == 2
     assert gamma_requests[0].url.path == "/events/keyset"
     assert gamma_requests[0].url.params["limit"] == "1"
     assert "offset" not in gamma_requests[0].url.params
+    assert "after_cursor" not in gamma_requests[0].url.params
+    assert gamma_requests[1].url.path == "/events/keyset"
+    assert gamma_requests[1].url.params["after_cursor"] == "cursor-2"
+    assert "offset" not in gamma_requests[1].url.params
+    gamma = next(row for row in summary["results"] if row["name"] == "polymarket_gamma")
+    assert "continuation contract valid" in gamma["detail"]
 
 
 def test_required_gamma_or_market_ws_failure_fails_preflight():
@@ -142,6 +154,63 @@ def test_gamma_keyset_malformed_envelope_fails_required_preflight():
     assert summary["required_failed"] == ["polymarket_gamma"]
     gamma = next(row for row in summary["results"] if row["name"] == "polymarket_gamma")
     assert "keyset envelope is not an object" in gamma["detail"]
+
+
+def test_gamma_keyset_missing_continuation_cursor_fails_required_preflight():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "gamma-api.polymarket.com":
+            return httpx.Response(200, json={"events": [{"id": "1"}], "next_cursor": None})
+        if request.url.host == "clob.polymarket.com":
+            return httpx.Response(200)
+        if request.url.host == "api.telegram.org":
+            return httpx.Response(404)
+        return httpx.Response(200)
+
+    async def fake_ws(_endpoint: str, **_kwargs):
+        return FakeWS()
+
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            return await run_dependency_preflight(
+                include_optional=False,
+                client=client,
+                ws_connect=fake_ws,
+            )
+
+    summary = asyncio.run(run())
+    assert summary["ok"] is False
+    gamma = next(row for row in summary["results"] if row["name"] == "polymarket_gamma")
+    assert "continuation cursor missing" in gamma["detail"]
+
+
+def test_gamma_keyset_repeated_continuation_cursor_fails_required_preflight():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "gamma-api.polymarket.com":
+            return httpx.Response(
+                200,
+                json={"events": [{"id": "1"}], "next_cursor": "repeat"},
+            )
+        if request.url.host == "clob.polymarket.com":
+            return httpx.Response(200)
+        if request.url.host == "api.telegram.org":
+            return httpx.Response(404)
+        return httpx.Response(200)
+
+    async def fake_ws(_endpoint: str, **_kwargs):
+        return FakeWS()
+
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            return await run_dependency_preflight(
+                include_optional=False,
+                client=client,
+                ws_connect=fake_ws,
+            )
+
+    summary = asyncio.run(run())
+    assert summary["ok"] is False
+    gamma = next(row for row in summary["results"] if row["name"] == "polymarket_gamma")
+    assert "repeated cursor" in gamma["detail"]
 
 
 def test_release_binding_requires_exact_40_hex_sha():
