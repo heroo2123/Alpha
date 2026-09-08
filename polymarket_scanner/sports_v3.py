@@ -30,11 +30,6 @@ _UNSUPPORTED_MARKET_WORDS = re.compile(
 )
 _SIGNED_LINE = re.compile(r"(?:^|[\s(])[-+]\d+(?:\.\d+)?(?:[\s)]|$)")
 
-# Detector-side chronology memory protects evidence from a stream/cache regression:
-# once a source timestamp has been observed for a slug, an older payload cannot
-# become authoritative later. Same-timestamp contradictions are quarantined until a
-# strictly newer source timestamp arrives. This state is process-local by design;
-# historical DB evidence is independently versioned/quarantined below.
 _SPORTS_CAUSAL_FLOOR: dict[str, float] = {}
 _SPORTS_CAUSAL_FINGERPRINT: dict[str, str] = {}
 _SPORTS_CAUSAL_QUARANTINED_AT: dict[str, float] = {}
@@ -228,17 +223,26 @@ def _sports_source_timestamp(payload: dict) -> float | None:
 
 
 def _sports_payload_fingerprint(payload: dict) -> str:
-    """Canonicalize the full source row so same-time contradictions fail closed."""
     try:
         return json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
     except (TypeError, ValueError, OverflowError):
         return repr(sorted((str(k), repr(v)) for k, v in payload.items()))
 
 
-def _causal_sports_payload(slug: str, payload: dict) -> dict | None:
+def _causal_sports_payload(
+    slug: str,
+    payload: dict,
+    *,
+    now_ts: float | None = None,
+) -> dict | None:
     source_ts = _sports_source_timestamp(payload)
     if source_ts is None:
         return None
+    current = time.time() if now_ts is None else float(now_ts)
+    age = current - source_ts
+    if age < -5.0 or age > float(settings.sports_result_max_age_seconds):
+        return None
+
     key = str(slug or "").strip()
     if not key:
         return None
@@ -336,16 +340,16 @@ def sports_result_lag_v3(
     periods, sets/games, series, regulation-only, overtime/extra-time/shootout and
     cancellation-like states are deliberately skipped until sport/rules-specific
     adapters exist. Score orientation is HOME-AWAY from explicit feed team fields.
-    Source timestamps must also advance monotonically for each event slug: older rows
+    Source timestamps must advance monotonically for each event slug: older rows
     cannot overwrite newer evidence, and contradictory rows carrying the same source
-    timestamp quarantine the slug until a strictly newer update arrives.
+    timestamp quarantine the slug until a strictly newer valid update arrives.
     """
     out: list[Signal] = []
     for m in markets:
         payload = cache.get(m.event_slug)
         if not isinstance(payload, dict):
             continue
-        payload = _causal_sports_payload(m.event_slug, payload)
+        payload = _causal_sports_payload(m.event_slug, payload, now_ts=now_ts)
         if payload is None:
             continue
         terminal, terminal_reason, source_ts, source_age = _terminal_feed(payload, now_ts=now_ts)
