@@ -29,49 +29,90 @@ _UNSUPPORTED_MARKET_WORDS = re.compile(
 _SIGNED_LINE = re.compile(r"(?:^|[\s(])[-+]\d+(?:\.\d+)?(?:[\s)]|$)")
 
 
-def quarantine_pre_v3_sports_history(db_path: str) -> int:
-    """Make every legacy sports_result_lag row fail the old-valid-version audit.
+def _decode_meta(raw: object) -> dict:
+    try:
+        meta = json.loads(str(raw or "{}"))
+    except Exception:
+        meta = {}
+    return meta if isinstance(meta, dict) else {}
 
-    The v2 home/away fix corrected title orientation but Astra showed that spread,
-    period and cancellation semantics remained unsafe. Preserve those rows and their
-    recorded outcomes for forensic audit, but rewrite only the mapping-version tag so
-    Store._sports_pre_fix classifies them as KNOWN_BUG_EXCLUDED. New v3 signals use a
-    separate detector ID and therefore begin a clean prospective sample.
+
+def quarantine_pre_v3_sports_history(db_path: str) -> int:
+    """Quarantine all sports evidence produced before the current narrow scope.
+
+    This retains the original function name for deployment compatibility. It now
+    performs two idempotent migrations:
+
+    1. Legacy ``sports_result_lag`` rows from before explicit home/away mapping.
+    2. Earlier ``sports_result_lag_v3`` rows created before regulation/overtime/
+       shootout qualifiers were excluded.
+
+    Old v3 rows are normalized into the existing known-bug audit class by storing
+    their original detector/version in metadata and changing the detector to the
+    legacy quarantine detector. Status, settlement payout and P&L are untouched.
     """
     path = Path(db_path)
     if not path.exists():
         return 0
-    marker_key = "sports_pre_v3_quarantined"
+
     changed = 0
     with sqlite3.connect(path) as c:
         c.row_factory = sqlite3.Row
         c.execute("CREATE TABLE IF NOT EXISTS bot_state (key TEXT PRIMARY KEY, value TEXT)")
-        marker = c.execute("SELECT value FROM bot_state WHERE key=?", (marker_key,)).fetchone()
-        if marker:
-            return 0
-        rows = c.execute(
-            "SELECT id,metadata FROM signals WHERE detector='sports_result_lag'"
-        ).fetchall()
-        for row in rows:
-            try:
-                meta = json.loads(row["metadata"] or "{}")
-            except Exception:
-                meta = {}
-            if not isinstance(meta, dict):
-                meta = {}
-            meta["sports_mapping_version"] = "PRE_V3_QUARANTINED"
-            meta["sports_quarantine_reason"] = (
-                "pre-v3 sports logic did not safely distinguish spreads/periods/cancellations"
-            )
+
+        legacy_marker = "sports_pre_v3_quarantined"
+        legacy_done = c.execute("SELECT value FROM bot_state WHERE key=?", (legacy_marker,)).fetchone()
+        legacy_changed = 0
+        if not legacy_done:
+            rows = c.execute(
+                "SELECT id,metadata FROM signals WHERE detector='sports_result_lag'"
+            ).fetchall()
+            for row in rows:
+                meta = _decode_meta(row["metadata"])
+                meta["sports_mapping_version"] = "PRE_V3_QUARANTINED"
+                meta["sports_quarantine_reason"] = (
+                    "pre-v3 sports logic did not safely distinguish spreads/periods/cancellations"
+                )
+                c.execute(
+                    "UPDATE signals SET metadata=? WHERE id=?",
+                    (json.dumps(meta, separators=(",", ":")), int(row["id"])),
+                )
+                legacy_changed += 1
             c.execute(
-                "UPDATE signals SET metadata=? WHERE id=?",
-                (json.dumps(meta, separators=(",", ":")), int(row["id"])),
+                "INSERT INTO bot_state(key,value) VALUES(?,?)",
+                (legacy_marker, str(legacy_changed)),
             )
-            changed += 1
-        c.execute(
-            "INSERT INTO bot_state(key,value) VALUES(?,?)",
-            (marker_key, str(changed)),
-        )
+            changed += legacy_changed
+
+        v3_marker = "sports_pre_v4_qualified_scope_quarantined"
+        v3_done = c.execute("SELECT value FROM bot_state WHERE key=?", (v3_marker,)).fetchone()
+        v3_changed = 0
+        if not v3_done:
+            rows = c.execute(
+                "SELECT id,metadata FROM signals WHERE detector='sports_result_lag_v3'"
+            ).fetchall()
+            for row in rows:
+                meta = _decode_meta(row["metadata"])
+                old_version = str(meta.get("sports_mapping_version") or "")
+                if old_version == SPORTS_MAPPING_VERSION:
+                    continue
+                meta["sports_original_detector"] = "sports_result_lag_v3"
+                meta["sports_original_mapping_version"] = old_version
+                meta["sports_mapping_version"] = "PRE_V4_V3_QUARANTINED"
+                meta["sports_quarantine_reason"] = (
+                    "pre-v4 sports v3 allowed regulation/overtime/shootout-qualified contracts"
+                )
+                c.execute(
+                    "UPDATE signals SET detector='sports_result_lag', metadata=? WHERE id=?",
+                    (json.dumps(meta, separators=(",", ":")), int(row["id"])),
+                )
+                v3_changed += 1
+            c.execute(
+                "INSERT INTO bot_state(key,value) VALUES(?,?)",
+                (v3_marker, str(v3_changed)),
+            )
+            changed += v3_changed
+
     return changed
 
 
@@ -115,12 +156,7 @@ def _strict_binary_token(m: Market, outcome: str) -> str | None:
 
 
 def _sports_source_timestamp(payload: dict) -> float | None:
-    """Extract a causal timestamp from current sports-feed field variants.
-
-    Current Polymarket sports payloads expose ``last_update``/``updated_at`` on some
-    adapters and ``finished_timestamp`` on terminal examples. Unknown/missing time is
-    not fresh evidence for a result-lag trade.
-    """
+    """Extract a causal timestamp from current sports-feed field variants."""
     for key in (
         "last_update", "lastUpdate", "updated_at", "updatedAt",
         "finished_timestamp", "finishedTimestamp",
