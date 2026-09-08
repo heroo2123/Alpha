@@ -12,15 +12,21 @@ bounded WebSocket hot set can override it when fresher, while exact candidate
 confirmation remains unchanged.
 """
 
+import asyncio
 import math
 import os
 import time
 from collections.abc import Callable, Iterable
 
+import httpx
+
+from .config import settings
 from .models import Book, Market
+from .polymarket import GAMMA, UniverseIncompleteError
 from .production_universe import ProductionPolymarketClient
 
 GAMMA_SCREENING_VERSION = "gamma_bbo_screening_v2_partial_sides_exact_candidate_rest"
+PRODUCTION_REFRESH_TRANSPORT_VERSION = "dedicated_gamma_ipv6_keepalive_v1"
 RUNTIME_MODE = "complete_gamma_filtered_universe_plus_gamma_bbo_screening"
 
 # The complete Gamma keyset walk now takes several minutes on the e2-micro. Keep one
@@ -39,6 +45,10 @@ PRODUCTION_UNIVERSE_MAX_STALE_SECONDS = max(
 PRODUCTION_WATCHDOG_STARTUP_GRACE_SECONDS = max(
     900.0,
     float(os.getenv("PRODUCTION_WATCHDOG_STARTUP_GRACE_SECONDS", "900")),
+)
+PRODUCTION_GAMMA_SLOW_PAGE_SECONDS = max(
+    2.0,
+    float(os.getenv("PRODUCTION_GAMMA_SLOW_PAGE_SECONDS", "5")),
 )
 
 
@@ -63,14 +73,16 @@ def _strict_yes_no_tokens(market: Market) -> tuple[str, str] | None:
 class ScannerOwnedProductionPolymarketClient(ProductionPolymarketClient):
     """Production client whose full-universe refresh is owned only by scanner_loop.
 
-    The base ``PolymarketClient.active_markets`` method maintains its own cache and
-    may schedule an internal background refresh. ``app.scanner_loop`` already owns a
-    separate background-universe task, so using both layers makes refresh timing
-    ambiguous and can re-apply a cached snapshot as if it were a fresh traversal.
+    Gamma discovery has its own IPv6-bound HTTP pool. The base client also services
+    CLOB confirmation and settlement requests; sharing that pool allowed unrelated
+    market traffic to evict the sequential Gamma keepalive connection on the IPv6-only
+    e2-micro. A dedicated Gamma pool keeps discovery transport independent while CLOB
+    REST remains the final execution authority.
 
-    In the compact production runtime every call from scanner_loop performs one real,
-    complete Gamma walk. The last accepted snapshot is still retained for authority
-    diagnostics, but no second hidden refresh task is created here.
+    Authority telemetry is also snapshot-consistent: counters exposed at the top
+    level always describe the last *accepted complete* universe. Partial counters from
+    an in-progress traversal are published only under ``refresh_progress`` and can
+    never masquerade as properties of the accepted snapshot.
     """
 
     def __init__(
@@ -79,25 +91,211 @@ class ScannerOwnedProductionPolymarketClient(ProductionPolymarketClient):
         sports_slug_provider: Callable[[], Iterable[str]] | None = None,
     ) -> None:
         super().__init__(sports_slug_provider=sports_slug_provider)
-        self._last_full_fetch_seconds: float | None = None
+
+        # The production VM is intentionally IPv6-only. Binding the discovery pool
+        # to :: makes IPv4 candidates fail locally instead of consuming most of the
+        # 20-second request timeout before an IPv6 connection is attempted.
+        transport = httpx.AsyncHTTPTransport(
+            local_address="::",
+            retries=0,
+            limits=httpx.Limits(
+                max_connections=4,
+                max_keepalive_connections=2,
+                keepalive_expiry=120.0,
+            ),
+        )
+        self._gamma_http = httpx.AsyncClient(
+            timeout=settings.request_timeout,
+            transport=transport,
+            headers={"User-Agent": "polymarket-edge-scanner/0.2 (+github)"},
+        )
+
+        self._full_fetch_in_progress = False
+        self._refresh_started_at: float | None = None
+        self._refresh_page_elapsed_total = 0.0
+        self._refresh_page_elapsed_max = 0.0
+        self._refresh_slow_pages = 0
+
+        self._accepted_discovered_market_count = 0
+        self._accepted_materialized_market_count = 0
+        self._accepted_keyset_page_count = 0
+        self._accepted_sports_slug_snapshot_count = 0
+        self._accepted_full_fetch_seconds: float | None = None
+        self._accepted_page_elapsed_average: float | None = None
+        self._accepted_page_elapsed_max: float | None = None
+        self._accepted_slow_pages = 0
+        self._last_attempt_full_fetch_seconds: float | None = None
+
+    async def close(self) -> None:
+        await self._gamma_http.aclose()
+        await super().close()
+
+    async def _event_keyset_page(
+        self,
+        after_cursor: str | None,
+        *,
+        tag_slug: str | None = None,
+    ) -> tuple[list[dict], str | None]:
+        """Fetch one validated keyset page on the dedicated Gamma IPv6 pool."""
+        page_size = max(1, min(int(settings.gamma_page_size), 100))
+        params: dict[str, object] = {
+            "active": "true",
+            "closed": "false",
+            "limit": page_size,
+        }
+        if after_cursor:
+            params["after_cursor"] = after_cursor
+        if tag_slug:
+            params["tag_slug"] = tag_slug
+
+        started = time.monotonic()
+        try:
+            attempts = 4
+            for attempt in range(attempts):
+                try:
+                    response = await self._gamma_http.get(
+                        f"{GAMMA}/events/keyset",
+                        params=params,
+                    )
+                    if response.status_code == 429 or response.status_code >= 500:
+                        if attempt < attempts - 1:
+                            delay = min(4.0, 0.5 * (2 ** attempt))
+                            await asyncio.sleep(delay)
+                            continue
+
+                    response.raise_for_status()
+                    payload = response.json()
+                    if not isinstance(payload, dict):
+                        raise UniverseIncompleteError(
+                            "Gamma keyset response is not an object"
+                        )
+                    events = payload.get("events")
+                    if not isinstance(events, list):
+                        raise UniverseIncompleteError(
+                            "Gamma keyset response is missing an events list"
+                        )
+
+                    raw_cursor = payload.get("next_cursor")
+                    if raw_cursor is not None and not isinstance(raw_cursor, str):
+                        raise UniverseIncompleteError(
+                            "Gamma keyset next_cursor is malformed"
+                        )
+                    next_cursor = raw_cursor.strip() if isinstance(raw_cursor, str) else ""
+                    next_cursor = next_cursor or None
+                    if next_cursor is not None and not events:
+                        raise UniverseIncompleteError(
+                            "Gamma keyset returned an empty events page with a continuation cursor"
+                        )
+                    return events, next_cursor
+                except httpx.RequestError:
+                    if attempt >= attempts - 1:
+                        raise
+                    delay = min(4.0, 0.5 * (2 ** attempt))
+                    await asyncio.sleep(delay)
+
+            raise UniverseIncompleteError(
+                "Gamma keyset retries exhausted without a usable page"
+            )
+        finally:
+            elapsed = time.monotonic() - started
+            self._refresh_page_elapsed_total += elapsed
+            self._refresh_page_elapsed_max = max(
+                self._refresh_page_elapsed_max,
+                elapsed,
+            )
+            if elapsed >= PRODUCTION_GAMMA_SLOW_PAGE_SECONDS:
+                self._refresh_slow_pages += 1
+
+    def _reset_refresh_progress(self) -> None:
+        self._refresh_page_elapsed_total = 0.0
+        self._refresh_page_elapsed_max = 0.0
+        self._refresh_slow_pages = 0
+
+    def _accept_refresh_telemetry(self, elapsed: float) -> None:
+        pages = int(self._keyset_page_count)
+        self._accepted_discovered_market_count = int(self._discovered_market_count)
+        self._accepted_materialized_market_count = int(self._materialized_market_count)
+        self._accepted_keyset_page_count = pages
+        self._accepted_sports_slug_snapshot_count = len(
+            getattr(self, "_sports_slug_snapshot", set())
+        )
+        self._accepted_full_fetch_seconds = round(elapsed, 3)
+        self._accepted_page_elapsed_average = (
+            round(self._refresh_page_elapsed_total / pages, 3)
+            if pages > 0
+            else None
+        )
+        self._accepted_page_elapsed_max = round(
+            self._refresh_page_elapsed_max,
+            3,
+        )
+        self._accepted_slow_pages = int(self._refresh_slow_pages)
 
     async def active_markets(self) -> list[Market]:
         self._active_last_attempt_at = time.time()
+        self._refresh_started_at = self._active_last_attempt_at
+        self._full_fetch_in_progress = True
+        self._reset_refresh_progress()
         started = time.monotonic()
+        succeeded = False
         try:
             refreshed = await self._fetch_active_markets()
             self._accept_active_snapshot(refreshed)
+            elapsed = time.monotonic() - started
+            self._accept_refresh_telemetry(elapsed)
+            succeeded = True
+            return list(self._active_cache)
         except Exception as exc:
             self._active_last_error = repr(exc)
             raise
         finally:
-            self._last_full_fetch_seconds = round(time.monotonic() - started, 3)
-        return list(self._active_cache)
+            elapsed = time.monotonic() - started
+            self._last_attempt_full_fetch_seconds = round(elapsed, 3)
+            self._full_fetch_in_progress = False
+            self._refresh_started_at = None
+            if not succeeded:
+                # The accepted counters above deliberately remain untouched.
+                pass
 
     def universe_status(self, *, now: float | None = None) -> dict:
         status = super().universe_status(now=now)
-        status["refresh_owner"] = "scanner_loop_only"
-        status["last_full_fetch_seconds"] = self._last_full_fetch_seconds
+        current = time.time() if now is None else float(now)
+
+        status.update({
+            "refresh_owner": "scanner_loop_only",
+            "refresh_transport": PRODUCTION_REFRESH_TRANSPORT_VERSION,
+            "refresh_in_progress": bool(self._full_fetch_in_progress),
+            "discovered_market_count": self._accepted_discovered_market_count,
+            "materialized_market_count": self._accepted_materialized_market_count,
+            "keyset_pages": self._accepted_keyset_page_count,
+            "sports_slug_snapshot_count": self._accepted_sports_slug_snapshot_count,
+            "last_full_fetch_seconds": self._accepted_full_fetch_seconds,
+            "last_attempt_full_fetch_seconds": self._last_attempt_full_fetch_seconds,
+            "accepted_page_average_seconds": self._accepted_page_elapsed_average,
+            "accepted_page_max_seconds": self._accepted_page_elapsed_max,
+            "accepted_slow_pages": self._accepted_slow_pages,
+        })
+
+        if self._full_fetch_in_progress:
+            started_at = self._refresh_started_at
+            pages = int(self._keyset_page_count)
+            status["refresh_progress"] = {
+                "started_at": started_at,
+                "elapsed_seconds": (
+                    current - started_at if started_at is not None else None
+                ),
+                "discovered_market_count": int(self._discovered_market_count),
+                "materialized_market_count": int(self._materialized_market_count),
+                "keyset_pages": pages,
+                "page_average_seconds": (
+                    self._refresh_page_elapsed_total / pages if pages > 0 else None
+                ),
+                "page_max_seconds": self._refresh_page_elapsed_max,
+                "slow_pages": int(self._refresh_slow_pages),
+            }
+        else:
+            status["refresh_progress"] = None
+
         return status
 
 
@@ -253,6 +451,7 @@ def install_production_gamma_runtime(stable_v2_module) -> None:
         base.state["watchdog_startup_grace_seconds"] = float(
             stable.WATCHDOG_STARTUP_GRACE_SECONDS
         )
+        base.state["gamma_refresh_transport"] = PRODUCTION_REFRESH_TRANSPORT_VERSION
 
     base._all_tokens = _all_tokens_with_gamma_screening
     stable._top_price_loop = _gamma_refresh_clock_loop
@@ -264,6 +463,7 @@ def install_production_gamma_runtime(stable_v2_module) -> None:
     base.state["runtime_mode"] = RUNTIME_MODE
     base.state["price_discovery_diagnostics_version"] = GAMMA_SCREENING_VERSION
     base.state["universe_refresh_owner"] = "scanner_loop_only"
+    base.state["gamma_refresh_transport"] = PRODUCTION_REFRESH_TRANSPORT_VERSION
 
     stable.app.router.on_startup.insert(0, _close_replaced_client)
     stable.app.add_event_handler("startup", _mark_gamma_runtime)
