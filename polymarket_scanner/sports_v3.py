@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 import sqlite3
 import time
@@ -12,8 +13,9 @@ from .detectors import market_url
 from .models import Book, Market, Signal
 from .polymarket import taker_fee_per_share
 
-SPORTS_MAPPING_VERSION = "home_away_v4_unqualified_match_moneyline_only"
+SPORTS_MAPPING_VERSION = "home_away_v5_causal_cache_unqualified_match_moneyline_only"
 SPORTS_DETECTOR = "sports_result_lag_v3"
+SPORTS_CAUSAL_CACHE_VERSION = "source_timestamp_monotonic_v1"
 
 _BAD_STATUS_WORDS = re.compile(
     r"\b(?:cancelled|canceled|postponed|suspended|abandoned|void|no\s+contest|delayed)\b",
@@ -28,6 +30,15 @@ _UNSUPPORTED_MARKET_WORDS = re.compile(
 )
 _SIGNED_LINE = re.compile(r"(?:^|[\s(])[-+]\d+(?:\.\d+)?(?:[\s)]|$)")
 
+# Detector-side chronology memory protects evidence from a stream/cache regression:
+# once a source timestamp has been observed for a slug, an older payload cannot
+# become authoritative later. Same-timestamp contradictions are quarantined until a
+# strictly newer source timestamp arrives. This state is process-local by design;
+# historical DB evidence is independently versioned/quarantined below.
+_SPORTS_CAUSAL_FLOOR: dict[str, float] = {}
+_SPORTS_CAUSAL_FINGERPRINT: dict[str, str] = {}
+_SPORTS_CAUSAL_QUARANTINED_AT: dict[str, float] = {}
+
 
 def _decode_meta(raw: object) -> dict:
     try:
@@ -38,18 +49,14 @@ def _decode_meta(raw: object) -> dict:
 
 
 def quarantine_pre_v3_sports_history(db_path: str) -> int:
-    """Quarantine all sports evidence produced before the current narrow scope.
+    """Quarantine sports evidence produced before the current narrow causal scope.
 
-    This retains the original function name for deployment compatibility. It now
-    performs two idempotent migrations:
+    The legacy function name is retained for deployment compatibility. Migrations are
+    idempotent and preserve original status, settlement payout and P&L.
 
     1. Legacy ``sports_result_lag`` rows from before explicit home/away mapping.
-    2. Earlier ``sports_result_lag_v3`` rows created before regulation/overtime/
-       shootout qualifiers were excluded.
-
-    Old v3 rows are normalized into the existing known-bug audit class by storing
-    their original detector/version in metadata and changing the detector to the
-    legacy quarantine detector. Status, settlement payout and P&L are untouched.
+    2. Earlier ``sports_result_lag_v3`` rows before qualifier exclusions.
+    3. v4 ``sports_result_lag_v3`` rows before monotonic source-time cache evidence.
     """
     path = Path(db_path)
     if not path.exists():
@@ -94,7 +101,10 @@ def quarantine_pre_v3_sports_history(db_path: str) -> int:
             for row in rows:
                 meta = _decode_meta(row["metadata"])
                 old_version = str(meta.get("sports_mapping_version") or "")
-                if old_version == SPORTS_MAPPING_VERSION:
+                if old_version in {
+                    SPORTS_MAPPING_VERSION,
+                    "home_away_v4_unqualified_match_moneyline_only",
+                }:
                     continue
                 meta["sports_original_detector"] = "sports_result_lag_v3"
                 meta["sports_original_mapping_version"] = old_version
@@ -112,6 +122,35 @@ def quarantine_pre_v3_sports_history(db_path: str) -> int:
                 (v3_marker, str(v3_changed)),
             )
             changed += v3_changed
+
+        causal_marker = "sports_pre_v5_causal_timestamp_quarantined"
+        causal_done = c.execute("SELECT value FROM bot_state WHERE key=?", (causal_marker,)).fetchone()
+        causal_changed = 0
+        if not causal_done:
+            rows = c.execute(
+                "SELECT id,metadata FROM signals WHERE detector='sports_result_lag_v3'"
+            ).fetchall()
+            for row in rows:
+                meta = _decode_meta(row["metadata"])
+                old_version = str(meta.get("sports_mapping_version") or "")
+                if old_version == SPORTS_MAPPING_VERSION:
+                    continue
+                meta["sports_original_detector"] = "sports_result_lag_v3"
+                meta["sports_original_mapping_version"] = old_version
+                meta["sports_mapping_version"] = "PRE_V5_CAUSAL_TIMESTAMP_QUARANTINED"
+                meta["sports_quarantine_reason"] = (
+                    "pre-v5 sports evidence did not enforce monotonic source timestamps or same-time conflict quarantine"
+                )
+                c.execute(
+                    "UPDATE signals SET detector='sports_result_lag', metadata=? WHERE id=?",
+                    (json.dumps(meta, separators=(",", ":")), int(row["id"])),
+                )
+                causal_changed += 1
+            c.execute(
+                "INSERT INTO bot_state(key,value) VALUES(?,?)",
+                (causal_marker, str(causal_changed)),
+            )
+            changed += causal_changed
 
     return changed
 
@@ -156,7 +195,7 @@ def _strict_binary_token(m: Market, outcome: str) -> str | None:
 
 
 def _sports_source_timestamp(payload: dict) -> float | None:
-    """Extract a causal timestamp from current sports-feed field variants."""
+    """Extract a finite causal timestamp from current sports-feed field variants."""
     for key in (
         "last_update", "lastUpdate", "updated_at", "updatedAt",
         "finished_timestamp", "finishedTimestamp",
@@ -168,21 +207,71 @@ def _sports_source_timestamp(payload: dict) -> float | None:
             continue
         try:
             numeric = float(raw)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, OverflowError):
             numeric = None
         if numeric is not None:
+            if not math.isfinite(numeric):
+                continue
             if numeric > 10_000_000_000:
                 numeric /= 1000.0
             if numeric > 0:
                 return numeric
         try:
             parsed = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, OverflowError):
             continue
         if parsed.tzinfo is None:
             continue
-        return parsed.astimezone(timezone.utc).timestamp()
+        numeric = parsed.astimezone(timezone.utc).timestamp()
+        return numeric if math.isfinite(numeric) and numeric > 0 else None
     return None
+
+
+def _sports_payload_fingerprint(payload: dict) -> str:
+    """Canonicalize the full source row so same-time contradictions fail closed."""
+    try:
+        return json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
+    except (TypeError, ValueError, OverflowError):
+        return repr(sorted((str(k), repr(v)) for k, v in payload.items()))
+
+
+def _causal_sports_payload(slug: str, payload: dict) -> dict | None:
+    source_ts = _sports_source_timestamp(payload)
+    if source_ts is None:
+        return None
+    key = str(slug or "").strip()
+    if not key:
+        return None
+    fingerprint = _sports_payload_fingerprint(payload)
+    prior_ts = _SPORTS_CAUSAL_FLOOR.get(key)
+
+    if prior_ts is None:
+        _SPORTS_CAUSAL_FLOOR[key] = source_ts
+        _SPORTS_CAUSAL_FINGERPRINT[key] = fingerprint
+        _SPORTS_CAUSAL_QUARANTINED_AT.pop(key, None)
+        return payload
+
+    if source_ts < prior_ts - 1e-9:
+        return None
+
+    if math.isclose(source_ts, prior_ts, rel_tol=0.0, abs_tol=1e-9):
+        if key in _SPORTS_CAUSAL_QUARANTINED_AT:
+            return None
+        if fingerprint == _SPORTS_CAUSAL_FINGERPRINT.get(key):
+            return payload
+        _SPORTS_CAUSAL_QUARANTINED_AT[key] = source_ts
+        return None
+
+    _SPORTS_CAUSAL_FLOOR[key] = source_ts
+    _SPORTS_CAUSAL_FINGERPRINT[key] = fingerprint
+    _SPORTS_CAUSAL_QUARANTINED_AT.pop(key, None)
+    return payload
+
+
+def _reset_sports_causal_state_for_tests() -> None:
+    _SPORTS_CAUSAL_FLOOR.clear()
+    _SPORTS_CAUSAL_FINGERPRINT.clear()
+    _SPORTS_CAUSAL_QUARANTINED_AT.clear()
 
 
 def _terminal_feed(payload: dict, *, now_ts: float | None = None) -> tuple[bool, str, float | None, float | None]:
@@ -246,15 +335,18 @@ def sports_result_lag_v3(
     Only direct, unqualified match moneylines are evaluated. Spreads, totals, draws,
     periods, sets/games, series, regulation-only, overtime/extra-time/shootout and
     cancellation-like states are deliberately skipped until sport/rules-specific
-    adapters exist. Score orientation is always HOME-AWAY from explicit feed team
-    fields, never event-title order. A terminal result must also carry a recent causal
-    feed timestamp; a cached ancient final cannot become a new result-lag candidate
-    simply because the socket later reconnects.
+    adapters exist. Score orientation is HOME-AWAY from explicit feed team fields.
+    Source timestamps must also advance monotonically for each event slug: older rows
+    cannot overwrite newer evidence, and contradictory rows carrying the same source
+    timestamp quarantine the slug until a strictly newer update arrives.
     """
     out: list[Signal] = []
     for m in markets:
         payload = cache.get(m.event_slug)
         if not isinstance(payload, dict):
+            continue
+        payload = _causal_sports_payload(m.event_slug, payload)
+        if payload is None:
             continue
         terminal, terminal_reason, source_ts, source_age = _terminal_feed(payload, now_ts=now_ts)
         if not terminal:
@@ -324,6 +416,7 @@ def sports_result_lag_v3(
                 "fingerprint_key": f"{m.id}:{outcome}:{SPORTS_MAPPING_VERSION}",
                 "sports_reason": why,
                 "sports_mapping_version": SPORTS_MAPPING_VERSION,
+                "sports_causal_cache_version": SPORTS_CAUSAL_CACHE_VERSION,
                 "sports_semantic_scope": "UNQUALIFIED_MATCH_MONEYLINE_ONLY",
                 "sports_home_team": home_team,
                 "sports_away_team": away_team,
@@ -338,8 +431,9 @@ def sports_result_lag_v3(
                     "Research-only sports result-lag candidate during containment.",
                 ],
                 "risk_note": (
-                    "Not promoted to TRADE NOW. Only narrow unqualified match-moneyline semantics are scored; "
-                    "all spreads/totals/periods/sets/games/series/regulation/overtime/shootout/cancellation cases are skipped."
+                    "Not promoted to TRADE NOW. Only narrow unqualified match-moneyline semantics with monotonic "
+                    "source-time evidence are scored; spreads/totals/periods/sets/games/series/regulation/"
+                    "overtime/shootout/cancellation cases are skipped."
                 ),
                 "links": [{"label": "OPEN MARKET", "url": market_url(m)}],
             },
