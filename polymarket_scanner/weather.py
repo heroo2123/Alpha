@@ -23,6 +23,7 @@ FORECAST_MARGIN_C = 1
 FRONT_WIND_SHIFT_DEGREES = 100.0
 PRESSURE_SWING_HPA = 5.0
 THUNDERSTORM_CODES = {95, 96, 99}
+AWC_OBSERVATION_ADAPTER = "AVIATION_WEATHER_METAR_PROXY_V2_EXACT_ID_OBSTIME"
 
 MONTHS = {
     "january":1,"february":2,"march":3,"april":4,"may":5,"june":6,
@@ -82,6 +83,10 @@ class Observation:
     when: datetime
     temp_c: float
     raw: str
+    station_id: str | None = None
+    source_adapter: str | None = None
+    receipt_time: datetime | None = None
+    report_time: datetime | None = None
 
 
 @dataclass(slots=True)
@@ -211,6 +216,62 @@ def _cloud_percent(clouds) -> float:
         if isinstance(cloud, dict):
             vals.append(mapping.get(str(cloud.get("cover") or "").upper(), 0.0))
     return max(vals, default=0.0)
+
+
+def _aware_source_time(value: object) -> datetime | None:
+    """Parse an explicit source timestamp without inventing timezone or chronology."""
+    if value is None or isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        try:
+            numeric = float(value)
+        except (TypeError, ValueError, OverflowError):
+            return None
+        if not math.isfinite(numeric) or numeric <= 0:
+            return None
+        try:
+            return datetime.fromtimestamp(numeric, timezone.utc)
+        except (OverflowError, OSError, ValueError):
+            return None
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return None
+    if parsed.tzinfo is None:
+        return None
+    return parsed.astimezone(timezone.utc)
+
+
+def parse_awc_metar_observation(row: object, requested_station: str) -> Observation | None:
+    """Parse one AWC METAR row as a versioned proxy observation.
+
+    Exact station identity and ``obsTime`` are mandatory. ``reportTime`` and
+    ``receiptTime`` are retained as lineage only and can never substitute for the
+    meteorological event time. This is intentionally still a proxy adapter: it does
+    not claim equivalence to the WRH settlement table or its correction state.
+    """
+    if not isinstance(row, dict):
+        return None
+    station = str(requested_station or "").strip().upper()
+    row_station = str(row.get("icaoId") or "").strip().upper()
+    if not station or row_station != station:
+        return None
+    when = _aware_source_time(row.get("obsTime"))
+    if when is None:
+        return None
+    temp = _first_number(row, "temp")
+    if temp is None or not math.isfinite(temp):
+        return None
+    raw = str(row.get("rawOb") or "")
+    return Observation(
+        when=when,
+        temp_c=float(temp),
+        raw=raw,
+        station_id=row_station,
+        source_adapter=AWC_OBSERVATION_ADAPTER,
+        receipt_time=_aware_source_time(row.get("receiptTime")),
+        report_time=_aware_source_time(row.get("reportTime")),
+    )
 
 
 class WeatherClient:
@@ -386,39 +447,37 @@ class WeatherClient:
             self.forecast_tasks[station] = asyncio.create_task(self._forecast_background_worker(station))
 
     async def observations(self, station: str, hours: int = 30) -> ObservationBatch:
-        """Return official METAR observations promptly; refresh forecast separately.
+        """Return identity-checked AWC METAR proxy observations promptly.
 
-        Slow/missing TAF data must never hold the entire observation batch hostage.
-        A fresh cached forecast is attached when available. Otherwise a bounded
-        background job refreshes it and a later observation cycle will attach it.
+        The request is scoped to one ICAO ID, but each returned row is still checked
+        independently. Only explicit ``obsTime`` is accepted as event time. Receipt
+        and report timestamps are retained for audit lineage and never substitute for
+        missing observation time. This is a proxy feed, not settlement authority.
         """
+        requested_station = str(station or "").strip().upper()
+        if not re.fullmatch(r"[A-Z0-9]{4}", requested_station):
+            return ObservationBatch()
         try:
-            r = await self.http.get(AWC, params={"ids": station, "format": "json", "hours": hours})
+            r = await self.http.get(AWC, params={"ids": requested_station, "format": "json", "hours": hours})
             if r.status_code == 204:
                 return ObservationBatch()
             r.raise_for_status()
             payload = r.json()
+            if not isinstance(payload, list):
+                return ObservationBatch()
             out: list[Observation] = []
             for row in payload:
+                parsed = parse_awc_metar_observation(row, requested_station)
+                if parsed is None:
+                    continue
                 lat = _first_number(row, "lat", "latitude")
                 lon = _first_number(row, "lon", "longitude")
-                if lat is not None and lon is not None:
-                    self.station_coordinates[station] = (lat, lon)
-                ts = row.get("obsTime")
-                if isinstance(ts, (int, float)):
-                    dt = datetime.fromtimestamp(ts, timezone.utc)
-                else:
-                    raw_ts = row.get("reportTime") or row.get("receiptTime")
-                    if not raw_ts:
-                        continue
-                    dt = datetime.fromisoformat(raw_ts.replace("Z", "+00:00"))
-                temp = row.get("temp")
-                if temp is None:
-                    continue
-                out.append(Observation(dt, float(temp), row.get("rawOb") or ""))
-            forecast = self._fresh_cached_forecast(station)
+                if lat is not None and lon is not None and math.isfinite(lat) and math.isfinite(lon):
+                    self.station_coordinates[requested_station] = (lat, lon)
+                out.append(parsed)
+            forecast = self._fresh_cached_forecast(requested_station)
             if forecast is None:
-                self._ensure_forecast_background(station)
+                self._ensure_forecast_background(requested_station)
             return ObservationBatch(sorted(out, key=lambda x: x.when), forecast=forecast)
         except Exception:
             return ObservationBatch()
@@ -427,7 +486,7 @@ class WeatherClient:
 def lock_probability(market: Market, observations: list[Observation], station: str, now: datetime | None = None) -> dict | None:
     """Conservative late-day daily-high lock model.
 
-    Exact WRH settlement station and fresh official hourly observations are always
+    Exact WRH settlement station and fresh official hourly proxy observations are
     required. A full temperature forecast is preferred. If unavailable, an AWC TAF
     may be used only as a risk gate, with stricter late-day cooling/drop requirements.
     """
@@ -561,7 +620,10 @@ def lock_probability(market: Market, observations: list[Observation], station: s
         "settlement_source_verified": True,
         "settlement_source_kind": source["kind"],
         "settlement_source_url": source["url"],
+        "weather_observation_adapter": AWC_OBSERVATION_ADAPTER,
+        "weather_observation_source_kind": "official_proxy_not_settlement_table",
+        "weather_observation_settlement_authority": False,
         "forecast_provider": forecast.provider,
         "forecast_fetched_at": forecast.fetched_at.isoformat(),
-        "source": f"Official settlement: NOAA/NWS WRH exact station; observations: AviationWeather METAR; {provider_note}",
+        "source": f"Official settlement: NOAA/NWS WRH exact station; observations: AviationWeather METAR proxy; {provider_note}",
     }
