@@ -77,11 +77,26 @@ def _apply_live_bbo(markets: list[Market], books: dict[str, Book]) -> None:
 
 
 def _version_weather_signals(signals: list[Signal], model_version: str) -> list[Signal]:
-    """Stamp only prospective contract-safe evidence with the repaired model version."""
+    """Stamp prospective weather evidence without overstating observation authority.
+
+    The contract adapter can prove which settlement source the market names, but the
+    current temperature observations still come from AviationWeather METAR. That is
+    a useful official proxy and may be highly correlated with WRH, but it has not
+    been proven identical to the rule-selected WRH display population, precision,
+    revision state or fallback branch. Keep those two authorities separate so proxy
+    observations cannot silently become clean empirical calibration evidence.
+    """
     for signal in signals:
         signal.metadata["weather_model_version"] = model_version
         signal.metadata["weather_contract_adapter"] = WEATHER_CONTRACT_ADAPTER
         signal.metadata["weather_contract_temporal_safe"] = True
+        signal.metadata["weather_contract_source_verified"] = bool(
+            signal.metadata.get("settlement_source_verified") is True
+        )
+        signal.metadata["weather_observation_adapter"] = "AVIATION_WEATHER_METAR_PROXY_V1"
+        signal.metadata["weather_observation_source_kind"] = "official_proxy_not_settlement_table"
+        signal.metadata["weather_observation_settlement_authority"] = False
+        signal.metadata["weather_calibration_eligible_observations"] = False
     return signals
 
 
@@ -137,8 +152,8 @@ def evaluate_signals(
         _last_weather_fast_at = now
         # The strict boundary owns source host/station, explicit bucket units,
         # required market date, causal observation timestamps and forecast freshness.
-        # Legacy detector math sees only these sanitized copies. Old v1 samples are
-        # not silently mixed with prospective V2 contract-safe evidence.
+        # Legacy detector math sees only these sanitized copies. Contract authority
+        # is deliberately kept separate from the still-proxy AWC observation feed.
         certified_weather = settlement_safe_weather_markets(weather_markets)
         certified_cache = settlement_safe_weather_cache(weather_cache)
         late = _safe("weather_late_lock", weather_late_lock, certified_weather, books, certified_cache)
