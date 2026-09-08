@@ -62,3 +62,9 @@ def test_runtime_resource_snapshot_degrades_without_procfs(tmp_path):
     assert snap["database_bytes"] == 0
     assert snap["database_wal_bytes"] == 0
     assert snap["errors"]
+
+
+def test_trade_only_health_persists_resource_snapshot_for_shadow_evidence():
+    source = Path("app_trade_only.py").read_text(encoding="utf-8")
+    assert "from polymarket_scanner.runtime_resources import runtime_resource_snapshot" in source
+    assert 'snapshot["runtime_resources"] = runtime_resource_snapshot(db_path=base.settings.db_path)' in source
