@@ -1,7 +1,13 @@
+import json
 import time
 
-from polymarket_scanner.models import Book, Market
-from polymarket_scanner.sports_v3 import SPORTS_MAPPING_VERSION, sports_result_lag_v3
+from polymarket_scanner.models import Book, Market, Signal
+from polymarket_scanner.sports_v3 import (
+    SPORTS_MAPPING_VERSION,
+    quarantine_pre_v3_sports_history,
+    sports_result_lag_v3,
+)
+from polymarket_scanner.store import Store
 
 
 def _market(question: str, *, raw=None) -> Market:
@@ -81,3 +87,44 @@ def test_draw_no_bet_and_two_way_qualified_markets_fail_closed():
 def test_raw_moneyline_type_does_not_override_unsafe_qualifier():
     market = _market("Will Home FC win in regulation?", raw={"sportsMarketType": "moneyline"})
     assert sports_result_lag_v3([market], _books(), _feed()) == []
+
+
+def test_pre_v4_v3_history_is_quarantined_without_changing_forensic_pnl(tmp_path):
+    store = Store(str(tmp_path / "signals.db"))
+    old = Signal(
+        detector="sports_result_lag_v3",
+        confidence="ACTIONABLE",
+        event_id="old-event",
+        market_id="old-market",
+        title="old v3 regulation candidate",
+        detail="old",
+        url="https://example.com",
+        edge=0.1,
+        entry_cost=0.8,
+        theoretical_payout=1.0,
+        token_ids=["old-token"],
+        metadata={"sports_mapping_version": "home_away_v3_match_moneyline_only"},
+    )
+    signal_id = store.save_signal(old)
+    assert signal_id is not None
+    store.resolve(signal_id, True, 100.0)
+    before = store.get_signal(signal_id)
+    assert before["status"] == "WON"
+    assert before["pnl"] == 25.0
+
+    changed = quarantine_pre_v3_sports_history(store.path)
+    assert changed == 1
+    assert quarantine_pre_v3_sports_history(store.path) == 0
+
+    after = store.get_signal(signal_id)
+    assert after["detector"] == "sports_result_lag"
+    assert after["status"] == "WON"
+    assert after["pnl"] == 25.0
+    meta = json.loads(after["metadata"])
+    assert meta["sports_original_detector"] == "sports_result_lag_v3"
+    assert meta["sports_original_mapping_version"] == "home_away_v3_match_moneyline_only"
+    assert meta["sports_mapping_version"] == "PRE_V4_V3_QUARANTINED"
+
+    audit = store.stats()["audit"]
+    assert audit["known_bug_excluded"] >= 1
+    assert audit["known_bug_resolved"] >= 1
