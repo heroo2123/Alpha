@@ -1,4 +1,6 @@
 import asyncio
+import json
+import stat
 
 import httpx
 
@@ -7,6 +9,7 @@ from polymarket_scanner.dependency_preflight import (
     ProbeResult,
     run_dependency_preflight,
     summarize_preflight,
+    write_preflight_evidence,
 )
 
 
@@ -17,16 +20,18 @@ class FakeWS:
 
 def test_summary_fails_only_for_required_dependencies():
     summary = summarize_preflight([
-        ProbeResult("required-ok", "a", True, True, "ok"),
-        ProbeResult("optional-bad", "b", False, False, "down"),
+        ProbeResult("required-ok", "a", True, True, "ok", 12.5),
+        ProbeResult("optional-bad", "b", False, False, "down", 9.0),
     ])
     assert summary["version"] == PREFLIGHT_VERSION
     assert summary["ok"] is True
     assert summary["required_failed"] == []
     assert summary["optional_failed"] == ["optional-bad"]
+    assert summary["required_max_elapsed_ms"] == 12.5
+    assert summary["optional_max_elapsed_ms"] == 9.0
 
     failed = summarize_preflight([
-        ProbeResult("required-bad", "a", True, False, "down"),
+        ProbeResult("required-bad", "a", True, False, "down", 3.0),
     ])
     assert failed["ok"] is False
     assert failed["required_failed"] == ["required-bad"]
@@ -63,6 +68,8 @@ def test_preflight_required_endpoints_and_optional_failures_are_separated():
         "polymarket_rtds_ws",
         "polymarket_sports_ws",
     ]
+    assert summary["measured_at"].endswith("+00:00")
+    assert all(row["elapsed_ms"] is not None and row["elapsed_ms"] >= 0 for row in summary["results"])
 
 
 def test_required_gamma_or_market_ws_failure_fails_preflight():
@@ -95,3 +102,19 @@ def test_required_gamma_or_market_ws_failure_fails_preflight():
         "polymarket_market_ws",
     ]
     assert summary["optional_total"] == 0
+
+
+def test_preflight_evidence_is_atomic_json_and_owner_only(tmp_path):
+    path = tmp_path / "state" / "dependency-preflight.json"
+    summary = {
+        "version": PREFLIGHT_VERSION,
+        "ok": True,
+        "measured_at": "2026-09-08T09:12:00+00:00",
+        "required_failed": [],
+        "results": [],
+    }
+    written = write_preflight_evidence(summary, path)
+    assert written == path
+    assert json.loads(path.read_text()) == summary
+    assert stat.S_IMODE(path.stat().st_mode) == 0o600
+    assert not list(path.parent.glob(f".{path.name}.tmp-*"))
