@@ -1,2 +1,7 @@
 -r requirements.txt
+
+# Test runner and the exact transitives observed in the reviewed Python 3.11 CI.
 pytest==8.3.3
+iniconfig==2.3.0
+packaging==26.3
+pluggy==1.6.0
