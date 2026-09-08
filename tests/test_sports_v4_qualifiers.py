@@ -1,13 +1,23 @@
 import json
 import time
 
+import pytest
+
 from polymarket_scanner.models import Book, Market, Signal
 from polymarket_scanner.sports_v3 import (
     SPORTS_MAPPING_VERSION,
+    _reset_sports_causal_state_for_tests,
     quarantine_pre_v3_sports_history,
     sports_result_lag_v3,
 )
 from polymarket_scanner.store import Store
+
+
+@pytest.fixture(autouse=True)
+def _reset_causal_sports_state():
+    _reset_sports_causal_state_for_tests()
+    yield
+    _reset_sports_causal_state_for_tests()
 
 
 def _market(question: str, *, raw=None) -> Market:
@@ -128,3 +138,40 @@ def test_pre_v4_v3_history_is_quarantined_without_changing_forensic_pnl(tmp_path
     audit = store.stats()["audit"]
     assert audit["known_bug_excluded"] >= 1
     assert audit["known_bug_resolved"] >= 1
+
+
+def test_pre_v5_v4_history_is_quarantined_even_if_old_v4_marker_already_exists(tmp_path):
+    store = Store(str(tmp_path / "signals.db"))
+    # Simulate a database that already ran the previous release's v4 migration.
+    store.set_state("sports_pre_v4_qualified_scope_quarantined", "0")
+
+    old_v4 = Signal(
+        detector="sports_result_lag_v3",
+        confidence="ACTIONABLE",
+        event_id="old-v4-event",
+        market_id="old-v4-market",
+        title="old v4 causal-unsafe candidate",
+        detail="old",
+        url="https://example.com",
+        edge=0.1,
+        entry_cost=0.8,
+        theoretical_payout=1.0,
+        token_ids=["old-v4-token"],
+        metadata={"sports_mapping_version": "home_away_v4_unqualified_match_moneyline_only"},
+    )
+    signal_id = store.save_signal(old_v4)
+    assert signal_id is not None
+    store.resolve(signal_id, False, 100.0)
+
+    changed = quarantine_pre_v3_sports_history(store.path)
+    assert changed == 1
+    assert quarantine_pre_v3_sports_history(store.path) == 0
+
+    after = store.get_signal(signal_id)
+    assert after["detector"] == "sports_result_lag"
+    assert after["status"] == "LOST"
+    assert after["pnl"] == -100.0
+    meta = json.loads(after["metadata"])
+    assert meta["sports_original_mapping_version"] == "home_away_v4_unqualified_match_moneyline_only"
+    assert meta["sports_mapping_version"] == "PRE_V5_CAUSAL_TIMESTAMP_QUARANTINED"
+    assert "monotonic source timestamps" in meta["sports_quarantine_reason"]
