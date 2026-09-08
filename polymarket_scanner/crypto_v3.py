@@ -11,7 +11,7 @@ from .models import Book, Market, Signal
 from .polymarket import taker_fee_per_share
 from .streams import CryptoRTDS, PriceTick
 
-CRYPTO_FEED_VERSION = "rtds_v3_connected_causal_progress"
+CRYPTO_FEED_VERSION = "rtds_v4_strict_source_timestamp_causal_progress"
 FEED_PROGRESS_MAX_AGE_SECONDS = 20.0
 CROSSFEED_MAX_AGE_SECONDS = 20.0
 CROSSFEED_MAX_SKEW_SECONDS = 5.0
