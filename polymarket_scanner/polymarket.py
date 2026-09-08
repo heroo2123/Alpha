@@ -41,6 +41,100 @@ def _f(value, default=0.0):
         return default
 
 
+_COMPACT_MARKET_RAW_KEYS = (
+    "spread",
+    "negRiskMarketID",
+    "negRiskMarketId",
+    "sportsMarketType",
+    "sports_market_type",
+    "marketType",
+)
+
+_COMPACT_EVENT_RAW_KEYS = (
+    "id",
+    "slug",
+    "title",
+    "negRisk",
+    "enableNegRisk",
+    "negRiskAugmented",
+    "negRiskMarketID",
+    "negRiskMarketId",
+    "description",
+    "resolutionSource",
+    "category",
+    # Legacy/fallback sports fields are cheap to retain even though the current
+    # production sports detector uses the dedicated causal sports feed.
+    "ended",
+    "score",
+    "homeTeam",
+    "awayTeam",
+    "home_team",
+    "away_team",
+    "status",
+    "state",
+    "gameStatus",
+    "game_status",
+    "reason",
+    "cancelled",
+    "canceled",
+    "postponed",
+    "suspended",
+    "abandoned",
+    "void",
+    "last_update",
+    "lastUpdate",
+    "updated_at",
+    "updatedAt",
+    "finished_timestamp",
+    "finishedTimestamp",
+)
+
+_COMPACT_NEG_RISK_CHILD_KEYS = (
+    "id",
+    "active",
+    "closed",
+    "question",
+    "slug",
+    "negRiskMarketID",
+    "negRiskMarketId",
+)
+
+
+def _compact_event_payload(event: dict) -> dict:
+    """Retain only downstream-required event evidence.
+
+    Gamma event rows contain their entire child-market payloads. The legacy scanner
+    attached that full event object to every materialized ``Market.raw`` row while
+    also copying each child market into its own raw dict. At today's >180k active
+    markets that duplicated object graph can exhaust the e2-micro.
+
+    Payoff certification only needs the complete child ID/open-state list for
+    negative-risk events plus a small set of parent rule/identifier fields. For all
+    other events no child list is needed after the ``Market`` fields are materialized.
+    The compact object is shared by every market from the same event.
+    """
+    compact = {key: event.get(key) for key in _COMPACT_EVENT_RAW_KEYS if key in event}
+    event_is_neg_risk = bool(event.get("negRisk") or event.get("enableNegRisk"))
+    if event_is_neg_risk:
+        compact["markets"] = [
+            {key: child.get(key) for key in _COMPACT_NEG_RISK_CHILD_KEYS if key in child}
+            for child in (event.get("markets") or [])
+            if isinstance(child, dict)
+        ]
+    return compact
+
+
+def _compact_market_payload(raw_market: dict, compact_event: dict) -> dict:
+    """Retain only raw fields that current hardened detectors read directly."""
+    compact = {
+        key: raw_market.get(key)
+        for key in _COMPACT_MARKET_RAW_KEYS
+        if key in raw_market
+    }
+    compact["_event"] = compact_event
+    return compact
+
+
 class PolymarketClient:
     def __init__(self) -> None:
         self.http = httpx.AsyncClient(
@@ -227,35 +321,38 @@ class PolymarketClient:
             event_id = str(event.get("id", ""))
             event_slug = event.get("slug") or ""
             event_title = event.get("title") or ""
+            event_neg_risk = bool(event.get("negRisk") or event.get("enableNegRisk"))
             tags = [str(t.get("slug") or t.get("label") or "") for t in (event.get("tags") or []) if isinstance(t, dict)]
+            compact_event = _compact_event_payload(event)
             for raw_market in event.get("markets") or []:
-                m = dict(raw_market)
-                market_id = str(m.get("id", ""))
+                if not isinstance(raw_market, dict):
+                    continue
+                market_id = str(raw_market.get("id", ""))
                 if not market_id or market_id in seen:
                     continue
-                if not bool(m.get("active", True)) or bool(m.get("closed", False)):
+                if not bool(raw_market.get("active", True)) or bool(raw_market.get("closed", False)):
                     continue
-                m["_event"] = event
-                outcomes = [str(x) for x in _json_list(m.get("outcomes"))]
-                token_ids = [str(x) for x in _json_list(m.get("clobTokenIds"))]
-                prices = [_f(x) for x in _json_list(m.get("outcomePrices"))]
+                outcomes = [str(x) for x in _json_list(raw_market.get("outcomes"))]
+                token_ids = [str(x) for x in _json_list(raw_market.get("clobTokenIds"))]
+                prices = [_f(x) for x in _json_list(raw_market.get("outcomePrices"))]
+                compact_market = _compact_market_payload(raw_market, compact_event)
                 out.append(Market(
                     id=market_id, event_id=event_id,
                     event_slug=event_slug, event_title=event_title,
-                    event_neg_risk=bool(event.get("negRisk") or m.get("negRisk")),
-                    question=m.get("question") or "", slug=m.get("slug") or "",
-                    condition_id=m.get("conditionId") or "", outcomes=outcomes,
+                    event_neg_risk=bool(event_neg_risk or raw_market.get("negRisk")),
+                    question=raw_market.get("question") or "", slug=raw_market.get("slug") or "",
+                    condition_id=raw_market.get("conditionId") or "", outcomes=outcomes,
                     token_ids=token_ids, outcome_prices=prices,
-                    best_bid=_f(m.get("bestBid"), None) if m.get("bestBid") is not None else None,
-                    best_ask=_f(m.get("bestAsk"), None) if m.get("bestAsk") is not None else None,
-                    liquidity=_f(m.get("liquidityNum") or m.get("liquidity")),
-                    volume_24h=_f(m.get("volume24hr") or m.get("volume24hrClob") or m.get("volumeNum")),
+                    best_bid=_f(raw_market.get("bestBid"), None) if raw_market.get("bestBid") is not None else None,
+                    best_ask=_f(raw_market.get("bestAsk"), None) if raw_market.get("bestAsk") is not None else None,
+                    liquidity=_f(raw_market.get("liquidityNum") or raw_market.get("liquidity")),
+                    volume_24h=_f(raw_market.get("volume24hr") or raw_market.get("volume24hrClob") or raw_market.get("volumeNum")),
                     active=True, closed=False,
-                    end_date=m.get("endDate") or m.get("endDateIso"),
-                    description=(m.get("description") or event.get("description") or ""),
-                    resolution_source=(m.get("resolutionSource") or event.get("resolutionSource") or ""),
-                    category=(m.get("category") or event.get("category") or ""),
-                    tags=tags, raw=m,
+                    end_date=raw_market.get("endDate") or raw_market.get("endDateIso"),
+                    description=(raw_market.get("description") or event.get("description") or ""),
+                    resolution_source=(raw_market.get("resolutionSource") or event.get("resolutionSource") or ""),
+                    category=(raw_market.get("category") or event.get("category") or ""),
+                    tags=tags, raw=compact_market,
                 ))
                 seen.add(market_id)
 
