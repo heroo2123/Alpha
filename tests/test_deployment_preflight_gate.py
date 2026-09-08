@@ -15,6 +15,8 @@ def test_production_release_paths_require_persisted_required_dependency_prefligh
         assert "dependency-preflight.json" in text
         assert "polymarket_scanner.dependency_preflight" in text
         assert "--required-only" in text
+        assert "--release-sha" in text
+        assert '"${RELEASE_SHA,,}"' in text
         assert "--output" in text
         assert 'chmod 600 "${PREFLIGHT_FILE}"' in text
 
