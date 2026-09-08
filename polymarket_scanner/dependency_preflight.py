@@ -8,14 +8,16 @@ infrastructure and optional research feeds are reported separately so an optiona
 adapter cannot make the core scanner look healthy or unhealthy by accident.
 
 Every live probe records elapsed time and the CLI can atomically persist a secret-free
-JSON evidence file. That evidence is useful for release/shadow attestation, but it is
-still only evidence for the host and time at which the command actually ran.
+JSON evidence file. Deployment callers may bind that evidence to the exact immutable
+release SHA. That evidence is useful for release/shadow attestation, but it is still
+only evidence for the host and time at which the command actually ran.
 """
 
 import argparse
 import asyncio
 import json
 import os
+import re
 import time
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
@@ -29,7 +31,8 @@ from .polymarket import CLOB, GAMMA
 from .streams import MARKET_WS, RTDS_WS, SPORTS_WS
 from .weather import AWC
 
-PREFLIGHT_VERSION = "dependency_preflight_v2_timed_evidence"
+PREFLIGHT_VERSION = "dependency_preflight_v3_release_bound"
+_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 
 
 @dataclass(frozen=True, slots=True)
@@ -121,7 +124,7 @@ async def run_dependency_preflight(
     ws_connect: Callable[..., Awaitable] = websockets.connect,
 ) -> dict:
     owned = client is None
-    http = client or httpx.AsyncClient(timeout=6.0, headers={"User-Agent": "polymarket-edge-scanner-preflight/2"})
+    http = client or httpx.AsyncClient(timeout=6.0, headers={"User-Agent": "polymarket-edge-scanner-preflight/3"})
     try:
         tasks = [
             _http_probe(http, "polymarket_gamma", f"{GAMMA}/markets?limit=1&active=true&closed=false", required=True),
@@ -144,6 +147,19 @@ async def run_dependency_preflight(
     finally:
         if owned:
             await http.aclose()
+
+
+def bind_release_sha(summary: dict, release_sha: str | None) -> dict:
+    """Return evidence bound to an exact release SHA, or reject malformed identity."""
+    bound = dict(summary)
+    if release_sha is None:
+        bound["release_sha"] = None
+        return bound
+    normalized = str(release_sha).strip().lower()
+    if not _SHA_RE.fullmatch(normalized):
+        raise ValueError("release SHA must be exactly 40 hexadecimal characters")
+    bound["release_sha"] = normalized
+    return bound
 
 
 def write_preflight_evidence(summary: dict, output: str | Path) -> Path:
@@ -169,8 +185,13 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Probe Alpha production dependencies from this host")
     parser.add_argument("--required-only", action="store_true", help="skip optional research feeds")
     parser.add_argument("--output", help="atomically persist the JSON evidence to this path")
+    parser.add_argument("--release-sha", help="bind persisted/printed evidence to this immutable release SHA")
     args = parser.parse_args(argv)
     summary = asyncio.run(run_dependency_preflight(include_optional=not args.required_only))
+    try:
+        summary = bind_release_sha(summary, args.release_sha)
+    except ValueError as exc:
+        parser.error(str(exc))
     rendered = json.dumps(summary, indent=2, sort_keys=True, allow_nan=False)
     print(rendered)
     if args.output:
