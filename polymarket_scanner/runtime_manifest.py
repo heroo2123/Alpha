@@ -6,6 +6,7 @@ import hashlib
 import json
 import re
 import subprocess
+from datetime import datetime
 from pathlib import Path
 
 from .config import settings
@@ -21,7 +22,7 @@ from .weather_contracts import (
     WEATHER_LATE_MODEL_VERSION,
 )
 
-RUNTIME_MANIFEST_VERSION = "runtime_manifest_v1"
+RUNTIME_MANIFEST_VERSION = "runtime_manifest_v2_release_preflight"
 _SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 
 
@@ -51,6 +52,100 @@ def _release_marker(path: Path) -> tuple[bool, str | None, str | None]:
     return True, value, None
 
 
+def _aware_iso(value: object) -> str | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return None
+    return parsed.isoformat()
+
+
+def _dependency_preflight_evidence(path: Path, authorized_sha: str | None) -> dict:
+    """Read deployment-time reachability evidence without treating it as live health."""
+    base = {
+        "evidence_file": str(path),
+        "present": path.is_file(),
+        "scope": "DEPLOYMENT_TIME_REACHABILITY_NOT_LIVE_HEALTH",
+        "valid_for_authorized_release": False,
+        "reason": "dependency preflight evidence missing",
+        "version": None,
+        "release_sha": None,
+        "measured_at": None,
+        "ok": None,
+        "required_failed": None,
+        "required_max_elapsed_ms": None,
+    }
+    if not path.is_file():
+        return base
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        base["reason"] = "dependency preflight evidence unreadable or invalid JSON"
+        return base
+    if not isinstance(payload, dict):
+        base["reason"] = "dependency preflight evidence is not a JSON object"
+        return base
+
+    version = payload.get("version")
+    release_raw = str(payload.get("release_sha") or "").strip().lower()
+    release_sha = release_raw if _SHA_RE.fullmatch(release_raw) else None
+    measured_at = _aware_iso(payload.get("measured_at"))
+    ok = payload.get("ok") if isinstance(payload.get("ok"), bool) else None
+    required_failed_raw = payload.get("required_failed")
+    required_failed = (
+        [str(item) for item in required_failed_raw]
+        if isinstance(required_failed_raw, list) and all(isinstance(item, str) for item in required_failed_raw)
+        else None
+    )
+    max_elapsed_raw = payload.get("required_max_elapsed_ms")
+    try:
+        max_elapsed = float(max_elapsed_raw) if max_elapsed_raw is not None else None
+    except (TypeError, ValueError):
+        max_elapsed = None
+    if max_elapsed is not None and max_elapsed < 0:
+        max_elapsed = None
+
+    base.update({
+        "version": str(version) if isinstance(version, str) else None,
+        "release_sha": release_sha,
+        "measured_at": measured_at,
+        "ok": ok,
+        "required_failed": required_failed,
+        "required_max_elapsed_ms": max_elapsed,
+    })
+
+    reasons: list[str] = []
+    if not base["version"]:
+        reasons.append("preflight version missing")
+    if release_sha is None:
+        reasons.append("preflight release SHA missing or malformed")
+    elif authorized_sha is None:
+        reasons.append("authorized release SHA unavailable")
+    elif release_sha != authorized_sha:
+        reasons.append("preflight belongs to a different release")
+    if measured_at is None:
+        reasons.append("preflight measurement timestamp missing or invalid")
+    if ok is not True:
+        reasons.append("required dependency preflight did not pass")
+    if required_failed is None:
+        reasons.append("required dependency failure list missing or malformed")
+    elif required_failed:
+        reasons.append("required dependency failure list is non-empty")
+
+    valid = not reasons
+    base["valid_for_authorized_release"] = valid
+    base["reason"] = (
+        "required dependency preflight passed for this authorized release"
+        if valid
+        else "; ".join(reasons)
+    )
+    return base
+
+
 def _nonsecret_policy() -> dict:
     """Return safety-relevant configuration only; never include credentials."""
     return {
@@ -78,18 +173,22 @@ def build_runtime_manifest(
     trade_ready_version: str,
     app_dir: str | Path | None = None,
     release_file: str | Path | None = None,
+    preflight_file: str | Path | None = None,
 ) -> dict:
     """Build a read-only release/policy manifest without exposing secret settings.
 
-    Production systemd independently enforces the same release marker before start.
-    This health manifest makes that fact inspectable; it is not a substitute for the
-    ExecStartPre guard. A local/dev process with no marker is reported unattested.
+    Production systemd independently enforces the release marker before start. This
+    health manifest makes that fact inspectable and also reports whether deployment-
+    time dependency evidence belongs to the same authorized release. Neither field is
+    a substitute for live feed-health/freshness gates.
     """
     root = Path(app_dir).resolve() if app_dir is not None else Path(__file__).resolve().parents[1]
-    marker = (
-        Path(release_file).expanduser()
-        if release_file is not None
-        else Path.home() / ".polymarket-edge-scanner" / "release.sha"
+    config_dir = Path.home() / ".polymarket-edge-scanner"
+    marker = Path(release_file).expanduser() if release_file is not None else config_dir / "release.sha"
+    preflight = (
+        Path(preflight_file).expanduser()
+        if preflight_file is not None
+        else config_dir / "dependency-preflight.json"
     )
 
     marker_present, authorized_sha, marker_error = _release_marker(marker)
@@ -115,6 +214,10 @@ def build_runtime_manifest(
         and authorized_sha == git_head
         and tracked_tree_clean is True
     )
+    preflight_evidence = _dependency_preflight_evidence(preflight, authorized_sha)
+    runtime_authority_complete = bool(
+        attested and preflight_evidence["valid_for_authorized_release"]
+    )
     policy = _nonsecret_policy()
     promoted = sorted({str(name) for name in promoted_detectors if str(name)})
 
@@ -128,6 +231,12 @@ def build_runtime_manifest(
         "tracked_working_tree_clean": tracked_tree_clean,
         "production_release_attested": attested,
         "release_attestation_reason": "authorized release matches clean checkout" if attested else "; ".join(reasons),
+        "dependency_preflight": preflight_evidence,
+        "production_runtime_authority_complete": runtime_authority_complete,
+        "runtime_authority_scope": (
+            "IMMUTABLE_RELEASE_PLUS_DEPLOYMENT_TIME_REQUIRED_DEPENDENCY_PREFLIGHT; "
+            "LIVE_FEED_HEALTH_REMAINS_SEPARATE"
+        ),
         "promoted_detectors": promoted,
         "promotion_count": len(promoted),
         "p0_containment": len(promoted) == 0,
