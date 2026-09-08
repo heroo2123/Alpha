@@ -14,16 +14,22 @@ separately. Hitting either hard cap fails closed.
 
 import os
 import re
+from collections.abc import Callable, Iterable
 
 from .detectors_v02 import threshold
 from .models import Market
 from .polymarket import PolymarketClient, UniverseIncompleteError, _f
 
-PRODUCTION_UNIVERSE_FILTER_VERSION = "detector_eligible_v2_neg_risk_certificate_prereqs"
+PRODUCTION_UNIVERSE_FILTER_VERSION = "detector_eligible_v3_neg_risk_and_sports_scope"
 DISCOVERY_HARD_CAP = max(1, int(os.getenv("PRODUCTION_DISCOVERY_HARD_CAP", "250000")))
 MATERIALIZED_HARD_CAP = max(1, int(os.getenv("PRODUCTION_MATERIALIZED_HARD_CAP", "30000")))
 MAX_MANUAL_NEG_RISK_LEGS = 6
 
+_SPORT_TAGS = {
+    "sports", "sport", "nba", "nfl", "mlb", "nhl", "wnba", "ncaa", "ncaab", "ncaaf",
+    "soccer", "football", "tennis", "ufc", "mma", "boxing", "f1", "formula-1",
+    "golf", "cricket", "esports",
+}
 _SPORTS_UNSUPPORTED = re.compile(
     r"\b(?:spread|handicap|over|under|o/u|total|set|period|quarter|half|inning|map|round|"
     r"series|race\s+to|margin|first\s+to|game\s+\d|set\s+\d|period\s+\d|"
@@ -90,11 +96,7 @@ def _market_open_for_execution(market: dict) -> bool:
 
 
 def _neg_risk_precertifiable_parent(event: dict) -> bool:
-    """Keep only parents that can satisfy the existing hardened V3 proof.
-
-    This is deliberately a prerequisite mirror, not a new economic filter. The
-    downstream certificate still runs in full and may reject the candidate later.
-    """
+    """Keep only parents that can satisfy the existing hardened V3 proof."""
     if not _flag(event.get("negRisk") or event.get("enableNegRisk")):
         return False
     if event.get("negRiskAugmented") is True:
@@ -120,7 +122,6 @@ def _neg_risk_precertifiable_parent(event: dict) -> bool:
             return False
         child_ids.append(child_id)
 
-        # Hardened proof requires authoritative boolean state on every raw child.
         if type(child.get("active")) is not bool or type(child.get("closed")) is not bool:
             return False
         if child.get("active") is not True or child.get("closed") is not False:
@@ -140,33 +141,59 @@ def _neg_risk_precertifiable_parent(event: dict) -> bool:
         if _OTHER.search(child_text):
             other_count += 1
 
-    if len(child_ids) != len(set(child_ids)):
-        return False
-    if other_count != 1:
+    if len(child_ids) != len(set(child_ids)) or other_count != 1:
         return False
 
-    # The hardened certificate combines parent rules with the first child market's
-    # description. Mirror that necessary evidence here to avoid retaining parents
-    # that can never prove a $1 payout floor.
     rules = (
         f"{event.get('description') or ''} "
         f"{children[0].get('description') or ''}"
     )
-    if not (_OTHER_RULE_A.search(rules) or _OTHER_RULE_B.search(rules)):
+    return bool(_OTHER_RULE_A.search(rules) or _OTHER_RULE_B.search(rules))
+
+
+def _tag_names(value: object) -> set[str]:
+    out: set[str] = set()
+    for tag in value if isinstance(value, list) else []:
+        if isinstance(tag, dict):
+            raw = tag.get("slug") or tag.get("label") or tag.get("name")
+        else:
+            raw = tag
+        text = str(raw or "").strip().lower()
+        if text:
+            out.add(text)
+    return out
+
+
+def _sports_metadata_scope(event: dict, market: dict) -> bool:
+    category = str(
+        market.get("category")
+        or event.get("category")
+        or ""
+    ).strip().lower()
+    tags = _tag_names(event.get("tags")) | _tag_names(market.get("tags"))
+    return "sport" in category or bool(tags & _SPORT_TAGS)
+
+
+def _sports_candidate(
+    event: dict,
+    market: dict,
+    *,
+    live_sports_slugs: set[str] | None = None,
+) -> bool:
+    event_slug = str(event.get("slug") or "").strip()
+    feed_scope = bool(event_slug and live_sports_slugs and event_slug in live_sports_slugs)
+    if not (_sports_metadata_scope(event, market) or feed_scope):
         return False
-
-    return True
-
-
-def _sports_candidate(event: dict, market: dict) -> bool:
     if not _strict_binary_raw(market):
         return False
+
     question = str(market.get("question") or "")
     scope = f"{question} {event.get('title') or ''} {market.get('slug') or ''}"
     if "win" not in question.lower() or re.search(r"\bdraw\b", question, re.I):
         return False
     if _SPORTS_UNSUPPORTED.search(scope) or _SIGNED_LINE.search(question):
         return False
+
     raw_type = str(
         market.get("sportsMarketType")
         or market.get("sports_market_type")
@@ -223,7 +250,12 @@ def _crossed_binary_candidate(market: dict) -> bool:
     return bool(bid is not None and ask is not None and ask < bid)
 
 
-def market_matches_existing_detector(event: dict, market: dict) -> bool:
+def market_matches_existing_detector(
+    event: dict,
+    market: dict,
+    *,
+    live_sports_slugs: set[str] | None = None,
+) -> bool:
     """Conservative pre-materialisation gate for current production detectors."""
     if not _market_open_for_execution(market):
         return False
@@ -241,7 +273,7 @@ def market_matches_existing_detector(event: dict, market: dict) -> bool:
         return True
     if _crypto_candidate(event, market):
         return True
-    if _sports_candidate(event, market):
+    if _sports_candidate(event, market, live_sports_slugs=live_sports_slugs):
         return True
     if "bls.gov" in text or "bureau of labor statistics" in text:
         return True
@@ -255,11 +287,26 @@ def market_matches_existing_detector(event: dict, market: dict) -> bool:
 class ProductionPolymarketClient(PolymarketClient):
     """Complete Gamma discovery with bounded detector-eligible materialisation."""
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        sports_slug_provider: Callable[[], Iterable[str]] | None = None,
+    ) -> None:
         super().__init__()
+        self._sports_slug_provider = sports_slug_provider
+        self._sports_slug_snapshot: set[str] = set()
         self._discovered_market_count = 0
         self._materialized_market_count = 0
         self._keyset_page_count = 0
+
+    def _current_sports_slugs(self) -> set[str]:
+        provider = getattr(self, "_sports_slug_provider", None)
+        if provider is None:
+            return set()
+        try:
+            return {str(value).strip() for value in provider() if str(value).strip()}
+        except Exception:
+            return set()
 
     def universe_status(self, *, now: float | None = None) -> dict:
         status = super().universe_status(now=now)
@@ -270,6 +317,7 @@ class ProductionPolymarketClient(PolymarketClient):
             "discovery_hard_cap": DISCOVERY_HARD_CAP,
             "materialized_hard_cap": MATERIALIZED_HARD_CAP,
             "keyset_pages": self._keyset_page_count,
+            "sports_slug_snapshot_count": len(getattr(self, "_sports_slug_snapshot", set())),
         })
         return status
 
@@ -279,6 +327,7 @@ class ProductionPolymarketClient(PolymarketClient):
         events: list[dict],
         seen_market_ids: set[str],
     ) -> None:
+        sports_slugs = getattr(self, "_sports_slug_snapshot", set())
         for event in events:
             if not isinstance(event, dict):
                 continue
@@ -295,14 +344,15 @@ class ProductionPolymarketClient(PolymarketClient):
                 raise UniverseIncompleteError(self._fetch_reason)
 
             if _neg_risk_precertifiable_parent(event):
-                # Keep the whole parent set only when it can satisfy the existing
-                # hardened V3 prerequisite semantics. The downstream certificate
-                # still independently proves identity, completeness and execution.
                 selected_event = event
             else:
                 selected = [
                     row for row in children
-                    if market_matches_existing_detector(event, row)
+                    if market_matches_existing_detector(
+                        event,
+                        row,
+                        live_sports_slugs=sports_slugs,
+                    )
                 ]
                 if not selected:
                     continue
@@ -319,6 +369,7 @@ class ProductionPolymarketClient(PolymarketClient):
     async def _fetch_active_markets(self) -> list[Market]:
         markets: list[Market] = []
         seen: set[str] = set()
+        self._sports_slug_snapshot = self._current_sports_slugs()
         self._discovered_market_count = 0
         self._materialized_market_count = 0
         self._keyset_page_count = 0
