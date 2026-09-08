@@ -31,6 +31,7 @@ from polymarket_scanner.manual_fills import (
     resolve_structural_trade,
 )
 from polymarket_scanner.runtime_manifest import build_runtime_manifest
+from polymarket_scanner.runtime_resources import runtime_resource_snapshot
 from polymarket_scanner.schema_contract import require_database_schema
 from polymarket_scanner.settlement import exact_token_payout, selected_token_payout
 from polymarket_scanner.sports_v3 import SPORTS_MAPPING_VERSION, quarantine_pre_v3_sports_history
@@ -92,6 +93,7 @@ def _trade_health_snapshot() -> dict:
         base.sports_stream,
         base.crypto_stream,
     )
+    snapshot["runtime_resources"] = runtime_resource_snapshot(db_path=base.settings.db_path)
     return snapshot
 
 
