@@ -2,12 +2,12 @@ from __future__ import annotations
 
 """Production discovery transport for the detector-eligible universe.
 
-Gamma BBO is discovery/screening evidence only.  It is never execution authority:
+Gamma BBO is discovery/screening evidence only. It is never execution authority:
 ACTIONABLE candidates continue through the existing REST full-book confirmation path
 before persistence, and TRADE NOW delivery still rebuilds execution authority again.
 
-This module removes the recurring whole-universe CLOB /prices sweep.  Instead, every
-accepted Gamma universe refresh seeds a compact YES/NO BBO snapshot.  The bounded
+This module removes the recurring whole-universe CLOB /prices sweep. Instead, every
+accepted Gamma universe refresh seeds a compact YES/NO BBO snapshot. The bounded
 WebSocket hot set can override it when fresher, while exact candidate confirmation
 remains unchanged.
 """
@@ -46,8 +46,8 @@ def gamma_screening_books(markets: list[Market], *, received_at: float | None = 
 
     The synthetic level size is 1 share solely so single-leg discovery detectors
     that require a non-zero visible top level can emit a candidate for subsequent
-    exact REST confirmation.  Structural hardening already defers discovery-size
-    gating for ``timestamp='price-discovery'`` rows.  No Gamma size is ever treated
+    exact REST confirmation. Structural hardening already defers discovery-size
+    gating for ``timestamp='price-discovery'`` rows. No Gamma size is ever treated
     as certified executable capacity.
     """
     receipt = time.time() if received_at is None else float(received_at)
@@ -99,7 +99,9 @@ def install_production_gamma_runtime(stable_v2_module) -> None:
         )
 
     old_poly = base.poly
-    production_poly = ProductionPolymarketClient()
+    production_poly = ProductionPolymarketClient(
+        sports_slug_provider=lambda: base.sports_stream.snapshot().keys(),
+    )
     base.poly = production_poly
 
     original_all_tokens = base._all_tokens
@@ -127,7 +129,7 @@ def install_production_gamma_runtime(stable_v2_module) -> None:
         return tokens
 
     async def _gamma_refresh_clock_loop() -> None:
-        # Gamma screening is refreshed by the universe loader itself.  Keep the
+        # Gamma screening is refreshed by the universe loader itself. Keep the
         # startup task alive because app_stable's lifecycle expects a price task,
         # but perform zero whole-universe CLOB requests here.
         while True:
@@ -140,9 +142,6 @@ def install_production_gamma_runtime(stable_v2_module) -> None:
             pass
 
     async def _mark_gamma_runtime() -> None:
-        # app_stable_v2's own marker runs earlier and describes the legacy /prices
-        # transport.  Reassert the installed production transport afterward so
-        # /health and shadow evidence cannot misidentify the active architecture.
         base.state["runtime_mode"] = RUNTIME_MODE
         base.state["price_discovery_diagnostics_version"] = GAMMA_SCREENING_VERSION
         base.state["price_discovery_source"] = (
@@ -153,12 +152,8 @@ def install_production_gamma_runtime(stable_v2_module) -> None:
             stable._price_snapshot_at is not None
         )
 
-    # app.py calls base._all_tokens after every accepted universe refresh.
     base._all_tokens = _all_tokens_with_gamma_screening
-    # app_stable._stable_startup resolves this symbol from app_stable at runtime.
     stable._top_price_loop = _gamma_refresh_clock_loop
-    # app_trade_only computes price-discovery staleness from this target interval.
-    # Tie it to Gamma refresh cadence instead of the obsolete 20-second /prices loop.
     stable.TOP_PRICE_REFRESH_SECONDS = max(
         60.0,
         float(getattr(base.settings, "universe_refresh_seconds", 120)),
@@ -167,10 +162,5 @@ def install_production_gamma_runtime(stable_v2_module) -> None:
     base.state["runtime_mode"] = RUNTIME_MODE
     base.state["price_discovery_diagnostics_version"] = GAMMA_SCREENING_VERSION
 
-    # Close the unused base HTTP client before scanner startup.  Startup handlers
-    # run sequentially, and inserting at index 0 makes this happen before app.py's
-    # scanner task is created.
     stable.app.router.on_startup.insert(0, _close_replaced_client)
-    # Registered after app_stable_v2's marker, so the final health state names the
-    # installed Gamma-screening transport rather than the superseded /prices loop.
     stable.app.add_event_handler("startup", _mark_gamma_runtime)
