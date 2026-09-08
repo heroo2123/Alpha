@@ -7,20 +7,21 @@ question plus a dedicated NWS WRH time-series *primary* resolution source is adm
 to the current weather experiment. Wunderground, HKO, Dyacon and other legitimate
 families stay silent until they have separate versioned adapters.
 
-V3 makes source precedence explicit. A WRH-looking URL found only in free-form rules
-text is never allowed to become the primary source. Any distinct/fallback source in
-the rules makes this primary-only adapter unsupported until its fallback policy is
-implemented. This deliberately sacrifices coverage rather than silently changing the
-market's settlement authority.
+V4 makes source precedence and the daily contract interval explicit. A WRH-looking
+URL found only in free-form rules text is never allowed to become the primary source.
+Any distinct/fallback source in the rules makes this primary-only adapter unsupported
+until its fallback policy is implemented. The target day must be exactly one
+unambiguous Month Day, YYYY date in the event/question identity; missing-year,
+multiple-date and malformed intervals fail closed rather than defaulting to "today".
 
-The temporal boundary remains fail-closed: the market date must parse to the
-station's current local date, future observations cannot enter the evidence set, and
-attached forecast context must itself be fresh and causally available.
+The temporal data boundary remains fail-closed: future observations cannot enter the
+evidence set, and attached forecast context must itself be fresh and causally
+available.
 """
 
 import re
 from dataclasses import replace
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from urllib.parse import parse_qs, urlparse
 from zoneinfo import ZoneInfo
 
@@ -30,7 +31,6 @@ from .weather import (
     Observation,
     ObservationBatch,
     STATION_TZ,
-    market_observation_date,
 )
 
 _URL_RE = re.compile(r"https?://[^\s<>\"')]+", re.I)
@@ -40,9 +40,21 @@ _FALLBACK_RE = re.compile(
     r"wunderground|weather\s+underground|hong\s+kong\s+observatory|dyacon)\b",
     re.I,
 )
-WEATHER_CONTRACT_ADAPTER = "NWS_WRH_PRIMARY_ONLY_V3"
-WEATHER_LATE_MODEL_VERSION = "uncalibrated_v3_contract_safe"
-WEATHER_FRIEND_MODEL_VERSION = "friend_uncalibrated_v3_contract_safe"
+_MONTHS = {
+    "january": 1, "february": 2, "march": 3, "april": 4, "may": 5, "june": 6,
+    "july": 7, "august": 8, "september": 9, "october": 10, "november": 11, "december": 12,
+    "jan": 1, "feb": 2, "mar": 3, "apr": 4, "jun": 6, "jul": 7, "aug": 8,
+    "sep": 9, "sept": 9, "oct": 10, "nov": 11, "dec": 12,
+}
+_DATE_RE = re.compile(
+    r"\b(January|February|March|April|May|June|July|August|September|October|November|December|"
+    r"Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)[a-z]*\s+"
+    r"(\d{1,2})(?:st|nd|rd|th)?(?:,)?\s+(20\d{2})\b",
+    re.I,
+)
+WEATHER_CONTRACT_ADAPTER = "NWS_WRH_PRIMARY_ONLY_V4_EXACT_DATE"
+WEATHER_LATE_MODEL_VERSION = "uncalibrated_v4_contract_safe"
+WEATHER_FRIEND_MODEL_VERSION = "friend_uncalibrated_v4_contract_safe"
 MAX_CLOCK_SKEW_SECONDS = 5.0
 
 
@@ -54,6 +66,26 @@ def contract_unit_from_question(question: str) -> str | None:
         found.add("F")
     if re.search(r"(?:°\s*)?C\b|\bCelsius\b", text, re.I):
         found.add("C")
+    return next(iter(found)) if len(found) == 1 else None
+
+
+def exact_contract_date(market: Market) -> date | None:
+    """Compile exactly one explicit four-digit calendar date from contract identity.
+
+    Administrative endDate is deliberately ignored: it need not equal the weather
+    observation interval. Repeating the same date in title and question is allowed;
+    two distinct dates, a missing year or an invalid calendar date are not.
+    """
+    text = f"{market.event_title or ''} {market.question or ''}"
+    found: set[date] = set()
+    for match in _DATE_RE.finditer(text):
+        month = _MONTHS.get(match.group(1).lower())
+        if month is None:
+            return None
+        try:
+            found.add(date(int(match.group(3)), month, int(match.group(2))))
+        except ValueError:
+            return None
     return next(iter(found)) if len(found) == 1 else None
 
 
@@ -107,13 +139,7 @@ def _source_rejection(reason: str, *, url: str = "", station: str | None = None)
 
 
 def strict_wrh_source(market: Market) -> dict:
-    """Verify one dedicated WRH primary source and no unmodeled fallback source.
-
-    ``resolution_source`` is the only field allowed to establish primary authority.
-    Rules/description text may repeat that same URL, but cannot introduce another
-    source or fallback policy. A WRH URL found only in description therefore remains
-    unsupported rather than being silently promoted from fallback/reference text.
-    """
+    """Verify one dedicated WRH primary source and no unmodeled fallback source."""
     primary_urls = _urls(market.resolution_source)
     if len(primary_urls) != 1:
         return _source_rejection("resolution_source must contain exactly one primary URL")
@@ -141,7 +167,7 @@ def strict_wrh_source(market: Market) -> dict:
 
     return {
         "verified": True,
-        "kind": "NOAA/NWS WRH primary-only v3",
+        "kind": "NOAA/NWS WRH primary-only v4 exact-date",
         "url": primary_url,
         "station": station,
         "reason": "dedicated WRH primary source with no unmodeled fallback source",
@@ -151,17 +177,11 @@ def strict_wrh_source(market: Market) -> dict:
 
 
 def settlement_safe_market(market: Market, *, now: datetime | None = None) -> Market | None:
-    """Return a sanitized copy safe for the current WRH experiment, else None.
-
-    The legacy weather model reads question+description to infer units and performs
-    a substring source check. Supplying only the explicit contract question and the
-    already-validated authoritative URL prevents those demonstrated P0 errors. V3
-    additionally requires explicit primary-source authority and rejects unmodeled
-    fallback/source-priority rules.
-    """
+    """Return a sanitized copy safe for the current WRH experiment, else None."""
     unit = contract_unit_from_question(market.question)
     source = strict_wrh_source(market)
-    if unit is None or not source["verified"]:
+    target_date = exact_contract_date(market)
+    if unit is None or not source["verified"] or target_date is None:
         return None
 
     station = str(source.get("station") or "").upper()
@@ -177,13 +197,11 @@ def settlement_safe_market(market: Market, *, now: datetime | None = None) -> Ma
     if current.tzinfo is None:
         return None
     local_now = current.astimezone(tz)
-    target_date = market_observation_date(market, local_now)
-    if target_date is None or target_date != local_now.date():
+    if target_date != local_now.date():
         return None
 
-    # Preserve every economic/identity field, but narrow rule inputs consumed by
-    # the legacy model to the certified source. The question retains the explicit
-    # bucket unit; the description cannot inject a different display unit/source.
+    # Preserve economic/identity fields but narrow legacy rule inputs to the
+    # certified primary. The question keeps the explicit bucket unit and date.
     safe = replace(
         market,
         description="",
@@ -194,6 +212,8 @@ def settlement_safe_market(market: Market, *, now: datetime | None = None) -> Ma
     safe.raw["weather_contract_unit"] = unit
     safe.raw["weather_contract_station"] = station
     safe.raw["weather_contract_target_date"] = target_date.isoformat()
+    safe.raw["weather_contract_interval_kind"] = "local_calendar_day"
+    safe.raw["weather_contract_timezone"] = tz_name
     safe.raw["weather_contract_source_priority"] = source["source_priority"]
     safe.raw["weather_contract_fallback_policy"] = source["fallback_policy"]
     return safe
@@ -223,14 +243,7 @@ def settlement_safe_weather_cache(
     *,
     now: datetime | None = None,
 ) -> dict[str, ObservationBatch]:
-    """Remove non-causal observations and invalidate stale/future forecast context.
-
-    Future observations are never converted into apparent freshness. A forecast is
-    attached only when its own fetch timestamp is timezone-aware, not future-dated,
-    no older than the production forecast TTL, and belongs to the same station.
-    The legacy lock model will then fail closed if too few valid observations remain
-    or if no valid forecast context is attached.
-    """
+    """Remove non-causal observations and invalidate stale/future forecast context."""
     current = now or datetime.now(timezone.utc)
     if current.tzinfo is None:
         return {}
