@@ -31,6 +31,7 @@ from polymarket_scanner.manual_fills import (
     resolve_structural_trade,
 )
 from polymarket_scanner.runtime_manifest import build_runtime_manifest
+from polymarket_scanner.schema_contract import require_database_schema
 from polymarket_scanner.settlement import exact_token_payout, selected_token_payout
 from polymarket_scanner.sports_v3 import SPORTS_MAPPING_VERSION, quarantine_pre_v3_sports_history
 from polymarket_scanner.trade_only import (
@@ -321,6 +322,7 @@ async def _mark_trade_only_runtime() -> None:
     # command-worker process as well.
     db_runtime = await asyncio.to_thread(configure_database_runtime, base.settings.db_path)
     await asyncio.to_thread(ensure_structural_fill_schema, base.store)
+    db_schema = await asyncio.to_thread(require_database_schema, base.settings.db_path)
     quarantined = await asyncio.to_thread(quarantine_pre_v3_sports_history, base.settings.db_path)
     db_health = await asyncio.to_thread(database_health, base.settings.db_path)
     promoted = promoted_detectors()
@@ -328,6 +330,15 @@ async def _mark_trade_only_runtime() -> None:
         build_runtime_manifest,
         promoted_detectors=promoted,
         trade_ready_version=TRADE_READY_VERSION,
+    )
+    runtime_manifest["database_schema"] = db_schema
+    runtime_manifest["production_runtime_authority_complete"] = bool(
+        runtime_manifest.get("production_runtime_authority_complete")
+        and db_schema.get("compatible") is True
+    )
+    runtime_manifest["runtime_authority_scope"] = (
+        str(runtime_manifest.get("runtime_authority_scope") or "")
+        + "; DATABASE_SCHEMA_CONTRACT_REQUIRED_AT_STARTUP"
     )
     base.state["telegram_delivery_mode"] = "TRADE_NOW_ONLY"
     base.state["delivery_persistence_mode"] = "ATOMIC_SIGNAL_OUTBOX_V1"
@@ -344,7 +355,11 @@ async def _mark_trade_only_runtime() -> None:
     base.state["sports_pre_v3_quarantined_now"] = quarantined
     base.state["runtime_manifest"] = runtime_manifest
     base.state["production_release_attested"] = runtime_manifest["production_release_attested"]
+    base.state["production_runtime_authority_complete"] = runtime_manifest[
+        "production_runtime_authority_complete"
+    ]
     base.state["runtime_policy_sha256"] = runtime_manifest["nonsecret_safety_policy_sha256"]
+    base.state["database_schema"] = db_schema
     base.state["universe_authority"] = base.poly.universe_status()
     base.state["universe_safe_for_detection"] = False
     base.state["price_discovery_authority"] = _price_discovery_status()
