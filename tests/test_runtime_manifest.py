@@ -2,6 +2,7 @@ import json
 import subprocess
 from pathlib import Path
 
+from polymarket_scanner.crypto_v3 import CRYPTO_FEED_VERSION
 from polymarket_scanner.runtime_manifest import (
     RUNTIME_MANIFEST_VERSION,
     build_runtime_manifest,
@@ -65,6 +66,7 @@ def test_matching_marker_clean_tree_and_release_preflight_are_fully_attested(tmp
     assert manifest["p0_containment"] is True
     assert manifest["promotion_count"] == 0
     assert manifest["versions"]["trade_ready"] == "trade-test"
+    assert manifest["versions"]["crypto_feed"] == CRYPTO_FEED_VERSION
     assert len(manifest["nonsecret_safety_policy_sha256"]) == 64
     assert "telegram_bot_token" not in manifest["nonsecret_safety_policy"]
     assert "telegram_chat_id" not in manifest["nonsecret_safety_policy"]
