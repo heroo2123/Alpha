@@ -6,12 +6,20 @@ This module does not prove reachability merely by existing in CI. It is designed
 be executed on the actual VM before a shadow/release run. Required trading
 infrastructure and optional research feeds are reported separately so an optional
 adapter cannot make the core scanner look healthy or unhealthy by accident.
+
+Every live probe records elapsed time and the CLI can atomically persist a secret-free
+JSON evidence file. That evidence is useful for release/shadow attestation, but it is
+still only evidence for the host and time at which the command actually ran.
 """
 
 import argparse
 import asyncio
 import json
+import os
+import time
 from dataclasses import asdict, dataclass
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Awaitable, Callable
 
 import httpx
@@ -21,7 +29,7 @@ from .polymarket import CLOB, GAMMA
 from .streams import MARKET_WS, RTDS_WS, SPORTS_WS
 from .weather import AWC
 
-PREFLIGHT_VERSION = "dependency_preflight_v1"
+PREFLIGHT_VERSION = "dependency_preflight_v2_timed_evidence"
 
 
 @dataclass(frozen=True, slots=True)
@@ -31,6 +39,7 @@ class ProbeResult:
     required: bool
     ok: bool
     detail: str
+    elapsed_ms: float | None = None
 
 
 def summarize_preflight(results: list[ProbeResult]) -> dict:
@@ -38,13 +47,25 @@ def summarize_preflight(results: list[ProbeResult]) -> dict:
     optional = [row for row in results if not row.required]
     required_failed = [row.name for row in required if not row.ok]
     optional_failed = [row.name for row in optional if not row.ok]
+    required_latencies = [
+        float(row.elapsed_ms)
+        for row in required
+        if row.elapsed_ms is not None and row.elapsed_ms >= 0
+    ]
+    optional_latencies = [
+        float(row.elapsed_ms)
+        for row in optional
+        if row.elapsed_ms is not None and row.elapsed_ms >= 0
+    ]
     return {
         "version": PREFLIGHT_VERSION,
         "ok": not required_failed,
         "required_total": len(required),
         "required_failed": required_failed,
+        "required_max_elapsed_ms": max(required_latencies) if required_latencies else None,
         "optional_total": len(optional),
         "optional_failed": optional_failed,
+        "optional_max_elapsed_ms": max(optional_latencies) if optional_latencies else None,
         "results": [asdict(row) for row in results],
     }
 
@@ -57,6 +78,7 @@ async def _http_probe(
     required: bool,
     require_2xx: bool = True,
 ) -> ProbeResult:
+    started = time.perf_counter()
     try:
         response = await client.get(endpoint)
         status = int(response.status_code)
@@ -65,7 +87,8 @@ async def _http_probe(
     except Exception as exc:
         ok = False
         detail = f"{type(exc).__name__}: {exc}"
-    return ProbeResult(name, endpoint, required, ok, detail)
+    elapsed_ms = round((time.perf_counter() - started) * 1000.0, 3)
+    return ProbeResult(name, endpoint, required, ok, detail, elapsed_ms)
 
 
 async def _ws_probe(
@@ -75,15 +98,20 @@ async def _ws_probe(
     required: bool,
     connect: Callable[..., Awaitable] = websockets.connect,
 ) -> ProbeResult:
+    started = time.perf_counter()
     try:
         ws = await connect(endpoint, open_timeout=6, close_timeout=2)
         try:
             await ws.close()
         finally:
             pass
-        return ProbeResult(name, endpoint, required, True, "WebSocket handshake succeeded")
+        ok = True
+        detail = "WebSocket handshake succeeded"
     except Exception as exc:
-        return ProbeResult(name, endpoint, required, False, f"{type(exc).__name__}: {exc}")
+        ok = False
+        detail = f"{type(exc).__name__}: {exc}"
+    elapsed_ms = round((time.perf_counter() - started) * 1000.0, 3)
+    return ProbeResult(name, endpoint, required, ok, detail, elapsed_ms)
 
 
 async def run_dependency_preflight(
@@ -93,7 +121,7 @@ async def run_dependency_preflight(
     ws_connect: Callable[..., Awaitable] = websockets.connect,
 ) -> dict:
     owned = client is None
-    http = client or httpx.AsyncClient(timeout=6.0, headers={"User-Agent": "polymarket-edge-scanner-preflight/1"})
+    http = client or httpx.AsyncClient(timeout=6.0, headers={"User-Agent": "polymarket-edge-scanner-preflight/2"})
     try:
         tasks = [
             _http_probe(http, "polymarket_gamma", f"{GAMMA}/markets?limit=1&active=true&closed=false", required=True),
@@ -110,18 +138,43 @@ async def run_dependency_preflight(
                 _http_probe(http, "aviationweather_metar_proxy", f"{AWC}?ids=KORD&format=json&hours=1", required=False),
             ])
         results = list(await asyncio.gather(*tasks))
-        return summarize_preflight(results)
+        summary = summarize_preflight(results)
+        summary["measured_at"] = datetime.now(timezone.utc).isoformat()
+        return summary
     finally:
         if owned:
             await http.aclose()
 
 
+def write_preflight_evidence(summary: dict, output: str | Path) -> Path:
+    """Atomically persist one secret-free preflight summary with owner-only mode."""
+    path = Path(output).expanduser()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = json.dumps(summary, indent=2, sort_keys=True, allow_nan=False) + "\n"
+    tmp = path.with_name(f".{path.name}.tmp-{os.getpid()}")
+    try:
+        tmp.write_text(payload, encoding="utf-8")
+        os.chmod(tmp, 0o600)
+        tmp.replace(path)
+        os.chmod(path, 0o600)
+    finally:
+        try:
+            tmp.unlink()
+        except FileNotFoundError:
+            pass
+    return path
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Probe Alpha production dependencies from this host")
     parser.add_argument("--required-only", action="store_true", help="skip optional research feeds")
+    parser.add_argument("--output", help="atomically persist the JSON evidence to this path")
     args = parser.parse_args(argv)
     summary = asyncio.run(run_dependency_preflight(include_optional=not args.required_only))
-    print(json.dumps(summary, indent=2, sort_keys=True))
+    rendered = json.dumps(summary, indent=2, sort_keys=True, allow_nan=False)
+    print(rendered)
+    if args.output:
+        write_preflight_evidence(summary, args.output)
     return 0 if summary["ok"] else 2
 
 
