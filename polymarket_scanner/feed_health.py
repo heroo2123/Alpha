@@ -3,7 +3,11 @@ from __future__ import annotations
 import math
 import time
 
-from .crypto_v3 import FEED_PROGRESS_MAX_AGE_SECONDS, SOURCE_FUTURE_TOLERANCE_SECONDS
+from .crypto_v3 import (
+    CRYPTO_FEED_VERSION,
+    FEED_PROGRESS_MAX_AGE_SECONDS,
+    SOURCE_FUTURE_TOLERANCE_SECONDS,
+)
 from .sports_v3 import _sports_source_timestamp
 
 
@@ -83,7 +87,10 @@ def feed_progress_snapshot(market_stream, sports_stream, crypto_stream, *, now: 
             else:
                 stale += 1
     crypto_latest = max(tick_times) if tick_times else None
+    valid_update = getattr(crypto_stream, "last_valid_update_at", None)
+    valid_update_age = _age(current, valid_update)
     crypto = {
+        "feed_version": CRYPTO_FEED_VERSION,
         "connected": bool(getattr(crypto_stream, "connected", False)),
         "latest_tick_keys": len(latest_ticks) if isinstance(latest_ticks, dict) else 0,
         "fresh_tick_keys": fresh,
@@ -91,9 +98,22 @@ def feed_progress_snapshot(market_stream, sports_stream, crypto_stream, *, now: 
         "future_tick_keys": future,
         "invalid_tick_keys": invalid,
         "last_transport_message_at": getattr(crypto_stream, "last_message_at", None),
+        "last_valid_update_at": valid_update,
+        "last_valid_update_age_seconds": valid_update_age,
         "latest_source_tick_at": crypto_latest,
         "latest_source_tick_age_seconds": _age(current, crypto_latest),
         "freshness_window_seconds": FEED_PROGRESS_MAX_AGE_SECONDS,
+        "invalid_rows_total": int(getattr(crypto_stream, "invalid_rows", 0) or 0),
+        "out_of_order_ignored_total": int(getattr(crypto_stream, "out_of_order_ignored", 0) or 0),
+        "conflicting_timestamp_rows_total": int(
+            getattr(crypto_stream, "conflicting_timestamp_rows", 0) or 0
+        ),
+        "valid_progress_now": bool(
+            getattr(crypto_stream, "connected", False)
+            and fresh > 0
+            and valid_update_age is not None
+            and 0.0 <= valid_update_age <= FEED_PROGRESS_MAX_AGE_SECONDS
+        ),
     }
 
     return {
