@@ -34,6 +34,13 @@ from polymarket_scanner.runtime_manifest import build_runtime_manifest
 from polymarket_scanner.runtime_resources import runtime_resource_snapshot
 from polymarket_scanner.schema_contract import require_database_schema
 from polymarket_scanner.settlement import exact_token_payout, selected_token_payout
+from polymarket_scanner.shadow_telemetry import (
+    SHADOW_MAX_ROWS,
+    SHADOW_RETENTION_DAYS,
+    SHADOW_SAMPLE_SECONDS,
+    SHADOW_TELEMETRY_VERSION,
+    maybe_record_shadow_health_state,
+)
 from polymarket_scanner.sports_v3 import SPORTS_MAPPING_VERSION, quarantine_pre_v3_sports_history
 from polymarket_scanner.trade_only import (
     TRADE_READY_VERSION,
@@ -46,6 +53,7 @@ app = stable_v2.app
 
 _original_confirm_actionable = base.confirm_actionable
 _original_save_signal = base.store.save_signal
+_original_set_state = base.store.set_state
 _original_evaluate_signals = base.evaluate_signals
 _original_health_snapshot = base._health_snapshot
 
@@ -95,6 +103,27 @@ def _trade_health_snapshot() -> dict:
     )
     snapshot["runtime_resources"] = runtime_resource_snapshot(db_path=base.settings.db_path)
     return snapshot
+
+
+def _trade_only_set_state(key: str, value: str) -> None:
+    """Persist normal state, then sample only the production health record.
+
+    ``health_snapshot_loop`` already calls Store.set_state from ``asyncio.to_thread``.
+    The latest-state write is allowed to finish and release the Store lock first;
+    only then does the secret-free one-minute sampler perform its separate SQLite
+    transaction. Shadow-evidence failures never rewrite the latest health record.
+    """
+    _original_set_state(key, value)
+    if key != "scanner_health_snapshot":
+        return
+    try:
+        sample = maybe_record_shadow_health_state(base.store, value)
+    except Exception as exc:
+        base.state["shadow_telemetry_error"] = f"{type(exc).__name__}: {exc}"
+        return
+    if sample is not None:
+        base.state["shadow_telemetry"] = sample
+        base.state["shadow_telemetry_error"] = None
 
 
 def _trade_only_evaluate_signals(*args, **kwargs):
@@ -311,6 +340,7 @@ async def _payout_aware_settlement() -> None:
 base.evaluate_signals = _trade_only_evaluate_signals
 base.confirm_actionable = _trade_only_confirm
 base.store.save_signal = _trade_only_save_signal
+base.store.set_state = _trade_only_set_state
 base.enqueue_alert = _trade_only_enqueue
 base.queue_detector_output = _bounded_queue_detector_output
 base.settle_open_paper_trades = _payout_aware_settlement
@@ -362,6 +392,14 @@ async def _mark_trade_only_runtime() -> None:
     ]
     base.state["runtime_policy_sha256"] = runtime_manifest["nonsecret_safety_policy_sha256"]
     base.state["database_schema"] = db_schema
+    base.state["shadow_telemetry"] = {
+        "version": SHADOW_TELEMETRY_VERSION,
+        "sample_interval_seconds": SHADOW_SAMPLE_SECONDS,
+        "retention_days": SHADOW_RETENTION_DAYS,
+        "max_rows": SHADOW_MAX_ROWS,
+        "status": "ARMED_AFTER_SCHEMA_GATE",
+    }
+    base.state["shadow_telemetry_error"] = None
     base.state["universe_authority"] = base.poly.universe_status()
     base.state["universe_safe_for_detection"] = False
     base.state["price_discovery_authority"] = _price_discovery_status()
