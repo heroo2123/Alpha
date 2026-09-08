@@ -12,6 +12,7 @@ from pathlib import Path
 from .config import settings
 from .crypto_v3 import CRYPTO_FEED_VERSION
 from .execution_certificate import EXECUTION_CERTIFICATE_VERSION
+from .schema_contract import DATABASE_SCHEMA_VERSION
 from .sports_v3 import SPORTS_CAUSAL_CACHE_VERSION, SPORTS_MAPPING_VERSION
 from .weather_calibration import (
     WEATHER_CALIBRATION_EVIDENCE_VERSION,
@@ -23,7 +24,7 @@ from .weather_contracts import (
     WEATHER_LATE_MODEL_VERSION,
 )
 
-RUNTIME_MANIFEST_VERSION = "runtime_manifest_v4_feed_evidence_versions"
+RUNTIME_MANIFEST_VERSION = "runtime_manifest_v5_schema_and_feed_evidence_versions"
 _SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 
 
@@ -244,6 +245,7 @@ def build_runtime_manifest(
         "versions": {
             "trade_ready": trade_ready_version,
             "execution_certificate": EXECUTION_CERTIFICATE_VERSION,
+            "database_schema_contract": DATABASE_SCHEMA_VERSION,
             "sports_mapping": SPORTS_MAPPING_VERSION,
             "sports_causal_cache": SPORTS_CAUSAL_CACHE_VERSION,
             "crypto_feed": CRYPTO_FEED_VERSION,
