@@ -11,6 +11,7 @@ from pathlib import Path
 
 from .config import settings
 from .crypto_v3 import CRYPTO_FEED_VERSION
+from .dependency_attestation import attest_dependency_environment
 from .execution_certificate import EXECUTION_CERTIFICATE_VERSION
 from .schema_contract import DATABASE_SCHEMA_VERSION
 from .sports_v3 import SPORTS_CAUSAL_CACHE_VERSION, SPORTS_MAPPING_VERSION
@@ -24,7 +25,7 @@ from .weather_contracts import (
     WEATHER_LATE_MODEL_VERSION,
 )
 
-RUNTIME_MANIFEST_VERSION = "runtime_manifest_v5_schema_and_feed_evidence_versions"
+RUNTIME_MANIFEST_VERSION = "runtime_manifest_v6_dependency_environment_authority"
 _SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 
 
@@ -176,13 +177,15 @@ def build_runtime_manifest(
     app_dir: str | Path | None = None,
     release_file: str | Path | None = None,
     preflight_file: str | Path | None = None,
+    requirements_file: str | Path | None = None,
 ) -> dict:
     """Build a read-only release/policy manifest without exposing secret settings.
 
     Production systemd independently enforces the release marker before start. This
-    health manifest makes that fact inspectable and also reports whether deployment-
-    time dependency evidence belongs to the same authorized release. Neither field is
-    a substitute for live feed-health/freshness gates.
+    health manifest makes that fact inspectable, binds deployment-time dependency
+    reachability to the authorized SHA, and verifies the running Python distributions
+    against the reviewed version lock. Live feed-health/freshness gates remain
+    separate trading authority.
     """
     root = Path(app_dir).resolve() if app_dir is not None else Path(__file__).resolve().parents[1]
     config_dir = Path.home() / ".polymarket-edge-scanner"
@@ -191,6 +194,11 @@ def build_runtime_manifest(
         Path(preflight_file).expanduser()
         if preflight_file is not None
         else config_dir / "dependency-preflight.json"
+    )
+    dependency_lock = (
+        Path(requirements_file).expanduser().resolve()
+        if requirements_file is not None
+        else root / "requirements.txt"
     )
 
     marker_present, authorized_sha, marker_error = _release_marker(marker)
@@ -217,8 +225,11 @@ def build_runtime_manifest(
         and tracked_tree_clean is True
     )
     preflight_evidence = _dependency_preflight_evidence(preflight, authorized_sha)
+    dependency_environment = attest_dependency_environment(dependency_lock)
     runtime_authority_complete = bool(
-        attested and preflight_evidence["valid_for_authorized_release"]
+        attested
+        and preflight_evidence["valid_for_authorized_release"]
+        and dependency_environment["compatible"]
     )
     policy = _nonsecret_policy()
     promoted = sorted({str(name) for name in promoted_detectors if str(name)})
@@ -234,10 +245,12 @@ def build_runtime_manifest(
         "production_release_attested": attested,
         "release_attestation_reason": "authorized release matches clean checkout" if attested else "; ".join(reasons),
         "dependency_preflight": preflight_evidence,
+        "dependency_environment": dependency_environment,
         "production_runtime_authority_complete": runtime_authority_complete,
         "runtime_authority_scope": (
-            "IMMUTABLE_RELEASE_PLUS_DEPLOYMENT_TIME_REQUIRED_DEPENDENCY_PREFLIGHT; "
-            "LIVE_FEED_HEALTH_REMAINS_SEPARATE"
+            "IMMUTABLE_RELEASE_PLUS_DEPLOYMENT_TIME_REQUIRED_DEPENDENCY_PREFLIGHT_PLUS_"
+            "INSTALLED_DISTRIBUTION_VERSION_LOCK; LIVE_FEED_HEALTH_AND_DATABASE_SCHEMA_"
+            "COMPATIBILITY_REMAIN_SEPARATE GATES"
         ),
         "promoted_detectors": promoted,
         "promotion_count": len(promoted),
