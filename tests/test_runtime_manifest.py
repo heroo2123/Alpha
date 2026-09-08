@@ -22,7 +22,10 @@ def _repo(tmp_path: Path) -> tuple[Path, str]:
     subprocess.run(["git", "-C", str(repo), "config", "user.email", "test@example.com"], check=True)
     subprocess.run(["git", "-C", str(repo), "config", "user.name", "Test"], check=True)
     (repo / "app.py").write_text("print('ok')\n", encoding="utf-8")
-    subprocess.run(["git", "-C", str(repo), "add", "app.py"], check=True)
+    # The manifest's environment proof is generic: this tiny fixture binds one known
+    # installed distribution, while production binds the complete requirements.txt.
+    (repo / "requirements.txt").write_text("pytest==8.3.3\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(repo), "add", "app.py", "requirements.txt"], check=True)
     subprocess.run(["git", "-C", str(repo), "commit", "-m", "initial"], check=True, capture_output=True)
     return repo, _git(repo, "rev-parse", "HEAD")
 
@@ -43,7 +46,7 @@ def _preflight(path: Path, sha: str, *, ok: bool = True, failed=None) -> None:
     )
 
 
-def test_matching_marker_clean_tree_and_release_preflight_are_fully_attested(tmp_path):
+def test_matching_marker_clean_tree_preflight_and_dependency_environment_are_fully_attested(tmp_path):
     repo, sha = _repo(tmp_path)
     marker = tmp_path / "release.sha"
     marker.write_text(sha + "\n", encoding="utf-8")
@@ -64,6 +67,9 @@ def test_matching_marker_clean_tree_and_release_preflight_are_fully_attested(tmp
     assert manifest["dependency_preflight"]["valid_for_authorized_release"] is True
     assert manifest["dependency_preflight"]["release_sha"] == sha
     assert manifest["dependency_preflight"]["required_max_elapsed_ms"] == 123.4
+    assert manifest["dependency_environment"]["compatible"] is True
+    assert manifest["dependency_environment"]["matched_count"] == 1
+    assert len(manifest["dependency_environment"]["requirements_sha256"]) == 64
     assert manifest["production_runtime_authority_complete"] is True
     assert manifest["p0_containment"] is True
     assert manifest["promotion_count"] == 0
@@ -74,6 +80,24 @@ def test_matching_marker_clean_tree_and_release_preflight_are_fully_attested(tmp
     assert len(manifest["nonsecret_safety_policy_sha256"]) == 64
     assert "telegram_bot_token" not in manifest["nonsecret_safety_policy"]
     assert "telegram_chat_id" not in manifest["nonsecret_safety_policy"]
+
+
+def test_dependency_version_drift_cannot_complete_runtime_authority(tmp_path):
+    repo, sha = _repo(tmp_path)
+    marker = tmp_path / "release.sha"
+    marker.write_text(sha, encoding="utf-8")
+    preflight = tmp_path / "dependency-preflight.json"
+    _preflight(preflight, sha)
+    bad_lock = tmp_path / "bad-requirements.txt"
+    bad_lock.write_text("pytest==0.0.1\n", encoding="utf-8")
+    manifest = build_runtime_manifest(
+        promoted_detectors=(), trade_ready_version="v", app_dir=repo,
+        release_file=marker, preflight_file=preflight, requirements_file=bad_lock,
+    )
+    assert manifest["production_release_attested"] is True
+    assert manifest["dependency_preflight"]["valid_for_authorized_release"] is True
+    assert manifest["dependency_environment"]["compatible"] is False
+    assert manifest["production_runtime_authority_complete"] is False
 
 
 def test_preflight_from_different_release_cannot_complete_runtime_authority(tmp_path):
