@@ -13,6 +13,19 @@ jobs:
         with:
           python-version: '3.11'
       - run: pip install -r requirements-dev.txt
-      - run: pytest -q
+      - name: Run pytest
+        shell: bash
+        run: |
+          set +e
+          pytest -q 2>&1 | tee pytest-output.txt
+          rc=${PIPESTATUS[0]}
+          echo "pytest_exit_code=$rc" >> "$GITHUB_OUTPUT"
+          exit $rc
+      - name: Upload pytest output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-output
+          path: pytest-output.txt
       - run: python -m py_compile app.py app_stable.py app_stable_v2.py app_trade_only.py command_worker_trade_only.py polymarket_scanner/*.py
       - run: bash -n deploy/*.sh deploy/oracle/*.sh deploy/gcp/*.sh
