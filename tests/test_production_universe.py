@@ -205,7 +205,7 @@ def test_large_neg_risk_parent_is_not_retained_merely_for_neg_risk_flag():
     assert _append(event) == []
 
 
-def _market() -> Market:
+def _market(*, bid=0.40, ask=0.42) -> Market:
     return Market(
         id="m1",
         event_id="e1",
@@ -218,8 +218,8 @@ def _market() -> Market:
         outcomes=["Yes", "No"],
         token_ids=["yes-token", "no-token"],
         outcome_prices=[0.42, 0.58],
-        best_bid=0.40,
-        best_ask=0.42,
+        best_bid=bid,
+        best_ask=ask,
         liquidity=100.0,
         volume_24h=1000.0,
         active=True,
@@ -246,6 +246,39 @@ def test_gamma_screening_builds_binary_complement_and_marks_non_execution_source
     assert yes.timestamp == "price-discovery"
     assert yes.received_at == 123.0
     assert yes.best_ask_size == 1.0
+
+
+def test_gamma_screening_preserves_yes_ask_when_yes_bid_is_missing():
+    books = gamma_screening_books([_market(bid=None, ask=0.42)], received_at=123.0)
+    assert set(books) == {"yes-token"}
+    yes = books["yes-token"]
+    assert yes.best_bid is None
+    assert yes.best_ask == pytest.approx(0.42)
+    assert yes.best_ask_size == 1.0
+
+
+def test_gamma_screening_uses_yes_bid_to_screen_no_ask_when_yes_ask_is_missing():
+    books = gamma_screening_books([_market(bid=0.40, ask=None)], received_at=123.0)
+    assert set(books) == {"no-token"}
+    no = books["no-token"]
+    assert no.best_bid is None
+    assert no.best_ask == pytest.approx(0.60)
+    assert no.best_ask_size == 1.0
+
+
+def test_gamma_screening_preserves_crossed_bbo_for_exact_rest_confirmation():
+    books = gamma_screening_books([_market(bid=0.55, ask=0.40)], received_at=123.0)
+    yes = books["yes-token"]
+    no = books["no-token"]
+    assert yes.best_bid == pytest.approx(0.55)
+    assert yes.best_ask == pytest.approx(0.40)
+    assert no.best_bid == pytest.approx(0.60)
+    assert no.best_ask == pytest.approx(0.45)
+    assert yes.best_ask + no.best_ask == pytest.approx(0.85)
+
+
+def test_gamma_screening_skips_market_with_no_usable_side():
+    assert gamma_screening_books([_market(bid=None, ask=None)]) == {}
 
 
 def test_production_universe_status_exposes_complete_vs_materialized_counts():
