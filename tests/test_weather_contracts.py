@@ -13,6 +13,7 @@ from polymarket_scanner.weather import (
 from polymarket_scanner.weather_contracts import (
     WEATHER_CONTRACT_ADAPTER,
     contract_unit_from_question,
+    exact_contract_date,
     settlement_safe_market,
     settlement_safe_weather_cache,
     strict_wrh_source,
@@ -54,7 +55,6 @@ def _market(
 
 
 def _now() -> datetime:
-    # 15:00 UTC = 10:00 local Chicago on the market's stated date.
     return datetime(2026, 9, 7, 15, 0, tzinfo=timezone.utc)
 
 
@@ -76,7 +76,6 @@ def test_contract_unit_comes_from_question_not_celsius_display_instructions():
         "https://www.weather.gov/wrh/timeseries?site=KORD",
         "Resolution uses the Temp column. The source page can also display Celsius.",
     )
-    # This reproduces the old failure mode: the legacy parser sees the rules text.
     assert market_unit(market) == "C"
     assert contract_unit_from_question(market.question) == "F"
 
@@ -86,6 +85,8 @@ def test_contract_unit_comes_from_question_not_celsius_display_instructions():
     assert safe.raw["weather_contract_station"] == "KORD"
     assert safe.raw["weather_contract_adapter"] == WEATHER_CONTRACT_ADAPTER
     assert safe.raw["weather_contract_target_date"] == "2026-09-07"
+    assert safe.raw["weather_contract_interval_kind"] == "local_calendar_day"
+    assert safe.raw["weather_contract_timezone"] == "America/Chicago"
     assert safe.raw["weather_contract_source_priority"] == "resolution_source_primary_only"
     assert safe.raw["weather_contract_fallback_policy"] == "none_present"
     assert market_unit(safe) == "F"
@@ -97,7 +98,6 @@ def test_fake_host_containing_weather_gov_path_is_rejected():
         "Will the highest temperature be 71 F or below?",
         "https://untrusted.invalid/weather.gov/wrh/timeseries?site=KORD",
     )
-    # Document the legacy defect and prove the strict boundary contains it.
     assert settlement_source_check(market, "KORD")["verified"] is True
     assert strict_wrh_source(market)["verified"] is False
     assert settlement_safe_market(market, now=_now()) is None
@@ -111,9 +111,10 @@ def test_authoritative_wrh_host_station_and_date_are_preserved():
     source = strict_wrh_source(market)
     assert source["verified"] is True
     assert source["station"] == "KORD"
-    assert source["kind"] == "NOAA/NWS WRH primary-only v3"
+    assert source["kind"] == "NOAA/NWS WRH primary-only v4 exact-date"
     assert source["source_priority"] == "resolution_source_primary_only"
     assert source["fallback_policy"] == "none_present"
+    assert exact_contract_date(market).isoformat() == "2026-09-07"
     assert settlement_safe_market(market, now=_now()) is not None
 
 
@@ -201,8 +202,49 @@ def test_missing_or_wrong_market_date_fails_closed():
         "https://www.weather.gov/wrh/timeseries?site=KORD",
         title="Highest temperature in Chicago on September 8, 2026",
     )
+    assert exact_contract_date(missing) is None
     assert settlement_safe_market(missing, now=_now()) is None
     assert settlement_safe_market(wrong, now=_now()) is None
+
+
+def test_missing_year_never_defaults_to_current_local_year():
+    market = _market(
+        "Will the highest temperature be 71 F or below?",
+        "https://www.weather.gov/wrh/timeseries?site=KORD",
+        title="Highest temperature in Chicago on September 7",
+    )
+    assert exact_contract_date(market) is None
+    assert settlement_safe_market(market, now=_now()) is None
+
+
+def test_two_distinct_contract_dates_are_ambiguous_even_if_one_is_today():
+    market = _market(
+        "Will the highest temperature on September 8, 2026 be 71 F or below?",
+        "https://www.weather.gov/wrh/timeseries?site=KORD",
+        title="Highest temperature in Chicago on September 7, 2026",
+    )
+    assert exact_contract_date(market) is None
+    assert settlement_safe_market(market, now=_now()) is None
+
+
+def test_repeated_same_explicit_date_is_not_false_ambiguity():
+    market = _market(
+        "Will the highest temperature on September 7, 2026 be 71 F or below?",
+        "https://www.weather.gov/wrh/timeseries?site=KORD",
+        title="Highest temperature in Chicago on September 7, 2026",
+    )
+    assert exact_contract_date(market).isoformat() == "2026-09-07"
+    assert settlement_safe_market(market, now=_now()) is not None
+
+
+def test_invalid_calendar_date_fails_closed():
+    market = _market(
+        "Will the highest temperature be 71 F or below?",
+        "https://www.weather.gov/wrh/timeseries?site=KORD",
+        title="Highest temperature in Chicago on February 30, 2026",
+    )
+    assert exact_contract_date(market) is None
+    assert settlement_safe_market(market, now=_now()) is None
 
 
 def test_missing_or_conflicting_contract_unit_fails_closed():
