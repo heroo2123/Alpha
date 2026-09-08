@@ -1,5 +1,6 @@
 from types import SimpleNamespace
 
+from polymarket_scanner.crypto_v3 import CRYPTO_FEED_VERSION
 from polymarket_scanner.feed_health import feed_progress_snapshot
 from polymarket_scanner.streams import PriceTick
 
@@ -74,6 +75,10 @@ def test_feed_health_counts_crypto_fresh_stale_future_and_invalid_ticks():
     crypto = SimpleNamespace(
         connected=True,
         last_message_at=1000.0,
+        last_valid_update_at=998.0,
+        invalid_rows=7,
+        out_of_order_ignored=3,
+        conflicting_timestamp_rows=2,
         latest_ticks={
             ("t", "fresh"): PriceTick("t", "fresh", 100.0, 999.0),
             ("t", "stale"): PriceTick("t", "stale", 100.0, 900.0),
@@ -83,9 +88,43 @@ def test_feed_health_counts_crypto_fresh_stale_future_and_invalid_ticks():
     )
 
     snap = feed_progress_snapshot(market, sports, crypto, now=1000.0)["crypto_rtds"]
+    assert snap["feed_version"] == CRYPTO_FEED_VERSION
     assert snap["fresh_tick_keys"] == 1
     assert snap["stale_tick_keys"] == 1
     assert snap["future_tick_keys"] == 1
     assert snap["invalid_tick_keys"] == 1
     assert snap["latest_source_tick_at"] == 1005.0
     assert snap["latest_source_tick_age_seconds"] == -5.0
+    assert snap["last_transport_message_at"] == 1000.0
+    assert snap["last_valid_update_at"] == 998.0
+    assert snap["last_valid_update_age_seconds"] == 2.0
+    assert snap["invalid_rows_total"] == 7
+    assert snap["out_of_order_ignored_total"] == 3
+    assert snap["conflicting_timestamp_rows_total"] == 2
+    assert snap["valid_progress_now"] is True
+
+
+def test_crypto_transport_without_valid_source_progress_is_not_healthy_progress():
+    market = SimpleNamespace(
+        connected_workers=0, books={}, last_message_at=None,
+        last_valid_update_at=None, last_full_book_at=None,
+        invalidated_books=0, out_of_order_ignored=0,
+    )
+    sports = SimpleNamespace(connected=False, last_message_at=None, last_error=None, results={})
+    crypto = SimpleNamespace(
+        connected=True,
+        last_message_at=1000.0,
+        last_valid_update_at=900.0,
+        invalid_rows=10,
+        out_of_order_ignored=5,
+        conflicting_timestamp_rows=1,
+        latest_ticks={
+            ("t", "stale"): PriceTick("t", "stale", 100.0, 900.0),
+        },
+    )
+    snap = feed_progress_snapshot(market, sports, crypto, now=1000.0)["crypto_rtds"]
+    assert snap["connected"] is True
+    assert snap["last_transport_message_at"] == 1000.0
+    assert snap["fresh_tick_keys"] == 0
+    assert snap["last_valid_update_age_seconds"] == 100.0
+    assert snap["valid_progress_now"] is False
