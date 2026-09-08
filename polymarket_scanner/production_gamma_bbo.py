@@ -20,6 +20,7 @@ from .models import Book, Market
 from .production_universe import ProductionPolymarketClient
 
 GAMMA_SCREENING_VERSION = "gamma_bbo_screening_v1_exact_candidate_rest"
+RUNTIME_MODE = "complete_gamma_filtered_universe_plus_gamma_bbo_screening"
 
 
 def _valid_price(value: object) -> float | None:
@@ -120,7 +121,9 @@ def install_production_gamma_runtime(stable_v2_module) -> None:
             len(screening) / len(tokens) if tokens else 0.0
         )
         base.state["price_discovery_diagnostics_version"] = GAMMA_SCREENING_VERSION
-        base.state["price_discovery_source"] = "Gamma embedded BBO screening; exact CLOB books required for candidates"
+        base.state["price_discovery_source"] = (
+            "Gamma embedded BBO screening; exact CLOB books required for candidates"
+        )
         return tokens
 
     async def _gamma_refresh_clock_loop() -> None:
@@ -136,6 +139,20 @@ def install_production_gamma_runtime(stable_v2_module) -> None:
         except Exception:
             pass
 
+    async def _mark_gamma_runtime() -> None:
+        # app_stable_v2's own marker runs earlier and describes the legacy /prices
+        # transport.  Reassert the installed production transport afterward so
+        # /health and shadow evidence cannot misidentify the active architecture.
+        base.state["runtime_mode"] = RUNTIME_MODE
+        base.state["price_discovery_diagnostics_version"] = GAMMA_SCREENING_VERSION
+        base.state["price_discovery_source"] = (
+            "Gamma embedded BBO screening; exact CLOB books required for candidates"
+        )
+        base.state["price_snapshot_target_seconds"] = stable.TOP_PRICE_REFRESH_SECONDS
+        base.state["price_snapshot_authoritative_transport_complete"] = bool(
+            stable._price_snapshot_at is not None
+        )
+
     # app.py calls base._all_tokens after every accepted universe refresh.
     base._all_tokens = _all_tokens_with_gamma_screening
     # app_stable._stable_startup resolves this symbol from app_stable at runtime.
@@ -147,10 +164,13 @@ def install_production_gamma_runtime(stable_v2_module) -> None:
         float(getattr(base.settings, "universe_refresh_seconds", 120)),
     )
 
-    base.state["runtime_mode"] = "complete_gamma_filtered_universe_plus_gamma_bbo_screening"
+    base.state["runtime_mode"] = RUNTIME_MODE
     base.state["price_discovery_diagnostics_version"] = GAMMA_SCREENING_VERSION
 
     # Close the unused base HTTP client before scanner startup.  Startup handlers
     # run sequentially, and inserting at index 0 makes this happen before app.py's
     # scanner task is created.
     stable.app.router.on_startup.insert(0, _close_replaced_client)
+    # Registered after app_stable_v2's marker, so the final health state names the
+    # installed Gamma-screening transport rather than the superseded /prices loop.
+    stable.app.add_event_handler("startup", _mark_gamma_runtime)
