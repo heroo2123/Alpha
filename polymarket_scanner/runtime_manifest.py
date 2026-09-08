@@ -25,7 +25,7 @@ from .weather_contracts import (
     WEATHER_LATE_MODEL_VERSION,
 )
 
-RUNTIME_MANIFEST_VERSION = "runtime_manifest_v6_dependency_environment_authority"
+RUNTIME_MANIFEST_VERSION = "runtime_manifest_v7_universe_policy_attestation"
 _SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 
 
@@ -68,7 +68,6 @@ def _aware_iso(value: object) -> str | None:
 
 
 def _dependency_preflight_evidence(path: Path, authorized_sha: str | None) -> dict:
-    """Read deployment-time reachability evidence without treating it as live health."""
     base = {
         "evidence_file": str(path),
         "present": path.is_file(),
@@ -154,6 +153,9 @@ def _nonsecret_policy() -> dict:
     return {
         "actionable_min_edge": settings.actionable_min_edge,
         "known_outcome_max_ask": settings.known_outcome_max_ask,
+        "max_events": settings.max_events,
+        "gamma_page_size": settings.gamma_page_size,
+        "gamma_page_concurrency": settings.gamma_page_concurrency,
         "universe_max_stale_seconds": settings.universe_max_stale_seconds,
         "sports_result_max_age_seconds": settings.sports_result_max_age_seconds,
         "crypto_boundary_tolerance_seconds": settings.crypto_boundary_tolerance_seconds,
@@ -179,14 +181,6 @@ def build_runtime_manifest(
     preflight_file: str | Path | None = None,
     requirements_file: str | Path | None = None,
 ) -> dict:
-    """Build a read-only release/policy manifest without exposing secret settings.
-
-    Production systemd independently enforces the release marker before start. This
-    health manifest makes that fact inspectable, binds deployment-time dependency
-    reachability to the authorized SHA, and verifies the running Python distributions
-    against the reviewed version lock. Live feed-health/freshness gates remain
-    separate trading authority.
-    """
     root = Path(app_dir).resolve() if app_dir is not None else Path(__file__).resolve().parents[1]
     config_dir = Path.home() / ".polymarket-edge-scanner"
     marker = Path(release_file).expanduser() if release_file is not None else config_dir / "release.sha"
