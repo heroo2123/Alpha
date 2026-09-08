@@ -36,7 +36,7 @@ bash "${APP_DIR}/deploy/verify-runtime-release.sh" "${APP_DIR}" "${RELEASE_FILE}
 # production services. Optional research feeds are intentionally not release blockers.
 printf 'Running required dependency preflight from this host...\n'
 "${APP_DIR}/.venv/bin/python" -m polymarket_scanner.dependency_preflight \
-  --required-only --output "${PREFLIGHT_FILE}"
+  --required-only --release-sha "${RELEASE_SHA,,}" --output "${PREFLIGHT_FILE}"
 chmod 600 "${PREFLIGHT_FILE}"
 
 # Ensure the VM uses the canonical scanner entrypoint, a single Telegram getUpdates
