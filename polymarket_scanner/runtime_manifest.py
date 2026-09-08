@@ -10,6 +10,7 @@ from datetime import datetime
 from pathlib import Path
 
 from .config import settings
+from .crypto_v3 import CRYPTO_FEED_VERSION
 from .execution_certificate import EXECUTION_CERTIFICATE_VERSION
 from .sports_v3 import SPORTS_MAPPING_VERSION
 from .weather_calibration import (
@@ -22,7 +23,7 @@ from .weather_contracts import (
     WEATHER_LATE_MODEL_VERSION,
 )
 
-RUNTIME_MANIFEST_VERSION = "runtime_manifest_v2_release_preflight"
+RUNTIME_MANIFEST_VERSION = "runtime_manifest_v3_feed_versions"
 _SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 
 
@@ -244,6 +245,7 @@ def build_runtime_manifest(
             "trade_ready": trade_ready_version,
             "execution_certificate": EXECUTION_CERTIFICATE_VERSION,
             "sports_mapping": SPORTS_MAPPING_VERSION,
+            "crypto_feed": CRYPTO_FEED_VERSION,
             "weather_contract": WEATHER_CONTRACT_ADAPTER,
             "weather_late_model": WEATHER_LATE_MODEL_VERSION,
             "weather_friend_model": WEATHER_FRIEND_MODEL_VERSION,
