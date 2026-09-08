@@ -1,5 +1,3 @@
-import asyncio
-
 import pytest
 
 from polymarket_scanner.models import Market
@@ -79,10 +77,21 @@ def test_existing_detector_lanes_are_retained_conservatively():
     assert all(market_matches_existing_detector(event, row) for row in event["markets"])
 
 
-def test_unsupported_sports_scope_is_excluded():
-    row = _binary("sport-total", "Will Lakers win the first half over 51.5?", sportsMarketType="moneyline")
+def test_unsupported_sports_scope_is_excluded_when_no_other_lane_matches():
+    # No threshold wording here: this checks the detector-union gate does not retain
+    # an unsupported period-qualified sports contract solely through the sports lane.
+    row = _binary("sport-period", "Will Lakers win in the first half?", sportsMarketType="moneyline")
     event = _event(row)
     assert market_matches_existing_detector(event, row) is False
+
+
+def test_multi_lane_market_is_retained_if_any_existing_detector_can_consider_it():
+    # The sports adapter rejects this as a first-half/total contract, but the current
+    # threshold detector can still parse "over 51.5".  The production prefilter is a
+    # union, so the market must remain materialized for that other lane.
+    row = _binary("sport-threshold", "Will Lakers win the first half over 51.5?", sportsMarketType="moneyline")
+    event = _event(row)
+    assert market_matches_existing_detector(event, row) is True
 
 
 def test_non_orderable_market_is_excluded_even_if_semantically_relevant():
