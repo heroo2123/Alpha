@@ -2,14 +2,25 @@ import json
 import sqlite3
 import time
 
+import pytest
+
 from polymarket_scanner.models import Book, Market, Signal
 from polymarket_scanner.sports_v3 import (
+    SPORTS_CAUSAL_CACHE_VERSION,
     SPORTS_DETECTOR,
     SPORTS_MAPPING_VERSION,
+    _reset_sports_causal_state_for_tests,
     quarantine_pre_v3_sports_history,
     sports_result_lag_v3,
 )
 from polymarket_scanner.store import Store
+
+
+@pytest.fixture(autouse=True)
+def _reset_causal_sports_state():
+    _reset_sports_causal_state_for_tests()
+    yield
+    _reset_sports_causal_state_for_tests()
 
 
 def mkt(question: str, *, mid="m1", event_slug="home-v-away", raw=None, title="Home FC vs Away FC") -> Market:
@@ -62,6 +73,7 @@ def test_v3_match_moneyline_uses_explicit_home_away_and_clean_version():
     s = signals[0]
     assert s.detector == SPORTS_DETECTOR
     assert s.metadata["sports_mapping_version"] == SPORTS_MAPPING_VERSION
+    assert s.metadata["sports_causal_cache_version"] == SPORTS_CAUSAL_CACHE_VERSION
     assert s.metadata["trade_outcome"] == "NO"
     assert s.token_ids == ["n-m1"]
     assert "home-away" in s.metadata["sports_reason"]
@@ -107,7 +119,7 @@ def test_v3_rejects_missing_or_ambiguous_team_mapping():
     assert sports_result_lag_v3([both], books, feed()) == []
 
 
-def test_v3_rejects_missing_stale_or_future_terminal_timestamps():
+def test_v3_rejects_missing_stale_future_and_nonfinite_terminal_timestamps():
     m = mkt("Will Home FC win?")
     books = {"y-m1": Book("y-m1", [], [(0.20, 50)])}
     now = 2_000_000_000.0
@@ -121,6 +133,9 @@ def test_v3_rejects_missing_stale_or_future_terminal_timestamps():
 
     future = feed(last_update=now + 6)
     assert sports_result_lag_v3([m], books, future, now_ts=now) == []
+
+    nonfinite = feed(last_update=float("inf"))
+    assert sports_result_lag_v3([m], books, nonfinite, now_ts=now) == []
 
     fresh = feed(last_update=now - 5)
     signals = sports_result_lag_v3([m], books, fresh, now_ts=now)
@@ -137,6 +152,50 @@ def test_v3_accepts_iso_finished_timestamp_as_causal_terminal_evidence():
     signals = sports_result_lag_v3([m], books, payload, now_ts=now)
     assert len(signals) == 1
     assert signals[0].metadata["sports_source_age_seconds"] == 5.0
+
+
+def test_v5_rejects_out_of_order_result_that_would_reverse_winner():
+    m = mkt("Will Home FC win?")
+    books = {
+        "y-m1": Book("y-m1", [], [(0.20, 50)]),
+        "n-m1": Book("n-m1", [], [(0.20, 50)]),
+    }
+    now = 2_000_000_000.0
+
+    newer = feed(score="3-1", last_update=now - 1)
+    first = sports_result_lag_v3([m], books, newer, now_ts=now)
+    assert len(first) == 1
+    assert first[0].metadata["trade_outcome"] == "YES"
+
+    # Still fresh enough by age, but causally older and opposite. It must not replace
+    # the newer authoritative result.
+    older_opposite = feed(score="1-3", last_update=now - 2)
+    assert sports_result_lag_v3([m], books, older_opposite, now_ts=now) == []
+
+
+def test_v5_same_timestamp_conflict_quarantines_until_strictly_newer_update():
+    m = mkt("Will Home FC win?")
+    books = {
+        "y-m1": Book("y-m1", [], [(0.20, 50)]),
+        "n-m1": Book("n-m1", [], [(0.20, 50)]),
+    }
+    now = 2_000_000_000.0
+    source_ts = now - 2
+
+    original = feed(score="3-1", last_update=source_ts)
+    assert len(sports_result_lag_v3([m], books, original, now_ts=now)) == 1
+
+    conflicting = feed(score="1-3", last_update=source_ts)
+    assert sports_result_lag_v3([m], books, conflicting, now_ts=now) == []
+
+    # Returning to the first row at the same timestamp cannot silently clear the
+    # ambiguity. Only a strictly later source update restores authority.
+    assert sports_result_lag_v3([m], books, original, now_ts=now) == []
+
+    recovery = feed(score="4-1", last_update=source_ts + 1)
+    restored = sports_result_lag_v3([m], books, recovery, now_ts=now)
+    assert len(restored) == 1
+    assert restored[0].metadata["trade_outcome"] == "YES"
 
 
 def test_pre_v3_history_is_quarantined_without_erasing_forensic_pnl(tmp_path):
@@ -162,7 +221,6 @@ def test_pre_v3_history_is_quarantined_without_erasing_forensic_pnl(tmp_path):
 
     changed = quarantine_pre_v3_sports_history(db)
     assert changed == 1
-    # Idempotent migration.
     assert quarantine_pre_v3_sports_history(db) == 0
 
     row = store.get_signal(old_id)
