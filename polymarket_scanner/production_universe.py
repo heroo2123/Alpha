@@ -3,13 +3,13 @@ from __future__ import annotations
 """Bounded production universe derived from the complete Gamma keyset walk.
 
 The production VM must prove that it traversed the entire active Gamma universe, but
-it does not need to retain every market as a Python object.  This module keeps only
-markets that can enter one of the *existing* production detector lanes.  It is not a
+it does not need to retain every market as a Python object. This module keeps only
+markets that can enter one of the *existing* production detector lanes. It is not a
 liquidity/ranking filter: every retained/excluded decision follows a necessary or
 conservative prerequisite of code that already exists in the scanner.
 
 Raw discovery completeness and retained/materialized coverage are reported
-separately.  Hitting either hard cap fails closed.
+separately. Hitting either hard cap fails closed.
 """
 
 import os
@@ -19,7 +19,7 @@ from .detectors_v02 import threshold
 from .models import Market
 from .polymarket import PolymarketClient, UniverseIncompleteError, _f
 
-PRODUCTION_UNIVERSE_FILTER_VERSION = "detector_eligible_v1_complete_gamma_walk"
+PRODUCTION_UNIVERSE_FILTER_VERSION = "detector_eligible_v2_neg_risk_certificate_prereqs"
 DISCOVERY_HARD_CAP = max(1, int(os.getenv("PRODUCTION_DISCOVERY_HARD_CAP", "250000")))
 MATERIALIZED_HARD_CAP = max(1, int(os.getenv("PRODUCTION_MATERIALIZED_HARD_CAP", "30000")))
 MAX_MANUAL_NEG_RISK_LEGS = 6
@@ -33,6 +33,15 @@ _SPORTS_UNSUPPORTED = re.compile(
 )
 _SIGNED_LINE = re.compile(r"(?:^|[\s(])[-+]\d+(?:\.\d+)?(?:[\s)]|$)")
 _CRYPTO_ASSET = re.compile(r"\b(?:bitcoin|btc|ethereum|eth|solana|sol|xrp)\b", re.I)
+_OTHER = re.compile(r"\bother\b", re.I)
+_OTHER_RULE_A = re.compile(
+    r"(?:resolve|resolves|resolved|resolution)[^.!]{0,120}\bother\b",
+    re.I,
+)
+_OTHER_RULE_B = re.compile(
+    r"\bother\b[^.!]{0,120}(?:resolve|resolves|resolved|resolution)",
+    re.I,
+)
 
 
 def _flag(value: object) -> bool:
@@ -46,9 +55,6 @@ def _flag(value: object) -> bool:
 
 
 def _json_list(value: object) -> list:
-    # Avoid importing the private helper solely for type-normalisation here; the
-    # public Gamma variants are either list or JSON string and threshold filters do
-    # not need to parse malformed rows optimistically.
     if isinstance(value, list):
         return value
     if isinstance(value, str):
@@ -83,15 +89,73 @@ def _market_open_for_execution(market: dict) -> bool:
     )
 
 
-def _small_neg_risk_parent(event: dict) -> bool:
+def _neg_risk_precertifiable_parent(event: dict) -> bool:
+    """Keep only parents that can satisfy the existing hardened V3 proof.
+
+    This is deliberately a prerequisite mirror, not a new economic filter. The
+    downstream certificate still runs in full and may reject the candidate later.
+    """
     if not _flag(event.get("negRisk") or event.get("enableNegRisk")):
         return False
+    if event.get("negRiskAugmented") is True:
+        return False
+
     children = [row for row in (event.get("markets") or []) if isinstance(row, dict)]
-    # hardened_neg_risk_underround requires >=3 rows and production refuses baskets
-    # above the six-leg manual-execution ceiling.  Keep the *whole* parent here so
-    # the downstream completeness proof still sees every child, including any child
-    # whose state ultimately makes the proof fail closed.
-    return 3 <= len(children) <= MAX_MANUAL_NEG_RISK_LEGS
+    if not (3 <= len(children) <= MAX_MANUAL_NEG_RISK_LEGS):
+        return False
+
+    parent = str(
+        event.get("negRiskMarketID")
+        or event.get("negRiskMarketId")
+        or ""
+    ).strip()
+    if not parent:
+        return False
+
+    child_ids: list[str] = []
+    other_count = 0
+    for child in children:
+        child_id = str(child.get("id") or "").strip()
+        if not child_id:
+            return False
+        child_ids.append(child_id)
+
+        # Hardened proof requires authoritative boolean state on every raw child.
+        if type(child.get("active")) is not bool or type(child.get("closed")) is not bool:
+            return False
+        if child.get("active") is not True or child.get("closed") is not False:
+            return False
+        if not _strict_binary_raw(child):
+            return False
+
+        child_parent = str(
+            child.get("negRiskMarketID")
+            or child.get("negRiskMarketId")
+            or parent
+        ).strip()
+        if child_parent != parent:
+            return False
+
+        child_text = f"{child.get('question') or ''} {child.get('slug') or ''}"
+        if _OTHER.search(child_text):
+            other_count += 1
+
+    if len(child_ids) != len(set(child_ids)):
+        return False
+    if other_count != 1:
+        return False
+
+    # The hardened certificate combines parent rules with the first child market's
+    # description. Mirror that necessary evidence here to avoid retaining parents
+    # that can never prove a $1 payout floor.
+    rules = (
+        f"{event.get('description') or ''} "
+        f"{children[0].get('description') or ''}"
+    )
+    if not (_OTHER_RULE_A.search(rules) or _OTHER_RULE_B.search(rules)):
+        return False
+
+    return True
 
 
 def _sports_candidate(event: dict, market: dict) -> bool:
@@ -183,9 +247,6 @@ def market_matches_existing_detector(event: dict, market: dict) -> bool:
         return True
     if _wide_spread_candidate(market):
         return True
-    # Binary buy-both is an anomaly lane on a complementary CLOB.  A crossed Gamma
-    # BBO is an inclusive trigger for the transport inconsistency it is meant to
-    # investigate; exact books are still mandatory before persistence/delivery.
     if _crossed_binary_candidate(market):
         return True
     return False
@@ -233,10 +294,10 @@ class ProductionPolymarketClient(PolymarketClient):
                 )
                 raise UniverseIncompleteError(self._fetch_reason)
 
-            if _small_neg_risk_parent(event):
-                # Retain the whole <=6-child parent.  Base materialisation will skip
-                # closed rows but its compact parent payload still retains every child
-                # so hardened completeness proof can reject an incomplete basket.
+            if _neg_risk_precertifiable_parent(event):
+                # Keep the whole parent set only when it can satisfy the existing
+                # hardened V3 prerequisite semantics. The downstream certificate
+                # still independently proves identity, completeness and execution.
                 selected_event = event
             else:
                 selected = [
