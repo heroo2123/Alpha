@@ -102,9 +102,10 @@ def test_compact_neg_risk_payload_preserves_hardened_payoff_certificate():
     signals = hardened_neg_risk_underround(markets, books)
     assert len(signals) == 1
     signal = signals[0]
-    assert signal.metadata["certification_status"] == "NEG_RISK_COMPLETE_SET_PROOF_V3"
+    assert signal.metadata["certification_status"] == "NOT_ACTIONABLE"
     proof = signal.metadata["payoff_proof"]
     assert proof["neg_risk_market_id"] == "parent-neg-risk-id"
     assert proof["complete_parent_child_count"] == 3
     assert proof["other_market_id"] == "m3"
-    assert proof["minimum_bundle_payout"] == 1.0
+    assert "minimum_bundle_payout" not in proof
+    assert proof["validated_for_contract_resolution"] is False

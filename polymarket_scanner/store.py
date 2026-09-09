@@ -144,7 +144,7 @@ class Store:
             return "LOST"
         return "RESOLVED_PARTIAL"
 
-    def open_directional(self):
+    def open_directional_page(self, after_id: int = 0, limit: int = 128):
         """Return signals whose selected token can be objectively resolved.
 
         Structural multi-leg quote math is excluded because settlement cannot prove
@@ -155,7 +155,8 @@ class Store:
         """
         with self._conn() as c:
             rows = [dict(r) for r in c.execute(
-                "SELECT * FROM signals WHERE status='OPEN' AND market_id IS NOT NULL ORDER BY id"
+                "SELECT * FROM signals WHERE status='OPEN' AND market_id IS NOT NULL AND id>? ORDER BY id LIMIT ?",
+                (after_id, min(128, max(1, limit))),
             )]
         out = []
         for row in rows:
@@ -164,7 +165,11 @@ class Store:
                 continue
             if str(row.get("confidence") or "") == "ACTIONABLE" or detector in EXPERIMENTAL_RESOLUTION_DETECTORS:
                 out.append(row)
-        return out
+        return out, (int(rows[-1]["id"]) if rows else 0)
+
+    def open_directional(self):
+        # Compatibility for research callers; production rotates explicit pages.
+        return self.open_directional_page()[0]
 
     def resolve_payout(self, signal_id: int, payout: float, stake: float) -> dict | None:
         """Resolve using the actual final payout of the selected token (0..1).

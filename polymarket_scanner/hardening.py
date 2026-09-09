@@ -16,6 +16,7 @@ from .models import Book, Market, Signal
 STRUCTURAL_DETECTORS = ("binary_buy_both", "neg_risk_underround", "nested_threshold_arb")
 MIN_VISIBLE_NOTIONAL_USD = 10.0
 MAX_MANUAL_LEGS = 6
+RULE_QUARANTINE_VERSION = "structural_rule_semantics_quarantine_v1"
 
 
 @dataclass(frozen=True)
@@ -128,6 +129,28 @@ def _demote(signal: Signal, reason: str, *, title: str | None = None) -> Signal:
     ]
     signal.metadata["risk_note"] = reason
     return signal
+
+
+def _quarantine_rule_claims(signals: list[Signal]) -> list[Signal]:
+    """Text/metadata checks are necessary conditions, not a rules interpreter.
+
+    Nested and Other-fallback semantics have not earned a guaranteed payoff claim.
+    Keep discovery observations but withdraw economic authority and scored edges.
+    """
+    for signal in signals:
+        meta = signal.metadata
+        meta["rule_quarantine_version"] = RULE_QUARANTINE_VERSION
+        meta["hypothetical_edge"] = signal.edge
+        meta["hypothetical_payout"] = signal.theoretical_payout
+        meta["semantic_evidence_valid"] = False
+        proof = meta.get("payoff_proof", {})
+        proof.pop("minimum_bundle_payout", None)
+        proof["validated_for_contract_resolution"] = False
+        if signal.confidence == "ACTIONABLE":
+            _demote(signal, "Contract rule semantics are unverified; text matching is not a guaranteed payoff proof.")
+        meta["certification_status"] = "NOT_ACTIONABLE"
+        signal.edge = signal.theoretical_payout = None
+    return signals
 
 
 def hardened_binary_buy_both(markets: list[Market], books: dict[str, Book]) -> list[Signal]:
@@ -328,7 +351,7 @@ def hardened_neg_risk_underround(markets: list[Market], books: dict[str, Book]) 
                 "Research-only structural candidate during P0 containment.",
                 "Any future promotion must revalidate every parent child and fill every purchased YES leg.",
             ]
-    return signals
+    return _quarantine_rule_claims(signals)
 
 
 def _norm_text(value: str) -> str:
@@ -353,6 +376,8 @@ def _threshold_contract(question: str) -> ThresholdContract | None:
         return None
     direction, value, template = parsed
     q = question.lower().replace("≥", " at least ").replace("≤", " at most ")
+    if re.search(r"\b(?:not|never|neither|unless|except|without)\b|n['’]t\b", q):
+        return None
 
     # We only certify one unambiguous comparator family. If conflicting phrases are
     # present, fail closed rather than guessing which number they qualify.
@@ -412,6 +437,8 @@ def _nested_certification(a: Market, b: Market, signal: Signal) -> tuple[bool, s
 
     if _unit_signature(a.question) != _unit_signature(b.question):
         return False, "Threshold units/currency signatures differ.", proof
+    if re.findall(r"\b(?:19|20)\d{2}\b", a.question) != re.findall(r"\b(?:19|20)\d{2}\b", b.question):
+        return False, "Question years differ; parser year normalization is not rule identity.", proof
     if not a.end_date or not b.end_date or a.end_date != b.end_date:
         return False, "Market end/boundary timestamps are not identical.", proof
     if not a.resolution_source or _norm_text(a.resolution_source) != _norm_text(b.resolution_source):
@@ -474,4 +501,4 @@ def hardened_nested_threshold_arbitrage(markets: list[Market], books: dict[str, 
                 f"Only about ${notional:.2f} is simultaneously visible at the quoted asks; below the ${MIN_VISIBLE_NOTIONAL_USD:.0f} manual-execution floor.",
                 title="Logical threshold spread (too little executable size)",
             )
-    return signals
+    return _quarantine_rule_claims(signals)

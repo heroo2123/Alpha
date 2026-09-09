@@ -1,92 +1,62 @@
-# Polymarket Edge Scanner v0.2
+# Polymarket Edge Scanner — silent shadow
 
-Continuous **signal + audit** scanner for Polymarket. It does **not** place orders. It watches the market and external/official resolution inputs, sends Telegram alerts with exact manual actions and direct market buttons, and paper-tracks ACTIONABLE signals so every detector can be evaluated from real outcomes.
+Continuously investigates Polymarket and external sources, records internal
+research and execution-quality evidence, and never places orders.
 
-## What changed in v0.2
+**TRADE NOW promotion count: 0. Financial Telegram delivery: disabled.**
+WATCH/research findings remain internal. User-requested Telegram status and fill
+accounting commands are handled by a separate command worker.
 
-- **Real-time Polymarket market WebSocket** for book/BBO changes. REST is still used immediately before an ACTIONABLE alert to confirm the quoted asks and displayed size.
-- **Polymarket sports WebSocket** for live/final score state.
-- **Polymarket RTDS crypto feeds** for resolution-aligned crypto boundary checks plus cross-feed divergence watches.
-- **Logical threshold arbitrage** between nested conditions in the same event.
-- **Official BLS release lag** support for CPI/core CPI, unemployment and payroll markets when a BLS API key is configured.
-- Telegram alerts now contain a numbered **WHAT TO DO** section, a clear **SKIP/CHECK** rule and inline buttons that open the exact Polymarket market/event.
-- `/took ALERT_ID STAKE_USD` records trades you actually took, so `/mystats` measures your own results separately from the paper model.
-- `/whoami` makes Telegram chat-ID setup possible without third-party ID bots.
+The intended future product is a verified manual trade instruction with exact
+markets/legs, fresh executable and maximum prices, capacity, fees, edge/payout,
+skip conditions and direct links. No detector has earned that permission.
 
-## Detector tiers
+## Production architecture
 
-### ACTIONABLE
+* A separate low-priority builder traverses the complete Gamma active-event keyset
+  to natural exhaustion, retaining a bounded detector subset in immutable SQLite
+  generations. No partial generation can replace accepted discovery authority.
+* The scanner reads generations, keeps at most 800 tokens on hot WebSockets, and
+  uses Gamma BBO only for screening. Exact CLOB books remain execution authority.
+* The last accepted complete generation can survive a failed refresh, but broad
+  detection fails closed at 1,800 seconds from its build start. Gamma screening
+  sides expire at 900 seconds from their actual page receipt.
+* Coverage is explicitly partial. Complete inventory traversal does not imply
+  complete prices or lossless opportunity recall. Nested/neg-risk guaranteed
+  payoff claims are quarantined; weather remains uncalibrated research.
 
-1. **Binary buy-both**: YES + NO asks are below $1 after a conservative fee estimate.
-2. **Neg-risk underround**: the complete exhaustive YES basket is below $1 after fees.
-3. **Nested-threshold arbitrage**: buy the looser condition YES plus the stricter condition NO when the logical pair costs below $1.
-4. **Weather late-day lock**: exact station/rules discovery + hourly-observation trend + executable bucket ask. Fast METAR data is a proxy; the alert tells you to verify the official table before execution.
-5. **Sports result lag**: Polymarket sports feed reports the event ended, the result implies a specific outcome, but that outcome remains materially below $1. Official result/rules verification is required.
-6. **Crypto resolution lag**: only when the market's resolution-source text can be matched to a supported Polymarket RTDS feed and a boundary tick is captured.
-7. **Official BLS release lag**: only for markets whose rule/source text references BLS and only after the matching official series value is available.
+Read [the release architecture, migration and acceptance checklist](docs/SILENT_SHADOW_HANDOFF.md)
+before deployment. It defines the single validation program and hard stop gates.
 
-### WATCH
+Canonical entrypoints:
 
-8. **Duplicate-market divergence**: similar contracts trading far apart; compare Rules before acting.
-9. **Crypto cross-feed divergence**: Chainlink/reference vs Binance-backed feed disagreement; useful for finding traders looking at the wrong source.
-10. **Wide/liquid spread**: surfaces maker/price-discovery opportunities without calling them arbitrage.
-
-## Telegram alert format
-
-An ACTIONABLE alert contains:
-
-- detector + alert number;
-- current estimated edge;
-- exact quoted ask(s);
-- **WHAT TO DO** numbered steps;
-- a **CHECK / SKIP RULE** explaining when not to chase the alert;
-- `OPEN MARKET` / `OPEN EVENT` buttons;
-- `/took <alert_id> <stake>` shortcut for recording a real trade.
-
-Structural arbitrage alerts explicitly say to use the same number of shares on every required leg and never execute only one leg.
-
-## Telegram commands
-
-- `/whoami` — returns your numeric chat ID during setup.
-- `/stats` — paper-model detector stats.
-- `/mystats` — results for trades you explicitly recorded with `/took`.
-- `/recent` — recent scanner alerts.
-- `/taken` — recent manually recorded trades.
-- `/took ALERT_ID STAKE_USD` — record that you acted on an alert.
-- `/help` — command list.
-
-## Deploy on Render
-
-`render.yaml` is included. Use an always-on Starter service: sleeping services can miss short-lived opportunities. The blueprint mounts `/var/data` so SQLite history survives restarts.
-
-For the **first deploy**, the blueprint only asks for:
-
-- `TELEGRAM_BOT_TOKEN`
-
-After the service is running, open your Telegram bot and send `/whoami`. The bot replies with your numeric ID. In Render, add:
-
-- `TELEGRAM_CHAT_ID` = that exact number
-
-Then restart/redeploy the service. This avoids using third-party chat-ID bots or putting your bot token into a browser URL.
-
-Optional:
-
-- `BLS_API_KEY` enables official BLS release monitoring. Add it later in Render Environment if you want that detector; the rest of the scanner works without it.
-
-## Run locally
-
-```bash
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\\Scripts\\activate
-pip install -r requirements.txt
-cp .env.example .env
-uvicorn app:app --host 0.0.0.0 --port 8000
+```text
+python -m polymarket_scanner.universe_builder --ipv6
+python -m uvicorn app_trade_only:app --host 127.0.0.1 --port 8000 --workers 1
+python command_worker_trade_only.py
 ```
 
-Health: `GET /health`  
-Paper stats: `GET /stats`  
-Your recorded-trade stats: `GET /mystats`
+Use the attested systemd definitions generated by `deploy/render-shadow-units.py`.
+Do not run older app wrappers as production services. Legacy GCP/Oracle installers
+are retired. Repository preparation and unit installation do not start services.
+No paid infrastructure or WARP is required or provisioned by these scripts.
 
-## Important execution assumptions
+## Validation
 
-The scanner is advisory. “ACTIONABLE” means the detector found a mechanically defined condition and then re-checked the candidate order book through REST; it does not mean risk-free or guaranteed profit. Structural arbitrage still requires all legs to fill before the book changes. Known-result detectors still require the market's settlement Rules/source to match the observed official input. Do not chase a price above the alert's quoted limit.
+```bash
+python -m pip install -r requirements-dev.txt
+python -m pytest -q
+python -m compileall -q app.py app_stable.py app_stable_v2.py app_trade_only.py command_worker.py command_worker_trade_only.py polymarket_scanner deploy tests
+for script in deploy/*.sh deploy/oracle/*.sh deploy/gcp/*.sh; do bash -n "$script" || exit; done
+python tests/validate_shadow_scale.py --output /tmp/alpha-shadow-scale.json
+```
+
+Tests are offline and mock external transports. The scale fixture checks
+195,000 discovered / 13,500 materialized markets with a separate builder process;
+it is not trading evidence or a measurement of final e2-micro live performance.
+GitHub Actions runs this program on Python 3.11 and 3.12.
+
+Frozen VM baseline before this migration:
+`43b0690f1daa82da10d9560dacbd1a618ce7f23f`. Deploy only the explicit candidate SHA
+identified in the engineering handoff, after its CI passes. Deployment and any
+future detector promotion require their own separately authorized stages.

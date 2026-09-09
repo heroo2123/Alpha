@@ -7,7 +7,7 @@ import math
 import threading
 import time
 
-SHADOW_TELEMETRY_VERSION = "shadow_history_v1_60s_14d"
+SHADOW_TELEMETRY_VERSION = "shadow_history_v2_generations_coverage_backpressure_60s_14d"
 SHADOW_SAMPLE_SECONDS = 60.0
 SHADOW_RETENTION_DAYS = 14
 SHADOW_MAX_ROWS = int(SHADOW_RETENTION_DAYS * 86400 / SHADOW_SAMPLE_SECONDS)
@@ -46,12 +46,27 @@ def _safe_payload(snapshot: dict) -> dict:
     crypto = _mapping(feeds.get("crypto_rtds"))
     price = _mapping(snapshot.get("price_discovery_authority"))
     manifest = _mapping(snapshot.get("runtime_manifest"))
+    universe = _mapping(snapshot.get("universe_authority"))
+    builder = _mapping(universe.get("builder"))
 
     return {
         "version": SHADOW_TELEMETRY_VERSION,
         "release_sha": manifest.get("authorized_release_sha"),
         "runtime_authority_complete": bool(snapshot.get("production_runtime_authority_complete")),
         "p0_containment": bool(snapshot.get("p0_containment")),
+        "universe": {
+            "generation_id": universe.get("generation_id"),
+            "complete": universe.get("complete") is True,
+            "age_seconds": _finite(universe.get("age_seconds")),
+            "discovered_market_count": _integer(universe.get("discovered_market_count")),
+            "materialized_market_count": _integer(universe.get("materialized_market_count")),
+            "keyset_pages": _integer(universe.get("keyset_pages")),
+            "builder_state": builder.get("state") if builder.get("state") in {"BUILDING", "PUBLISHED", "FAILED", "UNKNOWN"} else None,
+            "builder_elapsed_seconds": _finite(builder.get("elapsed_seconds")),
+            "builder_pages": _integer(builder.get("keyset_pages")),
+            "builder_rss_bytes": _integer(builder.get("process_rss_bytes")),
+            "builder_swap_bytes": _integer(builder.get("process_swap_bytes")),
+        },
         "resources": {
             "process_rss_bytes": _integer(resources.get("process_rss_bytes")),
             "process_virtual_bytes": _integer(resources.get("process_virtual_bytes")),
@@ -90,6 +105,11 @@ def _safe_payload(snapshot: dict) -> dict:
             "price_snapshot_age_seconds": _finite(price.get("snapshot_age_seconds")),
             "price_usable_coverage_ratio": _finite(price.get("usable_coverage_ratio")),
             "signal_batches_pending": _integer(snapshot.get("signal_batches_pending")),
+            "candidate_overflow_total": _integer(snapshot.get("candidate_overflow_total")),
+            "candidate_expired_total": _integer(snapshot.get("candidate_expired_total")),
+            "last_compute_seconds": _finite(snapshot.get("last_compute_seconds")),
+            "gamma_missing_or_stale_tokens": _integer(price.get("missing_or_stale_tokens")),
+            "gamma_quote_time_known": False,
             "scan_in_progress": bool(snapshot.get("scan_in_progress")),
             "settlement_in_progress": bool(snapshot.get("settlement_in_progress")),
         },

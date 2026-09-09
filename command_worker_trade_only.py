@@ -30,6 +30,7 @@ from polymarket_scanner.weather_calibration import WEATHER_DETECTORS, apply_weat
 # for the Bot API request handoff. This does not claim the alert remains executable
 # after delivery—the message itself still carries explicit prices/skip conditions.
 TRADE_ALERT_MIN_NETWORK_REMAINING_SECONDS = 1.0
+_silent_shadow_process = False  # Set by the canonical process main, not library tests.
 
 
 class DeliveryRetryable(Exception):
@@ -104,6 +105,8 @@ async def _safe_post_message(
     Command/control messages may retry because duplicating status/help text is not a
     trading hazard.
     """
+    if lane == "alert" and _silent_shadow_process:
+        raise DeliveryRejected("financial Telegram delivery disabled in silent shadow")
     if not self.token:
         return None
     payload = {
@@ -573,6 +576,11 @@ def install_trade_only_policy() -> None:
 
 
 async def main() -> None:
+    global _silent_shadow_process
+    from polymarket_scanner.trade_only import promoted_detectors
+    if promoted_detectors():
+        raise RuntimeError("silent-shadow command worker requires zero detector promotions")
+    _silent_shadow_process = True
     install_trade_only_policy()
     try:
         await worker.main()

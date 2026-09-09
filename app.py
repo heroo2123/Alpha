@@ -58,6 +58,9 @@ telegram_task: asyncio.Task | None = None
 alert_task: asyncio.Task | None = None
 health_snapshot_task: asyncio.Task | None = None
 signal_task: asyncio.Task | None = None
+# Explicit production input boundary. Legacy research entrypoints leave this None.
+universe_source = None
+accept_snapshot = None
 alert_queue: asyncio.PriorityQueue = asyncio.PriorityQueue()
 signal_queue: asyncio.Queue[list[Signal]] = asyncio.Queue()
 alert_sequence = itertools.count()
@@ -372,6 +375,7 @@ async def scanner_loop():
     while True:
         try:
             tick = time.time()
+            state["scanner_heartbeat"] = tick
             universe_refreshed = weather_refreshed = macro_refreshed = False
 
             if weather_task is not None and weather_task.done():
@@ -398,7 +402,30 @@ async def scanner_loop():
 
             # Initial universe must exist before scanning. Every later Gamma refresh
             # runs in the background so discovery latency cannot freeze live scans.
-            if not markets:
+            if universe_source is not None:
+                if universe_task is not None and universe_task.done():
+                    prepared = universe_task.result()
+                    universe_task = None
+                    if prepared is not None:
+                        # Preparation finishes off-loop. One non-awaiting commit
+                        # changes all accepted data before the next detector pass.
+                        accept_snapshot(prepared)
+                        markets, tokens = prepared.markets, prepared.tokens
+                        weather_markets, stations = prepared.weather_markets, prepared.stations
+                        await market_stream.configure(tokens)
+                        state.update(markets=len(markets), tokens=len(tokens), stations=len(stations),
+                                     last_universe_seconds=prepared.manifest["build_seconds"])
+                        universe_refreshed = True
+                if universe_task is None and tick - last_universe >= 5:
+                    universe_task = asyncio.create_task(asyncio.to_thread(universe_source.poll))
+                    last_universe = tick
+                state["universe_error"] = universe_source.last_error
+                state["waiting_for_universe"] = not bool(markets)
+                if not markets:
+                    await asyncio.sleep(2)
+                    continue
+
+            if universe_source is None and not markets:
                 universe_started = time.time()
                 refreshed_markets = await poly.active_markets()
                 markets, tokens, weather_markets, stations = await _prepare_universe(refreshed_markets)
@@ -412,7 +439,7 @@ async def scanner_loop():
                 state["last_universe_seconds"] = round(time.time() - universe_started, 3)
                 log.info("initial universe loaded: %d markets / %d tokens / %d weather stations", len(markets), len(tokens), len(stations))
 
-            if universe_task is not None and universe_task.done():
+            if universe_source is None and universe_task is not None and universe_task.done():
                 state["universe_refreshing"] = False
                 try:
                     refreshed_markets = universe_task.result()
@@ -435,7 +462,7 @@ async def scanner_loop():
                     state["last_universe_seconds"] = round(time.time() - universe_started, 3)
                     universe_task = None
 
-            if universe_task is None and tick - last_universe >= settings.universe_refresh_seconds:
+            if universe_source is None and universe_task is None and tick - last_universe >= settings.universe_refresh_seconds:
                 universe_started = time.time()
                 universe_task = asyncio.create_task(poly.active_markets())
                 last_universe = tick

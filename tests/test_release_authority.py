@@ -35,6 +35,9 @@ def _write_hardened_release_shape(repo: Path) -> None:
     (repo / "command_worker_trade_only.py").write_text("# worker\n")
     (repo / "polymarket_scanner/runtime_manifest.py").write_text("# runtime manifest\n")
     (repo / "polymarket_scanner/dependency_preflight.py").write_text("# dependency preflight\n")
+    (repo / "polymarket_scanner/universe_builder.py").write_text("# isolated universe builder\n")
+    (repo / "deploy/render-shadow-units.py").write_text("verify-runtime-release.sh\napp_trade_only:app\ncommand_worker_trade_only.py\n")
+    (repo / "deploy/prepare-shadow-release.sh").write_text("polymarket_scanner.dependency_preflight --required-only --release-sha\n")
     (repo / "deploy/verify-runtime-release.sh").write_text("#!/usr/bin/env bash\nexit 0\n")
     (repo / "deploy/oracle/setup-command-service.sh").write_text(
         "#!/usr/bin/env bash\n"
@@ -53,9 +56,7 @@ def _write_hardened_release_shape(repo: Path) -> None:
 
 def test_production_deploy_scripts_do_not_select_mutable_main_as_runtime_revision():
     paths = [
-        ROOT / "deploy/oracle/install.sh",
-        ROOT / "deploy/oracle/update.sh",
-        ROOT / "deploy/gcp/install.sh",
+        ROOT / "deploy/prepare-shadow-release.sh",
     ]
     for path in paths:
         text = path.read_text()
@@ -67,9 +68,7 @@ def test_production_deploy_scripts_do_not_select_mutable_main_as_runtime_revisio
 
 def test_systemd_paths_require_runtime_release_attestation():
     for path in [
-        ROOT / "deploy/oracle/install.sh",
-        ROOT / "deploy/oracle/setup-command-service.sh",
-        ROOT / "deploy/gcp/install.sh",
+        ROOT / "deploy/render-shadow-units.py",
     ]:
         text = path.read_text()
         assert "verify-runtime-release.sh" in text

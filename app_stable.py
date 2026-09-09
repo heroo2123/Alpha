@@ -319,6 +319,10 @@ def _watchdog_main() -> None:
     while True:
         time.sleep(10.0)
         now = time.time()
+        if base.universe_source is not None and base.state.get("waiting_for_universe"):
+            heartbeat = float(base.state.get("scanner_heartbeat") or 0)
+            if 0 <= now - heartbeat <= WATCHDOG_STALE_SECONDS:
+                continue  # Responsive scanner waiting for builder is not a stall.
         last_scan = base.state.get("last_scan")
         if last_scan is None:
             if now - started <= WATCHDOG_STARTUP_GRACE_SECONDS:
@@ -345,7 +349,7 @@ def _start_watchdog_once() -> None:
 
 async def _stable_startup() -> None:
     global _price_task
-    if _price_task is None:
+    if _price_task is None and base.universe_source is None:
         _price_task = asyncio.create_task(_top_price_loop())
     _start_watchdog_once()
     base.state["runtime_mode"] = "bounded_ws_plus_full_price_discovery"

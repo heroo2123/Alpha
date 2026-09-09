@@ -22,11 +22,10 @@ fi
 mkdir -p "${BACKUP_DIR}"
 chmod 700 "${BACKUP_DIR}"
 
-LOCK_DIR="${BACKUP_DIR}/.pre-release-backup.lock"
-if ! mkdir "${LOCK_DIR}" 2>/dev/null; then
+exec 9>"${BACKUP_DIR}/.backup.lockfile"
+if ! flock -n 9; then
   fail "another pre-release database backup appears to be running"
 fi
-trap 'rmdir "${LOCK_DIR}" 2>/dev/null || true' EXIT
 
 printf 'Creating verified pre-release SQLite backup before any release/service change...\n'
 RESULT="$("${APP_DIR}/.venv/bin/python" -m polymarket_scanner.db_ops backup \

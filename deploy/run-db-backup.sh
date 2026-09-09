@@ -19,11 +19,10 @@ mkdir -p "${BACKUP_DIR}"
 chmod 700 "${BACKUP_DIR}"
 
 # Prevent overlapping timer/manual backups without depending on a long-lived daemon.
-LOCK_DIR="${BACKUP_DIR}/.backup.lock"
-if ! mkdir "${LOCK_DIR}" 2>/dev/null; then
+exec 9>"${BACKUP_DIR}/.backup.lockfile"
+if ! flock -n 9; then
   fail "another database backup appears to be running"
 fi
-trap 'rmdir "${LOCK_DIR}" 2>/dev/null || true' EXIT
 
 "${APP_DIR}/.venv/bin/python" -m polymarket_scanner.db_ops configure --db "${DB_PATH}" >/dev/null
 RESULT="$("${APP_DIR}/.venv/bin/python" -m polymarket_scanner.db_ops backup \

@@ -84,18 +84,15 @@ def test_pre_release_backup_helper_cleanly_skips_brand_new_database(tmp_path: Pa
 
 
 def test_oracle_update_backs_up_before_immutable_release_pin():
-    source = (ROOT / "deploy/oracle/update.sh").read_text(encoding="utf-8")
+    source = (ROOT / "deploy/prepare-shadow-release.sh").read_text(encoding="utf-8")
     backup_call = source.index('deploy/pre-release-backup.sh')
     release_pin_call = source.index('deploy/release-pin.sh', backup_call)
     assert backup_call < release_pin_call
-    assert "Existing database found but current release lacks pre-release backup authority" in source
 
 
 def test_all_production_install_paths_enable_verified_daily_backup_restore_timer():
     for relative in (
-        "deploy/oracle/install.sh",
-        "deploy/oracle/update.sh",
-        "deploy/gcp/install.sh",
+        "deploy/prepare-shadow-release.sh",
     ):
         source = (ROOT / relative).read_text(encoding="utf-8")
         assert "deploy/setup-db-backup-service.sh" in source

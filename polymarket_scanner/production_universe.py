@@ -20,7 +20,7 @@ from .detectors_v02 import threshold
 from .models import Market
 from .polymarket import PolymarketClient, UniverseIncompleteError, _f
 
-PRODUCTION_UNIVERSE_FILTER_VERSION = "detector_eligible_v3_neg_risk_and_sports_scope"
+PRODUCTION_UNIVERSE_FILTER_VERSION = "detector_subset_v4_original_parent_explicit_recall_limits"
 DISCOVERY_HARD_CAP = max(1, int(os.getenv("PRODUCTION_DISCOVERY_HARD_CAP", "250000")))
 MATERIALIZED_HARD_CAP = max(1, int(os.getenv("PRODUCTION_MATERIALIZED_HARD_CAP", "30000")))
 MAX_MANUAL_NEG_RISK_LEGS = 6
@@ -256,9 +256,18 @@ def market_matches_existing_detector(
     *,
     live_sports_slugs: set[str] | None = None,
 ) -> bool:
-    """Conservative pre-materialisation gate for current production detectors."""
+    return bool(detector_filter_reasons(event, market, live_sports_slugs=live_sports_slugs))
+
+
+def detector_filter_reasons(event: dict, market: dict, *, live_sports_slugs=None) -> list[str]:
+    """Selection reasons, not a proof of complete opportunity recall.
+
+    Price predicates describe the observation time. Missing sports metadata can
+    exclude otherwise matchable feed slugs in the independent builder. Both limits
+    are exposed; a future detector/filter change requires a fresh full generation.
+    """
     if not _market_open_for_execution(market):
-        return False
+        return []
 
     question = str(market.get("question") or "")
     text = (
@@ -267,21 +276,22 @@ def market_matches_existing_detector(
         f"{market.get('resolutionSource') or event.get('resolutionSource') or ''}"
     ).lower()
 
+    reasons = []
     if threshold(question) is not None:
-        return True
+        reasons.append("threshold")
     if "highest temperature" in text:
-        return True
+        reasons.append("weather")
     if _crypto_candidate(event, market):
-        return True
+        reasons.append("crypto")
     if _sports_candidate(event, market, live_sports_slugs=live_sports_slugs):
-        return True
+        reasons.append("sports")
     if "bls.gov" in text or "bureau of labor statistics" in text:
-        return True
+        reasons.append("macro")
     if _wide_spread_candidate(market):
-        return True
+        reasons.append("wide_spread_at_observation")
     if _crossed_binary_candidate(market):
-        return True
-    return False
+        reasons.append("crossed_binary_at_observation")
+    return reasons
 
 
 class ProductionPolymarketClient(PolymarketClient):
@@ -359,7 +369,12 @@ class ProductionPolymarketClient(PolymarketClient):
                 selected_event = dict(event)
                 selected_event["markets"] = selected
 
+            before = len(out)
             super()._append_events(out, [selected_event], seen_market_ids)
+            from .polymarket import _compact_event_payload
+            original_parent = _compact_event_payload(event)
+            for materialized in out[before:]:
+                materialized.raw["_event"] = original_parent
             if len(out) > MATERIALIZED_HARD_CAP:
                 self._fetch_reason = (
                     f"detector-eligible materialized market count exceeded production cap {MATERIALIZED_HARD_CAP}"

@@ -167,15 +167,16 @@ def test_small_neg_risk_proof_includes_complete_parent_set_and_other_yes():
     rows, books = make_neg_rows(3, include_other=True)
     signals = hardened_neg_risk_underround(rows, books)
     assert len(signals) == 1
-    assert signals[0].confidence == "ACTIONABLE"
-    assert signals[0].metadata["certification_status"] == "NEG_RISK_COMPLETE_SET_PROOF_V3"
+    assert signals[0].confidence == "WATCH"
+    assert signals[0].metadata["certification_status"] == "NOT_ACTIONABLE"
     proof = signals[0].metadata["payoff_proof"]
     assert proof["version"] == "neg_risk_complete_parent_set_v3"
     assert proof["other_market_id"] == "2"
     assert proof["other_yes_token"] == "y2"
     assert proof["parent_child_market_ids"] == ["0", "1", "2"]
     assert proof["all_parent_children_open"] is True
-    assert proof["minimum_bundle_payout"] == 1.0
+    assert "minimum_bundle_payout" not in proof
+    assert proof["validated_for_contract_resolution"] is False
     assert "y2" in proof["purchased_yes_tokens"]
     assert signals[0].metadata["immediate_settlement"] is False
 
@@ -198,14 +199,15 @@ def test_nested_above_proves_looser_yes_plus_stricter_no():
     signals = hardened_nested_threshold_arbitrage([a, b], books)
     assert len(signals) == 1
     s = signals[0]
-    assert s.confidence == "ACTIONABLE"
-    assert s.metadata["certification_status"] == "NESTED_PAYOFF_PROOF_V2"
+    assert s.confidence == "WATCH"
+    assert s.metadata["certification_status"] == "NOT_ACTIONABLE"
     proof = s.metadata["payoff_proof"]
     assert proof["looser_market_id"] == "a"
     assert proof["stricter_market_id"] == "b"
     assert proof["looser_yes_token"] == "ya"
     assert proof["stricter_no_token"] == "nb"
-    assert proof["minimum_bundle_payout"] == 1.0
+    assert "minimum_bundle_payout" not in proof
+    assert proof["validated_for_contract_resolution"] is False
 
 
 def test_nested_below_proves_correct_reverse_threshold_order():
@@ -269,3 +271,20 @@ def test_nested_requires_matching_rules_and_source():
     signals = hardened_nested_threshold_arbitrage([a, b], books)
     assert len(signals) == 1
     assert signals[0].confidence == "WATCH"
+
+
+def test_negated_thresholds_cannot_be_certified():
+    a = market("a", question="Will BTC not be above $100?", yes="ya", no="na")
+    b = market("b", question="Will BTC not be above $200?", yes="yb", no="nb")
+    wrong = Signal("nested_threshold_arb", "ACTIONABLE", "e", "a", "fixture", "fixture",
+                   "https://example.com", .1, .9, 1., ["ya", "nb"])
+    assert _nested_certification(a, b, wrong)[0] is False
+
+
+def test_threshold_parser_year_normalization_does_not_prove_shared_observation():
+    a = market("a", question="Will BTC be above $100 in 2025?", yes="ya", no="na")
+    b = market("b", question="Will BTC be above $200 in 2026?", yes="yb", no="nb")
+    wrong = Signal("nested_threshold_arb", "ACTIONABLE", "e", "a", "fixture", "fixture",
+                   "https://example.com", .1, .9, 1., ["ya", "nb"])
+    valid, reason, _ = _nested_certification(a, b, wrong)
+    assert valid is False and "years" in reason

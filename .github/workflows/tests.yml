@@ -7,12 +7,25 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      matrix:
+        python: ['3.11', '3.12']
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: ${{ matrix.python }}
       - run: pip install -r requirements-dev.txt
-      - run: pytest -q
-      - run: python -m py_compile app.py app_stable.py app_stable_v2.py app_trade_only.py app_trade_only_compact.py command_worker_trade_only.py polymarket_scanner/*.py
-      - run: bash -n deploy/*.sh deploy/oracle/*.sh deploy/gcp/*.sh
+      - run: python -m pytest -q --junitxml=test-results.xml
+      - run: python -m compileall -q app.py app_stable.py app_stable_v2.py app_trade_only.py command_worker.py command_worker_trade_only.py polymarket_scanner deploy tests
+      - run: for script in deploy/*.sh deploy/oracle/*.sh deploy/gcp/*.sh; do bash -n "$script" || exit; done
+      - name: Synthetic production-scale generation handoff
+        run: python tests/validate_shadow_scale.py --output shadow-scale.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: shadow-validation-py${{ matrix.python }}
+          path: |
+            test-results.xml
+            shadow-scale.json

@@ -17,7 +17,6 @@ import time
 
 import app as base
 import app_stable_v2 as stable_v2
-from polymarket_scanner.atomic_delivery import persist_trade_now_intent
 from polymarket_scanner.backpressure import (
     RESEARCH_WATCH_RETENTION,
     SIGNAL_QUEUE_MAX_BATCHES,
@@ -48,8 +47,41 @@ from polymarket_scanner.trade_only import (
     mark_trade_readiness,
     promoted_detectors,
 )
+from polymarket_scanner.universe_reader import UniverseReader
+from polymarket_scanner.universe_snapshot import RUNTIME_MODE, snapshot_directory
+from polymarket_scanner.universe_builder import release_sha
+from polymarket_scanner.shadow_execution import record_shadow_execution
 
 app = stable_v2.app
+
+# Canonical production input. This process never performs a Gamma universe crawl.
+base.universe_source = UniverseReader(snapshot_directory(), producer_sha=release_sha(),
+    priority=stable_v2.stable._market_priority, weather_universe=base._weather_universe)
+base.poly.universe_status = base.universe_source.universe_status
+
+
+async def _forbidden_scanner_crawl():
+    raise RuntimeError("production universe discovery belongs to universe_builder")
+
+
+base.poly.active_markets = _forbidden_scanner_crawl
+
+
+def _accept_snapshot(prepared):
+    base.universe_source.accept(prepared)
+    stable = stable_v2.stable
+    stable._full_tokens = tuple(prepared.tokens)
+    stable._priority_tokens = prepared.priority_tokens
+    stable._price_books = prepared.screening
+    stable._price_snapshot_at = prepared.manifest["first_page_received_at"]
+    stable._price_refresh_error = None
+    base.poly._active_cache = prepared.markets
+    base.state["stream_priority_tokens"] = len(prepared.priority_tokens)
+    base.state["accepted_generation_id"] = prepared.manifest["generation_id"]
+    base.state["runtime_mode"] = RUNTIME_MODE
+
+
+base.accept_snapshot = _accept_snapshot
 
 _original_confirm_actionable = base.confirm_actionable
 _original_save_signal = base.store.save_signal
@@ -74,6 +106,8 @@ _BROAD_PRICE_DEPENDENT = {
 
 
 def _price_discovery_status() -> dict:
+    if base.universe_source is not None:
+        return base.universe_source.screening_status()
     stable = stable_v2.stable
     total = len(stable._full_tokens)
     usable = len(stable._price_books)
@@ -96,6 +130,13 @@ def _price_discovery_status() -> dict:
 
 def _trade_health_snapshot() -> dict:
     snapshot = _original_health_snapshot()
+    snapshot["universe_authority"] = base.poly.universe_status()
+    snapshot["universe_safe_for_detection"] = snapshot["universe_authority"]["safe_for_detection"]
+    snapshot["price_discovery_authority"] = _price_discovery_status()
+    snapshot["operational_readiness"] = (
+        "SCANNING_SILENT_SHADOW" if snapshot["universe_safe_for_detection"]
+        and not snapshot["price_discovery_authority"]["stale"] else "WAITING_OR_DEGRADED_FAIL_CLOSED"
+    )
     snapshot["feed_progress"] = feed_progress_snapshot(
         base.market_stream,
         base.sports_stream,
@@ -139,6 +180,9 @@ def _trade_only_evaluate_signals(*args, **kwargs):
             "Gamma universe is truncated, missing, or beyond the hard stale limit"
         )
         return []
+    if not base.state.get("production_runtime_authority_complete"):
+        base.state["detector_suppression_reason"] = "release/dependency/schema authority unavailable"
+        return []
 
     signals = _original_evaluate_signals(*args, **kwargs)
     if price["stale"]:
@@ -152,6 +196,10 @@ def _trade_only_evaluate_signals(*args, **kwargs):
     else:
         base.state["broad_price_signals_suppressed"] = 0
         base.state["detector_suppression_reason"] = None
+    for signal in signals:
+        signal.metadata["universe_generation_id"] = universe.get("generation_id")
+        signal.metadata["universe_filter_version"] = universe.get("filter_version")
+        signal.metadata["screening_coverage_ratio"] = price["usable_coverage_ratio"]
     return signals
 
 
@@ -161,34 +209,51 @@ async def _trade_only_confirm(signal):
     universe = base.poly.universe_status()
     if not universe.get("safe_for_detection"):
         return None
-    confirmed = await _original_confirm_actionable(signal)
-    if confirmed is None:
+    if signal.metadata.get("universe_generation_id") != universe.get("generation_id"):
+        base.state["candidate_generation_mismatch_total"] = int(base.state.get("candidate_generation_mismatch_total") or 0) + 1
         return None
+    from polymarket_scanner.backpressure import CANDIDATE_MAX_AGE_SECONDS
+    age = time.time() - signal.created_at.timestamp()
+    if not 0 <= age <= CANDIDATE_MAX_AGE_SECONDS:
+        base.state["candidate_expired_total"] = int(base.state.get("candidate_expired_total") or 0) + 1
+        return None
+    await record_shadow_execution(signal, base.poly)
+    confirmed = await _original_confirm_actionable(signal)
+    current_universe = base.poly.universe_status()
+    if not current_universe.get("safe_for_detection"):
+        return None
+    if signal.metadata.get("universe_generation_id") != current_universe.get("generation_id"):
+        base.state["candidate_generation_mismatch_total"] = int(base.state.get("candidate_generation_mismatch_total") or 0) + 1
+        return None
+    if confirmed is None:
+        signal.confidence = "WATCH"
+        signal.metadata["confirmation_rejected"] = True
+        mark_trade_readiness(signal)
+        return signal  # Retain rejected execution observations in silent evidence.
     mark_trade_readiness(confirmed)
     return confirmed
 
 
 def _trade_only_save_signal(signal):
-    """Persist promoted financial intent atomically; keep research storage generic."""
-    if is_trade_ready(signal):
-        return persist_trade_now_intent(base.store, signal, priority=0)
+    """Persist silent evidence; this release cannot create financial intent."""
+    # Separate containment latch: even a mistakenly changed promotion registry
+    # cannot make this silent-shadow release enqueue a financial instruction.
+    signal.metadata["trade_ready"] = False
+    signal.metadata["delivery_permission"] = "SILENT_SHADOW_DISABLED"
     return _original_save_signal(signal)
 
 
 def _trade_only_enqueue(_signal_id, signal):
-    # TRADE NOW signals were already inserted into telegram_outbox in the same
-    # SQLite transaction as their signal row. Never create an intermediate volatile
-    # alert queue hop. Silent research remains stored but is not delivered.
-    return is_trade_ready(signal)
+    # Future financial delivery has a separate tested atomic intent implementation.
+    # Silent research never enters either delivery queue.
+    return False
 
 
 def _bounded_queue_detector_output(signals):
     """Coalesce all pending candidate batches into one bounded latest-state batch.
 
-    Every unique ACTIONABLE episode survives. Repeated observations are replaced by
-    their newest copy, and only WATCH/research rows are capped. This prevents a slow
-    SQLite/network phase from turning a burst of scanner wakes into an unbounded
-    stale-work queue while preserving future financial-candidate availability.
+    Count, bytes and expiry bound all candidate classes. Overflow is explicit
+    censored evidence, never a claim that every opportunity was processed.
     """
     if not signals:
         return
@@ -207,7 +272,10 @@ def _bounded_queue_detector_output(signals):
     batch, stats = coalesce_signal_batches(
         [*pending_batches, signals],
         watch_limit=RESEARCH_WATCH_RETENTION,
+        now=time.time(),
     )
+    base.state["candidate_backpressure"] = stats
+    base.state["candidate_overflow_total"] = int(base.state.get("candidate_overflow_total") or 0) + stats["overflow_dropped"]
     if not batch:
         base.state["signal_batches_pending"] = base.signal_queue.qsize()
         return
@@ -238,15 +306,19 @@ async def _silent_scanner_push(*_args, **_kwargs):
     return None
 
 
+_directional_settlement_cursor = 0
+_structural_settlement_cursor = 0
+
+
 async def _settle_directional_signals() -> None:
-    rows = [
-        row for row in await asyncio.to_thread(base.store.open_directional)
-        if row["detector"] not in {"binary_buy_both", "neg_risk_underround", "nested_threshold_arb"}
-    ]
+    global _directional_settlement_cursor
+    rows, _directional_settlement_cursor = await asyncio.to_thread(
+        base.store.open_directional_page, _directional_settlement_cursor
+    )
     if not rows:
         return
 
-    sem = asyncio.Semaphore(8)
+    sem = asyncio.Semaphore(4)
 
     async def fetch(row: dict):
         async with sem:
@@ -273,7 +345,9 @@ async def _settle_directional_signals() -> None:
 
 async def _settle_structural_manual_fills() -> None:
     """Resolve exact per-leg structural executions only when every token is final."""
-    trades = await asyncio.to_thread(open_structural_trades, base.store)
+    global _structural_settlement_cursor
+    trades = await asyncio.to_thread(open_structural_trades, base.store, _structural_settlement_cursor)
+    _structural_settlement_cursor = int(trades[-1]["id"]) if trades else 0
     if not trades:
         return
 
@@ -355,9 +429,15 @@ async def _mark_trade_only_runtime() -> None:
     db_runtime = await asyncio.to_thread(configure_database_runtime, base.settings.db_path)
     await asyncio.to_thread(ensure_structural_fill_schema, base.store)
     db_schema = await asyncio.to_thread(require_database_schema, base.settings.db_path)
+    from polymarket_scanner.structural_quarantine import quarantine_structural_history
+    base.state["structural_claims_quarantined_now"] = await asyncio.to_thread(quarantine_structural_history, base.settings.db_path)
     quarantined = await asyncio.to_thread(quarantine_pre_v3_sports_history, base.settings.db_path)
     db_health = await asyncio.to_thread(database_health, base.settings.db_path)
     promoted = promoted_detectors()
+    if promoted:
+        raise RuntimeError("silent-shadow release requires exactly zero detector promotions")
+    if base.settings.telegram_commands_in_app:
+        raise RuntimeError("canonical shadow scanner requires external command-worker ownership")
     runtime_manifest = await asyncio.to_thread(
         build_runtime_manifest,
         promoted_detectors=promoted,
@@ -368,12 +448,15 @@ async def _mark_trade_only_runtime() -> None:
         runtime_manifest.get("production_runtime_authority_complete")
         and db_schema.get("compatible") is True
     )
+    if not runtime_manifest["production_runtime_authority_complete"]:
+        raise RuntimeError("canonical shadow runtime requires release, dependency, preflight and schema attestation")
     runtime_manifest["runtime_authority_scope"] = (
         str(runtime_manifest.get("runtime_authority_scope") or "")
         + "; DATABASE_SCHEMA_CONTRACT_REQUIRED_AT_STARTUP"
     )
-    base.state["telegram_delivery_mode"] = "TRADE_NOW_ONLY"
-    base.state["delivery_persistence_mode"] = "ATOMIC_SIGNAL_OUTBOX_V1"
+    base.state["runtime_mode"] = RUNTIME_MODE
+    base.state["telegram_delivery_mode"] = "SILENT_SHADOW_FINANCIAL_DELIVERY_DISABLED"
+    base.state["delivery_persistence_mode"] = "SILENT_EVIDENCE_ONLY_NO_FINANCIAL_INTENT"
     base.state["silent_research_enabled"] = True
     base.state["trade_now_promoted_detectors"] = list(promoted)
     base.state["trade_now_promotion_count"] = len(promoted)
@@ -405,7 +488,7 @@ async def _mark_trade_only_runtime() -> None:
     base.state["price_discovery_authority"] = _price_discovery_status()
     base.state["signal_queue_max_batches"] = SIGNAL_QUEUE_MAX_BATCHES
     base.state["signal_watch_retention"] = RESEARCH_WATCH_RETENTION
-    base.state["signal_backpressure_mode"] = "COALESCE_DUPLICATES_KEEP_ALL_UNIQUE_ACTIONABLE_BOUND_WATCH"
+    base.state["signal_backpressure_mode"] = "COALESCE_WITH_COUNT_BYTE_AGE_BOUNDS_AND_VISIBLE_OVERFLOW"
     base.state["sqlite_runtime"] = db_runtime
     base.state["sqlite_health"] = db_health
 

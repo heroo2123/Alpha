@@ -314,11 +314,11 @@ def record_structural_fills(
     }
 
 
-def open_structural_trades(store) -> list[dict]:
+def open_structural_trades(store, after_id: int = 0) -> list[dict]:
     ensure_structural_fill_schema(store)
     with store._conn() as c:
         trades = [dict(row) for row in c.execute(
-            "SELECT * FROM manual_structural_trades WHERE status='OPEN' ORDER BY id"
+            "SELECT * FROM manual_structural_trades WHERE status='OPEN' AND id>? ORDER BY id LIMIT 64", (after_id,)
         )]
         for trade in trades:
             trade["legs"] = [dict(row) for row in c.execute(

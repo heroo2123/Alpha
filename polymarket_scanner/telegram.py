@@ -256,6 +256,19 @@ class Telegram:
             f"Resolved paper P&amp;L: ${st['pnl']:.2f}",
             "ℹ️ Structural arbitrage quote snapshots are no longer auto-counted as wins. They remain unscored unless a genuine outcome/execution result exists.",
         ]
+        universe = st.get("universe_authority") or {}
+        screening = st.get("price_discovery_authority") or {}
+        if universe.get("refresh_owner") == "separate_universe_builder":
+            age = universe.get("age_seconds")
+            age_text = f"{float(age):.0f}s" if age is not None else "unavailable"
+            build = universe.get("builder") or {}
+            lines.extend([
+                f"Silent shadow: <b>0 promoted detectors; financial delivery disabled</b>",
+                f"Accepted discovery: <b>{'USABLE' if universe.get('safe_for_detection') else 'FAIL CLOSED'}</b> ({age_text} old)",
+                f"Discovered: <b>{int(universe.get('discovered_market_count') or 0):,}</b>; materialized subset: <b>{markets:,}</b>",
+                f"Builder: <b>{html.escape(str(build.get('state') or 'UNKNOWN'))}</b>",
+                f"Gamma screening coverage of subset: <b>{100 * float(screening.get('usable_coverage_ratio') or 0):.1f}%</b>; not executable quotes",
+            ])
         for r in st["by_detector"]:
             lines.append(f"• {html.escape(r['detector'])}: {r['n']} alerts, ${float(r['pnl']):.2f} resolved P&amp;L")
         await self.send("\n".join(lines))

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import subprocess
 from datetime import datetime
@@ -25,7 +26,7 @@ from .weather_contracts import (
     WEATHER_LATE_MODEL_VERSION,
 )
 
-RUNTIME_MANIFEST_VERSION = "runtime_manifest_v7_universe_policy_attestation"
+RUNTIME_MANIFEST_VERSION = "runtime_manifest_v8_immutable_universe_shadow"
 _SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 
 
@@ -150,7 +151,28 @@ def _dependency_preflight_evidence(path: Path, authorized_sha: str | None) -> di
 
 def _nonsecret_policy() -> dict:
     """Return safety-relevant configuration only; never include credentials."""
+    from .universe_snapshot import (SNAPSHOT_VERSION, RUNTIME_MODE, BUILD_INTERVAL_SECONDS,
+        BUILD_DEADLINE_SECONDS, UNIVERSE_MAX_AGE_SECONDS, GAMMA_QUOTE_MAX_AGE_SECONDS,
+        DISCOVERY_CAP, MATERIALIZED_CAP)
+    from .production_universe import PRODUCTION_UNIVERSE_FILTER_VERSION
+    from .hardening import RULE_QUARANTINE_VERSION
+    from .backpressure import CANDIDATE_MAX_COUNT, CANDIDATE_MAX_BYTES, CANDIDATE_MAX_AGE_SECONDS
     return {
+        "runtime_mode": RUNTIME_MODE,
+        "universe_snapshot_version": SNAPSHOT_VERSION,
+        "universe_filter_version": PRODUCTION_UNIVERSE_FILTER_VERSION,
+        "structural_rule_quarantine": RULE_QUARANTINE_VERSION,
+        "builder_interval_seconds": BUILD_INTERVAL_SECONDS,
+        "builder_deadline_seconds": BUILD_DEADLINE_SECONDS,
+        "accepted_generation_max_age_seconds": UNIVERSE_MAX_AGE_SECONDS,
+        "gamma_quote_max_age_seconds": GAMMA_QUOTE_MAX_AGE_SECONDS,
+        "discovered_market_cap": DISCOVERY_CAP,
+        "materialized_market_cap": MATERIALIZED_CAP,
+        "candidate_max_count": CANDIDATE_MAX_COUNT,
+        "candidate_max_bytes": CANDIDATE_MAX_BYTES,
+        "candidate_max_age_seconds": CANDIDATE_MAX_AGE_SECONDS,
+        "financial_delivery_enabled": False,
+        "hot_websocket_token_cap": 800,
         "actionable_min_edge": settings.actionable_min_edge,
         "known_outcome_max_ask": settings.known_outcome_max_ask,
         "max_events": settings.max_events,
@@ -182,7 +204,7 @@ def build_runtime_manifest(
     requirements_file: str | Path | None = None,
 ) -> dict:
     root = Path(app_dir).resolve() if app_dir is not None else Path(__file__).resolve().parents[1]
-    config_dir = Path.home() / ".polymarket-edge-scanner"
+    config_dir = Path(os.environ.get("ALPHA_CONFIG_DIR", str(Path.home() / ".polymarket-edge-scanner"))).expanduser()
     marker = Path(release_file).expanduser() if release_file is not None else config_dir / "release.sha"
     preflight = (
         Path(preflight_file).expanduser()

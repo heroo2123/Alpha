@@ -368,7 +368,10 @@ def _merged_book_snapshot_v2() -> dict[str, Book]:
     for discovery and actionable candidates are still re-fetched with full REST books.
     """
     now = time.time()
-    merged = {token: book.clone() for token, book in stable._price_books.items()}
+    from polymarket_scanner.universe_snapshot import GAMMA_QUOTE_MAX_AGE_SECONDS
+    merged = {token: book.clone() for token, book in stable._price_books.items()
+              if book.source != "gamma_bbo_screening" or (book.received_at is not None
+                  and 0 <= now - book.received_at < GAMMA_QUOTE_MAX_AGE_SECONDS)}
     ws_books = stable._original_stream_snapshot()
     ws_used = 0
     ws_stale_or_older = 0
@@ -379,14 +382,14 @@ def _merged_book_snapshot_v2() -> dict[str, Book]:
             ws_stale_or_older += 1
             continue
         ws_received = float(ws_received)
-        if now - ws_received > WS_BOOK_MAX_STALE_SECONDS:
+        if not 0 <= now - ws_received <= WS_BOOK_MAX_STALE_SECONDS:
             ws_stale_or_older += 1
             continue
         rest_book = merged.get(token)
         rest_received = (
             float(rest_book.received_at)
             if rest_book is not None and rest_book.received_at is not None
-            else float(stable._price_snapshot_at or 0.0)
+            else 0.0
         )
         if rest_received > 0.0 and ws_received < rest_received:
             ws_stale_or_older += 1

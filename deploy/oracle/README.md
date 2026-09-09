@@ -117,3 +117,8 @@ sudo systemctl restart polymarket-edge-scanner
 - The application listens only on `127.0.0.1:8000`; there is no reason to expose port 8000 publicly.
 - Keep the downloaded SSH private key private.
 - The bot does not require a Polymarket wallet private key because it does not place orders.
+# Retired deployment path
+
+These historical instructions are not a supported production migration. The scripts
+in this directory now stop without changing services. Follow
+[the silent-shadow handoff](../../docs/SILENT_SHADOW_HANDOFF.md).
