@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-import json
 from pathlib import Path
 import time
 
@@ -11,8 +10,9 @@ from .production_gamma_bbo import gamma_screening_books
 from .production_universe import PRODUCTION_UNIVERSE_FILTER_VERSION
 from .universe_snapshot import (
     GAMMA_QUOTE_MAX_AGE_SECONDS, UNIVERSE_MAX_AGE_SECONDS, SnapshotError,
-    current_pointer, generation_age, open_generation, read_json,
+    current_pointer, decode_payload, generation_age, open_generation, read_json,
 )
+from .universe_failures import failure_record
 
 
 @dataclass
@@ -35,6 +35,7 @@ class UniverseReader:
         self.accepted_monotonic = 0.0
         self.age_at_acceptance = 0.0
         self.last_error: str | None = None
+        self.last_failure: dict | None = None
         self.builder: dict = {"state": "UNKNOWN"}
 
     def poll(self) -> PreparedUniverse | None:
@@ -51,33 +52,34 @@ class UniverseReader:
             if self.accepted is not None:
                 accepted = self.accepted.manifest
                 if pointer["sequence"] < accepted["sequence"]:
-                    raise SnapshotError("generation rollback rejected")
+                    raise SnapshotError("GENERATION_ROLLBACK")
                 if pointer["sequence"] == accepted["sequence"]:
                     if (pointer["file"] != accepted["generation_id"] + ".sqlite"
                             or pointer["sha256"] != accepted["file_sha256"]):
-                        raise SnapshotError("same sequence with conflicting generation identity")
+                        raise SnapshotError("GENERATION_IDENTITY")
                     return None
             db, manifest = open_generation(self.directory, pointer, producer_sha=self.producer_sha,
                                            filter_version=PRODUCTION_UNIVERSE_FILTER_VERSION)
             manifest["file_sha256"] = pointer["sha256"]
             manifest["published_at"] = pointer.get("published_at")
             try:
-                parents = {key: json.loads(body) for key, body in db.execute("SELECT id,payload FROM events")}
+                parents = {key: decode_payload(body, size, parent=True)
+                           for key, body, size in db.execute("SELECT id,payload,raw_bytes FROM events")}
                 markets = []
                 tokens: set[str] = set()
-                for market_id, event_id, body in db.execute("SELECT id,event_id,payload FROM markets ORDER BY id"):
-                    value = json.loads(body)
+                for market_id, event_id, body, size in db.execute("SELECT id,event_id,payload,raw_bytes FROM markets ORDER BY id"):
+                    value = decode_payload(body, size)
                     if value.get("id") != market_id or value.get("event_id") != event_id or event_id not in parents:
-                        raise SnapshotError("market/parent identity mismatch")
+                        raise SnapshotError("MARKET_IDENTITY")
                     value["raw"]["_event"] = parents[event_id]
                     market = Market(**value)
                     receipt = market.raw.get("_gamma_received_at")
                     if not isinstance(receipt, (int, float)) or not manifest["started_at"] <= receipt <= manifest["finished_at"]:
-                        raise SnapshotError("market quote receipt outside generation interval")
+                        raise SnapshotError("MARKET_OBSERVATION_INTERVAL")
                     if not market.active or market.closed or not market.token_ids or not all(market.token_ids):
-                        raise SnapshotError("invalid materialized market identity/lifecycle")
+                        raise SnapshotError("MARKET_LIFECYCLE")
                     if len(set(market.token_ids)) != len(market.token_ids) or tokens.intersection(market.token_ids):
-                        raise SnapshotError("duplicate token ownership in generation")
+                        raise SnapshotError("TOKEN_OWNERSHIP")
                     tokens.update(market.token_ids)
                     markets.append(market)
                 weather, stations = self.weather_universe(markets)
@@ -96,19 +98,21 @@ class UniverseReader:
             finally:
                 db.close()
             if generation_age(manifest) >= UNIVERSE_MAX_AGE_SECONDS:
-                raise SnapshotError("generation expired while loading")
+                raise SnapshotError("GENERATION_STALE")
             self.last_error = None
+            self.last_failure = None
             return result
         except Exception as exc:
-            self.last_error = f"generation rejected: {type(exc).__name__}"
+            self.last_failure = failure_record(exc)
+            self.last_error = self.last_failure["failure_code"]
             return None
 
     def accept(self, generation: PreparedUniverse) -> None:
         age = generation_age(generation.manifest)
         if age >= UNIVERSE_MAX_AGE_SECONDS:
-            raise SnapshotError("generation expired before acceptance")
+            raise SnapshotError("GENERATION_STALE")
         if self.accepted and generation.manifest["sequence"] <= self.accepted.manifest["sequence"]:
-            raise SnapshotError("nonmonotonic generation acceptance")
+            raise SnapshotError("GENERATION_ROLLBACK")
         self.accepted = generation
         self.age_at_acceptance, self.accepted_monotonic = age, time.monotonic()
 
@@ -126,7 +130,7 @@ class UniverseReader:
             "safe_for_detection": bool(manifest) and age < UNIVERSE_MAX_AGE_SECONDS,
             "age_seconds": age if age != float("inf") else None,
             "hard_stale_seconds": UNIVERSE_MAX_AGE_SECONDS,
-            "last_error": self.last_error, "builder": builder,
+            "last_error": self.last_error, "last_failure": self.last_failure, "builder": builder,
             "refresh_progress": builder if builder.get("state") == "BUILDING" else None,
             "refresh_in_progress": builder.get("state") == "BUILDING" and builder["status_fresh"],
         }

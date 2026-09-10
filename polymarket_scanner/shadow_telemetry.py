@@ -7,7 +7,7 @@ import math
 import threading
 import time
 
-SHADOW_TELEMETRY_VERSION = "shadow_history_v2_generations_coverage_backpressure_60s_14d"
+SHADOW_TELEMETRY_VERSION = "shadow_history_v3_builder_failure_codes_pressure_60s_14d"
 SHADOW_SAMPLE_SECONDS = 60.0
 SHADOW_RETENTION_DAYS = 14
 SHADOW_MAX_ROWS = int(SHADOW_RETENTION_DAYS * 86400 / SHADOW_SAMPLE_SECONDS)
@@ -48,6 +48,8 @@ def _safe_payload(snapshot: dict) -> dict:
     manifest = _mapping(snapshot.get("runtime_manifest"))
     universe = _mapping(snapshot.get("universe_authority"))
     builder = _mapping(universe.get("builder"))
+    from .universe_failures import MESSAGES
+    cgroup = _mapping(builder.get("cgroup"))
 
     return {
         "version": SHADOW_TELEMETRY_VERSION,
@@ -66,6 +68,14 @@ def _safe_payload(snapshot: dict) -> dict:
             "builder_pages": _integer(builder.get("keyset_pages")),
             "builder_rss_bytes": _integer(builder.get("process_rss_bytes")),
             "builder_swap_bytes": _integer(builder.get("process_swap_bytes")),
+            "builder_failure_code": builder.get("failure_code") if builder.get("failure_code") in MESSAGES else None,
+            "builder_file_bytes": _integer(builder.get("generation_file_bytes")),
+            "builder_max_page_bytes": _integer(builder.get("max_page_bytes")),
+            "builder_decoded_payload_bytes": _integer(builder.get("decoded_payload_bytes")),
+            "builder_cpu_seconds": _finite(builder.get("process_cpu_seconds")),
+            "builder_cgroup_memory_bytes": _integer(cgroup.get("memory.current")),
+            "builder_reclaim_high_events": _integer(_mapping(cgroup.get("memory.events")).get("high")),
+            "builder_reclaim_scanned_pages": _integer(_mapping(cgroup.get("memory.stat")).get("pgscan")),
         },
         "resources": {
             "process_rss_bytes": _integer(resources.get("process_rss_bytes")),

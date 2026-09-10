@@ -11,6 +11,11 @@ commit, not whatever a mutable branch happens to contain later.
 
 ## Decision and evidence
 
+Candidate `1971089280f945283bb08b1349554a3599988ee2` failed its live acceptance:
+zero accepted generations, with financial containment intact. This corrected
+release retains the same architecture. Read [the corrective-pass evidence and
+migration delta](BUILDER_CORRECTION.md) before the one replacement acceptance run.
+
 Choose **one independent universe-builder process on the same VM**, immutable
 SQLite generations, and a scanner that keeps its last accepted generation.
 
@@ -51,11 +56,18 @@ Default directory: `~/.polymarket-edge-scanner/universe`. It may be relocated us
   `--once` invocation cannot build concurrently. Process death releases the lock.
 * Each build writes `g-SEQUENCE-UUID.sqlite.building` with a 4 MiB SQLite cache.
   The inventory lives on disk; the builder retains one bounded Gamma page and
-  selected event materialization at a time.
+  selected event materialization at a time. Requests contain 25 events, with one
+  request in flight and a 50 ms minimum spacing (at most 20 requests/second).
+  The previous page is released before requesting another.
 * Tables: `metadata`, `pages`, `inventory`, `events`, `markets`. Market records hold
   all `Market` fields and screening provenance. Original parent membership is
   stored once, including closed/excluded children, and shared on read. Filtering
   children never rewrites evidence about the original parent.
+  Snapshot v2 uses lossless per-record zlib compression, bounded decoded lengths,
+  binary identity hashes and `WITHOUT ROWID` tables. Parent encoding/comparison
+  happens once per event rather than once per selected child. The private,
+  disposable build database has no rollback journal or per-page fsync; accepted
+  publication retains the full durability sequence below.
 * The manifest identifies schema, producer release SHA, selection version,
   generation/sequence IDs, endpoint/query, build start/finish, observation interval,
   page timings, inventory/discovered/materialized counts, and natural exhaustion.
@@ -68,7 +80,8 @@ Default directory: `~/.polymarket-edge-scanner/universe`. It may be relocated us
   transactionally frozen global market set**; Gamma does not promise that here.
 * Discovery cap: 250,000 unique active, nonclosed markets. Materialized cap: 30,000.
   Additional safety ceilings: 1,000,000 total inventory rows, 5,000 pages, 16 MiB
-  decompressed page, 256 KiB materialized record, 256 MiB generation file. Any breach
+  decompressed page, 256 KiB materialized record, 4 MiB complete semantic parent,
+  128 MiB aggregate decoded payload, 256 MiB generation file. Any breach
   fails the build; no truncation is accepted.
 * After ledger/count/integrity validation, the builder closes and fsyncs the file,
   renames it to its immutable name, fsyncs the directory, validates the reader
@@ -113,11 +126,20 @@ still triggers the existing recovery watchdog. A slow/failed builder cannot rest
 the scanner through a service dependency. Restart storms are bounded to three
 starts per ten minutes.
 
-Systemd limits: builder Nice=10, CPUWeight=10, idle I/O, MemoryMax=160 MiB; scanner
+Systemd limits: builder Nice=5, CPUWeight=50, IOWeight=50, best-effort I/O priority 6,
+MemoryHigh=144 MiB, unchanged MemoryMax=160 MiB; scanner
 MemoryMax=480 MiB; command worker MemoryMax=112 MiB; aggregate shadow slice
 MemoryMax=640 MiB. All three prohibit process swap through their cgroups. These
 are containment limits, not a claim that every possible dataset fits. Exceeding
 them is a failed capacity gate, not permission to raise them indefinitely.
+
+Builder status retains closed failure codes, bounded numerical details and cgroup
+reclaim/pressure counters. `builder-failures.json` retains the last 16 failures
+across attempts/restarts, with a lifetime count. HTTP transport logs are disabled;
+no exception bodies, request query strings or remote text are persisted. Producer
+authority is attested once per daemon startup; marker, detached HEAD and tracked
+source signatures are checked before each build and publication without Git
+subprocesses. A changed release cannot publish under the old SHA.
 
 ## Coverage and trading authority
 
@@ -163,7 +185,9 @@ The validation program comprises:
    shadow CLOB preview, integrity/atomicity/cursor/stale/crash-lock regressions,
    original adversarial semantics, and existing fee/delivery/accounting tests.
 2. Python compile checks and syntax checks of **every** shell deployment script.
-3. Separate-process synthetic scale gate: 232 pages, 195,000 inventory markets,
+3. Separate-process synthetic scale gate: 929 pages, 23,200 events, 243,750 inventory
+   rows including 195,000 active markets; roughly 935 MB raw Gamma-shaped JSON,
+   with dense pages over 5.4 MiB, real HTTP/JSON parsing,
    13,500 materialized markets, 27,000 tokens, 800 hot tokens; builder RSS <160 MiB,
    reader RSS <256 MiB, prior-generation reads progress during the build and the
    next complete generation is accepted. Fixture output is not live market evidence.
@@ -179,23 +203,22 @@ resource/refresh gates: stop the scanner and builder, retain evidence, and rewor
 isolation or seek explicit approval for a larger VM. Do not respond by growing timeouts,
 stale limits, market truncation, or process memory beyond host capacity.
 
-## Migration from frozen 43b0690f1daa82da10d9560dacbd1a618ce7f23f
+## Migration from failed candidate 1971089280f945283bb08b1349554a3599988ee2
 
 The next engineer performs these steps in the separately authorized deployment
 session. This document is not an instruction to deploy an unverified branch tip.
 
 1. Record the supplied final candidate SHA and its green CI run. Check all old
-   scanner/command services are stopped; inventory `systemctl cat` and drop-ins.
+   builder/scanner/command services are stopped; inventory `systemctl cat` and drop-ins.
    Preserve `bot.env`, existing database, `release.sha`, preflight evidence and logs.
-2. While still on the frozen checkout, run its verified pre-release SQLite backup.
+2. While still on the prior checkout, run its verified pre-release SQLite backup.
    Confirm `quick_check`, SHA-256 and restore verification. Copy/store that backup
    independently before replacing code. A failed backup stops migration.
 3. Import the reviewed candidate through the existing Git-bundle/Cloud Shell/IAP
    route. Fetch the bundle's `main` into `refs/remotes/origin/main`; verify the exact
    commit and its ancestry. Do not fetch or provision paid networking.
-4. With a clean checkout and the frozen backup secured, check out the exact
-   candidate in detached mode. The new preparation helper did not exist in the
-   frozen release. Run `ALPHA_OFFLINE_BUNDLE=1 bash deploy/prepare-shadow-release.sh
+4. With a clean checkout and the backup secured, check out the exact
+   candidate in detached mode. Run `ALPHA_OFFLINE_BUNDLE=1 bash deploy/prepare-shadow-release.sh
    FINAL_SHA` with the correct `ALPHA_APP_DIR`/`ALPHA_CONFIG_DIR` if nondefault.
    This verifies a backup, pins/records the explicit SHA, installs the exact dependency
    lock, runs release-bound required dependency preflight and checks the existing
@@ -212,9 +235,18 @@ session. This document is not an instruction to deploy an unverified branch tip.
 7. Preserve/verify the existing daily backup timer. Its runner remains compatible;
    if reinstalling, use `deploy/setup-db-backup-service.sh` only in this deployment
    session (that helper deliberately starts a verification backup and timer).
-8. Separately authorize/start the builder, scanner and sole command worker. The
-   scanner may start before a generation exists; it stays responsive and inhibited.
+8. Preserve the failed run's logs/status and disposable v1 generation directory
+   for diagnosis, then give the builder a clean snapshot directory. Never remove
+   the account database. Snapshot v1 cannot be accepted by the v2 reader.
+9. Start the builder only in the separately authorized deployment session. In the
+   prepared release environment run `.venv/bin/python -m
+   polymarket_scanner.universe_ready --timeout 900`. This starts nothing and waits
+   for a release-compatible, complete, fresh generation with >=70% measured Gamma
+   screening coverage. On timeout, stop and preserve evidence; do not start the
+   other two services. On success, start the scanner, then the sole command worker.
    Enable persistent service starts only after the acceptance checklist passes.
+   Subsequent refreshes must complete concurrently with the live scanner; the
+   bootstrap sequence does not excuse refresh contention.
 
 No account schema version change is required. The new universe SQLite files are
 separate and can be regenerated. Structural research-claim quarantine runs once at
@@ -225,7 +257,8 @@ SHA. Do not erase newer real fill records by blindly restoring an older account 
 ## One post-deployment acceptance run: 45 minutes
 
 Use the actual final SHA, exact installed dependencies, actual feeds and existing
-e2-micro. Persist health, builder status, cgroup events and journald through the run.
+e2-micro. Start the 45-minute clock when starting the builder. Persist health,
+builder status/failure history, cgroup events/pressure and journald through the run.
 
 **PASS only if all of the following hold:**
 
@@ -234,13 +267,18 @@ e2-micro. Persist health, builder status, cgroup events and journald through the
   Research produces zero new Telegram outbox rows or financial messages.
 * Initial complete generation is accepted within 900 seconds. At least two later
   complete generations are accepted while scanning continues. Each later build
-  completes within 600 seconds. Accepted and partial counters never mix.
+  completes within 600 seconds including publication (use PUBLISHED status elapsed
+  time; the embedded manifest closes before final fsync/validation). Accepted and
+  partial counters never mix.
 * No ordinary-run discovery hard-stale interval; accepted age stays below 1,200
   seconds during the successful refresh cycles. A simulated stale fixture is tested
   in CI, not created by altering production timestamps or lengthening the policy.
 * Actual RSS remains below the specified per-process limits; combined shadow cgroup
   memory remains <600 MiB, host MemAvailable >=128 MiB, process swap=0, no OOM kill,
-  sustained reclaim thrashing or scanner restart during builder activity/rollover.
+  sustained reclaim thrashing or unexpected restart of any service during builder
+  activity/rollover. Per-process RSS caps remain builder 160, scanner 480, command
+  112 MiB. The aggregate acceptance gate remains stricter than its 640 MiB cgroup
+  emergency limit.
 * Detector compute p95 <=10 seconds, maximum <=20 seconds; no completed-scan gap
   >60 seconds after initial readiness. The scanner remains responsive during builds.
 * Quote coverage is reported explicitly per lane. Overall fresh Gamma ask-side

@@ -17,9 +17,24 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - run: pip install -r requirements-dev.txt
+      - name: Exact dependency lock and consistency
+        run: |
+          python -m pip check
+          python - <<'PY'
+          from importlib.metadata import version
+          from pathlib import Path
+          for file in ('requirements.txt', 'requirements-dev.txt'):
+              for row in Path(file).read_text().splitlines():
+                  if '==' in row and not row.lstrip().startswith('#'):
+                      name, expected = row.strip().split('==')
+                      assert version(name.split('[')[0]) == expected, name
+          print('All runtime and test pins match exactly.')
+          PY
       - run: python -m pytest -q --junitxml=test-results.xml
       - run: python -m compileall -q app.py app_stable.py app_stable_v2.py app_trade_only.py command_worker.py command_worker_trade_only.py polymarket_scanner deploy tests
       - run: for script in deploy/*.sh deploy/oracle/*.sh deploy/gcp/*.sh; do bash -n "$script" || exit; done
+      - name: Verify rendered systemd services without starting them
+        run: python tests/validate_shadow_units.py
       - name: Synthetic production-scale generation handoff
         run: python tests/validate_shadow_scale.py --output shadow-scale.json
       - uses: actions/upload-artifact@v4

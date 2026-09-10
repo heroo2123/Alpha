@@ -53,7 +53,7 @@ WantedBy=multi-user.target
     command = service("Polymarket command worker, financial delivery disabled", f"{python} {app_dir}/command_worker_trade_only.py",
         f"EnvironmentFile={config_dir}/bot.env\nMemoryHigh=80M\nMemoryMax=112M\nCPUWeight=100\n")
     universe = service("Polymarket complete Gamma universe builder", f"{python} -m polymarket_scanner.universe_builder --ipv6",
-        "Nice=10\nCPUWeight=10\nIOWeight=10\nIOSchedulingClass=idle\nMemoryHigh=112M\nMemoryMax=160M\n")
+        "Nice=5\nCPUWeight=50\nIOWeight=50\nIOSchedulingClass=best-effort\nIOSchedulingPriority=6\nMemoryHigh=144M\nMemoryMax=160M\n")
     # The builder never reads bot.env and cannot write the account database.
     universe = universe.replace(f"ReadWritePaths={config_dir}", f"ReadWritePaths={config_dir}/universe")
     return {

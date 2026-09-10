@@ -26,7 +26,7 @@ from .weather_contracts import (
     WEATHER_LATE_MODEL_VERSION,
 )
 
-RUNTIME_MANIFEST_VERSION = "runtime_manifest_v8_immutable_universe_shadow"
+RUNTIME_MANIFEST_VERSION = "runtime_manifest_v9_bounded_builder_correction"
 _SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 
 
@@ -153,7 +153,7 @@ def _nonsecret_policy() -> dict:
     """Return safety-relevant configuration only; never include credentials."""
     from .universe_snapshot import (SNAPSHOT_VERSION, RUNTIME_MODE, BUILD_INTERVAL_SECONDS,
         BUILD_DEADLINE_SECONDS, UNIVERSE_MAX_AGE_SECONDS, GAMMA_QUOTE_MAX_AGE_SECONDS,
-        DISCOVERY_CAP, MATERIALIZED_CAP)
+        DISCOVERY_CAP, MATERIALIZED_CAP, GAMMA_PAGE_SIZE, MAX_FILE_BYTES, MAX_DECODED_BYTES, MAX_PARENT_BYTES)
     from .production_universe import PRODUCTION_UNIVERSE_FILTER_VERSION
     from .hardening import RULE_QUARANTINE_VERSION
     from .backpressure import CANDIDATE_MAX_COUNT, CANDIDATE_MAX_BYTES, CANDIDATE_MAX_AGE_SECONDS
@@ -168,6 +168,18 @@ def _nonsecret_policy() -> dict:
         "gamma_quote_max_age_seconds": GAMMA_QUOTE_MAX_AGE_SECONDS,
         "discovered_market_cap": DISCOVERY_CAP,
         "materialized_market_cap": MATERIALIZED_CAP,
+        "gamma_builder_page_size": GAMMA_PAGE_SIZE,
+        "universe_file_max_bytes": MAX_FILE_BYTES,
+        "universe_decoded_max_bytes": MAX_DECODED_BYTES,
+        "universe_parent_max_bytes": MAX_PARENT_BYTES,
+        "builder_memory_high_mib": 144,
+        "builder_memory_max_mib": 160,
+        "builder_nice": 5,
+        "builder_cpu_weight": 50,
+        "builder_io_weight": 50,
+        "builder_io_class": "best-effort",
+        "builder_io_priority": 6,
+        "builder_diagnostics": "builder_diagnostics_v2_closed_failure_codes",
         "candidate_max_count": CANDIDATE_MAX_COUNT,
         "candidate_max_bytes": CANDIDATE_MAX_BYTES,
         "candidate_max_age_seconds": CANDIDATE_MAX_AGE_SECONDS,

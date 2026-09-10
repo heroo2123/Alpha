@@ -20,7 +20,9 @@ def test_rendered_services_are_separate_bounded_and_attested():
     assert "universe_builder --ipv6" in builder
     assert "bot.env" not in builder
     assert "ReadWritePaths=/srv/alpha-state/universe" in builder
-    assert "Nice=10" in builder and "MemoryMax=160M" in builder
+    assert "Nice=5" in builder and "CPUWeight=50" in builder
+    assert "MemoryHigh=144M" in builder and "MemoryMax=160M" in builder
+    assert "IOSchedulingClass=best-effort" in builder and "IOSchedulingPriority=6" in builder
     assert "app_trade_only:app" in scanner and "--workers 1" in scanner
     assert "command_worker_trade_only.py" in command
     for text in (builder, scanner, command):

@@ -27,6 +27,11 @@ skip conditions and direct links. No detector has earned that permission.
 
 Read [the release architecture, migration and acceptance checklist](docs/SILENT_SHADOW_HANDOFF.md)
 before deployment. It defines the single validation program and hard stop gates.
+The [builder corrective-pass record](docs/BUILDER_CORRECTION.md) documents the
+failed `1971089` acceptance, the reproduced page-size failure, corrected capacity
+evidence, and exact migration delta. Bootstrap the builder first, then use the
+read-only `python -m polymarket_scanner.universe_ready --timeout 900` gate before
+starting the scanner and command worker.
 
 Canonical entrypoints:
 
@@ -49,6 +54,7 @@ python -m pytest -q
 python -m compileall -q app.py app_stable.py app_stable_v2.py app_trade_only.py command_worker.py command_worker_trade_only.py polymarket_scanner deploy tests
 for script in deploy/*.sh deploy/oracle/*.sh deploy/gcp/*.sh; do bash -n "$script" || exit; done
 python tests/validate_shadow_scale.py --output /tmp/alpha-shadow-scale.json
+python tests/validate_shadow_units.py
 ```
 
 Tests are offline and mock external transports. The scale fixture checks
@@ -56,7 +62,7 @@ Tests are offline and mock external transports. The scale fixture checks
 it is not trading evidence or a measurement of final e2-micro live performance.
 GitHub Actions runs this program on Python 3.11 and 3.12.
 
-Frozen VM baseline before this migration:
-`43b0690f1daa82da10d9560dacbd1a618ce7f23f`. Deploy only the explicit candidate SHA
+Failed live acceptance baseline for this corrective migration:
+`1971089280f945283bb08b1349554a3599988ee2` (earlier frozen release: `43b0690`). Deploy only the explicit candidate SHA
 identified in the engineering handoff, after its CI passes. Deployment and any
 future detector promotion require their own separately authorized stages.

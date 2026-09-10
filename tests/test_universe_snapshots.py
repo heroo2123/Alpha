@@ -16,7 +16,7 @@ from polymarket_scanner.production_universe import PRODUCTION_UNIVERSE_FILTER_VE
 from polymarket_scanner.universe_reader import UniverseReader
 from polymarket_scanner.universe_snapshot import (
     SnapshotError, SnapshotWriter, atomic_json, builder_lock, current_pointer,
-    file_hash, generation_age, open_generation,
+    file_hash, generation_age, open_generation, GAMMA_PAGE_SIZE,
 )
 
 SHA = "a" * 40
@@ -214,8 +214,8 @@ def test_generation_retention_is_bounded(tmp_path):
     assert reader(tmp_path).poll() is not None
 
 
-@pytest.mark.parametrize("payload", [[], {}, {"events": None}, {"events": [{}] * 100},
-                                     {"events": [{}] * 100, "next_cursor": None},
+@pytest.mark.parametrize("payload", [[], {}, {"events": None}, {"events": [{}] * GAMMA_PAGE_SIZE},
+                                     {"events": [{}] * GAMMA_PAGE_SIZE, "next_cursor": None},
                                      {"events": [], "next_cursor": "more"},
                                      {"events": [], "next_cursor": 1}, {"events": [], "next_cursor": ""}])
 def test_malformed_keyset_envelopes_never_imply_exhaustion(payload):
@@ -271,7 +271,7 @@ def test_slow_builder_does_not_block_reader_or_change_accepted_state(tmp_path, m
 
     async def run():
         entered, finish = asyncio.Event(), asyncio.Event()
-        async def stalled(client, cursor):
+        async def stalled(client, cursor, **kwargs):
             entered.set()
             await finish.wait()
             return [event(raw_market("new"))], None, time.time(), "b" * 64

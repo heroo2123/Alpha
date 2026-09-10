@@ -6,9 +6,10 @@ to reproduce shared-core e2-micro scheduling or actual internet/feed latency.
 """
 import argparse
 import asyncio
-import hashlib
 import json
 import multiprocessing
+import itertools
+import httpx
 from pathlib import Path
 import resource
 import sys
@@ -19,7 +20,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from polymarket_scanner import universe_builder as builder
 from polymarket_scanner.production_universe import PRODUCTION_UNIVERSE_FILTER_VERSION
 from polymarket_scanner.universe_reader import UniverseReader
-from polymarket_scanner.universe_snapshot import SnapshotWriter, builder_lock
+from polymarket_scanner.universe_snapshot import SnapshotWriter, builder_lock, GAMMA_PAGE_SIZE, MAX_FILE_BYTES
+from gamma_payload_fixture import source_events, EVENTS, INVENTORY, ACTIVE, SELECTED
 
 SHA = "a" * 40
 
@@ -35,26 +37,30 @@ def raw_market(mid, selected=True):
 
 def build_child(directory, result_queue):
     try:
-        page_number = 0
-        market_number = 0
-        async def page(client, cursor):
-            nonlocal page_number, market_number
-            events = []
-            for offset in range(100):
-                event_number = page_number * 100 + offset
-                children = []
-                for _ in range(9 if event_number < 9400 else 8):
-                    children.append(raw_market(market_number, market_number < 13500))
-                    market_number += 1
-                events.append({"id": "e" + str(event_number), "title": "Scale fixture", "markets": children})
+        page_number = total_source_bytes = largest_page = 0
+        events = source_events()
+        def respond(request):
+            nonlocal page_number, total_source_bytes, largest_page
+            assert int(request.url.params["limit"]) == GAMMA_PAGE_SIZE
+            assert request.url.params.get("after_cursor") == (str(page_number) if page_number else None)
+            page = list(itertools.islice(events, GAMMA_PAGE_SIZE))
             page_number += 1
-            payload = json.dumps({"events": events, "next_cursor": str(page_number) if page_number < 232 else None}).encode()
-            decoded = json.loads(payload)
-            await asyncio.sleep(0)
-            return decoded["events"], decoded["next_cursor"], time.time(), hashlib.sha256(payload).hexdigest()
-        builder.fetch_page = page
-        with builder_lock(Path(directory)):
-            manifest = asyncio.run(builder.build_once(Path(directory), None, producer_sha=SHA))
+            payload = {"events": page}
+            if len(page) == GAMMA_PAGE_SIZE:
+                payload["next_cursor"] = str(page_number)
+            body = json.dumps(payload).encode()
+            total_source_bytes += len(body)
+            largest_page = max(largest_page, len(body))
+            return httpx.Response(200, content=body)
+        async def build():
+            # Exercise the REAL bounded HTTP/JSON parser, not a patched fetch_page.
+            async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+                with builder_lock(Path(directory)):
+                    return await builder.build_once(Path(directory), client, producer_sha=SHA)
+        manifest = asyncio.run(build())
+        files = list(Path(directory).glob("g-*.sqlite"))
+        manifest.update(source_raw_total_bytes=total_source_bytes, source_max_page_bytes=largest_page,
+                        snapshot_file_bytes=max(path.stat().st_size for path in files))
         result_queue.put({"manifest": manifest, "peak_rss_bytes": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * 1024})
     except BaseException as exc:
         result_queue.put({"error": type(exc).__name__ + ": " + str(exc)})
@@ -94,10 +100,10 @@ def main():
             reader.screening_status()
             heartbeat += 1
             maximum_tick = max(maximum_tick, time.monotonic() - tick)
-            if time.monotonic() - start > 120:
+            if time.monotonic() - start > 180:
                 process.terminate()
                 process.join(5)
-                raise AssertionError("synthetic builder exceeded 120-second validation budget")
+                raise AssertionError("synthetic builder exceeded 180-second validation budget")
             process.join(.05)
         assert process.exitcode == 0
         result = queue.get(timeout=2)
@@ -106,9 +112,13 @@ def main():
         assert generation is not None
         reader.accept(generation)
         manifest = generation.manifest
-        assert manifest["keyset_pages"] == 232
-        assert manifest["discovered_market_count"] == 195000
-        assert manifest["materialized_market_count"] == 13500
+        assert manifest["keyset_pages"] == EVENTS // GAMMA_PAGE_SIZE + 1
+        assert manifest["inventory_market_count"] == INVENTORY
+        assert result["manifest"]["source_raw_total_bytes"] > 800 * 1024 * 1024
+        assert result["manifest"]["source_max_page_bytes"] > 5.4 * 1024 * 1024
+        assert result["manifest"]["snapshot_file_bytes"] < MAX_FILE_BYTES
+        assert manifest["discovered_market_count"] == ACTIVE
+        assert manifest["materialized_market_count"] == SELECTED
         assert len(generation.tokens) == 27000 and len(generation.priority_tokens) == 800
         assert result["peak_rss_bytes"] < 160 * 1024 * 1024, result
         reader_rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * 1024

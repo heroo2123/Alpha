@@ -315,7 +315,8 @@ class PolymarketClient:
 
         raise UniverseIncompleteError("Gamma keyset retries exhausted without a usable page")
 
-    def _append_events(self, out: list[Market], events: list[dict], seen_market_ids: set[str] | None = None) -> None:
+    def _append_events(self, out: list[Market], events: list[dict], seen_market_ids: set[str] | None = None,
+                       *, original_parent: dict | None = None) -> None:
         seen = seen_market_ids if seen_market_ids is not None else set()
         for event in events:
             event_id = str(event.get("id", ""))
@@ -323,7 +324,7 @@ class PolymarketClient:
             event_title = event.get("title") or ""
             event_neg_risk = bool(event.get("negRisk") or event.get("enableNegRisk"))
             tags = [str(t.get("slug") or t.get("label") or "") for t in (event.get("tags") or []) if isinstance(t, dict)]
-            compact_event = _compact_event_payload(event)
+            compact_event = original_parent if original_parent is not None else _compact_event_payload(event)
             for raw_market in event.get("markets") or []:
                 if not isinstance(raw_market, dict):
                     continue
