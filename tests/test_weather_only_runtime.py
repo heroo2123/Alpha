@@ -236,7 +236,6 @@ def test_runtime_applies_dynamic_fee_exponent_and_removes_false_raw_underround()
     )
     report = asyncio.run(_cycle(FakeDiscovery(_snapshot(event)), clob))
 
-    # Raw ask sum is 0.99, but current V2 weather fees push the complete set above $1.
     assert report["prescreen"]["threshold_match_events"] == 1
     assert report["cycle_ok"] is True
     assert report["opportunity_count"] == 0
@@ -245,24 +244,10 @@ def test_runtime_applies_dynamic_fee_exponent_and_removes_false_raw_underround()
 
 def test_runtime_quarantines_positive_fee_if_taker_only_semantics_change():
     event = _nws_event()
-    snapshot = _execution_snapshot(event, 0.20, 0.05, fee_exponent=1)
-    parameters = {
-        condition: WeatherMarketParameters(
-            **{**params.__dict__, "taker_only": False}
-        )
-        for condition, params in snapshot.parameters.items()
-    }
-    snapshot = WeatherExecutionSnapshot(
-        version=snapshot.version,
-        event_id=snapshot.event_id,
-        books=snapshot.books,
-        parameters=parameters,
-        started_at=snapshot.started_at,
-        finished_at=snapshot.finished_at,
-        exact_clob=True,
-        financial_authority=False,
+    clob = FakeCLOB(
+        event,
+        exact_sequence=[_execution_snapshot(event, 0.20, 0.05, fee_exponent=1, taker_only=False)],
     )
-    clob = FakeCLOB(event, exact_sequence=[snapshot])
     report = asyncio.run(_cycle(FakeDiscovery(_snapshot(event)), clob))
 
     assert report["opportunity_count"] == 0
