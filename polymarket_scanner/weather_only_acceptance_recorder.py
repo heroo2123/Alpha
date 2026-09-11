@@ -77,7 +77,7 @@ from .weather_only_incremental import (
 from .weather_only_result_lag import evaluate_wrh_official_result_lag_for_w7
 from .weather_only_rules import apply_rule_authority, compile_temperature_rule_authority
 from .weather_only_runtime import WEATHER_SHADOW_RUNTIME_VERSION
-from .weather_only_wrh import WRHSourceSnapshot
+from .weather_only_wrh import WRHSourceError, WRHSourceSnapshot
 from .weather_only_wrh_client import NWSWRHLiveClient
 
 
@@ -85,8 +85,16 @@ WEATHER_W7_RECORDER_VERSION = "weather_w7_recorder_v1_attach_only_30s_exact_clob
 SAMPLE_INTERVAL_SECONDS = 30.0
 SAMPLE_COUNT = 91
 SOURCE_POLL_EVERY_SAMPLES = 2
+SOURCE_POLL_MAX_ATTEMPTS = 3
+SOURCE_POLL_RETRY_DELAY_SECONDS = 0.25
 MAX_RUNTIME_REPORT_AGE_SECONDS = 90.0
 MAX_RUNTIME_REPORT_BYTES = 2 * 1024 * 1024
+_RETRYABLE_WRH_SOURCE_CODES = frozenset({
+    "WRH_LIVE_SHELL_HTTP_ERROR",
+    "WRH_LIVE_VIEWER_HTTP_ERROR",
+    "WRH_LIVE_API_KEY_HTTP_ERROR",
+    "WRH_LIVE_BACKEND_HTTP_ERROR",
+})
 _SHA40_RE = re.compile(r"^[0-9a-f]{40}$")
 
 
@@ -351,6 +359,7 @@ class WeatherW7RecorderSession:
         self.samples: list[WeatherW7Sample] = []
         self.incremental_measurements: list[WeatherIncrementalLatencyMeasurement] = []
         self.source_measurements: list[WeatherW7SourceUpdateLatencyMeasurement] = []
+        self.source_poll_failure_codes: list[str] = []
         self.previous_wrh_snapshot: WRHSourceSnapshot | None = None
         self._sample_index = 0
 
@@ -358,25 +367,43 @@ class WeatherW7RecorderSession:
         if self._owns_clob:
             await self.clob.close()
 
-    async def _poll_source_update(self) -> WeatherW7SourceUpdateLatencyMeasurement | None:
-        result = await asyncio.to_thread(
-            self.wrh.fetch_snapshot,
-            station=str(self.compiled.station_hint),
-            target_date=self.compiled.target_date,
-        )
+    async def _fetch_source_snapshot(self):
+        for attempt in range(SOURCE_POLL_MAX_ATTEMPTS):
+            try:
+                result = await asyncio.to_thread(
+                    self.wrh.fetch_snapshot,
+                    station=str(self.compiled.station_hint),
+                    target_date=self.compiled.target_date,
+                )
+                return result, True
+            except WRHSourceError as exc:
+                retryable = exc.code in _RETRYABLE_WRH_SOURCE_CODES
+                if retryable and attempt + 1 < SOURCE_POLL_MAX_ATTEMPTS:
+                    await asyncio.sleep(SOURCE_POLL_RETRY_DELAY_SECONDS * (attempt + 1))
+                    continue
+                self.source_poll_failure_codes.append(exc.code)
+                return None, False
+        raise WeatherW7RecorderError("W7_RECORDER_SOURCE_RETRY_STATE_INVALID")
+
+    async def _poll_source_update(self) -> tuple[WeatherW7SourceUpdateLatencyMeasurement | None, bool]:
+        result, source_poll_ok = await self._fetch_source_snapshot()
+        if not source_poll_ok:
+            return None, False
+        if result is None:
+            raise WeatherW7RecorderError("W7_RECORDER_SOURCE_RESULT_INVALID")
         current = result.snapshot
         previous = self.previous_wrh_snapshot
         self.previous_wrh_snapshot = current
         if previous is None:
-            return None
+            return None, True
         try:
             trigger = build_wrh_source_update_trigger(previous, current, compiled=self.compiled)
         except WeatherW7SourceLatencyError as exc:
             if exc.code in {"W7_SOURCE_PAYLOAD_UNCHANGED", "W7_SOURCE_UPDATE_NOT_EVENT_RELEVANT"}:
-                return None
+                return None, True
             raise WeatherW7RecorderError(f"W7_RECORDER_SOURCE_TRIGGER_INVALID:{exc.code}") from exc
         if trigger.change_kind != CHANGE_FINALITY_TRANSITION:
-            return None
+            return None, True
 
         async def evaluator(bound_trigger):
             return await evaluate_wrh_official_result_lag_for_w7(
@@ -388,10 +415,10 @@ class WeatherW7RecorderSession:
             )
 
         try:
-            return await measure_w7_source_update_confirmation(trigger, evaluator)
+            return await measure_w7_source_update_confirmation(trigger, evaluator), True
         except WeatherW7SourceLatencyError as exc:
             if exc.code == "W7_SOURCE_CANDIDATE_NOT_CONFIRMED":
-                return None
+                return None, True
             raise WeatherW7RecorderError(f"W7_RECORDER_SOURCE_MEASUREMENT_INVALID:{exc.code}") from exc
 
     async def record_sample(self, *, poll_source: bool | None = None) -> WeatherW7Sample:
@@ -404,7 +431,10 @@ class WeatherW7RecorderSession:
             self.event,
             clob=self.clob,
         )
-        source = await self._poll_source_update() if should_poll else None
+        source = None
+        source_poll_ok = True
+        if should_poll:
+            source, source_poll_ok = await self._poll_source_update()
 
         current_process = read_linux_process_identity(
             self.scanner_process_id,
@@ -419,7 +449,7 @@ class WeatherW7RecorderSession:
             self.runtime_report_path,
             observed_at=observed_at,
         )
-        cycle_ok = runtime.cycle_ok and _same_process(self.before_process, current_process)
+        cycle_ok = runtime.cycle_ok and _same_process(self.before_process, current_process) and source_poll_ok
         sample = WeatherW7Sample(
             observed_at=observed_at,
             cycle_ok=cycle_ok,
