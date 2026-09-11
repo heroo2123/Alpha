@@ -29,6 +29,7 @@ def _head() -> str:
 
 
 def _marker(tmp_path: Path, value: str) -> Path:
+    tmp_path.mkdir(parents=True, exist_ok=True)
     path = tmp_path / "release.sha"
     path.write_text(value + "\n", encoding="ascii")
     return path
@@ -93,14 +94,15 @@ def test_marker_expected_runtime_digest_and_entrypoint_tamper_fail_closed(tmp_pa
         validate_weather_w7_release_attestation(replace(row, runtime_source_sha256="c" * 64))
     assert tamper.value.code == "W7_RELEASE_EVIDENCE_DIGEST_MISMATCH"
 
+    bad_root = tmp_path / "bad"
     bad_proc = _proc(
-        tmp_path / "bad",
+        bad_root,
         cmdline=b"/srv/Alpha/.venv/bin/python\0-m\0polymarket_scanner.universe_builder\0--loop\0",
     )
     with pytest.raises(WeatherW7ReleaseError) as entrypoint:
         attest_weather_w7_release(
             app_dir=_repo(),
-            release_file=_marker(tmp_path / "bad", head),
+            release_file=_marker(bad_root, head),
             scanner_process_id=123,
             expected_release_sha=head,
             proc_root=bad_proc,
