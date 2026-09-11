@@ -203,7 +203,9 @@ def test_runtime_records_only_after_second_exact_recheck_and_never_grants_financ
     assert report["automatic_order_placement"] is False
     assert report["gamma_execution_authority"] is False
     assert report["market_specific_fee_schedule_required"] is True
+    assert report["v2_fd_fee_authority_required"] is True
     assert report["fee_exponent_required_for_positive_rate"] is True
+    assert report["builder_fee_authority"] is False
     assert report["opportunity_count"] == 1
     assert report["opportunities"][0]["rechecked"] is True
     assert report["opportunities"][0]["financial_authority"] is False
@@ -240,6 +242,26 @@ def test_runtime_applies_dynamic_fee_exponent_and_removes_false_raw_underround()
     assert report["cycle_ok"] is True
     assert report["opportunity_count"] == 0
     assert clob.exact_calls == 1
+
+
+def test_runtime_uses_fd_schedule_even_when_legacy_tbf_metadata_is_nonzero():
+    event = _nws_event()
+    clob = FakeCLOB(
+        event,
+        exact_sequence=[
+            _execution_snapshot(event, 0.20, 0.05, fee_exponent=1, taker_base_fee_bps=1000),
+            _execution_snapshot(event, 0.20, 0.05, fee_exponent=1, taker_base_fee_bps=1000),
+        ],
+    )
+    report = asyncio.run(_cycle(FakeDiscovery(_snapshot(event)), clob))
+
+    assert report["cycle_ok"] is True
+    assert report["opportunity_count"] == 1
+    opportunity = report["opportunities"][0]
+    assert opportunity["fee_rates"] == [0.05, 0.05, 0.05]
+    assert opportunity["fee_exponents"] == [1, 1, 1]
+    assert opportunity["rechecked"] is True
+    assert clob.exact_calls == 2
 
 
 def test_runtime_quarantines_positive_fee_if_taker_only_semantics_change():
