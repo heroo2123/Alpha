@@ -11,10 +11,11 @@ or grant calibrated-probability/financial authority.
 
 import argparse
 import json
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from .weather_calibration_experiment import (
+    WeatherCalibrationExperimentError,
     build_weather_calibration_experiment_manifest,
     validate_weather_calibration_experiment_manifest,
 )
@@ -30,7 +31,7 @@ from .weather_only_calibration_dataset import (
 )
 
 
-WEATHER_CALIBRATION_READINESS_VERSION = "weather_calibration_readiness_v1_strict_dataset_frozen_policy"
+WEATHER_CALIBRATION_READINESS_VERSION = "weather_calibration_readiness_v2_strict_dataset_frozen_policy"
 
 
 class WeatherCalibrationReadinessError(RuntimeError):
@@ -82,8 +83,7 @@ def assess_dataset_readiness(
         manifest = validate_weather_calibration_experiment_manifest(
             build_weather_calibration_experiment_manifest()
         )
-    except (ValueError, Exception) as exc:
-        # Preserve a compact fail-closed code at this outer diagnostic boundary.
+    except (ValueError, WeatherCalibrationExperimentError) as exc:
         code = getattr(exc, "code", type(exc).__name__)
         raise WeatherCalibrationReadinessError(f"READINESS_EXPERIMENT_OR_POLICY:{code}") from exc
 
