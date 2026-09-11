@@ -2,21 +2,25 @@ from __future__ import annotations
 
 """Immutable identity manifest for the prospective weather calibration experiment.
 
-This manifest binds the collection/model/source lineage that must remain fixed while
-prospective labels accumulate. It deliberately does *not* invent a statistical
-calibration policy: probability bins and readiness thresholds remain explicitly
-UNFROZEN and therefore cannot grant calibrated-probability or financial authority.
+The manifest binds collection/model/source lineage plus the outcome-blind statistical
+policy frozen before production collection. A frozen policy is not a successful
+calibration result: calibrated-probability and financial authority remain false until
+genuine prospective labels independently pass the preregistered gates.
 
-The manifest is useful for service preflight, status evidence and later policy
-preregistration. Any drift in the collection horizon, GEFS adapter, mapping/selection
-policy, prediction model family, WRH finality policy or strict dataset reader changes
-the manifest digest and requires a new experiment identity.
+Any drift in horizon, GEFS adapter, mapping/selection policy, prediction family, WRH
+finality, strict reader or statistical policy changes the manifest digest and requires
+a new experiment identity rather than retrospective reinterpretation.
 """
 
 import hashlib
 import json
 from dataclasses import dataclass, field
 
+from .weather_calibration_policy import (
+    WEATHER_GEFS_CALIBRATION_POLICY_VERSION,
+    frozen_weather_calibration_policy,
+    require_frozen_weather_calibration_policy,
+)
 from .weather_only_calibration import CALIBRATION_ENGINE_VERSION
 from .weather_only_calibration_capture import (
     PROSPECTIVE_CALIBRATION_CAPTURE_VERSION,
@@ -59,8 +63,8 @@ from .weather_only_predictions import (
 from .weather_only_wrh_collector_authority import TRUSTED_WRH_COLLECTOR_AUTHORITY_VERSION
 
 
-WEATHER_CALIBRATION_EXPERIMENT_VERSION = "weather_calibration_experiment_v1_collection_identity_policy_unfrozen"
-STATISTICAL_POLICY_STATUS = "UNFROZEN_NO_CALIBRATED_PROBABILITY_AUTHORITY"
+WEATHER_CALIBRATION_EXPERIMENT_VERSION = "weather_calibration_experiment_v2_collection_plus_frozen_policy"
+STATISTICAL_POLICY_STATUS = "FROZEN_OUTCOME_BLIND_AWAITING_PROSPECTIVE_RESULTS"
 
 
 class WeatherCalibrationExperimentError(RuntimeError):
@@ -121,7 +125,9 @@ class WeatherCalibrationExperimentManifest:
     calibration_dataset_version: str
     calibration_engine_version: str
     statistical_policy_status: str
-    statistical_policy_id: str | None
+    statistical_policy_version: str
+    statistical_policy_id: str
+    statistical_policy_sha256: str
     manifest_sha256: str
     prospective_collection_authority: bool = field(init=False, default=True)
     calibrated_probability_authority: bool = field(init=False, default=False)
@@ -130,10 +136,7 @@ class WeatherCalibrationExperimentManifest:
     automatic_order_placement: bool = field(init=False, default=False)
 
     def as_dict(self) -> dict:
-        return {
-            name: getattr(self, name)
-            for name in self.__dataclass_fields__
-        }
+        return {name: getattr(self, name) for name in self.__dataclass_fields__}
 
 
 def _digest_payload(manifest: WeatherCalibrationExperimentManifest) -> dict:
@@ -144,6 +147,10 @@ def _digest_payload(manifest: WeatherCalibrationExperimentManifest) -> dict:
 
 def build_weather_calibration_experiment_manifest() -> WeatherCalibrationExperimentManifest:
     _assert_internal_policy_consistency()
+    try:
+        statistical = require_frozen_weather_calibration_policy(frozen_weather_calibration_policy())
+    except ValueError as exc:
+        raise WeatherCalibrationExperimentError("EXPERIMENT_STATISTICAL_POLICY_INVALID") from exc
     shell = WeatherCalibrationExperimentManifest(
         manifest_version=WEATHER_CALIBRATION_EXPERIMENT_VERSION,
         worker_version=WEATHER_CALIBRATION_WORKER_VERSION,
@@ -176,7 +183,9 @@ def build_weather_calibration_experiment_manifest() -> WeatherCalibrationExperim
         calibration_dataset_version=WEATHER_CALIBRATION_DATASET_VERSION,
         calibration_engine_version=CALIBRATION_ENGINE_VERSION,
         statistical_policy_status=STATISTICAL_POLICY_STATUS,
-        statistical_policy_id=None,
+        statistical_policy_version=WEATHER_GEFS_CALIBRATION_POLICY_VERSION,
+        statistical_policy_id=statistical.policy.policy_id,
+        statistical_policy_sha256=statistical.policy_sha256,
         manifest_sha256="0" * 64,
     )
     return WeatherCalibrationExperimentManifest(
@@ -205,6 +214,10 @@ def validate_weather_calibration_experiment_manifest(
         or manifest.automatic_order_placement is not False
     ):
         raise WeatherCalibrationExperimentError("EXPERIMENT_AUTHORITY_BOUNDARY_BROKEN")
-    if manifest.statistical_policy_id is not None or manifest.statistical_policy_status != STATISTICAL_POLICY_STATUS:
-        raise WeatherCalibrationExperimentError("EXPERIMENT_STATISTICAL_POLICY_UNEXPECTEDLY_FROZEN")
+    if (
+        not manifest.statistical_policy_id
+        or not manifest.statistical_policy_sha256
+        or manifest.statistical_policy_status != STATISTICAL_POLICY_STATUS
+    ):
+        raise WeatherCalibrationExperimentError("EXPERIMENT_STATISTICAL_POLICY_NOT_FROZEN")
     return manifest
