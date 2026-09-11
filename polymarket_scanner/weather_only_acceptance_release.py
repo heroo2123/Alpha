@@ -2,19 +2,10 @@ from __future__ import annotations
 
 """Exact release provenance for weather W7 silent-shadow acceptance.
 
-The W7 bundle already proves runtime behavior, containment and measured latency. This
-module proves that the attached scanner actually ran from the immutable release it
-claims. It performs local read-only checks only:
-
-* release marker is a regular non-symlink 40-hex SHA;
-* Git HEAD equals that marker and the expected candidate SHA;
-* tracked working tree is clean (untracked files are intentionally ignored, matching
-  deploy/verify-runtime-release.sh);
-* the imported weather runtime module is the exact file under that checkout;
-* /proc/<scanner-pid>/cwd resolves to that checkout.
-
-The recorder captures this before and after the frozen run. No service control,
-network access, database mutation, Telegram action or order path exists here.
+Local read-only checks prove the attached scanner actually ran from the immutable
+release it claims: release marker, Git HEAD/clean tracked tree, imported runtime source,
+scanner cwd and scanner command line are all bound before and after the frozen run.
+No service control, network access, DB mutation, Telegram action or order path exists.
 """
 
 import hashlib
@@ -30,9 +21,10 @@ from pathlib import Path
 from . import weather_only_runtime as runtime_module
 
 
-WEATHER_W7_RELEASE_VERSION = "weather_w7_release_v1_git_head_clean_marker_runtime_cwd_before_after"
+WEATHER_W7_RELEASE_VERSION = "weather_w7_release_v2_git_marker_runtime_cwd_cmdline_before_after"
 _SHA40_RE = re.compile(r"^[0-9a-f]{40}$")
 _SHA64_RE = re.compile(r"^[0-9a-f]{64}$")
+_REQUIRED_SCANNER_MODULE = "polymarket_scanner.weather_only_runtime"
 
 
 class WeatherW7ReleaseError(RuntimeError):
@@ -97,6 +89,24 @@ def _git(app_dir: Path, *args: str) -> str:
     return completed.stdout
 
 
+def _validate_scanner_cmdline(raw: bytes) -> str:
+    if not isinstance(raw, bytes) or not raw:
+        raise WeatherW7ReleaseError("W7_RELEASE_SCANNER_CMDLINE_INVALID")
+    try:
+        parts = tuple(value.decode("utf-8") for value in raw.split(b"\0") if value)
+    except UnicodeError:
+        raise WeatherW7ReleaseError("W7_RELEASE_SCANNER_CMDLINE_INVALID") from None
+    if not parts or "-m" not in parts or "--loop" not in parts:
+        raise WeatherW7ReleaseError("W7_RELEASE_SCANNER_ENTRYPOINT_INVALID")
+    module_indexes = [index for index, value in enumerate(parts[:-1]) if value == "-m"]
+    if len(module_indexes) != 1 or parts[module_indexes[0] + 1] != _REQUIRED_SCANNER_MODULE:
+        raise WeatherW7ReleaseError("W7_RELEASE_SCANNER_ENTRYPOINT_INVALID")
+    forbidden = {"app_trade_only:app", "command_worker_trade_only.py", "polymarket_scanner.universe_builder"}
+    if any(value in forbidden for value in parts):
+        raise WeatherW7ReleaseError("W7_RELEASE_SCANNER_ENTRYPOINT_INVALID")
+    return hashlib.sha256(raw).hexdigest()
+
+
 @dataclass(frozen=True, slots=True)
 class WeatherW7ReleaseAttestation:
     version: str
@@ -106,12 +116,14 @@ class WeatherW7ReleaseAttestation:
     release_marker_sha256: str
     app_dir_sha256: str
     scanner_cwd_sha256: str
+    scanner_cmdline_sha256: str
     runtime_source_sha256: str
     scanner_process_id: int
     evidence_sha256: str
     tracked_tree_clean: bool = field(init=False, default=True)
     runtime_under_release_checkout: bool = field(init=False, default=True)
     scanner_cwd_matches_release_checkout: bool = field(init=False, default=True)
+    scanner_entrypoint_verified: bool = field(init=False, default=True)
     financial_authority: bool = field(init=False, default=False)
     financial_delivery: bool = field(init=False, default=False)
     automatic_order_placement: bool = field(init=False, default=False)
@@ -139,6 +151,7 @@ def validate_weather_w7_release_attestation(row: object) -> WeatherW7ReleaseAtte
         row.release_marker_sha256,
         row.app_dir_sha256,
         row.scanner_cwd_sha256,
+        row.scanner_cmdline_sha256,
         row.runtime_source_sha256,
     ):
         _sha64(value, "W7_RELEASE_COMPONENT_SHA_INVALID")
@@ -148,6 +161,7 @@ def validate_weather_w7_release_attestation(row: object) -> WeatherW7ReleaseAtte
         row.tracked_tree_clean is not True,
         row.runtime_under_release_checkout is not True,
         row.scanner_cwd_matches_release_checkout is not True,
+        row.scanner_entrypoint_verified is not True,
         row.financial_authority is not False,
         row.financial_delivery is not False,
         row.automatic_order_placement is not False,
@@ -206,10 +220,12 @@ def attest_weather_w7_release(
     root = Path(proc_root)
     try:
         scanner_cwd = (root / str(pid) / "cwd").resolve(strict=True)
+        scanner_cmdline = (root / str(pid) / "cmdline").read_bytes()
     except OSError:
-        raise WeatherW7ReleaseError("W7_RELEASE_SCANNER_CWD_READ_FAILED") from None
+        raise WeatherW7ReleaseError("W7_RELEASE_SCANNER_PROCESS_READ_FAILED") from None
     if scanner_cwd != app_resolved:
         raise WeatherW7ReleaseError("W7_RELEASE_SCANNER_CWD_MISMATCH")
+    cmdline_sha = _validate_scanner_cmdline(scanner_cmdline)
 
     captured = time.time() if captured_at is None else _finite(captured_at, "W7_RELEASE_CAPTURE_TIME_INVALID")
     app_sha = hashlib.sha256(str(app_resolved).encode("utf-8")).hexdigest()
@@ -221,6 +237,7 @@ def attest_weather_w7_release(
         release_marker_sha256=hashlib.sha256(marker_bytes).hexdigest(),
         app_dir_sha256=app_sha,
         scanner_cwd_sha256=hashlib.sha256(str(scanner_cwd).encode("utf-8")).hexdigest(),
+        scanner_cmdline_sha256=cmdline_sha,
         runtime_source_sha256=runtime_source_sha,
         scanner_process_id=pid,
         evidence_sha256="0" * 64,
@@ -277,6 +294,7 @@ def validate_weather_w7_release_manifest(row: object) -> WeatherW7ReleaseManifes
         before.release_marker_sha256,
         before.app_dir_sha256,
         before.scanner_cwd_sha256,
+        before.scanner_cmdline_sha256,
         before.runtime_source_sha256,
         before.scanner_process_id,
     )
@@ -286,6 +304,7 @@ def validate_weather_w7_release_manifest(row: object) -> WeatherW7ReleaseManifes
         after.release_marker_sha256,
         after.app_dir_sha256,
         after.scanner_cwd_sha256,
+        after.scanner_cmdline_sha256,
         after.runtime_source_sha256,
         after.scanner_process_id,
     )
