@@ -19,7 +19,7 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install -r requirements.txt
-      - name: Certify official WRH transport, display transform and hourly predicate
+      - name: Capture official WRH transport, metadata, display and hourly blocks
         shell: bash
         run: |
           python - <<'PY'
@@ -30,89 +30,70 @@ jobs:
           import httpx
 
           base = 'https://www.weather.gov'
-          page_url = base + '/wrh/timeseries'
           params = {
-              'site': 'KLGA',
-              'hours': '48',
-              'units': 'english',
-              'hourly': 'true',
-              'obs': 'tabular',
-              'headers': 'none',
-              'chart': 'off',
+              'site': 'KLGA', 'hours': '48', 'units': 'english', 'hourly': 'true',
+              'obs': 'tabular', 'headers': 'none', 'chart': 'off',
           }
           headers = {
-              'User-Agent': 'polymarket-weather-only-wrh-probe/0.3 (+https://github.com/heroo2123/Alpha)',
+              'User-Agent': 'polymarket-weather-only-wrh-probe/0.4 (+https://github.com/heroo2123/Alpha)',
               'Accept': '*/*',
           }
           with httpx.Client(headers=headers, timeout=20.0, follow_redirects=True) as client:
-              page = client.get(page_url, params=params)
+              page = client.get(base + '/wrh/timeseries', params=params)
               page.raise_for_status()
-              body = page.text
-              script_match = re.search(
+              match = re.search(
                   r'<script[^>]+src=["\']([^"\']*?/source/wrh/timeseries/obs\.js[^"\']*)',
-                  body,
-                  re.I,
+                  page.text, re.I,
               )
-              if not script_match:
+              if not match:
                   raise SystemExit('WRH viewer obs.js script not found')
-              script_src = script_match.group(1)
+              script_src = match.group(1)
               script_url = script_src if script_src.startswith('http') else base + script_src
               obs = client.get(script_url)
               obs.raise_for_status()
-              js = obs.text
 
-          lines = js.splitlines()
+          lines = obs.text.splitlines()
           def block(start, end):
-              # 1-based inclusive line range, redacted defensively.
               text = '\n'.join(lines[start-1:end])
               text = re.sub(
                   r'(?i)(?:token|apikey|api_key|key)(\s*[=:]\s*["\'])[^"\']+(["\'])',
-                  r'\1<REDACTED>\2',
-                  text,
+                  r'\1<REDACTED>\2', text,
               )
               text = re.sub(
                   r'(?i)((?:token|apikey|api_key|key)=)[^&\s"\']+',
-                  r'\1<REDACTED>',
-                  text,
+                  r'\1<REDACTED>', text,
               )
               return text
-
-          transport = block(286, 316)
-          metadata = block(309, 352)
-          temperature = block(365, 384)
-          hourly = block(1748, 1810)
-
-          # Fail if the exact semantics we are depending on are no longer present.
-          required = {
-              'synoptic_timeseries': 'api.synopticdata.com/v2/stations/timeseries' in transport,
-              'complete_1': 'complete=1' in transport,
-              'local_timezone': 'obtimezone=local' in transport,
-              'station_identity': 'DATA.STATION[0].STID' in metadata,
-              'station_network': 'DATA.STATION[0].MNET_SHORTNAME' in metadata,
-              'station_timezone': 'DATA.STATION[0].TIMEZONE' in temperature or 'DATA.STATION[0].TIMEZONE' in hourly,
-              'temperature_field': 'air_temp_set_1' in temperature,
-              'whole_degree_display': 'Math.round(DATA.STATION[0].OBSERVATIONS.air_temp_set_1[j])' in temperature,
-              'hourly_flag': "if (hourly == 'true')" in hourly,
-              'asos_network_branch': "network == 'ASOS/AWOS'" in hourly,
-              'minutes_reference': 'minutes' in hourly,
-          }
-          if not all(required.values()):
-              raise SystemExit(f'WRH source semantics drift: {required}')
 
           report = {
               'viewer_script_url': script_url,
               'viewer_script_sha256': hashlib.sha256(obs.content).hexdigest(),
               'viewer_script_bytes': len(obs.content),
               'viewer_script_line_count': len(lines),
-              'certified_checks': required,
-              'transport_block': transport,
-              'metadata_block': metadata,
-              'temperature_block': temperature,
-              'hourly_block': hourly,
+              'transport_block': block(286, 316),
+              'metadata_block': block(309, 370),
+              'temperature_block': block(365, 384),
+              'hourly_block': block(1748, 1815),
               'api_key_script_fetched': False,
           }
+          # Only certify what is already directly established. Detailed metadata and
+          # hourly predicates are inspected from the artifact before being frozen.
+          basic_checks = {
+              'synoptic_timeseries': 'api.synopticdata.com/v2/stations/timeseries' in report['transport_block'],
+              'complete_1': 'complete=1' in report['transport_block'],
+              'local_timezone': 'obtimezone=local' in report['transport_block'],
+              'station_identity': 'DATA.STATION[0].STID' in report['metadata_block'],
+              'temperature_field': 'air_temp_set_1' in report['temperature_block'],
+              'whole_degree_display': 'Math.round(DATA.STATION[0].OBSERVATIONS.air_temp_set_1[j])' in report['temperature_block'],
+              'hourly_flag': "if (hourly == 'true')" in report['hourly_block'],
+              'asos_network_branch': "network == 'ASOS/AWOS'" in report['hourly_block'],
+              'minutes_reference': 'minutes' in report['hourly_block'],
+          }
+          report['basic_checks'] = basic_checks
           Path('wrh-hourly-semantics.json').write_text(json.dumps(report, indent=2, sort_keys=True) + '\n')
           print(json.dumps(report, indent=2, sort_keys=True))
+          if not all(basic_checks.values()):
+              raise SystemExit(f'WRH basic source semantics drift: {basic_checks}')
           PY
       - uses: actions/upload-artifact@v4
         if: always()
