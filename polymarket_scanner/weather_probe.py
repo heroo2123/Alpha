@@ -29,7 +29,7 @@ from .weather_only_rules import compile_temperature_rule_authority
 from .weather_rule_tree import parse_weather_contract
 from .weather_structural import prove_daily_temperature_partition, screen_complete_set_underround
 
-WEATHER_PROBE_VERSION = "weather_live_probe_v3_runtime_cross_certification"
+WEATHER_PROBE_VERSION = "weather_live_probe_v4_runtime_rejection_samples"
 FAILURE_SAMPLE_LIMIT = 3
 FAILURE_SAMPLE_TEXT_LIMIT = 1800
 
@@ -59,6 +59,26 @@ def _failure_sample(market: Market) -> dict:
         "description": _sample_text(market.description),
         "resolution_source": _sample_text(market.resolution_source),
         "end_date": _sample_text(market.end_date),
+    }
+
+
+def _foundation_sample(event: dict, compiled, authority) -> dict:
+    children = [row for row in (event.get("markets") or []) if isinstance(row, dict)]
+    return {
+        "event_id": compiled.event_id,
+        "event_title": _sample_text(event.get("title")),
+        "compiled_family": compiled.family,
+        "compiled_unit": compiled.unit,
+        "compiled_source_family": compiled.source_family,
+        "compiled_target_date": compiled.target_date.isoformat() if compiled.target_date else None,
+        "compiler_rejection_reasons": list(compiled.rejection_reasons),
+        "rule_profile": authority.profile,
+        "rule_rejection_reasons": list(authority.rejection_reasons),
+        "event_description": _sample_text(event.get("description")),
+        "event_resolution_source": _sample_text(event.get("resolutionSource")),
+        "child_questions": [_sample_text(row.get("question")) for row in children[:6]],
+        "child_descriptions": [_sample_text(row.get("description")) for row in children[:2]],
+        "child_resolution_sources": [_sample_text(row.get("resolutionSource")) for row in children[:2]],
     }
 
 
@@ -106,6 +126,7 @@ async def run_probe(
         foundation_source_counts = Counter()
         foundation_profile_counts = Counter()
         foundation_rejections = Counter()
+        foundation_rejection_samples: dict[str, list[dict]] = defaultdict(list)
         foundation_shadow_supported_ids: set[str] = set()
         foundation_exactly_one_ids: set[str] = set()
         foundation_temperature_ids: set[str] = set()
@@ -123,7 +144,10 @@ async def run_probe(
             if authority.exactly_one_outcome_proven:
                 foundation_exactly_one_ids.add(compiled.event_id)
             for reason in authority.rejection_reasons:
-                foundation_rejections[str(reason)] += 1
+                key = str(reason)
+                foundation_rejections[key] += 1
+                if len(foundation_rejection_samples[key]) < FAILURE_SAMPLE_LIMIT:
+                    foundation_rejection_samples[key].append(_foundation_sample(event, compiled, authority))
         timings["foundation_cross_cert_seconds"] = time.monotonic() - stage
 
         grouped: dict[str, list[Market]] = defaultdict(list)
@@ -207,6 +231,9 @@ async def run_probe(
                 "source_counts": dict(sorted(foundation_source_counts.items())),
                 "rule_profile_counts": dict(sorted(foundation_profile_counts.items())),
                 "rule_rejection_counts": dict(sorted(foundation_rejections.items())),
+                "rule_rejection_samples": {
+                    code: rows for code, rows in sorted(foundation_rejection_samples.items())
+                },
                 "proof_events_missing_foundation_exactly_one_count": len(proof_event_ids - foundation_exactly_one_ids),
                 "proof_events_missing_foundation_exactly_one_ids": sorted(proof_event_ids - foundation_exactly_one_ids)[:50],
                 "foundation_exactly_one_without_partition_proof_count": len(foundation_exactly_one_ids - proof_event_ids),
