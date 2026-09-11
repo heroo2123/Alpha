@@ -12,9 +12,12 @@ were independently trusted evidence.
 The trusted façade also performs a digest/structure revalidation pass over every
 pending persisted capture and snapshot before each collection tick. Corruption is
 made terminal for the affected capture or station/date rather than becoming a retry
-loop or a source of reconstructed authority.
+loop or a source of reconstructed authority. Persisted nested prediction evidence and
+SQLite metadata columns are re-bound to reconstructed objects instead of trusting
+stored digest strings in isolation.
 """
 
+import json
 import math
 import time
 from datetime import date
@@ -22,6 +25,7 @@ from pathlib import Path
 from typing import Callable
 
 from .weather_only_calibration_capture import ProspectiveWeatherCalibrationCapture
+from .weather_only_predictions import WeatherPredictionError, _validate_prediction
 from .weather_only_wrh_client import NWSWRHLiveClient
 from .weather_only_wrh_collector import (
     CAPTURE_FAILED,
@@ -32,11 +36,15 @@ from .weather_only_wrh_collector import (
 )
 
 
-TRUSTED_WRH_COLLECTOR_AUTHORITY_VERSION = "weather_wrh_collector_authority_v3_owned_clock_persistence_revalidation"
+TRUSTED_WRH_COLLECTOR_AUTHORITY_VERSION = "weather_wrh_collector_authority_v4_nested_digest_and_sqlite_metadata_revalidation"
 
 
 class TrustedWeatherWRHCollectorClockError(WeatherWRHCollectorError):
     pass
+
+
+def _canonical_json(value: object) -> str:
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
 
 
 class TrustedWeatherWRHProspectiveCollector:
@@ -105,6 +113,53 @@ class TrustedWeatherWRHProspectiveCollector:
             )
         return len(rows)
 
+    def _validate_capture_row(self, row) -> None:
+        """Re-bind SQLite capture metadata plus nested prediction digest to payload bytes."""
+        store = self._collector.store
+        capture = store.load_capture(row)
+        try:
+            _validate_prediction(capture.prediction)
+        except WeatherPredictionError as exc:
+            raise WeatherWRHCollectorError(f"PERSISTED_PREDICTION:{exc.code}") from exc
+
+        if str(row["capture_evidence_sha256"]) != capture.capture_evidence_sha256:
+            raise WeatherWRHCollectorError("PERSISTED_CAPTURE_DIGEST_COLUMN_MISMATCH")
+        if str(row["station"]) != capture.rule_evidence.station:
+            raise WeatherWRHCollectorError("PERSISTED_CAPTURE_STATION_COLUMN_MISMATCH")
+        if str(row["target_date"]) != capture.rule_evidence.target_date.isoformat():
+            raise WeatherWRHCollectorError("PERSISTED_CAPTURE_TARGET_DATE_COLUMN_MISMATCH")
+        if str(row["family"]) != capture.rule_evidence.family:
+            raise WeatherWRHCollectorError("PERSISTED_CAPTURE_FAMILY_COLUMN_MISMATCH")
+        if str(row["capture_json"]) != _canonical_json(capture.as_dict()):
+            raise WeatherWRHCollectorError("PERSISTED_CAPTURE_CANONICAL_PAYLOAD_MISMATCH")
+
+    def _validate_snapshot_rows(self, station: str, target: date) -> None:
+        """Re-bind every persisted WRH snapshot to its SQLite key/digest/receipt columns."""
+        store = self._collector.store
+        rows = list(store.db.execute(
+            """
+            SELECT station, target_date, evidence_sha256, received_at, snapshot_json
+            FROM wrh_collector_snapshots
+            WHERE station = ? AND target_date = ?
+            ORDER BY received_at ASC, evidence_sha256 ASC
+            """,
+            (station, target.isoformat()),
+        ).fetchall())
+        snapshots = store.load_snapshots(station, target)
+        if len(rows) != len(snapshots):
+            raise WeatherWRHCollectorError("PERSISTED_SNAPSHOT_ROW_COUNT_MISMATCH")
+        for row, snapshot in zip(rows, snapshots, strict=True):
+            if str(row["station"]) != snapshot.station:
+                raise WeatherWRHCollectorError("PERSISTED_SNAPSHOT_STATION_COLUMN_MISMATCH")
+            if str(row["target_date"]) != snapshot.target_date.isoformat():
+                raise WeatherWRHCollectorError("PERSISTED_SNAPSHOT_TARGET_DATE_COLUMN_MISMATCH")
+            if str(row["evidence_sha256"]) != snapshot.evidence_sha256:
+                raise WeatherWRHCollectorError("PERSISTED_SNAPSHOT_DIGEST_COLUMN_MISMATCH")
+            if float(row["received_at"]) != float(snapshot.received_at):
+                raise WeatherWRHCollectorError("PERSISTED_SNAPSHOT_RECEIPT_COLUMN_MISMATCH")
+            if str(row["snapshot_json"]) != _canonical_json(snapshot.as_dict()):
+                raise WeatherWRHCollectorError("PERSISTED_SNAPSHOT_CANONICAL_PAYLOAD_MISMATCH")
+
     def _integrity_preflight(self, now: float) -> int:
         """Revalidate all pending persisted lineage before live collection can advance."""
         store = self._collector.store
@@ -126,7 +181,7 @@ class TrustedWeatherWRHProspectiveCollector:
             for row in list(store.pending_capture_rows(station, target)):
                 digest = str(row["capture_evidence_sha256"])
                 try:
-                    store.load_capture(row)
+                    self._validate_capture_row(row)
                 except WeatherWRHCollectorError as exc:
                     store.mark_failed(digest, f"INTEGRITY_CAPTURE:{exc.code}", now)
                     failed += 1
@@ -136,7 +191,7 @@ class TrustedWeatherWRHProspectiveCollector:
                 continue
 
             try:
-                store.load_snapshots(station, target)
+                self._validate_snapshot_rows(station, target)
             except WeatherWRHCollectorError as exc:
                 failed += self._collector._fail_pending_key(
                     station,
