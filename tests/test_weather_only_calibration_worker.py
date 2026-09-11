@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import date, datetime, timezone
 from types import SimpleNamespace
 
@@ -202,96 +203,98 @@ class _Collector:
         )
 
 
-@pytest.mark.asyncio
-async def test_worker_freezes_exactly_one_capture_per_event_and_reuses_durable_reservation(tmp_path):
-    discovery = _Discovery([_event()])
-    station = _StationClient(_station_metadata(WINDOW + 0.5))
-    forecast = _ForecastClient(_distribution(WINDOW + 1.5))
-    collector = _Collector()
-    clock = _Clock([
-        WINDOW,
-        WINDOW + 1.0,
-        WINDOW + 2.0,
-        WINDOW + 3.0,
-        WINDOW + 4.0,
-        WINDOW + 5.0,
-        # second cycle: event is already reserved, so only start + finish clocks
-        WINDOW + 60.0,
-        WINDOW + 61.0,
-    ])
-    worker = WeatherCalibrationResearchWorker(
-        db_path=tmp_path / "worker.sqlite",
-        discovery=discovery,
-        station_client=station,
-        forecast_client=forecast,
-        collector=collector,
-        clock=clock,
-    )
-    try:
-        first = await worker.run_cycle()
-        assert first["capture_window_active"] is True
-        assert first["capture"]["registered_events"] == 1
-        assert first["capture"]["capture_policy_id"] == CAPTURE_POLICY_ID
-        assert len(collector.registered) == 1
-        capture = collector.registered[0]
-        assert capture.prediction.event_id == _event()["id"]
-        assert capture.prediction.target_date == TARGET
-        assert capture.prediction.raw_predicted_probability == pytest.approx(18 / 31)
-        assert capture.financial_authority is False
-        assert collector.ticks == 1
+def test_worker_freezes_exactly_one_capture_per_event_and_reuses_durable_reservation(tmp_path):
+    async def scenario():
+        discovery = _Discovery([_event()])
+        station = _StationClient(_station_metadata(WINDOW + 0.5))
+        forecast = _ForecastClient(_distribution(WINDOW + 1.5))
+        collector = _Collector()
+        clock = _Clock([
+            WINDOW,
+            WINDOW + 1.0,
+            WINDOW + 2.0,
+            WINDOW + 3.0,
+            WINDOW + 4.0,
+            WINDOW + 5.0,
+            WINDOW + 60.0,
+            WINDOW + 61.0,
+        ])
+        worker = WeatherCalibrationResearchWorker(
+            db_path=tmp_path / "worker.sqlite",
+            discovery=discovery,
+            station_client=station,
+            forecast_client=forecast,
+            collector=collector,
+            clock=clock,
+        )
+        try:
+            first = await worker.run_cycle()
+            assert first["capture_window_active"] is True
+            assert first["capture"]["registered_events"] == 1
+            assert first["capture"]["capture_policy_id"] == CAPTURE_POLICY_ID
+            assert len(collector.registered) == 1
+            capture = collector.registered[0]
+            assert capture.prediction.event_id == _event()["id"]
+            assert capture.prediction.target_date == TARGET
+            assert capture.prediction.raw_predicted_probability == pytest.approx(18 / 31)
+            assert capture.financial_authority is False
+            assert collector.ticks == 1
 
-        second = await worker.run_cycle()
-        assert second["capture"]["registered_events"] == 0
-        assert second["capture"]["already_reserved_events"] == 1
-        assert len(collector.registered) == 1
-        assert station.calls == 1
-        assert forecast.calls == 1
-        assert collector.ticks == 2
+            second = await worker.run_cycle()
+            assert second["capture"]["registered_events"] == 0
+            assert second["capture"]["already_reserved_events"] == 1
+            assert len(collector.registered) == 1
+            assert station.calls == 1
+            assert forecast.calls == 1
+            assert collector.ticks == 2
 
-        with worker.state.db:
             row = worker.state.db.execute(
                 "SELECT * FROM weather_calibration_worker_events WHERE event_id = ?",
                 (_event()["id"],),
             ).fetchone()
-        assert row["status"] == STATE_REGISTERED
-        assert row["capture_policy_id"] == CAPTURE_POLICY_ID
-        assert row["capture_evidence_sha256"] == capture.capture_evidence_sha256
-        assert row["forecast_source_evidence_sha256"] == capture.prediction.source_evidence_sha256
-        assert len(row["station_metadata_json"]) > 0
-        assert len(row["distribution_json"]) > 0
-        assert len(row["forecast_json"]) > 0
-        assert len(row["rule_source_json"]) > 0
-    finally:
-        await worker.close()
+            assert row["status"] == STATE_REGISTERED
+            assert row["capture_policy_id"] == CAPTURE_POLICY_ID
+            assert row["capture_evidence_sha256"] == capture.capture_evidence_sha256
+            assert row["forecast_source_evidence_sha256"] == capture.prediction.source_evidence_sha256
+            assert len(row["station_metadata_json"]) > 0
+            assert len(row["distribution_json"]) > 0
+            assert len(row["forecast_json"]) > 0
+            assert len(row["rule_source_json"]) > 0
+        finally:
+            await worker.close()
+
+    asyncio.run(scenario())
 
 
-@pytest.mark.asyncio
-async def test_worker_outside_window_never_discovers_or_forecasts_but_still_ticks_collector(tmp_path):
-    outside = datetime(2026, 9, 10, 16, 0, tzinfo=timezone.utc).timestamp()
-    discovery = _Discovery([_event()])
-    station = _StationClient(_station_metadata(outside))
-    forecast = _ForecastClient(_distribution(outside))
-    collector = _Collector()
-    worker = WeatherCalibrationResearchWorker(
-        db_path=tmp_path / "worker.sqlite",
-        discovery=discovery,
-        station_client=station,
-        forecast_client=forecast,
-        collector=collector,
-        clock=_Clock([outside, outside + 1.0]),
-    )
-    try:
-        report = await worker.run_cycle()
-        assert report["capture_window_active"] is False
-        assert report["capture"]["attempted"] is False
-        assert discovery.calls == 0
-        assert station.calls == 0
-        assert forecast.calls == 0
-        assert collector.registered == []
-        assert collector.ticks == 1
-        assert report["financial_authority"] is False
-        assert report["financial_delivery"] is False
-        assert report["automatic_order_placement"] is False
-        assert report["telegram_delivery"] is False
-    finally:
-        await worker.close()
+def test_worker_outside_window_never_discovers_or_forecasts_but_still_ticks_collector(tmp_path):
+    async def scenario():
+        outside = datetime(2026, 9, 10, 16, 0, tzinfo=timezone.utc).timestamp()
+        discovery = _Discovery([_event()])
+        station = _StationClient(_station_metadata(outside))
+        forecast = _ForecastClient(_distribution(outside))
+        collector = _Collector()
+        worker = WeatherCalibrationResearchWorker(
+            db_path=tmp_path / "worker.sqlite",
+            discovery=discovery,
+            station_client=station,
+            forecast_client=forecast,
+            collector=collector,
+            clock=_Clock([outside, outside + 1.0]),
+        )
+        try:
+            report = await worker.run_cycle()
+            assert report["capture_window_active"] is False
+            assert report["capture"]["attempted"] is False
+            assert discovery.calls == 0
+            assert station.calls == 0
+            assert forecast.calls == 0
+            assert collector.registered == []
+            assert collector.ticks == 1
+            assert report["financial_authority"] is False
+            assert report["financial_delivery"] is False
+            assert report["automatic_order_placement"] is False
+            assert report["telegram_delivery"] is False
+        finally:
+            await worker.close()
+
+    asyncio.run(scenario())
