@@ -11,7 +11,7 @@ export ALPHA_CONFIG_DIR="${CONFIG_DIR}"
 bash "${APP_DIR}/deploy/verify-runtime-release.sh" "${APP_DIR}" "${CONFIG_DIR}/release.sha"
 cd "${APP_DIR}"
 "${APP_DIR}/.venv/bin/python" -m polymarket_scanner.shadow_preflight
-for unit in polymarket-edge-scanner polymarket-edge-command polymarket-universe-builder; do
+for unit in polymarket-edge-scanner polymarket-edge-command polymarket-universe-builder polymarket-weather-calibration; do
   if systemctl is-active --quiet "${unit}.service"; then
     echo "Stop ${unit} explicitly before installing its replacement definition" >&2
     exit 1
@@ -30,7 +30,7 @@ systemd-analyze verify "${UNIT_DIR}"/*
 for name in trade-only-policy.conf telegram-command-worker.conf; do
   sudo rm -f "/etc/systemd/system/polymarket-edge-scanner.service.d/${name}"
 done
-for unit in polymarket-edge-scanner polymarket-edge-command polymarket-universe-builder; do
+for unit in polymarket-edge-scanner polymarket-edge-command polymarket-universe-builder polymarket-weather-calibration; do
   if sudo find "/etc/systemd/system/${unit}.service.d" -maxdepth 1 -name '*.conf' -print 2>/dev/null | grep -q .; then
     echo "Unreviewed systemd overrides remain for ${unit}; inspect them before migration" >&2
     exit 1
@@ -38,5 +38,6 @@ for unit in polymarket-edge-scanner polymarket-edge-command polymarket-universe-
 done
 sudo install -m 0644 "${UNIT_DIR}"/* /etc/systemd/system/
 sudo systemctl daemon-reload
-echo 'Shadow units installed. No services were enabled or started.'
+echo 'Shadow/research units installed. No services were enabled or started.'
+echo 'Weather calibration has no bot.env/Telegram/trading credentials in its reviewed unit.'
 echo 'Verify the final systemctl cat/show output before the separately authorized start.'
