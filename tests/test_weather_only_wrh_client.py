@@ -13,6 +13,7 @@ from polymarket_scanner.weather_only_wrh import WRHSourceError
 from polymarket_scanner.weather_only_wrh_client import (
     NWSWRHLiveClient,
     WRH_API_KEY_SCRIPT_PATH,
+    WRH_BROWSER_TOKEN_IDENTIFIER,
     WRH_LIVE_CLIENT_VERSION,
     WRH_SYNOPTIC_ENDPOINT,
     WRH_TIMESERIES_PAGE,
@@ -21,11 +22,11 @@ from polymarket_scanner.weather_only_wrh_client import (
 
 TARGET = date(2026, 9, 10)
 SECRET = "publicBrowserCredential_TEST_123456789"
-VIEWER_BODY = b"// pinned viewer fixture"
+VIEWER_BODY = b"var InfoToGet='x&='+mesoToken+'&obtimezone=local';"
 VIEWER_SHA = hashlib.sha256(VIEWER_BODY).hexdigest()
 
 
-def _shell(*, key_src: str = "/source/wrh/timeseries/apiKey.js") -> str:
+def _shell(*, key_src: str = "/source/wrh/apiKey.js") -> str:
     return (
         '<html><head>'
         '<script src="/source/wrh/timeseries/obs.js?v202601121730"></script>'
@@ -59,17 +60,24 @@ def _payload() -> dict:
     }
 
 
-def _transport(*, backend_status: int = 200, backend_body: bytes | None = None, key_body: str | None = None):
-    seen = {"backend_query": None}
+def _transport(
+    *,
+    backend_status: int = 200,
+    backend_body: bytes | None = None,
+    key_body: str | None = None,
+    viewer_body: bytes = VIEWER_BODY,
+):
+    seen = {"backend_query": None, "paths": []}
 
     def handler(request: httpx.Request) -> httpx.Response:
         path = request.url.path
+        seen["paths"].append(path)
         if str(request.url).startswith(WRH_TIMESERIES_PAGE):
             return httpx.Response(200, text=_shell(), request=request)
         if path.endswith("/source/wrh/timeseries/obs.js"):
-            return httpx.Response(200, content=VIEWER_BODY, request=request)
+            return httpx.Response(200, content=viewer_body, request=request)
         if path == WRH_API_KEY_SCRIPT_PATH:
-            body = key_body if key_body is not None else f"var token = 'token={SECRET}';"
+            body = key_body if key_body is not None else f"var mesoToken = 'token={SECRET}';"
             return httpx.Response(200, text=body, request=request)
         if str(request.url).startswith(WRH_SYNOPTIC_ENDPOINT):
             query = parse_qs(request.url.query.decode())
@@ -85,6 +93,11 @@ def _client(monkeypatch, transport: httpx.MockTransport) -> NWSWRHLiveClient:
     monkeypatch.setattr(wrh_client_module, "WRH_VIEWER_SCRIPT_SHA256", VIEWER_SHA)
     http = httpx.Client(transport=transport, follow_redirects=True)
     return NWSWRHLiveClient(http_client=http)
+
+
+def test_discovered_contract_is_the_actual_wrh_source_identity():
+    assert WRH_API_KEY_SCRIPT_PATH == "/source/wrh/apiKey.js"
+    assert WRH_BROWSER_TOKEN_IDENTIFIER == "mesoToken"
 
 
 def test_live_client_uses_ephemeral_browser_token_and_returns_only_redacted_evidence(monkeypatch):
@@ -104,6 +117,7 @@ def test_live_client_uses_ephemeral_browser_token_and_returns_only_redacted_evid
 
     assert result.client_version == WRH_LIVE_CLIENT_VERSION
     assert result.station == "KLGA"
+    assert result.api_key_script_url == "https://www.weather.gov/source/wrh/apiKey.js"
     assert result.snapshot.target_high_f == 81
     assert result.snapshot.target_low_f == 70
     assert result.snapshot.first_following_row is not None
@@ -129,14 +143,25 @@ def test_tokenized_backend_http_failure_is_sanitized_and_does_not_leak_request_u
     assert SECRET not in str(raised.value)
 
 
-def test_browser_token_is_required_to_be_unique_and_never_returned(monkeypatch):
-    body = f"var token = '{SECRET}';\nvar apiKey = 'DIFFERENT_SECRET_12345678';"
+def test_mesotoken_assignment_is_required_to_be_unique_and_never_returned(monkeypatch):
+    body = (
+        f"var mesoToken = 'token={SECRET}';\n"
+        "mesoToken = 'token=DIFFERENT_SECRET_12345678';"
+    )
     transport, _ = _transport(key_body=body)
     client = _client(monkeypatch, transport)
     with pytest.raises(WRHSourceError) as raised:
         client.fetch_snapshot(station="KLGA", target_date=TARGET, received_at=1234.5)
     assert raised.value.code == "WRH_LIVE_BROWSER_TOKEN_DISCOVERY_FAILED"
     assert SECRET not in str(raised.value)
+
+
+def test_unrelated_token_variable_cannot_substitute_for_mesotoken(monkeypatch):
+    transport, _ = _transport(key_body=f"var token = 'token={SECRET}';")
+    client = _client(monkeypatch, transport)
+    with pytest.raises(WRHSourceError) as raised:
+        client.fetch_snapshot(station="KLGA", target_date=TARGET, received_at=1234.5)
+    assert raised.value.code == "WRH_LIVE_BROWSER_TOKEN_DISCOVERY_FAILED"
 
 
 def test_backend_invalid_json_fails_closed_without_exposing_token(monkeypatch):
@@ -148,12 +173,12 @@ def test_backend_invalid_json_fails_closed_without_exposing_token(monkeypatch):
     assert SECRET not in str(raised.value)
 
 
-def test_unexpected_api_key_script_host_or_path_fails_before_credential_fetch(monkeypatch):
+def test_unexpected_api_key_script_host_fails_before_credential_fetch(monkeypatch):
     def handler(request: httpx.Request) -> httpx.Response:
         if str(request.url).startswith(WRH_TIMESERIES_PAGE):
             return httpx.Response(
                 200,
-                text=_shell(key_src="https://evil.example/apiKey.js"),
+                text=_shell(key_src="https://evil.example/source/wrh/apiKey.js"),
                 request=request,
             )
         return httpx.Response(500, request=request)
@@ -162,33 +187,47 @@ def test_unexpected_api_key_script_host_or_path_fails_before_credential_fetch(mo
     client = NWSWRHLiveClient(http_client=httpx.Client(transport=httpx.MockTransport(handler)))
     with pytest.raises(WRHSourceError) as raised:
         client.fetch_snapshot(station="KLGA", target_date=TARGET, received_at=1234.5)
+    assert raised.value.code == "WRH_LIVE_API_KEY_SCRIPT_IDENTITY_INVALID"
+
+
+def test_wrong_api_key_script_path_fails_discovery():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if str(request.url).startswith(WRH_TIMESERIES_PAGE):
+            return httpx.Response(200, text=_shell(key_src="/source/wrh/timeseries/apiKey.js"), request=request)
+        return httpx.Response(500, request=request)
+
+    client = NWSWRHLiveClient(http_client=httpx.Client(transport=httpx.MockTransport(handler)))
+    with pytest.raises(WRHSourceError) as raised:
+        client.fetch_snapshot(station="KLGA", target_date=TARGET, received_at=1234.5)
     assert raised.value.code == "WRH_LIVE_API_KEY_SCRIPT_DISCOVERY_FAILED"
 
 
 def test_viewer_script_hash_drift_fails_before_api_token_or_backend_use(monkeypatch):
-    calls = []
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        calls.append(request.url.path)
-        if str(request.url).startswith(WRH_TIMESERIES_PAGE):
-            return httpx.Response(200, text=_shell(), request=request)
-        if request.url.path.endswith("/source/wrh/timeseries/obs.js"):
-            return httpx.Response(200, content=b"drifted viewer", request=request)
-        if request.url.path == WRH_API_KEY_SCRIPT_PATH:
-            return httpx.Response(200, text=f"var token = '{SECRET}';", request=request)
-        return httpx.Response(500, request=request)
-
-    monkeypatch.setattr(wrh_client_module, "WRH_VIEWER_SCRIPT_SHA256", VIEWER_SHA)
-    client = NWSWRHLiveClient(http_client=httpx.Client(transport=httpx.MockTransport(handler)))
+    transport, seen = _transport(viewer_body=b"drifted viewer")
+    client = _client(monkeypatch, transport)
     with pytest.raises(WRHSourceError) as raised:
         client.fetch_snapshot(station="KLGA", target_date=TARGET, received_at=1234.5)
     assert raised.value.code == "WRH_LIVE_VIEWER_SCRIPT_SHA_MISMATCH"
-    assert WRH_API_KEY_SCRIPT_PATH not in calls
+    assert WRH_API_KEY_SCRIPT_PATH not in seen["paths"]
+
+
+def test_pinned_viewer_must_explicitly_reference_mesotoken_contract(monkeypatch):
+    viewer = b"var InfoToGet='x&obtimezone=local';"
+    viewer_sha = hashlib.sha256(viewer).hexdigest()
+    transport, seen = _transport(viewer_body=viewer)
+    monkeypatch.setattr(wrh_client_module, "WRH_VIEWER_SCRIPT_SHA256", viewer_sha)
+    client = NWSWRHLiveClient(http_client=httpx.Client(transport=transport, follow_redirects=True))
+    with pytest.raises(WRHSourceError) as raised:
+        client.fetch_snapshot(station="KLGA", target_date=TARGET, received_at=1234.5)
+    assert raised.value.code == "WRH_LIVE_VIEWER_TOKEN_IDENTIFIER_MISMATCH"
+    assert WRH_API_KEY_SCRIPT_PATH not in seen["paths"]
 
 
 @pytest.mark.parametrize("station", ["", "LGA", "TOOLONG", "K LGA"])
 def test_station_identity_is_strict(station):
-    client = NWSWRHLiveClient(http_client=httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(500))))
+    client = NWSWRHLiveClient(
+        http_client=httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(500)))
+    )
     with pytest.raises(WRHSourceError) as raised:
         client.fetch_snapshot(station=station, target_date=TARGET, received_at=1.0)
     assert raised.value.code == "WRH_LIVE_STATION_INVALID"
