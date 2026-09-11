@@ -8,17 +8,11 @@ sufficient: a process can remain alive while discovery, GEFS capture or the WRH
 collector is degraded.
 
 This wrapper does not alter discovery, forecast, capture, reservation, settlement or
-calibration semantics. It adds three independent operational attestations:
-
-* ``process_healthy`` -- core integrity/state machinery completed safely;
-* ``research_collection_healthy`` -- current discovery/capture/collector operations
-  did not report source/evidence failures;
-* ``prospective_gap_detected`` -- there is concrete evidence that one or more
-  prospective samples were missed or terminally failed.
-
-Normal BEFORE-window states are healthy. An already-past contract is a gap signal but
-not a process crash. Temporary collector fetch errors degrade collection health but do
-not by themselves assert a permanent gap. No financial authority exists here.
+calibration semantics. It adds explicit operational health plus a fail-closed horizon
+attestation for every successfully registered capture. The attestation cryptographically
+binds the capture to the preregistered station-local T-1 17:00-17:15 window. A crash
+before attestation can lose a research sample but cannot create eligible calibration
+evidence.
 """
 
 import argparse
@@ -28,6 +22,10 @@ import os
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
+from .weather_only_calibration_horizon import (
+    WeatherCalibrationHorizonError,
+    attest_registered_worker_horizons,
+)
 from .weather_only_calibration_worker import (
     LOOP_INTERVAL_SECONDS,
     MIN_LOOP_INTERVAL_SECONDS,
@@ -35,7 +33,7 @@ from .weather_only_calibration_worker import (
 )
 
 
-WEATHER_CALIBRATION_WORKER_RUNTIME_VERSION = "weather_calibration_worker_runtime_v1_explicit_research_health"
+WEATHER_CALIBRATION_WORKER_RUNTIME_VERSION = "weather_calibration_worker_runtime_v2_health_plus_horizon_attestation"
 
 
 @dataclass(frozen=True, slots=True)
@@ -107,6 +105,19 @@ def assess_worker_cycle_health(report: object) -> WeatherCalibrationCycleHealth:
             health.append(f"COLLECTOR_FAILED_CAPTURES:{failed_captures}")
             gaps.append(f"TERMINAL_COLLECTOR_FAILURES:{failed_captures}")
 
+    horizon = report.get("horizon_attestation")
+    if not isinstance(horizon, dict):
+        health.append("HORIZON_ATTESTATION_REPORT_MISSING")
+    else:
+        if horizon.get("error"):
+            health.append(f"HORIZON:{horizon.get('error')}")
+            gaps.append("HORIZON_ATTESTATION_FAILED")
+        horizon_errors = horizon.get("errors")
+        if isinstance(horizon_errors, dict) and horizon_errors:
+            for code, count in sorted(horizon_errors.items()):
+                health.append(f"HORIZON:{code}:{count}")
+            gaps.append("HORIZON_ATTESTATION_FAILED")
+
     state = report.get("state")
     if not isinstance(state, dict):
         health.append("STATE_REPORT_MISSING")
@@ -117,7 +128,6 @@ def assess_worker_cycle_health(report: object) -> WeatherCalibrationCycleHealth:
             if failed_reservations:
                 gaps.append(f"FAILED_RESERVED_EVENTS:{failed_reservations}")
 
-    # Preserve order while removing duplicates so output is stable and audit-friendly.
     health_reasons = tuple(dict.fromkeys(health))
     gap_reasons = tuple(dict.fromkeys(gaps))
     collection_healthy = process_healthy and not health_reasons
@@ -131,18 +141,27 @@ def assess_worker_cycle_health(report: object) -> WeatherCalibrationCycleHealth:
 
 
 class OperationalWeatherCalibrationResearchWorker(WeatherCalibrationResearchWorker):
-    """Same evidence worker with explicit operational health appended to each report."""
+    """Same evidence worker with horizon lineage and explicit operational health."""
 
     async def run_cycle(self) -> dict:
         report = await super().run_cycle()
+        try:
+            report["horizon_attestation"] = attest_registered_worker_horizons(
+                self.state.db,
+                created_at=float(report["finished_at"]),
+            )
+        except Exception as exc:
+            code = getattr(exc, "code", type(exc).__name__)
+            report["horizon_attestation"] = {
+                "error": str(code),
+                "financial_authority": False,
+            }
         health = assess_worker_cycle_health(report)
         report["runtime_version"] = WEATHER_CALIBRATION_WORKER_RUNTIME_VERSION
         report["operational_health"] = health.as_dict()
         report["process_healthy"] = health.process_healthy
         report["research_collection_healthy"] = health.research_collection_healthy
         report["prospective_gap_detected"] = health.prospective_gap_detected
-        # Keep cycle_ok as the core integrity flag for backward compatibility. The
-        # service/readiness monitor must use the explicit health fields above.
         report["financial_authority"] = False
         report["financial_delivery"] = False
         report["automatic_order_placement"] = False
@@ -167,8 +186,6 @@ async def _main_async(args) -> int:
                 _atomic_write(args.output, payload)
             print(payload, flush=True)
             if not args.loop:
-                # A one-shot operational probe should fail if current collection is
-                # degraded. A normal BEFORE-window cycle remains healthy and exits 0.
                 return 0 if report.get("research_collection_healthy") is True else 2
             elapsed = max(0.0, float(report["finished_at"]) - float(report["started_at"]))
             await asyncio.sleep(max(0.0, interval - elapsed))
