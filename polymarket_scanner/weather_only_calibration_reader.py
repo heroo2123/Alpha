@@ -4,15 +4,15 @@ from __future__ import annotations
 
 Persisted ``authorized_json`` and ``settlement_evidence_json`` are audit copies, not
 independent authority. This reader opens the collector SQLite database in read-only
-mode, rehydrates and revalidates the frozen capture and every exact WRH snapshot,
-independently reconstructs the unique valid cutoff bracket, reruns the full WRH
-calibration authorization gate, and only then verifies that the stored audit copies
-match the recomputed evidence.
+mode, rehydrates and revalidates the frozen capture, requires an independently hashed
+worker horizon attestation proving the preregistered T-1 station-local capture window,
+revalidates every exact WRH snapshot, independently reconstructs the unique valid
+cutoff bracket, and reruns the full WRH calibration authorization gate.
 
-One invalid or ambiguous authorized row fails the whole read. Silent row-skipping
-would make a calibration dataset depend on post-outcome data quality and could create
-selection bias. The returned records remain research calibration samples only and
-never gain financial authority.
+One invalid, mixed-horizon or ambiguous authorized row fails the whole read. Silent
+row-skipping would make a calibration dataset depend on post-outcome data quality and
+could create selection bias. Returned records remain research calibration samples only
+and never gain financial authority.
 """
 
 import argparse
@@ -33,6 +33,11 @@ from .weather_only_calibration_capture import (
     WRHExactSettlementEvidence,
     build_wrh_exact_settlement_evidence,
 )
+from .weather_only_calibration_horizon import (
+    ProspectiveCaptureHorizonEvidence,
+    WeatherCalibrationHorizonError,
+    read_capture_horizon_evidence,
+)
 from .weather_only_wrh import WRHSourceError, WRHSourceSnapshot
 from .weather_only_wrh_collector import (
     CAPTURE_AUTHORIZED,
@@ -41,7 +46,7 @@ from .weather_only_wrh_collector import (
 )
 
 
-WEATHER_CALIBRATION_READER_VERSION = "weather_calibration_reader_v3_ro_recompute_label_provenance"
+WEATHER_CALIBRATION_READER_VERSION = "weather_calibration_reader_v4_recompute_plus_horizon_lineage"
 
 
 class WeatherCalibrationReaderError(RuntimeError):
@@ -63,14 +68,6 @@ def _json_object(value: object, code: str) -> dict:
 
 
 def _json_equivalent(value: object) -> object:
-    """Normalize dataclass audit payloads exactly as canonical JSON persistence does.
-
-    JSON storage intentionally converts tuples to arrays/lists. Comparing a parsed
-    persisted envelope directly to an in-memory ``as_dict`` result would therefore
-    create false mismatches even when every evidence digest and semantic field is
-    identical. A canonical JSON round-trip removes only that representation artifact;
-    it does not coerce numbers, drop fields, or bypass any lineage validation.
-    """
     return json.loads(json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True))
 
 
@@ -154,6 +151,12 @@ def _unique_reauthorized_pair(
 @dataclass(frozen=True, slots=True)
 class ReconstructedCalibrationRecord:
     capture_evidence_sha256: str
+    capture_horizon_evidence_sha256: str
+    capture_policy_id: str
+    station_timezone: str
+    capture_window_start_at: float
+    capture_window_end_at: float
+    station_metadata_evidence_sha256: str
     event_id: str
     market_id: str
     station: str
@@ -174,6 +177,7 @@ class ReconstructedCalibrationRecord:
     settlement_bridge_evidence_sha256: str
     label_evidence_sha256: str
     source_recomputed: bool = field(init=False, default=True)
+    horizon_recomputed: bool = field(init=False, default=True)
     stored_authorized_json_used_as_authority: bool = field(init=False, default=False)
     calibration_label_authority: bool = field(init=False, default=True)
     financial_authority: bool = field(init=False, default=False)
@@ -182,10 +186,20 @@ class ReconstructedCalibrationRecord:
         return asdict(self)
 
 
-def _record_from_authorized(capture, authorized: AuthorizedWRHCalibrationSample) -> ReconstructedCalibrationRecord:
+def _record_from_authorized(
+    capture,
+    horizon: ProspectiveCaptureHorizonEvidence,
+    authorized: AuthorizedWRHCalibrationSample,
+) -> ReconstructedCalibrationRecord:
     sample = authorized.sample
     return ReconstructedCalibrationRecord(
         capture_evidence_sha256=capture.capture_evidence_sha256,
+        capture_horizon_evidence_sha256=horizon.evidence_sha256,
+        capture_policy_id=horizon.capture_policy_id,
+        station_timezone=horizon.station_timezone,
+        capture_window_start_at=float(horizon.window_start_at),
+        capture_window_end_at=float(horizon.window_end_at),
+        station_metadata_evidence_sha256=horizon.station_metadata_evidence_sha256,
         event_id=capture.prediction.event_id,
         market_id=capture.prediction.market_id,
         station=capture.prediction.station,
@@ -250,6 +264,11 @@ def read_reconstructed_calibration_dataset(path: str | Path) -> dict:
                 raise WeatherCalibrationReaderError("READER_DUPLICATE_EVENT_AUTHORIZATION")
             seen_events.add(capture.prediction.event_id)
 
+            try:
+                horizon = read_capture_horizon_evidence(db, capture)
+            except WeatherCalibrationHorizonError as exc:
+                raise WeatherCalibrationReaderError(f"READER_HORIZON:{exc.code}") from None
+
             snapshot_rows = db.execute(
                 """
                 SELECT station, target_date, evidence_sha256, received_at, snapshot_json
@@ -274,13 +293,15 @@ def read_reconstructed_calibration_dataset(path: str | Path) -> dict:
                 raise WeatherCalibrationReaderError("READER_STORED_SETTLEMENT_MISMATCH")
             if stored_authorized != _json_equivalent(authorized.as_dict()):
                 raise WeatherCalibrationReaderError("READER_STORED_AUTHORIZED_MISMATCH")
-            records.append(_record_from_authorized(capture, authorized))
+            records.append(_record_from_authorized(capture, horizon, authorized))
 
         status_counts = Counter({str(row["status"]): int(row["n"]) for row in status_rows})
         return {
             "version": WEATHER_CALIBRATION_READER_VERSION,
             "read_only_database": True,
             "source_recomputed": True,
+            "horizon_recomputed": True,
+            "preregistered_capture_horizon_required": True,
             "stored_authorized_json_used_as_authority": False,
             "financial_authority": False,
             "status_counts": dict(sorted(status_counts.items())),
