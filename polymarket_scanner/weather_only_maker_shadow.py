@@ -11,6 +11,8 @@ simulated shares; unknown-side prints remain ambiguous instead of becoming fills
 Processed public-trade identities are carried in the immutable order state. This makes
 overlapping polling windows idempotent across cycles/restarts when that order state is
 persisted: the same trade print cannot consume queue or create a simulated fill twice.
+Execution time and collector receipt time are separate clocks. Causal fill eligibility
+uses execution time; receipt time is only ingestion provenance.
 """
 
 import hashlib
@@ -23,7 +25,7 @@ from .weather_only_clob import WeatherMarketParameters
 from .weather_only_maker import FairValueBand, MakerBidProposal
 
 
-WEATHER_MAKER_SHADOW_VERSION = "weather_maker_shadow_v2_cross_cycle_trade_idempotence_evidence_bound"
+WEATHER_MAKER_SHADOW_VERSION = "weather_maker_shadow_v3_execution_clock_causal_trade_progression"
 MAX_PROCESSED_TRADE_IDS = 10_000
 RESTING = "RESTING"
 PARTIALLY_SIMULATED = "PARTIALLY_SIMULATED"
@@ -46,7 +48,7 @@ def _finite(value: object, *, positive: bool = False, nonnegative: bool = False)
     try:
         number = float(value)
     except (TypeError, ValueError, OverflowError):
-        raise WeatherMakerShadowError("MAKER_NUMBER_INVALID")
+        raise WeatherMakerShadowError("MAKER_NUMBER_INVALID") from None
     if not math.isfinite(number):
         raise WeatherMakerShadowError("MAKER_NUMBER_INVALID")
     if positive and number <= 0.0:
@@ -153,6 +155,7 @@ class PublicTradePrint:
     received_at: float
     aggressor_side: str | None
     source: str = "CLOB_PUBLIC_TRADE"
+    executed_at: float | None = None
 
     def __post_init__(self):
         _text(self.trade_id, "MAKER_TRADE_ID_MISSING")
@@ -162,9 +165,19 @@ class PublicTradePrint:
         if price >= 1.0:
             raise WeatherMakerShadowError("MAKER_TRADE_PRICE_INVALID")
         _finite(self.shares, positive=True)
-        _finite(self.received_at, nonnegative=True)
+        receipt = _finite(self.received_at, nonnegative=True)
+        if self.executed_at is not None:
+            executed = _finite(self.executed_at, nonnegative=True)
+            if executed > receipt + 1e-9:
+                raise WeatherMakerShadowError("MAKER_TRADE_EXECUTION_AFTER_RECEIPT")
         if self.aggressor_side is not None and str(self.aggressor_side).upper() not in {"BUY", "SELL"}:
             raise WeatherMakerShadowError("MAKER_TRADE_SIDE_INVALID")
+
+    @property
+    def effective_executed_at(self) -> float:
+        # Synthetic/legacy fixtures without an execution timestamp retain conservative
+        # old behavior by treating their receipt timestamp as execution time.
+        return float(self.received_at if self.executed_at is None else self.executed_at)
 
 
 @dataclass(frozen=True, slots=True)
@@ -403,7 +416,7 @@ def simulate_public_trade_progression(
         if not isinstance(trade, PublicTradePrint):
             raise WeatherMakerShadowError("MAKER_TRADE_TYPE_INVALID")
         ordered.append(trade)
-    ordered.sort(key=lambda row: (float(row.received_at), str(row.trade_id)))
+    ordered.sort(key=lambda row: (row.effective_executed_at, float(row.received_at), str(row.trade_id)))
 
     for trade in ordered:
         if trade.trade_id in batch_seen:
@@ -418,7 +431,8 @@ def simulate_public_trade_progression(
             raise WeatherMakerShadowError("MAKER_TRADE_HISTORY_CAP")
         newly_processed.append(trade.trade_id)
 
-        if trade.received_at <= order.created_at + 1e-12:
+        executed_at = trade.effective_executed_at
+        if executed_at <= order.created_at + 1e-12:
             ignored_preorder += float(trade.shares)
             continue
         if float(trade.price) > order.bid_price + 1e-12:
@@ -442,7 +456,9 @@ def simulate_public_trade_progression(
         newly_filled += fill
         remaining -= fill
         used.append(trade.trade_id)
-        last_fill_at = float(trade.received_at)
+        # Field name retained for artifact compatibility; the value is the causal
+        # execution timestamp, not the collector receipt timestamp.
+        last_fill_at = executed_at
 
     total = min(order.shares, prior_fill + newly_filled)
     if total + 1e-12 >= order.shares:
