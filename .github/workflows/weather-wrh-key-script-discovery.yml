@@ -1,9 +1,6 @@
 name: weather-wrh-key-script-discovery
 
 on:
-  push:
-    branches:
-      - weather-wrh-live-client
   workflow_dispatch:
 
 permissions:
