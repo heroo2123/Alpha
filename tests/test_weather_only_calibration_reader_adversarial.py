@@ -10,8 +10,6 @@ from polymarket_scanner.weather_only_calibration_reader import (
     read_reconstructed_calibration_dataset,
 )
 
-# Reuse the canonical synthetic prospective capture/source stream from the primary
-# reader test. Pytest places the test directory on sys.path in the repository CI.
 from test_weather_only_calibration_reader import (  # noqa: E402
     FOLLOWING,
     _authorized_db,
@@ -40,6 +38,47 @@ def test_reader_rejects_capture_metadata_tampering(tmp_path):
     with pytest.raises(WeatherCalibrationReaderError) as raised:
         read_reconstructed_calibration_dataset(db_path)
     assert raised.value.code == "READER_CAPTURE_STATION_METADATA_MISMATCH"
+
+
+def test_reader_rejects_authorized_capture_without_preregistered_horizon_evidence(tmp_path):
+    db_path = tmp_path / "missing-horizon.sqlite"
+    _authorized_db(db_path)
+    with sqlite3.connect(db_path) as db:
+        db.execute("DELETE FROM weather_calibration_capture_horizon")
+    with pytest.raises(WeatherCalibrationReaderError) as raised:
+        read_reconstructed_calibration_dataset(db_path)
+    assert raised.value.code == "READER_HORIZON:HORIZON_EVIDENCE_MISSING"
+
+
+def test_reader_rejects_horizon_timezone_metadata_tampering(tmp_path):
+    db_path = tmp_path / "horizon-timezone.sqlite"
+    _authorized_db(db_path)
+    with sqlite3.connect(db_path) as db:
+        db.execute(
+            "UPDATE weather_calibration_capture_horizon SET station_timezone = 'UTC'"
+        )
+    with pytest.raises(WeatherCalibrationReaderError) as raised:
+        read_reconstructed_calibration_dataset(db_path)
+    assert raised.value.code == "READER_HORIZON:HORIZON_TIMEZONE_METADATA_MISMATCH"
+
+
+def test_reader_rejects_horizon_payload_digest_tampering(tmp_path):
+    db_path = tmp_path / "horizon-payload.sqlite"
+    _authorized_db(db_path)
+    with sqlite3.connect(db_path) as db:
+        row = db.execute(
+            "SELECT rowid, evidence_json FROM weather_calibration_capture_horizon"
+        ).fetchone()
+        assert row is not None
+        payload = json.loads(row[1])
+        payload["window_start_at"] = float(payload["window_start_at"]) - 60.0
+        db.execute(
+            "UPDATE weather_calibration_capture_horizon SET evidence_json = ? WHERE rowid = ?",
+            (json.dumps(payload, sort_keys=True, separators=(",", ":")), int(row[0])),
+        )
+    with pytest.raises(WeatherCalibrationReaderError) as raised:
+        read_reconstructed_calibration_dataset(db_path)
+    assert raised.value.code == "READER_HORIZON:HORIZON_WINDOW_START_MISMATCH"
 
 
 def test_reader_rejects_snapshot_digest_metadata_tampering(tmp_path):
@@ -121,7 +160,6 @@ def test_reader_never_mutates_database_when_reconstruction_fails(tmp_path):
     _authorized_db(db_path)
     with sqlite3.connect(db_path) as db:
         db.execute("DELETE FROM wrh_collector_snapshots WHERE received_at < ?", (FOLLOWING,))
-        before = db.total_changes
         row_count_before = db.execute("SELECT COUNT(*) FROM wrh_collector_captures").fetchone()[0]
 
     with pytest.raises(WeatherCalibrationReaderError):
@@ -130,6 +168,4 @@ def test_reader_never_mutates_database_when_reconstruction_fails(tmp_path):
     with sqlite3.connect(db_path) as db:
         row_count_after = db.execute("SELECT COUNT(*) FROM wrh_collector_captures").fetchone()[0]
         assert row_count_after == row_count_before
-        # The reader opens its own mode=ro connection; this write connection's local
-        # total_changes is irrelevant, so verify durable content rather than counters.
         assert db.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
