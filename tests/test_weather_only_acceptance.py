@@ -75,9 +75,17 @@ def test_frozen_w7_policy_is_deterministic_and_research_only_acceptance_can_pass
 
 
 def test_policy_thresholds_cannot_be_relaxed_by_caller():
-    with pytest.raises(WeatherW7AcceptanceError) as raised:
+    with pytest.raises(WeatherW7AcceptanceError) as rss:
         WeatherW7Policy(max_process_rss_bytes=MAX_PROCESS_RSS_BYTES + 1)
-    assert raised.value.code == "W7_RESOURCE_POLICY_DRIFT"
+    assert rss.value.code == "W7_RESOURCE_POLICY_DRIFT"
+
+    with pytest.raises(WeatherW7AcceptanceError) as gap:
+        WeatherW7Policy(max_sample_gap_seconds=61.0)
+    assert gap.value.code == "W7_WINDOW_POLICY_DRIFT"
+
+    with pytest.raises(WeatherW7AcceptanceError) as source_samples:
+        WeatherW7Policy(min_source_update_samples=0)
+    assert source_samples.value.code == "W7_LATENCY_POLICY_DRIFT"
 
 
 def test_duration_sample_gap_and_source_update_evidence_are_mandatory():
