@@ -24,7 +24,6 @@ probability promotion or financial authority exists in this module.
 
 import argparse
 import asyncio
-import hashlib
 import json
 import math
 import os
@@ -68,7 +67,7 @@ from .weather_only_wrh_collector import CollectorTickReport, WeatherWRHCollector
 from .weather_only_wrh_collector_authority import TrustedWeatherWRHProspectiveCollector
 
 
-WEATHER_CALIBRATION_WORKER_VERSION = "weather_calibration_worker_v1_fixed_tminus1_1700z_append_reservation"
+WEATHER_CALIBRATION_WORKER_VERSION = "weather_calibration_worker_v2_certified_contract_fixed_tminus1_1700z"
 CAPTURE_POLICY_ID = "weather_gefs_tminus1_1700z_window15m_v1"
 MAPPING_POLICY = EnsembleMappingPolicy(
     policy_id="weather_gefs_nearest_whole_include_control_tminus1_1700z_v1",
@@ -106,10 +105,6 @@ def _finite_timestamp(value: object, code: str) -> float:
 
 def _canonical_json(value: object) -> str:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
-
-
-def _sha256_text(value: str) -> str:
-    return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
 def _capture_window(now: float) -> tuple[float, float, date]:
@@ -399,7 +394,7 @@ class WeatherCalibrationResearchWorker:
             return None
         if not certified.exactly_one_outcome_proven or certified.financial_authority:
             return None
-        return compiled
+        return certified
 
     async def _capture_window_cycle(self, *, now: float, expected_target: date) -> dict:
         report = {
@@ -508,9 +503,7 @@ class WeatherCalibrationResearchWorker:
                 report["reserved_events"] += 1
                 try:
                     registration = self.collector.register_capture(capture)
-                except (WeatherWRHCollectorError, Exception) as exc:
-                    # The event remains reserved even on failure, deliberately
-                    # preventing a second forecast from replacing the chosen one.
+                except Exception as exc:
                     code = getattr(exc, "code", type(exc).__name__)
                     self.state.mark_failed(event_id, f"COLLECTOR_REGISTER:{code}", self._now())
                     errors[f"COLLECTOR_REGISTER:{code}"] += 1
