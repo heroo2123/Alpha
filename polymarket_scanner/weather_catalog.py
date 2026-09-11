@@ -3,10 +3,10 @@ from __future__ import annotations
 """Bounded weather-only Gamma discovery and contract census.
 
 This module is intentionally independent from the general production-universe walk.
-It discovers only the finite Gamma ``weather`` tag using shallow offset pagination,
-requires natural exhaustion before a fixed page ceiling, and reports what the branch
-would need to support. It does not produce financial signals or claim that a family
-classifier is a settlement-contract proof.
+It discovers only the finite Gamma ``weather`` tag using cursor/keyset pagination,
+requires natural cursor exhaustion before a fixed page ceiling, and reports what the
+branch would need to support. It does not produce financial signals or claim that a
+family classifier is a settlement-contract proof.
 """
 
 import argparse
@@ -21,7 +21,7 @@ from urllib.parse import urlparse
 from .polymarket import PolymarketClient, UniverseIncompleteError, _json_list
 from .config import settings
 
-WEATHER_CATALOG_VERSION = "weather_catalog_v1_tag_bounded_contract_census"
+WEATHER_CATALOG_VERSION = "weather_catalog_v2_tag_keyset_contract_census"
 WEATHER_TAG_SLUG = "weather"
 WEATHER_PAGE_CEILING = 20
 
@@ -238,41 +238,56 @@ async def fetch_weather_events(
     tag_slug: str = WEATHER_TAG_SLUG,
     page_ceiling: int = WEATHER_PAGE_CEILING,
 ) -> tuple[list[dict], int]:
-    """Fetch only the bounded weather-tag catalog and prove a short terminal page.
+    """Fetch only the bounded weather-tag catalog and prove keyset exhaustion.
 
-    This deliberately does not fall back to the full active-universe keyset walk.
-    If the weather tag grows beyond the fixed shallow pagination envelope, the
-    census fails closed and engineering must revise discovery explicitly.
+    Weather discovery intentionally reuses the same cursor contract that hardened the
+    full scanner after Gamma's offset pagination became unstable. Scope remains only
+    the finite weather tag, and the fixed page ceiling remains a hard fail-closed
+    resource bound. A repeated cursor, repeated event ID, malformed page, or a live
+    continuation at the ceiling invalidates the census rather than silently dropping
+    or reconciling a moving snapshot.
     """
-    page_size = max(1, min(int(settings.gamma_page_size), 100))
     if page_ceiling <= 0:
         raise ValueError("page_ceiling must be positive")
 
     events_by_id: dict[str, dict] = {}
     pages = 0
+    cursor: str | None = None
+    seen_cursors: set[str] = set()
     exhausted = False
-    for page in range(page_ceiling):
-        rows = await client._event_page(page * page_size, tag_slug=tag_slug)
+
+    for _ in range(page_ceiling):
+        rows, next_cursor = await client._event_keyset_page(cursor, tag_slug=tag_slug)
         pages += 1
         if not isinstance(rows, list):
-            raise UniverseIncompleteError("weather-tag page is not a list")
+            raise UniverseIncompleteError("weather-tag keyset page is not a list")
+
         for event in rows:
             if not isinstance(event, dict):
                 continue
             event_id = str(event.get("id") or "").strip()
             if not event_id:
                 continue
-            prior = events_by_id.get(event_id)
-            if prior is not None and prior != event:
-                raise UniverseIncompleteError("weather-tag pagination returned conflicting duplicate event")
+            if event_id in events_by_id:
+                raise UniverseIncompleteError(
+                    "weather-tag keyset returned a duplicate event ID across pages"
+                )
             events_by_id[event_id] = event
-        if len(rows) < page_size:
+
+        if next_cursor is None:
             exhausted = True
             break
+        if not isinstance(next_cursor, str) or not next_cursor.strip():
+            raise UniverseIncompleteError("weather-tag keyset returned a malformed continuation cursor")
+        next_cursor = next_cursor.strip()
+        if next_cursor == cursor or next_cursor in seen_cursors:
+            raise UniverseIncompleteError("weather-tag keyset repeated a continuation cursor")
+        seen_cursors.add(next_cursor)
+        cursor = next_cursor
 
     if not exhausted:
         raise UniverseIncompleteError(
-            f"weather-tag catalog did not exhaust within {page_ceiling} pages of {page_size}"
+            f"weather-tag keyset did not exhaust within {page_ceiling} pages"
         )
     return list(events_by_id.values()), pages
 
@@ -305,7 +320,7 @@ def build_census(events: list[dict], *, pages: int) -> dict:
     return {
         "version": WEATHER_CATALOG_VERSION,
         "complete": True,
-        "discovery_scope": f"Gamma events tag_slug={WEATHER_TAG_SLUG}",
+        "discovery_scope": f"Gamma events/keyset tag_slug={WEATHER_TAG_SLUG}",
         "pages": pages,
         "event_count": len(event_ids),
         "market_count": len(rows),
