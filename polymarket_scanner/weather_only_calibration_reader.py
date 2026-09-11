@@ -41,7 +41,7 @@ from .weather_only_wrh_collector import (
 )
 
 
-WEATHER_CALIBRATION_READER_VERSION = "weather_calibration_reader_v1_ro_recompute_unique_cutoff_authority"
+WEATHER_CALIBRATION_READER_VERSION = "weather_calibration_reader_v2_ro_recompute_canonical_audit_compare"
 
 
 class WeatherCalibrationReaderError(RuntimeError):
@@ -60,6 +60,18 @@ def _json_object(value: object, code: str) -> dict:
     if not isinstance(payload, dict):
         raise WeatherCalibrationReaderError(code)
     return payload
+
+
+def _json_equivalent(value: object) -> object:
+    """Normalize dataclass audit payloads exactly as canonical JSON persistence does.
+
+    JSON storage intentionally converts tuples to arrays/lists. Comparing a parsed
+    persisted envelope directly to an in-memory ``as_dict`` result would therefore
+    create false mismatches even when every evidence digest and semantic field is
+    identical. A canonical JSON round-trip removes only that representation artifact;
+    it does not coerce numbers, drop fields, or bypass any lineage validation.
+    """
+    return json.loads(json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True))
 
 
 def _finite(value: object, code: str) -> float:
@@ -251,9 +263,9 @@ def read_reconstructed_calibration_dataset(path: str | Path) -> dict:
                 row["authorized_json"],
                 "READER_STORED_AUTHORIZED_JSON_INVALID",
             )
-            if stored_settlement != settlement.as_dict():
+            if stored_settlement != _json_equivalent(settlement.as_dict()):
                 raise WeatherCalibrationReaderError("READER_STORED_SETTLEMENT_MISMATCH")
-            if stored_authorized != authorized.as_dict():
+            if stored_authorized != _json_equivalent(authorized.as_dict()):
                 raise WeatherCalibrationReaderError("READER_STORED_AUTHORIZED_MISMATCH")
             records.append(_record_from_authorized(capture, authorized))
 
