@@ -2,14 +2,15 @@ from __future__ import annotations
 
 """Fail-closed virtual maker lifecycle for weather-only research.
 
-This module models *hypothetical* resting bids.  It never posts/cancels/authenticates
+This module models *hypothetical* resting bids. It never posts/cancels/authenticates
 an order, never treats a book touch as a fill, and never grants financial authority.
 A simulated fill requires a causal public trade print explicitly identified as a sell
-aggressor.  Visible queue ahead is consumed before the virtual order receives any
+aggressor. Visible queue ahead is consumed before the virtual order receives any
 simulated shares; unknown-side prints remain ambiguous instead of becoming fills.
 
-The state machine is intentionally conservative so Stage W5 can collect queue/fill,
-cancellation and markout evidence without contaminating actual-fill accounting.
+Processed public-trade identities are carried in the immutable order state. This makes
+overlapping polling windows idempotent across cycles/restarts when that order state is
+persisted: the same trade print cannot consume queue or create a simulated fill twice.
 """
 
 import hashlib
@@ -22,13 +23,13 @@ from .weather_only_clob import WeatherMarketParameters
 from .weather_only_maker import FairValueBand, MakerBidProposal
 
 
-WEATHER_MAKER_SHADOW_VERSION = "weather_maker_shadow_v1_causal_sell_print_queue_fail_closed"
+WEATHER_MAKER_SHADOW_VERSION = "weather_maker_shadow_v2_cross_cycle_trade_idempotence_evidence_bound"
+MAX_PROCESSED_TRADE_IDS = 10_000
 RESTING = "RESTING"
 PARTIALLY_SIMULATED = "PARTIALLY_SIMULATED"
 SIMULATED_FILLED = "SIMULATED_FILLED"
 CANCELLED = "CANCELLED"
 EXPIRED = "EXPIRED"
-
 KEEP = "KEEP"
 CANCEL = "CANCEL"
 
@@ -62,10 +63,32 @@ def _text(value: object, code: str) -> str:
     return text
 
 
+def _same_float(left: object, right: object, *, tolerance: float = 1e-10) -> bool:
+    try:
+        a, b = float(left), float(right)
+    except (TypeError, ValueError, OverflowError):
+        return False
+    return math.isfinite(a) and math.isfinite(b) and abs(a - b) <= tolerance
+
+
 def _digest(value: object) -> str:
     return hashlib.sha256(
         json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
     ).hexdigest()
+
+
+def fair_value_fingerprint(fair: FairValueBand) -> str:
+    if not isinstance(fair, FairValueBand):
+        raise WeatherMakerShadowError("MAKER_FAIR_VALUE_INVALID")
+    return _digest({
+        "token_id": fair.token_id,
+        "lower": fair.lower,
+        "point": fair.point,
+        "upper": fair.upper,
+        "model_version": fair.model_version,
+        "as_of": fair.as_of,
+        "calibrated": fair.calibrated,
+    })
 
 
 def market_parameter_fingerprint(parameters: WeatherMarketParameters) -> str:
@@ -134,6 +157,7 @@ class PublicTradePrint:
     def __post_init__(self):
         _text(self.trade_id, "MAKER_TRADE_ID_MISSING")
         _text(self.token_id, "MAKER_TRADE_TOKEN_MISSING")
+        _text(self.source, "MAKER_TRADE_SOURCE_MISSING")
         price = _finite(self.price, positive=True)
         if price >= 1.0:
             raise WeatherMakerShadowError("MAKER_TRADE_PRICE_INVALID")
@@ -167,6 +191,7 @@ class VirtualMakerOrder:
     created_book_received_at: float
     queue_ahead_shares: float
     simulated_filled_shares: float
+    processed_trade_ids: tuple[str, ...]
     status: str
     research_only: bool = field(init=False, default=True)
     actual_order_placed: bool = field(init=False, default=False)
@@ -197,6 +222,7 @@ class MakerFillSimulation:
     eligible_sell_print_shares: float
     ambiguous_print_shares: float
     ignored_preorder_print_shares: float
+    replayed_trade_ids: tuple[str, ...]
     used_trade_ids: tuple[str, ...]
     last_simulated_fill_received_at: float | None
     book_touch_seen: bool
@@ -267,16 +293,33 @@ def create_virtual_maker_order(
         raise WeatherMakerShadowError("MAKER_FAIR_TOKEN_MISMATCH")
     if proposal.model_version != fair.model_version:
         raise WeatherMakerShadowError("MAKER_FAIR_MODEL_MISMATCH")
+    if not (
+        _same_float(proposal.fair_lower, fair.lower)
+        and _same_float(proposal.fair_point, fair.point)
+        and _same_float(proposal.fair_upper, fair.upper)
+        and proposal.calibrated is fair.calibrated
+    ):
+        raise WeatherMakerShadowError("MAKER_PROPOSAL_FAIR_EVIDENCE_MISMATCH")
     if proposal.condition_id != parameters.condition_id:
         raise WeatherMakerShadowError("MAKER_CONDITION_MISMATCH")
     if proposal.token_id not in {token for token, _ in parameters.token_outcomes}:
         raise WeatherMakerShadowError("MAKER_PARAMETER_TOKEN_MISMATCH")
-    if abs(float(proposal.minimum_tick_size) - float(parameters.minimum_tick_size)) > 1e-12:
+    if not _same_float(proposal.minimum_tick_size, parameters.minimum_tick_size):
         raise WeatherMakerShadowError("MAKER_TICK_MISMATCH")
-    if abs(float(proposal.minimum_order_size) - float(parameters.minimum_order_size)) > 1e-12:
+    if not _same_float(proposal.minimum_order_size, parameters.minimum_order_size):
         raise WeatherMakerShadowError("MAKER_MINIMUM_SIZE_MISMATCH")
-    if not isinstance(fair.calibrated, bool):
-        raise WeatherMakerShadowError("MAKER_FAIR_CALIBRATION_FLAG_INVALID")
+
+    bid = _finite(proposal.bid_price, positive=True)
+    shares = _finite(proposal.max_shares, positive=True)
+    notional = _finite(proposal.max_notional, positive=True)
+    tick = _finite(parameters.minimum_tick_size, positive=True)
+    if bid >= 1.0 or abs((bid / tick) - round(bid / tick)) > 1e-8:
+        raise WeatherMakerShadowError("MAKER_BID_TICK_INVALID")
+    if not _same_float(notional, bid * shares, tolerance=1e-7):
+        raise WeatherMakerShadowError("MAKER_PROPOSAL_NOTIONAL_MISMATCH")
+    if shares + 1e-12 < float(parameters.minimum_order_size):
+        raise WeatherMakerShadowError("MAKER_ORDER_BELOW_MINIMUM_SIZE")
+
     if now < float(fair.as_of):
         raise WeatherMakerShadowError("MAKER_FAIR_FROM_FUTURE")
     if now - float(fair.as_of) > policy.max_fair_age_seconds:
@@ -286,18 +329,16 @@ def create_virtual_maker_order(
     book_received = _finite(book.received_at, nonnegative=True)
     if now < book_received or now - book_received > policy.max_book_age_seconds:
         raise WeatherMakerShadowError("MAKER_BOOK_STALE_AT_CREATION")
-    edge = float(fair.lower) - float(proposal.bid_price)
+    edge = float(fair.lower) - bid
     if edge + 1e-12 < policy.minimum_edge_per_share:
         raise WeatherMakerShadowError("MAKER_EDGE_BELOW_POLICY")
-    if float(proposal.max_shares) + 1e-12 < float(parameters.minimum_order_size):
-        raise WeatherMakerShadowError("MAKER_ORDER_BELOW_MINIMUM_SIZE")
-    contract_sha = _text(contract_evidence_sha256, "MAKER_CONTRACT_EVIDENCE_MISSING")
-    if len(contract_sha) != 64 or any(ch not in "0123456789abcdef" for ch in contract_sha.lower()):
+
+    contract_sha = _text(contract_evidence_sha256, "MAKER_CONTRACT_EVIDENCE_MISSING").lower()
+    if len(contract_sha) != 64 or any(ch not in "0123456789abcdef" for ch in contract_sha):
         raise WeatherMakerShadowError("MAKER_CONTRACT_EVIDENCE_INVALID")
     generation = _text(source_generation, "MAKER_SOURCE_GENERATION_MISSING")
     oid = _text(order_id, "MAKER_ORDER_ID_MISSING")
 
-    queue_ahead = _book_level_size(book, float(proposal.bid_price))
     return VirtualMakerOrder(
         version=WEATHER_MAKER_SHADOW_VERSION,
         order_id=oid,
@@ -307,28 +348,21 @@ def create_virtual_maker_order(
         condition_id=_text(proposal.condition_id, "MAKER_CONDITION_ID_MISSING"),
         token_id=_text(proposal.token_id, "MAKER_TOKEN_ID_MISSING"),
         outcome=_text(proposal.outcome, "MAKER_OUTCOME_MISSING"),
-        bid_price=float(proposal.bid_price),
-        shares=float(proposal.max_shares),
+        bid_price=bid,
+        shares=shares,
         created_at=now,
         expires_at=now + policy.max_order_age_seconds,
         fair_model_version=fair.model_version,
-        fair_evidence_sha256=_digest({
-            "token_id": fair.token_id,
-            "lower": fair.lower,
-            "point": fair.point,
-            "upper": fair.upper,
-            "model_version": fair.model_version,
-            "as_of": fair.as_of,
-            "calibrated": fair.calibrated,
-        }),
+        fair_evidence_sha256=fair_value_fingerprint(fair),
         fair_as_of=float(fair.as_of),
-        contract_evidence_sha256=contract_sha.lower(),
+        contract_evidence_sha256=contract_sha,
         source_generation=generation,
         market_parameter_sha256=market_parameter_fingerprint(parameters),
         created_book_hash=book.book_hash,
         created_book_received_at=book_received,
-        queue_ahead_shares=float(queue_ahead),
+        queue_ahead_shares=float(_book_level_size(book, bid)),
         simulated_filled_shares=0.0,
+        processed_trade_ids=(),
         status=RESTING,
     )
 
@@ -343,13 +377,20 @@ def simulate_public_trade_progression(
         raise WeatherMakerShadowError("MAKER_ORDER_INVALID")
     if order.status not in {RESTING, PARTIALLY_SIMULATED}:
         raise WeatherMakerShadowError("MAKER_ORDER_NOT_RESTING")
+    if len(order.processed_trade_ids) > MAX_PROCESSED_TRADE_IDS:
+        raise WeatherMakerShadowError("MAKER_TRADE_HISTORY_CAP")
+    if len(set(order.processed_trade_ids)) != len(order.processed_trade_ids):
+        raise WeatherMakerShadowError("MAKER_ORDER_TRADE_HISTORY_CORRUPT")
     if latest_book is not None:
         _validate_book(latest_book, order.token_id)
 
-    seen: set[str] = set()
+    prior_processed = set(order.processed_trade_ids)
+    batch_seen: set[str] = set()
+    newly_processed: list[str] = []
+    replayed: list[str] = []
     queue = float(order.queue_ahead_shares)
     remaining = float(order.remaining_shares)
-    prior = float(order.simulated_filled_shares)
+    prior_fill = float(order.simulated_filled_shares)
     newly_filled = 0.0
     eligible = 0.0
     ambiguous = 0.0
@@ -357,15 +398,26 @@ def simulate_public_trade_progression(
     used: list[str] = []
     last_fill_at: float | None = None
 
-    ordered = sorted(trades, key=lambda row: (float(row.received_at), str(row.trade_id)))
-    for trade in ordered:
+    ordered: list[PublicTradePrint] = []
+    for trade in trades:
         if not isinstance(trade, PublicTradePrint):
             raise WeatherMakerShadowError("MAKER_TRADE_TYPE_INVALID")
-        if trade.trade_id in seen:
+        ordered.append(trade)
+    ordered.sort(key=lambda row: (float(row.received_at), str(row.trade_id)))
+
+    for trade in ordered:
+        if trade.trade_id in batch_seen:
             raise WeatherMakerShadowError("MAKER_DUPLICATE_TRADE_ID")
-        seen.add(trade.trade_id)
+        batch_seen.add(trade.trade_id)
         if trade.token_id != order.token_id:
             continue
+        if trade.trade_id in prior_processed:
+            replayed.append(trade.trade_id)
+            continue
+        if len(prior_processed) + len(newly_processed) >= MAX_PROCESSED_TRADE_IDS:
+            raise WeatherMakerShadowError("MAKER_TRADE_HISTORY_CAP")
+        newly_processed.append(trade.trade_id)
+
         if trade.received_at <= order.created_at + 1e-12:
             ignored_preorder += float(trade.shares)
             continue
@@ -392,17 +444,19 @@ def simulate_public_trade_progression(
         used.append(trade.trade_id)
         last_fill_at = float(trade.received_at)
 
-    total = min(order.shares, prior + newly_filled)
+    total = min(order.shares, prior_fill + newly_filled)
     if total + 1e-12 >= order.shares:
         status = SIMULATED_FILLED
     elif total > 1e-12:
         status = PARTIALLY_SIMULATED
     else:
         status = RESTING
+
     updated = replace(
         order,
         queue_ahead_shares=max(0.0, queue),
         simulated_filled_shares=total,
+        processed_trade_ids=tuple((*order.processed_trade_ids, *newly_processed)),
         status=status,
     )
     touch = bool(
@@ -420,13 +474,14 @@ def simulate_public_trade_progression(
         order_shares=order.shares,
         starting_queue_ahead_shares=order.queue_ahead_shares,
         ending_queue_ahead_shares=max(0.0, queue),
-        prior_simulated_filled_shares=prior,
+        prior_simulated_filled_shares=prior_fill,
         new_simulated_fill_shares=newly_filled,
         total_simulated_filled_shares=total,
         remaining_order_shares=max(0.0, order.shares - total),
         eligible_sell_print_shares=eligible,
         ambiguous_print_shares=ambiguous,
         ignored_preorder_print_shares=ignored_preorder,
+        replayed_trade_ids=tuple(replayed),
         used_trade_ids=tuple(used),
         last_simulated_fill_received_at=last_fill_at,
         book_touch_seen=touch,
@@ -449,6 +504,8 @@ def evaluate_virtual_order(
 ) -> MakerOrderDecision:
     if not isinstance(order, VirtualMakerOrder):
         raise WeatherMakerShadowError("MAKER_ORDER_INVALID")
+    if not isinstance(fair, FairValueBand) or not isinstance(parameters, WeatherMarketParameters):
+        raise WeatherMakerShadowError("MAKER_EVALUATION_EVIDENCE_INVALID")
     now = _finite(evaluated_at, nonnegative=True)
     _validate_book(book, order.token_id)
     reasons: list[str] = []
@@ -483,8 +540,6 @@ def evaluate_virtual_order(
         reasons.append("CONTRACT_EVIDENCE_CHANGED")
     if str(source_generation).strip() != order.source_generation:
         reasons.append("SOURCE_GENERATION_CHANGED")
-    # A crossed/touched virtual bid is not counted as a fill.  It requires public
-    # trade evidence or an authenticated account receipt; cancel/review it instead.
     if book.best_ask is not None and book.best_ask <= order.bid_price + 1e-12:
         reasons.append("BOOK_MARKETABLE_TOUCH_REQUIRES_FILL_RECONCILIATION")
 
@@ -498,6 +553,8 @@ def evaluate_virtual_order(
 
 
 def apply_cancel_decision(order: VirtualMakerOrder, decision: MakerOrderDecision) -> VirtualMakerOrder:
+    if not isinstance(order, VirtualMakerOrder) or not isinstance(decision, MakerOrderDecision):
+        raise WeatherMakerShadowError("MAKER_CANCEL_INPUT_INVALID")
     if decision.action != CANCEL:
         return order
     status = EXPIRED if "ORDER_EXPIRED" in decision.reasons else CANCELLED
