@@ -19,7 +19,7 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install -r requirements.txt
-      - name: Inspect official WRH shell and viewer transport code
+      - name: Certify official WRH transport, display transform and hourly predicate
         shell: bash
         run: |
           python - <<'PY'
@@ -41,7 +41,7 @@ jobs:
               'chart': 'off',
           }
           headers = {
-              'User-Agent': 'polymarket-weather-only-wrh-probe/0.2 (+https://github.com/heroo2123/Alpha)',
+              'User-Agent': 'polymarket-weather-only-wrh-probe/0.3 (+https://github.com/heroo2123/Alpha)',
               'Accept': '*/*',
           }
           with httpx.Client(headers=headers, timeout=20.0, follow_redirects=True) as client:
@@ -61,76 +61,62 @@ jobs:
               obs.raise_for_status()
               js = obs.text
 
-          # Extract only transport/transform context; never fetch or print apiKey.js.
-          patterns = (
-              r'api\.synopticdata[^\s"\']*',
-              r'synopticdata[^\s"\']*',
-              r'mesowest[^\s"\']*',
-              r'fetch\s*\(',
-              r'\$\.ajax',
-              r'\$\.getJSON',
-              r'XMLHttpRequest',
-              r'apiKey',
-              r'token',
-              r'stid',
-              r'vars=',
-              r'obtimezone',
-              r'date_time',
-              r'air_temp',
-              r'hourly',
-              r'qc=',
-              r'units=',
-          )
-          hits = []
           lines = js.splitlines()
-          for index, line in enumerate(lines):
-              if any(re.search(pattern, line, re.I) for pattern in patterns):
-                  start = max(0, index - 3)
-                  end = min(len(lines), index + 5)
-                  excerpt = '\n'.join(lines[start:end])
-                  # Redact common key/token assignment/query forms defensively.
-                  excerpt = re.sub(
-                      r'(?i)(?:token|apikey|api_key|key)(\s*[=:]\s*["\'])[^"\']+(["\'])',
-                      r'\1<REDACTED>\2',
-                      excerpt,
-                  )
-                  excerpt = re.sub(
-                      r'(?i)((?:token|apikey|api_key|key)=)[^&\s"\']+',
-                      r'\1<REDACTED>',
-                      excerpt,
-                  )
-                  hits.append({'line': index + 1, 'excerpt': excerpt})
+          def block(start, end):
+              # 1-based inclusive line range, redacted defensively.
+              text = '\n'.join(lines[start-1:end])
+              text = re.sub(
+                  r'(?i)(?:token|apikey|api_key|key)(\s*[=:]\s*["\'])[^"\']+(["\'])',
+                  r'\1<REDACTED>\2',
+                  text,
+              )
+              text = re.sub(
+                  r'(?i)((?:token|apikey|api_key|key)=)[^&\s"\']+',
+                  r'\1<REDACTED>',
+                  text,
+              )
+              return text
 
-          # De-duplicate overlapping excerpts while preserving order.
-          unique = []
-          seen = set()
-          for hit in hits:
-              key = hit['excerpt']
-              if key not in seen:
-                  seen.add(key)
-                  unique.append(hit)
+          transport = block(286, 316)
+          metadata = block(309, 352)
+          temperature = block(365, 384)
+          hourly = block(1748, 1810)
+
+          # Fail if the exact semantics we are depending on are no longer present.
+          required = {
+              'synoptic_timeseries': 'api.synopticdata.com/v2/stations/timeseries' in transport,
+              'complete_1': 'complete=1' in transport,
+              'local_timezone': 'obtimezone=local' in transport,
+              'station_identity': 'DATA.STATION[0].STID' in metadata,
+              'station_network': 'DATA.STATION[0].MNET_SHORTNAME' in metadata,
+              'station_timezone': 'DATA.STATION[0].TIMEZONE' in temperature or 'DATA.STATION[0].TIMEZONE' in hourly,
+              'temperature_field': 'air_temp_set_1' in temperature,
+              'whole_degree_display': 'Math.round(DATA.STATION[0].OBSERVATIONS.air_temp_set_1[j])' in temperature,
+              'hourly_flag': "if (hourly == 'true')" in hourly,
+              'asos_network_branch': "network == 'ASOS/AWOS'" in hourly,
+              'minutes_reference': 'minutes' in hourly,
+          }
+          if not all(required.values()):
+              raise SystemExit(f'WRH source semantics drift: {required}')
 
           report = {
-              'page_url': str(page.url),
-              'page_status': page.status_code,
-              'page_body_bytes': len(page.content),
-              'page_body_sha256': hashlib.sha256(page.content).hexdigest(),
               'viewer_script_url': script_url,
-              'viewer_script_status': obs.status_code,
-              'viewer_script_bytes': len(obs.content),
               'viewer_script_sha256': hashlib.sha256(obs.content).hexdigest(),
+              'viewer_script_bytes': len(obs.content),
               'viewer_script_line_count': len(lines),
-              'transport_context': unique,
+              'certified_checks': required,
+              'transport_block': transport,
+              'metadata_block': metadata,
+              'temperature_block': temperature,
+              'hourly_block': hourly,
               'api_key_script_fetched': False,
           }
-          Path('wrh-transport-probe.json').write_text(json.dumps(report, indent=2, sort_keys=True) + '\n')
+          Path('wrh-hourly-semantics.json').write_text(json.dumps(report, indent=2, sort_keys=True) + '\n')
           print(json.dumps(report, indent=2, sort_keys=True))
-          if not unique:
-              raise SystemExit('WRH transport/transform code not located')
           PY
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: weather-wrh-transport-${{ github.sha }}
-          path: wrh-transport-probe.json
+          name: weather-wrh-hourly-semantics-${{ github.sha }}
+          path: wrh-hourly-semantics.json
           if-no-files-found: warn
