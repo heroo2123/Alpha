@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 
 import httpx
 import pytest
@@ -137,13 +138,18 @@ def test_trade_schema_rejects_bad_side_timestamp_price_wallet_and_hash():
 
 def test_client_requests_only_taker_rows_with_cursor_or_first_page_limit_and_never_returns_secret():
     requests = []
+    # This test exercises the real client clock. Keep the synthetic exchange execution
+    # causally before local receipt instead of using the fixed 1.8B parser-fixture time,
+    # which eventually becomes future-dated relative to the runner clock.
+    executed_at = time.time() - 60.0
 
     def handler(request: httpx.Request) -> httpx.Response:
         requests.append(request)
         cursor = request.url.params.get("cursor")
+        row = _row(timestamp=executed_at)
         if cursor is None:
-            return httpx.Response(200, json=_payload(has_more=True, next_cursor="cursor-2"))
-        return httpx.Response(200, json=_payload(has_more=False, next_cursor=None))
+            return httpx.Response(200, json=_payload([row], has_more=True, next_cursor="cursor-2"))
+        return httpx.Response(200, json=_payload([row], has_more=False, next_cursor=None))
 
     async def scenario():
         http = httpx.AsyncClient(transport=httpx.MockTransport(handler))
