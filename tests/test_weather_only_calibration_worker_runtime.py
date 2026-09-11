@@ -4,6 +4,8 @@ import asyncio
 from datetime import datetime, timezone
 
 import polymarket_scanner.weather_only_calibration_worker_runtime as worker_runtime
+from polymarket_scanner.weather_calibration_experiment import STATISTICAL_POLICY_STATUS
+from polymarket_scanner.weather_calibration_policy import WEATHER_GEFS_CALIBRATION_POLICY_ID
 from polymarket_scanner.weather_only_calibration_worker_runtime import (
     OperationalWeatherCalibrationResearchWorker,
     assess_worker_cycle_health,
@@ -32,6 +34,22 @@ def _horizon_ok() -> dict:
     }
 
 
+def _experiment_ok() -> dict:
+    return {
+        "manifest_version": "fixture-manifest-v1",
+        "manifest_sha256": "a" * 64,
+        "capture_policy_id": "fixture-capture-policy-v1",
+        "statistical_policy_status": STATISTICAL_POLICY_STATUS,
+        "statistical_policy_id": WEATHER_GEFS_CALIBRATION_POLICY_ID,
+        "statistical_policy_sha256": "b" * 64,
+        "prospective_collection_authority": True,
+        "calibrated_probability_authority": False,
+        "financial_authority": False,
+        "financial_delivery": False,
+        "automatic_order_placement": False,
+    }
+
+
 def _healthy_report() -> dict:
     return {
         "cycle_ok": True,
@@ -50,6 +68,7 @@ def _healthy_report() -> dict:
             "automatic_order_placement": False,
         },
         "horizon_attestation": _horizon_ok(),
+        "experiment": _experiment_ok(),
         "state": {"status_counts": {}},
     }
 
@@ -114,6 +133,30 @@ def test_horizon_attestation_error_is_unhealthy_and_gap_detected():
     assert "HORIZON_ATTESTATION_FAILED" in health.gap_reasons
 
 
+def test_experiment_attestation_error_is_unhealthy_but_does_not_invent_gap():
+    report = _healthy_report()
+    report["experiment"] = {
+        "error": "EXPERIMENT_CAPTURE_POLICY_DRIFT",
+        "calibrated_probability_authority": False,
+        "financial_authority": False,
+    }
+    health = assess_worker_cycle_health(report)
+    assert health.process_healthy is True
+    assert health.research_collection_healthy is False
+    assert health.prospective_gap_detected is False
+    assert "EXPERIMENT:EXPERIMENT_CAPTURE_POLICY_DRIFT" in health.health_reasons
+
+
+def test_experiment_attestation_rejects_authority_or_digest_boundary_damage():
+    report = _healthy_report()
+    report["experiment"]["manifest_sha256"] = "short"
+    report["experiment"]["calibrated_probability_authority"] = True
+    health = assess_worker_cycle_health(report)
+    assert health.process_healthy is True
+    assert health.research_collection_healthy is False
+    assert "EXPERIMENT_ATTESTATION_BOUNDARY_INVALID" in health.health_reasons
+
+
 def test_state_reconciliation_failure_marks_process_and_collection_unhealthy():
     report = _healthy_report()
     report["cycle_ok"] = False
@@ -148,6 +191,11 @@ def test_operational_wrapper_before_window_is_healthy_and_never_fetches_forecast
             assert report["prospective_gap_detected"] is False
             assert report["capture"]["before_window_events"] == 1
             assert forecast.calls == 0
+            assert len(report["experiment"]["manifest_sha256"]) == 64
+            assert report["experiment"]["statistical_policy_id"] == WEATHER_GEFS_CALIBRATION_POLICY_ID
+            assert len(report["experiment"]["statistical_policy_sha256"]) == 64
+            assert report["experiment"]["calibrated_probability_authority"] is False
+            assert report["calibrated_probability_authority"] is False
             assert report["financial_authority"] is False
             assert report["financial_delivery"] is False
             assert report["automatic_order_placement"] is False
@@ -187,6 +235,7 @@ def test_operational_wrapper_registration_failure_is_visible_as_unhealthy_gap(tm
             assert report["prospective_gap_detected"] is True
             assert report["capture"]["errors"]["COLLECTOR_REGISTER:RuntimeError"] == 1
             assert report["state"]["status_counts"]["FAILED"] == 1
+            assert report["experiment"]["financial_authority"] is False
         finally:
             await worker.close()
 
