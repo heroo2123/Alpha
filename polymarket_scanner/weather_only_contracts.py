@@ -140,9 +140,52 @@ def _unit_tokens(text: str) -> set[str]:
     return units
 
 
+def _declared_resolution_units(event: dict) -> set[str]:
+    """Extract units from settlement assertions, not display/UI instructions.
+
+    Current Wunderground market copy explicitly resolves in one unit but also tells
+    the reader how to toggle the website UI between Fahrenheit and Celsius.  Treating
+    every unit word in the prose as equal authority turns that harmless UI sentence
+    into a false contract conflict.  ``degrees Fahrenheit/Celsius`` declarations are
+    settlement/precision language in the recurring templates; bare ``Fahrenheit and
+    Celsius`` or ``°F and °C`` toggle instructions are not.
+    """
+    parts = [event.get("description")]
+    parts.extend(row.get("description") for row in _market_rows(event))
+    text = " ".join(str(value or "") for value in parts)
+    units: set[str] = set()
+    if re.search(r"\bdegrees?\s+(?:F(?:ahrenheit)?\b|fahrenheit\b)", text, re.I):
+        units.add("F")
+    if re.search(r"\bdegrees?\s+(?:C(?:elsius)?\b|celsius\b)", text, re.I):
+        units.add("C")
+    return units
+
+
 def exact_weather_unit(event: dict) -> str | None:
-    found = _unit_tokens(_event_text(event))
-    return next(iter(found)) if len(found) == 1 else None
+    """Resolve the contract unit from bucket identity plus settlement declarations.
+
+    Bucket questions are the outcome identity the trader actually buys.  They must
+    agree on one unit.  Explicit ``degrees X`` settlement/precision declarations, if
+    present, must also agree with that unit.  Generic UI toggle prose is deliberately
+    excluded.  Any real identity/settlement conflict still fails closed.
+    """
+    question_units: set[str] = set()
+    for row in _market_rows(event):
+        found = _unit_tokens(str(row.get("question") or ""))
+        if len(found) > 1:
+            return None
+        question_units.update(found)
+    if len(question_units) > 1:
+        return None
+
+    declared = _declared_resolution_units(event)
+    if len(declared) > 1:
+        return None
+
+    if question_units and declared and question_units != declared:
+        return None
+    combined = question_units or declared
+    return next(iter(combined)) if len(combined) == 1 else None
 
 
 def source_urls(event: dict) -> tuple[str, ...]:
