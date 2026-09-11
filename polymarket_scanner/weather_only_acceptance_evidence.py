@@ -2,15 +2,14 @@ from __future__ import annotations
 
 """Canonical, tamper-evident evidence envelope for weather W7 acceptance.
 
-This module does not start services, read credentials, contact Polymarket, mutate a
-runtime database, or grant financial authority. It exists so the future 45-minute
-silent-shadow run cannot be accepted from hand-built/mixed-version Python objects.
+The future 45-minute silent-shadow run cannot be accepted from hand-built/mixed-
+version objects. The envelope binds the exact release/runtime/policy, every resource
+and containment sample, and an embedded manifest of the actual measured latency
+records. Every numeric latency must match exactly one validated measurement record;
+replayed, missing, orphaned or tampered measurements fail before threshold evaluation.
 
-The envelope binds the exact release/runtime/policy, every sample and containment
-counter, and the SHA references of the measured normal/source-update latency records.
-Loading is deliberately strict: unknown/missing keys, bool-as-int coercion, NaN/Inf,
-policy/runtime drift, release mismatch, dangling latency evidence and digest tampering
-all fail closed before the acceptance evaluator is called.
+This module does not start services, read credentials, contact Polymarket, mutate a
+runtime database, or grant financial authority.
 """
 
 import hashlib
@@ -22,16 +21,23 @@ from dataclasses import asdict, dataclass, field
 from .weather_only_acceptance import (
     WEATHER_W7_ACCEPTANCE_VERSION,
     WEATHER_W7_POLICY_ID,
+    WeatherW7AcceptanceError,
     WeatherW7AcceptanceReport,
     WeatherW7Policy,
     WeatherW7RunEvidence,
     WeatherW7Sample,
     evaluate_weather_w7_acceptance,
 )
+from .weather_only_acceptance_measurements import (
+    WeatherW7MeasurementManifest,
+    WeatherW7MeasurementManifestError,
+    validate_weather_w7_measurement_manifest,
+    weather_w7_measurement_manifest_from_dict,
+)
 from .weather_only_runtime import WEATHER_SHADOW_RUNTIME_VERSION
 
 
-WEATHER_W7_EVIDENCE_VERSION = "weather_w7_evidence_v2_latency_measurement_sha_refs_exact_schema"
+WEATHER_W7_EVIDENCE_VERSION = "weather_w7_evidence_v3_embedded_measurements_one_to_one_latency_binding"
 _SHA40_RE = re.compile(r"^[0-9a-f]{40}$")
 _SHA64_RE = re.compile(r"^[0-9a-f]{64}$")
 
@@ -72,6 +78,7 @@ _ENVELOPE_KEYS = frozenset({
     "release_sha",
     "created_at",
     "run_evidence",
+    "measurement_manifest",
     "evidence_sha256",
     "financial_authority",
     "financial_delivery",
@@ -149,29 +156,32 @@ def _strict_sha64(value: object, *, nullable: bool = False) -> str | None:
 
 def _sample_from_dict(raw: object) -> WeatherW7Sample:
     row = _exact_keys(raw, _SAMPLE_KEYS, "W7_EVIDENCE_SAMPLE_SCHEMA_INVALID")
-    return WeatherW7Sample(
-        observed_at=float(_strict_float(row["observed_at"])),
-        cycle_ok=_strict_bool(row["cycle_ok"]),
-        process_rss_bytes=_strict_int(row["process_rss_bytes"]),
-        swap_used_bytes=_strict_int(row["swap_used_bytes"]),
-        host_mem_available_bytes=_strict_int(row["host_mem_available_bytes"]),
-        incremental_evaluation_seconds=float(_strict_float(row["incremental_evaluation_seconds"])),
-        incremental_evaluation_evidence_sha256=str(_strict_sha64(
-            row["incremental_evaluation_evidence_sha256"]
-        )),
-        source_update_confirmation_seconds=_strict_float(
-            row["source_update_confirmation_seconds"], nullable=True
-        ),
-        source_update_evidence_sha256=_strict_sha64(
-            row["source_update_evidence_sha256"], nullable=True
-        ),
-        weather_event_count=_strict_int(row["weather_event_count"]),
-        non_weather_materialized_count=_strict_int(row["non_weather_materialized_count"]),
-        exact_clob_required_for_candidates=_strict_bool(row["exact_clob_required_for_candidates"]),
-        financial_authority=_strict_bool(row["financial_authority"]),
-        financial_delivery=_strict_bool(row["financial_delivery"]),
-        automatic_order_placement=_strict_bool(row["automatic_order_placement"]),
-    )
+    try:
+        return WeatherW7Sample(
+            observed_at=float(_strict_float(row["observed_at"])),
+            cycle_ok=_strict_bool(row["cycle_ok"]),
+            process_rss_bytes=_strict_int(row["process_rss_bytes"]),
+            swap_used_bytes=_strict_int(row["swap_used_bytes"]),
+            host_mem_available_bytes=_strict_int(row["host_mem_available_bytes"]),
+            incremental_evaluation_seconds=float(_strict_float(row["incremental_evaluation_seconds"])),
+            incremental_evaluation_evidence_sha256=str(_strict_sha64(
+                row["incremental_evaluation_evidence_sha256"]
+            )),
+            source_update_confirmation_seconds=_strict_float(
+                row["source_update_confirmation_seconds"], nullable=True
+            ),
+            source_update_evidence_sha256=_strict_sha64(
+                row["source_update_evidence_sha256"], nullable=True
+            ),
+            weather_event_count=_strict_int(row["weather_event_count"]),
+            non_weather_materialized_count=_strict_int(row["non_weather_materialized_count"]),
+            exact_clob_required_for_candidates=_strict_bool(row["exact_clob_required_for_candidates"]),
+            financial_authority=_strict_bool(row["financial_authority"]),
+            financial_delivery=_strict_bool(row["financial_delivery"]),
+            automatic_order_placement=_strict_bool(row["automatic_order_placement"]),
+        )
+    except WeatherW7AcceptanceError as exc:
+        raise WeatherW7EvidenceError(f"W7_EVIDENCE_SAMPLE_INVALID:{exc.code}") from exc
 
 
 def _run_from_dict(raw: object) -> WeatherW7RunEvidence:
@@ -214,6 +224,7 @@ class WeatherW7EvidenceEnvelope:
     release_sha: str
     created_at: float
     run_evidence: WeatherW7RunEvidence
+    measurement_manifest: WeatherW7MeasurementManifest
     evidence_sha256: str
     financial_authority: bool = field(init=False, default=False)
     financial_delivery: bool = field(init=False, default=False)
@@ -223,6 +234,7 @@ class WeatherW7EvidenceEnvelope:
     def as_dict(self) -> dict:
         value = asdict(self)
         value["run_evidence"] = _run_as_serializable(self.run_evidence)
+        value["measurement_manifest"] = self.measurement_manifest.as_dict()
         return value
 
 
@@ -230,6 +242,56 @@ def _payload_without_digest(envelope: WeatherW7EvidenceEnvelope) -> dict:
     payload = envelope.as_dict()
     payload.pop("evidence_sha256", None)
     return payload
+
+
+def _validate_measurement_links(envelope: WeatherW7EvidenceEnvelope) -> None:
+    try:
+        manifest = validate_weather_w7_measurement_manifest(envelope.measurement_manifest)
+    except WeatherW7MeasurementManifestError as exc:
+        raise WeatherW7EvidenceError(f"W7_EVIDENCE_MEASUREMENT_MANIFEST_INVALID:{exc.code}") from exc
+
+    incremental_by_sha = {
+        row.measurement_evidence_sha256: row
+        for row in manifest.incremental_measurements
+    }
+    source_by_sha = {
+        row.measurement_evidence_sha256: row
+        for row in manifest.source_update_measurements
+    }
+    incremental_refs: list[str] = []
+    source_refs: list[str] = []
+
+    for index, sample in enumerate(envelope.run_evidence.samples):
+        inc_sha = sample.incremental_evaluation_evidence_sha256
+        inc = incremental_by_sha.get(inc_sha)
+        if inc is None:
+            raise WeatherW7EvidenceError(f"W7_EVIDENCE_INCREMENTAL_MEASUREMENT_MISSING:{index}")
+        if sample.incremental_evaluation_seconds != inc.incremental_evaluation_seconds:
+            raise WeatherW7EvidenceError(f"W7_EVIDENCE_INCREMENTAL_LATENCY_MISMATCH:{index}")
+        if inc.evaluation_finished_at > sample.observed_at + 1e-9:
+            raise WeatherW7EvidenceError(f"W7_EVIDENCE_INCREMENTAL_MEASUREMENT_AFTER_SAMPLE:{index}")
+        incremental_refs.append(inc_sha)
+
+        if sample.source_update_confirmation_seconds is None:
+            continue
+        src_sha = str(sample.source_update_evidence_sha256)
+        src = source_by_sha.get(src_sha)
+        if src is None:
+            raise WeatherW7EvidenceError(f"W7_EVIDENCE_SOURCE_MEASUREMENT_MISSING:{index}")
+        if sample.source_update_confirmation_seconds != src.source_update_confirmation_seconds:
+            raise WeatherW7EvidenceError(f"W7_EVIDENCE_SOURCE_LATENCY_MISMATCH:{index}")
+        if src.evaluation_finished_at > sample.observed_at + 1e-9:
+            raise WeatherW7EvidenceError(f"W7_EVIDENCE_SOURCE_MEASUREMENT_AFTER_SAMPLE:{index}")
+        source_refs.append(src_sha)
+
+    if len(set(incremental_refs)) != len(incremental_refs):
+        raise WeatherW7EvidenceError("W7_EVIDENCE_INCREMENTAL_MEASUREMENT_REPLAYED")
+    if len(set(source_refs)) != len(source_refs):
+        raise WeatherW7EvidenceError("W7_EVIDENCE_SOURCE_MEASUREMENT_REPLAYED")
+    if set(incremental_refs) != set(incremental_by_sha):
+        raise WeatherW7EvidenceError("W7_EVIDENCE_INCREMENTAL_MEASUREMENT_ORPHANED")
+    if set(source_refs) != set(source_by_sha):
+        raise WeatherW7EvidenceError("W7_EVIDENCE_SOURCE_MEASUREMENT_ORPHANED")
 
 
 def validate_weather_w7_evidence_envelope(
@@ -276,6 +338,8 @@ def validate_weather_w7_evidence_envelope(
     )):
         raise WeatherW7EvidenceError("W7_EVIDENCE_AUTHORITY_BOUNDARY_BROKEN")
 
+    _validate_measurement_links(envelope)
+
     digest = str(envelope.evidence_sha256 or "").lower()
     if not _SHA64_RE.fullmatch(digest):
         raise WeatherW7EvidenceError("W7_EVIDENCE_SHA_INVALID")
@@ -288,11 +352,16 @@ def validate_weather_w7_evidence_envelope(
 def build_weather_w7_evidence_envelope(
     evidence: WeatherW7RunEvidence,
     *,
+    measurement_manifest: WeatherW7MeasurementManifest,
     created_at: float,
     runtime_version: str = WEATHER_SHADOW_RUNTIME_VERSION,
 ) -> WeatherW7EvidenceEnvelope:
     if not isinstance(evidence, WeatherW7RunEvidence):
         raise WeatherW7EvidenceError("W7_EVIDENCE_RUN_TYPE_INVALID")
+    try:
+        validated_manifest = validate_weather_w7_measurement_manifest(measurement_manifest)
+    except WeatherW7MeasurementManifestError as exc:
+        raise WeatherW7EvidenceError(f"W7_EVIDENCE_MEASUREMENT_MANIFEST_INVALID:{exc.code}") from exc
     frozen = WeatherW7Policy()
     provisional = WeatherW7EvidenceEnvelope(
         version=WEATHER_W7_EVIDENCE_VERSION,
@@ -303,6 +372,7 @@ def build_weather_w7_evidence_envelope(
         release_sha=evidence.release_sha.lower(),
         created_at=float(_strict_float(created_at)),
         run_evidence=evidence,
+        measurement_manifest=validated_manifest,
         evidence_sha256="0" * 64,
     )
     final = WeatherW7EvidenceEnvelope(
@@ -314,6 +384,7 @@ def build_weather_w7_evidence_envelope(
         release_sha=provisional.release_sha,
         created_at=provisional.created_at,
         run_evidence=provisional.run_evidence,
+        measurement_manifest=provisional.measurement_manifest,
         evidence_sha256=_sha(_payload_without_digest(provisional)),
     )
     validate_weather_w7_evidence_envelope(final)
@@ -350,6 +421,10 @@ def load_weather_w7_evidence_json(
         raise WeatherW7EvidenceError("W7_EVIDENCE_SHA_INVALID")
 
     run = _run_from_dict(value["run_evidence"])
+    try:
+        manifest = weather_w7_measurement_manifest_from_dict(value["measurement_manifest"])
+    except WeatherW7MeasurementManifestError as exc:
+        raise WeatherW7EvidenceError(f"W7_EVIDENCE_MEASUREMENT_MANIFEST_INVALID:{exc.code}") from exc
     envelope = WeatherW7EvidenceEnvelope(
         version=version,
         acceptance_version=acceptance_version,
@@ -359,6 +434,7 @@ def load_weather_w7_evidence_json(
         release_sha=release_sha,
         created_at=float(_strict_float(value["created_at"])),
         run_evidence=run,
+        measurement_manifest=manifest,
         evidence_sha256=evidence_sha,
     )
     for key in (
