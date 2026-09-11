@@ -41,7 +41,7 @@ from .weather_only_wrh_collector import (
 )
 
 
-WEATHER_CALIBRATION_READER_VERSION = "weather_calibration_reader_v2_ro_recompute_canonical_audit_compare"
+WEATHER_CALIBRATION_READER_VERSION = "weather_calibration_reader_v3_ro_recompute_label_provenance"
 
 
 class WeatherCalibrationReaderError(RuntimeError):
@@ -146,9 +146,6 @@ def _unique_reauthorized_pair(
 
     if not successful:
         raise WeatherCalibrationReaderError("READER_NO_VALID_FINALITY_PAIR")
-    # The production collector stops polling a key once all captures are terminal, so
-    # more than one independently valid current transition is unexpected and must not
-    # be resolved by choosing whichever one matches stored authorized JSON.
     if len(successful) != 1:
         raise WeatherCalibrationReaderError("READER_FINALITY_PAIR_AMBIGUOUS")
     return successful[0]
@@ -165,6 +162,11 @@ class ReconstructedCalibrationRecord:
     model_version: str
     predicted_probability: float
     final_payout: float
+    label_adapter: str
+    source_role: str
+    evidence_version: str
+    label_authority: bool
+    settlement_state_reconstructable: bool
     authority_evidence_sha256: str
     rule_evidence_sha256: str
     prediction_evidence_sha256: str
@@ -192,6 +194,11 @@ def _record_from_authorized(capture, authorized: AuthorizedWRHCalibrationSample)
         model_version=capture.prediction.model_version,
         predicted_probability=float(sample.predicted_probability),
         final_payout=float(sample.final_payout),
+        label_adapter=str(sample.label_adapter),
+        source_role=str(sample.source_role),
+        evidence_version=str(sample.evidence_version),
+        label_authority=bool(sample.label_authority),
+        settlement_state_reconstructable=bool(sample.settlement_state_reconstructable),
         authority_evidence_sha256=authorized.authority_evidence_sha256,
         rule_evidence_sha256=authorized.rule_evidence_sha256,
         prediction_evidence_sha256=authorized.prediction_evidence_sha256,
