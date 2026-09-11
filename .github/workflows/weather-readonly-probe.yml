@@ -20,6 +20,7 @@ jobs:
           python-version: '3.12'
       - run: pip install -r requirements.txt
       - name: Public read-only Gamma and CLOB weather probe
+        id: probe
         shell: bash
         run: |
           set +e
@@ -28,6 +29,7 @@ jobs:
             >weather-probe.stdout.txt \
             2>weather-probe.stderr.txt
           rc=$?
+          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           if [ ! -s weather-probe.json ]; then
             python - "$rc" <<'PY'
           import json, sys
@@ -44,6 +46,7 @@ jobs:
           cat weather-probe.json >> "$GITHUB_STEP_SUMMARY"
           exit 0
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: weather-readonly-probe-${{ github.sha }}
           path: |
@@ -51,3 +54,21 @@ jobs:
             weather-probe.stdout.txt
             weather-probe.stderr.txt
           if-no-files-found: error
+      - name: Require successful read-only diagnostic
+        if: always()
+        shell: bash
+        run: |
+          test "${{ steps.probe.outputs.exit_code }}" = "0"
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(Path('weather-probe.json').read_text())
+          if report.get('probe_failed'):
+              raise SystemExit('weather read-only probe reported failure')
+          if report.get('read_only') is not True:
+              raise SystemExit('weather read-only probe lost read_only attestation')
+          if report.get('financial_delivery') is not False:
+              raise SystemExit('weather read-only probe did not attest financial delivery disabled')
+          if report.get('automatic_order_placement') is not False:
+              raise SystemExit('weather read-only probe did not attest automatic order placement disabled')
+          PY
