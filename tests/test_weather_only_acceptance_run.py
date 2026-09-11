@@ -18,6 +18,10 @@ from polymarket_scanner.weather_only_acceptance_release_bundle import (
     build_weather_w7_release_bound_bundle,
     load_weather_w7_release_bound_bundle_json,
 )
+from polymarket_scanner.weather_only_acceptance_release_cli import (
+    WeatherW7ReleaseCliError,
+    validate_weather_w7_release_bundle_file,
+)
 from dataclasses import replace
 from test_weather_only_acceptance_bundle import SHA, START, _base_envelope, _unchanged_containment
 
@@ -58,7 +62,7 @@ def _bundle(tmp_path):
     )
 
 
-def test_runner_atomic_output_is_0600_and_round_trips(tmp_path):
+def test_runner_atomic_output_is_0600_round_trips_and_offline_validates(tmp_path):
     bundle = _bundle(tmp_path)
     path = tmp_path / "w7-release-bound.json"
     runner.atomic_write_weather_w7_release_bundle(path, bundle)
@@ -69,17 +73,22 @@ def test_runner_atomic_output_is_0600_and_round_trips(tmp_path):
     )
     assert loaded == bundle
     assert report.passed is True
+    offline = validate_weather_w7_release_bundle_file(path, expected_release_sha=SHA)
+    assert offline.passed is True
 
 
-def test_runner_rejects_symlink_output_and_exposes_no_service_control(tmp_path):
+def test_runner_and_offline_validator_reject_symlink_and_expose_no_service_control(tmp_path):
     bundle = _bundle(tmp_path)
     target = tmp_path / "target.json"
-    target.write_text("{}", encoding="utf-8")
+    runner.atomic_write_weather_w7_release_bundle(target, bundle)
     link = tmp_path / "link.json"
     link.symlink_to(target)
     with pytest.raises(runner.WeatherW7RunnerError) as raised:
         runner.atomic_write_weather_w7_release_bundle(link, bundle)
     assert raised.value.code == "W7_RUNNER_OUTPUT_PATH_INVALID"
+    with pytest.raises(WeatherW7ReleaseCliError) as offline:
+        validate_weather_w7_release_bundle_file(link)
+    assert offline.value.code == "W7_RELEASE_CLI_EVIDENCE_FILE_INVALID"
 
     source = inspect.getsource(runner)
     for forbidden in ("systemctl", "subprocess", "start_service", "stop_service", "restart_service"):
