@@ -176,6 +176,21 @@ def _compiled_with_rule_authority(event: dict) -> tuple[CompiledWeatherEvent, st
         raise WeatherResultLagError("RESULT_LAG_CONTRACT_PARTITION_UNPROVEN")
     if not authority.rule_semantics_proven or not authority.exactly_one_outcome_proven:
         raise WeatherResultLagError("RESULT_LAG_RULE_AUTHORITY_UNPROVEN")
+    # The certified source parser in this lane reconstructs WRH's Hourly Data table.
+    # An ALL_TIMES contract is a different observation population and must not borrow
+    # Hourly Data settlement authority merely because other rule text is similar.
+    if authority.observation_population != "WRH_HOURLY_DATA":
+        raise WeatherResultLagError("RESULT_LAG_RULE_OBSERVATION_POPULATION_MISMATCH")
+    if authority.precision != "WHOLE_DEGREE_F":
+        raise WeatherResultLagError("RESULT_LAG_RULE_PRECISION_MISMATCH")
+    if authority.finality_policy != "FIRST_FOLLOWING_DATE_DATAPOINT_OR_NEXT_DAY_2359_ET":
+        raise WeatherResultLagError("RESULT_LAG_RULE_FINALITY_POLICY_MISMATCH")
+    if authority.correction_policy != "ACCEPT_REVISIONS_UNTIL_FIRST_FOLLOWING_DATE_DATAPOINT":
+        raise WeatherResultLagError("RESULT_LAG_RULE_CORRECTION_POLICY_MISMATCH")
+    if authority.fallback_policy != "WEATHER_UNDERGROUND_IF_WRH_UNAVAILABLE_BY_NEXT_DAY_2359_ET":
+        raise WeatherResultLagError("RESULT_LAG_RULE_FALLBACK_POLICY_MISMATCH")
+    if authority.no_data_outcome != "LOWEST_BRACKET":
+        raise WeatherResultLagError("RESULT_LAG_RULE_NO_DATA_POLICY_MISMATCH")
     if not compiled.exactly_one_outcome_proven:
         raise WeatherResultLagError("RESULT_LAG_RULE_UPGRADE_FAILED")
     if compiled.financial_authority or authority.financial_authority:
