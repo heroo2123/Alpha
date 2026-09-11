@@ -36,7 +36,7 @@ def child(mid: str, question: str) -> dict:
     }
 
 
-def test_probe_uses_weather_tag_pages_materializes_contracts_and_screens_proven_set(monkeypatch):
+def test_probe_uses_weather_tag_keyset_materializes_contracts_and_screens_proven_set(monkeypatch):
     event = {
         "id": "e1",
         "slug": "temp-event",
@@ -56,15 +56,15 @@ def test_probe_uses_weather_tag_pages_materializes_contracts_and_screens_proven_
     client = PolymarketClient()
     calls = []
 
-    async def page(offset: int, *, tag_slug: str | None = None):
-        calls.append((offset, tag_slug))
-        return [event] if offset == 0 else []
+    async def page(after_cursor: str | None, *, tag_slug: str | None = None):
+        calls.append((after_cursor, tag_slug))
+        return [event], None
 
     async def books(tokens):
         asks = {"1-yes": 0.10, "2-yes": 0.20, "3-yes": 0.20}
         return {token: Book(token, [], [(asks[token], 5.0)]) for token in tokens}
 
-    monkeypatch.setattr(client, "_event_page", page)
+    monkeypatch.setattr(client, "_event_keyset_page", page)
     monkeypatch.setattr(client, "books", books)
 
     try:
@@ -72,7 +72,7 @@ def test_probe_uses_weather_tag_pages_materializes_contracts_and_screens_proven_
     finally:
         asyncio.run(client.close())
 
-    assert calls == [(0, "weather")]
+    assert calls == [(None, "weather")]
     assert report["read_only"] is True
     assert report["financial_delivery"] is False
     assert report["automatic_order_placement"] is False
@@ -111,13 +111,13 @@ def test_probe_can_run_catalog_only_without_requesting_clob_books(monkeypatch):
     }
     client = PolymarketClient()
 
-    async def page(offset: int, *, tag_slug: str | None = None):
-        return [event] if offset == 0 else []
+    async def page(after_cursor: str | None, *, tag_slug: str | None = None):
+        return [event], None
 
     async def forbidden_books(tokens):
         raise AssertionError("books must not be called in --no-books equivalent mode")
 
-    monkeypatch.setattr(client, "_event_page", page)
+    monkeypatch.setattr(client, "_event_keyset_page", page)
     monkeypatch.setattr(client, "books", forbidden_books)
     try:
         report = asyncio.run(run_probe(client=client, page_ceiling=3, fetch_books=False))
