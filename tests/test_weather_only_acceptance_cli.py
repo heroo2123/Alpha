@@ -20,6 +20,7 @@ START = 1_800_000_000.0
 def _evidence(*, outbox_after=5) -> WeatherW7RunEvidence:
     samples = []
     for index in range(91):
+        has_source = index == 45
         samples.append(WeatherW7Sample(
             observed_at=START + index * 30.0,
             cycle_ok=True,
@@ -27,7 +28,9 @@ def _evidence(*, outbox_after=5) -> WeatherW7RunEvidence:
             swap_used_bytes=0,
             host_mem_available_bytes=200 * 1024 * 1024,
             incremental_evaluation_seconds=1.0,
-            source_update_confirmation_seconds=4.0 if index == 45 else None,
+            incremental_evaluation_evidence_sha256="1" * 64,
+            source_update_confirmation_seconds=4.0 if has_source else None,
+            source_update_evidence_sha256="2" * 64 if has_source else None,
             weather_event_count=300,
             non_weather_materialized_count=0,
             exact_clob_required_for_candidates=True,
