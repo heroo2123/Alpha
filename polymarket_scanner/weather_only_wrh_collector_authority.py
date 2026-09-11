@@ -15,6 +15,13 @@ made terminal for the affected capture or station/date rather than becoming a re
 loop or a source of reconstructed authority. Persisted nested prediction evidence and
 SQLite metadata columns are re-bound to reconstructed objects instead of trusting
 stored digest strings in isolation.
+
+Live collection attempts are additionally throttled at the trusted boundary.  The
+lower deterministic collector records source receipt time only after successful
+fetches; without this wrapper a caller could otherwise hammer WRH after transport
+failures.  One trusted process therefore performs at most one lower collection attempt
+per frozen polling interval, regardless of success or failure.  A process restart may
+permit one immediate attempt; it cannot manufacture evidence or bypass finality gates.
 """
 
 import json
@@ -30,13 +37,14 @@ from .weather_only_wrh_client import NWSWRHLiveClient
 from .weather_only_wrh_collector import (
     CAPTURE_FAILED,
     CAPTURE_PENDING,
+    POLL_INTERVAL_SECONDS,
     CollectorTickReport,
     WeatherWRHCollectorError,
     WeatherWRHProspectiveCollector,
 )
 
 
-TRUSTED_WRH_COLLECTOR_AUTHORITY_VERSION = "weather_wrh_collector_authority_v4_nested_digest_and_sqlite_metadata_revalidation"
+TRUSTED_WRH_COLLECTOR_AUTHORITY_VERSION = "weather_wrh_collector_authority_v5_nested_integrity_attempt_throttle"
 
 
 class TrustedWeatherWRHCollectorClockError(WeatherWRHCollectorError):
@@ -65,6 +73,7 @@ class TrustedWeatherWRHProspectiveCollector:
             raise TypeError("clock must be callable")
         self._clock: Callable[[], float] = clock or time.time
         self._last_clock_value: float | None = None
+        self._last_collection_attempt_at: float | None = None
         self._collector = WeatherWRHProspectiveCollector(db_path=db_path, client=client)
 
     @property
@@ -218,10 +227,34 @@ class TrustedWeatherWRHProspectiveCollector:
         """Register one prospective capture using only the collector-owned wall clock."""
         return self._collector.register_capture(capture, registered_at=self._trusted_now())
 
+    def _throttled_report(self, *, integrity_failed: int) -> CollectorTickReport:
+        pending_key_count = len(self._collector.store.pending_keys())
+        return CollectorTickReport(
+            collector_version="trusted_wrapper_attempt_throttled",
+            policy_id=self.authority_version,
+            evaluated_station_dates=0,
+            fetched_snapshots=0,
+            authorized_captures=0,
+            failed_captures=integrity_failed,
+            deferred_station_dates=pending_key_count,
+            fetch_errors=(),
+            financial_authority=False,
+            financial_delivery=False,
+            automatic_order_placement=False,
+        )
+
     def tick(self) -> CollectorTickReport:
-        """Run one revalidated collection iteration using only the owned wall clock."""
+        """Run one revalidated, attempt-throttled collection iteration."""
         now = self._trusted_now()
         integrity_failed = self._integrity_preflight(now)
+
+        previous_attempt = self._last_collection_attempt_at
+        if previous_attempt is not None and now - previous_attempt < POLL_INTERVAL_SECONDS:
+            return self._throttled_report(integrity_failed=integrity_failed)
+
+        # Mark before entering the lower collector so transport/parser failures are
+        # throttled too.  A failed attempt is still an upstream request attempt.
+        self._last_collection_attempt_at = now
         try:
             report = self._collector.tick(now=now)
         except WeatherWRHCollectorError as exc:
