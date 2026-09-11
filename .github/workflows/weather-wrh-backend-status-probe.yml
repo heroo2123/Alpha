@@ -19,7 +19,7 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install httpx==0.27.2
-      - name: Probe only backend HTTP status and credential shape
+      - name: Probe backend browser authorization context only
         shell: bash
         run: |
           python - <<'PY'
@@ -31,22 +31,19 @@ jobs:
           import httpx
 
           shell_url = 'https://www.weather.gov/wrh/timeseries'
-          viewer_url = 'https://www.weather.gov/source/wrh/timeseries/obs.js?v202601121730'
           key_url = 'https://www.weather.gov/source/wrh/apiKey.js'
           endpoint = 'https://api.synopticdata.com/v2/stations/timeseries'
-          headers = {'User-Agent':'wrh-secret-safe-status-probe/1.1','Accept':'*/*'}
+          base_headers = {'User-Agent':'wrh-secret-safe-status-probe/1.2','Accept':'*/*'}
 
-          with httpx.Client(timeout=20.0, follow_redirects=True, headers=headers) as client:
+          with httpx.Client(timeout=20.0, follow_redirects=True, headers=base_headers) as client:
               shell = client.get(shell_url, params={
                   'site':'KLGA','hours':'48','units':'english','hourly':'true',
                   'obs':'tabular','headers':'none','chart':'off',
               })
-              viewer = client.get(viewer_url)
               key_script = client.get(key_url)
-              if not all(response.status_code == 200 for response in (shell, viewer, key_script)):
+              if shell.status_code != 200 or key_script.status_code != 200:
                   print(json.dumps({
                       'shell_status': shell.status_code,
-                      'viewer_status': viewer.status_code,
                       'key_script_status': key_script.status_code,
                       'credential_value_printed': False,
                   }, sort_keys=True))
@@ -58,75 +55,41 @@ jobs:
               )
               unique = list(dict.fromkeys(value.strip() for value in matches))
               if len(unique) != 1:
-                  print(json.dumps({
-                      'mesotoken_assignment_count': len(unique),
-                      'credential_value_printed': False,
-                  }, sort_keys=True))
                   raise SystemExit('WRH_MESOTOKEN_SHAPE_INVALID')
-
-              raw_fragment = unique[0]
-              normalized_fragment = raw_fragment.lstrip('&?')
-              has_token_assignment = normalized_fragment.lower().startswith('token=')
-              has_leading_ampersand = raw_fragment.startswith('&')
-              has_leading_question = raw_fragment.startswith('?')
-              field_name = normalized_fragment.split('=', 1)[0] if '=' in normalized_fragment else None
-              if not has_token_assignment:
-                  secret = raw_fragment
-              else:
-                  secret = normalized_fragment.split('=', 1)[1]
-
-              # obs.js is public and contains no browser credential value. Emit only
-              # the source line(s) where the variable is concatenated so we can bind
-              # exact query construction without exposing apiKey.js contents.
-              viewer_meso_lines = [
-                  line.strip() for line in viewer.text.splitlines()
-                  if 'mesoToken' in line
-              ]
+              secret = unique[0]
 
               tz = ZoneInfo('America/New_York')
               target = datetime.now(tz).date() - timedelta(days=1)
               following = target + timedelta(days=1)
-              common = {
+              params = {
                   'STID':'KLGA',
                   'showemptystations':'1',
                   'units':'temp|F,speed|mph,english',
-                  'complete':'1',
-                  'obtimezone':'local',
-              }
-
-              recent = client.get(endpoint, params={**common, 'recent':'60', 'token':secret})
-              historical = client.get(endpoint, params={
-                  **common,
                   'start':target.strftime('%Y%m%d')+'0000',
                   'end':following.strftime('%Y%m%d')+'2359',
+                  'complete':'1',
                   'token':secret,
+                  'obtimezone':'local',
+              }
+              referer = shell_url + '?site=KLGA&hours=48&units=english&hourly=true&obs=tabular&headers=none&chart=off'
+              no_context = client.get(endpoint, params=params)
+              origin_only = client.get(endpoint, params=params, headers={'Origin':'https://www.weather.gov'})
+              referer_only = client.get(endpoint, params=params, headers={'Referer':referer})
+              browser_context = client.get(endpoint, params=params, headers={
+                  'Origin':'https://www.weather.gov',
+                  'Referer':referer,
+                  'Sec-Fetch-Site':'cross-site',
+                  'Sec-Fetch-Mode':'cors',
+                  'Sec-Fetch-Dest':'empty',
               })
-
-              base_query = (
-                  'STID=KLGA&showemptystations=1&units=temp|F,speed|mph,english'
-                  '&start=' + target.strftime('%Y%m%d') + '0000'
-                  '&end=' + following.strftime('%Y%m%d') + '2359'
-                  '&complete=1'
-              )
-              # Probe both possible concatenations without ever printing either URL.
-              exact_direct = client.get(endpoint + '?' + base_query + raw_fragment + '&obtimezone=local')
-              exact_with_amp = client.get(endpoint + '?' + base_query + '&' + raw_fragment + '&obtimezone=local')
 
           report = {
               'shell_status': shell.status_code,
-              'viewer_status': viewer.status_code,
               'key_script_status': key_script.status_code,
-              'mesotoken_assignment_count': len(unique),
-              'mesotoken_leading_ampersand': has_leading_ampersand,
-              'mesotoken_leading_question': has_leading_question,
-              'mesotoken_has_assignment': '=' in normalized_fragment,
-              'mesotoken_field_name': field_name,
-              'mesotoken_normalized_is_token_assignment': has_token_assignment,
-              'viewer_meso_lines': viewer_meso_lines,
-              'recent_params_backend_status': recent.status_code,
-              'historical_params_backend_status': historical.status_code,
-              'historical_direct_fragment_status': exact_direct.status_code,
-              'historical_extra_ampersand_status': exact_with_amp.status_code,
+              'no_context_status': no_context.status_code,
+              'origin_only_status': origin_only.status_code,
+              'referer_only_status': referer_only.status_code,
+              'browser_context_status': browser_context.status_code,
               'credential_value_printed': False,
               'request_url_printed': False,
               'response_body_printed': False,
