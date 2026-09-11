@@ -1,0 +1,83 @@
+name: weather-source-proxy-probe
+
+on:
+  push:
+    branches:
+      - weather-source-evidence-foundation
+      - weather-only-trade-scanner
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  nws-proxy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+      - name: Bounded official NWS observation proxy probe
+        shell: bash
+        run: |
+          python - <<'PY'
+          import asyncio
+          import json
+          from datetime import datetime, timedelta, timezone
+          from pathlib import Path
+
+          from polymarket_scanner.weather_only_sources import NWSObservationProxyClient
+
+          async def main():
+              end = datetime.now(timezone.utc)
+              start = end - timedelta(hours=24)
+              client = NWSObservationProxyClient()
+              try:
+                  rows = await client.observations(station='KLGA', start=start, end=end, limit=100)
+              finally:
+                  await client.close()
+              if not rows:
+                  raise SystemExit('NWS KLGA proxy returned no observations in bounded 24h window')
+              if len(rows) > 100:
+                  raise SystemExit(f'NWS proxy exceeded requested cap: {len(rows)}')
+              if any(row.station != 'KLGA' for row in rows):
+                  raise SystemExit('NWS proxy station identity mismatch')
+              if any(row.official_source is not True for row in rows):
+                  raise SystemExit('NWS proxy lost official-source lineage')
+              forbidden = (
+                  'settlement_authority',
+                  'calibration_label_authority',
+                  'correction_state_reconstructable',
+                  'financial_authority',
+              )
+              for row in rows:
+                  for field in forbidden:
+                      if getattr(row, field) is not False:
+                          raise SystemExit(f'NWS proxy unsafe authority flag: {field}')
+              report = {
+                  'probe': 'NWS_API_STATION_OBSERVATION_PROXY',
+                  'station': 'KLGA',
+                  'observation_count': len(rows),
+                  'first_observed_at': rows[0].observed_at.isoformat(),
+                  'last_observed_at': rows[-1].observed_at.isoformat(),
+                  'source_role': rows[-1].source_role,
+                  'official_source': True,
+                  'settlement_authority': False,
+                  'calibration_label_authority': False,
+                  'correction_state_reconstructable': False,
+                  'financial_authority': False,
+              }
+              Path('weather-source-proxy.json').write_text(json.dumps(report, indent=2, sort_keys=True) + '\n')
+              print(json.dumps(report, indent=2, sort_keys=True))
+
+          asyncio.run(main())
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: weather-source-proxy-${{ github.sha }}
+          path: weather-source-proxy.json
+          if-no-files-found: warn
