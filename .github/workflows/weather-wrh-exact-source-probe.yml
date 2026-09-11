@@ -1,0 +1,83 @@
+name: weather-wrh-exact-source-probe
+
+on:
+  push:
+    branches:
+      - weather-wrh-exact-settlement-foundation
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  wrh-source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+      - name: Inspect bounded official WRH hourly response
+        shell: bash
+        run: |
+          python - <<'PY'
+          import hashlib
+          import json
+          import re
+          from pathlib import Path
+          import httpx
+
+          url = 'https://www.weather.gov/wrh/timeseries'
+          params = {
+              'site': 'KLGA',
+              'hours': '48',
+              'units': 'english',
+              'hourly': 'true',
+              'obs': 'tabular',
+              'headers': 'none',
+              'chart': 'off',
+          }
+          headers = {
+              'User-Agent': 'polymarket-weather-only-wrh-probe/0.1 (+https://github.com/heroo2123/Alpha)',
+              'Accept': 'text/html,application/xhtml+xml',
+          }
+          response = httpx.get(url, params=params, headers=headers, timeout=20.0, follow_redirects=True)
+          response.raise_for_status()
+          body = response.text
+          lower = body.lower()
+          scripts = re.findall(r'<script[^>]+src=["\']([^"\']+)', body, re.I)
+          tables = len(re.findall(r'<table\b', body, re.I))
+          report = {
+              'requested_url': str(response.request.url),
+              'final_url': str(response.url),
+              'status_code': response.status_code,
+              'content_type': response.headers.get('content-type'),
+              'body_bytes': len(response.content),
+              'body_sha256': hashlib.sha256(response.content).hexdigest(),
+              'table_count': tables,
+              'contains_klga': 'klga' in lower,
+              'contains_temp': 'temp' in lower,
+              'contains_hourly': 'hourly' in lower,
+              'contains_loading': 'loading' in lower,
+              'script_srcs': scripts,
+          }
+          for needle in ('KLGA', 'Temp', '<table', 'hourly', 'timeseries'):
+              index = lower.find(needle.lower())
+              if index >= 0:
+                  report[f'excerpt_{needle.replace("<", "")}'] = body[max(0, index-250):index+750]
+          Path('wrh-source-probe.json').write_text(json.dumps(report, indent=2, sort_keys=True) + '\n')
+          Path('wrh-source-probe.html').write_text(body)
+          print(json.dumps(report, indent=2, sort_keys=True))
+          if response.status_code != 200 or not body:
+              raise SystemExit('WRH source response unavailable')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: weather-wrh-source-${{ github.sha }}
+          path: |
+            wrh-source-probe.json
+            wrh-source-probe.html
+          if-no-files-found: warn
