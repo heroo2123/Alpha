@@ -139,9 +139,8 @@ def test_trade_schema_rejects_bad_side_timestamp_price_wallet_and_hash():
 def test_client_requests_only_taker_rows_with_cursor_or_first_page_limit_and_never_returns_secret():
     requests = []
     # This test exercises the real client clock. Keep the synthetic exchange execution
-    # causally before local receipt instead of using the fixed 1.8B parser-fixture time,
-    # which eventually becomes future-dated relative to the runner clock.
-    executed_at = time.time() - 60.0
+    # causally before local receipt and preserve the API's integer-epoch schema.
+    executed_at = int(time.time()) - 60
 
     def handler(request: httpx.Request) -> httpx.Response:
         requests.append(request)
