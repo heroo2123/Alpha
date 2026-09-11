@@ -3,19 +3,19 @@ from __future__ import annotations
 """Prospective prediction evidence for weather-only calibration.
 
 The ensemble layer produces a categorical distribution across all buckets in one
-weather event.  Treating every bucket as an independent calibration observation
+weather event. Treating every bucket as an independent calibration observation
 would inflate the effective sample size, while selecting a convenient bucket after
 settlement would introduce retrospective selection bias.
 
 This module therefore freezes exactly one calibration candidate per event *before*
-resolution under a named deterministic selection policy.  The current foundation
+resolution under a named deterministic selection policy. The current foundation
 supports one policy only: choose the bucket with the highest raw ensemble member
-frequency, breaking exact ties by market id.  The resulting probability is still a
+frequency, breaking exact ties by market id. The resulting probability is still a
 raw, uncalibrated research prediction.
 
 Only a later exact-rule-state settlement label with matching event/market/station/
-date identity can be joined to the prospective prediction.  Proxy observations can
-never be upgraded into labels by setting authority booleans.  The bridge emits the
+date identity can be joined to the prospective prediction. Proxy observations can
+never be upgraded into labels by setting authority booleans. The bridge emits the
 existing ``ProbabilityCalibrationSample`` consumed by the preregistered calibration
 engine, and grants no financial authority.
 """
@@ -24,7 +24,7 @@ import hashlib
 import json
 import math
 import re
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from datetime import date
 
 from .weather_only_calibration import (
@@ -223,6 +223,10 @@ def _validate_forecast(forecast: EnsembleBucketForecast) -> None:
         raise WeatherPredictionError("PREDICTION_CONTROL_FLAG_INVALID")
     if isinstance(forecast.member_count, bool) or not isinstance(forecast.member_count, int) or forecast.member_count <= 0:
         raise WeatherPredictionError("PREDICTION_MEMBER_COUNT_INVALID")
+    forecast_probability_sum = _finite_probability(
+        forecast.probability_sum,
+        "PREDICTION_FORECAST_PROBABILITY_SUM_INVALID",
+    )
     if forecast.calibrated is not False or forecast.settlement_authority is not False or forecast.financial_authority is not False:
         raise WeatherPredictionError("PREDICTION_FORECAST_AUTHORITY_BOUNDARY_BROKEN")
     if not isinstance(forecast.bucket_frequencies, tuple) or not forecast.bucket_frequencies:
@@ -262,7 +266,7 @@ def _validate_forecast(forecast: EnsembleBucketForecast) -> None:
 
     if hit_sum != forecast.member_count or abs(probability_sum - 1.0) > 1e-12:
         raise WeatherPredictionError("PREDICTION_CATEGORICAL_DISTRIBUTION_INVALID")
-    if abs(float(forecast.probability_sum) - probability_sum) > 1e-12:
+    if abs(forecast_probability_sum - probability_sum) > 1e-12:
         raise WeatherPredictionError("PREDICTION_FORECAST_PROBABILITY_SUM_MISMATCH")
 
 
@@ -314,7 +318,7 @@ def select_prospective_bucket_prediction(
     if not isinstance(policy, ProspectiveSelectionPolicy):
         raise WeatherPredictionError("PREDICTION_SELECTION_POLICY_INVALID")
 
-    # Selection is based only on the already-frozen forecast distribution.  Exact
+    # Selection is based only on the already-frozen forecast distribution. Exact
     # ties are resolved by market id so event row order cannot influence the sample.
     candidate = sorted(
         forecast.bucket_frequencies,
@@ -344,14 +348,7 @@ def select_prospective_bucket_prediction(
         captured_at=captured,
         prediction_evidence_sha256="0" * 64,
     )
-    digest = _prediction_digest(shell)
-    return ProspectiveBucketPrediction(
-        **{
-            **shell.as_dict(),
-            "target_date": shell.target_date,
-            "prediction_evidence_sha256": digest,
-        }
-    )
+    return replace(shell, prediction_evidence_sha256=_prediction_digest(shell))
 
 
 def _validate_prediction(prediction: ProspectiveBucketPrediction) -> None:
