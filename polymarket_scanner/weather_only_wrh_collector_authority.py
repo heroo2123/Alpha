@@ -9,26 +9,30 @@ may submit a digest-validated prospective capture, but they cannot choose regist
 time, tick time, WRH snapshot receipt time, or read persisted authorized JSON as if it
 were independently trusted evidence.
 
-The clock is injected once at construction only so tests can be deterministic. In
-production the default is ``time.time``. Every observed clock value is validated and
-clock regression fails closed for the lifetime of the process.
+The trusted façade also performs a digest/structure revalidation pass over every
+pending persisted capture and snapshot before each collection tick. Corruption is
+made terminal for the affected capture or station/date rather than becoming a retry
+loop or a source of reconstructed authority.
 """
 
 import math
 import time
+from datetime import date
 from pathlib import Path
 from typing import Callable
 
 from .weather_only_calibration_capture import ProspectiveWeatherCalibrationCapture
 from .weather_only_wrh_client import NWSWRHLiveClient
 from .weather_only_wrh_collector import (
+    CAPTURE_FAILED,
+    CAPTURE_PENDING,
     CollectorTickReport,
     WeatherWRHCollectorError,
     WeatherWRHProspectiveCollector,
 )
 
 
-TRUSTED_WRH_COLLECTOR_AUTHORITY_VERSION = "weather_wrh_collector_authority_v2_owned_clock_no_raw_authorized_reads"
+TRUSTED_WRH_COLLECTOR_AUTHORITY_VERSION = "weather_wrh_collector_authority_v3_owned_clock_persistence_revalidation"
 
 
 class TrustedWeatherWRHCollectorClockError(WeatherWRHCollectorError):
@@ -72,20 +76,140 @@ class TrustedWeatherWRHProspectiveCollector:
         self._last_clock_value = value
         return value
 
+    def _fail_pending_key_text(self, station: str, target_text: str, code: str, now: float) -> int:
+        """Terminally contain a key even when its persisted date text is malformed."""
+        store = self._collector.store
+        rows = store.db.execute(
+            """
+            SELECT capture_evidence_sha256 FROM wrh_collector_captures
+            WHERE station = ? AND target_date = ? AND status = ?
+            """,
+            (station, target_text, CAPTURE_PENDING),
+        ).fetchall()
+        with store.db:
+            store.db.execute(
+                """
+                UPDATE wrh_collector_captures
+                SET status = ?, failure_code = ?, updated_at = ?
+                WHERE station = ? AND target_date = ? AND status = ?
+                """,
+                (CAPTURE_FAILED, code, now, station, target_text, CAPTURE_PENDING),
+            )
+            store.db.execute(
+                """
+                UPDATE wrh_collector_keys
+                SET status = 'COMPLETE', failure_code = ?, updated_at = ?
+                WHERE station = ? AND target_date = ?
+                """,
+                (code, now, station, target_text),
+            )
+        return len(rows)
+
+    def _integrity_preflight(self, now: float) -> int:
+        """Revalidate all pending persisted lineage before live collection can advance."""
+        store = self._collector.store
+        failed = 0
+        for key in list(store.pending_keys()):
+            station = str(key["station"])
+            target_text = str(key["target_date"])
+            try:
+                target = date.fromisoformat(target_text)
+            except ValueError:
+                failed += self._fail_pending_key_text(
+                    station,
+                    target_text,
+                    "INTEGRITY_KEY_TARGET_DATE_INVALID",
+                    now,
+                )
+                continue
+
+            for row in list(store.pending_capture_rows(station, target)):
+                digest = str(row["capture_evidence_sha256"])
+                try:
+                    store.load_capture(row)
+                except WeatherWRHCollectorError as exc:
+                    store.mark_failed(digest, f"INTEGRITY_CAPTURE:{exc.code}", now)
+                    failed += 1
+
+            if not store.pending_capture_rows(station, target):
+                store.complete_key_if_terminal(station, target, now)
+                continue
+
+            try:
+                store.load_snapshots(station, target)
+            except WeatherWRHCollectorError as exc:
+                failed += self._collector._fail_pending_key(
+                    station,
+                    target,
+                    f"INTEGRITY_SNAPSHOT:{exc.code}",
+                    now,
+                )
+        return failed
+
+    def _fail_all_pending(self, code: str, now: float) -> int:
+        """Last-resort fail-closed containment for an integrity error racing a tick."""
+        failed = 0
+        store = self._collector.store
+        for key in list(store.pending_keys()):
+            failed += self._fail_pending_key_text(
+                str(key["station"]),
+                str(key["target_date"]),
+                code,
+                now,
+            )
+        return failed
+
     def register_capture(self, capture: ProspectiveWeatherCalibrationCapture) -> str:
         """Register one prospective capture using only the collector-owned wall clock."""
         return self._collector.register_capture(capture, registered_at=self._trusted_now())
 
     def tick(self) -> CollectorTickReport:
-        """Run one collection iteration using only the collector-owned wall clock."""
-        report = self._collector.tick(now=self._trusted_now())
+        """Run one revalidated collection iteration using only the owned wall clock."""
+        now = self._trusted_now()
+        integrity_failed = self._integrity_preflight(now)
+        try:
+            report = self._collector.tick(now=now)
+        except WeatherWRHCollectorError as exc:
+            # A concurrent persistence mutation between preflight and use must not
+            # create a crash/retry loop that later gets interpreted as missing data.
+            raced_failed = self._fail_all_pending(
+                f"INTEGRITY_RUNTIME:{exc.code}",
+                now,
+            )
+            return CollectorTickReport(
+                collector_version="trusted_wrapper_fail_closed",
+                policy_id=self.authority_version,
+                evaluated_station_dates=0,
+                fetched_snapshots=0,
+                authorized_captures=0,
+                failed_captures=integrity_failed + raced_failed,
+                deferred_station_dates=0,
+                fetch_errors=(f"INTEGRITY_RUNTIME:{exc.code}",),
+                financial_authority=False,
+                financial_delivery=False,
+                automatic_order_placement=False,
+            )
         if (
             report.financial_authority
             or report.financial_delivery
             or report.automatic_order_placement
         ):
             raise WeatherWRHCollectorError("TRUSTED_COLLECTOR_AUTHORITY_BOUNDARY_BROKEN")
-        return report
+        if integrity_failed == 0:
+            return report
+        return CollectorTickReport(
+            collector_version=report.collector_version,
+            policy_id=report.policy_id,
+            evaluated_station_dates=report.evaluated_station_dates,
+            fetched_snapshots=report.fetched_snapshots,
+            authorized_captures=report.authorized_captures,
+            failed_captures=report.failed_captures + integrity_failed,
+            deferred_station_dates=report.deferred_station_dates,
+            fetch_errors=report.fetch_errors,
+            financial_authority=False,
+            financial_delivery=False,
+            automatic_order_placement=False,
+        )
 
     def diagnostic_status(self) -> list[dict]:
         """Expose only non-authoritative status metadata from persistence.
