@@ -258,8 +258,8 @@ def test_runtime_uses_fd_schedule_even_when_legacy_tbf_metadata_is_nonzero():
     assert report["cycle_ok"] is True
     assert report["opportunity_count"] == 1
     opportunity = report["opportunities"][0]
-    assert opportunity["fee_rates"] == [0.05, 0.05, 0.05]
-    assert opportunity["fee_exponents"] == [1, 1, 1]
+    assert opportunity["fee_rates"] == (0.05, 0.05, 0.05)
+    assert opportunity["fee_exponents"] == (1, 1, 1)
     assert opportunity["rechecked"] is True
     assert clob.exact_calls == 2
 
