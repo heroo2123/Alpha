@@ -6,6 +6,11 @@ The thresholds are frozen before the first W7 live run. They encode the weather-
 program's published resource targets plus the existing 350 MiB weather runtime RSS
 bound. Passing this evaluator is research/shadow acceptance only; it can never promote
 a detector, enable Telegram financial delivery or authorize an order.
+
+V3 keeps every threshold unchanged and strengthens provenance before the first live
+run: each normal incremental latency must reference a SHA-256 measurement artifact,
+and each source-update latency must reference its causal measurement artifact. A
+numeric timing value can no longer exist in an acceptance sample without evidence.
 """
 
 import hashlib
@@ -15,7 +20,7 @@ import re
 from dataclasses import asdict, dataclass, field
 
 
-WEATHER_W7_ACCEPTANCE_VERSION = "weather_w7_acceptance_v2_all_gates_immutable_before_live_run"
+WEATHER_W7_ACCEPTANCE_VERSION = "weather_w7_acceptance_v3_latency_measurement_evidence_bound_before_live_run"
 WEATHER_W7_POLICY_ID = "WEATHER_W7_E2_MICRO_45M_V1"
 MIN_DURATION_SECONDS = 45 * 60
 MIN_SAMPLE_COUNT = 80
@@ -27,6 +32,7 @@ MAX_INCREMENTAL_EVALUATION_SECONDS = 2.0
 MAX_SOURCE_UPDATE_CONFIRMATION_SECONDS = 5.0
 MIN_SOURCE_UPDATE_SAMPLES = 1
 _SHA_RE = re.compile(r"^[0-9a-f]{40}$")
+_SHA64_RE = re.compile(r"^[0-9a-f]{64}$")
 
 
 class WeatherW7AcceptanceError(RuntimeError):
@@ -48,6 +54,13 @@ def _integer(value: object) -> int:
     if isinstance(value, bool) or not isinstance(value, int) or value < 0:
         raise WeatherW7AcceptanceError("W7_INTEGER_INVALID")
     return value
+
+
+def _sha64(value: object, code: str) -> str:
+    text = str(value or "").strip().lower()
+    if not _SHA64_RE.fullmatch(text):
+        raise WeatherW7AcceptanceError(code)
+    return text
 
 
 def _canonical(value: object) -> str:
@@ -121,7 +134,9 @@ class WeatherW7Sample:
     swap_used_bytes: int
     host_mem_available_bytes: int
     incremental_evaluation_seconds: float
+    incremental_evaluation_evidence_sha256: str
     source_update_confirmation_seconds: float | None
+    source_update_evidence_sha256: str | None
     weather_event_count: int
     non_weather_materialized_count: int
     exact_clob_required_for_candidates: bool
@@ -140,8 +155,13 @@ class WeatherW7Sample:
         ):
             _integer(value)
         _number(self.incremental_evaluation_seconds)
-        if self.source_update_confirmation_seconds is not None:
+        _sha64(self.incremental_evaluation_evidence_sha256, "W7_INCREMENTAL_EVIDENCE_SHA_INVALID")
+        if self.source_update_confirmation_seconds is None:
+            if self.source_update_evidence_sha256 is not None:
+                raise WeatherW7AcceptanceError("W7_SOURCE_UPDATE_EVIDENCE_WITHOUT_LATENCY")
+        else:
             _number(self.source_update_confirmation_seconds)
+            _sha64(self.source_update_evidence_sha256, "W7_SOURCE_UPDATE_EVIDENCE_SHA_INVALID")
         for value in (
             self.cycle_ok,
             self.exact_clob_required_for_candidates,
