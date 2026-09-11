@@ -43,6 +43,8 @@ def main():
         assert "app_trade_only" not in weather
         assert "NoNewPrivileges=true" in weather
         assert "ProtectSystem=strict" in weather
+        assert "ProtectHome=read-only" in weather
+        assert "ProtectHome=true" not in weather
         assert "PrivateDevices=true" in weather
         assert "CapabilityBoundingSet=\n" in weather
 
@@ -64,6 +66,8 @@ def main():
         assert "StateDirectoryMode=0700" in calibration
         assert "NoNewPrivileges=true" in calibration
         assert "ProtectSystem=strict" in calibration
+        assert "ProtectHome=read-only" in calibration
+        assert "ProtectHome=true" not in calibration
 
         paths = []
         for name, body in rendered.items():
@@ -71,7 +75,7 @@ def main():
             path.write_text(body)
             paths.append(str(path))
         subprocess.run(["systemd-analyze", "verify", *paths], check=True, timeout=30)
-    print("Six rendered systemd units verified; weather scanner/calibration use strict public-data runtimes; nothing installed or started.")
+    print("Six rendered systemd units verified; weather scanner/calibration use strict public-data runtimes with readable immutable home checkout; nothing installed or started.")
 
 
 if __name__ == "__main__":
