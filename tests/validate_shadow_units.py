@@ -22,9 +22,30 @@ def main():
             "polymarket-edge-scanner.service",
             "polymarket-edge-command.service",
             "polymarket-universe-builder.service",
+            "polymarket-weather-shadow.service",
             "polymarket-weather-calibration.service",
             "polymarket-shadow.slice",
         }
+
+        weather = rendered["polymarket-weather-shadow.service"]
+        assert "-m polymarket_scanner.weather_only_runtime --loop --interval-seconds 300" in weather
+        assert "--output /var/lib/polymarket-weather-shadow/status.json" in weather
+        assert "verify-runtime-release.sh" in weather
+        assert "MemoryHigh=320M" in weather and "MemoryMax=350M" in weather
+        assert "MemorySwapMax=0" in weather
+        assert "StateDirectory=polymarket-weather-shadow" in weather
+        assert "StateDirectoryMode=0700" in weather
+        assert "ReadWritePaths=/var/lib/polymarket-weather-shadow" in weather
+        assert "EnvironmentFile=" not in weather
+        assert "bot.env" not in weather
+        assert "TELEGRAM" not in weather.upper()
+        assert "command_worker" not in weather
+        assert "app_trade_only" not in weather
+        assert "NoNewPrivileges=true" in weather
+        assert "ProtectSystem=strict" in weather
+        assert "PrivateDevices=true" in weather
+        assert "CapabilityBoundingSet=\n" in weather
+
         calibration = rendered["polymarket-weather-calibration.service"]
         assert "-m polymarket_scanner.weather_only_calibration_worker_runtime --loop --interval-seconds 30" in calibration
         assert "-m polymarket_scanner.weather_only_calibration_worker --loop" not in calibration
@@ -50,7 +71,7 @@ def main():
             path.write_text(body)
             paths.append(str(path))
         subprocess.run(["systemd-analyze", "verify", *paths], check=True, timeout=30)
-    print("Five rendered systemd units verified; weather calibration uses strict public-data runtime; nothing installed or started.")
+    print("Six rendered systemd units verified; weather scanner/calibration use strict public-data runtimes; nothing installed or started.")
 
 
 if __name__ == "__main__":
