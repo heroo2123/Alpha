@@ -11,7 +11,7 @@ from polymarket_scanner.weather_only_clob import (
     parse_book,
     parse_market_info,
 )
-from polymarket_scanner.weather_only_contracts import compile_weather_event
+from polymarket_scanner.weather_only_contracts import DAILY_HIGH, DAILY_LOW, compile_weather_event
 from polymarket_scanner.weather_only_maker import (
     ConfirmedFill,
     FairValueBand,
@@ -23,7 +23,6 @@ from polymarket_scanner.weather_only_sources import (
     WeatherSourceError,
     parse_hko_climate_json,
 )
-from polymarket_scanner.weather_only_contracts import DAILY_HIGH, DAILY_LOW
 
 
 def _market(mid, question):
@@ -56,7 +55,7 @@ def _event():
     }
 
 
-def _market_info(bucket, *, fee=0.05, tick=0.01, minimum=5.0):
+def _market_info(bucket, *, fee=0.05, exponent=2, tick=0.01, minimum=5.0):
     return {
         "t": [
             {"t": bucket.yes_token, "o": "Yes"},
@@ -68,7 +67,7 @@ def _market_info(bucket, *, fee=0.05, tick=0.01, minimum=5.0):
         "tbf": 0,
         "rfqe": False,
         "itode": False,
-        "fd": {"r": fee, "e": 2, "to": True},
+        "fd": {"r": fee, "e": exponent, "to": True},
     }
 
 
@@ -83,19 +82,39 @@ def _book_json(token, bid=0.20, ask=0.40, size=20.0):
     }
 
 
-def test_market_info_parser_requires_explicit_fee_details_and_binary_identity():
+def test_market_info_parser_uses_v2_fee_rate_and_exponent_and_binary_identity():
     bucket = compile_weather_event(_event()).buckets[0]
     info = parse_market_info(bucket.condition_id, _market_info(bucket), received_at=10.0)
     assert info.condition_id == bucket.condition_id
     assert info.fee_rate == 0.05
+    assert info.fee_exponent == 2
+    assert info.taker_only is True
     assert info.minimum_tick_size == 0.01
     assert {token for token, _ in info.token_outcomes} == {bucket.yes_token, bucket.no_token}
 
+
+def test_market_info_parser_matches_official_v2_zero_fee_default_when_fd_missing():
+    bucket = compile_weather_event(_event()).buckets[0]
+    payload = _market_info(bucket)
+    payload.pop("fd")
+    info = parse_market_info(bucket.condition_id, payload, received_at=10.0)
+    assert info.fee_rate == 0.0
+    assert info.fee_exponent == 0
+    assert info.taker_only is None
+
+
+def test_positive_fee_requires_integral_explicit_exponent():
+    bucket = compile_weather_event(_event()).buckets[0]
     missing = _market_info(bucket)
-    missing.pop("fd")
+    missing["fd"] = {"r": 0.05, "to": True}
     with pytest.raises(WeatherCLOBError) as raised:
         parse_market_info(bucket.condition_id, missing, received_at=10.0)
-    assert raised.value.code == "MARKET_INFO_FEE_DETAILS_MISSING"
+    assert raised.value.code == "MARKET_INFO_FEE_EXPONENT_MISSING"
+
+    fractional = _market_info(bucket, exponent=1.5)
+    with pytest.raises(WeatherCLOBError) as raised:
+        parse_market_info(bucket.condition_id, fractional, received_at=10.0)
+    assert raised.value.code == "MARKET_INFO_INTEGER_INVALID"
 
 
 def test_book_parser_rejects_crossed_and_wrong_token_books():
@@ -116,11 +135,17 @@ def test_book_parser_rejects_crossed_and_wrong_token_books():
     assert raised.value.code == "BOOK_CROSSED"
 
 
-def test_conservative_taker_fee_rounds_up_to_five_decimals():
-    raw = 0.05 * 0.33 * 0.67
-    fee = conservative_taker_fee_per_share(0.33, 0.05)
+def test_conservative_taker_fee_matches_v2_exponent_and_rounds_up_to_five_decimals():
+    raw = 0.05 * (0.33 * 0.67) ** 2
+    fee = conservative_taker_fee_per_share(0.33, 0.05, 2)
     assert fee >= raw
-    assert fee == 0.01106
+    assert fee == 0.00245
+
+    # Exponent=1 reproduces the documented weather fee curve.
+    raw_e1 = 0.05 * 0.33 * 0.67
+    fee_e1 = conservative_taker_fee_per_share(0.33, 0.05, 1)
+    assert fee_e1 >= raw_e1
+    assert fee_e1 == 0.01106
 
 
 def test_exact_event_snapshot_reads_only_clob_and_cross_checks_gamma_tokens():
