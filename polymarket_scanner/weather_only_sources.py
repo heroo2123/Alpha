@@ -3,7 +3,7 @@ from __future__ import annotations
 """Weather data-role boundaries and bounded official-source adapters.
 
 A source being official does not make it the exact settlement state named by a
-Polymarket contract.  This module makes that distinction explicit in the types:
+Polymarket contract. This module makes that distinction explicit in the types:
 
 * HKO CLMMAXT/CLMMINT is an official monthly climate archive useful for historical
   model calibration, but it cannot reconstruct the Daily Extract's initial
@@ -11,7 +11,7 @@ Polymarket contract.  This module makes that distinction explicit in the types:
 * api.weather.gov station observations are official NWS observations, but current
   NWS documentation says those endpoints are fed through MADIS/QC and may be
   delayed, while the WRH Time Series page named by many Polymarket contracts calls
-  its displayed data preliminary and subject to QC review/adjustment.  Until exact
+  its displayed data preliminary and subject to QC review/adjustment. Until exact
   state/precision/correction equivalence is proven, NWS API observations are
   official *proxies* only, never settlement or calibration-label authority.
 
@@ -209,8 +209,6 @@ def parse_hko_climate_json(
             when = date(int(row[year_i]), int(row[month_i]), int(row[day_i]))
             temp = float(row[temp_i])
         except (TypeError, ValueError, OverflowError):
-            # Missing-value legends use non-numeric markers; they are unavailable
-            # calibration days, not temperatures to coerce.
             continue
         if not math.isfinite(temp):
             continue
@@ -233,7 +231,12 @@ def parse_hko_climate_json(
 
 
 class NWSObservationProxyClient:
-    """Bounded official NWS API observations; never WRH settlement authority."""
+    """Bounded official NWS API observations; never WRH settlement authority.
+
+    The collection endpoint may truncate at the requested ``limit``. Until we add a
+    separately certified pagination/window-stitching implementation, hitting that
+    limit is an explicit failure rather than an implicitly complete observation set.
+    """
 
     def __init__(self) -> None:
         self.http = httpx.AsyncClient(
@@ -267,13 +270,13 @@ class NWSObservationProxyClient:
             raise WeatherSourceError("NWS_WINDOW_INVALID")
         if (end_utc - start_utc).total_seconds() > MAX_NWS_WINDOW_DAYS * 86400:
             raise WeatherSourceError("NWS_WINDOW_CAP")
-        if isinstance(limit, bool) or not 1 <= int(limit) <= MAX_NWS_OBSERVATIONS:
+        if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= MAX_NWS_OBSERVATIONS:
             raise WeatherSourceError("NWS_OBSERVATION_LIMIT_INVALID")
 
         params = {
             "start": start_utc.isoformat().replace("+00:00", "Z"),
             "end": end_utc.isoformat().replace("+00:00", "Z"),
-            "limit": int(limit),
+            "limit": limit,
         }
         try:
             response = await self.http.get(f"{NWS_API}/stations/{station_id}/observations", params=params)
@@ -292,8 +295,10 @@ class NWSObservationProxyClient:
         features = payload.get("features")
         if not isinstance(features, list):
             raise WeatherSourceError("NWS_OBSERVATION_COLLECTION_INVALID")
-        if len(features) > int(limit) or len(features) > MAX_NWS_OBSERVATIONS:
+        if len(features) > limit or len(features) > MAX_NWS_OBSERVATIONS:
             raise WeatherSourceError("NWS_OBSERVATION_RESPONSE_CAP")
+        if len(features) == limit:
+            raise WeatherSourceError("NWS_OBSERVATION_RESPONSE_LIMIT_REACHED")
 
         rows = [parse_nws_station_observation(row, requested_station=station_id) for row in features]
         rows.sort(key=lambda row: row.observed_at)
