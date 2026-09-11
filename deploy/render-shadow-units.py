@@ -54,14 +54,18 @@ WantedBy=multi-user.target
         f"EnvironmentFile={config_dir}/bot.env\nMemoryHigh=80M\nMemoryMax=112M\nCPUWeight=100\n")
     universe = service("Polymarket complete Gamma universe builder", f"{python} -m polymarket_scanner.universe_builder --ipv6",
         "Nice=5\nCPUWeight=50\nIOWeight=50\nIOSchedulingClass=best-effort\nIOSchedulingPriority=6\nMemoryHigh=144M\nMemoryMax=160M\n")
-    # The builder never reads bot.env and cannot write the account database.
     universe = universe.replace(f"ReadWritePaths={config_dir}", f"ReadWritePaths={config_dir}/universe")
 
-    # Independent public-data research service.  It receives no bot.env, Telegram
-    # credential or trading/account configuration.  Persistent evidence is confined
-    # to a systemd-owned state directory and it remains inside the same aggregate
-    # memory slice so adding research collection cannot defeat the e2-micro cap.
+    # Independent public-data research service. It receives no bot.env, Telegram
+    # credential or trading/account configuration. Persistent evidence is confined
+    # to a systemd-owned state directory. The reviewed entrypoint is the operational
+    # wrapper so horizon attestation and explicit collection health cannot be bypassed.
     calibration_state = "/var/lib/polymarket-weather-calibration"
+    calibration_db = f"{calibration_state}/weather-calibration.sqlite"
+    calibration_preflight = (
+        f"{python} -m polymarket_scanner.weather_calibration_service_preflight "
+        f"--app-dir {app_dir} --release-file {config_dir}/release.sha --db {calibration_db}"
+    )
     calibration = f"""[Unit]
 Description=Weather prospective calibration research worker, no financial authority
 Wants=network-online.target
@@ -75,7 +79,8 @@ User={user}
 WorkingDirectory={app_dir}
 Environment=PYTHONUNBUFFERED=1
 ExecStartPre={verifier}
-ExecStart={python} -m polymarket_scanner.weather_only_calibration_worker --loop --interval-seconds 30 --db {calibration_state}/weather-calibration.sqlite --output {calibration_state}/status.json
+ExecStartPre={calibration_preflight}
+ExecStart={python} -m polymarket_scanner.weather_only_calibration_worker_runtime --loop --interval-seconds 30 --db {calibration_db} --output {calibration_state}/status.json
 Restart=on-failure
 RestartSec=30
 TimeoutStopSec=20
