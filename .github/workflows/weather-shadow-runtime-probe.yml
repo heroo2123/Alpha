@@ -1,0 +1,103 @@
+name: weather-shadow-runtime-probe
+
+on:
+  push:
+    branches:
+      - weather-runtime-validation-final
+      - weather-only-trade-scanner
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  shadow-runtime:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+      - name: Public read-only weather shadow runtime cycle
+        id: runtime
+        shell: bash
+        run: |
+          set +e
+          timeout 300 python -m polymarket_scanner.weather_only_runtime \
+            --output weather-shadow-runtime.json \
+            --max-exact-events 12 \
+            >weather-shadow-runtime.stdout.txt \
+            2>weather-shadow-runtime.stderr.txt
+          rc=$?
+          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
+          if [ ! -s weather-shadow-runtime.json ]; then
+            python - "$rc" <<'PY'
+          import json, sys
+          from pathlib import Path
+          Path('weather-shadow-runtime.json').write_text(json.dumps({
+              'read_only': True,
+              'financial_authority': False,
+              'financial_delivery': False,
+              'automatic_order_placement': False,
+              'cycle_ok': False,
+              'probe_failed': True,
+              'exit_code': int(sys.argv[1]),
+              'note': 'Public shadow runtime failed or timed out; no financial action was attempted.'
+          }, indent=2) + '\n')
+          PY
+          fi
+          echo "runtime_exit_code=$rc" >> "$GITHUB_STEP_SUMMARY"
+          cat weather-shadow-runtime.json >> "$GITHUB_STEP_SUMMARY"
+          exit 0
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: weather-shadow-runtime-${{ github.sha }}
+          path: |
+            weather-shadow-runtime.json
+            weather-shadow-runtime.stdout.txt
+            weather-shadow-runtime.stderr.txt
+          if-no-files-found: error
+      - name: Require healthy contained shadow cycle
+        if: always()
+        shell: bash
+        run: |
+          test "${{ steps.runtime.outputs.exit_code }}" = "0"
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          report = json.loads(Path('weather-shadow-runtime.json').read_text())
+          if report.get('probe_failed'):
+              raise SystemExit('weather shadow runtime reported failure')
+          required_false = (
+              'financial_authority',
+              'financial_delivery',
+              'automatic_order_placement',
+              'gamma_execution_authority',
+              'forecast_probability_authority',
+              'source_settlement_trade_authority',
+          )
+          if report.get('read_only') is not True:
+              raise SystemExit('weather shadow runtime lost read_only attestation')
+          for key in required_false:
+              if report.get(key) is not False:
+                  raise SystemExit(f'unsafe runtime attestation: {key}={report.get(key)!r}')
+          if report.get('cycle_ok') is not True:
+              raise SystemExit(f"shadow cycle unhealthy: {report.get('errors')}")
+          if report.get('exact_clob_required_for_recorded_opportunities') is not True:
+              raise SystemExit('exact CLOB invariant missing')
+          if report.get('final_live_recheck_required') is not True:
+              raise SystemExit('final recheck invariant missing')
+          discovery = report.get('discovery') or {}
+          if int(discovery.get('unique_event_count') or 0) <= 0:
+              raise SystemExit('weather discovery returned no events')
+          compiler = report.get('compiler') or {}
+          if int(compiler.get('financial_authority_events') or 0) != 0:
+              raise SystemExit('compiler granted financial authority')
+          rss = int(report.get('process_peak_rss_bytes') or 0)
+          if rss <= 0 or rss > 350 * 1024 * 1024:
+              raise SystemExit(f'weather shadow runtime RSS outside bound: {rss}')
+          PY
