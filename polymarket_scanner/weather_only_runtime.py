@@ -3,15 +3,16 @@ from __future__ import annotations
 """Bounded always-on foundation for the weather-only scanner.
 
 This runtime intentionally stops one layer before financial authority. It performs
-small weather-tag discovery, compiles contract/rule semantics, cheaply pre-screens
-semantically certified complete temperature partitions with *exact CLOB books*, and
-only then spends market-info requests on the most promising events. Any surviving
-structural opportunity is re-fetched once more before it is recorded.
+small weather-tag discovery, compiles contract/rule semantics, pre-screens certified
+complete temperature partitions with exact CLOB books, and spends market-info calls
+only on the most promising events. Any surviving structural opportunity is fetched
+again before it is recorded.
 
-There is deliberately no Telegram sender, order posting, database mutation, or
-forecast-probability promotion in this module. Source settlement/forecast adapters,
-calibration, execution certificates and final financial delivery remain separate
-future gates.
+There is no Telegram sender, order posting, database mutation, forecast promotion or
+financial authority here. V2 platform-fee screening follows the current official
+client's market-specific ``fd.r``/``fd.e`` schedule. Legacy ``tbf``/``mbf`` fields are
+audited but are not added to that V2 fee formula; builder fees are a separate future
+execution-path gate.
 """
 
 import argparse
@@ -30,7 +31,7 @@ from .weather_only_rules import apply_rule_authority, compile_temperature_rule_a
 from .weather_only_structural import complete_bucket_underround
 
 
-WEATHER_SHADOW_RUNTIME_VERSION = "weather_only_shadow_runtime_v2_dynamic_fee_exact_recheck"
+WEATHER_SHADOW_RUNTIME_VERSION = "weather_only_shadow_runtime_v3_v2_fd_fee_exact_recheck"
 DEFAULT_LOOP_INTERVAL_SECONDS = 300.0
 MIN_LOOP_INTERVAL_SECONDS = 60.0
 MAX_PRESCREEN_TOKENS = 5_000
@@ -54,10 +55,8 @@ def _chunks(values: list[str], size: int) -> list[list[str]]:
 
 
 def _fee_schedule_blocker(snapshot: WeatherExecutionSnapshot) -> str | None:
-    """Reject fee metadata whose executable meaning is not yet certified."""
+    """Reject positive dynamic schedules whose application semantics changed."""
     for params in snapshot.parameters.values():
-        if params.taker_base_fee_bps != 0:
-            return "TAKER_BASE_FEE_SEMANTICS_UNCERTIFIED"
         if params.fee_rate > 0.0 and params.taker_only is not True:
             return "DYNAMIC_FEE_TAKER_ONLY_UNPROVEN"
     return None
@@ -151,7 +150,9 @@ class WeatherOnlyShadowRuntime:
             "gamma_execution_authority": False,
             "exact_clob_required_for_recorded_opportunities": True,
             "market_specific_fee_schedule_required": True,
+            "v2_fd_fee_authority_required": True,
             "fee_exponent_required_for_positive_rate": True,
+            "builder_fee_authority": False,
             "final_live_recheck_required": True,
             "forecast_probability_authority": False,
             "source_settlement_trade_authority": False,
@@ -168,6 +169,7 @@ class WeatherOnlyShadowRuntime:
             errors.append(f"DISCOVERY:{exc.code}")
             report.update({
                 "errors": errors,
+                "opportunity_count": 0,
                 "opportunities": [],
                 "timings_seconds": {"total": round(time.monotonic() - started, 6)},
                 "process_peak_rss_bytes": _rss_bytes(),
@@ -307,6 +309,8 @@ class WeatherOnlyShadowRuntime:
                 if first is None:
                     continue
 
+                # Candidate evidence expires: repeat identity, market-info and books
+                # and recompute before even recording a silent-shadow opportunity.
                 recheck = await self.clob.exact_event_snapshot(compiled)
                 blocker = _fee_schedule_blocker(recheck)
                 if blocker:
