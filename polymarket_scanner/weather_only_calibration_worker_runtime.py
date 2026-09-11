@@ -8,11 +8,13 @@ sufficient: a process can remain alive while discovery, GEFS capture or the WRH
 collector is degraded.
 
 This wrapper does not alter discovery, forecast, capture, reservation, settlement or
-calibration semantics. It adds explicit operational health plus a fail-closed horizon
-attestation for every successfully registered capture. The attestation cryptographically
-binds the capture to the preregistered station-local T-1 17:00-17:15 window. A crash
-before attestation can lose a research sample but cannot create eligible calibration
-evidence.
+calibration semantics. It adds explicit operational health, a fail-closed horizon
+attestation for every successfully registered capture, and a compact digest-bound
+attestation of the frozen prospective experiment/policy identity on every cycle.
+
+A crash before horizon attestation can lose a research sample but cannot create
+eligible calibration evidence. Experiment-manifest drift makes collection health fail
+closed; it never grants calibrated-probability or financial authority.
 """
 
 import argparse
@@ -22,10 +24,7 @@ import os
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-from .weather_only_calibration_horizon import (
-    WeatherCalibrationHorizonError,
-    attest_registered_worker_horizons,
-)
+from .weather_only_calibration_horizon import attest_registered_worker_horizons
 from .weather_only_calibration_worker import (
     LOOP_INTERVAL_SECONDS,
     MIN_LOOP_INTERVAL_SECONDS,
@@ -33,7 +32,7 @@ from .weather_only_calibration_worker import (
 )
 
 
-WEATHER_CALIBRATION_WORKER_RUNTIME_VERSION = "weather_calibration_worker_runtime_v2_health_plus_horizon_attestation"
+WEATHER_CALIBRATION_WORKER_RUNTIME_VERSION = "weather_calibration_worker_runtime_v3_health_horizon_experiment_attestation"
 
 
 @dataclass(frozen=True, slots=True)
@@ -118,6 +117,23 @@ def assess_worker_cycle_health(report: object) -> WeatherCalibrationCycleHealth:
                 health.append(f"HORIZON:{code}:{count}")
             gaps.append("HORIZON_ATTESTATION_FAILED")
 
+    experiment = report.get("experiment")
+    if not isinstance(experiment, dict):
+        health.append("EXPERIMENT_ATTESTATION_REPORT_MISSING")
+    elif experiment.get("error"):
+        health.append(f"EXPERIMENT:{experiment.get('error')}")
+    else:
+        if (
+            not isinstance(experiment.get("manifest_sha256"), str)
+            or len(experiment["manifest_sha256"]) != 64
+            or not isinstance(experiment.get("statistical_policy_sha256"), str)
+            or len(experiment["statistical_policy_sha256"]) != 64
+            or not experiment.get("statistical_policy_id")
+            or experiment.get("calibrated_probability_authority") is not False
+            or experiment.get("financial_authority") is not False
+        ):
+            health.append("EXPERIMENT_ATTESTATION_BOUNDARY_INVALID")
+
     state = report.get("state")
     if not isinstance(state, dict):
         health.append("STATE_REPORT_MISSING")
@@ -140,8 +156,34 @@ def assess_worker_cycle_health(report: object) -> WeatherCalibrationCycleHealth:
     )
 
 
+def _experiment_attestation() -> dict:
+    # Import lazily: the experiment manifest intentionally binds this module's version
+    # constant, so importing it during module initialization would create a cycle.
+    from .weather_calibration_experiment import (
+        build_weather_calibration_experiment_manifest,
+        validate_weather_calibration_experiment_manifest,
+    )
+
+    manifest = validate_weather_calibration_experiment_manifest(
+        build_weather_calibration_experiment_manifest()
+    )
+    return {
+        "manifest_version": manifest.manifest_version,
+        "manifest_sha256": manifest.manifest_sha256,
+        "capture_policy_id": manifest.capture_policy_id,
+        "statistical_policy_status": manifest.statistical_policy_status,
+        "statistical_policy_id": manifest.statistical_policy_id,
+        "statistical_policy_sha256": manifest.statistical_policy_sha256,
+        "prospective_collection_authority": manifest.prospective_collection_authority,
+        "calibrated_probability_authority": False,
+        "financial_authority": False,
+        "financial_delivery": False,
+        "automatic_order_placement": False,
+    }
+
+
 class OperationalWeatherCalibrationResearchWorker(WeatherCalibrationResearchWorker):
-    """Same evidence worker with horizon lineage and explicit operational health."""
+    """Same evidence worker with horizon lineage, experiment identity and health."""
 
     async def run_cycle(self) -> dict:
         report = await super().run_cycle()
@@ -156,12 +198,24 @@ class OperationalWeatherCalibrationResearchWorker(WeatherCalibrationResearchWork
                 "error": str(code),
                 "financial_authority": False,
             }
+        try:
+            report["experiment"] = _experiment_attestation()
+        except Exception as exc:
+            code = getattr(exc, "code", type(exc).__name__)
+            report["experiment"] = {
+                "error": str(code),
+                "calibrated_probability_authority": False,
+                "financial_authority": False,
+                "financial_delivery": False,
+                "automatic_order_placement": False,
+            }
         health = assess_worker_cycle_health(report)
         report["runtime_version"] = WEATHER_CALIBRATION_WORKER_RUNTIME_VERSION
         report["operational_health"] = health.as_dict()
         report["process_healthy"] = health.process_healthy
         report["research_collection_healthy"] = health.research_collection_healthy
         report["prospective_gap_detected"] = health.prospective_gap_detected
+        report["calibrated_probability_authority"] = False
         report["financial_authority"] = False
         report["financial_delivery"] = False
         report["automatic_order_placement"] = False
