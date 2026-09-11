@@ -3,16 +3,16 @@ from __future__ import annotations
 """Pure, preregistered calibration assessment for the weather-only program.
 
 This module deliberately does not choose a probability model, score bins, sample
-thresholds or promotion rules after seeing results.  A caller must provide an
+thresholds or promotion rules after seeing results. A caller must provide an
 immutable ``CalibrationPolicy`` that was frozen for the model under study.
 
 Only labels that explicitly attest reconstruction of the rule-selected settlement
-state enter the clean sample.  Official proxies, historical convenience archives,
+state enter the clean sample. Official proxies, historical convenience archives,
 legacy rows and mismatched evidence versions remain useful research data but cannot
 silently mature a probability model toward trading authority.
 
 A successful assessment means only that the preregistered *research calibration*
-gates passed.  ``financial_authority`` is permanently false here.
+gates passed. ``financial_authority`` is permanently false here.
 """
 
 import math
@@ -35,15 +35,20 @@ class CalibrationPolicy:
     wilson_z: float
 
     def __post_init__(self) -> None:
-        if not self.policy_id.strip():
+        if not isinstance(self.policy_id, str) or not self.policy_id.strip():
             raise ValueError("policy_id is required")
-        if not self.probability_bins:
+        if not isinstance(self.probability_bins, tuple) or not self.probability_bins:
             raise ValueError("probability_bins are required")
         previous_hi = None
         for index, pair in enumerate(self.probability_bins):
             if not isinstance(pair, tuple) or len(pair) != 2:
                 raise ValueError("each probability bin must be a (lo, hi) tuple")
-            lo, hi = float(pair[0]), float(pair[1])
+            if any(isinstance(value, bool) for value in pair):
+                raise ValueError("probability-bin bounds cannot be booleans")
+            try:
+                lo, hi = float(pair[0]), float(pair[1])
+            except (TypeError, ValueError, OverflowError):
+                raise ValueError("invalid probability bin")
             if not (math.isfinite(lo) and math.isfinite(hi) and 0.0 <= lo < hi <= 1.0):
                 raise ValueError("invalid probability bin")
             if index == 0 and abs(lo) > 1e-12:
@@ -53,12 +58,17 @@ class CalibrationPolicy:
             previous_hi = hi
         if previous_hi is None or abs(previous_hi - 1.0) > 1e-12:
             raise ValueError("probability bins must end at one")
+
         for value in (self.min_total_resolved, self.min_bin_resolved, self.min_distinct_stations):
-            if isinstance(value, bool) or int(value) <= 0:
+            if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
                 raise ValueError("sample-count gates must be positive integers")
-        if not math.isfinite(self.max_brier_score) or not 0.0 <= self.max_brier_score <= 1.0:
+        if isinstance(self.max_brier_score, bool) or not isinstance(self.max_brier_score, (int, float)):
+            raise ValueError("max_brier_score must be numeric")
+        if not math.isfinite(float(self.max_brier_score)) or not 0.0 <= float(self.max_brier_score) <= 1.0:
             raise ValueError("max_brier_score must be in [0,1]")
-        if not math.isfinite(self.wilson_z) or self.wilson_z <= 0.0:
+        if isinstance(self.wilson_z, bool) or not isinstance(self.wilson_z, (int, float)):
+            raise ValueError("wilson_z must be numeric")
+        if not math.isfinite(float(self.wilson_z)) or float(self.wilson_z) <= 0.0:
             raise ValueError("wilson_z must be positive")
 
 
@@ -208,7 +218,7 @@ def assess_probability_calibration(
     lower = _wilson_lower(
         sum(float(sample.final_payout) for sample in in_bin),
         bin_n,
-        policy.wilson_z,
+        float(policy.wilson_z),
     ) if bin_n else None
 
     reasons: list[str] = []
@@ -218,9 +228,9 @@ def assess_probability_calibration(
         reasons.append(f"need {policy.min_bin_resolved} clean samples in target bin; have {bin_n}")
     if stations < policy.min_distinct_stations:
         reasons.append(f"need {policy.min_distinct_stations} distinct stations; have {stations}")
-    if brier is None or brier > policy.max_brier_score:
+    if brier is None or brier > float(policy.max_brier_score):
         shown = "n/a" if brier is None else f"{brier:.6f}"
-        reasons.append(f"Brier score {shown} exceeds policy gate {policy.max_brier_score:.6f}")
+        reasons.append(f"Brier score {shown} exceeds policy gate {float(policy.max_brier_score):.6f}")
     if lower is None:
         reasons.append("target-bin Wilson lower bound unavailable")
 
