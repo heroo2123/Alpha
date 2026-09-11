@@ -34,8 +34,9 @@ from .weather_only_wrh import (
 )
 
 
-WRH_LIVE_CLIENT_VERSION = "nws_wrh_live_transport_v2_mesotoken_ephemeral"
+WRH_LIVE_CLIENT_VERSION = "nws_wrh_live_transport_v3_origin_bound_mesotoken"
 WRH_TIMESERIES_PAGE = "https://www.weather.gov/wrh/timeseries"
+WRH_BROWSER_ORIGIN = "https://www.weather.gov"
 WRH_API_KEY_SCRIPT_PATH = "/source/wrh/apiKey.js"
 WRH_BROWSER_TOKEN_IDENTIFIER = "mesoToken"
 WRH_LIVE_QUERY_PROFILE = "WRH_HISTORY_TARGET_PLUS_FOLLOWING_DATE_ENGLISH_HOURLY"
@@ -82,6 +83,7 @@ class WRHLiveFetchResult:
             "viewer_script_sha256": self.viewer_script_sha256,
             "api_key_script_url": self.api_key_script_url,
             "backend_endpoint": self.backend_endpoint,
+            "backend_origin": WRH_BROWSER_ORIGIN,
             "fetched_at": self.fetched_at,
             "snapshot": self.snapshot.as_dict(),
             "transport_evidence_sha256": self.transport_evidence_sha256,
@@ -122,10 +124,17 @@ def _station(value: object) -> str:
     return station
 
 
-def _safe_get(client: httpx.Client, url: str, *, params: dict | None, code: str) -> httpx.Response:
+def _safe_get(
+    client: httpx.Client,
+    url: str,
+    *,
+    params: dict | None,
+    code: str,
+    headers: dict[str, str] | None = None,
+) -> httpx.Response:
     """Perform one GET without allowing a tokenized URL to escape via exceptions."""
     try:
-        response = client.get(url, params=params)
+        response = client.get(url, params=params, headers=headers)
     except httpx.HTTPError:
         # Do not chain: several httpx exception repr/messages include request.url.
         raise WRHSourceError(code) from None
@@ -180,17 +189,19 @@ def _verify_viewer_credential_contract(viewer_body: str) -> None:
     # credential is injected into the Synoptic query.
     if WRH_BROWSER_TOKEN_IDENTIFIER not in viewer_body:
         raise WRHSourceError("WRH_LIVE_VIEWER_TOKEN_IDENTIFIER_MISMATCH")
-    if "&obtimezone=local" not in viewer_body:
+    if "&token='+mesoToken+'&obtimezone=local" not in viewer_body:
         raise WRHSourceError("WRH_LIVE_VIEWER_TOKEN_QUERY_CONTRACT_MISMATCH")
 
 
 def _extract_browser_token(script_body: str) -> str:
-    """Extract NWS's mesoToken in memory; never serialize the returned credential."""
+    """Extract NWS's bare mesoToken in memory; never serialize the credential."""
     matches: list[str] = []
     for raw in _MESO_TOKEN_ASSIGNMENT_RE.findall(script_body):
         value = str(raw).strip()
+        # The pinned WRH viewer itself supplies ``&token=`` and concatenates the
+        # bare mesoToken. A prefixed assignment would change query semantics.
         if value.lower().startswith("token="):
-            value = value.split("=", 1)[1].strip()
+            raise WRHSourceError("WRH_LIVE_BROWSER_TOKEN_SHAPE_MISMATCH")
         if _TOKEN_VALUE_RE.fullmatch(value) and value not in matches:
             matches.append(value)
     if len(matches) != 1:
@@ -211,6 +222,7 @@ def _transport_digest_payload(result: WRHLiveFetchResult) -> dict:
         "viewer_script_sha256": result.viewer_script_sha256,
         "api_key_script_url": result.api_key_script_url,
         "backend_endpoint": result.backend_endpoint,
+        "backend_origin": WRH_BROWSER_ORIGIN,
         "fetched_at": result.fetched_at,
         "snapshot_evidence_sha256": result.snapshot.evidence_sha256,
         "source_payload_sha256": result.snapshot.source_payload_sha256,
@@ -225,7 +237,7 @@ class NWSWRHLiveClient:
         *,
         http_client: httpx.Client | None = None,
         timeout_seconds: float = 20.0,
-        user_agent: str = "polymarket-weather-only-wrh-live/2.0 (+https://github.com/heroo2123/Alpha)",
+        user_agent: str = "polymarket-weather-only-wrh-live/3.0 (+https://github.com/heroo2123/Alpha)",
     ) -> None:
         if isinstance(timeout_seconds, bool) or not isinstance(timeout_seconds, (int, float)):
             raise ValueError("timeout_seconds must be numeric")
@@ -297,9 +309,9 @@ class NWSWRHLiveClient:
             )
             browser_token = _extract_browser_token(key_script.text)
 
-            # Match the WRH viewer's historical query construction exactly for the
-            # target and following local calendar dates. The token exists only in this
-            # local mapping and in httpx's transient request object; neither is returned.
+            # Match the WRH viewer's historical query construction and browser
+            # authorization context exactly. The live Synoptic token is origin-bound:
+            # without weather.gov as Origin, the same credential is rejected with 403.
             backend_params = {
                 "STID": station_id,
                 "showemptystations": "1",
@@ -314,6 +326,7 @@ class NWSWRHLiveClient:
                 client,
                 WRH_SYNOPTIC_ENDPOINT,
                 params=backend_params,
+                headers={"Origin": WRH_BROWSER_ORIGIN},
                 code="WRH_LIVE_BACKEND_HTTP_ERROR",
             )
             try:
