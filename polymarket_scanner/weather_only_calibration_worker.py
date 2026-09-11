@@ -2,21 +2,19 @@ from __future__ import annotations
 
 """Isolated prospective calibration worker for the weather-only research program.
 
-This is deliberately *not* a trading runtime.  Its only responsibilities are to:
+This is deliberately *not* a trading runtime. Its only responsibilities are to
+prospectively freeze one raw GEFS bucket prediction per event and later collect exact
+WRH settlement labels through the independent trusted collector.
 
-1. discover currently open weather events during one preregistered capture window;
-2. certify exact NWS/WRH Fahrenheit daily-high/daily-low contract semantics;
-3. fetch strict official station location identity plus one GEFS ensemble snapshot;
-4. deterministically freeze exactly one raw-model bucket prediction per event;
-5. durably reserve that event before collector registration, preventing crash-driven
-   forecast replacement or cherry-picking;
-6. keep ticking the independent WRH prospective collector so exact settlement labels
-   can be authorized later from prospectively bracketed source snapshots.
+V3 preregisters one comparable forecast horizon across settlement stations: capture
+must occur from 17:00 inclusive to 17:15 exclusive in the exact NWS station timezone
+on the calendar day before the target date. The schedule is encoded in the immutable
+mapping/selection policy ids that feed model identity. A missed window is a lost
+research sample and is never repaired retrospectively.
 
-The capture schedule is part of model identity through the selection-policy id.  V1
-freezes the forecast on the UTC day before the target between 17:00 inclusive and
-17:15 exclusive.  Captures outside that window are impossible through this runtime.
-A missed window is a lost research sample; it is never repaired retrospectively.
+Discovery is cached and attempt-throttled independently from the 30-second collector
+loop. The worker may inspect public market/station metadata outside a capture window,
+but it cannot fetch GEFS or freeze a prediction until the station-local window opens.
 
 No Telegram sender, order endpoint, trading key, CLOB execution path, calibrated
 probability promotion or financial authority exists in this module.
@@ -30,7 +28,7 @@ import os
 import sqlite3
 import time
 from collections import Counter
-from datetime import date, datetime, time as wall_time, timedelta, timezone
+from datetime import date, datetime, time as wall_time, timedelta
 from pathlib import Path
 from typing import Callable
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -41,12 +39,7 @@ from .weather_only_calibration_capture import (
     _hash_payload as _capture_hash_payload,
     capture_prospective_weather_calibration_candidate,
 )
-from .weather_only_contracts import (
-    DAILY_HIGH,
-    DAILY_LOW,
-    SOURCE_NWS_WRH,
-    compile_weather_event,
-)
+from .weather_only_contracts import DAILY_HIGH, DAILY_LOW, SOURCE_NWS_WRH, compile_weather_event
 from .weather_only_discovery import DEFAULT_TAGS, WeatherDiscoveryError, WeatherOnlyDiscovery
 from .weather_only_forecast import (
     EnsembleBucketForecast,
@@ -67,18 +60,19 @@ from .weather_only_wrh_collector import CollectorTickReport, WeatherWRHCollector
 from .weather_only_wrh_collector_authority import TrustedWeatherWRHProspectiveCollector
 
 
-WEATHER_CALIBRATION_WORKER_VERSION = "weather_calibration_worker_v2_certified_contract_fixed_tminus1_1700z"
-CAPTURE_POLICY_ID = "weather_gefs_tminus1_1700z_window15m_v1"
+WEATHER_CALIBRATION_WORKER_VERSION = "weather_calibration_worker_v3_station_local_tminus1_1700_append_reservation"
+CAPTURE_POLICY_ID = "weather_gefs_station_local_tminus1_1700_window15m_v1"
 MAPPING_POLICY = EnsembleMappingPolicy(
-    policy_id="weather_gefs_nearest_whole_include_control_tminus1_1700z_v1",
+    policy_id="weather_gefs_nearest_whole_include_control_station_local_tminus1_1700_v1",
     include_control=True,
 )
 SELECTION_POLICY = ProspectiveSelectionPolicy(
-    policy_id="weather_gefs_top_bucket_tminus1_1700z_v1",
+    policy_id="weather_gefs_top_bucket_station_local_tminus1_1700_v1",
 )
-CAPTURE_UTC_HOUR = 17
-CAPTURE_UTC_MINUTE = 0
+CAPTURE_LOCAL_HOUR = 17
+CAPTURE_LOCAL_MINUTE = 0
 CAPTURE_WINDOW_SECONDS = 15 * 60
+DISCOVERY_REFRESH_SECONDS = 5 * 60.0
 LOOP_INTERVAL_SECONDS = 30.0
 MIN_LOOP_INTERVAL_SECONDS = 5.0
 MAX_CAPTURE_EVENTS_PER_WINDOW = 32
@@ -107,28 +101,38 @@ def _canonical_json(value: object) -> str:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
 
 
-def _capture_window(now: float) -> tuple[float, float, date]:
-    instant = datetime.fromtimestamp(_finite_timestamp(now, "WORKER_CLOCK_INVALID"), timezone.utc)
+def _station_capture_window(target_date: date, timezone_name: str) -> tuple[float, float]:
+    if type(target_date) is not date:
+        raise WeatherCalibrationWorkerError("WORKER_TARGET_DATE_INVALID")
+    try:
+        zone = ZoneInfo(str(timezone_name or ""))
+    except ZoneInfoNotFoundError:
+        raise WeatherCalibrationWorkerError("WORKER_STATION_TIMEZONE_INVALID") from None
     start = datetime.combine(
-        instant.date(),
-        wall_time(CAPTURE_UTC_HOUR, CAPTURE_UTC_MINUTE),
-        tzinfo=timezone.utc,
+        target_date - timedelta(days=1),
+        wall_time(CAPTURE_LOCAL_HOUR, CAPTURE_LOCAL_MINUTE),
+        tzinfo=zone,
     )
     end = start + timedelta(seconds=CAPTURE_WINDOW_SECONDS)
-    return start.timestamp(), end.timestamp(), instant.date() + timedelta(days=1)
+    return start.timestamp(), end.timestamp()
 
 
-def _inside_capture_window(now: float) -> tuple[bool, date, float, float]:
-    start, end, target = _capture_window(now)
-    return start <= now < end, target, start, end
+def _station_capture_status(now: float, target_date: date, timezone_name: str) -> tuple[str, float, float]:
+    current = _finite_timestamp(now, "WORKER_CLOCK_INVALID")
+    start, end = _station_capture_window(target_date, timezone_name)
+    if current < start:
+        return "BEFORE", start, end
+    if current >= end:
+        return "AFTER", start, end
+    return "ACTIVE", start, end
 
 
 class WeatherCalibrationWorkerState:
     """Append-style event reservation journal sharing the collector SQLite file.
 
-    The reservation is committed *before* collector registration.  A crash between
+    The reservation is committed before collector registration. A crash between
     those writes can lose a sample but cannot authorize a second forecast for the
-    event.  This is intentionally fail-closed.
+    event. This is intentionally fail-closed.
     """
 
     def __init__(self, path: str | Path) -> None:
@@ -305,10 +309,9 @@ class WeatherCalibrationWorkerState:
                 "SELECT status, COUNT(*) AS n FROM weather_calibration_worker_events GROUP BY status"
             ).fetchall()
         }
-        total = sum(counts.values())
         return {
             "state_version": "weather_calibration_worker_state_v1_append_reservation",
-            "total_events": total,
+            "total_events": sum(counts.values()),
             "status_counts": dict(sorted(counts.items())),
             "financial_authority": False,
         }
@@ -345,6 +348,8 @@ class WeatherCalibrationResearchWorker:
             raise TypeError("clock must be callable")
         self._last_clock: float | None = None
         self._station_cache: dict[str, NWSStationMetadata] = {}
+        self._event_cache: tuple[dict, ...] = ()
+        self._last_discovery_attempt_at: float | None = None
 
     def _now(self) -> float:
         raw = self._clock()
@@ -375,14 +380,14 @@ class WeatherCalibrationResearchWorker:
         return row
 
     @staticmethod
-    def _eligible_event(event: dict, target_date: date):
+    def _eligible_event(event: dict):
         compiled = compile_weather_event(event)
         if (
             not compiled.event_id
             or compiled.source_family != SOURCE_NWS_WRH
             or compiled.family not in {DAILY_HIGH, DAILY_LOW}
             or compiled.unit != "F"
-            or compiled.target_date != target_date
+            or compiled.target_date is None
             or not compiled.station_hint
             or not compiled.partition_shape_complete
             or not compiled.shadow_supported
@@ -396,60 +401,85 @@ class WeatherCalibrationResearchWorker:
             return None
         return certified
 
-    async def _capture_window_cycle(self, *, now: float, expected_target: date) -> dict:
+    async def _refresh_discovery(self, now: float) -> dict:
+        previous = self._last_discovery_attempt_at
+        if previous is not None and now - previous < DISCOVERY_REFRESH_SECONDS:
+            return {
+                "attempted": False,
+                "reason": "DISCOVERY_ATTEMPT_THROTTLED",
+                "cached_event_count": len(self._event_cache),
+            }
+        self._last_discovery_attempt_at = now
+        try:
+            snapshot = await self.discovery.discover(DEFAULT_TAGS)
+        except WeatherDiscoveryError as exc:
+            return {
+                "attempted": True,
+                "success": False,
+                "error": f"DISCOVERY:{exc.code}",
+                "cached_event_count": len(self._event_cache),
+            }
+        self._event_cache = tuple(snapshot.events)
+        return {
+            "attempted": True,
+            "success": True,
+            "cached_event_count": len(self._event_cache),
+            "summary": snapshot.summary(),
+        }
+
+    async def _capture_cycle(self, *, now: float) -> dict:
         report = {
             "capture_policy_id": CAPTURE_POLICY_ID,
-            "expected_target_date": expected_target.isoformat(),
             "mapping_policy_id": MAPPING_POLICY.policy_id,
             "selection_policy_id": SELECTION_POLICY.policy_id,
             "eligible_events": 0,
+            "active_window_events": 0,
+            "before_window_events": 0,
+            "missed_window_events": 0,
             "already_reserved_events": 0,
             "reserved_events": 0,
             "registered_events": 0,
             "errors": {},
         }
         errors = Counter()
-        try:
-            snapshot = await self.discovery.discover(DEFAULT_TAGS)
-        except WeatherDiscoveryError as exc:
-            report["errors"] = {f"DISCOVERY:{exc.code}": 1}
-            return report
-        report["discovery"] = snapshot.summary()
-
         known = self.state.known_event_ids()
-        eligible: list[tuple[str, dict, object]] = []
-        for event in snapshot.events:
-            compiled = self._eligible_event(event, expected_target)
+        active: list[tuple[str, dict, object, NWSStationMetadata, float]] = []
+
+        for event in self._event_cache:
+            compiled = self._eligible_event(event)
             if compiled is None:
                 continue
+            report["eligible_events"] += 1
             if compiled.event_id in known:
                 report["already_reserved_events"] += 1
                 continue
-            eligible.append((compiled.event_id, event, compiled))
-        eligible.sort(key=lambda row: row[0])
-        report["eligible_events"] = len(eligible)
-        if len(eligible) > MAX_CAPTURE_EVENTS_PER_WINDOW:
-            report["errors"] = {"CAPTURE_EVENT_CAP_EXCEEDED": len(eligible)}
+            try:
+                metadata = await self._station_metadata(str(compiled.station_hint))
+                status, start, end = _station_capture_status(
+                    now,
+                    compiled.target_date,
+                    metadata.timezone,
+                )
+            except (WeatherStationMetadataError, WeatherCalibrationWorkerError) as exc:
+                errors[getattr(exc, "code", type(exc).__name__)] += 1
+                continue
+            if status == "BEFORE":
+                report["before_window_events"] += 1
+                continue
+            if status == "AFTER":
+                report["missed_window_events"] += 1
+                continue
+            report["active_window_events"] += 1
+            active.append((compiled.event_id, event, compiled, metadata, end))
+
+        active.sort(key=lambda row: row[0])
+        if len(active) > MAX_CAPTURE_EVENTS_PER_WINDOW:
+            report["errors"] = {"CAPTURE_EVENT_CAP_EXCEEDED": len(active)}
             return report
 
         distribution_cache: dict[tuple[str, date, str, str, str], EnsembleExtremeDistribution] = {}
-        for event_id, event, compiled in eligible:
-            captured_now = self._now()
-            inside, _, _, end = _inside_capture_window(captured_now)
-            if not inside:
-                errors["CAPTURE_WINDOW_CLOSED_DURING_CYCLE"] += 1
-                break
+        for event_id, event, compiled, metadata, window_end in active:
             try:
-                metadata = await self._station_metadata(str(compiled.station_hint))
-                try:
-                    station_zone = ZoneInfo(metadata.timezone)
-                except ZoneInfoNotFoundError:
-                    raise WeatherCalibrationWorkerError("WORKER_STATION_TIMEZONE_INVALID") from None
-                station_local_date = datetime.fromtimestamp(captured_now, station_zone).date()
-                if compiled.target_date != station_local_date + timedelta(days=1):
-                    errors["TARGET_NOT_NEXT_LOCAL_DAY"] += 1
-                    continue
-
                 cache_key = (
                     metadata.station,
                     compiled.target_date,
@@ -470,17 +500,19 @@ class WeatherCalibrationResearchWorker:
                     )
                     distribution_cache[cache_key] = distribution
 
-                forecast = map_ensemble_to_contract_buckets(
-                    compiled,
-                    distribution,
-                    MAPPING_POLICY,
-                )
+                forecast = map_ensemble_to_contract_buckets(compiled, distribution, MAPPING_POLICY)
                 capture_time = self._now()
                 if capture_time < distribution.received_at:
                     raise WeatherCalibrationWorkerError("WORKER_CAPTURE_BEFORE_FORECAST_RECEIPT")
-                if not (now <= capture_time < end):
+                status, _, recomputed_end = _station_capture_status(
+                    capture_time,
+                    compiled.target_date,
+                    metadata.timezone,
+                )
+                if status != "ACTIVE" or abs(recomputed_end - window_end) > 1e-9:
                     errors["CAPTURE_WINDOW_CLOSED_BEFORE_FREEZE"] += 1
                     continue
+
                 capture = capture_prospective_weather_calibration_candidate(
                     event,
                     forecast,
@@ -517,8 +549,7 @@ class WeatherCalibrationResearchWorker:
                 WeatherCalibrationCaptureError,
                 WeatherCalibrationWorkerError,
             ) as exc:
-                code = getattr(exc, "code", type(exc).__name__)
-                errors[str(code)] += 1
+                errors[getattr(exc, "code", type(exc).__name__)] += 1
                 continue
 
         report["errors"] = dict(sorted(errors.items()))
@@ -526,15 +557,10 @@ class WeatherCalibrationResearchWorker:
 
     async def run_cycle(self) -> dict:
         started = self._now()
-        active, expected_target, window_start, window_end = _inside_capture_window(started)
         report: dict = {
             "version": WEATHER_CALIBRATION_WORKER_VERSION,
             "mode": "PROSPECTIVE_CALIBRATION_RESEARCH_ONLY",
             "capture_policy_id": CAPTURE_POLICY_ID,
-            "capture_window_active": active,
-            "capture_window_start_utc": datetime.fromtimestamp(window_start, timezone.utc).isoformat(),
-            "capture_window_end_utc": datetime.fromtimestamp(window_end, timezone.utc).isoformat(),
-            "expected_target_date": expected_target.isoformat(),
             "financial_authority": False,
             "financial_delivery": False,
             "automatic_order_placement": False,
@@ -552,18 +578,8 @@ class WeatherCalibrationResearchWorker:
             report["state_reconciliation_error"] = str(code)
             reconciled = 0
         report["reconciled_reservations"] = reconciled
-
-        if active:
-            report["capture"] = await self._capture_window_cycle(
-                now=started,
-                expected_target=expected_target,
-            )
-        else:
-            report["capture"] = {
-                "capture_policy_id": CAPTURE_POLICY_ID,
-                "attempted": False,
-                "reason": "OUTSIDE_PREREGISTERED_CAPTURE_WINDOW",
-            }
+        report["discovery"] = await self._refresh_discovery(started)
+        report["capture"] = await self._capture_cycle(now=started)
 
         try:
             collector_report: CollectorTickReport = await asyncio.to_thread(self.collector.tick)
