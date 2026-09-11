@@ -5,10 +5,10 @@ from __future__ import annotations
 The public WRH page is a browser application: its pinned viewer JavaScript obtains
 station observations from Synoptic Data using a browser credential served by NWS.
 This client mirrors that transport without ever returning, persisting or logging the
-credential.  Token-bearing HTTP exceptions are converted to fixed error codes before
+credential. Token-bearing HTTP exceptions are converted to fixed error codes before
 they can stringify request URLs.
 
-A successful fetch proves only source/transport acquisition.  The returned snapshot
+A successful fetch proves only source/transport acquisition. The returned snapshot
 keeps calibration, settlement and financial authority false; prospective finality and
 frozen contract rules must upgrade it later.
 """
@@ -18,7 +18,7 @@ import json
 import math
 import re
 import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from urllib.parse import urljoin, urlparse
 
@@ -34,15 +34,15 @@ from .weather_only_wrh import (
 )
 
 
-WRH_LIVE_CLIENT_VERSION = "nws_wrh_live_transport_v1_ephemeral_browser_token"
+WRH_LIVE_CLIENT_VERSION = "nws_wrh_live_transport_v2_mesotoken_ephemeral"
 WRH_TIMESERIES_PAGE = "https://www.weather.gov/wrh/timeseries"
-WRH_API_KEY_SCRIPT_PATH = "/source/wrh/timeseries/apiKey.js"
+WRH_API_KEY_SCRIPT_PATH = "/source/wrh/apiKey.js"
+WRH_BROWSER_TOKEN_IDENTIFIER = "mesoToken"
 WRH_LIVE_QUERY_PROFILE = "WRH_HISTORY_TARGET_PLUS_FOLLOWING_DATE_ENGLISH_HOURLY"
 
 _SCRIPT_RE = re.compile(r'<script[^>]+src=["\']([^"\']+)["\']', re.I)
-_TOKEN_ASSIGNMENT_PATTERNS = (
-    re.compile(r"(?i)\b(?:var|let|const)\s+(?:token|api_?token|api_?key|apikey)\s*=\s*['\"]([^'\"]+)['\"]"),
-    re.compile(r"(?i)\b(?:token|api_?token|api_?key|apikey)\s*[:=]\s*['\"]([^'\"]+)['\"]"),
+_MESO_TOKEN_ASSIGNMENT_RE = re.compile(
+    r"(?i)(?:\b(?:var|let|const)\s+)?\bmesoToken\s*=\s*['\"]([^'\"]+)['\"]"
 )
 _TOKEN_VALUE_RE = re.compile(r"^[A-Za-z0-9._~+/=-]{8,512}$")
 _STATION_RE = re.compile(r"^[A-Z0-9]{4}$")
@@ -126,7 +126,7 @@ def _safe_get(client: httpx.Client, url: str, *, params: dict | None, code: str)
     """Perform one GET without allowing a tokenized URL to escape via exceptions."""
     try:
         response = client.get(url, params=params)
-    except httpx.HTTPError as exc:
+    except httpx.HTTPError:
         # Do not chain: several httpx exception repr/messages include request.url.
         raise WRHSourceError(code) from None
     if response.status_code < 200 or response.status_code >= 300:
@@ -144,7 +144,10 @@ def _script_urls(shell_body: str) -> tuple[str, ...]:
 
 
 def _discover_viewer_script(shell_body: str) -> str:
-    candidates = [url for url in _script_urls(shell_body) if urlparse(url).path.endswith("/source/wrh/timeseries/obs.js")]
+    candidates = [
+        url for url in _script_urls(shell_body)
+        if urlparse(url).path.endswith("/source/wrh/timeseries/obs.js")
+    ]
     if len(candidates) != 1:
         raise WRHSourceError("WRH_LIVE_VIEWER_SCRIPT_DISCOVERY_FAILED")
     if candidates[0] != WRH_VIEWER_SCRIPT_URL:
@@ -153,25 +156,43 @@ def _discover_viewer_script(shell_body: str) -> str:
 
 
 def _discover_api_key_script(shell_body: str) -> str:
-    candidates = [url for url in _script_urls(shell_body) if urlparse(url).path.endswith(WRH_API_KEY_SCRIPT_PATH)]
+    candidates = [
+        url for url in _script_urls(shell_body)
+        if urlparse(url).path == WRH_API_KEY_SCRIPT_PATH
+    ]
     if len(candidates) != 1:
         raise WRHSourceError("WRH_LIVE_API_KEY_SCRIPT_DISCOVERY_FAILED")
     parsed = urlparse(candidates[0])
-    if parsed.scheme != "https" or parsed.netloc.lower() != "www.weather.gov" or parsed.path != WRH_API_KEY_SCRIPT_PATH:
+    if (
+        parsed.scheme != "https"
+        or parsed.netloc.lower() != "www.weather.gov"
+        or parsed.path != WRH_API_KEY_SCRIPT_PATH
+        or parsed.params
+        or parsed.fragment
+    ):
         raise WRHSourceError("WRH_LIVE_API_KEY_SCRIPT_IDENTITY_INVALID")
     return candidates[0]
 
 
+def _verify_viewer_credential_contract(viewer_body: str) -> None:
+    # The exact script is SHA-pinned as well. This explicit check makes the transport
+    # dependency legible and fails closed if a future pinned version changes how its
+    # credential is injected into the Synoptic query.
+    if WRH_BROWSER_TOKEN_IDENTIFIER not in viewer_body:
+        raise WRHSourceError("WRH_LIVE_VIEWER_TOKEN_IDENTIFIER_MISMATCH")
+    if "&obtimezone=local" not in viewer_body:
+        raise WRHSourceError("WRH_LIVE_VIEWER_TOKEN_QUERY_CONTRACT_MISMATCH")
+
+
 def _extract_browser_token(script_body: str) -> str:
-    """Extract one credential in memory; callers must never serialize the return value."""
+    """Extract NWS's mesoToken in memory; never serialize the returned credential."""
     matches: list[str] = []
-    for pattern in _TOKEN_ASSIGNMENT_PATTERNS:
-        for raw in pattern.findall(script_body):
-            value = str(raw).strip()
-            if value.lower().startswith("token="):
-                value = value.split("=", 1)[1].strip()
-            if _TOKEN_VALUE_RE.fullmatch(value) and value not in matches:
-                matches.append(value)
+    for raw in _MESO_TOKEN_ASSIGNMENT_RE.findall(script_body):
+        value = str(raw).strip()
+        if value.lower().startswith("token="):
+            value = value.split("=", 1)[1].strip()
+        if _TOKEN_VALUE_RE.fullmatch(value) and value not in matches:
+            matches.append(value)
     if len(matches) != 1:
         raise WRHSourceError("WRH_LIVE_BROWSER_TOKEN_DISCOVERY_FAILED")
     return matches[0]
@@ -204,7 +225,7 @@ class NWSWRHLiveClient:
         *,
         http_client: httpx.Client | None = None,
         timeout_seconds: float = 20.0,
-        user_agent: str = "polymarket-weather-only-wrh-live/1.0 (+https://github.com/heroo2123/Alpha)",
+        user_agent: str = "polymarket-weather-only-wrh-live/2.0 (+https://github.com/heroo2123/Alpha)",
     ) -> None:
         if isinstance(timeout_seconds, bool) or not isinstance(timeout_seconds, (int, float)):
             raise ValueError("timeout_seconds must be numeric")
@@ -266,6 +287,7 @@ class NWSWRHLiveClient:
             viewer_sha = hashlib.sha256(viewer.content).hexdigest()
             if viewer_sha != WRH_VIEWER_SCRIPT_SHA256:
                 raise WRHSourceError("WRH_LIVE_VIEWER_SCRIPT_SHA_MISMATCH")
+            _verify_viewer_credential_contract(viewer.text)
 
             key_script = _safe_get(
                 client,
@@ -276,8 +298,8 @@ class NWSWRHLiveClient:
             browser_token = _extract_browser_token(key_script.text)
 
             # Match the WRH viewer's historical query construction exactly for the
-            # target and following local calendar dates.  The token is passed only to
-            # httpx and is never copied into evidence, logs, errors or returned data.
+            # target and following local calendar dates. The token exists only in this
+            # local mapping and in httpx's transient request object; neither is returned.
             backend_params = {
                 "STID": station_id,
                 "showemptystations": "1",
@@ -296,7 +318,7 @@ class NWSWRHLiveClient:
             )
             try:
                 payload = backend.json()
-            except (ValueError, json.JSONDecodeError):
+            except ValueError:
                 raise WRHSourceError("WRH_LIVE_BACKEND_JSON_INVALID") from None
             if not isinstance(payload, dict):
                 raise WRHSourceError("WRH_LIVE_BACKEND_PAYLOAD_INVALID")
