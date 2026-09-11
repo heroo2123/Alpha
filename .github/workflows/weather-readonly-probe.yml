@@ -1,0 +1,53 @@
+name: weather-readonly-probe
+
+on:
+  push:
+    branches:
+      - weather-only-trade-scanner
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+      - name: Public read-only Gamma and CLOB weather probe
+        shell: bash
+        run: |
+          set +e
+          timeout 240 python -m polymarket_scanner.weather_probe \
+            --output weather-probe.json \
+            >weather-probe.stdout.txt \
+            2>weather-probe.stderr.txt
+          rc=$?
+          if [ ! -s weather-probe.json ]; then
+            python - "$rc" <<'PY'
+          import json, sys
+          from pathlib import Path
+          Path('weather-probe.json').write_text(json.dumps({
+              'read_only': True,
+              'probe_failed': True,
+              'exit_code': int(sys.argv[1]),
+              'note': 'Public diagnostic failed or timed out; no financial action was attempted.'
+          }, indent=2) + '\n')
+          PY
+          fi
+          echo "probe_exit_code=$rc" >> "$GITHUB_STEP_SUMMARY"
+          cat weather-probe.json >> "$GITHUB_STEP_SUMMARY"
+          exit 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: weather-readonly-probe-${{ github.sha }}
+          path: |
+            weather-probe.json
+            weather-probe.stdout.txt
+            weather-probe.stderr.txt
+          if-no-files-found: error
