@@ -1,0 +1,113 @@
+name: weather-calibration-live-sources-acceptance
+
+on:
+  push:
+    branches:
+      - weather-wrh-prospective-collector
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  live-weather-research-sources:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+      - name: Run strict NWS station metadata and GEFS forecast acceptance
+        shell: bash
+        run: |
+          python - <<'PY'
+          import asyncio
+          import json
+          from datetime import datetime, timedelta
+          from pathlib import Path
+          from zoneinfo import ZoneInfo
+
+          from polymarket_scanner.weather_only_contracts import DAILY_HIGH
+          from polymarket_scanner.weather_only_forecast import (
+              GEFS_TOTAL_MEMBERS,
+              OPEN_METEO_GEFS_MODEL,
+              OpenMeteoGEFSEnsembleClient,
+          )
+          from polymarket_scanner.weather_only_station_metadata import NWSStationMetadataClient
+
+          async def main():
+              station_client = NWSStationMetadataClient()
+              forecast_client = OpenMeteoGEFSEnsembleClient()
+              try:
+                  station = await station_client.station('KLGA')
+                  target_date = datetime.now(ZoneInfo(station.timezone)).date() + timedelta(days=1)
+                  forecast = await forecast_client.daily_extreme(
+                      station=station.station,
+                      latitude=station.latitude,
+                      longitude=station.longitude,
+                      target_date=target_date,
+                      family=DAILY_HIGH,
+                      unit='F',
+                      timezone=station.timezone,
+                  )
+              finally:
+                  await station_client.close()
+                  await forecast_client.close()
+
+              checks = {
+                  'station_identity': station.station == 'KLGA',
+                  'station_timezone_present': bool(station.timezone),
+                  'station_latitude_valid': -90.0 <= station.latitude <= 90.0,
+                  'station_longitude_valid': -180.0 <= station.longitude <= 180.0,
+                  'station_evidence_sha': len(station.evidence_sha256) == 64,
+                  'station_source_payload_sha': len(station.source_payload_sha256) == 64,
+                  'station_no_settlement_authority': station.settlement_authority is False,
+                  'station_no_calibration_authority': station.calibration_label_authority is False,
+                  'station_no_financial_authority': station.financial_authority is False,
+                  'forecast_station_match': forecast.station == station.station,
+                  'forecast_target_date_match': forecast.target_date == target_date,
+                  'forecast_timezone_match': forecast.timezone == station.timezone,
+                  'forecast_model': forecast.provider_model == OPEN_METEO_GEFS_MODEL,
+                  'forecast_member_count': len(forecast.member_values) == GEFS_TOTAL_MEMBERS,
+                  'forecast_member_labels': len(forecast.member_labels) == GEFS_TOTAL_MEMBERS,
+                  'forecast_evidence_sha': len(forecast.evidence_sha256) == 64,
+                  'forecast_no_settlement_authority': forecast.settlement_authority is False,
+                  'forecast_no_calibration_authority': forecast.calibration_label_authority is False,
+                  'forecast_not_calibrated': forecast.calibrated_probability is False,
+                  'forecast_no_financial_authority': forecast.financial_authority is False,
+              }
+              failed = sorted(name for name, ok in checks.items() if not ok)
+              report = {
+                  'station': station.station,
+                  'station_timezone': station.timezone,
+                  'station_latitude': station.latitude,
+                  'station_longitude': station.longitude,
+                  'station_evidence_sha256': station.evidence_sha256,
+                  'station_source_payload_sha256': station.source_payload_sha256,
+                  'forecast_target_date': target_date.isoformat(),
+                  'forecast_model': forecast.provider_model,
+                  'forecast_member_count': len(forecast.member_values),
+                  'forecast_evidence_sha256': forecast.evidence_sha256,
+                  'checks': checks,
+                  'raw_nws_payload_persisted': False,
+                  'raw_open_meteo_payload_persisted': False,
+                  'calibration_label_authority': False,
+                  'financial_authority': False,
+              }
+              Path('weather-calibration-live-sources.json').write_text(
+                  json.dumps(report, indent=2, sort_keys=True) + '\n'
+              )
+              print(json.dumps(report, indent=2, sort_keys=True))
+              if failed:
+                  raise SystemExit('WEATHER_CALIBRATION_LIVE_SOURCES_FAILED:' + ','.join(failed))
+
+          asyncio.run(main())
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: weather-calibration-live-sources-${{ github.sha }}
+          path: weather-calibration-live-sources.json
+          if-no-files-found: warn
