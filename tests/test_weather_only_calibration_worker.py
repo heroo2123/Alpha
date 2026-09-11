@@ -224,8 +224,8 @@ def _event_state(worker):
 def test_worker_freezes_exactly_one_capture_per_event_and_reuses_durable_reservation(tmp_path):
     async def scenario():
         discovery = _Discovery([_event()])
-        station = _StationClient(_station_metadata(WINDOW + 0.5))
-        forecast = _ForecastClient(_distribution(WINDOW + 1.5))
+        station = _StationClient(_station_metadata(WINDOW + 0.25))
+        forecast = _ForecastClient(_distribution(WINDOW + 0.5))
         collector = _Collector()
         clock = _Clock([
             WINDOW,
@@ -322,8 +322,8 @@ def test_worker_before_local_window_discovers_and_resolves_metadata_but_never_fo
 def test_registration_failure_terminally_consumes_event_and_cannot_select_replacement_forecast(tmp_path):
     async def scenario():
         discovery = _Discovery([_event()])
-        station = _StationClient(_station_metadata(WINDOW + 0.5))
-        forecast = _ForecastClient(_distribution(WINDOW + 1.5))
+        station = _StationClient(_station_metadata(WINDOW + 0.25))
+        forecast = _ForecastClient(_distribution(WINDOW + 0.5))
         collector = _RegistrationFailCollector()
         worker = WeatherCalibrationResearchWorker(
             db_path=tmp_path / "worker.sqlite",
@@ -368,8 +368,8 @@ def test_crash_after_collector_registration_reconciles_digest_without_new_foreca
         db_path = tmp_path / "worker.sqlite"
         collector = _Collector()
         first_discovery = _Discovery([_event()])
-        first_station = _StationClient(_station_metadata(WINDOW + 0.5))
-        first_forecast = _ForecastClient(_distribution(WINDOW + 1.5))
+        first_station = _StationClient(_station_metadata(WINDOW + 0.25))
+        first_forecast = _ForecastClient(_distribution(WINDOW + 0.5))
         first = WeatherCalibrationResearchWorker(
             db_path=db_path,
             discovery=first_discovery,
