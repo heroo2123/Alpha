@@ -106,6 +106,17 @@ class _FakeWRH:
         return SimpleNamespace(snapshot=snapshot)
 
 
+class _OrderedFakeCLOB(_FakeCLOB):
+    """Mirror real async request ordering instead of future-dating an instant fake."""
+
+    async def exact_event_snapshot(self, compiled):
+        # The shared fake stamps finished_at one millisecond after its instantaneous
+        # start. A real awaited network request cannot return before that finish, so
+        # wait long enough before each fake request to preserve the same causality.
+        await asyncio.sleep(0.003)
+        return await super().exact_event_snapshot(compiled)
+
+
 def test_recorder_source_poll_finality_double_clob_and_latency_receipt_are_one_path(tmp_path):
     target, before, after = _finality_snapshots()
     event = _event_for_target(target)
@@ -123,7 +134,7 @@ def test_recorder_source_poll_finality_double_clob_and_latency_receipt_are_one_p
         database_path=db,
         runtime_report_path=report,
         probe_event=event,
-        clob=_FakeCLOB(),
+        clob=_OrderedFakeCLOB(),
         wrh=wrh,
         proc_root=proc,
     )
