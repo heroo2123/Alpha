@@ -79,6 +79,7 @@ jobs:
               'gamma_execution_authority',
               'forecast_probability_authority',
               'source_settlement_trade_authority',
+              'builder_fee_authority',
           )
           if report.get('read_only') is not True:
               raise SystemExit('weather shadow runtime lost read_only attestation')
@@ -87,16 +88,29 @@ jobs:
                   raise SystemExit(f'unsafe runtime attestation: {key}={report.get(key)!r}')
           if report.get('cycle_ok') is not True:
               raise SystemExit(f"shadow cycle unhealthy: {report.get('errors')}")
-          if report.get('exact_clob_required_for_recorded_opportunities') is not True:
-              raise SystemExit('exact CLOB invariant missing')
-          if report.get('final_live_recheck_required') is not True:
-              raise SystemExit('final recheck invariant missing')
+          required_true = (
+              'exact_clob_required_for_recorded_opportunities',
+              'market_specific_fee_schedule_required',
+              'v2_fd_fee_authority_required',
+              'fee_exponent_required_for_positive_rate',
+              'final_live_recheck_required',
+          )
+          for key in required_true:
+              if report.get(key) is not True:
+                  raise SystemExit(f'missing runtime invariant: {key}={report.get(key)!r}')
           discovery = report.get('discovery') or {}
           if int(discovery.get('unique_event_count') or 0) <= 0:
               raise SystemExit('weather discovery returned no events')
           compiler = report.get('compiler') or {}
           if int(compiler.get('financial_authority_events') or 0) != 0:
               raise SystemExit('compiler granted financial authority')
+          for opportunity in report.get('opportunities') or []:
+              if opportunity.get('rechecked') is not True:
+                  raise SystemExit('recorded opportunity was not exact-rechecked')
+              if opportunity.get('financial_authority') is not False:
+                  raise SystemExit('recorded opportunity gained financial authority')
+              if not opportunity.get('fee_rates') or not opportunity.get('fee_exponents'):
+                  raise SystemExit('recorded opportunity lacks exact V2 fee schedule evidence')
           rss = int(report.get('process_peak_rss_bytes') or 0)
           if rss <= 0 or rss > 350 * 1024 * 1024:
               raise SystemExit(f'weather shadow runtime RSS outside bound: {rss}')
