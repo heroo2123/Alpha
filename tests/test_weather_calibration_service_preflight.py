@@ -5,6 +5,8 @@ from pathlib import Path
 
 import pytest
 
+from polymarket_scanner.weather_calibration_experiment import STATISTICAL_POLICY_STATUS
+from polymarket_scanner.weather_calibration_policy import WEATHER_GEFS_CALIBRATION_POLICY_ID
 from polymarket_scanner.weather_calibration_service_preflight import (
     WeatherCalibrationServicePreflightError,
     run_service_preflight,
@@ -21,7 +23,7 @@ def _release_file(tmp_path: Path, value: str = GOOD_SHA) -> Path:
     return path
 
 
-def test_service_preflight_is_local_read_only_and_policy_unfrozen(tmp_path):
+def test_service_preflight_is_local_read_only_and_binds_frozen_policy(tmp_path):
     report = run_service_preflight(
         app_dir=ROOT,
         release_file=_release_file(tmp_path),
@@ -31,8 +33,10 @@ def test_service_preflight_is_local_read_only_and_policy_unfrozen(tmp_path):
     assert report["release_sha"] == GOOD_SHA
     assert report["runtime_source"].endswith("polymarket_scanner/weather_only_calibration_worker_runtime.py")
     assert len(report["experiment_manifest_sha256"]) == 64
-    assert report["statistical_policy_status"].startswith("UNFROZEN")
-    assert report["statistical_policy_id"] is None
+    assert report["statistical_policy_status"] == STATISTICAL_POLICY_STATUS
+    assert report["statistical_policy_id"] == WEATHER_GEFS_CALIBRATION_POLICY_ID
+    assert len(report["statistical_policy_sha256"]) == 64
+    assert report["calibrated_probability_authority"] is False
     assert report["database"]["exists"] is False
     assert report["network_requests"] is False
     assert report["database_mutation"] is False
