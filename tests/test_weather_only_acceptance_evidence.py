@@ -21,6 +21,7 @@ START = 1_800_000_000.0
 
 
 def _sample(index: int, **overrides) -> WeatherW7Sample:
+    has_source = index == 45
     values = dict(
         observed_at=START + index * 30.0,
         cycle_ok=True,
@@ -28,7 +29,9 @@ def _sample(index: int, **overrides) -> WeatherW7Sample:
         swap_used_bytes=0,
         host_mem_available_bytes=200 * 1024 * 1024,
         incremental_evaluation_seconds=1.0,
-        source_update_confirmation_seconds=4.0 if index == 45 else None,
+        incremental_evaluation_evidence_sha256="1" * 64,
+        source_update_confirmation_seconds=4.0 if has_source else None,
+        source_update_evidence_sha256="2" * 64 if has_source else None,
         weather_event_count=350,
         non_weather_materialized_count=0,
         exact_clob_required_for_candidates=True,
@@ -73,6 +76,8 @@ def test_w7_envelope_round_trip_binds_release_runtime_policy_and_can_pass():
     assert envelope.runtime_version == WEATHER_SHADOW_RUNTIME_VERSION
     assert len(envelope.policy_sha256) == 64
     assert len(envelope.evidence_sha256) == 64
+    assert envelope.run_evidence.samples[0].incremental_evaluation_evidence_sha256 == "1" * 64
+    assert envelope.run_evidence.samples[45].source_update_evidence_sha256 == "2" * 64
     assert envelope.financial_authority is False
     assert envelope.financial_delivery is False
     assert envelope.detector_promotion_authority is False
@@ -117,6 +122,26 @@ def test_unknown_or_missing_fields_fail_closed_at_every_serialized_layer():
     with pytest.raises(WeatherW7EvidenceError) as sample_error:
         load_weather_w7_evidence_json(json.dumps(raw))
     assert sample_error.value.code == "W7_EVIDENCE_SAMPLE_SCHEMA_INVALID"
+
+
+def test_latency_measurement_sha_shape_and_nullable_pairing_fail_closed():
+    raw = json.loads(_envelope_json())
+    raw["run_evidence"]["samples"][0]["incremental_evaluation_evidence_sha256"] = "short"
+    with pytest.raises(WeatherW7EvidenceError) as incremental:
+        load_weather_w7_evidence_json(json.dumps(raw))
+    assert incremental.value.code == "W7_EVIDENCE_MEASUREMENT_SHA_INVALID"
+
+    raw = json.loads(_envelope_json())
+    raw["run_evidence"]["samples"][45]["source_update_evidence_sha256"] = None
+    with pytest.raises(Exception) as source:
+        load_weather_w7_evidence_json(json.dumps(raw))
+    assert "SOURCE_UPDATE_EVIDENCE_SHA_INVALID" in str(source.value)
+
+    raw = json.loads(_envelope_json())
+    raw["run_evidence"]["samples"][0]["source_update_evidence_sha256"] = "2" * 64
+    with pytest.raises(Exception) as dangling:
+        load_weather_w7_evidence_json(json.dumps(raw))
+    assert "SOURCE_UPDATE_EVIDENCE_WITHOUT_LATENCY" in str(dangling.value)
 
 
 def test_runtime_policy_and_expected_release_drift_fail_closed():
