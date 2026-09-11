@@ -248,10 +248,8 @@ def test_daily_rain_rejects_ambiguous_station_identity():
         resolution_source="https://forecast.weather.gov/product.php?site=NWS&product=CLI&issuedby=NYC",
     )
     result = parse_daily_rain_contract(market)
-    # The station parser only accepts an unambiguous station bound by `for`/`station`.
-    # The comparison wording above does not redefine the controlling station.
-    assert result.supported is True
-    assert result.contract.station == "KNYC"
+    assert result.supported is False
+    assert result.failure_code == "CLI_STATION"
 
 
 def test_generic_dispatch_keeps_unknown_weather_contract_unsupported():
