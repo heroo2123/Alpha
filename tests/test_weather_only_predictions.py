@@ -19,17 +19,20 @@ from polymarket_scanner.weather_only_forecast import (
     EnsembleBucketForecast,
 )
 from polymarket_scanner.weather_only_predictions import (
+    EXACT_SETTLEMENT_SOURCE_ROLE,
     MODEL_FAMILY_VERSION,
+    NWS_WRH_EXACT_LABEL_ADAPTER,
     ExactBucketSettlementLabel,
     ProspectiveSelectionPolicy,
     WeatherPredictionError,
+    build_exact_bucket_settlement_label,
     calibration_sample_from_exact_label,
     select_prospective_bucket_prediction,
 )
 
 
 SOURCE_SHA = "1" * 64
-LABEL_SHA = "2" * 64
+LABEL_SOURCE_SHA = "2" * 64
 TARGET_DATE = date(2026, 9, 11)
 
 
@@ -100,22 +103,16 @@ def _prediction(*, forecast: EnsembleBucketForecast | None = None, captured_at: 
 
 def _label(prediction=None, **overrides) -> ExactBucketSettlementLabel:
     prediction = prediction or _prediction()
-    values = {
-        "event_id": prediction.event_id,
-        "market_id": prediction.market_id,
-        "station": prediction.station,
-        "target_date": prediction.target_date,
-        "final_payout": 1.0,
-        "label_adapter": "NWS_WRH_EXACT_RULE_STATE_V1",
-        "source_role": "SETTLEMENT_RULE_STATE",
-        "evidence_version": SETTLEMENT_LABEL_EVIDENCE_VERSION,
-        "label_authority": True,
-        "settlement_state_reconstructable": True,
-        "finalized_at": prediction.captured_at + 100.0,
-        "label_evidence_sha256": LABEL_SHA,
-    }
-    values.update(overrides)
-    return ExactBucketSettlementLabel(**values)
+    label = build_exact_bucket_settlement_label(
+        event_id=prediction.event_id,
+        market_id=prediction.market_id,
+        station=prediction.station,
+        target_date=prediction.target_date,
+        final_payout=1.0,
+        finalized_at=prediction.captured_at + 100.0,
+        source_evidence_sha256=LABEL_SOURCE_SHA,
+    )
+    return replace(label, **overrides) if overrides else label
 
 
 def test_selects_exactly_one_top_bucket_before_resolution_and_keeps_zero_authority():
@@ -123,12 +120,13 @@ def test_selects_exactly_one_top_bucket_before_resolution_and_keeps_zero_authori
     assert prediction.market_id == "market-b"
     assert prediction.raw_predicted_probability == pytest.approx(15 / 31)
     assert prediction.model_version.startswith(MODEL_FAMILY_VERSION + ":")
+    assert len(prediction.forecast_snapshot_sha256) == 64
     assert len(prediction.prediction_evidence_sha256) == 64
     assert prediction.calibrated_probability is False
     assert prediction.financial_authority is False
 
 
-def test_exact_tie_break_is_market_id_order_and_independent_of_input_row_order():
+def test_exact_tie_break_is_market_id_order_and_snapshot_is_independent_of_input_row_order():
     rows_forward = (
         _row("market-z", 14),
         _row("market-a", 14),
@@ -139,6 +137,24 @@ def test_exact_tie_break_is_market_id_order_and_independent_of_input_row_order()
     second = _prediction(forecast=_forecast(rows=rows_reverse))
     assert first.market_id == second.market_id == "market-a"
     assert first.model_version == second.model_version
+    assert first.forecast_snapshot_sha256 == second.forecast_snapshot_sha256
+
+
+def test_full_forecast_snapshot_changes_when_nonselected_distribution_changes():
+    first = _prediction()
+    changed = _prediction(
+        forecast=_forecast(rows=(
+            _row("market-a", 9),
+            _row("market-b", 15),
+            _row("market-c", 7),
+        ))
+    )
+    assert first.market_id == changed.market_id == "market-b"
+    assert first.raw_predicted_probability == changed.raw_predicted_probability
+    assert first.model_version == changed.model_version
+    assert first.source_evidence_sha256 == changed.source_evidence_sha256
+    assert first.forecast_snapshot_sha256 != changed.forecast_snapshot_sha256
+    assert first.prediction_evidence_sha256 != changed.prediction_evidence_sha256
 
 
 def test_model_version_is_configuration_identity_not_event_identity():
@@ -220,9 +236,12 @@ def test_exact_rule_state_label_builds_calibration_sample_without_upgrading_auth
     assert sample.model_version == prediction.model_version
     assert sample.predicted_probability == pytest.approx(prediction.raw_predicted_probability)
     assert sample.final_payout == 1.0
+    assert sample.label_adapter == NWS_WRH_EXACT_LABEL_ADAPTER
+    assert sample.source_role == EXACT_SETTLEMENT_SOURCE_ROLE
     assert sample.evidence_version == SETTLEMENT_LABEL_EVIDENCE_VERSION
     assert sample.label_authority is True
     assert sample.settlement_state_reconstructable is True
+    assert len(label.label_evidence_sha256) == 64
     assert prediction.financial_authority is False
     assert label.financial_authority is False
 
@@ -251,9 +270,11 @@ def test_prediction_digest_detects_post_capture_probability_tampering():
         ({"settlement_state_reconstructable": False}, "CALIBRATION_SETTLEMENT_STATE_NOT_RECONSTRUCTABLE"),
         ({"label_adapter": "NWS_API_OFFICIAL_PROXY"}, "CALIBRATION_PROXY_LABEL_FORBIDDEN"),
         ({"source_role": "OFFICIAL_NWS_OBSERVATION_PROXY_ONLY"}, "CALIBRATION_PROXY_LABEL_FORBIDDEN"),
+        ({"label_adapter": "FAKE_EXACT_RULE_STATE"}, "CALIBRATION_LABEL_ADAPTER_UNSUPPORTED"),
+        ({"source_role": "OTHER_SETTLEMENT_STATE"}, "CALIBRATION_LABEL_SOURCE_ROLE_UNSUPPORTED"),
     ],
 )
-def test_exact_label_join_rejects_identity_time_authority_or_proxy_attacks(overrides, code):
+def test_exact_label_join_rejects_identity_time_authority_or_source_role_attacks(overrides, code):
     prediction = _prediction()
     label = _label(prediction, **overrides)
     with pytest.raises(WeatherPredictionError) as raised:
@@ -261,18 +282,77 @@ def test_exact_label_join_rejects_identity_time_authority_or_proxy_attacks(overr
     assert raised.value.code == code
 
 
-def test_label_constructor_rejects_nonbinary_payout_datetime_and_bad_digest():
+def test_label_digest_detects_tampering_after_exact_label_capture():
+    prediction = _prediction()
+    label = _label(prediction)
+    tampered_source = replace(label, source_evidence_sha256="3" * 64)
+    with pytest.raises(WeatherPredictionError) as raised:
+        calibration_sample_from_exact_label(prediction, tampered_source)
+    assert raised.value.code == "CALIBRATION_LABEL_DIGEST_MISMATCH"
+
+    tampered_digest = replace(label, label_evidence_sha256="4" * 64)
+    with pytest.raises(WeatherPredictionError) as raised:
+        calibration_sample_from_exact_label(prediction, tampered_digest)
+    assert raised.value.code == "CALIBRATION_LABEL_DIGEST_MISMATCH"
+
+
+def test_label_builder_rejects_nonbinary_payout_datetime_and_bad_source_digest():
     prediction = _prediction()
     with pytest.raises(WeatherPredictionError) as raised:
-        _label(prediction, final_payout=0.5)
+        build_exact_bucket_settlement_label(
+            event_id=prediction.event_id,
+            market_id=prediction.market_id,
+            station=prediction.station,
+            target_date=prediction.target_date,
+            final_payout=0.5,
+            finalized_at=200.0,
+            source_evidence_sha256=LABEL_SOURCE_SHA,
+        )
     assert raised.value.code == "LABEL_PAYOUT_NOT_BINARY"
 
     with pytest.raises(WeatherPredictionError) as raised:
-        _label(prediction, target_date=datetime(2026, 9, 11, 12, 0))
+        build_exact_bucket_settlement_label(
+            event_id=prediction.event_id,
+            market_id=prediction.market_id,
+            station=prediction.station,
+            target_date=datetime(2026, 9, 11, 12, 0),
+            final_payout=1.0,
+            finalized_at=200.0,
+            source_evidence_sha256=LABEL_SOURCE_SHA,
+        )
     assert raised.value.code == "LABEL_TARGET_DATE_INVALID"
 
     with pytest.raises(WeatherPredictionError) as raised:
-        _label(prediction, label_evidence_sha256="not-a-digest")
+        build_exact_bucket_settlement_label(
+            event_id=prediction.event_id,
+            market_id=prediction.market_id,
+            station=prediction.station,
+            target_date=prediction.target_date,
+            final_payout=1.0,
+            finalized_at=200.0,
+            source_evidence_sha256="not-a-digest",
+        )
+    assert raised.value.code == "LABEL_SOURCE_EVIDENCE_SHA_INVALID"
+
+
+def test_direct_label_constructor_rejects_bad_label_digest_shape():
+    prediction = _prediction()
+    with pytest.raises(WeatherPredictionError) as raised:
+        ExactBucketSettlementLabel(
+            event_id=prediction.event_id,
+            market_id=prediction.market_id,
+            station=prediction.station,
+            target_date=prediction.target_date,
+            final_payout=1.0,
+            label_adapter=NWS_WRH_EXACT_LABEL_ADAPTER,
+            source_role=EXACT_SETTLEMENT_SOURCE_ROLE,
+            evidence_version=SETTLEMENT_LABEL_EVIDENCE_VERSION,
+            label_authority=True,
+            settlement_state_reconstructable=True,
+            finalized_at=200.0,
+            source_evidence_sha256=LABEL_SOURCE_SHA,
+            label_evidence_sha256="not-a-digest",
+        )
     assert raised.value.code == "LABEL_EVIDENCE_SHA_INVALID"
 
 
