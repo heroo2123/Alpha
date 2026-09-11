@@ -21,11 +21,13 @@ class _Clock:
         return self.values.pop(0)
 
 
-def test_authority_entrypoint_exposes_no_caller_timestamp_parameters():
+def test_authority_entrypoint_exposes_no_caller_timestamp_or_raw_record_surface():
     register = inspect.signature(TrustedWeatherWRHProspectiveCollector.register_capture)
     tick = inspect.signature(TrustedWeatherWRHProspectiveCollector.tick)
     assert tuple(register.parameters) == ("self", "capture")
     assert tuple(tick.parameters) == ("self",)
+    assert not hasattr(TrustedWeatherWRHProspectiveCollector, "records")
+    assert hasattr(TrustedWeatherWRHProspectiveCollector, "diagnostic_status")
 
 
 def test_trusted_empty_tick_uses_owned_clock_and_preserves_authority_boundary(tmp_path):
@@ -43,6 +45,7 @@ def test_trusted_empty_tick_uses_owned_clock_and_preserves_authority_boundary(tm
         assert collector.financial_authority is False
         assert collector.financial_delivery is False
         assert collector.automatic_order_placement is False
+        assert collector.diagnostic_status() == []
     finally:
         collector.close()
 
