@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - weather-wrh-live-client
+      - weather-wrh-prospective-collector
   workflow_dispatch:
 
 permissions:
@@ -24,6 +25,7 @@ jobs:
         run: |
           python - <<'PY'
           import json
+          import time
           from datetime import datetime, timedelta
           from pathlib import Path
           from zoneinfo import ZoneInfo
@@ -35,10 +37,12 @@ jobs:
           station_timezone = ZoneInfo('America/New_York')
           target_date = datetime.now(station_timezone).date() - timedelta(days=1)
 
+          call_started_at = time.time()
           result = NWSWRHLiveClient().fetch_snapshot(
               station='KLGA',
               target_date=target_date,
           )
+          call_completed_at = time.time()
           snapshot = result.snapshot
           checks = {
               'station': snapshot.station == 'KLGA',
@@ -48,6 +52,9 @@ jobs:
               'following_row_present': snapshot.first_following_row is not None,
               'target_high_present': isinstance(snapshot.target_high_f, int),
               'target_low_present': isinstance(snapshot.target_low_f, int),
+              'receipt_at_after_call_start': snapshot.received_at >= call_started_at,
+              'receipt_at_before_call_completion': snapshot.received_at <= call_completed_at,
+              'result_snapshot_receipt_match': result.fetched_at == snapshot.received_at,
               'snapshot_no_correction_authority': snapshot.correction_state_reconstructable is False,
               'snapshot_no_calibration_authority': snapshot.calibration_label_authority is False,
               'snapshot_no_settlement_authority': snapshot.settlement_label_authority is False,
@@ -63,7 +70,7 @@ jobs:
           failed = sorted(name for name, ok in checks.items() if not ok)
 
           # Deliberately do not serialize result.as_dict(), raw source payload, request
-          # URLs, key-script content or the browser credential.  This artifact contains
+          # URLs, key-script content or the browser credential. This artifact contains
           # only non-secret acceptance facts and evidence digests.
           report = {
               'client_version': result.client_version,
@@ -73,6 +80,9 @@ jobs:
               'target_row_count': len(snapshot.target_rows),
               'target_temperature_count': len(snapshot.target_display_temperatures_f),
               'following_row_present': snapshot.first_following_row is not None,
+              'receipt_within_call_interval': (
+                  call_started_at <= snapshot.received_at <= call_completed_at
+              ),
               'snapshot_evidence_sha256': snapshot.evidence_sha256,
               'source_payload_sha256': snapshot.source_payload_sha256,
               'transport_evidence_sha256': result.transport_evidence_sha256,
