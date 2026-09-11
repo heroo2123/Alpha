@@ -5,6 +5,7 @@ on:
     branches:
       - weather-wrh-live-client
       - weather-wrh-prospective-collector
+      - weather-w7-evidence-foundation
   workflow_dispatch:
 
 permissions:
