@@ -1,0 +1,96 @@
+name: weather-wrh-live-client-acceptance
+
+on:
+  push:
+    branches:
+      - weather-wrh-live-client
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  live-wrh-client:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+      - name: Run secret-safe production WRH client against live backend
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          from datetime import datetime, timedelta
+          from pathlib import Path
+          from zoneinfo import ZoneInfo
+
+          from polymarket_scanner.weather_only_wrh_client import NWSWRHLiveClient
+
+          # Yesterday in the station timezone guarantees the requested two-calendar-
+          # day window should already contain at least one following-date Hourly row.
+          station_timezone = ZoneInfo('America/New_York')
+          target_date = datetime.now(station_timezone).date() - timedelta(days=1)
+
+          result = NWSWRHLiveClient().fetch_snapshot(
+              station='KLGA',
+              target_date=target_date,
+          )
+          snapshot = result.snapshot
+          checks = {
+              'station': snapshot.station == 'KLGA',
+              'target_date': snapshot.target_date == target_date,
+              'target_rows_present': len(snapshot.target_rows) > 0,
+              'target_temperatures_present': len(snapshot.target_display_temperatures_f) > 0,
+              'following_row_present': snapshot.first_following_row is not None,
+              'target_high_present': isinstance(snapshot.target_high_f, int),
+              'target_low_present': isinstance(snapshot.target_low_f, int),
+              'snapshot_no_correction_authority': snapshot.correction_state_reconstructable is False,
+              'snapshot_no_calibration_authority': snapshot.calibration_label_authority is False,
+              'snapshot_no_settlement_authority': snapshot.settlement_label_authority is False,
+              'snapshot_no_financial_authority': snapshot.financial_authority is False,
+              'transport_token_not_persisted': result.token_persisted is False,
+              'transport_no_calibration_authority': result.calibration_label_authority is False,
+              'transport_no_settlement_authority': result.settlement_label_authority is False,
+              'transport_no_financial_authority': result.financial_authority is False,
+              'snapshot_evidence_sha': len(snapshot.evidence_sha256) == 64,
+              'source_payload_sha': len(snapshot.source_payload_sha256) == 64,
+              'transport_evidence_sha': len(result.transport_evidence_sha256) == 64,
+          }
+          failed = sorted(name for name, ok in checks.items() if not ok)
+
+          # Deliberately do not serialize result.as_dict(), raw source payload, request
+          # URLs, key-script content or the browser credential.  This artifact contains
+          # only non-secret acceptance facts and evidence digests.
+          report = {
+              'client_version': result.client_version,
+              'query_profile': result.query_profile,
+              'station': snapshot.station,
+              'target_date': target_date.isoformat(),
+              'target_row_count': len(snapshot.target_rows),
+              'target_temperature_count': len(snapshot.target_display_temperatures_f),
+              'following_row_present': snapshot.first_following_row is not None,
+              'snapshot_evidence_sha256': snapshot.evidence_sha256,
+              'source_payload_sha256': snapshot.source_payload_sha256,
+              'transport_evidence_sha256': result.transport_evidence_sha256,
+              'checks': checks,
+              'browser_token_persisted': False,
+              'raw_payload_persisted': False,
+              'financial_authority': False,
+          }
+          Path('wrh-live-client-acceptance.json').write_text(
+              json.dumps(report, indent=2, sort_keys=True) + '\n'
+          )
+          print(json.dumps(report, indent=2, sort_keys=True))
+          if failed:
+              raise SystemExit('WRH_LIVE_CLIENT_ACCEPTANCE_FAILED:' + ','.join(failed))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: weather-wrh-live-client-${{ github.sha }}
+          path: wrh-live-client-acceptance.json
+          if-no-files-found: warn
