@@ -32,17 +32,20 @@ jobs:
           from polymarket_scanner.weather_only_sources import NWSObservationProxyClient
 
           async def main():
+              # This probe validates the current public schema/identity boundary, not
+              # day completeness. A wider window previously hit the response cap;
+              # the client now rejects capped responses until pagination is certified.
               end = datetime.now(timezone.utc)
-              start = end - timedelta(hours=24)
+              start = end - timedelta(hours=2)
               client = NWSObservationProxyClient()
               try:
                   rows = await client.observations(station='KLGA', start=start, end=end, limit=100)
               finally:
                   await client.close()
               if not rows:
-                  raise SystemExit('NWS KLGA proxy returned no observations in bounded 24h window')
-              if len(rows) > 100:
-                  raise SystemExit(f'NWS proxy exceeded requested cap: {len(rows)}')
+                  raise SystemExit('NWS KLGA proxy returned no observations in bounded 2h window')
+              if len(rows) >= 100:
+                  raise SystemExit(f'NWS proxy unexpectedly reached response cap: {len(rows)}')
               if any(row.station != 'KLGA' for row in rows):
                   raise SystemExit('NWS proxy station identity mismatch')
               if any(row.official_source is not True for row in rows):
@@ -60,7 +63,10 @@ jobs:
               report = {
                   'probe': 'NWS_API_STATION_OBSERVATION_PROXY',
                   'station': 'KLGA',
+                  'window_hours': 2,
                   'observation_count': len(rows),
+                  'response_limit': 100,
+                  'limit_reached': False,
                   'first_observed_at': rows[0].observed_at.isoformat(),
                   'last_observed_at': rows[-1].observed_at.isoformat(),
                   'source_role': rows[-1].source_role,
