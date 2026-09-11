@@ -34,7 +34,7 @@ jobs:
           viewer_url = 'https://www.weather.gov/source/wrh/timeseries/obs.js?v202601121730'
           key_url = 'https://www.weather.gov/source/wrh/apiKey.js'
           endpoint = 'https://api.synopticdata.com/v2/stations/timeseries'
-          headers = {'User-Agent':'wrh-secret-safe-status-probe/1.0','Accept':'*/*'}
+          headers = {'User-Agent':'wrh-secret-safe-status-probe/1.1','Accept':'*/*'}
 
           with httpx.Client(timeout=20.0, follow_redirects=True, headers=headers) as client:
               shell = client.get(shell_url, params={
@@ -43,10 +43,7 @@ jobs:
               })
               viewer = client.get(viewer_url)
               key_script = client.get(key_url)
-              shell_ok = shell.status_code == 200
-              viewer_ok = viewer.status_code == 200
-              key_ok = key_script.status_code == 200
-              if not (shell_ok and viewer_ok and key_ok):
+              if not all(response.status_code == 200 for response in (shell, viewer, key_script)):
                   print(json.dumps({
                       'shell_status': shell.status_code,
                       'viewer_status': viewer.status_code,
@@ -66,15 +63,25 @@ jobs:
                       'credential_value_printed': False,
                   }, sort_keys=True))
                   raise SystemExit('WRH_MESOTOKEN_SHAPE_INVALID')
+
               raw_fragment = unique[0]
-              has_token_prefix = raw_fragment.lower().startswith('token=')
-              if not has_token_prefix:
-                  print(json.dumps({
-                      'mesotoken_has_token_prefix': False,
-                      'credential_value_printed': False,
-                  }, sort_keys=True))
-                  raise SystemExit('WRH_MESOTOKEN_PREFIX_INVALID')
-              secret = raw_fragment.split('=', 1)[1]
+              normalized_fragment = raw_fragment.lstrip('&?')
+              has_token_assignment = normalized_fragment.lower().startswith('token=')
+              has_leading_ampersand = raw_fragment.startswith('&')
+              has_leading_question = raw_fragment.startswith('?')
+              field_name = normalized_fragment.split('=', 1)[0] if '=' in normalized_fragment else None
+              if not has_token_assignment:
+                  secret = raw_fragment
+              else:
+                  secret = normalized_fragment.split('=', 1)[1]
+
+              # obs.js is public and contains no browser credential value. Emit only
+              # the source line(s) where the variable is concatenated so we can bind
+              # exact query construction without exposing apiKey.js contents.
+              viewer_meso_lines = [
+                  line.strip() for line in viewer.text.splitlines()
+                  if 'mesoToken' in line
+              ]
 
               tz = ZoneInfo('America/New_York')
               target = datetime.now(tz).date() - timedelta(days=1)
@@ -87,7 +94,6 @@ jobs:
                   'obtimezone':'local',
               }
 
-              # Probe authorization separately from historical-window semantics.
               recent = client.get(endpoint, params={**common, 'recent':'60', 'token':secret})
               historical = client.get(endpoint, params={
                   **common,
@@ -96,25 +102,31 @@ jobs:
                   'token':secret,
               })
 
-              # The WRH viewer concatenates mesoToken as a raw query fragment. Test
-              # that exact construction too, but never print the resulting URL.
-              exact_query = (
+              base_query = (
                   'STID=KLGA&showemptystations=1&units=temp|F,speed|mph,english'
                   '&start=' + target.strftime('%Y%m%d') + '0000'
                   '&end=' + following.strftime('%Y%m%d') + '2359'
-                  '&complete=1&' + raw_fragment + '&obtimezone=local'
+                  '&complete=1'
               )
-              exact = client.get(endpoint + '?' + exact_query)
+              # Probe both possible concatenations without ever printing either URL.
+              exact_direct = client.get(endpoint + '?' + base_query + raw_fragment + '&obtimezone=local')
+              exact_with_amp = client.get(endpoint + '?' + base_query + '&' + raw_fragment + '&obtimezone=local')
 
           report = {
               'shell_status': shell.status_code,
               'viewer_status': viewer.status_code,
               'key_script_status': key_script.status_code,
               'mesotoken_assignment_count': len(unique),
-              'mesotoken_has_token_prefix': has_token_prefix,
-              'recent_backend_status': recent.status_code,
+              'mesotoken_leading_ampersand': has_leading_ampersand,
+              'mesotoken_leading_question': has_leading_question,
+              'mesotoken_has_assignment': '=' in normalized_fragment,
+              'mesotoken_field_name': field_name,
+              'mesotoken_normalized_is_token_assignment': has_token_assignment,
+              'viewer_meso_lines': viewer_meso_lines,
+              'recent_params_backend_status': recent.status_code,
               'historical_params_backend_status': historical.status_code,
-              'historical_exact_browser_query_status': exact.status_code,
+              'historical_direct_fragment_status': exact_direct.status_code,
+              'historical_extra_ampersand_status': exact_with_amp.status_code,
               'credential_value_printed': False,
               'request_url_printed': False,
               'response_body_printed': False,
