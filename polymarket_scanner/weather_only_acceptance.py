@@ -15,7 +15,7 @@ import re
 from dataclasses import asdict, dataclass, field
 
 
-WEATHER_W7_ACCEPTANCE_VERSION = "weather_w7_acceptance_v1_preregistered_45m_resource_containment"
+WEATHER_W7_ACCEPTANCE_VERSION = "weather_w7_acceptance_v2_all_gates_immutable_before_live_run"
 WEATHER_W7_POLICY_ID = "WEATHER_W7_E2_MICRO_45M_V1"
 MIN_DURATION_SECONDS = 45 * 60
 MIN_SAMPLE_COUNT = 80
@@ -91,15 +91,21 @@ class WeatherW7Policy:
         ):
             if _number(value) <= 0.0:
                 raise WeatherW7AcceptanceError("W7_POLICY_NUMBER_INVALID")
-        if self.min_duration_seconds != MIN_DURATION_SECONDS or self.min_sample_count != MIN_SAMPLE_COUNT:
+        if (
+            self.min_duration_seconds != MIN_DURATION_SECONDS
+            or self.min_sample_count != MIN_SAMPLE_COUNT
+            or self.max_sample_gap_seconds != MAX_SAMPLE_GAP_SECONDS
+        ):
             raise WeatherW7AcceptanceError("W7_WINDOW_POLICY_DRIFT")
-        if self.max_process_rss_bytes != MAX_PROCESS_RSS_BYTES or self.max_swap_used_bytes != 0:
+        if self.max_process_rss_bytes != MAX_PROCESS_RSS_BYTES or self.max_swap_used_bytes != MAX_SWAP_USED_BYTES:
             raise WeatherW7AcceptanceError("W7_RESOURCE_POLICY_DRIFT")
         if self.min_host_mem_available_bytes != MIN_HOST_MEM_AVAILABLE_BYTES:
             raise WeatherW7AcceptanceError("W7_RESOURCE_POLICY_DRIFT")
-        if self.max_incremental_evaluation_seconds != MAX_INCREMENTAL_EVALUATION_SECONDS:
-            raise WeatherW7AcceptanceError("W7_LATENCY_POLICY_DRIFT")
-        if self.max_source_update_confirmation_seconds != MAX_SOURCE_UPDATE_CONFIRMATION_SECONDS:
+        if (
+            self.max_incremental_evaluation_seconds != MAX_INCREMENTAL_EVALUATION_SECONDS
+            or self.max_source_update_confirmation_seconds != MAX_SOURCE_UPDATE_CONFIRMATION_SECONDS
+            or self.min_source_update_samples != MIN_SOURCE_UPDATE_SAMPLES
+        ):
             raise WeatherW7AcceptanceError("W7_LATENCY_POLICY_DRIFT")
 
     @property
