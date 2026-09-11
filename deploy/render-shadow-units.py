@@ -56,6 +56,56 @@ WantedBy=multi-user.target
         "Nice=5\nCPUWeight=50\nIOWeight=50\nIOSchedulingClass=best-effort\nIOSchedulingPriority=6\nMemoryHigh=144M\nMemoryMax=160M\n")
     universe = universe.replace(f"ReadWritePaths={config_dir}", f"ReadWritePaths={config_dir}/universe")
 
+    # Dedicated weather-only scanner used by the W7 acceptance recorder. It receives
+    # no bot.env, Telegram credential, trading/account configuration or writable
+    # legacy database. The only writable path is its atomically replaced status file.
+    weather_state = "/var/lib/polymarket-weather-shadow"
+    weather = f"""[Unit]
+Description=Weather-only Polymarket silent-shadow scanner, public data only
+Wants=network-online.target
+After=network-online.target
+StartLimitIntervalSec=600
+StartLimitBurst=3
+
+[Service]
+Type=simple
+User={user}
+WorkingDirectory={app_dir}
+Environment=PYTHONUNBUFFERED=1
+ExecStartPre={verifier}
+ExecStart={python} -m polymarket_scanner.weather_only_runtime --loop --interval-seconds 300 --output {weather_state}/status.json
+Restart=on-failure
+RestartSec=15
+TimeoutStopSec=20
+Slice=polymarket-shadow.slice
+MemoryHigh=320M
+MemoryMax=350M
+MemorySwapMax=0
+TasksMax=48
+Nice=5
+CPUWeight=60
+IOWeight=50
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectHome=true
+ProtectSystem=strict
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+StateDirectory=polymarket-weather-shadow
+StateDirectoryMode=0700
+ReadWritePaths={weather_state}
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
+"""
+
     # Independent public-data research service. It receives no bot.env, Telegram
     # credential or trading/account configuration. Persistent evidence is confined
     # to a systemd-owned state directory. The reviewed entrypoint is the operational
@@ -116,6 +166,7 @@ WantedBy=multi-user.target
         "polymarket-edge-scanner.service": scanner,
         "polymarket-edge-command.service": command,
         "polymarket-universe-builder.service": universe,
+        "polymarket-weather-shadow.service": weather,
         "polymarket-weather-calibration.service": calibration,
         "polymarket-shadow.slice": "[Unit]\nDescription=Bounded Polymarket silent-shadow workload\n\n[Slice]\nMemoryHigh=560M\nMemoryMax=640M\nMemorySwapMax=0\nTasksMax=192\n",
     }
