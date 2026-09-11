@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+import hashlib
 import inspect
-import json
 
 import pytest
 
@@ -22,6 +22,9 @@ from dataclasses import replace
 from test_weather_only_acceptance_bundle import SHA, START, _base_envelope, _unchanged_containment
 
 
+CMDLINE_SHA = hashlib.sha256(b"python\0-m\0polymarket_scanner.weather_only_runtime\0").hexdigest()
+
+
 def _attestation(at: float):
     shell = WeatherW7ReleaseAttestation(
         version=WEATHER_W7_RELEASE_VERSION,
@@ -31,6 +34,7 @@ def _attestation(at: float):
         release_marker_sha256="1" * 64,
         app_dir_sha256="2" * 64,
         scanner_cwd_sha256="2" * 64,
+        scanner_cmdline_sha256=CMDLINE_SHA,
         runtime_source_sha256="3" * 64,
         scanner_process_id=321,
         evidence_sha256="0" * 64,
@@ -80,4 +84,4 @@ def test_runner_rejects_symlink_output_and_exposes_no_service_control(tmp_path):
     source = inspect.getsource(runner)
     for forbidden in ("systemctl", "subprocess", "start_service", "stop_service", "restart_service"):
         assert forbidden not in source
-    assert "financial_authority\": False" in source
+    assert '"financial_authority": False' in source
