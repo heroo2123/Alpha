@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime, timezone
 
+import polymarket_scanner.weather_only_calibration_worker_runtime as worker_runtime
 from polymarket_scanner.weather_only_calibration_worker_runtime import (
     OperationalWeatherCalibrationResearchWorker,
     assess_worker_cycle_health,
@@ -22,6 +23,15 @@ from test_weather_only_calibration_worker import (
 )
 
 
+def _horizon_ok() -> dict:
+    return {
+        "eligible_registered_rows": 0,
+        "created_horizon_attestations": 0,
+        "errors": {},
+        "financial_authority": False,
+    }
+
+
 def _healthy_report() -> dict:
     return {
         "cycle_ok": True,
@@ -39,6 +49,7 @@ def _healthy_report() -> dict:
             "financial_delivery": False,
             "automatic_order_placement": False,
         },
+        "horizon_attestation": _horizon_ok(),
         "state": {"status_counts": {}},
     }
 
@@ -87,6 +98,22 @@ def test_temporary_collector_fetch_error_degrades_health_without_claiming_perman
     assert "COLLECTOR_FETCH_ERRORS:1" in health.health_reasons
 
 
+def test_horizon_attestation_error_is_unhealthy_and_gap_detected():
+    report = _healthy_report()
+    report["horizon_attestation"] = {
+        "eligible_registered_rows": 1,
+        "created_horizon_attestations": 0,
+        "errors": {"HORIZON_CAPTURE_OUTSIDE_PREREGISTERED_WINDOW": 1},
+        "financial_authority": False,
+    }
+    health = assess_worker_cycle_health(report)
+    assert health.process_healthy is True
+    assert health.research_collection_healthy is False
+    assert health.prospective_gap_detected is True
+    assert "HORIZON:HORIZON_CAPTURE_OUTSIDE_PREREGISTERED_WINDOW:1" in health.health_reasons
+    assert "HORIZON_ATTESTATION_FAILED" in health.gap_reasons
+
+
 def test_state_reconciliation_failure_marks_process_and_collection_unhealthy():
     report = _healthy_report()
     report["cycle_ok"] = False
@@ -97,13 +124,14 @@ def test_state_reconciliation_failure_marks_process_and_collection_unhealthy():
     assert "CORE_CYCLE_INTEGRITY_FAILED" in health.health_reasons
 
 
-def test_operational_wrapper_before_window_is_healthy_and_never_fetches_forecast(tmp_path):
+def test_operational_wrapper_before_window_is_healthy_and_never_fetches_forecast(tmp_path, monkeypatch):
     async def scenario():
         outside = datetime(2026, 9, 10, 16, 0, tzinfo=timezone.utc).timestamp()
         discovery = _Discovery([_event()])
         station = _StationClient(_station_metadata(outside))
         forecast = _ForecastClient(_distribution(outside))
         collector = _Collector()
+        monkeypatch.setattr(worker_runtime, "attest_registered_worker_horizons", lambda db, created_at: _horizon_ok())
         worker = OperationalWeatherCalibrationResearchWorker(
             db_path=tmp_path / "worker.sqlite",
             discovery=discovery,
@@ -129,12 +157,13 @@ def test_operational_wrapper_before_window_is_healthy_and_never_fetches_forecast
     asyncio.run(scenario())
 
 
-def test_operational_wrapper_registration_failure_is_visible_as_unhealthy_gap(tmp_path):
+def test_operational_wrapper_registration_failure_is_visible_as_unhealthy_gap(tmp_path, monkeypatch):
     async def scenario():
         discovery = _Discovery([_event()])
         station = _StationClient(_station_metadata(WINDOW + 0.25))
         forecast = _ForecastClient(_distribution(WINDOW + 0.5))
         collector = _RegistrationFailCollector()
+        monkeypatch.setattr(worker_runtime, "attest_registered_worker_horizons", lambda db, created_at: _horizon_ok())
         worker = OperationalWeatherCalibrationResearchWorker(
             db_path=tmp_path / "worker.sqlite",
             discovery=discovery,
@@ -152,7 +181,7 @@ def test_operational_wrapper_registration_failure_is_visible_as_unhealthy_gap(tm
         )
         try:
             report = await worker.run_cycle()
-            assert report["cycle_ok"] is True  # core integrity still completed safely
+            assert report["cycle_ok"] is True
             assert report["process_healthy"] is True
             assert report["research_collection_healthy"] is False
             assert report["prospective_gap_detected"] is True
