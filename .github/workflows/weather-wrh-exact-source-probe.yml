@@ -1,9 +1,6 @@
 name: weather-wrh-exact-source-probe
 
 on:
-  push:
-    branches:
-      - weather-wrh-exact-settlement-foundation
   workflow_dispatch:
 
 permissions:
@@ -76,8 +73,6 @@ jobs:
               'hourly_block': block(1748, 1815),
               'api_key_script_fetched': False,
           }
-          # Only certify what is already directly established. Detailed metadata and
-          # hourly predicates are inspected from the artifact before being frozen.
           basic_checks = {
               'synoptic_timeseries': 'api.synopticdata.com/v2/stations/timeseries' in report['transport_block'],
               'complete_1': 'complete=1' in report['transport_block'],
