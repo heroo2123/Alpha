@@ -310,8 +310,12 @@ def parse_daily_temperature_contract(market: Market) -> ContractParseResult:
         text,
         re.S,
     ))
+    # Polymarket's current live rules put the boundary in either order:
+    # "first following-day datapoint" or "first datapoint for the following date".
+    # Both are accepted only when a revision/correction clause explicitly binds to
+    # an until/before/prior cutoff at that same following-day observation boundary.
     revision_rule = bool(re.search(
-        r"(?:revision|revised|correction|corrected).{0,140}(?:until|before|prior).{0,100}(?:following|next).{0,60}(?:data\s*point|datapoint|observation)",
+        r"(?:revision|revised|correction|corrected).{0,160}(?:until|before|prior).{0,120}(?:(?:first|initial).{0,80}(?:data\s*point|datapoint|observation).{0,100}(?:following|next)[\s-]+(?:day|date)|(?:following|next)[\s-]+(?:day|date).{0,80}(?:data\s*point|datapoint|observation))",
         text,
         re.S,
     ))
