@@ -10,6 +10,7 @@ import pytest
 from polymarket_scanner.weather_calibration_backup import (
     WeatherCalibrationBackupError,
     create_weather_calibration_backup,
+    verify_weather_calibration_backup,
 )
 from polymarket_scanner.weather_calibration_policy import WEATHER_GEFS_CALIBRATION_POLICY_ID
 
@@ -25,6 +26,13 @@ def _source(tmp_path: Path) -> Path:
     return path
 
 
+def _backup_dir(tmp_path: Path) -> Path:
+    path = tmp_path / "backups"
+    path.mkdir(mode=0o700)
+    path.chmod(0o700)
+    return path
+
+
 def _sha(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
@@ -33,10 +41,9 @@ def _sha(path: Path) -> str:
     return digest.hexdigest()
 
 
-def test_backup_is_consistent_digest_bound_and_never_mutates_source(tmp_path):
+def test_backup_is_consistent_self_digest_bound_verifiable_and_never_mutates_source(tmp_path):
     source = _source(tmp_path)
-    backups = tmp_path / "backups"
-    backups.mkdir(mode=0o700)
+    backups = _backup_dir(tmp_path)
     with sqlite3.connect(source) as db:
         before_rows = db.execute("SELECT id, value FROM evidence ORDER BY id").fetchall()
 
@@ -52,6 +59,7 @@ def test_backup_is_consistent_digest_bound_and_never_mutates_source(tmp_path):
     assert manifest_path.stat().st_mode & 0o777 == 0o600
     assert report["backup_sha256"] == _sha(backup)
     assert report["backup_bytes"] == backup.stat().st_size
+    assert len(report["manifest_sha256"]) == 64
     assert report["sqlite_integrity"] == "ok"
     assert report["source_opened_read_only"] is True
     assert report["online_sqlite_backup"] is True
@@ -72,28 +80,46 @@ def test_backup_is_consistent_digest_bound_and_never_mutates_source(tmp_path):
 
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     assert manifest["backup_sha256"] == report["backup_sha256"]
+    assert manifest["manifest_sha256"] == report["manifest_sha256"]
     assert manifest["backup_filename"] == backup.name
     assert "backup_path" not in manifest and "manifest_path" not in manifest
     assert manifest["financial_delivery"] is False
     assert manifest["automatic_order_placement"] is False
 
+    verified = verify_weather_calibration_backup(manifest_path.resolve())
+    assert verified["verified"] is True
+    assert verified["manifest_sha256"] == report["manifest_sha256"]
+    assert verified["backup_sha256"] == report["backup_sha256"]
+    assert verified["sqlite_integrity"] == "ok"
+    assert verified["network_requests"] is False
+    assert verified["database_mutation"] is False
+    assert verified["calibrated_probability_authority"] is False
+    assert verified["financial_authority"] is False
+
 
 def test_backup_refuses_insecure_source_permissions(tmp_path):
     source = _source(tmp_path)
     source.chmod(0o644)
-    backups = tmp_path / "backups"
-    backups.mkdir(mode=0o700)
+    backups = _backup_dir(tmp_path)
     with pytest.raises(WeatherCalibrationBackupError) as raised:
         create_weather_calibration_backup(source.resolve(), backups.resolve(), created_at=1.0)
-    assert raised.value.code == "BACKUP_SOURCE_PERMISSIONS_TOO_BROAD"
+    assert raised.value.code == "BACKUP_SOURCE_INVALID_PERMISSIONS_TOO_BROAD"
+
+
+def test_backup_refuses_insecure_backup_directory_permissions(tmp_path):
+    source = _source(tmp_path)
+    backups = _backup_dir(tmp_path)
+    backups.chmod(0o755)
+    with pytest.raises(WeatherCalibrationBackupError) as raised:
+        create_weather_calibration_backup(source.resolve(), backups.resolve(), created_at=1.0)
+    assert raised.value.code == "BACKUP_DIRECTORY_PERMISSIONS_TOO_BROAD"
 
 
 def test_backup_refuses_symlink_source(tmp_path):
     source = _source(tmp_path)
     link = tmp_path / "linked.sqlite"
     link.symlink_to(source)
-    backups = tmp_path / "backups"
-    backups.mkdir(mode=0o700)
+    backups = _backup_dir(tmp_path)
     with pytest.raises(WeatherCalibrationBackupError) as raised:
         create_weather_calibration_backup(link.absolute(), backups.resolve(), created_at=1.0)
     assert raised.value.code == "BACKUP_SOURCE_INVALID"
@@ -101,11 +127,35 @@ def test_backup_refuses_symlink_source(tmp_path):
 
 def test_backup_never_overwrites_identical_existing_artifact(tmp_path):
     source = _source(tmp_path)
-    backups = tmp_path / "backups"
-    backups.mkdir(mode=0o700)
+    backups = _backup_dir(tmp_path)
     first = create_weather_calibration_backup(source.resolve(), backups.resolve(), created_at=1_799_700_000.0)
     first_bytes = Path(first["backup_path"]).read_bytes()
     with pytest.raises(WeatherCalibrationBackupError) as raised:
         create_weather_calibration_backup(source.resolve(), backups.resolve(), created_at=1_799_700_000.0)
     assert raised.value.code == "BACKUP_ARTIFACT_ALREADY_EXISTS"
     assert Path(first["backup_path"]).read_bytes() == first_bytes
+
+
+def test_verifier_rejects_tampered_manifest_even_when_backup_bytes_are_untouched(tmp_path):
+    source = _source(tmp_path)
+    report = create_weather_calibration_backup(source.resolve(), _backup_dir(tmp_path).resolve(), created_at=1_799_700_000.0)
+    manifest_path = Path(report["manifest_path"])
+    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    payload["financial_authority"] = True
+    manifest_path.write_text(json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n", encoding="utf-8")
+    manifest_path.chmod(0o600)
+    with pytest.raises(WeatherCalibrationBackupError) as raised:
+        verify_weather_calibration_backup(manifest_path.resolve())
+    assert raised.value.code == "BACKUP_MANIFEST_DIGEST_MISMATCH"
+
+
+def test_verifier_rejects_tampered_backup_bytes(tmp_path):
+    source = _source(tmp_path)
+    report = create_weather_calibration_backup(source.resolve(), _backup_dir(tmp_path).resolve(), created_at=1_799_700_000.0)
+    backup = Path(report["backup_path"])
+    with backup.open("ab") as handle:
+        handle.write(b"tamper")
+    backup.chmod(0o600)
+    with pytest.raises(WeatherCalibrationBackupError) as raised:
+        verify_weather_calibration_backup(Path(report["manifest_path"]).resolve())
+    assert raised.value.code == "BACKUP_FILE_DIGEST_MISMATCH"
