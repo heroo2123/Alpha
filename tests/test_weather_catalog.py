@@ -94,35 +94,54 @@ class FakeClient:
         self.pages = pages
         self.calls = []
 
-    async def _event_page(self, offset: int, *, tag_slug: str | None = None):
-        self.calls.append((offset, tag_slug))
-        return self.pages.get(offset, [])
+    async def _event_keyset_page(self, after_cursor: str | None, *, tag_slug: str | None = None):
+        self.calls.append((after_cursor, tag_slug))
+        return self.pages[after_cursor]
 
 
-def test_weather_fetch_uses_only_bounded_weather_tag_and_stops_on_short_page(monkeypatch):
+def test_weather_fetch_uses_only_bounded_weather_keyset_and_stops_on_terminal_cursor(monkeypatch):
     monkeypatch.setattr(wc, "settings", SimpleNamespace(gamma_page_size=2))
     first = [
         event("1", "Highest temperature in X on September 11?", [market("11", "20°C")]),
         event("2", "Lowest temperature in Y on September 11?", [market("21", "10°C")]),
     ]
     second = [event("3", "Where will it rain on September 11?", [market("31", "X")])]
-    client = FakeClient({0: first, 2: second})
+    client = FakeClient({None: (first, "c1"), "c1": (second, None)})
 
     events, pages = asyncio.run(wc.fetch_weather_events(client, page_ceiling=5))
 
     assert pages == 2
     assert [e["id"] for e in events] == ["1", "2", "3"]
-    assert client.calls == [(0, "weather"), (2, "weather")]
+    assert client.calls == [(None, "weather"), ("c1", "weather")]
 
 
-def test_weather_fetch_fails_closed_if_shallow_catalog_never_exhausts(monkeypatch):
+def test_weather_fetch_fails_closed_if_keyset_never_exhausts(monkeypatch):
     monkeypatch.setattr(wc, "settings", SimpleNamespace(gamma_page_size=2))
     full_a = [event("1", "A", [market("11", "A")]), event("2", "B", [market("21", "B")])]
     full_b = [event("3", "C", [market("31", "C")]), event("4", "D", [market("41", "D")])]
-    client = FakeClient({0: full_a, 2: full_b})
+    client = FakeClient({None: (full_a, "c1"), "c1": (full_b, "c2")})
 
     with pytest.raises(UniverseIncompleteError, match="did not exhaust"):
         asyncio.run(wc.fetch_weather_events(client, page_ceiling=2))
+
+
+def test_weather_fetch_fails_closed_on_repeated_continuation_cursor():
+    client = FakeClient({
+        None: ([event("1", "A", [market("11", "A")])], "c1"),
+        "c1": ([event("2", "B", [market("21", "B")])], "c1"),
+    })
+
+    with pytest.raises(UniverseIncompleteError, match="repeated a continuation cursor"):
+        asyncio.run(wc.fetch_weather_events(client, page_ceiling=4))
+
+
+def test_weather_fetch_fails_closed_on_duplicate_event_across_keyset_pages():
+    first = event("1", "A", [market("11", "A")])
+    changed = event("1", "A", [market("11", "A"), market("12", "B")])
+    client = FakeClient({None: ([first], "c1"), "c1": ([changed], None)})
+
+    with pytest.raises(UniverseIncompleteError, match="duplicate event ID"):
+        asyncio.run(wc.fetch_weather_events(client, page_ceiling=4))
 
 
 def test_census_separates_supported_and_unsupported_weather_families():
