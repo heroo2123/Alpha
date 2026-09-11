@@ -1,0 +1,93 @@
+name: weather-maker-data-v2-contract
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - weather-maker-vacuum-foundation
+    paths:
+      - "polymarket_scanner/weather_only_trade_feed.py"
+      - "tests/test_weather_only_trade_feed*.py"
+      - ".github/workflows/weather-maker-data-v2-contract.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  live-data-v2-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Verify documented Data API v2 trade contract without credentials
+        run: |
+          python - <<'PY'
+          import json
+          import urllib.error
+          import urllib.request
+
+          OPENAPI = "https://data-api.polymarket.com/v2/openapi.json"
+          TRADES = "https://data-api.polymarket.com/v2/trades?limit=1&taker_only=true&filter_type=TOKENS&filter_amount=0.01"
+
+          with urllib.request.urlopen(OPENAPI, timeout=15) as response:
+              assert response.status == 200
+              spec = json.load(response)
+
+          assert spec.get("openapi") == "3.1.0"
+          assert spec.get("info", {}).get("title") == "Polymarket Data API v2"
+          operation = spec["paths"]["/v2/trades"]["get"]
+          params = {row["name"]: row for row in operation.get("parameters", [])}
+          required = {
+              "limit", "cursor", "taker_only", "filter_type", "filter_amount",
+              "condition", "event_id", "side", "user",
+          }
+          assert required.issubset(params)
+          assert params["limit"]["schema"]["maximum"] == 1000
+          assert "offset" not in params
+
+          responses = operation["responses"]
+          assert "200" in responses and "401" in responses and "429" in responses
+          page_ref = responses["200"]["content"]["application/json"]["schema"]["$ref"]
+          assert page_ref.endswith("TradePage")
+          page_schema = spec["components"]["schemas"]["TradePage"]
+          assert {"data", "pagination"}.issubset(page_schema.get("required", []))
+          trade_schema = spec["components"]["schemas"]["Trade"]
+          trade_props = set(trade_schema["properties"])
+          assert {
+              "condition_id", "token_id", "transaction_hash", "proxy_wallet",
+              "side", "size", "price", "timestamp", "outcome", "outcome_index",
+          }.issubset(trade_props)
+
+          # The endpoint reference currently requires bearer auth. Prove that the live
+          # endpoint still refuses an anonymous call, without obtaining or printing a
+          # credential. A later authenticated shadow acceptance is a separate gate.
+          request = urllib.request.Request(TRADES, method="GET")
+          try:
+              with urllib.request.urlopen(request, timeout=15) as response:
+                  anonymous_status = response.status
+          except urllib.error.HTTPError as exc:
+              anonymous_status = exc.code
+          assert anonymous_status == 401, anonymous_status
+
+          report = {
+              "openapi_title": spec["info"]["title"],
+              "openapi_version": spec["openapi"],
+              "trade_path": "/v2/trades",
+              "cursor_only": "cursor" in params and "offset" not in params,
+              "max_page_size": params["limit"]["schema"]["maximum"],
+              "anonymous_status": anonymous_status,
+              "authenticated_live_payload_verified": False,
+              "actual_fill_authority": False,
+              "financial_authority": False,
+          }
+          with open("weather-maker-data-v2-contract.json", "w", encoding="utf-8") as fh:
+              json.dump(report, fh, sort_keys=True, indent=2)
+          print(json.dumps(report, sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: weather-maker-data-v2-contract
+          path: weather-maker-data-v2-contract.json
