@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import sqlite3
 from datetime import date, datetime
 from types import SimpleNamespace
 from zoneinfo import ZoneInfo
@@ -25,6 +27,9 @@ from polymarket_scanner.weather_only_wrh_collector import (
     CAPTURE_PENDING,
     WeatherWRHCollectorError,
     WeatherWRHProspectiveCollector,
+)
+from polymarket_scanner.weather_only_wrh_collector_authority import (
+    TrustedWeatherWRHProspectiveCollector,
 )
 
 
@@ -198,8 +203,22 @@ class _SequenceClient:
         return SimpleNamespace(snapshot=self.snapshots.pop(0))
 
 
+class _Clock:
+    def __init__(self, values):
+        self.values = list(values)
+
+    def __call__(self):
+        if not self.values:
+            raise AssertionError("unexpected clock read")
+        return self.values.pop(0)
+
+
 def _record_by_digest(collector, digest: str) -> dict:
     return next(row for row in collector.records() if row["capture_evidence_sha256"] == digest)
+
+
+def _trusted_status_by_digest(collector, digest: str) -> dict:
+    return next(row for row in collector.diagnostic_status() if row["capture_evidence_sha256"] == digest)
 
 
 def test_registration_is_fresh_idempotent_and_rejects_time_forgery(tmp_path):
@@ -331,3 +350,87 @@ def test_capture_created_inside_cutoff_collection_window_is_rejected_after_timez
         assert record["failure_code"] == "CAPTURE_NOT_FROZEN_BEFORE_COLLECTION_WINDOW"
     finally:
         collector.close()
+
+
+def test_trusted_preflight_terminally_rejects_tampered_capture_json_before_fetch(tmp_path):
+    db_path = tmp_path / "collector.sqlite"
+    capture = _capture()
+    client = _SequenceClient([_snapshot(include_following=False, received_at=FOLLOWING - 30)])
+    collector = TrustedWeatherWRHProspectiveCollector(
+        db_path=db_path,
+        client=client,
+        clock=_Clock([CAPTURED + 10, FOLLOWING - 30]),
+    )
+    try:
+        collector.register_capture(capture)
+        with sqlite3.connect(db_path) as db:
+            row = db.execute(
+                "SELECT capture_json FROM wrh_collector_captures WHERE capture_evidence_sha256 = ?",
+                (capture.capture_evidence_sha256,),
+            ).fetchone()
+            payload = json.loads(row[0])
+            payload["prediction"]["predicted_probability"] = 0.999999
+            db.execute(
+                "UPDATE wrh_collector_captures SET capture_json = ? WHERE capture_evidence_sha256 = ?",
+                (json.dumps(payload, sort_keys=True, separators=(",", ":")), capture.capture_evidence_sha256),
+            )
+
+        report = collector.tick()
+        status = _trusted_status_by_digest(collector, capture.capture_evidence_sha256)
+        assert report.authorized_captures == 0
+        assert report.failed_captures == 1
+        assert client.calls == []
+        assert status["status"] == CAPTURE_FAILED
+        assert status["failure_code"].startswith("INTEGRITY_CAPTURE:")
+        assert status["authorized_evidence_present"] is False
+        assert status["financial_authority"] is False
+    finally:
+        collector.close()
+
+
+def test_trusted_preflight_terminally_rejects_tampered_snapshot_after_restart(tmp_path):
+    db_path = tmp_path / "collector.sqlite"
+    capture = _capture()
+    previous = _snapshot(include_following=False, received_at=FOLLOWING - 30)
+    current = _snapshot(include_following=True, received_at=FOLLOWING + 20)
+    first_client = _SequenceClient([previous])
+    first = TrustedWeatherWRHProspectiveCollector(
+        db_path=db_path,
+        client=first_client,
+        clock=_Clock([CAPTURED + 10, FOLLOWING - 30]),
+    )
+    first.register_capture(capture)
+    first_report = first.tick()
+    assert first_report.fetched_snapshots == 1
+    first.close()
+
+    with sqlite3.connect(db_path) as db:
+        row = db.execute(
+            "SELECT evidence_sha256, snapshot_json FROM wrh_collector_snapshots WHERE station = 'KLGA' AND target_date = ?",
+            (TARGET.isoformat(),),
+        ).fetchone()
+        payload = json.loads(row[1])
+        payload["target_high_f"] = int(payload["target_high_f"]) + 7
+        db.execute(
+            "UPDATE wrh_collector_snapshots SET snapshot_json = ? WHERE evidence_sha256 = ?",
+            (json.dumps(payload, sort_keys=True, separators=(",", ":")), row[0]),
+        )
+
+    second_client = _SequenceClient([current])
+    second = TrustedWeatherWRHProspectiveCollector(
+        db_path=db_path,
+        client=second_client,
+        clock=_Clock([FOLLOWING + 20]),
+    )
+    try:
+        report = second.tick()
+        status = _trusted_status_by_digest(second, capture.capture_evidence_sha256)
+        assert report.authorized_captures == 0
+        assert report.failed_captures == 1
+        assert second_client.calls == []
+        assert status["status"] == CAPTURE_FAILED
+        assert status["failure_code"].startswith("INTEGRITY_SNAPSHOT:")
+        assert status["authorized_evidence_present"] is False
+        assert status["financial_authority"] is False
+    finally:
+        second.close()
