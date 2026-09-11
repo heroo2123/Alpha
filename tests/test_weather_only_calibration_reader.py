@@ -9,6 +9,10 @@ from zoneinfo import ZoneInfo
 import pytest
 
 from polymarket_scanner.weather_only_calibration_capture import capture_prospective_weather_calibration_candidate
+from polymarket_scanner.weather_only_calibration_horizon import (
+    build_capture_horizon_evidence,
+    persist_capture_horizon_evidence,
+)
 from polymarket_scanner.weather_only_calibration_reader import (
     WeatherCalibrationReaderError,
     read_reconstructed_calibration_dataset,
@@ -30,7 +34,10 @@ TARGET = date(2026, 9, 11)
 END = date(2026, 9, 12)
 ZONE = ZoneInfo("America/New_York")
 FOLLOWING = datetime.fromisoformat("2026-09-12T00:51:00-04:00").timestamp()
-CAPTURED = datetime(2026, 9, 11, 23, 50, tzinfo=ZONE).timestamp()
+# Strict prospective calibration uses one frozen horizon: T-1 17:00-17:15 in the
+# exact settlement station timezone. The fixture sits inside that window.
+CAPTURED = datetime(2026, 9, 10, 17, 5, tzinfo=ZONE).timestamp()
+STATION_METADATA_EVIDENCE_SHA256 = "2" * 64
 
 
 def _rules() -> str:
@@ -200,6 +207,15 @@ def _authorized_db(path):
         assert report.authorized_captures == 1
     finally:
         collector.close()
+
+    horizon = build_capture_horizon_evidence(
+        capture,
+        station_timezone="America/New_York",
+        station_metadata_evidence_sha256=STATION_METADATA_EVIDENCE_SHA256,
+    )
+    with sqlite3.connect(path) as db:
+        persist_capture_horizon_evidence(db, horizon, created_at=CAPTURED + 11)
+        db.commit()
     return capture
 
 
