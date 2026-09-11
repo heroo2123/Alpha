@@ -3,19 +3,14 @@ from __future__ import annotations
 """Canonical, tamper-evident evidence envelope for weather W7 acceptance.
 
 This module does not start services, read credentials, contact Polymarket, mutate a
-runtime database, or grant financial authority.  It exists so the future 45-minute
+runtime database, or grant financial authority. It exists so the future 45-minute
 silent-shadow run cannot be accepted from hand-built/mixed-version Python objects.
 
-The envelope binds:
-- the exact release SHA;
-- the exact weather runtime version;
-- the frozen W7 policy id + policy SHA;
-- every sample and containment counter;
-- a canonical SHA-256 over the complete serialized evidence.
-
+The envelope binds the exact release/runtime/policy, every sample and containment
+counter, and the SHA references of the measured normal/source-update latency records.
 Loading is deliberately strict: unknown/missing keys, bool-as-int coercion, NaN/Inf,
-policy/runtime drift, release mismatch and digest tampering all fail closed before the
-existing acceptance evaluator is called.
+policy/runtime drift, release mismatch, dangling latency evidence and digest tampering
+all fail closed before the acceptance evaluator is called.
 """
 
 import hashlib
@@ -36,7 +31,7 @@ from .weather_only_acceptance import (
 from .weather_only_runtime import WEATHER_SHADOW_RUNTIME_VERSION
 
 
-WEATHER_W7_EVIDENCE_VERSION = "weather_w7_evidence_v1_exact_schema_release_runtime_policy_digest"
+WEATHER_W7_EVIDENCE_VERSION = "weather_w7_evidence_v2_latency_measurement_sha_refs_exact_schema"
 _SHA40_RE = re.compile(r"^[0-9a-f]{40}$")
 _SHA64_RE = re.compile(r"^[0-9a-f]{64}$")
 
@@ -47,7 +42,9 @@ _SAMPLE_KEYS = frozenset({
     "swap_used_bytes",
     "host_mem_available_bytes",
     "incremental_evaluation_seconds",
+    "incremental_evaluation_evidence_sha256",
     "source_update_confirmation_seconds",
+    "source_update_evidence_sha256",
     "weather_event_count",
     "non_weather_materialized_count",
     "exact_clob_required_for_candidates",
@@ -141,6 +138,15 @@ def _strict_text(value: object, code: str) -> str:
     return value.strip()
 
 
+def _strict_sha64(value: object, *, nullable: bool = False) -> str | None:
+    if nullable and value is None:
+        return None
+    text = _strict_text(value, "W7_EVIDENCE_MEASUREMENT_SHA_INVALID").lower()
+    if not _SHA64_RE.fullmatch(text):
+        raise WeatherW7EvidenceError("W7_EVIDENCE_MEASUREMENT_SHA_INVALID")
+    return text
+
+
 def _sample_from_dict(raw: object) -> WeatherW7Sample:
     row = _exact_keys(raw, _SAMPLE_KEYS, "W7_EVIDENCE_SAMPLE_SCHEMA_INVALID")
     return WeatherW7Sample(
@@ -150,8 +156,14 @@ def _sample_from_dict(raw: object) -> WeatherW7Sample:
         swap_used_bytes=_strict_int(row["swap_used_bytes"]),
         host_mem_available_bytes=_strict_int(row["host_mem_available_bytes"]),
         incremental_evaluation_seconds=float(_strict_float(row["incremental_evaluation_seconds"])),
+        incremental_evaluation_evidence_sha256=str(_strict_sha64(
+            row["incremental_evaluation_evidence_sha256"]
+        )),
         source_update_confirmation_seconds=_strict_float(
             row["source_update_confirmation_seconds"], nullable=True
+        ),
+        source_update_evidence_sha256=_strict_sha64(
+            row["source_update_evidence_sha256"], nullable=True
         ),
         weather_event_count=_strict_int(row["weather_event_count"]),
         non_weather_materialized_count=_strict_int(row["non_weather_materialized_count"]),
@@ -349,7 +361,6 @@ def load_weather_w7_evidence_json(
         run_evidence=run,
         evidence_sha256=evidence_sha,
     )
-    # Serialized authority fields are part of the digest and must be exactly false.
     for key in (
         "financial_authority",
         "financial_delivery",
