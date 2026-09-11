@@ -3,7 +3,7 @@ from __future__ import annotations
 """Causal source-update latency evidence for weather W7 silent-shadow acceptance.
 
 The frozen weather program defines the W7 latency target as *source update to
-confirmed candidate*, not source poll to arbitrary computation.  This module keeps
+confirmed candidate*, not source poll to arbitrary computation. This module keeps
 that distinction machine-checkable.
 
 A latency sample can exist only when:
@@ -13,11 +13,12 @@ A latency sample can exist only when:
   or first-following-date finality transition), not merely unrelated payload drift;
 * the compiled contract identity matches station/date/family/unit and already has
   exact bucket/rule semantics proven;
+* the trigger freezes the exact condition/token set for that compiled event;
 * the resulting shadow candidate explicitly binds the later WRH snapshot evidence;
-* an exact, fresh CLOB event snapshot for that same event is part of confirmation;
+* an exact CLOB event snapshot covers that same frozen condition/token set;
 * every financial/delivery/order authority flag remains false.
 
-This is instrumentation only.  It does not fetch WRH, place orders, send Telegram,
+This is instrumentation only. It does not fetch WRH, place orders, send Telegram,
 promote detectors or create a candidate by itself.
 """
 
@@ -94,6 +95,8 @@ class WeatherW7SourceUpdateTrigger:
     target_date: date
     family: str
     change_kind: str
+    condition_ids: tuple[str, ...]
+    token_ids: tuple[str, ...]
     previous_snapshot_sha256: str
     current_snapshot_sha256: str
     previous_target_state_sha256: str
@@ -168,6 +171,8 @@ def _trigger_digest_payload(trigger: WeatherW7SourceUpdateTrigger) -> dict:
         "target_date": trigger.target_date.isoformat(),
         "family": trigger.family,
         "change_kind": trigger.change_kind,
+        "condition_ids": trigger.condition_ids,
+        "token_ids": trigger.token_ids,
         "previous_snapshot_sha256": trigger.previous_snapshot_sha256,
         "current_snapshot_sha256": trigger.current_snapshot_sha256,
         "previous_target_state_sha256": trigger.previous_target_state_sha256,
@@ -291,6 +296,11 @@ def build_wrh_source_update_trigger(
         # responsiveness.
         raise WeatherW7SourceLatencyError("W7_SOURCE_UPDATE_NOT_EVENT_RELEVANT")
 
+    conditions = tuple(sorted({bucket.condition_id for bucket in contract.buckets}))
+    tokens = tuple(sorted({token for bucket in contract.buckets for token in (bucket.yes_token, bucket.no_token)}))
+    if not conditions or not tokens:
+        raise WeatherW7SourceLatencyError("W7_SOURCE_CONTRACT_EXECUTION_IDENTITY_INCOMPLETE")
+
     shell = WeatherW7SourceUpdateTrigger(
         version=WEATHER_W7_SOURCE_LATENCY_VERSION,
         event_id=contract.event_id,
@@ -298,6 +308,8 @@ def build_wrh_source_update_trigger(
         target_date=after.target_date,
         family=contract.family,
         change_kind=change_kind,
+        condition_ids=conditions,
+        token_ids=tokens,
         previous_snapshot_sha256=_sha64(before.evidence_sha256, "W7_SOURCE_PREVIOUS_SHA_INVALID"),
         current_snapshot_sha256=_sha64(after.evidence_sha256, "W7_SOURCE_CURRENT_SHA_INVALID"),
         previous_target_state_sha256=_sha64(before.target_state_sha256, "W7_SOURCE_PREVIOUS_TARGET_SHA_INVALID"),
@@ -312,6 +324,8 @@ def build_wrh_source_update_trigger(
         target_date=shell.target_date,
         family=shell.family,
         change_kind=shell.change_kind,
+        condition_ids=shell.condition_ids,
+        token_ids=shell.token_ids,
         previous_snapshot_sha256=shell.previous_snapshot_sha256,
         current_snapshot_sha256=shell.current_snapshot_sha256,
         previous_target_state_sha256=shell.previous_target_state_sha256,
@@ -321,15 +335,32 @@ def build_wrh_source_update_trigger(
     )
 
 
-def _execution_digest(snapshot: WeatherExecutionSnapshot) -> str:
+def _execution_digest(snapshot: WeatherExecutionSnapshot, trigger: WeatherW7SourceUpdateTrigger) -> str:
     if not isinstance(snapshot, WeatherExecutionSnapshot):
         raise WeatherW7SourceLatencyError("W7_SOURCE_CLOB_SNAPSHOT_TYPE_INVALID")
+    if snapshot.event_id != trigger.event_id:
+        raise WeatherW7SourceLatencyError("W7_SOURCE_CLOB_EVENT_MISMATCH")
     if snapshot.exact_clob is not True or snapshot.financial_authority is not False:
         raise WeatherW7SourceLatencyError("W7_SOURCE_CLOB_AUTHORITY_BOUNDARY_BROKEN")
     started = _finite(snapshot.started_at, "W7_SOURCE_CLOB_STARTED_AT_INVALID")
     finished = _finite(snapshot.finished_at, "W7_SOURCE_CLOB_FINISHED_AT_INVALID")
     if finished < started:
         raise WeatherW7SourceLatencyError("W7_SOURCE_CLOB_TIME_ORDER_INVALID")
+    if set(snapshot.parameters) != set(trigger.condition_ids):
+        raise WeatherW7SourceLatencyError("W7_SOURCE_CLOB_CONDITION_SET_MISMATCH")
+    if set(snapshot.books) != set(trigger.token_ids):
+        raise WeatherW7SourceLatencyError("W7_SOURCE_CLOB_TOKEN_SET_MISMATCH")
+    for condition, params in snapshot.parameters.items():
+        if params.condition_id != condition:
+            raise WeatherW7SourceLatencyError("W7_SOURCE_CLOB_CONDITION_IDENTITY_MISMATCH")
+        if {token for token, _ in params.token_outcomes} != {
+            token for token in trigger.token_ids if token in {pair[0] for pair in params.token_outcomes}
+        }:
+            # This branch is intentionally unreachable for a well-formed market-info
+            # object but keeps malformed/fabricated parameter objects from silently
+            # becoming timing evidence. Exact per-condition token equality is checked
+            # against the book set by the client before this layer.
+            raise WeatherW7SourceLatencyError("W7_SOURCE_CLOB_PARAMETER_TOKEN_IDENTITY_INVALID")
     return _sha(asdict(snapshot))
 
 
@@ -349,14 +380,12 @@ def build_w7_confirmed_shadow_candidate(
         trigger.trigger_evidence_sha256, "W7_SOURCE_TRIGGER_SHA_INVALID"
     ):
         raise WeatherW7SourceLatencyError("W7_SOURCE_TRIGGER_DIGEST_MISMATCH")
-    if execution_snapshot.event_id != trigger.event_id:
-        raise WeatherW7SourceLatencyError("W7_SOURCE_CLOB_EVENT_MISMATCH")
 
     candidate_sha = _sha64(candidate_evidence_sha256, "W7_SOURCE_CANDIDATE_SHA_INVALID")
     source_sha = _sha64(candidate_source_snapshot_sha256, "W7_SOURCE_CANDIDATE_SOURCE_SHA_INVALID")
     if source_sha != trigger.current_snapshot_sha256:
         raise WeatherW7SourceLatencyError("W7_SOURCE_CANDIDATE_NOT_BOUND_TO_CURRENT_SOURCE")
-    clob_sha = _execution_digest(execution_snapshot)
+    clob_sha = _execution_digest(execution_snapshot, trigger)
 
     shell = WeatherW7ConfirmedShadowCandidate(
         version=WEATHER_W7_SOURCE_LATENCY_VERSION,
