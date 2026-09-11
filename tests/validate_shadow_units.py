@@ -26,8 +26,11 @@ def main():
             "polymarket-shadow.slice",
         }
         calibration = rendered["polymarket-weather-calibration.service"]
-        assert "weather_only_calibration_worker" in calibration
-        assert "--loop --interval-seconds 30" in calibration
+        assert "-m polymarket_scanner.weather_only_calibration_worker_runtime --loop --interval-seconds 30" in calibration
+        assert "-m polymarket_scanner.weather_only_calibration_worker --loop" not in calibration
+        assert "-m polymarket_scanner.weather_calibration_service_preflight" in calibration
+        assert "--release-file" in calibration and "--app-dir" in calibration and "--db" in calibration
+        assert "verify-runtime-release.sh" in calibration
         assert "MemoryMax=128M" in calibration
         assert "MemorySwapMax=0" in calibration
         assert "StateDirectory=polymarket-weather-calibration" in calibration
@@ -47,7 +50,7 @@ def main():
             path.write_text(body)
             paths.append(str(path))
         subprocess.run(["systemd-analyze", "verify", *paths], check=True, timeout=30)
-    print("Five rendered systemd units verified; weather calibration is public-data-only; nothing installed or started.")
+    print("Five rendered systemd units verified; weather calibration uses strict public-data runtime; nothing installed or started.")
 
 
 if __name__ == "__main__":
