@@ -324,8 +324,11 @@ def parse_daily_temperature_contract(market: Market) -> ContractParseResult:
     if not revision_rule:
         return ContractParseResult(False, DAILY_TEMP_ADAPTER, None, "REVISION_RULE")
 
+    # Current live wording uses both ordinary conditionals and the explicit
+    # "In the event that there is no data ... resolve to the lowest bracket" form.
+    # Keep requiring an actual no-data condition and an explicit lowest bucket.
     no_data_lowest = bool(re.search(
-        r"(?:if|should).{0,160}(?:no\s+data|data.{0,40}(?:unavailable|not available)).{0,160}(?:lowest|bottom).{0,40}(?:bracket|range|bucket)",
+        r"(?:if|should|in\s+the\s+event\s+that).{0,160}(?:no\s+data|data.{0,40}(?:unavailable|not available)).{0,160}(?:lowest|bottom).{0,40}(?:bracket|range|bucket)",
         text,
         re.S,
     ))
