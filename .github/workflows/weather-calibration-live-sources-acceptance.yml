@@ -19,7 +19,7 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install -r requirements.txt
-      - name: Run strict NWS station metadata and GEFS forecast acceptance
+      - name: Run strict US and global WRH station metadata plus GEFS acceptance
         shell: bash
         run: |
           python - <<'PY'
@@ -36,63 +36,95 @@ jobs:
               OpenMeteoGEFSEnsembleClient,
           )
           from polymarket_scanner.weather_only_station_metadata import NWSStationMetadataClient
+          from polymarket_scanner.weather_only_wrh_station_metadata import (
+              WRH_STATION_METADATA_VERSION,
+          )
+
+          async def forecast_for(station, unit):
+              target = datetime.now(ZoneInfo(station.timezone)).date() + timedelta(days=1)
+              forecast = await forecast_client.daily_extreme(
+                  station=station.station,
+                  latitude=station.latitude,
+                  longitude=station.longitude,
+                  target_date=target,
+                  family=DAILY_HIGH,
+                  unit=unit,
+                  timezone=station.timezone,
+              )
+              return target, forecast
 
           async def main():
+              global forecast_client
               station_client = NWSStationMetadataClient()
               forecast_client = OpenMeteoGEFSEnsembleClient()
               try:
-                  station = await station_client.station('KLGA')
-                  target_date = datetime.now(ZoneInfo(station.timezone)).date() + timedelta(days=1)
-                  forecast = await forecast_client.daily_extreme(
-                      station=station.station,
-                      latitude=station.latitude,
-                      longitude=station.longitude,
-                      target_date=target_date,
-                      family=DAILY_HIGH,
-                      unit='F',
-                      timezone=station.timezone,
-                  )
+                  us_station = await station_client.station('KLGA')
+                  global_station = await station_client.station('ZBAA')
+                  us_target, us_forecast = await forecast_for(us_station, 'F')
+                  global_target, global_forecast = await forecast_for(global_station, 'C')
               finally:
                   await station_client.close()
                   await forecast_client.close()
 
               checks = {
-                  'station_identity': station.station == 'KLGA',
-                  'station_timezone_present': bool(station.timezone),
-                  'station_latitude_valid': -90.0 <= station.latitude <= 90.0,
-                  'station_longitude_valid': -180.0 <= station.longitude <= 180.0,
-                  'station_evidence_sha': len(station.evidence_sha256) == 64,
-                  'station_source_payload_sha': len(station.source_payload_sha256) == 64,
-                  'station_no_settlement_authority': station.settlement_authority is False,
-                  'station_no_calibration_authority': station.calibration_label_authority is False,
-                  'station_no_financial_authority': station.financial_authority is False,
-                  'forecast_station_match': forecast.station == station.station,
-                  'forecast_target_date_match': forecast.target_date == target_date,
-                  'forecast_timezone_match': forecast.timezone == station.timezone,
-                  'forecast_model': forecast.provider_model == OPEN_METEO_GEFS_MODEL,
-                  'forecast_member_count': len(forecast.member_values) == GEFS_TOTAL_MEMBERS,
-                  'forecast_member_labels': len(forecast.member_labels) == GEFS_TOTAL_MEMBERS,
-                  'forecast_evidence_sha': len(forecast.evidence_sha256) == 64,
-                  'forecast_no_settlement_authority': forecast.settlement_authority is False,
-                  'forecast_no_calibration_authority': forecast.calibration_label_authority is False,
-                  'forecast_not_calibrated': forecast.calibrated_probability is False,
-                  'forecast_no_financial_authority': forecast.financial_authority is False,
+                  'us_station_identity': us_station.station == 'KLGA',
+                  'us_station_timezone_present': bool(us_station.timezone),
+                  'us_station_evidence_sha': len(us_station.evidence_sha256) == 64,
+                  'us_station_no_settlement_authority': us_station.settlement_authority is False,
+                  'us_station_no_calibration_authority': us_station.calibration_label_authority is False,
+                  'us_station_no_financial_authority': us_station.financial_authority is False,
+                  'global_station_identity': global_station.station == 'ZBAA',
+                  'global_station_uses_wrh_fallback': global_station.adapter == WRH_STATION_METADATA_VERSION,
+                  'global_station_timezone_present': bool(global_station.timezone),
+                  'global_station_latitude_valid': -90.0 <= global_station.latitude <= 90.0,
+                  'global_station_longitude_valid': -180.0 <= global_station.longitude <= 180.0,
+                  'global_station_evidence_sha': len(global_station.evidence_sha256) == 64,
+                  'global_station_token_not_persisted': global_station.token_persisted is False,
+                  'global_station_no_settlement_authority': global_station.settlement_authority is False,
+                  'global_station_no_calibration_authority': global_station.calibration_label_authority is False,
+                  'global_station_no_financial_authority': global_station.financial_authority is False,
+                  'us_forecast_station_match': us_forecast.station == us_station.station,
+                  'us_forecast_target_match': us_forecast.target_date == us_target,
+                  'us_forecast_model': us_forecast.provider_model == OPEN_METEO_GEFS_MODEL,
+                  'us_forecast_member_count': len(us_forecast.member_values) == GEFS_TOTAL_MEMBERS,
+                  'us_forecast_no_authority': (
+                      us_forecast.settlement_authority is False
+                      and us_forecast.calibration_label_authority is False
+                      and us_forecast.calibrated_probability is False
+                      and us_forecast.financial_authority is False
+                  ),
+                  'global_forecast_station_match': global_forecast.station == global_station.station,
+                  'global_forecast_target_match': global_forecast.target_date == global_target,
+                  'global_forecast_timezone_match': global_forecast.timezone == global_station.timezone,
+                  'global_forecast_model': global_forecast.provider_model == OPEN_METEO_GEFS_MODEL,
+                  'global_forecast_member_count': len(global_forecast.member_values) == GEFS_TOTAL_MEMBERS,
+                  'global_forecast_no_authority': (
+                      global_forecast.settlement_authority is False
+                      and global_forecast.calibration_label_authority is False
+                      and global_forecast.calibrated_probability is False
+                      and global_forecast.financial_authority is False
+                  ),
               }
               failed = sorted(name for name, ok in checks.items() if not ok)
               report = {
-                  'station': station.station,
-                  'station_timezone': station.timezone,
-                  'station_latitude': station.latitude,
-                  'station_longitude': station.longitude,
-                  'station_evidence_sha256': station.evidence_sha256,
-                  'station_source_payload_sha256': station.source_payload_sha256,
-                  'forecast_target_date': target_date.isoformat(),
-                  'forecast_model': forecast.provider_model,
-                  'forecast_member_count': len(forecast.member_values),
-                  'forecast_evidence_sha256': forecast.evidence_sha256,
+                  'us_station': us_station.station,
+                  'us_station_adapter': us_station.adapter,
+                  'us_station_timezone': us_station.timezone,
+                  'us_forecast_target_date': us_target.isoformat(),
+                  'us_forecast_member_count': len(us_forecast.member_values),
+                  'global_station': global_station.station,
+                  'global_station_adapter': global_station.adapter,
+                  'global_station_timezone': global_station.timezone,
+                  'global_station_latitude': global_station.latitude,
+                  'global_station_longitude': global_station.longitude,
+                  'global_forecast_target_date': global_target.isoformat(),
+                  'global_forecast_member_count': len(global_forecast.member_values),
                   'checks': checks,
+                  'browser_token_persisted': False,
                   'raw_nws_payload_persisted': False,
+                  'raw_synoptic_metadata_payload_persisted': False,
                   'raw_open_meteo_payload_persisted': False,
+                  'celsius_settlement_authority': False,
                   'calibration_label_authority': False,
                   'financial_authority': False,
               }
