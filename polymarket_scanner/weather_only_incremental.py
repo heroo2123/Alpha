@@ -14,6 +14,7 @@ research-only; this module has no delivery/order path and grants no financial au
 import hashlib
 import json
 import math
+import re
 import time
 from dataclasses import asdict, dataclass, field
 from typing import Protocol
@@ -25,6 +26,7 @@ from .weather_only_structural import binary_pair_underround, complete_bucket_und
 
 
 WEATHER_INCREMENTAL_VERSION = "weather_incremental_v1_one_event_exact_clob_structural_shadow"
+_SHA64_RE = re.compile(r"^[0-9a-f]{64}$")
 
 
 class WeatherIncrementalError(RuntimeError):
@@ -61,6 +63,13 @@ def _finite(value: object, code: str) -> float:
     if not math.isfinite(number) or number < 0.0:
         raise WeatherIncrementalError(code)
     return number
+
+
+def _sha64(value: object, code: str) -> str:
+    text = str(value or "").strip().lower()
+    if not _SHA64_RE.fullmatch(text):
+        raise WeatherIncrementalError(code)
+    return text
 
 
 @dataclass(frozen=True, slots=True)
@@ -109,6 +118,36 @@ def _measurement_payload(row: WeatherIncrementalLatencyMeasurement) -> dict:
     value = row.as_dict()
     value.pop("measurement_evidence_sha256", None)
     return value
+
+
+def validate_weather_incremental_latency_measurement(
+    measurement: object,
+) -> WeatherIncrementalLatencyMeasurement:
+    """Recompute identity/timing/digest before a W7 envelope may trust this record."""
+    if not isinstance(measurement, WeatherIncrementalLatencyMeasurement):
+        raise WeatherIncrementalError("INCREMENTAL_MEASUREMENT_TYPE_INVALID")
+    if measurement.version != WEATHER_INCREMENTAL_VERSION:
+        raise WeatherIncrementalError("INCREMENTAL_MEASUREMENT_VERSION_MISMATCH")
+    _sha64(measurement.receipt_evidence_sha256, "INCREMENTAL_RECEIPT_SHA_INVALID")
+    supplied = _sha64(measurement.measurement_evidence_sha256, "INCREMENTAL_MEASUREMENT_SHA_INVALID")
+    started = _finite(measurement.evaluation_started_at, "INCREMENTAL_MEASUREMENT_TIME_INVALID")
+    finished = _finite(measurement.evaluation_finished_at, "INCREMENTAL_MEASUREMENT_TIME_INVALID")
+    elapsed = _finite(measurement.incremental_evaluation_seconds, "INCREMENTAL_MEASUREMENT_LATENCY_INVALID")
+    if finished < started:
+        raise WeatherIncrementalError("INCREMENTAL_MEASUREMENT_TIME_ORDER_INVALID")
+    # Wall elapsed can exceed or differ from monotonic elapsed, but it cannot be
+    # materially shorter in a valid same-process measurement interval.
+    if (finished - started) + 1e-9 < elapsed:
+        raise WeatherIncrementalError("INCREMENTAL_MEASUREMENT_CLOCK_DOMAINS_INCONSISTENT")
+    if any((
+        measurement.financial_authority is not False,
+        measurement.financial_delivery is not False,
+        measurement.automatic_order_placement is not False,
+    )):
+        raise WeatherIncrementalError("INCREMENTAL_MEASUREMENT_AUTHORITY_BOUNDARY_BROKEN")
+    if supplied != _sha(_measurement_payload(measurement)):
+        raise WeatherIncrementalError("INCREMENTAL_MEASUREMENT_DIGEST_MISMATCH")
+    return measurement
 
 
 def _compile_incremental_event(event: object) -> CompiledWeatherEvent:
@@ -227,4 +266,5 @@ async def measure_weather_incremental_evaluation(
         incremental_evaluation_seconds=shell.incremental_evaluation_seconds,
         measurement_evidence_sha256=_sha(_measurement_payload(shell)),
     )
+    validate_weather_incremental_latency_measurement(measured)
     return receipt, measured
