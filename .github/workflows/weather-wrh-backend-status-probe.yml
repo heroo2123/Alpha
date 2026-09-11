@@ -1,9 +1,6 @@
 name: weather-wrh-backend-status-probe
 
 on:
-  push:
-    branches:
-      - weather-wrh-live-client
   workflow_dispatch:
 
 permissions:
