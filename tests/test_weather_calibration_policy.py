@@ -12,6 +12,7 @@ from polymarket_scanner.weather_calibration_policy import (
     require_frozen_weather_calibration_policy,
 )
 from polymarket_scanner.weather_only_calibration import (
+    SETTLEMENT_LABEL_EVIDENCE_VERSION,
     ProbabilityCalibrationSample,
     assess_probability_calibration,
 )
@@ -19,7 +20,6 @@ from polymarket_scanner.weather_only_predictions import (
     EXACT_SETTLEMENT_SOURCE_ROLE,
     NWS_WRH_EXACT_LABEL_ADAPTER,
 )
-from polymarket_scanner.weather_only_calibration import SETTLEMENT_LABEL_EVIDENCE_VERSION
 
 
 def _sample(i: int, *, probability: float = 0.99, payout: float = 1.0) -> ProbabilityCalibrationSample:
@@ -67,7 +67,7 @@ def test_frozen_policy_digest_is_deterministic():
     assert first.policy_sha256 == second.policy_sha256
 
 
-def test_frozen_policy_stays_not_ready_below_total_sample_gate():
+def test_frozen_policy_stays_not_ready_below_total_sample_gate_even_with_strong_bin():
     frozen = frozen_weather_calibration_policy()
     samples = [_sample(i) for i in range(MIN_TOTAL_RESOLVED - 1)]
     assessment = assess_probability_calibration(
@@ -77,8 +77,10 @@ def test_frozen_policy_stays_not_ready_below_total_sample_gate():
         policy=frozen.policy,
     )
     assert assessment.clean_total_resolved == MIN_TOTAL_RESOLVED - 1
+    assert assessment.clean_bin_resolved == MIN_TOTAL_RESOLVED - 1
+    assert assessment.bin_wilson_lower_bound is not None
     assert assessment.research_calibration_ready is False
-    assert assessment.calibrated_probability_lower_bound is None
+    assert any("clean resolved samples" in reason for reason in assessment.reasons)
     assert assessment.financial_authority is False
 
 
@@ -94,10 +96,10 @@ def test_frozen_policy_can_mature_only_when_all_fixed_gates_pass():
     assert assessment.clean_total_resolved == MIN_TOTAL_RESOLVED
     assert assessment.clean_bin_resolved == MIN_TOTAL_RESOLVED
     assert assessment.distinct_stations == MIN_DISTINCT_STATIONS
-    assert assessment.overall_brier is not None and assessment.overall_brier < MAX_BRIER_SCORE
+    assert assessment.overall_brier_score is not None and assessment.overall_brier_score < MAX_BRIER_SCORE
     assert assessment.research_calibration_ready is True
-    assert assessment.calibrated_probability_lower_bound is not None
-    assert assessment.calibrated_probability_lower_bound < 1.0
+    assert assessment.bin_wilson_lower_bound is not None
+    assert 0.0 < assessment.bin_wilson_lower_bound < 1.0
     assert assessment.financial_authority is False
 
 
@@ -112,7 +114,8 @@ def test_frozen_policy_brier_gate_blocks_large_systematic_error_even_with_enough
     )
     assert assessment.clean_total_resolved == MIN_TOTAL_RESOLVED
     assert assessment.clean_bin_resolved == MIN_TOTAL_RESOLVED
-    assert assessment.overall_brier is not None and assessment.overall_brier > MAX_BRIER_SCORE
+    assert assessment.overall_brier_score is not None and assessment.overall_brier_score > MAX_BRIER_SCORE
+    assert assessment.bin_wilson_lower_bound == 0.0
     assert assessment.research_calibration_ready is False
-    assert assessment.calibrated_probability_lower_bound is None
+    assert any("Brier score" in reason for reason in assessment.reasons)
     assert assessment.financial_authority is False
