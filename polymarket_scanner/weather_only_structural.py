@@ -7,6 +7,11 @@ market-specific V2 market parameters from the same live recheck. Gamma BBO/midpo
 values and category fee defaults are not execution authority. These primitives
 create silent-shadow candidates only; ``financial_authority`` remains false until a
 separate final execution/delivery boundary is explicitly promoted.
+
+For V2 platform fees, ``fd.r`` and ``fd.e`` are the executable fee schedule used by
+the current official client. Legacy ``tbf``/``mbf`` metadata is retained for audit
+telemetry but is not added to the V2 platform-fee formula. Builder fees are also
+separate and remain outside this manual-execution shadow screen.
 """
 
 from dataclasses import asdict, dataclass
@@ -16,7 +21,7 @@ from .weather_only_clob import WeatherMarketParameters, conservative_taker_fee_p
 from .weather_only_contracts import CompiledWeatherEvent
 
 
-WEATHER_STRUCTURAL_VERSION = "weather_structural_v2_exact_books_dynamic_fee_exponent_shadow"
+WEATHER_STRUCTURAL_VERSION = "weather_structural_v3_v2_fd_fee_authority_shadow"
 DETERMINISTIC = "DETERMINISTIC"
 
 
@@ -65,13 +70,8 @@ def _parameters(
         return None
     if not (0.0 <= value.fee_rate <= 1.0) or value.fee_exponent < 0:
         return None
-    # The V2 SDK fee utility is driven by fd.r/fd.e. We currently have no evidence
-    # that non-zero legacy base-fee fields are additive or redundant, so do not
-    # create a structural opportunity when they are non-zero.
-    if value.taker_base_fee_bps != 0:
-        return None
-    # Current fee-enabled weather market info marks the dynamic schedule taker-only.
-    # If this semantic changes, fail closed instead of guessing how it applies.
+    # Current V2 market-info marks positive dynamic fees taker-only. If that
+    # semantic changes, fail closed instead of guessing how the schedule applies.
     if value.fee_rate > 0.0 and value.taker_only is not True:
         return None
     return value
@@ -153,7 +153,7 @@ def binary_pair_underround(
             asks=[yes[0], no[0]],
             sizes=[yes[1], no[1]],
             parameters=[params, params],
-            contract_partition_proven=True,  # Binary child semantics only.
+            contract_partition_proven=True,
             min_profit_per_set=min_profit_per_set,
         )
         if opportunity is not None:
