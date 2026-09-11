@@ -4,14 +4,15 @@ from __future__ import annotations
 
 This diagnostic measures the current active NWS/WRH daily-temperature universe
 against the exact compiler/rule/capture gates used by the prospective research
-worker.  It deliberately performs no CLOB requests, no forecast requests, no WRH
+worker. It deliberately performs no CLOB requests, no forecast requests, no WRH
 source requests, no database writes and no delivery/order actions.
 
-The census is useful for separating engineering coverage from empirical calibration:
-Fahrenheit events that pass the frozen worker gates are presently collectable;
-Celsius events may be structurally understood but remain excluded from exact WRH
-calibration until a metric WRH transport/display/finality adapter is independently
-certified.
+The census separates structural coverage from prospective capture eligibility.
+Fahrenheit events can pass the current exact-worker gate, while Celsius events remain
+structural research only until a metric WRH transport/display/finality adapter is
+independently certified. A target dated *today* is reported separately from a target
+after the census date: T-1 evidence collection for today's target is already too late,
+so it must never be described as a future prospective target.
 """
 
 import argparse
@@ -27,7 +28,7 @@ from .weather_only_discovery import DEFAULT_TAGS, WeatherOnlyDiscovery
 from .weather_only_rules import apply_rule_authority, compile_temperature_rule_authority
 
 
-WEATHER_CALIBRATION_CENSUS_VERSION = "weather_calibration_census_v1_gamma_only_worker_gate_mirror"
+WEATHER_CALIBRATION_CENSUS_VERSION = "weather_calibration_census_v2_target_day_not_future"
 SAMPLE_LIMIT = 20
 NEAR_TERM_DAYS = 7
 
@@ -46,26 +47,38 @@ class CalibrationCoverageSample:
     partition_shape_complete: bool
     shadow_supported: bool
     worker_capture_eligible: bool
+    target_is_today: bool
+    target_after_as_of_date: bool
     financial_authority: bool = False
 
     def as_dict(self) -> dict:
         return asdict(self)
 
 
-def _sample(event: dict, compiled, authority, *, worker_capture_eligible: bool) -> CalibrationCoverageSample:
+def _sample(
+    event: dict,
+    compiled,
+    authority,
+    *,
+    worker_capture_eligible: bool,
+    as_of: date,
+) -> CalibrationCoverageSample:
+    target = compiled.target_date
     return CalibrationCoverageSample(
         event_id=str(compiled.event_id),
         title=str(event.get("title") or "")[:300],
         family=str(compiled.family),
         unit=compiled.unit,
         station=str(compiled.station_hint) if compiled.station_hint else None,
-        target_date=compiled.target_date.isoformat() if compiled.target_date else None,
+        target_date=target.isoformat() if target else None,
         rule_profile=str(authority.profile),
         rule_semantics_proven=bool(authority.rule_semantics_proven),
         exactly_one_outcome_proven=bool(authority.exactly_one_outcome_proven),
         partition_shape_complete=bool(compiled.partition_shape_complete),
         shadow_supported=bool(compiled.shadow_supported),
         worker_capture_eligible=bool(worker_capture_eligible),
+        target_is_today=bool(target == as_of),
+        target_after_as_of_date=bool(target is not None and target > as_of),
     )
 
 
@@ -107,10 +120,12 @@ async def run_census(
         rule_proven_events = 0
         exactly_one_events = 0
         worker_capture_eligible = 0
-        future_worker_capture_eligible = 0
-        near_term_worker_capture_eligible = 0
+        worker_target_today = 0
+        worker_target_after_as_of = 0
+        worker_near_term_after_as_of = 0
         celsius_structural_proven = 0
-        celsius_future_structural_proven = 0
+        celsius_target_today = 0
+        celsius_target_after_as_of = 0
         samples: list[CalibrationCoverageSample] = []
 
         for event in snapshot.events:
@@ -137,11 +152,13 @@ async def run_census(
             worker_ok = _worker_gate(compiled, authority)
             if worker_ok:
                 worker_capture_eligible += 1
-                if compiled.target_date is not None and compiled.target_date >= as_of:
-                    future_worker_capture_eligible += 1
+                if compiled.target_date == as_of:
+                    worker_target_today += 1
+                elif compiled.target_date is not None and compiled.target_date > as_of:
+                    worker_target_after_as_of += 1
                     delta = (compiled.target_date - as_of).days
-                    if 0 <= delta <= NEAR_TERM_DAYS:
-                        near_term_worker_capture_eligible += 1
+                    if 1 <= delta <= NEAR_TERM_DAYS:
+                        worker_near_term_after_as_of += 1
 
             celsius_ok = bool(
                 compiled.unit == "C"
@@ -152,8 +169,10 @@ async def run_census(
             )
             if celsius_ok:
                 celsius_structural_proven += 1
-                if compiled.target_date is not None and compiled.target_date >= as_of:
-                    celsius_future_structural_proven += 1
+                if compiled.target_date == as_of:
+                    celsius_target_today += 1
+                elif compiled.target_date is not None and compiled.target_date > as_of:
+                    celsius_target_after_as_of += 1
 
             if len(samples) < SAMPLE_LIMIT and (
                 worker_ok
@@ -165,6 +184,7 @@ async def run_census(
                     compiled,
                     authority,
                     worker_capture_eligible=worker_ok,
+                    as_of=as_of,
                 ))
 
         return {
@@ -189,10 +209,12 @@ async def run_census(
             "rule_semantics_proven_event_count": rule_proven_events,
             "exactly_one_rule_proven_event_count": exactly_one_events,
             "worker_capture_eligible_event_count": worker_capture_eligible,
-            "future_worker_capture_eligible_event_count": future_worker_capture_eligible,
-            "near_term_worker_capture_eligible_event_count": near_term_worker_capture_eligible,
+            "worker_target_today_event_count": worker_target_today,
+            "worker_target_after_as_of_date_event_count": worker_target_after_as_of,
+            "worker_near_term_after_as_of_date_event_count": worker_near_term_after_as_of,
             "celsius_structural_proven_event_count": celsius_structural_proven,
-            "celsius_future_structural_proven_event_count": celsius_future_structural_proven,
+            "celsius_target_today_structural_proven_event_count": celsius_target_today,
+            "celsius_target_after_as_of_date_structural_proven_event_count": celsius_target_after_as_of,
             "unique_station_count": len(stations),
             "station_event_counts": dict(sorted(stations.items())),
             "samples": [row.as_dict() for row in samples],
