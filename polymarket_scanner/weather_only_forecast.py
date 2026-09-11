@@ -3,21 +3,21 @@ from __future__ import annotations
 """Forecast-distribution evidence for the weather-only research program.
 
 This module deliberately separates *forecast evidence* from settlement evidence and
-from calibrated probabilities.  Open-Meteo's public ensemble API is useful because
+from calibrated probabilities. Open-Meteo's public ensemble API is useful because
 it exposes individual NCEP GEFS ensemble members, but those model values are not the
 WRH settlement source and raw member frequencies are not calibrated Polymarket fair
 values.
 
 The adapter is intentionally narrow and versioned around the live schema certified
 in September 2026: ``ncep_gefs_seamless`` returns one control series plus member01
-through member30 for a requested daily extreme.  Any member-count/key/unit/timezone
+through member30 for a requested daily extreme. Any member-count/key/unit/timezone
 schema drift fails closed.
 
 A caller must also supply an explicit, frozen mapping policy before continuous model
-values are quantized onto a whole-degree contract lattice.  The only mapping
+values are quantized onto a whole-degree contract lattice. The only mapping
 implemented in this foundation is nearest whole degree with half values away from
-zero.  That is a *forecast-model preprocessing hypothesis*, not a claim about how a
-settlement source rounds raw measurements.  It must be calibrated prospectively.
+zero. That is a *forecast-model preprocessing hypothesis*, not a claim about how a
+settlement source rounds raw measurements. It must be calibrated prospectively.
 """
 
 import hashlib
@@ -40,9 +40,10 @@ GEFS_CONTROL_KEY_HIGH = "temperature_2m_max"
 GEFS_CONTROL_KEY_LOW = "temperature_2m_min"
 GEFS_PERTURBED_MEMBERS = 30
 GEFS_TOTAL_MEMBERS = 31
-FORECAST_ADAPTER_VERSION = "open_meteo_ncep_gefs_seamless_daily_extreme_v1_31_members"
+FORECAST_ADAPTER_VERSION = "open_meteo_ncep_gefs_seamless_daily_extreme_v2_grid_bound_31_members"
 FORECAST_ROLE = "FORECAST_RESEARCH_ONLY"
 SUPPORTED_QUANTIZATION = "NEAREST_WHOLE_DEGREE_HALF_AWAY_FROM_ZERO"
+CELL_SELECTION_POLICY = "nearest"
 
 
 class WeatherForecastError(RuntimeError):
@@ -166,6 +167,10 @@ def _expected_member_keys(variable: str) -> tuple[str, ...]:
     return (variable,) + tuple(f"{variable}_member{index:02d}" for index in range(1, GEFS_PERTURBED_MEMBERS + 1))
 
 
+def _expected_member_labels() -> tuple[str, ...]:
+    return ("control",) + tuple(f"member{index:02d}" for index in range(1, GEFS_PERTURBED_MEMBERS + 1))
+
+
 def _unit_symbol(unit: str) -> str:
     if unit == "F":
         return "°F"
@@ -182,22 +187,49 @@ def _evidence_digest(
     family: str,
     unit: str,
     timezone: str,
+    requested_latitude: float,
+    requested_longitude: float,
+    resolved_latitude: float,
+    resolved_longitude: float,
     labels: tuple[str, ...],
     values: tuple[float, ...],
 ) -> str:
     payload = {
         "adapter": FORECAST_ADAPTER_VERSION,
+        "provider": "Open-Meteo Ensemble API",
         "model": model,
+        "cell_selection": CELL_SELECTION_POLICY,
         "station": station,
         "target_date": target_date.isoformat(),
         "family": family,
         "unit": unit,
         "timezone": timezone,
+        "requested_latitude": requested_latitude,
+        "requested_longitude": requested_longitude,
+        "resolved_latitude": resolved_latitude,
+        "resolved_longitude": resolved_longitude,
         "member_labels": labels,
         "member_values": values,
     }
     encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
+
+
+def _distribution_digest(distribution: EnsembleExtremeDistribution) -> str:
+    return _evidence_digest(
+        model=distribution.provider_model,
+        station=distribution.station,
+        target_date=distribution.target_date,
+        family=distribution.family,
+        unit=distribution.unit,
+        timezone=distribution.timezone,
+        requested_latitude=distribution.requested_latitude,
+        requested_longitude=distribution.requested_longitude,
+        resolved_latitude=distribution.resolved_latitude,
+        resolved_longitude=distribution.resolved_longitude,
+        labels=distribution.member_labels,
+        values=distribution.member_values,
+    )
 
 
 def parse_open_meteo_gefs_daily_extreme(
@@ -216,16 +248,19 @@ def parse_open_meteo_gefs_daily_extreme(
     station_id = str(station or "").strip().upper()
     if len(station_id) != 4 or not station_id.isalnum():
         raise WeatherForecastError("FORECAST_STATION_INVALID")
-    if not isinstance(target_date, date):
+    if type(target_date) is not date:
         raise WeatherForecastError("FORECAST_TARGET_DATE_INVALID")
     variable = _daily_variable(family)
     expected_unit = _unit_symbol(unit)
-    if not isinstance(timezone, str) or not timezone.strip():
+    if not isinstance(timezone, str) or not timezone.strip() or timezone != timezone.strip():
         raise WeatherForecastError("FORECAST_TIMEZONE_INVALID")
     request_lat = _finite(requested_latitude, "FORECAST_REQUEST_COORDINATE_INVALID")
     request_lon = _finite(requested_longitude, "FORECAST_REQUEST_COORDINATE_INVALID")
     if not -90.0 <= request_lat <= 90.0 or not -180.0 <= request_lon <= 180.0:
         raise WeatherForecastError("FORECAST_REQUEST_COORDINATE_INVALID")
+    receipt = _finite(received_at, "FORECAST_RECEIPT_TIME_INVALID")
+    if receipt < 0.0:
+        raise WeatherForecastError("FORECAST_RECEIPT_TIME_INVALID")
     if not isinstance(payload, dict):
         raise WeatherForecastError("FORECAST_ENVELOPE_INVALID")
     if str(payload.get("timezone") or "") != timezone:
@@ -275,7 +310,7 @@ def parse_open_meteo_gefs_daily_extreme(
     if len(values) != GEFS_TOTAL_MEMBERS:
         raise WeatherForecastError("FORECAST_MEMBER_COUNT_MISMATCH")
 
-    labels = ("control",) + tuple(f"member{index:02d}" for index in range(1, GEFS_PERTURBED_MEMBERS + 1))
+    labels = _expected_member_labels()
     member_values = tuple(values)
     digest = _evidence_digest(
         model=OPEN_METEO_GEFS_MODEL,
@@ -284,6 +319,10 @@ def parse_open_meteo_gefs_daily_extreme(
         family=family,
         unit=unit,
         timezone=timezone,
+        requested_latitude=request_lat,
+        requested_longitude=request_lon,
+        resolved_latitude=resolved_lat,
+        resolved_longitude=resolved_lon,
         labels=labels,
         values=member_values,
     )
@@ -302,7 +341,7 @@ def parse_open_meteo_gefs_daily_extreme(
         resolved_longitude=resolved_lon,
         member_labels=labels,
         member_values=member_values,
-        received_at=float(received_at),
+        received_at=receipt,
         evidence_sha256=digest,
         source_role=FORECAST_ROLE,
         settlement_authority=False,
@@ -329,7 +368,7 @@ def map_ensemble_to_contract_buckets(
 ) -> EnsembleBucketForecast:
     """Map a forecast ensemble onto certified whole-degree bucket labels.
 
-    This is research evidence only.  The returned frequencies are empirical member
+    This is research evidence only. The returned frequencies are empirical member
     frequencies under the named mapping policy; they are not calibrated probabilities.
     """
     if not compiled.partition_shape_complete or not compiled.exactly_one_outcome_proven:
@@ -342,10 +381,15 @@ def map_ensemble_to_contract_buckets(
         raise WeatherForecastError("FORECAST_CONTRACT_UNIT_MISMATCH")
     if not compiled.station_hint or compiled.station_hint.upper() != distribution.station.upper():
         raise WeatherForecastError("FORECAST_CONTRACT_STATION_MISMATCH")
-    if distribution.adapter != FORECAST_ADAPTER_VERSION or distribution.provider_model != OPEN_METEO_GEFS_MODEL:
+    if distribution.adapter != FORECAST_ADAPTER_VERSION or distribution.provider != "Open-Meteo Ensemble API" or distribution.provider_model != OPEN_METEO_GEFS_MODEL:
         raise WeatherForecastError("FORECAST_ADAPTER_IDENTITY_MISMATCH")
-    if len(distribution.member_labels) != GEFS_TOTAL_MEMBERS or len(distribution.member_values) != GEFS_TOTAL_MEMBERS:
-        raise WeatherForecastError("FORECAST_MEMBER_COUNT_MISMATCH")
+    expected_labels = _expected_member_labels()
+    if distribution.member_labels != expected_labels or len(distribution.member_values) != GEFS_TOTAL_MEMBERS:
+        raise WeatherForecastError("FORECAST_MEMBER_IDENTITY_MISMATCH")
+    if any(not math.isfinite(float(value)) for value in distribution.member_values):
+        raise WeatherForecastError("FORECAST_MEMBER_VALUE_INVALID")
+    if distribution.evidence_sha256 != _distribution_digest(distribution):
+        raise WeatherForecastError("FORECAST_EVIDENCE_DIGEST_MISMATCH")
     if not compiled.buckets or any(not bucket.yes_token or not bucket.no_token for bucket in compiled.buckets):
         raise WeatherForecastError("FORECAST_BUCKET_TOKEN_IDENTITY_INCOMPLETE")
 
@@ -412,7 +456,7 @@ class OpenMeteoGEFSEnsembleClient:
         self.http = httpx.AsyncClient(
             timeout=settings.request_timeout,
             limits=httpx.Limits(max_connections=2, max_keepalive_connections=2),
-            headers={"User-Agent": "polymarket-weather-only-ensemble/0.1 (+https://github.com/heroo2123/Alpha)"},
+            headers={"User-Agent": "polymarket-weather-only-ensemble/0.2 (+https://github.com/heroo2123/Alpha)"},
         )
 
     async def close(self) -> None:
@@ -429,6 +473,13 @@ class OpenMeteoGEFSEnsembleClient:
         unit: str,
         timezone: str,
     ) -> EnsembleExtremeDistribution:
+        station_id = str(station or "").strip().upper()
+        if len(station_id) != 4 or not station_id.isalnum():
+            raise WeatherForecastError("FORECAST_STATION_INVALID")
+        if type(target_date) is not date:
+            raise WeatherForecastError("FORECAST_TARGET_DATE_INVALID")
+        if not isinstance(timezone, str) or not timezone.strip() or timezone != timezone.strip():
+            raise WeatherForecastError("FORECAST_TIMEZONE_INVALID")
         variable = _daily_variable(family)
         unit_name = "fahrenheit" if unit == "F" else "celsius" if unit == "C" else None
         if unit_name is None:
@@ -446,7 +497,7 @@ class OpenMeteoGEFSEnsembleClient:
             "timezone": timezone,
             "start_date": target_date.isoformat(),
             "end_date": target_date.isoformat(),
-            "cell_selection": "nearest",
+            "cell_selection": CELL_SELECTION_POLICY,
         }
         try:
             response = await self.http.get(OPEN_METEO_ENSEMBLE, params=params)
@@ -463,7 +514,7 @@ class OpenMeteoGEFSEnsembleClient:
             raise WeatherForecastError("FORECAST_PROVIDER_JSON_INVALID")
         return parse_open_meteo_gefs_daily_extreme(
             payload,
-            station=station,
+            station=station_id,
             target_date=target_date,
             family=family,
             unit=unit,
