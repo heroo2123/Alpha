@@ -69,7 +69,7 @@ def _transport(
     viewer_body: bytes = VIEWER_BODY,
     require_origin: bool = False,
 ):
-    seen = {"backend_query": None, "backend_origin": None, "paths": []}
+    seen = {"backend_query": None, "backend_origin": None, "paths": [], "backend_received": False}
 
     def handler(request: httpx.Request) -> httpx.Response:
         path = request.url.path
@@ -85,6 +85,7 @@ def _transport(
             query = parse_qs(request.url.query.decode())
             seen["backend_query"] = query
             seen["backend_origin"] = request.headers.get("origin")
+            seen["backend_received"] = True
             if require_origin and request.headers.get("origin") != WRH_BROWSER_ORIGIN:
                 return httpx.Response(403, request=request)
             content = backend_body if backend_body is not None else json.dumps(_payload()).encode()
@@ -125,6 +126,8 @@ def test_live_client_uses_ephemeral_browser_token_and_origin_bound_backend(monke
     assert result.client_version == WRH_LIVE_CLIENT_VERSION
     assert result.station == "KLGA"
     assert result.api_key_script_url == "https://www.weather.gov/source/wrh/apiKey.js"
+    assert result.snapshot.received_at == 1234.5
+    assert result.fetched_at == 1234.5
     assert result.snapshot.target_high_f == 81
     assert result.snapshot.target_low_f == 70
     assert result.snapshot.first_following_row is not None
@@ -139,6 +142,24 @@ def test_live_client_uses_ephemeral_browser_token_and_origin_bound_backend(monke
     assert result.as_dict()["backend_origin"] == WRH_BROWSER_ORIGIN
     assert SECRET not in serialized
     assert "token=" not in serialized.lower()
+
+
+def test_production_receipt_timestamp_is_taken_only_after_backend_response(monkeypatch):
+    transport, seen = _transport(require_origin=True)
+    client = _client(monkeypatch, transport)
+    calls = []
+
+    def after_backend_now():
+        calls.append("now")
+        assert seen["backend_received"] is True
+        return 9876.5
+
+    monkeypatch.setattr(wrh_client_module, "_now", after_backend_now)
+    result = client.fetch_snapshot(station="KLGA", target_date=TARGET)
+
+    assert calls == ["now"]
+    assert result.fetched_at == 9876.5
+    assert result.snapshot.received_at == 9876.5
 
 
 def test_tokenized_backend_http_failure_is_sanitized_and_does_not_leak_request_url(monkeypatch):
@@ -236,7 +257,10 @@ def test_pinned_viewer_must_explicitly_reference_mesotoken_query_contract(monkey
     client = NWSWRHLiveClient(http_client=httpx.Client(transport=transport, follow_redirects=True))
     with pytest.raises(WRHSourceError) as raised:
         client.fetch_snapshot(station="KLGA", target_date=TARGET, received_at=1234.5)
-    assert raised.value.code == "WRH_LIVE_VIEWER_TOKEN_IDENTIFIER_MISMATCH" or raised.value.code == "WRH_LIVE_VIEWER_TOKEN_QUERY_CONTRACT_MISMATCH"
+    assert raised.value.code in {
+        "WRH_LIVE_VIEWER_TOKEN_IDENTIFIER_MISMATCH",
+        "WRH_LIVE_VIEWER_TOKEN_QUERY_CONTRACT_MISMATCH",
+    }
     assert WRH_API_KEY_SCRIPT_PATH not in seen["paths"]
 
 
