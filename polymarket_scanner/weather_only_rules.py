@@ -20,7 +20,7 @@ from .weather_only_contracts import (
 )
 
 
-RULE_AUTHORITY_VERSION = "weather_temperature_rule_authority_v1_shadow"
+RULE_AUTHORITY_VERSION = "weather_temperature_rule_authority_v2_hko_decimal_fail_closed"
 
 
 def _norm(value: object) -> str:
@@ -130,38 +130,49 @@ def _nws_profile(event: dict, compiled: CompiledWeatherEvent) -> TemperatureRule
 def _hko_profile(event: dict, compiled: CompiledWeatherEvent) -> TemperatureRuleAuthority:
     text = _event_rules(event)
     wanted = "max" if compiled.family == DAILY_HIGH else "min"
-    reasons: list[str] = []
+    semantic_reasons: list[str] = []
 
     if "hong kong observatory" not in text:
-        reasons.append("HKO_AUTHORITY_RULE_MISSING")
+        semantic_reasons.append("HKO_AUTHORITY_RULE_MISSING")
     if f"absolute daily {wanted} (deg. c)" not in text or "daily extract" not in text:
-        reasons.append("HKO_STATISTIC_RULE_UNPROVEN")
+        semantic_reasons.append("HKO_STATISTIC_RULE_UNPROVEN")
     if not _contains_all(text, (
         "11:59 pm et",
         "seventh day following the observation date",
     )):
-        reasons.append("HKO_DEADLINE_RULE_UNPROVEN")
+        semantic_reasons.append("HKO_DEADLINE_RULE_UNPROVEN")
     if "no data" not in text or "lowest bracket" not in text:
-        reasons.append("HKO_NO_DATA_RULE_UNPROVEN")
+        semantic_reasons.append("HKO_NO_DATA_RULE_UNPROVEN")
     if not (
         "once data for this date has been published" in text
         and "whichever comes first" in text
     ):
-        reasons.append("HKO_FINALITY_RULE_UNPROVEN")
+        semantic_reasons.append("HKO_FINALITY_RULE_UNPROVEN")
     if "one decimal place" not in text:
-        reasons.append("HKO_PRECISION_RULE_UNPROVEN")
+        semantic_reasons.append("HKO_PRECISION_RULE_UNPROVEN")
     if not (
         "revisions" in text
         and "after data is initially published" in text
         and "will not be considered" in text
     ):
-        reasons.append("HKO_CORRECTION_RULE_UNPROVEN")
+        semantic_reasons.append("HKO_CORRECTION_RULE_UNPROVEN")
     if compiled.unit != "C":
-        reasons.append("HKO_UNIT_MUST_BE_C")
+        semantic_reasons.append("HKO_UNIT_MUST_BE_C")
     if not compiled.partition_shape_complete:
-        reasons.append("BUCKET_PARTITION_SHAPE_UNPROVEN")
+        semantic_reasons.append("BUCKET_PARTITION_SHAPE_UNPROVEN")
 
-    proven = not reasons
+    # HKO's current rules explicitly use one-decimal Celsius settlement values while
+    # the displayed child buckets are integer-labelled.  The rules we have certified
+    # do not define how values such as 29.1C or 29.9C map to a child labelled 29C.
+    # Therefore source/finality semantics can be recognized, but an exactly-one
+    # complete-set payout is not proven.  Do not infer rounding or hidden half-degree
+    # bucket boundaries from UI labels.
+    structural_reasons = list(semantic_reasons)
+    if "HKO_PRECISION_RULE_UNPROVEN" not in semantic_reasons:
+        structural_reasons.append("HKO_DECIMAL_BUCKET_MAPPING_UNPROVEN")
+
+    semantics_proven = not semantic_reasons
+    exactly_one = not structural_reasons
     return TemperatureRuleAuthority(
         version=RULE_AUTHORITY_VERSION,
         profile="HKO_DAILY_EXTRACT_EXTREME_CURRENT_TEMPLATE_V1",
@@ -169,16 +180,16 @@ def _hko_profile(event: dict, compiled: CompiledWeatherEvent) -> TemperatureRule
         source_family=compiled.source_family,
         statistic=f"ABSOLUTE_DAILY_{wanted.upper()}_C",
         observation_population="HKO_DAILY_EXTRACT",
-        precision="ONE_DECIMAL_C" if "HKO_PRECISION_RULE_UNPROVEN" not in reasons else None,
-        fallback_policy="LOWEST_BRACKET_IF_UNPUBLISHED_BY_SEVENTH_DAY_2359_ET" if "HKO_DEADLINE_RULE_UNPROVEN" not in reasons and "HKO_NO_DATA_RULE_UNPROVEN" not in reasons else None,
-        finality_policy="INITIAL_DAILY_EXTRACT_PUBLICATION_OR_SEVENTH_DAY_2359_ET" if "HKO_FINALITY_RULE_UNPROVEN" not in reasons else None,
-        correction_policy="IGNORE_REVISIONS_AFTER_INITIAL_PUBLICATION" if "HKO_CORRECTION_RULE_UNPROVEN" not in reasons else None,
-        no_data_outcome="LOWEST_BRACKET" if "HKO_NO_DATA_RULE_UNPROVEN" not in reasons else None,
-        rule_semantics_proven=proven,
-        exactly_one_outcome_proven=proven,
+        precision="ONE_DECIMAL_C" if "HKO_PRECISION_RULE_UNPROVEN" not in semantic_reasons else None,
+        fallback_policy="LOWEST_BRACKET_IF_UNPUBLISHED_BY_SEVENTH_DAY_2359_ET" if "HKO_DEADLINE_RULE_UNPROVEN" not in semantic_reasons and "HKO_NO_DATA_RULE_UNPROVEN" not in semantic_reasons else None,
+        finality_policy="INITIAL_DAILY_EXTRACT_PUBLICATION_OR_SEVENTH_DAY_2359_ET" if "HKO_FINALITY_RULE_UNPROVEN" not in semantic_reasons else None,
+        correction_policy="IGNORE_REVISIONS_AFTER_INITIAL_PUBLICATION" if "HKO_CORRECTION_RULE_UNPROVEN" not in semantic_reasons else None,
+        no_data_outcome="LOWEST_BRACKET" if "HKO_NO_DATA_RULE_UNPROVEN" not in semantic_reasons else None,
+        rule_semantics_proven=semantics_proven,
+        exactly_one_outcome_proven=exactly_one,
         settlement_value_adapter_ready=False,
         financial_authority=False,
-        rejection_reasons=tuple(reasons),
+        rejection_reasons=tuple(structural_reasons),
     )
 
 
