@@ -23,7 +23,9 @@ from polymarket_scanner.weather_only_wrh_collector import CAPTURE_PENDING, Colle
 
 
 TARGET = date(2026, 9, 11)
-WINDOW = datetime(2026, 9, 10, 17, 5, tzinfo=timezone.utc).timestamp()
+# V3 preregisters 17:00-17:15 in the settlement station's local timezone.
+# KLGA is UTC-4 on 2026-09-10, so 17:05 America/New_York is 21:05 UTC.
+WINDOW = datetime(2026, 9, 10, 21, 5, tzinfo=timezone.utc).timestamp()
 
 
 def _rules() -> str:
@@ -245,7 +247,7 @@ def test_worker_freezes_exactly_one_capture_per_event_and_reuses_durable_reserva
         )
         try:
             first = await worker.run_cycle()
-            assert first["capture_window_active"] is True
+            assert first["capture"]["active_window_events"] == 1
             assert first["capture"]["registered_events"] == 1
             assert first["capture"]["capture_policy_id"] == CAPTURE_POLICY_ID
             assert len(collector.registered) == 1
@@ -280,8 +282,9 @@ def test_worker_freezes_exactly_one_capture_per_event_and_reuses_durable_reserva
     asyncio.run(scenario())
 
 
-def test_worker_outside_window_never_discovers_or_forecasts_but_still_ticks_collector(tmp_path):
+def test_worker_before_local_window_discovers_and_resolves_metadata_but_never_forecasts(tmp_path):
     async def scenario():
+        # 16:00 UTC is noon at KLGA on this date, before its 17:00 local window.
         outside = datetime(2026, 9, 10, 16, 0, tzinfo=timezone.utc).timestamp()
         discovery = _Discovery([_event()])
         station = _StationClient(_station_metadata(outside))
@@ -297,10 +300,11 @@ def test_worker_outside_window_never_discovers_or_forecasts_but_still_ticks_coll
         )
         try:
             report = await worker.run_cycle()
-            assert report["capture_window_active"] is False
-            assert report["capture"]["attempted"] is False
-            assert discovery.calls == 0
-            assert station.calls == 0
+            assert report["capture"]["active_window_events"] == 0
+            assert report["capture"]["before_window_events"] == 1
+            assert report["capture"]["registered_events"] == 0
+            assert discovery.calls == 1
+            assert station.calls == 1
             assert forecast.calls == 0
             assert collector.registered == []
             assert collector.register_calls == 0
