@@ -3,15 +3,17 @@ from __future__ import annotations
 """Strict read-only Polymarket Data API v2 trade adapter for weather maker shadow.
 
 Polymarket documents ``GET /v2/trades?taker_only=true`` as serving each fill once on
-its taker side.  That makes ``side`` suitable as aggressor direction for research fill
-simulation.  The response does not expose a first-class fill id, so this adapter uses a
+its taker side. That makes ``side`` suitable as aggressor direction for research fill
+simulation. The response does not expose a first-class fill id, so this adapter uses a
 canonical row fingerprint as a *conservative surrogate identity*: if two rows in one
 page collapse to the same fingerprint, the page fails closed instead of assuming they
 are one fill or double-counting them.
 
-The cursor is part of the evidence page and must be persisted by the caller.  This
+The cursor is part of the evidence page and must be persisted by the caller. This
 module never posts/cancels orders, never authenticates to the CLOB trading API and
-never grants actual-fill or financial authority.
+never grants actual-fill or financial authority. Local ``fetched_at`` evidence is
+stamped only after the HTTP response has been received; request-start time is not
+allowed to masquerade as receipt provenance.
 """
 
 import hashlib
@@ -26,7 +28,7 @@ import httpx
 from .weather_only_maker_shadow import PublicTradePrint
 
 
-WEATHER_TRADE_FEED_VERSION = "weather_trade_feed_v1_data_api_v2_taker_once_cursor_fail_closed"
+WEATHER_TRADE_FEED_VERSION = "weather_trade_feed_v2_post_response_receipt_taker_once_cursor_fail_closed"
 DATA_API_V2_TRADES_URL = "https://data-api.polymarket.com/v2/trades"
 MAX_PAGE_SIZE = 1000
 _CONDITION_RE = re.compile(r"^0x[a-fA-F0-9]{64}$")
@@ -272,7 +274,6 @@ class WeatherDataAPITradeFeedClient:
         else:
             params["cursor"] = requested_cursor
 
-        fetched_at = time.time()
         try:
             response = await self.http.get(
                 DATA_API_V2_TRADES_URL,
@@ -281,6 +282,9 @@ class WeatherDataAPITradeFeedClient:
             )
         except httpx.HTTPError:
             raise WeatherTradeFeedError("TRADE_FEED_TRANSPORT_ERROR") from None
+        # Local receipt provenance must not predate the network response. This mirrors
+        # the WRH evidence boundary: request-start time is not proof of data receipt.
+        fetched_at = time.time()
         if response.status_code == 429:
             raise WeatherTradeFeedError("TRADE_FEED_RATE_LIMITED")
         if response.status_code != 200:
