@@ -13,6 +13,7 @@ from polymarket_scanner.weather_only_wrh import WRHSourceError
 from polymarket_scanner.weather_only_wrh_client import (
     NWSWRHLiveClient,
     WRH_API_KEY_SCRIPT_PATH,
+    WRH_BROWSER_ORIGIN,
     WRH_BROWSER_TOKEN_IDENTIFIER,
     WRH_LIVE_CLIENT_VERSION,
     WRH_SYNOPTIC_ENDPOINT,
@@ -22,7 +23,7 @@ from polymarket_scanner.weather_only_wrh_client import (
 
 TARGET = date(2026, 9, 10)
 SECRET = "publicBrowserCredential_TEST_123456789"
-VIEWER_BODY = b"var InfoToGet='x&='+mesoToken+'&obtimezone=local';"
+VIEWER_BODY = b"var InfoToGet='x&token='+mesoToken+'&obtimezone=local';"
 VIEWER_SHA = hashlib.sha256(VIEWER_BODY).hexdigest()
 
 
@@ -66,8 +67,9 @@ def _transport(
     backend_body: bytes | None = None,
     key_body: str | None = None,
     viewer_body: bytes = VIEWER_BODY,
+    require_origin: bool = False,
 ):
-    seen = {"backend_query": None, "paths": []}
+    seen = {"backend_query": None, "backend_origin": None, "paths": []}
 
     def handler(request: httpx.Request) -> httpx.Response:
         path = request.url.path
@@ -77,11 +79,14 @@ def _transport(
         if path.endswith("/source/wrh/timeseries/obs.js"):
             return httpx.Response(200, content=viewer_body, request=request)
         if path == WRH_API_KEY_SCRIPT_PATH:
-            body = key_body if key_body is not None else f"var mesoToken = 'token={SECRET}';"
+            body = key_body if key_body is not None else f"var mesoToken = '{SECRET}';"
             return httpx.Response(200, text=body, request=request)
         if str(request.url).startswith(WRH_SYNOPTIC_ENDPOINT):
             query = parse_qs(request.url.query.decode())
             seen["backend_query"] = query
+            seen["backend_origin"] = request.headers.get("origin")
+            if require_origin and request.headers.get("origin") != WRH_BROWSER_ORIGIN:
+                return httpx.Response(403, request=request)
             content = backend_body if backend_body is not None else json.dumps(_payload()).encode()
             return httpx.Response(backend_status, content=content, request=request)
         return httpx.Response(404, request=request)
@@ -98,10 +103,11 @@ def _client(monkeypatch, transport: httpx.MockTransport) -> NWSWRHLiveClient:
 def test_discovered_contract_is_the_actual_wrh_source_identity():
     assert WRH_API_KEY_SCRIPT_PATH == "/source/wrh/apiKey.js"
     assert WRH_BROWSER_TOKEN_IDENTIFIER == "mesoToken"
+    assert WRH_BROWSER_ORIGIN == "https://www.weather.gov"
 
 
-def test_live_client_uses_ephemeral_browser_token_and_returns_only_redacted_evidence(monkeypatch):
-    transport, seen = _transport()
+def test_live_client_uses_ephemeral_browser_token_and_origin_bound_backend(monkeypatch):
+    transport, seen = _transport(require_origin=True)
     client = _client(monkeypatch, transport)
     result = client.fetch_snapshot(station="klga", target_date=TARGET, received_at=1234.5)
 
@@ -114,6 +120,7 @@ def test_live_client_uses_ephemeral_browser_token_and_returns_only_redacted_evid
     assert query["end"] == ["202609112359"]
     assert query["complete"] == ["1"]
     assert query["obtimezone"] == ["local"]
+    assert seen["backend_origin"] == WRH_BROWSER_ORIGIN
 
     assert result.client_version == WRH_LIVE_CLIENT_VERSION
     assert result.station == "KLGA"
@@ -129,6 +136,7 @@ def test_live_client_uses_ephemeral_browser_token_and_returns_only_redacted_evid
     assert len(result.transport_evidence_sha256) == 64
 
     serialized = json.dumps(result.as_dict(), sort_keys=True)
+    assert result.as_dict()["backend_origin"] == WRH_BROWSER_ORIGIN
     assert SECRET not in serialized
     assert "token=" not in serialized.lower()
 
@@ -145,8 +153,8 @@ def test_tokenized_backend_http_failure_is_sanitized_and_does_not_leak_request_u
 
 def test_mesotoken_assignment_is_required_to_be_unique_and_never_returned(monkeypatch):
     body = (
-        f"var mesoToken = 'token={SECRET}';\n"
-        "mesoToken = 'token=DIFFERENT_SECRET_12345678';"
+        f"var mesoToken = '{SECRET}';\n"
+        "mesoToken = 'DIFFERENT_SECRET_12345678';"
     )
     transport, _ = _transport(key_body=body)
     client = _client(monkeypatch, transport)
@@ -156,8 +164,17 @@ def test_mesotoken_assignment_is_required_to_be_unique_and_never_returned(monkey
     assert SECRET not in str(raised.value)
 
 
+def test_prefixed_mesotoken_is_rejected_as_transport_contract_drift(monkeypatch):
+    transport, _ = _transport(key_body=f"var mesoToken = 'token={SECRET}';")
+    client = _client(monkeypatch, transport)
+    with pytest.raises(WRHSourceError) as raised:
+        client.fetch_snapshot(station="KLGA", target_date=TARGET, received_at=1234.5)
+    assert raised.value.code == "WRH_LIVE_BROWSER_TOKEN_SHAPE_MISMATCH"
+    assert SECRET not in str(raised.value)
+
+
 def test_unrelated_token_variable_cannot_substitute_for_mesotoken(monkeypatch):
-    transport, _ = _transport(key_body=f"var token = 'token={SECRET}';")
+    transport, _ = _transport(key_body=f"var token = '{SECRET}';")
     client = _client(monkeypatch, transport)
     with pytest.raises(WRHSourceError) as raised:
         client.fetch_snapshot(station="KLGA", target_date=TARGET, received_at=1234.5)
@@ -211,7 +228,7 @@ def test_viewer_script_hash_drift_fails_before_api_token_or_backend_use(monkeypa
     assert WRH_API_KEY_SCRIPT_PATH not in seen["paths"]
 
 
-def test_pinned_viewer_must_explicitly_reference_mesotoken_contract(monkeypatch):
+def test_pinned_viewer_must_explicitly_reference_mesotoken_query_contract(monkeypatch):
     viewer = b"var InfoToGet='x&obtimezone=local';"
     viewer_sha = hashlib.sha256(viewer).hexdigest()
     transport, seen = _transport(viewer_body=viewer)
@@ -219,7 +236,7 @@ def test_pinned_viewer_must_explicitly_reference_mesotoken_contract(monkeypatch)
     client = NWSWRHLiveClient(http_client=httpx.Client(transport=transport, follow_redirects=True))
     with pytest.raises(WRHSourceError) as raised:
         client.fetch_snapshot(station="KLGA", target_date=TARGET, received_at=1234.5)
-    assert raised.value.code == "WRH_LIVE_VIEWER_TOKEN_IDENTIFIER_MISMATCH"
+    assert raised.value.code == "WRH_LIVE_VIEWER_TOKEN_IDENTIFIER_MISMATCH" or raised.value.code == "WRH_LIVE_VIEWER_TOKEN_QUERY_CONTRACT_MISMATCH"
     assert WRH_API_KEY_SCRIPT_PATH not in seen["paths"]
 
 
