@@ -1,15 +1,16 @@
 from __future__ import annotations
 
-"""Strict NWS station-location metadata for weather-only forecast collection.
+"""Strict station-location metadata for weather-only forecast collection.
 
 The GEFS forecast adapter needs the exact settlement station's latitude, longitude and
-local timezone.  Those inputs are location identity only: they do not represent WRH
+local timezone. Those inputs are location identity only: they do not represent WRH
 settlement state and they grant neither calibration-label nor financial authority.
 
-This adapter intentionally uses the official ``api.weather.gov/stations/{id}``
-GeoJSON station endpoint instead of hard-coded city coordinates.  Current NWS API
-documentation identifies ``/stations/{stationId}`` as a supported endpoint and notes
-that GeoJSON is the typical default format.  Schema/identity drift fails closed.
+For stations covered by the official ``api.weather.gov/stations/{id}`` endpoint we
+use that GeoJSON identity directly. Current WRH contracts can also reference global
+stations that WRH/Synoptic supports but api.weather.gov does not. An explicit NWS
+404/410 therefore falls back to the pinned WRH/Synoptic metadata adapter. NWS payload
+schema/identity failures are never masked by fallback.
 """
 
 import asyncio
@@ -181,22 +182,34 @@ def parse_nws_station_metadata(
 
 
 class NWSStationMetadataClient:
-    """Bounded read-only station metadata client with explicit retry pacing."""
+    """Bounded read-only metadata client with explicit global WRH fallback on 404/410."""
 
     def __init__(self) -> None:
         self.http = httpx.AsyncClient(
             timeout=settings.request_timeout,
             limits=httpx.Limits(max_connections=2, max_keepalive_connections=2, keepalive_expiry=20.0),
             headers={
-                "User-Agent": "polymarket-weather-calibration/0.1 (+https://github.com/heroo2123/Alpha)",
+                "User-Agent": "polymarket-weather-calibration/0.2 (+https://github.com/heroo2123/Alpha)",
                 "Accept": "application/geo+json",
             },
         )
+        self._wrh_fallback = None
 
     async def close(self) -> None:
         await self.http.aclose()
+        if self._wrh_fallback is not None:
+            await self._wrh_fallback.close()
+            self._wrh_fallback = None
 
-    async def station(self, station: str) -> NWSStationMetadata:
+    async def _global_wrh_station(self, station_id: str):
+        if self._wrh_fallback is None:
+            # Lazy import keeps the strict NWS parser independent and avoids creating
+            # the token-aware WRH client for ordinary US-station requests.
+            from .weather_only_wrh_station_metadata import WRHStationMetadataClient
+            self._wrh_fallback = WRHStationMetadataClient()
+        return await self._wrh_fallback.station(station_id)
+
+    async def station(self, station: str):
         station_id = _station(station)
         url = NWS_STATION_ENDPOINT.format(station=station_id)
         for attempt in range(MAX_RETRIES):
@@ -213,6 +226,8 @@ class NWSStationMetadataClient:
                 await asyncio.sleep(0.5 * (2 ** attempt))
                 continue
 
+            if response.status_code in {404, 410}:
+                return await self._global_wrh_station(station_id)
             if response.status_code == 429 or response.status_code >= 500:
                 if attempt + 1 >= MAX_RETRIES:
                     raise WeatherStationMetadataError("STATION_METADATA_HTTP_STATUS")
