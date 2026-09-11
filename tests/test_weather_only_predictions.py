@@ -193,7 +193,11 @@ def test_selection_policy_rejects_hidden_research_freedom():
                 _forecast(),
                 bucket_frequencies=(
                     _row("market-a", 10),
-                    replace(_row("market-b", 15), raw_member_frequency=14 / 31),
+                    replace(
+                        _row("market-b", 15),
+                        raw_member_frequency=14 / 31,
+                        raw_no_frequency=17 / 31,
+                    ),
                     _row("market-c", 6),
                 ),
             ),
