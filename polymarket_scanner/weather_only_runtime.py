@@ -2,14 +2,14 @@ from __future__ import annotations
 
 """Bounded always-on foundation for the weather-only scanner.
 
-This runtime intentionally stops one layer before financial authority.  It performs
+This runtime intentionally stops one layer before financial authority. It performs
 small weather-tag discovery, compiles contract/rule semantics, cheaply pre-screens
 semantically certified complete temperature partitions with *exact CLOB books*, and
-only then spends market-info requests on the most promising events.  Any surviving
+only then spends market-info requests on the most promising events. Any surviving
 structural opportunity is re-fetched once more before it is recorded.
 
 There is deliberately no Telegram sender, order posting, database mutation, or
-forecast-probability promotion in this module.  Source settlement/forecast adapters,
+forecast-probability promotion in this module. Source settlement/forecast adapters,
 calibration, execution certificates and final financial delivery remain separate
 future gates.
 """
@@ -21,27 +21,16 @@ import os
 import resource
 import time
 from collections import Counter
-from dataclasses import asdict
 from pathlib import Path
 
-from .weather_only_clob import (
-    MAX_TOKENS,
-    WeatherCLOBClient,
-    WeatherCLOBError,
-    WeatherExecutionSnapshot,
-)
-from .weather_only_contracts import (
-    DAILY_HIGH,
-    DAILY_LOW,
-    CompiledWeatherEvent,
-    compile_weather_event,
-)
+from .weather_only_clob import MAX_TOKENS, WeatherCLOBClient, WeatherCLOBError, WeatherExecutionSnapshot
+from .weather_only_contracts import DAILY_HIGH, DAILY_LOW, CompiledWeatherEvent, compile_weather_event
 from .weather_only_discovery import DEFAULT_TAGS, WeatherDiscoveryError, WeatherOnlyDiscovery
 from .weather_only_rules import apply_rule_authority, compile_temperature_rule_authority
 from .weather_only_structural import complete_bucket_underround
 
 
-WEATHER_SHADOW_RUNTIME_VERSION = "weather_only_shadow_runtime_v1_bounded_exact_recheck"
+WEATHER_SHADOW_RUNTIME_VERSION = "weather_only_shadow_runtime_v2_dynamic_fee_exact_recheck"
 DEFAULT_LOOP_INTERVAL_SECONDS = 300.0
 MIN_LOOP_INTERVAL_SECONDS = 60.0
 MAX_PRESCREEN_TOKENS = 5_000
@@ -60,29 +49,18 @@ def _rss_bytes() -> int:
     return int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss) * 1024
 
 
-def _event_id(event: dict) -> str:
-    return str(event.get("id") or "").strip()
-
-
 def _chunks(values: list[str], size: int) -> list[list[str]]:
     return [values[start:start + size] for start in range(0, len(values), size)]
 
 
-def _fee_rate_map(snapshot: WeatherExecutionSnapshot) -> tuple[dict[str, float] | None, str | None]:
-    """Return only fee models this runtime can conservatively certify.
-
-    A zero fee rate is exact regardless of any exponent metadata.  Non-zero fee
-    schedules are intentionally withheld until the weather-only fee calculator is
-    explicitly certified against current CLOB semantics.  This prevents the shadow
-    runtime from inheriting a stale/general-bot fee assumption merely because market
-    info exposed a numeric ``fee_rate``.
-    """
-    rates: dict[str, float] = {}
-    for condition, params in snapshot.parameters.items():
-        if params.fee_rate != 0.0:
-            return None, "NONZERO_FEE_MODEL_NOT_CERTIFIED"
-        rates[condition] = 0.0
-    return rates, None
+def _fee_schedule_blocker(snapshot: WeatherExecutionSnapshot) -> str | None:
+    """Reject fee metadata whose executable meaning is not yet certified."""
+    for params in snapshot.parameters.values():
+        if params.taker_base_fee_bps != 0:
+            return "TAKER_BASE_FEE_SEMANTICS_UNCERTIFIED"
+        if params.fee_rate > 0.0 and params.taker_only is not True:
+            return "DYNAMIC_FEE_TAKER_ONLY_UNPROVEN"
+    return None
 
 
 def _open_complete_partition(compiled: CompiledWeatherEvent) -> bool:
@@ -172,6 +150,8 @@ class WeatherOnlyShadowRuntime:
             "automatic_order_placement": False,
             "gamma_execution_authority": False,
             "exact_clob_required_for_recorded_opportunities": True,
+            "market_specific_fee_schedule_required": True,
+            "fee_exponent_required_for_positive_rate": True,
             "final_live_recheck_required": True,
             "forecast_probability_authority": False,
             "source_settlement_trade_authority": False,
@@ -197,13 +177,9 @@ class WeatherOnlyShadowRuntime:
 
         stage = time.monotonic()
         certified_by_id: dict[str, CompiledWeatherEvent] = {}
-        raw_by_id: dict[str, dict] = {}
         semantic_proven = 0
         open_complete = 0
         for event in snapshot.events:
-            eid = _event_id(event)
-            if eid:
-                raw_by_id[eid] = event
             compiled = compile_weather_event(event)
             family_counts[compiled.family] += 1
             source_counts[compiled.source_family] += 1
@@ -251,6 +227,7 @@ class WeatherOnlyShadowRuntime:
                 "errors": errors,
                 "clob_failure_counts": {},
                 "exact_events_attempted": 0,
+                "opportunity_count": 0,
                 "opportunities": [],
                 "timings_seconds": {
                     **{key: round(value, 6) for key, value in timings.items()},
@@ -272,6 +249,7 @@ class WeatherOnlyShadowRuntime:
                 "errors": errors,
                 "clob_failure_counts": {str(code): 1},
                 "exact_events_attempted": 0,
+                "opportunity_count": 0,
                 "opportunities": [],
                 "timings_seconds": {
                     **{key: round(value, 6) for key, value in timings.items()},
@@ -316,31 +294,28 @@ class WeatherOnlyShadowRuntime:
             exact_attempted += 1
             try:
                 exact = await self.clob.exact_event_snapshot(compiled)
-                rates, fee_error = _fee_rate_map(exact)
-                if rates is None:
-                    clob_failures[str(fee_error)] += 1
+                blocker = _fee_schedule_blocker(exact)
+                if blocker:
+                    clob_failures[blocker] += 1
                     continue
                 first = complete_bucket_underround(
                     compiled,
                     exact.books,
-                    rates,
+                    exact.parameters,
                     min_profit_per_set=self.min_shadow_profit_per_set,
                 )
                 if first is None:
                     continue
 
-                # Full-bot lesson carried forward: candidate evidence expires.  Do
-                # not record even a shadow opportunity from the first certificate;
-                # fetch identity, fee metadata and books again and recompute.
                 recheck = await self.clob.exact_event_snapshot(compiled)
-                recheck_rates, fee_error = _fee_rate_map(recheck)
-                if recheck_rates is None:
-                    clob_failures[str(fee_error)] += 1
+                blocker = _fee_schedule_blocker(recheck)
+                if blocker:
+                    clob_failures[blocker] += 1
                     continue
                 confirmed = complete_bucket_underround(
                     compiled,
                     recheck.books,
-                    recheck_rates,
+                    recheck.parameters,
                     min_profit_per_set=self.min_shadow_profit_per_set,
                 )
                 if confirmed is None:
