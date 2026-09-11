@@ -128,18 +128,22 @@ def test_nws_missing_revision_cutoff_fails_closed():
     assert "NWS_CORRECTION_RULE_UNPROVEN" in profile.rejection_reasons
 
 
-def test_current_hko_high_and_low_templates_prove_partition_semantics_only():
+def test_current_hko_high_and_low_templates_recognize_rules_but_quarantine_complete_set_semantics():
     for high in (True, False):
         event = _hko_event(high=high)
         compiled = compile_weather_event(event)
         profile = compile_temperature_rule_authority(event, compiled)
         assert profile.rule_semantics_proven is True
-        assert profile.exactly_one_outcome_proven is True
+        assert profile.exactly_one_outcome_proven is False
         assert profile.observation_population == "HKO_DAILY_EXTRACT"
         assert profile.precision == "ONE_DECIMAL_C"
         assert profile.correction_policy == "IGNORE_REVISIONS_AFTER_INITIAL_PUBLICATION"
+        assert "HKO_DECIMAL_BUCKET_MAPPING_UNPROVEN" in profile.rejection_reasons
         assert profile.settlement_value_adapter_ready is False
         assert profile.financial_authority is False
+        upgraded = apply_rule_authority(compiled, profile)
+        assert upgraded.exactly_one_outcome_proven is False
+        assert upgraded.financial_authority is False
 
 
 def test_hko_missing_one_decimal_precision_fails_closed():
