@@ -1,4 +1,4 @@
-name: weather-ensemble-schema-probe
+name: weather-ensemble-adapter-probe
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 jobs:
-  ensemble-schema:
+  ensemble-adapter:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -19,51 +19,82 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install -r requirements.txt
-      - name: Inspect bounded public ensemble schema
+      - name: Exercise strict Open-Meteo GEFS adapter against live API
         shell: bash
         run: |
           python - <<'PY'
           import asyncio
           import json
+          import math
+          from datetime import datetime
           from pathlib import Path
-          import httpx
+          from zoneinfo import ZoneInfo
+
+          from polymarket_scanner.weather_only_contracts import DAILY_HIGH
+          from polymarket_scanner.weather_only_forecast import (
+              FORECAST_ADAPTER_VERSION,
+              FORECAST_ROLE,
+              GEFS_TOTAL_MEMBERS,
+              OPEN_METEO_GEFS_MODEL,
+              OpenMeteoGEFSEnsembleClient,
+          )
 
           async def main():
-              params = {
-                  'latitude': 40.7769,
-                  'longitude': -73.8740,
-                  'daily': 'temperature_2m_max',
-                  'models': 'ncep_gefs_seamless',
-                  'temperature_unit': 'fahrenheit',
-                  'timezone': 'America/New_York',
-                  'forecast_days': 2,
-              }
-              async with httpx.AsyncClient(timeout=20.0, headers={'User-Agent': 'polymarket-weather-only-schema-probe/0.1'}) as client:
-                  response = await client.get('https://ensemble-api.open-meteo.com/v1/ensemble', params=params)
-                  response.raise_for_status()
-                  payload = response.json()
-              daily = payload.get('daily') or {}
-              units = payload.get('daily_units') or {}
-              keys = sorted(str(key) for key in daily)
-              member_keys = [key for key in keys if key != 'time']
-              report = {
-                  'provider': 'Open-Meteo Ensemble API',
-                  'model_requested': 'ncep_gefs_seamless',
-                  'timezone_requested': 'America/New_York',
-                  'temperature_unit_requested': 'fahrenheit',
-                  'top_level_keys': sorted(str(key) for key in payload),
-                  'daily_keys': keys,
-                  'daily_units': {str(key): str(value) for key, value in units.items()},
-                  'member_key_count': len(member_keys),
-                  'member_lengths': {key: len(daily.get(key) or []) for key in member_keys},
-                  'time_length': len(daily.get('time') or []),
-                  'financial_authority': False,
-                  'settlement_authority': False,
-                  'calibration_label_authority': False,
-              }
-              if not member_keys or report['time_length'] != 2:
-                  raise SystemExit(f'unexpected ensemble schema: {report}')
-              Path('weather-ensemble-schema.json').write_text(json.dumps(report, indent=2, sort_keys=True) + '\n')
+              timezone = 'America/New_York'
+              target_date = datetime.now(ZoneInfo(timezone)).date()
+              client = OpenMeteoGEFSEnsembleClient()
+              try:
+                  distribution = await client.daily_extreme(
+                      station='KLGA',
+                      latitude=40.7769,
+                      longitude=-73.8740,
+                      target_date=target_date,
+                      family=DAILY_HIGH,
+                      unit='F',
+                      timezone=timezone,
+                  )
+              finally:
+                  await client.close()
+
+              if distribution.adapter != FORECAST_ADAPTER_VERSION:
+                  raise SystemExit('adapter identity mismatch')
+              if distribution.provider_model != OPEN_METEO_GEFS_MODEL:
+                  raise SystemExit('provider model mismatch')
+              if distribution.source_role != FORECAST_ROLE:
+                  raise SystemExit('forecast role mismatch')
+              if distribution.station != 'KLGA' or distribution.target_date != target_date:
+                  raise SystemExit('station/date identity mismatch')
+              if distribution.unit != 'F' or distribution.timezone != timezone:
+                  raise SystemExit('unit/timezone mismatch')
+              if len(distribution.member_labels) != GEFS_TOTAL_MEMBERS:
+                  raise SystemExit('member label count mismatch')
+              if len(distribution.member_values) != GEFS_TOTAL_MEMBERS:
+                  raise SystemExit('member value count mismatch')
+              if not all(math.isfinite(value) for value in distribution.member_values):
+                  raise SystemExit('non-finite live member value')
+              if len(distribution.evidence_sha256) != 64:
+                  raise SystemExit('invalid evidence digest')
+              if not all(math.isfinite(value) for value in (
+                  distribution.requested_latitude,
+                  distribution.requested_longitude,
+                  distribution.resolved_latitude,
+                  distribution.resolved_longitude,
+                  distribution.received_at,
+              )):
+                  raise SystemExit('invalid provenance coordinate/time')
+              if any((
+                  distribution.settlement_authority,
+                  distribution.calibration_label_authority,
+                  distribution.calibrated_probability,
+                  distribution.financial_authority,
+              )):
+                  raise SystemExit('forecast evidence gained prohibited authority')
+
+              report = distribution.as_dict()
+              report['acceptance'] = 'PASS_STRICT_LIVE_ADAPTER'
+              Path('weather-ensemble-adapter.json').write_text(
+                  json.dumps(report, indent=2, sort_keys=True) + '\n'
+              )
               print(json.dumps(report, indent=2, sort_keys=True))
 
           asyncio.run(main())
@@ -71,6 +102,6 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: weather-ensemble-schema-${{ github.sha }}
-          path: weather-ensemble-schema.json
+          name: weather-ensemble-adapter-${{ github.sha }}
+          path: weather-ensemble-adapter.json
           if-no-files-found: warn
