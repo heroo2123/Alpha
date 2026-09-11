@@ -15,9 +15,10 @@ raw, uncalibrated research prediction.
 
 Only a later exact-rule-state settlement label with matching event/market/station/
 date identity can be joined to the prospective prediction. Proxy observations can
-never be upgraded into labels by setting authority booleans. The bridge emits the
-existing ``ProbabilityCalibrationSample`` consumed by the preregistered calibration
-engine, and grants no financial authority.
+never be upgraded into labels by setting authority booleans. Prediction records bind
+the complete mapped forecast snapshot, while settlement labels bind their underlying
+source-evidence digest. The bridge emits the existing ``ProbabilityCalibrationSample``
+consumed by the preregistered calibration engine and grants no financial authority.
 """
 
 import hashlib
@@ -38,11 +39,14 @@ from .weather_only_forecast import (
 )
 
 
-PROSPECTIVE_PREDICTION_VERSION = "weather_prospective_prediction_v1_one_candidate_per_event"
+PROSPECTIVE_PREDICTION_VERSION = "weather_prospective_prediction_v2_full_forecast_snapshot"
 SELECTION_ENGINE_VERSION = "weather_candidate_selector_v1_max_raw_frequency_market_id_asc"
 SELECTION_STRATEGY = "MAX_RAW_MEMBER_FREQUENCY"
 SELECTION_TIE_BREAK = "MARKET_ID_ASC"
 MODEL_FAMILY_VERSION = "weather_gefs_top_bucket_raw_frequency_v1"
+LABEL_DIGEST_VERSION = "weather_exact_settlement_label_digest_v1"
+NWS_WRH_EXACT_LABEL_ADAPTER = "NWS_WRH_EXACT_RULE_STATE_V1"
+EXACT_SETTLEMENT_SOURCE_ROLE = "SETTLEMENT_RULE_STATE"
 
 
 class WeatherPredictionError(RuntimeError):
@@ -89,6 +93,12 @@ def _nonempty(value: object, code: str) -> str:
     return text
 
 
+def _hash_payload(payload: dict) -> str:
+    return hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
+    ).hexdigest()
+
+
 @dataclass(frozen=True, slots=True)
 class ProspectiveSelectionPolicy:
     policy_id: str
@@ -122,6 +132,7 @@ class ProspectiveBucketPrediction:
     provider_model: str
     forecast_adapter: str
     source_evidence_sha256: str
+    forecast_snapshot_sha256: str
     mapping_policy_id: str
     quantization: str
     included_control: bool
@@ -151,6 +162,7 @@ class ExactBucketSettlementLabel:
     label_authority: bool
     settlement_state_reconstructable: bool
     finalized_at: float
+    source_evidence_sha256: str
     label_evidence_sha256: str
     financial_authority: bool = field(init=False, default=False)
 
@@ -173,6 +185,7 @@ class ExactBucketSettlementLabel:
         if type(self.settlement_state_reconstructable) is not bool:
             raise WeatherPredictionError("LABEL_RECONSTRUCTABLE_TYPE_INVALID")
         _finite_timestamp(self.finalized_at, "LABEL_FINALIZED_AT_INVALID")
+        _sha256(self.source_evidence_sha256, "LABEL_SOURCE_EVIDENCE_SHA_INVALID")
         _sha256(self.label_evidence_sha256, "LABEL_EVIDENCE_SHA_INVALID")
 
     def as_dict(self) -> dict:
@@ -194,10 +207,7 @@ def _model_version(forecast: EnsembleBucketForecast, policy: ProspectiveSelectio
         "strategy": policy.strategy,
         "tie_break": policy.tie_break,
     }
-    digest = hashlib.sha256(
-        json.dumps(identity, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
-    ).hexdigest()
-    return f"{MODEL_FAMILY_VERSION}:{digest}"
+    return f"{MODEL_FAMILY_VERSION}:{_hash_payload(identity)}"
 
 
 def _validate_forecast(forecast: EnsembleBucketForecast) -> None:
@@ -270,6 +280,40 @@ def _validate_forecast(forecast: EnsembleBucketForecast) -> None:
         raise WeatherPredictionError("PREDICTION_FORECAST_PROBABILITY_SUM_MISMATCH")
 
 
+def _forecast_snapshot_digest(forecast: EnsembleBucketForecast) -> str:
+    rows = []
+    for row in sorted(forecast.bucket_frequencies, key=lambda value: str(value.market_id)):
+        rows.append({
+            "market_id": row.market_id,
+            "condition_id": row.condition_id,
+            "yes_token": row.yes_token,
+            "no_token": row.no_token,
+            "lower": row.lower,
+            "upper": row.upper,
+            "member_hits": row.member_hits,
+            "member_count": row.member_count,
+            "raw_member_frequency": row.raw_member_frequency,
+            "raw_no_frequency": row.raw_no_frequency,
+            "mapping_policy_id": row.mapping_policy_id,
+        })
+    return _hash_payload({
+        "forecast_adapter": forecast.adapter,
+        "event_id": forecast.event_id,
+        "station": forecast.station.upper(),
+        "target_date": forecast.target_date.isoformat(),
+        "family": forecast.family,
+        "unit": forecast.unit,
+        "provider_model": forecast.provider_model,
+        "source_evidence_sha256": forecast.source_evidence_sha256.lower(),
+        "mapping_policy_id": forecast.mapping_policy_id,
+        "quantization": forecast.quantization,
+        "included_control": forecast.included_control,
+        "member_count": forecast.member_count,
+        "probability_sum": forecast.probability_sum,
+        "bucket_frequencies": rows,
+    })
+
+
 def _prediction_digest_payload(prediction: ProspectiveBucketPrediction) -> dict:
     return {
         "evidence_version": prediction.evidence_version,
@@ -286,6 +330,7 @@ def _prediction_digest_payload(prediction: ProspectiveBucketPrediction) -> dict:
         "provider_model": prediction.provider_model,
         "forecast_adapter": prediction.forecast_adapter,
         "source_evidence_sha256": prediction.source_evidence_sha256,
+        "forecast_snapshot_sha256": prediction.forecast_snapshot_sha256,
         "mapping_policy_id": prediction.mapping_policy_id,
         "quantization": prediction.quantization,
         "included_control": prediction.included_control,
@@ -296,14 +341,66 @@ def _prediction_digest_payload(prediction: ProspectiveBucketPrediction) -> dict:
 
 
 def _prediction_digest(prediction: ProspectiveBucketPrediction) -> str:
-    return hashlib.sha256(
-        json.dumps(
-            _prediction_digest_payload(prediction),
-            sort_keys=True,
-            separators=(",", ":"),
-            ensure_ascii=True,
-        ).encode("utf-8")
-    ).hexdigest()
+    return _hash_payload(_prediction_digest_payload(prediction))
+
+
+def _label_digest_payload(label: ExactBucketSettlementLabel) -> dict:
+    return {
+        "digest_version": LABEL_DIGEST_VERSION,
+        "event_id": label.event_id,
+        "market_id": label.market_id,
+        "station": label.station.upper(),
+        "target_date": label.target_date.isoformat(),
+        "final_payout": label.final_payout,
+        "label_adapter": label.label_adapter,
+        "source_role": label.source_role,
+        "evidence_version": label.evidence_version,
+        "label_authority": label.label_authority,
+        "settlement_state_reconstructable": label.settlement_state_reconstructable,
+        "finalized_at": label.finalized_at,
+        "source_evidence_sha256": label.source_evidence_sha256.lower(),
+    }
+
+
+def _label_digest(label: ExactBucketSettlementLabel) -> str:
+    return _hash_payload(_label_digest_payload(label))
+
+
+def build_exact_bucket_settlement_label(
+    *,
+    event_id: str,
+    market_id: str,
+    station: str,
+    target_date: date,
+    final_payout: float,
+    finalized_at: float,
+    source_evidence_sha256: str,
+    label_authority: bool = True,
+    settlement_state_reconstructable: bool = True,
+) -> ExactBucketSettlementLabel:
+    """Build a tamper-evident NWS WRH exact-rule-state label envelope.
+
+    This factory does not fetch WRH data and therefore does not itself prove source
+    authority. A future exact settlement adapter must supply the bound source evidence
+    digest. The resulting object can enter calibration only after the join gate checks
+    all identity, time, adapter, source-role and digest invariants.
+    """
+    shell = ExactBucketSettlementLabel(
+        event_id=event_id,
+        market_id=market_id,
+        station=station.upper(),
+        target_date=target_date,
+        final_payout=final_payout,
+        label_adapter=NWS_WRH_EXACT_LABEL_ADAPTER,
+        source_role=EXACT_SETTLEMENT_SOURCE_ROLE,
+        evidence_version=SETTLEMENT_LABEL_EVIDENCE_VERSION,
+        label_authority=label_authority,
+        settlement_state_reconstructable=settlement_state_reconstructable,
+        finalized_at=finalized_at,
+        source_evidence_sha256=source_evidence_sha256.lower(),
+        label_evidence_sha256="0" * 64,
+    )
+    return replace(shell, label_evidence_sha256=_label_digest(shell))
 
 
 def select_prospective_bucket_prediction(
@@ -318,18 +415,15 @@ def select_prospective_bucket_prediction(
     if not isinstance(policy, ProspectiveSelectionPolicy):
         raise WeatherPredictionError("PREDICTION_SELECTION_POLICY_INVALID")
 
-    # Selection is based only on the already-frozen forecast distribution. Exact
-    # ties are resolved by market id so event row order cannot influence the sample.
     candidate = sorted(
         forecast.bucket_frequencies,
         key=lambda row: (-float(row.raw_member_frequency), str(row.market_id)),
     )[0]
-    model_version = _model_version(forecast, policy)
     shell = ProspectiveBucketPrediction(
         evidence_version=PROSPECTIVE_PREDICTION_VERSION,
         selector_version=SELECTION_ENGINE_VERSION,
         selection_policy_id=policy.policy_id,
-        model_version=model_version,
+        model_version=_model_version(forecast, policy),
         event_id=forecast.event_id,
         market_id=candidate.market_id,
         condition_id=candidate.condition_id,
@@ -340,6 +434,7 @@ def select_prospective_bucket_prediction(
         provider_model=forecast.provider_model,
         forecast_adapter=forecast.adapter,
         source_evidence_sha256=forecast.source_evidence_sha256.lower(),
+        forecast_snapshot_sha256=_forecast_snapshot_digest(forecast),
         mapping_policy_id=forecast.mapping_policy_id,
         quantization=forecast.quantization,
         included_control=forecast.included_control,
@@ -371,6 +466,7 @@ def _validate_prediction(prediction: ProspectiveBucketPrediction) -> None:
     if prediction.forecast_adapter != FORECAST_ADAPTER_VERSION or prediction.provider_model != OPEN_METEO_GEFS_MODEL:
         raise WeatherPredictionError("CALIBRATION_FORECAST_IDENTITY_MISMATCH")
     _sha256(prediction.source_evidence_sha256, "CALIBRATION_SOURCE_EVIDENCE_SHA_INVALID")
+    _sha256(prediction.forecast_snapshot_sha256, "CALIBRATION_FORECAST_SNAPSHOT_SHA_INVALID")
     _finite_probability(prediction.raw_predicted_probability, "CALIBRATION_PREDICTED_PROBABILITY_INVALID")
     _finite_timestamp(prediction.captured_at, "CALIBRATION_CAPTURED_AT_INVALID")
     supplied = _sha256(prediction.prediction_evidence_sha256, "CALIBRATION_PREDICTION_SHA_INVALID")
@@ -404,11 +500,19 @@ def calibration_sample_from_exact_label(
         raise WeatherPredictionError("CALIBRATION_LABEL_AUTHORITY_FALSE")
     if label.settlement_state_reconstructable is not True:
         raise WeatherPredictionError("CALIBRATION_SETTLEMENT_STATE_NOT_RECONSTRUCTABLE")
+
     adapter = label.label_adapter.strip()
     source_role = label.source_role.strip()
     if "PROXY" in adapter.upper() or "PROXY" in source_role.upper():
         raise WeatherPredictionError("CALIBRATION_PROXY_LABEL_FORBIDDEN")
-    _sha256(label.label_evidence_sha256, "CALIBRATION_LABEL_EVIDENCE_SHA_INVALID")
+    if adapter != NWS_WRH_EXACT_LABEL_ADAPTER:
+        raise WeatherPredictionError("CALIBRATION_LABEL_ADAPTER_UNSUPPORTED")
+    if source_role != EXACT_SETTLEMENT_SOURCE_ROLE:
+        raise WeatherPredictionError("CALIBRATION_LABEL_SOURCE_ROLE_UNSUPPORTED")
+    _sha256(label.source_evidence_sha256, "CALIBRATION_LABEL_SOURCE_EVIDENCE_SHA_INVALID")
+    supplied_label_digest = _sha256(label.label_evidence_sha256, "CALIBRATION_LABEL_EVIDENCE_SHA_INVALID")
+    if supplied_label_digest != _label_digest(label):
+        raise WeatherPredictionError("CALIBRATION_LABEL_DIGEST_MISMATCH")
 
     return ProbabilityCalibrationSample(
         event_id=prediction.event_id,
