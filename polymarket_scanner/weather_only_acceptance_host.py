@@ -2,17 +2,21 @@ from __future__ import annotations
 
 """Read-only Linux resource sampling for future weather W7 acceptance.
 
-Only /proc files are read.  This helper does not start/stop services, open sockets,
-write evidence, or infer latency metrics.  It reports the process high-water RSS,
-host MemAvailable and swap currently used so the eventual recorder can populate the
-already-frozen W7 resource fields without shell parsing or bool/int coercion.
+Only /proc files are read. This helper does not start/stop services, open sockets,
+write evidence, or infer latency metrics. It reports the selected process high-water
+RSS, host MemAvailable and swap currently used so the eventual recorder can populate
+the already-frozen W7 resource fields without shell parsing or bool/int coercion.
+
+By default the current process is sampled. A recorder running out-of-process may pass
+an explicit positive PID so acceptance cannot accidentally certify the recorder's
+small RSS instead of the weather scanner's RSS.
 """
 
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 
-WEATHER_W7_HOST_METRICS_VERSION = "weather_w7_linux_proc_metrics_v1_hwm_memavailable_swap"
+WEATHER_W7_HOST_METRICS_VERSION = "weather_w7_linux_proc_metrics_v2_target_pid_hwm_memavailable_swap"
 
 
 class WeatherW7HostMetricsError(RuntimeError):
@@ -76,8 +80,6 @@ def parse_linux_proc_metrics(*, meminfo_text: str, status_text: str) -> WeatherW
     )
     if mem["SwapFree"] > mem["SwapTotal"]:
         raise WeatherW7HostMetricsError("W7_SWAP_FREE_EXCEEDS_TOTAL")
-    # VmHWM is the process resident-set high-water mark. max() protects against a
-    # transient/kernel-report inconsistency without ever understating observed RSS.
     process_kib = max(status["VmRSS"], status["VmHWM"])
     return WeatherW7HostMetrics(
         version=WEATHER_W7_HOST_METRICS_VERSION,
@@ -87,11 +89,24 @@ def parse_linux_proc_metrics(*, meminfo_text: str, status_text: str) -> WeatherW
     )
 
 
-def read_linux_proc_metrics(proc_root: str | Path = "/proc") -> WeatherW7HostMetrics:
+def _status_relative_path(process_id: int | None) -> Path:
+    if process_id is None:
+        return Path("self") / "status"
+    if isinstance(process_id, bool) or not isinstance(process_id, int) or process_id <= 0:
+        raise WeatherW7HostMetricsError("W7_PROCESS_ID_INVALID")
+    return Path(str(process_id)) / "status"
+
+
+def read_linux_proc_metrics(
+    proc_root: str | Path = "/proc",
+    *,
+    process_id: int | None = None,
+) -> WeatherW7HostMetrics:
     root = Path(proc_root)
+    status_relative = _status_relative_path(process_id)
     try:
         meminfo = (root / "meminfo").read_text(encoding="utf-8")
-        status = (root / "self" / "status").read_text(encoding="utf-8")
+        status = (root / status_relative).read_text(encoding="utf-8")
     except (OSError, UnicodeError):
         raise WeatherW7HostMetricsError("W7_PROC_READ_FAILED") from None
     return parse_linux_proc_metrics(meminfo_text=meminfo, status_text=status)
