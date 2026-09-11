@@ -2,14 +2,18 @@ from __future__ import annotations
 
 """Exact CLOB authority for the weather-only scanner.
 
-This module intentionally has no order-posting methods.  It reads CLOB V2 market
-parameters and exact books for the small compiled weather universe.  A snapshot is
+This module intentionally has no order-posting methods. It reads CLOB V2 market
+parameters and exact books for the small compiled weather universe. A snapshot is
 accepted only when every requested condition and token is represented exactly once,
 identities agree with Gamma/compiler evidence, books are locally fresh, and market
 fee/tick/minimum-order metadata is explicit.
 
-No midpoint, Gamma BBO, cached fee default, or category fee table can substitute for
-these values in a final trade decision.
+No midpoint, Gamma BBO, cached category fee default, or legacy base-fee endpoint can
+substitute for the V2 market-info fee details used here. Current Polymarket V2
+semantics define a dynamic fee schedule by ``fd.r`` and ``fd.e``. The official SDK
+interprets a completely missing ``fd`` object as the zero-fee schedule; this parser
+matches that behavior while requiring an explicit integral exponent whenever a
+positive rate is present.
 """
 
 import asyncio
@@ -26,7 +30,7 @@ from .weather_only_contracts import CompiledWeatherEvent
 
 
 CLOB = "https://clob.polymarket.com"
-WEATHER_CLOB_VERSION = "weather_clob_v1_exact_books_market_info_read_only"
+WEATHER_CLOB_VERSION = "weather_clob_v2_exact_books_dynamic_fee_exponent_read_only"
 MAX_BOOK_AGE_SECONDS = 10.0
 MAX_CONDITIONS = 1_000
 MAX_TOKENS = 2_000
@@ -45,7 +49,7 @@ class WeatherMarketParameters:
     minimum_order_size: float
     minimum_tick_size: float
     fee_rate: float
-    fee_exponent: int | None
+    fee_exponent: int
     taker_only: bool | None
     maker_base_fee_bps: int
     taker_base_fee_bps: int
@@ -73,13 +77,30 @@ class WeatherExecutionSnapshot:
         return max(0.0, time.time() - self.finished_at)
 
 
-def conservative_taker_fee_per_share(price: float, fee_rate: float) -> float:
-    """Ceil the documented CLOB fee curve to 5 decimals for conservative screening."""
+def conservative_taker_fee_per_share(price: float, fee_rate: float, fee_exponent: int) -> float:
+    """Conservative one-share V2 platform fee, rounded upward to 5 decimals.
+
+    Polymarket's current V2 client computes the platform fee rate as
+    ``r * (p * (1-p)) ** e``. For one purchased share, that is also the platform fee
+    in USDC before trade-total rounding. We ceil to 5 decimals for screening so a
+    marginal structural opportunity can never be created by optimistic rounding.
+    Actual order construction/fill accounting remains a separate future authority.
+    """
     p = Decimal(str(price))
     rate = Decimal(str(fee_rate))
     if not (Decimal("0") < p < Decimal("1")) or rate < 0:
         raise ValueError("invalid price or fee rate")
-    raw = rate * p * (Decimal("1") - p)
+    if isinstance(fee_exponent, bool):
+        raise ValueError("invalid fee exponent")
+    try:
+        exponent = int(fee_exponent)
+    except (TypeError, ValueError, OverflowError):
+        raise ValueError("invalid fee exponent")
+    if exponent < 0 or Decimal(str(fee_exponent)) != Decimal(exponent):
+        raise ValueError("invalid fee exponent")
+    if rate == 0:
+        return 0.0
+    raw = rate * (p * (Decimal("1") - p)) ** exponent
     return float(raw.quantize(Decimal("0.00001"), rounding=ROUND_CEILING))
 
 
@@ -99,12 +120,12 @@ def _integer(value: object) -> int:
     if isinstance(value, bool):
         raise WeatherCLOBError("MARKET_INFO_INTEGER_INVALID")
     try:
-        out = int(value)
-    except (TypeError, ValueError):
+        numeric = float(value)
+    except (TypeError, ValueError, OverflowError):
         raise WeatherCLOBError("MARKET_INFO_INTEGER_INVALID")
-    if out < 0:
+    if not math.isfinite(numeric) or numeric < 0 or not numeric.is_integer():
         raise WeatherCLOBError("MARKET_INFO_INTEGER_INVALID")
-    return out
+    return int(numeric)
 
 
 def parse_market_info(condition_id: str, payload: object, *, received_at: float) -> WeatherMarketParameters:
@@ -128,12 +149,23 @@ def parse_market_info(condition_id: str, payload: object, *, received_at: float)
         raise WeatherCLOBError("MARKET_INFO_BINARY_TOKENS_INVALID")
 
     fd = payload.get("fd")
-    if not isinstance(fd, dict) or "r" not in fd:
-        raise WeatherCLOBError("MARKET_INFO_FEE_DETAILS_MISSING")
-    fee_rate = _finite_number(fd.get("r"), minimum=0.0, maximum=1.0)
-    exponent_raw = fd.get("e")
-    exponent = None if exponent_raw is None else _integer(exponent_raw)
-    taker_only = fd.get("to") if type(fd.get("to")) is bool else None
+    if fd is None:
+        # Match the current official V2 SDK: absence of fd means the zero-fee
+        # schedule, not an unknown category default.
+        fee_rate = 0.0
+        exponent = 0
+        taker_only = None
+    else:
+        if not isinstance(fd, dict) or "r" not in fd:
+            raise WeatherCLOBError("MARKET_INFO_FEE_DETAILS_INVALID")
+        fee_rate = _finite_number(fd.get("r"), minimum=0.0, maximum=1.0)
+        if "e" in fd:
+            exponent = _integer(fd.get("e"))
+        elif fee_rate == 0.0:
+            exponent = 0
+        else:
+            raise WeatherCLOBError("MARKET_INFO_FEE_EXPONENT_MISSING")
+        taker_only = fd.get("to") if type(fd.get("to")) is bool else None
 
     return WeatherMarketParameters(
         condition_id=str(condition_id),
