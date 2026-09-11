@@ -21,6 +21,7 @@ START = 1_800_000_000.0
 
 
 def _sample(index: int, **overrides) -> WeatherW7Sample:
+    has_source = index == 45
     values = dict(
         observed_at=START + index * 30.0,
         cycle_ok=True,
@@ -28,7 +29,9 @@ def _sample(index: int, **overrides) -> WeatherW7Sample:
         swap_used_bytes=0,
         host_mem_available_bytes=200 * 1024 * 1024,
         incremental_evaluation_seconds=1.0,
-        source_update_confirmation_seconds=4.0 if index == 45 else None,
+        incremental_evaluation_evidence_sha256="1" * 64,
+        source_update_confirmation_seconds=4.0 if has_source else None,
+        source_update_evidence_sha256="2" * 64 if has_source else None,
         weather_event_count=350,
         non_weather_materialized_count=0,
         exact_clob_required_for_candidates=True,
@@ -102,10 +105,27 @@ def test_duration_sample_gap_and_source_update_evidence_are_mandatory():
     assert gap_report.passed is False
     assert any(reason.startswith("SAMPLE_GAP_EXCEEDED") for reason in gap_report.reasons)
 
-    no_updates = tuple(replace(_sample(i), source_update_confirmation_seconds=None) for i in range(91))
+    no_updates = tuple(
+        replace(_sample(i), source_update_confirmation_seconds=None, source_update_evidence_sha256=None)
+        for i in range(91)
+    )
     no_update_report = evaluate_weather_w7_acceptance(_evidence(samples=no_updates))
     assert no_update_report.passed is False
     assert "SOURCE_UPDATE_SAMPLE_COUNT_BELOW_MIN:0" in no_update_report.reasons
+
+
+def test_latency_numbers_cannot_exist_without_measurement_evidence_sha():
+    with pytest.raises(WeatherW7AcceptanceError) as incremental:
+        _sample(0, incremental_evaluation_evidence_sha256="")
+    assert incremental.value.code == "W7_INCREMENTAL_EVIDENCE_SHA_INVALID"
+
+    with pytest.raises(WeatherW7AcceptanceError) as source:
+        _sample(45, source_update_evidence_sha256=None)
+    assert source.value.code == "W7_SOURCE_UPDATE_EVIDENCE_SHA_INVALID"
+
+    with pytest.raises(WeatherW7AcceptanceError) as dangling:
+        _sample(0, source_update_evidence_sha256="2" * 64)
+    assert dangling.value.code == "W7_SOURCE_UPDATE_EVIDENCE_WITHOUT_LATENCY"
 
 
 def test_resource_and_latency_breaches_fail_acceptance():
