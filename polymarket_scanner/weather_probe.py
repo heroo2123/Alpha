@@ -25,7 +25,9 @@ from .weather_catalog import WEATHER_PAGE_CEILING, build_census, fetch_weather_e
 from .weather_rule_tree import parse_weather_contract
 from .weather_structural import prove_daily_temperature_partition, screen_complete_set_underround
 
-WEATHER_PROBE_VERSION = "weather_live_probe_v1_read_only"
+WEATHER_PROBE_VERSION = "weather_live_probe_v2_read_only_failure_samples"
+FAILURE_SAMPLE_LIMIT = 3
+FAILURE_SAMPLE_TEXT_LIMIT = 1800
 
 
 def _rss_bytes() -> int:
@@ -37,6 +39,23 @@ def _materialize(client: PolymarketClient, events: list[dict]) -> list[Market]:
     markets: list[Market] = []
     client._append_events(markets, events, set())
     return markets
+
+
+def _sample_text(value: object) -> str:
+    text = str(value or "").strip()
+    return text[:FAILURE_SAMPLE_TEXT_LIMIT]
+
+
+def _failure_sample(market: Market) -> dict:
+    return {
+        "event_id": market.event_id,
+        "market_id": market.id,
+        "event_title": _sample_text(market.event_title),
+        "question": _sample_text(market.question),
+        "description": _sample_text(market.description),
+        "resolution_source": _sample_text(market.resolution_source),
+        "end_date": _sample_text(market.end_date),
+    }
 
 
 async def run_probe(
@@ -63,12 +82,16 @@ async def run_probe(
 
         supported = Counter()
         failures = Counter()
+        failure_samples: dict[str, list[dict]] = defaultdict(list)
         for market in markets:
             result = parse_weather_contract(market)
             if result.supported:
                 supported[str(result.adapter_version)] += 1
             else:
-                failures[str(result.failure_code or "UNKNOWN")] += 1
+                code = str(result.failure_code or "UNKNOWN")
+                failures[code] += 1
+                if len(failure_samples[code]) < FAILURE_SAMPLE_LIMIT:
+                    failure_samples[code].append(_failure_sample(market))
 
         grouped: dict[str, list[Market]] = defaultdict(list)
         raw_by_id: dict[str, dict] = {}
@@ -139,6 +162,9 @@ async def run_probe(
             "materialized_market_count": len(markets),
             "supported_contract_counts": dict(sorted(supported.items())),
             "unsupported_contract_failure_counts": dict(sorted(failures.items())),
+            "unsupported_contract_failure_samples": {
+                code: rows for code, rows in sorted(failure_samples.items())
+            },
             "temperature_partition_proof_count": len(proofs),
             "temperature_partition_token_count": token_count,
             "complete_set_screen_count": len(screens),
