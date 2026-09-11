@@ -93,6 +93,31 @@ def test_read_linux_proc_metrics_is_read_only_and_testable_with_fake_proc(tmp_pa
     assert (root / "self" / "status").read_bytes() == before_status
 
 
+def test_out_of_process_recorder_can_sample_exact_scanner_pid_not_itself(tmp_path):
+    root = tmp_path / "proc"
+    (root / "self").mkdir(parents=True)
+    (root / "4242").mkdir(parents=True)
+    (root / "meminfo").write_text(MEMINFO, encoding="utf-8")
+    (root / "self" / "status").write_text(
+        "VmRSS: 1000 kB\nVmHWM: 2000 kB\n", encoding="utf-8"
+    )
+    (root / "4242" / "status").write_text(
+        "VmRSS: 180000 kB\nVmHWM: 190000 kB\n", encoding="utf-8"
+    )
+
+    self_row = read_linux_proc_metrics(root)
+    scanner_row = read_linux_proc_metrics(root, process_id=4242)
+    assert self_row.process_rss_bytes == 2000 * 1024
+    assert scanner_row.process_rss_bytes == 190000 * 1024
+
+
+@pytest.mark.parametrize("bad_pid", [True, False, 0, -1, 1.5, "4242"])
+def test_target_process_id_is_strict_positive_integer(bad_pid, tmp_path):
+    with pytest.raises(WeatherW7HostMetricsError) as raised:
+        read_linux_proc_metrics(tmp_path, process_id=bad_pid)
+    assert raised.value.code == "W7_PROCESS_ID_INVALID"
+
+
 def test_proc_read_failure_has_fixed_secret_safe_error(tmp_path):
     with pytest.raises(WeatherW7HostMetricsError) as raised:
         read_linux_proc_metrics(tmp_path / "missing")
