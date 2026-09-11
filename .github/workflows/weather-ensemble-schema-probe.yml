@@ -1,0 +1,76 @@
+name: weather-ensemble-schema-probe
+
+on:
+  push:
+    branches:
+      - weather-ensemble-fairvalue-foundation
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ensemble-schema:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+      - name: Inspect bounded public ensemble schema
+        shell: bash
+        run: |
+          python - <<'PY'
+          import asyncio
+          import json
+          from pathlib import Path
+          import httpx
+
+          async def main():
+              params = {
+                  'latitude': 40.7769,
+                  'longitude': -73.8740,
+                  'daily': 'temperature_2m_max',
+                  'models': 'ncep_gefs_seamless',
+                  'temperature_unit': 'fahrenheit',
+                  'timezone': 'America/New_York',
+                  'forecast_days': 2,
+              }
+              async with httpx.AsyncClient(timeout=20.0, headers={'User-Agent': 'polymarket-weather-only-schema-probe/0.1'}) as client:
+                  response = await client.get('https://ensemble-api.open-meteo.com/v1/ensemble', params=params)
+                  response.raise_for_status()
+                  payload = response.json()
+              daily = payload.get('daily') or {}
+              units = payload.get('daily_units') or {}
+              keys = sorted(str(key) for key in daily)
+              member_keys = [key for key in keys if key != 'time']
+              report = {
+                  'provider': 'Open-Meteo Ensemble API',
+                  'model_requested': 'ncep_gefs_seamless',
+                  'timezone_requested': 'America/New_York',
+                  'temperature_unit_requested': 'fahrenheit',
+                  'top_level_keys': sorted(str(key) for key in payload),
+                  'daily_keys': keys,
+                  'daily_units': {str(key): str(value) for key, value in units.items()},
+                  'member_key_count': len(member_keys),
+                  'member_lengths': {key: len(daily.get(key) or []) for key in member_keys},
+                  'time_length': len(daily.get('time') or []),
+                  'financial_authority': False,
+                  'settlement_authority': False,
+                  'calibration_label_authority': False,
+              }
+              if not member_keys or report['time_length'] != 2:
+                  raise SystemExit(f'unexpected ensemble schema: {report}')
+              Path('weather-ensemble-schema.json').write_text(json.dumps(report, indent=2, sort_keys=True) + '\n')
+              print(json.dumps(report, indent=2, sort_keys=True))
+
+          asyncio.run(main())
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: weather-ensemble-schema-${{ github.sha }}
+          path: weather-ensemble-schema.json
+          if-no-files-found: warn
