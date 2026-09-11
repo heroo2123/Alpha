@@ -2,10 +2,12 @@ from __future__ import annotations
 
 """Read-only live probe for the weather-only branch.
 
-The probe exists to answer two engineering questions before any service deployment:
+The probe exists to answer three engineering questions before any service deployment:
 (1) how large is the current tagged weather catalog and which contracts can be parsed
-without guessing; and (2) do semantically proven daily-temperature partitions show
-any complete-set underround at current exact CLOB best asks?
+without guessing; (2) does the intended weather-only compiler/rule-authority stack
+agree with the independently live-proven rule tree; and (3) do semantically proven
+daily-temperature partitions show any complete-set underround at current exact CLOB
+best asks?
 
 It never writes the account database, never sends Telegram, never places orders and
 never falls back to the general ~200k-market universe walk.
@@ -22,10 +24,12 @@ from pathlib import Path
 from .models import Market
 from .polymarket import PolymarketClient
 from .weather_catalog import WEATHER_PAGE_CEILING, build_census, fetch_weather_events
+from .weather_only_contracts import DAILY_HIGH, DAILY_LOW, compile_weather_event
+from .weather_only_rules import compile_temperature_rule_authority
 from .weather_rule_tree import parse_weather_contract
 from .weather_structural import prove_daily_temperature_partition, screen_complete_set_underround
 
-WEATHER_PROBE_VERSION = "weather_live_probe_v2_read_only_failure_samples"
+WEATHER_PROBE_VERSION = "weather_live_probe_v3_runtime_cross_certification"
 FAILURE_SAMPLE_LIMIT = 3
 FAILURE_SAMPLE_TEXT_LIMIT = 1800
 
@@ -93,6 +97,35 @@ async def run_probe(
                 if len(failure_samples[code]) < FAILURE_SAMPLE_LIMIT:
                     failure_samples[code].append(_failure_sample(market))
 
+        # Independently run the intended weather-only runtime compiler and rule
+        # authority over the same live parent events. This prevents a stricter/newer
+        # runtime path from silently drifting away from semantics already proven by
+        # the diagnostic rule tree.
+        stage = time.monotonic()
+        foundation_family_counts = Counter()
+        foundation_source_counts = Counter()
+        foundation_profile_counts = Counter()
+        foundation_rejections = Counter()
+        foundation_shadow_supported_ids: set[str] = set()
+        foundation_exactly_one_ids: set[str] = set()
+        foundation_temperature_ids: set[str] = set()
+        for event in events:
+            compiled = compile_weather_event(event)
+            foundation_family_counts[compiled.family] += 1
+            foundation_source_counts[compiled.source_family] += 1
+            if compiled.shadow_supported:
+                foundation_shadow_supported_ids.add(compiled.event_id)
+            if compiled.family not in {DAILY_HIGH, DAILY_LOW}:
+                continue
+            foundation_temperature_ids.add(compiled.event_id)
+            authority = compile_temperature_rule_authority(event, compiled)
+            foundation_profile_counts[authority.profile] += 1
+            if authority.exactly_one_outcome_proven:
+                foundation_exactly_one_ids.add(compiled.event_id)
+            for reason in authority.rejection_reasons:
+                foundation_rejections[str(reason)] += 1
+        timings["foundation_cross_cert_seconds"] = time.monotonic() - stage
+
         grouped: dict[str, list[Market]] = defaultdict(list)
         raw_by_id: dict[str, dict] = {}
         for event in events:
@@ -112,6 +145,7 @@ async def run_probe(
             if proof is not None:
                 proofs.append(proof)
         timings["semantic_proof_seconds"] = time.monotonic() - stage
+        proof_event_ids = {proof.event_id for proof in proofs}
 
         screens = []
         token_count = 0
@@ -164,6 +198,19 @@ async def run_probe(
             "unsupported_contract_failure_counts": dict(sorted(failures.items())),
             "unsupported_contract_failure_samples": {
                 code: rows for code, rows in sorted(failure_samples.items())
+            },
+            "foundation_cross_certification": {
+                "temperature_event_count": len(foundation_temperature_ids),
+                "shadow_supported_event_count": len(foundation_shadow_supported_ids),
+                "exactly_one_rule_proven_event_count": len(foundation_exactly_one_ids),
+                "family_counts": dict(sorted(foundation_family_counts.items())),
+                "source_counts": dict(sorted(foundation_source_counts.items())),
+                "rule_profile_counts": dict(sorted(foundation_profile_counts.items())),
+                "rule_rejection_counts": dict(sorted(foundation_rejections.items())),
+                "proof_events_missing_foundation_exactly_one_count": len(proof_event_ids - foundation_exactly_one_ids),
+                "proof_events_missing_foundation_exactly_one_ids": sorted(proof_event_ids - foundation_exactly_one_ids)[:50],
+                "foundation_exactly_one_without_partition_proof_count": len(foundation_exactly_one_ids - proof_event_ids),
+                "financial_authority": False,
             },
             "temperature_partition_proof_count": len(proofs),
             "temperature_partition_token_count": token_count,
