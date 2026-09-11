@@ -8,6 +8,7 @@ import pytest
 
 from polymarket_scanner.weather_only_calibration_worker import (
     CAPTURE_POLICY_ID,
+    STATE_FAILED,
     STATE_REGISTERED,
     WeatherCalibrationResearchWorker,
 )
@@ -172,6 +173,7 @@ class _Collector:
     def __init__(self):
         self.registered = []
         self.ticks = 0
+        self.register_calls = 0
 
     def diagnostic_status(self):
         return [
@@ -183,6 +185,7 @@ class _Collector:
         ]
 
     def register_capture(self, capture):
+        self.register_calls += 1
         self.registered.append(capture)
         return CAPTURE_PENDING
 
@@ -201,6 +204,19 @@ class _Collector:
             financial_delivery=False,
             automatic_order_placement=False,
         )
+
+
+class _RegistrationFailCollector(_Collector):
+    def register_capture(self, capture):
+        self.register_calls += 1
+        raise RuntimeError("simulated registration failure")
+
+
+def _event_state(worker):
+    return worker.state.db.execute(
+        "SELECT * FROM weather_calibration_worker_events WHERE event_id = ?",
+        (_event()["id"],),
+    ).fetchone()
 
 
 def test_worker_freezes_exactly_one_capture_per_event_and_reuses_durable_reservation(tmp_path):
@@ -244,14 +260,12 @@ def test_worker_freezes_exactly_one_capture_per_event_and_reuses_durable_reserva
             assert second["capture"]["registered_events"] == 0
             assert second["capture"]["already_reserved_events"] == 1
             assert len(collector.registered) == 1
+            assert collector.register_calls == 1
             assert station.calls == 1
             assert forecast.calls == 1
             assert collector.ticks == 2
 
-            row = worker.state.db.execute(
-                "SELECT * FROM weather_calibration_worker_events WHERE event_id = ?",
-                (_event()["id"],),
-            ).fetchone()
+            row = _event_state(worker)
             assert row["status"] == STATE_REGISTERED
             assert row["capture_policy_id"] == CAPTURE_POLICY_ID
             assert row["capture_evidence_sha256"] == capture.capture_evidence_sha256
@@ -289,6 +303,7 @@ def test_worker_outside_window_never_discovers_or_forecasts_but_still_ticks_coll
             assert station.calls == 0
             assert forecast.calls == 0
             assert collector.registered == []
+            assert collector.register_calls == 0
             assert collector.ticks == 1
             assert report["financial_authority"] is False
             assert report["financial_delivery"] is False
@@ -296,5 +311,115 @@ def test_worker_outside_window_never_discovers_or_forecasts_but_still_ticks_coll
             assert report["telegram_delivery"] is False
         finally:
             await worker.close()
+
+    asyncio.run(scenario())
+
+
+def test_registration_failure_terminally_consumes_event_and_cannot_select_replacement_forecast(tmp_path):
+    async def scenario():
+        discovery = _Discovery([_event()])
+        station = _StationClient(_station_metadata(WINDOW + 0.5))
+        forecast = _ForecastClient(_distribution(WINDOW + 1.5))
+        collector = _RegistrationFailCollector()
+        worker = WeatherCalibrationResearchWorker(
+            db_path=tmp_path / "worker.sqlite",
+            discovery=discovery,
+            station_client=station,
+            forecast_client=forecast,
+            collector=collector,
+            clock=_Clock([
+                WINDOW,
+                WINDOW + 1.0,
+                WINDOW + 2.0,
+                WINDOW + 3.0,
+                WINDOW + 4.0,
+                WINDOW + 5.0,
+                WINDOW + 60.0,
+                WINDOW + 61.0,
+            ]),
+        )
+        try:
+            first = await worker.run_cycle()
+            assert first["capture"]["reserved_events"] == 1
+            assert first["capture"]["registered_events"] == 0
+            assert first["capture"]["errors"]["COLLECTOR_REGISTER:RuntimeError"] == 1
+            row = _event_state(worker)
+            assert row["status"] == STATE_FAILED
+            assert row["failure_code"] == "COLLECTOR_REGISTER:RuntimeError"
+
+            second = await worker.run_cycle()
+            assert second["capture"]["already_reserved_events"] == 1
+            assert second["capture"]["registered_events"] == 0
+            assert collector.register_calls == 1
+            assert station.calls == 1
+            assert forecast.calls == 1
+        finally:
+            await worker.close()
+
+    asyncio.run(scenario())
+
+
+def test_crash_after_collector_registration_reconciles_digest_without_new_forecast(tmp_path):
+    async def scenario():
+        db_path = tmp_path / "worker.sqlite"
+        collector = _Collector()
+        first_discovery = _Discovery([_event()])
+        first_station = _StationClient(_station_metadata(WINDOW + 0.5))
+        first_forecast = _ForecastClient(_distribution(WINDOW + 1.5))
+        first = WeatherCalibrationResearchWorker(
+            db_path=db_path,
+            discovery=first_discovery,
+            station_client=first_station,
+            forecast_client=first_forecast,
+            collector=collector,
+            clock=_Clock([
+                WINDOW,
+                WINDOW + 1.0,
+                WINDOW + 2.0,
+                WINDOW + 3.0,
+                WINDOW + 4.0,
+            ]),
+        )
+
+        def crash_before_state_ack(*args, **kwargs):
+            raise KeyboardInterrupt("simulated process death after collector commit")
+
+        first.state.mark_registered = crash_before_state_ack
+        try:
+            with pytest.raises(KeyboardInterrupt):
+                await first.run_cycle()
+            row = _event_state(first)
+            assert row["status"] != STATE_REGISTERED
+            assert len(collector.registered) == 1
+            assert collector.register_calls == 1
+        finally:
+            await first.close()
+
+        second_discovery = _Discovery([_event()])
+        second_station = _StationClient(_station_metadata(WINDOW + 60.0))
+        second_forecast = _ForecastClient(_distribution(WINDOW + 60.0))
+        second = WeatherCalibrationResearchWorker(
+            db_path=db_path,
+            discovery=second_discovery,
+            station_client=second_station,
+            forecast_client=second_forecast,
+            collector=collector,
+            clock=_Clock([WINDOW + 60.0, WINDOW + 61.0]),
+        )
+        try:
+            report = await second.run_cycle()
+            assert report["reconciled_reservations"] == 1
+            assert report["capture"]["already_reserved_events"] == 1
+            assert report["capture"]["registered_events"] == 0
+            row = _event_state(second)
+            assert row["status"] == STATE_REGISTERED
+            assert row["registration_status"] == CAPTURE_PENDING
+            assert collector.register_calls == 1
+            assert first_station.calls == 1
+            assert first_forecast.calls == 1
+            assert second_station.calls == 0
+            assert second_forecast.calls == 0
+        finally:
+            await second.close()
 
     asyncio.run(scenario())
