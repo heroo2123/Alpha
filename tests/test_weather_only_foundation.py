@@ -5,6 +5,7 @@ import httpx
 import pytest
 
 from polymarket_scanner.models import Book
+from polymarket_scanner.weather_only_clob import WeatherMarketParameters
 from polymarket_scanner.weather_only_contracts import (
     DAILY_HIGH,
     DAILY_LOW,
@@ -193,24 +194,47 @@ def _book(token, ask, size=10.0):
     return Book(token_id=token, bids=[], asks=[(ask, size)], received_at=1.0, source="exact_clob_test")
 
 
-def test_binary_yes_no_underround_uses_exact_books_and_explicit_fee_rate():
+def _fee_parameters(compiled, *, rate=0.05, exponent=1):
+    out = {}
+    for bucket in compiled.buckets:
+        out[bucket.condition_id] = WeatherMarketParameters(
+            condition_id=bucket.condition_id,
+            token_outcomes=((bucket.yes_token, "Yes"), (bucket.no_token, "No")),
+            minimum_order_size=1.0,
+            minimum_tick_size=0.01,
+            fee_rate=rate,
+            fee_exponent=exponent,
+            taker_only=True if rate > 0 else None,
+            maker_base_fee_bps=0,
+            taker_base_fee_bps=0,
+            rfq_enabled=False,
+            taker_delay_enabled=False,
+            received_at=1.0,
+        )
+    return out
+
+
+def test_binary_yes_no_underround_uses_exact_books_and_explicit_fee_schedule():
     compiled = compile_weather_event(_nyc_event())
     bucket = compiled.buckets[0]
     books = {
         bucket.yes_token: _book(bucket.yes_token, 0.45, 8.0),
         bucket.no_token: _book(bucket.no_token, 0.45, 5.0),
     }
-    out = binary_pair_underround(compiled, books, {bucket.condition_id: 0.05})
+    params = _fee_parameters(compiled)
+    out = binary_pair_underround(compiled, books, params)
     assert len(out) == 1
     candidate = out[0]
     assert candidate.lane == "weather_binary_pair_underround"
     assert candidate.evidence_class == "DETERMINISTIC"
+    assert candidate.fee_rates == (0.05, 0.05)
+    assert candidate.fee_exponents == (1, 1)
     assert candidate.locked_profit_per_set > 0
     assert candidate.common_best_ask_shares == 5.0
     assert candidate.financial_authority is False
 
 
-def test_binary_underround_refuses_missing_market_specific_fee_rate():
+def test_binary_underround_refuses_missing_market_specific_parameters():
     compiled = compile_weather_event(_nyc_event())
     bucket = compiled.buckets[0]
     books = {
@@ -223,11 +247,11 @@ def test_binary_underround_refuses_missing_market_specific_fee_rate():
 def test_complete_bucket_underround_requires_semantic_exactly_one_proof():
     compiled = compile_weather_event(_nyc_event())
     books = {bucket.yes_token: _book(bucket.yes_token, 0.20, 7.0) for bucket in compiled.buckets}
-    rates = {bucket.condition_id: 0.05 for bucket in compiled.buckets}
-    assert complete_bucket_underround(compiled, books, rates) is None
+    params = _fee_parameters(compiled)
+    assert complete_bucket_underround(compiled, books, params) is None
 
     certified = replace(compiled, exactly_one_outcome_proven=True)
-    candidate = complete_bucket_underround(certified, books, rates)
+    candidate = complete_bucket_underround(certified, books, params)
     assert candidate is not None
     assert candidate.lane == "weather_complete_bucket_underround"
     assert candidate.contract_partition_proven is True
@@ -244,8 +268,8 @@ def test_incomplete_bucket_partition_never_gets_complete_set_candidate():
     assert compiled.partition_shape_complete is False
     forced_semantics = replace(compiled, exactly_one_outcome_proven=True)
     books = {bucket.yes_token: _book(bucket.yes_token, 0.20) for bucket in forced_semantics.buckets}
-    rates = {bucket.condition_id: 0.05 for bucket in forced_semantics.buckets}
-    assert complete_bucket_underround(forced_semantics, books, rates) is None
+    params = _fee_parameters(forced_semantics)
+    assert complete_bucket_underround(forced_semantics, books, params) is None
 
 
 def test_inventory_report_never_claims_financial_authority():
