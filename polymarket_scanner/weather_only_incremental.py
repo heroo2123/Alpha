@@ -135,8 +135,9 @@ def validate_weather_incremental_latency_measurement(
     elapsed = _finite(measurement.incremental_evaluation_seconds, "INCREMENTAL_MEASUREMENT_LATENCY_INVALID")
     if finished < started:
         raise WeatherIncrementalError("INCREMENTAL_MEASUREMENT_TIME_ORDER_INVALID")
-    # Wall elapsed can exceed or differ from monotonic elapsed, but it cannot be
-    # materially shorter in a valid same-process measurement interval.
+    # measure_weather_incremental_evaluation deliberately takes the wall start
+    # before the monotonic start and the monotonic finish before the wall finish, so
+    # the wall interval brackets the monotonic interval without a cross-clock fudge.
     if (finished - started) + 1e-9 < elapsed:
         raise WeatherIncrementalError("INCREMENTAL_MEASUREMENT_CLOCK_DOMAINS_INCONSISTENT")
     if any((
@@ -241,8 +242,11 @@ async def measure_weather_incremental_evaluation(
 ) -> tuple[WeatherIncrementalEvaluationReceipt, WeatherIncrementalLatencyMeasurement]:
     if not callable(monotonic_clock) or not callable(wall_clock):
         raise WeatherIncrementalError("INCREMENTAL_CLOCK_INVALID")
-    started_mono = _finite(monotonic_clock(), "INCREMENTAL_MONOTONIC_INVALID")
+    # Bracket the monotonic interval inside the wall interval. This ordering matters:
+    # sampling monotonic first at start can make a perfectly valid wall interval a
+    # few microseconds shorter on real hosts and falsely trip the consistency gate.
     started_wall = _finite(wall_clock(), "INCREMENTAL_WALL_CLOCK_INVALID")
+    started_mono = _finite(monotonic_clock(), "INCREMENTAL_MONOTONIC_INVALID")
     receipt = await evaluate_weather_event_incrementally(event, clob=clob)
     finished_mono = _finite(monotonic_clock(), "INCREMENTAL_MONOTONIC_INVALID")
     finished_wall = _finite(wall_clock(), "INCREMENTAL_WALL_CLOCK_INVALID")
