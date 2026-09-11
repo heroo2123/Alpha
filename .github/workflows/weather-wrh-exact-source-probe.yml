@@ -19,7 +19,7 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install -r requirements.txt
-      - name: Inspect bounded official WRH hourly response
+      - name: Inspect official WRH shell and viewer transport code
         shell: bash
         run: |
           python - <<'PY'
@@ -29,7 +29,8 @@ jobs:
           from pathlib import Path
           import httpx
 
-          url = 'https://www.weather.gov/wrh/timeseries'
+          base = 'https://www.weather.gov'
+          page_url = base + '/wrh/timeseries'
           params = {
               'site': 'KLGA',
               'hours': '48',
@@ -40,44 +41,96 @@ jobs:
               'chart': 'off',
           }
           headers = {
-              'User-Agent': 'polymarket-weather-only-wrh-probe/0.1 (+https://github.com/heroo2123/Alpha)',
-              'Accept': 'text/html,application/xhtml+xml',
+              'User-Agent': 'polymarket-weather-only-wrh-probe/0.2 (+https://github.com/heroo2123/Alpha)',
+              'Accept': '*/*',
           }
-          response = httpx.get(url, params=params, headers=headers, timeout=20.0, follow_redirects=True)
-          response.raise_for_status()
-          body = response.text
-          lower = body.lower()
-          scripts = re.findall(r'<script[^>]+src=["\']([^"\']+)', body, re.I)
-          tables = len(re.findall(r'<table\b', body, re.I))
+          with httpx.Client(headers=headers, timeout=20.0, follow_redirects=True) as client:
+              page = client.get(page_url, params=params)
+              page.raise_for_status()
+              body = page.text
+              script_match = re.search(
+                  r'<script[^>]+src=["\']([^"\']*?/source/wrh/timeseries/obs\.js[^"\']*)',
+                  body,
+                  re.I,
+              )
+              if not script_match:
+                  raise SystemExit('WRH viewer obs.js script not found')
+              script_src = script_match.group(1)
+              script_url = script_src if script_src.startswith('http') else base + script_src
+              obs = client.get(script_url)
+              obs.raise_for_status()
+              js = obs.text
+
+          # Extract only transport/transform context; never fetch or print apiKey.js.
+          patterns = (
+              r'api\.synopticdata[^\s"\']*',
+              r'synopticdata[^\s"\']*',
+              r'mesowest[^\s"\']*',
+              r'fetch\s*\(',
+              r'\$\.ajax',
+              r'\$\.getJSON',
+              r'XMLHttpRequest',
+              r'apiKey',
+              r'token',
+              r'stid',
+              r'vars=',
+              r'obtimezone',
+              r'date_time',
+              r'air_temp',
+              r'hourly',
+              r'qc=',
+              r'units=',
+          )
+          hits = []
+          lines = js.splitlines()
+          for index, line in enumerate(lines):
+              if any(re.search(pattern, line, re.I) for pattern in patterns):
+                  start = max(0, index - 3)
+                  end = min(len(lines), index + 5)
+                  excerpt = '\n'.join(lines[start:end])
+                  # Redact common key/token assignment/query forms defensively.
+                  excerpt = re.sub(
+                      r'(?i)(?:token|apikey|api_key|key)(\s*[=:]\s*["\'])[^"\']+(["\'])',
+                      r'\1<REDACTED>\2',
+                      excerpt,
+                  )
+                  excerpt = re.sub(
+                      r'(?i)((?:token|apikey|api_key|key)=)[^&\s"\']+',
+                      r'\1<REDACTED>',
+                      excerpt,
+                  )
+                  hits.append({'line': index + 1, 'excerpt': excerpt})
+
+          # De-duplicate overlapping excerpts while preserving order.
+          unique = []
+          seen = set()
+          for hit in hits:
+              key = hit['excerpt']
+              if key not in seen:
+                  seen.add(key)
+                  unique.append(hit)
+
           report = {
-              'requested_url': str(response.request.url),
-              'final_url': str(response.url),
-              'status_code': response.status_code,
-              'content_type': response.headers.get('content-type'),
-              'body_bytes': len(response.content),
-              'body_sha256': hashlib.sha256(response.content).hexdigest(),
-              'table_count': tables,
-              'contains_klga': 'klga' in lower,
-              'contains_temp': 'temp' in lower,
-              'contains_hourly': 'hourly' in lower,
-              'contains_loading': 'loading' in lower,
-              'script_srcs': scripts,
+              'page_url': str(page.url),
+              'page_status': page.status_code,
+              'page_body_bytes': len(page.content),
+              'page_body_sha256': hashlib.sha256(page.content).hexdigest(),
+              'viewer_script_url': script_url,
+              'viewer_script_status': obs.status_code,
+              'viewer_script_bytes': len(obs.content),
+              'viewer_script_sha256': hashlib.sha256(obs.content).hexdigest(),
+              'viewer_script_line_count': len(lines),
+              'transport_context': unique,
+              'api_key_script_fetched': False,
           }
-          for needle in ('KLGA', 'Temp', '<table', 'hourly', 'timeseries'):
-              index = lower.find(needle.lower())
-              if index >= 0:
-                  report[f'excerpt_{needle.replace("<", "")}'] = body[max(0, index-250):index+750]
-          Path('wrh-source-probe.json').write_text(json.dumps(report, indent=2, sort_keys=True) + '\n')
-          Path('wrh-source-probe.html').write_text(body)
+          Path('wrh-transport-probe.json').write_text(json.dumps(report, indent=2, sort_keys=True) + '\n')
           print(json.dumps(report, indent=2, sort_keys=True))
-          if response.status_code != 200 or not body:
-              raise SystemExit('WRH source response unavailable')
+          if not unique:
+              raise SystemExit('WRH transport/transform code not located')
           PY
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: weather-wrh-source-${{ github.sha }}
-          path: |
-            wrh-source-probe.json
-            wrh-source-probe.html
+          name: weather-wrh-transport-${{ github.sha }}
+          path: wrh-transport-probe.json
           if-no-files-found: warn
