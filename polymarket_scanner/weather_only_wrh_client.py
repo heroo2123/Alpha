@@ -34,7 +34,7 @@ from .weather_only_wrh import (
 )
 
 
-WRH_LIVE_CLIENT_VERSION = "nws_wrh_live_transport_v3_origin_bound_mesotoken"
+WRH_LIVE_CLIENT_VERSION = "nws_wrh_live_transport_v4_response_receipt_timestamp"
 WRH_TIMESERIES_PAGE = "https://www.weather.gov/wrh/timeseries"
 WRH_BROWSER_ORIGIN = "https://www.weather.gov"
 WRH_API_KEY_SCRIPT_PATH = "/source/wrh/apiKey.js"
@@ -106,15 +106,20 @@ def _calendar_date(value: object, code: str) -> date:
     return value
 
 
-def _timestamp(value: object | None) -> float:
+def _provided_timestamp(value: object | None) -> float | None:
+    """Validate a deterministic test override without inventing a production receipt time."""
     if value is None:
-        return time.time()
+        return None
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise WRHSourceError("WRH_LIVE_RECEIVED_AT_INVALID")
     number = float(value)
     if not math.isfinite(number) or number < 0.0:
         raise WRHSourceError("WRH_LIVE_RECEIVED_AT_INVALID")
     return number
+
+
+def _now() -> float:
+    return time.time()
 
 
 def _station(value: object) -> str:
@@ -237,7 +242,7 @@ class NWSWRHLiveClient:
         *,
         http_client: httpx.Client | None = None,
         timeout_seconds: float = 20.0,
-        user_agent: str = "polymarket-weather-only-wrh-live/3.0 (+https://github.com/heroo2123/Alpha)",
+        user_agent: str = "polymarket-weather-only-wrh-live/4.0 (+https://github.com/heroo2123/Alpha)",
     ) -> None:
         if isinstance(timeout_seconds, bool) or not isinstance(timeout_seconds, (int, float)):
             raise ValueError("timeout_seconds must be numeric")
@@ -269,7 +274,7 @@ class NWSWRHLiveClient:
         station_id = _station(station)
         target = _calendar_date(target_date, "WRH_LIVE_TARGET_DATE_INVALID")
         following = target + timedelta(days=1)
-        fetched_at = _timestamp(received_at)
+        received_override = _provided_timestamp(received_at)
         client, owned = self._client()
         try:
             shell_params = {
@@ -329,6 +334,10 @@ class NWSWRHLiveClient:
                 headers={"Origin": WRH_BROWSER_ORIGIN},
                 code="WRH_LIVE_BACKEND_HTTP_ERROR",
             )
+            # For production finality evidence the timestamp must represent a state
+            # that has actually arrived, never the beginning of a possibly slow HTTP
+            # request. Deterministic tests may still supply an explicit override.
+            fetched_at = received_override if received_override is not None else _now()
             try:
                 payload = backend.json()
             except ValueError:
