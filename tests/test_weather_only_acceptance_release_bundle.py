@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from dataclasses import replace
 
@@ -23,7 +24,11 @@ from polymarket_scanner.weather_only_acceptance_release_bundle import (
 from test_weather_only_acceptance_bundle import SHA, START, _base_envelope, _unchanged_containment
 
 
-def _attestation(captured_at: float, *, pid: int = 321, runtime_sha: str = "d" * 64):
+CMDLINE = b"python\0-m\0polymarket_scanner.weather_only_runtime\0"
+CMDLINE_SHA = hashlib.sha256(CMDLINE).hexdigest()
+
+
+def _attestation(captured_at: float, *, pid: int = 321, runtime_sha: str = "d" * 64, cmdline_sha: str = CMDLINE_SHA):
     shell = WeatherW7ReleaseAttestation(
         version=WEATHER_W7_RELEASE_VERSION,
         captured_at=captured_at,
@@ -32,6 +37,7 @@ def _attestation(captured_at: float, *, pid: int = 321, runtime_sha: str = "d" *
         release_marker_sha256="1" * 64,
         app_dir_sha256="2" * 64,
         scanner_cwd_sha256="2" * 64,
+        scanner_cmdline_sha256=cmdline_sha,
         runtime_source_sha256=runtime_sha,
         scanner_process_id=pid,
         evidence_sha256="0" * 64,
@@ -68,13 +74,14 @@ def test_release_bound_bundle_round_trip_and_expected_sha(tmp_path):
     assert report.passed is True
     assert bundle.release_manifest.before.release_sha == SHA
     assert bundle.release_manifest.after.release_sha == SHA
+    assert bundle.release_manifest.before.scanner_cmdline_sha256 == CMDLINE_SHA
     assert bundle.financial_authority is False
     assert bundle.financial_delivery is False
     assert bundle.detector_promotion_authority is False
     assert bundle.automatic_order_placement is False
 
 
-def test_release_claim_process_and_time_must_cross_link_to_inner_bundle(tmp_path):
+def test_release_claim_process_cmdline_and_time_must_cross_link_to_inner_bundle(tmp_path):
     bundle = _bundle(tmp_path)
     with pytest.raises(WeatherW7ReleaseBundleError) as expected:
         validate_weather_w7_release_bound_bundle(bundle, expected_release_sha="b" * 40)
@@ -90,6 +97,17 @@ def test_release_claim_process_and_time_must_cross_link_to_inner_bundle(tmp_path
             release_manifest=wrong_pid_manifest,
         )
     assert pid.value.code == "W7_RELEASE_BUNDLE_PROCESS_ID_MISMATCH"
+
+    wrong_cmd = build_weather_w7_release_manifest(
+        before=_attestation(START - 2.0, cmdline_sha="f" * 64),
+        after=_attestation(START + 2702.0, cmdline_sha="f" * 64),
+    )
+    with pytest.raises(WeatherW7ReleaseBundleError) as cmd:
+        build_weather_w7_release_bound_bundle(
+            acceptance_bundle=bundle.acceptance_bundle,
+            release_manifest=wrong_cmd,
+        )
+    assert cmd.value.code == "W7_RELEASE_BUNDLE_CMDLINE_MISMATCH"
 
     late_manifest = build_weather_w7_release_manifest(
         before=_attestation(START + 1.0),
