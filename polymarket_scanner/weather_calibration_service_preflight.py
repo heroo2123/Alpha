@@ -16,7 +16,6 @@ and never grants trading authority.
 import argparse
 import inspect
 import json
-import os
 import re
 import sqlite3
 from pathlib import Path
@@ -29,7 +28,7 @@ from .weather_calibration_experiment import (
 )
 
 
-WEATHER_CALIBRATION_SERVICE_PREFLIGHT_VERSION = "weather_calibration_service_preflight_v1_release_package_db_integrity"
+WEATHER_CALIBRATION_SERVICE_PREFLIGHT_VERSION = "weather_calibration_service_preflight_v2_release_package_db_policy_integrity"
 _SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 
 
@@ -100,9 +99,6 @@ def _database_preflight(path: Path) -> dict:
     except sqlite3.Error:
         raise WeatherCalibrationServicePreflightError("SERVICE_DB_READ_FAILED") from None
 
-    # A pre-existing worker DB must contain both worker and trusted WRH collector
-    # state. Horizon evidence is allowed to be absent until the first registered
-    # capture is attested by the operational runtime.
     required = {"weather_calibration_worker_events", "wrh_collector_captures", "wrh_collector_keys", "wrh_collector_snapshots"}
     if tables and not required.issubset(tables):
         raise WeatherCalibrationServicePreflightError("SERVICE_DB_SCHEMA_PARTIAL")
@@ -137,6 +133,8 @@ def run_service_preflight(*, app_dir: str | Path, release_file: str | Path, db_p
         "capture_policy_id": manifest.capture_policy_id,
         "statistical_policy_status": manifest.statistical_policy_status,
         "statistical_policy_id": manifest.statistical_policy_id,
+        "statistical_policy_sha256": manifest.statistical_policy_sha256,
+        "calibrated_probability_authority": False,
         "database": db_report,
         "network_requests": False,
         "database_mutation": False,
@@ -164,6 +162,7 @@ def main() -> None:
             "version": WEATHER_CALIBRATION_SERVICE_PREFLIGHT_VERSION,
             "ok": False,
             "error": exc.code,
+            "calibrated_probability_authority": False,
             "financial_authority": False,
         }, sort_keys=True))
         raise SystemExit(2)
