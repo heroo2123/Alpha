@@ -3,13 +3,14 @@ from __future__ import annotations
 """Trusted-clock authority façade for the prospective WRH collector.
 
 ``WeatherWRHProspectiveCollector`` deliberately retains explicit timestamp overrides
-as a deterministic lower-level test primitive.  Production calibration collection
-must enter through this module instead: callers may submit a digest-validated
-prospective capture, but they cannot choose registration time, tick time, the WRH
-snapshot receipt time, or any financial/trading authority flag.
+and raw persistence inspection as deterministic lower-level engineering primitives.
+Production calibration collection must enter through this module instead: callers
+may submit a digest-validated prospective capture, but they cannot choose registration
+time, tick time, WRH snapshot receipt time, or read persisted authorized JSON as if it
+were independently trusted evidence.
 
-The clock is injected once at construction only so tests can be deterministic.  In
-production the default is ``time.time``.  Every observed clock value is validated and
+The clock is injected once at construction only so tests can be deterministic. In
+production the default is ``time.time``. Every observed clock value is validated and
 clock regression fails closed for the lifetime of the process.
 """
 
@@ -27,7 +28,7 @@ from .weather_only_wrh_collector import (
 )
 
 
-TRUSTED_WRH_COLLECTOR_AUTHORITY_VERSION = "weather_wrh_collector_authority_v1_owned_wall_clock"
+TRUSTED_WRH_COLLECTOR_AUTHORITY_VERSION = "weather_wrh_collector_authority_v2_owned_clock_no_raw_authorized_reads"
 
 
 class TrustedWeatherWRHCollectorClockError(WeatherWRHCollectorError):
@@ -35,7 +36,7 @@ class TrustedWeatherWRHCollectorClockError(WeatherWRHCollectorError):
 
 
 class TrustedWeatherWRHProspectiveCollector:
-    """Production-safe façade whose registration/tick timestamps are not caller-settable."""
+    """Production-safe façade whose timing and evidence authority are not caller-settable."""
 
     financial_authority = False
     financial_delivery = False
@@ -86,9 +87,30 @@ class TrustedWeatherWRHProspectiveCollector:
             raise WeatherWRHCollectorError("TRUSTED_COLLECTOR_AUTHORITY_BOUNDARY_BROKEN")
         return report
 
-    def records(self) -> list[dict]:
-        """Return redacted/digest-bound research records; never raw backend payloads or tokens."""
-        return self._collector.records()
+    def diagnostic_status(self) -> list[dict]:
+        """Expose only non-authoritative status metadata from persistence.
+
+        Persisted settlement/authorized JSON is intentionally reduced to presence
+        booleans here. A future calibration sample reader must rehydrate the frozen
+        capture + snapshots and recompute the strict authority gate; it must not trust
+        serialized ``authorized_json`` directly.
+        """
+        result: list[dict] = []
+        for row in self._collector.records():
+            result.append({
+                "capture_evidence_sha256": row["capture_evidence_sha256"],
+                "station": row["station"],
+                "target_date": row["target_date"],
+                "family": row["family"],
+                "registered_at": row["registered_at"],
+                "status": row["status"],
+                "failure_code": row["failure_code"],
+                "settlement_evidence_present": "settlement_evidence" in row,
+                "authorized_evidence_present": "authorized" in row,
+                "updated_at": row["updated_at"],
+                "financial_authority": False,
+            })
+        return result
 
     def close(self) -> None:
         self._collector.close()
