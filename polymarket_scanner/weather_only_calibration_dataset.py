@@ -7,10 +7,11 @@ promotion criteria. The caller must supply an immutable ``CalibrationPolicy``. T
 keeps policy choice separate from the already-observed prospective dataset and avoids
 post-outcome tuning.
 
-Only records emitted by the strict source-recomputing reader are accepted. The exact
-label adapter, source role, evidence version and authority/reconstructability flags are
-carried through verbatim into ``ProbabilityCalibrationSample``. Stored authorization
-JSON is never consumed as calibration authority and financial authority remains false.
+Only records emitted by the strict source- and horizon-recomputing reader are accepted.
+The exact label adapter, source role, evidence version and authority/reconstructability
+flags are carried through verbatim into ``ProbabilityCalibrationSample``. Stored
+authorization JSON is never consumed as calibration authority and financial authority
+remains false.
 """
 
 import argparse
@@ -30,7 +31,7 @@ from .weather_only_calibration_reader import (
 )
 
 
-WEATHER_CALIBRATION_DATASET_VERSION = "weather_calibration_dataset_v1_strict_reader_policy_external"
+WEATHER_CALIBRATION_DATASET_VERSION = "weather_calibration_dataset_v2_strict_source_horizon_policy_external"
 
 
 class WeatherCalibrationDatasetError(RuntimeError):
@@ -45,8 +46,10 @@ class ReconstructedCalibrationDataset:
     reader_version: str
     authorized_row_count: int
     model_versions: tuple[str, ...]
+    capture_policy_ids: tuple[str, ...]
     samples: tuple[ProbabilityCalibrationSample, ...]
     source_recomputed: bool = field(init=False, default=True)
+    horizon_recomputed: bool = field(init=False, default=True)
     stored_authorized_json_used_as_authority: bool = field(init=False, default=False)
     financial_authority: bool = field(init=False, default=False)
 
@@ -56,9 +59,11 @@ class ReconstructedCalibrationDataset:
             "reader_version": self.reader_version,
             "authorized_row_count": self.authorized_row_count,
             "model_versions": list(self.model_versions),
+            "capture_policy_ids": list(self.capture_policy_ids),
             "sample_count": len(self.samples),
             "samples": [asdict(sample) for sample in self.samples],
             "source_recomputed": self.source_recomputed,
+            "horizon_recomputed": self.horizon_recomputed,
             "stored_authorized_json_used_as_authority": self.stored_authorized_json_used_as_authority,
             "financial_authority": self.financial_authority,
         }
@@ -73,6 +78,10 @@ def _require_reader_boundary(report: dict) -> None:
         raise WeatherCalibrationDatasetError("DATASET_READER_NOT_READ_ONLY")
     if report.get("source_recomputed") is not True:
         raise WeatherCalibrationDatasetError("DATASET_SOURCE_NOT_RECOMPUTED")
+    if report.get("horizon_recomputed") is not True:
+        raise WeatherCalibrationDatasetError("DATASET_HORIZON_NOT_RECOMPUTED")
+    if report.get("preregistered_capture_horizon_required") is not True:
+        raise WeatherCalibrationDatasetError("DATASET_CAPTURE_HORIZON_NOT_REQUIRED")
     if report.get("stored_authorized_json_used_as_authority") is not False:
         raise WeatherCalibrationDatasetError("DATASET_STORED_AUTHORITY_SHORTCUT")
     if report.get("financial_authority") is not False:
@@ -84,6 +93,8 @@ def _sample_from_record(record: object) -> ProbabilityCalibrationSample:
         raise WeatherCalibrationDatasetError("DATASET_RECORD_INVALID")
     if record.get("source_recomputed") is not True:
         raise WeatherCalibrationDatasetError("DATASET_RECORD_SOURCE_NOT_RECOMPUTED")
+    if record.get("horizon_recomputed") is not True:
+        raise WeatherCalibrationDatasetError("DATASET_RECORD_HORIZON_NOT_RECOMPUTED")
     if record.get("stored_authorized_json_used_as_authority") is not False:
         raise WeatherCalibrationDatasetError("DATASET_RECORD_STORED_AUTHORITY_SHORTCUT")
     if record.get("calibration_label_authority") is not True:
@@ -95,6 +106,8 @@ def _sample_from_record(record: object) -> ProbabilityCalibrationSample:
         "event_id",
         "station",
         "model_version",
+        "capture_policy_id",
+        "capture_horizon_evidence_sha256",
         "label_adapter",
         "source_role",
         "evidence_version",
@@ -140,11 +153,13 @@ def dataset_from_reader_report(report: dict) -> ReconstructedCalibrationDataset:
     if len(set(event_ids)) != len(event_ids):
         raise WeatherCalibrationDatasetError("DATASET_DUPLICATE_EVENT")
     model_versions = tuple(sorted({sample.model_version for sample in samples}))
+    capture_policy_ids = tuple(sorted({str(record["capture_policy_id"]) for record in records}))
     return ReconstructedCalibrationDataset(
         version=WEATHER_CALIBRATION_DATASET_VERSION,
         reader_version=WEATHER_CALIBRATION_READER_VERSION,
         authorized_row_count=authorized_count,
         model_versions=model_versions,
+        capture_policy_ids=capture_policy_ids,
         samples=samples,
     )
 
