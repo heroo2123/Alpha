@@ -268,9 +268,9 @@ def test_maker_bid_refuses_to_cross_ask_or_overpay_fair_lower_bound():
 def test_complete_set_inventory_counts_only_confirmed_balanced_shares_as_locked():
     tokens = ("a-yes", "b-yes", "c-yes")
     fills = [
-        ConfirmedFill("e", "a", tokens[0], "Yes", 10, 0.20),
-        ConfirmedFill("e", "b", tokens[1], "Yes", 8, 0.25),
-        ConfirmedFill("e", "c", tokens[2], "Yes", 12, 0.30),
+        ConfirmedFill("e", "a", tokens[0], "Yes", 10, 0.20, fill_id="fill-a"),
+        ConfirmedFill("e", "b", tokens[1], "Yes", 8, 0.25, fill_id="fill-b"),
+        ConfirmedFill("e", "c", tokens[2], "Yes", 12, 0.30, fill_id="fill-c"),
     ]
     summary = summarize_complete_set_inventory(
         event_id="e",
@@ -283,6 +283,7 @@ def test_complete_set_inventory_counts_only_confirmed_balanced_shares_as_locked(
     assert summary.locked_redemption_value == 8
     assert summary.locked_pnl == pytest.approx(2.0)
     assert dict(summary.residual_shares) == {"a-yes": 2, "b-yes": 0, "c-yes": 4}
+    assert summary.actual_fill_identity_proven is True
     assert summary.financial_authority is False
 
     unproven = summarize_complete_set_inventory(
