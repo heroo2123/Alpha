@@ -4,8 +4,7 @@ from __future__ import annotations
 
 The inner acceptance bundle proves measured latency, process continuity, read-only DB
 containment and code-surface containment. This outer envelope adds independently
-captured before/after Git release provenance and is the artifact that the real W7 run
-must persist and validate.
+captured before/after Git release provenance and scanner entrypoint identity.
 """
 
 import hashlib
@@ -17,12 +16,10 @@ from dataclasses import dataclass, field
 from .weather_only_acceptance_bundle import (
     WeatherW7AcceptanceBundle,
     WeatherW7BundleError,
-    dump_weather_w7_acceptance_bundle_json,
     load_weather_w7_acceptance_bundle_json,
     validate_weather_w7_acceptance_bundle,
 )
 from .weather_only_acceptance_release import (
-    WEATHER_W7_RELEASE_VERSION,
     WeatherW7ReleaseAttestation,
     WeatherW7ReleaseError,
     WeatherW7ReleaseManifest,
@@ -30,14 +27,15 @@ from .weather_only_acceptance_release import (
 )
 
 
-WEATHER_W7_RELEASE_BUNDLE_VERSION = "weather_w7_release_bundle_v1_inner_bundle_git_release_before_after"
+WEATHER_W7_RELEASE_BUNDLE_VERSION = "weather_w7_release_bundle_v2_git_release_cwd_cmdline_crosscheck"
 _SHA40_RE = re.compile(r"^[0-9a-f]{40}$")
 _SHA64_RE = re.compile(r"^[0-9a-f]{64}$")
 _ATTESTATION_KEYS = frozenset({
     "version", "captured_at", "release_sha", "git_head_sha", "release_marker_sha256",
-    "app_dir_sha256", "scanner_cwd_sha256", "runtime_source_sha256", "scanner_process_id",
-    "evidence_sha256", "tracked_tree_clean", "runtime_under_release_checkout",
-    "scanner_cwd_matches_release_checkout", "financial_authority", "financial_delivery",
+    "app_dir_sha256", "scanner_cwd_sha256", "scanner_cmdline_sha256", "runtime_source_sha256",
+    "scanner_process_id", "evidence_sha256", "tracked_tree_clean",
+    "runtime_under_release_checkout", "scanner_cwd_matches_release_checkout",
+    "scanner_entrypoint_verified", "financial_authority", "financial_delivery",
     "automatic_order_placement",
 })
 _MANIFEST_KEYS = frozenset({
@@ -110,12 +108,14 @@ def _positive_int(value: object, code: str) -> int:
 
 def _attestation_from_dict(raw: object) -> WeatherW7ReleaseAttestation:
     row = _exact(raw, _ATTESTATION_KEYS, "W7_RELEASE_BUNDLE_ATTESTATION_SCHEMA_INVALID")
-    for key in (
-        "financial_authority", "financial_delivery", "automatic_order_placement",
-    ):
+    for key in ("financial_authority", "financial_delivery", "automatic_order_placement"):
         _false(row[key])
-    if row["tracked_tree_clean"] is not True or row["runtime_under_release_checkout"] is not True or row["scanner_cwd_matches_release_checkout"] is not True:
-        raise WeatherW7ReleaseBundleError("W7_RELEASE_BUNDLE_RELEASE_IDENTITY_FALSE")
+    for key in (
+        "tracked_tree_clean", "runtime_under_release_checkout",
+        "scanner_cwd_matches_release_checkout", "scanner_entrypoint_verified",
+    ):
+        if row[key] is not True:
+            raise WeatherW7ReleaseBundleError("W7_RELEASE_BUNDLE_RELEASE_IDENTITY_FALSE")
     return WeatherW7ReleaseAttestation(
         version=str(row["version"]),
         captured_at=_number(row["captured_at"], "W7_RELEASE_BUNDLE_CAPTURE_TIME_INVALID"),
@@ -124,6 +124,7 @@ def _attestation_from_dict(raw: object) -> WeatherW7ReleaseAttestation:
         release_marker_sha256=_sha64(row["release_marker_sha256"], "W7_RELEASE_BUNDLE_COMPONENT_SHA_INVALID"),
         app_dir_sha256=_sha64(row["app_dir_sha256"], "W7_RELEASE_BUNDLE_COMPONENT_SHA_INVALID"),
         scanner_cwd_sha256=_sha64(row["scanner_cwd_sha256"], "W7_RELEASE_BUNDLE_COMPONENT_SHA_INVALID"),
+        scanner_cmdline_sha256=_sha64(row["scanner_cmdline_sha256"], "W7_RELEASE_BUNDLE_COMPONENT_SHA_INVALID"),
         runtime_source_sha256=_sha64(row["runtime_source_sha256"], "W7_RELEASE_BUNDLE_COMPONENT_SHA_INVALID"),
         scanner_process_id=_positive_int(row["scanner_process_id"], "W7_RELEASE_BUNDLE_PROCESS_ID_INVALID"),
         evidence_sha256=_sha64(row["evidence_sha256"], "W7_RELEASE_BUNDLE_COMPONENT_SHA_INVALID"),
@@ -208,6 +209,8 @@ def validate_weather_w7_release_bound_bundle(
     containment = row.acceptance_bundle.containment_manifest
     if release.before.scanner_process_id != containment.before_process.process_id or release.after.scanner_process_id != containment.after_process.process_id:
         raise WeatherW7ReleaseBundleError("W7_RELEASE_BUNDLE_PROCESS_ID_MISMATCH")
+    if release.before.scanner_cmdline_sha256 != containment.before_process.cmdline_sha256 or release.after.scanner_cmdline_sha256 != containment.after_process.cmdline_sha256:
+        raise WeatherW7ReleaseBundleError("W7_RELEASE_BUNDLE_CMDLINE_MISMATCH")
     samples = row.acceptance_bundle.w7_evidence.run_evidence.samples
     if samples:
         if release.before.captured_at > samples[0].observed_at + 1e-9:
