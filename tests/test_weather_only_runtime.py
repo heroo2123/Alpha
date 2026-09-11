@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import time
-from dataclasses import replace
 
 from polymarket_scanner.models import Book
 from polymarket_scanner.weather_only_clob import WeatherExecutionSnapshot, WeatherMarketParameters
@@ -64,7 +63,7 @@ def _snapshot(event: dict) -> WeatherDiscoverySnapshot:
         raw_event_hits=2,
         duplicate_event_hits=1,
         unique_event_count=1,
-        unique_market_count=3,
+        unique_market_count=len(event["markets"]),
         started_at=now - 0.1,
         finished_at=now,
     )
@@ -80,8 +79,17 @@ def _book(token: str, ask: float, size: float = 10.0) -> Book:
     )
 
 
-def _parameters(event: dict, fee_rate: float) -> dict[str, WeatherMarketParameters]:
+def _parameters(
+    event: dict,
+    fee_rate: float,
+    *,
+    fee_exponent: int | None = None,
+    taker_only: bool | None = None,
+    taker_base_fee_bps: int = 0,
+) -> dict[str, WeatherMarketParameters]:
     now = time.time()
+    exponent = (0 if fee_rate == 0 else 1) if fee_exponent is None else fee_exponent
+    taker_flag = (None if fee_rate == 0 else True) if taker_only is None else taker_only
     out = {}
     for row in event["markets"]:
         condition = row["conditionId"]
@@ -92,10 +100,10 @@ def _parameters(event: dict, fee_rate: float) -> dict[str, WeatherMarketParamete
             minimum_order_size=1.0,
             minimum_tick_size=0.01,
             fee_rate=fee_rate,
-            fee_exponent=None,
-            taker_only=None,
+            fee_exponent=exponent,
+            taker_only=taker_flag,
             maker_base_fee_bps=0,
-            taker_base_fee_bps=0,
+            taker_base_fee_bps=taker_base_fee_bps,
             rfq_enabled=None,
             taker_delay_enabled=None,
             received_at=now,
@@ -103,7 +111,15 @@ def _parameters(event: dict, fee_rate: float) -> dict[str, WeatherMarketParamete
     return out
 
 
-def _execution_snapshot(event: dict, yes_ask: float, fee_rate: float = 0.0) -> WeatherExecutionSnapshot:
+def _execution_snapshot(
+    event: dict,
+    yes_ask: float,
+    fee_rate: float = 0.0,
+    *,
+    fee_exponent: int | None = None,
+    taker_only: bool | None = None,
+    taker_base_fee_bps: int = 0,
+) -> WeatherExecutionSnapshot:
     now = time.time()
     books = {}
     for row in event["markets"]:
@@ -114,7 +130,13 @@ def _execution_snapshot(event: dict, yes_ask: float, fee_rate: float = 0.0) -> W
         version="test",
         event_id=event["id"],
         books=books,
-        parameters=_parameters(event, fee_rate),
+        parameters=_parameters(
+            event,
+            fee_rate,
+            fee_exponent=fee_exponent,
+            taker_only=taker_only,
+            taker_base_fee_bps=taker_base_fee_bps,
+        ),
         started_at=now - 0.01,
         finished_at=now,
         exact_clob=True,
@@ -180,6 +202,8 @@ def test_runtime_records_only_after_second_exact_recheck_and_never_grants_financ
     assert report["financial_delivery"] is False
     assert report["automatic_order_placement"] is False
     assert report["gamma_execution_authority"] is False
+    assert report["market_specific_fee_schedule_required"] is True
+    assert report["fee_exponent_required_for_positive_rate"] is True
     assert report["opportunity_count"] == 1
     assert report["opportunities"][0]["rechecked"] is True
     assert report["opportunities"][0]["financial_authority"] is False
@@ -203,17 +227,46 @@ def test_runtime_discards_candidate_when_second_exact_recheck_is_no_longer_profi
     assert clob.exact_calls == 2
 
 
-def test_runtime_refuses_nonzero_fee_model_until_weather_fee_semantics_are_certified():
+def test_runtime_applies_dynamic_fee_exponent_and_removes_false_raw_underround():
     event = _nws_event()
     clob = FakeCLOB(
         event,
-        exact_sequence=[_execution_snapshot(event, 0.20, 0.05)],
+        prescreen_ask=0.33,
+        exact_sequence=[_execution_snapshot(event, 0.33, 0.05, fee_exponent=1)],
     )
     report = asyncio.run(_cycle(FakeDiscovery(_snapshot(event)), clob))
 
+    # Raw ask sum is 0.99, but current V2 weather fees push the complete set above $1.
+    assert report["prescreen"]["threshold_match_events"] == 1
     assert report["cycle_ok"] is True
     assert report["opportunity_count"] == 0
-    assert report["clob_failure_counts"]["NONZERO_FEE_MODEL_NOT_CERTIFIED"] == 1
+    assert clob.exact_calls == 1
+
+
+def test_runtime_quarantines_positive_fee_if_taker_only_semantics_change():
+    event = _nws_event()
+    snapshot = _execution_snapshot(event, 0.20, 0.05, fee_exponent=1)
+    parameters = {
+        condition: WeatherMarketParameters(
+            **{**params.__dict__, "taker_only": False}
+        )
+        for condition, params in snapshot.parameters.items()
+    }
+    snapshot = WeatherExecutionSnapshot(
+        version=snapshot.version,
+        event_id=snapshot.event_id,
+        books=snapshot.books,
+        parameters=parameters,
+        started_at=snapshot.started_at,
+        finished_at=snapshot.finished_at,
+        exact_clob=True,
+        financial_authority=False,
+    )
+    clob = FakeCLOB(event, exact_sequence=[snapshot])
+    report = asyncio.run(_cycle(FakeDiscovery(_snapshot(event)), clob))
+
+    assert report["opportunity_count"] == 0
+    assert report["clob_failure_counts"]["DYNAMIC_FEE_TAKER_ONLY_UNPROVEN"] == 1
     assert clob.exact_calls == 1
 
 
