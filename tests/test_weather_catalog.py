@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from types import SimpleNamespace
 
 import pytest
@@ -51,7 +52,7 @@ def test_daily_temperature_with_rules_fallback_is_catalogued_as_supported_candid
     assert row.unsupported_reason is None
     assert "www.weather.gov" in row.source_hosts
     assert row.tradable is True
-    assert row.exhaustive_event_candidate is False  # one child is not a complete event proof candidate
+    assert row.exhaustive_event_candidate is False
 
 
 def test_daily_rain_cli_contract_is_recognized():
@@ -98,8 +99,7 @@ class FakeClient:
         return self.pages.get(offset, [])
 
 
-@pytest.mark.asyncio
-async def test_weather_fetch_uses_only_bounded_weather_tag_and_stops_on_short_page(monkeypatch):
+def test_weather_fetch_uses_only_bounded_weather_tag_and_stops_on_short_page(monkeypatch):
     monkeypatch.setattr(wc, "settings", SimpleNamespace(gamma_page_size=2))
     first = [
         event("1", "Highest temperature in X on September 11?", [market("11", "20°C")]),
@@ -108,22 +108,21 @@ async def test_weather_fetch_uses_only_bounded_weather_tag_and_stops_on_short_pa
     second = [event("3", "Where will it rain on September 11?", [market("31", "X")])]
     client = FakeClient({0: first, 2: second})
 
-    events, pages = await wc.fetch_weather_events(client, page_ceiling=5)
+    events, pages = asyncio.run(wc.fetch_weather_events(client, page_ceiling=5))
 
     assert pages == 2
     assert [e["id"] for e in events] == ["1", "2", "3"]
     assert client.calls == [(0, "weather"), (2, "weather")]
 
 
-@pytest.mark.asyncio
-async def test_weather_fetch_fails_closed_if_shallow_catalog_never_exhausts(monkeypatch):
+def test_weather_fetch_fails_closed_if_shallow_catalog_never_exhausts(monkeypatch):
     monkeypatch.setattr(wc, "settings", SimpleNamespace(gamma_page_size=2))
     full_a = [event("1", "A", [market("11", "A")]), event("2", "B", [market("21", "B")])]
     full_b = [event("3", "C", [market("31", "C")]), event("4", "D", [market("41", "D")])]
     client = FakeClient({0: full_a, 2: full_b})
 
     with pytest.raises(UniverseIncompleteError, match="did not exhaust"):
-        await wc.fetch_weather_events(client, page_ceiling=2)
+        asyncio.run(wc.fetch_weather_events(client, page_ceiling=2))
 
 
 def test_census_separates_supported_and_unsupported_weather_families():
