@@ -2,36 +2,22 @@ from __future__ import annotations
 
 """Weather-only structural opportunity primitives.
 
-All functions are pure and require caller-supplied *exact CLOB* books plus a
-market-specific taker fee-rate parameter.  Gamma BBO/midpoint values are not
-execution authority.  These primitives create silent-shadow candidates only;
-``financial_authority`` is deliberately false until the weather runtime performs
-its final live recheck and the containing strategy is separately promoted.
+All functions are pure and require caller-supplied *exact CLOB* books plus the
+market-specific V2 market parameters from the same live recheck. Gamma BBO/midpoint
+values and category fee defaults are not execution authority. These primitives
+create silent-shadow candidates only; ``financial_authority`` remains false until a
+separate final execution/delivery boundary is explicitly promoted.
 """
 
 from dataclasses import asdict, dataclass
 
 from .models import Book
-from .weather_only_contracts import CompiledWeatherEvent, WeatherBucket
+from .weather_only_clob import WeatherMarketParameters, conservative_taker_fee_per_share
+from .weather_only_contracts import CompiledWeatherEvent
 
 
-WEATHER_STRUCTURAL_VERSION = "weather_structural_v1_exact_books_explicit_fees_shadow"
+WEATHER_STRUCTURAL_VERSION = "weather_structural_v2_exact_books_dynamic_fee_exponent_shadow"
 DETERMINISTIC = "DETERMINISTIC"
-
-
-def nominal_taker_fee_per_share(price: float, fee_rate: float) -> float:
-    """Protocol fee curve before trade-total 5-decimal rounding.
-
-    Polymarket currently documents ``C * feeRate * p * (1-p)``.  Runtime code must
-    obtain ``fee_rate`` for the specific market/token rather than assuming the
-    category default.  Rounding and any future fee revision belong to final trade
-    authority, so this shadow primitive never labels itself executable authority.
-    """
-    p = float(price)
-    rate = float(fee_rate)
-    if not (0.0 < p < 1.0) or rate < 0.0:
-        raise ValueError("invalid price or fee rate")
-    return rate * p * (1.0 - p)
 
 
 @dataclass(frozen=True, slots=True)
@@ -44,7 +30,8 @@ class WeatherStructuralOpportunity:
     token_ids: tuple[str, ...]
     ask_prices: tuple[float, ...]
     fee_rates: tuple[float, ...]
-    nominal_fees_per_share: tuple[float, ...]
+    fee_exponents: tuple[int, ...]
+    conservative_fees_per_share: tuple[float, ...]
     gross_cost_per_set: float
     locked_payout_per_set: float
     locked_profit_per_set: float
@@ -67,14 +54,32 @@ def _ask(book: Book | None) -> tuple[float, float] | None:
     return price, size
 
 
-def _fee_rate(condition_id: str, rates: dict[str, float]) -> float | None:
-    if condition_id not in rates:
+def _parameters(
+    condition_id: str,
+    parameters_by_condition: dict[str, WeatherMarketParameters],
+) -> WeatherMarketParameters | None:
+    value = parameters_by_condition.get(condition_id)
+    if not isinstance(value, WeatherMarketParameters):
         return None
-    try:
-        value = float(rates[condition_id])
-    except (TypeError, ValueError):
+    if value.condition_id != condition_id:
         return None
-    return value if 0.0 <= value <= 1.0 else None
+    if not (0.0 <= value.fee_rate <= 1.0) or value.fee_exponent < 0:
+        return None
+    # The V2 SDK fee utility is driven by fd.r/fd.e. We currently have no evidence
+    # that non-zero legacy base-fee fields are additive or redundant, so do not
+    # create a structural opportunity when they are non-zero.
+    if value.taker_base_fee_bps != 0:
+        return None
+    # Current fee-enabled weather market info marks the dynamic schedule taker-only.
+    # If this semantic changes, fail closed instead of guessing how it applies.
+    if value.fee_rate > 0.0 and value.taker_only is not True:
+        return None
+    return value
+
+
+def _tokens_match(parameters: WeatherMarketParameters, wanted: tuple[str, ...]) -> bool:
+    actual = {token for token, _ in parameters.token_outcomes}
+    return all(token in actual for token in wanted)
 
 
 def _opportunity(
@@ -85,11 +90,16 @@ def _opportunity(
     token_ids: list[str],
     asks: list[float],
     sizes: list[float],
-    fee_rates: list[float],
+    parameters: list[WeatherMarketParameters],
     contract_partition_proven: bool,
     min_profit_per_set: float,
 ) -> WeatherStructuralOpportunity | None:
-    fees = [nominal_taker_fee_per_share(price, rate) for price, rate in zip(asks, fee_rates)]
+    if not (len(asks) == len(sizes) == len(parameters) == len(token_ids) == len(market_ids)):
+        return None
+    fees = [
+        conservative_taker_fee_per_share(price, params.fee_rate, params.fee_exponent)
+        for price, params in zip(asks, parameters)
+    ]
     cost = sum(asks) + sum(fees)
     profit = 1.0 - cost
     if profit <= max(0.0, float(min_profit_per_set)):
@@ -103,8 +113,9 @@ def _opportunity(
         market_ids=tuple(market_ids),
         token_ids=tuple(token_ids),
         ask_prices=tuple(asks),
-        fee_rates=tuple(fee_rates),
-        nominal_fees_per_share=tuple(fees),
+        fee_rates=tuple(params.fee_rate for params in parameters),
+        fee_exponents=tuple(params.fee_exponent for params in parameters),
+        conservative_fees_per_share=tuple(fees),
         gross_cost_per_set=cost,
         locked_payout_per_set=1.0,
         locked_profit_per_set=profit,
@@ -118,7 +129,7 @@ def _opportunity(
 def binary_pair_underround(
     compiled: CompiledWeatherEvent,
     books: dict[str, Book],
-    fee_rate_by_condition: dict[str, float],
+    parameters_by_condition: dict[str, WeatherMarketParameters],
     *,
     min_profit_per_set: float = 0.0,
 ) -> list[WeatherStructuralOpportunity]:
@@ -129,8 +140,10 @@ def binary_pair_underround(
             continue
         yes = _ask(books.get(bucket.yes_token))
         no = _ask(books.get(bucket.no_token))
-        rate = _fee_rate(bucket.condition_id, fee_rate_by_condition)
-        if yes is None or no is None or rate is None:
+        params = _parameters(bucket.condition_id, parameters_by_condition)
+        if yes is None or no is None or params is None:
+            continue
+        if not _tokens_match(params, (bucket.yes_token, bucket.no_token)):
             continue
         opportunity = _opportunity(
             lane="weather_binary_pair_underround",
@@ -139,7 +152,7 @@ def binary_pair_underround(
             token_ids=[bucket.yes_token, bucket.no_token],
             asks=[yes[0], no[0]],
             sizes=[yes[1], no[1]],
-            fee_rates=[rate, rate],
+            parameters=[params, params],
             contract_partition_proven=True,  # Binary child semantics only.
             min_profit_per_set=min_profit_per_set,
         )
@@ -151,16 +164,16 @@ def binary_pair_underround(
 def complete_bucket_underround(
     compiled: CompiledWeatherEvent,
     books: dict[str, Book],
-    fee_rate_by_condition: dict[str, float],
+    parameters_by_condition: dict[str, WeatherMarketParameters],
     *,
     min_profit_per_set: float = 0.0,
 ) -> WeatherStructuralOpportunity | None:
     """Buy one YES in every bucket only after exactly-one semantics are certified.
 
-    ``partition_shape_complete`` proves only the labels appear contiguous.  It is
-    intentionally insufficient.  A source/rule adapter must separately upgrade
+    ``partition_shape_complete`` proves only the labels appear contiguous. It is
+    intentionally insufficient. A source/rule adapter must separately upgrade
     ``exactly_one_outcome_proven`` after proving precision, fallback, no-data and
-    resolution semantics.  Until then this lane returns nothing.
+    resolution semantics. Exact market parameters are also mandatory for every leg.
     """
     if not compiled.partition_shape_complete or not compiled.exactly_one_outcome_proven:
         return None
@@ -171,20 +184,20 @@ def complete_bucket_underround(
     token_ids: list[str] = []
     asks: list[float] = []
     sizes: list[float] = []
-    rates: list[float] = []
+    parameters: list[WeatherMarketParameters] = []
 
     for bucket in compiled.buckets:
         if not bucket.trade_open or not bucket.yes_token:
             return None
         book = _ask(books.get(bucket.yes_token))
-        rate = _fee_rate(bucket.condition_id, fee_rate_by_condition)
-        if book is None or rate is None:
+        params = _parameters(bucket.condition_id, parameters_by_condition)
+        if book is None or params is None or not _tokens_match(params, (bucket.yes_token,)):
             return None
         market_ids.append(bucket.market_id)
         token_ids.append(bucket.yes_token)
         asks.append(book[0])
         sizes.append(book[1])
-        rates.append(rate)
+        parameters.append(params)
 
     return _opportunity(
         lane="weather_complete_bucket_underround",
@@ -193,7 +206,7 @@ def complete_bucket_underround(
         token_ids=token_ids,
         asks=asks,
         sizes=sizes,
-        fee_rates=rates,
+        parameters=parameters,
         contract_partition_proven=True,
         min_profit_per_set=min_profit_per_set,
     )
