@@ -1,0 +1,65 @@
+name: weather-wrh-key-script-discovery
+
+on:
+  push:
+    branches:
+      - weather-wrh-live-client
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  discover-script:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install httpx==0.27.2
+      - name: List only WRH JavaScript references and credential variable names
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          import re
+          from urllib.parse import urljoin, urlparse
+          import httpx
+
+          base = 'https://www.weather.gov'
+          page_url = base + '/wrh/timeseries'
+          params = {'site':'KLGA','hours':'48','units':'english','hourly':'true','obs':'tabular','headers':'none','chart':'off'}
+          with httpx.Client(timeout=20.0, follow_redirects=True, headers={'User-Agent':'wrh-safe-discovery/1.0'}) as client:
+              page = client.get(page_url, params=params)
+              page.raise_for_status()
+              scripts = []
+              for raw in re.findall(r'<script[^>]+src=["\']([^"\']+)["\']', page.text, re.I):
+                  absolute = urljoin(page_url, raw)
+                  parsed = urlparse(absolute)
+                  scripts.append({'host': parsed.netloc, 'path': parsed.path, 'query': parsed.query})
+              obs_url = next(
+                  urljoin(page_url, raw)
+                  for raw in re.findall(r'<script[^>]+src=["\']([^"\']+)["\']', page.text, re.I)
+                  if urlparse(urljoin(page_url, raw)).path.endswith('/source/wrh/timeseries/obs.js')
+              )
+              obs = client.get(obs_url)
+              obs.raise_for_status()
+
+          # Inspect only identifier names/nearby static script references. Never fetch
+          # a credential-bearing resource and never print assignment values.
+          js = obs.text
+          identifiers = sorted(set(re.findall(r'\b[A-Za-z_$][A-Za-z0-9_$]*(?=\s*\+\s*["\']&obtimezone)', js)))
+          static_refs = sorted(set(
+              value for value in re.findall(r'["\']([^"\']+\.js(?:\?[^"\']*)?)["\']', js)
+              if 'key' in value.lower() or 'api' in value.lower() or 'token' in value.lower()
+          ))
+          report = {
+              'page_script_refs': scripts,
+              'viewer_credential_identifier_names': identifiers,
+              'viewer_static_credential_script_refs': static_refs,
+              'credential_resource_fetched': False,
+          }
+          print(json.dumps(report, indent=2, sort_keys=True))
+          PY
