@@ -30,7 +30,7 @@ WorkingDirectory={app_dir}
 Environment=PYTHONUNBUFFERED=1
 EnvironmentFile={config_dir}/weather-paper.env
 ExecStartPre={verifier}
-ExecStart={python} -m polymarket_scanner.weather_only_live_paper --db {state}/weather-paper.sqlite --status {state}/status.json --release-file {config_dir}/release.sha --interval-seconds 180 --forecast-cache-seconds 900 --forecast-raw-gap-min 0.08 --max-forecast-events 6
+ExecStart={python} -m polymarket_scanner.weather_only_live_paper_human --db {state}/weather-paper.sqlite --status {state}/status.json --release-file {config_dir}/release.sha --interval-seconds 180 --forecast-cache-seconds 900 --forecast-raw-gap-min 0.08 --max-forecast-events 6
 Restart=on-failure
 RestartSec=15
 TimeoutStopSec=20
