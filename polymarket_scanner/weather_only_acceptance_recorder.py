@@ -76,7 +76,7 @@ from .weather_only_incremental import (
 )
 from .weather_only_result_lag import evaluate_wrh_official_result_lag_for_w7
 from .weather_only_rules import apply_rule_authority, compile_temperature_rule_authority
-from .weather_only_runtime import WEATHER_SHADOW_RUNTIME_VERSION
+from .weather_only_runtime import DEFAULT_LOOP_INTERVAL_SECONDS, WEATHER_SHADOW_RUNTIME_VERSION
 from .weather_only_wrh import WRHSourceError, WRHSourceSnapshot
 from .weather_only_wrh_client import NWSWRHLiveClient
 
@@ -88,6 +88,8 @@ SOURCE_POLL_EVERY_SAMPLES = 2
 SOURCE_POLL_MAX_ATTEMPTS = 3
 SOURCE_POLL_RETRY_DELAY_SECONDS = 0.25
 MAX_RUNTIME_REPORT_AGE_SECONDS = 90.0
+W7_RUNTIME_REPORT_GRACE_SECONDS = 2 * SAMPLE_INTERVAL_SECONDS
+W7_RUNTIME_REPORT_MAX_AGE_SECONDS = DEFAULT_LOOP_INTERVAL_SECONDS + W7_RUNTIME_REPORT_GRACE_SECONDS
 MAX_RUNTIME_REPORT_BYTES = 2 * 1024 * 1024
 _RETRYABLE_WRH_SOURCE_CODES = frozenset({
     "WRH_LIVE_SHELL_HTTP_ERROR",
@@ -214,6 +216,7 @@ def load_weather_w7_runtime_report(
     path: str | Path,
     *,
     observed_at: float | None = None,
+    max_age_seconds: float = MAX_RUNTIME_REPORT_AGE_SECONDS,
 ) -> WeatherW7RuntimeObservation:
     report_path = Path(path)
     if report_path.is_symlink():
@@ -230,7 +233,11 @@ def load_weather_w7_runtime_report(
     except (OSError, UnicodeError, json.JSONDecodeError):
         raise WeatherW7RecorderError("W7_RECORDER_RUNTIME_REPORT_READ_INVALID") from None
     now = time.time() if observed_at is None else observed_at
-    return parse_weather_w7_runtime_report(payload, observed_at=now)
+    return parse_weather_w7_runtime_report(
+        payload,
+        observed_at=now,
+        max_age_seconds=max_age_seconds,
+    )
 
 
 def _certified_probe(event: object) -> tuple[dict, CompiledWeatherEvent] | None:
@@ -356,10 +363,16 @@ class WeatherW7RecorderSession:
             proc_root=self.proc_root,
         )
         self.read_only_surface = attest_weather_w7_read_only_surface()
+        self.last_runtime_observation = load_weather_w7_runtime_report(
+            self.runtime_report_path,
+            observed_at=self.wall_clock(),
+            max_age_seconds=W7_RUNTIME_REPORT_MAX_AGE_SECONDS,
+        )
         self.samples: list[WeatherW7Sample] = []
         self.incremental_measurements: list[WeatherIncrementalLatencyMeasurement] = []
         self.source_measurements: list[WeatherW7SourceUpdateLatencyMeasurement] = []
         self.source_poll_failure_codes: list[str] = []
+        self.runtime_report_failure_codes: list[str] = []
         self.previous_wrh_snapshot: WRHSourceSnapshot | None = None
         self._sample_index = 0
 
@@ -434,7 +447,11 @@ class WeatherW7RecorderSession:
         source = None
         source_poll_ok = True
         if should_poll:
-            source, source_poll_ok = await self._poll_source_update()
+            try:
+                source, source_poll_ok = await self._poll_source_update()
+            except WeatherW7RecorderError as exc:
+                self.source_poll_failure_codes.append(exc.code)
+                source_poll_ok = False
 
         current_process = read_linux_process_identity(
             self.scanner_process_id,
@@ -445,11 +462,24 @@ class WeatherW7RecorderSession:
             process_id=self.scanner_process_id,
         )
         observed_at = self.wall_clock()
-        runtime = load_weather_w7_runtime_report(
-            self.runtime_report_path,
-            observed_at=observed_at,
+        runtime_report_ok = True
+        try:
+            runtime = load_weather_w7_runtime_report(
+                self.runtime_report_path,
+                observed_at=observed_at,
+                max_age_seconds=W7_RUNTIME_REPORT_MAX_AGE_SECONDS,
+            )
+            self.last_runtime_observation = runtime
+        except WeatherW7RecorderError as exc:
+            self.runtime_report_failure_codes.append(exc.code)
+            runtime = self.last_runtime_observation
+            runtime_report_ok = False
+        cycle_ok = (
+            runtime_report_ok
+            and runtime.cycle_ok
+            and _same_process(self.before_process, current_process)
+            and source_poll_ok
         )
-        cycle_ok = runtime.cycle_ok and _same_process(self.before_process, current_process) and source_poll_ok
         sample = WeatherW7Sample(
             observed_at=observed_at,
             cycle_ok=cycle_ok,
