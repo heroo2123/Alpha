@@ -15,10 +15,8 @@ import os
 import tempfile
 from pathlib import Path
 
-from .weather_only_acceptance_recorder import (
-    WeatherW7RecorderSession,
-    discover_weather_w7_probe_event,
-)
+from .weather_only_acceptance_recorder import discover_weather_w7_probe_event
+from .weather_only_acceptance_recorder_bounded import WeatherW7BoundedRecorderSession
 from .weather_only_acceptance_release import (
     attest_weather_w7_release,
     build_weather_w7_release_manifest,
@@ -31,7 +29,7 @@ from .weather_only_acceptance_release_bundle import (
 )
 
 
-WEATHER_W7_RUNNER_VERSION = "weather_w7_runner_v1_attach_only_release_bound_frozen_window"
+WEATHER_W7_RUNNER_VERSION = "weather_w7_runner_v2_bounded_source_poll_release_bound_frozen_window"
 
 
 class WeatherW7RunnerError(RuntimeError):
@@ -94,7 +92,7 @@ async def run_weather_w7_release_bound_acceptance(
         scanner_process_id=scanner_process_id,
         expected_release_sha=release_sha,
     )
-    session = WeatherW7RecorderSession(
+    session = WeatherW7BoundedRecorderSession(
         release_sha=release_sha,
         scanner_process_id=scanner_process_id,
         database_path=database_path,
