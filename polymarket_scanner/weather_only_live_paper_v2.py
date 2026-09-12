@@ -2,10 +2,11 @@ from __future__ import annotations
 
 """Weather LIVE PAPER v2: real alerts, automatic simulated fills and commands.
 
-This wraps the reviewed v1 signal generator without changing its detector math.  A
-Telegram-accepted signal is automatically entered into the isolated paper ledger,
-settled from public Gamma exact-token payouts when the market closes, and exposed
-through private-chat Telegram commands.  No wallet/order/cancel API is imported.
+This wraps the reviewed human-readable paper signal generator without changing its
+detector math. A Telegram-accepted signal is automatically entered into the isolated
+paper ledger, settled from public Gamma exact-token payouts when the market closes,
+and exposed through private-chat Telegram commands. No wallet/order/cancel API is
+imported.
 """
 
 import argparse
@@ -20,9 +21,9 @@ from .weather_only_live_paper import (
     DEFAULT_FORECAST_RAW_GAP_MIN,
     DEFAULT_INTERVAL_SECONDS,
     DEFAULT_MAX_FORECAST_EVENTS,
-    WeatherLivePaperService,
     _atomic_json,
 )
+from .weather_only_live_paper_human import HumanReadableWeatherLivePaperService
 from .weather_only_paper_control import (
     WeatherPaperCommandController,
     WeatherPaperSettlementEngine,
@@ -34,7 +35,7 @@ WEATHER_LIVE_PAPER_V2_VERSION = "weather_live_paper_v2_auto_positions_commands_g
 DEFAULT_PAPER_STAKE_USD = 10.0
 
 
-class WeatherLivePaperV2Service(WeatherLivePaperService):
+class WeatherLivePaperV2Service(HumanReadableWeatherLivePaperService):
     def __init__(self, *, paper_stake_usd: float = DEFAULT_PAPER_STAKE_USD, **kwargs) -> None:
         super().__init__(**kwargs)
         stake = float(paper_stake_usd)
