@@ -59,15 +59,21 @@ def test_bounded_adapter_does_not_change_frozen_w7_policy():
     assert MIN_SAMPLE_COUNT == 80
     assert MAX_SAMPLE_GAP_SECONDS == 60.0
     assert MIN_SOURCE_UPDATE_SAMPLES == 1
+    assert W7_SOURCE_POLL_WALL_CLOCK_BUDGET_SECONDS == 20.0
     assert W7_SOURCE_POLL_WALL_CLOCK_BUDGET_SECONDS < 30.0
-    assert W7_WRH_REQUEST_TIMEOUT_SECONDS == 5.0
-    assert WEATHER_W7_RUNNER_VERSION == "weather_w7_runner_v2_bounded_source_poll_release_bound_frozen_window"
+    assert W7_WRH_REQUEST_TIMEOUT_SECONDS == 3.0
+    assert WEATHER_W7_RUNNER_VERSION == (
+        "weather_w7_runner_v3_persistent_source_duration_guard_release_bound_frozen_window"
+    )
 
 
-def test_production_owned_wrh_client_uses_short_request_timeout(tmp_path):
+def test_production_owned_wrh_client_is_persistent_and_short_timeout(tmp_path):
     session = _session(tmp_path)
     assert session.wrh._timeout_seconds == W7_WRH_REQUEST_TIMEOUT_SECONDS
+    assert session._owned_wrh_http is not None
+    assert session.wrh._external_client is session._owned_wrh_http
     asyncio.run(session.close())
+    assert session._owned_wrh_http is None
 
 
 def test_slow_source_poll_times_out_fail_closed_without_crashing_sample(tmp_path, monkeypatch):
@@ -87,4 +93,23 @@ def test_slow_source_poll_times_out_fail_closed_without_crashing_sample(tmp_path
     assert sample.financial_authority is False
     assert sample.financial_delivery is False
     assert sample.automatic_order_placement is False
+    asyncio.run(session.close())
+
+
+def test_corrected_window_anchors_after_first_completed_sample(tmp_path, monkeypatch):
+    session = _session(tmp_path, wrh=_SlowWRH())
+    original_record_sample = session.record_sample
+
+    async def record_without_source(*args, **kwargs):
+        return await original_record_sample(poll_source=False)
+
+    monkeypatch.setattr(session, "record_sample", record_without_source)
+    monkeypatch.setattr(bounded, "SAMPLE_COUNT", 3)
+    monkeypatch.setattr(bounded, "SAMPLE_INTERVAL_SECONDS", 0.02)
+
+    asyncio.run(session.run_frozen_window())
+    measured = session.samples[-1].observed_at - session.samples[0].observed_at
+
+    assert len(session.samples) == 3
+    assert measured >= 0.04
     asyncio.run(session.close())
