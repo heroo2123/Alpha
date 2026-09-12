@@ -1,10 +1,19 @@
 from __future__ import annotations
 
+import importlib.util
 import inspect
 from pathlib import Path
 
 from polymarket_scanner import weather_only_live_paper as live
-from deploy.render_weather_paper_unit import render
+
+
+def _render_unit(app: Path, config: Path, user: str) -> str:
+    path = Path(__file__).resolve().parents[1] / "deploy" / "render-weather-paper-unit.py"
+    spec = importlib.util.spec_from_file_location("render_weather_paper_unit", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.render(app, config, user)
 
 
 def test_live_paper_module_has_no_authenticated_trading_or_legacy_delivery_imports():
@@ -37,7 +46,7 @@ def test_paper_fingerprint_dedupes_inside_bucket_and_rotates_after_bucket():
 def test_weather_paper_unit_is_dedicated_and_has_no_order_service(tmp_path):
     app = Path("/home/test/polymarket-edge-scanner")
     config = Path("/home/test/.polymarket-edge-scanner")
-    unit = render(app, config, "testuser")
+    unit = _render_unit(app, config, "testuser")
     assert "weather_only_live_paper" in unit
     assert f"EnvironmentFile={config}/weather-paper.env" in unit
     assert "bot.env" not in unit
