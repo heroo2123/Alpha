@@ -14,7 +14,9 @@ bash "${APP_DIR}/deploy/verify-runtime-release.sh" "${APP_DIR}" "${CONFIG_DIR}/r
 
 umask 077
 TMP_ENV="$(mktemp)"
-trap 'rm -f "${TMP_ENV}" "${TMP_UNIT:-}"' EXIT
+UNIT_DIR="$(mktemp -d)"
+TMP_UNIT="${UNIT_DIR}/polymarket-weather-paper.service"
+trap 'rm -f "${TMP_ENV}"; rm -rf "${UNIT_DIR}"' EXIT
 # Paper service receives ONLY Telegram delivery credentials.  Do not copy wallet,
 # exchange, cloud, database, or other legacy bot configuration into its environment.
 grep -E '^[[:space:]]*(TELEGRAM_BOT_TOKEN|TELEGRAM_CHAT_ID)=' "${BOT_ENV}" > "${TMP_ENV}" || true
@@ -26,7 +28,6 @@ grep -E '^[[:space:]]*(TELEGRAM_BOT_TOKEN|TELEGRAM_CHAT_ID)=' "${BOT_ENV}" > "${
 }
 install -m 0600 "${TMP_ENV}" "${PAPER_ENV}"
 
-TMP_UNIT="$(mktemp)"
 "${APP_DIR}/.venv/bin/python" "${APP_DIR}/deploy/render-weather-paper-unit.py" \
   --app-dir "${APP_DIR}" --config-dir "${CONFIG_DIR}" --user "${CURRENT_USER}" --output "${TMP_UNIT}"
 systemd-analyze verify "${TMP_UNIT}"
