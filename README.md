@@ -25,6 +25,19 @@ skip conditions and direct links. No detector has earned that permission.
   complete prices or lossless opportunity recall. Nested/neg-risk guaranteed
   payoff claims are quarantined; weather remains uncalibrated research.
 
+## Weather live-paper research
+
+The weather-only paper service is deliberately non-financial: it sends research
+alerts, records capacity-bounded simulated fills, exposes Telegram paper commands,
+and scores exact token payouts only after Gamma closes a market. It imports no
+wallet/order/cancel authority.
+
+Raw GEFS daily-high/daily-low frequencies are **future-local-date only**. A whole-day
+forecast is not valid same-day evidence once observed temperatures already constrain
+the daily extreme. Historical raw-GEFS alerts delivered on or after their target
+station-local date are retained for audit but quarantined from paper win rate, capital,
+P&L and ROI until an observation-conditioned same-day model exists.
+
 Read [the release architecture, migration and acceptance checklist](docs/SILENT_SHADOW_HANDOFF.md)
 before deployment. It defines the single validation program and hard stop gates.
 The [builder corrective-pass record](docs/BUILDER_CORRECTION.md) documents the
