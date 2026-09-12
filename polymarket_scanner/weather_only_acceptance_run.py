@@ -29,7 +29,7 @@ from .weather_only_acceptance_release_bundle import (
 )
 
 
-WEATHER_W7_RUNNER_VERSION = "weather_w7_runner_v2_bounded_source_poll_release_bound_frozen_window"
+WEATHER_W7_RUNNER_VERSION = "weather_w7_runner_v3_persistent_source_duration_guard_release_bound_frozen_window"
 
 
 class WeatherW7RunnerError(RuntimeError):
