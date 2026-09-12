@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 import json
 
 import httpx
@@ -36,11 +37,12 @@ def _book_payload(token: str) -> dict:
     }
 
 
-def _client(handler) -> WeatherCLOBClient:
-    client = WeatherCLOBClient()
-    asyncio.run(client.http.aclose())
-    client.http = httpx.AsyncClient(transport=httpx.MockTransport(handler))
-    return client
+def test_resilience_is_inside_attested_class_source_and_keepalive_spans_w7_cadence():
+    source = inspect.getsource(WeatherCLOBClient)
+    assert "CLOB_TRANSIENT_MAX_ATTEMPTS" in source
+    assert "CLOB_KEEPALIVE_EXPIRY_SECONDS" in source
+    assert clob_module.CLOB_KEEPALIVE_EXPIRY_SECONDS > 30.0
+    assert clob_module.CLOB_MAX_KEEPALIVE_CONNECTIONS == clob_module.CLOB_MAX_CONNECTIONS
 
 
 def test_market_info_retries_transport_then_succeeds(monkeypatch):
