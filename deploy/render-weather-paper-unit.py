@@ -17,7 +17,7 @@ def render(app_dir: Path, config_dir: Path, user: str) -> str:
     verifier = f"/bin/bash {app_dir}/deploy/verify-runtime-release.sh {app_dir} {config_dir}/release.sha"
     state = "/var/lib/polymarket-weather-paper"
     return f"""[Unit]
-Description=Polymarket weather-only LIVE PAPER research signals
+Description=Polymarket weather-only LIVE PAPER tracked signals
 Wants=network-online.target
 After=network-online.target
 StartLimitIntervalSec=600
@@ -30,7 +30,7 @@ WorkingDirectory={app_dir}
 Environment=PYTHONUNBUFFERED=1
 EnvironmentFile={config_dir}/weather-paper.env
 ExecStartPre={verifier}
-ExecStart={python} -m polymarket_scanner.weather_only_live_paper_human --db {state}/weather-paper.sqlite --status {state}/status.json --release-file {config_dir}/release.sha --interval-seconds 180 --forecast-cache-seconds 900 --forecast-raw-gap-min 0.08 --max-forecast-events 6
+ExecStart={python} -m polymarket_scanner.weather_only_live_paper_v2 --db {state}/weather-paper.sqlite --status {state}/status.json --release-file {config_dir}/release.sha --interval-seconds 180 --forecast-cache-seconds 900 --forecast-raw-gap-min 0.08 --max-forecast-events 6 --paper-stake-usd 10
 Restart=on-failure
 RestartSec=15
 TimeoutStopSec=20
