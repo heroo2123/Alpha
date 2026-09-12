@@ -14,6 +14,12 @@ semantics define a dynamic fee schedule by ``fd.r`` and ``fd.e``. The official S
 interprets a completely missing ``fd`` object as the zero-fee schedule; this parser
 matches that behavior while requiring an explicit integral exponent whenever a
 positive rate is present.
+
+Read-only timeout/transport failures are retried a small bounded number of times.
+HTTP status, JSON, identity, stale-book, and semantic failures remain single-attempt
+fail-closed outcomes. Keep-alive lifetime deliberately exceeds the 30-second W7
+sampling cadence so repeated exact reads do not need a fresh TCP/TLS handshake on
+every sample.
 """
 
 import asyncio
@@ -34,6 +40,11 @@ WEATHER_CLOB_VERSION = "weather_clob_v2_exact_books_dynamic_fee_exponent_read_on
 MAX_BOOK_AGE_SECONDS = 10.0
 MAX_CONDITIONS = 1_000
 MAX_TOKENS = 2_000
+CLOB_TRANSIENT_MAX_ATTEMPTS = 3
+CLOB_TRANSIENT_RETRY_DELAY_SECONDS = 0.25
+CLOB_MAX_CONNECTIONS = 12
+CLOB_MAX_KEEPALIVE_CONNECTIONS = 12
+CLOB_KEEPALIVE_EXPIRY_SECONDS = 120.0
 
 
 class WeatherCLOBError(RuntimeError):
@@ -128,6 +139,13 @@ def _integer(value: object) -> int:
     return int(numeric)
 
 
+def _retry_delay_seconds(attempt: int) -> float:
+    delay = float(CLOB_TRANSIENT_RETRY_DELAY_SECONDS)
+    if not math.isfinite(delay) or delay < 0.0:
+        raise WeatherCLOBError("CLOB_RETRY_POLICY_INVALID")
+    return delay * (attempt + 1)
+
+
 def parse_market_info(condition_id: str, payload: object, *, received_at: float) -> WeatherMarketParameters:
     if not isinstance(payload, dict):
         raise WeatherCLOBError("MARKET_INFO_ENVELOPE_INVALID")
@@ -150,8 +168,6 @@ def parse_market_info(condition_id: str, payload: object, *, received_at: float)
 
     fd = payload.get("fd")
     if fd is None:
-        # Match the current official V2 SDK: absence of fd means the zero-fee
-        # schedule, not an unknown category default.
         fee_rate = 0.0
         exponent = 0
         taker_only = None
@@ -224,7 +240,11 @@ class WeatherCLOBClient:
     def __init__(self) -> None:
         self.http = httpx.AsyncClient(
             timeout=settings.request_timeout,
-            limits=httpx.Limits(max_connections=12, max_keepalive_connections=8, keepalive_expiry=20.0),
+            limits=httpx.Limits(
+                max_connections=CLOB_MAX_CONNECTIONS,
+                max_keepalive_connections=CLOB_MAX_KEEPALIVE_CONNECTIONS,
+                keepalive_expiry=CLOB_KEEPALIVE_EXPIRY_SECONDS,
+            ),
             headers={"User-Agent": "polymarket-weather-only-scanner/0.1 (+github)"},
         )
 
@@ -235,12 +255,24 @@ class WeatherCLOBClient:
         condition = str(condition_id or "").strip()
         if not condition:
             raise WeatherCLOBError("CONDITION_ID_MISSING")
-        try:
-            response = await self.http.get(f"{CLOB}/clob-markets/{condition}")
-        except httpx.TimeoutException:
-            raise WeatherCLOBError("CLOB_TIMEOUT")
-        except httpx.RequestError:
-            raise WeatherCLOBError("CLOB_TRANSPORT")
+        response = None
+        for attempt in range(CLOB_TRANSIENT_MAX_ATTEMPTS):
+            code = None
+            try:
+                response = await self.http.get(f"{CLOB}/clob-markets/{condition}")
+            except httpx.TimeoutException:
+                code = "CLOB_TIMEOUT"
+            except httpx.RequestError:
+                code = "CLOB_TRANSPORT"
+            if code is None:
+                break
+            if attempt + 1 >= CLOB_TRANSIENT_MAX_ATTEMPTS:
+                raise WeatherCLOBError(code)
+            delay = _retry_delay_seconds(attempt)
+            if delay > 0.0:
+                await asyncio.sleep(delay)
+        if response is None:
+            raise WeatherCLOBError("CLOB_RETRY_STATE_INVALID")
         if response.status_code == 404:
             raise WeatherCLOBError("CLOB_MARKET_NOT_FOUND")
         if response.status_code >= 400:
@@ -282,12 +314,27 @@ class WeatherCLOBClient:
         out: dict[str, Book] = {}
         for start in range(0, len(ids), 100):
             chunk = ids[start:start + 100]
-            try:
-                response = await self.http.post(f"{CLOB}/books", json=[{"token_id": token} for token in chunk])
-            except httpx.TimeoutException:
-                raise WeatherCLOBError("CLOB_TIMEOUT")
-            except httpx.RequestError:
-                raise WeatherCLOBError("CLOB_TRANSPORT")
+            response = None
+            for attempt in range(CLOB_TRANSIENT_MAX_ATTEMPTS):
+                code = None
+                try:
+                    response = await self.http.post(
+                        f"{CLOB}/books",
+                        json=[{"token_id": token} for token in chunk],
+                    )
+                except httpx.TimeoutException:
+                    code = "CLOB_TIMEOUT"
+                except httpx.RequestError:
+                    code = "CLOB_TRANSPORT"
+                if code is None:
+                    break
+                if attempt + 1 >= CLOB_TRANSIENT_MAX_ATTEMPTS:
+                    raise WeatherCLOBError(code)
+                delay = _retry_delay_seconds(attempt)
+                if delay > 0.0:
+                    await asyncio.sleep(delay)
+            if response is None:
+                raise WeatherCLOBError("CLOB_RETRY_STATE_INVALID")
             if response.status_code >= 400:
                 raise WeatherCLOBError("CLOB_HTTP_STATUS")
             received = time.time()
