@@ -37,10 +37,10 @@ fi
 # unit while leaving it stopped.
 bash "${APP_DIR}/deploy/preflight-weather-paper-deployment.sh"
 
-started=0
+start_attempted=0
 rollback_on_error(){
   code=$?
-  if (( code != 0 )) && (( started == 1 )); then
+  if (( code != 0 )) && (( start_attempted == 1 )); then
     printf 'Start acceptance failed; stopping weather PAPER service...\n' >&2
     sudo systemctl stop "${UNIT}" >/dev/null 2>&1 || true
   fi
@@ -49,8 +49,10 @@ rollback_on_error(){
 trap rollback_on_error EXIT
 
 START_ACCEPTANCE_EPOCH="$(date +%s)"
+# Mark the attempt before asking systemd to start. If `systemctl start` itself returns
+# non-zero after partially launching the unit, the EXIT trap still stops the service.
+start_attempted=1
 sudo systemctl start "${UNIT}"
-started=1
 
 # Give systemd a bounded window to launch the process. Do not use `enable`: this is an
 # explicit acceptance start, not permission for unattended boot persistence yet.
