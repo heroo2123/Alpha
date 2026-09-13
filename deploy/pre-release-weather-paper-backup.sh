@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-APP_DIR="${ALPHA_APP_DIR:-${HOME}/polymarket-edge-scanner}"
+APP_DIR="${ALPHA_WEATHER_APP_DIR:-${HOME}/polymarket-weather-paper-app}"
 CONFIG_DIR="${ALPHA_CONFIG_DIR:-${HOME}/.polymarket-edge-scanner}"
 DB_PATH="${WEATHER_PAPER_DB_PATH:-/var/lib/polymarket-weather-paper/weather-paper.sqlite}"
 BACKUP_DIR="${WEATHER_PAPER_BACKUP_DIR:-${CONFIG_DIR}/weather-paper-backups}"
 RETENTION_DAYS="${WEATHER_PAPER_BACKUP_RETENTION_DAYS:-14}"
-RELEASE_FILE="${CONFIG_DIR}/release.sha"
+RELEASE_FILE="${CONFIG_DIR}/weather-paper-release.sha"
 
 fail(){ printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 
-[[ -x "${APP_DIR}/.venv/bin/python" ]] || fail "missing app virtualenv: ${APP_DIR}/.venv"
-[[ -f "${RELEASE_FILE}" ]] || fail "missing release marker: ${RELEASE_FILE}"
+[[ -x "${APP_DIR}/.venv/bin/python" ]] || fail "missing weather-paper app virtualenv: ${APP_DIR}/.venv"
+[[ -f "${RELEASE_FILE}" ]] || fail "missing weather-paper release marker: ${RELEASE_FILE}"
 [[ "${RETENTION_DAYS}" =~ ^[0-9]+$ ]] && (( RETENTION_DAYS >= 1 )) \
   || fail "WEATHER_PAPER_BACKUP_RETENTION_DAYS must be a positive integer"
 
