@@ -130,8 +130,8 @@ def test_reader_rejects_authorized_row_when_pre_cutoff_snapshot_is_missing(tmp_p
     assert raised.value.code == "READER_NO_VALID_FINALITY_PAIR"
 
 
-def test_reader_rejects_ambiguous_multiple_valid_post_cutoff_transitions(tmp_path):
-    db_path = tmp_path / "ambiguous.sqlite"
+def test_multiple_polling_post_cutoff_snapshots_still_cannot_create_exact_finality(tmp_path):
+    db_path = tmp_path / "multiple-polls.sqlite"
     _authorized_db(db_path)
     extra = _snapshot(True, FOLLOWING + 40)
     payload = json.dumps(extra.as_dict(), sort_keys=True, separators=(",", ":"))
@@ -152,7 +152,8 @@ def test_reader_rejects_ambiguous_multiple_valid_post_cutoff_transitions(tmp_pat
         )
     with pytest.raises(WeatherCalibrationReaderError) as raised:
         read_reconstructed_calibration_dataset(db_path)
-    assert raised.value.code == "READER_FINALITY_PAIR_AMBIGUOUS"
+    # More equal endpoints do not resolve the A->B->A indistinguishability problem.
+    assert raised.value.code == "READER_NO_VALID_FINALITY_PAIR"
 
 
 def test_reader_never_mutates_database_when_reconstruction_fails(tmp_path):
