@@ -3,12 +3,13 @@ from __future__ import annotations
 """Small, weather-tag-scoped Gamma discovery for the weather-only scanner.
 
 Unlike the general Astra production universe, this module never performs an
-untagged walk of every active Polymarket event.  It proves natural keyset exhaustion
+untagged walk of every active Polymarket event. It proves natural keyset exhaustion
 for each configured weather tag, deduplicates overlapping tag results, and preserves
 all child markets of selected events for contract/bucket compilation.
 
-Tag membership is discovery recall evidence only.  It never grants contract or
-financial authority.
+Tag membership is discovery recall evidence only. It never grants contract or
+financial authority. Duplicate market-state projections are merged pessimistically:
+any observed closed/inactive/non-accepting state vetoes a more optimistic copy.
 """
 
 import asyncio
@@ -23,7 +24,7 @@ from .config import settings
 
 
 GAMMA = "https://gamma-api.polymarket.com"
-WEATHER_ONLY_DISCOVERY_VERSION = "weather_tag_keyset_v1_complete_per_configured_tag"
+WEATHER_ONLY_DISCOVERY_VERSION = "weather_tag_keyset_v2_pessimistic_market_state"
 DEFAULT_TAGS = ("daily-temperature", "weather")
 PAGE_SIZE = 25
 MAX_PAGE_BYTES = 16 * 1024 * 1024
@@ -91,6 +92,24 @@ def _nonempty_conflict(left: object, right: object) -> bool:
     return bool(a and b and a != b)
 
 
+def _merge_safety_state(target: dict, incoming: dict) -> None:
+    """Merge public tradability state so pessimistic evidence always wins."""
+    for key in ("active", "acceptingOrders", "enableOrderBook"):
+        left = target.get(key)
+        right = incoming.get(key)
+        if left is False or right is False:
+            target[key] = False
+        elif left is True or right is True:
+            target[key] = True
+    for key in ("closed", "archived"):
+        left = target.get(key)
+        right = incoming.get(key)
+        if left is True or right is True:
+            target[key] = True
+        elif left is False or right is False:
+            target[key] = False
+
+
 def _merge_event(existing: dict, incoming: dict) -> dict:
     if _event_id(existing) != _event_id(incoming):
         raise WeatherDiscoveryError("DUPLICATE_EVENT_IDENTITY_CONFLICT")
@@ -105,6 +124,7 @@ def _merge_event(existing: dict, incoming: dict) -> dict:
             continue
         if key not in merged or merged.get(key) in (None, "", [], {}):
             merged[key] = copy.deepcopy(value)
+    _merge_safety_state(merged, incoming)
 
     children: dict[str, dict] = {}
     order: list[str] = []
@@ -122,11 +142,12 @@ def _merge_event(existing: dict, incoming: dict) -> dict:
                 continue
             if _market_identity(previous) != _market_identity(row):
                 raise WeatherDiscoveryError("DUPLICATE_MARKET_IDENTITY_CONFLICT")
-            # Preserve fields that one tag projection omitted without rewriting
-            # non-empty values from the first response.
+            # Preserve omitted metadata but never let an optimistic duplicate erase a
+            # closure/inactive/non-accepting state seen in any projection.
             for key, value in row.items():
                 if key not in previous or previous.get(key) in (None, "", [], {}):
                     previous[key] = copy.deepcopy(value)
+            _merge_safety_state(previous, row)
     merged["markets"] = [children[mid] for mid in order]
     return merged
 
