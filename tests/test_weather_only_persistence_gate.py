@@ -28,6 +28,16 @@ def test_persistence_requires_active_attested_fresh_exact_candidate_before_enabl
     assert "ALPHA_WEATHER_APP_DIR" in text
 
 
+def test_persistence_rollback_is_armed_before_first_enable_operation():
+    text = PERSIST.read_text(encoding="utf-8")
+    arm_index = text.index("persistence_attempted=1")
+    enable_index = text.index('sudo systemctl enable "${UNIT}"')
+    assert arm_index < enable_index
+    assert "(( persistence_attempted == 1 ))" in text
+    assert 'sudo systemctl disable --now "${BACKUP_TIMER}"' in text
+    assert 'sudo systemctl disable "${UNIT}"' in text
+
+
 def test_persistence_never_restarts_or_operates_legacy_scanner():
     lines = _exec_lines(PERSIST)
     assert not any("systemctl restart" in line for line in lines)
