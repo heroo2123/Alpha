@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 
 import pytest
@@ -13,15 +14,18 @@ from polymarket_scanner.weather_only_runtime_attestation import CANONICAL_MODULE
 from polymarket_scanner.weather_only_same_day_capture_store import SameDayCaptureStore
 
 
-@pytest.mark.asyncio
-async def test_structural_signal_lane_is_still_hard_disabled():
+def test_structural_signal_lane_is_still_hard_disabled():
     service = object.__new__(WeatherLivePaperV4Service)
     service._v4_structural_suppressed_total = 0
-    sent, error = await WeatherLivePaperV4Service._save_and_send_structural(
-        service,
-        {"event_id": "fixture"},
-        None,
-    )
+
+    async def exercise():
+        return await WeatherLivePaperV4Service._save_and_send_structural(
+            service,
+            {"event_id": "fixture"},
+            None,
+        )
+
+    sent, error = asyncio.run(exercise())
     assert sent is False
     assert error is None
     assert service._v4_structural_suppressed_total == 1
