@@ -6,6 +6,7 @@ APP_DIR="${ALPHA_WEATHER_APP_DIR:-${HOME}/polymarket-weather-paper-app}"
 CONFIG_DIR="${ALPHA_CONFIG_DIR:-${HOME}/.polymarket-edge-scanner}"
 UNIT="polymarket-weather-paper.service"
 RELEASE_FILE="${CONFIG_DIR}/weather-paper-release.sha"
+NETWORK_OUT="${CONFIG_DIR}/weather-paper-network-preflight.json"
 ATTESTATION_OUT="${CONFIG_DIR}/weather-paper-predeploy-attestation.json"
 DB_PATH="${WEATHER_PAPER_DB_PATH:-/var/lib/polymarket-weather-paper/weather-paper.sqlite}"
 
@@ -20,6 +21,13 @@ if systemctl is-active --quiet "${UNIT}" 2>/dev/null; then
 fi
 
 bash "${APP_DIR}/deploy/verify-runtime-release.sh" "${APP_DIR}" "${RELEASE_FILE}"
+
+# Exercise every public provider from the actual target host. This catches IPv4/IPv6
+# routing and DNS/TLS/API reachability problems before changing the installed unit or
+# starting the bot. It is read-only and sends no Telegram message.
+"${APP_DIR}/.venv/bin/python" "${APP_DIR}/deploy/check-weather-paper-network.py" \
+  --output "${NETWORK_OUT}"
+
 bash "${APP_DIR}/deploy/pre-release-weather-paper-backup.sh"
 bash "${APP_DIR}/deploy/setup-weather-paper-service.sh"
 
@@ -30,7 +38,9 @@ bash "${APP_DIR}/deploy/setup-weather-paper-service.sh"
   --output "${ATTESTATION_OUT}"
 
 printf '\nPre-deployment gate passed.\n'
+printf 'Required weather/data providers are reachable from this host.\n'
 printf 'The canonical weather PAPER service is installed but remains STOPPED and DISABLED.\n'
 printf 'Its code checkout and release marker are isolated from the legacy scanner.\n'
+printf 'Network report: %s\n' "${NETWORK_OUT}"
 printf 'Attestation: %s\n' "${ATTESTATION_OUT}"
 printf 'Starting the service requires a separate explicit deployment action.\n'
