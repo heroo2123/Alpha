@@ -17,7 +17,7 @@ from .weather_only_contracts import DAILY_HIGH, DAILY_LOW, compile_weather_event
 from .weather_only_rules import apply_rule_authority, compile_temperature_rule_authority
 
 
-STRICT_CONTRACT_VERSION = "weather_contract_strict_v1_common_semantics_fail_closed"
+STRICT_CONTRACT_VERSION = "weather_contract_strict_v2_pre_authority_syntax_fail_closed"
 
 
 class StrictWeatherContractError(RuntimeError):
@@ -155,6 +155,29 @@ def compile_strict_temperature_event(event: dict):
     raw = compile_weather_event(event)
     if raw.family not in {DAILY_HIGH, DAILY_LOW}:
         raise StrictWeatherContractError("STRICT_FAMILY_UNSUPPORTED")
+
+    # Reject independently provable syntax/identity conflicts before asking the
+    # broader rule-authority layer to promote the contract.  Otherwise malformed
+    # child wording can merely collapse partition_shape_complete and be reported as
+    # a generic authority failure, obscuring the exact unsafe proposition change.
+    if raw.target_date is not None and not _title_date_matches(event, raw.target_date):
+        raise StrictWeatherContractError("STRICT_TITLE_DATE_MISMATCH")
+
+    source_station = _trusted_wrh_station(event)
+    if source_station is None:
+        raise StrictWeatherContractError("STRICT_SOURCE_STATION_MISMATCH")
+    if raw.station_hint and source_station != str(raw.station_hint).upper():
+        raise StrictWeatherContractError("STRICT_SOURCE_STATION_MISMATCH")
+
+    markets = [row for row in (event.get("markets") or []) if isinstance(row, dict)]
+    opposite = "lowest temperature" if raw.family == DAILY_HIGH else "highest temperature"
+    for row in markets:
+        if not _question_supported(str(row.get("question") or ""), raw.family):
+            raise StrictWeatherContractError("STRICT_BUCKET_GRAMMAR_UNSUPPORTED")
+        child_text = " ".join((str(row.get("question") or ""), str(row.get("description") or ""))).lower()
+        if opposite in child_text:
+            raise StrictWeatherContractError("STRICT_CHILD_STATISTIC_CONFLICT")
+
     authority = compile_temperature_rule_authority(event, raw)
     compiled = apply_rule_authority(raw, authority)
     if (
@@ -168,22 +191,11 @@ def compile_strict_temperature_event(event: dict):
         or compiled.financial_authority
     ):
         raise StrictWeatherContractError("STRICT_RULE_AUTHORITY_UNPROVEN")
-    if not _title_date_matches(event, compiled.target_date):
-        raise StrictWeatherContractError("STRICT_TITLE_DATE_MISMATCH")
-    source_station = _trusted_wrh_station(event)
-    if source_station is None or source_station != str(compiled.station_hint).upper():
-        raise StrictWeatherContractError("STRICT_SOURCE_STATION_MISMATCH")
 
-    markets = [row for row in (event.get("markets") or []) if isinstance(row, dict)]
+    if source_station != str(compiled.station_hint).upper():
+        raise StrictWeatherContractError("STRICT_SOURCE_STATION_MISMATCH")
     if len(markets) != len(compiled.buckets):
         raise StrictWeatherContractError("STRICT_CHILD_COUNT_MISMATCH")
-    opposite = "lowest temperature" if compiled.family == DAILY_HIGH else "highest temperature"
-    for row in markets:
-        if not _question_supported(str(row.get("question") or ""), compiled.family):
-            raise StrictWeatherContractError("STRICT_BUCKET_GRAMMAR_UNSUPPORTED")
-        child_text = " ".join((str(row.get("question") or ""), str(row.get("description") or ""))).lower()
-        if opposite in child_text:
-            raise StrictWeatherContractError("STRICT_CHILD_STATISTIC_CONFLICT")
     if not _partition_is_exact(compiled):
         raise StrictWeatherContractError("STRICT_PARTITION_UNPROVEN")
     return compiled
