@@ -1,25 +1,23 @@
 from __future__ import annotations
 
-"""Prospective cutoff certification for exact WRH settlement-state labels.
+"""Prospective WRH first-following transition evidence with explicit uncertainty.
 
-A single WRH snapshot taken after the contract's correction cutoff is insufficient
-for exact historical labeling: target-day observations may have been revised after
-the first following-date Hourly Data row, and the current page does not expose that
-revision history.
+Two polling snapshots can prove useful facts: the first poll did not yet contain an
+eligible following-date row, the second did, the target-day state was identical at
+the two observed endpoints, and the polling bracket was bounded.  They cannot prove
+the exact publication/revision state at the instant the first following row became
+visible.  An unobserved A -> B -> A target-state history inside the polling interval
+is observationally indistinguishable from A throughout.
 
-The safe path is prospective transition capture.  We require one pinned WRH snapshot
-before the first following-date eligible row can exist and a second prompt snapshot
-after that row appears.  The complete selected target-day state must be identical on
-both sides.  If it changed, timing of the correction is ambiguous and certification
-fails closed rather than choosing the earlier or later state.
+Accordingly this module records a *bounded transition bracket* only.  It never turns
+equal polling endpoints into correction-state reconstruction, calibration-label or
+settlement-label authority.  Exact source labels require publication/version history
+or another source primitive that directly proves the cutoff state.  Market economic
+settlement can use Polymarket's own final payout independently.
 
-This layer certifies only the exact source/rule-state cutoff.  It never grants trade
-or financial authority; market-bucket labeling is performed separately and still
-requires certified contract rule semantics.
+No trade or financial authority is granted here.
 """
 
-import hashlib
-import json
 import math
 import re
 from dataclasses import asdict, dataclass, field
@@ -39,8 +37,8 @@ from .weather_only_wrh import (
 )
 
 
-WRH_FINALITY_ADAPTER_VERSION = "nws_wrh_first_following_transition_v1_bracketed_unchanged_target"
-WRH_FINALITY_SOURCE_ROLE = "NWS_WRH_EXACT_RULE_STATE_CUTOFF"
+WRH_FINALITY_ADAPTER_VERSION = "nws_wrh_first_following_transition_v2_bracket_uncertain"
+WRH_FINALITY_SOURCE_ROLE = "NWS_WRH_BOUNDED_CUTOFF_BRACKET_UNCERTAIN"
 
 
 @dataclass(frozen=True, slots=True)
@@ -64,6 +62,13 @@ class WRHFinalityPolicy:
 
 @dataclass(frozen=True, slots=True)
 class WRHFinalizedRuleState:
+    """Compatibility name for a bounded transition observation, not exact finality.
+
+    Existing persisted/test schemas refer to ``WRHFinalizedRuleState``.  The type is
+    retained to avoid silently breaking deserializers, but its authority fields are
+    deliberately false and its source role/version identify the weaker proof.
+    """
+
     adapter: str
     source_role: str
     source_profile: str
@@ -83,9 +88,11 @@ class WRHFinalizedRuleState:
     target_high_f: int
     target_low_f: int
     finality_evidence_sha256: str
-    correction_state_reconstructable: bool = field(init=False, default=True)
-    calibration_label_authority: bool = field(init=False, default=True)
-    settlement_label_authority: bool = field(init=False, default=True)
+    transition_bracket_observed: bool = field(init=False, default=True)
+    exact_publication_state_observed: bool = field(init=False, default=False)
+    correction_state_reconstructable: bool = field(init=False, default=False)
+    calibration_label_authority: bool = field(init=False, default=False)
+    settlement_label_authority: bool = field(init=False, default=False)
     financial_authority: bool = field(init=False, default=False)
 
     def as_dict(self) -> dict:
@@ -131,6 +138,8 @@ def _validate_snapshot(snapshot: object, prefix: str) -> WRHSourceSnapshot:
         raise WRHSourceError(f"WRH_{prefix}_SOURCE_ENDPOINT_MISMATCH")
     if snapshot.normalized_network != "ASOS/AWOS":
         raise WRHSourceError(f"WRH_{prefix}_NETWORK_UNSUPPORTED")
+    if snapshot.response_temperature_unit.lower() != "fahrenheit":
+        raise WRHSourceError(f"WRH_{prefix}_TEMPERATURE_UNIT_MISMATCH")
     if snapshot.query_start_date > snapshot.target_date or snapshot.query_end_date < snapshot.target_date + timedelta(days=1):
         raise WRHSourceError(f"WRH_{prefix}_QUERY_COVERAGE_INVALID")
     _finite(snapshot.received_at, f"WRH_{prefix}_RECEIVED_AT_INVALID")
@@ -143,7 +152,8 @@ def _validate_snapshot(snapshot: object, prefix: str) -> WRHSourceSnapshot:
     _sha256(snapshot.source_payload_sha256, f"WRH_{prefix}_SOURCE_PAYLOAD_SHA_INVALID")
 
     expected_target = tuple(row for row in snapshot.selected_rows if row.local_date == snapshot.target_date)
-    following = tuple(row for row in snapshot.selected_rows if row.local_date > snapshot.target_date)
+    following_date = snapshot.target_date + timedelta(days=1)
+    following = tuple(row for row in snapshot.selected_rows if row.local_date == following_date)
     expected_following = following[0] if following else None
     if snapshot.target_rows != expected_target:
         raise WRHSourceError(f"WRH_{prefix}_TARGET_ROWS_INCONSISTENT")
@@ -187,6 +197,11 @@ def _finality_digest_payload(state: WRHFinalizedRuleState) -> dict:
         "target_display_temperatures_f": state.target_display_temperatures_f,
         "target_high_f": state.target_high_f,
         "target_low_f": state.target_low_f,
+        "transition_bracket_observed": state.transition_bracket_observed,
+        "exact_publication_state_observed": state.exact_publication_state_observed,
+        "correction_state_reconstructable": state.correction_state_reconstructable,
+        "calibration_label_authority": state.calibration_label_authority,
+        "settlement_label_authority": state.settlement_label_authority,
     }
 
 
@@ -196,13 +211,11 @@ def certify_wrh_first_following_transition(
     *,
     policy: WRHFinalityPolicy,
 ) -> WRHFinalizedRuleState:
-    """Certify the first-following-row correction cutoff from two snapshots.
+    """Record a bounded first-following-row transition without exact-cutoff claims.
 
-    The previous snapshot must be captured before the timestamp of the first
-    following-date Hourly row and contain no such row.  The current snapshot must be
-    captured promptly after that row's observation timestamp.  Most importantly,
-    the complete selected target-day row state must be byte-identical by digest on
-    both sides of the transition.
+    Endpoint equality is necessary evidence for a stable polling bracket, but is not
+    sufficient to reconstruct source publication state inside that bracket.  The
+    returned object therefore always keeps exact-label authority false.
     """
     before = _validate_snapshot(previous, "PREVIOUS")
     after = _validate_snapshot(current, "CURRENT")
@@ -213,6 +226,7 @@ def certify_wrh_first_following_transition(
         before.station,
         before.target_date,
         before.timezone,
+        before.response_temperature_unit,
         before.raw_network,
         before.normalized_network,
         before.source_profile,
@@ -223,6 +237,7 @@ def certify_wrh_first_following_transition(
         after.station,
         after.target_date,
         after.timezone,
+        after.response_temperature_unit,
         after.raw_network,
         after.normalized_network,
         after.source_profile,
@@ -240,7 +255,6 @@ def certify_wrh_first_following_transition(
     if before.target_state_sha256 != after.target_state_sha256:
         raise WRHSourceError("WRH_FINALITY_TARGET_STATE_CHANGED_ACROSS_CUTOFF")
     if not after.target_display_temperatures_f:
-        # The separate contract no-data/fallback path is not implemented here.
         raise WRHSourceError("WRH_FINALITY_TARGET_TEMPERATURE_DATA_MISSING")
 
     previous_received = _finite(before.received_at, "WRH_FINALITY_PREVIOUS_RECEIVED_AT_INVALID")
@@ -253,9 +267,6 @@ def certify_wrh_first_following_transition(
 
     first_following_timestamp = after.first_following_row.observation_time_local.timestamp()
     if previous_received >= first_following_timestamp:
-        # We intentionally require a poll before the observation time itself. This is
-        # stricter than merely seeing the row absent and eliminates publication-delay
-        # ambiguity from the exact-label path.
         raise WRHSourceError("WRH_FINALITY_PREVIOUS_NOT_BEFORE_FOLLOWING_OBSERVATION")
     if current_received < first_following_timestamp:
         raise WRHSourceError("WRH_FINALITY_CURRENT_PREDATES_FOLLOWING_OBSERVATION")
