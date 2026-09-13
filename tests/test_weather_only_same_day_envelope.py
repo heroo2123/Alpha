@@ -23,6 +23,8 @@ from polymarket_scanner.weather_only_gefs_hourly import (
     parse_open_meteo_gefs_hourly_target_day,
 )
 from polymarket_scanner.weather_only_near_term import verify_near_term_segment_coverage
+from polymarket_scanner.weather_only_rules import TemperatureRuleAuthority
+from polymarket_scanner.weather_only_same_day_contract import build_same_day_contract_semantics
 from polymarket_scanner.weather_only_same_day_envelope import (
     SameDayEnvelopeError,
     build_same_day_evidence_envelope,
@@ -34,6 +36,7 @@ from polymarket_scanner.weather_only_unresolved_coverage import build_unresolved
 
 
 TARGET = date(2026, 9, 12)
+POPULATION = "WRH_HOURLY_DATA"
 
 
 def _ts(hour: int, minute: int = 0) -> float:
@@ -51,7 +54,7 @@ def _compiled() -> CompiledWeatherEvent:
         target_date=TARGET,
         unit="F",
         source_family=SOURCE_NWS_WRH,
-        source_urls=("https://weather.gov/wrh/timeseries",),
+        source_urls=("https://weather.gov/wrh/timeseries?site=KAAA",),
         station_hint="KAAA",
         buckets=(
             WeatherBucket("m-le6", "c-le6", "6 F or lower", "le6", None, 6.0, "F", "y-le6", "n-le6", True),
@@ -67,12 +70,34 @@ def _compiled() -> CompiledWeatherEvent:
     )
 
 
+def _semantics(compiled: CompiledWeatherEvent):
+    authority = TemperatureRuleAuthority(
+        version="rules-v-test",
+        profile="NWS_WRH_DAILY_EXTREME_CURRENT_TEMPLATE_V1",
+        family=DAILY_LOW,
+        source_family=SOURCE_NWS_WRH,
+        statistic="DAILY_LOWEST_TEMP",
+        observation_population=POPULATION,
+        precision="WHOLE_DEGREE_F",
+        fallback_policy="WEATHER_UNDERGROUND_IF_WRH_UNAVAILABLE_BY_NEXT_DAY_2359_ET",
+        finality_policy="FIRST_FOLLOWING_DATE_DATAPOINT_OR_NEXT_DAY_2359_ET",
+        correction_policy="ACCEPT_REVISIONS_UNTIL_FIRST_FOLLOWING_DATE_DATAPOINT",
+        no_data_outcome="LOWEST_BRACKET",
+        rule_semantics_proven=True,
+        exactly_one_outcome_proven=True,
+        settlement_value_adapter_ready=False,
+        financial_authority=False,
+        rejection_reasons=(),
+    )
+    return build_same_day_contract_semantics(compiled, authority)
+
+
 def _official_rows(as_of: float) -> tuple[OfficialObservation, ...]:
     values = (10.0, 9.0, 8.0, 7.0, 8.0)
     return tuple(
         OfficialObservation(
             station="KAAA",
-            population_id="WRH_TEST",
+            population_id=POPULATION,
             unit="F",
             observed_at=_ts(hour, 10 if hour == 4 else 30),
             received_at=as_of - 5.0,
@@ -107,11 +132,12 @@ def _gefs_payload() -> dict:
 def _bundle_inputs():
     as_of = _ts(4, 20)
     compiled = _compiled()
+    semantics = _semantics(compiled)
     rows = _official_rows(as_of)
     observed = build_observed_extreme(
         rows,
         station="KAAA",
-        population_id="WRH_TEST",
+        population_id=POPULATION,
         unit="F",
         family=DAILY_LOW,
         target_start=_ts(0),
@@ -119,7 +145,7 @@ def _bundle_inputs():
     )
     coverage = build_unresolved_coverage_plan(
         station="KAAA",
-        population_id="WRH_TEST",
+        population_id=POPULATION,
         timezone="UTC",
         target_date=TARGET,
         as_of=as_of,
@@ -180,17 +206,18 @@ def _bundle_inputs():
         mapping,
         as_of=as_of,
     )
-    return compiled, rows, coverage, near_raw, near, hourly, path, mapping, decision, as_of
+    return compiled, semantics, rows, coverage, near_raw, near, hourly, path, mapping, decision, as_of
 
 
-def test_envelope_archives_preimages_and_replays_same_decision_without_network():
-    compiled, rows, coverage, near_raw, near, hourly, path, mapping, decision, as_of = _bundle_inputs()
-    envelope = build_same_day_evidence_envelope(
+def _make_envelope(inputs, *, near_raw_override=None):
+    compiled, semantics, rows, coverage, near_raw, near, hourly, path, mapping, decision, as_of = inputs
+    return build_same_day_evidence_envelope(
         compiled=compiled,
+        contract_semantics=semantics,
         mapping_policy=mapping,
         official_observations=rows,
         coverage=coverage,
-        near_term_raw_evidence=near_raw,
+        near_term_raw_evidence=near_raw if near_raw_override is None else near_raw_override,
         near_term=near,
         hourly_gefs=hourly,
         remaining_path=path,
@@ -200,8 +227,16 @@ def test_envelope_archives_preimages_and_replays_same_decision_without_network()
         execution_protocol_id="SAME_DAY_RESEARCH_ONLY_V1",
         created_at=as_of,
     )
+
+
+def test_envelope_archives_rule_semantics_and_preimages_then_replays_without_network():
+    inputs = _bundle_inputs()
+    envelope = _make_envelope(inputs)
     verify_same_day_evidence_envelope(envelope)
+    decision = inputs[9]
     assert envelope.offline_replay_verified is True
+    assert envelope.contract_semantics["observation_population"] == POPULATION
+    assert envelope.contract_semantics["correction_policy"] == "ACCEPT_REVISIONS_UNTIL_FIRST_FOLLOWING_DATE_DATAPOINT"
     assert len(envelope.official_observations) == 5
     assert len(envelope.hourly_gefs_raw["member_series"]) == 31
     assert envelope.final_decision["evidence_sha256"] == decision.evidence_sha256
@@ -211,69 +246,35 @@ def test_envelope_archives_preimages_and_replays_same_decision_without_network()
 
 
 def test_near_term_hash_without_matching_raw_preimage_is_rejected():
-    compiled, rows, coverage, near_raw, near, hourly, path, mapping, decision, as_of = _bundle_inputs()
-    altered_raw = dict(near_raw)
-    altered_raw["predicted_low_f"] = 2.0
+    inputs = _bundle_inputs()
+    near_raw = dict(inputs[4])
+    near_raw["predicted_low_f"] = 2.0
     with pytest.raises(SameDayEnvelopeError, match="SAME_DAY_ENVELOPE_NEAR_TERM_RAW_DIGEST_MISMATCH"):
-        build_same_day_evidence_envelope(
-            compiled=compiled,
-            mapping_policy=mapping,
-            official_observations=rows,
-            coverage=coverage,
-            near_term_raw_evidence=altered_raw,
-            near_term=near,
-            hourly_gefs=hourly,
-            remaining_path=path,
-            decision=decision,
-            release_sha="a" * 64,
-            config_sha256="b" * 64,
-            execution_protocol_id="SAME_DAY_RESEARCH_ONLY_V1",
-            created_at=as_of,
-        )
+        _make_envelope(inputs, near_raw_override=near_raw)
 
 
 def test_raw_hourly_preimage_change_cannot_replay_original_member_path():
-    compiled, rows, coverage, near_raw, near, hourly, path, mapping, decision, as_of = _bundle_inputs()
+    inputs = list(_bundle_inputs())
+    hourly = inputs[6]
     altered_series = list(hourly.member_series)
     changed_values = list(altered_series[0].values)
     changed_values[6] = 5.0
     altered_series[0] = replace(altered_series[0], values=tuple(changed_values))
-    tampered = replace(hourly, member_series=tuple(altered_series))
+    inputs[6] = replace(hourly, member_series=tuple(altered_series))
     with pytest.raises(SameDayEnvelopeError, match="SAME_DAY_ENVELOPE_INPUT_INVALID:GEFS_HOURLY_CONTENT_RUN_DIGEST_MISMATCH"):
-        build_same_day_evidence_envelope(
-            compiled=compiled,
-            mapping_policy=mapping,
-            official_observations=rows,
-            coverage=coverage,
-            near_term_raw_evidence=near_raw,
-            near_term=near,
-            hourly_gefs=tampered,
-            remaining_path=path,
-            decision=decision,
-            release_sha="a" * 64,
-            config_sha256="b" * 64,
-            execution_protocol_id="SAME_DAY_RESEARCH_ONLY_V1",
-            created_at=as_of,
-        )
+        _make_envelope(tuple(inputs))
+
+
+def test_rule_population_tampering_is_rejected_before_replay():
+    inputs = list(_bundle_inputs())
+    semantics = inputs[1]
+    inputs[1] = replace(semantics, observation_population="WRH_ALL_TIMES")
+    with pytest.raises(SameDayEnvelopeError, match="SAME_DAY_ENVELOPE_INPUT_INVALID:SAME_DAY_CONTRACT_SEMANTICS_DIGEST_MISMATCH"):
+        _make_envelope(tuple(inputs))
 
 
 def test_envelope_digest_tampering_is_rejected():
-    compiled, rows, coverage, near_raw, near, hourly, path, mapping, decision, as_of = _bundle_inputs()
-    envelope = build_same_day_evidence_envelope(
-        compiled=compiled,
-        mapping_policy=mapping,
-        official_observations=rows,
-        coverage=coverage,
-        near_term_raw_evidence=near_raw,
-        near_term=near,
-        hourly_gefs=hourly,
-        remaining_path=path,
-        decision=decision,
-        release_sha="a" * 64,
-        config_sha256="b" * 64,
-        execution_protocol_id="SAME_DAY_RESEARCH_ONLY_V1",
-        created_at=as_of,
-    )
+    envelope = _make_envelope(_bundle_inputs())
     corrupted = replace(envelope, config_sha256="c" * 64)
     with pytest.raises(SameDayEnvelopeError, match="SAME_DAY_ENVELOPE_DIGEST_MISMATCH"):
         verify_same_day_evidence_envelope(corrupted)
