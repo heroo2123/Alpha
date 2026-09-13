@@ -5,6 +5,7 @@ import pytest
 from polymarket_scanner.weather_only_calibration import (
     SETTLEMENT_LABEL_EVIDENCE_VERSION,
     CalibrationPolicy,
+    assess_probability_calibration,
 )
 from polymarket_scanner.weather_only_calibration_dataset import (
     WeatherCalibrationDatasetError,
@@ -19,7 +20,7 @@ from polymarket_scanner.weather_only_predictions import (
     NWS_WRH_EXACT_LABEL_ADAPTER,
 )
 
-from test_weather_only_calibration_reader import _authorized_db
+from test_weather_only_calibration_reader import _r26_failed_db
 
 
 def _fixture_policy() -> CalibrationPolicy:
@@ -49,11 +50,36 @@ def _empty_reader_report() -> dict:
     }
 
 
-def test_dataset_bridge_preserves_exact_recomputed_label_and_horizon_provenance(tmp_path):
-    db_path = tmp_path / "dataset.sqlite"
-    _authorized_db(db_path)
-    dataset = read_calibration_dataset(db_path)
+def _synthetic_strict_reader_report() -> dict:
+    report = _empty_reader_report()
+    report.update({
+        "authorized_row_count": 1,
+        "reconstructed_record_count": 1,
+        "records": [{
+            "event_id": "e1",
+            "station": "KLGA",
+            "model_version": "model-v1",
+            "capture_policy_id": CAPTURE_HORIZON_POLICY_ID,
+            "capture_horizon_evidence_sha256": "1" * 64,
+            "predicted_probability": 18 / 31,
+            "final_payout": 1.0,
+            "label_adapter": NWS_WRH_EXACT_LABEL_ADAPTER,
+            "source_role": EXACT_SETTLEMENT_SOURCE_ROLE,
+            "evidence_version": SETTLEMENT_LABEL_EVIDENCE_VERSION,
+            "label_authority": True,
+            "settlement_state_reconstructable": True,
+            "source_recomputed": True,
+            "horizon_recomputed": True,
+            "stored_authorized_json_used_as_authority": False,
+            "calibration_label_authority": True,
+            "financial_authority": False,
+        }],
+    })
+    return report
 
+
+def test_dataset_bridge_preserves_strict_reader_provenance_without_inventing_source_authority():
+    dataset = dataset_from_reader_report(_synthetic_strict_reader_report())
     assert dataset.authorized_row_count == 1
     assert len(dataset.samples) == 1
     assert dataset.source_recomputed is True
@@ -71,25 +97,30 @@ def test_dataset_bridge_preserves_exact_recomputed_label_and_horizon_provenance(
     assert tuple(dataset.model_versions) == (sample.model_version,)
 
 
-def test_dataset_can_feed_only_caller_supplied_preregistered_policy(tmp_path):
-    db_path = tmp_path / "assessment.sqlite"
-    _authorized_db(db_path)
-    dataset = read_calibration_dataset(db_path)
-    model_version = dataset.samples[0].model_version
-    probability = dataset.samples[0].predicted_probability
-
-    rebuilt, assessment = assess_reconstructed_calibration(
-        db_path,
-        model_version=model_version,
-        target_probability=probability,
+def test_dataset_math_accepts_only_explicit_preregistered_policy_after_strict_bridge():
+    dataset = dataset_from_reader_report(_synthetic_strict_reader_report())
+    sample = dataset.samples[0]
+    assessment = assess_probability_calibration(
+        dataset.samples,
+        model_version=sample.model_version,
+        target_probability=sample.predicted_probability,
         policy=_fixture_policy(),
     )
-    assert rebuilt.authorized_row_count == 1
     assert assessment.clean_total_resolved == 1
     assert assessment.clean_bin_resolved == 1
     assert assessment.distinct_stations == 1
     assert assessment.research_calibration_ready is True
     assert assessment.financial_authority is False
+
+
+def test_current_r26_polling_database_yields_empty_calibration_dataset(tmp_path):
+    db_path = tmp_path / "r26-failed.sqlite"
+    _r26_failed_db(db_path)
+    dataset = read_calibration_dataset(db_path)
+    assert dataset.authorized_row_count == 0
+    assert dataset.samples == ()
+    assert dataset.model_versions == ()
+    assert dataset.financial_authority is False
 
 
 def test_dataset_bridge_rejects_stored_authority_shortcut_even_with_plausible_report():
@@ -109,74 +140,29 @@ def test_dataset_bridge_rejects_reader_that_does_not_require_horizon_proof():
 
 
 def test_dataset_bridge_rejects_record_that_loses_recomputed_source_attestation():
-    report = _empty_reader_report()
-    report.update({
-        "authorized_row_count": 1,
-        "reconstructed_record_count": 1,
-        "records": [{
-            "event_id": "e1",
-            "station": "KLGA",
-            "model_version": "m1",
-            "capture_policy_id": CAPTURE_HORIZON_POLICY_ID,
-            "capture_horizon_evidence_sha256": "1" * 64,
-            "predicted_probability": 0.5,
-            "final_payout": 1.0,
-            "label_adapter": NWS_WRH_EXACT_LABEL_ADAPTER,
-            "source_role": EXACT_SETTLEMENT_SOURCE_ROLE,
-            "evidence_version": SETTLEMENT_LABEL_EVIDENCE_VERSION,
-            "label_authority": True,
-            "settlement_state_reconstructable": True,
-            "source_recomputed": False,
-            "horizon_recomputed": True,
-            "stored_authorized_json_used_as_authority": False,
-            "calibration_label_authority": True,
-            "financial_authority": False,
-        }],
-    })
+    report = _synthetic_strict_reader_report()
+    report["records"][0]["source_recomputed"] = False
     with pytest.raises(WeatherCalibrationDatasetError) as raised:
         dataset_from_reader_report(report)
     assert raised.value.code == "DATASET_RECORD_SOURCE_NOT_RECOMPUTED"
 
 
 def test_dataset_bridge_rejects_record_that_loses_horizon_attestation():
-    report = _empty_reader_report()
-    report.update({
-        "authorized_row_count": 1,
-        "reconstructed_record_count": 1,
-        "records": [{
-            "event_id": "e1",
-            "station": "KLGA",
-            "model_version": "m1",
-            "capture_policy_id": CAPTURE_HORIZON_POLICY_ID,
-            "capture_horizon_evidence_sha256": "1" * 64,
-            "predicted_probability": 0.5,
-            "final_payout": 1.0,
-            "label_adapter": NWS_WRH_EXACT_LABEL_ADAPTER,
-            "source_role": EXACT_SETTLEMENT_SOURCE_ROLE,
-            "evidence_version": SETTLEMENT_LABEL_EVIDENCE_VERSION,
-            "label_authority": True,
-            "settlement_state_reconstructable": True,
-            "source_recomputed": True,
-            "horizon_recomputed": False,
-            "stored_authorized_json_used_as_authority": False,
-            "calibration_label_authority": True,
-            "financial_authority": False,
-        }],
-    })
+    report = _synthetic_strict_reader_report()
+    report["records"][0]["horizon_recomputed"] = False
     with pytest.raises(WeatherCalibrationDatasetError) as raised:
         dataset_from_reader_report(report)
     assert raised.value.code == "DATASET_RECORD_HORIZON_NOT_RECOMPUTED"
 
 
-def test_assessment_refuses_untyped_policy_object(tmp_path):
-    db_path = tmp_path / "typed-policy.sqlite"
-    _authorized_db(db_path)
-    dataset = read_calibration_dataset(db_path)
+def test_assessment_refuses_untyped_policy_before_reading_any_dataset(tmp_path):
+    # The API checks policy type first, so a caller cannot smuggle post-hoc tuning in
+    # through a missing/invalid database path.
     with pytest.raises(WeatherCalibrationDatasetError) as raised:
         assess_reconstructed_calibration(
-            db_path,
-            model_version=dataset.samples[0].model_version,
-            target_probability=dataset.samples[0].predicted_probability,
+            tmp_path / "does-not-need-to-exist.sqlite",
+            model_version="model-v1",
+            target_probability=0.5,
             policy={"min_total_resolved": 1},  # type: ignore[arg-type]
         )
     assert raised.value.code == "DATASET_CALIBRATION_POLICY_REQUIRED"
