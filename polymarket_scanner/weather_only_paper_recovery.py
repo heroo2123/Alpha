@@ -18,8 +18,17 @@ from .weather_only_paper_facade import CorrectiveWeatherPaperStore
 from .weather_only_paper_positions import WeatherPaperPositionError, _json, _payload
 
 
-RECOVERY_VERSION = "weather_paper_crash_recovery_v2_partial_fill_guard"
+RECOVERY_VERSION = "weather_paper_crash_recovery_v3_expiry_boundary_guard"
 _ACTIVE_RESERVATION_STATES = {"PENDING", "ACKNOWLEDGED", "UNCERTAIN"}
+
+
+def _finite_epoch(value: object, code: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise WeatherPaperPositionError(code)
+    number = float(value)
+    if not math.isfinite(number) or number < 0.0:
+        raise WeatherPaperPositionError(code)
+    return number
 
 
 class CrashSafeWeatherPaperStore(CorrectiveWeatherPaperStore):
@@ -211,6 +220,29 @@ class CrashSafeWeatherPaperStore(CorrectiveWeatherPaperStore):
                 "UPDATE weather_paper_signals SET payload_json=? WHERE id=?",
                 (_json(payload), int(signal_id)),
             )
+
+    def ensure_position_for_signal(
+        self, signal_id: int, target_stake_usd: float
+    ) -> dict | None:
+        """Keep normal and restart fill admission identical at the expiry boundary."""
+        signal = self._load_signal(int(signal_id))
+        if signal is None:
+            return None
+        payload = _payload(signal.get("payload_json"))
+        if (
+            payload.get("paper_execution_protocol_version") == PAPER_EXECUTION_PROTOCOL_V4
+            and str(signal.get("status") or "") == "ACKNOWLEDGED"
+        ):
+            sent_at = _finite_epoch(
+                signal.get("telegram_sent_at"), "V4_TELEGRAM_TIME_MISSING"
+            )
+            fill_at = _finite_epoch(payload.get("paper_fill_at"), "V4_FILL_TIME_MISSING")
+            expires_at = _finite_epoch(
+                payload.get("decision_expires_at"), "V4_EXPIRY_MISSING"
+            )
+            if sent_at >= expires_at or fill_at >= expires_at:
+                raise WeatherPaperPositionError("V4_DECISION_EXPIRED")
+        return super().ensure_position_for_signal(int(signal_id), target_stake_usd)
 
     def reconcile_crash_states(self) -> dict:
         """Classify abandoned in-flight work before a restarted service can scan."""
