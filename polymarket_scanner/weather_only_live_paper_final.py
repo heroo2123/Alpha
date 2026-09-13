@@ -37,7 +37,7 @@ from .weather_only_paper_recovery_final import FinalCrashSafeWeatherPaperStore
 from .weather_only_runtime_lease import WeatherPaperRuntimeLease
 
 
-FINAL_PAPER_RUNTIME_VERSION = "weather_live_paper_final_v3_b1_b6_exact_recovery_boundary"
+FINAL_PAPER_RUNTIME_VERSION = "weather_live_paper_final_v3_exact_recovery_boundary"
 FINAL_MARKET_STATE_POLICY = "GAMMA_SELECTED_MARKET_OPEN_ACCEPTING_ORDERBOOK_V1"
 
 
@@ -75,15 +75,9 @@ class FinalWeatherLivePaperService(WeatherLivePaperCorrectiveService):
         db_path = kwargs.get("db_path")
         if db_path is None:
             raise FinalPaperInvariantError("FINAL_DB_PATH_REQUIRED")
-        # Close B6's post-preflight race before constructing any store or scanner
-        # component. The lease is held until close(), so a second process cannot
-        # become a concurrent writer after the process inventory was checked.
         self._runtime_lease = WeatherPaperRuntimeLease(db_path)
         try:
             super().__init__(**kwargs)
-
-            # Replace the ordinary facade with a pre-send station/day reservation and
-            # restart reconciler. Keep the superseded controller/settlement for close().
             self._final_superseded_settlement = self.settlement
             self._final_superseded_commands = self.commands
             self.positions = FinalCrashSafeWeatherPaperStore(self.db_path)
@@ -127,15 +121,12 @@ class FinalWeatherLivePaperService(WeatherLivePaperCorrectiveService):
         }
 
     async def _forecast_candidate(self, event: dict, compiled) -> dict | None:
-        # B4: cursor means "examined", not "eligible". A run of ineligible same-day
-        # rows therefore cannot occupy the same bounded window forever.
         examined = compile_strict_temperature_event(event)
         self.positions.set_state("v4_forecast_cursor", examined.event_id)
 
         rule_identity = strict_contract_identity(event, examined)
         old_rule = self._strict_rule_sha_by_event.get(examined.event_id)
         if old_rule is not None and old_rule != rule_identity["sha256"]:
-            # Do not reuse a forecast-cache entry across changed operative rules.
             self._forecast_cache.clear()
         self._strict_rule_sha_by_event[examined.event_id] = rule_identity["sha256"]
 
@@ -181,7 +172,6 @@ class FinalWeatherLivePaperService(WeatherLivePaperCorrectiveService):
             raise FinalPaperInvariantError("FINAL_MARKET_CONDITION_MISMATCH")
         if tokens != set(expected_tokens):
             raise FinalPaperInvariantError("FINAL_MARKET_TOKEN_SET_MISMATCH")
-        # Unknown state is not open state. Require every positive/negative bit exactly.
         if market.get("active") is not True:
             raise FinalPaperInvariantError("FINAL_MARKET_NOT_ACTIVE")
         if market.get("closed") is not False:
@@ -264,8 +254,6 @@ class FinalWeatherLivePaperService(WeatherLivePaperCorrectiveService):
             await self._record_skip(candidate, exc.code)
             return False, None
         finally:
-            # On an ordinary return, sync the reservation to the durable signal state.
-            # An actual process death skips Python cleanup and is reconciled at startup.
             self.positions.sync_reservation_for_station_day(
                 str(candidate.get("station") or ""),
                 str(candidate.get("target_date") or ""),
