@@ -2,10 +2,10 @@ from __future__ import annotations
 
 """Replayable immutable evidence envelope for same-day weather research.
 
-R19 requires more than hashes without preimages.  This envelope stores the actual
+R19 requires more than hashes without preimages. This envelope stores the actual
 inputs needed to reproduce one three-layer research decision offline:
 
-* exact compiled contract semantics and mapping policy;
+* exact compiled contract partition, exact rule/population semantics and mapping policy;
 * the accepted official observation rows used to rebuild O(t);
 * the deterministic U(t) coverage plan;
 * raw Layer-2 provider evidence plus its digest-bound verified coverage object;
@@ -14,11 +14,11 @@ inputs needed to reproduce one three-layer research decision offline:
 * the final bucket-frequency decision.
 
 Construction independently rebuilds O(t), projects the raw hourly GEFS source onto
-the frozen Layer-3 U(t) mask, and rebuilds the final three-layer decision.  Any digest,
-identity or result mismatch fails closed.  Release/config/protocol cohort identifiers
+the frozen Layer-3 U(t) mask, and rebuilds the final three-layer decision. Any digest,
+identity or result mismatch fails closed. Release/config/protocol cohort identifiers
 are mandatory so fixes cannot silently contaminate historical strategy metrics.
 
-This is research provenance only.  It cannot authorize same-day delivery, settlement
+This is research provenance only. It cannot authorize same-day delivery, settlement
 or real-money execution.
 """
 
@@ -41,6 +41,10 @@ from .weather_only_near_term import (
     VerifiedNearTermCoverage,
     verify_near_term_coverage_integrity,
 )
+from .weather_only_same_day_contract import (
+    SameDayContractSemantics,
+    verify_same_day_contract_semantics,
+)
 from .weather_only_three_layer import (
     ThreeLayerResearchDecision,
     build_three_layer_research_decision,
@@ -53,7 +57,7 @@ from .weather_only_three_layer_integrity import (
 from .weather_only_unresolved_coverage import UnresolvedCoveragePlan
 
 
-SAME_DAY_ENVELOPE_VERSION = "weather_same_day_replay_envelope_v1_full_preimages"
+SAME_DAY_ENVELOPE_VERSION = "weather_same_day_replay_envelope_v2_rule_population_full_preimages"
 
 
 class SameDayEnvelopeError(RuntimeError):
@@ -117,6 +121,7 @@ class SameDayEvidenceEnvelope:
     execution_protocol_id: str
     created_at: float
     contract: dict
+    contract_semantics: dict
     mapping_policy: dict
     official_observations: tuple[dict, ...]
     observed_state: dict
@@ -141,6 +146,7 @@ class SameDayEvidenceEnvelope:
             "execution_protocol_id": self.execution_protocol_id,
             "created_at": self.created_at,
             "contract": self.contract,
+            "contract_semantics": self.contract_semantics,
             "mapping_policy": self.mapping_policy,
             "official_observations": list(self.official_observations),
             "observed_state": self.observed_state,
@@ -194,6 +200,7 @@ def _path_dict(path: VerifiedRemainingHoursPath) -> dict:
 def build_same_day_evidence_envelope(
     *,
     compiled: CompiledWeatherEvent,
+    contract_semantics: SameDayContractSemantics,
     mapping_policy: EnsembleMappingPolicy,
     official_observations: Iterable[OfficialObservation],
     coverage: UnresolvedCoveragePlan,
@@ -222,6 +229,7 @@ def build_same_day_evidence_envelope(
         raise SameDayEnvelopeError("SAME_DAY_ENVELOPE_NEAR_TERM_RAW_MISSING")
 
     try:
+        semantics_checked = verify_same_day_contract_semantics(contract_semantics, compiled)
         coverage_checked = verify_unresolved_coverage_integrity(coverage)
         near_checked = verify_near_term_coverage_integrity(near_term)
         hourly_checked = verify_gefs_hourly_evidence(hourly_gefs)
@@ -230,6 +238,19 @@ def build_same_day_evidence_envelope(
     except Exception as exc:
         code = getattr(exc, "code", type(exc).__name__)
         raise SameDayEnvelopeError(f"SAME_DAY_ENVELOPE_INPUT_INVALID:{code}") from exc
+
+    if not semantics_checked.layer1_adapter_capable:
+        raise SameDayEnvelopeError(
+            f"SAME_DAY_ENVELOPE_LAYER1_ADAPTER_BLOCKED:{semantics_checked.layer1_adapter_block_reason}"
+        )
+    if coverage_checked.population_id != semantics_checked.observation_population:
+        raise SameDayEnvelopeError("SAME_DAY_ENVELOPE_OBSERVATION_POPULATION_MISMATCH")
+    if (
+        coverage_checked.station != semantics_checked.station
+        or coverage_checked.target_date != semantics_checked.target_date
+        or decision_checked.event_id != semantics_checked.event_id
+    ):
+        raise SameDayEnvelopeError("SAME_DAY_ENVELOPE_CONTRACT_SEMANTICS_IDENTITY_MISMATCH")
 
     near_raw_sha = canonical_evidence_sha256(near_term_raw_evidence)
     if near_raw_sha != near_checked.source_evidence_sha256:
@@ -240,10 +261,10 @@ def build_same_day_evidence_envelope(
     try:
         observed_rebuilt = build_observed_extreme(
             rows,
-            station=str(compiled.station_hint or "").upper(),
-            population_id=coverage_checked.population_id,
-            unit=str(compiled.unit or ""),
-            family=compiled.family,
+            station=semantics_checked.station,
+            population_id=semantics_checked.observation_population,
+            unit=semantics_checked.unit,
+            family=semantics_checked.family,
             target_start=coverage_checked.target_start,
             as_of=coverage_checked.as_of,
         )
@@ -293,6 +314,7 @@ def build_same_day_evidence_envelope(
         execution_protocol_id=protocol,
         created_at=created,
         contract=compiled.as_dict(),
+        contract_semantics=semantics_checked.as_dict(),
         mapping_policy=asdict(mapping_policy),
         official_observations=tuple(_observation_dict(row) for row in rows),
         observed_state=observed_rebuilt.as_dict(),
