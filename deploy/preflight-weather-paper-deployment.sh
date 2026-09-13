@@ -21,6 +21,10 @@ if systemctl is-active --quiet "${UNIT}" 2>/dev/null; then
 fi
 
 bash "${APP_DIR}/deploy/verify-runtime-release.sh" "${APP_DIR}" "${RELEASE_FILE}"
+# The small VM must not share resources or Telegram polling with the superseded stack.
+# This is read-only: if anything old is active, deployment stops and the operator must
+# decide explicitly what to do with it.
+bash "${APP_DIR}/deploy/check-weather-paper-service-isolation.sh"
 
 # Exercise every public provider from the actual target host. This catches IPv4/IPv6
 # routing and DNS/TLS/API reachability problems before changing the installed unit or
@@ -38,6 +42,7 @@ bash "${APP_DIR}/deploy/setup-weather-paper-service.sh"
   --output "${ATTESTATION_OUT}"
 
 printf '\nPre-deployment gate passed.\n'
+printf 'Legacy scanner/research services are not running beside the weather PAPER bot.\n'
 printf 'Required weather/data providers are reachable from this host.\n'
 printf 'The canonical weather PAPER service is installed but remains STOPPED and DISABLED.\n'
 printf 'Its code checkout and release marker are isolated from the legacy scanner.\n'
