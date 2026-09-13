@@ -4,16 +4,15 @@ from __future__ import annotations
 
 This layer closes only the paper-experiment blockers found after the corrective
 candidate review: exact contract/rule identity, fair event traversal, current
-market-open state, and crash-safe delivery admission/recovery.  Same-day delivery,
-structural guarantees and all real-money trading remain disabled by the inherited
-runtime.
+market-open state, crash-safe delivery admission/recovery, and a process-lifetime
+singleton ledger lease. Same-day delivery, structural guarantees and all real-money
+trading remain disabled by the inherited runtime.
 """
 
 import argparse
 import asyncio
 import hashlib
 import json
-import math
 import time
 from pathlib import Path
 
@@ -22,7 +21,6 @@ from .weather_only_contract_strict import (
     compile_strict_temperature_event,
     strict_contract_identity,
 )
-from .weather_only_forecast import EnsembleMappingPolicy
 from .weather_only_live_paper import (
     DEFAULT_FORECAST_CACHE_SECONDS,
     DEFAULT_FORECAST_RAW_GAP_MIN,
@@ -36,9 +34,10 @@ from .weather_only_live_paper_v2 import DEFAULT_PAPER_STAKE_USD
 from .weather_only_paper_commands_canonical import CanonicalWeatherPaperCommandController
 from .weather_only_paper_corrective import CorrectiveSettlementEngine
 from .weather_only_paper_recovery import CrashSafeWeatherPaperStore
+from .weather_only_runtime_lease import WeatherPaperRuntimeLease
 
 
-FINAL_PAPER_RUNTIME_VERSION = "weather_live_paper_final_v1_b1_b6_guarded"
+FINAL_PAPER_RUNTIME_VERSION = "weather_live_paper_final_v2_b1_b6_singleton_guarded"
 FINAL_MARKET_STATE_POLICY = "GAMMA_SELECTED_MARKET_OPEN_ACCEPTING_ORDERBOOK_V1"
 
 
@@ -73,33 +72,47 @@ def _listish(value: object) -> tuple[str, ...]:
 
 class FinalWeatherLivePaperService(WeatherLivePaperCorrectiveService):
     def __init__(self, **kwargs) -> None:
-        super().__init__(**kwargs)
+        db_path = kwargs.get("db_path")
+        if db_path is None:
+            raise FinalPaperInvariantError("FINAL_DB_PATH_REQUIRED")
+        # Close B6's post-preflight race before constructing any store or scanner
+        # component. The lease is held until close(), so a second process cannot
+        # become a concurrent writer after the process inventory was checked.
+        self._runtime_lease = WeatherPaperRuntimeLease(db_path)
+        try:
+            super().__init__(**kwargs)
 
-        # Replace the ordinary facade with a pre-send station/day reservation and
-        # restart reconciler. Keep the superseded controller/settlement for close().
-        self._final_superseded_settlement = self.settlement
-        self._final_superseded_commands = self.commands
-        self.positions = CrashSafeWeatherPaperStore(self.db_path)
-        self.settlement = CorrectiveSettlementEngine(
-            store=self.positions,
-            telegram=self.telegram,
-        )
-        self.commands = CanonicalWeatherPaperCommandController(
-            telegram=self.telegram,
-            store=self.positions,
-            status_path=self.status_path,
-            paper_stake_usd=self.paper_stake_usd,
-        )
-        self._startup_recovery = self.positions.reconcile_crash_states()
-        self._strict_rule_sha_by_event: dict[str, str] = {}
+            # Replace the ordinary facade with a pre-send station/day reservation and
+            # restart reconciler. Keep the superseded controller/settlement for close().
+            self._final_superseded_settlement = self.settlement
+            self._final_superseded_commands = self.commands
+            self.positions = CrashSafeWeatherPaperStore(self.db_path)
+            self.settlement = CorrectiveSettlementEngine(
+                store=self.positions,
+                telegram=self.telegram,
+            )
+            self.commands = CanonicalWeatherPaperCommandController(
+                telegram=self.telegram,
+                store=self.positions,
+                status_path=self.status_path,
+                paper_stake_usd=self.paper_stake_usd,
+            )
+            self._startup_recovery = self.positions.reconcile_crash_states()
+            self._strict_rule_sha_by_event: dict[str, str] = {}
+        except BaseException:
+            self._runtime_lease.close()
+            raise
 
     async def close(self) -> None:
-        await asyncio.gather(
-            self._final_superseded_settlement.close(),
-            self._final_superseded_commands.close(),
-            return_exceptions=True,
-        )
-        await super().close()
+        try:
+            await asyncio.gather(
+                self._final_superseded_settlement.close(),
+                self._final_superseded_commands.close(),
+                return_exceptions=True,
+            )
+            await super().close()
+        finally:
+            self._runtime_lease.close()
 
     def _decision_config(self) -> dict:
         return {
@@ -251,8 +264,8 @@ class FinalWeatherLivePaperService(WeatherLivePaperCorrectiveService):
             await self._record_skip(candidate, exc.code)
             return False, None
         finally:
-            # If the method returns normally this reflects durable signal/receipt state.
-            # If the process dies, startup reconciliation owns the PENDING reservation.
+            # On an ordinary return, sync the reservation to the durable signal state.
+            # An actual process death skips Python cleanup and is reconciled at startup.
             self.positions.sync_reservation_for_station_day(
                 str(candidate.get("station") or ""),
                 str(candidate.get("target_date") or ""),
@@ -266,6 +279,7 @@ class FinalWeatherLivePaperService(WeatherLivePaperCorrectiveService):
             "final_paper_runtime_version": FINAL_PAPER_RUNTIME_VERSION,
             "startup_crash_recovery": self._startup_recovery,
             "current_market_state_policy": FINAL_MARKET_STATE_POLICY,
+            "exclusive_writer_lease": bool(self._runtime_lease.acquired),
             "paper_position_stats": stats,
             "same_day_delivery_enabled": False,
             "structural_delivery_enabled": False,
