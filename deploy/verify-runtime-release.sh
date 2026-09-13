@@ -19,6 +19,6 @@ ACTUAL_SHA="$(git -C "${APP_DIR}" rev-parse HEAD)"
 # the executed application without changing HEAD. Git-ignored runtime artifacts such
 # as .venv remain ignored, but every visible untracked path fails the release gate.
 [[ -z "$(git -C "${APP_DIR}" status --porcelain --untracked-files=all)" ]] \
-  || fail "runtime release check: working tree/import surface differs from authorized commit"
+  || fail "runtime release check: tracked working tree differs or untracked import surface exists"
 
 printf 'Runtime release attested: %s\n' "${ACTUAL_SHA}"
