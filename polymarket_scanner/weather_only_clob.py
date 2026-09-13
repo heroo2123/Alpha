@@ -1,25 +1,11 @@
 from __future__ import annotations
 
-"""Exact CLOB authority for the weather-only scanner.
+"""Exact read-only CLOB authority for the weather-only scanner.
 
-This module intentionally has no order-posting methods. It reads CLOB V2 market
-parameters and exact books for the small compiled weather universe. A snapshot is
-accepted only when every requested condition and token is represented exactly once,
-identities agree with Gamma/compiler evidence, books are locally fresh, and market
-fee/tick/minimum-order metadata is explicit.
-
-No midpoint, Gamma BBO, cached category fee default, or legacy base-fee endpoint can
-substitute for the V2 market-info fee details used here. Current Polymarket V2
-semantics define a dynamic fee schedule by ``fd.r`` and ``fd.e``. The official SDK
-interprets a completely missing ``fd`` object as the zero-fee schedule; this parser
-matches that behavior while requiring an explicit integral exponent whenever a
-positive rate is present.
-
-Read-only timeout/transport failures are retried a small bounded number of times.
-HTTP status, JSON, identity, stale-book, and semantic failures remain single-attempt
-fail-closed outcomes. Keep-alive lifetime deliberately exceeds the 30-second W7
-sampling cadence so repeated exact reads do not need a fresh TCP/TLS handshake on
-every sample.
+A snapshot is accepted only when every requested condition and token is represented
+exactly once, token-to-outcome meaning agrees with the compiler, provider book time
+is plausible/fresh, local receipts are fresh, and V2 market parameters are explicit.
+No order-posting/signing/cancel method exists here.
 """
 
 import asyncio
@@ -36,8 +22,10 @@ from .weather_only_contracts import CompiledWeatherEvent
 
 
 CLOB = "https://clob.polymarket.com"
-WEATHER_CLOB_VERSION = "weather_clob_v2_exact_books_dynamic_fee_exponent_read_only"
+WEATHER_CLOB_VERSION = "weather_clob_v4_token_meaning_provider_freshness_read_only"
 MAX_BOOK_AGE_SECONDS = 10.0
+MAX_PROVIDER_BOOK_AGE_SECONDS = 30.0
+MAX_PROVIDER_FUTURE_SKEW_SECONDS = 5.0
 MAX_CONDITIONS = 1_000
 MAX_TOKENS = 2_000
 CLOB_TRANSIENT_MAX_ATTEMPTS = 3
@@ -89,14 +77,6 @@ class WeatherExecutionSnapshot:
 
 
 def conservative_taker_fee_per_share(price: float, fee_rate: float, fee_exponent: int) -> float:
-    """Conservative one-share V2 platform fee, rounded upward to 5 decimals.
-
-    Polymarket's current V2 client computes the platform fee rate as
-    ``r * (p * (1-p)) ** e``. For one purchased share, that is also the platform fee
-    in USDC before trade-total rounding. We ceil to 5 decimals for screening so a
-    marginal structural opportunity can never be created by optimistic rounding.
-    Actual order construction/fill accounting remains a separate future authority.
-    """
     p = Decimal(str(price))
     rate = Decimal(str(fee_rate))
     if not (Decimal("0") < p < Decimal("1")) or rate < 0:
@@ -144,6 +124,25 @@ def _retry_delay_seconds(attempt: int) -> float:
     if not math.isfinite(delay) or delay < 0.0:
         raise WeatherCLOBError("CLOB_RETRY_POLICY_INVALID")
     return delay * (attempt + 1)
+
+
+def _provider_timestamp_seconds(value: object) -> float:
+    raw = str(value or "").strip()
+    if not raw:
+        raise WeatherCLOBError("BOOK_PROVIDER_TIMESTAMP_MISSING")
+    try:
+        numeric = float(raw)
+    except (TypeError, ValueError, OverflowError):
+        raise WeatherCLOBError("BOOK_PROVIDER_TIMESTAMP_INVALID")
+    if not math.isfinite(numeric) or numeric <= 0.0:
+        raise WeatherCLOBError("BOOK_PROVIDER_TIMESTAMP_INVALID")
+    # CLOB book timestamps are commonly milliseconds.  Also tolerate seconds and
+    # higher precision epoch forms while normalizing to seconds.
+    while numeric > 10_000_000_000.0:
+        numeric /= 1000.0
+    if numeric < 1_500_000_000.0:
+        raise WeatherCLOBError("BOOK_PROVIDER_TIMESTAMP_IMPLAUSIBLE")
+    return numeric
 
 
 def parse_market_info(condition_id: str, payload: object, *, received_at: float) -> WeatherMarketParameters:
@@ -224,12 +223,20 @@ def parse_book(token_id: str, payload: object, *, received_at: float) -> Book:
         raise WeatherCLOBError("BOOK_CROSSED")
     last = payload.get("last_trade_price")
     last_price = None if last in (None, "") else _finite_number(last, minimum=0.0, maximum=1.0)
+    provider_raw = str(payload.get("timestamp") or "") or None
+    if provider_raw is not None:
+        provider_ts = _provider_timestamp_seconds(provider_raw)
+        receipt = float(received_at)
+        if provider_ts - receipt > MAX_PROVIDER_FUTURE_SKEW_SECONDS:
+            raise WeatherCLOBError("BOOK_PROVIDER_TIMESTAMP_FUTURE")
+        if receipt - provider_ts > MAX_PROVIDER_BOOK_AGE_SECONDS:
+            raise WeatherCLOBError("BOOK_PROVIDER_TIMESTAMP_STALE")
     return Book(
         token_id=str(token_id),
         bids=bids,
         asks=asks,
         last_trade_price=last_price,
-        timestamp=str(payload.get("timestamp") or "") or None,
+        timestamp=provider_raw,
         received_at=float(received_at),
         source="clob_exact_rest_v2",
         book_hash=str(payload.get("hash") or "") or None,
@@ -318,10 +325,7 @@ class WeatherCLOBClient:
             for attempt in range(CLOB_TRANSIENT_MAX_ATTEMPTS):
                 code = None
                 try:
-                    response = await self.http.post(
-                        f"{CLOB}/books",
-                        json=[{"token_id": token} for token in chunk],
-                    )
+                    response = await self.http.post(f"{CLOB}/books", json=[{"token_id": token} for token in chunk])
                 except httpx.TimeoutException:
                     code = "CLOB_TIMEOUT"
                 except httpx.RequestError:
@@ -359,31 +363,43 @@ class WeatherCLOBClient:
         started = time.time()
         conditions: list[str] = []
         tokens: list[str] = []
-        expected_by_condition: dict[str, set[str]] = {}
+        expected_by_condition: dict[str, dict[str, str]] = {}
         for bucket in compiled.buckets:
             if not bucket.trade_open:
                 continue
             if not bucket.condition_id or not bucket.yes_token or not bucket.no_token:
                 raise WeatherCLOBError("COMPILED_BUCKET_IDENTITY_INCOMPLETE")
+            if bucket.condition_id in expected_by_condition:
+                raise WeatherCLOBError("COMPILED_CONDITION_DUPLICATE")
             conditions.append(bucket.condition_id)
             tokens.extend((bucket.yes_token, bucket.no_token))
-            expected_by_condition[bucket.condition_id] = {bucket.yes_token, bucket.no_token}
+            expected_by_condition[bucket.condition_id] = {
+                bucket.yes_token: "yes",
+                bucket.no_token: "no",
+            }
         if not conditions:
             raise WeatherCLOBError("NO_OPEN_BUCKETS")
+        if len(tokens) != len(set(tokens)):
+            raise WeatherCLOBError("COMPILED_TOKEN_DUPLICATE")
 
-        infos, books = await asyncio.gather(
-            self.market_infos(conditions),
-            self.books(tokens),
-        )
+        infos, books = await asyncio.gather(self.market_infos(conditions), self.books(tokens))
         for condition, expected in expected_by_condition.items():
-            actual = {token for token, _ in infos[condition].token_outcomes}
+            actual = {token: str(outcome).strip().lower() for token, outcome in infos[condition].token_outcomes}
             if actual != expected:
-                raise WeatherCLOBError("GAMMA_CLOB_TOKEN_MISMATCH")
+                raise WeatherCLOBError("GAMMA_CLOB_TOKEN_OUTCOME_MISMATCH")
         if set(books) != set(tokens):
             raise WeatherCLOBError("BOOK_BATCH_INCOMPLETE")
         finished = time.time()
-        if any(book.received_at is None or finished - book.received_at > MAX_BOOK_AGE_SECONDS for book in books.values()):
-            raise WeatherCLOBError("BOOK_SNAPSHOT_STALE")
+        for book in books.values():
+            if book.received_at is None or finished - book.received_at > MAX_BOOK_AGE_SECONDS:
+                raise WeatherCLOBError("BOOK_SNAPSHOT_STALE")
+            if not book.timestamp:
+                raise WeatherCLOBError("BOOK_PROVIDER_TIMESTAMP_MISSING")
+            provider_ts = _provider_timestamp_seconds(book.timestamp)
+            if provider_ts - finished > MAX_PROVIDER_FUTURE_SKEW_SECONDS:
+                raise WeatherCLOBError("BOOK_PROVIDER_TIMESTAMP_FUTURE")
+            if finished - provider_ts > MAX_PROVIDER_BOOK_AGE_SECONDS:
+                raise WeatherCLOBError("BOOK_PROVIDER_TIMESTAMP_STALE")
         return WeatherExecutionSnapshot(
             version=WEATHER_CLOB_VERSION,
             event_id=compiled.event_id,
