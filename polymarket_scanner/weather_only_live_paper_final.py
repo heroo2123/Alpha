@@ -33,11 +33,11 @@ from .weather_only_live_paper_corrective import WeatherLivePaperCorrectiveServic
 from .weather_only_live_paper_v2 import DEFAULT_PAPER_STAKE_USD
 from .weather_only_paper_commands_canonical import CanonicalWeatherPaperCommandController
 from .weather_only_paper_corrective import CorrectiveSettlementEngine
-from .weather_only_paper_recovery import CrashSafeWeatherPaperStore
+from .weather_only_paper_recovery_final import FinalCrashSafeWeatherPaperStore
 from .weather_only_runtime_lease import WeatherPaperRuntimeLease
 
 
-FINAL_PAPER_RUNTIME_VERSION = "weather_live_paper_final_v2_b1_b6_singleton_guarded"
+FINAL_PAPER_RUNTIME_VERSION = "weather_live_paper_final_v3_exact_recovery_boundary"
 FINAL_MARKET_STATE_POLICY = "GAMMA_SELECTED_MARKET_OPEN_ACCEPTING_ORDERBOOK_V1"
 
 
@@ -86,7 +86,7 @@ class FinalWeatherLivePaperService(WeatherLivePaperCorrectiveService):
             # restart reconciler. Keep the superseded controller/settlement for close().
             self._final_superseded_settlement = self.settlement
             self._final_superseded_commands = self.commands
-            self.positions = CrashSafeWeatherPaperStore(self.db_path)
+            self.positions = FinalCrashSafeWeatherPaperStore(self.db_path)
             self.settlement = CorrectiveSettlementEngine(
                 store=self.positions,
                 telegram=self.telegram,
