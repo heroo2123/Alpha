@@ -62,3 +62,8 @@ def test_legacy_scanner_service_names_are_not_operated_by_weather_deploy_scripts
         "systemctl enable polymarket-edge-command",
     ):
         assert forbidden not in combined
+
+
+def test_preflight_requires_legacy_services_disabled_not_merely_stopped():
+    text = _text(PREFLIGHT)
+    assert 'check-weather-paper-service-isolation.sh" --require-disabled' in text
