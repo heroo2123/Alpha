@@ -114,7 +114,24 @@ def test_inactive_service_attests_installed_unit_but_does_not_claim_deployment()
     assert result.process_attested is False
     assert result.deployment_proven is False
     assert result.inactive_safe_state is True
+    assert "NO_ORPHAN_WEATHER_PROCESS" in result.checks
     assert "SERVICE_INACTIVE_NO_DEPLOYMENT_CLAIM" in result.checks
+
+
+def test_inactive_service_rejects_manually_launched_or_orphaned_weather_process():
+    facts = _facts(
+        active=False,
+        main_pid=None,
+        process_cwd=None,
+        process_executable=None,
+        process_argv=(),
+        matching_weather_process_argvs=(ARGV,),
+    )
+    with pytest.raises(
+        WeatherRuntimeAttestationError,
+        match="WEATHER_RUNTIME_ORPHAN_PROCESS_WHILE_SERVICE_INACTIVE",
+    ):
+        _attest(facts)
 
 
 def test_unit_db_path_drift_is_detected():
