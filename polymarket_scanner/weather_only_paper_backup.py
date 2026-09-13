@@ -3,13 +3,14 @@ from __future__ import annotations
 """Backup/restore verification for the isolated weather-paper SQLite ledger.
 
 The deployment gate must back up an existing ledger *before* the corrective runtime
-migrates it.  Therefore verification recognizes both the supported legacy v3 paper
-schema and the current v4 schema, and fingerprints every ``weather_paper_*`` table
-that is actually present.  A backup never creates/migrates tables in the source DB.
+migrates it. Verification recognizes both the supported legacy v3 paper schema and
+the current v4 schema. Because the same isolated SQLite file also stores silent
+three-layer research/capture evidence, restore verification fingerprints every user
+table in the database, not only ``weather_paper_*`` tables.
 
-SQLite's online backup API is used for a coherent copy.  The copy is restored into a
+SQLite's online backup API is used for a coherent copy. The copy is restored into a
 brand-new temporary database and its schema/row digests must exactly match before the
-backup is published.  Importing this module never schedules work or changes a service.
+backup is published. Importing this module never schedules work or changes a service.
 """
 
 import hashlib
@@ -21,7 +22,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 
-WEATHER_PAPER_BACKUP_VERSION = "weather_paper_backup_v2_legacy_and_current_restore_verified"
+WEATHER_PAPER_BACKUP_VERSION = "weather_paper_backup_v3_all_user_tables_restore_verified"
 WEATHER_PAPER_LEGACY_REQUIRED_TABLES = (
     "weather_paper_positions",
     "weather_paper_signals",
@@ -32,8 +33,6 @@ WEATHER_PAPER_CURRENT_REQUIRED_TABLES = (
     "weather_paper_decisions",
     *WEATHER_PAPER_LEGACY_REQUIRED_TABLES,
 )
-# Compatibility alias used by older tests/callers.  It means the current schema, not
-# the minimum schema accepted for a pre-migration backup.
 WEATHER_PAPER_REQUIRED_TABLES = WEATHER_PAPER_CURRENT_REQUIRED_TABLES
 
 
@@ -104,8 +103,10 @@ def _supported_profile(tables: set[str]) -> tuple[str, tuple[str, ...]]:
     else:
         raise WeatherPaperBackupError("PAPER_BACKUP_REQUIRED_TABLES_MISSING")
 
-    # Preserve/fingerprint all paper-owned tables, including future additive tables.
-    logical = tuple(sorted(name for name in tables if name.startswith("weather_paper_")))
+    # The database is isolated to the weather-paper service. SQLite internal tables
+    # are recreated automatically; every application/user table must be verified so
+    # silent same-day research evidence cannot disappear from an otherwise valid copy.
+    logical = tuple(sorted(name for name in tables if not name.startswith("sqlite_")))
     if not logical:
         raise WeatherPaperBackupError("PAPER_BACKUP_REQUIRED_TABLES_MISSING")
     return profile, logical
@@ -200,8 +201,6 @@ def backup_weather_paper_database(
     if final_path.exists():
         raise WeatherPaperBackupError("PAPER_BACKUP_DESTINATION_EXISTS")
 
-    # Verification is read-only.  In particular, a legacy source remains byte-for-byte
-    # untouched until the separately authorized runtime migration happens later.
     source_profile = verify_weather_paper_database(source_path)
     try:
         with _connect(source_path, readonly=True) as src, _connect(temporary, readonly=False) as dst:
