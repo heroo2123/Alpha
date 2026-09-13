@@ -13,6 +13,10 @@ inputs needed to reproduce one three-layer research decision offline:
 * the reduced Layer-3 path; and
 * the final bucket-frequency decision.
 
+The rule-level observation population and concrete WRH adapter population instance are
+kept distinct. Replay requires the exact adapter instance expected by the pinned WRH
+viewer profile/script, not merely a matching human-readable population label.
+
 Construction independently rebuilds O(t), projects the raw hourly GEFS source onto
 the frozen Layer-3 U(t) mask, and rebuilds the final three-layer decision. Any digest,
 identity or result mismatch fails closed. Release/config/protocol cohort identifiers
@@ -43,6 +47,7 @@ from .weather_only_near_term import (
 )
 from .weather_only_same_day_contract import (
     SameDayContractSemantics,
+    expected_layer1_population_instance,
     verify_same_day_contract_semantics,
 )
 from .weather_only_three_layer import (
@@ -57,7 +62,7 @@ from .weather_only_three_layer_integrity import (
 from .weather_only_unresolved_coverage import UnresolvedCoveragePlan
 
 
-SAME_DAY_ENVELOPE_VERSION = "weather_same_day_replay_envelope_v2_rule_population_full_preimages"
+SAME_DAY_ENVELOPE_VERSION = "weather_same_day_replay_envelope_v3_exact_population_instance"
 
 
 class SameDayEnvelopeError(RuntimeError):
@@ -230,6 +235,7 @@ def build_same_day_evidence_envelope(
 
     try:
         semantics_checked = verify_same_day_contract_semantics(contract_semantics, compiled)
+        population_instance = expected_layer1_population_instance(semantics_checked)
         coverage_checked = verify_unresolved_coverage_integrity(coverage)
         near_checked = verify_near_term_coverage_integrity(near_term)
         hourly_checked = verify_gefs_hourly_evidence(hourly_gefs)
@@ -243,8 +249,10 @@ def build_same_day_evidence_envelope(
         raise SameDayEnvelopeError(
             f"SAME_DAY_ENVELOPE_LAYER1_ADAPTER_BLOCKED:{semantics_checked.layer1_adapter_block_reason}"
         )
-    if coverage_checked.population_id != semantics_checked.observation_population:
-        raise SameDayEnvelopeError("SAME_DAY_ENVELOPE_OBSERVATION_POPULATION_MISMATCH")
+    if coverage_checked.population_id != population_instance:
+        raise SameDayEnvelopeError("SAME_DAY_ENVELOPE_OBSERVATION_POPULATION_INSTANCE_MISMATCH")
+    if any(row.population_id != population_instance for row in rows):
+        raise SameDayEnvelopeError("SAME_DAY_ENVELOPE_OBSERVATION_PREIMAGE_POPULATION_MISMATCH")
     if (
         coverage_checked.station != semantics_checked.station
         or coverage_checked.target_date != semantics_checked.target_date
@@ -262,7 +270,7 @@ def build_same_day_evidence_envelope(
         observed_rebuilt = build_observed_extreme(
             rows,
             station=semantics_checked.station,
-            population_id=semantics_checked.observation_population,
+            population_id=population_instance,
             unit=semantics_checked.unit,
             family=semantics_checked.family,
             target_start=coverage_checked.target_start,
