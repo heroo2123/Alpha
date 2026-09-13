@@ -3,14 +3,16 @@ set -Eeuo pipefail
 
 # Explicit PAPER-only start gate. This script is never invoked by installation or CI.
 # It verifies one exact commit, reruns the stopped-service preflight/backup, starts only
-# the canonical weather-paper unit, and stops it again automatically if active runtime
-# attestation does not prove the expected process identity.
+# the canonical weather-paper unit, and stops it again automatically if either active
+# runtime identity or the first fresh paper cycle fails acceptance.
 APP_DIR="${ALPHA_APP_DIR:-${HOME}/polymarket-edge-scanner}"
 CONFIG_DIR="${ALPHA_CONFIG_DIR:-${HOME}/.polymarket-edge-scanner}"
 DB_PATH="${WEATHER_PAPER_DB_PATH:-/var/lib/polymarket-weather-paper/weather-paper.sqlite}"
+STATUS_PATH="${WEATHER_PAPER_STATUS_PATH:-/var/lib/polymarket-weather-paper/status.json}"
 UNIT="polymarket-weather-paper.service"
 RELEASE_FILE="${CONFIG_DIR}/release.sha"
 ATTESTATION_OUT="${CONFIG_DIR}/weather-paper-active-attestation.json"
+FIRST_CYCLE_OUT="${CONFIG_DIR}/weather-paper-first-cycle-acceptance.json"
 EXPECTED_SHA="${1:-}"
 
 fail(){ printf 'ERROR: %s\n' "$*" >&2; exit 1; }
@@ -46,6 +48,7 @@ rollback_on_error(){
 }
 trap rollback_on_error EXIT
 
+START_ACCEPTANCE_EPOCH="$(date +%s)"
 sudo systemctl start "${UNIT}"
 started=1
 
@@ -67,16 +70,28 @@ systemctl is-active --quiet "${UNIT}" 2>/dev/null \
   --require-active \
   --output "${ATTESTATION_OUT}"
 
-# Recheck release identity after the process exists, so a checkout/marker race cannot
-# turn the preflighted commit into a different running tree.
+# Deployment is not accepted merely because the process exists. Wait for one status
+# cycle produced after this exact start and prove it is healthy, paper-only, and keeps
+# the three-layer same-day lane silent/untrusted for trading.
+"${APP_DIR}/.venv/bin/python" "${APP_DIR}/deploy/verify-weather-paper-first-cycle.py" \
+  --status "${STATUS_PATH}" \
+  --release-sha "${EXPECTED_SHA}" \
+  --not-before "${START_ACCEPTANCE_EPOCH}" \
+  --timeout-seconds 600 \
+  --max-age-seconds 600 \
+  --output "${FIRST_CYCLE_OUT}"
+
+# Recheck release identity after the process AND first cycle exist, so a checkout or
+# marker race cannot turn the preflighted commit into a different running tree.
 HEAD_AFTER="$(git -C "${APP_DIR}" rev-parse HEAD | tr -d '[:space:]')"
 MARKER_AFTER="$(tr -d '[:space:]' < "${RELEASE_FILE}")"
 [[ "${HEAD_AFTER}" == "${EXPECTED_SHA}" ]] || fail "checkout changed during start acceptance"
 [[ "${MARKER_AFTER}" == "${EXPECTED_SHA}" ]] || fail "release marker changed during start acceptance"
 
 trap - EXIT
-printf '\nPASS: canonical weather PAPER candidate is active and attested.\n'
+printf '\nPASS: canonical weather PAPER candidate is active, attested, and completed a healthy first cycle.\n'
 printf 'Release: %s\n' "${EXPECTED_SHA}"
-printf 'Attestation: %s\n' "${ATTESTATION_OUT}"
+printf 'Runtime attestation: %s\n' "${ATTESTATION_OUT}"
+printf 'First-cycle acceptance: %s\n' "${FIRST_CYCLE_OUT}"
 printf 'The service was started but NOT enabled for boot persistence.\n'
 printf 'Real-money trading authority is not granted by this script.\n'
