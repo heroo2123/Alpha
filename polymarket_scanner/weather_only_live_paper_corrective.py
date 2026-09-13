@@ -2,22 +2,19 @@ from __future__ import annotations
 
 """Canonical weather-only corrective LIVE PAPER entrypoint.
 
-This layer unifies the v4 signal/position SQLite surfaces and adds the month-scale
-operational bounds required by the adversarial review: historical quarantine resumes
-from a persisted policy-bound cursor instead of rescanning the whole ledger every
-cycle, and station metadata uses a TTL/LRU bound instead of growing forever.
+The ordinary paper lanes use the v4 corrective execution/settlement protocol. In
+parallel, this service collects the new three-layer same-day weather state as isolated,
+silent research only: exact WRH observations so far, official NWS near-term grid
+support, and full 31-member GEFS remaining-hours paths.
 
-It also runs the three-layer same-day model as a *silent research collector* only:
-exact WRH observations so far, staged official NWS near-term grid evidence, and full
-31-member GEFS remaining-hours paths. Captures are stored in an isolated table and
-cannot create Telegram alerts, paper positions, validated P&L or financial authority.
-The current WRH-to-model observation-population alignment remains uncertified, so
-same-day captures normally remain BLOCKED_RESEARCH rather than manufacturing a
-probability from an unproven scientific assumption.
+Three-layer captures cannot create Telegram trade alerts, paper positions, validated
+P&L or financial authority. The WRH-to-model population alignment remains
+scientifically uncertified, so captures fail closed as BLOCKED_RESEARCH rather than
+manufacturing a probability. Capture cadence is checked against SQLite before network
+acquisition, so a process restart cannot reset the sampling interval and grow the
+research database without bound.
 
-The older full-replay same-day envelope table is preserved separately for future
-scientifically accepted decisions. No authenticated trading API is imported and
-same-day directional delivery remains disabled.
+No authenticated Polymarket trading API is imported. Real orders remain disabled.
 """
 
 import argparse
@@ -44,16 +41,10 @@ from .weather_only_live_paper import (
     _atomic_json,
 )
 from .weather_only_live_paper_v2 import DEFAULT_PAPER_STAKE_USD
-from .weather_only_live_paper_v4 import (
-    PRE_V4_QUARANTINE_REASON,
-    WeatherLivePaperV4Service,
-)
+from .weather_only_live_paper_v4 import PRE_V4_QUARANTINE_REASON, WeatherLivePaperV4Service
 from .weather_only_nws_near_term import NWSNearTermGridClient
-from .weather_only_paper_corrective import (
-    PAPER_EXECUTION_PROTOCOL_V4,
-    CorrectiveSettlementEngine,
-    ClearWeatherPaperCommandController,
-)
+from .weather_only_paper_commands_canonical import CanonicalWeatherPaperCommandController
+from .weather_only_paper_corrective import PAPER_EXECUTION_PROTOCOL_V4, CorrectiveSettlementEngine
 from .weather_only_paper_facade import CorrectiveWeatherPaperStore
 from .weather_only_rules import compile_temperature_rule_authority
 from .weather_only_same_day_capture import (
@@ -67,13 +58,16 @@ from .weather_only_same_day_store import SameDayResearchStore
 from .weather_only_wrh_client import NWSWRHLiveClient
 
 
-CANONICAL_CORRECTIVE_VERSION = "weather_live_paper_corrective_v7_silent_three_layer_capture"
+CANONICAL_CORRECTIVE_VERSION = "weather_live_paper_corrective_v8_persistent_three_layer_cadence"
 HISTORY_QUARANTINE_POLICY_ID = "PRE_V4_PROTOCOL_QUARANTINE_V2_BOUNDED_CURSOR"
 HISTORY_QUARANTINE_BATCH_SIZE = 200
 STATION_METADATA_CACHE_MAX_ENTRIES = 128
 STATION_METADATA_CACHE_TTL_SECONDS = 21_600.0
 DEFAULT_MAX_SAME_DAY_CAPTURE_EVENTS = 4
-SAME_DAY_CAPTURE_COOLDOWN_SECONDS = 900.0
+SAME_DAY_CAPTURE_COOLDOWN_SECONDS = 3_600.0
+SAME_DAY_MONTHLY_ROW_BOUND_31D = int(
+    DEFAULT_MAX_SAME_DAY_CAPTURE_EVENTS * 24 * 31
+)
 SAME_DAY_MAPPING_POLICY = EnsembleMappingPolicy(
     policy_id="SAME_DAY_THREE_LAYER_NEAREST_WHOLE_V1",
     include_control=True,
@@ -81,13 +75,7 @@ SAME_DAY_MAPPING_POLICY = EnsembleMappingPolicy(
 
 
 class _CapturingDiscoveryProxy:
-    """Observe the discovery call already made by the inherited runtime.
-
-    The base paper service already performs discovery. Re-running Gamma discovery for
-    the same-day collector would waste network/CPU on e2-micro and could expose a
-    different universe generation within one logical cycle. This transparent proxy
-    records the exact latest discovery result while delegating every other attribute.
-    """
+    """Record the exact discovery generation already consumed by the base cycle."""
 
     def __init__(self, delegate) -> None:
         self._delegate = delegate
@@ -105,18 +93,14 @@ class _CapturingDiscoveryProxy:
 class WeatherLivePaperCorrectiveService(WeatherLivePaperV4Service):
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
-        # V4 constructed its corrective components around the position-only legacy
-        # shape. Replace them before any cycle can run with the unified facade.
         self._canonical_superseded_settlement = self.settlement
         self._canonical_superseded_commands = self.commands
+
         self.positions = CorrectiveWeatherPaperStore(self.db_path)
         self.same_day_research = SameDayResearchStore(self.db_path)
         self.same_day_captures = SameDayCaptureStore(self.db_path)
-        self.settlement = CorrectiveSettlementEngine(
-            store=self.positions,
-            telegram=self.telegram,
-        )
-        self.commands = ClearWeatherPaperCommandController(
+        self.settlement = CorrectiveSettlementEngine(store=self.positions, telegram=self.telegram)
+        self.commands = CanonicalWeatherPaperCommandController(
             telegram=self.telegram,
             store=self.positions,
             status_path=self.status_path,
@@ -131,17 +115,15 @@ class WeatherLivePaperCorrectiveService(WeatherLivePaperV4Service):
         )
         self._bounded_station_metadata: OrderedDict[str, tuple[float, object]] = OrderedDict()
 
-        # Reuse the exact discovery generation already consumed by the inherited
-        # paper cycle instead of launching another universe walk.
         self._canonical_discovery_delegate = self.runtime.discovery
         self._capturing_discovery = _CapturingDiscoveryProxy(self.runtime.discovery)
         self.runtime.discovery = self._capturing_discovery
 
-        # Three-layer acquisition is read-only and isolated from validated paper P&L.
-        # WRH uses a synchronous secret-safe browser adapter in a worker thread.
         self._same_day_wrh = NWSWRHLiveClient()
         self._same_day_nws = NWSNearTermGridClient()
         self._same_day_gefs = OpenMeteoGEFSHourlyClient()
+        # In-memory throttle protects repeated source failures inside one process.
+        # Successful captures are additionally throttled from durable SQLite state.
         self._same_day_last_attempt: dict[str, float] = {}
 
     async def close(self) -> None:
@@ -155,11 +137,9 @@ class WeatherLivePaperCorrectiveService(WeatherLivePaperV4Service):
         await super().close()
 
     def _station_cache_now(self) -> float:
-        """Dedicated monotonic clock seam so tests never patch asyncio's global clock."""
         return time.monotonic()
 
     async def _station_metadata_for_compiled(self, compiled):
-        """TTL/LRU station metadata cache used by every canonical forecast gate."""
         station_id = str(compiled.station_hint or "").strip().upper()
         if not station_id:
             return None
@@ -180,7 +160,7 @@ class WeatherLivePaperCorrectiveService(WeatherLivePaperV4Service):
         return metadata
 
     async def quarantine_observation_blind_history(self) -> dict:
-        """Perform at most one fixed historical batch and persist its progress."""
+        """Perform at most one fixed historical batch and persist its cursor."""
         try:
             report = await asyncio.to_thread(self._history_quarantine.run_once)
             payload = report.as_dict()
@@ -204,7 +184,7 @@ class WeatherLivePaperCorrectiveService(WeatherLivePaperV4Service):
         return payload
 
     async def _same_day_eligible(self, events: tuple[dict, ...]) -> tuple[list[tuple], list[str]]:
-        """Filter exact station-local target-day events before applying the event cap."""
+        """Prove semantics + station-local target day before applying the event cap."""
         eligible: list[tuple[str, dict, object, object, object]] = []
         errors: list[str] = []
         seen_event_ids: set[str] = set()
@@ -222,6 +202,7 @@ class WeatherLivePaperCorrectiveService(WeatherLivePaperV4Service):
                 event_id = str(event.get("id") or event.get("eventId") or "unknown")
                 errors.append(f"SAME_DAY_SEMANTICS:{event_id}:{code}")
                 continue
+
             event_id = str(compiled.event_id)
             if event_id in seen_event_ids:
                 continue
@@ -245,7 +226,7 @@ class WeatherLivePaperCorrectiveService(WeatherLivePaperV4Service):
                 continue
             eligible.append((event_id, event, compiled, semantics, metadata))
 
-        # R18: cap only after semantic + station-local date eligibility is proven.
+        # R18: only eligible station-local events consume the bounded selection budget.
         eligible.sort(key=lambda item: item[0])
         return eligible[:DEFAULT_MAX_SAME_DAY_CAPTURE_EVENTS], errors
 
@@ -253,12 +234,10 @@ class WeatherLivePaperCorrectiveService(WeatherLivePaperV4Service):
         station = str(compiled.station_hint).upper()
         latitude = float(metadata.latitude)
         longitude = float(metadata.longitude)
-        target_date = compiled.target_date
-        timezone_name = str(metadata.timezone)
         wrh_task = asyncio.to_thread(
             self._same_day_wrh.fetch_snapshot,
             station=station,
-            target_date=target_date,
+            target_date=compiled.target_date,
         )
         nws_task = self._same_day_nws.fetch_snapshot(
             station=station,
@@ -269,30 +248,39 @@ class WeatherLivePaperCorrectiveService(WeatherLivePaperV4Service):
             station=station,
             latitude=latitude,
             longitude=longitude,
-            target_date=target_date,
+            target_date=compiled.target_date,
             unit=str(compiled.unit),
-            timezone=timezone_name,
+            timezone=str(metadata.timezone),
         )
         return await asyncio.gather(wrh_task, nws_task, gefs_task)
 
     async def _capture_same_day_research(self, events: tuple[dict, ...]) -> dict:
-        """Collect all three layers silently; never create a signal or paper position."""
+        """Collect three layers silently without creating signals or positions."""
         eligible, errors = await self._same_day_eligible(events)
-        attempted = 0
-        saved = 0
-        blocked = 0
-        ready = 0
-        duplicates = 0
+        attempted = saved = blocked = ready = duplicates = cadence_skipped = 0
         block_reasons: dict[str, int] = {}
         now = time.time()
-
-        # High/low contracts at the same station/date/unit can reuse the identical raw
-        # source bundle within one cycle. Family-specific projection stays per event.
         bundle_cache: dict[tuple, tuple] = {}
+
         for event_id, _event, compiled, semantics, metadata in eligible:
-            last = float(self._same_day_last_attempt.get(event_id, 0.0))
-            if last > 0.0 and now - last < SAME_DAY_CAPTURE_COOLDOWN_SECONDS:
+            try:
+                persisted_last = await asyncio.to_thread(
+                    self.same_day_captures.latest_as_of_for_event, event_id
+                )
+            except Exception as exc:
+                code = getattr(exc, "code", type(exc).__name__)
+                errors.append(f"SAME_DAY_CADENCE_STATE:{event_id}:{code}")
                 continue
+            memory_last = float(self._same_day_last_attempt.get(event_id, 0.0))
+            last = max(memory_last, float(persisted_last or 0.0))
+            if last > now + 1.0:
+                errors.append(f"SAME_DAY_CADENCE_CLOCK_ROLLBACK:{event_id}")
+                cadence_skipped += 1
+                continue
+            if last > 0.0 and now - last < SAME_DAY_CAPTURE_COOLDOWN_SECONDS:
+                cadence_skipped += 1
+                continue
+
             self._same_day_last_attempt[event_id] = now
             attempted += 1
             key = (
@@ -307,8 +295,7 @@ class WeatherLivePaperCorrectiveService(WeatherLivePaperV4Service):
                 if key not in bundle_cache:
                     bundle_cache[key] = await self._fetch_same_day_source_bundle(compiled, metadata)
                 wrh_result, nws_snapshot, hourly_gefs = bundle_cache[key]
-                # Freeze t only *after* every awaited source response exists. This is
-                # the anti-lookahead boundary for O(t), Layer 2 and Layer 3.
+                # Decision t is frozen only after every awaited source receipt exists.
                 as_of = time.time()
                 record = assemble_same_day_capture(
                     compiled=compiled,
@@ -340,20 +327,24 @@ class WeatherLivePaperCorrectiveService(WeatherLivePaperV4Service):
 
         summary = await asyncio.to_thread(self.same_day_captures.summary)
         return {
-            "version": "same_day_three_layer_silent_collection_v1",
+            "version": "same_day_three_layer_silent_collection_v2_persistent_cadence",
             "enabled": True,
             "silent_research_only": True,
             "eligible_events": len(eligible),
             "attempted_now": attempted,
             "saved_now": saved,
             "duplicates_now": duplicates,
+            "cadence_skipped_now": cadence_skipped,
             "blocked_now": blocked,
             "ready_uncalibrated_now": ready,
             "block_reasons": block_reasons,
             "errors": errors,
             "store": summary,
             "capture_cooldown_seconds": SAME_DAY_CAPTURE_COOLDOWN_SECONDS,
+            "capture_cadence_persisted_in_sqlite": True,
             "max_events_per_cycle": DEFAULT_MAX_SAME_DAY_CAPTURE_EVENTS,
+            "theoretical_31_day_row_bound_at_full_daily_eligibility": SAME_DAY_MONTHLY_ROW_BOUND_31D,
+            "automatic_evidence_pruning": False,
             "population_alignment_certified": False,
             "calibrated_probability": False,
             "included_in_validated_pnl": False,
@@ -370,7 +361,7 @@ class WeatherLivePaperCorrectiveService(WeatherLivePaperV4Service):
         except Exception as exc:
             code = getattr(exc, "code", type(exc).__name__)
             same_day_capture = {
-                "version": "same_day_three_layer_silent_collection_v1",
+                "version": "same_day_three_layer_silent_collection_v2_persistent_cadence",
                 "enabled": True,
                 "silent_research_only": True,
                 "errors": [f"SAME_DAY_COLLECTOR:{code}"],
@@ -381,19 +372,20 @@ class WeatherLivePaperCorrectiveService(WeatherLivePaperV4Service):
                 "financial_authority": False,
             }
         replay_summary = await asyncio.to_thread(self.same_day_research.summary)
-        status.update({
-            "canonical_corrective_version": CANONICAL_CORRECTIVE_VERSION,
-            "history_quarantine_policy_id": HISTORY_QUARANTINE_POLICY_ID,
-            "history_quarantine_batch_size": HISTORY_QUARANTINE_BATCH_SIZE,
-            "station_metadata_cache_entries": len(self._bounded_station_metadata),
-            "station_metadata_cache_max_entries": STATION_METADATA_CACHE_MAX_ENTRIES,
-            "station_metadata_cache_ttl_seconds": STATION_METADATA_CACHE_TTL_SECONDS,
-            "same_day_three_layer": same_day_capture,
-            "same_day_research": replay_summary,
-            "same_day_delivery_enabled": False,
-        })
-        # The inherited cycle writes status before this silent collector runs. Rewrite
-        # atomically so operator status describes the complete canonical cycle.
+        status.update(
+            {
+                "canonical_corrective_version": CANONICAL_CORRECTIVE_VERSION,
+                "history_quarantine_policy_id": HISTORY_QUARANTINE_POLICY_ID,
+                "history_quarantine_batch_size": HISTORY_QUARANTINE_BATCH_SIZE,
+                "station_metadata_cache_entries": len(self._bounded_station_metadata),
+                "station_metadata_cache_max_entries": STATION_METADATA_CACHE_MAX_ENTRIES,
+                "station_metadata_cache_ttl_seconds": STATION_METADATA_CACHE_TTL_SECONDS,
+                "same_day_three_layer": same_day_capture,
+                "same_day_research": replay_summary,
+                "same_day_delivery_enabled": False,
+            }
+        )
+        # The inherited cycle writes status before the silent collector runs.
         _atomic_json(self.status_path, status)
         return status
 
@@ -436,9 +428,7 @@ def main() -> None:
     parser.add_argument(
         "--max-forecast-events", type=int, default=DEFAULT_MAX_FORECAST_EVENTS
     )
-    parser.add_argument(
-        "--paper-stake-usd", type=float, default=DEFAULT_PAPER_STAKE_USD
-    )
+    parser.add_argument("--paper-stake-usd", type=float, default=DEFAULT_PAPER_STAKE_USD)
     parser.add_argument("--once", action="store_true")
     args = parser.parse_args()
     raise SystemExit(asyncio.run(_main(args)))
