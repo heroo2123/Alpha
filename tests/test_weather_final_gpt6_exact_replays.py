@@ -275,8 +275,25 @@ def test_gpt6_f09_later_closed_projection_blocks_delivery_even_with_fresh_book(t
         market.update(active=False, closed=True, acceptingOrders=False, enableOrderBook=False)
     merged = _merge_event(first, latest)
     assert all(market["closed"] is True for market in merged["markets"])
-    service, candidate, result = asyncio.run(_flow(merged, tmp_path))
+
+    shell = object.__new__(FinalWeatherLivePaperService)
+    shell.positions = NS(get_state=lambda *_args: "")
+    shell.max_forecast_events = 6
+    assert shell._certified_forecast_events([merged]) == []
+
+    clock = [NOW]
+    service = _service(first, clock, tmp_path)
+    with patch("time.time", lambda: clock[0]):
+        candidate = asyncio.run(service._forecast_candidate(first, None))
     assert candidate is not None
+
+    async def closed_market_by_id(market_id: str):
+        market = next(row for row in merged["markets"] if str(row.get("id")) == str(market_id))
+        return copy.deepcopy(market)
+
+    service.settlement = NS(gamma=NS(market_by_id=closed_market_by_id))
+    with patch("time.time", lambda: clock[0]):
+        result = asyncio.run(service._save_and_send_forecast(candidate, first))
     assert result == (False, None)
     assert service.telegram.messages == []
     assert service.positions.stats()["open"] == 0
