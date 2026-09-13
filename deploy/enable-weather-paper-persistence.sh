@@ -3,7 +3,7 @@ set -Eeuo pipefail
 
 # Enable boot persistence only after the exact candidate is already active, attested,
 # and has produced a fresh healthy PAPER-only cycle. This script does not start a new
-# candidate and never enables legacy scanner services.
+# candidate and never enables/disables legacy scanner services.
 APP_DIR="${ALPHA_WEATHER_APP_DIR:-${HOME}/polymarket-weather-paper-app}"
 CONFIG_DIR="${ALPHA_CONFIG_DIR:-${HOME}/.polymarket-edge-scanner}"
 DB_PATH="${WEATHER_PAPER_DB_PATH:-/var/lib/polymarket-weather-paper/weather-paper.sqlite}"
@@ -25,6 +25,11 @@ fail(){ printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 [[ "$(tr -d '[:space:]' < "${RELEASE_FILE}")" == "${EXPECTED_SHA}" ]] \
   || fail "weather-paper release marker no longer matches approved candidate"
 systemctl is-active --quiet "${UNIT}" 2>/dev/null || fail "accepted weather PAPER service is not active"
+
+# Before granting boot persistence, prove the superseded stack will not reappear after
+# reboot and contend for the small VM or Telegram updates. This check is read-only and
+# deliberately refuses to disable anything on the user's behalf.
+bash "${APP_DIR}/deploy/check-weather-paper-service-isolation.sh" --require-disabled
 
 "${APP_DIR}/.venv/bin/python" "${APP_DIR}/deploy/attest-weather-paper-runtime.py" \
   --app-dir "${APP_DIR}" --release-file "${RELEASE_FILE}" --db "${DB_PATH}" \
@@ -69,5 +74,6 @@ trap - EXIT
 printf '\nPASS: weather PAPER bot is enabled for 24/7 restart persistence.\n'
 printf 'Daily verified paper-ledger backups are enabled.\n'
 printf 'Release: %s\n' "${EXPECTED_SHA}"
+printf 'Superseded scanner/research services remain outside this persistence path.\n'
 printf 'Same-day research/trading authority was not changed by this action.\n'
 printf 'Real-money trading remains outside this deployment.\n'
