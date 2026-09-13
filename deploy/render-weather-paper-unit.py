@@ -7,6 +7,9 @@ import re
 from pathlib import Path
 
 
+WEATHER_RELEASE_MARKER = "weather-paper-release.sha"
+
+
 def render(app_dir: Path, config_dir: Path, user: str) -> str:
     for value in (str(app_dir), str(config_dir), user):
         if not re.fullmatch(r"[/A-Za-z0-9_.-]+", value):
@@ -14,7 +17,8 @@ def render(app_dir: Path, config_dir: Path, user: str) -> str:
     if not app_dir.is_absolute() or not config_dir.is_absolute():
         raise ValueError("service directories must be absolute")
     python = f"{app_dir}/.venv/bin/python"
-    verifier = f"/bin/bash {app_dir}/deploy/verify-runtime-release.sh {app_dir} {config_dir}/release.sha"
+    release_file = f"{config_dir}/{WEATHER_RELEASE_MARKER}"
+    verifier = f"/bin/bash {app_dir}/deploy/verify-runtime-release.sh {app_dir} {release_file}"
     state = "/var/lib/polymarket-weather-paper"
     return f"""[Unit]
 Description=Polymarket weather-only LIVE PAPER guarded corrective runtime
@@ -30,7 +34,7 @@ WorkingDirectory={app_dir}
 Environment=PYTHONUNBUFFERED=1
 EnvironmentFile={config_dir}/weather-paper.env
 ExecStartPre={verifier}
-ExecStart={python} -m polymarket_scanner.weather_only_live_paper_corrective --db {state}/weather-paper.sqlite --status {state}/status.json --release-file {config_dir}/release.sha --interval-seconds 180 --forecast-cache-seconds 900 --forecast-raw-gap-min 0.08 --max-forecast-events 6 --paper-stake-usd 10
+ExecStart={python} -m polymarket_scanner.weather_only_live_paper_corrective --db {state}/weather-paper.sqlite --status {state}/status.json --release-file {release_file} --interval-seconds 180 --forecast-cache-seconds 900 --forecast-raw-gap-min 0.08 --max-forecast-events 6 --paper-stake-usd 10
 Restart=on-failure
 RestartSec=15
 TimeoutStopSec=20
