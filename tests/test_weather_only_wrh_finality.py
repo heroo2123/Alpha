@@ -78,7 +78,7 @@ def _valid_pair():
     return previous, current
 
 
-def test_bracketed_unchanged_transition_certifies_exact_rule_state_without_financial_authority():
+def test_bracketed_equal_endpoints_are_evidence_but_not_exact_cutoff_authority():
     previous, current = _valid_pair()
     state = certify_wrh_first_following_transition(previous, current, policy=_policy())
 
@@ -93,16 +93,19 @@ def test_bracketed_unchanged_transition_certifies_exact_rule_state_without_finan
     assert state.transition_gap_seconds == pytest.approx(50.0)
     assert state.first_following_row_age_seconds == pytest.approx(20.0)
     assert len(state.finality_evidence_sha256) == 64
-    assert state.correction_state_reconstructable is True
-    assert state.calibration_label_authority is True
-    assert state.settlement_label_authority is True
+    # R26: equal observed endpoints cannot rule out an unseen A -> B -> A revision
+    # inside the polling interval. Preserve the bracket, but do not mint exact labels.
+    assert state.transition_bracket_observed is True
+    assert state.exact_publication_state_observed is False
+    assert state.correction_state_reconstructable is False
+    assert state.calibration_label_authority is False
+    assert state.settlement_label_authority is False
     assert state.financial_authority is False
 
 
 def test_target_state_change_across_cutoff_fails_closed_even_if_extreme_stays_same():
     previous = _snapshot(include_following=False, received_at=FOLLOWING - 30)
     payload = deepcopy(_payload(include_following=True))
-    # Change an eligible target-day row without changing the 82F daily high.
     payload["STATION"][0]["OBSERVATIONS"]["air_temp_set_1"][0] = 71.4
     current = _snapshot(include_following=True, received_at=FOLLOWING + 20, payload=payload)
 
