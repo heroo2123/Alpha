@@ -20,7 +20,6 @@ def test_deployable_runtime_constructs_final_recovery_guard_not_base_store():
     assert "CrashSafeWeatherPaperStore(self.db_path)" not in source.replace(
         "FinalCrashSafeWeatherPaperStore(self.db_path)", ""
     )
-    version = final_runtime.FINAL_PAPER_RUNTIME_VERSION
-    assert version.startswith("weather_live_paper_final_v3_")
-    assert "b1_b6" in version
-    assert "exact_recovery_boundary" in version
+    assert final_runtime.FINAL_PAPER_RUNTIME_VERSION == (
+        "weather_live_paper_final_v3_exact_recovery_boundary"
+    )
