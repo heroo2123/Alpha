@@ -94,16 +94,19 @@ class SameDayContractSemantics:
 
 
 def _bucket_payload(compiled: CompiledWeatherEvent) -> list[dict]:
+    """Hash the exact bucket proposition fields that actually exist on WeatherBucket."""
     return [
         {
             "market_id": bucket.market_id,
             "condition_id": bucket.condition_id,
-            "label": bucket.label,
+            "question": bucket.question,
+            "outcome_label": bucket.outcome_label,
             "lower": bucket.lower,
             "upper": bucket.upper,
             "unit": bucket.unit,
             "yes_token": bucket.yes_token,
             "no_token": bucket.no_token,
+            "semantic_supported": bucket.semantic_supported,
         }
         for bucket in compiled.buckets
     ]
