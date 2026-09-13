@@ -161,7 +161,7 @@ def test_v3_surface_contains_no_order_api_and_renderer_points_to_corrective_v4()
     import importlib.util
 
     renderer_path = Path("deploy/render-weather-paper-unit.py")
-    spec = importlib.util.spec_from_file_location("weather_paper_renderer_v4", renderer_path)
+    spec = importlib.util.spec_from_file_location("weather_paper_renderer_corrective", renderer_path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -170,7 +170,7 @@ def test_v3_surface_contains_no_order_api_and_renderer_points_to_corrective_v4()
         Path("/home/test/.polymarket-edge-scanner"),
         "testuser",
     )
-    assert "weather_only_live_paper_v4" in unit
+    assert "weather_only_live_paper_corrective" in unit
     assert "--paper-stake-usd 10" in unit
     assert "MemorySwapMax=0" in unit
     assert "app_trade_only" not in unit
