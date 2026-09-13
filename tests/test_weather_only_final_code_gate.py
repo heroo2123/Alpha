@@ -5,13 +5,16 @@ from pathlib import Path
 
 import pytest
 
+from polymarket_scanner.weather_only_live_paper_final import FINAL_PAPER_RUNTIME_VERSION
 from polymarket_scanner.weather_only_live_paper_v4 import WeatherLivePaperV4Service
 from polymarket_scanner.weather_only_paper_corrective import (
     CorrectivePaperError,
     final_token_payout_v4,
 )
-from polymarket_scanner.weather_only_runtime_attestation import CANONICAL_MODULE
 from polymarket_scanner.weather_only_same_day_capture_store import SameDayCaptureStore
+
+
+FINAL_MODULE = "polymarket_scanner.weather_only_live_paper_final"
 
 
 def test_structural_signal_lane_is_still_hard_disabled():
@@ -57,16 +60,18 @@ def test_same_day_research_store_can_never_count_as_trade_pnl(tmp_path):
     assert summary["financial_authority"] is False
 
 
-def test_deployment_renderer_and_attestation_agree_on_canonical_entrypoint():
+def test_deployment_renderer_points_to_final_guarded_entrypoint():
     renderer = Path("deploy/render-weather-paper-unit.py").read_text(encoding="utf-8")
-    expected = "polymarket_scanner.weather_only_live_paper_corrective"
-    assert CANONICAL_MODULE == expected
-    assert f"-m {expected}" in renderer
+    assert f'FINAL_WEATHER_MODULE = "{FINAL_MODULE}"' in renderer
+    assert "{FINAL_WEATHER_MODULE}" in renderer
+    assert "b1_b6" in FINAL_PAPER_RUNTIME_VERSION
 
 
 def test_code_gate_does_not_enable_real_money_or_same_day_delivery():
-    source = Path("polymarket_scanner/weather_only_live_paper_corrective.py").read_text(
+    source = Path("polymarket_scanner/weather_only_live_paper_final.py").read_text(
         encoding="utf-8"
     )
     assert '"same_day_delivery_enabled": False' in source
+    assert '"structural_delivery_enabled": False' in source
     assert '"financial_authority": False' in source
+    assert '"automatic_order_placement": False' in source
