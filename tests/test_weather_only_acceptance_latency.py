@@ -23,7 +23,10 @@ from test_weather_only_rules import _nws_event
 from test_weather_only_wrh import END, START, TARGET, _payload
 
 
-BASE_RECEIVED = 1_789_160_400.0
+# 2026-09-12 05:00 UTC, just after the fixture's first following-date row.
+# Source-update tests may move this by small fractions/seconds but never before any
+# observation included in the corresponding snapshot.
+BASE_RECEIVED = 1_789_189_200.0
 
 
 def _compiled():
