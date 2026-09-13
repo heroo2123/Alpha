@@ -9,12 +9,14 @@ and coverage agree:
 2. verified full-segment Layer-2 near-term evidence;
 3. a verified 31-member Layer-3 path over future full grid cells only.
 
-Elapsed missing observation cells are fatal.  Population/grid alignment must be
-explicitly certified.  Layer-2 and Layer-3 segments must exactly equal the frozen U(t)
-coverage plan.  The resulting member extremes are then mapped onto the exact compiled
-contract partition using the named whole-degree model mapping policy.
+Elapsed missing observation cells are fatal. Population/grid alignment must be
+explicitly certified. Layer-2 and Layer-3 segments must exactly equal the frozen U(t)
+coverage plan. Deep integrity verification rebuilds the deterministic U(t) plan and
+the reduced ensemble before either is trusted. The resulting member extremes are then
+mapped onto the exact compiled contract partition using the named whole-degree model
+mapping policy.
 
-The output is deliberately *research only*.  Raw member frequencies are not calibrated
+The output is deliberately *research only*. Raw member frequencies are not calibrated
 probabilities, and this assembler cannot enable Telegram delivery or financial use.
 A later acceptance gate may consume its immutable evidence, but authority cannot be
 obtained by simply constructing this object.
@@ -41,10 +43,14 @@ from .weather_only_near_term import (
     VerifiedNearTermCoverage,
     verify_near_term_coverage_integrity,
 )
+from .weather_only_three_layer_integrity import (
+    verify_remaining_path_integrity,
+    verify_unresolved_coverage_integrity,
+)
 from .weather_only_unresolved_coverage import UnresolvedCoveragePlan
 
 
-THREE_LAYER_VERSION = "weather_three_layer_same_day_v1_observed_nearterm_hourly_ensemble"
+THREE_LAYER_VERSION = "weather_three_layer_same_day_v2_deep_integrity_observed_nearterm_hourly_ensemble"
 EXPECTED_ENSEMBLE_MEMBERS = 31
 
 
@@ -219,22 +225,32 @@ def build_three_layer_research_decision(
     cutoff = _finite(as_of, "THREE_LAYER_AS_OF_INVALID")
     if not isinstance(observed, ObservedExtremeState):
         raise ThreeLayerError("THREE_LAYER_OBSERVED_TYPE_INVALID")
-    if not isinstance(coverage, UnresolvedCoveragePlan):
-        raise ThreeLayerError("THREE_LAYER_COVERAGE_TYPE_INVALID")
-    if not isinstance(ensemble_path, VerifiedRemainingHoursPath):
-        raise ThreeLayerError("THREE_LAYER_ENSEMBLE_PATH_TYPE_INVALID")
     if not isinstance(mapping_policy, EnsembleMappingPolicy):
         raise ThreeLayerError("THREE_LAYER_MAPPING_POLICY_TYPE_INVALID")
+
+    try:
+        coverage = verify_unresolved_coverage_integrity(coverage)
+    except Exception as exc:
+        code = getattr(exc, "code", type(exc).__name__)
+        raise ThreeLayerError(f"THREE_LAYER_COVERAGE_INVALID:{code}") from exc
     try:
         near = verify_near_term_coverage_integrity(near_term)
     except Exception as exc:
         code = getattr(exc, "code", type(exc).__name__)
         raise ThreeLayerError(f"THREE_LAYER_NEAR_TERM_INVALID:{code}") from exc
+    try:
+        ensemble_path = verify_remaining_path_integrity(ensemble_path)
+    except Exception as exc:
+        code = getattr(exc, "code", type(exc).__name__)
+        raise ThreeLayerError(f"THREE_LAYER_ENSEMBLE_PATH_INVALID:{code}") from exc
 
     station = str(contract.station_hint).upper()
-    if any(value.upper() != station for value in (observed.station, coverage.station, near.station, ensemble_path.station)):
+    if any(
+        value.upper() != station
+        for value in (observed.station, coverage.station, near.station, ensemble_path.station)
+    ):
         raise ThreeLayerError("THREE_LAYER_STATION_MISMATCH")
-    if any(value != contract.unit for value in (observed.unit, coverage.cells and near.unit, ensemble_path.unit)):
+    if any(value != contract.unit for value in (observed.unit, near.unit, ensemble_path.unit)):
         raise ThreeLayerError("THREE_LAYER_UNIT_MISMATCH")
     if any(value != contract.family for value in (observed.family, near.family, ensemble_path.family)):
         raise ThreeLayerError("THREE_LAYER_FAMILY_MISMATCH")
@@ -242,7 +258,10 @@ def build_three_layer_research_decision(
         raise ThreeLayerError("THREE_LAYER_TARGET_DATE_MISMATCH")
     if observed.population_id != coverage.population_id:
         raise ThreeLayerError("THREE_LAYER_POPULATION_MISMATCH")
-    if any(abs(value - cutoff) > 1e-6 for value in (observed.as_of, coverage.as_of, near.as_of, ensemble_path.as_of)):
+    if any(
+        abs(float(value) - cutoff) > 1e-6
+        for value in (observed.as_of, coverage.as_of, near.as_of, ensemble_path.as_of)
+    ):
         raise ThreeLayerError("THREE_LAYER_AS_OF_MISMATCH")
 
     if coverage.elapsed_gap_segments:
@@ -253,8 +272,12 @@ def build_three_layer_research_decision(
         raise ThreeLayerError("THREE_LAYER_NEAR_TERM_SEGMENT_REQUIRED")
     if _segment_identity(near.segment) != _segment_identity(coverage.near_term_segment):
         raise ThreeLayerError("THREE_LAYER_NEAR_TERM_SEGMENT_MISMATCH")
-    expected_ensemble_segments = tuple(_segment_identity(segment) for segment in coverage.ensemble_segments)
-    actual_ensemble_segments = tuple(_segment_identity(segment) for segment in ensemble_path.unresolved_segments)
+    expected_ensemble_segments = tuple(
+        _segment_identity(segment) for segment in coverage.ensemble_segments
+    )
+    actual_ensemble_segments = tuple(
+        _segment_identity(segment) for segment in ensemble_path.unresolved_segments
+    )
     if not expected_ensemble_segments or actual_ensemble_segments != expected_ensemble_segments:
         raise ThreeLayerError("THREE_LAYER_ENSEMBLE_SEGMENT_MISMATCH")
     if abs(float(ensemble_path.target_end) - float(coverage.target_end)) > 1e-6:
@@ -273,7 +296,11 @@ def build_three_layer_research_decision(
     for member in source_members:
         source_value = float(member.extreme_value)
         near_value = float(near.predicted_extreme)
-        combined = min(near_value, source_value) if contract.family == DAILY_LOW else max(near_value, source_value)
+        combined = (
+            min(near_value, source_value)
+            if contract.family == DAILY_LOW
+            else max(near_value, source_value)
+        )
         combined_members.append(RemainingMemberExtreme(member.member_label, combined))
 
     try:
@@ -304,7 +331,11 @@ def build_three_layer_research_decision(
     hits = [0 for _ in contract.buckets]
     for raw in selected_values:
         quantized = _quantize(float(raw), mapping_policy)
-        matched = [index for index, bucket in enumerate(contract.buckets) if _bucket_contains(quantized, bucket)]
+        matched = [
+            index
+            for index, bucket in enumerate(contract.buckets)
+            if _bucket_contains(quantized, bucket)
+        ]
         if len(matched) != 1:
             raise ThreeLayerError("THREE_LAYER_MEMBER_BUCKET_MAPPING_NOT_EXACTLY_ONE")
         hits[matched[0]] += 1
@@ -313,18 +344,20 @@ def build_three_layer_research_decision(
     rows: list[ThreeLayerBucketFrequency] = []
     for bucket, hit_count in zip(contract.buckets, hits):
         yes = hit_count / count
-        rows.append(ThreeLayerBucketFrequency(
-            market_id=bucket.market_id,
-            condition_id=bucket.condition_id,
-            yes_token=str(bucket.yes_token),
-            no_token=str(bucket.no_token),
-            lower=bucket.lower,
-            upper=bucket.upper,
-            member_hits=hit_count,
-            member_count=count,
-            raw_yes_frequency=yes,
-            raw_no_frequency=1.0 - yes,
-        ))
+        rows.append(
+            ThreeLayerBucketFrequency(
+                market_id=bucket.market_id,
+                condition_id=bucket.condition_id,
+                yes_token=str(bucket.yes_token),
+                no_token=str(bucket.no_token),
+                lower=bucket.lower,
+                upper=bucket.upper,
+                member_hits=hit_count,
+                member_count=count,
+                raw_yes_frequency=yes,
+                raw_no_frequency=1.0 - yes,
+            )
+        )
     probability_sum = sum(row.raw_yes_frequency for row in rows)
     if abs(probability_sum - 1.0) > 1e-12 or sum(hits) != count:
         raise ThreeLayerError("THREE_LAYER_BUCKET_FREQUENCY_SUM_INVALID")
