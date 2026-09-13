@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 from datetime import datetime, timezone
 
 import pytest
@@ -87,9 +88,47 @@ def test_weather_paper_backup_uses_its_own_schema_and_restore_profile(tmp_path):
     assert restored["logical_tables"] == profile["logical_tables"]
 
 
-def test_missing_paper_table_is_not_mistaken_for_valid_legacy_or_partial_backup(tmp_path):
-    import sqlite3
+def test_backup_logically_verifies_same_day_research_evidence_too(tmp_path):
+    db_path = tmp_path / "weather-paper.sqlite"
+    _paper_db(db_path)
+    with sqlite3.connect(db_path) as db:
+        db.execute(
+            """
+            CREATE TABLE weather_same_day_captures(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                capture_sha256 TEXT NOT NULL UNIQUE,
+                event_id TEXT NOT NULL,
+                status TEXT NOT NULL,
+                capture_json TEXT NOT NULL
+            )
+            """
+        )
+        db.execute(
+            """
+            INSERT INTO weather_same_day_captures(capture_sha256,event_id,status,capture_json)
+            VALUES(?,?,?,?)
+            """,
+            ("c" * 64, "same-day-event", "BLOCKED_RESEARCH", '{"layer":3}'),
+        )
 
+    profile = verify_weather_paper_database(db_path)
+    assert "weather_same_day_captures" in profile["logical_tables"]
+    assert profile["logical_tables"]["weather_same_day_captures"]["row_count"] == 1
+    assert "sqlite_sequence" not in profile["logical_tables"]
+
+    manifest = backup_weather_paper_database(
+        db_path,
+        tmp_path / "backups",
+        release_sha=RELEASE,
+        now=datetime(2026, 9, 13, 18, 30, tzinfo=timezone.utc),
+    )
+    assert manifest["restore_verified"] is True
+    assert manifest["logical_tables"]["weather_same_day_captures"] == (
+        profile["logical_tables"]["weather_same_day_captures"]
+    )
+
+
+def test_missing_paper_table_is_not_mistaken_for_valid_legacy_or_partial_backup(tmp_path):
     path = tmp_path / "partial.sqlite"
     with sqlite3.connect(path) as db:
         db.execute("CREATE TABLE weather_paper_signals(id INTEGER PRIMARY KEY)")
