@@ -33,10 +33,12 @@ from polymarket_scanner.weather_only_same_day_envelope import (
 )
 from polymarket_scanner.weather_only_three_layer import build_three_layer_research_decision
 from polymarket_scanner.weather_only_unresolved_coverage import build_unresolved_coverage_plan
+from polymarket_scanner.weather_only_wrh import WRH_HOURLY_PROFILE, WRH_VIEWER_SCRIPT_SHA256
 
 
 TARGET = date(2026, 9, 12)
-POPULATION = "WRH_HOURLY_DATA"
+RULE_POPULATION = "WRH_HOURLY_DATA"
+POPULATION_INSTANCE = f"{RULE_POPULATION}:{WRH_HOURLY_PROFILE}:{WRH_VIEWER_SCRIPT_SHA256}"
 
 
 def _ts(hour: int, minute: int = 0) -> float:
@@ -77,7 +79,7 @@ def _semantics(compiled: CompiledWeatherEvent):
         family=DAILY_LOW,
         source_family=SOURCE_NWS_WRH,
         statistic="DAILY_LOWEST_TEMP",
-        observation_population=POPULATION,
+        observation_population=RULE_POPULATION,
         precision="WHOLE_DEGREE_F",
         fallback_policy="WEATHER_UNDERGROUND_IF_WRH_UNAVAILABLE_BY_NEXT_DAY_2359_ET",
         finality_policy="FIRST_FOLLOWING_DATE_DATAPOINT_OR_NEXT_DAY_2359_ET",
@@ -97,7 +99,7 @@ def _official_rows(as_of: float) -> tuple[OfficialObservation, ...]:
     return tuple(
         OfficialObservation(
             station="KAAA",
-            population_id=POPULATION,
+            population_id=POPULATION_INSTANCE,
             unit="F",
             observed_at=_ts(hour, 10 if hour == 4 else 30),
             received_at=as_of - 5.0,
@@ -137,7 +139,7 @@ def _bundle_inputs():
     observed = build_observed_extreme(
         rows,
         station="KAAA",
-        population_id=POPULATION,
+        population_id=POPULATION_INSTANCE,
         unit="F",
         family=DAILY_LOW,
         target_start=_ts(0),
@@ -145,7 +147,7 @@ def _bundle_inputs():
     )
     coverage = build_unresolved_coverage_plan(
         station="KAAA",
-        population_id=POPULATION,
+        population_id=POPULATION_INSTANCE,
         timezone="UTC",
         target_date=TARGET,
         as_of=as_of,
@@ -235,7 +237,8 @@ def test_envelope_archives_rule_semantics_and_preimages_then_replays_without_net
     verify_same_day_evidence_envelope(envelope)
     decision = inputs[9]
     assert envelope.offline_replay_verified is True
-    assert envelope.contract_semantics["observation_population"] == POPULATION
+    assert envelope.contract_semantics["observation_population"] == RULE_POPULATION
+    assert envelope.official_observations[0]["population_id"] == POPULATION_INSTANCE
     assert envelope.contract_semantics["correction_policy"] == "ACCEPT_REVISIONS_UNTIL_FIRST_FOLLOWING_DATE_DATAPOINT"
     assert len(envelope.official_observations) == 5
     assert len(envelope.hourly_gefs_raw["member_series"]) == 31
@@ -270,6 +273,14 @@ def test_rule_population_tampering_is_rejected_before_replay():
     semantics = inputs[1]
     inputs[1] = replace(semantics, observation_population="WRH_ALL_TIMES")
     with pytest.raises(SameDayEnvelopeError, match="SAME_DAY_ENVELOPE_INPUT_INVALID:SAME_DAY_CONTRACT_SEMANTICS_DIGEST_MISMATCH"):
+        _make_envelope(tuple(inputs))
+
+
+def test_population_instance_cannot_be_replaced_by_bare_rule_population():
+    inputs = list(_bundle_inputs())
+    rows = tuple(replace(row, population_id=RULE_POPULATION) for row in inputs[2])
+    inputs[2] = rows
+    with pytest.raises(SameDayEnvelopeError, match="SAME_DAY_ENVELOPE_OBSERVATION_PREIMAGE_POPULATION_MISMATCH"):
         _make_envelope(tuple(inputs))
 
 
