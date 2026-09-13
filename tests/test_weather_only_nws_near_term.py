@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import datetime, timezone
 
 import pytest
@@ -10,7 +11,10 @@ from polymarket_scanner.weather_only_nws_near_term import (
     NWSNearTermError,
     NWS_NEAR_TERM_HYPOTHESIS,
     NWS_NEAR_TERM_STEP_SECONDS,
+    build_nws_raw_snapshot,
     parse_nws_near_term_grid_path,
+    path_from_nws_raw_snapshot,
+    verify_nws_raw_snapshot,
 )
 
 
@@ -41,6 +45,10 @@ def _grid(*, uom: str = "wmoUnit:degC", update: str = "2026-09-13T09:00:00+00:00
     }
 
 
+def _segment(start_minute: int = 5) -> TimeSegment:
+    return TimeSegment(_ts(10, start_minute), _ts(11), "near-term fractional ensemble cell")
+
+
 def _parse(points=None, grid=None):
     return parse_nws_near_term_grid_path(
         points or _points(),
@@ -50,8 +58,20 @@ def _parse(points=None, grid=None):
         longitude=-73.8740,
         unit="F",
         family=DAILY_HIGH,
-        segment=TimeSegment(_ts(10, 5), _ts(11), "near-term fractional ensemble cell"),
+        segment=_segment(),
         received_at=_ts(10, 4),
+    )
+
+
+def _snapshot(*, points_received=None, grid_received=None):
+    return build_nws_raw_snapshot(
+        _points(),
+        _grid(),
+        station="KLGA",
+        latitude=40.7769,
+        longitude=-73.8740,
+        points_received_at=_ts(10, 3) if points_received is None else points_received,
+        grid_received_at=_ts(10, 4) if grid_received is None else grid_received,
     )
 
 
@@ -73,6 +93,45 @@ def test_nws_grid_interval_path_covers_entire_fractional_layer2_segment_without_
     assert path.settlement_authority is False
     assert path.same_day_delivery_authority is False
     assert path.financial_authority is False
+
+
+def test_raw_snapshot_can_be_fetched_first_then_projected_only_after_receipt():
+    snapshot = _snapshot()
+    verify_nws_raw_snapshot(snapshot)
+    assert snapshot.received_at == _ts(10, 4)
+    path = path_from_nws_raw_snapshot(
+        snapshot,
+        unit="F",
+        family=DAILY_HIGH,
+        segment=_segment(5),
+    )
+    verify_near_term_path_integrity(path)
+    assert path.received_at == snapshot.received_at
+    assert path.as_of == _ts(10, 5)
+    assert path.same_day_delivery_authority is False
+
+
+def test_raw_snapshot_received_after_frozen_decision_cannot_be_backdated():
+    snapshot = _snapshot(grid_received=_ts(10, 6))
+    with pytest.raises(NWSNearTermError, match="NWS_NEAR_TERM_SNAPSHOT_POSTDATES_DECISION"):
+        path_from_nws_raw_snapshot(
+            snapshot,
+            unit="F",
+            family=DAILY_HIGH,
+            segment=_segment(5),
+        )
+
+
+def test_raw_snapshot_digest_tampering_is_rejected_before_projection():
+    snapshot = _snapshot()
+    tampered = replace(snapshot, forecast_grid_url="https://api.weather.gov/gridpoints/OKX/99,99")
+    with pytest.raises(NWSNearTermError, match="NWS_NEAR_TERM_RAW_SNAPSHOT_DIGEST_MISMATCH"):
+        verify_nws_raw_snapshot(tampered)
+
+
+def test_raw_snapshot_receipt_order_is_monotone():
+    with pytest.raises(NWSNearTermError, match="NWS_NEAR_TERM_RECEIPT_ORDER_INVALID"):
+        _snapshot(points_received=_ts(10, 4), grid_received=_ts(10, 3))
 
 
 def test_grid_update_time_after_receipt_is_rejected_as_impossible_provenance():
