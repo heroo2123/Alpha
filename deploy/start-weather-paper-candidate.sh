@@ -5,12 +5,12 @@ set -Eeuo pipefail
 # It verifies one exact commit, reruns the stopped-service preflight/backup, starts only
 # the canonical weather-paper unit, and stops it again automatically if either active
 # runtime identity or the first fresh paper cycle fails acceptance.
-APP_DIR="${ALPHA_APP_DIR:-${HOME}/polymarket-edge-scanner}"
+APP_DIR="${ALPHA_WEATHER_APP_DIR:-${HOME}/polymarket-weather-paper-app}"
 CONFIG_DIR="${ALPHA_CONFIG_DIR:-${HOME}/.polymarket-edge-scanner}"
 DB_PATH="${WEATHER_PAPER_DB_PATH:-/var/lib/polymarket-weather-paper/weather-paper.sqlite}"
 STATUS_PATH="${WEATHER_PAPER_STATUS_PATH:-/var/lib/polymarket-weather-paper/status.json}"
 UNIT="polymarket-weather-paper.service"
-RELEASE_FILE="${CONFIG_DIR}/release.sha"
+RELEASE_FILE="${CONFIG_DIR}/weather-paper-release.sha"
 ATTESTATION_OUT="${CONFIG_DIR}/weather-paper-active-attestation.json"
 FIRST_CYCLE_OUT="${CONFIG_DIR}/weather-paper-first-cycle-acceptance.json"
 EXPECTED_SHA="${1:-}"
@@ -19,9 +19,9 @@ fail(){ printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 
 [[ "${EXPECTED_SHA}" =~ ^[0-9a-f]{40}$ ]] \
   || fail "usage: $0 <exact-40-char-lowercase-release-sha>"
-[[ -d "${APP_DIR}/.git" ]] || fail "missing git checkout: ${APP_DIR}"
-[[ -x "${APP_DIR}/.venv/bin/python" ]] || fail "missing app virtualenv"
-[[ -f "${RELEASE_FILE}" ]] || fail "missing release marker: ${RELEASE_FILE}"
+[[ -d "${APP_DIR}/.git" ]] || fail "missing isolated weather-paper git checkout: ${APP_DIR}"
+[[ -x "${APP_DIR}/.venv/bin/python" ]] || fail "missing weather-paper app virtualenv"
+[[ -f "${RELEASE_FILE}" ]] || fail "missing weather-paper release marker: ${RELEASE_FILE}"
 
 HEAD_SHA="$(git -C "${APP_DIR}" rev-parse HEAD | tr -d '[:space:]')"
 MARKER_SHA="$(tr -d '[:space:]' < "${RELEASE_FILE}")"
@@ -32,9 +32,9 @@ if systemctl is-active --quiet "${UNIT}" 2>/dev/null; then
   fail "${UNIT} is already active; refusing an ambiguous/repeated start"
 fi
 
-# Preflight refuses orphan weather processes, verifies the release, creates a verified
-# restorable paper-ledger backup when one exists, and installs the canonical unit while
-# leaving it stopped.
+# Preflight refuses orphan weather processes, verifies the isolated release, creates a
+# verified restorable paper-ledger backup when one exists, and installs the canonical
+# unit while leaving it stopped.
 bash "${APP_DIR}/deploy/preflight-weather-paper-deployment.sh"
 
 started=0
@@ -94,4 +94,5 @@ printf 'Release: %s\n' "${EXPECTED_SHA}"
 printf 'Runtime attestation: %s\n' "${ATTESTATION_OUT}"
 printf 'First-cycle acceptance: %s\n' "${FIRST_CYCLE_OUT}"
 printf 'The service was started but NOT enabled for boot persistence.\n'
+printf 'The weather-paper checkout/release marker are isolated from the legacy scanner.\n'
 printf 'Real-money trading authority is not granted by this script.\n'
