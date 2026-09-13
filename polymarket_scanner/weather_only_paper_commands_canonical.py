@@ -43,6 +43,12 @@ class CanonicalWeatherPaperCommandController(ClearWeatherPaperCommandController)
         else:
             research_line = "Three-layer same-day research: <b>NOT ACTIVE</b>"
 
+        telegram_uncertain = int(
+            stats.get("telegram_delivery_uncertain", stats.get("delivery_uncertain", 0)) or 0
+        )
+        settlement_uncertain = int(stats.get("settlement_notification_uncertain") or 0)
+        accounting_uncertain = int(stats.get("paper_accounting_uncertain") or 0)
+
         lines = [
             f"{icon} <b>WEATHER PAPER BOT — {'RUNNING NORMALLY' if healthy else 'NEEDS ATTENTION'}</b>",
             f"Last full cycle: <b>{int(max(0.0, age)) if math.isfinite(age) else 'unknown'}s ago</b>",
@@ -51,7 +57,9 @@ class CanonicalWeatherPaperCommandController(ClearWeatherPaperCommandController)
             f"Open: <b>{int(stats.get('open') or 0)}</b>",
             f"Finished: <b>{int(stats.get('won') or 0)} wins / {int(stats.get('lost') or 0)} losses / {int(stats.get('partial') or 0)} push/partial</b>",
             f"Net paper P&amp;L: <b>${float(stats.get('pnl') or 0.0):+.2f}</b>",
-            f"Delivery uncertain: <b>{int(stats.get('delivery_uncertain') or 0)}</b>",
+            f"Alert-delivery uncertain: <b>{telegram_uncertain}</b>",
+            f"Settlement-message uncertain: <b>{settlement_uncertain}</b>",
+            f"Paper-accounting uncertain: <b>{accounting_uncertain}</b>",
             "",
             "<b>RESEARCH / SAFETY</b>",
             research_line,
@@ -63,6 +71,10 @@ class CanonicalWeatherPaperCommandController(ClearWeatherPaperCommandController)
         if blocked:
             lines.append(
                 "Three-layer blocked captures are <b>not</b> counted as paper trades or P&amp;L."
+            )
+        if telegram_uncertain or settlement_uncertain or accounting_uncertain:
+            lines.append(
+                "⚠️ Uncertain crash/delivery cases are <b>excluded</b> from validated performance until reviewed."
             )
         errors = list(status.get("errors") or []) + list(collector_errors)
         if errors:
