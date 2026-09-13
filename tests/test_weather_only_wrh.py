@@ -18,6 +18,8 @@ from polymarket_scanner.weather_only_wrh import (
 TARGET = date(2026, 9, 11)
 START = date(2026, 9, 11)
 END = date(2026, 9, 12)
+# After the final fixture row at 2026-09-12 00:51 America/New_York.
+RECEIVED = 1789189200.0
 
 
 def _payload(*, network: str = "GLOBAL-METAR", include_slp: bool = True) -> dict:
@@ -43,6 +45,7 @@ def _payload(*, network: str = "GLOBAL-METAR", include_slp: bool = True) -> dict
     if include_slp:
         observations["sea_level_pressure_set_1"] = [1012.0, 1010.0, None, None, 1009.0, 1011.0]
     return {
+        "UNITS": {"air_temp": "Fahrenheit"},
         "SUMMARY": {"RESPONSE_MESSAGE": "OK"},
         "STATION": [{
             "STID": "KLGA",
@@ -59,7 +62,7 @@ def _parse(payload=None, **kwargs):
         "target_date": TARGET,
         "query_start_date": START,
         "query_end_date": END,
-        "received_at": 1789160400.0,
+        "received_at": RECEIVED,
     }
     values.update(kwargs)
     return parse_synoptic_wrh_hourly_snapshot(payload or _payload(), **values)
@@ -85,9 +88,7 @@ def test_global_metar_normalizes_to_asos_and_mirrors_pressure_and_speci_predicat
     snapshot = _parse()
     assert snapshot.raw_network == "GLOBAL-METAR"
     assert snapshot.normalized_network == "ASOS/AWOS"
-
-    # 13:30 is excluded even at 99F because pressure is null and its METAR belongs
-    # to KJFK. The 13:20 KLGA SPECI survives despite not being near minute 51-59.
+    assert snapshot.response_temperature_unit == "Fahrenheit"
     assert [(row.minute, row.row_kind) for row in snapshot.target_rows] == [
         (51, ROW_OFFICIAL_PRESSURE),
         (51, ROW_OFFICIAL_PRESSURE),
@@ -113,8 +114,6 @@ def test_null_temperature_row_can_establish_hourly_row_presence_without_entering
 
 def test_missing_slp_dataset_uses_wrh_nonfed_minute_51_to_59_fallback_only():
     payload = _payload(include_slp=False)
-    # Add an otherwise tempting minute-20 row and a minute-04 row; neither survives
-    # the ASOS/AWOS no-pressure-dataset fallback, which is strictly 51..59.
     snapshot = _parse(payload)
     assert all(row.row_kind == ROW_NONFED_MINUTE for row in snapshot.selected_rows)
     assert [row.minute for row in snapshot.target_rows] == [51, 51, 59]
@@ -154,6 +153,38 @@ def test_payload_identity_and_series_corruption_fail_closed(mutator, code):
     assert raised.value.code == code
 
 
+def test_response_temperature_unit_is_authority_not_requested_unit_assumption():
+    for bad in ("Celsius", "Kelvin", "F", ""):
+        payload = _payload()
+        payload["UNITS"]["air_temp"] = bad
+        with pytest.raises(WRHSourceError) as raised:
+            _parse(payload)
+        assert raised.value.code in {
+            "WRH_RESPONSE_TEMPERATURE_UNIT_MISMATCH",
+            "WRH_RESPONSE_TEMPERATURE_UNIT_MISSING",
+        }
+
+    payload = _payload()
+    payload.pop("UNITS")
+    with pytest.raises(WRHSourceError) as raised:
+        _parse(payload)
+    assert raised.value.code == "WRH_RESPONSE_UNITS_MISSING"
+
+
+def test_future_observation_is_rejected_at_parser_boundary():
+    payload = _payload()
+    payload["STATION"][0]["OBSERVATIONS"]["date_time"][-1] = "2026-09-12T12:51:00-04:00"
+    with pytest.raises(WRHSourceError) as raised:
+        _parse(payload, received_at=RECEIVED)
+    assert raised.value.code == "WRH_OBSERVATION_AFTER_RECEIPT"
+
+
+def test_metadata_timezone_must_match_payload_timezone_when_frozen():
+    with pytest.raises(WRHSourceError) as raised:
+        _parse(expected_timezone="Europe/Berlin")
+    assert raised.value.code == "WRH_TIMEZONE_IDENTITY_MISMATCH"
+
+
 def test_datetime_cannot_masquerade_as_calendar_contract_date():
     with pytest.raises(WRHSourceError) as raised:
         _parse(target_date=datetime(2026, 9, 11, 0, 0))
@@ -191,8 +222,6 @@ def test_source_transport_identity_is_pinned_and_fails_closed_on_drift(overrides
 def test_snapshot_binds_unselected_source_inputs_and_never_self_promotes_to_label_authority():
     first = _parse()
     payload = deepcopy(_payload())
-    # Change the excluded KJFK SPECI row only. The selected target high remains 82F,
-    # but the exact source-payload/evidence lineage must still change.
     payload["STATION"][0]["OBSERVATIONS"]["air_temp_set_1"][3] = 98.0
     second = _parse(payload)
 
