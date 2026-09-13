@@ -31,10 +31,12 @@ from .weather_only_live_paper import (
 )
 from .weather_only_live_paper_corrective import WeatherLivePaperCorrectiveService
 from .weather_only_live_paper_v2 import DEFAULT_PAPER_STAKE_USD
+from .weather_only_live_paper_v4 import V4InvariantError
 from .weather_only_paper_commands_canonical import CanonicalWeatherPaperCommandController
 from .weather_only_paper_corrective import CorrectiveSettlementEngine
 from .weather_only_paper_recovery_final import FinalCrashSafeWeatherPaperStore
 from .weather_only_runtime_lease import WeatherPaperRuntimeLease
+from .weather_only_station_metadata import WeatherStationMetadataError
 
 
 FINAL_PAPER_RUNTIME_VERSION = "weather_live_paper_final_v3_b1_b6_exact_recovery_boundary"
@@ -122,13 +124,36 @@ class FinalWeatherLivePaperService(WeatherLivePaperCorrectiveService):
 
     async def _forecast_candidate(self, event: dict, compiled) -> dict | None:
         examined = compile_strict_temperature_event(event)
-        self.positions.set_state("v4_forecast_cursor", examined.event_id)
 
         rule_identity = strict_contract_identity(event, examined)
         old_rule = self._strict_rule_sha_by_event.get(examined.event_id)
         if old_rule is not None and old_rule != rule_identity["sha256"]:
             self._forecast_cache.clear()
         self._strict_rule_sha_by_event[examined.event_id] = rule_identity["sha256"]
+
+        # Advance past cheap, definitively ineligible rows (same-day, past-day, beyond
+        # horizon) so they cannot pin the cursor forever.  For an eligible row, however,
+        # do NOT advance once this cycle's expensive-evaluation budget is exhausted.
+        # Otherwise a 24-row window with a budget of six wraps back to row 1 every
+        # cycle and rows 7..24 are never actually evaluated.
+        try:
+            await self._station_local_eligibility(examined)
+        except (V4InvariantError, WeatherStationMetadataError):
+            self.positions.set_state("v4_forecast_cursor", examined.event_id)
+            return None
+        except Exception:
+            # Preserve fairness even when a transient station-metadata check raises;
+            # the caller still receives the error and records an unhealthy cycle.
+            self.positions.set_state("v4_forecast_cursor", examined.event_id)
+            raise
+
+        if self._v4_eligible_evaluated_this_cycle >= self.max_forecast_events:
+            return None
+
+        # From this point the row is consuming the cycle's eligible budget.  Advance
+        # the durable cursor before the expensive model/CLOB work so a failure cannot
+        # permanently starve later eligible rows.
+        self.positions.set_state("v4_forecast_cursor", examined.event_id)
 
         candidate = await super()._forecast_candidate(event, examined)
         if candidate is None:
