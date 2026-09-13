@@ -170,6 +170,7 @@ def _payload(*, include_following: bool, target_peak: float = 82.4) -> dict:
         for values in observations.values():
             values.pop()
     return {
+        "UNITS": {"air_temp": "Fahrenheit"},
         "SUMMARY": {"RESPONSE_MESSAGE": "OK"},
         "STATION": [{
             "STID": "KLGA",
