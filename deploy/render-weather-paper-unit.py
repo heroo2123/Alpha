@@ -8,6 +8,7 @@ from pathlib import Path
 
 
 WEATHER_RELEASE_MARKER = "weather-paper-release.sha"
+FINAL_WEATHER_MODULE = "polymarket_scanner.weather_only_live_paper_final"
 
 
 def render(app_dir: Path, config_dir: Path, user: str) -> str:
@@ -21,7 +22,7 @@ def render(app_dir: Path, config_dir: Path, user: str) -> str:
     verifier = f"/bin/bash {app_dir}/deploy/verify-runtime-release.sh {app_dir} {release_file}"
     state = "/var/lib/polymarket-weather-paper"
     return f"""[Unit]
-Description=Polymarket weather-only LIVE PAPER guarded corrective runtime
+Description=Polymarket weather-only LIVE PAPER final guarded runtime
 Wants=network-online.target
 After=network-online.target
 StartLimitIntervalSec=600
@@ -34,7 +35,7 @@ WorkingDirectory={app_dir}
 Environment=PYTHONUNBUFFERED=1
 EnvironmentFile={config_dir}/weather-paper.env
 ExecStartPre={verifier}
-ExecStart={python} -m polymarket_scanner.weather_only_live_paper_corrective --db {state}/weather-paper.sqlite --status {state}/status.json --release-file {release_file} --interval-seconds 180 --forecast-cache-seconds 900 --forecast-raw-gap-min 0.08 --max-forecast-events 6 --paper-stake-usd 10
+ExecStart={python} -m {FINAL_WEATHER_MODULE} --db {state}/weather-paper.sqlite --status {state}/status.json --release-file {release_file} --interval-seconds 180 --forecast-cache-seconds 900 --forecast-raw-gap-min 0.08 --max-forecast-events 6 --paper-stake-usd 10
 Restart=on-failure
 RestartSec=15
 TimeoutStopSec=20
