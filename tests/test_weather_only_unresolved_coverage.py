@@ -103,8 +103,9 @@ def test_population_alignment_remains_explicit_scientific_gate():
     as_of = datetime(2026, 9, 12, 3, 20, tzinfo=timezone.utc).timestamp()
     observations = [
         datetime(2026, 9, 12, hour, 51, tzinfo=timezone.utc).timestamp()
-        for hour in range(4)
+        for hour in range(3)
     ]
+    observations.append(datetime(2026, 9, 12, 3, 10, tzinfo=timezone.utc).timestamp())
     plan = build_unresolved_coverage_plan(
         station="KAAA",
         population_id="UNVALIDATED_POPULATION",
@@ -180,7 +181,11 @@ def test_future_or_duplicate_observation_fails_closed():
 def test_evidence_digest_is_stable_and_changes_with_missing_hour():
     day = date(2026, 9, 12)
     cutoff = datetime(2026, 9, 12, 4, 20, tzinfo=timezone.utc).timestamp()
-    rows = [datetime(2026, 9, 12, hour, 30, tzinfo=timezone.utc).timestamp() for hour in range(5)]
+    rows = [
+        datetime(2026, 9, 12, hour, 30, tzinfo=timezone.utc).timestamp()
+        for hour in range(4)
+    ]
+    rows.append(datetime(2026, 9, 12, 4, 10, tzinfo=timezone.utc).timestamp())
     one = build_unresolved_coverage_plan(
         station="KAAA",
         population_id="TEST",
@@ -205,7 +210,7 @@ def test_evidence_digest_is_stable_and_changes_with_missing_hour():
         timezone="UTC",
         target_date=day,
         as_of=cutoff,
-        accepted_observation_times=rows[:-2] + rows[-1:],
+        accepted_observation_times=[rows[0], rows[1], rows[3], rows[4]],
         population_alignment_certified=True,
     )
     assert one.evidence_sha256 == two.evidence_sha256
