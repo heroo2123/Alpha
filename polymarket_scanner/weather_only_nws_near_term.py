@@ -3,15 +3,21 @@ from __future__ import annotations
 """Official NWS Layer-2 near-term forecast-path adapter.
 
 This adapter is deliberately narrower than "the NWS says the daily high/low will be
-X".  It retrieves the raw NWS forecast grid for the exact station coordinates and
-projects only the short Layer-2 interval onto a 15-minute sampled path.  NWS documents
+X". It retrieves the raw NWS forecast grid for the exact station coordinates and
+projects only the short Layer-2 interval onto a 15-minute sampled path. NWS documents
 raw grid values as applying to their ``validTime`` intervals and exposes ``updateTime``
 as the grid-data update/version time.
 
-The resulting path is supporting forecast evidence only.  It is not the WRH
-settlement population, not a calibrated probability, and cannot authorize Telegram or
-financial delivery.  Any missing interval, unit drift, stale/future update identity,
-redirect to an unexpected host, or uncovered sample fails closed.
+Network acquisition and decision-time projection are deliberately separate. Raw NWS
+points/grid responses are first frozen into ``NWSNearTermRawSnapshot``. A caller may
+then choose an immutable decision time *after* all source receipts and project that
+already-received snapshot onto U(t). This prevents an awaited provider request from
+being backdated into a decision made before its response existed.
+
+The resulting path is supporting forecast evidence only. It is not the WRH settlement
+population, not a calibrated probability, and cannot authorize Telegram or financial
+delivery. Any missing interval, unit drift, stale/future update identity, redirect to
+an unexpected host, or uncovered sample fails closed.
 """
 
 import hashlib
@@ -19,8 +25,8 @@ import json
 import math
 import re
 import time
-from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from dataclasses import asdict, dataclass, field
+from datetime import datetime, timezone
 from urllib.parse import urlparse
 
 import httpx
@@ -35,7 +41,8 @@ from .weather_only_near_term_path import (
 )
 
 
-NWS_NEAR_TERM_VERSION = "nws_raw_grid_temperature_near_term_v1_interval_bound"
+NWS_NEAR_TERM_VERSION = "nws_raw_grid_temperature_near_term_v2_staged_receipt"
+NWS_RAW_SNAPSHOT_VERSION = "nws_near_term_raw_snapshot_v1_predecision_evidence"
 NWS_API_ORIGIN = "https://api.weather.gov"
 NWS_POINTS_ENDPOINT = NWS_API_ORIGIN + "/points/{latitude},{longitude}"
 NWS_NEAR_TERM_STEP_SECONDS = 900
@@ -55,18 +62,21 @@ class NWSNearTermError(RuntimeError):
         super().__init__(self.code)
 
 
-def _canonical_sha(value: object) -> str:
+def _canonical(value: object) -> str:
     try:
-        encoded = json.dumps(
+        return json.dumps(
             value,
             sort_keys=True,
             separators=(",", ":"),
             ensure_ascii=True,
             allow_nan=False,
-        ).encode("utf-8")
+        )
     except (TypeError, ValueError):
         raise NWSNearTermError("NWS_NEAR_TERM_JSON_INVALID") from None
-    return hashlib.sha256(encoded).hexdigest()
+
+
+def _canonical_sha(value: object) -> str:
+    return hashlib.sha256(_canonical(value).encode("utf-8")).hexdigest()
 
 
 def _finite(value: object, code: str) -> float:
@@ -166,6 +176,128 @@ class NWSGridTemperatureInterval:
     start: float
     end: float
     value: float
+
+
+@dataclass(frozen=True, slots=True)
+class NWSNearTermRawSnapshot:
+    """Network evidence acquired before a same-day decision time is frozen."""
+
+    version: str
+    station: str
+    latitude: float
+    longitude: float
+    points_url: str
+    forecast_grid_url: str
+    points_received_at: float
+    grid_received_at: float
+    points_payload: dict
+    grid_payload: dict
+    evidence_sha256: str
+    settlement_authority: bool = field(init=False, default=False)
+    calibration_label_authority: bool = field(init=False, default=False)
+    same_day_delivery_authority: bool = field(init=False, default=False)
+    financial_authority: bool = field(init=False, default=False)
+
+    @property
+    def received_at(self) -> float:
+        return max(float(self.points_received_at), float(self.grid_received_at))
+
+    def as_dict(self) -> dict:
+        value = asdict(self)
+        value["received_at"] = self.received_at
+        return value
+
+
+def _raw_snapshot_payload(value: NWSNearTermRawSnapshot) -> dict:
+    return {
+        "version": value.version,
+        "station": value.station,
+        "latitude": value.latitude,
+        "longitude": value.longitude,
+        "points_url": value.points_url,
+        "forecast_grid_url": value.forecast_grid_url,
+        "points_received_at": value.points_received_at,
+        "grid_received_at": value.grid_received_at,
+        "points_payload": value.points_payload,
+        "grid_payload": value.grid_payload,
+        "settlement_authority": value.settlement_authority,
+        "calibration_label_authority": value.calibration_label_authority,
+        "same_day_delivery_authority": value.same_day_delivery_authority,
+        "financial_authority": value.financial_authority,
+    }
+
+
+def build_nws_raw_snapshot(
+    points_payload: object,
+    grid_payload: object,
+    *,
+    station: str,
+    latitude: float,
+    longitude: float,
+    points_received_at: float,
+    grid_received_at: float,
+) -> NWSNearTermRawSnapshot:
+    station_id = str(station or "").strip().upper()
+    if len(station_id) != 4 or not station_id.isalnum():
+        raise NWSNearTermError("NWS_NEAR_TERM_STATION_INVALID")
+    lat = _finite(latitude, "NWS_NEAR_TERM_COORDINATE_INVALID")
+    lon = _finite(longitude, "NWS_NEAR_TERM_COORDINATE_INVALID")
+    if not -90.0 <= lat <= 90.0 or not -180.0 <= lon <= 180.0:
+        raise NWSNearTermError("NWS_NEAR_TERM_COORDINATE_INVALID")
+    points_receipt = _finite(points_received_at, "NWS_NEAR_TERM_RECEIPT_INVALID")
+    grid_receipt = _finite(grid_received_at, "NWS_NEAR_TERM_RECEIPT_INVALID")
+    if points_receipt < 0.0 or grid_receipt < points_receipt - 1e-6:
+        raise NWSNearTermError("NWS_NEAR_TERM_RECEIPT_ORDER_INVALID")
+    if not isinstance(points_payload, dict) or points_payload.get("type") != "Feature":
+        raise NWSNearTermError("NWS_NEAR_TERM_POINTS_ENVELOPE_INVALID")
+    point_properties = points_payload.get("properties")
+    if not isinstance(point_properties, dict):
+        raise NWSNearTermError("NWS_NEAR_TERM_POINTS_PROPERTIES_INVALID")
+    forecast_grid_url = _grid_url(point_properties.get("forecastGridData"))
+    points_url = NWS_POINTS_ENDPOINT.format(latitude=f"{lat:.6f}", longitude=f"{lon:.6f}")
+    if not isinstance(grid_payload, dict) or grid_payload.get("type") != "Feature":
+        raise NWSNearTermError("NWS_NEAR_TERM_GRID_ENVELOPE_INVALID")
+
+    shell = NWSNearTermRawSnapshot(
+        version=NWS_RAW_SNAPSHOT_VERSION,
+        station=station_id,
+        latitude=lat,
+        longitude=lon,
+        points_url=points_url,
+        forecast_grid_url=forecast_grid_url,
+        points_received_at=points_receipt,
+        grid_received_at=grid_receipt,
+        points_payload=json.loads(_canonical(points_payload)),
+        grid_payload=json.loads(_canonical(grid_payload)),
+        evidence_sha256="0" * 64,
+    )
+    return NWSNearTermRawSnapshot(
+        **{
+            name: getattr(shell, name)
+            for name, definition in shell.__dataclass_fields__.items()
+            if definition.init and name != "evidence_sha256"
+        },
+        evidence_sha256=_canonical_sha(_raw_snapshot_payload(shell)),
+    )
+
+
+def verify_nws_raw_snapshot(value: object) -> NWSNearTermRawSnapshot:
+    if not isinstance(value, NWSNearTermRawSnapshot):
+        raise NWSNearTermError("NWS_NEAR_TERM_RAW_SNAPSHOT_TYPE_INVALID")
+    if value.version != NWS_RAW_SNAPSHOT_VERSION:
+        raise NWSNearTermError("NWS_NEAR_TERM_RAW_SNAPSHOT_VERSION_INVALID")
+    if value.evidence_sha256 != _canonical_sha(_raw_snapshot_payload(value)):
+        raise NWSNearTermError("NWS_NEAR_TERM_RAW_SNAPSHOT_DIGEST_MISMATCH")
+    if _grid_url(value.forecast_grid_url) != value.forecast_grid_url:
+        raise NWSNearTermError("NWS_NEAR_TERM_GRID_URL_INVALID")
+    if any((
+        value.settlement_authority,
+        value.calibration_label_authority,
+        value.same_day_delivery_authority,
+        value.financial_authority,
+    )):
+        raise NWSNearTermError("NWS_NEAR_TERM_RAW_AUTHORITY_BOUNDARY_BROKEN")
+    return value
 
 
 def parse_nws_near_term_grid_path(
@@ -274,8 +406,34 @@ def parse_nws_near_term_grid_path(
     )
 
 
+def path_from_nws_raw_snapshot(
+    snapshot: NWSNearTermRawSnapshot,
+    *,
+    unit: str,
+    family: str,
+    segment: TimeSegment,
+) -> VerifiedNearTermPath:
+    """Project only evidence that existed no later than the frozen decision time."""
+    source = verify_nws_raw_snapshot(snapshot)
+    if not isinstance(segment, TimeSegment):
+        raise NWSNearTermError("NWS_NEAR_TERM_SEGMENT_INVALID")
+    if source.received_at > float(segment.start) + 1e-6:
+        raise NWSNearTermError("NWS_NEAR_TERM_SNAPSHOT_POSTDATES_DECISION")
+    return parse_nws_near_term_grid_path(
+        source.points_payload,
+        source.grid_payload,
+        station=source.station,
+        latitude=source.latitude,
+        longitude=source.longitude,
+        unit=unit,
+        family=family,
+        segment=segment,
+        received_at=source.received_at,
+    )
+
+
 class NWSNearTermGridClient:
-    """Read-only two-step NWS points/raw-grid client for supported US stations."""
+    """Read-only two-step NWS client. Fetch first; freeze decision time second."""
 
     def __init__(self) -> None:
         self.http = httpx.AsyncClient(
@@ -313,6 +471,34 @@ class NWSNearTermGridClient:
             raise NWSNearTermError("NWS_NEAR_TERM_PROVIDER_JSON_INVALID")
         return payload, received
 
+    async def fetch_snapshot(
+        self,
+        *,
+        station: str,
+        latitude: float,
+        longitude: float,
+    ) -> NWSNearTermRawSnapshot:
+        """Acquire immutable raw source state without choosing an as-of decision yet."""
+        lat = _finite(latitude, "NWS_NEAR_TERM_COORDINATE_INVALID")
+        lon = _finite(longitude, "NWS_NEAR_TERM_COORDINATE_INVALID")
+        points_url = NWS_POINTS_ENDPOINT.format(latitude=f"{lat:.6f}", longitude=f"{lon:.6f}")
+        points_payload, points_received = await self._json_get(points_url)
+        try:
+            properties = points_payload["properties"]
+            grid_url = _grid_url(properties["forecastGridData"])
+        except (KeyError, TypeError):
+            raise NWSNearTermError("NWS_NEAR_TERM_GRID_URL_INVALID") from None
+        grid_payload, grid_received = await self._json_get(grid_url)
+        return build_nws_raw_snapshot(
+            points_payload,
+            grid_payload,
+            station=station,
+            latitude=lat,
+            longitude=lon,
+            points_received_at=points_received,
+            grid_received_at=grid_received,
+        )
+
     async def path(
         self,
         *,
@@ -323,24 +509,20 @@ class NWSNearTermGridClient:
         family: str,
         segment: TimeSegment,
     ) -> VerifiedNearTermPath:
-        lat = _finite(latitude, "NWS_NEAR_TERM_COORDINATE_INVALID")
-        lon = _finite(longitude, "NWS_NEAR_TERM_COORDINATE_INVALID")
-        points_url = NWS_POINTS_ENDPOINT.format(latitude=f"{lat:.6f}", longitude=f"{lon:.6f}")
-        points_payload, _ = await self._json_get(points_url)
-        try:
-            properties = points_payload["properties"]
-            grid_url = _grid_url(properties["forecastGridData"])
-        except (KeyError, TypeError):
-            raise NWSNearTermError("NWS_NEAR_TERM_GRID_URL_INVALID") from None
-        grid_payload, received = await self._json_get(grid_url)
-        return parse_nws_near_term_grid_path(
-            points_payload,
-            grid_payload,
+        """Compatibility helper that remains fail-closed against await-time backdating.
+
+        Live same-day code should use ``fetch_snapshot`` before freezing decision time,
+        then call ``path_from_nws_raw_snapshot``. If this helper's network response
+        arrives after the supplied segment start, projection is rejected.
+        """
+        snapshot = await self.fetch_snapshot(
             station=station,
-            latitude=lat,
-            longitude=lon,
+            latitude=latitude,
+            longitude=longitude,
+        )
+        return path_from_nws_raw_snapshot(
+            snapshot,
             unit=unit,
             family=family,
             segment=segment,
-            received_at=received,
         )
