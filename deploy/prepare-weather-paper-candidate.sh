@@ -11,6 +11,7 @@ REPOSITORY_URL="${ALPHA_WEATHER_REPOSITORY_URL:-https://github.com/heroo2123/Alp
 SOURCE_REF="${ALPHA_WEATHER_SOURCE_REF:-${2:-weather-live-paper-corrective-2026-09-13}}"
 RELEASE_SHA="${1:-}"
 UNIT="polymarket-weather-paper.service"
+FINAL_MODULE="polymarket_scanner.weather_only_live_paper_final"
 
 fail(){ printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 
@@ -22,7 +23,7 @@ git check-ref-format --branch "${SOURCE_REF}" >/dev/null 2>&1 \
 if systemctl is-active --quiet "${UNIT}" 2>/dev/null; then
   fail "${UNIT} is active; stop it explicitly before preparing another candidate"
 fi
-if pgrep -af 'polymarket_scanner\.weather_only_live_paper' >/dev/null 2>&1; then
+if pgrep -af 'polymarket_scanner\.weather_only_live_paper|weather_only_live_paper(_v[234]|_corrective|_final)?\.py' >/dev/null 2>&1; then
   fail "a weather-paper process is already running outside the stopped service"
 fi
 
@@ -32,8 +33,8 @@ if [[ ! -d "${APP_DIR}/.git" ]]; then
   git clone --no-checkout "${REPOSITORY_URL}" "${APP_DIR}"
 fi
 
-[[ -z "$(git -C "${APP_DIR}" status --porcelain --untracked-files=no)" ]] \
-  || fail "weather-paper checkout has tracked local modifications"
+[[ -z "$(git -C "${APP_DIR}" status --porcelain --untracked-files=all)" ]] \
+  || fail "weather-paper checkout differs from its authorized commit"
 
 git -C "${APP_DIR}" remote get-url origin >/dev/null 2>&1 \
   || fail "weather-paper checkout has no origin remote"
@@ -58,6 +59,8 @@ for required in \
   deploy/verify-weather-paper-first-cycle.py \
   deploy/enable-weather-paper-persistence.sh \
   polymarket_scanner/weather_only_live_paper_corrective.py \
+  polymarket_scanner/weather_only_live_paper_final.py \
+  polymarket_scanner/weather_only_paper_recovery.py \
   polymarket_scanner/weather_only_runtime_attestation.py \
   polymarket_scanner/weather_only_deployment_acceptance.py \
   polymarket_scanner/weather_only_network_preflight.py \
@@ -66,9 +69,8 @@ for required in \
   [[ -f "${APP_DIR}/${required}" ]] || fail "candidate lacks required weather-paper file: ${required}"
 done
 
-grep -qF 'polymarket_scanner.weather_only_live_paper_corrective' \
-  "${APP_DIR}/deploy/render-weather-paper-unit.py" \
-  || fail "candidate renderer does not point to canonical corrective entrypoint"
+grep -qF "${FINAL_MODULE}" "${APP_DIR}/deploy/render-weather-paper-unit.py" \
+  || fail "candidate renderer does not point to final guarded weather-paper entrypoint"
 grep -qF 'weather-paper-release.sha' "${APP_DIR}/deploy/render-weather-paper-unit.py" \
   || fail "candidate does not use an isolated weather-paper release marker"
 
@@ -79,7 +81,7 @@ fi
 "${APP_DIR}/.venv/bin/python" -m pip check
 
 # Verify every pinned runtime requirement exactly, not merely satisfiable ranges.
-"${APP_DIR}/.venv/bin/python" - "${APP_DIR}/requirements.txt" <<'PY'
+PYTHONPATH="${APP_DIR}" "${APP_DIR}/.venv/bin/python" - "${APP_DIR}/requirements.txt" <<'PY'
 from importlib.metadata import version
 from pathlib import Path
 import sys
