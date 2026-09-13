@@ -2,18 +2,18 @@
 set -Eeuo pipefail
 
 # Prepare and verify a weather-paper release without starting or enabling it.
-APP_DIR="${ALPHA_APP_DIR:-${HOME}/polymarket-edge-scanner}"
+APP_DIR="${ALPHA_WEATHER_APP_DIR:-${HOME}/polymarket-weather-paper-app}"
 CONFIG_DIR="${ALPHA_CONFIG_DIR:-${HOME}/.polymarket-edge-scanner}"
 UNIT="polymarket-weather-paper.service"
-RELEASE_FILE="${CONFIG_DIR}/release.sha"
+RELEASE_FILE="${CONFIG_DIR}/weather-paper-release.sha"
 ATTESTATION_OUT="${CONFIG_DIR}/weather-paper-predeploy-attestation.json"
 DB_PATH="${WEATHER_PAPER_DB_PATH:-/var/lib/polymarket-weather-paper/weather-paper.sqlite}"
 
 fail(){ printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 
-[[ -d "${APP_DIR}" ]] || fail "missing app directory: ${APP_DIR}"
-[[ -x "${APP_DIR}/.venv/bin/python" ]] || fail "missing app virtualenv"
-[[ -f "${RELEASE_FILE}" ]] || fail "missing release marker: ${RELEASE_FILE}"
+[[ -d "${APP_DIR}" ]] || fail "missing weather-paper app directory: ${APP_DIR}"
+[[ -x "${APP_DIR}/.venv/bin/python" ]] || fail "missing weather-paper app virtualenv"
+[[ -f "${RELEASE_FILE}" ]] || fail "missing weather-paper release marker: ${RELEASE_FILE}"
 
 if systemctl is-active --quiet "${UNIT}" 2>/dev/null; then
   fail "${UNIT} is active; preflight refuses to change an active paper service"
@@ -31,5 +31,6 @@ bash "${APP_DIR}/deploy/setup-weather-paper-service.sh"
 
 printf '\nPre-deployment gate passed.\n'
 printf 'The canonical weather PAPER service is installed but remains STOPPED and DISABLED.\n'
+printf 'Its code checkout and release marker are isolated from the legacy scanner.\n'
 printf 'Attestation: %s\n' "${ATTESTATION_OUT}"
 printf 'Starting the service requires a separate explicit deployment action.\n'
