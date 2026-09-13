@@ -27,14 +27,21 @@ if pgrep -af 'polymarket_scanner\.weather_only_live_paper|weather_only_live_pape
   fail "a weather-paper process is already running outside the stopped service"
 fi
 
+FRESH_CLONE=0
 if [[ ! -d "${APP_DIR}/.git" ]]; then
   [[ ! -e "${APP_DIR}" ]] || fail "weather app path exists but is not a git checkout: ${APP_DIR}"
   mkdir -p "$(dirname "${APP_DIR}")"
   git clone --no-checkout "${REPOSITORY_URL}" "${APP_DIR}"
+  FRESH_CLONE=1
 fi
 
-[[ -z "$(git -C "${APP_DIR}" status --porcelain --untracked-files=all)" ]] \
-  || fail "weather-paper checkout differs from its authorized commit"
+# A --no-checkout clone intentionally has an empty worktree and therefore looks
+# deleted/dirty until the first checkout.  Enforce cleanliness immediately only for
+# an existing installation; every path is checked again after the detached checkout.
+if [[ "${FRESH_CLONE}" -eq 0 ]]; then
+  [[ -z "$(git -C "${APP_DIR}" status --porcelain --untracked-files=all)" ]] \
+    || fail "weather-paper checkout differs from its authorized commit"
+fi
 
 git -C "${APP_DIR}" remote get-url origin >/dev/null 2>&1 \
   || fail "weather-paper checkout has no origin remote"
@@ -46,6 +53,8 @@ git -C "${APP_DIR}" merge-base --is-ancestor "${RELEASE_SHA}" FETCH_HEAD \
 git -C "${APP_DIR}" checkout --detach "${RELEASE_SHA}"
 ACTUAL_SHA="$(git -C "${APP_DIR}" rev-parse HEAD | tr -d '[:space:]')"
 [[ "${ACTUAL_SHA}" == "${RELEASE_SHA,,}" ]] || fail "detached checkout did not land on requested SHA"
+[[ -z "$(git -C "${APP_DIR}" status --porcelain --untracked-files=all)" ]] \
+  || fail "prepared weather-paper checkout is not clean at the authorized commit"
 
 for required in \
   deploy/verify-runtime-release.sh \
