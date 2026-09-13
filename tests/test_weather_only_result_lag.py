@@ -127,7 +127,6 @@ def test_polling_bracket_cannot_start_deterministic_result_lag_lane():
     with pytest.raises(WeatherResultLagError) as raised:
         asyncio.run(evaluate_wrh_official_result_lag(event, before, after, clob=clob))
     assert raised.value.code == "RESULT_LAG_FINALITY_AUTHORITY_INVALID"
-    # R26: no exact winning bucket may be inferred, so execution is never consulted.
     assert clob.calls == 0
 
 
@@ -136,15 +135,16 @@ def test_w7_finality_trigger_is_not_a_candidate_without_exact_publication_state(
     trigger = build_wrh_source_update_trigger(before, after, compiled=compiled)
     assert trigger.change_kind == CHANGE_FINALITY_TRANSITION
     clob = _FakeCLOB((first, second))
-    with pytest.raises(WeatherResultLagError) as raised:
-        asyncio.run(evaluate_wrh_official_result_lag_for_w7(
-            trigger,
-            event,
-            before,
-            after,
-            clob=clob,
-        ))
-    assert raised.value.code == "RESULT_LAG_FINALITY_AUTHORITY_INVALID"
+    result = asyncio.run(evaluate_wrh_official_result_lag_for_w7(
+        trigger,
+        event,
+        before,
+        after,
+        clob=clob,
+    ))
+    # An uncertain source bracket is an ordinary no-candidate result for W7, not a
+    # source-health failure and not a reason to spend any execution request.
+    assert result is None
     assert clob.calls == 0
 
 
