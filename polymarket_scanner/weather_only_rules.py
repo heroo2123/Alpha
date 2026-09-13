@@ -2,14 +2,15 @@ from __future__ import annotations
 
 """Versioned rule-semantic certification for recurring weather temperature events.
 
-This layer proves only contract semantics needed for shadow structural reasoning.
-It does not fetch settlement data, forecast probabilities, prices or fees, and it
-never grants financial authority.  A future final trade gate must still prove live
-source state and exact executable CLOB conditions.
+This layer proves only contract semantics needed for paper structural/forecast
+reasoning.  V4 treats parent prose as insufficient by itself: every child must remain
+coherent with the same statistic/source/station and must not introduce an override,
+negation or obsolete-rule clause.  Unknown or conflicting evidence fails closed.
 """
 
 import re
 from dataclasses import asdict, dataclass, replace
+from urllib.parse import parse_qs, urlparse
 
 from .weather_only_contracts import (
     DAILY_HIGH,
@@ -20,7 +21,7 @@ from .weather_only_contracts import (
 )
 
 
-RULE_AUTHORITY_VERSION = "weather_temperature_rule_authority_v2_hko_decimal_fail_closed"
+RULE_AUTHORITY_VERSION = "weather_temperature_rule_authority_v4_per_child_common_function"
 
 
 def _norm(value: object) -> str:
@@ -33,6 +34,68 @@ def _event_rules(event: dict) -> str:
         if isinstance(row, dict):
             parts.extend((row.get("description"), row.get("resolutionSource")))
     return _norm(" ".join(str(x or "") for x in parts))
+
+
+def _contains_all(text: str, phrases: tuple[str, ...]) -> bool:
+    return all(phrase in text for phrase in phrases)
+
+
+def _wrh_station_from_url(raw: object) -> str | None:
+    try:
+        parsed = urlparse(str(raw or ""))
+    except Exception:
+        return None
+    host = str(parsed.hostname or "").lower().rstrip(".")
+    if parsed.scheme.lower() != "https" or host not in {"weather.gov", "www.weather.gov"}:
+        return None
+    if parsed.path.rstrip("/").lower() != "/wrh/timeseries":
+        return None
+    query = parse_qs(parsed.query)
+    values = [value for key, rows in query.items() if key.lower() == "site" for value in rows]
+    if len(values) != 1:
+        return None
+    station = str(values[0]).strip().upper()
+    return station if re.fullmatch(r"[A-Z0-9]{4}", station) else None
+
+
+def _urls(text: str) -> tuple[str, ...]:
+    return tuple(re.findall(r"https?://[^\s<>\"')]+", str(text or ""), flags=re.I))
+
+
+def _child_semantic_reasons(event: dict, compiled: CompiledWeatherEvent) -> list[str]:
+    """Reject child-level evidence that breaks one common resolution function."""
+    reasons: list[str] = []
+    wanted = "highest" if compiled.family == DAILY_HIGH else "lowest"
+    opposite = "lowest" if wanted == "highest" else "highest"
+    parent_text = _norm(" ".join(str(event.get(key) or "") for key in ("title", "description", "resolutionSource")))
+    if re.search(r"\b(?:obsolete|superseded)\s+rules?\b.*\bdo\s+not\s+apply\b", parent_text):
+        reasons.append("RULE_TEXT_EXPLICITLY_NEGATED")
+
+    for index, row in enumerate(event.get("markets") or []):
+        if not isinstance(row, dict):
+            continue
+        question = _norm(row.get("question"))
+        description = _norm(row.get("description"))
+        resolution = str(row.get("resolutionSource") or "")
+        combined = " ".join(value for value in (question, description, _norm(resolution)) if value)
+
+        if re.search(rf"\b{opposite}\s+temperature\b|\b{opposite}\s+reading\b", combined):
+            reasons.append(f"CHILD_{index}_STATISTIC_CONFLICT")
+        if re.search(r"\b(?:obsolete|superseded)\s+rules?\b.*\bdo\s+not\s+apply\b", combined):
+            reasons.append(f"CHILD_{index}_RULE_TEXT_NEGATED")
+        if re.search(r"\bresolves?\s+(?:to\s+)?yes\b", combined) or "regardless of" in combined:
+            reasons.append(f"CHILD_{index}_OUTCOME_OVERRIDE")
+
+        if compiled.source_family == SOURCE_NWS_WRH:
+            child_urls = _urls(" ".join((description, resolution)))
+            child_wrh_mentions = [raw for raw in child_urls if "/wrh/timeseries" in raw.lower() or "weather.gov" in raw.lower()]
+            for raw in child_wrh_mentions:
+                station = _wrh_station_from_url(raw)
+                if station is None:
+                    reasons.append(f"CHILD_{index}_UNTRUSTED_WRH_SOURCE")
+                elif compiled.station_hint and station != compiled.station_hint:
+                    reasons.append(f"CHILD_{index}_STATION_CONFLICT")
+    return reasons
 
 
 @dataclass(frozen=True, slots=True)
@@ -58,19 +121,20 @@ class TemperatureRuleAuthority:
         return asdict(self)
 
 
-def _contains_all(text: str, phrases: tuple[str, ...]) -> bool:
-    return all(phrase in text for phrase in phrases)
-
-
 def _nws_profile(event: dict, compiled: CompiledWeatherEvent) -> TemperatureRuleAuthority:
     text = _event_rules(event)
     wanted_stat = "highest" if compiled.family == DAILY_HIGH else "lowest"
     reasons: list[str] = []
+    reasons.extend(_child_semantic_reasons(event, compiled))
 
+    if not compiled.station_hint:
+        reasons.append("NWS_STATION_UNPROVEN_OR_CONFLICT")
     if f"{wanted_stat} reading" not in text:
         reasons.append("NWS_STATISTIC_RULE_MISSING")
     if '"temp" column' not in text or "all times on this day" not in text:
-        reasons.append("NWS_OBSERVATION_POPULATION_UNPROVEN")
+        # Some recurring contracts explicitly choose Hourly Data instead.
+        if not ("hourly data" in text and "show hourly data" in text):
+            reasons.append("NWS_OBSERVATION_POPULATION_UNPROVEN")
 
     hourly = "hourly data" in text and "show hourly data" in text
     population = "WRH_HOURLY_DATA" if hourly else "WRH_ALL_TIMES"
@@ -88,7 +152,6 @@ def _nws_profile(event: dict, compiled: CompiledWeatherEvent) -> TemperatureRule
         "whichever comes first",
     )):
         reasons.append("NWS_FINALITY_RULE_UNPROVEN")
-    # Current copy contains both "data point" and "datapoint" spellings.
     if (
         "revisions" not in text
         or "after which any alterations will not be considered" not in text
@@ -102,14 +165,14 @@ def _nws_profile(event: dict, compiled: CompiledWeatherEvent) -> TemperatureRule
     unit_word = "fahrenheit" if compiled.unit == "F" else "celsius" if compiled.unit == "C" else ""
     if not unit_word or "whole degrees" not in text or unit_word not in text:
         reasons.append("NWS_PRECISION_RULE_UNPROVEN")
-
     if not compiled.partition_shape_complete:
         reasons.append("BUCKET_PARTITION_SHAPE_UNPROVEN")
 
+    reasons = list(dict.fromkeys(reasons))
     proven = not reasons
     return TemperatureRuleAuthority(
         version=RULE_AUTHORITY_VERSION,
-        profile="NWS_WRH_DAILY_EXTREME_CURRENT_TEMPLATE_V1",
+        profile="NWS_WRH_DAILY_EXTREME_CURRENT_TEMPLATE_V4",
         family=compiled.family,
         source_family=compiled.source_family,
         statistic=f"DAILY_{wanted_stat.upper()}_TEMP",
@@ -131,42 +194,28 @@ def _hko_profile(event: dict, compiled: CompiledWeatherEvent) -> TemperatureRule
     text = _event_rules(event)
     wanted = "max" if compiled.family == DAILY_HIGH else "min"
     semantic_reasons: list[str] = []
+    semantic_reasons.extend(_child_semantic_reasons(event, compiled))
 
     if "hong kong observatory" not in text:
         semantic_reasons.append("HKO_AUTHORITY_RULE_MISSING")
     if f"absolute daily {wanted} (deg. c)" not in text or "daily extract" not in text:
         semantic_reasons.append("HKO_STATISTIC_RULE_UNPROVEN")
-    if not _contains_all(text, (
-        "11:59 pm et",
-        "seventh day following the observation date",
-    )):
+    if not _contains_all(text, ("11:59 pm et", "seventh day following the observation date")):
         semantic_reasons.append("HKO_DEADLINE_RULE_UNPROVEN")
     if "no data" not in text or "lowest bracket" not in text:
         semantic_reasons.append("HKO_NO_DATA_RULE_UNPROVEN")
-    if not (
-        "once data for this date has been published" in text
-        and "whichever comes first" in text
-    ):
+    if not ("once data for this date has been published" in text and "whichever comes first" in text):
         semantic_reasons.append("HKO_FINALITY_RULE_UNPROVEN")
     if "one decimal place" not in text:
         semantic_reasons.append("HKO_PRECISION_RULE_UNPROVEN")
-    if not (
-        "revisions" in text
-        and "after data is initially published" in text
-        and "will not be considered" in text
-    ):
+    if not ("revisions" in text and "after data is initially published" in text and "will not be considered" in text):
         semantic_reasons.append("HKO_CORRECTION_RULE_UNPROVEN")
     if compiled.unit != "C":
         semantic_reasons.append("HKO_UNIT_MUST_BE_C")
     if not compiled.partition_shape_complete:
         semantic_reasons.append("BUCKET_PARTITION_SHAPE_UNPROVEN")
 
-    # HKO's current rules explicitly use one-decimal Celsius settlement values while
-    # the displayed child buckets are integer-labelled.  The rules we have certified
-    # do not define how values such as 29.1C or 29.9C map to a child labelled 29C.
-    # Therefore source/finality semantics can be recognized, but an exactly-one
-    # complete-set payout is not proven.  Do not infer rounding or hidden half-degree
-    # bucket boundaries from UI labels.
+    semantic_reasons = list(dict.fromkeys(semantic_reasons))
     structural_reasons = list(semantic_reasons)
     if "HKO_PRECISION_RULE_UNPROVEN" not in semantic_reasons:
         structural_reasons.append("HKO_DECIMAL_BUCKET_MAPPING_UNPROVEN")
@@ -175,7 +224,7 @@ def _hko_profile(event: dict, compiled: CompiledWeatherEvent) -> TemperatureRule
     exactly_one = not structural_reasons
     return TemperatureRuleAuthority(
         version=RULE_AUTHORITY_VERSION,
-        profile="HKO_DAILY_EXTRACT_EXTREME_CURRENT_TEMPLATE_V1",
+        profile="HKO_DAILY_EXTRACT_EXTREME_CURRENT_TEMPLATE_V4",
         family=compiled.family,
         source_family=compiled.source_family,
         statistic=f"ABSOLUTE_DAILY_{wanted.upper()}_C",
@@ -201,6 +250,10 @@ def compile_temperature_rule_authority(event: dict, compiled: CompiledWeatherEve
         base_reasons.append("TARGET_DATE_UNRESOLVED")
     if compiled.unit is None:
         base_reasons.append("UNIT_UNRESOLVED")
+    if compiled.source_family == SOURCE_NWS_WRH and not compiled.station_hint:
+        base_reasons.append("NWS_STATION_UNRESOLVED_OR_CONFLICT")
+    if not compiled.shadow_supported:
+        base_reasons.append("COMPILED_CONTRACT_NOT_SHADOW_SUPPORTED")
     if base_reasons:
         return TemperatureRuleAuthority(
             version=RULE_AUTHORITY_VERSION,
@@ -218,7 +271,7 @@ def compile_temperature_rule_authority(event: dict, compiled: CompiledWeatherEve
             exactly_one_outcome_proven=False,
             settlement_value_adapter_ready=False,
             financial_authority=False,
-            rejection_reasons=tuple(base_reasons),
+            rejection_reasons=tuple(dict.fromkeys(base_reasons)),
         )
     if compiled.source_family == SOURCE_NWS_WRH:
         return _nws_profile(event, compiled)
@@ -248,15 +301,13 @@ def apply_rule_authority(
     compiled: CompiledWeatherEvent,
     authority: TemperatureRuleAuthority,
 ) -> CompiledWeatherEvent:
-    """Upgrade only the exactly-one structural proof bit; never financial authority."""
+    """Upgrade exactly-one only after the full common-function proof succeeds."""
     if (
         authority.family != compiled.family
         or authority.source_family != compiled.source_family
         or not authority.exactly_one_outcome_proven
+        or not compiled.partition_shape_complete
+        or not compiled.shadow_supported
     ):
         return compiled
-    return replace(
-        compiled,
-        exactly_one_outcome_proven=True,
-        financial_authority=False,
-    )
+    return replace(compiled, exactly_one_outcome_proven=True, financial_authority=False)
