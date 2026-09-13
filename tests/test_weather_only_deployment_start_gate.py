@@ -26,6 +26,10 @@ def test_failed_start_acceptance_stops_service_and_never_enables_it():
     text = START.read_text(encoding="utf-8")
     assert 'sudo systemctl stop "${UNIT}"' in text
     assert 'sudo systemctl start "${UNIT}"' in text
+    # The rollback guard is armed before systemctl is called, so even a non-zero
+    # start command that partially launches the service is contained.
+    assert text.index("start_attempted=1") < text.index('sudo systemctl start "${UNIT}"')
+    assert "(( start_attempted == 1 ))" in text
     # Start acceptance intentionally never grants boot persistence.
     executable_lines = [
         line.strip()
