@@ -49,12 +49,18 @@ ACTUAL_SHA="$(git -C "${APP_DIR}" rev-parse HEAD | tr -d '[:space:]')"
 for required in \
   deploy/verify-runtime-release.sh \
   deploy/render-weather-paper-unit.py \
+  deploy/check-weather-paper-network.py \
+  deploy/pre-release-weather-paper-backup.sh \
+  deploy/setup-weather-paper-backup-service.sh \
   deploy/preflight-weather-paper-deployment.sh \
   deploy/start-weather-paper-candidate.sh \
   deploy/verify-weather-paper-first-cycle.py \
+  deploy/enable-weather-paper-persistence.sh \
   polymarket_scanner/weather_only_live_paper_corrective.py \
   polymarket_scanner/weather_only_runtime_attestation.py \
-  polymarket_scanner/weather_only_deployment_acceptance.py
+  polymarket_scanner/weather_only_deployment_acceptance.py \
+  polymarket_scanner/weather_only_network_preflight.py \
+  polymarket_scanner/weather_only_paper_backup.py
  do
   [[ -f "${APP_DIR}/${required}" ]] || fail "candidate lacks required weather-paper file: ${required}"
 done
