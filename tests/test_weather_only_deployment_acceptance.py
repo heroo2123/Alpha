@@ -5,6 +5,8 @@ from copy import deepcopy
 import pytest
 
 from polymarket_scanner.weather_only_deployment_acceptance import (
+    EXPECTED_FORECAST_POLICY,
+    EXPECTED_STRUCTURAL_POLICY,
     WeatherDeploymentAcceptanceError,
     accept_first_weather_paper_cycle,
 )
@@ -20,6 +22,8 @@ def _status() -> dict:
         "mode": MODE,
         "release_sha": SHA,
         "canonical_corrective_version": CANONICAL_CORRECTIVE_VERSION,
+        "forecast_policy": EXPECTED_FORECAST_POLICY,
+        "structural_policy": EXPECTED_STRUCTURAL_POLICY,
         "started_at": 1_950.0,
         "finished_at": 1_990.0,
         "cycle_ok": True,
@@ -60,6 +64,7 @@ def test_fresh_healthy_exact_release_paper_cycle_is_accepted():
     assert result.release_sha == SHA
     assert result.same_day_research_enabled is True
     assert result.same_day_delivery_enabled is False
+    assert result.structural_delivery_enabled is False
     assert result.paper_telegram_delivery is True
     assert result.financial_authority is False
     assert result.automatic_order_placement is False
@@ -69,6 +74,8 @@ def test_fresh_healthy_exact_release_paper_cycle_is_accepted():
     ("field", "value", "code"),
     [
         ("release_sha", "b" * 40, "DEPLOY_STATUS_RELEASE_MISMATCH"),
+        ("forecast_policy", "OLD_POLICY", "DEPLOY_FORECAST_POLICY_MISMATCH"),
+        ("structural_policy", "ENABLED", "DEPLOY_STRUCTURAL_CONTAINMENT_MISSING"),
         ("cycle_ok", False, "DEPLOY_FIRST_CYCLE_UNHEALTHY"),
         ("paper_telegram_delivery", False, "DEPLOY_PAPER_DELIVERY_MODE_INVALID"),
         ("financial_delivery", True, "DEPLOY_FINANCIAL_DELIVERY_NOT_FALSE"),
