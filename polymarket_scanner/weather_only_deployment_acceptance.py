@@ -8,9 +8,13 @@ from dataclasses import dataclass
 
 from .weather_only_live_paper import MODE
 from .weather_only_live_paper_corrective import CANONICAL_CORRECTIVE_VERSION
+from .weather_only_live_paper_final import (
+    FINAL_MARKET_STATE_POLICY,
+    FINAL_PAPER_RUNTIME_VERSION,
+)
 
 
-DEPLOYMENT_ACCEPTANCE_VERSION = "weather_paper_first_cycle_acceptance_v2_structural_containment"
+DEPLOYMENT_ACCEPTANCE_VERSION = "weather_paper_first_cycle_acceptance_v3_final_runtime_guard_proven"
 EXPECTED_FORECAST_POLICY = "STRICT_FUTURE_LOCAL_DAY_RAW_GEFS_V4"
 EXPECTED_STRUCTURAL_POLICY = "DISABLED_PENDING_COMMON_RESOLUTION_PROOF"
 
@@ -91,10 +95,24 @@ def accept_first_weather_paper_cycle(
         raise WeatherDeploymentAcceptanceError("DEPLOY_STATUS_MODE_MISMATCH")
     if status.get("canonical_corrective_version") != CANONICAL_CORRECTIVE_VERSION:
         raise WeatherDeploymentAcceptanceError("DEPLOY_STATUS_CANONICAL_VERSION_MISMATCH")
+    # The deployment gate must prove the final guarded wrapper actually completed the
+    # cycle, not merely an inherited corrective/v4 runtime that happens to share many
+    # status fields.
+    if status.get("final_paper_runtime_version") != FINAL_PAPER_RUNTIME_VERSION:
+        raise WeatherDeploymentAcceptanceError("DEPLOY_FINAL_RUNTIME_VERSION_MISMATCH")
+    if status.get("current_market_state_policy") != FINAL_MARKET_STATE_POLICY:
+        raise WeatherDeploymentAcceptanceError("DEPLOY_FINAL_MARKET_STATE_POLICY_MISMATCH")
+    if status.get("exclusive_writer_lease") is not True:
+        raise WeatherDeploymentAcceptanceError("DEPLOY_EXCLUSIVE_WRITER_LEASE_NOT_PROVEN")
     if status.get("forecast_policy") != EXPECTED_FORECAST_POLICY:
         raise WeatherDeploymentAcceptanceError("DEPLOY_FORECAST_POLICY_MISMATCH")
     if status.get("structural_policy") != EXPECTED_STRUCTURAL_POLICY:
         raise WeatherDeploymentAcceptanceError("DEPLOY_STRUCTURAL_CONTAINMENT_MISSING")
+    _require_false(
+        status,
+        "structural_delivery_enabled",
+        "DEPLOY_STRUCTURAL_DELIVERY_NOT_FALSE",
+    )
     if status.get("cycle_ok") is not True:
         raise WeatherDeploymentAcceptanceError("DEPLOY_FIRST_CYCLE_UNHEALTHY")
     if list(status.get("errors") or []):
