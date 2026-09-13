@@ -52,6 +52,7 @@ def _source_payload(target_date, *, following_observed_at: float, include_follow
         metars.append(f"KLGA {following:%d%H%M}Z AUTO ...")
         pressures.append(1011.0)
     return {
+        "UNITS": {"air_temp": "Fahrenheit"},
         "SUMMARY": {"RESPONSE_MESSAGE": "OK"},
         "STATION": [{
             "STID": "KLGA",
