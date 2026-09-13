@@ -26,6 +26,9 @@ exec 9>"${BACKUP_DIR}/.backup.lockfile"
 flock -n 9 || fail "another weather-paper backup is already running"
 
 RELEASE_SHA="$(tr -d '[:space:]' < "${RELEASE_FILE}")"
+# The inline interpreter receives the repository root explicitly. The result is the
+# same whether this script is called from the app checkout, $HOME, or systemd.
+PYTHONPATH="${APP_DIR}${PYTHONPATH:+:${PYTHONPATH}}" \
 "${APP_DIR}/.venv/bin/python" - "${DB_PATH}" "${BACKUP_DIR}" "${RELEASE_SHA}" "${RETENTION_DAYS}" <<'PY'
 import json
 import sys
