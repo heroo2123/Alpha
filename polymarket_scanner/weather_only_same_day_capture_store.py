@@ -7,6 +7,11 @@ During scientific hardening we also need to retain *why* a live source set could
 be promoted: missing official elapsed cells, unproven population alignment, an NWS
 near-term coverage failure, etc. This table stores those immutable captures without
 creating paper positions, Telegram delivery rows, settlement rows or validated P&L.
+
+Capture cadence is intentionally queryable from SQLite. The canonical runtime uses
+``latest_as_of_for_event`` before source acquisition, so restarting the process cannot
+reset an in-memory cooldown and flood the month-scale research database. Evidence is
+not silently pruned here; backup/retention policy remains an explicit operator action.
 """
 
 import json
@@ -23,7 +28,7 @@ from .weather_only_same_day_capture import (
 )
 
 
-SAME_DAY_CAPTURE_STORE_VERSION = "weather_same_day_capture_store_v1_excluded_from_pnl"
+SAME_DAY_CAPTURE_STORE_VERSION = "weather_same_day_capture_store_v2_persistent_cadence"
 
 
 class SameDayCaptureStoreError(RuntimeError):
@@ -127,6 +132,19 @@ class SameDayCaptureStore:
                 return None
         return int(cur.lastrowid)
 
+    def latest_as_of_for_event(self, event_id: str) -> float | None:
+        identity = str(event_id or "").strip()
+        if not identity:
+            raise SameDayCaptureStoreError("SAME_DAY_CAPTURE_STORE_EVENT_ID_INVALID")
+        with self._conn() as db:
+            row = db.execute(
+                "SELECT MAX(as_of) AS latest FROM weather_same_day_captures WHERE event_id=?",
+                (identity,),
+            ).fetchone()
+        if row is None or row["latest"] is None:
+            return None
+        return float(row["latest"])
+
     def recent(self, limit: int = 20) -> list[dict]:
         count = max(1, min(200, int(limit)))
         with self._conn() as db:
@@ -175,10 +193,17 @@ class SameDayCaptureStore:
                        COUNT(DISTINCT event_id) AS events,
                        COUNT(DISTINCT station || '|' || target_date) AS station_days,
                        MIN(as_of) AS oldest_as_of,
-                       MAX(as_of) AS newest_as_of
+                       MAX(as_of) AS newest_as_of,
+                       COALESCE(SUM(LENGTH(capture_json)),0) AS capture_json_bytes
                 FROM weather_same_day_captures
                 """
             ).fetchone()
+        database_bytes = self.path.stat().st_size if self.path.exists() else 0
+        wal = Path(str(self.path) + "-wal")
+        shm = Path(str(self.path) + "-shm")
+        sidecar_bytes = sum(
+            path.stat().st_size for path in (wal, shm) if path.exists() and path.is_file()
+        )
         return {
             "version": SAME_DAY_CAPTURE_STORE_VERSION,
             "total": int(row["total"] or 0),
@@ -188,6 +213,11 @@ class SameDayCaptureStore:
             "station_days": int(row["station_days"] or 0),
             "oldest_as_of": row["oldest_as_of"],
             "newest_as_of": row["newest_as_of"],
+            "capture_json_bytes": int(row["capture_json_bytes"] or 0),
+            "database_file_bytes": int(database_bytes),
+            "sqlite_sidecar_bytes": int(sidecar_bytes),
+            "automatic_evidence_pruning": False,
+            "persistent_cadence_supported": True,
             "included_in_validated_pnl": False,
             "same_day_delivery_enabled": False,
             "financial_authority": False,
