@@ -31,12 +31,10 @@ from .weather_only_live_paper import (
 )
 from .weather_only_live_paper_corrective import WeatherLivePaperCorrectiveService
 from .weather_only_live_paper_v2 import DEFAULT_PAPER_STAKE_USD
-from .weather_only_live_paper_v4 import V4InvariantError
 from .weather_only_paper_commands_canonical import CanonicalWeatherPaperCommandController
 from .weather_only_paper_corrective import CorrectiveSettlementEngine
 from .weather_only_paper_recovery_final import FinalCrashSafeWeatherPaperStore
 from .weather_only_runtime_lease import WeatherPaperRuntimeLease
-from .weather_only_station_metadata import WeatherStationMetadataError
 
 
 FINAL_PAPER_RUNTIME_VERSION = "weather_live_paper_final_v3_b1_b6_exact_recovery_boundary"
@@ -131,31 +129,23 @@ class FinalWeatherLivePaperService(WeatherLivePaperCorrectiveService):
             self._forecast_cache.clear()
         self._strict_rule_sha_by_event[examined.event_id] = rule_identity["sha256"]
 
-        # Advance past cheap, definitively ineligible rows (same-day, past-day, beyond
-        # horizon) so they cannot pin the cursor forever.  For an eligible row, however,
-        # do NOT advance once this cycle's expensive-evaluation budget is exhausted.
-        # Otherwise a 24-row window with a budget of six wraps back to row 1 every
-        # cycle and rows 7..24 are never actually evaluated.
+        # Never move the durable cursor past a row that was skipped only because the
+        # expensive eligible-event budget was already exhausted.  This is the key to
+        # rotating 24 eligible rows through a six-row budget over successive cycles.
+        budget_before = int(getattr(self, "_v4_eligible_evaluated_this_cycle", 0))
+        if budget_before >= int(self.max_forecast_events):
+            return None
+
+        # With budget available, the inherited gate either rejects the row cheaply
+        # (same-day/past/out-of-horizon) or consumes one eligible evaluation.  Either
+        # way this row was genuinely examined, so it is safe to move the cursor past
+        # it.  Advancing in finally also prevents one repeatedly failing row from
+        # starving every later event forever.
         try:
-            await self._station_local_eligibility(examined)
-        except (V4InvariantError, WeatherStationMetadataError):
+            candidate = await super()._forecast_candidate(event, examined)
+        finally:
             self.positions.set_state("v4_forecast_cursor", examined.event_id)
-            return None
-        except Exception:
-            # Preserve fairness even when a transient station-metadata check raises;
-            # the caller still receives the error and records an unhealthy cycle.
-            self.positions.set_state("v4_forecast_cursor", examined.event_id)
-            raise
 
-        if self._v4_eligible_evaluated_this_cycle >= self.max_forecast_events:
-            return None
-
-        # From this point the row is consuming the cycle's eligible budget.  Advance
-        # the durable cursor before the expensive model/CLOB work so a failure cannot
-        # permanently starve later eligible rows.
-        self.positions.set_state("v4_forecast_cursor", examined.event_id)
-
-        candidate = await super()._forecast_candidate(event, examined)
         if candidate is None:
             return None
         release = self.release_sha()
