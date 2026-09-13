@@ -3,15 +3,20 @@ from __future__ import annotations
 """Exact semantic sidecar for same-day weather research.
 
 The broad ``CompiledWeatherEvent`` intentionally predates the three-layer model and
-does not carry every contract rule needed to interpret observations.  This sidecar
+does not carry every contract rule needed to interpret observations. This sidecar
 binds a strict compiled event to its certified rule-authority fields so a stored or
 replayed same-day decision cannot forget the observation population, precision,
 fallback, finality or correction policy.
 
 Current Layer-1 WRH source code implements one narrow population: the pinned
-Fahrenheit ``WRH_HOURLY_DATA`` table semantics.  ``WRH_ALL_TIMES`` and Celsius
+Fahrenheit ``WRH_HOURLY_DATA`` table semantics. ``WRH_ALL_TIMES`` and Celsius
 contracts remain explicitly adapter-blocked rather than being silently coerced onto
-that population.  Adapter capability is not itself settlement or delivery authority.
+that population. Adapter capability is not itself settlement or delivery authority.
+
+The contract-level population name and the concrete source-adapter population identity
+are kept distinct. The latter binds the rule population to the exact WRH viewer profile
+and pinned viewer script SHA, preventing a replay envelope from silently substituting a
+different parser implementation while still calling it ``WRH_HOURLY_DATA``.
 """
 
 import hashlib
@@ -20,6 +25,7 @@ from dataclasses import asdict, dataclass, field
 
 from .weather_only_contracts import CompiledWeatherEvent, SOURCE_NWS_WRH
 from .weather_only_rules import TemperatureRuleAuthority
+from .weather_only_wrh import WRH_HOURLY_PROFILE, WRH_VIEWER_SCRIPT_SHA256
 
 
 SAME_DAY_CONTRACT_VERSION = "weather_same_day_contract_semantics_v1_population_bound"
@@ -235,3 +241,21 @@ def verify_same_day_contract_semantics(
     )):
         raise SameDayContractError("SAME_DAY_CONTRACT_AUTHORITY_BOUNDARY_BROKEN")
     return value
+
+
+def expected_layer1_population_instance(value: SameDayContractSemantics) -> str:
+    """Return the exact current Layer-1 adapter population identity.
+
+    The rule text names ``WRH_HOURLY_DATA``. The replayable observation objects bind
+    that semantic population to a specific viewer profile and script digest. This
+    identity is intentionally versioned by those two immutable adapter inputs.
+    """
+    if not isinstance(value, SameDayContractSemantics):
+        raise SameDayContractError("SAME_DAY_CONTRACT_SEMANTICS_TYPE_INVALID")
+    if not value.layer1_adapter_capable:
+        raise SameDayContractError(
+            f"SAME_DAY_CONTRACT_LAYER1_ADAPTER_BLOCKED:{value.layer1_adapter_block_reason}"
+        )
+    if value.observation_population != SUPPORTED_LAYER1_POPULATION:
+        raise SameDayContractError("SAME_DAY_CONTRACT_POPULATION_INSTANCE_UNSUPPORTED")
+    return f"{SUPPORTED_LAYER1_POPULATION}:{WRH_HOURLY_PROFILE}:{WRH_VIEWER_SCRIPT_SHA256}"
