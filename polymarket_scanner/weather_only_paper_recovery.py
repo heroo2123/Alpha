@@ -5,17 +5,20 @@ from __future__ import annotations
 A Telegram attempt is an economic experiment event even when no real order exists.
 This store therefore reserves one station/day *before* a message can be sent, keeps an
 uncertain reservation after a crash, and never treats an abandoned in-flight attempt
-as if nothing happened. Settlement-message uncertainty is tracked separately.
+as if nothing happened. Settlement-message and interrupted-accounting uncertainty are
+tracked separately.
 """
 
+import json
+import math
 import time
 
 from .weather_only_paper_corrective import PAPER_EXECUTION_PROTOCOL_V4
 from .weather_only_paper_facade import CorrectiveWeatherPaperStore
-from .weather_only_paper_positions import WeatherPaperPositionError, _payload
+from .weather_only_paper_positions import WeatherPaperPositionError, _json, _payload
 
 
-RECOVERY_VERSION = "weather_paper_crash_recovery_v1_station_day_intent"
+RECOVERY_VERSION = "weather_paper_crash_recovery_v2_partial_fill_guard"
 _ACTIVE_RESERVATION_STATES = {"PENDING", "ACKNOWLEDGED", "UNCERTAIN"}
 
 
@@ -56,10 +59,11 @@ class CrashSafeWeatherPaperStore(CorrectiveWeatherPaperStore):
             raise WeatherPaperPositionError("V4_STATION_DAY_RESERVATION_IDENTITY_MISSING")
         return station, target_date, decision_id
 
-    def _reserve_before_signal(self, payload: dict) -> bool:
+    def _reserve_before_signal(self, payload: dict) -> tuple[bool, bool]:
+        """Return (allowed, newly_created)."""
         identity = self._reservation_identity(payload)
         if identity is None:
-            return True
+            return True, False
         station, target_date, decision_id = identity
         now = time.time()
         with self._conn() as db:
@@ -72,9 +76,9 @@ class CrashSafeWeatherPaperStore(CorrectiveWeatherPaperStore):
             if row is not None:
                 state = str(row["state"] or "")
                 if state in _ACTIVE_RESERVATION_STATES:
-                    # Same immutable decision will be deduplicated by the signal
-                    # fingerprint. A different decision may not send for this day.
-                    return str(row["decision_id"] or "") == decision_id
+                    # Same immutable decision may reach signal fingerprint
+                    # deduplication. A different decision may not send for this day.
+                    return str(row["decision_id"] or "") == decision_id, False
                 db.execute(
                     "DELETE FROM weather_paper_station_day_reservations "
                     "WHERE station=? AND target_date=?",
@@ -88,7 +92,22 @@ class CrashSafeWeatherPaperStore(CorrectiveWeatherPaperStore):
                 """,
                 (station, target_date, decision_id, now, now),
             )
-        return True
+        return True, True
+
+    def _release_new_reservation(self, payload: dict, reason: str) -> None:
+        identity = self._reservation_identity(payload)
+        if identity is None:
+            return
+        station, target_date, decision_id = identity
+        with self._conn() as db:
+            db.execute(
+                """
+                UPDATE weather_paper_station_day_reservations
+                SET state='RELEASED',reason=?,updated_at=?
+                WHERE station=? AND target_date=? AND decision_id=? AND signal_id IS NULL
+                """,
+                (str(reason), time.time(), station, target_date, decision_id),
+            )
 
     def _link_reservation(self, payload: dict, signal_id: int) -> None:
         identity = self._reservation_identity(payload)
@@ -111,11 +130,21 @@ class CrashSafeWeatherPaperStore(CorrectiveWeatherPaperStore):
         payload = kwargs.get("payload")
         if not isinstance(payload, dict):
             return super().save_signal(**kwargs)
-        if not self._reserve_before_signal(payload):
+        allowed, newly_created = self._reserve_before_signal(payload)
+        if not allowed:
             return None
-        signal_id = super().save_signal(**kwargs)
+        try:
+            signal_id = super().save_signal(**kwargs)
+        except BaseException:
+            if newly_created:
+                self._release_new_reservation(payload, "SIGNAL_PERSIST_FAILED_BEFORE_SEND")
+            raise
         if signal_id is not None:
             self._link_reservation(payload, int(signal_id))
+        elif newly_created:
+            # Fingerprint duplicate: no network send began, so a brand-new reservation
+            # must not remain stuck merely because save_signal returned None.
+            self._release_new_reservation(payload, "SIGNAL_FINGERPRINT_DUPLICATE")
         return signal_id
 
     def _set_reservation_state_for_signal(
@@ -151,17 +180,43 @@ class CrashSafeWeatherPaperStore(CorrectiveWeatherPaperStore):
         signal_id = int(row["signal_id"])
         status = str(row["status"] or "")
         receipt = row["telegram_message_id"]
-        if status == "DELIVERY_UNCERTAIN":
+        if status in {"DELIVERY_UNCERTAIN", "PAPER_ACCOUNTING_UNCERTAIN"}:
             self._set_reservation_state_for_signal(signal_id, "UNCERTAIN", status)
         elif receipt is not None or status in {"ACKNOWLEDGED", "PAPER_ACCOUNTING_ERROR"}:
             self._set_reservation_state_for_signal(signal_id, "ACKNOWLEDGED", status)
         elif status in {"DELIVERY_FAILED", "EXPIRED", "ABANDONED_PRE_SEND"}:
             self._set_reservation_state_for_signal(signal_id, "RELEASED", status)
 
+    def _restore_original_visible_capacity(self, signal_id: int) -> None:
+        """Undo a pre-crash temporary ask-size reduction before idempotent recovery."""
+        with self._conn() as db:
+            row = db.execute(
+                "SELECT payload_json FROM weather_paper_signals WHERE id=?",
+                (int(signal_id),),
+            ).fetchone()
+            if not row:
+                return
+            payload = _payload(row["payload_json"])
+            original = payload.get("captured_ask_size_original")
+            if original is None or isinstance(original, bool):
+                return
+            try:
+                value = float(original)
+            except (TypeError, ValueError, OverflowError):
+                return
+            if not math.isfinite(value) or value < 0.0:
+                return
+            payload["ask_size"] = value
+            db.execute(
+                "UPDATE weather_paper_signals SET payload_json=? WHERE id=?",
+                (_json(payload), int(signal_id)),
+            )
+
     def reconcile_crash_states(self) -> dict:
         """Classify abandoned in-flight work before a restarted service can scan."""
         pending_uncertain: list[int] = []
         acknowledged_to_fill: list[int] = []
+        accounting_uncertain: list[int] = []
         presend_abandoned: list[int] = []
         settlement_uncertain = 0
         now = time.time()
@@ -170,9 +225,11 @@ class CrashSafeWeatherPaperStore(CorrectiveWeatherPaperStore):
             rows = [dict(row) for row in db.execute(
                 "SELECT * FROM weather_paper_signals ORDER BY id"
             )]
-            positions_by_signal = {
-                int(row[0]) for row in db.execute(
-                    "SELECT signal_id FROM weather_paper_positions WHERE signal_id IS NOT NULL"
+            positions = {
+                int(row["signal_id"]): dict(row)
+                for row in db.execute(
+                    "SELECT signal_id,validation_state,status FROM weather_paper_positions "
+                    "WHERE signal_id IS NOT NULL"
                 )
             }
             for row in rows:
@@ -182,6 +239,17 @@ class CrashSafeWeatherPaperStore(CorrectiveWeatherPaperStore):
                 sid = int(row["id"])
                 status = str(row.get("status") or "")
                 receipt = row.get("telegram_message_id")
+                position = positions.get(sid)
+                if position is not None and str(position.get("validation_state") or "") != "VALIDATED":
+                    # A process died after the inherited row insert but before the v4
+                    # transaction committed final validation/capacity identity. Preserve
+                    # it as evidence; never invent or rewrite a clean fill afterward.
+                    db.execute(
+                        "UPDATE weather_paper_signals SET status='PAPER_ACCOUNTING_UNCERTAIN' WHERE id=?",
+                        (sid,),
+                    )
+                    accounting_uncertain.append(sid)
+                    continue
                 if status == "OPEN" and receipt is None:
                     # save_signal completed, but PENDING_DELIVERY was never reached;
                     # no network send can have started on this control path.
@@ -203,9 +271,9 @@ class CrashSafeWeatherPaperStore(CorrectiveWeatherPaperStore):
                         "UPDATE weather_paper_signals SET status='ACKNOWLEDGED' WHERE id=?",
                         (sid,),
                     )
-                    if sid not in positions_by_signal:
+                    if position is None:
                         acknowledged_to_fill.append(sid)
-                elif status == "ACKNOWLEDGED" and sid not in positions_by_signal:
+                elif status == "ACKNOWLEDGED" and position is None:
                     acknowledged_to_fill.append(sid)
 
             settlement_uncertain = int(db.execute(
@@ -247,6 +315,16 @@ class CrashSafeWeatherPaperStore(CorrectiveWeatherPaperStore):
             db.execute(
                 """
                 UPDATE weather_paper_station_day_reservations
+                SET state='UNCERTAIN',reason='CRASH_DURING_PAPER_ACCOUNTING',updated_at=?
+                WHERE signal_id IN (
+                    SELECT id FROM weather_paper_signals WHERE status='PAPER_ACCOUNTING_UNCERTAIN'
+                )
+                """,
+                (now,),
+            )
+            db.execute(
+                """
+                UPDATE weather_paper_station_day_reservations
                 SET state='ACKNOWLEDGED',reason='DURABLE_TELEGRAM_RECEIPT',updated_at=?
                 WHERE signal_id IN (
                     SELECT id FROM weather_paper_signals
@@ -255,11 +333,11 @@ class CrashSafeWeatherPaperStore(CorrectiveWeatherPaperStore):
                 """,
                 (now,),
             )
-            # A reservation created before a signal insert cannot have sent anything.
+            # A reservation created before signal linkage cannot have sent anything.
             db.execute(
                 """
                 UPDATE weather_paper_station_day_reservations
-                SET state='RELEASED',reason='NO_DURABLE_SIGNAL',updated_at=?
+                SET state='RELEASED',reason='NO_LINKED_DELIVERY_ATTEMPT',updated_at=?
                 WHERE signal_id IS NULL AND state='PENDING'
                 """,
                 (now,),
@@ -276,25 +354,38 @@ class CrashSafeWeatherPaperStore(CorrectiveWeatherPaperStore):
                 outcome="DELIVERY_UNCERTAIN",
                 reason="PROCESS_RESTART_WITH_INFLIGHT_DELIVERY",
             )
+        for sid in accounting_uncertain:
+            signal = self._load_signal(sid) or {}
+            payload = _payload(signal.get("payload_json"))
+            self.record_decision(
+                decision_id=str(payload.get("decision_id") or signal.get("fingerprint") or sid),
+                event_id=str(signal.get("event_id") or ""),
+                market_id=str(signal.get("market_id") or "") or None,
+                side=str(signal.get("side") or "") or None,
+                outcome="ACCOUNTING_UNCERTAIN",
+                reason="PROCESS_RESTART_WITH_PARTIAL_UNVERIFIED_POSITION",
+            )
 
         fill_recovered = 0
         fill_errors: list[str] = []
         for sid in sorted(set(acknowledged_to_fill)):
             try:
+                self._restore_original_visible_capacity(sid)
                 position = self.ensure_position_for_signal(sid, 0.0)
                 if position is not None:
                     fill_recovered += 1
             except Exception as exc:
                 code = getattr(exc, "code", type(exc).__name__)
-                self.set_signal_status(sid, "PAPER_ACCOUNTING_ERROR")
+                self.set_signal_status(sid, "PAPER_ACCOUNTING_UNCERTAIN")
                 self._set_reservation_state_for_signal(
-                    sid, "ACKNOWLEDGED", f"RECOVERY_ACCOUNTING:{code}"
+                    sid, "UNCERTAIN", f"RECOVERY_ACCOUNTING:{code}"
                 )
                 fill_errors.append(f"{sid}:{code}")
 
         return {
             "version": RECOVERY_VERSION,
             "delivery_uncertain_recovered": len(pending_uncertain),
+            "accounting_uncertain_recovered": len(accounting_uncertain) + len(fill_errors),
             "presend_abandoned_released": len(presend_abandoned),
             "acknowledged_fills_recovered": fill_recovered,
             "settlement_notification_uncertain_recovered": settlement_uncertain,
@@ -314,6 +405,9 @@ class CrashSafeWeatherPaperStore(CorrectiveWeatherPaperStore):
                   AND settlement_notification_state='UNCERTAIN'
                 """
             ).fetchone()[0])
+            accounting_uncertain = int(db.execute(
+                "SELECT COUNT(*) FROM weather_paper_signals WHERE status='PAPER_ACCOUNTING_UNCERTAIN'"
+            ).fetchone()[0])
             reservation_uncertain = int(db.execute(
                 """
                 SELECT COUNT(*) FROM weather_paper_station_day_reservations
@@ -323,9 +417,10 @@ class CrashSafeWeatherPaperStore(CorrectiveWeatherPaperStore):
         data.update({
             "telegram_delivery_uncertain": signal_uncertain,
             "settlement_notification_uncertain": settlement_uncertain,
+            "paper_accounting_uncertain": accounting_uncertain,
             "station_day_uncertain_reservations": reservation_uncertain,
             "delivery_uncertain": signal_uncertain + settlement_uncertain,
-            "uncertainty_total": signal_uncertain + settlement_uncertain,
+            "uncertainty_total": signal_uncertain + settlement_uncertain + accounting_uncertain,
             "crash_recovery_version": RECOVERY_VERSION,
         })
         return data
