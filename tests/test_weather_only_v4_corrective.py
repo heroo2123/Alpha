@@ -13,9 +13,9 @@ from polymarket_scanner.weather_only_paper_corrective import (
     PAPER_EXECUTION_PROTOCOL_V4,
     ClearWeatherPaperCommandController,
     CorrectivePaperError,
-    CorrectiveWeatherPaperPositionStore,
     final_token_payout_v4,
 )
+from polymarket_scanner.weather_only_paper_facade import CorrectiveWeatherPaperStore
 from polymarket_scanner.weather_only_paper_positions import WeatherPaperPositionStore
 from polymarket_scanner.weather_only_paper_store import WeatherPaperStore
 
@@ -42,8 +42,12 @@ def _event(*, title_day: int = 13, rule_day: int = 13, source: str = "https://ww
         "slug": "munich-low",
         "title": f"Lowest temperature in Munich on September {title_day}?",
         "description": (
-            f"Observation date {rule_day} Sep '26, in degrees Celsius. "
-            "The market resolves to exactly one listed temperature bucket."
+            f"Observation date {rule_day} Sep '26, in whole degrees Celsius. "
+            "The market resolves using the lowest reading in the \"Temp\" column across all times on this day. "
+            "On WRH select Hourly Data and show Hourly Data. "
+            "If WRH is unavailable, use the Weather Underground Daily Observations table by 11:59 PM ET on the day following the observation date. "
+            "If there is no data, the market resolves to the lowest bracket. "
+            "Revisions are accepted until the first data point for the following date, whichever comes first, after which any alterations will not be considered."
         ),
         "resolutionSource": source,
         "markets": [
@@ -137,7 +141,7 @@ def test_final_binary_and_true_half_half_payouts_map_exact_token_meaning():
 
 
 def _v4_signal(
-    store: CorrectiveWeatherPaperPositionStore,
+    store: CorrectiveWeatherPaperStore,
     *,
     fingerprint: str,
     message_id: int,
@@ -189,7 +193,7 @@ def _v4_signal(
 
 def test_v4_freezes_stake_and_does_not_reuse_same_captured_capacity(tmp_path: Path):
     path = tmp_path / "paper.sqlite"
-    store = CorrectiveWeatherPaperPositionStore(path)
+    store = CorrectiveWeatherPaperStore(path)
     first = _v4_signal(store, fingerprint="d1", message_id=1)
     second = _v4_signal(store, fingerprint="d2", message_id=2)
 
@@ -205,7 +209,7 @@ def test_v4_freezes_stake_and_does_not_reuse_same_captured_capacity(tmp_path: Pa
 
 
 def test_v4_below_minimum_order_is_explicit_no_fill(tmp_path: Path):
-    store = CorrectiveWeatherPaperPositionStore(tmp_path / "paper.sqlite")
+    store = CorrectiveWeatherPaperStore(tmp_path / "paper.sqlite")
     sid = _v4_signal(
         store,
         fingerprint="dust",
@@ -244,7 +248,7 @@ def test_pre_v4_positions_default_to_unverified_and_do_not_enter_v4_pnl(tmp_path
     legacy = WeatherPaperPositionStore(path)
     legacy.ensure_position_for_signal(sid, 10.0)
 
-    corrective = CorrectiveWeatherPaperPositionStore(path)
+    corrective = CorrectiveWeatherPaperStore(path)
     stats = corrective.stats()
     assert stats["total"] == 0
     assert stats["unverified"] == 1
@@ -253,7 +257,7 @@ def test_pre_v4_positions_default_to_unverified_and_do_not_enter_v4_pnl(tmp_path
 
 
 def test_clear_stats_text_answers_open_finished_and_not_counted(tmp_path: Path):
-    store = CorrectiveWeatherPaperPositionStore(tmp_path / "paper.sqlite")
+    store = CorrectiveWeatherPaperStore(tmp_path / "paper.sqlite")
     controller = object.__new__(ClearWeatherPaperCommandController)
     controller.store = store
     text = controller._stats_text()
