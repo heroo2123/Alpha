@@ -24,6 +24,7 @@ from polymarket_scanner.weather_only_runtime_attestation import (  # noqa: E402
 )
 
 
+FINAL_WEATHER_MODULE = "polymarket_scanner.weather_only_live_paper_final"
 KNOWN_WEATHER_WRITER_MARKERS = (
     "polymarket_scanner.weather_only_live_paper",
     "weather_only_live_paper.py",
@@ -31,6 +32,7 @@ KNOWN_WEATHER_WRITER_MARKERS = (
     "weather_only_live_paper_v3.py",
     "weather_only_live_paper_v4.py",
     "weather_only_live_paper_corrective.py",
+    "weather_only_live_paper_final.py",
 )
 
 
@@ -186,6 +188,7 @@ def main() -> int:
             expected_release_file=release_file,
             expected_environment_file=environment_file,
             expected_release_sha=expected_release,
+            expected_module=FINAL_WEATHER_MODULE,
         )
         payload = {"facts": facts.as_dict(), "attestation": attestation.as_dict()}
         exit_code = 0
