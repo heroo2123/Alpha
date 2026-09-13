@@ -18,7 +18,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 
-RUNTIME_ATTESTATION_VERSION = "weather_runtime_attestation_v1_unit_process_release_identity"
+RUNTIME_ATTESTATION_VERSION = "weather_runtime_attestation_v2_inactive_orphan_guard"
 CANONICAL_MODULE = "polymarket_scanner.weather_only_live_paper_corrective"
 
 
@@ -77,6 +77,20 @@ def _arg_value(tokens: tuple[str, ...], name: str) -> str | None:
     if index + 1 >= len(tokens):
         return None
     return tokens[index + 1]
+
+
+def _normalized_process_inventory(
+    rows: tuple[tuple[str, ...], ...],
+) -> tuple[tuple[str, ...], ...]:
+    return tuple(tuple(str(part) for part in row) for row in rows)
+
+
+def _assert_inactive_process_inventory_empty(
+    rows: tuple[tuple[str, ...], ...],
+) -> None:
+    matching = _normalized_process_inventory(rows)
+    if matching:
+        raise WeatherRuntimeAttestationError("WEATHER_RUNTIME_ORPHAN_PROCESS_WHILE_SERVICE_INACTIVE")
 
 
 @dataclass(frozen=True, slots=True)
@@ -165,6 +179,10 @@ def attest_weather_runtime(
     checks.extend(("RELEASE_MATCH", "UNIT_PYTHON_MATCH", "UNIT_CANONICAL_ENTRYPOINT", "UNIT_DB_MATCH"))
 
     if not facts.active:
+        # systemd being inactive is not sufficient.  A manually launched or orphaned
+        # old weather runtime would otherwise let preflight pass and create a second
+        # scanner when the canonical service is started later.
+        _assert_inactive_process_inventory_empty(facts.matching_weather_process_argvs)
         shell = WeatherRuntimeAttestation(
             version=RUNTIME_ATTESTATION_VERSION,
             unit_name=str(facts.unit_name),
@@ -176,7 +194,7 @@ def attest_weather_runtime(
             installed_unit_attested=True,
             process_attested=False,
             inactive_safe_state=True,
-            checks=tuple((*checks, "SERVICE_INACTIVE_NO_DEPLOYMENT_CLAIM")),
+            checks=tuple((*checks, "NO_ORPHAN_WEATHER_PROCESS", "SERVICE_INACTIVE_NO_DEPLOYMENT_CLAIM")),
             evidence_sha256="0" * 64,
         )
         payload = shell.as_dict()
@@ -205,7 +223,7 @@ def attest_weather_runtime(
     if process_db is None or _norm_path(process_db, "WEATHER_RUNTIME_PROCESS_DB_INVALID") != db_path:
         raise WeatherRuntimeAttestationError("WEATHER_RUNTIME_PROCESS_DB_MISMATCH")
 
-    matching = tuple(tuple(str(part) for part in row) for row in facts.matching_weather_process_argvs)
+    matching = _normalized_process_inventory(facts.matching_weather_process_argvs)
     canonical_matches = [
         row for row in matching
         if len(row) >= 3 and row[1:3] == ("-m", expected_module)
