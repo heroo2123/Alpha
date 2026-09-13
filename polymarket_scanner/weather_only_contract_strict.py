@@ -19,7 +19,7 @@ from .weather_only_contracts import DAILY_HIGH, DAILY_LOW, compile_weather_event
 from .weather_only_rules import apply_rule_authority, compile_temperature_rule_authority
 
 
-STRICT_CONTRACT_VERSION = "weather_contract_strict_v3_exact_question_and_rule_identity"
+STRICT_CONTRACT_VERSION = "weather_contract_strict_v4_operational_text_alias_fail_closed"
 
 
 class StrictWeatherContractError(RuntimeError):
@@ -41,13 +41,47 @@ _MONTHS = {
     "sep": 9, "sept": 9, "oct": 10, "nov": 11, "dec": 12,
 }
 _ALLOWED_WRH_HOSTS = {"weather.gov", "www.weather.gov"}
+
+# Gamma currently uses ``description``/``resolutionSource`` for these contracts, but a
+# strict live-paper boundary must not silently ignore another settlement-text alias if
+# one appears in an event/market object.  Any populated alias is treated as operative
+# evidence and therefore must agree exactly with the other populated copies.
+_OPERATIVE_RULE_FIELDS = (
+    "description",
+    "rules",
+    "resolutionRules",
+    "resolution_rules",
+    "resolutionCriteria",
+    "resolution_criteria",
+    "settlementRules",
+    "settlement_rules",
+    "settlementCriteria",
+    "settlement_criteria",
+)
+_OPERATIVE_SOURCE_FIELDS = (
+    "resolutionSource",
+    "resolution_source",
+    "settlementSource",
+    "settlement_source",
+)
 _RULE_CONFLICT_MARKERS = (
     "instead of",
+    "rather than",
+    "regardless of",
     "rules are obsolete",
     "rule is obsolete",
+    "rules are superseded",
+    "rule is superseded",
+    "rules are overridden",
+    "rule is overridden",
+    "takes precedence",
     "weather underground only",
     "weather underground alone",
+    "wunderground only",
+    "wunderground alone",
     "use the highest bracket",
+    "use the upper bracket",
+    "use the top bracket",
     "resolve from weather underground only",
     "resolves from weather underground only",
 )
@@ -57,19 +91,55 @@ def _norm(value: object) -> str:
     return re.sub(r"\s+", " ", str(value or "")).strip().lower()
 
 
+def _operative_values(container: dict, fields: tuple[str, ...], *, code: str) -> list[str]:
+    values: list[str] = []
+    for field in fields:
+        if field not in container:
+            continue
+        raw = container.get(field)
+        if raw is None or raw == "":
+            continue
+        if not isinstance(raw, str):
+            raise StrictWeatherContractError(code)
+        value = _norm(raw)
+        if value:
+            values.append(value)
+    return values
+
+
 def _all_text_parts(event: dict) -> list[str]:
-    parts = [
-        str(event.get("title") or ""),
-        str(event.get("description") or ""),
-        str(event.get("resolutionSource") or ""),
-    ]
+    parts = [str(event.get("title") or "")]
+    parts.extend(
+        _operative_values(
+            event,
+            _OPERATIVE_RULE_FIELDS,
+            code="STRICT_OPERATIVE_RULE_FIELD_INVALID",
+        )
+    )
+    parts.extend(
+        _operative_values(
+            event,
+            _OPERATIVE_SOURCE_FIELDS,
+            code="STRICT_OPERATIVE_SOURCE_FIELD_INVALID",
+        )
+    )
     for row in event.get("markets") or []:
         if isinstance(row, dict):
-            parts.extend((
-                str(row.get("question") or ""),
-                str(row.get("description") or ""),
-                str(row.get("resolutionSource") or ""),
-            ))
+            parts.append(str(row.get("question") or ""))
+            parts.extend(
+                _operative_values(
+                    row,
+                    _OPERATIVE_RULE_FIELDS,
+                    code="STRICT_OPERATIVE_RULE_FIELD_INVALID",
+                )
+            )
+            parts.extend(
+                _operative_values(
+                    row,
+                    _OPERATIVE_SOURCE_FIELDS,
+                    code="STRICT_OPERATIVE_SOURCE_FIELD_INVALID",
+                )
+            )
     return parts
 
 
@@ -122,28 +192,113 @@ def _question_supported(question: str, family: str) -> bool:
     ) is not None
 
 
+def _reject_conflicting_rule_semantics(operative_rules: str, family: str) -> None:
+    """Reject settlement overrides instead of letting required phrases mask them.
+
+    The authority compiler intentionally recognizes required phrases.  A malicious or
+    malformed rule can contain every required phrase *and* append a conflicting rule.
+    The live-paper boundary therefore rejects common override language, opposite
+    statistic claims, direct YES/NO settlement instructions and non-canonical uses of
+    the Weather Underground fallback.
+    """
+    text = _norm(operative_rules)
+    if any(marker in text for marker in _RULE_CONFLICT_MARKERS):
+        raise StrictWeatherContractError("STRICT_OPERATIVE_RULE_OVERRIDE_UNSUPPORTED")
+
+    # The canonical no-data rule intentionally contains "lowest bracket" even for a
+    # daily-high event.  Remove only that exact allowed phrase before looking for an
+    # opposite-statistic claim.
+    statistic_text = re.sub(r"\blowest\s+bracket\b", "", text)
+    if family == DAILY_HIGH:
+        opposite_patterns = (
+            r"\b(?:lowest|minimum|min)\s+(?:temperature|temp|reading|value)\b",
+            r"\b(?:temperature|temp|reading|value)\b[^.]{0,40}\b(?:lowest|minimum|min)\b",
+        )
+    elif family == DAILY_LOW:
+        opposite_patterns = (
+            r"\b(?:highest|maximum|max)\s+(?:temperature|temp|reading|value)\b",
+            r"\b(?:temperature|temp|reading|value)\b[^.]{0,40}\b(?:highest|maximum|max)\b",
+        )
+    else:
+        raise StrictWeatherContractError("STRICT_FAMILY_UNSUPPORTED")
+    if any(re.search(pattern, statistic_text, re.I) for pattern in opposite_patterns):
+        raise StrictWeatherContractError("STRICT_OPERATIVE_STATISTIC_CONFLICT")
+
+    # Current certified NWS copy always sends a no-data case to the lowest bracket.
+    # Any alternate bracket directive is an operative conflict, regardless of prose.
+    if re.search(r"\b(?:highest|upper|top)\s+bracket\b", text, re.I):
+        raise StrictWeatherContractError("STRICT_OPERATIVE_NO_DATA_OUTCOME_CONFLICT")
+
+    # Child/event prose must never be able to add an unconditional YES/NO settlement
+    # rule while preserving the canonical phrases that the authority parser expects.
+    if re.search(
+        r"\b(?:resolve[sd]?|settle[sd]?|settlement|resolution)\b[^.]{0,120}\b(?:yes|no)\b",
+        text,
+        re.I,
+    ):
+        raise StrictWeatherContractError("STRICT_OPERATIVE_BINARY_OVERRIDE_UNSUPPORTED")
+
+    # Weather Underground is certified only as the specific conditional fallback.
+    # A second/alternative mention is not interpreted heuristically: fail closed.
+    wu_sentences = [
+        sentence
+        for sentence in re.split(r"(?<=[.!?])\s+", text)
+        if "weather underground" in sentence or "wunderground" in sentence
+    ]
+    for sentence in wu_sentences:
+        canonical_fallback = all(
+            phrase in sentence
+            for phrase in (
+                "daily observations table",
+                "unavailable",
+                "11:59 pm et",
+                "day following the observation date",
+            )
+        )
+        if not canonical_fallback:
+            raise StrictWeatherContractError("STRICT_OPERATIVE_SOURCE_OVERRIDE_UNSUPPORTED")
+
+    # Required-phrase matching must not be satisfied by one canonical no-data clause
+    # plus an additional contradictory no-data clause elsewhere in the same text.
+    no_data_occurrences = len(re.findall(r"\bno\s+data\b", text, re.I))
+    if no_data_occurrences != 1 or re.search(
+        r"\bno\s+data\b[^.]{0,120}\blowest\s+bracket\b", text, re.I
+    ) is None:
+        raise StrictWeatherContractError("STRICT_OPERATIVE_NO_DATA_RULE_CONFLICT")
+
+
 def _coherent_rule_identity(event: dict, family: str) -> dict:
     """Require one operative rule/source text, not concatenated conflicting copies."""
     markets = [row for row in (event.get("markets") or []) if isinstance(row, dict)]
-    parent_description = _norm(event.get("description"))
-    child_descriptions = [_norm(row.get("description")) for row in markets if _norm(row.get("description"))]
-    descriptions = [value for value in [parent_description, *child_descriptions] if value]
+    containers = [event, *markets]
+
+    descriptions: list[str] = []
+    for container in containers:
+        descriptions.extend(
+            _operative_values(
+                container,
+                _OPERATIVE_RULE_FIELDS,
+                code="STRICT_OPERATIVE_RULE_FIELD_INVALID",
+            )
+        )
     if not descriptions or len(set(descriptions)) != 1:
         raise StrictWeatherContractError("STRICT_OPERATIVE_RULE_TEXT_CONFLICT")
     operative_rules = descriptions[0]
 
-    sources = [_norm(event.get("resolutionSource"))]
-    sources.extend(_norm(row.get("resolutionSource")) for row in markets)
-    sources = [value for value in sources if value]
+    sources: list[str] = []
+    for container in containers:
+        sources.extend(
+            _operative_values(
+                container,
+                _OPERATIVE_SOURCE_FIELDS,
+                code="STRICT_OPERATIVE_SOURCE_FIELD_INVALID",
+            )
+        )
     if sources and len(set(sources)) != 1:
         raise StrictWeatherContractError("STRICT_OPERATIVE_SOURCE_CONFLICT")
     operative_source = sources[0] if sources else ""
 
-    if any(marker in operative_rules for marker in _RULE_CONFLICT_MARKERS):
-        raise StrictWeatherContractError("STRICT_OPERATIVE_RULE_OVERRIDE_UNSUPPORTED")
-    opposite = "lowest reading" if family == DAILY_HIGH else "highest reading"
-    if opposite in operative_rules:
-        raise StrictWeatherContractError("STRICT_OPERATIVE_STATISTIC_CONFLICT")
+    _reject_conflicting_rule_semantics(operative_rules, family)
 
     questions = tuple(_norm(row.get("question")) for row in markets)
     return {
@@ -239,7 +394,7 @@ def compile_strict_temperature_event(event: dict):
             raise StrictWeatherContractError("STRICT_CHILD_STATISTIC_CONFLICT")
 
     # This must run before phrase-based authority promotion. It prevents a valid
-    # canonical phrase in one child from masking an operative override in another.
+    # canonical phrase in one field from masking an operative override elsewhere.
     _coherent_rule_identity(event, raw.family)
 
     authority = compile_temperature_rule_authority(event, raw)
