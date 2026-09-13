@@ -64,7 +64,9 @@ def test_deployment_renderer_points_to_final_guarded_entrypoint():
     renderer = Path("deploy/render-weather-paper-unit.py").read_text(encoding="utf-8")
     assert f'FINAL_WEATHER_MODULE = "{FINAL_MODULE}"' in renderer
     assert "{FINAL_WEATHER_MODULE}" in renderer
-    assert FINAL_PAPER_RUNTIME_VERSION == "weather_live_paper_final_v3_exact_recovery_boundary"
+    assert FINAL_PAPER_RUNTIME_VERSION == (
+        "weather_live_paper_final_v3_b1_b6_exact_recovery_boundary"
+    )
 
 
 def test_code_gate_does_not_enable_real_money_or_same_day_delivery():
