@@ -7,7 +7,6 @@ from datetime import date, datetime
 import pytest
 
 from polymarket_scanner.weather_only_calibration_authority import (
-    WRH_CALIBRATION_AUTHORITY_VERSION,
     WeatherCalibrationAuthorityError,
     authorize_wrh_calibration_sample,
 )
@@ -37,7 +36,7 @@ FOLLOWING = datetime.fromisoformat("2026-09-12T00:51:00-04:00").timestamp()
 
 def _rules() -> str:
     return (
-        "This market resolves to the range containing the highest reading in the \"Temp\" column from all times on this day "
+        'This market resolves to the range containing the highest reading in the "Temp" column from all times on this day '
         "in Hourly Data after selecting Show Hourly Data at the listed NOAA station, in whole degrees Fahrenheit, on 11 Sep '26. "
         "The resolution source is https://www.weather.gov/wrh/timeseries?site=KLGA. "
         "If NOAA data for the observation date is unavailable by 11:59 PM ET on the day following the observation date, "
@@ -107,11 +106,6 @@ def _forecast(*, selected: str = "mid", middle_upper: float = 82.0) -> EnsembleB
     hits = {"low": 7, "mid": 18, "high": 6}
     if selected == "high":
         hits = {"low": 7, "mid": 6, "high": 18}
-    rows = (
-        _frequency("market-low", "condition-low", None, 79.0, hits["low"]),
-        _frequency("market-mid", "condition-mid", 80.0, middle_upper, hits["mid"]),
-        _frequency("market-high", "condition-high", 83.0, None, hits["high"]),
-    )
     return EnsembleBucketForecast(
         adapter=FORECAST_ADAPTER_VERSION,
         event_id="event-nyc-high-2026-09-11",
@@ -125,7 +119,11 @@ def _forecast(*, selected: str = "mid", middle_upper: float = 82.0) -> EnsembleB
         quantization=SUPPORTED_QUANTIZATION,
         included_control=True,
         member_count=31,
-        bucket_frequencies=rows,
+        bucket_frequencies=(
+            _frequency("market-low", "condition-low", None, 79.0, hits["low"]),
+            _frequency("market-mid", "condition-mid", 80.0, middle_upper, hits["mid"]),
+            _frequency("market-high", "condition-high", 83.0, None, hits["high"]),
+        ),
         probability_sum=1.0,
         calibrated=False,
         settlement_authority=False,
@@ -144,10 +142,8 @@ def _payload(*, include_following: bool) -> dict:
         ],
         "air_temp_set_1": [70.4, 80.5, 82.4, 79.4, 75.0],
         "metar_set_1": [
-            "KLGA 110451Z AUTO ...",
-            "KLGA 111651Z AUTO ...",
-            "KLGA 111720Z SPECI ...",
-            "KLGA 120359Z AUTO ...",
+            "KLGA 110451Z AUTO ...", "KLGA 111651Z AUTO ...",
+            "KLGA 111720Z SPECI ...", "KLGA 120359Z AUTO ...",
             "KLGA 120451Z AUTO ...",
         ],
         "sea_level_pressure_set_1": [1012.0, 1010.0, None, 1009.0, 1011.0],
@@ -159,10 +155,8 @@ def _payload(*, include_following: bool) -> dict:
         "UNITS": {"air_temp": "Fahrenheit"},
         "SUMMARY": {"RESPONSE_MESSAGE": "OK"},
         "STATION": [{
-            "STID": "KLGA",
-            "SHORTNAME": "GLOBAL-METAR",
-            "TIMEZONE": "America/New_York",
-            "OBSERVATIONS": observations,
+            "STID": "KLGA", "SHORTNAME": "GLOBAL-METAR",
+            "TIMEZONE": "America/New_York", "OBSERVATIONS": observations,
         }],
     }
 
@@ -170,71 +164,58 @@ def _payload(*, include_following: bool) -> dict:
 def _snapshot(*, include_following: bool, received_at: float, payload: dict | None = None):
     return parse_synoptic_wrh_hourly_snapshot(
         payload if payload is not None else _payload(include_following=include_following),
-        station="KLGA",
-        target_date=TARGET,
-        query_start_date=START,
-        query_end_date=END,
-        received_at=received_at,
+        station="KLGA", target_date=TARGET, query_start_date=START,
+        query_end_date=END, received_at=received_at,
     )
 
 
 def _capture(*, selected: str = "mid"):
     return capture_prospective_weather_calibration_candidate(
-        _event(),
-        _forecast(selected=selected),
+        _event(), _forecast(selected=selected),
         selection_policy=ProspectiveSelectionPolicy("top-bucket-prospective-v1"),
         captured_at=100.0,
     )
 
 
-def _evidence(capture=None):
+def _polling_evidence(capture=None):
     capture = capture or _capture()
     previous = _snapshot(include_following=False, received_at=FOLLOWING - 30)
     current = _snapshot(include_following=True, received_at=FOLLOWING + 20)
     return build_wrh_exact_settlement_evidence(capture, previous, current)
 
 
-def test_strict_authority_gate_revalidates_full_lineage_and_returns_nonfinancial_sample():
+def test_polling_bracket_never_enters_calibration_authority():
     capture = _capture()
-    evidence = _evidence(capture)
-    authorized = authorize_wrh_calibration_sample(capture, evidence)
-
-    assert authorized.authority_version == WRH_CALIBRATION_AUTHORITY_VERSION
-    assert authorized.sample.event_id == capture.prediction.event_id
-    assert authorized.sample.station == "KLGA"
-    assert authorized.sample.predicted_probability == pytest.approx(18 / 31)
-    assert authorized.sample.final_payout == 1.0
-    assert authorized.calibration_label_authority is True
-    assert authorized.financial_authority is False
-    assert len(authorized.authority_evidence_sha256) == 64
-    assert authorized.capture_evidence_sha256 == capture.capture_evidence_sha256
-    assert authorized.label_evidence_sha256 == evidence.label.label_evidence_sha256
+    evidence = _polling_evidence(capture)
+    assert evidence.finality_state.transition_bracket_observed is True
+    assert evidence.finality_state.exact_publication_state_observed is False
+    assert evidence.finality_state.calibration_label_authority is False
+    with pytest.raises(WeatherCalibrationAuthorityError) as raised:
+        authorize_wrh_calibration_sample(capture, evidence)
+    assert raised.value.code == "AUTHORITY_FINALITY_BOUNDARY_INVALID"
 
 
-def test_preselected_loser_remains_zero_payout_no_retrospective_reselection():
+def test_preselected_loser_is_not_scored_from_polling_only_cutoff_evidence():
     capture = _capture(selected="high")
-    assert capture.prediction.market_id == "market-high"
-    evidence = _evidence(capture)
-    authorized = authorize_wrh_calibration_sample(capture, evidence)
-    assert evidence.target_value_f == 82
-    assert evidence.winning_market_id == "market-mid"
-    assert authorized.sample.final_payout == 0.0
+    evidence = _polling_evidence(capture)
+    with pytest.raises(WeatherCalibrationAuthorityError) as raised:
+        authorize_wrh_calibration_sample(capture, evidence)
+    assert raised.value.code == "AUTHORITY_FINALITY_BOUNDARY_INVALID"
 
 
 def test_forecast_partition_cannot_drift_from_frozen_contract_buckets():
     with pytest.raises(WeatherCalibrationCaptureError) as raised:
         capture_prospective_weather_calibration_candidate(
-            _event(),
-            _forecast(middle_upper=83.0),
+            _event(), _forecast(middle_upper=83.0),
             selection_policy=ProspectiveSelectionPolicy("top-bucket-prospective-v1"),
             captured_at=100.0,
         )
     assert raised.value.code == "CAPTURE_FORECAST_BUCKET_PARTITION_MISMATCH"
 
 
-def test_prediction_tampering_is_caught_by_authority_even_when_capture_digest_string_is_unchanged():
+def test_prediction_tampering_is_rejected_before_any_cutoff_authority_question():
     capture = _capture()
-    evidence = _evidence(capture)
+    evidence = _polling_evidence(capture)
     prediction = replace(
         capture.prediction,
         raw_predicted_probability=capture.prediction.raw_predicted_probability - 0.01,
@@ -245,52 +226,15 @@ def test_prediction_tampering_is_caught_by_authority_even_when_capture_digest_st
     assert raised.value.code == "AUTHORITY_PREDICTION_INVALID:CALIBRATION_PREDICTION_DIGEST_MISMATCH"
 
 
-def test_finalized_wrh_state_digest_and_extreme_are_independently_revalidated():
-    capture = _capture()
-    evidence = _evidence(capture)
-
-    bad_digest_state = replace(evidence.finality_state, finality_evidence_sha256="f" * 64)
-    with pytest.raises(WeatherCalibrationAuthorityError) as raised:
-        authorize_wrh_calibration_sample(capture, replace(evidence, finality_state=bad_digest_state))
-    assert raised.value.code == "AUTHORITY_FINALITY_DIGEST_MISMATCH"
-
-    bad_high_state = replace(evidence.finality_state, target_high_f=83)
-    with pytest.raises(WeatherCalibrationAuthorityError) as raised:
-        authorize_wrh_calibration_sample(capture, replace(evidence, finality_state=bad_high_state))
-    assert raised.value.code == "AUTHORITY_FINALITY_HIGH_INCONSISTENT"
-
-
-def test_label_payout_tampering_is_rejected_at_outer_authority_boundary():
-    capture = _capture()
-    evidence = _evidence(capture)
-    tampered_label = replace(evidence.label, final_payout=0.0)
-    with pytest.raises(WeatherCalibrationAuthorityError) as raised:
-        authorize_wrh_calibration_sample(capture, replace(evidence, label=tampered_label))
-    assert raised.value.code == "AUTHORITY_LABEL_PAYOUT_MISMATCH"
-
-
-def test_label_digest_tampering_is_rejected_even_when_semantic_fields_still_match():
-    capture = _capture()
-    evidence = _evidence(capture)
-    tampered_label = replace(evidence.label, label_evidence_sha256="e" * 64)
-    with pytest.raises(WeatherCalibrationAuthorityError) as raised:
-        authorize_wrh_calibration_sample(capture, replace(evidence, label=tampered_label))
-    assert raised.value.code == "AUTHORITY_BRIDGE_DIGEST_MISMATCH"
-
-
-def test_fixed_finality_policy_cannot_be_widened_after_resolution():
-    capture = _capture()
-    evidence = _evidence(capture)
+def test_fixed_polling_policy_stays_bounded_but_is_not_upgraded_to_exactness():
     assert WRH_CALIBRATION_FINALITY_POLICY.max_transition_gap_seconds == 120
     assert WRH_CALIBRATION_FINALITY_POLICY.max_following_row_age_seconds == 120
-
-    tampered = replace(evidence, max_transition_gap_seconds=999)
-    with pytest.raises(WeatherCalibrationAuthorityError) as raised:
-        authorize_wrh_calibration_sample(capture, tampered)
-    assert raised.value.code == "AUTHORITY_FIXED_FINALITY_POLICY_MISMATCH"
+    evidence = _polling_evidence()
+    assert evidence.finality_state.transition_gap_seconds <= 120
+    assert evidence.finality_state.calibration_label_authority is False
 
 
-def test_target_state_change_at_cutoff_never_reaches_authority_gate():
+def test_target_state_change_at_cutoff_still_fails_before_authority_gate():
     capture = _capture()
     previous = _snapshot(include_following=False, received_at=FOLLOWING - 30)
     payload = deepcopy(_payload(include_following=True))
@@ -303,15 +247,7 @@ def test_target_state_change_at_cutoff_never_reaches_authority_gate():
 
 def test_authority_gate_rejects_raw_label_in_place_of_full_settlement_evidence():
     capture = _capture()
-    evidence = _evidence(capture)
+    evidence = _polling_evidence(capture)
     with pytest.raises(WeatherCalibrationAuthorityError) as raised:
         authorize_wrh_calibration_sample(capture, evidence.label)  # type: ignore[arg-type]
     assert raised.value.code == "AUTHORITY_SETTLEMENT_TYPE_INVALID"
-
-
-def test_outer_bridge_digest_tampering_is_rejected():
-    capture = _capture()
-    evidence = _evidence(capture)
-    with pytest.raises(WeatherCalibrationAuthorityError) as raised:
-        authorize_wrh_calibration_sample(capture, replace(evidence, bridge_evidence_sha256="d" * 64))
-    assert raised.value.code == "AUTHORITY_BRIDGE_DIGEST_MISMATCH"
