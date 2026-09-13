@@ -2,15 +2,15 @@ from __future__ import annotations
 
 """Secret-safe live transport for the exact NWS WRH Hourly Data adapter.
 
-The public WRH page is a browser application: its pinned viewer JavaScript obtains
-station observations from Synoptic Data using a browser credential served by NWS.
-This client mirrors that transport without ever returning, persisting or logging the
-credential. Token-bearing HTTP exceptions are converted to fixed error codes before
-they can stringify request URLs.
+Synoptic ``start``/``end`` request timestamps are UTC even when ``obtimezone=local``
+changes the timestamps returned in the response.  The client therefore resolves the
+station timezone first, converts each local calendar boundary independently to UTC,
+and only then requests the target day plus following day.  This preserves early
+local-day observations east of UTC and 23/25-hour DST days.
 
-A successful fetch proves only source/transport acquisition. The returned snapshot
-keeps calibration, settlement and financial authority false; prospective finality and
-frozen contract rules must upgrade it later.
+The browser credential served by NWS is held only in memory and never returned,
+persisted or logged.  Successful transport still grants no settlement, calibration
+label, probability or financial authority.
 """
 
 import hashlib
@@ -19,8 +19,9 @@ import math
 import re
 import time
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from urllib.parse import urljoin, urlparse
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import httpx
 
@@ -30,16 +31,18 @@ from .weather_only_wrh import (
     WRH_VIEWER_SCRIPT_URL,
     WRHSourceError,
     WRHSourceSnapshot,
+    _normalized_network,
     parse_synoptic_wrh_hourly_snapshot,
 )
 
 
-WRH_LIVE_CLIENT_VERSION = "nws_wrh_live_transport_v4_response_receipt_timestamp"
+WRH_LIVE_CLIENT_VERSION = "nws_wrh_live_transport_v5_local_day_utc_bounds_units_asof"
 WRH_TIMESERIES_PAGE = "https://www.weather.gov/wrh/timeseries"
 WRH_BROWSER_ORIGIN = "https://www.weather.gov"
 WRH_API_KEY_SCRIPT_PATH = "/source/wrh/apiKey.js"
 WRH_BROWSER_TOKEN_IDENTIFIER = "mesoToken"
-WRH_LIVE_QUERY_PROFILE = "WRH_HISTORY_TARGET_PLUS_FOLLOWING_DATE_ENGLISH_HOURLY"
+WRH_STATION_METADATA_ENDPOINT = "https://api.synopticdata.com/v2/stations/metadata"
+WRH_LIVE_QUERY_PROFILE = "WRH_LOCAL_TARGET_PLUS_FOLLOWING_DATE_UTC_BOUNDS_ENGLISH_HOURLY"
 
 _SCRIPT_RE = re.compile(r'<script[^>]+src=["\']([^"\']+)["\']', re.I)
 _MESO_TOKEN_ASSIGNMENT_RE = re.compile(
@@ -54,13 +57,18 @@ class WRHLiveFetchResult:
     client_version: str
     query_profile: str
     station: str
+    station_timezone: str
     target_date: date
     query_start_date: date
     query_end_date: date
+    query_start_utc: str
+    query_end_utc: str
     shell_url: str
     viewer_script_url: str
     viewer_script_sha256: str
     api_key_script_url: str
+    station_metadata_endpoint: str
+    station_metadata_sha256: str
     backend_endpoint: str
     fetched_at: float
     snapshot: WRHSourceSnapshot
@@ -75,13 +83,18 @@ class WRHLiveFetchResult:
             "client_version": self.client_version,
             "query_profile": self.query_profile,
             "station": self.station,
+            "station_timezone": self.station_timezone,
             "target_date": self.target_date.isoformat(),
             "query_start_date": self.query_start_date.isoformat(),
             "query_end_date": self.query_end_date.isoformat(),
+            "query_start_utc": self.query_start_utc,
+            "query_end_utc": self.query_end_utc,
             "shell_url": self.shell_url,
             "viewer_script_url": self.viewer_script_url,
             "viewer_script_sha256": self.viewer_script_sha256,
             "api_key_script_url": self.api_key_script_url,
+            "station_metadata_endpoint": self.station_metadata_endpoint,
+            "station_metadata_sha256": self.station_metadata_sha256,
             "backend_endpoint": self.backend_endpoint,
             "backend_origin": WRH_BROWSER_ORIGIN,
             "fetched_at": self.fetched_at,
@@ -107,7 +120,6 @@ def _calendar_date(value: object, code: str) -> date:
 
 
 def _provided_timestamp(value: object | None) -> float | None:
-    """Validate a deterministic test override without inventing a production receipt time."""
     if value is None:
         return None
     if isinstance(value, bool) or not isinstance(value, (int, float)):
@@ -137,11 +149,9 @@ def _safe_get(
     code: str,
     headers: dict[str, str] | None = None,
 ) -> httpx.Response:
-    """Perform one GET without allowing a tokenized URL to escape via exceptions."""
     try:
         response = client.get(url, params=params, headers=headers)
     except httpx.HTTPError:
-        # Do not chain: several httpx exception repr/messages include request.url.
         raise WRHSourceError(code) from None
     if response.status_code < 200 or response.status_code >= 300:
         raise WRHSourceError(code)
@@ -189,9 +199,6 @@ def _discover_api_key_script(shell_body: str) -> str:
 
 
 def _verify_viewer_credential_contract(viewer_body: str) -> None:
-    # The exact script is SHA-pinned as well. This explicit check makes the transport
-    # dependency legible and fails closed if a future pinned version changes how its
-    # credential is injected into the Synoptic query.
     if WRH_BROWSER_TOKEN_IDENTIFIER not in viewer_body:
         raise WRHSourceError("WRH_LIVE_VIEWER_TOKEN_IDENTIFIER_MISMATCH")
     if "&token='+mesoToken+'&obtimezone=local" not in viewer_body:
@@ -199,12 +206,9 @@ def _verify_viewer_credential_contract(viewer_body: str) -> None:
 
 
 def _extract_browser_token(script_body: str) -> str:
-    """Extract NWS's bare mesoToken in memory; never serialize the credential."""
     matches: list[str] = []
     for raw in _MESO_TOKEN_ASSIGNMENT_RE.findall(script_body):
         value = str(raw).strip()
-        # The pinned WRH viewer itself supplies ``&token=`` and concatenates the
-        # bare mesoToken. A prefixed assignment would change query semantics.
         if value.lower().startswith("token="):
             raise WRHSourceError("WRH_LIVE_BROWSER_TOKEN_SHAPE_MISMATCH")
         if _TOKEN_VALUE_RE.fullmatch(value) and value not in matches:
@@ -214,18 +218,68 @@ def _extract_browser_token(script_body: str) -> str:
     return matches[0]
 
 
+def _station_metadata_identity(payload: object, station: str) -> tuple[str, str]:
+    if not isinstance(payload, dict):
+        raise WRHSourceError("WRH_LIVE_METADATA_PAYLOAD_INVALID")
+    summary = payload.get("SUMMARY")
+    if not isinstance(summary, dict) or str(summary.get("RESPONSE_MESSAGE") or "") != "OK":
+        raise WRHSourceError("WRH_LIVE_METADATA_RESPONSE_NOT_OK")
+    rows = payload.get("STATION")
+    if not isinstance(rows, list) or len(rows) != 1 or not isinstance(rows[0], dict):
+        raise WRHSourceError("WRH_LIVE_METADATA_STATION_ENVELOPE_INVALID")
+    row = rows[0]
+    actual = _station(row.get("STID"))
+    if actual != station:
+        raise WRHSourceError("WRH_LIVE_METADATA_STATION_IDENTITY_MISMATCH")
+    timezone_name = str(row.get("TIMEZONE") or "").strip()
+    if not timezone_name:
+        raise WRHSourceError("WRH_LIVE_METADATA_TIMEZONE_MISSING")
+    try:
+        ZoneInfo(timezone_name)
+    except ZoneInfoNotFoundError:
+        raise WRHSourceError("WRH_LIVE_METADATA_TIMEZONE_INVALID") from None
+    raw_network, normalized = _normalized_network(row.get("SHORTNAME"))
+    digest = _hash_payload({
+        "station": actual,
+        "timezone": timezone_name,
+        "raw_network": raw_network,
+        "normalized_network": normalized,
+    })
+    return timezone_name, digest
+
+
+def _local_query_bounds(target: date, timezone_name: str) -> tuple[datetime, datetime]:
+    """Return inclusive UTC minute bounds for target + following LOCAL dates."""
+    zone = ZoneInfo(timezone_name)
+    start_local = datetime(target.year, target.month, target.day, tzinfo=zone)
+    after = target + timedelta(days=2)
+    after_local = datetime(after.year, after.month, after.day, tzinfo=zone)
+    start_utc = start_local.astimezone(timezone.utc)
+    # Synoptic end is minute-granular/inclusive. Convert the next local midnight
+    # independently (important across DST), then back up one minute.
+    end_utc = after_local.astimezone(timezone.utc) - timedelta(minutes=1)
+    if end_utc <= start_utc:
+        raise WRHSourceError("WRH_LIVE_QUERY_BOUNDS_INVALID")
+    return start_utc, end_utc
+
+
 def _transport_digest_payload(result: WRHLiveFetchResult) -> dict:
     return {
         "client_version": result.client_version,
         "query_profile": result.query_profile,
         "station": result.station,
+        "station_timezone": result.station_timezone,
         "target_date": result.target_date.isoformat(),
         "query_start_date": result.query_start_date.isoformat(),
         "query_end_date": result.query_end_date.isoformat(),
+        "query_start_utc": result.query_start_utc,
+        "query_end_utc": result.query_end_utc,
         "shell_url": result.shell_url,
         "viewer_script_url": result.viewer_script_url,
         "viewer_script_sha256": result.viewer_script_sha256,
         "api_key_script_url": result.api_key_script_url,
+        "station_metadata_endpoint": result.station_metadata_endpoint,
+        "station_metadata_sha256": result.station_metadata_sha256,
         "backend_endpoint": result.backend_endpoint,
         "backend_origin": WRH_BROWSER_ORIGIN,
         "fetched_at": result.fetched_at,
@@ -242,7 +296,7 @@ class NWSWRHLiveClient:
         *,
         http_client: httpx.Client | None = None,
         timeout_seconds: float = 20.0,
-        user_agent: str = "polymarket-weather-only-wrh-live/4.0 (+https://github.com/heroo2123/Alpha)",
+        user_agent: str = "polymarket-weather-only-wrh-live/5.0 (+https://github.com/heroo2123/Alpha)",
     ) -> None:
         if isinstance(timeout_seconds, bool) or not isinstance(timeout_seconds, (int, float)):
             raise ValueError("timeout_seconds must be numeric")
@@ -287,42 +341,45 @@ class NWSWRHLiveClient:
                 "chart": "off",
             }
             shell = _safe_get(
-                client,
-                WRH_TIMESERIES_PAGE,
-                params=shell_params,
+                client, WRH_TIMESERIES_PAGE, params=shell_params,
                 code="WRH_LIVE_SHELL_HTTP_ERROR",
             )
             viewer_url = _discover_viewer_script(shell.text)
             key_url = _discover_api_key_script(shell.text)
-
             viewer = _safe_get(
-                client,
-                viewer_url,
-                params=None,
-                code="WRH_LIVE_VIEWER_HTTP_ERROR",
+                client, viewer_url, params=None, code="WRH_LIVE_VIEWER_HTTP_ERROR",
             )
             viewer_sha = hashlib.sha256(viewer.content).hexdigest()
             if viewer_sha != WRH_VIEWER_SCRIPT_SHA256:
                 raise WRHSourceError("WRH_LIVE_VIEWER_SCRIPT_SHA_MISMATCH")
             _verify_viewer_credential_contract(viewer.text)
-
             key_script = _safe_get(
-                client,
-                key_url,
-                params=None,
-                code="WRH_LIVE_API_KEY_HTTP_ERROR",
+                client, key_url, params=None, code="WRH_LIVE_API_KEY_HTTP_ERROR",
             )
             browser_token = _extract_browser_token(key_script.text)
 
-            # Match the WRH viewer's historical query construction and browser
-            # authorization context exactly. The live Synoptic token is origin-bound:
-            # without weather.gov as Origin, the same credential is rejected with 403.
+            metadata = _safe_get(
+                client,
+                WRH_STATION_METADATA_ENDPOINT,
+                params={"stid": station_id, "complete": "1", "token": browser_token},
+                headers={"Origin": WRH_BROWSER_ORIGIN},
+                code="WRH_LIVE_METADATA_HTTP_ERROR",
+            )
+            try:
+                metadata_payload = metadata.json()
+            except ValueError:
+                raise WRHSourceError("WRH_LIVE_METADATA_JSON_INVALID") from None
+            station_timezone, metadata_sha = _station_metadata_identity(metadata_payload, station_id)
+            start_utc, end_utc = _local_query_bounds(target, station_timezone)
+            start_value = start_utc.strftime("%Y%m%d%H%M")
+            end_value = end_utc.strftime("%Y%m%d%H%M")
+
             backend_params = {
                 "STID": station_id,
                 "showemptystations": "1",
                 "units": "temp|F,speed|mph,english",
-                "start": target.strftime("%Y%m%d") + "0000",
-                "end": following.strftime("%Y%m%d") + "2359",
+                "start": start_value,
+                "end": end_value,
                 "complete": "1",
                 "token": browser_token,
                 "obtimezone": "local",
@@ -334,9 +391,6 @@ class NWSWRHLiveClient:
                 headers={"Origin": WRH_BROWSER_ORIGIN},
                 code="WRH_LIVE_BACKEND_HTTP_ERROR",
             )
-            # For production finality evidence the timestamp must represent a state
-            # that has actually arrived, never the beginning of a possibly slow HTTP
-            # request. Deterministic tests may still supply an explicit override.
             fetched_at = received_override if received_override is not None else _now()
             try:
                 payload = backend.json()
@@ -352,6 +406,7 @@ class NWSWRHLiveClient:
                 query_start_date=target,
                 query_end_date=following,
                 received_at=fetched_at,
+                expected_timezone=station_timezone,
             )
         finally:
             if owned:
@@ -362,13 +417,18 @@ class NWSWRHLiveClient:
             client_version=WRH_LIVE_CLIENT_VERSION,
             query_profile=WRH_LIVE_QUERY_PROFILE,
             station=station_id,
+            station_timezone=station_timezone,
             target_date=target,
             query_start_date=target,
             query_end_date=following,
+            query_start_utc=start_utc.isoformat(),
+            query_end_utc=end_utc.isoformat(),
             shell_url=shell_url,
             viewer_script_url=viewer_url,
             viewer_script_sha256=viewer_sha,
             api_key_script_url=key_url,
+            station_metadata_endpoint=WRH_STATION_METADATA_ENDPOINT,
+            station_metadata_sha256=metadata_sha,
             backend_endpoint=WRH_SYNOPTIC_ENDPOINT,
             fetched_at=fetched_at,
             snapshot=snapshot,
