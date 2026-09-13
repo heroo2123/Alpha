@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from dataclasses import replace
 from datetime import date, datetime
 
 import pytest
@@ -26,6 +25,7 @@ from polymarket_scanner.weather_only_forecast import (
 )
 from polymarket_scanner.weather_only_predictions import ProspectiveSelectionPolicy
 from polymarket_scanner.weather_only_wrh import WRHSourceError, parse_synoptic_wrh_hourly_snapshot
+from polymarket_scanner.weather_only_wrh_finality import certify_wrh_first_following_transition
 
 
 TARGET = date(2026, 9, 11)
@@ -177,30 +177,27 @@ def _capture(*, selected: str = "mid"):
     )
 
 
-def _polling_evidence(capture=None):
-    capture = capture or _capture()
-    previous = _snapshot(include_following=False, received_at=FOLLOWING - 30)
-    current = _snapshot(include_following=True, received_at=FOLLOWING + 20)
-    return build_wrh_exact_settlement_evidence(capture, previous, current)
+def _poll_pair():
+    return (
+        _snapshot(include_following=False, received_at=FOLLOWING - 30),
+        _snapshot(include_following=True, received_at=FOLLOWING + 20),
+    )
 
 
-def test_polling_bracket_never_enters_calibration_authority():
+def test_polling_bracket_is_rejected_before_exact_label_is_constructed():
     capture = _capture()
-    evidence = _polling_evidence(capture)
-    assert evidence.finality_state.transition_bracket_observed is True
-    assert evidence.finality_state.exact_publication_state_observed is False
-    assert evidence.finality_state.calibration_label_authority is False
-    with pytest.raises(WeatherCalibrationAuthorityError) as raised:
-        authorize_wrh_calibration_sample(capture, evidence)
-    assert raised.value.code == "AUTHORITY_FINALITY_BOUNDARY_INVALID"
+    previous, current = _poll_pair()
+    with pytest.raises(WeatherCalibrationCaptureError) as raised:
+        build_wrh_exact_settlement_evidence(capture, previous, current)
+    assert raised.value.code == "SETTLEMENT_EXACT_CUTOFF_STATE_UNPROVEN"
 
 
 def test_preselected_loser_is_not_scored_from_polling_only_cutoff_evidence():
     capture = _capture(selected="high")
-    evidence = _polling_evidence(capture)
-    with pytest.raises(WeatherCalibrationAuthorityError) as raised:
-        authorize_wrh_calibration_sample(capture, evidence)
-    assert raised.value.code == "AUTHORITY_FINALITY_BOUNDARY_INVALID"
+    previous, current = _poll_pair()
+    with pytest.raises(WeatherCalibrationCaptureError) as raised:
+        build_wrh_exact_settlement_evidence(capture, previous, current)
+    assert raised.value.code == "SETTLEMENT_EXACT_CUTOFF_STATE_UNPROVEN"
 
 
 def test_forecast_partition_cannot_drift_from_frozen_contract_buckets():
@@ -213,28 +210,22 @@ def test_forecast_partition_cannot_drift_from_frozen_contract_buckets():
     assert raised.value.code == "CAPTURE_FORECAST_BUCKET_PARTITION_MISMATCH"
 
 
-def test_prediction_tampering_is_rejected_before_any_cutoff_authority_question():
-    capture = _capture()
-    evidence = _polling_evidence(capture)
-    prediction = replace(
-        capture.prediction,
-        raw_predicted_probability=capture.prediction.raw_predicted_probability - 0.01,
-    )
-    tampered_capture = replace(capture, prediction=prediction)
-    with pytest.raises(WeatherCalibrationAuthorityError) as raised:
-        authorize_wrh_calibration_sample(tampered_capture, evidence)
-    assert raised.value.code == "AUTHORITY_PREDICTION_INVALID:CALIBRATION_PREDICTION_DIGEST_MISMATCH"
-
-
 def test_fixed_polling_policy_stays_bounded_but_is_not_upgraded_to_exactness():
     assert WRH_CALIBRATION_FINALITY_POLICY.max_transition_gap_seconds == 120
     assert WRH_CALIBRATION_FINALITY_POLICY.max_following_row_age_seconds == 120
-    evidence = _polling_evidence()
-    assert evidence.finality_state.transition_gap_seconds <= 120
-    assert evidence.finality_state.calibration_label_authority is False
+    previous, current = _poll_pair()
+    state = certify_wrh_first_following_transition(
+        previous,
+        current,
+        policy=WRH_CALIBRATION_FINALITY_POLICY,
+    )
+    assert state.transition_gap_seconds <= 120
+    assert state.transition_bracket_observed is True
+    assert state.exact_publication_state_observed is False
+    assert state.calibration_label_authority is False
 
 
-def test_target_state_change_at_cutoff_still_fails_before_authority_gate():
+def test_target_state_change_at_cutoff_still_fails_before_exactness_question():
     capture = _capture()
     previous = _snapshot(include_following=False, received_at=FOLLOWING - 30)
     payload = deepcopy(_payload(include_following=True))
@@ -245,9 +236,8 @@ def test_target_state_change_at_cutoff_still_fails_before_authority_gate():
     assert raised.value.code == "WRH_FINALITY_TARGET_STATE_CHANGED_ACROSS_CUTOFF"
 
 
-def test_authority_gate_rejects_raw_label_in_place_of_full_settlement_evidence():
+def test_authority_gate_rejects_non_settlement_evidence_type():
     capture = _capture()
-    evidence = _polling_evidence(capture)
     with pytest.raises(WeatherCalibrationAuthorityError) as raised:
-        authorize_wrh_calibration_sample(capture, evidence.label)  # type: ignore[arg-type]
+        authorize_wrh_calibration_sample(capture, object())  # type: ignore[arg-type]
     assert raised.value.code == "AUTHORITY_SETTLEMENT_TYPE_INVALID"
