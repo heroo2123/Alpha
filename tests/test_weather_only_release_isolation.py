@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import importlib.util
+import os
+import subprocess
+import sys
 from pathlib import Path
 
 
@@ -10,6 +13,8 @@ SETUP = Path("deploy/setup-weather-paper-service.sh")
 START = Path("deploy/start-weather-paper-candidate.sh")
 BACKUP = Path("deploy/pre-release-weather-paper-backup.sh")
 RENDERER = Path("deploy/render-weather-paper-unit.py")
+NETWORK = Path("deploy/check-weather-paper-network.py")
+FIRST_CYCLE = Path("deploy/verify-weather-paper-first-cycle.py")
 
 
 def _text(path: Path) -> str:
@@ -67,3 +72,23 @@ def test_legacy_scanner_service_names_are_not_operated_by_weather_deploy_scripts
 def test_preflight_requires_legacy_services_disabled_not_merely_stopped():
     text = _text(PREFLIGHT)
     assert 'check-weather-paper-service-isolation.sh" --require-disabled' in text
+
+
+def test_deployment_python_helpers_import_from_unrelated_cwd(tmp_path: Path):
+    env = dict(os.environ)
+    env.pop("PYTHONPATH", None)
+    root = Path.cwd().resolve()
+    for relative in (NETWORK, FIRST_CYCLE):
+        script = (root / relative).resolve()
+        result = subprocess.run(
+            [sys.executable, str(script), "--help"],
+            cwd=tmp_path,
+            env=env,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+        )
+        assert result.returncode == 0, f"{relative}: {result.stderr}"
+        assert "ModuleNotFoundError" not in result.stderr
+        assert "usage:" in result.stdout.lower()
