@@ -8,15 +8,18 @@ carries forward several hardening lessons from the full scanner:
 * contract rules and the complete bucket partition are frozen before resolution;
 * the forecast must map exactly to that same frozen partition;
 * only one deterministic prospective prediction is selected per event;
-* WRH finality is re-certified from the two original source snapshots under one
-  frozen polling policy rather than trusting a caller-supplied authority boolean;
-* the resulting exact settlement label is bound to the prospective capture, frozen
-  rules, finality evidence, target value and winning market;
+* WRH polling transitions are re-certified from the two original source snapshots,
+  but a polling bracket alone is never promoted to exact cutoff/publication state;
+* an exact settlement label may be created only from finality evidence that already
+  proves exact publication state, correction-state reconstruction and label authority;
 * calibration authority never implies financial/trading authority.
 
-Lower-level prediction/label helpers remain useful test primitives, but production
-calibration should enter through this module so a post-resolution rule edit or an
-arbitrary exact-label envelope cannot silently become training evidence.
+The current WRH polling finality adapter intentionally returns bounded uncertainty,
+not exact publication-state authority.  Therefore this bridge fails closed until a
+future source adapter can prove the exact cutoff state from publication/version
+history or another equally strong primitive.  Lower-level prediction/label helpers
+remain useful test primitives, but production calibration must not turn approximate
+source reconstruction into unquestioned training truth.
 """
 
 import hashlib
@@ -63,7 +66,7 @@ from .weather_only_wrh_finality import (
 
 PROSPECTIVE_RULE_EVIDENCE_VERSION = "weather_nws_rule_evidence_v1_frozen_before_resolution"
 PROSPECTIVE_CALIBRATION_CAPTURE_VERSION = "weather_calibration_capture_v1_forecast_plus_rule_partition"
-WRH_SETTLEMENT_BRIDGE_VERSION = "weather_wrh_exact_settlement_bridge_v1_fixed_finality_policy"
+WRH_SETTLEMENT_BRIDGE_VERSION = "weather_wrh_exact_settlement_bridge_v2_exact_cutoff_required"
 
 WRH_CALIBRATION_FINALITY_POLICY = WRHFinalityPolicy(
     policy_id="wrh_calibration_first_following_bracket_v1_gap120_age120",
@@ -488,11 +491,6 @@ def _validate_capture(capture: object) -> ProspectiveWeatherCalibrationCapture:
     supplied_capture = _sha256(capture.capture_evidence_sha256, "CAPTURE_EVIDENCE_SHA_INVALID")
     if supplied_capture != _hash_payload(_capture_digest_payload(capture)):
         raise WeatherCalibrationCaptureError("CAPTURE_EVIDENCE_DIGEST_MISMATCH")
-    # Reuse the existing prediction validator through a zero-authority synthetic join
-    # is undesirable; direct structural invariants needed here are already bound by the
-    # prediction evidence digest and are fully checked again by the final calibration
-    # join.  We still require the selected market/condition to exist in the frozen rule
-    # partition so a post-capture object swap cannot choose a new outcome.
     selected = next((row for row in rule.bucket_partition if row.market_id == capture.prediction.market_id), None)
     if selected is None or selected.condition_id != capture.prediction.condition_id:
         raise WeatherCalibrationCaptureError("CAPTURE_SELECTED_BUCKET_NOT_IN_FROZEN_RULES")
@@ -507,12 +505,24 @@ def _bucket_contains(bucket: FrozenRuleBucket, value: int) -> bool:
     return True
 
 
+def _require_exact_cutoff_authority(finality: WRHFinalizedRuleState) -> None:
+    if not isinstance(finality, WRHFinalizedRuleState):
+        raise WeatherCalibrationCaptureError("SETTLEMENT_FINALITY_TYPE_INVALID")
+    if not all((
+        finality.exact_publication_state_observed,
+        finality.correction_state_reconstructable,
+        finality.calibration_label_authority,
+        finality.settlement_label_authority,
+    )):
+        raise WeatherCalibrationCaptureError("SETTLEMENT_EXACT_CUTOFF_STATE_UNPROVEN")
+
+
 def build_wrh_exact_settlement_evidence(
     capture: ProspectiveWeatherCalibrationCapture,
     previous_snapshot: WRHSourceSnapshot,
     current_snapshot: WRHSourceSnapshot,
 ) -> WRHExactSettlementEvidence:
-    """Resolve the frozen candidate from prospectively bracketed WRH finality evidence."""
+    """Build an exact label only when the source proof is stronger than polling."""
     frozen = _validate_capture(capture)
     try:
         finality = certify_wrh_first_following_transition(
@@ -533,6 +543,11 @@ def build_wrh_exact_settlement_evidence(
         raise WeatherCalibrationCaptureError("SETTLEMENT_STATION_MISMATCH")
     if finality.target_date != frozen.rule_evidence.target_date or finality.target_date != frozen.prediction.target_date:
         raise WeatherCalibrationCaptureError("SETTLEMENT_TARGET_DATE_MISMATCH")
+
+    # R26: equal before/after polling endpoints are only a bounded transition
+    # bracket.  They do not prove the exact source state at first publication and
+    # therefore may not create a label, target winner or calibration truth.
+    _require_exact_cutoff_authority(finality)
 
     if frozen.rule_evidence.family == DAILY_HIGH:
         target_value = int(finality.target_high_f)
@@ -596,7 +611,7 @@ def calibration_sample_from_wrh_settlement_evidence(
     capture: ProspectiveWeatherCalibrationCapture,
     evidence: WRHExactSettlementEvidence,
 ) -> ProbabilityCalibrationSample:
-    """High-authority calibration join. Raw exact-label envelopes are not accepted here."""
+    """High-authority calibration join. Raw/approximate label envelopes are rejected."""
     frozen = _validate_capture(capture)
     if not isinstance(evidence, WRHExactSettlementEvidence):
         raise WeatherCalibrationCaptureError("SETTLEMENT_EVIDENCE_TYPE_INVALID")
@@ -604,6 +619,7 @@ def calibration_sample_from_wrh_settlement_evidence(
         raise WeatherCalibrationCaptureError("SETTLEMENT_BRIDGE_VERSION_MISMATCH")
     if evidence.calibration_label_authority is not True or evidence.financial_authority is not False:
         raise WeatherCalibrationCaptureError("SETTLEMENT_EVIDENCE_AUTHORITY_BOUNDARY_BROKEN")
+    _require_exact_cutoff_authority(evidence.finality_state)
     if evidence.capture_evidence_sha256 != frozen.capture_evidence_sha256:
         raise WeatherCalibrationCaptureError("SETTLEMENT_CAPTURE_EVIDENCE_MISMATCH")
     if (
