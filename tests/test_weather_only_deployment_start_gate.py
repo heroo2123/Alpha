@@ -8,7 +8,7 @@ PREFLIGHT = Path("deploy/preflight-weather-paper-deployment.sh")
 SETUP = Path("deploy/setup-weather-paper-service.sh")
 
 
-def test_start_gate_requires_exact_sha_and_active_runtime_attestation():
+def test_start_gate_requires_exact_sha_runtime_attestation_and_fresh_first_cycle():
     text = START.read_text(encoding="utf-8")
     assert "EXPECTED_SHA=\"${1:-}\"" in text
     assert "checkout is not the explicitly approved candidate" in text
@@ -16,6 +16,10 @@ def test_start_gate_requires_exact_sha_and_active_runtime_attestation():
     assert "preflight-weather-paper-deployment.sh" in text
     assert "--require-active" in text
     assert "weather-paper-active-attestation.json" in text
+    assert "verify-weather-paper-first-cycle.py" in text
+    assert 'START_ACCEPTANCE_EPOCH="$(date +%s)"' in text
+    assert '--not-before "${START_ACCEPTANCE_EPOCH}"' in text
+    assert "weather-paper-first-cycle-acceptance.json" in text
 
 
 def test_failed_start_acceptance_stops_service_and_never_enables_it():
