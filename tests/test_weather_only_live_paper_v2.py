@@ -99,7 +99,7 @@ def test_renderer_points_to_guarded_tracked_entrypoint():
     import importlib.util
 
     renderer_path = Path("deploy/render-weather-paper-unit.py")
-    spec = importlib.util.spec_from_file_location("weather_paper_renderer_corrective", renderer_path)
+    spec = importlib.util.spec_from_file_location("weather_paper_renderer_final", renderer_path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -108,7 +108,7 @@ def test_renderer_points_to_guarded_tracked_entrypoint():
         Path("/home/test/.polymarket-edge-scanner"),
         "testuser",
     )
-    assert "weather_only_live_paper_corrective" in unit
+    assert "weather_only_live_paper_final" in unit
     assert "--paper-stake-usd 10" in unit
     assert "MemorySwapMax=0" in unit
     assert "app_trade_only" not in unit
