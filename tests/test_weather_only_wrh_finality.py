@@ -42,6 +42,7 @@ def _payload(*, network: str = "GLOBAL-METAR", include_following: bool = True) -
         for values in observations.values():
             values.pop()
     return {
+        "UNITS": {"air_temp": "Fahrenheit"},
         "SUMMARY": {"RESPONSE_MESSAGE": "OK"},
         "STATION": [{
             "STID": "KLGA",
