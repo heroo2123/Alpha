@@ -22,7 +22,6 @@ from polymarket_scanner.weather_only_forecast import (
 from polymarket_scanner.weather_only_predictions import ProspectiveSelectionPolicy
 from polymarket_scanner.weather_only_wrh import parse_synoptic_wrh_hourly_snapshot
 from polymarket_scanner.weather_only_wrh_collector import (
-    CAPTURE_AUTHORIZED,
     CAPTURE_FAILED,
     CAPTURE_PENDING,
     WeatherWRHCollectorError,
@@ -38,6 +37,7 @@ END = date(2026, 9, 12)
 ZONE = ZoneInfo("America/New_York")
 FOLLOWING = datetime.fromisoformat("2026-09-12T00:51:00-04:00").timestamp()
 CAPTURED = datetime(2026, 9, 11, 23, 50, tzinfo=ZONE).timestamp()
+R26_FAILURE = "SETTLEMENT:SETTLEMENT_EXACT_CUTOFF_STATE_UNPROVEN"
 
 
 def _rules() -> str:
@@ -238,7 +238,7 @@ def test_registration_is_fresh_idempotent_and_rejects_time_forgery(tmp_path):
         collector.close()
 
 
-def test_two_captures_share_one_stream_and_authorize_exact_binary_labels(tmp_path):
+def test_two_captures_share_one_stream_but_polling_cutoff_cannot_authorize_labels(tmp_path):
     previous = _snapshot(include_following=False, received_at=FOLLOWING - 30)
     current = _snapshot(include_following=True, received_at=FOLLOWING + 20)
     client = _SequenceClient([previous, current])
@@ -256,18 +256,18 @@ def test_two_captures_share_one_stream_and_authorize_exact_binary_labels(tmp_pat
 
         second = collector.tick(now=FOLLOWING + 20)
         assert second.fetched_snapshots == 1
-        assert second.authorized_captures == 2
-        assert second.failed_captures == 0
+        assert second.authorized_captures == 0
+        assert second.failed_captures == 2
         assert len(client.calls) == 2
 
         mid_record = _record_by_digest(collector, mid.capture_evidence_sha256)
         high_record = _record_by_digest(collector, high.capture_evidence_sha256)
-        assert mid_record["status"] == CAPTURE_AUTHORIZED
-        assert high_record["status"] == CAPTURE_AUTHORIZED
-        assert mid_record["authorized"]["sample"]["final_payout"] == 1.0
-        assert high_record["authorized"]["sample"]["final_payout"] == 0.0
-        assert mid_record["authorized"]["financial_authority"] is False
-        assert high_record["authorized"]["financial_authority"] is False
+        assert mid_record["status"] == CAPTURE_FAILED
+        assert high_record["status"] == CAPTURE_FAILED
+        assert mid_record["failure_code"] == R26_FAILURE
+        assert high_record["failure_code"] == R26_FAILURE
+        assert "authorized" not in mid_record
+        assert "authorized" not in high_record
     finally:
         collector.close()
 
@@ -311,7 +311,7 @@ def test_target_correction_across_cutoff_is_not_repaired_by_older_matching_histo
         collector.close()
 
 
-def test_restart_rehydrates_digest_validated_snapshot_and_completes_cutoff(tmp_path):
+def test_restart_rehydrates_digest_validated_snapshot_but_still_cannot_invent_cutoff_authority(tmp_path):
     db_path = tmp_path / "collector.sqlite"
     capture = _capture()
     previous = _snapshot(include_following=False, received_at=FOLLOWING - 30)
@@ -327,8 +327,10 @@ def test_restart_rehydrates_digest_validated_snapshot_and_completes_cutoff(tmp_p
     try:
         report = second.tick(now=FOLLOWING + 20)
         record = _record_by_digest(second, capture.capture_evidence_sha256)
-        assert report.authorized_captures == 1
-        assert record["status"] == CAPTURE_AUTHORIZED
+        assert report.authorized_captures == 0
+        assert report.failed_captures == 1
+        assert record["status"] == CAPTURE_FAILED
+        assert record["failure_code"] == R26_FAILURE
         assert len(second_client.calls) == 1
     finally:
         second.close()
