@@ -158,8 +158,8 @@ def test_canonical_station_cache_is_ttl_and_lru_bounded(monkeypatch):
     monkeypatch.setattr(corrective_runtime, "STATION_METADATA_CACHE_MAX_ENTRIES", 2)
     monkeypatch.setattr(corrective_runtime, "STATION_METADATA_CACHE_TTL_SECONDS", 10.0)
     ticks = iter((0.0, 1.0, 2.0, 3.0, 20.0))
-    monkeypatch.setattr(corrective_runtime.time, "monotonic", lambda: next(ticks))
     service = _canonical_shell()
+    monkeypatch.setattr(service, "_station_cache_now", lambda: next(ticks))
 
     async def scenario():
         a1 = await service._station_metadata_for_compiled(SimpleNamespace(station_hint="KAAA"))
