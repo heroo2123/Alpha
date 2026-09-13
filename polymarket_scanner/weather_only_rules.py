@@ -59,7 +59,15 @@ def _wrh_station_from_url(raw: object) -> str | None:
 
 
 def _urls(text: str) -> tuple[str, ...]:
-    return tuple(re.findall(r"https?://[^\s<>\"')]+", str(text or ""), flags=re.I))
+    # Prose commonly terminates a source URL with a sentence period.  Strip only
+    # punctuation that cannot be part of the recurring WRH source identity so a
+    # trusted inherited child source is not rejected because of typography.
+    out: list[str] = []
+    for raw in re.findall(r"https?://[^\s<>\"')]+", str(text or ""), flags=re.I):
+        clean = raw.rstrip(".,;:!?")
+        if clean and clean not in out:
+            out.append(clean)
+    return tuple(out)
 
 
 def _child_semantic_reasons(event: dict, compiled: CompiledWeatherEvent) -> list[str]:
@@ -132,7 +140,6 @@ def _nws_profile(event: dict, compiled: CompiledWeatherEvent) -> TemperatureRule
     if f"{wanted_stat} reading" not in text:
         reasons.append("NWS_STATISTIC_RULE_MISSING")
     if '"temp" column' not in text or "all times on this day" not in text:
-        # Some recurring contracts explicitly choose Hourly Data instead.
         if not ("hourly data" in text and "show hourly data" in text):
             reasons.append("NWS_OBSERVATION_POPULATION_UNPROVEN")
 
