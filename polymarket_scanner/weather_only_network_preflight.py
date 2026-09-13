@@ -2,11 +2,10 @@ from __future__ import annotations
 
 """Read-only network preflight for the weather PAPER runtime.
 
-The production VM may be IPv6-only. A source can therefore be perfectly healthy on
-an ordinary dual-stack developer machine yet be unreachable from the actual host.
-This preflight exercises the same public providers used by the canonical paper bot
-before systemd is installed or started. It sends no Telegram message, uses no wallet
-credentials, places no order, and writes nothing.
+The production VM may be IPv6-only. A source can therefore be healthy on a dual-stack
+machine yet unreachable from the actual host. This preflight exercises the same public
+providers used by the paper bot before systemd is installed or started. It sends no
+Telegram message, uses no wallet credentials, places no order, and writes nothing.
 """
 
 import asyncio
@@ -28,7 +27,6 @@ from .weather_only_forecast import OPEN_METEO_ENSEMBLE
 from .weather_only_gefs_hourly import OpenMeteoGEFSHourlyClient
 from .weather_only_nws_near_term import NWS_API_ORIGIN, NWSNearTermGridClient
 from .weather_only_wrh_client import NWSWRHLiveClient, WRH_TIMESERIES_PAGE
-
 
 NETWORK_PREFLIGHT_VERSION = "weather_paper_network_preflight_v2_stable_wrh_reference_day"
 TELEGRAM_ORIGIN = "https://api.telegram.org"
@@ -84,9 +82,7 @@ def _host(url: str) -> str:
 
 async def _dns_families(host: str) -> tuple[bool, bool]:
     try:
-        rows = await asyncio.get_running_loop().getaddrinfo(
-            host, 443, type=socket.SOCK_STREAM
-        )
+        rows = await asyncio.get_running_loop().getaddrinfo(host, 443, type=socket.SOCK_STREAM)
     except OSError:
         return False, False
     families = {row[0] for row in rows}
@@ -94,14 +90,12 @@ async def _dns_families(host: str) -> tuple[bool, bool]:
 
 
 def evaluate_network_probes(
-    probes: tuple[NetworkProbe, ...],
-    *,
-    checked_at: float | None = None,
+    probes: tuple[NetworkProbe, ...], *, checked_at: float | None = None
 ) -> WeatherPaperNetworkReport:
     if not probes:
         raise WeatherNetworkPreflightError("NETWORK_PREFLIGHT_EMPTY")
     names = [probe.name for probe in probes]
-    if len(names) != len(set(names))):
+    if len(names) != len(set(names)):
         raise WeatherNetworkPreflightError("NETWORK_PREFLIGHT_DUPLICATE_PROBE")
     required_passed = all(probe.ok for probe in probes if probe.required)
     instant = time.time() if checked_at is None else float(checked_at)
@@ -115,13 +109,7 @@ def evaluate_network_probes(
     )
 
 
-async def _probe(
-    *,
-    name: str,
-    url: str,
-    required: bool,
-    action,
-) -> NetworkProbe:
+async def _probe(*, name: str, url: str, required: bool, action) -> NetworkProbe:
     host = _host(url)
     ipv4, ipv6 = await _dns_families(host)
     started = time.monotonic()
@@ -131,7 +119,6 @@ async def _probe(
     except Exception as exc:
         ok = False
         detail = str(getattr(exc, "code", type(exc).__name__))
-    elapsed = max(0.0, time.monotonic() - started)
     return NetworkProbe(
         name=name,
         host=host,
@@ -140,7 +127,7 @@ async def _probe(
         detail=str(detail)[:240],
         ipv4_dns=ipv4,
         ipv6_dns=ipv6,
-        elapsed_seconds=elapsed,
+        elapsed_seconds=max(0.0, time.monotonic() - started),
     )
 
 
@@ -156,14 +143,11 @@ async def check_weather_paper_network() -> WeatherPaperNetworkReport:
         near = NWSNearTermGridClient()
         gefs = OpenMeteoGEFSHourlyClient()
         today = datetime.now(ZoneInfo(REFERENCE_TIMEZONE)).date()
-        # WRH connectivity is tested on yesterday so a deployment at 00:00 local time
-        # cannot fail merely because today's official station table has no row yet.
         wrh_target = today - timedelta(days=1)
 
         async def gamma_action() -> str:
             response = await http.get(
-                f"{GAMMA}/events",
-                params={"limit": 1, "active": "true", "closed": "false"},
+                f"{GAMMA}/events", params={"limit": 1, "active": "true", "closed": "false"}
             )
             response.raise_for_status()
             payload = response.json()
@@ -178,17 +162,14 @@ async def check_weather_paper_network() -> WeatherPaperNetworkReport:
             try:
                 value = float(text)
             except ValueError:
-                payload = response.json()
-                value = float(payload)
+                value = float(response.json())
             if not math.isfinite(value) or value <= 0.0:
                 raise WeatherNetworkPreflightError("NETWORK_CLOB_TIME_INVALID")
             return f"HTTP {response.status_code}; server_time_ok"
 
         async def wrh_action() -> str:
             result = await asyncio.to_thread(
-                wrh.fetch_snapshot,
-                station=REFERENCE_STATION,
-                target_date=wrh_target,
+                wrh.fetch_snapshot, station=REFERENCE_STATION, target_date=wrh_target
             )
             return (
                 f"WRH+Synoptic ok; timezone={result.station_timezone}; "
@@ -215,9 +196,6 @@ async def check_weather_paper_network() -> WeatherPaperNetworkReport:
             return f"GEFS hourly ok; members={len(result.member_series)}"
 
         async def telegram_action() -> str:
-            # Anonymous reachability only. Never include the bot token or call a send
-            # method. 404/401 are acceptable application responses because transport,
-            # DNS and TLS succeeded; 5xx is not.
             response = await http.get(TELEGRAM_ORIGIN)
             if response.status_code >= 500:
                 raise WeatherNetworkPreflightError("NETWORK_TELEGRAM_SERVER_ERROR")
@@ -227,10 +205,30 @@ async def check_weather_paper_network() -> WeatherPaperNetworkReport:
             probes = await asyncio.gather(
                 _probe(name="polymarket_gamma", url=GAMMA, required=True, action=gamma_action),
                 _probe(name="polymarket_clob", url=CLOB, required=True, action=clob_action),
-                _probe(name="nws_wrh_synoptic", url=WRH_TIMESERIES_PAGE, required=True, action=wrh_action),
-                _probe(name="nws_near_term_grid", url=NWS_API_ORIGIN, required=True, action=near_action),
-                _probe(name="open_meteo_gefs", url=OPEN_METEO_ENSEMBLE, required=True, action=gefs_action),
-                _probe(name="telegram_transport", url=TELEGRAM_ORIGIN, required=True, action=telegram_action),
+                _probe(
+                    name="nws_wrh_synoptic",
+                    url=WRH_TIMESERIES_PAGE,
+                    required=True,
+                    action=wrh_action,
+                ),
+                _probe(
+                    name="nws_near_term_grid",
+                    url=NWS_API_ORIGIN,
+                    required=True,
+                    action=near_action,
+                ),
+                _probe(
+                    name="open_meteo_gefs",
+                    url=OPEN_METEO_ENSEMBLE,
+                    required=True,
+                    action=gefs_action,
+                ),
+                _probe(
+                    name="telegram_transport",
+                    url=TELEGRAM_ORIGIN,
+                    required=True,
+                    action=telegram_action,
+                ),
             )
         finally:
             await near.close()
