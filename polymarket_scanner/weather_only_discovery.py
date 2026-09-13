@@ -1,14 +1,11 @@
 from __future__ import annotations
 
-"""Small, weather-tag-scoped Gamma discovery for the weather-only scanner.
+"""Weather-tag-scoped Gamma discovery for the weather-only scanner.
 
-Unlike the general Astra production universe, this module never performs an
-untagged walk of every active Polymarket event.  It proves natural keyset exhaustion
-for each configured weather tag, deduplicates overlapping tag results, and preserves
-all child markets of selected events for contract/bucket compilation.
-
-Tag membership is discovery recall evidence only.  It never grants contract or
-financial authority.
+Tag membership is recall evidence only.  Duplicate tag projections must agree on
+immutable market proposition identity; dynamic trade state is merged conservatively
+so a later closed/non-accepting projection can never be overwritten by an earlier
+open projection.
 """
 
 import asyncio
@@ -23,7 +20,7 @@ from .config import settings
 
 
 GAMMA = "https://gamma-api.polymarket.com"
-WEATHER_ONLY_DISCOVERY_VERSION = "weather_tag_keyset_v1_complete_per_configured_tag"
+WEATHER_ONLY_DISCOVERY_VERSION = "weather_tag_keyset_v4_semantic_identity_conservative_state"
 DEFAULT_TAGS = ("daily-temperature", "weather")
 PAGE_SIZE = 25
 MAX_PAGE_BYTES = 16 * 1024 * 1024
@@ -78,17 +75,37 @@ def _identity_list(value: object) -> tuple[str, ...]:
     return ()
 
 
-def _market_identity(row: dict) -> tuple[str, str, tuple[str, ...]]:
+def _market_identity(row: dict) -> tuple[str, str, tuple[str, ...], tuple[str, ...]]:
+    """Immutable proposition identity, including token-to-outcome ordering."""
     return (
         str(row.get("question") or "").strip(),
         str(row.get("conditionId") or "").strip(),
         _identity_list(row.get("clobTokenIds")),
+        tuple(value.strip().lower() for value in _identity_list(row.get("outcomes"))),
     )
 
 
 def _nonempty_conflict(left: object, right: object) -> bool:
     a, b = str(left or "").strip(), str(right or "").strip()
     return bool(a and b and a != b)
+
+
+def _boolish(value: object, default: bool) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "on"}
+    return default
+
+
+def _merge_trade_state(previous: dict, row: dict) -> None:
+    """Merge state toward the safer/non-tradable interpretation."""
+    previous["closed"] = _boolish(previous.get("closed"), False) or _boolish(row.get("closed"), False)
+    previous["active"] = _boolish(previous.get("active"), True) and _boolish(row.get("active"), True)
+    previous["acceptingOrders"] = _boolish(previous.get("acceptingOrders"), False) and _boolish(row.get("acceptingOrders"), False)
+    previous["enableOrderBook"] = _boolish(previous.get("enableOrderBook"), False) and _boolish(row.get("enableOrderBook"), False)
 
 
 def _merge_event(existing: dict, incoming: dict) -> dict:
@@ -99,7 +116,6 @@ def _merge_event(existing: dict, incoming: dict) -> dict:
             raise WeatherDiscoveryError("DUPLICATE_EVENT_IDENTITY_CONFLICT")
 
     merged = copy.deepcopy(existing)
-    # Prefer a non-empty copy of parent fields that were absent on the first tag hit.
     for key, value in incoming.items():
         if key == "markets":
             continue
@@ -122,9 +138,10 @@ def _merge_event(existing: dict, incoming: dict) -> dict:
                 continue
             if _market_identity(previous) != _market_identity(row):
                 raise WeatherDiscoveryError("DUPLICATE_MARKET_IDENTITY_CONFLICT")
-            # Preserve fields that one tag projection omitted without rewriting
-            # non-empty values from the first response.
+            _merge_trade_state(previous, row)
             for key, value in row.items():
+                if key in {"active", "closed", "acceptingOrders", "enableOrderBook"}:
+                    continue
                 if key not in previous or previous.get(key) in (None, "", [], {}):
                     previous[key] = copy.deepcopy(value)
     merged["markets"] = [children[mid] for mid in order]
