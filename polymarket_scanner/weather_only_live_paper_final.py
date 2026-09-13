@@ -37,7 +37,7 @@ from .weather_only_paper_recovery_final import FinalCrashSafeWeatherPaperStore
 from .weather_only_runtime_lease import WeatherPaperRuntimeLease
 
 
-FINAL_PAPER_RUNTIME_VERSION = "weather_live_paper_final_v3_exact_recovery_boundary"
+FINAL_PAPER_RUNTIME_VERSION = "weather_live_paper_final_v3_b1_b6_exact_recovery_boundary"
 FINAL_MARKET_STATE_POLICY = "GAMMA_SELECTED_MARKET_OPEN_ACCEPTING_ORDERBOOK_V1"
 
 
