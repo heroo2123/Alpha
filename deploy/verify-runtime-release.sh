@@ -15,8 +15,10 @@ ACTUAL_SHA="$(git -C "${APP_DIR}" rev-parse HEAD)"
 [[ "${ACTUAL_SHA}" == "${EXPECTED_SHA}" ]] \
   || fail "runtime release check: checkout ${ACTUAL_SHA} does not match authorized ${EXPECTED_SHA}"
 
-# A dirty working tree can change executed Python without changing HEAD.
-[[ -z "$(git -C "${APP_DIR}" status --porcelain --untracked-files=no)" ]] \
-  || fail "runtime release check: tracked working tree differs from authorized commit"
+# A modified tracked file OR an unexpected untracked Python/importable file can alter
+# the executed application without changing HEAD. Git-ignored runtime artifacts such
+# as .venv remain ignored, but every visible untracked path fails the release gate.
+[[ -z "$(git -C "${APP_DIR}" status --porcelain --untracked-files=all)" ]] \
+  || fail "runtime release check: working tree/import surface differs from authorized commit"
 
 printf 'Runtime release attested: %s\n' "${ACTUAL_SHA}"
