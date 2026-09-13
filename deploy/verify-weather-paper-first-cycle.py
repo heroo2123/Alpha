@@ -10,7 +10,14 @@ import sys
 import time
 from pathlib import Path
 
-from polymarket_scanner.weather_only_deployment_acceptance import (
+# This verifier is invoked by absolute path from deployment shell code. Make the
+# repository root explicit so the application package remains importable regardless
+# of the operator's current working directory.
+_SCRIPT_ROOT = Path(__file__).resolve().parent.parent
+if str(_SCRIPT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_SCRIPT_ROOT))
+
+from polymarket_scanner.weather_only_deployment_acceptance import (  # noqa: E402
     WeatherDeploymentAcceptanceError,
     accept_first_weather_paper_cycle,
 )
