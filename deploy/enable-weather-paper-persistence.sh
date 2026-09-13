@@ -42,10 +42,10 @@ bash "${APP_DIR}/deploy/check-weather-paper-service-isolation.sh" --require-disa
 
 bash "${APP_DIR}/deploy/setup-weather-paper-backup-service.sh"
 
-changed=0
+persistence_attempted=0
 rollback_persistence(){
   code=$?
-  if (( code != 0 )) && (( changed == 1 )); then
+  if (( code != 0 )) && (( persistence_attempted == 1 )); then
     sudo systemctl disable --now "${BACKUP_TIMER}" >/dev/null 2>&1 || true
     sudo systemctl disable "${UNIT}" >/dev/null 2>&1 || true
   fi
@@ -57,8 +57,11 @@ trap rollback_persistence EXIT
 sudo systemctl start "${BACKUP_UNIT}"
 systemctl is-failed --quiet "${BACKUP_UNIT}" 2>/dev/null && fail "initial verified paper backup failed"
 
+# Arm rollback before the first persistence-changing command. If `systemctl enable`
+# returns non-zero after partially changing symlinks, the EXIT trap restores the
+# non-persistent state rather than leaving a half-enabled deployment.
+persistence_attempted=1
 sudo systemctl enable "${UNIT}"
-changed=1
 sudo systemctl enable --now "${BACKUP_TIMER}"
 systemctl is-enabled --quiet "${UNIT}" || fail "weather PAPER service was not enabled"
 systemctl is-active --quiet "${UNIT}" || fail "weather PAPER service stopped during persistence enable"
