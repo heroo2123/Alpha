@@ -27,17 +27,16 @@ from polymarket_scanner.weather_only_forecast import (
 )
 from polymarket_scanner.weather_only_predictions import ProspectiveSelectionPolicy
 from polymarket_scanner.weather_only_wrh import parse_synoptic_wrh_hourly_snapshot
-from polymarket_scanner.weather_only_wrh_collector import WeatherWRHProspectiveCollector
+from polymarket_scanner.weather_only_wrh_collector import CAPTURE_FAILED, WeatherWRHProspectiveCollector
 
 
 TARGET = date(2026, 9, 11)
 END = date(2026, 9, 12)
 ZONE = ZoneInfo("America/New_York")
 FOLLOWING = datetime.fromisoformat("2026-09-12T00:51:00-04:00").timestamp()
-# Strict prospective calibration uses one frozen horizon: T-1 17:00-17:15 in the
-# exact settlement station timezone. The fixture sits inside that window.
 CAPTURED = datetime(2026, 9, 10, 17, 5, tzinfo=ZONE).timestamp()
 STATION_METADATA_EVIDENCE_SHA256 = "2" * 64
+R26_FAILURE = "SETTLEMENT:SETTLEMENT_EXACT_CUTOFF_STATE_UNPROVEN"
 
 
 def _rules() -> str:
@@ -192,7 +191,8 @@ class _SequenceClient:
         return SimpleNamespace(snapshot=self.snapshots.pop(0))
 
 
-def _authorized_db(path):
+def _r26_failed_db(path):
+    """Create the honest current state: polling evidence is terminally unproven."""
     capture = _capture()
     collector = WeatherWRHProspectiveCollector(
         db_path=path,
@@ -205,7 +205,11 @@ def _authorized_db(path):
         collector.register_capture(capture, registered_at=CAPTURED + 10)
         collector.tick(now=FOLLOWING - 30)
         report = collector.tick(now=FOLLOWING + 20)
-        assert report.authorized_captures == 1
+        assert report.authorized_captures == 0
+        assert report.failed_captures == 1
+        record = next(row for row in collector.records() if row["capture_evidence_sha256"] == capture.capture_evidence_sha256)
+        assert record["status"] == CAPTURE_FAILED
+        assert record["failure_code"] == R26_FAILURE
     finally:
         collector.close()
 
@@ -220,42 +224,50 @@ def _authorized_db(path):
     return capture
 
 
-def test_reader_recomputes_exact_source_lineage_and_returns_authorized_sample_read_only(tmp_path):
+def _authorized_db(path):
+    """Seed a legacy AUTHORIZED row solely to test reader rejection/integrity.
+
+    R26 deliberately makes this state impossible through current code.  Marking the
+    failed row AUTHORIZED simulates a database created by the older over-strong
+    authority model.  The strict reader must never accept it as current truth.
+    """
+    capture = _r26_failed_db(path)
+    with sqlite3.connect(path) as db:
+        db.execute(
+            """
+            UPDATE wrh_collector_captures
+            SET status = 'AUTHORIZED',
+                settlement_evidence_json = ?,
+                authorized_json = ?
+            WHERE capture_evidence_sha256 = ?
+            """,
+            (
+                json.dumps({"legacy_polling_authority": True}, sort_keys=True, separators=(",", ":")),
+                json.dumps({"sample": {"final_payout": 1.0}}, sort_keys=True, separators=(",", ":")),
+                capture.capture_evidence_sha256,
+            ),
+        )
+        db.commit()
+    return capture
+
+
+def test_current_polling_capture_is_not_an_authorized_calibration_row(tmp_path):
     db_path = tmp_path / "calibration.sqlite"
-    capture = _authorized_db(db_path)
+    _r26_failed_db(db_path)
     report = read_reconstructed_calibration_dataset(db_path)
     assert report["read_only_database"] is True
     assert report["source_recomputed"] is True
     assert report["stored_authorized_json_used_as_authority"] is False
     assert report["financial_authority"] is False
-    assert report["authorized_row_count"] == 1
-    assert report["reconstructed_record_count"] == 1
-    record = report["records"][0]
-    assert record["capture_evidence_sha256"] == capture.capture_evidence_sha256
-    assert record["event_id"] == "event-reader"
-    assert record["market_id"] == "market-mid"
-    assert record["predicted_probability"] == pytest.approx(18 / 31)
-    assert record["final_payout"] == 1.0
-    assert record["source_recomputed"] is True
-    assert record["stored_authorized_json_used_as_authority"] is False
-    assert record["calibration_label_authority"] is True
-    assert record["financial_authority"] is False
+    assert report["authorized_row_count"] == 0
+    assert report["reconstructed_record_count"] == 0
+    assert report["records"] == []
+    assert report["status_counts"].get(CAPTURE_FAILED) == 1
 
 
-def test_reader_rejects_tampered_stored_authorized_audit_copy_even_when_source_recomputation_succeeds(tmp_path):
-    db_path = tmp_path / "calibration.sqlite"
-    capture = _authorized_db(db_path)
-    with sqlite3.connect(db_path) as db:
-        row = db.execute(
-            "SELECT authorized_json FROM wrh_collector_captures WHERE capture_evidence_sha256 = ?",
-            (capture.capture_evidence_sha256,),
-        ).fetchone()
-        payload = json.loads(row[0])
-        payload["sample"]["final_payout"] = 0.0
-        db.execute(
-            "UPDATE wrh_collector_captures SET authorized_json = ? WHERE capture_evidence_sha256 = ?",
-            (json.dumps(payload, sort_keys=True, separators=(",", ":")), capture.capture_evidence_sha256),
-        )
+def test_reader_rejects_legacy_polling_authorization_instead_of_trusting_stored_json(tmp_path):
+    db_path = tmp_path / "legacy-calibration.sqlite"
+    _authorized_db(db_path)
     with pytest.raises(WeatherCalibrationReaderError) as raised:
         read_reconstructed_calibration_dataset(db_path)
-    assert raised.value.code == "READER_STORED_AUTHORIZED_MISMATCH"
+    assert raised.value.code == "READER_NO_VALID_FINALITY_PAIR"
