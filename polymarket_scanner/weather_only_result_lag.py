@@ -2,16 +2,15 @@ from __future__ import annotations
 
 """Deterministic WRH official-result-lag lane for the weather-only shadow program.
 
-This is the first source-dependent WX2/WX8 candidate path. It deliberately starts
-*after* exact WRH correction-window finality is prospectively proven. The finalized
-daily high/low mechanically selects exactly one frozen contract bucket; only that
-bucket's YES side can become a candidate.
+This lane may start only after exact WRH correction-window finality has been proven.
+A bounded before/after polling bracket is not enough: equal endpoint state cannot rule
+out an unobserved transient source revision at first following-date publication.
 
-A candidate is recorded only after two sequential exact CLOB snapshots both show the
-winning YES executable with enough visible size and the configured conservative edge.
-The second snapshot is the confirmation authority for the research record. Nothing in
-this module sends Telegram, places orders, promotes a detector or grants financial
-authority.
+A candidate is recorded only after exact source-label authority exists and two
+sequential exact CLOB snapshots both show the winning YES executable with enough
+visible size and the configured conservative edge.  The second snapshot is the
+confirmation authority for the research record. Nothing in this module sends
+Telegram, places orders, promotes a detector or grants financial authority.
 """
 
 import hashlib
@@ -46,7 +45,7 @@ from .weather_only_wrh import WRHSourceSnapshot
 from .weather_only_wrh_finality import WRHFinalizedRuleState, certify_wrh_first_following_transition
 
 
-WEATHER_RESULT_LAG_VERSION = "weather_result_lag_v1_wrh_finality_double_exact_clob_shadow"
+WEATHER_RESULT_LAG_VERSION = "weather_result_lag_v2_exact_cutoff_required_double_exact_clob_shadow"
 WEATHER_RESULT_LAG_POLICY_ID = "WRH_RESULT_LAG_SHADOW_EDGE_1PCT_V1"
 DEFAULT_MIN_EDGE_PER_SHARE = 0.01
 DEFAULT_MIN_VISIBLE_SHARES = 1.0
@@ -176,9 +175,6 @@ def _compiled_with_rule_authority(event: dict) -> tuple[CompiledWeatherEvent, st
         raise WeatherResultLagError("RESULT_LAG_CONTRACT_PARTITION_UNPROVEN")
     if not authority.rule_semantics_proven or not authority.exactly_one_outcome_proven:
         raise WeatherResultLagError("RESULT_LAG_RULE_AUTHORITY_UNPROVEN")
-    # The certified source parser in this lane reconstructs WRH's Hourly Data table.
-    # An ALL_TIMES contract is a different observation population and must not borrow
-    # Hourly Data settlement authority merely because other rule text is similar.
     if authority.observation_population != "WRH_HOURLY_DATA":
         raise WeatherResultLagError("RESULT_LAG_RULE_OBSERVATION_POPULATION_MISMATCH")
     if authority.precision != "WHOLE_DEGREE_F":
@@ -204,7 +200,12 @@ def _winning_bucket(compiled: CompiledWeatherEvent, finality: WRHFinalizedRuleSt
         raise WeatherResultLagError("RESULT_LAG_FINALITY_STATION_MISMATCH")
     if finality.target_date != compiled.target_date:
         raise WeatherResultLagError("RESULT_LAG_FINALITY_DATE_MISMATCH")
-    if not finality.settlement_label_authority or finality.financial_authority:
+    if (
+        not finality.exact_publication_state_observed
+        or not finality.correction_state_reconstructable
+        or not finality.settlement_label_authority
+        or finality.financial_authority
+    ):
         raise WeatherResultLagError("RESULT_LAG_FINALITY_AUTHORITY_INVALID")
     if compiled.family == DAILY_HIGH:
         value = int(finality.target_high_f)
@@ -290,7 +291,7 @@ async def evaluate_wrh_official_result_lag(
     clob: ExactEventSnapshotClient,
     policy: WeatherResultLagShadowPolicy | None = None,
 ) -> tuple[WeatherOfficialResultLagCandidate | None, WeatherExecutionSnapshot | None]:
-    """Return one deterministic shadow candidate only after a surviving exact recheck."""
+    """Return one deterministic shadow candidate only with exact cutoff authority."""
     frozen = policy or WeatherResultLagShadowPolicy()
     if not isinstance(frozen, WeatherResultLagShadowPolicy):
         raise WeatherResultLagError("RESULT_LAG_POLICY_TYPE_INVALID")
@@ -371,7 +372,7 @@ async def evaluate_wrh_official_result_lag_for_w7(
     clob: ExactEventSnapshotClient,
     policy: WeatherResultLagShadowPolicy | None = None,
 ) -> WeatherW7ConfirmedShadowCandidate | None:
-    """W7 evaluator: material finality trigger -> deterministic result-lag confirmation."""
+    """W7 evaluator: a bracket is measured only if it can yield an exact candidate."""
     if not isinstance(trigger, WeatherW7SourceUpdateTrigger):
         raise WeatherResultLagError("RESULT_LAG_W7_TRIGGER_TYPE_INVALID")
     if trigger.change_kind != CHANGE_FINALITY_TRANSITION:
@@ -387,13 +388,21 @@ async def evaluate_wrh_official_result_lag_for_w7(
     ):
         raise WeatherResultLagError("RESULT_LAG_W7_CONTRACT_TRIGGER_MISMATCH")
 
-    candidate, confirmed = await evaluate_wrh_official_result_lag(
-        event,
-        previous_snapshot,
-        current_snapshot,
-        clob=clob,
-        policy=policy,
-    )
+    try:
+        candidate, confirmed = await evaluate_wrh_official_result_lag(
+            event,
+            previous_snapshot,
+            current_snapshot,
+            clob=clob,
+            policy=policy,
+        )
+    except WeatherResultLagError as exc:
+        # R26 uncertainty is not a transport/source-health failure. It means the
+        # bracket cannot establish a deterministic winner, so W7 has no candidate
+        # and must not manufacture a source-latency receipt or spend CLOB requests.
+        if exc.code == "RESULT_LAG_FINALITY_AUTHORITY_INVALID":
+            return None
+        raise
     if candidate is None or confirmed is None:
         return None
     try:
