@@ -27,11 +27,10 @@ from .weather_only_discovery import GAMMA
 from .weather_only_forecast import OPEN_METEO_ENSEMBLE
 from .weather_only_gefs_hourly import OpenMeteoGEFSHourlyClient
 from .weather_only_nws_near_term import NWS_API_ORIGIN, NWSNearTermGridClient
-from .weather_only_wrh import WRH_SYNOPTIC_ENDPOINT
 from .weather_only_wrh_client import NWSWRHLiveClient, WRH_TIMESERIES_PAGE
 
 
-NETWORK_PREFLIGHT_VERSION = "weather_paper_network_preflight_v1_exact_provider_paths"
+NETWORK_PREFLIGHT_VERSION = "weather_paper_network_preflight_v2_stable_wrh_reference_day"
 TELEGRAM_ORIGIN = "https://api.telegram.org"
 REFERENCE_STATION = "KLGA"
 REFERENCE_LATITUDE = 40.7769
@@ -102,7 +101,7 @@ def evaluate_network_probes(
     if not probes:
         raise WeatherNetworkPreflightError("NETWORK_PREFLIGHT_EMPTY")
     names = [probe.name for probe in probes]
-    if len(names) != len(set(names)):
+    if len(names) != len(set(names))):
         raise WeatherNetworkPreflightError("NETWORK_PREFLIGHT_DUPLICATE_PROBE")
     required_passed = all(probe.ok for probe in probes if probe.required)
     instant = time.time() if checked_at is None else float(checked_at)
@@ -156,7 +155,10 @@ async def check_weather_paper_network() -> WeatherPaperNetworkReport:
         wrh = NWSWRHLiveClient(timeout_seconds=min(20.0, float(settings.request_timeout)))
         near = NWSNearTermGridClient()
         gefs = OpenMeteoGEFSHourlyClient()
-        target = datetime.now(ZoneInfo(REFERENCE_TIMEZONE)).date()
+        today = datetime.now(ZoneInfo(REFERENCE_TIMEZONE)).date()
+        # WRH connectivity is tested on yesterday so a deployment at 00:00 local time
+        # cannot fail merely because today's official station table has no row yet.
+        wrh_target = today - timedelta(days=1)
 
         async def gamma_action() -> str:
             response = await http.get(
@@ -186,7 +188,7 @@ async def check_weather_paper_network() -> WeatherPaperNetworkReport:
             result = await asyncio.to_thread(
                 wrh.fetch_snapshot,
                 station=REFERENCE_STATION,
-                target_date=target,
+                target_date=wrh_target,
             )
             return (
                 f"WRH+Synoptic ok; timezone={result.station_timezone}; "
@@ -206,7 +208,7 @@ async def check_weather_paper_network() -> WeatherPaperNetworkReport:
                 station=REFERENCE_STATION,
                 latitude=REFERENCE_LATITUDE,
                 longitude=REFERENCE_LONGITUDE,
-                target_date=target,
+                target_date=today,
                 unit="F",
                 timezone=REFERENCE_TIMEZONE,
             )
