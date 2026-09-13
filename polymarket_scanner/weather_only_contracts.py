@@ -2,11 +2,11 @@ from __future__ import annotations
 
 """Typed, fail-closed compiler for the weather-only scanner foundation.
 
-This module is deliberately broader than the legacy WRH-only action adapter but
-weaker in authority: it inventories recurring weather contract families and their
-bucket structure without granting financial permission.  Source-specific finality,
-rounding and fallback adapters must upgrade ``exactly_one_outcome_proven`` and
-financial authority later; discovery/title similarity never does so by itself.
+The compiler inventories recurring weather contract families and bucket structure.
+It never grants financial authority.  V4 tightens the proposition boundary so
+unknown comparison grammar, conflicting target dates, fake source URLs, conflicting
+stations and non-integral whole-degree bucket lattices fail closed rather than being
+silently reinterpreted.
 """
 
 import json
@@ -16,7 +16,7 @@ from datetime import date
 from urllib.parse import parse_qs, urlparse
 
 
-WEATHER_ONLY_COMPILER_VERSION = "weather_only_contract_compiler_v1_inventory_no_financial_authority"
+WEATHER_ONLY_COMPILER_VERSION = "weather_only_contract_compiler_v4_strict_semantics_fail_closed"
 
 DAILY_HIGH = "daily_high_temperature"
 DAILY_LOW = "daily_low_temperature"
@@ -49,6 +49,14 @@ _DAY_FIRST_DATE = re.compile(
     rf"\b(\d{{1,2}})(?:st|nd|rd|th)?\s+({_MONTH})[a-z]*\s+(?:'(\d{{2}})|(20\d{{2}}))\b",
     re.I,
 )
+_YEARLESS_MONTH_FIRST_DATE = re.compile(
+    rf"\b({_MONTH})[a-z]*\s+(\d{{1,2}})(?:st|nd|rd|th)?\b(?!\s*,?\s*20\d{{2}})",
+    re.I,
+)
+_YEARLESS_DAY_FIRST_DATE = re.compile(
+    rf"\b(\d{{1,2}})(?:st|nd|rd|th)?\s+({_MONTH})[a-z]*\b(?!\s+(?:'\d{{2}}|20\d{{2}}))",
+    re.I,
+)
 
 
 def _flag(value: object) -> bool:
@@ -78,9 +86,7 @@ def _market_rows(event: dict) -> list[dict]:
 
 
 def _event_text(event: dict) -> str:
-    parts = [
-        event.get("title"), event.get("description"), event.get("resolutionSource"),
-    ]
+    parts = [event.get("title"), event.get("description"), event.get("resolutionSource")]
     for row in _market_rows(event):
         parts.extend((row.get("question"), row.get("description"), row.get("resolutionSource")))
     return " ".join(str(x or "") for x in parts)
@@ -108,12 +114,25 @@ def _date_from_parts(year: int, month_name: str, day: int) -> date | None:
         return None
 
 
-def exact_weather_date(event: dict) -> date | None:
-    """Resolve one explicit contract date without borrowing administrative endDate.
+def _target_identity_texts(event: dict) -> tuple[str, ...]:
+    """Texts whose month/day language describes the market proposition itself.
 
-    Current recurring market copy may put the year in rules text as ``11 Sep '26``
-    even when the event title says only ``September 11``.  Both four-digit and
-    explicit two-digit 20xx forms are accepted.  Conflicting dates fail closed.
+    Administrative/fallback deadline prose is intentionally excluded; a title or
+    child question mismatch is a proposition conflict, while a later fallback date
+    in rule prose is not the target weather date.
+    """
+    values = [str(event.get("title") or "")]
+    values.extend(str(row.get("question") or "") for row in _market_rows(event))
+    return tuple(values)
+
+
+def exact_weather_date(event: dict) -> date | None:
+    """Resolve one explicit target date and verify yearless title/question dates.
+
+    One full date in authoritative event/rule text supplies the year.  Any month/day
+    asserted by the event title or child questions must agree with that date.  This
+    prevents a title saying September 12 from silently compiling rules for September
+    13 while avoiding fallback/deadline dates that appear only in prose.
     """
     found: set[date] = set()
     text = _event_text(event)
@@ -128,7 +147,25 @@ def exact_weather_date(event: dict) -> date | None:
         if resolved is None:
             return None
         found.add(resolved)
-    return next(iter(found)) if len(found) == 1 else None
+    if len(found) != 1:
+        return None
+    resolved = next(iter(found))
+
+    asserted_month_days: set[tuple[int, int]] = set()
+    for identity_text in _target_identity_texts(event):
+        for match in _YEARLESS_MONTH_FIRST_DATE.finditer(identity_text):
+            month = _MONTHS.get(match.group(1).lower())
+            if month is None:
+                return None
+            asserted_month_days.add((month, int(match.group(2))))
+        for match in _YEARLESS_DAY_FIRST_DATE.finditer(identity_text):
+            month = _MONTHS.get(match.group(2).lower())
+            if month is None:
+                return None
+            asserted_month_days.add((month, int(match.group(1))))
+    if asserted_month_days and asserted_month_days != {(resolved.month, resolved.day)}:
+        return None
+    return resolved
 
 
 def _unit_tokens(text: str) -> set[str]:
@@ -141,15 +178,6 @@ def _unit_tokens(text: str) -> set[str]:
 
 
 def _declared_resolution_units(event: dict) -> set[str]:
-    """Extract units from settlement assertions, not display/UI instructions.
-
-    Current Wunderground market copy explicitly resolves in one unit but also tells
-    the reader how to toggle the website UI between Fahrenheit and Celsius.  Treating
-    every unit word in the prose as equal authority turns that harmless UI sentence
-    into a false contract conflict.  ``degrees Fahrenheit/Celsius`` declarations are
-    settlement/precision language in the recurring templates; bare ``Fahrenheit and
-    Celsius`` or ``°F and °C`` toggle instructions are not.
-    """
     parts = [event.get("description")]
     parts.extend(row.get("description") for row in _market_rows(event))
     text = " ".join(str(value or "") for value in parts)
@@ -162,13 +190,6 @@ def _declared_resolution_units(event: dict) -> set[str]:
 
 
 def exact_weather_unit(event: dict) -> str | None:
-    """Resolve the contract unit from bucket identity plus settlement declarations.
-
-    Bucket questions are the outcome identity the trader actually buys.  They must
-    agree on one unit.  Explicit ``degrees X`` settlement/precision declarations, if
-    present, must also agree with that unit.  Generic UI toggle prose is deliberately
-    excluded.  Any real identity/settlement conflict still fails closed.
-    """
     question_units: set[str] = set()
     for row in _market_rows(event):
         found = _unit_tokens(str(row.get("question") or ""))
@@ -177,11 +198,9 @@ def exact_weather_unit(event: dict) -> str | None:
         question_units.update(found)
     if len(question_units) > 1:
         return None
-
     declared = _declared_resolution_units(event)
     if len(declared) > 1:
         return None
-
     if question_units and declared and question_units != declared:
         return None
     combined = question_units or declared
@@ -197,76 +216,123 @@ def source_urls(event: dict) -> tuple[str, ...]:
     return tuple(out)
 
 
+def _host_is(hostname: str | None, *allowed: str) -> bool:
+    host = str(hostname or "").strip().lower().rstrip(".")
+    return host in {value.lower() for value in allowed}
+
+
+def _nws_wrh_url(raw: str) -> bool:
+    try:
+        parsed = urlparse(raw)
+    except Exception:
+        return False
+    return (
+        parsed.scheme.lower() == "https"
+        and _host_is(parsed.hostname, "weather.gov", "www.weather.gov")
+        and parsed.path.rstrip("/").lower() == "/wrh/timeseries"
+    )
+
+
 def source_family(urls: tuple[str, ...], text: str = "") -> str:
-    lowered = " ".join(urls).lower() + " " + text.lower()
-    if "weather.gov/wrh/timeseries" in lowered:
+    parsed_urls = []
+    for raw in urls:
+        try:
+            parsed_urls.append(urlparse(raw))
+        except Exception:
+            continue
+    if any(_nws_wrh_url(raw) for raw in urls):
         return SOURCE_NWS_WRH
-    if "weather.gov.hk" in lowered or "hong kong observatory" in lowered:
+    if any(_host_is(p.hostname, "weather.gov.hk", "www.weather.gov.hk") for p in parsed_urls) or "hong kong observatory" in text.lower():
         return SOURCE_HKO
-    if "wunderground.com" in lowered or "weather underground" in lowered:
+    if any(_host_is(p.hostname, "wunderground.com", "www.wunderground.com") for p in parsed_urls) or "weather underground" in text.lower():
         return SOURCE_WUNDERGROUND
-    if "metoffice.gov.uk" in lowered or "met office" in lowered:
+    if any(_host_is(p.hostname, "metoffice.gov.uk", "www.metoffice.gov.uk") for p in parsed_urls) or "met office" in text.lower():
         return SOURCE_MET_OFFICE
-    if "weather.gc.ca" in lowered or "environment and climate change canada" in lowered:
+    if any(_host_is(p.hostname, "weather.gc.ca", "www.weather.gc.ca") for p in parsed_urls) or "environment and climate change canada" in text.lower():
         return SOURCE_ENV_CANADA
-    if "bom.gov.au" in lowered or "bureau of meteorology" in lowered:
+    if any(_host_is(p.hostname, "bom.gov.au", "www.bom.gov.au") for p in parsed_urls) or "bureau of meteorology" in text.lower():
         return SOURCE_BOM
-    if "jma.go.jp" in lowered or "japan meteorological agency" in lowered:
+    if any(_host_is(p.hostname, "jma.go.jp", "www.jma.go.jp") for p in parsed_urls) or "japan meteorological agency" in text.lower():
         return SOURCE_JMA
-    if "cwa.gov.tw" in lowered or "central weather administration" in lowered:
+    if any(_host_is(p.hostname, "cwa.gov.tw", "www.cwa.gov.tw") for p in parsed_urls) or "central weather administration" in text.lower():
         return SOURCE_CWA_TAIWAN
     return SOURCE_OTHER
 
 
 def source_station(urls: tuple[str, ...], text: str = "") -> str | None:
+    stations: set[str] = set()
     for raw in urls:
+        if not _nws_wrh_url(raw):
+            continue
         try:
             parsed = urlparse(raw)
             query = parse_qs(parsed.query)
         except Exception:
             continue
-        for key, values in query.items():
-            if key.lower() == "site" and len(values) == 1:
-                station = str(values[0]).strip().upper()
-                if re.fullmatch(r"[A-Z0-9]{4}", station):
-                    return station
-    # Inventory-only hint.  This is never enough for financial source authority.
-    candidates = re.findall(r"\b[A-Z]{4}\b", text)
-    return candidates[0] if len(set(candidates)) == 1 else None
+        site_values = [value for key, values in query.items() if key.lower() == "site" for value in values]
+        if len(site_values) != 1:
+            return None
+        station = str(site_values[0]).strip().upper()
+        if not re.fullmatch(r"[A-Z0-9]{4}", station):
+            return None
+        stations.add(station)
+    if stations:
+        return next(iter(stations)) if len(stations) == 1 else None
+    # Non-WRH inventory-only hint.  Never sufficient for NWS rule authority.
+    candidates = set(re.findall(r"\b[A-Z]{4}\b", text))
+    return next(iter(candidates)) if len(candidates) == 1 else None
+
+
+def _strict_integer(value: str) -> float | None:
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return None
+    return numeric if numeric.is_integer() else None
 
 
 def _bucket_bounds(question: str, unit: str | None) -> tuple[float | None, float | None] | None:
+    """Parse a supported bucket proposition without silently weakening grammar.
+
+    Inclusive tails/ranges/exact values are supported.  Strict less/greater is
+    translated only on an integer lattice.  Negation and unknown comparison syntax
+    fail closed.  A generic single-number fallback is permitted only when no
+    comparison/negation words remain in the question.
+    """
     q = str(question or "").replace("–", "-").replace("—", "-")
     if not unit:
         return None
     unit_re = re.escape(unit)
+    number = r"(-?\d+(?:\.\d+)?)"
 
-    m = re.search(
-        rf"(-?\d+(?:\.\d+)?)\s*-\s*(-?\d+(?:\.\d+)?)\s*°?\s*{unit_re}\b",
-        q,
-        re.I,
-    )
+    if re.search(r"\b(?:not|except|excluding)\b", q, re.I):
+        return None
+
+    strict_less = re.search(rf"\b(?:less\s+than|below)\s+{number}\s*°?\s*{unit_re}\b", q, re.I)
+    if strict_less and "or below" not in q.lower():
+        value = _strict_integer(strict_less.group(1))
+        return (None, value - 1.0) if value is not None else None
+    strict_greater = re.search(rf"\b(?:greater\s+than|above)\s+{number}\s*°?\s*{unit_re}\b", q, re.I)
+    if strict_greater and "or above" not in q.lower():
+        value = _strict_integer(strict_greater.group(1))
+        return (value + 1.0, None) if value is not None else None
+
+    m = re.search(rf"{number}\s*-\s*{number}\s*°?\s*{unit_re}\b", q, re.I)
     if m:
         lo, hi = float(m.group(1)), float(m.group(2))
         return (lo, hi) if lo <= hi else None
 
-    m = re.search(
-        rf"(-?\d+(?:\.\d+)?)\s*°?\s*{unit_re}\b\s*(?:or\s*)?(?:higher|above|more)",
-        q,
-        re.I,
-    )
+    m = re.search(rf"{number}\s*°?\s*{unit_re}\b\s*(?:or\s*)?(?:higher|above|more)", q, re.I)
     if m:
         return float(m.group(1)), None
 
-    m = re.search(
-        rf"(-?\d+(?:\.\d+)?)\s*°?\s*{unit_re}\b\s*(?:or\s*)?(?:lower|below|less)",
-        q,
-        re.I,
-    )
+    m = re.search(rf"{number}\s*°?\s*{unit_re}\b\s*(?:or\s*)?(?:lower|below|less)", q, re.I)
     if m:
         return None, float(m.group(1))
 
-    matches = re.findall(rf"(-?\d+(?:\.\d+)?)\s*°?\s*{unit_re}\b", q, re.I)
+    if re.search(r"\b(?:less|greater|below|above|under|over|higher|lower|more)\b", q, re.I):
+        return None
+    matches = re.findall(rf"{number}\s*°?\s*{unit_re}\b", q, re.I)
     if len(matches) == 1:
         value = float(matches[0])
         return value, value
@@ -274,12 +340,15 @@ def _bucket_bounds(question: str, unit: str | None) -> tuple[float | None, float
 
 
 def _token_for(outcomes: list[str], token_ids: list[str], wanted: str) -> str | None:
+    if len(outcomes) != 2 or len(token_ids) != 2:
+        return None
+    normalized = [str(value).strip().lower() for value in outcomes]
+    if sorted(normalized) != ["no", "yes"]:
+        return None
     target = wanted.lower()
-    for index, outcome in enumerate(outcomes):
-        if str(outcome).strip().lower() == target and index < len(token_ids):
-            token = str(token_ids[index]).strip()
-            return token or None
-    return None
+    index = normalized.index(target)
+    token = str(token_ids[index]).strip()
+    return token or None
 
 
 @dataclass(frozen=True, slots=True)
@@ -325,7 +394,6 @@ class CompiledWeatherEvent:
 
 
 def _partition_shape_complete(buckets: tuple[WeatherBucket, ...]) -> bool:
-    """Prove only the displayed integer bucket shape, not settlement semantics."""
     parsed = [bucket for bucket in buckets if bucket.lower is not None or bucket.upper is not None]
     if len(parsed) != len(buckets) or len(parsed) < 2:
         return False
@@ -333,16 +401,18 @@ def _partition_shape_complete(buckets: tuple[WeatherBucket, ...]) -> bool:
         return False
     if sum(bucket.upper is None for bucket in parsed) != 1:
         return False
-
+    # Current live NWS profiles settle/display whole-degree buckets.  Fractional
+    # endpoints are not a proved integer partition and must be certified elsewhere.
+    for bucket in parsed:
+        for bound in (bucket.lower, bucket.upper):
+            if bound is not None and not float(bound).is_integer():
+                return False
     ordered = sorted(parsed, key=lambda bucket: float("-inf") if bucket.lower is None else bucket.lower)
     if ordered[0].lower is not None or ordered[-1].upper is not None:
         return False
     for left, right in zip(ordered, ordered[1:]):
         if left.upper is None or right.lower is None:
             return False
-        # Current recurring temperature bucket labels partition whole-degree values.
-        # Rule/source adapters must separately prove how raw source precision maps to
-        # this lattice before any exactly-one financial claim is allowed.
         if abs((left.upper + 1.0) - right.lower) > 1e-9:
             return False
     return True
@@ -395,27 +465,37 @@ def compile_weather_event(event: dict) -> CompiledWeatherEvent:
     if family not in {DAILY_HIGH, DAILY_LOW}:
         reasons.append("UNSUPPORTED_FAMILY_PHASE1")
     if target is None:
-        reasons.append("TARGET_DATE_UNRESOLVED")
+        reasons.append("TARGET_DATE_UNRESOLVED_OR_CONFLICT")
     if unit is None:
         reasons.append("UNIT_UNRESOLVED_OR_CONFLICT")
     if source == SOURCE_OTHER:
         reasons.append("SOURCE_UNRECOGNIZED")
+    if source == SOURCE_NWS_WRH and station is None:
+        reasons.append("NWS_STATION_UNRESOLVED_OR_CONFLICT")
     if not open_binary:
         reasons.append("NO_OPEN_BINARY_BUCKETS")
     if bucket_tuple and any(bucket.lower is None and bucket.upper is None for bucket in bucket_tuple):
         reasons.append("BUCKET_PARSE_INCOMPLETE")
     if family in {DAILY_HIGH, DAILY_LOW} and not shape:
         reasons.append("BUCKET_PARTITION_SHAPE_UNPROVEN")
+    market_ids = [bucket.market_id for bucket in bucket_tuple]
+    condition_ids = [bucket.condition_id for bucket in bucket_tuple]
+    tokens = [token for bucket in bucket_tuple for token in (bucket.yes_token, bucket.no_token) if token]
+    if len(set(market_ids)) != len(market_ids) or len(set(condition_ids)) != len(condition_ids):
+        reasons.append("DUPLICATE_MARKET_OR_CONDITION_ID")
+    if len(set(tokens)) != len(tokens):
+        reasons.append("DUPLICATE_TOKEN_ID")
 
     shadow_supported = bool(
         family in {DAILY_HIGH, DAILY_LOW}
         and target is not None
         and unit is not None
         and source != SOURCE_OTHER
+        and (source != SOURCE_NWS_WRH or station is not None)
         and open_binary
+        and not any(reason.startswith("DUPLICATE_") for reason in reasons)
     )
 
-    # Foundation invariant: classification never grants financial authority.
     return CompiledWeatherEvent(
         compiler_version=WEATHER_ONLY_COMPILER_VERSION,
         event_id=event_id,
