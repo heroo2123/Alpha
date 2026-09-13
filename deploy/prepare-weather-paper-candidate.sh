@@ -61,6 +61,7 @@ for required in \
   polymarket_scanner/weather_only_live_paper_corrective.py \
   polymarket_scanner/weather_only_live_paper_final.py \
   polymarket_scanner/weather_only_paper_recovery.py \
+  polymarket_scanner/weather_only_paper_recovery_final.py \
   polymarket_scanner/weather_only_runtime_attestation.py \
   polymarket_scanner/weather_only_deployment_acceptance.py \
   polymarket_scanner/weather_only_network_preflight.py \
@@ -95,6 +96,12 @@ for raw in Path(sys.argv[1]).read_text(encoding="utf-8").splitlines():
         raise SystemExit(f"dependency pin mismatch: {name} {installed} != {expected}")
 print("Weather-paper runtime dependency pins match exactly.")
 PY
+
+# Import the exact deployable module before publishing the release marker. This is a
+# no-start smoke test and catches missing internal files/imports before any service
+# installation or live-paper process is attempted.
+PYTHONPATH="${APP_DIR}" "${APP_DIR}/.venv/bin/python" -c \
+  "import ${FINAL_MODULE}; print('Final weather-paper runtime import passed.')"
 
 mkdir -p "${CONFIG_DIR}"
 umask 077
