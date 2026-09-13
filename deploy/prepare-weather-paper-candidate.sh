@@ -50,6 +50,7 @@ for required in \
   deploy/verify-runtime-release.sh \
   deploy/render-weather-paper-unit.py \
   deploy/check-weather-paper-network.py \
+  deploy/check-weather-paper-service-isolation.sh \
   deploy/pre-release-weather-paper-backup.sh \
   deploy/setup-weather-paper-backup-service.sh \
   deploy/preflight-weather-paper-deployment.sh \
