@@ -12,6 +12,10 @@ from polymarket_scanner.weather_only_deployment_acceptance import (
 )
 from polymarket_scanner.weather_only_live_paper import MODE
 from polymarket_scanner.weather_only_live_paper_corrective import CANONICAL_CORRECTIVE_VERSION
+from polymarket_scanner.weather_only_live_paper_final import (
+    FINAL_MARKET_STATE_POLICY,
+    FINAL_PAPER_RUNTIME_VERSION,
+)
 
 
 SHA = "a" * 40
@@ -22,8 +26,12 @@ def _status() -> dict:
         "mode": MODE,
         "release_sha": SHA,
         "canonical_corrective_version": CANONICAL_CORRECTIVE_VERSION,
+        "final_paper_runtime_version": FINAL_PAPER_RUNTIME_VERSION,
+        "current_market_state_policy": FINAL_MARKET_STATE_POLICY,
+        "exclusive_writer_lease": True,
         "forecast_policy": EXPECTED_FORECAST_POLICY,
         "structural_policy": EXPECTED_STRUCTURAL_POLICY,
+        "structural_delivery_enabled": False,
         "started_at": 1_950.0,
         "finished_at": 1_990.0,
         "cycle_ok": True,
@@ -74,8 +82,12 @@ def test_fresh_healthy_exact_release_paper_cycle_is_accepted():
     ("field", "value", "code"),
     [
         ("release_sha", "b" * 40, "DEPLOY_STATUS_RELEASE_MISMATCH"),
+        ("final_paper_runtime_version", "OLD_RUNTIME", "DEPLOY_FINAL_RUNTIME_VERSION_MISMATCH"),
+        ("current_market_state_policy", "OLD_POLICY", "DEPLOY_FINAL_MARKET_STATE_POLICY_MISMATCH"),
+        ("exclusive_writer_lease", False, "DEPLOY_EXCLUSIVE_WRITER_LEASE_NOT_PROVEN"),
         ("forecast_policy", "OLD_POLICY", "DEPLOY_FORECAST_POLICY_MISMATCH"),
         ("structural_policy", "ENABLED", "DEPLOY_STRUCTURAL_CONTAINMENT_MISSING"),
+        ("structural_delivery_enabled", True, "DEPLOY_STRUCTURAL_DELIVERY_NOT_FALSE"),
         ("cycle_ok", False, "DEPLOY_FIRST_CYCLE_UNHEALTHY"),
         ("paper_telegram_delivery", False, "DEPLOY_PAPER_DELIVERY_MODE_INVALID"),
         ("financial_delivery", True, "DEPLOY_FINANCIAL_DELIVERY_NOT_FALSE"),
