@@ -10,7 +10,14 @@ import os
 import sys
 from pathlib import Path
 
-from polymarket_scanner.weather_only_network_preflight import (
+# Deployment shell scripts invoke this file by absolute path and may run from any CWD.
+# Put the repository root on sys.path explicitly so the application package is always
+# importable without relying on PYTHONPATH or an editable package install.
+_SCRIPT_ROOT = Path(__file__).resolve().parent.parent
+if str(_SCRIPT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_SCRIPT_ROOT))
+
+from polymarket_scanner.weather_only_network_preflight import (  # noqa: E402
     WeatherNetworkPreflightError,
     check_weather_paper_network,
 )
