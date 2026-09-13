@@ -1,13 +1,6 @@
 from __future__ import annotations
 
-"""Fail-closed acceptance checks for the first canonical weather PAPER cycle.
-
-This module does not start, stop, enable, send, or trade.  It only validates the
-status document emitted by the already-running canonical paper process.  Deployment
-acceptance requires a fresh healthy cycle from the exact approved release and proves
-that the three-layer same-day path is still silent research with no financial/order
-authority.
-"""
+"""Fail-closed acceptance checks for the first canonical weather PAPER cycle."""
 
 import math
 import time
@@ -17,7 +10,9 @@ from .weather_only_live_paper import MODE
 from .weather_only_live_paper_corrective import CANONICAL_CORRECTIVE_VERSION
 
 
-DEPLOYMENT_ACCEPTANCE_VERSION = "weather_paper_first_cycle_acceptance_v1"
+DEPLOYMENT_ACCEPTANCE_VERSION = "weather_paper_first_cycle_acceptance_v2_structural_containment"
+EXPECTED_FORECAST_POLICY = "STRICT_FUTURE_LOCAL_DAY_RAW_GEFS_V4"
+EXPECTED_STRUCTURAL_POLICY = "DISABLED_PENDING_COMMON_RESOLUTION_PROOF"
 
 
 class WeatherDeploymentAcceptanceError(RuntimeError):
@@ -56,6 +51,7 @@ class WeatherPaperFirstCycleAcceptance:
     canonical_corrective_version: str
     same_day_research_enabled: bool
     same_day_delivery_enabled: bool
+    structural_delivery_enabled: bool
     paper_telegram_delivery: bool
     accepted: bool
     financial_authority: bool = False
@@ -70,6 +66,7 @@ class WeatherPaperFirstCycleAcceptance:
             "canonical_corrective_version": self.canonical_corrective_version,
             "same_day_research_enabled": self.same_day_research_enabled,
             "same_day_delivery_enabled": self.same_day_delivery_enabled,
+            "structural_delivery_enabled": self.structural_delivery_enabled,
             "paper_telegram_delivery": self.paper_telegram_delivery,
             "accepted": self.accepted,
             "financial_authority": self.financial_authority,
@@ -94,6 +91,10 @@ def accept_first_weather_paper_cycle(
         raise WeatherDeploymentAcceptanceError("DEPLOY_STATUS_MODE_MISMATCH")
     if status.get("canonical_corrective_version") != CANONICAL_CORRECTIVE_VERSION:
         raise WeatherDeploymentAcceptanceError("DEPLOY_STATUS_CANONICAL_VERSION_MISMATCH")
+    if status.get("forecast_policy") != EXPECTED_FORECAST_POLICY:
+        raise WeatherDeploymentAcceptanceError("DEPLOY_FORECAST_POLICY_MISMATCH")
+    if status.get("structural_policy") != EXPECTED_STRUCTURAL_POLICY:
+        raise WeatherDeploymentAcceptanceError("DEPLOY_STRUCTURAL_CONTAINMENT_MISSING")
     if status.get("cycle_ok") is not True:
         raise WeatherDeploymentAcceptanceError("DEPLOY_FIRST_CYCLE_UNHEALTHY")
     if list(status.get("errors") or []):
@@ -142,6 +143,7 @@ def accept_first_weather_paper_cycle(
         canonical_corrective_version=CANONICAL_CORRECTIVE_VERSION,
         same_day_research_enabled=True,
         same_day_delivery_enabled=False,
+        structural_delivery_enabled=False,
         paper_telegram_delivery=True,
         accepted=True,
     )
