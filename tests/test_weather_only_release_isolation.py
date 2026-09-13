@@ -44,6 +44,16 @@ def test_prepare_script_does_not_start_enable_or_modify_legacy_release_marker():
     assert "merge-base --is-ancestor" in text
 
 
+def test_prepare_requires_and_import_smokes_exact_final_runtime_before_release_marker():
+    text = _text(PREPARE)
+    assert "polymarket_scanner/weather_only_paper_recovery_final.py" in text
+    assert 'FINAL_MODULE="polymarket_scanner.weather_only_live_paper_final"' in text
+    assert 'import ${FINAL_MODULE}' in text
+    import_pos = text.index('import ${FINAL_MODULE}')
+    marker_publish_pos = text.index('mv -f "${TMP_MARKER}" "${RELEASE_FILE}"')
+    assert import_pos < marker_publish_pos
+
+
 def test_renderer_binds_unit_to_isolated_marker_and_paper_environment():
     spec = importlib.util.spec_from_file_location("weather_renderer_isolated", RENDERER)
     assert spec is not None and spec.loader is not None
