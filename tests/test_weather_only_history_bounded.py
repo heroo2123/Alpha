@@ -163,10 +163,10 @@ def test_canonical_station_cache_is_ttl_and_lru_bounded(monkeypatch):
 
     async def scenario():
         a1 = await service._station_metadata_for_compiled(SimpleNamespace(station_hint="KAAA"))
-        a2 = await service._station_metadata_for_compiled(SimpleNamespace(station_hint="KAAA"))
         await service._station_metadata_for_compiled(SimpleNamespace(station_hint="KBBB"))
+        # Touch KAAA after KBBB so KAAA becomes the most recently used entry.
+        a2 = await service._station_metadata_for_compiled(SimpleNamespace(station_hint="KAAA"))
         await service._station_metadata_for_compiled(SimpleNamespace(station_hint="KCCC"))
-        # KAAA was touched recently, so KBBB is the LRU entry and is evicted.
         assert list(service._bounded_station_metadata) == ["KAAA", "KCCC"]
         a3 = await service._station_metadata_for_compiled(SimpleNamespace(station_hint="KAAA"))
         return a1, a2, a3
