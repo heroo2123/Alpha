@@ -80,12 +80,16 @@ class WeatherLivePaperCorrectiveService(WeatherLivePaperV4Service):
         )
         await super().close()
 
+    def _station_cache_now(self) -> float:
+        """Dedicated monotonic clock seam so tests never patch asyncio's global clock."""
+        return time.monotonic()
+
     async def _station_metadata_for_compiled(self, compiled):
         """TTL/LRU station metadata cache used by every canonical forecast gate."""
         station_id = str(compiled.station_hint or "").strip().upper()
         if not station_id:
             return None
-        now = time.monotonic()
+        now = self._station_cache_now()
         cached = self._bounded_station_metadata.get(station_id)
         if cached is not None:
             age = now - float(cached[0])
