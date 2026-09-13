@@ -11,7 +11,7 @@ from polymarket_scanner.manual_fills import (
     structural_manual_stats,
 )
 from polymarket_scanner.models import Signal
-from polymarket_scanner.settlement import exact_token_payout
+from polymarket_scanner.settlement import CTF_EVIDENCE_KEY, CTF_FINALITY_VERSION, exact_token_payout
 from polymarket_scanner.store import Store
 from polymarket_scanner.trade_only import TRADE_READY_VERSION
 
@@ -142,16 +142,42 @@ def test_duplicate_structural_execution_for_same_alert_is_rejected(tmp_path):
         record_structural_fills(store, sid, _fills())
 
 
-def test_exact_token_payout_preserves_partial_resolution_and_fails_closed():
-    market = {
+def _final_market(numerators=(1, 1), denominator=2):
+    condition = "0x" + "11" * 32
+    return {
         "closed": True,
+        "conditionId": condition,
         "clobTokenIds": '["yes", "no"]',
+        "outcomes": '["Yes", "No"]',
+        # Indicative prices deliberately disagree with finality; they are ignored.
+        "outcomePrices": '["0.99", "0.01"]',
+        CTF_EVIDENCE_KEY: {
+            "version": CTF_FINALITY_VERSION,
+            "condition_id": condition,
+            "payout_denominator": denominator,
+            "payout_numerators": list(numerators),
+            "block_number": 123456,
+        },
+    }
+
+
+def test_exact_token_payout_requires_final_ctf_vector_and_preserves_partial_resolution():
+    indicative_only = {
+        "closed": True,
+        "conditionId": "0x" + "11" * 32,
+        "clobTokenIds": '["yes", "no"]',
+        "outcomes": '["Yes", "No"]',
         "outcomePrices": '["0.5", "0.5"]',
     }
+    assert exact_token_payout("yes", indicative_only) is None
+
+    market = _final_market((1, 1), 2)
     assert exact_token_payout("yes", market) == 0.5
     assert exact_token_payout("no", market) == 0.5
     assert exact_token_payout("missing", market) is None
-    assert exact_token_payout("yes", {**market, "closed": False}) is None
+
+    malformed = _final_market((1, 1), 1)
+    assert exact_token_payout("yes", malformed) is None
 
 
 def test_structural_pnl_uses_actual_leg_cash_and_exact_token_payouts(tmp_path):
