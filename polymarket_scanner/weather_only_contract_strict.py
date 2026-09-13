@@ -1,13 +1,15 @@
 from __future__ import annotations
 
-"""Additional fail-closed semantic admission for the weather paper experiment.
+"""Fail-closed semantic admission for the weather paper experiment.
 
-The inventory compiler remains useful for broad discovery.  This module is a stricter
-*live-paper gate*: it refuses to promote a temperature event unless the title date,
-WRH source/station, child statistic, supported bucket grammar, identities and integer
-partition all agree.  It deliberately accepts less than the inventory compiler.
+The broad inventory compiler is discovery-only.  This live-paper gate accepts a much
+smaller contract language: one exact highest/lowest-temperature question template,
+known bucket forms, one coherent recurring rule text/source identity, exact station,
+and an integer partition.  Unsupported wording is rejected rather than reinterpreted.
 """
 
+import hashlib
+import json
 import math
 import re
 from datetime import date
@@ -17,7 +19,7 @@ from .weather_only_contracts import DAILY_HIGH, DAILY_LOW, compile_weather_event
 from .weather_only_rules import apply_rule_authority, compile_temperature_rule_authority
 
 
-STRICT_CONTRACT_VERSION = "weather_contract_strict_v2_pre_authority_syntax_fail_closed"
+STRICT_CONTRACT_VERSION = "weather_contract_strict_v3_exact_question_and_rule_identity"
 
 
 class StrictWeatherContractError(RuntimeError):
@@ -39,6 +41,20 @@ _MONTHS = {
     "sep": 9, "sept": 9, "oct": 10, "nov": 11, "dec": 12,
 }
 _ALLOWED_WRH_HOSTS = {"weather.gov", "www.weather.gov"}
+_RULE_CONFLICT_MARKERS = (
+    "instead of",
+    "rules are obsolete",
+    "rule is obsolete",
+    "weather underground only",
+    "weather underground alone",
+    "use the highest bracket",
+    "resolve from weather underground only",
+    "resolves from weather underground only",
+)
+
+
+def _norm(value: object) -> str:
+    return re.sub(r"\s+", " ", str(value or "")).strip().lower()
 
 
 def _all_text_parts(event: dict) -> list[str]:
@@ -91,22 +107,70 @@ def _trusted_wrh_station(event: dict) -> str | None:
 
 
 def _question_supported(question: str, family: str) -> bool:
+    """Accept only a completely consumed recurring Polymarket question template."""
     text = " ".join(str(question or "").strip().split())
-    low = text.lower()
-    if any(term in low for term in ("less than", "greater than", "not ", "except ")):
-        return False
-    opposite = "lowest temperature" if family == DAILY_HIGH else "highest temperature"
-    if opposite in low:
+    statistic = "highest" if family == DAILY_HIGH else "lowest" if family == DAILY_LOW else None
+    if statistic is None:
         return False
     number = r"-?\d+(?:\.0+)?"
     unit = r"(?:°\s*[FC]|\s+degrees?\s+[FC]|\s*[FC])"
-    patterns = (
-        rf".*\b{number}\s*{unit}\s+or\s+lower\??$",
-        rf".*\b{number}\s*{unit}\s+or\s+higher\??$",
-        rf".*\b{number}\s*(?:-|–|to)\s*{number}\s*{unit}\??$",
-        rf".*\b(?:be\s+)?{number}\s*{unit}\??$",
-    )
-    return any(re.fullmatch(pattern, text, re.I) for pattern in patterns)
+    bucket = rf"(?:{number}\s*{unit}\s+or\s+lower|{number}\s*{unit}\s+or\s+higher|{number}\s*(?:-|–|to)\s*{number}\s*{unit}|{number}\s*{unit})"
+    return re.fullmatch(
+        rf"Will\s+the\s+{statistic}\s+temperature\s+be\s+{bucket}\?",
+        text,
+        re.I,
+    ) is not None
+
+
+def _coherent_rule_identity(event: dict, family: str) -> dict:
+    """Require one operative rule/source text, not concatenated conflicting copies."""
+    markets = [row for row in (event.get("markets") or []) if isinstance(row, dict)]
+    parent_description = _norm(event.get("description"))
+    child_descriptions = [_norm(row.get("description")) for row in markets if _norm(row.get("description"))]
+    descriptions = [value for value in [parent_description, *child_descriptions] if value]
+    if not descriptions or len(set(descriptions)) != 1:
+        raise StrictWeatherContractError("STRICT_OPERATIVE_RULE_TEXT_CONFLICT")
+    operative_rules = descriptions[0]
+
+    sources = [_norm(event.get("resolutionSource"))]
+    sources.extend(_norm(row.get("resolutionSource")) for row in markets)
+    sources = [value for value in sources if value]
+    if sources and len(set(sources)) != 1:
+        raise StrictWeatherContractError("STRICT_OPERATIVE_SOURCE_CONFLICT")
+    operative_source = sources[0] if sources else ""
+
+    if any(marker in operative_rules for marker in _RULE_CONFLICT_MARKERS):
+        raise StrictWeatherContractError("STRICT_OPERATIVE_RULE_OVERRIDE_UNSUPPORTED")
+    opposite = "lowest reading" if family == DAILY_HIGH else "highest reading"
+    if opposite in operative_rules:
+        raise StrictWeatherContractError("STRICT_OPERATIVE_STATISTIC_CONFLICT")
+
+    questions = tuple(_norm(row.get("question")) for row in markets)
+    return {
+        "version": STRICT_CONTRACT_VERSION,
+        "operative_rules": operative_rules,
+        "operative_source": operative_source,
+        "questions": questions,
+    }
+
+
+def strict_contract_identity(event: dict, compiled=None) -> dict:
+    """Return immutable semantic preimage/digest for cache, dispatch and audit."""
+    if not isinstance(event, dict):
+        raise StrictWeatherContractError("STRICT_EVENT_INVALID")
+    if compiled is None:
+        compiled = compile_weather_event(event)
+    identity = _coherent_rule_identity(event, compiled.family)
+    payload = {
+        **identity,
+        "event_id": str(compiled.event_id),
+        "family": str(compiled.family),
+        "unit": str(compiled.unit or ""),
+        "target_date": compiled.target_date.isoformat() if compiled.target_date else None,
+        "station": str(compiled.station_hint or "").upper(),
+    }
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    return {**payload, "sha256": hashlib.sha256(encoded.encode("utf-8")).hexdigest()}
 
 
 def _partition_is_exact(compiled) -> bool:
@@ -156,10 +220,6 @@ def compile_strict_temperature_event(event: dict):
     if raw.family not in {DAILY_HIGH, DAILY_LOW}:
         raise StrictWeatherContractError("STRICT_FAMILY_UNSUPPORTED")
 
-    # Reject independently provable syntax/identity conflicts before asking the
-    # broader rule-authority layer to promote the contract.  Otherwise malformed
-    # child wording can merely collapse partition_shape_complete and be reported as
-    # a generic authority failure, obscuring the exact unsafe proposition change.
     if raw.target_date is not None and not _title_date_matches(event, raw.target_date):
         raise StrictWeatherContractError("STRICT_TITLE_DATE_MISMATCH")
 
@@ -177,6 +237,10 @@ def compile_strict_temperature_event(event: dict):
         child_text = " ".join((str(row.get("question") or ""), str(row.get("description") or ""))).lower()
         if opposite in child_text:
             raise StrictWeatherContractError("STRICT_CHILD_STATISTIC_CONFLICT")
+
+    # This must run before phrase-based authority promotion. It prevents a valid
+    # canonical phrase in one child from masking an operative override in another.
+    _coherent_rule_identity(event, raw.family)
 
     authority = compile_temperature_rule_authority(event, raw)
     compiled = apply_rule_authority(raw, authority)
@@ -198,4 +262,6 @@ def compile_strict_temperature_event(event: dict):
         raise StrictWeatherContractError("STRICT_CHILD_COUNT_MISMATCH")
     if not _partition_is_exact(compiled):
         raise StrictWeatherContractError("STRICT_PARTITION_UNPROVEN")
+    # Ensure the exact semantic preimage remains valid after authority application.
+    strict_contract_identity(event, compiled)
     return compiled
