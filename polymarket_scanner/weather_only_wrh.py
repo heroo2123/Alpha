@@ -12,6 +12,8 @@ This module freezes the exact semantics observed from the official WRH viewer sc
 
 * transport: Synoptic Data v2 ``/stations/timeseries`` with ``complete=1``, local
   observation timezone, and English Fahrenheit temperature units;
+* response ``UNITS.air_temp`` must explicitly confirm Fahrenheit;
+* no observation timestamp later than the snapshot receipt may influence the state;
 * ``GLOBAL-METAR`` is normalized by WRH to ``ASOS/AWOS``;
 * for ASOS/AWOS Hourly Data, a row is retained when sea-level pressure is non-null;
   if pressure is null, a station-prefixed METAR row is retained as SPECI;
@@ -35,12 +37,13 @@ from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 
-WRH_SNAPSHOT_ADAPTER_VERSION = "nws_wrh_hourly_snapshot_v1_obsjs_202601121730"
+WRH_SNAPSHOT_ADAPTER_VERSION = "nws_wrh_hourly_snapshot_v2_units_asof_obsjs_202601121730"
 WRH_VIEWER_SCRIPT_URL = "https://www.weather.gov/source/wrh/timeseries/obs.js?v202601121730"
 WRH_VIEWER_SCRIPT_SHA256 = "46b015ad497f7165336918e50154462c4d4079d9403bb0f90359e54dfed7d11e"
 WRH_SYNOPTIC_ENDPOINT = "https://api.synopticdata.com/v2/stations/timeseries"
 WRH_SOURCE_ROLE = "NWS_WRH_BACKEND_SNAPSHOT_UNFINALIZED"
 WRH_HOURLY_PROFILE = "WRH_ASOS_AWOS_HOURLY_DATA_V202601121730"
+MAX_OBSERVATION_FUTURE_SKEW_SECONDS = 300.0
 
 ROW_OFFICIAL_PRESSURE = "ASOS_OFFICIAL_PRESSURE_ROW"
 ROW_SPECI = "ASOS_SPECI_ROW"
@@ -75,13 +78,7 @@ def _finite_timestamp(value: object, code: str) -> float:
 
 
 def js_math_round(value: object) -> int:
-    """Replicate JavaScript Math.round for finite weather temperatures.
-
-    JavaScript resolves exact half ties toward +infinity, unlike Python's built-in
-    bankers rounding.  For finite numbers this is equivalent to ``floor(x + 0.5)``.
-    Negative zero is irrelevant to whole-degree temperature bucket identity and is
-    represented as integer zero.
-    """
+    """Replicate JavaScript Math.round for finite weather temperatures."""
     number = _finite_number(value, "WRH_TEMPERATURE_INVALID")
     return int(math.floor(number + 0.5))
 
@@ -120,6 +117,31 @@ def _optional_text(value: object, code: str) -> str | None:
     return value
 
 
+def _response_temperature_unit(payload: dict) -> str:
+    units = payload.get("UNITS")
+    if not isinstance(units, dict):
+        raise WRHSourceError("WRH_RESPONSE_UNITS_MISSING")
+    raw = units.get("air_temp")
+    if not isinstance(raw, str) or not raw.strip():
+        raise WRHSourceError("WRH_RESPONSE_TEMPERATURE_UNIT_MISSING")
+    value = raw.strip()
+    if value.lower() != "fahrenheit":
+        raise WRHSourceError("WRH_RESPONSE_TEMPERATURE_UNIT_MISMATCH")
+    return value
+
+
+def _validate_sensor_identity(source_station: dict) -> None:
+    """If Synoptic supplies sensor metadata, bind air_temp_set_1 to air_temp."""
+    sensors = source_station.get("SENSOR_VARIABLES")
+    if sensors is None:
+        return
+    if not isinstance(sensors, dict):
+        raise WRHSourceError("WRH_SENSOR_VARIABLES_INVALID")
+    air = sensors.get("air_temp")
+    if not isinstance(air, dict) or "air_temp_set_1" not in air:
+        raise WRHSourceError("WRH_AIR_TEMP_SENSOR_IDENTITY_UNPROVEN")
+
+
 @dataclass(frozen=True, slots=True)
 class WRHHourlyRow:
     observation_time_raw: str
@@ -152,6 +174,7 @@ class WRHSourceSnapshot:
     raw_network: str
     normalized_network: str
     timezone: str
+    response_temperature_unit: str
     target_date: date
     query_start_date: date
     query_end_date: date
@@ -202,7 +225,6 @@ def _select_row_kind(
     slp_value: object,
     metar: str | None,
 ) -> str | None:
-    """Mirror the current WRH ASOS/AWOS Hourly Data predicate exactly."""
     if slp_dataset_present:
         if slp_value is not None:
             return ROW_OFFICIAL_PRESSURE
@@ -226,6 +248,7 @@ def _snapshot_evidence_payload(snapshot: WRHSourceSnapshot) -> dict:
         "raw_network": snapshot.raw_network,
         "normalized_network": snapshot.normalized_network,
         "timezone": snapshot.timezone,
+        "response_temperature_unit": snapshot.response_temperature_unit,
         "target_date": snapshot.target_date.isoformat(),
         "query_start_date": snapshot.query_start_date.isoformat(),
         "query_end_date": snapshot.query_end_date.isoformat(),
@@ -251,12 +274,13 @@ def parse_synoptic_wrh_hourly_snapshot(
     requested_unit: str = "F",
     complete: int = 1,
     obtimezone: str = "local",
+    expected_timezone: str | None = None,
 ) -> WRHSourceSnapshot:
-    """Parse one Synoptic response using the pinned WRH Hourly Data semantics.
+    """Parse one Synoptic response using pinned WRH Hourly Data semantics.
 
-    The query identity is explicit because payload content alone cannot prove that it
-    came from the same request profile used by WRH.  Only Fahrenheit, complete local-
-    timezone ASOS/AWOS snapshots are supported in this phase.
+    Observation time and receipt time are separate authorities.  Any row that could
+    only have existed after ``received_at`` rejects the snapshot rather than being
+    silently exposed to an as-of consumer.
     """
     station_id = _station_id(station)
     target = _require_date(target_date, "WRH_TARGET_DATE_INVALID")
@@ -281,6 +305,7 @@ def parse_synoptic_wrh_hourly_snapshot(
 
     if not isinstance(payload, dict):
         raise WRHSourceError("WRH_PAYLOAD_INVALID")
+    response_unit = _response_temperature_unit(payload)
     summary = payload.get("SUMMARY")
     if not isinstance(summary, dict) or str(summary.get("RESPONSE_MESSAGE") or "") != "OK":
         raise WRHSourceError("WRH_RESPONSE_NOT_OK")
@@ -292,6 +317,7 @@ def parse_synoptic_wrh_hourly_snapshot(
     if returned_station != station_id:
         raise WRHSourceError("WRH_STATION_ID_MISMATCH")
     raw_network, normalized_network = _normalized_network(source_station.get("SHORTNAME"))
+    _validate_sensor_identity(source_station)
 
     timezone_name = str(source_station.get("TIMEZONE") or "").strip()
     if not timezone_name:
@@ -299,7 +325,9 @@ def parse_synoptic_wrh_hourly_snapshot(
     try:
         timezone = ZoneInfo(timezone_name)
     except ZoneInfoNotFoundError:
-        raise WRHSourceError("WRH_TIMEZONE_INVALID")
+        raise WRHSourceError("WRH_TIMEZONE_INVALID") from None
+    if expected_timezone is not None and str(expected_timezone).strip() != timezone_name:
+        raise WRHSourceError("WRH_TIMEZONE_IDENTITY_MISMATCH")
 
     observations = source_station.get("OBSERVATIONS")
     if not isinstance(observations, dict):
@@ -321,13 +349,19 @@ def parse_synoptic_wrh_hourly_snapshot(
     if metar_dataset_present and (not isinstance(metars, list) or len(metars) != count):
         raise WRHSourceError("WRH_METAR_SERIES_LENGTH_MISMATCH")
 
+    utc_zone = ZoneInfo("UTC")
     parsed_times: list[tuple[str, datetime]] = []
     seen_instants: set[str] = set()
     for raw in times:
         raw_text, local_dt = _parse_observation_time(raw, timezone)
-        instant = local_dt.astimezone(ZoneInfo("UTC")).isoformat()
+        utc_dt = local_dt.astimezone(utc_zone)
+        instant = utc_dt.isoformat()
         if instant in seen_instants:
             raise WRHSourceError("WRH_OBSERVATION_TIME_DUPLICATE")
+        if utc_dt.timestamp() > received + MAX_OBSERVATION_FUTURE_SKEW_SECONDS:
+            raise WRHSourceError("WRH_OBSERVATION_AFTER_RECEIPT")
+        if local_dt.date() < start or local_dt.date() > end:
+            raise WRHSourceError("WRH_OBSERVATION_OUTSIDE_QUERY_DATES")
         seen_instants.add(instant)
         parsed_times.append((raw_text, local_dt))
 
@@ -364,18 +398,20 @@ def parse_synoptic_wrh_hourly_snapshot(
             metar=metar,
         ))
 
-    selected.sort(key=lambda row: row.observation_time_local.astimezone(ZoneInfo("UTC")))
+    selected.sort(key=lambda row: row.observation_time_local.astimezone(utc_zone))
     target_rows = tuple(row for row in selected if row.local_date == target)
-    following_rows = tuple(row for row in selected if row.local_date > target)
+    following_date = target + timedelta(days=1)
+    following_rows = tuple(row for row in selected if row.local_date == following_date)
     first_following = following_rows[0] if following_rows else None
     display_values = tuple(row.displayed_temp_f for row in target_rows if row.displayed_temp_f is not None)
 
-    # Bind every source field that can affect WRH Hourly row membership or Temp cells,
-    # not just the selected rows, so omitted/reordered/unselected inputs are detectable.
+    sensors = source_station.get("SENSOR_VARIABLES")
     source_payload_sha = _hash_payload({
         "station": returned_station,
         "shortname": raw_network,
         "timezone": timezone_name,
+        "response_air_temp_unit": response_unit,
+        "sensor_variables": sensors,
         "date_time": times,
         "air_temp_set_1": temps,
         "sea_level_pressure_set_1_present": slp_dataset_present,
@@ -400,6 +436,7 @@ def parse_synoptic_wrh_hourly_snapshot(
         raw_network=raw_network,
         normalized_network=normalized_network,
         timezone=timezone_name,
+        response_temperature_unit=response_unit,
         target_date=target,
         query_start_date=start,
         query_end_date=end,
