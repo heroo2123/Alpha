@@ -108,17 +108,12 @@ class _FakeWRH:
 
 
 class _OrderedFakeCLOB(_FakeCLOB):
-    """Mirror real async request ordering instead of future-dating an instant fake."""
-
     async def exact_event_snapshot(self, compiled):
-        # The shared fake stamps finished_at one millisecond after its instantaneous
-        # start. A real awaited network request cannot return before that finish, so
-        # wait long enough before each fake request to preserve the same causality.
         await asyncio.sleep(0.003)
         return await super().exact_event_snapshot(compiled)
 
 
-def test_recorder_source_poll_finality_double_clob_and_latency_receipt_are_one_path(tmp_path):
+def test_recorder_polling_bracket_is_healthy_but_cannot_create_source_latency_receipt(tmp_path):
     target, before, after = _finality_snapshots()
     event = _event_for_target(target)
     db = tmp_path / "signals.db"
@@ -147,35 +142,24 @@ def test_recorder_source_poll_finality_double_clob_and_latency_receipt_are_one_p
     assert len(session.incremental_measurements) == 1
     assert session.source_measurements == []
 
-    # Keep the scanner report causal/fresh for the second sample. The next source
-    # fetch contains the first selected following-date row, so the recorder must
-    # certify WRH finality, identify the exact winning bucket, perform two fresh CLOB
-    # checks, and attach one causal W7 source-latency receipt to this sample.
+    # The second poll observes the first following-date row, but R26 means equal
+    # polling endpoints do not prove the exact publication/correction state at that
+    # instant. The recorder must keep the source poll healthy while producing no
+    # deterministic source-result candidate and no fabricated latency receipt.
     report.write_text(json.dumps(_runtime_payload(time.time())), encoding="utf-8")
     second = asyncio.run(session.record_sample(poll_source=True))
     assert wrh.calls == 2
-    assert second.source_update_confirmation_seconds is not None
-    assert 0.0 <= second.source_update_confirmation_seconds < 5.0
-    assert second.source_update_evidence_sha256 is not None
-    assert len(second.source_update_evidence_sha256) == 64
+    assert second.source_update_confirmation_seconds is None
+    assert second.source_update_evidence_sha256 is None
     assert len(session.incremental_measurements) == 2
-    assert len(session.source_measurements) == 1
-    measurement = session.source_measurements[0]
-    assert measurement.measurement_evidence_sha256 == second.source_update_evidence_sha256
-    assert measurement.source_update_confirmation_seconds == second.source_update_confirmation_seconds
-    assert measurement.financial_authority is False
-    assert measurement.financial_delivery is False
-    assert measurement.automatic_order_placement is False
+    assert session.source_measurements == []
 
     bundle = session.finalize()
     manifest = bundle.w7_evidence.measurement_manifest
     assert len(manifest.incremental_measurements) == 2
-    assert len(manifest.source_update_measurements) == 1
-    assert manifest.source_update_measurements[0] == measurement
+    assert manifest.source_update_measurements == ()
     report_result = validate_weather_w7_acceptance_bundle(bundle, expected_release_sha=SHA)
-    # Two samples intentionally fail the frozen 45-minute duration/count gate, but
-    # source-update evidence itself is genuine, embedded, interval-bound and <5 sec.
     assert report_result.passed is False
-    assert report_result.source_update_sample_count == 1
-    assert report_result.max_source_update_confirmation_seconds == second.source_update_confirmation_seconds
+    assert report_result.source_update_sample_count == 0
+    assert report_result.max_source_update_confirmation_seconds is None
     assert any(reason.startswith("SAMPLE_COUNT_BELOW_MIN") for reason in report_result.reasons)
