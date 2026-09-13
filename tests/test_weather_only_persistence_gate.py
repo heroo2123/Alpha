@@ -5,6 +5,7 @@ from pathlib import Path
 
 PERSIST = Path("deploy/enable-weather-paper-persistence.sh")
 BACKUP_SETUP = Path("deploy/setup-weather-paper-backup-service.sh")
+SERVICE_ISOLATION = Path("deploy/check-weather-paper-service-isolation.sh")
 
 
 def _exec_lines(path: Path) -> list[str]:
@@ -17,9 +18,11 @@ def _exec_lines(path: Path) -> list[str]:
 def test_persistence_requires_active_attested_fresh_exact_candidate_before_enable():
     text = PERSIST.read_text(encoding="utf-8")
     enable_index = text.index('sudo systemctl enable "${UNIT}"')
+    assert text.index("check-weather-paper-service-isolation.sh") < enable_index
     assert text.index("attest-weather-paper-runtime.py") < enable_index
     assert text.index("verify-weather-paper-first-cycle.py") < enable_index
     assert text.index('sudo systemctl start "${BACKUP_UNIT}"') < enable_index
+    assert "--require-disabled" in text
     assert "--require-active" in text
     assert "weather-paper-release.sha" in text
     assert "ALPHA_WEATHER_APP_DIR" in text
@@ -32,6 +35,30 @@ def test_persistence_never_restarts_or_operates_legacy_scanner():
         if "systemctl" in line:
             assert "polymarket-edge-scanner" not in line
             assert "polymarket-edge-command" not in line
+
+
+def test_service_isolation_guard_is_read_only_and_covers_superseded_stack():
+    text = SERVICE_ISOLATION.read_text(encoding="utf-8")
+    for unit in (
+        "polymarket-edge-scanner.service",
+        "polymarket-edge-command.service",
+        "polymarket-universe-builder.service",
+        "polymarket-weather-shadow.service",
+        "polymarket-weather-calibration.service",
+    ):
+        assert unit in text
+    assert "systemctl is-active" in text
+    assert "systemctl is-enabled" in text
+    assert "--require-disabled" in text
+    lines = _exec_lines(SERVICE_ISOLATION)
+    forbidden = (
+        "systemctl start ",
+        "systemctl stop ",
+        "systemctl restart ",
+        "systemctl enable ",
+        "systemctl disable ",
+    )
+    assert not any(any(command in line for command in forbidden) for line in lines)
 
 
 def test_backup_timer_is_verified_restorable_paper_backup_and_not_auto_enabled_on_install():
