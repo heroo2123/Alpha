@@ -7,8 +7,12 @@ operational bounds required by the adversarial review: historical quarantine res
 from a persisted policy-bound cursor instead of rescanning the whole ledger every
 cycle, and station metadata uses a TTL/LRU bound instead of growing forever.
 
-No authenticated trading API is imported. Same-day directional delivery remains
-disabled in the inherited v4 runtime.
+The same SQLite file also owns an isolated three-layer research-envelope table.  That
+table is visible in health/status for provenance work but is never counted as an open
+position or validated P&L and cannot cause Telegram delivery. Same-day directional
+delivery remains disabled in the inherited v4 runtime.
+
+No authenticated trading API is imported.
 """
 
 import argparse
@@ -36,9 +40,10 @@ from .weather_only_paper_corrective import (
     ClearWeatherPaperCommandController,
 )
 from .weather_only_paper_facade import CorrectiveWeatherPaperStore
+from .weather_only_same_day_store import SameDayResearchStore
 
 
-CANONICAL_CORRECTIVE_VERSION = "weather_live_paper_corrective_v5_bounded_history_cache"
+CANONICAL_CORRECTIVE_VERSION = "weather_live_paper_corrective_v6_bounded_history_same_day_research_store"
 HISTORY_QUARANTINE_POLICY_ID = "PRE_V4_PROTOCOL_QUARANTINE_V2_BOUNDED_CURSOR"
 HISTORY_QUARANTINE_BATCH_SIZE = 200
 STATION_METADATA_CACHE_MAX_ENTRIES = 128
@@ -53,6 +58,7 @@ class WeatherLivePaperCorrectiveService(WeatherLivePaperV4Service):
         self._canonical_superseded_settlement = self.settlement
         self._canonical_superseded_commands = self.commands
         self.positions = CorrectiveWeatherPaperStore(self.db_path)
+        self.same_day_research = SameDayResearchStore(self.db_path)
         self.settlement = CorrectiveSettlementEngine(
             store=self.positions,
             telegram=self.telegram,
@@ -131,6 +137,7 @@ class WeatherLivePaperCorrectiveService(WeatherLivePaperV4Service):
 
     async def run_cycle(self) -> dict:
         status = dict(await super().run_cycle())
+        same_day_summary = await asyncio.to_thread(self.same_day_research.summary)
         status.update({
             "canonical_corrective_version": CANONICAL_CORRECTIVE_VERSION,
             "history_quarantine_policy_id": HISTORY_QUARANTINE_POLICY_ID,
@@ -138,6 +145,8 @@ class WeatherLivePaperCorrectiveService(WeatherLivePaperV4Service):
             "station_metadata_cache_entries": len(self._bounded_station_metadata),
             "station_metadata_cache_max_entries": STATION_METADATA_CACHE_MAX_ENTRIES,
             "station_metadata_cache_ttl_seconds": STATION_METADATA_CACHE_TTL_SECONDS,
+            "same_day_research": same_day_summary,
+            "same_day_delivery_enabled": False,
         })
         return status
 
