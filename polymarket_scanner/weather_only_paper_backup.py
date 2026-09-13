@@ -2,14 +2,14 @@ from __future__ import annotations
 
 """Backup/restore verification for the isolated weather-paper SQLite ledger.
 
-The legacy scanner backup profile requires unrelated ``signals/manual_trades`` tables
-and therefore cannot prove recoverability of ``weather-paper.sqlite``.  This module
-uses SQLite's online backup API and a paper-specific logical profile: required tables,
-schema SQL, row counts and deterministic row digests are checked before publication
-and again after restoring into a brand-new temporary database.
+The deployment gate must back up an existing ledger *before* the corrective runtime
+migrates it.  Therefore verification recognizes both the supported legacy v3 paper
+schema and the current v4 schema, and fingerprints every ``weather_paper_*`` table
+that is actually present.  A backup never creates/migrates tables in the source DB.
 
-This is deployment-neutral library code.  Creating/installing a timer remains an
-explicit later operator action; importing this module never writes or schedules work.
+SQLite's online backup API is used for a coherent copy.  The copy is restored into a
+brand-new temporary database and its schema/row digests must exactly match before the
+backup is published.  Importing this module never schedules work or changes a service.
 """
 
 import hashlib
@@ -21,14 +21,20 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 
-WEATHER_PAPER_BACKUP_VERSION = "weather_paper_backup_v1_restore_verified_logical_profile"
-WEATHER_PAPER_REQUIRED_TABLES = (
-    "weather_paper_capacity_usage",
-    "weather_paper_decisions",
+WEATHER_PAPER_BACKUP_VERSION = "weather_paper_backup_v2_legacy_and_current_restore_verified"
+WEATHER_PAPER_LEGACY_REQUIRED_TABLES = (
     "weather_paper_positions",
     "weather_paper_signals",
     "weather_paper_state",
 )
+WEATHER_PAPER_CURRENT_REQUIRED_TABLES = (
+    "weather_paper_capacity_usage",
+    "weather_paper_decisions",
+    *WEATHER_PAPER_LEGACY_REQUIRED_TABLES,
+)
+# Compatibility alias used by older tests/callers.  It means the current schema, not
+# the minimum schema accepted for a pre-migration backup.
+WEATHER_PAPER_REQUIRED_TABLES = WEATHER_PAPER_CURRENT_REQUIRED_TABLES
 
 
 class WeatherPaperBackupError(RuntimeError):
@@ -74,10 +80,7 @@ def _table_digest(connection: sqlite3.Connection, table: str) -> tuple[int, str]
     digest = hashlib.sha256()
     count = 0
     for row in connection.execute(f'SELECT * FROM "{table}" ORDER BY {order}'):
-        payload = {
-            column: _json_value(row[column])
-            for column in columns
-        }
+        payload = {column: _json_value(row[column]) for column in columns}
         encoded = json.dumps(
             payload,
             sort_keys=True,
@@ -89,6 +92,23 @@ def _table_digest(connection: sqlite3.Connection, table: str) -> tuple[int, str]
         digest.update(encoded)
         count += 1
     return count, digest.hexdigest()
+
+
+def _supported_profile(tables: set[str]) -> tuple[str, tuple[str, ...]]:
+    current = set(WEATHER_PAPER_CURRENT_REQUIRED_TABLES)
+    legacy = set(WEATHER_PAPER_LEGACY_REQUIRED_TABLES)
+    if current.issubset(tables):
+        profile = "CURRENT_V4_OR_LATER"
+    elif legacy.issubset(tables):
+        profile = "LEGACY_V3_PRE_MIGRATION"
+    else:
+        raise WeatherPaperBackupError("PAPER_BACKUP_REQUIRED_TABLES_MISSING")
+
+    # Preserve/fingerprint all paper-owned tables, including future additive tables.
+    logical = tuple(sorted(name for name in tables if name.startswith("weather_paper_")))
+    if not logical:
+        raise WeatherPaperBackupError("PAPER_BACKUP_REQUIRED_TABLES_MISSING")
+    return profile, logical
 
 
 def verify_weather_paper_database(path: str | Path) -> dict:
@@ -103,25 +123,24 @@ def verify_weather_paper_database(path: str | Path) -> dict:
             str(row[0])
             for row in db.execute("SELECT name FROM sqlite_master WHERE type='table'")
         }
-        missing = set(WEATHER_PAPER_REQUIRED_TABLES) - tables
-        if missing:
-            raise WeatherPaperBackupError("PAPER_BACKUP_REQUIRED_TABLES_MISSING")
+        profile, logical_tables = _supported_profile(tables)
         schema_rows = [
             (str(row[0]), str(row[1] or ""))
             for row in db.execute(
                 "SELECT name,sql FROM sqlite_master WHERE type='table' ORDER BY name"
             )
-            if str(row[0]) in WEATHER_PAPER_REQUIRED_TABLES
+            if str(row[0]) in logical_tables
         ]
         schema_sha = hashlib.sha256(
             json.dumps(schema_rows, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
         ).hexdigest()
         logical = {}
-        for table in WEATHER_PAPER_REQUIRED_TABLES:
+        for table in logical_tables:
             count, digest = _table_digest(db, table)
             logical[table] = {"row_count": count, "row_digest_sha256": digest}
     return {
         "version": WEATHER_PAPER_BACKUP_VERSION,
+        "schema_profile": profile,
         "path": str(target),
         "quick_check": quick,
         "file_sha256": _sha_file(target),
@@ -139,12 +158,15 @@ def verify_weather_paper_restore(path: str | Path) -> dict:
         with _connect(source, readonly=True) as src, _connect(restored, readonly=False) as dst:
             src.backup(dst, pages=256, sleep=0.01)
         restored_profile = verify_weather_paper_database(restored)
+        if restored_profile["schema_profile"] != source_profile["schema_profile"]:
+            raise WeatherPaperBackupError("PAPER_BACKUP_RESTORE_PROFILE_MISMATCH")
         if restored_profile["schema_sha256"] != source_profile["schema_sha256"]:
             raise WeatherPaperBackupError("PAPER_BACKUP_RESTORE_SCHEMA_MISMATCH")
         if restored_profile["logical_tables"] != source_profile["logical_tables"]:
             raise WeatherPaperBackupError("PAPER_BACKUP_RESTORE_LOGICAL_MISMATCH")
     return {
         "restore_verified": True,
+        "schema_profile": source_profile["schema_profile"],
         "schema_sha256": source_profile["schema_sha256"],
         "logical_tables": source_profile["logical_tables"],
         "source_file_sha256": source_profile["file_sha256"],
@@ -178,11 +200,15 @@ def backup_weather_paper_database(
     if final_path.exists():
         raise WeatherPaperBackupError("PAPER_BACKUP_DESTINATION_EXISTS")
 
+    # Verification is read-only.  In particular, a legacy source remains byte-for-byte
+    # untouched until the separately authorized runtime migration happens later.
     source_profile = verify_weather_paper_database(source_path)
     try:
         with _connect(source_path, readonly=True) as src, _connect(temporary, readonly=False) as dst:
             src.backup(dst, pages=256, sleep=0.01)
         temp_profile = verify_weather_paper_database(temporary)
+        if temp_profile["schema_profile"] != source_profile["schema_profile"]:
+            raise WeatherPaperBackupError("PAPER_BACKUP_COPY_PROFILE_MISMATCH")
         if temp_profile["schema_sha256"] != source_profile["schema_sha256"]:
             raise WeatherPaperBackupError("PAPER_BACKUP_COPY_SCHEMA_MISMATCH")
         if temp_profile["logical_tables"] != source_profile["logical_tables"]:
@@ -198,6 +224,7 @@ def backup_weather_paper_database(
             "backup": str(final_path),
             "backup_file_sha256": _sha_file(final_path),
             "backup_bytes": final_path.stat().st_size,
+            "source_schema_profile": source_profile["schema_profile"],
             "source_schema_sha256": source_profile["schema_sha256"],
             "source_logical_tables": source_profile["logical_tables"],
             **restore,
