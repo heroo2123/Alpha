@@ -1,14 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-"""Read-only host collector for canonical weather-paper runtime attestation.
-
-This command never starts/stops/enables/reloads a service and never changes files.  It
-collects the installed systemd unit plus /proc facts and feeds them to the pure R22
-attestation logic.  By default an inactive service is reported as an explicitly safe
-*non-deployment* state.  Pass --require-active only for a later authorized live-host
-acceptance run that must prove an actual process.
-"""
+"""Read-only host collector for canonical weather-paper runtime attestation."""
 
 import argparse
 import json
@@ -80,8 +73,7 @@ def _matching_weather_processes() -> tuple[tuple[str, ...], ...]:
             argv = _proc_argv(int(entry.name))
         except (FileNotFoundError, PermissionError, ProcessLookupError, UnicodeDecodeError):
             continue
-        joined = " ".join(argv)
-        if "polymarket_scanner.weather_only_live_paper" in joined:
+        if "polymarket_scanner.weather_only_live_paper" in " ".join(argv):
             rows.append(argv)
     rows.sort(key=lambda row: " ".join(row))
     return tuple(rows)
@@ -118,20 +110,27 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--app-dir", type=Path, required=True)
     parser.add_argument("--release-file", type=Path, required=True)
+    parser.add_argument("--unit", default="polymarket-weather-paper.service")
     parser.add_argument(
-        "--unit", default="polymarket-weather-paper.service"
-    )
-    parser.add_argument(
-        "--db",
-        type=Path,
+        "--db", type=Path,
         default=Path("/var/lib/polymarket-weather-paper/weather-paper.sqlite"),
     )
+    parser.add_argument(
+        "--status", type=Path,
+        default=Path("/var/lib/polymarket-weather-paper/status.json"),
+    )
+    parser.add_argument("--environment-file", type=Path)
     parser.add_argument("--require-active", action="store_true")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
 
     app_dir = args.app_dir.expanduser().resolve()
     release_file = args.release_file.expanduser().resolve()
+    environment_file = (
+        args.environment_file.expanduser().resolve()
+        if args.environment_file is not None
+        else release_file.parent / "weather-paper.env"
+    )
     python = app_dir / ".venv" / "bin" / "python"
     expected_release = _read_sha(release_file)
 
@@ -146,12 +145,12 @@ def main() -> int:
             expected_app_dir=app_dir,
             expected_python=python,
             expected_db_path=args.db,
+            expected_status_path=args.status,
+            expected_release_file=release_file,
+            expected_environment_file=environment_file,
             expected_release_sha=expected_release,
         )
-        payload = {
-            "facts": facts.as_dict(),
-            "attestation": attestation.as_dict(),
-        }
+        payload = {"facts": facts.as_dict(), "attestation": attestation.as_dict()}
         exit_code = 0
         if args.require_active and not attestation.deployment_proven:
             payload["acceptance"] = "FAIL_ACTIVE_RUNTIME_NOT_PROVEN"
@@ -172,6 +171,7 @@ def main() -> int:
         output = args.output.expanduser().resolve()
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(text, encoding="utf-8")
+        os.chmod(output, 0o600)
     sys.stdout.write(text)
     return exit_code
 
