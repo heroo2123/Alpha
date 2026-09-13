@@ -11,7 +11,7 @@ from polymarket_scanner.weather_only_conditioned_wrh import (
     ConditionedWRHError,
     build_wrh_observed_extreme_asof,
 )
-from polymarket_scanner.weather_only_contracts import compile_weather_event
+from polymarket_scanner.weather_only_contracts import DAILY_HIGH, DAILY_LOW, compile_weather_event
 from polymarket_scanner.weather_only_rules import apply_rule_authority, compile_temperature_rule_authority
 from polymarket_scanner.weather_only_wrh import parse_synoptic_wrh_hourly_snapshot
 from test_weather_only_rules import _nws_event
@@ -62,7 +62,7 @@ def test_layer1_uses_only_pinned_displayed_wrh_rows_already_known_as_of():
     )
     assert evidence.station == "KLGA"
     assert evidence.target_date == TARGET.isoformat()
-    assert evidence.family == "DAILY_HIGH"
+    assert evidence.family == DAILY_HIGH
     assert evidence.unit == "F"
     assert evidence.accepted_row_count == 3
     assert evidence.observed_state.observation_count == 3
@@ -82,7 +82,7 @@ def test_layer1_low_uses_same_exact_population_without_reinterpreting_source():
         as_of=AS_OF,
         max_snapshot_age_seconds=120,
     )
-    assert evidence.family == "DAILY_LOW"
+    assert evidence.family == DAILY_LOW
     assert evidence.observed_state.extreme_value == 70.0
 
 
