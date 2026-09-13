@@ -65,10 +65,6 @@ class Book:
     source: str | None = None
     source_epoch: int | None = None
     book_hash: str | None = None
-    # CLOB REST /books identifies the condition in the remote ``market`` field.
-    # Preserve it so weather execution can prove token -> condition identity at the
-    # decision boundary rather than relying on token-set coincidence alone.
-    condition_id: str | None = None
 
     @property
     def best_bid(self) -> float | None:
@@ -102,7 +98,6 @@ class Book:
             source=self.source,
             source_epoch=self.source_epoch,
             book_hash=self.book_hash,
-            condition_id=self.condition_id,
         )
 
 
@@ -123,5 +118,9 @@ class Signal:
     created_at: datetime = field(default_factory=utcnow)
 
     def fingerprint(self) -> str:
-        parts = [self.detector, self.event_id, self.market_id or "", ",".join(sorted(self.token_ids))]
-        return "|".join(parts)
+        key = self.metadata.get("fingerprint_key") or self.market_id or self.event_id
+        # Keep persistent opportunities from spamming; a fresh alert can recur after
+        # the configured cooldown bucket if the condition is still present.
+        bucket_seconds = int(self.metadata.get("fingerprint_bucket_seconds", 900))
+        bucket = int(self.created_at.timestamp() // max(60, bucket_seconds))
+        return f"{self.detector}:{key}:{bucket}"
