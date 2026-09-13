@@ -160,6 +160,7 @@ def _payload(include_following: bool) -> dict:
         for values in observations.values():
             values.pop()
     return {
+        "UNITS": {"air_temp": "Fahrenheit"},
         "SUMMARY": {"RESPONSE_MESSAGE": "OK"},
         "STATION": [{
             "STID": "KLGA",
