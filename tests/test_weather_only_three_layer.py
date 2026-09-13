@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 import pytest
 
@@ -35,7 +35,8 @@ from polymarket_scanner.weather_only_unresolved_coverage import build_unresolved
 
 
 def _ts(hour: int, minute: int = 0) -> float:
-    return datetime(2026, 9, 12, hour, minute, tzinfo=timezone.utc).timestamp()
+    base = datetime(2026, 9, 12, tzinfo=timezone.utc)
+    return (base + timedelta(hours=hour, minutes=minute)).timestamp()
 
 
 def _compiled() -> CompiledWeatherEvent:
