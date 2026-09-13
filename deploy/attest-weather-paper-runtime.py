@@ -10,10 +10,27 @@ import subprocess
 import sys
 from pathlib import Path
 
-from polymarket_scanner.weather_only_runtime_attestation import (
+# This script is intentionally invoked by absolute file path from deployment shell
+# code. Python would otherwise put only deploy/ on sys.path, so make the repository
+# root explicit before importing application modules. This works from any caller CWD.
+_SCRIPT_ROOT = Path(__file__).resolve().parent.parent
+if str(_SCRIPT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_SCRIPT_ROOT))
+
+from polymarket_scanner.weather_only_runtime_attestation import (  # noqa: E402
     WeatherRuntimeAttestationError,
     WeatherRuntimeFacts,
     attest_weather_runtime,
+)
+
+
+KNOWN_WEATHER_WRITER_MARKERS = (
+    "polymarket_scanner.weather_only_live_paper",
+    "weather_only_live_paper.py",
+    "weather_only_live_paper_v2.py",
+    "weather_only_live_paper_v3.py",
+    "weather_only_live_paper_v4.py",
+    "weather_only_live_paper_corrective.py",
 )
 
 
@@ -48,6 +65,11 @@ def _active(unit_name: str) -> bool:
     return result.returncode == 0
 
 
+def _enabled(unit_name: str) -> bool:
+    result = _run(["systemctl", "is-enabled", "--quiet", unit_name], allow_nonzero=True)
+    return result.returncode == 0
+
+
 def _main_pid(unit_name: str) -> int | None:
     raw = _run(
         ["systemctl", "show", unit_name, "--property", "MainPID", "--value"]
@@ -64,23 +86,36 @@ def _proc_argv(pid: int) -> tuple[str, ...]:
     return tuple(part.decode("utf-8", errors="strict") for part in raw.split(b"\0") if part)
 
 
-def _matching_weather_processes() -> tuple[tuple[str, ...], ...]:
+def _matching_weather_processes(db_path: Path) -> tuple[tuple[str, ...], ...]:
+    """Inventory canonical, obsolete/script-style, and explicit DB-using processes."""
     rows: list[tuple[str, ...]] = []
+    db_text = str(db_path.expanduser().resolve())
+    own_pid = os.getpid()
     for entry in Path("/proc").iterdir():
         if not entry.name.isdigit():
             continue
+        pid = int(entry.name)
+        if pid == own_pid:
+            continue
         try:
-            argv = _proc_argv(int(entry.name))
+            argv = _proc_argv(pid)
         except (FileNotFoundError, PermissionError, ProcessLookupError, UnicodeDecodeError):
             continue
-        if "polymarket_scanner.weather_only_live_paper" in " ".join(argv):
+        joined = " ".join(argv)
+        if db_text in joined or any(marker in joined for marker in KNOWN_WEATHER_WRITER_MARKERS):
             rows.append(argv)
     rows.sort(key=lambda row: " ".join(row))
     return tuple(rows)
 
 
-def collect_facts(*, unit_name: str, app_dir: Path, release_file: Path) -> WeatherRuntimeFacts:
+def collect_facts(
+    *, unit_name: str, app_dir: Path, release_file: Path, db_path: Path
+) -> WeatherRuntimeFacts:
     active = _active(unit_name)
+    # Preflight's inactive state must really be non-persistent. An enabled-but-stopped
+    # unit can return after reboot and is not a safe staging state.
+    if not active and _enabled(unit_name):
+        raise RuntimeError("INACTIVE_WEATHER_SERVICE_STILL_ENABLED")
     pid = _main_pid(unit_name) if active else None
     if active and pid is None:
         raise RuntimeError("ACTIVE_SERVICE_MAINPID_MISSING")
@@ -102,7 +137,7 @@ def collect_facts(*, unit_name: str, app_dir: Path, release_file: Path) -> Weath
         process_argv=argv,
         repo_head_sha=_repo_head(app_dir),
         release_marker_sha=_read_sha(release_file),
-        matching_weather_process_argvs=_matching_weather_processes(),
+        matching_weather_process_argvs=_matching_weather_processes(db_path),
     )
 
 
@@ -126,6 +161,7 @@ def main() -> int:
 
     app_dir = args.app_dir.expanduser().resolve()
     release_file = args.release_file.expanduser().resolve()
+    db_path = args.db.expanduser().resolve()
     environment_file = (
         args.environment_file.expanduser().resolve()
         if args.environment_file is not None
@@ -139,12 +175,13 @@ def main() -> int:
             unit_name=args.unit,
             app_dir=app_dir,
             release_file=release_file,
+            db_path=db_path,
         )
         attestation = attest_weather_runtime(
             facts,
             expected_app_dir=app_dir,
             expected_python=python,
-            expected_db_path=args.db,
+            expected_db_path=db_path,
             expected_status_path=args.status,
             expected_release_file=release_file,
             expected_environment_file=environment_file,
