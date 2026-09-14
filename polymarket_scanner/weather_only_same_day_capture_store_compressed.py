@@ -3,12 +3,12 @@ from __future__ import annotations
 """Lossless, bounded persistence for silent same-day three-layer evidence.
 
 The base capture store remains the compatibility boundary for existing PAPER data.
-This wrapper is used only by the guarded three-layer validation runtime.  New capture
+This wrapper is used only by the guarded three-layer validation runtime. New capture
 rows are stored as zlib-compressed canonical JSON while legacy uncompressed rows stay
-readable.  Every read revalidates the capture digest and the duplicated SQL identity
+readable. Every read revalidates the capture digest and the duplicated SQL identity
 columns before returning evidence.
 
-Compression is storage-only.  It does not alter the capture payload, authority flags,
+Compression is storage-only. It does not alter the capture payload, authority flags,
 research semantics, sampling cadence, attempt audit, or settlement/financial state.
 """
 
@@ -26,7 +26,7 @@ from .weather_only_same_day_capture_store import (
 )
 
 
-COMPRESSED_CAPTURE_STORE_VERSION = "weather_same_day_capture_store_v4_zlib_integrity"
+COMPRESSED_CAPTURE_STORE_VERSION = "weather_same_day_capture_store_v5_single_snapshot_integrity"
 LEGACY_CAPTURE_ENCODING = "json-utf8-v1"
 CURRENT_CAPTURE_ENCODING = "zlib-json-utf8-v1"
 MAX_UNCOMPRESSED_CAPTURE_BYTES = 2 * 1024 * 1024
@@ -161,7 +161,7 @@ class CompressedSameDayCaptureStore(SameDayCaptureStore):
 
         db = self._conn()
         try:
-            # Serialize capacity admission with the insert.  Without the immediate
+            # Serialize capacity admission with the insert. Without the immediate
             # write lock two writers could both observe the final free slot/bytes.
             db.execute("BEGIN IMMEDIATE")
             existing = db.execute(
@@ -232,13 +232,21 @@ class CompressedSameDayCaptureStore(SameDayCaptureStore):
             db.close()
 
     def _row_for_digest(self, digest: str) -> sqlite3.Row | None:
+        """Read metadata and payload in one SQLite statement/snapshot.
+
+        A previous implementation read the metadata first, closed that connection,
+        then opened a second connection for ``capture_json``. A concurrent database
+        replacement/update could therefore pair metadata from snapshot A with bytes
+        from snapshot B. Returning the payload in this same row removes that split-read
+        TOCTOU class entirely.
+        """
         with self._conn() as db:
             return db.execute(
                 """
                 SELECT id,store_version,capture_version,capture_sha256,event_id,station,
                        target_date,family,unit,as_of,status,block_reasons_json,
                        capture_encoding,capture_uncompressed_bytes,
-                       LENGTH(capture_json) AS stored_bytes
+                       capture_json,LENGTH(capture_json) AS stored_bytes
                   FROM weather_same_day_captures
                  WHERE capture_sha256=?
                 """,
@@ -250,6 +258,7 @@ class CompressedSameDayCaptureStore(SameDayCaptureStore):
         row = self._row_for_digest(digest)
         if row is None:
             return None
+
         encoding = str(row["capture_encoding"] or "").strip()
         stored_bytes = int(row["stored_bytes"] or 0)
         if stored_bytes <= 0:
@@ -265,18 +274,16 @@ class CompressedSameDayCaptureStore(SameDayCaptureStore):
         else:
             raise SameDayCaptureStoreError("SAME_DAY_CAPTURE_STORE_ENCODING_UNSUPPORTED")
 
-        with self._conn() as db:
-            payload_row = db.execute(
-                "SELECT capture_json FROM weather_same_day_captures WHERE id=?",
-                (int(row["id"]),),
-            ).fetchone()
-        if payload_row is None:
-            raise SameDayCaptureStoreError("SAME_DAY_CAPTURE_STORE_CAPTURE_DISAPPEARED")
-        stored = payload_row["capture_json"]
+        # ``capture_json`` came from the exact same SELECT as all shadow metadata.
+        # Never perform a second lookup by id here.
+        stored = row["capture_json"]
         if encoding == CURRENT_CAPTURE_ENCODING:
             if not isinstance(stored, (bytes, bytearray, memoryview)):
                 raise SameDayCaptureStoreError("SAME_DAY_CAPTURE_STORE_ENCODING_PAYLOAD_MISMATCH")
-            raw = _bounded_decompress(bytes(stored))
+            stored_blob = bytes(stored)
+            if len(stored_blob) != stored_bytes:
+                raise SameDayCaptureStoreError("SAME_DAY_CAPTURE_STORE_CAPTURE_STORAGE_INVALID")
+            raw = _bounded_decompress(stored_blob)
         else:
             if isinstance(stored, str):
                 raw = stored.encode("utf-8")
@@ -378,6 +385,7 @@ class CompressedSameDayCaptureStore(SameDayCaptureStore):
                 "lossless_compression": True,
                 "read_time_digest_verification": True,
                 "read_time_sql_identity_verification": True,
+                "single_snapshot_capture_read": True,
                 "bounded_decompression": True,
                 "legacy_uncompressed_read_compatible": True,
             }
