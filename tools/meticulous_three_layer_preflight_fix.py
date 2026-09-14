@@ -28,6 +28,8 @@ GEFS = "polymarket_scanner/weather_only_gefs_hourly.py"
 GUARDED = "polymarket_scanner/weather_only_three_layer_guarded.py"
 GEFS_TEST = "tests/test_weather_only_gefs_hourly.py"
 GUARDED_TEST = "tests/test_weather_only_three_layer_validation_guarded.py"
+CAPTURE_TEST = "tests/test_weather_only_same_day_capture.py"
+ENVELOPE_TEST = "tests/test_weather_only_same_day_envelope.py"
 
 # Open-Meteo explicitly supports UNIX epoch timestamps. Use them for the same-day
 # ensemble so the repeated local 01:00 hour on a fall-back DST day has two distinct
@@ -139,17 +141,24 @@ rep(
     '    with pytest.raises(GEFSHourlyError, match="GEFS_HOURLY_TEMPORAL_RESOLUTION_MISMATCH"):\n        _parse(query_temporal_resolution="native")\n',
     '    with pytest.raises(GEFSHourlyError, match="GEFS_HOURLY_TEMPORAL_RESOLUTION_MISMATCH"):\n        _parse(query_temporal_resolution="native")\n    with pytest.raises(GEFSHourlyError, match="GEFS_HOURLY_TIMEFORMAT_MISMATCH"):\n        _parse(query_timeformat="iso8601")\n',
 )
+rep(
+    GEFS_TEST,
+    '    payload["hourly"]["time"][10] = "2026-09-11T10:30"\n',
+    '    payload["hourly"]["time"][10] += 1800\n',
+)
 section(
     GEFS_TEST,
     "def _dst_payload(",
     "def test_fall_back_25_hour_day_accepts_explicit_offsets_but_rejects_ambiguous_naive_duplicate():",
-    '''def _dst_payload(times, timezone_name):\n    hourly = {"time": list(times)}\n    units = {"time": GEFS_HOURLY_TIMEFORMAT}\n    for member, key in enumerate(_keys()):\n        hourly[key] = [60.0 + member * 0.1 + index * 0.01 for index in range(len(times))]\n        units[key] = "°F"\n    return {\n        "latitude": 40.78,\n        "longitude": -73.87,\n        "timezone": timezone_name,\n        "hourly": hourly,\n        "hourly_units": units,\n    }\n\n\ndef _local_day_epochs(target: date, timezone_name: str) -> list[int]:\n    zone = ZoneInfo(timezone_name)\n    start = datetime(target.year, target.month, target.day, tzinfo=zone).timestamp()\n    following = date.fromordinal(target.toordinal() + 1)\n    end = datetime(following.year, following.month, following.day, tzinfo=zone).timestamp()\n    return [\n        int(value)\n        for value in range(int(start), int(end), GEFS_HOURLY_STEP_SECONDS)\n    ]\n\n\ndef test_spring_forward_23_hour_local_day_is_accepted_with_unambiguous_unix_instants():\n    target = date(2026, 3, 8)\n    times = _local_day_epochs(target, "America/New_York")\n    assert len(times) == 23\n    result = parse_open_meteo_gefs_hourly_target_day(\n        _dst_payload(times, "America/New_York"),\n        station="KLGA", target_date=target, unit="F", timezone="America/New_York",\n        requested_latitude=40.7769, requested_longitude=-73.8740, received_at=RECEIVED,\n    )\n    assert len(result.valid_times) == 23\n    assert all(\n        after - before == GEFS_HOURLY_STEP_SECONDS\n        for before, after in zip(result.valid_times, result.valid_times[1:])\n    )\n\n\n''',
+    '''def _dst_payload(times, timezone_name):\n    hourly = {"time": list(times)}\n    units = {"time": GEFS_HOURLY_TIMEFORMAT}\n    for member, key in enumerate(_keys()):\n        hourly[key] = [60.0 + member * 0.1 + index * 0.01 for index in range(len(times))]\n        units[key] = "°F"\n    return {\n        "latitude": 40.78,\n        "longitude": -73.87,\n        "timezone": timezone_name,\n        "hourly": hourly,\n        "hourly_units": units,\n    }\n\n\ndef _local_day_epochs(target: date, timezone_name: str) -> list[int]:\n    zone = ZoneInfo(timezone_name)\n    start = datetime(target.year, target.month, target.day, tzinfo=zone).timestamp()\n    following = date.fromordinal(target.toordinal() + 1)\n    end = datetime(following.year, following.month, following.day, tzinfo=zone).timestamp()\n    return list(range(int(start), int(end), GEFS_HOURLY_STEP_SECONDS))\n\n\ndef test_spring_forward_23_hour_local_day_is_accepted_with_unambiguous_unix_instants():\n    target = date(2026, 3, 8)\n    times = _local_day_epochs(target, "America/New_York")\n    assert len(times) == 23\n    result = parse_open_meteo_gefs_hourly_target_day(\n        _dst_payload(times, "America/New_York"),\n        station="KLGA", target_date=target, unit="F", timezone="America/New_York",\n        requested_latitude=40.7769, requested_longitude=-73.8740, received_at=RECEIVED,\n    )\n    assert len(result.valid_times) == 23\n    assert all(\n        after - before == GEFS_HOURLY_STEP_SECONDS\n        for before, after in zip(result.valid_times, result.valid_times[1:])\n    )\n\n\n''',
 )
+# Replace the complete old fall-back test through end-of-file. It was the final test in
+# this module and contained an obsolete naive-local ambiguity fixture.
 section(
     GEFS_TEST,
     "def test_fall_back_25_hour_day_accepts_explicit_offsets_but_rejects_ambiguous_naive_duplicate():",
-    "\n\n",
-    '''def test_fall_back_25_hour_day_accepts_both_repeated_wall_hours_as_distinct_epochs():\n    target = date(2026, 11, 1)\n    times = _local_day_epochs(target, "America/New_York")\n    assert len(times) == 25\n    result = parse_open_meteo_gefs_hourly_target_day(\n        _dst_payload(times, "America/New_York"),\n        station="KLGA", target_date=target, unit="F", timezone="America/New_York",\n        requested_latitude=40.7769, requested_longitude=-73.8740, received_at=RECEIVED,\n    )\n    assert len(result.valid_times) == 25\n    local_labels = [\n        datetime.fromtimestamp(value, tz=timezone.utc)\n        .astimezone(ZoneInfo("America/New_York"))\n        .strftime("%Y-%m-%d %H:%M %z")\n        for value in result.valid_times\n    ]\n    assert any("01:00 -0400" in value for value in local_labels)\n    assert any("01:00 -0500" in value for value in local_labels)\n\n    duplicate = list(times)\n    duplicate[2] = duplicate[1]\n    with pytest.raises(GEFSHourlyError, match="GEFS_HOURLY_TIME_INSTANT_DUPLICATE"):\n        parse_open_meteo_gefs_hourly_target_day(\n            _dst_payload(duplicate, "America/New_York"),\n            station="KLGA", target_date=target, unit="F", timezone="America/New_York",\n            requested_latitude=40.7769, requested_longitude=-73.8740, received_at=RECEIVED,\n        )\n''',
+    "\n# END_DST_TESTS\n" if "\n# END_DST_TESTS\n" in Path(GEFS_TEST).read_text(encoding="utf-8") else "\n\n\n",
+    '''def test_fall_back_25_hour_day_accepts_both_repeated_wall_hours_as_distinct_epochs():\n    target = date(2026, 11, 1)\n    times = _local_day_epochs(target, "America/New_York")\n    assert len(times) == 25\n    result = parse_open_meteo_gefs_hourly_target_day(\n        _dst_payload(times, "America/New_York"),\n        station="KLGA", target_date=target, unit="F", timezone="America/New_York",\n        requested_latitude=40.7769, requested_longitude=-73.8740, received_at=RECEIVED,\n    )\n    assert len(result.valid_times) == 25\n    local_labels = [\n        datetime.fromtimestamp(value, tz=timezone.utc)\n        .astimezone(ZoneInfo("America/New_York"))\n        .strftime("%Y-%m-%d %H:%M %z")\n        for value in result.valid_times\n    ]\n    assert any("01:00 -0400" in value for value in local_labels)\n    assert any("01:00 -0500" in value for value in local_labels)\n\n    duplicate = list(times)\n    duplicate[2] = duplicate[1]\n    with pytest.raises(GEFSHourlyError, match="GEFS_HOURLY_TIME_INSTANT_DUPLICATE"):\n        parse_open_meteo_gefs_hourly_target_day(\n            _dst_payload(duplicate, "America/New_York"),\n            station="KLGA", target_date=target, unit="F", timezone="America/New_York",\n            requested_latitude=40.7769, requested_longitude=-73.8740, received_at=RECEIVED,\n        )\n\n# END_DST_TESTS\n''',
 )
 
 # Guarded end-to-end request fixture and query assertions must prove the absolute-time
@@ -173,4 +182,29 @@ rep(
     GUARDED_TEST,
     '    assert query["temporal_resolution"] == [GEFS_HOURLY_TEMPORAL_RESOLUTION]\n    assert query["cell_selection"] == [GEFS_HOURLY_CELL_SELECTION]\n',
     '    assert query["temporal_resolution"] == [GEFS_HOURLY_TEMPORAL_RESOLUTION]\n    assert query["timeformat"] == [GEFS_HOURLY_TIMEFORMAT]\n    assert query["cell_selection"] == [GEFS_HOURLY_CELL_SELECTION]\n',
+)
+
+# Update all shared same-day fixtures, not only the direct GEFS unit tests. This keeps
+# replay/cadence tests exercising the exact new provider contract rather than silently
+# constructing an impossible legacy response.
+rep(CAPTURE_TEST, "from datetime import datetime, timedelta, timezone\n", "from datetime import datetime, timedelta, timezone\nfrom zoneinfo import ZoneInfo\n")
+rep(
+    CAPTURE_TEST,
+    "from polymarket_scanner.weather_only_gefs_hourly import parse_open_meteo_gefs_hourly_target_day\n",
+    "from polymarket_scanner.weather_only_gefs_hourly import (\n    GEFS_HOURLY_TIMEFORMAT,\n    parse_open_meteo_gefs_hourly_target_day,\n)\n",
+)
+rep(
+    CAPTURE_TEST,
+    '    hourly = {"time": [f"2026-09-11T{hour:02d}:00" for hour in range(24)]}\n    units = {"time": "iso8601"}\n',
+    '    start = datetime(2026, 9, 11, 0, 0, tzinfo=ZoneInfo(ZONE)).timestamp()\n    hourly = {"time": [int(start + hour * 3600) for hour in range(24)]}\n    units = {"time": GEFS_HOURLY_TIMEFORMAT}\n',
+)
+rep(
+    ENVELOPE_TEST,
+    "    build_verified_gefs_path_from_hourly,\n    parse_open_meteo_gefs_hourly_target_day,\n",
+    "    GEFS_HOURLY_TIMEFORMAT,\n    build_verified_gefs_path_from_hourly,\n    parse_open_meteo_gefs_hourly_target_day,\n",
+)
+rep(
+    ENVELOPE_TEST,
+    '    times = [f"2026-09-12T{hour:02d}:00" for hour in range(24)]\n    hourly = {"time": times}\n    units = {"time": "iso8601"}\n',
+    '    times = [int(_ts(hour)) for hour in range(24)]\n    hourly = {"time": times}\n    units = {"time": GEFS_HOURLY_TIMEFORMAT}\n',
 )
