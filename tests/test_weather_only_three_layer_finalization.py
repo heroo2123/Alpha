@@ -226,3 +226,12 @@ def test_status_verifier_requires_eligibility_scan_deadline_identity():
     status["same_day_three_layer"].pop("eligibility_scan_deadline_seconds")
     with pytest.raises(Exception, match="THREE_LAYER_ELIGIBILITY_DEADLINE_MISMATCH"):
         _verify(status)
+
+
+def test_three_layer_eligibility_uses_one_frozen_utc_clock_for_all_station_dates():
+    source = Path(
+        "polymarket_scanner/weather_only_live_paper_three_layer_validation.py"
+    ).read_text(encoding="utf-8")
+    assert "eligibility_now_utc = datetime.now(tz=timezone.utc)" in source
+    assert "eligibility_now_utc.astimezone(zone).date()" in source
+    assert "local_today = datetime.now(tz=zone).date()" not in source

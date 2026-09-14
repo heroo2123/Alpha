@@ -481,3 +481,184 @@ def test_eligibility_metadata_scan_has_one_total_deadline(monkeypatch):
     assert errors == ["SAME_DAY_ELIGIBILITY_SCAN_TIMEOUT"]
     assert service._three_layer_last_universe_truncated is True
     assert service._three_layer_last_selected_ids == ()
+
+
+def test_guarded_station_metadata_rejects_compressed_body_before_iteration():
+    from polymarket_scanner.weather_only_three_layer_guarded import (
+        GuardedSameDayStationMetadataClient,
+    )
+    from polymarket_scanner.weather_only_station_metadata import WeatherStationMetadataError
+
+    stream = TrackingAsyncStream([b"compressed-station-bomb"])
+
+    async def handler(request: httpx.Request):
+        return httpx.Response(
+            200,
+            headers={"Content-Encoding": "gzip"},
+            stream=stream,
+            request=request,
+        )
+
+    async def scenario():
+        client = GuardedSameDayStationMetadataClient()
+        await client.http.aclose()
+        client.http = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        try:
+            with pytest.raises(WeatherStationMetadataError, match="STATION_METADATA_UNSUPPORTED_ENCODING"):
+                await client.station("KLGA")
+        finally:
+            await client.close()
+
+    asyncio.run(scenario())
+    assert stream.iterated is False
+    assert stream.yielded_bytes == 0
+
+
+def test_guarded_station_metadata_never_follows_nws_cross_host_redirect():
+    from polymarket_scanner.weather_only_three_layer_guarded import (
+        GuardedSameDayStationMetadataClient,
+    )
+    from polymarket_scanner.weather_only_station_metadata import WeatherStationMetadataError
+
+    seen: list[str] = []
+
+    async def handler(request: httpx.Request):
+        seen.append(str(request.url))
+        return httpx.Response(
+            302,
+            headers={"Location": "https://evil.example/station"},
+            request=request,
+        )
+
+    async def scenario():
+        client = GuardedSameDayStationMetadataClient()
+        await client.http.aclose()
+        client.http = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        try:
+            with pytest.raises(WeatherStationMetadataError, match="STATION_METADATA_REDIRECT"):
+                await client.station("KLGA")
+        finally:
+            await client.close()
+
+    asyncio.run(scenario())
+    assert len(seen) == 1
+    assert "evil.example" not in seen[0]
+
+
+def test_token_bearing_metadata_backend_redirect_is_rejected_without_second_request(monkeypatch):
+    import polymarket_scanner.weather_only_three_layer_guarded as module
+
+    client = module.GuardedSameDayStationMetadataClient()
+    seen: list[str] = []
+
+    async def handler(request: httpx.Request):
+        seen.append(str(request.url))
+        return httpx.Response(
+            302,
+            headers={"Location": "https://evil.example/steal"},
+            request=request,
+        )
+
+    async def token():
+        return "secret-sentinel"
+
+    async def scenario():
+        from polymarket_scanner.weather_only_wrh_station_metadata import WRHStationMetadataError
+        await client.http.aclose()
+        client.http = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        monkeypatch.setattr(client, "_wrh_material", token)
+        try:
+            with pytest.raises(WRHStationMetadataError, match="WRH_STATION_METADATA_BACKEND_REDIRECT"):
+                await client._wrh_station("KLGA")
+        finally:
+            await client.close()
+
+    asyncio.run(scenario())
+    assert len(seen) == 1
+    assert "evil.example" not in seen[0]
+
+
+def test_same_day_wrapper_has_dedicated_guarded_station_metadata_client():
+    from pathlib import Path
+    import polymarket_scanner.weather_only_live_paper_three_layer_validation as module
+
+    source = Path(module.__file__).read_text(encoding="utf-8")
+    assert "GuardedSameDayStationMetadataClient" in source
+    assert "self._three_layer_station_client.station(station_id)" in source
+    assert "self.station_client = guarded_station" not in source
+
+
+def test_guarded_station_metadata_retries_transient_http_status_and_preserves_final_code(monkeypatch):
+    from polymarket_scanner.weather_only_three_layer_guarded import (
+        GuardedSameDayStationMetadataClient,
+    )
+    from polymarket_scanner.weather_only_station_metadata import WeatherStationMetadataError
+
+    async def scenario_success():
+        client = GuardedSameDayStationMetadataClient()
+        calls = 0
+        sentinel = object()
+
+        async def fake_nws(_station):
+            nonlocal calls
+            calls += 1
+            if calls < 3:
+                raise WeatherStationMetadataError("STATION_METADATA_RETRYABLE_HTTP_STATUS")
+            return sentinel
+
+        monkeypatch.setattr(client, "_nws_once", fake_nws)
+        monkeypatch.setattr("asyncio.sleep", lambda *_args, **_kwargs: asyncio.sleep(0))
+        try:
+            # Avoid monkeypatching asyncio.sleep recursively: the retries use zero by
+            # temporarily setting the module retry count path through real scheduling.
+            pass
+        finally:
+            await client.close()
+        return calls, sentinel
+
+    # Test retry policy without replacing asyncio.sleep globally.
+    async def success():
+        client = GuardedSameDayStationMetadataClient()
+        calls = 0
+        sentinel = object()
+        async def fake_nws(_station):
+            nonlocal calls
+            calls += 1
+            if calls < 3:
+                raise WeatherStationMetadataError("STATION_METADATA_RETRYABLE_HTTP_STATUS")
+            return sentinel
+        client._nws_once = fake_nws
+        import polymarket_scanner.weather_only_three_layer_guarded as module
+        old_sleep = module.asyncio.sleep
+        async def no_sleep(_delay):
+            return None
+        module.asyncio.sleep = no_sleep
+        try:
+            result = await client.station("KLGA")
+        finally:
+            module.asyncio.sleep = old_sleep
+            await client.close()
+        assert result is sentinel
+        assert calls == 3
+
+    asyncio.run(success())
+
+    async def exhausted():
+        client = GuardedSameDayStationMetadataClient()
+        async def fake_nws(_station):
+            raise WeatherStationMetadataError("STATION_METADATA_RETRYABLE_HTTP_STATUS")
+        client._nws_once = fake_nws
+        import polymarket_scanner.weather_only_three_layer_guarded as module
+        old_sleep = module.asyncio.sleep
+        async def no_sleep(_delay):
+            return None
+        module.asyncio.sleep = no_sleep
+        try:
+            with pytest.raises(WeatherStationMetadataError) as raised:
+                await client.station("KLGA")
+            assert raised.value.code == "STATION_METADATA_HTTP_STATUS"
+        finally:
+            module.asyncio.sleep = old_sleep
+            await client.close()
+
+    asyncio.run(exhausted())

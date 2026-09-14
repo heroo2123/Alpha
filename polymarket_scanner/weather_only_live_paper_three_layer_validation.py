@@ -16,7 +16,7 @@ authority remain disabled.
 import argparse
 import asyncio
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -31,6 +31,10 @@ from .weather_only_live_paper import (
     DEFAULT_MAX_FORECAST_EVENTS,
     _atomic_json,
 )
+from .weather_only_live_paper_corrective import (
+    STATION_METADATA_CACHE_MAX_ENTRIES,
+    STATION_METADATA_CACHE_TTL_SECONDS,
+)
 from .weather_only_live_paper_final import FinalWeatherLivePaperService
 from .weather_only_live_paper_v2 import DEFAULT_PAPER_STAKE_USD
 from .weather_only_rules import compile_temperature_rule_authority
@@ -38,6 +42,7 @@ from .weather_only_same_day_contract import build_same_day_contract_semantics
 from .weather_only_same_day_capture_store import SameDayCaptureStore
 from .weather_only_three_layer_guarded import (
     GuardedNWSNearTermGridClient,
+    GuardedSameDayStationMetadataClient,
     GuardedNWSWRHLiveClient,
     GuardedOpenMeteoGEFSHourlyClient,
 )
@@ -96,6 +101,7 @@ class ThreeLayerValidationWeatherLivePaperService(FinalWeatherLivePaperService):
         guarded_wrh = GuardedNWSWRHLiveClient()
         guarded_nws = GuardedNWSNearTermGridClient()
         guarded_gefs = GuardedOpenMeteoGEFSHourlyClient()
+        guarded_station = GuardedSameDayStationMetadataClient()
 
         self._three_layer_superseded_wrh = self._same_day_wrh
         self._three_layer_superseded_nws = self._same_day_nws
@@ -103,6 +109,7 @@ class ThreeLayerValidationWeatherLivePaperService(FinalWeatherLivePaperService):
         self._same_day_wrh = guarded_wrh
         self._same_day_nws = guarded_nws
         self._same_day_gefs = guarded_gefs
+        self._three_layer_station_client = guarded_station
         self._three_layer_last_eligible_total = 0
         self._three_layer_last_selected_ids: tuple[str, ...] = ()
         self._three_layer_last_universe_truncated = False
@@ -112,12 +119,38 @@ class ThreeLayerValidationWeatherLivePaperService(FinalWeatherLivePaperService):
             self._three_layer_superseded_wrh.close()
         except Exception:
             pass
+        station_client = getattr(self, "_three_layer_station_client", None)
+        station_close = (
+            station_client.close() if station_client is not None else asyncio.sleep(0)
+        )
         await asyncio.gather(
+            station_close,
             self._three_layer_superseded_nws.close(),
             self._three_layer_superseded_gefs.close(),
             return_exceptions=True,
         )
         await super().close()
+
+    async def _station_metadata_for_compiled(self, compiled):
+        # This virtual hook is also used by the inherited future-day lane. Only
+        # acquisition safety changes here; parser/identity semantics are unchanged.
+        station_id = str(compiled.station_hint or "").strip().upper()
+        if not station_id:
+            return None
+        now = self._station_cache_now()
+        cached = self._bounded_station_metadata.get(station_id)
+        if cached is not None:
+            age = now - float(cached[0])
+            if 0.0 <= age <= STATION_METADATA_CACHE_TTL_SECONDS:
+                self._bounded_station_metadata.move_to_end(station_id)
+                return cached[1]
+            self._bounded_station_metadata.pop(station_id, None)
+        metadata = await self._three_layer_station_client.station(station_id)
+        self._bounded_station_metadata[station_id] = (now, metadata)
+        self._bounded_station_metadata.move_to_end(station_id)
+        while len(self._bounded_station_metadata) > STATION_METADATA_CACHE_MAX_ENTRIES:
+            self._bounded_station_metadata.popitem(last=False)
+        return metadata
 
     async def _same_day_eligible(self, events: tuple[dict, ...]) -> tuple[list[tuple], list[str]]:
         eligible: list[tuple[str, dict, object, object, object]] = []
@@ -125,6 +158,7 @@ class ThreeLayerValidationWeatherLivePaperService(FinalWeatherLivePaperService):
         seen_event_ids: set[str] = set()
         loop = asyncio.get_running_loop()
         scan_deadline = loop.time() + THREE_LAYER_ELIGIBILITY_SCAN_DEADLINE_SECONDS
+        eligibility_now_utc = datetime.now(tz=timezone.utc)
 
         def timeout_result():
             self._three_layer_last_eligible_total = len(eligible)
@@ -168,7 +202,7 @@ class ThreeLayerValidationWeatherLivePaperService(FinalWeatherLivePaperService):
                 if metadata is None:
                     continue
                 zone = ZoneInfo(str(metadata.timezone))
-                local_today = datetime.now(tz=zone).date()
+                local_today = eligibility_now_utc.astimezone(zone).date()
             except TimeoutError:
                 return timeout_result()
             except (ZoneInfoNotFoundError, AttributeError, ValueError) as exc:
