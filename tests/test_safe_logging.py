@@ -23,8 +23,8 @@ def test_redact_secret_text_removes_synoptic_env_and_query_tokens(monkeypatch):
     safe = redact_secret_text(raw)
     assert token not in safe
     assert "explicit-other-secret" not in safe
-    assert "token=<redacted-api-credential>" in safe
-    assert "apiKey=<redacted-api-credential>" in safe
+    assert "token=<redacted-api-key>" in safe
+    assert "apiKey=<redacted-api-key>" in safe
 
 
 def test_redact_secret_text_still_protects_superseded_weather_company_key(monkeypatch):
