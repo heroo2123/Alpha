@@ -36,7 +36,8 @@ def _station(
     observed_at: float | None = None,
     mnet: str = SYNOPTIC_CWOP_NETWORK_ID,
     status: str = "ACTIVE",
-    restricted: bool = False,
+    restricted: object = False,
+    qc_flagged: object = False,
     sensor_key: str = "air_temp_value_1",
     extra_observations: dict | None = None,
 ) -> dict:
@@ -49,22 +50,36 @@ def _station(
         "MNET_ID": mnet,
         "STATUS": status,
         "RESTRICTED": restricted,
-        "QC_FLAGGED": False,
+        "QC_FLAGGED": qc_flagged,
         "LATITUDE": str(lat),
         "LONGITUDE": str(lon),
         "OBSERVATIONS": observations,
     }
 
 
-def _payload(stations: list[dict], *, code: int = 1, unit: str = "Fahrenheit") -> dict:
+def _payload(
+    stations: list[dict],
+    *,
+    code: int = 1,
+    unit: str = "Fahrenheit",
+    qc_checks: list[str] | None = None,
+    number_of_objects: int | None = None,
+) -> dict:
+    checks = (
+        ["sl_range_check", "sl_rate_check", "sl_pers_check"]
+        if qc_checks is None
+        else qc_checks
+    )
     return {
         "UNITS": {"air_temp": unit},
-        "QC_SUMMARY": {"QC_CHECKS_APPLIED": ["sl_range_check"]},
+        "QC_SUMMARY": {"QC_CHECKS_APPLIED": checks},
         "STATION": stations,
         "SUMMARY": {
             "RESPONSE_CODE": code,
             "RESPONSE_MESSAGE": "OK" if code == 1 else "not ok",
-            "NUMBER_OF_OBJECTS": len(stations),
+            "NUMBER_OF_OBJECTS": (
+                len(stations) if number_of_objects is None else number_of_objects
+            ),
         },
     }
 
@@ -164,11 +179,40 @@ def test_synoptic_summary_codes_fail_closed():
         asyncio.run(scenario())
 
 
-def test_wrong_network_inactive_restricted_and_distant_stations_are_rejected():
+def test_success_response_requires_station_count_and_core_qc_evidence():
+    malformed_bodies = []
+    missing_station = _payload([_station("CW1")])
+    missing_station.pop("STATION")
+    malformed_bodies.append(missing_station)
+    malformed_bodies.append(_payload([_station("CW1")], number_of_objects=2))
+    missing_qc = _payload([_station("CW1")])
+    missing_qc.pop("QC_SUMMARY")
+    malformed_bodies.append(missing_qc)
+    malformed_bodies.append(
+        _payload([_station("CW1")], qc_checks=["sl_range_check"])
+    )
+
+    for body in malformed_bodies:
+        async def handler(request, body=body):
+            return httpx.Response(200, request=request, json=body)
+
+        async def scenario():
+            async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+                result = await SynopticCWOPPWSClient(token="t", http=http).fetch_snapshot(
+                    latitude=LAT, longitude=LON, unit="F"
+                )
+                assert result.status == PWS_STATUS_MALFORMED_RESPONSE
+                assert result.observations == ()
+
+        asyncio.run(scenario())
+
+
+def test_wrong_network_inactive_restricted_qc_flagged_and_distant_stations_are_rejected():
     stations = [
         _station("WRONGNET", mnet="1"),
         _station("INACTIVE", status="INACTIVE"),
         _station("RESTRICTED", restricted=True),
+        _station("QCFLAG", qc_flagged=True),
         _station("DISTANT", lat=LAT + 1.0),
     ]
 
@@ -186,7 +230,30 @@ def test_wrong_network_inactive_restricted_and_distant_stations_are_rejected():
             assert "REJECT_NETWORK" in outcomes
             assert "REJECT_INACTIVE" in outcomes
             assert "REJECT_RESTRICTED" in outcomes
+            assert "REJECT_QC_FLAGGED" in outcomes
             assert "PWS_OBSERVATION_DISTANCE_EXCEEDED" in outcomes
+
+    asyncio.run(scenario())
+
+
+def test_malformed_provider_booleans_do_not_coerce_to_safe_values():
+    stations = [
+        _station("BADRESTRICTED", restricted="false"),
+        _station("BADQC", qc_flagged=0),
+    ]
+
+    async def handler(request):
+        return httpx.Response(200, request=request, json=_payload(stations))
+
+    async def scenario():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+            result = await SynopticCWOPPWSClient(token="t", http=http).fetch_snapshot(
+                latitude=LAT, longitude=LON, unit="F"
+            )
+            assert result.status == PWS_STATUS_NO_FRESH_QC
+            outcomes = {row.outcome for row in result.attempts}
+            assert "PWS_SYNOPTIC_RESTRICTED_INVALID" in outcomes
+            assert "PWS_SYNOPTIC_QC_FLAGGED_INVALID" in outcomes
 
     asyncio.run(scenario())
 
@@ -254,25 +321,20 @@ def test_wrong_provider_unit_is_rejected():
     asyncio.run(scenario())
 
 
-def test_primary_sensor_wins_and_ambiguous_nonprimary_sensors_fail_closed():
-    primary = _station(
-        "PRIMARY",
-        temp=81.0,
-        extra_observations={
-            "air_temp_value_2": {"date_time": str(int(time.time() - 20)), "value": 99.0}
-        },
-    )
+def test_multiple_direct_sensors_and_derived_only_temperature_fail_closed():
     ambiguous = _station(
         "AMB",
-        sensor_key="air_temp_value_2",
+        sensor_key="air_temp_value_1",
         temp=79.0,
         extra_observations={
-            "air_temp_value_3": {"date_time": str(int(time.time() - 20)), "value": 80.0}
+            "air_temp_value_2": {"date_time": str(int(time.time() - 20)), "value": 80.0}
         },
     )
+    derived = _station("DERIVED", sensor_key="air_temp_value_1d", temp=82.0)
+    direct = _station("DIRECT", sensor_key="air_temp_value_3", temp=81.0)
 
     async def handler(request):
-        return httpx.Response(200, request=request, json=_payload([primary, ambiguous]))
+        return httpx.Response(200, request=request, json=_payload([ambiguous, derived, direct]))
 
     async def scenario():
         async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
@@ -282,14 +344,33 @@ def test_primary_sensor_wins_and_ambiguous_nonprimary_sensors_fail_closed():
             assert result.status == PWS_STATUS_AVAILABLE
             assert len(result.observations) == 1
             row = result.observations[0]
-            assert row.station_id == "PRIMARY"
+            assert row.station_id == "DIRECT"
             assert row.temperature == 81.0
-            assert row.provider_sensor_id == "air_temp_value_1"
+            assert row.provider_sensor_id == "air_temp_value_3"
             assert row.source == SYNOPTIC_PWS_SOURCE
             assert row.settlement_authority is False
             assert row.financial_authority is False
             outcomes = {attempt.station_id: attempt.outcome for attempt in result.attempts}
             assert outcomes["AMB"] == "REJECT_TEMPERATURE_MISSING_OR_AMBIGUOUS"
+            assert outcomes["DERIVED"] == "REJECT_TEMPERATURE_MISSING_OR_AMBIGUOUS"
+
+    asyncio.run(scenario())
+
+
+def test_nonempty_observation_qc_payload_is_rejected_even_if_station_flag_is_false():
+    station = _station("QCROW")
+    station["OBSERVATIONS"]["air_temp_value_1"]["qc"] = ["sl_rate_check"]
+
+    async def handler(request):
+        return httpx.Response(200, request=request, json=_payload([station]))
+
+    async def scenario():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+            result = await SynopticCWOPPWSClient(token="t", http=http).fetch_snapshot(
+                latitude=LAT, longitude=LON, unit="F"
+            )
+            assert result.status == PWS_STATUS_NO_FRESH_QC
+            assert result.attempts[0].outcome == "REJECT_OBSERVATION_QC_FLAGGED"
 
     asyncio.run(scenario())
 
