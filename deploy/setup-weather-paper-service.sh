@@ -18,19 +18,12 @@ TMP_ENV="$(mktemp)"
 UNIT_DIR="$(mktemp -d)"
 TMP_UNIT="${UNIT_DIR}/polymarket-weather-paper.service"
 trap 'rm -f "${TMP_ENV}"; rm -rf "${UNIT_DIR}"' EXIT
-# Paper service receives ONLY Telegram delivery credentials plus the optional,
-# read-only Weather Company PWS API key used by silent same-day diagnostics. Do not
-# copy wallet, exchange, cloud, database, or other legacy bot configuration.
-grep -E '^[[:space:]]*(TELEGRAM_BOT_TOKEN|TELEGRAM_CHAT_ID|WEATHER_PWS_API_KEY)=' "${BOT_ENV}" > "${TMP_ENV}" || true
-[[ "$(grep -c -E '^[[:space:]]*TELEGRAM_BOT_TOKEN=' "${TMP_ENV}" || true)" -eq 1 ]] || {
-  echo 'TELEGRAM_BOT_TOKEN missing/duplicated in bot.env' >&2; exit 1;
-}
-[[ "$(grep -c -E '^[[:space:]]*TELEGRAM_CHAT_ID=' "${TMP_ENV}" || true)" -eq 1 ]] || {
-  echo 'TELEGRAM_CHAT_ID missing/duplicated in bot.env' >&2; exit 1;
-}
-[[ "$(grep -c -E '^[[:space:]]*WEATHER_PWS_API_KEY=' "${TMP_ENV}" || true)" -le 1 ]] || {
-  echo 'WEATHER_PWS_API_KEY duplicated in bot.env' >&2; exit 1;
-}
+
+# Extract an executable allowlist rather than grepping the whole legacy environment.
+# The optional WEATHER_PWS_API_KEY is read-only diagnostic authority; wallet, exchange,
+# cloud and unrelated secrets never enter the weather-paper environment.
+"${APP_DIR}/.venv/bin/python" "${APP_DIR}/deploy/extract-weather-paper-env.py" \
+  --source "${BOT_ENV}" --output "${TMP_ENV}"
 install -m 0600 "${TMP_ENV}" "${PAPER_ENV}"
 
 "${APP_DIR}/.venv/bin/python" "${APP_DIR}/deploy/render-weather-paper-unit.py" \
