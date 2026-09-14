@@ -104,6 +104,7 @@ class WeatherLivePaperCorrectiveService(WeatherLivePaperV4Service):
             self.positions = CorrectiveWeatherPaperStore(self.db_path)
             self.same_day_research = SameDayResearchStore(self.db_path)
             self.same_day_captures = SameDayCaptureStore(self.db_path)
+            self._same_day_attempt_recovery = self.same_day_captures.reconcile_started_attempts()
             self.settlement = CorrectiveSettlementEngine(store=self.positions, telegram=self.telegram)
             self.commands = CanonicalWeatherPaperCommandController(
                 telegram=self.telegram,
@@ -127,9 +128,6 @@ class WeatherLivePaperCorrectiveService(WeatherLivePaperV4Service):
             self._same_day_wrh = NWSWRHLiveClient()
             self._same_day_nws = NWSNearTermGridClient()
             self._same_day_gefs = OpenMeteoGEFSHourlyClient()
-            # In-memory throttle protects repeated source failures inside one process.
-            # Successful captures are additionally throttled from durable SQLite state.
-            self._same_day_last_attempt: dict[str, float] = {}
         except BaseException:
             self._runtime_lease.close()
             raise
@@ -267,20 +265,22 @@ class WeatherLivePaperCorrectiveService(WeatherLivePaperV4Service):
         eligible, errors = await self._same_day_eligible(events)
         attempted = saved = blocked = ready = duplicates = cadence_skipped = 0
         block_reasons: dict[str, int] = {}
-        now = time.time()
-        bundle_cache: dict[tuple, tuple] = {}
+        bundle_cache: dict[tuple, tuple | Exception] = {}
 
         for event_id, _event, compiled, semantics, metadata in eligible:
+            now = time.time()
             try:
-                persisted_last = await asyncio.to_thread(
+                persisted_capture = await asyncio.to_thread(
                     self.same_day_captures.latest_as_of_for_event, event_id
+                )
+                persisted_attempt = await asyncio.to_thread(
+                    self.same_day_captures.latest_attempt_at_for_event, event_id
                 )
             except Exception as exc:
                 code = getattr(exc, "code", type(exc).__name__)
                 errors.append(f"SAME_DAY_CADENCE_STATE:{event_id}:{code}")
                 continue
-            memory_last = float(self._same_day_last_attempt.get(event_id, 0.0))
-            last = max(memory_last, float(persisted_last or 0.0))
+            last = max(float(persisted_capture or 0.0), float(persisted_attempt or 0.0))
             if last > now + 1.0:
                 errors.append(f"SAME_DAY_CADENCE_CLOCK_ROLLBACK:{event_id}")
                 cadence_skipped += 1
@@ -289,7 +289,21 @@ class WeatherLivePaperCorrectiveService(WeatherLivePaperV4Service):
                 cadence_skipped += 1
                 continue
 
-            self._same_day_last_attempt[event_id] = now
+            try:
+                attempt_id = await asyncio.to_thread(
+                    self.same_day_captures.start_attempt,
+                    event_id=event_id,
+                    station=str(compiled.station_hint).upper(),
+                    target_date=compiled.target_date.isoformat(),
+                    family=str(compiled.family),
+                    unit=str(compiled.unit),
+                    attempted_at=now,
+                )
+            except Exception as exc:
+                code = getattr(exc, "code", type(exc).__name__)
+                errors.append(f"SAME_DAY_ATTEMPT_AUDIT_START:{event_id}:{code}")
+                continue
+
             attempted += 1
             key = (
                 str(compiled.station_hint).upper(),
@@ -301,8 +315,16 @@ class WeatherLivePaperCorrectiveService(WeatherLivePaperV4Service):
             )
             try:
                 if key not in bundle_cache:
-                    bundle_cache[key] = await self._fetch_same_day_source_bundle(compiled, metadata)
-                wrh_result, nws_snapshot, hourly_gefs = bundle_cache[key]
+                    try:
+                        bundle_cache[key] = await self._fetch_same_day_source_bundle(
+                            compiled, metadata
+                        )
+                    except Exception as source_exc:
+                        bundle_cache[key] = source_exc
+                bundle_value = bundle_cache[key]
+                if isinstance(bundle_value, Exception):
+                    raise bundle_value
+                wrh_result, nws_snapshot, hourly_gefs = bundle_value
                 # Decision t is frozen only after every awaited source receipt exists.
                 as_of = time.time()
                 record = assemble_same_day_capture(
@@ -320,12 +342,38 @@ class WeatherLivePaperCorrectiveService(WeatherLivePaperV4Service):
             except Exception as exc:
                 code = getattr(exc, "code", type(exc).__name__)
                 errors.append(f"SAME_DAY_CAPTURE:{event_id}:{code}")
+                try:
+                    await asyncio.to_thread(
+                        self.same_day_captures.finish_attempt,
+                        attempt_id,
+                        outcome="FAILED",
+                        completed_at=time.time(),
+                        error_code=str(code),
+                    )
+                except Exception as audit_exc:
+                    audit_code = getattr(audit_exc, "code", type(audit_exc).__name__)
+                    errors.append(
+                        f"SAME_DAY_ATTEMPT_AUDIT_FINISH:{event_id}:{audit_code}"
+                    )
                 continue
 
             if row_id is None:
                 duplicates += 1
+                audit_outcome = "DUPLICATE"
             else:
                 saved += 1
+                audit_outcome = "SAVED"
+            try:
+                await asyncio.to_thread(
+                    self.same_day_captures.finish_attempt,
+                    attempt_id,
+                    outcome=audit_outcome,
+                    completed_at=time.time(),
+                    capture_sha256=record.capture_sha256,
+                )
+            except Exception as audit_exc:
+                audit_code = getattr(audit_exc, "code", type(audit_exc).__name__)
+                errors.append(f"SAME_DAY_ATTEMPT_AUDIT_FINISH:{event_id}:{audit_code}")
             if record.status == SAME_DAY_CAPTURE_BLOCKED:
                 blocked += 1
             elif record.status == SAME_DAY_CAPTURE_READY:
@@ -350,6 +398,10 @@ class WeatherLivePaperCorrectiveService(WeatherLivePaperV4Service):
             "store": summary,
             "capture_cooldown_seconds": SAME_DAY_CAPTURE_COOLDOWN_SECONDS,
             "capture_cadence_persisted_in_sqlite": True,
+            "attempt_audit_persisted_in_sqlite": True,
+            "attempt_recovery_at_startup": int(
+                getattr(self, "_same_day_attempt_recovery", 0)
+            ),
             "max_events_per_cycle": DEFAULT_MAX_SAME_DAY_CAPTURE_EVENTS,
             "theoretical_31_day_row_bound_at_full_daily_eligibility": SAME_DAY_MONTHLY_ROW_BOUND_31D,
             "automatic_evidence_pruning": False,

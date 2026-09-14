@@ -35,6 +35,7 @@ from .weather_only_live_paper_final import FinalWeatherLivePaperService
 from .weather_only_live_paper_v2 import DEFAULT_PAPER_STAKE_USD
 from .weather_only_rules import compile_temperature_rule_authority
 from .weather_only_same_day_contract import build_same_day_contract_semantics
+from .weather_only_same_day_capture_store import SameDayCaptureStore
 from .weather_only_three_layer_guarded import (
     GuardedNWSNearTermGridClient,
     GuardedNWSWRHLiveClient,
@@ -54,6 +55,8 @@ THREE_LAYER_CURSOR_KEY = "same_day_three_layer_rotation_cursor_v1"
 # collector. Restricting the rotating universe to 12 therefore bounds saved rows to
 # 12 * 24 * 31 in any theoretical fully-active 31-day interval.
 THREE_LAYER_31D_CAPTURE_ROW_BOUND = THREE_LAYER_SELECTION_UNIVERSE_CAP * 24 * 31
+THREE_LAYER_CAPTURE_JSON_BYTES_CAP = 512 * 1024 * 1024
+THREE_LAYER_ATTEMPT_ROW_CAP = THREE_LAYER_31D_CAPTURE_ROW_BOUND
 
 
 def _rotate_after_cursor(rows: list[tuple], cursor: str, limit: int) -> list[tuple]:
@@ -77,6 +80,15 @@ class ThreeLayerValidationWeatherLivePaperService(FinalWeatherLivePaperService):
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
 
+        # Re-open the same SQLite-backed capture facade with explicit hard limits.
+        # Existing rows are preserved; exhaustion fails closed instead of pruning.
+        self.same_day_captures = SameDayCaptureStore(
+            self.db_path,
+            max_capture_rows=THREE_LAYER_31D_CAPTURE_ROW_BOUND,
+            max_capture_json_bytes=THREE_LAYER_CAPTURE_JSON_BYTES_CAP,
+            max_attempt_rows=THREE_LAYER_ATTEMPT_ROW_CAP,
+        )
+
         # These constructors perform no network I/O. Keep the inherited clients alive
         # until all replacements exist, then swap atomically from the service's point
         # of view; superseded async pools are closed during service shutdown.
@@ -94,7 +106,10 @@ class ThreeLayerValidationWeatherLivePaperService(FinalWeatherLivePaperService):
         self._three_layer_last_universe_truncated = False
 
     async def close(self) -> None:
-        self._same_day_wrh.close()
+        try:
+            self._same_day_wrh.close()
+        except Exception:
+            pass
         await asyncio.gather(
             self._three_layer_superseded_nws.close(),
             self._three_layer_superseded_gefs.close(),
@@ -147,8 +162,16 @@ class ThreeLayerValidationWeatherLivePaperService(FinalWeatherLivePaperService):
 
         eligible.sort(key=lambda item: item[0])
         self._three_layer_last_eligible_total = len(eligible)
-        universe = eligible[:THREE_LAYER_SELECTION_UNIVERSE_CAP]
-        self._three_layer_last_universe_truncated = len(eligible) > len(universe)
+        if len(eligible) > THREE_LAYER_SELECTION_UNIVERSE_CAP:
+            self._three_layer_last_universe_truncated = True
+            self._three_layer_last_selected_ids = ()
+            errors.append(
+                f"SAME_DAY_SELECTION_UNIVERSE_CAP_EXCEEDED:{len(eligible)}>"
+                f"{THREE_LAYER_SELECTION_UNIVERSE_CAP}"
+            )
+            return [], errors
+        universe = eligible
+        self._three_layer_last_universe_truncated = False
         cursor = self.positions.get_state(THREE_LAYER_CURSOR_KEY, "")
         selected = _rotate_after_cursor(
             universe, cursor, THREE_LAYER_MAX_EVENTS_PER_CYCLE
@@ -216,6 +239,8 @@ class ThreeLayerValidationWeatherLivePaperService(FinalWeatherLivePaperService):
                 "theoretical_31_day_row_bound_at_full_daily_eligibility": (
                     THREE_LAYER_31D_CAPTURE_ROW_BOUND
                 ),
+                "capture_json_bytes_cap": THREE_LAYER_CAPTURE_JSON_BYTES_CAP,
+                "attempt_row_cap": THREE_LAYER_ATTEMPT_ROW_CAP,
                 "population_alignment_certified": False,
                 "calibrated_probability": False,
                 "included_in_validated_pnl": False,

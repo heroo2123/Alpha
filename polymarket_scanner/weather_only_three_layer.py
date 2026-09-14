@@ -308,7 +308,7 @@ def build_three_layer_research_decision(
             station=station,
             unit=contract.unit,
             family=contract.family,
-            issued_at=min(float(near.issued_at), float(ensemble_path.issued_at)),
+            issued_at=max(float(near.issued_at), float(ensemble_path.issued_at)),
             received_at=max(float(near.received_at), float(ensemble_path.received_at)),
             target_end=float(coverage.target_end),
             unresolved_segments=(near.segment, *ensemble_path.unresolved_segments),

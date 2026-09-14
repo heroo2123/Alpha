@@ -206,3 +206,10 @@ def test_overlapping_grid_intervals_are_rejected_not_last_write_wins():
     ]
     with pytest.raises(NWSNearTermError, match="NWS_NEAR_TERM_INTERVAL_OVERLAP"):
         _parse(grid=grid)
+
+
+
+def test_stale_grid_update_is_not_accepted_as_current_layer2_evidence():
+    stale = _grid(update="2026-09-13T03:00:00+00:00")
+    with pytest.raises(NWSNearTermError, match="NWS_NEAR_TERM_UPDATE_STALE"):
+        _parse(grid=stale)

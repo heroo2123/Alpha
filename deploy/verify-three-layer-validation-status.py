@@ -17,6 +17,8 @@ if str(_SCRIPT_ROOT) not in sys.path:
 
 from polymarket_scanner.weather_only_live_paper_three_layer_validation import (  # noqa: E402
     THREE_LAYER_31D_CAPTURE_ROW_BOUND,
+    THREE_LAYER_CAPTURE_JSON_BYTES_CAP,
+    THREE_LAYER_ATTEMPT_ROW_CAP,
     THREE_LAYER_SELECTION_POLICY,
     THREE_LAYER_SELECTION_UNIVERSE_CAP,
     THREE_LAYER_SOURCE_BUNDLE_DEADLINE_SECONDS,
@@ -109,6 +111,22 @@ def verify(
         raise ThreeLayerStatusError("THREE_LAYER_SOURCE_DEADLINE_MISMATCH")
     if lane.get("theoretical_31_day_row_bound_at_full_daily_eligibility") != THREE_LAYER_31D_CAPTURE_ROW_BOUND:
         raise ThreeLayerStatusError("THREE_LAYER_STORAGE_BOUND_MISMATCH")
+    if lane.get("capture_json_bytes_cap") != THREE_LAYER_CAPTURE_JSON_BYTES_CAP:
+        raise ThreeLayerStatusError("THREE_LAYER_CAPTURE_BYTE_CAP_MISMATCH")
+    if lane.get("attempt_row_cap") != THREE_LAYER_ATTEMPT_ROW_CAP:
+        raise ThreeLayerStatusError("THREE_LAYER_ATTEMPT_ROW_CAP_MISMATCH")
+    store = lane.get("store")
+    if not isinstance(store, dict):
+        raise ThreeLayerStatusError("THREE_LAYER_STORE_STATUS_MISSING")
+    if store.get("max_capture_rows") != THREE_LAYER_31D_CAPTURE_ROW_BOUND:
+        raise ThreeLayerStatusError("THREE_LAYER_STORE_ROW_CAP_MISMATCH")
+    if store.get("max_capture_json_bytes") != THREE_LAYER_CAPTURE_JSON_BYTES_CAP:
+        raise ThreeLayerStatusError("THREE_LAYER_STORE_BYTE_CAP_MISMATCH")
+    attempts = store.get("attempts")
+    if not isinstance(attempts, dict) or attempts.get("max_attempt_rows") != THREE_LAYER_ATTEMPT_ROW_CAP:
+        raise ThreeLayerStatusError("THREE_LAYER_STORE_ATTEMPT_CAP_MISMATCH")
+    if store.get("capture_capacity_exhausted") is True or attempts.get("capacity_exhausted") is True:
+        raise ThreeLayerStatusError("THREE_LAYER_STORE_CAPACITY_EXHAUSTED")
     if list(lane.get("errors") or []):
         raise ThreeLayerStatusError("THREE_LAYER_SOURCE_ERRORS_PRESENT")
     _require_false(lane, "population_alignment_certified", "THREE_LAYER_LANE_ALIGNMENT_NOT_FALSE")

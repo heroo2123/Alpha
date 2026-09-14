@@ -219,3 +219,59 @@ def test_lookup_u_t_grid_must_be_covered_by_returned_target_day():
             unresolved_segments=unresolved,
         )
     assert raised.value.code == "GEFS_HOURLY_UNRESOLVED_GRID_NOT_COVERED"
+
+
+
+def _dst_payload(times, timezone_name):
+    hourly = {"time": list(times)}
+    units = {"time": "iso8601"}
+    for member, key in enumerate(_keys()):
+        hourly[key] = [60.0 + member * 0.1 + index * 0.01 for index in range(len(times))]
+        units[key] = "°F"
+    return {
+        "latitude": 40.78,
+        "longitude": -73.87,
+        "timezone": timezone_name,
+        "hourly": hourly,
+        "hourly_units": units,
+    }
+
+
+def test_spring_forward_23_hour_local_day_is_accepted_when_grid_is_complete_in_real_time():
+    target = date(2026, 3, 8)
+    times = ["2026-03-08T00:00", "2026-03-08T01:00"] + [
+        f"2026-03-08T{hour:02d}:00" for hour in range(3, 24)
+    ]
+    result = parse_open_meteo_gefs_hourly_target_day(
+        _dst_payload(times, "America/New_York"),
+        station="KLGA", target_date=target, unit="F", timezone="America/New_York",
+        requested_latitude=40.7769, requested_longitude=-73.8740, received_at=RECEIVED,
+    )
+    assert len(result.valid_times) == 23
+    assert all(
+        after - before == GEFS_HOURLY_STEP_SECONDS
+        for before, after in zip(result.valid_times, result.valid_times[1:])
+    )
+
+
+def test_fall_back_25_hour_day_accepts_explicit_offsets_but_rejects_ambiguous_naive_duplicate():
+    target = date(2026, 11, 1)
+    explicit = ["2026-11-01T00:00-04:00", "2026-11-01T01:00-04:00", "2026-11-01T01:00-05:00"] + [
+        f"2026-11-01T{hour:02d}:00-05:00" for hour in range(2, 24)
+    ]
+    result = parse_open_meteo_gefs_hourly_target_day(
+        _dst_payload(explicit, "America/New_York"),
+        station="KLGA", target_date=target, unit="F", timezone="America/New_York",
+        requested_latitude=40.7769, requested_longitude=-73.8740, received_at=RECEIVED,
+    )
+    assert len(result.valid_times) == 25
+
+    ambiguous = ["2026-11-01T00:00", "2026-11-01T01:00", "2026-11-01T01:00"] + [
+        f"2026-11-01T{hour:02d}:00" for hour in range(2, 24)
+    ]
+    with pytest.raises(GEFSHourlyError, match="GEFS_HOURLY_TIME_DUPLICATE_OR_DST_AMBIGUOUS"):
+        parse_open_meteo_gefs_hourly_target_day(
+            _dst_payload(ambiguous, "America/New_York"),
+            station="KLGA", target_date=target, unit="F", timezone="America/New_York",
+            requested_latitude=40.7769, requested_longitude=-73.8740, received_at=RECEIVED,
+        )

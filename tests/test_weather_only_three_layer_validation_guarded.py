@@ -378,3 +378,61 @@ def test_final_local_partial_hour_has_no_full_gefs_cell_and_stays_scientifically
     assert plan.population_alignment_certified is False
     assert plan.same_day_delivery_authority is False
     assert plan.financial_authority is False
+
+
+
+def test_selection_universe_over_cap_fails_closed_in_source_not_partial_first_twelve():
+    from pathlib import Path
+    import polymarket_scanner.weather_only_live_paper_three_layer_validation as runtime_module
+
+    runtime = Path(runtime_module.__file__).read_text(encoding="utf-8")
+    assert "SAME_DAY_SELECTION_UNIVERSE_CAP_EXCEEDED" in runtime
+    assert "universe = eligible[:THREE_LAYER_SELECTION_UNIVERSE_CAP]" not in runtime
+
+
+
+def test_more_than_selection_cap_fails_closed_without_partial_sampling(monkeypatch):
+    import polymarket_scanner.weather_only_live_paper_three_layer_validation as module
+
+    service = object.__new__(ThreeLayerValidationWeatherLivePaperService)
+
+    class Positions:
+        def __init__(self):
+            self.set_calls = []
+        def get_state(self, _key, default=""):
+            return default
+        def set_state(self, key, value):
+            self.set_calls.append((key, value))
+
+    service.positions = Positions()
+
+    today = datetime.now(timezone.utc).date()
+
+    def compile_event(event):
+        return NS(
+            event_id=event["id"],
+            target_date=today,
+            station_hint="KLGA",
+            family="DAILY_HIGH",
+            unit="F",
+        )
+
+    monkeypatch.setattr(module, "compile_strict_temperature_event", compile_event)
+    monkeypatch.setattr(module, "compile_temperature_rule_authority", lambda *_: object())
+    monkeypatch.setattr(
+        module,
+        "build_same_day_contract_semantics",
+        lambda *_: NS(layer1_adapter_capable=True),
+    )
+
+    async def metadata(_compiled):
+        return NS(timezone="UTC", latitude=40.7769, longitude=-73.8740)
+
+    service._station_metadata_for_compiled = metadata
+    events = tuple({"id": f"event-{index:02d}"} for index in range(13))
+    selected, errors = asyncio.run(service._same_day_eligible(events))
+    assert selected == []
+    assert errors == ["SAME_DAY_SELECTION_UNIVERSE_CAP_EXCEEDED:13>12"]
+    assert service._three_layer_last_universe_truncated is True
+    assert service._three_layer_last_selected_ids == ()
+    assert service.positions.set_calls == []

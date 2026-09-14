@@ -253,3 +253,28 @@ def test_near_term_digest_tampering_is_rejected_before_assembly():
             EnsembleMappingPolicy(policy_id="fixture-map", include_control=True),
             as_of=as_of,
         )
+
+
+
+def test_combined_layer_provenance_uses_latest_component_issue_time(monkeypatch):
+    import polymarket_scanner.weather_only_three_layer as module
+
+    as_of = _ts(4, 20)
+    observed = _observed(as_of)
+    coverage = _coverage(as_of)
+    near = _near_term(coverage, as_of)
+    path = _ensemble_path(coverage, as_of)
+    captured = {}
+    real = module.build_remaining_hours_ensemble
+
+    def recording_builder(**kwargs):
+        captured["issued_at"] = kwargs["issued_at"]
+        return real(**kwargs)
+
+    monkeypatch.setattr(module, "build_remaining_hours_ensemble", recording_builder)
+    build_three_layer_research_decision(
+        _compiled(), observed, coverage, near, path,
+        EnsembleMappingPolicy(policy_id="fixture-map", include_control=True),
+        as_of=as_of,
+    )
+    assert captured["issued_at"] == max(float(near.issued_at), float(path.issued_at))

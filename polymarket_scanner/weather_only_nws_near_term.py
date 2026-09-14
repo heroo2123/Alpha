@@ -53,6 +53,10 @@ NWS_NEAR_TERM_STEP_SECONDS = 900
 NWS_TEMPERATURE_UOM_C = "wmoUnit:degC"
 NWS_TEMPERATURE_UOM_F = "wmoUnit:degF"
 NWS_NEAR_TERM_HYPOTHESIS = "NWS_GRID_INTERVAL_VALUE_SAMPLED_15MIN_LEFT_CLOSED_V1"
+# Engineering freshness gate for the short-horizon Layer-2 lane. This is a
+# conservative research policy, not a claim about NWS update cadence. Older grids
+# fail closed rather than being treated as current near-term evidence.
+NWS_NEAR_TERM_MAX_UPDATE_AGE_SECONDS = 6 * 3600.0
 MAX_RESPONSE_BYTES = 2 * 1024 * 1024
 _GRID_URL_RE = re.compile(
     r"^/gridpoints/(?P<grid_id>[A-Z]{3})/(?P<grid_x>\d+),(?P<grid_y>\d+)/?$"
@@ -401,6 +405,9 @@ def parse_nws_near_term_grid_path(
     update_at = _aware_timestamp(properties.get("updateTime"), "NWS_NEAR_TERM_UPDATE_TIME_INVALID")
     if update_at > receipt + 1e-6:
         raise NWSNearTermError("NWS_NEAR_TERM_UPDATE_AFTER_RECEIPT")
+    update_age = float(segment.start) - update_at
+    if update_age > NWS_NEAR_TERM_MAX_UPDATE_AGE_SECONDS + 1e-6:
+        raise NWSNearTermError("NWS_NEAR_TERM_UPDATE_STALE")
 
     temperature = properties.get("temperature")
     if not isinstance(temperature, dict):
