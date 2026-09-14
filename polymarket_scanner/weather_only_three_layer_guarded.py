@@ -21,12 +21,11 @@ from urllib.parse import urljoin, urlparse
 
 import httpx
 
-from .weather_only_forecast import (
-    CELL_SELECTION_POLICY,
-    OPEN_METEO_ENSEMBLE,
-    OPEN_METEO_GEFS_MODEL,
-)
+from .weather_only_forecast import OPEN_METEO_ENSEMBLE
 from .weather_only_gefs_hourly import (
+    GEFS_HOURLY_CELL_SELECTION,
+    GEFS_HOURLY_PROVIDER_MODEL,
+    GEFS_HOURLY_TEMPORAL_RESOLUTION,
     GEFS_HOURLY_VARIABLE,
     GEFSHourlyError,
     OpenMeteoGEFSHourlyClient,
@@ -44,7 +43,10 @@ NWS_REQUEST_DEADLINE_SECONDS = 12.0
 NWS_SNAPSHOT_DEADLINE_SECONDS = 20.0
 GEFS_TOTAL_RESPONSE_DEADLINE_SECONDS = 20.0
 GEFS_MAX_RESPONSE_BYTES = 2 * 1024 * 1024
-GEFS_MAX_RESOLVED_DISTANCE_KM = 50.0
+# The pinned same-day source is the nearest 0.25-degree GEFS grid. A nearest regular
+# 0.25-degree cell center should be materially closer than this; the extra margin
+# tolerates provider coordinate representation while still rejecting a wrong region.
+GEFS_MAX_RESOLVED_DISTANCE_KM = 30.0
 WRH_TOTAL_RESPONSE_DEADLINE_SECONDS = 20.0
 WRH_MAX_RESPONSE_BYTES = 4 * 1024 * 1024
 _ALLOWED_TRANSFER_ENCODINGS = {"identity", "chunked"}
@@ -211,7 +213,7 @@ class GuardedOpenMeteoGEFSHourlyClient(OpenMeteoGEFSHourlyClient):
             trust_env=False,
             limits=httpx.Limits(max_connections=2, max_keepalive_connections=2),
             headers={
-                "User-Agent": "polymarket-weather-only-gefs-hourly-guarded/1.0 (+https://github.com/heroo2123/Alpha)",
+                "User-Agent": "polymarket-weather-only-gefs-hourly-guarded/2.0 (+https://github.com/heroo2123/Alpha)",
                 "Accept": "application/json",
                 "Accept-Encoding": "identity",
             },
@@ -249,12 +251,13 @@ class GuardedOpenMeteoGEFSHourlyClient(OpenMeteoGEFSHourlyClient):
             "latitude": lat,
             "longitude": lon,
             "hourly": GEFS_HOURLY_VARIABLE,
-            "models": OPEN_METEO_GEFS_MODEL,
+            "models": GEFS_HOURLY_PROVIDER_MODEL,
+            "temporal_resolution": GEFS_HOURLY_TEMPORAL_RESOLUTION,
             "temperature_unit": "fahrenheit" if unit == "F" else "celsius",
             "timezone": timezone,
             "start_date": target_date.isoformat(),
             "end_date": target_date.isoformat(),
-            "cell_selection": CELL_SELECTION_POLICY,
+            "cell_selection": GEFS_HOURLY_CELL_SELECTION,
         }
         try:
             payload, received = await _bounded_async_json(
@@ -283,6 +286,9 @@ class GuardedOpenMeteoGEFSHourlyClient(OpenMeteoGEFSHourlyClient):
             requested_latitude=lat,
             requested_longitude=lon,
             received_at=received,
+            provider_model=GEFS_HOURLY_PROVIDER_MODEL,
+            query_cell_selection=GEFS_HOURLY_CELL_SELECTION,
+            query_temporal_resolution=GEFS_HOURLY_TEMPORAL_RESOLUTION,
         )
         distance = _haversine_km(
             lat,
