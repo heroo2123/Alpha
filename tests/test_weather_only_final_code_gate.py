@@ -5,7 +5,11 @@ from pathlib import Path
 
 import pytest
 
-from polymarket_scanner.weather_only_live_paper_final import FINAL_PAPER_RUNTIME_VERSION
+from polymarket_scanner.weather_only_live_paper_final import (
+    FINAL_PAPER_RUNTIME_VERSION,
+    FinalWeatherLivePaperService,
+)
+from polymarket_scanner.weather_only_live_paper_synoptic import SynopticFinalWeatherLivePaperService
 from polymarket_scanner.weather_only_live_paper_v4 import WeatherLivePaperV4Service
 from polymarket_scanner.weather_only_paper_corrective import (
     CorrectivePaperError,
@@ -14,7 +18,7 @@ from polymarket_scanner.weather_only_paper_corrective import (
 from polymarket_scanner.weather_only_same_day_capture_store import SameDayCaptureStore
 
 
-FINAL_MODULE = "polymarket_scanner.weather_only_live_paper_final"
+FINAL_MODULE = "polymarket_scanner.weather_only_live_paper_synoptic"
 
 
 def test_structural_signal_lane_is_still_hard_disabled():
@@ -60,20 +64,25 @@ def test_same_day_research_store_can_never_count_as_trade_pnl(tmp_path):
     assert summary["financial_authority"] is False
 
 
-def test_deployment_renderer_points_to_final_guarded_entrypoint():
+def test_deployment_renderer_points_to_guarded_synoptic_entrypoint():
     renderer = Path("deploy/render-weather-paper-unit.py").read_text(encoding="utf-8")
     assert f'FINAL_WEATHER_MODULE = "{FINAL_MODULE}"' in renderer
     assert "{FINAL_WEATHER_MODULE}" in renderer
+    assert issubclass(SynopticFinalWeatherLivePaperService, FinalWeatherLivePaperService)
     assert FINAL_PAPER_RUNTIME_VERSION == (
         "weather_live_paper_final_v4_fresh_gamma_semantic_binding"
     )
 
 
 def test_code_gate_does_not_enable_real_money_or_same_day_delivery():
-    source = Path("polymarket_scanner/weather_only_live_paper_final.py").read_text(
+    final_source = Path("polymarket_scanner/weather_only_live_paper_final.py").read_text(
         encoding="utf-8"
     )
-    assert '"same_day_delivery_enabled": False' in source
-    assert '"structural_delivery_enabled": False' in source
-    assert '"financial_authority": False' in source
-    assert '"automatic_order_placement": False' in source
+    synoptic_source = Path("polymarket_scanner/weather_only_live_paper_synoptic.py").read_text(
+        encoding="utf-8"
+    )
+    combined = final_source + "\n" + synoptic_source
+    assert '"same_day_delivery_enabled": False' in combined
+    assert '"structural_delivery_enabled": False' in final_source
+    assert '"financial_authority": False' in combined
+    assert '"automatic_order_placement": False' in combined
