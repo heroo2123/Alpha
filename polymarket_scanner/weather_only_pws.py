@@ -32,6 +32,7 @@ PWS_STATUS_TRANSPORT_ERROR = "PWS_TRANSPORT_ERROR"
 PWS_STATUS_PROVIDER_ERROR = "PWS_PROVIDER_ERROR"
 PWS_STATUS_TIMEOUT = "PWS_TIMEOUT"
 PWS_STATUS_RESPONSE_TOO_LARGE = "PWS_RESPONSE_TOO_LARGE"
+PWS_STATUS_UNSUPPORTED_CONTENT_ENCODING = "PWS_UNSUPPORTED_CONTENT_ENCODING"
 PWS_STATUS_MALFORMED_RESPONSE = "PWS_MALFORMED_RESPONSE"
 PWS_ALLOWED_STATUSES = {
     PWS_STATUS_UNCONFIGURED,
@@ -42,6 +43,7 @@ PWS_ALLOWED_STATUSES = {
     PWS_STATUS_PROVIDER_ERROR,
     PWS_STATUS_TIMEOUT,
     PWS_STATUS_RESPONSE_TOO_LARGE,
+    PWS_STATUS_UNSUPPORTED_CONTENT_ENCODING,
     PWS_STATUS_MALFORMED_RESPONSE,
 }
 DEFAULT_PWS_MAX_DISTANCE_KM = 15.0
@@ -599,14 +601,47 @@ class WeatherCompanyPWSClient:
         try:
             async with asyncio.timeout(self.request_deadline_seconds):
                 async with self.http.stream(
-                    "GET", f"{self.base_url}{path}", params=request_params
+                    "GET",
+                    f"{self.base_url}{path}",
+                    params=request_params,
+                    headers={"Accept-Encoding": "identity"},
                 ) as response:
                     if response.status_code in {401, 403}:
                         return PWS_STATUS_AUTH_ERROR, None
                     if response.status_code >= 400:
                         return PWS_STATUS_PROVIDER_ERROR, None
+
+                    # Never hand provider-controlled compressed bytes to HTTPX's
+                    # content decoders. aiter_bytes() decodes before yielding, which
+                    # means a gzip/stacked-encoding bomb can allocate far beyond the
+                    # application byte cap before we get a chance to inspect it.
+                    # Request identity encoding and fail closed if an upstream ignores
+                    # that request. aiter_raw() then bounds the bytes *before* any
+                    # content decoding or JSON parsing occurs in this process.
+                    content_encoding = response.headers.get("content-encoding", "").strip().lower()
+                    if content_encoding not in {"", "identity"}:
+                        return PWS_STATUS_UNSUPPORTED_CONTENT_ENCODING, None
+                    transfer_encoding = response.headers.get("transfer-encoding", "").strip().lower()
+                    if transfer_encoding:
+                        transfer_tokens = [
+                            token.strip() for token in transfer_encoding.split(",") if token.strip()
+                        ]
+                        if any(token not in {"identity", "chunked"} for token in transfer_tokens):
+                            return PWS_STATUS_UNSUPPORTED_CONTENT_ENCODING, None
+
+                    content_length = response.headers.get("content-length")
+                    if content_length not in (None, ""):
+                        try:
+                            declared_length = int(str(content_length).strip())
+                        except ValueError:
+                            return PWS_STATUS_MALFORMED_RESPONSE, None
+                        if declared_length < 0:
+                            return PWS_STATUS_MALFORMED_RESPONSE, None
+                        if declared_length > self.max_response_bytes:
+                            return PWS_STATUS_RESPONSE_TOO_LARGE, None
+
                     payload = bytearray()
-                    async for chunk in response.aiter_bytes():
+                    async for chunk in response.aiter_raw():
                         if len(payload) + len(chunk) > self.max_response_bytes:
                             return PWS_STATUS_RESPONSE_TOO_LARGE, None
                         payload.extend(chunk)
