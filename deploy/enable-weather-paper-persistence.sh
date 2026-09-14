@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-# Enable boot persistence only after the exact candidate is already active, attested,
-# and has produced a fresh healthy PAPER-only cycle. This script does not start a new
-# candidate and never enables/disables legacy scanner services.
+# Enable boot persistence only after the exact guarded three-layer candidate is active,
+# attested, and has produced a fresh healthy PAPER-only wrapper cycle. This script does
+# not start a new candidate and never enables/disables legacy scanner services.
 APP_DIR="${ALPHA_WEATHER_APP_DIR:-${HOME}/polymarket-weather-paper-app}"
 CONFIG_DIR="${ALPHA_CONFIG_DIR:-${HOME}/.polymarket-edge-scanner}"
 DB_PATH="${WEATHER_PAPER_DB_PATH:-/var/lib/polymarket-weather-paper/weather-paper.sqlite}"
@@ -15,6 +15,7 @@ BACKUP_TIMER="polymarket-weather-paper-backup.timer"
 EXPECTED_SHA="${1:-}"
 ATTESTATION_OUT="${CONFIG_DIR}/weather-paper-persistence-attestation.json"
 CYCLE_OUT="${CONFIG_DIR}/weather-paper-persistence-cycle.json"
+THREE_LAYER_OUT="${CONFIG_DIR}/weather-paper-persistence-three-layer.json"
 
 fail(){ printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 [[ "${EXPECTED_SHA}" =~ ^[0-9a-f]{40}$ ]] || fail "usage: $0 <exact-approved-release-sha>"
@@ -25,6 +26,10 @@ fail(){ printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 [[ "$(tr -d '[:space:]' < "${RELEASE_FILE}")" == "${EXPECTED_SHA}" ]] \
   || fail "weather-paper release marker no longer matches approved candidate"
 systemctl is-active --quiet "${UNIT}" 2>/dev/null || fail "accepted weather PAPER service is not active"
+# Persistence is a separate authority step. The candidate must still be disabled from
+# boot when this script begins; otherwise the acceptance/persistence separation was lost.
+! systemctl is-enabled --quiet "${UNIT}" 2>/dev/null \
+  || fail "weather PAPER service is already enabled before persistence approval"
 
 # Before granting boot persistence, prove the superseded stack will not reappear after
 # reboot and contend for the small VM or Telegram updates. This check is read-only and
@@ -35,10 +40,15 @@ bash "${APP_DIR}/deploy/check-weather-paper-service-isolation.sh" --require-disa
   --app-dir "${APP_DIR}" --release-file "${RELEASE_FILE}" --db "${DB_PATH}" \
   --status "${STATUS_PATH}" --require-active --output "${ATTESTATION_OUT}"
 
-# Require a currently fresh safe cycle again; do not rely solely on an old receipt.
+# Require a currently fresh safe inherited cycle and, separately, the final guarded
+# three-layer wrapper status. The generic verifier can observe the inherited atomic
+# status between wrapper writes; it therefore cannot substitute for this second gate.
 "${APP_DIR}/.venv/bin/python" "${APP_DIR}/deploy/verify-weather-paper-first-cycle.py" \
   --status "${STATUS_PATH}" --release-sha "${EXPECTED_SHA}" --not-before 0 \
   --timeout-seconds 120 --max-age-seconds 600 --output "${CYCLE_OUT}"
+"${APP_DIR}/.venv/bin/python" "${APP_DIR}/deploy/verify-three-layer-validation-status.py" \
+  --status "${STATUS_PATH}" --release-sha "${EXPECTED_SHA}" --not-before 0 \
+  --timeout-seconds 60 --max-age-seconds 600 --output "${THREE_LAYER_OUT}"
 
 bash "${APP_DIR}/deploy/setup-weather-paper-backup-service.sh"
 
@@ -68,15 +78,17 @@ systemctl is-active --quiet "${UNIT}" || fail "weather PAPER service stopped dur
 systemctl is-enabled --quiet "${BACKUP_TIMER}" || fail "weather PAPER backup timer was not enabled"
 systemctl is-active --quiet "${BACKUP_TIMER}" || fail "weather PAPER backup timer is not active"
 
-# Final identity check after persistence changes; no restart is performed.
+# Final identity and wrapper-state checks after persistence changes; no restart occurs.
 "${APP_DIR}/.venv/bin/python" "${APP_DIR}/deploy/attest-weather-paper-runtime.py" \
   --app-dir "${APP_DIR}" --release-file "${RELEASE_FILE}" --db "${DB_PATH}" \
   --status "${STATUS_PATH}" --require-active >/dev/null
+"${APP_DIR}/.venv/bin/python" "${APP_DIR}/deploy/verify-three-layer-validation-status.py" \
+  --status "${STATUS_PATH}" --release-sha "${EXPECTED_SHA}" --not-before 0 \
+  --timeout-seconds 60 --max-age-seconds 600 >/dev/null
 
 trap - EXIT
-printf '\nPASS: weather PAPER bot is enabled for 24/7 restart persistence.\n'
+printf '\nPASS: guarded three-layer weather PAPER bot is enabled for 24/7 restart persistence.\n'
 printf 'Daily verified paper-ledger backups are enabled.\n'
 printf 'Release: %s\n' "${EXPECTED_SHA}"
 printf 'Superseded scanner/research services remain outside this persistence path.\n'
-printf 'Same-day research/trading authority was not changed by this action.\n'
-printf 'Real-money trading remains outside this deployment.\n'
+printf 'PWS, same-day delivery and real-money authority remain disabled.\n'
