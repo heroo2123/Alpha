@@ -6,6 +6,8 @@ on:
       - weather-three-layer-dst-hardening-2026-09-15
     paths:
       - '.github/workflows/three-layer-round2-hardening.yml'
+      - 'tools/apply_three_layer_round2_hardening.py'
+      - 'tools/fix_three_layer_round2_test_fixtures.py'
   workflow_dispatch:
 
 permissions:
@@ -24,6 +26,8 @@ jobs:
           python-version: '3.12'
       - name: Apply round-2 production hardening
         run: python tools/apply_three_layer_round2_hardening.py
+      - name: Apply round-2 regression fixture updates
+        run: python tools/fix_three_layer_round2_test_fixtures.py
       - name: Install pinned dependencies
         run: python -m pip install -r requirements-dev.txt
       - name: Run focused adversarial regression suite
@@ -46,7 +50,6 @@ jobs:
         run: |
           python - <<'PY'
           import asyncio
-          from collections import Counter
           from datetime import datetime, timedelta, timezone
           from zoneinfo import ZoneInfo
           from polymarket_scanner.weather_only_discovery import WeatherOnlyDiscovery
@@ -112,11 +115,11 @@ jobs:
                           return point, await nws.point_supported(latitude=float(m.latitude),longitude=float(m.longitude))
                   points=sorted(by_point.items())
                   pres=await asyncio.gather(*(probe(point,rows[0]) for point,rows in points), return_exceptions=True)
-                  support={}; unsupported_points=0
+                  support={}
                   for (point,rows),res in zip(points,pres):
                       if isinstance(res,BaseException):
                           failures.append(('NWS',str(rows[0][2].station_hint),getattr(res,'code',type(res).__name__))); continue
-                      support[point]=bool(res[1]); unsupported_points += int(not bool(res[1]))
+                      support[point]=bool(res[1])
                   supported=[]; unsupported=[]
                   for row in today:
                       m=row[4]; key=(round(float(m.latitude),4),round(float(m.longitude),4))
@@ -137,14 +140,15 @@ jobs:
                   await d.close(); await sm.close(); await nws.close()
           asyncio.run(main())
           PY
-      - name: Commit only reviewed production plus permanent regression
+      - name: Commit only reviewed production plus permanent regressions
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add \
             polymarket_scanner/weather_only_three_layer_guarded.py \
             polymarket_scanner/weather_only_live_paper_three_layer_validation.py \
-            tests/test_weather_only_three_layer_layer2_eligibility.py
+            tests/test_weather_only_three_layer_layer2_eligibility.py \
+            tests/test_weather_only_three_layer_validation_guarded.py
           git diff --cached --check
           git commit -m 'Fail closed on incomplete Layer-2 eligibility coverage'
           git push origin HEAD:weather-three-layer-dst-hardening-2026-09-15
