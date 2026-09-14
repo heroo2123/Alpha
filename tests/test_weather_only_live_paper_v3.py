@@ -170,7 +170,8 @@ def test_v3_surface_contains_no_order_api_and_renderer_points_to_final_guard():
         Path("/home/test/.polymarket-edge-scanner"),
         "testuser",
     )
-    assert "weather_only_live_paper_final" in unit
+    assert "weather_only_live_paper_synoptic" in unit
+    assert "weather_only_live_paper_corrective" not in unit
     assert "--paper-stake-usd 10" in unit
     assert "MemorySwapMax=0" in unit
     assert "app_trade_only" not in unit
