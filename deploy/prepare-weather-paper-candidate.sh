@@ -8,10 +8,10 @@ APP_DIR="${ALPHA_WEATHER_APP_DIR:-${HOME}/polymarket-weather-paper-app}"
 CONFIG_DIR="${ALPHA_CONFIG_DIR:-${HOME}/.polymarket-edge-scanner}"
 RELEASE_FILE="${CONFIG_DIR}/weather-paper-release.sha"
 REPOSITORY_URL="${ALPHA_WEATHER_REPOSITORY_URL:-https://github.com/heroo2123/Alpha.git}"
-SOURCE_REF="${ALPHA_WEATHER_SOURCE_REF:-${2:-weather-live-paper-corrective-2026-09-13}}"
+SOURCE_REF="${ALPHA_WEATHER_SOURCE_REF:-${2:-weather-same-day-three-layer-validation-2026-09-14}}"
 RELEASE_SHA="${1:-}"
 UNIT="polymarket-weather-paper.service"
-FINAL_MODULE="polymarket_scanner.weather_only_live_paper_final"
+FINAL_MODULE="polymarket_scanner.weather_only_live_paper_three_layer_validation"
 
 fail(){ printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 
@@ -23,7 +23,13 @@ git check-ref-format --branch "${SOURCE_REF}" >/dev/null 2>&1 \
 if systemctl is-active --quiet "${UNIT}" 2>/dev/null; then
   fail "${UNIT} is active; stop it explicitly before preparing another candidate"
 fi
-if pgrep -af 'polymarket_scanner\.weather_only_live_paper|weather_only_live_paper(_v[234]|_corrective|_final)?\.py' >/dev/null 2>&1; then
+# Never rewrite the checkout/release marker underneath a unit that could automatically
+# return on reboot. Candidate preparation begins from an explicitly stopped+disabled
+# target; persistence is restored only after live candidate acceptance succeeds.
+if systemctl is-enabled --quiet "${UNIT}" 2>/dev/null; then
+  fail "${UNIT} is enabled; disable it explicitly before preparing another candidate"
+fi
+if pgrep -af 'polymarket_scanner\.weather_only_live_paper|weather_only_live_paper(_v[234]|_corrective|_final|_three_layer_validation)?\.py' >/dev/null 2>&1; then
   fail "a weather-paper process is already running outside the stopped service"
 fi
 
@@ -35,9 +41,6 @@ if [[ ! -d "${APP_DIR}/.git" ]]; then
   FRESH_CLONE=1
 fi
 
-# A --no-checkout clone intentionally has an empty worktree and therefore looks
-# deleted/dirty until the first checkout.  Enforce cleanliness immediately only for
-# an existing installation; every path is checked again after the detached checkout.
 if [[ "${FRESH_CLONE}" -eq 0 ]]; then
   [[ -z "$(git -C "${APP_DIR}" status --porcelain --untracked-files=all)" ]] \
     || fail "weather-paper checkout differs from its authorized commit"
@@ -66,9 +69,14 @@ for required in \
   deploy/preflight-weather-paper-deployment.sh \
   deploy/start-weather-paper-candidate.sh \
   deploy/verify-weather-paper-first-cycle.py \
+  deploy/verify-three-layer-validation-status.py \
   deploy/enable-weather-paper-persistence.sh \
   polymarket_scanner/weather_only_live_paper_corrective.py \
   polymarket_scanner/weather_only_live_paper_final.py \
+  polymarket_scanner/weather_only_live_paper_three_layer_validation.py \
+  polymarket_scanner/weather_only_three_layer_guarded.py \
+  polymarket_scanner/weather_only_same_day_capture.py \
+  polymarket_scanner/weather_only_unresolved_coverage.py \
   polymarket_scanner/weather_only_paper_recovery.py \
   polymarket_scanner/weather_only_paper_recovery_final.py \
   polymarket_scanner/weather_only_runtime_attestation.py \
@@ -80,7 +88,7 @@ for required in \
 done
 
 grep -qF "${FINAL_MODULE}" "${APP_DIR}/deploy/render-weather-paper-unit.py" \
-  || fail "candidate renderer does not point to final guarded weather-paper entrypoint"
+  || fail "candidate renderer does not point to guarded three-layer validation entrypoint"
 grep -qF 'weather-paper-release.sha' "${APP_DIR}/deploy/render-weather-paper-unit.py" \
   || fail "candidate does not use an isolated weather-paper release marker"
 
@@ -90,7 +98,6 @@ fi
 "${APP_DIR}/.venv/bin/python" -m pip install -r "${APP_DIR}/requirements.txt"
 "${APP_DIR}/.venv/bin/python" -m pip check
 
-# Verify every pinned runtime requirement exactly, not merely satisfiable ranges.
 PYTHONPATH="${APP_DIR}" "${APP_DIR}/.venv/bin/python" - "${APP_DIR}/requirements.txt" <<'PY'
 from importlib.metadata import version
 from pathlib import Path
@@ -106,11 +113,10 @@ for raw in Path(sys.argv[1]).read_text(encoding="utf-8").splitlines():
 print("Weather-paper runtime dependency pins match exactly.")
 PY
 
-# Import the exact deployable module before publishing the release marker. This is a
-# no-start smoke test and catches missing internal files/imports before any service
-# installation or live-paper process is attempted.
+# Import the exact deployable wrapper before publishing the marker. This performs no
+# network I/O and starts no service.
 PYTHONPATH="${APP_DIR}" "${APP_DIR}/.venv/bin/python" -c \
-  "import ${FINAL_MODULE}; print('Final weather-paper runtime import passed.')"
+  "import ${FINAL_MODULE}; print('Guarded three-layer validation runtime import passed.')"
 
 mkdir -p "${CONFIG_DIR}"
 umask 077
@@ -122,7 +128,7 @@ mv -f "${TMP_MARKER}" "${RELEASE_FILE}"
 trap - EXIT
 
 bash "${APP_DIR}/deploy/verify-runtime-release.sh" "${APP_DIR}" "${RELEASE_FILE}"
-printf '\nWeather PAPER candidate prepared but NOT started or enabled.\n'
+printf '\nWeather PAPER three-layer validation candidate prepared but NOT started or enabled.\n'
 printf 'Isolated app: %s\n' "${APP_DIR}"
 printf 'Release: %s\n' "${ACTUAL_SHA}"
 printf 'Release marker: %s\n' "${RELEASE_FILE}"
