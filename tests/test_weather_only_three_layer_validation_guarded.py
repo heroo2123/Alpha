@@ -5,12 +5,17 @@ import json
 import time
 from datetime import date, datetime, timezone
 from types import SimpleNamespace as NS
-from unittest.mock import patch
+from urllib.parse import parse_qs
 
 import httpx
 import pytest
 
-from polymarket_scanner.weather_only_gefs_hourly import GEFSHourlyError
+from polymarket_scanner.weather_only_gefs_hourly import (
+    GEFS_HOURLY_CELL_SELECTION,
+    GEFS_HOURLY_PROVIDER_MODEL,
+    GEFS_HOURLY_TEMPORAL_RESOLUTION,
+    GEFSHourlyError,
+)
 from polymarket_scanner.weather_only_live_paper_three_layer_validation import (
     THREE_LAYER_31D_CAPTURE_ROW_BOUND,
     THREE_LAYER_MAX_EVENTS_PER_CYCLE,
@@ -155,8 +160,10 @@ def _gefs_payload(*, resolved_latitude: float, resolved_longitude: float) -> dic
     }
 
 
-def _run_guarded_gefs(payload: dict):
+def _run_guarded_gefs(payload: dict, seen_urls: list[str] | None = None):
     async def handler(request: httpx.Request):
+        if seen_urls is not None:
+            seen_urls.append(str(request.url))
         return httpx.Response(200, request=request, content=json.dumps(payload).encode())
 
     async def scenario():
@@ -190,8 +197,24 @@ def test_gefs_nearby_resolved_grid_preserves_all_31_members():
     assert len(result.member_labels) == 31
     assert len(result.member_series) == 31
     assert len(result.valid_times) == 24
+    assert result.provider_model == GEFS_HOURLY_PROVIDER_MODEL
+    assert result.query_cell_selection == GEFS_HOURLY_CELL_SELECTION
+    assert result.query_temporal_resolution == GEFS_HOURLY_TEMPORAL_RESOLUTION
     assert result.calibrated_probability is False
     assert result.financial_authority is False
+
+
+def test_guarded_gefs_request_exactly_pins_model_temporal_resolution_and_cell_policy():
+    seen: list[str] = []
+    _run_guarded_gefs(
+        _gefs_payload(resolved_latitude=40.05, resolved_longitude=-73.04), seen
+    )
+    assert len(seen) == 1
+    query = parse_qs(httpx.URL(seen[0]).query.decode())
+    assert query["models"] == [GEFS_HOURLY_PROVIDER_MODEL]
+    assert query["temporal_resolution"] == [GEFS_HOURLY_TEMPORAL_RESOLUTION]
+    assert query["cell_selection"] == [GEFS_HOURLY_CELL_SELECTION]
+    assert query["hourly"] == ["temperature_2m"]
 
 
 def _sync_client_with_transport(transport: httpx.BaseTransport) -> _BoundedIdentityHTTPClient:
