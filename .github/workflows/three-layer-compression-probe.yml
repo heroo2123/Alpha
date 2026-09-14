@@ -1,0 +1,80 @@
+name: three-layer-compression-probe
+
+on:
+  push:
+    branches: [weather-three-layer-dst-hardening-2026-09-15]
+    paths: ['.github/workflows/three-layer-compression-probe.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements-dev.txt
+      - name: Measure exact lossless compression ratio
+        run: |
+          python - <<'PY'
+          import asyncio, base64, gzip, json, time, zlib
+          from datetime import datetime, timedelta, timezone
+          from zoneinfo import ZoneInfo
+          from polymarket_scanner.weather_only_discovery import WeatherOnlyDiscovery
+          from polymarket_scanner.weather_only_contract_strict import StrictWeatherContractError, compile_strict_temperature_event
+          from polymarket_scanner.weather_only_rules import compile_temperature_rule_authority
+          from polymarket_scanner.weather_only_same_day_contract import build_same_day_contract_semantics
+          from polymarket_scanner.weather_only_same_day_capture import assemble_same_day_capture
+          from polymarket_scanner.weather_only_three_layer_guarded import GuardedSameDayStationMetadataClient, GuardedNWSNearTermGridClient, GuardedNWSWRHLiveClient, GuardedOpenMeteoGEFSHourlyClient
+
+          async def main():
+            d=WeatherOnlyDiscovery(); sm=GuardedSameDayStationMetadataClient(); nws=GuardedNWSNearTermGridClient(); wrh=GuardedNWSWRHLiveClient(); gefs=GuardedOpenMeteoGEFSHourlyClient()
+            try:
+              snap=await d.discover(); now=datetime.now(timezone.utc); plausible={now.date()-timedelta(days=1),now.date(),now.date()+timedelta(days=1)}
+              samples=[]
+              for event in snap.events:
+                if not isinstance(event,dict): continue
+                try:
+                  c=compile_strict_temperature_event(event); a=compile_temperature_rule_authority(event,c); s=build_same_day_contract_semantics(c,a)
+                except StrictWeatherContractError: continue
+                if not s.layer1_adapter_capable or c.target_date not in plausible: continue
+                try: m=await sm.station(str(c.station_hint).upper())
+                except Exception: continue
+                if c.target_date != now.astimezone(ZoneInfo(str(m.timezone))).date(): continue
+                try:
+                  if not await nws.point_supported(latitude=float(m.latitude),longitude=float(m.longitude)): continue
+                except Exception: continue
+                samples.append((event,c,s,m))
+                if len({str(x[1].station_hint).upper() for x in samples}) >= 4: break
+              seen=set(); measurements=[]
+              for event,c,s,m in samples:
+                station=str(c.station_hint).upper()
+                if station in seen: continue
+                seen.add(station)
+                wrh_result,nws_snapshot,gefs_day=await asyncio.gather(
+                  asyncio.to_thread(wrh.fetch_snapshot,station=station,target_date=c.target_date),
+                  nws.fetch_snapshot(station=station,latitude=float(m.latitude),longitude=float(m.longitude)),
+                  gefs.target_day(station=station,latitude=float(m.latitude),longitude=float(m.longitude),target_date=c.target_date,unit=str(c.unit),timezone=str(m.timezone)),
+                )
+                rec=assemble_same_day_capture(compiled=c,contract_semantics=s,station_metadata=m,wrh_snapshot=wrh_result.snapshot,near_term_raw_snapshot=nws_snapshot,hourly_gefs=gefs_day,as_of=time.time(),population_alignment_certified=False)
+                raw=json.dumps(rec.as_dict(),sort_keys=True,separators=(',',':'),ensure_ascii=True,allow_nan=False).encode()
+                z=zlib.compress(raw,9); gz=gzip.compress(raw,compresslevel=9,mtime=0); b64=base64.b64encode(z)
+                assert zlib.decompress(z)==raw
+                assert gzip.decompress(gz)==raw
+                assert base64.b64decode(b64)==z
+                measurements.append((len(raw),len(z),len(gz),len(b64)))
+                print('COMPRESS',station,'RAW',len(raw),'ZLIB',len(z),'GZIP',len(gz),'ZLIB64',len(b64),'RATIO',round(len(b64)/len(raw),4))
+              assert measurements
+              max_b64=max(x[3] for x in measurements); mean_b64=sum(x[3] for x in measurements)/len(measurements)
+              for cap in (24,32,40):
+                rows=cap*24*31
+                print('ZLIB64_PROJECTION',cap,'ROWS',rows,'MAX_MIB',round(rows*max_b64/1024/1024,2),'MEAN_MIB',round(rows*mean_b64/1024/1024,2))
+            finally:
+              await d.close(); await sm.close(); await nws.close(); await gefs.close(); wrh.close()
+          asyncio.run(main())
+          PY
