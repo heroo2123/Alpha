@@ -27,10 +27,11 @@ jobs:
       - name: Run focused tests and live read-only preflight
         run: |
           python -m pytest -q tests/test_weather_only_network_preflight.py tests/test_weather_only_three_layer_validation_guarded.py
-          python -m polymarket_scanner.weather_only_network_preflight >/tmp/network-preflight.json
+          python deploy/check-weather-paper-network.py --output /tmp/network-preflight.json >/tmp/network-preflight.stdout
           python - <<'PY'
           import json
           data=json.load(open('/tmp/network-preflight.json'))
+          assert data['acceptance'] == 'PASS_REQUIRED_WEATHER_NETWORK'
           assert data['required_passed'] is True
           names={p['name']:p for p in data['probes']}
           assert names['wrh_station_metadata_fallback']['ok'] is True
