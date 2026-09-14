@@ -12,23 +12,37 @@ permissions:
 jobs:
   probe:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
       - run: python -m pip install -r requirements.txt
-      - name: Count exact current same-day eligible events without delivery
+      - name: Diagnose exact current weather admission without delivery
         run: |
           python - <<'PY'
           import asyncio
+          from collections import Counter, defaultdict
           from datetime import datetime, timezone
           from zoneinfo import ZoneInfo
+
           from polymarket_scanner.weather_only_discovery import WeatherOnlyDiscovery
-          from polymarket_scanner.weather_only_contract_strict import compile_strict_temperature_event
+          from polymarket_scanner.weather_only_contracts import (
+              DAILY_HIGH, DAILY_LOW, compile_weather_event,
+          )
+          from polymarket_scanner.weather_only_contract_strict import (
+              compile_strict_temperature_event,
+          )
           from polymarket_scanner.weather_only_rules import compile_temperature_rule_authority
           from polymarket_scanner.weather_only_same_day_contract import build_same_day_contract_semantics
           from polymarket_scanner.weather_only_three_layer_guarded import GuardedSameDayStationMetadataClient
+
+          def code(exc):
+              return str(getattr(exc, 'code', type(exc).__name__))
+
+          def compact(value, limit=260):
+              return ' '.join(str(value or '').split())[:limit]
 
           async def main():
               discovery = WeatherOnlyDiscovery()
@@ -37,17 +51,39 @@ jobs:
               try:
                   snapshot = await discovery.discover()
                   now = datetime.now(timezone.utc)
+                  raw_counts = Counter()
+                  strict_errors = Counter()
+                  raw_errors = Counter()
+                  strict_samples = defaultdict(list)
+                  raw_temperature = []
+                  strict_ok = []
                   eligible = []
-                  compile_ok = 0
                   metadata_errors = []
+
                   for event in snapshot.events:
+                      eid = str(event.get('id') or '')
+                      title = compact(event.get('title'))
+                      slug = compact(event.get('slug'))
+                      try:
+                          raw = compile_weather_event(event)
+                      except Exception as exc:
+                          raw_errors[code(exc)] += 1
+                          continue
+                      raw_counts[str(raw.family)] += 1
+                      if raw.family in {DAILY_HIGH, DAILY_LOW}:
+                          raw_temperature.append((eid, slug, title, raw))
                       try:
                           compiled = compile_strict_temperature_event(event)
                           authority = compile_temperature_rule_authority(event, compiled)
-                          build_same_day_contract_semantics(compiled, authority)
-                      except Exception:
+                          semantics = build_same_day_contract_semantics(compiled, authority)
+                      except Exception as exc:
+                          c = code(exc)
+                          strict_errors[c] += 1
+                          if len(strict_samples[c]) < 4:
+                              strict_samples[c].append((eid, slug, title, event))
                           continue
-                      compile_ok += 1
+                      strict_ok.append((eid, slug, title, compiled, semantics))
+
                       station = str(compiled.station_hint or '').upper()
                       if not station:
                           continue
@@ -57,21 +93,61 @@ jobs:
                           meta = cache[station]
                           today = now.astimezone(ZoneInfo(meta.timezone)).date()
                       except Exception as exc:
-                          metadata_errors.append((station, getattr(exc, 'code', type(exc).__name__)))
+                          metadata_errors.append((station, code(exc)))
                           continue
                       if compiled.target_date == today:
                           eligible.append((str(compiled.event_id), station, compiled.target_date.isoformat(), compiled.family))
+
                   print(f'DISCOVERED_UNIQUE_EVENTS={snapshot.unique_event_count}')
-                  print(f'STRICT_COMPILED_EVENTS={compile_ok}')
-                  print(f'UNIQUE_STATIONS={len(cache)}')
+                  print('RAW_FAMILY_COUNTS=' + repr(dict(raw_counts)))
+                  print('RAW_ERRORS=' + repr(dict(raw_errors)))
+                  print(f'RAW_TEMPERATURE_EVENTS={len(raw_temperature)}')
+                  print(f'STRICT_COMPILED_EVENTS={len(strict_ok)}')
+                  print('STRICT_ERROR_COUNTS=' + repr(dict(strict_errors.most_common())))
+                  print(f'UNIQUE_STRICT_STATIONS={len(cache)}')
                   print(f'SAME_DAY_ELIGIBLE_EVENTS={len(eligible)}')
+
+                  for eid, slug, title, raw in raw_temperature[:20]:
+                      print('RAW_TEMP=' + repr({
+                          'id': eid,
+                          'slug': slug,
+                          'title': title,
+                          'family': raw.family,
+                          'target_date': None if raw.target_date is None else raw.target_date.isoformat(),
+                          'station': raw.station_hint,
+                          'unit': raw.unit,
+                          'buckets': len(raw.buckets or ()),
+                      }))
+
+                  for err, samples in strict_samples.items():
+                      for eid, slug, title, event in samples:
+                          markets = [m for m in (event.get('markets') or []) if isinstance(m, dict)]
+                          print('STRICT_FAIL_SAMPLE=' + repr({
+                              'code': err,
+                              'id': eid,
+                              'slug': slug,
+                              'title': title,
+                              'event_description': compact(event.get('description')),
+                              'event_resolutionSource': compact(event.get('resolutionSource')),
+                              'market_count': len(markets),
+                              'first_question': compact(markets[0].get('question')) if markets else '',
+                              'first_description': compact(markets[0].get('description')) if markets else '',
+                              'first_resolutionSource': compact(markets[0].get('resolutionSource')) if markets else '',
+                          }))
+
                   for row in eligible:
                       print('ELIGIBLE=' + '|'.join(row))
                   if metadata_errors:
                       print('METADATA_ERRORS=' + repr(metadata_errors))
+
+                  # The cap is still a safety gate, but a zero strict universe is also
+                  # treated as a review finding rather than silently called healthy.
                   assert len(eligible) <= 12, f'LIVE_SAME_DAY_UNIVERSE_EXCEEDS_CAP:{len(eligible)}'
+                  assert raw_temperature, 'NO_RAW_DAILY_TEMPERATURE_EVENTS_DISCOVERED'
+                  assert strict_ok, 'NO_STRICT_TEMPERATURE_EVENTS_ADMITTED'
               finally:
                   await discovery.close()
                   await stations.close()
+
           asyncio.run(main())
           PY
