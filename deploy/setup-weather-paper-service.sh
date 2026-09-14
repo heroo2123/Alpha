@@ -20,7 +20,7 @@ TMP_UNIT="${UNIT_DIR}/polymarket-weather-paper.service"
 trap 'rm -f "${TMP_ENV}"; rm -rf "${UNIT_DIR}"' EXIT
 
 # Extract an executable allowlist rather than grepping the whole legacy environment.
-# The optional WEATHER_PWS_API_KEY is read-only diagnostic authority; wallet, exchange,
+# The optional SYNOPTIC_PWS_TOKEN is read-only diagnostic authority; wallet, exchange,
 # cloud and unrelated secrets never enter the weather-paper environment.
 "${APP_DIR}/.venv/bin/python" "${APP_DIR}/deploy/extract-weather-paper-env.py" \
   --source "${BOT_ENV}" --output "${TMP_ENV}"
@@ -34,4 +34,4 @@ sudo systemctl daemon-reload
 
 echo 'Weather LIVE PAPER unit installed. It was NOT started or enabled.'
 echo 'Weather code/release marker are isolated from the legacy scanner release.'
-echo 'Only Telegram credentials and optional WEATHER_PWS_API_KEY were copied to weather-paper.env.'
+echo 'Only Telegram credentials and optional SYNOPTIC_PWS_TOKEN were copied to weather-paper.env.'
