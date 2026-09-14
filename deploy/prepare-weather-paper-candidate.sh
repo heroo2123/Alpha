@@ -35,9 +35,6 @@ if [[ ! -d "${APP_DIR}/.git" ]]; then
   FRESH_CLONE=1
 fi
 
-# A --no-checkout clone intentionally has an empty worktree and therefore looks
-# deleted/dirty until the first checkout.  Enforce cleanliness immediately only for
-# an existing installation; every path is checked again after the detached checkout.
 if [[ "${FRESH_CLONE}" -eq 0 ]]; then
   [[ -z "$(git -C "${APP_DIR}" status --porcelain --untracked-files=all)" ]] \
     || fail "weather-paper checkout differs from its authorized commit"
@@ -60,12 +57,14 @@ for required in \
   deploy/verify-runtime-release.sh \
   deploy/render-weather-paper-unit.py \
   deploy/check-weather-paper-network.py \
+  deploy/check-synoptic-pws.py \
   deploy/check-weather-paper-service-isolation.sh \
   deploy/pre-release-weather-paper-backup.sh \
   deploy/setup-weather-paper-backup-service.sh \
   deploy/preflight-weather-paper-deployment.sh \
   deploy/start-weather-paper-candidate.sh \
   deploy/verify-weather-paper-first-cycle.py \
+  deploy/verify-synoptic-pws-status.py \
   deploy/enable-weather-paper-persistence.sh \
   deploy/extract-weather-paper-env.py \
   polymarket_scanner/weather_only_live_paper_corrective.py \
@@ -95,7 +94,6 @@ fi
 "${APP_DIR}/.venv/bin/python" -m pip install -r "${APP_DIR}/requirements.txt"
 "${APP_DIR}/.venv/bin/python" -m pip check
 
-# Verify every pinned runtime requirement exactly, not merely satisfiable ranges.
 PYTHONPATH="${APP_DIR}" "${APP_DIR}/.venv/bin/python" - "${APP_DIR}/requirements.txt" <<'PY'
 from importlib.metadata import version
 from pathlib import Path
@@ -111,9 +109,6 @@ for raw in Path(sys.argv[1]).read_text(encoding="utf-8").splitlines():
 print("Weather-paper runtime dependency pins match exactly.")
 PY
 
-# Import the exact deployable module before publishing the release marker. This is a
-# no-start smoke test and catches missing internal files/imports before any service
-# installation or live-paper process is attempted.
 PYTHONPATH="${APP_DIR}" "${APP_DIR}/.venv/bin/python" -c \
   "import ${FINAL_MODULE}; print('Final Synoptic weather-paper runtime import passed.')"
 
