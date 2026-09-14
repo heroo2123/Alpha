@@ -17,7 +17,7 @@ being backdated into a decision made before its response existed.
 The resulting path is supporting forecast evidence only. It is not the WRH settlement
 population, not a calibrated probability, and cannot authorize Telegram or financial
 delivery. Any missing interval, unit drift, stale/future update identity, redirect to
-an unexpected host, or uncovered sample fails closed.
+an unexpected host, grid-identity mismatch, or uncovered sample fails closed.
 """
 
 import hashlib
@@ -41,16 +41,22 @@ from .weather_only_near_term_path import (
 )
 
 
-NWS_NEAR_TERM_VERSION = "nws_raw_grid_temperature_near_term_v2_staged_receipt"
-NWS_RAW_SNAPSHOT_VERSION = "nws_near_term_raw_snapshot_v1_predecision_evidence"
+NWS_NEAR_TERM_VERSION = "nws_raw_grid_temperature_near_term_v3_grid_identity_4dp"
+NWS_RAW_SNAPSHOT_VERSION = "nws_near_term_raw_snapshot_v2_grid_identity_4dp"
 NWS_API_ORIGIN = "https://api.weather.gov"
 NWS_POINTS_ENDPOINT = NWS_API_ORIGIN + "/points/{latitude},{longitude}"
+# api.weather.gov documents support for no more than four decimal places in /points
+# coordinates. Keep the original station coordinates in evidence, but make the actual
+# request URL and persisted request identity exactly match that supported precision.
+NWS_POINTS_COORDINATE_DECIMALS = 4
 NWS_NEAR_TERM_STEP_SECONDS = 900
 NWS_TEMPERATURE_UOM_C = "wmoUnit:degC"
 NWS_TEMPERATURE_UOM_F = "wmoUnit:degF"
 NWS_NEAR_TERM_HYPOTHESIS = "NWS_GRID_INTERVAL_VALUE_SAMPLED_15MIN_LEFT_CLOSED_V1"
 MAX_RESPONSE_BYTES = 2 * 1024 * 1024
-_GRID_URL_RE = re.compile(r"^/gridpoints/[A-Z]{3}/\d+,\d+/?$")
+_GRID_URL_RE = re.compile(
+    r"^/gridpoints/(?P<grid_id>[A-Z]{3})/(?P<grid_x>\d+),(?P<grid_y>\d+)/?$"
+)
 _DURATION_RE = re.compile(
     r"^P(?:(?P<days>\d+)D)?(?:T(?:(?P<hours>\d+)H)?(?:(?P<minutes>\d+)M)?(?:(?P<seconds>\d+(?:\.\d+)?)S)?)?$"
 )
@@ -128,6 +134,17 @@ def _valid_interval(value: object) -> tuple[float, float]:
     return start, end
 
 
+def _points_url(latitude: object, longitude: object) -> str:
+    lat = _finite(latitude, "NWS_NEAR_TERM_COORDINATE_INVALID")
+    lon = _finite(longitude, "NWS_NEAR_TERM_COORDINATE_INVALID")
+    if not -90.0 <= lat <= 90.0 or not -180.0 <= lon <= 180.0:
+        raise NWSNearTermError("NWS_NEAR_TERM_COORDINATE_INVALID")
+    return NWS_POINTS_ENDPOINT.format(
+        latitude=f"{lat:.{NWS_POINTS_COORDINATE_DECIMALS}f}",
+        longitude=f"{lon:.{NWS_POINTS_COORDINATE_DECIMALS}f}",
+    )
+
+
 def _grid_url(value: object) -> str:
     text = str(value or "").strip()
     try:
@@ -144,6 +161,43 @@ def _grid_url(value: object) -> str:
     ):
         raise NWSNearTermError("NWS_NEAR_TERM_GRID_URL_INVALID")
     return text.rstrip("/")
+
+
+def _grid_identity(value: object) -> tuple[str, str, int, int]:
+    url = _grid_url(value)
+    match = _GRID_URL_RE.fullmatch(urlparse(url).path)
+    if match is None:  # defensive; _grid_url already proves this shape
+        raise NWSNearTermError("NWS_NEAR_TERM_GRID_URL_INVALID")
+    return (
+        url,
+        match.group("grid_id"),
+        int(match.group("grid_x")),
+        int(match.group("grid_y")),
+    )
+
+
+def _verified_grid_properties(grid_payload: object, forecast_grid_url: str) -> dict:
+    if not isinstance(grid_payload, dict) or grid_payload.get("type") != "Feature":
+        raise NWSNearTermError("NWS_NEAR_TERM_GRID_ENVELOPE_INVALID")
+    properties = grid_payload.get("properties")
+    if not isinstance(properties, dict):
+        raise NWSNearTermError("NWS_NEAR_TERM_GRID_PROPERTIES_INVALID")
+    _url, expected_id, expected_x, expected_y = _grid_identity(forecast_grid_url)
+    actual_id = properties.get("gridId")
+    actual_x = properties.get("gridX")
+    actual_y = properties.get("gridY")
+    if (
+        not isinstance(actual_id, str)
+        or actual_id != expected_id
+        or isinstance(actual_x, bool)
+        or not isinstance(actual_x, int)
+        or actual_x != expected_x
+        or isinstance(actual_y, bool)
+        or not isinstance(actual_y, int)
+        or actual_y != expected_y
+    ):
+        raise NWSNearTermError("NWS_NEAR_TERM_GRID_IDENTITY_MISMATCH")
+    return properties
 
 
 def _to_requested_unit(value: float, source_uom: str, target_unit: str) -> float:
@@ -254,9 +308,8 @@ def build_nws_raw_snapshot(
     if not isinstance(point_properties, dict):
         raise NWSNearTermError("NWS_NEAR_TERM_POINTS_PROPERTIES_INVALID")
     forecast_grid_url = _grid_url(point_properties.get("forecastGridData"))
-    points_url = NWS_POINTS_ENDPOINT.format(latitude=f"{lat:.6f}", longitude=f"{lon:.6f}")
-    if not isinstance(grid_payload, dict) or grid_payload.get("type") != "Feature":
-        raise NWSNearTermError("NWS_NEAR_TERM_GRID_ENVELOPE_INVALID")
+    points_url = _points_url(lat, lon)
+    _verified_grid_properties(grid_payload, forecast_grid_url)
 
     shell = NWSNearTermRawSnapshot(
         version=NWS_RAW_SNAPSHOT_VERSION,
@@ -288,8 +341,18 @@ def verify_nws_raw_snapshot(value: object) -> NWSNearTermRawSnapshot:
         raise NWSNearTermError("NWS_NEAR_TERM_RAW_SNAPSHOT_VERSION_INVALID")
     if value.evidence_sha256 != _canonical_sha(_raw_snapshot_payload(value)):
         raise NWSNearTermError("NWS_NEAR_TERM_RAW_SNAPSHOT_DIGEST_MISMATCH")
+    if value.points_url != _points_url(value.latitude, value.longitude):
+        raise NWSNearTermError("NWS_NEAR_TERM_POINTS_URL_IDENTITY_MISMATCH")
     if _grid_url(value.forecast_grid_url) != value.forecast_grid_url:
         raise NWSNearTermError("NWS_NEAR_TERM_GRID_URL_INVALID")
+    if not isinstance(value.points_payload, dict) or value.points_payload.get("type") != "Feature":
+        raise NWSNearTermError("NWS_NEAR_TERM_POINTS_ENVELOPE_INVALID")
+    point_properties = value.points_payload.get("properties")
+    if not isinstance(point_properties, dict):
+        raise NWSNearTermError("NWS_NEAR_TERM_POINTS_PROPERTIES_INVALID")
+    if _grid_url(point_properties.get("forecastGridData")) != value.forecast_grid_url:
+        raise NWSNearTermError("NWS_NEAR_TERM_GRID_URL_IDENTITY_MISMATCH")
+    _verified_grid_properties(value.grid_payload, value.forecast_grid_url)
     if any((
         value.settlement_authority,
         value.calibration_label_authority,
@@ -334,12 +397,7 @@ def parse_nws_near_term_grid_path(
     if not isinstance(point_properties, dict):
         raise NWSNearTermError("NWS_NEAR_TERM_POINTS_PROPERTIES_INVALID")
     forecast_grid_url = _grid_url(point_properties.get("forecastGridData"))
-
-    if not isinstance(grid_payload, dict) or grid_payload.get("type") != "Feature":
-        raise NWSNearTermError("NWS_NEAR_TERM_GRID_ENVELOPE_INVALID")
-    properties = grid_payload.get("properties")
-    if not isinstance(properties, dict):
-        raise NWSNearTermError("NWS_NEAR_TERM_GRID_PROPERTIES_INVALID")
+    properties = _verified_grid_properties(grid_payload, forecast_grid_url)
     update_at = _aware_timestamp(properties.get("updateTime"), "NWS_NEAR_TERM_UPDATE_TIME_INVALID")
     if update_at > receipt + 1e-6:
         raise NWSNearTermError("NWS_NEAR_TERM_UPDATE_AFTER_RECEIPT")
@@ -387,6 +445,7 @@ def parse_nws_near_term_grid_path(
         "station": station_id,
         "requested_latitude": lat,
         "requested_longitude": lon,
+        "points_url": _points_url(lat, lon),
         "forecast_grid_url": forecast_grid_url,
     })
     return build_near_term_sample_path(
@@ -481,7 +540,7 @@ class NWSNearTermGridClient:
         """Acquire immutable raw source state without choosing an as-of decision yet."""
         lat = _finite(latitude, "NWS_NEAR_TERM_COORDINATE_INVALID")
         lon = _finite(longitude, "NWS_NEAR_TERM_COORDINATE_INVALID")
-        points_url = NWS_POINTS_ENDPOINT.format(latitude=f"{lat:.6f}", longitude=f"{lon:.6f}")
+        points_url = _points_url(lat, lon)
         points_payload, points_received = await self._json_get(points_url)
         try:
             properties = points_payload["properties"]
