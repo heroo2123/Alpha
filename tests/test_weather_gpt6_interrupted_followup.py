@@ -23,7 +23,7 @@ from polymarket_scanner.weather_only_live_paper_final import FinalWeatherLivePap
 
 
 ROOT = Path(__file__).resolve().parents[1]
-BRANCH = "weather-live-paper-corrective-2026-09-13"
+BRANCH = "weather-same-day-synoptic-pws-2026-09-14"
 
 
 def _event(*, eid: str = "event-1", target: date = date(2026, 9, 14)) -> dict:
@@ -167,15 +167,22 @@ def _make_minimal_candidate_repo(path: Path) -> str:
         "deploy/verify-runtime-release.sh",
         "deploy/render-weather-paper-unit.py",
         "deploy/check-weather-paper-network.py",
+        "deploy/check-synoptic-pws.py",
         "deploy/check-weather-paper-service-isolation.sh",
         "deploy/pre-release-weather-paper-backup.sh",
         "deploy/setup-weather-paper-backup-service.sh",
         "deploy/preflight-weather-paper-deployment.sh",
         "deploy/start-weather-paper-candidate.sh",
         "deploy/verify-weather-paper-first-cycle.py",
+        "deploy/verify-synoptic-pws-status.py",
         "deploy/enable-weather-paper-persistence.sh",
+        "deploy/extract-weather-paper-env.py",
         "polymarket_scanner/weather_only_live_paper_corrective.py",
         "polymarket_scanner/weather_only_live_paper_final.py",
+        "polymarket_scanner/weather_only_live_paper_synoptic.py",
+        "polymarket_scanner/weather_only_synoptic_pws.py",
+        "polymarket_scanner/weather_only_pws.py",
+        "polymarket_scanner/weather_only_pws_store.py",
         "polymarket_scanner/weather_only_paper_recovery.py",
         "polymarket_scanner/weather_only_paper_recovery_final.py",
         "polymarket_scanner/weather_only_runtime_attestation.py",
@@ -192,8 +199,12 @@ def _make_minimal_candidate_repo(path: Path) -> str:
         "FINAL_TEST_IMPORT = True\n",
     )
     _write(
+        path / "polymarket_scanner/weather_only_live_paper_synoptic.py",
+        "SYNOPTIC_FINAL_TEST_IMPORT = True\n",
+    )
+    _write(
         path / "deploy/render-weather-paper-unit.py",
-        "polymarket_scanner.weather_only_live_paper_final\nweather-paper-release.sha\n",
+        "polymarket_scanner.weather_only_live_paper_synoptic\nweather-paper-release.sha\n",
     )
     _write(
         path / "deploy/verify-runtime-release.sh",
