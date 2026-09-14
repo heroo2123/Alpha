@@ -1,4 +1,4 @@
-"""Render the weather-only live-paper service; never install or start it."""
+"""Render the guarded pure three-layer weather PAPER service; never start it."""
 
 from __future__ import annotations
 
@@ -8,7 +8,10 @@ from pathlib import Path
 
 
 WEATHER_RELEASE_MARKER = "weather-paper-release.sha"
-FINAL_WEATHER_MODULE = "polymarket_scanner.weather_only_live_paper_final"
+FINAL_WEATHER_MODULE = (
+    "polymarket_scanner.weather_only_live_paper_three_layer_validation"
+)
+GUARDED_BASE_MODULE = "polymarket_scanner.weather_only_live_paper_final"
 
 
 def render(app_dir: Path, config_dir: Path, user: str) -> str:
@@ -22,7 +25,8 @@ def render(app_dir: Path, config_dir: Path, user: str) -> str:
     verifier = f"/bin/bash {app_dir}/deploy/verify-runtime-release.sh {app_dir} {release_file}"
     state = "/var/lib/polymarket-weather-paper"
     return f"""[Unit]
-Description=Polymarket weather-only LIVE PAPER final guarded runtime
+Description=Polymarket weather-only LIVE PAPER final runtime with guarded silent three-layer validation
+# Guarded future-day base: {GUARDED_BASE_MODULE}
 Wants=network-online.target
 After=network-online.target
 StartLimitIntervalSec=600
