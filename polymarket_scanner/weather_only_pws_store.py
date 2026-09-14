@@ -17,6 +17,7 @@ from pathlib import Path
 from .weather_only_pws import (
     PWS_DIAGNOSTIC_VERSION,
     PWS_STATUS_AVAILABLE,
+    PWS_STATUS_NO_FRESH_QC,
     PWSDiagnosticRecord,
     verify_pws_diagnostic,
 )
@@ -94,8 +95,6 @@ class SameDayPWSDiagnosticStore:
                     ON weather_same_day_pws_capture_links(state,event_id,capture_as_of);
                 """
             )
-            # v1 PWS databases predate capture_sha256. Add it conservatively; old
-            # diagnostics remain readable but are not retroactively linked.
             columns = {
                 str(row[1])
                 for row in db.execute("PRAGMA table_info(weather_same_day_pws_diagnostics)")
@@ -150,7 +149,22 @@ class SameDayPWSDiagnosticStore:
             )
         except (TypeError, ValueError):
             raise PWSDiagnosticStoreError("PWS_STORE_JSON_INVALID") from None
-        state = "AVAILABLE" if value.status == PWS_STATUS_AVAILABLE else "UNAVAILABLE"
+
+        # Only a genuine successful query with no fresh/QC-passing station is
+        # "UNAVAILABLE". Authentication, transport, provider, timeout, malformed,
+        # encoding and configuration failures remain durable diagnostics but their
+        # capture link is FAILED so missingness analyses cannot mistake outages for
+        # evidence that no nearby PWS existed.
+        if value.status == PWS_STATUS_AVAILABLE:
+            state = "AVAILABLE"
+            failure_code = None
+        elif value.status == PWS_STATUS_NO_FRESH_QC:
+            state = "UNAVAILABLE"
+            failure_code = None
+        else:
+            state = "FAILED"
+            failure_code = value.status
+
         with self._conn() as db:
             link = db.execute(
                 "SELECT state,event_id,target_date FROM weather_same_day_pws_capture_links WHERE capture_sha256=?",
@@ -191,10 +205,16 @@ class SameDayPWSDiagnosticStore:
             db.execute(
                 """
                 UPDATE weather_same_day_pws_capture_links
-                   SET state=?,diagnostic_sha256=?,failure_code=NULL,completed_at=?
+                   SET state=?,diagnostic_sha256=?,failure_code=?,completed_at=?
                  WHERE capture_sha256=? AND state='PENDING'
                 """,
-                (state, value.diagnostic_sha256, float(value.as_of), capture_digest),
+                (
+                    state,
+                    value.diagnostic_sha256,
+                    failure_code,
+                    float(value.as_of),
+                    capture_digest,
+                ),
             )
         return int(cur.lastrowid)
 
