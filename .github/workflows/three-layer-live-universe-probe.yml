@@ -19,102 +19,37 @@ jobs:
         with:
           python-version: '3.12'
       - run: python -m pip install -r requirements.txt
-      - name: Measure current same-day WRH universe and guarded Layer 2 coverage
+      - name: Inspect exact Fahrenheit and Celsius recurring templates
         run: |
           python - <<'PY'
           import asyncio
-          from collections import Counter
-          from datetime import datetime, timezone
-          from zoneinfo import ZoneInfo
-
           from polymarket_scanner.weather_only_discovery import WeatherOnlyDiscovery
-          from polymarket_scanner.weather_only_contracts import DAILY_HIGH, DAILY_LOW, compile_weather_event
-          from polymarket_scanner.weather_only_three_layer_guarded import (
-              GuardedNWSNearTermGridClient,
-              GuardedSameDayStationMetadataClient,
-          )
+          from polymarket_scanner.weather_only_contracts import compile_weather_event
 
-          def code(exc):
-              return str(getattr(exc, 'code', type(exc).__name__))
+          TARGETS = ('1009003', '1009108', '1017810', '1018007')
 
           async def main():
-              discovery = WeatherOnlyDiscovery()
-              metadata = GuardedSameDayStationMetadataClient()
-              near = GuardedNWSNearTermGridClient()
+              d = WeatherOnlyDiscovery()
               try:
-                  snapshot = await discovery.discover()
-                  frozen_now = datetime.now(timezone.utc)
-                  meta_cache = {}
-                  same_day = []
-                  meta_failures = []
-                  raw_wrhtemp = []
-
-                  for event in snapshot.events:
-                      if not isinstance(event, dict):
+                  s = await d.discover()
+                  by_id = {str(e.get('id') or ''): e for e in s.events if isinstance(e, dict)}
+                  for event_id in TARGETS:
+                      e = by_id.get(event_id)
+                      if e is None:
+                          print('MISSING=' + event_id)
                           continue
-                      raw = compile_weather_event(event)
-                      if not (
-                          raw.family in {DAILY_HIGH, DAILY_LOW}
-                          and raw.source_family == 'NWS_WRH_TIMESERIES'
-                          and raw.target_date is not None
-                          and raw.station_hint
-                          and raw.unit in {'C', 'F'}
-                          and raw.partition_shape_complete
-                      ):
-                          continue
-                      raw_wrhtemp.append(raw)
-                      station = str(raw.station_hint).upper()
-                      try:
-                          if station not in meta_cache:
-                              meta_cache[station] = await metadata.station(station)
-                          info = meta_cache[station]
-                          local_today = frozen_now.astimezone(ZoneInfo(info.timezone)).date()
-                      except Exception as exc:
-                          meta_failures.append((station, code(exc)))
-                          continue
-                      if raw.target_date == local_today:
-                          same_day.append(raw)
-
-                  print(f'DISCOVERED_UNIQUE_EVENTS={snapshot.unique_event_count}')
-                  print(f'RAW_WRH_TEMPERATURE_EVENTS={len(raw_wrhtemp)}')
-                  print(f'RAW_WRH_UNIQUE_STATIONS={len(meta_cache)}')
-                  print(f'BROAD_SAME_DAY_EVENTS={len(same_day)}')
-                  print('BROAD_SAME_DAY_IDS=' + repr([
-                      (r.event_id, r.station_hint, r.target_date.isoformat(), r.family)
-                      for r in same_day
-                  ]))
-                  if meta_failures:
-                      print('METADATA_FAILURES=' + repr(meta_failures))
-
-                  station_to_events = {}
-                  for raw in same_day:
-                      station_to_events.setdefault(str(raw.station_hint).upper(), []).append(raw.event_id)
-                  layer2 = {}
-                  for station in sorted(station_to_events):
-                      info = meta_cache[station]
-                      try:
-                          snap = await near.fetch_snapshot(
-                              station=station,
-                              latitude=float(info.latitude),
-                              longitude=float(info.longitude),
-                          )
-                          layer2[station] = ('OK', snap.forecast_grid_url)
-                      except Exception as exc:
-                          layer2[station] = ('FAIL', code(exc))
-                  print('SAME_DAY_LAYER2_RESULTS=' + repr(layer2))
-                  supported_events = sum(
-                      len(station_to_events[station])
-                      for station, result in layer2.items()
-                      if result[0] == 'OK'
-                  )
-                  print(f'SAME_DAY_LAYER2_SUPPORTED_EVENTS={supported_events}')
-                  print(f'SAME_DAY_LAYER2_UNSUPPORTED_EVENTS={len(same_day)-supported_events}')
-                  counts = Counter(result[1] for result in layer2.values() if result[0] == 'FAIL')
-                  print('SAME_DAY_LAYER2_FAILURE_CODES=' + repr(dict(counts)))
+                      raw = compile_weather_event(e)
+                      markets = [m for m in (e.get('markets') or []) if isinstance(m, dict)]
+                      print('BEGIN=' + event_id)
+                      print('IDENTITY=' + repr((raw.title, raw.family, raw.target_date.isoformat() if raw.target_date else None, raw.unit, raw.station_hint)))
+                      print('SOURCE=' + str(e.get('resolutionSource') or ''))
+                      print('DESCRIPTION_BEGIN')
+                      print(str(e.get('description') or ''))
+                      print('DESCRIPTION_END')
+                      print('QUESTIONS=' + repr([str(m.get('question') or '') for m in markets]))
+                      print('END=' + event_id)
               finally:
-                  await discovery.close()
-                  await metadata.close()
-                  await near.close()
+                  await d.close()
 
           asyncio.run(main())
           PY
