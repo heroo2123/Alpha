@@ -15,6 +15,7 @@ import asyncio
 import json
 import math
 import time
+from datetime import date
 from urllib.parse import urljoin, urlparse
 
 import httpx
@@ -35,18 +36,16 @@ from .weather_only_nws_near_term import (
     NWSNearTermError,
     NWSNearTermGridClient,
 )
-from .weather_only_wrh import WRHSourceError
 from .weather_only_wrh_client import NWSWRHLiveClient
 
 
 NWS_TOTAL_RESPONSE_DEADLINE_SECONDS = 15.0
 GEFS_TOTAL_RESPONSE_DEADLINE_SECONDS = 20.0
 GEFS_MAX_RESPONSE_BYTES = 2 * 1024 * 1024
-GEFS_MAX_RESOLVED_DISTANCE_KM = 75.0
+GEFS_MAX_RESOLVED_DISTANCE_KM = 50.0
 WRH_TOTAL_RESPONSE_DEADLINE_SECONDS = 20.0
 WRH_MAX_RESPONSE_BYTES = 4 * 1024 * 1024
 _ALLOWED_TRANSFER_ENCODINGS = {"identity", "chunked"}
-_ALLOWED_WRH_REDIRECT_HOSTS = {"www.weather.gov", "api.synopticdata.com"}
 
 
 def _content_length(headers: httpx.Headers, *, code: str) -> int | None:
@@ -106,13 +105,13 @@ async def _bounded_async_json(
                     response.headers
                 ):
                     raise RuntimeError(encoding_code)
-                try:
-                    length = _content_length(response.headers, code=size_code)
-                except RuntimeError:
-                    raise
+                length = _content_length(response.headers, code=size_code)
                 if length is not None and length > max_bytes:
                     raise RuntimeError(size_code)
 
+                # Production httpx.stream(..., stream=True) enters here unconsumed.
+                # The consumed branch exists only for injected test transports and
+                # remains safe because encoding is rejected before content access.
                 if response.is_stream_consumed:
                     raw = bytes(response.content)
                     if len(raw) > max_bytes:
@@ -211,11 +210,11 @@ class GuardedOpenMeteoGEFSHourlyClient(OpenMeteoGEFSHourlyClient):
         station: str,
         latitude: float,
         longitude: float,
-        target_date,
+        target_date: date,
         unit: str,
         timezone: str,
     ):
-        if type(target_date).__name__ != "date":
+        if type(target_date) is not date:
             raise GEFSHourlyError("GEFS_HOURLY_TARGET_DATE_INVALID")
         if unit not in {"F", "C"}:
             raise GEFSHourlyError("GEFS_HOURLY_UNIT_UNSUPPORTED")
@@ -288,7 +287,11 @@ class _BoundedIdentityHTTPClient(httpx.Client):
 
     def __init__(self) -> None:
         super().__init__(
-            headers={"Accept-Encoding": "identity"},
+            headers={
+                "User-Agent": "polymarket-weather-only-wrh-live-guarded/1.0 (+https://github.com/heroo2123/Alpha)",
+                "Accept": "*/*",
+                "Accept-Encoding": "identity",
+            },
             timeout=httpx.Timeout(5.0, connect=4.0, read=5.0, write=5.0, pool=4.0),
             follow_redirects=False,
             trust_env=False,
@@ -323,8 +326,14 @@ class _BoundedIdentityHTTPClient(httpx.Client):
                             content=b"",
                         )
                     nxt = urljoin(str(response.request.url), location)
-                    parsed = urlparse(nxt)
-                    if parsed.scheme != "https" or parsed.hostname not in _ALLOWED_WRH_REDIRECT_HOSTS:
+                    before = urlparse(str(response.request.url))
+                    after = urlparse(nxt)
+                    # Never carry the ephemeral WRH browser credential across hosts.
+                    if (
+                        after.scheme != "https"
+                        or not before.hostname
+                        or after.hostname != before.hostname
+                    ):
                         return httpx.Response(
                             response.status_code,
                             headers=response.headers,
@@ -375,7 +384,9 @@ class _BoundedIdentityHTTPClient(httpx.Client):
                     request=response.request,
                     content=bytes(payload),
                 )
-        raise httpx.TooManyRedirects("too many WRH redirects", request=None)
+        raise httpx.RequestError(
+            "too many WRH redirects", request=httpx.Request("GET", current)
+        )
 
 
 class GuardedNWSWRHLiveClient(NWSWRHLiveClient):
