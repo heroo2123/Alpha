@@ -4,18 +4,25 @@ from __future__ import annotations
 
 The existing daily-extreme adapter is intentionally unsuitable for same-day
 conditioning because it can carry an elapsed model extreme forward after official
-observations have replaced that part of the day.  This module instead preserves the
-full per-member hourly trajectory for the target local day.
+observations have replaced that part of the day. This module instead preserves the
+full per-member target-day trajectory.
+
+The same-day adapter pins Open-Meteo to the explicit NOAA GEFS 0.25-degree domain,
+``nearest`` cell selection and explicit ``hourly`` temporal resolution. Open-Meteo's
+GEFS 0.25-degree source is natively coarser in time and the provider supplies hourly
+values for this query policy; those values are therefore a provider interpolation
+hypothesis, not extra independent native model observations. That policy is frozen in
+the evidence identity for prospective validation.
 
 Open-Meteo does not expose an authoritative NCEP initialization timestamp in the
-schema used here.  We therefore never invent one.  ``received_at`` is the only
+schema used here. We therefore never invent one. ``received_at`` is the only
 availability authority, and conversion to an unresolved-path proof conservatively
-uses that receipt as the effective issue time.  This is safe for future U(t) and
+uses that receipt as the effective issue time. This is safe for future U(t) and
 causes already-elapsed unresolved segments to fail closed unless another adapter can
 prove the run existed before those segments.
 
 ``content_run_id`` is a deterministic identity for the returned model content, not a
-claim about an upstream NCEP run identifier.  Identical repeated retrievals collapse
+claim about an upstream NCEP run identifier. Identical repeated retrievals collapse
 to the same content identity so they cannot be mistaken for independent ensemble
 votes.
 
@@ -44,14 +51,16 @@ from .weather_only_forecast import (
     GEFS_PERTURBED_MEMBERS,
     GEFS_TOTAL_MEMBERS,
     OPEN_METEO_ENSEMBLE,
-    OPEN_METEO_GEFS_MODEL,
 )
 
 
-GEFS_HOURLY_ADAPTER_VERSION = "open_meteo_ncep_gefs_seamless_hourly_paths_v1_31_members"
+GEFS_HOURLY_ADAPTER_VERSION = "open_meteo_ncep_gefs025_hourly_paths_v2_31_members"
 GEFS_HOURLY_ROLE = "FORECAST_MEMBER_PATH_RESEARCH_ONLY"
 GEFS_HOURLY_VARIABLE = "temperature_2m"
 GEFS_HOURLY_STEP_SECONDS = 3600
+GEFS_HOURLY_PROVIDER_MODEL = "ncep_gefs025"
+GEFS_HOURLY_TEMPORAL_RESOLUTION = "hourly"
+GEFS_HOURLY_CELL_SELECTION = CELL_SELECTION_POLICY
 
 
 class GEFSHourlyError(RuntimeError):
@@ -187,6 +196,8 @@ class GEFSHourlyTargetDay:
     adapter: str
     provider: str
     provider_model: str
+    query_cell_selection: str
+    query_temporal_resolution: str
     source_role: str
     station: str
     target_date: date
@@ -218,6 +229,8 @@ def _content_payload(distribution: GEFSHourlyTargetDay) -> dict:
         "adapter": distribution.adapter,
         "provider": distribution.provider,
         "provider_model": distribution.provider_model,
+        "query_cell_selection": distribution.query_cell_selection,
+        "query_temporal_resolution": distribution.query_temporal_resolution,
         "source_role": distribution.source_role,
         "station": distribution.station,
         "target_date": distribution.target_date.isoformat(),
@@ -255,10 +268,19 @@ def parse_open_meteo_gefs_hourly_target_day(
     requested_latitude: float,
     requested_longitude: float,
     received_at: float,
+    provider_model: str = GEFS_HOURLY_PROVIDER_MODEL,
+    query_cell_selection: str = GEFS_HOURLY_CELL_SELECTION,
+    query_temporal_resolution: str = GEFS_HOURLY_TEMPORAL_RESOLUTION,
 ) -> GEFSHourlyTargetDay:
     station_id = _station(station)
     if type(target_date) is not date:
         raise GEFSHourlyError("GEFS_HOURLY_TARGET_DATE_INVALID")
+    if provider_model != GEFS_HOURLY_PROVIDER_MODEL:
+        raise GEFSHourlyError("GEFS_HOURLY_PROVIDER_MODEL_MISMATCH")
+    if query_cell_selection != GEFS_HOURLY_CELL_SELECTION:
+        raise GEFSHourlyError("GEFS_HOURLY_CELL_SELECTION_MISMATCH")
+    if query_temporal_resolution != GEFS_HOURLY_TEMPORAL_RESOLUTION:
+        raise GEFSHourlyError("GEFS_HOURLY_TEMPORAL_RESOLUTION_MISMATCH")
     if not isinstance(timezone, str) or not timezone.strip() or timezone != timezone.strip():
         raise GEFSHourlyError("GEFS_HOURLY_TIMEZONE_INVALID")
     expected_unit = _unit_symbol(unit)
@@ -304,13 +326,17 @@ def parse_open_meteo_gefs_hourly_target_day(
         values = hourly.get(key)
         if not isinstance(values, list) or len(values) != len(valid_times):
             raise GEFSHourlyError("GEFS_HOURLY_MEMBER_SERIES_LENGTH_MISMATCH")
-        parsed_values = tuple(_finite(value, "GEFS_HOURLY_MEMBER_VALUE_INVALID") for value in values)
+        parsed_values = tuple(
+            _finite(value, "GEFS_HOURLY_MEMBER_VALUE_INVALID") for value in values
+        )
         series_rows.append(GEFSHourlyMemberSeries(label, parsed_values))
 
     shell = GEFSHourlyTargetDay(
         adapter=GEFS_HOURLY_ADAPTER_VERSION,
         provider="Open-Meteo Ensemble API",
-        provider_model=OPEN_METEO_GEFS_MODEL,
+        provider_model=provider_model,
+        query_cell_selection=query_cell_selection,
+        query_temporal_resolution=query_temporal_resolution,
         source_role=GEFS_HOURLY_ROLE,
         station=station_id,
         target_date=target_date,
@@ -353,11 +379,16 @@ def verify_gefs_hourly_evidence(distribution: object) -> GEFSHourlyTargetDay:
     if (
         distribution.adapter != GEFS_HOURLY_ADAPTER_VERSION
         or distribution.provider != "Open-Meteo Ensemble API"
-        or distribution.provider_model != OPEN_METEO_GEFS_MODEL
+        or distribution.provider_model != GEFS_HOURLY_PROVIDER_MODEL
+        or distribution.query_cell_selection != GEFS_HOURLY_CELL_SELECTION
+        or distribution.query_temporal_resolution != GEFS_HOURLY_TEMPORAL_RESOLUTION
         or distribution.source_role != GEFS_HOURLY_ROLE
     ):
         raise GEFSHourlyError("GEFS_HOURLY_ADAPTER_IDENTITY_MISMATCH")
-    if distribution.member_labels != _member_labels() or len(distribution.member_series) != GEFS_TOTAL_MEMBERS:
+    if (
+        distribution.member_labels != _member_labels()
+        or len(distribution.member_series) != GEFS_TOTAL_MEMBERS
+    ):
         raise GEFSHourlyError("GEFS_HOURLY_MEMBER_IDENTITY_MISMATCH")
     if tuple(series.member_label for series in distribution.member_series) != distribution.member_labels:
         raise GEFSHourlyError("GEFS_HOURLY_MEMBER_SERIES_IDENTITY_MISMATCH")
@@ -397,18 +428,22 @@ def build_verified_gefs_path_from_hourly(
         while cursor < float(segment.end) - 1e-6:
             expected_times.add(round(cursor, 6))
             cursor += GEFS_HOURLY_STEP_SECONDS
-    available = {round(value, 6): index for index, value in enumerate(source.valid_times)}
+    available = {
+        round(value, 6): index for index, value in enumerate(source.valid_times)
+    }
     if not expected_times or not expected_times.issubset(available):
         raise GEFSHourlyError("GEFS_HOURLY_UNRESOLVED_GRID_NOT_COVERED")
 
     points: list[MemberPathPoint] = []
     for series in source.member_series:
         for valid_at in sorted(expected_times):
-            points.append(MemberPathPoint(
-                member_label=series.member_label,
-                valid_at=valid_at,
-                value=series.values[available[valid_at]],
-            ))
+            points.append(
+                MemberPathPoint(
+                    member_label=series.member_label,
+                    valid_at=valid_at,
+                    value=series.values[available[valid_at]],
+                )
+            )
     try:
         return build_gefs_remaining_hours_path(
             station=source.station,
@@ -438,7 +473,9 @@ class OpenMeteoGEFSHourlyClient:
         self.http = httpx.AsyncClient(
             timeout=settings.request_timeout,
             limits=httpx.Limits(max_connections=2, max_keepalive_connections=2),
-            headers={"User-Agent": "polymarket-weather-only-gefs-hourly/1.0 (+https://github.com/heroo2123/Alpha)"},
+            headers={
+                "User-Agent": "polymarket-weather-only-gefs-hourly/2.0 (+https://github.com/heroo2123/Alpha)"
+            },
         )
 
     async def close(self) -> None:
@@ -468,12 +505,13 @@ class OpenMeteoGEFSHourlyClient:
             "latitude": lat,
             "longitude": lon,
             "hourly": GEFS_HOURLY_VARIABLE,
-            "models": OPEN_METEO_GEFS_MODEL,
+            "models": GEFS_HOURLY_PROVIDER_MODEL,
+            "temporal_resolution": GEFS_HOURLY_TEMPORAL_RESOLUTION,
             "temperature_unit": unit_name,
             "timezone": timezone,
             "start_date": target_date.isoformat(),
             "end_date": target_date.isoformat(),
-            "cell_selection": CELL_SELECTION_POLICY,
+            "cell_selection": GEFS_HOURLY_CELL_SELECTION,
         }
         try:
             response = await self.http.get(OPEN_METEO_ENSEMBLE, params=params)
@@ -497,4 +535,7 @@ class OpenMeteoGEFSHourlyClient:
             requested_latitude=lat,
             requested_longitude=lon,
             received_at=received,
+            provider_model=GEFS_HOURLY_PROVIDER_MODEL,
+            query_cell_selection=GEFS_HOURLY_CELL_SELECTION,
+            query_temporal_resolution=GEFS_HOURLY_TEMPORAL_RESOLUTION,
         )
