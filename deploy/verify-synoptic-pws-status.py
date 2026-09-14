@@ -6,10 +6,19 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sys
 from pathlib import Path
 
-from polymarket_scanner.weather_only_live_paper_synoptic import SYNOPTIC_PWS_RUNTIME_VERSION
-from polymarket_scanner.weather_only_synoptic_pws import SYNOPTIC_CWOP_NETWORK_ID
+_SCRIPT_ROOT = Path(__file__).resolve().parent.parent
+if str(_SCRIPT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_SCRIPT_ROOT))
+
+from polymarket_scanner.weather_only_live_paper_synoptic import (  # noqa: E402
+    SYNOPTIC_PWS_RUNTIME_VERSION,
+)
+from polymarket_scanner.weather_only_synoptic_pws import (  # noqa: E402
+    SYNOPTIC_CWOP_NETWORK_ID,
+)
 
 
 class SynopticStatusError(RuntimeError):
