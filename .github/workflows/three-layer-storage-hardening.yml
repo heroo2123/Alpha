@@ -1,0 +1,72 @@
+name: three-layer-storage-hardening
+
+on:
+  push:
+    branches: [weather-three-layer-dst-hardening-2026-09-15]
+    paths: ['.github/workflows/three-layer-storage-hardening.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  harden:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Apply storage/cache/capacity hardening
+        run: python tools/apply_three_layer_storage_hardening.py
+      - name: Install pinned dependencies
+        run: python -m pip install -r requirements-dev.txt
+      - name: Focused adversarial suite
+        run: |
+          python -m pytest -q \
+            tests/test_weather_only_same_day_capture_store_compression.py \
+            tests/test_weather_only_same_day_capture.py \
+            tests/test_weather_only_same_day_capture_cadence.py \
+            tests/test_weather_only_three_layer_layer2_eligibility.py \
+            tests/test_weather_only_three_layer_validation_guarded.py \
+            tests/test_weather_only_contract_strict_v6.py \
+            tests/test_weather_final_adversarial_blockers.py \
+            tests/test_weather_final_gpt6_exact_replays.py \
+            tests/test_weather_gpt6_exact_b1_b6_regressions.py \
+            tests/test_weather_gpt6_b1_b6_exact_followup.py \
+            tests/test_weather_gpt6_interrupted_followup.py \
+            tests/test_weather_only_paper_backup.py \
+            tests/test_weather_only_deployment_start_gate.py \
+            tests/test_weather_only_persistence_gate.py
+          python -m compileall -q polymarket_scanner tests
+      - name: Assert final engineering bounds
+        run: |
+          python - <<'PY'
+          import polymarket_scanner.weather_only_live_paper_three_layer_validation as r
+          import polymarket_scanner.weather_only_same_day_capture_store as s
+          assert r.THREE_LAYER_SELECTION_UNIVERSE_CAP == 32
+          assert r.THREE_LAYER_31D_CAPTURE_ROW_BOUND == 32 * 24 * 31
+          assert r.THREE_LAYER_ATTEMPT_ROW_CAP == 32 * 24 * 31
+          assert r.THREE_LAYER_CAPTURE_JSON_BYTES_CAP == 640 * 1024 * 1024
+          assert s.SAME_DAY_CAPTURE_UNCOMPRESSED_BYTES_CAP == 16 * 1024 * 1024
+          print('UNIVERSE_CAP', r.THREE_LAYER_SELECTION_UNIVERSE_CAP)
+          print('ROW_BOUND', r.THREE_LAYER_31D_CAPTURE_ROW_BOUND)
+          print('STORED_BYTE_CAP', r.THREE_LAYER_CAPTURE_JSON_BYTES_CAP)
+          print('UNCOMPRESSED_RECORD_CAP', s.SAME_DAY_CAPTURE_UNCOMPRESSED_BYTES_CAP)
+          PY
+      - name: Commit reviewed production and permanent regressions only
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+heroo2123@users.noreply.github.com'
+          git add \
+            polymarket_scanner/weather_only_contract_strict.py \
+            polymarket_scanner/weather_only_live_paper_three_layer_validation.py \
+            polymarket_scanner/weather_only_same_day_capture_store.py \
+            tests/test_weather_only_same_day_capture_store_compression.py \
+            tests/test_weather_only_three_layer_layer2_eligibility.py
+          git diff --cached --check
+          git commit -m 'Compress same-day evidence and resize bounded census'
+          git push origin HEAD:weather-three-layer-dst-hardening-2026-09-15
