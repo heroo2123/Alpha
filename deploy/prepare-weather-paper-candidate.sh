@@ -23,6 +23,13 @@ git check-ref-format --branch "${SOURCE_REF}" >/dev/null 2>&1 \
 if systemctl is-active --quiet "${UNIT}" 2>/dev/null; then
   fail "${UNIT} is active; stop it explicitly before preparing another candidate"
 fi
+# An already-enabled unit could restart on reboot while this script changes the
+# checkout/release marker. Candidate preparation therefore requires the target PAPER
+# unit to be explicitly non-persistent first; acceptance later re-enables it only after
+# the exact candidate has passed live gates.
+if systemctl is-enabled --quiet "${UNIT}" 2>/dev/null; then
+  fail "${UNIT} is enabled; disable it explicitly before preparing another candidate"
+fi
 if pgrep -af 'polymarket_scanner\.weather_only_live_paper|weather_only_live_paper(_v[234]|_corrective|_final|_synoptic)?\.py' >/dev/null 2>&1; then
   fail "a weather-paper process is already running outside the stopped service"
 fi
