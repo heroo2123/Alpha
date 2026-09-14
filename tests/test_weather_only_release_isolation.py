@@ -15,6 +15,8 @@ BACKUP = Path("deploy/pre-release-weather-paper-backup.sh")
 RENDERER = Path("deploy/render-weather-paper-unit.py")
 NETWORK = Path("deploy/check-weather-paper-network.py")
 FIRST_CYCLE = Path("deploy/verify-weather-paper-first-cycle.py")
+SYNOPTIC_PREFLIGHT = Path("deploy/check-synoptic-pws.py")
+SYNOPTIC_STATUS = Path("deploy/verify-synoptic-pws-status.py")
 
 
 def _text(path: Path) -> str:
@@ -44,10 +46,13 @@ def test_prepare_script_does_not_start_enable_or_modify_legacy_release_marker():
     assert "merge-base --is-ancestor" in text
 
 
-def test_prepare_requires_and_import_smokes_exact_final_runtime_before_release_marker():
+def test_prepare_requires_and_import_smokes_exact_synoptic_runtime_before_release_marker():
     text = _text(PREPARE)
     assert "polymarket_scanner/weather_only_paper_recovery_final.py" in text
-    assert 'FINAL_MODULE="polymarket_scanner.weather_only_live_paper_final"' in text
+    assert "polymarket_scanner/weather_only_live_paper_final.py" in text
+    assert "polymarket_scanner/weather_only_live_paper_synoptic.py" in text
+    assert "polymarket_scanner/weather_only_synoptic_pws.py" in text
+    assert 'FINAL_MODULE="polymarket_scanner.weather_only_live_paper_synoptic"' in text
     assert 'import ${FINAL_MODULE}' in text
     import_pos = text.index('import ${FINAL_MODULE}')
     marker_publish_pos = text.index('mv -f "${TMP_MARKER}" "${RELEASE_FILE}"')
@@ -64,6 +69,8 @@ def test_renderer_binds_unit_to_isolated_marker_and_paper_environment():
     assert "EnvironmentFile=/home/test/.config-alpha/weather-paper.env" in unit
     assert "EnvironmentFile=/home/test/.config-alpha/bot.env" not in unit
     assert "WorkingDirectory=/opt/weather-paper" in unit
+    assert "weather_only_live_paper_synoptic" in unit
+    assert "weather_only_live_paper_final" in unit
 
 
 def test_legacy_scanner_service_names_are_not_operated_by_weather_deploy_scripts():
@@ -82,13 +89,14 @@ def test_legacy_scanner_service_names_are_not_operated_by_weather_deploy_scripts
 def test_preflight_requires_legacy_services_disabled_not_merely_stopped():
     text = _text(PREFLIGHT)
     assert 'check-weather-paper-service-isolation.sh" --require-disabled' in text
+    assert "check-synoptic-pws.py" in text
 
 
 def test_deployment_python_helpers_import_from_unrelated_cwd(tmp_path: Path):
     env = dict(os.environ)
     env.pop("PYTHONPATH", None)
     root = Path.cwd().resolve()
-    for relative in (NETWORK, FIRST_CYCLE):
+    for relative in (NETWORK, FIRST_CYCLE, SYNOPTIC_PREFLIGHT, SYNOPTIC_STATUS):
         script = (root / relative).resolve()
         result = subprocess.run(
             [sys.executable, str(script), "--help"],
