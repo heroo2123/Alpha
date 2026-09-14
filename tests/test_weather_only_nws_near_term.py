@@ -11,6 +11,7 @@ from polymarket_scanner.weather_only_nws_near_term import (
     NWSNearTermError,
     NWS_NEAR_TERM_HYPOTHESIS,
     NWS_NEAR_TERM_STEP_SECONDS,
+    _points_url,
     build_nws_raw_snapshot,
     parse_nws_near_term_grid_path,
     path_from_nws_raw_snapshot,
@@ -29,10 +30,20 @@ def _points(url: str = "https://api.weather.gov/gridpoints/OKX/33,37") -> dict:
     }
 
 
-def _grid(*, uom: str = "wmoUnit:degC", update: str = "2026-09-13T09:00:00+00:00") -> dict:
+def _grid(
+    *,
+    uom: str = "wmoUnit:degC",
+    update: str = "2026-09-13T09:00:00+00:00",
+    grid_id: str = "OKX",
+    grid_x: int = 33,
+    grid_y: int = 37,
+) -> dict:
     return {
         "type": "Feature",
         "properties": {
+            "gridId": grid_id,
+            "gridX": grid_x,
+            "gridY": grid_y,
             "updateTime": update,
             "temperature": {
                 "uom": uom,
@@ -95,6 +106,12 @@ def test_nws_grid_interval_path_covers_entire_fractional_layer2_segment_without_
     assert path.financial_authority is False
 
 
+def test_points_request_identity_uses_nws_supported_four_decimal_precision():
+    assert _points_url(40.77694, -73.87404) == "https://api.weather.gov/points/40.7769,-73.8740"
+    snapshot = _snapshot()
+    assert snapshot.points_url == "https://api.weather.gov/points/40.7769,-73.8740"
+
+
 def test_raw_snapshot_can_be_fetched_first_then_projected_only_after_receipt():
     snapshot = _snapshot()
     verify_nws_raw_snapshot(snapshot)
@@ -132,6 +149,28 @@ def test_raw_snapshot_digest_tampering_is_rejected_before_projection():
 def test_raw_snapshot_receipt_order_is_monotone():
     with pytest.raises(NWSNearTermError, match="NWS_NEAR_TERM_RECEIPT_ORDER_INVALID"):
         _snapshot(points_received=_ts(10, 4), grid_received=_ts(10, 3))
+
+
+def test_grid_payload_identity_must_match_points_forecast_grid_url():
+    with pytest.raises(NWSNearTermError, match="NWS_NEAR_TERM_GRID_IDENTITY_MISMATCH"):
+        build_nws_raw_snapshot(
+            _points("https://api.weather.gov/gridpoints/OKX/33,37"),
+            _grid(grid_x=99),
+            station="KLGA",
+            latitude=40.7769,
+            longitude=-73.8740,
+            points_received_at=_ts(10, 3),
+            grid_received_at=_ts(10, 4),
+        )
+    with pytest.raises(NWSNearTermError, match="NWS_NEAR_TERM_GRID_IDENTITY_MISMATCH"):
+        _parse(grid=_grid(grid_id="PHI"))
+
+
+def test_grid_payload_identity_fields_are_required_not_inferred_from_url():
+    grid = _grid()
+    del grid["properties"]["gridY"]
+    with pytest.raises(NWSNearTermError, match="NWS_NEAR_TERM_GRID_IDENTITY_MISMATCH"):
+        _parse(grid=grid)
 
 
 def test_grid_update_time_after_receipt_is_rejected_as_impossible_provenance():
