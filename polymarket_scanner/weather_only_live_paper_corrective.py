@@ -6,17 +6,12 @@ The ordinary paper lanes use the v4 corrective execution/settlement protocol. In
 parallel, this service collects the new three-layer same-day weather state as isolated,
 silent research only: exact WRH observations so far, official NWS near-term grid
 support, and full 31-member GEFS remaining-hours paths. Nearby PWS observations are
-collected alongside those layers as predictive-only diagnostics for prospective
-validation; they never replace official observations or reweight the model.
+optional predictive diagnostics only. Official capture is persisted before any PWS
+network acquisition so PWS failure cannot suppress official evidence.
 
 Three-layer captures cannot create Telegram trade alerts, paper positions, validated
-P&L or financial authority. The WRH-to-model population alignment remains
-scientifically uncertified, so captures fail closed as BLOCKED_RESEARCH rather than
-manufacturing a probability. Capture cadence is checked against SQLite before network
-acquisition, so a process restart cannot reset the sampling interval and grow the
-research database without bound.
-
-No authenticated Polymarket trading API is imported. Real orders remain disabled.
+P&L or financial authority. PWS cannot replace Layer 1, reweight probability, create
+same-day delivery or gain settlement/financial authority.
 """
 
 import argparse
@@ -63,13 +58,14 @@ from .weather_only_wrh_client import NWSWRHLiveClient
 
 
 CANONICAL_CORRECTIVE_VERSION = "weather_live_paper_corrective_v10_common_all_writer_singleton"
-PWS_DIAGNOSTIC_RUNTIME_VERSION = "same_day_pws_diagnostic_v1_predictive_only"
+PWS_DIAGNOSTIC_RUNTIME_VERSION = "same_day_pws_diagnostic_v2_isolated_bounded_crash_auditable"
 HISTORY_QUARANTINE_POLICY_ID = "PRE_V4_PROTOCOL_QUARANTINE_V2_BOUNDED_CURSOR"
 HISTORY_QUARANTINE_BATCH_SIZE = 200
 STATION_METADATA_CACHE_MAX_ENTRIES = 128
 STATION_METADATA_CACHE_TTL_SECONDS = 21_600.0
 DEFAULT_MAX_SAME_DAY_CAPTURE_EVENTS = 4
 SAME_DAY_CAPTURE_COOLDOWN_SECONDS = 3_600.0
+SAME_DAY_PWS_CYCLE_BUDGET_SECONDS = 25.0
 SAME_DAY_MONTHLY_ROW_BOUND_31D = int(
     DEFAULT_MAX_SAME_DAY_CAPTURE_EVENTS * 24 * 31
 )
@@ -97,10 +93,6 @@ class _CapturingDiscoveryProxy:
 
 class WeatherLivePaperCorrectiveService(WeatherLivePaperV4Service):
     def __init__(self, **kwargs) -> None:
-        # The common WeatherLivePaperService constructor acquires the singleton lease
-        # before any ledger is opened, so every retained writer generation (v1 through
-        # final) shares the same admission boundary.  Do not take a second subclass
-        # lock here: the kernel lease is intentionally non-reentrant.
         super().__init__(**kwargs)
         try:
             self._canonical_superseded_settlement = self.settlement
@@ -134,8 +126,6 @@ class WeatherLivePaperCorrectiveService(WeatherLivePaperV4Service):
             self._same_day_nws = NWSNearTermGridClient()
             self._same_day_gefs = OpenMeteoGEFSHourlyClient()
             self._same_day_pws = WeatherCompanyPWSClient()
-            # In-memory throttle protects repeated source failures inside one process.
-            # Successful captures are additionally throttled from durable SQLite state.
             self._same_day_last_attempt: dict[str, float] = {}
         except BaseException:
             self._runtime_lease.close()
@@ -176,7 +166,6 @@ class WeatherLivePaperCorrectiveService(WeatherLivePaperV4Service):
         return metadata
 
     async def quarantine_observation_blind_history(self) -> dict:
-        """Perform at most one fixed historical batch and persist its cursor."""
         try:
             report = await asyncio.to_thread(self._history_quarantine.run_once)
             payload = report.as_dict()
@@ -200,7 +189,6 @@ class WeatherLivePaperCorrectiveService(WeatherLivePaperV4Service):
         return payload
 
     async def _same_day_eligible(self, events: tuple[dict, ...]) -> tuple[list[tuple], list[str]]:
-        """Prove semantics + station-local target day before applying the event cap."""
         eligible: list[tuple[str, dict, object, object, object]] = []
         errors: list[str] = []
         seen_event_ids: set[str] = set()
@@ -242,11 +230,11 @@ class WeatherLivePaperCorrectiveService(WeatherLivePaperV4Service):
                 continue
             eligible.append((event_id, event, compiled, semantics, metadata))
 
-        # R18: only eligible station-local events consume the bounded selection budget.
         eligible.sort(key=lambda item: item[0])
         return eligible[:DEFAULT_MAX_SAME_DAY_CAPTURE_EVENTS], errors
 
     async def _fetch_same_day_source_bundle(self, compiled, metadata):
+        """Fetch ONLY official/model three-layer inputs; PWS is not part of this gate."""
         station = str(compiled.station_hint).upper()
         latitude = float(metadata.latitude)
         longitude = float(metadata.longitude)
@@ -268,21 +256,36 @@ class WeatherLivePaperCorrectiveService(WeatherLivePaperV4Service):
             unit=str(compiled.unit),
             timezone=str(metadata.timezone),
         )
-        pws_task = self._same_day_pws.fetch_snapshot(
-            latitude=latitude,
-            longitude=longitude,
-            unit=str(compiled.unit),
-        )
-        return await asyncio.gather(wrh_task, nws_task, gefs_task, pws_task)
+        return await asyncio.gather(wrh_task, nws_task, gefs_task)
+
+    async def _fetch_pws_after_capture(self, compiled, metadata, *, timeout_seconds: float):
+        if timeout_seconds <= 0.0:
+            raise TimeoutError("PWS_CYCLE_BUDGET_EXHAUSTED")
+        async with asyncio.timeout(timeout_seconds):
+            return await self._same_day_pws.fetch_snapshot(
+                latitude=float(metadata.latitude),
+                longitude=float(metadata.longitude),
+                unit=str(compiled.unit),
+            )
 
     async def _capture_same_day_research(self, events: tuple[dict, ...]) -> dict:
-        """Collect three layers plus PWS diagnostics without signals or positions."""
-        eligible, errors = await self._same_day_eligible(events)
+        """Persist official capture first; optional PWS is bounded and downstream."""
+        errors: list[str] = []
+        try:
+            interrupted = await asyncio.to_thread(self.same_day_pws.mark_interrupted_pending)
+        except Exception as exc:
+            interrupted = 0
+            code = getattr(exc, "code", type(exc).__name__)
+            errors.append(f"SAME_DAY_PWS_RECOVERY:{code}")
+
+        eligible, eligibility_errors = await self._same_day_eligible(events)
+        errors.extend(eligibility_errors)
         attempted = saved = blocked = ready = duplicates = cadence_skipped = 0
-        pws_saved = pws_duplicates = pws_available = pws_contradictions = 0
+        pws_saved = pws_available = pws_contradictions = pws_failed = 0
         block_reasons: dict[str, int] = {}
         now = time.time()
         bundle_cache: dict[tuple, tuple] = {}
+        pws_cycle_deadline = time.monotonic() + SAME_DAY_PWS_CYCLE_BUDGET_SECONDS
 
         for event_id, _event, compiled, semantics, metadata in eligible:
             try:
@@ -316,9 +319,8 @@ class WeatherLivePaperCorrectiveService(WeatherLivePaperV4Service):
             try:
                 if key not in bundle_cache:
                     bundle_cache[key] = await self._fetch_same_day_source_bundle(compiled, metadata)
-                wrh_result, nws_snapshot, hourly_gefs, pws_snapshot = bundle_cache[key]
-                # Decision t is frozen only after every awaited source receipt exists.
-                as_of = time.time()
+                wrh_result, nws_snapshot, hourly_gefs = bundle_cache[key]
+                official_as_of = time.time()
                 record = assemble_same_day_capture(
                     compiled=compiled,
                     contract_semantics=semantics,
@@ -326,7 +328,7 @@ class WeatherLivePaperCorrectiveService(WeatherLivePaperV4Service):
                     wrh_snapshot=wrh_result.snapshot,
                     near_term_raw_snapshot=nws_snapshot,
                     hourly_gefs=hourly_gefs,
-                    as_of=as_of,
+                    as_of=official_as_of,
                     mapping_policy=SAME_DAY_MAPPING_POLICY,
                     population_alignment_certified=False,
                 )
@@ -347,36 +349,60 @@ class WeatherLivePaperCorrectiveService(WeatherLivePaperV4Service):
             for reason in record.block_reasons:
                 block_reasons[reason] = block_reasons.get(reason, 0) + 1
 
-            # PWS is deliberately downstream of the immutable official three-layer
-            # capture. A PWS failure cannot erase or block the official research row,
-            # and a PWS reading can never replace Layer 1 or reweight the probability.
+            # A duplicate official capture has no newly-created PWS PENDING link.
+            if row_id is None:
+                continue
+
             try:
+                remaining = pws_cycle_deadline - time.monotonic()
+                if remaining <= 0.0:
+                    raise TimeoutError("PWS_CYCLE_BUDGET_EXHAUSTED")
+                pws_snapshot = await self._fetch_pws_after_capture(
+                    compiled,
+                    metadata,
+                    timeout_seconds=remaining,
+                )
+                pws_as_of = time.time()
                 pws_record = build_pws_diagnostic(
                     event_id=event_id,
                     station=str(compiled.station_hint).upper(),
                     target_date=compiled.target_date.isoformat(),
                     unit=str(compiled.unit),
-                    as_of=as_of,
+                    as_of=pws_as_of,
                     official_observations=record.official_observations,
                     pws_snapshot=pws_snapshot,
                 )
-                pws_row_id = await asyncio.to_thread(self.same_day_pws.save, pws_record)
-                if pws_row_id is None:
-                    pws_duplicates += 1
-                else:
-                    pws_saved += 1
+                await asyncio.to_thread(
+                    self.same_day_pws.finalize,
+                    record.capture_sha256,
+                    pws_record,
+                )
+                pws_saved += 1
                 if pws_record.status == PWS_STATUS_AVAILABLE:
                     pws_available += 1
                 if pws_record.contradiction:
                     pws_contradictions += 1
             except Exception as exc:
-                code = getattr(exc, "code", type(exc).__name__)
+                pws_failed += 1
+                raw_code = getattr(exc, "code", type(exc).__name__)
+                if isinstance(exc, TimeoutError) and str(exc):
+                    raw_code = str(exc)
+                code = str(raw_code)
                 errors.append(f"SAME_DAY_PWS:{event_id}:{code}")
+                try:
+                    await asyncio.to_thread(
+                        self.same_day_pws.record_failure,
+                        record.capture_sha256,
+                        code,
+                    )
+                except Exception as persist_exc:
+                    persist_code = getattr(persist_exc, "code", type(persist_exc).__name__)
+                    errors.append(f"SAME_DAY_PWS_FAILURE_PERSIST:{event_id}:{persist_code}")
 
         summary = await asyncio.to_thread(self.same_day_captures.summary)
         pws_summary = await asyncio.to_thread(self.same_day_pws.summary)
         return {
-            "version": "same_day_three_layer_silent_collection_v3_with_pws_diagnostics",
+            "version": "same_day_three_layer_silent_collection_v4_isolated_bounded_pws",
             "enabled": True,
             "silent_research_only": True,
             "eligible_events": len(eligible),
@@ -391,13 +417,16 @@ class WeatherLivePaperCorrectiveService(WeatherLivePaperV4Service):
             "store": summary,
             "pws_diagnostic_runtime_version": PWS_DIAGNOSTIC_RUNTIME_VERSION,
             "pws_saved_now": pws_saved,
-            "pws_duplicates_now": pws_duplicates,
             "pws_available_now": pws_available,
             "pws_contradictions_now": pws_contradictions,
+            "pws_failed_now": pws_failed,
+            "pws_interrupted_recovered_now": interrupted,
+            "pws_cycle_budget_seconds": SAME_DAY_PWS_CYCLE_BUDGET_SECONDS,
             "pws_store": pws_summary,
             "pws_predictive_only": True,
             "pws_may_replace_official_observation": False,
             "pws_may_reweight_probability": False,
+            "pws_official_capture_persisted_before_network": True,
             "capture_cooldown_seconds": SAME_DAY_CAPTURE_COOLDOWN_SECONDS,
             "capture_cadence_persisted_in_sqlite": True,
             "max_events_per_cycle": DEFAULT_MAX_SAME_DAY_CAPTURE_EVENTS,
@@ -419,7 +448,7 @@ class WeatherLivePaperCorrectiveService(WeatherLivePaperV4Service):
         except Exception as exc:
             code = getattr(exc, "code", type(exc).__name__)
             same_day_capture = {
-                "version": "same_day_three_layer_silent_collection_v3_with_pws_diagnostics",
+                "version": "same_day_three_layer_silent_collection_v4_isolated_bounded_pws",
                 "enabled": True,
                 "silent_research_only": True,
                 "errors": [f"SAME_DAY_COLLECTOR:{code}"],
@@ -447,7 +476,6 @@ class WeatherLivePaperCorrectiveService(WeatherLivePaperV4Service):
                 "same_day_delivery_enabled": False,
             }
         )
-        # The inherited cycle writes status before the silent collector runs.
         _atomic_json(self.status_path, status)
         return status
 
