@@ -14,6 +14,7 @@ this module grants no probability, Telegram, settlement, order, or financial aut
 import asyncio
 import json
 import math
+import threading
 import time
 from datetime import date
 from urllib.parse import urljoin, urlparse
@@ -39,7 +40,8 @@ from .weather_only_nws_near_term import (
 from .weather_only_wrh_client import NWSWRHLiveClient
 
 
-NWS_TOTAL_RESPONSE_DEADLINE_SECONDS = 15.0
+NWS_REQUEST_DEADLINE_SECONDS = 12.0
+NWS_SNAPSHOT_DEADLINE_SECONDS = 20.0
 GEFS_TOTAL_RESPONSE_DEADLINE_SECONDS = 20.0
 GEFS_MAX_RESPONSE_BYTES = 2 * 1024 * 1024
 GEFS_MAX_RESOLVED_DISTANCE_KM = 50.0
@@ -141,7 +143,7 @@ async def _bounded_async_json(
 
 
 class GuardedNWSNearTermGridClient(NWSNearTermGridClient):
-    """NWS Layer-2 client with raw-byte and total-time bounds."""
+    """NWS Layer-2 client with raw-byte and whole-snapshot time bounds."""
 
     def __init__(self) -> None:
         self.http = httpx.AsyncClient(
@@ -163,7 +165,7 @@ class GuardedNWSNearTermGridClient(NWSNearTermGridClient):
                 url,
                 params=None,
                 max_bytes=NWS_BASE_MAX_RESPONSE_BYTES,
-                total_deadline_seconds=NWS_TOTAL_RESPONSE_DEADLINE_SECONDS,
+                total_deadline_seconds=NWS_REQUEST_DEADLINE_SECONDS,
                 redirect_code="NWS_NEAR_TERM_PROVIDER_REDIRECT",
                 status_code="NWS_NEAR_TERM_PROVIDER_HTTP_STATUS",
                 encoding_code="NWS_NEAR_TERM_PROVIDER_UNSUPPORTED_ENCODING",
@@ -174,6 +176,17 @@ class GuardedNWSNearTermGridClient(NWSNearTermGridClient):
             )
         except RuntimeError as exc:
             raise NWSNearTermError(str(exc)) from None
+
+    async def fetch_snapshot(self, *, station: str, latitude: float, longitude: float):
+        try:
+            async with asyncio.timeout(NWS_SNAPSHOT_DEADLINE_SECONDS):
+                return await super().fetch_snapshot(
+                    station=station,
+                    latitude=latitude,
+                    longitude=longitude,
+                )
+        except TimeoutError:
+            raise NWSNearTermError("NWS_NEAR_TERM_PROVIDER_TIMEOUT") from None
 
 
 def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -286,6 +299,7 @@ class _BoundedIdentityHTTPClient(httpx.Client):
     """Sync identity-only client used by the exact WRH transport."""
 
     def __init__(self) -> None:
+        self._budget = threading.local()
         super().__init__(
             headers={
                 "User-Agent": "polymarket-weather-only-wrh-live-guarded/1.0 (+https://github.com/heroo2123/Alpha)",
@@ -298,8 +312,19 @@ class _BoundedIdentityHTTPClient(httpx.Client):
             limits=httpx.Limits(max_connections=2, max_keepalive_connections=2),
         )
 
+    def begin_snapshot_budget(self) -> None:
+        self._budget.deadline = time.monotonic() + WRH_TOTAL_RESPONSE_DEADLINE_SECONDS
+
+    def end_snapshot_budget(self) -> None:
+        if hasattr(self._budget, "deadline"):
+            del self._budget.deadline
+
+    def _deadline(self) -> float:
+        value = getattr(self._budget, "deadline", None)
+        return float(value) if value is not None else time.monotonic() + WRH_TOTAL_RESPONSE_DEADLINE_SECONDS
+
     def get(self, url, *, params=None, headers=None, **kwargs):  # type: ignore[override]
-        deadline = time.monotonic() + WRH_TOTAL_RESPONSE_DEADLINE_SECONDS
+        deadline = self._deadline()
         current = str(url)
         current_params = params
         merged_headers = dict(headers or {})
@@ -390,7 +415,7 @@ class _BoundedIdentityHTTPClient(httpx.Client):
 
 
 class GuardedNWSWRHLiveClient(NWSWRHLiveClient):
-    """Exact Layer-1 WRH client using bounded raw transport."""
+    """Exact Layer-1 WRH client using one deadline across the entire source walk."""
 
     def __init__(self) -> None:
         self._guarded_http = _BoundedIdentityHTTPClient()
@@ -399,6 +424,13 @@ class GuardedNWSWRHLiveClient(NWSWRHLiveClient):
             timeout_seconds=WRH_TOTAL_RESPONSE_DEADLINE_SECONDS,
             user_agent="polymarket-weather-only-wrh-live-guarded/1.0 (+https://github.com/heroo2123/Alpha)",
         )
+
+    def fetch_snapshot(self, **kwargs):
+        self._guarded_http.begin_snapshot_budget()
+        try:
+            return super().fetch_snapshot(**kwargs)
+        finally:
+            self._guarded_http.end_snapshot_budget()
 
     def close(self) -> None:
         self._guarded_http.close()
