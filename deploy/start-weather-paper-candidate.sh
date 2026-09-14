@@ -13,6 +13,7 @@ UNIT="polymarket-weather-paper.service"
 RELEASE_FILE="${CONFIG_DIR}/weather-paper-release.sha"
 ATTESTATION_OUT="${CONFIG_DIR}/weather-paper-active-attestation.json"
 FIRST_CYCLE_OUT="${CONFIG_DIR}/weather-paper-first-cycle-acceptance.json"
+SYNOPTIC_STATUS_OUT="${CONFIG_DIR}/weather-paper-synoptic-runtime-acceptance.json"
 EXPECTED_SHA="${1:-}"
 
 fail(){ printf 'ERROR: %s\n' "$*" >&2; exit 1; }
@@ -33,8 +34,8 @@ if systemctl is-active --quiet "${UNIT}" 2>/dev/null; then
 fi
 
 # Preflight refuses orphan weather processes, verifies the isolated release, creates a
-# verified restorable paper-ledger backup when one exists, and installs the canonical
-# unit while leaving it stopped.
+# verified restorable paper-ledger backup when one exists, validates the Synoptic token,
+# and installs the canonical unit while leaving it stopped.
 bash "${APP_DIR}/deploy/preflight-weather-paper-deployment.sh"
 
 start_attempted=0
@@ -83,6 +84,12 @@ systemctl is-active --quiet "${UNIT}" 2>/dev/null \
   --max-age-seconds 600 \
   --output "${FIRST_CYCLE_OUT}"
 
+# The final wrapper must also prove the newly required Synoptic/CWOP provider is the
+# configured PWS source while preserving every nonfinancial/silent authority boundary.
+"${APP_DIR}/.venv/bin/python" "${APP_DIR}/deploy/verify-synoptic-pws-status.py" \
+  --status "${STATUS_PATH}" \
+  --output "${SYNOPTIC_STATUS_OUT}"
+
 # Recheck release identity after the process AND first cycle exist, so a checkout or
 # marker race cannot turn the preflighted commit into a different running tree.
 HEAD_AFTER="$(git -C "${APP_DIR}" rev-parse HEAD | tr -d '[:space:]')"
@@ -95,6 +102,8 @@ printf '\nPASS: canonical weather PAPER candidate is active, attested, and compl
 printf 'Release: %s\n' "${EXPECTED_SHA}"
 printf 'Runtime attestation: %s\n' "${ATTESTATION_OUT}"
 printf 'First-cycle acceptance: %s\n' "${FIRST_CYCLE_OUT}"
+printf 'Synoptic runtime acceptance: %s\n' "${SYNOPTIC_STATUS_OUT}"
 printf 'The service was started but NOT enabled for boot persistence.\n'
 printf 'The weather-paper checkout/release marker are isolated from the legacy scanner.\n'
+printf 'Synoptic/CWOP PWS is silent diagnostic-only; same-day delivery remains disabled.\n'
 printf 'Real-money trading authority is not granted by this script.\n'
