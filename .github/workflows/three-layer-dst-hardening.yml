@@ -22,11 +22,11 @@ jobs:
           python-version: '3.12'
       - name: Apply targeted fix
         run: python tools/apply_three_layer_dst_fix.py
-      - name: Install dependencies
-        run: python -m pip install -r requirements.txt pytest
+      - name: Install pinned dependencies
+        run: python -m pip install -r requirements-dev.txt
       - name: Run focused adversarial tests
         run: |
-          pytest -q tests/test_weather_only_gefs_dst_unix.py tests/test_weather_only_three_layer_validation_guarded.py tests/test_weather_only_gefs_hourly.py
+          python -m pytest -q tests/test_weather_only_gefs_dst_unix.py tests/test_weather_only_three_layer_validation_guarded.py tests/test_weather_only_gefs_hourly.py
           python -m compileall -q polymarket_scanner deploy
       - name: Commit reviewed fix
         run: |
