@@ -13,6 +13,27 @@ def test_redact_secret_text_removes_bot_api_path_and_env_token(monkeypatch):
     assert "<redacted-bot-token>" in safe
 
 
+def test_redact_secret_text_removes_synoptic_env_and_query_tokens(monkeypatch):
+    token = "synoptic-public-token-sentinel"
+    monkeypatch.setenv("SYNOPTIC_PWS_TOKEN", token)
+    raw = (
+        f"GET https://api.synopticdata.com/v2/stations/latest?token={token}&network=65 "
+        "fallback=https://example.test/x?apiKey=explicit-other-secret"
+    )
+    safe = redact_secret_text(raw)
+    assert token not in safe
+    assert "explicit-other-secret" not in safe
+    assert "token=<redacted-api-credential>" in safe
+    assert "apiKey=<redacted-api-credential>" in safe
+
+
+def test_redact_secret_text_still_protects_superseded_weather_company_key(monkeypatch):
+    key = "old-weather-provider-key"
+    monkeypatch.setenv("WEATHER_PWS_API_KEY", key)
+    safe = redact_secret_text(f"https://api.weather.com/x?apiKey={key}")
+    assert key not in safe
+
+
 def test_process_logging_factory_never_emits_telegram_token(monkeypatch, caplog):
     token = "987654321:XYZ-secret"
     monkeypatch.setenv("TELEGRAM_BOT_TOKEN", token)
