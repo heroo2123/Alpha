@@ -23,10 +23,11 @@ from .weather_only_live_paper import (
 )
 from .weather_only_live_paper_final import FinalWeatherLivePaperService
 from .weather_only_live_paper_v2 import DEFAULT_PAPER_STAKE_USD
-from .weather_only_synoptic_pws import SYNOPTIC_CWOP_NETWORK_ID, SynopticCWOPPWSClient
+from .weather_only_synoptic_pws import SYNOPTIC_CWOP_NETWORK_ID
+from .weather_only_synoptic_pws_guarded import GuardedSynopticCWOPPWSClient
 
 
-SYNOPTIC_PWS_RUNTIME_VERSION = "weather_live_paper_synoptic_cwop_v1_silent_diagnostic"
+SYNOPTIC_PWS_RUNTIME_VERSION = "weather_live_paper_synoptic_cwop_v2_guarded_auth_silent"
 
 
 class SynopticFinalWeatherLivePaperService(FinalWeatherLivePaperService):
@@ -34,11 +35,11 @@ class SynopticFinalWeatherLivePaperService(FinalWeatherLivePaperService):
         super().__init__(**kwargs)
         # The inherited corrective constructor creates the previously reviewed
         # Weather Company client but performs no network I/O. Replace it immediately
-        # with the Synoptic/CWOP provider and keep the superseded client solely so its
-        # owned HTTP pool can be closed deterministically at shutdown.
+        # with the guarded Synoptic/CWOP provider and keep the superseded client solely
+        # so its owned HTTP pool can be closed deterministically at shutdown.
         old_pws = self._same_day_pws
         try:
-            self._same_day_pws = SynopticCWOPPWSClient()
+            self._same_day_pws = GuardedSynopticCWOPPWSClient()
         except BaseException:
             self._same_day_pws = old_pws
             raise
