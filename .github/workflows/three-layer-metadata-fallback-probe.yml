@@ -1,0 +1,40 @@
+name: three-layer-metadata-fallback-probe
+
+on:
+  push:
+    branches:
+      - weather-three-layer-dst-hardening-2026-09-15
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements.txt
+      - name: Probe guarded metadata primary and fallback stations
+        run: |
+          python - <<'PY'
+          import asyncio
+          from polymarket_scanner.weather_only_three_layer_guarded import GuardedSameDayStationMetadataClient
+
+          async def main():
+              client = GuardedSameDayStationMetadataClient()
+              try:
+                  for station in ('KLGA', 'EDDM', 'EGLL'):
+                      try:
+                          value = await client.station(station)
+                          print(f'{station}: OK station={value.station} tz={value.timezone} lat={value.latitude:.4f} lon={value.longitude:.4f}')
+                      except Exception as exc:
+                          print(f'{station}: FAIL {getattr(exc, "code", type(exc).__name__)}')
+              finally:
+                  await client.close()
+
+          asyncio.run(main())
+          PY
