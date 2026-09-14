@@ -4,15 +4,13 @@ import asyncio
 import json
 import time
 from datetime import date, datetime, timezone
+from types import SimpleNamespace as NS
 from unittest.mock import patch
 
 import httpx
 import pytest
 
 from polymarket_scanner.weather_only_gefs_hourly import GEFSHourlyError
-from polymarket_scanner.weather_only_live_paper_corrective import (
-    WeatherLivePaperCorrectiveService,
-)
 from polymarket_scanner.weather_only_live_paper_three_layer_validation import (
     THREE_LAYER_31D_CAPTURE_ROW_BOUND,
     THREE_LAYER_MAX_EVENTS_PER_CYCLE,
@@ -272,23 +270,67 @@ def test_rotation_storage_bound_matches_admitted_hourly_universe():
     assert THREE_LAYER_31D_CAPTURE_ROW_BOUND == 12 * 24 * 31
 
 
+def _bundle_fixture(service):
+    compiled = NS(station_hint="KAAA", target_date=date(2026, 9, 14), unit="F")
+    metadata = NS(latitude=40.0, longitude=-73.0, timezone="UTC")
+    return compiled, metadata
+
+
 def test_complete_source_bundle_has_a_hard_total_deadline(monkeypatch):
     import polymarket_scanner.weather_only_live_paper_three_layer_validation as module
 
     service = object.__new__(ThreeLayerValidationWeatherLivePaperService)
 
-    async def slow_parent(_self, _compiled, _metadata):
-        await asyncio.sleep(0.2)
-        return None
+    class WRH:
+        def fetch_snapshot(self, **_kwargs):
+            return "wrh"
 
+    class SlowNWS:
+        async def fetch_snapshot(self, **_kwargs):
+            await asyncio.sleep(0.2)
+            return "nws"
+
+    class SlowGEFS:
+        async def target_day(self, **_kwargs):
+            await asyncio.sleep(0.2)
+            return "gefs"
+
+    service._same_day_wrh = WRH()
+    service._same_day_nws = SlowNWS()
+    service._same_day_gefs = SlowGEFS()
+    compiled, metadata = _bundle_fixture(service)
     monkeypatch.setattr(module, "THREE_LAYER_SOURCE_BUNDLE_DEADLINE_SECONDS", 0.02)
-    with patch.object(
-        WeatherLivePaperCorrectiveService,
-        "_fetch_same_day_source_bundle",
-        slow_parent,
-    ):
-        with pytest.raises(TimeoutError):
-            asyncio.run(service._fetch_same_day_source_bundle(object(), object()))
+    with pytest.raises(TimeoutError):
+        asyncio.run(service._fetch_same_day_source_bundle(compiled, metadata))
+
+
+def test_fast_source_failure_waits_for_bounded_siblings_before_propagating():
+    service = object.__new__(ThreeLayerValidationWeatherLivePaperService)
+    settled = {"nws": False, "gefs": False}
+
+    class FailingWRH:
+        def fetch_snapshot(self, **_kwargs):
+            raise RuntimeError("WRH_FAIL")
+
+    class NWS:
+        async def fetch_snapshot(self, **_kwargs):
+            await asyncio.sleep(0.02)
+            settled["nws"] = True
+            return "nws"
+
+    class GEFS:
+        async def target_day(self, **_kwargs):
+            await asyncio.sleep(0.02)
+            settled["gefs"] = True
+            return "gefs"
+
+    service._same_day_wrh = FailingWRH()
+    service._same_day_nws = NWS()
+    service._same_day_gefs = GEFS()
+    compiled, metadata = _bundle_fixture(service)
+    with pytest.raises(RuntimeError, match="WRH_FAIL"):
+        asyncio.run(service._fetch_same_day_source_bundle(compiled, metadata))
+    assert settled == {"nws": True, "gefs": True}
 
 
 def test_final_local_partial_hour_has_no_full_gefs_cell_and_stays_scientifically_blocked():
