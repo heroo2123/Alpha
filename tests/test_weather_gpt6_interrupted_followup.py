@@ -181,6 +181,7 @@ def _make_minimal_candidate_repo(path: Path) -> str:
         "polymarket_scanner/weather_only_live_paper_final.py",
         "polymarket_scanner/weather_only_live_paper_synoptic.py",
         "polymarket_scanner/weather_only_synoptic_pws.py",
+        "polymarket_scanner/weather_only_synoptic_pws_guarded.py",
         "polymarket_scanner/weather_only_pws.py",
         "polymarket_scanner/weather_only_pws_store.py",
         "polymarket_scanner/weather_only_paper_recovery.py",
@@ -199,8 +200,12 @@ def _make_minimal_candidate_repo(path: Path) -> str:
         "FINAL_TEST_IMPORT = True\n",
     )
     _write(
+        path / "polymarket_scanner/weather_only_synoptic_pws_guarded.py",
+        "GUARDED_SYNOPTIC_TEST_IMPORT = True\n",
+    )
+    _write(
         path / "polymarket_scanner/weather_only_live_paper_synoptic.py",
-        "SYNOPTIC_FINAL_TEST_IMPORT = True\n",
+        "from . import weather_only_synoptic_pws_guarded\nSYNOPTIC_FINAL_TEST_IMPORT = True\n",
     )
     _write(
         path / "deploy/render-weather-paper-unit.py",
