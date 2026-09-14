@@ -30,8 +30,9 @@ def redact_secret_text(value: object) -> str:
         text = text.replace(synoptic, "<redacted-pws-token>")
     text = _BOT_PATH.sub("/bot<redacted>/", text)
     # Value-independent query redaction also protects explicitly supplied credentials
-    # that are not present in the environment.
-    text = _CREDENTIAL_QUERY.sub(r"\1<redacted-api-credential>", text)
+    # that are not present in the environment. Keep the established marker so older
+    # adversarial log probes remain valid for both apiKey and Synoptic token params.
+    text = _CREDENTIAL_QUERY.sub(r"\1<redacted-api-key>", text)
     return text
 
 
