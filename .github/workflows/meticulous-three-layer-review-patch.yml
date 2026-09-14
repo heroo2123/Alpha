@@ -20,6 +20,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Repair temporary DST patch driver
+        run: python tools/fix_meticulous_dst_patch_driver.py
       - name: Apply guarded station metadata preflight patch
         run: python tools/meticulous_three_layer_preflight_fix.py
       - name: Commit application patch locally before tests
