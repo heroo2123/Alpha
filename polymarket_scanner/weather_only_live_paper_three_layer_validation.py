@@ -161,8 +161,44 @@ class ThreeLayerValidationWeatherLivePaperService(FinalWeatherLivePaperService):
         return selected, errors
 
     async def _fetch_same_day_source_bundle(self, compiled, metadata):
+        """Acquire all three sources without leaving siblings alive after one fails.
+
+        ``asyncio.gather`` without ``return_exceptions`` propagates the first source
+        failure while sibling source coroutines may continue in the background. On a
+        small VM that can accumulate overlapping provider work across later events.
+        Every guarded source already has a tighter individual bound than this bundle,
+        so wait for all three bounded attempts, then propagate the first failure in
+        fixed WRH/NWS/GEFS order.
+        """
+        station = str(compiled.station_hint).upper()
+        latitude = float(metadata.latitude)
+        longitude = float(metadata.longitude)
+        sources = (
+            asyncio.to_thread(
+                self._same_day_wrh.fetch_snapshot,
+                station=station,
+                target_date=compiled.target_date,
+            ),
+            self._same_day_nws.fetch_snapshot(
+                station=station,
+                latitude=latitude,
+                longitude=longitude,
+            ),
+            self._same_day_gefs.target_day(
+                station=station,
+                latitude=latitude,
+                longitude=longitude,
+                target_date=compiled.target_date,
+                unit=str(compiled.unit),
+                timezone=str(metadata.timezone),
+            ),
+        )
         async with asyncio.timeout(THREE_LAYER_SOURCE_BUNDLE_DEADLINE_SECONDS):
-            return await super()._fetch_same_day_source_bundle(compiled, metadata)
+            results = await asyncio.gather(*sources, return_exceptions=True)
+        for result in results:
+            if isinstance(result, BaseException):
+                raise result
+        return tuple(results)
 
     async def _capture_same_day_research(self, events: tuple[dict, ...]) -> dict:
         result = dict(await super()._capture_same_day_research(events))
