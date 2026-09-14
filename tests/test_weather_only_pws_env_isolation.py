@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -26,7 +25,7 @@ def test_setup_executes_dedicated_env_allowlist_helper():
     assert "grep -E" not in text
 
 
-def test_extractor_copies_only_telegram_and_optional_pws_key(tmp_path):
+def test_extractor_copies_only_telegram_and_optional_synoptic_token(tmp_path):
     source = tmp_path / "bot.env"
     output = tmp_path / "weather-paper.env"
     source.write_text(
@@ -34,7 +33,8 @@ def test_extractor_copies_only_telegram_and_optional_pws_key(tmp_path):
             [
                 "TELEGRAM_BOT_TOKEN=tg-secret",
                 "TELEGRAM_CHAT_ID=12345",
-                "WEATHER_PWS_API_KEY=pws-secret",
+                "SYNOPTIC_PWS_TOKEN=synoptic-secret",
+                "WEATHER_PWS_API_KEY=old-provider-must-not-copy",
                 "POLYMARKET_PRIVATE_KEY=must-not-copy",
                 "BINANCE_API_KEY=must-not-copy-either",
                 "GOOGLE_APPLICATION_CREDENTIALS=/tmp/secret.json",
@@ -50,13 +50,14 @@ def test_extractor_copies_only_telegram_and_optional_pws_key(tmp_path):
     assert text.splitlines() == [
         "TELEGRAM_BOT_TOKEN=tg-secret",
         "TELEGRAM_CHAT_ID=12345",
-        "WEATHER_PWS_API_KEY=pws-secret",
+        "SYNOPTIC_PWS_TOKEN=synoptic-secret",
     ]
     assert "must-not-copy" not in text
+    assert "WEATHER_PWS_API_KEY" not in text
     assert output.stat().st_mode & 0o077 == 0
 
 
-def test_pws_key_is_optional(tmp_path):
+def test_synoptic_token_is_optional_for_install_but_absent_if_not_configured(tmp_path):
     source = tmp_path / "bot.env"
     output = tmp_path / "weather-paper.env"
     source.write_text(
@@ -65,20 +66,20 @@ def test_pws_key_is_optional(tmp_path):
     )
     result = _run(source, output)
     assert result.returncode == 0
-    assert "WEATHER_PWS_API_KEY" not in output.read_text(encoding="utf-8")
+    assert "SYNOPTIC_PWS_TOKEN" not in output.read_text(encoding="utf-8")
 
 
-def test_duplicate_pws_key_is_rejected_without_writing_output(tmp_path):
+def test_duplicate_synoptic_token_is_rejected_without_writing_output(tmp_path):
     source = tmp_path / "bot.env"
     output = tmp_path / "weather-paper.env"
     source.write_text(
         "TELEGRAM_BOT_TOKEN=x\nTELEGRAM_CHAT_ID=y\n"
-        "WEATHER_PWS_API_KEY=a\nWEATHER_PWS_API_KEY=b\n",
+        "SYNOPTIC_PWS_TOKEN=a\nSYNOPTIC_PWS_TOKEN=b\n",
         encoding="utf-8",
     )
     result = _run(source, output)
     assert result.returncode == 2
-    assert result.stdout.strip() == "WEATHER_PWS_API_KEY_DUPLICATED"
+    assert result.stdout.strip() == "SYNOPTIC_PWS_TOKEN_DUPLICATED"
     assert not output.exists()
 
 
