@@ -69,6 +69,12 @@ def test_network_preflight_uses_exact_guarded_three_layer_transports_and_never_s
     assert "station_meta.close()" in source
     assert "nws_station_metadata" in source
     assert "station_metadata_action" in source
+    assert "station_metadata_fallback_action" in source
+    assert "wrh_station_metadata_fallback" in source
+    assert 'FALLBACK_REFERENCE_STATION = "EDDM"' in source
+    assert 'FALLBACK_REFERENCE_TIMEZONE = "Europe/Berlin"' in source
+    assert "station_meta._nws_once(FALLBACK_REFERENCE_STATION)" in source
+    assert "station_meta._wrh_station(FALLBACK_REFERENCE_STATION)" in source
     assert "polymarket_gamma" in source
     assert "polymarket_clob" in source
     assert "open_meteo_gefs" in source
@@ -85,3 +91,15 @@ def test_network_preflight_uses_exact_guarded_three_layer_transports_and_never_s
         "post_order(",
     ):
         assert forbidden not in source
+
+
+def test_required_station_metadata_fallback_failure_blocks_deployment_gate():
+    report = evaluate_network_probes(
+        (
+            _probe("nws_station_metadata", ok=True),
+            _probe("wrh_station_metadata_fallback", ok=False),
+            _probe("nws_wrh_synoptic", ok=True),
+        ),
+        checked_at=100.0,
+    )
+    assert report.required_passed is False

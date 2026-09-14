@@ -40,6 +40,8 @@ REFERENCE_STATION = "KLGA"
 REFERENCE_LATITUDE = 40.7769
 REFERENCE_LONGITUDE = -73.8740
 REFERENCE_TIMEZONE = "America/New_York"
+FALLBACK_REFERENCE_STATION = "EDDM"
+FALLBACK_REFERENCE_TIMEZONE = "Europe/Berlin"
 
 
 class WeatherNetworkPreflightError(RuntimeError):
@@ -191,6 +193,34 @@ async def check_weather_paper_network() -> WeatherPaperNetworkReport:
                 f"timezone={result.timezone}"
             )
 
+        async def station_metadata_fallback_action() -> str:
+            # EDDM is deliberately outside the NWS station catalog and therefore
+            # exercises the guarded WRH/Synoptic station-metadata fallback that
+            # non-US weather contracts depend on.  Deployment must prove this path
+            # before the service is installed, not discover a break only at runtime.
+            primary = await station_meta._nws_once(FALLBACK_REFERENCE_STATION)
+            if primary is not None:
+                raise WeatherNetworkPreflightError(
+                    "NETWORK_STATION_METADATA_FALLBACK_PRIMARY_UNEXPECTED"
+                )
+            result = await station_meta._wrh_station(FALLBACK_REFERENCE_STATION)
+            if str(result.station).upper() != FALLBACK_REFERENCE_STATION:
+                raise WeatherNetworkPreflightError(
+                    "NETWORK_STATION_METADATA_FALLBACK_IDENTITY_MISMATCH"
+                )
+            if str(result.timezone or "").strip() != FALLBACK_REFERENCE_TIMEZONE:
+                raise WeatherNetworkPreflightError(
+                    "NETWORK_STATION_METADATA_FALLBACK_TIMEZONE_MISMATCH"
+                )
+            if not math.isfinite(float(result.latitude)) or not math.isfinite(float(result.longitude)):
+                raise WeatherNetworkPreflightError(
+                    "NETWORK_STATION_METADATA_FALLBACK_COORDINATE_INVALID"
+                )
+            return (
+                f"guarded fallback station metadata ok; station={result.station}; "
+                f"timezone={result.timezone}"
+            )
+
         async def wrh_action() -> str:
             result = await asyncio.to_thread(
                 wrh.fetch_snapshot, station=REFERENCE_STATION, target_date=wrh_target
@@ -234,6 +264,12 @@ async def check_weather_paper_network() -> WeatherPaperNetworkReport:
                     url=NWS_API_ORIGIN,
                     required=True,
                     action=station_metadata_action,
+                ),
+                _probe(
+                    name="wrh_station_metadata_fallback",
+                    url=WRH_TIMESERIES_PAGE,
+                    required=True,
+                    action=station_metadata_fallback_action,
                 ),
                 _probe(
                     name="nws_wrh_synoptic",
