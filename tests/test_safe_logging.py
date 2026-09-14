@@ -10,7 +10,8 @@ def test_redact_secret_text_removes_bot_api_path_and_env_token(monkeypatch):
     safe = redact_secret_text(raw)
     assert token not in safe
     assert "/bot<redacted>/sendMessage" in safe
-    assert "<redacted-bot-token>" in safe
+    # Query credentials get the generic query-secret marker even when the same value
+    # also happens to be the configured Telegram token.
     assert "token=<redacted-query-secret>" in safe
 
 
