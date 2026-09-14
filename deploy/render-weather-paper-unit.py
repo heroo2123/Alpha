@@ -8,7 +8,7 @@ from pathlib import Path
 
 
 WEATHER_RELEASE_MARKER = "weather-paper-release.sha"
-FINAL_WEATHER_MODULE = "polymarket_scanner.weather_only_live_paper_final"
+FINAL_WEATHER_MODULE = "polymarket_scanner.weather_only_live_paper_synoptic"
 
 
 def render(app_dir: Path, config_dir: Path, user: str) -> str:
@@ -22,7 +22,7 @@ def render(app_dir: Path, config_dir: Path, user: str) -> str:
     verifier = f"/bin/bash {app_dir}/deploy/verify-runtime-release.sh {app_dir} {release_file}"
     state = "/var/lib/polymarket-weather-paper"
     return f"""[Unit]
-Description=Polymarket weather-only LIVE PAPER final guarded runtime
+Description=Polymarket weather-only LIVE PAPER final guarded runtime with silent Synoptic PWS
 Wants=network-online.target
 After=network-online.target
 StartLimitIntervalSec=600
