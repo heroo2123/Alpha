@@ -28,7 +28,8 @@ def test_start_gate_requires_exact_sha_runtime_attestation_and_fresh_first_cycle
     assert "--require-active" in text
     assert "weather-paper-active-attestation.json" in text
     assert "verify-weather-paper-first-cycle.py" in text
-    assert 'START_ACCEPTANCE_EPOCH="$(date +%s)"' in text
+    assert "time.time():.9f" in text
+    assert "date +%s" not in text
     assert '--not-before "${START_ACCEPTANCE_EPOCH}"' in text
     assert "weather-paper-first-cycle-acceptance.json" in text
 
@@ -84,6 +85,19 @@ def test_first_cycle_verifier_waits_past_old_release_snapshot_from_before_start(
         status,
         expected_release_sha=SHA,
         not_before=1_001.0,
+    ) == "DEPLOY_STATUS_PREDATES_START"
+
+
+def test_first_cycle_verifier_rejects_same_second_snapshot_before_subsecond_boundary():
+    verifier = _first_cycle_module()
+    status = {
+        "release_sha": SHA,
+        "finished_at": 1_001.100,
+    }
+    assert verifier._wait_reason_before_strict_acceptance(
+        status,
+        expected_release_sha=SHA,
+        not_before=1_001.900,
     ) == "DEPLOY_STATUS_PREDATES_START"
 
 
