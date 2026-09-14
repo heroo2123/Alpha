@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from copy import deepcopy
+from dataclasses import replace
 from datetime import date, datetime, timezone
 
 import pytest
@@ -8,7 +8,10 @@ import pytest
 from polymarket_scanner.weather_only_conditioned_extremes import TimeSegment
 from polymarket_scanner.weather_only_contracts import DAILY_HIGH
 from polymarket_scanner.weather_only_gefs_hourly import (
+    GEFS_HOURLY_CELL_SELECTION,
+    GEFS_HOURLY_PROVIDER_MODEL,
     GEFS_HOURLY_STEP_SECONDS,
+    GEFS_HOURLY_TEMPORAL_RESOLUTION,
     GEFSHourlyError,
     build_verified_gefs_path_from_hourly,
     parse_open_meteo_gefs_hourly_target_day,
@@ -24,7 +27,9 @@ DAY_END = datetime(2026, 9, 12, 0, 0, tzinfo=timezone.utc).timestamp()
 
 
 def _keys():
-    return ("temperature_2m",) + tuple(f"temperature_2m_member{i:02d}" for i in range(1, 31))
+    return ("temperature_2m",) + tuple(
+        f"temperature_2m_member{i:02d}" for i in range(1, 31)
+    )
 
 
 def _payload():
@@ -43,7 +48,7 @@ def _payload():
     }
 
 
-def _parse(payload=None, *, received_at=RECEIVED):
+def _parse(payload=None, *, received_at=RECEIVED, **policy):
     return parse_open_meteo_gefs_hourly_target_day(
         payload or _payload(),
         station="KLGA",
@@ -53,10 +58,11 @@ def _parse(payload=None, *, received_at=RECEIVED):
         requested_latitude=40.7769,
         requested_longitude=-73.8740,
         received_at=received_at,
+        **policy,
     )
 
 
-def test_hourly_parser_preserves_all_31_member_paths_and_full_target_day_grid():
+def test_hourly_parser_preserves_all_31_member_paths_and_pinned_query_policy():
     distribution = _parse()
     assert len(distribution.member_labels) == 31
     assert len(distribution.member_series) == 31
@@ -66,12 +72,24 @@ def test_hourly_parser_preserves_all_31_member_paths_and_full_target_day_grid():
     assert distribution.member_labels[0] == "control"
     assert distribution.member_labels[-1] == "member30"
     assert len(distribution.member_series[0].values) == 24
+    assert distribution.provider_model == GEFS_HOURLY_PROVIDER_MODEL
+    assert distribution.query_cell_selection == GEFS_HOURLY_CELL_SELECTION
+    assert distribution.query_temporal_resolution == GEFS_HOURLY_TEMPORAL_RESOLUTION
     assert len(distribution.content_run_id) == 64
     assert len(distribution.evidence_sha256) == 64
     assert distribution.calibrated_probability is False
     assert distribution.settlement_authority is False
     assert distribution.financial_authority is False
     assert verify_gefs_hourly_evidence(distribution) == distribution
+
+
+def test_parser_rejects_unreviewed_model_or_query_policy():
+    with pytest.raises(GEFSHourlyError, match="GEFS_HOURLY_PROVIDER_MODEL_MISMATCH"):
+        _parse(provider_model="ncep_gefs_seamless")
+    with pytest.raises(GEFSHourlyError, match="GEFS_HOURLY_CELL_SELECTION_MISMATCH"):
+        _parse(query_cell_selection="land")
+    with pytest.raises(GEFSHourlyError, match="GEFS_HOURLY_TEMPORAL_RESOLUTION_MISMATCH"):
+        _parse(query_temporal_resolution="native")
 
 
 def test_content_identity_collapses_identical_retrievals_but_receipt_evidence_remains_distinct():
@@ -88,6 +106,13 @@ def test_one_member_value_change_creates_new_content_identity():
     second = _parse(payload)
     assert first.content_run_id != second.content_run_id
     assert first.evidence_sha256 != second.evidence_sha256
+
+
+def test_policy_tampering_cannot_pass_evidence_verification():
+    distribution = _parse()
+    tampered = replace(distribution, query_temporal_resolution="native")
+    with pytest.raises(GEFSHourlyError, match="GEFS_HOURLY_ADAPTER_IDENTITY_MISMATCH"):
+        verify_gefs_hourly_evidence(tampered)
 
 
 def test_future_u_t_projection_discards_elapsed_model_hours_before_conditioning():
@@ -109,7 +134,9 @@ def test_future_u_t_projection_discards_elapsed_model_hours_before_conditioning(
     assert verified.member_labels[0] == "control"
     assert len(verified.member_labels) == 31
     assert verified.expected_valid_times[0] == unresolved[0].start
-    assert verified.expected_valid_times[-1] == datetime(2026, 9, 11, 23, 0, tzinfo=timezone.utc).timestamp()
+    assert verified.expected_valid_times[-1] == datetime(
+        2026, 9, 11, 23, 0, tzinfo=timezone.utc
+    ).timestamp()
     # The control path rises hourly. If elapsed 00-10 model hours leaked into U(t),
     # the path lineage/count would differ; exact coverage contains only 11-23.
     assert verified.point_count == 31 * 13
@@ -134,7 +161,10 @@ def test_elapsed_unresolved_gap_cannot_borrow_a_model_retrieved_after_the_gap_st
             target_end=DAY_END,
             unresolved_segments=unresolved,
         )
-    assert raised.value.code == "GEFS_HOURLY_PATH_INVALID:CONDITIONED_PATH_RUN_POSTDATES_UNRESOLVED_SEGMENT"
+    assert (
+        raised.value.code
+        == "GEFS_HOURLY_PATH_INVALID:CONDITIONED_PATH_RUN_POSTDATES_UNRESOLVED_SEGMENT"
+    )
 
 
 def test_unit_member_and_grid_schema_drift_fail_closed():
@@ -159,7 +189,7 @@ def test_unit_member_and_grid_schema_drift_fail_closed():
 
 def test_target_day_must_be_complete_not_truncated_to_remaining_hours_by_provider():
     payload = _payload()
-    for key, values in payload["hourly"].items():
+    for values in payload["hourly"].values():
         if isinstance(values, list):
             del values[:2]
     with pytest.raises(GEFSHourlyError) as raised:
@@ -168,8 +198,6 @@ def test_target_day_must_be_complete_not_truncated_to_remaining_hours_by_provide
 
 
 def test_tampered_dataclass_cannot_pass_digest_verification():
-    from dataclasses import replace
-
     distribution = _parse()
     tampered = replace(distribution, content_run_id="f" * 64)
     with pytest.raises(GEFSHourlyError) as raised:
