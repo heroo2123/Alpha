@@ -772,6 +772,13 @@ class WeatherCompanyPWSClient:
                     outcome="REJECT_QC",
                 ))
                 continue
+
+            # Reset per-candidate provenance explicitly. Python's locals() mapping is
+            # not a reliable way to delete fast locals and could leak coordinates from
+            # a previous candidate into a later rejection audit row.
+            obs_lat: float | None = None
+            obs_lon: float | None = None
+            identity_delta: float | None = None
             try:
                 obs_lat = _latitude(row.get("lat"))
                 obs_lon = _longitude(row.get("lon"))
@@ -798,12 +805,10 @@ class WeatherCompanyPWSClient:
                     discovery_longitude=near_lon,
                     discovery_distance_km=near_distance,
                     outcome=exc.code,
-                    observation_latitude=(obs_lat if "obs_lat" in locals() else None),
-                    observation_longitude=(obs_lon if "obs_lon" in locals() else None),
-                    identity_location_delta_km=(identity_delta if "identity_delta" in locals() else None),
+                    observation_latitude=obs_lat,
+                    observation_longitude=obs_lon,
+                    identity_location_delta_km=identity_delta,
                 ))
-                for name in ("obs_lat", "obs_lon", "identity_delta"):
-                    locals().pop(name, None)
                 continue
 
             attempts.append(PWSStationAttempt(
