@@ -19,38 +19,74 @@ jobs:
         with:
           python-version: '3.12'
       - run: python -m pip install -r requirements.txt
-      - name: Print exact remaining current WRH rule variants
+      - name: Validate complete current rule skeleton with bounded airport label
         run: |
           python - <<'PY'
-          import asyncio
+          import asyncio, re
+          from collections import Counter
           from polymarket_scanner.weather_only_discovery import WeatherOnlyDiscovery
           from polymarket_scanner.weather_only_contracts import DAILY_HIGH, DAILY_LOW, compile_weather_event
 
-          TARGETS = (
-              '1008215','1008353','1010316','1010462','1017821','1017825',
-              '1017835','1017853','1017854','1017855','1018081','1018159'
-          )
+          def norm(value):
+              text = str(value or '').replace('“','"').replace('”','"').replace('’',"'").replace('‘',"'")
+              return re.sub(r'\s+', ' ', text).strip().lower()
+
+          def supported(description, raw):
+              if raw.target_date is None or raw.station_hint is None or raw.unit not in {'F','C'}:
+                  return False
+              stat = 'highest' if raw.family == DAILY_HIGH else 'lowest'
+              unit_word = 'fahrenheit' if raw.unit == 'F' else 'celsius'
+              target = raw.target_date
+              day = rf'0?{target.day}'
+              month = re.escape(target.strftime('%b').lower())
+              year = f'{target.year % 100:02d}'
+              station = re.escape(str(raw.station_hint).lower())
+              source = rf'https://(?:www\.)?weather\.gov/wrh/timeseries\?site={station}'
+              # The human-readable airport name is descriptive, not the machine identity.
+              # It must still be a bounded airport label and the exact WRH station code
+              # in the settlement URL is independently pinned by the strict source parser.
+              airport_label = r'[^<>\r\n]{1,120}? airport(?: station)?'
+              hourly = r'(?:this market will resolve off of the hourly data provided using the "show hourly data" button\. )?'
+              if raw.unit == 'F':
+                  toggle = r'to toggle between fahrenheit and celsius, click the "switch to us units w/ kts" button until the relevant table displays °f\. '
+                  example = r'-?\d+°f'
+              else:
+                  toggle = r'to toggle between fahrenheit and celsius, click the "switch to metric units" button until the relevant table displays °c\. '
+                  example = r'-?\d+°c'
+              pattern = re.compile(
+                  rf'^this market will resolve to the temperature range that contains the {stat} temperature recorded by noaa at the {airport_label} in degrees {unit_word} on {day} {month} \'{year}\. '
+                  rf'the resolution source for this market will be information from noaa, specifically the {stat} reading under the "temp" column for all times on this day, available here: {source} '
+                  rf'{hourly}'
+                  rf'if noaa data for the observation date is unavailable by 11:59 pm et on the day following the observation date, the weather underground daily observations table will be used as the resolution source\. '
+                  rf'in the event that there is no data for the observation date by 11:59 pm et on the day following the observation date, this market will resolve to the lowest bracket\. '
+                  rf'{toggle}'
+                  rf'this market will resolve once the first data point for the following date has been published on the resolution source, or by 11:59 pm et on the day following the observation date, whichever comes first\. '
+                  rf'the resolution source for this market measures temperatures to whole degrees {unit_word} \(eg, {example}\)\. thus, this is the level of precision that will be used when resolving the market\. '
+                  rf'revisions to temperatures recorded within this market\'s timeframe will be considered until the first datapoint for the following date has been published, after which any alterations will not be considered\.$'
+              )
+              return pattern.fullmatch(norm(description)) is not None
 
           async def main():
               d = WeatherOnlyDiscovery()
               try:
                   s = await d.discover()
-                  by_id = {str(e.get('id') or ''): e for e in s.events if isinstance(e, dict)}
-                  for event_id in TARGETS:
-                      event = by_id.get(event_id)
-                      if event is None:
-                          print('MISSING=' + event_id)
+                  counts = Counter()
+                  failures = []
+                  for event in s.events:
+                      if not isinstance(event, dict):
                           continue
                       raw = compile_weather_event(event)
-                      print('BEGIN=' + event_id)
-                      print('IDENTITY=' + repr((raw.title, raw.family, raw.target_date.isoformat() if raw.target_date else None, raw.unit, raw.station_hint)))
-                      print('SOURCE=' + str(event.get('resolutionSource') or ''))
-                      print('DESCRIPTION_BEGIN')
-                      print(str(event.get('description') or ''))
-                      print('DESCRIPTION_END')
-                      print('END=' + event_id)
+                      if raw.family not in {DAILY_HIGH, DAILY_LOW} or raw.source_family != 'NWS_WRH_TIMESERIES':
+                          continue
+                      counts['total'] += 1
+                      if supported(event.get('description'), raw):
+                          counts['supported'] += 1
+                      elif len(failures) < 30:
+                          failures.append((raw.event_id, raw.title, raw.station_hint, raw.unit))
+                  print('COUNTS=' + repr(dict(counts)))
+                  print('FAILURES=' + repr(failures))
+                  assert counts['total'] == counts['supported'], (counts, failures)
               finally:
                   await d.close()
-
           asyncio.run(main())
           PY
