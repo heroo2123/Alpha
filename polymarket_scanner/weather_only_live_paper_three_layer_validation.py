@@ -39,7 +39,10 @@ from .weather_only_live_paper_corrective import (
 from .weather_only_live_paper_final import FinalWeatherLivePaperService
 from .weather_only_live_paper_v2 import DEFAULT_PAPER_STAKE_USD
 from .weather_only_rules import compile_temperature_rule_authority
-from .weather_only_same_day_contract import build_same_day_contract_semantics
+from .weather_only_same_day_contract import (
+    SameDayContractError,
+    build_same_day_contract_semantics,
+)
 from .weather_only_same_day_capture_store_compressed import (
     CompressedSameDayCaptureStore,
 )
@@ -52,10 +55,10 @@ from .weather_only_three_layer_guarded import (
 
 
 THREE_LAYER_VALIDATION_RUNTIME_VERSION = (
-    "weather_three_layer_validation_v2_parallel_compressed_silent"
+    "weather_three_layer_validation_v3_event_isolation_single_snapshot"
 )
 THREE_LAYER_COLLECTION_VERSION = (
-    "same_day_three_layer_silent_collection_v4_parallel_compressed"
+    "same_day_three_layer_silent_collection_v5_event_isolation"
 )
 THREE_LAYER_SELECTION_POLICY = "PERSISTENT_ROUND_ROBIN_ELIGIBLE_V1"
 # Live census work observed roughly 22 simultaneously eligible same-day contracts.
@@ -67,6 +70,7 @@ THREE_LAYER_SOURCE_BUNDLE_DEADLINE_SECONDS = 35.0
 THREE_LAYER_ELIGIBILITY_SCAN_DEADLINE_SECONDS = 30.0
 THREE_LAYER_STATION_METADATA_CONCURRENCY = 4
 THREE_LAYER_ELIGIBILITY_STATION_CAP = 64
+THREE_LAYER_EVENT_REJECTION_SAMPLE_CAP = 20
 THREE_LAYER_CURSOR_KEY = "same_day_three_layer_rotation_cursor_v1"
 # Every admitted event is durably throttled to at most one attempt/capture per hour by
 # the inherited collector. Thus 32 * 24 * 31 is the hard theoretical 31-day bound.
@@ -128,6 +132,8 @@ class ThreeLayerValidationWeatherLivePaperService(FinalWeatherLivePaperService):
         self._three_layer_last_universe_truncated = False
         self._three_layer_last_eligibility_complete = True
         self._three_layer_last_station_count = 0
+        self._three_layer_last_event_rejected_total = 0
+        self._three_layer_last_event_rejection_samples: tuple[str, ...] = ()
 
     async def close(self) -> None:
         try:
@@ -173,22 +179,37 @@ class ThreeLayerValidationWeatherLivePaperService(FinalWeatherLivePaperService):
     async def _same_day_eligible(self, events: tuple[dict, ...]) -> tuple[list[tuple], list[str]]:
         """Build the complete station-local same-day universe before selecting from it.
 
-        Event compilation is local. Network metadata reads are deduplicated by station
-        and run concurrently under one global deadline. Any metadata timeout/failure
-        means the universe is not proven complete, so selection fails closed rather
-        than quietly biasing research toward whichever stations happened to respond.
+        External event-level malformations are isolated and rejected. Unexpected
+        internal semantic failures, station-source failures, timeouts and hard-cap
+        violations still fail the *whole* research universe closed. This prevents one
+        broken public event from starving all valid events without hiding code defects
+        or manufacturing a partial station population after an acquisition failure.
         """
         errors: list[str] = []
         seen_event_ids: set[str] = set()
         candidates: list[tuple[str, dict, object, object, str]] = []
         station_representatives: dict[str, object] = {}
+        rejection_samples: list[str] = []
+        rejected_total = 0
         loop = asyncio.get_running_loop()
         scan_deadline = loop.time() + THREE_LAYER_ELIGIBILITY_SCAN_DEADLINE_SECONDS
         eligibility_now_utc = datetime.now(tz=timezone.utc)
 
+        def publish_rejections() -> None:
+            self._three_layer_last_event_rejected_total = rejected_total
+            self._three_layer_last_event_rejection_samples = tuple(rejection_samples)
+
+        def reject_event(event: dict, code: str) -> None:
+            nonlocal rejected_total
+            rejected_total += 1
+            if len(rejection_samples) < THREE_LAYER_EVENT_REJECTION_SAMPLE_CAP:
+                event_id = str(event.get("id") or event.get("eventId") or "unknown")
+                rejection_samples.append(f"{event_id}:{code}")
+
         def incomplete(code: str | None = None):
             if code and code not in errors:
                 errors.append(code)
+            publish_rejections()
             self._three_layer_last_eligible_total = 0
             self._three_layer_last_selected_ids = ()
             self._three_layer_last_universe_truncated = True
@@ -200,16 +221,53 @@ class ThreeLayerValidationWeatherLivePaperService(FinalWeatherLivePaperService):
                 return incomplete("SAME_DAY_ELIGIBILITY_SCAN_TIMEOUT")
             if not isinstance(event, dict):
                 continue
+
+            # Gamma's event contract requires markets to be a collection. Reject a
+            # malformed external row locally before any parser can accidentally iterate
+            # a string/scalar and convert one bad public object into a universe outage.
+            raw_markets = event.get("markets")
+            if raw_markets is not None and not isinstance(raw_markets, (list, tuple)):
+                reject_event(event, "EVENT_MARKETS_TYPE_INVALID")
+                continue
+
             try:
                 compiled = compile_strict_temperature_event(event)
-                authority = compile_temperature_rule_authority(event, compiled)
-                semantics = build_same_day_contract_semantics(compiled, authority)
             except StrictWeatherContractError:
+                # Ordinary unsupported/non-weather contracts are expected discovery
+                # rejects and are not collection errors.
+                continue
+            except (TypeError, ValueError, KeyError, AttributeError) as exc:
+                reject_event(event, f"STRICT_INPUT_MALFORMED:{type(exc).__name__}")
                 continue
             except Exception as exc:
                 code = getattr(exc, "code", type(exc).__name__)
                 event_id = str(event.get("id") or event.get("eventId") or "unknown")
-                errors.append(f"SAME_DAY_SEMANTICS:{event_id}:{code}")
+                errors.append(f"SAME_DAY_COMPILE_INTERNAL:{event_id}:{code}")
+                continue
+
+            try:
+                authority = compile_temperature_rule_authority(event, compiled)
+            except (TypeError, ValueError, KeyError, AttributeError) as exc:
+                reject_event(event, f"RULE_INPUT_MALFORMED:{type(exc).__name__}")
+                continue
+            except Exception as exc:
+                code = getattr(exc, "code", type(exc).__name__)
+                event_id = str(compiled.event_id)
+                errors.append(f"SAME_DAY_RULE_INTERNAL:{event_id}:{code}")
+                continue
+
+            try:
+                semantics = build_same_day_contract_semantics(compiled, authority)
+            except SameDayContractError as exc:
+                # A strict contract can still be intentionally ineligible for this
+                # narrower same-day adapter. That is an event-local semantic reject,
+                # not evidence that every other event's universe is incomplete.
+                reject_event(event, exc.code)
+                continue
+            except Exception as exc:
+                code = getattr(exc, "code", type(exc).__name__)
+                event_id = str(compiled.event_id)
+                errors.append(f"SAME_DAY_SEMANTICS_INTERNAL:{event_id}:{code}")
                 continue
 
             event_id = str(compiled.event_id)
@@ -217,9 +275,12 @@ class ThreeLayerValidationWeatherLivePaperService(FinalWeatherLivePaperService):
                 continue
             seen_event_ids.add(event_id)
             if not semantics.layer1_adapter_capable:
+                reject_event(event, "LAYER1_ADAPTER_NOT_CAPABLE")
                 continue
             station = str(compiled.station_hint or "").strip().upper()
             if not station:
+                # build_same_day_contract_semantics already requires a station. Reaching
+                # this path therefore indicates an internal invariant failure.
                 errors.append(f"SAME_DAY_STATION:{event_id}:STATION_MISSING")
                 continue
             candidates.append((event_id, event, compiled, semantics, station))
@@ -231,10 +292,10 @@ class ThreeLayerValidationWeatherLivePaperService(FinalWeatherLivePaperService):
                     f"{len(station_representatives)}>{THREE_LAYER_ELIGIBILITY_STATION_CAP}"
                 )
 
+        publish_rejections()
         self._three_layer_last_station_count = len(station_representatives)
         if errors:
-            # A non-strictly-skippable semantics/station error makes completeness
-            # ambiguous. Preserve the errors and do not manufacture a partial universe.
+            # Unexpected internal local-semantic failures make completeness ambiguous.
             return incomplete()
         if loop.time() >= scan_deadline:
             return incomplete("SAME_DAY_ELIGIBILITY_SCAN_TIMEOUT")
@@ -320,6 +381,7 @@ class ThreeLayerValidationWeatherLivePaperService(FinalWeatherLivePaperService):
             # Advance even when a selected source later fails. One repeatedly broken
             # station must not permanently starve every other admitted research event.
             self.positions.set_state(THREE_LAYER_CURSOR_KEY, str(selected[-1][0]))
+        publish_rejections()
         return selected, errors
 
     async def _fetch_same_day_source_bundle(self, compiled, metadata):
@@ -375,6 +437,11 @@ class ThreeLayerValidationWeatherLivePaperService(FinalWeatherLivePaperService):
                 "selection_coverage_complete": self._three_layer_last_eligibility_complete,
                 "eligibility_station_count": self._three_layer_last_station_count,
                 "eligibility_station_cap": THREE_LAYER_ELIGIBILITY_STATION_CAP,
+                "event_rejected_total": self._three_layer_last_event_rejected_total,
+                "event_rejection_samples": list(
+                    self._three_layer_last_event_rejection_samples
+                ),
+                "event_rejection_sample_cap": THREE_LAYER_EVENT_REJECTION_SAMPLE_CAP,
                 "station_metadata_concurrency": THREE_LAYER_STATION_METADATA_CONCURRENCY,
                 "max_events_per_cycle": THREE_LAYER_MAX_EVENTS_PER_CYCLE,
                 "source_bundle_deadline_seconds": THREE_LAYER_SOURCE_BUNDLE_DEADLINE_SECONDS,
