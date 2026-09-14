@@ -1,5 +1,4 @@
 name: meticulous-three-layer-review-patch
-# second-pass trigger armed
 
 on:
   push:
@@ -11,7 +10,7 @@ permissions:
 
 jobs:
   patch:
-    if: ${{ github.event.head_commit.message == 'Run meticulous three-layer second pass' }}
+    if: ${{ github.event.head_commit.message == 'Run meticulous three-layer third pass' }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -20,7 +19,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Apply second reviewed hardening patch
+      - name: Apply third reviewed hardening patch
         run: python tools/meticulous_three_layer_finalization.py
       - name: Commit patch locally before release-attestation tests
         shell: bash
@@ -29,7 +28,7 @@ jobs:
           git config user.email "83580212+heroo2123@users.noreply.github.com"
           git add polymarket_scanner deploy tests
           git diff --cached --quiet && { echo "No application changes produced"; exit 1; }
-          git commit -m "Bind recovery identity and fix three-layer deployment attestation"
+          git commit -m "Guard same-day station metadata transport"
       - name: Install exact test dependencies
         run: pip install -r requirements-dev.txt
       - name: Run complete test suite
