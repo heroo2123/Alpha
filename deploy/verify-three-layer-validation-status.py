@@ -142,6 +142,29 @@ def _read_status(path: Path) -> object:
         raise ThreeLayerStatusError("THREE_LAYER_STATUS_JSON_INVALID") from None
 
 
+def _is_waitable_intermediate(
+    status: object,
+    *,
+    release_sha: str,
+    not_before: float,
+) -> bool:
+    """Recognize only the inherited final status written just before wrapper finalize."""
+    if not isinstance(status, dict):
+        return False
+    expected = str(release_sha or "").strip().lower()
+    observed = str(status.get("release_sha") or "").strip().lower()
+    if observed != expected:
+        return False
+    finished = status.get("finished_at")
+    if isinstance(finished, bool) or not isinstance(finished, (int, float)):
+        return False
+    try:
+        fresh = math.isfinite(float(finished)) and float(finished) >= float(not_before)
+    except (TypeError, ValueError, OverflowError):
+        return False
+    return fresh and status.get("three_layer_validation_runtime_version") in (None, "")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--status", type=Path, required=True)
@@ -157,9 +180,12 @@ def main() -> int:
         return 2
     deadline = time.monotonic() + args.timeout_seconds
     last = "THREE_LAYER_WRAPPER_STATUS_NOT_YET_AVAILABLE"
+    status_path = args.status.expanduser().resolve()
+
     while time.monotonic() < deadline:
+        status: object | None = None
         try:
-            status = _read_status(args.status.expanduser().resolve())
+            status = _read_status(status_path)
             payload = verify(
                 status,
                 release_sha=args.release_sha,
@@ -168,22 +194,16 @@ def main() -> int:
             )
         except ThreeLayerStatusError as exc:
             last = str(exc)
-            # The inherited final runtime writes one atomic intermediate status before
-            # this wrapper appends its fields. Only that exact fresh-release absence is
-            # waitable; semantic/safety drift is terminal.
-            try:
-                if isinstance(locals().get("status"), dict):
-                    candidate = locals()["status"]
-                    same_release = str(candidate.get("release_sha") or "").strip().lower() == str(args.release_sha).strip().lower()
-                    finished = candidate.get("finished_at")
-                    fresh = isinstance(finished, (int, float)) and not isinstance(finished, bool) and float(finished) >= args.not_before
-                    if same_release and fresh and candidate.get("three_layer_validation_runtime_version") in (None, ""):
-                        time.sleep(0.25)
-                        continue
-            except Exception:
-                pass
+            if _is_waitable_intermediate(
+                status,
+                release_sha=args.release_sha,
+                not_before=args.not_before,
+            ):
+                time.sleep(0.25)
+                continue
             print(f"FAIL_THREE_LAYER_STATUS:{last}", file=sys.stderr)
             return 2
+
         text = json.dumps(payload, sort_keys=True, indent=2) + "\n"
         if args.output is not None:
             output = args.output.expanduser().resolve()
