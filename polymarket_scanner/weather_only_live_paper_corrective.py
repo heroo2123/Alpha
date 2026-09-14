@@ -47,6 +47,7 @@ from .weather_only_paper_commands_canonical import CanonicalWeatherPaperCommandC
 from .weather_only_paper_corrective import PAPER_EXECUTION_PROTOCOL_V4, CorrectiveSettlementEngine
 from .weather_only_paper_facade import CorrectiveWeatherPaperStore
 from .weather_only_rules import compile_temperature_rule_authority
+from .weather_only_runtime_lease import WeatherPaperRuntimeLease
 from .weather_only_same_day_capture import (
     SAME_DAY_CAPTURE_BLOCKED,
     SAME_DAY_CAPTURE_READY,
@@ -58,7 +59,7 @@ from .weather_only_same_day_store import SameDayResearchStore
 from .weather_only_wrh_client import NWSWRHLiveClient
 
 
-CANONICAL_CORRECTIVE_VERSION = "weather_live_paper_corrective_v8_persistent_three_layer_cadence"
+CANONICAL_CORRECTIVE_VERSION = "weather_live_paper_corrective_v9_singleton_all_corrective_writers"
 HISTORY_QUARANTINE_POLICY_ID = "PRE_V4_PROTOCOL_QUARANTINE_V2_BOUNDED_CURSOR"
 HISTORY_QUARANTINE_BATCH_SIZE = 200
 STATION_METADATA_CACHE_MAX_ENTRIES = 128
@@ -92,49 +93,63 @@ class _CapturingDiscoveryProxy:
 
 class WeatherLivePaperCorrectiveService(WeatherLivePaperV4Service):
     def __init__(self, **kwargs) -> None:
-        super().__init__(**kwargs)
-        self._canonical_superseded_settlement = self.settlement
-        self._canonical_superseded_commands = self.commands
+        db_path = kwargs.get("db_path")
+        if db_path is None:
+            raise ValueError("db_path is required")
+        # B6: every process that can instantiate the retained corrective writer must
+        # cross the same kernel singleton boundary.  The final subclass also takes a
+        # lease; WeatherPaperRuntimeLease is process-reentrant for that layered case.
+        self._corrective_runtime_lease = WeatherPaperRuntimeLease(db_path)
+        try:
+            super().__init__(**kwargs)
+            self._canonical_superseded_settlement = self.settlement
+            self._canonical_superseded_commands = self.commands
 
-        self.positions = CorrectiveWeatherPaperStore(self.db_path)
-        self.same_day_research = SameDayResearchStore(self.db_path)
-        self.same_day_captures = SameDayCaptureStore(self.db_path)
-        self.settlement = CorrectiveSettlementEngine(store=self.positions, telegram=self.telegram)
-        self.commands = CanonicalWeatherPaperCommandController(
-            telegram=self.telegram,
-            store=self.positions,
-            status_path=self.status_path,
-            paper_stake_usd=self.paper_stake_usd,
-        )
-        self._history_quarantine = BoundedForecastHistoryQuarantine(
-            self.positions,
-            policy_id=HISTORY_QUARANTINE_POLICY_ID,
-            current_execution_protocol=PAPER_EXECUTION_PROTOCOL_V4,
-            quarantine_reason=PRE_V4_QUARANTINE_REASON,
-            batch_size=HISTORY_QUARANTINE_BATCH_SIZE,
-        )
-        self._bounded_station_metadata: OrderedDict[str, tuple[float, object]] = OrderedDict()
+            self.positions = CorrectiveWeatherPaperStore(self.db_path)
+            self.same_day_research = SameDayResearchStore(self.db_path)
+            self.same_day_captures = SameDayCaptureStore(self.db_path)
+            self.settlement = CorrectiveSettlementEngine(store=self.positions, telegram=self.telegram)
+            self.commands = CanonicalWeatherPaperCommandController(
+                telegram=self.telegram,
+                store=self.positions,
+                status_path=self.status_path,
+                paper_stake_usd=self.paper_stake_usd,
+            )
+            self._history_quarantine = BoundedForecastHistoryQuarantine(
+                self.positions,
+                policy_id=HISTORY_QUARANTINE_POLICY_ID,
+                current_execution_protocol=PAPER_EXECUTION_PROTOCOL_V4,
+                quarantine_reason=PRE_V4_QUARANTINE_REASON,
+                batch_size=HISTORY_QUARANTINE_BATCH_SIZE,
+            )
+            self._bounded_station_metadata: OrderedDict[str, tuple[float, object]] = OrderedDict()
 
-        self._canonical_discovery_delegate = self.runtime.discovery
-        self._capturing_discovery = _CapturingDiscoveryProxy(self.runtime.discovery)
-        self.runtime.discovery = self._capturing_discovery
+            self._canonical_discovery_delegate = self.runtime.discovery
+            self._capturing_discovery = _CapturingDiscoveryProxy(self.runtime.discovery)
+            self.runtime.discovery = self._capturing_discovery
 
-        self._same_day_wrh = NWSWRHLiveClient()
-        self._same_day_nws = NWSNearTermGridClient()
-        self._same_day_gefs = OpenMeteoGEFSHourlyClient()
-        # In-memory throttle protects repeated source failures inside one process.
-        # Successful captures are additionally throttled from durable SQLite state.
-        self._same_day_last_attempt: dict[str, float] = {}
+            self._same_day_wrh = NWSWRHLiveClient()
+            self._same_day_nws = NWSNearTermGridClient()
+            self._same_day_gefs = OpenMeteoGEFSHourlyClient()
+            # In-memory throttle protects repeated source failures inside one process.
+            # Successful captures are additionally throttled from durable SQLite state.
+            self._same_day_last_attempt: dict[str, float] = {}
+        except BaseException:
+            self._corrective_runtime_lease.close()
+            raise
 
     async def close(self) -> None:
-        await asyncio.gather(
-            self._canonical_superseded_settlement.close(),
-            self._canonical_superseded_commands.close(),
-            self._same_day_nws.close(),
-            self._same_day_gefs.close(),
-            return_exceptions=True,
-        )
-        await super().close()
+        try:
+            await asyncio.gather(
+                self._canonical_superseded_settlement.close(),
+                self._canonical_superseded_commands.close(),
+                self._same_day_nws.close(),
+                self._same_day_gefs.close(),
+                return_exceptions=True,
+            )
+            await super().close()
+        finally:
+            self._corrective_runtime_lease.close()
 
     def _station_cache_now(self) -> float:
         return time.monotonic()
