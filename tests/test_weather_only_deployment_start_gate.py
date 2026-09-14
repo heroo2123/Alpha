@@ -5,6 +5,7 @@ from pathlib import Path
 
 
 START = Path("deploy/start-weather-paper-candidate.sh")
+PREPARE = Path("deploy/prepare-weather-paper-candidate.sh")
 PREFLIGHT = Path("deploy/preflight-weather-paper-deployment.sh")
 SETUP = Path("deploy/setup-weather-paper-service.sh")
 ENV_EXTRACT = Path("deploy/extract-weather-paper-env.py")
@@ -36,9 +37,19 @@ def test_start_gate_requires_exact_sha_runtime_attestation_and_fresh_first_cycle
     assert "weather-paper-synoptic-runtime-acceptance.json" in text
 
 
-def test_failed_start_acceptance_stops_service_and_never_enables_it():
+def test_prepare_and_start_refuse_preexisting_boot_persistence():
+    prepare = PREPARE.read_text(encoding="utf-8")
+    start = START.read_text(encoding="utf-8")
+    assert 'systemctl is-enabled --quiet "${UNIT}"' in prepare
+    assert "disable it explicitly before preparing another candidate" in prepare
+    assert 'systemctl is-enabled --quiet "${UNIT}"' in start
+    assert "candidate acceptance requires a non-persistent unit" in start
+
+
+def test_failed_start_acceptance_stops_and_disables_candidate_and_never_enables_it():
     text = START.read_text(encoding="utf-8")
     assert 'sudo systemctl stop "${UNIT}"' in text
+    assert 'sudo systemctl disable "${UNIT}"' in text
     assert 'sudo systemctl start "${UNIT}"' in text
     assert text.index("start_attempted=1") < text.index('sudo systemctl start "${UNIT}"')
     assert "(( start_attempted == 1 ))" in text
