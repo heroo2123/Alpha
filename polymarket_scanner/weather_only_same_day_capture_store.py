@@ -114,8 +114,8 @@ class SameDayCaptureStore:
             )
         except (TypeError, ValueError):
             raise SameDayCaptureStoreError("SAME_DAY_CAPTURE_STORE_JSON_INVALID") from None
-        with self._conn() as db:
-            try:
+        try:
+            with self._conn() as db:
                 cur = db.execute(
                     """
                     INSERT INTO weather_same_day_captures(
@@ -155,8 +155,8 @@ class SameDayCaptureStore:
                         float(value.as_of),
                     ),
                 )
-            except sqlite3.IntegrityError:
-                return None
+        except sqlite3.IntegrityError:
+            return None
         return int(cur.lastrowid)
 
     def latest_as_of_for_event(self, event_id: str) -> float | None:
