@@ -62,9 +62,13 @@ def test_network_preflight_uses_exact_guarded_three_layer_transports_and_never_s
     source = Path("polymarket_scanner/weather_only_network_preflight.py").read_text(encoding="utf-8")
     assert "OPEN_METEO_ENSEMBLE" in source
     assert "GuardedNWSNearTermGridClient" in source
+    assert "GuardedSameDayStationMetadataClient" in source
     assert "GuardedNWSWRHLiveClient" in source
     assert "GuardedOpenMeteoGEFSHourlyClient" in source
     assert "wrh.close()" in source
+    assert "station_meta.close()" in source
+    assert "nws_station_metadata" in source
+    assert "station_metadata_action" in source
     assert "polymarket_gamma" in source
     assert "polymarket_clob" in source
     assert "open_meteo_gefs" in source

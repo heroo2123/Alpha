@@ -28,12 +28,13 @@ from .weather_only_forecast import OPEN_METEO_ENSEMBLE
 from .weather_only_nws_near_term import NWS_API_ORIGIN
 from .weather_only_three_layer_guarded import (
     GuardedNWSNearTermGridClient,
+    GuardedSameDayStationMetadataClient,
     GuardedNWSWRHLiveClient,
     GuardedOpenMeteoGEFSHourlyClient,
 )
 from .weather_only_wrh_client import WRH_TIMESERIES_PAGE
 
-NETWORK_PREFLIGHT_VERSION = "weather_paper_network_preflight_v3_guarded_three_layer_transports"
+NETWORK_PREFLIGHT_VERSION = "weather_paper_network_preflight_v4_guarded_three_layer_station_metadata"
 TELEGRAM_ORIGIN = "https://api.telegram.org"
 REFERENCE_STATION = "KLGA"
 REFERENCE_LATITUDE = 40.7769
@@ -151,6 +152,7 @@ async def check_weather_paper_network() -> WeatherPaperNetworkReport:
         wrh = GuardedNWSWRHLiveClient()
         near = GuardedNWSNearTermGridClient()
         gefs = GuardedOpenMeteoGEFSHourlyClient()
+        station_meta = GuardedSameDayStationMetadataClient()
         today = datetime.now(ZoneInfo(REFERENCE_TIMEZONE)).date()
         wrh_target = today - timedelta(days=1)
 
@@ -175,6 +177,19 @@ async def check_weather_paper_network() -> WeatherPaperNetworkReport:
             if not math.isfinite(value) or value <= 0.0:
                 raise WeatherNetworkPreflightError("NETWORK_CLOB_TIME_INVALID")
             return f"HTTP {response.status_code}; server_time_ok"
+
+        async def station_metadata_action() -> str:
+            result = await station_meta.station(REFERENCE_STATION)
+            if str(result.station).upper() != REFERENCE_STATION:
+                raise WeatherNetworkPreflightError("NETWORK_STATION_METADATA_IDENTITY_MISMATCH")
+            if not math.isfinite(float(result.latitude)) or not math.isfinite(float(result.longitude)):
+                raise WeatherNetworkPreflightError("NETWORK_STATION_METADATA_COORDINATE_INVALID")
+            if not str(result.timezone or "").strip():
+                raise WeatherNetworkPreflightError("NETWORK_STATION_METADATA_TIMEZONE_INVALID")
+            return (
+                f"guarded station metadata ok; station={result.station}; "
+                f"timezone={result.timezone}"
+            )
 
         async def wrh_action() -> str:
             result = await asyncio.to_thread(
@@ -215,6 +230,12 @@ async def check_weather_paper_network() -> WeatherPaperNetworkReport:
                 _probe(name="polymarket_gamma", url=GAMMA, required=True, action=gamma_action),
                 _probe(name="polymarket_clob", url=CLOB, required=True, action=clob_action),
                 _probe(
+                    name="nws_station_metadata",
+                    url=NWS_API_ORIGIN,
+                    required=True,
+                    action=station_metadata_action,
+                ),
+                _probe(
                     name="nws_wrh_synoptic",
                     url=WRH_TIMESERIES_PAGE,
                     required=True,
@@ -241,7 +262,12 @@ async def check_weather_paper_network() -> WeatherPaperNetworkReport:
             )
         finally:
             wrh.close()
-            await asyncio.gather(near.close(), gefs.close(), return_exceptions=True)
+            await asyncio.gather(
+                station_meta.close(),
+                near.close(),
+                gefs.close(),
+                return_exceptions=True,
+            )
 
     return evaluate_network_probes(tuple(probes))
 
