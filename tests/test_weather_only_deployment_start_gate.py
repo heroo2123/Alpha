@@ -32,17 +32,16 @@ def test_start_gate_requires_exact_sha_runtime_attestation_and_fresh_first_cycle
     assert 'START_ACCEPTANCE_EPOCH="$(date +%s)"' in text
     assert '--not-before "${START_ACCEPTANCE_EPOCH}"' in text
     assert "weather-paper-first-cycle-acceptance.json" in text
+    assert "verify-synoptic-pws-status.py" in text
+    assert "weather-paper-synoptic-runtime-acceptance.json" in text
 
 
 def test_failed_start_acceptance_stops_service_and_never_enables_it():
     text = START.read_text(encoding="utf-8")
     assert 'sudo systemctl stop "${UNIT}"' in text
     assert 'sudo systemctl start "${UNIT}"' in text
-    # The rollback guard is armed before systemctl is called, so even a non-zero
-    # start command that partially launches the service is contained.
     assert text.index("start_attempted=1") < text.index('sudo systemctl start "${UNIT}"')
     assert "(( start_attempted == 1 ))" in text
-    # Start acceptance intentionally never grants boot persistence.
     executable_lines = [
         line.strip()
         for line in text.splitlines()
@@ -58,6 +57,8 @@ def test_preflight_backups_paper_ledger_before_installing_unit():
     install_index = text.index("setup-weather-paper-service.sh")
     assert backup_index < install_index
     assert "attest-weather-paper-runtime.py" in text
+    assert "check-synoptic-pws.py" in text
+    assert text.index("check-synoptic-pws.py") < backup_index
 
 
 def test_weather_service_environment_uses_reviewed_allowlist_helper():
@@ -65,14 +66,15 @@ def test_weather_service_environment_uses_reviewed_allowlist_helper():
     helper = ENV_EXTRACT.read_text(encoding="utf-8")
     assert "deploy/extract-weather-paper-env.py" in setup
     assert "grep -E" not in setup
-    assert 'ALLOWED = ("TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID", "WEATHER_PWS_API_KEY")' in helper
-    assert 'REQUIRED = ("TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID")' in helper
+    assert 'ALLOWED = ("TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID", "SYNOPTIC_PWS_TOKEN")' in helper
+    assert "REQUIRED = ALLOWED" in helper
     for forbidden in (
         "PRIVATE_KEY",
         "WALLET",
         "POLYMARKET_API_KEY",
         "POLYMARKET_SECRET",
         "BINANCE_API_KEY",
+        "WEATHER_PWS_API_KEY",
     ):
         assert forbidden not in helper
 
