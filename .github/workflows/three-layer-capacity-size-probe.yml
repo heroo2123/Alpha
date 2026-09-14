@@ -105,10 +105,10 @@ jobs:
                       failures=[(type(x).__name__,getattr(x,'code',str(x))) for x in results if isinstance(x,BaseException)]
                       if failures:
                           print('CAPTURE_SOURCE_FAIL',eid,str(c.station_hint),failures); continue
-                      wrh_snapshot,nws_snapshot,gefs_day=results
+                      wrh_result,nws_snapshot,gefs_day=results
                       cutoff=time.time()
                       try:
-                          rec=assemble_same_day_capture(compiled=c,contract_semantics=s,station_metadata=m,wrh_snapshot=wrh_snapshot,near_term_raw_snapshot=nws_snapshot,hourly_gefs=gefs_day,as_of=cutoff,population_alignment_certified=False)
+                          rec=assemble_same_day_capture(compiled=c,contract_semantics=s,station_metadata=m,wrh_snapshot=wrh_result.snapshot,near_term_raw_snapshot=nws_snapshot,hourly_gefs=gefs_day,as_of=cutoff,population_alignment_certified=False)
                       except Exception as exc:
                           print('CAPTURE_ASSEMBLE_FAIL',eid,str(c.station_hint),getattr(exc,'code',type(exc).__name__),str(exc)); continue
                       payload=json.dumps(rec.as_dict(),sort_keys=True,separators=(',',':'),ensure_ascii=True,allow_nan=False).encode()
@@ -121,12 +121,12 @@ jobs:
                       sizes.append(len(payload))
                       print('CAPTURE_SIZE',eid,str(c.station_hint),len(payload),'COMPONENTS',components,'SOURCE_SECONDS',round(time.monotonic()-source_started,3),'STATUS',rec.status)
                   print('CAPTURE_SIZES',sizes)
-                  if sizes:
-                      print('CAPTURE_MAX_BYTES',max(sizes))
-                      print('CAPTURE_MEAN_BYTES',round(sum(sizes)/len(sizes),1))
-                      for cap in (12,24,32,40):
-                          rows=cap*24*31
-                          print('CAPACITY_PROJECTION',cap,'ROWS',rows,'AT_SAMPLE_MAX_MIB',round(rows*max(sizes)/1024/1024,2),'AT_SAMPLE_MEAN_MIB',round(rows*(sum(sizes)/len(sizes))/1024/1024,2))
+                  assert sizes, 'NO_REPRESENTATIVE_CAPTURE_SIZE_MEASUREMENTS'
+                  print('CAPTURE_MAX_BYTES',max(sizes))
+                  print('CAPTURE_MEAN_BYTES',round(sum(sizes)/len(sizes),1))
+                  for cap in (12,24,32,40):
+                      rows=cap*24*31
+                      print('CAPACITY_PROJECTION',cap,'ROWS',rows,'AT_SAMPLE_MAX_MIB',round(rows*max(sizes)/1024/1024,2),'AT_SAMPLE_MEAN_MIB',round(rows*(sum(sizes)/len(sizes))/1024/1024,2))
               finally:
                   await d.close(); await sm.close(); await nws.close(); await gefs.close(); wrh.close()
           asyncio.run(main())
