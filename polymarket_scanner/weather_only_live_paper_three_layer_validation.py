@@ -96,6 +96,7 @@ class ThreeLayerValidationWeatherLivePaperService(FinalWeatherLivePaperService):
         guarded_nws = GuardedNWSNearTermGridClient()
         guarded_gefs = GuardedOpenMeteoGEFSHourlyClient()
 
+        self._three_layer_superseded_wrh = self._same_day_wrh
         self._three_layer_superseded_nws = self._same_day_nws
         self._three_layer_superseded_gefs = self._same_day_gefs
         self._same_day_wrh = guarded_wrh
@@ -107,7 +108,7 @@ class ThreeLayerValidationWeatherLivePaperService(FinalWeatherLivePaperService):
 
     async def close(self) -> None:
         try:
-            self._same_day_wrh.close()
+            self._three_layer_superseded_wrh.close()
         except Exception:
             pass
         await asyncio.gather(

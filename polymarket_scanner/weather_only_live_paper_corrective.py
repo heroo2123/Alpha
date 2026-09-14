@@ -133,6 +133,10 @@ class WeatherLivePaperCorrectiveService(WeatherLivePaperV4Service):
             raise
 
     async def close(self) -> None:
+        try:
+            self._same_day_wrh.close()
+        except Exception:
+            pass
         await asyncio.gather(
             self._canonical_superseded_settlement.close(),
             self._canonical_superseded_commands.close(),

@@ -19,6 +19,7 @@ from polymarket_scanner.weather_only_live_paper_three_layer_validation import ( 
     THREE_LAYER_31D_CAPTURE_ROW_BOUND,
     THREE_LAYER_CAPTURE_JSON_BYTES_CAP,
     THREE_LAYER_ATTEMPT_ROW_CAP,
+    THREE_LAYER_MAX_EVENTS_PER_CYCLE,
     THREE_LAYER_SELECTION_POLICY,
     THREE_LAYER_SELECTION_UNIVERSE_CAP,
     THREE_LAYER_SOURCE_BUNDLE_DEADLINE_SECONDS,
@@ -52,6 +53,12 @@ def _sha(value: object, code: str) -> str:
 def _require_false(payload: dict, key: str, code: str) -> None:
     if payload.get(key) is not False:
         raise ThreeLayerStatusError(code)
+
+
+def _nonnegative_int(value: object, code: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise ThreeLayerStatusError(code)
+    return value
 
 
 def verify(
@@ -105,8 +112,31 @@ def verify(
         raise ThreeLayerStatusError("THREE_LAYER_SELECTION_POLICY_MISMATCH")
     if lane.get("selection_universe_cap") != THREE_LAYER_SELECTION_UNIVERSE_CAP:
         raise ThreeLayerStatusError("THREE_LAYER_SELECTION_CAP_MISMATCH")
+    if lane.get("selection_universe_truncated") is not False:
+        raise ThreeLayerStatusError("THREE_LAYER_SELECTION_UNIVERSE_TRUNCATED")
     if lane.get("selection_coverage_complete") is not True:
         raise ThreeLayerStatusError("THREE_LAYER_SELECTION_UNIVERSE_TRUNCATED")
+    eligible_total = _nonnegative_int(
+        lane.get("eligible_events_total"), "THREE_LAYER_ELIGIBLE_TOTAL_INVALID"
+    )
+    if eligible_total > THREE_LAYER_SELECTION_UNIVERSE_CAP:
+        raise ThreeLayerStatusError("THREE_LAYER_ELIGIBLE_TOTAL_EXCEEDS_CAP")
+    if lane.get("max_events_per_cycle") != THREE_LAYER_MAX_EVENTS_PER_CYCLE:
+        raise ThreeLayerStatusError("THREE_LAYER_MAX_EVENTS_PER_CYCLE_MISMATCH")
+    selected_ids = lane.get("selected_event_ids")
+    if not isinstance(selected_ids, list) or any(
+        not isinstance(value, str) or not value.strip() for value in selected_ids
+    ):
+        raise ThreeLayerStatusError("THREE_LAYER_SELECTED_IDS_INVALID")
+    if len(selected_ids) != len(set(selected_ids)):
+        raise ThreeLayerStatusError("THREE_LAYER_SELECTED_IDS_DUPLICATE")
+    if len(selected_ids) > THREE_LAYER_MAX_EVENTS_PER_CYCLE or len(selected_ids) > eligible_total:
+        raise ThreeLayerStatusError("THREE_LAYER_SELECTED_IDS_COUNT_INVALID")
+    selected_count = _nonnegative_int(
+        lane.get("eligible_events"), "THREE_LAYER_SELECTED_EVENT_COUNT_INVALID"
+    )
+    if selected_count != len(selected_ids):
+        raise ThreeLayerStatusError("THREE_LAYER_SELECTED_EVENT_COUNT_MISMATCH")
     if lane.get("source_bundle_deadline_seconds") != THREE_LAYER_SOURCE_BUNDLE_DEADLINE_SECONDS:
         raise ThreeLayerStatusError("THREE_LAYER_SOURCE_DEADLINE_MISMATCH")
     if lane.get("theoretical_31_day_row_bound_at_full_daily_eligibility") != THREE_LAYER_31D_CAPTURE_ROW_BOUND:
@@ -125,10 +155,49 @@ def verify(
     attempts = store.get("attempts")
     if not isinstance(attempts, dict) or attempts.get("max_attempt_rows") != THREE_LAYER_ATTEMPT_ROW_CAP:
         raise ThreeLayerStatusError("THREE_LAYER_STORE_ATTEMPT_CAP_MISMATCH")
-    if store.get("capture_capacity_exhausted") is True or attempts.get("capacity_exhausted") is True:
-        raise ThreeLayerStatusError("THREE_LAYER_STORE_CAPACITY_EXHAUSTED")
-    if list(lane.get("errors") or []):
+    if store.get("capture_capacity_exhausted") is not False:
+        raise ThreeLayerStatusError("THREE_LAYER_STORE_CAPTURE_CAPACITY_NOT_HEALTHY")
+    if attempts.get("capacity_exhausted") is not False:
+        raise ThreeLayerStatusError("THREE_LAYER_STORE_ATTEMPT_CAPACITY_NOT_HEALTHY")
+    if store.get("automatic_evidence_pruning") is not False:
+        raise ThreeLayerStatusError("THREE_LAYER_STORE_PRUNING_POLICY_INVALID")
+    _require_false(store, "included_in_validated_pnl", "THREE_LAYER_STORE_PNL_NOT_FALSE")
+    _require_false(store, "same_day_delivery_enabled", "THREE_LAYER_STORE_DELIVERY_NOT_FALSE")
+    _require_false(store, "financial_authority", "THREE_LAYER_STORE_FINANCIAL_NOT_FALSE")
+    _require_false(attempts, "included_in_validated_pnl", "THREE_LAYER_ATTEMPT_PNL_NOT_FALSE")
+    _require_false(attempts, "same_day_delivery_enabled", "THREE_LAYER_ATTEMPT_DELIVERY_NOT_FALSE")
+    _require_false(attempts, "financial_authority", "THREE_LAYER_ATTEMPT_FINANCIAL_NOT_FALSE")
+    if _nonnegative_int(attempts.get("started"), "THREE_LAYER_ATTEMPT_STARTED_INVALID") != 0:
+        raise ThreeLayerStatusError("THREE_LAYER_ATTEMPT_LEFT_STARTED")
+    if lane.get("capture_cadence_persisted_in_sqlite") is not True:
+        raise ThreeLayerStatusError("THREE_LAYER_DURABLE_CADENCE_NOT_PROVEN")
+    if lane.get("attempt_audit_persisted_in_sqlite") is not True:
+        raise ThreeLayerStatusError("THREE_LAYER_DURABLE_ATTEMPT_AUDIT_NOT_PROVEN")
+    _nonnegative_int(
+        lane.get("attempt_recovery_at_startup"), "THREE_LAYER_ATTEMPT_RECOVERY_INVALID"
+    )
+    errors = lane.get("errors")
+    if not isinstance(errors, list):
+        raise ThreeLayerStatusError("THREE_LAYER_ERRORS_TYPE_INVALID")
+    if errors:
         raise ThreeLayerStatusError("THREE_LAYER_SOURCE_ERRORS_PRESENT")
+
+    attempted = _nonnegative_int(lane.get("attempted_now"), "THREE_LAYER_ATTEMPTED_NOW_INVALID")
+    saved = _nonnegative_int(lane.get("saved_now"), "THREE_LAYER_SAVED_NOW_INVALID")
+    duplicates = _nonnegative_int(lane.get("duplicates_now"), "THREE_LAYER_DUPLICATES_NOW_INVALID")
+    cadence_skipped = _nonnegative_int(
+        lane.get("cadence_skipped_now"), "THREE_LAYER_CADENCE_SKIPPED_INVALID"
+    )
+    blocked = _nonnegative_int(lane.get("blocked_now"), "THREE_LAYER_BLOCKED_NOW_INVALID")
+    ready = _nonnegative_int(
+        lane.get("ready_uncalibrated_now"), "THREE_LAYER_READY_NOW_INVALID"
+    )
+    if attempted != saved + duplicates:
+        raise ThreeLayerStatusError("THREE_LAYER_ATTEMPT_ACCOUNTING_MISMATCH")
+    if blocked + ready != saved + duplicates:
+        raise ThreeLayerStatusError("THREE_LAYER_CAPTURE_STATUS_ACCOUNTING_MISMATCH")
+    if selected_count != attempted + cadence_skipped:
+        raise ThreeLayerStatusError("THREE_LAYER_SELECTION_ACCOUNTING_MISMATCH")
     _require_false(lane, "population_alignment_certified", "THREE_LAYER_LANE_ALIGNMENT_NOT_FALSE")
     _require_false(lane, "calibrated_probability", "THREE_LAYER_CALIBRATION_NOT_FALSE")
     _require_false(lane, "included_in_validated_pnl", "THREE_LAYER_PNL_NOT_FALSE")
