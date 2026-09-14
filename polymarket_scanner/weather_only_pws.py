@@ -616,8 +616,9 @@ class WeatherCompanyPWSClient:
                     # means a gzip/stacked-encoding bomb can allocate far beyond the
                     # application byte cap before we get a chance to inspect it.
                     # Request identity encoding and fail closed if an upstream ignores
-                    # that request. aiter_raw() then bounds the bytes *before* any
-                    # content decoding or JSON parsing occurs in this process.
+                    # that request. Real network responses remain unread here and use
+                    # aiter_raw(), so the byte cap is applied before any content
+                    # decoding or JSON parsing occurs in this process.
                     content_encoding = response.headers.get("content-encoding", "").strip().lower()
                     if content_encoding not in {"", "identity"}:
                         return PWS_STATUS_UNSUPPORTED_CONTENT_ENCODING, None
@@ -641,10 +642,24 @@ class WeatherCompanyPWSClient:
                             return PWS_STATUS_RESPONSE_TOO_LARGE, None
 
                     payload = bytearray()
-                    async for chunk in response.aiter_raw():
-                        if len(payload) + len(chunk) > self.max_response_bytes:
+                    if response.is_stream_consumed:
+                        # MockTransport and explicitly injected clients may hand us a
+                        # response whose identity body was already buffered by the
+                        # transport. Production self.http.stream() responses are not
+                        # consumed before this point. Keep compatibility without ever
+                        # invoking a decoder: compressed encodings were rejected above.
+                        try:
+                            buffered = response.content
+                        except httpx.ResponseNotRead:
+                            return PWS_STATUS_TRANSPORT_ERROR, None
+                        if len(buffered) > self.max_response_bytes:
                             return PWS_STATUS_RESPONSE_TOO_LARGE, None
-                        payload.extend(chunk)
+                        payload.extend(buffered)
+                    else:
+                        async for chunk in response.aiter_raw():
+                            if len(payload) + len(chunk) > self.max_response_bytes:
+                                return PWS_STATUS_RESPONSE_TOO_LARGE, None
+                            payload.extend(chunk)
             try:
                 body = json.loads(payload.decode("utf-8"))
             except (UnicodeDecodeError, json.JSONDecodeError):
