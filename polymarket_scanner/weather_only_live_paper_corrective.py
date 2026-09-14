@@ -5,7 +5,9 @@ from __future__ import annotations
 The ordinary paper lanes use the v4 corrective execution/settlement protocol. In
 parallel, this service collects the new three-layer same-day weather state as isolated,
 silent research only: exact WRH observations so far, official NWS near-term grid
-support, and full 31-member GEFS remaining-hours paths.
+support, and full 31-member GEFS remaining-hours paths. Nearby PWS observations are
+collected alongside those layers as predictive-only diagnostics for prospective
+validation; they never replace official observations or reweight the model.
 
 Three-layer captures cannot create Telegram trade alerts, paper positions, validated
 P&L or financial authority. The WRH-to-model population alignment remains
@@ -46,6 +48,8 @@ from .weather_only_nws_near_term import NWSNearTermGridClient
 from .weather_only_paper_commands_canonical import CanonicalWeatherPaperCommandController
 from .weather_only_paper_corrective import PAPER_EXECUTION_PROTOCOL_V4, CorrectiveSettlementEngine
 from .weather_only_paper_facade import CorrectiveWeatherPaperStore
+from .weather_only_pws import PWS_STATUS_AVAILABLE, WeatherCompanyPWSClient, build_pws_diagnostic
+from .weather_only_pws_store import SameDayPWSDiagnosticStore
 from .weather_only_rules import compile_temperature_rule_authority
 from .weather_only_same_day_capture import (
     SAME_DAY_CAPTURE_BLOCKED,
@@ -59,6 +63,7 @@ from .weather_only_wrh_client import NWSWRHLiveClient
 
 
 CANONICAL_CORRECTIVE_VERSION = "weather_live_paper_corrective_v10_common_all_writer_singleton"
+PWS_DIAGNOSTIC_RUNTIME_VERSION = "same_day_pws_diagnostic_v1_predictive_only"
 HISTORY_QUARANTINE_POLICY_ID = "PRE_V4_PROTOCOL_QUARANTINE_V2_BOUNDED_CURSOR"
 HISTORY_QUARANTINE_BATCH_SIZE = 200
 STATION_METADATA_CACHE_MAX_ENTRIES = 128
@@ -104,6 +109,7 @@ class WeatherLivePaperCorrectiveService(WeatherLivePaperV4Service):
             self.positions = CorrectiveWeatherPaperStore(self.db_path)
             self.same_day_research = SameDayResearchStore(self.db_path)
             self.same_day_captures = SameDayCaptureStore(self.db_path)
+            self.same_day_pws = SameDayPWSDiagnosticStore(self.db_path)
             self.settlement = CorrectiveSettlementEngine(store=self.positions, telegram=self.telegram)
             self.commands = CanonicalWeatherPaperCommandController(
                 telegram=self.telegram,
@@ -127,6 +133,7 @@ class WeatherLivePaperCorrectiveService(WeatherLivePaperV4Service):
             self._same_day_wrh = NWSWRHLiveClient()
             self._same_day_nws = NWSNearTermGridClient()
             self._same_day_gefs = OpenMeteoGEFSHourlyClient()
+            self._same_day_pws = WeatherCompanyPWSClient()
             # In-memory throttle protects repeated source failures inside one process.
             # Successful captures are additionally throttled from durable SQLite state.
             self._same_day_last_attempt: dict[str, float] = {}
@@ -140,6 +147,7 @@ class WeatherLivePaperCorrectiveService(WeatherLivePaperV4Service):
             self._canonical_superseded_commands.close(),
             self._same_day_nws.close(),
             self._same_day_gefs.close(),
+            self._same_day_pws.close(),
             return_exceptions=True,
         )
         await super().close()
@@ -260,12 +268,18 @@ class WeatherLivePaperCorrectiveService(WeatherLivePaperV4Service):
             unit=str(compiled.unit),
             timezone=str(metadata.timezone),
         )
-        return await asyncio.gather(wrh_task, nws_task, gefs_task)
+        pws_task = self._same_day_pws.fetch_snapshot(
+            latitude=latitude,
+            longitude=longitude,
+            unit=str(compiled.unit),
+        )
+        return await asyncio.gather(wrh_task, nws_task, gefs_task, pws_task)
 
     async def _capture_same_day_research(self, events: tuple[dict, ...]) -> dict:
-        """Collect three layers silently without creating signals or positions."""
+        """Collect three layers plus PWS diagnostics without signals or positions."""
         eligible, errors = await self._same_day_eligible(events)
         attempted = saved = blocked = ready = duplicates = cadence_skipped = 0
+        pws_saved = pws_duplicates = pws_available = pws_contradictions = 0
         block_reasons: dict[str, int] = {}
         now = time.time()
         bundle_cache: dict[tuple, tuple] = {}
@@ -302,7 +316,7 @@ class WeatherLivePaperCorrectiveService(WeatherLivePaperV4Service):
             try:
                 if key not in bundle_cache:
                     bundle_cache[key] = await self._fetch_same_day_source_bundle(compiled, metadata)
-                wrh_result, nws_snapshot, hourly_gefs = bundle_cache[key]
+                wrh_result, nws_snapshot, hourly_gefs, pws_snapshot = bundle_cache[key]
                 # Decision t is frozen only after every awaited source receipt exists.
                 as_of = time.time()
                 record = assemble_same_day_capture(
@@ -333,9 +347,36 @@ class WeatherLivePaperCorrectiveService(WeatherLivePaperV4Service):
             for reason in record.block_reasons:
                 block_reasons[reason] = block_reasons.get(reason, 0) + 1
 
+            # PWS is deliberately downstream of the immutable official three-layer
+            # capture. A PWS failure cannot erase or block the official research row,
+            # and a PWS reading can never replace Layer 1 or reweight the probability.
+            try:
+                pws_record = build_pws_diagnostic(
+                    event_id=event_id,
+                    station=str(compiled.station_hint).upper(),
+                    target_date=compiled.target_date.isoformat(),
+                    unit=str(compiled.unit),
+                    as_of=as_of,
+                    official_observations=record.official_observations,
+                    pws_snapshot=pws_snapshot,
+                )
+                pws_row_id = await asyncio.to_thread(self.same_day_pws.save, pws_record)
+                if pws_row_id is None:
+                    pws_duplicates += 1
+                else:
+                    pws_saved += 1
+                if pws_record.status == PWS_STATUS_AVAILABLE:
+                    pws_available += 1
+                if pws_record.contradiction:
+                    pws_contradictions += 1
+            except Exception as exc:
+                code = getattr(exc, "code", type(exc).__name__)
+                errors.append(f"SAME_DAY_PWS:{event_id}:{code}")
+
         summary = await asyncio.to_thread(self.same_day_captures.summary)
+        pws_summary = await asyncio.to_thread(self.same_day_pws.summary)
         return {
-            "version": "same_day_three_layer_silent_collection_v2_persistent_cadence",
+            "version": "same_day_three_layer_silent_collection_v3_with_pws_diagnostics",
             "enabled": True,
             "silent_research_only": True,
             "eligible_events": len(eligible),
@@ -348,6 +389,15 @@ class WeatherLivePaperCorrectiveService(WeatherLivePaperV4Service):
             "block_reasons": block_reasons,
             "errors": errors,
             "store": summary,
+            "pws_diagnostic_runtime_version": PWS_DIAGNOSTIC_RUNTIME_VERSION,
+            "pws_saved_now": pws_saved,
+            "pws_duplicates_now": pws_duplicates,
+            "pws_available_now": pws_available,
+            "pws_contradictions_now": pws_contradictions,
+            "pws_store": pws_summary,
+            "pws_predictive_only": True,
+            "pws_may_replace_official_observation": False,
+            "pws_may_reweight_probability": False,
             "capture_cooldown_seconds": SAME_DAY_CAPTURE_COOLDOWN_SECONDS,
             "capture_cadence_persisted_in_sqlite": True,
             "max_events_per_cycle": DEFAULT_MAX_SAME_DAY_CAPTURE_EVENTS,
@@ -369,10 +419,14 @@ class WeatherLivePaperCorrectiveService(WeatherLivePaperV4Service):
         except Exception as exc:
             code = getattr(exc, "code", type(exc).__name__)
             same_day_capture = {
-                "version": "same_day_three_layer_silent_collection_v2_persistent_cadence",
+                "version": "same_day_three_layer_silent_collection_v3_with_pws_diagnostics",
                 "enabled": True,
                 "silent_research_only": True,
                 "errors": [f"SAME_DAY_COLLECTOR:{code}"],
+                "pws_diagnostic_runtime_version": PWS_DIAGNOSTIC_RUNTIME_VERSION,
+                "pws_predictive_only": True,
+                "pws_may_replace_official_observation": False,
+                "pws_may_reweight_probability": False,
                 "population_alignment_certified": False,
                 "calibrated_probability": False,
                 "included_in_validated_pnl": False,
