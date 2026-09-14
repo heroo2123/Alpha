@@ -1,11 +1,22 @@
 from __future__ import annotations
 
+import importlib.util
 from pathlib import Path
 
 
 START = Path("deploy/start-weather-paper-candidate.sh")
 PREFLIGHT = Path("deploy/preflight-weather-paper-deployment.sh")
 SETUP = Path("deploy/setup-weather-paper-service.sh")
+FIRST_CYCLE = Path("deploy/verify-weather-paper-first-cycle.py")
+SHA = "a" * 40
+
+
+def _first_cycle_module():
+    spec = importlib.util.spec_from_file_location("weather_first_cycle_verifier", FIRST_CYCLE)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def test_start_gate_requires_exact_sha_runtime_attestation_and_fresh_first_cycle():
@@ -60,3 +71,73 @@ def test_weather_service_environment_is_telegram_only():
         "BINANCE_API_KEY",
     ):
         assert forbidden not in text
+
+
+def test_first_cycle_verifier_waits_past_old_release_snapshot_from_before_start():
+    verifier = _first_cycle_module()
+    status = {
+        "release_sha": "b" * 40,
+        "finished_at": 1_000.0,
+        "final_paper_runtime_version": None,
+    }
+    assert verifier._wait_reason_before_strict_acceptance(
+        status,
+        expected_release_sha=SHA,
+        not_before=1_001.0,
+    ) == "DEPLOY_STATUS_PREDATES_START"
+
+
+def test_first_cycle_verifier_waits_for_fresh_v4_intermediate_snapshot():
+    verifier = _first_cycle_module()
+    status = {
+        "release_sha": SHA,
+        "finished_at": 1_002.0,
+        "version": "weather_live_paper_v4_example",
+    }
+    assert verifier._wait_reason_before_strict_acceptance(
+        status,
+        expected_release_sha=SHA,
+        not_before=1_001.0,
+    ) == verifier.INTERMEDIATE_WAIT_CODE
+
+
+def test_first_cycle_verifier_waits_for_fresh_corrective_intermediate_snapshot():
+    verifier = _first_cycle_module()
+    status = {
+        "release_sha": SHA,
+        "finished_at": 1_002.0,
+        "canonical_corrective_version": "weather_live_paper_corrective_example",
+    }
+    assert verifier._wait_reason_before_strict_acceptance(
+        status,
+        expected_release_sha=SHA,
+        not_before=1_001.0,
+    ) == verifier.INTERMEDIATE_WAIT_CODE
+
+
+def test_first_cycle_verifier_never_waits_past_a_fresh_claimed_final_snapshot():
+    verifier = _first_cycle_module()
+    status = {
+        "release_sha": SHA,
+        "finished_at": 1_002.0,
+        "canonical_corrective_version": "WRONG",
+        "final_paper_runtime_version": "WRONG_FINAL",
+    }
+    assert verifier._wait_reason_before_strict_acceptance(
+        status,
+        expected_release_sha=SHA,
+        not_before=1_001.0,
+    ) is None
+
+
+def test_first_cycle_verifier_never_waits_past_fresh_wrong_release_snapshot():
+    verifier = _first_cycle_module()
+    status = {
+        "release_sha": "b" * 40,
+        "finished_at": 1_002.0,
+    }
+    assert verifier._wait_reason_before_strict_acceptance(
+        status,
+        expected_release_sha=SHA,
+        not_before=1_001.0,
+    ) is None
