@@ -2,16 +2,10 @@ from __future__ import annotations
 
 """Persistence for silent three-layer captures, including blocked scientific states.
 
-The ordinary same-day envelope store contains only fully replayable final decisions.
-During scientific hardening we also need to retain *why* a live source set could not
-be promoted: missing official elapsed cells, unproven population alignment, an NWS
-near-term coverage failure, etc. This table stores those immutable captures without
-creating paper positions, Telegram delivery rows, settlement rows or validated P&L.
-
-Capture cadence is intentionally queryable from SQLite. The canonical runtime uses
-``latest_as_of_for_event`` before source acquisition, so restarting the process cannot
-reset an in-memory cooldown and flood the month-scale research database. Evidence is
-not silently pruned here; backup/retention policy remains an explicit operator action.
+Official three-layer capture persistence is authoritative for research continuity.
+Each newly saved capture atomically creates a PWS outcome link in PENDING state so a
+crash between official persistence and optional PWS persistence is auditable rather
+than silently losing the sample relationship.
 """
 
 import json
@@ -28,7 +22,7 @@ from .weather_only_same_day_capture import (
 )
 
 
-SAME_DAY_CAPTURE_STORE_VERSION = "weather_same_day_capture_store_v2_persistent_cadence"
+SAME_DAY_CAPTURE_STORE_VERSION = "weather_same_day_capture_store_v3_atomic_pws_intent"
 
 
 class SameDayCaptureStoreError(RuntimeError):
@@ -81,6 +75,23 @@ class SameDayCaptureStore:
                     ON weather_same_day_captures(event_id,target_date,as_of);
                 CREATE INDEX IF NOT EXISTS idx_weather_same_day_capture_status
                     ON weather_same_day_captures(status,id);
+
+                CREATE TABLE IF NOT EXISTS weather_same_day_pws_capture_links (
+                    capture_sha256 TEXT PRIMARY KEY,
+                    event_id TEXT NOT NULL,
+                    target_date TEXT NOT NULL,
+                    capture_as_of REAL NOT NULL,
+                    state TEXT NOT NULL CHECK(state IN ('PENDING','AVAILABLE','UNAVAILABLE','FAILED','INTERRUPTED')),
+                    diagnostic_sha256 TEXT,
+                    failure_code TEXT,
+                    started_at REAL NOT NULL,
+                    completed_at REAL,
+                    included_in_validated_pnl INTEGER NOT NULL DEFAULT 0 CHECK(included_in_validated_pnl=0),
+                    same_day_delivery_enabled INTEGER NOT NULL DEFAULT 0 CHECK(same_day_delivery_enabled=0),
+                    financial_authority INTEGER NOT NULL DEFAULT 0 CHECK(financial_authority=0)
+                );
+                CREATE INDEX IF NOT EXISTS idx_weather_same_day_pws_link_state
+                    ON weather_same_day_pws_capture_links(state,event_id,capture_as_of);
                 """
             )
         if self.path.exists() and self.path.stat().st_mode & 0o077:
@@ -126,6 +137,22 @@ class SameDayCaptureStore:
                         value.status,
                         reasons,
                         payload,
+                    ),
+                )
+                db.execute(
+                    """
+                    INSERT INTO weather_same_day_pws_capture_links(
+                        capture_sha256,event_id,target_date,capture_as_of,state,
+                        diagnostic_sha256,failure_code,started_at,completed_at,
+                        included_in_validated_pnl,same_day_delivery_enabled,financial_authority
+                    ) VALUES(?,?,?,?, 'PENDING',NULL,NULL,?,NULL,0,0,0)
+                    """,
+                    (
+                        value.capture_sha256,
+                        value.event_id,
+                        value.target_date,
+                        float(value.as_of),
+                        float(value.as_of),
                     ),
                 )
             except sqlite3.IntegrityError:
@@ -218,6 +245,7 @@ class SameDayCaptureStore:
             "sqlite_sidecar_bytes": int(sidecar_bytes),
             "automatic_evidence_pruning": False,
             "persistent_cadence_supported": True,
+            "pws_outcome_intent_atomic_with_capture": True,
             "included_in_validated_pnl": False,
             "same_day_delivery_enabled": False,
             "financial_authority": False,
