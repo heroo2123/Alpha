@@ -16,15 +16,14 @@ import asyncio
 import json
 import math
 import os
+import re
 import time
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 
 import httpx
 
 from .weather_only_pws import (
     DEFAULT_PWS_COLLECTION_DEADLINE_SECONDS,
-    DEFAULT_PWS_CONTRADICTION_C,
-    DEFAULT_PWS_CONTRADICTION_F,
     DEFAULT_PWS_IDENTITY_LOCATION_TOLERANCE_KM,
     DEFAULT_PWS_MAX_ACCEPTED,
     DEFAULT_PWS_MAX_AGE_SECONDS,
@@ -64,11 +63,15 @@ SYNOPTIC_BASE_URL = "https://api.synopticdata.com"
 SYNOPTIC_LATEST_PATH = "/v2/stations/latest"
 SYNOPTIC_QC_CHECKS = "synopticlabs"
 MILES_PER_KM = 0.621371192237334
+_DIRECT_AIR_TEMP_SENSOR = re.compile(r"^air_temp_value_[1-9][0-9]*$")
+_REQUIRED_QC_CHECKS = frozenset(
+    {"sl_range_check", "sl_rate_check", "sl_pers_check"}
+)
 
 
 @dataclass(frozen=True, slots=True)
 class SynopticPWSObservation:
-    """Normalized PWS observation compatible with the generic PWS snapshot contract."""
+    """Normalized direct CWOP temperature observation for the generic PWS contract."""
 
     station_id: str
     discovery_latitude: float
@@ -85,9 +88,9 @@ class SynopticPWSObservation:
     temperature: float
     qc_status: int
     provider_sensor_id: str
-    source: str = SYNOPTIC_PWS_SOURCE
-    settlement_authority: bool = False
-    financial_authority: bool = False
+    source: str = field(init=False, default=SYNOPTIC_PWS_SOURCE)
+    settlement_authority: bool = field(init=False, default=False)
+    financial_authority: bool = field(init=False, default=False)
 
     def as_dict(self) -> dict:
         return asdict(self)
@@ -105,14 +108,26 @@ def _strict_response_code(value: object) -> int:
     raise PWSError("PWS_SYNOPTIC_RESPONSE_CODE_INVALID")
 
 
-def _truthy_restricted(value: object) -> bool:
-    if value is True:
-        return True
-    if isinstance(value, str):
-        return value.strip().lower() in {"1", "true", "yes", "on"}
-    if isinstance(value, int) and not isinstance(value, bool):
-        return value != 0
-    return False
+def _strict_nonnegative_int(value: object, code: str) -> int:
+    if isinstance(value, bool) or value is None:
+        raise PWSError(code)
+    if isinstance(value, int):
+        result = value
+    elif isinstance(value, str) and value.strip().isdigit():
+        result = int(value.strip())
+    else:
+        raise PWSError(code)
+    if result < 0:
+        raise PWSError(code)
+    return result
+
+
+def _strict_provider_bool(value: object, code: str) -> bool:
+    # Synoptic documents RESTRICTED and QC_FLAGGED as JSON booleans. Do not coerce
+    # strings/numbers because schema drift must not silently become a pass.
+    if not isinstance(value, bool):
+        raise PWSError(code)
+    return value
 
 
 def _expected_unit_label(unit: str) -> set[str]:
@@ -121,26 +136,47 @@ def _expected_unit_label(unit: str) -> set[str]:
     return {"c", "celsius", "degrees celsius", "degree celsius"}
 
 
+def _applied_qc_checks(body: dict) -> frozenset[str]:
+    summary = body.get("QC_SUMMARY")
+    if not isinstance(summary, dict):
+        raise PWSError("PWS_SYNOPTIC_QC_SUMMARY_INVALID")
+    # Current Synoptic examples use QC_CHECKS_APPLIED while some documentation text
+    # calls the same field QC_TESTS_APPLIED. Accept either spelling but require a
+    # concrete list and the core temperature checks implied by qc_checks=synopticlabs.
+    raw = summary.get("QC_CHECKS_APPLIED")
+    if raw is None:
+        raw = summary.get("QC_TESTS_APPLIED")
+    if not isinstance(raw, list) or not raw:
+        raise PWSError("PWS_SYNOPTIC_QC_CHECKS_INVALID")
+    checks: set[str] = set()
+    for item in raw:
+        if not isinstance(item, str) or not item.strip():
+            raise PWSError("PWS_SYNOPTIC_QC_CHECKS_INVALID")
+        checks.add(item.strip())
+    if not _REQUIRED_QC_CHECKS.issubset(checks):
+        raise PWSError("PWS_SYNOPTIC_REQUIRED_QC_NOT_APPLIED")
+    return frozenset(checks)
+
+
 def _pick_temperature_observation(observations: object) -> tuple[str, dict] | None:
     if not isinstance(observations, dict):
         return None
     valid: list[tuple[str, dict]] = []
     for key, row in observations.items():
         key_text = str(key)
-        if not key_text.startswith("air_temp") or not isinstance(row, dict):
+        # Synoptic documents var_value_n as direct sensors and may suffix derived
+        # variables with "d". PWS diagnostics must never silently use a derived value.
+        if _DIRECT_AIR_TEMP_SENSOR.fullmatch(key_text) is None or not isinstance(row, dict):
             continue
         if row.get("date_time") in (None, "") or row.get("value") is None:
             continue
         valid.append((key_text, row))
-    if not valid:
+    # Synoptic does not document value_1 as the "best" sensor in JSON. If a station
+    # exposes multiple direct temperature sensors, selecting one would be an unsupported
+    # heuristic. Fail that station closed instead.
+    if len(valid) != 1:
         return None
-    for key, row in valid:
-        if key == "air_temp_value_1":
-            return key, row
-    if len(valid) == 1:
-        return valid[0]
-    # Multiple non-primary sensors are ambiguous. Do not silently select one.
-    return None
+    return valid[0]
 
 
 class SynopticCWOPPWSClient:
@@ -357,28 +393,48 @@ class SynopticCWOPPWSClient:
         summary = body.get("SUMMARY")
         if not isinstance(summary, dict):
             response_status = PWS_STATUS_MALFORMED_RESPONSE
-            rows: list[object] = []
+            response_code = None
         else:
             try:
                 response_code = _strict_response_code(summary.get("RESPONSE_CODE"))
             except PWSError:
-                response_code = -999999
+                response_code = None
             if response_code == 1:
                 response_status = "OK"
             elif response_code == 2:
                 response_status = PWS_STATUS_NO_FRESH_QC
             elif response_code == 200:
                 response_status = PWS_STATUS_AUTH_ERROR
-            elif response_code == -999999:
+            elif response_code is None:
                 response_status = PWS_STATUS_MALFORMED_RESPONSE
             else:
                 response_status = PWS_STATUS_PROVIDER_ERROR
-            station_rows = body.get("STATION")
-            rows = station_rows if isinstance(station_rows, list) else []
 
         if response_status != "OK":
             return self._snapshot(
                 status=response_status,
+                configured=True,
+                latitude=lat,
+                longitude=lon,
+                unit=normalized_unit,
+                received_at=received_at,
+            )
+
+        try:
+            number_objects = _strict_nonnegative_int(
+                summary.get("NUMBER_OF_OBJECTS"), "PWS_SYNOPTIC_OBJECT_COUNT_INVALID"
+            )
+            station_rows = body.get("STATION")
+            if not isinstance(station_rows, list):
+                raise PWSError("PWS_SYNOPTIC_STATION_LIST_INVALID")
+            if number_objects != len(station_rows) or number_objects < 1:
+                raise PWSError("PWS_SYNOPTIC_OBJECT_COUNT_MISMATCH")
+            if len(station_rows) > self.max_candidates:
+                raise PWSError("PWS_SYNOPTIC_CANDIDATE_LIMIT_IGNORED")
+            _applied_qc_checks(body)
+        except PWSError:
+            return self._snapshot(
+                status=PWS_STATUS_MALFORMED_RESPONSE,
                 configured=True,
                 latitude=lat,
                 longitude=lon,
@@ -410,20 +466,40 @@ class SynopticCWOPPWSClient:
         accepted: list[SynopticPWSObservation] = []
         attempts: list[PWSStationAttempt] = []
         seen: set[str] = set()
-        for raw in rows:
+        for raw in station_rows:
             if not isinstance(raw, dict):
-                continue
+                return self._snapshot(
+                    status=PWS_STATUS_MALFORMED_RESPONSE,
+                    configured=True,
+                    latitude=lat,
+                    longitude=lon,
+                    unit=normalized_unit,
+                    received_at=received_at,
+                )
             station_id = str(raw.get("STID") or "").strip().upper()
             if not station_id or station_id in seen:
-                continue
+                return self._snapshot(
+                    status=PWS_STATUS_MALFORMED_RESPONSE,
+                    configured=True,
+                    latitude=lat,
+                    longitude=lon,
+                    unit=normalized_unit,
+                    received_at=received_at,
+                )
             seen.add(station_id)
             try:
                 station_lat = _latitude(raw.get("LATITUDE"))
                 station_lon = _longitude(raw.get("LONGITUDE"))
                 distance = _haversine_km(lat, lon, station_lat, station_lon)
-            except PWSError as exc:
-                # Invalid coordinates cannot be represented faithfully in attempt metadata.
-                continue
+            except PWSError:
+                return self._snapshot(
+                    status=PWS_STATUS_MALFORMED_RESPONSE,
+                    configured=True,
+                    latitude=lat,
+                    longitude=lon,
+                    unit=normalized_unit,
+                    received_at=received_at,
+                )
             base_attempt = dict(
                 station_id=station_id,
                 discovery_latitude=station_lat,
@@ -439,8 +515,21 @@ class SynopticCWOPPWSClient:
             if str(raw.get("STATUS") or "").strip().upper() != "ACTIVE":
                 attempts.append(PWSStationAttempt(outcome="REJECT_INACTIVE", **base_attempt))
                 continue
-            if _truthy_restricted(raw.get("RESTRICTED")):
+            try:
+                restricted = _strict_provider_bool(
+                    raw.get("RESTRICTED"), "PWS_SYNOPTIC_RESTRICTED_INVALID"
+                )
+                qc_flagged = _strict_provider_bool(
+                    raw.get("QC_FLAGGED"), "PWS_SYNOPTIC_QC_FLAGGED_INVALID"
+                )
+            except PWSError as exc:
+                attempts.append(PWSStationAttempt(outcome=exc.code, **base_attempt))
+                continue
+            if restricted:
                 attempts.append(PWSStationAttempt(outcome="REJECT_RESTRICTED", **base_attempt))
+                continue
+            if qc_flagged:
+                attempts.append(PWSStationAttempt(outcome="REJECT_QC_FLAGGED", **base_attempt))
                 continue
             if distance > self.max_distance_km:
                 attempts.append(PWSStationAttempt(outcome="PWS_OBSERVATION_DISTANCE_EXCEEDED", **base_attempt))
@@ -448,9 +537,17 @@ class SynopticCWOPPWSClient:
 
             selected = _pick_temperature_observation(raw.get("OBSERVATIONS"))
             if selected is None:
-                attempts.append(PWSStationAttempt(outcome="REJECT_TEMPERATURE_MISSING_OR_AMBIGUOUS", **base_attempt))
+                attempts.append(
+                    PWSStationAttempt(
+                        outcome="REJECT_TEMPERATURE_MISSING_OR_AMBIGUOUS", **base_attempt
+                    )
+                )
                 continue
             sensor_id, observation = selected
+            observation_qc = observation.get("qc")
+            if observation_qc not in (None, False, "", [], {}):
+                attempts.append(PWSStationAttempt(outcome="REJECT_OBSERVATION_QC_FLAGGED", **base_attempt))
+                continue
             try:
                 observed_at = _epoch(observation.get("date_time"))
                 temperature = _finite(observation.get("value"), "PWS_TEMPERATURE_INVALID")
