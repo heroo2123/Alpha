@@ -51,6 +51,9 @@ def _nws_snapshot():
     grid = {
         "type": "Feature",
         "properties": {
+            "gridId": "OKX",
+            "gridX": 33,
+            "gridY": 37,
             "updateTime": "2026-09-11T17:30:00+00:00",
             "temperature": {
                 "uom": "wmoUnit:degC",
