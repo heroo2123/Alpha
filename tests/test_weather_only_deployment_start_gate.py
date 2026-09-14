@@ -7,6 +7,7 @@ from pathlib import Path
 START = Path("deploy/start-weather-paper-candidate.sh")
 PREFLIGHT = Path("deploy/preflight-weather-paper-deployment.sh")
 SETUP = Path("deploy/setup-weather-paper-service.sh")
+ENV_EXTRACT = Path("deploy/extract-weather-paper-env.py")
 FIRST_CYCLE = Path("deploy/verify-weather-paper-first-cycle.py")
 SHA = "a" * 40
 
@@ -59,10 +60,13 @@ def test_preflight_backups_paper_ledger_before_installing_unit():
     assert "attest-weather-paper-runtime.py" in text
 
 
-def test_weather_service_environment_is_telegram_only():
-    text = SETUP.read_text(encoding="utf-8")
-    assert "TELEGRAM_BOT_TOKEN|TELEGRAM_CHAT_ID" in text
-    assert "grep -E" in text
+def test_weather_service_environment_uses_reviewed_allowlist_helper():
+    setup = SETUP.read_text(encoding="utf-8")
+    helper = ENV_EXTRACT.read_text(encoding="utf-8")
+    assert "deploy/extract-weather-paper-env.py" in setup
+    assert "grep -E" not in setup
+    assert 'ALLOWED = ("TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID", "WEATHER_PWS_API_KEY")' in helper
+    assert 'REQUIRED = ("TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID")' in helper
     for forbidden in (
         "PRIVATE_KEY",
         "WALLET",
@@ -70,7 +74,7 @@ def test_weather_service_environment_is_telegram_only():
         "POLYMARKET_SECRET",
         "BINANCE_API_KEY",
     ):
-        assert forbidden not in text
+        assert forbidden not in helper
 
 
 def test_first_cycle_verifier_waits_past_old_release_snapshot_from_before_start():
