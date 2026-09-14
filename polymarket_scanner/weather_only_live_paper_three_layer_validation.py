@@ -16,7 +16,7 @@ authority remain disabled.
 import argparse
 import asyncio
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -56,6 +56,9 @@ THREE_LAYER_SELECTION_UNIVERSE_CAP = 12
 THREE_LAYER_MAX_EVENTS_PER_CYCLE = 4
 THREE_LAYER_SOURCE_BUNDLE_DEADLINE_SECONDS = 35.0
 THREE_LAYER_ELIGIBILITY_SCAN_DEADLINE_SECONDS = 30.0
+THREE_LAYER_ELIGIBILITY_CONCURRENCY = 4
+THREE_LAYER_NWS_SUPPORT_CACHE_TTL_SECONDS = 21_600.0
+THREE_LAYER_NWS_SUPPORT_CACHE_MAX_ENTRIES = 128
 THREE_LAYER_CURSOR_KEY = "same_day_three_layer_rotation_cursor_v1"
 # Each admitted event is durably throttled to one saved capture/hour by the inherited
 # collector. Restricting the rotating universe to 12 therefore bounds saved rows to
@@ -111,8 +114,13 @@ class ThreeLayerValidationWeatherLivePaperService(FinalWeatherLivePaperService):
         self._same_day_gefs = guarded_gefs
         self._three_layer_station_client = guarded_station
         self._three_layer_last_eligible_total = 0
+        self._three_layer_last_candidate_today_total = 0
+        self._three_layer_last_layer2_unsupported_total = 0
         self._three_layer_last_selected_ids: tuple[str, ...] = ()
         self._three_layer_last_universe_truncated = False
+        self._three_layer_last_coverage_complete = True
+        self._three_layer_last_eligibility_failure_code: str | None = None
+        self._three_layer_nws_support_cache: dict[tuple[float, float], tuple[float, bool]] = {}
 
     async def close(self) -> None:
         try:
@@ -152,25 +160,79 @@ class ThreeLayerValidationWeatherLivePaperService(FinalWeatherLivePaperService):
             self._bounded_station_metadata.popitem(last=False)
         return metadata
 
+    async def _nws_point_supported_for_metadata(self, metadata) -> bool:
+        latitude = float(metadata.latitude)
+        longitude = float(metadata.longitude)
+        key = (round(latitude, 4), round(longitude, 4))
+        now = self._station_cache_now()
+        cache = getattr(self, "_three_layer_nws_support_cache", None)
+        if cache is None:
+            cache = {}
+            self._three_layer_nws_support_cache = cache
+        cached = cache.get(key)
+        if cached is not None:
+            age = now - float(cached[0])
+            if 0.0 <= age <= THREE_LAYER_NWS_SUPPORT_CACHE_TTL_SECONDS:
+                value = bool(cached[1])
+                # Dict insertion order gives us a tiny dependency-free bounded LRU.
+                cache.pop(key, None)
+                cache[key] = (now, value)
+                return value
+            cache.pop(key, None)
+
+        supported = await self._same_day_nws.point_supported(
+            latitude=latitude,
+            longitude=longitude,
+        )
+        cache[key] = (now, bool(supported))
+        while len(cache) > THREE_LAYER_NWS_SUPPORT_CACHE_MAX_ENTRIES:
+            cache.pop(next(iter(cache)))
+        return bool(supported)
+
     async def _same_day_eligible(self, events: tuple[dict, ...]) -> tuple[list[tuple], list[str]]:
-        eligible: list[tuple[str, dict, object, object, object]] = []
+        """Enumerate the complete same-day Layer-2-capable population or fail closed.
+
+        Expected semantic mismatches and explicit NWS /points 404s are legitimate
+        exclusions. Provider outages, malformed station metadata, unexpected parser
+        failures and scan timeouts invalidate the whole selection for the cycle; they
+        must never produce a biased partial research sample.
+        """
         errors: list[str] = []
         seen_event_ids: set[str] = set()
+        candidates: list[tuple[str, dict, object, object]] = []
         loop = asyncio.get_running_loop()
         scan_deadline = loop.time() + THREE_LAYER_ELIGIBILITY_SCAN_DEADLINE_SECONDS
         eligibility_now_utc = datetime.now(tz=timezone.utc)
+        utc_today = eligibility_now_utc.date()
+        plausible_local_dates = {
+            utc_today - timedelta(days=1),
+            utc_today,
+            utc_today + timedelta(days=1),
+        }
 
-        def timeout_result():
-            self._three_layer_last_eligible_total = len(eligible)
+        self._three_layer_last_eligible_total = 0
+        self._three_layer_last_candidate_today_total = 0
+        self._three_layer_last_layer2_unsupported_total = 0
+        self._three_layer_last_selected_ids = ()
+        self._three_layer_last_universe_truncated = False
+        self._three_layer_last_coverage_complete = True
+        self._three_layer_last_eligibility_failure_code = None
+
+        def fail_closed(code: str, *, truncated: bool = False):
             self._three_layer_last_selected_ids = ()
-            self._three_layer_last_universe_truncated = True
-            if "SAME_DAY_ELIGIBILITY_SCAN_TIMEOUT" not in errors:
-                errors.append("SAME_DAY_ELIGIBILITY_SCAN_TIMEOUT")
+            self._three_layer_last_universe_truncated = bool(truncated)
+            self._three_layer_last_coverage_complete = False
+            self._three_layer_last_eligibility_failure_code = str(code)
+            if code not in errors:
+                errors.append(code)
             return [], errors
 
+        # Phase 1 is CPU-only. The +/- one UTC-day prefilter is exhaustive for current
+        # civil time zones and prevents future-dated contracts from consuming provider
+        # calls merely to prove that they are not today's station-local target.
         for event in events:
             if loop.time() >= scan_deadline:
-                return timeout_result()
+                return fail_closed("SAME_DAY_ELIGIBILITY_SCAN_TIMEOUT", truncated=True)
             if not isinstance(event, dict):
                 continue
             try:
@@ -182,8 +244,7 @@ class ThreeLayerValidationWeatherLivePaperService(FinalWeatherLivePaperService):
             except Exception as exc:
                 code = getattr(exc, "code", type(exc).__name__)
                 event_id = str(event.get("id") or event.get("eventId") or "unknown")
-                errors.append(f"SAME_DAY_SEMANTICS:{event_id}:{code}")
-                continue
+                return fail_closed(f"SAME_DAY_SEMANTICS:{event_id}:{code}")
 
             event_id = str(compiled.event_id)
             if event_id in seen_event_ids:
@@ -191,51 +252,135 @@ class ThreeLayerValidationWeatherLivePaperService(FinalWeatherLivePaperService):
             seen_event_ids.add(event_id)
             if not semantics.layer1_adapter_capable:
                 continue
+            if compiled.target_date not in plausible_local_dates:
+                continue
+            station_id = str(compiled.station_hint or "").strip().upper()
+            if not station_id:
+                return fail_closed(f"SAME_DAY_STATION:{event_id}:STATION_ID_MISSING")
+            candidates.append((event_id, event, compiled, semantics))
+
+        # Phase 2 resolves each unique settlement station once. Calls are concurrent but
+        # bounded, and the entire enumeration remains under one monotonic deadline.
+        by_station: dict[str, list[tuple[str, dict, object, object]]] = {}
+        for item in candidates:
+            station_id = str(item[2].station_hint).strip().upper()
+            by_station.setdefault(station_id, []).append(item)
+
+        station_results: dict[str, object] = {}
+        semaphore = asyncio.Semaphore(THREE_LAYER_ELIGIBILITY_CONCURRENCY)
+
+        async def resolve_station(station_id: str, representative):
+            async with semaphore:
+                return station_id, await self._station_metadata_for_compiled(representative)
+
+        if by_station:
+            remaining = scan_deadline - loop.time()
+            if remaining <= 0.0:
+                return fail_closed("SAME_DAY_ELIGIBILITY_SCAN_TIMEOUT", truncated=True)
+            coroutines = [
+                resolve_station(station_id, rows[0][2])
+                for station_id, rows in sorted(by_station.items())
+            ]
             try:
-                remaining = scan_deadline - loop.time()
-                if remaining <= 0.0:
-                    raise TimeoutError
-                metadata = await asyncio.wait_for(
-                    self._station_metadata_for_compiled(compiled),
-                    timeout=remaining,
-                )
-                if metadata is None:
-                    continue
+                async with asyncio.timeout(remaining):
+                    resolved = await asyncio.gather(*coroutines, return_exceptions=True)
+            except TimeoutError:
+                return fail_closed("SAME_DAY_ELIGIBILITY_SCAN_TIMEOUT", truncated=True)
+            for (station_id, _rows), result in zip(sorted(by_station.items()), resolved):
+                if isinstance(result, BaseException):
+                    code = getattr(result, "code", type(result).__name__)
+                    return fail_closed(f"SAME_DAY_STATION_PROVIDER:{station_id}:{code}")
+                returned_station, metadata = result
+                if returned_station != station_id or metadata is None:
+                    return fail_closed(f"SAME_DAY_STATION_PROVIDER:{station_id}:METADATA_MISSING")
+                station_results[station_id] = metadata
+
+        today_candidates: list[tuple[str, dict, object, object, object]] = []
+        for item in candidates:
+            event_id, event, compiled, semantics = item
+            station_id = str(compiled.station_hint).strip().upper()
+            metadata = station_results.get(station_id)
+            if metadata is None:
+                return fail_closed(f"SAME_DAY_STATION_PROVIDER:{station_id}:METADATA_MISSING")
+            try:
                 zone = ZoneInfo(str(metadata.timezone))
                 local_today = eligibility_now_utc.astimezone(zone).date()
+                # Prove coordinate coercion now so invalid metadata cannot be rebranded as
+                # a normal unsupported NWS point in the next phase.
+                float(metadata.latitude)
+                float(metadata.longitude)
+            except (ZoneInfoNotFoundError, AttributeError, TypeError, ValueError, OverflowError) as exc:
+                return fail_closed(f"SAME_DAY_STATION:{event_id}:{type(exc).__name__}")
+            if compiled.target_date == local_today:
+                today_candidates.append((event_id, event, compiled, semantics, metadata))
+
+        self._three_layer_last_candidate_today_total = len(today_candidates)
+
+        # Phase 3 proves Layer-2 geographic capability. An explicit NWS /points 404 is
+        # the only normal exclusion. Every other failure invalidates this cycle's full
+        # population enumeration rather than silently selecting the stations that happened
+        # to answer. Probe each distinct coordinate once.
+        by_point: dict[tuple[float, float], list[tuple[str, dict, object, object, object]]] = {}
+        for item in today_candidates:
+            metadata = item[4]
+            point = (round(float(metadata.latitude), 4), round(float(metadata.longitude), 4))
+            by_point.setdefault(point, []).append(item)
+
+        point_support: dict[tuple[float, float], bool] = {}
+
+        async def resolve_point(point, metadata):
+            async with semaphore:
+                return point, await self._nws_point_supported_for_metadata(metadata)
+
+        if by_point:
+            remaining = scan_deadline - loop.time()
+            if remaining <= 0.0:
+                return fail_closed("SAME_DAY_ELIGIBILITY_SCAN_TIMEOUT", truncated=True)
+            ordered_points = sorted(by_point.items())
+            coroutines = [resolve_point(point, rows[0][4]) for point, rows in ordered_points]
+            try:
+                async with asyncio.timeout(remaining):
+                    resolved = await asyncio.gather(*coroutines, return_exceptions=True)
             except TimeoutError:
-                return timeout_result()
-            except (ZoneInfoNotFoundError, AttributeError, ValueError) as exc:
-                errors.append(f"SAME_DAY_STATION:{event_id}:{type(exc).__name__}")
-                continue
-            except Exception as exc:
-                code = getattr(exc, "code", type(exc).__name__)
-                errors.append(f"SAME_DAY_STATION:{event_id}:{code}")
-                continue
-            if compiled.target_date != local_today:
-                continue
-            eligible.append((event_id, event, compiled, semantics, metadata))
+                return fail_closed("SAME_DAY_ELIGIBILITY_SCAN_TIMEOUT", truncated=True)
+            for (point, rows), result in zip(ordered_points, resolved):
+                if isinstance(result, BaseException):
+                    code = getattr(result, "code", type(result).__name__)
+                    station_id = str(rows[0][2].station_hint).strip().upper()
+                    return fail_closed(f"SAME_DAY_LAYER2_PROVIDER:{station_id}:{code}")
+                returned_point, supported = result
+                if returned_point != point:
+                    return fail_closed("SAME_DAY_LAYER2_PROVIDER:POINT_IDENTITY_MISMATCH")
+                point_support[point] = bool(supported)
+
+        eligible: list[tuple[str, dict, object, object, object]] = []
+        unsupported = 0
+        for item in today_candidates:
+            metadata = item[4]
+            point = (round(float(metadata.latitude), 4), round(float(metadata.longitude), 4))
+            if point_support.get(point) is True:
+                eligible.append(item)
+            else:
+                unsupported += 1
 
         eligible.sort(key=lambda item: item[0])
+        self._three_layer_last_layer2_unsupported_total = unsupported
         self._three_layer_last_eligible_total = len(eligible)
         if len(eligible) > THREE_LAYER_SELECTION_UNIVERSE_CAP:
             self._three_layer_last_universe_truncated = True
             self._three_layer_last_selected_ids = ()
+            self._three_layer_last_coverage_complete = False
+            self._three_layer_last_eligibility_failure_code = "SAME_DAY_SELECTION_UNIVERSE_CAP_EXCEEDED"
             errors.append(
                 f"SAME_DAY_SELECTION_UNIVERSE_CAP_EXCEEDED:{len(eligible)}>"
                 f"{THREE_LAYER_SELECTION_UNIVERSE_CAP}"
             )
             return [], errors
-        universe = eligible
-        self._three_layer_last_universe_truncated = False
+
         cursor = self.positions.get_state(THREE_LAYER_CURSOR_KEY, "")
-        selected = _rotate_after_cursor(
-            universe, cursor, THREE_LAYER_MAX_EVENTS_PER_CYCLE
-        )
+        selected = _rotate_after_cursor(eligible, cursor, THREE_LAYER_MAX_EVENTS_PER_CYCLE)
         self._three_layer_last_selected_ids = tuple(str(item[0]) for item in selected)
         if selected:
-            # Advance even when a selected source later fails. One repeatedly broken
-            # station must not permanently starve every other admitted research event.
             self.positions.set_state(THREE_LAYER_CURSOR_KEY, str(selected[-1][0]))
         return selected, errors
 
@@ -286,10 +431,17 @@ class ThreeLayerValidationWeatherLivePaperService(FinalWeatherLivePaperService):
                 "version": "same_day_three_layer_silent_collection_v3_guarded_rotating",
                 "selection_policy": THREE_LAYER_SELECTION_POLICY,
                 "eligible_events_total": self._three_layer_last_eligible_total,
+                "candidate_events_today_total": self._three_layer_last_candidate_today_total,
+                "layer2_unsupported_events_total": self._three_layer_last_layer2_unsupported_total,
                 "selected_event_ids": list(self._three_layer_last_selected_ids),
                 "selection_universe_cap": THREE_LAYER_SELECTION_UNIVERSE_CAP,
                 "selection_universe_truncated": self._three_layer_last_universe_truncated,
-                "selection_coverage_complete": not self._three_layer_last_universe_truncated,
+                "selection_coverage_complete": (
+                    self._three_layer_last_coverage_complete
+                    and not self._three_layer_last_universe_truncated
+                ),
+                "eligibility_failure_code": self._three_layer_last_eligibility_failure_code,
+                "eligibility_concurrency": THREE_LAYER_ELIGIBILITY_CONCURRENCY,
                 "max_events_per_cycle": THREE_LAYER_MAX_EVENTS_PER_CYCLE,
                 "source_bundle_deadline_seconds": THREE_LAYER_SOURCE_BUNDLE_DEADLINE_SECONDS,
                 "eligibility_scan_deadline_seconds": THREE_LAYER_ELIGIBILITY_SCAN_DEADLINE_SECONDS,

@@ -36,6 +36,8 @@ from .weather_only_nws_near_term import (
     MAX_RESPONSE_BYTES as NWS_BASE_MAX_RESPONSE_BYTES,
     NWSNearTermError,
     NWSNearTermGridClient,
+    _grid_url,
+    _points_url,
 )
 from .weather_only_station_metadata import (
     MAX_RESPONSE_BYTES as STATION_METADATA_MAX_RESPONSE_BYTES,
@@ -203,6 +205,53 @@ class GuardedNWSNearTermGridClient(NWSNearTermGridClient):
             )
         except RuntimeError as exc:
             raise NWSNearTermError(str(exc)) from None
+
+    async def point_supported(self, *, latitude: float, longitude: float) -> bool:
+        """Return False only for an explicit NWS /points 404.
+
+        A 404 from the documented NWS points endpoint means the coordinate is outside
+        the NWS forecast-grid population. Every provider/transport/schema failure is
+        different: it must fail closed instead of masquerading as unsupported geography
+        and silently shrinking the research population. Error bodies are never consumed.
+        """
+        try:
+            status, raw, _received = await _bounded_async_bytes(
+                self.http,
+                _points_url(latitude, longitude),
+                params=None,
+                headers={"Accept": "application/geo+json"},
+                max_bytes=NWS_BASE_MAX_RESPONSE_BYTES,
+                total_deadline_seconds=NWS_REQUEST_DEADLINE_SECONDS,
+                allow_same_host_redirects=False,
+                redirect_code="NWS_NEAR_TERM_PROVIDER_REDIRECT",
+                encoding_code="NWS_NEAR_TERM_PROVIDER_UNSUPPORTED_ENCODING",
+                size_code="NWS_NEAR_TERM_PROVIDER_RESPONSE_CAP",
+                timeout_code="NWS_NEAR_TERM_PROVIDER_TIMEOUT",
+                transport_code="NWS_NEAR_TERM_PROVIDER_TRANSPORT",
+            )
+        except RuntimeError as exc:
+            raise NWSNearTermError(str(exc)) from None
+
+        if status == 404:
+            return False
+        if status == 429 or status >= 500:
+            raise NWSNearTermError("NWS_NEAR_TERM_PROVIDER_RETRYABLE_HTTP_STATUS")
+        if status < 200 or status >= 300:
+            raise NWSNearTermError("NWS_NEAR_TERM_PROVIDER_HTTP_STATUS")
+
+        try:
+            payload = _strict_json_dict(raw, "NWS_NEAR_TERM_PROVIDER_JSON_INVALID")
+        except RuntimeError as exc:
+            raise NWSNearTermError(str(exc)) from None
+        if payload.get("type") != "Feature":
+            raise NWSNearTermError("NWS_NEAR_TERM_POINTS_ENVELOPE_INVALID")
+        properties = payload.get("properties")
+        if not isinstance(properties, dict):
+            raise NWSNearTermError("NWS_NEAR_TERM_POINTS_PROPERTIES_INVALID")
+        # Validate that a successful points response actually binds to the exact NWS
+        # grid-data host/path grammar before declaring Layer 2 geographically capable.
+        _grid_url(properties.get("forecastGridData"))
+        return True
 
     async def fetch_snapshot(self, *, station: str, latitude: float, longitude: float):
         try:

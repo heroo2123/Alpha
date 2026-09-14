@@ -429,6 +429,13 @@ def test_more_than_selection_cap_fails_closed_without_partial_sampling(monkeypat
         return NS(timezone="UTC", latitude=40.7769, longitude=-73.8740)
 
     service._station_metadata_for_compiled = metadata
+
+    class NWS:
+        async def point_supported(self, **_kwargs):
+            return True
+
+    service._same_day_nws = NWS()
+    service._three_layer_nws_support_cache = {}
     events = tuple({"id": f"event-{index:02d}"} for index in range(13))
     selected, errors = asyncio.run(service._same_day_eligible(events))
     assert selected == []
