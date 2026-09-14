@@ -21,5 +21,5 @@ def test_deployable_runtime_constructs_final_recovery_guard_not_base_store():
         "FinalCrashSafeWeatherPaperStore(self.db_path)", ""
     )
     assert final_runtime.FINAL_PAPER_RUNTIME_VERSION == (
-        "weather_live_paper_final_v3_b1_b6_exact_recovery_boundary"
+        "weather_live_paper_final_v4_fresh_gamma_semantic_binding"
     )

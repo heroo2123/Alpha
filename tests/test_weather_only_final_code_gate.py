@@ -65,7 +65,7 @@ def test_deployment_renderer_points_to_final_guarded_entrypoint():
     assert f'FINAL_WEATHER_MODULE = "{FINAL_MODULE}"' in renderer
     assert "{FINAL_WEATHER_MODULE}" in renderer
     assert FINAL_PAPER_RUNTIME_VERSION == (
-        "weather_live_paper_final_v3_b1_b6_exact_recovery_boundary"
+        "weather_live_paper_final_v4_fresh_gamma_semantic_binding"
     )
 
 

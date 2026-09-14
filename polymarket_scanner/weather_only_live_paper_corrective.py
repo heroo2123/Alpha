@@ -47,7 +47,6 @@ from .weather_only_paper_commands_canonical import CanonicalWeatherPaperCommandC
 from .weather_only_paper_corrective import PAPER_EXECUTION_PROTOCOL_V4, CorrectiveSettlementEngine
 from .weather_only_paper_facade import CorrectiveWeatherPaperStore
 from .weather_only_rules import compile_temperature_rule_authority
-from .weather_only_runtime_lease import WeatherPaperRuntimeLease
 from .weather_only_same_day_capture import (
     SAME_DAY_CAPTURE_BLOCKED,
     SAME_DAY_CAPTURE_READY,
@@ -59,7 +58,7 @@ from .weather_only_same_day_store import SameDayResearchStore
 from .weather_only_wrh_client import NWSWRHLiveClient
 
 
-CANONICAL_CORRECTIVE_VERSION = "weather_live_paper_corrective_v9_singleton_all_corrective_writers"
+CANONICAL_CORRECTIVE_VERSION = "weather_live_paper_corrective_v10_common_all_writer_singleton"
 HISTORY_QUARANTINE_POLICY_ID = "PRE_V4_PROTOCOL_QUARANTINE_V2_BOUNDED_CURSOR"
 HISTORY_QUARANTINE_BATCH_SIZE = 200
 STATION_METADATA_CACHE_MAX_ENTRIES = 128
@@ -93,15 +92,12 @@ class _CapturingDiscoveryProxy:
 
 class WeatherLivePaperCorrectiveService(WeatherLivePaperV4Service):
     def __init__(self, **kwargs) -> None:
-        db_path = kwargs.get("db_path")
-        if db_path is None:
-            raise ValueError("db_path is required")
-        # B6: every process that can instantiate the retained corrective writer must
-        # cross the same kernel singleton boundary.  The final subclass also takes a
-        # lease; WeatherPaperRuntimeLease is process-reentrant for that layered case.
-        self._corrective_runtime_lease = WeatherPaperRuntimeLease(db_path)
+        # The common WeatherLivePaperService constructor acquires the singleton lease
+        # before any ledger is opened, so every retained writer generation (v1 through
+        # final) shares the same admission boundary.  Do not take a second subclass
+        # lock here: the kernel lease is intentionally non-reentrant.
+        super().__init__(**kwargs)
         try:
-            super().__init__(**kwargs)
             self._canonical_superseded_settlement = self.settlement
             self._canonical_superseded_commands = self.commands
 
@@ -135,21 +131,18 @@ class WeatherLivePaperCorrectiveService(WeatherLivePaperV4Service):
             # Successful captures are additionally throttled from durable SQLite state.
             self._same_day_last_attempt: dict[str, float] = {}
         except BaseException:
-            self._corrective_runtime_lease.close()
+            self._runtime_lease.close()
             raise
 
     async def close(self) -> None:
-        try:
-            await asyncio.gather(
-                self._canonical_superseded_settlement.close(),
-                self._canonical_superseded_commands.close(),
-                self._same_day_nws.close(),
-                self._same_day_gefs.close(),
-                return_exceptions=True,
-            )
-            await super().close()
-        finally:
-            self._corrective_runtime_lease.close()
+        await asyncio.gather(
+            self._canonical_superseded_settlement.close(),
+            self._canonical_superseded_commands.close(),
+            self._same_day_nws.close(),
+            self._same_day_gefs.close(),
+            return_exceptions=True,
+        )
+        await super().close()
 
     def _station_cache_now(self) -> float:
         return time.monotonic()

@@ -35,7 +35,6 @@ from .weather_only_live_paper_v2 import DEFAULT_PAPER_STAKE_USD
 from .weather_only_paper_commands_canonical import CanonicalWeatherPaperCommandController
 from .weather_only_paper_corrective import CorrectiveSettlementEngine
 from .weather_only_paper_recovery_final import FinalCrashSafeWeatherPaperStore
-from .weather_only_runtime_lease import WeatherPaperRuntimeLease
 
 
 FINAL_PAPER_RUNTIME_VERSION = "weather_live_paper_final_v4_fresh_gamma_semantic_binding"
@@ -110,15 +109,14 @@ def _selected_market_question(event: dict, market_id: str) -> str:
 
 class FinalWeatherLivePaperService(WeatherLivePaperCorrectiveService):
     def __init__(self, **kwargs) -> None:
-        db_path = kwargs.get("db_path")
-        if db_path is None:
+        if kwargs.get("db_path") is None:
             raise FinalPaperInvariantError("FINAL_DB_PATH_REQUIRED")
-        # The corrective parent now independently takes the same lease.  The lease is
-        # process-reentrant, so layered admission is safe while a second process still
-        # fails on the kernel flock.
-        self._runtime_lease = WeatherPaperRuntimeLease(db_path)
+        # Singleton admission is acquired exactly once by the common writer base
+        # before any ledger is opened.  Final must not take a second flock itself;
+        # every retained older writer inherits the same boundary and therefore cannot
+        # bypass a live final owner.
+        super().__init__(**kwargs)
         try:
-            super().__init__(**kwargs)
             self._final_superseded_settlement = self.settlement
             self._final_superseded_commands = self.commands
             self.positions = FinalCrashSafeWeatherPaperStore(self.db_path)
@@ -139,15 +137,12 @@ class FinalWeatherLivePaperService(WeatherLivePaperCorrectiveService):
             raise
 
     async def close(self) -> None:
-        try:
-            await asyncio.gather(
-                self._final_superseded_settlement.close(),
-                self._final_superseded_commands.close(),
-                return_exceptions=True,
-            )
-            await super().close()
-        finally:
-            self._runtime_lease.close()
+        await asyncio.gather(
+            self._final_superseded_settlement.close(),
+            self._final_superseded_commands.close(),
+            return_exceptions=True,
+        )
+        await super().close()
 
     def _decision_config(self) -> dict:
         return {

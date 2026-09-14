@@ -3,14 +3,10 @@ from __future__ import annotations
 """Isolated persistence for weather-only live-paper signals.
 
 This database is deliberately separate from the legacy scanner database and from the
-W7 containment database. It records what the paper service actually observed and
+W7 containment database.  It records what the paper service actually observed and
 what Telegram accepted so later analysis can distinguish model quality from delivery
-or execution assumptions. It contains no order, wallet or authenticated trading
+or execution assumptions.  It contains no order, wallet or authenticated trading
 state.
-
-Every retained weather-paper runtime generation creates this signal store. The store
-therefore participates in the common process-lifetime singleton lease so an obsolete
-writer started after preflight cannot bypass the guarded final runtime.
 """
 
 import json
@@ -20,10 +16,8 @@ import sqlite3
 import time
 from pathlib import Path
 
-from .weather_only_runtime_lease import WeatherPaperRuntimeLease
 
-
-WEATHER_PAPER_STORE_VERSION = "weather_live_paper_store_v2_all_writer_singleton_signal_evidence"
+WEATHER_PAPER_STORE_VERSION = "weather_live_paper_store_v1_isolated_signal_evidence"
 
 
 class WeatherPaperStoreError(RuntimeError):
@@ -51,55 +45,46 @@ class WeatherPaperStore:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         if self.path.exists() and (self.path.is_symlink() or not self.path.is_file()):
             raise WeatherPaperStoreError("PAPER_STORE_FILE_INVALID")
-
-        # All executable weather-paper generations instantiate this common store
-        # before they can persist a signal. The lease is process-reentrant for the
-        # intentional final->corrective layering but cross-process exclusive.
-        self._runtime_lease = WeatherPaperRuntimeLease(self.path)
-        try:
-            existed = self.path.exists()
-            with self._conn() as db:
-                db.executescript(
-                    """
-                    CREATE TABLE IF NOT EXISTS weather_paper_signals (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        store_version TEXT NOT NULL,
-                        fingerprint TEXT NOT NULL UNIQUE,
-                        lane TEXT NOT NULL,
-                        evidence_class TEXT NOT NULL,
-                        event_id TEXT NOT NULL,
-                        market_id TEXT,
-                        side TEXT,
-                        token_id TEXT,
-                        model_probability REAL,
-                        entry_cost REAL,
-                        raw_gap REAL,
-                        theoretical_payout REAL,
-                        execution_verified INTEGER NOT NULL DEFAULT 0 CHECK(execution_verified=0),
-                        payload_json TEXT NOT NULL,
-                        created_at REAL NOT NULL,
-                        telegram_message_id INTEGER,
-                        telegram_sent_at REAL,
-                        status TEXT NOT NULL DEFAULT 'OPEN',
-                        settlement_payout REAL,
-                        settled_at REAL,
-                        paper_return REAL,
-                        financial_authority INTEGER NOT NULL DEFAULT 0 CHECK(financial_authority=0),
-                        automatic_order_placement INTEGER NOT NULL DEFAULT 0 CHECK(automatic_order_placement=0)
-                    );
-                    CREATE INDEX IF NOT EXISTS idx_weather_paper_lane
-                        ON weather_paper_signals(lane, created_at);
-                    CREATE INDEX IF NOT EXISTS idx_weather_paper_status
-                        ON weather_paper_signals(status, created_at);
-                    """
-                )
-            if not existed:
-                os.chmod(self.path, 0o600)
-            if self.path.stat().st_mode & 0o077:
-                raise WeatherPaperStoreError("PAPER_STORE_PERMISSIONS_TOO_BROAD")
-        except BaseException:
-            self._runtime_lease.close()
-            raise
+        existed = self.path.exists()
+        with self._conn() as db:
+            db.executescript(
+                """
+                CREATE TABLE IF NOT EXISTS weather_paper_signals (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    store_version TEXT NOT NULL,
+                    fingerprint TEXT NOT NULL UNIQUE,
+                    lane TEXT NOT NULL,
+                    evidence_class TEXT NOT NULL,
+                    event_id TEXT NOT NULL,
+                    market_id TEXT,
+                    side TEXT,
+                    token_id TEXT,
+                    model_probability REAL,
+                    entry_cost REAL,
+                    raw_gap REAL,
+                    theoretical_payout REAL,
+                    execution_verified INTEGER NOT NULL DEFAULT 0 CHECK(execution_verified=0),
+                    payload_json TEXT NOT NULL,
+                    created_at REAL NOT NULL,
+                    telegram_message_id INTEGER,
+                    telegram_sent_at REAL,
+                    status TEXT NOT NULL DEFAULT 'OPEN',
+                    settlement_payout REAL,
+                    settled_at REAL,
+                    paper_return REAL,
+                    financial_authority INTEGER NOT NULL DEFAULT 0 CHECK(financial_authority=0),
+                    automatic_order_placement INTEGER NOT NULL DEFAULT 0 CHECK(automatic_order_placement=0)
+                );
+                CREATE INDEX IF NOT EXISTS idx_weather_paper_lane
+                    ON weather_paper_signals(lane, created_at);
+                CREATE INDEX IF NOT EXISTS idx_weather_paper_status
+                    ON weather_paper_signals(status, created_at);
+                """
+            )
+        if not existed:
+            os.chmod(self.path, 0o600)
+        if self.path.stat().st_mode & 0o077:
+            raise WeatherPaperStoreError("PAPER_STORE_PERMISSIONS_TOO_BROAD")
 
     def _conn(self) -> sqlite3.Connection:
         db = sqlite3.connect(self.path, timeout=5.0)

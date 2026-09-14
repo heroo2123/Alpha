@@ -72,7 +72,7 @@ def test_interrupted_gpt6_b1_opposite_settlement_statistic_fails_closed():
     )
     with pytest.raises(
         StrictWeatherContractError,
-        match="STRICT_OPERATIVE_STATISTIC_CONFLICT",
+        match="STRICT_OPERATIVE_RULE_STRUCTURE_UNSUPPORTED",
     ):
         compile_strict_temperature_event(event)
 
@@ -85,6 +85,23 @@ def test_interrupted_gpt6_b1_settlement_alias_cannot_hide_conflicting_rules():
     )
     with pytest.raises(StrictWeatherContractError):
         compile_strict_temperature_event(event)
+
+
+def test_interrupted_gpt6_b1_exact_reported_shared_rule_suffixes_fail_closed():
+    suffixes = (
+        " Settlement is determined exclusively by Weather Underground. NOAA measurements do not govern resolution.",
+        " Correction: the no-data outcome is the highest bracket.",
+    )
+    for suffix in suffixes:
+        event = _event()
+        event["description"] += suffix
+        for market in event["markets"]:
+            market["description"] = event["description"]
+        with pytest.raises(
+            StrictWeatherContractError,
+            match="STRICT_OPERATIVE_RULE_STRUCTURE_UNSUPPORTED",
+        ):
+            compile_strict_temperature_event(event)
 
 
 def test_interrupted_gpt6_b1_canonical_contract_still_compiles():
@@ -114,10 +131,6 @@ def test_interrupted_gpt6_b4_twenty_four_eligible_events_rotate_six_per_cycle():
     service._strict_rule_sha_by_event = {}
     service._forecast_cache = {}
 
-    async def eligible(_compiled):
-        return NS(timezone="America/New_York")
-
-    service._station_local_eligibility = eligible
     evaluated: list[str] = []
 
     async def fake_parent(self, _event_row, compiled):

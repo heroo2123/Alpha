@@ -42,10 +42,11 @@ from .weather_only_forecast import (
 from .weather_only_paper_store import WeatherPaperStore
 from .weather_only_rules import apply_rule_authority, compile_temperature_rule_authority
 from .weather_only_runtime import WeatherOnlyShadowRuntime
+from .weather_only_runtime_lease import WeatherPaperRuntimeLease
 from .weather_only_station_metadata import NWSStationMetadataClient, WeatherStationMetadataError
 
 
-WEATHER_LIVE_PAPER_VERSION = "weather_live_paper_v1_structural_plus_raw_gefs_exact_clob"
+WEATHER_LIVE_PAPER_VERSION = "weather_live_paper_v2_all_writers_singleton"
 MODE = "LIVE_PAPER_RESEARCH"
 DEFAULT_INTERVAL_SECONDS = 180.0
 DEFAULT_FORECAST_CACHE_SECONDS = 900.0
@@ -216,14 +217,23 @@ class WeatherLivePaperService:
         self.forecast_cache_seconds = float(forecast_cache_seconds)
         self.forecast_raw_gap_min = float(forecast_raw_gap_min)
         self.max_forecast_events = int(max_forecast_events)
-        self.runtime = runtime or WeatherOnlyShadowRuntime()
-        self.station_client = station_client or NWSStationMetadataClient()
-        self.forecast_client = forecast_client or OpenMeteoGEFSEnsembleClient()
-        self.telegram = telegram or PaperTelegram()
-        self.store = store or WeatherPaperStore(self.db_path)
-        self._forecast_cache: dict[str, tuple[float, object]] = {}
-        self._station_cache: dict[str, object] = {}
-        self._last_summary_sent_at = 0.0
+
+        # B6 category-level fix: admission lives at the common writer base, before any
+        # ledger store is opened.  V1/V2/V3/V4/corrective/final therefore all compete
+        # for the same kernel flock instead of protecting only the newest subclass.
+        self._runtime_lease = WeatherPaperRuntimeLease(self.db_path)
+        try:
+            self.runtime = runtime or WeatherOnlyShadowRuntime()
+            self.station_client = station_client or NWSStationMetadataClient()
+            self.forecast_client = forecast_client or OpenMeteoGEFSEnsembleClient()
+            self.telegram = telegram or PaperTelegram()
+            self.store = store or WeatherPaperStore(self.db_path)
+            self._forecast_cache: dict[str, tuple[float, object]] = {}
+            self._station_cache: dict[str, object] = {}
+            self._last_summary_sent_at = 0.0
+        except BaseException:
+            self._runtime_lease.close()
+            raise
 
     def release_sha(self) -> str:
         try:
@@ -235,10 +245,13 @@ class WeatherLivePaperService:
         return value
 
     async def close(self) -> None:
-        await asyncio.gather(
-            self.runtime.close(), self.station_client.close(), self.forecast_client.close(), self.telegram.close(),
-            return_exceptions=True,
-        )
+        try:
+            await asyncio.gather(
+                self.runtime.close(), self.station_client.close(), self.forecast_client.close(), self.telegram.close(),
+                return_exceptions=True,
+            )
+        finally:
+            self._runtime_lease.close()
 
     async def send_startup(self) -> int:
         release = self.release_sha()
