@@ -1,0 +1,38 @@
+name: three-layer-dst-hardening
+
+on:
+  push:
+    branches:
+      - weather-three-layer-dst-hardening-2026-09-15
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  harden:
+    if: github.event.head_commit.message != 'Fix GEFS fall-back DST timestamp ambiguity'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Apply targeted fix
+        run: python tools/apply_three_layer_dst_fix.py
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt pytest
+      - name: Run focused adversarial tests
+        run: |
+          pytest -q tests/test_weather_only_gefs_dst_unix.py tests/test_weather_only_three_layer_validation_guarded.py tests/test_weather_only_gefs_hourly.py
+          python -m compileall -q polymarket_scanner deploy
+      - name: Commit reviewed fix
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add polymarket_scanner/weather_only_gefs_hourly.py polymarket_scanner/weather_only_three_layer_guarded.py tests/test_weather_only_gefs_dst_unix.py
+          git diff --cached --check
+          git commit -m 'Fix GEFS fall-back DST timestamp ambiguity'
+          git push origin HEAD:weather-three-layer-dst-hardening-2026-09-15
