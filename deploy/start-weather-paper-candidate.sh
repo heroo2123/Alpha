@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-# Explicit PAPER-only start gate. This script is never invoked by installation or CI.
-# It verifies one exact commit, reruns the stopped-service preflight/backup, starts only
-# the canonical weather-paper unit, and stops it again automatically if either active
-# runtime identity or the first fresh paper cycle fails acceptance.
+# Explicit PAPER-only start gate for the guarded pure three-layer validation runtime.
+# Candidate acceptance never grants boot persistence and rolls back to stopped+disabled
+# if runtime identity, first-cycle safety, or wrapper-specific acceptance fails.
 APP_DIR="${ALPHA_WEATHER_APP_DIR:-${HOME}/polymarket-weather-paper-app}"
 CONFIG_DIR="${ALPHA_CONFIG_DIR:-${HOME}/.polymarket-edge-scanner}"
 DB_PATH="${WEATHER_PAPER_DB_PATH:-/var/lib/polymarket-weather-paper/weather-paper.sqlite}"
@@ -13,6 +12,7 @@ UNIT="polymarket-weather-paper.service"
 RELEASE_FILE="${CONFIG_DIR}/weather-paper-release.sha"
 ATTESTATION_OUT="${CONFIG_DIR}/weather-paper-active-attestation.json"
 FIRST_CYCLE_OUT="${CONFIG_DIR}/weather-paper-first-cycle-acceptance.json"
+THREE_LAYER_OUT="${CONFIG_DIR}/weather-paper-three-layer-runtime-acceptance.json"
 EXPECTED_SHA="${1:-}"
 
 fail(){ printf 'ERROR: %s\n' "$*" >&2; exit 1; }
@@ -31,31 +31,30 @@ MARKER_SHA="$(tr -d '[:space:]' < "${RELEASE_FILE}")"
 if systemctl is-active --quiet "${UNIT}" 2>/dev/null; then
   fail "${UNIT} is already active; refusing an ambiguous/repeated start"
 fi
+if systemctl is-enabled --quiet "${UNIT}" 2>/dev/null; then
+  fail "${UNIT} is already enabled; candidate acceptance requires a non-persistent unit"
+fi
 
-# Preflight refuses orphan weather processes, verifies the isolated release, creates a
-# verified restorable paper-ledger backup when one exists, and installs the canonical
-# unit while leaving it stopped.
+# Preflight verifies service isolation, network prerequisites and a restorable ledger
+# backup, then installs the candidate unit while leaving it stopped and disabled.
 bash "${APP_DIR}/deploy/preflight-weather-paper-deployment.sh"
 
 start_attempted=0
 rollback_on_error(){
   code=$?
   if (( code != 0 )) && (( start_attempted == 1 )); then
-    printf 'Start acceptance failed; stopping weather PAPER service...\n' >&2
+    printf 'Start acceptance failed; stopping and disabling weather PAPER service...\n' >&2
     sudo systemctl stop "${UNIT}" >/dev/null 2>&1 || true
+    sudo systemctl disable "${UNIT}" >/dev/null 2>&1 || true
   fi
   exit "${code}"
 }
 trap rollback_on_error EXIT
 
 START_ACCEPTANCE_EPOCH="$(date +%s)"
-# Mark the attempt before asking systemd to start. If `systemctl start` itself returns
-# non-zero after partially launching the unit, the EXIT trap still stops the service.
 start_attempted=1
 sudo systemctl start "${UNIT}"
 
-# Give systemd a bounded window to launch the process. Do not use `enable`: this is an
-# explicit acceptance start, not permission for unattended boot persistence yet.
 for _ in $(seq 1 20); do
   if systemctl is-active --quiet "${UNIT}" 2>/dev/null; then
     break
@@ -72,9 +71,7 @@ systemctl is-active --quiet "${UNIT}" 2>/dev/null \
   --require-active \
   --output "${ATTESTATION_OUT}"
 
-# Deployment is not accepted merely because the process exists. Wait for one status
-# cycle produced after this exact start and prove it is healthy, paper-only, and keeps
-# the three-layer same-day lane silent/untrusted for trading.
+# First prove all inherited final PAPER invariants and same-day containment.
 "${APP_DIR}/.venv/bin/python" "${APP_DIR}/deploy/verify-weather-paper-first-cycle.py" \
   --status "${STATUS_PATH}" \
   --release-sha "${EXPECTED_SHA}" \
@@ -83,18 +80,28 @@ systemctl is-active --quiet "${UNIT}" 2>/dev/null \
   --max-age-seconds 600 \
   --output "${FIRST_CYCLE_OUT}"
 
-# Recheck release identity after the process AND first cycle exist, so a checkout or
-# marker race cannot turn the preflighted commit into a different running tree.
+# Then prove the final atomic status came from this exact three-layer wrapper, PWS is
+# absent, research coverage was not truncated, and every same-day authority stays off.
+"${APP_DIR}/.venv/bin/python" "${APP_DIR}/deploy/verify-three-layer-validation-status.py" \
+  --status "${STATUS_PATH}" \
+  --release-sha "${EXPECTED_SHA}" \
+  --not-before "${START_ACCEPTANCE_EPOCH}" \
+  --timeout-seconds 60 \
+  --max-age-seconds 600 \
+  --output "${THREE_LAYER_OUT}"
+
 HEAD_AFTER="$(git -C "${APP_DIR}" rev-parse HEAD | tr -d '[:space:]')"
 MARKER_AFTER="$(tr -d '[:space:]' < "${RELEASE_FILE}")"
 [[ "${HEAD_AFTER}" == "${EXPECTED_SHA}" ]] || fail "checkout changed during start acceptance"
 [[ "${MARKER_AFTER}" == "${EXPECTED_SHA}" ]] || fail "release marker changed during start acceptance"
+! systemctl is-enabled --quiet "${UNIT}" 2>/dev/null \
+  || fail "weather PAPER service became enabled before explicit persistence approval"
 
 trap - EXIT
-printf '\nPASS: canonical weather PAPER candidate is active, attested, and completed a healthy first cycle.\n'
+printf '\nPASS: guarded pure three-layer PAPER validation candidate is active and accepted.\n'
 printf 'Release: %s\n' "${EXPECTED_SHA}"
 printf 'Runtime attestation: %s\n' "${ATTESTATION_OUT}"
 printf 'First-cycle acceptance: %s\n' "${FIRST_CYCLE_OUT}"
-printf 'The service was started but NOT enabled for boot persistence.\n'
-printf 'The weather-paper checkout/release marker are isolated from the legacy scanner.\n'
-printf 'Real-money trading authority is not granted by this script.\n'
+printf 'Three-layer runtime acceptance: %s\n' "${THREE_LAYER_OUT}"
+printf 'The service is active but remains DISABLED for boot persistence.\n'
+printf 'Same-day delivery, PWS, financial authority and real orders remain disabled.\n'
