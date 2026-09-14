@@ -32,10 +32,13 @@ MARKER_SHA="$(tr -d '[:space:]' < "${RELEASE_FILE}")"
 if systemctl is-active --quiet "${UNIT}" 2>/dev/null; then
   fail "${UNIT} is already active; refusing an ambiguous/repeated start"
 fi
+if systemctl is-enabled --quiet "${UNIT}" 2>/dev/null; then
+  fail "${UNIT} is already enabled; candidate acceptance requires a non-persistent unit"
+fi
 
 # Preflight refuses orphan weather processes, verifies the isolated release, creates a
 # verified restorable paper-ledger backup when one exists, validates the Synoptic token,
-# and installs the canonical unit while leaving it stopped.
+# and installs the canonical unit while leaving it stopped and disabled.
 bash "${APP_DIR}/deploy/preflight-weather-paper-deployment.sh"
 
 start_attempted=0
@@ -44,19 +47,18 @@ rollback_on_error(){
   if (( code != 0 )) && (( start_attempted == 1 )); then
     printf 'Start acceptance failed; stopping weather PAPER service...\n' >&2
     sudo systemctl stop "${UNIT}" >/dev/null 2>&1 || true
+    # Candidate acceptance never grants boot persistence. Keep that invariant even if
+    # an external race created an enable symlink during the attempt.
+    sudo systemctl disable "${UNIT}" >/dev/null 2>&1 || true
   fi
   exit "${code}"
 }
 trap rollback_on_error EXIT
 
 START_ACCEPTANCE_EPOCH="$(date +%s)"
-# Mark the attempt before asking systemd to start. If `systemctl start` itself returns
-# non-zero after partially launching the unit, the EXIT trap still stops the service.
 start_attempted=1
 sudo systemctl start "${UNIT}"
 
-# Give systemd a bounded window to launch the process. Do not use `enable`: this is an
-# explicit acceptance start, not permission for unattended boot persistence yet.
 for _ in $(seq 1 20); do
   if systemctl is-active --quiet "${UNIT}" 2>/dev/null; then
     break
@@ -73,9 +75,6 @@ systemctl is-active --quiet "${UNIT}" 2>/dev/null \
   --require-active \
   --output "${ATTESTATION_OUT}"
 
-# Deployment is not accepted merely because the process exists. Wait for one status
-# cycle produced after this exact start and prove it is healthy, paper-only, and keeps
-# the three-layer same-day lane silent/untrusted for trading.
 "${APP_DIR}/.venv/bin/python" "${APP_DIR}/deploy/verify-weather-paper-first-cycle.py" \
   --status "${STATUS_PATH}" \
   --release-sha "${EXPECTED_SHA}" \
@@ -84,9 +83,6 @@ systemctl is-active --quiet "${UNIT}" 2>/dev/null \
   --max-age-seconds 600 \
   --output "${FIRST_CYCLE_OUT}"
 
-# The inherited final service writes an intermediate canonical status before the
-# Synoptic wrapper appends provider fields. Wait boundedly for the wrapper's fresh
-# status from this exact release rather than racing the intermediate atomic write.
 "${APP_DIR}/.venv/bin/python" "${APP_DIR}/deploy/verify-synoptic-pws-status.py" \
   --status "${STATUS_PATH}" \
   --release-sha "${EXPECTED_SHA}" \
@@ -95,12 +91,13 @@ systemctl is-active --quiet "${UNIT}" 2>/dev/null \
   --max-age-seconds 600 \
   --output "${SYNOPTIC_STATUS_OUT}"
 
-# Recheck release identity after the process AND first cycle exist, so a checkout or
-# marker race cannot turn the preflighted commit into a different running tree.
 HEAD_AFTER="$(git -C "${APP_DIR}" rev-parse HEAD | tr -d '[:space:]')"
 MARKER_AFTER="$(tr -d '[:space:]' < "${RELEASE_FILE}")"
 [[ "${HEAD_AFTER}" == "${EXPECTED_SHA}" ]] || fail "checkout changed during start acceptance"
 [[ "${MARKER_AFTER}" == "${EXPECTED_SHA}" ]] || fail "release marker changed during start acceptance"
+# Acceptance itself must not silently inherit or acquire boot persistence.
+! systemctl is-enabled --quiet "${UNIT}" 2>/dev/null \
+  || fail "weather PAPER service became enabled before explicit persistence approval"
 
 trap - EXIT
 printf '\nPASS: canonical weather PAPER candidate is active, attested, and completed a healthy first cycle.\n'
@@ -108,7 +105,7 @@ printf 'Release: %s\n' "${EXPECTED_SHA}"
 printf 'Runtime attestation: %s\n' "${ATTESTATION_OUT}"
 printf 'First-cycle acceptance: %s\n' "${FIRST_CYCLE_OUT}"
 printf 'Synoptic runtime acceptance: %s\n' "${SYNOPTIC_STATUS_OUT}"
-printf 'The service was started but NOT enabled for boot persistence.\n'
+printf 'The service is active but remains DISABLED for boot persistence.\n'
 printf 'The weather-paper checkout/release marker are isolated from the legacy scanner.\n'
 printf 'Synoptic/CWOP PWS is silent diagnostic-only; same-day delivery remains disabled.\n'
 printf 'Real-money trading authority is not granted by this script.\n'
