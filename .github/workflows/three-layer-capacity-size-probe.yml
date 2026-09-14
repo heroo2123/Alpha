@@ -1,0 +1,133 @@
+name: three-layer-capacity-size-probe
+
+on:
+  push:
+    branches:
+      - weather-three-layer-dst-hardening-2026-09-15
+    paths:
+      - '.github/workflows/three-layer-capacity-size-probe.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements-dev.txt
+      - name: Measure live eligibility latency and representative capture sizes
+        run: |
+          python - <<'PY'
+          import asyncio, json, time
+          from datetime import datetime, timedelta, timezone
+          from zoneinfo import ZoneInfo
+          from polymarket_scanner.weather_only_discovery import WeatherOnlyDiscovery
+          from polymarket_scanner.weather_only_contract_strict import StrictWeatherContractError, compile_strict_temperature_event
+          from polymarket_scanner.weather_only_rules import compile_temperature_rule_authority
+          from polymarket_scanner.weather_only_same_day_contract import build_same_day_contract_semantics
+          from polymarket_scanner.weather_only_same_day_capture import assemble_same_day_capture
+          from polymarket_scanner.weather_only_three_layer_guarded import (
+              GuardedSameDayStationMetadataClient,
+              GuardedNWSNearTermGridClient,
+              GuardedNWSWRHLiveClient,
+              GuardedOpenMeteoGEFSHourlyClient,
+          )
+
+          async def main():
+              started=time.monotonic()
+              d=WeatherOnlyDiscovery(); sm=GuardedSameDayStationMetadataClient(); nws=GuardedNWSNearTermGridClient(); gefs=GuardedOpenMeteoGEFSHourlyClient(); wrh=GuardedNWSWRHLiveClient()
+              try:
+                  snap=await d.discover()
+                  now=datetime.now(timezone.utc)
+                  plausible={now.date()-timedelta(days=1), now.date(), now.date()+timedelta(days=1)}
+                  candidates=[]; seen=set()
+                  for event in snap.events:
+                      if not isinstance(event,dict): continue
+                      try:
+                          c=compile_strict_temperature_event(event)
+                          a=compile_temperature_rule_authority(event,c)
+                          s=build_same_day_contract_semantics(c,a)
+                      except StrictWeatherContractError:
+                          continue
+                      eid=str(c.event_id)
+                      if eid in seen or not s.layer1_adapter_capable or c.target_date not in plausible: continue
+                      seen.add(eid); candidates.append((eid,event,c,s))
+                  by_station={}
+                  for row in candidates: by_station.setdefault(str(row[2].station_hint).upper(),[]).append(row)
+                  sem=asyncio.Semaphore(4)
+                  async def get_meta(stid):
+                      async with sem: return stid,await sm.station(stid)
+                  station_pairs=await asyncio.gather(*(get_meta(s) for s in sorted(by_station)))
+                  metas=dict(station_pairs)
+                  today=[]
+                  for row in candidates:
+                      m=metas[str(row[2].station_hint).upper()]
+                      if row[2].target_date==now.astimezone(ZoneInfo(str(m.timezone))).date(): today.append((*row,m))
+                  by_point={}
+                  for row in today:
+                      m=row[4]; key=(round(float(m.latitude),4),round(float(m.longitude),4)); by_point.setdefault(key,[]).append(row)
+                  async def support(point,row):
+                      async with sem:
+                          m=row[4]; return point,await nws.point_supported(latitude=float(m.latitude),longitude=float(m.longitude))
+                  support_pairs=await asyncio.gather(*(support(p,rows[0]) for p,rows in sorted(by_point.items())))
+                  supports=dict(support_pairs)
+                  supported=[]
+                  for row in today:
+                      m=row[4]; key=(round(float(m.latitude),4),round(float(m.longitude),4))
+                      if supports.get(key): supported.append(row)
+                  eligible_elapsed=time.monotonic()-started
+                  print('ELIGIBILITY_DISCOVERED',snap.unique_event_count)
+                  print('ELIGIBILITY_TODAY_SUPPORTED',len(supported))
+                  print('ELIGIBILITY_UNIQUE_STATIONS',len({str(x[2].station_hint).upper() for x in supported}))
+                  print('ELIGIBILITY_ELAPSED_SECONDS',round(eligible_elapsed,3))
+
+                  reps=[]; seen_station=set()
+                  for row in supported:
+                      st=str(row[2].station_hint).upper()
+                      if st not in seen_station:
+                          seen_station.add(st); reps.append(row)
+                      if len(reps)>=6: break
+                  sizes=[]
+                  for eid,event,c,s,m in reps:
+                      source_started=time.monotonic()
+                      results=await asyncio.gather(
+                          asyncio.to_thread(wrh.fetch_snapshot,station=str(c.station_hint).upper(),target_date=c.target_date),
+                          nws.fetch_snapshot(station=str(c.station_hint).upper(),latitude=float(m.latitude),longitude=float(m.longitude)),
+                          gefs.target_day(station=str(c.station_hint).upper(),latitude=float(m.latitude),longitude=float(m.longitude),target_date=c.target_date,unit=str(c.unit),timezone=str(m.timezone)),
+                          return_exceptions=True,
+                      )
+                      failures=[(type(x).__name__,getattr(x,'code',str(x))) for x in results if isinstance(x,BaseException)]
+                      if failures:
+                          print('CAPTURE_SOURCE_FAIL',eid,str(c.station_hint),failures); continue
+                      wrh_snapshot,nws_snapshot,gefs_day=results
+                      cutoff=time.time()
+                      try:
+                          rec=assemble_same_day_capture(compiled=c,contract_semantics=s,station_metadata=m,wrh_snapshot=wrh_snapshot,near_term_raw_snapshot=nws_snapshot,hourly_gefs=gefs_day,as_of=cutoff,population_alignment_certified=False)
+                      except Exception as exc:
+                          print('CAPTURE_ASSEMBLE_FAIL',eid,str(c.station_hint),getattr(exc,'code',type(exc).__name__),str(exc)); continue
+                      payload=json.dumps(rec.as_dict(),sort_keys=True,separators=(',',':'),ensure_ascii=True,allow_nan=False).encode()
+                      components={
+                          'wrh':len(json.dumps(rec.wrh_snapshot,separators=(',',':')).encode()),
+                          'nws':len(json.dumps(rec.near_term_raw_snapshot,separators=(',',':')).encode()),
+                          'gefs':len(json.dumps(rec.hourly_gefs,separators=(',',':')).encode()),
+                          'official':len(json.dumps(list(rec.official_observations),separators=(',',':')).encode()),
+                      }
+                      sizes.append(len(payload))
+                      print('CAPTURE_SIZE',eid,str(c.station_hint),len(payload),'COMPONENTS',components,'SOURCE_SECONDS',round(time.monotonic()-source_started,3),'STATUS',rec.status)
+                  print('CAPTURE_SIZES',sizes)
+                  if sizes:
+                      print('CAPTURE_MAX_BYTES',max(sizes))
+                      print('CAPTURE_MEAN_BYTES',round(sum(sizes)/len(sizes),1))
+                      for cap in (12,24,32,40):
+                          rows=cap*24*31
+                          print('CAPACITY_PROJECTION',cap,'ROWS',rows,'AT_SAMPLE_MAX_MIB',round(rows*max(sizes)/1024/1024,2),'AT_SAMPLE_MEAN_MIB',round(rows*(sum(sizes)/len(sizes))/1024/1024,2))
+              finally:
+                  await d.close(); await sm.close(); await nws.close(); await gefs.close(); wrh.close()
+          asyncio.run(main())
+          PY
