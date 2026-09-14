@@ -18,14 +18,18 @@ TMP_ENV="$(mktemp)"
 UNIT_DIR="$(mktemp -d)"
 TMP_UNIT="${UNIT_DIR}/polymarket-weather-paper.service"
 trap 'rm -f "${TMP_ENV}"; rm -rf "${UNIT_DIR}"' EXIT
-# Paper service receives ONLY Telegram delivery credentials.  Do not copy wallet,
-# exchange, cloud, database, or other legacy bot configuration into its environment.
-grep -E '^[[:space:]]*(TELEGRAM_BOT_TOKEN|TELEGRAM_CHAT_ID)=' "${BOT_ENV}" > "${TMP_ENV}" || true
+# Paper service receives ONLY Telegram delivery credentials plus the optional,
+# read-only Weather Company PWS API key used by silent same-day diagnostics. Do not
+# copy wallet, exchange, cloud, database, or other legacy bot configuration.
+grep -E '^[[:space:]]*(TELEGRAM_BOT_TOKEN|TELEGRAM_CHAT_ID|WEATHER_PWS_API_KEY)=' "${BOT_ENV}" > "${TMP_ENV}" || true
 [[ "$(grep -c -E '^[[:space:]]*TELEGRAM_BOT_TOKEN=' "${TMP_ENV}" || true)" -eq 1 ]] || {
   echo 'TELEGRAM_BOT_TOKEN missing/duplicated in bot.env' >&2; exit 1;
 }
 [[ "$(grep -c -E '^[[:space:]]*TELEGRAM_CHAT_ID=' "${TMP_ENV}" || true)" -eq 1 ]] || {
   echo 'TELEGRAM_CHAT_ID missing/duplicated in bot.env' >&2; exit 1;
+}
+[[ "$(grep -c -E '^[[:space:]]*WEATHER_PWS_API_KEY=' "${TMP_ENV}" || true)" -le 1 ]] || {
+  echo 'WEATHER_PWS_API_KEY duplicated in bot.env' >&2; exit 1;
 }
 install -m 0600 "${TMP_ENV}" "${PAPER_ENV}"
 
@@ -37,4 +41,4 @@ sudo systemctl daemon-reload
 
 echo 'Weather LIVE PAPER unit installed. It was NOT started or enabled.'
 echo 'Weather code/release marker are isolated from the legacy scanner release.'
-echo 'Only TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID were copied to weather-paper.env.'
+echo 'Only Telegram credentials and optional WEATHER_PWS_API_KEY were copied to weather-paper.env.'
