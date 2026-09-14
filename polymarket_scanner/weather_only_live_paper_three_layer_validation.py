@@ -2,13 +2,13 @@ from __future__ import annotations
 
 """Guarded final PAPER runtime for validating the pure three-layer same-day system.
 
-This branch deliberately contains no PWS integration.  It keeps the reviewed final
+This branch deliberately contains no PWS integration. It keeps the reviewed final
 future-day PAPER engine unchanged and hardens only the silent same-day research lane:
 Layer 1 exact WRH, Layer 2 NWS grid, and Layer 3 31-member hourly GEFS.
 
 The wrapper rotates a bounded same-day event universe instead of permanently starving
 events after the first four lexicographic IDs, bounds the complete source bundle, and
-uses the guarded source transports.  The scientific population-alignment gate remains
+uses the guarded source transports. The scientific population-alignment gate remains
 FALSE, so same-day probabilities, Telegram delivery, validated P&L, and financial
 authority remain disabled.
 """
@@ -50,6 +50,10 @@ THREE_LAYER_SELECTION_UNIVERSE_CAP = 12
 THREE_LAYER_MAX_EVENTS_PER_CYCLE = 4
 THREE_LAYER_SOURCE_BUNDLE_DEADLINE_SECONDS = 35.0
 THREE_LAYER_CURSOR_KEY = "same_day_three_layer_rotation_cursor_v1"
+# Each admitted event is durably throttled to one saved capture/hour by the inherited
+# collector. Restricting the rotating universe to 12 therefore bounds saved rows to
+# 12 * 24 * 31 in any theoretical fully-active 31-day interval.
+THREE_LAYER_31D_CAPTURE_ROW_BOUND = THREE_LAYER_SELECTION_UNIVERSE_CAP * 24 * 31
 
 
 def _rotate_after_cursor(rows: list[tuple], cursor: str, limit: int) -> list[tuple]:
@@ -63,15 +67,19 @@ def _rotate_after_cursor(rows: list[tuple], cursor: str, limit: int) -> list[tup
         )
     else:
         start = 0
-    return [ordered[(start + offset) % len(ordered)] for offset in range(min(limit, len(ordered)))]
+    return [
+        ordered[(start + offset) % len(ordered)]
+        for offset in range(min(limit, len(ordered)))
+    ]
 
 
 class ThreeLayerValidationWeatherLivePaperService(FinalWeatherLivePaperService):
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
 
-        # Construct all replacements before mutating the inherited service so a
-        # constructor failure cannot leave a half-swapped source set.
+        # These constructors perform no network I/O. Keep the inherited clients alive
+        # until all replacements exist, then swap atomically from the service's point
+        # of view; superseded async pools are closed during service shutdown.
         guarded_wrh = GuardedNWSWRHLiveClient()
         guarded_nws = GuardedNWSNearTermGridClient()
         guarded_gefs = GuardedOpenMeteoGEFSHourlyClient()
@@ -142,11 +150,13 @@ class ThreeLayerValidationWeatherLivePaperService(FinalWeatherLivePaperService):
         universe = eligible[:THREE_LAYER_SELECTION_UNIVERSE_CAP]
         self._three_layer_last_universe_truncated = len(eligible) > len(universe)
         cursor = self.positions.get_state(THREE_LAYER_CURSOR_KEY, "")
-        selected = _rotate_after_cursor(universe, cursor, THREE_LAYER_MAX_EVENTS_PER_CYCLE)
+        selected = _rotate_after_cursor(
+            universe, cursor, THREE_LAYER_MAX_EVENTS_PER_CYCLE
+        )
         self._three_layer_last_selected_ids = tuple(str(item[0]) for item in selected)
         if selected:
             # Advance even when a selected source later fails. One repeatedly broken
-            # station must not permanently starve every other same-day event.
+            # station must not permanently starve every other admitted research event.
             self.positions.set_state(THREE_LAYER_CURSOR_KEY, str(selected[-1][0]))
         return selected, errors
 
@@ -164,8 +174,12 @@ class ThreeLayerValidationWeatherLivePaperService(FinalWeatherLivePaperService):
                 "selected_event_ids": list(self._three_layer_last_selected_ids),
                 "selection_universe_cap": THREE_LAYER_SELECTION_UNIVERSE_CAP,
                 "selection_universe_truncated": self._three_layer_last_universe_truncated,
+                "selection_coverage_complete": not self._three_layer_last_universe_truncated,
                 "max_events_per_cycle": THREE_LAYER_MAX_EVENTS_PER_CYCLE,
                 "source_bundle_deadline_seconds": THREE_LAYER_SOURCE_BUNDLE_DEADLINE_SECONDS,
+                "theoretical_31_day_row_bound_at_full_daily_eligibility": (
+                    THREE_LAYER_31D_CAPTURE_ROW_BOUND
+                ),
                 "population_alignment_certified": False,
                 "calibrated_probability": False,
                 "included_in_validated_pnl": False,
