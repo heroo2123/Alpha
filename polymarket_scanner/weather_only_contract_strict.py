@@ -497,6 +497,91 @@ def _question_identity(question: str, family: str, *, unit: str | None = None) -
     return {"grammar": "legacy", "place": None, "month": None, "day": None}
 
 
+_CURRENT_TITLE_RE = re.compile(
+    r"^(highest|lowest)\s+temperature\s+in\s+([^?<>\r\n]{1,120}?)\s+on\s+"
+    r"(january|february|march|april|may|june|july|august|september|october|november|december)\s+"
+    r"(\d{1,2})\?$",
+    re.I,
+)
+_CURRENT_QUESTION_RE = re.compile(
+    r"^will\s+the\s+(highest|lowest)\s+temperature\s+in\s+([^?<>\r\n]{1,120}?)\s+be\s+"
+    r"(.+?)\s+on\s+"
+    r"(january|february|march|april|may|june|july|august|september|october|november|december)\s+"
+    r"(\d{1,2})\?$",
+    re.I,
+)
+_PLACE_ALIASES = {"nyc": "new york city"}
+
+
+def _canonical_place(value: object) -> str:
+    place = _norm(value)
+    if not place or len(place) > 120 or any(char in place for char in "<>\r\n?"):
+        raise StrictWeatherContractError("STRICT_PLACE_INVALID")
+    return _PLACE_ALIASES.get(place, place)
+
+
+def _current_title_identity(event: dict, family: str, target: date) -> str | None:
+    match = _CURRENT_TITLE_RE.fullmatch(" ".join(str(event.get("title") or "").split()))
+    if match is None:
+        return None
+    expected_stat = "highest" if family == DAILY_HIGH else "lowest" if family == DAILY_LOW else ""
+    if match.group(1).lower() != expected_stat:
+        raise StrictWeatherContractError("STRICT_TITLE_STATISTIC_MISMATCH")
+    if _MONTHS.get(match.group(3).lower()) != target.month or int(match.group(4)) != target.day:
+        raise StrictWeatherContractError("STRICT_TITLE_DATE_MISMATCH")
+    return _canonical_place(match.group(2))
+
+
+def _bucket_text_supported(bucket: str, *, unit: str | None) -> bool:
+    number = r"-?\d+(?:\.0+)?"
+    unit_token = r"(?:°\s*[FC]|\s+degrees?\s+[FC]|\s*[FC])"
+    patterns = (
+        rf"{number}\s*{unit_token}\s+or\s+(?:below|lower|higher)",
+        rf"between\s+{number}\s*(?:-|–|to)\s*{number}\s*{unit_token}",
+        rf"{number}\s*(?:-|–|to)\s*{number}\s*{unit_token}",
+        rf"{number}\s*{unit_token}",
+    )
+    text = " ".join(str(bucket or "").strip().split())
+    if not any(re.fullmatch(pattern, text, re.I) is not None for pattern in patterns):
+        return False
+    letters = {value.upper() for value in re.findall(r"(?:°\s*|degrees?\s+|\d\s*)([FC])\b", text, re.I)}
+    return unit is None or letters == {str(unit).upper()}
+
+
+def _question_identity(question: str, family: str, *, unit: str | None = None) -> dict | None:
+    """Parse one completely consumed legacy or current recurring question."""
+    text = " ".join(str(question or "").strip().split())
+    statistic = "highest" if family == DAILY_HIGH else "lowest" if family == DAILY_LOW else None
+    if statistic is None:
+        return None
+
+    current = _CURRENT_QUESTION_RE.fullmatch(text)
+    if current is not None:
+        if current.group(1).lower() != statistic:
+            return None
+        bucket = current.group(3)
+        if not _bucket_text_supported(bucket, unit=unit):
+            return None
+        return {
+            "grammar": "current",
+            "place": _canonical_place(current.group(2)),
+            "month": _MONTHS[current.group(4).lower()],
+            "day": int(current.group(5)),
+        }
+
+    number = r"-?\d+(?:\.0+)?"
+    unit_token = r"(?:°\s*[FC]|\s+degrees?\s+[FC]|\s*[FC])"
+    bucket = rf"(?:{number}\s*{unit_token}\s+or\s+(?:below|lower|higher)|between\s+{number}\s*(?:-|–|to)\s*{number}\s*{unit_token}|{number}\s*(?:-|–|to)\s*{number}\s*{unit_token}|{number}\s*{unit_token})"
+    legacy = re.fullmatch(
+        rf"Will\s+the\s+{statistic}\s+temperature\s+be\s+({bucket})\?",
+        text,
+        re.I,
+    )
+    if legacy is None or not _bucket_text_supported(legacy.group(1), unit=unit):
+        return None
+    return {"grammar": "legacy", "place": None, "month": None, "day": None}
+
+
 def _question_supported(question: str, family: str) -> bool:
     return _question_identity(question, family) is not None
 
