@@ -23,7 +23,7 @@ from polymarket_scanner.weather_only_live_paper_final import FinalWeatherLivePap
 
 
 ROOT = Path(__file__).resolve().parents[1]
-BRANCH = "weather-live-paper-corrective-2026-09-13"
+BRANCH = "weather-same-day-three-layer-validation-2026-09-14"
 
 
 def _event(*, eid: str = "event-1", target: date = date(2026, 9, 14)) -> dict:
@@ -173,9 +173,14 @@ def _make_minimal_candidate_repo(path: Path) -> str:
         "deploy/preflight-weather-paper-deployment.sh",
         "deploy/start-weather-paper-candidate.sh",
         "deploy/verify-weather-paper-first-cycle.py",
+        "deploy/verify-three-layer-validation-status.py",
         "deploy/enable-weather-paper-persistence.sh",
         "polymarket_scanner/weather_only_live_paper_corrective.py",
         "polymarket_scanner/weather_only_live_paper_final.py",
+        "polymarket_scanner/weather_only_live_paper_three_layer_validation.py",
+        "polymarket_scanner/weather_only_three_layer_guarded.py",
+        "polymarket_scanner/weather_only_same_day_capture.py",
+        "polymarket_scanner/weather_only_unresolved_coverage.py",
         "polymarket_scanner/weather_only_paper_recovery.py",
         "polymarket_scanner/weather_only_paper_recovery_final.py",
         "polymarket_scanner/weather_only_runtime_attestation.py",
@@ -192,8 +197,12 @@ def _make_minimal_candidate_repo(path: Path) -> str:
         "FINAL_TEST_IMPORT = True\n",
     )
     _write(
+        path / "polymarket_scanner/weather_only_live_paper_three_layer_validation.py",
+        "THREE_LAYER_TEST_IMPORT = True\n",
+    )
+    _write(
         path / "deploy/render-weather-paper-unit.py",
-        "polymarket_scanner.weather_only_live_paper_final\nweather-paper-release.sha\n",
+        "polymarket_scanner.weather_only_live_paper_three_layer_validation\nweather-paper-release.sha\n",
     )
     _write(
         path / "deploy/verify-runtime-release.sh",
