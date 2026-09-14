@@ -12,6 +12,7 @@ from polymarket_scanner.weather_only_pws import (
     DEFAULT_PWS_MAX_FUTURE_SKEW_SECONDS,
     DEFAULT_PWS_MAX_RESPONSE_BYTES,
     DEFAULT_PWS_REQUEST_DEADLINE_SECONDS,
+    PWS_STATUS_NO_FRESH_QC,
     PWS_STATUS_UNCONFIGURED,
     _build_snapshot,
     build_pws_diagnostic,
@@ -24,10 +25,10 @@ from polymarket_scanner.weather_only_same_day_capture_store import SameDayCaptur
 from test_weather_only_same_day_capture import _capture
 
 
-def _unconfigured_snapshot(now):
+def _snapshot(now, *, status=PWS_STATUS_UNCONFIGURED, configured=False):
     return _build_snapshot(
-        status=PWS_STATUS_UNCONFIGURED,
-        configured=False,
+        status=status,
+        configured=configured,
         latitude=40.7769,
         longitude=-73.8740,
         unit="F",
@@ -42,7 +43,7 @@ def _unconfigured_snapshot(now):
     )
 
 
-def _record(capture):
+def _record(capture, *, status=PWS_STATUS_UNCONFIGURED, configured=False):
     now = max(time.time(), float(capture.as_of) + 1.0)
     return build_pws_diagnostic(
         event_id=capture.event_id,
@@ -51,7 +52,7 @@ def _record(capture):
         unit=capture.unit,
         as_of=now,
         official_observations=capture.official_observations,
-        pws_snapshot=_unconfigured_snapshot(now),
+        pws_snapshot=_snapshot(now, status=status, configured=configured),
     )
 
 
@@ -69,7 +70,7 @@ def test_official_capture_and_pws_pending_intent_are_one_transaction(tmp_path):
     assert link["financial_authority"] == 0
 
 
-def test_finalize_links_one_diagnostic_to_exact_official_capture(tmp_path):
+def test_unconfigured_diagnostic_is_durable_failed_link_not_false_no_data(tmp_path):
     db = tmp_path / "weather-paper.sqlite"
     capture_store = SameDayCaptureStore(db)
     pws_store = SameDayPWSDiagnosticStore(db)
@@ -82,7 +83,8 @@ def test_finalize_links_one_diagnostic_to_exact_official_capture(tmp_path):
 
     link = pws_store.link_for_capture(capture.capture_sha256)
     assert link is not None
-    assert link["state"] == "UNAVAILABLE"
+    assert link["state"] == "FAILED"
+    assert link["failure_code"] == PWS_STATUS_UNCONFIGURED
     assert link["diagnostic_sha256"] == record.diagnostic_sha256
     loaded = pws_store.diagnostic_json(record.diagnostic_sha256)
     assert loaded is not None
@@ -94,13 +96,27 @@ def test_finalize_links_one_diagnostic_to_exact_official_capture(tmp_path):
     assert loaded["financial_authority"] is False
 
 
+def test_true_no_fresh_qc_result_is_unavailable_not_failed(tmp_path):
+    db = tmp_path / "weather-paper.sqlite"
+    capture_store = SameDayCaptureStore(db)
+    pws_store = SameDayPWSDiagnosticStore(db)
+    capture = _capture()
+    assert capture_store.save(capture) is not None
+
+    record = _record(capture, status=PWS_STATUS_NO_FRESH_QC, configured=True)
+    pws_store.finalize(capture.capture_sha256, record)
+    link = pws_store.link_for_capture(capture.capture_sha256)
+    assert link is not None
+    assert link["state"] == "UNAVAILABLE"
+    assert link["failure_code"] is None
+
+
 def test_restart_marks_pending_as_interrupted_and_never_backfills_later_sample(tmp_path):
     db = tmp_path / "weather-paper.sqlite"
     capture_store = SameDayCaptureStore(db)
     capture = _capture()
     assert capture_store.save(capture) is not None
 
-    # Simulate process exit after official commit but before PWS outcome persistence.
     restarted = SameDayPWSDiagnosticStore(db)
     assert restarted.mark_interrupted_pending(completed_at=float(capture.as_of) + 10.0) == 1
     link = restarted.link_for_capture(capture.capture_sha256)
@@ -108,7 +124,6 @@ def test_restart_marks_pending_as_interrupted_and_never_backfills_later_sample(t
     assert link["state"] == "INTERRUPTED"
     assert link["failure_code"] == "PWS_COLLECTION_INTERRUPTED_BEFORE_OUTCOME"
 
-    # A later observation may not be presented as if it belonged to the old capture.
     with pytest.raises(PWSDiagnosticStoreError) as raised:
         restarted.finalize(capture.capture_sha256, _record(capture))
     assert raised.value.code == "PWS_STORE_CAPTURE_LINK_NOT_PENDING"
