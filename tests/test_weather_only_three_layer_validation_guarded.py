@@ -436,3 +436,48 @@ def test_more_than_selection_cap_fails_closed_without_partial_sampling(monkeypat
     assert service._three_layer_last_universe_truncated is True
     assert service._three_layer_last_selected_ids == ()
     assert service.positions.set_calls == []
+
+
+def test_eligibility_metadata_scan_has_one_total_deadline(monkeypatch):
+    import polymarket_scanner.weather_only_live_paper_three_layer_validation as module
+
+    service = object.__new__(ThreeLayerValidationWeatherLivePaperService)
+
+    class Positions:
+        def get_state(self, _key, default=""):
+            return default
+        def set_state(self, _key, _value):
+            raise AssertionError("cursor must not advance on incomplete eligibility scan")
+
+    service.positions = Positions()
+    today = datetime.now(timezone.utc).date()
+
+    monkeypatch.setattr(
+        module,
+        "compile_strict_temperature_event",
+        lambda event: NS(
+            event_id=event["id"], target_date=today, station_hint="KLGA",
+            family="DAILY_HIGH", unit="F",
+        ),
+    )
+    monkeypatch.setattr(module, "compile_temperature_rule_authority", lambda *_: object())
+    monkeypatch.setattr(
+        module,
+        "build_same_day_contract_semantics",
+        lambda *_: NS(layer1_adapter_capable=True),
+    )
+    monkeypatch.setattr(module, "THREE_LAYER_ELIGIBILITY_SCAN_DEADLINE_SECONDS", 0.02)
+
+    async def slow_metadata(_compiled):
+        await asyncio.sleep(1.0)
+        return NS(timezone="UTC", latitude=40.0, longitude=-73.0)
+
+    service._station_metadata_for_compiled = slow_metadata
+    started = time.monotonic()
+    selected, errors = asyncio.run(service._same_day_eligible(({"id": "event-1"},)))
+    elapsed = time.monotonic() - started
+    assert elapsed < 0.25
+    assert selected == []
+    assert errors == ["SAME_DAY_ELIGIBILITY_SCAN_TIMEOUT"]
+    assert service._three_layer_last_universe_truncated is True
+    assert service._three_layer_last_selected_ids == ()

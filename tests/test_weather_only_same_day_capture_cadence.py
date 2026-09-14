@@ -109,3 +109,23 @@ def test_started_attempt_with_durable_capture_reconciles_as_saved(tmp_path):
     assert summary["started"] == 0
     assert summary["saved"] == 1
     assert summary["failed"] == 0
+
+
+def test_interrupted_attempt_does_not_attach_capture_from_different_full_identity(tmp_path):
+    db = tmp_path / "weather-paper.sqlite"
+    store = SameDayCaptureStore(db)
+    capture = _capture()
+    store.start_attempt(
+        event_id=capture.event_id,
+        station="KZZZ" if capture.station != "KZZZ" else "KYYY",
+        target_date=capture.target_date,
+        family=capture.family,
+        unit=capture.unit,
+        attempted_at=capture.as_of - 1.0,
+    )
+    assert store.save(capture) is not None
+    assert store.reconcile_started_attempts(completed_at=capture.as_of + 1.0) == 1
+    summary = store.attempt_summary()
+    assert summary["saved"] == 0
+    assert summary["failed"] == 1
+    assert summary["started"] == 0

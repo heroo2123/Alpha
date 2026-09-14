@@ -331,20 +331,35 @@ class SameDayCaptureStore:
                    SET completed_at=(
                            SELECT MAX(a.attempted_at,c.as_of)
                              FROM weather_same_day_captures AS c
-                            WHERE c.event_id=a.event_id AND c.as_of>=a.attempted_at
+                            WHERE c.event_id=a.event_id
+                              AND c.station=a.station
+                              AND c.target_date=a.target_date
+                              AND c.family=a.family
+                              AND c.unit=a.unit
+                              AND c.as_of>=a.attempted_at
                             ORDER BY c.as_of ASC LIMIT 1
                        ),
                        outcome='SAVED',
                        capture_sha256=(
                            SELECT c.capture_sha256
                              FROM weather_same_day_captures AS c
-                            WHERE c.event_id=a.event_id AND c.as_of>=a.attempted_at
+                            WHERE c.event_id=a.event_id
+                              AND c.station=a.station
+                              AND c.target_date=a.target_date
+                              AND c.family=a.family
+                              AND c.unit=a.unit
+                              AND c.as_of>=a.attempted_at
                             ORDER BY c.as_of ASC LIMIT 1
                        )
                  WHERE a.outcome='STARTED'
                    AND EXISTS(
                        SELECT 1 FROM weather_same_day_captures AS c
-                        WHERE c.event_id=a.event_id AND c.as_of>=a.attempted_at
+                        WHERE c.event_id=a.event_id
+                              AND c.station=a.station
+                              AND c.target_date=a.target_date
+                              AND c.family=a.family
+                              AND c.unit=a.unit
+                              AND c.as_of>=a.attempted_at
                    )
                 """
             )

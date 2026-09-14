@@ -14,6 +14,7 @@ from polymarket_scanner.weather_only_live_paper_three_layer_validation import (
     THREE_LAYER_31D_CAPTURE_ROW_BOUND,
     THREE_LAYER_ATTEMPT_ROW_CAP,
     THREE_LAYER_CAPTURE_JSON_BYTES_CAP,
+    THREE_LAYER_ELIGIBILITY_SCAN_DEADLINE_SECONDS,
     THREE_LAYER_MAX_EVENTS_PER_CYCLE,
     THREE_LAYER_SELECTION_POLICY,
     THREE_LAYER_SELECTION_UNIVERSE_CAP,
@@ -115,6 +116,7 @@ def _valid_status():
             "selection_coverage_complete": True,
             "max_events_per_cycle": THREE_LAYER_MAX_EVENTS_PER_CYCLE,
             "source_bundle_deadline_seconds": THREE_LAYER_SOURCE_BUNDLE_DEADLINE_SECONDS,
+            "eligibility_scan_deadline_seconds": THREE_LAYER_ELIGIBILITY_SCAN_DEADLINE_SECONDS,
             "theoretical_31_day_row_bound_at_full_daily_eligibility": THREE_LAYER_31D_CAPTURE_ROW_BOUND,
             "capture_json_bytes_cap": THREE_LAYER_CAPTURE_JSON_BYTES_CAP,
             "attempt_row_cap": THREE_LAYER_ATTEMPT_ROW_CAP,
@@ -200,4 +202,27 @@ def test_status_verifier_rejects_counter_inconsistency_even_without_error_string
     status = _valid_status()
     status["same_day_three_layer"]["attempted_now"] = 3
     with pytest.raises(Exception, match="THREE_LAYER_ATTEMPT_ACCOUNTING_MISMATCH"):
+        _verify(status)
+
+
+def test_deployment_attester_and_renderer_pin_the_same_three_layer_entrypoint():
+    def load(path: str, name: str):
+        spec = importlib.util.spec_from_file_location(name, Path(path))
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+
+    attester = load("deploy/attest-weather-paper-runtime.py", "weather_attester_exact")
+    renderer = load("deploy/render-weather-paper-unit.py", "weather_renderer_exact")
+    expected = "polymarket_scanner.weather_only_live_paper_three_layer_validation"
+    assert attester.FINAL_WEATHER_MODULE == expected
+    assert renderer.FINAL_WEATHER_MODULE == expected
+    assert "weather_only_live_paper_three_layer_validation.py" in attester.KNOWN_WEATHER_WRITER_MARKERS
+
+
+def test_status_verifier_requires_eligibility_scan_deadline_identity():
+    status = _valid_status()
+    status["same_day_three_layer"].pop("eligibility_scan_deadline_seconds")
+    with pytest.raises(Exception, match="THREE_LAYER_ELIGIBILITY_DEADLINE_MISMATCH"):
         _verify(status)

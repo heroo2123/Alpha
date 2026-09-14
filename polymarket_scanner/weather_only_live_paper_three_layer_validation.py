@@ -50,6 +50,7 @@ THREE_LAYER_SELECTION_POLICY = "PERSISTENT_ROUND_ROBIN_ELIGIBLE_V1"
 THREE_LAYER_SELECTION_UNIVERSE_CAP = 12
 THREE_LAYER_MAX_EVENTS_PER_CYCLE = 4
 THREE_LAYER_SOURCE_BUNDLE_DEADLINE_SECONDS = 35.0
+THREE_LAYER_ELIGIBILITY_SCAN_DEADLINE_SECONDS = 30.0
 THREE_LAYER_CURSOR_KEY = "same_day_three_layer_rotation_cursor_v1"
 # Each admitted event is durably throttled to one saved capture/hour by the inherited
 # collector. Restricting the rotating universe to 12 therefore bounds saved rows to
@@ -122,8 +123,20 @@ class ThreeLayerValidationWeatherLivePaperService(FinalWeatherLivePaperService):
         eligible: list[tuple[str, dict, object, object, object]] = []
         errors: list[str] = []
         seen_event_ids: set[str] = set()
+        loop = asyncio.get_running_loop()
+        scan_deadline = loop.time() + THREE_LAYER_ELIGIBILITY_SCAN_DEADLINE_SECONDS
+
+        def timeout_result():
+            self._three_layer_last_eligible_total = len(eligible)
+            self._three_layer_last_selected_ids = ()
+            self._three_layer_last_universe_truncated = True
+            if "SAME_DAY_ELIGIBILITY_SCAN_TIMEOUT" not in errors:
+                errors.append("SAME_DAY_ELIGIBILITY_SCAN_TIMEOUT")
+            return [], errors
 
         for event in events:
+            if loop.time() >= scan_deadline:
+                return timeout_result()
             if not isinstance(event, dict):
                 continue
             try:
@@ -145,11 +158,19 @@ class ThreeLayerValidationWeatherLivePaperService(FinalWeatherLivePaperService):
             if not semantics.layer1_adapter_capable:
                 continue
             try:
-                metadata = await self._station_metadata_for_compiled(compiled)
+                remaining = scan_deadline - loop.time()
+                if remaining <= 0.0:
+                    raise TimeoutError
+                metadata = await asyncio.wait_for(
+                    self._station_metadata_for_compiled(compiled),
+                    timeout=remaining,
+                )
                 if metadata is None:
                     continue
                 zone = ZoneInfo(str(metadata.timezone))
                 local_today = datetime.now(tz=zone).date()
+            except TimeoutError:
+                return timeout_result()
             except (ZoneInfoNotFoundError, AttributeError, ValueError) as exc:
                 errors.append(f"SAME_DAY_STATION:{event_id}:{type(exc).__name__}")
                 continue
@@ -237,6 +258,7 @@ class ThreeLayerValidationWeatherLivePaperService(FinalWeatherLivePaperService):
                 "selection_coverage_complete": not self._three_layer_last_universe_truncated,
                 "max_events_per_cycle": THREE_LAYER_MAX_EVENTS_PER_CYCLE,
                 "source_bundle_deadline_seconds": THREE_LAYER_SOURCE_BUNDLE_DEADLINE_SECONDS,
+                "eligibility_scan_deadline_seconds": THREE_LAYER_ELIGIBILITY_SCAN_DEADLINE_SECONDS,
                 "theoretical_31_day_row_bound_at_full_daily_eligibility": (
                     THREE_LAYER_31D_CAPTURE_ROW_BOUND
                 ),

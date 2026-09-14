@@ -20,6 +20,7 @@ from polymarket_scanner.weather_only_live_paper_three_layer_validation import ( 
     THREE_LAYER_CAPTURE_JSON_BYTES_CAP,
     THREE_LAYER_ATTEMPT_ROW_CAP,
     THREE_LAYER_MAX_EVENTS_PER_CYCLE,
+    THREE_LAYER_ELIGIBILITY_SCAN_DEADLINE_SECONDS,
     THREE_LAYER_SELECTION_POLICY,
     THREE_LAYER_SELECTION_UNIVERSE_CAP,
     THREE_LAYER_SOURCE_BUNDLE_DEADLINE_SECONDS,
@@ -139,6 +140,8 @@ def verify(
         raise ThreeLayerStatusError("THREE_LAYER_SELECTED_EVENT_COUNT_MISMATCH")
     if lane.get("source_bundle_deadline_seconds") != THREE_LAYER_SOURCE_BUNDLE_DEADLINE_SECONDS:
         raise ThreeLayerStatusError("THREE_LAYER_SOURCE_DEADLINE_MISMATCH")
+    if lane.get("eligibility_scan_deadline_seconds") != THREE_LAYER_ELIGIBILITY_SCAN_DEADLINE_SECONDS:
+        raise ThreeLayerStatusError("THREE_LAYER_ELIGIBILITY_DEADLINE_MISMATCH")
     if lane.get("theoretical_31_day_row_bound_at_full_daily_eligibility") != THREE_LAYER_31D_CAPTURE_ROW_BOUND:
         raise ThreeLayerStatusError("THREE_LAYER_STORAGE_BOUND_MISMATCH")
     if lane.get("capture_json_bytes_cap") != THREE_LAYER_CAPTURE_JSON_BYTES_CAP:
