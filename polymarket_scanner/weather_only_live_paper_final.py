@@ -13,6 +13,7 @@ import argparse
 import asyncio
 import hashlib
 import json
+import re
 import time
 from pathlib import Path
 
@@ -37,8 +38,26 @@ from .weather_only_paper_recovery_final import FinalCrashSafeWeatherPaperStore
 from .weather_only_runtime_lease import WeatherPaperRuntimeLease
 
 
-FINAL_PAPER_RUNTIME_VERSION = "weather_live_paper_final_v3_b1_b6_exact_recovery_boundary"
-FINAL_MARKET_STATE_POLICY = "GAMMA_SELECTED_MARKET_OPEN_ACCEPTING_ORDERBOOK_V1"
+FINAL_PAPER_RUNTIME_VERSION = "weather_live_paper_final_v4_fresh_gamma_semantic_binding"
+FINAL_MARKET_STATE_POLICY = "GAMMA_SELECTED_MARKET_OPEN_SEMANTICALLY_BOUND_V2"
+_FRESH_RULE_FIELDS = (
+    "description",
+    "rules",
+    "resolutionRules",
+    "resolution_rules",
+    "resolutionCriteria",
+    "resolution_criteria",
+    "settlementRules",
+    "settlement_rules",
+    "settlementCriteria",
+    "settlement_criteria",
+)
+_FRESH_SOURCE_FIELDS = (
+    "resolutionSource",
+    "resolution_source",
+    "settlementSource",
+    "settlement_source",
+)
 
 
 class FinalPaperInvariantError(RuntimeError):
@@ -57,6 +76,12 @@ def _sha(value: object) -> str:
     return hashlib.sha256(_canonical(value).encode("utf-8")).hexdigest()
 
 
+def _norm_semantic_text(value: object) -> str:
+    text = str(value or "")
+    text = text.replace("“", '"').replace("”", '"').replace("’", "'").replace("‘", "'")
+    return re.sub(r"\s+", " ", text).strip().lower()
+
+
 def _listish(value: object) -> tuple[str, ...]:
     if isinstance(value, (list, tuple)):
         return tuple(str(item) for item in value)
@@ -70,11 +95,27 @@ def _listish(value: object) -> tuple[str, ...]:
     return ()
 
 
+def _selected_market_question(event: dict, market_id: str) -> str:
+    for row in event.get("markets") or []:
+        if not isinstance(row, dict):
+            continue
+        if str(row.get("id") or "").strip() != str(market_id):
+            continue
+        question = _norm_semantic_text(row.get("question"))
+        if question:
+            return question
+        break
+    raise FinalPaperInvariantError("FINAL_FROZEN_MARKET_QUESTION_MISSING")
+
+
 class FinalWeatherLivePaperService(WeatherLivePaperCorrectiveService):
     def __init__(self, **kwargs) -> None:
         db_path = kwargs.get("db_path")
         if db_path is None:
             raise FinalPaperInvariantError("FINAL_DB_PATH_REQUIRED")
+        # The corrective parent now independently takes the same lease.  The lease is
+        # process-reentrant, so layered admission is safe while a second process still
+        # fails on the kernel flock.
         self._runtime_lease = WeatherPaperRuntimeLease(db_path)
         try:
             super().__init__(**kwargs)
@@ -150,10 +191,20 @@ class FinalWeatherLivePaperService(WeatherLivePaperCorrectiveService):
             return None
         release = self.release_sha()
         config = self._decision_config()
+        frozen_question = _selected_market_question(event, str(candidate.get("market_id") or ""))
+        frozen_market_semantics = {
+            "market_id": str(candidate.get("market_id") or ""),
+            "question": frozen_question,
+            "operative_rules": str(rule_identity.get("operative_rules") or ""),
+            "operative_source": str(rule_identity.get("operative_source") or ""),
+        }
+        frozen_market_semantics_sha = _sha(frozen_market_semantics)
         candidate.update({
             "strict_contract_version": rule_identity["version"],
             "strict_contract_identity": rule_identity,
             "strict_contract_sha256": rule_identity["sha256"],
+            "frozen_market_semantics": frozen_market_semantics,
+            "frozen_market_semantics_sha256": frozen_market_semantics_sha,
             "release_sha": release,
             "decision_config": config,
             "decision_config_sha256": _sha(config),
@@ -161,6 +212,7 @@ class FinalWeatherLivePaperService(WeatherLivePaperCorrectiveService):
         candidate["decision_semantic_digest"] = _sha({
             "base_semantic_digest": candidate.get("semantic_digest"),
             "strict_contract_sha256": rule_identity["sha256"],
+            "frozen_market_semantics_sha256": frozen_market_semantics_sha,
             "release_sha": release,
             "decision_config_sha256": candidate["decision_config_sha256"],
         })
@@ -173,6 +225,9 @@ class FinalWeatherLivePaperService(WeatherLivePaperCorrectiveService):
         market_id: str,
         condition_id: str,
         expected_tokens: set[str],
+        expected_question: str | None = None,
+        expected_rules: str | None = None,
+        expected_source: str | None = None,
     ) -> dict:
         if not isinstance(market, dict):
             raise FinalPaperInvariantError("FINAL_MARKET_STATE_UNAVAILABLE")
@@ -187,6 +242,32 @@ class FinalWeatherLivePaperService(WeatherLivePaperCorrectiveService):
             raise FinalPaperInvariantError("FINAL_MARKET_CONDITION_MISMATCH")
         if tokens != set(expected_tokens):
             raise FinalPaperInvariantError("FINAL_MARKET_TOKEN_SET_MISMATCH")
+
+        current_question = _norm_semantic_text(market.get("question"))
+        if expected_question is not None:
+            if not current_question or current_question != _norm_semantic_text(expected_question):
+                raise FinalPaperInvariantError("FINAL_MARKET_QUESTION_CHANGED")
+
+        expected_rules_norm = _norm_semantic_text(expected_rules)
+        for field in _FRESH_RULE_FIELDS:
+            if field not in market or market.get(field) in (None, ""):
+                continue
+            value = market.get(field)
+            if not isinstance(value, str):
+                raise FinalPaperInvariantError("FINAL_MARKET_RULE_FIELD_INVALID")
+            if not expected_rules_norm or _norm_semantic_text(value) != expected_rules_norm:
+                raise FinalPaperInvariantError("FINAL_MARKET_RULES_CHANGED")
+
+        expected_source_norm = _norm_semantic_text(expected_source)
+        for field in _FRESH_SOURCE_FIELDS:
+            if field not in market or market.get(field) in (None, ""):
+                continue
+            value = market.get(field)
+            if not isinstance(value, str):
+                raise FinalPaperInvariantError("FINAL_MARKET_SOURCE_FIELD_INVALID")
+            if not expected_source_norm or _norm_semantic_text(value) != expected_source_norm:
+                raise FinalPaperInvariantError("FINAL_MARKET_SOURCE_CHANGED")
+
         if market.get("active") is not True:
             raise FinalPaperInvariantError("FINAL_MARKET_NOT_ACTIVE")
         if market.get("closed") is not False:
@@ -200,6 +281,7 @@ class FinalWeatherLivePaperService(WeatherLivePaperCorrectiveService):
             "market_id": actual_id,
             "condition_id": actual_condition,
             "clob_token_ids": sorted(tokens),
+            "question": current_question,
             "active": True,
             "closed": False,
             "accepting_orders": True,
@@ -218,6 +300,12 @@ class FinalWeatherLivePaperService(WeatherLivePaperCorrectiveService):
         if _sha(current_config) != str(candidate.get("decision_config_sha256") or ""):
             raise FinalPaperInvariantError("FINAL_CONFIG_CHANGED_BEFORE_DISPATCH")
 
+        frozen_market = candidate.get("frozen_market_semantics")
+        if not isinstance(frozen_market, dict):
+            raise FinalPaperInvariantError("FINAL_FROZEN_MARKET_SEMANTICS_MISSING")
+        if _sha(frozen_market) != str(candidate.get("frozen_market_semantics_sha256") or ""):
+            raise FinalPaperInvariantError("FINAL_FROZEN_MARKET_SEMANTICS_TAMPERED")
+
         fresh = await super()._dispatch_recheck(candidate, event)
         if fresh is None:
             return None
@@ -231,6 +319,9 @@ class FinalWeatherLivePaperService(WeatherLivePaperCorrectiveService):
             market_id=market_id,
             condition_id=condition_id,
             expected_tokens=expected_tokens,
+            expected_question=str(frozen_market.get("question") or ""),
+            expected_rules=str(frozen_market.get("operative_rules") or ""),
+            expected_source=str(frozen_market.get("operative_source") or ""),
         )
         state_received_at = time.time()
         if state_received_at >= float(fresh.get("decision_expires_at") or 0.0):
@@ -243,6 +334,8 @@ class FinalWeatherLivePaperService(WeatherLivePaperCorrectiveService):
             "strict_contract_version": current_rule["version"],
             "strict_contract_identity": current_rule,
             "strict_contract_sha256": current_rule["sha256"],
+            "frozen_market_semantics": frozen_market,
+            "frozen_market_semantics_sha256": candidate["frozen_market_semantics_sha256"],
             "release_sha": current_release,
             "decision_config": current_config,
             "decision_config_sha256": _sha(current_config),
@@ -254,6 +347,7 @@ class FinalWeatherLivePaperService(WeatherLivePaperCorrectiveService):
         fresh["decision_semantic_digest"] = _sha({
             "base_semantic_digest": fresh.get("semantic_digest"),
             "strict_contract_sha256": fresh["strict_contract_sha256"],
+            "frozen_market_semantics_sha256": fresh["frozen_market_semantics_sha256"],
             "release_sha": fresh["release_sha"],
             "decision_config_sha256": fresh["decision_config_sha256"],
             "current_market_state_sha256": fresh["current_market_state_sha256"],
