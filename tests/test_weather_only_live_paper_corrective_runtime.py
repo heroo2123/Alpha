@@ -41,6 +41,20 @@ class _CaptureStore:
         }
 
 
+class _PWSStore:
+    def summary(self):
+        return {
+            "total": 0,
+            "available": 0,
+            "contradictions": 0,
+            "predictive_only": True,
+            "may_replace_official_observation": False,
+            "may_reweight_probability": False,
+            "same_day_delivery_enabled": False,
+            "financial_authority": False,
+        }
+
+
 def test_discovery_proxy_reuses_exact_base_cycle_generation_and_delegates_attributes():
     source = _Discovery()
     proxy = _CapturingDiscoveryProxy(source)
@@ -55,6 +69,7 @@ def test_persisted_capture_time_skips_network_acquisition_after_process_restart(
     service = object.__new__(WeatherLivePaperCorrectiveService)
     now = time.time()
     service.same_day_captures = _CaptureStore(now - SAME_DAY_CAPTURE_COOLDOWN_SECONDS / 2.0)
+    service.same_day_pws = _PWSStore()
     service._same_day_last_attempt = {}
 
     async def eligible(_events):
@@ -72,6 +87,10 @@ def test_persisted_capture_time_skips_network_acquisition_after_process_restart(
     assert result["attempted_now"] == 0
     assert result["cadence_skipped_now"] == 1
     assert result["saved_now"] == 0
+    assert result["pws_saved_now"] == 0
+    assert result["pws_predictive_only"] is True
+    assert result["pws_may_replace_official_observation"] is False
+    assert result["pws_may_reweight_probability"] is False
     assert result["capture_cadence_persisted_in_sqlite"] is True
     assert result["telegram_delivery"] is False
     assert result["included_in_validated_pnl"] is False
