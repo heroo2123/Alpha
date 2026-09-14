@@ -1,0 +1,77 @@
+name: three-layer-live-universe-probe
+
+on:
+  push:
+    branches:
+      - weather-three-layer-dst-hardening-2026-09-15
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements.txt
+      - name: Count exact current same-day eligible events without delivery
+        run: |
+          python - <<'PY'
+          import asyncio
+          from datetime import datetime, timezone
+          from zoneinfo import ZoneInfo
+          from polymarket_scanner.weather_only_discovery import WeatherOnlyDiscovery
+          from polymarket_scanner.weather_only_contract_strict import compile_strict_temperature_event
+          from polymarket_scanner.weather_only_rules import compile_temperature_rule_authority
+          from polymarket_scanner.weather_only_same_day_contract import build_same_day_contract_semantics
+          from polymarket_scanner.weather_only_three_layer_guarded import GuardedSameDayStationMetadataClient
+
+          async def main():
+              discovery = WeatherOnlyDiscovery()
+              stations = GuardedSameDayStationMetadataClient()
+              cache = {}
+              try:
+                  snapshot = await discovery.discover()
+                  now = datetime.now(timezone.utc)
+                  eligible = []
+                  compile_ok = 0
+                  metadata_errors = []
+                  for event in snapshot.events:
+                      try:
+                          compiled = compile_strict_temperature_event(event)
+                          authority = compile_temperature_rule_authority(event, compiled)
+                          build_same_day_contract_semantics(compiled, authority)
+                      except Exception:
+                          continue
+                      compile_ok += 1
+                      station = str(compiled.station_hint or '').upper()
+                      if not station:
+                          continue
+                      try:
+                          if station not in cache:
+                              cache[station] = await stations.station(station)
+                          meta = cache[station]
+                          today = now.astimezone(ZoneInfo(meta.timezone)).date()
+                      except Exception as exc:
+                          metadata_errors.append((station, getattr(exc, 'code', type(exc).__name__)))
+                          continue
+                      if compiled.target_date == today:
+                          eligible.append((str(compiled.event_id), station, compiled.target_date.isoformat(), compiled.family))
+                  print(f'DISCOVERED_UNIQUE_EVENTS={snapshot.unique_event_count}')
+                  print(f'STRICT_COMPILED_EVENTS={compile_ok}')
+                  print(f'UNIQUE_STATIONS={len(cache)}')
+                  print(f'SAME_DAY_ELIGIBLE_EVENTS={len(eligible)}')
+                  for row in eligible:
+                      print('ELIGIBLE=' + '|'.join(row))
+                  if metadata_errors:
+                      print('METADATA_ERRORS=' + repr(metadata_errors))
+                  assert len(eligible) <= 12, f'LIVE_SAME_DAY_UNIVERSE_EXCEEDS_CAP:{len(eligible)}'
+              finally:
+                  await discovery.close()
+                  await stations.close()
+          asyncio.run(main())
+          PY
