@@ -84,10 +84,15 @@ systemctl is-active --quiet "${UNIT}" 2>/dev/null \
   --max-age-seconds 600 \
   --output "${FIRST_CYCLE_OUT}"
 
-# The final wrapper must also prove the newly required Synoptic/CWOP provider is the
-# configured PWS source while preserving every nonfinancial/silent authority boundary.
+# The inherited final service writes an intermediate canonical status before the
+# Synoptic wrapper appends provider fields. Wait boundedly for the wrapper's fresh
+# status from this exact release rather than racing the intermediate atomic write.
 "${APP_DIR}/.venv/bin/python" "${APP_DIR}/deploy/verify-synoptic-pws-status.py" \
   --status "${STATUS_PATH}" \
+  --release-sha "${EXPECTED_SHA}" \
+  --not-before "${START_ACCEPTANCE_EPOCH}" \
+  --timeout-seconds 60 \
+  --max-age-seconds 600 \
   --output "${SYNOPTIC_STATUS_OUT}"
 
 # Recheck release identity after the process AND first cycle exist, so a checkout or
