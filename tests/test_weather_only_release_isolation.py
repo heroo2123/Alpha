@@ -15,6 +15,7 @@ BACKUP = Path("deploy/pre-release-weather-paper-backup.sh")
 RENDERER = Path("deploy/render-weather-paper-unit.py")
 NETWORK = Path("deploy/check-weather-paper-network.py")
 FIRST_CYCLE = Path("deploy/verify-weather-paper-first-cycle.py")
+THREE_LAYER_STATUS = Path("deploy/verify-three-layer-validation-status.py")
 
 
 def _text(path: Path) -> str:
@@ -42,19 +43,23 @@ def test_prepare_script_does_not_start_enable_or_modify_legacy_release_marker():
     assert 'RELEASE_FILE="${CONFIG_DIR}/release.sha"' not in text
     assert "checkout --detach" in text
     assert "merge-base --is-ancestor" in text
+    assert "systemctl is-enabled" in text
 
 
-def test_prepare_requires_and_import_smokes_exact_final_runtime_before_release_marker():
+def test_prepare_requires_and_import_smokes_exact_three_layer_runtime_before_release_marker():
     text = _text(PREPARE)
     assert "polymarket_scanner/weather_only_paper_recovery_final.py" in text
-    assert 'FINAL_MODULE="polymarket_scanner.weather_only_live_paper_final"' in text
+    assert "polymarket_scanner/weather_only_live_paper_three_layer_validation.py" in text
+    assert "polymarket_scanner/weather_only_three_layer_guarded.py" in text
+    assert "deploy/verify-three-layer-validation-status.py" in text
+    assert 'FINAL_MODULE="polymarket_scanner.weather_only_live_paper_three_layer_validation"' in text
     assert 'import ${FINAL_MODULE}' in text
     import_pos = text.index('import ${FINAL_MODULE}')
     marker_publish_pos = text.index('mv -f "${TMP_MARKER}" "${RELEASE_FILE}"')
     assert import_pos < marker_publish_pos
 
 
-def test_renderer_binds_unit_to_isolated_marker_and_paper_environment():
+def test_renderer_binds_unit_to_isolated_marker_paper_env_and_three_layer_wrapper():
     spec = importlib.util.spec_from_file_location("weather_renderer_isolated", RENDERER)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
@@ -64,6 +69,8 @@ def test_renderer_binds_unit_to_isolated_marker_and_paper_environment():
     assert "EnvironmentFile=/home/test/.config-alpha/weather-paper.env" in unit
     assert "EnvironmentFile=/home/test/.config-alpha/bot.env" not in unit
     assert "WorkingDirectory=/opt/weather-paper" in unit
+    assert "weather_only_live_paper_three_layer_validation" in unit
+    assert "weather_only_live_paper_final" in unit
 
 
 def test_legacy_scanner_service_names_are_not_operated_by_weather_deploy_scripts():
@@ -84,11 +91,19 @@ def test_preflight_requires_legacy_services_disabled_not_merely_stopped():
     assert 'check-weather-paper-service-isolation.sh" --require-disabled' in text
 
 
+def test_start_gate_requires_disabled_candidate_and_three_layer_acceptance():
+    text = _text(START)
+    assert "systemctl is-enabled" in text
+    assert 'sudo systemctl disable "${UNIT}"' in text
+    assert "verify-three-layer-validation-status.py" in text
+    assert "weather-paper-three-layer-runtime-acceptance.json" in text
+
+
 def test_deployment_python_helpers_import_from_unrelated_cwd(tmp_path: Path):
     env = dict(os.environ)
     env.pop("PYTHONPATH", None)
     root = Path.cwd().resolve()
-    for relative in (NETWORK, FIRST_CYCLE):
+    for relative in (NETWORK, FIRST_CYCLE, THREE_LAYER_STATUS):
         script = (root / relative).resolve()
         result = subprocess.run(
             [sys.executable, str(script), "--help"],
