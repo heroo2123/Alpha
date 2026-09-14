@@ -1,0 +1,150 @@
+name: three-layer-round2-hardening
+
+on:
+  push:
+    branches:
+      - weather-three-layer-dst-hardening-2026-09-15
+    paths:
+      - '.github/workflows/three-layer-round2-hardening.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  harden:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Apply round-2 production hardening
+        run: python tools/apply_three_layer_round2_hardening.py
+      - name: Install pinned dependencies
+        run: python -m pip install -r requirements-dev.txt
+      - name: Run focused adversarial regression suite
+        run: |
+          python -m pytest -q \
+            tests/test_weather_only_three_layer_layer2_eligibility.py \
+            tests/test_weather_only_three_layer_validation_guarded.py \
+            tests/test_weather_only_contract_strict_v6.py \
+            tests/test_weather_only_same_day_capture.py \
+            tests/test_weather_only_same_day_capture_cadence.py \
+            tests/test_weather_only_same_day_store.py \
+            tests/test_weather_only_nws_near_term.py \
+            tests/test_weather_only_station_metadata.py \
+            tests/test_weather_only_gefs_hourly.py \
+            tests/test_weather_only_source_caps.py \
+            tests/test_weather_only_deployment_start_gate.py \
+            tests/test_weather_only_persistence_gate.py
+          python -m compileall -q polymarket_scanner tests
+      - name: Live read-only exact same-day Layer-2 census
+        run: |
+          python - <<'PY'
+          import asyncio
+          from collections import Counter
+          from datetime import datetime, timedelta, timezone
+          from zoneinfo import ZoneInfo
+          from polymarket_scanner.weather_only_discovery import WeatherOnlyDiscovery
+          from polymarket_scanner.weather_only_contract_strict import StrictWeatherContractError, compile_strict_temperature_event
+          from polymarket_scanner.weather_only_rules import compile_temperature_rule_authority
+          from polymarket_scanner.weather_only_same_day_contract import build_same_day_contract_semantics
+          from polymarket_scanner.weather_only_three_layer_guarded import GuardedSameDayStationMetadataClient, GuardedNWSNearTermGridClient
+
+          LIMIT=4
+          async def main():
+              d=WeatherOnlyDiscovery()
+              sm=GuardedSameDayStationMetadataClient()
+              nws=GuardedNWSNearTermGridClient()
+              try:
+                  snap=await d.discover()
+                  now=datetime.now(timezone.utc)
+                  plausible={now.date()-timedelta(days=1),now.date(),now.date()+timedelta(days=1)}
+                  candidates=[]; strict_total=0; semantic_skip=0
+                  seen=set()
+                  for event in snap.events:
+                      if not isinstance(event,dict): continue
+                      try:
+                          c=compile_strict_temperature_event(event)
+                          a=compile_temperature_rule_authority(event,c)
+                          s=build_same_day_contract_semantics(c,a)
+                      except StrictWeatherContractError:
+                          continue
+                      strict_total += 1
+                      eid=str(c.event_id)
+                      if eid in seen: continue
+                      seen.add(eid)
+                      if not s.layer1_adapter_capable:
+                          semantic_skip += 1; continue
+                      if c.target_date not in plausible: continue
+                      candidates.append((eid,event,c,s))
+
+                  by_station={}
+                  for row in candidates:
+                      by_station.setdefault(str(row[2].station_hint).upper(),[]).append(row)
+                  sem=asyncio.Semaphore(LIMIT)
+                  async def station(stid,row):
+                      async with sem:
+                          return stid, await sm.station(stid)
+                  ordered=sorted(by_station.items())
+                  resolved=await asyncio.gather(*(station(stid,rows[0]) for stid,rows in ordered), return_exceptions=True)
+                  metas={}; failures=[]
+                  for (stid,_rows),res in zip(ordered,resolved):
+                      if isinstance(res,BaseException): failures.append(('STATION',stid,getattr(res,'code',type(res).__name__))); continue
+                      metas[stid]=res[1]
+                  today=[]
+                  for row in candidates:
+                      stid=str(row[2].station_hint).upper(); m=metas.get(stid)
+                      if m is None: continue
+                      if row[2].target_date == now.astimezone(ZoneInfo(str(m.timezone))).date():
+                          today.append((*row,m))
+                  by_point={}
+                  for row in today:
+                      m=row[4]; key=(round(float(m.latitude),4),round(float(m.longitude),4))
+                      by_point.setdefault(key,[]).append(row)
+                  async def probe(point,row):
+                      async with sem:
+                          m=row[4]
+                          return point, await nws.point_supported(latitude=float(m.latitude),longitude=float(m.longitude))
+                  points=sorted(by_point.items())
+                  pres=await asyncio.gather(*(probe(point,rows[0]) for point,rows in points), return_exceptions=True)
+                  support={}; unsupported_points=0
+                  for (point,rows),res in zip(points,pres):
+                      if isinstance(res,BaseException):
+                          failures.append(('NWS',str(rows[0][2].station_hint),getattr(res,'code',type(res).__name__))); continue
+                      support[point]=bool(res[1]); unsupported_points += int(not bool(res[1]))
+                  supported=[]; unsupported=[]
+                  for row in today:
+                      m=row[4]; key=(round(float(m.latitude),4),round(float(m.longitude),4))
+                      if support.get(key) is True: supported.append(row)
+                      elif key in support: unsupported.append(row)
+                  print('DISCOVERED',snap.unique_event_count)
+                  print('STRICT_TOTAL',strict_total)
+                  print('PLAUSIBLE_DATE_CANDIDATES',len(candidates))
+                  print('UNIQUE_STATIONS_PROBED',len(by_station))
+                  print('TODAY_CANDIDATES',len(today))
+                  print('NWS_SUPPORTED_TODAY',len(supported))
+                  print('NWS_UNSUPPORTED_404_TODAY',len(unsupported))
+                  print('NWS_UNSUPPORTED_STATIONS',sorted({str(x[2].station_hint) for x in unsupported}))
+                  print('PROVIDER_FAILURES',failures)
+                  assert not failures, failures
+                  assert supported, 'NO_NWS_SUPPORTED_SAME_DAY_EVENTS'
+              finally:
+                  await d.close(); await sm.close(); await nws.close()
+          asyncio.run(main())
+          PY
+      - name: Commit only reviewed production plus permanent regression
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            polymarket_scanner/weather_only_three_layer_guarded.py \
+            polymarket_scanner/weather_only_live_paper_three_layer_validation.py \
+            tests/test_weather_only_three_layer_layer2_eligibility.py
+          git diff --cached --check
+          git commit -m 'Fail closed on incomplete Layer-2 eligibility coverage'
+          git push origin HEAD:weather-three-layer-dst-hardening-2026-09-15
