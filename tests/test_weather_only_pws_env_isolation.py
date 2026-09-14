@@ -25,7 +25,7 @@ def test_setup_executes_dedicated_env_allowlist_helper():
     assert "grep -E" not in text
 
 
-def test_extractor_copies_only_telegram_and_optional_synoptic_token(tmp_path):
+def test_extractor_copies_only_telegram_and_required_synoptic_token(tmp_path):
     source = tmp_path / "bot.env"
     output = tmp_path / "weather-paper.env"
     source.write_text(
@@ -57,16 +57,18 @@ def test_extractor_copies_only_telegram_and_optional_synoptic_token(tmp_path):
     assert output.stat().st_mode & 0o077 == 0
 
 
-def test_synoptic_token_is_optional_for_install_but_absent_if_not_configured(tmp_path):
-    source = tmp_path / "bot.env"
-    output = tmp_path / "weather-paper.env"
-    source.write_text(
+def test_missing_or_empty_synoptic_token_is_rejected(tmp_path):
+    cases = [
         "TELEGRAM_BOT_TOKEN=tg-secret\nTELEGRAM_CHAT_ID=12345\n",
-        encoding="utf-8",
-    )
-    result = _run(source, output)
-    assert result.returncode == 0
-    assert "SYNOPTIC_PWS_TOKEN" not in output.read_text(encoding="utf-8")
+        "TELEGRAM_BOT_TOKEN=tg-secret\nTELEGRAM_CHAT_ID=12345\nSYNOPTIC_PWS_TOKEN=\n",
+    ]
+    for index, text in enumerate(cases):
+        source = tmp_path / f"bot-missing-{index}.env"
+        output = tmp_path / f"out-missing-{index}.env"
+        source.write_text(text, encoding="utf-8")
+        result = _run(source, output)
+        assert result.returncode == 2
+        assert not output.exists()
 
 
 def test_duplicate_synoptic_token_is_rejected_without_writing_output(tmp_path):
@@ -79,16 +81,16 @@ def test_duplicate_synoptic_token_is_rejected_without_writing_output(tmp_path):
     )
     result = _run(source, output)
     assert result.returncode == 2
-    assert result.stdout.strip() == "SYNOPTIC_PWS_TOKEN_DUPLICATED"
+    assert result.stdout.strip() == "SYNOPTIC_PWS_TOKEN_MISSING_OR_DUPLICATED"
     assert not output.exists()
 
 
 def test_missing_or_duplicate_telegram_credentials_are_rejected(tmp_path):
     cases = [
-        "TELEGRAM_CHAT_ID=y\n",
-        "TELEGRAM_BOT_TOKEN=x\n",
-        "TELEGRAM_BOT_TOKEN=x\nTELEGRAM_BOT_TOKEN=z\nTELEGRAM_CHAT_ID=y\n",
-        "TELEGRAM_BOT_TOKEN=x\nTELEGRAM_CHAT_ID=y\nTELEGRAM_CHAT_ID=z\n",
+        "TELEGRAM_CHAT_ID=y\nSYNOPTIC_PWS_TOKEN=t\n",
+        "TELEGRAM_BOT_TOKEN=x\nSYNOPTIC_PWS_TOKEN=t\n",
+        "TELEGRAM_BOT_TOKEN=x\nTELEGRAM_BOT_TOKEN=z\nTELEGRAM_CHAT_ID=y\nSYNOPTIC_PWS_TOKEN=t\n",
+        "TELEGRAM_BOT_TOKEN=x\nTELEGRAM_CHAT_ID=y\nTELEGRAM_CHAT_ID=z\nSYNOPTIC_PWS_TOKEN=t\n",
     ]
     for index, text in enumerate(cases):
         source = tmp_path / f"bot-{index}.env"
