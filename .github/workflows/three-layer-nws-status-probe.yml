@@ -1,0 +1,52 @@
+name: three-layer-nws-status-probe
+
+on:
+  push:
+    branches:
+      - weather-three-layer-dst-hardening-2026-09-15
+    paths:
+      - '.github/workflows/three-layer-nws-status-probe.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements-dev.txt
+      - name: Inspect NWS points status classes
+        run: |
+          python - <<'PY'
+          import asyncio, json, httpx
+          pts = {
+            'KLGA': (40.77917,-73.88),
+            'KSEA': (47.44472,-122.31361),
+            'EGLL': (51.4706,-0.46194),
+            'LFPG': (49.0128,2.55),
+            'EDDM': (48.3538,11.7861),
+            'LIMC': (45.6306,8.72811),
+            'OCEAN': (0.0,0.0),
+          }
+          async def main():
+            headers={'User-Agent':'Alpha weather research contact heroo2123 GitHub','Accept':'application/geo+json','Accept-Encoding':'identity'}
+            async with httpx.AsyncClient(headers=headers, timeout=12.0, follow_redirects=False) as c:
+              for name,(lat,lon) in pts.items():
+                u=f'https://api.weather.gov/points/{lat:.4f},{lon:.4f}'
+                try:
+                  r=await c.get(u)
+                  body=r.text[:700].replace('\n',' ')
+                  print(name,'STATUS',r.status_code,'CTYPE',r.headers.get('content-type'),'BODY',body)
+                except Exception as e:
+                  print(name,'EXC',type(e).__name__,str(e))
+          asyncio.run(main())
+          PY
+      - name: Locate attempt/cadence and retention call sites
+        run: |
+          grep -R -n -E 'latest_attempt_at_for_event|start_attempt|SAME_DAY_CAPTURE_COOLDOWN_SECONDS|max_attempt_rows|prune|31D|validation_window|selection_coverage_complete' polymarket_scanner tests | head -n 500
