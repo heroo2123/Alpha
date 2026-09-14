@@ -1,5 +1,4 @@
 name: meticulous-three-layer-review-patch
-# third-pass trigger armed
 
 on:
   push:
@@ -11,7 +10,7 @@ permissions:
 
 jobs:
   patch:
-    if: ${{ github.event.head_commit.message == 'Run meticulous three-layer third pass' }}
+    if: ${{ github.event.head_commit.message == 'Run corrected meticulous three-layer third pass' }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -21,7 +20,9 @@ jobs:
         with:
           python-version: '3.12'
       - name: Apply third reviewed hardening patch
-        run: python tools/meticulous_three_layer_finalization.py
+        run: |
+          python tools/meticulous_three_layer_finalization.py
+          python tools/meticulous_three_layer_transport_fixup.py
       - name: Commit patch locally before release-attestation tests
         shell: bash
         run: |
