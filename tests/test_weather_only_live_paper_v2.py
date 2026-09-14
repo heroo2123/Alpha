@@ -35,8 +35,6 @@ def test_v2_surface_contains_no_wallet_or_order_placement_api():
         "private_key",
         "wallet",
     )
-    # The human-facing text may say that no wallet exists, so only executable/import
-    # forms are forbidden rather than the plain English word in comments/messages.
     for text in forbidden[:-2]:
         assert text not in source
     assert "financial_authority" in source
@@ -108,7 +106,7 @@ def test_renderer_points_to_guarded_tracked_entrypoint():
         Path("/home/test/.polymarket-edge-scanner"),
         "testuser",
     )
-    assert "weather_only_live_paper_final" in unit
+    assert "weather_only_live_paper_synoptic" in unit
     assert "--paper-stake-usd 10" in unit
     assert "MemorySwapMax=0" in unit
     assert "app_trade_only" not in unit
