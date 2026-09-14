@@ -17,18 +17,28 @@ if str(_SCRIPT_ROOT) not in sys.path:
 
 from polymarket_scanner.weather_only_live_paper_three_layer_validation import (  # noqa: E402
     THREE_LAYER_31D_CAPTURE_ROW_BOUND,
-    THREE_LAYER_CAPTURE_JSON_BYTES_CAP,
     THREE_LAYER_ATTEMPT_ROW_CAP,
-    THREE_LAYER_MAX_EVENTS_PER_CYCLE,
+    THREE_LAYER_CAPTURE_JSON_BYTES_CAP,
+    THREE_LAYER_COLLECTION_VERSION,
     THREE_LAYER_ELIGIBILITY_SCAN_DEADLINE_SECONDS,
+    THREE_LAYER_ELIGIBILITY_STATION_CAP,
+    THREE_LAYER_MAX_EVENTS_PER_CYCLE,
     THREE_LAYER_SELECTION_POLICY,
     THREE_LAYER_SELECTION_UNIVERSE_CAP,
     THREE_LAYER_SOURCE_BUNDLE_DEADLINE_SECONDS,
+    THREE_LAYER_STATION_METADATA_CONCURRENCY,
     THREE_LAYER_VALIDATION_RUNTIME_VERSION,
+)
+from polymarket_scanner.weather_only_same_day_capture_store_compressed import (  # noqa: E402
+    COMPRESSED_CAPTURE_STORE_VERSION,
+    CURRENT_CAPTURE_ENCODING,
+    LEGACY_CAPTURE_ENCODING,
+    MAX_COMPRESSED_CAPTURE_BYTES,
+    MAX_UNCOMPRESSED_CAPTURE_BYTES,
 )
 
 
-EXPECTED_COLLECTION_VERSION = "same_day_three_layer_silent_collection_v3_guarded_rotating"
+EXPECTED_COLLECTION_VERSION = THREE_LAYER_COLLECTION_VERSION
 
 
 class ThreeLayerStatusError(RuntimeError):
@@ -53,6 +63,11 @@ def _sha(value: object, code: str) -> str:
 
 def _require_false(payload: dict, key: str, code: str) -> None:
     if payload.get(key) is not False:
+        raise ThreeLayerStatusError(code)
+
+
+def _require_true(payload: dict, key: str, code: str) -> None:
+    if payload.get(key) is not True:
         raise ThreeLayerStatusError(code)
 
 
@@ -116,7 +131,17 @@ def verify(
     if lane.get("selection_universe_truncated") is not False:
         raise ThreeLayerStatusError("THREE_LAYER_SELECTION_UNIVERSE_TRUNCATED")
     if lane.get("selection_coverage_complete") is not True:
-        raise ThreeLayerStatusError("THREE_LAYER_SELECTION_UNIVERSE_TRUNCATED")
+        raise ThreeLayerStatusError("THREE_LAYER_ELIGIBILITY_COVERAGE_INCOMPLETE")
+    station_count = _nonnegative_int(
+        lane.get("eligibility_station_count"), "THREE_LAYER_STATION_COUNT_INVALID"
+    )
+    if lane.get("eligibility_station_cap") != THREE_LAYER_ELIGIBILITY_STATION_CAP:
+        raise ThreeLayerStatusError("THREE_LAYER_STATION_CAP_MISMATCH")
+    if station_count > THREE_LAYER_ELIGIBILITY_STATION_CAP:
+        raise ThreeLayerStatusError("THREE_LAYER_STATION_COUNT_EXCEEDS_CAP")
+    if lane.get("station_metadata_concurrency") != THREE_LAYER_STATION_METADATA_CONCURRENCY:
+        raise ThreeLayerStatusError("THREE_LAYER_STATION_CONCURRENCY_MISMATCH")
+
     eligible_total = _nonnegative_int(
         lane.get("eligible_events_total"), "THREE_LAYER_ELIGIBLE_TOTAL_INVALID"
     )
@@ -148,13 +173,51 @@ def verify(
         raise ThreeLayerStatusError("THREE_LAYER_CAPTURE_BYTE_CAP_MISMATCH")
     if lane.get("attempt_row_cap") != THREE_LAYER_ATTEMPT_ROW_CAP:
         raise ThreeLayerStatusError("THREE_LAYER_ATTEMPT_ROW_CAP_MISMATCH")
+
     store = lane.get("store")
     if not isinstance(store, dict):
         raise ThreeLayerStatusError("THREE_LAYER_STORE_STATUS_MISSING")
+    if store.get("version") != COMPRESSED_CAPTURE_STORE_VERSION:
+        raise ThreeLayerStatusError("THREE_LAYER_STORE_VERSION_MISMATCH")
     if store.get("max_capture_rows") != THREE_LAYER_31D_CAPTURE_ROW_BOUND:
         raise ThreeLayerStatusError("THREE_LAYER_STORE_ROW_CAP_MISMATCH")
     if store.get("max_capture_json_bytes") != THREE_LAYER_CAPTURE_JSON_BYTES_CAP:
         raise ThreeLayerStatusError("THREE_LAYER_STORE_BYTE_CAP_MISMATCH")
+    if store.get("capture_storage_encoding_current") != CURRENT_CAPTURE_ENCODING:
+        raise ThreeLayerStatusError("THREE_LAYER_STORE_ENCODING_MISMATCH")
+    if store.get("legacy_capture_encoding") != LEGACY_CAPTURE_ENCODING:
+        raise ThreeLayerStatusError("THREE_LAYER_STORE_LEGACY_ENCODING_MISMATCH")
+    if store.get("max_uncompressed_capture_bytes") != MAX_UNCOMPRESSED_CAPTURE_BYTES:
+        raise ThreeLayerStatusError("THREE_LAYER_STORE_UNCOMPRESSED_BOUND_MISMATCH")
+    if store.get("max_compressed_capture_bytes") != MAX_COMPRESSED_CAPTURE_BYTES:
+        raise ThreeLayerStatusError("THREE_LAYER_STORE_COMPRESSED_BOUND_MISMATCH")
+    if _nonnegative_int(
+        store.get("unknown_encoding_rows"), "THREE_LAYER_STORE_UNKNOWN_ENCODING_COUNT_INVALID"
+    ) != 0:
+        raise ThreeLayerStatusError("THREE_LAYER_STORE_UNKNOWN_ENCODING_PRESENT")
+    _require_true(store, "lossless_compression", "THREE_LAYER_STORE_COMPRESSION_NOT_PROVEN")
+    _require_true(
+        store,
+        "read_time_digest_verification",
+        "THREE_LAYER_STORE_DIGEST_VERIFICATION_NOT_PROVEN",
+    )
+    _require_true(
+        store,
+        "read_time_sql_identity_verification",
+        "THREE_LAYER_STORE_IDENTITY_VERIFICATION_NOT_PROVEN",
+    )
+    _require_true(store, "bounded_decompression", "THREE_LAYER_STORE_DECOMPRESSION_NOT_BOUNDED")
+    _require_true(
+        store,
+        "legacy_uncompressed_read_compatible",
+        "THREE_LAYER_STORE_LEGACY_COMPATIBILITY_NOT_PROVEN",
+    )
+    storage_bytes = _nonnegative_int(
+        store.get("capture_storage_bytes"), "THREE_LAYER_STORE_STORAGE_BYTES_INVALID"
+    )
+    if storage_bytes > THREE_LAYER_CAPTURE_JSON_BYTES_CAP:
+        raise ThreeLayerStatusError("THREE_LAYER_STORE_STORAGE_BYTES_EXCEED_CAP")
+
     attempts = store.get("attempts")
     if not isinstance(attempts, dict) or attempts.get("max_attempt_rows") != THREE_LAYER_ATTEMPT_ROW_CAP:
         raise ThreeLayerStatusError("THREE_LAYER_STORE_ATTEMPT_CAP_MISMATCH")
@@ -215,6 +278,7 @@ def verify(
         "selection_policy": THREE_LAYER_SELECTION_POLICY,
         "selection_universe_cap": THREE_LAYER_SELECTION_UNIVERSE_CAP,
         "storage_bound_31d": THREE_LAYER_31D_CAPTURE_ROW_BOUND,
+        "storage_encoding": CURRENT_CAPTURE_ENCODING,
         "pws_enabled": False,
         "population_alignment_certified": False,
         "same_day_delivery_enabled": False,
