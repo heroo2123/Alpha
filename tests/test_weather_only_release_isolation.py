@@ -59,7 +59,7 @@ def test_prepare_requires_and_import_smokes_exact_synoptic_runtime_before_releas
     assert import_pos < marker_publish_pos
 
 
-def test_renderer_binds_unit_to_isolated_marker_and_paper_environment():
+def test_renderer_binds_unit_to_isolated_marker_and_synoptic_wrapper():
     spec = importlib.util.spec_from_file_location("weather_renderer_isolated", RENDERER)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
@@ -70,7 +70,7 @@ def test_renderer_binds_unit_to_isolated_marker_and_paper_environment():
     assert "EnvironmentFile=/home/test/.config-alpha/bot.env" not in unit
     assert "WorkingDirectory=/opt/weather-paper" in unit
     assert "weather_only_live_paper_synoptic" in unit
-    assert "weather_only_live_paper_final" in unit
+    assert "weather_only_live_paper_corrective" not in unit
 
 
 def test_legacy_scanner_service_names_are_not_operated_by_weather_deploy_scripts():
