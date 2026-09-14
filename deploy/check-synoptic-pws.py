@@ -17,7 +17,9 @@ from polymarket_scanner.weather_only_pws import (  # noqa: E402
     PWS_STATUS_AVAILABLE,
     PWS_STATUS_NO_FRESH_QC,
 )
-from polymarket_scanner.weather_only_synoptic_pws import SynopticCWOPPWSClient  # noqa: E402
+from polymarket_scanner.weather_only_synoptic_pws_guarded import (  # noqa: E402
+    GuardedSynopticCWOPPWSClient,
+)
 
 
 REFERENCE_LATITUDE = 40.7769
@@ -41,7 +43,7 @@ def _read_token(path: Path) -> str:
 
 
 async def _check(token: str) -> dict:
-    client = SynopticCWOPPWSClient(token=token)
+    client = GuardedSynopticCWOPPWSClient(token=token)
     try:
         snapshot = await client.fetch_snapshot(
             latitude=REFERENCE_LATITUDE,
@@ -51,8 +53,8 @@ async def _check(token: str) -> dict:
     finally:
         await client.close()
     # Zero nearby fresh CWOP stations is not an authentication/network failure. The
-    # deployment can still collect at other settlement locations. Every other status
-    # fails this credential/connectivity gate.
+    # guarded client distinguishes documented invalid-token/HTTP-error variants from
+    # genuine zero-result responses before this acceptance check.
     if snapshot.status not in {PWS_STATUS_AVAILABLE, PWS_STATUS_NO_FRESH_QC}:
         raise RuntimeError(f"SYNOPTIC_PWS_PREFLIGHT_{snapshot.status}")
     return {
