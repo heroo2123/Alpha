@@ -51,7 +51,10 @@ rollback_on_error(){
 }
 trap rollback_on_error EXIT
 
-START_ACCEPTANCE_EPOCH="$(date +%s)"
+# Epoch status timestamps are floating point. Keep the acceptance boundary at matching
+# subsecond resolution so a stale same-SHA status written earlier in this wall-clock
+# second cannot satisfy the new-start freshness gate.
+START_ACCEPTANCE_EPOCH="$("${APP_DIR}/.venv/bin/python" -c 'import time; print(f"{time.time():.9f}")')"
 start_attempted=1
 sudo systemctl start "${UNIT}"
 
