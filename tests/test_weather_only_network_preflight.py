@@ -58,15 +58,21 @@ def test_preflight_runs_before_backup_or_service_install():
     assert "weather-paper-network-preflight.json" in text
 
 
-def test_network_preflight_uses_public_read_only_paths_and_never_sends_telegram():
+def test_network_preflight_uses_exact_guarded_three_layer_transports_and_never_sends_telegram():
     source = Path("polymarket_scanner/weather_only_network_preflight.py").read_text(encoding="utf-8")
     assert "OPEN_METEO_ENSEMBLE" in source
-    assert "NWSNearTermGridClient" in source
-    assert "NWSWRHLiveClient" in source
+    assert "GuardedNWSNearTermGridClient" in source
+    assert "GuardedNWSWRHLiveClient" in source
+    assert "GuardedOpenMeteoGEFSHourlyClient" in source
+    assert "wrh.close()" in source
     assert "polymarket_gamma" in source
     assert "polymarket_clob" in source
     assert "open_meteo_gefs" in source
     assert "telegram_transport" in source
+    # Do not silently regress this deployment gate to the unguarded transport classes.
+    assert "near = NWSNearTermGridClient()" not in source
+    assert "wrh = NWSWRHLiveClient(" not in source
+    assert "gefs = OpenMeteoGEFSHourlyClient()" not in source
     for forbidden in (
         "sendMessage",
         "TELEGRAM_BOT_TOKEN",
