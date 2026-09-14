@@ -29,7 +29,7 @@ jobs:
         run: |
           git config user.name "OpenAI review hardening"
           git config user.email "83580212+heroo2123@users.noreply.github.com"
-          git add polymarket_scanner tests
+          git add polymarket_scanner tests tools/meticulous_three_layer_preflight_fix.py
           git diff --cached --quiet && { echo "No application changes produced"; exit 1; }
           git commit -m "Probe guarded station metadata before deployment"
       - name: Install exact test dependencies
