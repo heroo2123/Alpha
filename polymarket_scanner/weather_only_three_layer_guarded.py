@@ -576,6 +576,7 @@ class GuardedOpenMeteoGEFSHourlyClient(OpenMeteoGEFSHourlyClient):
             "models": GEFS_HOURLY_PROVIDER_MODEL,
             "temporal_resolution": GEFS_HOURLY_TEMPORAL_RESOLUTION,
             "temperature_unit": "fahrenheit" if unit == "F" else "celsius",
+            "timeformat": "unixtime",
             "timezone": timezone,
             "start_date": target_date.isoformat(),
             "end_date": target_date.isoformat(),

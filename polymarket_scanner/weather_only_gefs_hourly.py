@@ -34,7 +34,7 @@ import json
 import math
 import time
 from dataclasses import asdict, dataclass, field
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import httpx
@@ -137,30 +137,47 @@ def _local_target_bounds(target: date, timezone_name: str) -> tuple[float, float
     return start.timestamp(), end.timestamp()
 
 
-def _parse_local_valid_times(raw_times: object, *, target: date, timezone_name: str) -> tuple[float, ...]:
+def _raw_time_format(raw_times: object) -> str:
     if not isinstance(raw_times, list) or not raw_times:
         raise GEFSHourlyError("GEFS_HOURLY_TIME_SERIES_INVALID")
+    if all(isinstance(raw, str) and raw.strip() and raw == raw.strip() for raw in raw_times):
+        return "iso8601"
+    if all(
+        not isinstance(raw, bool)
+        and isinstance(raw, (int, float))
+        and math.isfinite(float(raw))
+        for raw in raw_times
+    ):
+        return "unixtime"
+    raise GEFSHourlyError("GEFS_HOURLY_TIME_VALUE_INVALID")
+
+
+def _parse_local_valid_times(raw_times: object, *, target: date, timezone_name: str) -> tuple[float, ...]:
+    time_format = _raw_time_format(raw_times)
     try:
         zone = ZoneInfo(timezone_name)
     except ZoneInfoNotFoundError:
         raise GEFSHourlyError("GEFS_HOURLY_TIMEZONE_INVALID") from None
 
     parsed: list[float] = []
-    seen_raw: set[str] = set()
+    seen_raw: set[object] = set()
     for raw in raw_times:
-        if not isinstance(raw, str) or not raw.strip() or raw != raw.strip():
-            raise GEFSHourlyError("GEFS_HOURLY_TIME_VALUE_INVALID")
         if raw in seen_raw:
-            # Local timestamps without offsets cannot disambiguate a repeated DST
-            # wall-clock hour. Refuse rather than silently selecting fold=0.
             raise GEFSHourlyError("GEFS_HOURLY_TIME_DUPLICATE_OR_DST_AMBIGUOUS")
         seen_raw.add(raw)
-        try:
-            value = datetime.fromisoformat(raw.replace("Z", "+00:00"))
-        except ValueError:
-            raise GEFSHourlyError("GEFS_HOURLY_TIME_VALUE_INVALID") from None
-        if value.tzinfo is None or value.utcoffset() is None:
-            value = value.replace(tzinfo=zone)
+        if time_format == "unixtime":
+            epoch = _finite(raw, "GEFS_HOURLY_TIME_VALUE_INVALID")
+            try:
+                value = datetime.fromtimestamp(epoch, tz=timezone.utc)
+            except (OSError, OverflowError, ValueError):
+                raise GEFSHourlyError("GEFS_HOURLY_TIME_VALUE_INVALID") from None
+        else:
+            try:
+                value = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+            except ValueError:
+                raise GEFSHourlyError("GEFS_HOURLY_TIME_VALUE_INVALID") from None
+            if value.tzinfo is None or value.utcoffset() is None:
+                value = value.replace(tzinfo=zone)
         local = value.astimezone(zone)
         if local.date() != target:
             raise GEFSHourlyError("GEFS_HOURLY_TIME_OUTSIDE_TARGET_LOCAL_DATE")
@@ -305,15 +322,17 @@ def parse_open_meteo_gefs_hourly_target_day(
     units = payload.get("hourly_units")
     if not isinstance(hourly, dict) or not isinstance(units, dict):
         raise GEFSHourlyError("GEFS_HOURLY_SCHEMA_INVALID")
+    raw_times = hourly.get("time")
+    expected_time_unit = _raw_time_format(raw_times)
     valid_times = _parse_local_valid_times(
-        hourly.get("time"), target=target_date, timezone_name=timezone
+        raw_times, target=target_date, timezone_name=timezone
     )
     expected_keys = _member_keys()
     if set(str(key) for key in hourly if key != "time") != set(expected_keys):
         raise GEFSHourlyError("GEFS_HOURLY_MEMBER_SCHEMA_DRIFT")
     if set(str(key) for key in units) != {"time", *expected_keys}:
         raise GEFSHourlyError("GEFS_HOURLY_UNIT_SCHEMA_DRIFT")
-    if str(units.get("time") or "") != "iso8601":
+    if str(units.get("time") or "") != expected_time_unit:
         raise GEFSHourlyError("GEFS_HOURLY_TIME_UNIT_INVALID")
 
     labels = _member_labels()
@@ -508,6 +527,7 @@ class OpenMeteoGEFSHourlyClient:
             "models": GEFS_HOURLY_PROVIDER_MODEL,
             "temporal_resolution": GEFS_HOURLY_TEMPORAL_RESOLUTION,
             "temperature_unit": unit_name,
+            "timeformat": "unixtime",
             "timezone": timezone,
             "start_date": target_date.isoformat(),
             "end_date": target_date.isoformat(),
