@@ -8,10 +8,10 @@ APP_DIR="${ALPHA_WEATHER_APP_DIR:-${HOME}/polymarket-weather-paper-app}"
 CONFIG_DIR="${ALPHA_CONFIG_DIR:-${HOME}/.polymarket-edge-scanner}"
 RELEASE_FILE="${CONFIG_DIR}/weather-paper-release.sha"
 REPOSITORY_URL="${ALPHA_WEATHER_REPOSITORY_URL:-https://github.com/heroo2123/Alpha.git}"
-SOURCE_REF="${ALPHA_WEATHER_SOURCE_REF:-${2:-weather-live-paper-corrective-2026-09-13}}"
+SOURCE_REF="${ALPHA_WEATHER_SOURCE_REF:-${2:-weather-same-day-synoptic-pws-2026-09-14}}"
 RELEASE_SHA="${1:-}"
 UNIT="polymarket-weather-paper.service"
-FINAL_MODULE="polymarket_scanner.weather_only_live_paper_final"
+FINAL_MODULE="polymarket_scanner.weather_only_live_paper_synoptic"
 
 fail(){ printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 
@@ -23,7 +23,7 @@ git check-ref-format --branch "${SOURCE_REF}" >/dev/null 2>&1 \
 if systemctl is-active --quiet "${UNIT}" 2>/dev/null; then
   fail "${UNIT} is active; stop it explicitly before preparing another candidate"
 fi
-if pgrep -af 'polymarket_scanner\.weather_only_live_paper|weather_only_live_paper(_v[234]|_corrective|_final)?\.py' >/dev/null 2>&1; then
+if pgrep -af 'polymarket_scanner\.weather_only_live_paper|weather_only_live_paper(_v[234]|_corrective|_final|_synoptic)?\.py' >/dev/null 2>&1; then
   fail "a weather-paper process is already running outside the stopped service"
 fi
 
@@ -67,8 +67,13 @@ for required in \
   deploy/start-weather-paper-candidate.sh \
   deploy/verify-weather-paper-first-cycle.py \
   deploy/enable-weather-paper-persistence.sh \
+  deploy/extract-weather-paper-env.py \
   polymarket_scanner/weather_only_live_paper_corrective.py \
   polymarket_scanner/weather_only_live_paper_final.py \
+  polymarket_scanner/weather_only_live_paper_synoptic.py \
+  polymarket_scanner/weather_only_synoptic_pws.py \
+  polymarket_scanner/weather_only_pws.py \
+  polymarket_scanner/weather_only_pws_store.py \
   polymarket_scanner/weather_only_paper_recovery.py \
   polymarket_scanner/weather_only_paper_recovery_final.py \
   polymarket_scanner/weather_only_runtime_attestation.py \
@@ -80,7 +85,7 @@ for required in \
 done
 
 grep -qF "${FINAL_MODULE}" "${APP_DIR}/deploy/render-weather-paper-unit.py" \
-  || fail "candidate renderer does not point to final guarded weather-paper entrypoint"
+  || fail "candidate renderer does not point to Synoptic final guarded weather-paper entrypoint"
 grep -qF 'weather-paper-release.sha' "${APP_DIR}/deploy/render-weather-paper-unit.py" \
   || fail "candidate does not use an isolated weather-paper release marker"
 
@@ -110,7 +115,7 @@ PY
 # no-start smoke test and catches missing internal files/imports before any service
 # installation or live-paper process is attempted.
 PYTHONPATH="${APP_DIR}" "${APP_DIR}/.venv/bin/python" -c \
-  "import ${FINAL_MODULE}; print('Final weather-paper runtime import passed.')"
+  "import ${FINAL_MODULE}; print('Final Synoptic weather-paper runtime import passed.')"
 
 mkdir -p "${CONFIG_DIR}"
 umask 077
