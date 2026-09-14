@@ -1,0 +1,118 @@
+name: three-layer-adversarial-review-round2
+
+on:
+  push:
+    branches:
+      - weather-three-layer-dst-hardening-2026-09-15
+    paths:
+      - '.github/workflows/three-layer-adversarial-review-round2.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  review:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install pinned dependencies
+        run: python -m pip install -r requirements-dev.txt
+      - name: Focused regression suite
+        run: |
+          python -m pytest -q \
+            tests/test_weather_only_contract_strict_v6.py \
+            tests/test_weather_only_three_layer_validation_guarded.py \
+            tests/test_weather_only_same_day_capture.py \
+            tests/test_weather_only_same_day_capture_cadence.py \
+            tests/test_weather_only_same_day_store.py \
+            tests/test_weather_only_nws_near_term.py \
+            tests/test_weather_only_station_metadata.py \
+            tests/test_weather_only_gefs_hourly.py \
+            tests/test_weather_only_source_caps.py \
+            tests/test_weather_only_deployment_start_gate.py \
+            tests/test_weather_only_persistence_gate.py
+      - name: Print review-critical source excerpts
+        run: |
+          echo '=== LIVE VALIDATION RUNTIME ==='
+          nl -ba polymarket_scanner/weather_only_live_paper_three_layer_validation.py | sed -n '1,340p'
+          echo '=== GUARDED CLIENTS ==='
+          nl -ba polymarket_scanner/weather_only_three_layer_guarded.py | sed -n '1,520p'
+          echo '=== CAPTURE STORE ==='
+          nl -ba polymarket_scanner/weather_only_same_day_capture_store.py | sed -n '1,420p'
+          echo '=== NWS NEAR TERM ==='
+          nl -ba polymarket_scanner/weather_only_nws_near_term.py | sed -n '1,340p'
+          echo '=== STATION METADATA ==='
+          nl -ba polymarket_scanner/weather_only_station_metadata.py | sed -n '1,280p'
+      - name: Live read-only Layer-2 capability probes
+        run: |
+          python - <<'PY'
+          import asyncio
+          from polymarket_scanner.weather_only_three_layer_guarded import GuardedSameDayStationMetadataClient, GuardedNWSNearTermGridClient
+
+          STATIONS = ('KLGA','KSEA','EGLL','LFPG','EDDM','LIMC')
+
+          async def main():
+              station_client = GuardedSameDayStationMetadataClient()
+              nws = GuardedNWSNearTermGridClient()
+              try:
+                  for station in STATIONS:
+                      try:
+                          meta = await station_client.station(station)
+                          print('META', station, getattr(meta,'latitude',None), getattr(meta,'longitude',None), getattr(meta,'timezone',None))
+                      except Exception as exc:
+                          print('META_FAIL', station, getattr(exc,'code',type(exc).__name__), str(exc))
+                          continue
+                      try:
+                          snap = await nws.fetch_snapshot(station=station, latitude=float(meta.latitude), longitude=float(meta.longitude))
+                          print('NWS_OK', station, getattr(snap,'grid_id',None), getattr(snap,'grid_x',None), getattr(snap,'grid_y',None))
+                      except Exception as exc:
+                          print('NWS_FAIL', station, getattr(exc,'code',type(exc).__name__), str(exc))
+              finally:
+                  await station_client.close()
+                  await nws.close()
+
+          asyncio.run(main())
+          PY
+      - name: Static capacity and lifecycle audit
+        run: |
+          python - <<'PY'
+          import inspect
+          import sqlite3
+          import tempfile
+          from pathlib import Path
+          import polymarket_scanner.weather_only_live_paper_three_layer_validation as r
+          from polymarket_scanner.weather_only_same_day_capture_store import SameDayCaptureStore
+
+          print('CAPS', {
+              'selection_universe': r.THREE_LAYER_SELECTION_UNIVERSE_CAP,
+              'per_cycle': r.THREE_LAYER_MAX_EVENTS_PER_CYCLE,
+              'row_bound': r.THREE_LAYER_31D_CAPTURE_ROW_BOUND,
+              'attempt_cap': r.THREE_LAYER_ATTEMPT_ROW_CAP,
+              'json_cap': r.THREE_LAYER_CAPTURE_JSON_BYTES_CAP,
+              'scan_deadline': r.THREE_LAYER_ELIGIBILITY_SCAN_DEADLINE_SECONDS,
+          })
+          print('STORE_METHODS', [x for x in dir(SameDayCaptureStore) if not x.startswith('_')])
+          source = inspect.getsource(SameDayCaptureStore)
+          for needle in ('max_capture_rows','max_attempt_rows','COUNT(*)','attempt','capture_json','DELETE','prune'):
+              print('\n=== STORE NEEDLE', needle, '===')
+              for i,line in enumerate(source.splitlines(),1):
+                  if needle.lower() in line.lower():
+                      lo=max(1,i-5); hi=min(len(source.splitlines()),i+8)
+                      for j in range(lo,hi+1): print(f'{j:04d}: {source.splitlines()[j-1]}')
+
+          with tempfile.TemporaryDirectory() as td:
+              db=Path(td)/'x.sqlite'
+              store=SameDayCaptureStore(db,max_capture_rows=3,max_capture_json_bytes=100000,max_attempt_rows=2)
+              con=sqlite3.connect(db)
+              try:
+                  print('TABLES', con.execute("select name, sql from sqlite_master where type='table' order by name").fetchall())
+              finally:
+                  con.close()
+          PY
+      - name: Full syntax compile
+        run: python -m compileall -q polymarket_scanner tests
