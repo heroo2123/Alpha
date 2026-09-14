@@ -71,6 +71,7 @@ for required in \
   polymarket_scanner/weather_only_live_paper_final.py \
   polymarket_scanner/weather_only_live_paper_synoptic.py \
   polymarket_scanner/weather_only_synoptic_pws.py \
+  polymarket_scanner/weather_only_synoptic_pws_guarded.py \
   polymarket_scanner/weather_only_pws.py \
   polymarket_scanner/weather_only_pws_store.py \
   polymarket_scanner/weather_only_paper_recovery.py \
