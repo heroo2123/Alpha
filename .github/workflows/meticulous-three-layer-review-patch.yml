@@ -1,4 +1,5 @@
 name: meticulous-three-layer-review-patch
+# guarded station metadata preflight trigger armed
 
 on:
   push:
