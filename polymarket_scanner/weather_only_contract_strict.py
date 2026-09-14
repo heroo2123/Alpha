@@ -19,7 +19,7 @@ from .weather_only_contracts import DAILY_HIGH, DAILY_LOW, compile_weather_event
 from .weather_only_rules import apply_rule_authority, compile_temperature_rule_authority
 
 
-STRICT_CONTRACT_VERSION = "weather_contract_strict_v4_operational_text_alias_fail_closed"
+STRICT_CONTRACT_VERSION = "weather_contract_strict_v5_complete_rule_grammar_fail_closed"
 
 
 class StrictWeatherContractError(RuntimeError):
@@ -64,31 +64,12 @@ _OPERATIVE_SOURCE_FIELDS = (
     "settlementSource",
     "settlement_source",
 )
-_RULE_CONFLICT_MARKERS = (
-    "instead of",
-    "rather than",
-    "regardless of",
-    "rules are obsolete",
-    "rule is obsolete",
-    "rules are superseded",
-    "rule is superseded",
-    "rules are overridden",
-    "rule is overridden",
-    "takes precedence",
-    "weather underground only",
-    "weather underground alone",
-    "wunderground only",
-    "wunderground alone",
-    "use the highest bracket",
-    "use the upper bracket",
-    "use the top bracket",
-    "resolve from weather underground only",
-    "resolves from weather underground only",
-)
 
 
 def _norm(value: object) -> str:
-    return re.sub(r"\s+", " ", str(value or "")).strip().lower()
+    text = str(value or "")
+    text = text.replace("“", '"').replace("”", '"').replace("’", "'").replace("‘", "'")
+    return re.sub(r"\s+", " ", text).strip().lower()
 
 
 def _operative_values(container: dict, fields: tuple[str, ...], *, code: str) -> list[str]:
@@ -192,83 +173,62 @@ def _question_supported(question: str, family: str) -> bool:
     ) is not None
 
 
-def _reject_conflicting_rule_semantics(operative_rules: str, family: str) -> None:
-    """Reject settlement overrides instead of letting required phrases mask them.
+def _supported_nws_rule_structure(operative_rules: str, compiled) -> bool:
+    """Whitelist the complete supported recurring NWS rule grammar.
 
-    The authority compiler intentionally recognizes required phrases.  A malicious or
-    malformed rule can contain every required phrase *and* append a conflicting rule.
-    The live-paper boundary therefore rejects common override language, opposite
-    statistic claims, direct YES/NO settlement instructions and non-canonical uses of
-    the Weather Underground fallback.
+    Required-phrase detection is not enough for settlement meaning: a contradictory
+    suffix can preserve every expected phrase.  This recognizer therefore consumes
+    the *entire* operative text.  Anything outside the two explicitly supported NWS
+    recurring templates is rejected.  False negatives are intentional at this
+    financial boundary; a newly worded contract must be reviewed and added as a new
+    versioned grammar rather than guessed at runtime.
     """
+    if compiled.target_date is None or not compiled.station_hint or compiled.unit not in {"F", "C"}:
+        return False
+    if compiled.family not in {DAILY_HIGH, DAILY_LOW}:
+        return False
+
     text = _norm(operative_rules)
-    if any(marker in text for marker in _RULE_CONFLICT_MARKERS):
-        raise StrictWeatherContractError("STRICT_OPERATIVE_RULE_OVERRIDE_UNSUPPORTED")
+    statistic = "highest" if compiled.family == DAILY_HIGH else "lowest"
+    unit_word = "fahrenheit" if compiled.unit == "F" else "celsius"
+    target = compiled.target_date
+    day = rf"0?{target.day}"
+    month = re.escape(target.strftime("%b").lower())
+    year = f"{target.year % 100:02d}"
+    station = re.escape(str(compiled.station_hint).lower())
+    source_url = rf"https://(?:www\.)?weather\.gov/wrh/timeseries\?site={station}"
 
-    # The canonical no-data rule intentionally contains "lowest bracket" even for a
-    # daily-high event.  Remove only that exact allowed phrase before looking for an
-    # opposite-statistic claim.
-    statistic_text = re.sub(r"\blowest\s+bracket\b", "", text)
-    if family == DAILY_HIGH:
-        opposite_patterns = (
-            r"\b(?:lowest|minimum|min)\s+(?:temperature|temp|reading|value)\b",
-            r"\b(?:temperature|temp|reading|value)\b[^.]{0,40}\b(?:lowest|minimum|min)\b",
-        )
-    elif family == DAILY_LOW:
-        opposite_patterns = (
-            r"\b(?:highest|maximum|max)\s+(?:temperature|temp|reading|value)\b",
-            r"\b(?:temperature|temp|reading|value)\b[^.]{0,40}\b(?:highest|maximum|max)\b",
-        )
-    else:
-        raise StrictWeatherContractError("STRICT_FAMILY_UNSUPPORTED")
-    if any(re.search(pattern, statistic_text, re.I) for pattern in opposite_patterns):
-        raise StrictWeatherContractError("STRICT_OPERATIVE_STATISTIC_CONFLICT")
+    public_template = re.compile(
+        rf"^this market resolves to the range containing the {statistic} temperature on "
+        rf"{day} {month} '{year}, in degrees {unit_word}\. "
+        rf"the source is noaa, the {statistic} reading under the \"temp\" column for all times on this day\. "
+        rf"{source_url} "
+        rf"the source measures temperatures to whole degrees {unit_word}\. "
+        rf"if noaa data is unavailable by 11:59 pm et on the day following the observation date, "
+        rf"the weather underground daily observations table is used\. "
+        rf"if there is no data, this market resolves to the lowest bracket\. "
+        rf"resolution occurs once the first data point for the following date is published, "
+        rf"or at the deadline, whichever comes first\. "
+        rf"revisions are considered until the first data ?point for the following date, "
+        rf"after which any alterations will not be considered\.?$"
+    )
 
-    # Current certified NWS copy always sends a no-data case to the lowest bracket.
-    # Any alternate bracket directive is an operative conflict, regardless of prose.
-    if re.search(r"\b(?:highest|upper|top)\s+bracket\b", text, re.I):
-        raise StrictWeatherContractError("STRICT_OPERATIVE_NO_DATA_OUTCOME_CONFLICT")
+    compact_template = re.compile(
+        rf"^observation date {day} {month} '{year}, in whole degrees {unit_word}\. "
+        rf"the market resolves using the {statistic} reading in the \"temp\" column across all times on this day\. "
+        rf"on wrh select hourly data and show hourly data\. "
+        rf"if wrh is unavailable, use the weather underground daily observations table by "
+        rf"11:59 pm et on the day following the observation date\. "
+        rf"if there is no data, the market resolves to the lowest bracket\. "
+        rf"revisions are accepted until the first data point for the following date, "
+        rf"whichever comes first, after which any alterations will not be considered\.?$"
+    )
 
-    # Child/event prose must never be able to add an unconditional YES/NO settlement
-    # rule while preserving the canonical phrases that the authority parser expects.
-    if re.search(
-        r"\b(?:resolve[sd]?|settle[sd]?|settlement|resolution)\b[^.]{0,120}\b(?:yes|no)\b",
-        text,
-        re.I,
-    ):
-        raise StrictWeatherContractError("STRICT_OPERATIVE_BINARY_OVERRIDE_UNSUPPORTED")
-
-    # Weather Underground is certified only as the specific conditional fallback.
-    # A second/alternative mention is not interpreted heuristically: fail closed.
-    wu_sentences = [
-        sentence
-        for sentence in re.split(r"(?<=[.!?])\s+", text)
-        if "weather underground" in sentence or "wunderground" in sentence
-    ]
-    for sentence in wu_sentences:
-        canonical_fallback = all(
-            phrase in sentence
-            for phrase in (
-                "daily observations table",
-                "unavailable",
-                "11:59 pm et",
-                "day following the observation date",
-            )
-        )
-        if not canonical_fallback:
-            raise StrictWeatherContractError("STRICT_OPERATIVE_SOURCE_OVERRIDE_UNSUPPORTED")
-
-    # Required-phrase matching must not be satisfied by one canonical no-data clause
-    # plus an additional contradictory no-data clause elsewhere in the same text.
-    no_data_occurrences = len(re.findall(r"\bno\s+data\b", text, re.I))
-    if no_data_occurrences != 1 or re.search(
-        r"\bno\s+data\b[^.]{0,120}\blowest\s+bracket\b", text, re.I
-    ) is None:
-        raise StrictWeatherContractError("STRICT_OPERATIVE_NO_DATA_RULE_CONFLICT")
+    return public_template.fullmatch(text) is not None or compact_template.fullmatch(text) is not None
 
 
-def _coherent_rule_identity(event: dict, family: str) -> dict:
-    """Require one operative rule/source text, not concatenated conflicting copies."""
+def _coherent_rule_identity(event: dict, compiled) -> dict:
+    """Require one complete supported operative rule/source meaning."""
     markets = [row for row in (event.get("markets") or []) if isinstance(row, dict)]
     containers = [event, *markets]
 
@@ -298,7 +258,10 @@ def _coherent_rule_identity(event: dict, family: str) -> dict:
         raise StrictWeatherContractError("STRICT_OPERATIVE_SOURCE_CONFLICT")
     operative_source = sources[0] if sources else ""
 
-    _reject_conflicting_rule_semantics(operative_rules, family)
+    # This is the authority boundary.  Do not fall back to keyword blacklists or
+    # required-phrase matching: the whole text must be a supported grammar.
+    if not _supported_nws_rule_structure(operative_rules, compiled):
+        raise StrictWeatherContractError("STRICT_OPERATIVE_RULE_STRUCTURE_UNSUPPORTED")
 
     questions = tuple(_norm(row.get("question")) for row in markets)
     return {
@@ -315,7 +278,7 @@ def strict_contract_identity(event: dict, compiled=None) -> dict:
         raise StrictWeatherContractError("STRICT_EVENT_INVALID")
     if compiled is None:
         compiled = compile_weather_event(event)
-    identity = _coherent_rule_identity(event, compiled.family)
+    identity = _coherent_rule_identity(event, compiled)
     payload = {
         **identity,
         "event_id": str(compiled.event_id),
@@ -393,9 +356,8 @@ def compile_strict_temperature_event(event: dict):
         if opposite in child_text:
             raise StrictWeatherContractError("STRICT_CHILD_STATISTIC_CONFLICT")
 
-    # This must run before phrase-based authority promotion. It prevents a valid
-    # canonical phrase in one field from masking an operative override elsewhere.
-    _coherent_rule_identity(event, raw.family)
+    # Prove the entire operative grammar before phrase-based authority promotion.
+    _coherent_rule_identity(event, raw)
 
     authority = compile_temperature_rule_authority(event, raw)
     compiled = apply_rule_authority(raw, authority)
