@@ -4,8 +4,9 @@ from __future__ import annotations
 
 The production VM may be IPv6-only. A source can therefore be healthy on a dual-stack
 machine yet unreachable from the actual host. This preflight exercises the same public
-providers used by the paper bot before systemd is installed or started. It sends no
-Telegram message, uses no wallet credentials, places no order, and writes nothing.
+providers and guarded three-layer transports used by the paper bot before systemd is
+installed or started. It sends no Telegram message, uses no wallet credentials, places
+no order, and writes nothing.
 """
 
 import asyncio
@@ -24,11 +25,15 @@ from .config import settings
 from .weather_only_clob import CLOB
 from .weather_only_discovery import GAMMA
 from .weather_only_forecast import OPEN_METEO_ENSEMBLE
-from .weather_only_gefs_hourly import OpenMeteoGEFSHourlyClient
-from .weather_only_nws_near_term import NWS_API_ORIGIN, NWSNearTermGridClient
-from .weather_only_wrh_client import NWSWRHLiveClient, WRH_TIMESERIES_PAGE
+from .weather_only_nws_near_term import NWS_API_ORIGIN
+from .weather_only_three_layer_guarded import (
+    GuardedNWSNearTermGridClient,
+    GuardedNWSWRHLiveClient,
+    GuardedOpenMeteoGEFSHourlyClient,
+)
+from .weather_only_wrh_client import WRH_TIMESERIES_PAGE
 
-NETWORK_PREFLIGHT_VERSION = "weather_paper_network_preflight_v2_stable_wrh_reference_day"
+NETWORK_PREFLIGHT_VERSION = "weather_paper_network_preflight_v3_guarded_three_layer_transports"
 TELEGRAM_ORIGIN = "https://api.telegram.org"
 REFERENCE_STATION = "KLGA"
 REFERENCE_LATITUDE = 40.7769
@@ -139,9 +144,13 @@ async def check_weather_paper_network() -> WeatherPaperNetworkReport:
         follow_redirects=True,
         headers={"User-Agent": "polymarket-weather-paper-network-preflight/1.0"},
     ) as http:
-        wrh = NWSWRHLiveClient(timeout_seconds=min(20.0, float(settings.request_timeout)))
-        near = NWSNearTermGridClient()
-        gefs = OpenMeteoGEFSHourlyClient()
+        # Use the exact guarded three-layer client classes that the deployable wrapper
+        # uses. A preflight with permissive/base clients could otherwise pass while the
+        # real service rejects compression, redirects, oversized bodies, or a remote
+        # GEFS grid point.
+        wrh = GuardedNWSWRHLiveClient()
+        near = GuardedNWSNearTermGridClient()
+        gefs = GuardedOpenMeteoGEFSHourlyClient()
         today = datetime.now(ZoneInfo(REFERENCE_TIMEZONE)).date()
         wrh_target = today - timedelta(days=1)
 
@@ -172,7 +181,7 @@ async def check_weather_paper_network() -> WeatherPaperNetworkReport:
                 wrh.fetch_snapshot, station=REFERENCE_STATION, target_date=wrh_target
             )
             return (
-                f"WRH+Synoptic ok; timezone={result.station_timezone}; "
+                f"WRH+Synoptic guarded ok; timezone={result.station_timezone}; "
                 f"rows={len(result.snapshot.selected_rows)}"
             )
 
@@ -182,7 +191,7 @@ async def check_weather_paper_network() -> WeatherPaperNetworkReport:
                 latitude=REFERENCE_LATITUDE,
                 longitude=REFERENCE_LONGITUDE,
             )
-            return f"NWS grid ok; evidence={result.evidence_sha256[:12]}"
+            return f"NWS guarded grid ok; evidence={result.evidence_sha256[:12]}"
 
         async def gefs_action() -> str:
             result = await gefs.target_day(
@@ -193,7 +202,7 @@ async def check_weather_paper_network() -> WeatherPaperNetworkReport:
                 unit="F",
                 timezone=REFERENCE_TIMEZONE,
             )
-            return f"GEFS hourly ok; members={len(result.member_series)}"
+            return f"GEFS guarded hourly ok; members={len(result.member_series)}"
 
         async def telegram_action() -> str:
             response = await http.get(TELEGRAM_ORIGIN)
@@ -231,8 +240,8 @@ async def check_weather_paper_network() -> WeatherPaperNetworkReport:
                 ),
             )
         finally:
-            await near.close()
-            await gefs.close()
+            wrh.close()
+            await asyncio.gather(near.close(), gefs.close(), return_exceptions=True)
 
     return evaluate_network_probes(tuple(probes))
 
