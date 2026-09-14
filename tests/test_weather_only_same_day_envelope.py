@@ -19,6 +19,7 @@ from polymarket_scanner.weather_only_contracts import (
 )
 from polymarket_scanner.weather_only_forecast import EnsembleMappingPolicy
 from polymarket_scanner.weather_only_gefs_hourly import (
+    GEFS_HOURLY_TIMEFORMAT,
     build_verified_gefs_path_from_hourly,
     parse_open_meteo_gefs_hourly_target_day,
 )
@@ -111,9 +112,9 @@ def _official_rows(as_of: float) -> tuple[OfficialObservation, ...]:
 
 
 def _gefs_payload() -> dict:
-    times = [f"2026-09-12T{hour:02d}:00" for hour in range(24)]
+    times = [int(_ts(hour)) for hour in range(24)]
     hourly = {"time": times}
-    units = {"time": "iso8601"}
+    units = {"time": GEFS_HOURLY_TIMEFORMAT}
     keys = ("temperature_2m",) + tuple(
         f"temperature_2m_member{index:02d}" for index in range(1, 31)
     )

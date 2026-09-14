@@ -14,6 +14,7 @@ from polymarket_scanner.weather_only_gefs_hourly import (
     GEFS_HOURLY_CELL_SELECTION,
     GEFS_HOURLY_PROVIDER_MODEL,
     GEFS_HOURLY_TEMPORAL_RESOLUTION,
+    GEFS_HOURLY_TIMEFORMAT,
     GEFSHourlyError,
 )
 from polymarket_scanner.weather_only_live_paper_three_layer_validation import (
@@ -143,8 +144,9 @@ def test_async_total_deadline_stops_a_trickling_body():
 
 
 def _gefs_payload(*, resolved_latitude: float, resolved_longitude: float) -> dict:
-    hourly = {"time": [f"2026-09-14T{hour:02d}:00" for hour in range(24)]}
-    units = {"time": "iso8601"}
+    start = datetime(2026, 9, 14, 0, 0, tzinfo=timezone.utc).timestamp()
+    hourly = {"time": [int(start + hour * 3600) for hour in range(24)]}
+    units = {"time": GEFS_HOURLY_TIMEFORMAT}
     keys = ("temperature_2m",) + tuple(
         f"temperature_2m_member{index:02d}" for index in range(1, 31)
     )
@@ -200,6 +202,7 @@ def test_gefs_nearby_resolved_grid_preserves_all_31_members():
     assert result.provider_model == GEFS_HOURLY_PROVIDER_MODEL
     assert result.query_cell_selection == GEFS_HOURLY_CELL_SELECTION
     assert result.query_temporal_resolution == GEFS_HOURLY_TEMPORAL_RESOLUTION
+    assert result.query_timeformat == GEFS_HOURLY_TIMEFORMAT
     assert result.calibrated_probability is False
     assert result.financial_authority is False
 
@@ -213,6 +216,7 @@ def test_guarded_gefs_request_exactly_pins_model_temporal_resolution_and_cell_po
     query = parse_qs(httpx.URL(seen[0]).query.decode())
     assert query["models"] == [GEFS_HOURLY_PROVIDER_MODEL]
     assert query["temporal_resolution"] == [GEFS_HOURLY_TEMPORAL_RESOLUTION]
+    assert query["timeformat"] == [GEFS_HOURLY_TIMEFORMAT]
     assert query["cell_selection"] == [GEFS_HOURLY_CELL_SELECTION]
     assert query["hourly"] == ["temperature_2m"]
 

@@ -27,6 +27,7 @@ from .weather_only_gefs_hourly import (
     GEFS_HOURLY_CELL_SELECTION,
     GEFS_HOURLY_PROVIDER_MODEL,
     GEFS_HOURLY_TEMPORAL_RESOLUTION,
+    GEFS_HOURLY_TIMEFORMAT,
     GEFS_HOURLY_VARIABLE,
     GEFSHourlyError,
     OpenMeteoGEFSHourlyClient,
@@ -575,6 +576,7 @@ class GuardedOpenMeteoGEFSHourlyClient(OpenMeteoGEFSHourlyClient):
             "hourly": GEFS_HOURLY_VARIABLE,
             "models": GEFS_HOURLY_PROVIDER_MODEL,
             "temporal_resolution": GEFS_HOURLY_TEMPORAL_RESOLUTION,
+            "timeformat": GEFS_HOURLY_TIMEFORMAT,
             "temperature_unit": "fahrenheit" if unit == "F" else "celsius",
             "timezone": timezone,
             "start_date": target_date.isoformat(),
@@ -611,6 +613,7 @@ class GuardedOpenMeteoGEFSHourlyClient(OpenMeteoGEFSHourlyClient):
             provider_model=GEFS_HOURLY_PROVIDER_MODEL,
             query_cell_selection=GEFS_HOURLY_CELL_SELECTION,
             query_temporal_resolution=GEFS_HOURLY_TEMPORAL_RESOLUTION,
+            query_timeformat=GEFS_HOURLY_TIMEFORMAT,
         )
         distance = _haversine_km(
             lat,

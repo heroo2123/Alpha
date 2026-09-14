@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 from polymarket_scanner.weather_only_forecast import EnsembleMappingPolicy
-from polymarket_scanner.weather_only_gefs_hourly import parse_open_meteo_gefs_hourly_target_day
+from polymarket_scanner.weather_only_gefs_hourly import (
+    GEFS_HOURLY_TIMEFORMAT,
+    parse_open_meteo_gefs_hourly_target_day,
+)
 from polymarket_scanner.weather_only_nws_near_term import build_nws_raw_snapshot
 from polymarket_scanner.weather_only_paper_facade import CorrectiveWeatherPaperStore
 from polymarket_scanner.weather_only_rules import compile_temperature_rule_authority
@@ -78,8 +82,9 @@ def _nws_snapshot():
 
 
 def _gefs():
-    hourly = {"time": [f"2026-09-11T{hour:02d}:00" for hour in range(24)]}
-    units = {"time": "iso8601"}
+    start = datetime(2026, 9, 11, 0, 0, tzinfo=ZoneInfo(ZONE)).timestamp()
+    hourly = {"time": [int(start + hour * 3600) for hour in range(24)]}
+    units = {"time": GEFS_HOURLY_TIMEFORMAT}
     keys = ("temperature_2m",) + tuple(
         f"temperature_2m_member{index:02d}" for index in range(1, 31)
     )

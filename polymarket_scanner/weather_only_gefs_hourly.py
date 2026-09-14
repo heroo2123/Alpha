@@ -34,7 +34,7 @@ import json
 import math
 import time
 from dataclasses import asdict, dataclass, field
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import httpx
@@ -54,12 +54,13 @@ from .weather_only_forecast import (
 )
 
 
-GEFS_HOURLY_ADAPTER_VERSION = "open_meteo_ncep_gefs025_hourly_paths_v2_31_members"
+GEFS_HOURLY_ADAPTER_VERSION = "open_meteo_ncep_gefs025_hourly_paths_v3_unixtime_31_members"
 GEFS_HOURLY_ROLE = "FORECAST_MEMBER_PATH_RESEARCH_ONLY"
 GEFS_HOURLY_VARIABLE = "temperature_2m"
 GEFS_HOURLY_STEP_SECONDS = 3600
 GEFS_HOURLY_PROVIDER_MODEL = "ncep_gefs025"
 GEFS_HOURLY_TEMPORAL_RESOLUTION = "hourly"
+GEFS_HOURLY_TIMEFORMAT = "unixtime"
 GEFS_HOURLY_CELL_SELECTION = CELL_SELECTION_POLICY
 
 
@@ -137,7 +138,9 @@ def _local_target_bounds(target: date, timezone_name: str) -> tuple[float, float
     return start.timestamp(), end.timestamp()
 
 
-def _parse_local_valid_times(raw_times: object, *, target: date, timezone_name: str) -> tuple[float, ...]:
+def _parse_unix_valid_times(
+    raw_times: object, *, target: date, timezone_name: str
+) -> tuple[float, ...]:
     if not isinstance(raw_times, list) or not raw_times:
         raise GEFSHourlyError("GEFS_HOURLY_TIME_SERIES_INVALID")
     try:
@@ -146,28 +149,26 @@ def _parse_local_valid_times(raw_times: object, *, target: date, timezone_name: 
         raise GEFSHourlyError("GEFS_HOURLY_TIMEZONE_INVALID") from None
 
     parsed: list[float] = []
-    seen_raw: set[str] = set()
+    seen: set[float] = set()
     for raw in raw_times:
-        if not isinstance(raw, str) or not raw.strip() or raw != raw.strip():
+        if raw is None or isinstance(raw, bool) or not isinstance(raw, (int, float)):
             raise GEFSHourlyError("GEFS_HOURLY_TIME_VALUE_INVALID")
-        if raw in seen_raw:
-            # Local timestamps without offsets cannot disambiguate a repeated DST
-            # wall-clock hour. Refuse rather than silently selecting fold=0.
-            raise GEFSHourlyError("GEFS_HOURLY_TIME_DUPLICATE_OR_DST_AMBIGUOUS")
-        seen_raw.add(raw)
-        try:
-            value = datetime.fromisoformat(raw.replace("Z", "+00:00"))
-        except ValueError:
-            raise GEFSHourlyError("GEFS_HOURLY_TIME_VALUE_INVALID") from None
-        if value.tzinfo is None or value.utcoffset() is None:
-            value = value.replace(tzinfo=zone)
-        local = value.astimezone(zone)
+        value = float(raw)
+        if (
+            not math.isfinite(value)
+            or value < 0.0
+            or abs(value - round(value)) > 1e-6
+        ):
+            raise GEFSHourlyError("GEFS_HOURLY_TIME_VALUE_INVALID")
+        instant = float(round(value))
+        if instant in seen:
+            raise GEFSHourlyError("GEFS_HOURLY_TIME_INSTANT_DUPLICATE")
+        seen.add(instant)
+        local = datetime.fromtimestamp(instant, tz=timezone.utc).astimezone(zone)
         if local.date() != target:
             raise GEFSHourlyError("GEFS_HOURLY_TIME_OUTSIDE_TARGET_LOCAL_DATE")
-        parsed.append(local.timestamp())
+        parsed.append(instant)
 
-    if len(set(parsed)) != len(parsed):
-        raise GEFSHourlyError("GEFS_HOURLY_TIME_INSTANT_DUPLICATE")
     if parsed != sorted(parsed):
         raise GEFSHourlyError("GEFS_HOURLY_TIME_NOT_MONOTONIC")
     for before, after in zip(parsed, parsed[1:]):
@@ -198,6 +199,7 @@ class GEFSHourlyTargetDay:
     provider_model: str
     query_cell_selection: str
     query_temporal_resolution: str
+    query_timeformat: str
     source_role: str
     station: str
     target_date: date
@@ -231,6 +233,7 @@ def _content_payload(distribution: GEFSHourlyTargetDay) -> dict:
         "provider_model": distribution.provider_model,
         "query_cell_selection": distribution.query_cell_selection,
         "query_temporal_resolution": distribution.query_temporal_resolution,
+        "query_timeformat": distribution.query_timeformat,
         "source_role": distribution.source_role,
         "station": distribution.station,
         "target_date": distribution.target_date.isoformat(),
@@ -271,6 +274,7 @@ def parse_open_meteo_gefs_hourly_target_day(
     provider_model: str = GEFS_HOURLY_PROVIDER_MODEL,
     query_cell_selection: str = GEFS_HOURLY_CELL_SELECTION,
     query_temporal_resolution: str = GEFS_HOURLY_TEMPORAL_RESOLUTION,
+    query_timeformat: str = GEFS_HOURLY_TIMEFORMAT,
 ) -> GEFSHourlyTargetDay:
     station_id = _station(station)
     if type(target_date) is not date:
@@ -281,6 +285,8 @@ def parse_open_meteo_gefs_hourly_target_day(
         raise GEFSHourlyError("GEFS_HOURLY_CELL_SELECTION_MISMATCH")
     if query_temporal_resolution != GEFS_HOURLY_TEMPORAL_RESOLUTION:
         raise GEFSHourlyError("GEFS_HOURLY_TEMPORAL_RESOLUTION_MISMATCH")
+    if query_timeformat != GEFS_HOURLY_TIMEFORMAT:
+        raise GEFSHourlyError("GEFS_HOURLY_TIMEFORMAT_MISMATCH")
     if not isinstance(timezone, str) or not timezone.strip() or timezone != timezone.strip():
         raise GEFSHourlyError("GEFS_HOURLY_TIMEZONE_INVALID")
     expected_unit = _unit_symbol(unit)
@@ -305,7 +311,7 @@ def parse_open_meteo_gefs_hourly_target_day(
     units = payload.get("hourly_units")
     if not isinstance(hourly, dict) or not isinstance(units, dict):
         raise GEFSHourlyError("GEFS_HOURLY_SCHEMA_INVALID")
-    valid_times = _parse_local_valid_times(
+    valid_times = _parse_unix_valid_times(
         hourly.get("time"), target=target_date, timezone_name=timezone
     )
     expected_keys = _member_keys()
@@ -313,7 +319,7 @@ def parse_open_meteo_gefs_hourly_target_day(
         raise GEFSHourlyError("GEFS_HOURLY_MEMBER_SCHEMA_DRIFT")
     if set(str(key) for key in units) != {"time", *expected_keys}:
         raise GEFSHourlyError("GEFS_HOURLY_UNIT_SCHEMA_DRIFT")
-    if str(units.get("time") or "") != "iso8601":
+    if str(units.get("time") or "") != GEFS_HOURLY_TIMEFORMAT:
         raise GEFSHourlyError("GEFS_HOURLY_TIME_UNIT_INVALID")
 
     labels = _member_labels()
@@ -337,6 +343,7 @@ def parse_open_meteo_gefs_hourly_target_day(
         provider_model=provider_model,
         query_cell_selection=query_cell_selection,
         query_temporal_resolution=query_temporal_resolution,
+        query_timeformat=query_timeformat,
         source_role=GEFS_HOURLY_ROLE,
         station=station_id,
         target_date=target_date,
@@ -382,6 +389,7 @@ def verify_gefs_hourly_evidence(distribution: object) -> GEFSHourlyTargetDay:
         or distribution.provider_model != GEFS_HOURLY_PROVIDER_MODEL
         or distribution.query_cell_selection != GEFS_HOURLY_CELL_SELECTION
         or distribution.query_temporal_resolution != GEFS_HOURLY_TEMPORAL_RESOLUTION
+        or distribution.query_timeformat != GEFS_HOURLY_TIMEFORMAT
         or distribution.source_role != GEFS_HOURLY_ROLE
     ):
         raise GEFSHourlyError("GEFS_HOURLY_ADAPTER_IDENTITY_MISMATCH")
@@ -507,6 +515,7 @@ class OpenMeteoGEFSHourlyClient:
             "hourly": GEFS_HOURLY_VARIABLE,
             "models": GEFS_HOURLY_PROVIDER_MODEL,
             "temporal_resolution": GEFS_HOURLY_TEMPORAL_RESOLUTION,
+            "timeformat": GEFS_HOURLY_TIMEFORMAT,
             "temperature_unit": unit_name,
             "timezone": timezone,
             "start_date": target_date.isoformat(),
@@ -538,4 +547,5 @@ class OpenMeteoGEFSHourlyClient:
             provider_model=GEFS_HOURLY_PROVIDER_MODEL,
             query_cell_selection=GEFS_HOURLY_CELL_SELECTION,
             query_temporal_resolution=GEFS_HOURLY_TEMPORAL_RESOLUTION,
+            query_timeformat=GEFS_HOURLY_TIMEFORMAT,
         )

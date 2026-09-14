@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 from datetime import date, datetime, timezone
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -12,6 +13,7 @@ from polymarket_scanner.weather_only_gefs_hourly import (
     GEFS_HOURLY_PROVIDER_MODEL,
     GEFS_HOURLY_STEP_SECONDS,
     GEFS_HOURLY_TEMPORAL_RESOLUTION,
+    GEFS_HOURLY_TIMEFORMAT,
     GEFSHourlyError,
     build_verified_gefs_path_from_hourly,
     parse_open_meteo_gefs_hourly_target_day,
@@ -33,9 +35,9 @@ def _keys():
 
 
 def _payload():
-    times = [f"2026-09-11T{hour:02d}:00" for hour in range(24)]
+    times = [int(DAY_START + hour * GEFS_HOURLY_STEP_SECONDS) for hour in range(24)]
     hourly = {"time": times}
-    units = {"time": "iso8601"}
+    units = {"time": GEFS_HOURLY_TIMEFORMAT}
     for member, key in enumerate(_keys()):
         hourly[key] = [60.0 + member * 0.1 + hour for hour in range(24)]
         units[key] = "°F"
@@ -75,6 +77,7 @@ def test_hourly_parser_preserves_all_31_member_paths_and_pinned_query_policy():
     assert distribution.provider_model == GEFS_HOURLY_PROVIDER_MODEL
     assert distribution.query_cell_selection == GEFS_HOURLY_CELL_SELECTION
     assert distribution.query_temporal_resolution == GEFS_HOURLY_TEMPORAL_RESOLUTION
+    assert distribution.query_timeformat == GEFS_HOURLY_TIMEFORMAT
     assert len(distribution.content_run_id) == 64
     assert len(distribution.evidence_sha256) == 64
     assert distribution.calibrated_probability is False
@@ -90,6 +93,8 @@ def test_parser_rejects_unreviewed_model_or_query_policy():
         _parse(query_cell_selection="land")
     with pytest.raises(GEFSHourlyError, match="GEFS_HOURLY_TEMPORAL_RESOLUTION_MISMATCH"):
         _parse(query_temporal_resolution="native")
+    with pytest.raises(GEFSHourlyError, match="GEFS_HOURLY_TIMEFORMAT_MISMATCH"):
+        _parse(query_timeformat="iso8601")
 
 
 def test_content_identity_collapses_identical_retrievals_but_receipt_evidence_remains_distinct():
@@ -181,7 +186,7 @@ def test_unit_member_and_grid_schema_drift_fail_closed():
     assert member.value.code == "GEFS_HOURLY_MEMBER_SCHEMA_DRIFT"
 
     payload = _payload()
-    payload["hourly"]["time"][10] = "2026-09-11T10:30"
+    payload["hourly"]["time"][10] += 1800
     with pytest.raises(GEFSHourlyError) as grid:
         _parse(payload)
     assert grid.value.code == "GEFS_HOURLY_GRID_NOT_EXACT_HOURLY"
@@ -224,7 +229,7 @@ def test_lookup_u_t_grid_must_be_covered_by_returned_target_day():
 
 def _dst_payload(times, timezone_name):
     hourly = {"time": list(times)}
-    units = {"time": "iso8601"}
+    units = {"time": GEFS_HOURLY_TIMEFORMAT}
     for member, key in enumerate(_keys()):
         hourly[key] = [60.0 + member * 0.1 + index * 0.01 for index in range(len(times))]
         units[key] = "°F"
@@ -237,11 +242,18 @@ def _dst_payload(times, timezone_name):
     }
 
 
-def test_spring_forward_23_hour_local_day_is_accepted_when_grid_is_complete_in_real_time():
+def _local_day_epochs(target: date, timezone_name: str) -> list[int]:
+    zone = ZoneInfo(timezone_name)
+    start = datetime(target.year, target.month, target.day, tzinfo=zone).timestamp()
+    following = date.fromordinal(target.toordinal() + 1)
+    end = datetime(following.year, following.month, following.day, tzinfo=zone).timestamp()
+    return list(range(int(start), int(end), GEFS_HOURLY_STEP_SECONDS))
+
+
+def test_spring_forward_23_hour_local_day_is_accepted_with_unambiguous_unix_instants():
     target = date(2026, 3, 8)
-    times = ["2026-03-08T00:00", "2026-03-08T01:00"] + [
-        f"2026-03-08T{hour:02d}:00" for hour in range(3, 24)
-    ]
+    times = _local_day_epochs(target, "America/New_York")
+    assert len(times) == 23
     result = parse_open_meteo_gefs_hourly_target_day(
         _dst_payload(times, "America/New_York"),
         station="KLGA", target_date=target, unit="F", timezone="America/New_York",
@@ -254,24 +266,32 @@ def test_spring_forward_23_hour_local_day_is_accepted_when_grid_is_complete_in_r
     )
 
 
-def test_fall_back_25_hour_day_accepts_explicit_offsets_but_rejects_ambiguous_naive_duplicate():
+def test_fall_back_25_hour_day_accepts_both_repeated_wall_hours_as_distinct_epochs():
     target = date(2026, 11, 1)
-    explicit = ["2026-11-01T00:00-04:00", "2026-11-01T01:00-04:00", "2026-11-01T01:00-05:00"] + [
-        f"2026-11-01T{hour:02d}:00-05:00" for hour in range(2, 24)
-    ]
+    times = _local_day_epochs(target, "America/New_York")
+    assert len(times) == 25
     result = parse_open_meteo_gefs_hourly_target_day(
-        _dst_payload(explicit, "America/New_York"),
+        _dst_payload(times, "America/New_York"),
         station="KLGA", target_date=target, unit="F", timezone="America/New_York",
         requested_latitude=40.7769, requested_longitude=-73.8740, received_at=RECEIVED,
     )
     assert len(result.valid_times) == 25
-
-    ambiguous = ["2026-11-01T00:00", "2026-11-01T01:00", "2026-11-01T01:00"] + [
-        f"2026-11-01T{hour:02d}:00" for hour in range(2, 24)
+    local_labels = [
+        datetime.fromtimestamp(value, tz=timezone.utc)
+        .astimezone(ZoneInfo("America/New_York"))
+        .strftime("%Y-%m-%d %H:%M %z")
+        for value in result.valid_times
     ]
-    with pytest.raises(GEFSHourlyError, match="GEFS_HOURLY_TIME_DUPLICATE_OR_DST_AMBIGUOUS"):
+    assert any("01:00 -0400" in value for value in local_labels)
+    assert any("01:00 -0500" in value for value in local_labels)
+
+    duplicate = list(times)
+    duplicate[2] = duplicate[1]
+    with pytest.raises(GEFSHourlyError, match="GEFS_HOURLY_TIME_INSTANT_DUPLICATE"):
         parse_open_meteo_gefs_hourly_target_day(
-            _dst_payload(ambiguous, "America/New_York"),
+            _dst_payload(duplicate, "America/New_York"),
             station="KLGA", target_date=target, unit="F", timezone="America/New_York",
             requested_latitude=40.7769, requested_longitude=-73.8740, received_at=RECEIVED,
         )
+
+# END_DST_TESTS

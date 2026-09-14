@@ -12,15 +12,18 @@ def rep(path: str, old: str, new: str, *, expected: int = 1) -> None:
     p.write_text(text.replace(old, new, expected), encoding="utf-8")
 
 
-def section(path: str, start: str, end: str, replacement: str) -> None:
+def section(path: str, start: str, end: str | None, replacement: str) -> None:
     p = Path(path)
     text = p.read_text(encoding="utf-8")
     a = text.find(start)
     if a < 0:
         raise SystemExit(f"{path}: start marker not found: {start!r}")
-    b = text.find(end, a)
-    if b < 0:
-        raise SystemExit(f"{path}: end marker not found: {end!r}")
+    if end is None:
+        b = len(text)
+    else:
+        b = text.find(end, a)
+        if b < 0:
+            raise SystemExit(f"{path}: end marker not found: {end!r}")
     p.write_text(text[:a] + replacement + text[b:], encoding="utf-8")
 
 
@@ -157,7 +160,7 @@ section(
 section(
     GEFS_TEST,
     "def test_fall_back_25_hour_day_accepts_explicit_offsets_but_rejects_ambiguous_naive_duplicate():",
-    "\n# END_DST_TESTS\n" if "\n# END_DST_TESTS\n" in Path(GEFS_TEST).read_text(encoding="utf-8") else "\n\n\n",
+    None,
     '''def test_fall_back_25_hour_day_accepts_both_repeated_wall_hours_as_distinct_epochs():\n    target = date(2026, 11, 1)\n    times = _local_day_epochs(target, "America/New_York")\n    assert len(times) == 25\n    result = parse_open_meteo_gefs_hourly_target_day(\n        _dst_payload(times, "America/New_York"),\n        station="KLGA", target_date=target, unit="F", timezone="America/New_York",\n        requested_latitude=40.7769, requested_longitude=-73.8740, received_at=RECEIVED,\n    )\n    assert len(result.valid_times) == 25\n    local_labels = [\n        datetime.fromtimestamp(value, tz=timezone.utc)\n        .astimezone(ZoneInfo("America/New_York"))\n        .strftime("%Y-%m-%d %H:%M %z")\n        for value in result.valid_times\n    ]\n    assert any("01:00 -0400" in value for value in local_labels)\n    assert any("01:00 -0500" in value for value in local_labels)\n\n    duplicate = list(times)\n    duplicate[2] = duplicate[1]\n    with pytest.raises(GEFSHourlyError, match="GEFS_HOURLY_TIME_INSTANT_DUPLICATE"):\n        parse_open_meteo_gefs_hourly_target_day(\n            _dst_payload(duplicate, "America/New_York"),\n            station="KLGA", target_date=target, unit="F", timezone="America/New_York",\n            requested_latitude=40.7769, requested_longitude=-73.8740, received_at=RECEIVED,\n        )\n\n# END_DST_TESTS\n''',
 )
 
