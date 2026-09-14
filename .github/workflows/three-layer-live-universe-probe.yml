@@ -19,35 +19,129 @@ jobs:
         with:
           python-version: '3.12'
       - run: python -m pip install -r requirements.txt
-      - name: Inspect exact Fahrenheit and Celsius recurring templates
+      - name: Validate a fully consumed candidate grammar against the live WRH universe
         run: |
           python - <<'PY'
           import asyncio
-          from polymarket_scanner.weather_only_discovery import WeatherOnlyDiscovery
-          from polymarket_scanner.weather_only_contracts import compile_weather_event
+          import re
+          from collections import Counter
 
-          TARGETS = ('1009003', '1009108', '1017810', '1018007')
+          from polymarket_scanner.weather_only_discovery import WeatherOnlyDiscovery
+          from polymarket_scanner.weather_only_contracts import DAILY_HIGH, DAILY_LOW, compile_weather_event
+
+          MONTHS = {
+              1:'january',2:'february',3:'march',4:'april',5:'may',6:'june',
+              7:'july',8:'august',9:'september',10:'october',11:'november',12:'december'
+          }
+
+          def norm(value):
+              text = str(value or '').replace('“','"').replace('”','"').replace('’',"'").replace('‘',"'")
+              return re.sub(r'\s+', ' ', text).strip().lower()
+
+          TITLE = re.compile(r'^(highest|lowest) temperature in (.+) on ([a-z]+) (\d{1,2})\?$', re.I)
+
+          def question_identity(question, raw):
+              stat = 'highest' if raw.family == DAILY_HIGH else 'lowest'
+              number = r'-?\d+(?:\.0+)?'
+              unit = r'(?:°\s*[FC]|\s+degrees?\s+[FC]|\s*[FC])'
+              bucket = rf'(?:{number}\s*{unit}\s+or\s+below|{number}\s*{unit}\s+or\s+lower|{number}\s*{unit}\s+or\s+higher|between\s+{number}\s*(?:-|–|to)\s*{number}\s*{unit}|{number}\s*(?:-|–|to)\s*{number}\s*{unit}|{number}\s*{unit})'
+              m = re.fullmatch(
+                  rf'Will\s+the\s+{stat}\s+temperature\s+in\s+(.+?)\s+be\s+({bucket})\s+on\s+([A-Za-z]+)\s+(\d{{1,2}})\?',
+                  ' '.join(str(question or '').strip().split()), re.I
+              )
+              if not m:
+                  return None
+              return (m.group(1).strip().lower(), m.group(3).strip().lower(), int(m.group(4)))
+
+          def current_rule_supported(description, raw):
+              if raw.target_date is None or raw.station_hint is None or raw.unit not in {'F','C'}:
+                  return False
+              stat = 'highest' if raw.family == DAILY_HIGH else 'lowest'
+              unit_word = 'fahrenheit' if raw.unit == 'F' else 'celsius'
+              target = raw.target_date
+              day = rf'0?{target.day}'
+              month = re.escape(target.strftime('%b').lower())
+              year = f'{target.year % 100:02d}'
+              station = re.escape(str(raw.station_hint).lower())
+              source = rf'https://(?:www\.)?weather\.gov/wrh/timeseries\?site={station}'
+              station_label = r'[a-z0-9][a-z0-9 .,&()\-/\'’]*?'
+              hourly = r'(?:this market will resolve off of the hourly data provided using the "show hourly data" button\. )?'
+              if raw.unit == 'F':
+                  toggle = r'to toggle between fahrenheit and celsius, click the "switch to us units w/ kts" button until the relevant table displays °f\. '
+                  example = r'-?\d+°f'
+              else:
+                  toggle = r'to toggle between fahrenheit and celsius, click the "switch to metric units" button until the relevant table displays °c\. '
+                  example = r'-?\d+°c'
+              pattern = re.compile(
+                  rf'^this market will resolve to the temperature range that contains the {stat} temperature recorded by noaa at the {station_label} station in degrees {unit_word} on {day} {month} \'{year}\. '
+                  rf'the resolution source for this market will be information from noaa, specifically the {stat} reading under the "temp" column for all times on this day, available here: {source} '
+                  rf'{hourly}'
+                  rf'if noaa data for the observation date is unavailable by 11:59 pm et on the day following the observation date, the weather underground daily observations table will be used as the resolution source\. '
+                  rf'in the event that there is no data for the observation date by 11:59 pm et on the day following the observation date, this market will resolve to the lowest bracket\. '
+                  rf'{toggle}'
+                  rf'this market will resolve once the first data point for the following date has been published on the resolution source, or by 11:59 pm et on the day following the observation date, whichever comes first\. '
+                  rf'the resolution source for this market measures temperatures to whole degrees {unit_word} \(eg, {example}\)\. thus, this is the level of precision that will be used when resolving the market\. '
+                  rf'revisions to temperatures recorded within this market\'s timeframe will be considered until the first datapoint for the following date has been published, after which any alterations will not be considered\.$'
+              )
+              return pattern.fullmatch(norm(description)) is not None
 
           async def main():
               d = WeatherOnlyDiscovery()
               try:
                   s = await d.discover()
-                  by_id = {str(e.get('id') or ''): e for e in s.events if isinstance(e, dict)}
-                  for event_id in TARGETS:
-                      e = by_id.get(event_id)
-                      if e is None:
-                          print('MISSING=' + event_id)
+                  totals = Counter()
+                  pairs = Counter()
+                  question_fail = []
+                  rule_fail = []
+                  title_fail = []
+                  coherent_place_fail = []
+                  for event in s.events:
+                      if not isinstance(event, dict):
                           continue
-                      raw = compile_weather_event(e)
-                      markets = [m for m in (e.get('markets') or []) if isinstance(m, dict)]
-                      print('BEGIN=' + event_id)
-                      print('IDENTITY=' + repr((raw.title, raw.family, raw.target_date.isoformat() if raw.target_date else None, raw.unit, raw.station_hint)))
-                      print('SOURCE=' + str(e.get('resolutionSource') or ''))
-                      print('DESCRIPTION_BEGIN')
-                      print(str(e.get('description') or ''))
-                      print('DESCRIPTION_END')
-                      print('QUESTIONS=' + repr([str(m.get('question') or '') for m in markets]))
-                      print('END=' + event_id)
+                      raw = compile_weather_event(event)
+                      if not (raw.family in {DAILY_HIGH, DAILY_LOW} and raw.source_family == 'NWS_WRH_TIMESERIES'):
+                          continue
+                      totals['wrh_temp'] += 1
+                      title = ' '.join(str(event.get('title') or '').split())
+                      tm = TITLE.fullmatch(title)
+                      if not tm:
+                          title_fail.append((raw.event_id, title)); continue
+                      title_place = tm.group(2).strip().lower()
+                      if raw.target_date is None or tm.group(3).lower() != MONTHS[raw.target_date.month] or int(tm.group(4)) != raw.target_date.day:
+                          title_fail.append((raw.event_id, title)); continue
+                      totals['title_ok'] += 1
+                      q_places = set()
+                      good_q = True
+                      for market in event.get('markets') or []:
+                          if not isinstance(market, dict):
+                              continue
+                          ident = question_identity(market.get('question'), raw)
+                          if ident is None:
+                              good_q = False
+                              if len(question_fail) < 20: question_fail.append((raw.event_id, market.get('question')))
+                              break
+                          place, month, day = ident
+                          if raw.target_date is None or month != MONTHS[raw.target_date.month] or day != raw.target_date.day:
+                              good_q = False
+                              if len(question_fail) < 20: question_fail.append((raw.event_id, market.get('question')))
+                              break
+                          q_places.add(place)
+                      if not good_q or len(q_places) != 1:
+                          if len(coherent_place_fail) < 20: coherent_place_fail.append((raw.event_id, sorted(q_places)))
+                          continue
+                      q_place = next(iter(q_places))
+                      pairs[(title_place, q_place)] += 1
+                      totals['question_ok'] += 1
+                      if current_rule_supported(event.get('description'), raw):
+                          totals['rule_ok'] += 1
+                      elif len(rule_fail) < 20:
+                          rule_fail.append((raw.event_id, raw.unit, title))
+                  print('TOTALS=' + repr(dict(totals)))
+                  print('TITLE_QUESTION_PLACE_PAIRS=' + repr(dict(pairs)))
+                  print('TITLE_FAIL=' + repr(title_fail[:20]))
+                  print('QUESTION_FAIL=' + repr(question_fail[:20]))
+                  print('COHERENT_PLACE_FAIL=' + repr(coherent_place_fail[:20]))
+                  print('RULE_FAIL=' + repr(rule_fail[:20]))
               finally:
                   await d.close()
 
