@@ -8,7 +8,7 @@ import os
 from pathlib import Path
 
 
-ALLOWED = ("TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID", "WEATHER_PWS_API_KEY")
+ALLOWED = ("TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID", "SYNOPTIC_PWS_TOKEN")
 REQUIRED = ("TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID")
 
 
@@ -31,8 +31,8 @@ def extract(source: Path) -> list[str]:
     for key in REQUIRED:
         if len(found[key]) != 1:
             raise EnvExtractionError(f"{key}_MISSING_OR_DUPLICATED")
-    if len(found["WEATHER_PWS_API_KEY"]) > 1:
-        raise EnvExtractionError("WEATHER_PWS_API_KEY_DUPLICATED")
+    if len(found["SYNOPTIC_PWS_TOKEN"]) > 1:
+        raise EnvExtractionError("SYNOPTIC_PWS_TOKEN_DUPLICATED")
     rows: list[str] = []
     for key in ALLOWED:
         rows.extend(found[key])
