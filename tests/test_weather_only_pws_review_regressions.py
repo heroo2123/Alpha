@@ -41,32 +41,11 @@ def test_899_second_observation_ageing_to_901_is_dropped_not_raised(monkeypatch)
     monkeypatch.setattr(pws_module, "time", SimpleNamespace(time=lambda: next(values)))
     observed = int(base - 899.0)
 
-    async def handler(request):
-        if request.url.path.endswith("/near"):
-            return httpx.Response(200, request=request, json=_near())
-        return httpx.Response(
-            200,
-            request=request,
-            json={
-                "observations": [
-                    {
-                        "stationID": "PWS1",
-                        "epoch": observed,
-                        "obsTimeUtc": "2033-05-18T03:18:21Z",
-                        "lat": LAT,
-                        "lon": LON,
-                        "qcStatus": 1,
-                        "imperial": {"temp": 80.0},
-                    }
-                ]
-            },
-        )
-
     # Make the ISO representation exactly match the synthetic epoch.
     from datetime import datetime, timezone
     iso = datetime.fromtimestamp(observed, tz=timezone.utc).isoformat().replace("+00:00", "Z")
 
-    async def corrected_handler(request):
+    async def handler(request):
         if request.url.path.endswith("/near"):
             return httpx.Response(200, request=request, json=_near())
         body = {
@@ -85,7 +64,7 @@ def test_899_second_observation_ageing_to_901_is_dropped_not_raised(monkeypatch)
         return httpx.Response(200, request=request, json=body)
 
     async def scenario():
-        async with httpx.AsyncClient(transport=httpx.MockTransport(corrected_handler)) as http:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
             result = await WeatherCompanyPWSClient(api_key="secret", http=http).fetch_snapshot(
                 latitude=LAT,
                 longitude=LON,
@@ -94,6 +73,71 @@ def test_899_second_observation_ageing_to_901_is_dropped_not_raised(monkeypatch)
             assert result.status == PWS_STATUS_NO_FRESH_QC
             assert result.observations == ()
             assert any(a.outcome == "REJECT_FINAL_TEMPORAL_WINDOW" for a in result.attempts)
+
+    asyncio.run(scenario())
+
+
+def test_rejection_audit_does_not_leak_previous_station_coordinates():
+    now = int(pws_module.time.time())
+    from datetime import datetime, timezone
+    iso = datetime.fromtimestamp(now, tz=timezone.utc).isoformat().replace("+00:00", "Z")
+
+    nearby = {
+        "location": {
+            "stationId": ["PWS1", "PWS2"],
+            "latitude": [LAT, LAT + 0.001],
+            "longitude": [LON, LON],
+            "qcStatus": [1, 1],
+            "updateTimeUtc": [iso, iso],
+        }
+    }
+
+    async def handler(request):
+        if request.url.path.endswith("/near"):
+            return httpx.Response(200, request=request, json=nearby)
+        station_id = request.url.params["stationId"]
+        if station_id == "PWS1":
+            return httpx.Response(
+                200,
+                request=request,
+                json={
+                    "observations": [{
+                        "stationID": "PWS1",
+                        "epoch": now,
+                        "obsTimeUtc": iso,
+                        "lat": LAT,
+                        "lon": LON,
+                        "qcStatus": 1,
+                        "imperial": {"temp": 80.0},
+                    }]
+                },
+            )
+        return httpx.Response(
+            200,
+            request=request,
+            json={
+                "observations": [{
+                    "stationID": "PWS2",
+                    "epoch": now,
+                    "obsTimeUtc": iso,
+                    "lat": "not-a-latitude",
+                    "lon": LON,
+                    "qcStatus": 1,
+                    "imperial": {"temp": 81.0},
+                }]
+            },
+        )
+
+    async def scenario():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+            result = await WeatherCompanyPWSClient(api_key="secret", http=http).fetch_snapshot(
+                latitude=LAT, longitude=LON, unit="F"
+            )
+        rejected = next(a for a in result.attempts if a.station_id == "PWS2")
+        assert rejected.outcome == "PWS_LATITUDE_INVALID"
+        assert rejected.observation_latitude is None
+        assert rejected.observation_longitude is None
+        assert rejected.identity_location_delta_km is None
 
     asyncio.run(scenario())
 
