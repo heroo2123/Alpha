@@ -23,7 +23,13 @@ def _good_payload(temp: float = 83.0) -> dict:
     now = int(time.time())
     return {
         "UNITS": {"air_temp": "Fahrenheit"},
-        "QC_SUMMARY": {"QC_CHECKS_APPLIED": ["sl_range_check"]},
+        "QC_SUMMARY": {
+            "QC_CHECKS_APPLIED": [
+                "sl_range_check",
+                "sl_rate_check",
+                "sl_pers_check",
+            ]
+        },
         "STATION": [
             {
                 "STID": "CWTEST",
