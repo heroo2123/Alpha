@@ -103,6 +103,15 @@ def _verifier():
     return module
 
 
+def _fresh_capture_verifier():
+    path = Path("deploy/verify-three-layer-fresh-capture.py")
+    spec = importlib.util.spec_from_file_location("three_layer_fresh_capture_verifier", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def _valid_status():
     return {
         "release_sha": "a" * 40,
@@ -193,9 +202,64 @@ def _verify(status):
     )
 
 
+def _verify_fresh(status):
+    module = _fresh_capture_verifier()
+    return module.verify_fresh_capture(
+        status,
+        release_sha="a" * 40,
+        not_before=999.0,
+        now=1001.0,
+        max_age_seconds=600.0,
+    )
+
+
 def test_status_verifier_accepts_complete_bounded_silent_state():
     result = _verify(_valid_status())
     assert result["acceptance"] == "PASS_THREE_LAYER_VALIDATION_RUNTIME_STATUS"
+
+
+def test_fresh_capture_verifier_accepts_actual_post_start_saved_capture():
+    result = _verify_fresh(_valid_status())
+    assert result["acceptance"] == "PASS_THREE_LAYER_FRESH_CAPTURE_AFTER_START"
+    assert result["fresh_live_source_capture_proven"] is True
+    assert result["saved_now"] == 4
+
+
+def test_fresh_capture_verifier_rejects_safe_but_zero_attempt_cycle():
+    status = _valid_status()
+    lane = status["same_day_three_layer"]
+    lane["eligible_events_total"] = 0
+    lane["selected_event_ids"] = []
+    lane["eligible_events"] = 0
+    lane["attempted_now"] = 0
+    lane["saved_now"] = 0
+    lane["blocked_now"] = 0
+    with pytest.raises(Exception, match="THREE_LAYER_FRESH_NO_ATTEMPT_AFTER_START"):
+        _verify_fresh(status)
+
+
+def test_fresh_capture_verifier_rejects_cadence_only_cycle_for_persistence():
+    status = _valid_status()
+    lane = status["same_day_three_layer"]
+    lane["attempted_now"] = 0
+    lane["saved_now"] = 0
+    lane["cadence_skipped_now"] = 4
+    lane["blocked_now"] = 0
+    with pytest.raises(Exception, match="THREE_LAYER_FRESH_NO_ATTEMPT_AFTER_START"):
+        _verify_fresh(status)
+
+
+def test_fresh_capture_verifier_rejects_status_from_before_candidate_start():
+    status = _valid_status()
+    module = _fresh_capture_verifier()
+    with pytest.raises(Exception, match="THREE_LAYER_STATUS_PREDATES_START"):
+        module.verify_fresh_capture(
+            status,
+            release_sha="a" * 40,
+            not_before=1000.5,
+            now=1001.0,
+            max_age_seconds=600.0,
+        )
 
 
 @pytest.mark.parametrize(
