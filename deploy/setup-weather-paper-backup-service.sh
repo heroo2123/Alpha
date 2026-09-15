@@ -28,7 +28,9 @@ Environment=ALPHA_WEATHER_APP_DIR=${APP_DIR}
 Environment=ALPHA_CONFIG_DIR=${CONFIG_DIR}
 Environment=WEATHER_PAPER_DB_PATH=${STATE_DIR}/weather-paper.sqlite
 Environment=WEATHER_PAPER_BACKUP_DIR=${BACKUP_DIR}
-Environment=WEATHER_PAPER_BACKUP_RETENTION_DAYS=14
+# Three retained daily generations bound backup growth on the small VM while the
+# primary database may contain up to roughly 1 GiB of compressed three-layer evidence.
+Environment=WEATHER_PAPER_BACKUP_RETENTION_DAYS=3
 ExecStart=/bin/bash ${APP_DIR}/deploy/pre-release-weather-paper-backup.sh
 NoNewPrivileges=true
 PrivateTmp=true
