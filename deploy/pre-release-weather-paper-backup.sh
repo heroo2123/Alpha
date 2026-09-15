@@ -5,7 +5,12 @@ APP_DIR="${ALPHA_WEATHER_APP_DIR:-${HOME}/polymarket-weather-paper-app}"
 CONFIG_DIR="${ALPHA_CONFIG_DIR:-${HOME}/.polymarket-edge-scanner}"
 DB_PATH="${WEATHER_PAPER_DB_PATH:-/var/lib/polymarket-weather-paper/weather-paper.sqlite}"
 BACKUP_DIR="${WEATHER_PAPER_BACKUP_DIR:-${CONFIG_DIR}/weather-paper-backups}"
-RETENTION_DAYS="${WEATHER_PAPER_BACKUP_RETENTION_DAYS:-14}"
+# The three-layer research database is deliberately allowed to grow to roughly a
+# gigabyte of compressed evidence. Keeping fourteen full daily SQLite copies on the
+# small e2-micro disk could therefore consume most of the filesystem. Three verified
+# daily generations give rollback depth while keeping the worst-case backup footprint
+# bounded enough for the deployment target. Operators may explicitly override this.
+RETENTION_DAYS="${WEATHER_PAPER_BACKUP_RETENTION_DAYS:-3}"
 RELEASE_FILE="${CONFIG_DIR}/weather-paper-release.sha"
 
 fail(){ printf 'ERROR: %s\n' "$*" >&2; exit 1; }
