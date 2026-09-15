@@ -14,6 +14,8 @@ on:
       - 'polymarket_scanner/weather_only_nws_near_term.py'
       - 'polymarket_scanner/weather_only_gefs_hourly.py'
       - 'polymarket_scanner/weather_only_station_metadata.py'
+      - 'polymarket_scanner/weather_only_same_day_capture_store_compressed.py'
+      - 'tests/test_weather_only_same_day_capture_store_compressed.py'
 
 permissions:
   contents: read
