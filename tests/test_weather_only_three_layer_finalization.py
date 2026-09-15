@@ -14,15 +14,25 @@ from polymarket_scanner.weather_only_live_paper_three_layer_validation import (
     THREE_LAYER_31D_CAPTURE_ROW_BOUND,
     THREE_LAYER_ATTEMPT_ROW_CAP,
     THREE_LAYER_CAPTURE_JSON_BYTES_CAP,
+    THREE_LAYER_COLLECTION_VERSION,
     THREE_LAYER_ELIGIBILITY_SCAN_DEADLINE_SECONDS,
+    THREE_LAYER_ELIGIBILITY_STATION_CAP,
     THREE_LAYER_MAX_EVENTS_PER_CYCLE,
     THREE_LAYER_SELECTION_POLICY,
     THREE_LAYER_SELECTION_UNIVERSE_CAP,
     THREE_LAYER_SOURCE_BUNDLE_DEADLINE_SECONDS,
+    THREE_LAYER_STATION_METADATA_CONCURRENCY,
     THREE_LAYER_VALIDATION_RUNTIME_VERSION,
     ThreeLayerValidationWeatherLivePaperService,
 )
 from polymarket_scanner.weather_only_live_paper_v4 import WeatherLivePaperV4Service
+from polymarket_scanner.weather_only_same_day_capture_store_compressed import (
+    COMPRESSED_CAPTURE_STORE_VERSION,
+    CURRENT_CAPTURE_ENCODING,
+    LEGACY_CAPTURE_ENCODING,
+    MAX_COMPRESSED_CAPTURE_BYTES,
+    MAX_UNCOMPRESSED_CAPTURE_BYTES,
+)
 
 
 class AsyncCloser:
@@ -105,7 +115,7 @@ def _valid_status():
         "financial_authority": False,
         "automatic_order_placement": False,
         "same_day_three_layer": {
-            "version": "same_day_three_layer_silent_collection_v3_guarded_rotating",
+            "version": THREE_LAYER_COLLECTION_VERSION,
             "enabled": True,
             "silent_research_only": True,
             "selection_policy": THREE_LAYER_SELECTION_POLICY,
@@ -114,6 +124,9 @@ def _valid_status():
             "selection_universe_cap": THREE_LAYER_SELECTION_UNIVERSE_CAP,
             "selection_universe_truncated": False,
             "selection_coverage_complete": True,
+            "eligibility_station_count": 1,
+            "eligibility_station_cap": THREE_LAYER_ELIGIBILITY_STATION_CAP,
+            "station_metadata_concurrency": THREE_LAYER_STATION_METADATA_CONCURRENCY,
             "max_events_per_cycle": THREE_LAYER_MAX_EVENTS_PER_CYCLE,
             "source_bundle_deadline_seconds": THREE_LAYER_SOURCE_BUNDLE_DEADLINE_SECONDS,
             "eligibility_scan_deadline_seconds": THREE_LAYER_ELIGIBILITY_SCAN_DEADLINE_SECONDS,
@@ -132,8 +145,20 @@ def _valid_status():
             "attempt_recovery_at_startup": 0,
             "errors": [],
             "store": {
+                "version": COMPRESSED_CAPTURE_STORE_VERSION,
                 "max_capture_rows": THREE_LAYER_31D_CAPTURE_ROW_BOUND,
                 "max_capture_json_bytes": THREE_LAYER_CAPTURE_JSON_BYTES_CAP,
+                "capture_storage_encoding_current": CURRENT_CAPTURE_ENCODING,
+                "legacy_capture_encoding": LEGACY_CAPTURE_ENCODING,
+                "max_uncompressed_capture_bytes": MAX_UNCOMPRESSED_CAPTURE_BYTES,
+                "max_compressed_capture_bytes": MAX_COMPRESSED_CAPTURE_BYTES,
+                "unknown_encoding_rows": 0,
+                "lossless_compression": True,
+                "read_time_digest_verification": True,
+                "read_time_sql_identity_verification": True,
+                "bounded_decompression": True,
+                "legacy_uncompressed_read_compatible": True,
+                "capture_storage_bytes": 0,
                 "capture_capacity_exhausted": False,
                 "automatic_evidence_pruning": False,
                 "included_in_validated_pnl": False,
@@ -177,7 +202,11 @@ def test_status_verifier_accepts_complete_bounded_silent_state():
     ("path", "value", "code"),
     [
         (("selection_universe_truncated",), True, "THREE_LAYER_SELECTION_UNIVERSE_TRUNCATED"),
-        (("eligible_events_total",), 13, "THREE_LAYER_ELIGIBLE_TOTAL_EXCEEDS_CAP"),
+        (
+            ("eligible_events_total",),
+            THREE_LAYER_SELECTION_UNIVERSE_CAP + 1,
+            "THREE_LAYER_ELIGIBLE_TOTAL_EXCEEDS_CAP",
+        ),
         (("max_events_per_cycle",), 5, "THREE_LAYER_MAX_EVENTS_PER_CYCLE_MISMATCH"),
         (("selected_event_ids",), ["event-1"] * 4, "THREE_LAYER_SELECTED_IDS_DUPLICATE"),
         (("capture_cadence_persisted_in_sqlite",), False, "THREE_LAYER_DURABLE_CADENCE_NOT_PROVEN"),
@@ -233,5 +262,5 @@ def test_three_layer_eligibility_uses_one_frozen_utc_clock_for_all_station_dates
         "polymarket_scanner/weather_only_live_paper_three_layer_validation.py"
     ).read_text(encoding="utf-8")
     assert "eligibility_now_utc = datetime.now(tz=timezone.utc)" in source
-    assert "eligibility_now_utc.astimezone(zone).date()" in source
+    assert "eligibility_now_utc.astimezone(zones_by_station[station]).date()" in source
     assert "local_today = datetime.now(tz=zone).date()" not in source
