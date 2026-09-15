@@ -4,6 +4,7 @@ import pytest
 
 from polymarket_scanner.weather_only_all_paper_deployment_acceptance import (
     AllPaperDeploymentAcceptanceError,
+    MAKER_NOTIFICATION_RETRY_POLICY,
     accept_first_all_paper_cycle,
 )
 from polymarket_scanner.weather_only_live_paper import MODE
@@ -12,6 +13,7 @@ from polymarket_scanner.weather_only_live_paper_all_signals_v7 import ALL_PAPER_
 from polymarket_scanner.weather_only_live_paper_all_signals_v8 import ALL_PAPER_V8_RUNTIME_VERSION
 from polymarket_scanner.weather_only_live_paper_final import FINAL_MARKET_STATE_POLICY, FINAL_PAPER_RUNTIME_VERSION
 from polymarket_scanner.weather_only_maker_paper_accounting_v5 import MAKER_PAPER_ACCOUNTING_V5_VERSION
+from polymarket_scanner.weather_only_maker_trade_stream_v3 import MAKER_TRADE_STREAM_V3_VERSION
 from polymarket_scanner.weather_only_paper_post_receipt import PAPER_EXECUTION_PROTOCOL_V5, PAPER_POSITION_VERSION_V5
 
 SHA = "a" * 40
@@ -31,6 +33,8 @@ def _status() -> dict:
         "paper_execution_protocol_version": PAPER_EXECUTION_PROTOCOL_V5,
         "paper_position_version": PAPER_POSITION_VERSION_V5,
         "maker_paper_accounting_version": MAKER_PAPER_ACCOUNTING_V5_VERSION,
+        "maker_trade_stream_version": MAKER_TRADE_STREAM_V3_VERSION,
+        "maker_settlement_notification_retry_policy": MAKER_NOTIFICATION_RETRY_POLICY,
         "cycle_ok": True,
         "errors": [],
         "maker_errors": [],
@@ -44,6 +48,13 @@ def _status() -> dict:
         "post_receipt_execution_required": True,
         "post_receipt_exact_clob_required": True,
         "maker_public_ws_prospective_fill_required": True,
+        "maker_healthy": True,
+        "maker_stream_degraded": False,
+        "maker_post_delivery_expiry_rechecked": True,
+        "maker_subscription_lifecycle_bounded": True,
+        "maker_activation_failure_cleanup_complete": True,
+        "maker_settlement_duplicate_after_restart_guard": True,
+        "maker_activation_accounting_atomic": True,
         "legacy_partial_hourly_summary_suppressed": True,
         "v5_terminal_not_actionable_audit_atomic": True,
         "same_day_paper_calibrated_probability": False,
@@ -82,6 +93,11 @@ def test_final_all_paper_first_cycle_accepts_only_complete_safe_profile():
         ("final_all_paper_runtime_version", None, "ALL_PAPER_FINAL_WRAPPER_VERSION_MISMATCH"),
         ("post_receipt_execution_required", False, "ALL_PAPER_POST_RECEIPT_EXECUTION_NOT_REQUIRED"),
         ("v5_terminal_not_actionable_audit_atomic", False, "ALL_PAPER_V5_TERMINAL_AUDIT_NOT_ATOMIC"),
+        ("maker_activation_accounting_atomic", False, "ALL_PAPER_MAKER_ACTIVATION_NOT_ATOMIC"),
+        ("maker_healthy", False, "ALL_PAPER_MAKER_NOT_HEALTHY"),
+        ("maker_stream_degraded", True, "ALL_PAPER_MAKER_STREAM_DEGRADED"),
+        ("maker_subscription_lifecycle_bounded", False, "ALL_PAPER_MAKER_SUBSCRIPTIONS_NOT_BOUNDED"),
+        ("maker_settlement_duplicate_after_restart_guard", False, "ALL_PAPER_MAKER_RESULT_DUPLICATE_GUARD_NOT_PROVEN"),
         ("structural_paper_delivery_enabled", False, "ALL_PAPER_STRUCTURAL_DELIVERY_NOT_ENABLED"),
         ("maker_book_touch_counts_as_fill", True, "ALL_PAPER_MAKER_BOOK_TOUCH_FILL_NOT_FALSE"),
         ("result_lag_paper_delivery_enabled", True, "ALL_PAPER_RESULT_LAG_NOT_GATED"),
@@ -98,6 +114,24 @@ def test_all_paper_first_cycle_fails_closed_on_safety_or_strategy_drift(key, val
             status, expected_release_sha=SHA, not_before=NOW - 10.0, now=NOW
         )
     assert exc.value.code == code
+
+
+def test_all_paper_first_cycle_rejects_wrong_maker_stream_or_notification_policy():
+    status = _status()
+    status["maker_trade_stream_version"] = "wrong-stream"
+    with pytest.raises(AllPaperDeploymentAcceptanceError) as exc:
+        accept_first_all_paper_cycle(
+            status, expected_release_sha=SHA, not_before=NOW - 10.0, now=NOW
+        )
+    assert exc.value.code == "ALL_PAPER_MAKER_STREAM_VERSION_MISMATCH"
+
+    status = _status()
+    status["maker_settlement_notification_retry_policy"] = "retry-everything"
+    with pytest.raises(AllPaperDeploymentAcceptanceError) as exc:
+        accept_first_all_paper_cycle(
+            status, expected_release_sha=SHA, not_before=NOW - 10.0, now=NOW
+        )
+    assert exc.value.code == "ALL_PAPER_MAKER_NOTIFICATION_POLICY_MISMATCH"
 
 
 def test_all_paper_first_cycle_rejects_stale_or_wrong_release():
