@@ -1,4 +1,4 @@
-"""Render the isolated second-corrective all-weather PAPER service; never start it."""
+"""Render the isolated fully-corrected all-weather PAPER service; never start it."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from pathlib import Path
 
 
 WEATHER_RELEASE_MARKER = "weather-paper-release.sha"
-ALL_PAPER_MODULE = "polymarket_scanner.weather_only_live_paper_all_signals_final_v2"
+ALL_PAPER_MODULE = "polymarket_scanner.weather_only_live_paper_all_signals_final_v3"
 
 
 def render(app_dir: Path, config_dir: Path, user: str) -> str:
