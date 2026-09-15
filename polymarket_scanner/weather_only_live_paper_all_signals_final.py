@@ -27,7 +27,7 @@ from .weather_only_live_paper_v2 import DEFAULT_PAPER_STAKE_USD
 
 
 FINAL_ALL_PAPER_RUNTIME_VERSION = (
-    "weather_all_paper_final_v2_v8_post_receipt_atomic_terminal_audit"
+    "weather_all_paper_final_v3_v8_atomic_terminal_and_maker_safety_attestation"
 )
 
 
@@ -76,6 +76,7 @@ class FinalAllPaperWeatherLiveService(AllPaperWeatherLiveV8Service):
             {
                 "final_all_paper_runtime_version": FINAL_ALL_PAPER_RUNTIME_VERSION,
                 "v5_terminal_not_actionable_audit_atomic": True,
+                "maker_activation_accounting_atomic": True,
                 "financial_delivery": False,
                 "financial_authority": False,
                 "automatic_order_placement": False,
