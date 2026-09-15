@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - weather-three-layer-meticulous-final-2026-09-15
+      - weather-three-layer-live-grammar-corrective-2026-09-15
     paths:
       - '.github/workflows/weather-three-layer-live-universe-census.yml'
       - 'polymarket_scanner/weather_only_discovery.py'
