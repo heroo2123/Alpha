@@ -215,8 +215,10 @@ def restore(venv_path: Path, archive_path: Path, manifest_path: Path) -> dict:
     with tarfile.open(archive, mode="r") as tar:
         members = _safe_members(tar)
         # Members were generated locally from a trusted venv and the exact archive
-        # digest is verified above. Path/symlink-prefix checks prevent traversal.
-        tar.extractall(path=app_dir, members=members)
+        # digest is verified above. Path/symlink-prefix checks prevent traversal. Use
+        # an explicit extraction policy so Python 3.14 cannot silently change restore
+        # semantics after the manifest/archive have already been certified.
+        tar.extractall(path=app_dir, members=members, filter="fully_trusted")
     verify_tree(venv, manifest_path)
     return manifest
 
