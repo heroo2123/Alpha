@@ -2,13 +2,15 @@ from __future__ import annotations
 
 """All-weather PAPER runtime v5: bounded maker activation lifecycle.
 
-V5 preserves the V4 serialized maker accounting boundary and adds two independent
+V5 preserves the V4 serialized maker accounting boundary and adds independent
 fail-closed corrections:
 
 * a maker candidate waits a bounded time for a real first-book public-WebSocket
-  coverage anchor, then releases the token again if no virtual order activates; and
+  coverage anchor, then releases the token again if no virtual order activates;
 * the Telegram decision deadline is rechecked after the post-delivery forecast/CLOB
-  rebuild so network work cannot activate an already-expired PAPER instruction.
+  rebuild so network work cannot activate an already-expired PAPER instruction; and
+* once a token is subscribed, cleanup runs across stream-start, delivery and activation
+  failures unless an active virtual order actually owns that token.
 
 Completed/cancelled maker orders are unsubscribed while unrelated active token
 coverage is retained.  The stream idles locally when no maker token is needed.  No
@@ -75,15 +77,17 @@ class AllPaperWeatherLiveV5Service(AllPaperWeatherLiveV4Service):
     async def _send_maker_candidate(self, candidate: dict) -> tuple[bool, str | None]:
         token = str(candidate["proposal"].token_id)
         await self.maker_stream.subscribe(token)
-        await self.maker_stream.start()
-        coverage = await self._wait_for_maker_coverage(token)
-        if coverage is None:
-            await self.maker_stream.unsubscribe(token)
-            return False, None
-
         try:
+            await self.maker_stream.start()
+            coverage = await self._wait_for_maker_coverage(token)
+            if coverage is None:
+                return False, None
             return await super()._send_maker_candidate(candidate)
         finally:
+            # Subscription ownership is defined by durable ACTIVE maker orders, not
+            # by how far this coroutine happened to get.  This cleanup therefore also
+            # covers start failures, ambiguous Telegram delivery, failed activation,
+            # and unexpected parent exceptions.
             active_tokens = await asyncio.to_thread(self.maker_store.active_token_ids)
             if token not in active_tokens:
                 await self.maker_stream.unsubscribe(token)
@@ -112,6 +116,7 @@ class AllPaperWeatherLiveV5Service(AllPaperWeatherLiveV4Service):
                 ),
                 "maker_post_delivery_expiry_rechecked": True,
                 "maker_subscription_lifecycle_bounded": True,
+                "maker_activation_failure_cleanup_complete": True,
                 "maker_trade_stream": stream_status,
                 "financial_delivery": False,
                 "financial_authority": False,
