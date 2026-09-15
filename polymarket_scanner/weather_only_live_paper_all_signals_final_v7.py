@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-"""Final all-PAPER wrapper with fail-closed config and terminal-state attestation."""
+"""Final all-PAPER wrapper with fail-closed config, terminal-state and startup attestation."""
 
 import argparse
 import asyncio
@@ -14,6 +14,7 @@ from .weather_only_live_paper import (
     DEFAULT_FORECAST_RAW_GAP_MIN,
     DEFAULT_INTERVAL_SECONDS,
     DEFAULT_MAX_FORECAST_EVENTS,
+    WeatherLivePaperError,
     _atomic_json,
 )
 from .weather_only_live_paper_all_signals_final_v6 import FinalAllPaperWeatherLiveServiceV6
@@ -27,7 +28,7 @@ from .weather_only_paper_corrective import CorrectiveSettlementEngine
 
 
 FINAL_ALL_PAPER_RUNTIME_V7_VERSION = (
-    "weather_all_paper_final_v10_attested_config_strict_terminal_identity"
+    "weather_all_paper_final_v11_operator_restart_visibility_startup_sync"
 )
 _DOTENV_DISABLE_TRUE = {"1", "true", "yes", "on"}
 _ALLOWED_SETTINGS_OVERRIDES = {"telegram_bot_token", "telegram_chat_id"}
@@ -75,14 +76,22 @@ class FinalAllPaperWeatherLiveServiceV7(FinalAllPaperWeatherLiveServiceV6):
         )
 
     async def close(self) -> None:
+        # The mature V4 close path eventually closes the current settlement/commands;
+        # this layer only owns the V6 instances that it superseded.
         await asyncio.gather(
-            self.settlement.close(),
-            self.commands.close(),
             self._v7_superseded_settlement.close(),
             self._v7_superseded_commands.close(),
             return_exceptions=True,
         )
         await super().close()
+
+    async def send_startup(self) -> int:
+        # Never announce ONLINE while a previously delivered alert still requires an
+        # operator-visible terminal edit.  Idempotent edit retries happen here first.
+        sync = await self._sync_operator_messages()
+        if sync.get("healthy") is not True or list(sync.get("errors") or []):
+            raise WeatherLivePaperError("ALL_PAPER_OPERATOR_SYNC_STARTUP_UNHEALTHY")
+        return await super().send_startup()
 
     async def run_cycle(self) -> dict:
         status = dict(await super().run_cycle())
@@ -95,6 +104,8 @@ class FinalAllPaperWeatherLiveServiceV7(FinalAllPaperWeatherLiveServiceV6):
                 "isolated_settings_overrides": sorted(_ALLOWED_SETTINGS_OVERRIDES),
                 "terminal_invalidation_identity_strict": True,
                 "terminal_invalidation_requires_post_receipt_prestate": True,
+                "operator_restart_visibility_required": True,
+                "operator_sync_before_startup_required": True,
                 "operator_recent_terminal_reason_visible": True,
                 "maker_proposal_queue_uncertified_label": True,
                 "financial_delivery": False,
