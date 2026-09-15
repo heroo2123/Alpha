@@ -46,12 +46,13 @@ def test_prepare_script_does_not_start_enable_or_modify_legacy_release_marker():
     assert "systemctl is-enabled" in text
 
 
-def test_prepare_default_source_ref_is_current_meticulous_validation_branch():
+def test_prepare_default_source_ref_is_current_corrective_validation_branch():
     text = _text(PREPARE)
     assert (
-        'SOURCE_REF="${ALPHA_WEATHER_SOURCE_REF:-${2:-weather-three-layer-meticulous-final-2026-09-15}}"'
+        'SOURCE_REF="${ALPHA_WEATHER_SOURCE_REF:-${2:-weather-three-layer-live-grammar-corrective-2026-09-15}}"'
         in text
     )
+    assert "weather-three-layer-meticulous-final-2026-09-15" not in text
     assert "weather-same-day-three-layer-validation-2026-09-14" not in text
 
 
