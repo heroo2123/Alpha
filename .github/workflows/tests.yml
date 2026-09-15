@@ -5,6 +5,44 @@ on:
   pull_request:
 
 jobs:
+  runtime-hash-lock:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Generate exact Ubuntu x86_64 Python 3.11 runtime wheel hash lock
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          out="$RUNNER_TEMP/requirements-runtime-hashed.txt"
+          : > "$out"
+          while IFS= read -r raw || [[ -n "$raw" ]]; do
+            row="${raw%%#*}"
+            row="$(printf '%s' "$row" | xargs)"
+            [[ -z "$row" ]] && continue
+            [[ "$row" == *"=="* ]] || { echo "unfrozen runtime requirement: $row" >&2; exit 1; }
+            tmp="$(mktemp -d)"
+            python -m pip download --disable-pip-version-check --no-deps --only-binary=:all: --dest "$tmp" "$row"
+            mapfile -t files < <(find "$tmp" -maxdepth 1 -type f -printf '%p\n')
+            [[ "${#files[@]}" -eq 1 ]] || { echo "expected one wheel for $row" >&2; exit 1; }
+            digest="$(sha256sum "${files[0]}" | awk '{print $1}')"
+            printf '%s --hash=sha256:%s\n' "$row" "$digest" >> "$out"
+            rm -rf "$tmp"
+          done < requirements.txt
+          echo '--- GENERATED RUNTIME HASH LOCK ---'
+          cat "$out"
+          cp "$out" generated-runtime-hashed.txt
+          if [[ -f requirements-runtime-hashed.txt ]]; then
+            diff -u requirements-runtime-hashed.txt generated-runtime-hashed.txt
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: runtime-hash-lock-py311-ubuntu2404-x86_64
+          path: generated-runtime-hashed.txt
+
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 15
