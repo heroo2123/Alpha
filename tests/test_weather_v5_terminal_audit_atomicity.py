@@ -84,7 +84,7 @@ def test_not_actionable_status_and_reason_are_committed_together_and_survive_res
 def test_terminal_audit_rolls_back_status_if_decision_insert_fails(tmp_path):
     store = PostReceiptWeatherPaperStore(tmp_path / "paper.sqlite")
     sid = _signal(store, "rollback")
-    assert _status(store, sid) == "ACKNOWLEDGED"
+    assert _status(store, sid) == "PENDING_DELIVERY"
 
     with store._conn() as db:
         db.execute(
@@ -109,9 +109,10 @@ def test_terminal_audit_rolls_back_status_if_decision_insert_fails(tmp_path):
             recorded_at=NOW + 1.0,
         )
 
-    # The status update happened earlier in the attempted transaction, so observing
-    # ACKNOWLEDGED here proves SQLite rolled the whole transaction back.
-    assert _status(store, sid) == "ACKNOWLEDGED"
+    # The status update happened earlier in the attempted transaction. Returning to
+    # the exact pre-transaction PENDING_DELIVERY state proves SQLite rolled back both
+    # the terminal status and the decision insert together.
+    assert _status(store, sid) == "PENDING_DELIVERY"
     with store._conn() as db:
         assert db.execute(
             "SELECT COUNT(*) FROM weather_paper_decisions "
