@@ -19,7 +19,7 @@ from .weather_only_contracts import DAILY_HIGH, DAILY_LOW, compile_weather_event
 from .weather_only_rules import apply_rule_authority, compile_temperature_rule_authority
 
 
-STRICT_CONTRACT_VERSION = "weather_contract_strict_v7_current_polymarket_grammar_fail_closed"
+STRICT_CONTRACT_VERSION = "weather_contract_strict_v8_current_polymarket_station_census_fail_closed"
 
 
 class StrictWeatherContractError(RuntimeError):
@@ -47,11 +47,24 @@ _ALLOWED_WRH_HOSTS = {"weather.gov", "www.weather.gov"}
 # contains a trusted station code: only station-name/code pairs independently observed
 # in the reviewed live corpus are admitted here.  New pairs are additive review work.
 _CURRENT_STATION_DISPLAY_NAMES = {
+    # Celsius contracts observed in the reviewed live corpus. They remain blocked by
+    # the current Layer-1 adapter, but their settlement grammar can be certified.
     "EGLC": "london city airport",
     "LFPB": "paris-le bourget airport",
     "SBGR": "sao paulo-guarulhos international airport",
-    "KSEA": "seattle-tacoma international airport",
+    # Fahrenheit station-name/code pairs independently enumerated from the complete
+    # 2026-09-15 live daily-temperature universe. NYC/KLGA is deliberately omitted
+    # because the parent title says "NYC" while its child questions say "New York City".
+    "KATL": "hartsfield-jackson international airport",
+    "KAUS": "austin-bergstrom international airport",
+    "KBKF": "buckley space force base",
     "KDAL": "dallas love field",
+    "KHOU": "william p. hobby airport",
+    "KLAX": "los angeles international airport",
+    "KMIA": "miami intl airport",
+    "KORD": "chicago o'hare intl airport",
+    "KSEA": "seattle-tacoma international airport",
+    "KSFO": "san francisco international airport",
 }
 
 # Gamma currently uses ``description``/``resolutionSource`` for these contracts, but a
