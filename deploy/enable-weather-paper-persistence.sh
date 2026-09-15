@@ -68,9 +68,12 @@ bash "${APP_DIR}/deploy/check-weather-paper-service-isolation.sh" --require-disa
 
 # A healthy wrapper with zero attempts is safe to observe provisionally but does not
 # prove that WRH, NWS and GEFS actually worked on this candidate. Refuse persistence
-# until one fresh post-start same-day capture has been saved by a fully verified cycle.
+# until the durable SQLite audit proves at least one SAVED post-start capture. This is
+# intentionally independent of the latest status cycle, which may already be a normal
+# cadence-skipped cycle after the successful capture.
 "${APP_DIR}/.venv/bin/python" "${APP_DIR}/deploy/verify-three-layer-fresh-capture.py" \
-  --status "${STATUS_PATH}" --release-sha "${EXPECTED_SHA}" --not-before "${START_ACCEPTANCE_EPOCH}" \
+  --status "${STATUS_PATH}" --db "${DB_PATH}" \
+  --release-sha "${EXPECTED_SHA}" --not-before "${START_ACCEPTANCE_EPOCH}" \
   --timeout-seconds 60 --max-age-seconds 600 --output "${FRESH_CAPTURE_OUT}"
 
 bash "${APP_DIR}/deploy/setup-weather-paper-backup-service.sh"
@@ -111,7 +114,7 @@ systemctl is-active --quiet "${BACKUP_TIMER}" || fail "weather PAPER backup time
 
 trap - EXIT
 printf '\nPASS: guarded three-layer weather PAPER bot is enabled for 24/7 restart persistence.\n'
-printf 'A fresh post-start WRH+NWS+GEFS research capture was proven before persistence.\n'
+printf 'A durable post-start WRH+NWS+GEFS research capture was proven before persistence.\n'
 printf 'Daily verified paper-ledger backups are enabled.\n'
 printf 'Release: %s\n' "${EXPECTED_SHA}"
 printf 'Superseded scanner/research services remain outside this persistence path.\n'
