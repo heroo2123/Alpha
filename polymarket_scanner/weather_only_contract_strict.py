@@ -19,7 +19,7 @@ from .weather_only_contracts import DAILY_HIGH, DAILY_LOW, compile_weather_event
 from .weather_only_rules import apply_rule_authority, compile_temperature_rule_authority
 
 
-STRICT_CONTRACT_VERSION = "weather_contract_strict_v6_current_city_date_question_fail_closed"
+STRICT_CONTRACT_VERSION = "weather_contract_strict_v7_current_polymarket_grammar_fail_closed"
 
 
 class StrictWeatherContractError(RuntimeError):
@@ -41,6 +41,18 @@ _MONTHS = {
     "sep": 9, "sept": 9, "oct": 10, "nov": 11, "dec": 12,
 }
 _ALLOWED_WRH_HOSTS = {"weather.gov", "www.weather.gov"}
+
+# Current September-2026 NOAA/WRH contracts spell out a human station name in the
+# operative settlement text.  Do not accept an arbitrary name merely because the URL
+# contains a trusted station code: only station-name/code pairs independently observed
+# in the reviewed live corpus are admitted here.  New pairs are additive review work.
+_CURRENT_STATION_DISPLAY_NAMES = {
+    "EGLC": "london city airport",
+    "LFPB": "paris-le bourget airport",
+    "SBGR": "sao paulo-guarulhos international airport",
+    "KSEA": "seattle-tacoma international airport",
+    "KDAL": "dallas love field",
+}
 
 # Gamma currently uses ``description``/``resolutionSource`` for these contracts, but a
 # strict live-paper boundary must not silently ignore another settlement-text alias if
@@ -192,7 +204,8 @@ def _question_supported(
     The legacy recurring template omitted city/date from each child question.  The
     current September-2026 template repeats both.  The current form is accepted only
     when the location is copied exactly from the parent title and the month/day are
-    exactly the compiled contract date.  This is deliberately not a fuzzy parser.
+    exactly the compiled contract date.  Current-only synonyms are intentionally kept
+    out of the legacy grammar.
     """
     text = " ".join(str(question or "").strip().split())
     statistic = "highest" if family == DAILY_HIGH else "lowest" if family == DAILY_LOW else None
@@ -200,15 +213,22 @@ def _question_supported(
         return False
     number = r"-?\d+(?:\.0+)?"
     unit = r"(?:°\s*[FC]|\s+degrees?\s+[FC]|\s*[FC])"
-    bucket = (
+    range_bucket = rf"{number}\s*(?:-|–|to)\s*{number}\s*{unit}"
+    legacy_bucket = (
+        rf"(?:{number}\s*{unit}\s+or\s+lower|"
+        rf"{number}\s*{unit}\s+or\s+higher|"
+        rf"{range_bucket}|"
+        rf"{number}\s*{unit})"
+    )
+    current_bucket = (
         rf"(?:{number}\s*{unit}\s+or\s+(?:lower|below)|"
         rf"{number}\s*{unit}\s+or\s+higher|"
-        rf"{number}\s*(?:-|–|to)\s*{number}\s*{unit}|"
+        rf"(?:between\s+)?{range_bucket}|"
         rf"{number}\s*{unit})"
     )
 
     legacy = re.fullmatch(
-        rf"Will\s+the\s+{statistic}\s+temperature\s+be\s+(?P<bucket>{bucket})\?",
+        rf"Will\s+the\s+{statistic}\s+temperature\s+be\s+(?P<bucket>{legacy_bucket})\?",
         text,
         re.I,
     )
@@ -221,14 +241,15 @@ def _question_supported(
     month = re.escape(target.strftime("%B"))
     current = re.fullmatch(
         rf"Will\s+the\s+{statistic}\s+temperature\s+in\s+{re.escape(location)}\s+be\s+"
-        rf"(?P<bucket>{bucket})\s+on\s+{month}\s+0?{target.day}\?",
+        rf"(?P<bucket>{current_bucket})\s+on\s+{month}\s+0?{target.day}\?",
         text,
         re.I,
     )
     if current is None:
         return False
+    parsed_bucket = re.sub(r"^between\s+", "", current.group("bucket"), flags=re.I)
     label = " ".join(str(group_item_title or "").strip().split())
-    if label and _norm(label) != _norm(current.group("bucket")):
+    if label and _norm(label) != _norm(parsed_bucket):
         return False
     return True
 
@@ -255,7 +276,8 @@ def _supported_nws_rule_structure(operative_rules: str, compiled) -> bool:
     day = rf"0?{target.day}"
     month = re.escape(target.strftime("%b").lower())
     year = f"{target.year % 100:02d}"
-    station = re.escape(str(compiled.station_hint).lower())
+    station_code = str(compiled.station_hint).upper()
+    station = re.escape(station_code.lower())
     source_url = rf"https://(?:www\.)?weather\.gov/wrh/timeseries\?site={station}"
 
     public_template = re.compile(
@@ -284,7 +306,51 @@ def _supported_nws_rule_structure(operative_rules: str, compiled) -> bool:
         rf"whichever comes first, after which any alterations will not be considered\.?$"
     )
 
-    return public_template.fullmatch(text) is not None or compact_template.fullmatch(text) is not None
+    current_template = None
+    station_display = _CURRENT_STATION_DISPLAY_NAMES.get(station_code)
+    if station_display is not None:
+        if compiled.unit == "F":
+            hourly_clause = (
+                r"this market will resolve off of the hourly data provided using the \"show hourly data\" button\. "
+            )
+            switch_clause = (
+                r"to toggle between fahrenheit and celsius, click the \"switch to us units w/ kts\" button "
+                r"until the relevant table displays °f\. "
+            )
+            precision_example = r"21°f"
+        else:
+            hourly_clause = ""
+            switch_clause = (
+                r"to toggle between fahrenheit and celsius, click the \"switch to metric units\" button "
+                r"until the relevant table displays °c\. "
+            )
+            precision_example = r"9°c"
+
+        current_template = re.compile(
+            rf"^this market will resolve to the temperature range that contains the {statistic} temperature "
+            rf"recorded by noaa at the {re.escape(station_display)} station in degrees {unit_word} on "
+            rf"{day} {month} '{year}\. "
+            rf"the resolution source for this market will be information from noaa, specifically the {statistic} "
+            rf"reading under the \"temp\" column for all times on this day, available here: {source_url} "
+            rf"{hourly_clause}"
+            rf"if noaa data for the observation date is unavailable by 11:59 pm et on the day following the observation date, "
+            rf"the weather underground daily observations table will be used as the resolution source\. "
+            rf"in the event that there is no data for the observation date by 11:59 pm et on the day following the observation date, "
+            rf"this market will resolve to the lowest bracket\. "
+            rf"{switch_clause}"
+            rf"this market will resolve once the first data point for the following date has been published on the resolution source, "
+            rf"or by 11:59 pm et on the day following the observation date, whichever comes first\. "
+            rf"the resolution source for this market measures temperatures to whole degrees {unit_word} "
+            rf"\(eg, {precision_example}\)\. thus, this is the level of precision that will be used when resolving the market\. "
+            rf"revisions to temperatures recorded within this market's timeframe will be considered until the first datapoint "
+            rf"for the following date has been published, after which any alterations will not be considered\.?$"
+        )
+
+    return (
+        public_template.fullmatch(text) is not None
+        or compact_template.fullmatch(text) is not None
+        or (current_template is not None and current_template.fullmatch(text) is not None)
+    )
 
 
 def _coherent_rule_identity(event: dict, compiled) -> dict:
