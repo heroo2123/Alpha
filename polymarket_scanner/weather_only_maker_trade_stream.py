@@ -139,7 +139,11 @@ def parse_last_trade_price_message(message: object, *, received_at: float) -> Pu
         raise MakerTradeStreamError("MAKER_STREAM_SIDE_INVALID")
     executed_at = _event_epoch(message.get("timestamp"))
     receipt = _finite(received_at, "MAKER_STREAM_RECEIPT_INVALID")
-    if receipt < 0.0 or executed_at > receipt + 2.0:
+    # Fill causality cannot tolerate a provider execution timestamp that is later
+    # than local receipt.  Otherwise a message observed before a virtual order could
+    # be reclassified as post-order evidence solely because of clock skew.  This also
+    # matches PublicTradePrint's invariant instead of allowing a contradictory 2s gap.
+    if receipt < 0.0 or executed_at > receipt + 1e-9:
         raise MakerTradeStreamError("MAKER_STREAM_EVENT_FROM_FUTURE")
     transaction = _canonical_0x_hex(
         message.get("transaction_hash"),
