@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from dataclasses import replace
 
 import pytest
@@ -237,5 +238,49 @@ def test_summary_separates_active_filled_and_settled_counts(tmp_path):
         assert summary["simulated_filled_orders"] == 1
         assert summary["settled_orders"] == 1
         assert summary["financial_authority"] is False
+    finally:
+        store.close()
+
+
+def test_store_supports_successive_executor_worker_handoffs(tmp_path):
+    store = MakerPaperAccountingStore(tmp_path / "maker.sqlite")
+
+    async def exercise():
+        created = await asyncio.to_thread(store.save_new_order, _order("thread-hop"))
+        loaded = await asyncio.to_thread(store.load_order, created.order_id)
+        summary = await asyncio.to_thread(store.summary)
+        audit = await asyncio.to_thread(store.audit_order, created.order_id)
+        return loaded, summary, audit
+
+    try:
+        loaded, summary, audit = asyncio.run(exercise())
+        assert loaded.order_id == "thread-hop"
+        assert summary["orders_total"] == 1
+        assert audit["sqlite_integrity"] == "ok"
+    finally:
+        store.close()
+
+
+def test_store_serializes_concurrent_worker_calls(tmp_path):
+    store = MakerPaperAccountingStore(tmp_path / "maker.sqlite")
+
+    async def exercise():
+        await asyncio.gather(
+            *(
+                asyncio.to_thread(store.save_new_order, _order(f"concurrent-{index}"))
+                for index in range(12)
+            )
+        )
+        summaries = await asyncio.gather(
+            *(asyncio.to_thread(store.summary) for _ in range(8))
+        )
+        return summaries
+
+    try:
+        summaries = asyncio.run(exercise())
+        assert all(row["orders_total"] == 12 for row in summaries)
+        for index in range(12):
+            audit = store.audit_order(f"concurrent-{index}")
+            assert audit["sqlite_integrity"] == "ok"
     finally:
         store.close()
