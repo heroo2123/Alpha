@@ -31,7 +31,9 @@ from .weather_only_maker_shadow import PublicTradePrint
 
 
 MARKET_WS_URL = "wss://ws-subscriptions-clob.polymarket.com/ws/market"
-MAKER_TRADE_STREAM_VERSION = "weather_maker_public_ws_v1_prospective_gap_fail_closed"
+MAKER_TRADE_STREAM_VERSION = (
+    "weather_maker_public_ws_v1_prospective_gap_fail_closed_strict_tx_hash"
+)
 MAKER_TRADE_STREAM_HEARTBEAT_SECONDS = 10.0
 MAKER_TRADE_STREAM_RECONNECT_MAX_SECONDS = 10.0
 MAKER_TRADE_STREAM_MAX_TOKENS = 32
@@ -126,6 +128,10 @@ def parse_last_trade_price_message(message: object, *, received_at: float) -> Pu
     transaction = _text(
         message.get("transaction_hash"), "MAKER_STREAM_TRANSACTION_HASH_MISSING"
     ).lower()
+    if not transaction.startswith("0x") or len(transaction) != 66 or any(
+        ch not in "0123456789abcdef" for ch in transaction[2:]
+    ):
+        raise MakerTradeStreamError("MAKER_STREAM_TRANSACTION_HASH_INVALID")
     identity = {
         "market": market,
         "token": token,
