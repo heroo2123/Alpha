@@ -2,16 +2,17 @@ from __future__ import annotations
 
 """Independent live certification for maker PAPER trade-stream semantics.
 
-This module is a verification tool, not a trading runtime.  It selects currently active
-public CLOB token IDs from recent taker-only Data API trades, subscribes to those tokens
-on the anonymous Market WebSocket, parses real ``last_trade_price`` frames through the
-production maker parser, and independently correlates transaction/side identity back to
+This module is a verification tool, not a trading runtime. It selects public CLOB
+tokens with recent taker-SELL activity, subscribes to those tokens on the anonymous
+Market WebSocket, parses real ``last_trade_price`` frames through the production maker
+parser, and independently correlates transaction/side identity back to
 ``takerOnly=true`` Data API rows.
 
-Certification is deliberately fail closed.  A quiet observation window is not a pass;
-multiple independently correlated trades are required.  A diagnostic JSON report is
-written even when certification fails so lack of evidence is distinguishable from a
-schema, causality, identity, or side-semantics defect.
+The maker simulator specifically relies on SELL aggressors consuming a resting bid, so
+certification requires multiple independently correlated SELL frames. Generic BUY-side
+agreement alone is not sufficient. A diagnostic JSON report is written even when the
+gate fails so lack of evidence is distinguishable from a schema, causality, identity,
+or side-semantics defect.
 """
 
 import argparse
@@ -33,7 +34,9 @@ from .weather_only_maker_trade_stream import (
 )
 
 
-LIVE_SEMANTICS_VERSION = "weather_maker_live_semantics_v2_recent_taker_targets_diagnostic"
+LIVE_SEMANTICS_VERSION = (
+    "weather_maker_live_semantics_v3_recent_taker_sell_targets_sell_certified"
+)
 DATA_TRADES_URL = "https://data-api.polymarket.com/trades"
 DEFAULT_MAX_TOKENS = 32
 DEFAULT_MIN_TOKENS = 8
@@ -41,6 +44,7 @@ DEFAULT_OBSERVE_SECONDS = 120.0
 DEFAULT_CORRELATE_SECONDS = 45.0
 DEFAULT_TARGET_WS_TRADES = 8
 DEFAULT_MIN_CORRELATED_TRADES = 3
+DEFAULT_MIN_CORRELATED_SELL_TRADES = 3
 DEFAULT_RECENT_LOOKBACK_SECONDS = 900
 DEFAULT_FALLBACK_LOOKBACK_SECONDS = 3600
 
@@ -56,7 +60,7 @@ def _json_get(url: str, params: dict[str, object], *, timeout: float = 20.0):
     request = urllib.request.Request(
         target,
         headers={
-            "User-Agent": "weather-maker-live-semantics/2.0",
+            "User-Agent": "weather-maker-live-semantics/3.0",
             "Accept": "application/json",
         },
     )
@@ -93,17 +97,26 @@ def _canonical_tx_hash(value: object) -> str | None:
     return "0x" + body.lower()
 
 
-def select_recent_trade_targets(rows: object, *, max_tokens: int) -> dict[str, str]:
-    """Return token -> condition IDs in provider recency order.
+def select_recent_trade_targets(
+    rows: object,
+    *,
+    max_tokens: int,
+    required_side: str | None = None,
+) -> dict[str, str]:
+    """Return token -> condition IDs from recent public taker activity.
 
-    Selection intentionally depends only on public taker-trade activity.  It does not
-    treat Data API trade rows as fill evidence for the virtual maker order; the rows
-    merely choose tokens likely to emit fresh WebSocket trades during the live gate.
+    When ``required_side`` is supplied, only rows with that taker side can select a
+    token. This is used by the live gate to subscribe specifically to tokens that have
+    demonstrated recent SELL-aggressor activity. The Data API rows are selection hints
+    only; they are never treated as maker-fill evidence for a virtual order.
     """
     if isinstance(max_tokens, bool) or not isinstance(max_tokens, int) or max_tokens <= 0:
         raise MakerLiveSemanticsError("LIVE_SEMANTICS_TOKEN_LIMIT_INVALID")
     if not isinstance(rows, list):
         raise MakerLiveSemanticsError("LIVE_SEMANTICS_RECENT_TRADES_SHAPE_INVALID")
+    wanted = None if required_side is None else str(required_side).strip().upper()
+    if wanted not in {None, "BUY", "SELL"}:
+        raise MakerLiveSemanticsError("LIVE_SEMANTICS_REQUIRED_SIDE_INVALID")
 
     selected: dict[str, str] = {}
     for row in rows:
@@ -113,6 +126,8 @@ def select_recent_trade_targets(rows: object, *, max_tokens: int) -> dict[str, s
         condition = _canonical_condition(row.get("conditionId"))
         side = str(row.get("side") or "").strip().upper()
         if not token or not token.isdigit() or condition is None or side not in {"BUY", "SELL"}:
+            continue
+        if wanted is not None and side != wanted:
             continue
         existing = selected.get(token)
         if existing is not None and existing != condition:
@@ -234,8 +249,6 @@ async def _observe_ws_trades(
                 if condition != token_to_condition[token]:
                     raise MakerLiveSemanticsError("LIVE_SEMANTICS_TRADE_IDENTITY_MISMATCH")
 
-                # Use the actual production parser so required metadata, identity and
-                # receipt/execution causality are certified rather than reimplemented.
                 trade = parse_last_trade_price_message(row, received_at=received_at)
                 if trade is None:
                     raise MakerLiveSemanticsError("LIVE_SEMANTICS_PRODUCTION_PARSER_IGNORED_TRADE")
@@ -328,23 +341,26 @@ def run_live_certification(
     correlate_seconds: float = DEFAULT_CORRELATE_SECONDS,
     target_ws_trades: int = DEFAULT_TARGET_WS_TRADES,
     min_correlated_trades: int = DEFAULT_MIN_CORRELATED_TRADES,
+    min_correlated_sell_trades: int = DEFAULT_MIN_CORRELATED_SELL_TRADES,
 ) -> int:
     report: dict = {
         "version": LIVE_SEMANTICS_VERSION,
         "certified": False,
         "failure_code": None,
-        "selection_source": "DATA_API_RECENT_TAKER_TRADES",
+        "selection_source": "DATA_API_RECENT_TAKER_SELL_TRADES",
         "public_market_ws_url": MARKET_WS_URL,
         "data_api_url": DATA_TRADES_URL,
         "requested_max_tokens": int(max_tokens),
         "required_min_tokens": int(min_tokens),
         "target_ws_trades": int(target_ws_trades),
         "required_correlated_trades": int(min_correlated_trades),
+        "required_correlated_sell_trades": int(min_correlated_sell_trades),
         "selected_tokens": 0,
         "covered_tokens": 0,
         "messages_observed": 0,
         "production_parsed_unique_trade_frames": 0,
         "data_api_taker_only_correlations": 0,
+        "data_api_taker_only_sell_correlations": 0,
         "side_mismatch_count": 0,
         "observed_side_counts": {},
         "correlated_side_counts": {},
@@ -357,16 +373,20 @@ def run_live_certification(
     }
 
     try:
-        if any(isinstance(value, bool) for value in (
+        integer_args = (
             max_tokens,
             min_tokens,
             target_ws_trades,
             min_correlated_trades,
-        )):
+            min_correlated_sell_trades,
+        )
+        if any(isinstance(value, bool) for value in integer_args):
             raise MakerLiveSemanticsError("LIVE_SEMANTICS_ARGUMENT_INVALID")
         if not (0 < min_tokens <= max_tokens <= 32):
             raise MakerLiveSemanticsError("LIVE_SEMANTICS_ARGUMENT_INVALID")
         if not (0 < min_correlated_trades <= target_ws_trades):
+            raise MakerLiveSemanticsError("LIVE_SEMANTICS_ARGUMENT_INVALID")
+        if not (0 < min_correlated_sell_trades <= target_ws_trades):
             raise MakerLiveSemanticsError("LIVE_SEMANTICS_ARGUMENT_INVALID")
         if observe_seconds <= 0.0 or correlate_seconds <= 0.0:
             raise MakerLiveSemanticsError("LIVE_SEMANTICS_ARGUMENT_INVALID")
@@ -381,7 +401,9 @@ def run_live_certification(
                 "limit": 1000,
             },
         )
-        selected = select_recent_trade_targets(recent, max_tokens=max_tokens)
+        selected = select_recent_trade_targets(
+            recent, max_tokens=max_tokens, required_side="SELL"
+        )
         if len(selected) < min_tokens:
             fallback = _json_get(
                 DATA_TRADES_URL,
@@ -392,10 +414,12 @@ def run_live_certification(
                     "limit": 1000,
                 },
             )
-            selected = select_recent_trade_targets(fallback, max_tokens=max_tokens)
+            selected = select_recent_trade_targets(
+                fallback, max_tokens=max_tokens, required_side="SELL"
+            )
         report["selected_tokens"] = len(selected)
         if len(selected) < min_tokens:
-            raise MakerLiveSemanticsError("LIVE_SEMANTICS_INSUFFICIENT_ACTIVE_TOKENS")
+            raise MakerLiveSemanticsError("LIVE_SEMANTICS_INSUFFICIENT_SELL_ACTIVE_TOKENS")
 
         covered, observed, messages, pong_seen = asyncio.run(
             _observe_ws_trades(
@@ -429,18 +453,22 @@ def run_live_certification(
             observed,
             correlate_seconds=float(correlate_seconds),
         )
+        side_counts = Counter(str(item["side"]) for item in correlated.values())
         report["data_api_taker_only_correlations"] = len(correlated)
+        report["data_api_taker_only_sell_correlations"] = int(side_counts.get("SELL", 0))
         report["side_mismatch_count"] = len(mismatches)
-        report["correlated_side_counts"] = dict(
-            sorted(Counter(str(item["side"]) for item in correlated.values()).items())
-        )
+        report["correlated_side_counts"] = dict(sorted(side_counts.items()))
         if mismatches:
             raise MakerLiveSemanticsError("LIVE_SEMANTICS_TAKER_SIDE_MISMATCH")
         if len(correlated) < min_correlated_trades:
             raise MakerLiveSemanticsError("LIVE_SEMANTICS_INSUFFICIENT_CORRELATED_TRADES")
+        if side_counts.get("SELL", 0) < min_correlated_sell_trades:
+            raise MakerLiveSemanticsError(
+                "LIVE_SEMANTICS_INSUFFICIENT_CORRELATED_SELL_TRADES"
+            )
 
         report["certified"] = True
-        report["side_semantics"] = "WS_SIDE_MATCHES_DATA_API_TAKER_SIDE"
+        report["side_semantics"] = "WS_SELL_MATCHES_DATA_API_TAKER_SELL"
         return_code = 0
     except MakerTradeStreamError as exc:
         report["failure_code"] = exc.code
@@ -470,6 +498,11 @@ def main() -> None:
     parser.add_argument(
         "--min-correlated-trades", type=int, default=DEFAULT_MIN_CORRELATED_TRADES
     )
+    parser.add_argument(
+        "--min-correlated-sell-trades",
+        type=int,
+        default=DEFAULT_MIN_CORRELATED_SELL_TRADES,
+    )
     args = parser.parse_args()
     raise SystemExit(
         run_live_certification(
@@ -480,6 +513,7 @@ def main() -> None:
             correlate_seconds=args.correlate_seconds,
             target_ws_trades=args.target_ws_trades,
             min_correlated_trades=args.min_correlated_trades,
+            min_correlated_sell_trades=args.min_correlated_sell_trades,
         )
     )
 
