@@ -33,6 +33,10 @@ def _canonical_bytes(value: object) -> bytes:
     ).encode("utf-8")
 
 
+def _json_round_trip(value: object):
+    return json.loads(_canonical_bytes(value).decode("utf-8"))
+
+
 def _second_capture():
     first = _capture()
     shell = replace(
@@ -70,7 +74,9 @@ def test_new_capture_is_losslessly_compressed_and_digest_verified(tmp_path):
     assert store.save(capture) is not None
 
     restored = store.capture_json(capture.capture_sha256)
-    assert restored == capture.as_dict()
+    # Persistence is canonical JSON, so tuple-valued in-memory dataclass fields are
+    # intentionally represented as JSON arrays on read. Verify the exact JSON value.
+    assert restored == _json_round_trip(capture.as_dict())
     summary = store.summary()
     assert summary["version"] == COMPRESSED_CAPTURE_STORE_VERSION
     assert summary["compressed_rows"] == 1
@@ -90,7 +96,7 @@ def test_legacy_uncompressed_capture_survives_schema_migration_and_reads_identic
     assert legacy.save(capture) is not None
 
     migrated = CompressedSameDayCaptureStore(db)
-    assert migrated.capture_json(capture.capture_sha256) == capture.as_dict()
+    assert migrated.capture_json(capture.capture_sha256) == _json_round_trip(capture.as_dict())
     summary = migrated.summary()
     assert summary["legacy_rows"] == 1
     assert summary["compressed_rows"] == 0
