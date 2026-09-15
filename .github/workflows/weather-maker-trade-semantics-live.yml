@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - weather-all-paper-signals-2026-09-15
+      - weather-all-paper-corrective-v7-2026-09-15
     paths:
       - "polymarket_scanner/weather_only_maker_trade_stream.py"
       - "polymarket_scanner/weather_only_maker_trade_stream_v2.py"
@@ -21,7 +22,7 @@ permissions:
 jobs:
   live-trade-semantics:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 6
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -35,9 +36,9 @@ jobs:
             --report weather-maker-trade-semantics-live.json \
             --max-tokens 32 \
             --min-tokens 8 \
-            --observe-seconds 120 \
+            --observe-seconds 180 \
             --correlate-seconds 45 \
-            --target-ws-trades 8 \
+            --target-ws-trades 32 \
             --min-correlated-trades 3 \
             --min-correlated-sell-trades 3
       - uses: actions/upload-artifact@v4
