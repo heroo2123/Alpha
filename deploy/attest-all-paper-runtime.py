@@ -22,7 +22,7 @@ from polymarket_scanner.weather_only_runtime_attestation import (  # noqa: E402
 )
 
 
-FINAL_ALL_PAPER_MODULE = "polymarket_scanner.weather_only_live_paper_all_signals_final_v3"
+FINAL_ALL_PAPER_MODULE = "polymarket_scanner.weather_only_live_paper_all_signals_final_v4"
 ALLOWED_ENVIRONMENT_KEYS = ("TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID")
 KNOWN_WEATHER_WRITER_MARKERS = (
     "polymarket_scanner.weather_only_live_paper",
@@ -44,13 +44,12 @@ KNOWN_WEATHER_WRITER_MARKERS = (
     "weather_only_live_paper_all_signals_final.py",
     "weather_only_live_paper_all_signals_final_v2.py",
     "weather_only_live_paper_all_signals_final_v3.py",
+    "weather_only_live_paper_all_signals_final_v4.py",
 )
 
 
 def _run(args: list[str], *, allow_nonzero: bool = False) -> subprocess.CompletedProcess[str]:
-    completed = subprocess.run(
-        args, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False
-    )
+    completed = subprocess.run(args, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
     if completed.returncode != 0 and not allow_nonzero:
         raise RuntimeError(f"COMMAND_FAILED:{args[0]}:{completed.returncode}")
     return completed
@@ -207,9 +206,7 @@ def main() -> int:
     expected_release = _read_sha(release_file)
     try:
         environment_attestation = _attest_environment_file(environment_file)
-        facts = collect_facts(
-            unit_name=args.unit, app_dir=app_dir, release_file=release_file, db_path=db_path
-        )
+        facts = collect_facts(unit_name=args.unit, app_dir=app_dir, release_file=release_file, db_path=db_path)
         attestation = attest_weather_runtime(
             facts,
             expected_app_dir=app_dir,
