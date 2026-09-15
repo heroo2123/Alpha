@@ -16,6 +16,9 @@ on:
       - 'polymarket_scanner/weather_only_station_metadata.py'
       - 'polymarket_scanner/weather_only_same_day_capture_store_compressed.py'
       - 'tests/test_weather_only_same_day_capture_store_compressed.py'
+      - 'deploy/pre-release-weather-paper-backup.sh'
+      - 'deploy/setup-weather-paper-backup-service.sh'
+      - 'tests/test_weather_only_three_layer_backup_bounds.py'
 
 permissions:
   contents: read
