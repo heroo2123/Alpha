@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 
 import pytest
 
@@ -15,8 +16,8 @@ from polymarket_scanner.weather_only_operator_state_corrective import (
     OPERATOR_SYNC_PENDING,
     OperatorStateTelegram,
 )
-from polymarket_scanner.weather_only_operator_state_corrective_v3 import (
-    OperatorStatePostReceiptStoreV3,
+from polymarket_scanner.weather_only_operator_state_corrective_v4 import (
+    OperatorStatePostReceiptStoreV4,
 )
 from polymarket_scanner.weather_only_paper_positions import WeatherPaperPositionError
 from polymarket_scanner.weather_only_paper_post_receipt import PAPER_EXECUTION_PROTOCOL_V5
@@ -24,7 +25,7 @@ from polymarket_scanner.weather_only_paper_post_receipt import PAPER_EXECUTION_P
 NOW = 1_900_000_000.0
 
 
-def _save_signal(store: OperatorStatePostReceiptStoreV3, name: str, *, lane: str = "weather_same_day_friend_lock", fingerprint: str | None = None) -> tuple[int, str]:
+def _save_signal(store: OperatorStatePostReceiptStoreV4, name: str, *, lane: str = "weather_same_day_friend_lock", fingerprint: str | None = None) -> tuple[int, str]:
     fp = fingerprint or f"operator-fp-{name}"
     payload = {
         "paper_execution_protocol_version": PAPER_EXECUTION_PROTOCOL_V5,
@@ -68,12 +69,12 @@ def _save_signal(store: OperatorStatePostReceiptStoreV3, name: str, *, lane: str
     return sid, actual_fp
 
 
-def _status(store: OperatorStatePostReceiptStoreV3, sid: int) -> str:
+def _status(store: OperatorStatePostReceiptStoreV4, sid: int) -> str:
     with store._conn() as db:
         return str(db.execute("SELECT status FROM weather_paper_signals WHERE id=?", (sid,)).fetchone()[0])
 
 
-def _invalidate(store: OperatorStatePostReceiptStoreV3, sid: int, name: str, *, lane: str = "weather_same_day_friend_lock") -> None:
+def _invalidate(store: OperatorStatePostReceiptStoreV4, sid: int, name: str, *, lane: str = "weather_same_day_friend_lock") -> None:
     store.mark_post_receipt_not_actionable(
         sid,
         decision_id=f"decision-{name}",
@@ -86,7 +87,7 @@ def _invalidate(store: OperatorStatePostReceiptStoreV3, sid: int, name: str, *, 
 
 
 def test_terminal_identity_and_prestate_fail_closed_without_mutation(tmp_path):
-    store = OperatorStatePostReceiptStoreV3(tmp_path / "paper.sqlite")
+    store = OperatorStatePostReceiptStoreV4(tmp_path / "paper.sqlite")
     sid, _ = _save_signal(store, "identity")
 
     with pytest.raises(WeatherPaperPositionError, match="V5_TERMINAL_EVENT_IDENTITY_MISMATCH"):
@@ -110,8 +111,8 @@ def test_terminal_identity_and_prestate_fail_closed_without_mutation(tmp_path):
         ).fetchone()[0] == 0
 
 
-def test_fingerprint_is_released_only_after_visible_invalidation_and_is_cooled_down(tmp_path):
-    store = OperatorStatePostReceiptStoreV3(tmp_path / "paper.sqlite")
+def test_visible_invalidation_releases_retry_without_mutating_original_fingerprint(tmp_path):
+    store = OperatorStatePostReceiptStoreV4(tmp_path / "paper.sqlite")
     sid, base = _save_signal(store, "retry")
     _invalidate(store, sid, "retry")
 
@@ -124,6 +125,7 @@ def test_fingerprint_is_released_only_after_visible_invalidation_and_is_cooled_d
             "SELECT fingerprint FROM weather_paper_signals WHERE id=?", (sid,)
         ).fetchone()[0] == base
 
+    # Before the visible edit is confirmed, identical evidence is still deduped.
     assert store.save_signal(
         fingerprint=base,
         lane="weather_same_day_friend_lock",
@@ -150,10 +152,10 @@ def test_fingerprint_is_released_only_after_visible_invalidation_and_is_cooled_d
             (sid,),
         ).fetchone()
         assert tuple(sync) == (OPERATOR_SYNC_APPLIED, 1)
-        tombstone = str(
+        # The original evidence identity is immutable. V3 must never tombstone it.
+        assert str(
             db.execute("SELECT fingerprint FROM weather_paper_signals WHERE id=?", (sid,)).fetchone()[0]
-        )
-        assert tombstone.startswith("terminal:")
+        ) == base
         guard = db.execute(
             "SELECT invalidations,next_retry_at FROM weather_paper_retry_guard WHERE base_fingerprint=?",
             (base,),
@@ -161,6 +163,7 @@ def test_fingerprint_is_released_only_after_visible_invalidation_and_is_cooled_d
         assert int(guard[0]) == 1
         assert float(guard[1]) > 0.0
 
+    # Cooldown blocks the derived retry identity immediately after invalidation.
     assert store.save_signal(
         fingerprint=base,
         lane="weather_same_day_friend_lock",
@@ -180,9 +183,49 @@ def test_fingerprint_is_released_only_after_visible_invalidation_and_is_cooled_d
         },
     ) is None
 
+    # Once the cooldown is explicitly expired, the retry is stored under a derived
+    # identity while the original row remains untouched and auditably attributable.
+    with store._conn() as db:
+        db.execute(
+            "UPDATE weather_paper_retry_guard SET next_retry_at=0 WHERE base_fingerprint=?",
+            (base,),
+        )
+    retry_id = store.save_signal(
+        fingerprint=base,
+        lane="weather_same_day_friend_lock",
+        evidence_class="TEST_OPERATOR_STATE",
+        event_id="event-retry",
+        market_id="market-retry",
+        side="YES",
+        token_id="token-retry",
+        model_probability=0.96,
+        entry_cost=0.91,
+        raw_gap=0.05,
+        theoretical_payout=1.0,
+        payload={
+            "paper_execution_protocol_version": PAPER_EXECUTION_PROTOCOL_V5,
+            "decision_id": "decision-retry-after-cooldown",
+            "decision_expires_at": NOW + 600.0,
+        },
+    )
+    assert retry_id is not None and retry_id != sid
+    with store._conn() as db:
+        original = db.execute(
+            "SELECT fingerprint FROM weather_paper_signals WHERE id=?", (sid,)
+        ).fetchone()
+        retry = db.execute(
+            "SELECT fingerprint,payload_json FROM weather_paper_signals WHERE id=?", (retry_id,)
+        ).fetchone()
+    assert str(original[0]) == base
+    assert str(retry[0]).startswith("retry:")
+    assert str(retry[0]) != base
+    retry_payload = json.loads(str(retry[1]))
+    assert retry_payload["operator_retry_base_fingerprint"] == base
+    assert retry_payload["operator_retry_generation"] == 2
+
 
 def test_source_shock_retry_guard_uses_final_episode_fingerprint(tmp_path):
-    store = OperatorStatePostReceiptStoreV3(tmp_path / "paper.sqlite")
+    store = OperatorStatePostReceiptStoreV4(tmp_path / "paper.sqlite")
     lane = "weather_official_extreme_new_exclusion"
     sid, final_fp = _save_signal(store, "shock", lane=lane, fingerprint="caller-fingerprint-a")
     assert final_fp != "caller-fingerprint-a"
@@ -216,6 +259,10 @@ def test_source_shock_retry_guard_uses_final_episode_fingerprint(tmp_path):
             "SELECT COUNT(*) FROM weather_paper_retry_guard WHERE base_fingerprint=?",
             (final_fp,),
         ).fetchone()[0] == 1
+        # Source-shock original episode evidence is immutable too.
+        assert db.execute(
+            "SELECT fingerprint FROM weather_paper_signals WHERE id=?", (sid,)
+        ).fetchone()[0] == final_fp
 
 
 def test_edit_message_not_modified_is_idempotent_success():
