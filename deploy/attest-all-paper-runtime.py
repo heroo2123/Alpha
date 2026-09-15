@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-"""Read-only host collector for the exact second-corrective all-weather PAPER runtime."""
+"""Read-only host collector for the exact fully-corrected all-weather PAPER runtime."""
 
 import argparse
 import json
@@ -22,7 +22,7 @@ from polymarket_scanner.weather_only_runtime_attestation import (  # noqa: E402
 )
 
 
-FINAL_ALL_PAPER_MODULE = "polymarket_scanner.weather_only_live_paper_all_signals_final_v2"
+FINAL_ALL_PAPER_MODULE = "polymarket_scanner.weather_only_live_paper_all_signals_final_v3"
 ALLOWED_ENVIRONMENT_KEYS = ("TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID")
 KNOWN_WEATHER_WRITER_MARKERS = (
     "polymarket_scanner.weather_only_live_paper",
@@ -43,6 +43,7 @@ KNOWN_WEATHER_WRITER_MARKERS = (
     "weather_only_live_paper_all_signals_v8.py",
     "weather_only_live_paper_all_signals_final.py",
     "weather_only_live_paper_all_signals_final_v2.py",
+    "weather_only_live_paper_all_signals_final_v3.py",
 )
 
 
