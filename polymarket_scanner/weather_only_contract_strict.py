@@ -3,7 +3,7 @@ from __future__ import annotations
 """Fail-closed semantic admission for the weather paper experiment.
 
 The broad inventory compiler is discovery-only.  This live-paper gate accepts a much
-smaller contract language: one exact highest/lowest-temperature question template,
+smaller contract language: reviewed highest/lowest-temperature question templates,
 known bucket forms, one coherent recurring rule text/source identity, exact station,
 and an integer partition.  Unsupported wording is rejected rather than reinterpreted.
 """
@@ -19,7 +19,7 @@ from .weather_only_contracts import DAILY_HIGH, DAILY_LOW, compile_weather_event
 from .weather_only_rules import apply_rule_authority, compile_temperature_rule_authority
 
 
-STRICT_CONTRACT_VERSION = "weather_contract_strict_v5_complete_rule_grammar_fail_closed"
+STRICT_CONTRACT_VERSION = "weather_contract_strict_v6_current_city_date_question_fail_closed"
 
 
 class StrictWeatherContractError(RuntimeError):
@@ -157,20 +157,80 @@ def _trusted_wrh_station(event: dict) -> str | None:
     return next(iter(stations))
 
 
-def _question_supported(question: str, family: str) -> bool:
-    """Accept only a completely consumed recurring Polymarket question template."""
+def _current_title_location(title: str, family: str, target: date | None) -> str | None:
+    """Extract location only from the exact reviewed current parent-title template."""
+    if target is None:
+        return None
+    statistic = "Highest" if family == DAILY_HIGH else "Lowest" if family == DAILY_LOW else None
+    if statistic is None:
+        return None
+    text = " ".join(str(title or "").strip().split())
+    month = re.escape(target.strftime("%B"))
+    match = re.fullmatch(
+        rf"{statistic}\s+temperature\s+in\s+(?P<location>.+?)\s+on\s+{month}\s+0?{target.day}\?",
+        text,
+        re.I,
+    )
+    if match is None:
+        return None
+    location = " ".join(match.group("location").split()).strip()
+    if not location or len(location) > 160 or any(ord(ch) < 32 for ch in location):
+        return None
+    return location
+
+
+def _question_supported(
+    question: str,
+    family: str,
+    *,
+    event_title: str = "",
+    target: date | None = None,
+    group_item_title: str = "",
+) -> bool:
+    """Accept only completely consumed, reviewed Polymarket question templates.
+
+    The legacy recurring template omitted city/date from each child question.  The
+    current September-2026 template repeats both.  The current form is accepted only
+    when the location is copied exactly from the parent title and the month/day are
+    exactly the compiled contract date.  This is deliberately not a fuzzy parser.
+    """
     text = " ".join(str(question or "").strip().split())
     statistic = "highest" if family == DAILY_HIGH else "lowest" if family == DAILY_LOW else None
     if statistic is None:
         return False
     number = r"-?\d+(?:\.0+)?"
     unit = r"(?:°\s*[FC]|\s+degrees?\s+[FC]|\s*[FC])"
-    bucket = rf"(?:{number}\s*{unit}\s+or\s+lower|{number}\s*{unit}\s+or\s+higher|{number}\s*(?:-|–|to)\s*{number}\s*{unit}|{number}\s*{unit})"
-    return re.fullmatch(
-        rf"Will\s+the\s+{statistic}\s+temperature\s+be\s+{bucket}\?",
+    bucket = (
+        rf"(?:{number}\s*{unit}\s+or\s+(?:lower|below)|"
+        rf"{number}\s*{unit}\s+or\s+higher|"
+        rf"{number}\s*(?:-|–|to)\s*{number}\s*{unit}|"
+        rf"{number}\s*{unit})"
+    )
+
+    legacy = re.fullmatch(
+        rf"Will\s+the\s+{statistic}\s+temperature\s+be\s+(?P<bucket>{bucket})\?",
         text,
         re.I,
-    ) is not None
+    )
+    if legacy is not None:
+        return True
+
+    location = _current_title_location(event_title, family, target)
+    if location is None or target is None:
+        return False
+    month = re.escape(target.strftime("%B"))
+    current = re.fullmatch(
+        rf"Will\s+the\s+{statistic}\s+temperature\s+in\s+{re.escape(location)}\s+be\s+"
+        rf"(?P<bucket>{bucket})\s+on\s+{month}\s+0?{target.day}\?",
+        text,
+        re.I,
+    )
+    if current is None:
+        return False
+    label = " ".join(str(group_item_title or "").strip().split())
+    if label and _norm(label) != _norm(current.group("bucket")):
+        return False
+    return True
 
 
 def _supported_nws_rule_structure(operative_rules: str, compiled) -> bool:
@@ -178,7 +238,7 @@ def _supported_nws_rule_structure(operative_rules: str, compiled) -> bool:
 
     Required-phrase detection is not enough for settlement meaning: a contradictory
     suffix can preserve every expected phrase.  This recognizer therefore consumes
-    the *entire* operative text.  Anything outside the two explicitly supported NWS
+    the *entire* operative text.  Anything outside the explicitly supported NWS
     recurring templates is rejected.  False negatives are intentional at this
     financial boundary; a newly worded contract must be reviewed and added as a new
     versioned grammar rather than guessed at runtime.
@@ -350,7 +410,13 @@ def compile_strict_temperature_event(event: dict):
     markets = [row for row in (event.get("markets") or []) if isinstance(row, dict)]
     opposite = "lowest temperature" if raw.family == DAILY_HIGH else "highest temperature"
     for row in markets:
-        if not _question_supported(str(row.get("question") or ""), raw.family):
+        if not _question_supported(
+            str(row.get("question") or ""),
+            raw.family,
+            event_title=str(event.get("title") or ""),
+            target=raw.target_date,
+            group_item_title=str(row.get("groupItemTitle") or ""),
+        ):
             raise StrictWeatherContractError("STRICT_BUCKET_GRAMMAR_UNSUPPORTED")
         child_text = " ".join((str(row.get("question") or ""), str(row.get("description") or ""))).lower()
         if opposite in child_text:
