@@ -11,7 +11,7 @@ RELEASE_FILE="${CONFIG_DIR}/weather-paper-release.sha"
 SOURCE_REF="${ALPHA_WEATHER_SOURCE_REF:-${2:-weather-all-paper-independent-review-corrective-v2-2026-09-15}}"
 RELEASE_SHA="${1:-}"
 UNIT="polymarket-weather-paper.service"
-FINAL_MODULE="polymarket_scanner.weather_only_live_paper_all_signals_final_v2"
+FINAL_MODULE="polymarket_scanner.weather_only_live_paper_all_signals_final_v3"
 ROLLBACK_DIR="${CONFIG_DIR}/all-paper-rollback"
 ROLLBACK_SHA="${ROLLBACK_DIR}/previous-release.sha"
 ROLLBACK_UNIT="${ROLLBACK_DIR}/${UNIT}"
@@ -108,6 +108,7 @@ for required in \
   deploy/restore-all-paper-rollback.sh \
   deploy/verify-three-layer-validation-status.py \
   deploy/verify-three-layer-fresh-capture.py \
+  polymarket_scanner/weather_only_live_paper_all_signals_final_v3.py \
   polymarket_scanner/weather_only_live_paper_all_signals_final_v2.py \
   polymarket_scanner/weather_only_live_paper_all_signals_final.py \
   polymarket_scanner/weather_only_live_paper_all_signals_v8.py \
