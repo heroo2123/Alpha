@@ -6,7 +6,8 @@ This thin wrapper freezes the operator-facing identity above V8. Deployment gate
 therefore prove that the complete source-shock + post-receipt + maker-corrective stack
 finished a cycle rather than accepting an inherited intermediate status snapshot.
 The final wrapper also closes the V5 non-actionable audit crash window without
-rewriting historical V7 experiments.
+rewriting historical V7 experiments and fails closed if same-day dynamic-fee
+application semantics are not explicitly proven.
 """
 
 import argparse
@@ -24,10 +25,11 @@ from .weather_only_live_paper import (
 )
 from .weather_only_live_paper_all_signals_v8 import AllPaperWeatherLiveV8Service
 from .weather_only_live_paper_v2 import DEFAULT_PAPER_STAKE_USD
+from .weather_only_live_paper_v4 import V4InvariantError
 
 
 FINAL_ALL_PAPER_RUNTIME_VERSION = (
-    "weather_all_paper_final_v3_v8_atomic_terminal_and_maker_safety_attestation"
+    "weather_all_paper_final_v4_v8_atomic_terminal_maker_safety_fee_semantics"
 )
 
 
@@ -54,6 +56,24 @@ class FinalAllPaperWeatherLiveService(AllPaperWeatherLiveV8Service):
             )
         )
 
+    async def _same_day_exact_recheck(
+        self,
+        candidate: dict,
+        event: dict,
+        *,
+        after_time: float | None,
+    ):
+        """Apply the same fail-closed dynamic-fee semantics used by other V5 lanes."""
+        checked = await super()._same_day_exact_recheck(
+            candidate, event, after_time=after_time
+        )
+        if checked is None:
+            return None
+        fresh, exact, bucket, params = checked
+        if params.fee_rate > 0.0 and params.taker_only is not True:
+            raise V4InvariantError("V5_SAME_DAY_DYNAMIC_FEE_SEMANTICS_UNPROVEN")
+        return fresh, exact, bucket, params
+
     async def _mark_v5_not_actionable(
         self, signal_id: int, candidate: dict, reason: str
     ) -> None:
@@ -77,6 +97,7 @@ class FinalAllPaperWeatherLiveService(AllPaperWeatherLiveV8Service):
                 "final_all_paper_runtime_version": FINAL_ALL_PAPER_RUNTIME_VERSION,
                 "v5_terminal_not_actionable_audit_atomic": True,
                 "maker_activation_accounting_atomic": True,
+                "same_day_dynamic_fee_semantics_fail_closed": True,
                 "financial_delivery": False,
                 "financial_authority": False,
                 "automatic_order_placement": False,
