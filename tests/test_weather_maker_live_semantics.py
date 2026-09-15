@@ -52,6 +52,32 @@ def test_recent_target_selection_uses_valid_unique_public_taker_rows_only():
     }
 
 
+def test_recent_target_selection_can_require_sell_aggressor_activity():
+    rows = [
+        _recent_row(1, side="BUY", condition=COND_A),
+        _recent_row(2, side="SELL", condition=COND_A),
+        _recent_row(3, side="sell", condition=COND_B),
+        _recent_row(4, side="BUY", condition=COND_B),
+    ]
+    selected = live.select_recent_trade_targets(
+        rows, max_tokens=8, required_side="SELL"
+    )
+    assert selected == {
+        "10002": COND_A,
+        "10003": COND_B,
+    }
+
+
+def test_recent_target_selection_rejects_invalid_required_side():
+    with pytest.raises(live.MakerLiveSemanticsError) as exc:
+        live.select_recent_trade_targets(
+            [_recent_row(1, side="SELL")],
+            max_tokens=8,
+            required_side="UNKNOWN",
+        )
+    assert exc.value.code == "LIVE_SEMANTICS_REQUIRED_SIDE_INVALID"
+
+
 def test_recent_target_selection_fails_on_same_token_condition_conflict():
     rows = [
         _recent_row(1, condition=COND_A),
@@ -117,7 +143,7 @@ def test_correlation_surfaces_conflicting_taker_sides_instead_of_picking_one():
 
 
 def test_failed_live_gate_still_writes_diagnostic_report(monkeypatch, tmp_path):
-    recent = [_recent_row(index) for index in range(8)]
+    recent = [_recent_row(index, side="SELL") for index in range(8)]
     monkeypatch.setattr(live, "_json_get", lambda *args, **kwargs: recent)
 
     async def fake_observe(*args, **kwargs):
@@ -139,6 +165,7 @@ def test_failed_live_gate_still_writes_diagnostic_report(monkeypatch, tmp_path):
         correlate_seconds=1.0,
         target_ws_trades=3,
         min_correlated_trades=3,
+        min_correlated_sell_trades=3,
     )
     report = json.loads(report_path.read_text(encoding="utf-8"))
     assert rc == 2
@@ -146,14 +173,51 @@ def test_failed_live_gate_still_writes_diagnostic_report(monkeypatch, tmp_path):
     assert report["failure_code"] == "LIVE_SEMANTICS_INSUFFICIENT_CORRELATED_TRADES"
     assert report["production_parsed_unique_trade_frames"] == 1
     assert report["data_api_taker_only_correlations"] == 1
+    assert report["data_api_taker_only_sell_correlations"] == 1
     assert report["financial_authority"] is False
     assert report["automatic_order_placement"] is False
 
 
-def test_live_gate_certifies_only_after_required_correlations(monkeypatch, tmp_path):
-    recent = [_recent_row(index) for index in range(8)]
+def test_three_generic_correlations_with_no_sell_do_not_certify(monkeypatch, tmp_path):
+    recent = [_recent_row(index, side="SELL") for index in range(8)]
     monkeypatch.setattr(live, "_json_get", lambda *args, **kwargs: recent)
-    observed = [_observed(index, side="SELL" if index % 2 else "BUY") for index in (1, 2, 3)]
+    observed = [_observed(index, side="BUY") for index in (1, 2, 3)]
+
+    async def fake_observe(*args, **kwargs):
+        return {row["token_id"] for row in observed}, observed, 20, True
+
+    correlated = {
+        (row["transaction_hash"], row["token_id"]): {
+            "side": "BUY",
+            "condition_id": row["condition_id"],
+        }
+        for row in observed
+    }
+    monkeypatch.setattr(live, "_observe_ws_trades", fake_observe)
+    monkeypatch.setattr(live, "_correlate", lambda *args, **kwargs: (correlated, []))
+
+    report_path = tmp_path / "report.json"
+    rc = live.run_live_certification(
+        report_path=report_path,
+        observe_seconds=1.0,
+        correlate_seconds=1.0,
+        target_ws_trades=3,
+        min_correlated_trades=3,
+        min_correlated_sell_trades=3,
+    )
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    assert rc == 2
+    assert report["certified"] is False
+    assert report["failure_code"] == "LIVE_SEMANTICS_INSUFFICIENT_CORRELATED_SELL_TRADES"
+    assert report["data_api_taker_only_correlations"] == 3
+    assert report["data_api_taker_only_sell_correlations"] == 0
+    assert report["correlated_side_counts"] == {"BUY": 3}
+
+
+def test_live_gate_certifies_only_after_required_sell_correlations(monkeypatch, tmp_path):
+    recent = [_recent_row(index, side="SELL") for index in range(8)]
+    monkeypatch.setattr(live, "_json_get", lambda *args, **kwargs: recent)
+    observed = [_observed(index, side="SELL") for index in (1, 2, 3)]
 
     async def fake_observe(*args, **kwargs):
         return {row["token_id"] for row in observed}, observed, 20, True
@@ -175,12 +239,14 @@ def test_live_gate_certifies_only_after_required_correlations(monkeypatch, tmp_p
         correlate_seconds=1.0,
         target_ws_trades=3,
         min_correlated_trades=3,
+        min_correlated_sell_trades=3,
     )
     report = json.loads(report_path.read_text(encoding="utf-8"))
     assert rc == 0
     assert report["certified"] is True
     assert report["failure_code"] is None
     assert report["data_api_taker_only_correlations"] == 3
-    assert report["side_semantics"] == "WS_SIDE_MATCHES_DATA_API_TAKER_SIDE"
+    assert report["data_api_taker_only_sell_correlations"] == 3
+    assert report["side_semantics"] == "WS_SELL_MATCHES_DATA_API_TAKER_SELL"
     assert report["authenticated"] is False
     assert report["actual_fill_authority"] is False
