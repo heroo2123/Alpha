@@ -3,7 +3,7 @@ set -Eeuo pipefail
 
 # Explicit active-but-nonpersistent acceptance for one immutable all-PAPER candidate.
 # Any failure after candidate identity is established restores the exact pre-cutover
-# checkout/unit/active+enabled state captured by snapshot-all-paper-rollback.sh.
+# checkout/unit/service state AND SQLite ledger captured by snapshot-all-paper-rollback.sh.
 APP_DIR="${ALPHA_WEATHER_APP_DIR:-${HOME}/polymarket-weather-paper-app}"
 CONFIG_DIR="${ALPHA_CONFIG_DIR:-${HOME}/.polymarket-edge-scanner}"
 DB_PATH="${WEATHER_PAPER_DB_PATH:-/var/lib/polymarket-weather-paper/weather-paper.sqlite}"
@@ -24,9 +24,17 @@ fail(){ printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 [[ -x "${APP_DIR}/.venv/bin/python" ]] || fail "missing weather-paper virtualenv"
 [[ -f "${RELEASE_FILE}" ]] || fail "missing release marker"
 [[ -f "${ROLLBACK_SCRIPT}" ]] || fail "missing rollback restore script"
-for snapshot in previous-release.sha "${UNIT}" previous-active previous-enabled; do
+for snapshot in previous-release.sha "${UNIT}" previous-active previous-enabled previous-db-present; do
   [[ -f "${ROLLBACK_DIR}/${snapshot}" ]] || fail "missing rollback snapshot: ${snapshot}"
 done
+ROLLBACK_DB_PRESENT="$(tr -d '[:space:]' < "${ROLLBACK_DIR}/previous-db-present")"
+[[ "${ROLLBACK_DB_PRESENT}" =~ ^[01]$ ]] || fail "rollback database-state snapshot invalid"
+if [[ "${ROLLBACK_DB_PRESENT}" == "1" ]]; then
+  [[ -f "${ROLLBACK_DIR}/previous-weather-paper.sqlite3" ]] \
+    || fail "missing rollback database snapshot"
+  [[ -f "${ROLLBACK_DIR}/previous-weather-paper.sqlite3.json" ]] \
+    || fail "missing rollback database manifest"
+fi
 [[ "$(git -C "${APP_DIR}" rev-parse HEAD | tr -d '[:space:]')" == "${EXPECTED_SHA}" ]] || fail "checkout is not approved candidate"
 [[ "$(tr -d '[:space:]' < "${RELEASE_FILE}")" == "${EXPECTED_SHA}" ]] || fail "release marker is not approved candidate"
 if systemctl is-active --quiet "${UNIT}" 2>/dev/null; then fail "${UNIT} already active"; fi
@@ -35,7 +43,7 @@ if systemctl is-enabled --quiet "${UNIT}" 2>/dev/null; then fail "${UNIT} alread
 rollback_on_error(){
   code=$?
   if (( code != 0 )); then
-    printf 'All-PAPER acceptance failed; restoring the exact pre-cutover release...\n' >&2
+    printf 'All-PAPER acceptance failed; restoring the exact pre-cutover release and ledger...\n' >&2
     rm -f "${START_EPOCH_FILE}" >/dev/null 2>&1 || true
     if ! bash "${ROLLBACK_SCRIPT}"; then
       printf 'ROLLBACK FAILED: candidate is contained but previous service could not be fully restored.\n' >&2
@@ -88,4 +96,4 @@ printf '\nPASS: all-PAPER candidate is active and accepted but remains DISABLED 
 printf 'Release: %s\n' "${EXPECTED_SHA}"
 printf 'Persistence still requires a fresh post-start WRH+NWS+GEFS capture and repeated final attestation.\n'
 printf 'Real orders, wallet/signing authority and result-lag delivery remain disabled.\n'
-printf 'Automatic known-good rollback remains available from: %s\n' "${ROLLBACK_DIR}"
+printf 'Automatic known-good rollback (including SQLite ledger) remains available from: %s\n' "${ROLLBACK_DIR}"
