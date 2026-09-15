@@ -3,12 +3,12 @@ from __future__ import annotations
 """Lossless, bounded persistence for silent same-day three-layer evidence.
 
 The base capture store remains the compatibility boundary for existing PAPER data.
-This wrapper is used only by the guarded three-layer validation runtime.  New capture
+This wrapper is used only by the guarded three-layer validation runtime. New capture
 rows are stored as zlib-compressed canonical JSON while legacy uncompressed rows stay
-readable.  Every read revalidates the capture digest and the duplicated SQL identity
+readable. Every read revalidates the capture digest and the duplicated SQL identity
 columns before returning evidence.
 
-Compression is storage-only.  It does not alter the capture payload, authority flags,
+Compression is storage-only. It does not alter the capture payload, authority flags,
 research semantics, sampling cadence, attempt audit, or settlement/financial state.
 """
 
@@ -21,8 +21,10 @@ from pathlib import Path
 
 from .weather_only_same_day_capture import SameDayCaptureRecord, verify_same_day_capture_record
 from .weather_only_same_day_capture_store import (
+    SAME_DAY_ATTEMPT_VERSION,
     SameDayCaptureStore,
     SameDayCaptureStoreError,
+    _nonnegative_time,
 )
 
 
@@ -161,7 +163,7 @@ class CompressedSameDayCaptureStore(SameDayCaptureStore):
 
         db = self._conn()
         try:
-            # Serialize capacity admission with the insert.  Without the immediate
+            # Serialize capacity admission with the insert. Without the immediate
             # write lock two writers could both observe the final free slot/bytes.
             db.execute("BEGIN IMMEDIATE")
             existing = db.execute(
@@ -231,13 +233,87 @@ class CompressedSameDayCaptureStore(SameDayCaptureStore):
         finally:
             db.close()
 
+    def start_attempt(
+        self,
+        *,
+        event_id: str,
+        station: str,
+        target_date: str,
+        family: str,
+        unit: str,
+        attempted_at: float,
+    ) -> int:
+        """Reserve attempt capacity atomically with insertion.
+
+        The validation store can be exercised by concurrent callers during tests or
+        future orchestration. The capacity read and insert therefore share one
+        ``BEGIN IMMEDIATE`` transaction so two writers cannot both consume the final
+        available attempt slot.
+        """
+        identity = str(event_id or "").strip()
+        station_id = str(station or "").strip().upper()
+        target = str(target_date or "").strip()
+        family_id = str(family or "").strip()
+        unit_id = str(unit or "").strip()
+        if not all((identity, station_id, target, family_id, unit_id)):
+            raise SameDayCaptureStoreError("SAME_DAY_CAPTURE_STORE_ATTEMPT_IDENTITY_INVALID")
+        started = _nonnegative_time(
+            attempted_at, "SAME_DAY_CAPTURE_STORE_ATTEMPT_TIME_INVALID"
+        )
+
+        db = self._conn()
+        try:
+            db.execute("BEGIN IMMEDIATE")
+            row = db.execute(
+                "SELECT COUNT(*) AS total FROM weather_same_day_capture_attempts"
+            ).fetchone()
+            total = int(row["total"] or 0)
+            if self.max_attempt_rows is not None and total >= self.max_attempt_rows:
+                raise SameDayCaptureStoreError(
+                    "SAME_DAY_CAPTURE_STORE_ATTEMPT_ROW_CAP_EXHAUSTED"
+                )
+            cur = db.execute(
+                """
+                INSERT INTO weather_same_day_capture_attempts(
+                    attempt_version,event_id,station,target_date,family,unit,
+                    attempted_at,completed_at,outcome,error_code,capture_sha256,
+                    included_in_validated_pnl,same_day_delivery_enabled,financial_authority
+                ) VALUES(?,?,?,?,?,?,?,NULL,'STARTED',NULL,NULL,0,0,0)
+                """,
+                (
+                    SAME_DAY_ATTEMPT_VERSION,
+                    identity,
+                    station_id,
+                    target,
+                    family_id,
+                    unit_id,
+                    started,
+                ),
+            )
+            attempt_id = int(cur.lastrowid)
+            db.commit()
+            return attempt_id
+        except SameDayCaptureStoreError:
+            db.rollback()
+            raise
+        except sqlite3.Error as exc:
+            db.rollback()
+            raise SameDayCaptureStoreError(
+                "SAME_DAY_CAPTURE_STORE_ATTEMPT_SQLITE_ERROR"
+            ) from exc
+        finally:
+            db.close()
+
     def _row_for_digest(self, digest: str) -> sqlite3.Row | None:
+        # Metadata, duplicated identity fields and the blob are fetched by one SELECT
+        # from one SQLite snapshot. A second connection/read here would create a TOCTOU
+        # window in which the row metadata and payload could come from different states.
         with self._conn() as db:
             return db.execute(
                 """
                 SELECT id,store_version,capture_version,capture_sha256,event_id,station,
                        target_date,family,unit,as_of,status,block_reasons_json,
-                       capture_encoding,capture_uncompressed_bytes,
+                       capture_encoding,capture_uncompressed_bytes,capture_json,
                        LENGTH(capture_json) AS stored_bytes
                   FROM weather_same_day_captures
                  WHERE capture_sha256=?
@@ -265,14 +341,7 @@ class CompressedSameDayCaptureStore(SameDayCaptureStore):
         else:
             raise SameDayCaptureStoreError("SAME_DAY_CAPTURE_STORE_ENCODING_UNSUPPORTED")
 
-        with self._conn() as db:
-            payload_row = db.execute(
-                "SELECT capture_json FROM weather_same_day_captures WHERE id=?",
-                (int(row["id"]),),
-            ).fetchone()
-        if payload_row is None:
-            raise SameDayCaptureStoreError("SAME_DAY_CAPTURE_STORE_CAPTURE_DISAPPEARED")
-        stored = payload_row["capture_json"]
+        stored = row["capture_json"]
         if encoding == CURRENT_CAPTURE_ENCODING:
             if not isinstance(stored, (bytes, bytearray, memoryview)):
                 raise SameDayCaptureStoreError("SAME_DAY_CAPTURE_STORE_ENCODING_PAYLOAD_MISMATCH")
@@ -378,6 +447,8 @@ class CompressedSameDayCaptureStore(SameDayCaptureStore):
                 "lossless_compression": True,
                 "read_time_digest_verification": True,
                 "read_time_sql_identity_verification": True,
+                "read_time_single_snapshot": True,
+                "attempt_capacity_admission_atomic": True,
                 "bounded_decompression": True,
                 "legacy_uncompressed_read_compatible": True,
             }
