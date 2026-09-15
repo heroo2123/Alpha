@@ -2,6 +2,8 @@
 set -Eeuo pipefail
 
 # Prepare one immutable final all-weather PAPER candidate. Never start/enable it.
+# A pre-cutover rollback snapshot is mandatory before the known-good checkout can be
+# replaced, so failed live acceptance can restore the previous service automatically.
 APP_DIR="${ALPHA_WEATHER_APP_DIR:-${HOME}/polymarket-weather-paper-app}"
 CONFIG_DIR="${ALPHA_CONFIG_DIR:-${HOME}/.polymarket-edge-scanner}"
 RELEASE_FILE="${CONFIG_DIR}/weather-paper-release.sha"
@@ -10,30 +12,41 @@ SOURCE_REF="${ALPHA_WEATHER_SOURCE_REF:-${2:-weather-all-paper-corrective-v7-202
 RELEASE_SHA="${1:-}"
 UNIT="polymarket-weather-paper.service"
 FINAL_MODULE="polymarket_scanner.weather_only_live_paper_all_signals_final"
+ROLLBACK_DIR="${CONFIG_DIR}/all-paper-rollback"
+ROLLBACK_SHA="${ROLLBACK_DIR}/previous-release.sha"
+ROLLBACK_UNIT="${ROLLBACK_DIR}/${UNIT}"
+ROLLBACK_ACTIVE="${ROLLBACK_DIR}/previous-active"
+ROLLBACK_ENABLED="${ROLLBACK_DIR}/previous-enabled"
 
 fail(){ printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 [[ "${RELEASE_SHA}" =~ ^[0-9a-fA-F]{40}$ ]] || fail "usage: $0 <exact-release-sha> [source-branch]"
 git check-ref-format --branch "${SOURCE_REF}" >/dev/null 2>&1 || fail "invalid source branch/ref"
+[[ -d "${APP_DIR}/.git" ]] || fail "existing weather-paper checkout required for rollback-safe cutover"
 if systemctl is-active --quiet "${UNIT}" 2>/dev/null; then
-  fail "${UNIT} is active; stop it explicitly before preparing another candidate"
+  fail "${UNIT} is active; snapshot it first, then stop it explicitly before candidate preparation"
 fi
 if systemctl is-enabled --quiet "${UNIT}" 2>/dev/null; then
-  fail "${UNIT} is enabled; disable it explicitly before preparing another candidate"
+  fail "${UNIT} is enabled; snapshot it first, then disable it explicitly before candidate preparation"
 fi
 if pgrep -af 'polymarket_scanner\.weather_only_live_paper|weather_only_live_paper.*\.py' >/dev/null 2>&1; then
   fail "a weather-paper process is already running outside the stopped service"
 fi
 
-FRESH_CLONE=0
-if [[ ! -d "${APP_DIR}/.git" ]]; then
-  [[ ! -e "${APP_DIR}" ]] || fail "weather app path exists but is not a git checkout: ${APP_DIR}"
-  mkdir -p "$(dirname "${APP_DIR}")"
-  git clone --no-checkout "${REPOSITORY_URL}" "${APP_DIR}"
-  FRESH_CLONE=1
-fi
-if [[ "${FRESH_CLONE}" -eq 0 ]]; then
-  [[ -z "$(git -C "${APP_DIR}" status --porcelain --untracked-files=all)" ]] || fail "weather-paper checkout differs from its authorized commit"
-fi
+# The snapshot must have been captured before production was stopped/disabled.
+for required_snapshot in "${ROLLBACK_SHA}" "${ROLLBACK_UNIT}" "${ROLLBACK_ACTIVE}" "${ROLLBACK_ENABLED}"; do
+  [[ -f "${required_snapshot}" ]] || fail "missing pre-cutover rollback snapshot: ${required_snapshot}"
+done
+PREVIOUS_SHA="$(tr -d '[:space:]' < "${ROLLBACK_SHA}")"
+PREVIOUS_ACTIVE="$(tr -d '[:space:]' < "${ROLLBACK_ACTIVE}")"
+PREVIOUS_ENABLED="$(tr -d '[:space:]' < "${ROLLBACK_ENABLED}")"
+[[ "${PREVIOUS_SHA}" =~ ^[0-9a-f]{40}$ ]] || fail "rollback snapshot SHA invalid"
+[[ "${PREVIOUS_ACTIVE}" =~ ^[01]$ ]] || fail "rollback active-state snapshot invalid"
+[[ "${PREVIOUS_ENABLED}" =~ ^[01]$ ]] || fail "rollback enabled-state snapshot invalid"
+CURRENT_HEAD="$(git -C "${APP_DIR}" rev-parse HEAD | tr -d '[:space:]')"
+CURRENT_MARKER="$(tr -d '[:space:]' < "${RELEASE_FILE}")"
+[[ "${CURRENT_HEAD}" == "${PREVIOUS_SHA}" ]] || fail "rollback snapshot does not match current checkout"
+[[ "${CURRENT_MARKER}" == "${PREVIOUS_SHA}" ]] || fail "rollback snapshot does not match current release marker"
+[[ -z "$(git -C "${APP_DIR}" status --porcelain --untracked-files=all)" ]] || fail "weather-paper checkout differs from its authorized commit"
 
 git -C "${APP_DIR}" remote get-url origin >/dev/null 2>&1 || fail "weather-paper checkout has no origin remote"
 git -C "${APP_DIR}" fetch --prune origin "${SOURCE_REF}"
@@ -56,11 +69,14 @@ for required in \
   deploy/preflight-all-paper-deployment.sh \
   deploy/start-all-paper-candidate.sh \
   deploy/enable-all-paper-persistence.sh \
+  deploy/snapshot-all-paper-rollback.sh \
+  deploy/restore-all-paper-rollback.sh \
   deploy/verify-three-layer-validation-status.py \
   deploy/verify-three-layer-fresh-capture.py \
   polymarket_scanner/weather_only_live_paper_all_signals_final.py \
   polymarket_scanner/weather_only_live_paper_all_signals_v8.py \
   polymarket_scanner/weather_only_live_paper_all_signals_v7.py \
+  polymarket_scanner/weather_only_independent_review_corrective.py \
   polymarket_scanner/weather_only_paper_post_receipt.py \
   polymarket_scanner/weather_only_maker_paper_accounting_v5.py \
   polymarket_scanner/weather_only_all_paper_deployment_acceptance.py
@@ -105,3 +121,4 @@ bash "${APP_DIR}/deploy/verify-runtime-release.sh" "${APP_DIR}" "${RELEASE_FILE}
 printf '\nFinal all-PAPER candidate prepared but NOT started or enabled.\n'
 printf 'Release: %s\n' "${ACTUAL_SHA}"
 printf 'Source ref: %s\n' "${SOURCE_REF}"
+printf 'Rollback release preserved: %s (was active=%s enabled=%s)\n' "${PREVIOUS_SHA}" "${PREVIOUS_ACTIVE}" "${PREVIOUS_ENABLED}"
