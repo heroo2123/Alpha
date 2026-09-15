@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-"""Fail-closed first-cycle acceptance for the all-weather PAPER V8 runtime."""
+"""Fail-closed first-cycle acceptance for the final all-weather PAPER runtime."""
 
 import math
 import time
 from dataclasses import asdict, dataclass
 
 from .weather_only_live_paper import MODE
+from .weather_only_live_paper_all_signals_final import FINAL_ALL_PAPER_RUNTIME_VERSION
 from .weather_only_live_paper_all_signals_v7 import ALL_PAPER_V7_RUNTIME_VERSION
 from .weather_only_live_paper_all_signals_v8 import ALL_PAPER_V8_RUNTIME_VERSION
 from .weather_only_live_paper_final import FINAL_MARKET_STATE_POLICY, FINAL_PAPER_RUNTIME_VERSION
@@ -15,7 +16,7 @@ from .weather_only_paper_post_receipt import PAPER_EXECUTION_PROTOCOL_V5, PAPER_
 
 
 ALL_PAPER_DEPLOYMENT_ACCEPTANCE_VERSION = (
-    "weather_all_paper_first_cycle_acceptance_v1_v8_post_receipt_fail_closed"
+    "weather_all_paper_first_cycle_acceptance_v2_final_wrapper_v8_post_receipt"
 )
 RESULT_LAG_BLOCK_REASON = "EXACT_WRH_CUTOFF_STATE_NOT_PROVEN"
 
@@ -90,6 +91,8 @@ def accept_first_all_paper_cycle(
         raise AllPaperDeploymentAcceptanceError("ALL_PAPER_MARKET_STATE_POLICY_MISMATCH")
     _require_true(status, "exclusive_writer_lease", "ALL_PAPER_EXCLUSIVE_WRITER_LEASE_NOT_PROVEN")
 
+    if status.get("final_all_paper_runtime_version") != FINAL_ALL_PAPER_RUNTIME_VERSION:
+        raise AllPaperDeploymentAcceptanceError("ALL_PAPER_FINAL_WRAPPER_VERSION_MISMATCH")
     if status.get("all_paper_v8_runtime_version") != ALL_PAPER_V8_RUNTIME_VERSION:
         raise AllPaperDeploymentAcceptanceError("ALL_PAPER_V8_RUNTIME_VERSION_MISMATCH")
     if status.get("all_paper_v7_runtime_version") != ALL_PAPER_V7_RUNTIME_VERSION:
@@ -180,7 +183,7 @@ def accept_first_all_paper_cycle(
         release_sha=release,
         cycle_finished_at=finished,
         cycle_age_seconds=age,
-        runtime_version=ALL_PAPER_V8_RUNTIME_VERSION,
+        runtime_version=FINAL_ALL_PAPER_RUNTIME_VERSION,
         execution_protocol=PAPER_EXECUTION_PROTOCOL_V5,
         maker_accounting_version=MAKER_PAPER_ACCOUNTING_V5_VERSION,
         accepted=True,
