@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-"""Read-only host collector for the exact fully-corrected all-weather PAPER runtime."""
+"""Read-only host collector for the exact operator-synchronized all-weather PAPER runtime."""
 
 import argparse
 import json
@@ -22,7 +22,7 @@ from polymarket_scanner.weather_only_runtime_attestation import (  # noqa: E402
 )
 
 
-FINAL_ALL_PAPER_MODULE = "polymarket_scanner.weather_only_live_paper_all_signals_final_v4"
+FINAL_ALL_PAPER_MODULE = "polymarket_scanner.weather_only_live_paper_all_signals_final_v7"
 ALLOWED_ENVIRONMENT_KEYS = ("TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID")
 KNOWN_WEATHER_WRITER_MARKERS = (
     "polymarket_scanner.weather_only_live_paper",
@@ -45,11 +45,16 @@ KNOWN_WEATHER_WRITER_MARKERS = (
     "weather_only_live_paper_all_signals_final_v2.py",
     "weather_only_live_paper_all_signals_final_v3.py",
     "weather_only_live_paper_all_signals_final_v4.py",
+    "weather_only_live_paper_all_signals_final_v5.py",
+    "weather_only_live_paper_all_signals_final_v6.py",
+    "weather_only_live_paper_all_signals_final_v7.py",
 )
 
 
 def _run(args: list[str], *, allow_nonzero: bool = False) -> subprocess.CompletedProcess[str]:
-    completed = subprocess.run(args, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+    completed = subprocess.run(
+        args, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False
+    )
     if completed.returncode != 0 and not allow_nonzero:
         raise RuntimeError(f"COMMAND_FAILED:{args[0]}:{completed.returncode}")
     return completed
@@ -68,15 +73,21 @@ def _unit_text(unit_name: str) -> str:
 
 
 def _active(unit_name: str) -> bool:
-    return _run(["systemctl", "is-active", "--quiet", unit_name], allow_nonzero=True).returncode == 0
+    return _run(
+        ["systemctl", "is-active", "--quiet", unit_name], allow_nonzero=True
+    ).returncode == 0
 
 
 def _enabled(unit_name: str) -> bool:
-    return _run(["systemctl", "is-enabled", "--quiet", unit_name], allow_nonzero=True).returncode == 0
+    return _run(
+        ["systemctl", "is-enabled", "--quiet", unit_name], allow_nonzero=True
+    ).returncode == 0
 
 
 def _main_pid(unit_name: str) -> int | None:
-    raw = _run(["systemctl", "show", unit_name, "--property", "MainPID", "--value"]).stdout.strip()
+    raw = _run(
+        ["systemctl", "show", unit_name, "--property", "MainPID", "--value"]
+    ).stdout.strip()
     try:
         value = int(raw)
     except ValueError:
@@ -86,7 +97,22 @@ def _main_pid(unit_name: str) -> int | None:
 
 def _proc_argv(pid: int) -> tuple[str, ...]:
     raw = Path(f"/proc/{pid}/cmdline").read_bytes()
-    return tuple(part.decode("utf-8", errors="strict") for part in raw.split(b"\0") if part)
+    return tuple(
+        part.decode("utf-8", errors="strict") for part in raw.split(b"\0") if part
+    )
+
+
+def _proc_environ(pid: int) -> dict[str, str]:
+    raw = Path(f"/proc/{pid}/environ").read_bytes()
+    out: dict[str, str] = {}
+    for part in raw.split(b"\0"):
+        if not part or b"=" not in part:
+            continue
+        key, value = part.split(b"=", 1)
+        out[key.decode("utf-8", errors="strict")] = value.decode(
+            "utf-8", errors="strict"
+        )
+    return out
 
 
 def _matching_weather_processes(db_path: Path) -> tuple[tuple[str, ...], ...]:
@@ -153,7 +179,27 @@ def _attest_environment_file(path: Path) -> dict:
     }
 
 
-def collect_facts(*, unit_name: str, app_dir: Path, release_file: Path, db_path: Path) -> WeatherRuntimeFacts:
+def _attest_dotenv_boundary(app_dir: Path, unit_text: str, pid: int | None) -> dict:
+    dotenv = app_dir / ".env"
+    if dotenv.exists() or dotenv.is_symlink():
+        raise RuntimeError("ALL_PAPER_IMPLICIT_DOTENV_PRESENT")
+    if "Environment=ALPHA_DISABLE_DOTENV=1" not in unit_text:
+        raise RuntimeError("ALL_PAPER_DISABLE_DOTENV_UNIT_DIRECTIVE_MISSING")
+    process_value = None
+    if pid is not None:
+        process_value = _proc_environ(pid).get("ALPHA_DISABLE_DOTENV")
+        if process_value != "1":
+            raise RuntimeError("ALL_PAPER_DISABLE_DOTENV_PROCESS_ENV_MISSING")
+    return {
+        "implicit_dotenv_absent": True,
+        "unit_disable_dotenv": True,
+        "process_disable_dotenv": None if pid is None else True,
+    }
+
+
+def collect_facts(
+    *, unit_name: str, app_dir: Path, release_file: Path, db_path: Path
+) -> WeatherRuntimeFacts:
     active = _active(unit_name)
     if not active and _enabled(unit_name):
         raise RuntimeError("INACTIVE_ALL_PAPER_SERVICE_STILL_ENABLED")
@@ -187,8 +233,14 @@ def main() -> int:
     parser.add_argument("--app-dir", type=Path, required=True)
     parser.add_argument("--release-file", type=Path, required=True)
     parser.add_argument("--unit", default="polymarket-weather-paper.service")
-    parser.add_argument("--db", type=Path, default=Path("/var/lib/polymarket-weather-paper/weather-paper.sqlite"))
-    parser.add_argument("--status", type=Path, default=Path("/var/lib/polymarket-weather-paper/status.json"))
+    parser.add_argument(
+        "--db",
+        type=Path,
+        default=Path("/var/lib/polymarket-weather-paper/weather-paper.sqlite"),
+    )
+    parser.add_argument(
+        "--status", type=Path, default=Path("/var/lib/polymarket-weather-paper/status.json")
+    )
     parser.add_argument("--environment-file", type=Path)
     parser.add_argument("--require-active", action="store_true")
     parser.add_argument("--output", type=Path)
@@ -206,7 +258,15 @@ def main() -> int:
     expected_release = _read_sha(release_file)
     try:
         environment_attestation = _attest_environment_file(environment_file)
-        facts = collect_facts(unit_name=args.unit, app_dir=app_dir, release_file=release_file, db_path=db_path)
+        facts = collect_facts(
+            unit_name=args.unit,
+            app_dir=app_dir,
+            release_file=release_file,
+            db_path=db_path,
+        )
+        dotenv_attestation = _attest_dotenv_boundary(
+            app_dir, facts.unit_text, facts.main_pid
+        )
         attestation = attest_weather_runtime(
             facts,
             expected_app_dir=app_dir,
@@ -222,6 +282,7 @@ def main() -> int:
             "facts": facts.as_dict(),
             "attestation": attestation.as_dict(),
             "environment_attestation": environment_attestation,
+            "dotenv_attestation": dotenv_attestation,
         }
         if args.require_active and not attestation.deployment_proven:
             payload["acceptance"] = "FAIL_ACTIVE_ALL_PAPER_RUNTIME_NOT_PROVEN"
@@ -232,8 +293,16 @@ def main() -> int:
         else:
             payload["acceptance"] = "PASS_ALL_PAPER_UNIT_INACTIVE_NO_DEPLOYMENT_CLAIM"
             exit_code = 0
-    except (WeatherRuntimeAttestationError, RuntimeError, OSError, UnicodeError) as exc:
-        payload = {"acceptance": "FAIL_ALL_PAPER_RUNTIME_ATTESTATION", "error": getattr(exc, "code", str(exc))}
+    except (
+        WeatherRuntimeAttestationError,
+        RuntimeError,
+        OSError,
+        UnicodeError,
+    ) as exc:
+        payload = {
+            "acceptance": "FAIL_ALL_PAPER_RUNTIME_ATTESTATION",
+            "error": getattr(exc, "code", str(exc)),
+        }
         exit_code = 2
 
     text = json.dumps(payload, sort_keys=True, indent=2) + "\n"
