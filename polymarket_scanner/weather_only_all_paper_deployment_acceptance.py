@@ -6,6 +6,7 @@ import math
 import time
 from dataclasses import asdict, dataclass
 
+from .weather_only_independent_review_corrective import INDEPENDENT_REVIEW_CORRECTIVE_VERSION
 from .weather_only_live_paper import MODE
 from .weather_only_live_paper_all_signals_final import FINAL_ALL_PAPER_RUNTIME_VERSION
 from .weather_only_live_paper_all_signals_v7 import ALL_PAPER_V7_RUNTIME_VERSION
@@ -17,7 +18,7 @@ from .weather_only_paper_post_receipt import PAPER_EXECUTION_PROTOCOL_V5, PAPER_
 
 
 ALL_PAPER_DEPLOYMENT_ACCEPTANCE_VERSION = (
-    "weather_all_paper_first_cycle_acceptance_v4_complete_maker_safety_profile"
+    "weather_all_paper_first_cycle_acceptance_v5_independent_review_corrective"
 )
 RESULT_LAG_BLOCK_REASON = "EXACT_WRH_CUTOFF_STATE_NOT_PROVEN"
 MAKER_NOTIFICATION_RETRY_POLICY = "AT_MOST_ONCE_AFTER_DURABLE_CLAIM"
@@ -95,6 +96,8 @@ def accept_first_all_paper_cycle(
 
     if status.get("final_all_paper_runtime_version") != FINAL_ALL_PAPER_RUNTIME_VERSION:
         raise AllPaperDeploymentAcceptanceError("ALL_PAPER_FINAL_WRAPPER_VERSION_MISMATCH")
+    if status.get("independent_review_corrective_version") != INDEPENDENT_REVIEW_CORRECTIVE_VERSION:
+        raise AllPaperDeploymentAcceptanceError("ALL_PAPER_INDEPENDENT_REVIEW_CORRECTIVE_MISSING")
     if status.get("all_paper_v8_runtime_version") != ALL_PAPER_V8_RUNTIME_VERSION:
         raise AllPaperDeploymentAcceptanceError("ALL_PAPER_V8_RUNTIME_VERSION_MISMATCH")
     if status.get("all_paper_v7_runtime_version") != ALL_PAPER_V7_RUNTIME_VERSION:
@@ -150,6 +153,11 @@ def accept_first_all_paper_cycle(
         ("maker_activation_accounting_atomic", "ALL_PAPER_MAKER_ACTIVATION_NOT_ATOMIC"),
         ("legacy_partial_hourly_summary_suppressed", "ALL_PAPER_LEGACY_SUMMARY_NOT_SUPPRESSED"),
         ("v5_terminal_not_actionable_audit_atomic", "ALL_PAPER_V5_TERMINAL_AUDIT_NOT_ATOMIC"),
+        ("inherited_safety_boundary_verified", "ALL_PAPER_INHERITED_SAFETY_NOT_VERIFIED"),
+        ("v5_independent_execution_integrity_verified", "ALL_PAPER_V5_INTEGRITY_NOT_VERIFIED"),
+        ("maker_activation_link_identity_strict", "ALL_PAPER_MAKER_LINK_IDENTITY_NOT_STRICT"),
+        ("source_shock_episode_dedupe_revision_aware", "ALL_PAPER_SOURCE_SHOCK_DEDUPE_NOT_REVISION_AWARE"),
+        ("operator_all_lanes_healthy", "ALL_PAPER_OPERATOR_ALL_LANES_NOT_HEALTHY"),
     ):
         _require_true(status, key, code)
 
