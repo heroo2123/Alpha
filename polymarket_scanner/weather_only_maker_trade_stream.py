@@ -32,7 +32,7 @@ from .weather_only_maker_shadow import PublicTradePrint
 
 MARKET_WS_URL = "wss://ws-subscriptions-clob.polymarket.com/ws/market"
 MAKER_TRADE_STREAM_VERSION = (
-    "weather_maker_public_ws_v1_prospective_gap_fail_closed_strict_tx_hash"
+    "weather_maker_public_ws_v1_prospective_gap_fail_closed_strict_canonical_hex_ids"
 )
 MAKER_TRADE_STREAM_HEARTBEAT_SECONDS = 10.0
 MAKER_TRADE_STREAM_RECONNECT_MAX_SECONDS = 10.0
@@ -62,6 +62,22 @@ def _text(value: object, code: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise MakerTradeStreamError(code)
     return value.strip()
+
+
+def _canonical_0x_hex(value: object, *, missing_code: str, invalid_code: str) -> str:
+    text = _text(value, missing_code)
+    # Provider identities are wire evidence.  Do not silently canonicalize an
+    # invalid prefix or surrounding whitespace before validating it.  Hexadecimal
+    # digits themselves are case-insensitive and are normalized only after shape
+    # validation so equivalent valid IDs deduplicate to one stable identity.
+    if not isinstance(value, str) or text != value:
+        raise MakerTradeStreamError(invalid_code)
+    if not text.startswith("0x") or len(text) != 66:
+        raise MakerTradeStreamError(invalid_code)
+    body = text[2:]
+    if any(ch.lower() not in "0123456789abcdef" for ch in body):
+        raise MakerTradeStreamError(invalid_code)
+    return "0x" + body.lower()
 
 
 def _event_epoch(raw: object) -> float:
@@ -109,11 +125,11 @@ def parse_last_trade_price_message(message: object, *, received_at: float) -> Pu
     if str(message.get("event_type") or "") != "last_trade_price":
         return None
     token = _text(message.get("asset_id"), "MAKER_STREAM_TOKEN_MISSING")
-    market = _text(message.get("market"), "MAKER_STREAM_MARKET_MISSING").lower()
-    if not market.startswith("0x") or len(market) != 66 or any(
-        ch not in "0123456789abcdef" for ch in market[2:]
-    ):
-        raise MakerTradeStreamError("MAKER_STREAM_MARKET_INVALID")
+    market = _canonical_0x_hex(
+        message.get("market"),
+        missing_code="MAKER_STREAM_MARKET_MISSING",
+        invalid_code="MAKER_STREAM_MARKET_INVALID",
+    )
     price = _finite(message.get("price"), "MAKER_STREAM_PRICE_INVALID", positive=True)
     size = _finite(message.get("size"), "MAKER_STREAM_SIZE_INVALID", positive=True)
     if price >= 1.0:
@@ -125,13 +141,11 @@ def parse_last_trade_price_message(message: object, *, received_at: float) -> Pu
     receipt = _finite(received_at, "MAKER_STREAM_RECEIPT_INVALID")
     if receipt < 0.0 or executed_at > receipt + 2.0:
         raise MakerTradeStreamError("MAKER_STREAM_EVENT_FROM_FUTURE")
-    transaction = _text(
-        message.get("transaction_hash"), "MAKER_STREAM_TRANSACTION_HASH_MISSING"
-    ).lower()
-    if not transaction.startswith("0x") or len(transaction) != 66 or any(
-        ch not in "0123456789abcdef" for ch in transaction[2:]
-    ):
-        raise MakerTradeStreamError("MAKER_STREAM_TRANSACTION_HASH_INVALID")
+    transaction = _canonical_0x_hex(
+        message.get("transaction_hash"),
+        missing_code="MAKER_STREAM_TRANSACTION_HASH_MISSING",
+        invalid_code="MAKER_STREAM_TRANSACTION_HASH_INVALID",
+    )
     identity = {
         "market": market,
         "token": token,
