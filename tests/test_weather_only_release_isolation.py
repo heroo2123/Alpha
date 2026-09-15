@@ -46,6 +46,15 @@ def test_prepare_script_does_not_start_enable_or_modify_legacy_release_marker():
     assert "systemctl is-enabled" in text
 
 
+def test_prepare_default_source_ref_is_current_meticulous_validation_branch():
+    text = _text(PREPARE)
+    assert (
+        'SOURCE_REF="${ALPHA_WEATHER_SOURCE_REF:-${2:-weather-three-layer-meticulous-final-2026-09-15}}"'
+        in text
+    )
+    assert "weather-same-day-three-layer-validation-2026-09-14" not in text
+
+
 def test_prepare_requires_and_import_smokes_exact_three_layer_runtime_before_release_marker():
     text = _text(PREPARE)
     assert "polymarket_scanner/weather_only_paper_recovery_final.py" in text
