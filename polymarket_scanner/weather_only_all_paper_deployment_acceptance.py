@@ -16,7 +16,7 @@ from .weather_only_paper_post_receipt import PAPER_EXECUTION_PROTOCOL_V5, PAPER_
 
 
 ALL_PAPER_DEPLOYMENT_ACCEPTANCE_VERSION = (
-    "weather_all_paper_first_cycle_acceptance_v2_final_wrapper_v8_post_receipt"
+    "weather_all_paper_first_cycle_acceptance_v3_final_atomic_terminal_audit"
 )
 RESULT_LAG_BLOCK_REASON = "EXACT_WRH_CUTOFF_STATE_NOT_PROVEN"
 
@@ -137,6 +137,7 @@ def accept_first_all_paper_cycle(
         ("post_receipt_exact_clob_required", "ALL_PAPER_POST_RECEIPT_CLOB_NOT_REQUIRED"),
         ("maker_public_ws_prospective_fill_required", "ALL_PAPER_MAKER_PROSPECTIVE_WS_NOT_REQUIRED"),
         ("legacy_partial_hourly_summary_suppressed", "ALL_PAPER_LEGACY_SUMMARY_NOT_SUPPRESSED"),
+        ("v5_terminal_not_actionable_audit_atomic", "ALL_PAPER_V5_TERMINAL_AUDIT_NOT_ATOMIC"),
     ):
         _require_true(status, key, code)
 
