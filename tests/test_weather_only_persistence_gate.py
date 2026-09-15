@@ -4,6 +4,7 @@ from pathlib import Path
 
 
 PERSIST = Path("deploy/enable-weather-paper-persistence.sh")
+START = Path("deploy/start-weather-paper-candidate.sh")
 BACKUP_SETUP = Path("deploy/setup-weather-paper-backup-service.sh")
 SERVICE_ISOLATION = Path("deploy/check-weather-paper-service-isolation.sh")
 
@@ -21,11 +22,33 @@ def test_persistence_requires_active_attested_fresh_exact_candidate_before_enabl
     assert text.index("check-weather-paper-service-isolation.sh") < enable_index
     assert text.index("attest-weather-paper-runtime.py") < enable_index
     assert text.index("verify-weather-paper-first-cycle.py") < enable_index
+    assert text.index("verify-three-layer-validation-status.py") < enable_index
+    assert text.index("verify-three-layer-fresh-capture.py") < enable_index
     assert text.index('sudo systemctl start "${BACKUP_UNIT}"') < enable_index
     assert "--require-disabled" in text
     assert "--require-active" in text
     assert "weather-paper-release.sha" in text
+    assert "weather-paper-three-layer-start.epoch" in text
     assert "ALPHA_WEATHER_APP_DIR" in text
+
+
+def test_start_gate_persists_exact_start_boundary_and_rolls_it_back_on_failure():
+    text = START.read_text(encoding="utf-8")
+    assert 'START_EPOCH_FILE="${CONFIG_DIR}/weather-paper-three-layer-start.epoch"' in text
+    assert "START_ACCEPTANCE_EPOCH" in text
+    assert 'mv -f "${TMP_START}" "${START_EPOCH_FILE}"' in text
+    assert 'rm -f "${START_EPOCH_FILE}"' in text
+    assert "Persistence still requires a fresh saved three-layer capture" in text
+
+
+def test_persistence_fresh_capture_gate_is_bound_to_candidate_start_boundary():
+    text = PERSIST.read_text(encoding="utf-8")
+    fresh_index = text.index("verify-three-layer-fresh-capture.py")
+    enable_index = text.index('sudo systemctl enable "${UNIT}"')
+    assert fresh_index < enable_index
+    assert '--not-before "${START_ACCEPTANCE_EPOCH}"' in text
+    assert "weather-paper-persistence-fresh-capture.json" in text
+    assert "fresh post-start WRH+NWS+GEFS research capture" in text
 
 
 def test_persistence_rollback_is_armed_before_first_enable_operation():
