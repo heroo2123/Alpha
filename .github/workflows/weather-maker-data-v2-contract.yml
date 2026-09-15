@@ -40,7 +40,7 @@ jobs:
                   url,
                   method="GET",
                   headers={
-                      "User-Agent": "Mozilla/5.0 weather-maker-contract-gate/2.0",
+                      "User-Agent": "Mozilla/5.0 weather-maker-contract-gate/2.1",
                       "Accept": "application/json,text/html;q=0.9,*/*;q=0.8",
                   },
               )
@@ -66,9 +66,10 @@ jobs:
           auth_status, auth_raw = get_text(AUTH_CLOB_DOCS)
           assert auth_status == 200, auth_status
           auth_docs = auth_raw.decode("utf-8", errors="strict")
-          # Keep the two similarly named feeds distinct.  The CLOB user-trades route
-          # is authenticated; the maker shadow uses only the public Data API above.
-          for fragment in ("clob.polymarket.com/trades", "POLY_API_KEY", "authenticated user"):
+          # The separately documented CLOB user-trades route is authenticated. Do not
+          # require a rendered absolute URL: Mintlify currently renders the path
+          # separately, but it does expose the auth headers and authenticated wording.
+          for fragment in ("POLY_API_KEY", "POLY_SIGNATURE", "authenticated user"):
               assert fragment in auth_docs, fragment
 
           data_status, data_raw = get_text(DATA)
