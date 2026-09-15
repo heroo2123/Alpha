@@ -13,6 +13,7 @@ from polymarket_scanner.weather_only_live_paper_all_signals_v4 import (
 from polymarket_scanner.weather_only_live_paper_all_signals_v5 import (
     AllPaperWeatherLiveV5Service,
 )
+from polymarket_scanner.weather_only_maker_trade_stream import MakerTradeStreamError
 from polymarket_scanner.weather_only_maker_trade_stream_v3 import (
     ProspectiveMakerTradeStreamV3,
 )
@@ -57,6 +58,34 @@ def test_stream_retain_only_preserves_active_token_and_releases_stale_tokens():
     assert stream.coverage("stale-1") is None
     assert stream.coverage("stale-2") is None
     assert stream.buffer.generation == generation
+
+
+class _FailingSocket:
+    def __init__(self):
+        self.closed = False
+
+    async def send(self, payload):
+        raise RuntimeError("injected dynamic subscribe failure")
+
+    async def close(self):
+        self.closed = True
+
+
+def test_dynamic_subscribe_send_failure_rolls_back_local_token_and_closes_socket():
+    async def exercise():
+        stream = ProspectiveMakerTradeStreamV3()
+        ws = _FailingSocket()
+        stream.connected = True
+        stream._ws = ws
+        with pytest.raises(MakerTradeStreamError) as exc:
+            await stream.subscribe(TOKEN)
+        return stream, ws, exc.value.code
+
+    stream, ws, code = asyncio.run(exercise())
+    assert code == "MAKER_STREAM_SUBSCRIBE_SEND_FAILED"
+    assert stream.desired_tokens() == ()
+    assert stream.coverage(TOKEN) is None
+    assert ws.closed is True
 
 
 def test_v5_rejects_signal_that_expires_during_post_delivery_recheck(monkeypatch):
@@ -105,18 +134,22 @@ def test_v5_allows_post_delivery_recheck_that_finishes_before_expiry(monkeypatch
 
 
 class _FakeStream:
-    def __init__(self):
+    def __init__(self, *, fail_start: bool = False):
         self.connected = True
         self.desired = set()
         self.max_desired = 0
         self._task = None
         self.retained = None
+        self.fail_start = fail_start
+        self.unsubscribe_calls = []
 
     async def subscribe(self, token):
         self.desired.add(str(token))
         self.max_desired = max(self.max_desired, len(self.desired))
 
     async def start(self):
+        if self.fail_start:
+            raise RuntimeError("injected start failure")
         return None
 
     def coverage(self, token):
@@ -125,6 +158,7 @@ class _FakeStream:
         return None
 
     async def unsubscribe(self, token):
+        self.unsubscribe_calls.append(str(token))
         self.desired.discard(str(token))
 
     async def retain_only(self, tokens):
@@ -140,6 +174,13 @@ class _FakeStore:
         return set(self.active)
 
 
+def _service(*, stream=None):
+    service = object.__new__(AllPaperWeatherLiveV5Service)
+    service.maker_stream = stream or _FakeStream()
+    service.maker_store = _FakeStore()
+    return service
+
+
 def test_v5_rejected_candidates_do_not_accumulate_toward_stream_token_cap(monkeypatch):
     async def fake_parent_send(self, candidate):
         return False, None
@@ -150,9 +191,7 @@ def test_v5_rejected_candidates_do_not_accumulate_toward_stream_token_cap(monkey
         fake_parent_send,
         raising=True,
     )
-    service = object.__new__(AllPaperWeatherLiveV5Service)
-    service.maker_stream = _FakeStream()
-    service.maker_store = _FakeStore()
+    service = _service()
 
     async def exercise():
         for index in range(40):
@@ -162,6 +201,53 @@ def test_v5_rejected_candidates_do_not_accumulate_toward_stream_token_cap(monkey
     asyncio.run(exercise())
     assert service.maker_stream.desired == set()
     assert service.maker_stream.max_desired == 1
+
+
+def test_v5_stream_start_failure_still_releases_subscribed_token():
+    service = _service(stream=_FakeStream(fail_start=True))
+    candidate = {"proposal": SimpleNamespace(token_id=TOKEN)}
+    with pytest.raises(RuntimeError, match="injected start failure"):
+        asyncio.run(service._send_maker_candidate(candidate))
+    assert service.maker_stream.desired == set()
+    assert service.maker_stream.unsubscribe_calls == [TOKEN]
+
+
+def test_v5_ambiguous_delivery_result_does_not_keep_subscription(monkeypatch):
+    async def fake_parent_send(self, candidate):
+        return True, "PAPER_TELEGRAM_DELIVERY_UNCERTAIN"
+
+    monkeypatch.setattr(
+        AllPaperWeatherLiveV4Service,
+        "_send_maker_candidate",
+        fake_parent_send,
+        raising=True,
+    )
+    service = _service()
+    candidate = {"proposal": SimpleNamespace(token_id=TOKEN)}
+    assert asyncio.run(service._send_maker_candidate(candidate)) == (
+        True,
+        "PAPER_TELEGRAM_DELIVERY_UNCERTAIN",
+    )
+    assert service.maker_stream.desired == set()
+    assert service.maker_stream.unsubscribe_calls == [TOKEN]
+
+
+def test_v5_unexpected_parent_exception_still_releases_subscription(monkeypatch):
+    async def fake_parent_send(self, candidate):
+        raise RuntimeError("injected parent activation failure")
+
+    monkeypatch.setattr(
+        AllPaperWeatherLiveV4Service,
+        "_send_maker_candidate",
+        fake_parent_send,
+        raising=True,
+    )
+    service = _service()
+    candidate = {"proposal": SimpleNamespace(token_id=TOKEN)}
+    with pytest.raises(RuntimeError, match="injected parent activation failure"):
+        asyncio.run(service._send_maker_candidate(candidate))
+    assert service.maker_stream.desired == set()
+    assert service.maker_stream.unsubscribe_calls == [TOKEN]
 
 
 def test_v5_keeps_subscription_when_parent_activates_order(monkeypatch):
@@ -175,12 +261,11 @@ def test_v5_keeps_subscription_when_parent_activates_order(monkeypatch):
         fake_parent_send,
         raising=True,
     )
-    service = object.__new__(AllPaperWeatherLiveV5Service)
-    service.maker_stream = _FakeStream()
-    service.maker_store = _FakeStore()
+    service = _service()
     candidate = {"proposal": SimpleNamespace(token_id=TOKEN)}
     assert asyncio.run(service._send_maker_candidate(candidate)) == (True, None)
     assert service.maker_stream.desired == {TOKEN}
+    assert service.maker_stream.unsubscribe_calls == []
 
 
 def test_v5_progress_reconciles_stream_to_exact_active_token_set(monkeypatch):
@@ -193,10 +278,8 @@ def test_v5_progress_reconciles_stream_to_exact_active_token_set(monkeypatch):
         fake_parent_progress,
         raising=True,
     )
-    service = object.__new__(AllPaperWeatherLiveV5Service)
-    service.maker_stream = _FakeStream()
+    service = _service()
     service.maker_stream.desired = {"active", "old"}
-    service.maker_store = _FakeStore()
     service.maker_store.active = {"active"}
     errors = asyncio.run(service._progress_maker_orders({}))
     assert errors == []
