@@ -1,0 +1,226 @@
+name: weather-three-layer-live-universe-census
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - weather-three-layer-meticulous-final-2026-09-15
+    paths:
+      - '.github/workflows/weather-three-layer-live-universe-census.yml'
+      - 'polymarket_scanner/weather_only_discovery.py'
+      - 'polymarket_scanner/weather_only_contract_strict.py'
+      - 'polymarket_scanner/weather_only_rules.py'
+      - 'polymarket_scanner/weather_only_same_day_contract.py'
+      - 'polymarket_scanner/weather_only_station_metadata.py'
+      - 'polymarket_scanner/weather_only_three_layer_guarded.py'
+      - 'polymarket_scanner/weather_only_live_paper_three_layer_validation.py'
+
+permissions:
+  contents: read
+
+jobs:
+  live-universe-census:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+      - name: Prove current same-day eligibility universe without trading or persistence
+        shell: bash
+        run: |
+          python - <<'PY'
+          import asyncio
+          import json
+          import time
+          from datetime import datetime, timezone
+          from pathlib import Path
+          from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+          from polymarket_scanner.weather_only_contract_strict import (
+              StrictWeatherContractError,
+              compile_strict_temperature_event,
+          )
+          from polymarket_scanner.weather_only_discovery import WeatherOnlyDiscovery
+          from polymarket_scanner.weather_only_live_paper_three_layer_validation import (
+              THREE_LAYER_ELIGIBILITY_SCAN_DEADLINE_SECONDS,
+              THREE_LAYER_ELIGIBILITY_STATION_CAP,
+              THREE_LAYER_SELECTION_UNIVERSE_CAP,
+              THREE_LAYER_STATION_METADATA_CONCURRENCY,
+          )
+          from polymarket_scanner.weather_only_rules import compile_temperature_rule_authority
+          from polymarket_scanner.weather_only_same_day_contract import build_same_day_contract_semantics
+          from polymarket_scanner.weather_only_three_layer_guarded import GuardedSameDayStationMetadataClient
+
+          async def run():
+              discovery = WeatherOnlyDiscovery()
+              station_client = GuardedSameDayStationMetadataClient()
+              started = time.time()
+              errors = []
+              skipped_strict = 0
+              skipped_adapter = 0
+              duplicate_events = 0
+              candidates = []
+              seen_event_ids = set()
+              station_representatives = {}
+              frozen_now_utc = datetime.now(tz=timezone.utc)
+              loop = asyncio.get_running_loop()
+              deadline = loop.time() + THREE_LAYER_ELIGIBILITY_SCAN_DEADLINE_SECONDS
+              try:
+                  snapshot = await discovery.discover()
+                  for event in snapshot.events:
+                      if loop.time() >= deadline:
+                          errors.append('SAME_DAY_ELIGIBILITY_SCAN_TIMEOUT')
+                          break
+                      if not isinstance(event, dict):
+                          continue
+                      try:
+                          compiled = compile_strict_temperature_event(event)
+                          authority = compile_temperature_rule_authority(event, compiled)
+                          semantics = build_same_day_contract_semantics(compiled, authority)
+                      except StrictWeatherContractError:
+                          skipped_strict += 1
+                          continue
+                      except Exception as exc:
+                          event_id = str(event.get('id') or event.get('eventId') or 'unknown')
+                          code = str(getattr(exc, 'code', type(exc).__name__))
+                          errors.append(f'SAME_DAY_SEMANTICS:{event_id}:{code}')
+                          continue
+
+                      event_id = str(compiled.event_id)
+                      if event_id in seen_event_ids:
+                          duplicate_events += 1
+                          continue
+                      seen_event_ids.add(event_id)
+                      if not semantics.layer1_adapter_capable:
+                          skipped_adapter += 1
+                          continue
+                      station = str(compiled.station_hint or '').strip().upper()
+                      if not station:
+                          errors.append(f'SAME_DAY_STATION:{event_id}:STATION_MISSING')
+                          continue
+                      candidates.append((event_id, compiled, station))
+                      station_representatives.setdefault(station, compiled)
+                      if len(station_representatives) > THREE_LAYER_ELIGIBILITY_STATION_CAP:
+                          errors.append(
+                              'SAME_DAY_ELIGIBILITY_STATION_CAP_EXCEEDED:'
+                              f'{len(station_representatives)}>{THREE_LAYER_ELIGIBILITY_STATION_CAP}'
+                          )
+                          break
+
+                  metadata_by_station = {}
+                  zones_by_station = {}
+                  if not errors:
+                      semaphore = asyncio.Semaphore(THREE_LAYER_STATION_METADATA_CONCURRENCY)
+
+                      async def fetch_station(station):
+                          async with semaphore:
+                              return await station_client.station(station)
+
+                      stations = list(station_representatives)
+                      tasks = [asyncio.create_task(fetch_station(station)) for station in stations]
+                      if tasks:
+                          remaining = deadline - loop.time()
+                          if remaining <= 0:
+                              errors.append('SAME_DAY_ELIGIBILITY_SCAN_TIMEOUT')
+                              for task in tasks:
+                                  task.cancel()
+                              await asyncio.gather(*tasks, return_exceptions=True)
+                              results = []
+                          else:
+                              try:
+                                  results = await asyncio.wait_for(
+                                      asyncio.gather(*tasks, return_exceptions=True),
+                                      timeout=remaining,
+                                  )
+                              except TimeoutError:
+                                  errors.append('SAME_DAY_ELIGIBILITY_SCAN_TIMEOUT')
+                                  for task in tasks:
+                                      task.cancel()
+                                  await asyncio.gather(*tasks, return_exceptions=True)
+                                  results = []
+                      else:
+                          results = []
+
+                      for station, result in zip(stations, results):
+                          if isinstance(result, BaseException):
+                              code = str(getattr(result, 'code', type(result).__name__))
+                              errors.append(f'SAME_DAY_STATION:{station}:{code}')
+                              continue
+                          if result is None:
+                              errors.append(f'SAME_DAY_STATION:{station}:METADATA_UNAVAILABLE')
+                              continue
+                          try:
+                              if str(result.station or '').strip().upper() != station:
+                                  raise ValueError('IDENTITY_MISMATCH')
+                              zone = ZoneInfo(str(result.timezone))
+                          except (ZoneInfoNotFoundError, AttributeError, ValueError) as exc:
+                              errors.append(f'SAME_DAY_STATION:{station}:{type(exc).__name__}')
+                              continue
+                          metadata_by_station[station] = result
+                          zones_by_station[station] = zone
+
+                  eligible_ids = []
+                  if not errors and len(metadata_by_station) == len(station_representatives):
+                      for event_id, compiled, station in candidates:
+                          local_today = frozen_now_utc.astimezone(zones_by_station[station]).date()
+                          if compiled.target_date == local_today:
+                              eligible_ids.append(event_id)
+                      eligible_ids.sort()
+                      if len(eligible_ids) > THREE_LAYER_SELECTION_UNIVERSE_CAP:
+                          errors.append(
+                              'SAME_DAY_SELECTION_UNIVERSE_CAP_EXCEEDED:'
+                              f'{len(eligible_ids)}>{THREE_LAYER_SELECTION_UNIVERSE_CAP}'
+                          )
+              finally:
+                  await asyncio.gather(
+                      discovery.close(), station_client.close(), return_exceptions=True
+                  )
+
+              report = {
+                  'acceptance': (
+                      'PASS_THREE_LAYER_LIVE_UNIVERSE_CENSUS'
+                      if not errors else 'FAIL_THREE_LAYER_LIVE_UNIVERSE_CENSUS'
+                  ),
+                  'checked_at': time.time(),
+                  'elapsed_seconds': time.time() - started,
+                  'frozen_utc_clock': frozen_now_utc.isoformat(),
+                  'discovery': snapshot.summary() if 'snapshot' in locals() else None,
+                  'strictly_skipped_events': skipped_strict,
+                  'adapter_unsupported_events': skipped_adapter,
+                  'duplicate_compiled_events': duplicate_events,
+                  'adapter_capable_candidates': len(candidates),
+                  'station_count': len(station_representatives),
+                  'station_cap': THREE_LAYER_ELIGIBILITY_STATION_CAP,
+                  'station_metadata_concurrency': THREE_LAYER_STATION_METADATA_CONCURRENCY,
+                  'eligibility_deadline_seconds': THREE_LAYER_ELIGIBILITY_SCAN_DEADLINE_SECONDS,
+                  'same_day_eligible_count': len(eligible_ids) if 'eligible_ids' in locals() else 0,
+                  'same_day_eligible_event_ids': eligible_ids if 'eligible_ids' in locals() else [],
+                  'selection_universe_cap': THREE_LAYER_SELECTION_UNIVERSE_CAP,
+                  'errors': errors,
+                  'read_only': True,
+                  'database_mutation': False,
+                  'telegram_delivery': False,
+                  'clob_requests': False,
+                  'pws_enabled': False,
+                  'calibrated_probability': False,
+                  'financial_authority': False,
+                  'automatic_order_placement': False,
+              }
+              Path('three-layer-live-universe-census.json').write_text(
+                  json.dumps(report, sort_keys=True, indent=2) + '\n', encoding='utf-8'
+              )
+              print(json.dumps(report, sort_keys=True, indent=2))
+              if errors:
+                  raise SystemExit('THREE_LAYER_LIVE_UNIVERSE_CENSUS_FAILED:' + '|'.join(errors))
+
+          asyncio.run(run())
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: weather-three-layer-live-universe-census-${{ github.sha }}
+          path: three-layer-live-universe-census.json
+          if-no-files-found: warn
