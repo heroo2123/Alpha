@@ -37,8 +37,31 @@ from .weather_only_maker_paper_accounting_v3 import (
 
 
 ALL_PAPER_V4_RUNTIME_VERSION = (
-    "weather_all_paper_signals_v4_serialized_maker_notification_query"
+    "weather_all_paper_signals_v4_serialized_notifications_stream_health_fail_closed"
 )
+
+
+def _maker_stream_health(status: dict) -> dict:
+    """Return fail-closed maker stream health without poisoning legacy weather lanes."""
+    base_healthy = status.get("maker_healthy") is True
+    raw_stream = status.get("maker_trade_stream")
+    stream = raw_stream if isinstance(raw_stream, dict) else {}
+    last_error = stream.get("last_error")
+    degraded = isinstance(last_error, str) and bool(last_error.strip())
+    try:
+        covered = int(stream.get("covered_tokens") or 0)
+    except (TypeError, ValueError, OverflowError):
+        covered = 0
+        degraded = True
+        if not last_error:
+            last_error = "MAKER_STREAM_STATUS_COVERED_TOKENS_INVALID"
+    connected = stream.get("connected") is True
+    return {
+        "maker_healthy": bool(base_healthy and not degraded),
+        "maker_stream_degraded": bool(degraded),
+        "maker_stream_last_error": last_error,
+        "maker_fill_evidence_ready": bool(connected and covered > 0 and not degraded),
+    }
 
 
 class AllPaperWeatherLiveV4Service(AllPaperWeatherLiveV3Service):
@@ -63,6 +86,7 @@ class AllPaperWeatherLiveV4Service(AllPaperWeatherLiveV3Service):
 
     async def run_cycle(self) -> dict:
         status = dict(await super().run_cycle())
+        status.update(_maker_stream_health(status))
         status.update(
             {
                 "all_paper_v4_runtime_version": ALL_PAPER_V4_RUNTIME_VERSION,
