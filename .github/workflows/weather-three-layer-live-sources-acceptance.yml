@@ -1,0 +1,156 @@
+name: weather-three-layer-live-sources-acceptance
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - weather-three-layer-meticulous-final-2026-09-15
+    paths:
+      - '.github/workflows/weather-three-layer-live-sources-acceptance.yml'
+      - 'polymarket_scanner/weather_only_three_layer_guarded.py'
+      - 'polymarket_scanner/weather_only_wrh.py'
+      - 'polymarket_scanner/weather_only_wrh_client.py'
+      - 'polymarket_scanner/weather_only_nws_near_term.py'
+      - 'polymarket_scanner/weather_only_gefs_hourly.py'
+      - 'polymarket_scanner/weather_only_station_metadata.py'
+
+permissions:
+  contents: read
+
+jobs:
+  three-layer-live-sources:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+      - name: Exercise exact guarded WRH, NWS and 31-member GEFS source lane
+        shell: bash
+        run: |
+          python - <<'PY'
+          import asyncio
+          import json
+          import time
+          from datetime import datetime
+          from pathlib import Path
+          from zoneinfo import ZoneInfo
+
+          from polymarket_scanner.weather_only_three_layer_guarded import (
+              GuardedNWSNearTermGridClient,
+              GuardedNWSWRHLiveClient,
+              GuardedOpenMeteoGEFSHourlyClient,
+              GuardedSameDayStationMetadataClient,
+          )
+          from polymarket_scanner.weather_only_wrh import (
+              WRH_VIEWER_SCRIPT_SHA256,
+              WRH_VIEWER_SCRIPT_URL,
+          )
+
+          async def run():
+              station_id = 'KLGA'
+              station_client = GuardedSameDayStationMetadataClient()
+              nws = GuardedNWSNearTermGridClient()
+              gefs = GuardedOpenMeteoGEFSHourlyClient()
+              wrh = GuardedNWSWRHLiveClient()
+              started = time.time()
+              try:
+                  metadata = await station_client.station(station_id)
+                  target_date = datetime.now(ZoneInfo(metadata.timezone)).date()
+                  wrh_result, nws_snapshot, gefs_day = await asyncio.gather(
+                      asyncio.to_thread(
+                          wrh.fetch_snapshot,
+                          station=station_id,
+                          target_date=target_date,
+                      ),
+                      nws.fetch_snapshot(
+                          station=station_id,
+                          latitude=float(metadata.latitude),
+                          longitude=float(metadata.longitude),
+                      ),
+                      gefs.target_day(
+                          station=station_id,
+                          latitude=float(metadata.latitude),
+                          longitude=float(metadata.longitude),
+                          target_date=target_date,
+                          unit='F',
+                          timezone=str(metadata.timezone),
+                      ),
+                  )
+              finally:
+                  wrh.close()
+                  await asyncio.gather(
+                      station_client.close(), nws.close(), gefs.close(),
+                      return_exceptions=True,
+                  )
+              completed = time.time()
+
+              snapshot = wrh_result.snapshot
+              checks = {
+                  'metadata_station_exact': metadata.station == station_id,
+                  'metadata_timezone_present': bool(str(metadata.timezone)),
+                  'wrh_station_exact': snapshot.station == station_id,
+                  'wrh_target_date_exact': snapshot.target_date == target_date,
+                  'wrh_target_rows_present': len(snapshot.target_rows) > 0,
+                  'wrh_temperatures_present': len(snapshot.target_display_temperatures_f) > 0,
+                  'wrh_viewer_url_exact': snapshot.viewer_script_url == WRH_VIEWER_SCRIPT_URL,
+                  'wrh_viewer_sha_exact': snapshot.viewer_script_sha256 == WRH_VIEWER_SCRIPT_SHA256,
+                  'wrh_no_settlement_authority': snapshot.settlement_label_authority is False,
+                  'wrh_no_financial_authority': snapshot.financial_authority is False,
+                  'wrh_token_not_persisted': wrh_result.token_persisted is False,
+                  'nws_station_exact': nws_snapshot.station == station_id,
+                  'nws_latitude_bound': abs(nws_snapshot.latitude - float(metadata.latitude)) <= 1e-6,
+                  'nws_longitude_bound': abs(nws_snapshot.longitude - float(metadata.longitude)) <= 1e-6,
+                  'nws_receipt_ordered': nws_snapshot.grid_received_at >= nws_snapshot.points_received_at,
+                  'nws_no_financial_authority': nws_snapshot.financial_authority is False,
+                  'gefs_station_exact': gefs_day.station == station_id,
+                  'gefs_target_date_exact': gefs_day.target_date == target_date,
+                  'gefs_timezone_exact': gefs_day.timezone == str(metadata.timezone),
+                  'gefs_31_labels': len(gefs_day.member_labels) == 31,
+                  'gefs_31_series': len(gefs_day.member_series) == 31,
+                  'gefs_daily_grid_complete': len(gefs_day.valid_times) in {23, 24, 25},
+                  'gefs_no_calibrated_probability': gefs_day.calibrated_probability is False,
+                  'gefs_no_financial_authority': gefs_day.financial_authority is False,
+                  'all_receipts_within_live_call': max(
+                      snapshot.received_at,
+                      nws_snapshot.received_at,
+                      gefs_day.received_at,
+                  ) <= completed + 1e-6,
+              }
+              failed = sorted(name for name, ok in checks.items() if not ok)
+              report = {
+                  'station': station_id,
+                  'target_date': target_date.isoformat(),
+                  'timezone': str(metadata.timezone),
+                  'elapsed_seconds': completed - started,
+                  'wrh_target_row_count': len(snapshot.target_rows),
+                  'wrh_temperature_count': len(snapshot.target_display_temperatures_f),
+                  'wrh_evidence_sha256': snapshot.evidence_sha256,
+                  'nws_evidence_sha256': nws_snapshot.evidence_sha256,
+                  'gefs_evidence_sha256': gefs_day.evidence_sha256,
+                  'gefs_content_run_id': gefs_day.content_run_id,
+                  'gefs_member_count': len(gefs_day.member_labels),
+                  'gefs_valid_time_count': len(gefs_day.valid_times),
+                  'checks': checks,
+                  'browser_token_persisted': False,
+                  'raw_provider_payload_persisted': False,
+                  'same_day_delivery_enabled': False,
+                  'financial_authority': False,
+              }
+              Path('three-layer-live-sources.json').write_text(
+                  json.dumps(report, indent=2, sort_keys=True) + '\n', encoding='utf-8'
+              )
+              print(json.dumps(report, indent=2, sort_keys=True))
+              if failed:
+                  raise SystemExit('THREE_LAYER_LIVE_SOURCE_ACCEPTANCE_FAILED:' + ','.join(failed))
+
+          asyncio.run(run())
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: weather-three-layer-live-sources-${{ github.sha }}
+          path: three-layer-live-sources.json
+          if-no-files-found: warn
