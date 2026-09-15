@@ -16,6 +16,7 @@ No order, wallet, signing, cancellation, actual-fill or financial authority exis
 """
 
 import json
+import math
 import time
 
 from .weather_only_maker_paper_accounting import MAKER_SETTLEMENT_EVENT
@@ -49,8 +50,13 @@ class MakerPaperAccountingStoreV4(MakerPaperAccountingStoreV3):
             raise WeatherMakerStoreError("MAKER_STORE_NOTIFICATION_EVENT_TYPE_INVALID")
         if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 500:
             raise WeatherMakerStoreError("MAKER_STORE_NOTIFICATION_LIMIT_INVALID")
-        at = time.time() if claimed_at is None else float(claimed_at)
-        if not (at >= 0.0):
+        try:
+            at = time.time() if claimed_at is None else float(claimed_at)
+        except (TypeError, ValueError, OverflowError):
+            raise WeatherMakerStoreError(
+                "MAKER_STORE_NOTIFICATION_CLAIM_TIME_INVALID"
+            ) from None
+        if not math.isfinite(at) or at < 0.0:
             raise WeatherMakerStoreError("MAKER_STORE_NOTIFICATION_CLAIM_TIME_INVALID")
 
         terminal = (MAKER_SETTLEMENT_NOTIFY_SENDING, sent, uncertain)
@@ -99,7 +105,9 @@ class MakerPaperAccountingStoreV4(MakerPaperAccountingStoreV3):
                             "MAKER_STORE_EVENT_PAYLOAD_JSON_INVALID"
                         )
                     state_sha = str(row["state_sha256"])
-                    if len(state_sha) != 64:
+                    if len(state_sha) != 64 or any(
+                        ch not in "0123456789abcdef" for ch in state_sha
+                    ):
                         raise WeatherMakerStoreError(
                             "MAKER_STORE_STATE_DIGEST_MISMATCH"
                         )
