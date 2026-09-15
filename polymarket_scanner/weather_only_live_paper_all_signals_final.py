@@ -5,6 +5,8 @@ from __future__ import annotations
 This thin wrapper freezes the operator-facing identity above V8. Deployment gates can
 therefore prove that the complete source-shock + post-receipt + maker-corrective stack
 finished a cycle rather than accepting an inherited intermediate status snapshot.
+The final wrapper also closes the V5 non-actionable audit crash window without
+rewriting historical V7 experiments.
 """
 
 import argparse
@@ -25,7 +27,7 @@ from .weather_only_live_paper_v2 import DEFAULT_PAPER_STAKE_USD
 
 
 FINAL_ALL_PAPER_RUNTIME_VERSION = (
-    "weather_all_paper_final_v1_v8_post_receipt_source_shock_atomic_maker"
+    "weather_all_paper_final_v2_v8_post_receipt_atomic_terminal_audit"
 )
 
 
@@ -52,11 +54,28 @@ class FinalAllPaperWeatherLiveService(AllPaperWeatherLiveV8Service):
             )
         )
 
+    async def _mark_v5_not_actionable(
+        self, signal_id: int, candidate: dict, reason: str
+    ) -> None:
+        """Persist terminal non-actionability and the exact reason in one transaction."""
+        await asyncio.to_thread(
+            self.positions.mark_post_receipt_not_actionable,
+            int(signal_id),
+            decision_id=str(
+                candidate.get("decision_id") or candidate.get("event_id") or signal_id
+            ),
+            event_id=str(candidate.get("event_id") or ""),
+            market_id=str(candidate.get("market_id") or "") or None,
+            side=str(candidate.get("side") or "") or None,
+            reason=str(reason),
+        )
+
     async def run_cycle(self) -> dict:
         status = dict(await super().run_cycle())
         status.update(
             {
                 "final_all_paper_runtime_version": FINAL_ALL_PAPER_RUNTIME_VERSION,
+                "v5_terminal_not_actionable_audit_atomic": True,
                 "financial_delivery": False,
                 "financial_authority": False,
                 "automatic_order_placement": False,
