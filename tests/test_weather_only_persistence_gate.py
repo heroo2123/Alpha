@@ -41,14 +41,15 @@ def test_start_gate_persists_exact_start_boundary_and_rolls_it_back_on_failure()
     assert "Persistence still requires a fresh saved three-layer capture" in text
 
 
-def test_persistence_fresh_capture_gate_is_bound_to_candidate_start_boundary():
+def test_persistence_fresh_capture_gate_is_bound_to_candidate_start_boundary_and_durable_db():
     text = PERSIST.read_text(encoding="utf-8")
     fresh_index = text.index("verify-three-layer-fresh-capture.py")
     enable_index = text.index('sudo systemctl enable "${UNIT}"')
     assert fresh_index < enable_index
     assert '--not-before "${START_ACCEPTANCE_EPOCH}"' in text
+    assert '--db "${DB_PATH}"' in text
     assert "weather-paper-persistence-fresh-capture.json" in text
-    assert "fresh post-start WRH+NWS+GEFS research capture" in text
+    assert "durable post-start WRH+NWS+GEFS research capture" in text
 
 
 def test_persistence_rollback_is_armed_before_first_enable_operation():
