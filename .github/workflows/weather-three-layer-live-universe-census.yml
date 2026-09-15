@@ -60,6 +60,8 @@ jobs:
               started = time.time()
               errors = []
               skipped_strict = 0
+              strict_skip_codes = {}
+              strict_skip_samples = {}
               skipped_adapter = 0
               duplicate_events = 0
               candidates = []
@@ -80,8 +82,16 @@ jobs:
                           compiled = compile_strict_temperature_event(event)
                           authority = compile_temperature_rule_authority(event, compiled)
                           semantics = build_same_day_contract_semantics(compiled, authority)
-                      except StrictWeatherContractError:
+                      except StrictWeatherContractError as exc:
                           skipped_strict += 1
+                          code = str(exc.code)
+                          strict_skip_codes[code] = strict_skip_codes.get(code, 0) + 1
+                          samples = strict_skip_samples.setdefault(code, [])
+                          if len(samples) < 3:
+                              samples.append({
+                                  'event_id': str(event.get('id') or event.get('eventId') or 'unknown'),
+                                  'title': str(event.get('title') or '')[:240],
+                              })
                           continue
                       except Exception as exc:
                           event_id = str(event.get('id') or event.get('eventId') or 'unknown')
@@ -109,6 +119,9 @@ jobs:
                               f'{len(station_representatives)}>{THREE_LAYER_ELIGIBILITY_STATION_CAP}'
                           )
                           break
+
+                  if not errors and not candidates:
+                      errors.append('SAME_DAY_NO_ADAPTER_CAPABLE_CANDIDATES')
 
                   metadata_by_station = {}
                   zones_by_station = {}
@@ -189,6 +202,8 @@ jobs:
                   'frozen_utc_clock': frozen_now_utc.isoformat(),
                   'discovery': snapshot.summary() if 'snapshot' in locals() else None,
                   'strictly_skipped_events': skipped_strict,
+                  'strict_skip_codes': dict(sorted(strict_skip_codes.items())),
+                  'strict_skip_samples': strict_skip_samples,
                   'adapter_unsupported_events': skipped_adapter,
                   'duplicate_compiled_events': duplicate_events,
                   'adapter_capable_candidates': len(candidates),
