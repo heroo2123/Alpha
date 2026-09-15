@@ -82,6 +82,25 @@ def test_invalid_side_fails_closed():
     assert exc.value.code == "MAKER_STREAM_SIDE_INVALID"
 
 
+@pytest.mark.parametrize(
+    "value",
+    [
+        "0x" + "2" * 63,
+        "0x" + "2" * 65,
+        "2" * 64,
+        "0x" + "g" * 64,
+        "0X" + "2" * 64,
+        "not-a-transaction-hash",
+    ],
+)
+def test_malformed_transaction_hash_fails_closed(value):
+    with pytest.raises(MakerTradeStreamError) as exc:
+        parse_last_trade_price_message(
+            _message(transaction_hash=value), received_at=NOW
+        )
+    assert exc.value.code == "MAKER_STREAM_TRANSACTION_HASH_INVALID"
+
+
 def test_first_book_anchors_coverage_and_later_books_do_not_move_it():
     buffer = ProspectiveMakerTradeBufferV2()
     buffer.mark_gap()
