@@ -17,6 +17,7 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
+          test -f requirements-runtime-hashed.txt || { echo 'committed runtime hash lock missing' >&2; exit 1; }
           out="$RUNNER_TEMP/requirements-runtime-hashed.txt"
           : > "$out"
           while IFS= read -r raw || [[ -n "$raw" ]]; do
@@ -35,9 +36,12 @@ jobs:
           echo '--- GENERATED RUNTIME HASH LOCK ---'
           cat "$out"
           cp "$out" generated-runtime-hashed.txt
-          if [[ -f requirements-runtime-hashed.txt ]]; then
-            diff -u requirements-runtime-hashed.txt generated-runtime-hashed.txt
-          fi
+          diff -u requirements-runtime-hashed.txt generated-runtime-hashed.txt
+      - name: Prove hash-locked runtime installation
+        shell: bash
+        run: |
+          python -m pip install --disable-pip-version-check --require-hashes -r requirements-runtime-hashed.txt
+          python -m pip check
       - uses: actions/upload-artifact@v4
         with:
           name: runtime-hash-lock-py311-ubuntu2404-x86_64
