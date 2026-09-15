@@ -200,6 +200,7 @@ class WeatherLivePaperV4Service(WeatherLivePaperV3Service):
         self._forecast_distribution_by_sha: dict[str, object] = {}
         self._v4_structural_suppressed_total = 0
         self._v4_dispatch_skipped_total = 0
+        self._v4_forecast_nonfatal_skips_this_cycle: list[str] = []
         self._v4_eligible_evaluated_this_cycle = 0
         self._v4_last_summary_sent_at = 0.0
         # The inherited base emits its summary before v2/v3 settlement/tracking.
@@ -350,7 +351,21 @@ class WeatherLivePaperV4Service(WeatherLivePaperV3Service):
 
         forecast = await self._mapped_forecast(compiled.event_id, compiled)
         exact = await self.runtime.clob.exact_event_snapshot(compiled)
-        _validate_exact_snapshot(compiled, exact)
+        try:
+            _validate_exact_snapshot(compiled, exact)
+        except V4InvariantError as exc:
+            # Live acceptance on 2026-09-15 proved that Polymarket can return an
+            # otherwise well-formed exact snapshot whose provider timestamp is more
+            # than the guarded skew bound behind our receipt time.  That snapshot is
+            # still unusable for a PAPER decision, so fail closed for this event, but
+            # do not classify a transient stale quote as a failure of the whole
+            # collector cycle.  Semantic/identity invariants continue to propagate.
+            if exc.code == "V4_BOOK_PROVIDER_TIMESTAMP_STALE":
+                self._v4_forecast_nonfatal_skips_this_cycle.append(
+                    f"FORECAST:{compiled.event_id}:{exc.code}"
+                )
+                return None
+            raise
         distribution = self._forecast_distribution_by_sha.get(
             forecast.source_evidence_sha256
         )
@@ -730,6 +745,7 @@ class WeatherLivePaperV4Service(WeatherLivePaperV3Service):
 
     async def run_cycle(self) -> dict:
         self._v4_eligible_evaluated_this_cycle = 0
+        self._v4_forecast_nonfatal_skips_this_cycle = []
         status = dict(await super().run_cycle())
         position_stats = await asyncio.to_thread(self.positions.stats)
         status.update({
@@ -741,6 +757,12 @@ class WeatherLivePaperV4Service(WeatherLivePaperV3Service):
             "structural_policy": "DISABLED_PENDING_COMMON_RESOLUTION_PROOF",
             "structural_suppressed_total": self._v4_structural_suppressed_total,
             "dispatch_skipped_total": self._v4_dispatch_skipped_total,
+            "forecast_nonfatal_skip_count": len(
+                self._v4_forecast_nonfatal_skips_this_cycle
+            ),
+            "forecast_nonfatal_skips": list(
+                self._v4_forecast_nonfatal_skips_this_cycle
+            ),
             "eligible_forecast_events_evaluated": self._v4_eligible_evaluated_this_cycle,
             "paper_position_stats": position_stats,
             "financial_delivery": False,
