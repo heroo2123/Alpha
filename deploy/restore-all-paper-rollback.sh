@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-# Restore the exact pre-cutover weather PAPER checkout/unit/state captured by
-# snapshot-all-paper-rollback.sh.  This is intended only for failed candidate
-# acceptance; if any identity evidence is missing, leave the candidate stopped.
+# Restore the exact pre-cutover weather PAPER checkout/unit/ledger/state captured by
+# snapshot-all-paper-rollback.sh. If any identity evidence is missing, leave the
+# candidate contained rather than guessing.
 APP_DIR="${ALPHA_WEATHER_APP_DIR:-${HOME}/polymarket-weather-paper-app}"
 CONFIG_DIR="${ALPHA_CONFIG_DIR:-${HOME}/.polymarket-edge-scanner}"
 DB_PATH="${WEATHER_PAPER_DB_PATH:-/var/lib/polymarket-weather-paper/weather-paper.sqlite}"
@@ -14,6 +14,9 @@ ROLLBACK_SHA="${ROLLBACK_DIR}/previous-release.sha"
 ROLLBACK_UNIT="${ROLLBACK_DIR}/${UNIT}"
 ROLLBACK_ACTIVE="${ROLLBACK_DIR}/previous-active"
 ROLLBACK_ENABLED="${ROLLBACK_DIR}/previous-enabled"
+ROLLBACK_DB_PRESENT="${ROLLBACK_DIR}/previous-db-present"
+ROLLBACK_DB="${ROLLBACK_DIR}/previous-weather-paper.sqlite3"
+ROLLBACK_DB_MANIFEST="${ROLLBACK_DIR}/previous-weather-paper.sqlite3.json"
 ATTESTATION_OUT="${CONFIG_DIR}/rollback-restored-weather-paper-attestation.json"
 
 fail(){ printf 'ROLLBACK ERROR: %s\n' "$*" >&2; exit 1; }
@@ -23,19 +26,91 @@ sudo systemctl stop "${UNIT}" >/dev/null 2>&1 || true
 sudo systemctl disable "${UNIT}" >/dev/null 2>&1 || true
 
 [[ -d "${APP_DIR}/.git" ]] || fail "missing weather-paper checkout"
-[[ -f "${ROLLBACK_SHA}" ]] || fail "missing rollback release snapshot"
-[[ -f "${ROLLBACK_UNIT}" ]] || fail "missing rollback unit snapshot"
-[[ -f "${ROLLBACK_ACTIVE}" ]] || fail "missing rollback active-state snapshot"
-[[ -f "${ROLLBACK_ENABLED}" ]] || fail "missing rollback enabled-state snapshot"
+[[ -x "${APP_DIR}/.venv/bin/python" ]] || fail "rollback virtualenv missing"
+for required in "${ROLLBACK_SHA}" "${ROLLBACK_UNIT}" "${ROLLBACK_ACTIVE}" "${ROLLBACK_ENABLED}" "${ROLLBACK_DB_PRESENT}"; do
+  [[ -f "${required}" ]] || fail "missing rollback snapshot: ${required}"
+done
 
 PREVIOUS_SHA="$(tr -d '[:space:]' < "${ROLLBACK_SHA}")"
 PREVIOUS_ACTIVE="$(tr -d '[:space:]' < "${ROLLBACK_ACTIVE}")"
 PREVIOUS_ENABLED="$(tr -d '[:space:]' < "${ROLLBACK_ENABLED}")"
+PREVIOUS_DB_PRESENT="$(tr -d '[:space:]' < "${ROLLBACK_DB_PRESENT}")"
 [[ "${PREVIOUS_SHA}" =~ ^[0-9a-f]{40}$ ]] || fail "rollback SHA invalid"
 [[ "${PREVIOUS_ACTIVE}" =~ ^[01]$ ]] || fail "rollback active state invalid"
 [[ "${PREVIOUS_ENABLED}" =~ ^[01]$ ]] || fail "rollback enabled state invalid"
+[[ "${PREVIOUS_DB_PRESENT}" =~ ^[01]$ ]] || fail "rollback DB state invalid"
+if [[ "${PREVIOUS_DB_PRESENT}" == "1" ]]; then
+  [[ -f "${ROLLBACK_DB}" && -f "${ROLLBACK_DB_MANIFEST}" ]] \
+    || fail "rollback database evidence missing"
+fi
 git -C "${APP_DIR}" cat-file -e "${PREVIOUS_SHA}^{commit}" 2>/dev/null \
   || fail "rollback commit is no longer present locally"
+
+# Preserve a best-effort forensic copy of candidate-mutated state before replacing it.
+if [[ -f "${DB_PATH}" ]]; then
+  FORENSIC_DB="${ROLLBACK_DIR}/failed-candidate-weather-paper-$(date -u +%Y%m%dT%H%M%SZ).sqlite3"
+  PYTHONPATH="${APP_DIR}${PYTHONPATH:+:${PYTHONPATH}}" \
+  "${APP_DIR}/.venv/bin/python" - "${DB_PATH}" "${FORENSIC_DB}" <<'PY' || true
+import os, sqlite3, sys
+from pathlib import Path
+source, destination = map(lambda x: Path(x).resolve(), sys.argv[1:])
+tmp = destination.with_name("." + destination.name + f".tmp-{os.getpid()}")
+try:
+    src = sqlite3.connect(f"file:{source}?mode=ro", uri=True, timeout=5.0)
+    dst = sqlite3.connect(tmp, timeout=5.0)
+    try:
+        src.backup(dst, pages=256, sleep=0.01)
+    finally:
+        dst.close(); src.close()
+    os.replace(tmp, destination)
+    os.chmod(destination, 0o600)
+finally:
+    tmp.unlink(missing_ok=True)
+PY
+fi
+
+# Restore database state BEFORE allowing the previous process to restart. SQLite WAL
+# and SHM files from the failed candidate must never accompany the restored main DB.
+mkdir -p "$(dirname "${DB_PATH}")"
+if [[ "${PREVIOUS_DB_PRESENT}" == "1" ]]; then
+  PYTHONPATH="${APP_DIR}${PYTHONPATH:+:${PYTHONPATH}}" \
+  "${APP_DIR}/.venv/bin/python" - "${ROLLBACK_DB}" "${DB_PATH}" <<'PY'
+import os, sqlite3, sys
+from pathlib import Path
+from polymarket_scanner.weather_only_paper_backup import (
+    verify_weather_paper_database,
+    verify_weather_paper_restore,
+)
+source = Path(sys.argv[1]).resolve()
+target = Path(sys.argv[2]).resolve()
+verified = verify_weather_paper_restore(source)
+if verified.get("restore_verified") is not True:
+    raise SystemExit("rollback source restore verification failed")
+source_profile = verify_weather_paper_database(source)
+tmp = target.with_name("." + target.name + f".rollback-{os.getpid()}")
+try:
+    tmp.unlink(missing_ok=True)
+    src = sqlite3.connect(f"file:{source}?mode=ro", uri=True, timeout=5.0)
+    dst = sqlite3.connect(tmp, timeout=5.0)
+    try:
+        src.backup(dst, pages=256, sleep=0.01)
+    finally:
+        dst.close(); src.close()
+    copied = verify_weather_paper_database(tmp)
+    if copied["schema_sha256"] != source_profile["schema_sha256"]:
+        raise SystemExit("restored rollback DB schema mismatch")
+    if copied["logical_tables"] != source_profile["logical_tables"]:
+        raise SystemExit("restored rollback DB logical mismatch")
+    Path(str(target) + "-wal").unlink(missing_ok=True)
+    Path(str(target) + "-shm").unlink(missing_ok=True)
+    os.replace(tmp, target)
+    os.chmod(target, 0o600)
+finally:
+    tmp.unlink(missing_ok=True)
+PY
+else
+  rm -f "${DB_PATH}" "${DB_PATH}-wal" "${DB_PATH}-shm"
+fi
 
 # Restore immutable source identity and release marker before reinstalling the old unit.
 git -C "${APP_DIR}" checkout --detach "${PREVIOUS_SHA}"
@@ -51,9 +126,12 @@ chmod 600 "${TMP_MARKER}"
 mv -f "${TMP_MARKER}" "${RELEASE_FILE}"
 
 # Candidate preparation may have changed the shared virtualenv. Reinstall the exact
-# dependency pins from the restored release before allowing the old service to run.
-[[ -x "${APP_DIR}/.venv/bin/python" ]] || fail "rollback virtualenv missing"
-"${APP_DIR}/.venv/bin/python" -m pip install -r "${APP_DIR}/requirements.txt"
+# dependency set required by the restored release before allowing the old service to run.
+if [[ -f "${APP_DIR}/requirements-runtime-hashed.txt" ]]; then
+  "${APP_DIR}/.venv/bin/python" -m pip install --require-hashes -r "${APP_DIR}/requirements-runtime-hashed.txt"
+else
+  "${APP_DIR}/.venv/bin/python" -m pip install -r "${APP_DIR}/requirements.txt"
+fi
 "${APP_DIR}/.venv/bin/python" -m pip check
 
 sudo install -m 0644 "${ROLLBACK_UNIT}" "/etc/systemd/system/${UNIT}"
@@ -93,6 +171,7 @@ if [[ "${PREVIOUS_ACTIVE}" == "1" && -f "${APP_DIR}/deploy/attest-weather-paper-
     --output "${ATTESTATION_OUT}"
 fi
 
-printf 'PASS: previous weather PAPER release restored after failed candidate acceptance.\n'
+printf 'PASS: previous weather PAPER release and ledger restored after failed candidate acceptance.\n'
 printf 'Release: %s\n' "${PREVIOUS_SHA}"
-printf 'Active restored: %s | enabled restored: %s\n' "${PREVIOUS_ACTIVE}" "${PREVIOUS_ENABLED}"
+printf 'Active restored: %s | enabled restored: %s | DB restored: %s\n' \
+  "${PREVIOUS_ACTIVE}" "${PREVIOUS_ENABLED}" "${PREVIOUS_DB_PRESENT}"
