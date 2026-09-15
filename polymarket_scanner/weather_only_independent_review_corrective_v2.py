@@ -19,6 +19,7 @@ validation/admission sequence across threads and processes on the single host.
 """
 
 import fcntl
+import json
 import math
 import os
 from pathlib import Path
@@ -37,6 +38,27 @@ INDEPENDENT_REVIEW_CORRECTIVE_V2_VERSION = (
     "weather_all_paper_independent_review_corrective_v2_capacity_serialized_structural_theoretical"
 )
 STRUCTURAL_THEORETICAL_ONLY_REASON = "STRUCTURAL_MULTI_LEG_ATOMIC_EXECUTION_UNPROVEN"
+
+
+def _validated_weather_evidence(value: object) -> dict | None:
+    if value is None:
+        return None
+    if not isinstance(value, dict) or not value:
+        raise WeatherPaperPositionError("V5_POST_RECEIPT_WEATHER_EVIDENCE_INVALID")
+    try:
+        encoded = json.dumps(
+            value,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=True,
+            allow_nan=False,
+        )
+        decoded = json.loads(encoded)
+    except (TypeError, ValueError, json.JSONDecodeError):
+        raise WeatherPaperPositionError("V5_POST_RECEIPT_WEATHER_EVIDENCE_INVALID") from None
+    if not isinstance(decoded, dict):
+        raise WeatherPaperPositionError("V5_POST_RECEIPT_WEATHER_EVIDENCE_INVALID")
+    return decoded
 
 
 class IndependentReviewPostReceiptStoreV2(IndependentReviewPostReceiptStore):
@@ -74,6 +96,11 @@ class IndependentReviewPostReceiptStoreV2(IndependentReviewPostReceiptStore):
         upgraded = dict(normalized)
         upgraded["visible_units"] = derived_visible
         upgraded["legs"] = upgraded_legs
+        weather_evidence = _validated_weather_evidence(
+            execution.get("post_receipt_weather_evidence")
+        )
+        if weather_evidence is not None:
+            upgraded["post_receipt_weather_evidence"] = weather_evidence
         return upgraded
 
     @staticmethod
@@ -96,8 +123,6 @@ class IndependentReviewPostReceiptStoreV2(IndependentReviewPostReceiptStore):
         if signal is None:
             raise WeatherPaperPositionError("V5_SIGNAL_NOT_FOUND")
         if existing is not None:
-            # A historical validated basket is not silently rewritten by the new
-            # policy. Any retry must still match its exact stored execution identity.
             signal_dict = dict(signal)
             payload = _payload(signal_dict.get("payload_json"))
             stored = payload.get("post_receipt_execution")
@@ -175,9 +200,6 @@ class IndependentReviewPostReceiptStoreV2(IndependentReviewPostReceiptStore):
         try:
             os.fchmod(fd, 0o600)
             fcntl.flock(fd, fcntl.LOCK_EX)
-            # Re-normalize only after acquiring the cross-process lock. The inherited
-            # strong signal/execution identity checks and the parent's SQLite
-            # BEGIN IMMEDIATE transaction now run as one serialized admission unit.
             normalized = self._normalized_execution(execution)
             if len(normalized["legs"]) > 1:
                 return self._mark_structural_theoretical_only(signal_id, normalized)
