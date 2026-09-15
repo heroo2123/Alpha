@@ -33,6 +33,7 @@ jobs:
         run: |
           python - <<'PY'
           import asyncio
+          import hashlib
           import json
           import time
           from datetime import datetime, timezone
@@ -43,6 +44,7 @@ jobs:
               StrictWeatherContractError,
               compile_strict_temperature_event,
           )
+          from polymarket_scanner.weather_only_contracts import compile_weather_event
           from polymarket_scanner.weather_only_discovery import WeatherOnlyDiscovery
           from polymarket_scanner.weather_only_live_paper_three_layer_validation import (
               THREE_LAYER_ELIGIBILITY_SCAN_DEADLINE_SECONDS,
@@ -53,6 +55,49 @@ jobs:
           from polymarket_scanner.weather_only_rules import compile_temperature_rule_authority
           from polymarket_scanner.weather_only_same_day_contract import build_same_day_contract_semantics
           from polymarket_scanner.weather_only_three_layer_guarded import GuardedSameDayStationMetadataClient
+
+          def text(value, limit=700):
+              value = str(value or '')
+              return value[:limit]
+
+          def public_contract_sample(event):
+              markets = [row for row in (event.get('markets') or []) if isinstance(row, dict)]
+              market_rows = []
+              for row in markets[:6]:
+                  market_rows.append({
+                      'id': text(row.get('id'), 80),
+                      'question': text(row.get('question'), 500),
+                      'groupItemTitle': text(row.get('groupItemTitle'), 300),
+                      'description': text(row.get('description'), 700),
+                      'resolutionSource': text(row.get('resolutionSource'), 500),
+                  })
+              event_description = text(event.get('description'), 1000)
+              event_source = text(event.get('resolutionSource'), 500)
+              rule_preimage = (event_description + '\n' + event_source).encode('utf-8')
+              broad = None
+              broad_error = None
+              try:
+                  compiled = compile_weather_event(event)
+                  broad = {
+                      'family': str(compiled.family),
+                      'unit': str(compiled.unit or ''),
+                      'station_hint': str(compiled.station_hint or ''),
+                      'target_date': compiled.target_date.isoformat() if compiled.target_date else None,
+                      'bucket_count': len(compiled.buckets or ()),
+                  }
+              except Exception as exc:
+                  broad_error = str(getattr(exc, 'code', type(exc).__name__))
+              return {
+                  'event_id': text(event.get('id') or event.get('eventId') or 'unknown', 80),
+                  'title': text(event.get('title'), 300),
+                  'event_description': event_description,
+                  'event_resolutionSource': event_source,
+                  'event_rule_source_sha256': hashlib.sha256(rule_preimage).hexdigest(),
+                  'broad_compile': broad,
+                  'broad_compile_error': broad_error,
+                  'market_count': len(markets),
+                  'markets': market_rows,
+              }
 
           async def run():
               discovery = WeatherOnlyDiscovery()
@@ -88,10 +133,7 @@ jobs:
                           strict_skip_codes[code] = strict_skip_codes.get(code, 0) + 1
                           samples = strict_skip_samples.setdefault(code, [])
                           if len(samples) < 3:
-                              samples.append({
-                                  'event_id': str(event.get('id') or event.get('eventId') or 'unknown'),
-                                  'title': str(event.get('title') or '')[:240],
-                              })
+                              samples.append(public_contract_sample(event))
                           continue
                       except Exception as exc:
                           event_id = str(event.get('id') or event.get('eventId') or 'unknown')
