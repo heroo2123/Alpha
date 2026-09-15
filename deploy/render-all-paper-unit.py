@@ -8,7 +8,7 @@ from pathlib import Path
 
 
 WEATHER_RELEASE_MARKER = "weather-paper-release.sha"
-ALL_PAPER_MODULE = "polymarket_scanner.weather_only_live_paper_all_signals_final_v3"
+ALL_PAPER_MODULE = "polymarket_scanner.weather_only_live_paper_all_signals_final_v4"
 
 
 def render(app_dir: Path, config_dir: Path, user: str) -> str:
