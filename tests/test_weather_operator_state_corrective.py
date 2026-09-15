@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 
@@ -126,7 +124,6 @@ def test_fingerprint_is_released_only_after_visible_invalidation_and_is_cooled_d
             "SELECT fingerprint FROM weather_paper_signals WHERE id=?", (sid,)
         ).fetchone()[0] == base
 
-    # Same evidence is still deduped before the operator-visible edit is confirmed.
     assert store.save_signal(
         fingerprint=base,
         lane="weather_same_day_friend_lock",
@@ -164,7 +161,6 @@ def test_fingerprint_is_released_only_after_visible_invalidation_and_is_cooled_d
         assert int(guard[0]) == 1
         assert float(guard[1]) > 0.0
 
-    # The now-free unique key still cannot immediately spam a retry during cooldown.
     assert store.save_signal(
         fingerprint=base,
         lane="weather_same_day_friend_lock",
@@ -193,8 +189,6 @@ def test_source_shock_retry_guard_uses_final_episode_fingerprint(tmp_path):
     _invalidate(store, sid, "shock", lane=lane)
     store.mark_operator_sync_applied(sid)
 
-    # Even a different caller fingerprint resolves to the same official episode and
-    # must hit the same cooldown guard.
     duplicate = store.save_signal(
         fingerprint="caller-fingerprint-b",
         lane=lane,
@@ -224,8 +218,7 @@ def test_source_shock_retry_guard_uses_final_episode_fingerprint(tmp_path):
         ).fetchone()[0] == 1
 
 
-@pytest.mark.asyncio
-async def test_edit_message_not_modified_is_idempotent_success():
+def test_edit_message_not_modified_is_idempotent_success():
     class Response:
         status_code = 400
         def json(self):
@@ -237,11 +230,14 @@ async def test_edit_message_not_modified_is_idempotent_success():
         async def aclose(self):
             return None
 
-    telegram = OperatorStateTelegram(token="test", chat_id="123")
-    await telegram.http.aclose()
-    telegram.http = HTTP()
-    await telegram.edit_html(1234, "same text")
-    await telegram.close()
+    async def scenario() -> None:
+        telegram = OperatorStateTelegram(token="test", chat_id="123")
+        await telegram.http.aclose()
+        telegram.http = HTTP()
+        await telegram.edit_html(1234, "same text")
+        await telegram.close()
+
+    asyncio.run(scenario())
 
 
 def test_maker_message_truthfully_disables_fill_simulation():
