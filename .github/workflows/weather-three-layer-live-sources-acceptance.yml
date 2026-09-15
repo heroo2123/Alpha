@@ -6,8 +6,12 @@ on:
   push:
     branches:
       - weather-three-layer-meticulous-final-2026-09-15
+      - weather-three-layer-live-grammar-corrective-2026-09-15
     paths:
       - '.github/workflows/weather-three-layer-live-sources-acceptance.yml'
+      # The final immutable-candidate census touch deliberately retriggers this gate,
+      # so live contract admission and live provider acceptance can be proven at one SHA.
+      - '.github/workflows/weather-three-layer-live-universe-census.yml'
       - 'polymarket_scanner/weather_only_three_layer_guarded.py'
       - 'polymarket_scanner/weather_only_wrh.py'
       - 'polymarket_scanner/weather_only_wrh_client.py'
@@ -58,7 +62,10 @@ jobs:
           )
 
           async def run():
-              station_id = 'KLGA'
+              # Use a station from the currently admitted same-day Fahrenheit corpus,
+              # rather than KLGA whose contract remains deliberately blocked by the
+              # NYC/New York City semantic mismatch.
+              station_id = 'KSEA'
               station_client = GuardedSameDayStationMetadataClient()
               nws = GuardedNWSNearTermGridClient()
               gefs = GuardedOpenMeteoGEFSHourlyClient()
