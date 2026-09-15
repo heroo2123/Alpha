@@ -206,6 +206,16 @@ def verify(
         "read_time_sql_identity_verification",
         "THREE_LAYER_STORE_IDENTITY_VERIFICATION_NOT_PROVEN",
     )
+    _require_true(
+        store,
+        "read_time_single_snapshot",
+        "THREE_LAYER_STORE_SINGLE_SNAPSHOT_NOT_PROVEN",
+    )
+    _require_true(
+        store,
+        "attempt_capacity_admission_atomic",
+        "THREE_LAYER_STORE_ATTEMPT_CAP_ATOMICITY_NOT_PROVEN",
+    )
     _require_true(store, "bounded_decompression", "THREE_LAYER_STORE_DECOMPRESSION_NOT_BOUNDED")
     _require_true(
         store,
