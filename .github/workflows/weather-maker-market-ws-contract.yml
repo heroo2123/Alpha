@@ -1,0 +1,174 @@
+name: weather-maker-market-ws-contract
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - weather-all-paper-signals-2026-09-15
+    paths:
+      - "polymarket_scanner/weather_only_maker_trade_stream.py"
+      - "polymarket_scanner/weather_only_maker_trade_stream_v2.py"
+      - "tests/test_weather_maker_trade_stream.py"
+      - ".github/workflows/weather-maker-market-ws-contract.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  live-public-market-ws:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install exact websocket runtime dependency
+        run: pip install websockets==13.1
+      - name: Verify public Market WebSocket subscription and heartbeat
+        run: |
+          python - <<'PY'
+          import asyncio
+          import json
+          import time
+          import urllib.parse
+          import urllib.request
+
+          import websockets
+
+          WS = "wss://ws-subscriptions-clob.polymarket.com/ws/market"
+          GAMMA = "https://gamma-api.polymarket.com/markets"
+
+          def json_get(url, params):
+              target = url + "?" + urllib.parse.urlencode(params)
+              request = urllib.request.Request(
+                  target,
+                  headers={
+                      "User-Agent": "weather-maker-market-ws-contract/1.0",
+                      "Accept": "application/json",
+                  },
+              )
+              with urllib.request.urlopen(request, timeout=20) as response:
+                  assert response.status == 200, response.status
+                  return json.loads(response.read().decode("utf-8", errors="strict"))
+
+          def tokens(value):
+              raw = value.get("clobTokenIds") or value.get("clob_token_ids")
+              if isinstance(raw, str):
+                  try:
+                      raw = json.loads(raw)
+                  except json.JSONDecodeError:
+                      return []
+              if not isinstance(raw, list):
+                  return []
+              return [str(token).strip() for token in raw if str(token).strip()]
+
+          markets = json_get(
+              GAMMA,
+              {
+                  "limit": 100,
+                  "active": "true",
+                  "closed": "false",
+                  "order": "liquidity",
+                  "ascending": "false",
+              },
+          )
+          assert isinstance(markets, list) and markets, "no active Gamma markets"
+          token = None
+          condition = None
+          market_id = None
+          for market in markets:
+              if not isinstance(market, dict):
+                  continue
+              candidates = tokens(market)
+              condition_id = str(
+                  market.get("conditionId") or market.get("condition_id") or ""
+              ).strip().lower()
+              if candidates and condition_id.startswith("0x") and len(condition_id) == 66:
+                  token = candidates[0]
+                  condition = condition_id
+                  market_id = str(market.get("id") or "")
+                  break
+          assert token and condition, "no usable active CLOB token discovered"
+
+          async def main():
+              connected_at = time.time()
+              book_seen = False
+              book_received_at = None
+              pong_seen = False
+              message_count = 0
+              async with websockets.connect(
+                  WS,
+                  ping_interval=None,
+                  close_timeout=5,
+                  open_timeout=15,
+                  max_size=2 * 1024 * 1024,
+                  max_queue=64,
+              ) as ws:
+                  # Deliberately no auth object or credential headers.
+                  await ws.send(json.dumps({
+                      "assets_ids": [token],
+                      "type": "market",
+                      "custom_feature_enabled": False,
+                  }, separators=(",", ":"), sort_keys=True))
+                  await ws.send("PING")
+                  deadline = time.monotonic() + 20.0
+                  while time.monotonic() < deadline and not (book_seen and pong_seen):
+                      timeout = max(0.1, deadline - time.monotonic())
+                      try:
+                          raw = await asyncio.wait_for(ws.recv(), timeout=timeout)
+                      except asyncio.TimeoutError:
+                          break
+                      message_count += 1
+                      received = time.time()
+                      if raw == "PONG" or raw == b"PONG":
+                          pong_seen = True
+                          continue
+                      if isinstance(raw, bytes):
+                          raw = raw.decode("utf-8", errors="strict")
+                      body = json.loads(raw)
+                      rows = body if isinstance(body, list) else [body]
+                      for row in rows:
+                          if not isinstance(row, dict):
+                              continue
+                          if str(row.get("event_type") or "") != "book":
+                              continue
+                          if str(row.get("asset_id") or "") != token:
+                              continue
+                          returned_market = str(row.get("market") or "").lower()
+                          assert returned_market == condition, (
+                              "book condition identity mismatch",
+                              returned_market,
+                              condition,
+                          )
+                          assert isinstance(row.get("bids"), list), "book bids schema drift"
+                          assert isinstance(row.get("asks"), list), "book asks schema drift"
+                          book_seen = True
+                          book_received_at = received
+              assert book_seen, "no exact-token initial book snapshot observed"
+              assert pong_seen, "application heartbeat PONG not observed"
+              assert book_received_at is not None and book_received_at >= connected_at
+              return {
+                  "public_market_ws_url": WS,
+                  "anonymous_connection": True,
+                  "token_id": token,
+                  "condition_id": condition,
+                  "gamma_market_id": market_id,
+                  "book_snapshot_seen": True,
+                  "book_received_after_connect": True,
+                  "application_ping_pong": True,
+                  "messages_observed": message_count,
+                  "authenticated": False,
+                  "actual_fill_authority": False,
+                  "financial_authority": False,
+              }
+
+          report = asyncio.run(main())
+          with open("weather-maker-market-ws-contract.json", "w", encoding="utf-8") as fh:
+              json.dump(report, fh, sort_keys=True, indent=2)
+          print(json.dumps(report, sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: weather-maker-market-ws-contract
+          path: weather-maker-market-ws-contract.json
