@@ -293,8 +293,8 @@ def test_rotation_recovers_deterministically_when_persisted_cursor_disappears():
 
 def test_rotation_storage_bound_matches_admitted_hourly_universe():
     assert THREE_LAYER_MAX_EVENTS_PER_CYCLE == 4
-    assert THREE_LAYER_SELECTION_UNIVERSE_CAP == 12
-    assert THREE_LAYER_31D_CAPTURE_ROW_BOUND == 12 * 24 * 31
+    assert THREE_LAYER_SELECTION_UNIVERSE_CAP == 32
+    assert THREE_LAYER_31D_CAPTURE_ROW_BOUND == THREE_LAYER_SELECTION_UNIVERSE_CAP * 24 * 31
 
 
 def _bundle_fixture(service):
@@ -430,13 +430,16 @@ def test_more_than_selection_cap_fails_closed_without_partial_sampling(monkeypat
     )
 
     async def metadata(_compiled):
-        return NS(timezone="UTC", latitude=40.7769, longitude=-73.8740)
+        return NS(station="KLGA", timezone="UTC", latitude=40.7769, longitude=-73.8740)
 
     service._station_metadata_for_compiled = metadata
-    events = tuple({"id": f"event-{index:02d}"} for index in range(13))
+    over_cap = THREE_LAYER_SELECTION_UNIVERSE_CAP + 1
+    events = tuple({"id": f"event-{index:02d}"} for index in range(over_cap))
     selected, errors = asyncio.run(service._same_day_eligible(events))
     assert selected == []
-    assert errors == ["SAME_DAY_SELECTION_UNIVERSE_CAP_EXCEEDED:13>12"]
+    assert errors == [
+        f"SAME_DAY_SELECTION_UNIVERSE_CAP_EXCEEDED:{over_cap}>{THREE_LAYER_SELECTION_UNIVERSE_CAP}"
+    ]
     assert service._three_layer_last_universe_truncated is True
     assert service._three_layer_last_selected_ids == ()
     assert service.positions.set_calls == []
