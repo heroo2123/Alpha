@@ -7,13 +7,13 @@ import time
 from dataclasses import asdict, dataclass
 
 from .weather_only_independent_review_corrective import INDEPENDENT_REVIEW_CORRECTIVE_VERSION
-from .weather_only_independent_review_corrective_v2 import (
-    INDEPENDENT_REVIEW_CORRECTIVE_V2_VERSION,
-)
+from .weather_only_independent_review_corrective_v2 import INDEPENDENT_REVIEW_CORRECTIVE_V2_VERSION
+from .weather_only_independent_review_corrective_v3 import INDEPENDENT_REVIEW_CORRECTIVE_V3_VERSION
 from .weather_only_live_paper import MODE
 from .weather_only_live_paper_all_signals_final import FINAL_ALL_PAPER_RUNTIME_VERSION
 from .weather_only_live_paper_all_signals_final_v2 import FINAL_ALL_PAPER_RUNTIME_V2_VERSION
 from .weather_only_live_paper_all_signals_final_v3 import FINAL_ALL_PAPER_RUNTIME_V3_VERSION
+from .weather_only_live_paper_all_signals_final_v4 import FINAL_ALL_PAPER_RUNTIME_V4_VERSION
 from .weather_only_live_paper_all_signals_v7 import ALL_PAPER_V7_RUNTIME_VERSION
 from .weather_only_live_paper_all_signals_v8 import ALL_PAPER_V8_RUNTIME_VERSION
 from .weather_only_live_paper_final import FINAL_MARKET_STATE_POLICY, FINAL_PAPER_RUNTIME_VERSION
@@ -23,7 +23,7 @@ from .weather_only_paper_post_receipt import PAPER_EXECUTION_PROTOCOL_V5, PAPER_
 
 
 ALL_PAPER_DEPLOYMENT_ACCEPTANCE_VERSION = (
-    "weather_all_paper_first_cycle_acceptance_v7_all_second_review_findings"
+    "weather_all_paper_first_cycle_acceptance_v8_causal_full_weather_refresh"
 )
 RESULT_LAG_BLOCK_REASON = "EXACT_WRH_CUTOFF_STATE_NOT_PROVEN"
 MAKER_NOTIFICATION_RETRY_POLICY = "AT_MOST_ONCE_AFTER_DURABLE_CLAIM"
@@ -100,30 +100,24 @@ def accept_first_all_paper_cycle(
         raise AllPaperDeploymentAcceptanceError("ALL_PAPER_MARKET_STATE_POLICY_MISMATCH")
     _require_true(status, "exclusive_writer_lease", "ALL_PAPER_EXCLUSIVE_WRITER_LEASE_NOT_PROVEN")
 
-    if status.get("final_all_paper_runtime_version") != FINAL_ALL_PAPER_RUNTIME_VERSION:
-        raise AllPaperDeploymentAcceptanceError("ALL_PAPER_FINAL_WRAPPER_VERSION_MISMATCH")
-    if status.get("final_all_paper_runtime_v2_version") != FINAL_ALL_PAPER_RUNTIME_V2_VERSION:
-        raise AllPaperDeploymentAcceptanceError("ALL_PAPER_FINAL_V2_WRAPPER_VERSION_MISMATCH")
-    if status.get("final_all_paper_runtime_v3_version") != FINAL_ALL_PAPER_RUNTIME_V3_VERSION:
-        raise AllPaperDeploymentAcceptanceError("ALL_PAPER_FINAL_V3_WRAPPER_VERSION_MISMATCH")
-    if status.get("independent_review_corrective_version") != INDEPENDENT_REVIEW_CORRECTIVE_VERSION:
-        raise AllPaperDeploymentAcceptanceError("ALL_PAPER_INDEPENDENT_REVIEW_CORRECTIVE_MISSING")
-    if status.get("independent_review_corrective_v2_version") != INDEPENDENT_REVIEW_CORRECTIVE_V2_VERSION:
-        raise AllPaperDeploymentAcceptanceError("ALL_PAPER_INDEPENDENT_REVIEW_CORRECTIVE_V2_MISSING")
-    if status.get("all_paper_v8_runtime_version") != ALL_PAPER_V8_RUNTIME_VERSION:
-        raise AllPaperDeploymentAcceptanceError("ALL_PAPER_V8_RUNTIME_VERSION_MISMATCH")
-    if status.get("all_paper_v7_runtime_version") != ALL_PAPER_V7_RUNTIME_VERSION:
-        raise AllPaperDeploymentAcceptanceError("ALL_PAPER_V7_RUNTIME_VERSION_MISMATCH")
-    if status.get("paper_execution_protocol_version") != PAPER_EXECUTION_PROTOCOL_V5:
-        raise AllPaperDeploymentAcceptanceError("ALL_PAPER_EXECUTION_PROTOCOL_MISMATCH")
-    if status.get("paper_position_version") != PAPER_POSITION_VERSION_V5:
-        raise AllPaperDeploymentAcceptanceError("ALL_PAPER_POSITION_VERSION_MISMATCH")
-    if status.get("maker_paper_accounting_version") != MAKER_PAPER_ACCOUNTING_V5_VERSION:
-        raise AllPaperDeploymentAcceptanceError("ALL_PAPER_MAKER_ACCOUNTING_VERSION_MISMATCH")
-    if status.get("maker_trade_stream_version") != MAKER_TRADE_STREAM_V3_VERSION:
-        raise AllPaperDeploymentAcceptanceError("ALL_PAPER_MAKER_STREAM_VERSION_MISMATCH")
-    if status.get("maker_settlement_notification_retry_policy") != MAKER_NOTIFICATION_RETRY_POLICY:
-        raise AllPaperDeploymentAcceptanceError("ALL_PAPER_MAKER_NOTIFICATION_POLICY_MISMATCH")
+    for key, expected, code in (
+        ("final_all_paper_runtime_version", FINAL_ALL_PAPER_RUNTIME_VERSION, "ALL_PAPER_FINAL_WRAPPER_VERSION_MISMATCH"),
+        ("final_all_paper_runtime_v2_version", FINAL_ALL_PAPER_RUNTIME_V2_VERSION, "ALL_PAPER_FINAL_V2_WRAPPER_VERSION_MISMATCH"),
+        ("final_all_paper_runtime_v3_version", FINAL_ALL_PAPER_RUNTIME_V3_VERSION, "ALL_PAPER_FINAL_V3_WRAPPER_VERSION_MISMATCH"),
+        ("final_all_paper_runtime_v4_version", FINAL_ALL_PAPER_RUNTIME_V4_VERSION, "ALL_PAPER_FINAL_V4_WRAPPER_VERSION_MISMATCH"),
+        ("independent_review_corrective_version", INDEPENDENT_REVIEW_CORRECTIVE_VERSION, "ALL_PAPER_INDEPENDENT_REVIEW_CORRECTIVE_MISSING"),
+        ("independent_review_corrective_v2_version", INDEPENDENT_REVIEW_CORRECTIVE_V2_VERSION, "ALL_PAPER_INDEPENDENT_REVIEW_CORRECTIVE_V2_MISSING"),
+        ("independent_review_corrective_v3_version", INDEPENDENT_REVIEW_CORRECTIVE_V3_VERSION, "ALL_PAPER_INDEPENDENT_REVIEW_CORRECTIVE_V3_MISSING"),
+        ("all_paper_v8_runtime_version", ALL_PAPER_V8_RUNTIME_VERSION, "ALL_PAPER_V8_RUNTIME_VERSION_MISMATCH"),
+        ("all_paper_v7_runtime_version", ALL_PAPER_V7_RUNTIME_VERSION, "ALL_PAPER_V7_RUNTIME_VERSION_MISMATCH"),
+        ("paper_execution_protocol_version", PAPER_EXECUTION_PROTOCOL_V5, "ALL_PAPER_EXECUTION_PROTOCOL_MISMATCH"),
+        ("paper_position_version", PAPER_POSITION_VERSION_V5, "ALL_PAPER_POSITION_VERSION_MISMATCH"),
+        ("maker_paper_accounting_version", MAKER_PAPER_ACCOUNTING_V5_VERSION, "ALL_PAPER_MAKER_ACCOUNTING_VERSION_MISMATCH"),
+        ("maker_trade_stream_version", MAKER_TRADE_STREAM_V3_VERSION, "ALL_PAPER_MAKER_STREAM_VERSION_MISMATCH"),
+        ("maker_settlement_notification_retry_policy", MAKER_NOTIFICATION_RETRY_POLICY, "ALL_PAPER_MAKER_NOTIFICATION_POLICY_MISMATCH"),
+    ):
+        if status.get(key) != expected:
+            raise AllPaperDeploymentAcceptanceError(code)
 
     if status.get("cycle_ok") is not True:
         raise AllPaperDeploymentAcceptanceError("ALL_PAPER_FIRST_CYCLE_UNHEALTHY")
@@ -180,6 +174,11 @@ def accept_first_all_paper_cycle(
         ("future_day_forecast_run_age_claim_suppressed", "ALL_PAPER_FORECAST_RUN_AGE_CLAIM_NOT_SUPPRESSED"),
         ("source_shock_full_ttl_before_midnight_margin_required", "ALL_PAPER_SOURCE_SHOCK_MIDNIGHT_GUARD_MISSING"),
         ("structural_telegram_theoretical_only_label", "ALL_PAPER_STRUCTURAL_TELEGRAM_TRUTH_LABEL_MISSING"),
+        ("post_receipt_future_day_provider_refetch_required", "ALL_PAPER_FUTURE_DAY_PROVIDER_REFETCH_NOT_REQUIRED"),
+        ("post_receipt_three_layer_thesis_revalidation_required", "ALL_PAPER_THREE_LAYER_POST_RECEIPT_REVALIDATION_NOT_REQUIRED"),
+        ("post_receipt_weather_before_clob_required", "ALL_PAPER_WEATHER_BEFORE_CLOB_NOT_REQUIRED"),
+        ("post_receipt_weather_evidence_durable", "ALL_PAPER_WEATHER_EVIDENCE_NOT_DURABLE"),
+        ("post_receipt_weather_evidence_identity_bound", "ALL_PAPER_WEATHER_EVIDENCE_NOT_IDENTITY_BOUND"),
     ):
         _require_true(status, key, code)
 
@@ -201,15 +200,14 @@ def accept_first_all_paper_cycle(
         ("pws_enabled", "ALL_PAPER_PWS_NOT_FALSE"),
     ):
         _require_false(status, key, code)
-    _require_true(
-        status,
-        "source_shock_revision_sensitive",
-        "ALL_PAPER_SOURCE_SHOCK_REVISION_LABEL_MISSING",
-    )
+
+    _require_true(status, "source_shock_revision_sensitive", "ALL_PAPER_SOURCE_SHOCK_REVISION_LABEL_MISSING")
     if status.get("structural_execution_model") != STRUCTURAL_EXECUTION_MODEL:
         raise AllPaperDeploymentAcceptanceError("ALL_PAPER_STRUCTURAL_EXECUTION_MODEL_MISMATCH")
     if status.get("result_lag_block_reason") != RESULT_LAG_BLOCK_REASON:
         raise AllPaperDeploymentAcceptanceError("ALL_PAPER_RESULT_LAG_BLOCK_REASON_MISMATCH")
+    if status.get("same_day_post_receipt_layers") != ["WRH", "NWS", "GEFS31"]:
+        raise AllPaperDeploymentAcceptanceError("ALL_PAPER_POST_RECEIPT_LAYER_SET_MISMATCH")
 
     same_day = status.get("same_day_three_layer")
     if not isinstance(same_day, dict):
@@ -217,23 +215,15 @@ def accept_first_all_paper_cycle(
     _require_true(same_day, "enabled", "ALL_PAPER_THREE_LAYER_NOT_ENABLED")
     if list(same_day.get("errors") or []):
         raise AllPaperDeploymentAcceptanceError("ALL_PAPER_THREE_LAYER_ERRORS_PRESENT")
-    _require_false(
-        same_day,
-        "population_alignment_certified",
-        "ALL_PAPER_THREE_LAYER_ALIGNMENT_UNEXPECTEDLY_CERTIFIED",
-    )
-    _require_false(
-        same_day,
-        "financial_authority",
-        "ALL_PAPER_THREE_LAYER_FINANCIAL_AUTHORITY_NOT_FALSE",
-    )
+    _require_false(same_day, "population_alignment_certified", "ALL_PAPER_THREE_LAYER_ALIGNMENT_UNEXPECTEDLY_CERTIFIED")
+    _require_false(same_day, "financial_authority", "ALL_PAPER_THREE_LAYER_FINANCIAL_AUTHORITY_NOT_FALSE")
 
     return AllPaperFirstCycleAcceptance(
         version=ALL_PAPER_DEPLOYMENT_ACCEPTANCE_VERSION,
         release_sha=release,
         cycle_finished_at=finished,
         cycle_age_seconds=age,
-        runtime_version=FINAL_ALL_PAPER_RUNTIME_V3_VERSION,
+        runtime_version=FINAL_ALL_PAPER_RUNTIME_V4_VERSION,
         execution_protocol=PAPER_EXECUTION_PROTOCOL_V5,
         maker_accounting_version=MAKER_PAPER_ACCOUNTING_V5_VERSION,
         accepted=True,
