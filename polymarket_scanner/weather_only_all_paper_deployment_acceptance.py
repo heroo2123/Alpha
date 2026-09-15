@@ -17,7 +17,7 @@ from .weather_only_paper_post_receipt import PAPER_EXECUTION_PROTOCOL_V5, PAPER_
 
 
 ALL_PAPER_DEPLOYMENT_ACCEPTANCE_VERSION = (
-    "weather_all_paper_first_cycle_acceptance_v4_complete_maker_safety_profile"
+    "weather_all_paper_first_cycle_acceptance_v5_complete_maker_and_fee_safety_profile"
 )
 RESULT_LAG_BLOCK_REASON = "EXACT_WRH_CUTOFF_STATE_NOT_PROVEN"
 MAKER_NOTIFICATION_RETRY_POLICY = "AT_MOST_ONCE_AFTER_DURABLE_CLAIM"
@@ -148,6 +148,7 @@ def accept_first_all_paper_cycle(
         ("maker_activation_failure_cleanup_complete", "ALL_PAPER_MAKER_ACTIVATION_CLEANUP_NOT_PROVEN"),
         ("maker_settlement_duplicate_after_restart_guard", "ALL_PAPER_MAKER_RESULT_DUPLICATE_GUARD_NOT_PROVEN"),
         ("maker_activation_accounting_atomic", "ALL_PAPER_MAKER_ACTIVATION_NOT_ATOMIC"),
+        ("same_day_dynamic_fee_semantics_fail_closed", "ALL_PAPER_SAME_DAY_FEE_SEMANTICS_NOT_FAIL_CLOSED"),
         ("legacy_partial_hourly_summary_suppressed", "ALL_PAPER_LEGACY_SUMMARY_NOT_SUPPRESSED"),
         ("v5_terminal_not_actionable_audit_atomic", "ALL_PAPER_V5_TERMINAL_AUDIT_NOT_ATOMIC"),
     ):
