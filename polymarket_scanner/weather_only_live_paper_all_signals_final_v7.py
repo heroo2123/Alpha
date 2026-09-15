@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-"""Final all-PAPER wrapper with fail-closed config, terminal-state and startup attestation."""
+"""Final all-PAPER wrapper with immutable retries, strict terminal state and attested config."""
 
 import argparse
 import asyncio
@@ -20,15 +20,16 @@ from .weather_only_live_paper import (
 from .weather_only_live_paper_all_signals_final_v6 import FinalAllPaperWeatherLiveServiceV6
 from .weather_only_live_paper_v2 import DEFAULT_PAPER_STAKE_USD
 from .weather_only_operator_state_corrective import OperatorStateCommandController
-from .weather_only_operator_state_corrective_v3 import (
-    OPERATOR_STATE_CORRECTIVE_V3_VERSION,
-    OperatorStatePostReceiptStoreV3,
+from .weather_only_operator_state_corrective_v3 import OPERATOR_STATE_CORRECTIVE_V3_VERSION
+from .weather_only_operator_state_corrective_v4 import (
+    OPERATOR_STATE_CORRECTIVE_V4_VERSION,
+    OperatorStatePostReceiptStoreV4,
 )
 from .weather_only_paper_corrective import CorrectiveSettlementEngine
 
 
 FINAL_ALL_PAPER_RUNTIME_V7_VERSION = (
-    "weather_all_paper_final_v11_operator_restart_visibility_startup_sync"
+    "weather_all_paper_final_v12_immutable_retry_terminal_restart_config"
 )
 _DOTENV_DISABLE_TRUE = {"1", "true", "yes", "on"}
 _ALLOWED_SETTINGS_OVERRIDES = {"telegram_bot_token", "telegram_chat_id"}
@@ -62,7 +63,9 @@ class FinalAllPaperWeatherLiveServiceV7(FinalAllPaperWeatherLiveServiceV6):
         super().__init__(**kwargs)
         self._v7_superseded_settlement = self.settlement
         self._v7_superseded_commands = self.commands
-        self.positions = OperatorStatePostReceiptStoreV3(self.db_path)
+        # V4 inherits clean V3 immutable retry identity and adds strict terminal
+        # identity plus restart-visible invalidation.
+        self.positions = OperatorStatePostReceiptStoreV4(self.db_path)
         self._v7_recovery = self.positions.reconcile_v5_after_restart()
         self.settlement = CorrectiveSettlementEngine(
             store=self.positions, telegram=self.telegram
@@ -87,7 +90,7 @@ class FinalAllPaperWeatherLiveServiceV7(FinalAllPaperWeatherLiveServiceV6):
 
     async def send_startup(self) -> int:
         # Never announce ONLINE while a previously delivered alert still requires an
-        # operator-visible terminal edit.  Idempotent edit retries happen here first.
+        # operator-visible terminal edit. Idempotent edit retries happen here first.
         sync = await self._sync_operator_messages()
         if sync.get("healthy") is not True or list(sync.get("errors") or []):
             raise WeatherLivePaperError("ALL_PAPER_OPERATOR_SYNC_STARTUP_UNHEALTHY")
@@ -99,6 +102,8 @@ class FinalAllPaperWeatherLiveServiceV7(FinalAllPaperWeatherLiveServiceV6):
             {
                 "final_all_paper_runtime_v7_version": FINAL_ALL_PAPER_RUNTIME_V7_VERSION,
                 "operator_state_corrective_v3_version": OPERATOR_STATE_CORRECTIVE_V3_VERSION,
+                "operator_state_corrective_v4_version": OPERATOR_STATE_CORRECTIVE_V4_VERSION,
+                "operator_retry_preserves_original_signal_fingerprint": True,
                 "dotenv_loading_disabled": True,
                 "implicit_nontelegram_settings_defaulted": True,
                 "isolated_settings_overrides": sorted(_ALLOWED_SETTINGS_OVERRIDES),
