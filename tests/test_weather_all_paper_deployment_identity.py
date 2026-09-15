@@ -3,7 +3,6 @@ from pathlib import Path
 from polymarket_scanner.weather_only_live_paper_all_signals_final import (
     FINAL_ALL_PAPER_RUNTIME_VERSION,
 )
-from deploy.render_all_paper_unit import ALL_PAPER_MODULE
 
 
 FINAL_MODULE = "polymarket_scanner.weather_only_live_paper_all_signals_final"
@@ -14,7 +13,9 @@ def _text(path: str) -> str:
 
 
 def test_final_renderer_targets_final_wrapper():
-    assert ALL_PAPER_MODULE == FINAL_MODULE
+    text = _text("deploy/render-all-paper-unit.py")
+    assert f'ALL_PAPER_MODULE = "{FINAL_MODULE}"' in text
+    assert "-m {ALL_PAPER_MODULE}" in text
     assert FINAL_ALL_PAPER_RUNTIME_VERSION
 
 
