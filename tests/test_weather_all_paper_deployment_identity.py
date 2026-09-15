@@ -20,7 +20,7 @@ def test_final_renderer_targets_final_v7_wrapper_and_disables_dotenv():
     assert FINAL_ALL_PAPER_RUNTIME_V7_VERSION
 
 
-def test_prepare_routes_to_exact_venv_v2_and_requires_same_final_wrapper():
+def test_prepare_routes_to_exact_venv_v2_and_requires_complete_operator_stack():
     wrapper = _text("deploy/prepare-all-paper-candidate.sh")
     text = _text("deploy/prepare-all-paper-candidate-v2.sh")
     assert "prepare-all-paper-candidate-v2.sh" in wrapper
@@ -28,6 +28,8 @@ def test_prepare_routes_to_exact_venv_v2_and_requires_same_final_wrapper():
     assert "polymarket_scanner/weather_only_live_paper_all_signals_final_v7.py" in text
     assert "polymarket_scanner/weather_only_operator_state_corrective.py" in text
     assert "polymarket_scanner/weather_only_operator_state_corrective_v2.py" in text
+    assert "polymarket_scanner/weather_only_operator_state_corrective_v3.py" in text
+    assert "polymarket_scanner/weather_only_operator_state_corrective_v4.py" in text
     assert "polymarket_scanner/weather_only_all_paper_deployment_acceptance_v2.py" in text
     assert "attest-all-paper-runtime-v2.py" in text
     assert "verify-all-paper-first-cycle-v2.py" in text
@@ -35,6 +37,7 @@ def test_prepare_routes_to_exact_venv_v2_and_requires_same_final_wrapper():
     assert "previous-venv.json" in text
     assert "snapshot-generation-v2" in text
     assert "all-paper-rollback-v2-exact-venv" in text
+    assert '"${TMP_HELPER}" verify-tree' in text
     assert "renderer does not point to final-v7 entrypoint" in text
     assert "renderer does not disable dotenv" in text
     assert "requirements-runtime-hashed.txt" in text
@@ -89,6 +92,8 @@ def test_rollback_snapshot_and_restore_include_database_and_exact_venv_state():
     assert "previous-db.sha256" in snapshot
     assert "snapshot-generation-v2" in snapshot
     assert "all-paper-rollback-v2-exact-venv" in snapshot
+    assert 'rm -f "${GENERATION}"' in snapshot
+    assert snapshot.count('"${VENV_HELPER}" verify-tree') >= 2
     assert "restore-all-paper-rollback-v2.sh" in restore_wrapper
     assert "previous-db-present" in restore
     assert "previous-weather-paper.sqlite3" in restore
@@ -101,7 +106,7 @@ def test_rollback_snapshot_and_restore_include_database_and_exact_venv_state():
     assert "restore-all-paper-rollback.sh" in prepare
 
 
-def test_final_acceptance_v2_requires_operator_and_config_corrective_markers():
+def test_final_acceptance_v2_requires_complete_operator_and_config_stack():
     base = _text("polymarket_scanner/weather_only_all_paper_deployment_acceptance.py")
     text = _text("polymarket_scanner/weather_only_all_paper_deployment_acceptance_v2.py")
     assert "FINAL_ALL_PAPER_RUNTIME_V5_VERSION" in text
@@ -109,16 +114,24 @@ def test_final_acceptance_v2_requires_operator_and_config_corrective_markers():
     assert "FINAL_ALL_PAPER_RUNTIME_V7_VERSION" in text
     assert "OPERATOR_STATE_CORRECTIVE_VERSION" in text
     assert "OPERATOR_STATE_CORRECTIVE_V2_VERSION" in text
+    assert "OPERATOR_STATE_CORRECTIVE_V3_VERSION" in text
+    assert "OPERATOR_STATE_CORRECTIVE_V4_VERSION" in text
     assert "operator_visible_invalidation_required" in text
     assert "operator_retry_release_requires_visible_invalidation" in text
+    assert "operator_retry_preserves_original_signal_fingerprint" in text
     assert "operator_message_sync_healthy" in text
     assert "source_shock_retry_guard_final_episode_identity" in text
     assert "dotenv_loading_disabled" in text
     assert "implicit_nontelegram_settings_defaulted" in text
     assert "terminal_invalidation_identity_strict" in text
+    assert "terminal_invalidation_requires_post_receipt_prestate" in text
+    assert "operator_restart_visibility_required" in text
+    assert "operator_sync_before_startup_required" in text
     assert "operator_recent_terminal_reason_visible" in text
     assert "maker_proposal_queue_uncertified_label" in text
     assert "isolated_settings_overrides" in text
+    assert "operator_retry_max_per_evidence" in text
+    assert "operator_retry_cooldown_seconds" in text
     # Preserve the mature lower-layer gates as part of the additive acceptance chain.
     assert "post_receipt_future_day_provider_refetch_required" in base
     assert "post_receipt_three_layer_thesis_revalidation_required" in base
