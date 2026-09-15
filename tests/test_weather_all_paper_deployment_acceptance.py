@@ -45,6 +45,7 @@ def _status() -> dict:
         "post_receipt_exact_clob_required": True,
         "maker_public_ws_prospective_fill_required": True,
         "legacy_partial_hourly_summary_suppressed": True,
+        "v5_terminal_not_actionable_audit_atomic": True,
         "same_day_paper_calibrated_probability": False,
         "source_shock_calibrated_probability": False,
         "maker_value_calibrated_probability": False,
@@ -80,6 +81,7 @@ def test_final_all_paper_first_cycle_accepts_only_complete_safe_profile():
     [
         ("final_all_paper_runtime_version", None, "ALL_PAPER_FINAL_WRAPPER_VERSION_MISMATCH"),
         ("post_receipt_execution_required", False, "ALL_PAPER_POST_RECEIPT_EXECUTION_NOT_REQUIRED"),
+        ("v5_terminal_not_actionable_audit_atomic", False, "ALL_PAPER_V5_TERMINAL_AUDIT_NOT_ATOMIC"),
         ("structural_paper_delivery_enabled", False, "ALL_PAPER_STRUCTURAL_DELIVERY_NOT_ENABLED"),
         ("maker_book_touch_counts_as_fill", True, "ALL_PAPER_MAKER_BOOK_TOUCH_FILL_NOT_FALSE"),
         ("result_lag_paper_delivery_enabled", True, "ALL_PAPER_RESULT_LAG_NOT_GATED"),
