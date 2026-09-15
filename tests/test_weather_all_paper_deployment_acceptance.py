@@ -7,6 +7,9 @@ from polymarket_scanner.weather_only_all_paper_deployment_acceptance import (
     MAKER_NOTIFICATION_RETRY_POLICY,
     accept_first_all_paper_cycle,
 )
+from polymarket_scanner.weather_only_independent_review_corrective import (
+    INDEPENDENT_REVIEW_CORRECTIVE_VERSION,
+)
 from polymarket_scanner.weather_only_live_paper import MODE
 from polymarket_scanner.weather_only_live_paper_all_signals_final import FINAL_ALL_PAPER_RUNTIME_VERSION
 from polymarket_scanner.weather_only_live_paper_all_signals_v7 import ALL_PAPER_V7_RUNTIME_VERSION
@@ -28,6 +31,7 @@ def _status() -> dict:
         "current_market_state_policy": FINAL_MARKET_STATE_POLICY,
         "exclusive_writer_lease": True,
         "final_all_paper_runtime_version": FINAL_ALL_PAPER_RUNTIME_VERSION,
+        "independent_review_corrective_version": INDEPENDENT_REVIEW_CORRECTIVE_VERSION,
         "all_paper_v8_runtime_version": ALL_PAPER_V8_RUNTIME_VERSION,
         "all_paper_v7_runtime_version": ALL_PAPER_V7_RUNTIME_VERSION,
         "paper_execution_protocol_version": PAPER_EXECUTION_PROTOCOL_V5,
@@ -57,6 +61,11 @@ def _status() -> dict:
         "maker_activation_accounting_atomic": True,
         "legacy_partial_hourly_summary_suppressed": True,
         "v5_terminal_not_actionable_audit_atomic": True,
+        "inherited_safety_boundary_verified": True,
+        "v5_independent_execution_integrity_verified": True,
+        "maker_activation_link_identity_strict": True,
+        "source_shock_episode_dedupe_revision_aware": True,
+        "operator_all_lanes_healthy": True,
         "same_day_paper_calibrated_probability": False,
         "source_shock_calibrated_probability": False,
         "maker_value_calibrated_probability": False,
@@ -91,9 +100,15 @@ def test_final_all_paper_first_cycle_accepts_only_complete_safe_profile():
     "key,value,code",
     [
         ("final_all_paper_runtime_version", None, "ALL_PAPER_FINAL_WRAPPER_VERSION_MISMATCH"),
+        ("independent_review_corrective_version", None, "ALL_PAPER_INDEPENDENT_REVIEW_CORRECTIVE_MISSING"),
         ("post_receipt_execution_required", False, "ALL_PAPER_POST_RECEIPT_EXECUTION_NOT_REQUIRED"),
         ("v5_terminal_not_actionable_audit_atomic", False, "ALL_PAPER_V5_TERMINAL_AUDIT_NOT_ATOMIC"),
+        ("inherited_safety_boundary_verified", False, "ALL_PAPER_INHERITED_SAFETY_NOT_VERIFIED"),
+        ("v5_independent_execution_integrity_verified", False, "ALL_PAPER_V5_INTEGRITY_NOT_VERIFIED"),
         ("maker_activation_accounting_atomic", False, "ALL_PAPER_MAKER_ACTIVATION_NOT_ATOMIC"),
+        ("maker_activation_link_identity_strict", False, "ALL_PAPER_MAKER_LINK_IDENTITY_NOT_STRICT"),
+        ("source_shock_episode_dedupe_revision_aware", False, "ALL_PAPER_SOURCE_SHOCK_DEDUPE_NOT_REVISION_AWARE"),
+        ("operator_all_lanes_healthy", False, "ALL_PAPER_OPERATOR_ALL_LANES_NOT_HEALTHY"),
         ("maker_healthy", False, "ALL_PAPER_MAKER_NOT_HEALTHY"),
         ("maker_stream_degraded", True, "ALL_PAPER_MAKER_STREAM_DEGRADED"),
         ("maker_subscription_lifecycle_bounded", False, "ALL_PAPER_MAKER_SUBSCRIPTIONS_NOT_BOUNDED"),
