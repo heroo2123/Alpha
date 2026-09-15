@@ -5,6 +5,7 @@ import sqlite3
 import zlib
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
+from threading import Barrier
 
 import pytest
 
@@ -85,6 +86,8 @@ def test_new_capture_is_losslessly_compressed_and_digest_verified(tmp_path):
     assert summary["lossless_compression"] is True
     assert summary["read_time_digest_verification"] is True
     assert summary["read_time_sql_identity_verification"] is True
+    assert summary["read_time_single_snapshot"] is True
+    assert summary["attempt_capacity_admission_atomic"] is True
     assert summary["bounded_decompression"] is True
     assert summary["capture_storage_bytes"] < summary["known_uncompressed_capture_bytes"]
 
@@ -148,6 +151,67 @@ def test_capacity_admission_is_serialized_across_concurrent_writers(tmp_path):
     assert len(saved) == 1
     assert len(exhausted) == 1
     assert CompressedSameDayCaptureStore(db, max_capture_rows=1).summary()["total"] == 1
+
+
+def test_attempt_capacity_admission_is_atomic_across_concurrent_writers(tmp_path):
+    db = tmp_path / "weather-paper.sqlite"
+    stores = (
+        CompressedSameDayCaptureStore(db, max_attempt_rows=1),
+        CompressedSameDayCaptureStore(db, max_attempt_rows=1),
+    )
+    barrier = Barrier(2)
+
+    def attempt(index: int):
+        barrier.wait(timeout=5)
+        try:
+            attempt_id = stores[index].start_attempt(
+                event_id=f"event-{index}",
+                station="KLGA",
+                target_date="2026-09-15",
+                family="DAILY_HIGH",
+                unit="F",
+                attempted_at=1_700_000_000.0 + index,
+            )
+            return ("saved", attempt_id)
+        except SameDayCaptureStoreError as exc:
+            return ("error", exc.code)
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(attempt, (0, 1)))
+
+    saved = [value for kind, value in results if kind == "saved"]
+    exhausted = [
+        value for kind, value in results
+        if kind == "error" and value == "SAME_DAY_CAPTURE_STORE_ATTEMPT_ROW_CAP_EXHAUSTED"
+    ]
+    assert len(saved) == 1
+    assert len(exhausted) == 1
+    summary = CompressedSameDayCaptureStore(db, max_attempt_rows=1).attempt_summary()
+    assert summary["total"] == 1
+    assert summary["started"] == 1
+
+
+def test_capture_read_uses_one_sqlite_snapshot_for_metadata_and_blob(tmp_path, monkeypatch):
+    db = tmp_path / "weather-paper.sqlite"
+    store = CompressedSameDayCaptureStore(db)
+    capture = _capture()
+    assert store.save(capture) is not None
+    expected = _json_round_trip(capture.as_dict())
+
+    original = store._row_for_digest
+
+    def snapshot_then_mutate(digest: str):
+        row = original(digest)
+        assert row is not None
+        # Mutate the database only after the read snapshot has been materialized. A
+        # vulnerable two-read implementation would fetch this new blob afterward and
+        # mix it with the old metadata; the hardened implementation already holds both.
+        replacement = zlib.compress(b"{}", level=9)
+        _replace_blob(db, digest, replacement)
+        return row
+
+    monkeypatch.setattr(store, "_row_for_digest", snapshot_then_mutate)
+    assert store.capture_json(capture.capture_sha256) == expected
 
 
 def test_truncated_compressed_stream_fails_closed(tmp_path):
