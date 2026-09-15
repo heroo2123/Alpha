@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-# Prepare one immutable final all-weather PAPER candidate without starting it.  The
+# Prepare one immutable final all-weather PAPER candidate without starting it. The
 # exact-venv rollback generation must exist before any checkout/dependency mutation.
 APP_DIR="${ALPHA_WEATHER_APP_DIR:-${HOME}/polymarket-weather-paper-app}"
 CONFIG_DIR="${ALPHA_CONFIG_DIR:-${HOME}/.polymarket-edge-scanner}"
@@ -44,18 +44,22 @@ CURRENT_MARKER="$(tr -d '[:space:]' < "${RELEASE_FILE}")"
 [[ -z "$(git -C "${APP_DIR}" status --porcelain --untracked-files=all)" ]] \
   || fail "weather-paper checkout differs from its authorized commit"
 
-# Fetch is non-mutating to the working tree.  Pull the candidate helper from the exact
-# requested commit and verify the rollback archive before candidate checkout begins.
+# Fetch is non-mutating to the working tree. Pull the candidate helper from the exact
+# requested commit, then prove both archive integrity and that the archived tree is the
+# current known-good .venv before candidate checkout begins.
 git -C "${APP_DIR}" remote get-url origin >/dev/null 2>&1 || fail "weather-paper checkout has no origin remote"
 git -C "${APP_DIR}" fetch --prune origin "${SOURCE_REF}"
 git -C "${APP_DIR}" cat-file -e "${RELEASE_SHA}^{commit}" 2>/dev/null || fail "requested commit is not present after fetch"
 git -C "${APP_DIR}" merge-base --is-ancestor "${RELEASE_SHA}" FETCH_HEAD || fail "requested commit is not part of selected source ref"
 TMP_HELPER="$(mktemp /tmp/weather-paper-venv-prep.XXXXXX.py)"
-git -C "${APP_DIR}" show "${RELEASE_SHA}:deploy/weather-paper-venv-snapshot.py" > "${TMP_HELPER}" 
+git -C "${APP_DIR}" show "${RELEASE_SHA}:deploy/weather-paper-venv-snapshot.py" > "${TMP_HELPER}"
 chmod 600 "${TMP_HELPER}"
 /usr/bin/python3 "${TMP_HELPER}" verify \
   --venv "${APP_DIR}/.venv" \
   --archive "${ROLLBACK_DIR}/previous-venv.tar" \
+  --manifest "${ROLLBACK_DIR}/previous-venv.json"
+/usr/bin/python3 "${TMP_HELPER}" verify-tree \
+  --venv "${APP_DIR}/.venv" \
   --manifest "${ROLLBACK_DIR}/previous-venv.json"
 rm -f "${TMP_HELPER}"
 
@@ -92,6 +96,7 @@ for required in \
   polymarket_scanner/weather_only_live_paper_all_signals_final_v7.py \
   polymarket_scanner/weather_only_operator_state_corrective.py \
   polymarket_scanner/weather_only_operator_state_corrective_v2.py \
+  polymarket_scanner/weather_only_operator_state_corrective_v3.py \
   polymarket_scanner/weather_only_all_paper_deployment_acceptance_v2.py \
   "${HASH_LOCK}"
 do
