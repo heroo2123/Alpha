@@ -17,6 +17,7 @@ from polymarket_scanner.weather_only_independent_review_corrective_v2 import (
 from polymarket_scanner.weather_only_live_paper import MODE
 from polymarket_scanner.weather_only_live_paper_all_signals_final import FINAL_ALL_PAPER_RUNTIME_VERSION
 from polymarket_scanner.weather_only_live_paper_all_signals_final_v2 import FINAL_ALL_PAPER_RUNTIME_V2_VERSION
+from polymarket_scanner.weather_only_live_paper_all_signals_final_v3 import FINAL_ALL_PAPER_RUNTIME_V3_VERSION
 from polymarket_scanner.weather_only_live_paper_all_signals_v7 import ALL_PAPER_V7_RUNTIME_VERSION
 from polymarket_scanner.weather_only_live_paper_all_signals_v8 import ALL_PAPER_V8_RUNTIME_VERSION
 from polymarket_scanner.weather_only_live_paper_final import FINAL_MARKET_STATE_POLICY, FINAL_PAPER_RUNTIME_VERSION
@@ -37,6 +38,7 @@ def _status() -> dict:
         "exclusive_writer_lease": True,
         "final_all_paper_runtime_version": FINAL_ALL_PAPER_RUNTIME_VERSION,
         "final_all_paper_runtime_v2_version": FINAL_ALL_PAPER_RUNTIME_V2_VERSION,
+        "final_all_paper_runtime_v3_version": FINAL_ALL_PAPER_RUNTIME_V3_VERSION,
         "independent_review_corrective_version": INDEPENDENT_REVIEW_CORRECTIVE_VERSION,
         "independent_review_corrective_v2_version": INDEPENDENT_REVIEW_CORRECTIVE_V2_VERSION,
         "all_paper_v8_runtime_version": ALL_PAPER_V8_RUNTIME_VERSION,
@@ -81,6 +83,8 @@ def _status() -> dict:
         "v5_admission_cross_process_serialized": True,
         "maker_settlement_strict_uma_finality": True,
         "future_day_forecast_run_age_claim_suppressed": True,
+        "source_shock_full_ttl_before_midnight_margin_required": True,
+        "structural_telegram_theoretical_only_label": True,
         "same_day_paper_calibrated_probability": False,
         "source_shock_calibrated_probability": False,
         "maker_value_calibrated_probability": False,
@@ -113,7 +117,7 @@ def test_final_all_paper_first_cycle_accepts_only_complete_safe_profile():
     )
     assert accepted.accepted is True
     assert accepted.release_sha == SHA
-    assert accepted.runtime_version == FINAL_ALL_PAPER_RUNTIME_V2_VERSION
+    assert accepted.runtime_version == FINAL_ALL_PAPER_RUNTIME_V3_VERSION
 
 
 @pytest.mark.parametrize(
@@ -121,6 +125,7 @@ def test_final_all_paper_first_cycle_accepts_only_complete_safe_profile():
     [
         ("final_all_paper_runtime_version", None, "ALL_PAPER_FINAL_WRAPPER_VERSION_MISMATCH"),
         ("final_all_paper_runtime_v2_version", None, "ALL_PAPER_FINAL_V2_WRAPPER_VERSION_MISMATCH"),
+        ("final_all_paper_runtime_v3_version", None, "ALL_PAPER_FINAL_V3_WRAPPER_VERSION_MISMATCH"),
         ("independent_review_corrective_version", None, "ALL_PAPER_INDEPENDENT_REVIEW_CORRECTIVE_MISSING"),
         ("independent_review_corrective_v2_version", None, "ALL_PAPER_INDEPENDENT_REVIEW_CORRECTIVE_V2_MISSING"),
         ("post_receipt_execution_required", False, "ALL_PAPER_POST_RECEIPT_EXECUTION_NOT_REQUIRED"),
@@ -145,6 +150,8 @@ def test_final_all_paper_first_cycle_accepts_only_complete_safe_profile():
         ("v5_admission_cross_process_serialized", False, "ALL_PAPER_V5_ADMISSION_NOT_SERIALIZED"),
         ("maker_settlement_strict_uma_finality", False, "ALL_PAPER_MAKER_SETTLEMENT_FINALITY_NOT_STRICT"),
         ("future_day_forecast_run_age_claim_suppressed", False, "ALL_PAPER_FORECAST_RUN_AGE_CLAIM_NOT_SUPPRESSED"),
+        ("source_shock_full_ttl_before_midnight_margin_required", False, "ALL_PAPER_SOURCE_SHOCK_MIDNIGHT_GUARD_MISSING"),
+        ("structural_telegram_theoretical_only_label", False, "ALL_PAPER_STRUCTURAL_TELEGRAM_TRUTH_LABEL_MISSING"),
         ("structural_validated_pnl_enabled", True, "ALL_PAPER_STRUCTURAL_VALIDATED_PNL_NOT_FALSE"),
         ("maker_queue_position_certified", True, "ALL_PAPER_MAKER_QUEUE_UNEXPECTEDLY_CERTIFIED"),
         ("maker_simulated_fill_accounting_enabled", True, "ALL_PAPER_MAKER_SIMULATED_FILL_ACCOUNTING_NOT_FALSE"),
