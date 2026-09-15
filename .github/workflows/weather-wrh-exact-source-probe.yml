@@ -2,6 +2,13 @@ name: weather-wrh-exact-source-probe
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - weather-three-layer-meticulous-final-2026-09-15
+    paths:
+      - '.github/workflows/weather-wrh-exact-source-probe.yml'
+      - 'polymarket_scanner/weather_only_wrh.py'
+      - 'polymarket_scanner/weather_only_wrh_client.py'
 
 permissions:
   contents: read
@@ -16,7 +23,7 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install -r requirements.txt
-      - name: Capture official WRH transport, metadata, display and hourly blocks
+      - name: Capture and verify official WRH transport, metadata, display and hourly blocks
         shell: bash
         run: |
           python - <<'PY'
@@ -26,14 +33,20 @@ jobs:
           from pathlib import Path
           import httpx
 
+          from polymarket_scanner.weather_only_wrh import (
+              WRH_VIEWER_SCRIPT_SHA256,
+              WRH_VIEWER_SCRIPT_URL,
+          )
+
           base = 'https://www.weather.gov'
           params = {
               'site': 'KLGA', 'hours': '48', 'units': 'english', 'hourly': 'true',
               'obs': 'tabular', 'headers': 'none', 'chart': 'off',
           }
           headers = {
-              'User-Agent': 'polymarket-weather-only-wrh-probe/0.4 (+https://github.com/heroo2123/Alpha)',
+              'User-Agent': 'polymarket-weather-only-wrh-probe/0.5 (+https://github.com/heroo2123/Alpha)',
               'Accept': '*/*',
+              'Accept-Encoding': 'identity',
           }
           with httpx.Client(headers=headers, timeout=20.0, follow_redirects=True) as client:
               page = client.get(base + '/wrh/timeseries', params=params)
@@ -49,6 +62,7 @@ jobs:
               obs = client.get(script_url)
               obs.raise_for_status()
 
+          live_sha = hashlib.sha256(obs.content).hexdigest()
           lines = obs.text.splitlines()
           def block(start, end):
               text = '\n'.join(lines[start-1:end])
@@ -64,7 +78,9 @@ jobs:
 
           report = {
               'viewer_script_url': script_url,
-              'viewer_script_sha256': hashlib.sha256(obs.content).hexdigest(),
+              'viewer_script_sha256': live_sha,
+              'expected_viewer_script_url': WRH_VIEWER_SCRIPT_URL,
+              'expected_viewer_script_sha256': WRH_VIEWER_SCRIPT_SHA256,
               'viewer_script_bytes': len(obs.content),
               'viewer_script_line_count': len(lines),
               'transport_block': block(286, 316),
@@ -74,6 +90,8 @@ jobs:
               'api_key_script_fetched': False,
           }
           basic_checks = {
+              'pinned_url_exact': script_url == WRH_VIEWER_SCRIPT_URL,
+              'pinned_sha_exact': live_sha == WRH_VIEWER_SCRIPT_SHA256,
               'synoptic_timeseries': 'api.synopticdata.com/v2/stations/timeseries' in report['transport_block'],
               'complete_1': 'complete=1' in report['transport_block'],
               'local_timezone': 'obtimezone=local' in report['transport_block'],
@@ -88,7 +106,7 @@ jobs:
           Path('wrh-hourly-semantics.json').write_text(json.dumps(report, indent=2, sort_keys=True) + '\n')
           print(json.dumps(report, indent=2, sort_keys=True))
           if not all(basic_checks.values()):
-              raise SystemExit(f'WRH basic source semantics drift: {basic_checks}')
+              raise SystemExit(f'WRH exact source semantics drift: {basic_checks}')
           PY
       - uses: actions/upload-artifact@v4
         if: always()
