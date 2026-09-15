@@ -11,7 +11,7 @@ RELEASE_FILE="${CONFIG_DIR}/weather-paper-release.sha"
 SOURCE_REF="${ALPHA_WEATHER_SOURCE_REF:-${2:-weather-all-paper-independent-review-corrective-v2-2026-09-15}}"
 RELEASE_SHA="${1:-}"
 UNIT="polymarket-weather-paper.service"
-FINAL_MODULE="polymarket_scanner.weather_only_live_paper_all_signals_final_v3"
+FINAL_MODULE="polymarket_scanner.weather_only_live_paper_all_signals_final_v4"
 ROLLBACK_DIR="${CONFIG_DIR}/all-paper-rollback"
 ROLLBACK_SHA="${ROLLBACK_DIR}/previous-release.sha"
 ROLLBACK_UNIT="${ROLLBACK_DIR}/${UNIT}"
@@ -26,17 +26,10 @@ fail(){ printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 [[ "${RELEASE_SHA}" =~ ^[0-9a-fA-F]{40}$ ]] || fail "usage: $0 <exact-release-sha> [source-branch]"
 git check-ref-format --branch "${SOURCE_REF}" >/dev/null 2>&1 || fail "invalid source branch/ref"
 [[ -d "${APP_DIR}/.git" ]] || fail "existing weather-paper checkout required for rollback-safe cutover"
-if systemctl is-active --quiet "${UNIT}" 2>/dev/null; then
-  fail "${UNIT} is active; snapshot it first, then stop it explicitly before candidate preparation"
-fi
-if systemctl is-enabled --quiet "${UNIT}" 2>/dev/null; then
-  fail "${UNIT} is enabled; snapshot it first, then disable it explicitly before candidate preparation"
-fi
-if pgrep -af 'polymarket_scanner\.weather_only_live_paper|weather_only_live_paper.*\.py' >/dev/null 2>&1; then
-  fail "a weather-paper process is already running outside the stopped service"
-fi
+if systemctl is-active --quiet "${UNIT}" 2>/dev/null; then fail "${UNIT} is active; snapshot it first, then stop it explicitly before candidate preparation"; fi
+if systemctl is-enabled --quiet "${UNIT}" 2>/dev/null; then fail "${UNIT} is enabled; snapshot it first, then disable it explicitly before candidate preparation"; fi
+if pgrep -af 'polymarket_scanner\.weather_only_live_paper|weather_only_live_paper.*\.py' >/dev/null 2>&1; then fail "a weather-paper process is already running outside the stopped service"; fi
 
-# The snapshot must have been captured before production was stopped/disabled.
 for required_snapshot in \
   "${ROLLBACK_SHA}" "${ROLLBACK_UNIT}" "${ROLLBACK_ACTIVE}" \
   "${ROLLBACK_ENABLED}" "${ROLLBACK_DB_PRESENT}"
@@ -52,8 +45,7 @@ PREVIOUS_DB_PRESENT="$(tr -d '[:space:]' < "${ROLLBACK_DB_PRESENT}")"
 [[ "${PREVIOUS_ENABLED}" =~ ^[01]$ ]] || fail "rollback enabled-state snapshot invalid"
 [[ "${PREVIOUS_DB_PRESENT}" =~ ^[01]$ ]] || fail "rollback database-state snapshot invalid"
 if [[ "${PREVIOUS_DB_PRESENT}" == "1" ]]; then
-  [[ -f "${ROLLBACK_DB}" && -f "${ROLLBACK_DB_MANIFEST}" ]] \
-    || fail "pre-cutover rollback database snapshot is incomplete"
+  [[ -f "${ROLLBACK_DB}" && -f "${ROLLBACK_DB_MANIFEST}" ]] || fail "pre-cutover rollback database snapshot is incomplete"
 fi
 CURRENT_HEAD="$(git -C "${APP_DIR}" rev-parse HEAD | tr -d '[:space:]')"
 CURRENT_MARKER="$(tr -d '[:space:]' < "${RELEASE_FILE}")"
@@ -108,27 +100,27 @@ for required in \
   deploy/restore-all-paper-rollback.sh \
   deploy/verify-three-layer-validation-status.py \
   deploy/verify-three-layer-fresh-capture.py \
+  polymarket_scanner/weather_only_live_paper_all_signals_final_v4.py \
   polymarket_scanner/weather_only_live_paper_all_signals_final_v3.py \
   polymarket_scanner/weather_only_live_paper_all_signals_final_v2.py \
   polymarket_scanner/weather_only_live_paper_all_signals_final.py \
   polymarket_scanner/weather_only_live_paper_all_signals_v8.py \
   polymarket_scanner/weather_only_live_paper_all_signals_v7.py \
+  polymarket_scanner/weather_only_independent_review_corrective_v3.py \
   polymarket_scanner/weather_only_independent_review_corrective_v2.py \
   polymarket_scanner/weather_only_independent_review_corrective.py \
   polymarket_scanner/weather_only_paper_post_receipt.py \
   polymarket_scanner/weather_only_maker_paper_accounting_v5.py \
   polymarket_scanner/weather_only_all_paper_deployment_acceptance.py \
   "${HASH_LOCK}"
- do
+do
   [[ -f "${APP_DIR}/${required}" ]] || fail "candidate lacks required all-PAPER file: ${required}"
 done
 
 grep -qF "${FINAL_MODULE}" "${APP_DIR}/deploy/render-all-paper-unit.py" || fail "all-PAPER renderer does not point to final entrypoint"
 grep -qF 'weather-paper-release.sha' "${APP_DIR}/deploy/render-all-paper-unit.py" || fail "all-PAPER candidate does not use isolated release marker"
 
-if [[ ! -x "${APP_DIR}/.venv/bin/python" ]]; then
-  python3 -m venv "${APP_DIR}/.venv"
-fi
+if [[ ! -x "${APP_DIR}/.venv/bin/python" ]]; then python3 -m venv "${APP_DIR}/.venv"; fi
 "${APP_DIR}/.venv/bin/python" -m pip install --require-hashes -r "${APP_DIR}/${HASH_LOCK}"
 "${APP_DIR}/.venv/bin/python" -m pip check
 PYTHONPATH="${APP_DIR}" "${APP_DIR}/.venv/bin/python" - "${APP_DIR}/requirements.txt" <<'PY'
@@ -155,8 +147,6 @@ chmod 600 "${TMP_MARKER}"
 mv -f "${TMP_MARKER}" "${RELEASE_FILE}"
 bash "${APP_DIR}/deploy/verify-runtime-release.sh" "${APP_DIR}" "${RELEASE_FILE}"
 
-# Preparation completed successfully. Keep the candidate stopped/disabled and leave
-# acceptance/cutover as a separate explicit operation.
 PREPARE_MUTATED=0
 trap - EXIT
 printf '\nFinal all-PAPER candidate prepared but NOT started or enabled.\n'
