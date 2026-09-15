@@ -1,4 +1,4 @@
-"""Render the isolated fully-corrected all-weather PAPER service; never start it."""
+"""Render the isolated operator-synchronized all-weather PAPER service; never start it."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from pathlib import Path
 
 
 WEATHER_RELEASE_MARKER = "weather-paper-release.sha"
-ALL_PAPER_MODULE = "polymarket_scanner.weather_only_live_paper_all_signals_final_v4"
+ALL_PAPER_MODULE = "polymarket_scanner.weather_only_live_paper_all_signals_final_v7"
 
 
 def render(app_dir: Path, config_dir: Path, user: str) -> str:
@@ -22,7 +22,7 @@ def render(app_dir: Path, config_dir: Path, user: str) -> str:
     verifier = f"/bin/bash {app_dir}/deploy/verify-runtime-release.sh {app_dir} {release_file}"
     state = "/var/lib/polymarket-weather-paper"
     return f"""[Unit]
-Description=Polymarket final all-weather PAPER research runtime
+Description=Polymarket final operator-synchronized all-weather PAPER research runtime
 Wants=network-online.target
 After=network-online.target
 StartLimitIntervalSec=600
@@ -33,6 +33,7 @@ Type=simple
 User={user}
 WorkingDirectory={app_dir}
 Environment=PYTHONUNBUFFERED=1
+Environment=ALPHA_DISABLE_DOTENV=1
 EnvironmentFile={config_dir}/weather-paper.env
 ExecStartPre={verifier}
 ExecStart={python} -m {ALL_PAPER_MODULE} --db {state}/weather-paper.sqlite --status {state}/status.json --release-file {release_file} --interval-seconds 180 --forecast-cache-seconds 900 --forecast-raw-gap-min 0.08 --max-forecast-events 6 --paper-stake-usd 10
