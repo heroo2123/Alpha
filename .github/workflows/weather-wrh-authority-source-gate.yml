@@ -5,6 +5,7 @@ on:
     branches:
       - weather-wrh-calibration-authority
       - weather-w7-evidence-foundation
+      - weather-three-layer-live-grammar-corrective-2026-09-15
   workflow_dispatch:
 
 permissions:
