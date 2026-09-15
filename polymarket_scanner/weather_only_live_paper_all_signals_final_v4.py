@@ -16,6 +16,11 @@ This layer makes the causal decision boundary explicit for every directional lan
 * the compact weather evidence that justified admission is required by the V5 store,
   survives restart, and is part of strong execution identity.
 
+Provider/source/assembly/storage failures in the post-receipt weather walk are
+normalized to V4 invariant errors so the inherited delivery layer records a terminal
+POST_RECEIPT_NOT_ACTIONABLE audit instead of turning an already delivered signal into
+an unaudited lane exception.
+
 All probabilities remain explicitly uncalibrated. No real order, wallet, signing,
 cancellation or financial authority is introduced.
 """
@@ -64,6 +69,11 @@ FINAL_ALL_PAPER_RUNTIME_V4_VERSION = (
 _EPS = 1e-9
 
 
+def _post_receipt_invariant(prefix: str, exc: Exception) -> V4InvariantError:
+    code = getattr(exc, "code", type(exc).__name__)
+    return V4InvariantError(f"{prefix}:{code}")
+
+
 class FinalAllPaperWeatherLiveServiceV4(FinalAllPaperWeatherLiveServiceV3):
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
@@ -103,6 +113,8 @@ class FinalAllPaperWeatherLiveServiceV4(FinalAllPaperWeatherLiveServiceV3):
             forecast = await self._mapped_forecast(compiled.event_id, compiled)
         except WeatherForecastError as exc:
             raise V4InvariantError(f"V5_FORECAST_REFRESH_FAILED:{exc.code}") from exc
+        except Exception as exc:
+            raise _post_receipt_invariant("V5_FORECAST_REFRESH_FAILED", exc) from exc
         refresh_finished = time.time()
         if str(forecast.source_evidence_sha256) != str(
             candidate.get("forecast_evidence_sha256") or ""
@@ -127,7 +139,9 @@ class FinalAllPaperWeatherLiveServiceV4(FinalAllPaperWeatherLiveServiceV3):
         }
         return upgraded
 
-    async def _fresh_three_layer_friend_gate(self, candidate: dict, event: dict, *, after_time: float):
+    async def _fresh_three_layer_friend_gate(
+        self, candidate: dict, event: dict, *, after_time: float
+    ):
         compiled = compile_strict_temperature_event(event)
         bucket = next(
             (
@@ -139,14 +153,15 @@ class FinalAllPaperWeatherLiveServiceV4(FinalAllPaperWeatherLiveServiceV3):
         )
         if bucket is None or str(bucket.yes_token or "") != str(candidate.get("token_id") or ""):
             raise V4InvariantError("V5_SAME_DAY_MARKET_CHANGED")
-        metadata = await self._station_metadata_for_compiled(compiled)
         try:
+            metadata = await self._station_metadata_for_compiled(compiled)
             wrh_result, nws_snapshot, hourly_gefs = await self._fetch_same_day_source_bundle(
                 compiled, metadata
             )
         except Exception as exc:
-            code = getattr(exc, "code", type(exc).__name__)
-            raise V4InvariantError(f"V5_SAME_DAY_THREE_LAYER_REFRESH_FAILED:{code}") from exc
+            raise _post_receipt_invariant(
+                "V5_SAME_DAY_THREE_LAYER_REFRESH_FAILED", exc
+            ) from exc
 
         if (
             float(wrh_result.fetched_at) + _EPS < float(after_time)
@@ -156,19 +171,25 @@ class FinalAllPaperWeatherLiveServiceV4(FinalAllPaperWeatherLiveServiceV3):
             raise V4InvariantError("V5_SAME_DAY_THREE_LAYER_REFRESH_NOT_CAUSAL")
 
         as_of = time.time()
-        authority = compile_temperature_rule_authority(event, compiled)
-        semantics = build_same_day_contract_semantics(compiled, authority)
-        capture = assemble_same_day_capture(
-            compiled=compiled,
-            contract_semantics=semantics,
-            station_metadata=metadata,
-            wrh_snapshot=wrh_result.snapshot,
-            near_term_raw_snapshot=nws_snapshot,
-            hourly_gefs=hourly_gefs,
-            as_of=as_of,
-            mapping_policy=SAME_DAY_MAPPING_POLICY,
-            population_alignment_certified=False,
-        )
+        try:
+            authority = compile_temperature_rule_authority(event, compiled)
+            semantics = build_same_day_contract_semantics(compiled, authority)
+            capture = assemble_same_day_capture(
+                compiled=compiled,
+                contract_semantics=semantics,
+                station_metadata=metadata,
+                wrh_snapshot=wrh_result.snapshot,
+                near_term_raw_snapshot=nws_snapshot,
+                hourly_gefs=hourly_gefs,
+                as_of=as_of,
+                mapping_policy=SAME_DAY_MAPPING_POLICY,
+                population_alignment_certified=False,
+            )
+        except Exception as exc:
+            raise _post_receipt_invariant(
+                "V5_SAME_DAY_THREE_LAYER_ASSEMBLY_FAILED", exc
+            ) from exc
+
         gate = _friend_capture_gate(capture.as_dict(), compiled, bucket)
         if gate is None:
             raise V4InvariantError("V5_SAME_DAY_THREE_LAYER_THESIS_CHANGED")
@@ -177,8 +198,12 @@ class FinalAllPaperWeatherLiveServiceV4(FinalAllPaperWeatherLiveServiceV3):
         if fresh_support + _EPS < previous_support:
             raise V4InvariantError("V5_SAME_DAY_THREE_LAYER_SUPPORT_DETERIORATED")
 
-        # The complete post-receipt capture is durable before a quote can be admitted.
-        await asyncio.to_thread(self.three_layer_store.save, capture)
+        try:
+            await asyncio.to_thread(self.three_layer_store.save, capture)
+        except Exception as exc:
+            raise _post_receipt_invariant(
+                "V5_SAME_DAY_THREE_LAYER_PERSIST_FAILED", exc
+            ) from exc
         evidence = {
             "version": POST_RECEIPT_WEATHER_EVIDENCE_VERSION,
             "kind": SAME_DAY_KIND,
@@ -205,9 +230,6 @@ class FinalAllPaperWeatherLiveServiceV4(FinalAllPaperWeatherLiveServiceV3):
                 candidate, event, after_time=float(after_time)
             )
         )
-        # Deliberately call V7's quote-only implementation so no later WRH fetch can
-        # move the weather evidence *after* the quote. The CLOB must start after the
-        # complete three-layer capture's as-of boundary.
         checked = await AllPaperWeatherLiveV7Service._same_day_exact_recheck(
             self, candidate, event, after_time=float(capture.as_of)
         )
@@ -261,7 +283,14 @@ class FinalAllPaperWeatherLiveServiceV4(FinalAllPaperWeatherLiveServiceV3):
         if bucket is None or str(bucket.no_token or "") != str(candidate.get("token_id") or ""):
             raise V4InvariantError("SOURCE_SHOCK_TOKEN_MEANING_CHANGED")
 
-        result, observed = await self._fresh_wrh_state(compiled, after_time=float(after_time))
+        try:
+            result, observed = await self._fresh_wrh_state(
+                compiled, after_time=float(after_time)
+            )
+        except Exception as exc:
+            raise _post_receipt_invariant(
+                "V5_SOURCE_SHOCK_WRH_REFRESH_FAILED", exc
+            ) from exc
         rows = self._fresh_wrh_rows(result)
         if len(rows) < 2:
             raise V4InvariantError("V5_SOURCE_SHOCK_WRH_THESIS_CHANGED")
@@ -311,6 +340,7 @@ class FinalAllPaperWeatherLiveServiceV4(FinalAllPaperWeatherLiveServiceV3):
                 "post_receipt_weather_before_clob_required": True,
                 "post_receipt_weather_evidence_durable": True,
                 "post_receipt_weather_evidence_identity_bound": True,
+                "post_receipt_source_failures_audited_not_actionable": True,
                 "same_day_post_receipt_layers": ["WRH", "NWS", "GEFS31"],
                 "financial_delivery": False,
                 "financial_authority": False,
