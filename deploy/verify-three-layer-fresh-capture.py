@@ -53,10 +53,16 @@ def _read_status(path: Path) -> object:
         raise FreshCaptureError("THREE_LAYER_FRESH_STATUS_JSON_INVALID") from None
 
 
-def _durable_saved_capture(db_path: Path, *, not_before: float) -> dict:
-    target = db_path.expanduser().resolve()
-    if target.is_symlink() or not target.is_file():
+def _durable_saved_capture(
+    db_path: Path, *, not_before: float, not_after: float
+) -> dict:
+    supplied = db_path.expanduser()
+    if supplied.is_symlink():
         raise FreshCaptureError("THREE_LAYER_FRESH_DATABASE_INVALID")
+    target = supplied.resolve()
+    if not target.is_file():
+        raise FreshCaptureError("THREE_LAYER_FRESH_DATABASE_INVALID")
+    db: sqlite3.Connection | None = None
     try:
         db = sqlite3.connect(f"file:{target}?mode=ro", uri=True, timeout=5.0)
         db.row_factory = sqlite3.Row
@@ -95,10 +101,11 @@ def _durable_saved_capture(db_path: Path, *, not_before: float) -> dict:
     except sqlite3.Error as exc:
         raise FreshCaptureError("THREE_LAYER_FRESH_DATABASE_QUERY_FAILED") from exc
     finally:
-        try:
-            db.close()
-        except Exception:
-            pass
+        if db is not None:
+            try:
+                db.close()
+            except Exception:
+                pass
 
     if row is None:
         raise FreshCaptureError("THREE_LAYER_FRESH_NO_DURABLE_SAVED_CAPTURE_AFTER_START")
@@ -106,7 +113,12 @@ def _durable_saved_capture(db_path: Path, *, not_before: float) -> dict:
     attempted_at = _finite(row["attempted_at"], "THREE_LAYER_FRESH_ATTEMPT_TIME_INVALID")
     completed_at = _finite(row["completed_at"], "THREE_LAYER_FRESH_COMPLETION_TIME_INVALID")
     capture_as_of = _finite(row["capture_as_of"], "THREE_LAYER_FRESH_CAPTURE_TIME_INVALID")
-    if attempted_at < not_before or capture_as_of < attempted_at or completed_at < capture_as_of:
+    if (
+        attempted_at < not_before
+        or capture_as_of < attempted_at
+        or completed_at < capture_as_of
+        or completed_at > not_after + 5.0
+    ):
         raise FreshCaptureError("THREE_LAYER_FRESH_DURABLE_TIME_ORDER_INVALID")
 
     attempt_digest = str(row["attempt_capture_sha256"] or "").strip().lower()
@@ -155,12 +167,13 @@ def verify_fresh_capture(
     boundary = _finite(not_before, "THREE_LAYER_FRESH_NOT_BEFORE_INVALID")
     if boundary <= 0.0:
         raise FreshCaptureError("THREE_LAYER_FRESH_NOT_BEFORE_INVALID")
+    current = time.time() if now is None else _finite(now, "THREE_LAYER_FRESH_NOW_INVALID")
     try:
         base = verify_status(
             status,
             release_sha=release_sha,
             not_before=boundary,
-            now=now,
+            now=current,
             max_age_seconds=max_age_seconds,
         )
     except ThreeLayerStatusError as exc:
@@ -186,7 +199,11 @@ def verify_fresh_capture(
             raise FreshCaptureError("THREE_LAYER_FRESH_NO_SAVED_CAPTURE_AFTER_START")
         durable = None
     else:
-        durable = _durable_saved_capture(db_path, not_before=boundary)
+        durable = _durable_saved_capture(
+            db_path,
+            not_before=boundary,
+            not_after=current,
+        )
         attempted = int(lane.get("attempted_now") or 0)
         saved = int(lane.get("saved_now") or 0)
 
@@ -222,8 +239,8 @@ def main() -> int:
         return 2
     deadline = time.monotonic() + args.timeout_seconds
     last = "THREE_LAYER_FRESH_CAPTURE_NOT_YET_AVAILABLE"
-    status_path = args.status.expanduser().resolve()
-    db_path = args.db.expanduser().resolve()
+    status_path = args.status.expanduser()
+    db_path = args.db.expanduser()
 
     waitable = {
         "THREE_LAYER_FRESH_NO_DURABLE_SAVED_CAPTURE_AFTER_START",
