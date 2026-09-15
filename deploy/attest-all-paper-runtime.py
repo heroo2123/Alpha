@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-"""Read-only host collector for the exact final all-weather PAPER runtime."""
+"""Read-only host collector for the exact second-corrective all-weather PAPER runtime."""
 
 import argparse
 import json
 import os
+import stat
 import subprocess
 import sys
 from pathlib import Path
@@ -21,7 +22,8 @@ from polymarket_scanner.weather_only_runtime_attestation import (  # noqa: E402
 )
 
 
-FINAL_ALL_PAPER_MODULE = "polymarket_scanner.weather_only_live_paper_all_signals_final"
+FINAL_ALL_PAPER_MODULE = "polymarket_scanner.weather_only_live_paper_all_signals_final_v2"
+ALLOWED_ENVIRONMENT_KEYS = ("TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID")
 KNOWN_WEATHER_WRITER_MARKERS = (
     "polymarket_scanner.weather_only_live_paper",
     "weather_only_live_paper.py",
@@ -40,6 +42,7 @@ KNOWN_WEATHER_WRITER_MARKERS = (
     "weather_only_live_paper_all_signals_v7.py",
     "weather_only_live_paper_all_signals_v8.py",
     "weather_only_live_paper_all_signals_final.py",
+    "weather_only_live_paper_all_signals_final_v2.py",
 )
 
 
@@ -107,6 +110,49 @@ def _matching_weather_processes(db_path: Path) -> tuple[tuple[str, ...], ...]:
     return tuple(rows)
 
 
+def _attest_environment_file(path: Path) -> dict:
+    """Verify the service receives exactly two Telegram-only secrets; never expose values."""
+    target = path.expanduser().resolve()
+    info = target.lstat()
+    if stat.S_ISLNK(info.st_mode) or not stat.S_ISREG(info.st_mode):
+        raise RuntimeError("ALL_PAPER_ENVIRONMENT_FILE_NOT_REGULAR")
+    if stat.S_IMODE(info.st_mode) != 0o600:
+        raise RuntimeError("ALL_PAPER_ENVIRONMENT_FILE_MODE_NOT_0600")
+    if info.st_uid != os.getuid():
+        raise RuntimeError("ALL_PAPER_ENVIRONMENT_FILE_OWNER_MISMATCH")
+    try:
+        lines = target.read_text(encoding="utf-8").splitlines()
+    except UnicodeError:
+        raise RuntimeError("ALL_PAPER_ENVIRONMENT_FILE_UTF8_INVALID") from None
+    keys: list[str] = []
+    for raw in lines:
+        row = raw.strip()
+        if not row:
+            continue
+        if row.startswith("#") or "=" not in row:
+            raise RuntimeError("ALL_PAPER_ENVIRONMENT_FILE_ROW_INVALID")
+        key, value = row.split("=", 1)
+        key = key.strip()
+        if key not in ALLOWED_ENVIRONMENT_KEYS:
+            raise RuntimeError("ALL_PAPER_ENVIRONMENT_FILE_FORBIDDEN_KEY")
+        if key in keys:
+            raise RuntimeError("ALL_PAPER_ENVIRONMENT_FILE_DUPLICATE_KEY")
+        if not value:
+            raise RuntimeError("ALL_PAPER_ENVIRONMENT_FILE_EMPTY_VALUE")
+        keys.append(key)
+    if tuple(sorted(keys)) != tuple(sorted(ALLOWED_ENVIRONMENT_KEYS)):
+        raise RuntimeError("ALL_PAPER_ENVIRONMENT_FILE_KEYSET_MISMATCH")
+    return {
+        "path": str(target),
+        "regular_file": True,
+        "mode": "0600",
+        "owner_uid": info.st_uid,
+        "allowed_keys": sorted(keys),
+        "forbidden_keys_present": False,
+        "values_disclosed": False,
+    }
+
+
 def collect_facts(*, unit_name: str, app_dir: Path, release_file: Path, db_path: Path) -> WeatherRuntimeFacts:
     active = _active(unit_name)
     if not active and _enabled(unit_name):
@@ -159,6 +205,7 @@ def main() -> int:
     python = app_dir / ".venv" / "bin" / "python"
     expected_release = _read_sha(release_file)
     try:
+        environment_attestation = _attest_environment_file(environment_file)
         facts = collect_facts(
             unit_name=args.unit, app_dir=app_dir, release_file=release_file, db_path=db_path
         )
@@ -173,7 +220,11 @@ def main() -> int:
             expected_release_sha=expected_release,
             expected_module=FINAL_ALL_PAPER_MODULE,
         )
-        payload = {"facts": facts.as_dict(), "attestation": attestation.as_dict()}
+        payload = {
+            "facts": facts.as_dict(),
+            "attestation": attestation.as_dict(),
+            "environment_attestation": environment_attestation,
+        }
         if args.require_active and not attestation.deployment_proven:
             payload["acceptance"] = "FAIL_ACTIVE_ALL_PAPER_RUNTIME_NOT_PROVEN"
             exit_code = 2
