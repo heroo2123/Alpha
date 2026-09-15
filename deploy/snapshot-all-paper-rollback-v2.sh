@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 
 # Add an exact virtualenv generation to the existing verified source/unit/SQLite
-# rollback snapshot.  Run this candidate script (and its two companion files) from a
+# rollback snapshot. Run this candidate script (and its two companion files) from a
 # temporary directory before stopping the known-good service.
 APP_DIR="${ALPHA_WEATHER_APP_DIR:-${HOME}/polymarket-weather-paper-app}"
 CONFIG_DIR="${ALPHA_CONFIG_DIR:-${HOME}/.polymarket-edge-scanner}"
@@ -22,6 +22,13 @@ fail(){ printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 [[ -d "${APP_DIR}/.git" ]] || fail "missing weather-paper checkout"
 [[ -d "${APP_DIR}/.venv" && ! -L "${APP_DIR}/.venv" ]] || fail "current .venv root invalid"
 
+mkdir -p "${ROLLBACK_DIR}"
+chmod 700 "${ROLLBACK_DIR}"
+# A failed refresh must never leave a previous generation marker authorizing a mixed
+# old/new rollback set. The marker is republished only after every new component and
+# the current venv tree have been verified.
+rm -f "${GENERATION}"
+
 # The mature snapshot records checkout/unit/service state and a verified online SQLite
 # backup. It is read-only with respect to production.
 bash "${BASE_SNAPSHOT}"
@@ -34,6 +41,9 @@ PREVIOUS_SHA="$(tr -d '[:space:]' < "${ROLLBACK_DIR}/previous-release.sha")"
 /usr/bin/python3 "${VENV_HELPER}" snapshot \
   --venv "${APP_DIR}/.venv" \
   --archive "${VENV_ARCHIVE}" \
+  --manifest "${VENV_MANIFEST}"
+/usr/bin/python3 "${VENV_HELPER}" verify-tree \
+  --venv "${APP_DIR}/.venv" \
   --manifest "${VENV_MANIFEST}"
 
 umask 077
@@ -52,13 +62,16 @@ fi
 chmod 600 "${TMP_RELEASE}" "${TMP_GENERATION}" "${TMP_DB_SHA}"
 mv -f "${TMP_RELEASE}" "${VENV_RELEASE}"
 mv -f "${TMP_DB_SHA}" "${DB_SHA}"
-mv -f "${TMP_GENERATION}" "${GENERATION}"
-trap - EXIT
-
+# Verify archive integrity once more immediately before publishing generation validity.
 /usr/bin/python3 "${VENV_HELPER}" verify \
   --venv "${APP_DIR}/.venv" \
   --archive "${VENV_ARCHIVE}" \
   --manifest "${VENV_MANIFEST}"
+/usr/bin/python3 "${VENV_HELPER}" verify-tree \
+  --venv "${APP_DIR}/.venv" \
+  --manifest "${VENV_MANIFEST}"
+mv -f "${TMP_GENERATION}" "${GENERATION}"
+trap - EXIT
 
-printf 'PASS: rollback generation includes exact source, unit, ledger and virtualenv evidence.\n'
+printf 'PASS: rollback generation includes exact source, unit, ledger and current virtualenv evidence.\n'
 printf 'Release: %s\n' "${PREVIOUS_SHA}"
