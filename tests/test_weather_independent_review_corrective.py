@@ -305,21 +305,50 @@ def test_operator_status_read_fails_green_headline_closed_on_maker_degradation(m
     assert status["operator_all_lanes_healthy"] is False
 
 
-def test_cutover_scripts_require_and_restore_exact_previous_release():
+def test_cutover_scripts_require_and_restore_exact_previous_release_and_venv():
     root = Path(__file__).resolve().parents[1]
     snapshot = (root / "deploy/snapshot-all-paper-rollback.sh").read_text(encoding="utf-8")
-    prepare = (root / "deploy/prepare-all-paper-candidate.sh").read_text(encoding="utf-8")
+    snapshot_v2 = (root / "deploy/snapshot-all-paper-rollback-v2.sh").read_text(encoding="utf-8")
+    prepare_wrapper = (root / "deploy/prepare-all-paper-candidate.sh").read_text(encoding="utf-8")
+    prepare = (root / "deploy/prepare-all-paper-candidate-v2.sh").read_text(encoding="utf-8")
     start = (root / "deploy/start-all-paper-candidate.sh").read_text(encoding="utf-8")
-    restore = (root / "deploy/restore-all-paper-rollback.sh").read_text(encoding="utf-8")
+    restore_wrapper = (root / "deploy/restore-all-paper-rollback.sh").read_text(encoding="utf-8")
+    restore = (root / "deploy/restore-all-paper-rollback-v2.sh").read_text(encoding="utf-8")
 
+    # Base snapshot remains read-only with respect to production service state.
     assert "systemctl stop" not in snapshot
     assert "systemctl start" not in snapshot
     assert "systemctl enable" not in snapshot
+
+    # The additive v2 generation binds source, ledger and exact virtualenv bytes.
+    assert "previous-release.sha" in snapshot_v2
+    assert "previous-venv.tar" in snapshot_v2
+    assert "previous-venv.json" in snapshot_v2
+    assert "previous-db.sha256" in snapshot_v2
+    assert "all-paper-rollback-v2-exact-venv" in snapshot_v2
+    assert "/usr/bin/python3" in snapshot_v2
+
+    # Candidate preparation cannot mutate source/dependencies without that generation.
+    assert "prepare-all-paper-candidate-v2.sh" in prepare_wrapper
     assert "previous-release.sha" in prepare
-    assert "rollback snapshot does not match current checkout" in prepare
+    assert "previous-venv-release.sha" in prepare
+    assert "snapshot-generation-v2" in prepare
+    assert "rollback generation does not describe the current known-good release" in prepare
+    assert '"${TMP_HELPER}" verify' in prepare
+
+    # Any active acceptance failure routes back through the exact v2 restoration path.
     assert "restore-all-paper-rollback.sh" in start
-    assert "All-PAPER acceptance failed; restoring the exact pre-cutover release" in start
+    assert "restoring exact pre-cutover generation" in start
+    assert "previous-venv.tar" in start
+    assert "snapshot-generation-v2" in start
+    assert "restore-all-paper-rollback-v2.sh" in restore_wrapper
+
+    # Restoration uses system Python until the snapshotted venv has been restored and
+    # verified, then reinstates source/unit/service state.
     assert 'checkout --detach "${PREVIOUS_SHA}"' in restore
     assert 'install -m 0644 "${ROLLBACK_UNIT}"' in restore
+    assert '"${TMP_HELPER}" restore' in restore
+    assert '"${TMP_HELPER}" verify-tree' in restore
+    assert "/usr/bin/python3" in restore
     assert 'systemctl enable "${UNIT}"' in restore
     assert 'systemctl start "${UNIT}"' in restore
