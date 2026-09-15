@@ -1,6 +1,13 @@
 from __future__ import annotations
 
-"""Final terminal-audit identity guard for operator-synchronized PAPER signals."""
+"""Final terminal-audit identity and restart-visibility guard.
+
+Besides requiring the exact delivered/recheck identity before a caller can invalidate a
+signal, this layer repairs a first-deployment/restart edge: an older wrapper may have
+already converted an interrupted delivered V5 signal to ACTIONABILITY_UNPROVEN before
+the operator-sync generation marker was created.  Those recovered alerts still need an
+operator-visible invalidation even though their signal ids predate the normal marker.
+"""
 
 import math
 
@@ -10,12 +17,66 @@ from .weather_only_paper_post_receipt import PAPER_EXECUTION_PROTOCOL_V5
 
 
 OPERATOR_STATE_CORRECTIVE_V3_VERSION = (
-    "weather_operator_state_v3_terminal_prestate_receipt_token_identity"
+    "weather_operator_state_v3_terminal_identity_restart_visibility"
 )
+_RESTART_UNPROVEN_REASON = "PROCESS_RESTART_BEFORE_DURABLE_POST_RECEIPT_ADMISSION"
 
 
 class OperatorStatePostReceiptStoreV3(OperatorStatePostReceiptStoreV2):
-    """Require the exact delivered/recheck state before terminal invalidation."""
+    """Require exact terminal identity and surface crash-recovered delivered alerts."""
+
+    def _restart_unproven_signal_ids(self) -> list[int]:
+        recovered: list[int] = []
+        with self._conn() as db:
+            rows = [
+                dict(row)
+                for row in db.execute(
+                    """
+                    SELECT s.id,s.payload_json
+                    FROM weather_paper_signals s
+                    LEFT JOIN weather_paper_operator_sync o ON o.signal_id=s.id
+                    WHERE s.status='ACTIONABILITY_UNPROVEN'
+                      AND s.telegram_message_id IS NOT NULL
+                      AND o.signal_id IS NULL
+                    ORDER BY s.id
+                    """
+                )
+            ]
+            for row in rows:
+                payload = _payload(row.get("payload_json"))
+                if payload.get("paper_execution_protocol_version") != PAPER_EXECUTION_PROTOCOL_V5:
+                    continue
+                decision_id = str(payload.get("decision_id") or "").strip()
+                if not decision_id:
+                    continue
+                decision = db.execute(
+                    """
+                    SELECT outcome,reason FROM weather_paper_decisions
+                    WHERE decision_id=? ORDER BY id DESC LIMIT 1
+                    """,
+                    (decision_id,),
+                ).fetchone()
+                if decision is None:
+                    continue
+                if (
+                    str(decision["outcome"] or "") == "ACTIONABILITY_UNPROVEN"
+                    and str(decision["reason"] or "") == _RESTART_UNPROVEN_REASON
+                ):
+                    recovered.append(int(row["id"]))
+        return recovered
+
+    def reconcile_v5_after_restart(self) -> dict:
+        result = dict(super().reconcile_v5_after_restart())
+        recovered = self._restart_unproven_signal_ids()
+        created = self.ensure_operator_sync_records(signal_ids=recovered) if recovered else 0
+        result.update(
+            {
+                "operator_restart_visibility_version": OPERATOR_STATE_CORRECTIVE_V3_VERSION,
+                "operator_restart_unproven_candidates": len(recovered),
+                "operator_restart_sync_records_created": int(created),
+            }
+        )
+        return result
 
     def mark_post_receipt_not_actionable(
         self,
