@@ -69,8 +69,9 @@ class AllPaperCommandController(ClearWeatherPaperCommandController):
             f"Last full cycle: <b>{int(max(0.0, age)) if math.isfinite(age) else 'unknown'}s ago</b>",
             "",
             "<b>STRATEGY LANES</b>",
-            f"Future-day GEFS gap: {self._on(status.get('paper_telegram_delivery'))}",
+            f"Future-day GEFS gap: {self._on(status.get('paper_telegram_delivery'), suffix=' — UNCALIBRATED')}",
             f"Same-day late-lock: {self._on(status.get('same_day_paper_delivery_enabled'), suffix=' — UNCALIBRATED')}",
+            f"Official-extreme source shock: {self._on(status.get('source_shock_paper_delivery_enabled'), suffix=' — REVISION-SENSITIVE')}",
             f"Structural underround: {self._on(status.get('structural_paper_delivery_enabled'))}",
             f"Prospective maker: {self._on(status.get('maker_paper_delivery_enabled'), suffix=' — UNCALIBRATED')}",
             "Result-lag: <b>GATED — exact WRH cutoff state not proven</b>",
@@ -85,7 +86,11 @@ class AllPaperCommandController(ClearWeatherPaperCommandController):
             f"Financial authority flag: <b>{html.escape(str(status.get('financial_authority')))}</b>",
             f"Automatic order placement flag: <b>{html.escape(str(status.get('automatic_order_placement')))}</b>",
         ]
-        errors = list(status.get("errors") or []) + list(status.get("maker_errors") or [])
+        errors = (
+            list(status.get("errors") or [])
+            + list(status.get("maker_errors") or [])
+            + list(status.get("source_shock_errors") or [])
+        )
         if errors:
             lines.append(
                 "⚠️ Last issues: <code>" + html.escape(", ".join(map(str, errors))[:700]) + "</code>"
@@ -127,7 +132,7 @@ class AllPaperCommandController(ClearWeatherPaperCommandController):
                 f"Maker P&amp;L: <b>${float(maker['pnl']):+.2f}</b>",
                 f"Maker ROI: <b>{self._pct(maker.get('roi'))}</b>",
                 "",
-                "Same-day and maker model evidence remains <b>UNCALIBRATED</b>.",
+                "Future-day, same-day, source-shock and maker model evidence is explicitly research-grade / uncalibrated where labelled.",
                 "V4 historical fills and V5 post-receipt fills are different experiment protocols; neither rewrites the other.",
                 "📒 Everything above is simulated. No real order was placed.",
             ]
