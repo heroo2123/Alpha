@@ -143,6 +143,74 @@ def test_restart_cancels_partial_order_but_preserves_simulated_inventory(tmp_pat
         store.close()
 
 
+def test_real_close_reopen_restart_preserves_partial_fill_and_settlement_idempotency(tmp_path):
+    path = tmp_path / "maker.sqlite"
+    store = MakerPaperAccountingStore(path)
+    original = store.save_new_order(_order("reopen-partial"))
+    partial = replace(
+        original,
+        simulated_filled_shares=3.25,
+        status=PARTIALLY_SIMULATED,
+        queue_ahead_shares=0.0,
+    )
+    store.update_order(
+        original,
+        partial,
+        event_type="TRADE_PROGRESS",
+        payload={"new_simulated_fill_shares": 3.25, "financial_authority": False},
+        recorded_at=NOW + 1.0,
+    )
+    store.close()
+
+    restarted = MakerPaperAccountingStore(path)
+    try:
+        before_cancel = restarted.load_order(original.order_id)
+        assert before_cancel.status == PARTIALLY_SIMULATED
+        assert before_cancel.simulated_filled_shares == pytest.approx(3.25)
+        assert restarted.cancel_open_after_restart(recorded_at=NOW + 10.0) == 1
+        cancelled = restarted.load_order(original.order_id)
+        assert cancelled.status == CANCELLED
+        assert cancelled.simulated_filled_shares == pytest.approx(3.25)
+        settled = restarted.record_settlement(
+            cancelled,
+            payout_per_share=1.0,
+            evidence={
+                "source": "GAMMA_CLOSED_MARKET_EXACT_TOKEN_PAYOUT",
+                "token_id": cancelled.token_id,
+                "payout": 1.0,
+                "financial_authority": False,
+            },
+            settled_at=NOW + 100.0,
+        )
+        assert settled["simulated_filled_shares"] == pytest.approx(3.25)
+        assert settled["simulated_capital_used"] == pytest.approx(1.30)
+    finally:
+        restarted.close()
+
+    reopened_again = MakerPaperAccountingStore(path)
+    try:
+        cancelled = reopened_again.load_order(original.order_id)
+        assert cancelled.status == CANCELLED
+        existing = reopened_again.settlement(original.order_id)
+        assert existing is not None
+        again = reopened_again.record_settlement(
+            cancelled,
+            payout_per_share=0.0,
+            evidence={"source": "must-not-overwrite", "financial_authority": False},
+            settled_at=NOW + 200.0,
+        )
+        assert again == existing
+        count = reopened_again.db.execute(
+            "SELECT COUNT(*) FROM weather_maker_shadow_events WHERE order_id=? AND event_type=?",
+            (cancelled.order_id, MAKER_SETTLEMENT_EVENT),
+        ).fetchone()[0]
+        assert count == 1
+        audit = reopened_again.audit_order(cancelled.order_id)
+        assert audit["sqlite_integrity"] == "ok"
+    finally:
+        reopened_again.close()
+
+
 def test_settlement_uses_exact_simulated_fill_quantity_and_is_idempotent(tmp_path):
     store = MakerPaperAccountingStore(tmp_path / "maker.sqlite")
     try:
