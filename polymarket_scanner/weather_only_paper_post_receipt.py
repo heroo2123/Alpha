@@ -356,6 +356,75 @@ class PostReceiptWeatherPaperStore(FinalCrashSafeWeatherPaperStore):
             raise WeatherPaperPositionError("V5_POSITION_LOST_AFTER_COMMIT")
         return self._decode_position(dict(final))
 
+    def mark_post_receipt_not_actionable(
+        self,
+        signal_id: int,
+        *,
+        decision_id: str,
+        event_id: str,
+        market_id: str | None,
+        side: str | None,
+        reason: str,
+        recorded_at: float | None = None,
+    ) -> None:
+        """Persist terminal non-actionability and its exact reason atomically."""
+        sid = int(signal_id)
+        if isinstance(signal_id, bool) or sid <= 0:
+            raise WeatherPaperPositionError("V5_SIGNAL_ID_INVALID")
+        did = _identity_text(decision_id, "V5_DECISION_ID_MISSING")
+        eid = _identity_text(event_id, "V5_EVENT_ID_MISSING")
+        why = _identity_text(reason, "V5_NOT_ACTIONABLE_REASON_MISSING")
+        at = time.time() if recorded_at is None else _finite(
+            recorded_at, "V5_NOT_ACTIONABLE_TIME_INVALID"
+        )
+        if at < 0.0:
+            raise WeatherPaperPositionError("V5_NOT_ACTIONABLE_TIME_INVALID")
+        with self._conn() as db:
+            try:
+                db.execute("BEGIN IMMEDIATE")
+                signal = db.execute(
+                    "SELECT payload_json,telegram_message_id FROM weather_paper_signals WHERE id=?",
+                    (sid,),
+                ).fetchone()
+                if signal is None:
+                    raise WeatherPaperPositionError("V5_SIGNAL_NOT_FOUND")
+                if signal["telegram_message_id"] is None:
+                    raise WeatherPaperPositionError("V5_TELEGRAM_RECEIPT_MISSING")
+                payload = _payload(signal["payload_json"])
+                if payload.get("paper_execution_protocol_version") != PAPER_EXECUTION_PROTOCOL_V5:
+                    raise WeatherPaperPositionError("V5_SIGNAL_PROTOCOL_MISMATCH")
+                existing = db.execute(
+                    "SELECT id FROM weather_paper_positions WHERE signal_id=?",
+                    (sid,),
+                ).fetchone()
+                if existing is not None:
+                    raise WeatherPaperPositionError("V5_NOT_ACTIONABLE_POSITION_ALREADY_EXISTS")
+                db.execute(
+                    "UPDATE weather_paper_signals SET status='POST_RECEIPT_NOT_ACTIONABLE' WHERE id=?",
+                    (sid,),
+                )
+                db.execute(
+                    """
+                    INSERT INTO weather_paper_decisions(
+                        decision_id,event_id,market_id,side,outcome,reason,created_at
+                    ) VALUES(?,?,?,?,?,?,?)
+                    """,
+                    (
+                        did,
+                        eid,
+                        None if market_id is None else str(market_id),
+                        None if side is None else str(side),
+                        "POST_RECEIPT_NOT_ACTIONABLE",
+                        why,
+                        at,
+                    ),
+                )
+                db.execute("COMMIT")
+            except Exception:
+                if db.in_transaction:
+                    db.execute("ROLLBACK")
+                raise
+
     def reconcile_v5_after_restart(self) -> dict:
         """Classify interrupted V5 work without reconstructing executable fills."""
         delivery_uncertain: list[int] = []
@@ -403,6 +472,8 @@ class PostReceiptWeatherPaperStore(FinalCrashSafeWeatherPaperStore):
                         "DELIVERY_UNCERTAIN",
                         "EXPIRED",
                         "ACTIONABILITY_UNPROVEN",
+                        "POST_RECEIPT_NOT_ACTIONABLE",
+                        "PAPER_ACCOUNTING_ERROR",
                     }:
                         db.execute(
                             "UPDATE weather_paper_signals SET status='ACTIONABILITY_UNPROVEN' WHERE id=?",
