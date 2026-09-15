@@ -97,6 +97,7 @@ for required in \
   polymarket_scanner/weather_only_operator_state_corrective.py \
   polymarket_scanner/weather_only_operator_state_corrective_v2.py \
   polymarket_scanner/weather_only_operator_state_corrective_v3.py \
+  polymarket_scanner/weather_only_operator_state_corrective_v4.py \
   polymarket_scanner/weather_only_all_paper_deployment_acceptance_v2.py \
   "${HASH_LOCK}"
 do
