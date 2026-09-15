@@ -1,4 +1,4 @@
-"""Render the isolated all-weather PAPER V8 systemd unit; never start it."""
+"""Render the isolated final all-weather PAPER service; never start it."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from pathlib import Path
 
 
 WEATHER_RELEASE_MARKER = "weather-paper-release.sha"
-ALL_PAPER_MODULE = "polymarket_scanner.weather_only_live_paper_all_signals_v8"
+ALL_PAPER_MODULE = "polymarket_scanner.weather_only_live_paper_all_signals_final"
 
 
 def render(app_dir: Path, config_dir: Path, user: str) -> str:
@@ -22,7 +22,7 @@ def render(app_dir: Path, config_dir: Path, user: str) -> str:
     verifier = f"/bin/bash {app_dir}/deploy/verify-runtime-release.sh {app_dir} {release_file}"
     state = "/var/lib/polymarket-weather-paper"
     return f"""[Unit]
-Description=Polymarket all-weather PAPER V8 research runtime
+Description=Polymarket final all-weather PAPER research runtime
 Wants=network-online.target
 After=network-online.target
 StartLimitIntervalSec=600
