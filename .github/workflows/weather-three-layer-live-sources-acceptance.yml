@@ -1,4 +1,5 @@
 name: weather-three-layer-live-sources-acceptance
+# Exact-head live provider acceptance for the cleaned deployment candidate.
 
 on:
   workflow_dispatch:
