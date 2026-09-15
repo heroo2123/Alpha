@@ -12,13 +12,15 @@ from .weather_only_live_paper_all_signals_v7 import ALL_PAPER_V7_RUNTIME_VERSION
 from .weather_only_live_paper_all_signals_v8 import ALL_PAPER_V8_RUNTIME_VERSION
 from .weather_only_live_paper_final import FINAL_MARKET_STATE_POLICY, FINAL_PAPER_RUNTIME_VERSION
 from .weather_only_maker_paper_accounting_v5 import MAKER_PAPER_ACCOUNTING_V5_VERSION
+from .weather_only_maker_trade_stream_v3 import MAKER_TRADE_STREAM_V3_VERSION
 from .weather_only_paper_post_receipt import PAPER_EXECUTION_PROTOCOL_V5, PAPER_POSITION_VERSION_V5
 
 
 ALL_PAPER_DEPLOYMENT_ACCEPTANCE_VERSION = (
-    "weather_all_paper_first_cycle_acceptance_v3_final_atomic_terminal_audit"
+    "weather_all_paper_first_cycle_acceptance_v4_complete_maker_safety_profile"
 )
 RESULT_LAG_BLOCK_REASON = "EXACT_WRH_CUTOFF_STATE_NOT_PROVEN"
+MAKER_NOTIFICATION_RETRY_POLICY = "AT_MOST_ONCE_AFTER_DURABLE_CLAIM"
 
 
 class AllPaperDeploymentAcceptanceError(RuntimeError):
@@ -103,6 +105,10 @@ def accept_first_all_paper_cycle(
         raise AllPaperDeploymentAcceptanceError("ALL_PAPER_POSITION_VERSION_MISMATCH")
     if status.get("maker_paper_accounting_version") != MAKER_PAPER_ACCOUNTING_V5_VERSION:
         raise AllPaperDeploymentAcceptanceError("ALL_PAPER_MAKER_ACCOUNTING_VERSION_MISMATCH")
+    if status.get("maker_trade_stream_version") != MAKER_TRADE_STREAM_V3_VERSION:
+        raise AllPaperDeploymentAcceptanceError("ALL_PAPER_MAKER_STREAM_VERSION_MISMATCH")
+    if status.get("maker_settlement_notification_retry_policy") != MAKER_NOTIFICATION_RETRY_POLICY:
+        raise AllPaperDeploymentAcceptanceError("ALL_PAPER_MAKER_NOTIFICATION_POLICY_MISMATCH")
 
     if status.get("cycle_ok") is not True:
         raise AllPaperDeploymentAcceptanceError("ALL_PAPER_FIRST_CYCLE_UNHEALTHY")
@@ -136,6 +142,12 @@ def accept_first_all_paper_cycle(
         ("post_receipt_execution_required", "ALL_PAPER_POST_RECEIPT_EXECUTION_NOT_REQUIRED"),
         ("post_receipt_exact_clob_required", "ALL_PAPER_POST_RECEIPT_CLOB_NOT_REQUIRED"),
         ("maker_public_ws_prospective_fill_required", "ALL_PAPER_MAKER_PROSPECTIVE_WS_NOT_REQUIRED"),
+        ("maker_healthy", "ALL_PAPER_MAKER_NOT_HEALTHY"),
+        ("maker_post_delivery_expiry_rechecked", "ALL_PAPER_MAKER_EXPIRY_RECHECK_NOT_PROVEN"),
+        ("maker_subscription_lifecycle_bounded", "ALL_PAPER_MAKER_SUBSCRIPTIONS_NOT_BOUNDED"),
+        ("maker_activation_failure_cleanup_complete", "ALL_PAPER_MAKER_ACTIVATION_CLEANUP_NOT_PROVEN"),
+        ("maker_settlement_duplicate_after_restart_guard", "ALL_PAPER_MAKER_RESULT_DUPLICATE_GUARD_NOT_PROVEN"),
+        ("maker_activation_accounting_atomic", "ALL_PAPER_MAKER_ACTIVATION_NOT_ATOMIC"),
         ("legacy_partial_hourly_summary_suppressed", "ALL_PAPER_LEGACY_SUMMARY_NOT_SUPPRESSED"),
         ("v5_terminal_not_actionable_audit_atomic", "ALL_PAPER_V5_TERMINAL_AUDIT_NOT_ATOMIC"),
     ):
@@ -146,6 +158,7 @@ def accept_first_all_paper_cycle(
         ("source_shock_calibrated_probability", "ALL_PAPER_SOURCE_SHOCK_CALIBRATION_NOT_FALSE"),
         ("maker_value_calibrated_probability", "ALL_PAPER_MAKER_CALIBRATION_NOT_FALSE"),
         ("maker_book_touch_counts_as_fill", "ALL_PAPER_MAKER_BOOK_TOUCH_FILL_NOT_FALSE"),
+        ("maker_stream_degraded", "ALL_PAPER_MAKER_STREAM_DEGRADED"),
         ("result_lag_paper_delivery_enabled", "ALL_PAPER_RESULT_LAG_NOT_GATED"),
         ("financial_delivery", "ALL_PAPER_FINANCIAL_DELIVERY_NOT_FALSE"),
         ("financial_authority", "ALL_PAPER_FINANCIAL_AUTHORITY_NOT_FALSE"),
