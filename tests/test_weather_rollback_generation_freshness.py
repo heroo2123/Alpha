@@ -59,3 +59,4 @@ def test_prepare_proves_rollback_tree_matches_current_venv_before_mutation():
     checkout = text.index('checkout --detach "${RELEASE_SHA}"')
     assert archive_verify < tree_verify < mutation_guard < checkout
     assert "polymarket_scanner/weather_only_operator_state_corrective_v3.py" in text
+    assert "polymarket_scanner/weather_only_operator_state_corrective_v4.py" in text
