@@ -29,7 +29,7 @@ jobs:
           python-version: "3.11"
       - name: Install exact runtime dependencies
         run: pip install -r requirements.txt
-      - name: Certify public maker trade semantics
+      - name: Certify public maker SELL trade semantics
         run: |
           python -m polymarket_scanner.weather_only_maker_live_semantics \
             --report weather-maker-trade-semantics-live.json \
@@ -38,7 +38,8 @@ jobs:
             --observe-seconds 120 \
             --correlate-seconds 45 \
             --target-ws-trades 8 \
-            --min-correlated-trades 3
+            --min-correlated-trades 3 \
+            --min-correlated-sell-trades 3
       - uses: actions/upload-artifact@v4
         if: always()
         with:
