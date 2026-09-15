@@ -2,20 +2,24 @@ from __future__ import annotations
 
 """Second independent-review corrective boundary for V5 PAPER accounting.
 
-This layer closes two residual integrity gaps without adding any order, wallet,
-signing or financial authority:
+This layer closes residual integrity gaps without adding any order, wallet, signing or
+financial authority:
 
 * every executable leg carries its own visible top-of-book quantity and aggregate
-  capacity is recomputed as the minimum across legs; and
+  capacity is recomputed as the minimum across legs;
 * the complete strong-identity precheck plus parent BEGIN IMMEDIATE admission is
   serialized with an OS file lock, so a conflicting concurrent retry cannot pass a
-  stale outer check and then hit the parent's weaker existing-position fast path.
+  stale outer check and then hit the parent's weaker existing-position fast path; and
+* multi-leg structural baskets remain useful Telegram research signals but are never
+  admitted to validated PAPER P&L because the public CLOB snapshots do not provide an
+  atomic cross-market basket execution primitive.
 
 The lock is deliberately external to SQLite. It covers the entire two-stage inherited
 validation/admission sequence across threads and processes on the single host.
 """
 
 import fcntl
+import math
 import os
 from pathlib import Path
 
@@ -25,12 +29,14 @@ from .weather_only_independent_review_corrective import (
     _finite,
     _same,
 )
-from .weather_only_paper_positions import WeatherPaperPositionError
+from .weather_only_paper_positions import WeatherPaperPositionError, _payload
+from .weather_only_paper_post_receipt import PAPER_EXECUTION_PROTOCOL_V5
 
 
 INDEPENDENT_REVIEW_CORRECTIVE_V2_VERSION = (
-    "weather_all_paper_independent_review_corrective_v2_capacity_serialized_admission"
+    "weather_all_paper_independent_review_corrective_v2_capacity_serialized_structural_theoretical"
 )
+STRUCTURAL_THEORETICAL_ONLY_REASON = "STRUCTURAL_MULTI_LEG_ATOMIC_EXECUTION_UNPROVEN"
 
 
 class IndependentReviewPostReceiptStoreV2(IndependentReviewPostReceiptStore):
@@ -77,6 +83,89 @@ class IndependentReviewPostReceiptStoreV2(IndependentReviewPostReceiptStore):
     def _admission_lock_path(self) -> Path:
         return self.path.with_name(self.path.name + ".v5-admission.lock")
 
+    def _mark_structural_theoretical_only(self, signal_id: int, normalized: dict) -> dict:
+        """Validate exact signal identity, then atomically terminate without a position."""
+        sid = int(signal_id)
+        with self._conn() as db:
+            signal = db.execute(
+                "SELECT * FROM weather_paper_signals WHERE id=?", (sid,)
+            ).fetchone()
+            existing = db.execute(
+                "SELECT * FROM weather_paper_positions WHERE signal_id=?", (sid,)
+            ).fetchone()
+        if signal is None:
+            raise WeatherPaperPositionError("V5_SIGNAL_NOT_FOUND")
+        if existing is not None:
+            # A historical validated basket is not silently rewritten by the new
+            # policy. Any retry must still match its exact stored execution identity.
+            signal_dict = dict(signal)
+            payload = _payload(signal_dict.get("payload_json"))
+            stored = payload.get("post_receipt_execution")
+            if not isinstance(stored, dict):
+                raise WeatherPaperPositionError("V5_EXISTING_EXECUTION_EVIDENCE_MISSING")
+            if self._execution_identity(stored) != self._execution_identity(normalized):
+                raise WeatherPaperPositionError("V5_EXISTING_EXECUTION_IDENTITY_CONFLICT")
+            return self._decode_position(dict(existing))
+
+        signal_dict = dict(signal)
+        payload = _payload(signal_dict.get("payload_json"))
+        if payload.get("paper_execution_protocol_version") != PAPER_EXECUTION_PROTOCOL_V5:
+            raise WeatherPaperPositionError("V5_SIGNAL_PROTOCOL_MISMATCH")
+        if str(payload.get("decision_id") or "") != str(normalized["decision_id"]):
+            raise WeatherPaperPositionError("V5_DECISION_IDENTITY_MISMATCH")
+        try:
+            payload_expiry = float(payload.get("decision_expires_at"))
+        except (TypeError, ValueError, OverflowError):
+            raise WeatherPaperPositionError("V5_SIGNAL_EXPIRY_INVALID") from None
+        if not math.isfinite(payload_expiry) or not _same(
+            payload_expiry, normalized["decision_expires_at"]
+        ):
+            raise WeatherPaperPositionError("V5_EXPIRY_IDENTITY_MISMATCH")
+        if signal_dict.get("telegram_message_id") is None or signal_dict.get("telegram_sent_at") is None:
+            raise WeatherPaperPositionError("V5_TELEGRAM_RECEIPT_MISSING")
+        sent_at = _finite(signal_dict.get("telegram_sent_at"), "V5_TELEGRAM_SENT_AT_INVALID")
+        if normalized["post_receipt_recheck_started_at"] + 1e-9 < sent_at:
+            raise WeatherPaperPositionError("V5_POST_RECEIPT_RECHECK_NOT_CAUSAL")
+        if (
+            sent_at >= normalized["decision_expires_at"]
+            or normalized["post_receipt_recheck_finished_at"] >= normalized["decision_expires_at"]
+        ):
+            raise WeatherPaperPositionError("V5_DECISION_EXPIRED")
+        signal_payout = signal_dict.get("theoretical_payout")
+        if signal_payout is None or not _same(
+            _finite(signal_payout, "V5_SIGNAL_PAYOUT_INVALID"),
+            normalized["theoretical_payout_per_unit"],
+        ):
+            raise WeatherPaperPositionError("V5_PAYOUT_IDENTITY_MISMATCH")
+        expected_markets = tuple(str(value) for value in (payload.get("market_ids") or ()))
+        expected_tokens = tuple(str(value) for value in (payload.get("token_ids") or ()))
+        actual_markets = tuple(str(leg["market_id"]) for leg in normalized["legs"])
+        actual_tokens = tuple(str(leg["token_id"]) for leg in normalized["legs"])
+        if not expected_markets or not expected_tokens:
+            raise WeatherPaperPositionError("V5_STRUCTURAL_SIGNAL_LEGS_MISSING")
+        if expected_markets != actual_markets or expected_tokens != actual_tokens:
+            raise WeatherPaperPositionError("V5_STRUCTURAL_SIGNAL_LEGS_MISMATCH")
+        if str(signal_dict.get("status") or "") != "POST_RECEIPT_RECHECK":
+            raise WeatherPaperPositionError("V5_SIGNAL_PRESTATE_INVALID")
+
+        self.mark_post_receipt_not_actionable(
+            sid,
+            decision_id=str(normalized["decision_id"]),
+            event_id=str(signal_dict.get("event_id") or ""),
+            market_id=None,
+            side="BASKET",
+            reason=STRUCTURAL_THEORETICAL_ONLY_REASON,
+            recorded_at=float(normalized["post_receipt_recheck_finished_at"]),
+        )
+        return {
+            "status": "THEORETICAL_ONLY",
+            "signal_id": sid,
+            "decision_id": str(normalized["decision_id"]),
+            "reason": STRUCTURAL_THEORETICAL_ONLY_REASON,
+            "validated_paper_position_created": False,
+            "financial_authority": False,
+        }
+
     def admit_post_receipt_position(
         self, signal_id: int, target_stake_usd: float, execution: dict
     ) -> dict:
@@ -86,10 +175,12 @@ class IndependentReviewPostReceiptStoreV2(IndependentReviewPostReceiptStore):
         try:
             os.fchmod(fd, 0o600)
             fcntl.flock(fd, fcntl.LOCK_EX)
-            # Re-normalize only after acquiring the cross-process lock.  The inherited
+            # Re-normalize only after acquiring the cross-process lock. The inherited
             # strong signal/execution identity checks and the parent's SQLite
             # BEGIN IMMEDIATE transaction now run as one serialized admission unit.
             normalized = self._normalized_execution(execution)
+            if len(normalized["legs"]) > 1:
+                return self._mark_structural_theoretical_only(signal_id, normalized)
             return super().admit_post_receipt_position(
                 signal_id, target_stake_usd, normalized
             )
