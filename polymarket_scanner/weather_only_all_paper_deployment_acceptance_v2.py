@@ -17,7 +17,7 @@ from .weather_only_operator_state_corrective_v3 import OPERATOR_STATE_CORRECTIVE
 
 
 ALL_PAPER_DEPLOYMENT_ACCEPTANCE_V2_VERSION = (
-    "weather_all_paper_first_cycle_acceptance_v10_operator_sync_attested_config_strict_terminal"
+    "weather_all_paper_first_cycle_acceptance_v11_restart_visibility_startup_sync"
 )
 
 
@@ -91,6 +91,8 @@ def accept_first_all_paper_cycle_v2(
         ("implicit_nontelegram_settings_defaulted", "ALL_PAPER_NONTELEGRAM_SETTINGS_NOT_DEFAULTED"),
         ("terminal_invalidation_identity_strict", "ALL_PAPER_TERMINAL_IDENTITY_NOT_STRICT"),
         ("terminal_invalidation_requires_post_receipt_prestate", "ALL_PAPER_TERMINAL_PRESTATE_NOT_STRICT"),
+        ("operator_restart_visibility_required", "ALL_PAPER_OPERATOR_RESTART_VISIBILITY_NOT_REQUIRED"),
+        ("operator_sync_before_startup_required", "ALL_PAPER_OPERATOR_STARTUP_SYNC_NOT_REQUIRED"),
         ("operator_recent_terminal_reason_visible", "ALL_PAPER_RECENT_TERMINAL_REASON_NOT_VISIBLE"),
         ("maker_proposal_queue_uncertified_label", "ALL_PAPER_MAKER_QUEUE_LABEL_NOT_PROVEN"),
     ):
