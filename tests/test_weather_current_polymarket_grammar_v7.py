@@ -3,11 +3,27 @@ from __future__ import annotations
 from datetime import date
 from types import SimpleNamespace
 
+import pytest
+
 from polymarket_scanner.weather_only_contract_strict import (
     _question_supported,
     _supported_nws_rule_structure,
 )
 from polymarket_scanner.weather_only_contracts import DAILY_HIGH, DAILY_LOW
+
+
+CURRENT_REVIEWED_F_STATIONS = (
+    ("KATL", "Hartsfield-Jackson International Airport"),
+    ("KAUS", "Austin-Bergstrom International Airport"),
+    ("KBKF", "Buckley Space Force Base"),
+    ("KDAL", "Dallas Love Field"),
+    ("KHOU", "William P. Hobby Airport"),
+    ("KLAX", "Los Angeles International Airport"),
+    ("KMIA", "Miami Intl Airport"),
+    ("KORD", "Chicago O'Hare Intl Airport"),
+    ("KSEA", "Seattle-Tacoma International Airport"),
+    ("KSFO", "San Francisco International Airport"),
+)
 
 
 def _compiled(*, family: str, unit: str, station: str, target: date):
@@ -128,11 +144,14 @@ def test_current_celsius_rule_template_is_fully_consumed():
     assert _supported_nws_rule_structure(rules, compiled)
 
 
-def test_current_fahrenheit_rule_template_is_fully_consumed():
+@pytest.mark.parametrize(("station", "station_name"), CURRENT_REVIEWED_F_STATIONS)
+def test_current_fahrenheit_rule_template_accepts_only_reviewed_station_name_code_pairs(
+    station: str, station_name: str
+):
     rules = _current_rules(
         statistic="lowest",
-        station_name="Seattle-Tacoma International Airport",
-        station="KSEA",
+        station_name=station_name,
+        station=station,
         unit_word="Fahrenheit",
         unit_symbol="°F",
         hourly_clause='This market will resolve off of the Hourly Data provided using the "Show Hourly Data" button. ',
@@ -142,10 +161,30 @@ def test_current_fahrenheit_rule_template_is_fully_consumed():
     compiled = _compiled(
         family=DAILY_LOW,
         unit="F",
-        station="KSEA",
+        station=station,
         target=date(2026, 9, 15),
     )
     assert _supported_nws_rule_structure(rules, compiled)
+
+
+def test_current_fahrenheit_rule_rejects_cross_station_name_code_pair():
+    rules = _current_rules(
+        statistic="highest",
+        station_name="San Francisco International Airport",
+        station="KSFO",
+        unit_word="Fahrenheit",
+        unit_symbol="°F",
+        hourly_clause='This market will resolve off of the Hourly Data provided using the "Show Hourly Data" button. ',
+        switch_button="Switch to US Units w/ kts",
+        example="21°F",
+    )
+    compiled = _compiled(
+        family=DAILY_HIGH,
+        unit="F",
+        station="KSEA",
+        target=date(2026, 9, 15),
+    )
+    assert not _supported_nws_rule_structure(rules, compiled)
 
 
 def test_current_rule_template_rejects_station_semantic_mismatch_and_extra_suffix():
