@@ -10,6 +10,7 @@ on:
       - "polymarket_scanner/weather_only_maker_trade_stream_v2.py"
       - "tests/test_weather_maker_trade_stream.py"
       - "tests/test_weather_maker_trade_stream_identity.py"
+      - "tests/test_weather_maker_trade_stream_causality.py"
       - ".github/workflows/weather-maker-trade-semantics-live.yml"
 
 permissions:
