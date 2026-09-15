@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-# Prepare one immutable all-weather PAPER V8 candidate. Never start/enable it.
+# Prepare one immutable final all-weather PAPER candidate. Never start/enable it.
 APP_DIR="${ALPHA_WEATHER_APP_DIR:-${HOME}/polymarket-weather-paper-app}"
 CONFIG_DIR="${ALPHA_CONFIG_DIR:-${HOME}/.polymarket-edge-scanner}"
 RELEASE_FILE="${CONFIG_DIR}/weather-paper-release.sha"
@@ -9,7 +9,7 @@ REPOSITORY_URL="${ALPHA_WEATHER_REPOSITORY_URL:-https://github.com/heroo2123/Alp
 SOURCE_REF="${ALPHA_WEATHER_SOURCE_REF:-${2:-weather-all-paper-corrective-v7-2026-09-15}}"
 RELEASE_SHA="${1:-}"
 UNIT="polymarket-weather-paper.service"
-FINAL_MODULE="polymarket_scanner.weather_only_live_paper_all_signals_v8"
+FINAL_MODULE="polymarket_scanner.weather_only_live_paper_all_signals_final"
 
 fail(){ printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 [[ "${RELEASE_SHA}" =~ ^[0-9a-fA-F]{40}$ ]] || fail "usage: $0 <exact-release-sha> [source-branch]"
@@ -58,6 +58,7 @@ for required in \
   deploy/enable-all-paper-persistence.sh \
   deploy/verify-three-layer-validation-status.py \
   deploy/verify-three-layer-fresh-capture.py \
+  polymarket_scanner/weather_only_live_paper_all_signals_final.py \
   polymarket_scanner/weather_only_live_paper_all_signals_v8.py \
   polymarket_scanner/weather_only_live_paper_all_signals_v7.py \
   polymarket_scanner/weather_only_paper_post_receipt.py \
@@ -67,7 +68,7 @@ for required in \
   [[ -f "${APP_DIR}/${required}" ]] || fail "candidate lacks required all-PAPER file: ${required}"
 done
 
-grep -qF "${FINAL_MODULE}" "${APP_DIR}/deploy/render-all-paper-unit.py" || fail "all-PAPER renderer does not point to V8 entrypoint"
+grep -qF "${FINAL_MODULE}" "${APP_DIR}/deploy/render-all-paper-unit.py" || fail "all-PAPER renderer does not point to final entrypoint"
 grep -qF 'weather-paper-release.sha' "${APP_DIR}/deploy/render-all-paper-unit.py" || fail "all-PAPER candidate does not use isolated release marker"
 
 if [[ ! -x "${APP_DIR}/.venv/bin/python" ]]; then
@@ -89,7 +90,7 @@ for raw in Path(sys.argv[1]).read_text(encoding="utf-8").splitlines():
         raise SystemExit(f"dependency pin mismatch: {name} {installed} != {expected}")
 print("All-PAPER runtime dependency pins match exactly.")
 PY
-PYTHONPATH="${APP_DIR}" "${APP_DIR}/.venv/bin/python" -c "import ${FINAL_MODULE}; print('All-PAPER V8 runtime import passed.')"
+PYTHONPATH="${APP_DIR}" "${APP_DIR}/.venv/bin/python" -c "import ${FINAL_MODULE}; print('Final all-PAPER runtime import passed.')"
 
 mkdir -p "${CONFIG_DIR}"
 umask 077
@@ -101,6 +102,6 @@ mv -f "${TMP_MARKER}" "${RELEASE_FILE}"
 trap - EXIT
 bash "${APP_DIR}/deploy/verify-runtime-release.sh" "${APP_DIR}" "${RELEASE_FILE}"
 
-printf '\nAll-PAPER V8 candidate prepared but NOT started or enabled.\n'
+printf '\nFinal all-PAPER candidate prepared but NOT started or enabled.\n'
 printf 'Release: %s\n' "${ACTUAL_SHA}"
 printf 'Source ref: %s\n' "${SOURCE_REF}"
