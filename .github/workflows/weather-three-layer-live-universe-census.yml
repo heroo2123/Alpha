@@ -1,4 +1,6 @@
 name: weather-three-layer-live-universe-census
+# Final corrective candidate trigger: this file is watched by both the live-universe
+# census and the guarded live-source acceptance so both certify the same immutable SHA.
 
 on:
   workflow_dispatch:
