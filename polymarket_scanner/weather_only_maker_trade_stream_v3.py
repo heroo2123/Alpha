@@ -9,7 +9,9 @@ stream waits locally instead of reconnect-looping while the desired set is empty
 
 Removing one inactive token never advances the global generation for unrelated active
 orders.  Any real connection loss still advances the generation through the inherited
-gap semantics, so active virtual orders continue to fail closed.
+gap semantics, so active virtual orders continue to fail closed.  A failed dynamic
+subscribe is rolled back locally and the socket is closed so local/server subscription
+state can never remain silently divergent.
 """
 
 import asyncio
@@ -58,7 +60,23 @@ class ProspectiveMakerTradeStreamV3(ProspectiveMakerTradeStreamV2):
             return
         if len(self._desired) >= MAKER_TRADE_STREAM_MAX_TOKENS:
             raise MakerTradeStreamError("MAKER_STREAM_TOKEN_CAP")
-        await super().subscribe(token)
+        try:
+            await super().subscribe(token)
+        except Exception:
+            # The foundation adds to _desired before sending a dynamic subscribe on
+            # an already-connected socket.  If that send fails, roll the addition
+            # back and force the socket down so any surviving active tokens re-enter
+            # through a new generation rather than trusting divergent local/server
+            # subscription state.
+            self._desired.discard(token)
+            self.buffer.forget_token(token)
+            ws = self._ws
+            if ws is not None:
+                try:
+                    await ws.close()
+                except Exception:
+                    pass
+            raise MakerTradeStreamError("MAKER_STREAM_SUBSCRIBE_SEND_FAILED") from None
         self._desired_event.set()
 
     async def unsubscribe(self, token_id: str) -> None:
@@ -106,6 +124,7 @@ class ProspectiveMakerTradeStreamV3(ProspectiveMakerTradeStreamV2):
                 "foundation_version": MAKER_TRADE_STREAM_V2_VERSION,
                 "version": MAKER_TRADE_STREAM_V3_VERSION,
                 "bounded_subscription_lifecycle": True,
+                "failed_dynamic_subscribe_rolls_back": True,
                 "idle_without_network_reconnect": not self._desired and not self.connected,
             }
         )
