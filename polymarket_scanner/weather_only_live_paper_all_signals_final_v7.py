@@ -1,19 +1,6 @@
 from __future__ import annotations
 
-"""Final all-PAPER wrapper with fail-closed runtime configuration attestation.
-
-The all-weather PAPER service is intended to be determined by the reviewed source SHA,
-its explicit CLI arguments and the isolated two-key Telegram environment file.  Generic
-``pydantic-settings`` environment overrides and an ignored working-directory ``.env``
-must not silently change provider/discovery/runtime behaviour under the same SHA.
-
-This wrapper therefore requires deployment to set ``ALPHA_DISABLE_DOTENV=1`` and
-requires every non-Telegram Settings field to equal its compiled default before the
-service is constructed.  Telegram credentials remain the only Settings values allowed
-to differ because they are explicitly supplied by the isolated service environment.
-
-No authenticated trading, wallet, signing, order or cancellation capability is added.
-"""
+"""Final all-PAPER wrapper with fail-closed config and terminal-state attestation."""
 
 import argparse
 import asyncio
@@ -31,10 +18,16 @@ from .weather_only_live_paper import (
 )
 from .weather_only_live_paper_all_signals_final_v6 import FinalAllPaperWeatherLiveServiceV6
 from .weather_only_live_paper_v2 import DEFAULT_PAPER_STAKE_USD
+from .weather_only_operator_state_corrective import OperatorStateCommandController
+from .weather_only_operator_state_corrective_v3 import (
+    OPERATOR_STATE_CORRECTIVE_V3_VERSION,
+    OperatorStatePostReceiptStoreV3,
+)
+from .weather_only_paper_corrective import CorrectiveSettlementEngine
 
 
 FINAL_ALL_PAPER_RUNTIME_V7_VERSION = (
-    "weather_all_paper_final_v10_attested_config_defaults"
+    "weather_all_paper_final_v10_attested_config_strict_terminal_identity"
 )
 _DOTENV_DISABLE_TRUE = {"1", "true", "yes", "on"}
 _ALLOWED_SETTINGS_OVERRIDES = {"telegram_bot_token", "telegram_chat_id"}
@@ -43,7 +36,6 @@ _ALLOWED_SETTINGS_OVERRIDES = {"telegram_bot_token", "telegram_chat_id"}
 def assert_attested_all_paper_configuration() -> None:
     if os.environ.get("ALPHA_DISABLE_DOTENV", "").strip().lower() not in _DOTENV_DISABLE_TRUE:
         raise RuntimeError("ALL_PAPER_DOTENV_DISABLE_NOT_ASSERTED")
-
     candidates = {Path.cwd() / ".env", Path(__file__).resolve().parents[1] / ".env"}
     if any(path.exists() for path in candidates):
         raise RuntimeError("ALL_PAPER_IMPLICIT_DOTENV_FORBIDDEN")
@@ -55,9 +47,7 @@ def assert_attested_all_paper_configuration() -> None:
         if field.is_required():
             unexpected.append(f"{name}=REQUIRED_WITHOUT_COMPILED_DEFAULT")
             continue
-        expected = field.default
-        actual = getattr(settings, name)
-        if actual != expected:
+        if getattr(settings, name) != field.default:
             unexpected.append(name)
     if unexpected:
         raise RuntimeError(
@@ -69,16 +59,42 @@ class FinalAllPaperWeatherLiveServiceV7(FinalAllPaperWeatherLiveServiceV6):
     def __init__(self, **kwargs) -> None:
         assert_attested_all_paper_configuration()
         super().__init__(**kwargs)
+        self._v7_superseded_settlement = self.settlement
+        self._v7_superseded_commands = self.commands
+        self.positions = OperatorStatePostReceiptStoreV3(self.db_path)
+        self._v7_recovery = self.positions.reconcile_v5_after_restart()
+        self.settlement = CorrectiveSettlementEngine(
+            store=self.positions, telegram=self.telegram
+        )
+        self.commands = OperatorStateCommandController(
+            telegram=self.telegram,
+            store=self.positions,
+            maker_store=self.maker_store,
+            status_path=self.status_path,
+            paper_stake_usd=self.paper_stake_usd,
+        )
+
+    async def close(self) -> None:
+        await asyncio.gather(
+            self.settlement.close(),
+            self.commands.close(),
+            self._v7_superseded_settlement.close(),
+            self._v7_superseded_commands.close(),
+            return_exceptions=True,
+        )
+        await super().close()
 
     async def run_cycle(self) -> dict:
         status = dict(await super().run_cycle())
         status.update(
             {
                 "final_all_paper_runtime_v7_version": FINAL_ALL_PAPER_RUNTIME_V7_VERSION,
+                "operator_state_corrective_v3_version": OPERATOR_STATE_CORRECTIVE_V3_VERSION,
                 "dotenv_loading_disabled": True,
                 "implicit_nontelegram_settings_defaulted": True,
                 "isolated_settings_overrides": sorted(_ALLOWED_SETTINGS_OVERRIDES),
                 "terminal_invalidation_identity_strict": True,
+                "terminal_invalidation_requires_post_receipt_prestate": True,
                 "operator_recent_terminal_reason_visible": True,
                 "maker_proposal_queue_uncertified_label": True,
                 "financial_delivery": False,
