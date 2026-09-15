@@ -23,6 +23,13 @@ def _checked(*, fee_rate: float, taker_only: bool | None):
     return ({"entry_cost": 0.5}, object(), object(), params)
 
 
+def _assert_same_components(actual, expected) -> None:
+    assert actual is not None
+    assert len(actual) == len(expected) == 4
+    for observed, wanted in zip(actual, expected):
+        assert observed is wanted
+
+
 def test_same_day_positive_fee_without_taker_only_proof_fails_closed(monkeypatch):
     async def inherited(self, candidate, event, *, after_time):
         return _checked(fee_rate=0.02, taker_only=None)
@@ -43,7 +50,7 @@ def test_same_day_positive_fee_with_taker_only_proof_is_allowed(monkeypatch):
 
     monkeypatch.setattr(AllPaperWeatherLiveV8Service, "_same_day_exact_recheck", inherited)
     actual = asyncio.run(_service()._same_day_exact_recheck({}, {}, after_time=123.0))
-    assert actual is expected
+    _assert_same_components(actual, expected)
 
 
 def test_same_day_zero_fee_does_not_require_taker_only_metadata(monkeypatch):
@@ -54,7 +61,7 @@ def test_same_day_zero_fee_does_not_require_taker_only_metadata(monkeypatch):
 
     monkeypatch.setattr(AllPaperWeatherLiveV8Service, "_same_day_exact_recheck", inherited)
     actual = asyncio.run(_service()._same_day_exact_recheck({}, {}, after_time=None))
-    assert actual is expected
+    _assert_same_components(actual, expected)
 
 
 def test_same_day_none_from_inherited_recheck_stays_none(monkeypatch):
