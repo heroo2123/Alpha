@@ -4,17 +4,17 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - weather-maker-vacuum-foundation
+      - weather-all-paper-signals-2026-09-15
     paths:
-      - "polymarket_scanner/weather_only_trade_feed.py"
-      - "tests/test_weather_only_trade_feed*.py"
+      - "polymarket_scanner/weather_only_trade_feed_public_v2.py"
+      - "tests/test_weather_trade_feed_public_v2.py"
       - ".github/workflows/weather-maker-data-v2-contract.yml"
 
 permissions:
   contents: read
 
 jobs:
-  live-data-v2-contract:
+  live-public-trade-contract:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -22,63 +22,86 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Verify documented Data API v2 trade contract and anonymous rejection
+      - name: Verify current public Data API trade contract
         run: |
           python - <<'PY'
           import json
-          import urllib.error
           import urllib.request
 
-          DOCS = "https://docs.polymarket.com/api-reference/feeds/list-trades"
-          OPENAPI = "https://data-api.polymarket.com/v2/openapi.json"
-          TRADES = "https://data-api.polymarket.com/v2/trades?limit=1&taker_only=true&filter_type=TOKENS&filter_amount=0.01"
-
-          def status(url: str) -> int:
-              request = urllib.request.Request(url, method="GET")
-              try:
-                  with urllib.request.urlopen(request, timeout=15) as response:
-                      return int(response.status)
-              except urllib.error.HTTPError as exc:
-                  return int(exc.code)
-
-          # Mintlify's endpoint page is public even when the Data API production edge
-          # blocks anonymous GitHub-runner traffic. Verify the human-facing contract
-          # without pretending that an unauthenticated payload proves the feed itself.
-          docs_request = urllib.request.Request(DOCS, headers={"User-Agent": "Mozilla/5.0"})
-          with urllib.request.urlopen(docs_request, timeout=15) as response:
-              assert response.status == 200
-              docs = response.read().decode("utf-8", errors="strict")
-          required_fragments = (
-              "data-api.polymarket.com/v2/trades",
-              "Authorization",
-              "Bearer",
-              "cursor",
-              "taker_only",
-              "filter_type",
-              "filter_amount",
-              "condition",
-              "next_cursor",
+          DOCS = "https://docs.polymarket.com/api-reference/core/get-trades-for-a-user-or-markets"
+          DATA = (
+              "https://data-api.polymarket.com/trades"
+              "?limit=5&offset=0&takerOnly=true&filterType=TOKENS&filterAmount=0.01"
           )
-          missing = [fragment for fragment in required_fragments if fragment not in docs]
-          assert not missing, missing
+          AUTH_CLOB_DOCS = "https://docs.polymarket.com/api-reference/trade/get-trades"
 
-          openapi_status = status(OPENAPI)
-          anonymous_status = status(TRADES)
-          # Current production may distinguish missing bearer from automated/WAF traffic
-          # as 401 vs 403. Either is a fail-closed anonymous rejection; a 200 would mean
-          # the auth boundary changed and this gate must be reviewed before relying on it.
-          assert openapi_status in {401, 403}, openapi_status
-          assert anonymous_status in {401, 403}, anonymous_status
+          def get_text(url: str) -> tuple[int, bytes]:
+              request = urllib.request.Request(
+                  url,
+                  method="GET",
+                  headers={
+                      "User-Agent": "Mozilla/5.0 weather-maker-contract-gate/2.0",
+                      "Accept": "application/json,text/html;q=0.9,*/*;q=0.8",
+                  },
+              )
+              with urllib.request.urlopen(request, timeout=20) as response:
+                  return int(response.status), response.read()
+
+          docs_status, docs_raw = get_text(DOCS)
+          assert docs_status == 200, docs_status
+          docs = docs_raw.decode("utf-8", errors="strict")
+          required_docs = (
+              "data-api.polymarket.com/trades",
+              "takerOnly",
+              "filterType",
+              "filterAmount",
+              "conditionId",
+              "transactionHash",
+              "proxyWallet",
+              "offset",
+          )
+          missing = [value for value in required_docs if value not in docs]
+          assert not missing, ("public docs drift", missing)
+
+          auth_status, auth_raw = get_text(AUTH_CLOB_DOCS)
+          assert auth_status == 200, auth_status
+          auth_docs = auth_raw.decode("utf-8", errors="strict")
+          # Keep the two similarly named feeds distinct.  The CLOB user-trades route
+          # is authenticated; the maker shadow uses only the public Data API above.
+          for fragment in ("clob.polymarket.com/trades", "POLY_API_KEY", "authenticated user"):
+              assert fragment in auth_docs, fragment
+
+          data_status, data_raw = get_text(DATA)
+          assert data_status == 200, data_status
+          payload = json.loads(data_raw.decode("utf-8", errors="strict"))
+          assert isinstance(payload, list), type(payload).__name__
+          assert 1 <= len(payload) <= 5, len(payload)
+          required_row = {
+              "proxyWallet", "side", "asset", "conditionId", "size", "price",
+              "timestamp", "outcome", "outcomeIndex", "transactionHash",
+          }
+          for row in payload:
+              assert isinstance(row, dict), type(row).__name__
+              absent = required_row - set(row)
+              assert not absent, ("row schema drift", sorted(absent))
+              assert row["side"] in {"BUY", "SELL"}, row["side"]
+              assert str(row["conditionId"]).startswith("0x")
+              assert str(row["asset"]).strip()
+              assert str(row["transactionHash"]).startswith("0x")
+              assert float(row["size"]) > 0
+              assert 0 < float(row["price"]) < 1
+              assert int(row["timestamp"]) > 0
 
           report = {
               "documentation_contract_verified": True,
-              "trade_path": "/v2/trades",
-              "cursor_only_expected": True,
-              "max_page_size_expected": 1000,
-              "openapi_anonymous_status": openapi_status,
-              "trades_anonymous_status": anonymous_status,
-              "anonymous_access_rejected": True,
-              "authenticated_live_payload_verified": False,
+              "public_trade_url": "https://data-api.polymarket.com/trades",
+              "public_data_api_http_status": data_status,
+              "public_data_api_anonymous_access": True,
+              "schema": "camelCase array",
+              "pagination": "offset_limit",
+              "taker_only_requested": True,
+              "sample_rows": len(payload),
+              "authenticated_clob_trade_route_kept_separate": True,
               "actual_fill_authority": False,
               "financial_authority": False,
           }
