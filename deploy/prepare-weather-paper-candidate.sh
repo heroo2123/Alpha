@@ -70,6 +70,7 @@ for required in \
   deploy/start-weather-paper-candidate.sh \
   deploy/verify-weather-paper-first-cycle.py \
   deploy/verify-three-layer-validation-status.py \
+  deploy/verify-three-layer-fresh-capture.py \
   deploy/enable-weather-paper-persistence.sh \
   polymarket_scanner/weather_only_live_paper_corrective.py \
   polymarket_scanner/weather_only_live_paper_final.py \
