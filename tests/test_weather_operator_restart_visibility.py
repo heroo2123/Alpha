@@ -16,15 +16,15 @@ from polymarket_scanner.weather_only_live_paper_all_signals_final_v7 import (
     FinalAllPaperWeatherLiveServiceV7,
 )
 from polymarket_scanner.weather_only_operator_state_corrective import OPERATOR_SYNC_PENDING
-from polymarket_scanner.weather_only_operator_state_corrective_v3 import (
-    OperatorStatePostReceiptStoreV3,
+from polymarket_scanner.weather_only_operator_state_corrective_v4 import (
+    OperatorStatePostReceiptStoreV4,
 )
 from polymarket_scanner.weather_only_paper_post_receipt import PAPER_EXECUTION_PROTOCOL_V5
 
 NOW = 1_900_000_000.0
 
 
-def _delivered_recheck(store: OperatorStatePostReceiptStoreV3) -> int:
+def _delivered_recheck(store: OperatorStatePostReceiptStoreV4) -> int:
     sid = store.save_signal(
         fingerprint="restart-visible-fingerprint",
         lane="weather_same_day_friend_lock",
@@ -54,13 +54,13 @@ def _delivered_recheck(store: OperatorStatePostReceiptStoreV3) -> int:
     return sid
 
 
-def test_v3_surfaces_alert_recovered_before_operator_generation_marker(tmp_path):
-    store = OperatorStatePostReceiptStoreV3(tmp_path / "paper.sqlite")
+def test_v4_surfaces_alert_recovered_before_operator_generation_marker(tmp_path):
+    store = OperatorStatePostReceiptStoreV4(tmp_path / "paper.sqlite")
     sid = _delivered_recheck(store)
 
     # Reproduce the first-deployment ordering: an older wrapper performs V5 restart
     # reconciliation before the operator-sync layer establishes/uses its generation
-    # marker.  This converts the delivered signal to ACTIONABILITY_UNPROVEN without an
+    # marker. This converts the delivered signal to ACTIONABILITY_UNPROVEN without an
     # operator-sync row.
     legacy = IndependentReviewPostReceiptStoreV3.reconcile_v5_after_restart(store)
     assert legacy["actionability_unproven_after_restart"] == 1
@@ -68,10 +68,14 @@ def test_v3_surfaces_alert_recovered_before_operator_generation_marker(tmp_path)
         status = db.execute(
             "SELECT status FROM weather_paper_signals WHERE id=?", (sid,)
         ).fetchone()[0]
+        original_fp = db.execute(
+            "SELECT fingerprint FROM weather_paper_signals WHERE id=?", (sid,)
+        ).fetchone()[0]
         sync_count = db.execute(
             "SELECT COUNT(*) FROM weather_paper_operator_sync WHERE signal_id=?", (sid,)
         ).fetchone()[0]
     assert status == "ACTIONABILITY_UNPROVEN"
+    assert original_fp == "restart-visible-fingerprint"
     assert sync_count == 0
 
     repaired = store.reconcile_v5_after_restart()
@@ -82,6 +86,11 @@ def test_v3_surfaces_alert_recovered_before_operator_generation_marker(tmp_path)
     assert int(pending[0]["signal_id"]) == sid
     assert pending[0]["state"] == OPERATOR_SYNC_PENDING
     assert "INVALIDATED" in pending[0]["message_text"]
+    # Merely creating the recovery edit must not rewrite historical evidence.
+    with store._conn() as db:
+        assert db.execute(
+            "SELECT fingerprint FROM weather_paper_signals WHERE id=?", (sid,)
+        ).fetchone()[0] == "restart-visible-fingerprint"
 
 
 def test_final_startup_synchronizes_terminal_messages_before_online(monkeypatch):
