@@ -7,6 +7,7 @@ from polymarket_scanner.weather_only_all_paper_deployment_acceptance import (
     accept_first_all_paper_cycle,
 )
 from polymarket_scanner.weather_only_live_paper import MODE
+from polymarket_scanner.weather_only_live_paper_all_signals_final import FINAL_ALL_PAPER_RUNTIME_VERSION
 from polymarket_scanner.weather_only_live_paper_all_signals_v7 import ALL_PAPER_V7_RUNTIME_VERSION
 from polymarket_scanner.weather_only_live_paper_all_signals_v8 import ALL_PAPER_V8_RUNTIME_VERSION
 from polymarket_scanner.weather_only_live_paper_final import FINAL_MARKET_STATE_POLICY, FINAL_PAPER_RUNTIME_VERSION
@@ -24,6 +25,7 @@ def _status() -> dict:
         "final_paper_runtime_version": FINAL_PAPER_RUNTIME_VERSION,
         "current_market_state_policy": FINAL_MARKET_STATE_POLICY,
         "exclusive_writer_lease": True,
+        "final_all_paper_runtime_version": FINAL_ALL_PAPER_RUNTIME_VERSION,
         "all_paper_v8_runtime_version": ALL_PAPER_V8_RUNTIME_VERSION,
         "all_paper_v7_runtime_version": ALL_PAPER_V7_RUNTIME_VERSION,
         "paper_execution_protocol_version": PAPER_EXECUTION_PROTOCOL_V5,
@@ -64,17 +66,19 @@ def _status() -> dict:
     }
 
 
-def test_all_paper_v8_first_cycle_accepts_only_complete_safe_profile():
+def test_final_all_paper_first_cycle_accepts_only_complete_safe_profile():
     accepted = accept_first_all_paper_cycle(
         _status(), expected_release_sha=SHA, not_before=NOW - 10.0, now=NOW
     )
     assert accepted.accepted is True
     assert accepted.release_sha == SHA
+    assert accepted.runtime_version == FINAL_ALL_PAPER_RUNTIME_VERSION
 
 
 @pytest.mark.parametrize(
     "key,value,code",
     [
+        ("final_all_paper_runtime_version", None, "ALL_PAPER_FINAL_WRAPPER_VERSION_MISMATCH"),
         ("post_receipt_execution_required", False, "ALL_PAPER_POST_RECEIPT_EXECUTION_NOT_REQUIRED"),
         ("structural_paper_delivery_enabled", False, "ALL_PAPER_STRUCTURAL_DELIVERY_NOT_ENABLED"),
         ("maker_book_touch_counts_as_fill", True, "ALL_PAPER_MAKER_BOOK_TOUCH_FILL_NOT_FALSE"),
