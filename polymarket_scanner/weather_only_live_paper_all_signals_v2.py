@@ -154,6 +154,14 @@ class AllPaperWeatherLiveServiceV2(AllPaperWeatherLiveService):
         return status
 
 
+# Explicit compatibility exports for the V3 development layer.  These aliases are
+# identity-only: they do not create another implementation or alter V2 behavior.
+# Keeping them here makes the inter-layer contract explicit and testable while the
+# canonical V2 names above remain unchanged for existing deployments/tests.
+ALL_PAPER_V2_RUNTIME_VERSION = ALL_PAPER_RUNTIME_V2_VERSION
+AllPaperWeatherLiveV2Service = AllPaperWeatherLiveServiceV2
+
+
 async def _main(args) -> int:
     service = AllPaperWeatherLiveServiceV2(
         db_path=args.db,
