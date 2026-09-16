@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-"""Strict additive attestation for the final V8 all-PAPER runtime."""
+"""Strict additive attestation for the final V9 all-PAPER runtime."""
 
 import importlib.util
 from pathlib import Path
 
 
-FINAL_MODULE = "polymarket_scanner.weather_only_live_paper_all_signals_final_v8"
+FINAL_MODULE = "polymarket_scanner.weather_only_live_paper_all_signals_final_v9"
 DOTENV_ENV_LINE = "Environment=ALPHA_DISABLE_DOTENV=1"
 FORBIDDEN_NETWORK_ENVIRONMENT = (
     "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY",
@@ -19,6 +19,7 @@ _EXTRA_WRITER_MARKERS = (
     "weather_only_live_paper_all_signals_final_v6.py",
     "weather_only_live_paper_all_signals_final_v7.py",
     "weather_only_live_paper_all_signals_final_v8.py",
+    "weather_only_live_paper_all_signals_final_v9.py",
 )
 
 
