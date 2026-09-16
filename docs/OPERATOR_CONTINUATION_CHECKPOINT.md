@@ -158,3 +158,23 @@ cases passed on 3.12 after the final refinements, including actual
 both asynchronous sources and synchronous WRH requests. Full suites and final
 independent review remain pending; these numbers are test results, not a
 probability of correctness. No host/account acceptance has run.
+
+The initial frozen tree `b73aab3202e3a298f2dd19540e7acfdc45e15d0f`
+(local commit `022c3eaee1fdad90d46fac45a5691fcc2669f3fe`) passed 2,021 cases
+on each Python version (3.11: 56.81s; 3.12: 65.76s), with four existing legacy
+FastAPI deprecation warnings. Compile/dependency-consistency/shell checks: 45
+passed. Six retained systemd units verified; new three-role units verified in
+the host suite. Synthetic 23,200-event / 243,750-market inventory gate passed;
+builder peak RSS 100,929,536 bytes, reader 121,888,768 bytes, maximum reader tick
+0.00630s. These are local synthetic measurements, not UpCloud acceptance.
+
+**Independent review rejected that freeze despite the green suites.** Reproductions
+showed accepted cancellation lost behind a preceding pause/settings revision or
+processing expiry, navigation preview capacity blocking `/stop`, and a trade
+preview acquiring a newer more permissive revision while rendering. Fixes make
+already accepted safety reductions durable and monotonic, allow safety priority
+over unused previews/reply pressure, and bind text/buttons to one captured
+revision. Fresh opening/resume/settings authorizations retain strict expiry and
+revision checks. The review's failing tests are retained and promoted to
+`test_operator_safety_priority.py`; final re-review and exact-head tests are still
+required. No branch/main promotion occurred on the rejected freeze.

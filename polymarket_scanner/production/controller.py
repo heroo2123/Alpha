@@ -6,6 +6,7 @@ import time
 
 from .collection import drain_scanner
 from .config import canonical, decimal
+from .control import ControlError
 from .io import atomic_json, release_identity
 from .notifications import import_events, notification_summary, send_pending
 from .panel import OperatorPanel
@@ -42,7 +43,12 @@ class Controller:
             uid=update.get("update_id")
             if type(uid) is not int or uid<offset:
                 continue
-            await self.panel.handle(update)
+            try:
+                await self.panel.handle(update)
+            except ControlError:
+                # UI pressure must not drop later safety commands in this poll.
+                # Any accepted financial/control request already has durable custody.
+                self.last_error="CONTROLLER_PANEL_REPLY_UNAVAILABLE"
             self.controls.set_state("telegram_offset",uid+1)
 
     async def collect(self):

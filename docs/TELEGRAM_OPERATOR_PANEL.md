@@ -40,6 +40,15 @@ message ID and one-use state. Double clicks/replays never create another order.
 Open `/start` again after a stale button. Typed settings must reply to their
 specific bot prompt and then pass a separate preview/confirmation.
 
+Preview text and all its buttons use one captured settings revision. A concurrent
+increase cannot silently enlarge a previously displayed trade limit. Once a
+fresh authenticated pause/cancel callback or command is durably accepted, its
+safety reduction survives worker delay/restart and later settings revisions;
+its original acceptance time must be inside the button lifetime. This exception
+never authorizes opening, resume or settings increases. Direct safety commands
+can retire an unused preview when the UI preview queue is full, and UI reply
+pressure cannot discard later safety commands in the same Telegram poll.
+
 ## Screens and controls
 
 - Home: mode/experience, opening authority and disabled reason, account,

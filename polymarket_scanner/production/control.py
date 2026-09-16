@@ -141,9 +141,13 @@ def validate_request(row, config, settings, epoch, last_update):
     for key in ("created", "expires"):
         if type(body[key]) not in (int, float) or not math.isfinite(body[key]):
             raise ControlError("CONTROL_TIME_INVALID")
-    if not body["created"] <= time.time() < body["expires"] <= body["created"] + 120:
+    safety = body["operation"] in {"PAUSE","CANCEL"} and body["data"] == {}
+    # A callback must be accepted while fresh. Once accepted, a safety reduction
+    # is a durable intent, not an expiring authorization to open a position.
+    checked_at = row["created"] if safety else time.time()
+    if type(checked_at) not in (int,float) or not math.isfinite(checked_at) or not body["created"] <= checked_at < body["expires"] <= body["created"] + 120:
         raise ControlError("CONTROL_REQUEST_EXPIRED")
-    if body["revision"] != settings["revision"] or body["safety_epoch"] != epoch:
+    if not safety and (body["revision"] != settings["revision"] or body["safety_epoch"] != epoch):
         raise ControlError("CONTROL_REVISION_OR_PAUSE_CHANGED")
     if body["update_id"] <= last_update:
         raise ControlError("CONTROL_UPDATE_REPLAYED")
@@ -306,7 +310,11 @@ class ControlStore:
             db.execute("DELETE FROM operator_actions WHERE state!='PREVIEW' AND expires<?", (now-86400,))
             db.execute("DELETE FROM operator_updates WHERE id NOT IN (SELECT id FROM operator_updates ORDER BY id DESC LIMIT 1000)")
             if db.execute("SELECT COUNT(*) FROM operator_actions WHERE state='PREVIEW'").fetchone()[0] >= 500:
-                raise ControlError("CONTROL_PREVIEW_CAP")
+                if operation not in {"PAUSE","CANCEL"}:
+                    raise ControlError("CONTROL_PREVIEW_CAP")
+                # Make room for safety commands by retiring an unused preview.
+                # No financial request/receipt is removed or replayed.
+                db.execute("UPDATE operator_actions SET state='EXPIRED' WHERE id=(SELECT id FROM operator_actions WHERE state='PREVIEW' ORDER BY expires,id LIMIT 1)")
             db.execute("INSERT INTO operator_actions VALUES(?,?,?,NULL,?,'PREVIEW')", (action_id, canonical(body), digest(body), expiry))
         return action_id
 

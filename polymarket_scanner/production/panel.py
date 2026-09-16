@@ -52,10 +52,12 @@ class OperatorPanel:
         except (OSError,ValueError,KeyError,TypeError):
             return {"last_error":"SCANNER_STATUS_UNAVAILABLE_OR_STALE"}
 
-    async def message(self,actor,text,buttons=(),*,expires=None):
+    async def message(self,actor,text,buttons=(),*,expires=None,revision=None):
         ids,rows=[],[]
+        if revision is None and buttons:
+            revision=self.settings()["revision"]
         for label,op,data in buttons:
-            identity=self.store.action(actor,op,data,self.settings()["revision"],expires=expires)
+            identity=self.store.action(actor,op,data,revision,expires=expires)
             ids.append(identity)
             rows.append({"text":label,"callback_data":"ctl1:"+identity})
         markup={"inline_keyboard":[rows[i:i+2] for i in range(0,len(rows),2)]} if rows else None
@@ -104,11 +106,11 @@ class OperatorPanel:
                   "All weather, semantics, liquidity and prices are revalidated. An old quote is not a purchase instruction. Confirmation may produce no order. Claiming it consumes one attempt, even after failure/restart.")
             if signal["strategy"]=="STRUCTURAL":
                 text+=f"\nBasket cost-at-risk ceiling ${risk.get('legging_loss')}. Separate legs can leave directional inventory; no automatic unwind."
-            return await self.message(actor,text,[("Confirm one attempt",operation,data),("Back","NAV",{"screen":"SIGNALS"})],expires=signal["expires"])
+            return await self.message(actor,text,[("Confirm one attempt",operation,data),("Back","NAV",{"screen":"SIGNALS"})],expires=signal["expires"],revision=settings["revision"])
         else:
             raise ControlError("PREVIEW_OPERATION_INVALID")
         text+=f"\nConfiguration {self.config.config_sha256[:12]} · revision {settings['revision']} · button valid at most 120 seconds."
-        return await self.message(actor,text,[("Confirm",operation,data),("Back","NAV",{"screen":"HOME"})])
+        return await self.message(actor,text,[("Confirm",operation,data),("Back","NAV",{"screen":"HOME"})],revision=settings["revision"])
 
     async def screen(self,actor,name):
         s=self.settings(); execution=self.service.execution_status(); account=execution.get("account",{})
@@ -201,7 +203,7 @@ class OperatorPanel:
         else:
             raise ControlError("SCREEN_UNKNOWN")
         if name!="HOME": buttons.append(nav("Home","HOME"))
-        return await self.message(actor,text,buttons)
+        return await self.message(actor,text,buttons,revision=s["revision"])
 
     async def input_prompt(self,actor,key):
         identity=self.store.action(actor,"INPUT",{"key":key},self.settings()["revision"])
@@ -245,6 +247,8 @@ class OperatorPanel:
                         self.store.bind_message([identity],message["message_id"])
                         self.store.click(identity,actor=actor,message_id=message["message_id"],update_id=update["update_id"],revision=self.settings()["revision"])
                         if self.config.mode=="LIVE_SIGNALS": self.process_signals_requests()
+                        await self.message(actor,"Safety request durably recorded. New openings paused; cancellation is only requested, never presumed confirmed. Held positions remain. Use /status for current state.")
+                        return
                     await self.screen(actor,{"/recent":"SIGNALS","/positions":"POSITIONS","/stats":"PERFORMANCE","/orders":"ORDERS","/settings":"RISK"}.get(command,"HOME"))
         except (ControlError,ValueError,KeyError,TypeError) as exc:
             from .executor_control import safe_reason
@@ -271,7 +275,7 @@ class OperatorPanel:
                     settings,_=changed_settings(self.config,settings,data["key"],data["value"])
                 elif op in {"PAUSE","CANCEL"} and not data:
                     settings=dict(settings,paused=True,revision=settings["revision"]+1)
-                    epoch+=1
+                    epoch=max(epoch,body["safety_epoch"]+1)
                 else:
                     raise ControlError("FINANCIAL_CONTROL_REQUIRES_EXTERNAL_EXECUTION_CONFIGURATION")
                 result="APPLIED"

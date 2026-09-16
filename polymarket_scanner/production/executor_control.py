@@ -96,7 +96,7 @@ class ExecutorControl:
                         settings["paused"] = False
                     else:
                         settings["paused"] = True
-                        epoch += 1
+                        epoch = max(epoch,body["safety_epoch"]+1)
                         cancel = op == "CANCEL"
                     settings["revision"] += 1
                 elif op == "SET":
