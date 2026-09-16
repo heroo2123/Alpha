@@ -1,111 +1,81 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-# One-time host bootstrap performed BEFORE candidate checkout. It establishes a
-# root-owned trust boundary independent of the candidate working tree. Every host
-# authority tool is materialized from the exact reviewed candidate Git object; the
-# mutable directory containing this bootstrap is never the source of installed tools.
+# ONE-TIME HOST BOOTSTRAP ONLY. Ordinary candidate deployment MUST NOT call this.
+# Authority implementation is sourced from an operator-controlled directory outside
+# the candidate checkout and pinned by a caller-supplied bundle digest. Candidate Git
+# objects are data only and are never used as the source of privileged authority code.
 APP_DIR="${ALPHA_WEATHER_APP_DIR:-${HOME}/polymarket-weather-paper-app}"
-CONFIG_DIR="${ALPHA_CONFIG_DIR:-${HOME}/.polymarket-edge-scanner}"
-DB_PATH="${WEATHER_PAPER_DB_PATH:-/var/lib/polymarket-weather-paper/weather-paper.sqlite}"
-RELEASE_FILE="${CONFIG_DIR}/weather-paper-release.sha"
-UNIT="polymarket-weather-paper.service"
 LIBEXEC="/usr/local/libexec/polymarket-weather-paper"
 ETC_DIR="/etc/polymarket-weather-paper"
-MANIFEST="${ETC_DIR}/approved-releases.json"
-HOST_PATHS="${ETC_DIR}/host-paths.conf"
-ROLLBACK_DIR="/var/lib/polymarket-weather-paper-rollback"
-DROPIN_DIR="/etc/systemd/system/${UNIT}.d"
-DROPIN="${DROPIN_DIR}/10-release-authority.conf"
-CANDIDATE_SHA="${1:-}"
-DEPLOY_USER="$(id -un)"
-DEPLOY_UID="$(id -u)"
-DEPLOY_GID="$(id -g)"
+AUTHORITY_MANIFEST="${ETC_DIR}/host-authority.json"
+SOURCE=""
+EXPECTED_BUNDLE=""
+BOOTSTRAP=0
 
-fail(){ printf 'HOST TRUST INSTALL ERROR: %s\n' "$*" >&2; exit 1; }
-[[ "${CANDIDATE_SHA}" =~ ^[0-9a-fA-F]{40}$ ]] || fail "usage: $0 <reviewed-candidate-sha>"
-CANDIDATE_SHA="${CANDIDATE_SHA,,}"
-[[ -d "${APP_DIR}/.git" && -f "${RELEASE_FILE}" ]] || fail "current known-good checkout/release marker missing"
-for value in "${APP_DIR}" "${CONFIG_DIR}" "${DB_PATH}" "${ROLLBACK_DIR}"; do
-  [[ "${value}" == /* && "${value}" != *$'\n'* && "${value}" != *$'\r'* ]] || fail "host path must be absolute and single-line"
+fail(){ printf 'HOST TRUST BOOTSTRAP ERROR: %s\n' "$*" >&2; exit 1; }
+while (( $# )); do
+  case "$1" in
+    --authority-source) SOURCE="${2:-}"; shift 2;;
+    --bundle-sha256) EXPECTED_BUNDLE="${2:-}"; shift 2;;
+    --bootstrap) BOOTSTRAP=1; shift;;
+    *) fail "unknown argument: $1";;
+  esac
 done
-[[ "${UNIT}" == "polymarket-weather-paper.service" ]] || fail "unexpected service identity"
-[[ "${DEPLOY_USER}" =~ ^[A-Za-z0-9_.-]+$ && "${DEPLOY_UID}" =~ ^[0-9]+$ && "${DEPLOY_GID}" =~ ^[0-9]+$ ]] || fail "deploy identity invalid"
+[[ "${BOOTSTRAP}" == 1 ]] || fail "explicit --bootstrap required; candidate deployment cannot install host authority"
+[[ "${SOURCE}" == /* && -d "${SOURCE}" && ! -L "${SOURCE}" ]] || fail "external authority source directory required"
+[[ "${EXPECTED_BUNDLE}" =~ ^[0-9a-f]{64}$ ]] || fail "exact external bundle SHA-256 required"
+SOURCE_REAL="$(realpath -e "${SOURCE}")"
+APP_REAL="$(realpath -m "${APP_DIR}")"
+case "${SOURCE_REAL}/" in "${APP_REAL}/"*) fail "authority source may not reside in candidate application tree";; esac
 
-CURRENT_SHA="$(git -C "${APP_DIR}" rev-parse HEAD | tr -d '[:space:]')"
-CURRENT_MARKER="$(tr -d '[:space:]' < "${RELEASE_FILE}")"
-[[ "${CURRENT_SHA}" == "${CURRENT_MARKER}" && "${CURRENT_SHA}" =~ ^[0-9a-f]{40}$ ]] || fail "current release identity mismatch"
-[[ -z "$(git -C "${APP_DIR}" status --porcelain --untracked-files=all)" ]] || fail "current known-good checkout is dirty"
-git -C "${APP_DIR}" cat-file -e "${CANDIDATE_SHA}^{commit}" 2>/dev/null || fail "candidate commit object must be fetched before host approval"
-CURRENT_TREE="$(git -C "${APP_DIR}" rev-parse "${CURRENT_SHA}^{tree}" | tr -d '[:space:]')"
-CANDIDATE_TREE="$(git -C "${APP_DIR}" rev-parse "${CANDIDATE_SHA}^{tree}" | tr -d '[:space:]')"
-
-# Fail closed if the bootstrap being invoked is not itself the exact reviewed blob.
-EXPECTED_BOOTSTRAP_BLOB="$(git -C "${APP_DIR}" rev-parse "${CANDIDATE_SHA}:deploy/install-weather-paper-host-trust.sh")"
-ACTUAL_BOOTSTRAP_BLOB="$(git -C "${APP_DIR}" hash-object "${BASH_SOURCE[0]}")"
-[[ "${ACTUAL_BOOTSTRAP_BLOB}" == "${EXPECTED_BOOTSTRAP_BLOB}" ]] || fail "bootstrap script does not match reviewed candidate object"
-
-TMP_BUNDLE="$(mktemp -d)"
-cleanup(){ rm -rf "${TMP_BUNDLE}"; }
-trap cleanup EXIT
-for name in weather-paper-host-release-gate.py weather-paper-venv-snapshot.py weather-paper-host-snapshot.sh weather-paper-host-recovery.sh; do
-  candidate_path="deploy/${name}"
-  git -C "${APP_DIR}" show "${CANDIDATE_SHA}:${candidate_path}" > "${TMP_BUNDLE}/${name}" \
-    || fail "reviewed candidate missing host tool: ${candidate_path}"
-  EXPECTED_BLOB="$(git -C "${APP_DIR}" rev-parse "${CANDIDATE_SHA}:${candidate_path}")"
-  ACTUAL_BLOB="$(git -C "${APP_DIR}" hash-object "${TMP_BUNDLE}/${name}")"
-  [[ "${ACTUAL_BLOB}" == "${EXPECTED_BLOB}" ]] || fail "materialized host tool blob mismatch: ${name}"
+required=(release-gate.py snapshot-rollback.sh restore-rollback.sh weather-paper-venv-snapshot.py authority-template.json)
+for name in "${required[@]}"; do
+  [[ -f "${SOURCE_REAL}/${name}" && ! -L "${SOURCE_REAL}/${name}" ]] || fail "authority bundle missing regular file: ${name}"
 done
-
-sudo install -d -o root -g root -m 0755 "${LIBEXEC}" "${ETC_DIR}" "${DROPIN_DIR}"
-# Rollback payload custody is outside the deploy user's writable trees.  The deploy
-# user may read the artifacts for verification/recovery but cannot replace them or
-# their manifest after snapshot publication.
-sudo install -d -o root -g "${DEPLOY_GID}" -m 0750 "${ROLLBACK_DIR}"
-sudo install -o root -g root -m 0555 "${TMP_BUNDLE}/weather-paper-host-release-gate.py" "${LIBEXEC}/release-gate.py"
-sudo install -o root -g root -m 0555 "${TMP_BUNDLE}/weather-paper-venv-snapshot.py" "${LIBEXEC}/weather-paper-venv-snapshot.py"
-sudo install -o root -g root -m 0555 "${TMP_BUNDLE}/weather-paper-host-snapshot.sh" "${LIBEXEC}/snapshot-rollback.sh"
-sudo install -o root -g root -m 0555 "${TMP_BUNDLE}/weather-paper-host-recovery.sh" "${LIBEXEC}/restore-rollback.sh"
-
-# Freeze every filesystem/service path and deploy identity used by rollback outside
-# candidate control. %q makes the root-owned file safe to source.
-TMP_PATHS="$(mktemp)"
-printf 'APP_DIR=%q\nCONFIG_DIR=%q\nDB_PATH=%q\nUNIT=%q\nROLLBACK_DIR=%q\nDEPLOY_USER=%q\nDEPLOY_UID=%q\nDEPLOY_GID=%q\n' \
-  "${APP_DIR}" "${CONFIG_DIR}" "${DB_PATH}" "${UNIT}" "${ROLLBACK_DIR}" \
-  "${DEPLOY_USER}" "${DEPLOY_UID}" "${DEPLOY_GID}" > "${TMP_PATHS}"
-sudo install -o root -g root -m 0444 "${TMP_PATHS}" "${HOST_PATHS}"
-rm -f "${TMP_PATHS}"
-
-# Approval is intentionally NOT cumulative. At any cutover exactly the currently
-# running known-good release and the one reviewed candidate are startable.
-TMP_MANIFEST="$(mktemp)"
-/usr/bin/python3 - "${CURRENT_SHA}" "${CURRENT_TREE}" "${CANDIDATE_SHA}" "${CANDIDATE_TREE}" > "${TMP_MANIFEST}" <<'PY'
-import json, sys
-current_sha, current_tree, candidate_sha, candidate_tree = [value.lower() for value in sys.argv[1:]]
-approved = {current_sha: current_tree, candidate_sha: candidate_tree}
-print(json.dumps({
-    'version': 'weather-paper-host-release-authority-v1',
-    'approved': [{'sha': sha, 'tree': tree} for sha, tree in sorted(approved.items())],
-}, sort_keys=True, indent=2))
+BUNDLE_ACTUAL="$(/usr/bin/python3 - "${SOURCE_REAL}" "${required[@]}" <<'PY'
+import hashlib, sys
+from pathlib import Path
+root=Path(sys.argv[1]); h=hashlib.sha256()
+for name in sorted(sys.argv[2:]):
+    data=(root/name).read_bytes()
+    h.update(name.encode()+b'\0'+len(data).to_bytes(8,'big')+data)
+print(h.hexdigest())
 PY
-sudo install -o root -g root -m 0444 "${TMP_MANIFEST}" "${MANIFEST}"
-rm -f "${TMP_MANIFEST}"
+)"
+[[ "${BUNDLE_ACTUAL}" == "${EXPECTED_BUNDLE}" ]] || fail "external authority bundle digest mismatch"
 
-TMP_DROPIN="$(mktemp)"
-cat > "${TMP_DROPIN}" <<EOF
-[Service]
-ExecStartPre=/usr/bin/python3 ${LIBEXEC}/release-gate.py verify-checkout --app-dir ${APP_DIR} --release-file ${RELEASE_FILE}
-UnsetEnvironment=HTTP_PROXY HTTPS_PROXY ALL_PROXY NO_PROXY http_proxy https_proxy all_proxy no_proxy SSL_CERT_FILE SSL_CERT_DIR BASH_ENV ENV CDPATH GIT_DIR GIT_WORK_TREE GIT_CONFIG_GLOBAL GIT_CONFIG_SYSTEM
-EOF
-sudo install -o root -g root -m 0644 "${TMP_DROPIN}" "${DROPIN}"
-rm -f "${TMP_DROPIN}"
-sudo systemctl daemon-reload
+# Existing authority is immutable through this interface. An upgrade is a separate
+# host-administration operation, not a candidate deployment operation.
+if [[ -e "${AUTHORITY_MANIFEST}" || -e "${LIBEXEC}/release-gate.py" ]]; then
+  fail "host authority already installed; bootstrap refuses replacement"
+fi
 
-/usr/bin/python3 "${LIBEXEC}/release-gate.py" verify-checkout --app-dir "${APP_DIR}" --release-file "${RELEASE_FILE}"
-/usr/bin/python3 "${LIBEXEC}/release-gate.py" verify-object --app-dir "${APP_DIR}" --sha "${CANDIDATE_SHA}"
-[[ "$(stat -c '%u' "${ROLLBACK_DIR}")" == "0" ]] || fail "rollback custody directory is not root owned"
-ROLLBACK_MODE="$(stat -c '%a' "${ROLLBACK_DIR}")"
-(( (8#${ROLLBACK_MODE} & 8#22) == 0 )) || fail "rollback custody directory writable by nonroot"
-trap - EXIT
-cleanup
-printf 'PASS: host trust authority installed from exact reviewed Git object. Current=%s Candidate=%s\n' "${CURRENT_SHA}" "${CANDIDATE_SHA}"
+TMP="$(mktemp -d)"; trap 'rm -rf "${TMP}"' EXIT
+for name in release-gate.py snapshot-rollback.sh restore-rollback.sh weather-paper-venv-snapshot.py; do
+  cp -- "${SOURCE_REAL}/${name}" "${TMP}/${name}"
+done
+/usr/bin/python3 - "${SOURCE_REAL}/authority-template.json" "${TMP}" "${EXPECTED_BUNDLE}" > "${TMP}/host-authority.json" <<'PY'
+import hashlib,json,sys
+from pathlib import Path
+template=json.loads(Path(sys.argv[1]).read_text())
+root=Path(sys.argv[2]); bundle=sys.argv[3]
+if template.get('version') != 'weather-paper-host-release-authority-v2-independent':
+    raise SystemExit('authority template version invalid')
+protected=template.get('protected_candidate_blobs')
+if not isinstance(protected,dict) or not protected:
+    raise SystemExit('protected candidate blobs missing')
+files={}
+for name in ('release-gate.py','snapshot-rollback.sh','restore-rollback.sh','weather-paper-venv-snapshot.py'):
+    files[name]=hashlib.sha256((root/name).read_bytes()).hexdigest()
+print(json.dumps({'version':template['version'],'bundle_sha256':bundle,'libexec':'/usr/local/libexec/polymarket-weather-paper','files':files,'protected_candidate_blobs':protected},sort_keys=True,indent=2))
+PY
+
+sudo install -d -o root -g root -m 0755 "${LIBEXEC}" "${ETC_DIR}"
+sudo install -o root -g root -m 0555 "${TMP}/release-gate.py" "${LIBEXEC}/release-gate.py"
+sudo install -o root -g root -m 0555 "${TMP}/snapshot-rollback.sh" "${LIBEXEC}/snapshot-rollback.sh"
+sudo install -o root -g root -m 0555 "${TMP}/restore-rollback.sh" "${LIBEXEC}/restore-rollback.sh"
+sudo install -o root -g root -m 0555 "${TMP}/weather-paper-venv-snapshot.py" "${LIBEXEC}/weather-paper-venv-snapshot.py"
+sudo install -o root -g root -m 0444 "${TMP}/host-authority.json" "${AUTHORITY_MANIFEST}"
+/usr/bin/python3 "${LIBEXEC}/release-gate.py" verify-authority
+printf 'PASS: independent host authority bootstrapped from external bundle %s.\n' "${EXPECTED_BUNDLE}"
