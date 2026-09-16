@@ -34,30 +34,33 @@ STALE = {
         "test_archive_integrity_alone_does_not_prove_current_venv_and_tree_check_detects_drift",
         "test_host_snapshot_invalidates_old_generation_until_source_venv_and_manifest_are_reverified",
     ],
-    # Replaced behaviorally by test_weather_stage2_semantic_terminal_maker.py.
     "tests/test_weather_post_final_review_corrective.py": [
         "test_legacy_maker_settlements_are_excluded_from_validated_performance",
     ],
 }
 
 
-def remove_test(text: str, name: str) -> str:
+def remove_test(text: str, name: str) -> tuple[str, bool]:
     pattern = re.compile(
         rf"(?ms)^def {re.escape(name)}\([^\n]*\):\n.*?(?=^def |^@pytest\.|\Z)"
     )
     matches = list(pattern.finditer(text))
-    if len(matches) != 1:
-        raise SystemExit(f"{name}: expected one obsolete test, found {len(matches)}")
+    if len(matches) > 1:
+        raise SystemExit(f"{name}: duplicate obsolete tests found: {len(matches)}")
+    if not matches:
+        return text, False
     match = matches[0]
-    return text[: match.start()] + text[match.end() :]
+    return text[: match.start()] + text[match.end() :], True
 
 
 def main() -> None:
+    removed = 0
     for raw_path, names in STALE.items():
         path = Path(raw_path)
         text = path.read_text(encoding="utf-8")
         for name in names:
-            text = remove_test(text, name)
+            text, changed = remove_test(text, name)
+            removed += int(changed)
         path.write_text(text.rstrip() + "\n", encoding="utf-8")
 
     foundation = Path("tests/test_weather_only_foundation.py")
@@ -70,24 +73,30 @@ def main() -> None:
         "assert recall[\"retained_events\"] == 1": "assert recall[\"retained_events\"] == 0",
     }
     for old, new in replacements.items():
-        if text.count(old) != 1:
-            raise SystemExit(f"foundation replacement mismatch: {old}")
-        text = text.replace(old, new, 1)
-    marker = '    assert recall["max_reuse_seconds"] == 300.0\n'
-    if text.count(marker) != 1:
-        raise SystemExit("foundation semantic marker missing")
-    semantic = marker + (
-        '    assert recall["gamma_census_complete"] is True\n'
-        '    assert recall["weather_looking_events"] == 1\n'
-        '    assert recall["strict_supported_events"] == 0\n'
-        '    assert recall["unsupported_weather_events"] == 1\n'
-        '    assert recall["weather_semantic_coverage_complete"] is False\n'
-        '    assert recall["weather_semantic_coverage_status"] == "PARTIAL_STRICT_SUBSET"\n'
-        '    assert sum(recall["unsupported_reason_counts"].values()) == 1\n'
-        '    assert recall["unsupported_examples"][0]["event_id"] == hidden["id"]\n'
-    )
-    text = text.replace(marker, semantic, 1)
+        if old in text:
+            if text.count(old) != 1:
+                raise SystemExit(f"foundation replacement duplicate: {old}")
+            text = text.replace(old, new, 1)
+        elif new not in text:
+            raise SystemExit(f"foundation expected old/new assertion missing: {old}")
+    semantic_line = '    assert recall["weather_semantic_coverage_complete"] is False\n'
+    if semantic_line not in text:
+        marker = '    assert recall["max_reuse_seconds"] == 300.0\n'
+        if text.count(marker) != 1:
+            raise SystemExit("foundation semantic marker missing")
+        semantic = marker + (
+            '    assert recall["gamma_census_complete"] is True\n'
+            '    assert recall["weather_looking_events"] == 1\n'
+            '    assert recall["strict_supported_events"] == 0\n'
+            '    assert recall["unsupported_weather_events"] == 1\n'
+            '    assert recall["weather_semantic_coverage_complete"] is False\n'
+            '    assert recall["weather_semantic_coverage_status"] == "PARTIAL_STRICT_SUBSET"\n'
+            '    assert sum(recall["unsupported_reason_counts"].values()) == 1\n'
+            '    assert recall["unsupported_examples"][0]["event_id"] == hidden["id"]\n'
+        )
+        text = text.replace(marker, semantic, 1)
     foundation.write_text(text, encoding="utf-8")
+    print(f"removed_superseded_tests={removed}")
 
 
 if __name__ == "__main__":
