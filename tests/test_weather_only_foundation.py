@@ -164,13 +164,15 @@ def test_discovery_uses_tagged_fast_path_plus_untagged_exhaustive_recall_and_ded
     assert snapshot.global_census_pages == 1
     assert snapshot.global_census_scanned_events == 1
     assert snapshot.global_census_retained_events == 1
-    assert recall == {
-        "complete": True,
-        "cache_hit": False,
-        "pages": 1,
-        "scanned_events": 1,
-        "retained_events": 1,
-    }
+    assert recall["complete"] is True
+    assert recall["cache_hit"] is False
+    assert recall["pages"] == 1
+    assert recall["scanned_events"] == 1
+    assert recall["retained_events"] == 1
+    assert isinstance(recall["census_completed_at"], float)
+    assert recall["census_completed_at"] > 0.0
+    assert 0.0 <= recall["age_seconds"] <= 300.0
+    assert recall["max_reuse_seconds"] == 300.0
 
     assert len(requests) == 3
     tagged = [request for request in requests if request.url.params.get("tag_slug")]
@@ -184,7 +186,7 @@ def test_discovery_uses_tagged_fast_path_plus_untagged_exhaustive_recall_and_ded
         assert "offset" not in request.url.params
     global_request = global_requests[0]
     assert global_request.url.path.endswith("/events/keyset")
-    assert global_request.url.params.get("limit") == "100"
+    assert global_request.url.params.get("limit") == "50"
     assert "tag_slug" not in global_request.url.params
     assert "offset" not in global_request.url.params
 
