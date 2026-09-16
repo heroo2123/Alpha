@@ -325,8 +325,11 @@ def test_cutover_scripts_require_host_approved_exact_previous_release_database_a
     assert "systemctl stop" not in snapshot_wrapper
     assert "systemctl start" not in snapshot_wrapper
     assert "systemctl enable" not in snapshot_wrapper
+    assert "HOME=/nonexistent" in snapshot_wrapper
+    assert "HOME=/nonexistent" in snapshot_compat
 
-    # Root-owned V3 generation binds exact source tree, ledger and virtualenv bytes.
+    # Root-custodied V4 generation binds exact source tree, ledger, virtualenv bytes,
+    # and every rollback artifact into an aggregate root-owned digest manifest.
     for token in (
         "previous-release.sha",
         "previous-tree.sha",
@@ -334,35 +337,44 @@ def test_cutover_scripts_require_host_approved_exact_previous_release_database_a
         "previous-venv.json",
         "previous-db.sha256",
         "previous-db-present",
-        "snapshot-generation-v3",
-        "all-paper-rollback-v3-host-authority",
+        "rollback-manifest-v4.json",
+        "snapshot-generation-v4",
+        "all-paper-rollback-v4-root-custody-hash-bound",
         "/usr/bin/python3",
         '"${GATE}" verify-checkout',
         '"${VENV_HELPER}" verify-tree',
     ):
         assert token in host_snapshot
 
-    # Candidate preparation cannot mutate source/dependencies without that approved
-    # host generation and exact current-vdev tree proof.
+    # Candidate preparation cannot mutate source/dependencies without the approved
+    # root-custody generation and exact current venv tree proof.
     assert "prepare-all-paper-candidate-v3.sh" in prepare_wrapper
+    assert 'ROLLBACK_DIR="/var/lib/polymarket-weather-paper-rollback"' in prepare
     assert "previous-release.sha" in prepare
     assert "previous-venv-release.sha" in prepare
-    assert "snapshot-generation-v3" in prepare
-    assert "all-paper-rollback-v3-host-authority" in prepare
+    assert "rollback-manifest-v4.json" in prepare
+    assert "snapshot-generation-v4" in prepare
+    assert "all-paper-rollback-v4-root-custody-hash-bound" in prepare
     assert '"${HOST_VENV}" verify' in prepare
     assert '"${HOST_VENV}" verify-tree' in prepare
     assert '"${GATE}" verify-object' in prepare
     assert 'HOST_RECOVERY="${LIBEXEC}/restore-rollback.sh"' in prepare
 
     # Any active acceptance failure uses host-owned recovery, never candidate-owned
-    # restoration logic.
+    # restoration logic, and requires the same root-custody generation.
     assert 'HOST_RECOVERY="${LIBEXEC}/restore-rollback.sh"' in start
+    assert 'ROLLBACK_DIR="/var/lib/polymarket-weather-paper-rollback"' in start
     assert "previous-venv.tar" in start
-    assert "snapshot-generation-v3" in start
+    assert "rollback-manifest-v4.json" in start
+    assert "snapshot-generation-v4" in start
     assert "host-owned rollback" in start
 
-    # Host recovery proves the approved previous object/tree before checkout, restores
-    # DB + exact venv, restores unit state, then re-attests the checkout.
+    # Host recovery verifies the aggregate manifest before restoration, proves the
+    # approved previous object/tree, restores DB + exact venv and unit state, then
+    # re-attests the checkout.
+    assert 'HOST_PATHS="/etc/polymarket-weather-paper/host-paths.conf"' in host_restore
+    assert "rollback-manifest-v4.json" in host_restore
+    assert "PASS_ROOT_CUSTODY_ROLLBACK_MANIFEST" in host_restore
     assert '"${GATE}" verify-object' in host_restore
     assert 'checkout --detach "${PREVIOUS_SHA}"' in host_restore
     assert "previous-tree.sha" in host_restore
@@ -373,6 +385,9 @@ def test_cutover_scripts_require_host_approved_exact_previous_release_database_a
     assert 'systemctl enable "${UNIT}"' in host_restore
     assert 'systemctl start "${UNIT}"' in host_restore
     assert '"${GATE}" verify-checkout' in host_restore
+    assert host_restore.index("PASS_ROOT_CUSTODY_ROLLBACK_MANIFEST") < host_restore.index(
+        'checkout --detach "${PREVIOUS_SHA}"'
+    )
 
     # The gate itself binds an approved SHA to an approved Git tree and rejects a dirty
     # checkout instead of trusting the candidate release marker alone.
