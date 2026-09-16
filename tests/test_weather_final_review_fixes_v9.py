@@ -11,7 +11,7 @@ from polymarket_scanner.weather_only_discovery import (
 from polymarket_scanner.weather_only_live_paper_all_signals_final_v8 import (
     FinalAllPaperWeatherLiveServiceV8,
 )
-from polymarket_scanner.weather_only_live_paper_all_signals_final_v9 import (
+from polymarket_scanner.weather_only_live_paper_all_signals_final_v10 import (
     MAX_GLOBAL_RECALL_REUSE_SECONDS,
     TELEGRAM_EDIT_ABSENT,
     FinalAllPaperWeatherLiveServiceV9,

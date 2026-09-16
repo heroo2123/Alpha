@@ -15,6 +15,8 @@ from .weather_only_live_paper_all_signals_final_v6 import FINAL_ALL_PAPER_RUNTIM
 from .weather_only_live_paper_all_signals_final_v7 import FINAL_ALL_PAPER_RUNTIME_V7_VERSION
 from .weather_only_live_paper_all_signals_final_v8 import FINAL_ALL_PAPER_RUNTIME_V8_VERSION
 from .weather_only_live_paper_all_signals_final_v9 import FINAL_ALL_PAPER_RUNTIME_V9_VERSION
+from .weather_only_live_paper_all_signals_final_v10 import FINAL_ALL_PAPER_RUNTIME_V10_VERSION
+from .weather_only_operator_state_corrective_v5 import OPERATOR_STATE_CORRECTIVE_V5_VERSION
 from .weather_only_operator_state_corrective import OPERATOR_STATE_CORRECTIVE_VERSION
 from .weather_only_operator_state_corrective_v2 import OPERATOR_STATE_CORRECTIVE_V2_VERSION
 from .weather_only_operator_state_corrective_v3 import OPERATOR_STATE_CORRECTIVE_V3_VERSION
@@ -92,6 +94,8 @@ def accept_first_all_paper_cycle_v2(
         ("final_all_paper_runtime_v7_version", FINAL_ALL_PAPER_RUNTIME_V7_VERSION, "ALL_PAPER_FINAL_V7_WRAPPER_VERSION_MISMATCH"),
         ("final_all_paper_runtime_v8_version", FINAL_ALL_PAPER_RUNTIME_V8_VERSION, "ALL_PAPER_FINAL_V8_WRAPPER_VERSION_MISMATCH"),
         ("final_all_paper_runtime_v9_version", FINAL_ALL_PAPER_RUNTIME_V9_VERSION, "ALL_PAPER_FINAL_V9_WRAPPER_VERSION_MISMATCH"),
+        ("final_all_paper_runtime_v10_version", FINAL_ALL_PAPER_RUNTIME_V10_VERSION, "ALL_PAPER_FINAL_V10_WRAPPER_VERSION_MISMATCH"),
+        ("operator_state_corrective_v5_version", OPERATOR_STATE_CORRECTIVE_V5_VERSION, "ALL_PAPER_OPERATOR_STATE_V5_VERSION_MISMATCH"),
         ("operator_state_corrective_version", OPERATOR_STATE_CORRECTIVE_VERSION, "ALL_PAPER_OPERATOR_STATE_VERSION_MISMATCH"),
         ("operator_state_corrective_v2_version", OPERATOR_STATE_CORRECTIVE_V2_VERSION, "ALL_PAPER_OPERATOR_STATE_V2_VERSION_MISMATCH"),
         ("operator_state_corrective_v3_version", OPERATOR_STATE_CORRECTIVE_V3_VERSION, "ALL_PAPER_OPERATOR_STATE_V3_VERSION_MISMATCH"),
@@ -123,6 +127,10 @@ def accept_first_all_paper_cycle_v2(
         ("global_weather_recall_required", "ALL_PAPER_GLOBAL_WEATHER_RECALL_NOT_REQUIRED"),
         ("global_weather_recall_complete", "ALL_PAPER_GLOBAL_WEATHER_RECALL_INCOMPLETE"),
         ("global_weather_recall_fresh", "ALL_PAPER_GLOBAL_WEATHER_RECALL_STALE"),
+        ("gamma_census_complete", "ALL_PAPER_GAMMA_CENSUS_INCOMPLETE"),
+        ("code_loading_environment_isolated", "ALL_PAPER_CODE_LOADING_ENV_NOT_ISOLATED"),
+        ("python_user_site_disabled", "ALL_PAPER_USER_SITE_NOT_DISABLED"),
+        ("maker_legacy_queue_pnl_excluded", "ALL_PAPER_LEGACY_MAKER_PNL_NOT_EXCLUDED"),
         ("operator_deleted_message_terminal_confirmation", "ALL_PAPER_DELETED_MESSAGE_TERMINAL_CONFIRMATION_MISSING"),
     ):
         _true(status, key, code)
@@ -194,6 +202,13 @@ def accept_first_all_paper_cycle_v2(
             "ALL_PAPER_GLOBAL_WEATHER_RECALL_REUSE_EVIDENCE_MISMATCH"
         )
 
+    if status.get("weather_semantic_product_policy") != "STRICT_SUPPORTED_SUBSET":
+        raise AllPaperDeploymentAcceptanceError("ALL_PAPER_SEMANTIC_POLICY_MISMATCH")
+    if status.get("global_weather_coverage_complete") is not status.get("weather_semantic_coverage_complete"):
+        raise AllPaperDeploymentAcceptanceError("ALL_PAPER_SEMANTIC_COVERAGE_TRUTH_MISMATCH")
+    if int(status.get("unsupported_weather_events") or 0) > 0 and status.get("weather_semantic_coverage_complete") is not False:
+        raise AllPaperDeploymentAcceptanceError("ALL_PAPER_SEMANTIC_UNSUPPORTED_MISLABELED_COMPLETE")
+
     for key, code in (
         ("maker_queue_certified", "ALL_PAPER_MAKER_QUEUE_UNEXPECTEDLY_CERTIFIED"),
         ("maker_queue_position_certified", "ALL_PAPER_MAKER_QUEUE_POSITION_UNEXPECTEDLY_CERTIFIED"),
@@ -228,7 +243,7 @@ def accept_first_all_paper_cycle_v2(
         release_sha=base.release_sha,
         cycle_finished_at=base.cycle_finished_at,
         cycle_age_seconds=base.cycle_age_seconds,
-        runtime_version=FINAL_ALL_PAPER_RUNTIME_V9_VERSION,
+        runtime_version=FINAL_ALL_PAPER_RUNTIME_V10_VERSION,
         execution_protocol=base.execution_protocol,
         maker_accounting_version=base.maker_accounting_version,
         operator_state_version=OPERATOR_STATE_CORRECTIVE_VERSION,

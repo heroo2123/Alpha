@@ -1,104 +1,21 @@
 """Render the isolated final all-weather PAPER service; never start it."""
-
 from __future__ import annotations
-
-import argparse
-import re
+import argparse,re
 from pathlib import Path
-
-
-WEATHER_RELEASE_MARKER = "weather-paper-release.sha"
-ALL_PAPER_MODULE = "polymarket_scanner.weather_only_live_paper_all_signals_final_v9"
-HOST_RELEASE_GATE = "/usr/local/libexec/polymarket-weather-paper/release-gate.py"
-NETWORK_ENV_NAMES = (
-    "HTTP_PROXY",
-    "HTTPS_PROXY",
-    "ALL_PROXY",
-    "NO_PROXY",
-    "http_proxy",
-    "https_proxy",
-    "all_proxy",
-    "no_proxy",
-    "SSL_CERT_FILE",
-    "SSL_CERT_DIR",
-)
-
-
-def render(app_dir: Path, config_dir: Path, user: str) -> str:
-    for value in (str(app_dir), str(config_dir), user):
-        if not re.fullmatch(r"[/A-Za-z0-9_.-]+", value):
-            raise ValueError("service paths/user must be absolute, whitespace-free safe names")
-    if not app_dir.is_absolute() or not config_dir.is_absolute():
-        raise ValueError("service directories must be absolute")
-    python = f"{app_dir}/.venv/bin/python"
-    release_file = f"{config_dir}/{WEATHER_RELEASE_MARKER}"
-    verifier = f"/bin/bash {app_dir}/deploy/verify-runtime-release.sh {app_dir} {release_file}"
-    host_gate = (
-        f"/usr/bin/python3 {HOST_RELEASE_GATE} verify-checkout "
-        f"--app-dir {app_dir} --release-file {release_file}"
-    )
-    unset_network = " ".join(NETWORK_ENV_NAMES)
-    state = "/var/lib/polymarket-weather-paper"
-    return f"""[Unit]
-Description=Polymarket final all-weather PAPER research runtime
-Wants=network-online.target
-After=network-online.target
-StartLimitIntervalSec=600
-StartLimitBurst=3
-
-[Service]
-Type=simple
-User={user}
-WorkingDirectory={app_dir}
-Environment=PYTHONUNBUFFERED=1
-Environment=ALPHA_DISABLE_DOTENV=1
-UnsetEnvironment={unset_network}
-EnvironmentFile={config_dir}/weather-paper.env
-ExecStartPre={host_gate}
-ExecStartPre={verifier}
-ExecStart={python} -m {ALL_PAPER_MODULE} --db {state}/weather-paper.sqlite --status {state}/status.json --release-file {release_file} --interval-seconds 180 --forecast-cache-seconds 900 --forecast-raw-gap-min 0.08 --max-forecast-events 6 --paper-stake-usd 10
-Restart=on-failure
-RestartSec=15
-TimeoutStopSec=20
-MemoryHigh=280M
-MemoryMax=350M
-MemorySwapMax=0
-TasksMax=48
-Nice=5
-CPUWeight=70
-IOWeight=50
-NoNewPrivileges=true
-PrivateTmp=true
-PrivateDevices=true
-ProtectHome=read-only
-ProtectSystem=strict
-ProtectKernelTunables=true
-ProtectKernelModules=true
-ProtectControlGroups=true
-RestrictSUIDSGID=true
-LockPersonality=true
-CapabilityBoundingSet=
-AmbientCapabilities=
-StateDirectory=polymarket-weather-paper
-StateDirectoryMode=0700
-ReadWritePaths={state}
-UMask=0077
-
-[Install]
-WantedBy=multi-user.target
-"""
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--app-dir", type=Path, required=True)
-    parser.add_argument("--config-dir", type=Path, required=True)
-    parser.add_argument("--user", required=True)
-    parser.add_argument("--output", type=Path, required=True)
-    args = parser.parse_args()
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(render(args.app_dir, args.config_dir, args.user), encoding="utf-8")
-
-
-if __name__ == "__main__":
-    main()
+WEATHER_RELEASE_MARKER="weather-paper-release.sha"
+ALL_PAPER_MODULE="polymarket_scanner.weather_only_live_paper_all_signals_final_v10"
+HOST_AUTHORITY="/usr/local/libexec/polymarket-weather-paper-v2/authority.py"
+FORBIDDEN_ENV=("HTTP_PROXY","HTTPS_PROXY","ALL_PROXY","NO_PROXY","http_proxy","https_proxy","all_proxy","no_proxy","SSL_CERT_FILE","SSL_CERT_DIR","PYTHONPATH","PYTHONHOME","PYTHONUSERBASE","PYTHONSTARTUP","PYTHONINSPECT","PYTHONWARNINGS","PYTHONBREAKPOINT","LD_PRELOAD","LD_LIBRARY_PATH","BASH_ENV","ENV","CDPATH","GIT_DIR","GIT_WORK_TREE","GIT_CONFIG_GLOBAL","GIT_CONFIG_SYSTEM")
+def render(app_dir:Path,config_dir:Path,user:str,release_sha:str,generation_id:str)->str:
+ for value in (str(app_dir),str(config_dir),user,release_sha,generation_id):
+  if not re.fullmatch(r"[/A-Za-z0-9_.-]+",value): raise ValueError('service identity contains unsafe characters')
+ if not app_dir.is_absolute() or not config_dir.is_absolute() or not re.fullmatch(r'[0-9a-f]{40}',release_sha) or not re.fullmatch(r'[0-9a-f]{64}',generation_id): raise ValueError('service release/generation/path invalid')
+ release_root=f"{app_dir}/.releases/{release_sha}"; python=f"{release_root}/venv/bin/python"; env_manifest=f"{release_root}/environment-manifest.json"; release_file=f"{config_dir}/{WEATHER_RELEASE_MARKER}"; state='/var/lib/polymarket-weather-paper'
+ unset=' '.join(FORBIDDEN_ENV)
+ host_gen=f"/usr/bin/python3 {HOST_AUTHORITY} verify-generation --generation-id {generation_id} --app-dir {app_dir} --candidate-sha {release_sha}"
+ host_checkout=f"/usr/bin/python3 {HOST_AUTHORITY} verify-checkout --generation-id {generation_id} --app-dir {app_dir} --candidate-sha {release_sha} --release-file {release_file}"
+ host_env=f"/usr/bin/python3 {HOST_AUTHORITY} verify-candidate-environment --generation-id {generation_id} --app-dir {app_dir} --candidate-sha {release_sha} --environment-manifest {env_manifest}"
+ return f"""[Unit]\nDescription=Polymarket final all-weather PAPER research runtime V10\nWants=network-online.target\nAfter=network-online.target\nStartLimitIntervalSec=600\nStartLimitBurst=3\n\n[Service]\nType=simple\nUser={user}\nWorkingDirectory={app_dir}\nEnvironment=PYTHONUNBUFFERED=1\nEnvironment=PYTHONNOUSERSITE=1\nEnvironment=PYTHONDONTWRITEBYTECODE=1\nEnvironment=ALPHA_DISABLE_DOTENV=1\nUnsetEnvironment={unset}\nEnvironmentFile={config_dir}/weather-paper.env\nExecStartPre={host_gen}\nExecStartPre={host_checkout}\nExecStartPre={host_env}\nExecStart=/usr/bin/env -i PATH=/usr/bin:/bin HOME={app_dir} LANG=C.UTF-8 PYTHONUNBUFFERED=1 PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 ALPHA_DISABLE_DOTENV=1 TELEGRAM_BOT_TOKEN=${{TELEGRAM_BOT_TOKEN}} TELEGRAM_CHAT_ID=${{TELEGRAM_CHAT_ID}} {python} -E -s -m {ALL_PAPER_MODULE} --db {state}/weather-paper.sqlite --status {state}/status.json --release-file {release_file} --interval-seconds 180 --forecast-cache-seconds 900 --forecast-raw-gap-min 0.08 --max-forecast-events 6 --paper-stake-usd 10\nRestart=on-failure\nRestartSec=15\nTimeoutStopSec=20\nMemoryHigh=280M\nMemoryMax=350M\nMemorySwapMax=0\nTasksMax=48\nNice=5\nCPUWeight=70\nIOWeight=50\nNoNewPrivileges=true\nPrivateTmp=true\nPrivateDevices=true\nProtectHome=read-only\nProtectSystem=strict\nProtectKernelTunables=true\nProtectKernelModules=true\nProtectControlGroups=true\nRestrictSUIDSGID=true\nLockPersonality=true\nCapabilityBoundingSet=\nAmbientCapabilities=\nStateDirectory=polymarket-weather-paper\nStateDirectoryMode=0700\nReadWritePaths={state}\nUMask=0077\n\n[Install]\nWantedBy=multi-user.target\n"""
+def main():
+ p=argparse.ArgumentParser(); p.add_argument('--app-dir',type=Path,required=True); p.add_argument('--config-dir',type=Path,required=True); p.add_argument('--user',required=True); p.add_argument('--release-sha',required=True); p.add_argument('--generation-id',required=True); p.add_argument('--output',type=Path,required=True); a=p.parse_args(); a.output.parent.mkdir(parents=True,exist_ok=True); a.output.write_text(render(a.app_dir,a.config_dir,a.user,a.release_sha,a.generation_id))
+if __name__=='__main__': main()

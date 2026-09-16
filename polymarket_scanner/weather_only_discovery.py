@@ -182,6 +182,14 @@ class WeatherOnlyDiscovery:
             "census_completed_at": None,
             "age_seconds": None,
             "max_reuse_seconds": GLOBAL_CENSUS_TTL_SECONDS,
+            "gamma_census_complete": False,
+            "weather_semantic_product_policy": "STRICT_SUPPORTED_SUBSET",
+            "weather_semantic_coverage_complete": False,
+            "weather_looking_events": 0,
+            "strict_supported_events": 0,
+            "unsupported_weather_events": 0,
+            "unsupported_reason_counts": {},
+            "unsupported_examples": [],
         }
 
     async def close(self) -> None:
@@ -263,6 +271,30 @@ class WeatherOnlyDiscovery:
         except Exception:
             return False
         return compiled.family in {DAILY_HIGH, DAILY_LOW}
+
+    @staticmethod
+    def _semantic_classification(event: dict) -> tuple[str, str]:
+        from .weather_only_contract_strict import StrictWeatherContractError, compile_strict_temperature_event
+        try:
+            compile_strict_temperature_event(event)
+            return "SUPPORTED", "SUPPORTED"
+        except StrictWeatherContractError as exc:
+            code = str(exc.code)
+        except Exception:
+            return "OTHER_FAIL_CLOSED", "UNEXPECTED_STRICT_COMPILER_FAILURE"
+        if "STATION" in code or "SOURCE_URL" in code:
+            return "UNSUPPORTED_STATION", code
+        if "RULE" in code or "OPERATIVE" in code or "SOURCE_CONFLICT" in code:
+            return "UNSUPPORTED_RULE_GRAMMAR", code
+        if "UNIT" in code:
+            return "UNSUPPORTED_UNIT", code
+        if "FAMILY" in code or "STATISTIC" in code:
+            return "UNSUPPORTED_FAMILY", code
+        if "BUCKET" in code or "PARTITION" in code or "CHILD_COUNT" in code:
+            return "UNSUPPORTED_BUCKET_FORM", code
+        if "AMBIG" in code or "CONFLICT" in code:
+            return "AMBIGUOUS", code
+        return "OTHER_FAIL_CLOSED", code
 
     async def _global_weather_census(
         self,
@@ -413,6 +445,23 @@ class WeatherOnlyDiscovery:
             if census_completed_at is not None
             else None
         )
+        reason_counts: dict[str, int] = {}
+        unsupported_examples: list[dict] = []
+        supported = 0
+        for event in global_events:
+            category, detail = self._semantic_classification(event)
+            if category == "SUPPORTED":
+                supported += 1
+                continue
+            reason_counts[category] = reason_counts.get(category, 0) + 1
+            if len(unsupported_examples) < 20:
+                unsupported_examples.append({
+                    "event_id": str(event.get("id") or ""),
+                    "title": str(event.get("title") or "")[:220],
+                    "classification": category,
+                    "detail": detail,
+                })
+        unsupported = len(global_events) - supported
         self._last_global_recall = {
             "complete": True,
             "cache_hit": bool(cache_hit),
@@ -422,6 +471,18 @@ class WeatherOnlyDiscovery:
             "census_completed_at": census_completed_at,
             "age_seconds": census_age,
             "max_reuse_seconds": GLOBAL_CENSUS_TTL_SECONDS,
+            "gamma_census_complete": True,
+            "gamma_census_completed_at": census_completed_at,
+            "gamma_census_age_seconds": census_age,
+            "total_active_events_scanned": int(global_scanned),
+            "weather_looking_events": len(global_events),
+            "strict_supported_events": supported,
+            "unsupported_weather_events": unsupported,
+            "unsupported_reason_counts": dict(sorted(reason_counts.items())),
+            "unsupported_examples": unsupported_examples,
+            "weather_semantic_coverage_complete": unsupported == 0,
+            "weather_semantic_coverage_status": "COMPLETE" if unsupported == 0 else "PARTIAL_STRICT_SUBSET",
+            "weather_semantic_product_policy": "STRICT_SUPPORTED_SUBSET",
         }
         return WeatherDiscoverySnapshot(
             version=WEATHER_ONLY_DISCOVERY_VERSION,

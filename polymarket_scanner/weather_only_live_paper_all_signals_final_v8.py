@@ -30,6 +30,9 @@ FORBIDDEN_NETWORK_ENVIRONMENT = (
     "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY",
     "http_proxy", "https_proxy", "all_proxy", "no_proxy",
     "SSL_CERT_FILE", "SSL_CERT_DIR",
+    "PYTHONPATH", "PYTHONHOME", "PYTHONUSERBASE", "PYTHONSTARTUP",
+    "PYTHONINSPECT", "PYTHONWARNINGS", "PYTHONBREAKPOINT",
+    "LD_PRELOAD", "LD_LIBRARY_PATH",
 )
 
 
@@ -39,6 +42,8 @@ def assert_network_environment_isolated() -> None:
         raise RuntimeError(
             "ALL_PAPER_NETWORK_ENVIRONMENT_OVERRIDE_FORBIDDEN:" + ",".join(sorted(present))
         )
+    if os.environ.get("PYTHONNOUSERSITE") != "1":
+        raise RuntimeError("ALL_PAPER_PYTHONNOUSERSITE_NOT_ASSERTED")
 
 
 class FinalAllPaperWeatherLiveServiceV8(FinalAllPaperWeatherLiveServiceV7):

@@ -135,21 +135,35 @@ class AllPaperWeatherLiveV7Service(AllPaperWeatherLiveV6Service):
             )
         )
 
+    async def _terminalize_delivered_signal(self, signal_id: int, candidate: dict, *, status: str, reason: str) -> None:
+        """Authoritative hook for every terminal transition after Telegram receipt."""
+        method = getattr(self.positions, "terminalize_delivered_signal", None)
+        if callable(method):
+            await asyncio.to_thread(
+                method, signal_id, terminal_status=status, reason=str(reason),
+                decision_id=str(candidate.get("decision_id") or candidate.get("event_id") or signal_id),
+                event_id=str(candidate.get("event_id") or ""),
+                market_id=str(candidate.get("market_id") or "") or None,
+                side=str(candidate.get("side") or "") or None,
+            )
+        else:
+            await asyncio.to_thread(self.positions.set_signal_status, signal_id, status)
+            await asyncio.to_thread(
+                self.positions.record_decision,
+                decision_id=str(candidate.get("decision_id") or candidate.get("event_id") or signal_id),
+                event_id=str(candidate.get("event_id") or ""), market_id=str(candidate.get("market_id") or "") or None,
+                side=str(candidate.get("side") or "") or None, outcome=status, reason=str(reason),
+            )
+        sync = getattr(self, "_sync_operator_messages", None)
+        if callable(sync):
+            result = await sync()
+            if result.get("healthy") is not True or list(result.get("errors") or []):
+                raise WeatherLivePaperError("DELIVERED_TERMINAL_OPERATOR_SYNC_FAILED")
+
     async def _mark_v5_not_actionable(
         self, signal_id: int, candidate: dict, reason: str
     ) -> None:
-        await asyncio.to_thread(
-            self.positions.set_signal_status, signal_id, "POST_RECEIPT_NOT_ACTIONABLE"
-        )
-        await asyncio.to_thread(
-            self.positions.record_decision,
-            decision_id=str(candidate.get("decision_id") or candidate.get("event_id") or signal_id),
-            event_id=str(candidate.get("event_id") or ""),
-            market_id=str(candidate.get("market_id") or "") or None,
-            side=str(candidate.get("side") or "") or None,
-            outcome="POST_RECEIPT_NOT_ACTIONABLE",
-            reason=str(reason),
-        )
+        await self._terminalize_delivered_signal(signal_id, candidate, status="POST_RECEIPT_NOT_ACTIONABLE", reason=str(reason))
 
     async def _forecast_post_receipt_execution(
         self, candidate: dict, event: dict, *, telegram_sent_at: float
@@ -289,7 +303,7 @@ class AllPaperWeatherLiveV7Service(AllPaperWeatherLiveV6Service):
         sent_at = time.time()
         self.positions.mark_telegram_sent(signal_id, int(message_id), sent_at=sent_at)
         if sent_at >= float(fresh["decision_expires_at"]):
-            await asyncio.to_thread(self.positions.set_signal_status, signal_id, "EXPIRED")
+            await self._terminalize_delivered_signal(signal_id, fresh if "fresh" in locals() else candidate, status="EXPIRED", reason="DELIVERY_RECEIPT_AFTER_EXPIRY")
             return True, "DELIVERY_RECEIPT_AFTER_EXPIRY"
         await asyncio.to_thread(
             self.positions.set_signal_status, signal_id, "POST_RECEIPT_RECHECK"
@@ -321,9 +335,7 @@ class AllPaperWeatherLiveV7Service(AllPaperWeatherLiveV6Service):
             )
         except Exception as exc:
             code = getattr(exc, "code", type(exc).__name__)
-            await asyncio.to_thread(
-                self.positions.set_signal_status, signal_id, "PAPER_ACCOUNTING_ERROR"
-            )
+            await self._terminalize_delivered_signal(signal_id, fresh, status="PAPER_ACCOUNTING_ERROR", reason=f"V5_PAPER_ACCOUNTING:{code}")
             return True, f"V5_PAPER_ACCOUNTING:{code}"
         return True, None
 
@@ -442,7 +454,7 @@ class AllPaperWeatherLiveV7Service(AllPaperWeatherLiveV6Service):
         sent_at = time.time()
         self.positions.mark_telegram_sent(signal_id, int(message_id), sent_at=sent_at)
         if sent_at >= float(fresh["decision_expires_at"]):
-            await asyncio.to_thread(self.positions.set_signal_status, signal_id, "EXPIRED")
+            await self._terminalize_delivered_signal(signal_id, fresh if "fresh" in locals() else candidate, status="EXPIRED", reason="DELIVERY_RECEIPT_AFTER_EXPIRY")
             return True, "DELIVERY_RECEIPT_AFTER_EXPIRY"
         await asyncio.to_thread(
             self.positions.set_signal_status, signal_id, "POST_RECEIPT_RECHECK"
@@ -493,9 +505,7 @@ class AllPaperWeatherLiveV7Service(AllPaperWeatherLiveV6Service):
             )
         except Exception as exc:
             code = getattr(exc, "code", type(exc).__name__)
-            await asyncio.to_thread(
-                self.positions.set_signal_status, signal_id, "PAPER_ACCOUNTING_ERROR"
-            )
+            await self._terminalize_delivered_signal(signal_id, fresh, status="PAPER_ACCOUNTING_ERROR", reason=f"V5_SAME_DAY_ACCOUNTING:{code}")
             return True, f"V5_SAME_DAY_ACCOUNTING:{code}"
         self._all_paper_same_day_sent += 1
         return True, None
@@ -692,7 +702,7 @@ class AllPaperWeatherLiveV7Service(AllPaperWeatherLiveV6Service):
         sent_at = time.time()
         self.positions.mark_telegram_sent(signal_id, int(message_id), sent_at=sent_at)
         if sent_at >= expires_at:
-            await asyncio.to_thread(self.positions.set_signal_status, signal_id, "EXPIRED")
+            await self._terminalize_delivered_signal(signal_id, fresh if "fresh" in locals() else candidate, status="EXPIRED", reason="DELIVERY_RECEIPT_AFTER_EXPIRY")
             return True, "DELIVERY_RECEIPT_AFTER_EXPIRY"
         await asyncio.to_thread(
             self.positions.set_signal_status, signal_id, "POST_RECEIPT_RECHECK"
@@ -732,9 +742,7 @@ class AllPaperWeatherLiveV7Service(AllPaperWeatherLiveV6Service):
             )
         except Exception as exc:
             code = getattr(exc, "code", type(exc).__name__)
-            await asyncio.to_thread(
-                self.positions.set_signal_status, signal_id, "PAPER_ACCOUNTING_ERROR"
-            )
+            await self._terminalize_delivered_signal(signal_id, fresh, status="PAPER_ACCOUNTING_ERROR", reason=f"V5_STRUCTURAL_ACCOUNTING:{code}")
             return True, f"V5_STRUCTURAL_ACCOUNTING:{code}"
         self._all_paper_structural_sent += 1
         return True, None

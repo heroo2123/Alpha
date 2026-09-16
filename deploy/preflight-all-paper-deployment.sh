@@ -1,34 +1,16 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
-
-APP_DIR="${ALPHA_WEATHER_APP_DIR:-${HOME}/polymarket-weather-paper-app}"
-CONFIG_DIR="${ALPHA_CONFIG_DIR:-${HOME}/.polymarket-edge-scanner}"
-UNIT="polymarket-weather-paper.service"
-RELEASE_FILE="${CONFIG_DIR}/weather-paper-release.sha"
-NETWORK_OUT="${CONFIG_DIR}/all-paper-network-preflight.json"
-ATTESTATION_OUT="${CONFIG_DIR}/all-paper-predeploy-attestation.json"
-DB_PATH="${WEATHER_PAPER_DB_PATH:-/var/lib/polymarket-weather-paper/weather-paper.sqlite}"
-LIBEXEC="/usr/local/libexec/polymarket-weather-paper"
-GATE="${LIBEXEC}/release-gate.py"
-DROPIN="/etc/systemd/system/${UNIT}.d/10-release-authority.conf"
-
-fail(){ printf 'ERROR: %s\n' "$*" >&2; exit 1; }
-[[ -d "${APP_DIR}" && -x "${APP_DIR}/.venv/bin/python" && -f "${RELEASE_FILE}" ]] || fail "candidate app/release evidence missing"
-[[ -f "${GATE}" && -f "${DROPIN}" ]] || fail "host release authority/drop-in not installed"
-[[ ! -e "${APP_DIR}/.env" ]] || fail "ignored .env exists in attested app directory"
-if systemctl is-active --quiet "${UNIT}" 2>/dev/null; then fail "${UNIT} is active; preflight requires stopped candidate"; fi
-if systemctl is-enabled --quiet "${UNIT}" 2>/dev/null; then fail "${UNIT} is enabled; candidate staging requires disabled persistence"; fi
-
-/usr/bin/python3 "${GATE}" verify-checkout --app-dir "${APP_DIR}" --release-file "${RELEASE_FILE}"
-bash "${APP_DIR}/deploy/verify-runtime-release.sh" "${APP_DIR}" "${RELEASE_FILE}"
-bash "${APP_DIR}/deploy/check-weather-paper-service-isolation.sh" --require-disabled
-env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u NO_PROXY -u http_proxy -u https_proxy -u all_proxy -u no_proxy -u SSL_CERT_FILE -u SSL_CERT_DIR \
-  "${APP_DIR}/.venv/bin/python" "${APP_DIR}/deploy/check-weather-paper-network.py" --output "${NETWORK_OUT}"
+APP_DIR="${ALPHA_WEATHER_APP_DIR:-${HOME}/polymarket-weather-paper-app}"; CONFIG_DIR="${ALPHA_CONFIG_DIR:-${HOME}/.polymarket-edge-scanner}"; DB_PATH="${WEATHER_PAPER_DB_PATH:-/var/lib/polymarket-weather-paper/weather-paper.sqlite}"; RELEASE_FILE="${CONFIG_DIR}/weather-paper-release.sha"; SHA="${1:-}"; GEN="${2:-}"; AUTH=/usr/local/libexec/polymarket-weather-paper-v2/authority.py; UNIT=polymarket-weather-paper.service
+fail(){ echo "ERROR: $*" >&2; exit 1; }
+[[ "${SHA}" =~ ^[0-9a-f]{40}$ && "${GEN}" =~ ^[0-9a-f]{64}$ ]] || fail "usage: $0 <sha> <generation>"
+PY="${APP_DIR}/.releases/${SHA}/venv/bin/python"; MANIFEST="${APP_DIR}/.releases/${SHA}/environment-manifest.json"; [[ -x "${PY}" && -f "${MANIFEST}" && -f "${AUTH}" ]] || fail "release environment/authority missing"
+! systemctl is-active --quiet "${UNIT}" 2>/dev/null || fail "service active"; ! systemctl is-enabled --quiet "${UNIT}" 2>/dev/null || fail "service enabled"
+/usr/bin/python3 "${AUTH}" verify-generation --generation-id "${GEN}" --app-dir "${APP_DIR}" --candidate-sha "${SHA}"
+/usr/bin/python3 "${AUTH}" verify-checkout --generation-id "${GEN}" --app-dir "${APP_DIR}" --candidate-sha "${SHA}" --release-file "${RELEASE_FILE}"
+/usr/bin/python3 "${AUTH}" verify-candidate-environment --generation-id "${GEN}" --app-dir "${APP_DIR}" --candidate-sha "${SHA}" --environment-manifest "${MANIFEST}"
+[[ ! -e "${APP_DIR}/.env" ]] || fail "implicit .env exists"
+/usr/bin/env -i PATH=/usr/bin:/bin HOME="${APP_DIR}" LANG=C.UTF-8 PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 ALPHA_DISABLE_DOTENV=1 "${PY}" -E -s "${APP_DIR}/deploy/check-weather-paper-network.py" --output "${CONFIG_DIR}/all-paper-network-preflight.json"
 bash "${APP_DIR}/deploy/pre-release-weather-paper-backup.sh"
-bash "${APP_DIR}/deploy/setup-all-paper-service.sh"
-"${APP_DIR}/.venv/bin/python" "${APP_DIR}/deploy/attest-all-paper-runtime-v2.py" \
-  --app-dir "${APP_DIR}" --release-file "${RELEASE_FILE}" --db "${DB_PATH}" --output "${ATTESTATION_OUT}"
-/usr/bin/python3 "${GATE}" verify-checkout --app-dir "${APP_DIR}" --release-file "${RELEASE_FILE}"
-
-printf 'PASS: host-approved V8 preflight passed; service remains STOPPED and DISABLED.\n'
-printf 'Network report: %s\nAttestation: %s\n' "${NETWORK_OUT}" "${ATTESTATION_OUT}"
+bash "${APP_DIR}/deploy/setup-all-paper-service.sh" "${SHA}" "${GEN}"
+"${PY}" -E -s "${APP_DIR}/deploy/attest-all-paper-runtime-v2.py" --app-dir "${APP_DIR}" --release-file "${RELEASE_FILE}" --db "${DB_PATH}" --expected-release-sha "${SHA}" --generation-id "${GEN}" --output "${CONFIG_DIR}/all-paper-predeploy-attestation.json"
+printf 'PASS: V10 preflight passed; service remains stopped/disabled.\n'

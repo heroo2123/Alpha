@@ -6,12 +6,12 @@ from polymarket_scanner.weather_only_live_paper_all_signals_final_v7 import (
 from polymarket_scanner.weather_only_live_paper_all_signals_final_v8 import (
     FINAL_ALL_PAPER_RUNTIME_V8_VERSION,
 )
-from polymarket_scanner.weather_only_live_paper_all_signals_final_v9 import (
+from polymarket_scanner.weather_only_live_paper_all_signals_final_v10 import (
     FINAL_ALL_PAPER_RUNTIME_V9_VERSION,
 )
 
 
-FINAL_MODULE = "polymarket_scanner.weather_only_live_paper_all_signals_final_v9"
+FINAL_MODULE = "polymarket_scanner.weather_only_live_paper_all_signals_final_v10"
 
 
 def _text(path: str) -> str:

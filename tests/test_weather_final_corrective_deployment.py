@@ -25,7 +25,7 @@ from polymarket_scanner.weather_only_live_paper_all_signals_final_v7 import (
 from polymarket_scanner.weather_only_live_paper_all_signals_final_v8 import (
     FINAL_ALL_PAPER_RUNTIME_V8_VERSION,
 )
-from polymarket_scanner.weather_only_live_paper_all_signals_final_v9 import (
+from polymarket_scanner.weather_only_live_paper_all_signals_final_v10 import (
     FINAL_ALL_PAPER_RUNTIME_V9_VERSION,
 )
 from polymarket_scanner.weather_only_operator_state_corrective import (
@@ -68,6 +68,8 @@ def _status() -> dict:
             "final_all_paper_runtime_v7_version": FINAL_ALL_PAPER_RUNTIME_V7_VERSION,
             "final_all_paper_runtime_v8_version": FINAL_ALL_PAPER_RUNTIME_V8_VERSION,
             "final_all_paper_runtime_v9_version": FINAL_ALL_PAPER_RUNTIME_V9_VERSION,
+            "final_all_paper_runtime_v10_version": __import__("polymarket_scanner.weather_only_live_paper_all_signals_final_v10",fromlist=["FINAL_ALL_PAPER_RUNTIME_V10_VERSION"]).FINAL_ALL_PAPER_RUNTIME_V10_VERSION,
+            "operator_state_corrective_v5_version": __import__("polymarket_scanner.weather_only_operator_state_corrective_v5",fromlist=["OPERATOR_STATE_CORRECTIVE_V5_VERSION"]).OPERATOR_STATE_CORRECTIVE_V5_VERSION,
             "operator_state_corrective_version": OPERATOR_STATE_CORRECTIVE_VERSION,
             "operator_state_corrective_v2_version": OPERATOR_STATE_CORRECTIVE_V2_VERSION,
             "operator_state_corrective_v3_version": OPERATOR_STATE_CORRECTIVE_V3_VERSION,
@@ -108,6 +110,14 @@ def _status() -> dict:
             "network_environment_absent_before_http_client_construction": True,
             "global_weather_recall_required": True,
             "global_weather_recall_complete": True,
+            "gamma_census_complete": True,
+            "code_loading_environment_isolated": True,
+            "python_user_site_disabled": True,
+            "maker_legacy_queue_pnl_excluded": True,
+            "weather_semantic_product_policy": "STRICT_SUPPORTED_SUBSET",
+            "weather_semantic_coverage_complete": False,
+            "global_weather_coverage_complete": False,
+            "unsupported_weather_events": 1,
             "global_weather_recall_fresh": True,
             "global_weather_recall_max_reuse_seconds": 300.0,
             "global_weather_recall_certified_at": NOW - 1.0,
@@ -220,8 +230,8 @@ def test_final_acceptance_binds_top_level_recall_evidence_to_nested_census():
 
 def test_renderer_uses_final_v9_and_disables_dotenv_and_network_environment():
     renderer = _load_script(ROOT / "deploy" / "render-all-paper-unit.py", "render_all_paper_unit")
-    text = renderer.render(Path("/home/test/app"), Path("/home/test/config"), "tester")
-    assert renderer.ALL_PAPER_MODULE == "polymarket_scanner.weather_only_live_paper_all_signals_final_v9"
+    text = renderer.render(Path("/home/test/app"), Path("/home/test/config"), "tester", "a" * 40, "b" * 64)
+    assert renderer.ALL_PAPER_MODULE == "polymarket_scanner.weather_only_live_paper_all_signals_final_v10"
     assert text.count("Environment=ALPHA_DISABLE_DOTENV=1") == 1
     assert "weather_only_live_paper_all_signals_final_v9" in text
     assert "EnvironmentFile=/home/test/config/weather-paper.env" in text
@@ -261,7 +271,7 @@ def test_deployment_scripts_route_through_final_attestation_and_root_custodied_r
     assert "snapshot-generation-v4" in host_snapshot
     assert "all-paper-rollback-v4-root-custody-hash-bound" in host_snapshot
     assert "rollback-manifest-v4.json" in host_snapshot
-    assert "FINAL_MODULE = \"polymarket_scanner.weather_only_live_paper_all_signals_final_v9\"" in attester
+    assert "FINAL_MODULE = \"polymarket_scanner.weather_only_live_paper_all_signals_final_v10\"" in attester
 
 
 def test_exact_venv_snapshot_round_trip(tmp_path):
