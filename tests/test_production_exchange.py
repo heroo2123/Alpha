@@ -21,7 +21,7 @@ from polymarket_scanner.production.chain import (
     decode_redemptions, keccak,
 )
 from polymarket_scanner.production.exchange import (
-    CLOB, DATA, GAMMA, GEOBLOCK, ExchangeEOA, canonical, order_hash, typed_order,
+    CLOB, DATA, GAMMA, GEOBLOCK, ExchangeEOA, PublicMarketReader, canonical, order_hash, typed_order,
 )
 
 NOW = 1_789_545_600
@@ -58,8 +58,14 @@ class Wire:
 class Chain:
     fee = 200
 
-    def max_fee_bps(self, exchange):
+    def block(self, tag):
+        assert tag in ("latest", "finalized")
+        return {"number": 100, "hash": BLOCK, "timestamp": NOW}
+
+    def call_uint(self, exchange, signature, types, values, **kwargs):
         assert exchange in (STANDARD_EXCHANGE, NEG_RISK_EXCHANGE)
+        assert signature == "getMaxFeeRate()" and types == [] and values == []
+        assert kwargs == {"block": "0x64"}
         return self.fee
 
     def token_balance(self, wallet, token):
@@ -71,17 +77,17 @@ class Chain:
         return {"balance": 9_000_000, "allowances": {STANDARD_EXCHANGE: 20_000_000, NEG_RISK_EXCHANGE: 1_000_000}}
 
 
-def client(wire=None, chain=None, clock=None):
+def client(wire=None, chain=None, clock=None, fee_policy="ONCHAIN_BOUND"):
     return ExchangeEOA(private_key=KEY, api_key=API_KEY, api_secret=API_SECRET,
                        api_passphrase="fixture-passphrase", wallet=WALLET, signer=WALLET,
-                       transport=wire or Wire(), chain=chain or Chain(), clock=clock or (lambda: NOW))
+                       transport=wire or Wire(), chain=chain or Chain(), clock=clock or (lambda: NOW), fee_policy=fee_policy)
 
 
 def context():
     return [
         (200, [{"conditionId": CONDITION, "clobTokenIds": json.dumps([TOKEN, str(int(TOKEN)+1)]),
                 "active": True, "closed": False, "acceptingOrders": True, "enableOrderBook": True}]),
-        (200, {"t": [{"t": TOKEN}], "nr": False, "mts": ".01", "mos": "5",
+        (200, {"t": [{"t": TOKEN}], "nr": False, "mts": ".01", "mos": "5", "mbf": 0, "tbf": 0,
                "fd": {"r": ".05", "e": "1", "to": True}}),
         (200, {"asset_id": TOKEN, "market": CONDITION, "neg_risk": False,
                "tick_size": ".01", "min_order_size": "5", "timestamp": str(NOW*1000),
@@ -270,10 +276,10 @@ def test_best_level_normalized_and_new_protocol_rejected():
 def test_slow_onchain_preflight_cannot_make_old_book_look_fresh():
     tick = [NOW]
     chain = Chain()
-    def slow_fee(exchange):
+    def slow_fee(*args, **kwargs):
         tick[0] += 16
         return 200
-    chain.max_fee_bps = slow_fee
+    chain.call_uint = slow_fee
     with pytest.raises(ExchangeError, match="BOOK_STALE_DURING_PREFLIGHT"):
         client(Wire(context()), chain=chain, clock=lambda: tick[0]).market_snapshot(TOKEN, CONDITION)
 
@@ -348,16 +354,16 @@ def test_onchain_fee_zero_is_unlimited_never_free(monkeypatch, value, code):
 
 def test_credential_account_mismatch_and_secure_file(tmp_path):
     with pytest.raises(ExchangeError, match="CREDENTIAL_ACCOUNT_MISMATCH"):
-        ExchangeEOA(private_key=KEY, api_key=API_KEY, api_secret=API_SECRET, api_passphrase="fixture", wallet=OTHER, signer=OTHER)
+        ExchangeEOA(private_key=KEY, api_key=API_KEY, api_secret=API_SECRET, api_passphrase="fixture", wallet=OTHER, signer=OTHER, fee_policy="ONCHAIN_BOUND")
     with pytest.raises(ExchangeError, match="ONLY_EXPLICIT_EOA_SUPPORTED"):
-        ExchangeEOA(private_key=KEY, api_key=API_KEY, api_secret=API_SECRET, api_passphrase="fixture", wallet=OTHER, signer=WALLET)
+        ExchangeEOA(private_key=KEY, api_key=API_KEY, api_secret=API_SECRET, api_passphrase="fixture", wallet=OTHER, signer=WALLET, fee_policy="ONCHAIN_BOUND")
     path = tmp_path / "fixture.json"
     path.write_text(json.dumps({"private_key": KEY.hex(), "api_key": API_KEY, "api_secret": API_SECRET, "api_passphrase": "fixture"}))
     path.chmod(0o644)
     with pytest.raises(ExchangeError, match="CREDENTIAL_FILE_PERMISSIONS"):
         ExchangeEOA.from_credentials_file(path, wallet=WALLET, signer=WALLET)
     path.chmod(0o600)
-    assert ExchangeEOA.from_credentials_file(path, wallet=WALLET, signer=WALLET, transport=Wire(), chain=Chain()).wallet == WALLET
+    assert ExchangeEOA.from_credentials_file(path, wallet=WALLET, signer=WALLET, transport=Wire(), chain=Chain(), fee_policy="ONCHAIN_BOUND").wallet == WALLET
     link = tmp_path / "linked.json"
     link.symlink_to(path)
     with pytest.raises(ExchangeError, match="CREDENTIAL_FILE_READ_FAILED"):
@@ -465,7 +471,7 @@ def test_production_factory_accepts_explicit_readonly_rpc(tmp_path):
     path.write_text(json.dumps({"private_key": KEY.hex(), "api_key": API_KEY, "api_secret": API_SECRET, "api_passphrase": "fixture"}))
     path.chmod(0o600)
     exchange = ExchangeEOA.from_credentials_file(path, wallet=WALLET, signer=WALLET,
-        rpc_url="https://rpc.invalid/operator", transport=Wire())
+        rpc_url="https://rpc.invalid/operator", transport=Wire(), fee_policy="ONCHAIN_BOUND")
     assert exchange.chain.rpc_url == "https://rpc.invalid/operator"
 
 

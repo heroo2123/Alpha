@@ -105,6 +105,7 @@ class SignalService:
                 lines.append(str(evidence["title"]) + " | " + evidence["strategy"] + " | " + row["status"] + " / " + row["delivery"] + " | outcome " + ("observed" if row["outcome"] else "pending") + " | " + row["id"])
         elif account:
             lines += ["Account: " + str(account.get("wallet")),
+                      "Fee policy: " + str(execution.get("fee_policy", "unavailable")) + " | local allowance; no signed exchange cap",
                       "Reconciled: " + str(execution.get("reconciled")) + " | fault: " + str(account.get("reconciliation_fault") or execution.get("last_error") or "none"),
                       "Confirmed fills: " + str(account.get("confirmed_fill_count", 0)),
                       "Actual cost $" + units(account.get("actual_cost_micros")) + " | actual fees $" + units(account.get("actual_fees_micros")),

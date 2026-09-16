@@ -24,6 +24,7 @@ import time
 from .chain import (CHAIN_ID, NEG_RISK_EXCHANGE, STANDARD_EXCHANGE, ZERO32,
                     ChainReader, ExchangeError, JSONTransport, address, hash32,
                     keccak, micros, number, uint)
+from .fees import fee_requirement, make_fee_evidence, validate_policy
 
 CLOB = "https://clob.polymarket.com"
 GAMMA = "https://gamma-api.polymarket.com"
@@ -121,10 +122,103 @@ def order_hash(order: dict, exchange: str) -> str:
         raise ExchangeError("ORDER_HASH_FAILED") from None
 
 
+class PublicMarketReader:
+    """The identical credential-free market/fee preflight used by live signing.
+
+    Constructing this reader cannot access an account, signer or authenticated
+    API. It is also the implementation exercised by the public readiness probe.
+    """
+    def __init__(self, *, fee_policy: str, transport, chain, clock=time.time):
+        self.fee_policy = validate_policy(fee_policy)
+        self.transport, self.chain, self.clock = transport, chain, clock
+
+    def _get(self, path: str, *, params=None, base=CLOB):
+        status, value = self.transport.request("GET", base + path, params=params)
+        if status != 200:
+            raise ExchangeError("PUBLIC_READ_FAILED")
+        return value
+
+    def market_snapshot(self, token: str, condition: str) -> dict:
+        started = self.clock()
+        token, condition = _token(token), hash32(condition)
+        gamma = self._get("/markets", params={"condition_ids": condition, "limit": 2}, base=GAMMA)
+        if not isinstance(gamma, list) or len(gamma) != 1 or not isinstance(gamma[0], dict):
+            raise ExchangeError("MARKET_IDENTITY_UNKNOWN")
+        market = gamma[0]
+        if hash32(market.get("conditionId")) != condition or token not in [str(uint(t)) for t in _array(market.get("clobTokenIds"))]:
+            raise ExchangeError("MARKET_TOKEN_MISMATCH")
+        if any(market.get(k) is not True for k in ("active", "acceptingOrders", "enableOrderBook")) or market.get("closed") is not False:
+            raise ExchangeError("MARKET_NOT_TRADABLE")
+        info = self._get("/clob-markets/" + condition)
+        book = self._get("/book", params={"token_id": token})
+        if not isinstance(info, dict) or not isinstance(book, dict):
+            raise ExchangeError("MARKET_CONTEXT_INVALID")
+        tokens = info.get("t")
+        if not isinstance(tokens, list) or token not in [str(uint(t.get("t"))) for t in tokens if isinstance(t, dict)]:
+            raise ExchangeError("MARKET_TOKEN_MISMATCH")
+        if str(uint(book.get("asset_id"))) != token or hash32(book.get("market")) != condition:
+            raise ExchangeError("BOOK_IDENTITY_MISMATCH")
+        neg_risk = book.get("neg_risk")
+        if type(neg_risk) is not bool or ("nr" in info and info["nr"] is not neg_risk):
+            raise ExchangeError("EXCHANGE_TYPE_UNKNOWN")
+        tick, minimum = number(book.get("tick_size"), positive=True), number(book.get("min_order_size"), positive=True)
+        if tick not in TICKS or tick != number(info.get("mts")) or minimum != number(info.get("mos")):
+            raise ExchangeError("MARKET_CONSTRAINT_MISMATCH")
+        stamp = number(book.get("timestamp")) / Decimal(1000)
+        if not -2 <= Decimal(str(self.clock())) - stamp <= MAX_BOOK_AGE:
+            raise ExchangeError("BOOK_STALE")
+        levels = {}
+        for side in ("bids", "asks"):
+            raw = book.get(side)
+            if not isinstance(raw, list) or len(raw) > 2000:
+                raise ExchangeError("BOOK_DEPTH_INVALID")
+            levels[side] = []
+            for level in raw:
+                if not isinstance(level, dict):
+                    raise ExchangeError("BOOK_LEVEL_INVALID")
+                p, q = number(level.get("price"), positive=True), number(level.get("size"), positive=True)
+                if p >= 1 or p % tick:
+                    raise ExchangeError("BOOK_LEVEL_INVALID")
+                levels[side].append({"price": str(p), "size": str(q)})
+        fee = info.get("fd")
+        if not isinstance(fee, dict) or type(fee.get("to")) is not bool:
+            raise ExchangeError("FEE_EVIDENCE_MISSING")
+        rate, exponent = number(fee.get("r")), number(fee.get("e"))
+        if rate > 1 or exponent > 4:
+            raise ExchangeError("FEE_CURVE_UNSUPPORTED")
+        exchange = NEG_RISK_EXCHANGE if neg_risk else STANDARD_EXCHANGE
+        block = self.chain.block("latest")
+        maximum_fee = self.chain.call_uint(exchange, "getMaxFeeRate()", [], [], block=hex(block["number"]))
+        if not -2 <= Decimal(str(self.clock())) - stamp <= MAX_BOOK_AGE:
+            raise ExchangeError("BOOK_STALE_DURING_PREFLIGHT")
+        if not 0 <= self.clock() - started <= MAX_BOOK_AGE:
+            raise ExchangeError("FEE_EVIDENCE_STALE_DURING_PREFLIGHT")
+        # The worker uses the best level; complete depth remains available to
+        # validate the signed limit immediately before preparing the wire.
+        for side, price_key, size_key, reverse in (("asks", "ask", "ask_size", False), ("bids", "bid", "bid_size", True)):
+            ordered = sorted(levels[side], key=lambda x: Decimal(x["price"]), reverse=reverse)
+            best = ordered[0]["price"] if ordered else None
+            levels[price_key] = best
+            levels[size_key] = str(sum((Decimal(x["size"]) for x in ordered if x["price"] == best), Decimal(0)))
+        observed = self.clock()
+        evidence = make_fee_evidence(self.fee_policy, token=token, condition=condition, exchange=exchange,
+            observed_at=observed, fd=fee, max_fee_bps=maximum_fee, max_fee_block=block,
+            maker_base_fee_bps=info.get("mbf"), taker_base_fee_bps=info.get("tbf"))
+        result = {"token": token, "condition": condition, "book": levels, "fee_rate": str(rate),
+                "fee_exponent": str(exponent), "taker_only_fee": fee["to"], "tick_size": str(tick),
+                "min_order_size": str(minimum), "neg_risk": neg_risk, "exchange": exchange,
+                "max_fee_bps": maximum_fee, "received_at": observed,
+                "fee_policy": self.fee_policy, "fee_evidence": evidence,
+                "book_timestamp": float(stamp), "market": market}
+        fee_requirement(result, Decimal("0.5"), False, expected_policy=self.fee_policy)
+        return result
+
 class ExchangeEOA:
     def __init__(self, *, private_key, api_key: str, api_secret: str, api_passphrase: str,
                  wallet: str, signer: str, transport: JSONTransport | None = None,
-                 chain: ChainReader | None = None, rpc_url: str | None = None, clock=time.time):
+                 chain: ChainReader | None = None, rpc_url: str | None = None, clock=time.time,
+                 fee_policy: str | None = None):
+        self.fee_policy = validate_policy(fee_policy)
         self.wallet, self.signer = address(wallet), address(signer)
         if self.wallet != self.signer:
             raise ExchangeError("ONLY_EXPLICIT_EOA_SUPPORTED")
@@ -412,68 +506,8 @@ class ExchangeEOA:
                 "positions": positions, "observed_at": self.clock(), "started_at": started}
 
     def market_snapshot(self, token: str, condition: str) -> dict:
-        token, condition = _token(token), hash32(condition)
-        gamma = self._get("/markets", params={"condition_ids": condition, "limit": 2}, base=GAMMA)
-        if not isinstance(gamma, list) or len(gamma) != 1 or not isinstance(gamma[0], dict):
-            raise ExchangeError("MARKET_IDENTITY_UNKNOWN")
-        market = gamma[0]
-        if hash32(market.get("conditionId")) != condition or token not in [str(uint(t)) for t in _array(market.get("clobTokenIds"))]:
-            raise ExchangeError("MARKET_TOKEN_MISMATCH")
-        if any(market.get(k) is not True for k in ("active", "acceptingOrders", "enableOrderBook")) or market.get("closed") is not False:
-            raise ExchangeError("MARKET_NOT_TRADABLE")
-        info = self._get("/clob-markets/" + condition)
-        book = self._get("/book", params={"token_id": token})
-        if not isinstance(info, dict) or not isinstance(book, dict):
-            raise ExchangeError("MARKET_CONTEXT_INVALID")
-        tokens = info.get("t")
-        if not isinstance(tokens, list) or token not in [str(uint(t.get("t"))) for t in tokens if isinstance(t, dict)]:
-            raise ExchangeError("MARKET_TOKEN_MISMATCH")
-        if str(uint(book.get("asset_id"))) != token or hash32(book.get("market")) != condition:
-            raise ExchangeError("BOOK_IDENTITY_MISMATCH")
-        neg_risk = book.get("neg_risk")
-        if type(neg_risk) is not bool or ("nr" in info and info["nr"] is not neg_risk):
-            raise ExchangeError("EXCHANGE_TYPE_UNKNOWN")
-        tick, minimum = number(book.get("tick_size"), positive=True), number(book.get("min_order_size"), positive=True)
-        if tick not in TICKS or tick != number(info.get("mts")) or minimum != number(info.get("mos")):
-            raise ExchangeError("MARKET_CONSTRAINT_MISMATCH")
-        stamp = number(book.get("timestamp")) / Decimal(1000)
-        if not -2 <= Decimal(str(self.clock())) - stamp <= MAX_BOOK_AGE:
-            raise ExchangeError("BOOK_STALE")
-        levels = {}
-        for side in ("bids", "asks"):
-            raw = book.get(side)
-            if not isinstance(raw, list) or len(raw) > 2000:
-                raise ExchangeError("BOOK_DEPTH_INVALID")
-            levels[side] = []
-            for level in raw:
-                if not isinstance(level, dict):
-                    raise ExchangeError("BOOK_LEVEL_INVALID")
-                p, q = number(level.get("price"), positive=True), number(level.get("size"), positive=True)
-                if p >= 1 or p % tick:
-                    raise ExchangeError("BOOK_LEVEL_INVALID")
-                levels[side].append({"price": str(p), "size": str(q)})
-        fee = info.get("fd")
-        if not isinstance(fee, dict) or type(fee.get("to")) is not bool:
-            raise ExchangeError("FEE_EVIDENCE_MISSING")
-        rate, exponent = number(fee.get("r")), number(fee.get("e"))
-        if rate > 1 or exponent > 4:
-            raise ExchangeError("FEE_CURVE_UNSUPPORTED")
-        exchange = NEG_RISK_EXCHANGE if neg_risk else STANDARD_EXCHANGE
-        maximum_fee = self.chain.max_fee_bps(exchange)
-        if not -2 <= Decimal(str(self.clock())) - stamp <= MAX_BOOK_AGE:
-            raise ExchangeError("BOOK_STALE_DURING_PREFLIGHT")
-        # The worker uses the best level; complete depth remains available to
-        # validate the signed limit immediately before preparing the wire.
-        for side, price_key, size_key, reverse in (("asks", "ask", "ask_size", False), ("bids", "bid", "bid_size", True)):
-            ordered = sorted(levels[side], key=lambda x: Decimal(x["price"]), reverse=reverse)
-            best = ordered[0]["price"] if ordered else None
-            levels[price_key] = best
-            levels[size_key] = str(sum((Decimal(x["size"]) for x in ordered if x["price"] == best), Decimal(0)))
-        return {"token": token, "condition": condition, "book": levels, "fee_rate": str(rate),
-                "fee_exponent": str(exponent), "taker_only_fee": fee["to"], "tick_size": str(tick),
-                "min_order_size": str(minimum), "neg_risk": neg_risk, "exchange": exchange,
-                "max_fee_bps": maximum_fee, "received_at": self.clock(),
-                "book_timestamp": float(stamp), "market": market}
+        return PublicMarketReader(fee_policy=self.fee_policy, transport=self.transport,
+                                  chain=self.chain, clock=self.clock).market_snapshot(token, condition)
 
     def prepare_buy(self, *, token: str, condition: str, quantity, price,
                     order_type: str, fee_cap, expiration: int = 0,
@@ -496,7 +530,7 @@ class ExchangeEOA:
             raise ExchangeError("PRICE_OFF_TICK_GRID")
         if quantity < Decimal(snapshot["min_order_size"]) or quantity % Decimal("0.01"):
             raise ExchangeError("ORDER_SIZE_INVALID")
-        bound = price * snapshot["max_fee_bps"] / Decimal(10_000)
+        bound = fee_requirement(snapshot, price, order_type == "GTD", expected_policy=self.fee_policy)
         if bound > cap:
             raise ExchangeError("EXCHANGE_FEE_BOUND_EXCEEDS_OPERATOR_CAP")
         asks = [(Decimal(x["price"]), Decimal(x["size"])) for x in snapshot["book"]["asks"]]
@@ -529,6 +563,7 @@ class ExchangeEOA:
                 "exchange": snapshot["exchange"], "condition": snapshot["condition"],
                 "token": snapshot["token"], "quantity": str(quantity), "price": str(price),
                 "fee_cap": str(cap), "fee_bound": str(bound), "prepared_at": created,
+                "fee_policy": self.fee_policy, "fee_evidence": snapshot["fee_evidence"],
                 "valid_until": deadline, "market": snapshot}
 
     def submit(self, prepared: dict) -> str:
@@ -541,6 +576,14 @@ class ExchangeEOA:
                 raise ExchangeError("PREPARED_IDENTITY_MISMATCH")
             if not prepared["prepared_at"] <= self.clock() < prepared["valid_until"] or self.clock() - prepared["prepared_at"] > MAX_PREPARED_AGE:
                 raise ExchangeError("PREPARED_ORDER_EXPIRED")
+            if prepared["fee_policy"] != self.fee_policy or prepared["fee_evidence"] != prepared["market"]["fee_evidence"]:
+                raise ExchangeError("PREPARED_FEE_EVIDENCE_MUTATED")
+            requirement = fee_requirement(prepared["market"], prepared["price"], payload["postOnly"],
+                                          expected_policy=self.fee_policy)
+            if requirement > number(prepared["fee_cap"]):
+                raise ExchangeError("EXCHANGE_FEE_BOUND_EXCEEDS_OPERATOR_CAP")
+            if not -2 <= self.clock() - prepared["market"]["book_timestamp"] <= MAX_BOOK_AGE:
+                raise ExchangeError("BOOK_STALE_BEFORE_SUBMISSION")
         except (KeyError, TypeError, ValueError):
             raise ExchangeError("PREPARED_ORDER_INVALID") from None
         # The engine performs independent weather validation, reserves capital,

@@ -14,6 +14,7 @@ import time
 
 from .config import ProductionConfig, ConfigurationError, decimal, digest
 from .ledger import ExecutionLedger, LedgerError, micros, SCALE
+from .fees import fee_requirement
 
 
 class ExecutionError(RuntimeError):
@@ -122,8 +123,11 @@ class ExecutionEngine:
             if trade_after is not None and order["created"] < trade_after:
                 trades = await self.call(self.exchange.account_trades, token=order["token"], after=max(0, int(order["created"]) - 300), before=max(int(order["created"]) + 60, self.ledger.order_expiration(order["id"])) + 300)
             fills = await self.call(self.exchange.confirmed_fills, order["id"], order["token"], leg["neg_risk"], trades=trades, recorded_fills=self.ledger.order_fills(order["id"]))
+            new_fill = False
             for fill in fills:
-                self.ledger.record_fill(fill)
+                new_fill = self.ledger.record_fill(fill) or new_fill
+            if new_fill and self.ledger.state("fault"):
+                await self.manage_existing()
             remote = await self.call(self.exchange.get_order, order["id"])
             current = self.ledger.order(order["id"])
             if remote is None:
@@ -206,6 +210,8 @@ class ExecutionEngine:
     def status(self):
         return {"mode": self.config.mode, "financial_authority": self.authority(),
                 "config_sha256": self.config.config_sha256,
+                "fee_policy": self.config.fee_policy,
+                "fee_limit_scope": "LOCAL_SUBMISSION_CHECK_AND_RESERVATION_NOT_SIGNED_EXCHANGE_CAP",
                 "reconciled": self.reconciled, "reconciled_at": self.last_reconcile,
                 "last_error": self.last_error, "database_write_fault": self.io_fault,
                 "account_performance_scope": "BOT_CONFIRMED_BUY_FILLS_ONLY_DEDICATED_EOA",
@@ -227,7 +233,8 @@ class ExecutionEngine:
                 try:
                     await self.weather.revalidate(plan["signal"])
                     market = await self.call(self.exchange.market_snapshot, order["token"], order["condition_id"])
-                    if Decimal(order["limit_price"]) * Decimal(market["max_fee_bps"]) / 10000 > Decimal(order["fee_cap"]):
+                    if fee_requirement(market, Decimal(order["limit_price"]), post_only=True,
+                                       expected_policy=self.config.fee_policy) > Decimal(order["fee_cap"]):
                         cancel = True
                 except Exception:
                     cancel = True
@@ -258,10 +265,15 @@ class ExecutionEngine:
             raise ExecutionError("OFF_TICK_PRICE")
         if time.time() - float(snap["received_at"]) > 5:
             raise ExecutionError("EXECUTABLE_SNAPSHOT_STALE")
-        fee = price * decimal(snap["max_fee_bps"], "max_fee_bps") / Decimal(10000)
-        if fee > risk.max_fee_per_share:
+        required_fee = fee_requirement(snap, price, post_only=maker, expected_policy=self.config.fee_policy)
+        if required_fee > risk.max_fee_per_share:
             raise ExecutionError("EXECUTABLE_FEE_LIMIT")
-        return dict(leg, price=str(price), fee_cap=str(fee), available=str(available), min_size=str(minimum), tick=str(tick), neg_risk=snap["neg_risk"], exchange=snap["exchange"])
+        # Published fees are mutable venue policy. Reserve the operator's entire
+        # allowance, never label the observed schedule as an exchange-enforced cap.
+        fee = risk.max_fee_per_share if self.config.fee_policy == "EXCHANGE_PUBLISHED_SCHEDULE" else required_fee
+        return dict(leg, price=str(price), fee_cap=str(fee), observed_fee_requirement=str(required_fee),
+                    fee_policy=self.config.fee_policy, fee_evidence=snap["fee_evidence"],
+                    available=str(available), min_size=str(minimum), tick=str(tick), neg_risk=snap["neg_risk"], exchange=snap["exchange"])
 
     async def execute(self, signal: dict) -> bool:
         if self.ledger.has_intent(signal["id"]):
@@ -361,7 +373,7 @@ class ExecutionEngine:
                                            fee_cap=Decimal(leg["fee_cap"]), post_only=maker, valid_until=plan["expires"])
                 if not self.authority() or not self.reader.is_active(signal["id"]):
                     break
-                self.ledger.begin_submission(plan["id"], index, prepared["order_id"], prepared["wire_hash"], prepared["payload"])
+                self.ledger.begin_submission(plan["id"], index, prepared["order_id"], prepared["wire_hash"], prepared["payload"], prepared["fee_evidence"])
                 if not self.authority() or not self.reader.is_active(signal["id"]) or time.time() >= plan["expires"]:
                     self.ledger.abort_before_post(prepared["order_id"])
                     break
@@ -377,8 +389,11 @@ class ExecutionEngine:
                     break
                 if index + 1 < len(legs):
                     fills = await self.call(self.exchange.confirmed_fills, prepared["order_id"], leg["token"], leg["neg_risk"])
+                    new_fill = False
                     for fill in fills:
-                        self.ledger.record_fill(fill)
+                        new_fill = self.ledger.record_fill(fill) or new_fill
+                    if new_fill and self.ledger.state("fault"):
+                        await self.manage_existing()
                     committed = self.ledger.order(prepared["order_id"])
                     # Full basket cost was reserved before leg one. Pending final
                     # receipts are not a profit claim and do not force a one-leg

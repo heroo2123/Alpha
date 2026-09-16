@@ -1,10 +1,10 @@
 # Alpha weather production application
 
-The canonical weather application is `python -m polymarket_scanner.production`.
+The canonical weather application is `python -I -m polymarket_scanner.production`.
 It provides live manual signals and a separately configured execution worker.
 
 - **LIVE_SIGNALS** continuously checks public markets/weather, sends precise Telegram signals, invalidates stale alerts, and observes outcomes without assuming you traded.
-- **LIVE_EXECUTION** adds authenticated order submission, cancellation, fill/fee reconciliation and actual holdings. It requires your account identity, credentials, explicit risk settings, configuration-bound activation and operational readiness. Selecting the mode alone grants no financial authority.
+- **LIVE_EXECUTION** adds authenticated order submission, cancellation, fill/fee reconciliation and actual holdings. It requires your account identity, credentials, explicit risk settings and fee policy, configuration-bound activation and operational readiness. Selecting the mode alone grants no financial authority.
 - Historical simulations remain separate tools and databases. Their P&L is excluded from actual account reports.
 
 Read [production operations](docs/PRODUCTION_OPERATIONS.md), [strategy and weather scope](docs/WEATHER_PRODUCTION_REVIEW.md), and the [execution API/dependency policy](docs/PRODUCTION_EXECUTION_API_POLICY.md). Configuration templates are in [config/production](config/production). Financial values are deliberately unset for the operator to choose.
@@ -17,7 +17,7 @@ After independently approved host provisioning, use the sealed release's isolate
 /path/to/execution/venv/bin/python -I -m polymarket_scanner.production execution --config /etc/alpha-weather/config.json
 ```
 
-The signal process needs no trading credentials. Execution supports a dedicated eligible Polygon EOA and reviewed V2 long BUY orders, FAK takers and post-only GTD makers. Structural legs carry explicit worst-case-cost limits and legging risk. Result-lag opportunities are rejected when publication finality cannot be established. Same-day/source-shock observation support is currently Fahrenheit-only. Raw model frequencies are uncalibrated.
+The signal process needs no trading credentials. Execution supports a dedicated eligible Polygon EOA and reviewed V2 long BUY orders, FAK takers and post-only GTD makers. Structural legs reserve all limit-price costs and fee allowances, with explicit legging risk. V2 fees have no signed per-order ceiling; the operator explicitly chooses a current onchain-bound or published-schedule policy. Result-lag opportunities are rejected when publication finality cannot be established. Same-day/source-shock observation support is currently Fahrenheit-only. Raw model frequencies are uncalibrated.
 
 Signals, hypothetical simulations, confirmed fills, outstanding/unknown orders, settlement claim value and verified redemption cash are reported separately. `/stop` stops openings; `/cancel_open` also requests cancellation. Neither erases fills or proves cancellation. No Telegram command activates trading.
 
@@ -28,7 +28,7 @@ Use distinct OS identities, state directories and freshly locked virtual environ
 ```sh
 python -m pip install --require-hashes -r requirements-dev.txt
 python -m pytest -q
-python -m compileall -q polymarket_scanner deploy tests
+python -m compileall -q polymarket_scanner deploy host_trust tests tools
 python tests/validate_shadow_units.py
 python tests/validate_shadow_scale.py --output /tmp/alpha-shadow-scale.json
 ```

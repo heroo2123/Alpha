@@ -142,7 +142,7 @@ async def run(args):
     from .ledger import ExecutionLedger
     from .signals import SignalReader
     with lease(Path(str(config.execution_db) + ".writer.lock")):
-        exchange = ExchangeEOA.from_credentials_file(config.credentials_file, wallet=config.wallet, signer=config.signer, rpc_url=config.rpc_url)
+        exchange = ExchangeEOA.from_credentials_file(config.credentials_file, wallet=config.wallet, signer=config.signer, rpc_url=config.rpc_url, fee_policy=config.fee_policy)
         try:
             ledger = ExecutionLedger(config.execution_db, config.wallet)
             ledger.recover_after_restart()
@@ -167,6 +167,8 @@ async def run(args):
                 await engine.reconcile()
                 if not engine.reconciled:
                     raise ConfigurationError("PREFLIGHT_RECONCILIATION_INCOMPLETE")
+                if not engine.last_account or engine.last_account.get("openings_allowed") is not True:
+                    raise ConfigurationError("PREFLIGHT_ACCOUNT_OPENINGS_RESTRICTED")
             else:
                 while True:
                     atomic_json(config.execution_status_path, await engine.tick(), mode=0o640)

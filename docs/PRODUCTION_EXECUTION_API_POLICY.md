@@ -20,6 +20,9 @@ only), the official V2 Python order builder, and CTF Exchange V2 source at
 - [Fee bound implementation](https://github.com/Polymarket/ctf-exchange-v2/blob/ccc0596074f4dfd62c944fbca4de252893b82b4b/src/exchange/mixins/Fees.sol)
 - [Current contract addresses](https://docs.polymarket.com/resources/contracts)
 - [Market constraints and fee curve](https://docs.polymarket.com/api-reference/markets/get-clob-market-info)
+- [Published platform fee calculation and precision](https://docs.polymarket.com/trading/fees)
+- [Official all-in BUY budget guidance](https://docs.polymarket.com/trading/place-orders#cap-market-buy-spending)
+- [Reviewed Python SDK release](https://pypi.org/project/polymarket-client/0.10.0/)
 - [Authenticated orders](https://docs.polymarket.com/api-reference/trade/get-single-order-by-id)
 - [Authenticated trades](https://docs.polymarket.com/api-reference/trade/get-trades)
 - [Position census](https://docs.polymarket.com/api-reference/wallet/list-positions-for-a-user-or-market)
@@ -91,13 +94,54 @@ Approved V2 exchanges are `0xe111180000d2663c0091e4f400237545b87b996b` and
 `0xc011a7e12a19f7b1f670d46f03b03f3342e82dfb`. Conditional balances and payout
 proofs use CTF at `0x4d97dcd97ec945f40cf65f87097ace5ea0476045`.
 
-The current positive onchain `getMaxFeeRate()` bounds the reserved fee for each
-BUY by `limit price × maximum bps / 10000` per share. Zero means unlimited in
-the reviewed contract and is rejected. Missing fee data is not zero. The bound
-must fit the operator's configured cap. V2 does not sign a fee ceiling, and its
-administrator can change the maximum: repository code cannot cryptographically
-freeze future venue governance. Existing-order management must stop and request
-cancellation if the fee bound ceases to fit, while preserving any committed fill.
+LIVE_EXECUTION requires an explicit operator-selected `fee_policy`:
+
+| Policy | Submission requirement per BUY share | Authority and limitation |
+| --- | --- | --- |
+| `ONCHAIN_BOUND` | `limit_price × getMaxFeeRate() / 10000` | A fresh positive contract maximum is required. Zero means unbounded and fails this policy. The maximum remains administrator-controlled. |
+| `EXCHANGE_PUBLISHED_SCHEDULE` | Conservative envelope of the fresh CLOB fee curve over all possible BUY fill prices up to the limit | Relies on the venue following its published fee schedule and rounding. Permits a zero contract maximum while explicitly reporting that no chain fee bound exists. |
+
+The adapter never selects a policy or risk limit for the operator. Both policies
+recheck raw CLOB fee details, base fees and chain maximum before signing; missing
+fields fail closed. Current V2 orders do not sign a fee ceiling. Neither choice
+is a promise that future fee administration, matching or cancellation will obey
+a locally configured cap. The SDK's documented BUY budget feature likewise
+reduces the signed notional using fee estimates, rather than signing a fee cap.
+Published-schedule mode explicitly accepts that platform risk; the worker
+reserves the operator's entire configured fee allowance. A confirmed fill that
+exceeds price, quantity or fee limits remains actual accounting evidence and
+atomically faults execution and queues managed remainders for cancellation.
+A cancellation request cannot undo the fill or guarantee an immediate stop.
+
+The reviewed SDK's `_internal/actions/orders/market.py` function
+`adjust_buy_amount_for_fees` computes platform fees as
+`shares × fd.r × (price × (1-price)) ** fd.e`, added to BUY notional. This
+implementation supports explicit nonnegative integer exponents 0–4, rates 0–1,
+`fd.to=true`, zero maker/taker base fees and the zero signed builder identifier.
+Unknown fee components, nonzero base fees or other exponents are rejected.
+Zero published rates are accepted only when explicitly supplied. Post-only GTD
+uses the documented maker fee of zero; a taker order cannot claim that exemption.
+
+For a taker BUY limit `L`, the curve's peak over possible execution prices is at
+`min(L, 0.5)`, including favorable price improvement. The schedule requirement
+is twice that peak raw fee per share. This conservative margin covers arbitrary
+partial-fill fragmentation under the published five-decimal/minimum-fee rule:
+a raw fragment below the minimum rounds to zero; otherwise an adjacent-quantum
+rounding adds at most one quantum, no more than the raw fee. Ordinary nearest
+rounding at half a quantum is also covered. No particular tie-breaking rule or
+fragment count is assumed. This is a conditional schedule envelope, not an
+immutable maximum; actual receipt fees remain authoritative.
+
+The raw fee fields, policy, token, condition, exchange, observation time and
+chain block identity have a stable SHA-256 evidence identity. The engine persists
+both planning evidence and the final signing evidence with its submission audit.
+This hash prevents accidental evidence substitution; it is not an exchange
+signature or independent provenance. `PublicMarketReader` is shared between the
+signer adapter and the public probe, and does not load credentials. The public
+probe reports real zero chain maxima, strict weather-contract semantics and
+current CLOB evidence. Its bounded sample is not a full census or account/host
+acceptance; an empty order book is a labelled opportunity skip, not a fabricated
+quote or proof of a profitable trade.
 
 Only successful receipts at or below a fresh finalized Polygon block, with
 canonical block hashes and consistent log identities, produce actual fills.

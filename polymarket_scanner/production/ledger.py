@@ -196,7 +196,7 @@ class ExecutionLedger:
             self.audit(db, "CAPITAL_RESERVED", plan["id"], {"amount": total})
         return True
 
-    def begin_submission(self, intent_id: str, leg_index: int, order_id: str, wire_hash: str, payload: dict):
+    def begin_submission(self, intent_id: str, leg_index: int, order_id: str, wire_hash: str, payload: dict, fee_evidence: dict | None = None):
         """This must COMMIT before a single financial POST is attempted."""
         now = time.time()
         with self.transaction() as db:
@@ -215,7 +215,8 @@ class ExecutionLedger:
             db.execute("INSERT INTO execution_orders(id,intent_id,leg,token,condition_id,quantity,limit_price,fee_cap,status,reserved,submission_hash,created,updated) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
                        (order_id, intent_id, leg_index, leg["token"], leg["condition"], micros(leg["quantity"]), leg["price"], leg["fee_cap"], "SUBMITTING", amount, wire_hash, now, now))
             db.execute("INSERT INTO execution_submissions VALUES(?,?)", (order_id, canonical(payload)))
-            self.audit(db, "SUBMISSION_ARMED", order_id, {"intent": intent_id, "leg": leg_index, "wire_hash": wire_hash})
+            self.audit(db, "SUBMISSION_ARMED", order_id, {"intent": intent_id, "leg": leg_index, "wire_hash": wire_hash,
+                       "fee_evidence": fee_evidence})
 
     def submission_result(self, order_id: str, outcome: str):
         if outcome not in {"ACKNOWLEDGED", "UNKNOWN", "REJECTED"}:
@@ -366,13 +367,16 @@ class ExecutionLedger:
             if any(type(v) is not int for v in (quantity, cost, fee)) or quantity <= 0 or cost < 0 or fee < 0:
                 raise LedgerError("FILL_AMOUNTS_INVALID")
             cumulative = db.execute("SELECT COALESCE(SUM(quantity),0) FROM execution_fills WHERE order_id=?", (order["id"],)).fetchone()[0] + quantity
+            breach = None
             if cumulative > order["quantity"]:
-                db.execute("INSERT OR REPLACE INTO execution_state VALUES('fault','ACTUAL_QUANTITY_LIMIT_BREACH')")
+                breach = "ACTUAL_QUANTITY_LIMIT_BREACH"
             if Decimal(cost) > Decimal(quantity) * Decimal(order["limit_price"]) + 1:
-                db.execute("INSERT OR REPLACE INTO execution_state VALUES('fault','ACTUAL_PRICE_LIMIT_BREACH')")
+                breach = "ACTUAL_PRICE_LIMIT_BREACH"
             # Record real fills even when a fee breached expectations; retain a fault.
             if Decimal(fee) > Decimal(quantity) * Decimal(order["fee_cap"]) + 1:
-                db.execute("INSERT OR REPLACE INTO execution_state VALUES('fault','ACTUAL_FEE_LIMIT_BREACH')")
+                breach = "ACTUAL_FEE_LIMIT_BREACH"
+            if breach:
+                db.execute("INSERT OR REPLACE INTO execution_state VALUES('fault',?)", (breach,))
             db.execute("INSERT INTO execution_fills VALUES(?,?,?,?,?,?,?,?,?,?)", tuple(fill[k] for k in ("id", "order_id", "token", "quantity", "cost", "fee", "transaction_hash", "block_hash", "log_index")) + (time.time(),))
             remaining = max(0, order["quantity"] - cumulative)
             new_reserved = micros(Decimal(remaining) / SCALE * (Decimal(order["limit_price"]) + Decimal(order["fee_cap"])))
@@ -386,6 +390,12 @@ class ExecutionLedger:
             updated = order["updated"] if status == "CANCEL_REQUESTED" else time.time()
             db.execute("UPDATE execution_orders SET matched=?,reserved=?,status=?,updated=? WHERE id=?", (cumulative, new_reserved, status, updated, order["id"]))
             self.audit(db, "CONFIRMED_FILL", fill["id"], {"order": order["id"], "quantity": quantity, "cost": cost, "fee": fee})
+            if breach:
+                # The fill, fault and cancellation work commit together. A crash
+                # cannot preserve a breached fee while losing the stop request.
+                # Existing cancellation retries retain their original cadence.
+                db.execute("UPDATE execution_orders SET status='CANCEL_REQUESTED',updated=? WHERE status IN ('SUBMITTING','UNKNOWN','ACKNOWLEDGED','PARTIAL')", (time.time() - 16,))
+                self.audit(db, "ACTUAL_LIMIT_BREACH_CANCEL_QUEUED", fill["id"], {"fault": breach})
             settled = db.execute("SELECT payout FROM execution_settlements WHERE token=?", (fill["token"],)).fetchone()
             if settled:
                 totals = db.execute("SELECT SUM(quantity),SUM(cost),SUM(fee) FROM execution_fills WHERE token=?", (fill["token"],)).fetchone()

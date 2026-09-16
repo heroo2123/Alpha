@@ -256,10 +256,44 @@ def test_failed_stop_and_still_active_writer_prevent_all_recovery_mutation(host,
         return subprocess.CompletedProcess(args, 1, "", "")
 
     monkeypatch.setattr(host.m, "_run", failed_stop)
+    # This case exercises the stop-before-mutation protocol body. Root admission
+    # and custody have their own negative tests; CI does not own root fixture files.
+    monkeypatch.setattr(host.m, "_root_custody", host.m._regular_nosymlink)
+    monkeypatch.setattr(host.m, "_secure_root_dir", lambda path: None)
     with pytest.raises(host.m.AuthorityError, match="RECOVERY_SERVICE_STOP_FAILED"):
-        host.m.recover(gid, require_root=True)
+        host.m.recover.__wrapped__(gid, require_root=True)
     assert host.db.read_bytes() == before and marker.read_text() == "A\n"
     assert host.m.ACTIVE.exists()
+
+
+def test_root_mutation_admission_rejects_unprivileged_caller_before_services(host, monkeypatch):
+    gid = cutover(host)
+    proxy = SimpleNamespace(**{key: value for key, value in vars(host.m.os).items() if key != "geteuid"})
+    proxy.geteuid = lambda: 1000
+    monkeypatch.setattr(host.m, "os", proxy)
+    calls = []
+    monkeypatch.setattr(host.m, "_run", lambda *args, **kwargs: calls.append(args))
+    with pytest.raises(host.m.AuthorityError, match="CUTOVER_ROOT_REQUIRED"):
+        host.m.recover(gid, require_root=True)
+    assert not calls and host.m.ACTIVE.exists()
+
+
+def test_root_directory_custody_rejects_unprivileged_owner_even_with_sealed_mode(host, monkeypatch):
+    directory = host.root / "sealed-but-not-root-owned"
+    directory.mkdir(mode=0o755)
+    original = Path.lstat
+
+    def unprivileged_owner(path):
+        captured = original(path)
+        if path == directory and captured.st_uid == 0:
+            values = list(captured)
+            values[4] = 1000
+            return os.stat_result(values)
+        return captured
+
+    monkeypatch.setattr(Path, "lstat", unprivileged_owner)
+    with pytest.raises(host.m.AuthorityError, match="AUTHORITY_DIRECTORY_CUSTODY_INVALID"):
+        host.m._secure_root_dir(directory)
 
 
 def test_writer_lock_blocks_recovery_even_if_systemd_is_inactive(host):
@@ -370,6 +404,7 @@ def test_privileged_prepare_seals_final_modes_before_hashing(host, monkeypatch):
     proxy.fchown = lambda *args: ownership.append(("fchown", args[1:]))
     monkeypatch.setattr(host.m, "os", proxy)
     monkeypatch.setattr(host.m, "_root_custody", host.m._regular_nosymlink)
+    monkeypatch.setattr(host.m, "_secure_root_dir", lambda path: None)
     real_run = host.m._run
 
     def services_are_stopped(args, **kwargs):
@@ -585,9 +620,35 @@ def test_actual_process_environment_identity_is_verified(host, monkeypatch, inje
             with pytest.raises(host.m.AuthorityError, match="PROCESS_ENV_IDENTITY_MISMATCH"):
                 host.m.verify_process(gid, host.b)
         else:
-            result = host.m.verify_process(gid, host.b)
-            assert result["pid"] == proc_pid and result["component"] == "signals"
-            assert result["imports"]["isolated"] == 1
+            status_path = Path(f"/proc/{proc_pid}/status")
+            real_status = status_path.read_text()
+            groups_line = next(line for line in real_status.splitlines() if line.startswith("Groups:"))
+            actual_groups = {int(value) for value in groups_line.split()[1:]}
+            if actual_groups - {os.getgid()}:
+                # Unprivileged CI processes inherit runner groups and cannot
+                # clear them. They must be rejected by the real production gate.
+                with pytest.raises(host.m.AuthorityError, match="PROCESS_GROUPS_MISMATCH"):
+                    host.m.verify_process(gid, host.b)
+                imports = host.m._verify_import_environment(host.policy, Path(manifest["source_path"]),
+                                                           Path(manifest["venv_path"]), require_root=False)
+                assert imports["isolated"] == 1
+            else:
+                result = host.m.verify_process(gid, host.b)
+                assert result["pid"] == proc_pid and result["component"] == "signals"
+                assert result["imports"]["isolated"] == 1
+            # Exercise rejection even on runners that already have clean groups.
+            # Only this second observation is synthetic; the real /proc identity
+            # and environment above are never normalized or accepted artificially.
+            forbidden_group = os.getgid() + 1
+            rejected_status = real_status.replace(groups_line, f"Groups:\t{os.getgid()} {forbidden_group}")
+            original_read_text = Path.read_text
+
+            def extra_group(path, *args, **kwargs):
+                return rejected_status if path == status_path else original_read_text(path, *args, **kwargs)
+
+            monkeypatch.setattr(Path, "read_text", extra_group)
+            with pytest.raises(host.m.AuthorityError, match="PROCESS_GROUPS_MISMATCH"):
+                host.m.verify_process(gid, host.b)
     finally:
         process.terminate()
         process.wait(timeout=5)

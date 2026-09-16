@@ -12,6 +12,7 @@ import re
 
 STRATEGIES = frozenset({"DIRECTIONAL", "SAME_DAY", "SOURCE_SHOCK", "STRUCTURAL", "MAKER", "RESULT_LAG"})
 MODES = frozenset({"LIVE_SIGNALS", "LIVE_EXECUTION", "SIMULATION"})
+FEE_POLICIES = frozenset({"ONCHAIN_BOUND", "EXCHANGE_PUBLISHED_SCHEDULE"})
 
 
 class ConfigurationError(ValueError):
@@ -106,6 +107,7 @@ class ProductionConfig:
     execution_status_path: Path | None = None
     rpc_url: str | None = None
     source_path: Path | None = None
+    fee_policy: str | None = None
 
     @classmethod
     def parse(cls, raw: dict) -> "ProductionConfig":
@@ -143,8 +145,11 @@ class ProductionConfig:
             raise ConfigurationError("INVALID_BOOLEAN:allow_uncalibrated")
         if set(selected) & {"DIRECTIONAL", "SAME_DAY", "SOURCE_SHOCK", "MAKER"} and not allow:
             raise ConfigurationError("UNCALIBRATED_STRATEGY_REQUIRES_EXPLICIT_ACKNOWLEDGEMENT")
-        wallet = signer = risk = None
+        wallet = signer = risk = fee_policy = None
         if mode == "LIVE_EXECUTION":
+            fee_policy = required(raw, "fee_policy")
+            if not isinstance(fee_policy, str) or fee_policy not in FEE_POLICIES:
+                raise ConfigurationError("INVALID_FEE_POLICY")
             wallet = address(required(raw, "wallet"), "wallet")
             signer = address(required(raw, "signer"), "signer")
             if signer != wallet:
@@ -168,7 +173,8 @@ class ProductionConfig:
                    decimal(required(raw, "min_structural_edge"), "min_structural_edge"), allow,
                    paths.get("execution_db"), paths.get("credentials_file"), wallet, signer,
                    paths.get("activation_file"), paths.get("stop_file"), risk, digest(raw),
-                   paths.get("telegram_file"), paths.get("execution_status_path"), rpc)
+                   paths.get("telegram_file"), paths.get("execution_status_path"), rpc,
+                   fee_policy=fee_policy)
 
     @classmethod
     def load(cls, path: Path) -> "ProductionConfig":

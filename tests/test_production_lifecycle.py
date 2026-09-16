@@ -20,13 +20,15 @@ from polymarket_scanner.production.service import SignalService
 WALLET = "0x" + "12" * 20
 
 
-def config(tmp_path, mode="LIVE_EXECUTION"):
-    return ProductionConfig.parse({"mode": mode, "signal_db": str(tmp_path / "signals" / "signals.db"), "status_path": str(tmp_path / "signals" / "signals.json"),
+def config(tmp_path, mode="LIVE_EXECUTION", **overrides):
+    raw = {"mode": mode, "signal_db": str(tmp_path / "signals" / "signals.db"), "status_path": str(tmp_path / "signals" / "signals.json"),
       "execution_status_path": str(tmp_path / "execution" / "execution.json"), "execution_db": str(tmp_path / "execution" / "execution.db"),
       "credentials_file": str(tmp_path / "credentials.json"), "activation_file": str(tmp_path / "activation.json"), "stop_file": str(tmp_path / "stop"),
-      "wallet": WALLET, "signer": WALLET, "strategies": ["DIRECTIONAL", "MAKER", "STRUCTURAL"], "allow_uncalibrated": True,
+      "wallet": WALLET, "signer": WALLET, "fee_policy": "ONCHAIN_BOUND", "strategies": ["DIRECTIONAL", "MAKER", "STRUCTURAL"], "allow_uncalibrated": True,
       "partial_basket_policy": "SEQUENTIAL_FAK_FULL_RESERVATION_STOP_ON_KNOWN_FAILURE", "rpc_url": "https://polygon.example.invalid",
-      "min_model_gap": "0.05", "min_structural_edge": "0.02", "risk": {"capital": "100", "per_order": "5", "per_station_day": "20", "max_loss": "100", "daily_loss": "100", "max_price": "0.95", "max_slippage": "0.02", "max_fee_per_share": "0.05", "legging_loss": "10", "max_open_orders": 10, "max_positions": 20, "max_maker_rest_seconds": 240}})
+      "min_model_gap": "0.05", "min_structural_edge": "0.02", "risk": {"capital": "100", "per_order": "5", "per_station_day": "20", "max_loss": "100", "daily_loss": "100", "max_price": "0.95", "max_slippage": "0.02", "max_fee_per_share": "0.05", "legging_loss": "10", "max_open_orders": 10, "max_positions": 20, "max_maker_rest_seconds": 240}}
+    raw.update(overrides)
+    return ProductionConfig.parse(raw)
 
 
 def candidate(strategy="DIRECTIONAL"):
@@ -62,6 +64,8 @@ class Exchange:
         self.ask = "0.4"
         self.ask_size = "100"
         self.fee_bps = "100"
+        self.fee_policy = "ONCHAIN_BOUND"
+        self.fee_details = {"r": ".05", "e": "1", "to": True}
         self.on_submit = None
         self.resolution = None
 
@@ -72,12 +76,22 @@ class Exchange:
         return []
 
     def market_snapshot(self, token, condition):
-        return {"tick_size": "0.01", "min_order_size": "1", "received_at": time.time(), "neg_risk": False, "exchange": "exchange1", "max_fee_bps": self.fee_bps,
+        from polymarket_scanner.production.fees import make_fee_evidence
+        observed = time.time()
+        evidence = make_fee_evidence(self.fee_policy, token=token, condition=condition,
+            exchange="exchange1", observed_at=observed, fd=self.fee_details,
+            max_fee_bps=int(self.fee_bps), max_fee_block={"number": 1, "hash": "0x" + "11" * 32},
+            maker_base_fee_bps=0, taker_base_fee_bps=0)
+        return {"tick_size": "0.01", "min_order_size": "1", "received_at": observed,
+                "token": token, "condition": condition, "fee_policy": self.fee_policy, "fee_evidence": evidence,
+                "neg_risk": False, "exchange": "exchange1", "max_fee_bps": int(self.fee_bps),
                 "book": {"ask": self.ask, "ask_size": self.ask_size, "bid": "0.39", "bid_size": "100"}}
 
     def prepare_buy(self, **kwargs):
         self.prepared = kwargs
-        return {"order_id": "o" + kwargs["token"], "wire_hash": "wire-hash", "payload": {"order": {"expiration": str(kwargs["expiration"]), "signature": "isolated-fixture-not-live"}}}
+        evidence = self.market_snapshot(kwargs["token"], kwargs["condition"])["fee_evidence"]
+        return {"order_id": "o" + kwargs["token"], "wire_hash": "wire-hash", "fee_evidence": evidence,
+                "payload": {"order": {"expiration": str(kwargs["expiration"]), "signature": "isolated-fixture-not-live"}}}
 
     def submit(self, prepared):
         self.posts.append(prepared["order_id"])

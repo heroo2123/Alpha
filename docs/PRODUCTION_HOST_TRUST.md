@@ -232,3 +232,23 @@ tables plus committed WAL data from an unrelated working directory. The expanded
 host/replay scope passed **143 tests on Python 3.11 (29.60 s) and 143 tests on
 Python 3.12 (38.56 s)** using the relative interpreter invocation; logs/JUnit are
 also retained in the evidence archive.
+
+The first exact-candidate CI run exposed three fixture assumptions about root
+ownership and runner supplementary groups. Protocol-body tests now mock custody
+consistently and separately assert that real authority rejects an unprivileged
+caller and a nonroot directory owner. Actual `/proc` environment probes accept
+only the expected group identity; when a CI child inherits extra groups the test
+requires production verification to reject it, then checks import isolation
+separately. A synthetic extra-group observation also exercises rejection on
+runners whose real group list is already clean. Production custody/group checks
+were not changed.
+
+The local kernel exposes only UID/GID 0; attempting another owner returned
+`EINVAL`, and a user-namespace mapping returned `EPERM`. Consequently the local
+before/after CI reproduction uses explicitly synthetic UID/ownership/group
+observations: the original three failures reproduced, then six focused checks
+passed. This is not a claim of a local unprivileged run; the refreshed exact-SHA
+GitHub workflow remains the real unprivileged-runner verification. The archive
+includes the reproduction fixture, logs/JUnit and this environment limitation.
+The expanded host/replay suite passed **145 tests on Python 3.11 (23.13 s) and
+145 tests on Python 3.12 (33.97 s)** after these fixture corrections.

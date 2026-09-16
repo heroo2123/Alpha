@@ -9,6 +9,7 @@
   "activation_file": "/etc/alpha-weather-execution/activation.json",
   "stop_file": "/var/lib/alpha-weather-execution/STOP_OPENING",
   "rpc_url": null,
+  "fee_policy": null,
   "wallet": null,
   "signer": null,
   "strategies": ["DIRECTIONAL", "SAME_DAY", "SOURCE_SHOCK", "STRUCTURAL", "MAKER", "RESULT_LAG"],

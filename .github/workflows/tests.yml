@@ -54,6 +54,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
+      fail-fast: false
       matrix:
         python: ['3.11', '3.12']
     steps:
@@ -77,8 +78,8 @@ jobs:
           print('All runtime and test pins match exactly.')
           PY
       - run: python -m pytest -q --junitxml=test-results.xml
-      - run: python -m compileall -q app.py app_stable.py app_stable_v2.py app_trade_only.py command_worker.py command_worker_trade_only.py polymarket_scanner deploy tests
-      - run: for script in deploy/*.sh deploy/oracle/*.sh deploy/gcp/*.sh; do bash -n "$script" || exit; done
+      - run: python -m compileall -q app.py app_stable.py app_stable_v2.py app_trade_only.py command_worker.py command_worker_trade_only.py polymarket_scanner deploy host_trust tests tools
+      - run: for script in deploy/*.sh deploy/oracle/*.sh deploy/gcp/*.sh host_trust/*/*.sh; do bash -n "$script" || exit; done
       - name: Verify rendered systemd services without starting them
         run: python tests/validate_shadow_units.py
       - name: Synthetic production-scale generation handoff
