@@ -1,4 +1,4 @@
-"""Render the isolated fully-corrected all-weather PAPER service; never start it."""
+"""Render the isolated final all-weather PAPER service; never start it."""
 
 from __future__ import annotations
 
@@ -8,7 +8,20 @@ from pathlib import Path
 
 
 WEATHER_RELEASE_MARKER = "weather-paper-release.sha"
-ALL_PAPER_MODULE = "polymarket_scanner.weather_only_live_paper_all_signals_final_v7"
+ALL_PAPER_MODULE = "polymarket_scanner.weather_only_live_paper_all_signals_final_v8"
+HOST_RELEASE_GATE = "/usr/local/libexec/polymarket-weather-paper/release-gate.py"
+NETWORK_ENV_NAMES = (
+    "HTTP_PROXY",
+    "HTTPS_PROXY",
+    "ALL_PROXY",
+    "NO_PROXY",
+    "http_proxy",
+    "https_proxy",
+    "all_proxy",
+    "no_proxy",
+    "SSL_CERT_FILE",
+    "SSL_CERT_DIR",
+)
 
 
 def render(app_dir: Path, config_dir: Path, user: str) -> str:
@@ -20,6 +33,11 @@ def render(app_dir: Path, config_dir: Path, user: str) -> str:
     python = f"{app_dir}/.venv/bin/python"
     release_file = f"{config_dir}/{WEATHER_RELEASE_MARKER}"
     verifier = f"/bin/bash {app_dir}/deploy/verify-runtime-release.sh {app_dir} {release_file}"
+    host_gate = (
+        f"/usr/bin/python3 {HOST_RELEASE_GATE} verify-checkout "
+        f"--app-dir {app_dir} --release-file {release_file}"
+    )
+    unset_network = " ".join(NETWORK_ENV_NAMES)
     state = "/var/lib/polymarket-weather-paper"
     return f"""[Unit]
 Description=Polymarket final all-weather PAPER research runtime
@@ -34,7 +52,9 @@ User={user}
 WorkingDirectory={app_dir}
 Environment=PYTHONUNBUFFERED=1
 Environment=ALPHA_DISABLE_DOTENV=1
+UnsetEnvironment={unset_network}
 EnvironmentFile={config_dir}/weather-paper.env
+ExecStartPre={host_gate}
 ExecStartPre={verifier}
 ExecStart={python} -m {ALL_PAPER_MODULE} --db {state}/weather-paper.sqlite --status {state}/status.json --release-file {release_file} --interval-seconds 180 --forecast-cache-seconds 900 --forecast-raw-gap-min 0.08 --max-forecast-events 6 --paper-stake-usd 10
 Restart=on-failure
