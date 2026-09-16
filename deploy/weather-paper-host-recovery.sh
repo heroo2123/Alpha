@@ -1,21 +1,31 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-# Installed root-owned outside the candidate checkout.  This is the only rollback
-# path used by the final deployment scripts; recovery never executes candidate-owned
-# verifier/restoration code.
-APP_DIR="${ALPHA_WEATHER_APP_DIR:-${HOME}/polymarket-weather-paper-app}"
-CONFIG_DIR="${ALPHA_CONFIG_DIR:-${HOME}/.polymarket-edge-scanner}"
-DB_PATH="${WEATHER_PAPER_DB_PATH:-/var/lib/polymarket-weather-paper/weather-paper.sqlite}"
-UNIT="polymarket-weather-paper.service"
-RELEASE_FILE="${CONFIG_DIR}/weather-paper-release.sha"
-ROLLBACK_DIR="${CONFIG_DIR}/all-paper-rollback"
+# Installed root-owned outside the candidate checkout. This is the only rollback path
+# used by the final deployment scripts. Runtime paths come only from root-owned host
+# configuration, never from candidate-controlled environment variables.
+PATH=/usr/bin:/bin
+export PATH
+unset BASH_ENV ENV CDPATH GIT_DIR GIT_WORK_TREE GIT_CONFIG_GLOBAL GIT_CONFIG_SYSTEM || true
 LIBEXEC="/usr/local/libexec/polymarket-weather-paper"
+HOST_PATHS="/etc/polymarket-weather-paper/host-paths.conf"
 GATE="${LIBEXEC}/release-gate.py"
 VENV_HELPER="${LIBEXEC}/weather-paper-venv-snapshot.py"
-GENERATION="${ROLLBACK_DIR}/snapshot-generation-v3"
 
 fail(){ printf 'HOST ROLLBACK ERROR: %s\n' "$*" >&2; exit 1; }
+[[ -f "${HOST_PATHS}" && ! -L "${HOST_PATHS}" ]] || fail "root-owned host path configuration missing"
+[[ "$(stat -c '%u' "${HOST_PATHS}")" == "0" ]] || fail "host path configuration is not root owned"
+HOST_MODE="$(stat -c '%a' "${HOST_PATHS}")"
+(( (8#${HOST_MODE} & 8#22) == 0 )) || fail "host path configuration writable by nonroot"
+# shellcheck disable=SC1090
+source "${HOST_PATHS}"
+[[ "${APP_DIR:-}" == /* && "${CONFIG_DIR:-}" == /* && "${DB_PATH:-}" == /* ]] || fail "pinned host paths invalid"
+[[ "${UNIT:-}" == "polymarket-weather-paper.service" ]] || fail "pinned service identity invalid"
+
+RELEASE_FILE="${CONFIG_DIR}/weather-paper-release.sha"
+ROLLBACK_DIR="${CONFIG_DIR}/all-paper-rollback"
+GENERATION="${ROLLBACK_DIR}/snapshot-generation-v3"
+
 sudo systemctl stop "${UNIT}" >/dev/null 2>&1 || true
 sudo systemctl disable "${UNIT}" >/dev/null 2>&1 || true
 
