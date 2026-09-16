@@ -133,6 +133,15 @@ def test_global_recall_hard_ttl_is_five_minutes_and_status_exposes_real_age(monk
     assert status["max_reuse_seconds"] == 300.0
 
 
+def test_exhaustive_global_page_budget_covers_event_cap_without_raising_byte_cap():
+    assert discovery_module.GLOBAL_PAGE_SIZE == 50
+    assert discovery_module.MAX_PAGE_BYTES == 16 * 1024 * 1024
+    assert (
+        discovery_module.GLOBAL_PAGE_SIZE * discovery_module.MAX_GLOBAL_PAGES
+        >= discovery_module.MAX_GLOBAL_EVENT_HITS
+    )
+
+
 def test_stale_global_cache_is_not_reused(monkeypatch):
     discovery = object.__new__(WeatherOnlyDiscovery)
     discovery._global_cache_at = 1_000.0
@@ -225,8 +234,11 @@ def test_root_custody_and_final_v9_are_wired_into_deployment_files():
     assert "all-paper-rollback-v4-root-custody-hash-bound" in snapshot
     assert "rollback-manifest-v4.json" in snapshot
     assert "exec sudo /usr/bin/env -i" in wrapper
+    assert "HOME=/nonexistent" in wrapper
 
-    assert root_dir in recovery
+    assert 'HOST_PATHS="/etc/polymarket-weather-paper/host-paths.conf"' in recovery
+    assert 'source "${HOST_PATHS}"' in recovery
+    assert '"${ROLLBACK_DIR:-}" == /*' in recovery
     assert "PASS_ROOT_CUSTODY_ROLLBACK_MANIFEST" in recovery
     assert "rollback artifact digest invalid" in recovery
     assert recovery.index("PASS_ROOT_CUSTODY_ROLLBACK_MANIFEST") < recovery.index(
