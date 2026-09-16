@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
-
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-exec bash "${SCRIPT_DIR}/restore-all-paper-rollback-v2.sh" "$@"
+HOST_RECOVERY="/usr/local/libexec/polymarket-weather-paper/restore-rollback.sh"
+[[ -f "${HOST_RECOVERY}" ]] || { echo 'HOST ROLLBACK AUTHORITY NOT INSTALLED' >&2; exit 2; }
+exec bash "${HOST_RECOVERY}" "$@"
