@@ -5,6 +5,7 @@ on:
     branches:
       - weather-source-evidence-foundation
       - weather-only-trade-scanner
+      - weather-all-paper-final-review-fixes-2026-09-16
   workflow_dispatch:
 
 permissions:
