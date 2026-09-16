@@ -2,75 +2,103 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+AUTHORITY = "/usr/local/libexec/polymarket-weather-paper/v2/authority.py"
 
 
 def _text(name: str) -> str:
     return (ROOT / name).read_text(encoding="utf-8")
 
 
-def test_host_bootstrap_freezes_runtime_paths_root_owned_and_revokes_stale_candidates():
+def test_candidate_bootstrap_is_verification_only_and_cannot_install_host_authority():
     text = _text("deploy/install-weather-paper-host-trust.sh")
-    assert 'HOST_PATHS="${ETC_DIR}/host-paths.conf"' in text
-    assert 'ROLLBACK_DIR="/var/lib/polymarket-weather-paper-rollback"' in text
-    assert "DB_PATH=" in text
-    assert "printf 'APP_DIR=%q\\nCONFIG_DIR=%q\\nDB_PATH=%q\\nUNIT=%q\\nROLLBACK_DIR=%q\\nDEPLOY_USER=%q\\nDEPLOY_UID=%q\\nDEPLOY_GID=%q\\n'" in text
-    assert 'install -d -o root -g "${DEPLOY_GID}" -m 0750 "${ROLLBACK_DIR}"' in text
-    assert 'install -o root -g root -m 0444 "${TMP_PATHS}" "${HOST_PATHS}"' in text
-    assert "BASH_ENV ENV CDPATH" in text
-    assert "GIT_DIR GIT_WORK_TREE GIT_CONFIG_GLOBAL GIT_CONFIG_SYSTEM" in text
-    assert "Approval is intentionally NOT cumulative" in text
-    assert "approved = {current_sha: current_tree, candidate_sha: candidate_tree}" in text
-    assert "old.get('approved')" not in text
+    assert AUTHORITY in text
+    assert "verify-authority" in text
+    assert "did NOT install or replace" in text
+    assert "git show" not in text
+    assert "install -o root" not in text
+    assert "approved =" not in text
+    assert "daemon-reload" not in text
+    assert "/usr/local/libexec/polymarket-weather-paper/snapshot-rollback.sh" not in text
+    assert "/usr/local/libexec/polymarket-weather-paper/restore-rollback.sh" not in text
 
 
-def test_host_bootstrap_materializes_authority_tools_from_exact_reviewed_git_object():
-    text = _text("deploy/install-weather-paper-host-trust.sh")
-    assert 'EXPECTED_BOOTSTRAP_BLOB="$(git -C "${APP_DIR}" rev-parse "${CANDIDATE_SHA}:deploy/install-weather-paper-host-trust.sh")"' in text
-    assert 'ACTUAL_BOOTSTRAP_BLOB="$(git -C "${APP_DIR}" hash-object "${BASH_SOURCE[0]}")"' in text
-    assert "bootstrap script does not match reviewed candidate object" in text
-    assert 'git -C "${APP_DIR}" show "${CANDIDATE_SHA}:${candidate_path}" > "${TMP_BUNDLE}/${name}"' in text
-    assert 'EXPECTED_BLOB="$(git -C "${APP_DIR}" rev-parse "${CANDIDATE_SHA}:${candidate_path}")"' in text
-    assert 'ACTUAL_BLOB="$(git -C "${APP_DIR}" hash-object "${TMP_BUNDLE}/${name}")"' in text
-    assert "materialized host tool blob mismatch" in text
-    assert '${SCRIPT_DIR}/weather-paper-host-release-gate.py' not in text
-    assert '${SCRIPT_DIR}/weather-paper-venv-snapshot.py' not in text
-    assert '${TMP_BUNDLE}/weather-paper-host-release-gate.py' in text
-    assert '${TMP_BUNDLE}/weather-paper-host-recovery.sh' in text
+def test_candidate_release_snapshot_recovery_files_are_only_host_authority_shims():
+    release_gate = _text("deploy/weather-paper-host-release-gate.py")
+    snapshot = _text("deploy/weather-paper-host-snapshot.sh")
+    recovery = _text("deploy/weather-paper-host-recovery.sh")
+    venv_snapshot = _text("deploy/weather-paper-venv-snapshot.py")
+
+    assert AUTHORITY in release_gate
+    assert "os.execv" in release_gate
+    assert "verify_object_policy" not in release_gate
+    assert AUTHORITY in snapshot and " snapshot --candidate-sha " in snapshot
+    assert AUTHORITY in recovery and " recover --generation-id " in recovery
+    assert "candidate code cannot snapshot/restore trusted venvs" in venv_snapshot
+    assert "tarfile" not in venv_snapshot
 
 
-def test_host_snapshot_and_recovery_ignore_caller_path_environment():
-    for name in (
-        "deploy/weather-paper-host-snapshot.sh",
-        "deploy/weather-paper-host-recovery.sh",
-    ):
-        text = _text(name)
-        assert 'HOST_PATHS="/etc/polymarket-weather-paper/host-paths.conf"' in text
-        assert 'source "${HOST_PATHS}"' in text
-        assert 'stat -c \'%u\' "${HOST_PATHS}"' in text
-        assert "writable by nonroot" in text
-        assert '"${ROLLBACK_DIR:-}" == /*' in text
-        assert "ALPHA_WEATHER_APP_DIR" not in text
-        assert "ALPHA_CONFIG_DIR" not in text
-        assert "WEATHER_PAPER_DB_PATH" not in text
-        assert "${HOME}" not in text
-        assert "unset BASH_ENV ENV CDPATH GIT_DIR GIT_WORK_TREE" in text
-
-
-def test_every_candidate_to_host_shell_entry_scrubs_environment():
-    for name in (
+def test_every_candidate_to_host_entry_uses_clean_environment_and_exact_identity():
+    snapshot_wrappers = (
         "deploy/snapshot-all-paper-rollback.sh",
         "deploy/snapshot-all-paper-rollback-v2.sh",
+        "deploy/weather-paper-host-snapshot.sh",
+    )
+    recovery_wrappers = (
         "deploy/restore-all-paper-rollback.sh",
         "deploy/restore-all-paper-rollback-v2.sh",
-    ):
+        "deploy/weather-paper-host-recovery.sh",
+    )
+    for name in snapshot_wrappers:
         text = _text(name)
+        assert AUTHORITY in text
         assert "/usr/bin/env -i" in text
         assert "HOME=/nonexistent" in text
         assert "GIT_CONFIG_NOSYSTEM=1" in text
-        assert "/bin/bash --noprofile --norc" in text
+        assert "--candidate-sha" in text
+    for name in recovery_wrappers:
+        text = _text(name)
+        assert AUTHORITY in text
+        assert "/usr/bin/env -i" in text
+        assert "HOME=/nonexistent" in text
+        assert "GIT_CONFIG_NOSYSTEM=1" in text
+        assert "--generation-id" in text
 
-    prepare = _text("deploy/prepare-all-paper-candidate-v3.sh")
-    start = _text("deploy/start-all-paper-candidate.sh")
-    for text in (prepare, start):
-        assert "/usr/bin/env -i PATH=/usr/bin:/bin HOME=/nonexistent GIT_CONFIG_NOSYSTEM=1" in text
-        assert "/bin/bash --noprofile --norc \"${HOST_RECOVERY}\"" in text
+
+def test_candidate_lifecycle_scrubs_python_native_loader_and_network_environment():
+    names = (
+        "deploy/prepare-all-paper-candidate-v3.sh",
+        "deploy/preflight-all-paper-deployment.sh",
+        "deploy/start-all-paper-candidate.sh",
+        "deploy/enable-all-paper-persistence.sh",
+    )
+    for name in names:
+        text = _text(name)
+        for key in (
+            "PYTHONPATH",
+            "PYTHONHOME",
+            "PYTHONUSERBASE",
+            "PYTHONSTARTUP",
+            "PYTHONINSPECT",
+            "LD_PRELOAD",
+            "LD_LIBRARY_PATH",
+        ):
+            assert key in text, (name, key)
+        assert "PYTHONNOUSERSITE=1" in text
+
+
+def test_unit_renderer_uses_clean_env_isolated_python_and_only_telegram_credentials():
+    text = _text("deploy/render-all-paper-unit.py")
+    assert '"PYTHONPATH"' in text
+    assert '"PYTHONHOME"' in text
+    assert '"PYTHONUSERBASE"' in text
+    assert '"PYTHONSTARTUP"' in text
+    assert '"PYTHONINSPECT"' in text
+    assert '"LD_PRELOAD"' in text
+    assert '"LD_LIBRARY_PATH"' in text
+    assert '"PYTHONNOUSERSITE=1"' in text
+    assert '"/usr/bin/env -i PATH=/usr/bin:/bin HOME=/nonexistent "' in text
+    assert '"TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN} "' in text
+    assert '"TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID} "' in text
+    assert 'f"{python} -I -s -m {ALL_PAPER_MODULE} "' in text
+    for forbidden in ("PRIVATE_KEY", "WALLET", "API_SECRET", "POLYMARKET_API"):
+        assert forbidden not in text
