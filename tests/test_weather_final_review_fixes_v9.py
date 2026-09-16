@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import asyncio
-import time
 from pathlib import Path
-from types import SimpleNamespace
 
+from polymarket_scanner import weather_only_discovery as discovery_module
+from polymarket_scanner.weather_only_discovery import (
+    GLOBAL_CENSUS_TTL_SECONDS,
+    WeatherOnlyDiscovery,
+)
 from polymarket_scanner.weather_only_live_paper_all_signals_final_v8 import (
     FinalAllPaperWeatherLiveServiceV8,
 )
@@ -110,34 +113,100 @@ def test_operator_sync_drains_more_than_three_restart_sized_batches_in_one_proce
     assert len(service.positions.applied) == 475
 
 
-def test_global_recall_cache_is_invalidated_after_five_minute_budget():
-    discovery = SimpleNamespace(_global_cache_at=123.0)
-    service = object.__new__(FinalAllPaperWeatherLiveServiceV9)
-    service.runtime = SimpleNamespace(discovery=discovery)
-    service._global_recall_certified_at = time.time() - MAX_GLOBAL_RECALL_REUSE_SECONDS - 1.0
-    service._force_global_recall_if_due()
-    assert discovery._global_cache_at == 0.0
+def test_global_recall_hard_ttl_is_five_minutes_and_status_exposes_real_age(monkeypatch):
+    assert GLOBAL_CENSUS_TTL_SECONDS == 300.0
+    assert MAX_GLOBAL_RECALL_REUSE_SECONDS == GLOBAL_CENSUS_TTL_SECONDS
+    discovery = object.__new__(WeatherOnlyDiscovery)
+    discovery._last_global_recall = {
+        "complete": True,
+        "cache_hit": True,
+        "pages": 3,
+        "scanned_events": 250,
+        "retained_events": 4,
+        "census_completed_at": 1_000.0,
+        "age_seconds": 0.0,
+        "max_reuse_seconds": GLOBAL_CENSUS_TTL_SECONDS,
+    }
+    monkeypatch.setattr(discovery_module.time, "time", lambda: 1_299.5)
+    status = discovery.global_recall_status()
+    assert status["age_seconds"] == 299.5
+    assert status["max_reuse_seconds"] == 300.0
 
 
-def test_fresh_completed_global_census_is_timestamped_and_healthy(monkeypatch, tmp_path: Path):
+def test_stale_global_cache_is_not_reused(monkeypatch):
+    discovery = object.__new__(WeatherOnlyDiscovery)
+    discovery._global_cache_at = 1_000.0
+    discovery._global_cache_events = ({"id": "old"},)
+    discovery._global_cache_pages = 1
+    discovery._global_cache_scanned = 1
+    monkeypatch.setattr(discovery_module.time, "time", lambda: 1_301.0)
+
+    calls = 0
+
+    async def page(_tag, cursor, *, page_size):
+        nonlocal calls
+        calls += 1
+        assert cursor is None
+        assert page_size == discovery_module.GLOBAL_PAGE_SIZE
+        return [], None
+
+    discovery._keyset_page = page
+    events, pages, scanned, cache_hit = asyncio.run(discovery._global_weather_census())
+    assert calls == 1
+    assert events == ()
+    assert pages == 1
+    assert scanned == 0
+    assert cache_hit is False
+
+
+def test_fresh_completed_global_census_evidence_is_healthy(monkeypatch, tmp_path: Path):
     async def parent_cycle(_self):
         return {
             "cycle_ok": True,
             "operator_all_lanes_healthy": True,
-            "global_weather_recall": {"complete": True, "cache_hit": False},
+            "global_weather_recall": {
+                "complete": True,
+                "cache_hit": True,
+                "census_completed_at": 1_000.0,
+                "age_seconds": 120.0,
+                "max_reuse_seconds": 300.0,
+            },
             "errors": [],
         }
 
     monkeypatch.setattr(FinalAllPaperWeatherLiveServiceV8, "run_cycle", parent_cycle)
     service = object.__new__(FinalAllPaperWeatherLiveServiceV9)
-    service.runtime = SimpleNamespace(discovery=SimpleNamespace(_global_cache_at=1.0))
-    service._global_recall_certified_at = 0.0
     service.status_path = tmp_path / "status.json"
     status = asyncio.run(service.run_cycle())
     assert status["global_weather_recall_fresh"] is True
-    assert status["global_weather_recall_age_seconds"] is not None
-    assert status["global_weather_recall_age_seconds"] <= MAX_GLOBAL_RECALL_REUSE_SECONDS
+    assert status["global_weather_recall_certified_at"] == 1_000.0
+    assert status["global_weather_recall_age_seconds"] == 120.0
     assert status["operator_all_lanes_healthy"] is True
+
+
+def test_stale_or_missing_global_census_evidence_fails_closed(monkeypatch, tmp_path: Path):
+    async def parent_cycle(_self):
+        return {
+            "cycle_ok": True,
+            "operator_all_lanes_healthy": True,
+            "global_weather_recall": {
+                "complete": True,
+                "cache_hit": True,
+                "census_completed_at": 1_000.0,
+                "age_seconds": 301.0,
+                "max_reuse_seconds": 300.0,
+            },
+            "errors": [],
+        }
+
+    monkeypatch.setattr(FinalAllPaperWeatherLiveServiceV8, "run_cycle", parent_cycle)
+    service = object.__new__(FinalAllPaperWeatherLiveServiceV9)
+    service.status_path = tmp_path / "status.json"
+    status = asyncio.run(service.run_cycle())
+    assert status["global_weather_recall_fresh"] is False
+    assert status["cycle_ok"] is False
+    assert status["operator_all_lanes_healthy"] is False
+    assert "GLOBAL_WEATHER_RECALL_STALE" in status["errors"]
 
 
 def test_root_custody_and_final_v9_are_wired_into_deployment_files():
@@ -160,7 +229,9 @@ def test_root_custody_and_final_v9_are_wired_into_deployment_files():
     assert root_dir in recovery
     assert "PASS_ROOT_CUSTODY_ROLLBACK_MANIFEST" in recovery
     assert "rollback artifact digest invalid" in recovery
-    assert recovery.index("PASS_ROOT_CUSTODY_ROLLBACK_MANIFEST") < recovery.index("sudo install -o root -g root -m 0644")
+    assert recovery.index("PASS_ROOT_CUSTODY_ROLLBACK_MANIFEST") < recovery.index(
+        "sudo install -o root -g root -m 0644"
+    )
 
     assert root_dir in prepare
     assert "rollback-manifest-v4.json" in prepare
