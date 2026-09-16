@@ -51,25 +51,14 @@ printf 'APP_DIR=%q\nCONFIG_DIR=%q\nDB_PATH=%q\nUNIT=%q\n' \
 sudo install -o root -g root -m 0444 "${TMP_PATHS}" "${HOST_PATHS}"
 rm -f "${TMP_PATHS}"
 
+# Approval is intentionally NOT cumulative. At any cutover exactly the currently
+# running known-good release and the one reviewed candidate are startable. Re-running
+# bootstrap therefore revokes stale historical candidate approvals.
 TMP_MANIFEST="$(mktemp)"
-/usr/bin/python3 - "${MANIFEST}" "${CURRENT_SHA}" "${CURRENT_TREE}" "${CANDIDATE_SHA,,}" "${CANDIDATE_TREE}" > "${TMP_MANIFEST}" <<'PY'
+/usr/bin/python3 - "${CURRENT_SHA}" "${CURRENT_TREE}" "${CANDIDATE_SHA,,}" "${CANDIDATE_TREE}" > "${TMP_MANIFEST}" <<'PY'
 import json, sys
-from pathlib import Path
-manifest, current_sha, current_tree, candidate_sha, candidate_tree = sys.argv[1:]
-approved = {}
-p = Path(manifest)
-if p.exists():
-    try:
-        old = json.loads(p.read_text(encoding='utf-8'))
-    except Exception:
-        raise SystemExit('existing host approval manifest is unreadable')
-    if old.get('version') != 'weather-paper-host-release-authority-v1':
-        raise SystemExit('existing host approval manifest version invalid')
-    for row in old.get('approved') or []:
-        if isinstance(row, dict):
-            approved[str(row.get('sha') or '').lower()] = str(row.get('tree') or '').lower()
-approved[current_sha.lower()] = current_tree.lower()
-approved[candidate_sha.lower()] = candidate_tree.lower()
+current_sha, current_tree, candidate_sha, candidate_tree = [value.lower() for value in sys.argv[1:]]
+approved = {current_sha: current_tree, candidate_sha: candidate_tree}
 print(json.dumps({
     'version': 'weather-paper-host-release-authority-v1',
     'approved': [{'sha': sha, 'tree': tree} for sha, tree in sorted(approved.items())],
