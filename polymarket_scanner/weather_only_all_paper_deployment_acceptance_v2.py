@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-"""Final additive first-cycle acceptance for the complete operator-state corrective stack."""
+"""Final additive first-cycle acceptance for the complete operator/deployment stack."""
 
 from dataclasses import asdict, dataclass
 
@@ -11,6 +11,7 @@ from .weather_only_all_paper_deployment_acceptance import (
 from .weather_only_live_paper_all_signals_final_v5 import FINAL_ALL_PAPER_RUNTIME_V5_VERSION
 from .weather_only_live_paper_all_signals_final_v6 import FINAL_ALL_PAPER_RUNTIME_V6_VERSION
 from .weather_only_live_paper_all_signals_final_v7 import FINAL_ALL_PAPER_RUNTIME_V7_VERSION
+from .weather_only_live_paper_all_signals_final_v8 import FINAL_ALL_PAPER_RUNTIME_V8_VERSION
 from .weather_only_operator_state_corrective import OPERATOR_STATE_CORRECTIVE_VERSION
 from .weather_only_operator_state_corrective_v2 import OPERATOR_STATE_CORRECTIVE_V2_VERSION
 from .weather_only_operator_state_corrective_v3 import OPERATOR_STATE_CORRECTIVE_V3_VERSION
@@ -18,7 +19,7 @@ from .weather_only_operator_state_corrective_v4 import OPERATOR_STATE_CORRECTIVE
 
 
 ALL_PAPER_DEPLOYMENT_ACCEPTANCE_V2_VERSION = (
-    "weather_all_paper_first_cycle_acceptance_v12_complete_operator_stack"
+    "weather_all_paper_first_cycle_acceptance_v13_v8_historical_sync_network_isolation"
 )
 
 
@@ -75,6 +76,7 @@ def accept_first_all_paper_cycle_v2(
         ("final_all_paper_runtime_v5_version", FINAL_ALL_PAPER_RUNTIME_V5_VERSION, "ALL_PAPER_FINAL_V5_WRAPPER_VERSION_MISMATCH"),
         ("final_all_paper_runtime_v6_version", FINAL_ALL_PAPER_RUNTIME_V6_VERSION, "ALL_PAPER_FINAL_V6_WRAPPER_VERSION_MISMATCH"),
         ("final_all_paper_runtime_v7_version", FINAL_ALL_PAPER_RUNTIME_V7_VERSION, "ALL_PAPER_FINAL_V7_WRAPPER_VERSION_MISMATCH"),
+        ("final_all_paper_runtime_v8_version", FINAL_ALL_PAPER_RUNTIME_V8_VERSION, "ALL_PAPER_FINAL_V8_WRAPPER_VERSION_MISMATCH"),
         ("operator_state_corrective_version", OPERATOR_STATE_CORRECTIVE_VERSION, "ALL_PAPER_OPERATOR_STATE_VERSION_MISMATCH"),
         ("operator_state_corrective_v2_version", OPERATOR_STATE_CORRECTIVE_V2_VERSION, "ALL_PAPER_OPERATOR_STATE_V2_VERSION_MISMATCH"),
         ("operator_state_corrective_v3_version", OPERATOR_STATE_CORRECTIVE_V3_VERSION, "ALL_PAPER_OPERATOR_STATE_V3_VERSION_MISMATCH"),
@@ -99,8 +101,15 @@ def accept_first_all_paper_cycle_v2(
         ("operator_sync_before_startup_required", "ALL_PAPER_OPERATOR_STARTUP_SYNC_NOT_REQUIRED"),
         ("operator_recent_terminal_reason_visible", "ALL_PAPER_RECENT_TERMINAL_REASON_NOT_VISIBLE"),
         ("maker_proposal_queue_uncertified_label", "ALL_PAPER_MAKER_QUEUE_LABEL_NOT_PROVEN"),
+        ("historical_terminal_operator_sync_backfill_required", "ALL_PAPER_HISTORICAL_TERMINAL_BACKFILL_NOT_REQUIRED"),
+        ("historical_terminal_operator_sync_complete", "ALL_PAPER_HISTORICAL_TERMINAL_BACKFILL_INCOMPLETE"),
+        ("network_environment_isolated", "ALL_PAPER_NETWORK_ENVIRONMENT_NOT_ISOLATED"),
+        ("http_clients_ignore_environment", "ALL_PAPER_HTTP_CLIENT_ENVIRONMENT_NOT_ISOLATED"),
     ):
         _true(status, key, code)
+
+    if int(status.get("historical_terminal_operator_sync_missing") or 0) != 0:
+        raise AllPaperDeploymentAcceptanceError("ALL_PAPER_HISTORICAL_TERMINAL_SYNC_MISSING")
 
     for key, code in (
         ("maker_queue_certified", "ALL_PAPER_MAKER_QUEUE_UNEXPECTEDLY_CERTIFIED"),
@@ -135,7 +144,7 @@ def accept_first_all_paper_cycle_v2(
         release_sha=base.release_sha,
         cycle_finished_at=base.cycle_finished_at,
         cycle_age_seconds=base.cycle_age_seconds,
-        runtime_version=FINAL_ALL_PAPER_RUNTIME_V7_VERSION,
+        runtime_version=FINAL_ALL_PAPER_RUNTIME_V8_VERSION,
         execution_protocol=base.execution_protocol,
         maker_accounting_version=base.maker_accounting_version,
         operator_state_version=OPERATOR_STATE_CORRECTIVE_VERSION,
