@@ -2,27 +2,27 @@ from __future__ import annotations
 
 """Final V9 corrective wrapper for deployment-custody, operator liveness and recall freshness.
 
-This layer is still PAPER-only.  It adds no wallet, signing, order, cancellation or
-financial-delivery authority.  It closes three operational gaps identified by the
+This layer is still PAPER-only. It adds no wallet, signing, order, cancellation or
+financial-delivery authority. It closes three operational gaps identified by the
 independent final review:
 
 * successful historical Telegram invalidations are drained in-process rather than
   using systemd restarts as pagination;
 * an explicit Telegram "message to edit not found" receipt is treated as a confirmed
   absent stale message and durably audited; and
-* the exhaustive untagged Gamma recall census may not be reused for more than five
-  minutes without a fresh complete census.
+* exhaustive untagged Gamma recall carries explicit completion/age evidence and may
+  not be reused beyond the discovery layer's five-minute hard TTL.
 """
 
 import argparse
 import asyncio
-import html
 import json
 import time
 from pathlib import Path
 
 import httpx
 
+from .weather_only_discovery import GLOBAL_CENSUS_TTL_SECONDS
 from .weather_only_live_paper import (
     DEFAULT_FORECAST_CACHE_SECONDS,
     DEFAULT_FORECAST_RAW_GAP_MIN,
@@ -47,7 +47,7 @@ from .weather_only_paper_corrective import CorrectiveSettlementEngine, DeliveryU
 FINAL_ALL_PAPER_RUNTIME_V9_VERSION = (
     "final_all_paper_v9_operator_drain_deleted_message_global_recall_5m"
 )
-MAX_GLOBAL_RECALL_REUSE_SECONDS = 300.0
+MAX_GLOBAL_RECALL_REUSE_SECONDS = GLOBAL_CENSUS_TTL_SECONDS
 OPERATOR_SYNC_BATCH_SIZE = 200
 OPERATOR_SYNC_MAX_BATCHES = 1_000
 TELEGRAM_EDIT_APPLIED = "APPLIED"
@@ -107,9 +107,8 @@ class FinalOperatorStateTelegram(OperatorStateTelegram):
                     description = ""
                 if response.status_code == 400 and "message is not modified" in description:
                     return TELEGRAM_EDIT_APPLIED
-                # Telegram's explicit deleted/missing-message receipt proves the stale
-                # alert is no longer visible, so retaining a permanent startup failure
-                # would reduce liveness without adding operator safety.
+                # This exact Telegram receipt proves that the old stale alert is no
+                # longer visible. Other 4xx responses remain fail-closed.
                 if response.status_code == 400 and "message to edit not found" in description:
                     return TELEGRAM_EDIT_ABSENT
                 raise WeatherLivePaperError(
@@ -219,7 +218,6 @@ class FinalAllPaperWeatherLiveServiceV9(FinalAllPaperWeatherLiveServiceV8):
             status_path=self.status_path,
             paper_stake_usd=self.paper_stake_usd,
         )
-        self._global_recall_certified_at = 0.0
 
     async def close(self) -> None:
         await asyncio.gather(
@@ -295,34 +293,26 @@ class FinalAllPaperWeatherLiveServiceV9(FinalAllPaperWeatherLiveServiceV8):
         )
         return summary
 
-    def _force_global_recall_if_due(self) -> None:
-        if self._global_recall_certified_at <= 0.0:
-            return
-        if time.time() - self._global_recall_certified_at <= MAX_GLOBAL_RECALL_REUSE_SECONDS:
-            return
-        discovery = getattr(self.runtime, "discovery", None)
-        if discovery is not None and hasattr(discovery, "_global_cache_at"):
-            # The discovery object remains the authority for the exhaustive walk; we
-            # merely invalidate its one-hour legacy cache once our five-minute final
-            # runtime freshness budget is exceeded.
-            discovery._global_cache_at = 0.0
-
     async def run_cycle(self) -> dict:
-        self._force_global_recall_if_due()
         status = dict(await super().run_cycle())
         recall = dict(status.get("global_weather_recall") or {})
-        if recall.get("complete") is True and recall.get("cache_hit") is False:
-            self._global_recall_certified_at = time.time()
-
-        age = (
-            max(0.0, time.time() - self._global_recall_certified_at)
-            if self._global_recall_certified_at > 0.0
-            else None
+        completed = recall.get("census_completed_at")
+        age = recall.get("age_seconds")
+        max_reuse = recall.get("max_reuse_seconds")
+        valid_numbers = (
+            isinstance(completed, (int, float))
+            and not isinstance(completed, bool)
+            and isinstance(age, (int, float))
+            and not isinstance(age, bool)
+            and isinstance(max_reuse, (int, float))
+            and not isinstance(max_reuse, bool)
         )
-        fresh = (
+        fresh = bool(
             recall.get("complete") is True
-            and age is not None
-            and age <= MAX_GLOBAL_RECALL_REUSE_SECONDS
+            and valid_numbers
+            and float(completed) > 0.0
+            and 0.0 <= float(age) <= MAX_GLOBAL_RECALL_REUSE_SECONDS
+            and 0.0 < float(max_reuse) <= MAX_GLOBAL_RECALL_REUSE_SECONDS
         )
         status.update(
             {
@@ -331,9 +321,9 @@ class FinalAllPaperWeatherLiveServiceV9(FinalAllPaperWeatherLiveServiceV8):
                 "operator_sync_restart_pagination_required": False,
                 "operator_deleted_message_terminal_confirmation": True,
                 "global_weather_recall_max_reuse_seconds": MAX_GLOBAL_RECALL_REUSE_SECONDS,
-                "global_weather_recall_certified_at": self._global_recall_certified_at or None,
-                "global_weather_recall_age_seconds": age,
-                "global_weather_recall_fresh": bool(fresh),
+                "global_weather_recall_certified_at": completed if valid_numbers else None,
+                "global_weather_recall_age_seconds": age if valid_numbers else None,
+                "global_weather_recall_fresh": fresh,
                 "financial_delivery": False,
                 "financial_authority": False,
                 "automatic_order_placement": False,
