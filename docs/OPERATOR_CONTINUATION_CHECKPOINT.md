@@ -1,5 +1,11 @@
 # Production operator continuation
 
+Latest repository verification and final capability matrix:
+[OPERATOR_CONTINUATION_VERIFICATION.md](OPERATOR_CONTINUATION_VERIFICATION.md).
+The chronological checkpoints below preserve intermediate failures and pending
+states. Final publication/merge identity is recorded by
+[PR #3](https://github.com/heroo2123/Alpha/pull/3); deployment is a separate gate.
+
 Baseline/main at phase-one inspection: `9552357c9de550c522c60910b4ccb25abd9d9cfd`.
 Tree: `a0e6ee81cae61bf064f5c9b3eb0a70606603e863`.
 Branch: `weather-telegram-operator-continuation-2026-09-16`, created directly from that baseline after a fresh fetch; main had not moved.
@@ -210,3 +216,18 @@ Independent gate review found a case-normalization duplicate could hide an extra
 hash in the new inventory checker; the actual committed lock remained valid.
 Normalization now precedes duplicate detection, with mixed-case and PEP-503
 spelling regressions. Final re-review and exact-head CI follow this correction.
+
+## Final repository verification checkpoint
+
+Independent review passed local freeze `0351a3f10f932c899c9357b7dc2d412ff33dbe6d`
+and identical published tree `965ecb0afd7d6cab15e0c62c5e4f06f7184be8b3` at
+`680d21a8fca4e1440ba5a6adaf157058e5f7c702`. Both full suites passed 2,033
+cases; all exact-head matrix and public workflows passed. The preceding initial
+failures are retained in the evidence archive and final finding ledger.
+
+Implementation 100%; code verification 100%; deployment-package preparation
+100%. The only following changes are this handover/evidence documentation, whose
+exact-head checks and normal PR merge remain required. Main was still at the
+original baseline at this premerge checkpoint; consult PR #3 for the actual
+merged commit and actual-main checks. Host acceptance, test-bot acceptance,
+account provisioning, funding and financial activation have not occurred.
