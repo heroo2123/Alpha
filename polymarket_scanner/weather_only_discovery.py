@@ -3,10 +3,11 @@ from __future__ import annotations
 """Fail-closed weather discovery with tagged fast path plus exhaustive Gamma recall.
 
 The weather tags remain the cheap low-latency path, but tag membership is no longer a
-recall assumption. A cached untagged active-event keyset census is exhausted naturally
-and retains only events the strict contract compiler classifies as daily high/low
-temperature contracts. The retained strict subset is merged pessimistically with
-tagged projections before downstream rule authority is considered.
+recall assumption. A cached untagged active-event keyset census is exhausted naturally.
+The census classifies every *weather-looking* daily-temperature event even when the
+strict compiler rejects it, while only strict-supported events are merged into the
+runtime discovery set. Gamma enumeration completeness and semantic coverage are
+therefore separate, explicit facts.
 
 The exhaustive census has a deliberately short five-minute reuse budget. Its actual
 completion timestamp and age are exposed as first-class evidence so a caller never has
@@ -16,6 +17,7 @@ to infer freshness from a previous cycle's status.
 import asyncio
 import copy
 import json
+import re
 import time
 from dataclasses import asdict, dataclass
 
@@ -25,7 +27,7 @@ from .config import settings
 
 
 GAMMA = "https://gamma-api.polymarket.com"
-WEATHER_ONLY_DISCOVERY_VERSION = "weather_keyset_v4_exhaustive_recall_5m_freshness_evidence"
+WEATHER_ONLY_DISCOVERY_VERSION = "weather_keyset_v5_exhaustive_semantic_census_5m"
 DEFAULT_TAGS = ("daily-temperature", "weather")
 PAGE_SIZE = 25
 GLOBAL_PAGE_SIZE = 50
@@ -36,6 +38,26 @@ MAX_GLOBAL_EVENT_HITS = 250_000
 GLOBAL_CENSUS_TTL_SECONDS = 300.0
 MAX_EVENTS = 5_000
 MAX_MARKETS = 50_000
+MAX_UNSUPPORTED_EXAMPLES = 20
+SEMANTIC_POLICY = "STRICT_SUPPORTED_SUBSET"
+SEMANTIC_FAILURE_CATEGORIES = frozenset(
+    {
+        "UNSUPPORTED_STATION",
+        "UNSUPPORTED_RULE_GRAMMAR",
+        "UNSUPPORTED_UNIT",
+        "UNSUPPORTED_FAMILY",
+        "UNSUPPORTED_BUCKET_FORM",
+        "AMBIGUOUS",
+        "OTHER_FAIL_CLOSED",
+    }
+)
+_MONTH_RE = re.compile(
+    r"\b(?:january|february|march|april|may|june|july|august|september|october|november|december|"
+    r"jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec)\b",
+    re.I,
+)
+_DAILY_TEMP_RE = re.compile(r"\b(?:highest|lowest|high|low)\b.{0,48}\btemperature\b", re.I)
+_TEMP_UNIT_RE = re.compile(r"(?:°\s*[fc]\b|\bdegrees?\s+[fc]\b)", re.I)
 
 
 class WeatherDiscoveryError(RuntimeError):
@@ -173,33 +195,69 @@ class WeatherOnlyDiscovery:
         self._global_cache_events: tuple[dict, ...] = ()
         self._global_cache_pages = 0
         self._global_cache_scanned = 0
-        self._last_global_recall = {
-            "complete": False,
-            "cache_hit": False,
-            "pages": 0,
-            "scanned_events": 0,
-            "retained_events": 0,
-            "census_completed_at": None,
-            "age_seconds": None,
-            "max_reuse_seconds": GLOBAL_CENSUS_TTL_SECONDS,
-            "gamma_census_complete": False,
-            "weather_semantic_product_policy": "STRICT_SUPPORTED_SUBSET",
-            "weather_semantic_coverage_complete": False,
+        self._global_cache_semantic = self._empty_semantic_census()
+        self._last_global_recall = self._recall_payload(
+            complete=False,
+            cache_hit=False,
+            pages=0,
+            scanned=0,
+            retained=0,
+            completed_at=None,
+            semantic=self._global_cache_semantic,
+        )
+
+    @staticmethod
+    def _empty_semantic_census() -> dict:
+        return {
             "weather_looking_events": 0,
             "strict_supported_events": 0,
             "unsupported_weather_events": 0,
             "unsupported_reason_counts": {},
             "unsupported_examples": [],
+            "weather_semantic_coverage_complete": False,
+            "weather_semantic_coverage_status": "NOT_RUN",
+            "weather_semantic_product_policy": SEMANTIC_POLICY,
         }
+
+    @staticmethod
+    def _recall_payload(
+        *,
+        complete: bool,
+        cache_hit: bool,
+        pages: int,
+        scanned: int,
+        retained: int,
+        completed_at: float | None,
+        semantic: dict,
+    ) -> dict:
+        age = None if completed_at is None else max(0.0, time.time() - float(completed_at))
+        out = {
+            "complete": bool(complete),
+            "cache_hit": bool(cache_hit),
+            "pages": int(pages),
+            "scanned_events": int(scanned),
+            "retained_events": int(retained),
+            "census_completed_at": completed_at,
+            "age_seconds": age,
+            "max_reuse_seconds": GLOBAL_CENSUS_TTL_SECONDS,
+            "gamma_census_complete": bool(complete),
+            "gamma_census_completed_at": completed_at,
+            "gamma_census_age_seconds": age,
+            "total_active_events_scanned": int(scanned),
+        }
+        out.update(copy.deepcopy(semantic))
+        return out
 
     async def close(self) -> None:
         await self.http.aclose()
 
     def global_recall_status(self) -> dict:
-        value = dict(self._last_global_recall)
+        value = copy.deepcopy(self._last_global_recall)
         completed = value.get("census_completed_at")
         if isinstance(completed, (int, float)) and not isinstance(completed, bool):
-            value["age_seconds"] = max(0.0, time.time() - float(completed))
+            age = max(0.0, time.time() - float(completed))
+            value["age_seconds"] = age
+            value["gamma_census_age_seconds"] = age
         value["max_reuse_seconds"] = GLOBAL_CENSUS_TTL_SECONDS
         return value
 
@@ -248,9 +306,7 @@ class WeatherOnlyDiscovery:
             if not isinstance(payload, dict):
                 raise WeatherDiscoveryError("MALFORMED_ENVELOPE")
             events = payload.get("events")
-            if not isinstance(events, list) or any(
-                not isinstance(event, dict) for event in events
-            ):
+            if not isinstance(events, list) or any(not isinstance(event, dict) for event in events):
                 raise WeatherDiscoveryError("MALFORMED_EVENTS")
             raw_cursor = payload.get("next_cursor")
             if raw_cursor is not None and not isinstance(raw_cursor, str):
@@ -263,18 +319,26 @@ class WeatherOnlyDiscovery:
         raise WeatherDiscoveryError("HTTP_RETRY_EXHAUSTED")
 
     @staticmethod
-    def _strict_weather_candidate(event: dict) -> bool:
-        from .weather_only_contracts import DAILY_HIGH, DAILY_LOW, compile_weather_event
-
+    def _weather_looking_candidate(event: dict) -> bool:
+        """Inclusive census predicate; never grants trading support by itself."""
         try:
-            compiled = compile_weather_event(event)
+            title = str(event.get("title") or "")
+            markets = event.get("markets") or []
+            questions = [str(row.get("question") or "") for row in markets if isinstance(row, dict)]
+            texts = [title, *questions]
         except Exception:
             return False
-        return compiled.family in {DAILY_HIGH, DAILY_LOW}
+        joined = " ".join(texts)
+        if "temperature" not in joined.lower():
+            return False
+        if _DAILY_TEMP_RE.search(joined):
+            return True
+        return bool(_MONTH_RE.search(joined) and _TEMP_UNIT_RE.search(joined))
 
     @staticmethod
     def _semantic_classification(event: dict) -> tuple[str, str]:
         from .weather_only_contract_strict import StrictWeatherContractError, compile_strict_temperature_event
+
         try:
             compile_strict_temperature_event(event)
             return "SUPPORTED", "SUPPORTED"
@@ -282,46 +346,53 @@ class WeatherOnlyDiscovery:
             code = str(exc.code)
         except Exception:
             return "OTHER_FAIL_CLOSED", "UNEXPECTED_STRICT_COMPILER_FAILURE"
+        if "AMBIG" in code:
+            return "AMBIGUOUS", code
         if "STATION" in code or "SOURCE_URL" in code:
             return "UNSUPPORTED_STATION", code
-        if "RULE" in code or "OPERATIVE" in code or "SOURCE_CONFLICT" in code:
-            return "UNSUPPORTED_RULE_GRAMMAR", code
         if "UNIT" in code:
             return "UNSUPPORTED_UNIT", code
         if "FAMILY" in code or "STATISTIC" in code:
             return "UNSUPPORTED_FAMILY", code
         if "BUCKET" in code or "PARTITION" in code or "CHILD_COUNT" in code:
             return "UNSUPPORTED_BUCKET_FORM", code
-        if "AMBIG" in code or "CONFLICT" in code:
+        if "RULE" in code or "OPERATIVE" in code or "SOURCE_CONFLICT" in code:
+            return "UNSUPPORTED_RULE_GRAMMAR", code
+        if "CONFLICT" in code:
             return "AMBIGUOUS", code
         return "OTHER_FAIL_CLOSED", code
 
-    async def _global_weather_census(
-        self,
-    ) -> tuple[tuple[dict, ...], int, int, bool]:
+    async def _global_weather_census(self) -> tuple[tuple[dict, ...], int, int, bool]:
         now = time.time()
         cache_age = now - self._global_cache_at
         if (
-            self._global_cache_events
-            and self._global_cache_at > 0.0
+            self._global_cache_at > 0.0
+            and self._global_cache_pages > 0
             and 0.0 <= cache_age <= GLOBAL_CENSUS_TTL_SECONDS
         ):
-            return (
-                self._global_cache_events,
-                self._global_cache_pages,
-                self._global_cache_scanned,
-                True,
+            self._last_global_recall = self._recall_payload(
+                complete=True,
+                cache_hit=True,
+                pages=self._global_cache_pages,
+                scanned=self._global_cache_scanned,
+                retained=len(self._global_cache_events),
+                completed_at=self._global_cache_at,
+                semantic=self._global_cache_semantic,
             )
+            return self._global_cache_events, self._global_cache_pages, self._global_cache_scanned, True
 
         cursor: str | None = None
         seen_cursors: set[str] = set()
         retained: list[dict] = []
         pages = 0
         scanned = 0
+        weather_looking = 0
+        supported = 0
+        reason_counts: dict[str, int] = {}
+        unsupported_examples: list[dict] = []
+
         while True:
-            events, next_cursor = await self._keyset_page(
-                None, cursor, page_size=GLOBAL_PAGE_SIZE
-            )
+            events, next_cursor = await self._keyset_page(None, cursor, page_size=GLOBAL_PAGE_SIZE)
             pages += 1
             if pages > MAX_GLOBAL_PAGES:
                 raise WeatherDiscoveryError("GLOBAL_PAGE_CAP")
@@ -329,10 +400,28 @@ class WeatherOnlyDiscovery:
             if scanned > MAX_GLOBAL_EVENT_HITS:
                 raise WeatherDiscoveryError("GLOBAL_EVENT_CAP")
             for event in events:
-                if self._strict_weather_candidate(event):
+                if not self._weather_looking_candidate(event):
+                    continue
+                weather_looking += 1
+                category, detail = self._semantic_classification(event)
+                if category == "SUPPORTED":
+                    supported += 1
                     retained.append(copy.deepcopy(event))
                     if len(retained) > MAX_EVENTS:
                         raise WeatherDiscoveryError("GLOBAL_STRICT_EVENT_CAP")
+                    continue
+                if category not in SEMANTIC_FAILURE_CATEGORIES:
+                    category, detail = "OTHER_FAIL_CLOSED", f"UNSTABLE_CATEGORY:{category}:{detail}"
+                reason_counts[category] = reason_counts.get(category, 0) + 1
+                if len(unsupported_examples) < MAX_UNSUPPORTED_EXAMPLES:
+                    unsupported_examples.append(
+                        {
+                            "event_id": str(event.get("id") or ""),
+                            "title": str(event.get("title") or "")[:220],
+                            "classification": category,
+                            "detail": str(detail)[:220],
+                        }
+                    )
             if next_cursor is None:
                 break
             if next_cursor == cursor or next_cursor in seen_cursors:
@@ -340,13 +429,33 @@ class WeatherOnlyDiscovery:
             seen_cursors.add(next_cursor)
             cursor = next_cursor
 
-        # Publish the new cache only after natural exhaustion succeeds. A failed
-        # replacement census therefore cannot refresh old recall evidence.
+        unsupported = weather_looking - supported
+        semantic = {
+            "weather_looking_events": weather_looking,
+            "strict_supported_events": supported,
+            "unsupported_weather_events": unsupported,
+            "unsupported_reason_counts": dict(sorted(reason_counts.items())),
+            "unsupported_examples": unsupported_examples,
+            "weather_semantic_coverage_complete": unsupported == 0,
+            "weather_semantic_coverage_status": "COMPLETE" if unsupported == 0 else "PARTIAL_STRICT_SUBSET",
+            "weather_semantic_product_policy": SEMANTIC_POLICY,
+        }
+
         completed_at = time.time()
         self._global_cache_at = completed_at
         self._global_cache_events = tuple(retained)
         self._global_cache_pages = pages
         self._global_cache_scanned = scanned
+        self._global_cache_semantic = semantic
+        self._last_global_recall = self._recall_payload(
+            complete=True,
+            cache_hit=False,
+            pages=pages,
+            scanned=scanned,
+            retained=len(retained),
+            completed_at=completed_at,
+            semantic=semantic,
+        )
         return self._global_cache_events, pages, scanned, False
 
     @staticmethod
@@ -382,12 +491,8 @@ class WeatherOnlyDiscovery:
             raise WeatherDiscoveryError("MARKET_CAP")
         return duplicate
 
-    async def discover(
-        self, tags: tuple[str, ...] = DEFAULT_TAGS
-    ) -> WeatherDiscoverySnapshot:
-        cleaned = tuple(
-            dict.fromkeys(str(tag).strip() for tag in tags if str(tag).strip())
-        )
+    async def discover(self, tags: tuple[str, ...] = DEFAULT_TAGS) -> WeatherDiscoverySnapshot:
+        cleaned = tuple(dict.fromkeys(str(tag).strip() for tag in tags if str(tag).strip()))
         if not cleaned:
             raise WeatherDiscoveryError("NO_TAGS_CONFIGURED")
         started = time.time()
@@ -410,12 +515,7 @@ class WeatherOnlyDiscovery:
                 raw_event_hits += len(events)
                 for event in events:
                     duplicate_event_hits += int(
-                        self._ingest(
-                            event,
-                            by_id=by_id,
-                            order=order,
-                            market_owner=market_owner,
-                        )
+                        self._ingest(event, by_id=by_id, order=order, market_owner=market_owner)
                     )
                 if next_cursor is None:
                     break
@@ -425,65 +525,26 @@ class WeatherOnlyDiscovery:
                 cursor = next_cursor
             pages_by_tag[tag] = pages
 
-        global_events, global_pages, global_scanned, cache_hit = (
-            await self._global_weather_census()
-        )
+        global_events, global_pages, global_scanned, cache_hit = await self._global_weather_census()
         for event in global_events:
             duplicate_event_hits += int(
-                self._ingest(
-                    event,
-                    by_id=by_id,
-                    order=order,
-                    market_owner=market_owner,
-                )
+                self._ingest(event, by_id=by_id, order=order, market_owner=market_owner)
             )
         pages_by_tag["__global__"] = global_pages
         finished = time.time()
         census_completed_at = self._global_cache_at if self._global_cache_at > 0.0 else None
-        census_age = (
-            max(0.0, finished - census_completed_at)
-            if census_completed_at is not None
-            else None
+        census_age = None if census_completed_at is None else max(0.0, finished - census_completed_at)
+
+        self._last_global_recall = self._recall_payload(
+            complete=True,
+            cache_hit=cache_hit,
+            pages=global_pages,
+            scanned=global_scanned,
+            retained=len(global_events),
+            completed_at=census_completed_at,
+            semantic=self._global_cache_semantic,
         )
-        reason_counts: dict[str, int] = {}
-        unsupported_examples: list[dict] = []
-        supported = 0
-        for event in global_events:
-            category, detail = self._semantic_classification(event)
-            if category == "SUPPORTED":
-                supported += 1
-                continue
-            reason_counts[category] = reason_counts.get(category, 0) + 1
-            if len(unsupported_examples) < 20:
-                unsupported_examples.append({
-                    "event_id": str(event.get("id") or ""),
-                    "title": str(event.get("title") or "")[:220],
-                    "classification": category,
-                    "detail": detail,
-                })
-        unsupported = len(global_events) - supported
-        self._last_global_recall = {
-            "complete": True,
-            "cache_hit": bool(cache_hit),
-            "pages": int(global_pages),
-            "scanned_events": int(global_scanned),
-            "retained_events": len(global_events),
-            "census_completed_at": census_completed_at,
-            "age_seconds": census_age,
-            "max_reuse_seconds": GLOBAL_CENSUS_TTL_SECONDS,
-            "gamma_census_complete": True,
-            "gamma_census_completed_at": census_completed_at,
-            "gamma_census_age_seconds": census_age,
-            "total_active_events_scanned": int(global_scanned),
-            "weather_looking_events": len(global_events),
-            "strict_supported_events": supported,
-            "unsupported_weather_events": unsupported,
-            "unsupported_reason_counts": dict(sorted(reason_counts.items())),
-            "unsupported_examples": unsupported_examples,
-            "weather_semantic_coverage_complete": unsupported == 0,
-            "weather_semantic_coverage_status": "COMPLETE" if unsupported == 0 else "PARTIAL_STRICT_SUBSET",
-            "weather_semantic_product_policy": "STRICT_SUPPORTED_SUBSET",
-        }
+
         return WeatherDiscoverySnapshot(
             version=WEATHER_ONLY_DISCOVERY_VERSION,
             tags=cleaned,
