@@ -154,7 +154,9 @@ def test_root_custodied_rollback_snapshot_and_restore_bind_database_source_and_e
     assert "previous-db-present" in restore
     assert "previous-weather-paper.sqlite3" in restore
     assert 'Path(str(target)+\'-wal\').unlink' in restore
-    assert "failed-candidate-weather-paper" in restore
+    assert restore.index("PASS_ROOT_CUSTODY_ROLLBACK_MANIFEST") < restore.index(
+        'if [[ "${PREVIOUS_DB_PRESENT}" == "1" ]]'
+    )
     assert "/usr/bin/python3" in restore
     assert '"${VENV_HELPER}" restore' in restore
     assert '"${VENV_HELPER}" verify-tree' in restore
@@ -203,7 +205,9 @@ def test_final_acceptance_v2_requires_complete_v9_operator_network_and_recall_st
     assert "global_weather_recall_complete" in text
     assert "global_weather_recall_fresh" in text
     assert "global_weather_recall_max_reuse_seconds" in text
+    assert "global_weather_recall_certified_at" in text
     assert "global_weather_recall_age_seconds" in text
+    assert "GLOBAL_WEATHER_RECALL_AGE_EVIDENCE_MISMATCH" in text
     assert "global_weather_recall" in text
     # Preserve the mature lower-layer gates as part of the additive acceptance chain.
     assert "post_receipt_future_day_provider_refetch_required" in base
