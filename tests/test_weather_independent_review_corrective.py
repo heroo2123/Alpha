@@ -160,7 +160,6 @@ def test_source_shock_dedupe_is_per_official_exclusion_episode(tmp_path):
     first = save(92.0, 94.0, NOW)
     assert first is not None
     assert save(92.0, 94.0, NOW) is None
-    # A later restored/re-excluded episode is distinct rather than suppressed forever.
     second = save(93.0, 94.0, NOW + 600.0)
     assert second is not None and second != first
 
@@ -284,7 +283,7 @@ def test_final_wrapper_marks_all_lanes_unhealthy_when_maker_is_degraded(tmp_path
     service = object.__new__(FinalAllPaperWeatherLiveService)
     service.status_path = tmp_path / "status.json"
     result = asyncio.run(service.run_cycle())
-    assert result["cycle_ok"] is True  # core weather cycle truth is preserved
+    assert result["cycle_ok"] is True
     assert result["operator_all_lanes_healthy"] is False
     assert result["inherited_safety_boundary_verified"] is True
 
@@ -305,50 +304,78 @@ def test_operator_status_read_fails_green_headline_closed_on_maker_degradation(m
     assert status["operator_all_lanes_healthy"] is False
 
 
-def test_cutover_scripts_require_and_restore_exact_previous_release_and_venv():
+def test_cutover_scripts_require_host_approved_exact_previous_release_database_and_venv():
     root = Path(__file__).resolve().parents[1]
-    snapshot = (root / "deploy/snapshot-all-paper-rollback.sh").read_text(encoding="utf-8")
-    snapshot_v2 = (root / "deploy/snapshot-all-paper-rollback-v2.sh").read_text(encoding="utf-8")
+    snapshot_wrapper = (root / "deploy/snapshot-all-paper-rollback.sh").read_text(encoding="utf-8")
+    snapshot_compat = (root / "deploy/snapshot-all-paper-rollback-v2.sh").read_text(encoding="utf-8")
+    host_snapshot = (root / "deploy/weather-paper-host-snapshot.sh").read_text(encoding="utf-8")
     prepare_wrapper = (root / "deploy/prepare-all-paper-candidate.sh").read_text(encoding="utf-8")
-    prepare = (root / "deploy/prepare-all-paper-candidate-v2.sh").read_text(encoding="utf-8")
+    prepare = (root / "deploy/prepare-all-paper-candidate-v3.sh").read_text(encoding="utf-8")
     start = (root / "deploy/start-all-paper-candidate.sh").read_text(encoding="utf-8")
     restore_wrapper = (root / "deploy/restore-all-paper-rollback.sh").read_text(encoding="utf-8")
-    restore = (root / "deploy/restore-all-paper-rollback-v2.sh").read_text(encoding="utf-8")
+    restore_compat = (root / "deploy/restore-all-paper-rollback-v2.sh").read_text(encoding="utf-8")
+    host_restore = (root / "deploy/weather-paper-host-recovery.sh").read_text(encoding="utf-8")
+    gate = (root / "deploy/weather-paper-host-release-gate.py").read_text(encoding="utf-8")
 
-    # Base snapshot remains read-only with respect to production service state.
-    assert "systemctl stop" not in snapshot
-    assert "systemctl start" not in snapshot
-    assert "systemctl enable" not in snapshot
+    # Candidate-owned compatibility scripts only delegate to immutable host authority.
+    assert "/usr/local/libexec/polymarket-weather-paper/snapshot-rollback.sh" in snapshot_wrapper
+    assert "/usr/local/libexec/polymarket-weather-paper/snapshot-rollback.sh" in snapshot_compat
+    assert "/usr/local/libexec/polymarket-weather-paper/restore-rollback.sh" in restore_wrapper
+    assert "/usr/local/libexec/polymarket-weather-paper/restore-rollback.sh" in restore_compat
+    assert "systemctl stop" not in snapshot_wrapper
+    assert "systemctl start" not in snapshot_wrapper
+    assert "systemctl enable" not in snapshot_wrapper
 
-    # The additive v2 generation binds source, ledger and exact virtualenv bytes.
-    assert "previous-release.sha" in snapshot_v2
-    assert "previous-venv.tar" in snapshot_v2
-    assert "previous-venv.json" in snapshot_v2
-    assert "previous-db.sha256" in snapshot_v2
-    assert "all-paper-rollback-v2-exact-venv" in snapshot_v2
-    assert "/usr/bin/python3" in snapshot_v2
+    # Root-owned V3 generation binds exact source tree, ledger and virtualenv bytes.
+    for token in (
+        "previous-release.sha",
+        "previous-tree.sha",
+        "previous-venv.tar",
+        "previous-venv.json",
+        "previous-db.sha256",
+        "previous-db-present",
+        "snapshot-generation-v3",
+        "all-paper-rollback-v3-host-authority",
+        "/usr/bin/python3",
+        '"${GATE}" verify-checkout',
+        '"${VENV_HELPER}" verify-tree',
+    ):
+        assert token in host_snapshot
 
-    # Candidate preparation cannot mutate source/dependencies without that generation.
-    assert "prepare-all-paper-candidate-v2.sh" in prepare_wrapper
+    # Candidate preparation cannot mutate source/dependencies without that approved
+    # host generation and exact current-vdev tree proof.
+    assert "prepare-all-paper-candidate-v3.sh" in prepare_wrapper
     assert "previous-release.sha" in prepare
     assert "previous-venv-release.sha" in prepare
-    assert "snapshot-generation-v2" in prepare
-    assert "rollback generation does not describe the current known-good release" in prepare
-    assert '"${TMP_HELPER}" verify' in prepare
+    assert "snapshot-generation-v3" in prepare
+    assert "all-paper-rollback-v3-host-authority" in prepare
+    assert '"${HOST_VENV}" verify' in prepare
+    assert '"${HOST_VENV}" verify-tree' in prepare
+    assert '"${GATE}" verify-object' in prepare
+    assert 'HOST_RECOVERY="${LIBEXEC}/restore-rollback.sh"' in prepare
 
-    # Any active acceptance failure routes back through the exact v2 restoration path.
-    assert "restore-all-paper-rollback.sh" in start
-    assert "restoring exact pre-cutover generation" in start
+    # Any active acceptance failure uses host-owned recovery, never candidate-owned
+    # restoration logic.
+    assert 'HOST_RECOVERY="${LIBEXEC}/restore-rollback.sh"' in start
     assert "previous-venv.tar" in start
-    assert "snapshot-generation-v2" in start
-    assert "restore-all-paper-rollback-v2.sh" in restore_wrapper
+    assert "snapshot-generation-v3" in start
+    assert "host-owned rollback" in start
 
-    # Restoration uses system Python until the snapshotted venv has been restored and
-    # verified, then reinstates source/unit/service state.
-    assert 'checkout --detach "${PREVIOUS_SHA}"' in restore
-    assert 'install -m 0644 "${ROLLBACK_UNIT}"' in restore
-    assert '"${TMP_HELPER}" restore' in restore
-    assert '"${TMP_HELPER}" verify-tree' in restore
-    assert "/usr/bin/python3" in restore
-    assert 'systemctl enable "${UNIT}"' in restore
-    assert 'systemctl start "${UNIT}"' in restore
+    # Host recovery proves the approved previous object/tree before checkout, restores
+    # DB + exact venv, restores unit state, then re-attests the checkout.
+    assert '"${GATE}" verify-object' in host_restore
+    assert 'checkout --detach "${PREVIOUS_SHA}"' in host_restore
+    assert "previous-tree.sha" in host_restore
+    assert "previous-weather-paper.sqlite3" in host_restore
+    assert '"${VENV_HELPER}" restore' in host_restore
+    assert '"${VENV_HELPER}" verify-tree' in host_restore
+    assert "/usr/bin/python3" in host_restore
+    assert 'systemctl enable "${UNIT}"' in host_restore
+    assert 'systemctl start "${UNIT}"' in host_restore
+    assert '"${GATE}" verify-checkout' in host_restore
+
+    # The gate itself binds an approved SHA to an approved Git tree and rejects a dirty
+    # checkout instead of trusting the candidate release marker alone.
+    assert "HOST_RELEASE_TREE_IDENTITY_MISMATCH" in gate
+    assert "HOST_RELEASE_SHA_NOT_APPROVED" in gate
+    assert "HOST_RELEASE_CHECKOUT_DIRTY" in gate
