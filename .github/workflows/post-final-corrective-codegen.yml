@@ -40,7 +40,8 @@ jobs:
           python -m py_compile /tmp/post_final_codegen.py
           python /tmp/post_final_codegen.py
           rm -rf .corrective_tmp
-          rm -f .github/workflows/post-final-corrective-codegen.yml
+          rm -f .github/workflows/weather-current-semantic-census.yml
+          git checkout HEAD -- .github/workflows/tests.yml .github/workflows/post-final-corrective-codegen.yml
           python -m compileall -q polymarket_scanner deploy tests host_trust
           for script in deploy/*.sh deploy/oracle/*.sh deploy/gcp/*.sh host_trust/weather-paper-authority-v2/*.sh; do
             bash -n "$script"
