@@ -8,7 +8,7 @@ from pathlib import Path
 
 
 WEATHER_RELEASE_MARKER = "weather-paper-release.sha"
-ALL_PAPER_MODULE = "polymarket_scanner.weather_only_live_paper_all_signals_final_v8"
+ALL_PAPER_MODULE = "polymarket_scanner.weather_only_live_paper_all_signals_final_v9"
 HOST_RELEASE_GATE = "/usr/local/libexec/polymarket-weather-paper/release-gate.py"
 NETWORK_ENV_NAMES = (
     "HTTP_PROXY",
