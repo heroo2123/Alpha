@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - weather-all-paper-post-final-review-corrective-2026-09-16
+      - weather-all-paper-stage2-findings-5-7-2026-09-16
     paths:
       - 'polymarket_scanner/weather_only_discovery.py'
       - 'polymarket_scanner/weather_only_contract_strict.py'
@@ -29,7 +29,10 @@ jobs:
           set -Eeuo pipefail
           python - <<'PY'
           import asyncio, json
-          from polymarket_scanner.weather_only_discovery import WeatherOnlyDiscovery
+          from polymarket_scanner.weather_only_discovery import (
+              SEMANTIC_FAILURE_CATEGORIES,
+              WeatherOnlyDiscovery,
+          )
 
           async def main():
               discovery = WeatherOnlyDiscovery()
@@ -47,6 +50,17 @@ jobs:
                   )
                   missing = [key for key in required if key not in status]
                   assert not missing, missing
+                  looking = int(status['weather_looking_events'])
+                  supported = int(status['strict_supported_events'])
+                  unsupported = int(status['unsupported_weather_events'])
+                  assert looking == supported + unsupported
+                  counts = dict(status['unsupported_reason_counts'])
+                  assert sum(int(v) for v in counts.values()) == unsupported
+                  assert set(counts).issubset(SEMANTIC_FAILURE_CATEGORIES)
+                  assert status['weather_semantic_coverage_complete'] is (unsupported == 0)
+                  if unsupported:
+                      assert status['weather_semantic_coverage_status'] == 'PARTIAL_STRICT_SUBSET'
+                      assert status['unsupported_examples']
                   print(json.dumps(status, sort_keys=True, indent=2))
                   with open('semantic-census.json', 'w', encoding='utf-8') as handle:
                       json.dump(status, handle, sort_keys=True, indent=2)
@@ -58,5 +72,5 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: current-weather-semantic-census
+          name: current-weather-semantic-census-${{ github.sha }}
           path: semantic-census.json
