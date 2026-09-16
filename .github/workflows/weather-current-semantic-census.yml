@@ -1,0 +1,74 @@
+name: weather-current-semantic-census
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - weather-production-integration-2026-09-16
+      - weather-all-paper-stage2-findings-5-7-2026-09-16
+
+permissions:
+  contents: read
+
+jobs:
+  semantic-census:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.txt
+      - name: Run public read-only Gamma semantic census
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python - <<'PY'
+          import asyncio, json
+          from polymarket_scanner.weather_only_discovery import (
+              SEMANTIC_FAILURE_CATEGORIES,
+              WeatherOnlyDiscovery,
+          )
+
+          async def main():
+              discovery = WeatherOnlyDiscovery()
+              try:
+                  await discovery.discover()
+                  status = discovery.global_recall_status()
+                  assert status.get('gamma_census_complete') is True
+                  assert status.get('weather_semantic_product_policy') == 'STRICT_SUPPORTED_SUBSET'
+                  required = (
+                      'gamma_census_completed_at', 'gamma_census_age_seconds',
+                      'total_active_events_scanned', 'weather_looking_events',
+                      'strict_supported_events', 'unsupported_weather_events',
+                      'unsupported_reason_counts', 'unsupported_examples',
+                      'weather_semantic_coverage_complete', 'weather_semantic_coverage_status',
+                  )
+                  missing = [key for key in required if key not in status]
+                  assert not missing, missing
+                  looking = int(status['weather_looking_events'])
+                  supported = int(status['strict_supported_events'])
+                  unsupported = int(status['unsupported_weather_events'])
+                  assert looking == supported + unsupported
+                  counts = dict(status['unsupported_reason_counts'])
+                  assert sum(int(v) for v in counts.values()) == unsupported
+                  assert set(counts).issubset(SEMANTIC_FAILURE_CATEGORIES)
+                  assert status['weather_semantic_coverage_complete'] is (unsupported == 0)
+                  if unsupported:
+                      assert status['weather_semantic_coverage_status'] == 'PARTIAL_STRICT_SUBSET'
+                      assert status['unsupported_examples']
+                  print(json.dumps(status, sort_keys=True, indent=2))
+                  with open('semantic-census.json', 'w', encoding='utf-8') as handle:
+                      json.dump(status, handle, sort_keys=True, indent=2)
+                      handle.write('\n')
+              finally:
+                  await discovery.close()
+
+          asyncio.run(main())
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: current-weather-semantic-census-${{ github.sha }}
+          path: semantic-census.json

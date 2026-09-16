@@ -1,0 +1,58 @@
+name: weather-calibration-live-preflight
+
+on:
+  push:
+    branches:
+      - weather-wrh-prospective-collector
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+      - name: Run bounded current-universe calibration worker preflight
+        shell: bash
+        run: |
+          timeout 240 python -m polymarket_scanner.weather_calibration_live_preflight \
+            --max-forecast-probes 12 \
+            --output weather-calibration-live-preflight.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: weather-calibration-live-preflight-${{ github.sha }}
+          path: weather-calibration-live-preflight.json
+          if-no-files-found: error
+      - name: Enforce no-authority operational-preflight boundary
+        if: always()
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(Path('weather-calibration-live-preflight.json').read_text())
+          if report.get('preflight_ok') is not True:
+              raise SystemExit('weather calibration live preflight failed')
+          if report.get('read_only') is not True:
+              raise SystemExit('live preflight lost read-only boundary')
+          required_false = (
+              'database_mutation',
+              'collector_registration',
+              'wrh_settlement_requests',
+              'clob_requests',
+              'telegram_delivery',
+              'automatic_order_placement',
+              'financial_authority',
+          )
+          bad = [name for name in required_false if report.get(name) is not False]
+          if bad:
+              raise SystemExit('live preflight authority boundary broken:' + ','.join(bad))
+          PY

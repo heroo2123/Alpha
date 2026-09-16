@@ -1,4 +1,4 @@
-"""Render the three shadow services and bounded resource slice; never install/start."""
+"""Render shadow/research services and bounded resource slice; never install/start."""
 import argparse
 from pathlib import Path
 import re
@@ -54,12 +54,120 @@ WantedBy=multi-user.target
         f"EnvironmentFile={config_dir}/bot.env\nMemoryHigh=80M\nMemoryMax=112M\nCPUWeight=100\n")
     universe = service("Polymarket complete Gamma universe builder", f"{python} -m polymarket_scanner.universe_builder --ipv6",
         "Nice=5\nCPUWeight=50\nIOWeight=50\nIOSchedulingClass=best-effort\nIOSchedulingPriority=6\nMemoryHigh=144M\nMemoryMax=160M\n")
-    # The builder never reads bot.env and cannot write the account database.
     universe = universe.replace(f"ReadWritePaths={config_dir}", f"ReadWritePaths={config_dir}/universe")
+
+    # Dedicated weather-only scanner used by the W7 acceptance recorder. It receives
+    # no bot.env, Telegram credential, trading/account configuration or writable
+    # legacy database. The only writable path is its atomically replaced status file.
+    weather_state = "/var/lib/polymarket-weather-shadow"
+    weather = f"""[Unit]
+Description=Weather-only Polymarket silent-shadow scanner, public data only
+Wants=network-online.target
+After=network-online.target
+StartLimitIntervalSec=600
+StartLimitBurst=3
+
+[Service]
+Type=simple
+User={user}
+WorkingDirectory={app_dir}
+Environment=PYTHONUNBUFFERED=1
+ExecStartPre={verifier}
+ExecStart={python} -m polymarket_scanner.weather_only_runtime --loop --interval-seconds 300 --output {weather_state}/status.json
+Restart=on-failure
+RestartSec=15
+TimeoutStopSec=20
+Slice=polymarket-shadow.slice
+MemoryHigh=320M
+MemoryMax=350M
+MemorySwapMax=0
+TasksMax=48
+Nice=5
+CPUWeight=60
+IOWeight=50
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectHome=read-only
+ProtectSystem=strict
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+StateDirectory=polymarket-weather-shadow
+StateDirectoryMode=0700
+ReadWritePaths={weather_state}
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
+"""
+
+    # Independent public-data research service. It receives no bot.env, Telegram
+    # credential or trading/account configuration. Persistent evidence is confined
+    # to a systemd-owned state directory. The reviewed entrypoint is the operational
+    # wrapper so horizon attestation and explicit collection health cannot be bypassed.
+    calibration_state = "/var/lib/polymarket-weather-calibration"
+    calibration_db = f"{calibration_state}/weather-calibration.sqlite"
+    calibration_preflight = (
+        f"{python} -m polymarket_scanner.weather_calibration_service_preflight "
+        f"--app-dir {app_dir} --release-file {config_dir}/release.sha --db {calibration_db}"
+    )
+    calibration = f"""[Unit]
+Description=Weather prospective calibration research worker, no financial authority
+Wants=network-online.target
+After=network-online.target
+StartLimitIntervalSec=600
+StartLimitBurst=3
+
+[Service]
+Type=simple
+User={user}
+WorkingDirectory={app_dir}
+Environment=PYTHONUNBUFFERED=1
+ExecStartPre={verifier}
+ExecStartPre={calibration_preflight}
+ExecStart={python} -m polymarket_scanner.weather_only_calibration_worker_runtime --loop --interval-seconds 30 --db {calibration_db} --output {calibration_state}/status.json
+Restart=on-failure
+RestartSec=30
+TimeoutStopSec=20
+Slice=polymarket-shadow.slice
+MemoryHigh=96M
+MemoryMax=128M
+MemorySwapMax=0
+TasksMax=32
+Nice=10
+CPUWeight=20
+IOWeight=20
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectHome=read-only
+ProtectSystem=strict
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+StateDirectory=polymarket-weather-calibration
+StateDirectoryMode=0700
+ReadWritePaths={calibration_state}
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
+"""
     return {
         "polymarket-edge-scanner.service": scanner,
         "polymarket-edge-command.service": command,
         "polymarket-universe-builder.service": universe,
+        "polymarket-weather-shadow.service": weather,
+        "polymarket-weather-calibration.service": calibration,
         "polymarket-shadow.slice": "[Unit]\nDescription=Bounded Polymarket silent-shadow workload\n\n[Slice]\nMemoryHigh=560M\nMemoryMax=640M\nMemorySwapMax=0\nTasksMax=192\n",
     }
 

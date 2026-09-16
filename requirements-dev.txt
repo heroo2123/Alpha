@@ -1,7 +1,7 @@
--r requirements.txt
+-r requirements-execution-hashed.txt
 
-# Test runner and the exact transitives observed in the reviewed Python 3.11 CI.
-pytest==8.3.3
-iniconfig==2.3.0
-packaging==26.3
-pluggy==1.6.0
+# Test runner only; the signal-only production venv uses the runtime lock.
+iniconfig==2.3.0 --hash=sha256:f631c04d2c48c52b84d0d0549c99ff3859c98df65b3101406327ecc7d53fbf12
+packaging==26.3 --hash=sha256:d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c
+pluggy==1.6.0 --hash=sha256:e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746
+pytest==8.3.3 --hash=sha256:a6853c7375b2663155079443d2e45de913a911a11d669df02a50814944db57b2

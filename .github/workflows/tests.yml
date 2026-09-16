@@ -4,11 +4,57 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
+  runtime-hash-lock:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Generate exact Ubuntu x86_64 Python 3.11 runtime wheel hash lock
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test -f requirements-runtime-hashed.txt || { echo 'committed runtime hash lock missing' >&2; exit 1; }
+          out="$RUNNER_TEMP/requirements-runtime-hashed.txt"
+          : > "$out"
+          while IFS= read -r raw || [[ -n "$raw" ]]; do
+            row="${raw%%#*}"
+            row="$(printf '%s' "$row" | xargs)"
+            [[ -z "$row" ]] && continue
+            [[ "$row" == *"=="* ]] || { echo "unfrozen runtime requirement: $row" >&2; exit 1; }
+            tmp="$(mktemp -d)"
+            python -m pip download --disable-pip-version-check --no-deps --only-binary=:all: --dest "$tmp" "$row"
+            mapfile -t files < <(find "$tmp" -maxdepth 1 -type f -printf '%p\n')
+            [[ "${#files[@]}" -eq 1 ]] || { echo "expected one wheel for $row" >&2; exit 1; }
+            digest="$(sha256sum "${files[0]}" | awk '{print $1}')"
+            printf '%s --hash=sha256:%s\n' "$row" "$digest" >> "$out"
+            rm -rf "$tmp"
+          done < requirements.txt
+          echo '--- GENERATED RUNTIME HASH LOCK ---'
+          cat "$out"
+          cp "$out" generated-runtime-hashed.txt
+          diff -u requirements-runtime-hashed.txt generated-runtime-hashed.txt
+      - name: Prove hash-locked runtime installation
+        shell: bash
+        run: |
+          python -m pip install --disable-pip-version-check --require-hashes -r requirements-runtime-hashed.txt
+          python -m pip check
+      - uses: actions/upload-artifact@v4
+        with:
+          name: runtime-hash-lock-py311-ubuntu2404-x86_64
+          path: generated-runtime-hashed.txt
+
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
+      fail-fast: false
       matrix:
         python: ['3.11', '3.12']
     steps:
@@ -16,23 +62,24 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
-      - run: pip install -r requirements-dev.txt
+      - run: pip install --require-hashes -r requirements-dev.txt
       - name: Exact dependency lock and consistency
         run: |
           python -m pip check
           python - <<'PY'
           from importlib.metadata import version
           from pathlib import Path
-          for file in ('requirements.txt', 'requirements-dev.txt'):
+          for file in ('requirements.txt', 'requirements-execution-hashed.txt', 'requirements-dev.txt'):
               for row in Path(file).read_text().splitlines():
                   if '==' in row and not row.lstrip().startswith('#'):
                       name, expected = row.strip().split('==')
+                      expected = expected.split()[0]
                       assert version(name.split('[')[0]) == expected, name
           print('All runtime and test pins match exactly.')
           PY
       - run: python -m pytest -q --junitxml=test-results.xml
-      - run: python -m compileall -q app.py app_stable.py app_stable_v2.py app_trade_only.py command_worker.py command_worker_trade_only.py polymarket_scanner deploy tests
-      - run: for script in deploy/*.sh deploy/oracle/*.sh deploy/gcp/*.sh; do bash -n "$script" || exit; done
+      - run: python -m compileall -q app.py app_stable.py app_stable_v2.py app_trade_only.py command_worker.py command_worker_trade_only.py polymarket_scanner deploy host_trust tests tools
+      - run: for script in deploy/*.sh deploy/oracle/*.sh deploy/gcp/*.sh host_trust/*/*.sh; do bash -n "$script" || exit; done
       - name: Verify rendered systemd services without starting them
         run: python tests/validate_shadow_units.py
       - name: Synthetic production-scale generation handoff

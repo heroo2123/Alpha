@@ -1,0 +1,338 @@
+name: weather-maker-ws-side-semantic-gate
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - weather-all-paper-signals-2026-09-15
+    paths:
+      - "polymarket_scanner/weather_only_maker_trade_stream.py"
+      - "polymarket_scanner/weather_only_maker_trade_stream_v2.py"
+      - "polymarket_scanner/weather_only_maker_trade_stream_v3.py"
+      - "polymarket_scanner/weather_only_live_paper_all_signals_v5.py"
+      - ".github/workflows/weather-maker-ws-side-semantic-gate.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  live-ws-taker-side-semantics:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install exact WebSocket dependency
+        run: python -m pip install --disable-pip-version-check websockets==13.1
+      - name: Cross-check raw Market WS side against public taker-only Data API
+        run: |
+          python - <<'PY'
+          import asyncio
+          import collections
+          import json
+          import time
+          import urllib.parse
+          import urllib.request
+
+          import websockets
+
+          DATA = "https://data-api.polymarket.com/trades"
+          BOOK = "https://clob.polymarket.com/book"
+          WS = "wss://ws-subscriptions-clob.polymarket.com/ws/market"
+          USER_AGENT = "polymarket-weather-maker-side-semantic-gate/2.0"
+          MAX_TOKENS = 24
+          RECENT_WINDOW_SECONDS = 900
+          OBSERVE_SECONDS = 180.0
+
+          def get_json(url: str):
+              request = urllib.request.Request(
+                  url,
+                  headers={"User-Agent": USER_AGENT, "Accept": "application/json"},
+              )
+              with urllib.request.urlopen(request, timeout=15) as response:
+                  assert response.status == 200, (url, response.status)
+                  return json.loads(response.read().decode("utf-8", errors="strict"))
+
+          def recent_taker_rows(*, start: int, end: int, market: str | None = None):
+              params = {
+                  "takerOnly": "true",
+                  "limit": 10000,
+                  "offset": 0,
+                  "start": max(0, int(start)),
+                  "end": max(0, int(end)),
+              }
+              if market:
+                  params["market"] = market
+              rows = get_json(f"{DATA}?{urllib.parse.urlencode(params)}")
+              assert isinstance(rows, list), type(rows).__name__
+              return rows
+
+          now = int(time.time())
+          recent = recent_taker_rows(start=now - RECENT_WINDOW_SECONDS, end=now)
+          assert recent, "no public taker-only trades in recent certification window"
+
+          # Rank condition/token pairs by ACTUAL recent public trade activity.  This
+          # avoids selecting a nominally high-volume market that happens to be quiet
+          # during the bounded WebSocket observation window.
+          condition_counts = collections.Counter()
+          token_counts = collections.Counter()
+          token_condition = {}
+          token_title = {}
+          for row in recent:
+              if not isinstance(row, dict):
+                  continue
+              condition = str(row.get("conditionId") or "").strip().lower()
+              token = str(row.get("asset") or "").strip()
+              side = str(row.get("side") or "").upper()
+              tx = str(row.get("transactionHash") or "").strip().lower()
+              try:
+                  ts = int(row.get("timestamp"))
+                  price = float(row.get("price"))
+                  size = float(row.get("size"))
+              except (TypeError, ValueError, OverflowError):
+                  continue
+              if (
+                  not condition.startswith("0x")
+                  or len(condition) != 66
+                  or not token
+                  or side not in {"BUY", "SELL"}
+                  or not tx.startswith("0x")
+                  or ts < now - RECENT_WINDOW_SECONDS - 5
+                  or ts > now + 5
+                  or not (0.0 < price < 1.0)
+                  or size <= 0.0
+              ):
+                  continue
+              condition_counts[condition] += 1
+              token_counts[token] += 1
+              token_condition[token] = condition
+              token_title[token] = str(row.get("title") or "")
+
+          assert condition_counts, "recent Data API rows had no certifiable trade identities"
+
+          candidates = []
+          for token, count in token_counts.most_common():
+              condition = token_condition[token]
+              try:
+                  book = get_json(
+                      f"{BOOK}?{urllib.parse.urlencode({'token_id': token})}"
+                  )
+              except Exception:
+                  continue
+              if not isinstance(book, dict):
+                  continue
+              if str(book.get("asset_id") or "") != token:
+                  continue
+              if str(book.get("market") or "").strip().lower() not in {"", condition}:
+                  continue
+              candidates.append(
+                  {
+                      "token": token,
+                      "condition": condition,
+                      "recent_trade_count": int(count),
+                      "condition_recent_trade_count": int(condition_counts[condition]),
+                      "title": token_title[token],
+                  }
+              )
+              if len(candidates) >= MAX_TOKENS:
+                  break
+
+          assert len(candidates) >= 2, (
+              "fewer than two recently traded live CLOB tokens available",
+              len(candidates),
+          )
+          tokens = [row["token"] for row in candidates]
+          condition_by_token = {row["token"]: row["condition"] for row in candidates}
+          candidate_by_token = {row["token"]: row for row in candidates}
+          selected_conditions = sorted({row["condition"] for row in candidates})
+
+          def data_match(event):
+              tx = str(event.get("transaction_hash") or "").strip().lower()
+              asset = str(event.get("asset_id") or "").strip()
+              ws_side = str(event.get("side") or "").upper()
+              condition = condition_by_token[asset]
+              price = float(event["price"])
+              size = float(event["size"])
+              timestamp = int(float(event["timestamp"]) / 1000.0)
+              rows = recent_taker_rows(
+                  start=timestamp - 10,
+                  end=max(timestamp + 10, int(time.time()) + 1),
+                  market=condition,
+              )
+              matches = []
+              for row in rows:
+                  if not isinstance(row, dict):
+                      continue
+                  if str(row.get("transactionHash") or "").strip().lower() != tx:
+                      continue
+                  if str(row.get("asset") or "").strip() != asset:
+                      continue
+                  try:
+                      data_price = float(row.get("price"))
+                      data_size = float(row.get("size"))
+                      data_timestamp = int(row.get("timestamp"))
+                  except (TypeError, ValueError, OverflowError):
+                      continue
+                  if abs(data_price - price) > 1e-9:
+                      continue
+                  if abs(data_size - size) > 1e-6:
+                      continue
+                  if abs(data_timestamp - timestamp) > 2:
+                      continue
+                  matches.append(row)
+              if not matches:
+                  return None
+              sides = {str(row.get("side") or "").upper() for row in matches}
+              assert sides <= {"BUY", "SELL"}, sides
+              assert len(sides) == 1, ("ambiguous taker-only sides", sides)
+              data_side = next(iter(sides))
+              assert data_side == ws_side, (
+                  "WS side does not match taker-only Data API side",
+                  ws_side,
+                  data_side,
+                  tx,
+                  asset,
+              )
+              return {
+                  "ws_side": ws_side,
+                  "taker_only_data_side": data_side,
+                  "matched_rows": len(matches),
+                  "condition_id": condition,
+                  "asset_id": asset,
+                  "transaction_hash": tx,
+              }
+
+          async def observe():
+              deadline = time.monotonic() + OBSERVE_SECONDS
+              async with websockets.connect(
+                  WS,
+                  ping_interval=None,
+                  close_timeout=5,
+                  open_timeout=10,
+                  max_size=2 * 1024 * 1024,
+                  max_queue=512,
+              ) as ws:
+                  await ws.send(
+                      json.dumps(
+                          {
+                              "assets_ids": tokens,
+                              "type": "market",
+                              "custom_feature_enabled": False,
+                          }
+                      )
+                  )
+                  books_seen = set()
+                  trade_events_seen = 0
+                  hashless_trade_events = 0
+                  unmatched_hashed_trade_events = 0
+                  next_ping = time.monotonic() + 10.0
+                  while time.monotonic() < deadline:
+                      timeout = max(0.2, min(5.0, deadline - time.monotonic()))
+                      try:
+                          raw = await asyncio.wait_for(ws.recv(), timeout=timeout)
+                      except asyncio.TimeoutError:
+                          if time.monotonic() >= next_ping:
+                              await ws.send("PING")
+                              next_ping = time.monotonic() + 10.0
+                          continue
+                      if raw == "PONG":
+                          continue
+                      payload = json.loads(raw)
+                      events = payload if isinstance(payload, list) else [payload]
+                      for event in events:
+                          if not isinstance(event, dict):
+                              continue
+                          kind = event.get("event_type")
+                          asset = str(event.get("asset_id") or "").strip()
+                          if kind == "book" and asset in condition_by_token:
+                              assert str(event.get("market") or "").strip().lower() == condition_by_token[asset]
+                              books_seen.add(asset)
+                              continue
+                          if kind != "last_trade_price" or asset not in condition_by_token:
+                              continue
+                          trade_events_seen += 1
+                          # Prospective maker fills require this exact token's first
+                          # post-subscription book coverage before the trade.
+                          assert asset in books_seen, (
+                              "trade arrived before token-specific book coverage",
+                              asset,
+                          )
+                          assert str(event.get("market") or "").strip().lower() == condition_by_token[asset]
+                          assert str(event.get("side") or "").upper() in {"BUY", "SELL"}
+                          assert float(event.get("size")) > 0.0
+                          assert 0.0 < float(event.get("price")) < 1.0
+                          assert float(event.get("timestamp")) > 0.0
+                          tx = str(event.get("transaction_hash") or "").strip()
+                          if not tx:
+                              hashless_trade_events += 1
+                              continue
+                          matched = None
+                          for attempt in range(10):
+                              matched = await asyncio.to_thread(data_match, event)
+                              if matched is not None:
+                                  return {
+                                      "event": event,
+                                      "match": matched,
+                                      "books_seen": books_seen,
+                                      "trade_events_seen": trade_events_seen,
+                                      "hashless_trade_events": hashless_trade_events,
+                                      "unmatched_hashed_trade_events": unmatched_hashed_trade_events,
+                                  }
+                              await asyncio.sleep(1.0 + 0.5 * attempt)
+                          unmatched_hashed_trade_events += 1
+                      if time.monotonic() >= next_ping:
+                          await ws.send("PING")
+                          next_ping = time.monotonic() + 10.0
+              raise AssertionError(
+                  {
+                      "reason": "no cross-source-verifiable live trade observed",
+                      "observation_seconds": OBSERVE_SECONDS,
+                      "selected_tokens": len(tokens),
+                      "selected_conditions": len(selected_conditions),
+                      "books_seen": len(books_seen),
+                      "trade_events_seen": trade_events_seen,
+                      "hashless_trade_events": hashless_trade_events,
+                      "unmatched_hashed_trade_events": unmatched_hashed_trade_events,
+                  }
+              )
+
+          observed = asyncio.run(observe())
+          event = observed["event"]
+          matched = observed["match"]
+          asset = str(event["asset_id"])
+          report = {
+              "version": "weather_maker_ws_side_semantic_gate_v2_multi_recent_markets",
+              "selection_source": "PUBLIC_DATA_API_RECENT_TAKER_ONLY_TRADES_PLUS_CLOB_BOOK",
+              "recent_window_seconds": RECENT_WINDOW_SECONDS,
+              "recent_taker_rows": len(recent),
+              "selected_token_count": len(tokens),
+              "selected_condition_count": len(selected_conditions),
+              "matched_candidate": candidate_by_token[asset],
+              "books_seen_before_match": len(observed["books_seen"]),
+              "trade_events_seen": observed["trade_events_seen"],
+              "hashless_trade_events": observed["hashless_trade_events"],
+              "unmatched_hashed_trade_events": observed["unmatched_hashed_trade_events"],
+              "transaction_hash_present": bool(str(event.get("transaction_hash") or "")),
+              "ws_side": matched["ws_side"],
+              "public_data_api_taker_only": True,
+              "taker_only_data_side": matched["taker_only_data_side"],
+              "matched_rows": matched["matched_rows"],
+              "aggressor_side_semantics_verified_by_cross_source_equality": True,
+              "raw_market_ws_schema_verified": True,
+              "authenticated_channel_used": False,
+              "actual_order_placed": False,
+              "actual_fill_authority": False,
+              "financial_authority": False,
+          }
+          with open(
+              "weather-maker-ws-side-semantic-gate.json", "w", encoding="utf-8"
+          ) as fh:
+              json.dump(report, fh, sort_keys=True, indent=2)
+          print(json.dumps(report, sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: weather-maker-ws-side-semantic-gate
+          path: weather-maker-ws-side-semantic-gate.json

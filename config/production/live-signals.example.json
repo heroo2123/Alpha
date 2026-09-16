@@ -1,0 +1,10 @@
+{
+  "mode": "LIVE_SIGNALS",
+  "signal_db": "/var/lib/alpha-weather-signals/signals.sqlite3",
+  "status_path": "/var/lib/alpha-weather-signals/status.json",
+  "telegram_file": "/etc/alpha-weather/telegram.json",
+  "strategies": ["DIRECTIONAL", "SAME_DAY", "SOURCE_SHOCK", "STRUCTURAL", "MAKER", "RESULT_LAG"],
+  "allow_uncalibrated": true,
+  "min_model_gap": "0.08",
+  "min_structural_edge": "0.02"
+}

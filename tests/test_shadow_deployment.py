@@ -17,6 +17,7 @@ def test_rendered_services_are_separate_bounded_and_attested():
     builder = units["polymarket-universe-builder.service"]
     scanner = units["polymarket-edge-scanner.service"]
     command = units["polymarket-edge-command.service"]
+    calibration = units["polymarket-weather-calibration.service"]
     assert "universe_builder --ipv6" in builder
     assert "bot.env" not in builder
     assert "ReadWritePaths=/srv/alpha-state/universe" in builder
@@ -31,6 +32,18 @@ def test_rendered_services_are_separate_bounded_and_attested():
         assert "MemorySwapMax=0" in text
         assert "StartLimitBurst=3" in text
         assert "Requires=polymarket-universe-builder" not in text
+
+    assert "weather_only_calibration_worker_runtime" in calibration
+    assert "weather_calibration_service_preflight" in calibration
+    assert "weather_only_calibration_worker --loop" not in calibration
+    assert "verify-runtime-release.sh" in calibration
+    assert "EnvironmentFile=" not in calibration and "bot.env" not in calibration
+    assert "MemorySwapMax=0" in calibration and "MemoryMax=128M" in calibration
+    assert "StateDirectoryMode=0700" in calibration
+    assert "ReadWritePaths=/var/lib/polymarket-weather-calibration" in calibration
+    assert "TELEGRAM" not in calibration.upper()
+    assert "app_trade_only" not in calibration
+    assert "command_worker" not in calibration
     assert "MemoryMax=640M" in units["polymarket-shadow.slice"]
 
 

@@ -1,0 +1,107 @@
+name: weather-ensemble-adapter-probe
+
+on:
+  push:
+    branches:
+      - weather-ensemble-fairvalue-foundation
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ensemble-adapter:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+      - name: Exercise strict Open-Meteo GEFS adapter against live API
+        shell: bash
+        run: |
+          python - <<'PY'
+          import asyncio
+          import json
+          import math
+          from datetime import datetime
+          from pathlib import Path
+          from zoneinfo import ZoneInfo
+
+          from polymarket_scanner.weather_only_contracts import DAILY_HIGH
+          from polymarket_scanner.weather_only_forecast import (
+              FORECAST_ADAPTER_VERSION,
+              FORECAST_ROLE,
+              GEFS_TOTAL_MEMBERS,
+              OPEN_METEO_GEFS_MODEL,
+              OpenMeteoGEFSEnsembleClient,
+          )
+
+          async def main():
+              timezone = 'America/New_York'
+              target_date = datetime.now(ZoneInfo(timezone)).date()
+              client = OpenMeteoGEFSEnsembleClient()
+              try:
+                  distribution = await client.daily_extreme(
+                      station='KLGA',
+                      latitude=40.7769,
+                      longitude=-73.8740,
+                      target_date=target_date,
+                      family=DAILY_HIGH,
+                      unit='F',
+                      timezone=timezone,
+                  )
+              finally:
+                  await client.close()
+
+              if distribution.adapter != FORECAST_ADAPTER_VERSION:
+                  raise SystemExit('adapter identity mismatch')
+              if distribution.provider_model != OPEN_METEO_GEFS_MODEL:
+                  raise SystemExit('provider model mismatch')
+              if distribution.source_role != FORECAST_ROLE:
+                  raise SystemExit('forecast role mismatch')
+              if distribution.station != 'KLGA' or distribution.target_date != target_date:
+                  raise SystemExit('station/date identity mismatch')
+              if distribution.unit != 'F' or distribution.timezone != timezone:
+                  raise SystemExit('unit/timezone mismatch')
+              if len(distribution.member_labels) != GEFS_TOTAL_MEMBERS:
+                  raise SystemExit('member label count mismatch')
+              if len(distribution.member_values) != GEFS_TOTAL_MEMBERS:
+                  raise SystemExit('member value count mismatch')
+              if not all(math.isfinite(value) for value in distribution.member_values):
+                  raise SystemExit('non-finite live member value')
+              if len(distribution.evidence_sha256) != 64:
+                  raise SystemExit('invalid evidence digest')
+              if not all(math.isfinite(value) for value in (
+                  distribution.requested_latitude,
+                  distribution.requested_longitude,
+                  distribution.resolved_latitude,
+                  distribution.resolved_longitude,
+                  distribution.received_at,
+              )):
+                  raise SystemExit('invalid provenance coordinate/time')
+              if any((
+                  distribution.settlement_authority,
+                  distribution.calibration_label_authority,
+                  distribution.calibrated_probability,
+                  distribution.financial_authority,
+              )):
+                  raise SystemExit('forecast evidence gained prohibited authority')
+
+              report = distribution.as_dict()
+              report['acceptance'] = 'PASS_STRICT_LIVE_ADAPTER'
+              Path('weather-ensemble-adapter.json').write_text(
+                  json.dumps(report, indent=2, sort_keys=True) + '\n'
+              )
+              print(json.dumps(report, indent=2, sort_keys=True))
+
+          asyncio.run(main())
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: weather-ensemble-adapter-${{ github.sha }}
+          path: weather-ensemble-adapter.json
+          if-no-files-found: warn
