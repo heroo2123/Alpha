@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import subprocess
+import importlib.util
+import sys
 from dataclasses import replace
 from pathlib import Path
 
 import pytest
+import polymarket_scanner.weather_only_acceptance_release as release_module
 
 from polymarket_scanner.weather_only_acceptance_release import (
     WeatherW7ReleaseError,
@@ -17,6 +20,26 @@ from polymarket_scanner.weather_only_acceptance_release import (
 
 def _repo() -> Path:
     return Path(__file__).resolve().parents[1]
+
+
+@pytest.fixture(autouse=True)
+def isolated_committed_runtime_checkout(tmp_path, monkeypatch):
+    """The real clean-tree guard must not depend on the developer's active edits."""
+    original = _repo() / "polymarket_scanner/weather_only_runtime.py"
+    app = tmp_path / "isolated-checkout"
+    package = app / "polymarket_scanner"
+    package.mkdir(parents=True)
+    source = package / "weather_only_runtime.py"
+    source.write_bytes(original.read_bytes())
+    for args in (("init", "--template=", "-q"), ("config", "user.email", "fixture@example.invalid"),
+                 ("config", "user.name", "Fixture"), ("add", "."), ("commit", "-qm", "runtime fixture")):
+        subprocess.run(["git", "-C", str(app), *args], check=True, capture_output=True)
+    spec = importlib.util.spec_from_file_location("polymarket_scanner._isolated_w7_fixture", source)
+    module = importlib.util.module_from_spec(spec)
+    monkeypatch.setitem(sys.modules, spec.name, module)
+    spec.loader.exec_module(module)
+    monkeypatch.setattr(release_module, "runtime_module", module)
+    monkeypatch.setattr(sys.modules[__name__], "_repo", lambda: app)
 
 
 def _head() -> str:
@@ -135,3 +158,11 @@ def test_before_after_manifest_rejects_release_identity_change(tmp_path):
     changed = replace(after, scanner_cmdline_sha256="f" * 64)
     with pytest.raises(WeatherW7ReleaseError):
         build_weather_w7_release_manifest(before=before, after=changed)
+
+
+def test_dirty_tracked_runtime_still_fails_release_attestation(tmp_path):
+    source = _repo() / "polymarket_scanner/weather_only_runtime.py"
+    source.write_text(source.read_text() + "\n# uncommitted fixture mutation\n")
+    with pytest.raises(WeatherW7ReleaseError) as dirty:
+        _attest(tmp_path)
+    assert dirty.value.code == "W7_RELEASE_TRACKED_TREE_DIRTY"

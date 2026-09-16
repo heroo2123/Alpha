@@ -218,7 +218,7 @@ def _make_minimal_candidate_repo(path: Path) -> str:
     ).strip()
 
 
-def test_interrupted_gpt6_b5_prepare_script_accepts_its_own_fresh_no_checkout_clone(tmp_path: Path):
+def test_retired_prepare_cannot_bootstrap_a_fresh_application_without_independent_host_authority(tmp_path: Path):
     source = tmp_path / "source"
     sha = _make_minimal_candidate_repo(source)
     app = tmp_path / "fresh-app"
@@ -257,9 +257,6 @@ def test_interrupted_gpt6_b5_prepare_script_accepts_its_own_fresh_no_checkout_cl
         check=False,
         timeout=90,
     )
-    assert result.returncode == 0, result.stderr
-    assert subprocess.check_output(
-        ["git", "-C", str(app), "rev-parse", "HEAD"], text=True
-    ).strip() == sha
-    assert (config / "weather-paper-release.sha").read_text(encoding="utf-8").strip() == sha
-    assert "candidate prepared but NOT started or enabled" in result.stdout
+    assert result.returncode == 40
+    assert "production-host-control.sh" in result.stderr
+    assert not app.exists() and not config.exists()

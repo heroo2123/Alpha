@@ -4,11 +4,9 @@ on:
   workflow_dispatch:
   push:
     branches:
+      - main
+      - weather-production-integration-2026-09-16
       - weather-all-paper-stage2-findings-5-7-2026-09-16
-    paths:
-      - 'polymarket_scanner/weather_only_discovery.py'
-      - 'polymarket_scanner/weather_only_contract_strict.py'
-      - '.github/workflows/weather-current-semantic-census.yml'
 
 permissions:
   contents: read

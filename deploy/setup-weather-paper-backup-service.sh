@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+# RETIRED_PRODUCTION_DEPLOYMENT_ENTRYPOINT: historical body below is unreachable.
+printf '%s\n' 'REFUSED: retired PAPER deployment path; use the independently provisioned host protocol in deploy/production-host-control.sh and docs/PRODUCTION_HOST_TRUST.md' >&2
+exit 40
+
 set -Eeuo pipefail
 
 # Install (but do not enable/start) the verified weather-paper backup timer.

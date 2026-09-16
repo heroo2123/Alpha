@@ -1,136 +1,61 @@
 #!/usr/bin/env bash
-set -Eeuo pipefail
+# RETIRED_PRODUCTION_DEPLOYMENT_ENTRYPOINT: historical body below is unreachable.
+printf '%s\n' 'REFUSED: retired PAPER deployment path; use the independently provisioned host protocol in deploy/production-host-control.sh and docs/PRODUCTION_HOST_TRUST.md' >&2
+exit 40
 
-# Prepare an isolated weather-paper checkout at one explicitly approved immutable SHA.
-# This command never starts/enables a service and never changes the legacy scanner
-# checkout or legacy release.sha marker.
+set -Eeuo pipefail
 APP_DIR="${ALPHA_WEATHER_APP_DIR:-${HOME}/polymarket-weather-paper-app}"
 CONFIG_DIR="${ALPHA_CONFIG_DIR:-${HOME}/.polymarket-edge-scanner}"
-RELEASE_FILE="${CONFIG_DIR}/weather-paper-release.sha"
-REPOSITORY_URL="${ALPHA_WEATHER_REPOSITORY_URL:-https://github.com/heroo2123/Alpha.git}"
-SOURCE_REF="${ALPHA_WEATHER_SOURCE_REF:-${2:-weather-three-layer-live-grammar-corrective-2026-09-15}}"
-RELEASE_SHA="${1:-}"
-UNIT="polymarket-weather-paper.service"
-FINAL_MODULE="polymarket_scanner.weather_only_live_paper_three_layer_validation"
-
+RELEASE_FILE="${CONFIG_DIR}/weather-paper-release.sha"; GENERATION_FILE="${CONFIG_DIR}/weather-paper-cutover-generation.id"; EVIDENCE_FILE="${CONFIG_DIR}/weather-paper-release-evidence.json"
+SOURCE_REF="${ALPHA_WEATHER_SOURCE_REF:-${2:-weather-stage1-findings1-4-corrective-2026-09-16}}"; RELEASE_SHA="${1:-}"; UNIT="polymarket-weather-paper.service"
+FINAL_MODULE="polymarket_scanner.weather_only_live_paper_three_layer_validation"; HOST_GATE="/usr/local/libexec/polymarket-weather-paper/release-gate.py"; HOST_SNAPSHOT="/usr/local/libexec/polymarket-weather-paper/snapshot-rollback.sh"; LOCK_NAME="requirements-runtime-hashed.txt"
 fail(){ printf 'ERROR: %s\n' "$*" >&2; exit 1; }
-
-[[ "${RELEASE_SHA}" =~ ^[0-9a-fA-F]{40}$ ]] \
-  || fail "usage: $0 <exact-release-sha> [source-branch]"
-git check-ref-format --branch "${SOURCE_REF}" >/dev/null 2>&1 \
-  || fail "invalid source branch/ref"
-
-if systemctl is-active --quiet "${UNIT}" 2>/dev/null; then
-  fail "${UNIT} is active; stop it explicitly before preparing another candidate"
-fi
-# Never rewrite the checkout/release marker underneath a unit that could automatically
-# return on reboot. Candidate preparation begins from an explicitly stopped+disabled
-# target; persistence is restored only after live candidate acceptance succeeds.
-if systemctl is-enabled --quiet "${UNIT}" 2>/dev/null; then
-  fail "${UNIT} is enabled; disable it explicitly before preparing another candidate"
-fi
-if pgrep -af 'polymarket_scanner\.weather_only_live_paper|weather_only_live_paper(_v[234]|_corrective|_final|_three_layer_validation)?\.py' >/dev/null 2>&1; then
-  fail "a weather-paper process is already running outside the stopped service"
-fi
-
-FRESH_CLONE=0
-if [[ ! -d "${APP_DIR}/.git" ]]; then
-  [[ ! -e "${APP_DIR}" ]] || fail "weather app path exists but is not a git checkout: ${APP_DIR}"
-  mkdir -p "$(dirname "${APP_DIR}")"
-  git clone --no-checkout "${REPOSITORY_URL}" "${APP_DIR}"
-  FRESH_CLONE=1
-fi
-
-if [[ "${FRESH_CLONE}" -eq 0 ]]; then
-  [[ -z "$(git -C "${APP_DIR}" status --porcelain --untracked-files=all)" ]] \
-    || fail "weather-paper checkout differs from its authorized commit"
-fi
-
-git -C "${APP_DIR}" remote get-url origin >/dev/null 2>&1 \
-  || fail "weather-paper checkout has no origin remote"
+[[ "${RELEASE_SHA}" =~ ^[0-9a-f]{40}$ ]] || fail "usage: $0 <exact-release-sha> [source-branch]"
+git check-ref-format --branch "${SOURCE_REF}" >/dev/null 2>&1 || fail "invalid source branch/ref"
+[[ -x "${HOST_GATE}" && -x "${HOST_SNAPSHOT}" ]] || fail "independent host authority not installed"
+/usr/bin/python3 "${HOST_GATE}" verify-authority
+if systemctl is-active --quiet "${UNIT}" 2>/dev/null; then fail "${UNIT} is active; stop explicitly before preparation"; fi
+if systemctl is-enabled --quiet "${UNIT}" 2>/dev/null; then fail "${UNIT} is enabled; disable explicitly before preparation"; fi
+if pgrep -af 'polymarket_scanner\.weather_only_live_paper|weather_only_live_paper(_v[234]|_corrective|_final|_three_layer_validation)?\.py' >/dev/null 2>&1; then fail "weather-paper process already running"; fi
+[[ -d "${APP_DIR}/.git" && -f "${RELEASE_FILE}" ]] || fail "known-good predecessor checkout/release marker required"
+[[ -z "$(git -C "${APP_DIR}" status --porcelain --untracked-files=all -- . ':(exclude).releases')" ]] || fail "predecessor checkout dirty"
+git -C "${APP_DIR}" remote get-url origin >/dev/null 2>&1 || fail "checkout has no origin"
 git -C "${APP_DIR}" fetch --prune origin "${SOURCE_REF}"
-git -C "${APP_DIR}" cat-file -e "${RELEASE_SHA}^{commit}" 2>/dev/null \
-  || fail "requested weather-paper commit is not present after fetch"
-git -C "${APP_DIR}" merge-base --is-ancestor "${RELEASE_SHA}" FETCH_HEAD \
-  || fail "requested commit is not part of the explicitly selected source branch"
+git -C "${APP_DIR}" cat-file -e "${RELEASE_SHA}^{commit}" 2>/dev/null || fail "candidate object absent after fetch"
+git -C "${APP_DIR}" merge-base --is-ancestor "${RELEASE_SHA}" FETCH_HEAD || fail "candidate not on selected source ref"
+/usr/bin/python3 "${HOST_GATE}" verify-object --app-dir "${APP_DIR}" --sha "${RELEASE_SHA}"
+GENERATION_ID="$(sudo "${HOST_SNAPSHOT}" --candidate-sha "${RELEASE_SHA}" | tail -n1 | tr -d '[:space:]')"
+[[ "${GENERATION_ID}" =~ ^[0-9a-f]{32}$ ]] || fail "host snapshot did not return exact generation ID"
+/usr/bin/python3 "${HOST_GATE}" verify-generation --generation-id "${GENERATION_ID}" --sha "${RELEASE_SHA}"
 git -C "${APP_DIR}" checkout --detach "${RELEASE_SHA}"
-ACTUAL_SHA="$(git -C "${APP_DIR}" rev-parse HEAD | tr -d '[:space:]')"
-[[ "${ACTUAL_SHA}" == "${RELEASE_SHA,,}" ]] || fail "detached checkout did not land on requested SHA"
-[[ -z "$(git -C "${APP_DIR}" status --porcelain --untracked-files=all)" ]] \
-  || fail "prepared weather-paper checkout is not clean at the authorized commit"
-
-for required in \
-  deploy/verify-runtime-release.sh \
-  deploy/render-weather-paper-unit.py \
-  deploy/check-weather-paper-network.py \
-  deploy/check-weather-paper-service-isolation.sh \
-  deploy/pre-release-weather-paper-backup.sh \
-  deploy/setup-weather-paper-backup-service.sh \
-  deploy/preflight-weather-paper-deployment.sh \
-  deploy/start-weather-paper-candidate.sh \
-  deploy/verify-weather-paper-first-cycle.py \
-  deploy/verify-three-layer-validation-status.py \
-  deploy/verify-three-layer-fresh-capture.py \
-  deploy/enable-weather-paper-persistence.sh \
-  polymarket_scanner/weather_only_live_paper_corrective.py \
-  polymarket_scanner/weather_only_live_paper_final.py \
-  polymarket_scanner/weather_only_live_paper_three_layer_validation.py \
-  polymarket_scanner/weather_only_three_layer_guarded.py \
-  polymarket_scanner/weather_only_same_day_capture.py \
-  polymarket_scanner/weather_only_unresolved_coverage.py \
-  polymarket_scanner/weather_only_paper_recovery.py \
-  polymarket_scanner/weather_only_paper_recovery_final.py \
-  polymarket_scanner/weather_only_runtime_attestation.py \
-  polymarket_scanner/weather_only_deployment_acceptance.py \
-  polymarket_scanner/weather_only_network_preflight.py \
-  polymarket_scanner/weather_only_paper_backup.py
- do
-  [[ -f "${APP_DIR}/${required}" ]] || fail "candidate lacks required weather-paper file: ${required}"
-done
-
-grep -qF "${FINAL_MODULE}" "${APP_DIR}/deploy/render-weather-paper-unit.py" \
-  || fail "candidate renderer does not point to guarded three-layer validation entrypoint"
-grep -qF 'weather-paper-release.sha' "${APP_DIR}/deploy/render-weather-paper-unit.py" \
-  || fail "candidate does not use an isolated weather-paper release marker"
-
-if [[ ! -x "${APP_DIR}/.venv/bin/python" ]]; then
-  python3 -m venv "${APP_DIR}/.venv"
-fi
-"${APP_DIR}/.venv/bin/python" -m pip install -r "${APP_DIR}/requirements.txt"
-"${APP_DIR}/.venv/bin/python" -m pip check
-
-PYTHONPATH="${APP_DIR}" "${APP_DIR}/.venv/bin/python" - "${APP_DIR}/requirements.txt" <<'PY'
-from importlib.metadata import version
+[[ "$(git -C "${APP_DIR}" rev-parse HEAD)" == "${RELEASE_SHA}" ]] || fail "candidate checkout mismatch"
+[[ -z "$(git -C "${APP_DIR}" status --porcelain --untracked-files=all -- . ':(exclude).releases')" ]] || fail "candidate checkout dirty"
+for required in deploy/verify-runtime-release.sh deploy/render-weather-paper-unit.py deploy/start-weather-paper-candidate.sh deploy/attest-weather-paper-runtime.py deploy/weather-paper-release-venv.py "${LOCK_NAME}" polymarket_scanner/weather_only_live_paper_three_layer_validation.py polymarket_scanner/weather_only_runtime_attestation.py; do [[ -f "${APP_DIR}/${required}" ]] || fail "candidate lacks required file: ${required}"; done
+grep -qF "${FINAL_MODULE}" "${APP_DIR}/deploy/render-weather-paper-unit.py" || fail "renderer entrypoint mismatch"
+RELEASE_ROOT="${APP_DIR}/.releases/${RELEASE_SHA}"; RELEASE_VENV="${RELEASE_ROOT}/venv"; VENV_MANIFEST="${RELEASE_ROOT}/venv-manifest.json"
+[[ ! -e "${RELEASE_ROOT}" ]] || fail "release-specific directory already exists; refusing reuse"
+mkdir -p "${RELEASE_ROOT}"
+python3 -E -s "${APP_DIR}/deploy/weather-paper-release-venv.py" build --venv "${RELEASE_VENV}" --lock "${APP_DIR}/${LOCK_NAME}" --manifest "${VENV_MANIFEST}"
+python3 -E -s "${APP_DIR}/deploy/weather-paper-release-venv.py" verify --venv "${RELEASE_VENV}" --lock "${APP_DIR}/${LOCK_NAME}" --manifest "${VENV_MANIFEST}"
+(
+ cd "${APP_DIR}"
+ env -i HOME="${CONFIG_DIR}" PATH="${RELEASE_VENV}/bin:/usr/bin:/bin" PYTHONNOUSERSITE=1 "${RELEASE_VENV}/bin/python" -E -s -c "import ${FINAL_MODULE}; print('runtime import passed')"
+) || fail "candidate runtime import failed"
+mkdir -p "${CONFIG_DIR}"; umask 077
+TMP_GEN="$(mktemp "${CONFIG_DIR}/.weather-paper-generation.XXXXXX")"; TMP_REL="$(mktemp "${CONFIG_DIR}/.weather-paper-release.XXXXXX")"; TMP_EVIDENCE="$(mktemp "${CONFIG_DIR}/.weather-paper-evidence.XXXXXX")"
+trap 'rm -f "${TMP_GEN}" "${TMP_REL}" "${TMP_EVIDENCE}"' EXIT
+printf '%s\n' "${GENERATION_ID}" > "${TMP_GEN}"; printf '%s\n' "${RELEASE_SHA}" > "${TMP_REL}"
+/usr/bin/python3 - "${APP_DIR}" "${RELEASE_SHA}" "${GENERATION_ID}" "${APP_DIR}/${LOCK_NAME}" "${VENV_MANIFEST}" > "${TMP_EVIDENCE}" <<'PY'
+import hashlib,json,subprocess,sys
 from pathlib import Path
-import sys
-for raw in Path(sys.argv[1]).read_text(encoding="utf-8").splitlines():
-    row = raw.strip()
-    if not row or row.startswith("#") or "==" not in row:
-        continue
-    name, expected = row.split("==", 1)
-    installed = version(name.split("[", 1)[0])
-    if installed != expected:
-        raise SystemExit(f"dependency pin mismatch: {name} {installed} != {expected}")
-print("Weather-paper runtime dependency pins match exactly.")
+app=Path(sys.argv[1]); sha=sys.argv[2]; generation=sys.argv[3]; lock=Path(sys.argv[4]); manifest=Path(sys.argv[5])
+def d(p): return hashlib.sha256(p.read_bytes()).hexdigest()
+payload=json.loads(manifest.read_text()); internal=payload.get('manifest_sha256')
+if not isinstance(internal,str) or len(internal)!=64: raise SystemExit('invalid venv manifest digest')
+tree=subprocess.check_output(['/usr/bin/git','-C',str(app),'rev-parse',f'{sha}^{{tree}}'],text=True).strip().lower()
+print(json.dumps({'version':'weather-paper-release-evidence-v1','candidate_sha':sha,'candidate_tree':tree,'generation_id':generation,'requirements_lock_sha256':d(lock),'venv_manifest_file_sha256':d(manifest),'venv_manifest_digest':internal},sort_keys=True,indent=2))
 PY
-
-# Import the exact deployable wrapper before publishing the marker. This performs no
-# network I/O and starts no service.
-PYTHONPATH="${APP_DIR}" "${APP_DIR}/.venv/bin/python" -c \
-  "import ${FINAL_MODULE}; print('Guarded three-layer validation runtime import passed.')"
-
-mkdir -p "${CONFIG_DIR}"
-umask 077
-TMP_MARKER="$(mktemp "${CONFIG_DIR}/.weather-paper-release.XXXXXX")"
-trap 'rm -f "${TMP_MARKER}"' EXIT
-printf '%s\n' "${ACTUAL_SHA}" > "${TMP_MARKER}"
-chmod 600 "${TMP_MARKER}"
-mv -f "${TMP_MARKER}" "${RELEASE_FILE}"
-trap - EXIT
-
-bash "${APP_DIR}/deploy/verify-runtime-release.sh" "${APP_DIR}" "${RELEASE_FILE}"
-printf '\nWeather PAPER three-layer validation candidate prepared but NOT started or enabled.\n'
-printf 'Isolated app: %s\n' "${APP_DIR}"
-printf 'Release: %s\n' "${ACTUAL_SHA}"
-printf 'Release marker: %s\n' "${RELEASE_FILE}"
-printf 'Legacy scanner checkout/release marker were not changed.\n'
+chmod 600 "${TMP_GEN}" "${TMP_REL}" "${TMP_EVIDENCE}"
+mv -f "${TMP_GEN}" "${GENERATION_FILE}"; mv -f "${TMP_REL}" "${RELEASE_FILE}"; mv -f "${TMP_EVIDENCE}" "${EVIDENCE_FILE}"; trap - EXIT
+/usr/bin/python3 "${HOST_GATE}" verify-checkout --app-dir "${APP_DIR}" --release-file "${RELEASE_FILE}" --generation-file "${GENERATION_FILE}"
+printf 'PASS: candidate %s prepared in fresh release venv; immutable predecessor generation=%s. NOT started/enabled.\n' "${RELEASE_SHA}" "${GENERATION_ID}"

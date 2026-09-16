@@ -19,7 +19,7 @@ from .weather_only_contracts import DAILY_HIGH, DAILY_LOW, compile_weather_event
 from .weather_only_rules import apply_rule_authority, compile_temperature_rule_authority
 
 
-STRICT_CONTRACT_VERSION = "weather_contract_strict_v8_current_polymarket_station_census_fail_closed"
+STRICT_CONTRACT_VERSION = "weather_contract_strict_v9_reviewed_city_station_binding"
 
 
 class StrictWeatherContractError(RuntimeError):
@@ -65,6 +65,20 @@ _CURRENT_STATION_DISPLAY_NAMES = {
     "KORD": "chicago o'hare intl airport",
     "KSEA": "seattle-tacoma international airport",
     "KSFO": "san francisco international airport",
+}
+
+# Contract locations are labels, not a licence to choose a nearby airport. These
+# exact pairs are the reviewed contract scope; unknown city aliases require review.
+# Legacy no-city titles still derive their identity from the operative source.
+_REVIEWED_STATION_CITIES = {
+    "EGLC": frozenset({"london"}), "LFPB": frozenset({"paris"}),
+    "SBGR": frozenset({"sao paulo"}), "KATL": frozenset({"atlanta"}),
+    "KAUS": frozenset({"austin"}), "KBKF": frozenset({"denver"}),
+    "KDAL": frozenset({"dallas"}), "KHOU": frozenset({"houston"}),
+    "KLAX": frozenset({"los angeles"}), "KMIA": frozenset({"miami"}),
+    "KORD": frozenset({"chicago"}), "KSEA": frozenset({"seattle"}),
+    "KSFO": frozenset({"san francisco"}), "EDDM": frozenset({"munich"}),
+    "KLGA": frozenset({"nyc", "new york city"}),
 }
 
 # Gamma currently uses ``description``/``resolutionSource`` for these contracts, but a
@@ -418,8 +432,18 @@ def strict_contract_identity(event: dict, compiled=None) -> dict:
     if compiled is None:
         compiled = compile_weather_event(event)
     identity = _coherent_rule_identity(event, compiled)
+    location = _current_title_location(str(event.get("title") or ""), compiled.family, compiled.target_date)
+    if re.search(r"\btemperature\s+in\b", str(event.get("title") or ""), re.I):
+        if location is None:
+            raise StrictWeatherContractError("STRICT_CITY_TEMPLATE_UNSUPPORTED")
+        city = _norm(location)
+        if not any(city in cities for cities in _REVIEWED_STATION_CITIES.values()):
+            raise StrictWeatherContractError("STRICT_CITY_UNREVIEWED")
+        if city not in _REVIEWED_STATION_CITIES.get(str(compiled.station_hint or "").upper(), ()):
+            raise StrictWeatherContractError("STRICT_CITY_STATION_MISMATCH")
     payload = {
         **identity,
+        "location": _norm(location),
         "event_id": str(compiled.event_id),
         "family": str(compiled.family),
         "unit": str(compiled.unit or ""),
@@ -454,18 +478,26 @@ def _partition_is_exact(compiled) -> bool:
             if bound is None:
                 continue
             value = float(bound)
-            if not math.isfinite(value) or not value.is_integer():
+            # Compiler bounds are floats. Adjacent integer comparisons cease to be
+            # exact outside the IEEE-754 safe-integer range (x + 1 can equal x).
+            if not math.isfinite(value) or not value.is_integer() or abs(value) > 2**53-1:
                 return False
             finite_bounds.append(int(value))
     if not finite_bounds:
         return False
-    for value in range(min(finite_bounds) - 3, max(finite_bounds) + 4):
-        matches = [
-            bucket for bucket in buckets
-            if (bucket.lower is None or value >= bucket.lower)
-            and (bucket.upper is None or value <= bucket.upper)
-        ]
-        if len(matches) != 1:
+    # Prove the integer partition analytically. Enumerating every integer lets one
+    # small remote payload monopolize the event loop for millions of iterations.
+    ordered = sorted(buckets, key=lambda b: float('-inf') if b.lower is None else b.lower)
+    if ordered[0].lower is not None or ordered[-1].upper is not None:
+        return False
+    for index, bucket in enumerate(ordered):
+        if bucket.lower is None and index != 0:
+            return False
+        if bucket.upper is None and index != len(ordered) - 1:
+            return False
+        if bucket.lower is not None and bucket.upper is not None and bucket.lower > bucket.upper:
+            return False
+        if index and (ordered[index - 1].upper is None or bucket.lower != ordered[index - 1].upper + 1):
             return False
     return True
 

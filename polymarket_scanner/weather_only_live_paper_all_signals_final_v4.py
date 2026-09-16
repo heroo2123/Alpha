@@ -105,12 +105,11 @@ class FinalAllPaperWeatherLiveServiceV4(FinalAllPaperWeatherLiveServiceV3):
     ) -> dict | None:
         """Force a provider fetch after receipt; exact CLOB follows that completed fetch."""
         compiled = compile_strict_temperature_event(event)
-        self._forecast_cache.pop(str(compiled.event_id), None)
         refresh_started = time.time()
         if refresh_started + _EPS < float(telegram_sent_at):
             raise V4InvariantError("V5_FORECAST_REFRESH_NOT_CAUSAL")
         try:
-            forecast = await self._mapped_forecast(compiled.event_id, compiled)
+            forecast = await self._mapped_forecast(compiled.event_id, compiled, force_refresh=True)
         except WeatherForecastError as exc:
             raise V4InvariantError(f"V5_FORECAST_REFRESH_FAILED:{exc.code}") from exc
         except Exception as exc:

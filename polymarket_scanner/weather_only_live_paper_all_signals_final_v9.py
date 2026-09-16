@@ -228,10 +228,11 @@ class FinalAllPaperWeatherLiveServiceV9(FinalAllPaperWeatherLiveServiceV8):
         )
         await super().close()
 
-    async def _sync_operator_messages(self) -> dict:
+    async def _sync_operator_messages(self, *, signal_id: int | None = None) -> dict:
         # Backfill all historical terminal rows, then drain every successful batch in
         # this process. This removes systemd restart count from migration correctness.
-        await asyncio.to_thread(self.positions.ensure_operator_sync_records)
+        if signal_id is None:
+            await asyncio.to_thread(self.positions.ensure_operator_sync_records)
         errors: list[str] = []
         processed = 0
         absent = 0
@@ -239,14 +240,15 @@ class FinalAllPaperWeatherLiveServiceV9(FinalAllPaperWeatherLiveServiceV8):
 
         while batches < OPERATOR_SYNC_MAX_BATCHES:
             rows = await asyncio.to_thread(
-                self.positions.pending_operator_sync, OPERATOR_SYNC_BATCH_SIZE
+                self.positions.pending_operator_sync, OPERATOR_SYNC_BATCH_SIZE,
+                signal_id=signal_id,
             )
             if not rows:
                 break
             batches += 1
             batch_failed = False
             for row in rows:
-                signal_id = int(row["signal_id"])
+                row_signal_id = int(row["signal_id"])
                 message_id = int(row["telegram_message_id"])
                 try:
                     outcome = await self.telegram.edit_html(
@@ -256,32 +258,35 @@ class FinalAllPaperWeatherLiveServiceV9(FinalAllPaperWeatherLiveServiceV8):
                     if outcome == TELEGRAM_EDIT_ABSENT:
                         await asyncio.to_thread(
                             self.positions.mark_operator_sync_absent,
-                            signal_id,
+                            row_signal_id,
                             message_id,
                         )
                         absent += 1
                     else:
                         await asyncio.to_thread(
-                            self.positions.mark_operator_sync_applied, signal_id
+                            self.positions.mark_operator_sync_applied, row_signal_id
                         )
                     processed += 1
                 except Exception as exc:
                     code = getattr(exc, "code", type(exc).__name__)
                     await asyncio.to_thread(
                         self.positions.mark_operator_sync_failed,
-                        signal_id,
+                        row_signal_id,
                         str(code),
                     )
-                    errors.append(f"OPERATOR_SYNC:{signal_id}:{code}")
+                    errors.append(f"OPERATOR_SYNC:{row_signal_id}:{code}")
                     batch_failed = True
             # Do not hammer a deterministic/ambiguous failure repeatedly inside one
             # startup. Successful batches continue until the backlog is exhausted.
-            if batch_failed:
+            if batch_failed or signal_id is not None:
                 break
         else:
             errors.append("OPERATOR_SYNC_DRAIN_BATCH_CAP_EXCEEDED")
 
         summary = await asyncio.to_thread(self.positions.operator_sync_summary)
+        if signal_id is not None:
+            # The immediate transition's result is independent of older backlogs.
+            summary["healthy"] = not errors
         summary.update(
             {
                 "errors": errors,

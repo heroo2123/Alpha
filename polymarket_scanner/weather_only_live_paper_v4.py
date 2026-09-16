@@ -289,14 +289,14 @@ class WeatherLivePaperV4Service(WeatherLivePaperV3Service):
             raise V4InvariantError("V4_FORECAST_HORIZON_OUT_OF_RANGE")
         return metadata
 
-    async def _mapped_forecast(self, event_id: str, compiled):
+    async def _mapped_forecast(self, event_id: str, compiled, *, force_refresh: bool = False):
         metadata = await self._station_metadata_for_compiled(compiled)
         if metadata is None:
             raise V4InvariantError("V4_STATION_METADATA_MISSING")
         semantic = _semantic_digest(compiled, metadata)
         now_mono = time.monotonic()
         cached = self._forecast_cache.get(semantic)
-        if cached is not None:
+        if cached is not None and not force_refresh:
             age = now_mono - float(cached[0])
             if 0.0 <= age <= self.forecast_cache_seconds:
                 return cached[1]

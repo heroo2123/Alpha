@@ -4,6 +4,7 @@ import asyncio
 import copy
 import json
 import os
+import sqlite3
 import subprocess
 import sys
 from datetime import date, datetime, timezone
@@ -27,6 +28,7 @@ from polymarket_scanner.weather_only_paper_corrective import CorrectiveSettlemen
 from polymarket_scanner.weather_only_paper_positions import WeatherPaperPositionStore
 from polymarket_scanner.weather_only_paper_recovery import CrashSafeWeatherPaperStore
 from polymarket_scanner.weather_only_paper_store import WeatherPaperStore
+from test_host_authority_production_boundary import host, cutover
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -367,7 +369,7 @@ def test_gpt6_f70_crash_during_settlement_notification_is_recovered_as_uncertain
     assert restarted.resolved_pending_notification() == []
 
 
-def test_gpt6_f33_actual_backup_shell_accepts_legacy_db_from_unrelated_cwd(tmp_path: Path):
+def test_gpt6_f33_retired_backup_shell_refuses_legacy_db_without_mutation(tmp_path: Path):
     db_path = tmp_path / "legacy.sqlite"
     WeatherPaperStore(db_path)
     WeatherPaperPositionStore(db_path)
@@ -382,6 +384,7 @@ def test_gpt6_f33_actual_backup_shell_accepts_legacy_db_from_unrelated_cwd(tmp_p
     backups = tmp_path / "backups"
     unrelated = tmp_path / "unrelated"
     unrelated.mkdir()
+    before = db_path.read_bytes()
 
     env = dict(os.environ)
     env.pop("PYTHONPATH", None)
@@ -402,9 +405,44 @@ def test_gpt6_f33_actual_backup_shell_accepts_legacy_db_from_unrelated_cwd(tmp_p
         stderr=subprocess.PIPE,
         check=False,
     )
-    assert result.returncode == 0, result.stderr
-    assert "LEGACY_V3_PRE_MIGRATION" in result.stdout
-    assert list(backups.glob("weather-paper-*.sqlite3"))
+    assert result.returncode == 40, result.stderr
+    assert "production-host-control.sh" in result.stderr
+    assert not backups.exists() and db_path.read_bytes() == before
+
+
+def test_gpt6_f33_canonical_host_backup_preserves_legacy_wal_from_unrelated_cwd(host, monkeypatch):
+    # Preserve the former F33 contract (legacy schema and unrelated CWD), using
+    # the production cutover owner. All host/service operations are fixture-local.
+    host.db.chmod(0o600)
+    WeatherPaperStore(host.db)
+    WeatherPaperPositionStore(host.db)
+    writer = sqlite3.connect(host.db)
+    try:
+        assert writer.execute("PRAGMA journal_mode=WAL").fetchone() == ("wal",)
+        writer.execute("PRAGMA wal_autocheckpoint=0")
+        writer.execute("INSERT INTO signal_history(body) VALUES ('legacy committed WAL row')")
+        writer.commit()
+        assert Path(str(host.db) + "-wal").stat().st_size > 0
+        before = host.m._logical_db_digest(host.db)
+        account_before = host.account.read_bytes()
+        unrelated = host.root / "unrelated"
+        unrelated.mkdir()
+        monkeypatch.chdir(unrelated)
+        generation = cutover(host)
+        directory, manifest = host.m._load_generation(generation, host.policy, require_root=False)
+        backup = directory / "predecessor.sqlite3"
+        assert manifest["predecessor_db_sha256"] == host.m.sha256_file(backup)
+        assert manifest["predecessor_db_logical_sha256"] == before == host.m._logical_db_digest(backup)
+        with sqlite3.connect(backup) as restored:
+            assert restored.execute("PRAGMA quick_check").fetchall() == [("ok",)]
+            assert restored.execute("SELECT body FROM signal_history ORDER BY id").fetchall() == [
+                ("predecessor",), ("legacy committed WAL row",)]
+            assert restored.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").fetchall() == writer.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").fetchall()
+        assert host.m._logical_db_digest(host.db) == before
+        assert host.account.read_bytes() == account_before
+    finally:
+        writer.close()
 
 
 def test_gpt6_f35_attestation_cli_imports_from_clean_unrelated_cwd(tmp_path: Path):

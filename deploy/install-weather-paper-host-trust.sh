@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
-echo "REFUSED: host authority v2 must be installed from an independently pinned bundle; an application candidate cannot install or replace its own release/rollback authority." >&2
-exit 64
+echo 'REFUSED: candidate repositories cannot install or replace host authority v3. Bootstrap requires an independently obtained authority source, digest, policy, and policy digest.' >&2
+exit 40

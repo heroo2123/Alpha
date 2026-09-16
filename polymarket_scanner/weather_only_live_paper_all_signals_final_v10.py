@@ -135,7 +135,7 @@ class FinalAllPaperWeatherLiveServiceV10(FinalAllPaperWeatherLiveServiceV9):
             market_id=str(candidate.get("market_id") or "") or None,
             side=str(candidate.get("side") or "") or None,
         )
-        sync = await self._sync_operator_messages()
+        sync = await self._sync_operator_messages(signal_id=int(signal_id))
         if sync.get("healthy") is not True or list(sync.get("errors") or []):
             raise WeatherLivePaperError("DELIVERED_TERMINAL_OPERATOR_SYNC_FAILED")
 

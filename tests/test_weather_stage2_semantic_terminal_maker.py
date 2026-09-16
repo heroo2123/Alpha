@@ -426,18 +426,52 @@ def test_stats_and_settlement_message_label_legacy_maker_pnl_as_excluded(tmp_pat
     maker.close()
 
 
-def test_effective_inheritance_chain_has_no_known_direct_post_receipt_terminal_bypass():
-    root = Path(__file__).resolve().parents[1]
-    final_v2 = (root / "polymarket_scanner/weather_only_live_paper_all_signals_final_v2.py").read_text()
-    v7 = (root / "polymarket_scanner/weather_only_live_paper_all_signals_v7.py").read_text()
-    v10 = (root / "polymarket_scanner/weather_only_live_paper_all_signals_final_v10.py").read_text()
-    forbidden = (
-        'set_signal_status, signal_id, "PAPER_ACCOUNTING_ERROR"',
-        'set_signal_status, signal_id, "EXPIRED"',
-    )
-    assert not any(token in final_v2 for token in forbidden)
-    assert "_defer_maker_restart_terminalization" in v7
-    assert "async def _send_maker_candidate" in v10
-    assert 'status="MAKER_NOT_ACTIVATED"' in v10
-    assert 'status="MAKER_NOT_ACTIVATED_RESTART_COVERAGE_LOST"' in v10
-    assert "financial_authority" in v10
+def test_effective_maker_restart_dispatch_terminalizes_and_edits_actual_receipt(tmp_path):
+    store = OperatorStatePostReceiptStoreV5(tmp_path / "paper.sqlite")
+    signal_id, fingerprint, _candidate = _signal(store, suffix="maker-restart")
+    telegram = _EditTelegram()
+    service = _service(store, telegram)
+    service._v10_deferred_maker_restart_signal_ids = [signal_id]
+    assert service._defer_maker_restart_terminalization() is True
+    asyncio.run(service._terminalize_deferred_maker_restart_receipts())
+    signal, sync, _guards = _row(store, signal_id)
+    assert signal["status"] == "MAKER_NOT_ACTIVATED_RESTART_COVERAGE_LOST"
+    assert signal["fingerprint"] == fingerprint
+    assert sync["state"] == OPERATOR_SYNC_APPLIED
+    assert [call[0] for call in telegram.calls] == [signal["telegram_message_id"]]
+    assert service._v10_deferred_maker_restart_signal_ids == []
+
+
+@pytest.mark.parametrize("expired,status", [(True, "EXPIRED"), (False, "MAKER_NOT_ACTIVATED")])
+def test_effective_maker_sender_edits_confirmed_receipt_on_expiry_or_activation_failure(tmp_path, expired, status):
+    from types import SimpleNamespace as NS
+    import time
+
+    store = OperatorStatePostReceiptStoreV5(tmp_path / "maker-receipt.sqlite")
+    telegram = _EditTelegram()
+    async def send(*_args, **_kwargs):
+        return 4321
+    async def noop(*_args, **_kwargs):
+        return None
+    async def failed_activation(**_kwargs):
+        raise RuntimeError("fixture activation failed after acknowledged delivery")
+    telegram.send_html = send
+    service = _service(store, telegram)
+    service.maker_stream = NS(subscribe=noop, start=noop, connected=True, coverage=lambda _token: NS(generation="g1"))
+    service.maker_store = NS(active_orders=lambda: [])
+    service.maker_policy = NS(max_active_orders=1)
+    service._maker_proposals_sent = 0
+    payload = {"fingerprint": "maker-fingerprint", "order_id": "maker-order", "event_id": "e1",
+        "market_id": "m1", "side": "YES", "token_id": "t1", "fair_value_research": {"raw_member_frequency": .8},
+        "bid_price": .4, "conditional_edge_per_share": .4, "decision_expires_at": time.time()+(-1 if expired else 30)}
+    service._maker_signal_payload = lambda *_args, **_kwargs: dict(payload)
+    service._maker_proposal_message = lambda _payload: "fixture message"
+    service._activate_maker_after_delivery = failed_activation
+    delivered, error = asyncio.run(service._send_maker_candidate({"proposal": NS(token_id="t1"), "event": {"slug": "fixture"}}))
+    assert delivered is True and error
+    signal, sync, _guards = _row(store, 1)
+    assert signal["status"] == status
+    assert signal["telegram_message_id"] == 4321
+    assert signal["fingerprint"] == "maker-fingerprint"
+    assert sync["state"] == OPERATOR_SYNC_APPLIED
+    assert [call[0] for call in telegram.calls] == [4321]

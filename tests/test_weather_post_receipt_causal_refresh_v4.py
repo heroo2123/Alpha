@@ -259,9 +259,9 @@ def test_future_day_forces_uncached_provider_refresh_before_clob(monkeypatch):
     clock = iter((100.0, 101.0))
     monkeypatch.setattr(runtime_v4.time, "time", lambda: next(clock))
 
-    async def mapped(event_id, _compiled):
+    async def mapped(event_id, _compiled, *, force_refresh=False):
         assert event_id == "event-1"
-        assert "event-1" not in service._forecast_cache
+        assert force_refresh is True
         forecast = SimpleNamespace(source_evidence_sha256=SHA64)
         service._forecast_cache[event_id] = (100.0, forecast)
         return forecast

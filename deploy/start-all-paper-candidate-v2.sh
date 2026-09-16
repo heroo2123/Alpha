@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+# RETIRED_PRODUCTION_DEPLOYMENT_ENTRYPOINT: historical body below is unreachable.
+printf '%s\n' 'REFUSED: retired PAPER deployment path; use the independently provisioned host protocol in deploy/production-host-control.sh and docs/PRODUCTION_HOST_TRUST.md' >&2
+exit 40
+
 set -Eeuo pipefail
 APP_DIR="${ALPHA_WEATHER_APP_DIR:-${HOME}/polymarket-weather-paper-app}"; CONFIG_DIR="${ALPHA_CONFIG_DIR:-${HOME}/.polymarket-edge-scanner}"; DB_PATH="${WEATHER_PAPER_DB_PATH:-/var/lib/polymarket-weather-paper/weather-paper.sqlite}"; STATUS_PATH="${WEATHER_PAPER_STATUS_PATH:-/var/lib/polymarket-weather-paper/status.json}"; RELEASE_FILE="${CONFIG_DIR}/weather-paper-release.sha"; START_FILE="${CONFIG_DIR}/all-paper-final-start.epoch"; SHA="${1:-}"; GEN="${2:-}"; AUTH=/usr/local/libexec/polymarket-weather-paper-v2/authority.py; UNIT=polymarket-weather-paper.service
 fail(){ echo "ERROR: $*" >&2; exit 1; }

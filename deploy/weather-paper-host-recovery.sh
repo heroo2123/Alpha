@@ -1,4 +1,3 @@
 #!/usr/bin/env bash
-set -Eeuo pipefail
-echo "REFUSED: recovery is /usr/local/libexec/polymarket-weather-paper-v2/authority.py recover --generation-id <id>." >&2
-exit 64
+echo 'REFUSED: candidate-authored recovery implementation is non-authoritative; invoke installed host authority v3 recover with the exact generation ID' >&2
+exit 40

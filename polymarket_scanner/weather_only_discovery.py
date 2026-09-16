@@ -329,11 +329,15 @@ class WeatherOnlyDiscovery:
         except Exception:
             return False
         joined = " ".join(texts)
+        tags = event.get("tags") or []
+        tag_text = " ".join(str(t.get("slug") or t.get("label") or "") if isinstance(t, dict) else str(t) for t in tags).lower()
+        if any(word in tag_text for word in ("weather", "temperature")):
+            return True
         if "temperature" not in joined.lower():
             return False
-        if _DAILY_TEMP_RE.search(joined):
-            return True
-        return bool(_MONTH_RE.search(joined) and _TEMP_UNIT_RE.search(joined))
+        # Unknown temperature wording belongs in the rejection denominator too.
+        # This predicate grants no semantic or trading authority.
+        return True
 
     @staticmethod
     def _semantic_classification(event: dict) -> tuple[str, str]:
@@ -390,6 +394,7 @@ class WeatherOnlyDiscovery:
         supported = 0
         reason_counts: dict[str, int] = {}
         unsupported_examples: list[dict] = []
+        semantic_ledger: list[dict] = []
 
         while True:
             events, next_cursor = await self._keyset_page(None, cursor, page_size=GLOBAL_PAGE_SIZE)
@@ -404,6 +409,8 @@ class WeatherOnlyDiscovery:
                     continue
                 weather_looking += 1
                 category, detail = self._semantic_classification(event)
+                semantic_ledger.append({"event_id": str(event.get("id") or ""),
+                                        "classification": category, "detail": str(detail)[:220]})
                 if category == "SUPPORTED":
                     supported += 1
                     retained.append(copy.deepcopy(event))
@@ -436,6 +443,7 @@ class WeatherOnlyDiscovery:
             "unsupported_weather_events": unsupported,
             "unsupported_reason_counts": dict(sorted(reason_counts.items())),
             "unsupported_examples": unsupported_examples,
+            "semantic_event_ledger": semantic_ledger,
             "weather_semantic_coverage_complete": unsupported == 0,
             "weather_semantic_coverage_status": "COMPLETE" if unsupported == 0 else "PARTIAL_STRICT_SUBSET",
             "weather_semantic_product_policy": SEMANTIC_POLICY,

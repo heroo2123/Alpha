@@ -327,7 +327,7 @@ class OperatorStatePostReceiptStore(IndependentReviewPostReceiptStoreV3):
             db.execute("COMMIT")
         return created
 
-    def pending_operator_sync(self, limit: int = 50) -> list[dict]:
+    def pending_operator_sync(self, limit: int = 50, *, signal_id: int | None = None) -> list[dict]:
         count = max(1, min(200, int(limit)))
         with self._conn() as db:
             rows = [
@@ -338,10 +338,10 @@ class OperatorStatePostReceiptStore(IndependentReviewPostReceiptStoreV3):
                            s.status AS signal_status
                     FROM weather_paper_operator_sync o
                     JOIN weather_paper_signals s ON s.id=o.signal_id
-                    WHERE o.state<>?
+                    WHERE o.state<>? AND (? IS NULL OR o.signal_id=?)
                     ORDER BY o.signal_id LIMIT ?
                     """,
-                    (OPERATOR_SYNC_APPLIED, count),
+                    (OPERATOR_SYNC_APPLIED, signal_id, signal_id, count),
                 )
             ]
         for row in rows:

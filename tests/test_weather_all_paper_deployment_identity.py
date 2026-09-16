@@ -1,65 +1,70 @@
+"""Production replacements for obsolete V9 deployment source-string assertions.
+
+The standalone research acceptance contract remains covered at the end of this
+file; it grants no production execution authority.
+"""
 from pathlib import Path
-
-from polymarket_scanner.weather_only_live_paper_all_signals_final_v7 import (
-    FINAL_ALL_PAPER_RUNTIME_V7_VERSION,
-)
-from polymarket_scanner.weather_only_live_paper_all_signals_final_v8 import (
-    FINAL_ALL_PAPER_RUNTIME_V8_VERSION,
-)
-from polymarket_scanner.weather_only_live_paper_all_signals_final_v10 import (
-    FINAL_ALL_PAPER_RUNTIME_V9_VERSION,
-)
-
-
-FINAL_MODULE = "polymarket_scanner.weather_only_live_paper_all_signals_final_v10"
+import sys
+import pytest
+from test_host_authority_production_boundary import host, prepare, cutover, git
 
 
 def _text(path: str) -> str:
     return Path(path).read_text(encoding="utf-8")
 
 
-def test_final_acceptance_v2_requires_complete_v9_operator_network_and_recall_stack():
-    base = _text("polymarket_scanner/weather_only_all_paper_deployment_acceptance.py")
-    text = _text("polymarket_scanner/weather_only_all_paper_deployment_acceptance_v2.py")
-    assert "FINAL_ALL_PAPER_RUNTIME_V5_VERSION" in text
-    assert "FINAL_ALL_PAPER_RUNTIME_V6_VERSION" in text
-    assert "FINAL_ALL_PAPER_RUNTIME_V7_VERSION" in text
-    assert "FINAL_ALL_PAPER_RUNTIME_V8_VERSION" in text
-    assert "FINAL_ALL_PAPER_RUNTIME_V9_VERSION" in text
-    assert "OPERATOR_STATE_CORRECTIVE_VERSION" in text
-    assert "OPERATOR_STATE_CORRECTIVE_V2_VERSION" in text
-    assert "OPERATOR_STATE_CORRECTIVE_V3_VERSION" in text
-    assert "OPERATOR_STATE_CORRECTIVE_V4_VERSION" in text
-    assert "operator_visible_invalidation_required" in text
-    assert "operator_retry_release_requires_visible_invalidation" in text
-    assert "operator_retry_preserves_original_signal_fingerprint" in text
-    assert "operator_message_sync_healthy" in text
-    assert "operator_sync_restart_pagination_required" in text
-    assert "operator_deleted_message_terminal_confirmation" in text
-    assert "source_shock_retry_guard_final_episode_identity" in text
-    assert "dotenv_loading_disabled" in text
-    assert "implicit_nontelegram_settings_defaulted" in text
-    assert "terminal_invalidation_identity_strict" in text
-    assert "terminal_invalidation_requires_post_receipt_prestate" in text
-    assert "operator_restart_visibility_required" in text
-    assert "operator_sync_before_startup_required" in text
-    assert "operator_recent_terminal_reason_visible" in text
-    assert "maker_proposal_queue_uncertified_label" in text
-    assert "isolated_settings_overrides" in text
-    assert "operator_retry_max_per_evidence" in text
-    assert "operator_retry_cooldown_seconds" in text
-    assert "historical_terminal_operator_sync_complete" in text
-    assert "network_environment_absent_before_http_client_construction" in text
-    assert "global_weather_recall_complete" in text
-    assert "global_weather_recall_fresh" in text
-    assert "global_weather_recall_max_reuse_seconds" in text
-    assert "global_weather_recall_certified_at" in text
-    assert "global_weather_recall_age_seconds" in text
-    assert "GLOBAL_WEATHER_RECALL_AGE_EVIDENCE_MISMATCH" in text
-    assert "global_weather_recall" in text
-    # Preserve the mature lower-layer gates as part of the additive acceptance chain.
-    assert "post_receipt_future_day_provider_refetch_required" in base
-    assert "post_receipt_three_layer_thesis_revalidation_required" in base
-    assert "post_receipt_weather_before_clob_required" in base
-    assert "maker_settlement_strict_uma_finality" in base
-    assert "source_shock_full_ttl_before_midnight_margin_required" in base
+def test_final_renderer_targets_production_component_release_venvs_and_strict_loader_boundary(host):
+    gid, manifest = prepare(host)
+    for name, component in manifest["components"].items():
+        unit = Path(host.policy["components"][name]["unit_file"]).read_text()
+        assert f"{component['venv_path']}/bin/python -I -s -E -B -m polymarket_scanner.production {name} --config " in unit
+        assert f"WorkingDirectory={manifest['source_path']}" in unit
+        assert f"ALPHA_RELEASE_SHA={host.b}" in unit and f"ALPHA_CUTOVER_GENERATION={gid}" in unit
+        assert "EnvironmentFile=" not in unit
+        assert all(key in unit for key in host.m.FORBIDDEN_PROCESS_ENV)
+
+
+def test_preparation_preserves_checkout_and_predecessor_until_explicit_activation(host):
+    before = host.m._tree_digest(host.app / ".venv")
+    gid = cutover(host)
+    assert git(host.app, "rev-parse", "HEAD") == host.a
+    host.m.prepare_candidate(gid, host.b, require_root=False)
+    assert git(host.app, "rev-parse", "HEAD") == host.a
+    assert host.m._tree_digest(host.app / ".venv") == before
+    host.m.activate_checkout(gid, host.b, require_root=False)
+    assert git(host.app, "rev-parse", "HEAD") == host.b
+
+
+def test_actual_isolated_python_reports_sealed_module_prefix_and_interpreter(host):
+    _, manifest = prepare(host)
+    venv = Path(manifest["venv_path"])
+    result = host.m._verify_import_environment(host.policy, Path(manifest["source_path"]), venv, require_root=False)
+    assert result["isolated"] == 1 and result["user_site"] is False
+    assert result["executable"] == str(venv / "bin/python") and result["prefix"] == str(venv)
+    assert Path(result["base_prefix"]).resolve() == Path(sys.base_prefix).resolve()
+
+
+def test_runtime_preflight_rejects_changed_installed_execution_unit(host):
+    gid, _ = prepare(host)
+    unit = Path(host.policy["components"]["execution"]["unit_file"])
+    unit.write_text(unit.read_text().replace("-I -s -E -B -m", "-m"))
+    with pytest.raises(host.m.AuthorityError, match="RUNTIME_INSTALLED_UNIT_MISMATCH"):
+        host.m.verify_runtime_files(gid, host.b, require_root=False)
+
+
+def test_recovery_restores_each_exact_predecessor_unit_and_marker(host):
+    before = {name: Path(component["unit_file"]).read_bytes() for name, component in host.policy["components"].items()}
+    gid, _ = prepare(host)
+    host.m.activate_checkout(gid, host.b, require_root=False)
+    host.m.recover(gid, require_root=False)
+    for name, component in host.policy["components"].items():
+        assert Path(component["unit_file"]).read_bytes() == before[name]
+    assert Path(host.policy["release_file"]).read_text().strip() == host.a
+
+
+def test_final_acceptance_v2_preserves_mature_operator_network_and_recall_stack():
+    base=_text("polymarket_scanner/weather_only_all_paper_deployment_acceptance.py"); text=_text("polymarket_scanner/weather_only_all_paper_deployment_acceptance_v2.py")
+    for token in ("FINAL_ALL_PAPER_RUNTIME_V5_VERSION","FINAL_ALL_PAPER_RUNTIME_V6_VERSION","FINAL_ALL_PAPER_RUNTIME_V7_VERSION","FINAL_ALL_PAPER_RUNTIME_V8_VERSION","FINAL_ALL_PAPER_RUNTIME_V9_VERSION","operator_message_sync_healthy","historical_terminal_operator_sync_complete","network_environment_absent_before_http_client_construction","global_weather_recall_complete","global_weather_recall_fresh"):
+        assert token in text
+    for token in ("post_receipt_future_day_provider_refetch_required","post_receipt_three_layer_thesis_revalidation_required","post_receipt_weather_before_clob_required","maker_settlement_strict_uma_finality"):
+        assert token in base

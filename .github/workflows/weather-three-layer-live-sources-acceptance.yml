@@ -5,26 +5,10 @@ on:
   workflow_dispatch:
   push:
     branches:
+      - main
+      - weather-production-integration-2026-09-16
       - weather-three-layer-meticulous-final-2026-09-15
       - weather-three-layer-live-grammar-corrective-2026-09-15
-    paths:
-      - '.github/workflows/weather-three-layer-live-sources-acceptance.yml'
-      # The final immutable-candidate census touch deliberately retriggers this gate,
-      # so live contract admission and live provider acceptance can be proven at one SHA.
-      - '.github/workflows/weather-three-layer-live-universe-census.yml'
-      - 'polymarket_scanner/weather_only_three_layer_guarded.py'
-      - 'polymarket_scanner/weather_only_wrh.py'
-      - 'polymarket_scanner/weather_only_wrh_client.py'
-      - 'polymarket_scanner/weather_only_nws_near_term.py'
-      - 'polymarket_scanner/weather_only_gefs_hourly.py'
-      - 'polymarket_scanner/weather_only_station_metadata.py'
-      - 'polymarket_scanner/weather_only_same_day_capture_store_compressed.py'
-      - 'tests/test_weather_only_same_day_capture_store_compressed.py'
-      - 'deploy/verify-three-layer-validation-status.py'
-      - 'tests/test_weather_only_three_layer_finalization.py'
-      - 'deploy/pre-release-weather-paper-backup.sh'
-      - 'deploy/setup-weather-paper-backup-service.sh'
-      - 'tests/test_weather_only_three_layer_backup_bounds.py'
 
 permissions:
   contents: read

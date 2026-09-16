@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
+# RETIRED_PRODUCTION_DEPLOYMENT_ENTRYPOINT: historical body below is unreachable.
+printf '%s\n' 'REFUSED: retired PAPER deployment path; use the independently provisioned host protocol in deploy/production-host-control.sh and docs/PRODUCTION_HOST_TRUST.md' >&2
+exit 40
+
 set -Eeuo pipefail
-HOST_SNAPSHOT="/usr/local/libexec/polymarket-weather-paper/snapshot-rollback.sh"
-[[ -f "${HOST_SNAPSHOT}" ]] || { echo 'HOST ROLLBACK SNAPSHOT AUTHORITY NOT INSTALLED' >&2; exit 2; }
-# Snapshot custody is privileged: the root-owned authority writes only into the
-# root-owned rollback directory pinned in /etc/polymarket-weather-paper/host-paths.conf.
-# Keep HOME nonexistent so root's personal Git configuration cannot influence the
-# host-authority snapshot path or repository verification.
-exec sudo /usr/bin/env -i PATH=/usr/bin:/bin HOME=/nonexistent GIT_CONFIG_NOSYSTEM=1 \
-  /bin/bash --noprofile --norc "${HOST_SNAPSHOT}" "$@"
+AUTH=/usr/local/libexec/polymarket-weather-paper-v3/authority.py
+CANDIDATE_SHA="${1:-}"
+[[ "${CANDIDATE_SHA}" =~ ^[0-9a-f]{40}$ ]] || { echo "usage: $0 <candidate-sha>" >&2; exit 2; }
+[[ -x "${AUTH}" ]] || { echo "independently pinned host authority v3 is not installed" >&2; exit 3; }
+# The independent authority derives predecessor identity and every privileged path
+# exclusively from its root-owned policy anchor. The candidate supplies only the SHA.
+exec sudo /usr/bin/env -i PATH=/usr/bin:/bin HOME=/nonexistent LANG=C.UTF-8 \
+  /usr/bin/python3 "${AUTH}" create-cutover --candidate-sha "${CANDIDATE_SHA}"
