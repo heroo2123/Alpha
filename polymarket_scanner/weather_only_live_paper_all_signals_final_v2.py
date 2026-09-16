@@ -260,7 +260,9 @@ class FinalAllPaperWeatherLiveServiceV2(FinalAllPaperWeatherLiveService):
         sent_at = time.time()
         self.positions.mark_telegram_sent(signal_id, int(message_id), sent_at=sent_at)
         if sent_at >= float(fresh["decision_expires_at"]):
-            await asyncio.to_thread(self.positions.set_signal_status, signal_id, "EXPIRED")
+            await self._terminalize_delivered_signal(
+                signal_id, fresh, status="EXPIRED", reason="DELIVERY_RECEIPT_AFTER_EXPIRY"
+            )
             return True, "DELIVERY_RECEIPT_AFTER_EXPIRY"
         await asyncio.to_thread(self.positions.set_signal_status, signal_id, "POST_RECEIPT_RECHECK")
         try:
@@ -317,7 +319,10 @@ class FinalAllPaperWeatherLiveServiceV2(FinalAllPaperWeatherLiveService):
             await asyncio.to_thread(self.positions.admit_post_receipt_position, signal_id, self.paper_stake_usd, execution)
         except Exception as exc:
             code = getattr(exc, "code", type(exc).__name__)
-            await asyncio.to_thread(self.positions.set_signal_status, signal_id, "PAPER_ACCOUNTING_ERROR")
+            await self._terminalize_delivered_signal(
+                signal_id, fresh, status="PAPER_ACCOUNTING_ERROR",
+                reason=f"V5_SAME_DAY_ACCOUNTING:{code}",
+            )
             return True, f"V5_SAME_DAY_ACCOUNTING:{code}"
         self._all_paper_same_day_sent += 1
         return True, None
@@ -411,7 +416,9 @@ class FinalAllPaperWeatherLiveServiceV2(FinalAllPaperWeatherLiveService):
         sent_at = time.time()
         self.positions.mark_telegram_sent(signal_id, int(message_id), sent_at=sent_at)
         if sent_at >= expires_at:
-            await asyncio.to_thread(self.positions.set_signal_status, signal_id, "EXPIRED")
+            await self._terminalize_delivered_signal(
+                signal_id, fresh, status="EXPIRED", reason="DELIVERY_RECEIPT_AFTER_EXPIRY"
+            )
             return True, "DELIVERY_RECEIPT_AFTER_EXPIRY"
         await asyncio.to_thread(self.positions.set_signal_status, signal_id, "POST_RECEIPT_RECHECK")
         try:
@@ -466,7 +473,10 @@ class FinalAllPaperWeatherLiveServiceV2(FinalAllPaperWeatherLiveService):
             await asyncio.to_thread(self.positions.admit_post_receipt_position, signal_id, self.paper_stake_usd, execution)
         except Exception as exc:
             code = getattr(exc, "code", type(exc).__name__)
-            await asyncio.to_thread(self.positions.set_signal_status, signal_id, "PAPER_ACCOUNTING_ERROR")
+            await self._terminalize_delivered_signal(
+                signal_id, fresh, status="PAPER_ACCOUNTING_ERROR",
+                reason=f"SOURCE_SHOCK_ACCOUNTING:{code}",
+            )
             return True, f"SOURCE_SHOCK_ACCOUNTING:{code}"
         self._source_shock_sent += 1
         return True, None

@@ -77,15 +77,25 @@ ALL_PAPER_V7_RUNTIME_VERSION = (
 
 
 class AllPaperWeatherLiveV7Service(AllPaperWeatherLiveV6Service):
+    def _defer_maker_restart_terminalization(self) -> bool:
+        return False
+
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
 
         old_maker_store = self.maker_store
         old_maker_store.close()
         self.maker_store = MakerPaperAccountingStoreV5(self.db_path)
-        self._v7_maker_orphans_recovered = (
-            self.maker_store.reconcile_unactivated_receipts_after_restart()
-        )
+        if self._defer_maker_restart_terminalization():
+            self._v7_maker_orphan_signal_ids = (
+                self.maker_store.unactivated_receipt_signal_ids()
+            )
+            self._v7_maker_orphans_recovered = 0
+        else:
+            self._v7_maker_orphan_signal_ids = []
+            self._v7_maker_orphans_recovered = (
+                self.maker_store.reconcile_unactivated_receipts_after_restart()
+            )
 
         self._v7_superseded_settlement = self.settlement
         self._v7_superseded_commands = self.commands

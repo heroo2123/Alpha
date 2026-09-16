@@ -179,6 +179,45 @@ class MakerPaperAccountingStoreV5(MakerPaperAccountingStoreV4):
                 raise
         return order
 
+    def unactivated_receipt_signal_ids(self) -> list[int]:
+        """Detect delivered maker receipts lacking a durable activated virtual order."""
+        terminal = {
+            "MAKER_RESTING",
+            "MAKER_NOT_ACTIVATED",
+            MAKER_RESTART_ORPHAN_STATUS,
+            "DELIVERY_UNCERTAIN",
+            "DELIVERY_FAILED",
+            "EXPIRED",
+        }
+        out: list[int] = []
+        with self._db_lock:
+            rows = self.db.execute(
+                "SELECT id,payload_json,status FROM weather_paper_signals "
+                "WHERE lane='weather_maker_virtual_bid' "
+                "AND telegram_message_id IS NOT NULL ORDER BY id"
+            ).fetchall()
+            for row in rows:
+                if str(row["status"] or "") in terminal:
+                    continue
+                try:
+                    payload = json.loads(str(row["payload_json"]))
+                except json.JSONDecodeError:
+                    raise WeatherMakerStoreError(
+                        "MAKER_ACTIVATION_SIGNAL_PAYLOAD_INVALID"
+                    ) from None
+                if not isinstance(payload, dict):
+                    raise WeatherMakerStoreError("MAKER_ACTIVATION_SIGNAL_PAYLOAD_INVALID")
+                order_id = str(payload.get("order_id") or "").strip()
+                if not order_id:
+                    raise WeatherMakerStoreError("MAKER_ACTIVATION_ORDER_ID_MISSING")
+                existing = self.db.execute(
+                    "SELECT 1 FROM weather_maker_shadow_orders WHERE order_id=?",
+                    (order_id,),
+                ).fetchone()
+                if existing is None:
+                    out.append(int(row["id"]))
+        return out
+
     def reconcile_unactivated_receipts_after_restart(
         self, *, recorded_at: float | None = None
     ) -> int:
