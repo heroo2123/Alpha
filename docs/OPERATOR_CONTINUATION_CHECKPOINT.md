@@ -178,3 +178,21 @@ revision. Fresh opening/resume/settings authorizations retain strict expiry and
 revision checks. The review's failing tests are retained and promoted to
 `test_operator_safety_priority.py`; final re-review and exact-head tests are still
 required. No branch/main promotion occurred on the rejected freeze.
+
+The corrected tree `f12bba80dd86ab2e0752c148dae6dcd4458fa278` was published as
+`26bc406f740f402d3ac95aa4a15074344025a276` in draft PR #3. The original main
+is preserved at `recovery/telegram-operator-baseline-9552357`. Its 3.11 suite
+passed 2,026 cases, but adjacent independent review reproduced a second-read
+race rejecting a freshly authenticated textual `/stop`. The direct command now
+captures one revision for its action and consumption; the reviewer reproduction
+is retained in `test_operator_direct_stop_race.py`.
+
+Initial exact-head public-source workflows failed at hash installation, before
+source calls: the runtime-only lock contained only Python 3.11 native wheels.
+Ubuntu 24.04/Python 3.12 support now includes the corresponding already-reviewed
+hashes from the existing execution lock, without changing versions or adding
+signing packages. CI still verifies actual downloaded 3.11 wheel hashes, now
+also requires the exact reviewed cross-version hash sets, and installs/imports
+the isolated scanner/controller lock on both versions. Unreviewed extra hashes
+have a rejecting regression. Latest focused operator/lifecycle scope: 181 passed
+on 3.12. Final corrected freeze/CI/re-review remain pending. Main unchanged.

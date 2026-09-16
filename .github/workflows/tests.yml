@@ -39,16 +39,48 @@ jobs:
           echo '--- GENERATED RUNTIME HASH LOCK ---'
           cat "$out"
           cp "$out" generated-runtime-hashed.txt
-          diff -u requirements-runtime-hashed.txt generated-runtime-hashed.txt
+          python -m tools.verify_runtime_hash_inventory --generated generated-runtime-hashed.txt
       - name: Prove hash-locked runtime installation
         shell: bash
         run: |
           python -m pip install --disable-pip-version-check --require-hashes -r requirements-runtime-hashed.txt
           python -m pip check
+      - name: Check complete reviewed runtime hash inventory
+        run: python -m tools.verify_runtime_hash_inventory
       - uses: actions/upload-artifact@v4
         with:
           name: runtime-hash-lock-py311-ubuntu2404-x86_64
           path: generated-runtime-hashed.txt
+
+  isolated-runtime:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      matrix:
+        python: ['3.11', '3.12']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install isolated scanner/controller lock for the target Python
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          runtime_env="$RUNNER_TEMP/alpha-runtime"
+          python -m venv "$runtime_env"
+          "$runtime_env/bin/python" -m pip install --require-hashes --only-binary=:all: --no-deps -r requirements-runtime-hashed.txt
+          "$runtime_env/bin/python" -m pip check
+          "$runtime_env/bin/python" - <<'PY'
+          from importlib.util import find_spec
+          from tools.verify_runtime_hash_inventory import verify
+          from pathlib import Path
+          from polymarket_scanner.production.controller import Controller
+          from polymarket_scanner.production.collection import Scanner
+          assert find_spec('eth_account') is None
+          assert find_spec('eth_abi') is None
+          print(verify(Path.cwd()), 'runtime pins; scanner/controller import without signing dependencies')
+          PY
 
   test:
     runs-on: ubuntu-latest

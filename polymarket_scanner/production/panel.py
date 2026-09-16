@@ -243,9 +243,10 @@ class OperatorPanel:
                 elif text.split(" ")[0] in {"/start","/status","/recent","/positions","/stats","/orders","/settings","/stop","/cancel_open"}:
                     command=text.split(" ")[0]
                     if command in {"/stop","/cancel_open"}:
-                        identity=self.store.action(actor,"PAUSE" if command=="/stop" else "CANCEL",{},self.settings()["revision"])
+                        revision=self.settings()["revision"]
+                        identity=self.store.action(actor,"PAUSE" if command=="/stop" else "CANCEL",{},revision)
                         self.store.bind_message([identity],message["message_id"])
-                        self.store.click(identity,actor=actor,message_id=message["message_id"],update_id=update["update_id"],revision=self.settings()["revision"])
+                        self.store.click(identity,actor=actor,message_id=message["message_id"],update_id=update["update_id"],revision=revision)
                         if self.config.mode=="LIVE_SIGNALS": self.process_signals_requests()
                         await self.message(actor,"Safety request durably recorded. New openings paused; cancellation is only requested, never presumed confirmed. Held positions remain. Use /status for current state.")
                         return
