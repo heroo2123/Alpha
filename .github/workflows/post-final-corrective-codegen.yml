@@ -27,6 +27,16 @@ jobs:
           set -Eeuo pipefail
           cat .corrective_tmp/chunk0 .corrective_tmp/chunk1 .corrective_tmp/chunk2 .corrective_tmp/chunk3 .corrective_tmp/chunk4 \
             | base64 -d | gzip -d > /tmp/post_final_codegen.py
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('/tmp/post_final_codegen.py')
+          text = path.read_text(encoding='utf-8')
+          old = "addition=needle+r'''\\n    @staticmethod\\n"
+          new = "addition=needle+'''\\n    @staticmethod\\n"
+          if old not in text:
+              raise SystemExit('expected generator escape target missing')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
           python -m py_compile /tmp/post_final_codegen.py
           python /tmp/post_final_codegen.py
           rm -rf .corrective_tmp
