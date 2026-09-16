@@ -14,6 +14,7 @@ from datetime import datetime
 import hashlib
 import hmac
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -36,6 +37,7 @@ MAX_ITEMS = 10_000
 MAX_PREPARED_AGE = 5
 MAX_BOOK_AGE = 15
 MAX_ACCOUNT_SNAPSHOT_AGE = 15
+MINIMUM_SIZE_POLICY = "REQUIRE_BOTH_SHARES_AND_BUY_NOTIONAL"
 ORDER_FIELDS = (
     ("salt", "uint256"), ("maker", "address"), ("signer", "address"),
     ("tokenId", "uint256"), ("makerAmount", "uint256"), ("takerAmount", "uint256"),
@@ -46,6 +48,56 @@ ORDER_FIELDS = (
 
 def canonical(value: object) -> str:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False)
+
+
+def validate_buy_minimum(snapshot: dict, quantity, price) -> None:
+    """Conservative supported subset while official minimum units are ambiguous.
+
+    We require both shares and submitted BUY notional to reach the API's
+    returned numeric minimum. This is our policy, not a claim that the venue
+    enforces both units, nor a constraint on later partial-fill quantities.
+    Post-only maker orders use the same submission-size checks as taker orders.
+    """
+    if not isinstance(snapshot, dict) or snapshot.get("minimum_size_policy") != MINIMUM_SIZE_POLICY:
+        raise ExchangeError("MINIMUM_SIZE_POLICY_MISSING_OR_UNSUPPORTED")
+    minimum = number(snapshot.get("min_order_size"), positive=True)
+    notional = number(snapshot.get("minimum_buy_notional"), positive=True)
+    if minimum != notional:
+        raise ExchangeError("MINIMUM_SIZE_POLICY_EVIDENCE_MISMATCH")
+    quantity, price = number(quantity, positive=True), number(price, positive=True)
+    if price >= 1:
+        raise ExchangeError("INVALID_BUY_PRICE")
+    if quantity < minimum:
+        raise ExchangeError("ORDER_SIZE_INVALID")
+    if quantity * price < notional:
+        raise ExchangeError("BUY_NOTIONAL_BELOW_CONSERVATIVE_MINIMUM")
+
+
+def _fee_diagnostics(info: dict, market: dict, *, token: str, condition: str, observed_at) -> dict:
+    """Bounded public-only evidence; no arbitrary body, header or account data."""
+    def scalar(value):
+        if value is None or type(value) is bool:
+            return value
+        if type(value) is int and -(2**256) < value < 2**256:
+            return value
+        if type(value) is float and math.isfinite(value):
+            return value
+        if isinstance(value, str) and len(value) <= 128:
+            return value
+        return "INVALID_PUBLIC_FIELD"
+
+    def fields(value, names):
+        if not isinstance(value, dict):
+            return None
+        return {name: scalar(value[name]) for name in names if name in value}
+
+    clob = fields(info, ("mbf", "tbf", "oas", "mos", "mts"))
+    clob["fd"] = fields(info.get("fd"), ("r", "e", "to"))
+    gamma = fields(market, ("conditionId", "feesEnabled", "feeType"))
+    gamma["feeSchedule"] = fields(market.get("feeSchedule"), ("rate", "exponent", "takerOnly", "rebateRate"))
+    return {"observed_at": observed_at, "token": token, "condition": condition,
+            "clob_url": CLOB + "/clob-markets/" + condition, "clob": clob,
+            "gamma_url": GAMMA + "/markets?condition_ids=" + condition, "gamma": gamma}
 
 
 def _array(value: object) -> list:
@@ -131,6 +183,7 @@ class PublicMarketReader:
     def __init__(self, *, fee_policy: str, transport, chain, clock=time.time):
         self.fee_policy = validate_policy(fee_policy)
         self.transport, self.chain, self.clock = transport, chain, clock
+        self.last_fee_diagnostics = None
 
     def _get(self, path: str, *, params=None, base=CLOB):
         status, value = self.transport.request("GET", base + path, params=params)
@@ -140,6 +193,7 @@ class PublicMarketReader:
 
     def market_snapshot(self, token: str, condition: str) -> dict:
         started = self.clock()
+        self.last_fee_diagnostics = None
         token, condition = _token(token), hash32(condition)
         gamma = self._get("/markets", params={"condition_ids": condition, "limit": 2}, base=GAMMA)
         if not isinstance(gamma, list) or len(gamma) != 1 or not isinstance(gamma[0], dict):
@@ -150,6 +204,9 @@ class PublicMarketReader:
         if any(market.get(k) is not True for k in ("active", "acceptingOrders", "enableOrderBook")) or market.get("closed") is not False:
             raise ExchangeError("MARKET_NOT_TRADABLE")
         info = self._get("/clob-markets/" + condition)
+        if isinstance(info, dict):
+            self.last_fee_diagnostics = _fee_diagnostics(info, market, token=token,
+                                                        condition=condition, observed_at=self.clock())
         book = self._get("/book", params={"token_id": token})
         if not isinstance(info, dict) or not isinstance(book, dict):
             raise ExchangeError("MARKET_CONTEXT_INVALID")
@@ -207,8 +264,10 @@ class PublicMarketReader:
         result = {"token": token, "condition": condition, "book": levels, "fee_rate": str(rate),
                 "fee_exponent": str(exponent), "taker_only_fee": fee["to"], "tick_size": str(tick),
                 "min_order_size": str(minimum), "neg_risk": neg_risk, "exchange": exchange,
+                "minimum_buy_notional": str(minimum), "minimum_size_policy": MINIMUM_SIZE_POLICY,
                 "max_fee_bps": maximum_fee, "received_at": observed,
                 "fee_policy": self.fee_policy, "fee_evidence": evidence,
+                "minimum_order_age_seconds": uint(info["oas"]) if "oas" in info else None,
                 "book_timestamp": float(stamp), "market": market}
         fee_requirement(result, Decimal("0.5"), False, expected_policy=self.fee_policy)
         return result
@@ -528,8 +587,9 @@ class ExchangeEOA:
         tick = Decimal(snapshot["tick_size"])
         if not tick <= price <= 1 - tick or price % tick:
             raise ExchangeError("PRICE_OFF_TICK_GRID")
-        if quantity < Decimal(snapshot["min_order_size"]) or quantity % Decimal("0.01"):
+        if quantity % Decimal("0.01"):
             raise ExchangeError("ORDER_SIZE_INVALID")
+        validate_buy_minimum(snapshot, quantity, price)
         bound = fee_requirement(snapshot, price, order_type == "GTD", expected_policy=self.fee_policy)
         if bound > cap:
             raise ExchangeError("EXCHANGE_FEE_BOUND_EXCEEDS_OPERATOR_CAP")

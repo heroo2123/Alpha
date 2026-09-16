@@ -90,6 +90,7 @@ class ContractWire(Wire):
 def test_real_adapter_intent_submission_restart_and_chain_fill_accounting(tmp_path, monkeypatch, rejected, fee_policy):
     monkeypatch.setattr(time, "time", lambda: NOW)
     cfg = replace(config(tmp_path, fee_policy=fee_policy), wallet=WALLET, signer=WALLET)
+    cfg = replace(cfg, risk=replace(cfg.risk, per_order=Decimal("6")))
     cfg.activation_file.write_text(json.dumps({"action": "ACTIVATE_LIVE_EXECUTION", "wallet": WALLET, "config_sha256": cfg.config_sha256}))
     signal = candidate()
     signal["legs"][0].update(token=TOKEN, condition=CONDITION)

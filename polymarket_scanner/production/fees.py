@@ -105,11 +105,15 @@ def fee_requirement(snapshot: dict, limit_price, post_only: bool,
     maximum = uint(evidence.get("max_fee_bps"))
     if maximum >= 10_000:
         raise ExchangeError("EXCHANGE_FEE_MAXIMUM_INVALID")
-    # Nonzero legacy/base fees have no reviewed composition with fd. Do not
-    # silently ignore an extra fee component or substitute absent fields with 0.
+    # The official SDK 0.10.0 MarketInfo and BUY budget calculation read the
+    # platform rate/exponent from fd only. mbf/tbf are retained bps metadata;
+    # there is no SDK additive term for them. Requiring zero invents a fee
+    # policy that rejects ordinary fee-enabled markets. Keep their documented
+    # nonnegative int64 shape and evidence, without guessing a composition or
+    # treating this metadata as a contractual ceiling.
     for field in ("maker_base_fee_bps", "taker_base_fee_bps"):
-        if uint(evidence.get(field)) != 0:
-            raise ExchangeError("BASE_FEE_COMPOSITION_UNSUPPORTED")
+        if uint(evidence.get(field)) >= 2**63:
+            raise ExchangeError("FEE_METADATA_INVALID")
     with localcontext() as context:
         context.prec = 80
         context.rounding = ROUND_CEILING

@@ -46,6 +46,23 @@ the engine also persists the exact signed wire and its SHA-256 before arming one
 POST. Lost, inconsistent or failed HTTP responses remain UNKNOWN unless an
 explicit rejection was received. The worker must never replay an unknown POST.
 
+Minimum-size admission uses an explicit conservative subset because the
+[market-details documentation](https://docs.polymarket.com/market-data/market-details#trading-constraints)
+labels the minimum as notional, whereas the CLOB book exposes an unlabeled
+numeric minimum and limit-order sizes are shares. The bot does not claim the
+venue enforces both interpretations. Its policy
+`REQUIRE_BOTH_SHARES_AND_BUY_NOTIONAL` requires submitted shares to be at least
+the returned minimum and `shares × BUY limit price` to be at least that same
+numeric minimum. The public reader exposes both thresholds and the policy;
+the public quote probe and pre-sign adapter call the same validation helper.
+`BUY_NOTIONAL_BELOW_CONSERVATIVE_MINIMUM` precisely identifies a share-valid
+order that fails the notional condition. This applies equally to FAK/FOK takers
+and post-only GTD makers: maker status changes fees, not this admission policy.
+For example, a returned minimum of 5 and a BUY limit of 0.40 require at least
+12.50 submitted shares, plus separately reserved fees. The bot never increases
+the operator's capital or order limits to meet a minimum. Smaller partial fills
+remain valid accounting evidence; the policy constrains submission, not each fill.
+
 GTD expiration has the documented safety buffer; this implementation requires
 an expiration at least 180 seconds ahead. Weather/thesis expiry is independent
 and can trigger an earlier cancellation request. A cancel response alone does
@@ -117,10 +134,28 @@ The reviewed SDK's `_internal/actions/orders/market.py` function
 `adjust_buy_amount_for_fees` computes platform fees as
 `shares × fd.r × (price × (1-price)) ** fd.e`, added to BUY notional. This
 implementation supports explicit nonnegative integer exponents 0–4, rates 0–1,
-`fd.to=true`, zero maker/taker base fees and the zero signed builder identifier.
-Unknown fee components, nonzero base fees or other exponents are rejected.
+`fd.to=true` and the zero signed builder identifier. Unknown curve components
+or other exponents are rejected.
 Zero published rates are accepted only when explicitly supplied. Post-only GTD
 uses the documented maker fee of zero; a taker order cannot claim that exemption.
+
+The CLOB `mbf`/`tbf` fields are preserved as nonnegative int64 basis-point
+metadata. Their presence does not add another platform fee or require a zero
+value. In the reviewed SDK, `_parse_platform_fee_info` in
+`_internal/actions/orders/market_data.py` selects only `fd.r` and `fd.e`;
+`MarketInfo` carries no base-fee fields. The BUY budget calculation adds that
+platform curve and a separately attributed builder fee. Requiring zero base
+fields therefore rejected ordinary API records for a reason absent from the
+official implementation. The adapter follows the SDK calculation; it does not
+invent an additive composition or assert that the base metadata is an onchain
+cap. Actual confirmed fees still override every estimate.
+
+The reviewed `polymarket_client-0.10.0-py3-none-any.whl` SHA-256 is
+`f378e07351d4bfdf390ca84c6ba47898f9a715f2f4446afe0446bbeafa495ee5`.
+This identifies the inspected source artifact; the SDK is not installed into the
+production worker. The public probe also records bounded CLOB `fd`/`mbf`/`tbf`
+and Gamma `feesEnabled`/`feeType`/`feeSchedule` fields on failures, so unsupported
+schemas and stale books retain their real public evidence.
 
 For a taker BUY limit `L`, the curve's peak over possible execution prices is at
 `min(L, 0.5)`, including favorable price improvement. The schedule requirement
@@ -139,9 +174,19 @@ This hash prevents accidental evidence substitution; it is not an exchange
 signature or independent provenance. `PublicMarketReader` is shared between the
 signer adapter and the public probe, and does not load credentials. The public
 probe reports real zero chain maxima, strict weather-contract semantics and
-current CLOB evidence. Its bounded sample is not a full census or account/host
+current CLOB evidence. It collects the bounded event sample first, then gives
+each supported event one book attempt per round, visiting central buckets first.
+An event with many stale buckets cannot consume every attempt before later
+events are examined. Its bounded sample is not a full census or account/host
 acceptance; an empty order book is a labelled opportunity skip, not a fabricated
 quote or proof of a profitable trade.
+
+The optional CLOB `oas` value is retained as `minimum_order_age_seconds` and in
+public diagnostics. The API reference labels it minimum order age, while the
+reviewed SDK does not consume it. Neither source establishes a cancellation
+latency guarantee. The bot therefore does not infer that requesting cancellation
+is immediately effective; outstanding orders and reserves remain until actual
+reconciliation. GTD's separate 180-second expiration buffer follows the SDK.
 
 Only successful receipts at or below a fresh finalized Polygon block, with
 canonical block hashes and consistent log identities, produce actual fills.

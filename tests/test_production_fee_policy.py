@@ -175,3 +175,36 @@ def test_fee_evidence_missing_or_policy_mismatch_never_defaults_to_free(harness,
     with pytest.raises(ExchangeError, match="FEE_EVIDENCE_MISSING"):
         asyncio.run(engine.execute(signal))
     assert exchange.posts == []
+
+
+@pytest.mark.parametrize("cost,fee,code", [(4, 1, "ACTUAL_FEE_LIMIT_BREACH"), (5, 0, "ACTUAL_PRICE_LIMIT_BREACH")])
+def test_fragment_rounding_tolerance_cannot_accumulate_past_order_limit(harness, cost, fee, code):
+    cfg, signal, store, ledger, exchange, weather, engine = harness
+    from polymarket_scanner.production.chain import decode_fills, STANDARD_EXCHANGE
+    from test_production_exchange import fill_log, receipt, OID
+    original = exchange.prepare_buy
+
+    def prepare(**kwargs):
+        return dict(original(**kwargs), order_id=OID)
+
+    exchange.prepare_buy = prepare
+    assert asyncio.run(engine.execute(signal))
+    logs = [fill_log(quantity=10, cost=cost, fee=fee, index=i, wallet=cfg.wallet, token="123") for i in range(2)]
+    fills = decode_fills(receipt(logs), order_id=OID, wallet=cfg.wallet, token="123", exchange=STANDARD_EXCHANGE)
+    ledger.record_fill(fills[0])
+    assert ledger.state("fault") is None
+    ledger.record_fill(fills[1])
+    assert ledger.summary()["confirmed_fill_count"] == 2
+    assert ledger.state("fault") == code
+    assert ledger.orders()[0]["status"] == "CANCEL_REQUESTED"
+    assert ledger.positions()[0]["quantity"] == 20
+
+
+def test_conservative_notional_minimum_is_checked_before_reserving(harness):
+    cfg, signal, store, ledger, exchange, weather, engine = harness
+    original = exchange.market_snapshot
+    exchange.market_snapshot = lambda *args: dict(original(*args), min_order_size="10")
+    with pytest.raises(ExecutionError, match="BUY_NOTIONAL_BELOW_CONSERVATIVE_MINIMUM"):
+        asyncio.run(engine.execute(signal))
+    assert exchange.posts == []
+    assert ledger.summary()["reserved_micros"] == 0

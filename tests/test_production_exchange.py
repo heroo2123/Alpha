@@ -21,7 +21,7 @@ from polymarket_scanner.production.chain import (
     decode_redemptions, keccak,
 )
 from polymarket_scanner.production.exchange import (
-    CLOB, DATA, GAMMA, GEOBLOCK, ExchangeEOA, PublicMarketReader, canonical, order_hash, typed_order,
+    CLOB, DATA, GAMMA, GEOBLOCK, ExchangeEOA, PublicMarketReader, canonical, order_hash, typed_order, validate_buy_minimum,
 )
 
 NOW = 1_789_545_600
@@ -97,7 +97,7 @@ def context():
 
 
 def prepare(exchange, **kwargs):
-    values = dict(token=TOKEN, condition=CONDITION, quantity="5", price=".40",
+    values = dict(token=TOKEN, condition=CONDITION, quantity="15", price=".40",
                   order_type="FAK", fee_cap=".02")
     values.update(kwargs)
     return exchange.prepare_buy(**values)
@@ -163,7 +163,7 @@ def test_sign_only_deterministic_hash_matches_solidity_eip712_and_no_post():
     assert prepared["order_id"] == "0x" + keccak(b"\x19\x01" + domain + body).hex()
     assert Account.recover_message(encode_typed_data(full_message=message), signature=order["signature"]).lower() == WALLET
     assert all(method == "GET" for method, *_ in wire.calls)
-    assert order["makerAmount"] == "2000000" and order["takerAmount"] == "5000000"
+    assert order["makerAmount"] == "6000000" and order["takerAmount"] == "15000000"
     assert prepared["fee_bound"] == "0.008"
     assert prepared["wire"] == canonical(prepared["payload"])
     assert order_hash(dict(order, expiration="9999999999"), STANDARD_EXCHANGE) == prepared["order_id"]
@@ -186,7 +186,7 @@ def test_accepted_response_lost_recovers_by_precomputed_hash_without_second_post
     exchange = client(wire)
     prepared = prepare(exchange)
     assert exchange.submit(prepared) == "UNKNOWN"
-    wire.responses.append((200, raw_order(id=prepared["order_id"])))
+    wire.responses.append((200, raw_order(id=prepared["order_id"], original_size=prepared["quantity"])))
     recovered = exchange.get_order(prepared["order_id"])
     assert recovered["matched"] == 2_000_000
     assert [x[0] for x in wire.calls].count("POST") == 1
@@ -681,3 +681,47 @@ def test_rpc_mutations_invalid_chain_and_stale_blocks_refused(monkeypatch):
     monkeypatch.setattr(chain, "rpc", lambda method, args: "0x89" if method == "eth_chainId" else {"number": "0x64", "hash": BLOCK, "timestamp": hex(NOW-181)})
     with pytest.raises(ExchangeError, match="STALE_CHAIN_BLOCK"):
         chain.block()
+
+
+@pytest.mark.parametrize("order_type,price,extra", [
+    ("FAK", ".40", {}), ("FOK", ".40", {}),
+    ("GTD", ".39", {"post_only": True, "expiration": NOW+180}),
+])
+def test_buy_share_minimum_does_not_prove_conservative_notional_minimum(order_type, price, extra):
+    wire = Wire(context())
+    with pytest.raises(ExchangeError, match="BUY_NOTIONAL_BELOW_CONSERVATIVE_MINIMUM"):
+        prepare(client(wire), quantity="5", price=price, order_type=order_type, **extra)
+    assert all(call[0] == "GET" for call in wire.calls)
+
+
+@pytest.mark.parametrize("quantity,price,order_type,extra", [
+    ("12.50", ".40", "FAK", {}),
+    ("12.83", ".39", "GTD", {"post_only": True, "expiration": NOW+180}),
+])
+def test_both_conservative_minima_pass_at_valid_submission_boundaries(quantity, price, order_type, extra):
+    adapter = client(Wire(context()))
+    order = prepare(adapter, quantity=quantity, price=price, order_type=order_type, **extra)
+    assert Decimal(order["quantity"]) >= 5
+    assert Decimal(order["quantity"])*Decimal(order["price"]) >= 5
+    assert order["market"]["minimum_size_policy"] == "REQUIRE_BOTH_SHARES_AND_BUY_NOTIONAL"
+    assert order["market"]["minimum_buy_notional"] == order["market"]["min_order_size"] == "5"
+
+
+@pytest.mark.parametrize("quantity,price,order_type,extra", [
+    ("12.49", ".40", "FAK", {}),
+    ("12.82", ".39", "GTD", {"post_only": True, "expiration": NOW+180}),
+])
+def test_conservative_notional_minimum_is_not_rounded_up_to_pass(quantity, price, order_type, extra):
+    with pytest.raises(ExchangeError, match="BUY_NOTIONAL_BELOW_CONSERVATIVE_MINIMUM"):
+        prepare(client(Wire(context())), quantity=quantity, price=price, order_type=order_type, **extra)
+
+
+def test_minimum_policy_metadata_cannot_disagree_or_default_away():
+    sample = client(Wire(context())).market_snapshot(TOKEN, CONDITION)
+    validate_buy_minimum(sample, "12.5", ".4")
+    sample["minimum_buy_notional"] = "1"
+    with pytest.raises(ExchangeError, match="MINIMUM_SIZE_POLICY_EVIDENCE_MISMATCH"):
+        validate_buy_minimum(sample, "12.5", ".4")
+    sample.pop("minimum_size_policy")
+    with pytest.raises(ExchangeError, match="MINIMUM_SIZE_POLICY_MISSING_OR_UNSUPPORTED"):
+        validate_buy_minimum(sample, "12.5", ".4")

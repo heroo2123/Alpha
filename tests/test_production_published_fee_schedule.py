@@ -85,8 +85,8 @@ def test_explicit_zero_published_rate_is_different_from_missing_fee_evidence():
     ("fd", {"r": ".05", "e": "1", "to": False}, "FEE_SCOPE_UNSUPPORTED"),
     ("fd", {"r": ".05", "e": "1", "to": "true"}, "FEE_EVIDENCE_MISSING"),
     ("fd", {"r": ".05", "e": "1", "to": True, "future_fee": 1}, "FEE_EVIDENCE_MISSING"),
-    ("mbf", 1, "BASE_FEE_COMPOSITION_UNSUPPORTED"),
-    ("tbf", 1, "BASE_FEE_COMPOSITION_UNSUPPORTED"),
+    ("mbf", -1, "INVALID_UINT"),
+    ("tbf", 2**63, "FEE_METADATA_INVALID"),
     ("mbf", None, "INVALID_UINT"),
 ])
 def test_unsupported_or_missing_schedule_never_becomes_zero(field, value, code):
@@ -165,3 +165,16 @@ def test_evidence_builder_detaches_the_raw_payload():
         max_fee_block={"number": 100, "hash": BLOCK}, maker_base_fee_bps=0, taker_base_fee_bps=0)
     raw["r"] = "0"
     assert proof["fd"]["r"] == ".05"
+
+
+def test_nonzero_base_bps_metadata_is_not_an_additive_sdk_platform_fee():
+    source = context()
+    source[1][1].update(mbf=1000, tbf=1000)
+    chain = Chain()
+    chain.fee = 0
+    sample = PublicMarketReader(fee_policy=EXCHANGE_PUBLISHED_SCHEDULE, transport=Wire(source),
+                                chain=chain, clock=lambda: NOW).market_snapshot(TOKEN, CONDITION)
+    assert sample["fee_evidence"]["maker_base_fee_bps"] == 1000
+    assert sample["fee_evidence"]["taker_base_fee_bps"] == 1000
+    assert fee_requirement(sample, ".4", False) == Decimal(".024")
+    assert fee_requirement(sample, ".4", True) == 0

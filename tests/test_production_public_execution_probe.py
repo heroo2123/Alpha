@@ -14,8 +14,9 @@ from test_weather_final_gpt6_exact_replays import _event
 def event():
     value = _event(target=date(2026, 9, 16))
     for index, market in enumerate(value["markets"]):
-        market["conditionId"] = CONDITION if index == 0 else "0x" + f"{index:02x}" * 32
-        market["clobTokenIds"] = [str(int(TOKEN) + index*2), str(int(TOKEN) + index*2+1)]
+        market["conditionId"] = CONDITION if index == 1 else "0x" + f"{index:02x}" * 32
+        offset = 0 if index == 1 else (index+1)*2
+        market["clobTokenIds"] = [str(int(TOKEN) + offset), str(int(TOKEN) + offset+1)]
     return value
 
 
@@ -70,7 +71,7 @@ def test_no_liquidity_is_reported_as_quote_skip_without_inventing_quote(monkeypa
 @pytest.mark.parametrize("change,code", [
     (lambda x: x[1][1].pop("fd"), "FEE_EVIDENCE_MISSING"),
     (lambda x: x[1][1].pop("mbf"), "INVALID_UINT"),
-    (lambda x: x[1][1].update(tbf=100), "BASE_FEE_COMPOSITION_UNSUPPORTED"),
+    (lambda x: x[1][1].update(tbf=-1), "INVALID_UINT"),
     (lambda x: x[2][1].update(timestamp=str((NOW-20)*1000)), "BOOK_STALE"),
 ])
 def test_missing_or_unreviewed_fees_and_stale_books_do_not_pass_public_gate(monkeypatch, tmp_path, change, code):
@@ -98,3 +99,84 @@ def test_unsupported_weather_is_not_accepted_for_fee_coverage():
 def test_incomplete_public_discovery_does_not_become_complete_empty_census():
     with pytest.raises(ExchangeError, match="PUBLIC_SAMPLE_DISCOVERY_INVALID"):
         probe.sample_market(Wire([(200, {"events": []})]), Chain(), {}, clock=lambda: NOW)
+
+
+@pytest.mark.parametrize("split_pages", [False, True])
+def test_stale_first_event_cannot_monopolize_attempts_and_starve_fresh_later_event(monkeypatch, split_pages):
+    first, second = event(), event()
+    second["id"] = "later-event"
+    second["slug"] = "later-event"
+    condition, token = "0x" + "45"*32, str(int(TOKEN)+1000)
+    second["markets"][1].update(conditionId=condition, clobTokenIds=[token, str(int(token)+1)])
+    stale, fresh = context(), context()
+    stale[2][1]["timestamp"] = str((NOW-30)*1000)
+    fresh[0][1][0].update(conditionId=condition, clobTokenIds=[token, str(int(token)+1)])
+    fresh[1][1].update(t=[{"t": token}], mbf=1000, tbf=1000, oas=180)
+    fresh[2][1].update(asset_id=token, market=condition)
+    discovery = [(200, {"events": [first, second], "next_cursor": None})]
+    if split_pages:
+        discovery = [(200, {"events": [first], "next_cursor": "next"}),
+                     (200, {"events": [second], "next_cursor": None})]
+    wire = Wire(discovery + stale + fresh)
+    monkeypatch.setattr(probe, "MAX_MARKET_ATTEMPTS", 2)
+    chain = Chain()
+    chain.fee = 0
+    report = {}
+    probe.sample_market(wire, chain, report, clock=lambda: NOW)
+    assert report["supported_events_in_sample"] == 2
+    attempts = report["market_attempts"]
+    assert [row["event_id"] for row in attempts] == [first["id"], "later-event"]
+    assert attempts[0]["reason"] == "BOOK_STALE"
+    assert attempts[0]["public_fee_diagnostics"]["clob"]["fd"]["r"] == ".05"
+    assert attempts[1]["status"] == "PUBLIC_MARKET_FEE_POLICY_VERIFIED"
+    assert attempts[1]["public_fee_diagnostics"]["clob"] == {
+        "fd": {"r": ".05", "e": "1", "to": True}, "mbf": 1000, "tbf": 1000,
+        "mos": "5", "mts": ".01", "oas": 180}
+    assert attempts[1]["minimum_order_age_seconds"] == 180
+    assert attempts[1]["fee_policies"][EXCHANGE_PUBLISHED_SCHEDULE]["required_fee_per_share"] == "0.024000"
+    assert all(call[0] == "GET" for call in wire.calls)
+
+
+def test_public_numeric_diagnostics_retained_on_failed_validation_and_whitelisted(monkeypatch, tmp_path):
+    def change(source):
+        source[0][1][0].update(feesEnabled=True, feeType="weather_fees", feeSchedule={
+            "rate": .05, "exponent": 1, "takerOnly": True, "rebateRate": .25,
+            "irrelevant_field": "NEVER_EXPORT"}, extra="NEVER_EXPORT")
+        source[1][1].update(mbf=1000, tbf=1000, oas=180, extra="NEVER_EXPORT")
+        source[2][1]["timestamp"] = str((NOW-30)*1000)
+    setup_probe(monkeypatch, change=change)
+    monkeypatch.setattr(probe, "MAX_MARKET_ATTEMPTS", 1)
+    output = tmp_path / "failed.json"
+    with pytest.raises(SystemExit):
+        probe.run(output)
+    report = json.loads(output.read_text())
+    diag = report["market_attempts"][0]["public_fee_diagnostics"]
+    assert diag["clob"]["mbf"] == diag["clob"]["tbf"] == 1000
+    assert diag["gamma"]["feesEnabled"] is True
+    assert diag["gamma"]["feeSchedule"]["rate"] == .05
+    assert diag["observed_at"] == NOW and diag["condition"] == CONDITION
+    assert "NEVER_EXPORT" not in output.read_text()
+
+
+def test_public_probe_share_depth_without_conservative_notional_is_quote_skip(monkeypatch, tmp_path):
+    def change(source):
+        source[2][1]["asks"] = [{"price": ".4", "size": "5"}]
+    setup_probe(monkeypatch, change=change)
+    report = probe.run(tmp_path / "minimum.json")
+    row = report["market_attempts"][0]
+    assert row["quote_status"] == "NO_EXECUTABLE_MINIMUM_SIZE"
+    assert row["quote_price_for_minimum_size"] is None
+    assert row["min_order_size"] == row["minimum_buy_notional"] == "5"
+    assert row["minimum_size_policy"] == "REQUIRE_BOTH_SHARES_AND_BUY_NOTIONAL"
+    assert row["fee_policies"][EXCHANGE_PUBLISHED_SCHEDULE]["supported"] is True
+
+
+def test_public_probe_walks_depth_until_both_share_and_notional_minima_fit(monkeypatch, tmp_path):
+    def change(source):
+        source[2][1]["asks"] = [{"price": ".4", "size": "5"}, {"price": ".5", "size": "5"}]
+    setup_probe(monkeypatch, change=change)
+    report = probe.run(tmp_path / "minimum.json")
+    row = report["market_attempts"][0]
+    assert row["quote_status"] == "AVAILABLE"
+    assert row["quote_price_for_minimum_size"] == "0.5"
+    assert row["quoted_depth"] == "10"

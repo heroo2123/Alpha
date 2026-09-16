@@ -60,6 +60,8 @@ class ExecutionEngine:
         """A failed comparison stops opening; confirmed fills remain append-only."""
         started = time.time()
         self.reconciled = False
+        if self.ledger.audit_fill_limits_upgrade():
+            await self.manage_existing()
         hot = self.ledger.orders()
         watermark = self.ledger.state("trade_census_after")
         trade_after = int(watermark) - 300 if watermark else None
@@ -309,6 +311,10 @@ class ExecutionEngine:
         quantity = quantity.quantize(Decimal("0.01"), rounding=ROUND_FLOOR)
         if quantity <= 0 or any(quantity < Decimal(x["min_size"]) for x in legs):
             raise ExecutionError("INSUFFICIENT_LIQUIDITY_OR_MINIMUM")
+        # Public interfaces use ambiguous share/notional minimum terminology.
+        # Our supported subset must meet both, including passive maker orders.
+        if any(quantity * Decimal(x["price"]) < Decimal(x["min_size"]) for x in legs):
+            raise ExecutionError("BUY_NOTIONAL_BELOW_CONSERVATIVE_MINIMUM")
         for leg in legs:
             leg["quantity"] = str(quantity)
         expires = min(signal["expires"], fresh["expires"], time.time() + 20)

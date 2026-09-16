@@ -100,6 +100,44 @@ class ExecutionLedger:
             db.execute("UPDATE execution_intents SET reserved=(SELECT COALESCE(SUM(o.reserved),0) FROM execution_orders o WHERE o.intent_id=execution_intents.id),status='RECOVERED'")
             self.audit(db, "CRASH_RECOVERY", self.wallet, {})
 
+    def audit_fill_limits_upgrade(self) -> bool:
+        """Once per policy version, audit fills written by earlier implementations.
+
+        The completion marker, faults and cancellation queue share one commit.
+        Keeping the marker after explicit operator recovery acknowledges the old
+        evidence; duplicate receipt walks must not repeatedly resurrect it.
+        New fills are always checked separately by record_fill.
+        """
+        if self.state("fill_limit_audit_version") == "1":
+            return False
+        breached = 0
+        with self.transaction() as db:
+            done = db.execute("SELECT value FROM execution_state WHERE key='fill_limit_audit_version'").fetchone()
+            if done and done[0] == "1":
+                return False
+            rows = db.execute("""SELECT o.id,o.quantity,o.limit_price,o.fee_cap,
+                SUM(f.quantity) AS filled,SUM(f.cost) AS cost,SUM(f.fee) AS fee
+                FROM execution_orders o JOIN execution_fills f ON f.order_id=o.id
+                GROUP BY o.id ORDER BY o.id""")
+            for row in rows:
+                code = None
+                if row["filled"] > row["quantity"]:
+                    code = "ACTUAL_QUANTITY_LIMIT_BREACH"
+                if Decimal(row["cost"]) > Decimal(row["filled"]) * Decimal(row["limit_price"]) + 1:
+                    code = "ACTUAL_PRICE_LIMIT_BREACH"
+                if Decimal(row["fee"]) > Decimal(row["filled"]) * Decimal(row["fee_cap"]) + 1:
+                    code = "ACTUAL_FEE_LIMIT_BREACH"
+                if code:
+                    breached += 1
+                    db.execute("INSERT OR IGNORE INTO execution_state VALUES('fault',?)", (code,))
+                    self.audit(db, "FILL_LIMIT_UPGRADE_BREACH", row["id"],
+                               {"version": 1, "code": code, "quantity": row["filled"], "cost": row["cost"], "fee": row["fee"]})
+            if breached:
+                db.execute("UPDATE execution_orders SET status='CANCEL_REQUESTED',updated=? WHERE status IN ('SUBMITTING','UNKNOWN','ACKNOWLEDGED','PARTIAL')", (time.time() - 16,))
+            db.execute("INSERT OR REPLACE INTO execution_state VALUES('fill_limit_audit_version','1')")
+            self.audit(db, "FILL_LIMIT_UPGRADE_COMPLETE", self.wallet, {"version": 1, "breached_orders": breached})
+        return bool(breached)
+
     @contextmanager
     def connect(self):
         db = sqlite3.connect(self.path, timeout=10, isolation_level=None)
@@ -366,14 +404,17 @@ class ExecutionLedger:
             quantity, cost, fee = (fill[k] for k in ("quantity", "cost", "fee"))
             if any(type(v) is not int for v in (quantity, cost, fee)) or quantity <= 0 or cost < 0 or fee < 0:
                 raise LedgerError("FILL_AMOUNTS_INVALID")
-            cumulative = db.execute("SELECT COALESCE(SUM(quantity),0) FROM execution_fills WHERE order_id=?", (order["id"],)).fetchone()[0] + quantity
+            previous = db.execute("SELECT COALESCE(SUM(quantity),0),COALESCE(SUM(cost),0),COALESCE(SUM(fee),0) FROM execution_fills WHERE order_id=?", (order["id"],)).fetchone()
+            cumulative = previous[0] + quantity
             breach = None
             if cumulative > order["quantity"]:
                 breach = "ACTUAL_QUANTITY_LIMIT_BREACH"
-            if Decimal(cost) > Decimal(quantity) * Decimal(order["limit_price"]) + 1:
+            if (Decimal(cost) > Decimal(quantity) * Decimal(order["limit_price"]) + 1
+                or Decimal(previous[1] + cost) > Decimal(cumulative) * Decimal(order["limit_price"]) + 1):
                 breach = "ACTUAL_PRICE_LIMIT_BREACH"
             # Record real fills even when a fee breached expectations; retain a fault.
-            if Decimal(fee) > Decimal(quantity) * Decimal(order["fee_cap"]) + 1:
+            if (Decimal(fee) > Decimal(quantity) * Decimal(order["fee_cap"]) + 1
+                or Decimal(previous[2] + fee) > Decimal(cumulative) * Decimal(order["fee_cap"]) + 1):
                 breach = "ACTUAL_FEE_LIMIT_BREACH"
             if breach:
                 db.execute("INSERT OR REPLACE INTO execution_state VALUES('fault',?)", (breach,))
