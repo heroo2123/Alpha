@@ -14,16 +14,20 @@ SRC="${RUNTIME_ROOT}/releases/${SHA}/source"
 PY="${RUNTIME_ROOT}/releases/${SHA}/venv/bin/python"
 fail(){ printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 [[ "${SHA}" =~ ^[0-9a-f]{40}$ && "${GEN}" =~ ^[0-9a-f]{64}$ ]] || fail "usage: $0 <sha> <generation>"
-[[ -x "${AUTH}" && -x "${PY}" && -d "${SRC}" ]] || fail "immutable runtime missing"
+[[ -f "${AUTH}" && -x "${PY}" && -d "${SRC}" ]] || fail "immutable runtime missing"
 systemctl is-active --quiet "${UNIT}" 2>/dev/null && fail "preflight requires stopped candidate"
 systemctl is-enabled --quiet "${UNIT}" 2>/dev/null && fail "preflight requires disabled persistence"
-sudo /usr/bin/env -i PATH=/usr/bin:/bin HOME=/nonexistent LANG=C.UTF-8 /usr/bin/python3 "${AUTH}" verify-generation --generation-id "${GEN}" --candidate-sha "${SHA}"
-sudo /usr/bin/env -i PATH=/usr/bin:/bin HOME=/nonexistent LANG=C.UTF-8 /usr/bin/python3 "${AUTH}" verify-runtime-files --generation-id "${GEN}" --candidate-sha "${SHA}"
-sudo /usr/bin/env -i PATH=/usr/bin:/bin HOME=/nonexistent LANG=C.UTF-8 /usr/bin/python3 "${AUTH}" verify-checkout --generation-id "${GEN}" --candidate-sha "${SHA}"
-bash "${SRC}/deploy/setup-all-paper-service.sh" "${SHA}" "${GEN}"
-env -i PATH=/usr/bin:/bin HOME=/nonexistent LANG=C.UTF-8 PYTHONNOUSERSITE=1 ALPHA_DISABLE_DOTENV=1 \
+host(){ sudo /usr/bin/env -i PATH=/usr/bin:/bin HOME=/nonexistent LANG=C.UTF-8 GIT_CONFIG_NOSYSTEM=1 /usr/bin/python3 "${AUTH}" "$@"; }
+host authority-info >/dev/null
+host verify-generation --generation-id "${GEN}" --candidate-sha "${SHA}"
+host verify-runtime-files --generation-id "${GEN}" --candidate-sha "${SHA}"
+host verify-checkout --generation-id "${GEN}" --candidate-sha "${SHA}"
+host verify-telegram-env >/dev/null
+/bin/bash --noprofile --norc "${SRC}/deploy/setup-all-paper-service.sh" "${SHA}" "${GEN}"
+/usr/bin/env -i PATH=/usr/bin:/bin HOME=/nonexistent LANG=C.UTF-8 PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 ALPHA_DISABLE_DOTENV=1 \
   "${PY}" -I -s -E "${SRC}/deploy/check-weather-paper-network.py" --output "${NETWORK_OUT}"
-bash "${SRC}/deploy/pre-release-weather-paper-backup.sh"
-"${PY}" -I -s -E "${SRC}/deploy/attest-all-paper-runtime-v2.py" --app-dir "${APP_DIR}" --release-file "${RELEASE_FILE}" --db "${DB_PATH}" --expected-release-sha "${SHA}" --generation-id "${GEN}" --output "${ATTESTATION_OUT}"
-sudo /usr/bin/env -i PATH=/usr/bin:/bin HOME=/nonexistent LANG=C.UTF-8 /usr/bin/python3 "${AUTH}" verify-runtime-files --generation-id "${GEN}" --candidate-sha "${SHA}"
+/usr/bin/env -i PATH=/usr/bin:/bin HOME=/nonexistent LANG=C.UTF-8 PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 ALPHA_DISABLE_DOTENV=1 \
+  "${PY}" -I -s -E "${SRC}/deploy/attest-all-paper-runtime-v2.py" --app-dir "${APP_DIR}" --release-file "${RELEASE_FILE}" --db "${DB_PATH}" --expected-release-sha "${SHA}" --generation-id "${GEN}" --output "${ATTESTATION_OUT}"
+host verify-runtime-files --generation-id "${GEN}" --candidate-sha "${SHA}"
+! systemctl is-enabled --quiet "${UNIT}" || fail "persistence unexpectedly enabled"
 printf 'PASS: immutable V10 preflight passed; service remains STOPPED/DISABLED.\n'

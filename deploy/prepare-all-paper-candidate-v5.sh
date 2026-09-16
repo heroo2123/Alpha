@@ -1,28 +1,28 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
-APP_DIR="${ALPHA_WEATHER_APP_DIR:-${HOME}/polymarket-weather-paper-app}"
 AUTH=/usr/local/libexec/polymarket-weather-paper-v3/authority.py
 UNIT=polymarket-weather-paper.service
-SHA="${1:-}"; GEN="${2:-}"; SOURCE_REF="${3:-weather-all-paper-post-final-review-corrective-2026-09-16}"
-fail(){ printf 'ERROR: %s\n' "$*" >&2; exit 1; }
-[[ "${SHA}" =~ ^[0-9a-f]{40}$ && "${GEN}" =~ ^[0-9a-f]{64}$ ]] || fail "usage: $0 <candidate-sha> <cutover-generation> [source-ref]"
-[[ -x "${AUTH}" && -d "${APP_DIR}/.git" ]] || fail "host authority/app checkout missing"
-systemctl is-active --quiet "${UNIT}" 2>/dev/null && fail "candidate preparation requires stopped service"
-systemctl is-enabled --quiet "${UNIT}" 2>/dev/null && fail "candidate preparation requires disabled persistence"
-/usr/bin/git -C "${APP_DIR}" fetch --no-tags origin "${SOURCE_REF}"
-[[ "$(/usr/bin/git -C "${APP_DIR}" rev-parse "${SHA}^{commit}")" == "${SHA}" ]] || fail "candidate object unavailable"
-if ! /usr/bin/git -C "${APP_DIR}" merge-base --is-ancestor "${SHA}" FETCH_HEAD; then
-  fail "candidate SHA is not contained in requested source ref"
+SHA="${1:-}"; GEN="${2:-}"
+fail(){ echo "ERROR: $*" >&2; exit 1; }
+[[ "${SHA}" =~ ^[0-9a-f]{40}$ && "${GEN}" =~ ^[0-9a-f]{64}$ ]] || fail "usage: $0 <candidate-sha> <cutover-generation-id>"
+[[ -f "${AUTH}" ]] || fail "independent host authority v3 not installed"
+if systemctl is-active --quiet "${UNIT}" 2>/dev/null || systemctl is-enabled --quiet "${UNIT}" 2>/dev/null; then
+  fail "candidate preparation requires stopped and disabled service"
 fi
-sudo /usr/bin/env -i PATH=/usr/bin:/bin HOME=/nonexistent LANG=C.UTF-8 \
-  /usr/bin/python3 "${AUTH}" verify-generation --generation-id "${GEN}" --candidate-sha "${SHA}"
-# The authority builds source+venv into a root-owned release and installs the unit it
-# rendered from independently pinned policy. Candidate code cannot choose those paths
-# or mutate the executable release afterward.
-sudo /usr/bin/env -i PATH=/usr/bin:/bin HOME=/nonexistent LANG=C.UTF-8 \
-  /usr/bin/python3 "${AUTH}" prepare-candidate --generation-id "${GEN}" --candidate-sha "${SHA}"
-sudo /usr/bin/env -i PATH=/usr/bin:/bin HOME=/nonexistent LANG=C.UTF-8 \
-  /usr/bin/python3 "${AUTH}" activate-checkout --generation-id "${GEN}" --candidate-sha "${SHA}"
-sudo /usr/bin/env -i PATH=/usr/bin:/bin HOME=/nonexistent LANG=C.UTF-8 \
-  /usr/bin/python3 "${AUTH}" verify-runtime-files --generation-id "${GEN}" --candidate-sha "${SHA}"
-printf 'PASS: immutable V10 candidate prepared. SHA=%s generation=%s; service remains STOPPED/DISABLED.\n' "${SHA}" "${GEN}"
+host(){ sudo /usr/bin/env -i PATH=/usr/bin:/bin HOME=/nonexistent LANG=C.UTF-8 GIT_CONFIG_NOSYSTEM=1 /usr/bin/python3 "${AUTH}" "$@"; }
+host authority-info >/dev/null
+host verify-generation --generation-id "${GEN}" --candidate-sha "${SHA}"
+MUTATED=0
+rollback(){ code=$?; if (( code != 0 && MUTATED == 1 )); then host recover --generation-id "${GEN}" || true; fi; exit "$code"; }
+trap rollback EXIT
+# The trusted authority, not candidate code, archives the exact candidate Git object,
+# creates the clean root-owned venv, validates the lock/inventory, and renders/installs
+# the root-owned unit. Candidate checkout mutation happens only after sealing succeeds.
+MUTATED=1
+host prepare-candidate --generation-id "${GEN}" --candidate-sha "${SHA}"
+host verify-runtime-files --generation-id "${GEN}" --candidate-sha "${SHA}"
+host activate-checkout --generation-id "${GEN}" --candidate-sha "${SHA}"
+host verify-checkout --generation-id "${GEN}" --candidate-sha "${SHA}"
+host verify-runtime-files --generation-id "${GEN}" --candidate-sha "${SHA}"
+MUTATED=0; trap - EXIT
+printf 'PASS: immutable V10 candidate prepared by independent authority. Release=%s Generation=%s\n' "${SHA}" "${GEN}"

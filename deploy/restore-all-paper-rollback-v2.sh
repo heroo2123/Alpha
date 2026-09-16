@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
-HOST_RECOVERY="/usr/local/libexec/polymarket-weather-paper/restore-rollback.sh"
-[[ -f "${HOST_RECOVERY}" ]] || { echo 'HOST ROLLBACK AUTHORITY NOT INSTALLED' >&2; exit 2; }
-exec /usr/bin/env -i PATH=/usr/bin:/bin HOME=/nonexistent GIT_CONFIG_NOSYSTEM=1 \
-  /bin/bash --noprofile --norc "${HOST_RECOVERY}" "$@"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+exec /usr/bin/env -i PATH=/usr/bin:/bin HOME="${HOME}" LANG=C.UTF-8 GIT_CONFIG_NOSYSTEM=1 \
+  /bin/bash --noprofile --norc "${SCRIPT_DIR}/restore-all-paper-rollback.sh" "$@"

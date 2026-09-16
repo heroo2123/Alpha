@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
-APP_DIR="${ALPHA_WEATHER_APP_DIR:-${HOME}/polymarket-weather-paper-app}"
-exec /bin/bash "${APP_DIR}/deploy/prepare-all-paper-candidate-v5.sh" "$@"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+exec /usr/bin/env -i PATH=/usr/bin:/bin HOME="${HOME}" LANG=C.UTF-8 GIT_CONFIG_NOSYSTEM=1 \
+  /bin/bash --noprofile --norc "${SCRIPT_DIR}/prepare-all-paper-candidate-v5.sh" "$@"

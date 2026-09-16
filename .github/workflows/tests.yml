@@ -8,17 +8,20 @@ jobs:
   runtime-hash-lock:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    strategy:
+      matrix:
+        python: ['3.11', '3.12']
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
-      - name: Generate exact Ubuntu x86_64 Python 3.11 runtime wheel hash lock
+          python-version: ${{ matrix.python }}
+      - name: Generate exact Ubuntu x86_64 runtime wheel hashes
         shell: bash
         run: |
           set -Eeuo pipefail
           test -f requirements-runtime-hashed.txt || { echo 'committed runtime hash lock missing' >&2; exit 1; }
-          out="$RUNNER_TEMP/requirements-runtime-hashed.txt"
+          out="generated-runtime-hashed.txt"
           : > "$out"
           while IFS= read -r raw || [[ -n "$raw" ]]; do
             row="${raw%%#*}"
@@ -33,19 +36,38 @@ jobs:
             printf '%s --hash=sha256:%s\n' "$row" "$digest" >> "$out"
             rm -rf "$tmp"
           done < requirements.txt
-          echo '--- GENERATED RUNTIME HASH LOCK ---'
+          echo '--- GENERATED RUNTIME HASHES ---'
           cat "$out"
-          cp "$out" generated-runtime-hashed.txt
-          diff -u requirements-runtime-hashed.txt generated-runtime-hashed.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: runtime-hash-lock-py${{ matrix.python }}-ubuntu2404-x86_64
+          path: generated-runtime-hashed.txt
+      - name: Verify every platform wheel hash is independently pinned
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          def parse(path):
+              out={}
+              for raw in Path(path).read_text().splitlines():
+                  row=raw.split('#',1)[0].strip()
+                  if not row: continue
+                  head=row.split()[0]
+                  hashes={part.split(':',1)[1] for part in row.split() if part.startswith('--hash=sha256:')}
+                  out[head]=hashes
+              return out
+          committed=parse('requirements-runtime-hashed.txt')
+          generated=parse('generated-runtime-hashed.txt')
+          assert set(committed)==set(generated), (set(committed)^set(generated))
+          missing={req: sorted(hashes-committed[req]) for req,hashes in generated.items() if not hashes <= committed[req]}
+          assert not missing, missing
+          print('Committed runtime lock contains the exact wheel hash for this Python/platform.')
+          PY
       - name: Prove hash-locked runtime installation
         shell: bash
         run: |
           python -m pip install --disable-pip-version-check --require-hashes -r requirements-runtime-hashed.txt
           python -m pip check
-      - uses: actions/upload-artifact@v4
-        with:
-          name: runtime-hash-lock-py311-ubuntu2404-x86_64
-          path: generated-runtime-hashed.txt
 
   test:
     runs-on: ubuntu-latest
@@ -73,8 +95,8 @@ jobs:
           print('All runtime and test pins match exactly.')
           PY
       - run: python -m pytest -q --junitxml=test-results.xml
-      - run: python -m compileall -q app.py app_stable.py app_stable_v2.py app_trade_only.py command_worker.py command_worker_trade_only.py polymarket_scanner deploy tests
-      - run: for script in deploy/*.sh deploy/oracle/*.sh deploy/gcp/*.sh; do bash -n "$script" || exit; done
+      - run: python -m compileall -q app.py app_stable.py app_stable_v2.py app_trade_only.py command_worker.py command_worker_trade_only.py polymarket_scanner deploy tests host_trust
+      - run: for script in deploy/*.sh deploy/oracle/*.sh deploy/gcp/*.sh host_trust/weather-paper-authority-v3/*.sh; do bash -n "$script" || exit; done
       - name: Verify rendered systemd services without starting them
         run: python tests/validate_shadow_units.py
       - name: Synthetic production-scale generation handoff

@@ -5,10 +5,6 @@ on:
   push:
     branches:
       - weather-all-paper-post-final-review-corrective-2026-09-16
-    paths:
-      - 'polymarket_scanner/weather_only_discovery.py'
-      - 'polymarket_scanner/weather_only_contract_strict.py'
-      - '.github/workflows/weather-current-semantic-census.yml'
 
 permissions:
   contents: read
@@ -28,13 +24,13 @@ jobs:
         run: |
           set -Eeuo pipefail
           python - <<'PY'
-          import asyncio, json
+          import asyncio, json, os
           from polymarket_scanner.weather_only_discovery import WeatherOnlyDiscovery
 
           async def main():
               discovery = WeatherOnlyDiscovery()
               try:
-                  await discovery.discover()
+                  snapshot = await discovery.discover()
                   status = discovery.global_recall_status()
                   assert status.get('gamma_census_complete') is True
                   assert status.get('weather_semantic_product_policy') == 'STRICT_SUPPORTED_SUBSET'
@@ -47,9 +43,17 @@ jobs:
                   )
                   missing = [key for key in required if key not in status]
                   assert not missing, missing
-                  print(json.dumps(status, sort_keys=True, indent=2))
+                  payload = {
+                      'head_sha': os.environ['GITHUB_SHA'],
+                      'snapshot': snapshot.summary(),
+                      'semantic_census': status,
+                      'read_only': True,
+                      'financial_authority': False,
+                      'automatic_order_placement': False,
+                  }
+                  print(json.dumps(payload, sort_keys=True, indent=2))
                   with open('semantic-census.json', 'w', encoding='utf-8') as handle:
-                      json.dump(status, handle, sort_keys=True, indent=2)
+                      json.dump(payload, handle, sort_keys=True, indent=2)
                       handle.write('\n')
               finally:
                   await discovery.close()
@@ -58,5 +62,5 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: current-weather-semantic-census
+          name: current-weather-semantic-census-${{ github.sha }}
           path: semantic-census.json
