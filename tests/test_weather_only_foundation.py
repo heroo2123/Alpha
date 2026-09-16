@@ -153,26 +153,34 @@ def test_discovery_uses_tagged_fast_path_plus_untagged_exhaustive_recall_and_ded
             await client.close()
 
     snapshot, recall = asyncio.run(run())
-    assert snapshot.unique_event_count == 2
-    assert snapshot.unique_market_count == 4
+    assert snapshot.unique_event_count == 1
+    assert snapshot.unique_market_count == 2
     assert snapshot.raw_event_hits == 3
     assert snapshot.duplicate_event_hits == 1
     merged = next(row for row in snapshot.events if row["id"] == first["id"])
     assert {row["id"] for row in merged["markets"]} == {"m1", "m2"}
-    assert any(row["id"] == hidden["id"] for row in snapshot.events)
+    assert all(row["id"] != hidden["id"] for row in snapshot.events)
     assert snapshot.global_census_complete is True
     assert snapshot.global_census_pages == 1
     assert snapshot.global_census_scanned_events == 1
-    assert snapshot.global_census_retained_events == 1
+    assert snapshot.global_census_retained_events == 0
     assert recall["complete"] is True
     assert recall["cache_hit"] is False
     assert recall["pages"] == 1
     assert recall["scanned_events"] == 1
-    assert recall["retained_events"] == 1
+    assert recall["retained_events"] == 0
     assert isinstance(recall["census_completed_at"], float)
     assert recall["census_completed_at"] > 0.0
     assert 0.0 <= recall["age_seconds"] <= 300.0
     assert recall["max_reuse_seconds"] == 300.0
+    assert recall["gamma_census_complete"] is True
+    assert recall["weather_looking_events"] == 1
+    assert recall["strict_supported_events"] == 0
+    assert recall["unsupported_weather_events"] == 1
+    assert recall["weather_semantic_coverage_complete"] is False
+    assert recall["weather_semantic_coverage_status"] == "PARTIAL_STRICT_SUBSET"
+    assert sum(recall["unsupported_reason_counts"].values()) == 1
+    assert recall["unsupported_examples"][0]["event_id"] == hidden["id"]
 
     assert len(requests) == 3
     tagged = [request for request in requests if request.url.params.get("tag_slug")]

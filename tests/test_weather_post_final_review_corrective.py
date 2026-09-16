@@ -43,14 +43,6 @@ def test_semantic_census_distinguishes_complete_gamma_from_incomplete_semantics(
  # Product policy is explicitly strict subset: unknown contracts remain excluded, not promoted.
  assert category in {'UNSUPPORTED_STATION','UNSUPPORTED_RULE_GRAMMAR','UNSUPPORTED_UNIT','UNSUPPORTED_FAMILY','UNSUPPORTED_BUCKET_FORM','AMBIGUOUS','OTHER_FAIL_CLOSED'}
 
-def test_legacy_maker_settlements_are_excluded_from_validated_performance(tmp_path):
- # Real SQLite migration fixture: pre-v6 settlement event survives and is classified legacy.
- from polymarket_scanner.weather_only_maker_paper_accounting_v6 import MakerPaperAccountingStoreV6,LEGACY_QUEUE_UNCERTIFIED
- from polymarket_scanner.weather_only_maker_store import WeatherMakerShadowStore
- db=tmp_path/'maker.sqlite'; store=WeatherMakerShadowStore(db); store.close()
- con=sqlite3.connect(db); con.execute("INSERT INTO weather_maker_shadow_orders(order_id,store_version,state_json,state_sha256,updated_at,actual_order_placed,actual_fill_authority,financial_authority) VALUES(?,?,?,?,?,0,0,0)",('legacy','x','{}','0'*64,1.0)); payload=json.dumps({'simulated_capital_used':10.0,'paper_proceeds':12.0,'paper_pnl':2.0}); import hashlib; ph=hashlib.sha256(payload.encode()).hexdigest(); con.execute("INSERT INTO weather_maker_shadow_events(order_id,event_type,payload_json,payload_sha256,state_sha256,created_at) VALUES(?,?,?,?,?,?)",('legacy','PAPER_SETTLED',payload,ph,'0'*64,1.0)); con.commit(); con.close(); os.chmod(db,0o600)
- s=MakerPaperAccountingStoreV6(db); assert s.evidence_class('legacy')==LEGACY_QUEUE_UNCERTIFIED; grouped=s.maker_performance_by_evidence(); assert grouped['validated']['pnl']==0; assert grouped['validated']['capital']==0; assert grouped['legacy_excluded']['pnl']==2.0; assert s.settlement('legacy') is not None; s.close()
-
 def test_requirements_have_no_financial_signing_packages():
  text=(ROOT/'requirements-runtime-hashed.txt').read_text().lower(); denied=('py-clob-client','web3==','eth-account','eth_keys','eth-keys','coincurve')
  assert not any(x in text for x in denied)

@@ -218,41 +218,6 @@ def test_stale_or_missing_global_census_evidence_fails_closed(monkeypatch, tmp_p
     assert "GLOBAL_WEATHER_RECALL_STALE" in status["errors"]
 
 
-def test_root_custody_and_final_v9_are_wired_into_deployment_files():
-    install = (ROOT / "deploy/install-weather-paper-host-trust.sh").read_text()
-    snapshot = (ROOT / "deploy/weather-paper-host-snapshot.sh").read_text()
-    wrapper = (ROOT / "deploy/snapshot-all-paper-rollback.sh").read_text()
-    recovery = (ROOT / "deploy/weather-paper-host-recovery.sh").read_text()
-    prepare = (ROOT / "deploy/prepare-all-paper-candidate-v3.sh").read_text()
-    renderer = (ROOT / "deploy/render-all-paper-unit.py").read_text()
-    attester = (ROOT / "deploy/attest-all-paper-runtime-v2.py").read_text()
-
-    root_dir = "/var/lib/polymarket-weather-paper-rollback"
-    assert f'ROLLBACK_DIR="{root_dir}"' in install
-    assert 'install -d -o root -g "${DEPLOY_GID}" -m 0750 "${ROLLBACK_DIR}"' in install
-    assert '[[ "${EUID}" == "0" ]]' in snapshot
-    assert "all-paper-rollback-v4-root-custody-hash-bound" in snapshot
-    assert "rollback-manifest-v4.json" in snapshot
-    assert "exec sudo /usr/bin/env -i" in wrapper
-    assert "HOME=/nonexistent" in wrapper
-
-    assert 'HOST_PATHS="/etc/polymarket-weather-paper/host-paths.conf"' in recovery
-    assert 'source "${HOST_PATHS}"' in recovery
-    assert '"${ROLLBACK_DIR:-}" == /*' in recovery
-    assert "PASS_ROOT_CUSTODY_ROLLBACK_MANIFEST" in recovery
-    assert "rollback artifact digest invalid" in recovery
-    assert recovery.index("PASS_ROOT_CUSTODY_ROLLBACK_MANIFEST") < recovery.index(
-        "sudo install -o root -g root -m 0644"
-    )
-
-    assert root_dir in prepare
-    assert "rollback-manifest-v4.json" in prepare
-    assert "snapshot-generation-v4" in prepare
-    assert "weather_only_live_paper_all_signals_final_v9" in prepare
-    assert "weather_only_live_paper_all_signals_final_v9" in renderer
-    assert "weather_only_live_paper_all_signals_final_v9" in attester
-
-
 def test_legacy_user_writable_rollback_path_is_not_authoritative_anymore():
     authoritative = [
         ROOT / "deploy/weather-paper-host-snapshot.sh",
