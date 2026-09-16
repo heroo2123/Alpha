@@ -38,7 +38,8 @@ rollback_on_error(){
   if (( code != 0 )); then
     rm -f "${START_EPOCH_FILE}" >/dev/null 2>&1 || true
     printf 'Acceptance failed; invoking host-owned rollback...\n' >&2
-    if ! bash "${HOST_RECOVERY}"; then
+    if ! /usr/bin/env -i PATH=/usr/bin:/bin HOME=/nonexistent GIT_CONFIG_NOSYSTEM=1 \
+      /bin/bash --noprofile --norc "${HOST_RECOVERY}"; then
       sudo systemctl stop "${UNIT}" >/dev/null 2>&1 || true
       sudo systemctl disable "${UNIT}" >/dev/null 2>&1 || true
       printf 'HOST ROLLBACK FAILED: candidate contained; manual recovery required.\n' >&2
