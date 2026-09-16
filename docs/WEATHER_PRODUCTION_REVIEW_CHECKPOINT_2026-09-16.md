@@ -162,6 +162,20 @@ ALPHA_DISABLE_DOTENV=1 /workspace/scratch/dea425996b77/venv312/bin/python -m pyt
 
 Raw local test logs/XML are not attached in this PR because the workspace became unavailable before they could be retrieved. Do not represent this document as a substitute for retrieving, committing or uploading the final verification evidence.
 
+
+Independent reviewer commands (executed from the Alpha repository, before the assigned new regression edits):
+
+```sh
+../venv311/bin/python -m pytest -q tests/test_weather_stage2_semantic_terminal_maker.py tests/test_weather_current_polymarket_grammar_v7.py tests/test_weather_source_shock_v8.py tests/test_weather_only_wrh_finality.py tests/test_weather_only_same_day_capture_cadence.py tests/test_weather_final_expiry_recovery.py
+# 58 passed, 1 failed in 0.68s
+../venv311/bin/python -m pytest -q tests/test_weather_contracts.py tests/test_weather_only_rules.py tests/test_weather_live_temperature_rule_grammar.py tests/test_weather_only_wrh.py tests/test_weather_only_wrh_client.py tests/test_weather_only_wrh_station_metadata.py tests/test_weather_only_wrh_nested_prediction_integrity.py tests/test_weather_only_conditioned_extremes.py tests/test_weather_only_conditioned_paths.py tests/test_weather_only_same_day_contract.py tests/test_weather_only_same_day_capture.py tests/test_weather_only_three_layer.py tests/test_weather_only_gefs_hourly.py tests/test_weather_only_forecast_provenance.py tests/test_weather_only_result_lag.py tests/test_weather_post_receipt_causal_refresh_v4.py tests/test_weather_maker_live_semantics.py
+# 170 passed in 0.85s
+```
+
+The focused failure was `tests/test_weather_stage2_semantic_terminal_maker.py::test_effective_inheritance_chain_has_no_known_direct_post_receipt_terminal_bypass`: its substring assertion catches a valid pre-delivery EXPIRED path. The legitimate no-bypass invariant still requires a behavioral replacement; no replacement/deletion was completed. Both full Python3.12 XML files report zero collection/execution errors in addition to the failures listed above.
+
+All three separate reviewer contexts confirmed that no newly assigned host corrections, city/station patch, adapter files, execution lock or new regression-test files were successfully written or committed during the outage. The API review's scratch eth-account0.13.7 dependency download is not a reviewed lock or a passed install/test gate.
+
 ## Remaining engineering and operator steps
 
 1. Restore workspace access and recover exact local merge/worktree/evidence; inspect status before modifying or recreating anything.
