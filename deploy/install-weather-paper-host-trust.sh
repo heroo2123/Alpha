@@ -1,16 +1,18 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-# One-time host bootstrap performed BEFORE candidate checkout.  It establishes a
+# One-time host bootstrap performed BEFORE candidate checkout. It establishes a
 # root-owned trust boundary independent of the candidate working tree.
 APP_DIR="${ALPHA_WEATHER_APP_DIR:-${HOME}/polymarket-weather-paper-app}"
 CONFIG_DIR="${ALPHA_CONFIG_DIR:-${HOME}/.polymarket-edge-scanner}"
+DB_PATH="${WEATHER_PAPER_DB_PATH:-/var/lib/polymarket-weather-paper/weather-paper.sqlite}"
 RELEASE_FILE="${CONFIG_DIR}/weather-paper-release.sha"
 UNIT="polymarket-weather-paper.service"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LIBEXEC="/usr/local/libexec/polymarket-weather-paper"
 ETC_DIR="/etc/polymarket-weather-paper"
 MANIFEST="${ETC_DIR}/approved-releases.json"
+HOST_PATHS="${ETC_DIR}/host-paths.conf"
 DROPIN_DIR="/etc/systemd/system/${UNIT}.d"
 DROPIN="${DROPIN_DIR}/10-release-authority.conf"
 CANDIDATE_SHA="${1:-}"
@@ -18,6 +20,10 @@ CANDIDATE_SHA="${1:-}"
 fail(){ printf 'HOST TRUST INSTALL ERROR: %s\n' "$*" >&2; exit 1; }
 [[ "${CANDIDATE_SHA}" =~ ^[0-9a-fA-F]{40}$ ]] || fail "usage: $0 <reviewed-candidate-sha>"
 [[ -d "${APP_DIR}/.git" && -f "${RELEASE_FILE}" ]] || fail "current known-good checkout/release marker missing"
+for value in "${APP_DIR}" "${CONFIG_DIR}" "${DB_PATH}"; do
+  [[ "${value}" == /* && "${value}" != *$'\n'* && "${value}" != *$'\r'* ]] || fail "host path must be absolute and single-line"
+done
+[[ "${UNIT}" == "polymarket-weather-paper.service" ]] || fail "unexpected service identity"
 for name in weather-paper-host-release-gate.py weather-paper-venv-snapshot.py weather-paper-host-snapshot.sh weather-paper-host-recovery.sh; do
   [[ -f "${SCRIPT_DIR}/${name}" ]] || fail "bootstrap bundle missing ${name}"
 done
@@ -35,6 +41,15 @@ sudo install -o root -g root -m 0555 "${SCRIPT_DIR}/weather-paper-host-release-g
 sudo install -o root -g root -m 0555 "${SCRIPT_DIR}/weather-paper-venv-snapshot.py" "${LIBEXEC}/weather-paper-venv-snapshot.py"
 sudo install -o root -g root -m 0555 "${SCRIPT_DIR}/weather-paper-host-snapshot.sh" "${LIBEXEC}/snapshot-rollback.sh"
 sudo install -o root -g root -m 0555 "${SCRIPT_DIR}/weather-paper-host-recovery.sh" "${LIBEXEC}/restore-rollback.sh"
+
+# Freeze every filesystem/service path used by rollback outside candidate control.
+# %q makes the root-owned file safe to source even if a legitimate path contains
+# shell metacharacters; the values were also required to be absolute single lines.
+TMP_PATHS="$(mktemp)"
+printf 'APP_DIR=%q\nCONFIG_DIR=%q\nDB_PATH=%q\nUNIT=%q\n' \
+  "${APP_DIR}" "${CONFIG_DIR}" "${DB_PATH}" "${UNIT}" > "${TMP_PATHS}"
+sudo install -o root -g root -m 0444 "${TMP_PATHS}" "${HOST_PATHS}"
+rm -f "${TMP_PATHS}"
 
 TMP_MANIFEST="$(mktemp)"
 /usr/bin/python3 - "${MANIFEST}" "${CURRENT_SHA}" "${CURRENT_TREE}" "${CANDIDATE_SHA,,}" "${CANDIDATE_TREE}" > "${TMP_MANIFEST}" <<'PY'
@@ -67,7 +82,7 @@ TMP_DROPIN="$(mktemp)"
 cat > "${TMP_DROPIN}" <<EOF
 [Service]
 ExecStartPre=/usr/bin/python3 ${LIBEXEC}/release-gate.py verify-checkout --app-dir ${APP_DIR} --release-file ${RELEASE_FILE}
-UnsetEnvironment=HTTP_PROXY HTTPS_PROXY ALL_PROXY NO_PROXY http_proxy https_proxy all_proxy no_proxy SSL_CERT_FILE SSL_CERT_DIR
+UnsetEnvironment=HTTP_PROXY HTTPS_PROXY ALL_PROXY NO_PROXY http_proxy https_proxy all_proxy no_proxy SSL_CERT_FILE SSL_CERT_DIR BASH_ENV ENV CDPATH GIT_DIR GIT_WORK_TREE GIT_CONFIG_GLOBAL GIT_CONFIG_SYSTEM
 EOF
 sudo install -o root -g root -m 0644 "${TMP_DROPIN}" "${DROPIN}"
 rm -f "${TMP_DROPIN}"
