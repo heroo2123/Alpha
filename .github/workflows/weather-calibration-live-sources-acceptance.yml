@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - weather-wrh-prospective-collector
+      - weather-all-paper-final-review-fixes-2026-09-16
   workflow_dispatch:
 
 permissions:
