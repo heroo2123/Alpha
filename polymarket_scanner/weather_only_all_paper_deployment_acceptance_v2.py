@@ -21,8 +21,9 @@ from .weather_only_operator_state_corrective_v3 import OPERATOR_STATE_CORRECTIVE
 from .weather_only_operator_state_corrective_v4 import OPERATOR_STATE_CORRECTIVE_V4_VERSION
 
 ALL_PAPER_DEPLOYMENT_ACCEPTANCE_V2_VERSION = (
-    "weather_all_paper_first_cycle_acceptance_v15_v9_root_custody_operator_drain_recall_freshness"
+    "weather_all_paper_first_cycle_acceptance_v16_v9_root_custody_operator_drain_recall_binding"
 )
+RECALL_EVIDENCE_FLOAT_TOLERANCE = 1e-6
 
 
 @dataclass(frozen=True, slots=True)
@@ -157,11 +158,41 @@ def accept_first_all_paper_cycle_v2(
         raise AllPaperDeploymentAcceptanceError("ALL_PAPER_GLOBAL_WEATHER_RECALL_STALE")
     if not (0.0 < max_reuse <= GLOBAL_CENSUS_TTL_SECONDS):
         raise AllPaperDeploymentAcceptanceError("ALL_PAPER_GLOBAL_WEATHER_RECALL_REUSE_TOO_LONG")
-    if _finite_number(
+
+    status_completed_at = _finite_number(
+        status.get("global_weather_recall_certified_at"),
+        "ALL_PAPER_GLOBAL_WEATHER_RECALL_STATUS_COMPLETION_INVALID",
+    )
+    status_age = _finite_number(
+        status.get("global_weather_recall_age_seconds"),
+        "ALL_PAPER_GLOBAL_WEATHER_RECALL_STATUS_AGE_INVALID",
+    )
+    status_max_reuse = _finite_number(
         status.get("global_weather_recall_max_reuse_seconds"),
         "ALL_PAPER_GLOBAL_WEATHER_RECALL_STATUS_REUSE_INVALID",
-    ) > GLOBAL_CENSUS_TTL_SECONDS:
-        raise AllPaperDeploymentAcceptanceError("ALL_PAPER_GLOBAL_WEATHER_RECALL_STATUS_REUSE_TOO_LONG")
+    )
+    if status_completed_at <= 0.0 or status_age < 0.0:
+        raise AllPaperDeploymentAcceptanceError(
+            "ALL_PAPER_GLOBAL_WEATHER_RECALL_STATUS_FRESHNESS_INVALID"
+        )
+    if status_age > GLOBAL_CENSUS_TTL_SECONDS:
+        raise AllPaperDeploymentAcceptanceError("ALL_PAPER_GLOBAL_WEATHER_RECALL_STATUS_STALE")
+    if not (0.0 < status_max_reuse <= GLOBAL_CENSUS_TTL_SECONDS):
+        raise AllPaperDeploymentAcceptanceError(
+            "ALL_PAPER_GLOBAL_WEATHER_RECALL_STATUS_REUSE_INVALID"
+        )
+    if abs(status_completed_at - census_completed_at) > RECALL_EVIDENCE_FLOAT_TOLERANCE:
+        raise AllPaperDeploymentAcceptanceError(
+            "ALL_PAPER_GLOBAL_WEATHER_RECALL_COMPLETION_EVIDENCE_MISMATCH"
+        )
+    if abs(status_age - census_age) > RECALL_EVIDENCE_FLOAT_TOLERANCE:
+        raise AllPaperDeploymentAcceptanceError(
+            "ALL_PAPER_GLOBAL_WEATHER_RECALL_AGE_EVIDENCE_MISMATCH"
+        )
+    if abs(status_max_reuse - max_reuse) > RECALL_EVIDENCE_FLOAT_TOLERANCE:
+        raise AllPaperDeploymentAcceptanceError(
+            "ALL_PAPER_GLOBAL_WEATHER_RECALL_REUSE_EVIDENCE_MISMATCH"
+        )
 
     for key, code in (
         ("maker_queue_certified", "ALL_PAPER_MAKER_QUEUE_UNEXPECTEDLY_CERTIFIED"),
