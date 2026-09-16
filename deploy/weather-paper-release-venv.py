@@ -81,15 +81,15 @@ def inventory(python: Path) -> list[dict[str, str]]:
 def canonical_manifest(venv_dir: Path, lock: Path, rows: list[dict[str, str]]) -> dict:
     locked = locked_names(lock)
     installed = {norm(str(r["name"])) for r in rows}
+    forbidden = sorted(installed & FORBIDDEN_DISTS)
     unexpected = sorted(installed - locked - BOOTSTRAP_DISTS)
     missing = sorted(locked - installed)
-    forbidden = sorted(installed & FORBIDDEN_DISTS)
+    if forbidden:
+        fail("RELEASE_VENV_FORBIDDEN_DISTRIBUTION:" + ",".join(forbidden))
     if unexpected:
         fail("RELEASE_VENV_UNEXPECTED_DISTRIBUTION:" + ",".join(unexpected))
     if missing:
         fail("RELEASE_VENV_LOCKED_DISTRIBUTION_MISSING:" + ",".join(missing))
-    if forbidden:
-        fail("RELEASE_VENV_FORBIDDEN_DISTRIBUTION:" + ",".join(forbidden))
     payload = {
         "version": VERSION,
         "venv": str(venv_dir.resolve()),
@@ -118,10 +118,20 @@ def build(venv_dir: Path, lock: Path, manifest: Path) -> dict:
         fail("RELEASE_VENV_MUST_NOT_EXIST")
     if not lock.is_file():
         fail("RELEASE_VENV_LOCK_MISSING")
-    locked_names(lock)
+    locked = locked_names(lock)
     venv.EnvBuilder(with_pip=True, system_site_packages=False, clear=False, symlinks=True).create(venv_dir)
     python = venv_dir / "bin/python"
     env = clean_env(venv_dir)
+    # Some Python distributions bootstrap setuptools/wheel into a fresh venv. They are
+    # not part of the runtime lock, so remove them before the candidate install rather
+    # than silently allowing unexpected packages in the final inventory.
+    bootstrap_inventory = {r["name"] for r in inventory(python)}
+    removable = sorted((bootstrap_inventory & {"setuptools", "wheel"}) - locked)
+    if removable:
+        cp = subprocess.run([str(python), "-E", "-s", "-m", "pip", "uninstall", "-y", *removable], env=env, check=False)
+        if cp.returncode:
+            shutil.rmtree(venv_dir, ignore_errors=True)
+            fail("RELEASE_VENV_BOOTSTRAP_CLEANUP_FAILED")
     cp = subprocess.run([str(python), "-E", "-s", "-m", "pip", "install", "--require-hashes", "--no-deps", "-r", str(lock)], env=env, check=False)
     if cp.returncode:
         shutil.rmtree(venv_dir, ignore_errors=True)
