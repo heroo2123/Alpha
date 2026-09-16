@@ -3,9 +3,9 @@ from __future__ import annotations
 
 """Snapshot, verify and restore the exact weather-PAPER virtualenv tree.
 
-The previous rollback path reinstalled package names into the candidate-mutated venv.
-This helper instead preserves regular-file bytes, modes and symlink targets and verifies
-the restored tree before the old service may restart.
+The rollback artifact binds regular-file bytes, modes, ownership and symlink targets.
+When recovery runs as root, UID/GID verification prevents a byte-identical tree from
+silently becoming root-owned and unusable by the PAPER service account.
 """
 
 import argparse
@@ -19,7 +19,7 @@ import tempfile
 from pathlib import Path, PurePosixPath
 
 
-VERSION = "weather_paper_venv_snapshot_v1_exact_tree"
+VERSION = "weather_paper_venv_snapshot_v2_exact_tree_owner_bound"
 
 
 class VenvSnapshotError(RuntimeError):
@@ -44,6 +44,16 @@ def _validate_venv(path: Path) -> Path:
     return venv
 
 
+def _base_entry(path: Path, rel: str, info: os.stat_result, kind: str) -> dict:
+    return {
+        "path": rel,
+        "kind": kind,
+        "mode": stat.S_IMODE(info.st_mode),
+        "uid": int(info.st_uid),
+        "gid": int(info.st_gid),
+    }
+
+
 def _tree(venv: Path) -> list[dict]:
     parent = venv.parent
     entries: list[dict] = []
@@ -52,30 +62,18 @@ def _tree(venv: Path) -> list[dict]:
         path = pending.pop()
         info = path.lstat()
         rel = path.relative_to(parent).as_posix()
-        mode = stat.S_IMODE(info.st_mode)
         if stat.S_ISDIR(info.st_mode):
-            entries.append({"path": rel, "kind": "dir", "mode": mode})
+            entries.append(_base_entry(path, rel, info, "dir"))
             children = sorted(path.iterdir(), key=lambda item: item.name, reverse=True)
             pending.extend(children)
         elif stat.S_ISREG(info.st_mode):
-            entries.append(
-                {
-                    "path": rel,
-                    "kind": "file",
-                    "mode": mode,
-                    "size": info.st_size,
-                    "sha256": _sha256_file(path),
-                }
-            )
+            row = _base_entry(path, rel, info, "file")
+            row.update({"size": info.st_size, "sha256": _sha256_file(path)})
+            entries.append(row)
         elif stat.S_ISLNK(info.st_mode):
-            entries.append(
-                {
-                    "path": rel,
-                    "kind": "symlink",
-                    "mode": mode,
-                    "target": os.readlink(path),
-                }
-            )
+            row = _base_entry(path, rel, info, "symlink")
+            row["target"] = os.readlink(path)
+            entries.append(row)
         else:
             raise VenvSnapshotError(f"VENV_UNSUPPORTED_FILE_TYPE:{rel}")
     entries.sort(key=lambda row: row["path"])
@@ -116,8 +114,6 @@ def _safe_members(tar: tarfile.TarFile) -> list[tarfile.TarInfo]:
         names.append(parts)
         if member.issym():
             symlinks.append(parts)
-    # No later archive member may be nested beneath a symlink. This prevents a
-    # malicious/tampered archive from redirecting extraction outside the venv.
     for link in symlinks:
         for parts in names:
             if len(parts) > len(link) and parts[: len(link)] == link:
@@ -170,6 +166,9 @@ def _load_manifest(path: Path) -> dict:
     entries = value.get("entries")
     if not isinstance(entries, list) or not entries:
         raise VenvSnapshotError("VENV_MANIFEST_ENTRIES_INVALID")
+    for row in entries:
+        if not isinstance(row, dict) or not isinstance(row.get("uid"), int) or not isinstance(row.get("gid"), int):
+            raise VenvSnapshotError("VENV_MANIFEST_OWNERSHIP_INVALID")
     if value.get("tree_sha256") != _tree_sha(entries):
         raise VenvSnapshotError("VENV_MANIFEST_TREE_DIGEST_MISMATCH")
     return value
@@ -214,10 +213,6 @@ def restore(venv_path: Path, archive_path: Path, manifest_path: Path) -> dict:
     archive = archive_path.expanduser().absolute()
     with tarfile.open(archive, mode="r") as tar:
         members = _safe_members(tar)
-        # Members were generated locally from a trusted venv and the exact archive
-        # digest is verified above. Path/symlink-prefix checks prevent traversal. Use
-        # an explicit extraction policy so Python 3.14 cannot silently change restore
-        # semantics after the manifest/archive have already been certified.
         tar.extractall(path=app_dir, members=members, filter="fully_trusted")
     verify_tree(venv, manifest_path)
     return manifest
