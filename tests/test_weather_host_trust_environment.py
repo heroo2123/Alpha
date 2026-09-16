@@ -8,7 +8,7 @@ def _text(name: str) -> str:
     return (ROOT / name).read_text(encoding="utf-8")
 
 
-def test_host_bootstrap_freezes_runtime_paths_root_owned():
+def test_host_bootstrap_freezes_runtime_paths_root_owned_and_revokes_stale_candidates():
     text = _text("deploy/install-weather-paper-host-trust.sh")
     assert 'HOST_PATHS="${ETC_DIR}/host-paths.conf"' in text
     assert "DB_PATH=" in text
@@ -16,6 +16,9 @@ def test_host_bootstrap_freezes_runtime_paths_root_owned():
     assert 'install -o root -g root -m 0444 "${TMP_PATHS}" "${HOST_PATHS}"' in text
     assert "BASH_ENV ENV CDPATH" in text
     assert "GIT_DIR GIT_WORK_TREE GIT_CONFIG_GLOBAL GIT_CONFIG_SYSTEM" in text
+    assert "Approval is intentionally NOT cumulative" in text
+    assert "approved = {current_sha: current_tree, candidate_sha: candidate_tree}" in text
+    assert "old.get('approved')" not in text
 
 
 def test_host_snapshot_and_recovery_ignore_caller_path_environment():
