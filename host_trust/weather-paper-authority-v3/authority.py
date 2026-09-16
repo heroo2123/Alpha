@@ -174,16 +174,6 @@ def _validate_policy(raw: dict) -> dict:
     out["unit_name"] = unit
     out["deploy_user"] = deploy_user
     out["repo_remote_url"] = remote
-    if out["runtime_root"] != "/var/lib/polymarket-weather-paper-runtime":
-        fail("AUTHORITY_RUNTIME_ROOT_POLICY_INVALID")
-    if out["runtime_python"] != "/usr/bin/python3":
-        fail("AUTHORITY_RUNTIME_PYTHON_POLICY_INVALID")
-    if out["unit_name"] != "polymarket-weather-paper.service":
-        fail("AUTHORITY_UNIT_POLICY_INVALID")
-    if out["unit_file"] != "/etc/systemd/system/polymarket-weather-paper.service":
-        fail("AUTHORITY_UNIT_FILE_POLICY_INVALID")
-    if out["db_path"] != "/var/lib/polymarket-weather-paper/weather-paper.sqlite":
-        fail("AUTHORITY_DB_POLICY_INVALID")
     return out
 
 
@@ -530,6 +520,8 @@ def prepare_candidate(generation_id: str, candidate_sha: str, *, anchor: Path = 
     releases=Path(policy["runtime_root"])/"releases"; releases.mkdir(parents=True,exist_ok=True); release_root=releases/candidate
     if release_root.exists(): fail("RUNTIME_RELEASE_ALREADY_EXISTS")
     release_root.mkdir(mode=0o755); _archive_candidate(repo,candidate,release_root); source=release_root/"source"; source_git_sha=_verify_source_against_git(repo,candidate,source)
+    module_file=source/"polymarket_scanner/weather_only_live_paper_all_signals_final_v10.py"
+    if not module_file.is_file() or module_file.is_symlink(): fail("RUNTIME_FINAL_MODULE_MISSING")
     lock=source/"requirements-runtime-hashed.txt"
     if not lock.is_file() or lock.is_symlink(): fail("RUNTIME_LOCK_MISSING")
     lock_sha=sha256_file(lock); python=release_root/"venv/bin/python"
@@ -551,13 +543,14 @@ def prepare_candidate(generation_id: str, candidate_sha: str, *, anchor: Path = 
     manifest_path=release_root/"runtime-manifest.json"; _safe_write(manifest_path,_canonical(manifest),mode=0o444,root_custody=require_root)
     unit_text=_render_unit(policy,generation_id,candidate,manifest); unit_copy=gdir/"candidate-unit.service"; _safe_write(unit_copy,unit_text.encode(),mode=0o440,root_custody=require_root)
     evidence={"version":"weather-paper-runtime-evidence-v3","generation_id":generation_id,"candidate_sha":candidate,"runtime_manifest_sha256":sha256_file(manifest_path),"runtime_source_tree_sha256":manifest["source_tree_sha256"],"runtime_venv_tree_sha256":manifest["venv_tree_sha256"],"candidate_unit_sha256":sha256_file(unit_copy),"requirements_lock_sha256":lock_sha,"sealed_at":time.time()}; _safe_write(gdir/"candidate-runtime-evidence.json",_canonical(evidence),root_custody=require_root)
+    shutil.copyfile(unit_copy,Path(policy["unit_file"])); os.chmod(Path(policy["unit_file"]),0o644)
     if require_root:
         for root,dirs,files in os.walk(release_root):
             os.chown(root,0,0); os.chmod(root,0o755)
             for name in files:
                 p=Path(root)/name
                 if not p.is_symlink(): os.chown(p,0,0); os.chmod(p,0o555 if p.stat().st_mode & stat.S_IXUSR else 0o444)
-        shutil.copyfile(unit_copy,Path(policy["unit_file"])); os.chmod(Path(policy["unit_file"]),0o644); os.chown(Path(policy["unit_file"]),0,0); _run(["/usr/bin/systemctl","daemon-reload"])
+        os.chown(Path(policy["unit_file"]),0,0); _run(["/usr/bin/systemctl","daemon-reload"])
     return manifest
 
 

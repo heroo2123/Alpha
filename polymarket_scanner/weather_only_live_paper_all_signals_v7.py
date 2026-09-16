@@ -145,6 +145,7 @@ class AllPaperWeatherLiveV7Service(AllPaperWeatherLiveV6Service):
                 event_id=str(candidate.get("event_id") or ""),
                 market_id=str(candidate.get("market_id") or "") or None,
                 side=str(candidate.get("side") or "") or None,
+                token_id=str(candidate.get("token_id") or "") or None,
             )
         else:
             await asyncio.to_thread(self.positions.set_signal_status, signal_id, status)
@@ -303,7 +304,7 @@ class AllPaperWeatherLiveV7Service(AllPaperWeatherLiveV6Service):
         sent_at = time.time()
         self.positions.mark_telegram_sent(signal_id, int(message_id), sent_at=sent_at)
         if sent_at >= float(fresh["decision_expires_at"]):
-            await self._terminalize_delivered_signal(signal_id, fresh if "fresh" in locals() else candidate, status="EXPIRED", reason="DELIVERY_RECEIPT_AFTER_EXPIRY")
+            await self._terminalize_delivered_signal(signal_id, fresh, status="EXPIRED", reason="DELIVERY_RECEIPT_AFTER_EXPIRY")
             return True, "DELIVERY_RECEIPT_AFTER_EXPIRY"
         await asyncio.to_thread(
             self.positions.set_signal_status, signal_id, "POST_RECEIPT_RECHECK"
@@ -454,7 +455,7 @@ class AllPaperWeatherLiveV7Service(AllPaperWeatherLiveV6Service):
         sent_at = time.time()
         self.positions.mark_telegram_sent(signal_id, int(message_id), sent_at=sent_at)
         if sent_at >= float(fresh["decision_expires_at"]):
-            await self._terminalize_delivered_signal(signal_id, fresh if "fresh" in locals() else candidate, status="EXPIRED", reason="DELIVERY_RECEIPT_AFTER_EXPIRY")
+            await self._terminalize_delivered_signal(signal_id, fresh, status="EXPIRED", reason="DELIVERY_RECEIPT_AFTER_EXPIRY")
             return True, "DELIVERY_RECEIPT_AFTER_EXPIRY"
         await asyncio.to_thread(
             self.positions.set_signal_status, signal_id, "POST_RECEIPT_RECHECK"
@@ -702,7 +703,7 @@ class AllPaperWeatherLiveV7Service(AllPaperWeatherLiveV6Service):
         sent_at = time.time()
         self.positions.mark_telegram_sent(signal_id, int(message_id), sent_at=sent_at)
         if sent_at >= expires_at:
-            await self._terminalize_delivered_signal(signal_id, fresh if "fresh" in locals() else candidate, status="EXPIRED", reason="DELIVERY_RECEIPT_AFTER_EXPIRY")
+            await self._terminalize_delivered_signal(signal_id, fresh, status="EXPIRED", reason="DELIVERY_RECEIPT_AFTER_EXPIRY")
             return True, "DELIVERY_RECEIPT_AFTER_EXPIRY"
         await asyncio.to_thread(
             self.positions.set_signal_status, signal_id, "POST_RECEIPT_RECHECK"

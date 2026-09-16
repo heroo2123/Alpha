@@ -504,6 +504,13 @@ class AllPaperWeatherLiveV3Service(AllPaperWeatherLiveV2Service):
         self._maker_orders_activated += 1
         return saved
 
+    async def _terminalize_maker_delivery(self, signal_id: int, payload: dict, *, status: str, reason: str) -> None:
+        terminalizer = getattr(self, "_terminalize_delivered_signal", None)
+        if callable(terminalizer):
+            await terminalizer(signal_id, payload, status=status, reason=reason)
+        else:
+            await asyncio.to_thread(self.positions.set_signal_status, signal_id, status)
+
     async def _send_maker_candidate(self, candidate: dict) -> tuple[bool, str | None]:
         proposal: MakerBidProposal = candidate["proposal"]
         await self.maker_stream.subscribe(proposal.token_id)
@@ -553,8 +560,9 @@ class AllPaperWeatherLiveV3Service(AllPaperWeatherLiveV2Service):
         sent_at = time.time()
         self.positions.mark_telegram_sent(signal_id, int(message_id), sent_at=sent_at)
         if sent_at >= float(payload["decision_expires_at"]):
-            await asyncio.to_thread(self.positions.set_signal_status, signal_id, "EXPIRED")
+            await self._terminalize_maker_delivery(signal_id, payload, status="EXPIRED", reason="MAKER_DELIVERY_RECEIPT_AFTER_EXPIRY")
             return True, "MAKER_DELIVERY_RECEIPT_AFTER_EXPIRY"
+        await asyncio.to_thread(self.positions.set_signal_status, signal_id, "POST_RECEIPT_RECHECK")
         self._maker_proposals_sent += 1
         try:
             await self._activate_maker_after_delivery(
@@ -566,9 +574,7 @@ class AllPaperWeatherLiveV3Service(AllPaperWeatherLiveV2Service):
             )
         except Exception as exc:
             code = getattr(exc, "code", type(exc).__name__)
-            await asyncio.to_thread(
-                self.positions.set_signal_status, signal_id, "MAKER_NOT_ACTIVATED"
-            )
+            await self._terminalize_maker_delivery(signal_id, payload, status="MAKER_NOT_ACTIVATED", reason=f"MAKER_ACTIVATION:{code}")
             return True, f"MAKER_ACTIVATION:{code}"
         await asyncio.to_thread(self.positions.set_signal_status, signal_id, "MAKER_RESTING")
         return True, None

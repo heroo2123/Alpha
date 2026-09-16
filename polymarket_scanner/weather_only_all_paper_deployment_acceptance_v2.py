@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-"""Final additive first-cycle acceptance for the complete V9 operator/deployment stack."""
+"""Final additive first-cycle acceptance for the complete V10 immutable-runtime stack."""
 
 import math
 from dataclasses import asdict, dataclass
@@ -23,7 +23,7 @@ from .weather_only_operator_state_corrective_v3 import OPERATOR_STATE_CORRECTIVE
 from .weather_only_operator_state_corrective_v4 import OPERATOR_STATE_CORRECTIVE_V4_VERSION
 
 ALL_PAPER_DEPLOYMENT_ACCEPTANCE_V2_VERSION = (
-    "weather_all_paper_first_cycle_acceptance_v16_v9_root_custody_operator_drain_recall_binding"
+    "weather_all_paper_first_cycle_acceptance_v17_v10_immutable_runtime_semantic_terminal_maker"
 )
 RECALL_EVIDENCE_FLOAT_TOLERANCE = 1e-6
 
@@ -41,6 +41,7 @@ class AllPaperFirstCycleAcceptanceV2:
     operator_state_v2_version: str
     operator_state_v3_version: str
     operator_state_v4_version: str
+    operator_state_v5_version: str
     accepted: bool
     financial_authority: bool = False
     automatic_order_placement: bool = False
@@ -250,5 +251,6 @@ def accept_first_all_paper_cycle_v2(
         operator_state_v2_version=OPERATOR_STATE_CORRECTIVE_V2_VERSION,
         operator_state_v3_version=OPERATOR_STATE_CORRECTIVE_V3_VERSION,
         operator_state_v4_version=OPERATOR_STATE_CORRECTIVE_V4_VERSION,
+        operator_state_v5_version=OPERATOR_STATE_CORRECTIVE_V5_VERSION,
         accepted=True,
     )

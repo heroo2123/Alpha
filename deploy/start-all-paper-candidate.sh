@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-exec bash "${SCRIPT_DIR}/start-all-paper-candidate-v2.sh" "$@"
+APP_DIR="${ALPHA_WEATHER_APP_DIR:-${HOME}/polymarket-weather-paper-app}"
+exec /bin/bash "${APP_DIR}/deploy/start-all-paper-candidate-v3.sh" "$@"

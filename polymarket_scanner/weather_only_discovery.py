@@ -4,9 +4,9 @@ from __future__ import annotations
 
 The weather tags remain the cheap low-latency path, but tag membership is no longer a
 recall assumption. A cached untagged active-event keyset census is exhausted naturally
-and retains only events the strict contract compiler classifies as daily high/low
-temperature contracts. The retained strict subset is merged pessimistically with
-tagged projections before downstream rule authority is considered.
+and retains every conservatively weather-looking temperature event for a separate
+strict semantic census. Only strict-supported global events are promoted downstream;
+unsupported weather-looking events remain visible in coverage evidence and fail closed.
 
 The exhaustive census has a deliberately short five-minute reuse budget. Its actual
 completion timestamp and age are exposed as first-class evidence so a caller never has
@@ -25,7 +25,7 @@ from .config import settings
 
 
 GAMMA = "https://gamma-api.polymarket.com"
-WEATHER_ONLY_DISCOVERY_VERSION = "weather_keyset_v4_exhaustive_recall_5m_freshness_evidence"
+WEATHER_ONLY_DISCOVERY_VERSION = "weather_keyset_v5_gamma_vs_semantic_weather_census"
 DEFAULT_TAGS = ("daily-temperature", "weather")
 PAGE_SIZE = 25
 GLOBAL_PAGE_SIZE = 50
@@ -265,12 +265,28 @@ class WeatherOnlyDiscovery:
     @staticmethod
     def _strict_weather_candidate(event: dict) -> bool:
         from .weather_only_contracts import DAILY_HIGH, DAILY_LOW, compile_weather_event
-
         try:
             compiled = compile_weather_event(event)
         except Exception:
             return False
         return compiled.family in {DAILY_HIGH, DAILY_LOW}
+
+    @staticmethod
+    def _weather_looking_candidate(event: dict) -> bool:
+        # Deliberately independent of either contract compiler: semantic census must
+        # still see new temperature wording that both old/strict grammars reject.
+        texts = [str(event.get("title") or ""), str(event.get("question") or "")]
+        for market in event.get("markets") or []:
+            if isinstance(market, dict):
+                texts.append(str(market.get("question") or ""))
+        text = " ".join(texts).lower()
+        if "temperature" not in text:
+            return False
+        return any(marker in text for marker in (
+            "highest temperature", "lowest temperature", "maximum temperature",
+            "minimum temperature", "daily high", "daily low", "high temperature",
+            "low temperature",
+        ))
 
     @staticmethod
     def _semantic_classification(event: dict) -> tuple[str, str]:
@@ -329,10 +345,10 @@ class WeatherOnlyDiscovery:
             if scanned > MAX_GLOBAL_EVENT_HITS:
                 raise WeatherDiscoveryError("GLOBAL_EVENT_CAP")
             for event in events:
-                if self._strict_weather_candidate(event):
+                if self._weather_looking_candidate(event):
                     retained.append(copy.deepcopy(event))
                     if len(retained) > MAX_EVENTS:
-                        raise WeatherDiscoveryError("GLOBAL_STRICT_EVENT_CAP")
+                        raise WeatherDiscoveryError("GLOBAL_WEATHER_LOOKING_EVENT_CAP")
             if next_cursor is None:
                 break
             if next_cursor == cursor or next_cursor in seen_cursors:
@@ -428,15 +444,18 @@ class WeatherOnlyDiscovery:
         global_events, global_pages, global_scanned, cache_hit = (
             await self._global_weather_census()
         )
+        # Semantic classification is independent from enumeration completeness. Only
+        # SUPPORTED events are promoted; unsupported weather-looking events remain in
+        # the census evidence below and never reach trading lanes.
+        supported_global_events: list[dict] = []
+        semantic_rows: list[tuple[dict, str, str]] = []
         for event in global_events:
-            duplicate_event_hits += int(
-                self._ingest(
-                    event,
-                    by_id=by_id,
-                    order=order,
-                    market_owner=market_owner,
-                )
-            )
+            category, detail = self._semantic_classification(event)
+            semantic_rows.append((event, category, detail))
+            if category == "SUPPORTED":
+                supported_global_events.append(event)
+        for event in supported_global_events:
+            duplicate_event_hits += int(self._ingest(event, by_id=by_id, order=order, market_owner=market_owner))
         pages_by_tag["__global__"] = global_pages
         finished = time.time()
         census_completed_at = self._global_cache_at if self._global_cache_at > 0.0 else None
@@ -448,8 +467,7 @@ class WeatherOnlyDiscovery:
         reason_counts: dict[str, int] = {}
         unsupported_examples: list[dict] = []
         supported = 0
-        for event in global_events:
-            category, detail = self._semantic_classification(event)
+        for event, category, detail in semantic_rows:
             if category == "SUPPORTED":
                 supported += 1
                 continue
