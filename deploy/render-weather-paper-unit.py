@@ -22,7 +22,9 @@ def _safe(value: str) -> None:
         raise ValueError("service paths/user/SHA must be whitespace-free safe names")
 
 
-def render(app_dir: Path, config_dir: Path, user: str, release_sha: str) -> str:
+def render(app_dir: Path, config_dir: Path, user: str, release_sha: str = "0" * 40) -> str:
+    # The default exists only for pure renderer/unit tests that historically called
+    # render() directly. The executable CLI used by deployment requires --release-sha.
     for value in (str(app_dir), str(config_dir), user, release_sha):
         _safe(value)
     if not app_dir.is_absolute() or not config_dir.is_absolute():
