@@ -21,6 +21,21 @@ def test_host_bootstrap_freezes_runtime_paths_root_owned_and_revokes_stale_candi
     assert "old.get('approved')" not in text
 
 
+def test_host_bootstrap_materializes_authority_tools_from_exact_reviewed_git_object():
+    text = _text("deploy/install-weather-paper-host-trust.sh")
+    assert 'EXPECTED_BOOTSTRAP_BLOB="$(git -C "${APP_DIR}" rev-parse "${CANDIDATE_SHA}:deploy/install-weather-paper-host-trust.sh")"' in text
+    assert 'ACTUAL_BOOTSTRAP_BLOB="$(git -C "${APP_DIR}" hash-object "${BASH_SOURCE[0]}")"' in text
+    assert "bootstrap script does not match reviewed candidate object" in text
+    assert 'git -C "${APP_DIR}" show "${CANDIDATE_SHA}:${candidate_path}" > "${TMP_BUNDLE}/${name}"' in text
+    assert 'EXPECTED_BLOB="$(git -C "${APP_DIR}" rev-parse "${CANDIDATE_SHA}:${candidate_path}")"' in text
+    assert 'ACTUAL_BLOB="$(git -C "${APP_DIR}" hash-object "${TMP_BUNDLE}/${name}")"' in text
+    assert "materialized host tool blob mismatch" in text
+    assert '${SCRIPT_DIR}/weather-paper-host-release-gate.py' not in text
+    assert '${SCRIPT_DIR}/weather-paper-venv-snapshot.py' not in text
+    assert '${TMP_BUNDLE}/weather-paper-host-release-gate.py' in text
+    assert '${TMP_BUNDLE}/weather-paper-host-recovery.sh' in text
+
+
 def test_host_snapshot_and_recovery_ignore_caller_path_environment():
     for name in (
         "deploy/weather-paper-host-snapshot.sh",
