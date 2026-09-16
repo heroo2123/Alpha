@@ -27,18 +27,21 @@ RELEASE_VENV="${APP_DIR}/.releases/${EXPECTED_SHA}/venv"
 [[ -x "${RELEASE_VENV}/bin/python" ]] || fail "exact candidate release venv missing"
 /usr/bin/python3 "${HOST_GATE}" verify-generation --generation-id "${EXPECTED_GENERATION}" --sha "${EXPECTED_SHA}"
 /usr/bin/python3 "${HOST_GATE}" verify-checkout --app-dir "${APP_DIR}" --release-file "${RELEASE_FILE}" --generation-file "${GENERATION_FILE}"
-[[ "$(git -C "${APP_DIR}" rev-parse HEAD)" == "${EXPECTED_SHA}" ]] || fail "checkout candidate mismatch"
-[[ "$(tr -d '[:space:]' < "${RELEASE_FILE}")" == "${EXPECTED_SHA}" ]] || fail "release marker candidate mismatch"
+[[ "$(git -C "${APP_DIR}" rev-parse HEAD)" == "${EXPECTED_SHA}" ]] || fail "checkout is not the explicitly approved candidate"
+[[ "$(tr -d '[:space:]' < "${RELEASE_FILE}")" == "${EXPECTED_SHA}" ]] || fail "release marker is not the explicitly approved candidate"
 if systemctl is-active --quiet "${UNIT}" 2>/dev/null; then fail "${UNIT} already active"; fi
 if systemctl is-enabled --quiet "${UNIT}" 2>/dev/null; then fail "${UNIT} already enabled"; fi
 
-# Preflight must use this exact generation/release and installs only a stopped unit.
 bash "${APP_DIR}/deploy/preflight-weather-paper-deployment.sh" "${EXPECTED_SHA}" "${EXPECTED_GENERATION}"
 start_attempted=0
 rollback_on_error(){
   code=$?
   trap - EXIT
   if (( code != 0 )) && (( start_attempted == 1 )); then
+    # Contain the failed candidate immediately, then let the independent authority
+    # restore the exact predecessor active/enabled state recorded in this generation.
+    sudo systemctl stop "${UNIT}" >/dev/null 2>&1 || true
+    sudo systemctl disable "${UNIT}" >/dev/null 2>&1 || true
     printf 'Candidate acceptance failed; invoking exact immutable predecessor recovery %s...\n' "${EXPECTED_GENERATION}" >&2
     sudo "${HOST_RECOVERY}" --generation-id "${EXPECTED_GENERATION}" || printf 'CRITICAL: predecessor recovery failed\n' >&2
     rm -f "${START_EPOCH_FILE}" >/dev/null 2>&1 || true
@@ -69,3 +72,5 @@ systemctl is-active --quiet "${UNIT}" 2>/dev/null || fail "weather PAPER service
 ! systemctl is-enabled --quiet "${UNIT}" 2>/dev/null || fail "service became persistent before explicit approval"
 trap - EXIT
 printf 'PASS: candidate %s accepted against immutable generation %s; active but DISABLED.\n' "${EXPECTED_SHA}" "${EXPECTED_GENERATION}"
+printf 'Persistence still requires a fresh saved three-layer capture after this start.\n'
+printf 'Same-day delivery, PWS, financial authority and real orders remain disabled.\n'
