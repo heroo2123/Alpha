@@ -1,22 +1,32 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-# Installed root-owned under /usr/local/libexec/polymarket-weather-paper/.  This file
-# is the independent rollback snapshot authority; candidate checkout scripts are not
-# used to create or validate the rollback generation.
-APP_DIR="${ALPHA_WEATHER_APP_DIR:-${HOME}/polymarket-weather-paper-app}"
-CONFIG_DIR="${ALPHA_CONFIG_DIR:-${HOME}/.polymarket-edge-scanner}"
-DB_PATH="${WEATHER_PAPER_DB_PATH:-/var/lib/polymarket-weather-paper/weather-paper.sqlite}"
-UNIT="polymarket-weather-paper.service"
+# Installed root-owned under /usr/local/libexec/polymarket-weather-paper/. This file
+# is the independent rollback snapshot authority. Runtime paths come only from the
+# root-owned host configuration installed before candidate cutover.
+PATH=/usr/bin:/bin
+export PATH
+unset BASH_ENV ENV CDPATH GIT_DIR GIT_WORK_TREE GIT_CONFIG_GLOBAL GIT_CONFIG_SYSTEM || true
+LIBEXEC="/usr/local/libexec/polymarket-weather-paper"
+HOST_PATHS="/etc/polymarket-weather-paper/host-paths.conf"
+GATE="${LIBEXEC}/release-gate.py"
+VENV_HELPER="${LIBEXEC}/weather-paper-venv-snapshot.py"
+
+fail(){ printf 'HOST SNAPSHOT ERROR: %s\n' "$*" >&2; exit 1; }
+[[ -f "${HOST_PATHS}" && ! -L "${HOST_PATHS}" ]] || fail "root-owned host path configuration missing"
+[[ "$(stat -c '%u' "${HOST_PATHS}")" == "0" ]] || fail "host path configuration is not root owned"
+HOST_MODE="$(stat -c '%a' "${HOST_PATHS}")"
+(( (8#${HOST_MODE} & 8#22) == 0 )) || fail "host path configuration writable by nonroot"
+# shellcheck disable=SC1090
+source "${HOST_PATHS}"
+[[ "${APP_DIR:-}" == /* && "${CONFIG_DIR:-}" == /* && "${DB_PATH:-}" == /* ]] || fail "pinned host paths invalid"
+[[ "${UNIT:-}" == "polymarket-weather-paper.service" ]] || fail "pinned service identity invalid"
+
 UNIT_FILE="/etc/systemd/system/${UNIT}"
 RELEASE_FILE="${CONFIG_DIR}/weather-paper-release.sha"
 ROLLBACK_DIR="${CONFIG_DIR}/all-paper-rollback"
-LIBEXEC="/usr/local/libexec/polymarket-weather-paper"
-GATE="${LIBEXEC}/release-gate.py"
-VENV_HELPER="${LIBEXEC}/weather-paper-venv-snapshot.py"
 GENERATION="${ROLLBACK_DIR}/snapshot-generation-v3"
 
-fail(){ printf 'HOST SNAPSHOT ERROR: %s\n' "$*" >&2; exit 1; }
 [[ -x /usr/bin/python3 && -f "${GATE}" && -f "${VENV_HELPER}" ]] || fail "host trust tools missing"
 [[ -d "${APP_DIR}/.git" && -f "${RELEASE_FILE}" && -f "${UNIT_FILE}" ]] || fail "known-good release evidence missing"
 /usr/bin/python3 "${GATE}" verify-checkout --app-dir "${APP_DIR}" --release-file "${RELEASE_FILE}"
