@@ -110,6 +110,7 @@ def _status() -> dict:
             "global_weather_recall_complete": True,
             "global_weather_recall_fresh": True,
             "global_weather_recall_max_reuse_seconds": 300.0,
+            "global_weather_recall_certified_at": NOW - 1.0,
             "global_weather_recall_age_seconds": 1.0,
             "global_weather_recall": {
                 "complete": True,
@@ -189,6 +190,32 @@ def test_final_acceptance_requires_every_new_operator_config_network_and_recall_
             status, expected_release_sha=SHA, not_before=NOW - 10.0, now=NOW
         )
     assert exc.value.code == "ALL_PAPER_GLOBAL_WEATHER_RECALL_STALE"
+
+
+def test_final_acceptance_binds_top_level_recall_evidence_to_nested_census():
+    status = _status()
+    status["global_weather_recall_age_seconds"] = 2.0
+    with pytest.raises(AllPaperDeploymentAcceptanceError) as exc:
+        accept_first_all_paper_cycle_v2(
+            status, expected_release_sha=SHA, not_before=NOW - 10.0, now=NOW
+        )
+    assert exc.value.code == "ALL_PAPER_GLOBAL_WEATHER_RECALL_AGE_EVIDENCE_MISMATCH"
+
+    status = _status()
+    status["global_weather_recall_certified_at"] = NOW - 2.0
+    with pytest.raises(AllPaperDeploymentAcceptanceError) as exc:
+        accept_first_all_paper_cycle_v2(
+            status, expected_release_sha=SHA, not_before=NOW - 10.0, now=NOW
+        )
+    assert exc.value.code == "ALL_PAPER_GLOBAL_WEATHER_RECALL_COMPLETION_EVIDENCE_MISMATCH"
+
+    status = _status()
+    status["global_weather_recall_max_reuse_seconds"] = 299.0
+    with pytest.raises(AllPaperDeploymentAcceptanceError) as exc:
+        accept_first_all_paper_cycle_v2(
+            status, expected_release_sha=SHA, not_before=NOW - 10.0, now=NOW
+        )
+    assert exc.value.code == "ALL_PAPER_GLOBAL_WEATHER_RECALL_REUSE_EVIDENCE_MISMATCH"
 
 
 def test_renderer_uses_final_v9_and_disables_dotenv_and_network_environment():
