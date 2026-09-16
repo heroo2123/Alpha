@@ -22,6 +22,9 @@ from polymarket_scanner.weather_only_live_paper_all_signals_final_v6 import (
 from polymarket_scanner.weather_only_live_paper_all_signals_final_v7 import (
     FINAL_ALL_PAPER_RUNTIME_V7_VERSION,
 )
+from polymarket_scanner.weather_only_live_paper_all_signals_final_v8 import (
+    FINAL_ALL_PAPER_RUNTIME_V8_VERSION,
+)
 from polymarket_scanner.weather_only_operator_state_corrective import (
     OPERATOR_STATE_CORRECTIVE_VERSION,
 )
@@ -60,6 +63,7 @@ def _status() -> dict:
             "final_all_paper_runtime_v5_version": FINAL_ALL_PAPER_RUNTIME_V5_VERSION,
             "final_all_paper_runtime_v6_version": FINAL_ALL_PAPER_RUNTIME_V6_VERSION,
             "final_all_paper_runtime_v7_version": FINAL_ALL_PAPER_RUNTIME_V7_VERSION,
+            "final_all_paper_runtime_v8_version": FINAL_ALL_PAPER_RUNTIME_V8_VERSION,
             "operator_state_corrective_version": OPERATOR_STATE_CORRECTIVE_VERSION,
             "operator_state_corrective_v2_version": OPERATOR_STATE_CORRECTIVE_V2_VERSION,
             "operator_state_corrective_v3_version": OPERATOR_STATE_CORRECTIVE_V3_VERSION,
@@ -86,17 +90,31 @@ def _status() -> dict:
             "maker_proposal_queue_uncertified_label": True,
             "maker_queue_certified": False,
             "maker_queue_position_certified": False,
+            "historical_terminal_operator_sync_backfill_required": True,
+            "historical_terminal_operator_sync_complete": True,
+            "historical_terminal_operator_sync_missing": 0,
+            "network_environment_isolated": True,
+            "network_environment_absent_before_http_client_construction": True,
+            "global_weather_recall_required": True,
+            "global_weather_recall_complete": True,
+            "global_weather_recall": {
+                "complete": True,
+                "cache_hit": False,
+                "pages": 1,
+                "scanned_events": 1,
+                "retained_events": 1,
+            },
         }
     )
     return status
 
 
-def test_final_acceptance_requires_every_new_operator_and_config_invariant():
+def test_final_acceptance_requires_every_new_operator_config_network_and_recall_invariant():
     accepted = accept_first_all_paper_cycle_v2(
         _status(), expected_release_sha=SHA, not_before=NOW - 10.0, now=NOW
     )
     assert accepted.accepted is True
-    assert accepted.runtime_version == FINAL_ALL_PAPER_RUNTIME_V7_VERSION
+    assert accepted.runtime_version == FINAL_ALL_PAPER_RUNTIME_V8_VERSION
     assert accepted.operator_state_v3_version == OPERATOR_STATE_CORRECTIVE_V3_VERSION
     assert accepted.operator_state_v4_version == OPERATOR_STATE_CORRECTIVE_V4_VERSION
 
@@ -108,6 +126,10 @@ def test_final_acceptance_requires_every_new_operator_and_config_invariant():
         ("operator_restart_visibility_required", "ALL_PAPER_OPERATOR_RESTART_VISIBILITY_NOT_REQUIRED"),
         ("operator_sync_before_startup_required", "ALL_PAPER_OPERATOR_STARTUP_SYNC_NOT_REQUIRED"),
         ("maker_proposal_queue_uncertified_label", "ALL_PAPER_MAKER_QUEUE_LABEL_NOT_PROVEN"),
+        ("historical_terminal_operator_sync_complete", "ALL_PAPER_HISTORICAL_TERMINAL_BACKFILL_INCOMPLETE"),
+        ("network_environment_isolated", "ALL_PAPER_NETWORK_ENVIRONMENT_NOT_ISOLATED"),
+        ("network_environment_absent_before_http_client_construction", "ALL_PAPER_NETWORK_ENVIRONMENT_CONSTRUCTION_BOUNDARY_NOT_PROVEN"),
+        ("global_weather_recall_complete", "ALL_PAPER_GLOBAL_WEATHER_RECALL_INCOMPLETE"),
     ):
         status = _status()
         status[key] = False
@@ -117,38 +139,63 @@ def test_final_acceptance_requires_every_new_operator_and_config_invariant():
             )
         assert exc.value.code == expected_code
 
+    status = _status()
+    status["historical_terminal_operator_sync_missing"] = 1
+    with pytest.raises(AllPaperDeploymentAcceptanceError) as exc:
+        accept_first_all_paper_cycle_v2(
+            status, expected_release_sha=SHA, not_before=NOW - 10.0, now=NOW
+        )
+    assert exc.value.code == "ALL_PAPER_HISTORICAL_TERMINAL_SYNC_MISSING"
 
-def test_renderer_uses_final_v7_and_disables_dotenv():
+    status = _status()
+    status["global_weather_recall"] = {"complete": True, "pages": 1, "scanned_events": 0}
+    with pytest.raises(AllPaperDeploymentAcceptanceError) as exc:
+        accept_first_all_paper_cycle_v2(
+            status, expected_release_sha=SHA, not_before=NOW - 10.0, now=NOW
+        )
+    assert exc.value.code == "ALL_PAPER_GLOBAL_WEATHER_RECALL_EVIDENCE_INVALID"
+
+
+def test_renderer_uses_final_v8_and_disables_dotenv_and_network_environment():
     renderer = _load_script(ROOT / "deploy" / "render-all-paper-unit.py", "render_all_paper_unit")
     text = renderer.render(Path("/home/test/app"), Path("/home/test/config"), "tester")
-    assert renderer.ALL_PAPER_MODULE == "polymarket_scanner.weather_only_live_paper_all_signals_final_v7"
+    assert renderer.ALL_PAPER_MODULE == "polymarket_scanner.weather_only_live_paper_all_signals_final_v8"
     assert text.count("Environment=ALPHA_DISABLE_DOTENV=1") == 1
-    assert "weather_only_live_paper_all_signals_final_v7" in text
+    assert "weather_only_live_paper_all_signals_final_v8" in text
     assert "EnvironmentFile=/home/test/config/weather-paper.env" in text
+    assert "UnsetEnvironment=" in text
+    assert "HTTP_PROXY" in text and "SSL_CERT_FILE" in text
+    assert "release-gate.py verify-checkout" in text
 
 
-def test_deployment_scripts_route_through_final_attestation_and_exact_rollback():
+def test_deployment_scripts_route_through_final_attestation_and_host_owned_rollback():
     preflight = (ROOT / "deploy" / "preflight-all-paper-deployment.sh").read_text()
     start = (ROOT / "deploy" / "start-all-paper-candidate.sh").read_text()
     persistence = (ROOT / "deploy" / "enable-all-paper-persistence.sh").read_text()
-    prepare = (ROOT / "deploy" / "prepare-all-paper-candidate-v2.sh").read_text()
-    restore = (ROOT / "deploy" / "restore-all-paper-rollback-v2.sh").read_text()
+    prepare = (ROOT / "deploy" / "prepare-all-paper-candidate-v3.sh").read_text()
+    restore_wrapper = (ROOT / "deploy" / "restore-all-paper-rollback.sh").read_text()
+    host_restore = (ROOT / "deploy" / "weather-paper-host-recovery.sh").read_text()
+    host_snapshot = (ROOT / "deploy" / "weather-paper-host-snapshot.sh").read_text()
     attester = (ROOT / "deploy" / "attest-all-paper-runtime-v2.py").read_text()
 
     assert "attest-all-paper-runtime-v2.py" in preflight
+    assert "verify-checkout" in preflight
     assert "attest-all-paper-runtime-v2.py" in start
     assert "verify-all-paper-first-cycle-v2.py" in start
+    assert "verify-operator-sync-complete.py" in start
     assert "attest-all-paper-runtime-v2.py" in persistence
     assert "verify-all-paper-first-cycle-v2.py" in persistence
-    assert "snapshot-generation-v2" in prepare
+    assert "verify-operator-sync-complete.py" in persistence
+    assert "snapshot-generation-v3" in prepare
     assert "previous-venv.tar" in prepare
-    assert '"${TMP_HELPER}" verify-tree' in prepare
-    assert "weather_only_operator_state_corrective_v3.py" in prepare
-    assert "weather_only_operator_state_corrective_v4.py" in prepare
-    assert "restore-all-paper-rollback-v2.sh" in (ROOT / "deploy" / "restore-all-paper-rollback.sh").read_text()
-    assert "previous-venv.tar" in restore
-    assert "weather-paper-venv-snapshot.py" in restore
-    assert "FINAL_MODULE = \"polymarket_scanner.weather_only_live_paper_all_signals_final_v7\"" in attester
+    assert '"${HOST_VENV}" verify-tree' in prepare
+    assert "weather_only_live_paper_all_signals_final_v8.py" in prepare
+    assert "/usr/local/libexec/polymarket-weather-paper/restore-rollback.sh" in restore_wrapper
+    assert "previous-venv.tar" in host_restore
+    assert "weather-paper-venv-snapshot.py" in (ROOT / "deploy" / "install-weather-paper-host-trust.sh").read_text()
+    assert "snapshot-generation-v3" in host_snapshot
+    assert "all-paper-rollback-v3-host-authority" in host_snapshot
+    assert "FINAL_MODULE = \"polymarket_scanner.weather_only_live_paper_all_signals_final_v8\"" in attester
 
 
 def test_exact_venv_snapshot_round_trip(tmp_path):
