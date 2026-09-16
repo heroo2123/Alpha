@@ -30,3 +30,4 @@ jobs:
           git add tests
           git commit -m 'Replace superseded trust tests with current independent-authority coverage'
           git push origin HEAD:weather-all-paper-stage2-findings-5-7-2026-09-16
+# one-shot trigger; remove after generated commit
