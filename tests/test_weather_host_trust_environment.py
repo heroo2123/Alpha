@@ -11,8 +11,10 @@ def _text(name: str) -> str:
 def test_host_bootstrap_freezes_runtime_paths_root_owned_and_revokes_stale_candidates():
     text = _text("deploy/install-weather-paper-host-trust.sh")
     assert 'HOST_PATHS="${ETC_DIR}/host-paths.conf"' in text
+    assert 'ROLLBACK_DIR="/var/lib/polymarket-weather-paper-rollback"' in text
     assert "DB_PATH=" in text
-    assert "printf 'APP_DIR=%q\\nCONFIG_DIR=%q\\nDB_PATH=%q\\nUNIT=%q\\n'" in text
+    assert "printf 'APP_DIR=%q\\nCONFIG_DIR=%q\\nDB_PATH=%q\\nUNIT=%q\\nROLLBACK_DIR=%q\\nDEPLOY_USER=%q\\nDEPLOY_UID=%q\\nDEPLOY_GID=%q\\n'" in text
+    assert 'install -d -o root -g "${DEPLOY_GID}" -m 0750 "${ROLLBACK_DIR}"' in text
     assert 'install -o root -g root -m 0444 "${TMP_PATHS}" "${HOST_PATHS}"' in text
     assert "BASH_ENV ENV CDPATH" in text
     assert "GIT_DIR GIT_WORK_TREE GIT_CONFIG_GLOBAL GIT_CONFIG_SYSTEM" in text
@@ -46,6 +48,7 @@ def test_host_snapshot_and_recovery_ignore_caller_path_environment():
         assert 'source "${HOST_PATHS}"' in text
         assert 'stat -c \'%u\' "${HOST_PATHS}"' in text
         assert "writable by nonroot" in text
+        assert '"${ROLLBACK_DIR:-}" == /*' in text
         assert "ALPHA_WEATHER_APP_DIR" not in text
         assert "ALPHA_CONFIG_DIR" not in text
         assert "WEATHER_PAPER_DB_PATH" not in text
