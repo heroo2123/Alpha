@@ -108,6 +108,7 @@ class ProductionConfig:
     rpc_url: str | None = None
     source_path: Path | None = None
     fee_policy: str | None = None
+    operator_control: object | None = None
 
     @classmethod
     def parse(cls, raw: dict) -> "ProductionConfig":
@@ -159,6 +160,12 @@ class ProductionConfig:
                 raise ConfigurationError("STRUCTURAL_PARTIAL_FILL_POLICY_REQUIRED")
         rpc = raw.get("rpc_url")
         if mode == "LIVE_EXECUTION":
+            if raw.get("wallet_type", "EOA") != "EOA" or type(raw.get("signature_type",0)) is not int or raw.get("signature_type", 0) != 0:
+                raise ConfigurationError("WALLET_ADAPTER_UNSUPPORTED:EOA_ONLY_NO_OWNER_KEY_FALLBACK")
+            if any(key in raw for key in ("session_key", "session_signer", "session_scopes")):
+                raise ConfigurationError("SESSION_KEY_ADAPTER_NOT_IMPLEMENTED")
+            if raw.get("withdrawal_disabled") is not None:
+                raise ConfigurationError("EOA_KEY_IS_NOT_WITHDRAWAL_RESTRICTED")
             from urllib.parse import urlsplit
             parts = urlsplit(str(required(raw, "rpc_url")))
             if parts.scheme != "https" or not parts.hostname or parts.username or parts.password or parts.fragment:
@@ -168,13 +175,17 @@ class ProductionConfig:
         for key in ("min_model_gap", "min_structural_edge"):
             if decimal(required(raw, key), key) >= 1:
                 raise ConfigurationError("GAP_RANGE:" + key)
+        control = None
+        if "operator_control" in raw:
+            from .control import ControlPolicy
+            control = ControlPolicy.parse(raw["operator_control"], mode=mode, fee_policy=fee_policy, paths=paths)
         return cls(mode, paths["signal_db"], paths["status_path"], frozenset(selected),
                    decimal(required(raw, "min_model_gap"), "min_model_gap"),
                    decimal(required(raw, "min_structural_edge"), "min_structural_edge"), allow,
                    paths.get("execution_db"), paths.get("credentials_file"), wallet, signer,
                    paths.get("activation_file"), paths.get("stop_file"), risk, digest(raw),
                    paths.get("telegram_file"), paths.get("execution_status_path"), rpc,
-                   fee_policy=fee_policy)
+                   fee_policy=fee_policy, operator_control=control)
 
     @classmethod
     def load(cls, path: Path) -> "ProductionConfig":

@@ -1,0 +1,26 @@
+name: weather-operator-unfunded-probe
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - weather-telegram-operator-continuation-2026-09-16
+permissions:
+  contents: read
+jobs:
+  public-collection-measurement:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install --require-hashes -r requirements-runtime-hashed.txt
+      - name: Measure exact-release public collection without accounts or Telegram
+        run: python -m tools.operator_unfunded_probe --expected-sha "$GITHUB_SHA" --cycles 1 --output "$RUNNER_TEMP/operator-unfunded-public.json"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: operator-unfunded-public-${{ github.sha }}
+          path: ${{ runner.temp }}/operator-unfunded-public.json

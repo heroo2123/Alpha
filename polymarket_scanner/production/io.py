@@ -69,3 +69,16 @@ def clean_startup():
         raise ConfigurationError("CODE_LOADING_OR_TRANSPORT_ENVIRONMENT_FORBIDDEN")
     os.environ["ALPHA_DISABLE_DOTENV"] = "1"
     os.umask(0o077)
+def release_identity():
+    """Read the independent host's immutable release manifest; never infer approval."""
+    import json
+    import re
+    from pathlib import Path
+    try:
+        manifest = json.loads((Path(__file__).resolve().parents[2].parent / "runtime-manifest.json").read_text())
+        sha = manifest.get("candidate_sha", "")
+        if not isinstance(sha, str) or not re.fullmatch(r"[a-f0-9]{40}", sha):
+            return "UNATTESTED_LOCAL_CHECKOUT"
+        return sha
+    except (OSError,ValueError,TypeError):
+        return "UNATTESTED_LOCAL_CHECKOUT"

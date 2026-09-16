@@ -96,6 +96,8 @@ class ExecutionLedger:
     def recover_after_restart(self):
         """Caller must hold the exclusive worker lease before recovery."""
         with self.transaction() as db:
+            for row in db.execute("SELECT id FROM execution_orders WHERE status='SUBMITTING'").fetchall():
+                self.audit(db, "SUBMISSION_UNKNOWN", row[0], {})
             db.execute("UPDATE execution_orders SET status='UNKNOWN' WHERE status='SUBMITTING'")
             db.execute("UPDATE execution_intents SET reserved=(SELECT COALESCE(SUM(o.reserved),0) FROM execution_orders o WHERE o.intent_id=execution_intents.id),status='RECOVERED'")
             self.audit(db, "CRASH_RECOVERY", self.wallet, {})
@@ -430,7 +432,7 @@ class ExecutionLedger:
             # fill arrivals; repeated partial fills must not postpone stopping it.
             updated = order["updated"] if status == "CANCEL_REQUESTED" else time.time()
             db.execute("UPDATE execution_orders SET matched=?,reserved=?,status=?,updated=? WHERE id=?", (cumulative, new_reserved, status, updated, order["id"]))
-            self.audit(db, "CONFIRMED_FILL", fill["id"], {"order": order["id"], "quantity": quantity, "cost": cost, "fee": fee})
+            self.audit(db, "CONFIRMED_FILL", fill["id"], {"order": order["id"], "quantity": quantity, "cost": cost, "fee": fee, "matched": cumulative, "ordered": order["quantity"]})
             if breach:
                 # The fill, fault and cancellation work commit together. A crash
                 # cannot preserve a breached fee while losing the stop request.
@@ -457,7 +459,7 @@ class ExecutionLedger:
             self.audit(db, "CANCEL_REQUESTED", order_id, {})
         return True
 
-    def confirm_terminal(self, order_id: str, *, cancelled: bool, matched: int):
+    def confirm_terminal(self, order_id: str, *, cancelled: bool, matched: int, exchange_status=None):
         with self.transaction() as db:
             row = db.execute("SELECT * FROM execution_orders WHERE id=?", (order_id,)).fetchone()
             if not row or matched != row["matched"]:
@@ -470,7 +472,7 @@ class ExecutionLedger:
             db.execute("UPDATE execution_orders SET status=?,cancellation_confirmed=?,updated=? WHERE id=?",
                        (target, int(cancelled), time.time(), order_id))
             self._release_order(db, row)
-            self.audit(db, "ORDER_TERMINAL", order_id, {"cancelled": cancelled, "matched": matched})
+            self.audit(db, "ORDER_TERMINAL", order_id, {"cancelled": cancelled, "matched": matched, "exchange_status": exchange_status})
 
     def positions(self, *, held_only=False) -> list[dict]:
         with self.connect() as db:
@@ -521,7 +523,16 @@ class ExecutionLedger:
             for row in db.execute("SELECT asset,amount_wei FROM execution_native_gas"):
                 native_gas[row[0]] = native_gas.get(row[0], 0) + int(row[1])
             gas_unknown = db.execute("SELECT COUNT(DISTINCT transaction_hash) FROM execution_redemptions WHERE json_extract(proof,'$.native_gas') IS NULL").fetchone()[0]
-        return {"wallet": self.wallet, "confirmed_fill_count": fills[0], "actual_cost_micros": fills[1],
+            recent_orders = [dict(r) for r in db.execute("SELECT id,token,status,quantity,matched,limit_price,fee_cap,reserved FROM execution_orders ORDER BY updated DESC,id LIMIT 20")]
+            for order in recent_orders:
+                terminal=db.execute("SELECT json_extract(data,'$.exchange_status') FROM execution_audit WHERE kind='ORDER_TERMINAL' AND identity=? ORDER BY seq DESC LIMIT 1",(order["id"],)).fetchone()
+                order["exchange_terminal_status"] = terminal[0] if terminal and terminal[0]=="EXPIRED" else None
+            recent_fills = [dict(r) for r in db.execute("SELECT id,order_id,token,quantity,cost,fee FROM execution_fills ORDER BY recorded DESC,id LIMIT 20")]
+            claims = [dict(r) for r in db.execute("SELECT token,payout,MAX(0,quantity-COALESCE((SELECT SUM(quantity) FROM execution_burns b WHERE b.token=s.token),0)) AS held_quantity FROM execution_settlements s ORDER BY recorded DESC LIMIT 1000")]
+        for claim in claims:
+            claim["unredeemed_value_micros"] = int(Decimal(claim["payout"]) * claim["held_quantity"]) if claim["token"] not in disputed else None
+        return {"wallet": self.wallet, "confirmed_fill_count": fills[0],
+                "recent_orders": recent_orders, "recent_fills": recent_fills, "claimable_positions": claims, "actual_cost_micros": fills[1],
                 "actual_fees_micros": fills[2], "settled_position_count": outcomes[0],
                 "settled_position_pnl_micros": None if disputed else outcomes[1], "settlement_proof_unavailable_tokens": disputed,
                 "verified_redemption_proceeds_by_asset_micros": redemptions,

@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - weather-telegram-operator-continuation-2026-09-16
       - weather-production-integration-2026-09-16
 permissions:
   contents: read

@@ -2,6 +2,8 @@
 
 Repository implementation and target-host acceptance are separate gates. This guide describes the canonical composed production path. Deploy only a separately approved, verified immutable release; the historical checkpoint PR is not a release.
 
+For the private button interface and per-trade confirmation, use [Telegram operator panel](TELEGRAM_OPERATOR_PANEL.md). Its three components are `scanner`, `controller`, and optional `execution`; the combined text-only `signals` path below remains compatible when no operator-control grant is configured.
+
 ## Components and operating modes
 
 The canonical module is `polymarket_scanner.production`. It composes source validation, signal observations and a separate execution worker. It does not run the final_vN PAPER service or simulate fills behind a live label.
@@ -95,7 +97,7 @@ The second policy explicitly accepts reliance on the venue's mutable published s
 - Authenticated `/stop`: durable stop on new openings; existing orders and positions continue reconciliation and expiry management.
 - Authenticated `/cancel_open`: also requests cancellation of managed outstanding orders. This does not claim that cancellation succeeded.
 - Touch configured `stop_file` or remove the activation file to remove new-position authority locally. Existing order management remains active. Do not stop the worker merely to stop openings; server GTD is the last-resort expiry if the process is unavailable.
-- `/status`, `/recent`, `/positions`, `/stats` distinguish signals, unknown/outstanding orders, actual confirmed fills, and separately excluded simulations. No Telegram command enables trading or clears a reconciliation fault.
+- `/status`, `/recent`, `/positions`, `/stats` distinguish signals, unknown/outstanding orders, actual confirmed fills, and separately excluded simulations. The panel may select an approved experience and resume an existing valid grant after confirmation; no Telegram command grants initial authority or clears a reconciliation fault.
 - Local `resume-openings --config ... --expected-stop-generation N` removes authenticated stop requests only under a current matching activation request, fresh reconciled execution status and the unchanged stop generation displayed by /status. It does not clear an execution fault.
 - Local `recover --config ... --expected-fault CODE` requires fresh successful reconciliation and an exact unchanged fault before auditing/removing that fault. UNKNOWN submissions with no conclusive exchange evidence remain blocked and must not be “fixed” by deleting the DB or resubmitting them.
 - Before reconciling an older execution journal, a versioned audit checks cumulative filled quantity, cost and fees against each original order's limits. The audit preserves fills and atomically queues cancellation on a breach. Its completion marker survives explicit operator recovery, so the same acknowledged historical breach does not recur merely because the worker restarts. Every new fill remains subject to both individual and cumulative checks.

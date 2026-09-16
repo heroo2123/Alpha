@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - main
+      - weather-telegram-operator-continuation-2026-09-16
       - weather-production-integration-2026-09-16
       - weather-all-paper-stage2-findings-5-7-2026-09-16
 
@@ -20,7 +21,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - run: pip install -r requirements.txt
+      - run: pip install --require-hashes -r requirements-runtime-hashed.txt
       - name: Run public read-only Gamma semantic census
         shell: bash
         run: |

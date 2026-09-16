@@ -1,0 +1,16 @@
+{
+  "operator_control": {
+    "version": 1,
+    "db": "/var/lib/alpha-weather-signals/operator.sqlite3",
+    "scanner_db": "/var/lib/alpha-weather-scanner/scanner.sqlite3",
+    "scanner_status": "/var/lib/alpha-weather-scanner/status.json",
+    "authorization_version": null,
+    "authorization_expires_at": null,
+    "bot_id": null,
+    "chat_id": null,
+    "operator_user_ids": [],
+    "allowed_experiences": ["SIGNALS"],
+    "allowed_fee_policies": [],
+    "trading_schedule_utc": []
+  }
+}
