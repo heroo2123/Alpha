@@ -42,13 +42,58 @@ class Telegram:
         except Exception:
             return None
 
-    async def send(self, text):
+    async def send_result(self, text, markup=None):
         if len(text.encode("utf-16-le")) // 2 > 4000:
             raise ConfigurationError("COMPLETE_TELEGRAM_MESSAGE_TOO_LARGE")
-        value = await self.request("sendMessage", {"chat_id": self.chat_id, "text": text, "parse_mode": "HTML", "disable_web_page_preview": True})
+        payload = {"chat_id": self.chat_id, "text": text, "parse_mode": "HTML", "disable_web_page_preview": True}
+        if markup is not None:
+            payload["reply_markup"] = markup
+        value = await self.request("sendMessage", payload)
         result = value.get("result") if value and value.get("ok") is True else None
         message_id = result.get("message_id") if isinstance(result, dict) else None
-        return message_id if type(message_id) is int and message_id > 0 else None
+        if type(message_id) is int and message_id > 0:
+            return {"state":"SENT", "message_id":message_id}
+        if value and value.get("ok") is False and value.get("error_code") == 429:
+            delay = value.get("parameters", {}).get("retry_after", 60)
+            return {"state":"RETRY", "retry_after":delay if type(delay) is int and delay > 0 else 60}
+        if value and value.get("ok") is False and value.get("error_code") in {400,401,403,404}:
+            return {"state":"FAILED"}
+        return {"state":"UNKNOWN"}
+
+    async def send(self, text):
+        return (await self.send_result(text)).get("message_id")
+
+    async def answer(self, callback_id, text):
+        if isinstance(callback_id, str) and len(callback_id) <= 256:
+            await self.request("answerCallbackQuery", {"callback_query_id":callback_id, "text":text[:180]})
+
+    def principal(self, update, policy):
+        """Strict private panel identity, including the bot that owns the message."""
+        if self.delivery_identity != {"bot_id":str(policy.bot_id), "chat_id":str(policy.chat_id)}:
+            return None
+        if self.operators != {str(actor) for actor in policy.operators}:
+            return None
+        callback = update.get("callback_query")
+        message = callback.get("message", {}) if isinstance(callback, dict) else update.get("message", {})
+        if not isinstance(message, dict):
+            return None
+        actor = callback.get("from", {}) if isinstance(callback, dict) else message.get("from", {})
+        chat = message.get("chat", {})
+        if not isinstance(actor, dict) or not isinstance(chat, dict):
+            return None
+        if (type(actor.get("id")) is not int or actor["id"] not in policy.operators or actor.get("is_bot") is not False
+            or chat.get("type") != "private" or type(chat.get("id")) is not int or chat["id"] != policy.chat_id
+            or any(message.get(key) for key in ("forward_origin","forward_from","forward_from_chat","sender_chat","via_bot"))):
+            return None
+        if callback is not None:
+            bot = message.get("from", {})
+            if (callback.get("inline_message_id") or bot.get("is_bot") is not True
+                or type(bot.get("id")) is not int or bot["id"] != policy.bot_id
+                or type(message.get("message_id")) is not int or message.get("date") == 0):
+                return None
+        elif type(message.get("date")) not in (int,float) or not time.time()-120 <= message["date"] <= time.time()+5:
+            return None
+        return actor["id"]
 
     async def invalidate(self, row):
         text = ("<b>SIGNAL " + html.escape(row["status"]) + "</b>\n"
@@ -65,7 +110,7 @@ class Telegram:
         return "EDIT_UNCERTAIN"
 
     async def updates(self, offset: int):
-        value = await self.request("getUpdates", {"offset": offset, "timeout": 0, "limit": 25, "allowed_updates": ["message"]})
+        value = await self.request("getUpdates", {"offset": offset, "timeout": 0, "limit": 25, "allowed_updates": ["message", "callback_query"]})
         return value["result"] if value and value.get("ok") is True and isinstance(value.get("result"), list) else []
 
     def authenticated(self, update: dict):

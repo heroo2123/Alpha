@@ -18,6 +18,19 @@ independent artifact nor installs anything on the production host.
 
 ## Privilege and component boundaries
 
+For the private panel, the primary component is `controller` and public collection
+is a separate `scanner` UID/unit/runtime venv. The policy additionally binds
+`operator_db_path` beside the signal DB, and `scanner_db_path`/`scanner_status_path`
+in a separate scanner-owned directory. It binds the Telegram path and optional
+execution credential/activation paths, masks private peer paths in units, and
+requires the extra scanner writer lease. `scanner+controller` with optional
+`execution` is supported; combining `signals` and panel roles is rejected. Every
+role must have a distinct UID and agree on the protected configuration. The
+tables below describe the retained combined-interface policy where named
+`signals`; for the panel substitute `controller` as primary. See
+`UPCLOUD_UNFUNDED_COMMISSIONING.md` for the new-host prerequisites and three-role
+acceptance procedure. The upgrade authority is not a genesis installer.
+
 The candidate-side `deploy/production-host-control.sh` is a protocol client. It
 accepts operation names, full commit IDs and generation IDs. It has no bootstrap,
 replacement-authority, arbitrary path, arbitrary module, or arbitrary UID option.
@@ -135,6 +148,11 @@ journal and both approved code/environment releases. If signal history changed,
 recovery similarly refuses with
 `RECOVERY_DB_CHANGED_REQUIRES_OPERATOR_RECONCILIATION`; replaying an old snapshot
 could duplicate or erase delivered alerts.
+
+Panel generations also bind read-only logical identities of operator-control and
+scanner handoff state. Changes cause
+`RECOVERY_CONTROL_OR_SCANNER_STATE_CHANGED_REQUIRES_FORWARD_RECOVERY`; old buttons,
+requests or handoff cursors are never replayed by automatic rollback.
 
 After such a refusal the services remain stopped and disabled, the active generation stays
 open, and account exposure may still exist. Use the application's opening-stop

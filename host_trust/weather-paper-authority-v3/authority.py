@@ -317,8 +317,14 @@ def _validate_policy(raw: dict) -> dict:
     out["deploy_user"] = deploy_user
     out["repo_remote_url"] = remote
     components = raw.get("components")
-    if not isinstance(components, dict) or "signals" not in components or set(components) - {"signals", "execution"}:
+    valid_sets = ({"signals"}, {"signals", "execution"}, {"scanner", "controller"}, {"scanner", "controller", "execution"})
+    if not isinstance(components, dict) or set(components) not in valid_sets:
         fail("AUTHORITY_COMPONENT_POLICY_REQUIRED")
+    primary = "controller" if "controller" in components else "signals"
+    if len({row.get("uid") for row in components.values() if isinstance(row, dict)}) != len(components):
+        fail("AUTHORITY_EXECUTION_IDENTITY_NOT_ISOLATED")
+    if len(components)>1 and (not raw.get("shared_read_group") or len({row.get("gid") for row in components.values() if isinstance(row,dict)}) != 1):
+        fail("AUTHORITY_READONLY_REPORT_GROUP_REQUIRED")
     for name, component in components.items():
         if not isinstance(component, dict) or component.get("module") != FINAL_MODULE:
             fail("AUTHORITY_COMPONENT_MODULE_INVALID")
@@ -329,7 +335,7 @@ def _validate_policy(raw: dict) -> dict:
         if not re.fullmatch(r"[A-Za-z0-9_.@-]+", str(component.get("unit_name", ""))):
             fail("AUTHORITY_COMPONENT_UNIT_INVALID")
         lock = component.get("lock_file")
-        expected_lock = "requirements-runtime-hashed.txt" if name == "signals" else "requirements-execution-hashed.txt"
+        expected_lock = "requirements-execution-hashed.txt" if name == "execution" else "requirements-runtime-hashed.txt"
         if lock != expected_lock:
             fail("AUTHORITY_COMPONENT_LOCK_INVALID")
         if not re.fullmatch(r"[A-Za-z0-9_.-]+", str(component.get("user", ""))):
@@ -337,12 +343,12 @@ def _validate_policy(raw: dict) -> dict:
         for key in ("uid", "gid"):
             if not isinstance(component.get(key), int) or component[key] <= 0:
                 fail("AUTHORITY_COMPONENT_UID_INVALID")
-    if components["signals"]["unit_name"] != unit or components["signals"]["unit_file"] != out["unit_file"]:
+    if components[primary]["unit_name"] != unit or components[primary]["unit_file"] != out["unit_file"]:
         fail("AUTHORITY_PRIMARY_UNIT_MISMATCH")
     if "execution" in components:
-        if components["execution"]["uid"] == components["signals"]["uid"]:
+        if components["execution"]["uid"] == components[primary]["uid"]:
             fail("AUTHORITY_EXECUTION_IDENTITY_NOT_ISOLATED")
-        if not raw.get("shared_read_group") or components["execution"]["gid"] != components["signals"]["gid"]:
+        if not raw.get("shared_read_group") or components["execution"]["gid"] != components[primary]["gid"]:
             fail("AUTHORITY_READONLY_REPORT_GROUP_REQUIRED")
         out["execution_db_path"] = str(_abs(raw.get("execution_db_path"), "AUTHORITY_EXECUTION_DB_REQUIRED"))
         if out["execution_db_path"] == out["db_path"]:
@@ -355,6 +361,19 @@ def _validate_policy(raw: dict) -> dict:
     if Path(out["signal_status_path"]).parent != Path(out["db_path"]).parent:
         fail("AUTHORITY_SIGNAL_STATUS_DIRECTORY_MISMATCH")
     paths = [out["db_path"], out["signal_status_path"]]
+    if primary == "controller":
+        for key in ("operator_db_path", "scanner_db_path", "scanner_status_path", "telegram_file"):
+            out[key] = str(_abs(raw.get(key), "AUTHORITY_PANEL_PATH_REQUIRED:" + key))
+        if Path(out["operator_db_path"]).parent != Path(out["db_path"]).parent:
+            fail("AUTHORITY_CONTROL_DIRECTORY_MISMATCH")
+        if Path(out["scanner_db_path"]).parent != Path(out["scanner_status_path"]).parent:
+            fail("AUTHORITY_SCANNER_DIRECTORY_MISMATCH")
+        if Path(out["scanner_db_path"]).parent in {Path(out["db_path"]).parent, Path(out.get("execution_db_path", "/")).parent}:
+            fail("AUTHORITY_STATE_DIRECTORIES_MUST_BE_SEPARATE")
+        paths += [out["operator_db_path"], out["scanner_db_path"], out["scanner_status_path"]]
+        if "execution" in components:
+            for key in ("execution_credentials_file", "execution_activation_file"):
+                out[key] = str(_abs(raw.get(key), "AUTHORITY_PRIVATE_PATH_REQUIRED:" + key))
     if "execution" in components:
         paths += [out["execution_db_path"], out["execution_status_path"]]
     if len(set(paths)) != len(paths):
@@ -378,6 +397,8 @@ def _validate_policy(raw: dict) -> dict:
     expected_locks = {str(Path(out["db_path"]).parent / "weather-paper-runtime.lock")}
     if "execution" in components:
         expected_locks.add(out["execution_db_path"] + ".writer.lock")
+    if "scanner" in components:
+        expected_locks.add(out["scanner_db_path"] + ".writer.lock")
     if set(locks) != expected_locks:
         fail("AUTHORITY_WRITER_LOCK_BINDING_INVALID")
     return out
@@ -409,25 +430,53 @@ def _component_configurations(policy: dict, *, require_root: bool) -> dict[str, 
             fail("RUNTIME_EXECUTION_STATUS_PATH_MISMATCH")
         data[name] = raw
         digests[name] = _sha_bytes(_canonical(raw))
-    if "execution" in data and data["signals"] != data["execution"]:
+    primary = _primary_component(policy)
+    if any(raw != data[primary] for raw in data.values()):
         fail("RUNTIME_COMPONENT_CONFIG_IDENTITY_MISMATCH")
+    raw = data[primary]
+    control = raw.get("operator_control")
+    if primary == "controller":
+        if not isinstance(control, dict) or control.get("version") != 1:
+            fail("RUNTIME_OPERATOR_CONTROL_REQUIRED")
+        for key, bound in (("db","operator_db_path"),("scanner_db","scanner_db_path"),("scanner_status","scanner_status_path")):
+            if control.get(key) != policy[bound]:
+                fail("RUNTIME_CONTROL_CONFIG_PATH_MISMATCH")
+        if raw.get("telegram_file") != policy["telegram_file"]:
+            fail("RUNTIME_TELEGRAM_CUSTODY_PATH_MISMATCH")
+        if "execution" in data and (raw.get("credentials_file") != policy["execution_credentials_file"] or raw.get("activation_file") != policy["execution_activation_file"]):
+            fail("RUNTIME_CREDENTIAL_CUSTODY_PATH_MISMATCH")
+    elif control is not None:
+        fail("RUNTIME_PANEL_COMPONENTS_NOT_PROVISIONED")
     return digests
+
+
+def _primary_component(policy):
+    return "controller" if "controller" in policy["components"] else "signals"
+
+
+def _component_database(policy, name):
+    return policy[{"signals":"db_path", "controller":"db_path", "scanner":"scanner_db_path", "execution":"execution_db_path"}[name]]
+
+
+def _auxiliary_state_identities(policy):
+    return {key:_logical_db_digest(Path(policy[key])) for key in ("operator_db_path", "scanner_db_path") if key in policy}
 
 
 def _verify_state_paths(policy: dict) -> None:
     """Separate writable directories prevent a peer UID replacing another journal."""
     for name, component in policy["components"].items():
-        db = Path(policy["db_path"] if name == "signals" else policy["execution_db_path"])
+        db = Path(_component_database(policy, name))
         directory = db.parent
         _root_path_chain(directory.parent)
         st = directory.lstat()
         if directory.is_symlink() or not stat.S_ISDIR(st.st_mode) or st.st_uid != component["uid"] or st.st_gid != component["gid"] or stat.S_IMODE(st.st_mode) != 0o750:
             fail("RUNTIME_STATE_DIRECTORY_CUSTODY_INVALID")
-        for path in (db, Path(str(db) + "-wal"), Path(str(db) + "-shm")):
+        databases = [db] + ([Path(policy["operator_db_path"])] if name=="controller" else [])
+        for path in [file for database in databases for file in (database,Path(str(database)+"-wal"),Path(str(database)+"-shm"))]:
             if not path.exists() and not path.is_symlink():
                 continue
             st = _regular_nosymlink(path)
-            expected_mode = 0o640 if name == "signals" else 0o600
+            expected_mode = 0o600 if name == "execution" else 0o640
             if st.st_uid != component["uid"] or st.st_gid != component["gid"] or stat.S_IMODE(st.st_mode) != expected_mode:
                 fail("RUNTIME_DATABASE_CUSTODY_INVALID")
 
@@ -557,7 +606,7 @@ def _quiescent_writers(policy: dict, *, stop: bool, require_root: bool):
             handles.append(fd)
             if not stat.S_ISREG(os.fstat(fd).st_mode):
                 fail("CUTOVER_WRITER_LOCK_INVALID")
-            name = "execution" if value == policy.get("execution_db_path", "") + ".writer.lock" else "signals"
+            name = "execution" if value == policy.get("execution_db_path", "") + ".writer.lock" else "scanner" if value == policy.get("scanner_db_path", "") + ".writer.lock" else _primary_component(policy)
             owner = policy["components"][name]
             if require_root:
                 if created:
@@ -986,7 +1035,7 @@ def create_cutover(candidate_sha: str, *, anchor: Path = ANCHOR, require_root: b
                "enabled": _systemctl(component["unit_name"], "is-enabled") if require_root else False}
         if path.exists():
             _root_custody(path) if require_root else _regular_nosymlink(path)
-            copy = gdir / ("predecessor-unit.service" if name == "signals" else f"predecessor-{name}-unit.service")
+            copy = gdir / ("predecessor-unit.service" if name == _primary_component(policy) else f"predecessor-{name}-unit.service")
             if copy != unit_copy:
                 shutil.copyfile(path, copy)
             row.update(file=copy.name, sha256=sha256_file(copy))
@@ -1023,12 +1072,13 @@ def create_cutover(candidate_sha: str, *, anchor: Path = ANCHOR, require_root: b
                 "objects_tree_sha256": _tree_digest(objects), "predecessor_unit_sha256": sha256_file(unit_copy),
                 "predecessor_units": unit_states, "predecessor_db_present": db_sha != "ABSENT", "predecessor_db_sha256": db_sha,
                 "predecessor_db_logical_sha256": db_logical,
+                "predecessor_auxiliary_state_identities": _auxiliary_state_identities(policy),
                 "predecessor_execution_journal_identity": _logical_db_digest(Path(policy["execution_db_path"])) if "execution" in policy["components"] else None,
                 "predecessor_venv_path": str(predecessor_venv),
                 "predecessor_venv_archive_sha256": venv_archive_sha, "predecessor_venv_manifest_sha256": venv_manifest_sha,
                 "predecessor_venv_tree_sha256": venv_tree_sha, "predecessor_bundle_sha256": bundle_sha,
                 "predecessor_active_release": active_release, "predecessor_extra_venvs": extra_venvs,
-                "predecessor_enabled": unit_states["signals"]["enabled"], "predecessor_active": unit_states["signals"]["active"],
+                "predecessor_enabled": unit_states[_primary_component(policy)]["enabled"], "predecessor_active": unit_states[_primary_component(policy)]["active"],
                 "release_marker": marker, "deploy_user": policy["deploy_user"], "deploy_uid": policy["deploy_uid"],
                 "deploy_gid": policy["deploy_gid"], "app_dir": policy["app_dir"], "release_file": policy["release_file"],
                 "unit": policy["unit_name"], "unit_file": policy["unit_file"], "db_path": policy["db_path"],
@@ -1148,13 +1198,20 @@ def _render_unit(policy: dict, generation_id: str, candidate: str, runtime: dict
     component = policy["components"][component_name]
     source = Path(runtime["source_path"])
     python = Path(runtime["components"][component_name]["venv_path"]) / "bin/python"
-    database = policy["db_path"] if component_name == "signals" else policy["execution_db_path"]
+    database = _component_database(policy, component_name)
     state = str(Path(database).parent)
     unset = " ".join(sorted(FORBIDDEN_PROCESS_ENV))
     authority = INSTALLED_AUTHORITY
     group = policy.get("shared_read_group", "")
     supplementary = f"SupplementaryGroups={group}\n" if group else ""
     clean = "PATH=/usr/bin:/bin HOME=/nonexistent LANG=C.UTF-8"
+    hidden = []
+    if "controller" in policy["components"]:
+        if component_name != "controller":
+            hidden.append(policy["telegram_file"])
+        if component_name != "execution" and "execution" in policy["components"]:
+            hidden.extend([policy["execution_credentials_file"], policy["execution_activation_file"], policy["execution_db_path"], policy["execution_db_path"]+"-wal", policy["execution_db_path"]+"-shm"])
+    inaccessible = "InaccessiblePaths=" + " ".join("-"+path for path in hidden) + "\n" if hidden else ""
     return f"""[Unit]
 Description=Alpha weather production {component_name}
 Wants=network-online.target
@@ -1190,6 +1247,7 @@ LockPersonality=true
 CapabilityBoundingSet=
 AmbientCapabilities=
 ReadWritePaths={state}
+{inaccessible}RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 UMask=0027
 
 [Install]
@@ -1276,7 +1334,7 @@ def prepare_candidate(generation_id: str, candidate_sha: str, *, anchor: Path = 
         manifest = {"version": "weather-paper-runtime-release-v3", "generation_id": generation_id,
                     "candidate_sha": candidate, "candidate_tree": generation["candidate_tree"],
                     "release_root": str(release_root), "source_path": str(source),
-                    "venv_path": components["signals"]["venv_path"], "components": components,
+                    "venv_path": components[_primary_component(policy)]["venv_path"], "components": components,
                     "initial_configuration_sha256": configurations,
                     "source_git_manifest_sha256": source_git_sha, "source_tree_sha256": _tree_digest(source),
                     "python_flags": ["-I", "-s", "-E", "-B"], "final_module": FINAL_MODULE,
@@ -1517,6 +1575,8 @@ def recover(generation_id: str, *, anchor: Path = ANCHOR, require_root: bool = T
             fail("RECOVERY_DB_CHANGED_REQUIRES_OPERATOR_RECONCILIATION")
         if "execution" in policy["components"] and _logical_db_digest(Path(policy["execution_db_path"])) != data.get("predecessor_execution_journal_identity"):
             fail("RECOVERY_EXECUTION_JOURNAL_CHANGED_REQUIRES_FORWARD_RECOVERY")
+        if _auxiliary_state_identities(policy) != data.get("predecessor_auxiliary_state_identities", {}):
+            fail("RECOVERY_CONTROL_OR_SCANNER_STATE_CHANGED_REQUIRES_FORWARD_RECOVERY")
         app = Path(policy["app_dir"])
         recovery_root = Path(policy["runtime_root"]) / "recovery"
         recovery_root.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -1565,7 +1625,7 @@ def recover(generation_id: str, *, anchor: Path = ANCHOR, require_root: bool = T
         Path(str(db) + "-wal").unlink(missing_ok=True)
         Path(str(db) + "-shm").unlink(missing_ok=True)
         if data["predecessor_db_present"]:
-            signal_identity = policy["components"]["signals"]
+            signal_identity = policy["components"][_primary_component(policy)]
             _restore_database(gdir / "predecessor.sqlite3", db, signal_identity, require_root=require_root)
             if _logical_db_digest(db) != data["predecessor_db_logical_sha256"]:
                 fail("RECOVERY_DB_LOGICAL_MISMATCH")
@@ -1623,7 +1683,7 @@ def _parser() -> argparse.ArgumentParser:
         p=subs.add_parser(name)
         if name!="create-cutover": p.add_argument("--generation-id",required=True)
         p.add_argument("--candidate-sha",required=True)
-        if name=="verify-process": p.add_argument("--component",choices=("signals","execution"),default="signals")
+        if name=="verify-process": p.add_argument("--component",choices=("signals","scanner","controller","execution"),default="signals")
     p=subs.add_parser("recover"); p.add_argument("--generation-id",required=True); subs.add_parser("verify-telegram-env"); return parser
 
 

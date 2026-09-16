@@ -32,17 +32,40 @@ class ExecutionEngine:
         self.last_account = None
         self.last_reconcile = 0.0
         self.last_error = None
+        self.control = None
+        self._attempt_revision = None
+        self._attempt_deadline = None
+        if config.operator_control:
+            from .executor_control import ExecutorControl
+            self.control = ExecutorControl(self)
 
     def authority(self) -> bool:
+        if self.control:
+            if self._attempt_deadline is not None and time.time() >= self._attempt_deadline:
+                return False
+            if self.control.reason():
+                return False
+            if self._attempt_revision is not None and self._attempt_revision != self.control.settings["revision"]:
+                return False
+        return self.base_authority()
+
+    def base_authority(self) -> bool:
+        return self.base_authority_reason() is None
+
+    def base_authority_reason(self):
         try:
             stopped = self.reader.state("stop_opening") == "1"
         except (sqlite3.Error, OSError):
             self.last_error = "SIGNAL_STATE_UNAVAILABLE"
-            return False
-        return bool(not self.io_fault and self.reconciled and 0 <= time.time() - self.last_reconcile < 30
-                    and self.last_account and self.last_account.get("openings_allowed") is True
-                    and self.config.activation_requested() and not self.ledger.state("fault")
-                    and not stopped)
+            return self.last_error
+        if stopped: return "LEGACY_OPERATOR_STOP_REQUIRES_LOCAL_RECOVERY"
+        if self.config.stop_file and self.config.stop_file.exists(): return "LOCAL_EMERGENCY_STOP_FILE"
+        if self.io_fault: return "EXECUTION_DATABASE_WRITE_FAULT"
+        if self.ledger.state("fault"): return "UNRESOLVED_RECONCILIATION_FAULT"
+        if not self.config.activation_requested(): return "CONFIGURATION_BOUND_ACTIVATION_MISSING_OR_INVALID"
+        if not self.reconciled or not 0 <= time.time()-self.last_reconcile < 30: return "FRESH_ACCOUNT_RECONCILIATION_REQUIRED"
+        if not self.last_account or self.last_account.get("openings_allowed") is not True: return "ACCOUNT_OPENING_ELIGIBILITY_NOT_READY"
+        return None
 
     async def call(self, method, *args, **kwargs):
         return await asyncio.to_thread(method, *args, **kwargs)
@@ -156,7 +179,7 @@ class ExecutionEngine:
                 unresolved = True  # reserved until confirmed fee-bearing receipts
                 continue
             if remote["status"] in {"CANCELED", "CANCELLED", "EXPIRED"}:
-                self.ledger.confirm_terminal(order["id"], cancelled=True, matched=matched)
+                self.ledger.confirm_terminal(order["id"], cancelled=True, matched=matched, exchange_status=remote["status"])
             elif matched == current["quantity"]:
                 self.ledger.confirm_terminal(order["id"], cancelled=False, matched=matched)
             elif current["status"] in {"UNKNOWN", "SUBMITTING"}:
@@ -210,14 +233,29 @@ class ExecutionEngine:
         return self.status()
 
     def status(self):
-        return {"mode": self.config.mode, "financial_authority": self.authority(),
+        from .io import release_identity
+        events = None
+        if self.control:
+            from .notifications import event_batch
+            try:
+                events = event_batch(self.ledger, int(self.control.reader.state("notification_cursor")))
+            except (ValueError, OSError, sqlite3.Error):
+                pass
+        return {"mode": self.config.mode, "release": release_identity(), "financial_authority": self.authority(),
                 "config_sha256": self.config.config_sha256,
                 "fee_policy": self.config.fee_policy,
                 "fee_limit_scope": "LOCAL_SUBMISSION_CHECK_AND_RESERVATION_NOT_SIGNED_EXCHANGE_CAP",
                 "reconciled": self.reconciled, "reconciled_at": self.last_reconcile,
                 "last_error": self.last_error, "database_write_fault": self.io_fault,
+                "opening_disabled_reason": (self.control.reason() if self.control else None) or
+                    self.base_authority_reason(),
+                "control": dict(self.control.settings, authorization_version=self.control.policy.authorization_version,
+                    authorization_expires_at=self.control.policy.expires,
+                    processed_seq=int(self.ledger.state("control_seq"))) if self.control else None,
+                "balance_micros": self.last_account.get("balance") if self.last_account else None,
                 "account_performance_scope": "BOT_CONFIRMED_BUY_FILLS_ONLY_DEDICATED_EOA",
-                "account": self.ledger.summary(), "updated_at": time.time()}
+                "signing_authority": "EOA_FULL_KEY_APPLICATION_BUY_ONLY_NOT_WITHDRAWAL_RESTRICTED",
+                "account": self.ledger.summary(), "notification_batch": events, "updated_at": time.time()}
 
     async def manage_existing(self):
         for order in self.ledger.orders():
@@ -278,6 +316,20 @@ class ExecutionEngine:
                     available=str(available), min_size=str(minimum), tick=str(tick), neg_risk=snap["neg_risk"], exchange=snap["exchange"])
 
     async def execute(self, signal: dict) -> bool:
+        if self.control:
+            if not self.authority():
+                return False
+            self._attempt_deadline = self.control.claim(signal)
+            if self._attempt_deadline is None:
+                return False
+            self._attempt_revision = self.control.settings["revision"]
+        try:
+            return await self._execute(signal)
+        finally:
+            self._attempt_revision = None
+            self._attempt_deadline = None
+
+    async def _execute(self, signal: dict) -> bool:
         if self.ledger.has_intent(signal["id"]):
             return False
         if not self.authority() or not self.reader.is_active(signal["id"]):
@@ -320,6 +372,9 @@ class ExecutionEngine:
         expires = min(signal["expires"], fresh["expires"], time.time() + 20)
         plan = {"id": digest({"wallet": self.config.wallet, "signal": signal["id"]}), "signal_id": signal["id"], "signal": signal,
                 "strategy": fresh["strategy"], "station_day": fresh["station_day"], "expires": expires, "legs": legs}
+        if self.control:
+            plan["control_revision"] = self._attempt_revision
+            plan["authorization_version"] = self.control.policy.authorization_version
         trade_after = max(0, int(self.ledger.state("trade_census_after") or self.last_reconcile) - 300)
         outstanding = self.ledger.orders()
         if outstanding:
@@ -423,8 +478,35 @@ class ExecutionEngine:
                 self.reconciled = False
                 raise
 
+    async def safety_tick(self):
+        """Requests/cancellations do not wait for discovery, reconciliation or Telegram."""
+        if not self.control:
+            return
+        try:
+            local_stop = "LOCAL_EMERGENCY_STOP_FILE" if self.config.stop_file and self.config.stop_file.exists() else ""
+            if local_stop != self.ledger.state("observed_local_stop"):
+                with self.ledger.transaction() as db:
+                    db.execute("INSERT OR REPLACE INTO execution_state VALUES('observed_local_stop',?)",(local_stop,))
+                    if local_stop:
+                        self.ledger.audit(db,"EMERGENCY_PAUSE",self.config.wallet,{"reason":local_stop})
+            self.control.process()
+            for order in self.ledger.orders():
+                if order["status"] == "CANCEL_REQUESTED" and self.ledger.cancellation_requested(order["id"]):
+                    try:
+                        await self.call(self.exchange.cancel_order, order["id"])
+                    except Exception:
+                        self.last_error = "CANCEL_REQUEST_UNCERTAIN"
+        except (sqlite3.Error, OSError):
+            self.io_fault = True
+            self.reconciled = False
+            raise
+        except Exception:
+            self.reconciled = False
+            self.last_error = "CONTROL_REQUEST_FAILED_CLOSED"
+
     async def tick(self):
         try:
+            await self.safety_tick()
             await self.manage_existing()
             await self.reconcile()
             if self.authority():
@@ -436,8 +518,12 @@ class ExecutionEngine:
                     self.ledger.set_state("signal_cursor", signal["id"])
                     try:
                         await self.execute(signal)
-                    except (ConfigurationError, ExecutionError, LedgerError):
-                        self.last_error = "OPPORTUNITY_REJECTED_AT_EXECUTION"
+                    except (ConfigurationError, ExecutionError, LedgerError) as exc:
+                        from .executor_control import safe_reason
+                        self.last_error = safe_reason(exc)
+                        with self.ledger.transaction() as db:
+                            if not db.execute("SELECT 1 FROM execution_audit WHERE kind='OPPORTUNITY_REJECTED' AND identity=? AND json_extract(data,'$.reason')=? LIMIT 1", (signal["id"], self.last_error)).fetchone():
+                                self.ledger.audit(db, "OPPORTUNITY_REJECTED", signal["id"], {"reason": self.last_error})
                     if not self.authority():
                         break
         except (sqlite3.Error, OSError):

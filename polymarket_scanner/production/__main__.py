@@ -16,11 +16,12 @@ from .signals import SignalError
 
 def parser():
     result = argparse.ArgumentParser(description=__doc__)
-    result.add_argument("component", choices=("signals", "execution", "preflight", "recover", "record-redemption", "export", "activation-request", "resume-openings", "import-legacy"))
+    result.add_argument("component", choices=("signals", "scanner", "controller", "execution", "preflight", "recover", "record-redemption", "export", "activation-request", "resume-openings", "rotate-control-authorization", "import-legacy"))
     result.add_argument("--config", required=True, type=Path)
     result.add_argument("--once", action="store_true")
     result.add_argument("--expected-fault")
     result.add_argument("--expected-stop-generation")
+    result.add_argument("--expected-control-identity")
     result.add_argument("--transaction")
     result.add_argument("--condition")
     result.add_argument("--output", type=Path)
@@ -41,6 +42,9 @@ def review_output(args, config):
         path = getattr(config, key)
         if path:
             protected.update({path.resolve(), Path(str(path) + "-wal"), Path(str(path) + "-shm"), Path(str(path) + ".writer.lock")})
+    if config.operator_control:
+        for path in (config.operator_control.db, config.operator_control.scanner_db, config.operator_control.scanner_status):
+            protected.update({path, Path(str(path)+"-wal"), Path(str(path)+"-shm"), Path(str(path)+".writer.lock")})
     protected.add(config.signal_db.parent / "weather-paper-runtime.lock")
     if output in protected or any(output.exists() and path.exists() and output.samefile(path) for path in protected):
         raise ConfigurationError("REVIEW_OUTPUT_ALIASES_OPERATIONAL_FILE")
@@ -114,11 +118,45 @@ async def run(args):
                 db.row_factory = sqlite3.Row
                 # Never export signed requests or authentication material.
                 data["actual"] = {table: [dict(r) for r in db.execute("SELECT * FROM " + table)] for table in ("execution_orders", "execution_fills", "execution_settlements", "execution_redemptions", "execution_burns", "execution_native_gas")}
+                from .notifications import sanitized_events
+                data["execution_events"] = sanitized_events(db.execute("SELECT * FROM execution_audit ORDER BY seq"))
         atomic_json(output, data, exclusive=True)
+        return
+    if args.component == "controller":
+        if not config.operator_control or not config.telegram_file:
+            raise ConfigurationError("CONTROLLER_REQUIRES_OPERATOR_CONTROL_AND_TELEGRAM_CONFIGURATION")
+        from .control import ControlStore
+        from .controller import Controller
+        from .signals import SignalStore
+        from .telegram import Telegram
+        with lease(config.signal_db.parent / "weather-paper-runtime.lock"):
+            telegram = Telegram(config.telegram_file)
+            signals = SignalStore(config.signal_db)
+            controls = ControlStore(config)
+            try:
+                await Controller(config, signals, controls, telegram).run(once=args.once)
+            finally:
+                controls.close()
+                signals.close()
+                await telegram.close()
         return
     from .weather import WeatherPipeline
     weather = WeatherPipeline()
+    if args.component == "scanner":
+        if not config.operator_control:
+            raise ConfigurationError("SCANNER_REQUIRES_OPERATOR_CONTROL_CONFIGURATION")
+        from .collection import Scanner, ScanStore
+        with lease(Path(str(config.operator_control.scanner_db)+".writer.lock")):
+            store = ScanStore(config)
+            try:
+                await Scanner(config, store, weather).run(once=args.once)
+            finally:
+                store.close()
+                await weather.close()
+        return
     if args.component == "signals":
+        if config.operator_control:
+            raise ConfigurationError("OPERATOR_PANEL_REQUIRES_SCANNER_AND_CONTROLLER_COMPONENTS")
         if not config.telegram_file:
             raise ConfigurationError("MISSING_SETTING:telegram_file")
         from .signals import SignalStore
@@ -146,6 +184,9 @@ async def run(args):
         try:
             ledger = ExecutionLedger(config.execution_db, config.wallet)
             ledger.recover_after_restart()
+            if args.component == "rotate-control-authorization":
+                from .executor_control import rotate_authorization
+                rotate_authorization(config, ledger, args.expected_control_identity)
             engine = ExecutionEngine(config, ledger, SignalReader(config.signal_db), exchange, weather)
             if args.component == "record-redemption":
                 if not args.transaction or not args.condition:
@@ -163,18 +204,28 @@ async def run(args):
                 if not engine.reconciled:
                     raise ConfigurationError("RECOVERY_RECONCILIATION_INCOMPLETE")
                 ledger.clear_fault(args.expected_fault)
-            elif args.component == "preflight":
+            elif args.component in {"preflight", "rotate-control-authorization"}:
                 await engine.reconcile()
                 if not engine.reconciled:
                     raise ConfigurationError("PREFLIGHT_RECONCILIATION_INCOMPLETE")
                 if not engine.last_account or engine.last_account.get("openings_allowed") is not True:
                     raise ConfigurationError("PREFLIGHT_ACCOUNT_OPENINGS_RESTRICTED")
             else:
-                while True:
-                    atomic_json(config.execution_status_path, await engine.tick(), mode=0o640)
-                    if args.once:
-                        break
-                    await asyncio.sleep(5)
+                async def execution_loop():
+                    while True:
+                        atomic_json(config.execution_status_path, await engine.tick(), mode=0o640)
+                        if args.once:
+                            return
+                        await asyncio.sleep(5)
+                async def safety_loop():
+                    while True:
+                        await engine.safety_tick()
+                        atomic_json(config.execution_status_path, engine.status(), mode=0o640)
+                        await asyncio.sleep(.5)
+                if config.operator_control and not args.once:
+                    await asyncio.gather(execution_loop(), safety_loop())
+                else:
+                    await execution_loop()
             atomic_json(config.execution_status_path, engine.status(), mode=0o640)
         finally:
             exchange.close()

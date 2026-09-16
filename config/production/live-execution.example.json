@@ -12,7 +12,14 @@
   "fee_policy": null,
   "wallet": null,
   "signer": null,
-  "strategies": ["DIRECTIONAL", "SAME_DAY", "SOURCE_SHOCK", "STRUCTURAL", "MAKER", "RESULT_LAG"],
+  "strategies": [
+    "DIRECTIONAL",
+    "SAME_DAY",
+    "SOURCE_SHOCK",
+    "STRUCTURAL",
+    "MAKER",
+    "RESULT_LAG"
+  ],
   "allow_uncalibrated": true,
   "min_model_gap": "0.08",
   "min_structural_edge": "0.02",
@@ -30,5 +37,6 @@
     "max_open_orders": null,
     "max_positions": null,
     "max_maker_rest_seconds": null
-  }
+  },
+  "wallet_type": "EOA"
 }
