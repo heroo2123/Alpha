@@ -1,6 +1,14 @@
 """Check reviewed runtime wheel hashes, including both supported Python ABIs."""
 from pathlib import Path
 import argparse
+import re
+
+
+def normalized_spec(spec):
+    if spec.count('==')!=1:
+        raise ValueError('INVALID_HASH_INVENTORY')
+    name,version=spec.split('==')
+    return re.sub(r'[-_.]+','-',name.lower())+'=='+version
 
 
 def rows(path):
@@ -9,9 +17,10 @@ def rows(path):
         if not line.strip() or line.lstrip().startswith('#'):
             continue
         spec,*hashes=line.split()
-        if spec in result or '==' not in spec or not hashes or any(not h.startswith('--hash=sha256:') or len(h)!=78 for h in hashes):
+        spec=normalized_spec(spec)
+        if spec in result or not hashes or any(not h.startswith('--hash=sha256:') or len(h)!=78 for h in hashes):
             raise ValueError('INVALID_HASH_INVENTORY')
-        result[spec.lower()]=set(hashes)
+        result[spec]=set(hashes)
     return result
 
 
@@ -19,7 +28,7 @@ def verify(root, generated=None):
     root=Path(root)
     runtime=rows(root/'requirements-runtime-hashed.txt')
     execution=rows(root/'requirements-execution-hashed.txt')
-    specifications={r.strip().lower() for r in (root/'requirements.txt').read_text().splitlines() if r.strip() and not r.lstrip().startswith('#')}
+    specifications={normalized_spec(r.strip()) for r in (root/'requirements.txt').read_text().splitlines() if r.strip() and not r.lstrip().startswith('#')}
     if set(runtime)!=specifications:
         raise ValueError('RUNTIME_PIN_INVENTORY_MISMATCH')
     # The execution lock already pins reviewed 3.11/3.12 wheels. Require exact

@@ -196,3 +196,17 @@ also requires the exact reviewed cross-version hash sets, and installs/imports
 the isolated scanner/controller lock on both versions. Unreviewed extra hashes
 have a rejecting regression. Latest focused operator/lifecycle scope: 181 passed
 on 3.12. Final corrected freeze/CI/re-review remain pending. Main unchanged.
+
+Both fresh runtime-only environments now install offline from the existing
+reviewed wheel archives with `--require-hashes --only-binary=:all: --no-deps`,
+pass `pip check`, and import scanner/controller with no `eth_account`/`eth_abi`.
+Tree `c50fa49e1eeef5da5a90020d49e22400760e74f8` (published
+`96d51ab261be55827c15b85315f108e93c0b72c7`) passed all four public workflows:
+source acceptance 35163035174, census 35163035215, execution read-only probe
+35163035209, public collection measurement 35163035185. Local full suites passed
+2,029 cases per Python. These checks do not establish host/account acceptance.
+
+Independent gate review found a case-normalization duplicate could hide an extra
+hash in the new inventory checker; the actual committed lock remained valid.
+Normalization now precedes duplicate detection, with mixed-case and PEP-503
+spelling regressions. Final re-review and exact-head CI follow this correction.
