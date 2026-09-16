@@ -117,39 +117,76 @@ def test_conflicting_units_fail_closed_for_shadow_support():
     assert "UNIT_UNRESOLVED_OR_CONFLICT" in compiled.rejection_reasons
 
 
-def test_discovery_queries_only_configured_tag_keyset_and_deduplicates_children():
+def test_discovery_uses_tagged_fast_path_plus_untagged_exhaustive_recall_and_deduplicates_children():
     requests = []
     first = _nyc_event([_market("m1", "Will the highest temperature be 70°F or lower?")])
     second = _nyc_event([_market("m2", "Will the highest temperature be 71°F or higher?")])
+    hidden = _nyc_event([
+        _market("u1", "Will the highest temperature be 68°F or lower?"),
+        _market("u2", "Will the highest temperature be 69°F or higher?"),
+    ])
+    hidden["id"] = "untagged-2026-09-11-high"
+    hidden["slug"] = "highest-temperature-untagged-city-september-11"
+    hidden["title"] = "Highest temperature in untagged city on September 11?"
 
     def handler(request: httpx.Request) -> httpx.Response:
         requests.append(request)
         tag = request.url.params.get("tag_slug")
-        assert tag in {"daily-temperature", "weather"}
-        payload = first if tag == "daily-temperature" else second
-        return httpx.Response(200, json={"events": [payload], "next_cursor": None})
+        if tag == "daily-temperature":
+            payload = [first]
+        elif tag == "weather":
+            payload = [second]
+        elif tag is None:
+            payload = [hidden]
+        else:
+            raise AssertionError(f"unexpected tag: {tag}")
+        return httpx.Response(200, json={"events": payload, "next_cursor": None})
 
     async def run():
         client = WeatherOnlyDiscovery()
         await client.http.aclose()
-        client.http = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        client.http = httpx.AsyncClient(transport=httpx.MockTransport(handler), trust_env=False)
         try:
-            return await client.discover(("daily-temperature", "weather"))
+            snapshot = await client.discover(("daily-temperature", "weather"))
+            return snapshot, client.global_recall_status()
         finally:
             await client.close()
 
-    snapshot = asyncio.run(run())
-    assert snapshot.unique_event_count == 1
-    assert snapshot.unique_market_count == 2
-    assert snapshot.raw_event_hits == 2
+    snapshot, recall = asyncio.run(run())
+    assert snapshot.unique_event_count == 2
+    assert snapshot.unique_market_count == 4
+    assert snapshot.raw_event_hits == 3
     assert snapshot.duplicate_event_hits == 1
-    assert {row["id"] for row in snapshot.events[0]["markets"]} == {"m1", "m2"}
-    assert len(requests) == 2
-    for request in requests:
+    merged = next(row for row in snapshot.events if row["id"] == first["id"])
+    assert {row["id"] for row in merged["markets"]} == {"m1", "m2"}
+    assert any(row["id"] == hidden["id"] for row in snapshot.events)
+    assert snapshot.global_census_complete is True
+    assert snapshot.global_census_pages == 1
+    assert snapshot.global_census_scanned_events == 1
+    assert snapshot.global_census_retained_events == 1
+    assert recall == {
+        "complete": True,
+        "cache_hit": False,
+        "pages": 1,
+        "scanned_events": 1,
+        "retained_events": 1,
+    }
+
+    assert len(requests) == 3
+    tagged = [request for request in requests if request.url.params.get("tag_slug")]
+    global_requests = [request for request in requests if request.url.params.get("tag_slug") is None]
+    assert len(tagged) == 2
+    assert len(global_requests) == 1
+    for request in tagged:
         assert request.url.path.endswith("/events/keyset")
         assert request.url.params.get("limit") == "25"
-        assert request.url.params.get("tag_slug")
+        assert request.url.params.get("tag_slug") in {"daily-temperature", "weather"}
         assert "offset" not in request.url.params
+    global_request = global_requests[0]
+    assert global_request.url.path.endswith("/events/keyset")
+    assert global_request.url.params.get("limit") == "100"
+    assert "tag_slug" not in global_request.url.params
+    assert "offset" not in global_request.url.params
 
 
 def test_discovery_repeated_cursor_fails_closed():
