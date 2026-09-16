@@ -1,0 +1,74 @@
+name: stage2-terminalization-patch
+on:
+  push:
+    branches: [weather-all-paper-stage2-findings-5-7-2026-09-16]
+    paths: ['.github/workflows/stage2-terminalization-patch.yml']
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: weather-all-paper-stage2-findings-5-7-2026-09-16
+      - name: Patch inherited confirmed-delivery terminal paths
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new, count=1):
+              p=Path(path); text=p.read_text()
+              n=text.count(old)
+              if n != count:
+                  raise SystemExit(f'{path}: expected {count} occurrence(s), found {n}: {old[:80]!r}')
+              p.write_text(text.replace(old,new,count))
+
+          p='polymarket_scanner/weather_only_live_paper_all_signals_final_v2.py'
+          text=Path(p).read_text()
+          old='''        if sent_at >= float(fresh["decision_expires_at"]):\n            await asyncio.to_thread(self.positions.set_signal_status, signal_id, "EXPIRED")\n            return True, "DELIVERY_RECEIPT_AFTER_EXPIRY"'''
+          new='''        if sent_at >= float(fresh["decision_expires_at"]):\n            await self._terminalize_delivered_signal(\n                signal_id, fresh, status="EXPIRED", reason="DELIVERY_RECEIPT_AFTER_EXPIRY"\n            )\n            return True, "DELIVERY_RECEIPT_AFTER_EXPIRY"'''
+          if text.count(old) != 1:
+              raise SystemExit(f'{p}: same-day expiry block count={text.count(old)}')
+          text=text.replace(old,new,1)
+          old='''        except Exception as exc:\n            code = getattr(exc, "code", type(exc).__name__)\n            await asyncio.to_thread(self.positions.set_signal_status, signal_id, "PAPER_ACCOUNTING_ERROR")\n            return True, f"V5_SAME_DAY_ACCOUNTING:{code}"'''
+          new='''        except Exception as exc:\n            code = getattr(exc, "code", type(exc).__name__)\n            await self._terminalize_delivered_signal(\n                signal_id, fresh, status="PAPER_ACCOUNTING_ERROR",\n                reason=f"V5_SAME_DAY_ACCOUNTING:{code}",\n            )\n            return True, f"V5_SAME_DAY_ACCOUNTING:{code}"'''
+          if text.count(old)!=1: raise SystemExit('same-day accounting block mismatch')
+          text=text.replace(old,new,1)
+          old='''        if sent_at >= expires_at:\n            await asyncio.to_thread(self.positions.set_signal_status, signal_id, "EXPIRED")\n            return True, "DELIVERY_RECEIPT_AFTER_EXPIRY"'''
+          new='''        if sent_at >= expires_at:\n            await self._terminalize_delivered_signal(\n                signal_id, fresh, status="EXPIRED", reason="DELIVERY_RECEIPT_AFTER_EXPIRY"\n            )\n            return True, "DELIVERY_RECEIPT_AFTER_EXPIRY"'''
+          if text.count(old)!=1: raise SystemExit('source-shock expiry block mismatch')
+          text=text.replace(old,new,1)
+          old='''        except Exception as exc:\n            code = getattr(exc, "code", type(exc).__name__)\n            await asyncio.to_thread(self.positions.set_signal_status, signal_id, "PAPER_ACCOUNTING_ERROR")\n            return True, f"SOURCE_SHOCK_ACCOUNTING:{code}"'''
+          new='''        except Exception as exc:\n            code = getattr(exc, "code", type(exc).__name__)\n            await self._terminalize_delivered_signal(\n                signal_id, fresh, status="PAPER_ACCOUNTING_ERROR",\n                reason=f"SOURCE_SHOCK_ACCOUNTING:{code}",\n            )\n            return True, f"SOURCE_SHOCK_ACCOUNTING:{code}"'''
+          if text.count(old)!=1: raise SystemExit('source-shock accounting block mismatch')
+          Path(p).write_text(text.replace(old,new,1))
+
+          p='polymarket_scanner/weather_only_live_paper_all_signals_v7.py'
+          text=Path(p).read_text()
+          old='''class AllPaperWeatherLiveV7Service(AllPaperWeatherLiveV6Service):\n    def __init__(self, **kwargs) -> None:\n        super().__init__(**kwargs)'''
+          new='''class AllPaperWeatherLiveV7Service(AllPaperWeatherLiveV6Service):\n    def _defer_maker_restart_terminalization(self) -> bool:\n        return False\n\n    def __init__(self, **kwargs) -> None:\n        super().__init__(**kwargs)'''
+          if text.count(old)!=1: raise SystemExit('V7 class hook insertion mismatch')
+          text=text.replace(old,new,1)
+          old='''        self._v7_maker_orphans_recovered = (\n            self.maker_store.reconcile_unactivated_receipts_after_restart()\n        )'''
+          new='''        if self._defer_maker_restart_terminalization():\n            self._v7_maker_orphan_signal_ids = (\n                self.maker_store.unactivated_receipt_signal_ids()\n            )\n            self._v7_maker_orphans_recovered = 0\n        else:\n            self._v7_maker_orphan_signal_ids = []\n            self._v7_maker_orphans_recovered = (\n                self.maker_store.reconcile_unactivated_receipts_after_restart()\n            )'''
+          if text.count(old)!=1: raise SystemExit('V7 maker restart block mismatch')
+          Path(p).write_text(text.replace(old,new,1))
+
+          p='polymarket_scanner/weather_only_maker_paper_accounting_v5.py'
+          text=Path(p).read_text()
+          marker='''    def reconcile_unactivated_receipts_after_restart(\n        self, *, recorded_at: float | None = None\n    ) -> int:\n'''
+          insert='''    def unactivated_receipt_signal_ids(self) -> list[int]:\n        """Detect delivered maker receipts lacking a durable activated virtual order."""\n        terminal = {\n            "MAKER_RESTING",\n            "MAKER_NOT_ACTIVATED",\n            MAKER_RESTART_ORPHAN_STATUS,\n            "DELIVERY_UNCERTAIN",\n            "DELIVERY_FAILED",\n            "EXPIRED",\n        }\n        out: list[int] = []\n        with self._db_lock:\n            rows = self.db.execute(\n                "SELECT id,payload_json,status FROM weather_paper_signals "\n                "WHERE lane='weather_maker_virtual_bid' "\n                "AND telegram_message_id IS NOT NULL ORDER BY id"\n            ).fetchall()\n            for row in rows:\n                if str(row["status"] or "") in terminal:\n                    continue\n                try:\n                    payload = json.loads(str(row["payload_json"]))\n                except json.JSONDecodeError:\n                    raise WeatherMakerStoreError(\n                        "MAKER_ACTIVATION_SIGNAL_PAYLOAD_INVALID"\n                    ) from None\n                if not isinstance(payload, dict):\n                    raise WeatherMakerStoreError("MAKER_ACTIVATION_SIGNAL_PAYLOAD_INVALID")\n                order_id = str(payload.get("order_id") or "").strip()\n                if not order_id:\n                    raise WeatherMakerStoreError("MAKER_ACTIVATION_ORDER_ID_MISSING")\n                existing = self.db.execute(\n                    "SELECT 1 FROM weather_maker_shadow_orders WHERE order_id=?",\n                    (order_id,),\n                ).fetchone()\n                if existing is None:\n                    out.append(int(row["id"]))\n        return out\n\n'''+marker
+          if text.count(marker)!=1: raise SystemExit('MakerV5 detector insertion mismatch')
+          Path(p).write_text(text.replace(marker,insert,1))
+          PY
+          python -m compileall -q polymarket_scanner
+          git diff --check
+          git status --short
+          git config user.name 'Stage2 Corrective Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add polymarket_scanner/weather_only_live_paper_all_signals_final_v2.py polymarket_scanner/weather_only_live_paper_all_signals_v7.py polymarket_scanner/weather_only_maker_paper_accounting_v5.py
+          git commit -m 'Route inherited delivered terminal states through final authority'
+          git push origin HEAD:weather-all-paper-stage2-findings-5-7-2026-09-16
