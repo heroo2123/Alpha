@@ -1,189 +1,115 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-# Installed root-owned outside the candidate checkout. This is the only rollback path
-# used by the final deployment scripts. Runtime paths come only from root-owned host
-# configuration, never from candidate-controlled environment variables.
-PATH=/usr/bin:/bin
-export PATH
-unset BASH_ENV ENV CDPATH GIT_DIR GIT_WORK_TREE GIT_CONFIG_GLOBAL GIT_CONFIG_SYSTEM || true
+# Reference copy for independently installed recovery authority. Recovery consumes one
+# immutable generation ID and never consults a mutable 'latest rollback' directory.
+PATH=/usr/bin:/bin; export PATH
+unset PYTHONPATH PYTHONHOME PYTHONUSERBASE PYTHONSTARTUP PYTHONINSPECT LD_PRELOAD LD_LIBRARY_PATH BASH_ENV ENV CDPATH GIT_DIR GIT_WORK_TREE GIT_CONFIG_GLOBAL GIT_CONFIG_SYSTEM || true
+export PYTHONNOUSERSITE=1
 LIBEXEC="/usr/local/libexec/polymarket-weather-paper"
 HOST_PATHS="/etc/polymarket-weather-paper/host-paths.conf"
 GATE="${LIBEXEC}/release-gate.py"
-VENV_HELPER="${LIBEXEC}/weather-paper-venv-snapshot.py"
-
+AUTHORITY="/etc/polymarket-weather-paper/host-authority.json"
 fail(){ printf 'HOST ROLLBACK ERROR: %s\n' "$*" >&2; exit 1; }
-[[ -f "${HOST_PATHS}" && ! -L "${HOST_PATHS}" ]] || fail "root-owned host path configuration missing"
-[[ "$(stat -c '%u' "${HOST_PATHS}")" == "0" ]] || fail "host path configuration is not root owned"
-HOST_MODE="$(stat -c '%a' "${HOST_PATHS}")"
-(( (8#${HOST_MODE} & 8#22) == 0 )) || fail "host path configuration writable by nonroot"
+GENERATION_ID=""
+while (( $# )); do case "$1" in --generation-id) GENERATION_ID="${2:-}"; shift 2;; *) fail "unknown argument $1";; esac; done
+[[ "${EUID}" == 0 ]] || fail "recovery authority must run as root"
+[[ "${GENERATION_ID}" =~ ^[0-9a-f]{32}$ ]] || fail "exact --generation-id required"
+/usr/bin/python3 "${GATE}" verify-authority --authority-manifest "${AUTHORITY}"
+[[ -f "${HOST_PATHS}" && ! -L "${HOST_PATHS}" && "$(stat -c '%u' "${HOST_PATHS}")" == 0 ]] || fail "root-owned host paths missing"
 # shellcheck disable=SC1090
 source "${HOST_PATHS}"
-[[ "${APP_DIR:-}" == /* && "${CONFIG_DIR:-}" == /* && "${DB_PATH:-}" == /* && "${ROLLBACK_DIR:-}" == /* ]] || fail "pinned host paths invalid"
-[[ "${UNIT:-}" == "polymarket-weather-paper.service" ]] || fail "pinned service identity invalid"
-[[ "${DEPLOY_USER:-}" =~ ^[A-Za-z0-9_.-]+$ && "${DEPLOY_UID:-}" =~ ^[0-9]+$ && "${DEPLOY_GID:-}" =~ ^[0-9]+$ ]] || fail "pinned deploy identity invalid"
-[[ "$(id -u)" == "${DEPLOY_UID}" && "$(id -g)" == "${DEPLOY_GID}" && "$(id -un)" == "${DEPLOY_USER}" ]] || fail "recovery invoked by unexpected deploy identity"
+GEN="${ROLLBACK_DIR}/generations/${GENERATION_ID}"
+MANIFEST="${GEN}/generation.json"
+[[ -d "${GEN}" && ! -L "${GEN}" && -f "${MANIFEST}" && ! -L "${MANIFEST}" ]] || fail "immutable generation missing"
+[[ "$(stat -c '%u' "${MANIFEST}")" == 0 ]] || fail "generation manifest not root owned"
+(( (8#$(stat -c '%a' "${MANIFEST}") & 8#22) == 0 )) || fail "generation manifest writable by nonroot"
 
-RELEASE_FILE="${CONFIG_DIR}/weather-paper-release.sha"
-GENERATION="${ROLLBACK_DIR}/snapshot-generation-v4"
-ROLLBACK_MANIFEST="${ROLLBACK_DIR}/rollback-manifest-v4.json"
-
-sudo systemctl stop "${UNIT}" >/dev/null 2>&1 || true
-sudo systemctl disable "${UNIT}" >/dev/null 2>&1 || true
-
-[[ -d "${ROLLBACK_DIR}" && ! -L "${ROLLBACK_DIR}" ]] || fail "rollback custody directory missing"
-[[ "$(stat -c '%u' "${ROLLBACK_DIR}")" == "0" ]] || fail "rollback custody directory is not root owned"
-ROLLBACK_MODE="$(stat -c '%a' "${ROLLBACK_DIR}")"
-(( (8#${ROLLBACK_MODE} & 8#22) == 0 )) || fail "rollback custody directory writable by nonroot"
-[[ -f "${GENERATION}" && ! -L "${GENERATION}" && -f "${ROLLBACK_MANIFEST}" && ! -L "${ROLLBACK_MANIFEST}" ]] \
-  || fail "root-custody rollback generation/manifest missing"
-[[ "$(stat -c '%u' "${GENERATION}")" == "0" && "$(stat -c '%u' "${ROLLBACK_MANIFEST}")" == "0" ]] \
-  || fail "rollback generation/manifest not root owned"
-for trust_file in "${GENERATION}" "${ROLLBACK_MANIFEST}"; do
-  mode="$(stat -c '%a' "${trust_file}")"
-  (( (8#${mode} & 8#22) == 0 )) || fail "rollback trust evidence writable by nonroot"
-done
-[[ "$(tr -d '[:space:]' < "${GENERATION}")" == 'all-paper-rollback-v4-root-custody-hash-bound' ]] \
-  || fail "rollback generation not root-custody v4"
-[[ -f "${GATE}" && -f "${VENV_HELPER}" ]] || fail "host trust tools missing"
-
-# Validate the aggregate root-owned manifest before reading any rollback payload.
-/usr/bin/python3 - "${ROLLBACK_DIR}" "${ROLLBACK_MANIFEST}" "${UNIT}" <<'PY'
-from __future__ import annotations
-import hashlib, json, stat, sys
+# Parse only after root-custody checks; validate all bound identities and payload digests.
+eval "$(/usr/bin/python3 - "${MANIFEST}" "${GENERATION_ID}" "${APP_DIR}" "${DEPLOY_USER}" <<'PY'
+import hashlib,json,shlex,sys
 from pathlib import Path
-root = Path(sys.argv[1]).resolve(); manifest_path = Path(sys.argv[2]).resolve(); unit = sys.argv[3]
-try:
-    payload = json.loads(manifest_path.read_text(encoding='utf-8'))
-except Exception as exc:
-    raise SystemExit(f'rollback manifest invalid: {exc}')
-if payload.get('version') != 'all-paper-rollback-v4-root-custody-hash-bound':
-    raise SystemExit('rollback manifest version invalid')
-entries = payload.get('entries')
-if not isinstance(entries, list) or not entries:
-    raise SystemExit('rollback manifest entries invalid')
-expected_base = {
-    'previous-release.sha', 'previous-tree.sha', 'previous-active', 'previous-enabled', unit,
-    'previous-db-present', 'previous-db.sha256', 'previous-venv.tar', 'previous-venv.json',
-    'previous-venv-release.sha',
-}
-seen = set()
-def digest(path: Path) -> str:
-    h = hashlib.sha256()
-    with path.open('rb') as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b''):
-            h.update(chunk)
-    return h.hexdigest()
-for row in entries:
-    if not isinstance(row, dict):
-        raise SystemExit('rollback manifest row invalid')
-    name = str(row.get('name') or '')
-    if not name or '/' in name or name in seen:
-        raise SystemExit('rollback manifest path invalid')
-    seen.add(name)
-    path = root / name
-    st = path.lstat()
-    if not stat.S_ISREG(st.st_mode) or path.is_symlink() or st.st_uid != 0 or (st.st_mode & 0o022):
-        raise SystemExit(f'rollback artifact custody invalid: {name}')
-    if int(row.get('size', -1)) != st.st_size or str(row.get('sha256') or '') != digest(path):
-        raise SystemExit(f'rollback artifact digest invalid: {name}')
-if not expected_base.issubset(seen):
-    raise SystemExit('rollback manifest missing required artifacts')
-if 'previous-weather-paper.sqlite3' in seen and not (root / 'previous-weather-paper.sqlite3').is_file():
-    raise SystemExit('rollback DB manifest mismatch')
-print('PASS_ROOT_CUSTODY_ROLLBACK_MANIFEST')
+p=Path(sys.argv[1]); gid,app,user=sys.argv[2:]
+m=json.loads(p.read_text())
+if m.get('version')!='weather-paper-cutover-generation-v1' or m.get('generation_id')!=gid: raise SystemExit('generation identity invalid')
+if m.get('app_dir')!=app or m.get('deploy_user')!=user: raise SystemExit('generation host identity invalid')
+for k in ('predecessor_sha','predecessor_tree','candidate_sha','candidate_tree'):
+ v=str(m.get(k,''));
+ if len(v)!=40 or any(c not in '0123456789abcdef' for c in v): raise SystemExit(k+' invalid')
+for k in ('predecessor_unit_digest','predecessor_venv_digest','venv_manifest_digest'):
+ v=str(m.get(k,''));
+ if len(v)!=64 or any(c not in '0123456789abcdef' for c in v): raise SystemExit(k+' invalid')
+if m.get('predecessor_db_digest')!='ABSENT':
+ v=str(m.get('predecessor_db_digest',''))
+ if len(v)!=64 or any(c not in '0123456789abcdef' for c in v): raise SystemExit('db digest invalid')
+for key in ('generation_id','predecessor_sha','predecessor_tree','candidate_sha','candidate_tree','release_marker','predecessor_venv'):
+ print(key.upper()+'='+shlex.quote(str(m[key])))
+print('PREVIOUS_ACTIVE='+('1' if m.get('active') else '0'))
+print('PREVIOUS_ENABLED='+('1' if m.get('enabled') else '0'))
+print('DB_PRESENT='+('1' if m.get('db_present') else '0'))
+print('UNIT_DIGEST='+shlex.quote(str(m['predecessor_unit_digest'])))
+print('DB_DIGEST='+shlex.quote(str(m['predecessor_db_digest'])))
+print('VENV_DIGEST='+shlex.quote(str(m['predecessor_venv_digest'])))
+print('VENV_MANIFEST_DIGEST='+shlex.quote(str(m['venv_manifest_digest'])))
 PY
+)" || fail "generation manifest validation failed"
+[[ "${RELEASE_MARKER}" == "${PREDECESSOR_SHA}" ]] || fail "generation release marker mismatch"
+sha256sum -c <(printf '%s  %s\n' "${UNIT_DIGEST}" "${GEN}/${UNIT}") >/dev/null || fail "unit digest mismatch"
+sha256sum -c <(printf '%s  %s\n' "${VENV_DIGEST}" "${GEN}/predecessor-venv.tar") >/dev/null || fail "venv archive digest mismatch"
+sha256sum -c <(printf '%s  %s\n' "${VENV_MANIFEST_DIGEST}" "${GEN}/predecessor-venv-manifest.json") >/dev/null || fail "venv manifest digest mismatch"
+if [[ "${DB_PRESENT}" == 1 ]]; then sha256sum -c <(printf '%s  %s\n' "${DB_DIGEST}" "${GEN}/predecessor-db.sqlite") >/dev/null || fail "DB digest mismatch"; else [[ "${DB_DIGEST}" == ABSENT ]] || fail "absent DB digest invalid"; fi
 
-for required in previous-release.sha previous-tree.sha "${UNIT}" previous-active previous-enabled \
-  previous-db-present previous-db.sha256 previous-venv.tar previous-venv.json previous-venv-release.sha; do
-  [[ -f "${ROLLBACK_DIR}/${required}" && ! -L "${ROLLBACK_DIR}/${required}" ]] || fail "missing rollback artifact: ${required}"
-done
+systemctl stop "${UNIT}" >/dev/null 2>&1 || true
+systemctl disable "${UNIT}" >/dev/null 2>&1 || true
 
-PREVIOUS_SHA="$(tr -d '[:space:]' < "${ROLLBACK_DIR}/previous-release.sha")"
-PREVIOUS_TREE="$(tr -d '[:space:]' < "${ROLLBACK_DIR}/previous-tree.sha")"
-PREVIOUS_ACTIVE="$(tr -d '[:space:]' < "${ROLLBACK_DIR}/previous-active")"
-PREVIOUS_ENABLED="$(tr -d '[:space:]' < "${ROLLBACK_DIR}/previous-enabled")"
-PREVIOUS_DB_PRESENT="$(tr -d '[:space:]' < "${ROLLBACK_DIR}/previous-db-present")"
-[[ "${PREVIOUS_SHA}" =~ ^[0-9a-f]{40}$ && "${PREVIOUS_TREE}" =~ ^[0-9a-f]{40}$ ]] || fail "rollback git identity invalid"
-[[ "${PREVIOUS_ACTIVE}" =~ ^[01]$ && "${PREVIOUS_ENABLED}" =~ ^[01]$ && "${PREVIOUS_DB_PRESENT}" =~ ^[01]$ ]] || fail "rollback state invalid"
-[[ "$(tr -d '[:space:]' < "${ROLLBACK_DIR}/previous-venv-release.sha")" == "${PREVIOUS_SHA}" ]] || fail "venv release mismatch"
-/usr/bin/python3 - "${ROLLBACK_MANIFEST}" "${PREVIOUS_SHA}" "${PREVIOUS_TREE}" <<'PY'
-import json, sys
-payload = json.load(open(sys.argv[1], encoding='utf-8'))
-if payload.get('release_sha') != sys.argv[2] or payload.get('tree_sha') != sys.argv[3]:
-    raise SystemExit('rollback manifest release/tree mismatch')
+# Restore source identity. Worktree corruption is irrelevant: discard it completely.
+# If .git remains healthy use the captured predecessor object; otherwise a generation
+# may include predecessor.git.bundle (new snapshots do) and recovery reclones from it.
+if git -c safe.directory="${APP_DIR}" -C "${APP_DIR}" cat-file -e "${PREDECESSOR_SHA}^{commit}" 2>/dev/null; then
+  git -c safe.directory="${APP_DIR}" -C "${APP_DIR}" reset --hard "${PREDECESSOR_SHA}"
+  git -c safe.directory="${APP_DIR}" -C "${APP_DIR}" clean -ffdx
+  git -c safe.directory="${APP_DIR}" -C "${APP_DIR}" checkout --detach "${PREDECESSOR_SHA}"
+elif [[ -f "${GEN}/predecessor.git.bundle" ]]; then
+  QUARANTINE="${APP_DIR}.corrupt-${GENERATION_ID}"
+  rm -rf "${QUARANTINE}"; mv "${APP_DIR}" "${QUARANTINE}"
+  git clone "${GEN}/predecessor.git.bundle" "${APP_DIR}"
+  git -C "${APP_DIR}" checkout --detach "${PREDECESSOR_SHA}"
+  rm -rf "${QUARANTINE}"
+else
+  fail "candidate checkout corrupt and generation lacks git bundle"
+fi
+[[ "$(git -c safe.directory="${APP_DIR}" -C "${APP_DIR}" rev-parse HEAD)" == "${PREDECESSOR_SHA}" ]] || fail "restored SHA mismatch"
+[[ "$(git -c safe.directory="${APP_DIR}" -C "${APP_DIR}" rev-parse HEAD^{tree})" == "${PREDECESSOR_TREE}" ]] || fail "restored tree mismatch"
+
+# Restore exact predecessor environment at the path bound in the generation. Never
+# reconstruct it from requirements. Candidate release environments are discarded.
+VENV_PARENT="$(dirname "${PREDECESSOR_VENV}")"; VENV_NAME="$(basename "${PREDECESSOR_VENV}")"
+case "${PREDECESSOR_VENV}" in "${APP_DIR}/.venv"|"${APP_DIR}/.releases/${PREDECESSOR_SHA}/venv") ;; *) fail "bound predecessor venv path invalid";; esac
+mkdir -p "${VENV_PARENT}"; rm -rf "${PREDECESSOR_VENV}"
+tar --numeric-owner -C "${VENV_PARENT}" -xf "${GEN}/predecessor-venv.tar"
+[[ -x "${PREDECESSOR_VENV}/bin/python" && "$(basename "${PREDECESSOR_VENV}")" == "${VENV_NAME}" ]] || fail "restored predecessor venv missing"
+/usr/bin/python3 - "${PREDECESSOR_VENV}" "${GEN}/predecessor-venv-manifest.json" <<'PY'
+import hashlib,json,os,stat,sys
+from pathlib import Path
+root=Path(sys.argv[1]).resolve(); expected=json.loads(Path(sys.argv[2]).read_text()); rows=[]
+for p in sorted([root,*root.rglob('*')], key=lambda x:str(x.relative_to(root.parent))):
+ st=p.lstat(); rel=str(p.relative_to(root.parent)); row={'path':rel,'mode':stat.S_IMODE(st.st_mode),'uid':st.st_uid,'gid':st.st_gid}
+ if p.is_symlink(): row.update(kind='symlink',target=os.readlink(p))
+ elif p.is_dir(): row['kind']='dir'
+ elif p.is_file(): row.update(kind='file',size=st.st_size,sha256=hashlib.sha256(p.read_bytes()).hexdigest())
+ else: raise SystemExit('unsupported node')
+ rows.append(row)
+raw=json.dumps(rows,sort_keys=True,separators=(',',':')).encode()
+if hashlib.sha256(raw).hexdigest()!=expected.get('tree_sha256') or rows!=expected.get('entries'): raise SystemExit('restored venv byte tree mismatch')
 PY
-/usr/bin/python3 "${GATE}" verify-object --app-dir "${APP_DIR}" --sha "${PREVIOUS_SHA}"
-[[ "$(git -C "${APP_DIR}" rev-parse "${PREVIOUS_SHA}^{tree}")" == "${PREVIOUS_TREE}" ]] || fail "approved rollback tree mismatch"
-/usr/bin/python3 "${VENV_HELPER}" verify \
-  --venv "${APP_DIR}/.venv" --archive "${ROLLBACK_DIR}/previous-venv.tar" \
-  --manifest "${ROLLBACK_DIR}/previous-venv.json"
-
-# Re-validate the captured unit semantics as well as its manifest-bound bytes.
-grep -Fxq "User=${DEPLOY_USER}" "${ROLLBACK_DIR}/${UNIT}" || fail "rollback unit user mismatch"
-grep -Fxq "WorkingDirectory=${APP_DIR}" "${ROLLBACK_DIR}/${UNIT}" || fail "rollback unit working directory mismatch"
-grep -Eq "^ExecStart=${APP_DIR//\//\\/}/\.venv/bin/python -m polymarket_scanner\.weather_only_live_paper[A-Za-z0-9_.-]*( |$)" "${ROLLBACK_DIR}/${UNIT}" \
-  || fail "rollback unit execution target invalid"
-! grep -Eq '^User=(root|0)$' "${ROLLBACK_DIR}/${UNIT}" || fail "rollback unit unexpectedly privileged"
 
 mkdir -p "$(dirname "${DB_PATH}")"
-if [[ "${PREVIOUS_DB_PRESENT}" == "1" ]]; then
-  BACKUP_DB="${ROLLBACK_DIR}/previous-weather-paper.sqlite3"
-  EXPECTED="$(tr -d '[:space:]' < "${ROLLBACK_DIR}/previous-db.sha256")"
-  [[ "${EXPECTED}" =~ ^[0-9a-f]{64}$ && -f "${BACKUP_DB}" ]] || fail "rollback DB evidence invalid"
-  [[ "$(sha256sum "${BACKUP_DB}" | awk '{print $1}')" == "${EXPECTED}" ]] || fail "rollback DB digest mismatch"
-  /usr/bin/python3 - "${BACKUP_DB}" "${DB_PATH}" <<'PY'
-import os, sqlite3, sys
-from pathlib import Path
-source = Path(sys.argv[1]).resolve(); target = Path(sys.argv[2]).resolve()
-check = sqlite3.connect(f'file:{source}?mode=ro', uri=True, timeout=5.0)
-try:
-    if check.execute('PRAGMA quick_check').fetchall() != [('ok',)]:
-        raise SystemExit('rollback source DB quick_check failed')
-finally:
-    check.close()
-tmp = target.with_name('.' + target.name + f'.restore-{os.getpid()}')
-try:
-    src = sqlite3.connect(f'file:{source}?mode=ro', uri=True, timeout=5.0)
-    dst = sqlite3.connect(tmp, timeout=5.0)
-    try: src.backup(dst, pages=256, sleep=0.01)
-    finally: dst.close(); src.close()
-    verify = sqlite3.connect(f'file:{tmp}?mode=ro', uri=True, timeout=5.0)
-    try:
-        if verify.execute('PRAGMA quick_check').fetchall() != [('ok',)]:
-            raise SystemExit('restored DB quick_check failed')
-    finally: verify.close()
-    Path(str(target)+'-wal').unlink(missing_ok=True); Path(str(target)+'-shm').unlink(missing_ok=True)
-    os.replace(tmp, target); os.chmod(target, 0o600)
-finally:
-    tmp.unlink(missing_ok=True)
-PY
-else
-  [[ "$(tr -d '[:space:]' < "${ROLLBACK_DIR}/previous-db.sha256")" == 'ABSENT' ]] || fail "rollback absent DB marker invalid"
-  rm -f "${DB_PATH}" "${DB_PATH}-wal" "${DB_PATH}-shm"
-fi
-
-git -C "${APP_DIR}" checkout --detach "${PREVIOUS_SHA}"
-[[ "$(git -C "${APP_DIR}" rev-parse HEAD)" == "${PREVIOUS_SHA}" ]] || fail "checkout restore failed"
-[[ "$(git -C "${APP_DIR}" rev-parse HEAD^{tree})" == "${PREVIOUS_TREE}" ]] || fail "restored checkout tree mismatch"
-[[ -z "$(git -C "${APP_DIR}" status --porcelain --untracked-files=all)" ]] || fail "restored checkout dirty"
-mkdir -p "${CONFIG_DIR}"; umask 077
-printf '%s\n' "${PREVIOUS_SHA}" > "${RELEASE_FILE}"; chmod 600 "${RELEASE_FILE}"
-
-/usr/bin/python3 "${VENV_HELPER}" restore \
-  --venv "${APP_DIR}/.venv" --archive "${ROLLBACK_DIR}/previous-venv.tar" \
-  --manifest "${ROLLBACK_DIR}/previous-venv.json"
-/usr/bin/python3 "${VENV_HELPER}" verify-tree \
-  --venv "${APP_DIR}/.venv" --manifest "${ROLLBACK_DIR}/previous-venv.json"
-"${APP_DIR}/.venv/bin/python" -m pip check
-
-sudo install -o root -g root -m 0644 "${ROLLBACK_DIR}/${UNIT}" "/etc/systemd/system/${UNIT}"
-sudo systemctl daemon-reload
-if [[ "${PREVIOUS_ENABLED}" == "1" ]]; then sudo systemctl enable "${UNIT}" >/dev/null; else sudo systemctl disable "${UNIT}" >/dev/null 2>&1 || true; fi
-if [[ "${PREVIOUS_ACTIVE}" == "1" ]]; then
-  sudo systemctl start "${UNIT}"
-  for _ in $(seq 1 20); do systemctl is-active --quiet "${UNIT}" 2>/dev/null && break; sleep 1; done
-  systemctl is-active --quiet "${UNIT}" 2>/dev/null || fail "restored service failed to start"
-fi
-/usr/bin/python3 "${GATE}" verify-checkout --app-dir "${APP_DIR}" --release-file "${RELEASE_FILE}"
-printf 'PASS: root-custodied recovery restored approved rollback release %s.\n' "${PREVIOUS_SHA}"
+if [[ "${DB_PRESENT}" == 1 ]]; then install -o "${DEPLOY_UID}" -g "${DEPLOY_GID}" -m 0600 "${GEN}/predecessor-db.sqlite" "${DB_PATH}"; else rm -f "${DB_PATH}" "${DB_PATH}-wal" "${DB_PATH}-shm"; fi
+install -o root -g root -m 0644 "${GEN}/${UNIT}" "/etc/systemd/system/${UNIT}"
+mkdir -p "${CONFIG_DIR}"; printf '%s\n' "${PREDECESSOR_SHA}" > "${CONFIG_DIR}/weather-paper-release.sha"; chown "${DEPLOY_UID}:${DEPLOY_GID}" "${CONFIG_DIR}/weather-paper-release.sha"; chmod 0600 "${CONFIG_DIR}/weather-paper-release.sha"
+rm -f "${CONFIG_DIR}/weather-paper-cutover-generation.id"
+chown -R "${DEPLOY_UID}:${DEPLOY_GID}" "${APP_DIR}"
+systemctl daemon-reload
+if [[ "${PREVIOUS_ENABLED}" == 1 ]]; then systemctl enable "${UNIT}" >/dev/null; fi
+if [[ "${PREVIOUS_ACTIVE}" == 1 ]]; then systemctl start "${UNIT}"; fi
+printf 'PASS: immutable generation %s restored exact predecessor %s.\n' "${GENERATION_ID}" "${PREDECESSOR_SHA}"
