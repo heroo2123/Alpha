@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
+PATH=/usr/bin:/bin
+export PATH
+unset BASH_ENV ENV CDPATH GIT_DIR GIT_WORK_TREE GIT_CONFIG_GLOBAL GIT_CONFIG_SYSTEM || true
+unset PYTHONPATH PYTHONHOME PYTHONUSERBASE PYTHONSTARTUP PYTHONINSPECT LD_PRELOAD LD_LIBRARY_PATH || true
+unset HTTP_PROXY HTTPS_PROXY ALL_PROXY NO_PROXY http_proxy https_proxy all_proxy no_proxy SSL_CERT_FILE SSL_CERT_DIR || true
+export PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1
+
 APP_DIR="${ALPHA_WEATHER_APP_DIR:-${HOME}/polymarket-weather-paper-app}"
 CONFIG_DIR="${ALPHA_CONFIG_DIR:-${HOME}/.polymarket-edge-scanner}"
 DB_PATH="${WEATHER_PAPER_DB_PATH:-/var/lib/polymarket-weather-paper/weather-paper.sqlite}"
@@ -11,8 +18,9 @@ UNIT="polymarket-weather-paper.service"
 BACKUP_UNIT="polymarket-weather-paper-backup.service"
 BACKUP_TIMER="polymarket-weather-paper-backup.timer"
 EXPECTED_SHA="${1:-}"
-LIBEXEC="/usr/local/libexec/polymarket-weather-paper"
-GATE="${LIBEXEC}/release-gate.py"
+GENERATION_ID="${2:-}"
+AUTHORITY="/usr/local/libexec/polymarket-weather-paper/v2/authority.py"
+RELEASES_ROOT="/var/lib/polymarket-weather-paper-releases"
 ATTESTATION_OUT="${CONFIG_DIR}/all-paper-persistence-attestation.json"
 CYCLE_OUT="${CONFIG_DIR}/all-paper-persistence-cycle.json"
 THREE_LAYER_OUT="${CONFIG_DIR}/all-paper-persistence-three-layer.json"
@@ -20,18 +28,28 @@ FRESH_CAPTURE_OUT="${CONFIG_DIR}/all-paper-persistence-fresh-capture.json"
 OPERATOR_SYNC_OUT="${CONFIG_DIR}/all-paper-persistence-operator-sync.json"
 
 fail(){ printf 'ERROR: %s\n' "$*" >&2; exit 1; }
-[[ "${EXPECTED_SHA}" =~ ^[0-9a-f]{40}$ ]] || fail "usage: $0 <exact-approved-release-sha>"
-[[ -f "${GATE}" ]] || fail "host release authority missing"
-[[ -d "${APP_DIR}/.git" && -f "${RELEASE_FILE}" && -f "${START_EPOCH_FILE}" && ! -L "${START_EPOCH_FILE}" ]] || fail "candidate/start evidence missing"
+[[ "${EXPECTED_SHA}" =~ ^[0-9a-f]{40}$ ]] || fail "usage: $0 <exact-approved-release-sha> <generation-id>"
+[[ "${GENERATION_ID}" =~ ^gen-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{12}-[0-9a-f]{12}$ ]] || fail "exact immutable generation ID required"
+PYTHON="${RELEASES_ROOT}/${EXPECTED_SHA}/venv/bin/python"
+EVIDENCE="${RELEASES_ROOT}/${EXPECTED_SHA}/release-evidence.json"
+[[ -f "${AUTHORITY}" && ! -L "${AUTHORITY}" ]] || fail "independent host authority v2 missing"
+[[ -d "${APP_DIR}/.git" && -x "${PYTHON}" && -f "${EVIDENCE}" && -f "${RELEASE_FILE}" && -f "${START_EPOCH_FILE}" && ! -L "${START_EPOCH_FILE}" ]] || fail "candidate/start evidence missing"
 [[ ! -e "${APP_DIR}/.env" ]] || fail "ignored .env exists"
 [[ "$(git -C "${APP_DIR}" rev-parse HEAD)" == "${EXPECTED_SHA}" ]] || fail "checkout mismatch"
 [[ "$(tr -d '[:space:]' < "${RELEASE_FILE}")" == "${EXPECTED_SHA}" ]] || fail "release marker mismatch"
-/usr/bin/python3 "${GATE}" verify-checkout --app-dir "${APP_DIR}" --release-file "${RELEASE_FILE}"
+
+/usr/bin/python3 "${AUTHORITY}" verify-authority
+/usr/bin/python3 "${AUTHORITY}" verify-checkout --app-dir "${APP_DIR}" --release-file "${RELEASE_FILE}"
+/usr/bin/python3 "${AUTHORITY}" verify-generation \
+  --generation-id "${GENERATION_ID}" --app-dir "${APP_DIR}" --release-file "${RELEASE_FILE}" \
+  --candidate-sha "${EXPECTED_SHA}" --phase candidate
+/usr/bin/python3 "${AUTHORITY}" verify-runtime --app-dir "${APP_DIR}" --sha "${EXPECTED_SHA}" \
+  --generation-id "${GENERATION_ID}" --evidence "${EVIDENCE}"
 systemctl is-active --quiet "${UNIT}" 2>/dev/null || fail "accepted service is not active"
 ! systemctl is-enabled --quiet "${UNIT}" 2>/dev/null || fail "service already enabled"
 
 START_ACCEPTANCE_EPOCH="$(tr -d '[:space:]' < "${START_EPOCH_FILE}")"
-"${APP_DIR}/.venv/bin/python" - "${START_ACCEPTANCE_EPOCH}" <<'PY'
+"${PYTHON}" -I -s - "${START_ACCEPTANCE_EPOCH}" <<'PY'
 import math, sys
 try: value=float(sys.argv[1])
 except Exception: raise SystemExit('invalid final start boundary')
@@ -39,16 +57,22 @@ if not math.isfinite(value) or value <= 0: raise SystemExit('invalid final start
 PY
 
 bash "${APP_DIR}/deploy/check-weather-paper-service-isolation.sh" --require-disabled
-"${APP_DIR}/.venv/bin/python" "${APP_DIR}/deploy/attest-all-paper-runtime-v2.py" \
-  --app-dir "${APP_DIR}" --release-file "${RELEASE_FILE}" --db "${DB_PATH}" --status "${STATUS_PATH}" --require-active --output "${ATTESTATION_OUT}"
-"${APP_DIR}/.venv/bin/python" "${APP_DIR}/deploy/verify-all-paper-first-cycle-v2.py" \
+"${PYTHON}" -I -s "${APP_DIR}/deploy/attest-all-paper-runtime-v2.py" \
+  --app-dir "${APP_DIR}" --release-file "${RELEASE_FILE}" --generation-id "${GENERATION_ID}" \
+  --db "${DB_PATH}" --status "${STATUS_PATH}" --require-active --output "${ATTESTATION_OUT}"
+"${PYTHON}" -I -s "${APP_DIR}/deploy/verify-all-paper-first-cycle-v2.py" \
   --status "${STATUS_PATH}" --release-sha "${EXPECTED_SHA}" --not-before "${START_ACCEPTANCE_EPOCH}" --timeout-seconds 120 --max-age-seconds 900 --output "${CYCLE_OUT}"
-"${APP_DIR}/.venv/bin/python" "${APP_DIR}/deploy/verify-operator-sync-complete.py" --db "${DB_PATH}" --output "${OPERATOR_SYNC_OUT}"
-"${APP_DIR}/.venv/bin/python" "${APP_DIR}/deploy/verify-three-layer-validation-status.py" \
+"${PYTHON}" -I -s "${APP_DIR}/deploy/verify-operator-sync-complete.py" --db "${DB_PATH}" --output "${OPERATOR_SYNC_OUT}"
+"${PYTHON}" -I -s "${APP_DIR}/deploy/verify-three-layer-validation-status.py" \
   --status "${STATUS_PATH}" --release-sha "${EXPECTED_SHA}" --not-before "${START_ACCEPTANCE_EPOCH}" --timeout-seconds 60 --max-age-seconds 900 --output "${THREE_LAYER_OUT}"
-"${APP_DIR}/.venv/bin/python" "${APP_DIR}/deploy/verify-three-layer-fresh-capture.py" \
+"${PYTHON}" -I -s "${APP_DIR}/deploy/verify-three-layer-fresh-capture.py" \
   --status "${STATUS_PATH}" --db "${DB_PATH}" --release-sha "${EXPECTED_SHA}" --not-before "${START_ACCEPTANCE_EPOCH}" --timeout-seconds 60 --max-age-seconds 900 --output "${FRESH_CAPTURE_OUT}"
-/usr/bin/python3 "${GATE}" verify-checkout --app-dir "${APP_DIR}" --release-file "${RELEASE_FILE}"
+/usr/bin/python3 "${AUTHORITY}" verify-checkout --app-dir "${APP_DIR}" --release-file "${RELEASE_FILE}"
+/usr/bin/python3 "${AUTHORITY}" verify-generation \
+  --generation-id "${GENERATION_ID}" --app-dir "${APP_DIR}" --release-file "${RELEASE_FILE}" \
+  --candidate-sha "${EXPECTED_SHA}" --phase candidate
+/usr/bin/python3 "${AUTHORITY}" verify-runtime --app-dir "${APP_DIR}" --sha "${EXPECTED_SHA}" \
+  --generation-id "${GENERATION_ID}" --evidence "${EVIDENCE}"
 
 bash "${APP_DIR}/deploy/setup-weather-paper-backup-service.sh"
 persistence_attempted=0
@@ -70,7 +94,10 @@ systemctl is-enabled --quiet "${UNIT}" || fail "service was not enabled"
 systemctl is-active --quiet "${UNIT}" || fail "service stopped while enabling persistence"
 systemctl is-enabled --quiet "${BACKUP_TIMER}" || fail "backup timer not enabled"
 systemctl is-active --quiet "${BACKUP_TIMER}" || fail "backup timer not active"
-/usr/bin/python3 "${GATE}" verify-checkout --app-dir "${APP_DIR}" --release-file "${RELEASE_FILE}"
-"${APP_DIR}/.venv/bin/python" "${APP_DIR}/deploy/verify-operator-sync-complete.py" --db "${DB_PATH}" >/dev/null
+/usr/bin/python3 "${AUTHORITY}" verify-checkout --app-dir "${APP_DIR}" --release-file "${RELEASE_FILE}"
+/usr/bin/python3 "${AUTHORITY}" verify-generation \
+  --generation-id "${GENERATION_ID}" --app-dir "${APP_DIR}" --release-file "${RELEASE_FILE}" \
+  --candidate-sha "${EXPECTED_SHA}" --phase candidate
+"${PYTHON}" -I -s "${APP_DIR}/deploy/verify-operator-sync-complete.py" --db "${DB_PATH}" >/dev/null
 trap - EXIT
-printf 'PASS: host-approved V8 PAPER bot enabled for restart persistence. Release=%s\n' "${EXPECTED_SHA}"
+printf 'PASS: host-approved V9 PAPER bot enabled for restart persistence for immutable generation %s. Release=%s\n' "${GENERATION_ID}" "${EXPECTED_SHA}"
