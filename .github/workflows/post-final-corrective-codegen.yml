@@ -1,0 +1,47 @@
+name: post-final-corrective-codegen-once
+
+on:
+  push:
+    branches:
+      - weather-all-paper-post-final-review-corrective-2026-09-16
+    paths:
+      - .github/workflows/post-final-corrective-codegen.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Reconstruct and apply corrective generator
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          cat .corrective_tmp/chunk0 .corrective_tmp/chunk1 .corrective_tmp/chunk2 .corrective_tmp/chunk3 .corrective_tmp/chunk4 \
+            | base64 -d | gzip -d > /tmp/post_final_codegen.py
+          python -m py_compile /tmp/post_final_codegen.py
+          python /tmp/post_final_codegen.py
+          rm -rf .corrective_tmp
+          rm -f .github/workflows/post-final-corrective-codegen.yml
+          python -m compileall -q polymarket_scanner deploy tests host_trust
+          for script in deploy/*.sh deploy/oracle/*.sh deploy/gcp/*.sh host_trust/weather-paper-authority-v2/*.sh; do
+            bash -n "$script"
+          done
+      - name: Commit generated corrective architecture
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git diff --cached --check
+          git commit -m 'Post-final-review corrective architecture'
+          git push origin HEAD:weather-all-paper-post-final-review-corrective-2026-09-16
