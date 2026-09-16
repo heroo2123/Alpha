@@ -29,9 +29,6 @@ if pgrep -af 'polymarket_scanner\.weather_only_live_paper|weather_only_live_pape
 [[ -f "${RELEASE_FILE}" ]] || fail "known-good predecessor release marker missing"
 [[ -z "$(git -C "${APP_DIR}" status --porcelain --untracked-files=all)" ]] || fail "predecessor checkout dirty"
 
-# Fetch candidate objects while predecessor remains current. Fetching does not mutate
-# the checked-out source tree. The host authority must independently approve SHA/tree
-# and protected authority blobs before any candidate mutation occurs.
 git -C "${APP_DIR}" remote get-url origin >/dev/null 2>&1 || fail "checkout has no origin"
 git -C "${APP_DIR}" fetch --prune origin "${SOURCE_REF}"
 git -C "${APP_DIR}" cat-file -e "${RELEASE_SHA}^{commit}" 2>/dev/null || fail "candidate object absent after fetch"
@@ -43,7 +40,6 @@ GENERATION_ID="$(sudo "${HOST_SNAPSHOT}" --candidate-sha "${RELEASE_SHA}" | tail
 [[ "${GENERATION_ID}" =~ ^[0-9a-f]{32}$ ]] || fail "host snapshot did not return exact generation ID"
 /usr/bin/python3 "${HOST_GATE}" verify-generation --generation-id "${GENERATION_ID}" --sha "${RELEASE_SHA}"
 
-# Only now may the worktree move from predecessor A to candidate B.
 git -C "${APP_DIR}" checkout --detach "${RELEASE_SHA}"
 [[ "$(git -C "${APP_DIR}" rev-parse HEAD)" == "${RELEASE_SHA}" ]] || fail "candidate checkout mismatch"
 [[ -z "$(git -C "${APP_DIR}" status --porcelain --untracked-files=all)" ]] || fail "candidate checkout dirty"
@@ -53,23 +49,21 @@ for required in deploy/verify-runtime-release.sh deploy/render-weather-paper-uni
 done
 grep -qF "${FINAL_MODULE}" "${APP_DIR}/deploy/render-weather-paper-unit.py" || fail "renderer entrypoint mismatch"
 
-# Build from an EMPTY release-specific directory. The predecessor environment is never
-# pip-installed, modified, deleted, or reconstructed by candidate preparation.
 RELEASE_ROOT="${APP_DIR}/.releases/${RELEASE_SHA}"
 RELEASE_VENV="${RELEASE_ROOT}/venv"
 VENV_MANIFEST="${RELEASE_ROOT}/venv-manifest.json"
 [[ ! -e "${RELEASE_ROOT}" ]] || fail "release-specific directory already exists; refusing reuse"
 mkdir -p "${RELEASE_ROOT}"
-python3 -E -s "${APP_DIR}/deploy/weather-paper-release-venv.py" build \
-  --venv "${RELEASE_VENV}" --lock "${APP_DIR}/${LOCK_NAME}" --manifest "${VENV_MANIFEST}"
-python3 -E -s "${APP_DIR}/deploy/weather-paper-release-venv.py" verify \
-  --venv "${RELEASE_VENV}" --lock "${APP_DIR}/${LOCK_NAME}" --manifest "${VENV_MANIFEST}"
+python3 -E -s "${APP_DIR}/deploy/weather-paper-release-venv.py" build --venv "${RELEASE_VENV}" --lock "${APP_DIR}/${LOCK_NAME}" --manifest "${VENV_MANIFEST}"
+python3 -E -s "${APP_DIR}/deploy/weather-paper-release-venv.py" verify --venv "${RELEASE_VENV}" --lock "${APP_DIR}/${LOCK_NAME}" --manifest "${VENV_MANIFEST}"
 
-# Import with hostile loader variables removed. PYTHONPATH is deliberately not used;
-# the app working directory supplies the package for the non-isolated -m runtime.
-env -i HOME="${CONFIG_DIR}" PATH="${RELEASE_VENV}/bin:/usr/bin:/bin" PYTHONNOUSERSITE=1 \
-  "${RELEASE_VENV}/bin/python" -E -s -c "import ${FINAL_MODULE}; print('runtime import passed')" \
-  || fail "candidate runtime import failed"
+# Import from the exact application working directory with no inherited loader state.
+# This mirrors the systemd WorkingDirectory without using PYTHONPATH.
+(
+  cd "${APP_DIR}"
+  env -i HOME="${CONFIG_DIR}" PATH="${RELEASE_VENV}/bin:/usr/bin:/bin" PYTHONNOUSERSITE=1 \
+    "${RELEASE_VENV}/bin/python" -E -s -c "import ${FINAL_MODULE}; print('runtime import passed')"
+) || fail "candidate runtime import failed"
 
 mkdir -p "${CONFIG_DIR}"; umask 077
 TMP_GEN="$(mktemp "${CONFIG_DIR}/.weather-paper-generation.XXXXXX")"
