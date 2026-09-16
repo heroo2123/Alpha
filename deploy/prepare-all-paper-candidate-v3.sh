@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-# Final candidate preparation.  Trust decisions and rollback verification are made by
+# Final candidate preparation. Trust decisions and rollback verification are made by
 # root-owned host tools installed before cutover; candidate code never verifies its
 # own approval or recovery authority.
 APP_DIR="${ALPHA_WEATHER_APP_DIR:-${HOME}/polymarket-weather-paper-app}"
@@ -26,9 +26,6 @@ if systemctl is-active --quiet "${UNIT}" 2>/dev/null; then fail "${UNIT} must be
 if systemctl is-enabled --quiet "${UNIT}" 2>/dev/null; then fail "${UNIT} must be disabled before candidate mutation"; fi
 if pgrep -af 'polymarket_scanner\.weather_only_live_paper|weather_only_live_paper.*\.py' >/dev/null 2>&1; then fail "weather PAPER writer still running"; fi
 
-# Validate the current release through the host root of trust, then fetch the selected
-# source ref without mutating the work tree and require the requested object to be both
-# branch-reachable and explicitly host-approved.
 /usr/bin/python3 "${GATE}" verify-checkout --app-dir "${APP_DIR}" --release-file "${RELEASE_FILE}"
 git check-ref-format --branch "${SOURCE_REF}" >/dev/null 2>&1 || fail "invalid source ref"
 git -C "${APP_DIR}" remote get-url origin >/dev/null 2>&1 || fail "origin remote missing"
@@ -57,7 +54,8 @@ rollback_on_error(){
   code=$?
   if (( code != 0 && PREPARE_MUTATED == 1 )); then
     printf 'Candidate preparation failed; invoking host-owned recovery...\n' >&2
-    bash "${HOST_RECOVERY}" || {
+    /usr/bin/env -i PATH=/usr/bin:/bin HOME=/nonexistent GIT_CONFIG_NOSYSTEM=1 \
+      /bin/bash --noprofile --norc "${HOST_RECOVERY}" || {
       sudo systemctl stop "${UNIT}" >/dev/null 2>&1 || true
       sudo systemctl disable "${UNIT}" >/dev/null 2>&1 || true
       printf 'HOST RECOVERY FAILED: service contained; manual recovery required.\n' >&2
