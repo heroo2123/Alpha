@@ -1,5 +1,10 @@
 # Operator continuation: verified scope and handover
 
+> Historical release evidence: this file describes the continuation that produced the
+> finalized `3114657...` release. Later Deposit Wallet Session Key development is
+> tracked separately in [DEPOSIT_SESSION_ADAPTER_CHECKPOINT.md](DEPOSIT_SESSION_ADAPTER_CHECKPOINT.md)
+> and must not be read back into the verification claims below.
+
 Baseline main: `9552357c9de550c522c60910b4ccb25abd9d9cfd`, tree
 `a0e6ee81cae61bf064f5c9b3eb0a70606603e863`. No concurrent main changes were found
 at the final code verification fetch. Recovery reference:

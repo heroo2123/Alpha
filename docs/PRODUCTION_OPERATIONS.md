@@ -49,11 +49,13 @@ This command performs no network calls, takes both writer leases, reads a consis
 
 ## Execution setup and activation
 
-Only an explicit EOA on Polygon chain137 with wallet=signer is supported by the initial adapter. Use a dedicated account with no unrelated orders, inventory or manual trading. Unmanaged account activity blocks new openings rather than being fabricated into bot P&L. Proxy/Deposit Wallets and unreviewed protocol namespaces are rejected.
+Two explicit execution adapters are supported by this development branch: the retained direct EOA route (`wallet_type=EOA`, wallet=signer, signature type 0) and a restricted Deposit Wallet Session Key route (`wallet_type=DEPOSIT_WALLET`, signature type 3). Legacy Safe/Proxy identities and silent owner-key fallback remain unsupported. Both routes require a dedicated account/wallet with no unmanaged activity while opening authority is enabled.
 
-The operator must separately establish valid existing API credentials, collateral funding and necessary allowances. The application does not create wallets/API credentials, fund accounts, approve unlimited allowances, bypass geoblocking, or repair allowance failures by retrying an order.
+The Deposit route requires a distinct Session Key EOA, the public Owner EOA address in `deposit_owner`, `session_scopes=["CLOB"]`, the externally verified venue authorization expiry, and a separately reviewed `session_exclusive_until` commitment that no owner/manual CLOB writer or other trading session is active for the wallet. The executor credential file contains only the Session Key private key and that session's CLOB L2 credentials. Deposit Wallet Owner and Builder credentials remain off-host. The restriction is narrower signing authority, not protection against trading losses.
 
-Create an isolated execution environment from `requirements-execution-hashed.txt`. Set all mandatory account/risk settings and an explicit `fee_policy`, a suitable HTTPS Polygon JSON-RPC endpoint with finalized-block support, private credentials and the independent host policy. The credential schema is defined by `ExchangeEOA.from_credentials_file`; never copy real values into a report or test.
+The operator must separately establish valid existing API credentials, collateral funding and necessary allowances. The application does not create wallets/API credentials, authorize Session Keys, fund accounts, approve unlimited allowances, bypass geoblocking, or repair allowance failures by retrying an order. Session authorization/revocation is an owner/Builder-device operation.
+
+Create an isolated execution environment from `requirements-execution-hashed.txt`. Set all mandatory account/risk settings and an explicit `fee_policy`, a suitable HTTPS Polygon JSON-RPC endpoint with finalized-block support, private credentials and the independent host policy. The credential schema remains `private_key`, `api_key`, `api_secret`, `api_passphrase`; which signing key those fields represent is selected only by the protected wallet adapter configuration. Never copy real values into a report or test.
 
 Run the read-only preflight under the execution identity:
 
@@ -61,7 +63,17 @@ Run the read-only preflight under the execution identity:
 /path/to/execution/venv/bin/python -I -m polymarket_scanner.production preflight --config /etc/alpha-weather/config.json
 ```
 
-It checks credentials/account identity, geographic/closed-only eligibility, balances/allowances, orders/trades/positions, confirmed fills and outstanding/unknown order recovery. It does not submit financial orders. Missing settings fail with field-specific configuration errors. A target-host geoblock is an eligibility failure; moving traffic through a proxy is not an approved workaround. The historical US VM must not be assumed eligible.
+For pre-funding account/security compatibility, add `--allow-unfunded`. That
+explicit mode may succeed with `account_reconciled=true` while leaving
+`funding_ready=false`, `reconciled=false`, and financial authority false. Before
+any financial activation, rerun ordinary `preflight` without the flag; the strict
+form additionally requires collateral balance and allowance sufficient for at
+least the configured per-order limit. Preflight performs no exchange order POST
+or DELETE; it may update the local reconciliation/audit journal.
+
+It checks credentials/account identity, geographic/closed-only eligibility, balances/allowances, orders/trades/positions, confirmed fills and outstanding/unknown order recovery. The Deposit route additionally requires unexpired CLOB-only Session Key metadata, an unexpired dedicated-wallet exclusivity assertion and a complete wallet-wide public TRADE witness. Authenticated CLOB order/trade history is session-scoped; public `/v2/activity` and positions are wallet-scoped. Any wallet TRADE not accounted for by the configured session's confirmed history becomes a sticky external-activity fault. This still cannot enumerate an unfilled resting order owned by another session, so the exclusivity assertion remains mandatory.
+
+Preflight does not submit financial orders. Missing settings fail with field-specific configuration errors. A target-host geoblock is an eligibility failure; moving traffic through a proxy is not an approved workaround. The historical US VM must not be assumed eligible.
 
 Generate an activation request into a review file distinct from the active file:
 
@@ -83,7 +95,11 @@ The worker reserves limit-price cost and the applicable fee allowance transactio
 
 `max_maker_rest_seconds` is the maximum requested server lifetime, including the platform safety interval; the worker never adds time beyond it. The supported range is 181–3600 seconds, consistent with the adapter's conservative 180-second minimum at preparation entry. Slow preparation may therefore reject a short-lived request. This is an exchange-enforced expiry request, not a cryptographically signed V2 expiry guarantee. Local thesis invalidation still requests earlier cancellation and preserves every resulting fill.
 
-Accepted responses are acknowledgements, not fills. Timeout, response loss or an unfamiliar submission response becomes UNKNOWN; the signed order is never blindly reposted. Restart reconciles deterministic order IDs and authenticated trades with finalized chain receipts. Partial fills retain remaining reservation; cancel requests release nothing until terminal state and all matched fills reconcile. Account polling retains a durable match-time cursor with overlap and covers the oldest outstanding order. Each cycle also audits a bounded historical time window and five terminal orders; finalized history remains subject to rolling proof checks. Held inventory is bounded by operator-selected max_positions; the worker never re-requests every lifetime trade on every tick. Successful direct-redemption transaction gas is reported separately in POL wei, deduplicated by transaction, without invented USD conversion. Failed/provisioning operator transaction costs are outside the bot position-P&L scope. Actual fees come from confirmed OrderFilled logs, not assumed public prints or fee rates. Unexpected actual costs are recorded before a fault stops new positions.
+Accepted responses are acknowledgements, not fills. Timeout, response loss or an unfamiliar submission response becomes UNKNOWN; the signed order is never blindly reposted. Restart reconciles deterministic order IDs and authenticated trades with finalized chain receipts. Partial fills retain remaining reservation; cancel requests release nothing until terminal state and all matched fills reconcile. Account polling retains a durable match-time cursor with overlap and covers the oldest outstanding order. Each cycle also audits a bounded historical time window and five terminal orders; finalized history remains subject to rolling proof checks.
+
+For Deposit Sessions, the worker additionally compares a seven-day overlapping wallet-wide public TRADE census with the configured session's authenticated confirmed trade history; first reconciliation starts from the served full-history floor. The public witness is never used to invent fills or P&L. An extra public wallet trade is a sticky fault even when the resulting position has already been closed. A foreign **resting** session order remains invisible until it executes, so no public-data check replaces the dedicated-session operating rule.
+
+Held inventory is bounded by operator-selected max_positions; the worker never re-requests every lifetime trade on every tick. Successful direct-EOA redemption transaction gas is reported separately in POL wei, deduplicated by transaction, without invented USD conversion. Failed/provisioning operator transaction costs are outside the bot position-P&L scope. Actual fees come from confirmed OrderFilled logs, not assumed public prints or fee rates. Unexpected actual costs are recorded before a fault stops new positions.
 
 V2 has no signed per-order fee cap. Choose one `fee_policy` explicitly; changing it invalidates the activation digest. There is no automatic downgrade:
 
@@ -102,7 +118,7 @@ The second policy explicitly accepts reliance on the venue's mutable published s
 - Local `recover --config ... --expected-fault CODE` requires fresh successful reconciliation and an exact unchanged fault before auditing/removing that fault. UNKNOWN submissions with no conclusive exchange evidence remain blocked and must not be “fixed” by deleting the DB or resubmitting them.
 - Before reconciling an older execution journal, a versioned audit checks cumulative filled quantity, cost and fees against each original order's limits. The audit preserves fills and atomically queues cancellation on a breach. Its completion marker survives explicit operator recovery, so the same acknowledged historical breach does not recur merely because the worker restarts. Every new fill remains subject to both individual and cumulative checks.
 
-The initial implementation buys long outcome tokens and holds actual inventory to market resolution; it does not invent a forced liquidation or automatic redemption transaction. Final CTF payout evidence establishes claimable settlement value. Claimable P&L and verified cash redemption proceeds are separate reports. Operator-performed redemption can be recorded by the read-only `record-redemption --config ... --transaction TX --condition CONDITION` command, using canonical receipt/asset/burn evidence. Direct CTF USDC.e proceeds are labeled separately from spendable pUSD; unsupported adapter attribution is rejected.
+The implementation buys long outcome tokens and holds actual inventory to market resolution; it does not invent a forced liquidation or automatic redemption transaction. Final CTF payout evidence establishes claimable settlement value. Claimable P&L and verified cash redemption proceeds are separate reports. The read-only `record-redemption --config ... --transaction TX --condition CONDITION` importer remains restricted to its verified direct-EOA CTF receipt path. Deposit Wallet execution rejects that command until a separately reviewed smart-wallet/adapter receipt path can attribute the owner-side redemption correctly. Direct CTF USDC.e proceeds are labeled separately from spendable pUSD; unsupported adapter attribution is rejected.
 
 `export --config ... --output /private/operator/export.json` writes full signal and actual-account records without signed payloads or credentials. It never mixes historical PAPER databases into actual performance.
 

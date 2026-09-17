@@ -19,6 +19,7 @@ def parser():
     result.add_argument("component", choices=("signals", "scanner", "controller", "execution", "preflight", "recover", "record-redemption", "export", "activation-request", "resume-openings", "rotate-control-authorization", "import-legacy"))
     result.add_argument("--config", required=True, type=Path)
     result.add_argument("--once", action="store_true")
+    result.add_argument("--allow-unfunded", action="store_true")
     result.add_argument("--expected-fault")
     result.add_argument("--expected-stop-generation")
     result.add_argument("--expected-control-identity")
@@ -60,6 +61,8 @@ async def run(args):
     logging.getLogger("httpx").setLevel(logging.CRITICAL)
     logging.getLogger("httpcore").setLevel(logging.CRITICAL)
     config = ProductionConfig.load(args.config)
+    if args.allow_unfunded and args.component != "preflight":
+        raise ConfigurationError("ALLOW_UNFUNDED_ONLY_FOR_PREFLIGHT")
     if args.component == "import-legacy":
         if not config.telegram_file or not args.legacy_db or not args.legacy_db.is_absolute() or not args.legacy_chat_id or not args.legacy_bot_id:
             raise ConfigurationError("LEGACY_IMPORT_REQUIRES_ABSOLUTE_DB_AND_ORIGINAL_CHAT_AND_BOT_IDS")
@@ -175,20 +178,34 @@ async def run(args):
     if config.mode != "LIVE_EXECUTION":
         await weather.close()
         raise ConfigurationError("EXECUTION_MODE_REQUIRED")
-    from .exchange import ExchangeEOA
+    from .exchange import ExchangeDepositSession, ExchangeEOA
     from .engine import ExecutionEngine
     from .ledger import ExecutionLedger
     from .signals import SignalReader
     with lease(Path(str(config.execution_db) + ".writer.lock")):
-        exchange = ExchangeEOA.from_credentials_file(config.credentials_file, wallet=config.wallet, signer=config.signer, rpc_url=config.rpc_url, fee_policy=config.fee_policy)
+        exchange_class = ExchangeDepositSession if config.wallet_type == "DEPOSIT_WALLET" else ExchangeEOA
+        extra = ({"session_scopes": config.session_scopes,
+                  "session_valid_until": config.session_valid_until,
+                  "session_exclusive_until": config.session_exclusive_until,
+                  "deposit_owner": config.deposit_owner}
+                 if config.wallet_type == "DEPOSIT_WALLET" else {})
+        exchange = exchange_class.from_credentials_file(config.credentials_file, wallet=config.wallet,
+            signer=config.signer, rpc_url=config.rpc_url, fee_policy=config.fee_policy, **extra)
         try:
             ledger = ExecutionLedger(config.execution_db, config.wallet)
+            # Refuse a changed signer/adapter before crash recovery can mutate the
+            # durable financial journal. Engine construction rechecks idempotently.
+            ledger.bind_adapter_identity(wallet_type=config.wallet_type, signer=config.signer,
+                                         signature_type=config.signature_type,
+                                         deposit_owner=config.deposit_owner)
             ledger.recover_after_restart()
             if args.component == "rotate-control-authorization":
                 from .executor_control import rotate_authorization
                 rotate_authorization(config, ledger, args.expected_control_identity)
             engine = ExecutionEngine(config, ledger, SignalReader(config.signal_db), exchange, weather)
             if args.component == "record-redemption":
+                if config.wallet_type != "EOA":
+                    raise ConfigurationError("DEPOSIT_WALLET_REDEMPTION_IMPORT_NOT_IMPLEMENTED")
                 if not args.transaction or not args.condition:
                     raise ConfigurationError("REDEMPTION_TRANSACTION_AND_CONDITION_REQUIRED")
                 records = await engine.call(exchange.redemption_receipt, args.transaction, args.condition)
@@ -204,7 +221,14 @@ async def run(args):
                 if not engine.reconciled:
                     raise ConfigurationError("RECOVERY_RECONCILIATION_INCOMPLETE")
                 ledger.clear_fault(args.expected_fault)
-            elif args.component in {"preflight", "rotate-control-authorization"}:
+            elif args.component == "preflight":
+                await engine.reconcile(allow_exchange_mutation=False)
+                ready = engine.account_reconciled if args.allow_unfunded else engine.reconciled
+                if not ready:
+                    raise ConfigurationError("PREFLIGHT_RECONCILIATION_INCOMPLETE")
+                if not engine.last_account or engine.last_account.get("openings_allowed") is not True:
+                    raise ConfigurationError("PREFLIGHT_ACCOUNT_OPENINGS_RESTRICTED")
+            elif args.component == "rotate-control-authorization":
                 await engine.reconcile()
                 if not engine.reconciled:
                     raise ConfigurationError("PREFLIGHT_RECONCILIATION_INCOMPLETE")

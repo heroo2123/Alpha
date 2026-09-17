@@ -544,7 +544,7 @@ def test_recorded_fill_audit_recovers_same_proof_without_trade_indexer(monkeypat
 
 
 def test_account_trade_census_distinguishes_our_maker_legs_and_external_sells():
-    maker = {"order_id": OID, "asset_id": TOKEN, "maker_address": WALLET, "owner": API_KEY, "side": "BUY"}
+    maker = {"order_id": OID, "asset_id": TOKEN, "maker_address": WALLET, "owner": API_KEY, "side": "BUY", "matched_amount": "2", "price": ".4"}
     unrelated = dict(maker, order_id=TX, maker_address=OTHER, owner="unrelated")
     rows = client(Wire([page([trade(trader_side="MAKER", maker_orders=[maker, unrelated]), trade(id="sell", side="SELL")])])).account_trades()
     assert rows[0]["owned_order_ids"] == [OID]
