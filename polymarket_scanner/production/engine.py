@@ -95,6 +95,38 @@ class ExecutionEngine:
             self.io_fault = True
         raise ExecutionError(code)
 
+    def _validate_deposit_session_account(self, account: dict) -> None:
+        if self.config.wallet_type != "DEPOSIT_WALLET":
+            return
+        if (account.get("wallet_type") != "DEPOSIT_WALLET" or account.get("signature_type") != 3
+            or account.get("order_visibility") != "SESSION_SIGNER_ONLY"):
+            self.fail("SESSION_ACCOUNT_VISIBILITY_MISMATCH")
+        if account.get("deposit_owner", "").lower() != self.config.deposit_owner:
+            self.fail("DEPOSIT_OWNER_ACCOUNT_MISMATCH")
+        activity = account.get("wallet_activity")
+        session_history = account.get("wallet_activity_session_trades")
+        if not isinstance(activity, list) or not isinstance(session_history, list) or account.get("wallet_activity_after") is None:
+            self.fail("WALLET_WIDE_ACTIVITY_WITNESS_MISSING")
+
+        def activity_key(row):
+            return (row.get("transaction_hash"), row.get("condition"), row.get("token"), row.get("side"))
+
+        confirmed_session = [row for row in session_history if row.get("status") == "CONFIRMED"]
+        if (any(type(row.get("quantity")) is not int or row["quantity"] <= 0 for row in activity)
+            or any(type(row.get("wallet_quantity")) is not int or row["wallet_quantity"] <= 0
+                   for row in confirmed_session)):
+            self.fail("WALLET_WIDE_ACTIVITY_WITNESS_INVALID")
+        public_counts = Counter(activity_key(row) for row in activity)
+        session_counts = Counter(activity_key(row) for row in confirmed_session)
+        public_quantity, session_quantity = Counter(), Counter()
+        for row in activity:
+            public_quantity[activity_key(row)] += row["quantity"]
+        for row in confirmed_session:
+            session_quantity[activity_key(row)] += row["wallet_quantity"]
+        if any(key[0] is None or public_counts[key] > session_counts[key]
+               or public_quantity[key] > session_quantity[key] for key in public_counts):
+            self.fail("EXTERNAL_WALLET_TRADE_ACTIVITY")
+
     async def reconcile(self, *, ignore_sticky_fault=False, allow_exchange_mutation=True):
         """A failed comparison stops opening; confirmed fills remain append-only."""
         started = time.time()
@@ -115,31 +147,7 @@ class ExecutionEngine:
         account = await self.call(self.exchange.account_snapshot, trade_after=max(0, trade_after) if trade_after is not None else None)
         if account.get("wallet", "").lower() != self.config.wallet or account.get("signer", "").lower() != self.config.signer:
             self.fail("ACCOUNT_IDENTITY_MISMATCH")
-        if self.config.wallet_type == "DEPOSIT_WALLET":
-            if (account.get("wallet_type") != "DEPOSIT_WALLET" or account.get("signature_type") != 3
-                or account.get("order_visibility") != "SESSION_SIGNER_ONLY"):
-                self.fail("SESSION_ACCOUNT_VISIBILITY_MISMATCH")
-            if account.get("deposit_owner", "").lower() != self.config.deposit_owner:
-                self.fail("DEPOSIT_OWNER_ACCOUNT_MISMATCH")
-            activity, session_history = account.get("wallet_activity"), account.get("wallet_activity_session_trades")
-            if not isinstance(activity, list) or not isinstance(session_history, list) or account.get("wallet_activity_after") is None:
-                self.fail("WALLET_WIDE_ACTIVITY_WITNESS_MISSING")
-            def activity_key(row):
-                return (row.get("transaction_hash"), row.get("condition"), row.get("token"), row.get("side"))
-            confirmed_session = [row for row in session_history if row.get("status") == "CONFIRMED"]
-            if (any(type(row.get("quantity")) is not int or row["quantity"] <= 0 for row in activity)
-                or any(type(row.get("wallet_quantity")) is not int or row["wallet_quantity"] <= 0
-                       for row in confirmed_session)):
-                self.fail("WALLET_WIDE_ACTIVITY_WITNESS_INVALID")
-            public_counts = Counter(activity_key(row) for row in activity)
-            session_counts = Counter(activity_key(row) for row in confirmed_session)
-            public_quantity = Counter()
-            session_quantity = Counter()
-            for row in activity: public_quantity[activity_key(row)] += row["quantity"]
-            for row in confirmed_session: session_quantity[activity_key(row)] += row["wallet_quantity"]
-            if any(key[0] is None or public_counts[key] > session_counts[key]
-                   or public_quantity[key] > session_quantity[key] for key in public_counts):
-                self.fail("EXTERNAL_WALLET_TRADE_ACTIVITY")
+        self._validate_deposit_session_account(account)
         minimum_funding = micros(self.config.risk.per_order)
         allowance_ready = bool(account.get("allowances") and max(account["allowances"].values()) >= minimum_funding)
         balance_ready = type(account.get("balance")) is int and account["balance"] >= minimum_funding
@@ -452,6 +460,10 @@ class ExecutionEngine:
         account = await self.call(self.exchange.account_snapshot, trade_after=trade_after)
         if account["wallet"].lower() != self.config.wallet or account["signer"].lower() != self.config.signer:
             self.fail("ACCOUNT_IDENTITY_MISMATCH")
+        # Repeat the complete Deposit-wallet isolation witness on the final account
+        # snapshot. An external/manual trade appearing after periodic reconciliation
+        # must block this submission, not merely the next reconciliation cycle.
+        self._validate_deposit_session_account(account)
         if account.get("openings_allowed") is not True:
             self.last_account = account
             self.reconciled = False
@@ -502,6 +514,15 @@ class ExecutionEngine:
                 prepared = await self.call(self.exchange.prepare_buy, token=leg["token"], condition=leg["condition"], quantity=quantity,
                                            price=Decimal(leg["price"]), order_type="GTD" if maker else "FAK", expiration=expiration,
                                            fee_cap=Decimal(leg["fee_cap"]), post_only=maker, valid_until=plan["expires"])
+                if self.config.wallet_type == "DEPOSIT_WALLET":
+                    try:
+                        session_restriction = await self.call(self.exchange.session_opening_restriction)
+                    except Exception:
+                        session_restriction = "SESSION_AUTHORIZATION_ONCHAIN_UNKNOWN"
+                    if session_restriction:
+                        self.reconciled = False
+                        self.last_error = session_restriction
+                        raise ExecutionError(session_restriction)
                 if not self.authority() or not self.reader.is_active(signal["id"]):
                     break
                 self.ledger.begin_submission(plan["id"], index, prepared["order_id"], prepared["wire_hash"], prepared["payload"], prepared["fee_evidence"])

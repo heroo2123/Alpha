@@ -27,6 +27,8 @@ class SessionExchange(Exchange):
                      signature_type=3, order_visibility=self.visibility, wallet_activity=[],
                      wallet_activity_session_trades=[], wallet_activity_after=1)
         return value
+    def session_opening_restriction(self):
+        return None
 
 
 def session_config(tmp_path, **overrides):
@@ -138,6 +140,40 @@ def test_wallet_activity_quantity_excess_detects_same_tx_token_side_external_fil
     with pytest.raises(ExecutionError,match="EXTERNAL_WALLET_TRADE_ACTIVITY"):
         asyncio.run(engine.reconcile())
     assert ledger.state("fault") == "EXTERNAL_WALLET_TRADE_ACTIVITY"
+
+
+
+def test_external_wallet_trade_on_final_pre_submission_snapshot_blocks_post(tmp_path):
+    cfg,sig,store,ledger,exchange,engine=make_engine(tmp_path)
+    asyncio.run(engine.reconcile())
+    assert engine.authority()
+    original=exchange.account_snapshot
+    def raced_snapshot(**kwargs):
+        value=original(**kwargs)
+        return dict(value, wallet_activity=[{
+            "transaction_hash":"0x"+"88"*32, "condition":"0x"+"99"*32,
+            "token":str(2**150+2**90+4321), "side":"BUY", "quantity":1_000_000,
+            "price":"0.4", "timestamp":int(time.time())}],
+            wallet_activity_session_trades=[])
+    exchange.account_snapshot=raced_snapshot
+    with pytest.raises(ExecutionError, match="EXTERNAL_WALLET_TRADE_ACTIVITY"):
+        asyncio.run(engine.execute(sig))
+    assert exchange.posts == []
+    assert ledger.state("fault") == "EXTERNAL_WALLET_TRADE_ACTIVITY"
+    assert not engine.authority()
+
+
+
+def test_onchain_revocation_during_prepare_blocks_before_submission_record_or_post(tmp_path):
+    cfg,sig,store,ledger,exchange,engine=make_engine(tmp_path)
+    asyncio.run(engine.reconcile())
+    assert engine.authority()
+    exchange.session_opening_restriction=lambda: "SESSION_AUTHORIZATION_REVOKED_OR_MISSING"
+    with pytest.raises(ExecutionError, match="SESSION_AUTHORIZATION_REVOKED_OR_MISSING"):
+        asyncio.run(engine.execute(sig))
+    assert exchange.posts == []
+    assert ledger.orders() == []
+    assert engine.last_error == "SESSION_AUTHORIZATION_REVOKED_OR_MISSING"
 
 
 def test_engine_closes_new_openings_before_exclusivity_boundary(tmp_path):
