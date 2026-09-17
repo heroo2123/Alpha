@@ -124,8 +124,8 @@ collateral balance and allowance sufficient for at least `risk.per_order`.
 
 Final development-branch verification on 2026-09-17 used Python 3.12 under
 `umask 0022`. The focused account/session/operator regression aggregate is
-**239 passed**. The complete repository suite is **2073 passed, 4 warnings in
-98.08s**; the four warnings are retained FastAPI `on_event` deprecations.
+**239 passed**. The complete repository suite is **2093 passed, 4 warnings in
+100.67s**; the four warnings are retained FastAPI `on_event` deprecations.
 `compileall` and `git diff --check` pass.
 
 The current official `Polymarket/py-sdk` `origin/main` independently refreshed to
