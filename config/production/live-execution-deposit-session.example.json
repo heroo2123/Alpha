@@ -5,13 +5,18 @@
   "telegram_file": "/etc/alpha-weather/telegram.json",
   "execution_status_path": "/var/lib/alpha-weather-execution/status.json",
   "execution_db": "/var/lib/alpha-weather-execution/account.sqlite3",
-  "credentials_file": "/etc/alpha-weather-execution/credentials.json",
+  "credentials_file": "/etc/alpha-weather-execution/session-credentials.json",
   "activation_file": "/etc/alpha-weather-execution/activation.json",
   "stop_file": "/var/lib/alpha-weather-execution/STOP_OPENING",
   "rpc_url": null,
   "fee_policy": null,
   "wallet": null,
   "signer": null,
+  "wallet_type": "DEPOSIT_WALLET",
+  "signature_type": 3,
+  "session_scopes": ["CLOB"],
+  "session_valid_until": null,
+  "session_exclusive_until": null,
   "strategies": [
     "DIRECTIONAL",
     "SAME_DAY",
@@ -37,7 +42,5 @@
     "max_open_orders": null,
     "max_positions": null,
     "max_maker_rest_seconds": null
-  },
-  "wallet_type": "EOA",
-  "signature_type": 0
+  }
 }

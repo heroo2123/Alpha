@@ -7,12 +7,14 @@ new position authority is stopped. No ambiguous submission is ever reposted.
 from __future__ import annotations
 
 import asyncio
+from collections import Counter
 from decimal import Decimal, ROUND_FLOOR
 import json
 import sqlite3
 import time
 
-from .config import ProductionConfig, ConfigurationError, decimal, digest
+from .config import (ProductionConfig, ConfigurationError, decimal, digest,
+                     SESSION_OPENING_SAFETY_SECONDS)
 from .ledger import ExecutionLedger, LedgerError, micros, SCALE
 from .fees import fee_requirement
 
@@ -26,8 +28,12 @@ class ExecutionEngine:
         if config.mode != "LIVE_EXECUTION" or config.risk is None:
             raise ConfigurationError("EXECUTION_MODE_REQUIRED")
         self.config, self.ledger, self.reader = config, ledger, reader
+        self.ledger.bind_adapter_identity(wallet_type=config.wallet_type, signer=config.signer,
+                                          signature_type=config.signature_type)
         self.exchange, self.weather = exchange, weather
         self.reconciled = False
+        self.account_reconciled = False
+        self.funding_ready = False
         self.io_fault = False
         self.last_account = None
         self.last_reconcile = 0.0
@@ -60,6 +66,14 @@ class ExecutionEngine:
             return self.last_error
         if stopped: return "LEGACY_OPERATOR_STOP_REQUIRES_LOCAL_RECOVERY"
         if self.config.stop_file and self.config.stop_file.exists(): return "LOCAL_EMERGENCY_STOP_FILE"
+        if self.config.wallet_type == "DEPOSIT_WALLET":
+            now = time.time()
+            if now >= float(self.config.session_valid_until) - SESSION_OPENING_SAFETY_SECONDS:
+                return "SESSION_AUTHORIZATION_EXPIRED_OR_NEAR_EXPIRY"
+            if now >= float(self.config.session_exclusive_until):
+                return "DEDICATED_SESSION_EXCLUSIVITY_EXPIRED"
+            if now >= float(self.config.session_exclusive_until) - SESSION_OPENING_SAFETY_SECONDS:
+                return "DEDICATED_SESSION_EXCLUSIVITY_EXPIRED_OR_NEAR_EXPIRY"
         if self.io_fault: return "EXECUTION_DATABASE_WRITE_FAULT"
         if self.ledger.state("fault"): return "UNRESOLVED_RECONCILIATION_FAULT"
         if not self.config.activation_requested(): return "CONFIGURATION_BOUND_ACTIVATION_MISSING_OR_INVALID"
@@ -72,6 +86,7 @@ class ExecutionEngine:
 
     def fail(self, code: str):
         self.reconciled = False
+        self.account_reconciled = False
         self.last_error = code
         try:
             self.ledger.fault(code)
@@ -79,12 +94,18 @@ class ExecutionEngine:
             self.io_fault = True
         raise ExecutionError(code)
 
-    async def reconcile(self, *, ignore_sticky_fault=False):
+    async def reconcile(self, *, ignore_sticky_fault=False, allow_exchange_mutation=True):
         """A failed comparison stops opening; confirmed fills remain append-only."""
         started = time.time()
         self.reconciled = False
+        self.account_reconciled = False
+        self.funding_ready = False
+        management_required = False
         if self.ledger.audit_fill_limits_upgrade():
-            await self.manage_existing()
+            if allow_exchange_mutation:
+                await self.manage_existing()
+            else:
+                management_required = True
         hot = self.ledger.orders()
         watermark = self.ledger.state("trade_census_after")
         trade_after = int(watermark) - 300 if watermark else None
@@ -93,7 +114,32 @@ class ExecutionEngine:
         account = await self.call(self.exchange.account_snapshot, trade_after=max(0, trade_after) if trade_after is not None else None)
         if account.get("wallet", "").lower() != self.config.wallet or account.get("signer", "").lower() != self.config.signer:
             self.fail("ACCOUNT_IDENTITY_MISMATCH")
-        allowance_ready = bool(account.get("allowances") and max(account["allowances"].values()) >= micros(self.config.risk.per_order))
+        if self.config.wallet_type == "DEPOSIT_WALLET":
+            if (account.get("wallet_type") != "DEPOSIT_WALLET" or account.get("signature_type") != 3
+                or account.get("order_visibility") != "SESSION_SIGNER_ONLY"):
+                self.fail("SESSION_ACCOUNT_VISIBILITY_MISMATCH")
+            activity, session_history = account.get("wallet_activity"), account.get("wallet_activity_session_trades")
+            if not isinstance(activity, list) or not isinstance(session_history, list) or account.get("wallet_activity_after") is None:
+                self.fail("WALLET_WIDE_ACTIVITY_WITNESS_MISSING")
+            def activity_key(row):
+                return (row.get("transaction_hash"), row.get("condition"), row.get("token"), row.get("side"))
+            confirmed_session = [row for row in session_history if row.get("status") == "CONFIRMED"]
+            if (any(type(row.get("quantity")) is not int or row["quantity"] <= 0 for row in activity)
+                or any(type(row.get("wallet_quantity")) is not int or row["wallet_quantity"] <= 0
+                       for row in confirmed_session)):
+                self.fail("WALLET_WIDE_ACTIVITY_WITNESS_INVALID")
+            public_counts = Counter(activity_key(row) for row in activity)
+            session_counts = Counter(activity_key(row) for row in confirmed_session)
+            public_quantity = Counter()
+            session_quantity = Counter()
+            for row in activity: public_quantity[activity_key(row)] += row["quantity"]
+            for row in confirmed_session: session_quantity[activity_key(row)] += row["wallet_quantity"]
+            if any(key[0] is None or public_counts[key] > session_counts[key]
+                   or public_quantity[key] > session_quantity[key] for key in public_counts):
+                self.fail("EXTERNAL_WALLET_TRADE_ACTIVITY")
+        minimum_funding = micros(self.config.risk.per_order)
+        allowance_ready = bool(account.get("allowances") and max(account["allowances"].values()) >= minimum_funding)
+        balance_ready = type(account.get("balance")) is int and account["balance"] >= minimum_funding
         audit = self.ledger.historical_orders(self.ledger.state("order_audit_cursor") or "")
         if not audit:
             audit = self.ledger.historical_orders("")
@@ -136,9 +182,12 @@ class ExecutionEngine:
                         self.fail("UNMANAGED_HISTORICAL_ACCOUNT_TRADE")
                     known[order_id] = row
             self.ledger.set_state("trade_history_cursor", str(audit_end))
-        unresolved = not allowance_ready
+        self.funding_ready = allowance_ready and balance_ready
+        unresolved = False
         if not allowance_ready:
             self.last_error = "COLLATERAL_ALLOWANCE_READINESS_FAILED"
+        elif not balance_ready:
+            self.last_error = "COLLATERAL_BALANCE_READINESS_FAILED"
         for order in known.values():
             plan = self.ledger.plan(order["intent_id"])
             leg = plan["legs"][order["leg"]]
@@ -152,7 +201,10 @@ class ExecutionEngine:
             for fill in fills:
                 new_fill = self.ledger.record_fill(fill) or new_fill
             if new_fill and self.ledger.state("fault"):
-                await self.manage_existing()
+                if allow_exchange_mutation:
+                    await self.manage_existing()
+                else:
+                    management_required = True
             remote = await self.call(self.exchange.get_order, order["id"])
             current = self.ledger.order(order["id"])
             if remote is None:
@@ -226,8 +278,11 @@ class ExecutionEngine:
         self.ledger.set_state("trade_census_after", str(int(account.get("observed_at", time.time()))))
         if not census_start:
             self.ledger.set_state("trade_census_start", str(int(account.get("observed_at", time.time())) - 300))
-        unresolved = unresolved or bool(self.ledger.summary()["settlement_proof_unavailable_tokens"])
-        self.reconciled = not unresolved and (ignore_sticky_fault or not self.ledger.state("fault"))
+        unresolved = unresolved or management_required or bool(self.ledger.summary()["settlement_proof_unavailable_tokens"])
+        if management_required:
+            self.last_error = "PREFLIGHT_ORDER_MANAGEMENT_REQUIRED"
+        self.account_reconciled = not unresolved and (ignore_sticky_fault or not self.ledger.state("fault"))
+        self.reconciled = self.account_reconciled and self.funding_ready
         if self.reconciled:
             self.last_error = None
         return self.status()
@@ -245,7 +300,8 @@ class ExecutionEngine:
                 "config_sha256": self.config.config_sha256,
                 "fee_policy": self.config.fee_policy,
                 "fee_limit_scope": "LOCAL_SUBMISSION_CHECK_AND_RESERVATION_NOT_SIGNED_EXCHANGE_CAP",
-                "reconciled": self.reconciled, "reconciled_at": self.last_reconcile,
+                "reconciled": self.reconciled, "account_reconciled": self.account_reconciled,
+                "funding_ready": self.funding_ready, "reconciled_at": self.last_reconcile,
                 "last_error": self.last_error, "database_write_fault": self.io_fault,
                 "opening_disabled_reason": (self.control.reason() if self.control else None) or
                     self.base_authority_reason(),
@@ -253,8 +309,18 @@ class ExecutionEngine:
                     authorization_expires_at=self.control.policy.expires,
                     processed_seq=int(self.ledger.state("control_seq"))) if self.control else None,
                 "balance_micros": self.last_account.get("balance") if self.last_account else None,
-                "account_performance_scope": "BOT_CONFIRMED_BUY_FILLS_ONLY_DEDICATED_EOA",
-                "signing_authority": "EOA_FULL_KEY_APPLICATION_BUY_ONLY_NOT_WITHDRAWAL_RESTRICTED",
+                "account_performance_scope": (
+                    "BOT_CONFIRMED_SESSION_FILLS_ONLY_DEDICATED_DEPOSIT_WALLET"
+                    if self.config.wallet_type == "DEPOSIT_WALLET"
+                    else "BOT_CONFIRMED_BUY_FILLS_ONLY_DEDICATED_EOA"),
+                "signing_authority": (
+                    "DEPOSIT_WALLET_SESSION_KEY_OWNER_KEY_OFF_HOST"
+                    if self.config.wallet_type == "DEPOSIT_WALLET"
+                    else "EOA_FULL_KEY_APPLICATION_BUY_ONLY_NOT_WITHDRAWAL_RESTRICTED"),
+                "wallet_type": self.config.wallet_type, "signature_type": self.config.signature_type,
+                "session_scopes": list(self.config.session_scopes),
+                "session_valid_until": self.config.session_valid_until,
+                "session_exclusive_until": self.config.session_exclusive_until,
                 "account": self.ledger.summary(), "notification_batch": events, "updated_at": time.time()}
 
     async def manage_existing(self):

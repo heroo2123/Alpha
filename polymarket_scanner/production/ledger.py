@@ -93,6 +93,31 @@ class ExecutionLedger:
             # A process died between durable submit intent and durable response.
             self.audit(db, "STARTUP", self.wallet, {})
 
+    def bind_adapter_identity(self, *, wallet_type: str, signer: str, signature_type: int) -> None:
+        """Bind a financial journal to one signer model; never silently rotate it.
+
+        Session-scoped CLOB history means changing the Session Key can hide the
+        previous signer's orders/trades. Expiry renewal for the same signer is
+        allowed because expiry is configuration authority, not journal identity.
+        """
+        identity = canonical({"wallet": self.wallet, "wallet_type": wallet_type,
+                              "signer": signer.lower(), "signature_type": signature_type})
+        with self.transaction() as db:
+            row = db.execute("SELECT value FROM execution_state WHERE key='adapter_identity'").fetchone()
+            if row and row[0] != identity:
+                raise LedgerError("EXECUTION_ADAPTER_IDENTITY_MISMATCH")
+            if row is None and (wallet_type != "EOA" or signer.lower() != self.wallet or signature_type != 0):
+                # Releases before Deposit-session support could only create EOA
+                # journals. Never reinterpret populated legacy state as session
+                # history merely because the wallet address is unchanged.
+                tables = ("execution_intents", "execution_orders", "execution_fills",
+                          "execution_settlements", "execution_redemptions")
+                populated = any(db.execute(f"SELECT 1 FROM {table} LIMIT 1").fetchone() for table in tables)
+                prior_state = db.execute("SELECT 1 FROM execution_state WHERE key!='adapter_identity' LIMIT 1").fetchone()
+                if populated or prior_state:
+                    raise LedgerError("LEGACY_EOA_JOURNAL_ADAPTER_MIGRATION_REQUIRED")
+            db.execute("INSERT OR IGNORE INTO execution_state VALUES('adapter_identity',?)", (identity,))
+
     def recover_after_restart(self):
         """Caller must hold the exclusive worker lease before recovery."""
         with self.transaction() as db:
