@@ -12,6 +12,7 @@ from polymarket_scanner.production.signals import SignalStore, SignalReader
 from test_production_lifecycle import Exchange, Weather, candidate, config
 
 SESSION = Account.from_key((2).to_bytes(32, "big")).address.lower()
+OWNER = Account.from_key((3).to_bytes(32, "big")).address.lower()
 DEPOSIT = "0x" + "33" * 20
 
 
@@ -22,14 +23,15 @@ class SessionExchange(Exchange):
         self.visibility = visibility
     def account_snapshot(self, **kwargs):
         value=super().account_snapshot(**kwargs)
-        value.update(wallet=DEPOSIT, signer=SESSION, wallet_type="DEPOSIT_WALLET",
+        value.update(wallet=DEPOSIT, signer=SESSION, wallet_type="DEPOSIT_WALLET", deposit_owner=OWNER,
                      signature_type=3, order_visibility=self.visibility, wallet_activity=[],
                      wallet_activity_session_trades=[], wallet_activity_after=1)
         return value
 
 
 def session_config(tmp_path, **overrides):
-    values=dict(wallet=DEPOSIT, signer=SESSION, wallet_type="DEPOSIT_WALLET", signature_type=3,
+    values=dict(wallet=DEPOSIT, signer=SESSION, deposit_owner=OWNER,
+                wallet_type="DEPOSIT_WALLET", signature_type=3,
                 session_scopes=["CLOB"], session_valid_until=time.time()+100_000,
                 session_exclusive_until=time.time()+90_000)
     values.update(overrides)
@@ -55,8 +57,19 @@ def test_session_engine_reconciles_and_reports_restricted_authority(tmp_path):
     status=engine.status()
     assert status["wallet_type"] == "DEPOSIT_WALLET" and status["signature_type"] == 3
     assert status["session_scopes"] == ["CLOB"]
+    assert status["deposit_owner"] == OWNER
     assert status["signing_authority"] == "DEPOSIT_WALLET_SESSION_KEY_OWNER_KEY_OFF_HOST"
     assert "DEPOSIT_WALLET" in status["account_performance_scope"]
+
+
+def test_session_owner_binding_mismatch_is_sticky_fault(tmp_path):
+    cfg,sig,store,ledger,exchange,engine=make_engine(tmp_path)
+    original=exchange.account_snapshot
+    exchange.account_snapshot=lambda **kwargs: dict(original(**kwargs),deposit_owner="0x"+"44"*20)
+    with pytest.raises(ExecutionError,match="DEPOSIT_OWNER_ACCOUNT_MISMATCH"):
+        asyncio.run(engine.reconcile())
+    assert ledger.state("fault") == "DEPOSIT_OWNER_ACCOUNT_MISMATCH"
+    assert not engine.authority()
 
 
 def test_session_visibility_mismatch_is_sticky_fault(tmp_path):
@@ -139,7 +152,7 @@ def test_engine_closes_new_openings_before_exclusivity_boundary(tmp_path):
 
 def test_session_signer_rotation_is_not_silent_on_existing_journal(tmp_path):
     cfg,sig,store,ledger,exchange,engine=make_engine(tmp_path)
-    other=Account.from_key((3).to_bytes(32, "big")).address.lower()
+    other=Account.from_key((6).to_bytes(32, "big")).address.lower()
     rotated=session_config(tmp_path, signer=other,
         session_valid_until=time.time()+100_000,
         session_exclusive_until=time.time()+90_000)
@@ -174,6 +187,7 @@ def test_cli_preflight_selects_deposit_session_adapter(tmp_path, monkeypatch):
     assert status["account_reconciled"] is True and status["funding_ready"] is False
     assert status["reconciled"] is False and status["financial_authority"] is False
     assert called["wallet"] == DEPOSIT and called["signer"] == SESSION
+    assert called["deposit_owner"] == OWNER
     assert called["session_scopes"] == ("CLOB",)
     assert called["session_valid_until"] == cfg.session_valid_until
     assert called["session_exclusive_until"] == cfg.session_exclusive_until
@@ -189,11 +203,22 @@ def test_same_session_signer_can_renew_expiry_without_journal_identity_change(tm
     assert ledger.state("adapter_identity") is not None
 
 
+def test_deposit_owner_rotation_is_not_silent_on_existing_journal(tmp_path):
+    cfg,sig,store,ledger,exchange,engine=make_engine(tmp_path)
+    other_owner=Account.from_key((5).to_bytes(32, "big")).address.lower()
+    changed=session_config(tmp_path, deposit_owner=other_owner,
+        session_valid_until=time.time()+100_000,
+        session_exclusive_until=time.time()+90_000)
+    with pytest.raises(Exception, match="EXECUTION_ADAPTER_IDENTITY_MISMATCH"):
+        ExecutionEngine(changed, ledger, SignalReader(cfg.signal_db), exchange, Weather(sig))
+
+
 def test_populated_legacy_journal_cannot_be_reinterpreted_as_deposit_session(tmp_path):
     legacy=ExecutionLedger(tmp_path/"legacy.db", DEPOSIT)
     legacy.set_state("trade_census_after", "123")
     with pytest.raises(Exception, match="LEGACY_EOA_JOURNAL_ADAPTER_MIGRATION_REQUIRED"):
-        legacy.bind_adapter_identity(wallet_type="DEPOSIT_WALLET", signer=SESSION, signature_type=3)
+        legacy.bind_adapter_identity(wallet_type="DEPOSIT_WALLET", signer=SESSION, signature_type=3,
+                                     deposit_owner=OWNER)
     assert legacy.state("adapter_identity") is None
 
 

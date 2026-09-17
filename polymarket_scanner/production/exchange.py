@@ -50,6 +50,52 @@ ORDER_TYPE = "Order(uint256 salt,address maker,address signer,uint256 tokenId,ui
 EIP712_DOMAIN_TYPE = "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
 SESSION_SIGNATURE_MAGIC = bytes.fromhex("6492649264926492649264926492649264926492649264926492649264926492")
 
+# Pinned from the independently reviewed official Polymarket py-sdk production
+# environment at commit 579bb2e56be9cc5d152546985870ee6ad795ec52.
+# These constants are used only to reject a Deposit Wallet OWNER EOA from the
+# restricted Session Key adapter; they do not grant or prove Session authority.
+DEPOSIT_WALLET_FACTORY = "0x00000000000fb5c9adea0298d729a0cb3823cc07"
+DEPOSIT_WALLET_IMPLEMENTATION = "0x58ca52ebe0dadfdf531cde7062e76746de4db1eb"
+DEPOSIT_WALLET_BEACON = "0x7a18edfe055488a3128f01f563e5b479d92ffc3a"
+_ERC1967_CONST1 = bytes.fromhex("cc3735a920a3ca505d382bbc545af43d6000803e6038573d6000fd5b3d6000f3")
+_ERC1967_CONST2 = bytes.fromhex("5155f3363d3d373d3d363d7f360894a13ba1a3210667c828492db98dca3e2076")
+_ERC1967_BEACON_CONST1 = bytes.fromhex("b3582b35133d50545afa5036515af43d6000803e604d573d6000fd5b3d6000f3")
+_ERC1967_BEACON_CONST2 = bytes.fromhex("1b60e01b36527fa3f0ad74e5423aebfd80d3ef4346578335a9a72aeaee59ff6c")
+_ERC1967_BEACON_CONST3 = bytes.fromhex("60195155f3363d3d373d3d363d602036600436635c60da")
+
+
+def _deposit_wallet_owner_addresses(owner: str) -> frozenset[str]:
+    """Derive pinned production Deposit Wallet addresses for an OWNER EOA.
+
+    Reject both the historical UUPS and current beacon forms. This is a local
+    owner-key exclusion check, not evidence that any other EOA is authorized as
+    a Session Key. Active scope/expiry still require trusted owner-side evidence.
+    """
+    try:
+        from eth_abi import encode
+        owner = address(owner)
+        factory = address(DEPOSIT_WALLET_FACTORY)
+        wallet_id = bytes.fromhex(owner[2:]).rjust(32, b"\0")
+        args = encode(["address", "bytes32"], [factory, wallet_id])
+        salt = keccak(args)
+
+        def create2(init_code_hash: bytes) -> str:
+            raw = b"\xff" + bytes.fromhex(factory[2:]) + salt + init_code_hash
+            return "0x" + keccak(raw)[12:].hex()
+
+        prefix = (0x61003D3D8160233D3973 + (len(args) << 56)).to_bytes(10, "big")
+        uups_hash = keccak(prefix + bytes.fromhex(DEPOSIT_WALLET_IMPLEMENTATION[2:])
+                           + bytes.fromhex("6009") + _ERC1967_CONST2 + _ERC1967_CONST1 + args)
+        beacon_prefix = (0x6100523D8160233D3973 + (len(args) << 56)).to_bytes(10, "big")
+        beacon_hash = keccak(beacon_prefix + bytes.fromhex(DEPOSIT_WALLET_BEACON[2:])
+                             + _ERC1967_BEACON_CONST3 + _ERC1967_BEACON_CONST2
+                             + _ERC1967_BEACON_CONST1 + args)
+        return frozenset((address(create2(uups_hash)), address(create2(beacon_hash))))
+    except ExchangeError:
+        raise
+    except (ImportError, TypeError, ValueError):
+        raise ExchangeError("DEPOSIT_WALLET_OWNER_DERIVATION_FAILED") from None
+
 
 def canonical(value: object) -> str:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False)
@@ -690,7 +736,10 @@ class ExchangeEOA:
         activity, activity_session_trades, activity_after = [], [], None
         if self.wallet_type == "DEPOSIT_WALLET":
             activity_after = 1 if trade_after is None else max(1, uint(trade_after) - WALLET_ACTIVITY_LOOKBACK_SECONDS)
-            activity_before = int(started)
+            # Use one common cutoff immediately before the session/public witness
+            # comparison. Bounding at snapshot start would unnecessarily hide
+            # wallet activity that occurred during earlier account enumeration.
+            activity_before = int(self.clock())
             activity_session_trades = (trades if trade_after is None else
                 self.account_trades(after=activity_after, before=activity_before))
             activity = self.wallet_trade_activity(after=activity_after, before=activity_before)
@@ -700,6 +749,7 @@ class ExchangeEOA:
         if not 0 <= self.clock() - started <= MAX_ACCOUNT_SNAPSHOT_AGE:
             raise ExchangeError("ACCOUNT_SNAPSHOT_STALE")
         return {"wallet": self.wallet, "signer": self.signer, "wallet_type": self.wallet_type,
+                "deposit_owner": getattr(self, "deposit_owner", None),
                 "signature_type": self.signature_type, "order_visibility": self.order_visibility,
                 "eligibility": eligibility, "openings_allowed": eligibility["openings_allowed"],
                 "opening_restrictions": eligibility["opening_restrictions"],
@@ -914,14 +964,19 @@ class ExchangeDepositSession(ExchangeEOA):
     order_visibility = "SESSION_SIGNER_ONLY"
 
     def __init__(self, *, private_key, api_key: str, api_secret: str, api_passphrase: str,
-                 wallet: str, signer: str, session_scopes, session_valid_until,
+                 wallet: str, signer: str, deposit_owner: str, session_scopes, session_valid_until,
                  session_exclusive_until, transport: JSONTransport | None = None,
                  chain: ChainReader | None = None, rpc_url: str | None = None, clock=time.time,
                  fee_policy: str | None = None):
         self._init_authenticated(private_key=private_key, api_key=api_key, api_secret=api_secret,
             api_passphrase=api_passphrase, wallet=wallet, signer=signer, transport=transport,
             chain=chain, rpc_url=rpc_url, clock=clock, fee_policy=fee_policy)
-        if self.wallet == self.signer or tuple(session_scopes or ()) != ("CLOB",):
+        self.deposit_owner = address(deposit_owner)
+        if self.signer == self.deposit_owner or self.wallet in _deposit_wallet_owner_addresses(self.signer):
+            raise ExchangeError("DEPOSIT_SESSION_OWNER_KEY_FORBIDDEN")
+        if self.wallet not in _deposit_wallet_owner_addresses(self.deposit_owner):
+            raise ExchangeError("DEPOSIT_WALLET_OWNER_BINDING_MISMATCH")
+        if self.wallet == self.signer or self.wallet == self.deposit_owner or tuple(session_scopes or ()) != ("CLOB",):
             raise ExchangeError("DEPOSIT_SESSION_CONFIGURATION_INVALID")
         try:
             self.session_valid_until = float(session_valid_until)
@@ -937,6 +992,17 @@ class ExchangeDepositSession(ExchangeEOA):
     def eligibility(self, *, require_opening: bool = True) -> dict:
         result = super().eligibility(require_opening=False)
         restrictions = list(result["opening_restrictions"])
+        try:
+            block = self.chain.block("latest")
+            raw_beacon = self.chain.call(DEPOSIT_WALLET_FACTORY, "BEACON()", [], [],
+                                         block=hex(block["number"]))
+            if len(raw_beacon) != 32:
+                raise ExchangeError("DEPOSIT_WALLET_FACTORY_BEACON_UNKNOWN")
+            live_beacon = address("0x" + raw_beacon[-20:].hex())
+            if live_beacon != address(DEPOSIT_WALLET_BEACON):
+                restrictions.append("DEPOSIT_WALLET_FACTORY_BEACON_DRIFT")
+        except ExchangeError:
+            restrictions.append("DEPOSIT_WALLET_FACTORY_BEACON_UNKNOWN")
         now = self.clock()
         if now >= self.session_valid_until - SESSION_OPENING_SAFETY_SECONDS:
             restrictions.append("SESSION_AUTHORIZATION_EXPIRED_OR_NEAR_EXPIRY")
@@ -960,8 +1026,11 @@ class ExchangeDepositSession(ExchangeEOA):
             raise ExchangeError("SESSION_OPENING_WINDOW_CLOSED")
         if order_type == "GTD" and uint(expiration) > int(cutoff):
             raise ExchangeError("ORDER_OUTLIVES_SESSION_OPENING_WINDOW")
+        # A wire prepared just before the safety boundary must not retain the
+        # generic five-second submission lifetime after opening authority closes.
+        bounded_valid_until = cutoff if valid_until is None else min(float(number(valid_until)), cutoff)
         return super().prepare_buy(token=token, condition=condition, quantity=quantity, price=price,
-            order_type=order_type, fee_cap=fee_cap, expiration=expiration, valid_until=valid_until,
+            order_type=order_type, fee_cap=fee_cap, expiration=expiration, valid_until=bounded_valid_until,
             post_only=post_only)
 
     def _sign_order(self, order: dict, exchange: str) -> str:

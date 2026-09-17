@@ -116,6 +116,7 @@ class ProductionConfig:
     session_scopes: tuple[str, ...] = ()
     session_valid_until: float | None = None
     session_exclusive_until: float | None = None
+    deposit_owner: str | None = None
 
     @classmethod
     def parse(cls, raw: dict) -> "ProductionConfig":
@@ -124,6 +125,20 @@ class ProductionConfig:
         mode = required(raw, "mode")
         if not isinstance(mode, str) or mode not in MODES:
             raise ConfigurationError("INVALID_MODE")
+        if mode == "LIVE_EXECUTION":
+            allowed = {
+                "mode", "signal_db", "status_path", "telegram_file", "execution_status_path",
+                "execution_db", "credentials_file", "activation_file", "stop_file", "rpc_url",
+                "fee_policy", "wallet", "signer", "deposit_owner", "wallet_type", "signature_type",
+                "session_scopes", "session_valid_until", "session_exclusive_until", "strategies",
+                "allow_uncalibrated", "min_model_gap", "min_structural_edge", "partial_basket_policy",
+                "risk", "operator_control",
+                # Retain specific fail-closed diagnostics for these legacy/forbidden requests.
+                "session_key", "session_signer", "withdrawal_disabled",
+            }
+            unknown = sorted(set(raw) - allowed)
+            if unknown:
+                raise ConfigurationError("UNKNOWN_LIVE_EXECUTION_SETTING:" + unknown[0])
         paths = {}
         names = ["signal_db", "status_path"]
         for key in ("telegram_file", "execution_status_path"):
@@ -157,6 +172,7 @@ class ProductionConfig:
         wallet_type, signature_type = "EOA", 0
         session_scopes: tuple[str, ...] = ()
         session_valid_until = session_exclusive_until = None
+        deposit_owner = None
         if mode == "LIVE_EXECUTION":
             fee_policy = required(raw, "fee_policy")
             if not isinstance(fee_policy, str) or fee_policy not in FEE_POLICIES:
@@ -168,11 +184,14 @@ class ProductionConfig:
             if wallet_type == "EOA":
                 if type(signature_type) is not int or signature_type != 0 or signer != wallet:
                     raise ConfigurationError("ONLY_EXPLICIT_EOA_ACCOUNT_SUPPORTED")
-                if any(key in raw for key in ("session_scopes", "session_valid_until", "session_exclusive_until")):
+                if any(key in raw for key in ("session_scopes", "session_valid_until", "session_exclusive_until", "deposit_owner")):
                     raise ConfigurationError("SESSION_CONFIGURATION_REQUIRES_DEPOSIT_WALLET")
             elif wallet_type == "DEPOSIT_WALLET":
                 if type(signature_type) is not int or signature_type != 3 or signer == wallet:
                     raise ConfigurationError("DEPOSIT_SESSION_IDENTITY_INVALID")
+                deposit_owner = address(required(raw, "deposit_owner"), "deposit_owner")
+                if deposit_owner in {wallet, signer}:
+                    raise ConfigurationError("DEPOSIT_SESSION_OWNER_IDENTITY_INVALID")
                 scopes = required(raw, "session_scopes")
                 if scopes != ["CLOB"]:
                     raise ConfigurationError("DEPOSIT_SESSION_REQUIRES_CLOB_ONLY_SCOPE")
@@ -218,7 +237,8 @@ class ProductionConfig:
                    paths.get("telegram_file"), paths.get("execution_status_path"), rpc,
                    fee_policy=fee_policy, operator_control=control, wallet_type=wallet_type,
                    signature_type=signature_type, session_scopes=session_scopes,
-                   session_valid_until=session_valid_until, session_exclusive_until=session_exclusive_until)
+                   session_valid_until=session_valid_until, session_exclusive_until=session_exclusive_until,
+                   deposit_owner=deposit_owner)
 
     @classmethod
     def load(cls, path: Path) -> "ProductionConfig":

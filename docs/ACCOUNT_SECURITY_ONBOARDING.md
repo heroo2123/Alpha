@@ -26,8 +26,9 @@ Polymarket's current wallet documentation says new account wallets are Deposit
 Wallets. Current official `Polymarket/py-sdk` source at commit
 `579bb2e56be9cc5d152546985870ee6ad795ec52` implements scoped Session Keys: owner
 authorization requires Builder access, the Session Key is a separate EOA, `CLOB`
-is an explicit scope, and the SDK currently uses a 4,315-hour authorization
-lifetime. Its live integration test authorizes a Session Key, places and cancels
+is an explicit scope, and the public authorization lifetime is described as 180
+days. The exact v0.10.0 SDK request uses 4,315 hours (179 days 19 hours), leaving
+a five-hour buffer. Its live integration test authorizes a Session Key, places and cancels
 a CLOB order, then revokes the key. Use `CLOB`, not `ALL`, for this bot.
 
 ## Restricted adapter implemented on this branch
@@ -36,6 +37,7 @@ The Deposit route requires the protected execution configuration to bind:
 
 - `wallet_type="DEPOSIT_WALLET"` and `signature_type=3`;
 - `wallet` = the Deposit Wallet and `signer` = the distinct Session Key EOA;
+- `deposit_owner` = the public Owner EOA address from which that Deposit Wallet is derived;
 - `session_scopes=["CLOB"]` exactly;
 - the externally verified venue authorization expiry in `session_valid_until`;
 - a separately approved dedicated-wallet commitment in `session_exclusive_until`.
@@ -43,9 +45,9 @@ The Deposit route requires the protected execution configuration to bind:
 The private executor credential file keeps the existing four-field schema:
 `private_key`, `api_key`, `api_secret`, `api_passphrase`. For this adapter those
 are the **Session Key** private key and that Session Key's CLOB L2 credentials.
+`deposit_owner` is public identity metadata, not a secret or signing credential.
 The Deposit Wallet Owner key and Builder credentials are not accepted by, needed
-by, or stored in the runtime. Session secrets in the nonsecret JSON config are
-rejected.
+by, or stored in the runtime. Session secrets in the nonsecret JSON config are rejected.
 
 Order preparation uses the Deposit Wallet as the signed order maker/signer,
 signature type 3, the official nested `TypedDataSign` structure, ERC-7739

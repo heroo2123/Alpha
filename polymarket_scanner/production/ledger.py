@@ -93,15 +93,23 @@ class ExecutionLedger:
             # A process died between durable submit intent and durable response.
             self.audit(db, "STARTUP", self.wallet, {})
 
-    def bind_adapter_identity(self, *, wallet_type: str, signer: str, signature_type: int) -> None:
+    def bind_adapter_identity(self, *, wallet_type: str, signer: str, signature_type: int,
+                              deposit_owner: str | None = None) -> None:
         """Bind a financial journal to one signer model; never silently rotate it.
 
         Session-scoped CLOB history means changing the Session Key can hide the
         previous signer's orders/trades. Expiry renewal for the same signer is
         allowed because expiry is configuration authority, not journal identity.
         """
-        identity = canonical({"wallet": self.wallet, "wallet_type": wallet_type,
-                              "signer": signer.lower(), "signature_type": signature_type})
+        identity_data = {"wallet": self.wallet, "wallet_type": wallet_type,
+                         "signer": signer.lower(), "signature_type": signature_type}
+        if wallet_type == "DEPOSIT_WALLET":
+            if not isinstance(deposit_owner, str) or not deposit_owner:
+                raise LedgerError("DEPOSIT_OWNER_IDENTITY_REQUIRED")
+            identity_data["deposit_owner"] = deposit_owner.lower()
+        elif deposit_owner is not None:
+            raise LedgerError("DEPOSIT_OWNER_IDENTITY_UNEXPECTED")
+        identity = canonical(identity_data)
         with self.transaction() as db:
             row = db.execute("SELECT value FROM execution_state WHERE key='adapter_identity'").fetchone()
             if row and row[0] != identity:

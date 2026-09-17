@@ -186,7 +186,8 @@ async def run(args):
         exchange_class = ExchangeDepositSession if config.wallet_type == "DEPOSIT_WALLET" else ExchangeEOA
         extra = ({"session_scopes": config.session_scopes,
                   "session_valid_until": config.session_valid_until,
-                  "session_exclusive_until": config.session_exclusive_until}
+                  "session_exclusive_until": config.session_exclusive_until,
+                  "deposit_owner": config.deposit_owner}
                  if config.wallet_type == "DEPOSIT_WALLET" else {})
         exchange = exchange_class.from_credentials_file(config.credentials_file, wallet=config.wallet,
             signer=config.signer, rpc_url=config.rpc_url, fee_policy=config.fee_policy, **extra)
@@ -195,7 +196,8 @@ async def run(args):
             # Refuse a changed signer/adapter before crash recovery can mutate the
             # durable financial journal. Engine construction rechecks idempotently.
             ledger.bind_adapter_identity(wallet_type=config.wallet_type, signer=config.signer,
-                                         signature_type=config.signature_type)
+                                         signature_type=config.signature_type,
+                                         deposit_owner=config.deposit_owner)
             ledger.recover_after_restart()
             if args.component == "rotate-control-authorization":
                 from .executor_control import rotate_authorization

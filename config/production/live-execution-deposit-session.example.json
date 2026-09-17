@@ -12,6 +12,7 @@
   "fee_policy": null,
   "wallet": null,
   "signer": null,
+  "deposit_owner": null,
   "wallet_type": "DEPOSIT_WALLET",
   "signature_type": 3,
   "session_scopes": ["CLOB"],

@@ -16,14 +16,24 @@ from test_production_exchange import API_KEY, API_SECRET, TOKEN, NOW, Wire, cont
 
 SESSION_KEY = (2).to_bytes(32, "big")
 SESSION = Account.from_key(SESSION_KEY).address.lower()
-DEPOSIT = "0x" + "33" * 20
+OWNER_KEY = (3).to_bytes(32, "big")
+OWNER = Account.from_key(OWNER_KEY).address.lower()
+# Fixed independent official-py-sdk beacon derivation for OWNER_KEY=3.
+DEPOSIT = "0xd2b19ff3196703493722d81676e4b1a9b1857bc8"
+VECTOR_DEPOSIT = "0x" + "33" * 20
 
 
 class SessionChain:
     fee = 200
+    beacon = "0x7a18edfe055488a3128f01f563e5b479d92ffc3a"
     def block(self, tag):
         assert tag in ("latest", "finalized")
         return {"number": 100, "hash": "0x" + "89" * 32, "timestamp": NOW}
+    def call(self, target, signature, types, values, **kwargs):
+        assert target.lower() == "0x00000000000fb5c9adea0298d729a0cb3823cc07"
+        assert signature == "BEACON()" and types == [] and values == []
+        assert kwargs == {"block": "0x64"}
+        return bytes(12) + bytes.fromhex(self.beacon[2:])
     def call_uint(self, exchange, signature, types, values, **kwargs):
         assert exchange == STANDARD_EXCHANGE
         return self.fee
@@ -39,7 +49,7 @@ class SessionChain:
 def session_client(wire=None, *, clock=None, valid=NOW+10_000, exclusive=NOW+9_000):
     return ExchangeDepositSession(private_key=SESSION_KEY, api_key=API_KEY,
         api_secret=API_SECRET, api_passphrase="fixture-passphrase",
-        wallet=DEPOSIT, signer=SESSION, session_scopes=("CLOB",),
+        wallet=DEPOSIT, signer=SESSION, deposit_owner=OWNER, session_scopes=("CLOB",),
         session_valid_until=valid, session_exclusive_until=exclusive,
         transport=wire or Wire(), chain=SessionChain(), clock=clock or (lambda: NOW),
         fee_policy="ONCHAIN_BOUND")
@@ -87,7 +97,7 @@ def test_session_expiry_and_exclusivity_fail_opening_closed():
 
 
 def test_deposit_session_signature_matches_independent_viem_vector():
-    order={"salt":123456789,"maker":DEPOSIT,"signer":DEPOSIT,
+    order={"salt":123456789,"maker":VECTOR_DEPOSIT,"signer":VECTOR_DEPOSIT,
         "tokenId":str(2**150+2**90+1234),"makerAmount":"6000000","takerAmount":"15000000",
         "side":"BUY","signatureType":3,"timestamp":"1789545600123",
         "metadata":"0x"+"00"*32,"builder":"0x"+"00"*32,"expiration":"0"}
@@ -122,6 +132,46 @@ def test_deposit_session_post_uses_session_l2_identity_and_wallet_maker():
     assert body["order"]["signatureType"] == 3
 
 
+@pytest.mark.parametrize("owner_wallet", [
+    "0x29b58e89eb61dfa0497f562ada227c808ccbd61c",  # fixed UUPS vector for OWNER_KEY=3
+    "0xd2b19ff3196703493722d81676e4b1a9b1857bc8",  # fixed beacon vector for OWNER_KEY=3
+])
+def test_declared_owner_accepts_only_pinned_derived_deposit_wallet_forms(owner_wallet):
+    exchange=ExchangeDepositSession(private_key=SESSION_KEY,api_key=API_KEY,
+        api_secret=API_SECRET,api_passphrase="fixture-passphrase",
+        wallet=owner_wallet,signer=SESSION,deposit_owner=OWNER,session_scopes=("CLOB",),
+        session_valid_until=NOW+10_000,session_exclusive_until=NOW+9_000,
+        transport=Wire(),chain=SessionChain(),clock=lambda:NOW,fee_policy="ONCHAIN_BOUND")
+    assert exchange.wallet == owner_wallet and exchange.deposit_owner == OWNER
+
+
+def test_deposit_session_rejects_wallet_not_derived_from_declared_owner_before_network():
+    wire=Wire()
+    with pytest.raises(ExchangeError,match="DEPOSIT_WALLET_OWNER_BINDING_MISMATCH"):
+        ExchangeDepositSession(private_key=SESSION_KEY,api_key=API_KEY,
+            api_secret=API_SECRET,api_passphrase="fixture-passphrase",
+            wallet="0x"+"33"*20,signer=SESSION,deposit_owner=OWNER,session_scopes=("CLOB",),
+            session_valid_until=NOW+10_000,session_exclusive_until=NOW+9_000,
+            transport=wire,chain=SessionChain(),clock=lambda:NOW,fee_policy="ONCHAIN_BOUND")
+    assert wire.calls == []
+
+
+@pytest.mark.parametrize("owner_wallet", [
+    "0x6ceacd4e15953a3648cec7b68b07a36aaf0c67f6",  # official UUPS derivation for key=2
+    "0x156c4a4e832d683803e463e32622717b23f8f883",  # official beacon derivation for key=2
+])
+def test_deposit_session_rejects_owner_eoa_before_network(owner_wallet):
+    wire = Wire()
+    with pytest.raises(ExchangeError, match="DEPOSIT_SESSION_OWNER_KEY_FORBIDDEN"):
+        ExchangeDepositSession(private_key=SESSION_KEY, api_key=API_KEY,
+            api_secret=API_SECRET, api_passphrase="fixture-passphrase",
+            wallet=owner_wallet, signer=SESSION, deposit_owner=SESSION, session_scopes=("CLOB",),
+            session_valid_until=NOW+10_000, session_exclusive_until=NOW+9_000,
+            transport=wire, chain=SessionChain(), clock=lambda: NOW,
+            fee_policy="ONCHAIN_BOUND")
+    assert wire.calls == []
+
+
 def test_deposit_session_credentials_file_contains_session_key_not_owner_key(tmp_path):
     import json
     path=tmp_path/"session.json"
@@ -129,7 +179,7 @@ def test_deposit_session_credentials_file_contains_session_key_not_owner_key(tmp
         "api_secret":API_SECRET,"api_passphrase":"fixture-passphrase"}))
     path.chmod(0o600)
     exchange=ExchangeDepositSession.from_credentials_file(path,wallet=DEPOSIT,signer=SESSION,
-        session_scopes=("CLOB",),session_valid_until=NOW+10000,
+        deposit_owner=OWNER,session_scopes=("CLOB",),session_valid_until=NOW+10000,
         session_exclusive_until=NOW+9000,transport=Wire(),chain=SessionChain(),
         clock=lambda:NOW,fee_policy="ONCHAIN_BOUND")
     assert exchange.wallet == DEPOSIT and exchange.signer == SESSION
@@ -139,6 +189,28 @@ def activity_row(*, tx, timestamp, token=TOKEN, side="BUY"):
     return {"proxy_wallet":DEPOSIT,"timestamp":timestamp,"condition_id":"0x"+"31"*32,
         "type":"TRADE","size":1.25,"usdc_size":0.5,"transaction_hash":tx,
         "price":0.4,"token_id":token,"side":side,"outcome_index":0}
+
+
+def test_account_snapshot_wallet_witness_cutoff_follows_account_enumeration(monkeypatch):
+    tick=[NOW]
+    exchange=session_client(Wire(),clock=lambda:tick[0])
+    monkeypatch.setattr(exchange,"eligibility",lambda **kwargs: {
+        "country":"KW","closed_only":False,"blocked":False,
+        "openings_allowed":True,"opening_restrictions":[]})
+    monkeypatch.setattr(exchange,"open_orders",lambda: (tick.__setitem__(0,tick[0]+2) or []))
+    trade_calls=[]
+    def trades(*,token=None,after=None,before=None):
+        trade_calls.append((after,before)); tick[0]+=2 if before is None else 0; return []
+    monkeypatch.setattr(exchange,"account_trades",trades)
+    monkeypatch.setattr(exchange,"positions",lambda: (tick.__setitem__(0,tick[0]+2) or []))
+    seen={}
+    def activity(*,after=None,before=None):
+        seen.update(after=after,before=before); return []
+    monkeypatch.setattr(exchange,"wallet_trade_activity",activity)
+    monkeypatch.setattr(exchange,"balance_allowance",lambda: {"balance":9_000_000,"allowances":{STANDARD_EXCHANGE:20_000_000}})
+    snap=exchange.account_snapshot(trade_after=NOW-600)
+    assert seen["before"] == NOW+6 and seen["before"] > snap["started_at"]
+    assert trade_calls[-1] == (NOW-600-7*24*60*60, NOW+6)
 
 
 def test_wallet_trade_activity_current_v2_cursor_contract():
@@ -180,6 +252,31 @@ def test_wallet_trade_activity_rejects_nontrade_or_out_of_order_rows():
         session_client(wire).wallet_trade_activity(after=100,before=200)
 
 
+def test_deposit_factory_beacon_drift_or_unknown_closes_openings():
+    responses=[(200,{"blocked":False,"country":"KW"}),
+               (200,{"apiKeys":[API_KEY]}),(200,{"closed_only":False})]
+    chain=SessionChain(); chain.beacon="0x"+"44"*20
+    exchange=ExchangeDepositSession(private_key=SESSION_KEY,api_key=API_KEY,
+        api_secret=API_SECRET,api_passphrase="fixture-passphrase",wallet=DEPOSIT,signer=SESSION,
+        deposit_owner=OWNER,session_scopes=("CLOB",),session_valid_until=NOW+10_000,session_exclusive_until=NOW+9_000,
+        transport=Wire(responses),chain=chain,clock=lambda:NOW,fee_policy="ONCHAIN_BOUND")
+    result=exchange.eligibility(require_opening=False)
+    assert not result["openings_allowed"]
+    assert "DEPOSIT_WALLET_FACTORY_BEACON_DRIFT" in result["opening_restrictions"]
+
+    class UnknownBeacon(SessionChain):
+        def call(self, *args, **kwargs):
+            raise ExchangeError("RPC_READ_FAILED")
+    responses=[(200,{"blocked":False,"country":"KW"}),
+               (200,{"apiKeys":[API_KEY]}),(200,{"closed_only":False})]
+    exchange=ExchangeDepositSession(private_key=SESSION_KEY,api_key=API_KEY,
+        api_secret=API_SECRET,api_passphrase="fixture-passphrase",wallet=DEPOSIT,signer=SESSION,
+        deposit_owner=OWNER,session_scopes=("CLOB",),session_valid_until=NOW+10_000,session_exclusive_until=NOW+9_000,
+        transport=Wire(responses),chain=UnknownBeacon(),clock=lambda:NOW,fee_policy="ONCHAIN_BOUND")
+    result=exchange.eligibility(require_opening=False)
+    assert "DEPOSIT_WALLET_FACTORY_BEACON_UNKNOWN" in result["opening_restrictions"]
+
+
 def test_exclusivity_enters_same_safety_window_as_session_expiry():
     responses=[(200,{"blocked":False,"country":"KW"}),
                (200,{"apiKeys":[API_KEY]}),(200,{"closed_only":False})]
@@ -188,6 +285,18 @@ def test_exclusivity_enters_same_safety_window_as_session_expiry():
     result=exchange.eligibility(require_opening=False)
     assert not result["openings_allowed"]
     assert "DEDICATED_SESSION_EXCLUSIVITY_EXPIRED_OR_NEAR_EXPIRY" in result["opening_restrictions"]
+
+
+def test_prepared_wire_cannot_cross_session_safety_boundary():
+    tick=[NOW]
+    wire=Wire(context())
+    exchange=session_client(wire,clock=lambda:tick[0],valid=NOW+10_000,exclusive=NOW+301)
+    prepared=prepare(exchange)
+    assert prepared["valid_until"] == NOW+1
+    tick[0]=NOW+1
+    with pytest.raises(ExchangeError,match="PREPARED_ORDER_EXPIRED"):
+        exchange.submit(prepared)
+    assert all(method == "GET" for method, *_ in wire.calls)
 
 
 def test_gtd_order_must_finish_before_session_safety_boundary():

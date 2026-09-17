@@ -29,7 +29,8 @@ class ExecutionEngine:
             raise ConfigurationError("EXECUTION_MODE_REQUIRED")
         self.config, self.ledger, self.reader = config, ledger, reader
         self.ledger.bind_adapter_identity(wallet_type=config.wallet_type, signer=config.signer,
-                                          signature_type=config.signature_type)
+                                          signature_type=config.signature_type,
+                                          deposit_owner=config.deposit_owner)
         self.exchange, self.weather = exchange, weather
         self.reconciled = False
         self.account_reconciled = False
@@ -118,6 +119,8 @@ class ExecutionEngine:
             if (account.get("wallet_type") != "DEPOSIT_WALLET" or account.get("signature_type") != 3
                 or account.get("order_visibility") != "SESSION_SIGNER_ONLY"):
                 self.fail("SESSION_ACCOUNT_VISIBILITY_MISMATCH")
+            if account.get("deposit_owner", "").lower() != self.config.deposit_owner:
+                self.fail("DEPOSIT_OWNER_ACCOUNT_MISMATCH")
             activity, session_history = account.get("wallet_activity"), account.get("wallet_activity_session_trades")
             if not isinstance(activity, list) or not isinstance(session_history, list) or account.get("wallet_activity_after") is None:
                 self.fail("WALLET_WIDE_ACTIVITY_WITNESS_MISSING")
@@ -321,6 +324,7 @@ class ExecutionEngine:
                 "session_scopes": list(self.config.session_scopes),
                 "session_valid_until": self.config.session_valid_until,
                 "session_exclusive_until": self.config.session_exclusive_until,
+                "deposit_owner": self.config.deposit_owner,
                 "account": self.ledger.summary(), "notification_batch": events, "updated_at": time.time()}
 
     async def manage_existing(self):

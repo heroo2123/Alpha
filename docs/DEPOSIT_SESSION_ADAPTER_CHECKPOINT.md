@@ -21,14 +21,15 @@ server. No unsupported Safe/Proxy or owner-key fallback is added.
 ## Configuration and credential boundary
 
 Deposit execution requires `wallet_type=DEPOSIT_WALLET`, `signature_type=3`, a
-Deposit Wallet `wallet`, distinct Session EOA `signer`, exact `CLOB` scope,
-externally verified venue expiry and a separately reviewed
+Deposit Wallet `wallet`, distinct Session EOA `signer`, public Owner EOA address
+`deposit_owner`, exact `CLOB` scope, externally verified venue expiry and a separately reviewed
 `session_exclusive_until` dedicated-wallet assertion. Direct EOA remains type 0
 with wallet=signer.
 
 The private four-field runtime credential file contains the Session EOA private
 key and that session's CLOB API key/secret/passphrase. Session private keys are
-rejected from nonsecret configuration. Owner/Builder credentials have no runtime
+rejected from nonsecret configuration. `deposit_owner` is public identity metadata used only to verify the Deposit Wallet
+derivation and bind journal identity. Owner/Builder credentials have no runtime
 schema and are not needed for order execution.
 
 ## Signing implementation
@@ -54,8 +55,9 @@ bootstrap, and live integration test independently confirm signature type 3, the
 `TypedDataSign`/ERC-7739 shape, the Session Key ABI envelope and `0x6492...` magic,
 Deposit Wallet maker/signer identity, Session-signer L2 headers, derived CLOB
 credentials, `CLOB` scope, and authorize/place/cancel/revoke Session Key flow.
-The SDK currently uses a 4,315-hour authorization lifetime. This source check is
-compatibility evidence only; it does not replace real unfunded account acceptance.
+The public authorization lifetime is described as 180 days; the exact v0.10.0 SDK
+request uses 4,315 hours (179 days 19 hours), leaving a five-hour buffer. This
+source check is compatibility evidence only; it does not replace real unfunded account acceptance.
 `fetch_session_keys` is owner-only in that SDK. The executor therefore treats
 `session_scopes` and `session_valid_until` as externally verified, protected
 owner-device evidence; its own CLOB credentials cannot self-prove those grants.
