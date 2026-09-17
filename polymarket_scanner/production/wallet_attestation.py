@@ -41,16 +41,14 @@ def abi_address(raw: bytes) -> str:
     return address("0x" + raw[12:].hex())
 
 
-def attest_wallet(chain: ChainReader, wallet: str, owner: str, signer: str,
-                  *, expected_proxy_type: str, clock=time.time) -> dict:
-    """Attest one supported wallet and exact signer at a single canonical block.
+def attest_wallet_identity(chain: ChainReader, wallet: str, owner: str,
+                           *, expected_proxy_type: str, block: dict) -> dict:
+    """Read supported code/custody at a caller-selected block.
 
-    All RPCs are reads. Sequential reads cannot exclude later upgrades, other
-    sessions, an off-chain revocation fence, or future operator/owner actions.
+    Caller MUST independently validate finality/canonicality after these reads.
+    Historical receipt verification deliberately does not require a live Session.
     """
-    started, monotonic_started = clock(), time.monotonic()
-    wallet, owner, signer = address(wallet), address(owner), address(signer)
-    block = chain.block("latest")
+    wallet, owner = address(wallet), address(owner)
     at = hex(block["number"])
 
     def read_address(target, signature, types=None, values=None, **kwargs):
@@ -105,13 +103,26 @@ def attest_wallet(chain: ChainReader, wallet: str, owner: str, signer: str,
             == keccak(b"Polymarket.DepositWallet"), "DEPOSIT_WALLET_INTERFACE_MISMATCH")
     require(read_address(wallet, "pendingOwner()") == ZERO, "DEPOSIT_WALLET_OWNERSHIP_HANDOVER_PENDING")
     require(chain.call_uint(wallet, "paused()", [], [], block=at) == 0, "DEPOSIT_WALLET_PAUSED")
-    require(chain.call_uint(FACTORY, "isOperator(address)", ["address"], [signer], block=at) == 0,
-            "SESSION_SIGNER_FACTORY_OPERATOR_ROLE_FORBIDDEN")
-    expiry = chain.call_uint(wallet, "sessionSignerAuthorizedUntil(address)", ["address"], [signer], block=at)
+    return {"block": block, "proxy_type": proxy_type, "implementation": effective}
+
+
+def attest_wallet(chain: ChainReader, wallet: str, owner: str, signer: str,
+                  *, expected_proxy_type: str, clock=time.time) -> dict:
+    """Attest supported wallet identity and Session at one fresh canonical block."""
+    started, monotonic_started = clock(), time.monotonic()
+    wallet, owner, signer = address(wallet), address(owner), address(signer)
+    block = chain.block("latest")
+    identity = attest_wallet_identity(chain, wallet, owner,
+        expected_proxy_type=expected_proxy_type, block=block)
+    at = hex(block["number"])
+    if chain.call_uint(FACTORY, "isOperator(address)", ["address"], [signer], block=at) != 0:
+        raise ExchangeError("SESSION_SIGNER_FACTORY_OPERATOR_ROLE_FORBIDDEN")
+    expiry = chain.call_uint(wallet, "sessionSignerAuthorizedUntil(address)",
+                             ["address"], [signer], block=at)
     chain.confirm_block(block)
-    require(-30 <= clock() - block["timestamp"] <= 180, "STALE_CHAIN_BLOCK")
-    require(0 <= clock() - started <= MAX_ATTESTATION_SECONDS
-            and time.monotonic() - monotonic_started <= MAX_ATTESTATION_SECONDS,
-            "DEPOSIT_WALLET_ATTESTATION_TOO_SLOW")
-    return {"block": block, "proxy_type": proxy_type, "implementation": effective,
-            "onchain_valid_until": expiry}
+    if not -30 <= clock() - block["timestamp"] <= 180:
+        raise ExchangeError("STALE_CHAIN_BLOCK")
+    if (not 0 <= clock() - started <= MAX_ATTESTATION_SECONDS
+        or time.monotonic() - monotonic_started > MAX_ATTESTATION_SECONDS):
+        raise ExchangeError("DEPOSIT_WALLET_ATTESTATION_TOO_SLOW")
+    return dict(identity, onchain_valid_until=expiry)

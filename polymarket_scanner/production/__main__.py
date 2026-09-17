@@ -204,8 +204,6 @@ async def run(args):
                 rotate_authorization(config, ledger, args.expected_control_identity)
             engine = ExecutionEngine(config, ledger, SignalReader(config.signal_db), exchange, weather)
             if args.component == "record-redemption":
-                if config.wallet_type != "EOA":
-                    raise ConfigurationError("DEPOSIT_WALLET_REDEMPTION_IMPORT_NOT_IMPLEMENTED")
                 if not args.transaction or not args.condition:
                     raise ConfigurationError("REDEMPTION_TRANSACTION_AND_CONDITION_REQUIRED")
                 records = await engine.call(exchange.redemption_receipt, args.transaction, args.condition)
@@ -213,7 +211,8 @@ async def run(args):
                     raise ConfigurationError("REDEMPTION_NOT_CONFIRMED")
                 for record in records:
                     ledger.record_redemption(record)
-                await engine.reconcile()
+                # A read-only receipt import must never manage/cancel orders.
+                await engine.reconcile(allow_exchange_mutation=False)
             elif args.component == "recover":
                 if not args.expected_fault:
                     raise ConfigurationError("EXPECTED_FAULT_REQUIRED")
@@ -222,12 +221,13 @@ async def run(args):
                     raise ConfigurationError("RECOVERY_RECONCILIATION_INCOMPLETE")
                 ledger.clear_fault(args.expected_fault)
             elif args.component == "preflight":
-                await engine.reconcile(allow_exchange_mutation=False)
-                ready = engine.account_reconciled if args.allow_unfunded else engine.reconciled
-                if not ready:
-                    raise ConfigurationError("PREFLIGHT_RECONCILIATION_INCOMPLETE")
-                if not engine.last_account or engine.last_account.get("openings_allowed") is not True:
-                    raise ConfigurationError("PREFLIGHT_ACCOUNT_OPENINGS_RESTRICTED")
+                try:
+                    await engine.reconcile(allow_exchange_mutation=False)
+                    await engine.validate_preflight_completion(allow_unfunded=args.allow_unfunded)
+                finally:
+                    # A previous successful status must not survive this failure
+                    # as an apparently fresh acceptance receipt.
+                    atomic_json(config.execution_status_path, engine.status(), mode=0o640)
             elif args.component == "rotate-control-authorization":
                 await engine.reconcile()
                 if not engine.reconciled:

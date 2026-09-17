@@ -37,8 +37,10 @@ class ExecutionEngine:
         self.account_reconciled = False
         self.funding_ready = False
         self.io_fault = False
+        self.storage_health = None
         self.last_account = None
         self.last_reconcile = 0.0
+        self.last_reconcile_monotonic = None
         self.last_error = None
         self.control = None
         self._attempt_revision = None
@@ -60,6 +62,15 @@ class ExecutionEngine:
     def base_authority(self) -> bool:
         return self.base_authority_reason() is None
 
+    def _storage_admission_reason(self):
+        from .storage_health import check_storage
+        paths = {"execution": self.config.execution_db.parent,
+                 "signals": self.config.signal_db.parent}
+        if self.config.operator_control:
+            paths["scanner"] = self.config.operator_control.scanner_db.parent
+        self.storage_health = check_storage(paths)
+        return self.storage_health["reason"]
+
     def base_authority_reason(self):
         try:
             stopped = self.reader.state("stop_opening") == "1"
@@ -76,6 +87,9 @@ class ExecutionEngine:
                 return "DEDICATED_SESSION_EXCLUSIVITY_EXPIRED"
             if now >= float(self.config.session_exclusive_until) - SESSION_OPENING_SAFETY_SECONDS:
                 return "DEDICATED_SESSION_EXCLUSIVITY_EXPIRED_OR_NEAR_EXPIRY"
+        storage_reason = self._storage_admission_reason()
+        if storage_reason:
+            return storage_reason
         if self.io_fault: return "EXECUTION_DATABASE_WRITE_FAULT"
         if self.ledger.state("fault"): return "UNRESOLVED_RECONCILIATION_FAULT"
         if not self.config.activation_requested(): return "CONFIGURATION_BOUND_ACTIVATION_MISSING_OR_INVALID"
@@ -193,6 +207,7 @@ class ExecutionEngine:
     async def reconcile(self, *, ignore_sticky_fault=False, allow_exchange_mutation=True):
         """A failed comparison stops opening; confirmed fills remain append-only."""
         started = time.time()
+        self.last_reconcile_monotonic = time.monotonic()
         self.reconciled = False
         self.account_reconciled = False
         self.funding_ready = False
@@ -360,6 +375,53 @@ class ExecutionEngine:
             self.last_error = None
         return self.status()
 
+    async def validate_preflight_completion(self, *, allow_unfunded=False):
+        """Read-only end-of-preflight gate; never an activation or order attempt.
+
+        Reconciliation may wait on many receipts. Its opening-eligibility flag
+        is an observation, not a lease that survives time or authorization drift.
+        A failed completion invalidates readiness but never erases journal data.
+        """
+        from .executor_control import safe_reason
+        try:
+            ready = self.account_reconciled if allow_unfunded else self.reconciled
+            if not ready:
+                raise ConfigurationError("PREFLIGHT_RECONCILIATION_INCOMPLETE")
+            if not self.last_account or self.last_account.get("openings_allowed") is not True:
+                raise ConfigurationError("PREFLIGHT_ACCOUNT_OPENINGS_RESTRICTED")
+            started, monotonic_started = time.time(), time.monotonic()
+            current = await self.call(self.exchange.eligibility, require_opening=False)
+            if not isinstance(current, dict) or current.get("openings_allowed") is not True:
+                raise ConfigurationError("PREFLIGHT_ACCOUNT_OPENINGS_RESTRICTED")
+            # Config custody is independent of activation: an unfunded account
+            # is expected to have no initial financial activation at all.
+            if self.config.source_path is not None:
+                actual = json.loads(self.config.source_path.read_text())
+                if digest(actual) != self.config.config_sha256:
+                    raise ConfigurationError("PREFLIGHT_CONFIGURATION_CHANGED")
+            storage_reason = self._storage_admission_reason()
+            if storage_reason:
+                raise ConfigurationError(storage_reason)
+            now, monotonic_now = time.time(), time.monotonic()
+            if (not 0 <= now - started <= 15 or not 0 <= now - self.last_reconcile < 30
+                or not 0 <= monotonic_now - monotonic_started <= 15
+                or self.last_reconcile_monotonic is None
+                or not 0 <= monotonic_now - self.last_reconcile_monotonic < 30):
+                raise ConfigurationError("PREFLIGHT_EVIDENCE_STALE")
+            if self.config.wallet_type == "DEPOSIT_WALLET":
+                cutoff = min(self.config.session_valid_until, self.config.session_exclusive_until)
+                if now >= cutoff - SESSION_OPENING_SAFETY_SECONDS:
+                    raise ConfigurationError("PREFLIGHT_SESSION_WINDOW_CLOSED")
+            self.last_account = dict(self.last_account, eligibility=current,
+                                     openings_allowed=True,
+                                     opening_restrictions=current.get("opening_restrictions", []))
+        except Exception as exc:
+            self.reconciled = self.account_reconciled = False
+            self.last_error = safe_reason(exc)
+            if isinstance(exc, ConfigurationError):
+                raise
+            raise ConfigurationError("PREFLIGHT_COMPLETION_FAILED_CLOSED") from None
+
     def status(self):
         from .io import release_identity
         events = None
@@ -376,6 +438,7 @@ class ExecutionEngine:
                 "reconciled": self.reconciled, "account_reconciled": self.account_reconciled,
                 "funding_ready": self.funding_ready, "reconciled_at": self.last_reconcile,
                 "last_error": self.last_error, "database_write_fault": self.io_fault,
+                "storage_health": self.storage_health,
                 "opening_disabled_reason": (self.control.reason() if self.control else None) or
                     self.base_authority_reason(),
                 "control": dict(self.control.settings, authorization_version=self.control.policy.authorization_version,

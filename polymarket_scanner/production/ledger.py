@@ -390,6 +390,26 @@ class ExecutionLedger:
             self.audit(db, "OPERATOR_RECONCILIATION_RECOVERY", self.wallet, {"previous_fault": expected})
 
     def record_redemption(self, record: dict):
+        if not isinstance(record, dict) or not isinstance(record.get("proof"), dict):
+            raise LedgerError("REDEMPTION_PROOF_INCOMPLETE")
+        deposit = record["proof"].get("source") == "DEPOSIT_ADAPTER_REDEMPTION_V1"
+        if deposit:
+            proof = record["proof"]
+            burns = proof.get("burns")
+            gas = proof.get("transaction_gas")
+            from .chain import PUSD
+            if (proof.get("asset") != PUSD or proof.get("pusd_credit") is not True
+                or proof.get("wallet") != self.wallet or record.get("burns") != burns
+                or not isinstance(burns, list) or not 1 <= len(burns) <= 2
+                or any(not isinstance(b, dict) or type(b.get("quantity")) is not int
+                       or b["quantity"] <= 0 or not isinstance(b.get("token"), str) for b in burns)
+                or len({b["token"] for b in burns}) != len(burns)):
+                raise LedgerError("DEPOSIT_REDEMPTION_LEDGER_IDENTITY_MISMATCH")
+            if (not isinstance(gas, dict) or gas.get("asset") != "POL"
+                or not gas.get("payer") or gas["payer"] == self.wallet
+                or gas.get("charged_to_wallet") is not False
+                or type(gas.get("amount_wei")) is not int or gas["amount_wei"] < 0):
+                raise LedgerError("REDEMPTION_GAS_PROOF_INVALID")
         with self.transaction() as db:
             old = db.execute("SELECT * FROM execution_redemptions WHERE id=?", (record["id"],)).fetchone()
             if old:
@@ -411,6 +431,11 @@ class ExecutionLedger:
                 db.execute("INSERT OR IGNORE INTO execution_native_gas VALUES(?,?,?,?,?)", (gas["id"], gas["transaction_hash"], gas["asset"], str(gas["amount_wei"]), canonical(gas)))
             for burn in record["proof"]["burns"]:
                 token, quantity = str(burn["token"]), int(burn["quantity"])
+                if deposit:
+                    conditions = {r[0] for r in db.execute(
+                        "SELECT DISTINCT o.condition_id FROM execution_fills f JOIN execution_orders o ON o.id=f.order_id WHERE f.token=?", (token,))}
+                    if conditions != {record["condition_id"]}:
+                        raise LedgerError("DEPOSIT_REDEMPTION_HOLDING_CONDITION_MISMATCH")
                 acquired = db.execute("SELECT COALESCE(SUM(quantity),0) FROM execution_fills WHERE token=?", (token,)).fetchone()[0]
                 prior = db.execute("SELECT COALESCE(SUM(quantity),0) FROM execution_burns WHERE token=?", (token,)).fetchone()[0]
                 if quantity <= 0 or prior + quantity > acquired:
@@ -555,7 +580,7 @@ class ExecutionLedger:
             native_gas = {}
             for row in db.execute("SELECT asset,amount_wei FROM execution_native_gas"):
                 native_gas[row[0]] = native_gas.get(row[0], 0) + int(row[1])
-            gas_unknown = db.execute("SELECT COUNT(DISTINCT transaction_hash) FROM execution_redemptions WHERE json_extract(proof,'$.native_gas') IS NULL").fetchone()[0]
+            gas_unknown = db.execute("SELECT COUNT(DISTINCT transaction_hash) FROM execution_redemptions WHERE json_extract(proof,'$.native_gas') IS NULL AND json_extract(proof,'$.transaction_gas') IS NULL").fetchone()[0]
             recent_orders = [dict(r) for r in db.execute("SELECT id,token,status,quantity,matched,limit_price,fee_cap,reserved FROM execution_orders ORDER BY updated DESC,id LIMIT 20")]
             for order in recent_orders:
                 terminal=db.execute("SELECT json_extract(data,'$.exchange_status') FROM execution_audit WHERE kind='ORDER_TERMINAL' AND identity=? ORDER BY seq DESC LIMIT 1",(order["id"],)).fetchone()

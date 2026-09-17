@@ -69,6 +69,9 @@ class Exchange:
         self.on_submit = None
         self.resolution = None
 
+    def eligibility(self, *, require_opening=True):
+        return {"openings_allowed": True, "opening_restrictions": []}
+
     def account_snapshot(self, **kwargs):
         return {"wallet": self.wallet, "signer": WALLET, "openings_allowed": True, "balance": self.balance, "allowances": {"exchange1": 100_000_000}, "open_orders": [x for x in self.remote.values() if x["status"] == "LIVE"], "positions": [{"token": t, "quantity": q} for t, q in self.balances.items()]}
 

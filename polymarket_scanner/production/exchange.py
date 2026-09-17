@@ -1021,6 +1021,11 @@ class ExchangeDepositSession(ExchangeEOA):
             raise ExchangeError("DEPOSIT_SESSION_EXPIRY_INVALID")
         self.session_scopes = ("CLOB",)
 
+    def redemption_receipt(self, transaction_hash: str, condition: str) -> list[dict]:
+        from .deposit_redemption import read_deposit_redemption
+        return read_deposit_redemption(self.chain, transaction_hash, wallet=self.wallet,
+                                       owner=self.deposit_owner, condition=condition)
+
     def _onchain_session_valid_until(self, *, block: dict | None = None) -> int:
         block = self.chain.block("latest") if block is None else block
         value = self.chain.call_uint(self.wallet, "sessionSignerAuthorizedUntil(address)",

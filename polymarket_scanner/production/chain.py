@@ -201,6 +201,18 @@ class ChainReader:
         if not -30 <= self.clock() - block["timestamp"] <= 180:
             raise ExchangeError("STALE_CHAIN_BLOCK")
 
+    def confirm_receipt_block(self, receipt: dict) -> None:
+        """Recheck historical canonicality AFTER all receipt-dependent RPC reads.
+
+        Unlike live attestation, old receipt timestamps are legitimate. Finality
+        was established by confirmed_receipt; never confuse age with a reorg.
+        """
+        height = hexuint(receipt.get("blockNumber"))
+        current = self.rpc("eth_getBlockByNumber", [hex(height), False])
+        if (not isinstance(current, dict) or hexuint(current.get("number")) != height
+            or hash32(current.get("hash")) != hash32(receipt.get("blockHash"))):
+            raise ExchangeError("RECEIPT_BLOCK_CHANGED_DURING_VERIFICATION")
+
     def code(self, target: str, *, block: str) -> bytes:
         raw = self.rpc("eth_getCode", [address(target), block])
         if not isinstance(raw, str) or not re.fullmatch(r"0x(?:[0-9a-fA-F]{2})+", raw):
@@ -375,6 +387,7 @@ class ChainReader:
             # Direct CTF redeemPositions emits one payout event. The decoder
             # rejects multiple events; its two possible burns share this charge.
             result[0]["proof"]["native_gas"] = gas
+        self.confirm_receipt_block(receipt)
         return result
 
 

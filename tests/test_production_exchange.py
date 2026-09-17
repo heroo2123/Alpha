@@ -624,7 +624,8 @@ def test_redemption_rpc_readback_requires_direct_wallet_transaction(monkeypatch)
     monkeypatch.setattr(chain, "confirmed_receipt", lambda _: proof)
     transaction = {"hash": TX, "from": WALLET, "to": CTF, "blockHash": BLOCK, "blockNumber": "0x64", "input": calldata("redeemPositions(address,bytes32,bytes32,uint256[])",
         ["address", "bytes32", "bytes32", "uint256[]"], [USDCE, bytes(32), bytes.fromhex(CONDITION[2:]), [1]])}
-    monkeypatch.setattr(chain, "rpc", lambda *a: transaction)
+    monkeypatch.setattr(chain, "rpc", lambda method, params:
+        {"number": "0x64", "hash": BLOCK} if method == "eth_getBlockByNumber" else transaction)
     monkeypatch.setattr(chain, "call", lambda *a, **kw: bytes.fromhex(CONDITION[2:]))
     monkeypatch.setattr(chain, "call_uint", lambda *a, **kw: int(TOKEN))
     result = chain.redemption_receipt(TX, wallet=WALLET, condition=CONDITION)
