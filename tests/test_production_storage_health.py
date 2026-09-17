@@ -51,3 +51,17 @@ def test_disk_pressure_closes_authority_without_sticky_financial_fault(tmp_path,
     assert not engine.authority()
     assert ledger.state("fault") is None and ex.posts == []
     assert ledger.summary()["confirmed_fill_count"] == 0
+
+
+def test_missing_configured_filesystem_remains_fail_closed(tmp_path, monkeypatch):
+    from polymarket_scanner.production.config import ConfigurationError
+    cfg, ledger, ex, engine = ready(tmp_path)
+    def missing(path):
+        if path == cfg.signal_db.parent:
+            raise FileNotFoundError("unprovisioned state directory")
+        return fs(30)
+    monkeypatch.setattr(storage.os, "statvfs", missing)
+    with pytest.raises(ConfigurationError, match="STORAGE_HEALTH_UNAVAILABLE"):
+        asyncio.run(engine.validate_preflight_completion(allow_unfunded=True))
+    assert ex.posts == [] and ex.cancels == []
+    assert not engine.account_reconciled

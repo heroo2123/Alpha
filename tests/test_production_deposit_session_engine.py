@@ -203,6 +203,8 @@ def test_cli_preflight_selects_deposit_session_adapter(tmp_path, monkeypatch):
     from polymarket_scanner.production import exchange as exchange_module
     from polymarket_scanner.production import weather as weather_module
     cfg=session_config(tmp_path)
+    # Real commissioning provisions the state directories before preflight.
+    cfg.signal_db.parent.mkdir(parents=True, exist_ok=True)
     sig=candidate(); exchange=SessionExchange(); weather=Weather(sig)
     exchange.account_snapshot=lambda **kwargs: dict(SessionExchange.account_snapshot(exchange, **kwargs),
         openings_allowed=True, balance=0, allowances={})
