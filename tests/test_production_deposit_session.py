@@ -26,17 +26,27 @@ VECTOR_DEPOSIT = "0x" + "33" * 20
 class SessionChain:
     fee = 200
     beacon = "0x7a18edfe055488a3128f01f563e5b479d92ffc3a"
+    beacon_implementation = "0xf7f27c29e60fe6325bef8da7f93250353d2e3294"
+    session_authorized_until = NOW + 10_000
     def block(self, tag):
         assert tag in ("latest", "finalized")
         return {"number": 100, "hash": "0x" + "89" * 32, "timestamp": NOW}
     def call(self, target, signature, types, values, **kwargs):
-        assert target.lower() == "0x00000000000fb5c9adea0298d729a0cb3823cc07"
-        assert signature == "BEACON()" and types == [] and values == []
         assert kwargs == {"block": "0x64"}
-        return bytes(12) + bytes.fromhex(self.beacon[2:])
-    def call_uint(self, exchange, signature, types, values, **kwargs):
-        assert exchange == STANDARD_EXCHANGE
-        return self.fee
+        if target.lower() == "0x00000000000fb5c9adea0298d729a0cb3823cc07":
+            assert signature == "BEACON()" and types == [] and values == []
+            return bytes(12) + bytes.fromhex(self.beacon[2:])
+        assert target.lower() == self.beacon.lower()
+        assert signature == "implementation()" and types == [] and values == []
+        return bytes(12) + bytes.fromhex(self.beacon_implementation[2:])
+    def call_uint(self, target, signature, types, values, **kwargs):
+        if target == STANDARD_EXCHANGE:
+            return self.fee
+        assert target.lower() == DEPOSIT
+        assert signature == "sessionSignerAuthorizedUntil(address)"
+        assert types == ["address"] and values == [SESSION]
+        assert kwargs == {"block": "0x64"}
+        return self.session_authorized_until
     def token_balance(self, wallet, token):
         assert wallet == DEPOSIT and token == TOKEN
         return 2_000_000
@@ -46,12 +56,18 @@ class SessionChain:
                 "allowances": {STANDARD_EXCHANGE: 20_000_000}}
 
 
-def session_client(wire=None, *, clock=None, valid=NOW+10_000, exclusive=NOW+9_000):
+def session_client(wire=None, *, clock=None, valid=NOW+10_000, exclusive=NOW+9_000, chain=None):
+    if chain is None:
+        chain = SessionChain()
+        try:
+            chain.session_authorized_until = int(valid)
+        except (OverflowError, ValueError):
+            pass
     return ExchangeDepositSession(private_key=SESSION_KEY, api_key=API_KEY,
         api_secret=API_SECRET, api_passphrase="fixture-passphrase",
         wallet=DEPOSIT, signer=SESSION, deposit_owner=OWNER, session_scopes=("CLOB",),
         session_valid_until=valid, session_exclusive_until=exclusive,
-        transport=wire or Wire(), chain=SessionChain(), clock=clock or (lambda: NOW),
+        transport=wire or Wire(), chain=chain, clock=clock or (lambda: NOW),
         fee_policy="ONCHAIN_BOUND")
 
 
@@ -276,6 +292,66 @@ def test_deposit_factory_beacon_drift_or_unknown_closes_openings():
     result=exchange.eligibility(require_opening=False)
     assert "DEPOSIT_WALLET_FACTORY_BEACON_UNKNOWN" in result["opening_restrictions"]
 
+
+
+def test_onchain_session_revocation_and_stale_expiry_fail_closed():
+    responses=lambda: [(200,{"blocked":False,"country":"KW"}),
+                         (200,{"apiKeys":[API_KEY]}),(200,{"closed_only":False})]
+    revoked=SessionChain(); revoked.session_authorized_until=0
+    result=session_client(Wire(responses()), chain=revoked).eligibility(require_opening=False)
+    assert not result["openings_allowed"]
+    assert "SESSION_AUTHORIZATION_REVOKED_OR_MISSING" in result["opening_restrictions"]
+    assert result["session_onchain_valid_until"] == 0
+
+    stale=SessionChain(); stale.session_authorized_until=NOW+5_000
+    result=session_client(Wire(responses()), chain=stale, valid=NOW+10_000).eligibility(require_opening=False)
+    assert not result["openings_allowed"]
+    assert "SESSION_AUTHORIZATION_ONCHAIN_BEFORE_CONFIGURED_EXPIRY" in result["opening_restrictions"]
+
+
+
+def test_onchain_session_authorization_read_failure_fails_closed():
+    class UnknownAuthorization(SessionChain):
+        def call_uint(self,target,signature,types,values,**kwargs):
+            if target.lower() == DEPOSIT and signature == "sessionSignerAuthorizedUntil(address)":
+                raise ExchangeError("RPC_READ_FAILED")
+            return super().call_uint(target,signature,types,values,**kwargs)
+    responses=[(200,{"blocked":False,"country":"KW"}),
+               (200,{"apiKeys":[API_KEY]}),(200,{"closed_only":False})]
+    chain=UnknownAuthorization()
+    exchange=session_client(Wire(responses), chain=chain)
+    result=exchange.eligibility(require_opening=False)
+    assert not result["openings_allowed"]
+    assert "SESSION_AUTHORIZATION_ONCHAIN_UNKNOWN" in result["opening_restrictions"]
+    with pytest.raises(ExchangeError, match="SESSION_AUTHORIZATION_ONCHAIN_UNKNOWN"):
+        prepare(session_client(Wire(context()), chain=chain))
+
+
+def test_onchain_session_revocation_at_final_prepare_boundary_never_posts():
+    chain=SessionChain(); chain.session_authorized_until=0
+    wire=Wire(context())
+    exchange=session_client(wire, chain=chain)
+    with pytest.raises(ExchangeError, match="SESSION_AUTHORIZATION_REVOKED_OR_MISSING"):
+        prepare(exchange)
+    assert wire.calls == []
+
+
+def test_beacon_implementation_drift_or_unknown_closes_openings():
+    responses=lambda: [(200,{"blocked":False,"country":"KW"}),
+                         (200,{"apiKeys":[API_KEY]}),(200,{"closed_only":False})]
+    drift=SessionChain(); drift.beacon_implementation="0x"+"44"*20
+    result=session_client(Wire(responses()), chain=drift).eligibility(require_opening=False)
+    assert not result["openings_allowed"]
+    assert "DEPOSIT_WALLET_BEACON_IMPLEMENTATION_DRIFT" in result["opening_restrictions"]
+
+    class UnknownImplementation(SessionChain):
+        def call(self,target,signature,types,values,**kwargs):
+            if target.lower() == self.beacon.lower() and signature == "implementation()":
+                raise ExchangeError("RPC_READ_FAILED")
+            return super().call(target,signature,types,values,**kwargs)
+    result=session_client(Wire(responses()), chain=UnknownImplementation()).eligibility(require_opening=False)
+    assert not result["openings_allowed"]
+    assert "DEPOSIT_WALLET_BEACON_IMPLEMENTATION_UNKNOWN" in result["opening_restrictions"]
 
 def test_exclusivity_enters_same_safety_window_as_session_expiry():
     responses=[(200,{"blocked":False,"country":"KW"}),

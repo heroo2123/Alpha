@@ -1,10 +1,11 @@
 # Deposit Wallet CLOB Session Key adapter — development checkpoint
 
-Date: 2026-09-17
+Date: 2026-09-18
 
 Base release: `3114657eff8c95fcf4116f42570ae02c8c3084a1`
 (tree `b765be586835d50f6fe5eab7a51ea7817717b59b`).
-Development branch: `deposit-wallet-session-key-adapter-2026-09-17`.
+Corrective branch: `deposit-session-independent-review-corrective-2026-09-18`
+from reviewed SHA `959373a5550e38790f5e0bee4ddc702fd27fc8b0`.
 
 The finalized UpCloud release remains stopped/disabled, unfunded `LIVE_SIGNALS`.
 This branch has not installed an executor, changed host authority/configuration,
@@ -58,9 +59,11 @@ credentials, `CLOB` scope, and authorize/place/cancel/revoke Session Key flow.
 The public authorization lifetime is described as 180 days; the exact v0.10.0 SDK
 request uses 4,315 hours (179 days 19 hours), leaving a five-hour buffer. This
 source check is compatibility evidence only; it does not replace real unfunded account acceptance.
-`fetch_session_keys` is owner-only in that SDK. The executor therefore treats
-`session_scopes` and `session_valid_until` as externally verified, protected
-owner-device evidence; its own CLOB credentials cannot self-prove those grants.
+`fetch_session_keys` is owner-only in that SDK, so `session_scopes` remains
+externally verified protected owner-device evidence. Expiry/revocation is also
+checked independently on-chain through the Deposit Wallet's public
+`sessionSignerAuthorizedUntil(address)` view. The on-chain value must be present,
+outside the safety window and no earlier than protected `session_valid_until`.
 
 ## Reconciliation and session-private visibility
 
@@ -74,9 +77,11 @@ fields and `ASC` sorting were observed.
 First Deposit reconciliation audits the served wallet history; later cycles use
 a seven-day overlapping wallet activity window. Public TRADE rows are compared
 as a multiset of transaction/condition/token/side identities against confirmed
-trades visible to the configured Session Key. Any extra wallet-wide trade raises
-sticky `EXTERNAL_WALLET_TRADE_ACTIVITY`. The public feed is never promoted into a
-fill, order, cost or P&L record.
+trades visible to the configured Session Key. The same complete comparison is
+repeated on the final account snapshot before reservation/submission, closing the
+previous reconciliation-to-POST race. Any extra wallet-wide trade raises sticky
+`EXTERNAL_WALLET_TRADE_ACTIVITY`. The public feed is never promoted into a fill,
+order, cost or P&L record.
 
 A wallet-wide public feed still cannot reveal an unfilled resting order owned by
 another active Session Key. Therefore this adapter requires the external
@@ -103,11 +108,14 @@ regressions. A shared 300-second safety window now applies to venue authorizatio
 and exclusivity, and Deposit-session order preparation rejects any GTD lifetime
 that crosses the earlier safe boundary. Non-finite expiry metadata is also rejected.
 
-Opening authority closes when the Session authorization is within five minutes
-of its configured venue expiry, when exclusivity is within the same safety window, when
-session/wallet/type identity changes, when the wallet-wide activity witness is
-missing/incomplete, or when external wallet TRADE activity is detected. Existing
-unknown/open order reconciliation and cancellation semantics remain unchanged.
+Opening authority closes when the configured Session authorization is within five
+minutes of expiry, when the public on-chain Session authorization is absent,
+unreadable, near expiry or earlier than the configured bound, when exclusivity is
+within the same safety window, when the factory beacon or its reviewed current
+implementation drifts, when session/wallet/type identity changes, when the
+wallet-wide activity witness is missing/incomplete, or when external wallet TRADE
+activity is detected. Existing unknown/open order reconciliation and cancellation
+semantics remain unchanged.
 
 The direct-EOA redemption receipt importer is not generalized. Deposit execution
 fails `record-redemption` explicitly until a smart-wallet/adapter receipt path is
@@ -121,6 +129,17 @@ The ordinary `preflight` command remains strict and additionally requires both
 collateral balance and allowance sufficient for at least `risk.per_order`.
 
 ## Verification to date
+
+The 2026-09-18 independent corrective pass from reviewed SHA
+`959373a5550e38790f5e0bee4ddc702fd27fc8b0` closes three release findings:
+(1) the final pre-submission Deposit wallet-wide activity race, (2) failure to
+independently read the wallet's on-chain Session authorization/revocation state,
+and (3) attestation of the factory beacon address without attesting its current
+implementation. The new focused Session/account/wallet-scope suite is **77 passed**;
+a broader execution/operator slice is **346 passed**. The complete repository
+suite is **2099 passed, 4 warnings in 101.49s**. A read-only Polygon probe also
+confirmed the reviewed factory beacon, current beacon implementation and public
+`sessionSignerAuthorizedUntil(address)` view at the time of this corrective pass.
 
 Final development-branch verification on 2026-09-17 used Python 3.12 under
 `umask 0022`. The focused account/session/operator regression aggregate is

@@ -1,6 +1,6 @@
 # Account security and onboarding decision
 
-Research refreshed: 2026-09-17. The finalized production release
+Research refreshed: 2026-09-18. The finalized production release
 `3114657eff8c95fcf4116f42570ae02c8c3084a1` remains an unfunded, stopped
 `LIVE_SIGNALS` deployment and does **not** gain financial authority from this
 engineering branch. No account, wallet, funding, owner key, Builder key or real
@@ -8,7 +8,7 @@ Session Key was created during this work.
 
 The preferred restricted route is a **Deposit Wallet + CLOB-only Session Key**.
 That adapter is implemented on the development branch
-`deposit-wallet-session-key-adapter-2026-09-17`, but it is not yet a reviewed
+`deposit-session-independent-review-corrective-2026-09-18`, but it is not yet a reviewed
 release, host-approved executor, account acceptance, or funding authorization.
 Stay signals-only until all of those separate gates pass.
 
@@ -61,10 +61,11 @@ accepts that those private order/trade views are session-specific. It combines
 that source with wallet-wide public positions, on-chain balances/allowances and
 a mandatory wallet-wide `/v2/activity?type=TRADE` witness. Initial reconciliation
 walks the wallet's served trade history; later reconciliations re-audit a seven-day
-overlap. A wallet TRADE not accounted for by confirmed activity visible to the
-configured session becomes sticky `EXTERNAL_WALLET_TRADE_ACTIVITY` and closes
-opening authority. The public feed is evidence only; it never creates a fill or
-P&L entry.
+overlap. The complete public/session comparison is repeated on the final account
+snapshot immediately before a new submission can be reserved. A wallet TRADE not
+accounted for by confirmed activity visible to the configured session becomes
+sticky `EXTERNAL_WALLET_TRADE_ACTIVITY` and closes opening authority. The public
+feed is evidence only; it never creates a fill or P&L entry.
 
 ## Remaining visibility boundary
 
@@ -104,7 +105,8 @@ session-private order list as account-wide emptiness.
    Deposit Wallet, then independently bind the exclusivity window, exact release,
    config, account identity, explicit risk ceilings and schedule.
 6. Run an **unfunded** private account preflight first with
-   `preflight --allow-unfunded`. Verify session identity, scope/expiry,
+   `preflight --allow-unfunded`. Verify session identity, externally reviewed
+   CLOB scope, protected expiry plus the wallet's on-chain Session authorization,
    geographic/close-only status, wallet-wide public activity, current positions,
    balances/allowances, authenticated session orders/trades, empty/unambiguous
    local journal state and the external exclusivity assertion. A successful
@@ -117,12 +119,15 @@ session-private order list as account-wide emptiness.
    accepted. Never fund the Session Key EOA as a substitute for the Deposit
    Wallet.
 
-The Session registry is owner-only in the current official SDK, so the executor
-cannot independently query its own authorization scope/expiry. Those two fields
-are therefore externally verified owner-device evidence bound into the protected
-config/activation; authenticated CLOB reads do **not** prove that the Session was
-authorized with only `CLOB` scope. A mismatched or stale owner record blocks
-commissioning rather than being inferred from server credentials.
+The current SDK's Session registry is owner-only, so the executor cannot
+independently prove the granted **scope** from its own CLOB credentials. `CLOB`
+therefore remains externally verified owner-device evidence bound into the
+protected config/activation. Authorization lifetime is different: the Deposit
+Wallet publicly exposes `sessionSignerAuthorizedUntil(address)`. The executor
+reads that value on-chain during eligibility and again at order preparation; zero,
+unreadable, near-expiry, or an on-chain expiry earlier than the protected
+`session_valid_until` fails closed. The protected value remains a conservative
+upper bound; authenticated CLOB reads alone do not prove scope.
 
 The direct-EOA route remains available only after a separate explicit decision to
 accept full private-key custody on the executor. There is no silent fallback from
