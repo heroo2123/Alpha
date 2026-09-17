@@ -254,3 +254,13 @@ to this adapter. Operational acceptance must verify the operator-selected RPC's
 chain ID, fresh finalized-block support, current exchange fee limits and actual
 account eligibility from the intended host. These checks were not certified
 against an operator account or target host during repository tests.
+
+### Deposit Wallet attestation extension (requires independent host-policy review)
+
+The application RPC read allowlist additionally permits only `eth_getCode` and
+`eth_getStorageAt` for exact reviewed runtime/proxy evidence. `eth_call` may carry
+a validated public wallet `from` for caller-dependent beacon resolution. All
+attestation reads are pinned to one fresh block, whose canonical hash is checked
+again. No transaction, approval, Session management or remote signing method is
+permitted. See DEPOSIT_WALLET_CODE_POLICY.md for pins, source provenance, upgrade
+handling and the distinction between application policy and host authority.

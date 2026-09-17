@@ -17,6 +17,7 @@ from .config import (ProductionConfig, ConfigurationError, decimal, digest,
                      SESSION_OPENING_SAFETY_SECONDS)
 from .ledger import ExecutionLedger, LedgerError, micros, SCALE
 from .fees import fee_requirement
+from .chain import ExchangeError, SubmissionNotAttempted, address, hash32, uint
 
 
 class ExecutionError(RuntimeError):
@@ -85,6 +86,38 @@ class ExecutionEngine:
     async def call(self, method, *args, **kwargs):
         return await asyncio.to_thread(method, *args, **kwargs)
 
+    def _require_submission_authority(self, signal_id: str, expires: float):
+        """Run in the submit worker immediately before its transport invocation.
+
+        No network or writer lock follows these local checks. A request can still
+        arrive after POST begins; this is not atomic exclusion of remote actors.
+        """
+        if not self.authority() or not self.reader.is_active(signal_id) or time.time() >= expires:
+            raise SubmissionNotAttempted("LOCAL_AUTHORITY_CHANGED_BEFORE_POST")
+        # Authority reads may wait for filesystem/SQLite work. Evaluate the
+        # temporal grants again after those reads, using one current timestamp.
+        now = time.time()
+        if self._attempt_deadline is not None and now >= self._attempt_deadline:
+            raise SubmissionNotAttempted("CONFIRMATION_EXPIRED_BEFORE_POST")
+        if self.control:
+            from .control import schedule_open
+            if now >= self.control.policy.expires or not schedule_open(self.control.settings["schedule_utc"]):
+                raise SubmissionNotAttempted("CONTROL_AUTHORITY_EXPIRED_BEFORE_POST")
+        if self.config.wallet_type == "DEPOSIT_WALLET" and now >= min(
+                self.config.session_valid_until, self.config.session_exclusive_until) - SESSION_OPENING_SAFETY_SECONDS:
+            raise SubmissionNotAttempted("SESSION_OPENING_WINDOW_CLOSED")
+        if not 0 <= now - self.last_reconcile < 30:
+            raise SubmissionNotAttempted("FRESH_ACCOUNT_RECONCILIATION_REQUIRED")
+
+    def _validate_account_identity(self, account):
+        try:
+            valid = (isinstance(account, dict) and address(account.get("wallet")) == self.config.wallet
+                     and address(account.get("signer")) == self.config.signer)
+        except ExchangeError:
+            valid = False
+        if not valid:
+            self.fail("ACCOUNT_IDENTITY_MISMATCH")
+
     def fail(self, code: str):
         self.reconciled = False
         self.account_reconciled = False
@@ -98,15 +131,45 @@ class ExecutionEngine:
     def _validate_deposit_session_account(self, account: dict) -> None:
         if self.config.wallet_type != "DEPOSIT_WALLET":
             return
-        if (account.get("wallet_type") != "DEPOSIT_WALLET" or account.get("signature_type") != 3
+        if (account.get("wallet_type") != "DEPOSIT_WALLET" or type(account.get("signature_type")) is not int
+            or account.get("signature_type") != 3
             or account.get("order_visibility") != "SESSION_SIGNER_ONLY"):
             self.fail("SESSION_ACCOUNT_VISIBILITY_MISMATCH")
-        if account.get("deposit_owner", "").lower() != self.config.deposit_owner:
+        if (not isinstance(account.get("deposit_owner"), str)
+            or account["deposit_owner"].lower() != self.config.deposit_owner):
             self.fail("DEPOSIT_OWNER_ACCOUNT_MISMATCH")
         activity = account.get("wallet_activity")
         session_history = account.get("wallet_activity_session_trades")
-        if not isinstance(activity, list) or not isinstance(session_history, list) or account.get("wallet_activity_after") is None:
+        if (not isinstance(activity, list) or not isinstance(session_history, list)
+            or account.get("wallet_activity_after") is None or account.get("wallet_activity_before") is None):
             self.fail("WALLET_WIDE_ACTIVITY_WITNESS_MISSING")
+
+        after, before = account["wallet_activity_after"], account["wallet_activity_before"]
+        if (type(after) is not int or type(before) is not int or not 1 <= after < before
+            or len(activity) > 10_000 or len(session_history) > 10_000):
+            self.fail("WALLET_WIDE_ACTIVITY_WITNESS_INVALID")
+        try:
+            for rows, session in ((activity, False), (session_history, True)):
+                for row in rows:
+                    if not isinstance(row, dict) or row.get("side") not in {"BUY", "SELL"}:
+                        raise ValueError
+                    hash32(row.get("condition"))
+                    token = row.get("token")
+                    if not isinstance(token, str) or str(uint(token)) != token or uint(token) == 0:
+                        raise ValueError
+                    quantity = row.get("wallet_quantity" if session else "quantity")
+                    if type(quantity) is not int or not 0 < quantity < 2**256:
+                        raise ValueError
+                    when = row.get("matched_at" if session else "timestamp")
+                    if type(when) is not int or not after <= when <= before:
+                        raise ValueError
+                    status = row.get("status") if session else "CONFIRMED"
+                    if status not in {"MATCHED", "MATCHED_NOT_BROADCASTED", "MINED", "CONFIRMED", "RETRYING", "FAILED"}:
+                        raise ValueError
+                    if status == "CONFIRMED":
+                        hash32(row.get("transaction_hash"))
+        except (ExchangeError, ValueError, TypeError):
+            self.fail("WALLET_WIDE_ACTIVITY_WITNESS_INVALID")
 
         def activity_key(row):
             return (row.get("transaction_hash"), row.get("condition"), row.get("token"), row.get("side"))
@@ -145,8 +208,7 @@ class ExecutionEngine:
         if trade_after is not None and hot:
             trade_after = min(trade_after, int(min(row["created"] for row in hot)) - 1)
         account = await self.call(self.exchange.account_snapshot, trade_after=max(0, trade_after) if trade_after is not None else None)
-        if account.get("wallet", "").lower() != self.config.wallet or account.get("signer", "").lower() != self.config.signer:
-            self.fail("ACCOUNT_IDENTITY_MISMATCH")
+        self._validate_account_identity(account)
         self._validate_deposit_session_account(account)
         minimum_funding = micros(self.config.risk.per_order)
         allowance_ready = bool(account.get("allowances") and max(account["allowances"].values()) >= minimum_funding)
@@ -458,8 +520,7 @@ class ExecutionEngine:
         if outstanding:
             trade_after = min(trade_after, max(0, int(min(row["created"] for row in outstanding)) - 1))
         account = await self.call(self.exchange.account_snapshot, trade_after=trade_after)
-        if account["wallet"].lower() != self.config.wallet or account["signer"].lower() != self.config.signer:
-            self.fail("ACCOUNT_IDENTITY_MISMATCH")
+        self._validate_account_identity(account)
         # Repeat the complete Deposit-wallet isolation witness on the final account
         # snapshot. An external/manual trade appearing after periodic reconciliation
         # must block this submission, not merely the next reconciliation cycle.
@@ -530,7 +591,15 @@ class ExecutionEngine:
                     self.ledger.abort_before_post(prepared["order_id"])
                     break
                 try:
-                    outcome = await self.call(self.exchange.submit, prepared)
+                    outcome = await self.call(self.exchange.submit, prepared,
+                        before_post=lambda: self._require_submission_authority(signal["id"], plan["expires"]))
+                except SubmissionNotAttempted as exc:
+                    # The transport has not been invoked. Preserve the consumed
+                    # intent/confirmation, but do not invent an UNKNOWN order.
+                    self.ledger.abort_before_post(prepared["order_id"])
+                    self.last_error = exc.code
+                    self.reconciled = False
+                    break
                 except Exception:
                     outcome = "UNKNOWN"
                 self.ledger.submission_result(prepared["order_id"], outcome)

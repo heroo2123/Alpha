@@ -1,6 +1,8 @@
 """Offline Deposit Wallet + CLOB Session Key execution adapter tests."""
 import base64
 import hashlib
+import json
+from pathlib import Path
 
 import pytest
 from eth_abi import decode
@@ -23,35 +25,86 @@ DEPOSIT = "0xd2b19ff3196703493722d81676e4b1a9b1857bc8"
 VECTOR_DEPOSIT = "0x" + "33" * 20
 
 
+RUNTIME_FIXTURE = json.loads((Path(__file__).parent / "fixtures/deposit-wallet-runtime-2026-09-17.json").read_text())
+
+
 class SessionChain:
     fee = 200
     beacon = "0x7a18edfe055488a3128f01f563e5b479d92ffc3a"
     beacon_implementation = "0xf7f27c29e60fe6325bef8da7f93250353d2e3294"
+    factory = "0x00000000000fb5c9adea0298d729a0cb3823cc07"
+    factory_impl = "0x528cc05efac2b0d255e423272187efd41248abd7"
+    forwarder = "0x6dd7b5ea91608c60cd4a1944432cc30ee5a6d1ca"
     session_authorized_until = NOW + 10_000
+    wallet = DEPOSIT
+    owner = OWNER
+    pinned_impl = "0x" + "00" * 20
+    proxy = "native_beacon"
+    pending_owner = "0x" + "00" * 20
     def block(self, tag):
         assert tag in ("latest", "finalized")
         return {"number": 100, "hash": "0x" + "89" * 32, "timestamp": NOW}
+    def confirm_block(self, block):
+        assert block == self.block("latest")
+    def code(self, target, *, block):
+        assert block == "0x64"
+        if target == self.wallet:
+            return bytes.fromhex(RUNTIME_FIXTURE["proxy_runtime_prefixes"][self.proxy]
+                + "00"*12 + self.factory[2:] + "00"*12 + OWNER[2:])
+        return bytes.fromhex(RUNTIME_FIXTURE["contracts"][target]["runtime_hex"][2:])
+    def storage(self, target, slot, *, block):
+        assert block == "0x64"
+        impl_slot = "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc"
+        beacon_slot = "0xa3f0ad74e5423aebfd80d3ef4346578335a9a72aeaee59ff6cb3582b35133d50"
+        assert slot in (impl_slot, beacon_slot)
+        if target == self.factory and slot == impl_slot:
+            value = self.factory_impl
+        elif target == self.wallet and slot == beacon_slot and self.proxy == "native_beacon":
+            value = self.beacon
+        elif target == self.wallet and slot == impl_slot and self.proxy == "legacy_erc1967":
+            value = self.forwarder
+        else:
+            value = "0x" + "00"*20
+        return bytes(12) + bytes.fromhex(value[2:])
     def call(self, target, signature, types, values, **kwargs):
-        assert kwargs == {"block": "0x64"}
-        if target.lower() == "0x00000000000fb5c9adea0298d729a0cb3823cc07":
-            assert signature == "BEACON()" and types == [] and values == []
-            return bytes(12) + bytes.fromhex(self.beacon[2:])
-        assert target.lower() == self.beacon.lower()
-        assert signature == "implementation()" and types == [] and values == []
-        return bytes(12) + bytes.fromhex(self.beacon_implementation[2:])
+        assert kwargs.get("block") == "0x64"
+        value = None
+        if target in (self.factory, self.forwarder) and signature == "BEACON()": value = self.beacon
+        elif target == self.beacon:
+            if signature == "implementation()":
+                assert kwargs["sender"] == self.wallet
+                value = self.pinned_impl if self.pinned_impl != "0x"+"00"*20 else self.beacon_implementation
+            elif signature == "defaultImplementation()": value = self.beacon_implementation
+            elif signature == "pinnedImplementation(address)":
+                assert types == ["address"] and values == [self.wallet]
+                value = self.pinned_impl
+        elif target == self.wallet:
+            if signature == "owner()": value = self.owner
+            elif signature == "factory()": value = self.factory
+            elif signature == "pendingOwner()": value = self.pending_owner
+            elif signature == "id()": return bytes(12) + bytes.fromhex(OWNER[2:])
+            elif signature == "walletInterfaceId()":
+                from eth_utils import keccak
+                return keccak(b"Polymarket.DepositWallet")
+        assert value is not None, (target, signature)
+        return bytes(12) + bytes.fromhex(value[2:])
     def call_uint(self, target, signature, types, values, **kwargs):
         if target == STANDARD_EXCHANGE:
             return self.fee
-        assert target.lower() == DEPOSIT
+        assert kwargs == {"block": "0x64"}
+        if target == self.factory:
+            assert signature == "isOperator(address)" and values == [SESSION]
+            return 0
+        assert target == self.wallet
+        if signature == "paused()": return 0
         assert signature == "sessionSignerAuthorizedUntil(address)"
         assert types == ["address"] and values == [SESSION]
-        assert kwargs == {"block": "0x64"}
         return self.session_authorized_until
     def token_balance(self, wallet, token):
-        assert wallet == DEPOSIT and token == TOKEN
+        assert wallet == self.wallet and token == TOKEN
         return 2_000_000
     def collateral_state(self, wallet):
-        assert wallet == DEPOSIT
+        assert wallet == self.wallet
         return {"balance": 9_000_000,
                 "allowances": {STANDARD_EXCHANGE: 20_000_000}}
 
@@ -290,7 +343,7 @@ def test_deposit_factory_beacon_drift_or_unknown_closes_openings():
         deposit_owner=OWNER,session_scopes=("CLOB",),session_valid_until=NOW+10_000,session_exclusive_until=NOW+9_000,
         transport=Wire(responses),chain=UnknownBeacon(),clock=lambda:NOW,fee_policy="ONCHAIN_BOUND")
     result=exchange.eligibility(require_opening=False)
-    assert "DEPOSIT_WALLET_FACTORY_BEACON_UNKNOWN" in result["opening_restrictions"]
+    assert "RPC_READ_FAILED" in result["opening_restrictions"]
 
 
 
@@ -322,7 +375,7 @@ def test_onchain_session_authorization_read_failure_fails_closed():
     exchange=session_client(Wire(responses), chain=chain)
     result=exchange.eligibility(require_opening=False)
     assert not result["openings_allowed"]
-    assert "SESSION_AUTHORIZATION_ONCHAIN_UNKNOWN" in result["opening_restrictions"]
+    assert "RPC_READ_FAILED" in result["opening_restrictions"]
     with pytest.raises(ExchangeError, match="SESSION_AUTHORIZATION_ONCHAIN_UNKNOWN"):
         prepare(session_client(Wire(context()), chain=chain))
 
@@ -351,7 +404,7 @@ def test_beacon_implementation_drift_or_unknown_closes_openings():
             return super().call(target,signature,types,values,**kwargs)
     result=session_client(Wire(responses()), chain=UnknownImplementation()).eligibility(require_opening=False)
     assert not result["openings_allowed"]
-    assert "DEPOSIT_WALLET_BEACON_IMPLEMENTATION_UNKNOWN" in result["opening_restrictions"]
+    assert "RPC_READ_FAILED" in result["opening_restrictions"]
 
 def test_exclusivity_enters_same_safety_window_as_session_expiry():
     responses=[(200,{"blocked":False,"country":"KW"}),

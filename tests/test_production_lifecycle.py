@@ -93,7 +93,9 @@ class Exchange:
         return {"order_id": "o" + kwargs["token"], "wire_hash": "wire-hash", "fee_evidence": evidence,
                 "payload": {"order": {"expiration": str(kwargs["expiration"]), "signature": "isolated-fixture-not-live"}}}
 
-    def submit(self, prepared):
+    def submit(self, prepared, *, before_post=None):
+        if before_post is not None:
+            before_post()
         self.posts.append(prepared["order_id"])
         kw = self.prepared
         if self.outcome != "REJECTED":
@@ -133,6 +135,7 @@ class Exchange:
 def harness(tmp_path):
     cfg = config(tmp_path)
     cfg.activation_file.write_text(json.dumps({"action": "ACTIVATE_LIVE_EXECUTION", "wallet": WALLET, "config_sha256": cfg.config_sha256}))
+    cfg.activation_file.chmod(0o600)
     signal = candidate()
     store = SignalStore(cfg.signal_db)
     store.bind_telegram({"bot_id": "123", "chat_id": "42"})
