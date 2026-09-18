@@ -68,16 +68,41 @@ def test_owner_order_uses_type3_without_session_envelope_or_builder():
     wire.responses.append((200, {"success": True, "orderID": prepared["order_id"],
                                   "status": "live", "errorMsg": ""}))
     assert client.submit(prepared) == "ACKNOWLEDGED"
-    assert wire.calls[-1][2]["headers"]["POLY_ADDRESS"] == OWNER
+    assert wire.calls[-1][2]["headers"]["POLY_ADDRESS"] == DEPOSIT
     assert all("BUILDER" not in key for key in wire.calls[-1][2]["headers"])
+
+
+def test_owner_l2_auth_identity_is_deposit_wallet_not_private_owner_eoa():
+    client = owner_client()
+    headers = client._headers("GET", "/auth/api-keys")
+    assert client.signer == OWNER and client.wallet == DEPOSIT
+    assert headers["POLY_ADDRESS"] == DEPOSIT
+    assert headers["POLY_ADDRESS"] != client.signer
+    assert headers["POLY_API_KEY"] == API_KEY
+    assert "POLY_SIGNATURE" in headers and headers["POLY_SIGNATURE"]
+
+
+def test_owner_preflight_rejects_credentials_not_accepted_under_deposit_wallet_identity():
+    wire = Wire([(200, {"country": "KW", "blocked": False}),
+                 (401, {"error": "fixture address/key mismatch"})])
+    with pytest.raises(ExchangeError, match="AUTHENTICATED_READ_FAILED"):
+        owner_client(wire).eligibility()
+    assert len(wire.calls) == 2
+    assert wire.calls[-1][2]["headers"]["POLY_ADDRESS"] == DEPOSIT
+    assert wire.calls[-1][2]["headers"]["POLY_ADDRESS"] != OWNER
 
 
 def test_owner_eligibility_ignores_session_registry_and_checks_actual_wallet():
     chain = SessionChain(); chain.session_authorized_until = 0
     responses = [(200, {"country": "KW", "blocked": False}),
                  (200, {"apiKeys": [API_KEY]}), (200, {"closed_only": False})]
-    result = owner_client(Wire(responses), chain=chain).eligibility()
+    wire = Wire(responses)
+    result = owner_client(wire, chain=chain).eligibility()
     assert result["openings_allowed"] and result["signer_type"] == "OWNER"
+    authenticated = [call for call in wire.calls if call[2].get("headers")]
+    assert len(authenticated) == 2
+    assert all(call[2]["headers"]["POLY_ADDRESS"] == DEPOSIT for call in authenticated)
+    assert all(call[2]["headers"]["POLY_ADDRESS"] != OWNER for call in authenticated)
     assert "FULL_OWNER" in result["custody"]
     chain.owner = SESSION
     assert owner_client(chain=chain).owner_opening_restriction() == "DEPOSIT_WALLET_CURRENT_OWNER_MISMATCH"

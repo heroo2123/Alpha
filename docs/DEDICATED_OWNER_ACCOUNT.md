@@ -6,15 +6,19 @@ permission for this use. Provider permission is USER-CONFIRMED, not an independe
 inspected agreement; retain that confirmation privately. Existing request limits,
 source freshness checks, attribution and outage handling still apply.
 
-## Supported alternative and custody trade-off
+## Implemented Owner adapter and current upstream gate
 
-Connect an ordinary Polymarket account's Deposit Wallet using that dedicated
-wallet's Owner signer and its CLOB credentials. This does not create another
-Session grant and does not need Builder credentials for order authentication.
-Relayer credentials for owner-side wallet operations remain off the executor.
-This is not a way around account, geography, or EOA allowlisting restrictions.
-Direct EOA trading is documented only for allowlisted EOAs and is not the default
-new-account solution. Source checked on 2026-09-18:
+Alpha contains an explicit Deposit-Wallet Owner adapter, but it is **not the selected
+production route for a new 2026 Deposit Wallet while Polymarket CLOB cannot issue
+a Deposit-Wallet-bound API key**. The adapter now deliberately authenticates L2
+with `POLY_ADDRESS=deposit_wallet`; ordinary EOA-bound credentials therefore fail
+preflight instead of reaching a doomed order POST.
+
+The currently documented unattended route is a scoped Session Key. Session-key
+authorization requires a Builder API key authorized for session-key management
+during the beta. Relayer credentials for owner-side wallet operations remain off
+the executor. This is not a way around account or geographic restrictions. Source
+checked on 2026-09-18:
 https://docs.polymarket.com/trading/wallets-auth
 https://docs.polymarket.com/getting-started/api
 https://docs.polymarket.com/trading/session-keys
@@ -43,15 +47,27 @@ not switch to an Owner key. A failed Owner path never falls back to EOA/Session.
 
 The private file remains exactly private_key/api_key/api_secret/api_passphrase.
 Only this dedicated wallet's individual Owner key and CLOB L2 credentials may be
-privately provisioned after approval. No seed phrase is needed by this process.
+privately provisioned after approval. **For Owner/Poly1271 mode those L2 credentials
+must be accepted by CLOB with `POLY_ADDRESS` equal to the Deposit Wallet, not the
+private Owner EOA.** Alpha now enforces that wire identity. An EOA-bound API key
+therefore fails authenticated preflight instead of being used for an order. No seed
+phrase is needed by this process.
 Do not reuse a main account or paste any secret into chat. The user creates the
 ordinary account and retains recovery on their trusted device; the application
 does not create an account, deploy a wallet, acquire Builder access or authorize
 on-chain approvals. Owner-side Relayer credentials remain on the user's device.
 
 Unfunded acceptance requires the real account/wallet identity, current wallet
-code/owner, CLOB authentication, no unmanaged orders/activity/positions, protected
-configuration, correct filesystem custody and no initial financial activation.
+code/owner, **Deposit-Wallet-bound CLOB authentication**, no unmanaged
+orders/activity/positions, protected configuration, correct filesystem custody and
+no initial financial activation. As of 2026-09-18, current upstream client source
+and open upstream issue reports do not establish that ordinary new Deposit Wallets
+can bootstrap such an API key from the Owner EOA. The official Rust V2 client at
+`561830b9ee502c6e67cce314f0e53a80b8885b09` accepts `Poly1271 + funder` for
+orders, but its L1 `create_or_derive_api_key` path still creates headers from the
+EOA signer before the funder/signature type is attached to authenticated state.
+Treat this as an external account-authentication gate, not as permission to fall
+back to EOA identity or to fund before preflight passes.
 Funding and initial activation are separate user actions. Never fund fixture
 addresses. No generic EOA funding address may be substituted for the user's
 actual Polymarket deposit route. Preflight must check actual results, not assume
