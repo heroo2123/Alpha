@@ -72,6 +72,20 @@ class ExchangeDepositOwner(ExchangeEOA):
             return "DEDICATED_OWNER_EXCLUSIVITY_EXPIRED_OR_NEAR_EXPIRY"
         return None
 
+    def _headers(self, method: str, path: str, body: bytes | None = None) -> dict:
+        """Authenticate L2 requests as the Deposit Wallet, not its Owner EOA.
+
+        Poly1271 order payloads identify the Deposit Wallet as maker+signer. A CLOB
+        API key usable for this adapter must therefore be bound to that same wallet.
+        The Owner EOA remains the private signing key inside the EIP-1271 wrapper;
+        it must never be substituted as the L2 account identity. Eligibility's
+        authenticated /auth/api-keys read proves the supplied credentials are
+        accepted under this wallet identity before openings can gain authority.
+        """
+        headers = super()._headers(method, path, body)
+        headers["POLY_ADDRESS"] = self.wallet
+        return headers
+
     def _submission_opening_restriction(self):
         return self.owner_opening_restriction()
 

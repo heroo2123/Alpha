@@ -43,15 +43,27 @@ not switch to an Owner key. A failed Owner path never falls back to EOA/Session.
 
 The private file remains exactly private_key/api_key/api_secret/api_passphrase.
 Only this dedicated wallet's individual Owner key and CLOB L2 credentials may be
-privately provisioned after approval. No seed phrase is needed by this process.
+privately provisioned after approval. **For Owner/Poly1271 mode those L2 credentials
+must be accepted by CLOB with `POLY_ADDRESS` equal to the Deposit Wallet, not the
+private Owner EOA.** Alpha now enforces that wire identity. An EOA-bound API key
+therefore fails authenticated preflight instead of being used for an order. No seed
+phrase is needed by this process.
 Do not reuse a main account or paste any secret into chat. The user creates the
 ordinary account and retains recovery on their trusted device; the application
 does not create an account, deploy a wallet, acquire Builder access or authorize
 on-chain approvals. Owner-side Relayer credentials remain on the user's device.
 
 Unfunded acceptance requires the real account/wallet identity, current wallet
-code/owner, CLOB authentication, no unmanaged orders/activity/positions, protected
-configuration, correct filesystem custody and no initial financial activation.
+code/owner, **Deposit-Wallet-bound CLOB authentication**, no unmanaged
+orders/activity/positions, protected configuration, correct filesystem custody and
+no initial financial activation. As of 2026-09-18, current upstream client source
+and open upstream issue reports do not establish that ordinary new Deposit Wallets
+can bootstrap such an API key from the Owner EOA. The official Rust V2 client at
+`561830b9ee502c6e67cce314f0e53a80b8885b09` accepts `Poly1271 + funder` for
+orders, but its L1 `create_or_derive_api_key` path still creates headers from the
+EOA signer before the funder/signature type is attached to authenticated state.
+Treat this as an external account-authentication gate, not as permission to fall
+back to EOA identity or to fund before preflight passes.
 Funding and initial activation are separate user actions. Never fund fixture
 addresses. No generic EOA funding address may be substituted for the user's
 actual Polymarket deposit route. Preflight must check actual results, not assume
