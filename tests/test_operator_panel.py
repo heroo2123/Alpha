@@ -141,6 +141,11 @@ def test_signals_only_panel_can_select_strategies_without_execution_or_credentia
         asyncio.run(ui.handle(callback(bot,"Confirm",4)))
         assert "MAKER" not in ui.settings()["strategies"]
         assert not cfg.credentials_file
+        asyncio.run(ui.screen(42,"WALLET")); flush(ui)
+        wallet_text=bot.messages[-1]["text"]
+        assert "Current mode: LIVE_SIGNALS" in wallet_text
+        assert "No execution adapter" in wallet_text
+        assert "Current adapter: dedicated direct EOA" not in wallet_text
     finally: store.close(); controls.close()
 
 

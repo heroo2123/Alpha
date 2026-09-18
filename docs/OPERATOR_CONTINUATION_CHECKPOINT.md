@@ -231,3 +231,17 @@ exact-head checks and normal PR merge remain required. Main was still at the
 original baseline at this premerge checkpoint; consult PR #3 for the actual
 merged commit and actual-main checks. Host acceptance, test-bot acceptance,
 account provisioning, funding and financial activation have not occurred.
+
+## Post-finalization restricted-wallet development — 2026-09-17
+
+After `3114657eff8c95fcf4116f42570ae02c8c3084a1` completed unfunded UpCloud
+acceptance and was finalized stopped/disabled, a new branch was created directly
+from that exact SHA to implement the preferred Deposit Wallet CLOB Session Key
+route. This does not alter the chronological phase-3 statement above: the adapter
+was not implemented in the finalized release.
+
+Current development scope, signing vectors, wallet-wide activity witness,
+session-private visibility limitation and remaining external/review gates are in
+[DEPOSIT_SESSION_ADAPTER_CHECKPOINT.md](DEPOSIT_SESSION_ADAPTER_CHECKPOINT.md).
+Production services/config/host authority remain untouched; no account, funding
+or financial activation is part of this branch.

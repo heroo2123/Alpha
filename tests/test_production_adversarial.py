@@ -479,10 +479,10 @@ def test_structural_basket_stops_on_known_failure_without_fake_profit(harness, f
     exchange.ask = "0.2"
     original_submit = exchange.submit
 
-    def submit(prepared):
+    def submit(prepared, *, before_post=None):
         attempt = len(exchange.posts)
         exchange.outcome = failure if failure in {"UNKNOWN", "REJECTED"} else "UNKNOWN" if failure == "SECOND_LEG_UNKNOWN" and attempt == 1 else "ACKNOWLEDGED"
-        result = original_submit(prepared)
+        result = original_submit(prepared, before_post=before_post)
         if failure == "KNOWN_PARTIAL" and attempt == 0:
             row = exchange.remote[prepared["order_id"]]
             row["matched"] = row["quantity"] // 2
