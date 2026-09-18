@@ -34,6 +34,14 @@ class ExchangeError(RuntimeError):
         self.uncertain = uncertain
 
 
+class SubmissionNotAttempted(ExchangeError):
+    """The adapter has not invoked its order transport; no remote intent exists.
+
+    Only the local pre-POST boundary may raise this type. Once request() starts,
+    any failure is potentially ambiguous and must retain the reservation.
+    """
+
+
 def address(value: object) -> str:
     if not isinstance(value, str) or not re.fullmatch(r"0x[0-9a-fA-F]{40}", value):
         raise ExchangeError("INVALID_ADDRESS")
@@ -145,7 +153,8 @@ class ChainReader:
     """An explicit trusted Polygon RPC. Missing finalized-block support fails closed."""
 
     METHODS = frozenset({"eth_chainId", "eth_getBlockByNumber", "eth_getBlockByHash",
-                         "eth_call", "eth_getTransactionReceipt", "eth_getTransactionByHash"})
+                         "eth_call", "eth_getTransactionReceipt", "eth_getTransactionByHash",
+                         "eth_getCode", "eth_getStorageAt"})
 
     def __init__(self, *, transport: JSONTransport | None = None,
                  rpc_url: str = "https://polygon.drpc.org", clock=time.time):
@@ -183,10 +192,43 @@ class ChainReader:
             raise ExchangeError("STALE_CHAIN_BLOCK")
         return result
 
+    def confirm_block(self, block: dict):
+        raw = self.rpc("eth_getBlockByNumber", [hex(block["number"]), False])
+        if (not isinstance(raw, dict) or hexuint(raw.get("number")) != block["number"]
+            or hash32(raw.get("hash")) != block["hash"]
+            or hexuint(raw.get("timestamp")) != block["timestamp"]):
+            raise ExchangeError("CHAIN_ATTESTATION_BLOCK_CHANGED")
+        if not -30 <= self.clock() - block["timestamp"] <= 180:
+            raise ExchangeError("STALE_CHAIN_BLOCK")
+
+    def confirm_receipt_block(self, receipt: dict) -> None:
+        """Recheck historical canonicality AFTER all receipt-dependent RPC reads.
+
+        Unlike live attestation, old receipt timestamps are legitimate. Finality
+        was established by confirmed_receipt; never confuse age with a reorg.
+        """
+        height = hexuint(receipt.get("blockNumber"))
+        current = self.rpc("eth_getBlockByNumber", [hex(height), False])
+        if (not isinstance(current, dict) or hexuint(current.get("number")) != height
+            or hash32(current.get("hash")) != hash32(receipt.get("blockHash"))):
+            raise ExchangeError("RECEIPT_BLOCK_CHANGED_DURING_VERIFICATION")
+
+    def code(self, target: str, *, block: str) -> bytes:
+        raw = self.rpc("eth_getCode", [address(target), block])
+        if not isinstance(raw, str) or not re.fullmatch(r"0x(?:[0-9a-fA-F]{2})+", raw):
+            raise ExchangeError("CHAIN_CODE_MISSING_OR_MALFORMED")
+        return bytes.fromhex(raw[2:])
+
+    def storage(self, target: str, slot: str, *, block: str) -> bytes:
+        return bytes.fromhex(hash32(self.rpc("eth_getStorageAt",
+            [address(target), hash32(slot), block]))[2:])
+
     def call(self, target: str, signature: str, types: list[str], values: list,
-             *, block: str = "latest") -> bytes:
-        raw = self.rpc("eth_call", [{"to": address(target),
-            "data": calldata(signature, types, values)}, block])
+             *, block: str = "latest", sender: str | None = None) -> bytes:
+        call = {"to": address(target), "data": calldata(signature, types, values)}
+        if sender is not None:
+            call["from"] = address(sender)
+        raw = self.rpc("eth_call", [call, block])
         if not isinstance(raw, str) or not re.fullmatch(r"0x(?:[0-9a-fA-F]{2})*", raw):
             raise ExchangeError("INVALID_CHAIN_CALL_RESULT")
         return bytes.fromhex(raw[2:])
@@ -345,6 +387,7 @@ class ChainReader:
             # Direct CTF redeemPositions emits one payout event. The decoder
             # rejects multiple events; its two possible burns share this charge.
             result[0]["proof"]["native_gas"] = gas
+        self.confirm_receipt_block(receipt)
         return result
 
 

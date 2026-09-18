@@ -544,7 +544,7 @@ def test_recorded_fill_audit_recovers_same_proof_without_trade_indexer(monkeypat
 
 
 def test_account_trade_census_distinguishes_our_maker_legs_and_external_sells():
-    maker = {"order_id": OID, "asset_id": TOKEN, "maker_address": WALLET, "owner": API_KEY, "side": "BUY"}
+    maker = {"order_id": OID, "asset_id": TOKEN, "maker_address": WALLET, "owner": API_KEY, "side": "BUY", "matched_amount": "2", "price": ".4"}
     unrelated = dict(maker, order_id=TX, maker_address=OTHER, owner="unrelated")
     rows = client(Wire([page([trade(trader_side="MAKER", maker_orders=[maker, unrelated]), trade(id="sell", side="SELL")])])).account_trades()
     assert rows[0]["owned_order_ids"] == [OID]
@@ -624,7 +624,8 @@ def test_redemption_rpc_readback_requires_direct_wallet_transaction(monkeypatch)
     monkeypatch.setattr(chain, "confirmed_receipt", lambda _: proof)
     transaction = {"hash": TX, "from": WALLET, "to": CTF, "blockHash": BLOCK, "blockNumber": "0x64", "input": calldata("redeemPositions(address,bytes32,bytes32,uint256[])",
         ["address", "bytes32", "bytes32", "uint256[]"], [USDCE, bytes(32), bytes.fromhex(CONDITION[2:]), [1]])}
-    monkeypatch.setattr(chain, "rpc", lambda *a: transaction)
+    monkeypatch.setattr(chain, "rpc", lambda method, params:
+        {"number": "0x64", "hash": BLOCK} if method == "eth_getBlockByNumber" else transaction)
     monkeypatch.setattr(chain, "call", lambda *a, **kw: bytes.fromhex(CONDITION[2:]))
     monkeypatch.setattr(chain, "call_uint", lambda *a, **kw: int(TOKEN))
     result = chain.redemption_receipt(TX, wallet=WALLET, condition=CONDITION)
