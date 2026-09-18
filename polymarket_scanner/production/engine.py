@@ -31,8 +31,10 @@ class ExecutionEngine:
         self.config, self.ledger, self.reader = config, ledger, reader
         self.ledger.bind_adapter_identity(wallet_type=config.wallet_type, signer=config.signer,
                                           signature_type=config.signature_type,
-                                          deposit_owner=config.deposit_owner)
+                                          deposit_owner=config.deposit_owner, signer_type=config.signer_type)
         self.exchange, self.weather = exchange, weather
+        from .redemption_audit import RedemptionAuditor
+        self.redemption_auditor = RedemptionAuditor(ledger, exchange)
         self.reconciled = False
         self.account_reconciled = False
         self.funding_ready = False
@@ -79,7 +81,10 @@ class ExecutionEngine:
             return self.last_error
         if stopped: return "LEGACY_OPERATOR_STOP_REQUIRES_LOCAL_RECOVERY"
         if self.config.stop_file and self.config.stop_file.exists(): return "LOCAL_EMERGENCY_STOP_FILE"
-        if self.config.wallet_type == "DEPOSIT_WALLET":
+        if self.config.is_deposit_owner:
+            if time.time() >= self.config.deposit_opening_cutoff:
+                return "DEDICATED_OWNER_EXCLUSIVITY_EXPIRED_OR_NEAR_EXPIRY"
+        elif self.config.wallet_type == "DEPOSIT_WALLET":
             now = time.time()
             if now >= float(self.config.session_valid_until) - SESSION_OPENING_SAFETY_SECONDS:
                 return "SESSION_AUTHORIZATION_EXPIRED_OR_NEAR_EXPIRY"
@@ -92,6 +97,7 @@ class ExecutionEngine:
             return storage_reason
         if self.io_fault: return "EXECUTION_DATABASE_WRITE_FAULT"
         if self.ledger.state("fault"): return "UNRESOLVED_RECONCILIATION_FAULT"
+        if not self.redemption_auditor.ready(): return "REDEMPTION_PROOF_REVALIDATION_REQUIRED"
         if not self.config.activation_requested(): return "CONFIGURATION_BOUND_ACTIVATION_MISSING_OR_INVALID"
         if not self.reconciled or not 0 <= time.time()-self.last_reconcile < 30: return "FRESH_ACCOUNT_RECONCILIATION_REQUIRED"
         if not self.last_account or self.last_account.get("openings_allowed") is not True: return "ACCOUNT_OPENING_ELIGIBILITY_NOT_READY"
@@ -117,8 +123,7 @@ class ExecutionEngine:
             from .control import schedule_open
             if now >= self.control.policy.expires or not schedule_open(self.control.settings["schedule_utc"]):
                 raise SubmissionNotAttempted("CONTROL_AUTHORITY_EXPIRED_BEFORE_POST")
-        if self.config.wallet_type == "DEPOSIT_WALLET" and now >= min(
-                self.config.session_valid_until, self.config.session_exclusive_until) - SESSION_OPENING_SAFETY_SECONDS:
+        if self.config.wallet_type == "DEPOSIT_WALLET" and now >= self.config.deposit_opening_cutoff:
             raise SubmissionNotAttempted("SESSION_OPENING_WINDOW_CLOSED")
         if not 0 <= now - self.last_reconcile < 30:
             raise SubmissionNotAttempted("FRESH_ACCOUNT_RECONCILIATION_REQUIRED")
@@ -145,9 +150,14 @@ class ExecutionEngine:
     def _validate_deposit_session_account(self, account: dict) -> None:
         if self.config.wallet_type != "DEPOSIT_WALLET":
             return
+        expected_visibility = "OWNER_SIGNER_ONLY" if self.config.is_deposit_owner else "SESSION_SIGNER_ONLY"
+        actual_signer_type = account.get("signer_type", "SESSION_KEY" if not self.config.is_deposit_owner else None)
+        if actual_signer_type != self.config.signer_type:
+            self.fail("DEPOSIT_OWNER_ACCOUNT_SIGNER_TYPE_MISMATCH" if self.config.is_deposit_owner
+                      else "SESSION_ACCOUNT_VISIBILITY_MISMATCH")
         if (account.get("wallet_type") != "DEPOSIT_WALLET" or type(account.get("signature_type")) is not int
             or account.get("signature_type") != 3
-            or account.get("order_visibility") != "SESSION_SIGNER_ONLY"):
+            or account.get("order_visibility") != expected_visibility):
             self.fail("SESSION_ACCOUNT_VISIBILITY_MISMATCH")
         if (not isinstance(account.get("deposit_owner"), str)
             or account["deposit_owner"].lower() != self.config.deposit_owner):
@@ -212,6 +222,7 @@ class ExecutionEngine:
         self.account_reconciled = False
         self.funding_ready = False
         management_required = False
+        redemption_ready = await self.redemption_auditor.check_batch(self.call)
         if self.ledger.audit_fill_limits_upgrade():
             if allow_exchange_mutation:
                 await self.manage_existing()
@@ -366,7 +377,11 @@ class ExecutionEngine:
         self.ledger.set_state("trade_census_after", str(int(account.get("observed_at", time.time()))))
         if not census_start:
             self.ledger.set_state("trade_census_start", str(int(account.get("observed_at", time.time())) - 300))
-        unresolved = unresolved or management_required or bool(self.ledger.summary()["settlement_proof_unavailable_tokens"])
+        unresolved = (unresolved or management_required or not redemption_ready
+                      or not self.redemption_auditor.ready()
+                      or bool(self.ledger.summary()["settlement_proof_unavailable_tokens"]))
+        if not redemption_ready:
+            self.last_error = "REDEMPTION_PROOF_REVALIDATION_REQUIRED"
         if management_required:
             self.last_error = "PREFLIGHT_ORDER_MANAGEMENT_REQUIRED"
         self.account_reconciled = not unresolved and (ignore_sticky_fault or not self.ledger.state("fault"))
@@ -409,8 +424,7 @@ class ExecutionEngine:
                 or not 0 <= monotonic_now - self.last_reconcile_monotonic < 30):
                 raise ConfigurationError("PREFLIGHT_EVIDENCE_STALE")
             if self.config.wallet_type == "DEPOSIT_WALLET":
-                cutoff = min(self.config.session_valid_until, self.config.session_exclusive_until)
-                if now >= cutoff - SESSION_OPENING_SAFETY_SECONDS:
+                if now >= self.config.deposit_opening_cutoff:
                     raise ConfigurationError("PREFLIGHT_SESSION_WINDOW_CLOSED")
             self.last_account = dict(self.last_account, eligibility=current,
                                      openings_allowed=True,
@@ -446,10 +460,14 @@ class ExecutionEngine:
                     processed_seq=int(self.ledger.state("control_seq"))) if self.control else None,
                 "balance_micros": self.last_account.get("balance") if self.last_account else None,
                 "account_performance_scope": (
+                    "BOT_CONFIRMED_OWNER_FILLS_ONLY_DEDICATED_DEPOSIT_WALLET"
+                    if self.config.is_deposit_owner else
                     "BOT_CONFIRMED_SESSION_FILLS_ONLY_DEDICATED_DEPOSIT_WALLET"
                     if self.config.wallet_type == "DEPOSIT_WALLET"
                     else "BOT_CONFIRMED_BUY_FILLS_ONLY_DEDICATED_EOA"),
                 "signing_authority": (
+                    "DEPOSIT_WALLET_FULL_OWNER_KEY_NOT_WITHDRAWAL_RESTRICTED"
+                    if self.config.is_deposit_owner else
                     "DEPOSIT_WALLET_SESSION_KEY_OWNER_KEY_OFF_HOST"
                     if self.config.wallet_type == "DEPOSIT_WALLET"
                     else "EOA_FULL_KEY_APPLICATION_BUY_ONLY_NOT_WITHDRAWAL_RESTRICTED"),
@@ -457,7 +475,8 @@ class ExecutionEngine:
                 "session_scopes": list(self.config.session_scopes),
                 "session_valid_until": self.config.session_valid_until,
                 "session_exclusive_until": self.config.session_exclusive_until,
-                "deposit_owner": self.config.deposit_owner,
+                "deposit_owner": self.config.deposit_owner, "signer_type": self.config.signer_type,
+                "wallet_exclusive_until": self.config.wallet_exclusive_until,
                 "account": self.ledger.summary(), "notification_batch": events, "updated_at": time.time()}
 
     async def manage_existing(self):
@@ -640,9 +659,12 @@ class ExecutionEngine:
                                            fee_cap=Decimal(leg["fee_cap"]), post_only=maker, valid_until=plan["expires"])
                 if self.config.wallet_type == "DEPOSIT_WALLET":
                     try:
-                        session_restriction = await self.call(self.exchange.session_opening_restriction)
+                        guard = (self.exchange.owner_opening_restriction if self.config.is_deposit_owner
+                                 else self.exchange.session_opening_restriction)
+                        session_restriction = await self.call(guard)
                     except Exception:
-                        session_restriction = "SESSION_AUTHORIZATION_ONCHAIN_UNKNOWN"
+                        session_restriction = ("DEPOSIT_OWNER_AUTHORITY_UNKNOWN" if self.config.is_deposit_owner
+                                               else "SESSION_AUTHORIZATION_ONCHAIN_UNKNOWN")
                     if session_restriction:
                         self.reconciled = False
                         self.last_error = session_restriction

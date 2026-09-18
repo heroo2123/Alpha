@@ -392,6 +392,7 @@ class ExchangeEOA:
     wallet_type = "EOA"
     signature_type = 0
     order_visibility = "DEDICATED_EOA"
+    signer_type = "OWNER"
 
     def _init_authenticated(self, *, private_key, api_key: str, api_secret: str, api_passphrase: str,
                             wallet: str, signer: str, transport: JSONTransport | None = None,
@@ -759,6 +760,7 @@ class ExchangeEOA:
         return {"wallet": self.wallet, "signer": self.signer, "wallet_type": self.wallet_type,
                 "deposit_owner": getattr(self, "deposit_owner", None),
                 "signature_type": self.signature_type, "order_visibility": self.order_visibility,
+                "signer_type": self.signer_type,
                 "eligibility": eligibility, "openings_allowed": eligibility["openings_allowed"],
                 "opening_restrictions": eligibility["opening_restrictions"],
                 "balance": min(api["balance"], chain["balance"]),
@@ -994,6 +996,7 @@ class ExchangeDepositSession(ExchangeEOA):
     wallet_type = "DEPOSIT_WALLET"
     signature_type = 3
     order_visibility = "SESSION_SIGNER_ONLY"
+    signer_type = "SESSION_KEY"
 
     def __init__(self, *, private_key, api_key: str, api_secret: str, api_passphrase: str,
                  wallet: str, signer: str, deposit_owner: str, session_scopes, session_valid_until,

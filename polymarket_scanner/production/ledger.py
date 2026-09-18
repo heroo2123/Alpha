@@ -63,6 +63,10 @@ class ExecutionLedger:
                     condition_id TEXT NOT NULL, proceeds INTEGER NOT NULL CHECK(proceeds>=0),
                     proof TEXT NOT NULL, recorded REAL NOT NULL,
                     UNIQUE(transaction_hash,log_index));
+                CREATE TABLE IF NOT EXISTS execution_redemption_validation(
+                    id TEXT PRIMARY KEY REFERENCES execution_redemptions(id),
+                    epoch TEXT NOT NULL, checked REAL NOT NULL, status TEXT NOT NULL,
+                    reason TEXT, proof_digest TEXT NOT NULL);
                 CREATE TABLE IF NOT EXISTS execution_burns(
                     redemption_id TEXT NOT NULL REFERENCES execution_redemptions(id), token TEXT NOT NULL,
                     quantity INTEGER NOT NULL CHECK(quantity>0), PRIMARY KEY(redemption_id,token));
@@ -94,7 +98,7 @@ class ExecutionLedger:
             self.audit(db, "STARTUP", self.wallet, {})
 
     def bind_adapter_identity(self, *, wallet_type: str, signer: str, signature_type: int,
-                              deposit_owner: str | None = None) -> None:
+                              deposit_owner: str | None = None, signer_type: str | None = None) -> None:
         """Bind a financial journal to one signer model; never silently rotate it.
 
         Session-scoped CLOB history means changing the Session Key can hide the
@@ -107,6 +111,12 @@ class ExecutionLedger:
             if not isinstance(deposit_owner, str) or not deposit_owner:
                 raise LedgerError("DEPOSIT_OWNER_IDENTITY_REQUIRED")
             identity_data["deposit_owner"] = deposit_owner.lower()
+            if signer_type == "OWNER":
+                if signer.lower() != deposit_owner.lower() or signer.lower() == self.wallet:
+                    raise LedgerError("DEPOSIT_OWNER_SIGNER_IDENTITY_INVALID")
+                identity_data["signer_type"] = "OWNER"
+            elif signer_type not in (None, "SESSION_KEY"):
+                raise LedgerError("EXECUTION_ADAPTER_SIGNER_TYPE_INVALID")
         elif deposit_owner is not None:
             raise LedgerError("DEPOSIT_OWNER_IDENTITY_UNEXPECTED")
         identity = canonical(identity_data)
@@ -441,6 +451,9 @@ class ExecutionLedger:
                 if quantity <= 0 or prior + quantity > acquired:
                     raise LedgerError("REDEMPTION_BURN_EXCEEDS_RECONCILED_HOLDING")
                 db.execute("INSERT INTO execution_burns VALUES(?,?,?)", (record["id"], token, quantity))
+            epoch = db.execute("SELECT value FROM execution_state WHERE key='redemption_audit_epoch'").fetchone()
+            db.execute("INSERT OR REPLACE INTO execution_redemption_validation VALUES(?,?,?,'VERIFIED',NULL,?)",
+                       (record["id"], epoch[0] if epoch else "IMPORT", time.time(), digest(record["proof"])))
             self.audit(db, "VERIFIED_REDEMPTION", record["id"], {"proceeds": record["proceeds"], "asset": record["proof"]["asset"]})
         return True
 
@@ -573,10 +586,23 @@ class ExecutionLedger:
             outcomes = db.execute("SELECT COUNT(*),COALESCE(SUM(claim_value-cost-fees),0) FROM execution_settlements").fetchone()
             disputed = [r[0].split(":",1)[1] for r in db.execute("SELECT key FROM execution_state WHERE key LIKE 'settlement_unverified:%'")]
             reserved = db.execute("SELECT COALESCE(SUM(reserved),0) FROM execution_intents").fetchone()[0]
-            redemptions = {}
-            for row in db.execute("SELECT proceeds,proof FROM execution_redemptions"):
-                asset = json.loads(row[1])["asset"]
-                redemptions[asset] = redemptions.get(asset, 0) + row[0]
+            from .redemption_audit import REDEMPTION_AUDIT_TTL
+            redemptions, recorded_redemptions, unverified_redemptions = {}, {}, []
+            unverified_count = 0
+            audit_epoch = db.execute("SELECT value FROM execution_state WHERE key='redemption_audit_epoch'").fetchone()
+            audit_epoch = audit_epoch[0] if audit_epoch else "IMPORT"
+            now = time.time()
+            for row in db.execute("""SELECT r.id,r.proceeds,r.proof,v.epoch,v.checked,v.status
+                    FROM execution_redemptions r LEFT JOIN execution_redemption_validation v ON v.id=r.id"""):
+                asset = json.loads(row["proof"])["asset"]
+                recorded_redemptions[asset] = recorded_redemptions.get(asset, 0) + row["proceeds"]
+                if (row["status"] == "VERIFIED" and row["epoch"] == audit_epoch
+                    and 0 <= now - row["checked"] < REDEMPTION_AUDIT_TTL):
+                    redemptions[asset] = redemptions.get(asset, 0) + row["proceeds"]
+                else:
+                    unverified_count += 1
+                    if len(unverified_redemptions) < 20:
+                        unverified_redemptions.append(row["id"])
             native_gas = {}
             for row in db.execute("SELECT asset,amount_wei FROM execution_native_gas"):
                 native_gas[row[0]] = native_gas.get(row[0], 0) + int(row[1])
@@ -594,6 +620,10 @@ class ExecutionLedger:
                 "actual_fees_micros": fills[2], "settled_position_count": outcomes[0],
                 "settled_position_pnl_micros": None if disputed else outcomes[1], "settlement_proof_unavailable_tokens": disputed,
                 "verified_redemption_proceeds_by_asset_micros": redemptions,
+                "recorded_redemption_proceeds_by_asset_micros": recorded_redemptions,
+                "redemption_verification_complete": unverified_count == 0,
+                "unverified_redemption_count": unverified_count,
+                "unverified_redemption_ids": unverified_redemptions[:20],
                 "verified_native_gas_wei": {key: str(value) for key, value in native_gas.items()},
                 "redemption_transactions_without_gas_proof": gas_unknown,
                 "reserved_micros": reserved, "outstanding_orders": self.orders(), "positions": self.positions(held_only=True),

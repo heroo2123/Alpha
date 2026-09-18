@@ -183,12 +183,20 @@ async def run(args):
     from .ledger import ExecutionLedger
     from .signals import SignalReader
     with lease(Path(str(config.execution_db) + ".writer.lock")):
-        exchange_class = ExchangeDepositSession if config.wallet_type == "DEPOSIT_WALLET" else ExchangeEOA
-        extra = ({"session_scopes": config.session_scopes,
-                  "session_valid_until": config.session_valid_until,
-                  "session_exclusive_until": config.session_exclusive_until,
-                  "deposit_owner": config.deposit_owner}
-                 if config.wallet_type == "DEPOSIT_WALLET" else {})
+        if config.is_deposit_owner:
+            from .owner_account import ExchangeDepositOwner
+            exchange_class = ExchangeDepositOwner
+            extra = {"deposit_owner": config.deposit_owner,
+                     "owner_custody_ack": config.owner_custody_ack,
+                     "wallet_exclusive_until": config.wallet_exclusive_until}
+        elif config.wallet_type == "DEPOSIT_WALLET":
+            exchange_class = ExchangeDepositSession
+            extra = {"session_scopes": config.session_scopes,
+                     "session_valid_until": config.session_valid_until,
+                     "session_exclusive_until": config.session_exclusive_until,
+                     "deposit_owner": config.deposit_owner}
+        else:
+            exchange_class, extra = ExchangeEOA, {}
         exchange = exchange_class.from_credentials_file(config.credentials_file, wallet=config.wallet,
             signer=config.signer, rpc_url=config.rpc_url, fee_policy=config.fee_policy, **extra)
         try:
@@ -197,7 +205,7 @@ async def run(args):
             # durable financial journal. Engine construction rechecks idempotently.
             ledger.bind_adapter_identity(wallet_type=config.wallet_type, signer=config.signer,
                                          signature_type=config.signature_type,
-                                         deposit_owner=config.deposit_owner)
+                                         deposit_owner=config.deposit_owner, signer_type=config.signer_type)
             ledger.recover_after_restart()
             if args.component == "rotate-control-authorization":
                 from .executor_control import rotate_authorization
