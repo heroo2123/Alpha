@@ -1,0 +1,214 @@
+{
+  "started": "2026-09-17T22:31:59.935240+00:00",
+  "rpc": "https://polygon.drpc.org",
+  "calls": [
+    {
+      "id": 1,
+      "method": "eth_chainId",
+      "params": [],
+      "time": "2026-09-17T22:31:59.954209+00:00"
+    },
+    {
+      "id": 2,
+      "method": "eth_call",
+      "params": [
+        {
+          "to": "0x9504c1ec7ea7be3111b346439727ee8b8a4e6dfd",
+          "data": "0x8da5cb5b"
+        },
+        "0x59a1c6e"
+      ],
+      "time": "2026-09-17T22:32:00.036379+00:00"
+    },
+    {
+      "id": 3,
+      "method": "eth_call",
+      "params": [
+        {
+          "to": "0x4d97dcd97ec945f40cf65f87097ace5ea0476045",
+          "data": "0x856296f70000000000000000000000000000000000000000000000000000000000000000fefd6f43846f06b44856aeccf83ced2e33340929a14811e5aae5da2d05fafa3a0000000000000000000000000000000000000000000000000000000000000001"
+        },
+        "0x59a1c6e"
+      ],
+      "time": "2026-09-17T22:32:00.094855+00:00"
+    },
+    {
+      "id": 4,
+      "method": "eth_call",
+      "params": [
+        {
+          "to": "0x4d97dcd97ec945f40cf65f87097ace5ea0476045",
+          "data": "0x39dd75300000000000000000000000002791bca1f2de4661ed88a30c99a7a9449aa841744eaad09dff57fc17f5cb5f13716de3c9426f953938a072f66b0c666116e71ad2"
+        },
+        "0x59a1c6e"
+      ],
+      "time": "2026-09-17T22:32:00.148338+00:00"
+    },
+    {
+      "id": 5,
+      "method": "eth_call",
+      "params": [
+        {
+          "to": "0x4d97dcd97ec945f40cf65f87097ace5ea0476045",
+          "data": "0x856296f70000000000000000000000000000000000000000000000000000000000000000fefd6f43846f06b44856aeccf83ced2e33340929a14811e5aae5da2d05fafa3a0000000000000000000000000000000000000000000000000000000000000002"
+        },
+        "0x59a1c6e"
+      ],
+      "time": "2026-09-17T22:32:00.205974+00:00"
+    },
+    {
+      "id": 6,
+      "method": "eth_call",
+      "params": [
+        {
+          "to": "0x4d97dcd97ec945f40cf65f87097ace5ea0476045",
+          "data": "0x39dd75300000000000000000000000002791bca1f2de4661ed88a30c99a7a9449aa841744449997b7efec24629d5d93184cd8693be0ec70dfdef05054aa09bf42c9ec13e"
+        },
+        "0x59a1c6e"
+      ],
+      "time": "2026-09-17T22:32:00.261037+00:00"
+    },
+    {
+      "id": 7,
+      "method": "eth_getBlockByNumber",
+      "params": [
+        "0x59a1c6e",
+        false
+      ],
+      "time": "2026-09-17T22:32:00.312744+00:00"
+    },
+    {
+      "id": 8,
+      "method": "eth_call",
+      "params": [
+        {
+          "to": "0x49e187866f06b8729682e6bb85d1892233aafe6f",
+          "data": "0x8da5cb5b"
+        },
+        "0x59a1c6a"
+      ],
+      "time": "2026-09-17T22:32:00.367193+00:00"
+    },
+    {
+      "id": 9,
+      "method": "eth_call",
+      "params": [
+        {
+          "to": "0x4d97dcd97ec945f40cf65f87097ace5ea0476045",
+          "data": "0x856296f70000000000000000000000000000000000000000000000000000000000000000c012b3a0c4bcfa36be53e270a6806e855afa863f3fbc57bd1a78beb936771e700000000000000000000000000000000000000000000000000000000000000001"
+        },
+        "0x59a1c6a"
+      ],
+      "time": "2026-09-17T22:32:00.425966+00:00"
+    },
+    {
+      "id": 10,
+      "method": "eth_call",
+      "params": [
+        {
+          "to": "0x4d97dcd97ec945f40cf65f87097ace5ea0476045",
+          "data": "0x39dd75300000000000000000000000003a3bd7bb9528e159577f7c2e685cc81a765002e26ef21c4fb470bb7594a0b599e92d6f3d7f33be151db55252bea5810e4a3335e0"
+        },
+        "0x59a1c6a"
+      ],
+      "time": "2026-09-17T22:32:00.483802+00:00"
+    },
+    {
+      "id": 11,
+      "method": "eth_call",
+      "params": [
+        {
+          "to": "0x4d97dcd97ec945f40cf65f87097ace5ea0476045",
+          "data": "0x856296f70000000000000000000000000000000000000000000000000000000000000000c012b3a0c4bcfa36be53e270a6806e855afa863f3fbc57bd1a78beb936771e700000000000000000000000000000000000000000000000000000000000000002"
+        },
+        "0x59a1c6a"
+      ],
+      "time": "2026-09-17T22:32:00.536501+00:00"
+    },
+    {
+      "id": 12,
+      "method": "eth_call",
+      "params": [
+        {
+          "to": "0x4d97dcd97ec945f40cf65f87097ace5ea0476045",
+          "data": "0x39dd75300000000000000000000000003a3bd7bb9528e159577f7c2e685cc81a765002e20552bc02b9b750e8cd31e85617b62b1e1208c2fab58746df6d93eab1a251b3de"
+        },
+        "0x59a1c6a"
+      ],
+      "time": "2026-09-17T22:32:00.587878+00:00"
+    },
+    {
+      "id": 13,
+      "method": "eth_getBlockByNumber",
+      "params": [
+        "0x59a1c6a",
+        false
+      ],
+      "time": "2026-09-17T22:32:00.650175+00:00"
+    }
+  ],
+  "contracts": {},
+  "samples": {},
+  "errors": [],
+  "derivations": {
+    "standard": {
+      "transaction_hash": "0x1ccbdd901fc22bdcd3a01f1ca7bc5cd8115d6c4aae868057d22015956ccae657",
+      "block": "0x59a1c6e",
+      "block_hash": "0x5a11a970b90b5a07ab8dcdb017ec20f03ac6a87b045deccc362efbb601504ea1",
+      "condition": "0xfefd6f43846f06b44856aeccf83ced2e33340929a14811e5aae5da2d05fafa3a",
+      "collateral": "0x2791bca1f2de4661ed88a30c99a7a9449aa84174",
+      "requested_outer_collateral": "0xc011a7e12a19f7b1f670d46f03b03f3342e82dfb",
+      "wallet": "0x9504c1ec7ea7be3111b346439727ee8b8a4e6dfd",
+      "owner": "0xa73bc1be68defd1a08892928e1ce17d75847f5b8",
+      "outcomes": [
+        {
+          "index_set": 1,
+          "collection_call": "0x856296f70000000000000000000000000000000000000000000000000000000000000000fefd6f43846f06b44856aeccf83ced2e33340929a14811e5aae5da2d05fafa3a0000000000000000000000000000000000000000000000000000000000000001",
+          "collection_raw": "0x4eaad09dff57fc17f5cb5f13716de3c9426f953938a072f66b0c666116e71ad2",
+          "position_call": "0x39dd75300000000000000000000000002791bca1f2de4661ed88a30c99a7a9449aa841744eaad09dff57fc17f5cb5f13716de3c9426f953938a072f66b0c666116e71ad2",
+          "position_raw": "0x9b476fbf665e5f6646acc8e5888e78885ec3c0f99ec3eb00dc547c0f2fa33409",
+          "token": "70234708925980539072019672487209653358530560811524129270702093765490973553673"
+        },
+        {
+          "index_set": 2,
+          "collection_call": "0x856296f70000000000000000000000000000000000000000000000000000000000000000fefd6f43846f06b44856aeccf83ced2e33340929a14811e5aae5da2d05fafa3a0000000000000000000000000000000000000000000000000000000000000002",
+          "collection_raw": "0x4449997b7efec24629d5d93184cd8693be0ec70dfdef05054aa09bf42c9ec13e",
+          "position_call": "0x39dd75300000000000000000000000002791bca1f2de4661ed88a30c99a7a9449aa841744449997b7efec24629d5d93184cd8693be0ec70dfdef05054aa09bf42c9ec13e",
+          "position_raw": "0x2b9af947297449a87fa4a7def61de5318d9c762855bee7d125de2fd5d258bb97",
+          "token": "19723267390418532059620547286259653356381139211614369629987274682302115396503"
+        }
+      ],
+      "canonical_rechecked": true
+    },
+    "negative": {
+      "transaction_hash": "0x1c3f5a0f3d3c12bc2e1c79e6222c78cf78f03cb7377bc53d869888d96c984760",
+      "block": "0x59a1c6a",
+      "block_hash": "0xb29047e4b3b2672322e63d08a94bbdd3e8981972b020898f57e569d069eb7cea",
+      "condition": "0xc012b3a0c4bcfa36be53e270a6806e855afa863f3fbc57bd1a78beb936771e70",
+      "collateral": "0x3a3bd7bb9528e159577f7c2e685cc81a765002e2",
+      "requested_outer_collateral": "0xc011a7e12a19f7b1f670d46f03b03f3342e82dfb",
+      "wallet": "0x49e187866f06b8729682e6bb85d1892233aafe6f",
+      "owner": "0x9c1b17e200eed3066757eec1c5f8c84a5fb187ef",
+      "outcomes": [
+        {
+          "index_set": 1,
+          "collection_call": "0x856296f70000000000000000000000000000000000000000000000000000000000000000c012b3a0c4bcfa36be53e270a6806e855afa863f3fbc57bd1a78beb936771e700000000000000000000000000000000000000000000000000000000000000001",
+          "collection_raw": "0x6ef21c4fb470bb7594a0b599e92d6f3d7f33be151db55252bea5810e4a3335e0",
+          "position_call": "0x39dd75300000000000000000000000003a3bd7bb9528e159577f7c2e685cc81a765002e26ef21c4fb470bb7594a0b599e92d6f3d7f33be151db55252bea5810e4a3335e0",
+          "position_raw": "0x9ae1c4879af6d0f066bb97edd208d3b79723e1c8b550cd842d96be3c091e03f2",
+          "token": "70055075669594558498856555992713888510079504805740681163304421096999136134130"
+        },
+        {
+          "index_set": 2,
+          "collection_call": "0x856296f70000000000000000000000000000000000000000000000000000000000000000c012b3a0c4bcfa36be53e270a6806e855afa863f3fbc57bd1a78beb936771e700000000000000000000000000000000000000000000000000000000000000002",
+          "collection_raw": "0x0552bc02b9b750e8cd31e85617b62b1e1208c2fab58746df6d93eab1a251b3de",
+          "position_call": "0x39dd75300000000000000000000000003a3bd7bb9528e159577f7c2e685cc81a765002e20552bc02b9b750e8cd31e85617b62b1e1208c2fab58746df6d93eab1a251b3de",
+          "position_raw": "0xff34c02cd4054498c47c3c78f62d485156cc94a1a8dc29ff5dc11ecb585c8bf8",
+          "token": "115432978779966015108366384716684007574431058388776955041699581395621537156088"
+        }
+      ],
+      "canonical_rechecked": true
+    }
+  },
+  "ended": "2026-09-17T22:32:00.801387+00:00"
+}

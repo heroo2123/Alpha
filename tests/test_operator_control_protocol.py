@@ -21,7 +21,10 @@ def operator_config(tmp_path, mode="LIVE_EXECUTION", **changes):
         123, 42, (42,), ("SIGNALS", "CONFIRM", "AUTOMATIC") if mode=="LIVE_EXECUTION" else ("SIGNALS",),
         ("ONCHAIN_BOUND", "EXCHANGE_PUBLISHED_SCHEDULE") if mode=="LIVE_EXECUTION" else (),
         [[day,0,1440] for day in range(7)])
-    return replace(old, operator_control=replace(policy, **changes))
+    selected = replace(policy, **changes)
+    # A runnable deployment has its scanner state directory provisioned.
+    selected.scanner_db.parent.mkdir(parents=True, exist_ok=True)
+    return replace(old, operator_control=selected)
 
 
 @pytest.fixture

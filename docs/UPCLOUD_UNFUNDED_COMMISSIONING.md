@@ -187,17 +187,22 @@ Record any required provider permission. [Open-Meteo terms](https://open-meteo.c
 ## Later private account preflight and recovery
 
 Read `ACCOUNT_SECURITY_ONBOARDING.md` before creating/funding an account. The
-preferred restricted session route is not implemented and beta access is not
-assumed. The existing EOA route needs an explicit full-key custody decision; do
-not silently fall back to it. Keep owner recovery and revocation capability
-independent of Telegram and this host.
+finalized `3114657...` host does not contain a Deposit Session executor. A later
+development branch implements the preferred CLOB-only Session Key adapter, but
+Builder access, independent release review, execution-component host policy and
+real unfunded account acceptance are still external gates. Do not silently fall
+back to the full-key EOA route. Keep owner recovery, Builder management and
+revocation capability independent of Telegram and this host.
 
 Before any later activation: independently verify actual account/wallet/signer
 type and geographic eligibility, credential identity/scope/expiry, account
 exclusivity, pUSD balance/allowances, all open/unknown orders, chain-confirmed
 fills/inventory/settlements, no reconciliation fault, approved risk ceilings and
 schedule, stop-file/emergency access and current config-bound activation request.
-Use the existing `preflight` CLI and the externally issued activation protocol.
+Use `preflight --allow-unfunded` for the initial account-only check. It must
+leave financial authority false when collateral/allowance are absent. Before any
+later activation, rerun ordinary strict `preflight` and use the externally issued
+activation protocol.
 Do not equate claimable winnings or a submitted redemption with available cash.
 No initial financial grant can originate from the ordinary panel.
 
