@@ -1,0 +1,52 @@
+name: Publish exact owner development source
+
+on:
+  push:
+    branches: ['owner-publication-8ca1f84-2026-09-18']
+    paths: ['.github/workflows/publish-owner-source.yml']
+
+permissions:
+  contents: write
+
+jobs:
+  publish-exact-source:
+    if: github.repository == 'heroo2123/Alpha'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Fetch approved parent history only
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+      - name: Verify and publish immutable development Git objects
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          bundle=docs/review-evidence/publish-owner-8ca1f84.bundle
+          target=refs/heads/dedicated-owner-account-2026-09-18
+          expected=8ca1f849dd77afe13037fb869e8a722f1d3ced99
+          expected_tree=57cbd13943b73859ce990ab99067c7c80e5b410a
+          parent=1244a105f3d7888efc63b483d64603e32cb7a334
+          printf '%s  %s\n' 832187290b4c2716d1d7b990a01d2f28a45310afceea251616a773b6bc246b8c "$bundle" | sha256sum --check --strict
+          git cat-file -e "$parent^{commit}"
+          git bundle verify "$bundle"
+          git fetch --no-tags "$bundle" HEAD:refs/heads/exact-owner-source
+          test "$(git rev-parse exact-owner-source)" = "$expected"
+          test "$(git rev-parse 'exact-owner-source^{tree}')" = "$expected_tree"
+          test "$(git rev-parse 'exact-owner-source^')" = "$parent"
+          test "$(git rev-list --count "$parent..exact-owner-source")" = 1
+          git fsck --no-dangling
+          set +e
+          existing=$(git ls-remote --exit-code --heads origin "$target")
+          result=$?
+          set -e
+          if [ "$result" = 0 ]; then
+            test "$(printf '%s\n' "$existing" | cut -f1)" = "$expected"
+          elif [ "$result" = 2 ]; then
+            git push origin "$expected:$target"
+          else
+            exit "$result"
+          fi
+          test "$(git ls-remote --exit-code --heads origin "$target" | cut -f1)" = "$expected"
+          printf 'PUBLISHED_COMMIT=%s\nPUBLISHED_TREE=%s\n' "$expected" "$expected_tree"
+          printf 'Source publication only. No application code executed, service changed, or account accessed.\n'
