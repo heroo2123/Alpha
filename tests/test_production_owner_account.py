@@ -55,6 +55,46 @@ def test_owner_config_does_not_invent_session_or_withdrawal_restriction(tmp_path
     assert cfg.deposit_opening_cutoff == cfg.wallet_exclusive_until - 300
 
 
+
+def test_owner_poly1271_matches_official_rust_222143d_vector(monkeypatch):
+    """Cross-check the exact public Rust test vector without any private key.
+
+    Official rs-clob-client-v2 commit 222143d321eba97d5711a848265eb9aab3bc7ff4
+    test `v2_poly1271_signing_matches_deposit_wallet_signature` uses Amoy and a
+    tiny synthetic token id that Alpha deliberately rejects in production.  This
+    fixture temporarily bypasses only that token-namespace guard, then proves the
+    nested typed-data digest and 317-byte ERC-7739 wrapper are byte-identical.
+    """
+    import polymarket_scanner.production.exchange as exchange_module
+
+    expected = bytes.fromhex(
+        "a3a093c83b6c20c83355c16ce94c92e6e9fcbdeb840618cc74f6c57a42ad145b"
+        "2b98db73d2c73cbf1f2b6af288566ae81960ddbc3a13921027358a8bff3be6ff1c"
+        "a440cbd865bc0c6243d7a8df9a8bf48a8827b0a4abbb61c30e96d305423af148"
+        "d23d42d3ad94e65d78258cecaf8dcbaddac0f73dc085040f2c12bb595dd83804"
+        "4f726465722875696e743235362073616c742c61646472657373206d616b65722c"
+        "61646472657373207369676e65722c75696e7432353620746f6b656e49642c75"
+        "696e74323536206d616b6572416d6f756e742c75696e743235362074616b6572"
+        "416d6f756e742c75696e743820736964652c75696e7438207369676e61747572"
+        "65547970652c75696e743235362074696d657374616d702c6279746573333220"
+        "6d657461646174612c62797465733332206275696c6465722900ba")
+    inner = expected[:65]
+    monkeypatch.setattr(exchange_module, "CHAIN_ID", 80002)
+    monkeypatch.setattr(exchange_module, "_token", lambda value: str(int(value)))
+    order = {
+        "salt": 479249096354, "maker": "0x1111111111111111111111111111111111111111",
+        "signer": "0x1111111111111111111111111111111111111111", "tokenId": 1234,
+        "makerAmount": 100000000, "takerAmount": 50000000, "side": 0,
+        "signatureType": 3, "timestamp": 1710000000000, "metadata": "0x" + "00" * 32,
+        "builder": "0x" + "00" * 32, "expiration": 0}
+    typed = exchange_module.deposit_wallet_typed_order(
+        order, "0xE111180000d2663C0091e4f400237545B87B996B")
+    recovered = Account.recover_message(encode_typed_data(full_message=typed), signature=inner)
+    assert recovered.lower() == "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266"
+    wrapped = exchange_module.wrap_deposit_wallet_signature(typed, inner)
+    assert len(wrapped) == 317 and wrapped == expected
+
+
 def test_owner_order_uses_type3_without_session_envelope_or_builder():
     wire = Wire(context()); client = owner_client(wire)
     prepared = prepare(client); order = prepared["payload"]["order"]

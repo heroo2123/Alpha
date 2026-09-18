@@ -42,8 +42,14 @@ Omitting signer_type retains the existing Session-only interpretation and must
 not switch to an Owner key. A failed Owner path never falls back to EOA/Session.
 
 The private file remains exactly private_key/api_key/api_secret/api_passphrase.
-Only this dedicated wallet's individual Owner key and CLOB L2 credentials may be
-privately provisioned after approval. No seed phrase is needed by this process.
+Only this dedicated wallet's individual Owner key and its EOA-bound CLOB L2
+credentials may be privately provisioned after approval. For Owner/Poly1271,
+`POLY_ADDRESS` remains the Owner EOA for authenticated CLOB requests while the V2
+order itself uses the Deposit Wallet as maker and signer. This split matches the
+official Rust V2 client at commit
+`222143d321eba97d5711a848265eb9aab3bc7ff4`. Alpha's nested Poly1271 typed digest
+and 317-byte wrapper reproduce that client's published deterministic test vector
+byte-for-byte. No seed phrase is needed by this process.
 Do not reuse a main account or paste any secret into chat. The user creates the
 ordinary account and retains recovery on their trusted device; the application
 does not create an account, deploy a wallet, acquire Builder access or authorize
