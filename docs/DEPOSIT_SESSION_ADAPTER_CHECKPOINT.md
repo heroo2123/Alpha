@@ -171,3 +171,33 @@ exact committed candidate freeze, independent adversarial release review,
 independent host-policy extension for the execution component, and real
 **unfunded** account/Builder/Session acceptance before any deployment. Funding and
 financial activation remain separate later decisions.
+
+## 2026-09-18 expanded continuation review — supersedes prior closure wording
+
+The exact local b7a761786812fdeeab70790e01040a2346f0f492 / tree
+b672290c3d4580b5d0065443d7f0893d39ece346 was recovered clean with parent 959373a.
+A fresh target-host offline run passed 2,099 tests (4 existing warnings, 100.24s,
+Python 3.12.3, umask 0022); this is separate from the old recorded checkpoint.
+Independent reviewers still rejected submission-dispatch timing, known-no-submit
+classification, actual wallet/owner/effective code attestation, and Deposit
+redemption lifecycle. Passing tests did not approve release or deployment.
+
+The same original tree was published via connected GitHub as commit
+c25391b11554c0690a81423192a09fff645c2c15 on
+`deposit-session-independent-review-corrective-2026-09-18`. API commit metadata
+changed its identity; b7's raw commit itself was not remotely verified. PR #4
+remained draft/open at failed 959373a. No merge was performed.
+
+The new narrow corrections repeat strict wallet-wide witness validation at the
+final account read and require a bounded shared history interval. They move the
+final local safety check into the actual submit worker after network work and
+distinguish known non-submission from transport ambiguity. Wallet code/proxy,
+per-wallet beacon pin, current ownership and chain Session evidence are described
+in DEPOSIT_WALLET_CODE_POLICY.md. These changes require their own frozen exact
+candidate tests and independent retest; this note is not approval.
+
+Installed baseline remains clean 3114657eff8c95fcf4116f42570ae02c8c3084a1 /
+b765be586835d50f6fe5eab7a51ea7817717b59b. Scanner/controller are inactive and
+disabled; executor unit absent. Independent host execution extension, deployment,
+real account/Session, provider permission, risk settings, Telegram acceptance,
+disk/capacity/recovery and the owner-redemption lifecycle remain open gates.

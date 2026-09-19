@@ -47,6 +47,7 @@ from .weather_only_live_paper_all_signals import (
 )
 from .weather_only_live_paper_all_signals_v3 import AllPaperV3Error
 from .weather_only_live_paper_all_signals_v6 import AllPaperWeatherLiveV6Service
+from .weather_only_history_bounded import BoundedForecastHistoryQuarantine
 from .weather_only_live_paper_v2 import DEFAULT_PAPER_STAKE_USD
 from .weather_only_live_paper_v4 import (
     QUOTE_DECISION_TTL_SECONDS,
@@ -61,7 +62,11 @@ from .weather_only_maker_paper_accounting_v5 import (
 )
 from .weather_only_maker_shadow import VirtualMakerOrder, create_virtual_maker_order
 from .weather_only_paper_commands_all import AllPaperCommandController
-from .weather_only_paper_corrective import CorrectiveSettlementEngine, DeliveryUncertain
+from .weather_only_paper_corrective import (
+    PAPER_EXECUTION_PROTOCOL_V4,
+    CorrectiveSettlementEngine,
+    DeliveryUncertain,
+)
 from .weather_only_paper_post_receipt import (
     PAPER_EXECUTION_PROTOCOL_V5,
     PAPER_POSITION_VERSION_V5,
@@ -73,6 +78,9 @@ from .weather_only_structural import binary_pair_underround, complete_bucket_und
 
 ALL_PAPER_V7_RUNTIME_VERSION = (
     "weather_all_paper_signals_v7_post_receipt_atomic_execution_accounting"
+)
+V4_V5_HISTORY_QUARANTINE_POLICY_ID = (
+    "PRE_V4_PROTOCOL_QUARANTINE_V3_ACCEPT_V4_V5_BOUNDED_CURSOR"
 )
 
 
@@ -86,6 +94,9 @@ class AllPaperWeatherLiveV7Service(AllPaperWeatherLiveV6Service):
         old_maker_store = self.maker_store
         old_maker_store.close()
         self.maker_store = MakerPaperAccountingStoreV5(self.db_path)
+        self._v7_maker_pending_delivery_uncertain_recovered = (
+            self.maker_store.reconcile_pending_delivery_without_receipt_after_restart()
+        )
         if self._defer_maker_restart_terminalization():
             self._v7_maker_orphan_signal_ids = (
                 self.maker_store.unactivated_receipt_signal_ids()
@@ -101,6 +112,26 @@ class AllPaperWeatherLiveV7Service(AllPaperWeatherLiveV6Service):
         self._v7_superseded_commands = self.commands
         self.positions = PostReceiptWeatherPaperStore(self.db_path)
         self._v7_recovery = self.positions.reconcile_v5_after_restart()
+
+        # V7 introduces V5 post-receipt accounting while intentionally retaining
+        # V4 as a separate historical experiment.  The inherited corrective
+        # quarantine was written when V4 was current and therefore treated every
+        # V5 forecast signal as legacy.  Rebind the bounded history scanner to the
+        # V7 store and accept both reviewed protocols; only pre-V4/unknown history
+        # remains quarantine-eligible.
+        inherited_history = self._history_quarantine
+        self._history_quarantine = BoundedForecastHistoryQuarantine(
+            self.positions,
+            policy_id=V4_V5_HISTORY_QUARANTINE_POLICY_ID,
+            current_execution_protocol=PAPER_EXECUTION_PROTOCOL_V5,
+            accepted_execution_protocols=(
+                PAPER_EXECUTION_PROTOCOL_V4,
+                PAPER_EXECUTION_PROTOCOL_V5,
+            ),
+            quarantine_reason=inherited_history.quarantine_reason,
+            batch_size=inherited_history.batch_size,
+        )
+
         self.settlement = CorrectiveSettlementEngine(
             store=self.positions, telegram=self.telegram
         )
@@ -829,6 +860,9 @@ class AllPaperWeatherLiveV7Service(AllPaperWeatherLiveV6Service):
                 "post_receipt_exact_clob_required": True,
                 "v5_restart_recovery": self._v7_recovery,
                 "maker_unactivated_receipts_recovered": self._v7_maker_orphans_recovered,
+                "maker_pending_delivery_uncertain_recovered": (
+                    self._v7_maker_pending_delivery_uncertain_recovered
+                ),
                 "legacy_partial_hourly_summary_suppressed": True,
                 "result_lag_paper_delivery_enabled": False,
                 "result_lag_block_reason": "EXACT_WRH_CUTOFF_STATE_NOT_PROVEN",

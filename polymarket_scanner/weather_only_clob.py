@@ -314,8 +314,9 @@ class WeatherCLOBClient:
         out: dict[str, Book] = {}
         for start in range(0, len(ids), 100):
             chunk = ids[start:start + 100]
-            response = None
+            complete = False
             for attempt in range(CLOB_TRANSIENT_MAX_ATTEMPTS):
+                response = None
                 code = None
                 try:
                     response = await self.http.post(
@@ -326,32 +327,46 @@ class WeatherCLOBClient:
                     code = "CLOB_TIMEOUT"
                 except httpx.RequestError:
                     code = "CLOB_TRANSPORT"
-                if code is None:
-                    break
-                if attempt + 1 >= CLOB_TRANSIENT_MAX_ATTEMPTS:
-                    raise WeatherCLOBError(code)
-                delay = _retry_delay_seconds(attempt)
-                if delay > 0.0:
-                    await asyncio.sleep(delay)
-            if response is None:
-                raise WeatherCLOBError("CLOB_RETRY_STATE_INVALID")
-            if response.status_code >= 400:
-                raise WeatherCLOBError("CLOB_HTTP_STATUS")
-            received = time.time()
-            try:
-                payload = response.json()
-            except Exception:
-                raise WeatherCLOBError("BOOK_JSON_INVALID")
-            if not isinstance(payload, list):
-                raise WeatherCLOBError("BOOK_BATCH_ENVELOPE_INVALID")
-            for raw in payload:
-                if not isinstance(raw, dict):
-                    raise WeatherCLOBError("BOOK_ENVELOPE_INVALID")
-                token = str(raw.get("asset_id") or "").strip()
-                if token not in chunk or token in out:
-                    raise WeatherCLOBError("BOOK_BATCH_IDENTITY_INVALID")
-                out[token] = parse_book(token, raw, received_at=received)
-            if not set(chunk).issubset(out):
+                if code is not None:
+                    if attempt + 1 >= CLOB_TRANSIENT_MAX_ATTEMPTS:
+                        raise WeatherCLOBError(code)
+                    delay = _retry_delay_seconds(attempt)
+                    if delay > 0.0:
+                        await asyncio.sleep(delay)
+                    continue
+                if response is None:
+                    raise WeatherCLOBError("CLOB_RETRY_STATE_INVALID")
+                if response.status_code >= 400:
+                    raise WeatherCLOBError("CLOB_HTTP_STATUS")
+                received = time.time()
+                try:
+                    payload = response.json()
+                except Exception:
+                    raise WeatherCLOBError("BOOK_JSON_INVALID")
+                if not isinstance(payload, list):
+                    raise WeatherCLOBError("BOOK_BATCH_ENVELOPE_INVALID")
+
+                chunk_out: dict[str, Book] = {}
+                for raw in payload:
+                    if not isinstance(raw, dict):
+                        raise WeatherCLOBError("BOOK_ENVELOPE_INVALID")
+                    token = str(raw.get("asset_id") or "").strip()
+                    if token not in chunk or token in chunk_out or token in out:
+                        raise WeatherCLOBError("BOOK_BATCH_IDENTITY_INVALID")
+                    chunk_out[token] = parse_book(token, raw, received_at=received)
+
+                if set(chunk_out) != set(chunk):
+                    if attempt + 1 >= CLOB_TRANSIENT_MAX_ATTEMPTS:
+                        raise WeatherCLOBError("BOOK_BATCH_INCOMPLETE")
+                    delay = _retry_delay_seconds(attempt)
+                    if delay > 0.0:
+                        await asyncio.sleep(delay)
+                    continue
+
+                out.update(chunk_out)
+                complete = True
+                break
+            if not complete:
                 raise WeatherCLOBError("BOOK_BATCH_INCOMPLETE")
         return out
 

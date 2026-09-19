@@ -64,6 +64,7 @@ class AllPaperCommandController(ClearWeatherPaperCommandController):
                     COUNT(*) AS total,
                     SUM(CASE WHEN status='OPEN' THEN 1 ELSE 0 END) AS open_n,
                     SUM(CASE WHEN status='NO_FILL' THEN 1 ELSE 0 END) AS no_fill,
+                    SUM(CASE WHEN status='QUARANTINED' THEN 1 ELSE 0 END) AS quarantined,
                     SUM(CASE WHEN status='WON' THEN 1 ELSE 0 END) AS won,
                     SUM(CASE WHEN status='LOST' THEN 1 ELSE 0 END) AS lost,
                     SUM(CASE WHEN status='RESOLVED_PARTIAL' THEN 1 ELSE 0 END) AS partial,
@@ -82,6 +83,7 @@ class AllPaperCommandController(ClearWeatherPaperCommandController):
                     SELECT lane,COUNT(*) AS total,
                            SUM(CASE WHEN status='OPEN' THEN 1 ELSE 0 END) AS open_n,
                            SUM(CASE WHEN status='NO_FILL' THEN 1 ELSE 0 END) AS no_fill,
+                           SUM(CASE WHEN status='QUARANTINED' THEN 1 ELSE 0 END) AS quarantined,
                            SUM(CASE WHEN status='WON' THEN 1 ELSE 0 END) AS won,
                            SUM(CASE WHEN status='LOST' THEN 1 ELSE 0 END) AS lost,
                            SUM(CASE WHEN status='RESOLVED_PARTIAL' THEN 1 ELSE 0 END) AS partial,
@@ -104,6 +106,7 @@ class AllPaperCommandController(ClearWeatherPaperCommandController):
             "total": int(data.get("total") or 0),
             "open": int(data.get("open_n") or 0),
             "no_fill": int(data.get("no_fill") or 0),
+            "quarantined": int(data.get("quarantined") or 0),
             "resolved": won + lost + partial,
             "won": won,
             "lost": lost,
@@ -174,7 +177,7 @@ class AllPaperCommandController(ClearWeatherPaperCommandController):
             "📊 <b>ALL-WEATHER PAPER PERFORMANCE</b>",
             "",
             "<b>V5 PROSPECTIVE TAKER / STRUCTURAL — POST-RECEIPT EXECUTABLE LEDGER</b>",
-            f"Open: <b>{int(v5['open'])}</b> | Resolved: <b>{int(v5['resolved'])}</b> | No-fill: <b>{int(v5['no_fill'])}</b>",
+            f"Open: <b>{int(v5['open'])}</b> | Resolved: <b>{int(v5['resolved'])}</b> | No-fill: <b>{int(v5['no_fill'])}</b> | Quarantined/excluded: <b>{int(v5['quarantined'])}</b>",
             f"Results: <b>{int(v5['won'])}W / {int(v5['lost'])}L / {int(v5['partial'])} partial</b>",
             f"Resolved capital: <b>${float(v5['resolved_capital']):.2f}</b>",
             f"Resolved proceeds: <b>${float(v5['resolved_proceeds']):.2f}</b>",
@@ -189,6 +192,7 @@ class AllPaperCommandController(ClearWeatherPaperCommandController):
                     f"{int(row.get('total') or 0)} positions | "
                     f"{int(row.get('won') or 0)}W/{int(row.get('lost') or 0)}L/"
                     f"{int(row.get('partial') or 0)} partial | "
+                    f"{int(row.get('quarantined') or 0)} quarantined | "
                     f"P&amp;L ${float(row.get('pnl') or 0.0):+.2f}"
                 )
         lines.extend(

@@ -23,9 +23,8 @@ from .weather_only_paper_post_receipt import PAPER_EXECUTION_PROTOCOL_V5, PAPER_
 
 
 ALL_PAPER_DEPLOYMENT_ACCEPTANCE_VERSION = (
-    "weather_all_paper_first_cycle_acceptance_v8_causal_full_weather_refresh"
+    "weather_all_paper_first_cycle_acceptance_v9_result_lag_research_active"
 )
-RESULT_LAG_BLOCK_REASON = "EXACT_WRH_CUTOFF_STATE_NOT_PROVEN"
 MAKER_NOTIFICATION_RETRY_POLICY = "AT_MOST_ONCE_AFTER_DURABLE_CLAIM"
 STRUCTURAL_EXECUTION_MODEL = "THEORETICAL_SIMULTANEOUS_BASKET_ONLY"
 
@@ -179,6 +178,9 @@ def accept_first_all_paper_cycle(
         ("post_receipt_weather_before_clob_required", "ALL_PAPER_WEATHER_BEFORE_CLOB_NOT_REQUIRED"),
         ("post_receipt_weather_evidence_durable", "ALL_PAPER_WEATHER_EVIDENCE_NOT_DURABLE"),
         ("post_receipt_weather_evidence_identity_bound", "ALL_PAPER_WEATHER_EVIDENCE_NOT_IDENTITY_BOUND"),
+        ("result_lag_paper_delivery_enabled", "ALL_PAPER_RESULT_LAG_RESEARCH_NOT_ENABLED"),
+        ("result_lag_research_only", "ALL_PAPER_RESULT_LAG_RESEARCH_LABEL_MISSING"),
+        ("result_lag_revision_sensitive", "ALL_PAPER_RESULT_LAG_REVISION_LABEL_MISSING"),
     ):
         _require_true(status, key, code)
 
@@ -188,7 +190,9 @@ def accept_first_all_paper_cycle(
         ("maker_value_calibrated_probability", "ALL_PAPER_MAKER_CALIBRATION_NOT_FALSE"),
         ("maker_book_touch_counts_as_fill", "ALL_PAPER_MAKER_BOOK_TOUCH_FILL_NOT_FALSE"),
         ("maker_stream_degraded", "ALL_PAPER_MAKER_STREAM_DEGRADED"),
-        ("result_lag_paper_delivery_enabled", "ALL_PAPER_RESULT_LAG_NOT_GATED"),
+        ("result_lag_validated_finality", "ALL_PAPER_RESULT_LAG_FINALITY_UNEXPECTEDLY_VALIDATED"),
+        ("result_lag_included_in_validated_pnl", "ALL_PAPER_RESULT_LAG_INCLUDED_IN_VALIDATED_PNL"),
+        ("result_lag_live_financial_enabled", "ALL_PAPER_RESULT_LAG_LIVE_FINANCIAL_UNEXPECTEDLY_ENABLED"),
         ("structural_validated_pnl_enabled", "ALL_PAPER_STRUCTURAL_VALIDATED_PNL_NOT_FALSE"),
         ("maker_queue_position_certified", "ALL_PAPER_MAKER_QUEUE_UNEXPECTEDLY_CERTIFIED"),
         ("maker_simulated_fill_accounting_enabled", "ALL_PAPER_MAKER_SIMULATED_FILL_ACCOUNTING_NOT_FALSE"),
@@ -204,8 +208,6 @@ def accept_first_all_paper_cycle(
     _require_true(status, "source_shock_revision_sensitive", "ALL_PAPER_SOURCE_SHOCK_REVISION_LABEL_MISSING")
     if status.get("structural_execution_model") != STRUCTURAL_EXECUTION_MODEL:
         raise AllPaperDeploymentAcceptanceError("ALL_PAPER_STRUCTURAL_EXECUTION_MODEL_MISMATCH")
-    if status.get("result_lag_block_reason") != RESULT_LAG_BLOCK_REASON:
-        raise AllPaperDeploymentAcceptanceError("ALL_PAPER_RESULT_LAG_BLOCK_REASON_MISMATCH")
     if status.get("same_day_post_receipt_layers") != ["WRH", "NWS", "GEFS31"]:
         raise AllPaperDeploymentAcceptanceError("ALL_PAPER_POST_RECEIPT_LAYER_SET_MISMATCH")
 

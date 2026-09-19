@@ -143,3 +143,54 @@ def test_http_status_is_not_retried(monkeypatch):
         asyncio.run(run())
     assert raised.value.code == "CLOB_HTTP_STATUS"
     assert calls == 1
+
+
+def test_books_retries_incomplete_successful_batch_then_succeeds(monkeypatch):
+    monkeypatch.setattr(clob_module, "CLOB_TRANSIENT_RETRY_DELAY_SECONDS", 0.0)
+    calls = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        wanted = [row["token_id"] for row in json.loads(request.content)]
+        if calls == 1:
+            return httpx.Response(200, json=[_book_payload(wanted[0])])
+        return httpx.Response(200, json=[_book_payload(token) for token in wanted])
+
+    async def run():
+        client = WeatherCLOBClient()
+        await client.http.aclose()
+        client.http = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        try:
+            return await client.books(["token-1", "token-2"])
+        finally:
+            await client.close()
+
+    books = asyncio.run(run())
+    assert calls == 2
+    assert set(books) == {"token-1", "token-2"}
+
+
+def test_books_persistent_incomplete_batch_still_fails_closed(monkeypatch):
+    monkeypatch.setattr(clob_module, "CLOB_TRANSIENT_RETRY_DELAY_SECONDS", 0.0)
+    calls = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        wanted = [row["token_id"] for row in json.loads(request.content)]
+        return httpx.Response(200, json=[_book_payload(wanted[0])])
+
+    async def run():
+        client = WeatherCLOBClient()
+        await client.http.aclose()
+        client.http = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        try:
+            return await client.books(["token-1", "token-2"])
+        finally:
+            await client.close()
+
+    with pytest.raises(WeatherCLOBError) as raised:
+        asyncio.run(run())
+    assert raised.value.code == "BOOK_BATCH_INCOMPLETE"
+    assert calls == clob_module.CLOB_TRANSIENT_MAX_ATTEMPTS

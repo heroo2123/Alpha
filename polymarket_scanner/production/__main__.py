@@ -183,12 +183,20 @@ async def run(args):
     from .ledger import ExecutionLedger
     from .signals import SignalReader
     with lease(Path(str(config.execution_db) + ".writer.lock")):
-        exchange_class = ExchangeDepositSession if config.wallet_type == "DEPOSIT_WALLET" else ExchangeEOA
-        extra = ({"session_scopes": config.session_scopes,
-                  "session_valid_until": config.session_valid_until,
-                  "session_exclusive_until": config.session_exclusive_until,
-                  "deposit_owner": config.deposit_owner}
-                 if config.wallet_type == "DEPOSIT_WALLET" else {})
+        if config.is_deposit_owner:
+            from .owner_account import ExchangeDepositOwner
+            exchange_class = ExchangeDepositOwner
+            extra = {"deposit_owner": config.deposit_owner,
+                     "owner_custody_ack": config.owner_custody_ack,
+                     "wallet_exclusive_until": config.wallet_exclusive_until}
+        elif config.wallet_type == "DEPOSIT_WALLET":
+            exchange_class = ExchangeDepositSession
+            extra = {"session_scopes": config.session_scopes,
+                     "session_valid_until": config.session_valid_until,
+                     "session_exclusive_until": config.session_exclusive_until,
+                     "deposit_owner": config.deposit_owner}
+        else:
+            exchange_class, extra = ExchangeEOA, {}
         exchange = exchange_class.from_credentials_file(config.credentials_file, wallet=config.wallet,
             signer=config.signer, rpc_url=config.rpc_url, fee_policy=config.fee_policy, **extra)
         try:
@@ -197,15 +205,13 @@ async def run(args):
             # durable financial journal. Engine construction rechecks idempotently.
             ledger.bind_adapter_identity(wallet_type=config.wallet_type, signer=config.signer,
                                          signature_type=config.signature_type,
-                                         deposit_owner=config.deposit_owner)
+                                         deposit_owner=config.deposit_owner, signer_type=config.signer_type)
             ledger.recover_after_restart()
             if args.component == "rotate-control-authorization":
                 from .executor_control import rotate_authorization
                 rotate_authorization(config, ledger, args.expected_control_identity)
             engine = ExecutionEngine(config, ledger, SignalReader(config.signal_db), exchange, weather)
             if args.component == "record-redemption":
-                if config.wallet_type != "EOA":
-                    raise ConfigurationError("DEPOSIT_WALLET_REDEMPTION_IMPORT_NOT_IMPLEMENTED")
                 if not args.transaction or not args.condition:
                     raise ConfigurationError("REDEMPTION_TRANSACTION_AND_CONDITION_REQUIRED")
                 records = await engine.call(exchange.redemption_receipt, args.transaction, args.condition)
@@ -213,7 +219,8 @@ async def run(args):
                     raise ConfigurationError("REDEMPTION_NOT_CONFIRMED")
                 for record in records:
                     ledger.record_redemption(record)
-                await engine.reconcile()
+                # A read-only receipt import must never manage/cancel orders.
+                await engine.reconcile(allow_exchange_mutation=False)
             elif args.component == "recover":
                 if not args.expected_fault:
                     raise ConfigurationError("EXPECTED_FAULT_REQUIRED")
@@ -222,12 +229,13 @@ async def run(args):
                     raise ConfigurationError("RECOVERY_RECONCILIATION_INCOMPLETE")
                 ledger.clear_fault(args.expected_fault)
             elif args.component == "preflight":
-                await engine.reconcile(allow_exchange_mutation=False)
-                ready = engine.account_reconciled if args.allow_unfunded else engine.reconciled
-                if not ready:
-                    raise ConfigurationError("PREFLIGHT_RECONCILIATION_INCOMPLETE")
-                if not engine.last_account or engine.last_account.get("openings_allowed") is not True:
-                    raise ConfigurationError("PREFLIGHT_ACCOUNT_OPENINGS_RESTRICTED")
+                try:
+                    await engine.reconcile(allow_exchange_mutation=False)
+                    await engine.validate_preflight_completion(allow_unfunded=args.allow_unfunded)
+                finally:
+                    # A previous successful status must not survive this failure
+                    # as an apparently fresh acceptance receipt.
+                    atomic_json(config.execution_status_path, engine.status(), mode=0o640)
             elif args.component == "rotate-control-authorization":
                 await engine.reconcile()
                 if not engine.reconciled:

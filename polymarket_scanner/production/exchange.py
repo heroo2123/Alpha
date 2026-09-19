@@ -23,7 +23,7 @@ import stat
 import time
 
 from .chain import (CHAIN_ID, NEG_RISK_EXCHANGE, STANDARD_EXCHANGE, ZERO32,
-                    ChainReader, ExchangeError, JSONTransport, address, hash32,
+                    ChainReader, ExchangeError, SubmissionNotAttempted, JSONTransport, address, hash32,
                     keccak, micros, number, uint)
 from .fees import fee_requirement, make_fee_evidence, validate_policy
 from .config import SESSION_OPENING_SAFETY_SECONDS
@@ -68,7 +68,7 @@ _ERC1967_BEACON_CONST2 = bytes.fromhex("1b60e01b36527fa3f0ad74e5423aebfd80d3ef43
 _ERC1967_BEACON_CONST3 = bytes.fromhex("60195155f3363d3d373d3d363d602036600436635c60da")
 
 
-def _deposit_wallet_owner_addresses(owner: str) -> frozenset[str]:
+def _deposit_wallet_owner_forms(owner: str) -> dict[str, str]:
     """Derive pinned production Deposit Wallet addresses for an OWNER EOA.
 
     Reject both the historical UUPS and current beacon forms. This is a local
@@ -94,11 +94,16 @@ def _deposit_wallet_owner_addresses(owner: str) -> frozenset[str]:
         beacon_hash = keccak(beacon_prefix + bytes.fromhex(DEPOSIT_WALLET_BEACON[2:])
                              + _ERC1967_BEACON_CONST3 + _ERC1967_BEACON_CONST2
                              + _ERC1967_BEACON_CONST1 + args)
-        return frozenset((address(create2(uups_hash)), address(create2(beacon_hash))))
+        return {"UUPS_BEACON_FORWARDER": address(create2(uups_hash)),
+                "NATIVE_BEACON": address(create2(beacon_hash))}
     except ExchangeError:
         raise
     except (ImportError, TypeError, ValueError):
         raise ExchangeError("DEPOSIT_WALLET_OWNER_DERIVATION_FAILED") from None
+
+
+def _deposit_wallet_owner_addresses(owner: str) -> frozenset[str]:
+    return frozenset(_deposit_wallet_owner_forms(owner).values())
 
 
 def canonical(value: object) -> str:
@@ -387,6 +392,7 @@ class ExchangeEOA:
     wallet_type = "EOA"
     signature_type = 0
     order_visibility = "DEDICATED_EOA"
+    signer_type = "OWNER"
 
     def _init_authenticated(self, *, private_key, api_key: str, api_secret: str, api_passphrase: str,
                             wallet: str, signer: str, transport: JSONTransport | None = None,
@@ -737,15 +743,14 @@ class ExchangeEOA:
         started = self.clock()
         eligibility = self.eligibility(require_opening=False)
         orders, trades, positions = self.open_orders(), self.account_trades(after=trade_after), self.positions()
-        activity, activity_session_trades, activity_after = [], [], None
+        activity, activity_session_trades, activity_after, activity_before = [], [], None, None
         if self.wallet_type == "DEPOSIT_WALLET":
             activity_after = 1 if trade_after is None else max(1, uint(trade_after) - WALLET_ACTIVITY_LOOKBACK_SECONDS)
             # Use one common cutoff immediately before the session/public witness
             # comparison. Bounding at snapshot start would unnecessarily hide
             # wallet activity that occurred during earlier account enumeration.
             activity_before = int(self.clock())
-            activity_session_trades = (trades if trade_after is None else
-                self.account_trades(after=activity_after, before=activity_before))
+            activity_session_trades = self.account_trades(after=activity_after, before=activity_before)
             activity = self.wallet_trade_activity(after=activity_after, before=activity_before)
         # Read spendable collateral last; long account enumerations must not
         # masquerade as fresh balance/risk evidence merely by stamping the end.
@@ -755,6 +760,7 @@ class ExchangeEOA:
         return {"wallet": self.wallet, "signer": self.signer, "wallet_type": self.wallet_type,
                 "deposit_owner": getattr(self, "deposit_owner", None),
                 "signature_type": self.signature_type, "order_visibility": self.order_visibility,
+                "signer_type": self.signer_type,
                 "eligibility": eligibility, "openings_allowed": eligibility["openings_allowed"],
                 "opening_restrictions": eligibility["opening_restrictions"],
                 "balance": min(api["balance"], chain["balance"]),
@@ -765,6 +771,7 @@ class ExchangeEOA:
                 "trade_watermark": max((trade["matched_at"] for trade in trades), default=trade_after or 0),
                 "wallet_activity": activity, "wallet_activity_session_trades": activity_session_trades,
                 "wallet_activity_after": activity_after,
+                "wallet_activity_before": activity_before,
                 "positions": positions, "observed_at": self.clock(), "started_at": started}
 
     def market_snapshot(self, token: str, condition: str) -> dict:
@@ -838,7 +845,10 @@ class ExchangeEOA:
                 "fee_policy": self.fee_policy, "fee_evidence": snapshot["fee_evidence"],
                 "valid_until": deadline, "market": snapshot}
 
-    def submit(self, prepared: dict) -> str:
+    def _submission_opening_restriction(self) -> str | None:
+        return None
+
+    def submit(self, prepared: dict, *, before_post=None) -> str:
         """One HTTP attempt. Engine must have durably armed this exact wire hash."""
         try:
             wire, payload = prepared["wire"], prepared["payload"]
@@ -856,16 +866,36 @@ class ExchangeEOA:
                 raise ExchangeError("EXCHANGE_FEE_BOUND_EXCEEDS_OPERATOR_CAP")
             if not -2 <= self.clock() - prepared["market"]["book_timestamp"] <= MAX_BOOK_AGE:
                 raise ExchangeError("BOOK_STALE_BEFORE_SUBMISSION")
+            # A queued worker may run after the engine's last network read or
+            # journal commit. Deposit authorization is checked in this worker,
+            # then ALL local authority and quote deadlines are checked again.
+            restriction = self._submission_opening_restriction()
+            if restriction:
+                raise ExchangeError(restriction)
+            body = wire.encode()
+            headers = self._headers("POST", "/order", body)
+            if before_post is not None:
+                before_post()
+            now = self.clock()
+            if not prepared["prepared_at"] <= now < prepared["valid_until"] or now - prepared["prepared_at"] > MAX_PREPARED_AGE:
+                raise ExchangeError("PREPARED_ORDER_EXPIRED")
+            if not -2 <= now - prepared["market"]["book_timestamp"] <= MAX_BOOK_AGE:
+                raise ExchangeError("BOOK_STALE_BEFORE_SUBMISSION")
+        except SubmissionNotAttempted:
+            raise
+        except ExchangeError as exc:
+            raise SubmissionNotAttempted(exc.code) from None
         except (KeyError, TypeError, ValueError):
-            raise ExchangeError("PREPARED_ORDER_INVALID") from None
-        # The engine performs independent weather validation, reserves capital,
-        # and checks activation before this call. No hidden network preflight can
-        # silently age that authority after its durable submission boundary.
-        body = wire.encode()
+            raise SubmissionNotAttempted("PREPARED_ORDER_INVALID") from None
+        except Exception:
+            raise SubmissionNotAttempted("LOCAL_SUBMISSION_VALIDATION_UNAVAILABLE") from None
+        # No await, network preflight, signing or journal lock lies between the
+        # final local guard and this one transport invocation. Failure from this
+        # point onward is UNKNOWN, including an exception before a response.
         try:
             status, result = self.transport.request("POST", CLOB + "/order", body=body,
-                                                    headers=self._headers("POST", "/order", body))
-        except ExchangeError:
+                                                    headers=headers)
+        except Exception:
             return "UNKNOWN"
         if status == 200 and isinstance(result, dict):
             accepted = result.get("success") is True and result.get("errorMsg") == "" and result.get("orderID") == prepared["order_id"] and result.get("status") in ("live", "matched", "delayed")
@@ -966,6 +996,7 @@ class ExchangeDepositSession(ExchangeEOA):
     wallet_type = "DEPOSIT_WALLET"
     signature_type = 3
     order_visibility = "SESSION_SIGNER_ONLY"
+    signer_type = "SESSION_KEY"
 
     def __init__(self, *, private_key, api_key: str, api_secret: str, api_passphrase: str,
                  wallet: str, signer: str, deposit_owner: str, session_scopes, session_valid_until,
@@ -993,10 +1024,18 @@ class ExchangeDepositSession(ExchangeEOA):
             raise ExchangeError("DEPOSIT_SESSION_EXPIRY_INVALID")
         self.session_scopes = ("CLOB",)
 
+    def redemption_receipt(self, transaction_hash: str, condition: str) -> list[dict]:
+        from .deposit_redemption import read_deposit_redemption
+        return read_deposit_redemption(self.chain, transaction_hash, wallet=self.wallet,
+                                       owner=self.deposit_owner, condition=condition)
+
     def _onchain_session_valid_until(self, *, block: dict | None = None) -> int:
         block = self.chain.block("latest") if block is None else block
-        return self.chain.call_uint(self.wallet, "sessionSignerAuthorizedUntil(address)",
-                                    ["address"], [self.signer], block=hex(block["number"]))
+        value = self.chain.call_uint(self.wallet, "sessionSignerAuthorizedUntil(address)",
+                                     ["address"], [self.signer], block=hex(block["number"]))
+        if not -30 <= self.clock() - block["timestamp"] <= 180:
+            raise ExchangeError("STALE_CHAIN_BLOCK")
+        return value
 
     def _session_authorization_restriction(self, onchain_valid_until: int, *, now=None) -> str | None:
         now = self.clock() if now is None else now
@@ -1006,59 +1045,41 @@ class ExchangeDepositSession(ExchangeEOA):
             return "SESSION_AUTHORIZATION_ONCHAIN_BEFORE_CONFIGURED_EXPIRY"
         if now >= onchain_valid_until - SESSION_OPENING_SAFETY_SECONDS:
             return "SESSION_AUTHORIZATION_EXPIRED_OR_NEAR_EXPIRY"
+        if now >= self.session_valid_until - SESSION_OPENING_SAFETY_SECONDS:
+            return "SESSION_AUTHORIZATION_EXPIRED_OR_NEAR_EXPIRY"
+        if now >= self.session_exclusive_until - SESSION_OPENING_SAFETY_SECONDS:
+            return "DEDICATED_SESSION_EXCLUSIVITY_EXPIRED_OR_NEAR_EXPIRY"
         return None
+
+    def _attested_session_authorization(self) -> dict:
+        from .wallet_attestation import attest_wallet
+        forms = _deposit_wallet_owner_forms(self.deposit_owner)
+        expected_proxy = next(name for name, wallet in forms.items() if wallet == self.wallet)
+        return attest_wallet(self.chain, self.wallet, self.deposit_owner, self.signer,
+                             expected_proxy_type=expected_proxy, clock=self.clock)
 
     def session_opening_restriction(self) -> str | None:
         try:
-            valid_until = self._onchain_session_valid_until()
-        except ExchangeError:
-            return "SESSION_AUTHORIZATION_ONCHAIN_UNKNOWN"
-        return self._session_authorization_restriction(valid_until)
+            evidence = self._attested_session_authorization()
+        except ExchangeError as exc:
+            return exc.code
+        return self._session_authorization_restriction(evidence["onchain_valid_until"])
+
+    def _submission_opening_restriction(self) -> str | None:
+        return self.session_opening_restriction()
 
     def eligibility(self, *, require_opening: bool = True) -> dict:
         result = super().eligibility(require_opening=False)
         restrictions = list(result["opening_restrictions"])
-        block = None
+        evidence, onchain_valid_until = None, None
         try:
-            block = self.chain.block("latest")
-        except ExchangeError:
-            restrictions.append("DEPOSIT_WALLET_CHAIN_ATTESTATION_UNKNOWN")
-
-        live_beacon = None
-        if block is not None:
-            at = hex(block["number"])
-            try:
-                raw_beacon = self.chain.call(DEPOSIT_WALLET_FACTORY, "BEACON()", [], [], block=at)
-                if len(raw_beacon) != 32:
-                    raise ExchangeError("DEPOSIT_WALLET_FACTORY_BEACON_UNKNOWN")
-                live_beacon = address("0x" + raw_beacon[-20:].hex())
-                if live_beacon != address(DEPOSIT_WALLET_BEACON):
-                    restrictions.append("DEPOSIT_WALLET_FACTORY_BEACON_DRIFT")
-            except ExchangeError:
-                restrictions.append("DEPOSIT_WALLET_FACTORY_BEACON_UNKNOWN")
-
-            if live_beacon == address(DEPOSIT_WALLET_BEACON):
-                try:
-                    raw_impl = self.chain.call(live_beacon, "implementation()", [], [], block=at)
-                    if len(raw_impl) != 32:
-                        raise ExchangeError("DEPOSIT_WALLET_BEACON_IMPLEMENTATION_UNKNOWN")
-                    live_impl = address("0x" + raw_impl[-20:].hex())
-                    if live_impl != address(DEPOSIT_WALLET_BEACON_IMPLEMENTATION):
-                        restrictions.append("DEPOSIT_WALLET_BEACON_IMPLEMENTATION_DRIFT")
-                except ExchangeError:
-                    restrictions.append("DEPOSIT_WALLET_BEACON_IMPLEMENTATION_UNKNOWN")
-
-            try:
-                onchain_valid_until = self._onchain_session_valid_until(block=block)
-                session_restriction = self._session_authorization_restriction(onchain_valid_until)
-                if session_restriction:
-                    restrictions.append(session_restriction)
-            except ExchangeError:
-                onchain_valid_until = None
-                restrictions.append("SESSION_AUTHORIZATION_ONCHAIN_UNKNOWN")
-        else:
-            onchain_valid_until = None
-            restrictions.append("SESSION_AUTHORIZATION_ONCHAIN_UNKNOWN")
+            evidence = self._attested_session_authorization()
+            onchain_valid_until = evidence["onchain_valid_until"]
+            session_restriction = self._session_authorization_restriction(onchain_valid_until)
+            if session_restriction:
+                restrictions.append(session_restriction)
+        except ExchangeError as exc:
+            restrictions.append(exc.code)
 
         now = self.clock()
         if now >= self.session_valid_until - SESSION_OPENING_SAFETY_SECONDS:
@@ -1075,16 +1096,17 @@ class ExchangeDepositSession(ExchangeEOA):
                     session_scopes=list(self.session_scopes),
                     session_valid_until=self.session_valid_until,
                     session_onchain_valid_until=onchain_valid_until,
+                    wallet_attestation=evidence,
                     session_exclusive_until=self.session_exclusive_until)
 
     def prepare_buy(self, *, token: str, condition: str, quantity, price,
                     order_type: str, fee_cap, expiration: int = 0,
                     valid_until: float | None = None, post_only: bool | None = None) -> dict:
-        now = self.clock()
         try:
             onchain_valid_until = self._onchain_session_valid_until()
         except ExchangeError:
             raise ExchangeError("SESSION_AUTHORIZATION_ONCHAIN_UNKNOWN") from None
+        now = self.clock()
         restriction = self._session_authorization_restriction(onchain_valid_until, now=now)
         if restriction:
             raise ExchangeError(restriction)

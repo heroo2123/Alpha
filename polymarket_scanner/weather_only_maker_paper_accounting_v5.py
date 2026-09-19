@@ -179,6 +179,43 @@ class MakerPaperAccountingStoreV5(MakerPaperAccountingStoreV4):
                 raise
         return order
 
+    def reconcile_pending_delivery_without_receipt_after_restart(
+        self, *, recorded_at: float | None = None
+    ) -> int:
+        """Conservatively terminalize ambiguous maker sends lacking a durable receipt.
+
+        A row can reach PENDING_DELIVERY immediately before Telegram I/O. If the
+        runtime later restarts without a saved Telegram receipt, we cannot prove
+        whether the remote side accepted the message. Never retry or leave the row
+        indefinitely pending: mark it DELIVERY_UNCERTAIN and preserve it for audit.
+        """
+        _nonnegative_time(
+            time.time() if recorded_at is None else recorded_at,
+            "MAKER_PENDING_RESTART_TIME_INVALID",
+        )
+        with self._db_lock:
+            try:
+                self.db.execute("BEGIN IMMEDIATE")
+                rows = self.db.execute(
+                    "SELECT id FROM weather_paper_signals "
+                    "WHERE lane='weather_maker_virtual_bid' "
+                    "AND status='PENDING_DELIVERY' "
+                    "AND telegram_message_id IS NULL "
+                    "ORDER BY id"
+                ).fetchall()
+                for row in rows:
+                    self.db.execute(
+                        "UPDATE weather_paper_signals "
+                        "SET status='DELIVERY_UNCERTAIN' WHERE id=?",
+                        (int(row["id"]),),
+                    )
+                self.db.execute("COMMIT")
+            except Exception:
+                if self.db.in_transaction:
+                    self.db.execute("ROLLBACK")
+                raise
+        return len(rows)
+
     def unactivated_receipt_signal_ids(self) -> list[int]:
         """Detect delivered maker receipts lacking a durable activated virtual order."""
         terminal = {

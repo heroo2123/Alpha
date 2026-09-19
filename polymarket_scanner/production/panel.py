@@ -151,6 +151,18 @@ class OperatorPanel:
                       "with a CLOB-only Session Key; there is no silent EOA/owner-key fallback.\n"
                       "Keep account recovery, Session authorization/revocation, and owner custody "
                       "independent of Telegram and this host. See ACCOUNT_SECURITY_ONBOARDING.md.")
+            elif self.config.is_deposit_owner:
+                text=("WALLET SECURITY\nCurrent adapter: dedicated Deposit Wallet using its OWNER key, not a Session Key. "
+                      "Builder/Session approval is not required for this account connection route.\n"
+                      "FULL OWNER AUTHORITY: a compromised executor can put the entire dedicated wallet at risk, "
+                      "including withdrawals. BUY-only software and API limits are not a withdrawal restriction. "
+                      "Never use a main savings wallet or reuse its recovery seed here.\n"
+                      f"Wallet: {self.config.wallet}; owner signer: {self.config.signer}; "
+                      f"exclusive-use approval expires {self.config.wallet_exclusive_until}.\n"
+                      "Only the dedicated owner signing key and its CLOB credentials belong on the executor. "
+                      "Keep Builder/Relayer credentials off-host. No manual orders or other sessions while active. "
+                      "Deposit, approval, recovery and redemption actions remain external. Pausing is not "
+                      "key revocation; a leaked owner key requires independent account recovery.")
             elif self.config.wallet_type=="DEPOSIT_WALLET":
                 text=("WALLET SECURITY\nCurrent adapter: Deposit Wallet with a CLOB-only Session Key. The executor holds the session EOA key and that session's CLOB credentials; the Deposit Wallet Owner key and Builder credentials stay off this host. The protected config permits only CLOB scope and this runtime has no owner or withdrawal action; owner-device acceptance must separately verify that the venue authorization matches that scope.\n"
                       f"Session signer: {self.config.signer}; venue authorization expires {self.config.session_valid_until}; dedicated-wallet exclusivity expires {self.config.session_exclusive_until}.\n"
@@ -197,6 +209,8 @@ class OperatorPanel:
             text="CLAIMABLE, NOT SPENDABLE CASH\n"
             for claim in account.get("claimable_positions",[])[:10]:
                 text+=claim["token"]+": "+("UNVERIFIED" if claim["unredeemed_value_micros"] is None else "$"+units(claim["unredeemed_value_micros"]))+"\n"
+            if account.get("unverified_redemption_count", 0):
+                text += f"Cash receipts awaiting revalidation: {account['unverified_redemption_count']}; new openings blocked. Original records are retained.\n"
             text+="Verified redeemed proceeds by asset (not an available balance): "+canonical({k:units(v) for k,v in account.get("verified_redemption_proceeds_by_asset_micros",{}).items()})+"\n"
             text+="Owner redeems externally. Record verified receipt locally. No automatic redemption or early selling. Collateral conversion/allowances may still be required."
         elif name=="PERFORMANCE":

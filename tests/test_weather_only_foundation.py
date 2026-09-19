@@ -217,6 +217,45 @@ def test_discovery_repeated_cursor_fails_closed():
     assert raised.value.code == "CURSOR_REPEAT"
 
 
+
+def test_discovery_page_bytes_cap_retries_same_cursor_with_smaller_limit(monkeypatch):
+    monkeypatch.setattr(discovery_module, "MAX_PAGE_BYTES", 300)
+    calls=[]
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        limit=int(request.url.params["limit"])
+        cursor=request.url.params.get("after_cursor")
+        calls.append((limit,cursor))
+        # Simulate Gamma honoring the requested limit: large pages exceed the
+        # fixed byte cap, while a sufficiently small page is safe.
+        count=limit
+        payload={
+            "events": [
+                {"id":f"e-{i}","title":"x"*40,"markets":[]}
+                for i in range(count)
+            ],
+            "next_cursor":"cursor-next",
+        }
+        return httpx.Response(200,json=payload)
+
+    async def run():
+        client=WeatherOnlyDiscovery()
+        await client.http.aclose()
+        client.http=httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        try:
+            return await client._keyset_page(None,"cursor-start",page_size=8)
+        finally:
+            await client.close()
+
+    events,next_cursor=asyncio.run(run())
+    assert calls[0]==(8,"cursor-start")
+    assert len(calls)>=2
+    assert all(cursor=="cursor-start" for _limit,cursor in calls)
+    assert calls[-1][0] < calls[0][0]
+    assert len(events)==calls[-1][0]
+    assert next_cursor=="cursor-next"
+
+
 def test_discovery_page_bytes_cap_is_fixed_failure(monkeypatch):
     monkeypatch.setattr(discovery_module, "MAX_PAGE_BYTES", 32)
 

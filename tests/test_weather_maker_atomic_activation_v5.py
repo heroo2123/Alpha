@@ -126,3 +126,53 @@ def test_receipted_but_unactivated_maker_signal_is_not_reconstructed_after_resta
     assert maker.db.execute(
         "SELECT COUNT(*) FROM weather_maker_shadow_orders"
     ).fetchone()[0] == 0
+
+
+def test_pending_maker_without_receipt_becomes_delivery_uncertain_after_restart(tmp_path):
+    path = tmp_path / "paper.sqlite"
+    store = PostReceiptWeatherPaperStore(path)
+    sid = store.save_signal(
+        fingerprint="fp-no-receipt",
+        lane="weather_maker_virtual_bid",
+        evidence_class="TEST_MAKER",
+        event_id="event-no-receipt",
+        market_id="market-no-receipt",
+        side="YES",
+        token_id="token-no-receipt",
+        model_probability=0.7,
+        entry_cost=0.40,
+        raw_gap=0.2,
+        theoretical_payout=1.0,
+        created_at=NOW,
+        payload={"order_id": "maker-no-receipt", "token_id": "token-no-receipt"},
+    )
+    assert sid is not None
+    store.set_signal_status(sid, "PENDING_DELIVERY")
+    maker = MakerPaperAccountingStoreV5(path)
+    assert maker.reconcile_pending_delivery_without_receipt_after_restart(
+        recorded_at=NOW + 2.0
+    ) == 1
+    with store._conn() as db:
+        row = db.execute(
+            "SELECT status,telegram_message_id FROM weather_paper_signals WHERE id=?",
+            (sid,),
+        ).fetchone()
+    assert row["status"] == "DELIVERY_UNCERTAIN"
+    assert row["telegram_message_id"] is None
+    assert maker.reconcile_pending_delivery_without_receipt_after_restart(
+        recorded_at=NOW + 3.0
+    ) == 0
+
+
+def test_pending_maker_with_receipt_is_left_for_delivered_orphan_recovery(tmp_path):
+    path = tmp_path / "paper.sqlite"
+    store, sid = _signal(path, "receipt-path")
+    maker = MakerPaperAccountingStoreV5(path)
+    assert maker.reconcile_pending_delivery_without_receipt_after_restart(
+        recorded_at=NOW + 2.0
+    ) == 0
+    with store._conn() as db:
+        assert db.execute(
+            "SELECT status FROM weather_paper_signals WHERE id=?", (sid,)
+        ).fetchone()["status"] == "PENDING_DELIVERY"
+    assert maker.unactivated_receipt_signal_ids() == [sid]

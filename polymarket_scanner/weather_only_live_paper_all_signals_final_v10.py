@@ -8,7 +8,9 @@ import os
 import site
 import sys
 import time
+from datetime import datetime, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from .weather_only_live_paper import (
     DEFAULT_FORECAST_CACHE_SECONDS,
@@ -18,6 +20,7 @@ from .weather_only_live_paper import (
     WeatherLivePaperError,
     _atomic_json,
     _event_link,
+    _event_title,
 )
 from .weather_only_live_paper_all_signals_final_v9 import (
     FINAL_ALL_PAPER_RUNTIME_V9_VERSION,
@@ -26,8 +29,14 @@ from .weather_only_live_paper_all_signals_final_v9 import (
     FinalAllPaperWeatherLiveServiceV9,
     FinalOperatorStateTelegram,
 )
+from .weather_only_contract_strict import (
+    StrictWeatherContractError,
+    compile_strict_temperature_event,
+)
+from .weather_only_contracts import SOURCE_NWS_WRH
 from .weather_only_live_paper_all_signals_v3 import MAKER_EVIDENCE_CLASS, MAKER_LANE
 from .weather_only_live_paper_v2 import DEFAULT_PAPER_STAKE_USD
+from .weather_only_live_paper_v4 import QUOTE_DECISION_TTL_SECONDS
 from .weather_only_maker_paper_accounting_v6 import (
     CERTIFIED_QUEUE_MODEL,
     LEGACY_QUEUE_UNCERTIFIED,
@@ -39,13 +48,28 @@ from .weather_only_operator_state_corrective_v5 import (
     OPERATOR_STATE_CORRECTIVE_V5_VERSION,
     OperatorStatePostReceiptStoreV5,
 )
-from .weather_only_paper_corrective import CorrectiveSettlementEngine, DeliveryUncertain
+from .weather_only_paper_corrective import (
+    CorrectivePaperError,
+    CorrectiveSettlementEngine,
+    DeliveryUncertain,
+    final_token_payout_v4,
+)
 from .weather_only_paper_positions import _payload
+from .weather_only_result_lag_research import (
+    MAX_RESEARCH_ATTEMPTS_PER_EVENT,
+    ResultLagResearchError,
+    ResultLagResearchStore,
+    evaluate_provisional_result_lag_research,
+)
+from .weather_only_wrh import WRHSourceError
 
 
 FINAL_ALL_PAPER_RUNTIME_V10_VERSION = (
     "final_all_paper_v10_semantic_census_unified_terminalization_maker_evidence"
 )
+RESULT_LAG_RESEARCH_MAX_EVENTS_PER_CYCLE = 4
+RESULT_LAG_RESEARCH_MAX_TARGET_AGE_DAYS = 2
+RESULT_LAG_RESEARCH_CURSOR_KEY = "v10_result_lag_research_cursor"
 FORBIDDEN_CODE_ENV = (
     "PYTHONPATH",
     "PYTHONHOME",
@@ -89,6 +113,10 @@ class FinalAllPaperWeatherLiveServiceV10(FinalAllPaperWeatherLiveServiceV9):
 
         old_maker.close()
         self.maker_store = MakerPaperAccountingStoreV6(self.db_path)
+        self.result_lag_research = ResultLagResearchStore(self.db_path)
+        self._result_lag_research_sent = 0
+        self._result_lag_research_opened = 0
+        self._result_lag_research_skipped = 0
         self.settlement = CorrectiveSettlementEngine(
             store=self.positions, telegram=self.telegram
         )
@@ -96,6 +124,7 @@ class FinalAllPaperWeatherLiveServiceV10(FinalAllPaperWeatherLiveServiceV9):
             telegram=self.telegram,
             store=self.positions,
             maker_store=self.maker_store,
+            result_lag_store=self.result_lag_research,
             status_path=self.status_path,
             paper_stake_usd=self.paper_stake_usd,
         )
@@ -173,7 +202,19 @@ class FinalAllPaperWeatherLiveServiceV10(FinalAllPaperWeatherLiveServiceV9):
         sync = await self._sync_operator_messages()
         if sync.get("healthy") is not True or list(sync.get("errors") or []):
             raise WeatherLivePaperError("STARTUP_OPERATOR_SYNC_NOT_CONFIRMED")
-        return int(await super().send_startup())
+        startup_id = int(await super().send_startup())
+        await self.telegram.send_html(
+            "\n".join(
+                [
+                    "🧪 <b>RESULT-LAG PAPER RESEARCH ACTIVE</b>",
+                    "Current WRH post-day publication state may create simulated research positions.",
+                    "This lane is revision-sensitive and excluded from validated P&amp;L.",
+                    "Deterministic/live Result-Lag remains gated until exact publication finality is proven.",
+                    "🚫 No real order authority.",
+                ]
+            )
+        )
+        return startup_id
 
     async def _send_maker_candidate(
         self, candidate: dict
@@ -266,6 +307,350 @@ class FinalAllPaperWeatherLiveServiceV10(FinalAllPaperWeatherLiveServiceV9):
         # V7's atomic activation transaction already commits MAKER_RESTING.
         return True, None
 
+    @staticmethod
+    def _result_lag_research_message(candidate, event: dict) -> str:
+        return "\n".join(
+            [
+                "🧪 <b>PAPER RESULT-LAG RESEARCH — PROVISIONAL</b>",
+                f"<b>{html.escape(_event_title(event, candidate.event_id))}</b>",
+                "",
+                f"Current WRH publication implies: <b>{candidate.provisional_value_f}°F</b>",
+                "Provisional simulated thesis: <b>BUY YES</b>",
+                f"Exact YES ask: <b>$__DOLLAR__{candidate.executable_ask:.4f}</b> + fee $__DOLLAR__{candidate.conservative_fee_per_share:.5f}",
+                f"Provisional post-fee edge: <b>{100.0 * candidate.provisional_edge_per_share:.2f}%</b>",
+                "",
+                "⚠️ <b>REVISION-SENSITIVE RESEARCH</b>: exact WRH publication finality is NOT proven.",
+                "A fresh WRH fetch and exact-CLOB recheck after this Telegram receipt are required before a PAPER research position opens.",
+                "This sleeve is excluded from validated paper P&amp;L.",
+                "🚫 No real order was placed.",
+            ]
+        ).replace("$__DOLLAR__", "$")
+
+    @staticmethod
+    def _result_lag_opened_message(candidate, event: dict, position: dict) -> str:
+        return "\n".join(
+            [
+                "🧪 <b>PAPER RESULT-LAG RESEARCH POSITION OPENED</b>",
+                f"<b>{html.escape(_event_title(event, candidate.event_id))}</b>",
+                f"Provisional WRH value: <b>{candidate.provisional_value_f}°F</b>",
+                f"Simulated entry: <b>$__DOLLAR__{float(position.get('total_cost_per_share') or 0.0):.4f}</b> per share",
+                f"Simulated capital: <b>$__DOLLAR__{float(position.get('capital_used') or 0.0):.2f}</b>",
+                f"Simulated shares: <b>{float(position.get('filled_shares') or 0.0):.4f}</b>",
+                "",
+                "⚠️ Revision-sensitive / non-deterministic research.",
+                "Excluded from validated V5 P&amp;L.",
+                "🚫 No real order was placed.",
+            ]
+        ).replace("$__DOLLAR__", "$")
+
+    @staticmethod
+    def _result_lag_invalidated_message(candidate, event: dict, reason: str) -> str:
+        return "\n".join(
+            [
+                "⚪ <b>PAPER RESULT-LAG RESEARCH CANDIDATE INVALIDATED</b>",
+                f"<b>{html.escape(_event_title(event, candidate.event_id))}</b>",
+                f"Reason: <code>{html.escape(str(reason))}</code>",
+                "No simulated position was opened.",
+                "🚫 No real order was placed.",
+            ]
+        )
+
+    async def _result_lag_research_eligible(self, events) -> list[tuple[dict, object]]:
+        eligible: list[tuple[dict, object]] = []
+        for event in events:
+            if not isinstance(event, dict):
+                continue
+            try:
+                compiled = compile_strict_temperature_event(event)
+                if compiled.source_family != SOURCE_NWS_WRH or compiled.unit != "F":
+                    continue
+                metadata = await self._station_metadata_for_compiled(compiled)
+                if metadata is None:
+                    continue
+                local_today = datetime.now(tz=timezone.utc).astimezone(
+                    ZoneInfo(str(metadata.timezone))
+                ).date()
+            except Exception:
+                continue
+            age_days = (local_today - compiled.target_date).days
+            if age_days <= 0 or age_days > RESULT_LAG_RESEARCH_MAX_TARGET_AGE_DAYS:
+                continue
+            if self.result_lag_research.event_has_position(compiled.event_id):
+                continue
+            if (
+                self.result_lag_research.attempts_for_event(compiled.event_id)
+                >= MAX_RESEARCH_ATTEMPTS_PER_EVENT
+            ):
+                continue
+            eligible.append((event, compiled))
+        eligible.sort(key=lambda item: (item[1].target_date, item[1].event_id))
+        return eligible
+
+    async def _run_result_lag_research(self, events) -> dict:
+        eligible = await self._result_lag_research_eligible(events)
+        if not eligible:
+            return {
+                "evaluated": 0,
+                "candidates": 0,
+                "sent": 0,
+                "opened": 0,
+                "skipped": 0,
+                "errors": [],
+            }
+        try:
+            cursor = int(self.positions.get_state(RESULT_LAG_RESEARCH_CURSOR_KEY, "0") or 0)
+        except (TypeError, ValueError):
+            cursor = 0
+        start = cursor % len(eligible)
+        count = min(RESULT_LAG_RESEARCH_MAX_EVENTS_PER_CYCLE, len(eligible))
+        chosen = [eligible[(start + offset) % len(eligible)] for offset in range(count)]
+        self.positions.set_state(RESULT_LAG_RESEARCH_CURSOR_KEY, str(cursor + count))
+
+        evaluated = candidates = sent = opened = skipped = 0
+        errors: list[str] = []
+        for event, compiled in chosen:
+            evaluated += 1
+            try:
+                fetched = await asyncio.to_thread(
+                    self._same_day_wrh.fetch_snapshot,
+                    station=str(compiled.station_hint),
+                    target_date=compiled.target_date,
+                )
+                pre, _ = await evaluate_provisional_result_lag_research(
+                    event,
+                    fetched.snapshot,
+                    clob=self.runtime.clob,
+                )
+            except (WRHSourceError, ResultLagResearchError, StrictWeatherContractError) as exc:
+                code = getattr(exc, "code", type(exc).__name__)
+                errors.append(f"RESULT_LAG_RESEARCH:{compiled.event_id}:{code}")
+                continue
+            except Exception as exc:
+                errors.append(
+                    f"RESULT_LAG_RESEARCH:{compiled.event_id}:{type(exc).__name__}"
+                )
+                continue
+            if pre is None:
+                skipped += 1
+                self._result_lag_research_skipped += 1
+                continue
+            candidates += 1
+            row_id = await asyncio.to_thread(
+                self.result_lag_research.save_pending,
+                pre,
+                fingerprint=pre.candidate_evidence_sha256,
+                target_stake_usd=self.paper_stake_usd,
+            )
+            if row_id is None:
+                continue
+            expires_at = time.time() + QUOTE_DECISION_TTL_SECONDS
+            try:
+                message_id = await self.telegram.send_html(
+                    self._result_lag_research_message(pre, event),
+                    url=_event_link(event),
+                    expires_at=expires_at,
+                )
+            except DeliveryUncertain as exc:
+                await asyncio.to_thread(
+                    self.result_lag_research.mark_delivery_failed,
+                    row_id,
+                    uncertain=True,
+                    reason=exc.code,
+                )
+                continue
+            except WeatherLivePaperError as exc:
+                await asyncio.to_thread(
+                    self.result_lag_research.mark_delivery_failed,
+                    row_id,
+                    uncertain=False,
+                    reason=exc.code,
+                )
+                continue
+
+            sent_at = time.time()
+            await asyncio.to_thread(
+                self.result_lag_research.mark_telegram_sent,
+                row_id,
+                int(message_id),
+                sent_at,
+            )
+            sent += 1
+            self._result_lag_research_sent += 1
+            try:
+                refreshed = await asyncio.to_thread(
+                    self._same_day_wrh.fetch_snapshot,
+                    station=str(compiled.station_hint),
+                    target_date=compiled.target_date,
+                )
+                post, _ = await evaluate_provisional_result_lag_research(
+                    event,
+                    refreshed.snapshot,
+                    clob=self.runtime.clob,
+                )
+                if (
+                    post is None
+                    or post.token_id != pre.token_id
+                    or post.market_id != pre.market_id
+                    or time.time() >= expires_at
+                ):
+                    reason = "POST_RECEIPT_PROVISIONAL_THESIS_OR_PRICE_CHANGED"
+                    await asyncio.to_thread(
+                        self.result_lag_research.reject_post_receipt,
+                        row_id,
+                        reason,
+                    )
+                    try:
+                        await self.telegram.edit_html(
+                            int(message_id),
+                            self._result_lag_invalidated_message(pre, event, reason),
+                        )
+                    except Exception:
+                        pass
+                    continue
+                position = await asyncio.to_thread(
+                    self.result_lag_research.open_post_receipt,
+                    row_id,
+                    post,
+                    telegram_sent_at=sent_at,
+                    target_stake_usd=self.paper_stake_usd,
+                )
+            except (WRHSourceError, ResultLagResearchError, StrictWeatherContractError) as exc:
+                code = getattr(exc, "code", type(exc).__name__)
+                await asyncio.to_thread(
+                    self.result_lag_research.reject_post_receipt,
+                    row_id,
+                    code,
+                )
+                try:
+                    await self.telegram.edit_html(
+                        int(message_id),
+                        self._result_lag_invalidated_message(pre, event, code),
+                    )
+                except Exception:
+                    pass
+                continue
+            except Exception as exc:
+                code = type(exc).__name__
+                await asyncio.to_thread(
+                    self.result_lag_research.reject_post_receipt,
+                    row_id,
+                    code,
+                )
+                errors.append(f"RESULT_LAG_RESEARCH_POST:{compiled.event_id}:{code}")
+                continue
+
+            if str(position.get("status") or "") == "OPEN":
+                opened += 1
+                self._result_lag_research_opened += 1
+                try:
+                    await self.telegram.edit_html(
+                        int(message_id),
+                        self._result_lag_opened_message(post, event, position),
+                    )
+                except Exception:
+                    pass
+            else:
+                skipped += 1
+                self._result_lag_research_skipped += 1
+
+        return {
+            "evaluated": evaluated,
+            "candidates": candidates,
+            "sent": sent,
+            "opened": opened,
+            "skipped": skipped,
+            "errors": errors,
+        }
+
+    async def _settle_result_lag_research(self) -> dict:
+        positions = await asyncio.to_thread(self.result_lag_research.open_positions, 50)
+        resolved = 0
+        errors: list[str] = []
+        for position in positions:
+            market = await self.settlement.gamma.market_by_id(str(position["market_id"]))
+            if not isinstance(market, dict):
+                continue
+            try:
+                payout = final_token_payout_v4(
+                    str(position["token_id"]),
+                    market,
+                    expected_condition_id=str(position["condition_id"]),
+                    expected_side="YES",
+                )
+            except CorrectivePaperError as exc:
+                errors.append(
+                    f"RESULT_LAG_RESEARCH_SETTLEMENT:{position['id']}:{exc.code}"
+                )
+                continue
+            if payout is None:
+                continue
+            evidence = {
+                "source": "GAMMA_RESOLVED_EXACT_TOKEN_FINAL_VECTOR",
+                "checked_at": time.time(),
+                "provisional_result_lag_research": True,
+                "included_in_validated_pnl": False,
+                "market_id": str(position["market_id"]),
+                "condition_id": str(position["condition_id"]),
+                "token_id": str(position["token_id"]),
+                "payout": float(payout),
+                "financial_authority": False,
+            }
+            row = await asyncio.to_thread(
+                self.result_lag_research.resolve,
+                int(position["id"]),
+                float(payout),
+                evidence,
+            )
+            if row is not None:
+                resolved += 1
+
+        notified = 0
+        for row in await asyncio.to_thread(
+            self.result_lag_research.pending_notifications, 50
+        ):
+            pid = int(row["id"])
+            await asyncio.to_thread(
+                self.result_lag_research.set_notification, pid, "SENDING", None
+            )
+            pnl = float(row.get("pnl") or 0.0)
+            label = "WIN" if pnl > 1e-9 else "LOSS" if pnl < -1e-9 else "PARTIAL"
+            text = "\n".join(
+                [
+                    f"🧪 <b>RESULT-LAG RESEARCH SETTLED — {label}</b>",
+                    f"Station/date: <b>{html.escape(str(row.get('station') or ''))} / {html.escape(str(row.get('target_date') or ''))}</b>",
+                    f"Provisional WRH value at entry: <b>{int(row.get('provisional_value_f') or 0)}°F</b>",
+                    f"Research P&amp;L: <b>$__DOLLAR__{pnl:+.2f}</b>",
+                    "Excluded from validated paper P&amp;L.",
+                    "🚫 No real order was placed.",
+                ]
+            ).replace("$__DOLLAR__", "$")
+            try:
+                mid = await self.telegram.send_html(text)
+            except DeliveryUncertain:
+                await asyncio.to_thread(
+                    self.result_lag_research.set_notification, pid, "UNCERTAIN", None
+                )
+                continue
+            except Exception:
+                await asyncio.to_thread(
+                    self.result_lag_research.set_notification, pid, "PENDING", None
+                )
+                continue
+            await asyncio.to_thread(
+                self.result_lag_research.set_notification,
+                pid,
+                "ACKNOWLEDGED",
+                int(mid),
+            )
+            notified += 1
+
+        return {
+            "open_checked": len(positions),
+            "resolved_now": resolved,
+            "notifications_sent": notified,
+            "errors": errors,
+        }
+
     def _maker_settlement_message(self, payload: dict) -> str:
         order_id = str(payload.get("order_id") or "")
         evidence_class = self.maker_store.evidence_class(order_id)
@@ -295,6 +680,11 @@ class FinalAllPaperWeatherLiveServiceV10(FinalAllPaperWeatherLiveServiceV9):
 
     async def run_cycle(self) -> dict:
         status = dict(await super().run_cycle())
+        discovery = getattr(getattr(self, "_capturing_discovery", None), "last_result", None)
+        events = tuple(getattr(discovery, "events", ()) or ()) if discovery is not None else ()
+        result_lag_research = await self._run_result_lag_research(events)
+        result_lag_settlement = await self._settle_result_lag_research()
+        result_lag_stats = await asyncio.to_thread(self.result_lag_research.stats)
         recall = dict(status.get("global_weather_recall") or {})
         semantic_complete = recall.get("weather_semantic_coverage_complete") is True
         policy = str(recall.get("weather_semantic_product_policy") or "")
@@ -345,11 +735,36 @@ class FinalAllPaperWeatherLiveServiceV10(FinalAllPaperWeatherLiveServiceV9):
                 "runtime_prefix": sys.prefix,
                 "runtime_base_prefix": sys.base_prefix,
                 "maker_legacy_queue_pnl_excluded": True,
+                "result_lag_paper_delivery_enabled": True,
+                "result_lag_research_only": True,
+                "result_lag_revision_sensitive": True,
+                "result_lag_validated_finality": False,
+                "result_lag_included_in_validated_pnl": False,
+                "result_lag_live_financial_enabled": False,
+                "result_lag_research_evaluated": int(result_lag_research["evaluated"]),
+                "result_lag_research_candidates": int(result_lag_research["candidates"]),
+                "result_lag_research_sent_total": self._result_lag_research_sent,
+                "result_lag_research_opened_total": self._result_lag_research_opened,
+                "result_lag_research_skipped_total": self._result_lag_research_skipped,
+                "result_lag_research_errors": list(result_lag_research["errors"]),
+                "result_lag_research_settlement": result_lag_settlement,
+                "result_lag_research_stats": result_lag_stats,
+                "result_lag_research_restart_recovery": dict(
+                    self.result_lag_research.recovery
+                ),
                 "financial_authority": False,
                 "automatic_order_placement": False,
                 "wallet_or_order_api_loaded": False,
             }
         )
+        result_lag_errors = (
+            list(result_lag_research.get("errors") or [])
+            + list(result_lag_settlement.get("errors") or [])
+        )
+        if result_lag_errors:
+            status["cycle_ok"] = False
+            status["operator_all_lanes_healthy"] = False
+            status.setdefault("errors", []).extend(result_lag_errors)
         if policy != "STRICT_SUPPORTED_SUBSET":
             status["cycle_ok"] = False
             status["operator_all_lanes_healthy"] = False

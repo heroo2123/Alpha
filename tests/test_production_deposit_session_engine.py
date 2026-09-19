@@ -25,7 +25,8 @@ class SessionExchange(Exchange):
         value=super().account_snapshot(**kwargs)
         value.update(wallet=DEPOSIT, signer=SESSION, wallet_type="DEPOSIT_WALLET", deposit_owner=OWNER,
                      signature_type=3, order_visibility=self.visibility, wallet_activity=[],
-                     wallet_activity_session_trades=[], wallet_activity_after=1)
+                     wallet_activity_session_trades=[], wallet_activity_after=1,
+                     wallet_activity_before=int(time.time()))
         return value
     def session_opening_restriction(self):
         return None
@@ -44,6 +45,7 @@ def make_engine(tmp_path, **cfg_overrides):
     cfg=session_config(tmp_path, **cfg_overrides)
     cfg.activation_file.write_text(json.dumps({"action":"ACTIVATE_LIVE_EXECUTION",
         "wallet":DEPOSIT,"config_sha256":cfg.config_sha256}))
+    cfg.activation_file.chmod(0o600)
     sig=candidate(); store=SignalStore(cfg.signal_db)
     store.bind_telegram({"bot_id":"123","chat_id":"42"})
     store.save(sig); store.begin_send(sig["id"]); store.receipt(sig["id"],1)
@@ -124,7 +126,7 @@ def test_wallet_wide_activity_accounted_by_same_session_is_accepted(tmp_path):
         "token":str(2**150+2**90+1234),"side":"BUY"}
     exchange.account_snapshot=lambda **kwargs: dict(original(**kwargs),
         wallet_activity=[dict(identity,quantity=1_000_000,price="0.4",timestamp=int(time.time()))],
-        wallet_activity_session_trades=[dict(identity,status="CONFIRMED",wallet_quantity=1_000_000)])
+        wallet_activity_session_trades=[dict(identity,status="CONFIRMED",wallet_quantity=1_000_000,matched_at=int(time.time()))])
     asyncio.run(engine.reconcile())
     assert engine.reconciled and ledger.state("fault") is None and engine.authority()
 
@@ -136,7 +138,7 @@ def test_wallet_activity_quantity_excess_detects_same_tx_token_side_external_fil
         "token":str(2**150+2**90+1234),"side":"BUY"}
     exchange.account_snapshot=lambda **kwargs: dict(original(**kwargs),
         wallet_activity=[dict(identity,quantity=2_000_000,price="0.4",timestamp=int(time.time()))],
-        wallet_activity_session_trades=[dict(identity,status="CONFIRMED",wallet_quantity=1_000_000)])
+        wallet_activity_session_trades=[dict(identity,status="CONFIRMED",wallet_quantity=1_000_000,matched_at=int(time.time()))])
     with pytest.raises(ExecutionError,match="EXTERNAL_WALLET_TRADE_ACTIVITY"):
         asyncio.run(engine.reconcile())
     assert ledger.state("fault") == "EXTERNAL_WALLET_TRADE_ACTIVITY"
@@ -201,6 +203,8 @@ def test_cli_preflight_selects_deposit_session_adapter(tmp_path, monkeypatch):
     from polymarket_scanner.production import exchange as exchange_module
     from polymarket_scanner.production import weather as weather_module
     cfg=session_config(tmp_path)
+    # Real commissioning provisions the state directories before preflight.
+    cfg.signal_db.parent.mkdir(parents=True, exist_ok=True)
     sig=candidate(); exchange=SessionExchange(); weather=Weather(sig)
     exchange.account_snapshot=lambda **kwargs: dict(SessionExchange.account_snapshot(exchange, **kwargs),
         openings_allowed=True, balance=0, allowances={})

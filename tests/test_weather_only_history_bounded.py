@@ -176,3 +176,65 @@ def test_canonical_station_cache_is_ttl_and_lru_bounded(monkeypatch):
     assert a3 is not a2  # TTL expiry at t=20 forces fresh metadata.
     assert service.station_client.calls == ["KAAA", "KBBB", "KCCC", "KAAA"]
     assert len(service._bounded_station_metadata) <= 2
+
+
+def test_multiple_reviewed_protocols_are_preserved_while_unknown_history_is_quarantined(tmp_path: Path):
+    store = CorrectiveWeatherPaperStore(tmp_path / "paper.sqlite")
+
+    def add(index: int, protocol: str | None) -> int:
+        payload = {
+            "event_title": f"Weather fixture multi {index}",
+            "station": "KLGA",
+            "target_date": "2026-09-20",
+            "ask_size": 10.0,
+        }
+        if protocol is not None:
+            payload["paper_execution_protocol_version"] = protocol
+        signal_id = store.save_signal(
+            fingerprint=f"history-multi-{index}",
+            lane="weather_forecast_raw_gap",
+            evidence_class="RESEARCH",
+            event_id=f"event-multi-{index}",
+            market_id=f"market-multi-{index}",
+            side="YES",
+            token_id=f"token-multi-{index}",
+            model_probability=0.5,
+            entry_cost=0.25,
+            raw_gap=0.25,
+            theoretical_payout=1.0,
+            created_at=2000.0 + index,
+            payload=payload,
+        )
+        assert signal_id is not None
+        store.mark_telegram_sent(signal_id, 20_000 + index, sent_at=2100.0 + index)
+        return int(signal_id)
+
+    from polymarket_scanner.weather_only_paper_post_receipt import PAPER_EXECUTION_PROTOCOL_V5
+
+    v4 = add(1, PAPER_EXECUTION_PROTOCOL_V4)
+    v5 = add(2, PAPER_EXECUTION_PROTOCOL_V5)
+    legacy = add(3, None)
+
+    runner = BoundedForecastHistoryQuarantine(
+        store,
+        policy_id="TEST_ACCEPT_V4_V5_V1",
+        current_execution_protocol=PAPER_EXECUTION_PROTOCOL_V5,
+        accepted_execution_protocols=(PAPER_EXECUTION_PROTOCOL_V4, PAPER_EXECUTION_PROTOCOL_V5),
+        quarantine_reason=REASON,
+        batch_size=10,
+    )
+    report = runner.run_once()
+
+    assert report.scanned_now == 3
+    assert report.quarantined_now == 1
+    with store._conn() as db:
+        rows = {
+            int(row["id"]): str(row["status"])
+            for row in db.execute(
+                "SELECT id,status FROM weather_paper_signals WHERE id IN (?,?,?)",
+                (v4, v5, legacy),
+            )
+        }
+    assert rows[v4] != "QUARANTINED"
+    assert rows[v5] != "QUARANTINED"
+    assert rows[legacy] == "QUARANTINED"

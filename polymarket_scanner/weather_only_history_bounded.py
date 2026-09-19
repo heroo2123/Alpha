@@ -62,11 +62,27 @@ class BoundedForecastHistoryQuarantine:
         current_execution_protocol: str,
         quarantine_reason: str,
         batch_size: int = 200,
+        accepted_execution_protocols: tuple[str, ...] | None = None,
     ) -> None:
         if not isinstance(policy_id, str) or not policy_id.strip() or policy_id != policy_id.strip():
             raise BoundedHistoryError("HISTORY_POLICY_ID_INVALID")
         if not isinstance(current_execution_protocol, str) or not current_execution_protocol.strip():
             raise BoundedHistoryError("HISTORY_EXECUTION_PROTOCOL_INVALID")
+        if accepted_execution_protocols is None:
+            accepted = (current_execution_protocol,)
+        else:
+            if (
+                not isinstance(accepted_execution_protocols, tuple)
+                or not accepted_execution_protocols
+                or any(
+                    not isinstance(value, str) or not value.strip() or value != value.strip()
+                    for value in accepted_execution_protocols
+                )
+            ):
+                raise BoundedHistoryError("HISTORY_ACCEPTED_PROTOCOLS_INVALID")
+            accepted = tuple(dict.fromkeys(accepted_execution_protocols))
+            if current_execution_protocol not in accepted:
+                raise BoundedHistoryError("HISTORY_CURRENT_PROTOCOL_NOT_ACCEPTED")
         if not isinstance(quarantine_reason, str) or not quarantine_reason.strip():
             raise BoundedHistoryError("HISTORY_QUARANTINE_REASON_INVALID")
         if isinstance(batch_size, bool) or not isinstance(batch_size, int) or not 1 <= batch_size <= 1000:
@@ -74,6 +90,7 @@ class BoundedForecastHistoryQuarantine:
         self.store = store
         self.policy_id = policy_id
         self.current_execution_protocol = current_execution_protocol
+        self.accepted_execution_protocols = frozenset(accepted)
         self.quarantine_reason = quarantine_reason
         self.batch_size = batch_size
 
@@ -138,7 +155,7 @@ class BoundedForecastHistoryQuarantine:
             signal_id = int(row["id"])
             try:
                 protocol = self._protocol(row.get("payload_json"))
-                if protocol != self.current_execution_protocol:
+                if protocol not in self.accepted_execution_protocols:
                     changed = self.store.quarantine_signal(signal_id, self.quarantine_reason)
                     if changed:
                         quarantined += 1

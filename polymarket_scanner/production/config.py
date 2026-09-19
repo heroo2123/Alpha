@@ -15,6 +15,7 @@ STRATEGIES = frozenset({"DIRECTIONAL", "SAME_DAY", "SOURCE_SHOCK", "STRUCTURAL",
 MODES = frozenset({"LIVE_SIGNALS", "LIVE_EXECUTION", "SIMULATION"})
 FEE_POLICIES = frozenset({"ONCHAIN_BOUND", "EXCHANGE_PUBLISHED_SCHEDULE"})
 SESSION_OPENING_SAFETY_SECONDS = 300
+OWNER_CUSTODY_ACK = "DEDICATED_BOT_OWNER_KEY_HAS_FULL_WALLET_AUTHORITY"
 
 
 class ConfigurationError(ValueError):
@@ -117,6 +118,23 @@ class ProductionConfig:
     session_valid_until: float | None = None
     session_exclusive_until: float | None = None
     deposit_owner: str | None = None
+    signer_type: str = "OWNER"
+    wallet_exclusive_until: float | None = None
+    owner_custody_ack: str | None = None
+
+    @property
+    def is_deposit_owner(self) -> bool:
+        return self.wallet_type == "DEPOSIT_WALLET" and self.signer_type == "OWNER"
+
+    @property
+    def deposit_opening_cutoff(self) -> float:
+        if self.wallet_type != "DEPOSIT_WALLET":
+            raise ConfigurationError("DEPOSIT_WALLET_REQUIRED")
+        if self.is_deposit_owner:
+            bound = self.wallet_exclusive_until
+        else:
+            bound = min(self.session_valid_until, self.session_exclusive_until)
+        return float(bound) - SESSION_OPENING_SAFETY_SECONDS
 
     @classmethod
     def parse(cls, raw: dict) -> "ProductionConfig":
@@ -132,7 +150,7 @@ class ProductionConfig:
                 "fee_policy", "wallet", "signer", "deposit_owner", "wallet_type", "signature_type",
                 "session_scopes", "session_valid_until", "session_exclusive_until", "strategies",
                 "allow_uncalibrated", "min_model_gap", "min_structural_edge", "partial_basket_policy",
-                "risk", "operator_control",
+                "risk", "operator_control", "signer_type", "wallet_exclusive_until", "owner_custody_ack",
                 # Retain specific fail-closed diagnostics for these legacy/forbidden requests.
                 "session_key", "session_signer", "withdrawal_disabled",
             }
@@ -173,6 +191,7 @@ class ProductionConfig:
         session_scopes: tuple[str, ...] = ()
         session_valid_until = session_exclusive_until = None
         deposit_owner = None
+        signer_type, wallet_exclusive_until, owner_custody_ack = "OWNER", None, None
         if mode == "LIVE_EXECUTION":
             fee_policy = required(raw, "fee_policy")
             if not isinstance(fee_policy, str) or fee_policy not in FEE_POLICIES:
@@ -181,8 +200,14 @@ class ProductionConfig:
             signer = address(required(raw, "signer"), "signer")
             wallet_type = raw.get("wallet_type", "EOA")
             signature_type = raw.get("signature_type", 0)
+            signer_type = raw.get("signer_type", "SESSION_KEY" if wallet_type == "DEPOSIT_WALLET" else "OWNER")
+            if not isinstance(signer_type, str) or signer_type not in {"OWNER", "SESSION_KEY"}:
+                raise ConfigurationError("SIGNER_TYPE_UNSUPPORTED")
+            if (wallet_type != "DEPOSIT_WALLET" or signer_type != "OWNER") and any(
+                    key in raw for key in ("wallet_exclusive_until", "owner_custody_ack")):
+                raise ConfigurationError("OWNER_CONFIGURATION_REQUIRES_EXPLICIT_DEPOSIT_OWNER")
             if wallet_type == "EOA":
-                if type(signature_type) is not int or signature_type != 0 or signer != wallet:
+                if type(signature_type) is not int or signature_type != 0 or signer != wallet or signer_type != "OWNER":
                     raise ConfigurationError("ONLY_EXPLICIT_EOA_ACCOUNT_SUPPORTED")
                 if any(key in raw for key in ("session_scopes", "session_valid_until", "session_exclusive_until", "deposit_owner")):
                     raise ConfigurationError("SESSION_CONFIGURATION_REQUIRES_DEPOSIT_WALLET")
@@ -190,21 +215,39 @@ class ProductionConfig:
                 if type(signature_type) is not int or signature_type != 3 or signer == wallet:
                     raise ConfigurationError("DEPOSIT_SESSION_IDENTITY_INVALID")
                 deposit_owner = address(required(raw, "deposit_owner"), "deposit_owner")
-                if deposit_owner in {wallet, signer}:
-                    raise ConfigurationError("DEPOSIT_SESSION_OWNER_IDENTITY_INVALID")
-                scopes = required(raw, "session_scopes")
-                if scopes != ["CLOB"]:
-                    raise ConfigurationError("DEPOSIT_SESSION_REQUIRES_CLOB_ONLY_SCOPE")
-                session_scopes = ("CLOB",)
-                valid = required(raw, "session_valid_until")
-                exclusive = required(raw, "session_exclusive_until")
-                if type(valid) not in (int, float) or type(exclusive) not in (int, float):
-                    raise ConfigurationError("DEPOSIT_SESSION_EXPIRY_INVALID")
-                session_valid_until, session_exclusive_until = float(valid), float(exclusive)
-                if (not math.isfinite(session_valid_until) or not math.isfinite(session_exclusive_until)
-                    or not session_valid_until > 0 or not session_exclusive_until > 0
-                    or session_exclusive_until > session_valid_until):
-                    raise ConfigurationError("DEPOSIT_SESSION_EXPIRY_INVALID")
+                if signer_type == "OWNER":
+                    if deposit_owner != signer or wallet == signer:
+                        raise ConfigurationError("DEPOSIT_OWNER_SIGNER_IDENTITY_INVALID")
+                    if any(key in raw for key in ("session_scopes", "session_valid_until", "session_exclusive_until")):
+                        raise ConfigurationError("OWNER_MODE_REJECTS_SESSION_CONFIGURATION")
+                    owner_custody_ack = required(raw, "owner_custody_ack")
+                    if owner_custody_ack != OWNER_CUSTODY_ACK:
+                        raise ConfigurationError("EXPLICIT_OWNER_CUSTODY_ACKNOWLEDGEMENT_REQUIRED")
+                    bound = required(raw, "wallet_exclusive_until")
+                    if type(bound) not in (int, float):
+                        raise ConfigurationError("DEPOSIT_OWNER_EXCLUSIVITY_INVALID")
+                    try:
+                        wallet_exclusive_until = float(bound)
+                    except (ValueError, OverflowError):
+                        raise ConfigurationError("DEPOSIT_OWNER_EXCLUSIVITY_INVALID") from None
+                    if not math.isfinite(wallet_exclusive_until) or wallet_exclusive_until <= 0:
+                        raise ConfigurationError("DEPOSIT_OWNER_EXCLUSIVITY_INVALID")
+                else:
+                    if deposit_owner in {wallet, signer}:
+                        raise ConfigurationError("DEPOSIT_SESSION_OWNER_IDENTITY_INVALID")
+                    scopes = required(raw, "session_scopes")
+                    if scopes != ["CLOB"]:
+                        raise ConfigurationError("DEPOSIT_SESSION_REQUIRES_CLOB_ONLY_SCOPE")
+                    session_scopes = ("CLOB",)
+                    valid = required(raw, "session_valid_until")
+                    exclusive = required(raw, "session_exclusive_until")
+                    if type(valid) not in (int, float) or type(exclusive) not in (int, float):
+                        raise ConfigurationError("DEPOSIT_SESSION_EXPIRY_INVALID")
+                    session_valid_until, session_exclusive_until = float(valid), float(exclusive)
+                    if (not math.isfinite(session_valid_until) or not math.isfinite(session_exclusive_until)
+                        or not session_valid_until > 0 or not session_exclusive_until > 0
+                        or session_exclusive_until > session_valid_until):
+                        raise ConfigurationError("DEPOSIT_SESSION_EXPIRY_INVALID")
             else:
                 raise ConfigurationError("WALLET_ADAPTER_UNSUPPORTED")
             if any(key in raw for key in ("session_key", "session_signer")):
@@ -238,7 +281,8 @@ class ProductionConfig:
                    fee_policy=fee_policy, operator_control=control, wallet_type=wallet_type,
                    signature_type=signature_type, session_scopes=session_scopes,
                    session_valid_until=session_valid_until, session_exclusive_until=session_exclusive_until,
-                   deposit_owner=deposit_owner)
+                   deposit_owner=deposit_owner, signer_type=signer_type,
+                   wallet_exclusive_until=wallet_exclusive_until, owner_custody_ack=owner_custody_ack)
 
     @classmethod
     def load(cls, path: Path) -> "ProductionConfig":

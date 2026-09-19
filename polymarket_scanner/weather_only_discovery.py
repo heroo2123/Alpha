@@ -298,6 +298,17 @@ class WeatherOnlyDiscovery:
             if response.status_code >= 400:
                 raise WeatherDiscoveryError("HTTP_STATUS")
             if len(response.content) > MAX_PAGE_BYTES:
+                # Preserve the fixed per-response byte ceiling, but do not make
+                # catalog growth at one legal keyset cursor a permanent outage.
+                # Retry the exact same cursor with fewer events.  No oversized
+                # response is parsed or accepted.  If a single-event page still
+                # exceeds the cap, fail closed as before.
+                if int(page_size) > 1:
+                    return await self._keyset_page(
+                        tag,
+                        cursor,
+                        page_size=max(1, int(page_size) // 2),
+                    )
                 raise WeatherDiscoveryError("PAGE_BYTES_CAP")
             try:
                 payload = response.json()
