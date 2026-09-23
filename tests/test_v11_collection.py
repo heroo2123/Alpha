@@ -90,3 +90,15 @@ def test_credentials_and_secret_query_fields_are_refused(store):
     asyncio.run(run())
     with pytest.raises(EvidenceError,match="SENSITIVE"):
         request(params=(("api_key","synthetic secret"),))
+
+
+def test_provider_cookie_is_not_forwarded(store):
+    cookies=[]
+    def transport(req):
+        cookies.append(req.headers.get('cookie'))
+        return httpx.Response(200,json={},headers={'Set-Cookie':'session=fixture; Path=/'})
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(transport)) as client:
+            return await PublicCollector(store,client).cycle('cookies',(request(),request('second')))
+    asyncio.run(run())
+    assert cookies==[None,None]

@@ -25,6 +25,8 @@ VERSION = "alpha_v11_evidence_v1"
 KINDS = {"BOOK", "TRADE", "OFFICIAL_OBSERVATION", "PWS_OBSERVATION", "MODEL",
          "RULES", "STATION_METADATA", "FEATURES", "LABEL"}
 CLASSES = {"PUBLIC_OBSERVED", "SYNTHETIC", "HISTORICAL_AVAILABILITY_UNKNOWN"}
+AUDIT_KINDS = {"REGISTRY", "RULE_STATE", "MEASUREMENT", "RUNTIME_STATUS", "MODEL_EVENT",
+               "COORDINATOR_EVENT", "OPERATOR_EVENT", "SOURCE_SCHEDULE"}
 FUNNEL_STAGES = {"DISCOVERED", "SEMANTICALLY_SUPPORTED", "SOURCE_READY", "EVALUATED",
                  "CANDIDATE", "EV_RISK_ACCEPTED", "SUBMISSION_READY", "ADMITTED", "RESOLVED"}
 SECRET_KEYS = {"private_key", "mnemonic", "seed_phrase", "api_key", "api_secret",
@@ -184,7 +186,8 @@ class EvidenceStore:
             raise EvidenceError("ARCHIVE_RECORD_LIMIT")
 
     def _append(self, record_id: str, kind: str, event_id: str, body: dict,
-                available_at: float, recorded_at: float) -> dict:
+                available_at: float, recorded_at: float,
+                expected_previous_seq: int | None = None) -> dict:
         identity(record_id)
         identity(event_id)
         body = dict(body, namespace=self.namespace, financial_authority=False,
@@ -198,6 +201,13 @@ class EvidenceStore:
                 if found["body"] != encoded or found["kind"] != kind or found["event_id"] != event_id:
                     raise EvidenceError("RECORD_ID_CONFLICT")
                 return self._decode(found)
+            if expected_previous_seq is not None:
+                if type(expected_previous_seq) is not int or expected_previous_seq < 0:
+                    raise EvidenceError("AUDIT_CAS_INVALID")
+                prior = db.execute("SELECT COALESCE(MAX(seq),0) FROM v11_records WHERE kind=? AND event_id=?",
+                                   (kind, event_id)).fetchone()[0]
+                if prior != expected_previous_seq:
+                    raise EvidenceError("AUDIT_STATE_CHANGED")
             self._budget(db, len(encoded.encode()))
             last = db.execute("SELECT recorded_at FROM v11_records ORDER BY seq DESC LIMIT 1").fetchone()
             if last and recorded_at < last[0]:
@@ -225,6 +235,37 @@ class EvidenceStore:
             if not row:
                 raise EvidenceError("EVIDENCE_MISSING")
             return self._decode(row)
+
+    def records(self, *, kind: str, event_id: str | None = None,
+                after_seq: int = 0, limit: int = 200) -> list[dict]:
+        """Bounded namespace-local audit queries; no cross-ledger read fallback."""
+        if (kind not in KINDS | AUDIT_KINDS | {"DECISION", "FUNNEL", "SOURCE_RESULT"}
+                or type(after_seq) is not int or after_seq < 0
+                or type(limit) is not int or not 1 <= limit <= 1000):
+            raise EvidenceError("AUDIT_QUERY_INVALID")
+        if event_id is not None:
+            identity(event_id)
+        with self._connect() as db:
+            rows = db.execute("SELECT * FROM v11_records WHERE kind=? AND seq>? "
+                              "AND (? IS NULL OR event_id=?) ORDER BY seq LIMIT ?",
+                              (kind, after_seq, event_id, event_id, limit)).fetchall()
+        return [self._decode(row) for row in rows]
+
+    def audit(self, record_id: str, *, event_id: str, kind: str, details: dict,
+              evidence_ids: tuple[str, ...] = (), expected_previous_seq: int | None = None) -> dict:
+        if kind not in AUDIT_KINDS or not isinstance(details, dict):
+            raise EvidenceError("AUDIT_KIND_INVALID")
+        if (len(evidence_ids) > self.limits.max_evidence_per_decision
+                or len(set(evidence_ids)) != len(evidence_ids)):
+            raise EvidenceError("EVIDENCE_SET_INVALID")
+        at = finite(self.clock())
+        references = [self.get(key) for key in evidence_ids]
+        if any(r["body"]["recorded_at"] > at for r in references):
+            raise EvidenceError("AUDIT_CLOCK_REGRESSION")
+        return self._append(record_id, kind, event_id,
+                            {"details": details, "evidence": [{"id": r["id"], "sha256": r["sha256"]}
+                                                            for r in references]}, at, at,
+                            expected_previous_seq=expected_previous_seq)
 
     def capture(self, record_id: str, *, event_id: str, kind: str, provider: str,
                 source_identity: str, revision: str, payload: dict,
@@ -316,12 +357,13 @@ class EvidenceStore:
 
     def source_result(self, record_id: str, *, event_id: str, provider: str,
                       cycle_id: str, state: str, reason: str, elapsed_ms: float,
-                      capture_ids: tuple[str, ...] = (), attempts: int = 1) -> dict:
-        if state not in {"SUCCESS", "TRANSPORT_FAILURE", "RATE_LIMIT", "MALFORMED", "STALE", "SEMANTIC_FAILURE", "ABSENT"}:
+                      capture_ids: tuple[str, ...] = (), attempts: int = 1,
+                      retry_not_before: float | None = None) -> dict:
+        if state not in {"SUCCESS", "TRANSPORT_FAILURE", "RATE_LIMIT", "MALFORMED", "STALE", "SEMANTIC_FAILURE", "ABSENT", "BUDGET_EXHAUSTED", "COOLDOWN"}:
             raise EvidenceError("SOURCE_RESULT_ENUM_INVALID")
         if len(capture_ids) > self.limits.max_evidence_per_decision:
             raise EvidenceError("EVIDENCE_SET_INVALID")
-        if type(attempts) is not int or not 1 <= attempts <= 3:
+        if type(attempts) is not int or not 0 <= attempts <= 3 or (state == "SUCCESS" and attempts == 0):
             raise EvidenceError("SOURCE_ATTEMPTS_INVALID")
         if (state == "SUCCESS") != bool(capture_ids):
             raise EvidenceError("SOURCE_SUCCESS_REQUIRES_CAPTURE")
@@ -330,8 +372,10 @@ class EvidenceStore:
             if capture["event_id"] != event_id or capture["kind"] not in KINDS or capture["body"]["provider"] != provider:
                 raise EvidenceError("SOURCE_RESULT_EVIDENCE_MISMATCH")
         at = finite(self.clock())
+        if retry_not_before is not None:
+            finite(retry_not_before)
         return self._append(record_id, "SOURCE_RESULT", event_id,
                             {"provider": identity(provider), "cycle_id": identity(cycle_id),
                              "state": state, "reason": identity(reason),
                              "elapsed_ms": finite(elapsed_ms), "capture_ids": capture_ids,
-                             "attempts": attempts}, at, at)
+                             "attempts": attempts, "retry_not_before": retry_not_before}, at, at)
