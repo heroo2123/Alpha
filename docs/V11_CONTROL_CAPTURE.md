@@ -1,8 +1,8 @@
-# Owner action: preserve control evidence
+# Control evidence capture — completed
 
 The connected development user cannot read the V10 database/status/release
 files, and `sudo -n -l` requires a password. No permission has been broadened.
-This is the remaining prerequisite for the actual V10 forensic baseline.
+The owner completed the bounded capture on 2026-09-23. Its hashes and private off-host copy have been verified; do not rerun against the existing destination.
 
 The prepared command is deliberately one bounded capture, with no deployment,
 service restart, account action, order or executor-mask change. Review
@@ -38,6 +38,6 @@ marker is preserved as evidence rather than edited to agree with the source tree
 
 After capture, the integrator must transfer the private copy through authorized
 access, verify every manifest hash, analyze it off-host, preserve the evidence,
-and update `V11_V10_FORENSIC_BASELINE.md` with nonsecret findings. Journals,
+and update `V11_V10_BASELINE_FORENSICS.md` with nonsecret findings. Journals,
 account-specific entitlement, balances and complete operational acceptance remain
 separate checks. The owner action does not make V11 ready to fund.

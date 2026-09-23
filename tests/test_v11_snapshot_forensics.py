@@ -188,7 +188,8 @@ def test_forensics_separates_epochs_quarantine_missing_funnels_and_bad_accountin
     report = analyze_snapshot(directory)
     assert source.read_bytes() == before
     assert report["thresholds_selected"] is False
-    assert report["all_core_records_diagnostic_only"]["reconciled_paper_pnl"] == 12
+    # Quarantined outcomes remain visible but cannot enter reconciled P&L.
+    assert report["all_core_records_diagnostic_only"]["reconciled_paper_pnl"] == 6
     assert report["all_core_records_diagnostic_only"]["live_validated_pnl"] is None
     assert len(report["epochs"]) == 2
     assert report["accounting_findings"] == [{"position_id":3,"findings":["PNL_RECONCILIATION_FAILED"]}]
@@ -230,3 +231,86 @@ def test_algebraic_balance_does_not_validate_impossible_settlement_or_wrong_toke
     assert expected in findings
     validated = next(r for r in report["epochs"] if r["validation"] == "VALIDATED")
     assert validated["reconciled_paper_pnl"] == 0
+
+
+def test_quarantine_status_overrides_stale_validated_flag_and_has_separate_epoch(control):
+    source, _ = control
+    with sqlite3.connect(source) as db:
+        db.execute("UPDATE weather_paper_positions SET status='QUARANTINED' WHERE id=4")
+    directory = source.parent / "quarantine-snapshot"
+    snapshot(source, directory)
+    report = analyze_snapshot(directory)
+    cohorts = {(e['validation'], e['cohort']) for e in report['epochs']}
+    assert ('VALIDATED', 'QUARANTINED') in cohorts
+    assert ('VALIDATED', 'NOT_QUARANTINED') in cohorts
+
+
+def test_same_timestamp_realized_drawdown_is_order_independent_and_not_open_risk():
+    from polymarket_scanner.v11.forensic_detail import performance
+    base = dict(status='WON', accounting_findings=[], cohort='NOT_QUARANTINED',
+                event_id='event', station='TEST', target_date='2026-01-01', capital_used=10)
+    rows = [dict(base, pnl=10, settled_at=10), dict(base, pnl=-10, settled_at=10),
+            dict(base, pnl=-2, settled_at=20), dict(base, pnl=999, status='OPEN')]
+    a, b = performance(rows), performance(list(reversed(rows)))
+    assert a == b
+    assert a['realized_only_drawdown'] == 2
+    assert a['open_simulated_capital'] == 10
+    assert a['resolved_unique_events'] == 1 and not a['independence_validated']
+
+
+def test_calendar_lead_is_not_forecast_initialization_or_settlement_horizon():
+    from polymarket_scanner.v11.forensic_detail import enrich
+    row = dict(status='OPEN', validation='VALIDATED', target_date='2026-01-02', opened_at=1767268800)
+    data = dict(station_timezone='UTC', strict_contract_identity={'location':'test city'})
+    enrich(row, data)
+    assert row['target_day_start_lead_hours'] == 12
+    assert row['time_to_settlement_hours'] is None
+    assert row['forecast_run_age_known'] is False
+    assert row['city'] == 'test city'
+
+
+def test_compressed_capture_audit_rejects_sql_identity_tamper(tmp_path):
+    from polymarket_scanner.v11.forensic_detail import capture_diagnostics
+    from polymarket_scanner.weather_only_same_day_capture_store_compressed import _digest_payload
+    import time
+    import zlib
+    value = dict(event_id='event',station='TEST',target_date='2026-01-01',family='MAX',unit='F',
+                 as_of=10,status='BLOCKED_RESEARCH',block_reasons=['GAP'],included_in_validated_pnl=False,
+                 calibrated_probability=False,same_day_delivery_enabled=False,settlement_authority=False,
+                 financial_authority=False)
+    digest = _digest_payload(value); value['capture_sha256'] = digest
+    encoded = json.dumps(value).encode()
+    db = sqlite3.connect(':memory:'); db.row_factory = sqlite3.Row
+    db.execute('CREATE TABLE weather_same_day_captures(event_id,station,target_date,family,unit,as_of,status,'
+               'block_reasons_json,capture_encoding,capture_json,capture_uncompressed_bytes,capture_sha256)')
+    columns = ('event_id','station','target_date','family','unit','as_of','status')
+    db.execute('INSERT INTO weather_same_day_captures VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',
+               tuple(value[k] for k in columns)+(json.dumps(['GAP']),'zlib-json-utf8-v1',
+                     zlib.compress(encoded),len(encoded),digest))
+    tables = {'weather_same_day_captures'}
+    assert capture_diagnostics(db,tables,deadline=time.monotonic()+2,max_rows=10)['verified_capture_payloads'] == 1
+    db.execute("UPDATE weather_same_day_captures SET station='OTHER'")
+    result = capture_diagnostics(db,tables,deadline=time.monotonic()+2,max_rows=10)
+    assert result['verified_capture_payloads'] == 0
+    assert sum(result['capture_integrity_failures'].values()) == 1
+    assert result['included_in_core_pnl'] is False
+    db.close()
+
+
+def test_signal_funnel_does_not_invent_lane_for_unlinked_decision():
+    from polymarket_scanner.v11.forensic_detail import signal_funnels
+    import time
+    db = sqlite3.connect(':memory:'); db.row_factory = sqlite3.Row
+    db.executescript('''
+      CREATE TABLE weather_paper_signals(id,lane,status,telegram_sent_at,created_at,payload_json);
+      CREATE TABLE weather_paper_positions(signal_id);
+      CREATE TABLE weather_paper_decisions(decision_id,outcome,reason);
+      INSERT INTO weather_paper_signals VALUES(1,'maker','DELIVERY_UNCERTAIN',NULL,10,'{"decision_id":"known"}');
+      INSERT INTO weather_paper_decisions VALUES('unlinked','REJECT','STALE');
+    ''')
+    result = signal_funnels(db,{'weather_paper_decisions'},['maker'],deadline=time.monotonic()+2,max_rows=10)
+    assert result['lanes']['maker']['persisted_delivery_receipts'] == 0
+    assert result['lanes']['maker']['decision_records'] == []
+    assert result['lanes']['UNKNOWN_NOT_PERSISTED']['decision_records'][0]['reason'] == 'STALE'
+    assert result['pre_signal_historical_evaluation_counts'] is None
+    db.close()

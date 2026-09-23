@@ -15,6 +15,8 @@ import time
 
 from tools.v11_snapshot import open_verified_snapshot, SnapshotError
 from .measurement import score_binary
+from .forensic_detail import (enrich, performance, schema_inventory, signal_funnels,
+                              capture_diagnostics, runtime_context)
 
 
 RESOLVED = {"WON", "LOST", "RESOLVED_PARTIAL"}
@@ -51,7 +53,8 @@ def band(value, boundaries):
 
 def summarize(rows: list[dict]) -> dict:
     resolved = [r for r in rows if r["status"] in RESOLVED]
-    valid_values = [r for r in resolved if not r["accounting_findings"]]
+    valid_values = [r for r in resolved if not r["accounting_findings"]
+                    and r["cohort"] != "QUARANTINED"]
     capital = sum(r["capital_used"] for r in valid_values)
     pnl = sum(r["pnl"] for r in valid_values)
     return {
@@ -68,6 +71,7 @@ def summarize(rows: list[dict]) -> dict:
         "no_fill_reasons": dict(Counter(r["no_fill_reason"] or "UNKNOWN" for r in rows if r["status"] == "NO_FILL")),
         "evidence_class": "V10_CONTROL_PAPER_DEVELOPMENT",
         "live_validated_pnl": None,
+        "performance": performance(rows),
     }
 
 
@@ -155,12 +159,33 @@ def analyze_snapshot(directory: Path, *, max_positions: int = 100_000,
             row["validation"] = row.get("validation_state") or "LEGACY_UNVERIFIED"
             row["no_fill_reason"] = row.get("no_fill_reason")
             row["accounting_findings"] = findings
+            enrich(row, data)
+            settlement = payload(row.get("settlement_evidence_json"))
+            legs = settlement.get("legs")
+            label_match = (isinstance(legs, list) and len(legs) == 1
+                           and isinstance(legs[0], dict)
+                           and legs[0].get("token_id") == row["token_id"]
+                           and legs[0].get("side") == row["side"]
+                           and legs[0].get("market_id") == row.get("market_id")
+                           and legs[0].get("payout") == row["settlement_payout_per_unit"]
+                           and legs[0].get("uma_resolution_status") == "resolved")
+            row["stored_settlement_binding"] = (
+                "EXACT_SINGLE_LEG_STORED_LABEL_NOT_REATTESTED" if label_match else
+                "NOT_RESOLVED" if row["status"] not in RESOLVED else "UNKNOWN_OR_MISMATCH")
             rows.append(row)
         by_lane, by_epoch = defaultdict(list), defaultdict(list)
-        slices = {key: defaultdict(list) for key in ("station", "horizon_hours", "price", "probability", "raw_gap", "liquidity", "family", "event_state")}
+        slices = {key: defaultdict(list) for key in ("station", "city", "country", "source",
+                  "provider_model", "horizon_hours", "target_day_start_lead_hours",
+                  "time_to_settlement_hours", "price", "probability", "raw_gap", "liquidity",
+                  "family", "event_state", "member_count", "member_hits")}
+        def epoch(row):
+            return (row["protocol"], row["validation"], row["cohort"],
+                    row["release_marker"], row["config_digest"])
+        def epoch_fields(key):
+            return dict(zip(("protocol", "validation", "cohort", "release_marker", "config_digest"), key))
         for row in rows:
             by_lane[row["lane"]].append(row)
-            by_epoch[(row["protocol"], row["validation"])].append(row)
+            by_epoch[epoch(row)].append(row)
             if row["lane"] == "weather_forecast_raw_gap":
                 values = {"station": row["station"], "horizon_hours": band(row["horizon_hours"], (6,24,48,72)),
                           "price": band(row["entry_cost_per_unit"], (.1,.25,.5,.75,.9)),
@@ -168,9 +193,13 @@ def analyze_snapshot(directory: Path, *, max_positions: int = 100_000,
                           "raw_gap": band(row["raw_gap"], (.05,.1,.2,.4)),
                           "liquidity": band(row["ask_size"], (10,50,100,500)),
                           "family": row["family"], "event_state": row["event_state"]}
+                for key in ("city", "country", "source", "provider_model", "member_count", "member_hits"):
+                    values[key] = row[key] if row[key] is not None else MISSING
+                for key in ("target_day_start_lead_hours", "time_to_settlement_hours"):
+                    values[key] = band(row[key], (0,6,24,48,72))
                 for key,value in values.items():
                     # Protocol/quarantine separation is retained in every subgroup.
-                    slices[key][(str(value), row["protocol"], row["validation"])].append(row)
+                    slices[key][(str(value), *epoch(row))].append(row)
         signal_counts = {str(r[0]): int(r[1]) for r in db.execute("SELECT lane,COUNT(*) FROM weather_paper_signals GROUP BY lane")}
         decision_reasons = []
         if "weather_paper_decisions" in tables:
@@ -197,33 +226,48 @@ def analyze_snapshot(directory: Path, *, max_positions: int = 100_000,
                              "diagnosis": "UNKNOWN_WITHOUT_PERSISTED_PRE_SIGNAL_FUNNEL",
                              "auxiliary_lane_records_separate": True}
         calibration = []
-        for (protocol, validation), members in by_epoch.items():
+        for identity, members in by_epoch.items():
             selected = [r for r in members if r["lane"] == "weather_forecast_raw_gap"
-                        and r["status"] in RESOLVED and not r["accounting_findings"]
+                        and r["status"] in RESOLVED and not r["accounting_findings"] and r["cohort"] != "QUARANTINED"
                         and r["raw_probability_is_side_bound"] and r["raw_probability"] is not None
                         and 0 <= r["raw_probability"] <= 1 and r["settlement_payout_per_unit"] in (0,1)]
             if selected:
-                calibration.append({"protocol": protocol, "validation": validation,
+                bins = defaultdict(list)
+                for r in selected:
+                    bins[band(r["raw_probability"], (.25,.5,.75,.9,.99))].append(r)
+                calibration.append({**epoch_fields(identity),
                     "label_basis": "STORED_PAPER_OUTCOME_NOT_REATTESTED",
                     "selected_trade_sample_only": True,
+                    "reliability_bins": [{"bin": k, "n": len(v),
+                                          "mean_probability": sum(r["raw_probability"] for r in v)/len(v),
+                                          "observed_win_fraction": sum(r["settlement_payout_per_unit"] for r in v)/len(v),
+                                          "unique_events": len({r["event_id"] for r in v})}
+                                         for k,v in sorted(bins.items())],
                     **score_binary([r["raw_probability"] for r in selected],
                                    [int(r["settlement_payout_per_unit"]) for r in selected],
                                    groups=[r["event_id"] for r in selected])})
         def split_summary(members):
             grouped = defaultdict(list)
             for item in members:
-                grouped[(item["protocol"], item["validation"])].append(item)
-            return [{"protocol": p, "validation": v, **summarize(group)} for (p,v),group in sorted(grouped.items())]
-        return {"version": "alpha_v11_v10_forensics_v1", "snapshot_sha256": manifest["snapshot_sha256"],
+                grouped[epoch(item)].append(item)
+            return [{**epoch_fields(key), **summarize(group)} for key,group in sorted(grouped.items())]
+        return {"version": "alpha_v11_v10_forensics_v2", "snapshot_sha256": manifest["snapshot_sha256"],
                 "capture_completed_at": manifest["capture_completed_at"], "classification": "PRIVATE_DEVELOPMENT_CONTROL_EVIDENCE",
                 "financial_authority": False, "thresholds_selected": False,
                 "all_core_records_diagnostic_only": summarize(rows),
                 "epochs": split_summary(rows),
                 "lanes": {lane: split_summary(members) for lane,members in sorted(by_lane.items())},
-                "future_forecast_slices": {key: [{"slice": k[0], "protocol": k[1], "validation": k[2], **summarize(v)} for k,v in sorted(groups.items())] for key,groups in slices.items()},
+                "future_forecast_slices": {key: [{"slice": k[0], **epoch_fields(k[1:]), **summarize(v)} for k,v in sorted(groups.items())] for key,groups in slices.items()},
                 "stored_probability_diagnostics": calibration,
                 "zero_lane_funnels": funnels, "global_decision_reasons_not_lane_attributed": decision_reasons,
                 "separate_research_and_capture_tables": auxiliary,
+                "schema_inventory": schema_inventory(db),
+                "signal_and_delivery_funnels": signal_funnels(db, tables, KNOWN_LANES,
+                                                               deadline=deadline, max_rows=max_positions),
+                "same_day_capture_integrity": capture_diagnostics(db, tables, deadline=deadline, max_rows=max_positions),
+                "captured_runtime_context": runtime_context(directory, manifest),
+                "stored_settlement_bindings": dict(Counter(r["stored_settlement_binding"] for r in rows)),
+                "forecast_run_age_known_records": sum(r["forecast_run_age_known"] for r in rows),
                 "accounting_findings": [{"position_id": r["id"], "findings": r["accounting_findings"]} for r in rows if r["accounting_findings"]],
                 "limitations": sorted(limitations),
                 "legacy_rule_verdict": "UNPROVEN_NO_CAUSAL_ATTRIBUTION_FROM_AGGREGATES",
