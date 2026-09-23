@@ -1,13 +1,13 @@
 # Alpha V11 work checkpoint
 
-Updated 2026-09-23, 22:12 UTC. Resume here. **NOT_READY_TO_FUND**.
+Updated 2026-09-23, 22:24 UTC. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
 
 ## Exact identities and scope
 
 - Branch: `weather-v11-profitability-upgrade-2026-09-23`.
-- Last verified implementation HEAD: `b9de1fb2ca34d5eb0b6581bbbc9dd93c6aef4c80`.
-- Last verified implementation tree: `a5081aba7c6386891af44c01cb2540566ddb650f`.
+- Last verified implementation HEAD: `7c78d86b630ebc165b75f39d36c92b94ccde1f7b`.
+- Last verified implementation tree: `352246b0c77b02566abd6cf46c0fddabfa2dea50`.
 - Worktree at verification: clean; local and published implementation trees match.
 - This following checkpoint commit changes documentation only. Resolve its own
   exact commit with `git log -1 --format=%H -- docs/V11_WORK_CHECKPOINT.md`, and its
@@ -164,7 +164,26 @@ fits have run; no actual V10 dataset was trained or champion activated.
 Dataset integration also tightened payout targets to exact market/condition/
 token/side. This targeted correction preserves the original snapshot/forensics.
 The V10 source/runtime/resource finding and executor containment are unchanged;
-no new remote checks or host workloads were needed for this off-host milestone.
+no new alpha-dev checks or host workloads were needed for this off-host milestone.
+
+## Remaining PWS dependency milestone
+
+Published `v11/pws_quality.py` and `docs/V11_PWS_QUALITY.md`. Raw XML is recompiled
+before normalized inputs are used. Implemented explicit causal/provider/physical/
+freshness/jump/rate/gap/duplicate/neighbor checks, versioned distance/elevation
+weighting, flat-sensor downweighting, receipt-preserving dedupe, full-history
+metadata drift and durable relocation quarantine. Features include median/IQR,
+spread, actual-endpoint trends, local observed envelopes, spatial gradient where
+identified and fresh source-labeled official residuals.
+
+23 new focused tests and the full V11 targeted suite (209 tests) pass. The broad
+repository regression was not repeated for this isolated additive module; its
+last complete run remains 2,522 passing at model/learning implementation
+`b9de1fb2ca34d5eb0b6581bbbc9dd93c6aef4c80`. No unchanged Git checks were rerun.
+No alpha-dev query or workload was added. Historical learned reliability, paired
+official/PWS lead, exposure/terrain inference, ablation and complete source/event/
+strategy integration remain open. PWS output is informational with trading
+influence explicitly false.
 
 ## Implementation and verification
 
@@ -189,11 +208,13 @@ bounded compressed-capture verification and explicitly limited runtime context.
 | Artifact / governance / offline learner focused tests | **19 / 21 / 8 passed** |
 | Latest probability/dataset full regression | **2,473 passed; four existing warnings; 61.10 s** |
 | Latest model/learning full regression | **2,522 passed; four existing warnings; 63.96 s** |
-| Targeted V11 tests across delivered changes | **186 passed** |
+| PWS defensive QC focused tests | **23 passed** |
+| Latest targeted V11 suite | **209 passed; 2.03 s** |
 | Snapshot/forensic tests | **18 passed** |
 | Compileall / dependency check / diff whitespace | passed |
 | Prior GitHub Actions run 35911031597 at cc268af | completed successfully |
-| New implementation CI | not yet inspected; not claimed passed |
+| Probability/dataset GitHub Actions run 35924652710 at 359814e | completed successfully |
+| Newer model/PWS implementation CI | not yet inspected; not claimed passed |
 
 Tests used an isolated off-host environment installed from hash-locked dev
 requirements. Four warnings are pre-existing FastAPI lifecycle deprecations.
@@ -213,10 +234,11 @@ technical readiness, canary eligibility and empirical validation stay separate.
 - No executor mask change or real-money activation. No arbitrary paper waiting
   period is imposed; mandatory technical/evidence gates remain.
 
-Next engineering action: complete the remaining weather-feature dependencies
-(PWS defensive QC, reliability/spatial features and causal physical features),
-then integrate event states and target-specific executable EV with the tested
-probability/model/evidence interfaces. Exact-source labels, empirical calibration,
+Next engineering action: integrate causal physical nowcasting features and
+source dependencies, then event states and target-specific executable EV with
+the tested probability/model/evidence interfaces. PWS defensive QC/spatial
+features are implemented; historical reliability and economic/lead validation
+remain pending. Exact-source labels, empirical calibration,
 learning scheduling/OS isolation, approved initial champion and financial model
 commissioning remain open; do not treat this foundation as acceptance. Continue integration of the delivered observation,
 registry/rule and evidence interfaces through event/EV/coordinator/risk,
