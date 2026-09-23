@@ -5,3 +5,12 @@ __pycache__/
 *.db
 .pytest_cache/
 .DS_Store
+
+# Private V11 runtime evidence is never a public Git artifact.
+*.sqlite
+*.sqlite3
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite3-wal
+*.sqlite3-shm
+private-evidence/
