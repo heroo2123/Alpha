@@ -1,13 +1,13 @@
 # Alpha V11 work checkpoint
 
-Updated 2026-09-23, 23:09 UTC. Resume here. **NOT_READY_TO_FUND**.
+Updated 2026-09-23, 23:31 UTC. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
 
 ## Exact identities and scope
 
 - Branch: `weather-v11-profitability-upgrade-2026-09-23`.
-- Last verified implementation HEAD: `c543625fdd0c2c8f9d83e0fd384b84b148a32abd`.
-- Last verified implementation tree: `b5c1161d3437a2d235de192488da0bc726fad473`.
+- Last verified implementation HEAD: `8437079613ec0d3fd17eb20c82ae89bbedebcca9`.
+- Last verified implementation tree: `280da8c7736a984e622b1f3f09574aad60de637c`.
 - Worktree at verification: clean; local and published implementation trees match.
 - This following checkpoint commit changes documentation only. Resolve its own
   exact commit with `git log -1 --format=%H -- docs/V11_WORK_CHECKPOINT.md`, and its
@@ -248,6 +248,46 @@ regression was not repeated for this isolated additive module. No unfinished tes
 alpha-dev action or deployment. Actual dependence mapping/protected review and
 account/strategy integration remain pending. No complete-package credit added.
 
+## Phase 5 account coordination milestone
+
+Published `v11/paper_coordinator.py` and `v11/allocation.py`. One nonfinancial
+account journal ranks proposals before allocation, nets desired-position/conflicting
+exposure, binds exact city metadata and valuation/event pins, and checks common
+cash/inventory/scenario/correlation limits. Atomic account CAS also guards operator
+and event heads, including absent operator scopes, in the same transaction.
+Fixed policy identity, retained cash and reduction-only sizing cannot grow caps.
+
+Restart preserves ambiguous submissions. Expiry/timeout/cancel request cannot
+release reservations. Explicit synthetic paper fills atomically preserve cash,
+lots, all-in basis and unfilled risk. Duplicate fill identities do not create P&L;
+fee overruns fault future admission. Partial sales preserve basis rounding residue.
+Only complete exact paper terminal reconciliation releases the remainder. No
+network/order adapter, live/control ledger or real account mutation exists here.
+
+20 new coordinator/allocation tests and 91 combined checks passed. A canonical
+request comparison fixed tuple/list JSON replay portability during targeted tests.
+Full regression: **2,653 passed, four existing warnings, 70.49 s**. Current vacuous
+settlement estimates still do not qualify. Accepted downstream fixtures are
+explicitly synthetic account-mechanics tests, not profitable-strategy evidence.
+Scoped strategy/certification/model-authority integration, external live exposure,
+settlement/redemption, retention and guardian/executor commissioning remain open.
+
+## CI portability correction
+
+GitHub Actions run `35931387025` at `77a0755` failed three model-publisher crash
+fixtures on both Python 3.11 and 3.12 ordinary runners; 2,615 other tests passed.
+Decoded logs show `MODEL_AUTHORITY_LOCK_CUSTODY`: the fixture mocked UID/custody
+but missed lock ownership and fchown. Runtime hash/isolation jobs passed.
+
+Published correction `d4902a26aef5964e437f46d605a93db153d4f3ef` scopes a synthetic
+OS fixture to the test module and adds a negative lock-custody test. Production
+permissions/authority code are unchanged. All 22 governance tests pass locally.
+A local unprivileged-process launch was blocked before execution because this
+container has zero effective capabilities and NoNewPrivs despite UID 0. It is not
+claimed passed; the new GitHub runner result must be checked. See
+`docs/V11_CI_FINDINGS.md`. The broad regression above preceded this test-only fix;
+it was not repeated over unchanged production code. No tests remain running.
+
 ## Implementation and verification
 
 Prior delivered foundation is retained: private append-only evidence namespaces,
@@ -277,12 +317,15 @@ bounded compressed-capture verification and explicitly limited runtime context.
 | Physical/source full regression | **2,564 passed; four existing warnings; 63.64 s** |
 | Event/valuation/existing-fee focused checks | **101 passed** |
 | Exact scenario / correlation focused checks | **15 passed** |
-| Latest event/EV full regression | **2,618 passed; four existing warnings; 68.67 s** |
+| Event/EV full regression | **2,618 passed; four existing warnings; 68.67 s** |
+| Account/scenario/event/evidence integration | **91 passed; 1.59 s** |
+| Latest coordinator full regression | **2,653 passed; four existing warnings; 70.49 s** |
+| Governance portability correction | **22 passed locally; unprivileged CI pending** |
 | Snapshot/forensic tests | **18 passed** |
 | Compileall / dependency check / diff whitespace | passed |
 | Prior GitHub Actions run 35911031597 at cc268af | completed successfully |
 | Probability/dataset GitHub Actions run 35924652710 at 359814e | completed successfully |
-| Newer model/PWS implementation CI | not yet inspected; not claimed passed |
+| Event/EV CI run 35931387025 | FAILED: three privilege-dependent synthetic crash fixtures; corrected in d4902a2, new CI pending |
 
 Tests used an isolated off-host environment installed from hash-locked dev
 requirements. Four warnings are pre-existing FastAPI lifecycle deprecations.
@@ -302,9 +345,10 @@ technical readiness, canary eligibility and empirical validation stay separate.
 - No executor mask change or real-money activation. No arbitrary paper waiting
   period is imposed; mandatory technical/evidence gates remain.
 
-Next engineering action: implement the namespaced coordinator and atomic account-wide
-cash/inventory reservations, conservative sizing/ranking and ambiguous-order
-recovery using the new scenario/correlation views. Event-state and target-specific economics primitives
+Next engineering action: inspect CI for the portability correction, then integrate
+scoped station/rule/model authority and causal source-trigger revalidation into
+strategy admission. Continue Phase 6 migration using the shared coordinator;
+PWS observation, payout and executable-exit targets must remain separate. Event-state and target-specific economics primitives
 are implemented; complete runtime/financial integration remains pending. Causal
 physical candidates still require feature-value/inference validation. PWS defensive QC/spatial
 features are implemented; historical reliability and economic/lead validation
