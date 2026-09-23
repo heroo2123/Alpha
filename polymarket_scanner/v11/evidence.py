@@ -251,6 +251,16 @@ class EvidenceStore:
                               (kind, after_seq, event_id, event_id, limit)).fetchall()
         return [self._decode(row) for row in rows]
 
+    def latest(self, *, kind: str, event_id: str) -> dict | None:
+        """Read one scoped state head; callers still use CAS when appending."""
+        if kind not in AUDIT_KINDS:
+            raise EvidenceError("AUDIT_KIND_INVALID")
+        identity(event_id)
+        with self._connect() as db:
+            row = db.execute("SELECT * FROM v11_records WHERE kind=? AND event_id=? "
+                             "ORDER BY seq DESC LIMIT 1", (kind, event_id)).fetchone()
+        return None if row is None else self._decode(row)
+
     def audit(self, record_id: str, *, event_id: str, kind: str, details: dict,
               evidence_ids: tuple[str, ...] = (), expected_previous_seq: int | None = None) -> dict:
         if kind not in AUDIT_KINDS or not isinstance(details, dict):
