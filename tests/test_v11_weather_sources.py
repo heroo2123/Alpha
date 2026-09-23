@@ -110,3 +110,43 @@ def test_cycle_deadline_does_not_issue_remaining_requests(tmp_path):
             return await PublicCollector(store,client,attempts=1,cycle_seconds=.01).cycle('bounded',(request(),request('second')))
     result=asyncio.run(run())
     assert len(calls)==1 and result['sources'][1]['state']=='BUDGET_EXHAUSTED'
+
+
+def test_pws_failure_does_not_suppress_unrelated_official_source_coverage(tmp_path):
+    tmp_path.chmod(0o700)
+    store=EvidenceStore(tmp_path/'evidence.sqlite','V11_PAPER',clock=lambda:AT)
+    official=SourceRequest(provider='NOAA_AWC',url='https://aviationweather.gov/api/data/metar',
+        event_id='event',kind='OFFICIAL_OBSERVATION',source_identity='KATL',revision='1')
+    def transport(req):
+        if req.url.host=='aviationweather.gov':
+            return httpx.Response(200,json=[{'icaoId':'KATL','obsTime':AT-30,'temp':30}])
+        return httpx.Response(503)
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(transport)) as client:
+            runtime=ObservationRuntime(ScheduledCollector(PublicCollector(store,client,attempts=1)))
+            return await runtime.cycle('cycle',(request(),official),station_by_event={'event':'KATL'},
+                strategies=('OFFICIAL_DIAGNOSTIC','PWS_OBSERVATION_LEAD'),required_providers_by_strategy={
+                    'OFFICIAL_DIAGNOSTIC':('NOAA_AWC',),'PWS_OBSERVATION_LEAD':('NOAA_AWC','NOAA_MADIS_CWOP')})
+    result=asyncio.run(run())
+    rows={r['body']['strategy']:r['body'] for r in store.records(kind='FUNNEL')}
+    assert rows['OFFICIAL_DIAGNOSTIC']['state']=='PASS'
+    assert rows['PWS_OBSERVATION_LEAD']['state']=='NO_DATA'
+    assert result['strategy_admission']=='REQUIRES_SCOPED_CERTIFICATION_AND_VALUATION'
+
+
+def test_one_provider_success_does_not_hide_its_other_required_request_failure(tmp_path):
+    tmp_path.chmod(0o700)
+    store=EvidenceStore(tmp_path/'evidence.sqlite','V11_PAPER',clock=lambda:AT)
+    calls=[]
+    requests=tuple(SourceRequest(provider='NOAA_AWC',url='https://aviationweather.gov/api/data/metar',
+        event_id='event',kind='OFFICIAL_OBSERVATION',source_identity='KATL:'+str(i),revision='1') for i in range(2))
+    def transport(req):
+        calls.append(req)
+        return httpx.Response(200,json=[{'icaoId':'KATL','obsTime':AT-30,'temp':30}] if len(calls)==1 else [])
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(transport)) as client:
+            runtime=ObservationRuntime(ScheduledCollector(PublicCollector(store,client,attempts=1)))
+            return await runtime.cycle('cycle',requests,station_by_event={'event':'KATL'},
+                strategies=('OFFICIAL_DIAGNOSTIC',),required_providers_by_strategy={'OFFICIAL_DIAGNOSTIC':('NOAA_AWC',)})
+    asyncio.run(run())
+    assert store.records(kind='FUNNEL')[0]['body']['state']=='NO_DATA'

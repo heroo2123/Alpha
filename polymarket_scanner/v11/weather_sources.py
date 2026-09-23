@@ -120,6 +120,7 @@ def parse_madis_xml(raw: str, *, received_at: float, params: dict,
 
 
 def parse_awc_metar(payload, *, station: str, received_at: float, max_age_seconds: float) -> dict:
+    from .metar_features import parse_metar_physical
     receipt,max_age = finite(received_at),finite(max_age_seconds)
     if not isinstance(payload, list) or len(payload)>400 or max_age<=0:
         raise EvidenceError("AWC_RESPONSE_OR_AGE_BOUND")
@@ -134,13 +135,14 @@ def parse_awc_metar(payload, *, station: str, received_at: float, max_age_second
                 raise EvidenceError("AWC_STALE_FUTURE_OR_RANGE")
             observations.append({"station":station,"observed_at":observed,"local_received_at":receipt,
                                  "temperature_c":temp,"raw_metar":item.get("rawOb"),
+                                 "physical_context":parse_metar_physical(item.get("rawOb"),station=station,observed_at=observed),
                                  "provider_report_time":item.get("reportTime"),
                                  "source_role":"OFFICIAL_METAR_PROXY_NOT_EXACT_CONTRACT_POPULATION",
                                  "settlement_authority":False,"calibration_label_authority":False,
                                  "financial_authority":False})
         except (EvidenceError, KeyError, ValueError, TypeError) as exc:
             rejections[str(exc) if isinstance(exc,EvidenceError) else "AWC_SCHEMA_INVALID"] += 1
-    return {"adapter_version":"alpha_v11_awc_metar_v1","observations":observations,
+    return {"adapter_version":"alpha_v11_awc_metar_v2_physical_body","observations":observations,
             "rejections":dict(rejections),"settlement_authority":False,"financial_authority":False}
 
 

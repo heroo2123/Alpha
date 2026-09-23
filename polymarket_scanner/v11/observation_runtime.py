@@ -96,7 +96,8 @@ class ObservationRuntime:
         self.scheduled,self.store=scheduled,scheduled.store
 
     async def cycle(self, cycle_id: str, requests: tuple[SourceRequest, ...], *,
-                    station_by_event: dict[str,str], strategies: tuple[str,...]) -> dict:
+                    station_by_event: dict[str,str], strategies: tuple[str,...],
+                    required_providers_by_strategy: dict[str,tuple[str,...]] | None=None) -> dict:
         if not strategies or len(strategies)>16 or len(set(strategies)) != len(strategies):
             raise EvidenceError("OBSERVATION_STRATEGY_BOUND")
         for strategy in strategies:
@@ -104,6 +105,17 @@ class ObservationRuntime:
         events=sorted({r.event_id for r in requests})
         if not set(events)<=station_by_event.keys():
             raise EvidenceError("EVENT_STATION_CONTEXT_MISSING")
+        requirements=None
+        if required_providers_by_strategy is not None:
+            planned={r.provider for r in requests}
+            if set(required_providers_by_strategy)!=set(strategies):
+                raise EvidenceError('STRATEGY_SOURCE_REQUIREMENTS_MISMATCH')
+            requirements={}
+            for strategy,providers in required_providers_by_strategy.items():
+                if (not isinstance(providers,tuple) or not providers or len(set(providers))!=len(providers)
+                        or not set(providers)<=planned):
+                    raise EvidenceError('STRATEGY_SOURCE_REQUIREMENTS_INVALID')
+                requirements[strategy]=providers
         collected=await self.scheduled.cycle(cycle_id,requests)
         normalized=[]
         for index,source in enumerate(collected["sources"]):
@@ -127,14 +139,19 @@ class ObservationRuntime:
         # A complete raw response is not a calibrated or financially admissible
         # strategy. Record source coverage plus the remaining certification gate.
         for event_index,event in enumerate(events):
-            successes=sum(x["state"]=="SUCCESS" for x in normalized if x["event_id"]==event)
-            expected=sum(r.event_id==event for r in requests)
+            planned={r.provider for r in requests if r.event_id==event}
+            ready={provider for provider in planned if
+                   sum(x['event_id']==event and x['provider']==provider and x['state']=='SUCCESS' for x in normalized)
+                   ==sum(r.event_id==event and r.provider==provider for r in requests)}
             for strategy_index,strategy in enumerate(strategies):
+                required=set(requirements[strategy]) if requirements is not None else planned
+                covered=bool(required) and required<=ready
                 self.store.funnel(f"{cycle_id}:funnel:{event_index}:{strategy_index}",event_id=event,
-                    strategy=strategy,stage="SOURCE_READY",state="PASS" if successes==expected else "NO_DATA",
-                    reason="NORMALIZED_SOURCE_COVERAGE_ONLY" if successes==expected else "INCOMPLETE_OR_COOLDOWN_SOURCE_COVERAGE",
+                    strategy=strategy,stage="SOURCE_READY",state="PASS" if covered else "NO_DATA",
+                    reason="NORMALIZED_REQUIRED_SOURCE_COVERAGE_ONLY" if covered else "INCOMPLETE_OR_COOLDOWN_REQUIRED_SOURCE_COVERAGE",
                     cycle_id=cycle_id)
         status={"cycle_id":cycle_id,"collection":collected,"normalization":normalized,
+                "required_providers_by_strategy":requirements,
                 "calibrated_probability":False,"strategy_admission":"REQUIRES_SCOPED_CERTIFICATION_AND_VALUATION",
                 "financial_authority":False,"automatic_order_placement":False}
         self.store.audit(cycle_id+":status",event_id="observation-runtime",kind="RUNTIME_STATUS",details=status,
