@@ -173,13 +173,29 @@ def test_atomic_publisher_interruption_has_one_reconcilable_epoch(bundle,tmp_pat
     # Filesystem crash mechanics only; custody is separately tested above.
     # This synthetic test does not install or approve any production manifest.
     import os
+    from types import SimpleNamespace
     state=promote(bundle)
     path=tmp_path/'state.json'
     path.write_text(authority.canonical({'state':state,'sha256':digest(state)}))
     path.chmod(0o600)
     monkeypatch.setattr(authority,'STATE',path)
     monkeypatch.setattr(authority,'custody',lambda p,**kwargs:p.lstat())
-    monkeypatch.setattr(authority.os,'geteuid',lambda:0)
+    # Scope the privileged-OS fixture to this imported authority module. The
+    # crash mechanics run on ordinary CI-owned files without changing owners
+    # or requiring sudo. Production custody and ownership calls stay intact.
+    fixture_os=SimpleNamespace(**vars(os))
+    ownership_calls=[]
+    def fixture_fstat(fd):
+        values=list(os.fstat(fd))
+        values[4]=0  # Synthetic root owner; device/inode/mode remain actual.
+        return os.stat_result(values)
+    def fixture_fchown(fd,uid,gid):
+        assert uid==0
+        ownership_calls.append((fd,uid,gid))
+    fixture_os.geteuid=lambda:0
+    fixture_os.fstat=fixture_fstat
+    fixture_os.fchown=fixture_fchown
+    monkeypatch.setattr(authority,'os',fixture_os)
     real_replace=authority.os.replace
     replaced=[False]
     def replace_file(a,b):
@@ -194,7 +210,7 @@ def test_atomic_publisher_interruption_has_one_reconcilable_epoch(bundle,tmp_pat
         real_fsync(fd)
     monkeypatch.setattr(authority.os,'replace',replace_file)
     monkeypatch.setattr(authority.os,'fsync',fsync)
-    monkeypatch.setattr(authority.time,'time',lambda:21.)
+    monkeypatch.setattr(authority,'time',SimpleNamespace(time=lambda:21.))
     def publish():
         return authority.publish(action='DEMOTE',expected_state_sha256=digest(state),reason='SOURCE_LOST',size_multiplier=0.)
     if failure_stage:
@@ -207,3 +223,19 @@ def test_atomic_publisher_interruption_has_one_reconcilable_epoch(bundle,tmp_pat
     assert envelope['state']['epoch']==(1 if failure_stage=='BEFORE_RENAME' else 2)
     assert envelope['state']['active_bundle_sha256']==state['active_bundle_sha256']
     assert not list(tmp_path.glob('model-state-*'))
+    assert len(ownership_calls)==1
+
+
+def test_publisher_lock_custody_remains_enforced(tmp_path,monkeypatch):
+    import os
+    import stat
+    from types import SimpleNamespace
+    fixture_os=SimpleNamespace(**vars(os))
+    fixture_os.geteuid=lambda:0
+    fixture_os.fstat=lambda fd:SimpleNamespace(st_mode=stat.S_IFREG|0o600,st_uid=1000)
+    monkeypatch.setattr(authority,'os',fixture_os)
+    monkeypatch.setattr(authority,'STATE',tmp_path/'state.json')
+    monkeypatch.setattr(authority,'custody',lambda p,**kwargs:p.lstat())
+    with pytest.raises(authority.AuthorityError,match='MODEL_AUTHORITY_LOCK_CUSTODY'):
+        authority.publish(action='DEMOTE',expected_state_sha256='0'*64,reason='SYNTHETIC_TEST',size_multiplier=0.)
+    assert not (tmp_path/'state.json').exists()
