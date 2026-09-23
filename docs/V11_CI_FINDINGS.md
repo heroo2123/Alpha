@@ -21,6 +21,9 @@ unchanged. No runner privilege escalation or test skip is introduced.
 22 governance tests pass locally. A local attempt to launch the same suite under
 an unprivileged UID was blocked before execution: this environment has UID 0,
 zero effective Linux capabilities and NoNewPrivs. That check is not marked passed.
-The new ordinary GitHub runner result must be inspected after publication; until
-then the CI portability gate remains pending. These synthetic tests do not prove
-real host commissioning or independent security review.
+The correction passed GitHub Actions run `35933848981` at commit
+`d4902a26aef5964e437f46d605a93db153d4f3ef`, including ordinary Python 3.11 and 3.12
+runners. The subsequent coordinator implementation passed run `35933951235` at
+`8437079613ec0d3fd17eb20c82ae89bbedebcca9`. This portability finding is closed;
+the blocked local UID probe is still not represented as a successful test. These
+synthetic checks do not prove real host commissioning or independent review.

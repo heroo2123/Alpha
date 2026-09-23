@@ -7,6 +7,7 @@ from polymarket_scanner.v11.allocation import SizingFactors, size_within_ceiling
 from polymarket_scanner.v11.evidence import EvidenceError, EvidenceStore, ReleaseBinding
 from polymarket_scanner.v11.event_risk import EventContext, EventRiskEngine, SafetyReductions
 from polymarket_scanner.v11.paper_coordinator import PaperAccountPolicy, PaperCoordinator, Proposal
+from polymarket_scanner.v11.strategy_admission import StrategyAdmission
 from polymarket_scanner.v11.scenario_risk import Attribution
 from polymarket_scanner.v11.valuation import ValuationPolicy, settlement_entry, compare_hold_sale, contract_target, HOLD_RISKS, SALE_RISKS, SALE
 from test_v11_event_risk import policy as event_policy, metrics
@@ -16,10 +17,18 @@ from test_v11_scenario_risk import mapping, limits, distinct_rule
 
 
 @pytest.fixture
-def rig(tmp_path):
+def rig(tmp_path, monkeypatch):
     tmp_path.chmod(0o700)
     now = [T+110.]
     store = EvidenceStore(tmp_path/'paper.sqlite', 'V11_PAPER', clock=lambda: now[0])
+    # Isolated downstream account fixtures; real scoped review/epoch/source
+    # admission is exercised without this stub in test_v11_strategy_admission.
+    def fixture_admission(self, record_id, *, context, rule, binding, strategies):
+        assert record_id.startswith('fixture-admission-') and strategies == ('fixture',)
+        assert binding['rule_fingerprint'] == rule.sha256
+        return dict(strategy='fixture', heads=[], model_size_multiplier=1., valid_until=now[0]+60,
+                    admission_id=record_id, financial_authority=False)
+    monkeypatch.setattr(StrategyAdmission, 'revalidate', fixture_admission)
     r = rule()
     corr = mapping(r)
     p = PaperAccountPolicy('fixture-1', 'account', 'FIXTURE_COLLATERAL', '10', '10', '10', '10', '.01', '0', 60., 10)
@@ -76,7 +85,7 @@ def proposal(rig, pid='proposal', *, units='20', bucket=0, ev='.2', direction='B
                    if p['token_id'] == target['token_id'])
         desired = units if direction == 'BUY' else str(max(Decimal(0), held-Decimal(units)))
     return Proposal(pid, thesis or 'thesis-'+pid, rig['context'], r, 'value-'+pid, rig['state_id'],
-                    (Attribution('fixture', '1'),), now+30, desired)
+                    (Attribution('fixture', '1'),), now+30, desired, ('fixture-admission-'+pid,))
 
 
 def proof(rig, pid, key, kind, **fields):
@@ -320,3 +329,13 @@ def test_city_safety_scope_cannot_be_changed_to_bypass_the_metadata_bound_map(ri
     changed = replace(p, context=replace(p.context, city_id='unrelated-city'))
     result = coordinator(rig).coordinate('wrong-scope', (changed,))['body']['details']
     assert result['results'][0]['reason'] == 'PROPOSAL_CITY_METADATA_SCOPE_MISMATCH'
+
+
+def test_admission_demotion_between_reservation_and_submit_retains_reservation(rig, monkeypatch):
+    p = proposal(rig, units='5'); c = coordinator(rig); c.coordinate('batch', (p,))
+    def demoted(*args, **kwargs):
+        raise EvidenceError('STRATEGY_AUTHORITY_OR_SOURCE_CHANGED_RECOMPUTE')
+    monkeypatch.setattr(StrategyAdmission, 'revalidate', demoted)
+    with pytest.raises(EvidenceError, match='SOURCE_CHANGED'):
+        c.transition('submit', intent_id=p.proposal_id, status='SUBMITTING')
+    assert Decimal(c.snapshot()['reserved_cash']) == 2

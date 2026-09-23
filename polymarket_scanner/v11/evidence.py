@@ -217,7 +217,7 @@ class EvidenceStore:
                     raise EvidenceError("AUDIT_HEAD_GUARD_INVALID")
                 guard_kind, guard_event, guard_seq = guard
                 identity(guard_event)
-                if (guard_kind not in AUDIT_KINDS or type(guard_seq) is not int or guard_seq < 0
+                if (guard_kind not in AUDIT_KINDS | KINDS or type(guard_seq) is not int or guard_seq < 0
                         or (guard_kind, guard_event) in guarded):
                     raise EvidenceError("AUDIT_HEAD_GUARD_INVALID")
                 guarded.add((guard_kind, guard_event))
@@ -270,12 +270,25 @@ class EvidenceStore:
 
     def latest(self, *, kind: str, event_id: str) -> dict | None:
         """Read one scoped state head; callers still use CAS when appending."""
-        if kind not in AUDIT_KINDS:
+        if kind not in AUDIT_KINDS | KINDS:
             raise EvidenceError("AUDIT_KIND_INVALID")
         identity(event_id)
         with self._connect() as db:
             row = db.execute("SELECT * FROM v11_records WHERE kind=? AND event_id=? "
                              "ORDER BY seq DESC LIMIT 1", (kind, event_id)).fetchone()
+        return None if row is None else self._decode(row)
+
+    def latest_source(self, *, kind: str, event_id: str, provider: str, source_identity: str) -> dict | None:
+        """Current received revision of one source, never provider backdated time."""
+        if kind not in KINDS:
+            raise EvidenceError('CAPTURE_KIND_INVALID')
+        for value in (event_id, provider, source_identity):
+            identity(value)
+        with self._connect() as db:
+            row = db.execute("SELECT * FROM v11_records WHERE kind=? AND event_id=? "
+                             "AND json_extract(body,'$.provider')=? "
+                             "AND json_extract(body,'$.source_identity')=? ORDER BY seq DESC LIMIT 1",
+                             (kind, event_id, provider, source_identity)).fetchone()
         return None if row is None else self._decode(row)
 
     def audit(self, record_id: str, *, event_id: str, kind: str, details: dict,

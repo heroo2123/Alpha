@@ -28,13 +28,13 @@ def setup(tmp_path):
     return store,registry,scope,metadata,now
 
 
-def approve_fixture(monkeypatch, setup, *, stage='CANARY_ELIGIBLE', fingerprint='a'*64):
+def approve_fixture(monkeypatch, setup, *, stage='CANARY_ELIGIBLE', fingerprint='a'*64, prefix=''):
     store, registry, scope, metadata, now = setup
     required = cert.BASE_CAPABILITIES | cert.STRATEGY_CAPABILITIES[scope.strategy]
     proofs = {}
     last = None
     for cap in sorted(required):
-        last = registry.proof('proof:'+cap,scope,capability=cap,metadata_fingerprint=metadata.fingerprint,
+        last = registry.proof(prefix+'proof:'+cap,scope,capability=cap,metadata_fingerprint=metadata.fingerprint,
                               rule_fingerprint=fingerprint,evidence_ids=('metadata-raw',),result='PASS',
                               checker_version='SYNTHETIC_TEST_CHECKER')
         proofs[cap] = {'id':last['id'],'sha256':last['sha256']}

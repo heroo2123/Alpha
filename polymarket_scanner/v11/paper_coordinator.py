@@ -18,6 +18,7 @@ from .rules import RuleFingerprint
 from .scenario_risk import (Attribution, Position, PendingOrder, CorrelationMap, ScenarioLimits,
                             event_scenarios, portfolio_risk, number, _attribution, precise)
 from .valuation import VERSION as EV_VERSION, contract_target
+from .strategy_admission import StrategyAdmission
 
 
 VERSION = 'alpha_v11_paper_coordinator_v1'
@@ -67,6 +68,7 @@ class Proposal:
     attribution: tuple[Attribution, ...]
     expires_at: float
     desired_total_units: str
+    admission_ids: tuple[str, ...]
 
     def __post_init__(self):
         for v in (self.proposal_id, self.thesis_id, self.valuation_id, self.event_state_id):
@@ -75,6 +77,11 @@ class Proposal:
         finite(self.expires_at)
         if number(self.desired_total_units) > 1_000_000:
             raise EvidenceError('DESIRED_POSITION_BOUND')
+        if (type(self.admission_ids) is not tuple or not 1 <= len(self.admission_ids) <= 4
+                or len(set(self.admission_ids)) != len(self.admission_ids)):
+            raise EvidenceError('SCOPED_STRATEGY_ADMISSION_REQUIRED')
+        for key in self.admission_ids:
+            identity(key)
         if self.context.event_id != self.rule.payload['event_id'] or self.context.station_id != self.rule.payload['station']:
             raise EvidenceError('PROPOSAL_RULE_CONTEXT')
 
@@ -204,6 +211,13 @@ class PaperCoordinator:
                 or value['binding']['rule_fingerprint'] != proposal.rule.sha256
                 or value['collateral_asset'] != self.policy.collateral_asset):
             raise EvidenceError('PROPOSAL_VALUATION_BINDING')
+        strategies = tuple(a.strategy for a in proposal.attribution)
+        admissions = [StrategyAdmission(self.store).revalidate(key, context=proposal.context, rule=proposal.rule,
+                       binding=value['binding'], strategies=strategies) for key in proposal.admission_ids]
+        if {a['strategy'] for a in admissions} != set(strategies):
+            raise EvidenceError('EVERY_ATTRIBUTED_STRATEGY_REQUIRES_SCOPED_ADMISSION')
+        for admission in admissions:
+            heads += tuple(tuple(h) for h in admission['heads'])
         if value['valuation_type'] == 'SETTLEMENT' and value['outcome'] == 'ACCEPT_RESEARCH':
             direction, ev, cost_rows = 'BUY', value['conservative_ev_per_share'], value['costs']
         elif value['valuation_type'] == 'EXIT_COMPARISON' and value['outcome'] == 'REDUCE_RESEARCH_CANDIDATE':
@@ -219,7 +233,8 @@ class PaperCoordinator:
         if direction == 'BUY' and (flags['reduce_only'] or not event['ordinary_new_risk_research_allowed']):
             raise EvidenceError('EVENT_OR_OPERATOR_SUPPRESSES_NEW_RISK')
         quantity = number(value['units'])
-        if quantity > number(self.limits.max_position_units)*Decimal(str(event['guard']['size_multiplier'])):
+        model_size = min(Decimal(str(a['model_size_multiplier'])) for a in admissions)
+        if quantity > number(self.limits.max_position_units)*Decimal(str(event['guard']['size_multiplier']))*model_size:
             raise EvidenceError('EVENT_STATE_SIZE_LIMIT')
         minimum_ev = self.policy_amount('minimum_ev_per_share')+Decimal(str(event['guard']['additional_ev_per_share']))
         if number(ev) <= minimum_ev or not cost_rows['complete']:
@@ -232,6 +247,7 @@ class PaperCoordinator:
         expiry = min(proposal.expires_at, value['as_of']+self.policy.maximum_intent_lifetime_seconds*
                      event['guard']['lifetime_multiplier'], event['valid_until'], bound_at,
                      book['body']['observed_at']+book_age, book['body']['received_at']+book_age)
+        expiry = min(expiry, *(a['valid_until'] for a in admissions))
         if not value['as_of'] <= now < expiry:
             raise EvidenceError('PROPOSAL_EVIDENCE_OR_SIGNAL_EXPIRED')
         if any(c['valid_until'] is not None and now > c['valid_until'] for c in cost_rows['components']):
@@ -254,12 +270,13 @@ class PaperCoordinator:
                          direction=direction, units=str(quantity), filled_units='0', unit_collateral_bound=str(bound),
                          attribution=[asdict(a) for a in proposal.attribution], expires_at=expiry,
                          valuation_id=proposal.valuation_id, event_state_id=proposal.event_state_id,
+                         admission_ids=list(proposal.admission_ids), binding=value['binding'],
                          rule_fingerprint=proposal.rule.sha256, conservative_ev_total=str(number(ev)*quantity),
                          capital_at_risk=str(capital), status='RESERVED', cancel_requested=False, financial_authority=False)
         return candidate, heads
 
     def coordinate(self, batch_id: str, proposals: tuple[Proposal, ...]) -> dict:
-        if type(proposals) is not tuple or not 1 <= len(proposals) <= 12:
+        if type(proposals) is not tuple or not 1 <= len(proposals) <= 6:
             raise EvidenceError('COORDINATOR_BATCH_BOUND')
         if len({p.proposal_id for p in proposals}) != len(proposals):
             raise EvidenceError('DUPLICATE_PROPOSAL_ID')
@@ -362,6 +379,19 @@ class PaperCoordinator:
             event = EventRiskEngine(self.store).revalidate(intent['event_state_id'])
             event_row = self.store.get(intent['event_state_id'])
             heads += (('COORDINATOR_EVENT', event_row['event_id'], event_row['seq']),)
+            strategies = tuple(a['strategy'] for a in intent['attribution'])
+            rule = self._rule(state['rules'][intent['event_id']])
+            for key in intent['admission_ids']:
+                admission = StrategyAdmission(self.store).revalidate(key, context=context, rule=rule,
+                              binding=intent['binding'], strategies=strategies)
+                heads += tuple(tuple(h) for h in admission['heads'])
+            # Shared station/source scopes may be referenced by several sleeves.
+            unique = {}
+            for kind, event_id, seq in heads:
+                if (kind, event_id) in unique and unique[(kind, event_id)] != seq:
+                    raise EvidenceError('SUBMISSION_AUTHORITY_CHANGED_RECOMPUTE')
+                unique[(kind, event_id)] = seq
+            heads = tuple((k, e, seq) for (k, e), seq in unique.items())
             flags = event['safety']['flags']
             if (state['faults'] or finite(self.store.clock()) >= intent['expires_at']
                     or flags['no_new_orders'] or flags['manual_review'] or flags['quarantined']
