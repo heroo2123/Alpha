@@ -1,13 +1,13 @@
 # Alpha V11 work checkpoint
 
-Updated 2026-09-23, 23:31 UTC. Resume here. **NOT_READY_TO_FUND**.
+Updated 2026-09-23, 23:47 UTC. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
 
 ## Exact identities and scope
 
 - Branch: `weather-v11-profitability-upgrade-2026-09-23`.
-- Last verified implementation HEAD: `8437079613ec0d3fd17eb20c82ae89bbedebcca9`.
-- Last verified implementation tree: `280da8c7736a984e622b1f3f09574aad60de637c`.
+- Last verified implementation HEAD: `a2dd28777147c63ace556dafce3eb8310eedfe0e`.
+- Last verified implementation tree: `83b095836589acd04498611847a4ddba7c3b8bac`.
 - Worktree at verification: clean; local and published implementation trees match.
 - This following checkpoint commit changes documentation only. Resolve its own
   exact commit with `git log -1 --format=%H -- docs/V11_WORK_CHECKPOINT.md`, and its
@@ -288,6 +288,37 @@ claimed passed; the new GitHub runner result must be checked. See
 `docs/V11_CI_FINDINGS.md`. The broad regression above preceded this test-only fix;
 it was not repeated over unchanged production code. No tests remain running.
 
+## Scoped strategy admission milestone
+
+Published `v11/strategy_admission.py` and integrated mandatory per-strategy pins
+into the paper coordinator before reservation and submission-state transition.
+Protected capability review, station/rule scope, metadata, model version/bundle/
+epoch, manual-review/size overlay and source leases now join at one admission
+boundary. Missing protected commissioning remains gated. The model/review reader
+is re-read; no writer or financial mode is introduced.
+
+Known model issue time and exact forecast target are required. Sensor/observation
+ages remain causal; fresh receipt or feature recomputation cannot refresh old PWS.
+Older received source versions are refused. Source heads (including an absent
+official head) are pinned before reads and atomically guarded. A new official
+observation invalidates pre-confirmation, and new PWS data requires QC recompute.
+Every attributed strategy needs its own matching admission, and model reductions
+also constrain size. Existing reservations survive a later admission demotion.
+
+15 admission tests plus one added coordinator case passed with dependencies:
+**109 targeted checks, 2.49 s**. Full regression: **2,670 passed, four existing
+warnings, 67.31 s**. Two fixture proof-ID collisions were corrected with explicit
+scope prefixes; a rejection-reason check was refined to preserve the specific
+new-official reason. No tests remain running. Source/strategy factories, actual
+champions/labels and all runtime acceptance remain unfinished; these pins do not
+manufacture payout, PWS lead, finality or executable exit evidence.
+
+The CI portability finding is now CLOSED: ordinary Python 3.11/3.12 runners passed
+run `35933848981` at `d4902a2`; coordinator run `35933951235` at `8437079` also
+completed successfully. The blocked local UID probe remains explicitly unpassed.
+No protected host permission was weakened, no V10 action or alpha-dev workload
+occurred, and no independent review is claimed.
+
 ## Implementation and verification
 
 Prior delivered foundation is retained: private append-only evidence namespaces,
@@ -319,13 +350,17 @@ bounded compressed-capture verification and explicitly limited runtime context.
 | Exact scenario / correlation focused checks | **15 passed** |
 | Event/EV full regression | **2,618 passed; four existing warnings; 68.67 s** |
 | Account/scenario/event/evidence integration | **91 passed; 1.59 s** |
-| Latest coordinator full regression | **2,653 passed; four existing warnings; 70.49 s** |
-| Governance portability correction | **22 passed locally; unprivileged CI pending** |
+| Coordinator full regression | **2,653 passed; four existing warnings; 70.49 s** |
+| Scoped admission integration | **109 passed; 2.49 s** |
+| Latest scoped-admission full regression | **2,670 passed; four existing warnings; 67.31 s** |
+| Governance portability correction | **22 passed locally; ordinary GitHub runners passed run 35933848981** |
 | Snapshot/forensic tests | **18 passed** |
 | Compileall / dependency check / diff whitespace | passed |
 | Prior GitHub Actions run 35911031597 at cc268af | completed successfully |
 | Probability/dataset GitHub Actions run 35924652710 at 359814e | completed successfully |
-| Event/EV CI run 35931387025 | FAILED: three privilege-dependent synthetic crash fixtures; corrected in d4902a2, new CI pending |
+| Event/EV CI run 35931387025 | Historical FAILED fixture finding; corrected and closed by run 35933848981 |
+| Coordinator CI run 35933951235 at 8437079 | completed successfully |
+| New admission implementation CI | not yet inspected |
 
 Tests used an isolated off-host environment installed from hash-locked dev
 requirements. Four warnings are pre-existing FastAPI lifecycle deprecations.
@@ -345,10 +380,12 @@ technical readiness, canary eligibility and empirical validation stay separate.
 - No executor mask change or real-money activation. No arbitrary paper waiting
   period is imposed; mandatory technical/evidence gates remain.
 
-Next engineering action: inspect CI for the portability correction, then integrate
-scoped station/rule/model authority and causal source-trigger revalidation into
-strategy admission. Continue Phase 6 migration using the shared coordinator;
-PWS observation, payout and executable-exit targets must remain separate. Event-state and target-specific economics primitives
+Next engineering action: continue Phase 6 strategy migration through the shared
+admission/coordinator path, beginning with forecast/same-day proposal factories
+and bounded source-event triggers. PWS observation, payout and executable-exit
+targets remain separate; source-shock EVENT exceptions need exact-source/CLOB
+checks, structural baskets need common-outcome/partial-leg reconciliation, and
+result-lag still requires proven finality. Complete all remaining master phases. Event-state and target-specific economics primitives
 are implemented; complete runtime/financial integration remains pending. Causal
 physical candidates still require feature-value/inference validation. PWS defensive QC/spatial
 features are implemented; historical reliability and economic/lead validation
