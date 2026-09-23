@@ -109,6 +109,14 @@ class SafetyReductions:
                     flags[name] = flags[name] or enabled
         return dict(flags=flags, heads=heads, financial_authority=False)
 
+    def atomic_heads(self, context: EventContext) -> tuple[tuple[str, str, int], ...]:
+        result = []
+        for scope, value in context.scopes:
+            key = _key('safety', [scope, value])
+            row = self.store.latest(kind='OPERATOR_EVENT', event_id=key)
+            result.append(('OPERATOR_EVENT', key, row['seq'] if row else 0))
+        return tuple(result)
+
 
 @dataclass(frozen=True)
 class StateGuard:

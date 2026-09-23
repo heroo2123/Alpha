@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 from decimal import Decimal, localcontext
+from functools import wraps
 import re
 
 from .evidence import EvidenceError, EvidenceStore, digest, identity, sha
@@ -26,16 +27,25 @@ def namespace(value: str) -> str:
 
 
 def number(value: str, *, signed=False) -> Decimal:
-    if not isinstance(value, str) or len(value) > 48:
+    if not isinstance(value, str) or len(value) > 96:
         raise EvidenceError('RISK_DECIMAL_REPRESENTATION')
     try:
         result = Decimal(value)
     except Exception:
         raise EvidenceError('RISK_DECIMAL_INVALID') from None
     if (not result.is_finite() or abs(result) > 1_000_000_000
-            or result.as_tuple().exponent < -18 or (not signed and result < 0)):
+            or result.as_tuple().exponent < -48 or (not signed and result < 0)):
         raise EvidenceError('RISK_DECIMAL_BOUND')
     return result
+
+
+def precise(function):
+    @wraps(function)
+    def call(*args, **kwargs):
+        with localcontext() as context:
+            context.prec = 160
+            return function(*args, **kwargs)
+    return call
 
 
 @dataclass(frozen=True)
@@ -182,6 +192,7 @@ def _verify_view(view: dict) -> None:
         raise EvidenceError('SCENARIO_VIEW_INTEGRITY')
 
 
+@precise
 def incremental_scenarios(rule: RuleFingerprint, *, execution_namespace: str, account_id: str,
                           positions: tuple[Position, ...], pending: tuple[PendingOrder, ...],
                           proposed: tuple[PendingOrder, ...], realized_event_pnl: str = '0') -> dict:
@@ -251,6 +262,7 @@ class ScenarioLimits:
                 raise EvidenceError('SCENARIO_LIMIT_NONPOSITIVE')
 
 
+@precise
 def portfolio_risk(views: tuple[dict, ...], *, correlation: CorrelationMap, limits: ScenarioLimits,
                    execution_namespace: str, account_id: str) -> dict:
     namespace(execution_namespace); identity(account_id)

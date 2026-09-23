@@ -187,7 +187,8 @@ class EvidenceStore:
 
     def _append(self, record_id: str, kind: str, event_id: str, body: dict,
                 available_at: float, recorded_at: float,
-                expected_previous_seq: int | None = None) -> dict:
+                expected_previous_seq: int | None = None,
+                expected_heads: tuple[tuple[str, str, int], ...] = ()) -> dict:
         identity(record_id)
         identity(event_id)
         body = dict(body, namespace=self.namespace, financial_authority=False,
@@ -208,6 +209,22 @@ class EvidenceStore:
                                    (kind, event_id)).fetchone()[0]
                 if prior != expected_previous_seq:
                     raise EvidenceError("AUDIT_STATE_CHANGED")
+            if type(expected_heads) is not tuple or len(expected_heads) > 64:
+                raise EvidenceError("AUDIT_HEAD_GUARD_INVALID")
+            guarded = set()
+            for guard in expected_heads:
+                if type(guard) is not tuple or len(guard) != 3:
+                    raise EvidenceError("AUDIT_HEAD_GUARD_INVALID")
+                guard_kind, guard_event, guard_seq = guard
+                identity(guard_event)
+                if (guard_kind not in AUDIT_KINDS or type(guard_seq) is not int or guard_seq < 0
+                        or (guard_kind, guard_event) in guarded):
+                    raise EvidenceError("AUDIT_HEAD_GUARD_INVALID")
+                guarded.add((guard_kind, guard_event))
+                head = db.execute("SELECT COALESCE(MAX(seq),0) FROM v11_records WHERE kind=? AND event_id=?",
+                                  (guard_kind, guard_event)).fetchone()[0]
+                if head != guard_seq:
+                    raise EvidenceError("AUDIT_GUARDED_STATE_CHANGED")
             self._budget(db, len(encoded.encode()))
             last = db.execute("SELECT recorded_at FROM v11_records ORDER BY seq DESC LIMIT 1").fetchone()
             if last and recorded_at < last[0]:
@@ -262,7 +279,8 @@ class EvidenceStore:
         return None if row is None else self._decode(row)
 
     def audit(self, record_id: str, *, event_id: str, kind: str, details: dict,
-              evidence_ids: tuple[str, ...] = (), expected_previous_seq: int | None = None) -> dict:
+              evidence_ids: tuple[str, ...] = (), expected_previous_seq: int | None = None,
+              expected_heads: tuple[tuple[str, str, int], ...] = ()) -> dict:
         if kind not in AUDIT_KINDS or not isinstance(details, dict):
             raise EvidenceError("AUDIT_KIND_INVALID")
         if (len(evidence_ids) > self.limits.max_evidence_per_decision
@@ -275,7 +293,7 @@ class EvidenceStore:
         return self._append(record_id, kind, event_id,
                             {"details": details, "evidence": [{"id": r["id"], "sha256": r["sha256"]}
                                                             for r in references]}, at, at,
-                            expected_previous_seq=expected_previous_seq)
+                            expected_previous_seq=expected_previous_seq, expected_heads=expected_heads)
 
     def capture(self, record_id: str, *, event_id: str, kind: str, provider: str,
                 source_identity: str, revision: str, payload: dict,
