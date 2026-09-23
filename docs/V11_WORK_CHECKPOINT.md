@@ -1,13 +1,13 @@
 # Alpha V11 work checkpoint
 
-Updated 2026-09-23, 21:48 UTC. Resume here. **NOT_READY_TO_FUND**.
+Updated 2026-09-23, 22:12 UTC. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
 
 ## Exact identities and scope
 
 - Branch: `weather-v11-profitability-upgrade-2026-09-23`.
-- Last verified implementation HEAD: `359814e08084ccf80d9fb756a3393bec8d9186b6`.
-- Last verified implementation tree: `e9ddf1e638295e7dbe55948cedf8c00ed66a41cd`.
+- Last verified implementation HEAD: `b9de1fb2ca34d5eb0b6581bbbc9dd93c6aef4c80`.
+- Last verified implementation tree: `a5081aba7c6386891af44c01cb2540566ddb650f`.
 - Worktree at verification: clean; local and published implementation trees match.
 - This following checkpoint commit changes documentation only. Resolve its own
   exact commit with `git log -1 --format=%H -- docs/V11_WORK_CHECKPOINT.md`, and its
@@ -136,6 +136,36 @@ changes. Publication preserved working files and used a same-tree commit-ref
 alignment; no reset, clean or rollback was used. Prior Git verification was
 closed PASS, not repeatedly rerun over unchanged state.
 
+## Phase 3A artifact, governance and bounded learner milestone
+
+Published `v11/model_artifacts.py`, `v11/model_registry.py`,
+`v11/offline_learning.py` and standalone
+`host_trust/v11-model-authority/authority.py`. Added documentation for model
+registry, continual learning and governance. The root-side helper is PREPARED,
+not installed; it currently permits nonfinancial paper/shadow modes only.
+
+Data-only five-component bundles enforce shape, numeric bounds, exact target and
+feature compatibility, probability/calibration binding and complete provenance.
+Immutable content-addressed objects, reviewed state epochs and decision pins are
+tested. The research writer has no active-pointer interface. The separate helper
+requires protected reviews and installed matching bytes; it imports no candidate
+code. Atomic pointer/overlay/history publication, stale-parent rejection,
+monotonic demotion, reviewed recovery and rollback are tested. Interruption
+before rename retains the old epoch; uncertainty after rename requires actual
+state reconciliation. No production custody or independent review is claimed.
+
+A bounded deterministic grid learner selects only on TRAIN, records all trials,
+compares the exact parent on identical causal data and reports grouped metrics,
+bootstrap uncertainty, slice regressions, concentration and parent-parameter
+ablation. Sparse support or resource failure preserves the parent. It returns
+NO_PROMOTION pending independent label/dependence review. Only synthetic test
+fits have run; no actual V10 dataset was trained or champion activated.
+
+Dataset integration also tightened payout targets to exact market/condition/
+token/side. This targeted correction preserves the original snapshot/forensics.
+The V10 source/runtime/resource finding and executor containment are unchanged;
+no new remote checks or host workloads were needed for this off-host milestone.
+
 ## Implementation and verification
 
 Prior delivered foundation is retained: private append-only evidence namespaces,
@@ -155,9 +185,11 @@ bounded compressed-capture verification and explicitly limited runtime context.
 | Prior implementation regression | 2,389 passed; four existing warnings |
 | Forensic implementation regression | 2,394 passed; four existing warnings; 65.53 s |
 | Latest source/identity implementation regression | **2,423 passed; four existing warnings; 65.16 s** |
-| Probability / dataset focused tests | **31 / 19 passed** |
+| Probability / dataset focused tests | **31 / 20 passed** |
+| Artifact / governance / offline learner focused tests | **19 / 21 / 8 passed** |
 | Latest probability/dataset full regression | **2,473 passed; four existing warnings; 61.10 s** |
-| Targeted V11 tests across delivered changes | **137 passed** |
+| Latest model/learning full regression | **2,522 passed; four existing warnings; 63.96 s** |
+| Targeted V11 tests across delivered changes | **186 passed** |
 | Snapshot/forensic tests | **18 passed** |
 | Compileall / dependency check / diff whitespace | passed |
 | Prior GitHub Actions run 35911031597 at cc268af | completed successfully |
@@ -175,16 +207,18 @@ technical readiness, canary eligibility and empirical validation stay separate.
 ## Models, authority and exact continuation
 
 - No V11 live/paper/control/challenger ledger is shared or migrated.
-- Causal dataset/experiment infrastructure implemented and tested; no actual training dataset/run, initial champion, challenger or model promotion.
+- Causal dataset, immutable bundle and bounded learner infrastructure implemented; only synthetic test challengers, no actual V10 fit, accepted champion or model promotion.
 - Public CWOP access/coverage verified; no actual PWS lead, executable-exit or maker-fill validation.
 - No live-eligible strategy/station; no funding/account creation/transfer/order.
 - No executor mask change or real-money activation. No arbitrary paper waiting
   period is imposed; mandatory technical/evidence gates remain.
 
-Next engineering action: implement immutable data-only compatible model bundles,
-bounded deterministic offline learning/evaluation and protected model-promotion
-governance. Wire the probability/dataset foundation to verified source labels and
-reviewed artifact parameters. Continue integration of the delivered observation,
+Next engineering action: complete the remaining weather-feature dependencies
+(PWS defensive QC, reliability/spatial features and causal physical features),
+then integrate event states and target-specific executable EV with the tested
+probability/model/evidence interfaces. Exact-source labels, empirical calibration,
+learning scheduling/OS isolation, approved initial champion and financial model
+commissioning remain open; do not treat this foundation as acceptance. Continue integration of the delivered observation,
 registry/rule and evidence interfaces through event/EV/coordinator/risk,
 strategy migration, exits, maker, guardian, deployment and unfunded acceptance.
 Reuse tested existing modules. Preserve this checkpoint and publish nonsecret
