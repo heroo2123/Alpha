@@ -1,13 +1,13 @@
 # Alpha V11 work checkpoint
 
-Updated 2026-09-23, 22:40 UTC. Resume here. **NOT_READY_TO_FUND**.
+Updated 2026-09-23, 23:01 UTC. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
 
 ## Exact identities and scope
 
 - Branch: `weather-v11-profitability-upgrade-2026-09-23`.
-- Last verified implementation HEAD: `17215b7a7fc0af3917a082bf575b6ed31ee8b1c2`.
-- Last verified implementation tree: `a8cd460f45baa80bd0c8cbcffce476a009afc689`.
+- Last verified implementation HEAD: `77a075526854e25986ff753803b3972e6e59d780`.
+- Last verified implementation tree: `22111b6d3ad2b381fb5f40921482541ad65d56b8`.
 - Worktree at verification: clean; local and published implementation trees match.
 - This following checkpoint commit changes documentation only. Resolve its own
   exact commit with `git log -1 --format=%H -- docs/V11_WORK_CHECKPOINT.md`, and its
@@ -204,6 +204,34 @@ new alpha-dev workload occurred. Full inference/economic integration and actual
 ablation validation remain pending. This is local code verification, not a new
 fully accepted package or readiness gate.
 
+## Phase 4 event-risk and executable-economics milestone
+
+Published `v11/event_risk.py` and `v11/valuation.py`. Event states bind scoped
+source/book evidence, metrics, policy and release. Recovery requires distinct
+advancing observations, healthy market/data samples and a configured span; elapsed
+time or repeated receipt cannot suffice. Durable operator reductions never
+self-restore. CAS state transitions, current-head/operator checks and earliest
+source/metric expiries preserve stale-state rejection. Cancellation remains only
+REQUESTED, with no claimed inventory change.
+
+Valuation binds exact contract/token/side, rule, collateral and bundle. Depth walk,
+fees and reserves have explicit units/horizons and nonoverlapping risk coverage.
+Unknown/missing costs, insufficient depth and oversize requests gate economics.
+The existing BUY fee policy is reused with receipt/target/limit/post-only checks;
+no SELL fee rule is guessed. Hold-versus-sale keeps sunk costs out of the prospective
+choice and in hypothetical lifetime P&L. Next-observation probabilities cannot be
+payout/exit prices. Current vacuous bounds still cannot qualify settlement entry;
+validated repricing and exact fee/source authority remain unfinished.
+
+Verification: 28 event + 26 valuation tests; 101 event/valuation/existing-fee checks
+passed. The full regression passed **2,618 tests, four existing warnings, 68.67 s**.
+The first focused run found a duplicate-keyword error in the test helper, corrected
+before the passing runs. A lost session publishing helper was restored; that failed
+attempt made no Git mutation. Publication then completed with matching local/public
+trees and preserved files. No test remains running. No alpha-dev action occurred.
+Protected operator routing, full metric derivation, coordinator/guardian execution,
+actual cancel/exit reconciliation and empirical strategy validation remain open.
+
 ## Implementation and verification
 
 Prior delivered foundation is retained: private append-only evidence namespaces,
@@ -230,7 +258,9 @@ bounded compressed-capture verification and explicitly limited runtime context.
 | PWS defensive QC focused tests | **23 passed** |
 | Prior targeted V11 suite | **209 passed; 2.03 s** |
 | Physical/source integration focused tests | **43 passed** |
-| Latest physical/source full regression | **2,564 passed; four existing warnings; 63.64 s** |
+| Physical/source full regression | **2,564 passed; four existing warnings; 63.64 s** |
+| Event/valuation/existing-fee focused checks | **101 passed** |
+| Latest event/EV full regression | **2,618 passed; four existing warnings; 68.67 s** |
 | Snapshot/forensic tests | **18 passed** |
 | Compileall / dependency check / diff whitespace | passed |
 | Prior GitHub Actions run 35911031597 at cc268af | completed successfully |
@@ -255,10 +285,11 @@ technical readiness, canary eligibility and empirical validation stay separate.
 - No executor mask change or real-money activation. No arbitrary paper waiting
   period is imposed; mandatory technical/evidence gates remain.
 
-Next engineering action: implement durable event-risk states and target-specific
-executable EV using the tested probability/model/evidence interfaces. Causal
-physical feature candidates and source dependency routing are implemented;
-feature value/inference validation remains pending. PWS defensive QC/spatial
+Next engineering action: implement exact event scenario risk and versioned regional/
+source-dependence limits, then the namespaced coordinator and atomic account-wide
+cash/inventory reservations. Event-state and target-specific economics primitives
+are implemented; complete runtime/financial integration remains pending. Causal
+physical candidates still require feature-value/inference validation. PWS defensive QC/spatial
 features are implemented; historical reliability and economic/lead validation
 remain pending. Exact-source labels, empirical calibration,
 learning scheduling/OS isolation, approved initial champion and financial model
