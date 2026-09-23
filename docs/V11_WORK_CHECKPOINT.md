@@ -1,13 +1,13 @@
 # Alpha V11 work checkpoint
 
-Updated 2026-09-23, 23:01 UTC. Resume here. **NOT_READY_TO_FUND**.
+Updated 2026-09-23, 23:09 UTC. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
 
 ## Exact identities and scope
 
 - Branch: `weather-v11-profitability-upgrade-2026-09-23`.
-- Last verified implementation HEAD: `77a075526854e25986ff753803b3972e6e59d780`.
-- Last verified implementation tree: `22111b6d3ad2b381fb5f40921482541ad65d56b8`.
+- Last verified implementation HEAD: `c543625fdd0c2c8f9d83e0fd384b84b148a32abd`.
+- Last verified implementation tree: `b5c1161d3437a2d235de192488da0bc726fad473`.
 - Worktree at verification: clean; local and published implementation trees match.
 - This following checkpoint commit changes documentation only. Resolve its own
   exact commit with `git log -1 --format=%H -- docs/V11_WORK_CHECKPOINT.md`, and its
@@ -232,6 +232,22 @@ trees and preserved files. No test remains running. No alpha-dev action occurred
 Protected operator routing, full metric derivation, coordinator/guardian execution,
 actual cancel/exit reconciliation and empirical strategy validation remain open.
 
+## Phase 5 scenario and correlated-risk milestone
+
+Published `v11/scenario_risk.py`: exact YES/NO resolving outcomes, held/all-in cost
+basis, adverse optional fills for unresolved remainders, incremental risk,
+concentration and partitioned attribution. Pending complete sets keep legging
+risk; selling a hedge is not automatically a risk reduction. Versioned station
+metadata binds city/region/weather/source/model groups. Different cities get no
+independence credit; profitable hypothetical outcomes do not offset other losses.
+
+15 synthetic tests passed. Targeted checks caught the legacy strict-contract
+empty city label; the final implementation requires the exact station metadata
+fingerprint for mapping rather than guessing a city. The prior 2,618-test broad
+regression was not repeated for this isolated additive module. No unfinished test,
+alpha-dev action or deployment. Actual dependence mapping/protected review and
+account/strategy integration remain pending. No complete-package credit added.
+
 ## Implementation and verification
 
 Prior delivered foundation is retained: private append-only evidence namespaces,
@@ -260,6 +276,7 @@ bounded compressed-capture verification and explicitly limited runtime context.
 | Physical/source integration focused tests | **43 passed** |
 | Physical/source full regression | **2,564 passed; four existing warnings; 63.64 s** |
 | Event/valuation/existing-fee focused checks | **101 passed** |
+| Exact scenario / correlation focused checks | **15 passed** |
 | Latest event/EV full regression | **2,618 passed; four existing warnings; 68.67 s** |
 | Snapshot/forensic tests | **18 passed** |
 | Compileall / dependency check / diff whitespace | passed |
@@ -285,9 +302,9 @@ technical readiness, canary eligibility and empirical validation stay separate.
 - No executor mask change or real-money activation. No arbitrary paper waiting
   period is imposed; mandatory technical/evidence gates remain.
 
-Next engineering action: implement exact event scenario risk and versioned regional/
-source-dependence limits, then the namespaced coordinator and atomic account-wide
-cash/inventory reservations. Event-state and target-specific economics primitives
+Next engineering action: implement the namespaced coordinator and atomic account-wide
+cash/inventory reservations, conservative sizing/ranking and ambiguous-order
+recovery using the new scenario/correlation views. Event-state and target-specific economics primitives
 are implemented; complete runtime/financial integration remains pending. Causal
 physical candidates still require feature-value/inference validation. PWS defensive QC/spatial
 features are implemented; historical reliability and economic/lead validation
