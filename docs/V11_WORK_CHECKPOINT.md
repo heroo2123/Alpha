@@ -1,13 +1,13 @@
 # Alpha V11 work checkpoint
 
-Updated 2026-09-23, 22:24 UTC. Resume here. **NOT_READY_TO_FUND**.
+Updated 2026-09-23, 22:40 UTC. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
 
 ## Exact identities and scope
 
 - Branch: `weather-v11-profitability-upgrade-2026-09-23`.
-- Last verified implementation HEAD: `7c78d86b630ebc165b75f39d36c92b94ccde1f7b`.
-- Last verified implementation tree: `352246b0c77b02566abd6cf46c0fddabfa2dea50`.
+- Last verified implementation HEAD: `17215b7a7fc0af3917a082bf575b6ed31ee8b1c2`.
+- Last verified implementation tree: `a8cd460f45baa80bd0c8cbcffce476a009afc689`.
 - Worktree at verification: clean; local and published implementation trees match.
 - This following checkpoint commit changes documentation only. Resolve its own
   exact commit with `git log -1 --format=%H -- docs/V11_WORK_CHECKPOINT.md`, and its
@@ -185,6 +185,25 @@ official/PWS lead, exposure/terrain inference, ablation and complete source/even
 strategy integration remain open. PWS output is informational with trading
 influence explicitly false.
 
+## Physical nowcasting and source dependency milestone
+
+Published `v11/metar_features.py`, `v11/nowcast_features.py` and dependency-aware
+observation routing. Raw METAR bodies supply optional wind/dewpoint/cloud/weather
+features with explicit units and missingness. Receipt-bound trajectories reset
+across gaps; daylight requires causal, exact station/local-day forecast evidence.
+PWS feature outages stay missing and cannot disable unrelated official paths.
+All planned requests for a required provider must succeed; one success cannot
+hide a required sibling failure. Family ablations are archived with provenance.
+No feature is labeled incrementally valuable without out-of-sample evidence.
+
+The interrupted full regression completed PASS: **2,564 passed, four existing
+warnings, 63.64 s**. Focused physical/source checks: **43 passed** (17 new physical
+cases and two new routing cases). No test remains running. Existing workspace
+changes were preserved and published; no reset, clean, duplicate regression or
+new alpha-dev workload occurred. Full inference/economic integration and actual
+ablation validation remain pending. This is local code verification, not a new
+fully accepted package or readiness gate.
+
 ## Implementation and verification
 
 Prior delivered foundation is retained: private append-only evidence namespaces,
@@ -209,7 +228,9 @@ bounded compressed-capture verification and explicitly limited runtime context.
 | Latest probability/dataset full regression | **2,473 passed; four existing warnings; 61.10 s** |
 | Latest model/learning full regression | **2,522 passed; four existing warnings; 63.96 s** |
 | PWS defensive QC focused tests | **23 passed** |
-| Latest targeted V11 suite | **209 passed; 2.03 s** |
+| Prior targeted V11 suite | **209 passed; 2.03 s** |
+| Physical/source integration focused tests | **43 passed** |
+| Latest physical/source full regression | **2,564 passed; four existing warnings; 63.64 s** |
 | Snapshot/forensic tests | **18 passed** |
 | Compileall / dependency check / diff whitespace | passed |
 | Prior GitHub Actions run 35911031597 at cc268af | completed successfully |
@@ -234,9 +255,10 @@ technical readiness, canary eligibility and empirical validation stay separate.
 - No executor mask change or real-money activation. No arbitrary paper waiting
   period is imposed; mandatory technical/evidence gates remain.
 
-Next engineering action: integrate causal physical nowcasting features and
-source dependencies, then event states and target-specific executable EV with
-the tested probability/model/evidence interfaces. PWS defensive QC/spatial
+Next engineering action: implement durable event-risk states and target-specific
+executable EV using the tested probability/model/evidence interfaces. Causal
+physical feature candidates and source dependency routing are implemented;
+feature value/inference validation remains pending. PWS defensive QC/spatial
 features are implemented; historical reliability and economic/lead validation
 remain pending. Exact-source labels, empirical calibration,
 learning scheduling/OS isolation, approved initial champion and financial model
