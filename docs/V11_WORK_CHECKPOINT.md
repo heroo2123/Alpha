@@ -1,13 +1,13 @@
 # Alpha V11 work checkpoint
 
-Updated 2026-09-23, 20:46 UTC. Resume here. **NOT_READY_TO_FUND**.
+Updated 2026-09-23, 21:18 UTC. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
 
 ## Exact identities and scope
 
 - Branch: `weather-v11-profitability-upgrade-2026-09-23`.
-- Last verified implementation HEAD: `7bb382dd8a16682d34d576e59922aed86c41ee16`.
-- Last verified implementation tree: `958a4d1e0518b7b9277d404414780902cc13c2c8`.
+- Last verified implementation HEAD: `9d6fb682e0418f874f8c40815842afb49dfe8859`.
+- Last verified implementation tree: `4d7f7583a997336b4de2699490d63027a9ae9a56`.
 - Worktree at verification: clean; local and published implementation trees match.
 - This following checkpoint commit changes documentation only. Resolve its own
   exact commit with `git log -1 --format=%H -- docs/V11_WORK_CHECKPOINT.md`, and its
@@ -83,6 +83,36 @@ Host: one CPU; prior available RAM approximately 0.8 GB and free disk approximat
 workload without demonstrated isolation/headroom. All analysis and tests ran
 OFF-HOST. No V11 deployment, training or financial process started.
 
+## Phase 1/2 source and identity implementation
+
+Published after forensics: capability-scoped station metadata/history, protected
+review manifest reader (not provisioned), monotonic demotion and reviewed recovery;
+universal rule preimages with archived-raw recompilation and atomic drift state;
+durable source reservations/cooldowns and same-host 429 suppression; bounded
+MADIS CWOP XML and AWC proxy normalization; partial-success observation cycles,
+normalization health and source-ready funnels. No component grants financial
+authority. Full strategy, operator, execution and guardian propagation remains
+pending and is not marked complete.
+
+A real anonymous free-public CWOP access/coverage probe completed around all 13
+control settlement-station areas. All response hashes were checked after private
+transfer and parsed by the new adapter. This is one geographic coverage sample,
+not PWS lead/calibration/representativeness evidence or a deployed V11 shadow.
+Provider publication/receipt times are absent in this XML format; observation
+age at local receipt must not be labeled network latency.
+
+Additional private artifacts saved:
+
+- `Alpha_V11_CWOP_Access_Coverage_20260923.md`, SHA-256
+  `65368c1795d5566e39e4f96aa794f666a99fb4aee4ad4bd2be003e22f1f04868`
+- `Alpha_V11_CWOP_Coverage_20260923.json`, SHA-256
+  `5b8074f00a382429d685d3a1d37097125a0590d8468edf2a31e1b446da0ba501`
+
+Queries were bounded, anonymous, sequential, low-priority and resource-limited;
+no accounts or messages were created. Public docs retain official source links
+and implementation limits; raw weather observations stay private. The V10
+resource/freshness finding remains open.
+
 ## Implementation and verification
 
 Prior delivered foundation is retained: private append-only evidence namespaces,
@@ -100,8 +130,9 @@ bounded compressed-capture verification and explicitly limited runtime context.
 |---|---|
 | Original pinned baseline | 2,336 passed; four existing warnings |
 | Prior implementation regression | 2,389 passed; four existing warnings |
-| New full regression | **2,394 passed; four existing warnings; 65.53 s** |
-| Targeted V11 foundation tests | **58 passed** |
+| Forensic implementation regression | 2,394 passed; four existing warnings; 65.53 s |
+| Latest source/identity implementation regression | **2,423 passed; four existing warnings; 65.16 s** |
+| Targeted V11 foundation tests | **87 passed** |
 | Snapshot/forensic tests | **18 passed** |
 | Compileall / dependency check / diff whitespace | passed |
 | Prior GitHub Actions run 35911031597 at cc268af | completed successfully |
@@ -120,15 +151,15 @@ technical readiness, canary eligibility and empirical validation stay separate.
 
 - No V11 live/paper/control/challenger ledger is shared or migrated.
 - No initial champion, challenger, causal training manifest or model promotion.
-- No actual PWS lead, executable-exit or maker-fill validation.
+- Public CWOP access/coverage verified; no actual PWS lead, executable-exit or maker-fill validation.
 - No live-eligible strategy/station; no funding/account creation/transfer/order.
 - No executor mask change or real-money activation. No arbitrary paper waiting
   period is imposed; mandatory technical/evidence gates remain.
 
-Next engineering action: integrate durable evidence/decision/funnel/replay paths
-with source normalization/scheduling, capability-scoped station certification and
-universal rule fingerprints. Then follow the full dependency order through
-coherent valuation/calibration, controlled learning, event/EV/coordinator/risk,
+Next engineering action: implement coherent distribution/uncertainty and target
+contracts, then causal datasets, immutable champion/challenger artifacts and
+controlled-learning governance. Continue integration of the delivered observation,
+registry/rule and evidence interfaces through event/EV/coordinator/risk,
 strategy migration, exits, maker, guardian, deployment and unfunded acceptance.
 Reuse tested existing modules. Preserve this checkpoint and publish nonsecret
 code milestones throughout.
