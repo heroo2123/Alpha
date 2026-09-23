@@ -19,6 +19,31 @@ TARGETS = {"FINAL_CONTRACT_PAYOUT", "NEXT_OFFICIAL_OBSERVATION", "EXECUTABLE_MAR
 SELECTIONS = {"ALL_SUPPORTED_PREDICTIONS", "SELECTED_TRADES", "REJECTED_COUNTERFACTUALS"}
 
 
+def validate_target_identity(kind: str, value: dict, *, station: str, decision_at: float):
+    if not isinstance(value, dict) or len(value)>8:
+        raise EvidenceError('EXACT_LEARNING_TARGET_REQUIRED')
+    if kind=='FINAL_CONTRACT_PAYOUT':
+        if set(value)!={'market_id','condition_id','token_id','side'} or value['side'] not in {'YES','NO'}:
+            raise EvidenceError('EXACT_PAYOUT_TARGET_REQUIRED')
+        for v in value.values():
+            identity(v)
+    elif kind=='NEXT_OFFICIAL_OBSERVATION':
+        if (set(value)!={'station','population','window_start','window_end'} or value['station']!=station
+                or not decision_at <= finite(value['window_start']) < finite(value['window_end'])):
+            raise EvidenceError('EXACT_OBSERVATION_TARGET_REQUIRED')
+        identity(value['population'])
+    else:
+        if set(value)!={'token_id','units','horizon_seconds','measurement_class'}:
+            raise EvidenceError('EXACT_EXECUTION_TARGET_REQUIRED')
+        identity(value['token_id'])
+        if not 0 < finite(value['units']) <= 1_000_000 or not 0 <= finite(value['horizon_seconds']) <= 86400:
+            raise EvidenceError('EXECUTION_TARGET_BOUND')
+        expected={'REAL_EXECUTION_COST':'RECONCILED_LIVE_EXECUTION','EXECUTABLE_MARKOUT':'DEPTH_COUNTERFACTUAL',
+                  'VIRTUAL_MAKER_RESEARCH':'VIRTUAL_MAKER'}[kind]
+        if value['measurement_class']!=expected:
+            raise EvidenceError('EXECUTION_TARGET_CLASS_MISMATCH')
+
+
 @dataclass(frozen=True)
 class FeatureDefinition:
     name: str
@@ -118,6 +143,8 @@ def build_example(store: EvidenceStore, *, decision_id: str, feature_id: str, la
     if not decision['event_id'] == feature['event_id'] == label['event_id']:
         raise EvidenceError("EXAMPLE_EVENT_MISMATCH")
     d, f, lab = decision['body'], feature['body'], label['body']
+    target_context=d.get('explanation',{}).get('target_identity')
+    validate_target_identity(target,target_context,station=station,decision_at=d['recorded_at'])
     pinned = {r['id']: r['sha256'] for r in d['evidence']}
     if pinned.get(feature_id) != feature['sha256'] or f['available_at'] > d['feature_ready_at']:
         raise EvidenceError("FEATURE_NOT_PINNED_TO_DECISION")
@@ -136,6 +163,8 @@ def build_example(store: EvidenceStore, *, decision_id: str, feature_id: str, la
         raise EvidenceError("LABEL_TARGET_OR_IDENTITY_MISMATCH")
     if lp.get('label_version') != lab['revision'] or lp.get('decision_target') != d['target']:
         raise EvidenceError("LABEL_VERSION_OR_DECISION_TARGET_MISMATCH")
+    if lp.get('target_identity')!=target_context:
+        raise EvidenceError('LABEL_EXACT_TARGET_MISMATCH')
     if finite(lp.get('knowable_at')) > lab['available_at']:
         raise EvidenceError("LABEL_AVAILABILITY_INVALID")
     if lab['available_at'] < d['recorded_at']:
@@ -189,6 +218,7 @@ def build_example(store: EvidenceStore, *, decision_id: str, feature_id: str, la
               'event_id': decision['event_id'], 'station': station, 'city': city, 'local_date': local_date,
               'city_day': city+':'+local_date, 'horizon': horizon, 'season': season, 'strategy': d['strategy'],
               'target': target, 'selection': selection, 'prior_exposure': prior_exposure,
+              'target_identity': target_context, 'target_identity_sha256': digest(target_context),
               'decision_id': decision_id, 'decision_sha256': decision['sha256'], 'decision_at': d['recorded_at'],
               'feature_ready_at': d['feature_ready_at'], 'feature_id': feature_id, 'feature_sha256': feature['sha256'],
               'feature_schema_sha256': schema.sha256, 'values': fp['values'], 'source_versions': fp['source_versions'],

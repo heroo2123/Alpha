@@ -34,15 +34,19 @@ def example(env, key='a', *, decision_at=10., label_at=15., day='2026-01-01', ev
                              values={'temperature':20,'pws_count':None},evidence_ids=(raw['id'],),
                              source_versions={'test':'source-v1'})
     clock[0]=decision_at
+    target_identity={'market_id':'m1','condition_id':'c1','token_id':'yes-token','side':'YES'}
+    if target=='REAL_EXECUTION_COST':
+        target_identity={'token_id':'yes-token','units':1.,'horizon_seconds':0.,'measurement_class':'RECONCILED_LIVE_EXECUTION'}
     decision=store.decision(key+':decision',event_id=event,strategy='FUTURE_FORECAST',
         binding=ReleaseBinding('a'*40,'b'*40,'c'*64,'d'*64,'e'*64),evidence_ids=(feature['id'],),
         feature_ready_at=decision_at-1,valuation_type='SETTLEMENT',target=target,outcome='GATED',
-        reason='RESEARCH_ONLY',explanation={'point':.5},expires_at=decision_at+1)
+        reason='RESEARCH_ONLY',explanation={'point':.5,'target_identity':target_identity},expires_at=decision_at+1)
     clock[0]=label_at
     label=store.capture(key+':label',event_id=event,kind='LABEL',provider='test-label',source_identity='outcome',
         revision='1',payload={'context':{'station':'KATL','city':'Atlanta','local_date':day,'target':target,
                                        'rule_fingerprint':'e'*64},'label_version':'1','decision_target':target,
-                              'knowable_at':label_at,'value':1,'evidence_type':evidence_type},evidence_class=source_class)
+                              'knowable_at':label_at,'value':1,'evidence_type':evidence_type,
+                              'target_identity':target_identity},evidence_class=source_class)
     return build_example(store,decision_id=decision['id'],feature_id=feature['id'],label_id=label['id'],
             station='KATL',city='Atlanta',local_date=day,horizon='0_24H',season='WINTER',target=target,
             selection=selection,prior_exposure=exposure)
@@ -202,3 +206,18 @@ def test_retrospective_registration_never_claims_untouched_confirmation(env):
     result=journal.reveal_confirmation('late-reveal',attempt_id='late-attempt',
                                       dataset=build_dataset((x,),plan(env),as_of=55))
     assert result['body']['details']['evidence_role']=='DEVELOPMENT'
+
+
+def test_same_event_wrong_token_label_cannot_cross_target_boundary(env):
+    store,_,clock=env
+    example(env)
+    clock[0]=20
+    payload=store.get('a:label')['body']['payload']
+    payload['target_identity']['token_id']='different-token'
+    payload['label_version']='2'
+    store.capture('wrong-token',event_id='event:a',kind='LABEL',provider='test-label',source_identity='outcome',
+                  revision='2',payload=payload,evidence_class='SYNTHETIC')
+    with pytest.raises(EvidenceError,match='LABEL_EXACT_TARGET_MISMATCH'):
+        build_example(store,decision_id='a:decision',feature_id='a:features',label_id='wrong-token',station='KATL',
+            city='Atlanta',local_date='2026-01-01',horizon='0_24H',season='WINTER',target='FINAL_CONTRACT_PAYOUT',
+            selection='ALL_SUPPORTED_PREDICTIONS',prior_exposure='DEVELOPMENT')

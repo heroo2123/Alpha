@@ -11,6 +11,8 @@ revision, issue/observation/publication/receipt times and hashes. It cannot foll
 a later revision or label into the earlier feature state. Labels retain their
 availability time and evidence class. A correction produces a new example hash;
 it cannot silently replace the old label or duplicate a decision within a fit.
+Payout examples additionally bind the exact market, condition, token and side to
+the original decision; matching only the event cannot attach a sibling label.
 
 The current builder records stored label provenance, not independent label
 attestation. Exact-source finality checkers and reconciled execution adapters must
@@ -41,13 +43,13 @@ cannot be rewritten, and the learner has no promotion result type.
 
 ## Verification and remaining work
 
-19 focused tests cover provenance, feature bounds, unavailable labels, label
+20 focused tests cover provenance, feature bounds, unavailable labels, label
 corrections, temporal/event/city-day leakage, selected-trade evidence boundaries,
 manifest tampering, holdout reuse and durable training failure. No actual V11
 training run or promotion has occurred.
 
-The offline learner, bounded scheduling, immutable compatible bundle registry,
-protected promotion mechanism, source-specific label validation and complete
-runtime integration remain separate implementation work. A host must isolate
+The offline learner and immutable compatible bundle registry are now implemented
+and tested separately. Bounded scheduling, source-specific label attestation,
+protected host commissioning and complete runtime integration remain pending. A host must isolate
 the learner and its research journal from financial credentials and live pointers;
 these data structures alone do not prove that OS boundary.
