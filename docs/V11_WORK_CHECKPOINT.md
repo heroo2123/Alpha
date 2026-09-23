@@ -1,13 +1,13 @@
 # Alpha V11 work checkpoint
 
-Updated 2026-09-23, 21:18 UTC. Resume here. **NOT_READY_TO_FUND**.
+Updated 2026-09-23, 21:48 UTC. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
 
 ## Exact identities and scope
 
 - Branch: `weather-v11-profitability-upgrade-2026-09-23`.
-- Last verified implementation HEAD: `9d6fb682e0418f874f8c40815842afb49dfe8859`.
-- Last verified implementation tree: `4d7f7583a997336b4de2699490d63027a9ae9a56`.
+- Last verified implementation HEAD: `359814e08084ccf80d9fb756a3393bec8d9186b6`.
+- Last verified implementation tree: `e9ddf1e638295e7dbe55948cedf8c00ed66a41cd`.
 - Worktree at verification: clean; local and published implementation trees match.
 - This following checkpoint commit changes documentation only. Resolve its own
   exact commit with `git log -1 --format=%H -- docs/V11_WORK_CHECKPOINT.md`, and its
@@ -113,6 +113,29 @@ no accounts or messages were created. Public docs retain official source links
 and implementation limits; raw weather observations stay private. The V10
 resource/freshness finding remains open.
 
+## Phase 3 / 3A probability and dataset milestone
+
+Published `v11/probability.py` and `v11/datasets.py`, with dedicated tests and
+`V11_PROBABILITY_ENGINE.md` / `V11_DATASET_PROVENANCE.md`. Coherent CDF vectors,
+dependence-group budgets, separate vacuous conservative bounds, correct NO
+complements, explicit observation/payout targets, exact-observation max/min and
+full local-day accepted/unresolved coverage are implemented. Missing model run
+age, revision risk, source fallback and calibration evidence remain explicit.
+
+Feature schema/value bounds, receipt-bound derivation DAGs, immutable label
+revisions, training-label cutoff, temporal/event/city-day partitions and all
+attempt/holdout-reveal accounting are implemented. Reused confirmation is
+DEVELOPMENT; V10 inspected data cannot become untouched confirmation. Stored
+labels are still not independently attested. No actual fit, initial champion,
+model promotion or deployment occurred. Full source/model/strategy integration
+remains pending; these packages are partial in the matrix.
+
+The continuation inspected workspace and running operations before retrying any
+work. There were no unfinished project operations or pre-existing uncommitted
+changes. Publication preserved working files and used a same-tree commit-ref
+alignment; no reset, clean or rollback was used. Prior Git verification was
+closed PASS, not repeatedly rerun over unchanged state.
+
 ## Implementation and verification
 
 Prior delivered foundation is retained: private append-only evidence namespaces,
@@ -132,7 +155,9 @@ bounded compressed-capture verification and explicitly limited runtime context.
 | Prior implementation regression | 2,389 passed; four existing warnings |
 | Forensic implementation regression | 2,394 passed; four existing warnings; 65.53 s |
 | Latest source/identity implementation regression | **2,423 passed; four existing warnings; 65.16 s** |
-| Targeted V11 foundation tests | **87 passed** |
+| Probability / dataset focused tests | **31 / 19 passed** |
+| Latest probability/dataset full regression | **2,473 passed; four existing warnings; 61.10 s** |
+| Targeted V11 tests across delivered changes | **137 passed** |
 | Snapshot/forensic tests | **18 passed** |
 | Compileall / dependency check / diff whitespace | passed |
 | Prior GitHub Actions run 35911031597 at cc268af | completed successfully |
@@ -150,15 +175,16 @@ technical readiness, canary eligibility and empirical validation stay separate.
 ## Models, authority and exact continuation
 
 - No V11 live/paper/control/challenger ledger is shared or migrated.
-- No initial champion, challenger, causal training manifest or model promotion.
+- Causal dataset/experiment infrastructure implemented and tested; no actual training dataset/run, initial champion, challenger or model promotion.
 - Public CWOP access/coverage verified; no actual PWS lead, executable-exit or maker-fill validation.
 - No live-eligible strategy/station; no funding/account creation/transfer/order.
 - No executor mask change or real-money activation. No arbitrary paper waiting
   period is imposed; mandatory technical/evidence gates remain.
 
-Next engineering action: implement coherent distribution/uncertainty and target
-contracts, then causal datasets, immutable champion/challenger artifacts and
-controlled-learning governance. Continue integration of the delivered observation,
+Next engineering action: implement immutable data-only compatible model bundles,
+bounded deterministic offline learning/evaluation and protected model-promotion
+governance. Wire the probability/dataset foundation to verified source labels and
+reviewed artifact parameters. Continue integration of the delivered observation,
 registry/rule and evidence interfaces through event/EV/coordinator/risk,
 strategy migration, exits, maker, guardian, deployment and unfunded acceptance.
 Reuse tested existing modules. Preserve this checkpoint and publish nonsecret
