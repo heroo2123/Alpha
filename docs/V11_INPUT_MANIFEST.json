@@ -1,0 +1,42 @@
+{
+  "specification_sha256": "a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a",
+  "verified_on": "2026-09-23",
+  "inputs": [
+    {
+      "filename": "Alpha_V11_Master_Prompt_Controlled_Continual_Learning_PWS_Observation_Lead_V10_Forensic_Baseline_Final_Reviewed(2).txt",
+      "sha256": "a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a",
+      "bytes": 142644,
+      "read_in_full": true,
+      "visual_review": false
+    },
+    {
+      "filename": "Optimal Market Making in Prediction Markets-by-Dom_260918_204527(2).pdf",
+      "sha256": "d09c818e6d19543748e616341f4a04501211dfcc837f826e06c4d6c04a9d92de",
+      "bytes": 792356,
+      "read_in_full": true,
+      "visual_review": true
+    },
+    {
+      "filename": "three-wallet-pnl-and-improvements_260918_204548(2).pdf",
+      "sha256": "c56d5c0dee684bd613dd143b1726af98a9e9ee3d63453a87f8a84b269fcbdab6",
+      "bytes": 69424,
+      "read_in_full": true,
+      "visual_review": true
+    },
+    {
+      "filename": "toronto_market_making_incident_report_260918_204513(2).pdf",
+      "sha256": "b8988d2f353c64cc74468d2507913d9f03470288c54aabe33c22653faedc8e0a",
+      "bytes": 12321,
+      "read_in_full": true,
+      "visual_review": true
+    },
+    {
+      "filename": "weather_hot_v2_architecture_recommendation_260918_204453(2).pdf",
+      "sha256": "ed37ba1d45cc82e9b9c994e89ab54db4ef9282b8e086518f5c3e34ac5dc48190",
+      "bytes": 92010,
+      "read_in_full": true,
+      "visual_review": true
+    }
+  ],
+  "publication": "Identity metadata only; private source contents excluded."
+}
