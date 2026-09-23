@@ -131,6 +131,15 @@ def analyze_snapshot(directory: Path, *, max_positions: int = 100_000,
                     row[field] = number(row[field])
                     if row[field] is None:
                         findings.append("MISSING_" + field.upper())
+                if row["proceeds"] is not None and row["proceeds"] < 0:
+                    findings.append("NEGATIVE_SETTLEMENT_PROCEEDS")
+                payout = row["settlement_payout_per_unit"]
+                if payout is not None:
+                    if payout < 0 or (row["side"] in {"YES", "NO"} and payout > 1):
+                        findings.append("SETTLEMENT_PAYOUT_OUT_OF_RANGE")
+                    if ((row["status"] == "LOST" and payout != 0)
+                            or (row["status"] in {"WON", "RESOLVED_PARTIAL"} and payout <= 0)):
+                        findings.append("SETTLEMENT_STATUS_PAYOUT_MISMATCH")
                 if all(row[f] is not None for f in ("proceeds", "pnl", "capital_used")) and not math.isclose(row["proceeds"]-row["capital_used"], row["pnl"], abs_tol=1e-6):
                     findings.append("PNL_RECONCILIATION_FAILED")
                 if all(row[f] is not None for f in ("proceeds", "filled_units", "settlement_payout_per_unit")) and not math.isclose(row["filled_units"]*row["settlement_payout_per_unit"], row["proceeds"], abs_tol=1e-6):

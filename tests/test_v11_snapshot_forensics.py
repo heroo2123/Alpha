@@ -210,3 +210,23 @@ def test_forensics_is_bounded_and_refuses_mutable_database(control):
         analyze_snapshot(directory, max_positions=1)
     with pytest.raises(snapshots.SnapshotError):
         analyze_snapshot(source.parent)
+
+
+@pytest.mark.parametrize("update, expected",[
+    ("settlement_payout_per_unit=-1,proceeds=-10,pnl=-14", "SETTLEMENT_PAYOUT_OUT_OF_RANGE"),
+    ("settlement_payout_per_unit=2,proceeds=20,pnl=16", "SETTLEMENT_PAYOUT_OUT_OF_RANGE"),
+    ("settlement_payout_per_unit=0,proceeds=0,pnl=-4", "SETTLEMENT_STATUS_PAYOUT_MISMATCH"),
+    ("status='LOST'", "SETTLEMENT_STATUS_PAYOUT_MISMATCH"),
+    ("token_id='other-token'", "SIGNAL_TOKEN_ID_MISMATCH"),
+])
+def test_algebraic_balance_does_not_validate_impossible_settlement_or_wrong_token(control,update,expected):
+    source, _ = control
+    with sqlite3.connect(source) as db:
+        db.execute("UPDATE weather_paper_positions SET "+update+" WHERE id=1")
+    directory = source.parent / "corrupt-synthetic-snapshot"
+    snapshot(source, directory)
+    report = analyze_snapshot(directory)
+    findings = next(r["findings"] for r in report["accounting_findings"] if r["position_id"] == 1)
+    assert expected in findings
+    validated = next(r for r in report["epochs"] if r["validation"] == "VALIDATED")
+    assert validated["reconciled_paper_pnl"] == 0
