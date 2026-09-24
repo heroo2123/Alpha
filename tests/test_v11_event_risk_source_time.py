@@ -3,6 +3,7 @@ from dataclasses import replace
 import pytest
 
 from polymarket_scanner.v11.event_risk import EventRiskEngine
+from polymarket_scanner.v11.evidence import EvidenceError
 from test_v11_event_risk import rig, captures, policy, metrics, CONTEXT, BINDING
 
 
@@ -37,3 +38,19 @@ def test_recomputed_qc_does_not_advance_unchanged_sensor_recovery(rig):
     second = qc_step(store,now,'again',ages=(12.,13.))
     assert second['stability']['count'] == first['stability']['count'] == 1
     assert second['state'] == 'RECOVERY'
+
+
+@pytest.mark.parametrize('issued,expected', [(990.,'RECOVERY'),(None,'EVENT'),(800.,'EVENT'),(1001.,'EVENT')])
+def test_model_freshness_uses_issue_time_even_if_receipt_or_observed_time_is_new(rig,issued,expected):
+    store, now = rig; books, sources = captures(store,now,'model')
+    if issued is not None and issued > now[0]:
+        with pytest.raises(EvidenceError,match='SOURCE_TIME_IN_FUTURE'):
+            store.capture('model',event_id='event',kind='MODEL',provider='fixture',source_identity='model',
+                revision='one',issued_at=issued,observed_at=now[0],payload={},evidence_class='SYNTHETIC')
+        return
+    row = store.capture('model',event_id='event',kind='MODEL',provider='fixture',source_identity='model',
+        revision='one',issued_at=issued,observed_at=now[0],payload={},evidence_class='SYNTHETIC')
+    result = EventRiskEngine(store).step('model-risk',context=CONTEXT,policy=policy(),binding=BINDING,
+        metrics=metrics(now[0]),book_ids=books,source_ids=(*sources,row['id']))['body']['details']
+    assert result['state'] == expected
+    if expected == 'EVENT': assert 'SOURCE_STALE_OR_UNKNOWN' in result['reasons']

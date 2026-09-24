@@ -1,6 +1,6 @@
 # Alpha V11 work checkpoint
 
-Updated 2026-09-24, after current-input assembly full regression. Resume here. **NOT_READY_TO_FUND**.
+Updated 2026-09-24, after derived-risk runtime integration. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
 
 ## Current priority override — V11 runtime integration
@@ -25,28 +25,26 @@ open. No funding, deployment, financial activation or new host workload authoriz
 
 ## Latest continuation milestone
 
-Current-input request factories now assemble temperature, relative-value, PWS,
-received-release and exit requests from configured exact source channels, books
-and matching risk evidence under an actual queue claim. Runtime configuration
-pins the factory plan. PWS event risk uses the oldest contributing QC sensor time
-without rewriting raw timestamps or advancing recovery on a reprocessed sample.
-**Full regression: 3344 passed, four existing warnings, 203.31 s; exit 0.**
-All tested source/test hashes stayed unchanged. Peak child RSS 156820 KiB.
-This adds 26 new assembly/source-time cases after the 17 reaction/exit cases.
+Derived risk now connects public-mock census, the finite candidate, protected
+model inference, whole-event book measurements, common-account downside and
+current request factories. It retains UNKNOWN execution quality, exact settlement
+timing and unavailable temporal sequence; these keep the real engine GATED.
+**220 related tests passed in 43.03 s**, including 15 new derived-risk/model-time
+cases. Last full regression: **3344 passed, four existing warnings, 203.31 s**
+on the preceding assembly milestone; the 15 later cases were tested afterward.
 Fully completed implementation packages remain **1/50**; formal, empirical and
 independent acceptance remain open. No test operation is running.
-Next concrete implementation: derive bounded current event-risk inputs in the
-candidate, retaining UNKNOWN for unproven execution/sequence/settlement timing;
-then remaining dynamic route/provider and master-spec requirements.
-No V10 maintenance, deployment or funding action is requested.
+Next concrete implementation: compose typed scope/source/strategy plans into one
+bounded candidate assembly, then remaining raw-provider/dynamic-route and
+master-spec requirements. No V10 maintenance, deployment or funding is requested.
 
 ## Exact identities and scope
 
 - Branch: `weather-v11-profitability-upgrade-2026-09-23`.
-- Last verified implementation HEAD: `47ed0a0324efb6dca8c5871cd54010c1821e8d05`.
-- Last verified implementation tree: `d3ad95dd238e50e0c89dc78cc4c9fd417a8c6847`.
-- Reaction/exit runtime implementation identity is above. Public/local
-  tree equality passed; fetch/alignment exited 0 (session 98637), with a clean
+- Last verified implementation HEAD: `9e7a79ff480574d8a94f23b55864e325c97828da`.
+- Last verified implementation tree: `3a3f16e27cfa3cc3933400d06d852c5418e6a584`.
+- Current-input assembly implementation identity is above. Public/local
+  tree equality passed; fetch/alignment exited 0 (session 38359), with a clean
   worktree. No unfinished work was discarded. This later documentation checkpoint
   records that exact tested implementation without changing source/tests.
 - A later commit containing this checkpoint may include the newer work below. Resolve its own
@@ -1568,3 +1566,32 @@ measurements and protected custody in these tests remain explicit fixtures, not
 live inputs, approved champions or independent acceptance.
 Next step: replace supplied risk measurement callbacks with bounded derived inputs
 and continue source/route integration; no maintenance dependency has reopened.
+
+## Derived event-risk runtime integration — 2026-09-24
+
+Implemented `v11/risk_inputs.py`. A bounded whole-event adapter measures exact
+books through existing microstructure code, applies the protected model bundle
+for descriptive model dispersion, uses original model issue age and reads current
+common-account downside. Declared contiguous sequences and aligned whole-event
+books are necessary for temporal velocity/depth-loss/cross-bucket movement;
+REST snapshots do not fabricate these values. Optional unavailable execution
+markout/adverse-fill and exact settlement timing remain UNKNOWN, not zero or
+inferred from a contract-day boundary. This is not a reviewed first-canary baseline.
+
+RiskAwareEventAdapter feeds those measurements into EventRiskEngine before the
+existing factories/economic evaluation. It retains original source/account head
+CAS, old measurements across interruption and exact queue/common-account gates.
+A finite public-mock candidate now runs this path without supplied risk metrics;
+it records useful data and stays nonfinancial/GATED on the explicit unknowns.
+No private source, account credential, service or financial endpoint was used.
+
+A future-issue test initially attempted a capture already rejected by the archive;
+its assertion now checks that earlier SOURCE_TIME_IN_FUTURE gate. Initial focus:
+21 passed / 1 failed in 2.89 s. Final joined risk/source-time/event/assembly/PWS/
+release/exit/candidate/microstructure/runtime suite: **220 passed in 43.03 s**.
+This adds 11 risk integration and four model-time cases; distinct new passing
+cases total **1023** above baseline 2336. The previous full 3344-case result stays
+historical; no later full-suite result is implied. Raw captures remain unchanged.
+Next implementation is a typed top-level candidate composition; resource/isolation,
+raw provider capability, observed execution/settlement inputs, protected review,
+actual calibrated champion, independent guardian and acceptance gates stay open.

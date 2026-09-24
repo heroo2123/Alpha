@@ -218,3 +218,35 @@ factory-built held-inventory exit, per-lane missing-source isolation, invalid
 plans, receipt ordering and changed-plan recovery rejection. No live fees, fills,
 calibrated champion or deployment readiness are inferred. Next integration is
 bounded risk derivation and remaining source/dynamic-route work.
+
+## Derived risk before strategy evaluation
+
+`risk_inputs.py` now composes bounded full-event books, current scoped model
+inference and common-account downside with EventRiskEngine. It checks every token
+within its 32-token cap and retains at most two same-channel book receipts per
+token. Point spread is separate from temporal velocity/depth loss/cross-bucket
+movement. Temporal metrics require aligned, explicitly linked sequence evidence;
+a REST book cannot establish that continuity or transport commissioning.
+
+Model disagreement is the protected bundle's descriptive between-model standard
+deviation in contract temperature units, not calibration or independent sample
+count. Model age uses issue time; a newer receipt or synthetic observed timestamp
+cannot refresh it. Current account downside includes unresolved optional-fill
+exposure and the fixed daily loss budget. Evidence/account heads are pinned at
+measurement publication. An interrupted measurement without its state requires a
+new claim; it is not refreshed in place.
+
+RiskAwareEventAdapter runs the measurement/state step before ordinary factories
+and economic evaluation. Missing execution markout/adverse-fill inputs and exact
+settlement timing remain UNKNOWN and retain EVENT gates. No end-of-day timestamp
+becomes a final settlement deadline. A reviewed first-canary execution baseline
+and actual execution/settlement input adapters remain unfinished; this adapter
+cannot substitute for them or impose a new paper waiting period.
+
+Verification: **220 related tests passed in 43.03 s**, including **15 new cases**.
+A finite public-mock run now joins fresh census, derived risk, current request
+assembly, protected strategy evaluation and queue completion with no supplied
+risk-metric callback. Missing empirical inputs correctly prevent reservation.
+Tests also cover declared sequence deltas, missing/skewed/gapped books, source
+races, unchanged account reservations, missing health and interrupted publication.
+The latest full regression remains the preceding 3344-case assembly run.

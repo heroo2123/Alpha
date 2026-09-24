@@ -275,7 +275,7 @@ class EventRiskEngine:
                 body = row['body']
                 if row['event_id'] != context.event_id or row['kind'] not in allowed:
                     raise EvidenceError('EVENT_EVIDENCE_IDENTITY')
-                at = body['observed_at']
+                at = body['issued_at'] if row['kind'] == 'MODEL' else body['observed_at']
                 if row['kind'] == 'PWS_OBSERVATION':
                     # QC summaries are features, not a new sensor observation.
                     # Use the oldest contributing sensor; recomputing a summary
