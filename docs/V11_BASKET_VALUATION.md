@@ -20,12 +20,35 @@ full-fill economics use the actual depth-integrated acquisition cost. Unfilled
 hedges never remove scenario exposure.
 
 These measurements do not admit orders, create spendable cash, recognize trading
-P&L or prove a locked executable profit. All results remain GATED until atomic
-multi-leg common-account admission and protected strategy/model/source checks are
-integrated. Actual execution, approved calibration and runtime acceptance remain
-unverified. No financial authority or V10 state is changed.
+P&L or prove a locked executable profit. The measurement remains GATED; a separate
+`BasketProposal` now enters the existing common paper-account coordinator. That
+path reproduces the whole prediction from leased inputs and the protected model
+bundle, recomputes every leg, and repeats scoped certification, event, source,
+book, operator and model checks before reservation and submission-state changes.
+
+Baskets and single-leg proposals share one ranking, cash budget and account CAS.
+Every leg is reserved together or none is. Changed desired-position deltas require
+revaluation rather than dropping a hedge. Account EV uses each leg's permitted
+limit price plus reserves, not just the better displayed average. The per-intent
+cash ceiling applies to the aggregate basket. Joint EV is not duplicated as
+individual-leg alpha. Every unresolved leg retains its adverse optional-fill risk.
+
+Fills debit actual cash and preserve per-leg basis; cancellation/terminal evidence
+releases only the reconciled leg. Unknown or canceled sibling legs block further
+group submission until replanning. Fully filled sets remain inventory: payout,
+claimable and redeemed cash are not invented. Existing uncalibrated single-leg
+entries remain rejected. Conditional structural floors can qualify synthetic
+paper mechanics only with all protected gates; no strategy is live eligible.
+
+Actual execution, approved calibration and runtime acceptance remain unverified.
+Current model reproduction supports archived whole-day final-extreme inputs;
+conditioned remaining-day basket inference and automatic discrepancy discovery
+remain pending. No financial authority or V10 state is changed.
 
 Verification: 19 synthetic basket tests and 91 combined basket, single-leg
 valuation, scenario and probability checks passed in 1.60 seconds. The prior full
 repository regression remains 2,808 passing tests at the preceding implementation;
-it was not rerun for this additive module. Synthetic tests are code evidence only.
+it was not rerun for that additive module. Subsequent common-account integration:
+24 new tests and 125 related checks passed in 17.72 seconds. The shared coordinator
+change was then covered by a full regression: **2,851 passed, four pre-existing
+warnings, 125.91 seconds**. Synthetic tests are code evidence only.

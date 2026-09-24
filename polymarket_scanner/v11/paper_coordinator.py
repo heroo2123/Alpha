@@ -12,6 +12,7 @@ from dataclasses import asdict, dataclass
 from decimal import Decimal, localcontext, ROUND_FLOOR
 
 from .allocation import rank_candidates
+from .basket_coordinator import BasketProposal
 from .event_risk import EventContext, EventRiskEngine, SafetyReductions
 from .evidence import EvidenceError, EvidenceStore, canonical, digest, finite, identity
 from .rules import RuleFingerprint
@@ -184,7 +185,8 @@ class PaperCoordinator:
         return number(getattr(self.policy, name))
 
     def _commit(self, record_id, request, row, state, details, *, evidence_ids=(), heads=()):
-        if len(state['rules']) > 32 or len(state['intents']) > 512 or len(state['fills']) > 2048 or len(state['lots']) > 512:
+        if (len(state['rules']) > 32 or len(state['intents']) > 512 or len(state['fills']) > 2048
+                or len(state['lots']) > 512 or len(state.get('baskets', {})) > 128):
             raise EvidenceError('PAPER_ACCOUNT_RETENTION_BOUND_NO_UNSAFE_PRUNING')
         return self.store.audit(record_id, event_id=ACCOUNT_KEY, kind='COORDINATOR_EVENT',
                                 details=dict(version=VERSION, policy_sha256=self.policy_sha,
@@ -239,6 +241,9 @@ class PaperCoordinator:
 
     @precise
     def _prepare(self, proposal, now):
+        if isinstance(proposal, BasketProposal):
+            from .basket_coordinator import prepare
+            return prepare(self, proposal, now)
         if proposal.context.account_id != self.policy.account_id:
             raise EvidenceError('PROPOSAL_ACCOUNT_MISMATCH')
         membership = next((m for m in self.correlation.memberships if m.station == proposal.context.station_id), None)
@@ -348,7 +353,7 @@ class PaperCoordinator:
                          capital_at_risk=str(capital), status='RESERVED', cancel_requested=False, financial_authority=False)
         return candidate, heads
 
-    def coordinate(self, batch_id: str, proposals: tuple[Proposal, ...]) -> dict:
+    def coordinate(self, batch_id: str, proposals: tuple[Proposal | BasketProposal, ...]) -> dict:
         if type(proposals) is not tuple or not 1 <= len(proposals) <= 6:
             raise EvidenceError('COORDINATOR_BATCH_BOUND')
         if len({p.proposal_id for p in proposals}) != len(proposals):
@@ -369,7 +374,7 @@ class PaperCoordinator:
                         raise
                 if state['faults']:
                     raise EvidenceError('PAPER_ACCOUNT_FAULT_ACTIVE')
-                if proposal.proposal_id in state['intents']:
+                if proposal.proposal_id in state['intents'] or proposal.proposal_id in state.get('baskets', {}):
                     raise EvidenceError('INTENT_ALREADY_RECORDED_RECONCILE_EXISTING_ID')
                 candidate, heads = self._prepare(proposal, now)
                 for kind, event, seq in heads:
@@ -385,7 +390,8 @@ class PaperCoordinator:
         for candidate in ranking:
             proposal = by_id[candidate['proposal_id']]
             reason = None
-            if candidate['token_id'] in batch_tokens:
+            legs = candidate.get('basket_legs', [candidate])
+            if any(leg['token_id'] in batch_tokens for leg in legs):
                 reason = 'TOKEN_CONFLICT_OR_DUPLICATE_KEEP_STRONGER_PROPOSAL'
             if any(p['thesis_id'] == candidate['thesis_id'] and p['event_id'] == candidate['event_id']
                    for p in state['intents'].values()):
@@ -396,18 +402,30 @@ class PaperCoordinator:
                 reason = 'RULE_CHANGED_RECONCILIATION_REQUIRED'
             if event in test['contexts'] and test['contexts'][event] != asdict(proposal.context):
                 reason = 'EVENT_CONTEXT_CHANGED_REVIEW_REQUIRED'
-            held = sum(number(p['units']) for p in state['lots'].values() if p['token_id'] == candidate['token_id'])
-            reserved = sum(number(p['units'])-number(p['filled_units']) for p in state['intents'].values()
-                           if p['token_id'] == candidate['token_id'] and p['direction'] == candidate['direction']
-                           and p['status'] in UNRESOLVED)
-            desired = number(candidate['desired_total_units'])
-            available_delta = desired-held-reserved if candidate['direction'] == 'BUY' else held-reserved-desired
-            if reason is None and (available_delta <= 0 or number(candidate['units']) > available_delta):
-                reason = 'DESIRED_POSITION_ALREADY_COVERED_OR_REVALUE_SMALLER_DELTA'
+            for leg in legs:
+                if leg['proposal_id'] in test['intents'] or leg['proposal_id'] in test.get('baskets', {}):
+                    reason = 'INTENT_ALREADY_RECORDED_RECONCILE_EXISTING_ID'
+                held = sum(number(p['units']) for p in state['lots'].values() if p['token_id'] == leg['token_id'])
+                reserved = sum(number(p['units'])-number(p['filled_units']) for p in state['intents'].values()
+                               if p['token_id'] == leg['token_id'] and p['direction'] == leg['direction']
+                               and p['status'] in UNRESOLVED)
+                desired = number(leg['desired_total_units'])
+                available_delta = desired-held-reserved if leg['direction'] == 'BUY' else held-reserved-desired
+                if reason is None and (available_delta <= 0 or number(leg['units']) > available_delta):
+                    reason = 'DESIRED_POSITION_ALREADY_COVERED_OR_REVALUE_SMALLER_DELTA'
+                if isinstance(proposal, BasketProposal) and any(
+                        p['token_id'] == leg['token_id'] and p['direction'] != leg['direction'] and p['status'] in UNRESOLVED
+                        for p in state['intents'].values()):
+                    reason = 'BASKET_OPPOSING_PENDING_INTENT_REQUIRES_REPLAN'
             if reason is None:
                 test['rules'][event] = asdict(proposal.rule)
                 test['contexts'][event] = asdict(proposal.context)
-                test['intents'][candidate['proposal_id']] = candidate
+                for leg in legs:
+                    test['intents'][leg['proposal_id']] = leg
+                if isinstance(proposal, BasketProposal):
+                    test.setdefault('baskets', {})[proposal.proposal_id] = dict(
+                        proposal=asdict(proposal), intent_ids=[leg['proposal_id'] for leg in legs],
+                        conservative_ev_total=candidate['conservative_ev_total'], financial_authority=False)
                 try:
                     assessed = self._risk(test)
                     if not assessed['accepted']:
@@ -421,7 +439,9 @@ class PaperCoordinator:
                 except EvidenceError as exc:
                     reason = str(exc)
             if reason is None:
-                state = test; chosen.append(candidate['proposal_id']); batch_tokens.add(candidate['token_id'])
+                state = test
+                chosen.extend(leg['proposal_id'] for leg in legs)
+                batch_tokens.update(leg['token_id'] for leg in legs)
             evaluated.append(dict(proposal_id=candidate['proposal_id'], outcome='RESERVED_RESEARCH' if reason is None else 'REJECT',
                                   reason=reason or 'ATOMIC_ACCOUNT_CASH_INVENTORY_AND_SCENARIO_RESERVATION'))
         return self._commit(batch_id, request, row, state,
@@ -446,7 +466,16 @@ class PaperCoordinator:
         if status in {'UNKNOWN', 'ACKNOWLEDGED'} and intent['status'] == 'RESERVED':
             raise EvidenceError('SUBMISSION_NOT_STARTED')
         heads = ()
-        if status == 'SUBMITTING':
+        if status == 'SUBMITTING' and intent.get('basket_id') is not None:
+            from .basket_coordinator import submission_heads
+            heads = submission_heads(self, state, intent)
+            unique = {}
+            for kind, event_id, seq in heads:
+                if (kind, event_id) in unique and unique[(kind, event_id)] != seq:
+                    raise EvidenceError('SUBMISSION_AUTHORITY_CHANGED_RECOMPUTE')
+                unique[(kind, event_id)] = seq
+            heads = tuple((k, e, seq) for (k, e), seq in unique.items())
+        elif status == 'SUBMITTING':
             context = EventContext(**state['contexts'][intent['event_id']])
             heads = SafetyReductions(self.store).atomic_heads(context)
             queue = event_queue_admission(self.store, event_id=intent['event_id'], valuation_id=intent['valuation_id'])

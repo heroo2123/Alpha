@@ -7,6 +7,11 @@ The supplied initial cash is simulated budget, not a wallet balance or funding.
 `v11/allocation.py` supplies bounded deterministic ranking and reduction-only
 sizing inside explicit ceilings; neither component changes protected live limits.
 
+`BasketProposal` uses the same account journal, ranking and CAS as single-token
+proposals. See `V11_BASKET_VALUATION.md` for joint price-limit EV, all-or-none
+admission, per-leg reconciliation and ambiguity guards. No separate strategy
+budget or phantom payout credit is introduced.
+
 Every proposal names an exact account/city/station/event, rule, target total
 position, economic thesis, attribution, valuation and event-state pin. The city
 must match the metadata-bound correlation map. Unqualified/stale economics,
