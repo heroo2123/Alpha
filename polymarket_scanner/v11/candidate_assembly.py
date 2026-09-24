@@ -29,6 +29,8 @@ from .strategy_admission import ROLES
 from .strategy_runtime import MultiStrategyEventAdapter, RelativeValueEventAdapter
 from .basket_valuation import BasketPolicy
 from .pws_lead import LeadPolicy
+from .maker_research import MakerResearch, MakerResearchPolicy
+from .maker_telemetry import MakerTelemetryPolicy, MakerTelemetryWorker
 from .valuation import CostComponent, ValuationPolicy
 
 
@@ -122,6 +124,20 @@ class CandidateEvent:
 
 
 @dataclass(frozen=True)
+class MakerTelemetryPlan:
+    research: MakerResearchPolicy
+    telemetry: MakerTelemetryPolicy
+    inputs: tuple[ScopeInputs, ...]
+
+    def __post_init__(self):
+        if (not isinstance(self.research,MakerResearchPolicy) or not isinstance(self.telemetry,MakerTelemetryPolicy)
+                or type(self.inputs) is not tuple or not 1 <= len(self.inputs) <= 16
+                or any(not isinstance(s,ScopeInputs) or s.scope.strategy!='MAKER_RESEARCH' for s in self.inputs)
+                or len({s.context.event_id for s in self.inputs})!=len(self.inputs)):
+            raise EvidenceError('CANDIDATE_MAKER_TELEMETRY_PLAN_BOUND')
+
+
+@dataclass(frozen=True)
 class CandidatePlan:
     version: str
     account: PaperAccountPolicy
@@ -139,6 +155,7 @@ class CandidatePlan:
     feed: FeedPolicy
     worker_id: str
     observation: ObservationBatch | None = None
+    maker: MakerTelemetryPlan | None = None
 
     def __post_init__(self):
         identity(self.version); identity(self.worker_id)
@@ -153,6 +170,13 @@ class CandidatePlan:
                 or any(e.risk_inputs.context.account_id != self.account.account_id for e in self.events)
                 or self.observation is not None and not isinstance(self.observation,ObservationBatch)):
             raise EvidenceError('CANDIDATE_PLAN_SCOPE_BOUND')
+        if self.maker is not None:
+            if not isinstance(self.maker,MakerTelemetryPlan):raise EvidenceError('CANDIDATE_MAKER_PLAN_REQUIRED')
+            events={e.route.event_id:e for e in self.events}
+            for s in self.maker.inputs:
+                e=events.get(s.context.event_id)
+                if e is None or (s.context,s.rule,s.binding,s.stage)!=(e.risk_inputs.context,e.risk_inputs.rule,e.risk_inputs.binding,e.risk_inputs.stage):
+                    raise EvidenceError('CANDIDATE_MAKER_PLAN_SCOPE')
         if self.observation is not None:
             routes={e.route.event_id:e.route for e in self.events}
             if (not {r.event_id for r in self.observation.requests} <= routes.keys()
@@ -212,11 +236,14 @@ def assemble_candidate(store,client,plan,*,generation):
     queue=EventQueue(store,routes=tuple(e.route for e in plan.events),policy=plan.trigger)
     queue.snapshot()
     scopes={}; needs={}; adapters={}; risk=[]
+    maker_scopes={s.context.event_id:s for s in plan.maker.inputs} if plan.maker else {}
     for event in plan.events:
         eid=event.route.event_id
         scopes[eid]=tuple(sorted({l.inputs.scope.strategy for l in event.lanes}))
         inputs=[event.risk_inputs,*[l.inputs for l in event.lanes],
                 *[l.observation_inputs for l in event.lanes if type(l) is PWSLeadLane]]
+        if eid in maker_scopes:
+            scopes[eid]=tuple(sorted({*scopes[eid],'MAKER_RESEARCH'}));inputs.append(maker_scopes[eid])
         for context in inputs:
             if context.context.account_id!=plan.account.account_id or context.context.event_id!=eid:
                 raise EvidenceError('CANDIDATE_HEALTH_SOURCE_SCOPE')
@@ -232,12 +259,15 @@ def assemble_candidate(store,client,plan,*,generation):
         risk.append(EventRiskInputs(a,coordinator,event.risk_policy))
     health=RuntimeHealth(store,plan.health,account_id=plan.account.account_id,scopes=scopes,sources=tuple(needs[k] for k in sorted(needs)))
     evaluator=RiskAwareEventAdapter(_EventDispatch(coordinator,adapters),tuple(risk))
+    maker=MakerResearch(coordinator,plan.maker.research) if plan.maker else None
+    if maker is not None:maker._head()
     runtime=PaperRuntime(coordinator,queue,health,plan.runtime,evaluator=evaluator,worker_id=plan.worker_id,
-        generation=generation,feed_policy=plan.feed,audits=AuditScheduler(store,plan.audits))
+        generation=generation,feed_policy=plan.feed,audits=AuditScheduler(store,plan.audits),maker=maker)
     runtime._head()
     census=CensusWorker(scheduled,queue,health,plans=tuple(e.census for e in plan.events),policy=plan.census,book_policy=plan.books)
     observation=ObservationPump(ObservationRuntime(scheduled),runtime) if plan.observation is not None else None
     runner=CandidateRunner(runtime,plan.candidate,census=census,discovery=MarketDiscovery(scheduled,health,plan.discovery),
-        audits=AuditWorker(coordinator,plan.audits),observation=observation,observation_batch=plan.observation)
+        audits=AuditWorker(coordinator,plan.audits),observation=observation,observation_batch=plan.observation,
+        maker_telemetry=MakerTelemetryWorker(maker,health,plan.maker.telemetry,event_ids=tuple(maker_scopes)) if maker else None)
     runner.assembly_sha256=digest(asdict(plan))
     return runner

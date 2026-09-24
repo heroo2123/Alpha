@@ -15,6 +15,7 @@ from .census_worker import CensusWorker
 from .discovery import MarketDiscovery
 from .evidence import EvidenceError, canonical, digest, finite, identity
 from .observation_pump import ObservationPump
+from .maker_telemetry import MakerTelemetryWorker
 from .paper_runtime import PaperRuntime
 from .runtime_health import KEY as HEALTH_KEY
 
@@ -78,7 +79,7 @@ class ObservationBatch:
 
 
 class CandidateRunner:
-    def __init__(self,runtime,policy,*,census,discovery,audits,observation=None,observation_batch=None):
+    def __init__(self,runtime,policy,*,census,discovery,audits,observation=None,observation_batch=None,maker_telemetry=None):
         if (not isinstance(runtime,PaperRuntime) or not isinstance(policy,CandidatePolicy)
                 or not isinstance(census,CensusWorker) or not isinstance(discovery,MarketDiscovery)
                 or not isinstance(audits,AuditWorker)):
@@ -92,13 +93,20 @@ class CandidateRunner:
                     or not isinstance(observation_batch,ObservationBatch) or observation.runtime is not runtime
                     or observation.observation.scheduled is not census.scheduled)):
             raise EvidenceError('CANDIDATE_OBSERVATION_SCOPE')
+        if maker_telemetry is not None and (not isinstance(maker_telemetry,MakerTelemetryWorker)
+                or maker_telemetry.research is not runtime.maker or maker_telemetry.health is not runtime.health
+                or not set(maker_telemetry.event_ids)<=runtime.queue.routes.keys()):
+            raise EvidenceError('CANDIDATE_MAKER_TELEMETRY_SCOPE')
         self.runtime,self.policy,self.store=runtime,policy,runtime.store
         self.census,self.discovery,self.audits=census,discovery,audits
         self.observation,self.observation_batch=observation,observation_batch
-        self.kinds=('CENSUS','DISCOVERY','AUDIT')+(('OBSERVATION',) if observation else ())
-        self.config=digest(dict(policy=asdict(policy),runtime=runtime.config,census=census.config,
+        self.maker_telemetry=maker_telemetry
+        self.kinds=('CENSUS','DISCOVERY','AUDIT')+(('OBSERVATION',) if observation else ())+(('MAKER_TELEMETRY',) if maker_telemetry else ())
+        config=dict(policy=asdict(policy),runtime=runtime.config,census=census.config,
             discovery=discovery.config,audits=audits.config,worker_id=runtime.worker_id,
-            observation=asdict(observation_batch) if observation_batch else None))
+            observation=asdict(observation_batch) if observation_batch else None)
+        if maker_telemetry is not None:config['maker_telemetry']=maker_telemetry.config
+        self.config=digest(config)
 
     def _get(self,key):
         try:return self.store.get(key)
@@ -140,6 +148,7 @@ class CandidateRunner:
                 self.discovery.start('candidate-scan:'+digest(key))
             return await self.discovery.step(key)
         if kind=='AUDIT':return self.audits.step()
+        if kind=='MAKER_TELEMETRY':return self.maker_telemetry.step(key)
         batch=self.observation_batch
         return await self.observation.cycle(key,tuple(replace(r,revision=key) for r in batch.requests),
             station_by_event=dict(batch.station_by_event),strategies=batch.strategies,

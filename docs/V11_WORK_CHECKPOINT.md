@@ -1,6 +1,6 @@
 # Alpha V11 work checkpoint
 
-Updated 2026-09-24, after typed candidate assembly integration. Resume here. **NOT_READY_TO_FUND**.
+Updated 2026-09-24, after maker telemetry integration. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
 
 ## Current priority override — V11 runtime integration
@@ -25,26 +25,25 @@ open. No funding, deployment, financial activation or new host workload authoriz
 
 ## Latest continuation milestone
 
-Typed candidate assembly now connects scope/source/strategy plans to the shared
-collector, current request factories, derived risk, common account, finite runner
-and audits. Temperature, relative/structural, PWS, received release and ordinary
-exit adapters retain their own protected admission and economic checks.
-**105 related tests passed in 23.70 s**, including 17 new builder cases.
+Maker telemetry now shares the finite candidate, maker safety retirement and
+common account. It updates retained quotes, preserves sequence gaps and publishes
+closed-window 1s/5s/30s/2m/10m counterfactual marks without fills or ledger writes.
+**206 related tests passed in 32.46 s**, including 14 new telemetry cases.
 Last full regression: **3344 passed, four existing warnings, 203.31 s**;
-the 15 derived-risk and 17 builder cases were tested afterward.
-Fully completed implementation packages remain **1/50**; formal, empirical and
-independent acceptance remain open. No test operation is running.
-Next concrete implementation: connect bounded maker observation/markout work to
-the finite candidate, then remaining raw-provider/dynamic-route and master-spec
+15 derived-risk, 17 builder and 14 telemetry cases were tested afterward.
+Fully completed packages remain **1/50**; formal, empirical and independent
+acceptance remain open. No test operation is running.
+Next concrete implementation: current-input maker proposal/context factories in
+the shared candidate, then remaining raw-provider/dynamic-route and master-spec
 requirements. No V10 maintenance, deployment or funding is requested.
 
 ## Exact identities and scope
 
 - Branch: `weather-v11-profitability-upgrade-2026-09-23`.
-- Last verified implementation HEAD: `97c516573705cd1bbfd1a9b72ddce6692bef261a`.
-- Last verified implementation tree: `fac3dac95f18d43ca0a83e881e9e650f538bb2bd`.
-- Derived-risk implementation identity is above. Public/local
-  tree equality passed; fetch/alignment exited 0 (session 72187), with a clean
+- Last verified implementation HEAD: `983b30ab30d796d59a5d4efe46a8ad5fe5138217`.
+- Last verified implementation tree: `d1af454c3c1a330a00640eb2f9375407cc5cb9fc`.
+- Typed candidate implementation identity is above. Public/local
+  tree equality passed; fetch/alignment exited 0 (session 21580), with a clean
   worktree. No unfinished work was discarded. This later documentation checkpoint
   records that exact tested implementation without changing source/tests.
 - A later commit containing this checkpoint may include the newer work below. Resolve its own
@@ -1624,3 +1623,31 @@ full-suite result is implied. No open test failure or test process remains.
 
 Next: bounded maker observation/markout scheduling within this shared candidate.
 All implementation and tests remain off-host; no maintenance work reopened.
+
+## Maker telemetry candidate integration — 2026-09-24
+
+Implemented `v11/maker_telemetry.py` and connected it to CandidateRunner and typed
+candidate assembly. Maker research, health, scopes and the common account must
+match exactly. Runtime recovery now also binds maker policy identity. No quote
+creation, transport, public-trade collection, real fill or ledger write is added.
+
+The bounded worker reserves each action before execution and retains its exact
+child across interruption. It observes exact same-channel books using existing
+microstructure/research engines, retires invalidated quotes locally and rotates
+retained history without deleting it. Due markouts precede repeated book samples,
+preventing a busy book stream from starving a horizon. Publication waits only for
+the specified markout tolerance window to close; this is not a paper waiting or
+funding criterion. The first eligible archived book controls the counterfactual.
+Unknown fees/absent horizon evidence stay UNKNOWN. All five horizons remain
+observable after local quote retirement. Fees supplied here are explicitly
+hypothetical declared costs, not attested venue fees or strategy alpha.
+
+First combined run: 18 passed / 11 failed in 6.50 s; the helper omitted the
+mandatory MAKER_RESEARCH source scope. Corrected that fixture; 12 focused cases
+passed in 5.82 s. Added bounded-stream fairness and retired-horizon coverage.
+Final maker/context/runner/assembly/runtime/health/reward integration:
+**206 passed in 32.46 s**, including **14 new cases**. Distinct new passing cases
+now **1054** above baseline 2336. No open test failure remains. Public HTTP in the
+candidate test is mocked; no source/host/execution acceptance is claimed.
+Next: factory-built current maker proposals and protected payout context so the
+candidate can originate research quotes when all existing gates actually pass.

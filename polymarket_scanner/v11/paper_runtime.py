@@ -113,6 +113,7 @@ class PaperRuntime:
         config = dict(runtime=asdict(policy), account=coordinator.policy_sha, queue=queue.config, health=health.config, feed=self.feed.config,
                       rewards=rewards.config if rewards is not None else None, audits=self.audits.config)
         if getattr(evaluator,'config',None) is not None: config['evaluator'] = evaluator.config
+        if maker is not None:config['maker_research']=maker.policy_sha
         self.config = digest(config)
 
     def _head(self):

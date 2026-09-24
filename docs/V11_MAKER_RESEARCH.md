@@ -119,3 +119,25 @@ separately approved bounded canary. Broader learned authority/scaling still need
 prospective support, genuine canary evidence and out-of-sample validation.
 Rewards/rebates are separate from trading alpha; no funding or deployment is
 authorized. V10 remains untouched and its resource/health finding stays open.
+
+## Bounded maker telemetry integration
+
+`MakerTelemetryWorker` is an optional CandidateRunner job, composed by
+`MakerTelemetryPlan`. It shares the runtime's MakerResearch, health and common
+account. Existing retained quotes receive exact current-book observations and
+local invalidation/expiry retirement. Gap/reconnect samples reset eligibility
+spans; public trades are not treated as fills. This worker does not collect trade
+prints, create quotes, reserve cash or mutate inventory.
+
+Each reserved action survives interruption with its original identity. Retained
+quotes rotate under count/time bounds. Due markouts precede fresh samples, so
+continuous book updates cannot starve them. A mark is finalized after its own
+1s/5s/30s/2m/10m tolerance window closes, using the first eligible archived book.
+Missing data/costs remain UNKNOWN; configured costs remain declared research
+inputs. Retired history still receives due marks. No arbitrary paper waiting
+period or financial eligibility is introduced. Maker retirement still runs before
+optional runtime work. The shared process is not an independent guardian.
+
+**206 related tests passed in 32.46 s**, including **14 new worker/candidate
+cases**. Quote origination/context factories, actual provider/trade inputs,
+reviewed first-canary baseline and empirical/independent acceptance remain open.
