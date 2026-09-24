@@ -6,8 +6,8 @@ This is an implementation checkpoint, not release or financial approval.
 ## Exact identities and scope
 
 - Branch: `weather-v11-profitability-upgrade-2026-09-23`.
-- Last verified implementation HEAD: `a3a0a05b3ea2ecdc55190c711a75d6d7cd990922`.
-- Last verified implementation tree: `053189306c136d11f32943ec62f0807c827a582c`.
+- Last verified implementation HEAD: `f0e0abc3345f63d170c29b5ba5d5d74c91238477`.
+- Last verified implementation tree: `52cbef6c6d9372beca2c60ed32675ecdc9298023`.
 - Worktree at implementation verification: only this following checkpoint update
   remains uncommitted; all implementation files are saved, and local/public
   implementation trees match. No unfinished work was discarded.
@@ -16,6 +16,9 @@ This is an implementation checkpoint, not release or financial approval.
   tree with `git rev-parse <that-commit>^{tree}`; no self-referential hash claim.
 - Preservation-preparation checkpoint: `2dc11b341f0885ea2af534c39a3873e7b2483006`,
   tree `52000e11dcbdacb5b07df1fd8fcc0fea7e2bc029`.
+- Prior maker-feature implementation: `a3a0a05b3ea2ecdc55190c711a75d6d7cd990922`,
+  tree `053189306c136d11f32943ec62f0807c827a582c`; its recovery checkpoint was
+  `53cae2da33e97c993c76ab976d2f079a97bf6ae1`.
 - Latest full-regression implementation: `f69e318d04b8771f1de3074928ae63d3951cebec`,
   tree `e708af471cb8289ca78439c97e8a8450687a075d`. Subsequent additive preservation
   and maker modules have the targeted verification recorded below.
@@ -799,6 +802,8 @@ v11/control_maintenance.py prepares the exact proposal and a bounded metadata-on
 owner inventory. Eight new / 24 related tests passed in 0.59 s. An initial test
 expected a size-change error but its replacement string had the same size; the
 source-metadata change was correctly rejected, and the assertion was corrected.
+The reattached final-reviewed specification was hash checked again before
+publication and matches the authority above. No old draft or summary substituted.
 The helper was staged mode 0400 outside V10 and hash checked, not executed:
 /home/alphaadmin/alpha-v11-preservation-prep-20260924/control_maintenance.py,
 SHA-256 50a5067f9d58405ae62c9ef84ecfdefd69fb3cfbf77f8b1008a12aa9e34cd6b9.
