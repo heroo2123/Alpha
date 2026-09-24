@@ -271,6 +271,10 @@ class MakerResearch:
         return self._commit(key,request,previous,quotes,outcome='RETIRED',reason=q['retirement_reason'],
                 refs=(q['origin_record_id'],),cancellation_status='NOT_APPLICABLE_NO_ORDER',current_inventory_unchanged=True)
 
+    def context(self,key,**request):
+        from .maker_context import measure_context
+        return measure_context(self,key,**request)
+
     @precise
     def markout(self,key,*,quote_id,horizon_seconds,tolerance_seconds,fee_per_share=None):
         if horizon_seconds not in MARKOUT_SECONDS or not 0<=finite(tolerance_seconds)<=60:

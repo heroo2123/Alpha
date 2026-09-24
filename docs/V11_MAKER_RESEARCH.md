@@ -59,6 +59,50 @@ unset. Lifecycle expiry does not prevent later historical markout measurement.
 
 ## Verification and remaining acceptance
 
+### Protected payout and release context
+
+v11/maker_context.py is joined through MakerResearch.context. A current observing
+quote binds its latest research head, protected maker admission, current reproduced
+book, shared account risk, event/operator heads and a protected payout bundle.
+Whole-event inference supplies exact YES/NO point and conservative interval
+distances from the quote and sorted best-book midpoint. Uncalibrated bounds remain
+vacuous. Point distance does not become maker EV, a confirmed payout, an executable
+early exit, a fill probability or order authority.
+
+Future-date context accepts complete final-extreme model inputs leased by the
+protected admission. Same-day context additionally requires a separately reviewed
+SAME_DAY_LATE_LOCK admission for the identical rule/context/bundle, exact accepted
+official revision and complete remaining-day coverage. It reuses the existing
+conditioned inference path; a maker-only capability does not silently certify an
+observation proxy or remaining-extreme model. Next-observation inputs cannot be
+relabelled as final contract payout inputs.
+
+An optional archived FEATURES record with schema alpha_v11_received_release_notice_v1
+provides station/rule, release_kind, expected_release_at and valid_until. Provider,
+source identity, issue/receipt/availability times and revision come from its
+evidence envelope. The current revision must be causal, unexpired and within the
+declared bounded notice age. This is a received provider expectation, not official
+source certification or proof of release. Missing/stale/malformed/superseded or
+historically unavailable notices remain UNKNOWN. Passing the expected time yields
+EXPECTED_TIME_PASSED_UNCONFIRMED, never an invented observation or zero event risk.
+Source adapters have not yet been commissioned to populate these notices.
+
+All inputs are bounded; at most 16 leased models are used. Started work preserves
+its original cutoff across interruption. Completed replay cannot refresh its
+clock or authority. Protected model revalidation and atomic book/source/account/
+quote/operator head checks reject concurrent changes. Published context expires
+with its shortest feature/book/source/event/quote/local-day boundary. It writes
+only separate research evidence, with no quote renewal, account mutation, wallet,
+transport or order action.
+
+37 new context tests and 266 related context/maker/microstructure/strategy/admission/
+model/probability/account/event/evidence tests passed in 19.68 seconds. Early test
+failures exposed duplicate start references and fixture mistakes; these were
+corrected. Review added sorted-midpoint, shortest-expiry, partial-replay and
+concurrent-change regression cases. No failing case remains. All fixtures are
+explicitly synthetic, including protected reviews; this is not independent review
+or empirical validation. Prior quote-lifecycle verification follows.
+
 32 new synthetic tests and 151 related maker/microstructure/account/admission/
 event/evidence tests passed in 8.29 seconds. The initial 28-test run passed;
 additional common-account cases passed in a 150-test related run. Review then
@@ -66,8 +110,8 @@ found that failed risk revalidation could advance sampled eligibility before
 withdrawal; the correction and new negative case passed the final related run.
 No failed test remains open. Exact final run duration is also in the checkpoint.
 
-Remaining: proposed-quote context enrichment (protected fair value/release timing),
-provider/runtime scheduling, prospective observation completeness, the separately
+Remaining: provider/runtime scheduling and actual release-notice adapters,
+prospective observation completeness, the separately
 reviewed first-canary execution baseline, actual cancellation/telemetry/guardian
 acceptance and genuine canary data. Fill/intensity/adverse-selection models stay
 unknown until supported. Prior real fills are not a prerequisite for the first

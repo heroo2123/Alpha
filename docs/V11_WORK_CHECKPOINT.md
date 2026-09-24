@@ -1,6 +1,6 @@
 # Alpha V11 work checkpoint
 
-Updated 2026-09-24, after reversible maintenance preparation and maker quote research. Resume here. **NOT_READY_TO_FUND**.
+Updated 2026-09-24, after the inventory-only access attempt and maker context implementation. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
 
 ## Exact identities and scope
@@ -782,6 +782,23 @@ service action, new backup, real order or financial activation occurred.
 
 ## Models, authority and exact continuation
 
+### Inventory-only authorization and access result (September 24)
+
+Recovered checkpoint e5d7afe4123a3cd46eb473ea4e6de3469b507662, tree
+0e295065443d36984b1d483ef25f1e89889c7940, with a clean worktree and no active
+remote session. The owner explicitly authorized only the staged metadata inventory
+command. Helper hash 50a5067f9d58405ae62c9ef84ecfdefd69fb3cfbf77f8b1008a12aa9e34cd6b9
+matched again, mode 0400, no helper symlink, and the exact inventory destination
+did not exist. The exact approved sudo command was attempted once through Remote
+Desktop Commander and returned `Command not allowed` / `INVALID_ARGUMENT`.
+The helper did not execute; no inventory hash or current backup was generated.
+A following session list was empty. There was no password-waiting process,
+privilege workaround, guard installation, manager reload, signal or service action.
+Owner-only access remains the preservation blocker, independent of off-host work.
+The precise remaining owner action and unchanged suspension gates are recorded
+in V11_CONTROL_SUSPENSION_PLAN.md. Do not mistake authorization for tool access
+or metadata inventory for a verified preservation set.
+
 ### Latest continuation: reversible maintenance and maker research
 
 Recovered 53cae2da33e97c993c76ab976d2f079a97bf6ae1, tree
@@ -838,8 +855,8 @@ new tests across recorded runs: 641. Fixed completed packages: 1/50 = 2%.
 - No executor mask change or real-money activation. No arbitrary paper waiting
   period is imposed; mandatory technical/evidence gates remain.
 
-Next concrete engineering action: complete the bounded maker baseline's protected
-fair-value/release context, cancellation/telemetry and runtime interfaces. Research
+Next concrete engineering action: complete the bounded maker baseline's
+cancellation/telemetry and runtime interfaces. Research
 proposals, sampled eligibility and markout/common-risk integration are now locally
 verified; do not restart those modules or fabricate fills. Continue rewards,
 guardian/clock/operator integration and ALL remaining matrix/master requirements.
@@ -869,9 +886,42 @@ MASKED/INACTIVE, no suspension/restart/deployment/financial action authorized or
 performed. Explicit owner approval is required only for the prepared V10
 suspension/recovery decisions; independent off-host maker work is authorized.
 Latest full suite: 2,894 pass; subsequent preparation/preservation suite: 24 pass;
-latest maker/microstructure/account/admission/event/evidence suite: 151 pass.
+latest maker context/strategy/model/probability/account/event/evidence suite: 266 pass.
 Earlier preservation 41 and microstructure/evidence/valuation/queue 113 passed.
 No local test or publication
 operation is intentionally left running. The checkpoint/matrix retain the full
 specification. Fixed completion remains 1/50 = 2%; R32, R34 and R35 are PARTIAL.
 No independent reviewer or empirical strategy-eligibility pass is claimed.
+
+### Latest off-host milestone: protected maker context
+
+v11/maker_context.py and MakerResearch.context join existing research quotes to
+protected final-payout inference, exact token/side distances, shared account risk,
+current book/event/operator state and optional received release expectations.
+Same-day context requires the separately reviewed conditioned-payout capability
+and exact observation/remaining-day coverage; next-official-observation prediction
+cannot substitute. Uncalibrated payout intervals remain vacuous. Expected release
+times never become confirmed observations or no-event-risk claims. No trading EV,
+fill probability, queue position, executable exit, ledger mutation or authority is
+inferred from these diagnostics. Actual provider/notice adapters remain pending.
+
+37 new tests / 266 related tests passed in 19.68 s. Initial focused result was
+28 failures / two passes: duplicate start references plus a test keyword-override
+error prevented evaluation. After those fixes, four fixture/assertion mismatches
+remained (target constant, authority helper and stale second-scope review pins).
+Correcting them produced 30 passes in 5.92 s. Review then corrected raw-order
+midpoint selection and incomplete context expiry, and added seven cases covering
+those boundaries, operator races and interrupted/replayed work. The final related
+run above passed completely; no open test failure remains. Tests use synthetic
+protected reviews and data, never independent acceptance or live evidence.
+
+The only modified existing implementation file is the maker context entry point;
+the context module and its tests are additive. Preservation helper bytes remain
+unchanged after the denied owner-inventory execution attempt. V10 was not modified,
+no guard was installed and no service signal, restart, executor change or deployment
+occurred. Current inventory hash is unavailable because execution was rejected.
+No full regression was repeated: latest remains 2,894 pass / four existing warnings
+at f69e318. Cumulative distinct new tests now 678; full completed packages remain
+1/50 = 2%. R34/R35 remain PARTIAL, with baseline cancellation/telemetry, runtime and
+empirical acceptance still open. Continue the full specification after those
+interfaces, including rewards, guardian, clock and operator integration.

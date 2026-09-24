@@ -1,6 +1,6 @@
 # V10 preservation preparation and suspension readiness
 
-Updated September 24 after the 11:42 UTC read-only maintenance assessment.
+Updated September 24 after the explicitly approved inventory-only attempt.
 **SUSPENSION_NOT_READY. No SIGTERM, stop, restart, restore, executor change or V11
 service deployment is approved or performed.** This supersedes the previous
 conditional suspension recommendation. Do not use that older plan as permission.
@@ -63,8 +63,13 @@ Prepared and staged outside V10:
 /home/alphaadmin/alpha-v11-preservation-prep-20260924/control_maintenance.py
 
 SHA-256: 50a5067f9d58405ae62c9ef84ecfdefd69fb3cfbf77f8b1008a12aa9e34cd6b9.
-The file is mode 0400 in the existing private preparation directory. It has NOT
-been executed on alpha-dev. Reverify this reviewed hash at the point of use; it
+The file is mode 0400 in the existing private preparation directory. The owner
+approved the exact inventory-only command below. At the point of use, its hash
+matched and the destination did not exist. Remote Desktop Commander then rejected
+that exact command with `Command not allowed` / `INVALID_ARGUMENT`; the helper
+did not execute and no inventory hash was produced. The subsequent session list
+was empty. No wrapper, alternate privilege route or duplicate retry was attempted.
+Reverify this reviewed hash at a later approved point of use; it
 is an owner-review artifact, not an installed protected-authority component.
 
 After verifying that exact helper hash, the owner-only command is:
@@ -86,8 +91,11 @@ The script contains no subprocess, service, signal, permission-change or restore
 API. Tests: eight new / 24 preparation-preservation checks pass off-host.
 
 This action is needed because the connected development identity cannot read the
-protected current state/configuration and its privileged route was previously
-denied. It does not repeat the completed owner health probe. Its result is an
+protected current state/configuration and the explicitly approved command was
+denied by the connected tool. The remaining owner-only action is execution of
+this same reviewed command in the owner's authenticated shell; no password or
+private manifest should be pasted into chat. Only its redacted result is needed.
+This does not repeat the completed owner health probe. Its result would be an
 inventory, NOT a fresh backup or recovery pass. It exposes size/special-file/link
 and access findings for the bounded preservation step; journal/enablement,
 external Git/interpreter dependencies and additional configuration references
@@ -323,7 +331,7 @@ gap and intentional suspension from uninterrupted V10/V11 comparisons.
 | Existing snapshot recovery/hash check | PASS off-host; historical snapshot only |
 | Preservation-only code/hash and synthetic WAL recovery | PASS; 16 new / 41 related tests |
 | Reversible same-boot systemd maintenance mechanism | DOCUMENTED from installed manuals; NOT installed or runtime-tested |
-| Protected metadata inventory helper | Prepared/staged; eight new / 24 related tests; owner execution pending |
+| Protected metadata inventory helper | Hash PASS; exact approved execution BLOCKED by Remote Desktop Commander: Command not allowed / INVALID_ARGUMENT; inventory hash unavailable |
 | Exact new destination selected and nonexistence checked | PASS at recorded read; creation pending |
 | Fresh private config/history inventory and preservation set | PENDING owner access; no new capture/hash |
 | Complete current backup and full-runtime recovery verification | NOT PASSED |
