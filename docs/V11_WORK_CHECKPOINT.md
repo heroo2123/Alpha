@@ -1,7 +1,53 @@
 # Alpha V11 work checkpoint
 
-Updated 2026-09-24, after declared forecast-contract and bounded learning integration. Resume here. **NOT_READY_TO_FUND**.
+Updated 2026-09-24, after read-only learning-source provenance integration. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
+
+## Latest implementation — read-only learning source closure
+
+Previous milestone published as **49cd76f74bc058e96130e1a79f0b147f49e0b33a**,
+tree **b9d4221db850b73c9e900248f1079d5935fc36a1**. GitHub/local equality and
+fetch/alignment passed, session 81634 exit 0; clean worktree at that milestone.
+
+Implemented `v11/learning_sources.py` and joined dataset construction and the
+forecast research job. One SQLite read transaction opens with `mode=ro` and
+`query_only=ON`, includes committed WAL, and pins the source sequence. It performs
+no journal-mode/checkpoint/schema/source mutation. Reads are bounded to 8192
+unique records, 8 MiB and ten seconds. Caller changes to returned dictionaries
+cannot change the view; later source appends are not substituted into it.
+
+Examples now expand normalized forecast/observation raw references and complete
+GEFS field graphs with exact hashes, original issue/observation/receipt/availability
+times, strict event/provider/kind/sequence ordering, evidence class and dependencies.
+Missing, malformed, historical-unknown, future or cross-event children gate.
+An additional offline derivation budget is 1024 records/2048 edges/512 KiB metadata/
+two seconds; the existing 256-node feature DAG and 64-input runtime decision limits
+are unchanged. The job also caps the serialized dataset at 16 MiB. Larger jobs
+remain gated, not evidence of deployment capacity.
+
+Verification: earlier affected dataset/fit **42 passed / 5.05 s**; **15 new cases
+passed / 4.37 s**; related source/dataset/fit/protected-inference suite **168 passed
+/ 31.28 s, exit 0**, session 60960. A complete synthetic 310-field GEFS path retains
+**621 original derivation records** in every event-bucket example and builds a
+causal dataset without truncation. Read-only source connection and committed-WAL
+snapshot behavior, query rejection, actual byte/deadline limits and immutable
+revisions are tested. No actual source data, labels, fills or independent review
+is claimed. Two unused test imports were removed afterward; full verification
+below is the next gate.
+
+Estimate **80/200, approximately 40% (unchanged)**; formal **1/50 (2%)**. R14/R15
+already hold their named integration credits. The remaining six milestones and
+active-work ranges below are retained; this closes a bounded provenance substep,
+not the larger real-evidence/acceptance milestone.
+
+Next: publish this exact implementation, then one locked full regression because
+shared dataset/probability/pipeline paths changed. After that, continue bounded
+learner triggering/backoff and durable job recovery using this source-to-fit path;
+do not introduce training into the candidate decision process. OS isolation and
+actual initial champion/calibration/label acceptance remain separate open gates.
+V10 maintenance stays DEFERRED, V10 unchanged, and no deployment or financial
+authority is authorized. All recorded host/resource and owner-inventory findings
+remain open. No owner maintenance action is needed for this off-host work.
 
 ## Latest continuation — forecast capture to immutable challenger
 

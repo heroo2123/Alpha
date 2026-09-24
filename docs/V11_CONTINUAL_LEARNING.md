@@ -39,7 +39,9 @@ separate CHALLENGER journal. Exact completed requests return their saved result;
 an incomplete attempt requires review and is not implicitly rerun. Tests verify
 candidate-inference probability parity and unchanged source evidence/parent.
 This is an explicit research call, not an automatic scheduler or initial
-champion approval. Exact source derivation and OS isolation remain open work.
+champion approval. Bounded read-only source snapshots now carry exact normalized
+raw/GEFS derivations into examples. Actual source truth and OS isolation remain
+open work; immutable receipts alone do not attest either.
 
 Eight synthetic tests verify reproducibility, train-only selection, confirmation
 reuse, complete trial accounting, sparse-data behavior and resource failure.

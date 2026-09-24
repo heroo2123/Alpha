@@ -42,6 +42,22 @@ The cohort is bounded to 128 captures/2048 examples/ten seconds of assembly;
 the unchanged learner has its own finite numerical/time limits. OS separation
 remains unverified.
 
+The job now uses `learning_sources.learning_source_view`: a bounded SQLite
+`mode=ro`, query-only transaction including committed WAL. Source sequence and
+original rows are pinned; later appends and caller dictionary mutations cannot
+change the view. There are no source write/checkpoint/schema pragmas. Reads cap
+at 8192 records/8 MiB/ten seconds; dataset serialization caps at 16 MiB.
+
+`build_example` now retains a separate source-derivation manifest for normalized
+raw references and full GEFS paths. Original times, hashes and edges survive
+later revisions; unknown availability, cross-event/provider/kind, bad hash,
+missing references and noncausal sequence/time fail closed. The offline graph
+cap is 1024 records/2048 edges/512 KiB metadata/two seconds. Runtime decisions
+remain at 64 inputs and the existing feature DAG remains capped at 256. This is
+receipt provenance, not independent source truth or full provider acceptance.
+Fifteen new tests include the complete 621-record synthetic GEFS derivation and
+read-only/WAL/byte/time gates; the related suite passed 168 tests in 31.28 seconds.
+
 The subsequent declared-contract/learner integration passed 145 related tests
 in 29.35 seconds, including 29 new cases. Synthetic 31-member C/F and high/low
 event vectors traverse capture, complete labels, causal temporal splits, fitting

@@ -119,3 +119,9 @@ parent remain unchanged. These are synthetic tests, including labels. Actual
 labels, calibration, OS isolation, initial champion and learning acceptance are
 still open. Total **80/200, approximately 40%**; the displayed estimate and formal
 **1/50 (2%)** are unchanged. This credits the named integration, not more tests.
+
+Read-only learning snapshots and complete normalized-source derivations
+subsequently passed 168 related checks, including 15 new cases and a 621-record
+synthetic GEFS graph. R14/R15 already have their named integrations. Total stays
+**80/200, approximately 40%** and formal **1/50 (2%)**. No actual-label, calibrated,
+independent, host/deployment or operational acceptance credit is earned.

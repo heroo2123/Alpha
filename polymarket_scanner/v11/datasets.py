@@ -186,7 +186,7 @@ def build_example(store: EvidenceStore, *, decision_id: str, feature_id: str, la
 
     # Traverse the exact archived derivation DAG. Never substitute a latest source
     # value or follow a label into the feature graph.
-    pending, seen, provenance = [feature], set(), []
+    pending, seen, provenance, source_roots = [feature], set(), [], []
     while pending:
         row = pending.pop()
         if row['id'] in seen:
@@ -214,6 +214,8 @@ def build_example(store: EvidenceStore, *, decision_id: str, feature_id: str, la
                 if source['sha256'] != ref['sha256'] or source['seq'] >= row['seq']:
                     raise EvidenceError("FEATURE_DERIVATION_BINDING")
                 pending.append(source)
+        else:
+            source_roots.append(row)
     result = {'version': 'alpha_v11_causal_example_v1', 'namespace': store.namespace,
               'event_id': decision['event_id'], 'station': station, 'city': city, 'local_date': local_date,
               'city_day': city+':'+local_date, 'horizon': horizon, 'season': season, 'strategy': d['strategy'],
@@ -227,6 +229,10 @@ def build_example(store: EvidenceStore, *, decision_id: str, feature_id: str, la
               'label_available_at': max(lab['available_at'], lp['knowable_at']), 'label_value': value,
               'label_evidence_type': lp['evidence_type'], 'label_evidence_class': lab['evidence_class'],
               'label_independently_attested': False, 'financial_authority': False}
+    from .learning_sources import source_derivation
+    derived=source_derivation(store,source_roots,event_id=decision['event_id'],cutoff=d['feature_ready_at'])
+    if derived is not None:
+        result['source_derivation']=derived
     return CausalExample(canonical(result), digest(result))
 
 

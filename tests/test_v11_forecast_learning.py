@@ -173,8 +173,8 @@ def test_incomplete_attempt_requires_review_and_never_implicitly_refits(tmp_path
 
 
 def test_assembly_budget_prevents_fitting_or_source_changes(tmp_path):
-    cfg,_,_,_=setup_job(tmp_path); before=cfg['source_store'].pin_read_view(); ticks=iter([0.,11.])
-    with pytest.raises(EvidenceError,match='ASSEMBLY_TIME_BOUND'):
+    cfg,_,_,_=setup_job(tmp_path); before=cfg['source_store'].pin_read_view(); ticks=iter([0.,11.,12.])
+    with pytest.raises(EvidenceError,match='TIME_BOUND'):
         run_forecast_fit(**cfg,monotonic=lambda:next(ticks))
     assert cfg['source_store'].pin_read_view()==before
     assert len(cfg['journal'].store.records(kind='MODEL_EVENT'))==1

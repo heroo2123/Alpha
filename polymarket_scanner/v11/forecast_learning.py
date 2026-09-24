@@ -8,9 +8,10 @@ from dataclasses import asdict, dataclass
 import time
 
 from .datasets import DatasetPlan, build_dataset
-from .evidence import EvidenceError, digest, finite, identity
+from .evidence import EvidenceError, canonical, digest, finite, identity
 from .forecast_features import ForecastFeatureContract
 from .learning_capture import VERSION, labeled_examples
+from .learning_sources import learning_source_view
 from .model_artifacts import validate_provenance
 from .offline_learning import run_research_fit
 from .rules import RuleFingerprint
@@ -101,33 +102,36 @@ An interrupted fitting attempt is never rerun implicitly under the same run ID.
         return {'result': result['result'], 'sha256': result['sha256']}
     deadline = monotonic() + 10.
     examples, captures = [], []
-    for join in joins:
-        if monotonic() >= deadline:
-            raise EvidenceError('FORECAST_RESEARCH_ASSEMBLY_TIME_BOUND')
-        capture = source_store.get(join.capture_id)
-        data = capture['body'].get('details', {})
-        if (capture['kind'] != 'MEASUREMENT' or data.get('version') != VERSION
-                or not data.get('parent_feature_contract_verified') or not data.get('complete_event_vector')
-                or data.get('feature_schema_sha256') != plan.feature_schema_sha256
-                or capture['body']['available_at'] > as_of):
-            raise EvidenceError('FORECAST_RESEARCH_VERIFIED_CAPTURE_REQUIRED')
-        rule = RuleFingerprint(**data['rule'])
-        mapping = data['model_feature_mapping']
-        contract = ForecastFeatureContract(tuple((model, len(names)) for model, names in mapping.items()),
-                                           rule.payload['unit'], rule.payload['family'])
-        contract.require_bundle(pinned)
-        if mapping != contract.mapping:
-            raise EvidenceError('FORECAST_RESEARCH_MEMBER_MAPPING_MISMATCH')
-        # Historical predictions remain bound to their original bundle. A parent
-        # with the identical declared schema is compared on those causal inputs.
-        batch = labeled_examples(source_store, join.capture_id, label_ids=dict(join.label_ids), city=join.city,
-                                  horizon=join.horizon, season=join.season, prior_exposure=join.prior_exposure)
-        examples.extend(batch)
-        if len(examples) > 2048 or monotonic() >= deadline:
-            raise EvidenceError('FORECAST_RESEARCH_ASSEMBLY_BOUND')
-        captures.append(dict(id=capture['id'], sha256=capture['sha256'],
-                             example_sha256s=[example.sha256 for example in batch]))
-    dataset = build_dataset(tuple(examples), plan, as_of=as_of)
+    with learning_source_view(source_store, deadline=deadline, monotonic=monotonic) as view:
+        for join in joins:
+            if monotonic() >= deadline:
+                raise EvidenceError('FORECAST_RESEARCH_ASSEMBLY_TIME_BOUND')
+            capture = view.get(join.capture_id)
+            data = capture['body'].get('details', {})
+            if (capture['kind'] != 'MEASUREMENT' or data.get('version') != VERSION
+                    or not data.get('parent_feature_contract_verified') or not data.get('complete_event_vector')
+                    or data.get('feature_schema_sha256') != plan.feature_schema_sha256
+                    or capture['body']['available_at'] > as_of):
+                raise EvidenceError('FORECAST_RESEARCH_VERIFIED_CAPTURE_REQUIRED')
+            rule = RuleFingerprint(**data['rule'])
+            mapping = data['model_feature_mapping']
+            contract = ForecastFeatureContract(tuple((model, len(names)) for model, names in mapping.items()),
+                                               rule.payload['unit'], rule.payload['family'])
+            contract.require_bundle(pinned)
+            if mapping != contract.mapping:
+                raise EvidenceError('FORECAST_RESEARCH_MEMBER_MAPPING_MISMATCH')
+            # Historical predictions remain bound to their original bundle. A parent
+            # with the identical declared schema is compared on those causal inputs.
+            batch = labeled_examples(view, join.capture_id, label_ids=dict(join.label_ids), city=join.city,
+                                      horizon=join.horizon, season=join.season, prior_exposure=join.prior_exposure)
+            examples.extend(batch)
+            if len(examples) > 2048 or monotonic() >= deadline:
+                raise EvidenceError('FORECAST_RESEARCH_ASSEMBLY_BOUND')
+            captures.append(dict(id=capture['id'], sha256=capture['sha256'],
+                                 example_sha256s=[example.sha256 for example in batch]))
+        dataset = build_dataset(tuple(examples), plan, as_of=as_of)
+    if len(canonical(dataset).encode()) > 16*1024**2 or monotonic() >= deadline:
+        raise EvidenceError('FORECAST_RESEARCH_DATASET_BYTES_OR_TIME_BOUND')
     # Compact reproducible recipe, not a duplicate of every private raw source.
     journal.store.audit(recipe_id, event_id=journal.event_id, kind='MODEL_EVENT', details=dict(
         action='FORECAST_DATASET_ASSEMBLED', request=request, request_sha256=request_sha, captures=captures,
