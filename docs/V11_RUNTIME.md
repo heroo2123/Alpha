@@ -123,3 +123,35 @@ forecast issue-time and settlement-population adapters, PWS QC/model/source join
 all strategy factories, independent guardian and isolated commissioning. The runner
 introduces no launcher or V11 deployment on alpha-dev. Resource/isolation, current
 clock and formal acceptance gates remain open; V10 maintenance is deferred.
+
+## Relative-value and structural runtime paths
+
+`strategy_runtime.py` adds `RelativeValueEventAdapter`, which invokes existing
+whole-event valuation and retains each candidate's exact queue output/valuation
+link. It feeds `BasketProposal` through the same runtime completion and common
+coordinator already used for account-level ranking, conflicts and atomic basket
+reservation. Its compact identity preserves all digest bits within the existing
+strategy length limit; no downstream bounds were expanded.
+
+`MultiStrategyEventAdapter` joins bounded temperature and relative-value request
+adapters under one event claim. A missing source/request dependency records a
+GATED lane without suppressing unrelated valid evaluation. Every returned output
+must belong to that claimed event. Exceeding aggregate result/proposal bounds
+gates the combined admission and retains child evidence; it does not trim basket
+legs, favor an arbitrary first lane or claim an omitted suffix was evaluated.
+Shared clock/source/queue/account gates still apply to every proposal.
+
+Eight new integration cases; relative/basket/runtime/candidate/queue/admission/
+protected-pipeline suite **125 passed in 25.93 s**. HTTP-shaped mock census feeds
+real protected cross-temperature and structural engines, exact queue completion,
+and atomic three-leg PAPER reservation. A missing temperature adapter remains
+GATED alongside the qualified complete set. These positive cases use explicit
+synthetic underround prices/costs and hypothetical cash; no empirical alpha, real
+fill, fee, redemption or strategy eligibility is inferred. Unknown acquisition
+fees or a post-evaluation stream gap leave the entire basket unreserved. Full
+regression remains the 3293-case runner milestone; these eight later cases are
+covered by the targeted integration run, not that earlier full run.
+
+Next runtime work includes PWS/source-release/position-management adapters and
+reviewed dynamic source/request assembly. Their existing separate valuation and
+accounting mechanisms are reuse candidates, not completed runtime acceptance.

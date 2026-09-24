@@ -1,6 +1,6 @@
 # Alpha V11 work checkpoint
 
-Updated 2026-09-24, after bounded candidate-runner verification. Resume here. **NOT_READY_TO_FUND**.
+Updated 2026-09-24, after relative-value runtime verification. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
 
 ## Current priority override — V11 runtime integration
@@ -16,21 +16,34 @@ Reopen only for a concrete otherwise-blocked required integration/deployment
 dependency or new urgent safety/data-loss evidence, with the minimum owner action.
 Historical owner-action instructions below are superseded by this priority.
 
-Recovered actual branch HEAD 769fb19c702cc91d33a19ab362a575ac86a2b0a2, tree
+At the priority override, recovered branch HEAD 769fb19c702cc91d33a19ab362a575ac86a2b0a2, tree
 5129ea064d614c91665389e2258470f45a2c61a2, clean worktree and no running local
 operation. Master bytes match the authoritative hash. All work remains off-host;
 runtime scheduling, causal source inputs, heartbeat/clock gates and cancellation
-integration are the primary next milestone. V10 health/resource findings remain
+integration subsequently advanced as recorded below. V10 health/resource findings remain
 open. No funding, deployment, financial activation or new host workload authorized.
+
+## Latest continuation milestone
+
+Market-price/census, bounded discovery/rule quarantine, finite candidate workers
+and relative-value/structural runtime integration are implemented and tested off-host.
+Latest completed related run: **125 passed in 25.93 s**, including eight new strategy
+adapter cases. Latest full regression: **3293 passed in 212.37 s** at the saved
+runner milestone below; the eight later cases were not in that earlier full run.
+Fully completed implementation packages remain **1/50**; formal, empirical and
+independent acceptance remain open. No test operation is running.
+Next concrete implementation: connect existing PWS/source-release and inventory-exit
+paths to the runtime, then reviewed dynamic source/request assembly and remaining
+master requirements. No V10 maintenance, deployment or funding action is requested.
 
 ## Exact identities and scope
 
 - Branch: `weather-v11-profitability-upgrade-2026-09-23`.
-- Last verified implementation HEAD: `a63365901e80d87d1d9d15c6d5534ef5eeedb593`.
-- Last verified implementation tree: `d774fa9c7533f330d6d084538c355220df1e2b32`.
-- Discovery/rule-cancellation implementation identity is above. Public/local tree
-  equality passed; fetch/alignment exited 0 (session 95247), with a clean worktree
-  before candidate-runner integration. No unfinished work was discarded.
+- Last verified implementation HEAD: `186f4ecc36619b3e96febb84721fee2d9376b566`.
+- Last verified implementation tree: `a7e088483a8ecff056ca5b1d1be5bd8294eda869`.
+- Candidate-runner implementation identity is above. Public/local tree equality
+  passed; fetch/alignment exited 0 (session 38325), with a clean worktree before
+  relative-value runtime integration. No unfinished work was discarded.
 - A later commit containing this checkpoint may include the newer work below. Resolve its own
   exact commit with `git log -1 --format=%H -- docs/V11_WORK_CHECKPOINT.md`, and its
   tree with `git rev-parse <that-commit>^{tree}`; no self-referential hash claim.
@@ -1406,3 +1419,55 @@ and bounded multi-strategy evaluation through the common account, preserving
 exact queue result links and independent lane gating. V10 maintenance remains
 deferred, resource/isolation and inventory verification open, and no deployment
 or financial authorization is introduced.
+
+
+### Relative-value and structural strategy runtime (in progress)
+
+Candidate milestone published at 186f4ecc36619b3e96febb84721fee2d9376b566, tree
+a7e088483a8ecff056ca5b1d1be5bd8294eda869; fetch/alignment completed exit 0, clean
+worktree. The publication helper's in-memory handle had expired; its failed call
+made no commit/ref mutation, and the saved helper was reloaded before publishing.
+
+Added strategy_runtime.py and tests/test_v11_strategy_runtime.py from the preserved
+outside draft. RelativeValueEventAdapter routes existing whole-event inference
+and individual linked candidate outputs into the runtime; the common coordinator
+already supported atomic BasketProposal reservations, so that logic is reused.
+MultiStrategyEventAdapter keeps a missing lane explicit while continuing unrelated
+healthy evaluation. Aggregate result/proposal bounds gate instead of silently
+trimming a basket or favoring the first lane. No strategy protection, queue/CAS
+fence or common-account risk check is removed. Initial eight-case integration run
+is in local session 23430. No V10, deployment or financial action performed.
+
+
+Relative/structural runtime initial run: five passed / three failed because the
+new adapter's identity exceeded the existing 60-character strategy bound; an extra
+focused diagnostic reproduced that cause. Corrected the adapter to encode all 256
+digest bits in a shorter URL-safe identity, preserving the original bound.
+Final related relative-value/basket/runtime/candidate/queue/admission/protected-
+pipeline suite: **125 passed in 25.93 s**, exit 0, including eight new cases.
+
+Demonstrated actual protected CROSS_TEMP_RELATIVE_VALUE and STRUCTURAL engines
+under the finite runner with HTTP-shaped mock census, exact per-candidate queue
+links and three atomic PAPER leg reservations (hypothetical cash). No model economic
+qualification stub was used in these cases; complete-set payoff arithmetic uses
+explicit synthetic prices/costs, not live alpha evidence. A missing temperature
+lane remains separately GATED. Unknown fees or a new stream gap before common
+reservation create no partial basket. Namespace, risk, ambiguity, model/metadata
+review, rule and clock/source gates remain intact. No fills or financial actions.
+
+Current cumulative distinct new cases: 965. Last full regression remains 3293 at
+186f4ecc, not a claim that the later eight adapter cases were included. Targeted
+verification is sufficient for this additive adapter change; no unchanged broad
+suite was redundantly repeated. No open test failure or running operation remains.
+Nonsecret publication follows. 1/50 implementation packages complete; formal
+acceptance unpassed. Remaining gates include dynamic source/route/request assembly,
+PWS/exit and other strategy runtime joins, exact source/label/calibration evidence,
+independent guardian/review and isolated deployment/acceptance. Next concrete work
+is the existing PWS/source-release and inventory-exit runtime integration.
+
+V10 remains unchanged with its stale-cycle/severe-memory-pressure finding explicit
+and resource/isolation gate OPEN. The private inventory hash b161426cff5b39b262e72a6e8142982dd29fa8a0bf29c9965232edf1ff364bd3
+remains OWNER-REPORTED / INDEPENDENT VERIFICATION PENDING. Optional maintenance is
+DEFERRED. No guard/systemd/signal/stop/restart/executor change, new host workload,
+deployment, funding, account creation, money movement or real order occurred.
+**NOT_READY_TO_FUND**.
