@@ -1,6 +1,6 @@
 # Alpha V11 work checkpoint
 
-Updated 2026-09-24, after derived-risk runtime integration. Resume here. **NOT_READY_TO_FUND**.
+Updated 2026-09-24, after typed candidate assembly integration. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
 
 ## Current priority override — V11 runtime integration
@@ -25,26 +25,26 @@ open. No funding, deployment, financial activation or new host workload authoriz
 
 ## Latest continuation milestone
 
-Derived risk now connects public-mock census, the finite candidate, protected
-model inference, whole-event book measurements, common-account downside and
-current request factories. It retains UNKNOWN execution quality, exact settlement
-timing and unavailable temporal sequence; these keep the real engine GATED.
-**220 related tests passed in 43.03 s**, including 15 new derived-risk/model-time
-cases. Last full regression: **3344 passed, four existing warnings, 203.31 s**
-on the preceding assembly milestone; the 15 later cases were tested afterward.
+Typed candidate assembly now connects scope/source/strategy plans to the shared
+collector, current request factories, derived risk, common account, finite runner
+and audits. Temperature, relative/structural, PWS, received release and ordinary
+exit adapters retain their own protected admission and economic checks.
+**105 related tests passed in 23.70 s**, including 17 new builder cases.
+Last full regression: **3344 passed, four existing warnings, 203.31 s**;
+the 15 derived-risk and 17 builder cases were tested afterward.
 Fully completed implementation packages remain **1/50**; formal, empirical and
 independent acceptance remain open. No test operation is running.
-Next concrete implementation: compose typed scope/source/strategy plans into one
-bounded candidate assembly, then remaining raw-provider/dynamic-route and
-master-spec requirements. No V10 maintenance, deployment or funding is requested.
+Next concrete implementation: connect bounded maker observation/markout work to
+the finite candidate, then remaining raw-provider/dynamic-route and master-spec
+requirements. No V10 maintenance, deployment or funding is requested.
 
 ## Exact identities and scope
 
 - Branch: `weather-v11-profitability-upgrade-2026-09-23`.
-- Last verified implementation HEAD: `9e7a79ff480574d8a94f23b55864e325c97828da`.
-- Last verified implementation tree: `3a3f16e27cfa3cc3933400d06d852c5418e6a584`.
-- Current-input assembly implementation identity is above. Public/local
-  tree equality passed; fetch/alignment exited 0 (session 38359), with a clean
+- Last verified implementation HEAD: `97c516573705cd1bbfd1a9b72ddce6692bef261a`.
+- Last verified implementation tree: `fac3dac95f18d43ca0a83e881e9e650f538bb2bd`.
+- Derived-risk implementation identity is above. Public/local
+  tree equality passed; fetch/alignment exited 0 (session 72187), with a clean
   worktree. No unfinished work was discarded. This later documentation checkpoint
   records that exact tested implementation without changing source/tests.
 - A later commit containing this checkpoint may include the newer work below. Resolve its own
@@ -58,7 +58,7 @@ master-spec requirements. No V10 maintenance, deployment or funding is requested
 - Prior maker-feature implementation: `a3a0a05b3ea2ecdc55190c711a75d6d7cd990922`,
   tree `053189306c136d11f32943ec62f0807c827a582c`; its recovery checkpoint was
   `53cae2da33e97c993c76ab976d2f079a97bf6ae1`.
-- Latest full regression: **3,293 passed, four existing warnings, 212.37 s** on
+- Earlier full regression: **3,293 passed, four existing warnings, 212.37 s** on
   the candidate-runner/shared-runtime implementation recorded below. Its predecessor full run was
   2,894 passing at `f69e318d04b8771f1de3074928ae63d3951cebec`.
 - Prior implementation: `dd1e85706eb0a26c9bb8aef1317cb635a791b920`, tree
@@ -1595,3 +1595,32 @@ historical; no later full-suite result is implied. Raw captures remain unchanged
 Next implementation is a typed top-level candidate composition; resource/isolation,
 raw provider capability, observed execution/settlement inputs, protected review,
 actual calibrated champion, independent guardian and acceptance gates stay open.
+
+## Typed candidate assembly — 2026-09-24
+
+Implemented `v11/candidate_assembly.py`: one programmatic constructor wires
+explicit typed event/scope/source plans into the existing finite runner. A shared
+anonymous collector serves census/discovery/optional observations; common health,
+account, queue, derived risk, request factories and audits retain exact identities.
+Construction performs no HTTP or archive writes. Existing account, runtime or
+queue configuration conflicts fail without replacing state. Real clock status is
+used by default; only synthetic tests inject clock/certification/model custody.
+
+Whole-event plan and aggregate proposal bounds are enforced before a run.
+PWS keeps separately protected observation/payout scopes. Received-release lanes
+resolve actual receipt predecessors. Ordinary exits use actual held inventory.
+Unconfigured special PWS/release exit joins fail closed; maker/finality request
+assembly, provider collection, approved dynamic routes and acceptance remain open.
+Unknown execution/settlement/sequence measurements still gate derived event risk.
+
+Initial builder focus: 9 passed / 1 failed in 2.40 s (test timeout below the
+existing minimum); corrected fixture, then 98 related passed in 24.68 s.
+Additional lane coverage: 16 passed / 1 failed in 4.56 s (assertion expected a
+nonexistent proposal direction field); corrected to the actual immutable
+valuation/inventory contract. Final: **105 passed in 23.70 s**, including
+**17 new cases**. Distinct new passing cases total **1040** above baseline 2336.
+The 3344-case full regression predates 15 risk and 17 builder cases; no newer
+full-suite result is implied. No open test failure or test process remains.
+
+Next: bounded maker observation/markout scheduling within this shared candidate.
+All implementation and tests remain off-host; no maintenance work reopened.

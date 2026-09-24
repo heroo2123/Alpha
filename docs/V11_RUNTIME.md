@@ -250,3 +250,22 @@ risk-metric callback. Missing empirical inputs correctly prevent reservation.
 Tests also cover declared sequence deltas, missing/skewed/gapped books, source
 races, unchanged account reservations, missing health and interrupted publication.
 The latest full regression remains the preceding 3344-case assembly run.
+
+## Typed candidate assembly
+
+`candidate_assembly.assemble_candidate(store, client, plan, generation=...)`
+constructs the shared finite runner from typed policies, explicit event routes,
+source channels, protected scope/bundle bindings and bounded lane targets.
+Construction neither collects nor writes evidence. Callers own the anonymous
+HTTP client; the runner keeps its existing finite execution and recovery rules.
+Authenticated clients and existing account/queue/runtime configuration conflicts
+are rejected without replacement. The ordinary host clock probe stays enabled.
+
+Temperature, relative/structural, PWS, received-release and ordinary exit lanes
+use current-input factories. Event plans share a common risk binding; observation
+and payout model scopes may remain distinct for PWS. No discovery result becomes
+a reviewed route automatically. Unconfigured special exit joins are rejected.
+The integrated HTTP-mock run and individual real lane pipelines passed **105
+related tests in 23.70 s**, with **17 new builder cases**. Test-only clock/model
+custody is not a deployment or empirical acceptance result. Maker/finality
+assembly and remaining source/acceptance requirements stay open.
