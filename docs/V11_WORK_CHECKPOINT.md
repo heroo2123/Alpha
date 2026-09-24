@@ -1,13 +1,13 @@
 # Alpha V11 work checkpoint
 
-Updated 2026-09-24, 00:28 UTC. Resume here. **NOT_READY_TO_FUND**.
+Updated 2026-09-24, 00:39 UTC. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
 
 ## Exact identities and scope
 
 - Branch: `weather-v11-profitability-upgrade-2026-09-23`.
-- Last verified implementation HEAD: `31dcd290d6cd27221d391bf504712b847d942d53`.
-- Last verified implementation tree: `fdd681a6986d76b5fb7577620b7052a832fae56c`.
+- Last verified implementation HEAD: `2328f20b27287e8f869e54df291879cb02004c34`.
+- Last verified implementation tree: `5cabc89a2a91370b79031a61f7918dce0cdd10ca`.
 - Worktree at verification: clean; local and published implementation trees match.
 - This following checkpoint commit changes documentation only. Resolve its own
   exact commit with `git log -1 --format=%H -- docs/V11_WORK_CHECKPOINT.md`, and its
@@ -387,6 +387,33 @@ Periodic scheduling, source adapters, protected commissioning and live guardian
 integration remain open. Next: PWS observation-lead research evaluation, with
 next-observation/crossing predictions kept separate from payout and executable exit.
 
+## Phase 6 PWS observation-lead research milestone
+
+Published `2328f20b27287e8f869e54df291879cb02004c34`, tree
+`5cabc89a2a91370b79031a61f7918dce0cdd10ca`. Added `v11/pws_lead.py`,
+18 tests and `V11_PWS_LEAD.md`. Paired immutable next-observation inference binds
+an official anchor, declared receipt horizon, fresh QC PWS and model revisions.
+Bounded hash-bound provenance requires identical non-PWS leaves; hidden PWS in
+the ablation is refused. Atomic source heads invalidate racing pre-confirmation
+work. First-received-report scores distinguish anchor corrections, missing/late
+reports and harmful/beneficial paired differences. They explicitly do not attest
+true next-published labels, source continuity, independent lead advantage,
+settlement, executable exit or P&L. All outputs are GATED/RESEARCH with no proposal.
+
+119 focused checks passed in 2.80 seconds, including 18 new tests. No unchanged
+full suite rerun was needed for this isolated new research module: the most recent
+full pass is 2,739, with 18 additional focused checks passing. Compilation and
+whitespace checks passed. Queue-admission CI run 35938568101 passed. No actual
+lead model was trained/promoted, no eligible paper entry created and no V10 work
+or change performed. Exact adapters, independently supported labels, calibrated
+lead models and common paper economics integration remain unfinished.
+
+The current protected registry has one active scope, so distinct next-observation
+and payout champions cannot yet coexist across strategies. Next engineering
+prerequisite: separately custodied state slots by exact scope and PAPER/SHADOW
+mode, with reviewed monotonic transitions and no implicit fallback/initialization.
+Then continue PWS economic integration and remaining master phases.
+
 ## Implementation and verification
 
 Prior delivered foundation is retained: private append-only evidence namespaces,
@@ -437,7 +464,9 @@ bounded compressed-capture verification and explicitly limited runtime context.
 | Event-queue CI 35937992616 at bb10f55 | completed successfully |
 | Queue-to-account admission integration | **105 passed; 4.70 s** |
 | Latest queue-admission full regression | **2,739 passed; four existing warnings; 67.08 s** |
-| New queue-admission implementation CI | not yet inspected |
+| Queue-admission CI 35938568101 at 31dcd29 | completed successfully |
+| PWS observation-lead research | **18 new checks passed; 119 related checks passed in 2.80 s** |
+| New PWS research implementation CI | not yet inspected |
 
 Tests used an isolated off-host environment installed from hash-locked dev
 requirements. Four warnings are pre-existing FastAPI lifecycle deprecations.
@@ -458,8 +487,10 @@ technical readiness, canary eligibility and empirical validation stay separate.
   period is imposed; mandatory technical/evidence gates remain.
 
 Next engineering action: continue Phase 6 strategy migration through the shared
-admission/coordinator path, with the PWS observation-lead sleeve next, then remaining strategies. Queue-fault
-propagation into paper reservation/submission is implemented and locally verified. Bounded source-event routing
+admission/coordinator path, with separately scoped protected model state slots next, enabling distinct
+observation/payout champions without cross-scope promotion. Continue PWS economic
+integration and the remaining strategies afterward. PWS paired research and
+queue-fault propagation are implemented and locally verified. Bounded source-event routing
 and forecast/same-day evaluation are implemented and locally verified; provider
 adapters, periodic runtime scheduling and empirical calibration remain pending. PWS observation, payout and executable-exit
 targets remain separate; source-shock EVENT exceptions need exact-source/CLOB
