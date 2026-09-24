@@ -1,13 +1,13 @@
 # Alpha V11 work checkpoint
 
-Updated 2026-09-24, 00:21 UTC. Resume here. **NOT_READY_TO_FUND**.
+Updated 2026-09-24, 00:28 UTC. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
 
 ## Exact identities and scope
 
 - Branch: `weather-v11-profitability-upgrade-2026-09-23`.
-- Last verified implementation HEAD: `bb10f5556008ef1ce6a808f33905d4811c607de1`.
-- Last verified implementation tree: `6718d36ee137c9f289c12daff2e3b5f6ca5d6c57`.
+- Last verified implementation HEAD: `31dcd290d6cd27221d391bf504712b847d942d53`.
+- Last verified implementation tree: `fdd681a6986d76b5fb7577620b7052a832fae56c`.
 - Worktree at verification: clean; local and published implementation trees match.
 - This following checkpoint commit changes documentation only. Resolve its own
   exact commit with `git log -1 --format=%H -- docs/V11_WORK_CHECKPOINT.md`, and its
@@ -366,6 +366,27 @@ periodic-census scheduling, protected route reconfiguration and queue-fault
 propagation to final admission/guardian remain unfinished. Worker result timeouts
 do not substitute for OS resource isolation.
 
+## Phase 4/5 queue-to-paper admission milestone
+
+Published `31dcd290d6cd27221d391bf504712b847d942d53`, tree
+`fdd681a6986d76b5fb7577620b7052a832fae56c`. Event queue completion now binds the
+exact evaluated valuation and a bounded validity window. Once a queue exists,
+its current result is mandatory for paper reservation and submission-state
+transition. Pending work, lost coverage, expired completion and changed raw
+sources suppress admission. Queue and capture heads join account transaction
+CAS, including queue absence so a racing new queue/fault cannot be ignored.
+Submission suppression preserves all cash/inventory reservations; cancellation
+requests and reconciliation remain available. No external order is sent.
+
+Nine new boundary tests plus existing dependencies passed 105 focused checks.
+Full off-host regression: 2,739 passed, four existing warnings, 67.08 seconds.
+Queue implementation CI run 35937992616 passed. Explicit downstream synthetic
+positive-economics/admission fixtures do not represent actual strategy eligibility.
+No financial authority, deployment, host workload or independent review occurred.
+Periodic scheduling, source adapters, protected commissioning and live guardian
+integration remain open. Next: PWS observation-lead research evaluation, with
+next-observation/crossing predictions kept separate from payout and executable exit.
+
 ## Implementation and verification
 
 Prior delivered foundation is retained: private append-only evidence namespaces,
@@ -413,7 +434,10 @@ bounded compressed-capture verification and explicitly limited runtime context.
 | Forecast/same-day CI 35936624713 at 75a1b24 | completed successfully |
 | Bounded event routing integration | **124 passed; 4.57 s** |
 | Latest bounded-routing full regression | **2,730 passed; four existing warnings; 75.35 s** |
-| New event-queue implementation CI | not yet inspected |
+| Event-queue CI 35937992616 at bb10f55 | completed successfully |
+| Queue-to-account admission integration | **105 passed; 4.70 s** |
+| Latest queue-admission full regression | **2,739 passed; four existing warnings; 67.08 s** |
+| New queue-admission implementation CI | not yet inspected |
 
 Tests used an isolated off-host environment installed from hash-locked dev
 requirements. Four warnings are pre-existing FastAPI lifecycle deprecations.
@@ -434,8 +458,8 @@ technical readiness, canary eligibility and empirical validation stay separate.
   period is imposed; mandatory technical/evidence gates remain.
 
 Next engineering action: continue Phase 6 strategy migration through the shared
-admission/coordinator path, with queue-fault propagation into paper reservation/submission next, then the
-PWS observation-lead sleeve and remaining strategies. Bounded source-event routing
+admission/coordinator path, with the PWS observation-lead sleeve next, then remaining strategies. Queue-fault
+propagation into paper reservation/submission is implemented and locally verified. Bounded source-event routing
 and forecast/same-day evaluation are implemented and locally verified; provider
 adapters, periodic runtime scheduling and empirical calibration remain pending. PWS observation, payout and executable-exit
 targets remain separate; source-shock EVENT exceptions need exact-source/CLOB
