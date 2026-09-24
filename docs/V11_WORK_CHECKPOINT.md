@@ -3,6 +3,33 @@
 Updated 2026-09-24, after read-only learning-source provenance integration. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
 
+## Latest full verification — forecast learning integration
+
+Fully verified implementation **6347e704876137f2c3e8d3b7a3365a05efd3bc32**,
+tree **268bd4b4aa870ddb62be199795a351bae702f263**, existing branch unchanged.
+Publication/fetch/tree alignment passed, session 83133 exit 0, clean workspace.
+Full regression **PASS: 3610 passed, four existing FastAPI deprecation warnings,
+288.26 s, exit 0**. Wrapper 289.076 s; user 209.019457 s; system 71.921874 s;
+peak RSS **162508 KiB**. All **811 tracked files remained unchanged**, input digest
+`96f665759c393c7881bc9cbd204c691a970a06ad2a2a3da63e0a117e90954ed2`.
+Exclusive session 64934 finished; no full regression remains running. Evidence:
+`/workspace/scratch/38af7099c566/v11-test-evidence/forecast-contract-full-20260924-01.json`
+and `.log`; runner `run_forecast_contract_full.py`. Do not duplicate this passed
+run without a relevant change or overwrite its evidence.
+
+Off-host preflight: memory current 6873120768 bytes / 21474836480-byte limit,
+eight CPU quota equivalents, 25101852 KiB disk free; high/max/OOM counters zero.
+No V10 host check/workload, source probe, service or financial action occurred.
+Estimate stays **80/200, approximately 40%**; formal **1/50 (2%)**. The six remaining
+readiness milestones/ranges below remain applicable and unchanged. Full testing
+does not earn operational or independent acceptance.
+
+Next code action: integrate the prepared bounded learner worker with the verified
+source-to-fit function, new-resolved-cohort thresholds, backoff/daily budgets,
+single-worker locking and durable interrupted-attempt handling. Its work stays
+outside the candidate decision process; actual OS isolation and source/label/
+champion acceptance remain open.
+
 ## Latest implementation — read-only learning source closure
 
 Previous milestone published as **49cd76f74bc058e96130e1a79f0b147f49e0b33a**,

@@ -125,3 +125,8 @@ subsequently passed 168 related checks, including 15 new cases and a 621-record
 synthetic GEFS graph. R14/R15 already have their named integrations. Total stays
 **80/200, approximately 40%** and formal **1/50 (2%)**. No actual-label, calibrated,
 independent, host/deployment or operational acceptance credit is earned.
+
+The combined forecast-contract/source-provenance full regression passed **3610
+tests**, four existing warnings, in 288.26 seconds at implementation `6347e704`.
+All 811 tracked inputs remained unchanged. This confirms local integration, not
+new E/A evidence: **80/200, approximately 40%**, formal **1/50 (2%)**, unchanged.
