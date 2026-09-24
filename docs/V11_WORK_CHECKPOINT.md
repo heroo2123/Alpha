@@ -39,10 +39,10 @@ integration. No V10 maintenance, deployment or funding is requested.
 ## Exact identities and scope
 
 - Branch: `weather-v11-profitability-upgrade-2026-09-23`.
-- Last verified implementation HEAD: `b478c15aaaf19fb0a33afaa50bf70d60d04cb514`.
-- Last verified implementation tree: `b0666a26e30fed26023e946395a7cf8d04e942a5`.
-- Maker telemetry implementation identity is above. Public/local
-  tree equality passed; fetch/alignment exited 0 (session 66849), with a clean
+- Last verified implementation HEAD: `306a7ece6ade71e90d436f7c99730d18a8597d3c`.
+- Last verified implementation tree: `56977f5bee32381fac7e954abe83cc1c1901020f`.
+- Maker proposal/context implementation identity is above. Public/local
+  tree equality passed; fetch/alignment exited 0 (session 70687), with a clean
   worktree. No unfinished work was discarded. This later documentation checkpoint
   records that exact tested implementation without changing source/tests.
 - A later commit containing this checkpoint may include the newer work below. Resolve its own
@@ -1686,3 +1686,39 @@ system 58.675137 s; peak RSS 159120 KiB. Retained local result/log:
 and `.log`. Off-host headroom before the run: 20 GiB memory limit, 6.914 GB current
 use, eight CPU quota equivalents, 25.709 GB disk free. This does not establish
 alpha-dev headroom. No full regression or other test process remains running.
+
+## Saved implementation handoff — 2026-09-24
+
+Published implementation **306a7ece6ade71e90d436f7c99730d18a8597d3c**, tree
+**56977f5bee32381fac7e954abe83cc1c1901020f**, on
+`weather-v11-profitability-upgrade-2026-09-23`. GitHub/local tree equality passed;
+fetch/alignment session 70687 completed exit 0 with clean status. This subsequent
+reporting-only checkpoint changes no source or tests. Resolve this checkpoint's
+own exact commit/tree using the commands above. All prior work and history remain.
+
+Completed implementation integrations this continuation: reaction/exit runtime;
+current request factories and QC/model clock corrections; derived event risk;
+typed shared candidate; retained maker telemetry; current maker quote/context
+factories. Final combined regression: **3399 passed, four existing warnings,
+208.79 s**, unchanged source/test hashes, peak RSS **159120 KiB**. No test or
+publication operation remains running. Formal completion stays **1/50 packages**;
+component progress is not empirical, independent or financial acceptance.
+
+Next concrete unfinished source step: connect `samples_from_capture` /
+`archive_neighborhood` to the bounded observation/census path, with causal raw
+receipt lineage, replay/partial-work handling, metadata quarantine and atomic
+source-change rejection. Inspection confirms MADIS XML is already collected and
+normalized, but no runtime QC join exists. `CensusWorker._requests` still refuses
+required MODEL/PWS adapters; do not mark those dependencies supplied. Preserve
+strategy-specific source failure behavior and the current provider cooldowns.
+Then integrate original forecast run/issue provenance, exact labels/calibration,
+reviewed champion/learning lifecycle and the remaining full-master requirements.
+Do not substitute HTTP receipt or generation time for a model's actual issue time.
+
+V10 remains unchanged. Its recorded stale-cycle and memory-pressure findings
+remain unresolved; they were not rechecked or waived. Alpha-dev resource/isolation,
+protected source/model approval, exact settlement/label inputs, empirical forward
+comparison, independent guardian/review and commissioning gates stay open.
+Maintenance remains DEFERRED. Inventory hash remains OWNER-REPORTED / INDEPENDENT
+VERIFICATION PENDING. No owner maintenance action, deployment, funding, real order
+or executor change is requested or performed. **NOT_READY_TO_FUND**.
