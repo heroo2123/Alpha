@@ -37,6 +37,14 @@ implicit fix. Ordinary systemctl stop remains prohibited. The earlier proposed
 single SIGTERM command is withdrawn from execution readiness pending review.
 No approved signal executable is staged, scheduled or armed.
 
+Exact operation previously proposed, for REVIEW ONLY and not execution:
+
+    systemctl kill --signal=SIGTERM --kill-whom=all alpha-paper-demo.service
+
+This requests SIGTERM for the unit members; it does not request start/restart or
+change unit properties. It does not disable the manager's existing policies.
+The current single-PID observation must not be assumed to remain true later.
+
 ## Exact prepared artifacts and destination
 
 Staged, hash verified, and NOT executed:
@@ -73,7 +81,10 @@ not a current backup or complete service recovery. No new backup hash exists yet
    previously rejected privileged route must not be bypassed. The completed owner
    health probe is not being requested again.
 2. Inventory size, permissions, mounted filesystems, file types and write activity
-   before copying. Retain source/git history and uncommitted/untracked work. The
+   before copying. Check Git common-directory/alternate-object/shallow references
+   and external interpreter dependencies; record any missing dependency rather
+   than calling the archive a portable runtime restore. Retain source/git history
+   and uncommitted/untracked work. The
    physical copier caps 512 MiB and 30,000 entries, requires its full byte budget
    plus 1 GiB disk headroom and checks a 60-second cooperative deadline. A blocked
    kernel read can exceed a cooperative deadline; no escalation is used to force
@@ -104,7 +115,7 @@ not a current backup or complete service recovery. No new backup hash exists yet
 | control_config | /etc/alpha-weather/telegram.json and any additional actually referenced V10 configuration |
 | service_unit | /etc/systemd/system/alpha-paper-demo.service |
 | resource_dropins | /etc/systemd/system.control/alpha-paper-demo.service.d |
-| enablement | Existing V10 enablement links, recorded as links without dereferencing |
+| enablement_manifest | A private metadata record of existing V10 enablement links/targets/owners; root symlinks are not accepted as archive roots |
 | journal_export | The newly captured private V10 export and coverage metadata |
 
 Additional required configuration paths must be inventoried before capture;
