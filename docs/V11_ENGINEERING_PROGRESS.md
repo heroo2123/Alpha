@@ -130,3 +130,12 @@ The combined forecast-contract/source-provenance full regression passed **3610
 tests**, four existing warnings, in 288.26 seconds at implementation `6347e704`.
 All 811 tracked inputs remained unchanged. This confirms local integration, not
 new E/A evidence: **80/200, approximately 40%**, formal **1/50 (2%)**, unchanged.
+
+The separate finite learner worker subsequently passed 125 related tests with
+17 new cases: exact cohort triggers, interval/daily budgets, nonblocking locking,
+durable attempt reservation, request/dataset-bound recovery and no duplicate
+fits. It uses the already credited R15 integration and earns no new milestone.
+Total remains **80/200, approximately 40%**, formal **1/50 (2%)**. Actual label,
+calibration, process isolation, initial champion and learning acceptance remain
+open. The current six active-work ranges are in the checkpoint; they are not
+derived from this percentage and exclude external/owner waiting.

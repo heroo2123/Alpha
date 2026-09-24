@@ -1,7 +1,71 @@
 # Alpha V11 work checkpoint
 
-Updated 2026-09-24, after read-only learning-source provenance integration. Resume here. **NOT_READY_TO_FUND**.
+Updated 2026-09-24, after separate bounded learner-worker integration. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
+
+## Latest saved implementation — finite learner worker
+
+Recovered the completed full-regression reporting checkpoint
+**43f020b03c3fff3514a57a2737f51045d6ab77f9**, tree
+**043860ffd3c72514191e59300df27b92fdd35cce**. Publication/fetch/alignment passed,
+session 87862 exit 0, clean worktree. This milestone adds the separate
+`v11/learning_worker.py`, its tests and an optional eight-event research fixture.
+Resolve this checkpoint's exact published HEAD/tree with
+`git log -1 --format='%H %T' -- docs/V11_WORK_CHECKPOINT.md` on branch
+`weather-v11-profitability-upgrade-2026-09-23`.
+
+`ForecastLearningWorker.step` joins exact complete-label cohorts to the existing
+read-only capture/dataset/fit path. Its fixed policy requires new resolved city-day
+groups, an attempt interval and a daily attempt budget; old groups, more bucket
+rows, elapsed time and a new command ID cannot invent new evidence. Trigger basis
+is NEW_TO_THIS_PROGRAM_COHORT, not a claim that every label arrived since the last
+fit or that global universe coverage is complete. Counts are preliminary identity/
+availability checks; the full causal dataset checks still run before training.
+
+A nonblocking private lock allows one worker per research database. A durable
+reservation precedes fitting. Complete results recover by exact request/dataset/
+parent/result/artifact identity without a second fit. Known failures retain
+backoff and the parent. Uncertain interruptions remain explicitly gated for
+review; a changed policy or reused run ID cannot silently adopt another result.
+Attempt history is bounded, source archives are read-only, and confirmation reuse
+still becomes DEVELOPMENT evidence. The worker is not connected to the candidate
+decision/safety loop and exposes no model-pointer, order, service or credential
+interface. Actual OS isolation remains unverified. Worker scheduling limits are
+not strategy-eligibility thresholds or a post-completion funding waiting period.
+
+Tests: initial worker/fit **37 passed / 9.71 s**; final worker/source/dataset/fit/
+capture/artifact integration **125 passed / 18.51 s, exit 0**, session 32777,
+including **17 new worker cases**. No assertion failure occurred. The latest full
+regression remains **3610 passed / 288.26 s** at the exact implementation below.
+It predates this separate worker; it is not reported as a full 3627-test run.
+Existing production/candidate source was unchanged by the worker addition, so
+the targeted integration checks address the new joins without repeating the
+unchanged full suite. Full original release/security/independent acceptance is
+still outstanding. No test, fit, collection or publication operation should be
+duplicated on resume; inspect actual state first.
+
+Estimate **80/200, approximately 40% (unchanged)**; formal **1/50 (2%)**. No new
+formal package or E/A credit is claimed. The six readiness milestones/ranges below
+remain applicable; the learning scheduling substep is now implemented, while
+actual labels, accepted initial artifacts, isolated process/host custody and
+learning acceptance keep that larger milestone open. No calendar delay is implied.
+
+Next concrete implementation: connect accepted observation-prefix/remaining-path
+inputs and PWS/physical feature contracts to the existing protected same-day and
+observation-lead factories, preserving the separate next-observation, final-payout
+and executable-exit targets. Inspect the current factories/conditioning artifacts
+before adding adapters; reuse the established capture/lineage and scoped bundle
+mechanisms. Actual exact-source labels/finality, calibrated artifacts, source
+access, independent guardian/auth/host and acceptance remain genuine dependencies.
+Continue off-host; do not reopen optional V10 maintenance or invent approval.
+
+V10 remains unchanged. Its recorded stale successful cycles and severe memory
+pressure are unresolved, as are alpha-dev resources/isolation and backup/recovery.
+Maintenance stays DEFERRED; inventory SHA-256
+`b161426cff5b39b262e72a6e8142982dd29fa8a0bf29c9965232edf1ff364bd3` is
+OWNER-REPORTED / INDEPENDENT VERIFICATION PENDING. No V10 operation, guard,
+systemd/executor change, deployment, funding, transfer or real order occurred.
+No owner maintenance command is requested. **NOT_READY_TO_FUND**.
 
 ## Latest full verification — forecast learning integration
 

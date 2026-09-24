@@ -23,7 +23,7 @@ from test_weather_final_gpt6_exact_replays import _event
 DAY = 86400.
 
 
-def setup_job(tmp_path, *, unit='F', family='high'):
+def setup_job(tmp_path, *, unit='F', family='high', event_count=6):
     tmp_path.mkdir(exist_ok=True); tmp_path.chmod(0o700)
     objects=tmp_path/'objects'; objects.mkdir(mode=0o700)
     artifacts=ArtifactStore(objects)
@@ -39,10 +39,10 @@ def setup_job(tmp_path, *, unit='F', family='high'):
     research=EvidenceStore(tmp_path/'research.sqlite','CHALLENGER:forecast-test',clock=lambda:now[0])
     journal=ExperimentJournal(research,'forecast')
     plan=DatasetPlan('forecast-plan','FINAL_CONTRACT_PAYOUT',contract.schema.sha256,
-                     T-1,T+6*DAY-1,T+12*DAY-1,T+18*DAY,envelope.sha256)
+                     T-1,T+6*DAY-1,T+12*DAY-1,T+max(18,3*event_count)*DAY,envelope.sha256)
     journal.register('plan',plan)
     joins=[]; inferences=[]
-    for i in range(6):
+    for i in range(event_count):
         at=T+3*i*DAY; station='KATL' if i%2==0 else 'KLGA'; city='Atlanta' if i%2==0 else 'NewYork'
         r=fingerprint_event(_event(station=station,family=family,unit=unit,eid=f'event-{i}',
             target=date(2026,9,15)+timedelta(days=3*i)),station_timezone='America/New_York',metadata_fingerprint='a'*64)
@@ -72,7 +72,7 @@ def setup_job(tmp_path, *, unit='F', family='high'):
                     knowable_at=now[0],value=int(j==1),evidence_type='SYNTHETIC'))
         joins.append(ForecastLabelJoin(captured['id'],tuple(ids),city,'DAY_AHEAD','AUTUMN',
                                        'UNINSPECTED' if i>=4 else 'DEVELOPMENT'))
-    now[0]=T+18*DAY+1
+    now[0]=T+max(18,3*event_count)*DAY+1
     cfg=dict(source_store=source,artifacts=artifacts,journal=journal,plan_record_id='plan',joins=tuple(joins),
         parent_bundle_sha256=parent,envelope=envelope,provenance={**provenance(),'created_at':now[0],
             'run_id':'forecast-fit','comparison_policy_sha256':envelope.sha256},run_id='forecast-fit',as_of=now[0])
