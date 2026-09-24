@@ -6,8 +6,8 @@ This is an implementation checkpoint, not release or financial approval.
 ## Exact identities and scope
 
 - Branch: `weather-v11-profitability-upgrade-2026-09-23`.
-- Last verified implementation HEAD: `b03d6df5cbc9d82a2a28797ee59ca332f9a5dfcb`.
-- Last verified implementation tree: `8be9e129241b52f02d6eaf563e8c1647b94a612b`.
+- Last verified implementation HEAD: `dc40f637d6286e3ad846410de9a45d5a55f6b6ee`.
+- Last verified implementation tree: `79d00fc9ea9b2c926ab4f5e3ae9e146d93dcf594`.
 - Worktree at implementation verification: only this following checkpoint update
   remains uncommitted; all implementation files are saved, and local/public
   implementation trees match. No unfinished work was discarded.
@@ -24,7 +24,7 @@ This is an implementation checkpoint, not release or financial approval.
   `53cae2da33e97c993c76ab976d2f079a97bf6ae1`.
 - Latest full-regression implementation: `f69e318d04b8771f1de3074928ae63d3951cebec`,
   tree `e708af471cb8289ca78439c97e8a8450687a075d`. Subsequent additive preservation
-  and maker modules have the targeted verification recorded below.
+  and maker/cancellation modules have the targeted verification recorded below.
 - Prior implementation: `dd1e85706eb0a26c9bb8aef1317cb635a791b920`, tree
   `8bf30057a39e8690d457e531b781b953a2476878`. Prior recovered checkpoint
   `6a602a7fe7f8f36aa238140f89b15b3e071423fa`. Health/plan checkpoint
@@ -1010,3 +1010,27 @@ independent guardian commissioning and ALL remaining matrix/master requirements.
 Next owner-only step: the prepared redacted inventory verifier, not guard
 installation or suspension. No deployment, funding, real order, executor change,
 V10 restart/stop/signal or real-money activation is authorized or performed.
+
+The inventory-verifier/cancellation implementation is published at
+dc40f637d6286e3ad846410de9a45d5a55f6b6ee, tree
+79d00fc9ea9b2c926ab4f5e3ae9e146d93dcf594. Local/public tree equality passed and
+the worktree was clean before this following documentation-only checkpoint.
+Publication initially encountered truncated local tool output and then a response-
+shape parsing error. The already-created local commit and remote tree were
+preserved; publication resumed from those objects without a duplicate commit,
+reset, clean, overwrite or repeated test run. Fetch/alignment completed, exit 0;
+no publication or test operation remains running. No source/test bytes changed
+after the passing related runs.
+
+Exact final test commands (off-host, both exit 0):
+
+```sh
+/workspace/scratch/38af7099c566/alpha-v11-venv-20260924/bin/python -m pytest -q tests/test_v11_control_inventory_verify.py tests/test_v11_control_maintenance.py tests/test_v11_control_preservation.py --tb=short
+/workspace/scratch/38af7099c566/alpha-v11-venv-20260924/bin/python -m pytest -q tests/test_v11_paper_cancellation.py tests/test_v11_paper_coordinator.py tests/test_v11_event_risk.py tests/test_v11_evidence_foundation.py tests/test_v11_maker_research.py tests/test_v11_maker_context.py tests/test_v11_basket_coordinator.py tests/test_v11_position_management.py --tb=short
+```
+
+Results: 44 passed in 0.36 s (20 new verifier cases); 223 passed in 36.50 s
+(29 new cancellation cases). The first suite cannot attest the protected real
+inventory. The second is synthetic PAPER integration, not production guardian or
+exchange acceptance. Full completion remains 1/50; NOT_READY_TO_FUND and
+SUSPENSION_NOT_READY. Next work and owner-only step remain as stated above.
