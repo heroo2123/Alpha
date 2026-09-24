@@ -1,6 +1,6 @@
 # Alpha V11 work checkpoint
 
-Updated 2026-09-24, after PWS quality/candidate/census integration. Resume here. **NOT_READY_TO_FUND**.
+Updated 2026-09-24, after PWS and forecast-source runtime integration/full regression. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
 
 ## Current priority override — V11 runtime integration
@@ -24,6 +24,65 @@ integration subsequently advanced as recorded below. V10 health/resource finding
 open. No funding, deployment, financial activation or new host workload authorized.
 
 ## Latest continuation milestone
+
+Latest verified implementation: **84068f641840574a6fd82f73e53a2a0ea14e944e**,
+tree **671fe620c0c05a47639167265b947d6da9c609e8**. Public/local tree equality
+and fetch/alignment passed (session 2093, exit 0), with a clean workspace.
+This later reporting checkpoint changes documentation only. No newer work was
+reset, removed or overwritten. V10 and its prepared maintenance work were untouched.
+
+Two integrations were completed this continuation:
+
+- Bounded PWS raw archive → QC → candidate scheduling → event routing and
+  health/admission metadata guards, plus required fresh-census collection.
+- Archived GEFS response → exact request/grid/day/member normalization → finite
+  candidate worker. Original receipts remain intact; exact run initialization
+  and publication stay UNKNOWN. The normal inference and source-health gates
+  reject unverified run age. No new forecast HTTP endpoint or access authority
+  was added. Unverified auxiliary normalization cannot create an unrelated
+  whole-event census failure. Actual run-bound forecast ingestion remains open.
+
+Final full regression: **3442 passed, four existing FastAPI deprecation warnings,
+229.86 s, exit 0**. Wrapper elapsed 230.552 s, user 158.778876 s, system 64.060153 s,
+peak RSS 157204 KiB. All **791 tracked files** remained byte-identical during
+the run; input-map digest
+`30d375cb139e668a6bb4d7a8472a7787163c692158946551426832a6f4520af0`.
+The exclusive run finished (session 99634); no test operation remains running.
+Durable off-repo evidence:
+`/workspace/scratch/38af7099c566/v11-test-evidence/sources-runtime-full-20260924-01.json`
+and matching `.log`; runner `run_sources_full.py`. Do not reuse/overwrite that
+run name or repeat the regression without a relevant change/new finding.
+
+There are **43 new tests** in this continuation (21 PWS, 22 forecast), 1106 above
+the 2336-test baseline. Forecast related checks: 44 passed in 1.16 s; wider
+integration 145 passed in 20.51 s; final focused checks 23 passed in 2.53 s.
+All are off-host synthetic/mock checks. They are not live/forward evidence,
+profitability, independent review or deployed acceptance.
+
+Off-host resource check before regression: cgroup limit 21474836480 bytes,
+current use 6825902080 bytes, eight CPU-quota equivalents, disk free 25745367040
+bytes; cgroup high/max/OOM counters zero. This is not alpha-dev capacity evidence.
+Its stale-cycle, memory-pressure, resource/isolation and recovery findings remain
+open; optional maintenance remains deferred, and no owner action is requested.
+
+**Estimated full-scope engineering completion: approximately 39%, unchanged
+after forecast work/full regression. Fully completed requirements: 1/50 (2%).**
+The fixed supplementary calculation remains **77/200** in
+`docs/V11_ENGINEERING_PROGRESS.md`. R10's demonstrated runtime join earned one
+unit; the forecast work does not close its actual provenance/access dependency
+or earn a second already-credited R09 integration unit. Formal acceptance has
+not changed. No funding-dependent or real-money step has been performed.
+
+Next unfinished implementation: a permitted, bounded, **run-bound forecast
+source/decoder** with original initialization/availability and full-day grid
+coverage, then its model-input/census integration. The existing seamless
+response cannot supply that proof; a separate metadata timestamp cannot be
+substituted. Continue exact-label/conditioned-inference, calibration/learning,
+remaining independent guardian/execution/acceptance work under the full master.
+Missing actual inputs and owner commissioning remain explicit gates, not
+completion claims. Do not reopen V10 maintenance for unrelated development.
+
+### PWS integration and recovery detail
 
 Recovered local/public HEAD `7bd4b3b51b5abe28efa3eecff051553b2adaa0d7`, tree
 `35db479b309bdc0f341c1adc4f7edbdb56ac01e7`, clean single worktree. Saved full
@@ -59,8 +118,9 @@ formally accepted. Real source/label/calibration evidence, independent review,
 verified isolation/deployment and unfunded readiness remain in the denominator.
 Tests, elapsed time and maintenance preparation do not automatically earn units.
 
-Next concrete implementation: forecast raw-source/run-provenance adapter and its
-candidate integration, retaining unknown run age as a gate. Then continue the
+At the PWS checkpoint, the next implementation was the forecast raw-source/
+run-provenance adapter and candidate integration; the subsequent milestone above
+records what was implemented and what remains blocked/unverified. Continue the
 full master requirements, including learned/conditioned inference, independent
 guardian, acceptance and commissioning. Do not reopen deferred V10 work without
 a concrete necessary dependency. No test operation remains running.
@@ -81,8 +141,11 @@ integration. No V10 maintenance, deployment or funding is requested.
 ## Exact identities and scope
 
 - Branch: `weather-v11-profitability-upgrade-2026-09-23`.
-- Last verified implementation HEAD: `cbe5796d9c54b462138126ad99c539a4073f4ede`.
-- Last verified implementation tree: `9a3a6651fdc5cf84bec7e87e5e936adbd94892d7`.
+- Last verified implementation HEAD: `84068f641840574a6fd82f73e53a2a0ea14e944e`.
+- Last verified implementation tree: `671fe620c0c05a47639167265b947d6da9c609e8`.
+- Previous PWS implementation: `cbe5796d9c54b462138126ad99c539a4073f4ede`,
+  tree `9a3a6651fdc5cf84bec7e87e5e936adbd94892d7`; reporting checkpoint
+  `fb0040dae733f4bdc3e94e852cb52cd670c2b105`.
 - Previous maker proposal/context implementation: `306a7ece6ade71e90d436f7c99730d18a8597d3c`,
   tree `56977f5bee32381fac7e954abe83cc1c1901020f`. Public/local
   tree equality passed; fetch/alignment exited 0 (session 70687), with a clean

@@ -32,7 +32,7 @@ not repeated under the same command identity; subsequent distinct cycles retain
 cooldowns and recover abandoned claims through a fresh census.
 
 The built-in plan covers exact full books and the existing AWC official proxy.
-Required MODEL or PWS-QC census sources without a reviewed adapter stay GATED
+Required MODEL census sources without a reviewed run-bound adapter stay GATED
 before any request. No issue time, model probability or QC certificate is invented.
 Current rule evidence is mandatory. This limitation remains an open source/runtime
 integration requirement, rather than being hidden by a cached-data fallback.
@@ -68,3 +68,9 @@ All results are off-host mock/synthetic tests, not forward or empirical evidence
 V10 maintenance remains deferred. Its stale successful cycles and memory pressure
 leave resource/isolation gates open. No additional host workload, service action,
 executor change, deployment or financial authority is introduced here.
+
+The later required-PWS extension is documented in V11_PWS_OBSERVATIONS.md. It
+collects a fresh bounded MADIS response through shared cooldowns, joins prior
+causal history for QC, checks current metadata and rejects a newly processed
+pre-claim response as gap-recovery proof. Source/clock/strategy eligibility and
+unknown-run forecast gates remain independent of collection success.

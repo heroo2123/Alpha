@@ -66,3 +66,11 @@ the candidate PWS integration cases; 255 related passes plus four focused checks
 after the final policy-consistency change. Real lead/calibration/certification,
 full provider acceptance and deployment remain open. New total **77/200**,
 approximately **39%**. Formal completion remains **1/50 (2%)**.
+
+Forecast normalization/candidate integration subsequently passed at implementation
+`84068f641840574a6fd82f73e53a2a0ea14e944e`; full regression 3442 passed in 229.86 s.
+The score remains **77/200, approximately 39%**. R09 already has its named AWC
+integration credit; its actual forecast run/access/coverage evidence is still
+missing. A research normalization that correctly retains that gate does not
+earn E or A. More tests do not increase the estimate. No formal package was
+newly accepted.
