@@ -3,6 +3,73 @@
 Updated 2026-09-24, after multi-step fresh forecast census integration. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
 
+## Saved continuation handoff — latest full verification
+
+Latest implementation **f1752a8157c85ce1e975f64cd80b11e5a6318780**, tree
+**581fa1011fe62ec0e135a59be2d1719b7e871cd9**, branch
+`weather-v11-profitability-upgrade-2026-09-23`. Public/local tree equality and
+fetch/alignment passed (session 37775 exit 0), clean workspace. This subsequent
+reporting-only checkpoint changes no source or tests; resolve its own exact
+commit/tree with `git log -1 --format='%H %T' -- docs/V11_WORK_CHECKPOINT.md`.
+No prior or unfinished work was discarded, reset, cleaned or rolled back.
+
+Final full regression **PASS: 3566 passed, four existing FastAPI deprecation
+warnings, 283.92 s, exit 0**. Wrapper 284.571 s; user 202.628285 s; system 73.054890 s;
+peak RSS **157996 KiB**. All **806 tracked files** remained unchanged; input-map
+digest `f828fec9bf9da2d2a8ec6eb4c93e283f91bfa5e2dfc4ef215137f1eab25c7128`.
+Exclusive run session 13111 completed. Retained local result/log:
+`/workspace/scratch/38af7099c566/v11-test-evidence/model-census-full-20260924-01.json`
+and `.log`, runner `run_model_census_full.py`. Do not overwrite/reuse that run name
+or repeat the passed regression without a relevant change/finding. No test or
+source collection operation remains running at this handoff.
+
+Off-host headroom before the full run: 21474836480-byte cgroup memory limit,
+6927261696 bytes current use, eight CPU quota equivalents, 25656700928 bytes disk
+free; high/max/OOM counters zero. These checks apply only to this off-host test
+workspace. They do not establish alpha-dev capacity or production isolation.
+
+Completed and published this continuation: complete run-bound GEFS source/path
+integration; forecast-vector causal dataset capture; bounded six-hour run rollover;
+fresh multi-step forecast census; bounded consistent source views; shared safety
+scheduling and adoption of an exact completed census model. Learning-specific
+related run: **114 passed / 22.55 s**. Rollover: **112 passed / 38.26 s**. Final
+census/source/queue/safety related run: **241 passed / 78.97 s**. Earlier full
+source/learning/rollover regression: **3545 passed / 243.99 s**; the later full run
+above covers the subsequent archive/queue integration. All network/clock examples
+are synthetic/mock tests, not live data, real fills or independent review.
+
+Estimated full original engineering scope: **79/200, approximately 40%**. Formal
+fully completed requirements: **1/50 (2%)**. The fixed calculation remains in
+`docs/V11_ENGINEERING_PROGRESS.md`; no extra completion credit comes from tests,
+elapsed effort or this handoff. Remaining implementation, actual evidence,
+verified deployment and unfunded acceptance remain in that denominator.
+
+Next concrete code action: align declared forecast-member feature schemas with
+the immutable parent bundle, then connect the captured causal dataset to the
+existing bounded learner. Inspection confirms that the learner requires exact
+parent/dataset schema identity; capture alone does not establish that compatibility.
+Retain the parent, original prediction hashes, target distinctions and NO_PROMOTION
+on missing independent labels/evidence. Actual exact-label production, calibrated
+artifacts and an accepted initial champion remain unverified. Continue all other
+full-master provider, conditioned/PWS, execution, independent guardian, operational
+comparison and unfunded acceptance requirements; this is not a forensic-only or
+component-only final deliverable.
+
+Open operational findings: actual NOAA bytes/packing/latency remain unverified
+after the recorded HTTP proxy/client failure; no repeated probe or bypass occurred.
+Forecast collection capacity is also unverified: per-field rate limits and epoch
+expiry can gate larger event sets; the maximum supported plan count is not proof
+that such a deployment meets latency/headroom requirements. No source/clock probe,
+real model training, deployment or commissioning acceptance is claimed.
+
+V10 remains unchanged by this work. Its stale successful cycles and memory pressure,
+alpha-dev resource/isolation, backup/recovery and inventory-verification findings
+remain open. Maintenance is DEFERRED. Inventory is OWNER-REPORTED / INDEPENDENT
+VERIFICATION PENDING. No owner maintenance action is requested. No guard, systemd,
+signal, stop/restart, executor, deployment, funding, transfer or real-order action
+occurred. **NOT_READY_TO_FUND**; any eventual budget/live activation needs separate
+approval after the original readiness and strategy-eligibility gates actually pass.
+
 ## Latest implementation milestone — fresh MODEL census
 
 Continued from published reporting HEAD **e21bc82b65a8dac613f54ec87a30309ddc4346b6**,

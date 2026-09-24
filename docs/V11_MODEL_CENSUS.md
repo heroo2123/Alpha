@@ -47,7 +47,8 @@ model with fresh raw evidence, finishes under the original short claim and
 preserves both versions. Other cases cover invalidation, original timing, source
 backoff, concurrent/interrupted work, no duplicate auxiliary collection and safety
 scheduling. The earlier 76-pass run preceded the final auxiliary adoption change.
-The required full regression is recorded separately in the work checkpoint.
+The full regression passed **3566 tests, four existing warnings, 283.92 s**
+with all 806 tracked inputs unchanged; exact tree/resources are in the checkpoint.
 
 Initial new tests found an overlong request ID (corrected without raising the
 80-character collector limit), the assembly time-bound problem above, and a

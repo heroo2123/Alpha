@@ -104,3 +104,8 @@ passed 241 related checks (21 new cases). R09/R11/R33 already have their named
 integration credits. Total remains **79/200, approximately 40%**; formal **1/50
 (2%)**. Source access, other providers, real calibration and operational/independent
 acceptance remain unearned. No numerator increase follows from more tests.
+
+Final census full regression at `f1752a8157c85ce1e975f64cd80b11e5a6318780`
+passed 3566 tests with four existing warnings in 283.92 s, all 806 tracked inputs
+unchanged. This verifies the newly connected local code; **79/200, approximately
+40%**, and formal **1/50 (2%)** remain unchanged. No operational E/A is credited.
