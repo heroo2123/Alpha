@@ -4,7 +4,8 @@ paper_runtime.py joins the existing event queue, runtime health, common paper
 account, temperature evaluator, cancellation delivery and maker retirement.
 This is an off-host callable candidate, not an installed scanner or deployed
 trading system. It has no order transport, wallet access, fill inference or
-deployment authority. Required census and request-assembly adapters remain explicit.
+deployment authority. Public-book/AWC census integration is described in
+V11_PUBLIC_BOOK_CENSUS.md; remaining source and request-assembly adapters stay explicit.
 
 PaperRuntime.tick is bounded by source-update count, event count, cancellation
 plan count and a cooperative monotonic time budget. One process lock serializes
@@ -63,4 +64,6 @@ reserved. An exhausted cooperative budget is reported explicitly.
 Full repository regression: 3,130 passed / four existing warnings in 185.10 s,
 peak child RSS 154,848 KiB. All tests ran off-host. No actual source, deployed clock,
 calibration, independent guardian or financial acceptance is claimed. Remaining
-provider/request/census adapters, reporting and empirical acceptance stay open.
+provider/request adapters and empirical acceptance stay open. Subsequent reporting
+and public-census integrations are recorded in V11_PERFORMANCE.md and
+V11_PUBLIC_BOOK_CENSUS.md; those component milestones do not grant acceptance.

@@ -1,6 +1,6 @@
 # Alpha V11 work checkpoint
 
-Updated 2026-09-24, after performance and durable audit integration. Resume here. **NOT_READY_TO_FUND**.
+Updated 2026-09-24, after public-book and fresh-census verification. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
 
 ## Current priority override — V11 runtime integration
@@ -26,11 +26,12 @@ open. No funding, deployment, financial activation or new host workload authoriz
 ## Exact identities and scope
 
 - Branch: `weather-v11-profitability-upgrade-2026-09-23`.
-- Last verified implementation HEAD: `a993ebe1f76cf95b47938a1a5a5e43570ce82e8e`.
-- Last verified implementation tree: `2db88e02db21714cb01410fab9536146159cb3bc`.
-- Reward implementation identity is above. Public/local tree equality passed,
-  fetch/alignment exited 0 and the worktree was clean before reporting work. No unfinished work was discarded.
-- This following checkpoint commit changes documentation only. Resolve its own
+- Last verified implementation HEAD: `b75cc1c65a3ec7b4fa39c876fb999ad9bee023b2`.
+- Last verified implementation tree: `12e939b4d9e7feb73dcbbd6cc31602649c0ea76f`.
+- Reporting implementation identity is above. Public/local tree equality passed,
+  fetch/alignment exited 0 and the worktree was clean before public-book/census
+  integration. No unfinished work was discarded.
+- A later commit containing this checkpoint may include the newer work below. Resolve its own
   exact commit with `git log -1 --format=%H -- docs/V11_WORK_CHECKPOINT.md`, and its
   tree with `git rev-parse <that-commit>^{tree}`; no self-referential hash claim.
 - Prior maker quote implementation: `f0e0abc3345f63d170c29b5ba5d5d74c91238477`,
@@ -41,8 +42,8 @@ open. No funding, deployment, financial activation or new host workload authoriz
 - Prior maker-feature implementation: `a3a0a05b3ea2ecdc55190c711a75d6d7cd990922`,
   tree `053189306c136d11f32943ec62f0807c827a582c`; its recovery checkpoint was
   `53cae2da33e97c993c76ab976d2f079a97bf6ae1`.
-- Latest full regression: **3,200 passed, four existing warnings, 211.18 s** on
-  the reporting implementation recorded below. Its predecessor full run was
+- Latest full regression: **3,245 passed, four existing warnings, 179.01 s** on
+  the public-book/census implementation recorded below. Its predecessor full run was
   2,894 passing at `f69e318d04b8771f1de3074928ae63d3951cebec`.
 - Prior implementation: `dd1e85706eb0a26c9bb8aef1317cb635a791b920`, tree
   `8bf30057a39e8690d457e531b781b953a2476878`. Prior recovered checkpoint
@@ -1201,3 +1202,48 @@ this nonsecret milestone follows; next action remains public-book normalization
 and census integration. Complete implementation packages (local verification)
 remain 1/50; formal runtime, empirical, independent-review and funding gates remain
 unpassed. V10 state and deferred inventory verification are unchanged.
+
+
+### Public-book and fresh-census integration (verification in progress)
+
+Recovered reporting publication b75cc1c65a3ec7b4fa39c876fb999ad9bee023b2, tree
+12e939b4d9e7feb73dcbbd6cc31602649c0ea76f. No rollback, cleanup or duplicate operation.
+Added book_inputs.py and census_worker.py, with exact contract/depth/time binding,
+original receipt preservation, quota-aware bounded batches and a separate census
+worker. Existing weather normalization now preserves original receipt and actual
+provider observation time. Queue raw-lineage and per-event loss-generation fences
+prevent delayed normalization or a second gap from clearing a new census need.
+Cancellation remains available while the collector awaits a response. Coverage
+then feeds the existing real protected temperature pipeline; its uncalibrated
+proposal is rejected without creating an intent/fill. MODEL/PWS-QC census adapters
+remain explicitly unavailable, rather than substituting old evidence.
+
+Initial tests: 40 passed / 2.75 s. Wider command first exited 4 due to a nonexistent
+test filename and ran no tests. Corrected wider run: 227 passed / one integration
+failure (weather normalization omitted actual observation time). Fixed that defect;
+228 passed in 10.42 s. Final coverage/completion race guard and regression: 14 passed
+in 3.40 s. 45 distinct new cases; cumulative 909. Full suite is IN PROGRESS in
+local exec session 58464; resume that session rather than launch a duplicate. No
+source/test edits have been made while it runs. Public/local HEAD remains b75cc1c
+until this milestone is verified and published. Current uncommitted work is intended.
+
+Market discovery was inspected: legacy discovery exists, but a bounded resumable
+V11 discovery/semantic-census adapter is not yet implemented. Next action after this
+regression and publication: connect public market discovery to archived per-event
+rule/semantic evidence and existing quarantine, then remaining runtime integrations.
+No grammar broadening or acceptance waiver is planned. Completed packages remain
+1/50 (local implementation verification); all formal acceptance gates remain open.
+V10 maintenance is DEFERRED; stale cycles and severe memory pressure are recorded
+findings, not rechecked as fresh observations. Host-resource/isolation and private
+inventory independent verification remain open. No host workload, deployment,
+service action, executor change or funding is authorized or performed.
+
+
+Public-book/census full regression completed PASS: **3,245 passed, four existing
+FastAPI warnings, 179.01 s**, exit 0. Wrapper elapsed 179.685 s, user/system CPU
+125.509/47.861 s, peak child RSS 154,880 KiB. Session 58464 completed; no duplicate
+run was started after the continuation request. No source/test bytes changed during
+or after this full run. All nonsecret implementation and evidence documentation
+are now ready for publication. 1/50 implementation packages complete; formal
+acceptance unchanged. Next concrete work: bounded resumable market discovery,
+semantic rejection census and existing rule/quarantine integration.

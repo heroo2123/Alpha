@@ -150,6 +150,23 @@ def normalize_weather_capture(store: EvidenceStore, raw_id: str, *, record_id: s
                               station: str, official_max_age_seconds: float = 3600) -> dict:
     raw = store.get(raw_id)
     body,payload = raw["body"],raw["body"]["payload"]
+    request_sha = digest(dict(raw_id=raw_id, raw_sha256=raw['sha256'], station=station,
+                              official_max_age_seconds=official_max_age_seconds))
+    try:
+        prior = store.get(record_id)
+    except EvidenceError as exc:
+        if str(exc) != 'EVIDENCE_MISSING':
+            raise
+    else:
+        if (prior['kind'] != raw['kind'] or prior['event_id'] != raw['event_id']
+                or prior['body'].get('payload', {}).get('normalization_sha256') != request_sha):
+            raise EvidenceError('WEATHER_NORMALIZATION_ID_CONFLICT')
+        return prior
+    head = store.latest(kind=raw['kind'], event_id=raw['event_id'])
+    current = store.latest_source(kind=raw['kind'], event_id=raw['event_id'],
+                                  provider=body['provider'], source_identity=body['source_identity'])
+    if current['id'] != raw_id:
+        raise EvidenceError('WEATHER_RAW_SUPERSEDED')
     if body["evidence_class"] == "HISTORICAL_AVAILABILITY_UNKNOWN":
         raise EvidenceError("HISTORICAL_RESPONSE_NOT_CAUSAL")
     if body["provider"] == "NOAA_MADIS_CWOP" and raw["kind"] == "PWS_OBSERVATION":
@@ -159,8 +176,15 @@ def normalize_weather_capture(store: EvidenceStore, raw_id: str, *, record_id: s
                                      max_age_seconds=official_max_age_seconds)
     else:
         raise EvidenceError("WEATHER_NORMALIZER_NOT_REVIEWED")
+    now = finite(store.clock())
+    if now < body['received_at']:
+        raise EvidenceError('WEATHER_RECEIPT_IN_FUTURE')
     normalized.update(raw_evidence_id=raw_id,raw_evidence_sha256=raw["sha256"],
-                      feature_ready_at=store.clock(),settlement_station_context=station)
-    return store.capture(record_id,event_id=raw["event_id"],kind=raw["kind"],provider=body["provider"],
-                         source_identity=body["source_identity"],revision=body["revision"],payload=normalized,
-                         evidence_class=body["evidence_class"])
+                      normalization_sha256=request_sha, feature_ready_at=now,settlement_station_context=station,
+                      observed_time_scope='LATEST_ACCEPTED_PROVIDER_OBSERVATION')
+    observed = max((finite(x['observed_at']) for x in normalized['observations']), default=None)
+    derived = dict(provider=body['provider'], source_identity=body['source_identity'], revision=body['revision'],
+                   payload=normalized, evidence_class=body['evidence_class'], source_kind=raw['kind'],
+                   observed_at=observed, issued_at=None, published_at=None, received_at=body['received_at'])
+    return store._append(record_id, raw['kind'], raw['event_id'], derived, now, now,
+                         expected_previous_seq=head['seq'] if head else 0)

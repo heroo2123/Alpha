@@ -22,6 +22,25 @@ PRIORITY = {'SCHEDULED_RELEASE':0, 'OFFICIAL_OBSERVATION':1, 'MODEL':2,
             'PWS_OBSERVATION':3, 'TRADE':4, 'BOOK':5}
 
 
+def _census_raw_receipt(store, source, claim):
+    """A new normalization cannot turn a pre-claim response into a new census.
+
+    Direct captures retain their existing sequence check. Derived captures with
+    raw lineage must bind that exact, causally earlier, newly received response.
+    """
+    body = source['body']; payload = body.get('payload', {})
+    raw_id = payload.get('raw_evidence_id')
+    if raw_id is None:
+        return
+    raw = store.get(raw_id); rb = raw['body']
+    if (raw['event_id'] != source['event_id'] or raw['kind'] != source['kind']
+            or payload.get('raw_evidence_sha256') != raw['sha256']
+            or not claim['seq'] < raw['seq'] < source['seq']
+            or rb.get('evidence_class') != body.get('evidence_class')
+            or not claim['body']['recorded_at'] <= rb['received_at'] <= body['available_at']):
+        raise EvidenceError('CENSUS_FRESH_RAW_RECEIPT_LINEAGE_REQUIRED')
+
+
 @dataclass(frozen=True)
 class EventRoute:
     event_id: str
@@ -115,8 +134,9 @@ class EventQueue:
                 raise EvidenceError('TRIGGER_CONFIGURATION_CHANGED_REQUIRES_RECONCILIATION')
             state=deepcopy(value['state'])
             state.setdefault('evaluations', {})  # Older local queues must reevaluate, never inherit eligibility.
+            state.setdefault('census_generations', {})
             return row, state
-        return None, dict(pending={}, active=None, channels={}, needs_census={}, evaluations={}, metrics={
+        return None, dict(pending={}, active=None, channels={}, needs_census={}, census_generations={}, evaluations={}, metrics={
             'received':0, 'unmapped':0, 'duplicate':0, 'out_of_order':0, 'coalesced':0,
             'expired':0, 'overflow':0, 'failed':0, 'completed':0, 'abandoned':0})
 
@@ -145,12 +165,18 @@ class EventQueue:
     def snapshot(self):
         return self._read()[1]
 
+    @staticmethod
+    def _require_census(state, event, reason):
+        state['needs_census'][event] = reason
+        generations = state.setdefault('census_generations', {})
+        generations[event] = generations.get(event, 0)+1
+
     def _expire(self, state, now):
         for event, item in list(state['pending'].items()):
             if not item['first_received_at'] <= now < item['expires_at']:
                 state['pending'].pop(event)
                 state['metrics']['expired'] += 1
-                state['needs_census'][event] = 'PENDING_UPDATE_EXPIRED'
+                self._require_census(state, event, 'PENDING_UPDATE_EXPIRED')
 
     def _enqueue(self, state, route, notice, now):
         event = route.event_id
@@ -158,7 +184,7 @@ class EventQueue:
         if item is None:
             if len(state['pending']) >= self.policy.max_pending_events:
                 state['metrics']['overflow'] += 1
-                state['needs_census'][event] = 'EVENT_QUEUE_OVERFLOW'
+                self._require_census(state, event, 'EVENT_QUEUE_OVERFLOW')
                 return False
             item = dict(event_id=event, station=route.station, rule_fingerprint=route.rule_fingerprint,
                         first_received_at=notice['received_at'], expires_at=min(route.valid_until,
@@ -166,7 +192,7 @@ class EventQueue:
             state['pending'][event] = item
         elif notice['channel'] not in item['sources'] and len(item['sources']) >= self.policy.max_sources_per_event:
             state['metrics']['overflow'] += 1
-            state['needs_census'][event] = 'EVENT_SOURCE_FANIN_OVERFLOW'
+            self._require_census(state, event, 'EVENT_SOURCE_FANIN_OVERFLOW')
             return False
         else:
             state['metrics']['coalesced'] += 1
@@ -271,7 +297,7 @@ class EventQueue:
         elif reason not in {'IDENTICAL_SOURCE_UPDATE', 'SOURCE_RECEIPT_ALREADY_PROCESSED', 'NO_AFFECTED_REGISTERED_EVENT'}:
             state['metrics']['failed'] += 1
             for route in candidates:
-                state['needs_census'][route.event_id] = reason
+                self._require_census(state, route.event_id, reason)
         result = dict(outcome='QUEUED' if accepted else 'NO_WORK', reason=reason or 'AFFECTED_EVENTS_ONLY',
                       affected_events=accepted, received_at=body['available_at'], routed_at=now,
                       receipt_to_route_seconds=now-body['available_at'])
@@ -285,7 +311,7 @@ class EventQueue:
         if prior:
             return prior
         row, state = self._read()
-        state['needs_census'][event_id] = 'STREAM_GAP:'+reason
+        self._require_census(state, event_id, 'STREAM_GAP:'+reason)
         return self._commit(record_id, request, row, state, dict(outcome='FULL_CENSUS_REQUIRED'))
 
     @contextmanager
@@ -315,7 +341,7 @@ class EventQueue:
             row, state = self._read(); now = finite(self.store.clock()); self._expire(state, now)
             if state['active']:
                 lost = state['active']
-                state['needs_census'][lost['event_id']] = 'ABANDONED_EVALUATION_REQUIRES_CENSUS'
+                self._require_census(state, lost['event_id'], 'ABANDONED_EVALUATION_REQUIRES_CENSUS')
                 state['metrics']['abandoned'] += 1
                 state['active'] = None
             ordered = sorted((p for p in state['pending'].values() if p['event_id'] not in exclude_events),
@@ -339,6 +365,7 @@ class EventQueue:
                          sources=list(pending['sources'].values()) if pending else [],
                          requires_full_census=event in state['needs_census'],
                          census_reason=state['needs_census'].get(event),
+                         census_generation=state['census_generations'].get(event, 0),
                          source_to_work_seconds=now-pending['first_received_at'] if pending else None,
                          source_heads=heads, requires_result_after=record_id, coverage_valid_until=None)
             state['active'] = claim
@@ -358,7 +385,8 @@ class EventQueue:
         row, state = self._read(); now = finite(self.store.clock())
         events = sorted(e for e, route in self.routes.items() if route.valid_until > now)
         for event in events:
-            state['needs_census'].setdefault(event, 'PERIODIC_FULL_CENSUS_DUE')
+            if event not in state['needs_census']:
+                self._require_census(state, event, 'PERIODIC_FULL_CENSUS_DUE')
             state['evaluations'].pop(event, None)
         return self._commit(record_id, request, row, state, dict(outcome='CENSUS_SCHEDULED', events=events))
 
@@ -401,7 +429,7 @@ class EventQueue:
             state['metrics']['failed'] += 1
             state['evaluations'].pop(active['event_id'], None)
             if reason != 'NEW_SOURCE_UPDATE_REQUIRES_REEVALUATION':
-                state['needs_census'][active['event_id']] = reason
+                self._require_census(state, active['event_id'], reason)
         else:
             state['metrics']['completed'] += 1
             bounds=[active['deadline'], *(s['valid_until'] for s in active['sources'])]
@@ -440,21 +468,26 @@ class EventQueue:
         route = self.routes[active['event_id']]
         if now >= route.valid_until:
             raise EvidenceError('CENSUS_ROUTE_EXPIRED')
+        if active.get('census_generation', 0) != state['census_generations'].get(route.event_id, 0):
+            raise EvidenceError('CENSUS_LOSS_AFTER_CLAIM_REQUIRES_RESTART')
         heads=[]
         for kind in ('BOOK','RULE_STATE','TRADE','MODEL','OFFICIAL_OBSERVATION','PWS_OBSERVATION'):
             head=self.store.latest(kind=kind,event_id=route.event_id)
             heads.append((kind,route.event_id,head['seq'] if head else 0))
         tokens, expiries = set(), [route.valid_until]
+        claim_record = self.store.get(claim_id)
         for key in book_ids:
             source = self.store.get(key); body = source['body']; p = body.get('payload', {})
             if (source['kind'] != 'BOOK' or source['event_id'] != route.event_id
-                    or source['seq'] <= self.store.get(claim_id)['seq']
+                    or source['seq'] <= claim_record['seq']
                     or body['evidence_class'] == 'HISTORICAL_AVAILABILITY_UNKNOWN'
                     or p.get('snapshot_type') != 'FULL' or p.get('stream_healthy') is not True
                     or p.get('rule_fingerprint') != route.rule_fingerprint
                     or p.get('token_id') not in route.tokens or p.get('token_id') in tokens
-                    or body['observed_at'] is None or not 0 <= now-body['observed_at'] < dict(self.policy.source_age_seconds)['BOOK']):
+                    or body['observed_at'] is None or not 0 <= now-body['observed_at'] < dict(self.policy.source_age_seconds)['BOOK']
+                    or not body['observed_at'] <= body['received_at'] <= body['available_at'] <= now):
                 raise EvidenceError('CENSUS_NEW_FULL_BOOK_REQUIRED')
+            _census_raw_receipt(self.store, source, claim_record)
             latest = self.store.latest_source(kind='BOOK', event_id=route.event_id, provider=body['provider'], source_identity=body['source_identity'])
             if latest['id'] != key:
                 raise EvidenceError('CENSUS_BOOK_SUPERSEDED')
@@ -468,8 +501,9 @@ class EventQueue:
             source = self.store.get(key); body = source['body']
             if (source['event_id'] != route.event_id or source['kind'] not in KINDS-{'BOOK', 'TRADE', 'SCHEDULED_RELEASE'}
                     or body['evidence_class'] == 'HISTORICAL_AVAILABILITY_UNKNOWN'
-                    or source['seq'] <= self.store.get(claim_id)['seq']):
+                    or source['seq'] <= claim_record['seq']):
                 raise EvidenceError('CENSUS_NEW_SOURCE_EVIDENCE_REQUIRED')
+            _census_raw_receipt(self.store, source, claim_record)
             payload = body['payload']
             if payload.get('station', payload.get('settlement_station_context')) != route.station:
                 raise EvidenceError('CENSUS_SOURCE_STATION_MISMATCH')

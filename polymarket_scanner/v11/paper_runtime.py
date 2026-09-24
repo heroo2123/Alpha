@@ -228,6 +228,10 @@ class PaperRuntime:
                 self.queue.schedule_census(prefix+':periodic')
                 state['next_census_monotonic'] = stamp['monotonic']+self.policy.census_interval_seconds
             pending = self.queue.snapshot(); available = set(pending['pending'])|set(pending['needs_census'])
+            # A separate fresh-census worker can resolve the dependency while
+            # this scheduler continues cancellation. Do not delay its resulting
+            # evaluation behind the old adapter-failure retry timer.
+            state['census_retry'] = {e:t for e,t in state['census_retry'].items() if e in pending['needs_census']}
             if not available-set(state['visited']): state['visited'] = []
             for index in range(self.policy.maximum_events):
                 if not budget(): break

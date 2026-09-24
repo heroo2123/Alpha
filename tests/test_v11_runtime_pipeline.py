@@ -1,4 +1,7 @@
 from dataclasses import replace
+import asyncio
+
+import httpx
 
 from polymarket_scanner.v11 import paper_runtime as runtime
 from polymarket_scanner.v11.runtime_health import SourceNeed
@@ -11,6 +14,7 @@ from test_v11_event_risk import policy as event_policy, metrics
 from test_v11_runtime_health import monitor, ready
 from test_v11_paper_runtime import queue
 from test_v11_scenario_risk import mapping, limits
+from test_v11_book_inputs import response
 
 
 def test_real_protected_temperature_pipeline_runs_through_periodic_census_and_runtime_without_economic_stub(factory,monkeypatch):
@@ -56,3 +60,43 @@ def test_real_protected_temperature_pipeline_runs_through_periodic_census_and_ru
     assert result['artifact_refs'] and result['model_epoch']==1
     assert not d['account_batch_ids'] and c.snapshot()['reserved_cash']=='0'
     assert not store.records(kind='TRADE') and not d['forward_or_live_acceptance']
+
+
+def test_http_books_and_official_proxy_feed_real_protected_temperature_evaluation(factory,monkeypatch):
+    from polymarket_scanner.v11.book_inputs import BookPolicy, PROVIDER
+    from polymarket_scanner.v11.census_worker import CensusWorker, CensusPlan, CensusPolicy
+    from polymarket_scanner.v11.collection import PublicCollector
+    from polymarket_scanner.v11.observation_runtime import ScheduledCollector
+    r=factory();store=r['store'];rule=r['rule'];event=r['context'].event_id
+    account=PaperAccountPolicy('fixture','account','FIXTURE_COLLATERAL','10','10','10','10','.01','0',60.,10)
+    c=PaperCoordinator(store,policy=account,correlation=mapping(rule),limits=limits());q=queue(r)
+    strategy=r['scope'].strategy
+    m=monitor(r,monkeypatch,sources=(SourceNeed(event,strategy,'MODEL','fixture','model-1',120.),),scopes={event:(strategy,)})
+    ready(r,m)
+    def requests(claim):
+        book=store.latest_source(kind='BOOK',event_id=event,provider=PROVIDER,source_identity=rule.payload['partition'][0]['yes_token'])
+        official=store.latest_source(kind='OFFICIAL_OBSERVATION',event_id=event,provider='NOAA_AWC',source_identity=rule.payload['station'])
+        prefix=claim['claim_id']
+        state=EventRiskEngine(store).step(prefix+':risk',context=r['context'],policy=event_policy(),binding=r['binding'],
+            metrics=metrics(r['now'][0]),book_ids=(book['id'],),source_ids=('model2',official['id']))
+        pin=StrategyAdmission(store).pin(prefix+':pin',**r['admission_kw'])
+        return (replace(r['request'],admission_id=pin['id'],book_id=book['id'],event_state_id=state['id']),)
+    rt=runtime.PaperRuntime(c,q,m,runtime.RuntimePolicy('fixture'),evaluator=runtime.TemperatureEventAdapter(store,requests))
+    rt.tick('schedule')
+    async def run():
+        def transport(req):
+            if req.url.host=='aviationweather.gov':
+                return httpx.Response(200,json=[dict(icaoId=rule.payload['station'],obsTime=r['now'][0]-1,temp=24)])
+            return httpx.Response(200,json=response(r,req.url.params['token_id']))
+        async with httpx.AsyncClient(transport=httpx.MockTransport(transport)) as client:
+            worker=CensusWorker(ScheduledCollector(PublicCollector(store,client,attempts=1)),q,m,
+                plans=(CensusPlan(rule,'FIXTURE_COLLATERAL'),),policy=CensusPolicy('fixture'),book_policy=BookPolicy('fixture'))
+            return await worker.step('http-census')
+    coverage=asyncio.run(run())['body']['details'];assert coverage['outcome']=='CENSUS_SOURCE_COVERAGE_ONLY',coverage
+    d=rt.tick('evaluate-real')['body']['details'];assert d['outcome']=='TICK_COMPLETED',d
+    completion=store.get(d['evaluation_ids'][0])['body']['details']
+    result=store.get(completion['request']['result_ids'][0])['body']['details']
+    assert result['outcome']=='REJECT' and result['reason']=='CONSERVATIVE_EV_NOT_ABOVE_THRESHOLD', result['reason']
+    assert result['prediction']['calibration_status']=='UNCALIBRATED' and result['model_epoch']==1
+    assert result['artifact_refs'] and not d['account_batch_ids'] and not store.records(kind='TRADE')
+    assert c.snapshot()['reserved_cash']=='0' and not d['forward_or_live_acceptance']

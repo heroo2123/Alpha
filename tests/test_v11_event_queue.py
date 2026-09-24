@@ -367,3 +367,20 @@ def test_result_must_be_computed_after_census_not_merely_after_claim(rig):
             q.finish('finish',claim_id='work',result_ids=('pre-census',))
         result(rig,'post-census')
         assert q.finish('finish',claim_id='work',result_ids=('post-census',))['body']['details']['result']['outcome']=='RESEARCH_EVALUATED'
+
+
+def test_repeated_identical_gap_during_claim_has_a_new_loss_generation(rig):
+    q=queue(rig);q.stream_gap('before',event_id='e1',reason='DISCONNECT')
+    with q.work('work'):
+        q.stream_gap('during',event_id='e1',reason='DISCONNECT')
+        with pytest.raises(EvidenceError,match='LOSS_AFTER_CLAIM'):
+            census(rig,q)
+    assert q.snapshot()['needs_census']['e1']=='STREAM_GAP:DISCONNECT'
+
+
+def test_gap_on_unrelated_event_during_claim_does_not_invalidate_healthy_event_census(rig):
+    q=queue(rig);q.stream_gap('before',event_id='e1',reason='DISCONNECT')
+    with q.work('work'):
+        q.stream_gap('during',event_id='e3',reason='DISCONNECT')
+        census(rig,q)
+    assert 'e1' not in q.snapshot()['needs_census'] and 'e3' in q.snapshot()['needs_census']
