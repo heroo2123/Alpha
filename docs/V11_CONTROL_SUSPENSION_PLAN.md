@@ -1,9 +1,56 @@
 # V10 preservation preparation and suspension readiness
 
-Updated September 24 after the explicitly approved inventory-only attempt.
+Updated September 24 after the owner's completed inventory handoff and verifier preparation.
 **SUSPENSION_NOT_READY. No SIGTERM, stop, restart, restore, executor change or V11
 service deployment is approved or performed.** This supersedes the previous
 conditional suspension recommendation. Do not use that older plan as permission.
+
+## Current inventory result and exact next owner-only action
+
+The owner reports successful METADATA_INVENTORY_ONLY capture at
+/var/tmp/alpha-v10-presuspension-inventory-20260924-01, with SHA-256
+b161426cff5b39b262e72a6e8142982dd29fa8a0bf29c9965232edf1ff364bd3.
+The reported database_opened, backup_complete, service_mutated and signal_sent
+flags are all false. This supersedes the earlier failed connected execution.
+DO NOT repeat the inventory capture or overwrite its directory.
+
+Connected read-only inspection independently confirmed the directory exists,
+is root:root 0700 and is not a symlink. Reading inventory.json was denied to
+alphaadmin (PROTECTED_INVENTORY_ACCESS_DENIED). That process exited 0 in 0.08 s.
+Thus directory custody PASS; manifest hash/schema verification remains PENDING
+protected access. No mismatch is asserted, and the owner's hash is not described
+as an independently recomputed result. The existing privilege restriction is not
+retried or bypassed, and no permissions are weakened.
+
+A bounded verifier is staged outside V10, mode 0400:
+/home/alphaadmin/alpha-v11-preservation-prep-20260924/control_inventory_verify.py
+SHA-256: 3262f8c398c36594a542c26d3719c55d249979c9297052c1cda94caed0fb0f87.
+The remote staged hash matched; staging completed in 0.09 s. The helper has not
+been executed. Its sole prepared owner action is:
+
+```sh
+sudo /usr/bin/nice -n 19 /usr/bin/python3 -I -B /home/alphaadmin/alpha-v11-preservation-prep-20260924/control_inventory_verify.py --owner-verify-inventory-only
+```
+
+The helper pins the exact owner hash and inventory destination; reads only
+inventory.json, COMPLETE.json and local memory metadata; verifies private
+ownership/modes, completion, bytes and manifest structure; and prints redacted
+per-root counts, bytes, link/special-file findings and recorded DB/WAL/SHM presence.
+It does not print private paths, credentials, configuration values or ACL/xattr
+contents. It never reads live V10 source/state, opens SQLite, creates backups,
+changes services/permissions, sends signals or restores anything. Return only its
+redacted result; do not paste the private manifest or secrets.
+
+Bounds: 32 MiB streaming hash, 8 MiB JSON parsing, available memory at least 16x
+file size plus 192 MiB, 30,000 entries and a 10-second cooperative deadline.
+Larger manifests yield HASH_VERIFIED_SCHEMA_UNCHECKED and require off-host schema
+review; insufficient headroom blocks parsing. No signal/timeout escalation exists.
+Twenty new verifier tests / 44 related preservation tests passed in 0.36 s off-host.
+These tests do not validate the inaccessible real manifest. Even a successful
+verifier result remains inventory-only, with no current-source revalidation,
+database-integrity check or runtime-recovery acceptance. Recorded configuration
+digest presence is not proof of current configuration identity. All preservation
+and suspension gates below remain separate.
 
 ## Reversible systemd maintenance mechanism
 
@@ -57,7 +104,7 @@ no online retrieval is claimed. Installed compressed-manual hashes:
 | systemd.unit.5.gz | 3e90b2126d4e03a69cb881e22812eff08e0d436977c26743b5d095296eb4b1a8 |
 | systemctl.1.gz | a25b32a428b63ed72482fac06ae1e9169e05014e66748d881b917adf5a61f0a2 |
 
-## Exact next owner-only action: protected inventory, no service mutation
+## Completed owner inventory procedure (historical record; do not rerun)
 
 Prepared and staged outside V10:
 /home/alphaadmin/alpha-v11-preservation-prep-20260924/control_maintenance.py
@@ -72,7 +119,7 @@ was empty. No wrapper, alternate privilege route or duplicate retry was attempte
 Reverify this reviewed hash at a later approved point of use; it
 is an owner-review artifact, not an installed protected-authority component.
 
-After verifying that exact helper hash, the owner-only command is:
+The subsequently completed owner command was:
 
 ```sh
 sudo /usr/bin/nice -n 19 /usr/bin/python3 -I -B /home/alphaadmin/alpha-v11-preservation-prep-20260924/control_maintenance.py --owner-inventory-only
@@ -92,10 +139,9 @@ API. Tests: eight new / 24 preparation-preservation checks pass off-host.
 
 This action is needed because the connected development identity cannot read the
 protected current state/configuration and the explicitly approved command was
-denied by the connected tool. The remaining owner-only action is execution of
-this same reviewed command in the owner's authenticated shell; no password or
-private manifest should be pasted into chat. Only its redacted result is needed.
-This does not repeat the completed owner health probe. Its result would be an
+denied by the connected tool. The owner has now completed it directly. The next
+owner-only action is the read-only verifier above, not another capture.
+This does not repeat the completed owner health probe. Its result is an
 inventory, NOT a fresh backup or recovery pass. It exposes size/special-file/link
 and access findings for the bounded preservation step; journal/enablement,
 external Git/interpreter dependencies and additional configuration references
@@ -193,7 +239,7 @@ The current single-PID observation must not be assumed to remain true later.
 
 ## Exact prepared artifacts and destination
 
-Staged, hash verified, and NOT executed:
+The physical-preservation and snapshot helpers are staged, hash verified, and NOT executed:
 /home/alphaadmin/alpha-v11-preservation-prep-20260924
 
 | Artifact | SHA-256 |
@@ -331,9 +377,10 @@ gap and intentional suspension from uninterrupted V10/V11 comparisons.
 | Existing snapshot recovery/hash check | PASS off-host; historical snapshot only |
 | Preservation-only code/hash and synthetic WAL recovery | PASS; 16 new / 41 related tests |
 | Reversible same-boot systemd maintenance mechanism | DOCUMENTED from installed manuals; NOT installed or runtime-tested |
-| Protected metadata inventory helper | Hash PASS; exact approved execution BLOCKED by Remote Desktop Commander: Command not allowed / INVALID_ARGUMENT; inventory hash unavailable |
-| Exact new destination selected and nonexistence checked | PASS at recorded read; creation pending |
-| Fresh private config/history inventory and preservation set | PENDING owner access; no new capture/hash |
+| Protected metadata inventory capture | OWNER-REPORTED COMPLETE; owner hash recorded above; connected directory custody PASS |
+| Inventory hash/schema/coverage verification | PENDING owner-only read; exact read-only verifier staged and tested; no manifest mismatch claimed |
+| Exact current backup destination selected | Selected; uncreated at recorded read; separate inventory destination now exists and must be preserved |
+| Fresh private config/history inventory and preservation set | Inventory captured by owner; detailed inventory analysis and complete preservation remain PENDING; no current backup hash |
 | Complete current backup and full-runtime recovery verification | NOT PASSED |
 | Effective runtime restart/escalation/start guard | NOT INSTALLED; configuration-change approval absent |
 | Unconditional no automatic escalation/SIGKILL/restart guarantee | Unavailable for kernel/external actions; scoped systemd guard remains pending |

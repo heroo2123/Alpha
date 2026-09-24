@@ -1,6 +1,6 @@
 # Alpha V11 work checkpoint
 
-Updated 2026-09-24, after the inventory-only access attempt and maker context implementation. Resume here. **NOT_READY_TO_FUND**.
+Updated 2026-09-24, after the owner inventory handoff and paper cancellation integration. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
 
 ## Exact identities and scope
@@ -858,8 +858,8 @@ new tests across recorded runs: 641. Fixed completed packages: 1/50 = 2%.
 - No executor mask change or real-money activation. No arbitrary paper waiting
   period is imposed; mandatory technical/evidence gates remain.
 
-Next concrete engineering action: complete the bounded maker baseline's
-cancellation/telemetry and runtime interfaces. Research
+Next concrete engineering action: connect the bounded maker baseline and paper
+cancellation/telemetry to runtime scheduling and trustworthy liveness/clock inputs. Research
 proposals, sampled eligibility and markout/common-risk integration are now locally
 verified; do not restart those modules or fabricate fills. Continue rewards,
 guardian/clock/operator integration and ALL remaining matrix/master requirements.
@@ -896,7 +896,7 @@ operation is intentionally left running. The checkpoint/matrix retain the full
 specification. Fixed completion remains 1/50 = 2%; R32, R34 and R35 are PARTIAL.
 No independent reviewer or empirical strategy-eligibility pass is claimed.
 
-### Latest off-host milestone: protected maker context
+### Prior off-host milestone: protected maker context
 
 v11/maker_context.py and MakerResearch.context join existing research quotes to
 protected final-payout inference, exact token/side distances, shared account risk,
@@ -947,3 +947,66 @@ implementation is cancellation/telemetry and runtime interfaces; the next
 owner-only action is the same approved metadata inventory in the authenticated
 owner shell, with only its redacted result returned. No V10 configuration/signal,
 restart, executor, funding or V11 deployment permission is implied.
+
+### Latest continuation: owner inventory handoff and cancellation integration
+
+Recovered checkpoint 6cacd26d86a6d5b1cfc6c631f3c056da6ce4e78e, tree
+7227fee538ebacf68c317a7013156e45211b5653 on the same development branch. Worktree
+was clean, no local project operation or active remote session was found, and no
+work was reset, cleaned or discarded. The full final-reviewed master remains the
+authority; this inventory handoff does not narrow the implementation scope.
+
+The owner completed the metadata inventory at
+/var/tmp/alpha-v10-presuspension-inventory-20260924-01 and reports SHA-256
+b161426cff5b39b262e72a6e8142982dd29fa8a0bf29c9965232edf1ff364bd3,
+status METADATA_INVENTORY_ONLY and all four effect/backup flags false. This
+supersedes the prior instruction to perform that capture: DO NOT repeat it.
+
+Connected inspection independently verified the directory is root:root 0700 and
+not a symlink. Manifest read returned PROTECTED_INVENTORY_ACCESS_DENIED; the
+process completed, exit 0, 0.08 s. Owner-reported hash is recorded, not claimed as
+independently recomputed. No mismatch has been observed. Current full preservation,
+configuration/dependency closure, recovery acceptance and runtime guard remain
+unpassed; SUSPENSION_NOT_READY. V10 health/memory findings remain open and were
+not reclassified as healthy from a metadata-only capture. No host workload was
+added beyond bounded preparation/read-only checks and staging the verifier.
+
+v11/control_inventory_verify.py verifies only saved inventory/COMPLETE bytes and
+metadata, pins this exact hash, checks memory/size/time bounds and returns redacted
+coverage. It does not open the live DB/WAL/SHM or private configuration. Twenty new
+tests / 44 related preservation checks passed in 0.36 s. Prepared helper was
+staged mode 0400 outside V10 at
+/home/alphaadmin/alpha-v11-preservation-prep-20260924/control_inventory_verify.py;
+remote SHA-256 3262f8c398c36594a542c26d3719c55d249979c9297052c1cda94caed0fb0f87
+matched. Staging exited 0 in 0.09 s; the helper was not executed. The exact next
+owner action is the inventory-only verification command in
+V11_CONTROL_SUSPENSION_PLAN.md. No repeated denied sudo route, permission change,
+inventory recapture, temporary guard, manager operation or signal was attempted.
+
+v11/paper_cancellation.py joins existing scoped operator/EVENT cancellation
+requests to a bounded dispatcher and common-paper-account telemetry. A cycle
+issues at most 16 local cancellation requests, with durable per-intent IDs,
+restart recovery and atomic telemetry. PaperCoordinator.transition adds an
+optional transaction-bound cancellation identity check; it cannot authorize an
+opening transition. Reservations persist until account reconciliation proves
+terminal state. Late fills/acks, sticky faults, terminal regression and existing
+inventory remain visible; no public print or attempted request becomes a fill or
+confirmed cancellation. Local elapsed time is explicitly not exchange latency.
+
+29 new cancellation tests / 223 related account/event/evidence/maker/basket/exit
+tests passed in 36.50 s. The initial 43 cancellation/account checks passed in
+3.87 s; added cases test bounded retry, late-fill terminal regression, bounds and
+plan/account races. There were no failed test runs in this continuation. All
+tests are synthetic off-host checks, including explicit downstream economic-
+admission fixtures; no empirical, financial or independent-review acceptance.
+R34/R37/R39 remain PARTIAL. The module shares the paper process and is not a
+commissioned independent guardian or a live transport/credential boundary.
+
+Latest full regression remains 2,894 passed / four existing warnings at f69e318;
+it was not repeated. Total distinct new tests across recorded runs: 727. Completed
+full packages remain 1/50 = 2%. Next off-host work: runtime scheduling and trusted
+source/heartbeat/clock inputs for maker/cancellation, followed by reward economics,
+independent guardian commissioning and ALL remaining matrix/master requirements.
+Next owner-only step: the prepared redacted inventory verifier, not guard
+installation or suspension. No deployment, funding, real order, executor change,
+V10 restart/stop/signal or real-money activation is authorized or performed.

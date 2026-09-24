@@ -30,6 +30,11 @@ UNRESOLVED = {'RESERVED', 'SUBMITTING', 'UNKNOWN', 'ACKNOWLEDGED', 'PARTIAL', 'C
 TERMINAL = {'FILLED', 'CANCELED', 'EXPIRED', 'REJECTED'}
 
 
+def cancel_identity(intent):
+    """Pin managed intent economics while allowing fills/status to advance."""
+    return digest({k:v for k,v in intent.items() if k not in {'status', 'filled_units', 'cancel_requested'}})
+
+
 @dataclass(frozen=True)
 class PaperAccountPolicy:
     policy_version: str
@@ -462,10 +467,15 @@ class PaperCoordinator:
                             evidence_ids=tuple(dict.fromkeys(references)),
                             heads=tuple((k, e, n) for (k, e), n in guards.items()))
 
-    def transition(self, command_id: str, *, intent_id: str, status: str) -> dict:
+    def transition(self, command_id: str, *, intent_id: str, status: str, expected_cancel_identity: str | None = None) -> dict:
         if status not in {'SUBMITTING', 'UNKNOWN', 'ACKNOWLEDGED', 'CANCEL_REQUESTED'}:
             raise EvidenceError('NONTERMINAL_RESEARCH_TRANSITION_REQUIRED')
         request = dict(action='TRANSITION', intent_id=intent_id, status=status)
+        if expected_cancel_identity is not None:
+            if (status != 'CANCEL_REQUESTED' or not isinstance(expected_cancel_identity, str)
+                    or len(expected_cancel_identity) != 64 or any(c not in '0123456789abcdef' for c in expected_cancel_identity)):
+                raise EvidenceError('CANCEL_IDENTITY_PIN_ONLY_FOR_CANCELLATION')
+            request['expected_cancel_identity'] = expected_cancel_identity
         replay = self._replay(command_id, request)
         if replay:
             return replay
@@ -473,6 +483,8 @@ class PaperCoordinator:
         intent = state['intents'].get(intent_id)
         if intent is None or intent['status'] not in UNRESOLVED:
             raise EvidenceError('UNRESOLVED_INTENT_REQUIRED')
+        if expected_cancel_identity is not None and cancel_identity(intent) != expected_cancel_identity:
+            raise EvidenceError('PAPER_CANCEL_MANAGED_IDENTITY_CHANGED')
         if status == 'SUBMITTING' and intent['status'] != 'RESERVED':
             raise EvidenceError('AMBIGUOUS_SUBMISSION_CANNOT_BE_RETRIED_AS_NEW')
         if status in {'UNKNOWN', 'ACKNOWLEDGED'} and intent['status'] == 'RESERVED':
