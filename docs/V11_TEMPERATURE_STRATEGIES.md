@@ -1,4 +1,4 @@
-# V11 forecast and same-day strategy integration
+# V11 temperature strategy integration
 
 `v11/strategy_pipeline.py` connects archived temperature inputs, protected
 strategy admission, immutable model bundles, event state and executable
@@ -11,6 +11,10 @@ day, an exact source-population observation constraint and a partition covering
 the entire unresolved day, including elapsed observation gaps. Next-observation
 models cannot enter either payout path. An observation is conditional on its
 received revision; it does not establish finality or an executable early exit.
+
+PWS_OBSERVATION_LEAD uses the same exact remaining-day payout route, with a
+mandatory paired observation/payout admission pin. Its separate next-observation
+model cannot substitute for payout. See `V11_PWS_OBSERVATION_LEAD.md`.
 
 Model members and target identities are reconstructed from referenced archive
 records. Every model input needs an admission source lease. Bias, smoothing and

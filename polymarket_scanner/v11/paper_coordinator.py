@@ -70,6 +70,7 @@ class Proposal:
     expires_at: float
     desired_total_units: str
     admission_ids: tuple[str, ...]
+    preconfirmation_id: str | None = None
 
     def __post_init__(self):
         for v in (self.proposal_id, self.thesis_id, self.valuation_id, self.event_state_id):
@@ -83,6 +84,8 @@ class Proposal:
             raise EvidenceError('SCOPED_STRATEGY_ADMISSION_REQUIRED')
         for key in self.admission_ids:
             identity(key)
+        if self.preconfirmation_id is not None:
+            identity(self.preconfirmation_id)
         if self.context.event_id != self.rule.payload['event_id'] or self.context.station_id != self.rule.payload['station']:
             raise EvidenceError('PROPOSAL_RULE_CONTEXT')
 
@@ -189,6 +192,32 @@ class PaperCoordinator:
         row = self._head()
         return self._risk(self._state(row))
 
+    def _preconfirmation(self, key, *, strategies, context, rule, binding, admissions):
+        if 'PWS_OBSERVATION_LEAD' not in strategies:
+            if key is not None:
+                raise EvidenceError('PWS_PRECONFIRMATION_ATTRIBUTION_REQUIRED')
+            return None
+        if key is None:
+            raise EvidenceError('PWS_SEPARATE_OBSERVATION_AND_ECONOMICS_PIN_REQUIRED')
+        from .pws_admission import PWSPreconfirmation
+        return PWSPreconfirmation(self.store).revalidate(key, context=context, rule=rule,
+                    binding=binding, payout_admission_ids=admissions)
+
+    def _current_book_heads(self, value, event_id):
+        # Guard the head read before inspecting the exact latest source. A new
+        # book racing the account commit requires a new valuation, not reuse.
+        head = self.store.latest(kind='BOOK', event_id=event_id)
+        row = self.store.get(value['book']['book_id']); b = row['body']
+        latest = self.store.latest_source(kind='BOOK', event_id=event_id,
+                                          provider=b['provider'], source_identity=b['source_identity'])
+        now = finite(self.store.clock()); age = value['policy']['max_book_age_seconds']
+        if (row['kind'] != 'BOOK' or row['event_id'] != event_id or row['sha256'] != value['book']['book_sha256']
+                or not latest or latest['id'] != row['id'] or b['payload'].get('stream_healthy') is not True
+                or b['observed_at'] is None or b['available_at'] > now
+                or not 0 <= now-b['observed_at'] < age or not 0 <= now-b['received_at'] < age):
+            raise EvidenceError('CURRENT_EXACT_BOOK_REVALUATION_REQUIRED')
+        return (('BOOK', event_id, head['seq'] if head else 0),)
+
     @precise
     def _prepare(self, proposal, now):
         if proposal.context.account_id != self.policy.account_id:
@@ -221,6 +250,11 @@ class PaperCoordinator:
             raise EvidenceError('EVERY_ATTRIBUTED_STRATEGY_REQUIRES_SCOPED_ADMISSION')
         for admission in admissions:
             heads += tuple(tuple(h) for h in admission['heads'])
+        preconfirmation = self._preconfirmation(proposal.preconfirmation_id, strategies=strategies,
+                     context=proposal.context, rule=proposal.rule, binding=value['binding'], admissions=proposal.admission_ids)
+        if preconfirmation is not None:
+            heads += tuple(tuple(h) for h in preconfirmation['heads'])
+        heads += self._current_book_heads(value, proposal.context.event_id)
         if value['valuation_type'] == 'SETTLEMENT' and value['outcome'] == 'ACCEPT_RESEARCH':
             direction, ev, cost_rows = 'BUY', value['conservative_ev_per_share'], value['costs']
         elif value['valuation_type'] == 'EXIT_COMPARISON' and value['outcome'] == 'REDUCE_RESEARCH_CANDIDATE':
@@ -237,6 +271,8 @@ class PaperCoordinator:
             raise EvidenceError('EVENT_OR_OPERATOR_SUPPRESSES_NEW_RISK')
         quantity = number(value['units'])
         model_size = min(Decimal(str(a['model_size_multiplier'])) for a in admissions)
+        if preconfirmation is not None:
+            model_size = min(model_size, Decimal(str(preconfirmation['model_size_multiplier'])))
         if quantity > number(self.limits.max_position_units)*Decimal(str(event['guard']['size_multiplier']))*model_size:
             raise EvidenceError('EVENT_STATE_SIZE_LIMIT')
         minimum_ev = self.policy_amount('minimum_ev_per_share')+Decimal(str(event['guard']['additional_ev_per_share']))
@@ -251,6 +287,8 @@ class PaperCoordinator:
                      event['guard']['lifetime_multiplier'], event['valid_until'], bound_at,
                      book['body']['observed_at']+book_age, book['body']['received_at']+book_age)
         expiry = min(expiry, *(a['valid_until'] for a in admissions))
+        if preconfirmation is not None:
+            expiry = min(expiry, preconfirmation['valid_until'])
         if queue['valid_until'] is not None:
             expiry = min(expiry, queue['valid_until'])
         if not value['as_of'] <= now < expiry:
@@ -276,6 +314,7 @@ class PaperCoordinator:
                          attribution=[asdict(a) for a in proposal.attribution], expires_at=expiry,
                          valuation_id=proposal.valuation_id, event_state_id=proposal.event_state_id,
                          admission_ids=list(proposal.admission_ids), binding=value['binding'],
+                         preconfirmation_id=proposal.preconfirmation_id,
                          event_queue_completion_id=queue['completion_id'],
                          rule_fingerprint=proposal.rule.sha256, conservative_ev_total=str(number(ev)*quantity),
                          capital_at_risk=str(capital), status='RESERVED', cancel_requested=False, financial_authority=False)
@@ -395,6 +434,12 @@ class PaperCoordinator:
                 admission = StrategyAdmission(self.store).revalidate(key, context=context, rule=rule,
                               binding=intent['binding'], strategies=strategies)
                 heads += tuple(tuple(h) for h in admission['heads'])
+            preconfirmation = self._preconfirmation(intent.get('preconfirmation_id'), strategies=strategies,
+                         context=context, rule=rule, binding=intent['binding'], admissions=tuple(intent['admission_ids']))
+            if preconfirmation is not None:
+                heads += tuple(tuple(h) for h in preconfirmation['heads'])
+            value = self.store.get(intent['valuation_id'])['body']['details']
+            heads += self._current_book_heads(value, intent['event_id'])
             # Shared station/source scopes may be referenced by several sleeves.
             unique = {}
             for kind, event_id, seq in heads:

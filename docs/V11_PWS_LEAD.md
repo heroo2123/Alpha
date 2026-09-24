@@ -37,9 +37,13 @@ missing/late/proxy labels and harmful PWS forecasts. Together with existing
 probability, artifact, QC and strategy tests, 119 focused checks pass. The prior
 full regression remains 2,739 passed; this isolated module adds 18 passing checks.
 
+The separate economic integration is documented in `V11_PWS_OBSERVATION_LEAD.md`.
+It joins separately reviewed observation/payout scopes and common paper gates;
+the research record itself still creates no reservation or authority.
+
 Remaining work includes reviewed raw-to-inference/official-report adapters,
 causal lead/lag training and independent label/continuity evidence, station/regime
 out-of-sample validation and demotion, separately approved observation and payout
-champions, common paper proposal integration and executable-proceeds validation.
+champions, runtime acceptance and executable-proceeds validation.
 Observation evidence alone cannot qualify the economic route. No actual PWS
 advantage, calibrated model, eligible paper entry or live readiness is claimed.
