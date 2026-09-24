@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import asdict, dataclass
-from decimal import Decimal, localcontext, ROUND_FLOOR
+from decimal import Decimal, localcontext
 
 from .allocation import rank_candidates
 from .basket_coordinator import BasketProposal
@@ -21,6 +21,7 @@ from .scenario_risk import (Attribution, Position, PendingOrder, CorrelationMap,
 from .valuation import VERSION as EV_VERSION, contract_target
 from .strategy_admission import StrategyAdmission
 from .event_queue import admission_heads as event_queue_admission
+from .position_attribution import intent_lineage, consume_lots
 
 
 VERSION = 'alpha_v11_paper_coordinator_v1'
@@ -288,6 +289,8 @@ class PaperCoordinator:
             direction, ev, cost_rows = 'BUY', value['conservative_ev_per_share'], value['costs']
         elif value['valuation_type'] == 'EXIT_COMPARISON' and value['outcome'] == 'REDUCE_RESEARCH_CANDIDATE':
             direction, ev, cost_rows = 'SELL', value['sale_advantage_per_share'], value['sale_costs']
+            from .position_management import revalidate_exit
+            heads += revalidate_exit(self, proposal, value)
         else:
             raise EvidenceError('PROPOSAL_ECONOMICS_NOT_QUALIFIED')
         target = contract_target(proposal.rule, value['target']['market_id'], value['target']['side'])
@@ -417,6 +420,15 @@ class PaperCoordinator:
                         p['token_id'] == leg['token_id'] and p['direction'] != leg['direction'] and p['status'] in UNRESOLVED
                         for p in state['intents'].values()):
                     reason = 'BASKET_OPPOSING_PENDING_INTENT_REQUIRES_REPLAN'
+            if reason is None and candidate['direction'] == 'SELL':
+                # A different candidate in this same batch may already have
+                # reserved a hedge. Recompute against the proposed account state,
+                # not just the pre-batch inventory used during ranking.
+                try:
+                    from .position_management import revalidate_exit
+                    revalidate_exit(self, proposal, self.store.get(proposal.valuation_id)['body']['details'], state=test)
+                except EvidenceError as exc:
+                    reason = str(exc)
             if reason is None:
                 test['rules'][event] = asdict(proposal.rule)
                 test['contexts'][event] = asdict(proposal.context)
@@ -502,6 +514,14 @@ class PaperCoordinator:
             if release is not None:
                 heads += tuple(tuple(h) for h in release['heads'])
             heads += self._current_book_heads(value, intent['event_id'])
+            if intent['direction'] == 'SELL':
+                from .position_management import revalidate_exit
+                proposal = Proposal(intent['proposal_id'], intent['thesis_id'], context, rule,
+                        intent['valuation_id'], intent['event_state_id'],
+                        tuple(Attribution(**a) for a in intent['attribution']), intent['expires_at'],
+                        intent['desired_total_units'], tuple(intent['admission_ids']),
+                        intent.get('preconfirmation_id'), intent.get('source_release_id'))
+                heads += revalidate_exit(self, proposal, value, state=state, own_intent_id=intent['proposal_id'])
             # Shared station/source scopes may be referenced by several sleeves.
             unique = {}
             for kind, event_id, seq in heads:
@@ -569,31 +589,23 @@ class PaperCoordinator:
             if intent['direction'] == 'BUY':
                 state['cash'] = str(number(state['cash'], signed=True)-collateral)
                 state['lots'][fill_id] = dict(lot_id=fill_id, token_id=intent['token_id'], event_id=event,
-                                             units=str(quantity), all_in_cost_basis=str(collateral), attribution=intent['attribution'])
+                                             units=str(quantity), all_in_cost_basis=str(collateral), attribution=intent['attribution'],
+                                             entry=intent_lineage(self.store, intent), acquired_sequence=proof['seq'])
                 if collateral > quantity*number(intent['unit_collateral_bound']):
                     state['faults'].append('ACTUAL_PAPER_COST_EXCEEDED_RESERVED_BOUND')
             else:
                 held = sum(number(p['units']) for p in state['lots'].values() if p['token_id'] == intent['token_id'])
                 if quantity > held:
                     raise EvidenceError('PAPER_SALE_EXCEEDS_ACTUAL_HELD_INVENTORY')
-                todo, basis = quantity, Decimal(0)
-                for lot_id, lot in list(state['lots'].items()):
-                    if lot['token_id'] != intent['token_id'] or todo == 0:
-                        continue
-                    units, cost = number(lot['units']), number(lot['all_in_cost_basis'])
-                    take = min(todo, units)
-                    # Keep rounding residue in the surviving lot; taking the last
-                    # unit removes its exact remaining basis, conserving total cost.
-                    allocated = cost if take == units else (cost*take/units).quantize(Decimal('1e-18'), rounding=ROUND_FLOOR)
-                    basis += allocated; todo -= take
-                    if take == units:
-                        del state['lots'][lot_id]
-                    else:
-                        lot.update(units=str(units-take), all_in_cost_basis=str(cost-allocated))
+                basis, allocations = consume_lots(state['lots'], token_id=intent['token_id'],
+                                                   quantity=quantity, net_proceeds=collateral)
                 state['cash'] = str(number(state['cash'], signed=True)+collateral)
                 pnl = collateral-basis
                 state['event_realized_pnl'][event] = str(number(state['event_realized_pnl'].get(event, '0'), signed=True)+pnl)
-                state['realized_entries'].append(dict(fill_id=fill_id, event_id=event, pnl=str(pnl), at=finite(self.store.clock())))
+                state['realized_entries'].append(dict(fill_id=fill_id, event_id=event, pnl=str(pnl), at=finite(self.store.clock()),
+                          exit=intent_lineage(self.store, intent), allocations=allocations,
+                          attribution_basis='ENTRY_LOTS_PARTITION_ONE_REALIZED_RESULT',
+                          exit_attribution_is_decision_metadata_not_extra_pnl=True))
                 if collateral < quantity*number(intent['unit_collateral_bound']):
                     state['faults'].append('ACTUAL_PAPER_SALE_BELOW_RESERVED_BOUND')
             intent['filled_units'] = str(number(intent['filled_units'])+quantity)

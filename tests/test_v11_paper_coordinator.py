@@ -8,6 +8,7 @@ from polymarket_scanner.v11.evidence import EvidenceError, EvidenceStore, Releas
 from polymarket_scanner.v11.event_risk import EventContext, EventRiskEngine, SafetyReductions
 from polymarket_scanner.v11.paper_coordinator import PaperAccountPolicy, PaperCoordinator, Proposal
 from polymarket_scanner.v11.strategy_admission import StrategyAdmission
+from polymarket_scanner.v11 import position_management
 from polymarket_scanner.v11.scenario_risk import Attribution
 from polymarket_scanner.v11.valuation import ValuationPolicy, settlement_entry, compare_hold_sale, contract_target, HOLD_RISKS, SALE_RISKS, SALE
 from test_v11_event_risk import policy as event_policy, metrics
@@ -29,6 +30,10 @@ def rig(tmp_path, monkeypatch):
         return dict(strategy='fixture', heads=[], model_size_multiplier=1., valid_until=now[0]+60,
                     admission_id=record_id, financial_authority=False)
     monkeypatch.setattr(StrategyAdmission, 'revalidate', fixture_admission)
+    # These synthetic downstream mechanics fixtures bypass model/exit admission.
+    # test_v11_position_management exercises the real protected inference,
+    # actual inventory and joint exit gate without either admission stub.
+    monkeypatch.setattr(position_management, 'revalidate_exit', lambda *a, **kw: ())
     r = rule()
     corr = mapping(r)
     p = PaperAccountPolicy('fixture-1', 'account', 'FIXTURE_COLLATERAL', '10', '10', '10', '10', '.01', '0', 60., 10)
