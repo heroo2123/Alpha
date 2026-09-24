@@ -16,13 +16,24 @@ from .model_artifacts import ArtifactStore, MAX_BYTES, PinnedBundle, parse_data
 
 
 STATE_PATH=Path('/var/lib/alpha-v11/model-authority/state.json')
+SCOPED_STATE_ROOT=Path('/var/lib/alpha-v11/model-authority/scopes')
 OBJECT_ROOT=Path('/var/lib/alpha-v11/model-authority/objects')
 
 
-def protected_state() -> dict:
+def state_path(*, scope_key: str | None = None, mode: str | None = None) -> Path:
+    if scope_key is None and mode is None:
+        return STATE_PATH  # Explicit legacy inspection only; inference never falls back here.
+    sha(scope_key)
+    if mode not in {'V11_PAPER','V11_SHADOW'}:
+        raise EvidenceError('MODEL_STATE_SLOT_NONFINANCIAL_MODE_REQUIRED')
+    return SCOPED_STATE_ROOT / mode / (scope_key+'.json')
+
+
+def protected_state(*, scope_key: str | None = None, mode: str | None = None) -> dict:
+    path=state_path(scope_key=scope_key,mode=mode)
     try:
-        before=_root_custody(STATE_PATH)
-        fd=os.open(STATE_PATH,os.O_RDONLY|os.O_NOFOLLOW)
+        before=_root_custody(path)
+        fd=os.open(path,os.O_RDONLY|os.O_NOFOLLOW)
         with os.fdopen(fd,'rb') as stream:
             after=os.fstat(stream.fileno())
             if (before.st_dev,before.st_ino)!=(after.st_dev,after.st_ino):
@@ -35,6 +46,8 @@ def protected_state() -> dict:
         if set(envelope)!={'state','sha256'} or digest(envelope['state'])!=envelope['sha256']:
             raise EvidenceError('MODEL_STATE_INTEGRITY')
         value=envelope['state']
+        if scope_key is not None and (value.get('scope_key')!=scope_key or value.get('mode')!=mode):
+            raise EvidenceError('MODEL_STATE_SLOT_IDENTITY_MISMATCH')
         if (value.get('version')!='alpha_v11_model_authority_v1' or value.get('financial_authority') is not False
                 or value.get('mode') not in {'V11_PAPER','V11_SHADOW'}
                 or type(value.get('epoch')) is not int or not 1<=value['epoch']<=1000
@@ -98,7 +111,7 @@ class DecisionModelPin:
 
 class ActiveModelRegistry:
     def pin(self, *, scope_key: str, mode: str) -> DecisionModelPin:
-        envelope=protected_state()
+        envelope=protected_state(scope_key=scope_key,mode=mode)
         state=envelope['state']
         if state['scope_key']!=scope_key or state['mode']!=mode:
             raise EvidenceError('MODEL_SCOPE_OR_LEDGER_MISMATCH')
@@ -112,7 +125,7 @@ class ActiveModelRegistry:
                                  overlay['size_multiplier'],overlay['require_manual_review'])
 
     def revalidate(self, pinned: DecisionModelPin) -> dict:
-        envelope=protected_state()
+        envelope=protected_state(scope_key=pinned.scope_key,mode=pinned.mode)
         state=envelope['state']
         matched=(envelope['sha256']==pinned.state_sha256 and state['epoch']==pinned.epoch
                  and state['active_bundle_sha256']==pinned.bundle.sha256

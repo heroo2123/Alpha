@@ -84,7 +84,7 @@ def factory(setup, bundle, monkeypatch):
         now[0] += .01  # Inference starts after source/feature archival, not at its exact clock tick.
         approve_fixture(monkeypatch, (store, registry, scope, metadata, now), stage='PAPER', fingerprint=r.sha256)
         state = [promote(bundle, authority.empty_state(scope.key, 'V11_PAPER'))]
-        monkeypatch.setattr(model_registry, 'protected_state', lambda:{'state':state[0], 'sha256':digest(state[0])})
+        monkeypatch.setattr(model_registry, 'protected_state', lambda **kwargs:{'state':state[0], 'sha256':digest(state[0])})
         monkeypatch.setattr(model_registry, 'ApprovedArtifactReader', lambda:bundle[0])
         admission_kw = dict(context=context, scope=scope, rule=r, binding=binding, stage='PAPER',
                             rule_max_age_seconds=120., source_leases=tuple(leases))

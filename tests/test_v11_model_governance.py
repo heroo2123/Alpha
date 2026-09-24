@@ -136,7 +136,7 @@ def test_missing_owner_commissioned_state_and_writable_parent_fail(tmp_path,monk
 
 def test_runtime_pins_one_epoch_and_revalidates_after_change(bundle,monkeypatch):
     state=[promote(bundle)]
-    monkeypatch.setattr(registry,'protected_state',lambda:{'state':state[0],'sha256':digest(state[0])})
+    monkeypatch.setattr(registry,'protected_state',lambda **kwargs:{'state':state[0],'sha256':digest(state[0])})
     monkeypatch.setattr(registry,'ApprovedArtifactReader',lambda:bundle[0])
     active=registry.ActiveModelRegistry()
     pinned=active.pin(scope_key='1'*64,mode='V11_PAPER')

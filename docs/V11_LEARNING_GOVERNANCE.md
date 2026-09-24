@@ -30,8 +30,23 @@ recovery; time passing is not recovery. Review IDs cannot be reused.
 The fixed paths are:
 
 - `/etc/alpha-v11/approvals/model-bundles.json`
-- `/var/lib/alpha-v11/model-authority/state.json`
+- `/var/lib/alpha-v11/model-authority/scopes/V11_PAPER/<scope-sha256>.json`
+- `/var/lib/alpha-v11/model-authority/scopes/V11_SHADOW/<scope-sha256>.json`
 - `/var/lib/alpha-v11/model-authority/objects/`
+
+Inference selects the exact scope and nonfinancial mode. Distinct observation
+and payout champions can coexist under separately reviewed scopes. A missing
+slot remains gated; inference never falls back to a singleton or another scope.
+The embedded scope and mode must match the selected path. Demotion or promotion
+of one slot cannot refresh or replace another slot's epoch or decision pin.
+
+The standalone publisher uses the same `--scope-key` and `--mode` selectors.
+Each slot and its protected parent directories must already be provisioned under
+reviewed host custody; this helper does not initialize, migrate or relabel them.
+The mode-directory lock serializes publishers and each complete slot changes by
+atomic rename. The legacy `/var/lib/alpha-v11/model-authority/state.json` remains
+available only through explicit unscoped inspection/maintenance calls. No active
+inference path uses it, and no legacy state is automatically migrated.
 
 No installer, initial state, approval or service has been applied to alpha-dev.
 The helper itself must be independently reviewed and installed under protected

@@ -21,7 +21,7 @@ def admission(setup, bundle, monkeypatch):
     updated = (store, registry, scope, metadata, now)
     manifest = approve_fixture(monkeypatch, updated, stage='PAPER', fingerprint=rule.sha256)
     state = [promote(bundle, authority.empty_state(scope.key, 'V11_PAPER'))]
-    monkeypatch.setattr(model_registry, 'protected_state', lambda: {'state': state[0], 'sha256': digest(state[0])})
+    monkeypatch.setattr(model_registry, 'protected_state', lambda **kwargs: {'state': state[0], 'sha256': digest(state[0])})
     monkeypatch.setattr(model_registry, 'ApprovedArtifactReader', lambda: bundle[0])
     payload = {k: rule.payload[k] for k in ('station', 'target_date', 'family', 'unit')}
     store.capture('model', event_id=rule.payload['event_id'], kind='MODEL', provider='fixture',

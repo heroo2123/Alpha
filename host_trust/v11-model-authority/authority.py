@@ -20,6 +20,7 @@ import time
 
 APPROVALS = Path('/etc/alpha-v11/approvals/model-bundles.json')
 STATE = Path('/var/lib/alpha-v11/model-authority/state.json')
+SCOPED_STATE_ROOT = Path('/var/lib/alpha-v11/model-authority/scopes')
 OBJECTS = Path('/var/lib/alpha-v11/model-authority/objects')
 VERSION = 'alpha_v11_model_authority_v1'
 MAX_BYTES = 1024*1024
@@ -219,20 +220,33 @@ def transition(state, *, action, expected_state_sha256, now, reason, review=None
     return result
 
 
-def publish(*, action, expected_state_sha256, reason, review_id=None, requested_bundle=None, size_multiplier=None):
+def state_path(*, scope_key=None, mode=None):
+    if scope_key is None and mode is None:
+        return STATE  # Explicit legacy maintenance; no implicit scoped fallback.
+    _sha(scope_key)
+    if mode not in {'V11_PAPER','V11_SHADOW'}:
+        raise AuthorityError('MODEL_STATE_SLOT_NONFINANCIAL_MODE_REQUIRED')
+    return SCOPED_STATE_ROOT / mode / (scope_key+'.json')
+
+
+def publish(*, action, expected_state_sha256, reason, review_id=None, requested_bundle=None, size_multiplier=None,
+            scope_key=None, mode=None):
     if os.geteuid()!=0:
         raise AuthorityError('SEPARATE_ROOT_AUTHORITY_REQUIRED')
-    custody(STATE.parent,directory=True)
-    lock=STATE.parent/'authority.lock'
+    path=state_path(scope_key=scope_key,mode=mode)
+    custody(path.parent,directory=True)
+    lock=path.parent/'authority.lock'
     fd=os.open(lock,os.O_RDWR|os.O_CREAT|os.O_NOFOLLOW,0o600)
     try:
         info=os.fstat(fd)
         if not stat.S_ISREG(info.st_mode) or info.st_uid!=0 or info.st_mode & 0o077:
             raise AuthorityError('MODEL_AUTHORITY_LOCK_CUSTODY')
         fcntl.flock(fd,fcntl.LOCK_EX|fcntl.LOCK_NB)
-        envelope=read_protected(STATE)
+        envelope=read_protected(path)
         if set(envelope)!={'state','sha256'} or digest(envelope['state'])!=envelope['sha256']:
             raise AuthorityError('MODEL_STATE_ENVELOPE_INTEGRITY')
+        if scope_key is not None and (envelope['state'].get('scope_key')!=scope_key or envelope['state'].get('mode')!=mode):
+            raise AuthorityError('MODEL_STATE_SLOT_IDENTITY_MISMATCH')
         review=None
         if action!='DEMOTE':
             approvals=read_protected(APPROVALS)
@@ -256,8 +270,8 @@ def publish(*, action, expected_state_sha256, reason, review_id=None, requested_
                           now=time.time(),reason=reason,review=review,requested_bundle=requested_bundle,
                           size_multiplier=size_multiplier)
         raw=canonical({'state':result,'sha256':digest(result)}).encode()
-        previous=custody(STATE)
-        out,temp=tempfile.mkstemp(prefix='model-state-',dir=STATE.parent)
+        previous=custody(path)
+        out,temp=tempfile.mkstemp(prefix='model-state-',dir=path.parent)
         try:
             with os.fdopen(out,'wb') as stream:
                 stream.write(raw)
@@ -266,8 +280,8 @@ def publish(*, action, expected_state_sha256, reason, review_id=None, requested_
                 os.fchmod(stream.fileno(),previous.st_mode & 0o660 & ~0o022)
                 os.fsync(stream.fileno())
             # Pointer, epoch, overlay and complete history commit in one rename.
-            os.replace(temp,STATE)
-            directory=os.open(STATE.parent,os.O_DIRECTORY)
+            os.replace(temp,path)
+            directory=os.open(path.parent,os.O_DIRECTORY)
             try:
                 os.fsync(directory)
             finally:
@@ -287,9 +301,12 @@ def main():
     parser.add_argument('--review-id')
     parser.add_argument('--bundle')
     parser.add_argument('--size-multiplier',type=float)
+    parser.add_argument('--scope-key')
+    parser.add_argument('--mode',choices=['V11_PAPER','V11_SHADOW'])
     args=parser.parse_args()
     result=publish(action=args.action,expected_state_sha256=args.expected_state_sha256,reason=args.reason,
-                   review_id=args.review_id,requested_bundle=args.bundle,size_multiplier=args.size_multiplier)
+                   review_id=args.review_id,requested_bundle=args.bundle,size_multiplier=args.size_multiplier,
+                   scope_key=args.scope_key,mode=args.mode)
     print(canonical(result))
 
 
