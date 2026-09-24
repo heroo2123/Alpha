@@ -1,13 +1,13 @@
 # Alpha V11 work checkpoint
 
-Updated 2026-09-24, 09:21 UTC. Resume here. **NOT_READY_TO_FUND**.
+Updated 2026-09-24, 09:33 UTC. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
 
 ## Exact identities and scope
 
 - Branch: `weather-v11-profitability-upgrade-2026-09-23`.
-- Last verified implementation HEAD: `d4b82e2fea4b0fc28266261176c154f0329303a9`.
-- Last verified implementation tree: `024bc9497281796a7d17656d56774be7de23a267`.
+- Last verified implementation HEAD: `dd1e85706eb0a26c9bb8aef1317cb635a791b920`.
+- Last verified implementation tree: `8bf30057a39e8690d457e531b781b953a2476878`.
 - Worktree at verification: clean; local and published implementation trees match.
 - This following checkpoint commit changes documentation only. Resolve its own
   exact commit with `git log -1 --format=%H -- docs/V11_WORK_CHECKPOINT.md`, and its
@@ -627,6 +627,26 @@ unit's 25-second stop timeout and SendSIGKILL=yes make an ordinary stop unsuitab
 under the no-force-kill constraint without a separately reviewed plan. No such
 stop is authorized. R00 remains PARTIAL; fixed package completion stays 1/50.
 
+## Whole-event discovery milestone
+
+Published `v11/relative_value.py`, its tests and `docs/V11_RELATIVE_VALUE.md`.
+Discovery reuses protected model/source pins and exact joint valuation for
+individual price gaps, adjacent pairs, exhaustive YES/NO sets and complements.
+Quotes are not normalized as probabilities and point-price gaps are not calibrated
+alpha. Partial data, missing fees and incomplete vectors retain explicit gates.
+Bounded candidates have exact event-queue result IDs and enter the same paper
+account. Interrupted evaluations reuse saved values/candidates without refreshing
+inference or expiry. No account mutation occurs in discovery itself.
+
+**12 new tests and 92 related checks passed in 22.85 s.** The incomplete-vector
+handling was corrected to a durable GATED result during focused verification.
+Latest full regression remains 2,851 passing tests at the shared-account change;
+the additive probe/discovery modules have their own passing checks. Basket account
+CI run `35980156386` completed successfully at `3e84ca3822b5925dc30c502d18eec5dd68e5f56e`.
+No test remains running. Fixed full-package completion remains **1/50 = 2%**.
+The V10 owner-only freshness read, host pressure and all deployment/financial
+safeguards remain as described above; off-host work continues independently.
+
 ## Models, authority and exact continuation
 
 - No V11 live/paper/control/challenger ledger is shared or migrated.
@@ -641,9 +661,9 @@ admission/coordinator path. Separately scoped protected model state slots are
 implemented and locally verified. PWS observation/payout pins and common economics
 are now integrated and locally verified. Received observation/revision reaction
 with stronger directional EVENT checks is also integrated. Joint basket valuation, protected admission, atomic multi-leg reservation and
-per-leg reconciliation are implemented and locally verified. Next implement
-bounded whole-event discrepancy discovery and its strategy evidence/funnel path,
-then the remaining result-lag finality gates and active position management,
+per-leg reconciliation are implemented and locally verified. Bounded whole-event discovery and its evidence/funnel/queue path are now
+implemented and locally verified. Next inspect remaining result-lag exact-finality
+dependencies and continue active position management,
 then continue the remaining strategies and master phases. PWS paired research and
 queue-fault propagation are implemented and locally verified. Bounded source-event routing
 and forecast/same-day evaluation are implemented and locally verified; provider
