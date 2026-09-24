@@ -1,13 +1,13 @@
 # Alpha V11 work checkpoint
 
-Updated 2026-09-24, 09:05 UTC. Resume here. **NOT_READY_TO_FUND**.
+Updated 2026-09-24, 09:21 UTC. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
 
 ## Exact identities and scope
 
 - Branch: `weather-v11-profitability-upgrade-2026-09-23`.
-- Last verified implementation HEAD: `ae08fea05e66a1b5bdfeed937ddf6b6c35209703`.
-- Last verified implementation tree: `25ba87b94797c8af1f1f6606e4afd7d6e1854b51`.
+- Last verified implementation HEAD: `d4b82e2fea4b0fc28266261176c154f0329303a9`.
+- Last verified implementation tree: `024bc9497281796a7d17656d56774be7de23a267`.
 - Worktree at verification: clean; local and published implementation trees match.
 - This following checkpoint commit changes documentation only. Resolve its own
   exact commit with `git log -1 --format=%H -- docs/V11_WORK_CHECKPOINT.md`, and its
@@ -550,7 +550,10 @@ bounded compressed-capture verification and explicitly limited runtime context.
 | PWS integration full regression | **2,787 passed; four existing warnings; 82.56 s** |
 | PWS integration CI 35941229234 at d0f7c73 | completed successfully |
 | Received-source release integration | **21 new checks; 138 related checks passed, 12.54 s** |
-| Latest full off-host regression | **2,808 passed; four existing warnings; 85.26 s** |
+| Source-release full off-host regression | **2,808 passed; four existing warnings; 85.26 s** |
+| Basket common-account integration | **24 new tests; 125 related checks passed, 17.72 s** |
+| Latest full off-host regression | **2,851 passed; four existing warnings; 125.91 s** |
+| Subsequent standalone read-only control probe | **7 tests passed, 0.07 s** |
 
 Tests used an isolated off-host environment installed from hash-locked dev
 requirements. Four warnings are pre-existing FastAPI lifecycle deprecations.
@@ -588,6 +591,42 @@ prior source-release implementation. It was not duplicated for an additive modul
 No tests remain running. R29/R30 are PARTIAL; completion remains **1/50 = 2%**.
 No independent review or empirical/runtime acceptance is claimed.
 
+## Atomic basket account and bounded control-health milestones
+
+Published basket integration `3e84ca3822b5925dc30c502d18eec5dd68e5f56e`, tree
+`aff30d127c98de32e194df86299b46caf6f8ece8`. Joint basket and single-token proposals
+now share ranking, cash, scenario limits and the account CAS. All legs reserve
+atomically. Protected bundle/input reproduction, scoped review, source/book/event
+revalidation and aggregate limit-price EV are mandatory. Fills, cancel requests,
+terminal reconciliation and restart ambiguity remain leg-specific; unfilled hedge
+risk and inventory basis persist. Fully filled baskets never become invented
+payout, realized P&L or redeemed cash. 24 new tests / 125 related checks passed;
+full regression **2,851 passed, four existing warnings, 125.91 s**. No tests remain
+running. This is local code verification, not full package or strategy acceptance.
+
+The user's bounded V10 operational assessment was carried out with read-only
+samples on September 24 at 09:12:44 and 09:14:17 UTC. Memory remained 454,397,952
+bytes against MemoryHigh 419,430,400 bytes. The high-event counter increased by
+3,672; full memory PSI avg60 was approximately 75.4–75.9%. V10 was active with zero
+restarts, but its process was in D state. Host headroom does not pass the isolation
+requirement. Executor remains MASKED/INACTIVE and controller INACTIVE.
+
+Current status/database/WAL/SHM reads and journals remain inaccessible to the
+development user. Current fresh successful cycles and useful forward-control
+evidence are UNVERIFIED. Snapshot history is preserved; it is not a current health
+pass. A bounded redacted probe is prepared, with seven passing tests. The connected
+tool rejected the privileged invocation as **Command not allowed**; no workaround
+was attempted. One owner-only read action, exact prepared path/hash/command and
+preservation boundaries are in `docs/V11_CONTROL_HEALTH_ASSESSMENT.md`.
+
+Recommendation: obtain that read-only evidence, leave V10 unchanged, continue
+independent off-host implementation. No otherwise-ready V11 deployment is waiting
+only for V10's resources. No suspension, restart, duplicate snapshot capture,
+permission/resource weakening or V11 host workload was performed. The existing
+unit's 25-second stop timeout and SendSIGKILL=yes make an ordinary stop unsuitable
+under the no-force-kill constraint without a separately reviewed plan. No such
+stop is authorized. R00 remains PARTIAL; fixed package completion stays 1/50.
+
 ## Models, authority and exact continuation
 
 - No V11 live/paper/control/challenger ledger is shared or migrated.
@@ -601,9 +640,10 @@ Next engineering action: continue Phase 6 strategy migration through the shared
 admission/coordinator path. Separately scoped protected model state slots are
 implemented and locally verified. PWS observation/payout pins and common economics
 are now integrated and locally verified. Received observation/revision reaction
-with stronger directional EVENT checks is also integrated. Joint basket valuation is implemented and locally verified. Next integrate
-atomic multi-leg reservation, protected strategy/model/source revalidation and
-per-leg fill reconciliation into the existing common paper account,
+with stronger directional EVENT checks is also integrated. Joint basket valuation, protected admission, atomic multi-leg reservation and
+per-leg reconciliation are implemented and locally verified. Next implement
+bounded whole-event discrepancy discovery and its strategy evidence/funnel path,
+then the remaining result-lag finality gates and active position management,
 then continue the remaining strategies and master phases. PWS paired research and
 queue-fault propagation are implemented and locally verified. Bounded source-event routing
 and forecast/same-day evaluation are implemented and locally verified; provider
