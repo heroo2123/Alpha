@@ -17,6 +17,9 @@ from polymarket_scanner.v11.request_assembly import TargetPlan, SourceSelector
 from polymarket_scanner.v11.risk_inputs import RiskInputPolicy, VERSION as RISK_VERSION
 from polymarket_scanner.v11.runtime_feed import FeedPolicy
 from polymarket_scanner.v11.runtime_health import HealthPolicy
+from polymarket_scanner.v11.candidate_runner import ObservationBatch
+from polymarket_scanner.v11.pws_runtime import PWSQualityPlan, PWSQualitySettings
+from polymarket_scanner.v11.weather_sources import madis_request
 from polymarket_scanner.v11.strategy_admission import SourceLease
 from polymarket_scanner.v11.valuation import HOLD_RISKS, SALE_RISKS, SALE
 from test_v11_basket_coordinator import rig, reserve
@@ -174,6 +177,60 @@ def test_missing_real_clock_verification_causes_no_public_requests(rig,monkeypat
             return await candidate.run('unknown-clock')
     d=asyncio.run(run())['body']['details']
     assert not calls and not d['worker_results'] and not d['financial_authority']
+
+
+def test_candidate_collects_madis_then_quality_checks_and_routes_it(rig,setup,monkeypatch):
+    from test_v11_pws_runtime import xml
+    from test_v11_pws_quality import policy as pws_policy
+    r=rig;cfg=plan(r);e=r['context'].event_id;meta=setup[3];calls=[]
+    request=madis_request(event_id=e,station=meta.station,latitude=meta.latitude,longitude=meta.longitude)
+    batch=ObservationBatch((request,),((e,meta.station),),(r['scope'].strategy,),
+        ((r['scope'].strategy,('NOAA_MADIS_CWOP',)),))
+    cfg=replace(cfg,pws_quality=PWSQualitySettings((PWSQualityPlan(e,meta,pws_policy()),)),observation=batch,
+        candidate=replace(cfg.candidate,maximum_jobs=5,maximum_seconds=8.,maximum_safety_ticks=128),
+        trigger=replace(cfg.trigger,pws_station_age_seconds=((meta.station,600.),),
+                        source_age_seconds=tuple((k,600. if k=='PWS_OBSERVATION' else t) for k,t in cfg.trigger.source_age_seconds)))
+    synthetic_clock(r,monkeypatch)
+    base=transport(r,calls)
+    def public(req):
+        if req.url.host=='madis-data.ncep.noaa.gov':
+            calls.append(req)
+            content=xml(r['now'][0]).replace('lat="33.01"','lat="33.64"').replace('lat="33.03"','lat="33.66"').replace('lat="33.05"','lat="33.68"').replace('lon="-84"','lon="-84.44"')
+            return httpx.Response(200,content=content)
+        return base.handle_request(req)
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(public)) as client:
+            candidate=app.assemble_candidate(r['store'],client,cfg,generation='pws-composed')
+            ready(r,candidate.runtime.health)
+            row=await candidate.run('pws-composed')
+            return candidate,row['body']['details']
+    candidate,d=asyncio.run(run())
+    assert [j['kind'] for j in d['worker_results']]==['CENSUS','DISCOVERY','AUDIT','OBSERVATION','PWS_QUALITY'],d
+    assert d['worker_results'][-1]['outcome']=='PWS_QC_RECORDED',d
+    qc=r['store'].latest_source(kind='PWS_OBSERVATION',event_id=e,provider='ALPHA_PWS_QC',source_identity=meta.station)
+    assert qc['body']['payload']['health']=='HEALTHY' and not qc['body']['payload']['lead_advantage_verified']
+    routed=r['store'].get('feed-route:'+app.digest(qc['id']))
+    assert routed['body']['details']['result']['affected_events']==[e]
+    assert len(calls)==9 and all(req.method=='GET' for req in calls)
+    assert candidate.runtime.coordinator.snapshot()['reserved_cash']=='0' and not r['store'].records(kind='TRADE')
+    assert not d['forward_acceptance'] and not d['financial_authority']
+
+
+def test_pws_plan_cannot_use_same_named_station_with_different_metadata(rig,setup):
+    from test_v11_pws_quality import policy as pws_policy
+    before=rig['store'].pin_read_view()
+    with pytest.raises(EvidenceError,match='PWS_QUALITY_SCOPE'):
+        replace(plan(rig),pws_quality=PWSQualitySettings((PWSQualityPlan(rig['context'].event_id,
+            replace(setup[3],elevation_m=400.),pws_policy()),)))
+    assert rig['store'].pin_read_view()==before
+
+
+def test_census_and_periodic_qc_cannot_silently_alternate_policies(rig,setup):
+    from test_v11_pws_quality import policy as pws_policy
+    cfg=plan(rig);p=PWSQualityPlan(rig['context'].event_id,setup[3],pws_policy())
+    event=replace(cfg.events[0],census=replace(cfg.events[0].census,pws=p))
+    with pytest.raises(EvidenceError,match='PWS_QUALITY_SCOPE'):
+        replace(cfg,events=(event,),pws_quality=PWSQualitySettings((replace(p,policy=pws_policy(fresh_seconds=300.)),)))
 
 
 def test_authenticated_client_is_rejected_before_any_candidate_write(rig):

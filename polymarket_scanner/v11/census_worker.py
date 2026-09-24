@@ -1,7 +1,7 @@
 """Bounded fresh public census, separate from the paper cancellation scheduler.
 
-The worker only collects books and the existing official METAR proxy. Missing
-model/QC adapters remain explicit gates. Coverage cannot approve a strategy,
+The worker collects books, the official METAR proxy and explicitly required PWS
+quality inputs. Missing forecast adapters remain explicit gates. Coverage cannot approve a strategy,
 renew a calibration, place an order, or synthesize a fill.
 """
 import asyncio
@@ -15,7 +15,9 @@ from .book_inputs import BookPolicy, book_request, normalize_book_capture
 from .collection import SourceRequest
 from .evidence import EvidenceError, digest, finite, identity
 from .rules import RuleFingerprint
-from .weather_sources import normalize_weather_capture
+from .weather_sources import normalize_weather_capture, madis_request
+from .pws_quality import archive_neighborhood
+from .pws_runtime import PWSQualityPlan, PWSQualitySettings, PWSQualityWorker
 
 
 VERSION = 'alpha_v11_census_worker_v1'
@@ -27,11 +29,17 @@ class CensusPlan:
     rule: RuleFingerprint
     collateral_asset: str
     official_metar_proxy: bool = True
+    pws: PWSQualityPlan | None = None
 
     def __post_init__(self):
         if not isinstance(self.rule, RuleFingerprint) or type(self.official_metar_proxy) is not bool:
             raise EvidenceError('CENSUS_PLAN_INVALID')
         identity(self.collateral_asset)
+        if self.pws is not None and (not isinstance(self.pws,PWSQualityPlan)
+                or self.pws.event_id!=self.rule.payload['event_id']
+                or self.pws.official.station!=self.rule.payload['station']
+                or self.pws.official.fingerprint!=self.rule.payload['metadata_fingerprint']):
+            raise EvidenceError('CENSUS_PWS_PLAN_RULE_SCOPE')
 
 
 @dataclass(frozen=True)
@@ -68,7 +76,8 @@ class CensusWorker:
                     or (p['station'], p['target_date'], p['family']) != (route.station, route.target_date, route.family)):
                 raise EvidenceError('CENSUS_PLAN_RULE_ROUTE_MISMATCH')
         self.config = digest(dict(queue=queue.config, health=health.config, policy=asdict(policy),
-            book_policy=asdict(book_policy), plans=[asdict(p) for p in sorted(plans, key=lambda p:p.rule.sha256)]))
+            book_policy=asdict(book_policy), plans=[{k:v for k,v in asdict(p).items() if k!='pws' or v is not None}
+                for p in sorted(plans, key=lambda p:p.rule.sha256)]))
 
     def _get(self, key):
         try:
@@ -93,6 +102,7 @@ class CensusWorker:
 
     def _requests(self, route, plan, revision):
         supplied = {'OFFICIAL_OBSERVATION'} if plan.official_metar_proxy else set()
+        if plan.pws is not None:supplied.add('PWS_OBSERVATION')
         if not set(route.required_source_kinds) <= supplied:
             raise EvidenceError('CENSUS_REQUIRED_SOURCE_ADAPTER_UNAVAILABLE')
         requests = []
@@ -100,6 +110,9 @@ class CensusWorker:
             requests.append(SourceRequest('NOAA_AWC', 'https://aviationweather.gov/api/data/metar',
                 route.event_id, 'OFFICIAL_OBSERVATION', route.station, revision,
                 (('ids', route.station), ('format', 'json'))))
+        if 'PWS_OBSERVATION' in route.required_source_kinds:
+            p=plan.pws.official
+            requests.append(madis_request(event_id=route.event_id,station=p.station,latitude=p.latitude,longitude=p.longitude))
         requests.extend(book_request(event_id=route.event_id, token_id=t, revision=revision) for t in sorted(route.tokens))
         if len(requests) > self.policy.maximum_requests:
             raise EvidenceError('CENSUS_REQUEST_PLAN_BOUND')
@@ -160,6 +173,7 @@ class CensusWorker:
     async def _collect(self, key, claim, plan):
         route = self.queue.routes[claim['event_id']]
         books, sources, errors, collections = [], [], [], []
+        required_pws='PWS_OBSERVATION' in route.required_source_kinds
         coverage_id = completion_id = None
         started = time.monotonic()
         budget = min(self.policy.maximum_seconds, self.queue.policy.max_work_seconds,
@@ -193,7 +207,7 @@ class CensusWorker:
                                 normalized = normalize_weather_capture(self.store, raw_id,
                                     record_id='census-weather:'+digest(raw_id), station=route.station,
                                     official_max_age_seconds=dict(self.queue.policy.source_age_seconds)['OFFICIAL_OBSERVATION'])
-                                sources.append(normalized['id'])
+                                if raw['kind']!='PWS_OBSERVATION':sources.append(normalized['id'])
                         except EvidenceError as exc:
                             errors.append(str(exc))
                     if collected['omitted']:
@@ -202,6 +216,16 @@ class CensusWorker:
                         break
                 if errors:
                     raise EvidenceError('CENSUS_INCOMPLETE_SOURCE_COVERAGE')
+                if required_pws:
+                    # A separate optional PWS worker may run between censuses.
+                    # Recovery still requires a newly collected response under
+                    # this claim, checked by complete_census through raw lineage.
+                    selector=PWSQualityWorker(self.store,self.health,PWSQualitySettings((plan.pws,)))
+                    selected=selector.current_inputs(route.event_id)
+                    quality=archive_neighborhood(self.store,'census-pws:'+digest(key),event_id=route.event_id,
+                        capture_ids=tuple(selected['capture_ids']),official=plan.pws.official,policy=plan.pws.policy,
+                        expected_source_seq=selected['source_seq'],deadline=min(started+budget,time.monotonic()+2.))
+                    sources.append(quality['id'])
                 health = self.health.sample(key+':post-collection-clock')
                 if health['body']['details']['clock_reasons']:
                     raise EvidenceError('CENSUS_CLOCK_CHANGED_DURING_COLLECTION')

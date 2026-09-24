@@ -286,6 +286,8 @@ class EventRiskEngine:
                             and qc.get('station') == context.station_id
                             and isinstance(ages,list) and 1 <= len(ages) <= 400):
                         try:
+                            from .pws_quality import current_neighborhood_heads
+                            current_neighborhood_heads(self.store,row)
                             as_of = finite(qc.get('as_of'))
                             oldest = as_of-max(finite(age) for age in ages)
                             if 0 <= oldest <= as_of <= body['available_at'] <= now: at = oldest

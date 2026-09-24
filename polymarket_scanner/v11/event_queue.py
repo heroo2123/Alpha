@@ -29,6 +29,14 @@ def _census_raw_receipt(store, source, claim):
     raw lineage must bind that exact, causally earlier, newly received response.
     """
     body = source['body']; payload = body.get('payload', {})
+    if source['kind']=='PWS_OBSERVATION' and body['provider']=='ALPHA_PWS_QC' and 'source_captures' in payload:
+        from .pws_quality import current_neighborhood_heads
+        current_neighborhood_heads(store,source)
+        latest=store.latest_source(kind='PWS_OBSERVATION',event_id=source['event_id'],provider='NOAA_MADIS_CWOP',
+                                   source_identity='CWOP_NEAR:'+payload['station'])
+        if latest['seq']>=source['seq']:raise EvidenceError('CENSUS_PWS_RAW_QC_ORDER')
+        _census_raw_receipt(store,latest,claim)
+        return  # Older trajectory samples may coexist with the new response.
     raw_id = payload.get('raw_evidence_id')
     if raw_id is None:
         return
@@ -517,6 +525,8 @@ class EventQueue:
                 observed = max(finite(x['observed_at']) for x in readings)
             age = dict(self.policy.source_age_seconds)[source['kind']]
             if source['kind'] == 'PWS_OBSERVATION':
+                from .pws_quality import current_neighborhood_heads
+                heads.extend(current_neighborhood_heads(self.store,source))
                 observed = payload.get('as_of')
                 age = min(age, dict(self.policy.pws_station_age_seconds).get(route.station, 0))
                 sensor_ages = payload.get('observation_age_seconds')
@@ -524,6 +534,7 @@ class EventQueue:
                         or not isinstance(sensor_ages, list) or not 1 <= len(sensor_ages) <= 400
                         or observed is None or any(finite(a)+now-observed >= age for a in sensor_ages)):
                     raise EvidenceError('CENSUS_PWS_FRESH_QC_REQUIRED')
+                observed=finite(observed)-max(finite(a) for a in sensor_ages)
             if observed is None or not 0 <= now-finite(observed) < age or not 0 <= now-body['available_at'] < age:
                 raise EvidenceError('CENSUS_SOURCE_NOT_FRESH')
             latest = self.store.latest_source(kind=source['kind'], event_id=route.event_id, provider=body['provider'], source_identity=body['source_identity'])

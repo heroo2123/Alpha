@@ -190,7 +190,7 @@ class EvidenceStore:
                 available_at: float, recorded_at: float,
                 expected_previous_seq: int | None = None,
                 expected_heads: tuple[tuple[str, str, int], ...] = (),
-                safety_only: bool = False) -> dict:
+                safety_only: bool = False, expected_archive_seq: int | None = None) -> dict:
         identity(record_id)
         identity(event_id)
         body = dict(body, namespace=self.namespace, financial_authority=False,
@@ -204,6 +204,11 @@ class EvidenceStore:
                 if found["body"] != encoded or found["kind"] != kind or found["event_id"] != event_id:
                     raise EvidenceError("RECORD_ID_CONFLICT")
                 return self._decode(found)
+            if expected_archive_seq is not None:
+                if type(expected_archive_seq) is not int or expected_archive_seq < 0:
+                    raise EvidenceError('ARCHIVE_CAS_INVALID')
+                if db.execute('SELECT COALESCE(MAX(seq),0) FROM v11_records').fetchone()[0] != expected_archive_seq:
+                    raise EvidenceError('ARCHIVE_STATE_CHANGED')
             if expected_previous_seq is not None:
                 if type(expected_previous_seq) is not int or expected_previous_seq < 0:
                     raise EvidenceError("AUDIT_CAS_INVALID")
@@ -246,7 +251,8 @@ class EvidenceStore:
         d = body.get('details', {}); action = d.get('request', {}).get('action')
         if kind == 'RUNTIME_STATUS' and d.get('version') in {
                 'alpha_v11_runtime_health_v1', 'alpha_v11_paper_runtime_v1', 'alpha_v11_observation_pump_v1',
-                'alpha_v11_census_worker_v1', 'alpha_v11_market_discovery_v1', 'alpha_v11_candidate_runner_v1'}:
+                'alpha_v11_census_worker_v1', 'alpha_v11_market_discovery_v1', 'alpha_v11_candidate_runner_v1',
+                'alpha_v11_pws_quality_worker_v1'}:
             return  # Health/telemetry is never a probability or an order API.
         if (kind == 'MEASUREMENT' and d.get('version') == 'alpha_v11_paper_cancellation_v1'
                 and action in {'PLAN', 'DELIVER_LOCAL_CANCEL_REQUESTS', 'OBSERVE_ACCOUNT_RECONCILIATION'}):
@@ -418,7 +424,8 @@ class EvidenceStore:
     def capture(self, record_id: str, *, event_id: str, kind: str, provider: str,
                 source_identity: str, revision: str, payload: dict,
                 observed_at: float | None = None, issued_at: float | None = None,
-                published_at: float | None = None, evidence_class: str = "PUBLIC_OBSERVED") -> dict:
+                published_at: float | None = None, evidence_class: str = "PUBLIC_OBSERVED",
+                expected_previous_seq: int | None = None, expected_archive_seq: int | None = None) -> dict:
         if kind not in KINDS or evidence_class not in CLASSES or not isinstance(payload, dict):
             raise EvidenceError("CAPTURE_SCHEMA_INVALID")
         at = finite(self.clock())
@@ -429,7 +436,8 @@ class EvidenceStore:
                 "revision": identity(revision), "payload": payload, "observed_at": observed_at,
                 "issued_at": issued_at, "published_at": published_at, "received_at": at,
                 "evidence_class": evidence_class, "source_kind": kind}
-        return self._append(record_id, kind, event_id, body, at, at)
+        return self._append(record_id, kind, event_id, body, at, at,
+                            expected_previous_seq=expected_previous_seq, expected_archive_seq=expected_archive_seq)
 
     def causal_inputs(self, event_id: str, cutoff: float, *, after_seq: int = 0,
                       limit: int = 200) -> list[dict]:

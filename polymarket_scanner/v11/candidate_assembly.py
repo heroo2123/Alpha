@@ -29,6 +29,7 @@ from .strategy_admission import ROLES
 from .strategy_runtime import MultiStrategyEventAdapter, RelativeValueEventAdapter
 from .basket_valuation import BasketPolicy
 from .pws_lead import LeadPolicy
+from .pws_runtime import PWSQualitySettings, PWSQualityWorker
 from .maker_research import MakerResearch, MakerResearchPolicy
 from .maker_telemetry import MakerTelemetryPolicy, MakerTelemetryWorker
 from .maker_runtime import MakerTarget, MakerRequestFactory, MakerEventAdapter
@@ -179,6 +180,7 @@ class CandidatePlan:
     worker_id: str
     observation: ObservationBatch | None = None
     maker: MakerTelemetryPlan | None = None
+    pws_quality: PWSQualitySettings | None = None
 
     def __post_init__(self):
         identity(self.version); identity(self.worker_id)
@@ -208,6 +210,14 @@ class CandidatePlan:
             if (not {r.event_id for r in self.observation.requests} <= routes.keys()
                     or any(e not in routes or routes[e].station!=station for e,station in self.observation.station_by_event)):
                 raise EvidenceError('CANDIDATE_OBSERVATION_ROUTE_MISMATCH')
+        if self.pws_quality is not None:
+            if not isinstance(self.pws_quality,PWSQualitySettings):raise EvidenceError('CANDIDATE_PWS_QUALITY_PLAN_REQUIRED')
+            events={e.route.event_id:e for e in self.events}
+            if any(p.event_id not in events or p.official.station!=events[p.event_id].route.station
+                    or p.official.fingerprint!=events[p.event_id].census.rule.payload['metadata_fingerprint']
+                    or events[p.event_id].census.pws is not None and events[p.event_id].census.pws!=p
+                    for p in self.pws_quality.plans):
+                raise EvidenceError('CANDIDATE_PWS_QUALITY_SCOPE')
 
 
 def _lane(queue,coordinator,lane,maker):
@@ -299,6 +309,7 @@ def assemble_candidate(store,client,plan,*,generation):
     observation=ObservationPump(ObservationRuntime(scheduled),runtime) if plan.observation is not None else None
     runner=CandidateRunner(runtime,plan.candidate,census=census,discovery=MarketDiscovery(scheduled,health,plan.discovery),
         audits=AuditWorker(coordinator,plan.audits),observation=observation,observation_batch=plan.observation,
-        maker_telemetry=MakerTelemetryWorker(maker,health,plan.maker.telemetry,event_ids=tuple(maker_scopes)) if maker else None)
+        maker_telemetry=MakerTelemetryWorker(maker,health,plan.maker.telemetry,event_ids=tuple(maker_scopes)) if maker else None,
+        pws_quality=PWSQualityWorker(store,health,plan.pws_quality) if plan.pws_quality else None)
     runner.assembly_sha256=digest(asdict(plan))
     return runner

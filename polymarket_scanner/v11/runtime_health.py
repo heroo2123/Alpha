@@ -105,6 +105,8 @@ def _source_status_unchecked(store, need, now):
             result['reason'] = 'REQUIRED_PWS_QC_UNHEALTHY'
         elif stamp is not None:
             stamp = finite(stamp)-max(finite(a) for a in ages)
+            from .pws_quality import current_neighborhood_heads
+            result['dependency_heads']=current_neighborhood_heads(store,row)
     if need.kind == 'OFFICIAL_OBSERVATION' and stamp is None:
         readings = p.get('observations')
         if isinstance(readings, list) and 1 <= len(readings) <= 400:
@@ -253,6 +255,7 @@ def admission_heads(store, *, account_id, event_id, strategies):
         if source['reason'] or current['reason'] or current['record_id'] != source['record_id']:
             raise EvidenceError('RUNTIME_REQUIRED_SOURCE_GATED_OR_CHANGED')
         heads.append(tuple(current['source_head']))
+        heads.extend(tuple(h) for h in current.get('dependency_heads',()))
     unique = {}
     for kind, event, seq in heads:
         if (kind,event) in unique and unique[kind,event] != seq: raise EvidenceError('RUNTIME_HEALTH_HEAD_RACE')

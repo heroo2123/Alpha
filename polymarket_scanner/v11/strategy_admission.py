@@ -130,6 +130,8 @@ class StrategyAdmission:
             expiry = min(expiry, observed+lease.maximum_age_seconds, body['available_at']+lease.maximum_age_seconds)
             if lease.role == 'PWS':
                 qc = body['payload']
+                from .pws_quality import current_neighborhood_heads
+                heads.extend(current_neighborhood_heads(self.store,source))
                 if (body['provider'] != 'ALPHA_PWS_QC' or qc.get('health') != 'HEALTHY'
                         or qc.get('station') != scope.station
                         or qc.get('official_metadata_fingerprint') != p['metadata_fingerprint']

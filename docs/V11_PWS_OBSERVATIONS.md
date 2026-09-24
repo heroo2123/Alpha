@@ -38,3 +38,41 @@ PWS is auxiliary only. Predicting the next official observation or a threshold
 crossing does not establish final exact-bucket payout or an executable early exit.
 The observation adapter cannot settle contracts, certify finality, open positions
 or bypass station, rule, valuation, coordinator or protected risk gates.
+
+## Candidate runtime and fresh-census integration
+
+`v11/pws_runtime.py` now processes one configured event per bounded step, with
+at most 64 normalized captures, the existing 128-station / 16,384-sample limits
+and a two-second cooperative work budget. Overflow gates the event without
+selecting a subset. The candidate's existing anonymous collection job supplies
+MADIS receipts; a separate scheduled QC job performs no HTTP and has durable
+input identity, interruption recovery, an exclusive worker lock and configuration
+checks. Completed work replays without renewing receipt or sensor timestamps.
+
+QC reparses raw XML, retains source hashes and original first receipt times,
+and checks source/metadata concurrency at publication. Original sensor identity
+and relocation quarantine persist across events, process recovery and coordinate
+reversion. Re-observing unchanged metadata does not create new identity epochs.
+Every actual reported coordinate remains in the source archive. Runtime health
+and strategy admission validate current raw/QC lineage and propagate station
+metadata guards into account opening checks. The existing aggregate 64-head
+guard limit remains: a neighborhood exceeding safe admission capacity stays
+informational/gated, even though the QC archive supports up to 128 stations.
+
+Explicitly PWS-dependent census plans now collect and normalize MADIS through
+the same provider cooldowns, then calculate QC from bounded archived history.
+At least the latest raw response must have arrived after the census claim;
+processing a pre-claim response again cannot clear a gap. Older causal trajectory
+samples remain usable history. Coverage expiry uses the oldest contributing
+sensor, and metadata/source changes fence the census commit. Optional PWS is
+not added to unrelated census requirements. Missing/empty neighborhoods retain
+other source receipts and remain gated.
+
+Verification: 255 related checks passed in 32.63 s; four focused candidate PWS/QC
+checks passed after adding the final census/periodic policy-consistency guard.
+The combined candidate test demonstrates mocked public GET collection, QC,
+receipt routing and unchanged common-account cash without fills. Other new cases
+cover raw/metadata races, cross-event drift, interrupted metadata/QC publication,
+no-renewal replay, overflow, clock failure and fresh-census lineage.
+These are off-host synthetic/mock checks, not observed information lead,
+calibrated reliability, independent review or deployment acceptance.

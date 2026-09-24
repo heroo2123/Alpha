@@ -9,12 +9,26 @@ from collections import Counter, defaultdict
 from dataclasses import asdict, dataclass
 from datetime import datetime
 import math
+import time
 from statistics import median
 from zoneinfo import ZoneInfo
 
 from .certification import StationMetadata
 from .evidence import EvidenceError, EvidenceStore, digest, finite, identity, sha
-from .rules import history
+
+
+def _existing(store, key):
+    try: return store.get(key)
+    except EvidenceError as exc:
+        if str(exc) != 'EVIDENCE_MISSING': raise
+    return None
+
+
+def metadata_sequence(store):
+    """One bounded version read across PWS identities, including other events."""
+    with store._connect() as db:
+        return db.execute("SELECT COALESCE(MAX(seq),0) FROM v11_records WHERE kind='REGISTRY' "
+                          "AND event_id LIKE 'pws:%'").fetchone()[0]
 
 
 def geometry(lat1,lon1,lat2,lon2):
@@ -354,6 +368,12 @@ class PWSIdentityTracker:
         self.store,self.policy=store,policy
 
     def observe(self,record_id: str,sample: PWSSample,*,raw_evidence_id: str) -> dict:
+        request_sha=digest(dict(sample=asdict(sample),raw_evidence_id=raw_evidence_id,policy=self.policy.sha256))
+        existing=_existing(self.store,record_id)
+        if existing:
+            if existing['body'].get('details',{}).get('request_sha256')!=request_sha:
+                raise EvidenceError('PWS_IDENTITY_REPLAY_CONFLICT')
+            return existing
         raw=self.store.get(raw_evidence_id)
         if raw['kind']!='PWS_OBSERVATION' or raw['sha256']!=sample.evidence_sha256 or sample.received_at>self.store.clock():
             raise EvidenceError('PWS_IDENTITY_EVIDENCE_BINDING')
@@ -362,25 +382,31 @@ class PWSIdentityTracker:
         if len(matches)!=1 or any(matches[0].get(k)!=v for k,v in sample.metadata.items()):
             raise EvidenceError('PWS_IDENTITY_RAW_PREIMAGE')
         event='pws:'+sample.key
-        past=history(self.store,'REGISTRY',event)
-        prior=past[-1]['body']['details'] if past else {}
+        head=self.store.latest(kind='REGISTRY',event_id=event)
+        prior=head['body']['details'] if head else {}
         original=prior.get('original_metadata',sample.metadata)
         movement,_=geometry(original['latitude'],original['longitude'],sample.latitude,sample.longitude)
         changed=(movement>self.policy.relocation_km or abs(original['elevation_m']-sample.elevation_m)>self.policy.elevation_drift_m)
         quarantined=prior.get('quarantined',False) or changed
+        if head and prior.get('policy_sha256')==self.policy.sha256 and (prior.get('quarantined') or not changed):
+            # The original identity and monotonic quarantine are the state.
+            # Every actual coordinate/value remains in the normalized archive;
+            # replaying unchanged metadata must not churn other event leases.
+            return head
         return self.store.audit(record_id,event_id=event,kind='REGISTRY',details={
             'action':'PWS_METADATA','original_metadata':original,'latest_metadata':sample.metadata,
+            'request_sha256':request_sha,
             'policy_sha256':self.policy.sha256,'quarantined':quarantined,
             'reason':'METADATA_DRIFT_REQUIRES_REVIEW' if quarantined else 'OBSERVED_AUXILIARY_IDENTITY',
-            'restoration_automatic':False},evidence_ids=(raw_evidence_id,),expected_previous_seq=past[-1]['seq'] if past else 0)
+            'restoration_automatic':False},evidence_ids=(raw_evidence_id,),expected_previous_seq=head['seq'] if head else 0)
 
     def quarantined(self,station_keys: tuple[str,...]) -> frozenset[str]:
         if len(station_keys)>128:
             raise EvidenceError('PWS_STATION_FANOUT_BOUND')
         result=set()
         for key in station_keys:
-            past=history(self.store,'REGISTRY','pws:'+identity(key))
-            if past and past[-1]['body']['details'].get('quarantined'):
+            head=self.store.latest(kind='REGISTRY',event_id='pws:'+identity(key))
+            if head and head['body']['details'].get('quarantined'):
                 result.add(key)
         return frozenset(result)
 
@@ -409,18 +435,79 @@ def samples_from_capture(store: EvidenceStore, capture_id: str, *, as_of: float)
         record['sha256'],r['observation_identity']) for r in parsed['observations'])
 
 
+def current_neighborhood_heads(store, row):
+    """Current raw/QC lineage and contributing identity guards for admission.
+
+    Older explicit synthetic component fixtures have no raw-archive contract.
+    Every archive_neighborhood result carries that contract, even if synthetic.
+    Public records without it cannot establish current validated QC.
+    """
+    body=row['body'];p=body['payload']
+    if 'source_captures' not in p:
+        if body['evidence_class']=='SYNTHETIC':return ()
+        raise EvidenceError('PWS_QC_RAW_LINEAGE_REQUIRED')
+    refs=p['source_captures'];meta=p.get('metadata_heads')
+    if (type(refs) is not list or not 1<=len(refs)<=64 or type(meta) is not list or len(meta)>128):
+        raise EvidenceError('PWS_QC_RAW_LINEAGE_REQUIRED')
+    latest=store.latest_source(kind='PWS_OBSERVATION',event_id=row['event_id'],provider='NOAA_MADIS_CWOP',
+                               source_identity='CWOP_NEAR:'+p['station'])
+    if not latest or {'id':latest['id'],'sha256':latest['sha256']} not in refs:
+        raise EvidenceError('PWS_QC_NEW_SOURCE_REQUIRES_RECOMPUTE')
+    heads=[];seen=set()
+    for key,seq in meta:
+        if key in seen:raise EvidenceError('PWS_QC_METADATA_BINDING')
+        seen.add(key)
+        current=store.latest(kind='REGISTRY',event_id='pws:'+key)
+        if current is None or current['seq']!=seq:raise EvidenceError('PWS_QC_METADATA_CHANGED')
+        heads.append(('REGISTRY','pws:'+key,seq))
+    if seen!={s['station_key'] for s in p['stations']}:raise EvidenceError('PWS_QC_METADATA_BINDING')
+    if len(heads)>64:raise EvidenceError('PWS_QC_ADMISSION_GUARD_BOUND')
+    return tuple(heads)  # Aggregate account guards retain their stricter 64 limit.
+
+
 def archive_neighborhood(store: EvidenceStore, record_id: str, *, event_id: str, capture_ids: tuple[str,...],
-                         official: StationMetadata, policy: PWSPolicy) -> dict:
-    if len(capture_ids)>64 or len(set(capture_ids))!=len(capture_ids):
+                         official: StationMetadata, policy: PWSPolicy,
+                         expected_source_seq: int | None=None, deadline: float | None=None) -> dict:
+    if type(capture_ids) is not tuple or len(capture_ids)>64 or len(set(capture_ids))!=len(capture_ids):
         raise EvidenceError('PWS_CAPTURE_SET_BOUND')
+    if not isinstance(official,StationMetadata) or not isinstance(policy,PWSPolicy):
+        raise EvidenceError('PWS_QC_CONTEXT_REQUIRED')
+    if expected_source_seq is not None and (type(expected_source_seq) is not int or expected_source_seq<0):
+        raise EvidenceError('PWS_QC_SOURCE_GUARD_INVALID')
+    identity(record_id);identity(event_id)
+    request_sha=digest(dict(event_id=event_id,capture_ids=capture_ids,official=asdict(official),
+                            policy=asdict(policy),expected_source_seq=expected_source_seq))
+    existing=_existing(store,record_id)
+    if existing:
+        if existing['body'].get('payload',{}).get('request_sha256')!=request_sha:
+            raise EvidenceError('PWS_QC_REPLAY_CONFLICT')
+        return existing  # Preserve completion and sensor times on replay.
+    def budget():
+        if deadline is not None and time.monotonic()>=deadline:raise EvidenceError('PWS_QC_TIME_BOUND')
+    budget()
+    key='pws-qc-work:'+digest(record_id)
+    begin=_existing(store,key)
+    if begin:
+        if begin['body']['details']['request_sha256']!=request_sha:raise EvidenceError('PWS_QC_REPLAY_CONFLICT')
+        source_seq=begin['body']['details']['source_seq']
+    else:
+        head=store.latest(kind='PWS_OBSERVATION',event_id=event_id)
+        source_seq=head['seq'] if head else 0
+        if expected_source_seq is not None and source_seq!=expected_source_seq:
+            raise EvidenceError('PWS_QC_SOURCE_CHANGED')
+        store.audit(key,event_id='pws-qc-work:'+digest(event_id),kind='RUNTIME_STATUS',details=dict(
+            request_sha256=request_sha,source_seq=source_seq,financial_authority=False),
+            expected_heads=(('PWS_OBSERVATION',event_id,source_seq),))
+    current=store.latest(kind='PWS_OBSERVATION',event_id=event_id)
+    if (current['seq'] if current else 0)!=source_seq:raise EvidenceError('PWS_QC_SOURCE_CHANGED')
     as_of=finite(store.clock())
-    identity(event_id)
     inputs=[]
     latest={}
     station_history=defaultdict(list)
     events=set()
     classes=set()
     for key in capture_ids:
+        budget()
         record=store.get(key)
         if record['body']['payload'].get('settlement_station_context')!=official.station:
             raise EvidenceError('PWS_OFFICIAL_STATION_CONTEXT_MISMATCH')
@@ -439,19 +526,32 @@ def archive_neighborhood(store: EvidenceStore, record_id: str, *, event_id: str,
     if len(latest)>128:
         raise EvidenceError('PWS_STATION_FANOUT_BOUND')
     tracker=PWSIdentityTracker(store,policy)
+    metadata_prefix='pws-qc-metadata:'+digest(record_id)
     for i,(station_key,(sample,raw_id)) in enumerate(sorted(latest.items())):
+        budget()
         ordered=sorted(station_history[station_key],key=lambda pair:(pair[0].received_at,pair[0].observed_at))
         origin,origin_id=ordered[0]
-        tracker.observe(record_id+':metadata:'+str(i)+':origin',origin,raw_evidence_id=origin_id)
+        tracker.observe(metadata_prefix+':'+str(i)+':origin',origin,raw_evidence_id=origin_id)
         drift=next(((s,key) for s,key in ordered if geometry(origin.latitude,origin.longitude,s.latitude,s.longitude)[0]>policy.relocation_km
                     or abs(origin.elevation_m-s.elevation_m)>policy.elevation_drift_m),None)
         if drift:
-            tracker.observe(record_id+':metadata:'+str(i)+':drift',drift[0],raw_evidence_id=drift[1])
+            tracker.observe(metadata_prefix+':'+str(i)+':drift',drift[0],raw_evidence_id=drift[1])
         if sample.metadata!=origin.metadata:
-            tracker.observe(record_id+':metadata:'+str(i)+':latest',sample,raw_evidence_id=raw_id)
+            tracker.observe(metadata_prefix+':'+str(i)+':latest',sample,raw_evidence_id=raw_id)
+    # One archive CAS protects all (up to 128) station heads without weakening
+    # the existing 64-head guard limit. Concurrent unrelated writes also reject
+    # this attempt; a later bounded step can retry the same immutable inputs.
+    tip=store.pin_read_view()['through_seq']
+    registry_seq=metadata_sequence(store)
+    metadata=[store.latest(kind='REGISTRY',event_id='pws:'+key) for key in sorted(latest)]
     result=neighborhood(tuple(inputs),official=official,as_of=as_of,policy=policy,
-                         quarantined=tracker.quarantined(tuple(latest)))
-    result.update(feature_ready_at=store.clock(),source_captures=[{'id':key,'sha256':store.get(key)['sha256']} for key in capture_ids])
+        quarantined=frozenset(r['event_id'][4:] for r in metadata if r['body']['details']['quarantined']))
+    included={s['station_key'] for s in result['stations']}
+    result.update(feature_ready_at=store.clock(),request_sha256=request_sha,metadata_sequence=registry_seq,
+                  metadata_heads=[[r['event_id'][4:],r['seq']] for r in metadata if r['event_id'][4:] in included],
+                  source_captures=[{'id':key,'sha256':store.get(key)['sha256']} for key in capture_ids])
+    budget()
     return store.capture(record_id,event_id=event_id,kind='PWS_OBSERVATION',provider='ALPHA_PWS_QC',
         source_identity=official.station,revision=record_id,payload=result,
-        evidence_class='SYNTHETIC' if 'SYNTHETIC' in classes else 'PUBLIC_OBSERVED')
+        evidence_class='SYNTHETIC' if 'SYNTHETIC' in classes else 'PUBLIC_OBSERVED',
+        expected_previous_seq=source_seq,expected_archive_seq=tip)
