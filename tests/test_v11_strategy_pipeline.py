@@ -232,3 +232,21 @@ def test_model_demotion_during_inference_gates_the_final_result(factory, monkeyp
     monkeypatch.setattr(pipeline, 'predict_with_bundle', demote)
     result = evaluate(rig)
     assert result['outcome'] == 'GATED' and result['reason'] == 'MODEL_MANUAL_REVIEW'
+
+
+def test_bounded_event_work_runs_real_strategy_evaluation_without_creating_a_fill(factory):
+    from polymarket_scanner.v11.event_queue import EventQueue, EventRoute, TriggerPolicy, KINDS
+    rig=factory(); store=rig['store']; rule=rig['rule']; p=rule.payload; now=rig['now'][0]
+    route=EventRoute(p['event_id'],p['station'],p['target_date'],p['family'],rule.sha256,
+                     tuple(t for b in p['partition'] for t in (b['yes_token'],b['no_token'])),now+100,('MODEL',))
+    trigger=TriggerPolicy('fixture',1,1,4,16,30.,10.,100_000,60.,
+                         tuple((k,60.) for k in sorted(KINDS)),((p['station'],30.),))
+    q=EventQueue(store,routes=(route,),policy=trigger)
+    q.publish('enqueue',kind='MODEL',evidence_id='model2')
+    with q.work('work') as claim:
+        assert claim['event_id']==p['event_id']
+        assert evaluate(rig)['outcome']=='REJECT'
+        finished=q.finish('finished',claim_id='work',result_ids=('evaluation',))
+        assert finished['body']['details']['result']['outcome']=='RESEARCH_EVALUATED'
+    assert not store.records(kind='TRADE',event_id=p['event_id'])
+    assert store.get('evaluation')['body']['details']['proposal'] is None
