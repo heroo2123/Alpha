@@ -1,19 +1,24 @@
 # Alpha V11 work checkpoint
 
-Updated 2026-09-24, after the 11:06 UTC preservation-preparation inspection. Resume here. **NOT_READY_TO_FUND**.
+Updated 2026-09-24, after preservation preparation and off-host maker features. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
 
 ## Exact identities and scope
 
 - Branch: `weather-v11-profitability-upgrade-2026-09-23`.
-- Last verified implementation HEAD: `f69e318d04b8771f1de3074928ae63d3951cebec`.
-- Last verified implementation tree: `e708af471cb8289ca78439c97e8a8450687a075d`.
+- Last verified implementation HEAD: `a3a0a05b3ea2ecdc55190c711a75d6d7cd990922`.
+- Last verified implementation tree: `053189306c136d11f32943ec62f0807c827a582c`.
 - Worktree at implementation verification: only this following checkpoint update
   remains uncommitted; all implementation files are saved, and local/public
   implementation trees match. No unfinished work was discarded.
 - This following checkpoint commit changes documentation only. Resolve its own
   exact commit with `git log -1 --format=%H -- docs/V11_WORK_CHECKPOINT.md`, and its
   tree with `git rev-parse <that-commit>^{tree}`; no self-referential hash claim.
+- Preservation-preparation checkpoint: `2dc11b341f0885ea2af534c39a3873e7b2483006`,
+  tree `52000e11dcbdacb5b07df1fd8fcc0fea7e2bc029`.
+- Latest full-regression implementation: `f69e318d04b8771f1de3074928ae63d3951cebec`,
+  tree `e708af471cb8289ca78439c97e8a8450687a075d`. Subsequent additive preservation
+  and maker modules have the targeted verification recorded below.
 - Prior implementation: `dd1e85706eb0a26c9bb8aef1317cb635a791b920`, tree
   `8bf30057a39e8690d457e531b781b953a2476878`. Prior recovered checkpoint
   `6a602a7fe7f8f36aa238140f89b15b3e071423fa`. Health/plan checkpoint
@@ -745,6 +750,33 @@ readiness. No signal or automatic recovery is armed. Await new explicit approval
 before any service action, without treating approval as missing technical proof.
 Continue independent maker implementation off-host. Fixed completion: 1/50 = 2%.
 
+## Bounded maker feature milestone
+
+Published v11/microstructure.py, tests/test_v11_microstructure.py and
+V11_MAKER_MICROSTRUCTURE.md. Exact-target causal book/print features include L1/
+selected-depth imbalance, midpoint/microprice/spread, declared-sequence velocity/
+acceleration and sampled variation, visible depth deltas and archived public
+flow. Gaps, reconnects and unknown sequences reset temporal features. Source-head
+CAS rejects racing updates; historical replay cannot refresh admission authority.
+Public prints never become our fills, queue priority or trading P&L. Unlearned
+execution probabilities/EV and unbound account/weather contexts stay UNKNOWN.
+
+The first focused run returned 109 passed / two failures caused by a collision
+between contract side and public aggressor direction. They are now separate
+fields, with YES/NO and legacy-collision regression coverage. Corrected result:
+**27 new / 113 related tests passed in 1.82 seconds**. No failure remains open.
+Full regression remains 2,894 pass / four existing warnings at f69e318; it was
+not repeated for unchanged components. Total distinct new tests across recorded
+runs: 601 (558 before preparation, 16 preservation, 27 microstructure).
+
+R35 is PARTIAL, not an empirically accepted execution feature/model package.
+Quote survival, protected fair/inventory/event/release context, provider/runtime
+integration, reviewed baseline and empirical validation remain pending. Prior
+real maker fills are not required for the first separately approved bounded
+canary, but no canary is authorized now. Fixed full-package completion remains
+1/50 = 2%. Current work and publication operations completed; no V10 workload,
+service action, new backup, real order or financial activation occurred.
+
 ## Models, authority and exact continuation
 
 - No V11 live/paper/control/challenger ledger is shared or migrated.
@@ -754,34 +786,24 @@ Continue independent maker implementation off-host. Fixed completion: 1/50 = 2%.
 - No executor mask change or real-money activation. No arbitrary paper waiting
   period is imposed; mandatory technical/evidence gates remain.
 
-Next engineering action: continue Phase 6 strategy migration through the shared
-admission/coordinator path. Separately scoped protected model state slots are
-implemented and locally verified. PWS observation/payout pins and common economics
-are now integrated and locally verified. Received observation/revision reaction
-with stronger directional EVENT checks is also integrated. Joint basket valuation, protected admission, atomic multi-leg reservation and
-per-leg reconciliation are implemented and locally verified. Bounded whole-event discovery and its evidence/funnel/queue path are now
-implemented and locally verified. Result-lag exact-finality dependencies are now explicitly reviewed and remain
-GATED. Inventory-bound active exits and lot attribution are implemented and
-locally verified. Next implement the bounded maker microstructure/research
-foundation, then rewards, guardian/clock/operator integration and the remaining
-master requirements. Continuous exit scheduling, capital rotation, emergency
-permission behavior and external reconciliation remain open. PWS paired research and
-queue-fault propagation are implemented and locally verified. Bounded source-event routing
-and forecast/same-day evaluation are implemented and locally verified; provider
-adapters, periodic runtime scheduling and empirical calibration remain pending. PWS observation, payout and executable-exit
-targets remain separate; source-shock EVENT checks are implemented but require
-actual source/runtime acceptance; structural baskets need common-outcome/partial-leg reconciliation, and
-result-lag still requires proven finality. Complete all remaining master phases. Event-state and target-specific economics primitives
-are implemented; complete runtime/financial integration remains pending. Causal
-physical candidates still require feature-value/inference validation. PWS defensive QC/spatial
-features are implemented; historical reliability and economic/lead validation
-remain pending. Exact-source labels, empirical calibration,
-learning scheduling/OS isolation, approved initial champion and financial model
-commissioning remain open; do not treat this foundation as acceptance. Continue integration of the delivered observation,
-registry/rule and evidence interfaces through event/EV/coordinator/risk,
-strategy migration, exits, maker, guardian, deployment and unfunded acceptance.
-Reuse tested existing modules. Preserve this checkpoint and publish nonsecret
-code milestones throughout.
+Next concrete engineering action: integrate maker research proposals and quote
+survival/markout observations with the existing evidence and common account/risk
+interfaces, then the reviewed bounded first-canary baseline. Reuse the tested
+microstructure/measurement modules; do not fabricate fills. Continue rewards,
+guardian/clock/operator integration and ALL remaining matrix/master requirements.
+
+Do not restart completed strategy/basket/exits/forensic work. Protected scoped
+models, PWS observation/payout joins, received-release EVENT checks, joint basket
+valuation/admission/per-leg reconciliation, discovery/funnels/queue outputs,
+inventory-bound active exits and FIFO attribution are implemented and locally
+verified. Result-lag exact-finality evidence remains missing and GATED. Continuous
+exit scheduling, capital rotation, emergency permissions, full provider/runtime
+integration and external reconciliation remain open. Structural redemption is
+not implemented. Exact-source label attestation, empirical calibration/PWS lead,
+approved initial champion, learning scheduling/OS isolation, protected authority
+commissioning and independent acceptance remain open. Observation, payout and
+executable-exit targets stay separate. No partial foundation counts as full
+strategy or runtime acceptance. Preserve and publish nonsecret milestones.
 
 Routine inspection/queries/analysis are authorized and remain the integrator's
 work. The completed snapshot needs no further owner action. If owner-only journal
@@ -794,7 +816,8 @@ Current continuation boundary: health freshness FAIL, financial executor
 MASKED/INACTIVE, no suspension/restart/deployment/financial action authorized or
 performed. Explicit owner approval is required only for the prepared V10
 suspension/recovery decisions; independent off-host maker work is authorized.
-The implementation suite is complete (2,894 pass), no local test or publication
-operation is intentionally left running, and the checkpoint/matrix retain the
-full specification. Fixed completion remains 1/50 = 2%; R32 is PARTIAL.
+Latest full suite: 2,894 pass; subsequent preservation suite: 41 pass; subsequent
+microstructure/evidence/valuation/queue suite: 113 pass. No local test or publication
+operation is intentionally left running. The checkpoint/matrix retain the full
+specification. Fixed completion remains 1/50 = 2%; R32 and R35 are PARTIAL.
 No independent reviewer or empirical strategy-eligibility pass is claimed.
