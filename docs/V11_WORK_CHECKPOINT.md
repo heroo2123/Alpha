@@ -1,13 +1,13 @@
 # Alpha V11 work checkpoint
 
-Updated 2026-09-24, 00:51 UTC. Resume here. **NOT_READY_TO_FUND**.
+Updated 2026-09-24, 01:04 UTC. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
 
 ## Exact identities and scope
 
 - Branch: `weather-v11-profitability-upgrade-2026-09-23`.
-- Last verified implementation HEAD: `c0d97df2a0718ae87b8c36cf3d8ae4c5869974a7`.
-- Last verified implementation tree: `44718b030c4d4cf7f19eaf9257e15aeec39acefe`.
+- Last verified implementation HEAD: `d0f7c737268ca45a62738dd289d61c6d42ee57fd`.
+- Last verified implementation tree: `74c9ee8d4884ea061c98e81090a4d7b95b15b1d9`.
 - Worktree at verification: clean; local and published implementation trees match.
 - This following checkpoint commit changes documentation only. Resolve its own
   exact commit with `git log -1 --format=%H -- docs/V11_WORK_CHECKPOINT.md`, and its
@@ -428,9 +428,34 @@ No duplicate full test run or alpha-dev action occurred. Git publication passed
 with identical local/public trees and a clean worktree. No independent review,
 actual model approval or complete-package acceptance is claimed.
 
-Next: connect PWS settlement-valued research to separately approved observation
-and payout model pins and the common coordinator. Retain observation-only gating
-when evidence is insufficient and do not manufacture repricing/exit values.
+## Phase 6 PWS common-economics milestone
+
+Published `d0f7c737268ca45a62738dd289d61c6d42ee57fd`, tree
+`74c9ee8d4884ea061c98e81090a4d7b95b15b1d9`. Added `v11/pws_admission.py`
+and integrated paired pre-confirmation pins into the temperature strategy and
+common paper coordinator. Distinct approved observation/payout targets, matching
+source/context/release identity, stricter source expiry and both model epochs
+revalidate before reservation and paper submission-state transition. Payout uses
+exact remaining-day conditioning; observation probability is not payout or exit.
+New exact-book revisions and racing receipts require new economics. Common
+netting/risk/reservations remain in force, with no special PWS risk allocation.
+
+16 new joined tests passed; related checks passed 121 tests in 8.32 seconds.
+The initial focused run found a duplicate-keyword error in a test helper and it
+was corrected. The final full suite passed **2,787 tests, four existing warnings,
+82.56 seconds**. Compilation and whitespace checks passed. Scoped-registry CI
+run 35940278264 passed. The PWS model/capability fixtures substitute synthetic
+reviews; positive-EV account fixtures are explicitly downstream mechanics, not
+actual calibration or strategy eligibility. Actual current bounds still reject.
+
+One publication attempt stopped before Git mutation because the session helper
+was missing. It was restored and saved outside Git for continuity. Publication
+then completed with matching local/public trees and preserved files. No reset,
+clean, alpha-dev workload, deployment, funding or mask change occurred. No tests
+remain running. Raw adapters, actual reviewed champions, lead/label evidence and
+runtime/independent acceptance remain open. Next: source-shock/release reaction
+through common gates, distinguishing scheduled notices from received observations
+and revisions; implement exact-source/CLOB checks for any directional EVENT path.
 
 ## Implementation and verification
 
@@ -486,7 +511,10 @@ bounded compressed-capture verification and explicitly limited runtime context.
 | PWS observation-lead research | **18 new checks passed; 119 related checks passed in 2.80 s** |
 | PWS research CI 35939317722 at 2328f20 | completed successfully |
 | Scope/mode model slots | **14 new tests; 97 related checks passed, 3.17 s** |
-| Latest full off-host regression | **2,771 passed; four existing warnings; 68.88 s** |
+| Scope-slot full regression | **2,771 passed; four existing warnings; 68.88 s** |
+| Scope-slot CI 35940278264 at c0d97df | completed successfully |
+| PWS paired admission/economics | **16 new checks; 121 related checks passed, 8.32 s** |
+| Latest full off-host regression | **2,787 passed; four existing warnings; 82.56 s** |
 
 Tests used an isolated off-host environment installed from hash-locked dev
 requirements. Four warnings are pre-existing FastAPI lifecycle deprecations.
@@ -508,8 +536,9 @@ technical readiness, canary eligibility and empirical validation stay separate.
 
 Next engineering action: continue Phase 6 strategy migration through the shared
 admission/coordinator path. Separately scoped protected model state slots are
-implemented and locally verified. Next connect distinct observation/payout model
-pins through PWS economic integration, then continue the remaining strategies. PWS paired research and
+implemented and locally verified. PWS observation/payout pins and common economics
+are now integrated and locally verified. Next implement source-shock/release
+reaction with exact-source/CLOB revalidation, then continue remaining strategies. PWS paired research and
 queue-fault propagation are implemented and locally verified. Bounded source-event routing
 and forecast/same-day evaluation are implemented and locally verified; provider
 adapters, periodic runtime scheduling and empirical calibration remain pending. PWS observation, payout and executable-exit
