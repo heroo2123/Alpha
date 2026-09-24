@@ -1,6 +1,6 @@
 # Alpha V11 work checkpoint
 
-Updated 2026-09-24, after maker telemetry integration. Resume here. **NOT_READY_TO_FUND**.
+Updated 2026-09-24, after maker proposal/context integration. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
 
 ## Current priority override — V11 runtime integration
@@ -25,25 +25,24 @@ open. No funding, deployment, financial activation or new host workload authoriz
 
 ## Latest continuation milestone
 
-Maker telemetry now shares the finite candidate, maker safety retirement and
-common account. It updates retained quotes, preserves sequence gaps and publishes
-closed-window 1s/5s/30s/2m/10m counterfactual marks without fills or ledger writes.
-**206 related tests passed in 32.46 s**, including 14 new telemetry cases.
-Last full regression: **3344 passed, four existing warnings, 203.31 s**;
-15 derived-risk, 17 builder and 14 telemetry cases were tested afterward.
+The typed candidate now connects current maker proposal factories, protected
+payout context, research observations, safety retirement and due counterfactual
+markouts. Maker outputs never become economic account proposals or fills.
+Focused new factory/adapter checks: **9 passed in 3.19 s**. Full unchanged-input
+regression: **3399 passed, four existing FastAPI warnings, 208.79 s; exit 0**.
+Wrapper 209.426 s, user 143.670744 s, system 58.675137 s, peak RSS 159120 KiB.
+The exclusive regression run completed; no test operation remains running.
 Fully completed packages remain **1/50**; formal, empirical and independent
-acceptance remain open. No test operation is running.
-Next concrete implementation: current-input maker proposal/context factories in
-the shared candidate, then remaining raw-provider/dynamic-route and master-spec
-requirements. No V10 maintenance, deployment or funding is requested.
+acceptance remain open. Next: raw forecast/PWS-QC source and model-provenance
+integration. No V10 maintenance, deployment or funding is requested.
 
 ## Exact identities and scope
 
 - Branch: `weather-v11-profitability-upgrade-2026-09-23`.
-- Last verified implementation HEAD: `983b30ab30d796d59a5d4efe46a8ad5fe5138217`.
-- Last verified implementation tree: `d1af454c3c1a330a00640eb2f9375407cc5cb9fc`.
-- Typed candidate implementation identity is above. Public/local
-  tree equality passed; fetch/alignment exited 0 (session 21580), with a clean
+- Last verified implementation HEAD: `b478c15aaaf19fb0a33afaa50bf70d60d04cb514`.
+- Last verified implementation tree: `b0666a26e30fed26023e946395a7cf8d04e942a5`.
+- Maker telemetry implementation identity is above. Public/local
+  tree equality passed; fetch/alignment exited 0 (session 66849), with a clean
   worktree. No unfinished work was discarded. This later documentation checkpoint
   records that exact tested implementation without changing source/tests.
 - A later commit containing this checkpoint may include the newer work below. Resolve its own
@@ -1651,3 +1650,39 @@ now **1054** above baseline 2336. No open test failure remains. Public HTTP in t
 candidate test is mocked; no source/host/execution acceptance is claimed.
 Next: factory-built current maker proposals and protected payout context so the
 candidate can originate research quotes when all existing gates actually pass.
+
+## Maker proposal and protected-context integration — 2026-09-24
+
+Implemented `v11/maker_runtime.py`: bounded typed maker targets and a current-input
+factory reuse held queue claims, exact books, current risk, protected admission
+and microstructure. The shared MakerEventAdapter creates only research quotes,
+then the existing protected payout-distance context. It publishes event-linked
+queue results with no common-account economic proposal, reservation or fill.
+Same-day context requires its separately reviewed payout capability and exact
+conditioning inputs; observation probability is never substituted for payout.
+
+Typed MakerLane is integrated with the same account/research/telemetry objects.
+A plan cannot omit required maker safety/telemetry scope. Source/payout scopes,
+configuration identities, actual inventory and current risk evidence remain
+mandatory. Duplicate observing tokens cannot renew expiry or multiply exposure.
+A partial quote commit survives an interrupted context calculation. Explicitly
+configured quote prices and cost reserves are research terms, not a learned maker
+policy, verified fee or first-canary execution baseline. Actual payout-context
+GATED outcomes remain visible even when a non-executing quote is retained.
+
+Initial new/telemetry/assembly run: 38 passed / 2 failed in 9.87 s. A SELL fixture
+crossed the spread before reaching the inventory gate; another tried to claim a
+deduplicated unchanged book. Corrected those fixtures to a passive price and a
+new received book/current risk state. The assembler now explicitly refuses a
+missing claim rather than raising an attribute error. Related run: 171 passed /
+1 failed in 32.94 s, due only to a broader expected error name; retained the
+actual PENDING_SALES_EXCEED_HELD_INVENTORY rejection. Final focused run:
+**9 passed in 3.19 s**. Distinct new passing cases total **1063** over baseline
+2336. Full integration regression completed under the existing exclusive lock and
+600-second timeout: **3399 passed, four existing warnings, 208.79 s; exit 0**.
+Source/test SHA-256 values remained unchanged. Wrapper 209.426 s; user 143.670744 s;
+system 58.675137 s; peak RSS 159120 KiB. Retained local result/log:
+`/workspace/scratch/38af7099c566/v11-test-evidence/candidate-composition-full-20260924-01.json`
+and `.log`. Off-host headroom before the run: 20 GiB memory limit, 6.914 GB current
+use, eight CPU quota equivalents, 25.709 GB disk free. This does not establish
+alpha-dev headroom. No full regression or other test process remains running.

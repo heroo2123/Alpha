@@ -97,6 +97,7 @@ class RequestAssembler:
 
     def check(self, claim):
         if digest(self.description()) != self.config: raise EvidenceError('ASSEMBLY_CONFIGURATION_CHANGED')
+        if not isinstance(claim,dict):raise EvidenceError('ASSEMBLY_HELD_EVENT_CLAIM_REQUIRED')
         state = self.queue.snapshot(); active = state['active']
         if (self.queue._worker != claim.get('claim_id') or active is None
                 or active['claim_id'] != claim.get('claim_id') or active['event_id'] != claim.get('event_id')

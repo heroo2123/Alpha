@@ -141,3 +141,22 @@ optional runtime work. The shared process is not an independent guardian.
 **206 related tests passed in 32.46 s**, including **14 new worker/candidate
 cases**. Quote origination/context factories, actual provider/trade inputs,
 reviewed first-canary baseline and empirical/independent acceptance remain open.
+
+## Current maker quote and context assembly
+
+`MakerLane` and `MakerRequestFactory` now originate bounded research quotes from
+current held-claim source/book/risk/admission inputs. `MakerEventAdapter` uses the
+same MakerResearch as runtime retirement and telemetry, publishes event-linked
+queue evidence and returns no economic account proposal. Conditional same-day
+context retains its separately reviewed payout capability, exact population and
+remaining-day model inputs. A GATED context is reported explicitly. Raw members
+and point distances do not become calibrated maker EV or executable exits.
+
+The factory enforces exact declared terms and configuration identity; the existing
+research/common-risk engine still rejects crossing quotes, excessive inventory
+and duplicate observing tokens. A later claim cannot silently renew the original
+quote's expiry. Research quote and context child records survive interruption.
+Source models, clock custody and risk metrics in these tests remain fixtures.
+The nine new factory/adapter tests passed in 3.19 s. Final integrated regression
+is recorded in V11_WORK_CHECKPOINT.md. Public trade collection, empirical models,
+reviewed first-canary baseline and formal/independent acceptance remain open.

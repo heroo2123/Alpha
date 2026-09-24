@@ -11,6 +11,7 @@ from .paper_runtime import (Evaluation, TemperatureEventAdapter, VERSION as RUNT
 from .relative_value import DiscoveryRequest, RelativeValueStrategies
 from .reaction_runtime import PWSLeadEventAdapter, SourceReleaseEventAdapter, PositionExitEventAdapter
 from .runtime_health import admission_heads
+from .maker_runtime import MakerEventAdapter
 
 
 def _gated(store,key,claim,reason,lane):
@@ -59,9 +60,9 @@ class MultiStrategyEventAdapter:
         for name,adapter in adapters:
             identity(name);names.append(name)
             if not isinstance(adapter,(TemperatureEventAdapter,RelativeValueEventAdapter,
-                    PWSLeadEventAdapter,SourceReleaseEventAdapter,PositionExitEventAdapter)) or adapter.store is not store:
+                    PWSLeadEventAdapter,SourceReleaseEventAdapter,PositionExitEventAdapter,MakerEventAdapter)) or adapter.store is not store:
                 raise EvidenceError('RUNTIME_STRATEGY_ADAPTER_SCOPE')
-            if isinstance(adapter,PositionExitEventAdapter):
+            if isinstance(adapter,(PositionExitEventAdapter,MakerEventAdapter)):
                 if coordinator is not None and coordinator is not adapter.coordinator:
                     raise EvidenceError('RUNTIME_EVALUATOR_ACCOUNT_MISMATCH')
                 coordinator=adapter.coordinator

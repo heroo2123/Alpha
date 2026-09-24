@@ -31,6 +31,8 @@ from .basket_valuation import BasketPolicy
 from .pws_lead import LeadPolicy
 from .maker_research import MakerResearch, MakerResearchPolicy
 from .maker_telemetry import MakerTelemetryPolicy, MakerTelemetryWorker
+from .maker_runtime import MakerTarget, MakerRequestFactory, MakerEventAdapter
+from .microstructure import MicrostructurePolicy
 from .valuation import CostComponent, ValuationPolicy
 
 
@@ -90,7 +92,28 @@ class ExitLane(TemperatureLane):
     reason: str
 
 
-LANES = (TemperatureLane,RelativeValueLane,PWSLeadLane,SourceReleaseLane,ExitLane)
+@dataclass(frozen=True)
+class MakerLane:
+    name: str
+    inputs: ScopeInputs
+    targets: tuple[MakerTarget, ...]
+    book_provider: str
+    valuation: ValuationPolicy
+    lifetime_seconds: float
+    microstructure: MicrostructurePolicy
+    payout_inputs: ScopeInputs | None = None
+
+    def __post_init__(self):
+        identity(self.name);identity(self.book_provider)
+        if (not isinstance(self.inputs,ScopeInputs) or self.inputs.scope.strategy!='MAKER_RESEARCH'
+                or not isinstance(self.valuation,ValuationPolicy) or not isinstance(self.microstructure,MicrostructurePolicy)
+                or not 0<finite(self.lifetime_seconds)<=60 or type(self.targets) is not tuple or not 1<=len(self.targets)<=6
+                or any(not isinstance(t,MakerTarget) for t in self.targets)
+                or self.payout_inputs is not None and not isinstance(self.payout_inputs,ScopeInputs)):
+            raise EvidenceError('CANDIDATE_MAKER_LANE_PLAN_BOUND')
+
+
+LANES = (TemperatureLane,RelativeValueLane,PWSLeadLane,SourceReleaseLane,ExitLane,MakerLane)
 
 
 @dataclass(frozen=True)
@@ -101,7 +124,7 @@ class CandidateEvent:
     risk_book_provider: str
     risk_valuation: ValuationPolicy
     risk_policy: RiskInputPolicy
-    lanes: tuple[TemperatureLane, ...]
+    lanes: tuple[TemperatureLane | MakerLane, ...]
 
     def __post_init__(self):
         identity(self.risk_book_provider)
@@ -177,6 +200,9 @@ class CandidatePlan:
                 e=events.get(s.context.event_id)
                 if e is None or (s.context,s.rule,s.binding,s.stage)!=(e.risk_inputs.context,e.risk_inputs.rule,e.risk_inputs.binding,e.risk_inputs.stage):
                     raise EvidenceError('CANDIDATE_MAKER_PLAN_SCOPE')
+        maker_inputs={s.context.event_id:s for s in self.maker.inputs} if self.maker else {}
+        if any(type(l) is MakerLane and maker_inputs.get(e.route.event_id)!=l.inputs for e in self.events for l in e.lanes):
+            raise EvidenceError('CANDIDATE_MAKER_LANE_REQUIRES_SHARED_TELEMETRY')
         if self.observation is not None:
             routes={e.route.event_id:e.route for e in self.events}
             if (not {r.event_id for r in self.observation.requests} <= routes.keys()
@@ -184,10 +210,13 @@ class CandidatePlan:
                 raise EvidenceError('CANDIDATE_OBSERVATION_ROUTE_MISMATCH')
 
 
-def _lane(queue,coordinator,lane):
+def _lane(queue,coordinator,lane,maker):
     a=RequestAssembler(queue,lane.inputs,book_provider=lane.book_provider,valuation_policy=lane.valuation,
                        lifetime_seconds=lane.lifetime_seconds)
     strategy=lane.inputs.scope.strategy
+    if type(lane) is MakerLane:
+        f=MakerRequestFactory(a,maker,lane.targets,microstructure=lane.microstructure,payout_inputs=lane.payout_inputs)
+        return MakerEventAdapter(maker,f)
     if type(lane) is RelativeValueLane:
         if strategy not in {'CROSS_TEMP_RELATIVE_VALUE','STRUCTURAL'}: raise EvidenceError('CANDIDATE_RELATIVE_SCOPE_REQUIRED')
         f=RelativeValueRequestFactory(a,lane.targets,basket_policy=lane.basket_policy,maximum_proposals=lane.maximum_proposals)
@@ -233,6 +262,8 @@ def assemble_candidate(store,client,plan,*,generation):
     # Refuse a conflicting existing account or queue; construction never replaces
     # their state to make a new configuration appear compatible.
     coordinator._head()
+    maker=MakerResearch(coordinator,plan.maker.research) if plan.maker else None
+    if maker is not None:maker._head()
     queue=EventQueue(store,routes=tuple(e.route for e in plan.events),policy=plan.trigger)
     queue.snapshot()
     scopes={}; needs={}; adapters={}; risk=[]
@@ -241,7 +272,9 @@ def assemble_candidate(store,client,plan,*,generation):
         eid=event.route.event_id
         scopes[eid]=tuple(sorted({l.inputs.scope.strategy for l in event.lanes}))
         inputs=[event.risk_inputs,*[l.inputs for l in event.lanes],
-                *[l.observation_inputs for l in event.lanes if type(l) is PWSLeadLane]]
+                *[l.observation_inputs for l in event.lanes if type(l) is PWSLeadLane],
+                *[l.payout_inputs for l in event.lanes if type(l) is MakerLane and l.payout_inputs is not None]]
+        scopes[eid]=tuple(sorted({*scopes[eid],*(s.scope.strategy for s in inputs)}))
         if eid in maker_scopes:
             scopes[eid]=tuple(sorted({*scopes[eid],'MAKER_RESEARCH'}));inputs.append(maker_scopes[eid])
         for context in inputs:
@@ -253,14 +286,12 @@ def assemble_candidate(store,client,plan,*,generation):
                 key=(eid,context.scope.strategy,kind,source.provider,source.source_identity)
                 need=SourceNeed(*key,source.maximum_age_seconds)
                 if key not in needs or need.maximum_age_seconds<needs[key].maximum_age_seconds:needs[key]=need
-        adapters[eid]=MultiStrategyEventAdapter(store,tuple((l.name,_lane(queue,coordinator,l)) for l in event.lanes))
+        adapters[eid]=MultiStrategyEventAdapter(store,tuple((l.name,_lane(queue,coordinator,l,maker)) for l in event.lanes))
         a=RequestAssembler(queue,event.risk_inputs,book_provider=event.risk_book_provider,
             valuation_policy=event.risk_valuation,lifetime_seconds=plan.runtime.maximum_tick_seconds)
         risk.append(EventRiskInputs(a,coordinator,event.risk_policy))
     health=RuntimeHealth(store,plan.health,account_id=plan.account.account_id,scopes=scopes,sources=tuple(needs[k] for k in sorted(needs)))
     evaluator=RiskAwareEventAdapter(_EventDispatch(coordinator,adapters),tuple(risk))
-    maker=MakerResearch(coordinator,plan.maker.research) if plan.maker else None
-    if maker is not None:maker._head()
     runtime=PaperRuntime(coordinator,queue,health,plan.runtime,evaluator=evaluator,worker_id=plan.worker_id,
         generation=generation,feed_policy=plan.feed,audits=AuditScheduler(store,plan.audits),maker=maker)
     runtime._head()
