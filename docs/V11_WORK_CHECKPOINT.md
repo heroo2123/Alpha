@@ -1,13 +1,13 @@
 # Alpha V11 work checkpoint
 
-Updated 2026-09-23, 23:47 UTC. Resume here. **NOT_READY_TO_FUND**.
+Updated 2026-09-24, 00:04 UTC. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
 
 ## Exact identities and scope
 
 - Branch: `weather-v11-profitability-upgrade-2026-09-23`.
-- Last verified implementation HEAD: `a2dd28777147c63ace556dafce3eb8310eedfe0e`.
-- Last verified implementation tree: `83b095836589acd04498611847a4ddba7c3b8bac`.
+- Last verified implementation HEAD: `75a1b24a22dc622a90d53bdc959c115db92df7f4`.
+- Last verified implementation tree: `556dc6d2a59a0350ad8dd42ef8df09a02744e891`.
 - Worktree at verification: clean; local and published implementation trees match.
 - This following checkpoint commit changes documentation only. Resolve its own
   exact commit with `git log -1 --format=%H -- docs/V11_WORK_CHECKPOINT.md`, and its
@@ -319,6 +319,29 @@ completed successfully. The blocked local UID probe remains explicitly unpassed.
 No protected host permission was weakened, no V10 action or alpha-dev workload
 occurred, and no independent review is claimed.
 
+## Phase 6 forecast and same-day milestone
+
+Published `75a1b24a22dc622a90d53bdc959c115db92df7f4`, tree
+`556dc6d2a59a0350ad8dd42ef8df09a02744e891`. Added
+`v11/strategy_pipeline.py`, 27 dedicated synthetic checks and
+`docs/V11_TEMPERATURE_STRATEGIES.md`. Evaluation reconstructs input members and
+identities from leased archive records, applies the protected frozen bundle,
+checks local contract-day routing, values exact executable depth/costs and
+produces common coordinator proposal data only if qualified. Same-day conditioning
+binds the exact revision/population and complete unresolved-day/model coverage.
+Its original inference cutoff survives later archival/evaluation. Stable request
+IDs retain partial valuations and completed evidence across interruption; they
+never refresh authority. New source arrivals, event/operator suppression and
+model demotion remain effective.
+
+Full off-host regression: 2,697 passed, four existing warnings, 72.93 seconds.
+Compileall and diff whitespace checks passed. Earlier scoped-admission GitHub run
+35935233616 completed successfully. No live/source-normalizer commissioning,
+empirical calibration, actual champion or independent acceptance is claimed.
+Raw-to-inference adapters and measured scope-regime assignment remain pending;
+all current settlement candidates are rejected/gated by conservative economics.
+No alpha-dev access, workloads or V10 changes were needed for this milestone.
+
 ## Implementation and verification
 
 Prior delivered foundation is retained: private append-only evidence namespaces,
@@ -360,7 +383,10 @@ bounded compressed-capture verification and explicitly limited runtime context.
 | Probability/dataset GitHub Actions run 35924652710 at 359814e | completed successfully |
 | Event/EV CI run 35931387025 | Historical FAILED fixture finding; corrected and closed by run 35933848981 |
 | Coordinator CI run 35933951235 at 8437079 | completed successfully |
-| New admission implementation CI | not yet inspected |
+| Admission implementation CI 35935233616 at a2dd287 | completed successfully |
+| Forecast/same-day strategy checks | **27 passed; 120 related checks passed** |
+| Latest forecast/same-day full regression | **2,697 passed; four existing warnings; 72.93 s** |
+| New forecast/same-day implementation CI | not yet inspected |
 
 Tests used an isolated off-host environment installed from hash-locked dev
 requirements. Four warnings are pre-existing FastAPI lifecycle deprecations.
@@ -381,8 +407,9 @@ technical readiness, canary eligibility and empirical validation stay separate.
   period is imposed; mandatory technical/evidence gates remain.
 
 Next engineering action: continue Phase 6 strategy migration through the shared
-admission/coordinator path, beginning with forecast/same-day proposal factories
-and bounded source-event triggers. PWS observation, payout and executable-exit
+admission/coordinator path, with bounded source-event triggers next. Forecast/same-day evaluation factories
+are implemented and locally verified; their provider adapters and empirical
+calibration remain pending. PWS observation, payout and executable-exit
 targets remain separate; source-shock EVENT exceptions need exact-source/CLOB
 checks, structural baskets need common-outcome/partial-leg reconciliation, and
 result-lag still requires proven finality. Complete all remaining master phases. Event-state and target-specific economics primitives
