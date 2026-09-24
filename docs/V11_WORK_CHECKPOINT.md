@@ -6,14 +6,17 @@ This is an implementation checkpoint, not release or financial approval.
 ## Exact identities and scope
 
 - Branch: `weather-v11-profitability-upgrade-2026-09-23`.
-- Last verified implementation HEAD: `f0e0abc3345f63d170c29b5ba5d5d74c91238477`.
-- Last verified implementation tree: `52cbef6c6d9372beca2c60ed32675ecdc9298023`.
+- Last verified implementation HEAD: `b03d6df5cbc9d82a2a28797ee59ca332f9a5dfcb`.
+- Last verified implementation tree: `8be9e129241b52f02d6eaf563e8c1647b94a612b`.
 - Worktree at implementation verification: only this following checkpoint update
   remains uncommitted; all implementation files are saved, and local/public
   implementation trees match. No unfinished work was discarded.
 - This following checkpoint commit changes documentation only. Resolve its own
   exact commit with `git log -1 --format=%H -- docs/V11_WORK_CHECKPOINT.md`, and its
   tree with `git rev-parse <that-commit>^{tree}`; no self-referential hash claim.
+- Prior maker quote implementation: `f0e0abc3345f63d170c29b5ba5d5d74c91238477`,
+  tree `52cbef6c6d9372beca2c60ed32675ecdc9298023`; its recovery checkpoint was
+  `e5d7afe4123a3cd46eb473ea4e6de3469b507662`.
 - Preservation-preparation checkpoint: `2dc11b341f0885ea2af534c39a3873e7b2483006`,
   tree `52000e11dcbdacb5b07df1fd8fcc0fea7e2bc029`.
 - Prior maker-feature implementation: `a3a0a05b3ea2ecdc55190c711a75d6d7cd990922`,
@@ -799,7 +802,7 @@ The precise remaining owner action and unchanged suspension gates are recorded
 in V11_CONTROL_SUSPENSION_PLAN.md. Do not mistake authorization for tool access
 or metadata inventory for a verified preservation set.
 
-### Latest continuation: reversible maintenance and maker research
+### Prior continuation: reversible maintenance and maker research
 
 Recovered 53cae2da33e97c993c76ab976d2f079a97bf6ae1, tree
 cbb409b292f9d63f417ae8e7b0f6d3c7744f4980, on the same development branch with a
@@ -925,3 +928,22 @@ at f69e318. Cumulative distinct new tests now 678; full completed packages remai
 1/50 = 2%. R34/R35 remain PARTIAL, with baseline cancellation/telemetry, runtime and
 empirical acceptance still open. Continue the full specification after those
 interfaces, including rewards, guardian, clock and operator integration.
+
+The implementation above is published at b03d6df5cbc9d82a2a28797ee59ca332f9a5dfcb,
+tree 8be9e129241b52f02d6eaf563e8c1647b94a612b. Local/public tree comparison passed;
+the publication/fetch completed and the worktree was clean before this following
+checkpoint update. No running inventory, test or implementation operation remains.
+Exact final verification command (off-host, exit 0):
+
+```sh
+/workspace/scratch/38af7099c566/alpha-v11-venv-20260924/bin/python -m pytest -q tests/test_v11_maker_context.py tests/test_v11_maker_research.py tests/test_v11_microstructure.py tests/test_v11_strategy_pipeline.py tests/test_v11_strategy_admission.py tests/test_v11_model_artifacts.py tests/test_v11_probability.py tests/test_v11_paper_coordinator.py tests/test_v11_event_risk.py tests/test_v11_evidence_foundation.py --tb=short
+```
+
+Result: 266 passed in 19.68 s. A separate collection-only check confirmed 37 new
+context cases without rerunning passed tests. SUSPENSION_NOT_READY; inventory hash
+unavailable; exact owner command denied by the connector. Source/health findings
+remain the recorded observations, not fresh health passes. The next off-host
+implementation is cancellation/telemetry and runtime interfaces; the next
+owner-only action is the same approved metadata inventory in the authenticated
+owner shell, with only its redacted result returned. No V10 configuration/signal,
+restart, executor, funding or V11 deployment permission is implied.
