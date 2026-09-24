@@ -185,6 +185,7 @@ class TemperatureStrategies:
         cutoff = start['body']['recorded_at']
         inference_cutoff = cutoff
         value = prediction = model = assessment = event = preconfirmation = release = None
+        learning_capture = dict(status='NO_PREDICTION',capture_id=None)
         reason, outcome, proposal, trace = None, 'GATED', None, []
         references = [request.admission_id, start_id]
         try:
@@ -248,6 +249,19 @@ class TemperatureStrategies:
             prediction = predict_with_bundle(model.bundle, rule, components, as_of=inference_cutoff,
                             max_source_age_seconds=min(leased[key]['maximum_age_seconds'] for key in request.model_input_ids),
                             observed=observed, remaining_coverage=coverage)
+            if scope.strategy=='FUTURE_FORECAST':
+                # All buckets are retained before entry economics filters the
+                # requested token. This has no label/trainer/promotion interface.
+                from .learning_capture import capture_forecast_vector
+                try:
+                    captured=capture_forecast_vector(self.store,record_id+':learning',context=context,rule=rule,binding=binding,
+                        prediction=prediction,model_input_ids=request.model_input_ids,
+                        expires_at=min(request.expires_at,assessment['valid_until']))
+                    learning_capture=dict(status='EVENT_VECTOR_CAPTURED_LABELS_PENDING',capture_id=captured['id'])
+                except EvidenceError as exc:
+                    learning_capture=dict(status='DATASET_CAPTURE_GATED',capture_id=None,reason=str(exc))
+            else:
+                learning_capture=dict(status='CONDITIONED_TARGET_CAPTURE_NOT_IMPLEMENTED',capture_id=None)
             refs = (*request.model_input_ids, request.observed_input_id, request.coverage_input_id, request.book_id)
             references.extend(key for key in refs if key is not None)
             value_id = record_id+':valuation'
@@ -304,6 +318,7 @@ class TemperatureStrategies:
                    funnel=trace, measurement_target=FINAL_EXTREME, executable_exit_value=None,
                    valuation_type='SETTLEMENT', preconfirmation=preconfirmation,
                    received_source_release=release,
+                   learning_capture=learning_capture,
                    financial_authority=False, execution_status='NOT_SUBMITTED')
         # Missing input references cannot prevent the durable rejection reason.
         available = []

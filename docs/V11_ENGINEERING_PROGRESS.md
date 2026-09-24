@@ -84,3 +84,12 @@ join. Actual NOAA access/packing parity, calibrated temporal approximation,
 other models and operational acceptance remain unearned. Total **78/200**, still
 approximately **39%** after whole-percentage rounding. Formal **1/50 (2%)** is
 unchanged. This does not credit E/A, extra tests or elapsed effort.
+
+Forecast learning capture: R14 earns J for the protected whole-event forecast
+vector -> exact model feature/decision archive -> explicit exact-label join ->
+existing causal dataset integration. Evidence: 17 new learning-capture tests,
+114 related passes in 22.55 s. The retained event vector is independent of entry
+economics; global universe coverage and independent label truth remain unverified.
+Other learning targets, actual calibration, isolated training and learning
+acceptance remain open. Total **79/200**, approximately **40%** by the same
+whole-percentage rounding. Formal **1/50 (2%)** remains unchanged.

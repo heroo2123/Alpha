@@ -1,6 +1,6 @@
 # Alpha V11 work checkpoint
 
-Updated 2026-09-24, after bounded run-bound GEFS source/candidate integration. Resume here. **NOT_READY_TO_FUND**.
+Updated 2026-09-24, after forecast-vector learning capture integration. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
 
 ## Current priority override — V11 runtime integration
@@ -23,7 +23,49 @@ runtime scheduling, causal source inputs, heartbeat/clock gates and cancellation
 integration subsequently advanced as recorded below. V10 health/resource findings remain
 open. No funding, deployment, financial activation or new host workload authorized.
 
-## Current continuation — run-bound source integration
+## Current continuation — forecast-vector learning capture
+
+Recovered saved implementation **6681d68b7d21357c83e702f048dadf71e77223aa**,
+tree **f3668f94a4b75d017078b9e8ea05e86611369e1a**, on the unchanged V11 branch.
+The three unfinished learning files were preserved. Recorded test session 39954
+was no longer accessible; no pytest/full-run/publication process remained. Its
+final result was unavailable, so one bounded replacement run was justified.
+No reset, clean, rollback, duplicated live operation or V10 access occurred.
+
+Implemented `v11/learning_capture.py` and joined `strategy_pipeline.py` to the
+existing causal dataset path. Every YES bucket of each evaluated unconditioned
+forecast is captured before entry economics, with exact source/bundle/rule
+identity, actual feature time, immutable replay and original expiry. Explicit
+complete labels join through existing cutoff and provenance checks. No label,
+training, promotion, fill or account authority is created. Conditioned and other
+learning targets remain explicitly unimplemented. Details and limitations:
+`docs/V11_LEARNING_CAPTURE.md`.
+
+Final related verification: **114 passed in 22.55 s, exit 0** (session 25406).
+This includes **17 new tests**, now **1191** above baseline 2336. The prior
+interrupted attempt had 64 passes and one fixture assertion failure about
+pre-existing coordinator events; the corrected fixture asserts no new events.
+No assertion failure remains. Full regression covering GEFS plus the new shared
+pipeline changes is due at the next shared integration milestone; the prior
+3442-pass full run does not cover them.
+
+Supplementary estimate **79/200, approximately 40%**, earns R14 J for the
+demonstrated protected prediction -> exact feature/decision capture -> labeled
+causal dataset integration. Formal completion remains **1/50 (2%)**; no empirical,
+deployment or independent acceptance is implied. Other source/learning targets
+and all full-master requirements remain in scope.
+
+Next concrete implementation: multi-step forecast census recovery and bounded run
+rollover, retaining original source receipts and partial-run history. Continue
+exact labels/calibration/learning and remaining independent/operational acceptance
+afterward. No owner action blocks independent development. V10 remains unchanged;
+stale-cycle/memory-pressure, alpha-dev isolation/resource, backup/recovery and
+deferred inventory verification gates remain open. No deployment or funding.
+
+This checkpoint's saved commit/tree can be resolved without a self-referential
+hash using `git log -1 --format='%H %T' -- docs/V11_WORK_CHECKPOINT.md`.
+
+## Previous continuation — run-bound source integration
 
 Recovered and independently matched local/public reporting HEAD
 `f39de24df5970dae39989d3ad818842e4b71e7e9`, tree
