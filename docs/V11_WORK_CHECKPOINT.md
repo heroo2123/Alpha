@@ -1,6 +1,6 @@
 # Alpha V11 work checkpoint
 
-Updated 2026-09-24, after discovery and rule-cancellation verification. Resume here. **NOT_READY_TO_FUND**.
+Updated 2026-09-24, after bounded candidate-runner verification. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
 
 ## Current priority override — V11 runtime integration
@@ -26,11 +26,11 @@ open. No funding, deployment, financial activation or new host workload authoriz
 ## Exact identities and scope
 
 - Branch: `weather-v11-profitability-upgrade-2026-09-23`.
-- Last verified implementation HEAD: `aa541aca587016da1143a63ab5819aed3aee71fa`.
-- Last verified implementation tree: `0af346b26b293e9ee8a5779eb2630d670850079d`.
-- Public-book/census implementation identity is above. Public/local tree equality
-  passed; fetch/alignment exited 0 (session 5895), with a clean worktree before
-  discovery integration. No unfinished work was discarded.
+- Last verified implementation HEAD: `a63365901e80d87d1d9d15c6d5534ef5eeedb593`.
+- Last verified implementation tree: `d774fa9c7533f330d6d084538c355220df1e2b32`.
+- Discovery/rule-cancellation implementation identity is above. Public/local tree
+  equality passed; fetch/alignment exited 0 (session 95247), with a clean worktree
+  before candidate-runner integration. No unfinished work was discarded.
 - A later commit containing this checkpoint may include the newer work below. Resolve its own
   exact commit with `git log -1 --format=%H -- docs/V11_WORK_CHECKPOINT.md`, and its
   tree with `git rev-parse <that-commit>^{tree}`; no self-referential hash claim.
@@ -42,8 +42,8 @@ open. No funding, deployment, financial activation or new host workload authoriz
 - Prior maker-feature implementation: `a3a0a05b3ea2ecdc55190c711a75d6d7cd990922`,
   tree `053189306c136d11f32943ec62f0807c827a582c`; its recovery checkpoint was
   `53cae2da33e97c993c76ab976d2f079a97bf6ae1`.
-- Latest full regression: **3,275 passed, four existing warnings, 188.62 s** on
-  the discovery/rule-cancellation implementation recorded below. Its predecessor full run was
+- Latest full regression: **3,293 passed, four existing warnings, 212.37 s** on
+  the candidate-runner/shared-runtime implementation recorded below. Its predecessor full run was
   2,894 passing at `f69e318d04b8771f1de3074928ae63d3951cebec`.
 - Prior implementation: `dd1e85706eb0a26c9bb8aef1317cb635a791b920`, tree
   `8bf30057a39e8690d457e531b781b953a2476878`. Prior recovered checkpoint
@@ -1312,3 +1312,97 @@ Publication of the nonsecret discovery milestone follows. Fully completed packag
 remain 1/50 (implementation/local verification), with formal acceptance unpassed.
 Next implementation is the bounded candidate runner; V10 and all authority gates
 remain unchanged.
+
+
+### Bounded candidate-runner implementation (in progress)
+
+Discovery publication: a63365901e80d87d1d9d15c6d5534ef5eeedb593, tree
+d774fa9c7533f330d6d084538c355220df1e2b32. Fetch/alignment completed exit 0, session
+95247; worktree was clean. The runner draft is now integrated as
+polymarket_scanner/v11/candidate_runner.py with tests/test_v11_candidate_runner.py.
+The outside draft is historical; preserve the newer repository edits on recovery.
+
+The finite runner joins existing paper safety ticks, one shared public-collection
+slot, resumable discovery/census, optional observation pump and bounded audit chunks.
+Explicit job/tick/time limits, durable command reservation, exact interrupted-command
+recovery, completed-run non-renewal and coroutine drainage are implemented, under
+test. Only the runtime's actual configured worker emits its own heartbeat. This
+is cooperative off-host integration, not a hard real-time or isolated guardian claim.
+Initial runner suite is running in local exec session 84588; do not duplicate it.
+No source, clock, calibration, deployment or financial acceptance is inferred.
+V10 maintenance remains deferred; host-resource/isolation and inventory independent
+verification remain open. Next: resolve concrete integration failures, add the real
+protected temperature-pipeline runner check and save the verified milestone.
+
+Initial candidate run: 14 passed / one test expectation failure. The recovery test
+allowed three jobs and correctly continued to a separate Gamma discovery request;
+its one-command recovery assertion was corrected to use a one-job bound. Runner/
+protected-pipeline/pump/audit/evidence checks then passed **64 in 12.09 s**. The real
+protected temperature pipeline remains uncalibrated and rejects entry without a
+paper intent/fill. No economic qualification was stubbed in that integration.
+
+Further integrated review corrected two scheduling gaps: a busy census queue now
+returns explicit event-work deferral with all completed safety telemetry retained;
+maker safety rotates over observing quotes, preserving retired history without
+letting it or an earlier healthy quote starve later checks. Restart retains that
+cursor. Final candidate/runtime/pipeline/maker/cancellation/pump/audit/health/census
+suite: **131 passed in 23.50 s**, exit 0. 18 distinct new cases in this milestone,
+cumulative 957. No test is still running. A full regression is required next because
+this operating-candidate milestone also changes shared runtime scheduling.
+Completed implementation packages remain 1/50; formal/empirical acceptance remains
+open. No alpha-dev workload or service action was performed.
+
+Full candidate regression is running in local exec session 83403 with a 600-second
+subprocess ceiling. Source/tests remain unchanged during the run. Resume it rather
+than launch a duplicate. Existing a633659 publication remains the latest verified
+Git milestone until the candidate result is recorded and published.
+
+GitHub CI for the published discovery commit a633659 completed SUCCESS: workflow
+`tests`, run 36030126379. This is additional automated regression evidence, not
+independent release review. The candidate regression remains in session 83403;
+no candidate source/test edits are being made during that run.
+
+Candidate/shared-runtime full regression is running in local exec session 83403,
+with a 600-second subprocess ceiling. Resume it rather than start a duplicate.
+No source/test edits while it runs. Current last published HEAD remains a633659;
+the runner and scheduling edits are intended uncommitted work, not deployed code.
+
+Full-suite session 83403 became unavailable (`Unknown process id`) before a result
+was received. It is UNVERIFIED, not PASS and not a known test failure. No source/
+test bytes changed. Read-only process inspection found no visible pytest process;
+the original 600-second ceiling plus margin elapsed before a single retry. The
+retry started at epoch 1790269848.461895 in local session 1885. Its log and result
+are retained outside Git in v11-test-evidence/candidate-full-20260924-retry-01.log
+and .json under /workspace/scratch/38af7099c566. The test process inherits an
+exclusive full-regression file lock and a 600-second timeout. If the session is
+lost, inspect those files/lock before retrying; do not duplicate a locked run.
+Latest completed verification remains 131 related passes / 23.50 s and the prior
+3275 full passes at a633659. The obsolete unparameterized microstructure entry in
+pytest's historical failure cache does not identify a failure in this unavailable
+run; current tests use separate YES/NO parameterized cases. No current failed
+assertion was received. V10 and all authority boundaries remain unchanged.
+
+Next independent integration inspected: the common coordinator already accepts
+BasketProposal, but the runtime has only a temperature request adapter. A draft
+RelativeValueEventAdapter plus bounded MultiStrategyEventAdapter is staged outside
+Git at /workspace/scratch/38af7099c566/v11-strategy-runtime-next.py while the frozen
+candidate regression runs. It is untested, not part of this run. It will reuse
+whole-event valuation and exact per-candidate queue links, keep missing lanes gated,
+and submit qualified baskets only through the existing common coordinator after
+queue completion. Preserve the draft on interruption; do not infer acceptance.
+
+
+Candidate/shared-runtime full regression **PASS: 3,293 passed, four existing
+FastAPI warnings, 212.37 s**, exit 0. Wrapper elapsed 214.045 s; user/system CPU
+144.331/62.570 s; peak child RSS 157,352 KiB. Session 1885 completed; retained log
+and JSON both confirm completion. The unavailable earlier session remains
+unverified; it is not counted separately. No source/test bytes changed during the
+verified run. 18 new cases, cumulative 957; no open assertion failure remains.
+
+Publication follows. Fully completed implementation packages remain 1/50; all
+formal runtime/empirical/independent review gates remain open. Next concrete
+implementation: integrate and test the relative-value/structural runtime adapter
+and bounded multi-strategy evaluation through the common account, preserving
+exact queue result links and independent lane gating. V10 maintenance remains
+deferred, resource/isolation and inventory verification open, and no deployment
+or financial authorization is introduced.

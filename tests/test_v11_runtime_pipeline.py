@@ -2,6 +2,7 @@ from dataclasses import replace
 import asyncio
 
 import httpx
+import pytest
 
 from polymarket_scanner.v11 import paper_runtime as runtime
 from polymarket_scanner.v11.runtime_health import SourceNeed
@@ -62,7 +63,8 @@ def test_real_protected_temperature_pipeline_runs_through_periodic_census_and_ru
     assert not store.records(kind='TRADE') and not d['forward_or_live_acceptance']
 
 
-def test_http_books_and_official_proxy_feed_real_protected_temperature_evaluation(factory,monkeypatch):
+@pytest.mark.parametrize('use_runner',[False,True])
+def test_http_books_and_official_proxy_feed_real_protected_temperature_evaluation(factory,monkeypatch,use_runner):
     from polymarket_scanner.v11.book_inputs import BookPolicy, PROVIDER
     from polymarket_scanner.v11.census_worker import CensusWorker, CensusPlan, CensusPolicy
     from polymarket_scanner.v11.collection import PublicCollector
@@ -81,19 +83,38 @@ def test_http_books_and_official_proxy_feed_real_protected_temperature_evaluatio
             metrics=metrics(r['now'][0]),book_ids=(book['id'],),source_ids=('model2',official['id']))
         pin=StrategyAdmission(store).pin(prefix+':pin',**r['admission_kw'])
         return (replace(r['request'],admission_id=pin['id'],book_id=book['id'],event_state_id=state['id']),)
-    rt=runtime.PaperRuntime(c,q,m,runtime.RuntimePolicy('fixture'),evaluator=runtime.TemperatureEventAdapter(store,requests))
+    rt=runtime.PaperRuntime(c,q,m,runtime.RuntimePolicy('fixture'),evaluator=runtime.TemperatureEventAdapter(store,requests),
+        worker_id='worker',generation='http-integration')
     rt.tick('schedule')
     async def run():
         def transport(req):
             if req.url.host=='aviationweather.gov':
                 return httpx.Response(200,json=[dict(icaoId=rule.payload['station'],obsTime=r['now'][0]-1,temp=24)])
+            if req.url.host=='gamma-api.polymarket.com':
+                return httpx.Response(200,json=dict(events=[],next_cursor=None))
             return httpx.Response(200,json=response(r,req.url.params['token_id']))
         async with httpx.AsyncClient(transport=httpx.MockTransport(transport)) as client:
-            worker=CensusWorker(ScheduledCollector(PublicCollector(store,client,attempts=1)),q,m,
+            scheduled=ScheduledCollector(PublicCollector(store,client,attempts=1))
+            worker=CensusWorker(scheduled,q,m,
                 plans=(CensusPlan(rule,'FIXTURE_COLLATERAL'),),policy=CensusPolicy('fixture'),book_policy=BookPolicy('fixture'))
-            return await worker.step('http-census')
-    coverage=asyncio.run(run())['body']['details'];assert coverage['outcome']=='CENSUS_SOURCE_COVERAGE_ONLY',coverage
-    d=rt.tick('evaluate-real')['body']['details'];assert d['outcome']=='TICK_COMPLETED',d
+            if not use_runner:return await worker.step('http-census'),None
+            from polymarket_scanner.v11.candidate_runner import CandidateRunner,CandidatePolicy
+            from polymarket_scanner.v11.discovery import MarketDiscovery,DiscoveryPolicy
+            from polymarket_scanner.v11.audit_reports import AuditWorker
+            runner=CandidateRunner(rt,CandidatePolicy('pipeline',maximum_seconds=5,maximum_jobs=3,
+                safety_interval_seconds=.05,minimum_job_spacing_seconds=.05),census=worker,
+                discovery=MarketDiscovery(scheduled,m,DiscoveryPolicy('fixture')),
+                audits=AuditWorker(c,rt.audits.policy))
+            result=await runner.run('http-candidate');d=result['body']['details']
+            assert [j['kind'] for j in d['worker_results']]==['CENSUS','DISCOVERY','AUDIT'],d
+            assert d['all_async_jobs_drained'] and not d['forward_acceptance']
+            evaluated=[store.get(key)['body']['details'] for key in d['runtime_ids']
+                if key and store.get(key)['body']['details'].get('evaluation_ids')]
+            return store.get(d['worker_results'][0]['record_id']),evaluated
+    covered,evaluated=asyncio.run(run());coverage=covered['body']['details']
+    assert coverage['outcome']=='CENSUS_SOURCE_COVERAGE_ONLY',coverage
+    d=evaluated[-1] if use_runner else rt.tick('evaluate-real')['body']['details']
+    assert d['outcome']=='TICK_COMPLETED',d
     completion=store.get(d['evaluation_ids'][0])['body']['details']
     result=store.get(completion['request']['result_ids'][0])['body']['details']
     assert result['outcome']=='REJECT' and result['reason']=='CONSERVATIVE_EV_NOT_ABOVE_THRESHOLD', result['reason']

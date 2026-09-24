@@ -76,6 +76,39 @@ def test_rule_retirement_runs_before_a_busy_census_queue_can_interrupt_event_wor
         fcntl.flock(fd,fcntl.LOCK_EX|fcntl.LOCK_NB)
         d=rt.tick('busy-census')['body']['details']
     finally:os.close(fd)
-    assert d['outcome']=='INTERRUPTED_REQUIRES_RECONCILIATION'
+    assert d['outcome']=='DEGRADED' and d['retired_quote_ids']
+    assert any(e['reason']=='EVENT_WORK_DEFERRED_BUSY_WORKER' for e in d['errors'])
     assert mk._state(mk._head())['quote']['retirement_reason']=='MAKER_RULE_QUARANTINED'
+    assert rig['coordinator']._head() is None
+
+
+def test_retained_retired_quotes_cannot_hide_new_observing_quote_from_minimum_safety_budget(rig,monkeypatch):
+    old,mk=integrated(rig,monkeypatch)
+    rt=PaperRuntime(old.coordinator,old.queue,old.health,RuntimePolicy('one',maximum_updates=1),evaluator=old.evaluator,maker=mk)
+    assert propose(rig,'first',quote_id='a')['outcome']=='OBSERVING_RESEARCH_QUOTE'
+    mk.retire('retire-a',quote_id='a',reason='SYNTHETIC_END')
+    assert propose(rig,'second',quote_id='b')['outcome']=='OBSERVING_RESEARCH_QUOTE'
+    rig['sync'][0]=False
+    rt.tick('unsafe')
+    assert mk._state(mk._head())['b']['status']=='RETIRED'
+    assert mk._state(mk._head())['a']['retirement_reason']=='SYNTHETIC_END'
+    assert rig['coordinator']._head() is None
+
+
+def test_healthy_observing_quote_cannot_starve_later_expired_quote(rig,monkeypatch):
+    from test_v11_maker_research import book,features
+    from test_v11_runtime_health import advance
+    old,mk=integrated(rig,monkeypatch)
+    rt=PaperRuntime(old.coordinator,old.queue,old.health,RuntimePolicy('one',maximum_updates=1),evaluator=old.evaluator,maker=mk)
+    assert propose(rig,'first',quote_id='a')['outcome']=='OBSERVING_RESEARCH_QUOTE'
+    market=rig['rule'].payload['partition'][1]['market_id']
+    book(rig,'other',market_id=market);features(rig,'other','other-micro')
+    result=propose(rig,'second',quote_id='b',thesis_id='b',market_id=market,microstructure_id='other-micro',expires_at=rig['now'][0]+.5)
+    assert result['outcome']=='OBSERVING_RESEARCH_QUOTE',result
+    advance(rig,1)
+    rt.tick('a-first');assert mk._state(mk._head())['b']['status']=='OBSERVING'
+    rt=PaperRuntime(old.coordinator,old.queue,old.health,rt.policy,evaluator=old.evaluator,maker=mk)
+    rt.tick('b-next')
+    state=mk._state(mk._head())
+    assert state['a']['status']=='OBSERVING' and state['b']['retirement_reason']=='MAKER_QUOTE_EXPIRED'
     assert rig['coordinator']._head() is None

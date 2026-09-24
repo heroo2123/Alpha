@@ -74,3 +74,52 @@ intake check, separate from rotating operator/EVENT/rule channels, so no-op heal
 checks and busy operator streams do not starve rule quarantine at a budget of one.
 Maker retirement precedes queue claims and is retained when census work holds
 the queue lock. Dynamic route registration and independent guardian remain open.
+
+## Finite candidate runner
+
+`CandidateRunner.run(run_id)` now composes existing `PaperRuntime`, `CensusWorker`,
+`MarketDiscovery` and `AuditWorker`, plus an optional `ObservationPump` with a fixed
+`ObservationBatch`. It requires the same V11 store, queue, health monitor, common
+account, scheduled collector and report policy. The configured runtime worker
+emits only its own heartbeat. Different worker identities/configurations cannot
+silently reuse the runner's saved state. Protected station/model/rule admission
+and the existing strategy request assembler remain mandatory.
+
+A run has explicit wall-duration, job-count and safety-tick limits. There is one
+collection/optional-work slot, rotated among census, discovery, audit and optional
+observations. Existing provider cooldowns remain authoritative. Safety ticks
+continue while the collection coroutine awaits HTTP. No thread, daemon, service,
+financial transport or system signal is created by this runner. Audit chunks run
+outside the runtime lock but in the same cooperative process; their cost can delay
+a tick and is not an independent-guardian guarantee.
+
+The runner reserves each work identity durably before dispatch. Completed run
+replay returns history without refreshing health or repeating HTTP. An interrupted
+coroutine is drained and its exact command retained for the worker's own causal
+recovery rules. Resuming a completed discovery step cannot start another scan.
+Raw captures, cooldowns, partial reports, queue census needs and account ambiguity
+remain in their existing stores. Optional-worker failures are recorded without raw
+exception messages and do not suppress unrelated work. No interrupted command is
+claimed successful. Each report includes runtime outcome counts, actual maximum
+safety-start gap, cooperative budget overrun and pending-recovery status. A bounded
+run finishing is not evidence that its strategy, clock or deployment gates passed.
+
+Busy census queue locks now produce explicit event-work deferral while preserving
+completed cancellation/retirement telemetry and later report scheduling. Maker
+safety checks rotate over observing quotes; retained retired history and an earlier
+healthy quote cannot hide a later expiring quote at the minimum update budget.
+The number of active maker quotes remains bounded by the existing maker policy.
+
+Integrated tests run HTTP-shaped mock books/observations through the runner into
+the real scoped protected temperature pipeline. Its uncalibrated valuation rejects
+entry without an intent/fill. Another run completes semantic rejection census and
+a durable audit; interruption tests retain original request identities and verify
+automatic PAPER cancellation during blocked HTTP with cash still reserved.
+These fixtures do not attest source availability, profitability, forward control,
+independent review or deployed cancellation capability.
+
+Remaining integration includes dynamic reviewed route/request assembly, exact
+forecast issue-time and settlement-population adapters, PWS QC/model/source joins,
+all strategy factories, independent guardian and isolated commissioning. The runner
+introduces no launcher or V11 deployment on alpha-dev. Resource/isolation, current
+clock and formal acceptance gates remain open; V10 maintenance is deferred.

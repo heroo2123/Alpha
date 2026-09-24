@@ -4,6 +4,7 @@ No daemon installation, V10 access, network order route, sleeps or inferred fill
 Adapters must archive real receipts; a periodic census cannot re-date old data.
 """
 from copy import deepcopy
+from contextlib import ExitStack
 from dataclasses import asdict, dataclass
 import fcntl
 import os
@@ -145,6 +146,7 @@ class PaperRuntime:
             operator_cursor=0, event_cursor=0, active_plans={}, last_cancel_plan='')
         state.setdefault('rule_cursor', 0)
         state.setdefault('cancel_intake_next', 0)
+        state.setdefault('last_maker_quote', '')
         state['attempt'] += 1
         prefix = 'tick:'+digest([request, state['attempt']])
         step = [0]
@@ -225,9 +227,11 @@ class PaperRuntime:
             save(outcome='CANCELLATION_PROGRESS')
         if self.maker is not None and budget():
             quotes = self.maker._state(self.maker._head())
-            for quote_id, quote in list(quotes.items())[:self.policy.maximum_updates]:
+            observing = sorted(key for key,q in quotes.items() if q['status'] == 'OBSERVING')
+            observing = [k for k in observing if k > state['last_maker_quote']]+[k for k in observing if k <= state['last_maker_quote']]
+            for quote_id in observing[:self.policy.maximum_updates]:
                 if not budget(): break
-                if quote['status'] != 'OBSERVING': continue
+                quote = quotes[quote_id]
                 context = quote['request']['context']
                 try:
                     rule = self.store.latest(kind='RULE_STATE',event_id=context['event_id'])
@@ -240,6 +244,8 @@ class PaperRuntime:
                         row = self.maker.retire('retire:'+digest([prefix,quote_id]), quote_id=quote_id, reason=str(exc))
                         retired.append(row['id'])
                     except EvidenceError as failure: errors.append(dict(stage='MAKER_RETIRE', reason=str(failure)))
+                state['last_maker_quote'] = quote_id
+                save(outcome='MAKER_SAFETY_PROGRESS')
         if hd['global_reasons']:
             errors.append(dict(stage='HEALTH', reason='CLOCK_OR_WORKER_GATED'))
         else:
@@ -263,7 +269,13 @@ class PaperRuntime:
             for index in range(self.policy.maximum_events):
                 if not budget(): break
                 excluded = set(state['visited'])|{e for e,t in state['census_retry'].items() if stamp['monotonic'] < t}
-                with self.queue.work(prefix+':work:'+str(index), exclude_events=tuple(sorted(excluded))) as claim:
+                with ExitStack() as event_work:
+                    try:
+                        claim = event_work.enter_context(self.queue.work(prefix+':work:'+str(index), exclude_events=tuple(sorted(excluded))))
+                    except EvidenceError as exc:
+                        if str(exc) != 'TRIGGER_WORKER_ALREADY_RUNNING': raise
+                        errors.append(dict(stage='EVENT_SCHEDULE', reason='EVENT_WORK_DEFERRED_BUSY_WORKER'))
+                        break
                     if claim is None: break
                     event = claim['event_id']; state['visited'].append(event)
                     output = None
