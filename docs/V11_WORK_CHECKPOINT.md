@@ -6,14 +6,18 @@ This is an implementation checkpoint, not release or financial approval.
 ## Exact identities and scope
 
 - Branch: `weather-v11-profitability-upgrade-2026-09-23`.
-- Last verified implementation HEAD: `dd1e85706eb0a26c9bb8aef1317cb635a791b920`.
-- Last verified implementation tree: `8bf30057a39e8690d457e531b781b953a2476878`.
-- Worktree at verification: clean; local and published implementation trees match.
+- Last verified implementation HEAD: `f69e318d04b8771f1de3074928ae63d3951cebec`.
+- Last verified implementation tree: `e708af471cb8289ca78439c97e8a8450687a075d`.
+- Worktree at implementation verification: only this following checkpoint update
+  remains uncommitted; all implementation files are saved, and local/public
+  implementation trees match. No unfinished work was discarded.
 - This following checkpoint commit changes documentation only. Resolve its own
   exact commit with `git log -1 --format=%H -- docs/V11_WORK_CHECKPOINT.md`, and its
   tree with `git rev-parse <that-commit>^{tree}`; no self-referential hash claim.
-- Prior implementation: `cc268af500949570e25fab0b8699f58e2c9032c2`, tree
-  `d018c39289e0e2331595b83aa774a9eb54bb0baa`. Prior checkpoint `7007b1df650b59e32bbe44e1b5350e719ba201f3`.
+- Prior implementation: `dd1e85706eb0a26c9bb8aef1317cb635a791b920`, tree
+  `8bf30057a39e8690d457e531b781b953a2476878`. Prior recovered checkpoint
+  `6a602a7fe7f8f36aa238140f89b15b3e071423fa`. Health/plan checkpoint
+  `a64636dd819f8a0bd1b10f66ccaf563a6215fc2e`.
 - Frozen public base: `f5f0661307a8d426a20dbf8308d18a0ee403e9b3`, tree
   `d5d2b806e273f11e2f832940f483a5f656462584`; no moving-main substitution.
 - Local V11 workspace: `/workspace/scratch/38af7099c566/Alpha`.
@@ -70,7 +74,8 @@ exact historical runtime epochs are not independently attested.
 materially stale. Read-only cgroup inspection found severe memory pressure above
 MemoryHigh, with no OOM kill. Active/running and NRestarts=0 do not prove fresh
 cycles. The full cause remains unproven. Protected journals remain inaccessible
-through the connected development user. No V10 service, source, limit, permission
+through the connected development user. The completed owner probe below returned
+no journal metadata in its two-hour window and confirmed stale successful cycles. No V10 service, source, limit, permission
 or control metadata was modified. Do not restart it for development convenience.
 
 At the latest read-only check, `alpha-weather-execution.service` is MASKED/INACTIVE
@@ -644,8 +649,9 @@ Latest full regression remains 2,851 passing tests at the shared-account change;
 the additive probe/discovery modules have their own passing checks. Basket account
 CI run `35980156386` completed successfully at `3e84ca3822b5925dc30c502d18eec5dd68e5f56e`.
 No test remains running. Fixed full-package completion remains **1/50 = 2%**.
-The V10 owner-only freshness read, host pressure and all deployment/financial
-safeguards remain as described above; off-host work continues independently.
+That milestone preceded the owner health probe. The completed owner read and
+current operational recommendation are recorded below; host pressure and all
+deployment/financial safeguards remain explicit. Off-host work continues independently.
 
 ## Owner health evidence and bounded suspension proposal
 
@@ -678,6 +684,32 @@ Recovered HEAD before edits: 6a602a7fe7f8f36aa238140f89b15b3e071423fa, tree
 operations were running. Existing checks were not duplicated. Off-host strategy
 and active-position implementation continues independently. Completion: 1/50.
 
+## Active-exit and accounting milestone
+
+Off-host changes implement inventory-bound whole-event exits and lot-level
+entry/exit/P&L attribution. New files: v11/position_management.py,
+v11/position_attribution.py, tests/test_v11_position_management.py and
+V11_ACTIVE_EXITS.md. The common paper coordinator now rejects bare single-token
+exit comparisons without protected model/input and joint inventory reproduction.
+Reservation, submission, partial fills, FIFO basis and exact queue output remain
+inside the common account. Legacy lot history is explicitly unknown.
+
+24 new tests and 78 related exit/account/basket/queue tests passed in 16.73 s.
+An earlier focused run found only a decimal-string test expectation (.4 versus
+0.4), corrected to numeric comparison. The expanded tests also verify interrupted
+resume and queue evaluation before completion. Full regression completed PASS: **2,894 passed, four existing FastAPI
+deprecation warnings, 146.00 seconds**. No test remains running. No duplicate
+regression was launched. No V10 action or workload occurred. The initial focused
+run was 39 pass / one decimal-string assertion failure; after correction the
+related suite passed 141 checks, then the expanded exit/account/basket/queue
+suite passed 78 checks before the single full regression.
+
+Exact-finality dependencies were reviewed in V11_FINALITY_DEPENDENCIES.md. The
+existing bounded WRH polling bracket cannot establish exact publication/revision
+state, and HOURLY population cannot stand in for ALL_TIMES. RESULT_LAG remains
+GATED with R31 OPEN. R32 remains PARTIAL pending continuous runtime, capital
+rotation, emergency permission integration and external execution acceptance.
+
 ## Models, authority and exact continuation
 
 - No V11 live/paper/control/challenger ledger is shared or migrated.
@@ -693,9 +725,12 @@ implemented and locally verified. PWS observation/payout pins and common economi
 are now integrated and locally verified. Received observation/revision reaction
 with stronger directional EVENT checks is also integrated. Joint basket valuation, protected admission, atomic multi-leg reservation and
 per-leg reconciliation are implemented and locally verified. Bounded whole-event discovery and its evidence/funnel/queue path are now
-implemented and locally verified. Next inspect remaining result-lag exact-finality
-dependencies and continue active position management,
-then continue the remaining strategies and master phases. PWS paired research and
+implemented and locally verified. Result-lag exact-finality dependencies are now explicitly reviewed and remain
+GATED. Inventory-bound active exits and lot attribution are implemented and
+locally verified. Next implement the bounded maker microstructure/research
+foundation, then rewards, guardian/clock/operator integration and the remaining
+master requirements. Continuous exit scheduling, capital rotation, emergency
+permission behavior and external reconciliation remain open. PWS paired research and
 queue-fault propagation are implemented and locally verified. Bounded source-event routing
 and forecast/same-day evaluation are implemented and locally verified; provider
 adapters, periodic runtime scheduling and empirical calibration remain pending. PWS observation, payout and executable-exit
@@ -719,3 +754,12 @@ inspection or commissioning becomes necessary, prepare one precise reviewable
 step; continue safe independent engineering meanwhile. Never ask for secrets in
 chat or weaken access controls. Runtime acceptance and funding readiness remain
 blocked; the full implementation task is still in progress.
+
+Current continuation boundary: health freshness FAIL, financial executor
+MASKED/INACTIVE, no suspension/restart/deployment/financial action authorized or
+performed. Explicit owner approval is required only for the prepared V10
+suspension/recovery decisions; independent off-host maker work is authorized.
+The implementation suite is complete (2,894 pass), no local test or publication
+operation is intentionally left running, and the checkpoint/matrix retain the
+full specification. Fixed completion remains 1/50 = 2%; R32 is PARTIAL.
+No independent reviewer or empirical strategy-eligibility pass is claimed.
