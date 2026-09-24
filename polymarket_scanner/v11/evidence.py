@@ -154,6 +154,7 @@ class EvidenceStore:
                         body TEXT NOT NULL, body_sha256 TEXT NOT NULL);
                     CREATE INDEX v11_causal ON v11_records(event_id,available_at,seq);
                     CREATE INDEX v11_kind ON v11_records(kind,seq);
+                    CREATE INDEX v11_time ON v11_records(recorded_at);
                     CREATE TRIGGER v11_no_update BEFORE UPDATE ON v11_records BEGIN
                         SELECT RAISE(ABORT,'APPEND_ONLY'); END;
                     CREATE TRIGGER v11_no_delete BEFORE DELETE ON v11_records BEGIN
@@ -188,7 +189,8 @@ class EvidenceStore:
     def _append(self, record_id: str, kind: str, event_id: str, body: dict,
                 available_at: float, recorded_at: float,
                 expected_previous_seq: int | None = None,
-                expected_heads: tuple[tuple[str, str, int], ...] = ()) -> dict:
+                expected_heads: tuple[tuple[str, str, int], ...] = (),
+                safety_only: bool = False) -> dict:
         identity(record_id)
         identity(event_id)
         body = dict(body, namespace=self.namespace, financial_authority=False,
@@ -226,14 +228,74 @@ class EvidenceStore:
                 if head != guard_seq:
                     raise EvidenceError("AUDIT_GUARDED_STATE_CHANGED")
             self._budget(db, len(encoded.encode()))
-            last = db.execute("SELECT recorded_at FROM v11_records ORDER BY seq DESC LIMIT 1").fetchone()
-            if last and recorded_at < last[0]:
+            if safety_only:
+                self._validate_safety_append(db, kind, event_id, body)
+            # A regressed safety record cannot lower ordinary evidence's clock
+            # high-water mark. Actual timestamps are never clamped or rewritten.
+            last = db.execute("SELECT MAX(recorded_at) FROM v11_records").fetchone()[0]
+            if last is not None and recorded_at < last and not safety_only:
                 raise EvidenceError("CLOCK_REGRESSION")
             db.execute("INSERT INTO v11_records(record_id,kind,event_id,recorded_at,available_at,body,body_sha256) "
                        "VALUES(?,?,?,?,?,?,?)", (record_id, kind, event_id, recorded_at,
                                                available_at, encoded, digest(body)))
             row = db.execute("SELECT * FROM v11_records WHERE record_id=?", (record_id,)).fetchone()
             return self._decode(row)
+
+    @staticmethod
+    def _validate_safety_append(db, kind, event_id, body):
+        d = body.get('details', {}); action = d.get('request', {}).get('action')
+        if kind == 'RUNTIME_STATUS' and d.get('version') in {
+                'alpha_v11_runtime_health_v1', 'alpha_v11_paper_runtime_v1'}:
+            return  # Health/telemetry is never a probability or an order API.
+        if (kind == 'MEASUREMENT' and d.get('version') == 'alpha_v11_paper_cancellation_v1'
+                and action in {'PLAN', 'DELIVER_LOCAL_CANCEL_REQUESTS', 'OBSERVE_ACCOUNT_RECONCILIATION'}):
+            return
+        if kind == 'MEASUREMENT' and d.get('version') == 'alpha_v11_maker_research_v1' and action == 'RETIRE':
+            prior = db.execute('SELECT body FROM v11_records WHERE kind=? AND event_id=? ORDER BY seq DESC LIMIT 1',
+                               (kind,event_id)).fetchone()
+            if prior is None: raise EvidenceError('SAFETY_RETIRE_EXISTING_QUOTE_REQUIRED')
+            previous = json.loads(prior[0])['details']; quotes = previous['quotes']; key = d['request']['quote_id']
+            if key not in quotes or previous['policy_sha256'] != d.get('policy_sha256'):
+                raise EvidenceError('SAFETY_RETIRE_IDENTITY_CHANGED')
+            if quotes[key]['status'] == 'OBSERVING':
+                retired_at = finite(d['quotes'][key]['retired_at'])
+                quotes[key].update(status='RETIRED', retired_at=retired_at, retirement_reason=d['request']['reason'])
+            if canonical(quotes) != canonical(d.get('quotes')):
+                raise EvidenceError('SAFETY_RETIRE_STATE_MUTATION_REFUSED')
+            return
+        if (kind != 'COORDINATOR_EVENT' or event_id != 'v11-paper-account-state'
+                or d.get('version') != 'alpha_v11_paper_coordinator_v1' or action != 'TRANSITION'
+                or d['request'].get('status') != 'CANCEL_REQUESTED'):
+            raise EvidenceError('SAFETY_AUDIT_CANNOT_AUTHORIZE_ACTION')
+        prior = db.execute('SELECT body FROM v11_records WHERE kind=? AND event_id=? ORDER BY seq DESC LIMIT 1',
+                           (kind, event_id)).fetchone()
+        if prior is None:
+            raise EvidenceError('SAFETY_CANCEL_EXISTING_ACCOUNT_REQUIRED')
+        previous = json.loads(prior[0])['details']
+        state = previous['state']; intent = state['intents'].get(d['request'].get('intent_id'))
+        if (previous['policy_sha256'] != d.get('policy_sha256') or intent is None
+                or intent['status'] not in {'RESERVED','SUBMITTING','UNKNOWN','ACKNOWLEDGED','PARTIAL','CANCEL_REQUESTED'}):
+            raise EvidenceError('SAFETY_CANCEL_EXISTING_UNRESOLVED_INTENT_REQUIRED')
+        intent.update(status='CANCEL_REQUESTED', cancel_requested=True)
+        if canonical(state) != canonical(d.get('state')):
+            raise EvidenceError('SAFETY_CANCEL_STATE_MUTATION_REFUSED')
+
+    def safety_audit(self, record_id: str, *, event_id: str, kind: str, details: dict,
+                     evidence_ids: tuple[str, ...] = (), expected_previous_seq: int | None = None,
+                     expected_heads: tuple[tuple[str, str, int], ...] = ()) -> dict:
+        """Sequence-ordered nonfinancial safety audit; preserve raw wall time.
+
+        Only health telemetry, cancellation telemetry, and an exact cancel-only
+        account transition are accepted. This does not relax capture/decision
+        chronology, release reservations, or attest clock/production authority.
+        """
+        if len(evidence_ids) > self.limits.max_evidence_per_decision or len(set(evidence_ids)) != len(evidence_ids):
+            raise EvidenceError('EVIDENCE_SET_INVALID')
+        at = finite(self.clock()); refs = [self.get(k) for k in evidence_ids]
+        return self._append(record_id, kind, event_id, dict(details=details,
+            chronology='SAFETY_SEQUENCE_WITH_RAW_WALL_TIME',
+            evidence=[dict(id=r['id'], sha256=r['sha256']) for r in refs]), at, at,
+            expected_previous_seq=expected_previous_seq, expected_heads=expected_heads, safety_only=True)
 
     @staticmethod
     def _decode(row) -> dict:

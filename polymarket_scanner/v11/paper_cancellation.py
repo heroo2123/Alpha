@@ -9,6 +9,7 @@ from dataclasses import asdict, dataclass
 from .event_risk import VERSION as EVENT_VERSION, EventContext
 from .evidence import EvidenceError, canonical, digest, finite, identity
 from .paper_coordinator import ACCOUNT_KEY, UNRESOLVED, TERMINAL, VERSION as ACCOUNT_VERSION, cancel_identity
+from .runtime_health import VERSION as HEALTH_VERSION, KEY as HEALTH_KEY, cancellation_required
 
 
 VERSION = 'alpha_v11_paper_cancellation_v1'
@@ -60,7 +61,7 @@ class PaperCancellation:
         return row
 
     def _commit(self, key, request, previous, state, *, refs=(), heads=(), **details):
-        return self.store.audit(key, event_id=self._key(state['plan_id']), kind='MEASUREMENT', details=dict(
+        return self.store.safety_audit(key, event_id=self._key(state['plan_id']), kind='MEASUREMENT', details=dict(
             version=VERSION, policy_sha256=self.policy_sha, request=request, state=state,
             execution_namespace=self.store.namespace, account_id=self.coordinator.policy.account_id,
             financial_authority=False, real_cancel_sent=False, orders_created=False, replacement_orders_created=False,
@@ -74,11 +75,16 @@ class PaperCancellation:
         prior = self._replay(key, request, key)
         if prior: return prior
         source = self.store.get(trigger_id); d = source['body'].get('details', {}); r = d.get('request', {})
-        if d.get('version') != EVENT_VERSION or d.get('cancellation_status') != 'REQUESTED_NOT_CONFIRMED':
+        health_trigger = source['kind'] == 'RUNTIME_STATUS' and source['event_id'] == HEALTH_KEY and d.get('version') == HEALTH_VERSION
+        if not health_trigger and (d.get('version') != EVENT_VERSION or d.get('cancellation_status') != 'REQUESTED_NOT_CONFIRMED'):
             raise EvidenceError('RECORDED_CANCELLATION_TRIGGER_REQUIRED')
         trigger_head = self.store.latest(kind=source['kind'], event_id=source['event_id'])
         passive_or_new_risk_only = False
-        if source['kind'] == 'OPERATOR_EVENT':
+        if health_trigger:
+            if trigger_head['id'] != trigger_id or d.get('account_id') != self.coordinator.policy.account_id:
+                raise EvidenceError('CURRENT_RUNTIME_HEALTH_ACCOUNT_REQUIRED')
+            scope, scope_id = 'ACCOUNT', self.coordinator.policy.account_id
+        elif source['kind'] == 'OPERATOR_EVENT':
             scope, scope_id = r.get('scope'), r.get('scope_id')
             if (d.get('cancellation_request_id') != trigger_id or scope not in {'ACCOUNT', 'CITY', 'STATION', 'EVENT'}
                     or not r.get('action', '').startswith(('CANCEL_', 'QUARANTINE_'))):
@@ -99,10 +105,13 @@ class PaperCancellation:
         selected = []
         for intent_id, intent in sorted(account['intents'].items()):
             if intent['status'] not in UNRESOLVED: continue
+            if health_trigger and intent.get('cancel_requested') is True: continue
             context = EventContext(**account['contexts'][intent['event_id']])
             if context.account_id != self.coordinator.policy.account_id:
                 raise EvidenceError('PAPER_CANCEL_ACCOUNT_MISMATCH')
             if (scope, scope_id) not in context.scopes: continue
+            if health_trigger and not cancellation_required(d, context.event_id, tuple(a['strategy'] for a in intent['attribution'])):
+                continue
             passive = any(a['strategy'] == 'MAKER_RESEARCH' for a in intent['attribution'])
             if passive_or_new_risk_only and not (intent['direction'] == 'BUY' or passive): continue
             selected.append((intent_id, intent))
@@ -110,8 +119,8 @@ class PaperCancellation:
         if len(selected) > self.policy.maximum_plan_intents:
             raise EvidenceError('PAPER_CANCEL_PLAN_BOUND_REQUIRES_SMALLER_SCOPE')
         now = finite(self.store.clock())
-        if source['body']['recorded_at'] > now:
-            raise EvidenceError('PAPER_CANCEL_TRIGGER_CLOCK_REGRESSION')
+        # A known cancellation request remains actionable during wall-clock
+        # regression. Sequence and immutable intent identity preserve causality.
         items = {pid:dict(signature=cancel_identity(i), event_id=i['event_id'], token_id=i['token_id'], stage='PLANNED',
                          account_request_id='paper-cancel:'+digest([self._key(key), pid]),
                          requested_at=None, first_terminal_observed_at=None, terminal_status=None, fault=None, last_delivery_error=None,

@@ -1,5 +1,12 @@
 # V10 preservation preparation and suspension readiness
 
+**DEFERRED by the owner's September 24 priority update.** Preserve this prepared
+work; do not execute the verifier or advance optional maintenance preparation.
+All commands below are historical/proposed artifacts, not current owner requests.
+Inventory hash remains OWNER-REPORTED / INDEPENDENT VERIFICATION PENDING. Reopen
+only for the concrete dependency or urgent safety/data-loss conditions specified
+in V11_WORK_CHECKPOINT.md. No service/guard/signal permission is granted.
+
 Updated September 24 after the owner's completed inventory handoff and verifier preparation.
 **SUSPENSION_NOT_READY. No SIGTERM, stop, restart, restore, executor change or V11
 service deployment is approved or performed.** This supersedes the previous

@@ -289,7 +289,7 @@ class EventQueue:
         return self._commit(record_id, request, row, state, dict(outcome='FULL_CENSUS_REQUIRED'))
 
     @contextmanager
-    def work(self, record_id: str):
+    def work(self, record_id: str, *, exclude_events: tuple[str, ...] = ()):
         """Hold the real process lock through evaluation; do not sleep in a poll.
 
         One worker is deliberately stricter than per-event serialization. New
@@ -297,6 +297,8 @@ class EventQueue:
         work, never silently treated as a completed decision or external action.
         """
         identity(record_id, maximum=100)
+        if type(exclude_events) is not tuple or len(exclude_events) > len(self.routes) or not set(exclude_events) <= self.routes.keys():
+            raise EvidenceError('TRIGGER_EXCLUSION_SCOPE')
         if self._worker is not None:
             raise EvidenceError('TRIGGER_WORKER_ALREADY_RUNNING')
         fd = os.open(self.store.path.with_name(self.store.path.name+'.events.lock'),
@@ -307,6 +309,7 @@ class EventQueue:
             except BlockingIOError:
                 raise EvidenceError('TRIGGER_WORKER_ALREADY_RUNNING') from None
             request = dict(action='CLAIM')
+            if exclude_events: request['exclude_events'] = list(exclude_events)
             if self._replay(record_id, request):
                 raise EvidenceError('CLAIM_ID_ALREADY_USED_READ_DURABLE_RESULT')
             row, state = self._read(); now = finite(self.store.clock()); self._expire(state, now)
@@ -315,8 +318,9 @@ class EventQueue:
                 state['needs_census'][lost['event_id']] = 'ABANDONED_EVALUATION_REQUIRES_CENSUS'
                 state['metrics']['abandoned'] += 1
                 state['active'] = None
-            ordered = sorted(state['pending'].values(), key=lambda p:(p['priority'], p['first_received_at'], p['event_id']))
-            census = sorted(e for e in state['needs_census'] if self.routes[e].valid_until > now)
+            ordered = sorted((p for p in state['pending'].values() if p['event_id'] not in exclude_events),
+                             key=lambda p:(p['priority'], p['first_received_at'], p['event_id']))
+            census = sorted(e for e in state['needs_census'] if self.routes[e].valid_until > now and e not in exclude_events)
             event = ordered[0]['event_id'] if ordered else next(iter(census), None)
             if event is None:
                 self._commit(record_id, request, row, state, dict(outcome='IDLE'))
@@ -345,6 +349,18 @@ class EventQueue:
         finally:
             self._worker = None
             os.close(fd)
+
+    def schedule_census(self, record_id: str) -> dict:
+        """Periodic reconciliation never clears an existing loss/fault finding."""
+        request = dict(action='SCHEDULE_PERIODIC_CENSUS')
+        prior = self._replay(record_id, request)
+        if prior: return prior
+        row, state = self._read(); now = finite(self.store.clock())
+        events = sorted(e for e, route in self.routes.items() if route.valid_until > now)
+        for event in events:
+            state['needs_census'].setdefault(event, 'PERIODIC_FULL_CENSUS_DUE')
+            state['evaluations'].pop(event, None)
+        return self._commit(record_id, request, row, state, dict(outcome='CENSUS_SCHEDULED', events=events))
 
     def finish(self, record_id: str, *, claim_id: str, result_ids: tuple[str, ...]) -> dict:
         if self._worker != claim_id:

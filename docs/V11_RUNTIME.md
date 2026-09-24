@@ -1,0 +1,52 @@
+# Bounded V11 paper runtime
+
+paper_runtime.py joins the existing event queue, runtime health, common paper
+account, temperature evaluator, cancellation delivery and maker retirement.
+This is an off-host callable candidate, not an installed scanner or deployed
+trading system. It has no order transport, wallet access, fill inference or
+deployment authority. Required census and request-assembly adapters remain explicit.
+
+PaperRuntime.tick is bounded by source-update count, event count, cancellation
+plan count and a cooperative monotonic time budget. One process lock serializes
+ticks. Durable checkpoints retain operator/EVENT cursors, active cancellation
+plans, round-robin progress and periodic-census deadlines. Replaying a completed
+tick returns history without repeating work or refreshing health. Interrupted
+claims require census through the existing queue. Partial work/evidence is retained.
+
+Periodic census cannot be replaced by old cached books: the queue requires newly
+archived full books for every event token plus required fresh source and current
+rule evidence. Missing adapters remain GATED and receive bounded retry delays.
+Book/source captures are not invented by the runtime. Evaluators run only under
+the queue's serialized claim; results are finished and validated before proposals
+reach the common coordinator. Source/queue/health changes invalidate downstream
+admission. TemperatureEventAdapter uses the existing protected model and source
+admission pipeline; missing strategy dependencies gate that sleeve independently.
+
+Cancellation is serviced before evaluations. Existing pending plans get a bounded
+round-robin service budget; separate bounded intake prevents ambiguous old cancels
+from starving fresh safety requests. At most twice maximum_cancel_plans adapters
+run per tick, each bounded to 16 local account requests. Cash remains reserved
+through ambiguity. Account faults, unhealthy clock/worker state and required-source
+loss feed the same cancellation records. A terminal proof is reconciled by the
+existing account API, never inferred by this scheduler. Maker quotes can be
+retired even during backward wall-clock movement and remain research-only.
+
+Tests demonstrate periodic census -> causal source coverage -> real scoped
+temperature admission -> protected synthetic model bundle -> conservative
+valuation -> completed queue result. The uncalibrated model correctly produces
+CONSERVATIVE_EV_NOT_ABOVE_THRESHOLD and creates no intent/fill. Separate synthetic
+account fixtures exercise heartbeat/clock cancellation, restart, late fills and
+terminal reconciliation; those mechanics are not evidence of trading alpha.
+
+The first affected regression ran 117 passed / 2 failed: the two CAS race fixtures
+intercepted the old audit method. Moving the race injection to safety_audit retained
+their assertions; 142 related tests then passed in 8.55 s, including 23 new health
+cases. Initial runtime integration ran 16 passed / 2 failed: one expected reason
+omitted STREAM_GAP and the full-book fixture omitted exact contract target fields.
+Both fixture defects were corrected. Final runtime/health/maker/cancellation/queue
+suite: 115 passed in 12.42 s, including 45 new tests. No open test failure remains.
+
+Next: durable bounded archived-source delivery and collector/runtime scheduling,
+then the remaining model/source adapters, rewards, independent safety and reporting
+requirements. Live provider/clock/guardian acceptance and host isolation remain
+unpassed. The master specification remains authoritative in full.

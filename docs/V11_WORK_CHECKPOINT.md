@@ -3,6 +3,26 @@
 Updated 2026-09-24, after the owner inventory handoff and paper cancellation integration. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
 
+## Current priority override — V11 runtime integration
+
+Owner update September 24: V10 maintenance/suspension preparation is DEFERRED.
+Do not request or execute the staged inventory verifier, add maintenance helpers
+or tests, install guards, mutate systemd, signal, stop or restart V10. Preserve
+all prepared work and evidence. Inventory SHA-256
+b161426cff5b39b262e72a6e8142982dd29fa8a0bf29c9965232edf1ff364bd3 remains
+OWNER-REPORTED / INDEPENDENT VERIFICATION PENDING. Backup, recovery, resource,
+isolation and suspension gates remain open, not completed by deferral.
+Reopen only for a concrete otherwise-blocked required integration/deployment
+dependency or new urgent safety/data-loss evidence, with the minimum owner action.
+Historical owner-action instructions below are superseded by this priority.
+
+Recovered actual branch HEAD 769fb19c702cc91d33a19ab362a575ac86a2b0a2, tree
+5129ea064d614c91665389e2258470f45a2c61a2, clean worktree and no running local
+operation. Master bytes match the authoritative hash. All work remains off-host;
+runtime scheduling, causal source inputs, heartbeat/clock gates and cancellation
+integration are the primary next milestone. V10 health/resource findings remain
+open. No funding, deployment, financial activation or new host workload authorized.
+
 ## Exact identities and scope
 
 - Branch: `weather-v11-profitability-upgrade-2026-09-23`.
@@ -1034,3 +1054,29 @@ Results: 44 passed in 0.36 s (20 new verifier cases); 223 passed in 36.50 s
 inventory. The second is synthetic PAPER integration, not production guardian or
 exchange acceptance. Full completion remains 1/50; NOT_READY_TO_FUND and
 SUSPENSION_NOT_READY. Next work and owner-only step remain as stated above.
+
+### Runtime, source-health and clock integration milestone
+
+Off-host modules runtime_health.py and paper_runtime.py now join bounded ticks,
+periodic fresh census, causal queue work, real protected temperature evaluation,
+common account reservations, cancellation telemetry and maker retirement. Health
+leases are required atomically at account/maker opening boundaries once installed.
+A restricted safety audit preserves raw timestamps and cancel-only/retire-only
+state during clock regression; ordinary evidence/opening chronology is unchanged.
+No V10 maintenance operation was resumed. Current inventory remains OWNER-REPORTED
+/ INDEPENDENT VERIFICATION PENDING; the verifier action remains deferred.
+
+The actual local read-only clock probe returned SYNC_STATUS_UNAVAILABLE. Tests
+use explicitly synthetic host responses, not a deployment health pass. Full real
+temperature-pipeline integration correctly rejects the uncalibrated economic
+proposal after census/inference/valuation; no synthetic positive-alpha claim.
+45 new tests were added. Final runtime/health/maker/cancellation/queue run: 115
+passed in 12.42 s. Earlier affected regression: 117 passed / 2 CAS fixture-hook
+failures, corrected at the new safety_audit boundary; next run 142 passed in
+8.55 s. Initial runtime run 16 passed / 2 fixture assertion/target-field failures;
+both corrected. No open failure remains. Latest full regression remains 2,894
+at f69e318; a broader regression is due after source/runtime delivery integration.
+Cumulative distinct new tests: 772. Completed full packages remain 1/50 (2%).
+R33/R37/R38/R39 remain PARTIAL, with live adapters and independent acceptance open.
+Next implementation: bounded durable delivery of archived source receipts and
+collector scheduling into this runtime, then ALL remaining master requirements.

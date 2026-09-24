@@ -200,12 +200,12 @@ def test_event_cancels_new_risk_but_retains_nonpassive_inventory_reduction(rig):
 
 def test_account_cas_failure_cannot_publish_stale_confirmation(rig, monkeypatch):
     opening(rig); trigger(rig); plan(rig); advance(rig); c = coordinator(rig)
-    original = rig['store'].audit; once = [False]
+    original = rig['store'].safety_audit; once = [False]
     def race(key, **kw):
         if key == 'observe' and not once[0]:
             once[0] = True; terminal(rig)
         return original(key, **kw)
-    monkeypatch.setattr(rig['store'], 'audit', race)
+    monkeypatch.setattr(rig['store'], 'safety_audit', race)
     with pytest.raises(EvidenceError, match='GUARDED_STATE_CHANGED'):
         bridge(rig).observe('observe', plan_id='cancel-plan')
     assert c._state(c._head())['intents']['buy']['status'] == 'CANCELED'
@@ -248,14 +248,14 @@ def test_cancellation_work_cannot_be_unbounded(per_cycle, total):
 
 
 def test_plan_publication_cas_cannot_hide_new_account_intents(rig, monkeypatch):
-    c = opening(rig); trigger(rig); original = rig['store'].audit; once = [False]
+    c = opening(rig); trigger(rig); original = rig['store'].safety_audit; once = [False]
     def changed(key, **kw):
         if key == 'cancel-plan' and not once[0]:
             once[0] = True
             head = c._head(); state = c._state(head); state['faults'].append('RACING_ACCOUNT_UPDATE')
             c._commit('account-race', dict(action='SYNTHETIC_FIXTURE'), head, state, {})
         return original(key, **kw)
-    monkeypatch.setattr(rig['store'], 'audit', changed)
+    monkeypatch.setattr(rig['store'], 'safety_audit', changed)
     with pytest.raises(EvidenceError, match='GUARDED_STATE_CHANGED'): plan(rig)
     assert bridge(rig)._head('cancel-plan') is None
     assert plan(rig)['selected_count'] == 1

@@ -22,6 +22,7 @@ from .valuation import VERSION as EV_VERSION, contract_target
 from .strategy_admission import StrategyAdmission
 from .event_queue import admission_heads as event_queue_admission
 from .position_attribution import intent_lineage, consume_lots
+from .runtime_health import admission_heads as runtime_health_admission
 
 
 VERSION = 'alpha_v11_paper_coordinator_v1'
@@ -194,7 +195,8 @@ class PaperCoordinator:
         if (len(state['rules']) > 32 or len(state['intents']) > 512 or len(state['fills']) > 2048
                 or len(state['lots']) > 512 or len(state.get('baskets', {})) > 128):
             raise EvidenceError('PAPER_ACCOUNT_RETENTION_BOUND_NO_UNSAFE_PRUNING')
-        return self.store.audit(record_id, event_id=ACCOUNT_KEY, kind='COORDINATOR_EVENT',
+        audit = self.store.safety_audit if request.get('action') == 'TRANSITION' and request.get('status') == 'CANCEL_REQUESTED' else self.store.audit
+        return audit(record_id, event_id=ACCOUNT_KEY, kind='COORDINATOR_EVENT',
                                 details=dict(version=VERSION, policy_sha256=self.policy_sha,
                                              request=request, state=state, **details), evidence_ids=evidence_ids,
                                 expected_previous_seq=row['seq'] if row else 0, expected_heads=heads)
@@ -384,7 +386,10 @@ class PaperCoordinator:
                     raise EvidenceError('PAPER_ACCOUNT_FAULT_ACTIVE')
                 if proposal.proposal_id in state['intents'] or proposal.proposal_id in state.get('baskets', {}):
                     raise EvidenceError('INTENT_ALREADY_RECORDED_RECONCILE_EXISTING_ID')
+                runtime_heads = runtime_health_admission(self.store, account_id=self.policy.account_id,
+                    event_id=proposal.context.event_id, strategies=tuple(a.strategy for a in proposal.attribution))
                 candidate, heads = self._prepare(proposal, now)
+                heads = tuple(heads)+runtime_heads
                 for kind, event, seq in heads:
                     if (kind, event) in guards and guards[(kind, event)] != seq:
                         raise EvidenceError('BATCH_STATE_CHANGED_RECOMPUTE')
@@ -547,6 +552,10 @@ class PaperCoordinator:
                     or (intent['direction'] == 'BUY' and (flags['reduce_only'] or not (event['ordinary_new_risk_research_allowed']
                          or release is not None and release['directional_event_data_eligible'])))):
                 raise EvidenceError('SUBMISSION_PIN_EXPIRED_OR_SUPPRESSED')
+        if status == 'SUBMITTING':
+            heads += runtime_health_admission(self.store, account_id=self.policy.account_id,
+                event_id=intent['event_id'], strategies=tuple(a['strategy'] for a in intent['attribution']))
+            heads = tuple(dict.fromkeys(heads))
         if status == 'CANCEL_REQUESTED':
             intent['cancel_requested'] = True
         intent['status'] = ('CANCEL_REQUESTED' if intent['cancel_requested'] else

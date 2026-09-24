@@ -115,7 +115,8 @@ class MakerResearch:
         return row
 
     def _commit(self,key,request,previous,quotes,*,outcome,reason,refs=(),heads=(),**details):
-        return self.store.audit(key,event_id=self.key,kind='MEASUREMENT',details=dict(
+        audit=self.store.safety_audit if request.get('action')=='RETIRE' else self.store.audit
+        return audit(key,event_id=self.key,kind='MEASUREMENT',details=dict(
             version=VERSION,policy_sha256=self.policy_sha,request=request,quotes=quotes,
             outcome=outcome,reason=reason,**details,financial_authority=False,orders_submitted=False,
             account_ledger_mutated=False,actual_trading_pnl=None,fill_probability=None,queue_position=None),
@@ -152,7 +153,10 @@ class MakerResearch:
         member=next((m for m in c.correlation.memberships if m.station==context.station_id),None)
         if not member or member.city!=context.city_id or member.metadata_fingerprint!=quote.rule.payload['metadata_fingerprint']:
             raise EvidenceError('MAKER_CITY_METADATA_SCOPE')
+        from .runtime_health import admission_heads
         heads=list(SafetyReductions(self.store).atomic_heads(context))
+        heads.extend(admission_heads(self.store, account_id=context.account_id,
+                     event_id=context.event_id, strategies=('MAKER_RESEARCH',)))
         event=EventRiskEngine(self.store).revalidate(quote.event_state_id)
         event_row=self.store.get(quote.event_state_id)
         heads.append(('COORDINATOR_EVENT',event_row['event_id'],event_row['seq']))

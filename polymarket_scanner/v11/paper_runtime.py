@@ -1,0 +1,265 @@
+"""Bounded synchronous PAPER ticks joining queue, health, strategies and safety.
+
+No daemon installation, V10 access, network order route, sleeps or inferred fills.
+Adapters must archive real receipts; a periodic census cannot re-date old data.
+"""
+from copy import deepcopy
+from dataclasses import asdict, dataclass
+import fcntl
+import os
+import time
+
+from .evidence import EvidenceError, canonical, digest, finite, identity
+from .event_risk import SafetyReductions
+from .paper_cancellation import PaperCancellation, CancellationPolicy
+from .runtime_health import KEY as HEALTH_KEY, admission_heads, host_stamp
+from .strategy_pipeline import TemperatureStrategies, EntryRequest
+
+
+VERSION = 'alpha_v11_paper_runtime_v1'
+KEY = 'v11-paper-runtime'
+
+
+@dataclass(frozen=True)
+class RuntimePolicy:
+    version: str
+    maximum_updates: int = 32
+    maximum_events: int = 4
+    maximum_cancel_plans: int = 4
+    maximum_tick_seconds: float = 20.
+    census_interval_seconds: float = 300.
+    census_retry_seconds: float = 30.
+
+    def __post_init__(self):
+        identity(self.version)
+        for val, bound in ((self.maximum_updates,64),(self.maximum_events,16),(self.maximum_cancel_plans,8)):
+            if type(val) is not int or not 1 <= val <= bound: raise EvidenceError('RUNTIME_POLICY_BOUND')
+        if not 0 < finite(self.maximum_tick_seconds) <= 60 or not 1 <= finite(self.census_interval_seconds) <= 3600 or not 1 <= finite(self.census_retry_seconds) <= 300:
+            raise EvidenceError('RUNTIME_POLICY_BOUND')
+
+
+@dataclass(frozen=True)
+class Evaluation:
+    result_ids: tuple[str, ...]
+    proposals: tuple = ()
+
+
+class TemperatureEventAdapter:
+    """Use existing reviewed request assembly and the real temperature pipeline."""
+    def __init__(self, store, requests_for_event):
+        self.store, self.requests_for_event = store, requests_for_event
+
+    def evaluate(self, claim, prefix):
+        requests = self.requests_for_event(claim)
+        if type(requests) is not tuple or not 1 <= len(requests) <= 6 or any(not isinstance(r, EntryRequest) for r in requests):
+            raise EvidenceError('RUNTIME_TEMPERATURE_REQUEST_BOUND')
+        engine = TemperatureStrategies(self.store); outputs = []; proposals = []
+        for index, request in enumerate(requests):
+            key = 'eval:'+digest([prefix, index])
+            pin = self.store.get(request.admission_id)['body']['details']['request']
+            context, strategy = pin['context'], pin['scope']['strategy']
+            if context['event_id'] != claim['event_id']: raise EvidenceError('RUNTIME_EVALUATION_EVENT_MISMATCH')
+            try:
+                admission_heads(self.store, account_id=context['account_id'], event_id=context['event_id'], strategies=(strategy,))
+                row = engine.evaluate(key, request)
+            except EvidenceError as exc:
+                row = self.store.audit(key, event_id=claim['event_id'], kind='RUNTIME_STATUS', details=dict(
+                    version=VERSION, outcome='GATED', strategy=strategy, reason=str(exc), financial_authority=False))
+            if row['event_id'] != claim['event_id']: raise EvidenceError('RUNTIME_EVALUATION_EVENT_MISMATCH')
+            outputs.append(key)
+            if row['body']['details'].get('proposal') is not None: proposals.append(engine.proposal(key))
+        return Evaluation(tuple(outputs), tuple(proposals))
+
+
+class PaperRuntime:
+    def __init__(self, coordinator, queue, health, policy, *, evaluator, census=None, maker=None, worker_id=None, generation=None):
+        if (not isinstance(policy, RuntimePolicy) or coordinator.store is not queue.store or coordinator.store is not health.store
+                or health.account_id != coordinator.policy.account_id or set(queue.routes) != set(health.scopes)):
+            raise EvidenceError('RUNTIME_COMPONENT_SCOPE_MISMATCH')
+        self.coordinator, self.queue, self.health = coordinator, queue, health
+        self.store, self.policy, self.evaluator, self.census, self.maker = coordinator.store, policy, evaluator, census, maker
+        if worker_id is not None and (worker_id not in health.policy.workers or generation is None):
+            raise EvidenceError('RUNTIME_WORKER_IDENTITY_REQUIRED')
+        self.worker_id = worker_id; self.generation = identity(generation) if generation is not None else None
+        if maker is not None and maker.coordinator is not coordinator: raise EvidenceError('RUNTIME_MAKER_ACCOUNT_MISMATCH')
+        self.cancellation = PaperCancellation(coordinator, CancellationPolicy('runtime-bounded-v1', 16, 256))
+        self.config = digest(dict(runtime=asdict(policy), account=coordinator.policy_sha, queue=queue.config, health=health.config))
+
+    def _head(self):
+        row = self.store.latest(kind='RUNTIME_STATUS', event_id=KEY)
+        if row and row['body']['details'].get('config_sha256') != self.config:
+            raise EvidenceError('RUNTIME_CONFIGURATION_CHANGED_REVIEW_REQUIRED')
+        return row
+
+    def _save(self, key, state, **details):
+        head = self._head()
+        return self.store.safety_audit(key, event_id=KEY, kind='RUNTIME_STATUS', details=dict(
+            version=VERSION, config_sha256=self.config, state=state, financial_authority=False,
+            real_orders_sent=False, deployment_acceptance=False, **details), expected_previous_seq=head['seq'] if head else 0)
+
+    def tick(self, tick_id, *, updates=()):
+        identity(tick_id, maximum=80)
+        if type(updates) is not tuple or len(updates) > self.policy.maximum_updates:
+            raise EvidenceError('RUNTIME_UPDATE_BOUND_BACKPRESSURE')
+        if any(type(u) is not tuple or len(u) != 2 for u in updates): raise EvidenceError('RUNTIME_UPDATE_SCHEMA')
+        request = dict(tick_id=tick_id, updates=updates)
+        final_id = 'runtime:'+digest(tick_id)
+        try:
+            done = self.store.get(final_id)
+        except EvidenceError as exc:
+            if str(exc) != 'EVIDENCE_MISSING': raise
+        else:
+            if done['body']['details'].get('config_sha256') != self.config or canonical(done['body']['details'].get('request')) != canonical(request):
+                raise EvidenceError('RUNTIME_REPLAY_CONFIG_CONFLICT')
+            return done  # A historical result never renews a heartbeat or admission.
+        fd = os.open(self.store.path.with_name(self.store.path.name+'.runtime.lock'), os.O_CREAT|os.O_WRONLY|os.O_NOFOLLOW, 0o600)
+        try:
+            try: fcntl.flock(fd, fcntl.LOCK_EX|fcntl.LOCK_NB)
+            except BlockingIOError: raise EvidenceError('PAPER_RUNTIME_ALREADY_RUNNING') from None
+            try:
+                return self._tick(request, final_id)
+            except (EvidenceError, OSError, TimeoutError) as exc:
+                head = self._head()
+                if head is None: raise
+                state = head['body']['details']['state']
+                reason = str(exc) if isinstance(exc, EvidenceError) else type(exc).__name__
+                return self._save(final_id, state, request=request, outcome='INTERRUPTED_REQUIRES_RECONCILIATION',
+                    reason=reason, updates_consumed=False, forward_or_live_acceptance=False)
+        finally:
+            os.close(fd)
+
+    def _tick(self, request, final_id):
+        started = time.monotonic(); deadline = started+self.policy.maximum_tick_seconds
+        head = self._head(); state = deepcopy(head['body']['details']['state']) if head else dict(
+            attempt=0, boot_id=None, next_census_monotonic=0., visited=[], census_retry={},
+            operator_cursor=0, event_cursor=0, active_plans={}, last_cancel_plan='')
+        state['attempt'] += 1
+        prefix = 'tick:'+digest([request, state['attempt']])
+        step = [0]
+        def save(**details):
+            step[0] += 1; return self._save(prefix+':s'+str(step[0]), state, **details)
+        def budget(): return time.monotonic() < deadline
+        stamp = host_stamp(self.store)
+        if state['boot_id'] != stamp['boot_id']:
+            state.update(boot_id=stamp['boot_id'], next_census_monotonic=0., visited=[], census_retry={})
+        save(outcome='IN_PROGRESS', request=request)
+        if self.worker_id is not None:
+            self.health.heartbeat(prefix+':heartbeat', worker=self.worker_id, generation=self.generation)
+        health = self.health.sample(prefix+':health'); hd = health['body']['details']
+        errors = []; cancellation_reports = []; evaluations = []; coordinated = []; retired = []
+        # Resume durable plans before consuming new triggers. Requests retain risk.
+        plan_ids = sorted(state['active_plans'])
+        plan_ids = [p for p in plan_ids if p > state['last_cancel_plan']]+[p for p in plan_ids if p <= state['last_cancel_plan']]
+        serviced = set()
+        for plan_id in plan_ids[:self.policy.maximum_cancel_plans]:
+            if not budget(): break
+            info = state['active_plans'][plan_id]
+            try:
+                # An interrupted registration before PLAN may refer to an old
+                # health head. Drop only that never-created local plan; current
+                # health is evaluated below. Existing plans always retain risk.
+                trigger = self.store.get(info['trigger_id'])
+                if (self.cancellation._head(plan_id) is None and trigger['event_id'] == HEALTH_KEY
+                        and trigger['id'] != health['id']):
+                    state['active_plans'].pop(plan_id)
+                    save(outcome='UNDELIVERED_HEALTH_PLAN_SUPERSEDED'); continue
+                self.cancellation.plan(plan_id, trigger_id=info['trigger_id'])
+                report = self.cancellation.advance('dispatch:'+digest([prefix,plan_id]), plan_id=plan_id)
+                cancellation_reports.append(report['id'])
+                if report['body']['details']['outcome'] == 'ALL_TARGETS_TERMINAL': state['active_plans'].pop(plan_id)
+            except EvidenceError as exc: errors.append(dict(stage='CANCEL', reason=str(exc)))
+            state['last_cancel_plan'] = plan_id; serviced.add(plan_id)
+            save(outcome='CANCELLATION_PROGRESS')
+        # Reserve a separate bounded intake budget: unresolved old requests
+        # cannot starve a newly received operator/health cancellation forever.
+        remaining = self.policy.maximum_cancel_plans
+        triggers = [health]
+        for kind, cursor in (('OPERATOR_EVENT','operator_cursor'),('COORDINATOR_EVENT','event_cursor')):
+            rows = self.store.records(kind=kind, after_seq=state[cursor], limit=self.policy.maximum_updates)
+            for row in rows:
+                d = row['body'].get('details', {})
+                if d.get('cancellation_status') == 'REQUESTED_NOT_CONFIRMED': triggers.append(row)
+                else: state[cursor] = row['seq']
+                if d.get('cancellation_status') == 'REQUESTED_NOT_CONFIRMED': break
+        for index, trigger in enumerate(triggers):
+            if not budget() or remaining <= 0 or len(state['active_plans']) >= 32: break
+            plan_id = 'runtime-plan:'+digest([trigger['id'], trigger['sha256']])
+            if plan_id in serviced: continue
+            if plan_id not in state['active_plans']:
+                state['active_plans'][plan_id] = dict(trigger_id=trigger['id'])
+                save(outcome='CANCELLATION_PLAN_REGISTERED')
+            try:
+                self.cancellation.plan(plan_id, trigger_id=trigger['id'])
+                report = self.cancellation.advance(prefix+':new-cancel:'+str(index), plan_id=plan_id)
+                cancellation_reports.append(report['id']); remaining -= 1
+                if report['body']['details']['outcome'] == 'ALL_TARGETS_TERMINAL': state['active_plans'].pop(plan_id)
+                if trigger['kind'] != 'RUNTIME_STATUS':
+                    cursor = 'operator_cursor' if trigger['kind'] == 'OPERATOR_EVENT' else 'event_cursor'
+                    state[cursor] = trigger['seq']
+            except EvidenceError as exc: errors.append(dict(stage='CANCEL_PLAN', reason=str(exc)))
+            save(outcome='CANCELLATION_PROGRESS')
+        if hd['global_reasons']:
+            errors.append(dict(stage='HEALTH', reason='CLOCK_OR_WORKER_GATED'))
+        else:
+            for index, (kind, source_id) in enumerate(request['updates']):
+                if not budget():
+                    errors.append(dict(stage='INGEST', reason='TICK_BUDGET_UPDATES_UNCONSUMED', from_index=index)); break
+                try: self.queue.publish(prefix+':update:'+str(index), kind=kind, evidence_id=source_id)
+                except EvidenceError as exc: errors.append(dict(stage='INGEST', reason=str(exc), index=index))
+            if stamp['monotonic'] >= state['next_census_monotonic'] and budget():
+                self.queue.schedule_census(prefix+':periodic')
+                state['next_census_monotonic'] = stamp['monotonic']+self.policy.census_interval_seconds
+            pending = self.queue.snapshot(); available = set(pending['pending'])|set(pending['needs_census'])
+            if not available-set(state['visited']): state['visited'] = []
+            for index in range(self.policy.maximum_events):
+                if not budget(): break
+                excluded = set(state['visited'])|{e for e,t in state['census_retry'].items() if stamp['monotonic'] < t}
+                with self.queue.work(prefix+':work:'+str(index), exclude_events=tuple(sorted(excluded))) as claim:
+                    if claim is None: break
+                    event = claim['event_id']; state['visited'].append(event)
+                    output = None
+                    try:
+                        if claim['requires_full_census']:
+                            if self.census is None: raise EvidenceError('RUNTIME_FRESH_CENSUS_ADAPTER_REQUIRED')
+                            coverage = self.census(claim, prefix+':census:'+str(index))
+                            if not isinstance(coverage, dict): raise EvidenceError('RUNTIME_CENSUS_NOT_READY')
+                            self.queue.complete_census(prefix+':coverage:'+str(index), claim_id=claim['claim_id'], **coverage)
+                            state['census_retry'].pop(event, None)
+                            # Newly received census sources require a new health sample.
+                            health = self.health.sample(prefix+':post-census-health:'+str(index))
+                        output = self.evaluator.evaluate(claim, prefix+':evaluation:'+str(index))
+                        if not isinstance(output, Evaluation) or len(output.proposals) > 6:
+                            raise EvidenceError('RUNTIME_EVALUATION_BOUND')
+                    except (EvidenceError, TimeoutError) as exc:
+                        reason = str(exc) if isinstance(exc, EvidenceError) else 'ADAPTER_TIMEOUT'
+                        errors.append(dict(stage='EVALUATE', event_id=event, reason=reason))
+                        if claim['requires_full_census']: state['census_retry'][event] = stamp['monotonic']+self.policy.census_retry_seconds
+                        row = self.store.audit(prefix+':gated:'+str(index), event_id=event, kind='RUNTIME_STATUS',
+                            details=dict(version=VERSION, outcome='GATED', reason=reason, financial_authority=False))
+                        output = Evaluation((row['id'],))
+                    finished = self.queue.finish(prefix+':finished:'+str(index), claim_id=claim['claim_id'], result_ids=output.result_ids)
+                    evaluations.append(finished['id'])
+                    if finished['body']['details']['result']['outcome'] == 'RESEARCH_EVALUATED' and output.proposals:
+                        batch = self.coordinator.coordinate(prefix+':coordinate:'+str(index), output.proposals)
+                        coordinated.append(batch['id'])
+                save(outcome='EVALUATION_PROGRESS')
+        if self.maker is not None and budget():
+            quotes = self.maker._state(self.maker._head())
+            for quote_id, quote in list(quotes.items())[:self.policy.maximum_updates]:
+                if not budget(): break
+                if quote['status'] != 'OBSERVING': continue
+                context = quote['request']['context']
+                try:
+                    admission_heads(self.store, account_id=context['account_id'], event_id=context['event_id'], strategies=('MAKER_RESEARCH',))
+                    if finite(self.store.clock()) >= quote['expires_at']: raise EvidenceError('MAKER_QUOTE_EXPIRED')
+                except EvidenceError as exc:
+                    try:
+                        row = self.maker.retire('retire:'+digest([prefix,quote_id]), quote_id=quote_id, reason=str(exc))
+                        retired.append(row['id'])
+                    except EvidenceError as failure: errors.append(dict(stage='MAKER_RETIRE', reason=str(failure)))
+        return self._save(final_id, state, request=request, outcome='DEGRADED' if errors else 'TICK_COMPLETED',
+            health_id=health['id'], errors=errors, evaluation_ids=evaluations, account_batch_ids=coordinated,
+            updates_consumed=not hd['global_reasons'] and not any(e['stage']=='INGEST' for e in errors),
+            cancellation_report_ids=cancellation_reports, retired_quote_ids=retired,
+            duration_monotonic_seconds=time.monotonic()-started, budget_exhausted=not budget(),
+            queue_metrics=self.queue.snapshot()['metrics'], forward_or_live_acceptance=False)
