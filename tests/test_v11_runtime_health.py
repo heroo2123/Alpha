@@ -186,3 +186,19 @@ def test_configuration_change_and_unconfigured_scope_fail_closed(rig,monkeypatch
     changed=health.RuntimeHealth(rig['store'],replace(m.policy,version='changed'),account_id='account',scopes=m.scopes,sources=m.sources,sync_probe=m.sync_probe)
     with pytest.raises(EvidenceError,match='CONFIG_CHANGED'):changed.sample('changed')
     with pytest.raises(EvidenceError,match='SCOPE_OR_VERSION'):gate(rig,('unconfigured',))
+
+
+def test_archive_clock_high_water_ahead_of_health_is_not_silently_ignored(rig,monkeypatch):
+    m=monitor(rig,monkeypatch);ready(rig,m);real=rig['now'][0]
+    rig['now'][0]+=100
+    rig['store'].audit('future-clock',event_id='diagnostic',kind='RUNTIME_STATUS',details={})
+    rig['now'][0]=real
+    d=m.sample('restored-clock')['body']['details']
+    assert 'EVIDENCE_CLOCK_HIGH_WATER_AHEAD' in d['clock_reasons']
+    with pytest.raises(EvidenceError,match='CLOCK_OR_LIVENESS'):gate(rig)
+
+
+def test_missing_boot_identity_gates_without_disabling_health_audit(rig,monkeypatch):
+    m=monitor(rig,monkeypatch);ready(rig,m);rig['boot'][0]='UNKNOWN'
+    d=m.sample('unknown-boot')['body']['details']
+    assert 'LOCAL_BOOT_ID_UNAVAILABLE' in d['clock_reasons']

@@ -8,12 +8,14 @@ from dataclasses import asdict, dataclass
 import fcntl
 import os
 import time
+import uuid
 
 from .evidence import EvidenceError, canonical, digest, finite, identity
 from .event_risk import SafetyReductions
 from .paper_cancellation import PaperCancellation, CancellationPolicy
 from .runtime_health import KEY as HEALTH_KEY, admission_heads, host_stamp
 from .strategy_pipeline import TemperatureStrategies, EntryRequest
+from .runtime_feed import EvidenceFeed, FeedPolicy
 
 
 VERSION = 'alpha_v11_paper_runtime_v1'
@@ -72,7 +74,7 @@ class TemperatureEventAdapter:
 
 
 class PaperRuntime:
-    def __init__(self, coordinator, queue, health, policy, *, evaluator, census=None, maker=None, worker_id=None, generation=None):
+    def __init__(self, coordinator, queue, health, policy, *, evaluator, census=None, maker=None, worker_id=None, generation=None, feed_policy=None):
         if (not isinstance(policy, RuntimePolicy) or coordinator.store is not queue.store or coordinator.store is not health.store
                 or health.account_id != coordinator.policy.account_id or set(queue.routes) != set(health.scopes)):
             raise EvidenceError('RUNTIME_COMPONENT_SCOPE_MISMATCH')
@@ -80,10 +82,11 @@ class PaperRuntime:
         self.store, self.policy, self.evaluator, self.census, self.maker = coordinator.store, policy, evaluator, census, maker
         if worker_id is not None and (worker_id not in health.policy.workers or generation is None):
             raise EvidenceError('RUNTIME_WORKER_IDENTITY_REQUIRED')
-        self.worker_id = worker_id; self.generation = identity(generation) if generation is not None else None
+        self.worker_id = worker_id; self.generation = identity(generation) if generation is not None else uuid.uuid4().hex
         if maker is not None and maker.coordinator is not coordinator: raise EvidenceError('RUNTIME_MAKER_ACCOUNT_MISMATCH')
         self.cancellation = PaperCancellation(coordinator, CancellationPolicy('runtime-bounded-v1', 16, 256))
-        self.config = digest(dict(runtime=asdict(policy), account=coordinator.policy_sha, queue=queue.config, health=health.config))
+        self.feed = EvidenceFeed(queue, feed_policy or FeedPolicy('bounded-receipt-delivery-v1'))
+        self.config = digest(dict(runtime=asdict(policy), account=coordinator.policy_sha, queue=queue.config, health=health.config, feed=self.feed.config))
 
     def _head(self):
         row = self.store.latest(kind='RUNTIME_STATUS', event_id=KEY)
@@ -146,6 +149,11 @@ class PaperRuntime:
         if self.worker_id is not None:
             self.health.heartbeat(prefix+':heartbeat', worker=self.worker_id, generation=self.generation)
         health = self.health.sample(prefix+':health'); hd = health['body']['details']
+        if state.get('generation') != self.generation and not hd['clock_reasons']:
+            if self.coordinator._head() is not None:
+                self.coordinator.recover(prefix+':recover')
+            state['generation'] = self.generation
+            save(outcome='PAPER_WORKER_RESTART_RECONCILED')
         errors = []; cancellation_reports = []; evaluations = []; coordinated = []; retired = []
         # Resume durable plans before consuming new triggers. Requests retain risk.
         plan_ids = sorted(state['active_plans'])
@@ -201,6 +209,9 @@ class PaperRuntime:
         if hd['global_reasons']:
             errors.append(dict(stage='HEALTH', reason='CLOCK_OR_WORKER_GATED'))
         else:
+            if budget():
+                feed = self.feed.drain('runtime-feed:'+digest(prefix))
+                save(outcome='ARCHIVED_SOURCES_DELIVERED', feed_id=feed['id'])
             for index, (kind, source_id) in enumerate(request['updates']):
                 if not budget():
                     errors.append(dict(stage='INGEST', reason='TICK_BUDGET_UPDATES_UNCONSUMED', from_index=index)); break
@@ -257,7 +268,7 @@ class PaperRuntime:
                         row = self.maker.retire('retire:'+digest([prefix,quote_id]), quote_id=quote_id, reason=str(exc))
                         retired.append(row['id'])
                     except EvidenceError as failure: errors.append(dict(stage='MAKER_RETIRE', reason=str(failure)))
-        return self._save(final_id, state, request=request, outcome='DEGRADED' if errors else 'TICK_COMPLETED',
+        return self._save(final_id, state, request=request, outcome='BUDGET_EXHAUSTED' if not budget() else 'DEGRADED' if errors else 'TICK_COMPLETED',
             health_id=health['id'], errors=errors, evaluation_ids=evaluations, account_batch_ids=coordinated,
             updates_consumed=not hd['global_reasons'] and not any(e['stage']=='INGEST' for e in errors),
             cancellation_report_ids=cancellation_reports, retired_quote_ids=retired,

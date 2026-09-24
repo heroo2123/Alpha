@@ -79,7 +79,7 @@ class PaperCancellation:
         if not health_trigger and (d.get('version') != EVENT_VERSION or d.get('cancellation_status') != 'REQUESTED_NOT_CONFIRMED'):
             raise EvidenceError('RECORDED_CANCELLATION_TRIGGER_REQUIRED')
         trigger_head = self.store.latest(kind=source['kind'], event_id=source['event_id'])
-        passive_or_new_risk_only = False
+        passive_or_new_risk_only = False; superseded_event = False
         if health_trigger:
             if trigger_head['id'] != trigger_id or d.get('account_id') != self.coordinator.policy.account_id:
                 raise EvidenceError('CURRENT_RUNTIME_HEALTH_ACCOUNT_REQUIRED')
@@ -90,9 +90,12 @@ class PaperCancellation:
                     or not r.get('action', '').startswith(('CANCEL_', 'QUARANTINE_'))):
                 raise EvidenceError('PAPER_CANCEL_OPERATOR_SCOPE_REQUIRED')
         elif source['kind'] == 'COORDINATOR_EVENT':
-            if (trigger_head['id'] != trigger_id or d.get('state') != 'EVENT'
+            if (d.get('state') != 'EVENT'
                     or d.get('cancellation_scope') != 'MANAGED_PASSIVE_AND_NEW_RISK_RESTING_ORDERS'):
                 raise EvidenceError('CURRENT_EVENT_CANCELLATION_TRIGGER_REQUIRED')
+            superseded_event = trigger_head['id'] != trigger_id
+            if superseded_event and trigger_head['body']['details'].get('request', {}).get('context') != r.get('context'):
+                raise EvidenceError('RECORDED_EVENT_CANCELLATION_CONTEXT_CHANGED')
             context = EventContext(**r['context'])
             if context.account_id != self.coordinator.policy.account_id:
                 raise EvidenceError('PAPER_CANCEL_ACCOUNT_MISMATCH')
@@ -110,6 +113,9 @@ class PaperCancellation:
             if context.account_id != self.coordinator.policy.account_id:
                 raise EvidenceError('PAPER_CANCEL_ACCOUNT_MISMATCH')
             if (scope, scope_id) not in context.scopes: continue
+            # A durable earlier EVENT cancel can be delivered after recovery,
+            # but cannot target a newly valued post-event intent through it.
+            if superseded_event and self.store.get(intent['valuation_id'])['seq'] > source['seq']: continue
             if health_trigger and not cancellation_required(d, context.event_id, tuple(a['strategy'] for a in intent['attribution'])):
                 continue
             passive = any(a['strategy'] == 'MAKER_RESEARCH' for a in intent['attribution'])
@@ -127,7 +133,7 @@ class PaperCancellation:
                          cumulative_fill_units_at_plan=i['filled_units']) for pid, i in selected}
         state = dict(plan_id=key, trigger_id=trigger_id, trigger_at=source['body']['recorded_at'], planned_at=now,
                      scope=scope, scope_id=scope_id, passive_or_new_risk_only=passive_or_new_risk_only,
-                     items=items, omitted_intents=0)
+                     items=items, omitted_intents=0, superseded_event_request=superseded_event)
         refs = [trigger_id]+([account_head['id']] if account_head else [])
         return self._commit(key, request, None, state, refs=refs,
                     heads=((source['kind'], source['event_id'], trigger_head['seq']),

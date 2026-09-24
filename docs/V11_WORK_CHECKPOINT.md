@@ -1,6 +1,6 @@
 # Alpha V11 work checkpoint
 
-Updated 2026-09-24, after the owner inventory handoff and paper cancellation integration. Resume here. **NOT_READY_TO_FUND**.
+Updated 2026-09-24, after source delivery and bounded runtime integration. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
 
 ## Current priority override — V11 runtime integration
@@ -26,11 +26,11 @@ open. No funding, deployment, financial activation or new host workload authoriz
 ## Exact identities and scope
 
 - Branch: `weather-v11-profitability-upgrade-2026-09-23`.
-- Last verified implementation HEAD: `dc40f637d6286e3ad846410de9a45d5a55f6b6ee`.
-- Last verified implementation tree: `79d00fc9ea9b2c926ab4f5e3ae9e146d93dcf594`.
-- Worktree at implementation verification: only this following checkpoint update
-  remains uncommitted; all implementation files are saved, and local/public
-  implementation trees match. No unfinished work was discarded.
+- Last verified implementation HEAD: `8925ae17f5fc4270089b4e3973bea6a47f5c611c`.
+- Last verified implementation tree: `41ac694fd5468fbc2621baddc950f590ff162c45`.
+- Published runtime implementation identity is above. The following source-delivery
+  milestone is verified and being published; its exact identity will be recorded
+  in the next checkpoint. No unfinished work was discarded.
 - This following checkpoint commit changes documentation only. Resolve its own
   exact commit with `git log -1 --format=%H -- docs/V11_WORK_CHECKPOINT.md`, and its
   tree with `git rev-parse <that-commit>^{tree}`; no self-referential hash claim.
@@ -42,9 +42,9 @@ open. No funding, deployment, financial activation or new host workload authoriz
 - Prior maker-feature implementation: `a3a0a05b3ea2ecdc55190c711a75d6d7cd990922`,
   tree `053189306c136d11f32943ec62f0807c827a582c`; its recovery checkpoint was
   `53cae2da33e97c993c76ab976d2f079a97bf6ae1`.
-- Latest full-regression implementation: `f69e318d04b8771f1de3074928ae63d3951cebec`,
-  tree `e708af471cb8289ca78439c97e8a8450687a075d`. Subsequent additive preservation
-  and maker/cancellation modules have the targeted verification recorded below.
+- Latest full regression: **3,130 passed, four existing warnings, 185.10 s** on
+  the source-delivery implementation recorded below. Its predecessor full run was
+  2,894 passing at `f69e318d04b8771f1de3074928ae63d3951cebec`.
 - Prior implementation: `dd1e85706eb0a26c9bb8aef1317cb635a791b920`, tree
   `8bf30057a39e8690d457e531b781b953a2476878`. Prior recovered checkpoint
   `6a602a7fe7f8f36aa238140f89b15b3e071423fa`. Health/plan checkpoint
@@ -1080,3 +1080,51 @@ Cumulative distinct new tests: 772. Completed full packages remain 1/50 (2%).
 R33/R37/R38/R39 remain PARTIAL, with live adapters and independent acceptance open.
 Next implementation: bounded durable delivery of archived source receipts and
 collector scheduling into this runtime, then ALL remaining master requirements.
+
+Runtime milestone published at 8925ae17f5fc4270089b4e3973bea6a47f5c611c, tree
+41ac694fd5468fbc2621baddc950f590ff162c45. Public/local tree equality passed;
+fetch/alignment completed and the worktree was clean before source-delivery work.
+
+### Source collection, receipt delivery and restart milestone
+
+Added v11/runtime_feed.py and v11/observation_pump.py. The feed drains archived
+OFFICIAL/PWS/MODEL/BOOK/TRADE and source schedules with bounded round-robin cursors,
+idempotent queue publication and durable pending release expectations. Raw or
+historically unavailable data, failed QC and synthetic account fills cannot
+become fresh public-source observations. Capacity and delivery failures retain
+retryable receipts; one provider failure does not erase another's successes.
+
+The pump joins existing bounded public collectors to pre/post-collection safety
+checks and PaperRuntime. An interrupted collection is not blindly repeated.
+Exact completed-cycle replay returns history without renewing health. New process
+generations reconcile existing SUBMITTING intents to ambiguity and retain their
+reservations. Boot-read failure and the entire archive's raw timestamp high-water
+mark gate openings. Superseded EVENT cancellation requests remain deliverable for
+older in-scope intents; they cannot cancel a later intent via the old event record.
+
+Synthetic integration demonstrates collector -> normalization -> durable feed ->
+queue/runtime, source-scoped partial failure, cooldown/restart behavior, and common
+account reservation. The positive reservation fixture is explicitly synthetic
+and does not attest economics; the real uncalibrated temperature pipeline still
+rejects its proposal. No live source/clock/strategy eligibility is inferred.
+
+Verification: 65 related tests passed in 5.76 s; the separately added account
+reservation and durable EVENT regressions passed in 0.75 s and 0.57 s. The full
+repository suite then passed **3,130 tests, four existing FastAPI deprecation
+warnings, 185.10 s** (exit 0). Wrapper wall time 185.824 s, user/system CPU
+126.274/52.944 s, peak child RSS 154,848 KiB; all off-host. A first timing-wrapper
+attempt exited 127 because /usr/bin/time was absent and ran no tests; the successful
+run used Python's stdlib resource/timing wrapper. No duplicate regression remains
+running. No source/test change followed the successful full run.
+
+22 additional tests in this milestone; cumulative distinct new cases 794 (baseline
+2,336 + 794 = 3,130). Full accepted packages remain **1/50 (2%)**, not increased by
+component integrations. R33/R37/R38/R39/R45 remain PARTIAL. Remaining gates include
+actual provider/request/census adapters, calibrated models and true labels,
+independent guardian/review, empirical paper acceptance and isolated deployment.
+Next off-host implementation: maker reward/rebate qualification and accounting,
+then remaining master requirements. V10's stale-cycle/memory-pressure finding and
+resource/isolation gates remain OPEN. Maintenance is DEFERRED, with inventory
+OWNER-REPORTED / INDEPENDENT VERIFICATION PENDING. No new owner action is required
+for this independent work. No host workload, service action, deployment or money
+movement occurred. NOT_READY_TO_FUND.

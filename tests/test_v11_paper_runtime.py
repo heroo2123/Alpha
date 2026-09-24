@@ -178,6 +178,35 @@ def test_queue_periodic_census_does_not_clear_existing_gap(rig,monkeypatch):
     assert rt.queue.snapshot()['needs_census'][event]=='STREAM_GAP:RECONNECT_REQUIRED'
 
 
+def test_process_generation_restart_keeps_ambiguous_submission_and_reserved_cash(rig,monkeypatch):
+    c=coordinator(rig);p=proposal(rig,units='2');c.coordinate('reserve',(p,))
+    c.transition('started',intent_id=p.proposal_id,status='SUBMITTING')
+    rt=assembled(rig,monkeypatch,census=False);rt.tick('restart')
+    assert c._state(c._head())['intents'][p.proposal_id]['status']=='UNKNOWN'
+    assert Decimal(c.snapshot()['reserved_cash'])==Decimal('.8')
+
+
+def test_runtime_reaches_common_account_using_explicit_synthetic_economic_fixture(rig,monkeypatch):
+    # This fixture overrides economic qualification only to exercise downstream
+    # queue/account plumbing. The real pipeline test retains vacuous bounds.
+    p=proposal(rig,units='2');base=rig['store'].get(p.valuation_id)['body']['details']
+    class PositiveMechanicsFixture:
+        def evaluate(self,claim,prefix):
+            data=deepcopy(base);token=data['target']['token_id']
+            book=rig['store'].latest_source(kind='BOOK',event_id=claim['event_id'],provider='fixture',source_identity=token)
+            data['book'].update(book_id=book['id'],book_sha256=book['sha256'])
+            key='mechanics-value:'+digest(prefix)
+            rig['store'].audit(key,event_id=claim['event_id'],kind='MEASUREMENT',details=data,evidence_ids=(book['id'],))
+            return runtime.Evaluation((key,),(replace(p,valuation_id=key),))
+    rt=assembled(rig,monkeypatch,evaluator=PositiveMechanicsFixture());row=rt.tick('reserve')
+    d=row['body']['details'];assert len(d['account_batch_ids'])==1,d
+    account=rig['store'].get(d['account_batch_ids'][0])['body']['details']
+    assert account['reserved_intent_ids']==[p.proposal_id],account
+    assert Decimal(rt.coordinator.snapshot()['reserved_cash'])==Decimal('.8')
+    assert not rig['store'].records(kind='TRADE')
+    head=rt.coordinator._head();assert rt.tick('reserve')==row and rt.coordinator._head()==head
+
+
 @pytest.mark.parametrize('bad', [dict(maximum_events=0),dict(maximum_updates=65),dict(maximum_cancel_plans=9),dict(maximum_tick_seconds=61)])
 def test_runtime_policy_rejects_unbounded_or_disabled_limits(bad):
     with pytest.raises(EvidenceError,match='POLICY_BOUND'):runtime.RuntimePolicy('bad',**bad)

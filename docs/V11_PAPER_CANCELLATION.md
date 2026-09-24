@@ -7,7 +7,9 @@ guardian, live cancellation transport or first-canary commissioning pass.
 ## Trigger and identity boundaries
 
 PaperCancellation.plan accepts existing operator cancellation/quarantine records
-or the current EVENT cancellation record. It freezes only already-managed intents
+or an archived EVENT cancellation record. Superseded EVENT requests remain
+deliverable only for intents whose valuation predates that trigger; newer intents
+are excluded from the older request. It freezes only already-managed intents
 in the exact account/city/station/event scope. EVENT targets passive maker or BUY
 new-risk intents; ordinary inventory-reducing SELL intents are retained. An
 explicit operator cancel-all can include those sells. Other safety actions do not
@@ -64,8 +66,8 @@ calls but shares the paper coordinator process and is not an OS-isolated securit
 boundary. Production identity, supported cancel-only route, authentication after
 session expiry/revocation, network outage recovery, GTD limits, trustworthy clock
 handling, external reconciliation and guardian liveness remain uncommissioned.
-The shared evidence store can reject writes during clock regression; this paper
-module does not prove independent cancellation availability under that failure.
-Runtime scheduling, source/heartbeat/clock monitoring and live telemetry are still
-pending. No V10 workload, deployment, executor change, real cancellation, order,
+The restricted safety-audit path now permits exact cancel-only mutations during
+raw wall-clock regression. Bounded runtime scheduling and source/heartbeat/clock
+monitoring are integrated off-host; this remains a shared-process paper boundary.
+Independent external cancellation availability and live telemetry remain pending. No V10 workload, deployment, executor change, real cancellation, order,
 funding or activation occurred.

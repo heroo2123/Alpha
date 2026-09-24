@@ -245,7 +245,7 @@ class EvidenceStore:
     def _validate_safety_append(db, kind, event_id, body):
         d = body.get('details', {}); action = d.get('request', {}).get('action')
         if kind == 'RUNTIME_STATUS' and d.get('version') in {
-                'alpha_v11_runtime_health_v1', 'alpha_v11_paper_runtime_v1'}:
+                'alpha_v11_runtime_health_v1', 'alpha_v11_paper_runtime_v1', 'alpha_v11_observation_pump_v1'}:
             return  # Health/telemetry is never a probability or an order API.
         if (kind == 'MEASUREMENT' and d.get('version') == 'alpha_v11_paper_cancellation_v1'
                 and action in {'PLAN', 'DELIVER_LOCAL_CANCEL_REQUESTS', 'OBSERVE_ACCOUNT_RECONCILIATION'}):

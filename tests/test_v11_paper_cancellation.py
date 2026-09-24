@@ -198,6 +198,24 @@ def test_event_cancels_new_risk_but_retains_nonpassive_inventory_reduction(rig):
     assert state['intents']['exit']['status'] == 'RESERVED' and state['intents']['new-risk']['status'] == 'CANCEL_REQUESTED'
 
 
+def test_durable_event_cancel_survives_supersession_but_never_targets_newer_valuations(rig):
+    c=opening(rig,'old')
+    engine=EventRiskEngine(rig['store'])
+    engine.step('event-request',context=rig['context'],policy=event_policy(),binding=rig['binding'],
+        metrics=replace(metrics(rig['now'][0]),source_revision=True),book_ids=(rig['book_id'],),source_ids=(rig['source_id'],))
+    engine.step('recovery',context=rig['context'],policy=event_policy(),binding=rig['binding'],
+        metrics=metrics(rig['now'][0]),book_ids=(rig['book_id'],),source_ids=(rig['source_id'],))
+    # Add a clearly labelled mechanical account fixture representing a later
+    # separately admitted intent; this does not bypass real runtime admission.
+    head=c._head();state=c._state(head);state['intents']['later']=dict(state['intents']['old'],proposal_id='later',valuation_id='later-value')
+    rig['store'].audit('later-value',event_id=rig['context'].event_id,kind='MEASUREMENT',details={'synthetic_downstream_test_fixture':True})
+    c._commit('later-account-fixture',dict(action='SYNTHETIC_FIXTURE'),head,state,{})
+    d=plan(rig,trigger_id='event-request')
+    assert set(d['state']['items'])=={'old'} and d['state']['superseded_event_request']
+    advance(rig)
+    assert c._state(c._head())['intents']['later']['status']=='RESERVED'
+
+
 def test_account_cas_failure_cannot_publish_stale_confirmation(rig, monkeypatch):
     opening(rig); trigger(rig); plan(rig); advance(rig); c = coordinator(rig)
     original = rig['store'].safety_audit; once = [False]

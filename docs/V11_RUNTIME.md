@@ -46,7 +46,21 @@ omitted STREAM_GAP and the full-book fixture omitted exact contract target field
 Both fixture defects were corrected. Final runtime/health/maker/cancellation/queue
 suite: 115 passed in 12.42 s, including 45 new tests. No open test failure remains.
 
-Next: durable bounded archived-source delivery and collector/runtime scheduling,
-then the remaining model/source adapters, rewards, independent safety and reporting
-requirements. Live provider/clock/guardian acceptance and host isolation remain
-unpassed. The master specification remains authoritative in full.
+runtime_feed.py now provides durable round-robin delivery of normalized archived
+receipts and scheduled release expectations. Each publication is idempotent and
+checkpointed before cursor advancement. Bounded pending schedules stay distinct
+from observations. Raw/unknown availability, unqualified PWS and synthetic account
+fills are excluded from public-source delivery; failed publications remain retryable.
+
+observation_pump.py joins existing bounded public collectors to safety ticks before
+and after collection. Clock failure suppresses collection while cancellation remains
+available. Provider cooldowns and partial successes survive. Interrupted cycles
+retain evidence and are not automatically refetched. New process generations use
+the common account's existing restart reconciliation, keeping ambiguous submissions
+reserved. An exhausted cooperative budget is reported explicitly.
+
+65 related tests passed in 5.76 s; two later focused account/EVENT cases passed.
+Full repository regression: 3,130 passed / four existing warnings in 185.10 s,
+peak child RSS 154,848 KiB. All tests ran off-host. No actual source, deployed clock,
+calibration, independent guardian or financial acceptance is claimed. Remaining
+provider/request/census adapters, reporting and empirical acceptance stay open.

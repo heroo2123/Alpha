@@ -6,7 +6,9 @@ commissioned independent production guardian. R37/R38 remain PARTIAL.
 
 runtime_health.py reads the local boot identity, wall/monotonic clock pair and
 the fixed read-only timedatectl NTPSynchronized property. Missing/failed/unknown
-sync status gates openings. Offset is explicitly UNKNOWN; the initial adapter
+sync status gates openings. Missing boot identity also gates. The complete archive
+raw-timestamp high-water mark is checked, including captures newer than the
+previous health sample. Offset is explicitly UNKNOWN; the initial adapter
 validates synchronization status, not an independently measured offset. Wall
 discontinuity, monotonic regression, boot change, stale heartbeat and missing
 required evidence also gate. Recovery needs distinct spaced good samples and

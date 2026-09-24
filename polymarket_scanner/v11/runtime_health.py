@@ -18,9 +18,9 @@ KEY = 'v11-runtime-health'
 
 
 def host_stamp(store):
-    boot = Path('/proc/sys/kernel/random/boot_id').read_text().strip()
-    if not re.fullmatch(r'[0-9a-f-]{36}', boot):
-        raise EvidenceError('LOCAL_BOOT_ID_UNAVAILABLE')
+    try: boot = Path('/proc/sys/kernel/random/boot_id').read_text().strip()
+    except OSError: boot = 'UNKNOWN'
+    if not re.fullmatch(r'[0-9a-f-]{36}', boot): boot = 'UNKNOWN'
     return dict(boot_id=boot, monotonic=finite(time.monotonic()), wall=finite(store.clock()))
 
 
@@ -171,10 +171,14 @@ class RuntimeHealth:
         if old and old.get('config_sha256') != self.config:
             raise EvidenceError('RUNTIME_HEALTH_CONFIG_CHANGED_REVIEW_REQUIRED')
         stamp = host_stamp(self.store); sync = self.sync_probe(); failures = []; refs = []; heads = []
+        if stamp['boot_id'] == 'UNKNOWN': failures.append('LOCAL_BOOT_ID_UNAVAILABLE')
         if (not isinstance(sync, dict) or sync.get('synchronized') is not True
                 or sync.get('mechanism') not in {'LOCAL_SYSTEMD_TIMEDATED','SYNTHETIC_OFF_HOST_FIXTURE'}):
             failures.append('CLOCK_SYNC_UNVERIFIED')
-        stable = 0; counted = None; high = max(stamp['wall'], old['wall_high_water'] if old else stamp['wall'])
+        with self.store._connect() as db:
+            archive_high = db.execute('SELECT MAX(recorded_at) FROM v11_records').fetchone()[0]
+        stable = 0; counted = None; high = max(stamp['wall'], old['wall_high_water'] if old else stamp['wall'], archive_high or 0)
+        if stamp['wall'] < high: failures.append('EVIDENCE_CLOCK_HIGH_WATER_AHEAD')
         if old:
             p = old['stamp']
             if p['boot_id'] != stamp['boot_id']: failures.append('CLOCK_BOOT_CHANGED')
@@ -201,6 +205,8 @@ class RuntimeHealth:
             if reason: failures.append(reason+':'+worker)
             worker_status.append(dict(worker=worker, reason=reason, record_id=row['id'] if row else None))
         account = self.store.latest(kind='COORDINATOR_EVENT', event_id='v11-paper-account-state')
+        if account and account['body']['details'].get('state', {}).get('account_id') != self.account_id:
+            failures.append('ACCOUNT_IDENTITY_MISMATCH')
         if account and account['body']['details'].get('state', {}).get('faults'):
             failures.append('ACCOUNT_RECONCILIATION_FAULT')
         sources = [_source_status(self.store, n, stamp['wall']) for n in self.sources]
