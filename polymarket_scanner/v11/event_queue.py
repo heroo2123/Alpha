@@ -22,13 +22,27 @@ PRIORITY = {'SCHEDULED_RELEASE':0, 'OFFICIAL_OBSERVATION':1, 'MODEL':2,
             'PWS_OBSERVATION':3, 'TRADE':4, 'BOOK':5}
 
 
-def _census_raw_receipt(store, source, claim):
+def _census_raw_receipt(store, source, claim, *, model_preparation=None,_records=None):
     """A new normalization cannot turn a pre-claim response into a new census.
 
     Direct captures retain their existing sequence check. Derived captures with
     raw lineage must bind that exact, causally earlier, newly received response.
     """
     body = source['body']; payload = body.get('payload', {})
+    from .gefs_sources import VERSION as GEFS_VERSION, MAX_FIELDS, current_path_heads
+    if source['kind']=='MODEL' and payload.get('version')==GEFS_VERSION:
+        current_path_heads(store,source)
+        refs=payload.get('field_references',[])
+        if not 1<=len(refs)<=MAX_FIELDS:raise EvidenceError('CENSUS_MODEL_FIELD_BOUND')
+        view=store.source_batch(kind='MODEL',event_id=source['event_id'],provider=body['provider'],raw_lineage=True,
+            record_ids=tuple(r['id'] for r in refs),source_identities=tuple(r['source_identity'] for r in refs))
+        barrier=model_preparation or claim
+        for ref in refs:
+            field=view['records'][ref['id']]
+            if field['sha256']!=ref['sha256'] or not barrier['seq']<field['seq']<source['seq']:
+                raise EvidenceError('CENSUS_MODEL_FIELD_LINEAGE')
+            _census_raw_receipt(store,field,barrier,_records=view['records'])
+        return
     if source['kind']=='PWS_OBSERVATION' and body['provider']=='ALPHA_PWS_QC' and 'source_captures' in payload:
         from .pws_quality import current_neighborhood_heads
         current_neighborhood_heads(store,source)
@@ -40,7 +54,7 @@ def _census_raw_receipt(store, source, claim):
     raw_id = payload.get('raw_evidence_id')
     if raw_id is None:
         return
-    raw = store.get(raw_id); rb = raw['body']
+    raw = store.get(raw_id) if _records is None else _records[raw_id]; rb = raw['body']
     if (raw['event_id'] != source['event_id'] or raw['kind'] != source['kind']
             or payload.get('raw_evidence_sha256') != raw['sha256']
             or not claim['seq'] < raw['seq'] < source['seq']
@@ -172,6 +186,43 @@ class EventQueue:
 
     def snapshot(self):
         return self._read()[1]
+
+    def preparing_model_events(self):
+        state=self.snapshot();now=finite(self.store.clock())
+        return tuple(sorted(e for e,p in state.get('model_preparations',{}).items()
+            if e in state['needs_census'] and p['generation']==state['census_generations'].get(e,0)
+            and p['began_at']<=now<p['expires_at']))
+
+    def begin_model_census(self,record_id,*,plan,expires_at):
+        """Reserve a fresh collection epoch, without holding an event work claim."""
+        from .gefs_sources import GEFSPlan
+        if not isinstance(plan,GEFSPlan):raise EvidenceError('CENSUS_TYPED_MODEL_PLAN_REQUIRED')
+        event=plan.event_id;now=finite(self.store.clock());expiry=finite(expires_at)
+        request=dict(action='PREPARE_MODEL_CENSUS',event_id=event,plan_sha256=digest(asdict(plan)),expires_at=expiry)
+        prior=self._replay(record_id,request)
+        if prior:return prior
+        row,state=self._read();route=self.routes.get(event)
+        if (route is None or 'MODEL' not in route.required_source_kinds or route.rule_fingerprint!=plan.rule.sha256
+                or event not in state['needs_census'] or state['active'] is not None
+                or not now<expiry<=min(now+3600,route.valid_until,now+self.policy.max_pending_age_seconds)):
+            raise EvidenceError('CENSUS_MODEL_PREPARATION_SCOPE_OR_WINDOW')
+        p=dict(id=record_id,event_id=event,plan=asdict(plan),plan_sha256=request['plan_sha256'],began_at=now,
+               expires_at=expiry,generation=state['census_generations'].get(event,0))
+        state.setdefault('model_preparations',{})[event]=p
+        return self._commit(record_id,request,row,state,dict(outcome='FRESH_MODEL_COLLECTION_PENDING',preparation=p))
+
+    def model_preparation(self,record_id,*,event_id):
+        row,state=self._read();p=state.get('model_preparations',{}).get(event_id);now=finite(self.store.clock())
+        if (p is None or p['id']!=record_id or event_id not in state['needs_census']
+                or p['generation']!=state['census_generations'].get(event_id,0)
+                or not p['began_at']<=now<p['expires_at']):
+            raise EvidenceError('CENSUS_MODEL_PREPARATION_EXPIRED_OR_LOSS_CHANGED')
+        record=self.store.get(record_id);d=record['body'].get('details',{})
+        if (record['kind']!='RUNTIME_STATUS' or record['event_id']!=KEY
+                or d.get('config_sha256')!=self.config or d.get('request',{}).get('action')!='PREPARE_MODEL_CENSUS'
+                or d.get('result',{}).get('preparation')!=p or p['plan_sha256']!=digest(p['plan'])):
+            raise EvidenceError('CENSUS_MODEL_PREPARATION_BINDING')
+        return record,p
 
     @staticmethod
     def _require_census(state, event, reason):
@@ -452,7 +503,7 @@ class EventQueue:
                     tuple(tuple(h) for h in active['source_heads']) if reason is None else ())
 
     def complete_census(self, record_id: str, *, claim_id: str, book_ids: tuple[str, ...],
-                        source_ids: tuple[str, ...], rule_state_id: str) -> dict:
+                        source_ids: tuple[str, ...], rule_state_id: str, model_preparation_id: str | None = None) -> dict:
         """Clear update-loss state only while the worker holds serialization.
 
         This checks newly archived full-book coverage and source availability,
@@ -467,6 +518,7 @@ class EventQueue:
             raise EvidenceError('CENSUS_INPUT_BOUND')
         request = dict(action='CENSUS', claim_id=claim_id, book_ids=list(book_ids), source_ids=list(source_ids),
                        rule_state_id=rule_state_id)
+        if model_preparation_id is not None:request['model_preparation_id']=model_preparation_id
         prior = self._replay(record_id, request)
         if prior:
             return prior
@@ -484,6 +536,11 @@ class EventQueue:
             heads.append((kind,route.event_id,head['seq'] if head else 0))
         tokens, expiries = set(), [route.valid_until]
         claim_record = self.store.get(claim_id)
+        model_preparation=None;prepared=None
+        if model_preparation_id is not None:
+            model_preparation,prepared=self.model_preparation(model_preparation_id,event_id=route.event_id)
+            if model_preparation['seq']>=claim_record['seq']:
+                raise EvidenceError('CENSUS_MODEL_PREPARATION_AFTER_CLAIM')
         for key in book_ids:
             source = self.store.get(key); body = source['body']; p = body.get('payload', {})
             if (source['kind'] != 'BOOK' or source['event_id'] != route.event_id
@@ -511,7 +568,16 @@ class EventQueue:
                     or body['evidence_class'] == 'HISTORICAL_AVAILABILITY_UNKNOWN'
                     or source['seq'] <= claim_record['seq']):
                 raise EvidenceError('CENSUS_NEW_SOURCE_EVIDENCE_REQUIRED')
-            _census_raw_receipt(self.store, source, claim_record)
+            if source['kind']=='MODEL' and model_preparation is not None:
+                from .gefs_sources import VERSION as GEFS_VERSION
+                p=body['payload']
+                if (p.get('version')!=GEFS_VERSION or p.get('path_sha256')!=digest(dict(
+                        plan=prepared['plan'],field_ids=[r['id'] for r in p.get('field_references',[])],version=GEFS_VERSION))):
+                    raise EvidenceError('CENSUS_MODEL_PREPARED_PLAN_MISMATCH')
+                _census_raw_receipt(self.store,source,claim_record,model_preparation=model_preparation)
+                expiries.append(prepared['expires_at'])
+            else:
+                _census_raw_receipt(self.store,source,claim_record)
             payload = body['payload']
             if payload.get('station', payload.get('settlement_station_context')) != route.station:
                 raise EvidenceError('CENSUS_SOURCE_STATION_MISMATCH')
@@ -555,6 +621,7 @@ class EventQueue:
             raise EvidenceError('CENSUS_RULE_SUPERSEDED')
         expiries.append(rules['body']['recorded_at']+self.policy.max_rule_age_seconds)
         state['needs_census'].pop(route.event_id, None)
+        state.get('model_preparations',{}).pop(route.event_id,None)
         state['active']['requires_full_census'] = False
         state['active']['source_heads'] = heads
         state['active']['sources'] = []

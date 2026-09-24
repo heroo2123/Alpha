@@ -1,7 +1,57 @@
 # Alpha V11 work checkpoint
 
-Updated 2026-09-24, after bounded forecast-run rollover integration. Resume here. **NOT_READY_TO_FUND**.
+Updated 2026-09-24, after multi-step fresh forecast census integration. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
+
+## Latest implementation milestone — fresh MODEL census
+
+Continued from published reporting HEAD **e21bc82b65a8dac613f54ec87a30309ddc4346b6**,
+tree **e0c0367c0065a60b9deb95a6a4c1a43428491897** (alignment session 44873 exit 0).
+Implemented `v11/model_census.py` and joined the typed candidate, GEFS worker,
+census worker, event queue and paper safety scheduler. A bounded collection epoch
+precedes every raw model field; full coverage is completed under the ordinary
+short claim with newly collected books/observations. New losses, expiry, source
+changes and rule drift retain their gates. Partial state survives interruption.
+No long event claim, second collection owner, receipt renewal or model authority
+is introduced. Same-run replacement requires all new fields and retains history.
+The auxiliary worker adopts an exact current completed census model without
+refetching or attempting a duplicate aggregate. Details: `docs/V11_MODEL_CENSUS.md`.
+
+One full mocked path reached the existing two-second assembly limit because of
+repeated member queries. A bounded consistent `EvidenceStore.source_batch` now
+removes those repeated scans: 8 MiB / 1000 decoded rows / two seconds, with the
+original aggregate-head publication guard. Decision/CAS limits remain unchanged.
+No schema migration or host/service mutation occurred.
+
+Final related suite: **241 passed in 78.97 s, exit 0**, session 86764. This includes
+**21 new cases**, now **1230** above baseline 2336. Earlier shared checks: 106 passed
+in 21.15 s. New cases first produced 7 passes / 3 failures from an overlong request
+ID; the ID was shortened without changing its limit. Next run: 34 passed / two
+failures in 49.45 s (assembly time bound and a fixture's pre-existing coordinator
+records assertion). After bounded reads and the fixture correction: 76 passed
+in 62.54 s. The final 241-pass run also covers auxiliary completed-model adoption.
+No assertion failure remains. A new locked full regression is required because
+the archive and queue paths changed after the previously verified tree below.
+
+Supplementary estimate stays **79/200, approximately 40%**; formal completion stays
+**1/50 (2%)**. R09/R11/R33 already hold their named integration credits. This work
+does not establish actual provider access/packing, calibration, independent
+review, OS guardian isolation, deployed comparison or unfunded acceptance.
+
+Next: full regression on the saved census tree, then source-aware learning
+contracts and the exact-label/calibration/initial-champion integration. Preserve
+the remaining other-provider, observed-prefix/remaining-path, PWS lead, execution,
+guardian and full-master requirements. Actual source validation remains blocked
+by the previously recorded off-host HTTP proxy/client compatibility finding;
+no failed network call was repeated or restriction bypassed. Independent code
+work does not require an owner maintenance command.
+
+V10 remains unchanged. Its recorded stale-cycle/memory-pressure and alpha-dev
+resource/isolation findings remain open. Maintenance is DEFERRED; owner inventory
+hash remains OWNER-REPORTED / INDEPENDENT VERIFICATION PENDING. No deployment,
+funding, money movement, executor or real-money authority change occurred.
+
+## Last full regression, before the fresh MODEL census changes
 
 Latest fully verified implementation: **d073d34a82c3d8d38602a6936e158986e6460654**,
 tree **e596aee1e66b258d01d38a10947d9cb75abad208**. GitHub/local tree equality

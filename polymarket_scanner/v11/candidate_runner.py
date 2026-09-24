@@ -119,6 +119,7 @@ class CandidateRunner:
                 or any(p.rule.sha256!=runtime.queue.routes[e].rule_fingerprint for e,p in gefs.plans.items())):
             raise EvidenceError('CANDIDATE_GEFS_SCOPE')
         self.gefs=gefs
+        if census.gefs is not gefs:raise EvidenceError('CANDIDATE_CENSUS_GEFS_MUST_SHARE_WORKER')
         self.kinds=('CENSUS','DISCOVERY','AUDIT')+(('OBSERVATION',) if observation else ())+(('MAKER_TELEMETRY',) if maker_telemetry else ())+(('PWS_QUALITY',) if pws_quality else ())+(('FORECAST_NORMALIZATION',) if forecasts else ())+(('GEFS_SOURCE',) if gefs else ())
         config=dict(policy=asdict(policy),runtime=runtime.config,census=census.config,
             discovery=discovery.config,audits=audits.config,worker_id=runtime.worker_id,
@@ -172,7 +173,8 @@ class CandidateRunner:
         if kind=='MAKER_TELEMETRY':return self.maker_telemetry.step(key)
         if kind=='PWS_QUALITY':return self.pws_quality.step(key)
         if kind=='FORECAST_NORMALIZATION':return self.forecasts.step(key)
-        if kind=='GEFS_SOURCE':return await self.gefs.step(key)
+        if kind=='GEFS_SOURCE':return await self.gefs.step(key,exclude_events=tuple(
+            e for e in self.runtime.queue.preparing_model_events() if e in self.gefs.plans))
         batch=self.observation_batch
         return await self.observation.cycle(key,tuple(replace(r,revision=key) for r in batch.requests),
             station_by_event=dict(batch.station_by_event),strategies=batch.strategies,

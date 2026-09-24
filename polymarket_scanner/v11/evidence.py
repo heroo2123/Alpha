@@ -404,6 +404,61 @@ class EvidenceStore:
                               body['provider'], body['source_identity'])).fetchone()
         return None if row is None else self._decode(row)
 
+    def source_batch(self,*,kind,event_id,provider,source_identities,record_ids,raw_lineage=False,deadline=None):
+        """A bounded consistent read; this never enlarges decision/CAS limits.
+
+        One snapshot avoids repeated scans for large immutable model paths. The
+        returned kind/event head must still guard any publication or admission.
+        """
+        if (kind not in KINDS or type(record_ids) is not tuple or not 1<=len(record_ids)<=900
+                or len(set(record_ids))!=len(record_ids) or type(source_identities) is not tuple
+                or not 1<=len(source_identities)<=512 or len(set(source_identities))!=len(source_identities)
+                or type(raw_lineage) is not bool):raise EvidenceError('SOURCE_VIEW_BOUND')
+        for value in (event_id,provider,*record_ids,*source_identities):identity(value)
+        end=min(time.monotonic()+2.,finite(deadline) if deadline is not None else math.inf)
+        values={};total=0
+        def check():
+            if time.monotonic()>=end:raise EvidenceError('SOURCE_VIEW_TIME_BOUND')
+        def decode(row):
+            nonlocal total
+            check()
+            if row['record_id'] in values:return values[row['record_id']]
+            total+=len(row['body'].encode())
+            if total>8*1024*1024 or len(values)>=1000:raise EvidenceError('SOURCE_VIEW_BYTES_OR_ROWS_BOUND')
+            result=self._decode(row);values[result['id']]=result;return result
+        with self._connect() as db:
+            db.execute('BEGIN');db.set_progress_handler(lambda:time.monotonic()>=end,1000)
+            try:
+                check()
+                head=db.execute('SELECT * FROM v11_records WHERE kind=? AND event_id=? ORDER BY seq DESC LIMIT 1',
+                                (kind,event_id)).fetchone()
+                head=decode(head) if head is not None else None
+                def exact(ids):
+                    if not ids:return
+                    marks=','.join('?' for _ in ids)
+                    found=set()
+                    for row in db.execute('SELECT * FROM v11_records WHERE record_id IN ('+marks+')',ids):
+                        found.add(decode(row)['id'])
+                    if found!=set(ids):raise EvidenceError('EVIDENCE_MISSING')
+                exact(record_ids)
+                if raw_lineage:
+                    raw=tuple(dict.fromkeys(values[key]['body'].get('payload',{}).get('raw_evidence_id') for key in record_ids))
+                    raw=tuple(key for key in raw if key is not None)
+                    for key in raw:identity(key)
+                    exact(raw)
+                marks=','.join('?' for _ in source_identities)
+                rows=db.execute("SELECT * FROM v11_records WHERE seq IN (SELECT MAX(seq) FROM v11_records "
+                    "WHERE kind=? AND event_id=? AND json_extract(body,'$.provider')=? "
+                    "AND json_extract(body,'$.source_identity') IN ("+marks+") GROUP BY json_extract(body,'$.source_identity'))",
+                    (kind,event_id,provider,*source_identities))
+                channels={r['body']['source_identity']:r for r in map(decode,rows)}
+                check()
+                return dict(head=head,records=values,channels=channels)
+            except sqlite3.OperationalError as exc:
+                if 'interrupted' in str(exc).lower():raise EvidenceError('SOURCE_VIEW_TIME_BOUND') from None
+                raise
+            finally:db.set_progress_handler(None,0)
+
     def audit(self, record_id: str, *, event_id: str, kind: str, details: dict,
               evidence_ids: tuple[str, ...] = (), expected_previous_seq: int | None = None,
               expected_heads: tuple[tuple[str, str, int], ...] = ()) -> dict:

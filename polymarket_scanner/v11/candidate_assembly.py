@@ -325,13 +325,14 @@ def assemble_candidate(store,client,plan,*,generation):
     runtime=PaperRuntime(coordinator,queue,health,plan.runtime,evaluator=evaluator,worker_id=plan.worker_id,
         generation=generation,feed_policy=plan.feed,audits=AuditScheduler(store,plan.audits),maker=maker)
     runtime._head()
-    census=CensusWorker(scheduled,queue,health,plans=tuple(e.census for e in plan.events),policy=plan.census,book_policy=plan.books)
+    gefs=GEFSWorker(scheduled,health,plan.gefs,rollover=plan.gefs_rollover) if plan.gefs else None
+    census=CensusWorker(scheduled,queue,health,plans=tuple(e.census for e in plan.events),policy=plan.census,book_policy=plan.books,gefs=gefs)
     observation=ObservationPump(ObservationRuntime(scheduled),runtime) if plan.observation is not None else None
     runner=CandidateRunner(runtime,plan.candidate,census=census,discovery=MarketDiscovery(scheduled,health,plan.discovery),
         audits=AuditWorker(coordinator,plan.audits),observation=observation,observation_batch=plan.observation,
         maker_telemetry=MakerTelemetryWorker(maker,health,plan.maker.telemetry,event_ids=tuple(maker_scopes)) if maker else None,
         pws_quality=PWSQualityWorker(store,health,plan.pws_quality) if plan.pws_quality else None,
         forecasts=ForecastNormalizationWorker(store,health,plan.forecasts) if plan.forecasts else None,
-        gefs=GEFSWorker(scheduled,health,plan.gefs,rollover=plan.gefs_rollover) if plan.gefs else None)
+        gefs=gefs)
     runner.assembly_sha256=digest(asdict(plan))
     return runner

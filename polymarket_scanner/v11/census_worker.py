@@ -18,6 +18,10 @@ from .rules import RuleFingerprint
 from .weather_sources import normalize_weather_capture, madis_request
 from .pws_quality import archive_neighborhood
 from .pws_runtime import PWSQualityPlan, PWSQualitySettings, PWSQualityWorker
+from .gefs_runtime import GEFSWorker
+from .gefs_schedule import requested_plan
+from .gefs_sources import assemble_path
+from .model_census import ModelCensusStage, restore_plan
 
 
 VERSION = 'alpha_v11_census_worker_v1'
@@ -57,7 +61,7 @@ class CensusPolicy:
 
 
 class CensusWorker:
-    def __init__(self, scheduled, queue, health, *, plans, policy, book_policy, sleeper=asyncio.sleep):
+    def __init__(self, scheduled, queue, health, *, plans, policy, book_policy, sleeper=asyncio.sleep,gefs=None):
         if scheduled.store is not queue.store or health.store is not queue.store:
             raise EvidenceError('CENSUS_WORKER_NAMESPACE_MISMATCH')
         if (not isinstance(policy, CensusPolicy) or not isinstance(book_policy, BookPolicy)
@@ -66,6 +70,9 @@ class CensusWorker:
             raise EvidenceError('CENSUS_WORKER_CONFIGURATION_INVALID')
         self.scheduled, self.queue, self.health, self.store = scheduled, queue, health, queue.store
         self.policy, self.book_policy, self.sleeper = policy, book_policy, sleeper
+        if gefs is not None and (not isinstance(gefs,GEFSWorker) or gefs.scheduled is not scheduled or gefs.health is not health):
+            raise EvidenceError('CENSUS_GEFS_SHARED_COLLECTOR_REQUIRED')
+        self.gefs=gefs;self.model_stage=ModelCensusStage(queue,scheduled) if gefs else None
         self.plans = {p.rule.payload['event_id']:p for p in plans}
         if len(self.plans) != len(plans) or not self.plans.keys() <= queue.routes.keys():
             raise EvidenceError('CENSUS_PLAN_EVENT_SCOPE')
@@ -78,6 +85,10 @@ class CensusWorker:
         self.config = digest(dict(queue=queue.config, health=health.config, policy=asdict(policy),
             book_policy=asdict(book_policy), plans=[{k:v for k,v in asdict(p).items() if k!='pws' or v is not None}
                 for p in sorted(plans, key=lambda p:p.rule.sha256)]))
+        if gefs is not None:
+            if any(e not in self.plans or p.rule!=self.plans[e].rule for e,p in gefs.plans.items()):
+                raise EvidenceError('CENSUS_GEFS_PLAN_RULE_SCOPE')
+            self.config=digest(dict(base=self.config,gefs=gefs.config))
 
     def _get(self, key):
         try:
@@ -103,6 +114,7 @@ class CensusWorker:
     def _requests(self, route, plan, revision):
         supplied = {'OFFICIAL_OBSERVATION'} if plan.official_metar_proxy else set()
         if plan.pws is not None:supplied.add('PWS_OBSERVATION')
+        if self.gefs is not None and route.event_id in self.gefs.plans:supplied.add('MODEL')
         if not set(route.required_source_kinds) <= supplied:
             raise EvidenceError('CENSUS_REQUIRED_SOURCE_ADAPTER_UNAVAILABLE')
         requests = []
@@ -152,13 +164,42 @@ class CensusWorker:
             if not ordered:
                 return self._save(key, state, outcome='IDLE_OR_COOLDOWN', unconfigured_events=sorted(needed-self.plans.keys()))
             event = ordered[0]; state['last_event'] = event
+            model_preparation_id=None
+            if ('MODEL' in self.queue.routes[event].required_source_kinds and self.gefs is not None
+                    and event in self.gefs.plans and snapshot['active'] is None):
+                try:
+                    if event not in self.queue.preparing_model_events():
+                        gh=self.gefs._head();ga=gh['body']['details']['state']['active'] if gh else None
+                        if ga is not None and ga['event_id']==event:
+                            recovered=await self.gefs.step('census-recover:'+digest(key))
+                            return self._save(key,state,outcome='PRIOR_GEFS_OPERATION_RECONCILED',event_id=event,gefs_step_id=recovered['id'])
+                        plan=self.gefs.plans[event]
+                        if self.gefs.rollover is not None:plan=requested_plan(plan,self.gefs.rollover,now=now)
+                        expiry=min(now+1800,self.queue.routes[event].valid_until,
+                            now+self.queue.policy.max_pending_age_seconds,now+plan.forecast.maximum_receipt_age_seconds)
+                        prep=self.queue.begin_model_census(key+':model-epoch',plan=plan,expires_at=expiry)
+                        model_preparation_id=prep['id']
+                    else:
+                        model_preparation_id=self.queue.snapshot()['model_preparations'][event]['id']
+                    _,prepared=self.queue.model_preparation(model_preparation_id,event_id=event)
+                    plan=restore_plan(prepared);fields=self.model_stage.fields(prepared)
+                    if len(fields)!=31*len(plan.hours):
+                        progress=await self.model_stage.step(key,preparation_id=model_preparation_id,event_id=event)
+                        state['retry_at'][event]=now+1.
+                        return self._save(key,state,outcome='MODEL_CENSUS_COLLECTION_PENDING',event_id=event,
+                            preparation_id=model_preparation_id,model_stage_id=progress['id'],
+                            model_stage_outcome=progress['body']['details']['outcome'])
+                except (EvidenceError,OSError,TimeoutError) as exc:
+                    state['retry_at'][event]=now+self.policy.retry_seconds
+                    return self._save(key,state,outcome='MODEL_CENSUS_GATED',event_id=event,
+                        reason=str(exc) if isinstance(exc,EvidenceError) else type(exc).__name__)
             state['retry_at'][event] = now+self.policy.retry_seconds
             self._save(key+':begin', state, outcome='COLLECTION_STARTED', event_id=event)
             try:
                 with self.queue.work(key+':claim', exclude_events=tuple(sorted(self.queue.routes.keys()-{event}))) as claim:
                     if claim is None:
                         return self._save(key, state, outcome='NO_CURRENT_CLAIM', event_id=event)
-                    outcome = await self._collect(key, claim, self.plans[event])
+                    outcome = await self._collect(key, claim, self.plans[event],model_preparation_id=model_preparation_id)
                     if outcome['outcome'] == 'CENSUS_SOURCE_COVERAGE_ONLY':
                         state['retry_at'].pop(event, None)
                     return self._save(key, state, event_id=event, **outcome)
@@ -170,7 +211,7 @@ class CensusWorker:
         finally:
             os.close(fd)
 
-    async def _collect(self, key, claim, plan):
+    async def _collect(self, key, claim, plan,*,model_preparation_id=None):
         route = self.queue.routes[claim['event_id']]
         books, sources, errors, collections = [], [], [], []
         required_pws='PWS_OBSERVATION' in route.required_source_kinds
@@ -180,6 +221,8 @@ class CensusWorker:
                      max(0, claim['deadline']-self.store.clock()))
         try:
             requests = self._requests(route, plan, key)
+            if 'MODEL' in route.required_source_kinds and model_preparation_id is None:
+                raise EvidenceError('CENSUS_MODEL_COLLECTION_PENDING')
             async with asyncio.timeout(budget):
                 for offset in range(0, len(requests), 16):
                     # Additional batches respect the same persisted CLOB quota
@@ -226,6 +269,11 @@ class CensusWorker:
                         capture_ids=tuple(selected['capture_ids']),official=plan.pws.official,policy=plan.pws.policy,
                         expected_source_seq=selected['source_seq'],deadline=min(started+budget,time.monotonic()+2.))
                     sources.append(quality['id'])
+                if model_preparation_id is not None:
+                    _,prepared=self.queue.model_preparation(model_preparation_id,event_id=route.event_id)
+                    model=assemble_path(self.store,plan=restore_plan(prepared),field_ids=self.model_stage.fields(prepared),
+                        record_id='census-model:'+digest(key),deadline=min(started+budget,time.monotonic()+2.))
+                    sources.append(model['id'])
                 health = self.health.sample(key+':post-collection-clock')
                 if health['body']['details']['clock_reasons']:
                     raise EvidenceError('CENSUS_CLOCK_CHANGED_DURING_COLLECTION')
@@ -233,7 +281,7 @@ class CensusWorker:
                 if guard is None:
                     raise EvidenceError('CENSUS_CURRENT_RULE_REQUIRED')
                 coverage = self.queue.complete_census(key+':coverage', claim_id=claim['claim_id'],
-                    book_ids=tuple(books), source_ids=tuple(sources), rule_state_id=guard['id'])
+                    book_ids=tuple(books), source_ids=tuple(sources), rule_state_id=guard['id'],model_preparation_id=model_preparation_id)
                 coverage_id = coverage['id']
         except (EvidenceError, TimeoutError) as exc:
             errors.append(str(exc) if isinstance(exc, EvidenceError) else 'CENSUS_COLLECTION_DEADLINE')

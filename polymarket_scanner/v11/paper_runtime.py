@@ -288,7 +288,8 @@ class PaperRuntime:
             if not available-set(state['visited']): state['visited'] = []
             for index in range(self.policy.maximum_events):
                 if not budget(): break
-                excluded = set(state['visited'])|{e for e,t in state['census_retry'].items() if stamp['monotonic'] < t}
+                excluded = (set(state['visited'])|set(self.queue.preparing_model_events())
+                            |{e for e,t in state['census_retry'].items() if stamp['monotonic'] < t})
                 with ExitStack() as event_work:
                     try:
                         claim = event_work.enter_context(self.queue.work(prefix+':work:'+str(index), exclude_events=tuple(sorted(excluded))))

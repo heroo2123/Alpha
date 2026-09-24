@@ -59,10 +59,12 @@ Eighteen new schedule/candidate cases join the related suite: **112 passed in
 fixture incorrectly expecting collection during the separate rollover step;
 both were corrected. These checks are synthetic, not actual source acceptance.
 
-A bounded multi-step MODEL census protocol remains unfinished. A complete model
-does not clear an unrelated stream
-gap or approve any strategy. The existing census still refuses a required MODEL
-adapter until its complete fresh-input protocol is implemented.
+The bounded multi-step GEFS census now reserves a fresh collection epoch,
+collects one field per step and completes under the ordinary short claim with
+new books/observations. All raw fields must follow that epoch; original receipts
+are not renewed. Loss/expiry and constituent changes invalidate recovery. See
+`docs/V11_MODEL_CENSUS.md`. Other MODEL providers remain unavailable to census.
+A completed model alone never clears an unrelated gap or approves a strategy.
 
 Verification: 68 new synthetic cases, including byte decoding, bad dimensions,
 unsupported packing, exact request identity, complete member/day coverage, DST,

@@ -160,11 +160,19 @@ def assemble_path(store,*,plan,field_ids,record_id,deadline=None):
     else:
         if prior['body'].get('payload',{}).get('path_sha256')!=fingerprint: raise EvidenceError('GEFS_PATH_REPLAY_CONFLICT')
         return prior
-    now=finite(store.clock()); tip=store.latest(kind='MODEL',event_id=plan.event_id)
-    old=store.latest_source(kind='MODEL',event_id=plan.event_id,provider=PROVIDER,source_identity=plan.source_identity)
-    if old and (old['body']['issued_at'] is None or old['body']['issued_at']>=plan.initialized_at):
+    now=finite(store.clock())
+    try:
+        view=store.source_batch(kind='MODEL',event_id=plan.event_id,provider=PROVIDER,record_ids=field_ids,raw_lineage=True,
+            source_identities=(plan.source_identity,*(plan.field_identity(m,h) for m in range(31) for h in plan.hours)),deadline=deadline)
+    except EvidenceError as exc:
+        if str(exc)=='SOURCE_VIEW_TIME_BOUND':raise EvidenceError('GEFS_ASSEMBLY_TIME_BOUND') from None
+        raise
+    tip=view['head'];old=view['channels'].get(plan.source_identity)
+    if old and (old['body']['issued_at'] is None or old['body']['issued_at']>plan.initialized_at):
         raise EvidenceError('GEFS_RUN_REPLACEMENT_REQUIRES_NEWER_INITIALIZATION')
-    rows=[store.get(key) for key in field_ids]; fields={}; grid=None; receipts=[]; references=[]
+    rows=[view['records'][key] for key in field_ids]; fields={}; grid=None; receipts=[]; references=[]
+    if old and old['body']['issued_at']==plan.initialized_at and any(r['seq']<=old['seq'] for r in rows):
+        raise EvidenceError('GEFS_SAME_RUN_REPLACEMENT_REQUIRES_ALL_NEW_FIELDS')
     for row in rows:
         if deadline is not None and monotonic_time.monotonic()>=deadline: raise EvidenceError('GEFS_ASSEMBLY_TIME_BOUND')
         b=row['body'];p=b.get('payload',{});f=p.get('field',{});member=f.get('member');hour=f.get('forecast_hour')
@@ -176,10 +184,15 @@ def assemble_path(store,*,plan,field_ids,record_id,deadline=None):
                 or not b['received_at']<=b['available_at']<=b['recorded_at']<=now
                 or now-b['received_at']>=plan.forecast.maximum_receipt_age_seconds
                 or (member,hour) in fields): raise EvidenceError('GEFS_COMPLETE_CURRENT_PATH_REQUIRED')
-        if store.latest_source(kind='MODEL',event_id=plan.event_id,provider=PROVIDER,source_identity=request.source_identity)['id']!=row['id']:
+        head=view['channels'].get(request.source_identity)
+        if head is None or head['id']!=row['id']:
             raise EvidenceError('GEFS_FIELD_SUPERSEDED')
-        # Recheck decoder/request lineage, not caller-supplied decoded values.
-        normalize_field(store,p['raw_evidence_id'],plan=plan,member=member,hour=hour,record_id=row['id'])
+        # Same immutable decoder/request fingerprint as normalize_field replay,
+        # read consistently instead of opening/scanning the DB for every member.
+        raw=view['records'].get(p.get('raw_evidence_id'))
+        if raw is None or raw['sha256']!=p.get('raw_evidence_sha256') or p.get('normalization_sha256')!=digest(dict(
+                plan=asdict(plan),member=member,hour=hour,raw_sha256=raw['sha256'],decoder=DECODER_VERSION)):
+            raise EvidenceError('GEFS_FIELD_REPLAY_CONFLICT')
         current_grid=digest([f['grid'],p['chosen_point']])
         if grid is not None and grid!=current_grid: raise EvidenceError('GEFS_MIXED_GRID_PATH')
         grid=current_grid; fields[member,hour]=finite(p['value_kelvin']); receipts.append(b['received_at'])
@@ -217,10 +230,12 @@ def current_path_heads(store,row):
     """One aggregate MODEL CAS guard covers all bounded constituent channels."""
     p=row['body'].get('payload',{})
     if p.get('version')!=VERSION: return ()
-    refs=p.get('field_references'); tip=store.latest(kind='MODEL',event_id=row['event_id'])
+    refs=p.get('field_references')
     if type(refs) is not list or not 1<=len(refs)<=MAX_FIELDS: raise EvidenceError('GEFS_PATH_LINEAGE_INVALID')
+    view=store.source_batch(kind='MODEL',event_id=row['event_id'],provider=PROVIDER,
+        record_ids=tuple(r['id'] for r in refs),source_identities=tuple(r['source_identity'] for r in refs))
     for ref in refs:
-        current=store.latest_source(kind='MODEL',event_id=row['event_id'],provider=PROVIDER,source_identity=ref['source_identity'])
+        current=view['channels'].get(ref['source_identity'])
         if current is None or current['id']!=ref['id'] or current['sha256']!=ref['sha256']:
             raise EvidenceError('GEFS_PATH_CONSTITUENT_CHANGED')
-    return (('MODEL',row['event_id'],tip['seq']),)
+    return (('MODEL',row['event_id'],view['head']['seq']),)

@@ -10,7 +10,7 @@ import os
 import time
 
 from .evidence import EvidenceError, digest, identity
-from .gefs_sources import (GEFSPlan, PROVIDER, FIELD_VERSION, field_request,
+from .gefs_sources import (GEFSPlan, PROVIDER, FIELD_VERSION, VERSION as PATH_VERSION, field_request,
     normalize_field, assemble_path, current_path_heads)
 from .gefs_schedule import GEFSRunPolicy, requested_plan
 
@@ -51,8 +51,10 @@ class GEFSWorker:
             financial_authority=False,forward_acceptance=False,calibrated_probability=False),
             expected_previous_seq=head['seq'] if head else 0)
 
-    async def step(self,command_id):
+    async def step(self,command_id,*,exclude_events=()):
         identity(command_id,maximum=80);key='gefs-step:'+digest(command_id)
+        if type(exclude_events) is not tuple or not set(exclude_events)<=self.plans.keys():
+            raise EvidenceError('GEFS_WORKER_EXCLUSION_SCOPE')
         prior=self._get(key)
         if prior:
             if prior['body']['details'].get('config_sha256')!=self.config:raise EvidenceError('GEFS_WORKER_REPLAY_CONFIG')
@@ -65,8 +67,12 @@ class GEFSWorker:
             health=self.health.sample(key+':clock')
             if health['body']['details']['clock_reasons']:return self._save(key,state,outcome='DEFERRED_CLOCK_UNHEALTHY')
             active=state['active']
+            if active is not None and active['event_id'] in exclude_events:
+                return self._save(key,state,outcome='DEFERRED_MODEL_CENSUS_OWNS_COLLECTION')
             if active is None:
-                events=sorted(self.plans);event=next((e for e in events if e>state['last_event']),events[0]);state['last_event']=event
+                events=sorted(self.plans.keys()-set(exclude_events))
+                if not events:return self._save(key,state,outcome='DEFERRED_MODEL_CENSUS_OWNS_COLLECTION')
+                event=next((e for e in events if e>state['last_event']),events[0]);state['last_event']=event
                 saved=state['events'].setdefault(event,dict(field_ids=[],completed_id=None))
                 if self.rollover is not None:
                     previous=saved.get('initialized_at',self.plans[event].initialized_at)
@@ -91,6 +97,15 @@ class GEFSWorker:
             try:
                 if not 0<=self.store.clock()-plan.initialized_at<plan.maximum_run_age_seconds:
                     raise EvidenceError('GEFS_RUN_PLAN_STALE_OR_FUTURE')
+                current=self.store.latest_source(kind='MODEL',event_id=event,provider=PROVIDER,source_identity=plan.source_identity)
+                if current is not None and current['id']!=saved['completed_id']:
+                    p=current['body'].get('payload',{});refs=p.get('field_references',[])
+                    if (p.get('version')==PATH_VERSION and current['body']['issued_at']==plan.initialized_at
+                            and len(refs)==31*len(plan.hours) and p.get('path_sha256')==digest(dict(
+                                plan=asdict(plan),field_ids=[r['id'] for r in refs],version=PATH_VERSION))):
+                        current_path_heads(self.store,current)
+                        saved.update(field_ids=[r['id'] for r in refs],completed_id=current['id']);state['active']=None
+                        return self._save(key,state,outcome='CURRENT_COMPLETE_RUN_ADOPTED_NO_REFETCH',event_id=event,model_id=current['id'])
                 if saved['completed_id']:
                     current_path_heads(self.store,self.store.get(saved['completed_id']))
                     state['active']=None

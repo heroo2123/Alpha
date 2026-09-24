@@ -101,6 +101,40 @@ def test_candidate_schedules_one_run_bound_grib_file_with_shared_collector_and_s
     assert not r['store'].records(kind='TRADE')
 
 
+def test_candidate_model_census_keeps_safety_running_and_excludes_duplicate_aux_collection(factory,setup,monkeypatch):
+    from test_v11_grib_fields import grib
+    from datetime import datetime,timezone
+    import math
+    r=factory('FUTURE_FORECAST');prior_account_events=r['store'].records(kind='COORDINATOR_EVENT')
+    lane=app.TemperatureLane('temperature',inputs(r),(target(r),),'fixture',r['request'].valuation_policy,10.)
+    cfg=scoped_plan(r,lane);run=datetime.fromtimestamp(r['now'][0],timezone.utc).replace(hour=0,minute=0,second=0,microsecond=0).timestamp()
+    p=GEFSPlan(ForecastPlan(r['rule'],setup[3],50.,3600.),run)
+    event=replace(cfg.events[0],route=replace(cfg.events[0].route,required_source_kinds=('MODEL','OFFICIAL_OBSERVATION')))
+    cfg=replace(cfg,gefs=(p,),events=(event,),trigger=replace(cfg.trigger,max_pending_age_seconds=1800.),
+                candidate=replace(cfg.candidate,maximum_jobs=4,maximum_seconds=10.))
+    synthetic_clock(r,monkeypatch);calls=[];base=transport(r,calls)
+    async def handle(req):
+        if req.url.host=='nomads.ncep.noaa.gov':
+            calls.append(req);await asyncio.sleep(.12)
+            return httpx.Response(200,content=grib(hour=p.hours[0],run=run,
+                lat=math.floor(p.forecast.metadata.latitude*2)/2,lon=math.floor((p.forecast.metadata.longitude%360)*2)/2))
+        return await base.handle_async_request(req)
+    async def go():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
+            candidate=app.assemble_candidate(r['store'],client,cfg,generation='model-census')
+            assert candidate.census.gefs is candidate.gefs
+            ready(r,candidate.runtime.health)
+            row=await candidate.run('model-census-run')
+            assert candidate.runtime.queue.preparing_model_events()==(r['context'].event_id,)
+            assert candidate.runtime.queue.snapshot()['active'] is None
+            return row
+    d=asyncio.run(go())['body']['details']
+    outcomes={job['kind']:job['outcome'] for job in d['worker_results']}
+    assert outcomes['CENSUS']=='MODEL_CENSUS_COLLECTION_PENDING' and outcomes['GEFS_SOURCE']=='DEFERRED_MODEL_CENSUS_OWNS_COLLECTION',d
+    assert sum(req.url.host=='nomads.ncep.noaa.gov' for req in calls)==1 and len(d['runtime_ids'])>=4
+    assert d['all_async_jobs_drained'] and r['store'].records(kind='COORDINATOR_EVENT')==prior_account_events and not d['real_orders_sent']
+
+
 def transport(r,calls):
     def handle(req):
         calls.append(req)

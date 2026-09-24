@@ -98,3 +98,9 @@ Bounded GEFS rollover subsequently passed 112 related checks (18 new cases).
 R09/R11 already hold their source integration credits, so this expansion leaves
 **79/200, approximately 40%**, and formal **1/50 (2%)** unchanged. Actual source
 availability/packing, calibration, independent and deployment gates stay open.
+
+Fresh multi-step GEFS census, bounded source views and completed-path adoption
+passed 241 related checks (21 new cases). R09/R11/R33 already have their named
+integration credits. Total remains **79/200, approximately 40%**; formal **1/50
+(2%)**. Source access, other providers, real calibration and operational/independent
+acceptance remain unearned. No numerator increase follows from more tests.
