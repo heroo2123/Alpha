@@ -16,6 +16,10 @@ PWS_OBSERVATION_LEAD uses the same exact remaining-day payout route, with a
 mandatory paired observation/payout admission pin. Its separate next-observation
 model cannot substitute for payout. See `V11_PWS_OBSERVATION_LEAD.md`.
 
+SOURCE_SHOCK and RELEASE_OPPORTUNITY require the actual received-source pin and
+post-receipt model/book evidence. Their directional EVENT path retains the
+stronger common state/risk checks; see `V11_SOURCE_RELEASE.md`.
+
 Model members and target identities are reconstructed from referenced archive
 records. Every model input needs an admission source lease. Bias, smoothing and
 dependence weights come from the one protected bundle; caller probabilities and

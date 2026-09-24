@@ -71,6 +71,7 @@ class Proposal:
     desired_total_units: str
     admission_ids: tuple[str, ...]
     preconfirmation_id: str | None = None
+    source_release_id: str | None = None
 
     def __post_init__(self):
         for v in (self.proposal_id, self.thesis_id, self.valuation_id, self.event_state_id):
@@ -86,6 +87,8 @@ class Proposal:
             identity(key)
         if self.preconfirmation_id is not None:
             identity(self.preconfirmation_id)
+        if self.source_release_id is not None:
+            identity(self.source_release_id)
         if self.context.event_id != self.rule.payload['event_id'] or self.context.station_id != self.rule.payload['station']:
             raise EvidenceError('PROPOSAL_RULE_CONTEXT')
 
@@ -218,6 +221,22 @@ class PaperCoordinator:
             raise EvidenceError('CURRENT_EXACT_BOOK_REVALUATION_REQUIRED')
         return (('BOOK', event_id, head['seq'] if head else 0),)
 
+    def _source_release(self, key, *, strategies, context, rule, binding, admissions, event_state_id, value):
+        if not {'SOURCE_SHOCK', 'RELEASE_OPPORTUNITY'} & set(strategies):
+            if key is not None:
+                raise EvidenceError('SOURCE_RELEASE_ATTRIBUTION_REQUIRED')
+            return None
+        if key is None:
+            raise EvidenceError('RECEIVED_SOURCE_RELEASE_PIN_REQUIRED')
+        from .source_release import SourceRelease
+        release = SourceRelease(self.store).revalidate(key, context=context, rule=rule, binding=binding,
+                   admission_ids=admissions, event_state_id=event_state_id, book_id=value['book']['book_id'], strategies=strategies)
+        prediction = value['model']['prediction']
+        if (prediction['as_of'] < release['received_at']
+                or sorted(m['evidence_sha256'] for m in prediction['model_inputs']) != release['model_input_sha256']):
+            raise EvidenceError('RELEASE_VALUATION_REQUIRES_POST_RECEIPT_MODEL_INPUTS')
+        return release
+
     @precise
     def _prepare(self, proposal, now):
         if proposal.context.account_id != self.policy.account_id:
@@ -254,6 +273,11 @@ class PaperCoordinator:
                      context=proposal.context, rule=proposal.rule, binding=value['binding'], admissions=proposal.admission_ids)
         if preconfirmation is not None:
             heads += tuple(tuple(h) for h in preconfirmation['heads'])
+        release = self._source_release(proposal.source_release_id, strategies=strategies, context=proposal.context,
+                     rule=proposal.rule, binding=value['binding'], admissions=proposal.admission_ids,
+                     event_state_id=proposal.event_state_id, value=value)
+        if release is not None:
+            heads += tuple(tuple(h) for h in release['heads'])
         heads += self._current_book_heads(value, proposal.context.event_id)
         if value['valuation_type'] == 'SETTLEMENT' and value['outcome'] == 'ACCEPT_RESEARCH':
             direction, ev, cost_rows = 'BUY', value['conservative_ev_per_share'], value['costs']
@@ -267,7 +291,8 @@ class PaperCoordinator:
         flags = event['safety']['flags']
         if flags['no_new_orders'] or flags['manual_review'] or flags['quarantined']:
             raise EvidenceError('OPERATOR_SUPPRESSES_NEW_ORDER')
-        if direction == 'BUY' and (flags['reduce_only'] or not event['ordinary_new_risk_research_allowed']):
+        directional = release is not None and release['directional_event_data_eligible']
+        if direction == 'BUY' and (flags['reduce_only'] or not (event['ordinary_new_risk_research_allowed'] or directional)):
             raise EvidenceError('EVENT_OR_OPERATOR_SUPPRESSES_NEW_RISK')
         quantity = number(value['units'])
         model_size = min(Decimal(str(a['model_size_multiplier'])) for a in admissions)
@@ -289,6 +314,8 @@ class PaperCoordinator:
         expiry = min(expiry, *(a['valid_until'] for a in admissions))
         if preconfirmation is not None:
             expiry = min(expiry, preconfirmation['valid_until'])
+        if release is not None:
+            expiry = min(expiry, release['valid_until'])
         if queue['valid_until'] is not None:
             expiry = min(expiry, queue['valid_until'])
         if not value['as_of'] <= now < expiry:
@@ -315,6 +342,7 @@ class PaperCoordinator:
                          valuation_id=proposal.valuation_id, event_state_id=proposal.event_state_id,
                          admission_ids=list(proposal.admission_ids), binding=value['binding'],
                          preconfirmation_id=proposal.preconfirmation_id,
+                         source_release_id=proposal.source_release_id,
                          event_queue_completion_id=queue['completion_id'],
                          rule_fingerprint=proposal.rule.sha256, conservative_ev_total=str(number(ev)*quantity),
                          capital_at_risk=str(capital), status='RESERVED', cancel_requested=False, financial_authority=False)
@@ -439,6 +467,11 @@ class PaperCoordinator:
             if preconfirmation is not None:
                 heads += tuple(tuple(h) for h in preconfirmation['heads'])
             value = self.store.get(intent['valuation_id'])['body']['details']
+            release = self._source_release(intent.get('source_release_id'), strategies=strategies, context=context,
+                         rule=rule, binding=intent['binding'], admissions=tuple(intent['admission_ids']),
+                         event_state_id=intent['event_state_id'], value=value)
+            if release is not None:
+                heads += tuple(tuple(h) for h in release['heads'])
             heads += self._current_book_heads(value, intent['event_id'])
             # Shared station/source scopes may be referenced by several sleeves.
             unique = {}
@@ -450,7 +483,8 @@ class PaperCoordinator:
             flags = event['safety']['flags']
             if (state['faults'] or finite(self.store.clock()) >= intent['expires_at']
                     or flags['no_new_orders'] or flags['manual_review'] or flags['quarantined']
-                    or (intent['direction'] == 'BUY' and (flags['reduce_only'] or not event['ordinary_new_risk_research_allowed']))):
+                    or (intent['direction'] == 'BUY' and (flags['reduce_only'] or not (event['ordinary_new_risk_research_allowed']
+                         or release is not None and release['directional_event_data_eligible'])))):
                 raise EvidenceError('SUBMISSION_PIN_EXPIRED_OR_SUPPRESSED')
         if status == 'CANCEL_REQUESTED':
             intent['cancel_requested'] = True

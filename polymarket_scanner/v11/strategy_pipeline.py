@@ -28,7 +28,7 @@ VERSION = 'alpha_v11_temperature_strategy_pipeline_v1'
 INPUT_VERSION = 'alpha_v11_archived_temperature_input_v1'
 CONDITION_VERSION = 'alpha_v11_archived_extreme_condition_v1'
 COVERAGE_VERSION = 'alpha_v11_archived_remaining_coverage_v1'
-SLEEVES = {'FUTURE_FORECAST', 'SAME_DAY_LATE_LOCK', 'PWS_OBSERVATION_LEAD'}
+SLEEVES = {'FUTURE_FORECAST', 'SAME_DAY_LATE_LOCK', 'PWS_OBSERVATION_LEAD', 'SOURCE_SHOCK', 'RELEASE_OPPORTUNITY'}
 
 
 @dataclass(frozen=True)
@@ -47,6 +47,7 @@ class EntryRequest:
     observed_input_id: str | None = None
     coverage_input_id: str | None = None
     preconfirmation_id: str | None = None
+    source_release_id: str | None = None
 
     def __post_init__(self):
         for value in (self.admission_id, self.event_state_id, self.market_id, self.book_id):
@@ -59,7 +60,8 @@ class EntryRequest:
             raise EvidenceError('STRATEGY_MODEL_INPUT_BOUND')
         if type(self.costs) is not tuple or len(self.costs) > 16 or any(not isinstance(c, CostComponent) for c in self.costs):
             raise EvidenceError('STRATEGY_COST_INPUT_BOUND')
-        for value in (*self.model_input_ids, self.observed_input_id, self.coverage_input_id, self.preconfirmation_id):
+        for value in (*self.model_input_ids, self.observed_input_id, self.coverage_input_id,
+                      self.preconfirmation_id, self.source_release_id):
             if value is not None:
                 identity(value)
 
@@ -182,13 +184,13 @@ class TemperatureStrategies:
             raise EvidenceError('STRATEGY_REQUEST_ID_COLLISION')
         cutoff = start['body']['recorded_at']
         inference_cutoff = cutoff
-        value = prediction = model = assessment = event = preconfirmation = None
+        value = prediction = model = assessment = event = preconfirmation = release = None
         reason, outcome, proposal, trace = None, 'GATED', None, []
         references = [request.admission_id, start_id]
         try:
             assessment = StrategyAdmission(self.store).revalidate(request.admission_id, context=context, rule=rule,
                                  binding=asdict(binding), strategies=(scope.strategy,))
-            same_day = scope.strategy in {'SAME_DAY_LATE_LOCK', 'PWS_OBSERVATION_LEAD'}
+            same_day = scope.strategy != 'FUTURE_FORECAST'
             if scope.strategy == 'PWS_OBSERVATION_LEAD':
                 if request.preconfirmation_id is None:
                     raise EvidenceError('PWS_SEPARATE_OBSERVATION_AND_ECONOMICS_PIN_REQUIRED')
@@ -198,6 +200,18 @@ class TemperatureStrategies:
                 references.append(request.preconfirmation_id)
             elif request.preconfirmation_id is not None:
                 raise EvidenceError('PWS_PRECONFIRMATION_ATTRIBUTION_REQUIRED')
+            if scope.strategy in {'SOURCE_SHOCK', 'RELEASE_OPPORTUNITY'}:
+                if request.source_release_id is None:
+                    raise EvidenceError('RECEIVED_SOURCE_RELEASE_PIN_REQUIRED')
+                from .source_release import SourceRelease
+                release = SourceRelease(self.store).revalidate(request.source_release_id, context=context, rule=rule,
+                          binding=asdict(binding), admission_ids=(request.admission_id,), event_state_id=request.event_state_id,
+                          book_id=request.book_id, strategies=(scope.strategy,))
+                if request.observed_input_id != release['current_official_id']:
+                    raise EvidenceError('RELEASE_CONDITION_MUST_USE_CURRENT_OFFICIAL')
+                references.append(request.source_release_id)
+            elif request.source_release_id is not None:
+                raise EvidenceError('SOURCE_RELEASE_ATTRIBUTION_REQUIRED')
             trace.append(dict(stage='SOURCE_READY', state='PASS'))
             tz = ZoneInfo(rule.payload['timezone']); target_day = date.fromisoformat(rule.payload['target_date'])
             day_start = datetime.combine(target_day, time.min, tz).timestamp()
@@ -262,7 +276,11 @@ class TemperatureStrategies:
             if preconfirmation is not None:
                 preconfirmation = PWSPreconfirmation(self.store).revalidate(request.preconfirmation_id,
                         context=context, rule=rule, binding=asdict(binding), payout_admission_ids=(request.admission_id,))
-            if not event['ordinary_new_risk_research_allowed']:
+            if release is not None:
+                release = SourceRelease(self.store).revalidate(request.source_release_id, context=context, rule=rule,
+                          binding=asdict(binding), admission_ids=(request.admission_id,), event_state_id=request.event_state_id,
+                          book_id=request.book_id, strategies=(scope.strategy,))
+            if not (event['ordinary_new_risk_research_allowed'] or release is not None and release['directional_event_data_eligible']):
                 raise EvidenceError('EVENT_STATE_SUPPRESSES_TEMPERATURE_ENTRY')
             outcome, reason = value['outcome'], value['reasons'][0]
             if outcome == 'ACCEPT_RESEARCH':
@@ -271,8 +289,9 @@ class TemperatureStrategies:
                               observation=observed.evidence_sha256 if observed else None))
                 proposal = asdict(Proposal(record_id+':proposal', thesis, context, rule, value_id, request.event_state_id,
                                   (Attribution(scope.strategy, '1'),), min(request.expires_at, assessment['valid_until'],
-                                  event['valid_until'], preconfirmation['valid_until'] if preconfirmation else request.expires_at),
-                                  request.desired_total_units, (request.admission_id,), request.preconfirmation_id))
+                                  event['valid_until'], preconfirmation['valid_until'] if preconfirmation else request.expires_at,
+                                  release['valid_until'] if release else request.expires_at),
+                                  request.desired_total_units, (request.admission_id,), request.preconfirmation_id, request.source_release_id))
         except EvidenceError as exc:
             reason, outcome, proposal = str(exc), 'GATED', None
         trace.append(dict(stage='CANDIDATE', state=outcome, reason=reason))
@@ -284,6 +303,7 @@ class TemperatureStrategies:
                    model_epoch=model.epoch if model else None, admission_id=request.admission_id,
                    funnel=trace, measurement_target=FINAL_EXTREME, executable_exit_value=None,
                    valuation_type='SETTLEMENT', preconfirmation=preconfirmation,
+                   received_source_release=release,
                    financial_authority=False, execution_status='NOT_SUBMITTED')
         # Missing input references cannot prevent the durable rejection reason.
         available = []
@@ -297,8 +317,8 @@ class TemperatureStrategies:
                 available.append(key)
         return self.store.audit(record_id, event_id=context.event_id, kind='MEASUREMENT', details=details,
                                 evidence_ids=tuple(available),
-                                expected_heads=tuple(tuple(h) for h in preconfirmation['heads'])
-                                if preconfirmation is not None and outcome != 'GATED' else ())
+                                expected_heads=tuple(tuple(h) for h in (preconfirmation or release)['heads'])
+                                if (preconfirmation or release) is not None and outcome != 'GATED' else ())
 
     def proposal(self, evaluation_id: str) -> Proposal:
         row = self.store.get(evaluation_id); details = row['body'].get('details', {})
