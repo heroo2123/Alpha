@@ -1,13 +1,13 @@
 # Alpha V11 work checkpoint
 
-Updated 2026-09-24, 00:39 UTC. Resume here. **NOT_READY_TO_FUND**.
+Updated 2026-09-24, 00:51 UTC. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
 
 ## Exact identities and scope
 
 - Branch: `weather-v11-profitability-upgrade-2026-09-23`.
-- Last verified implementation HEAD: `2328f20b27287e8f869e54df291879cb02004c34`.
-- Last verified implementation tree: `5cabc89a2a91370b79031a61f7918dce0cdd10ca`.
+- Last verified implementation HEAD: `c0d97df2a0718ae87b8c36cf3d8ae4c5869974a7`.
+- Last verified implementation tree: `44718b030c4d4cf7f19eaf9257e15aeec39acefe`.
 - Worktree at verification: clean; local and published implementation trees match.
 - This following checkpoint commit changes documentation only. Resolve its own
   exact commit with `git log -1 --format=%H -- docs/V11_WORK_CHECKPOINT.md`, and its
@@ -408,11 +408,29 @@ lead model was trained/promoted, no eligible paper entry created and no V10 work
 or change performed. Exact adapters, independently supported labels, calibrated
 lead models and common paper economics integration remain unfinished.
 
-The current protected registry has one active scope, so distinct next-observation
-and payout champions cannot yet coexist across strategies. Next engineering
-prerequisite: separately custodied state slots by exact scope and PAPER/SHADOW
-mode, with reviewed monotonic transitions and no implicit fallback/initialization.
-Then continue PWS economic integration and remaining master phases.
+## Separately scoped model authority milestone
+
+Published `c0d97df2a0718ae87b8c36cf3d8ae4c5869974a7`, tree
+`44718b030c4d4cf7f19eaf9257e15aeec39acefe`. Protected state selection now uses
+exact scope and nonfinancial PAPER/SHADOW mode. Distinct next-observation and
+payout champions can coexist under separate reviews. Missing state never falls
+back to the legacy singleton. Both reader and standalone publisher reject wrong
+slot identities; existing custody, atomic transitions and reductions remain.
+No initialization, migration, provisioning or financial mode was introduced.
+
+14 new slot tests and 97 related checks passed in 3.17 seconds. Full off-host
+regression passed **2,771 tests, four existing warnings, 68.88 seconds**. A fixture
+initially mixed state directories into the immutable artifact directory; it was
+corrected without weakening production checks. Compileall and diff checks passed.
+PWS research CI run 35939317722 passed. Resume inspection confirmed the saved
+HEAD, preserved all six unfinished files and found no running project operations.
+No duplicate full test run or alpha-dev action occurred. Git publication passed
+with identical local/public trees and a clean worktree. No independent review,
+actual model approval or complete-package acceptance is claimed.
+
+Next: connect PWS settlement-valued research to separately approved observation
+and payout model pins and the common coordinator. Retain observation-only gating
+when evidence is insufficient and do not manufacture repricing/exit values.
 
 ## Implementation and verification
 
@@ -466,7 +484,9 @@ bounded compressed-capture verification and explicitly limited runtime context.
 | Latest queue-admission full regression | **2,739 passed; four existing warnings; 67.08 s** |
 | Queue-admission CI 35938568101 at 31dcd29 | completed successfully |
 | PWS observation-lead research | **18 new checks passed; 119 related checks passed in 2.80 s** |
-| New PWS research implementation CI | not yet inspected |
+| PWS research CI 35939317722 at 2328f20 | completed successfully |
+| Scope/mode model slots | **14 new tests; 97 related checks passed, 3.17 s** |
+| Latest full off-host regression | **2,771 passed; four existing warnings; 68.88 s** |
 
 Tests used an isolated off-host environment installed from hash-locked dev
 requirements. Four warnings are pre-existing FastAPI lifecycle deprecations.
@@ -487,9 +507,9 @@ technical readiness, canary eligibility and empirical validation stay separate.
   period is imposed; mandatory technical/evidence gates remain.
 
 Next engineering action: continue Phase 6 strategy migration through the shared
-admission/coordinator path, with separately scoped protected model state slots next, enabling distinct
-observation/payout champions without cross-scope promotion. Continue PWS economic
-integration and the remaining strategies afterward. PWS paired research and
+admission/coordinator path. Separately scoped protected model state slots are
+implemented and locally verified. Next connect distinct observation/payout model
+pins through PWS economic integration, then continue the remaining strategies. PWS paired research and
 queue-fault propagation are implemented and locally verified. Bounded source-event routing
 and forecast/same-day evaluation are implemented and locally verified; provider
 adapters, periodic runtime scheduling and empirical calibration remain pending. PWS observation, payout and executable-exit
