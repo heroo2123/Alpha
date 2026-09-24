@@ -16,6 +16,7 @@ from .paper_cancellation import PaperCancellation, CancellationPolicy
 from .runtime_health import KEY as HEALTH_KEY, admission_heads, host_stamp
 from .strategy_pipeline import TemperatureStrategies, EntryRequest
 from .runtime_feed import EvidenceFeed, FeedPolicy
+from .audit_reports import AuditScheduler, AuditPolicy
 
 
 VERSION = 'alpha_v11_paper_runtime_v1'
@@ -74,7 +75,7 @@ class TemperatureEventAdapter:
 
 
 class PaperRuntime:
-    def __init__(self, coordinator, queue, health, policy, *, evaluator, census=None, maker=None, worker_id=None, generation=None, feed_policy=None, rewards=None):
+    def __init__(self, coordinator, queue, health, policy, *, evaluator, census=None, maker=None, worker_id=None, generation=None, feed_policy=None, rewards=None, audits=None):
         if (not isinstance(policy, RuntimePolicy) or coordinator.store is not queue.store or coordinator.store is not health.store
                 or health.account_id != coordinator.policy.account_id or set(queue.routes) != set(health.scopes)):
             raise EvidenceError('RUNTIME_COMPONENT_SCOPE_MISMATCH')
@@ -87,10 +88,12 @@ class PaperRuntime:
         if rewards is not None and (maker is None or rewards.research is not maker):
             raise EvidenceError('RUNTIME_REWARD_RESEARCH_MISMATCH')
         self.rewards = rewards
+        self.audits = audits or AuditScheduler(self.store,AuditPolicy('bounded-audit-v1'))
+        if self.audits.store is not self.store: raise EvidenceError('RUNTIME_AUDIT_NAMESPACE_MISMATCH')
         self.cancellation = PaperCancellation(coordinator, CancellationPolicy('runtime-bounded-v1', 16, 256))
         self.feed = EvidenceFeed(queue, feed_policy or FeedPolicy('bounded-receipt-delivery-v1'))
         self.config = digest(dict(runtime=asdict(policy), account=coordinator.policy_sha, queue=queue.config, health=health.config, feed=self.feed.config,
-                                  rewards=rewards.config if rewards is not None else None))
+                                  rewards=rewards.config if rewards is not None else None, audits=self.audits.config))
 
     def _head(self):
         row = self.store.latest(kind='RUNTIME_STATUS', event_id=KEY)
@@ -276,10 +279,15 @@ class PaperRuntime:
                         row = self.maker.retire('retire:'+digest([prefix,quote_id]), quote_id=quote_id, reason=str(exc))
                         retired.append(row['id'])
                     except EvidenceError as failure: errors.append(dict(stage='MAKER_RETIRE', reason=str(failure)))
+        audit_request_ids=[]
+        if not hd['clock_reasons'] and budget():
+            try:audit_request_ids=list(self.audits.request_due())
+            except EvidenceError as exc:errors.append(dict(stage='AUDIT_SCHEDULE',reason=str(exc)))
         return self._save(final_id, state, request=request, outcome='BUDGET_EXHAUSTED' if not budget() else 'DEGRADED' if errors else 'TICK_COMPLETED',
             health_id=health['id'], errors=errors, evaluation_ids=evaluations, account_batch_ids=coordinated,
             updates_consumed=not hd['global_reasons'] and not any(e['stage']=='INGEST' for e in errors),
             cancellation_report_ids=cancellation_reports, retired_quote_ids=retired,
             reward_report_ids=reward_reports,
+            audit_request_ids=audit_request_ids,
             duration_monotonic_seconds=time.monotonic()-started, budget_exhausted=not budget(),
             queue_metrics=self.queue.snapshot()['metrics'], forward_or_live_acceptance=False)

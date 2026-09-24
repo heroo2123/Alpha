@@ -1,0 +1,72 @@
+# V11 performance and durable audits
+
+Off-host reporting is implemented in performance.py and audit_reports.py. R40/R41
+remain PARTIAL: emitted reports explicitly distinguish calculated metrics from
+missing empirical, production and independent-review evidence. No report grants
+financial authority, changes risk limits, sends a message or validates funding.
+
+## Account-derived performance
+
+PerformanceLab reads one pinned common-account state. Realized sale fragments
+retain their entry-lot P&L partition; exit-decision attribution is not credited a
+second time. Strategy and station/city/price/event/model/horizon slices conserve
+total P&L. Entry-price slices use allocated all-in basis per share. Missing entry
+lineage stays UNKNOWN, even if its net P&L happens to be zero. Duplicate realization
+IDs and nonconserving allocations are refused. Historical event/entry accounting
+gaps are exposed rather than silently filled.
+
+A flattened entry intent is counted only after terminal entry status, full actual
+filled-unit liquidation, no remaining entry lots and complete lifecycle coverage
+within the report window. Partial sale fragments and settlement-resolved trades
+are separate populations. Pending/ambiguous cancellation cannot count as a no-fill.
+Reports include realized-only drawdown, profit factor, averages/medians, tail losses
+and winner/station exclusions with named sample units. Open-inventory mark-to-market
+drawdown remains UNKNOWN without a valid executable valuation. Joint basket EV
+is not multiplied by the number of legs. Unmatched entry/exit horizons do not
+produce an EV-capture ratio. Initial paper capital is hypothetical, never validated
+live capital. Fees/slippage remain unseparated when the ledger has only all-in cost.
+
+## Scheduled generation without blocking the safety loop
+
+PaperRuntime schedules at most two small durable requests per tick: the previous
+complete UTC day and ISO Monday-to-Monday week. Repeated ticks do not duplicate a
+window; missed windows and unknown initial history are explicit. Scheduling does
+not scan the archive or run the reporter. AuditWorker.step is a separate callable
+worker with its own lock; no worker process or service has been deployed.
+
+A short read transaction pins the archive sequence boundary and account/health/
+reward heads. Bounded pages exclude later appends. Each worker step retains its
+cursor and compact aggregation; restart resumes the same view. Publishing a report
+before a crash cannot duplicate it on recovery. Config/account changes fail closed.
+Default step limits are 64 rows and a cooperative two-second scan budget, plus a
+separate at-most-one-second lineage metadata budget when publishing. The default
+20,000-row job cap emits explicitly partial coverage, not an acceptance pass.
+Group/reference caps and malformed records are visible. Production resource/isolation
+and capacity acceptance remain open.
+
+The report separates PAPER and unobserved LIVE, realized/claimable/redeemed values,
+current exposure/scenario risk, source/runtime/funnel records, scoped station
+transitions, rule drift, model/learner records, rejection reasons, and markout
+counts by horizon. Counts refer to records, not independent trades, cycles or
+outage episodes. Current pinned exposure is not a historical window-end balance.
+Local registry claims do not certify stations or attest the protected champion.
+Maker income and quote caps remain separate; actual payment evidence is unverified.
+Mixed-horizon markouts are not averaged. Missing labels, counterfactuals, ablations,
+champion/challenger acceptance and host resource trends remain explicit gaps.
+
+Reports are durable local records only. Optional external delivery has not been
+activated. Existing ambiguous-message-delivery safeguards remain relevant if a
+separately authorized transport is connected later.
+
+## Verification
+
+27 new tests cover accounting conservation, partial and complete lifecycles,
+ambiguous no-fills, winner exclusions, unknown lineage, basket EV deduplication,
+namespace boundaries, pinned reads, bounded coverage, daily/weekly scheduling,
+restart after report publication and runtime/report lock independence. The initial
+report run had 25 passes and one fixture construction failure (a nonexistent
+PaperAccountPolicy version field); the fixture now changes account identity.
+An added scoped-station regression prevents one strategy's state from overwriting
+another. Final report/account/runtime/reward/evidence checks: 151 passed in 22.07 s.
+The preceding default-runtime checks passed 28 tests in 4.42 s. Full repository regression passed 3,200 tests / four existing warnings in
+211.18 s, peak child RSS 153,452 KiB. All fixtures are synthetic and off-host.

@@ -330,6 +330,32 @@ class EvidenceStore:
                               (kind, after_seq, event_id, event_id, limit)).fetchall()
         return [self._decode(row) for row in rows]
 
+    def pin_read_view(self, heads: tuple[tuple[str, str], ...] = ()) -> dict:
+        """Pin append-only sequence and selected heads in one short read transaction."""
+        if type(heads) is not tuple or len(heads) > 16 or len(set(heads)) != len(heads):
+            raise EvidenceError('READ_VIEW_HEAD_BOUND')
+        for kind,event in heads:
+            if kind not in AUDIT_KINDS | KINDS: raise EvidenceError('READ_VIEW_KIND')
+            identity(event)
+        with self._connect() as db:
+            db.execute('BEGIN')
+            tip = db.execute('SELECT seq,body_sha256 FROM v11_records ORDER BY seq DESC LIMIT 1').fetchone()
+            selected = []
+            for kind,event in heads:
+                row = db.execute('SELECT * FROM v11_records WHERE kind=? AND event_id=? ORDER BY seq DESC LIMIT 1', (kind,event)).fetchone()
+                selected.append(dict(kind=kind,event_id=event,record_id=row['record_id'] if row else None))
+        return dict(through_seq=tip['seq'] if tip else 0, tip_sha256=tip['body_sha256'] if tip else None, heads=selected)
+
+    def page_through(self, *, through_seq: int, after_seq: int = 0, limit: int = 16) -> list[dict]:
+        """Bounded reporting view; later appends cannot enter a pinned report."""
+        if (type(through_seq) is not int or type(after_seq) is not int or not 0 <= after_seq <= through_seq
+                or type(limit) is not int or not 1 <= limit <= 64):
+            raise EvidenceError('READ_VIEW_PAGE_BOUND')
+        with self._connect() as db:
+            rows = db.execute('SELECT * FROM v11_records WHERE seq>? AND seq<=? ORDER BY seq LIMIT ?',
+                              (after_seq,through_seq,limit)).fetchall()
+        return [self._decode(row) for row in rows]
+
     def latest(self, *, kind: str, event_id: str) -> dict | None:
         """Read one scoped state head; callers still use CAS when appending."""
         if kind not in AUDIT_KINDS | KINDS:

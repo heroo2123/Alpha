@@ -1,6 +1,6 @@
 # Alpha V11 work checkpoint
 
-Updated 2026-09-24, after source delivery and bounded runtime integration. Resume here. **NOT_READY_TO_FUND**.
+Updated 2026-09-24, after performance and durable audit integration. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
 
 ## Current priority override — V11 runtime integration
@@ -26,11 +26,10 @@ open. No funding, deployment, financial activation or new host workload authoriz
 ## Exact identities and scope
 
 - Branch: `weather-v11-profitability-upgrade-2026-09-23`.
-- Last verified implementation HEAD: `fb91b25ef2761a626877164c24326105a6fa575c`.
-- Last verified implementation tree: `0054e370f732934cc3255194399a478d0803f1df`.
-- Source-delivery implementation identity is above. Public/local tree equality
-  passed, fetch/alignment exited 0 and the worktree was clean before continuing
-  reward/rebate work. No unfinished work was discarded.
+- Last verified implementation HEAD: `a993ebe1f76cf95b47938a1a5a5e43570ce82e8e`.
+- Last verified implementation tree: `2db88e02db21714cb01410fab9536146159cb3bc`.
+- Reward implementation identity is above. Public/local tree equality passed,
+  fetch/alignment exited 0 and the worktree was clean before reporting work. No unfinished work was discarded.
 - This following checkpoint commit changes documentation only. Resolve its own
   exact commit with `git log -1 --format=%H -- docs/V11_WORK_CHECKPOINT.md`, and its
   tree with `git rev-parse <that-commit>^{tree}`; no self-referential hash claim.
@@ -42,8 +41,8 @@ open. No funding, deployment, financial activation or new host workload authoriz
 - Prior maker-feature implementation: `a3a0a05b3ea2ecdc55190c711a75d6d7cd990922`,
   tree `053189306c136d11f32943ec62f0807c827a582c`; its recovery checkpoint was
   `53cae2da33e97c993c76ab976d2f079a97bf6ae1`.
-- Latest full regression: **3,130 passed, four existing warnings, 185.10 s** on
-  the source-delivery implementation recorded below. Its predecessor full run was
+- Latest full regression: **3,200 passed, four existing warnings, 211.18 s** on
+  the reporting implementation recorded below. Its predecessor full run was
   2,894 passing at `f69e318d04b8771f1de3074928ae63d3951cebec`.
 - Prior implementation: `dd1e85706eb0a26c9bb8aef1317cb635a791b920`, tree
   `8bf30057a39e8690d457e531b781b953a2476878`. Prior recovered checkpoint
@@ -1159,3 +1158,46 @@ then all remaining matrix requirements. No funding or deployment authority.
 Final reward/runtime/maker/collector verification: **191 passed in 22.23 s**,
 exit 0, after the exact-ID endpoint correction. No test operation remains running.
 No source/test bytes changed after this passing run.
+
+
+Reward implementation published at a993ebe1f76cf95b47938a1a5a5e43570ce82e8e,
+tree 2db88e02db21714cb01410fab9536146159cb3bc; fetch/alignment completed, exit 0.
+
+### Performance lab and scheduled audit milestone
+
+Added performance.py and audit_reports.py, integrated default daily/weekly request
+scheduling in PaperRuntime, and added bounded pinned read views to the V11 archive.
+Performance joins the actual common PAPER account and conserves entry attribution;
+partial fills/realizations, closed entries and final settlement remain distinct.
+Reports separate PAPER/LIVE, hypothetical/validated capital and maker income,
+expose lineage/accounting gaps, and do not infer EV capture across different horizons.
+
+The reporter runs outside the cancellation scheduler, using its own lock and
+bounded resumable chunks. Sequence/head pins exclude later appends, report identity
+survives interruption between publication and cursor commit, and missing/partial
+coverage stays explicit. Runtime scheduling -> separate worker -> durable daily
+report is demonstrated. Holding the report lock does not prevent runtime safety
+retirement. There is no external-message transport or deployed reporter process.
+
+27 new reporting cases. Initial run: 25 passed / one fixture error from a nonexistent
+PaperAccountPolicy version field; fixed using an account-identity change. One further
+scoped-station case was added. Final related report/account/runtime/reward/evidence
+run: **151 passed in 22.07 s**, exit 0. Prior default-runtime verification: 28 passed
+in 4.42 s. Full regression was required because shared archive reads and default
+runtime scheduling changed; its completed result is recorded below.
+Cumulative new cases 864; fully completed implementation packages remain 1/50. R40/R41 remain PARTIAL,
+with all unavailable empirical/protected/production metrics explicit. All work is
+off-host. V10 maintenance remains DEFERRED and the recorded runtime-health/resource
+finding remains OPEN. No inventory verifier, service action, deployment or funding.
+Next implementation after verification/publication: exact public book normalization
+and fresh census/source integration, then remaining full-spec requirements.
+
+
+Reporting full regression completed PASS: **3,200 passed, four existing FastAPI
+deprecation warnings, 211.18 s**, exit 0. Wrapper elapsed 212.630 s; user/system CPU
+148.477/56.942 s; peak child RSS 153,452 KiB. No test operation remains running.
+No code/test bytes changed after the passing run. Public/local publication of
+this nonsecret milestone follows; next action remains public-book normalization
+and census integration. Complete implementation packages (local verification)
+remain 1/50; formal runtime, empirical, independent-review and funding gates remain
+unpassed. V10 state and deferred inventory verification are unchanged.
