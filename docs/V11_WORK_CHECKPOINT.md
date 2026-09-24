@@ -1,6 +1,6 @@
 # Alpha V11 work checkpoint
 
-Updated 2026-09-24, after the 10:31 UTC owner health probe. Resume here. **NOT_READY_TO_FUND**.
+Updated 2026-09-24, after the 11:06 UTC preservation-preparation inspection. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
 
 ## Exact identities and scope
@@ -709,6 +709,41 @@ existing bounded WRH polling bracket cannot establish exact publication/revision
 state, and HOURLY population cannot stand in for ALL_TIMES. RESULT_LAG remains
 GATED with R31 OPEN. R32 remains PARTIAL pending continuous runtime, capital
 rotation, emergency permission integration and external execution acceptance.
+
+## Preparation-only authorization and verification
+
+The owner explicitly approved preservation preparation ONLY and withheld SIGTERM,
+stop/restart, service mutation, deletion/reset, executor changes and V11 deployment.
+At 11:06 UTC, read-only inspection still found the same D-state main process,
+single cgroup PID, six threads and 454,397,952 bytes memory; executor MASKED/INACTIVE.
+Source HEAD/tree remain the frozen local V10 identity and the source is clean.
+No remote task was running before inspection; no prior operations were duplicated.
+Recovered V11 checkpoint bd7e9925205869f886d0679ebfe24ea6b63d2186 was clean.
+The authoritative specification hash still matches. No old draft was substituted.
+
+New preservation-only module includes bounded private physical archives, metadata/
+ACL/xattr/link retention, external manifest/member integrity checks, incomplete
+attempt preservation and read-only SQLite recovery checks. It has no service,
+signal, privilege or restore API. 16 new tests / 41 related tests passed in 0.68 s.
+The existing actual off-host snapshot passed expected SHA-256 and quick_check;
+this targeted recovery check did not recapture or restart the forensic baseline.
+Full regression remains 2,894 passed at f69e318; no unchanged broad run was repeated.
+
+Prepared scripts were staged and hash verified, not executed, under
+/home/alphaadmin/alpha-v11-preservation-prep-20260924 outside V10. Their exact hashes,
+new proposed destination, preservation/recovery steps, evidence-loss accounting
+and checklist are in V11_CONTROL_SUSPENSION_PLAN.md. No new live snapshot, private
+configuration read, archive or journal export ran. Protected source access remains
+owner-only; the previously rejected privilege route was not retried or bypassed.
+
+SUSPENSION_NOT_READY: the unchanged unit retains Restart=on-failure (15 s),
+SendSIGKILL=yes, FinalKillSignal=9, stop timeout 25 s and OOMPolicy=stop. Normal
+SIGTERM is expected clean, but no unconditional no-restart/no-kill guarantee is
+available. Watchdog/runtime timeout, hooks, triggers and pending jobs were absent
+at inspection. The earlier proposed signal command is withdrawn from execution
+readiness. No signal or automatic recovery is armed. Await new explicit approval
+before any service action, without treating approval as missing technical proof.
+Continue independent maker implementation off-host. Fixed completion: 1/50 = 2%.
 
 ## Models, authority and exact continuation
 

@@ -1,10 +1,12 @@
 # Bounded V10 operational assessment — 2026-09-24
 
-Recommendation: approve a preservation-first, bounded SIGTERM-only temporary
-suspension under `V11_CONTROL_SUSPENSION_PLAN.md`. Approval is still absent; no
-signal, stop, restart, new preservation capture or V11 deployment was performed.
-Continue independent V11 implementation and tests off-host. This recommendation
-addresses an unhealthy control process and host pressure, not V11 readiness.
+Current decision: owner approved preservation preparation ONLY. V10 remains
+unchanged. The final preparation checklist in V11_CONTROL_SUSPENSION_PLAN.md is
+SUSPENSION_NOT_READY: fresh protected preservation is pending and the requested
+unconditional no-automatic-action guarantee cannot be certified under unchanged
+Restart=on-failure / SendSIGKILL=yes / OOMPolicy=stop behavior. No signal is armed.
+The earlier conditional suspension recommendation is not execution approval.
+Continue independent off-host V11 implementation.
 
 ## Closed freshness check
 
