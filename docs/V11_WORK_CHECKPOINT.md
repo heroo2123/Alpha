@@ -1,6 +1,6 @@
 # Alpha V11 work checkpoint
 
-Updated 2026-09-24, after PWS and forecast-source runtime integration/full regression. Resume here. **NOT_READY_TO_FUND**.
+Updated 2026-09-24, after bounded run-bound GEFS source/candidate integration. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
 
 ## Current priority override — V11 runtime integration
@@ -23,7 +23,58 @@ runtime scheduling, causal source inputs, heartbeat/clock gates and cancellation
 integration subsequently advanced as recorded below. V10 health/resource findings remain
 open. No funding, deployment, financial activation or new host workload authorized.
 
-## Latest continuation milestone
+## Current continuation — run-bound source integration
+
+Recovered and independently matched local/public reporting HEAD
+`f39de24df5970dae39989d3ad818842e4b71e7e9`, tree
+`0865293fbc2c896c4e58a2d72741a8a2bc635539`. Branch is unchanged, worktree was
+clean and single, no project operation was running, and the regression lock was
+idle. The authoritative master hash matched. No reset, cleanup, rollback,
+duplicate test or V10 action occurred. Current source changes are new work.
+
+Implemented `grib_fields.py`, `gefs_sources.py` and `gefs_runtime.py`:
+bounded native-format byte decoding; exact request/run/member/grid identity;
+all-member local-day path coverage; raw receipt/hash preservation; one-file
+scheduled collection with crash recovery; candidate/source-health/admission joins.
+Simple/IEEE packing only; unknown formats gate. The distinct piecewise-linear
+forecast model explicitly does not know intrastep extremes or calibrated error.
+It feeds the immutable probability bundle interface with vacuous bounds and no
+activation. A changed constituent revokes its current source eligibility.
+See `docs/V11_GEFS_SOURCE.md` for bounds, limits and primary references.
+
+**242 related tests passed in 46.97 s, exit 0**, including **68 new cases**.
+Initial checks: 61 passed / 4.88 s. Expanded checks: 31 passed plus one fixture
+lookup error; corrected candidate case passed / 1.75 s. One wider command named
+a nonexistent test file and exited 4 with no tests; the corrected wider command
+passed above. No assertion failure remains. Full regression of the shared
+collector/candidate/health changes is still due; the prior 3442-pass result below
+does not cover these changes. The related session 55085 completed.
+
+Estimated full-scope completion remains approximately **39%**. Supplementary
+evidence numerator is now **78/200**: the demonstrated R11 source-to-protected-
+inference join earns J, with no new E/A acceptance. Formal completion stays
+**1/50 (2%)**. No actual source, calibration, independent or deployed acceptance
+was inferred from tests.
+
+The bounded off-host NOAA data probe failed before HTTP: the pinned HTTP client
+rejects the configured socks5h proxy scheme. Private evidence SHA-256:
+`2e9eb774c838f790f03a481bb469253ef715214fe9911584bda425d86d17fc1f`.
+No proxy/access restriction was bypassed and no actual field received. The
+configured package-index lookup returned no ecCodes distribution; none was
+installed. Actual source/packing parity and model availability remain unverified.
+Plans currently pin a run; automatic rollover and multi-step forecast census
+remain pending. No owner action is requested for these independent code tasks.
+
+Next concrete implementation: connect archived forecast predictions to the
+causal learning dataset, then complete run rollover/census, calibration/learning,
+independent guardian, other providers and all remaining master acceptance gates.
+Broader regression is required at the next shared integration milestone. Preserve
+unfinished work and resume any recorded operation before retrying it.
+V10 stale-cycle/memory-pressure and host-resource/isolation findings remain open.
+Maintenance remains DEFERRED; inventory is OWNER-REPORTED / INDEPENDENT
+VERIFICATION PENDING. No deployment, service, executor or financial action.
+
+## Previous continuation milestone
 
 Latest verified implementation: **84068f641840574a6fd82f73e53a2a0ea14e944e**,
 tree **671fe620c0c05a47639167265b947d6da9c609e8**. Public/local tree equality

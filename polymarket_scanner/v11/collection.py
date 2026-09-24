@@ -6,6 +6,8 @@ Endpoint allowlisting is deliberately narrow for the first observation pilot.
 from __future__ import annotations
 
 import asyncio
+import base64
+import hashlib
 from dataclasses import dataclass
 import json
 import re
@@ -25,6 +27,7 @@ ALLOWED_GET_ENDPOINTS = {
     ("clob.polymarket.com", "/book"),
     ("aviationweather.gov", "/api/data/metar"),
     ("madis-data.ncep.noaa.gov", "/madisPublic1/cgi-bin/madisXmlPublicDir"),
+    ("nomads.ncep.noaa.gov", "/cgi-bin/filter_gefs_atmos_0p50a.pl"),
 }
 
 
@@ -68,8 +71,15 @@ class SourceRequest:
                     or self.source_identity != "reward-market:"+url.path.split('/')[-1]):
                 raise EvidenceError("REWARD_MARKET_EXACT_PUBLIC_QUERY_REQUIRED")
         madis = url.hostname == "madis-data.ncep.noaa.gov"
-        if self.response_format not in {"JSON", "MADIS_XML"} or madis != (self.response_format == "MADIS_XML"):
+        gefs = url.hostname == "nomads.ncep.noaa.gov"
+        if (self.response_format not in {"JSON", "MADIS_XML", "GEFS_GRIB2"}
+                or madis != (self.response_format == "MADIS_XML") or gefs != (self.response_format == 'GEFS_GRIB2')):
             raise EvidenceError("SOURCE_RESPONSE_FORMAT_INVALID")
+        if gefs:
+            from .gefs_sources import PROVIDER, validate_params
+            validate_params(dict(self.params))
+            if self.kind!='MODEL' or self.provider!=PROVIDER or not re.fullmatch(r'GEFS_FIELD:[0-9a-f]{64}',self.source_identity):
+                raise EvidenceError('GEFS_EXACT_PUBLIC_SOURCE_REQUIRED')
         if madis:
             from .weather_sources import validate_madis_params
             validate_madis_params(dict(self.params))
@@ -114,7 +124,8 @@ class PublicCollector:
             state, reason, capture_ids = "ABSENT", "NO_RESPONSE", ()
             attempts_used = 0
             retry_not_before = None
-            for attempt in range(self.attempts):
+            attempt_limit = 1 if request.response_format=='GEFS_GRIB2' else self.attempts
+            for attempt in range(attempt_limit):
                 host = urlsplit(request.url).hostname
                 if host in blocked_hosts:
                     state,reason = "RATE_LIMIT","PROVIDER_RATE_LIMIT_IN_CYCLE"
@@ -160,13 +171,18 @@ class PublicCollector:
                             state, reason = "MALFORMED", "UNBOUNDED_DECOMPRESSION_REFUSED"
                         else:
                             chunks, size = [], 0
+                            byte_limit = min(self.max_bytes,64*1024) if request.response_format=='GEFS_GRIB2' else self.max_bytes
                             async for chunk in response.aiter_bytes():
                                 size += len(chunk)
-                                if size > self.max_bytes:
+                                if size > byte_limit:
                                     raise ValueError("RESPONSE_BYTES_LIMIT")
                                 chunks.append(chunk)
                             response_bytes = b"".join(chunks)
-                            if request.response_format == "MADIS_XML":
+                            if request.response_format == 'GEFS_GRIB2':
+                                if response_bytes[:4]!=b'GRIB' or response_bytes[-4:]!=b'7777':
+                                    raise ValueError('GEFS_BINARY_RESPONSE_REQUIRED')
+                                body=None
+                            elif request.response_format == "MADIS_XML":
                                 # Bounded raw XML is durable before normalization;
                                 # no parser runs in the transport layer.
                                 body = response_bytes.decode("utf-8")
@@ -174,15 +190,18 @@ class PublicCollector:
                                 body = json.loads(response_bytes)
                                 if not isinstance(body, (dict, list)):
                                     raise ValueError("JSON_CONTAINER_REQUIRED")
+                            payload={"response":body,"endpoint":request.url,"request_params":dict(request.params),
+                                     "http_status":response.status_code,"response_format":request.response_format,
+                                     "source_time_status":"NOT_YET_NORMALIZED"}
+                            if request.response_format=='GEFS_GRIB2':
+                                payload.pop('response')
+                                payload.update(response_base64=base64.b64encode(response_bytes).decode('ascii'),
+                                               response_sha256=hashlib.sha256(response_bytes).hexdigest())
                             record = self.store.capture(
                                 f"{cycle_id}:{index}:capture", event_id=request.event_id,
                                 kind=request.kind, provider=request.provider,
                                 source_identity=request.source_identity, revision=request.revision,
-                                payload={"response": body, "endpoint": request.url,
-                                         "request_params": dict(request.params),
-                                         "http_status": response.status_code,
-                                         "response_format": request.response_format,
-                                         "source_time_status": "NOT_YET_NORMALIZED"})
+                                payload=payload)
                             capture_ids = (record["id"],)
                             state, reason = "SUCCESS", "RAW_RESPONSE_PERSISTED_NOT_CERTIFIED"
                 except (httpx.RequestError, TimeoutError):
@@ -191,7 +210,7 @@ class PublicCollector:
                     state, reason = "MALFORMED", "INVALID_OR_OVERSIZE_RESPONSE"
                 # Do not retry a 429 inside this cycle or defeat a Retry-After.
                 # A later scheduler must apply the provider's documented quota.
-                if state != "TRANSPORT_FAILURE" or attempt == self.attempts - 1:
+                if state != "TRANSPORT_FAILURE" or attempt == attempt_limit - 1:
                     break
                 # Small deterministic per-source jitter; no global random state.
                 await self.sleeper(max(0,min(deadline-time.monotonic(),2.0,0.25*2**attempt+(index%7)*.031)))

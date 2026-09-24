@@ -32,6 +32,8 @@ from .pws_lead import LeadPolicy
 from .pws_runtime import PWSQualitySettings, PWSQualityWorker
 from .forecast_sources import ForecastPlan
 from .forecast_runtime import ForecastNormalizationWorker
+from .gefs_sources import GEFSPlan
+from .gefs_runtime import GEFSWorker
 from .maker_research import MakerResearch, MakerResearchPolicy
 from .maker_telemetry import MakerTelemetryPolicy, MakerTelemetryWorker
 from .maker_runtime import MakerTarget, MakerRequestFactory, MakerEventAdapter
@@ -184,6 +186,7 @@ class CandidatePlan:
     maker: MakerTelemetryPlan | None = None
     pws_quality: PWSQualitySettings | None = None
     forecasts: tuple[ForecastPlan, ...] = ()
+    gefs: tuple[GEFSPlan, ...] = ()
 
     def __post_init__(self):
         identity(self.version); identity(self.worker_id)
@@ -227,6 +230,10 @@ class CandidatePlan:
                 or len({p.event_id for p in self.forecasts})!=len(self.forecasts)
                 or any(p.event_id not in events or p.rule!=events[p.event_id].census.rule for p in self.forecasts)):
             raise EvidenceError('CANDIDATE_FORECAST_SCOPE')
+        if (type(self.gefs) is not tuple or len(self.gefs)>16 or any(not isinstance(p,GEFSPlan) for p in self.gefs)
+                or len({p.event_id for p in self.gefs})!=len(self.gefs)
+                or any(p.event_id not in events or p.rule!=events[p.event_id].census.rule for p in self.gefs)):
+            raise EvidenceError('CANDIDATE_GEFS_SCOPE')
 
 
 def _lane(queue,coordinator,lane,maker):
@@ -320,6 +327,7 @@ def assemble_candidate(store,client,plan,*,generation):
         audits=AuditWorker(coordinator,plan.audits),observation=observation,observation_batch=plan.observation,
         maker_telemetry=MakerTelemetryWorker(maker,health,plan.maker.telemetry,event_ids=tuple(maker_scopes)) if maker else None,
         pws_quality=PWSQualityWorker(store,health,plan.pws_quality) if plan.pws_quality else None,
-        forecasts=ForecastNormalizationWorker(store,health,plan.forecasts) if plan.forecasts else None)
+        forecasts=ForecastNormalizationWorker(store,health,plan.forecasts) if plan.forecasts else None,
+        gefs=GEFSWorker(scheduled,health,plan.gefs) if plan.gefs else None)
     runner.assembly_sha256=digest(asdict(plan))
     return runner

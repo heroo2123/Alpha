@@ -112,6 +112,8 @@ class StrategyAdmission:
             observed = body['observed_at']
             if lease.role == 'MODEL':
                 observed = body['issued_at']  # Receipt time cannot pretend to be model run time.
+                from .gefs_sources import current_path_heads
+                heads.extend(current_path_heads(self.store,source))
                 if any(body['payload'].get(k) != p[k] for k in ('station', 'target_date', 'family', 'unit')) or body['payload'].get('rule_fingerprint') != rule.sha256:
                     raise EvidenceError('STRATEGY_FORECAST_TARGET_MISMATCH')
             if lease.role == 'OFFICIAL':

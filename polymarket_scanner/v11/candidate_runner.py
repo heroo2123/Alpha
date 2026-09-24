@@ -18,6 +18,7 @@ from .observation_pump import ObservationPump
 from .maker_telemetry import MakerTelemetryWorker
 from .pws_runtime import PWSQualityWorker
 from .forecast_runtime import ForecastNormalizationWorker
+from .gefs_runtime import GEFSWorker
 from .paper_runtime import PaperRuntime
 from .runtime_health import KEY as HEALTH_KEY
 
@@ -81,7 +82,7 @@ class ObservationBatch:
 
 
 class CandidateRunner:
-    def __init__(self,runtime,policy,*,census,discovery,audits,observation=None,observation_batch=None,maker_telemetry=None,pws_quality=None,forecasts=None):
+    def __init__(self,runtime,policy,*,census,discovery,audits,observation=None,observation_batch=None,maker_telemetry=None,pws_quality=None,forecasts=None,gefs=None):
         if (not isinstance(runtime,PaperRuntime) or not isinstance(policy,CandidatePolicy)
                 or not isinstance(census,CensusWorker) or not isinstance(discovery,MarketDiscovery)
                 or not isinstance(audits,AuditWorker)):
@@ -113,13 +114,19 @@ class CandidateRunner:
                 or any(p.rule.sha256!=runtime.queue.routes[e].rule_fingerprint for e,p in forecasts.plans.items())):
             raise EvidenceError('CANDIDATE_FORECAST_SCOPE')
         self.forecasts=forecasts
-        self.kinds=('CENSUS','DISCOVERY','AUDIT')+(('OBSERVATION',) if observation else ())+(('MAKER_TELEMETRY',) if maker_telemetry else ())+(('PWS_QUALITY',) if pws_quality else ())+(('FORECAST_NORMALIZATION',) if forecasts else ())
+        if gefs is not None and (not isinstance(gefs,GEFSWorker) or gefs.health is not runtime.health
+                or gefs.scheduled is not census.scheduled or not gefs.plans.keys()<=runtime.queue.routes.keys()
+                or any(p.rule.sha256!=runtime.queue.routes[e].rule_fingerprint for e,p in gefs.plans.items())):
+            raise EvidenceError('CANDIDATE_GEFS_SCOPE')
+        self.gefs=gefs
+        self.kinds=('CENSUS','DISCOVERY','AUDIT')+(('OBSERVATION',) if observation else ())+(('MAKER_TELEMETRY',) if maker_telemetry else ())+(('PWS_QUALITY',) if pws_quality else ())+(('FORECAST_NORMALIZATION',) if forecasts else ())+(('GEFS_SOURCE',) if gefs else ())
         config=dict(policy=asdict(policy),runtime=runtime.config,census=census.config,
             discovery=discovery.config,audits=audits.config,worker_id=runtime.worker_id,
             observation=asdict(observation_batch) if observation_batch else None)
         if maker_telemetry is not None:config['maker_telemetry']=maker_telemetry.config
         if pws_quality is not None:config['pws_quality']=pws_quality.config
         if forecasts is not None:config['forecasts']=forecasts.config
+        if gefs is not None:config['gefs']=gefs.config
         self.config=digest(config)
 
     def _get(self,key):
@@ -165,6 +172,7 @@ class CandidateRunner:
         if kind=='MAKER_TELEMETRY':return self.maker_telemetry.step(key)
         if kind=='PWS_QUALITY':return self.pws_quality.step(key)
         if kind=='FORECAST_NORMALIZATION':return self.forecasts.step(key)
+        if kind=='GEFS_SOURCE':return await self.gefs.step(key)
         batch=self.observation_batch
         return await self.observation.cycle(key,tuple(replace(r,revision=key) for r in batch.requests),
             station_by_event=dict(batch.station_by_event),strategies=batch.strategies,

@@ -18,7 +18,8 @@ from .weather_sources import normalize_weather_capture
 
 # Conservative engineering cadence, not fitted economic or model thresholds.
 MIN_INTERVAL_SECONDS = {"madis-data.ncep.noaa.gov":300, "aviationweather.gov":60,
-                        "gamma-api.polymarket.com":60, "clob.polymarket.com":1}
+                        "gamma-api.polymarket.com":60, "clob.polymarket.com":1,
+                        "nomads.ncep.noaa.gov":1}
 
 
 class ScheduledCollector:
@@ -46,6 +47,8 @@ class ScheduledCollector:
             if not isinstance(request,SourceRequest):
                 raise EvidenceError("SOURCE_REQUEST_REQUIRED")
             grouped[urlsplit(request.url).hostname].append(request)
+        if len(grouped.get('nomads.ncep.noaa.gov',()))>1:
+            raise EvidenceError('GEFS_ONE_REQUEST_PER_SCHEDULED_STEP')
         eligible, reservations, omitted = [],{},[]
         now = finite(self.store.clock())
         for index,(host,members) in enumerate(sorted(grouped.items())):
@@ -80,6 +83,8 @@ class ScheduledCollector:
             failures=0 if successful else min(16,reservation["body"]["details"]["failure_count"]+1)
             base=MIN_INTERVAL_SECONDS[host]
             delay=base if successful else min(3600,max(base,5*2**failures))
+            if host=='nomads.ncep.noaa.gov' and not successful:
+                delay=max(delay,60)  # NWS unavailable-service guidance; no immediate retry.
             if any(r["state"]=="RATE_LIMIT" for r in results):
                 delay=max(delay,300)
             due=max(finite(self.store.clock())+delay,

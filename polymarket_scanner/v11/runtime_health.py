@@ -98,6 +98,9 @@ def _source_status_unchecked(store, need, now):
     b = row['body']; p = b['payload']; stamp = b['issued_at'] if need.kind == 'MODEL' else b['observed_at']
     result.update(record_id=row['id'], source_head=[need.kind, need.event_id,
                   store.latest(kind=need.kind, event_id=need.event_id)['seq']])
+    if need.kind=='MODEL':
+        from .gefs_sources import current_path_heads
+        result['dependency_heads']=current_path_heads(store,row)
     if need.kind == 'PWS_OBSERVATION':
         stamp = p.get('as_of'); ages = p.get('observation_age_seconds')
         if (need.provider != 'ALPHA_PWS_QC' or p.get('health') != 'HEALTHY'

@@ -74,3 +74,13 @@ integration credit; its actual forecast run/access/coverage evidence is still
 missing. A research normalization that correctly retains that gate does not
 earn E or A. More tests do not increase the estimate. No formal package was
 newly accepted.
+
+Run-bound GEFS integration: R11 earns J for the bounded GRIB source → complete
+31-member local-day forecast path → archived model input → immutable probability
+bundle/inference join. Candidate collection and constituent health/admission
+checks are demonstrated by synthetic integration tests (242 related passes in
+46.97 s). The named CDF core was already credited; the new credit is its source
+join. Actual NOAA access/packing parity, calibrated temporal approximation,
+other models and operational acceptance remain unearned. Total **78/200**, still
+approximately **39%** after whole-percentage rounding. Formal **1/50 (2%)** is
+unchanged. This does not credit E/A, extra tests or elapsed effort.

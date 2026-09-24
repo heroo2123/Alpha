@@ -22,6 +22,7 @@ from polymarket_scanner.v11.pws_runtime import PWSQualityPlan, PWSQualitySetting
 from polymarket_scanner.v11.weather_sources import madis_request
 from polymarket_scanner.v11.forecast_sources import ForecastPlan, PROVIDER as FORECAST_PROVIDER, OPEN_METEO_ENSEMBLE, request_parameters
 from polymarket_scanner.v11.strategy_admission import SourceLease
+from polymarket_scanner.v11.gefs_sources import GEFSPlan, FIELD_VERSION
 from polymarket_scanner.v11.valuation import HOLD_RISKS, SALE_RISKS, SALE
 from test_v11_basket_coordinator import rig, reserve
 from test_v11_certification_rules import setup
@@ -60,6 +61,38 @@ def synthetic_clock(r,monkeypatch):
         assert store is r['store'] and account_id==r['context'].account_id
         return monitor(r,monkeypatch,policy=p,scopes=scopes,sources=sources)
     monkeypatch.setattr(app,'RuntimeHealth',health)
+
+
+def test_candidate_schedules_one_run_bound_grib_file_with_shared_collector_and_safety(factory,setup,monkeypatch):
+    from test_v11_grib_fields import grib
+    from datetime import datetime,timezone
+    import math
+    r=factory('FUTURE_FORECAST');lane=app.TemperatureLane('temperature',inputs(r),(target(r),),'fixture',r['request'].valuation_policy,10.)
+    cfg=scoped_plan(r,lane);run=datetime.fromtimestamp(r['now'][0],timezone.utc).replace(hour=0,minute=0,second=0,microsecond=0).timestamp()
+    p=GEFSPlan(ForecastPlan(r['rule'],setup[3],50.,3600.),run)
+    cfg=replace(cfg,gefs=(p,),candidate=replace(cfg.candidate,maximum_jobs=4,maximum_seconds=10.))
+    synthetic_clock(r,monkeypatch);calls=[];base=transport(r,calls)
+    async def handle(req):
+        if req.url.host=='nomads.ncep.noaa.gov':
+            calls.append(req)
+            await asyncio.sleep(.12)  # safety work must continue while HTTP waits
+            return httpx.Response(200,content=grib(hour=p.hours[0],run=run,
+                lat=math.floor(p.forecast.metadata.latitude*2)/2,lon=math.floor((p.forecast.metadata.longitude%360)*2)/2))
+        return await base.handle_async_request(req)
+    async def go():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
+            candidate=app.assemble_candidate(r['store'],client,cfg,generation='gefs-candidate')
+            assert candidate.gefs.scheduled is candidate.census.scheduled and candidate.gefs.health is candidate.runtime.health
+            ready(r,candidate.runtime.health)
+            row=await candidate.run('gefs-run')
+            return row
+    row=asyncio.run(go());d=row['body']['details']
+    jobs=[x for x in d['worker_results'] if x['kind']=='GEFS_SOURCE']
+    assert len(jobs)==1 and jobs[0]['outcome']=='GEFS_FIELD_ARCHIVED_PATH_INCOMPLETE',d
+    assert sum(req.url.host=='nomads.ncep.noaa.gov' for req in calls)==1
+    assert len(d['runtime_ids'])>=4 and d['all_async_jobs_drained']
+    assert any(x['body']['payload'].get('version')==FIELD_VERSION for x in r['store'].records(kind='MODEL'))
+    assert not r['store'].records(kind='TRADE')
 
 
 def transport(r,calls):

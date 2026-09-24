@@ -57,6 +57,8 @@ class EvidenceFeed:
             return 'SCHEDULED_RELEASE' if b.get('details', {}).get('version') == 'alpha_v11_release_schedule_v1' else 'NOT_RELEASE_SCHEDULE'
         if b.get('evidence_class') == 'HISTORICAL_AVAILABILITY_UNKNOWN': return 'HISTORICAL_AVAILABILITY_UNKNOWN'
         if p.get('source_time_status') == 'NOT_YET_NORMALIZED': return 'RAW_NORMALIZATION_REQUIRED'
+        if kind=='MODEL' and p.get('version')=='alpha_v11_gefs_field_v1':
+            return 'FORECAST_PATH_ASSEMBLY_REQUIRED'
         if kind == 'PWS_OBSERVATION' and (b.get('provider') != 'ALPHA_PWS_QC' or p.get('health') != 'HEALTHY'):
             return 'PWS_QC_REQUIRED'
         if kind=='MODEL' and p.get('version')=='alpha_v11_archived_gefs_normalization_v1' and b.get('issued_at') is None:

@@ -1,0 +1,114 @@
+"""One quota-controlled GEFS file per step, with retained partial-run state.
+
+Runs are explicitly pinned plans. Missing/malformed fields never shrink an
+ensemble or generate a partial model. No service or financial interface exists.
+"""
+from copy import deepcopy
+from dataclasses import asdict
+import fcntl
+import os
+import time
+
+from .evidence import EvidenceError, digest, identity
+from .gefs_sources import (GEFSPlan, PROVIDER, FIELD_VERSION, field_request,
+    normalize_field, assemble_path, current_path_heads)
+
+
+VERSION='alpha_v11_gefs_worker_v1'
+KEY='v11-gefs-source-worker'
+
+
+class GEFSWorker:
+    def __init__(self,scheduled,health,plans):
+        if (scheduled.store is not health.store or type(plans) is not tuple or not 1<=len(plans)<=16
+                or any(not isinstance(p,GEFSPlan) for p in plans) or len({p.event_id for p in plans})!=len(plans)):
+            raise EvidenceError('GEFS_WORKER_SCOPE_BOUND')
+        self.scheduled,self.health,self.store=scheduled,health,health.store
+        self.plans={p.event_id:p for p in plans}
+        self.config=digest(dict(plans=[asdict(p) for p in plans],health=health.config))
+
+    def _get(self,key):
+        try:return self.store.get(key)
+        except EvidenceError as exc:
+            if str(exc)!='EVIDENCE_MISSING':raise
+        return None
+
+    def _head(self):
+        row=self.store.latest(kind='RUNTIME_STATUS',event_id=KEY)
+        if row and row['body']['details'].get('config_sha256')!=self.config:
+            raise EvidenceError('GEFS_WORKER_CONFIG_CHANGED_REVIEW_REQUIRED')
+        return row
+
+    def _save(self,key,state,**details):
+        head=self._head()
+        return self.store.safety_audit(key,event_id=KEY,kind='RUNTIME_STATUS',details=dict(
+            version=VERSION,config_sha256=self.config,state=state,**details,
+            financial_authority=False,forward_acceptance=False,calibrated_probability=False),
+            expected_previous_seq=head['seq'] if head else 0)
+
+    async def step(self,command_id):
+        identity(command_id,maximum=80);key='gefs-step:'+digest(command_id)
+        prior=self._get(key)
+        if prior:
+            if prior['body']['details'].get('config_sha256')!=self.config:raise EvidenceError('GEFS_WORKER_REPLAY_CONFIG')
+            return prior
+        fd=os.open(self.store.path.with_name(self.store.path.name+'.gefs.lock'),os.O_CREAT|os.O_WRONLY|os.O_NOFOLLOW,0o600)
+        try:
+            try:fcntl.flock(fd,fcntl.LOCK_EX|fcntl.LOCK_NB)
+            except BlockingIOError:raise EvidenceError('GEFS_WORKER_ALREADY_RUNNING') from None
+            head=self._head();state=deepcopy(head['body']['details']['state']) if head else dict(last_event='',active=None,events={})
+            health=self.health.sample(key+':clock')
+            if health['body']['details']['clock_reasons']:return self._save(key,state,outcome='DEFERRED_CLOCK_UNHEALTHY')
+            active=state['active']
+            if active is None:
+                events=sorted(self.plans);event=next((e for e in events if e>state['last_event']),events[0]);state['last_event']=event
+                saved=state['events'].setdefault(event,dict(field_ids=[],completed_id=None))
+                active=dict(event_id=event,collection_id='gefs-get:'+digest([key,event,len(saved['field_ids'])]))
+                state['active']=active;self._save(key+':begin',state,outcome='GEFS_STEP_RESERVED',event_id=event)
+            event=active['event_id'];plan=self.plans[event];saved=state['events'][event]
+            try:
+                if not 0<=self.store.clock()-plan.initialized_at<plan.maximum_run_age_seconds:
+                    raise EvidenceError('GEFS_RUN_PLAN_STALE_OR_FUTURE')
+                if saved['completed_id']:
+                    current_path_heads(self.store,self.store.get(saved['completed_id']))
+                    state['active']=None
+                    return self._save(key,state,outcome='COMPLETED_RUN_NO_REFETCH_OR_RECEIPT_RENEWAL',event_id=event,
+                                      model_id=saved['completed_id'])
+                slots=[(m,h) for m in range(31) for h in plan.hours]
+                if len(saved['field_ids'])==len(slots):
+                    model=assemble_path(self.store,plan=plan,field_ids=tuple(saved['field_ids']),record_id='gefs-path:'+digest([self.config,event]),
+                                        deadline=time.monotonic()+2.)
+                    saved['completed_id']=model['id'];state['active']=None
+                    return self._save(key,state,outcome='RUN_BOUND_LINEAR_PATH_ARCHIVED_UNCALIBRATED',event_id=event,model_id=model['id'])
+                member,hour=slots[len(saved['field_ids'])];request=field_request(plan,member,hour)
+                source=self.store.latest_source(kind='MODEL',event_id=event,provider=PROVIDER,source_identity=request.source_identity)
+                normalized_id='gefs-field:'+digest([self.config,event,member,hour])
+                if source is None:
+                    cid=active['collection_id']
+                    # Reconcile an interrupted GET from its durable receipt. A
+                    # reserved attempt without a receipt is never blindly resent.
+                    source=self._get(cid+':0:capture')
+                    if source is None and self._get(cid+':schedule:0:reserve'):
+                        state['active']=None
+                        return self._save(key,state,outcome='INTERRUPTED_COLLECTION_NOT_RETRIED',event_id=event)
+                    if source is None:
+                        result=await self.scheduled.cycle(cid,(request,))
+                        good=[s for s in result['sources'] if s['state']=='SUCCESS']
+                        if not good:
+                            state['active']=None
+                            return self._save(key,state,outcome='GEFS_SOURCE_PENDING',event_id=event,
+                                states=[s['state'] for s in result['sources']],omitted=len(result['omitted']))
+                        source=self.store.get(good[0]['capture_ids'][0])
+                if source['body']['payload'].get('version')==FIELD_VERSION:
+                    normalized=normalize_field(self.store,source['body']['payload']['raw_evidence_id'],plan=plan,
+                        member=member,hour=hour,record_id=source['id'])
+                else:
+                    normalized=normalize_field(self.store,source['id'],plan=plan,member=member,hour=hour,record_id=normalized_id)
+                saved['field_ids'].append(normalized['id']);state['active']=None
+                return self._save(key,state,outcome='GEFS_FIELD_ARCHIVED_PATH_INCOMPLETE',event_id=event,
+                    completed_fields=len(saved['field_ids']),required_fields=len(slots),normalized_id=normalized['id'])
+            except (EvidenceError,KeyError,TypeError,ValueError) as exc:
+                state['active']=None
+                return self._save(key,state,outcome='GEFS_SOURCE_GATED',event_id=event,
+                    reason=str(exc) if isinstance(exc,EvidenceError) else type(exc).__name__)
+        finally:os.close(fd)
