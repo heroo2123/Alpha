@@ -1,13 +1,13 @@
 # Alpha V11 work checkpoint
 
-Updated 2026-09-24, 01:15 UTC. Resume here. **NOT_READY_TO_FUND**.
+Updated 2026-09-24, 09:05 UTC. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
 
 ## Exact identities and scope
 
 - Branch: `weather-v11-profitability-upgrade-2026-09-23`.
-- Last verified implementation HEAD: `8ccadd546e25a39a3a252d03d6f80f8824e377c1`.
-- Last verified implementation tree: `586d78383f63c9b282ce8cc47e5619614535ecf6`.
+- Last verified implementation HEAD: `ae08fea05e66a1b5bdfeed937ddf6b6c35209703`.
+- Last verified implementation tree: `25ba87b94797c8af1f1f6606e4afd7d6e1854b51`.
 - Worktree at verification: clean; local and published implementation trees match.
 - This following checkpoint commit changes documentation only. Resolve its own
   exact commit with `git log -1 --format=%H -- docs/V11_WORK_CHECKPOINT.md`, and its
@@ -561,6 +561,33 @@ Under the fixed 50-package matrix, R01 is implemented and locally verified;
 credit. V10 operational health remains open under R00/R44/R46. Local code,
 technical readiness, canary eligibility and empirical validation stay separate.
 
+## Recovered overnight work and joint basket valuation
+
+Recovered local and published HEAD `ba290c071af7f578c5a9f72bbe9a1f5bd4e0c4db`
+(tree `7aee3e259891866edbb1fcb24768fc06703d05e9`) without reset or cleanup.
+The interrupted `basket_valuation.py` was preserved and completed; there were no
+running project operations to duplicate. Source-release CI run `35942062158` at
+`8ccadd546e25a39a3a252d03d6f80f8824e377c1` completed successfully. Specification
+bytes again match the authoritative hash. No additional alpha-dev workload ran.
+
+The old off-host virtual environment had a broken interpreter link after runtime
+replacement. It was preserved. Hash-locked dependencies were installed in
+`/workspace/scratch/38af7099c566/alpha-v11-venv-20260924` using Python 3.12.14;
+`pip check` passed. This is an off-host environment repair, not a V10 change.
+
+Published joint basket valuation with exact whole-event probabilities, executable
+per-leg depth/costs, complement/exhaustive payout floors, and separate adverse
+partial-fill scenarios. Every leg must pass; unknown fees or a superseded book
+cannot disappear in aggregation. Full-fill payout floors are conditional, never
+spendable cash, realized P&L or locked executable profit. Admission remains gated
+until common-account multi-leg integration.
+
+Verification: **19 new basket tests; 91 related checks passed in 1.60 s**. The last
+full regression remains **2,808 passed, four existing warnings, 85.26 s** at the
+prior source-release implementation. It was not duplicated for an additive module.
+No tests remain running. R29/R30 are PARTIAL; completion remains **1/50 = 2%**.
+No independent review or empirical/runtime acceptance is claimed.
+
 ## Models, authority and exact continuation
 
 - No V11 live/paper/control/challenger ledger is shared or migrated.
@@ -574,8 +601,9 @@ Next engineering action: continue Phase 6 strategy migration through the shared
 admission/coordinator path. Separately scoped protected model state slots are
 implemented and locally verified. PWS observation/payout pins and common economics
 are now integrated and locally verified. Received observation/revision reaction
-with stronger directional EVENT checks is also integrated. Next implement
-cross-temperature relative-value and structural basket valuation/accounting,
+with stronger directional EVENT checks is also integrated. Joint basket valuation is implemented and locally verified. Next integrate
+atomic multi-leg reservation, protected strategy/model/source revalidation and
+per-leg fill reconciliation into the existing common paper account,
 then continue the remaining strategies and master phases. PWS paired research and
 queue-fault propagation are implemented and locally verified. Bounded source-event routing
 and forecast/same-day evaluation are implemented and locally verified; provider
