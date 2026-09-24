@@ -1,6 +1,6 @@
 # Alpha V11 work checkpoint
 
-Updated 2026-09-24, after maker proposal/context integration. Resume here. **NOT_READY_TO_FUND**.
+Updated 2026-09-24, after PWS quality/candidate/census integration. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
 
 ## Current priority override — V11 runtime integration
@@ -25,6 +25,48 @@ open. No funding, deployment, financial activation or new host workload authoriz
 
 ## Latest continuation milestone
 
+Recovered local/public HEAD `7bd4b3b51b5abe28efa3eecff051553b2adaa0d7`, tree
+`35db479b309bdc0f341c1adc4f7edbdb56ac01e7`, clean single worktree. Saved full
+regression exit 0 and idle regression lock verified; no duplicate run started.
+Authoritative master bytes matched again. No V10 access or maintenance was needed.
+
+Published PWS implementation `cbe5796d9c54b462138126ad99c539a4073f4ede`, tree
+`9a3a6651fdc5cf84bec7e87e5e936adbd94892d7`; public/local tree equality and
+fetch/alignment passed (session 16935, exit 0), clean workspace. New
+`v11/pws_runtime.py` joins existing anonymous MADIS observation collection to a
+bounded, resumable defensive-QC job, health/admission metadata guards and event
+routing. Required PWS census now collects fresh raw input and computes bounded
+historical QC; reprocessing old receipts cannot clear a data gap. Optional PWS
+does not become an unrelated census dependency. No source/model/financial
+authority is created, and no fill or account balance is fabricated.
+
+Verification: **255 related tests passed in 32.63 s**, followed by **4 focused
+candidate PWS/QC tests passed in 2.58 s** after the final shared-policy guard.
+Earlier focused verification was 51 passed in 0.46 s and 104 passed in 3.93 s.
+Three new census tests initially failed because their fixture constructed a
+RuleFingerprint incorrectly; they now use the actual compiler. All five census
+tests passed in 0.99 s and are included in the 255 related passes. This was a
+fixture error, not a passed inaccessible check. There are **21 new tests** in
+this milestone. Full regression below predates these source changes and has not
+been redundantly rerun; a broader run is due at the next integrated milestone.
+
+**Estimated full-scope engineering completion: approximately 39%. Formal completed
+requirements: 1/50 (2%).** Supplementary method and denominator are fixed in
+`docs/V11_ENGINEERING_PROGRESS.md`: 200 named evidence milestones, four per
+original package. Recovery baseline 76/200 (approximately 38%); newly demonstrated
+R10 runtime integration adds one unit, now 77/200. No partial package has become
+formally accepted. Real source/label/calibration evidence, independent review,
+verified isolation/deployment and unfunded readiness remain in the denominator.
+Tests, elapsed time and maintenance preparation do not automatically earn units.
+
+Next concrete implementation: forecast raw-source/run-provenance adapter and its
+candidate integration, retaining unknown run age as a gate. Then continue the
+full master requirements, including learned/conditioned inference, independent
+guardian, acceptance and commissioning. Do not reopen deferred V10 work without
+a concrete necessary dependency. No test operation remains running.
+
+### Previous maker milestone
+
 The typed candidate now connects current maker proposal factories, protected
 payout context, research observations, safety retirement and due counterfactual
 markouts. Maker outputs never become economic account proposals or fills.
@@ -39,9 +81,10 @@ integration. No V10 maintenance, deployment or funding is requested.
 ## Exact identities and scope
 
 - Branch: `weather-v11-profitability-upgrade-2026-09-23`.
-- Last verified implementation HEAD: `306a7ece6ade71e90d436f7c99730d18a8597d3c`.
-- Last verified implementation tree: `56977f5bee32381fac7e954abe83cc1c1901020f`.
-- Maker proposal/context implementation identity is above. Public/local
+- Last verified implementation HEAD: `cbe5796d9c54b462138126ad99c539a4073f4ede`.
+- Last verified implementation tree: `9a3a6651fdc5cf84bec7e87e5e936adbd94892d7`.
+- Previous maker proposal/context implementation: `306a7ece6ade71e90d436f7c99730d18a8597d3c`,
+  tree `56977f5bee32381fac7e954abe83cc1c1901020f`. Public/local
   tree equality passed; fetch/alignment exited 0 (session 70687), with a clean
   worktree. No unfinished work was discarded. This later documentation checkpoint
   records that exact tested implementation without changing source/tests.
