@@ -39,11 +39,12 @@ master requirements. No V10 maintenance, deployment or funding action is request
 ## Exact identities and scope
 
 - Branch: `weather-v11-profitability-upgrade-2026-09-23`.
-- Last verified implementation HEAD: `186f4ecc36619b3e96febb84721fee2d9376b566`.
-- Last verified implementation tree: `a7e088483a8ecff056ca5b1d1be5bd8294eda869`.
-- Candidate-runner implementation identity is above. Public/local tree equality
-  passed; fetch/alignment exited 0 (session 38325), with a clean worktree before
-  relative-value runtime integration. No unfinished work was discarded.
+- Last verified implementation HEAD: `e8ed2fdc8ff15878b8245fd6ed826a9fdaf4593d`.
+- Last verified implementation tree: `c3914cd8f0445592f0673abce83615f1a932f813`.
+- Relative-value/structural runtime implementation identity is above. Public/local
+  tree equality passed; fetch/alignment exited 0 (session 18460), with a clean
+  worktree. No unfinished work was discarded. This later documentation checkpoint
+  records that exact tested implementation without changing source/tests.
 - A later commit containing this checkpoint may include the newer work below. Resolve its own
   exact commit with `git log -1 --format=%H -- docs/V11_WORK_CHECKPOINT.md`, and its
   tree with `git rev-parse <that-commit>^{tree}`; no self-referential hash claim.
@@ -1471,3 +1472,28 @@ remains OWNER-REPORTED / INDEPENDENT VERIFICATION PENDING. Optional maintenance 
 DEFERRED. No guard/systemd/signal/stop/restart/executor change, new host workload,
 deployment, funding, account creation, money movement or real order occurred.
 **NOT_READY_TO_FUND**.
+
+
+### Saved continuation handoff
+
+Implementation published and aligned: **e8ed2fdc8ff15878b8245fd6ed826a9fdaf4593d**,
+tree **c3914cd8f0445592f0673abce83615f1a932f813**, branch
+weather-v11-profitability-upgrade-2026-09-23. Alignment session 18460 exited 0 and
+reported a clean worktree. All intended source/test changes are committed. The
+outside candidate/strategy drafts are preserved historical copies; the newer Git
+implementation supersedes them. No test, publication or worker operation remains
+running at this handoff. This final documentation-only checkpoint needs no new
+test run; it does not alter the verified code.
+
+Latest exact tests: relative/structural integration **125 passed / 25.93 s**;
+runner/shared-runtime full regression **3293 passed / four existing warnings /
+212.37 s** at 186f4ecc. Eight later adapter cases were verified in the targeted
+suite. Completed implementation packages remain **1/50**, with no new formal
+acceptance or live eligibility claimed. Next action: implement bounded runtime
+adapters for the existing PWS/source-release and inventory-exit paths, preserving
+observation/payout/executable-exit separation and common-account admission, then
+continue dynamic source/request assembly and every remaining master requirement.
+Host resource/isolation, exact sources/labels/calibration, independent guardian/
+review, isolated deployment and formal acceptance remain open. V10 is untouched;
+maintenance is deferred. **NOT_READY_TO_FUND**. No owner action is requested for
+unrelated independent implementation.
