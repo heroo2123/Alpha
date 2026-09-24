@@ -74,7 +74,7 @@ class TemperatureEventAdapter:
 
 
 class PaperRuntime:
-    def __init__(self, coordinator, queue, health, policy, *, evaluator, census=None, maker=None, worker_id=None, generation=None, feed_policy=None):
+    def __init__(self, coordinator, queue, health, policy, *, evaluator, census=None, maker=None, worker_id=None, generation=None, feed_policy=None, rewards=None):
         if (not isinstance(policy, RuntimePolicy) or coordinator.store is not queue.store or coordinator.store is not health.store
                 or health.account_id != coordinator.policy.account_id or set(queue.routes) != set(health.scopes)):
             raise EvidenceError('RUNTIME_COMPONENT_SCOPE_MISMATCH')
@@ -84,9 +84,13 @@ class PaperRuntime:
             raise EvidenceError('RUNTIME_WORKER_IDENTITY_REQUIRED')
         self.worker_id = worker_id; self.generation = identity(generation) if generation is not None else uuid.uuid4().hex
         if maker is not None and maker.coordinator is not coordinator: raise EvidenceError('RUNTIME_MAKER_ACCOUNT_MISMATCH')
+        if rewards is not None and (maker is None or rewards.research is not maker):
+            raise EvidenceError('RUNTIME_REWARD_RESEARCH_MISMATCH')
+        self.rewards = rewards
         self.cancellation = PaperCancellation(coordinator, CancellationPolicy('runtime-bounded-v1', 16, 256))
         self.feed = EvidenceFeed(queue, feed_policy or FeedPolicy('bounded-receipt-delivery-v1'))
-        self.config = digest(dict(runtime=asdict(policy), account=coordinator.policy_sha, queue=queue.config, health=health.config, feed=self.feed.config))
+        self.config = digest(dict(runtime=asdict(policy), account=coordinator.policy_sha, queue=queue.config, health=health.config, feed=self.feed.config,
+                                  rewards=rewards.config if rewards is not None else None))
 
     def _head(self):
         row = self.store.latest(kind='RUNTIME_STATUS', event_id=KEY)
@@ -154,7 +158,7 @@ class PaperRuntime:
                 self.coordinator.recover(prefix+':recover')
             state['generation'] = self.generation
             save(outcome='PAPER_WORKER_RESTART_RECONCILED')
-        errors = []; cancellation_reports = []; evaluations = []; coordinated = []; retired = []
+        errors = []; cancellation_reports = []; evaluations = []; coordinated = []; retired = []; reward_reports = []
         # Resume durable plans before consuming new triggers. Requests retain risk.
         plan_ids = sorted(state['active_plans'])
         plan_ids = [p for p in plan_ids if p > state['last_cancel_plan']]+[p for p in plan_ids if p <= state['last_cancel_plan']]
@@ -254,6 +258,10 @@ class PaperRuntime:
                         batch = self.coordinator.coordinate(prefix+':coordinate:'+str(index), output.proposals)
                         coordinated.append(batch['id'])
                 save(outcome='EVALUATION_PROGRESS')
+        if self.rewards is not None and not hd['global_reasons'] and budget():
+            try:
+                row = self.rewards.refresh('rewards:'+digest(prefix)); reward_reports.append(row['id'])
+            except EvidenceError as exc: errors.append(dict(stage='REWARDS', reason=str(exc)))
         if self.maker is not None and budget():
             quotes = self.maker._state(self.maker._head())
             for quote_id, quote in list(quotes.items())[:self.policy.maximum_updates]:
@@ -272,5 +280,6 @@ class PaperRuntime:
             health_id=health['id'], errors=errors, evaluation_ids=evaluations, account_batch_ids=coordinated,
             updates_consumed=not hd['global_reasons'] and not any(e['stage']=='INGEST' for e in errors),
             cancellation_report_ids=cancellation_reports, retired_quote_ids=retired,
+            reward_report_ids=reward_reports,
             duration_monotonic_seconds=time.monotonic()-started, budget_exhausted=not budget(),
             queue_metrics=self.queue.snapshot()['metrics'], forward_or_live_acceptance=False)

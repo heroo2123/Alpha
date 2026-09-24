@@ -8,6 +8,7 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 import json
+import re
 import time
 from typing import Callable
 from urllib.parse import urlsplit
@@ -39,8 +40,9 @@ class SourceRequest:
 
     def __post_init__(self):
         url = urlsplit(self.url)
+        reward_market = url.hostname == "gamma-api.polymarket.com" and re.fullmatch(r"/markets/[0-9]{1,32}", url.path)
         if (url.scheme != "https" or url.username or url.password or url.query or url.fragment
-                or url.port not in (None, 443) or (url.hostname, url.path) not in ALLOWED_GET_ENDPOINTS):
+                or url.port not in (None, 443) or not (reward_market or (url.hostname, url.path) in ALLOWED_GET_ENDPOINTS)):
             raise EvidenceError("PUBLIC_GET_ENDPOINT_NOT_REVIEWED")
         identity(self.provider)
         for value in (self.event_id, self.source_identity, self.revision):
@@ -52,6 +54,10 @@ class SourceRequest:
         if len(dict(self.params)) != len(self.params):
             raise EvidenceError("DUPLICATE_REQUEST_PARAMS")
         canonical(dict(self.params))
+        if reward_market:
+            if (self.params or self.kind != "RULES" or self.provider != "GAMMA_REWARDS"
+                    or self.source_identity != "reward-market:"+url.path.split('/')[-1]):
+                raise EvidenceError("REWARD_MARKET_EXACT_PUBLIC_QUERY_REQUIRED")
         madis = url.hostname == "madis-data.ncep.noaa.gov"
         if self.response_format not in {"JSON", "MADIS_XML"} or madis != (self.response_format == "MADIS_XML"):
             raise EvidenceError("SOURCE_RESPONSE_FORMAT_INVALID")

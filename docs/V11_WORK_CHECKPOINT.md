@@ -26,11 +26,11 @@ open. No funding, deployment, financial activation or new host workload authoriz
 ## Exact identities and scope
 
 - Branch: `weather-v11-profitability-upgrade-2026-09-23`.
-- Last verified implementation HEAD: `8925ae17f5fc4270089b4e3973bea6a47f5c611c`.
-- Last verified implementation tree: `41ac694fd5468fbc2621baddc950f590ff162c45`.
-- Published runtime implementation identity is above. The following source-delivery
-  milestone is verified and being published; its exact identity will be recorded
-  in the next checkpoint. No unfinished work was discarded.
+- Last verified implementation HEAD: `fb91b25ef2761a626877164c24326105a6fa575c`.
+- Last verified implementation tree: `0054e370f732934cc3255194399a478d0803f1df`.
+- Source-delivery implementation identity is above. Public/local tree equality
+  passed, fetch/alignment exited 0 and the worktree was clean before continuing
+  reward/rebate work. No unfinished work was discarded.
 - This following checkpoint commit changes documentation only. Resolve its own
   exact commit with `git log -1 --format=%H -- docs/V11_WORK_CHECKPOINT.md`, and its
   tree with `git rev-parse <that-commit>^{tree}`; no self-referential hash claim.
@@ -1128,3 +1128,34 @@ resource/isolation gates remain OPEN. Maintenance is DEFERRED, with inventory
 OWNER-REPORTED / INDEPENDENT VERIFICATION PENDING. No new owner action is required
 for this independent work. No host workload, service action, deployment or money
 movement occurred. NOT_READY_TO_FUND.
+
+Source-delivery milestone published at fb91b25ef2761a626877164c24326105a6fa575c,
+tree 0054e370f732934cc3255194399a478d0803f1df. Publication completed, exit 0.
+The next reward/rebate milestone is in progress off-host; no owner action required.
+
+### Maker reward/rebate runtime milestone
+
+Added reward_rules.py, maker_rewards.py and V11_REWARDS.md. Exact-market anonymous
+public settings feed receipt-bound conditional scoring and a bounded runtime
+watcher. Rule changes, stale review and invalid inputs retire tracked research
+quotes without any exchange action or cash release. Unknown execution economics
+cannot become a positive reward-pursuit decision. Common-account trading P&L,
+recorded synthetic income and combined synthetic result remain separate; estimates
+never increase available cash. Duplicate transfer proofs and cross-asset addition
+are rejected. Actual independently verified income/discrepancy stays UNKNOWN.
+
+43 new reward cases; first affected checks 60 passed in 4.72 s. Broader
+runtime/maker/collector checks passed 191 tests in 19.90 s. The endpoint was then
+aligned with the current official exact-ID path; final affected verification is
+recorded below. Current full regression remains 3,130 passing at fb91b25, not a
+claim that the later additive code was in that run. Cumulative distinct new tests
+837. No failed tests observed in this reward milestone. All verification is
+synthetic/off-host, not empirical or independent acceptance. R36 remains PARTIAL;
+full accepted packages remain 1/50. Source/clock/guardian/empirical deployment gates
+and the V10 health/resource finding remain open. No V10 maintenance was resumed.
+Next implementation: performance lab and durable daily/weekly audit integration,
+then all remaining matrix requirements. No funding or deployment authority.
+
+Final reward/runtime/maker/collector verification: **191 passed in 22.23 s**,
+exit 0, after the exact-ID endpoint correction. No test operation remains running.
+No source/test bytes changed after this passing run.
