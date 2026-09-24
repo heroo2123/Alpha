@@ -44,3 +44,10 @@ fixtures are explicitly synthetic and exercise account mechanics only. Protected
 custody/reviews are fixture substitutes, not owner commissioning or independent
 review. Raw-source adapters, actual calibrated/approved champions, independent
 lead/label evidence, transport and runtime acceptance remain unfinished.
+
+## Bounded runtime integration
+
+PWSLeadEventAdapter now constructs the paired same-model feature ablation and separate payout join within the shared event worker. Queue-linked integration preserves observation-only outputs and rejects uncalibrated settlement economics. Actual source adapters, empirical lead/label proof and formal acceptance remain open.
+
+The shared reaction/exit milestone has 17 new cases; 175 related tests passed in
+57.55 s. All use off-host synthetic inputs and protected-review fixtures.

@@ -1,6 +1,6 @@
 # Alpha V11 work checkpoint
 
-Updated 2026-09-24, after relative-value runtime verification. Resume here. **NOT_READY_TO_FUND**.
+Updated 2026-09-24, after reaction/exit runtime verification. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
 
 ## Current priority override — V11 runtime integration
@@ -25,16 +25,18 @@ open. No funding, deployment, financial activation or new host workload authoriz
 
 ## Latest continuation milestone
 
-Market-price/census, bounded discovery/rule quarantine, finite candidate workers
-and relative-value/structural runtime integration are implemented and tested off-host.
-Latest completed related run: **125 passed in 25.93 s**, including eight new strategy
-adapter cases. Latest full regression: **3293 passed in 212.37 s** at the saved
-runner milestone below; the eight later cases were not in that earlier full run.
+PWS observation-lead joins, received source-release reactions and actual-inventory
+exits now connect to bounded shared runtime evaluation. **175 related tests passed
+in 57.55 s**, including **17 new cases**. Source/observation/payout separation,
+current admission after census, exact queue completion, whole-basket hold floors,
+account identity and a new-gap-before-reservation fault are covered off-host.
+Latest full regression remains **3293 passed in 212.37 s** at the runner milestone;
+the eight relative-value and 17 reaction cases were added afterward.
 Fully completed implementation packages remain **1/50**; formal, empirical and
 independent acceptance remain open. No test operation is running.
-Next concrete implementation: connect existing PWS/source-release and inventory-exit
-paths to the runtime, then reviewed dynamic source/request assembly and remaining
-master requirements. No V10 maintenance, deployment or funding action is requested.
+Next concrete implementation: assemble current source/book/model/admission requests
+from bounded scope plans, then remaining dynamic route/provider and master-spec
+requirements. No V10 maintenance, deployment or funding action is requested.
 
 ## Exact identities and scope
 
@@ -1497,3 +1499,32 @@ Host resource/isolation, exact sources/labels/calibration, independent guardian/
 review, isolated deployment and formal acceptance remain open. V10 is untouched;
 maintenance is deferred. **NOT_READY_TO_FUND**. No owner action is requested for
 unrelated independent implementation.
+
+## Reaction and inventory runtime continuation — 2026-09-24
+
+Recovered clean HEAD `3d73473d4bfe8fbb6830fb2d34a437dbf144a772`, tree
+`43f45b1fa8509ef7a2960729934a37c8bcad560a`. Retained full-test result PASS and
+free regression lock were checked once; no interrupted operation was duplicated.
+
+Implemented `v11/reaction_runtime.py`: bounded PWS paired observation research and
+separate payout admission; causal received-release pinning; actual held-inventory
+exit evaluation. MultiStrategyEventAdapter accepts these engines, and PaperRuntime
+rejects an exit evaluator attached to another coordinator. Existing protected
+model/source/semantic/economic/queue/account gates are unchanged. No callback can
+turn an observation forecast into a payout, infer a fill, or bypass common risk.
+
+Initial focused run: 12 passed / 5 failed in 4.99 s. Two expected reason names
+were corrected; the exit fixture now obtains a fresh strategy admission after
+fresh census evidence instead of reusing a stale pin. No gate was weakened.
+Focused final: **17 passed in 5.15 s**. Related PWS/lead/release/exit/strategy/
+queue/runtime/candidate/basket regression: **175 passed in 57.55 s**. These are
+synthetic off-host integration checks, not current market/host/empirical evidence.
+Distinct new passing tests total **982** over the recorded 2336 baseline.
+No full-suite rerun was needed for this small wiring milestone; the next shared
+assembly integration will receive broader regression at its completion.
+
+Publication includes only code, synthetic tests and nonsecret documentation.
+The next reporting checkpoint records this implementation's exact public HEAD
+and tree after successful publication. V10 and all deferred maintenance artifacts
+remain unchanged. Host resource/isolation, protected model/strategy review,
+calibration, forward evidence, independent guardian and release gates stay open.

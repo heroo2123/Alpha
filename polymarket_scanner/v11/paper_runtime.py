@@ -82,6 +82,8 @@ class PaperRuntime:
             raise EvidenceError('RUNTIME_COMPONENT_SCOPE_MISMATCH')
         self.coordinator, self.queue, self.health = coordinator, queue, health
         self.store, self.policy, self.evaluator, self.census, self.maker = coordinator.store, policy, evaluator, census, maker
+        if getattr(evaluator,'coordinator',None) is not None and evaluator.coordinator is not coordinator:
+            raise EvidenceError('RUNTIME_EVALUATOR_ACCOUNT_MISMATCH')
         if worker_id is not None and (worker_id not in health.policy.workers or generation is None):
             raise EvidenceError('RUNTIME_WORKER_IDENTITY_REQUIRED')
         self.worker_id = worker_id; self.generation = identity(generation) if generation is not None else uuid.uuid4().hex

@@ -152,6 +152,37 @@ fees or a post-evaluation stream gap leave the entire basket unreserved. Full
 regression remains the 3293-case runner milestone; these eight later cases are
 covered by the targeted integration run, not that earlier full run.
 
-Next runtime work includes PWS/source-release/position-management adapters and
-reviewed dynamic source/request assembly. Their existing separate valuation and
-accounting mechanisms are reuse candidates, not completed runtime acceptance.
+## PWS, source-release and inventory runtime paths
+
+`reaction_runtime.py` connects three existing engines. PWSLeadEventAdapter takes
+an unjoined entry, the separately protected observation admission, bounded paired
+ablation inputs and a fixed lead policy. It resolves exact leased official/PWS
+inputs and uses the same frozen observation bundle for both feature comparisons.
+The preconfirmation join independently revalidates observation and payout scopes;
+the temperature engine then recomputes settlement economics. The adapter creates
+no calibrated model and has no repricing-price shortcut.
+
+SourceReleaseEventAdapter binds the exact immediate official predecessor/current
+receipt, post-release book, recomputed model and current event state. A schedule
+is optional provenance, never actual release proof. The stronger EVENT and
+ordinary liquidity/economic/common-account checks remain in force.
+
+PositionExitEventAdapter uses the runtime's identical coordinator object. Each
+request evaluates actual holdings and residual whole-event payout floor. New
+census evidence requires a new admission pin; current book/source/model/expiry
+and account CAS checks remain in the engine and common coordinator. A reservation
+does not sell inventory or realize P&L. Runtime replay does not reserve twice.
+
+Each adapter has at most six requests; MultiStrategyEventAdapter retains the
+existing aggregate result/proposal bounds. Failures are archived per request,
+and unrelated bounded lanes can proceed. All exact evaluation IDs pass through
+the held queue claim before any common account operation. A later queue gap
+prevents reservation. No source or model is refreshed by re-labeling old evidence.
+
+Verification: **17 new cases**, **175 related tests passed in 57.55 s**. PWS and
+release entries remain rejected by the real uncalibrated payout engine. Synthetic
+inventory cases demonstrate one qualified SELL reservation, preservation of a
+complete basket hedge, unchanged actual lots/cash without fills and replay safety.
+Next work is bounded current source/request assembly and remaining route/provider
+integration. Protected model/certification custody in tests is a fixture; actual
+calibration, independent review, host isolation and runtime acceptance stay open.

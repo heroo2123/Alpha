@@ -46,3 +46,10 @@ reviews. Actual current conservative bounds reject entry. Positive-EV fixtures
 test downstream account behavior only. Raw exact-source adapters, independently
 derived market/event metrics, forecast-release support, PWS corroboration metrics,
 calibration, runtime scheduling and independent acceptance remain unfinished.
+
+## Bounded runtime integration
+
+SourceReleaseEventAdapter now joins exact received-release evidence inside the bounded shared event worker. Tests retain stronger EVENT guards and reject schedule-only, pre-release-book and stale-model substitutes. Separate payout valuation remains uncalibrated and rejects entries; raw-provider and formal runtime acceptance remain open.
+
+The shared reaction/exit milestone has 17 new cases; 175 related tests passed in
+57.55 s. All use off-host synthetic inputs and protected-review fixtures.

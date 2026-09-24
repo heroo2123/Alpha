@@ -75,3 +75,10 @@ faults currently gate orders while preserving inventory. Multi-leg simultaneous
 basket exits, real fee authority, provider/runtime acceptance, protected reviews,
 approved calibrated models, guardian integration and live reconciliation remain
 open. R32 is PARTIAL, not deployment accepted. No V10 workload or service changes.
+
+## Bounded runtime integration
+
+PositionExitEventAdapter now connects fresh periodic census, a current strategy admission and actual-inventory valuation to exact queue completion and common SELL reservation. Tests preserve complete-set hedges, block a later queue gap and leave inventory/P&L unchanged without fill evidence. The adapter must use the runtime coordinator itself. Automatic thesis selection, stronger-opportunity rotation and emergency exit permissions remain open.
+
+The shared reaction/exit milestone has 17 new cases; 175 related tests passed in
+57.55 s. All use off-host synthetic inputs and protected-review fixtures.

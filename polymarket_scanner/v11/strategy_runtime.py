@@ -8,6 +8,7 @@ from base64 import urlsafe_b64encode
 from .evidence import EvidenceError, digest, identity
 from .paper_runtime import Evaluation, TemperatureEventAdapter, VERSION as RUNTIME_VERSION
 from .relative_value import DiscoveryRequest, RelativeValueStrategies
+from .reaction_runtime import PWSLeadEventAdapter, SourceReleaseEventAdapter, PositionExitEventAdapter
 from .runtime_health import admission_heads
 
 
@@ -51,13 +52,18 @@ class MultiStrategyEventAdapter:
         if (type(adapters) is not tuple or not 1 <= len(adapters) <= 6
                 or any(type(pair) is not tuple or len(pair)!=2 for pair in adapters)):
             raise EvidenceError('RUNTIME_STRATEGY_ADAPTER_BOUND')
-        names=[]
+        names=[];coordinator=None
         for name,adapter in adapters:
             identity(name);names.append(name)
-            if not isinstance(adapter,(TemperatureEventAdapter,RelativeValueEventAdapter)) or adapter.store is not store:
+            if not isinstance(adapter,(TemperatureEventAdapter,RelativeValueEventAdapter,
+                    PWSLeadEventAdapter,SourceReleaseEventAdapter,PositionExitEventAdapter)) or adapter.store is not store:
                 raise EvidenceError('RUNTIME_STRATEGY_ADAPTER_SCOPE')
+            if isinstance(adapter,PositionExitEventAdapter):
+                if coordinator is not None and coordinator is not adapter.coordinator:
+                    raise EvidenceError('RUNTIME_EVALUATOR_ACCOUNT_MISMATCH')
+                coordinator=adapter.coordinator
         if len(set(names))!=len(names):raise EvidenceError('RUNTIME_STRATEGY_ADAPTER_DUPLICATE')
-        self.store,self.adapters=store,adapters
+        self.store,self.adapters,self.coordinator=store,adapters,coordinator
 
     def evaluate(self,claim,prefix):
         outputs=[];proposals=[]
