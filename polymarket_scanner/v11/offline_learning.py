@@ -198,6 +198,15 @@ def run_research_fit(*, artifacts: ArtifactStore, journal: ExperimentJournal, pl
             or len(models)!=1 or models[0]['model_id']!=envelope.model_id
             or parent['bundle']['feature_schema_sha256']!=manifest['plan']['feature_schema_sha256']):
         raise EvidenceError('LEARNER_SINGLE_MODEL_TARGET_OR_SCHEMA_UNSUPPORTED')
+    features={f['name']:f for f in parent['components']['FEATURES']['parameters']['features']}
+    members=envelope.member_features
+    cuts=(envelope.lower_cut_feature,envelope.upper_cut_feature)
+    if (set(features)!=set((*members,*cuts))
+            or len({f['unit'] for f in features.values()})!=1
+            or next(iter(features.values()))['unit'] not in {'C','F'}
+            or any(features[key]['missing_allowed'] for key in members)
+            or any(not features[key]['missing_allowed'] for key in cuts)):
+        raise EvidenceError('LEARNER_COMPLETE_PARENT_FEATURE_MAPPING_REQUIRED')
     rows={part:[r['example'] for r in values] for part,values in manifest['partitions'].items()}
     if len({r['selection'] for values in rows.values() for r in values})!=1:
         raise EvidenceError('LEARNER_SELECTION_COHORT_MIXED')

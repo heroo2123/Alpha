@@ -279,6 +279,10 @@ def predict_with_bundle(pinned: PinnedBundle, rule, components: tuple, *, as_of:
     models={row['model_id']:row for row in params['models']}
     if len(components)!=len(models) or {c.model_id for c in components}!=set(models):
         raise EvidenceError('BUNDLE_MODEL_INPUT_SET_MISMATCH')
+    if value['components']['FEATURES']['parameters']['version'].startswith('forecast-cuts:'):
+        from .forecast_features import ForecastFeatureContract
+        ForecastFeatureContract(tuple((c.model_id,len(c.members)) for c in components),
+                                rule.payload['unit'],rule.payload['family']).require_bundle(pinned)
     configured=[]
     for c in components:
         m=models[c.model_id]

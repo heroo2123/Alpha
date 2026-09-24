@@ -155,3 +155,15 @@ def test_repeated_confirmation_is_logged_as_development(tmp_path):
     result=run_research_fit(**cfg)['result']
     assert result['confirmation_role']=='DEVELOPMENT'
     assert result['status']=='NO_PROMOTION'
+
+
+@pytest.mark.parametrize('envelope',[
+    policy(member_features=('member_0','undeclared')),
+    policy(member_features=('lower_cut',),lower_cut_feature='member_0'),
+])
+def test_frozen_policy_cannot_drop_or_reinterpret_parent_feature_columns(tmp_path,envelope):
+    cfg=prepare(tmp_path/'mapping',envelope=envelope)
+    before=cfg['journal'].store.pin_read_view()
+    with pytest.raises(EvidenceError,match='COMPLETE_PARENT_FEATURE_MAPPING_REQUIRED'):
+        run_research_fit(**cfg)
+    assert cfg['journal'].store.pin_read_view()==before

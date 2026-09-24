@@ -1,7 +1,83 @@
 # Alpha V11 work checkpoint
 
-Updated 2026-09-24, after multi-step fresh forecast census integration. Resume here. **NOT_READY_TO_FUND**.
+Updated 2026-09-24, after declared forecast-contract and bounded learning integration. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
+
+## Latest continuation — forecast capture to immutable challenger
+
+Recovered reporting HEAD **e91479b4ba187358fcb66800f01a21318a72d426**, tree
+**c2754be193d2548631374297528233e8ba9ce67b**, on the existing branch
+`weather-v11-profitability-upgrade-2026-09-23`. Clean workspace, one worktree,
+no unfinished test/publication operation; no reset or duplicate work. The private
+master bytes again match the authoritative SHA-256. No V10 operation occurred.
+Resolve this checkpoint's eventual exact commit/tree with
+`git log -1 --format='%H %T' -- docs/V11_WORK_CHECKPOINT.md`.
+
+Implemented `v11/forecast_features.py` and `v11/forecast_learning.py`; integrated
+the existing capture, immutable bundle, protected forecast pipeline and bounded
+learner. A declared contract fixes model IDs/member counts, units, daily family
+and model quantization before constructing an INITIAL_NO_FIT research bundle.
+No existing parent is adapted or activated. Capture v2 requires the exact parent
+FEATURES contract/parameters; completed v1 records retain original identities.
+Declared-contract inference refuses changed widths/units/families. The learner
+requires all declared member/cut columns, without nullable-member substitution.
+
+The explicit offline job reads complete event vectors and exact supplied labels,
+builds the registered temporal dataset, retains capture/example hashes and the
+dataset recipe in a separate CHALLENGER journal, and invokes the existing bounded
+fit. The immutable challenger reproduces its reported probabilities through the
+same inference function. Completed requests replay; interrupted fits require
+review rather than implicit duplicate trials. No labels are fabricated by code,
+no training runs on the decision path, and no model pointer or authority changes.
+
+Verification: initial related **44 passed / 4.11 s**; new integration cases
+**22 passed / 5.62 s**; final related **145 passed / 29.35 s, exit 0**, session
+85456, including **29 newly added cases**. All examples and labels in these tests
+are SYNTHETIC. The last full regression remains **3566 passed / 283.92 s** on
+the older implementation below; it has not been rerun for these changes yet.
+Off-host preflight: 20 GiB memory limit, 9652477952 bytes current use, eight CPU
+quota equivalents, 22482692 KiB disk free, no high/max/OOM events. This does not
+prove alpha-dev headroom or production isolation.
+
+R15 earns its named integration J: **80/200, approximately 40% (unchanged after
+rounding)**. Formal full completion remains **1/50 (2%)**. Current source/label
+truth, calibration, other learning targets, OS separation, independently accepted
+champion and operational acceptance remain open. The initial champion does not
+need a newly winning challenger once all original readiness gates actually pass.
+
+Next concrete implementation: read-only bounded dataset assembly and full forecast
+derivation provenance, including original GEFS constituent receipts. Existing
+`build_example` follows nested FEATURES but stops at MODEL records; a normalized
+forecast currently omits its constituent raw derivation from the example manifest.
+Resolve this causal evidence gap without treating reconstructed publication time
+as actual receipt evidence or raising runtime decision limits.
+
+V10 remains unchanged; maintenance is DEFERRED. Stale successful cycles and severe
+memory pressure remain recorded findings. Host resources/isolation, backup/recovery
+and inventory verification remain open. Inventory hash remains OWNER-REPORTED /
+INDEPENDENT VERIFICATION PENDING. Actual NOAA access remains unverified after the
+recorded proxy/client failure; no unchanged probe was repeated or bypass used.
+No deployment, executor, funding, money movement or real-order action occurred.
+
+## Remaining path to READY_TO_FUND — active work estimate
+
+These six milestones cover the remaining original scope, not a replacement plan.
+Ranges estimate hands-on implementation, integration, analysis and verification
+from the current code/matrix; they exclude external waiting and owner actions.
+They are not computed from the completion percentage. Confidence is LOW because
+actual source semantics, independent review and operational access remain unknown.
+The ranges must be revised for a concrete discovered change, not elapsed time.
+Funded canary measurements/activation are outside this unfunded finish line and
+still require separate budget and live approval. No arbitrary paper wait applies.
+
+| Remaining milestone | Work remaining and proof of completion | Active hours | Confidence | External/owner dependency |
+|---|---|---:|---|---|
+| Source, weather and label closure | Complete required provider/target adapters, observed-prefix and remaining-path/PWS joins, exact labels and calibration/fallback. Prove causal source/target identity, coverage, lead/ablation and required OOS quality on actual evidence. R06–R13, R25–R28, R31. | 45–90 | LOW | Working authorized provider access; exact source/version history and sufficient evidence; independent semantic/calibration review. |
+| Evidence and controlled learning | Close complete replay/provenance, markout/selection/report joins, bounded learner scheduling, lifecycle and accepted initial-bundle/learning governance. Prove deterministic dataset-to-artifact and rollback/reuse/failure behavior with required real evidence. R02–R05, R14–R17, R40–R42, R47. | 30–60 | LOW | Upstream exact labels; independent initial champion and governance acceptance; isolated learning environment. |
+| Strategy, portfolio and execution integration | Finish missing relative/structural/exit/redemption, correlation, costs and maker/reward paths. Prove full common-account scenario/reservation/reconciliation and strategy eligibility across required failure cases. R18–R24, R29–R30, R32–R36. | 35–70 | LOW | Reviewed mappings/parameters and actual source/execution evidence; funded fill learning remains later and separately authorized. |
+| Independent safety, identity and host | Finish independent cancel-only guardian and protected command/auth routing; prepare and verify isolated deployment/recovery configuration. Prove custody, permissions, resource budgets and authenticated safety behavior. R37–R39, R43–R44. | 30–60 | LOW | Owner account entitlement/access, approved isolated host and deployment action; alpha-dev resource/isolation currently unpassed. V10 maintenance stays deferred absent an exact dependency. |
+| Regression and unfunded acceptance | Run complete integration/fault/security acceptance and permitted unfunded account/execution checks; resolve findings. Proof is the original acceptance matrix with independent review and reproducible exact-tree results. R45, R48. | 25–50 | LOW | Independent reviewers and permitted existing-account access; no wallet/account creation or financial activation is implied. |
+| Operational comparison and release | Verify authorized isolated paper/shadow runtime, empirical V10/V11 comparison and strategy-specific release gates; document stale forward-control gap and exact release/rollback identity. Prove every unfunded readiness gate before READY_TO_FUND. R00, R46, R49. | 15–30 | LOW | Separate deployment approval, actual current-input/clock evidence, host gate and independent acceptance. External evidence collection time is not included or assigned a fixed calendar wait. |
 
 ## Saved continuation handoff — latest full verification
 

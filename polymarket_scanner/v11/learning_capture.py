@@ -7,14 +7,16 @@ prediction targets need their own feature/conditioning contracts.
 from dataclasses import asdict
 import time
 
-from .datasets import FeatureDefinition, FeatureSchema, archive_features, build_example
+from .datasets import archive_features, build_example
 from .evidence import EvidenceError, ReleaseBinding, digest, finite, identity
 from .event_risk import EventContext
+from .forecast_features import ForecastFeatureContract
 from .probability import BucketPrediction, FINAL_EXTREME, _partition
 from .rules import RuleFingerprint
 
 
-VERSION='alpha_v11_forecast_learning_capture_v1'
+LEGACY_VERSION='alpha_v11_forecast_learning_capture_v1'
+VERSION='alpha_v11_forecast_learning_capture_v2'
 TARGET='FINAL_CONTRACT_PAYOUT'
 
 
@@ -25,16 +27,18 @@ def _get(store,key):
     return None
 
 
-def capture_forecast_vector(store,record_id,*,context,rule,binding,prediction,model_input_ids,expires_at):
+def capture_forecast_vector(store,record_id,*,context,rule,binding,prediction,pinned_bundle,model_input_ids,expires_at):
     identity(record_id,maximum=110)
     if (not isinstance(rule,RuleFingerprint) or not isinstance(binding,ReleaseBinding) or not isinstance(context,EventContext)
             or not isinstance(prediction,BucketPrediction) or type(model_input_ids) is not tuple
             or not 1<=len(model_input_ids)<=16 or len(set(model_input_ids))!=len(model_input_ids)):
         raise EvidenceError('LEARNING_CAPTURE_TYPED_SCOPE_REQUIRED')
     p=prediction.payload;rp=rule.payload
-    request_sha=digest(dict(context=asdict(context),rule=asdict(rule),binding=asdict(binding),prediction_sha256=prediction.sha256,
-                           model_input_ids=model_input_ids,expires_at=expires_at,version=VERSION))
     old=_get(store,record_id)
+    version=old['body'].get('details',{}).get('version') if old else VERSION
+    if version not in {VERSION,LEGACY_VERSION}: raise EvidenceError('LEARNING_CAPTURE_REPLAY_CONFLICT')
+    request_sha=digest(dict(context=asdict(context),rule=asdict(rule),binding=asdict(binding),prediction_sha256=prediction.sha256,
+                           model_input_ids=model_input_ids,expires_at=expires_at,version=version))
     if old:
         if old['body'].get('details',{}).get('request_sha256')!=request_sha: raise EvidenceError('LEARNING_CAPTURE_REPLAY_CONFLICT')
         return old
@@ -51,8 +55,17 @@ def capture_forecast_vector(store,record_id,*,context,rule,binding,prediction,mo
     if (len(components)!=len(sources) or len({c['model_id'] for c in components})!=len(components)
             or {c['evidence_sha256'] for c in components}!=set(by_hash)):
         raise EvidenceError('LEARNING_CAPTURE_EXACT_MODEL_SET')
-    if sum(len(c['members']) for c in components)+2>128: raise EvidenceError('LEARNING_CAPTURE_FEATURE_BOUND')
-    values={};features=[];mapping={};versions={'prediction':prediction.sha256,'rule':rule.sha256}
+    contract=ForecastFeatureContract(tuple((c['model_id'],len(c['members'])) for c in components),
+                                      rp['unit'],rp['family'],p['model_quantization_hypothesis'])
+    parent=contract.require_bundle(pinned_bundle)
+    if pinned_bundle.sha256!=binding.bundle_sha256: raise EvidenceError('LEARNING_CAPTURE_PARENT_BINDING')
+    params=parent['components']['PROBABILITY']['parameters']
+    expected={m['model_id']:m for m in params['models']}
+    if p['group_weights']!=params['group_weights'] or any(
+            any(c[key]!=value for key,value in expected[c['model_id']].items()) for c in components):
+        raise EvidenceError('LEARNING_CAPTURE_PARENT_PARAMETERS')
+    schema=contract.schema;mapping=contract.mapping
+    values={};versions={'prediction':prediction.sha256,'rule':rule.sha256}
     for i,c in enumerate(components):
         s=by_hash[c['evidence_sha256']];b=s['body'];v=b.get('payload',{}).get('temperature_input',{})
         if (s['kind']!='MODEL' or s['event_id']!=rp['event_id']
@@ -62,14 +75,9 @@ def capture_forecast_vector(store,record_id,*,context,rule,binding,prediction,mo
                 or v.get('members')!=c['members'] or v.get('model_id')!=c['model_id']
                 or v.get('target_sha256')!=c['target_sha256']):
             raise EvidenceError('LEARNING_CAPTURE_MODEL_LINEAGE_OR_CUTOFF')
-        names=[]
-        for j,value in enumerate(c['members']):
-            name=f'model_{i}_member_{j:03}';names.append(name);values[name]=finite(value,nonnegative=False)
-            features.append(FeatureDefinition(name,rp['unit'],'forecast_members',-250.,250.,False))
-        mapping[c['model_id']]=names;versions[f'model_{i}']=c['model_id']
-    features.extend((FeatureDefinition('lower_cut',rp['unit'],'contract_quantization',-251.,251.,True),
-                     FeatureDefinition('upper_cut',rp['unit'],'contract_quantization',-251.,251.,True)))
-    schema=FeatureSchema('forecast-cuts:'+digest([mapping,rp['unit'],rp['family'],p['model_quantization_hypothesis']]),tuple(features))
+        for name,value in zip(mapping[c['model_id']],c['members']):
+            values[name]=finite(value,nonnegative=False)
+        versions[f'model_{i}']=c['model_id']
     # One target per mutually exclusive bucket; complementary NO claims do not
     # inflate the event's training count. Their probabilities remain available.
     rows=[];buckets=_partition(rule)
@@ -111,6 +119,7 @@ def capture_forecast_vector(store,record_id,*,context,rule,binding,prediction,mo
     return store.audit(record_id,event_id=rp['event_id'],kind='MEASUREMENT',details=dict(
         version=VERSION,request_sha256=request_sha,context=asdict(context),rule=asdict(rule),prediction_sha256=prediction.sha256,
         binding=asdict(binding),inference_cutoff=cutoff,feature_schema_sha256=schema.sha256,model_feature_mapping=mapping,
+        parent_feature_artifact_sha256=parent['bundle']['artifacts']['FEATURES'],parent_feature_contract_verified=True,
         target=TARGET,selection='ALL_SUPPORTED_PREDICTIONS',selection_scope='ALL_BUCKETS_OF_THIS_EVALUATED_EVENT',
         global_universe_coverage_verified=False,rows=rows,complete_event_vector=True,labels_created=False,
         financial_authority=False,training_or_promotion_started=False),evidence_ids=model_input_ids)
@@ -119,7 +128,7 @@ def capture_forecast_vector(store,record_id,*,context,rule,binding,prediction,mo
 def labeled_examples(store,capture_id,*,label_ids,city,horizon,season,prior_exposure='DEVELOPMENT'):
     """Join explicitly supplied exact labels; never fetch or fabricate one."""
     capture=store.get(capture_id);d=capture['body'].get('details',{})
-    if (capture['kind']!='MEASUREMENT' or d.get('version')!=VERSION or not d.get('complete_event_vector')
+    if (capture['kind']!='MEASUREMENT' or d.get('version') not in {VERSION,LEGACY_VERSION} or not d.get('complete_event_vector')
             or type(label_ids) is not dict or set(label_ids)!={r['target_identity']['market_id'] for r in d['rows']}
             or city!=d['context']['city_id']):
         raise EvidenceError('LEARNING_COMPLETE_VECTOR_LABEL_SET_REQUIRED')

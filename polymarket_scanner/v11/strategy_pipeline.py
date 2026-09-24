@@ -255,7 +255,7 @@ class TemperatureStrategies:
                 from .learning_capture import capture_forecast_vector
                 try:
                     captured=capture_forecast_vector(self.store,record_id+':learning',context=context,rule=rule,binding=binding,
-                        prediction=prediction,model_input_ids=request.model_input_ids,
+                        prediction=prediction,pinned_bundle=model.bundle,model_input_ids=request.model_input_ids,
                         expires_at=min(request.expires_at,assessment['valid_until']))
                     learning_capture=dict(status='EVENT_VECTOR_CAPTURED_LABELS_PENDING',capture_id=captured['id'])
                 except EvidenceError as exc:

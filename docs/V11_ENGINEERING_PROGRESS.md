@@ -109,3 +109,13 @@ Final census full regression at `f1752a8157c85ce1e975f64cd80b11e5a6318780`
 passed 3566 tests with four existing warnings in 283.92 s, all 806 tracked inputs
 unchanged. This verifies the newly connected local code; **79/200, approximately
 40%**, and formal **1/50 (2%)** remain unchanged. No operational E/A is credited.
+
+Declared forecast contract and research integration: R15 earns J for the
+31-member whole-event capture -> explicit complete-label cohort -> frozen causal
+dataset -> bounded learner -> compatible immutable challenger -> numerical
+inference parity path. Evidence: 29 new cases, 145 related passes in 29.35 s.
+Replay does not refit completed/interrupted attempts; the source evidence and
+parent remain unchanged. These are synthetic tests, including labels. Actual
+labels, calibration, OS isolation, initial champion and learning acceptance are
+still open. Total **80/200, approximately 40%**; the displayed estimate and formal
+**1/50 (2%)** are unchanged. This credits the named integration, not more tests.

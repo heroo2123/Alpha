@@ -5,11 +5,25 @@ import pytest
 from polymarket_scanner.v11 import learning_capture as capture
 from polymarket_scanner.v11.datasets import DatasetPlan,build_dataset,verify_dataset
 from polymarket_scanner.v11.evidence import EvidenceError,digest,canonical
+from polymarket_scanner.v11.forecast_features import ForecastFeatureContract,build_initial_forecast_bundle
+from polymarket_scanner.v11.model_artifacts import ArtifactStore
 from polymarket_scanner.v11.probability import BucketPrediction
 from polymarket_scanner.v11.strategy_pipeline import TemperatureStrategies
 from test_v11_certification_rules import setup
-from test_v11_model_artifacts import bundle
+from test_v11_model_artifacts import make_artifacts,provenance
+from test_v11_probability import rule
 from test_v11_strategy_pipeline import factory
+
+
+@pytest.fixture
+def bundle(tmp_path):
+    path=tmp_path/'forecast-objects';path.mkdir(mode=0o700)
+    store=ArtifactStore(path);p=rule().payload
+    contract=ForecastFeatureContract((('model-1',3),),p['unit'],p['family'])
+    key=build_initial_forecast_bundle(store,contract=contract,
+        probability_parameters=make_artifacts()['PROBABILITY']['parameters'],provenance=provenance(),quality_modifiers={})
+    pinned=store.pin(key).payload
+    return store,pinned['components'],pinned['bundle']['artifacts'],key
 
 
 def evaluate(factory,strategy='FUTURE_FORECAST'):
@@ -19,8 +33,10 @@ def evaluate(factory,strategy='FUTURE_FORECAST'):
 
 
 def kwargs(r):
+    from polymarket_scanner.v11.model_registry import ActiveModelRegistry
     d=r['evaluation']['body']['details'];p=d['prediction']
     return dict(context=r['context'],rule=r['rule'],binding=r['binding'],prediction=BucketPrediction(canonical(p),digest(p)),
+                pinned_bundle=ActiveModelRegistry().pin(scope_key=r['scope'].key,mode='V11_PAPER').bundle,
                 model_input_ids=r['request'].model_input_ids,expires_at=r['request'].expires_at)
 
 
@@ -43,6 +59,8 @@ def test_pipeline_captures_all_buckets_before_economic_rejection_without_labels_
     assert {row['target_identity']['market_id'] for row in learned['rows']}=={b['market_id'] for b in r['rule'].payload['partition']}
     assert not store.records(kind='LABEL') and store.records(kind='COORDINATOR_EVENT')==r['coordinator_before']
     assert not learned['global_universe_coverage_verified'] and not learned['training_or_promotion_started']
+    assert learned['parent_feature_contract_verified']
+    assert learned['feature_schema_sha256']==kwargs(r)['pinned_bundle'].payload['bundle']['feature_schema_sha256']
     for row in learned['rows']:
         decision=store.get(row['decision_id'])['body'];feature=store.get(row['feature_id'])['body']
         assert decision['outcome']=='GATED' and not decision['explanation']['economic_qualification_evaluated']
@@ -79,7 +97,8 @@ def test_partial_feature_commit_resumes_without_redating_prior_child(factory,mon
     assert len(result['body']['details']['rows'])==3 and r['store'].get(seen[0])==prior
 
 
-@pytest.mark.parametrize('fault',['members','issue','model_set','rule','bundle','city','target','conditioning'])
+@pytest.mark.parametrize('fault',['members','issue','model_set','rule','bundle','city','target','conditioning',
+                                'quantization','bias','member_width'])
 def test_changed_source_or_target_cannot_be_exported_as_the_original_prediction(factory,fault):
     r=evaluate(factory);kw=kwargs(r);p=kw['prediction'].payload
     if fault=='members':p['model_inputs'][0]['members'][0]+=1
@@ -90,6 +109,9 @@ def test_changed_source_or_target_cannot_be_exported_as_the_original_prediction(
     if fault=='city':kw['context']=replace(r['context'],event_id='another-event')
     if fault=='target':p['target']='NEXT_OFFICIAL_OBSERVATION'
     if fault=='conditioning':p['observed_constraint']={}
+    if fault=='quantization':p['model_quantization_hypothesis']='CEILING'
+    if fault=='bias':p['model_inputs'][0]['bias']=1.
+    if fault=='member_width':p['model_inputs'][0]['members'].pop()
     kw['prediction']=BucketPrediction(canonical(p),digest(p));before=r['store'].pin_read_view()
     with pytest.raises(EvidenceError):capture.capture_forecast_vector(r['store'],'invalid',**kw)
     assert before==r['store'].pin_read_view()
@@ -120,3 +142,24 @@ def test_conditioned_pipeline_does_not_feed_an_unconditioned_learner_contract(fa
     assert d['prediction']['observed_constraint'] is not None
     assert d['learning_capture']['status']=='CONDITIONED_TARGET_CAPTURE_NOT_IMPLEMENTED'
     assert not r['store'].records(kind='DECISION')
+
+
+def test_undeclared_parent_schema_gates_capture_without_mutating_original_forecast(factory,bundle):
+    r=evaluate(factory);kw=kwargs(r);store=bundle[0]
+    values=make_artifacts();refs={key:store.put_artifact(value) for key,value in values.items()}
+    key=store.put_bundle(artifacts=refs,target='FINAL_CONTRACT_PAYOUT',
+                         feature_schema_sha256=values['FEATURES']['feature_schema_sha256'])
+    kw['pinned_bundle']=store.pin(key);before=r['store'].pin_read_view()
+    with pytest.raises(EvidenceError,match='PARENT_CONTRACT_MISMATCH'):
+        capture.capture_forecast_vector(r['store'],'mismatch',**kw)
+    assert r['store'].pin_read_view()==before
+
+
+def test_completed_legacy_capture_replay_retains_original_version_and_timestamps(factory,monkeypatch):
+    r=evaluate(factory);kw=kwargs(r)
+    with monkeypatch.context() as patch:
+        patch.setattr(capture,'VERSION',capture.LEGACY_VERSION)
+        legacy=capture.capture_forecast_vector(r['store'],'legacy',**kw)
+    before=r['store'].pin_read_view();r['now'][0]+=100
+    assert capture.capture_forecast_vector(r['store'],'legacy',**kw)==legacy
+    assert r['store'].pin_read_view()==before
