@@ -1,13 +1,13 @@
 # Alpha V11 work checkpoint
 
-Updated 2026-09-24, 00:04 UTC. Resume here. **NOT_READY_TO_FUND**.
+Updated 2026-09-24, 00:21 UTC. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
 
 ## Exact identities and scope
 
 - Branch: `weather-v11-profitability-upgrade-2026-09-23`.
-- Last verified implementation HEAD: `75a1b24a22dc622a90d53bdc959c115db92df7f4`.
-- Last verified implementation tree: `556dc6d2a59a0350ad8dd42ef8df09a02744e891`.
+- Last verified implementation HEAD: `bb10f5556008ef1ce6a808f33905d4811c607de1`.
+- Last verified implementation tree: `6718d36ee137c9f289c12daff2e3b5f6ca5d6c57`.
 - Worktree at verification: clean; local and published implementation trees match.
 - This following checkpoint commit changes documentation only. Resolve its own
   exact commit with `git log -1 --format=%H -- docs/V11_WORK_CHECKPOINT.md`, and its
@@ -342,6 +342,30 @@ Raw-to-inference adapters and measured scope-regime assignment remain pending;
 all current settlement candidates are rejected/gated by conservative economics.
 No alpha-dev access, workloads or V10 changes were needed for this milestone.
 
+## Phase 2/4 bounded event-routing milestone
+
+Published `bb10f5556008ef1ce6a808f33905d4811c607de1`, tree
+`6718d36ee137c9f289c12daff2e3b5f6ca5d6c57`. Added `v11/event_queue.py`,
+32 queue tests, one joined temperature-strategy test and `V11_EVENT_QUEUE.md`.
+Durable routing covers book/trade/official/QC-PWS/model/scheduled-release inputs,
+station/date/token mapping, bounded fan-out/queues/channels/bytes/age, dedupe and
+received corrections, explicit drops and one process-serialized worker. Crashed
+claims, reconnects and lost coverage require a full census. Clearing that state
+requires newly archived full books for every token, required fresh sources and a
+current rule; atomic heads protect census/completion against arrivals and gaps.
+The output must have a sequence after its claim/census, not merely an equal
+clock timestamp. Late/unnotified arrivals invalidate old results. A scheduled
+release window is not an official observation. Queue work is nonfinancial.
+
+124 focused integration checks passed; full regression passed 2,730 tests with
+four existing warnings in 75.35 seconds. Compileall/diff checks passed. Strategy
+CI run 35936624713 completed successfully. A same-timestamp stale-result defect
+found during development was corrected with sequence fencing and retested.
+No alpha-dev workload or change occurred. Websocket protocol integration,
+periodic-census scheduling, protected route reconfiguration and queue-fault
+propagation to final admission/guardian remain unfinished. Worker result timeouts
+do not substitute for OS resource isolation.
+
 ## Implementation and verification
 
 Prior delivered foundation is retained: private append-only evidence namespaces,
@@ -386,7 +410,10 @@ bounded compressed-capture verification and explicitly limited runtime context.
 | Admission implementation CI 35935233616 at a2dd287 | completed successfully |
 | Forecast/same-day strategy checks | **27 passed; 120 related checks passed** |
 | Latest forecast/same-day full regression | **2,697 passed; four existing warnings; 72.93 s** |
-| New forecast/same-day implementation CI | not yet inspected |
+| Forecast/same-day CI 35936624713 at 75a1b24 | completed successfully |
+| Bounded event routing integration | **124 passed; 4.57 s** |
+| Latest bounded-routing full regression | **2,730 passed; four existing warnings; 75.35 s** |
+| New event-queue implementation CI | not yet inspected |
 
 Tests used an isolated off-host environment installed from hash-locked dev
 requirements. Four warnings are pre-existing FastAPI lifecycle deprecations.
@@ -407,9 +434,10 @@ technical readiness, canary eligibility and empirical validation stay separate.
   period is imposed; mandatory technical/evidence gates remain.
 
 Next engineering action: continue Phase 6 strategy migration through the shared
-admission/coordinator path, with bounded source-event triggers next. Forecast/same-day evaluation factories
-are implemented and locally verified; their provider adapters and empirical
-calibration remain pending. PWS observation, payout and executable-exit
+admission/coordinator path, with queue-fault propagation into paper reservation/submission next, then the
+PWS observation-lead sleeve and remaining strategies. Bounded source-event routing
+and forecast/same-day evaluation are implemented and locally verified; provider
+adapters, periodic runtime scheduling and empirical calibration remain pending. PWS observation, payout and executable-exit
 targets remain separate; source-shock EVENT exceptions need exact-source/CLOB
 checks, structural baskets need common-outcome/partial-leg reconciliation, and
 result-lag still requires proven finality. Complete all remaining master phases. Event-state and target-specific economics primitives
