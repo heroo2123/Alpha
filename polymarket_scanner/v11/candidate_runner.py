@@ -17,6 +17,7 @@ from .evidence import EvidenceError, canonical, digest, finite, identity
 from .observation_pump import ObservationPump
 from .maker_telemetry import MakerTelemetryWorker
 from .pws_runtime import PWSQualityWorker
+from .forecast_runtime import ForecastNormalizationWorker
 from .paper_runtime import PaperRuntime
 from .runtime_health import KEY as HEALTH_KEY
 
@@ -80,7 +81,7 @@ class ObservationBatch:
 
 
 class CandidateRunner:
-    def __init__(self,runtime,policy,*,census,discovery,audits,observation=None,observation_batch=None,maker_telemetry=None,pws_quality=None):
+    def __init__(self,runtime,policy,*,census,discovery,audits,observation=None,observation_batch=None,maker_telemetry=None,pws_quality=None,forecasts=None):
         if (not isinstance(runtime,PaperRuntime) or not isinstance(policy,CandidatePolicy)
                 or not isinstance(census,CensusWorker) or not isinstance(discovery,MarketDiscovery)
                 or not isinstance(audits,AuditWorker)):
@@ -107,12 +108,18 @@ class CandidateRunner:
                 or any(p.official.station!=runtime.queue.routes[e].station for e,p in pws_quality.plans.items())):
             raise EvidenceError('CANDIDATE_PWS_QUALITY_SCOPE')
         self.pws_quality=pws_quality
-        self.kinds=('CENSUS','DISCOVERY','AUDIT')+(('OBSERVATION',) if observation else ())+(('MAKER_TELEMETRY',) if maker_telemetry else ())+(('PWS_QUALITY',) if pws_quality else ())
+        if forecasts is not None and (not isinstance(forecasts,ForecastNormalizationWorker)
+                or forecasts.health is not runtime.health or not forecasts.plans.keys()<=runtime.queue.routes.keys()
+                or any(p.rule.sha256!=runtime.queue.routes[e].rule_fingerprint for e,p in forecasts.plans.items())):
+            raise EvidenceError('CANDIDATE_FORECAST_SCOPE')
+        self.forecasts=forecasts
+        self.kinds=('CENSUS','DISCOVERY','AUDIT')+(('OBSERVATION',) if observation else ())+(('MAKER_TELEMETRY',) if maker_telemetry else ())+(('PWS_QUALITY',) if pws_quality else ())+(('FORECAST_NORMALIZATION',) if forecasts else ())
         config=dict(policy=asdict(policy),runtime=runtime.config,census=census.config,
             discovery=discovery.config,audits=audits.config,worker_id=runtime.worker_id,
             observation=asdict(observation_batch) if observation_batch else None)
         if maker_telemetry is not None:config['maker_telemetry']=maker_telemetry.config
         if pws_quality is not None:config['pws_quality']=pws_quality.config
+        if forecasts is not None:config['forecasts']=forecasts.config
         self.config=digest(config)
 
     def _get(self,key):
@@ -157,6 +164,7 @@ class CandidateRunner:
         if kind=='AUDIT':return self.audits.step()
         if kind=='MAKER_TELEMETRY':return self.maker_telemetry.step(key)
         if kind=='PWS_QUALITY':return self.pws_quality.step(key)
+        if kind=='FORECAST_NORMALIZATION':return self.forecasts.step(key)
         batch=self.observation_batch
         return await self.observation.cycle(key,tuple(replace(r,revision=key) for r in batch.requests),
             station_by_event=dict(batch.station_by_event),strategies=batch.strategies,

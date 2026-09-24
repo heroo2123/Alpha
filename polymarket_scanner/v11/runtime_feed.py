@@ -59,6 +59,10 @@ class EvidenceFeed:
         if p.get('source_time_status') == 'NOT_YET_NORMALIZED': return 'RAW_NORMALIZATION_REQUIRED'
         if kind == 'PWS_OBSERVATION' and (b.get('provider') != 'ALPHA_PWS_QC' or p.get('health') != 'HEALTHY'):
             return 'PWS_QC_REQUIRED'
+        if kind=='MODEL' and p.get('version')=='alpha_v11_archived_gefs_normalization_v1' and b.get('issued_at') is None:
+            # Its own health dependency stays gated. An auxiliary research
+            # normalization must not manufacture a whole-event census fault.
+            return 'FORECAST_RUN_PROVENANCE_REQUIRED'
         if kind == 'TRADE' and p.get('record_type') in {'PAPER_FILL','PAPER_TERMINAL'}:
             return 'ACCOUNT_RECEIPT_NOT_PUBLIC_MARKET_TRADE'
         return kind

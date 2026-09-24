@@ -20,6 +20,7 @@ from polymarket_scanner.v11.runtime_health import HealthPolicy
 from polymarket_scanner.v11.candidate_runner import ObservationBatch
 from polymarket_scanner.v11.pws_runtime import PWSQualityPlan, PWSQualitySettings
 from polymarket_scanner.v11.weather_sources import madis_request
+from polymarket_scanner.v11.forecast_sources import ForecastPlan, PROVIDER as FORECAST_PROVIDER, OPEN_METEO_ENSEMBLE, request_parameters
 from polymarket_scanner.v11.strategy_admission import SourceLease
 from polymarket_scanner.v11.valuation import HOLD_RISKS, SALE_RISKS, SALE
 from test_v11_basket_coordinator import rig, reserve
@@ -231,6 +232,33 @@ def test_census_and_periodic_qc_cannot_silently_alternate_policies(rig,setup):
     event=replace(cfg.events[0],census=replace(cfg.events[0].census,pws=p))
     with pytest.raises(EvidenceError,match='PWS_QUALITY_SCOPE'):
         replace(cfg,events=(event,),pws_quality=PWSQualitySettings((replace(p,policy=pws_policy(fresh_seconds=300.)),)))
+
+
+def test_candidate_normalizes_existing_forecast_without_new_network_or_unrelated_census_failure(rig,setup,monkeypatch):
+    from test_weather_only_forecast import _payload
+    from polymarket_scanner.v11.runtime_feed import EvidenceFeed
+    r=rig;cfg=plan(r);fp=ForecastPlan(r['rule'],setup[3],50.,600.);calls=[];payload=_payload(family=r['rule'].payload['family'])
+    payload['daily']['time']=[r['rule'].payload['target_date']]
+    payload.update(latitude=setup[3].latitude,longitude=setup[3].longitude)
+    r['store'].capture('archived-gefs',event_id=fp.event_id,kind='MODEL',provider=FORECAST_PROVIDER,source_identity=fp.source_identity,
+        revision='archive',payload=dict(response=payload,request_url=OPEN_METEO_ENSEMBLE,request_params=request_parameters(fp),
+                                       source_time_status='NOT_YET_NORMALIZED'),evidence_class='SYNTHETIC')
+    cfg=replace(cfg,forecasts=(fp,),candidate=replace(cfg.candidate,maximum_jobs=4))
+    synthetic_clock(r,monkeypatch)
+    async def run():
+        async with httpx.AsyncClient(transport=transport(r,calls)) as client:
+            candidate=app.assemble_candidate(r['store'],client,cfg,generation='forecast-composed')
+            ready(r,candidate.runtime.health)
+            return candidate,(await candidate.run('forecast-composed'))['body']['details']
+    candidate,d=asyncio.run(run())
+    assert [j['kind'] for j in d['worker_results']]==['CENSUS','DISCOVERY','AUDIT','FORECAST_NORMALIZATION'],d
+    assert d['worker_results'][-1]['outcome']=='FORECAST_MEMBERS_ARCHIVED_RUN_UNVERIFIED'
+    assert len(calls)==8 and all(req.url.host!='ensemble-api.open-meteo.com' for req in calls)
+    normalized=r['store'].latest_source(kind='MODEL',event_id=fp.event_id,provider=FORECAST_PROVIDER,source_identity=fp.source_identity)
+    assert normalized['body']['issued_at'] is None and not d['forward_acceptance']
+    assert EvidenceFeed._classification(normalized)=='FORECAST_RUN_PROVENANCE_REQUIRED'
+    assert not candidate.runtime.queue.snapshot()['needs_census']
+    assert not r['store'].records(kind='TRADE') and candidate.runtime.coordinator.snapshot()['reserved_cash']=='0'
 
 
 def test_authenticated_client_is_rejected_before_any_candidate_write(rig):

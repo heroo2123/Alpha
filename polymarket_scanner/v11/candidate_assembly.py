@@ -30,6 +30,8 @@ from .strategy_runtime import MultiStrategyEventAdapter, RelativeValueEventAdapt
 from .basket_valuation import BasketPolicy
 from .pws_lead import LeadPolicy
 from .pws_runtime import PWSQualitySettings, PWSQualityWorker
+from .forecast_sources import ForecastPlan
+from .forecast_runtime import ForecastNormalizationWorker
 from .maker_research import MakerResearch, MakerResearchPolicy
 from .maker_telemetry import MakerTelemetryPolicy, MakerTelemetryWorker
 from .maker_runtime import MakerTarget, MakerRequestFactory, MakerEventAdapter
@@ -181,6 +183,7 @@ class CandidatePlan:
     observation: ObservationBatch | None = None
     maker: MakerTelemetryPlan | None = None
     pws_quality: PWSQualitySettings | None = None
+    forecasts: tuple[ForecastPlan, ...] = ()
 
     def __post_init__(self):
         identity(self.version); identity(self.worker_id)
@@ -218,6 +221,12 @@ class CandidatePlan:
                     or events[p.event_id].census.pws is not None and events[p.event_id].census.pws!=p
                     for p in self.pws_quality.plans):
                 raise EvidenceError('CANDIDATE_PWS_QUALITY_SCOPE')
+        events={e.route.event_id:e for e in self.events}
+        if (type(self.forecasts) is not tuple or len(self.forecasts)>16
+                or any(not isinstance(p,ForecastPlan) for p in self.forecasts)
+                or len({p.event_id for p in self.forecasts})!=len(self.forecasts)
+                or any(p.event_id not in events or p.rule!=events[p.event_id].census.rule for p in self.forecasts)):
+            raise EvidenceError('CANDIDATE_FORECAST_SCOPE')
 
 
 def _lane(queue,coordinator,lane,maker):
@@ -310,6 +319,7 @@ def assemble_candidate(store,client,plan,*,generation):
     runner=CandidateRunner(runtime,plan.candidate,census=census,discovery=MarketDiscovery(scheduled,health,plan.discovery),
         audits=AuditWorker(coordinator,plan.audits),observation=observation,observation_batch=plan.observation,
         maker_telemetry=MakerTelemetryWorker(maker,health,plan.maker.telemetry,event_ids=tuple(maker_scopes)) if maker else None,
-        pws_quality=PWSQualityWorker(store,health,plan.pws_quality) if plan.pws_quality else None)
+        pws_quality=PWSQualityWorker(store,health,plan.pws_quality) if plan.pws_quality else None,
+        forecasts=ForecastNormalizationWorker(store,health,plan.forecasts) if plan.forecasts else None)
     runner.assembly_sha256=digest(asdict(plan))
     return runner
