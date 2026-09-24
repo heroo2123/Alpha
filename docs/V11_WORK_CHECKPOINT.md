@@ -1,13 +1,13 @@
 # Alpha V11 work checkpoint
 
-Updated 2026-09-24, 01:04 UTC. Resume here. **NOT_READY_TO_FUND**.
+Updated 2026-09-24, 01:15 UTC. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
 
 ## Exact identities and scope
 
 - Branch: `weather-v11-profitability-upgrade-2026-09-23`.
-- Last verified implementation HEAD: `d0f7c737268ca45a62738dd289d61c6d42ee57fd`.
-- Last verified implementation tree: `74c9ee8d4884ea061c98e81090a4d7b95b15b1d9`.
+- Last verified implementation HEAD: `8ccadd546e25a39a3a252d03d6f80f8824e377c1`.
+- Last verified implementation tree: `586d78383f63c9b282ce8cc47e5619614535ecf6`.
 - Worktree at verification: clean; local and published implementation trees match.
 - This following checkpoint commit changes documentation only. Resolve its own
   exact commit with `git log -1 --format=%H -- docs/V11_WORK_CHECKPOINT.md`, and its
@@ -457,6 +457,39 @@ runtime/independent acceptance remain open. Next: source-shock/release reaction
 through common gates, distinguishing scheduled notices from received observations
 and revisions; implement exact-source/CLOB checks for any directional EVENT path.
 
+## Phase 6 received-source reaction milestone
+
+Published `8ccadd546e25a39a3a252d03d6f80f8824e377c1`, tree
+`586d78383f63c9b282ce8cc47e5619614535ecf6`. Added `v11/source_release.py`,
+RELEASE_OPPORTUNITY capability scope and both source-release sleeves in the
+shared temperature evaluator/coordinator. Exact received observations and
+same-observation revisions remain distinct. Schedules are provenance only.
+Each payout component must incorporate the received official evidence; exact
+books and event metrics must follow receipt. Current source/book/epoch heads
+revalidate and atomically guard paper reservation/submission-state changes.
+
+The directional EVENT data path requires scoped review and healthy inputs;
+stronger EVENT size, EV, liquidity and lifetime limits remain effective. Operator
+reductions, non-release health/risk faults and adverse execution suppress it.
+Passive new-risk permission remains false. Reservations survive failed checks.
+Actual current conservative payout bounds still reject all economic entries.
+Positive-EV fixtures exercise downstream mechanics only, not strategy acceptance.
+
+21 new release tests and 138 related checks passed in 12.54 seconds. An initial
+size-limit fixture used five units below the actual reduced ceiling of twenty;
+it was corrected to twenty-one without changing runtime limits. Full off-host
+regression: **2,808 passed, four existing warnings, 85.26 seconds**. Compilation
+and whitespace checks passed. PWS integration CI run 35941229234 passed. Local
+resource observation showed approximately 21 GB available RAM and 23 GB free
+disk; this is off-host headroom and does not clear the alpha-dev resource gate.
+
+No tests remain running; publication has matching local/public trees and a clean
+worktree. No V10/runtime/permission/financial change occurred. Exact adapters,
+forecast-only releases, independent event/market/PWS corroboration metrics,
+calibration, runtime and independent review remain open. Next: cross-temperature
+relative-value and structural basket valuation with shared outcome/partial-leg
+risk, followed by common multi-leg account integration and remaining phases.
+
 ## Implementation and verification
 
 Prior delivered foundation is retained: private append-only evidence namespaces,
@@ -514,7 +547,10 @@ bounded compressed-capture verification and explicitly limited runtime context.
 | Scope-slot full regression | **2,771 passed; four existing warnings; 68.88 s** |
 | Scope-slot CI 35940278264 at c0d97df | completed successfully |
 | PWS paired admission/economics | **16 new checks; 121 related checks passed, 8.32 s** |
-| Latest full off-host regression | **2,787 passed; four existing warnings; 82.56 s** |
+| PWS integration full regression | **2,787 passed; four existing warnings; 82.56 s** |
+| PWS integration CI 35941229234 at d0f7c73 | completed successfully |
+| Received-source release integration | **21 new checks; 138 related checks passed, 12.54 s** |
+| Latest full off-host regression | **2,808 passed; four existing warnings; 85.26 s** |
 
 Tests used an isolated off-host environment installed from hash-locked dev
 requirements. Four warnings are pre-existing FastAPI lifecycle deprecations.
@@ -537,13 +573,15 @@ technical readiness, canary eligibility and empirical validation stay separate.
 Next engineering action: continue Phase 6 strategy migration through the shared
 admission/coordinator path. Separately scoped protected model state slots are
 implemented and locally verified. PWS observation/payout pins and common economics
-are now integrated and locally verified. Next implement source-shock/release
-reaction with exact-source/CLOB revalidation, then continue remaining strategies. PWS paired research and
+are now integrated and locally verified. Received observation/revision reaction
+with stronger directional EVENT checks is also integrated. Next implement
+cross-temperature relative-value and structural basket valuation/accounting,
+then continue the remaining strategies and master phases. PWS paired research and
 queue-fault propagation are implemented and locally verified. Bounded source-event routing
 and forecast/same-day evaluation are implemented and locally verified; provider
 adapters, periodic runtime scheduling and empirical calibration remain pending. PWS observation, payout and executable-exit
-targets remain separate; source-shock EVENT exceptions need exact-source/CLOB
-checks, structural baskets need common-outcome/partial-leg reconciliation, and
+targets remain separate; source-shock EVENT checks are implemented but require
+actual source/runtime acceptance; structural baskets need common-outcome/partial-leg reconciliation, and
 result-lag still requires proven finality. Complete all remaining master phases. Event-state and target-specific economics primitives
 are implemented; complete runtime/financial integration remains pending. Causal
 physical candidates still require feature-value/inference validation. PWS defensive QC/spatial
