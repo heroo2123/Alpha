@@ -143,6 +143,8 @@ class PaperRuntime:
         head = self._head(); state = deepcopy(head['body']['details']['state']) if head else dict(
             attempt=0, boot_id=None, next_census_monotonic=0., visited=[], census_retry={},
             operator_cursor=0, event_cursor=0, active_plans={}, last_cancel_plan='')
+        state.setdefault('rule_cursor', 0)
+        state.setdefault('cancel_intake_next', 0)
         state['attempt'] += 1
         prefix = 'tick:'+digest([request, state['attempt']])
         step = [0]
@@ -185,34 +187,59 @@ class PaperRuntime:
             except EvidenceError as exc: errors.append(dict(stage='CANCEL', reason=str(exc)))
             state['last_cancel_plan'] = plan_id; serviced.add(plan_id)
             save(outcome='CANCELLATION_PROGRESS')
-        # Reserve a separate bounded intake budget: unresolved old requests
-        # cannot starve a newly received operator/health cancellation forever.
+        # Health has one dedicated check. A healthy no-op cannot consume the
+        # entire nonhealth intake budget. Rotate channels to prevent a busy
+        # operator stream starving EVENT/rule quarantine at the minimum budget.
         remaining = self.policy.maximum_cancel_plans
         triggers = [health]
-        for kind, cursor in (('OPERATOR_EVENT','operator_cursor'),('COORDINATOR_EVENT','event_cursor')):
+        channels = (('OPERATOR_EVENT','operator_cursor'),('COORDINATOR_EVENT','event_cursor'),('RULE_STATE','rule_cursor'))
+        first = state['cancel_intake_next']
+        for kind, cursor in channels[first:]+channels[:first]:
             rows = self.store.records(kind=kind, after_seq=state[cursor], limit=self.policy.maximum_updates)
             for row in rows:
                 d = row['body'].get('details', {})
-                if d.get('cancellation_status') == 'REQUESTED_NOT_CONFIRMED': triggers.append(row)
+                requested = (d.get('cancellation_status') == 'REQUESTED_NOT_CONFIRMED' or
+                             kind == 'RULE_STATE' and d.get('cancel_managed_new_risk_requested') is True and d.get('quarantined') is True)
+                if requested: triggers.append(row)
                 else: state[cursor] = row['seq']
-                if d.get('cancellation_status') == 'REQUESTED_NOT_CONFIRMED': break
+                if requested: break
         for index, trigger in enumerate(triggers):
             if not budget() or remaining <= 0 or len(state['active_plans']) >= 32: break
             plan_id = 'runtime-plan:'+digest([trigger['id'], trigger['sha256']])
             if plan_id in serviced: continue
+            if trigger['kind'] != 'RUNTIME_STATUS': remaining -= 1
             if plan_id not in state['active_plans']:
                 state['active_plans'][plan_id] = dict(trigger_id=trigger['id'])
                 save(outcome='CANCELLATION_PLAN_REGISTERED')
             try:
                 self.cancellation.plan(plan_id, trigger_id=trigger['id'])
                 report = self.cancellation.advance(prefix+':new-cancel:'+str(index), plan_id=plan_id)
-                cancellation_reports.append(report['id']); remaining -= 1
+                cancellation_reports.append(report['id'])
                 if report['body']['details']['outcome'] == 'ALL_TARGETS_TERMINAL': state['active_plans'].pop(plan_id)
                 if trigger['kind'] != 'RUNTIME_STATUS':
-                    cursor = 'operator_cursor' if trigger['kind'] == 'OPERATOR_EVENT' else 'event_cursor'
+                    cursor = {'OPERATOR_EVENT':'operator_cursor','COORDINATOR_EVENT':'event_cursor','RULE_STATE':'rule_cursor'}[trigger['kind']]
                     state[cursor] = trigger['seq']
             except EvidenceError as exc: errors.append(dict(stage='CANCEL_PLAN', reason=str(exc)))
+            if trigger['kind'] != 'RUNTIME_STATUS':
+                state['cancel_intake_next'] = (next(i for i,c in enumerate(channels) if c[0] == trigger['kind'])+1)%len(channels)
             save(outcome='CANCELLATION_PROGRESS')
+        if self.maker is not None and budget():
+            quotes = self.maker._state(self.maker._head())
+            for quote_id, quote in list(quotes.items())[:self.policy.maximum_updates]:
+                if not budget(): break
+                if quote['status'] != 'OBSERVING': continue
+                context = quote['request']['context']
+                try:
+                    rule = self.store.latest(kind='RULE_STATE',event_id=context['event_id'])
+                    if rule and rule['body']['details'].get('quarantined') is True:
+                        raise EvidenceError('MAKER_RULE_QUARANTINED')
+                    admission_heads(self.store, account_id=context['account_id'], event_id=context['event_id'], strategies=('MAKER_RESEARCH',))
+                    if finite(self.store.clock()) >= quote['expires_at']: raise EvidenceError('MAKER_QUOTE_EXPIRED')
+                except EvidenceError as exc:
+                    try:
+                        row = self.maker.retire('retire:'+digest([prefix,quote_id]), quote_id=quote_id, reason=str(exc))
+                        retired.append(row['id'])
+                    except EvidenceError as failure: errors.append(dict(stage='MAKER_RETIRE', reason=str(failure)))
         if hd['global_reasons']:
             errors.append(dict(stage='HEALTH', reason='CLOCK_OR_WORKER_GATED'))
         else:
@@ -269,20 +296,6 @@ class PaperRuntime:
             try:
                 row = self.rewards.refresh('rewards:'+digest(prefix)); reward_reports.append(row['id'])
             except EvidenceError as exc: errors.append(dict(stage='REWARDS', reason=str(exc)))
-        if self.maker is not None and budget():
-            quotes = self.maker._state(self.maker._head())
-            for quote_id, quote in list(quotes.items())[:self.policy.maximum_updates]:
-                if not budget(): break
-                if quote['status'] != 'OBSERVING': continue
-                context = quote['request']['context']
-                try:
-                    admission_heads(self.store, account_id=context['account_id'], event_id=context['event_id'], strategies=('MAKER_RESEARCH',))
-                    if finite(self.store.clock()) >= quote['expires_at']: raise EvidenceError('MAKER_QUOTE_EXPIRED')
-                except EvidenceError as exc:
-                    try:
-                        row = self.maker.retire('retire:'+digest([prefix,quote_id]), quote_id=quote_id, reason=str(exc))
-                        retired.append(row['id'])
-                    except EvidenceError as failure: errors.append(dict(stage='MAKER_RETIRE', reason=str(failure)))
         audit_request_ids=[]
         if not hd['clock_reasons'] and budget():
             try:audit_request_ids=list(self.audits.request_due())

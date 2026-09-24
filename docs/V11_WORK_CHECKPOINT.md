@@ -1,6 +1,6 @@
 # Alpha V11 work checkpoint
 
-Updated 2026-09-24, after public-book and fresh-census verification. Resume here. **NOT_READY_TO_FUND**.
+Updated 2026-09-24, after discovery and rule-cancellation verification. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
 
 ## Current priority override — V11 runtime integration
@@ -26,11 +26,11 @@ open. No funding, deployment, financial activation or new host workload authoriz
 ## Exact identities and scope
 
 - Branch: `weather-v11-profitability-upgrade-2026-09-23`.
-- Last verified implementation HEAD: `b75cc1c65a3ec7b4fa39c876fb999ad9bee023b2`.
-- Last verified implementation tree: `12e939b4d9e7feb73dcbbd6cc31602649c0ea76f`.
-- Reporting implementation identity is above. Public/local tree equality passed,
-  fetch/alignment exited 0 and the worktree was clean before public-book/census
-  integration. No unfinished work was discarded.
+- Last verified implementation HEAD: `aa541aca587016da1143a63ab5819aed3aee71fa`.
+- Last verified implementation tree: `0af346b26b293e9ee8a5779eb2630d670850079d`.
+- Public-book/census implementation identity is above. Public/local tree equality
+  passed; fetch/alignment exited 0 (session 5895), with a clean worktree before
+  discovery integration. No unfinished work was discarded.
 - A later commit containing this checkpoint may include the newer work below. Resolve its own
   exact commit with `git log -1 --format=%H -- docs/V11_WORK_CHECKPOINT.md`, and its
   tree with `git rev-parse <that-commit>^{tree}`; no self-referential hash claim.
@@ -42,8 +42,8 @@ open. No funding, deployment, financial activation or new host workload authoriz
 - Prior maker-feature implementation: `a3a0a05b3ea2ecdc55190c711a75d6d7cd990922`,
   tree `053189306c136d11f32943ec62f0807c827a582c`; its recovery checkpoint was
   `53cae2da33e97c993c76ab976d2f079a97bf6ae1`.
-- Latest full regression: **3,245 passed, four existing warnings, 179.01 s** on
-  the public-book/census implementation recorded below. Its predecessor full run was
+- Latest full regression: **3,275 passed, four existing warnings, 188.62 s** on
+  the discovery/rule-cancellation implementation recorded below. Its predecessor full run was
   2,894 passing at `f69e318d04b8771f1de3074928ae63d3951cebec`.
 - Prior implementation: `dd1e85706eb0a26c9bb8aef1317cb635a791b920`, tree
   `8bf30057a39e8690d457e531b781b953a2476878`. Prior recovered checkpoint
@@ -1247,3 +1247,68 @@ or after this full run. All nonsecret implementation and evidence documentation
 are now ready for publication. 1/50 implementation packages complete; formal
 acceptance unchanged. Next concrete work: bounded resumable market discovery,
 semantic rejection census and existing rule/quarantine integration.
+
+
+### Resumable discovery and rule-cancellation integration
+
+Public-book/census implementation published at aa541aca587016da1143a63ab5819aed3aee71fa,
+tree 0af346b26b293e9ee8a5779eb2630d670850079d; alignment completed exit 0. Recovery
+confirmed the intended discovery changes and no running operation, preserving all
+newer work beyond the user's b75cc1c reference.
+
+Added discovery.py and docs/V11_MARKET_DISCOVERY.md. Bounded keyset collection,
+resumable page/event cursors, immutable raw receipts, semantic denominators and
+rejection/template census now join existing station metadata and rule quarantine.
+Unsupported/closed changes preserve prior valid semantics and request managed
+PAPER cancellation. Original receipt/sequence lineage blocks older extracted pages
+from replacing newer rule evidence. Current-universe verification remains false;
+no grammar expansion, dynamic route registration or strategy approval is inferred.
+Rule quarantine reaches account cancellation and maker retirement. Review found
+minimum-budget health no-ops could starve other safety intake: a dedicated bounded
+health slot and rotating nonhealth channels correct this. Maker retirement now
+precedes optional queue work, including a census lock held by another worker.
+
+New discovery tests initially ran 21 passed / one fixture failure: rule fingerprint
+was bound to original bytes while a fixture added active/closed fields. The fixture
+was corrected, preserving raw binding validation. Expanded related run passed 203
+in 19.63 s; receipt-order additions passed 206 in 30.63 s. Two further starvation/
+queue-lock cases are under verification. There are 30 distinct new cases in this
+milestone (cumulative 939), subject to the final completed results below. Prior
+full regression remains 3245 at aa541aca; it does not cover these later changes.
+
+All work and tests are off-host and synthetic. Fully completed implementation
+packages remain 1/50; no independent, empirical or forward acceptance is claimed.
+V10 maintenance is DEFERRED; stale-cycle/memory-pressure findings and host resource/
+isolation requirements remain open. The inventory hash remains OWNER-REPORTED /
+INDEPENDENT VERIFICATION PENDING. No V10 operation or new workload, guard, service
+change, executor change, deployment, funding or real-money action occurred.
+Next: finish the warranted shared-rule/runtime regression, publish this milestone,
+then compose bounded off-host candidate workers with durable recovery and safety
+scheduling; continue remaining full-spec requirements.
+
+Scheduler tests initially ran 49 passed / one fixture failure: the cancellation
+fixture had no prior observed rule, so invalidate correctly returned no invented
+binding. Added its actual raw-bound original rule. Final shared discovery/rules/
+cancellation/runtime/queue/census/collection/admission/maker suite: **208 passed in
+14.64 s**, exit 0. The two additional safety cases pass. Full regression is running
+in local exec session 67073 (600-second subprocess ceiling); resume that operation
+rather than duplicate it. No source/test edits while it runs. A read-only shell
+call briefly hit an exec-server transport disconnection; one identical read retry
+succeeded, with no mutation or duplicate test invocation.
+
+While the discovery regression runs against unchanged source/tests, the next
+candidate-runner implementation draft is staged outside the repository at
+/workspace/scratch/38af7099c566/v11-candidate-runner-next.py. It is unfinished and
+untested, not part of that regression or any accepted/public milestone. Preserve
+it on interruption; integrate and test only after saving the discovery milestone.
+
+
+Discovery/shared-runtime full regression completed **PASS: 3,275 passed, four
+existing FastAPI deprecation warnings, 188.62 s**, exit 0. Wrapper elapsed 189.337 s;
+user/system CPU 133.352/49.071 s; peak child RSS 152,456 KiB. Session 67073 finished.
+No source/test bytes changed during the run; the untested next-runner draft remained
+outside the repository. 30 new cases, cumulative 939. No open test failures.
+Publication of the nonsecret discovery milestone follows. Fully completed packages
+remain 1/50 (implementation/local verification), with formal acceptance unpassed.
+Next implementation is the bounded candidate runner; V10 and all authority gates
+remain unchanged.

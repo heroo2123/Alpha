@@ -48,3 +48,34 @@ def test_safety_retirement_cannot_change_quote_price_or_create_quote(rig,monkeyp
     d['quotes']['quote']['request']['limit_price']='.9'
     with pytest.raises(EvidenceError,match='STATE_MUTATION_REFUSED'):
         rig['store'].safety_audit('bad',event_id=mk.key,kind='MEASUREMENT',details=d)
+
+
+def test_runtime_retires_maker_research_on_rule_quarantine_without_order_or_cash_action(rig,monkeypatch):
+    from polymarket_scanner.v11.rules import RuleGuard
+    rt,mk=integrated(rig,monkeypatch);assert propose(rig)['outcome']=='OBSERVING_RESEARCH_QUOTE'
+    event=rig['context'].event_id
+    raw=rig['store'].capture('unsupported-rule-raw',event_id=event,kind='RULES',provider='fixture',source_identity=event,
+        revision='new',payload={'event':{'id':event,'description':'Unsupported new contract definition'}},evidence_class='SYNTHETIC')
+    RuleGuard(rig['store']).invalidate('unsupported-guard',event_id=event,raw_evidence_id=raw['id'],reason='UNSUPPORTED_RULE')
+    d=rt.tick('quarantine')['body']['details']
+    assert d['retired_quote_ids'] and mk._state(mk._head())['quote']['retirement_reason']=='MAKER_RULE_QUARANTINED'
+    assert rig['coordinator']._head() is None and not rig['store'].records(kind='TRADE')
+
+
+def test_rule_retirement_runs_before_a_busy_census_queue_can_interrupt_event_work(rig,monkeypatch):
+    import fcntl
+    import os
+    from polymarket_scanner.v11.rules import RuleGuard
+    rt,mk=integrated(rig,monkeypatch);assert propose(rig)['outcome']=='OBSERVING_RESEARCH_QUOTE'
+    event=rig['context'].event_id
+    raw=rig['store'].capture('changed-raw',event_id=event,kind='RULES',provider='fixture',source_identity=event,
+        revision='changed',payload={'event':{'id':event,'description':'Unsupported rule'}},evidence_class='SYNTHETIC')
+    RuleGuard(rig['store']).invalidate('changed-guard',event_id=event,raw_evidence_id=raw['id'],reason='UNSUPPORTED')
+    fd=os.open(rt.store.path.with_name(rt.store.path.name+'.events.lock'),os.O_CREAT|os.O_WRONLY,0o600)
+    try:
+        fcntl.flock(fd,fcntl.LOCK_EX|fcntl.LOCK_NB)
+        d=rt.tick('busy-census')['body']['details']
+    finally:os.close(fd)
+    assert d['outcome']=='INTERRUPTED_REQUIRES_RECONCILIATION'
+    assert mk._state(mk._head())['quote']['retirement_reason']=='MAKER_RULE_QUARANTINED'
+    assert rig['coordinator']._head() is None

@@ -187,3 +187,36 @@ def test_rule_recertification_requires_protected_review_after_drift(setup,monkey
     approve_fixture(monkeypatch,setup,stage='PAPER',fingerprint=f.sha256)
     guard.recertify('reviewed',event_id=f.payload['event_id'],registry=registry,scope=scope,stage='PAPER')
     assert guard.revalidate(f.payload['event_id'],f.sha256,max_age_seconds=10)['passed']
+
+
+def test_delayed_rule_normalization_cannot_renew_raw_receipt_freshness(setup):
+    store,_,_,metadata,now=setup;event=_event(station='KATL');guard=RuleGuard(store)
+    f=fingerprint_event(event,station_timezone=metadata.timezone,metadata_fingerprint=metadata.fingerprint)
+    raw=store.capture('earlier-raw',event_id=f.payload['event_id'],kind='RULES',provider='fixture',
+        source_identity='gamma',revision='one',payload={'event':event},evidence_class='SYNTHETIC')
+    now[0]+=20;guard.observe('delayed',f,raw_evidence_id=raw['id'])
+    assert guard.revalidate(f.payload['event_id'],f.sha256,max_age_seconds=10)['reason']=='RULE_EVIDENCE_STALE'
+
+
+def test_unsupported_rule_invalidation_preserves_valid_preimage_and_cannot_self_recover(setup):
+    store,_,_,metadata,_=setup;guard=RuleGuard(store);original=_event(station='KATL')
+    f=observe_rule(store,guard,original,metadata,'valid')
+    broken=copy.deepcopy(original);broken['description']='New unreviewed settlement definition.'
+    raw=store.capture('broken',event_id=f.payload['event_id'],kind='RULES',provider='fixture',source_identity='gamma',
+        revision='two',payload={'event':broken},evidence_class='SYNTHETIC')
+    d=guard.invalidate('invalidated',event_id=f.payload['event_id'],raw_evidence_id=raw['id'],reason='UNSUPPORTED_RULE')['body']['details']
+    assert d['preimage']==f.payload and d['fingerprint']==f.sha256 and d['quarantined']
+    assert d['cancel_managed_new_risk_requested'] and d['preserve_fills_and_reconciliation']
+    observe_rule(store,guard,original,metadata,'reverted')
+    assert guard.revalidate(f.payload['event_id'],f.sha256,max_age_seconds=10)['reason']=='RULE_DRIFT_QUARANTINED'
+
+
+def test_older_rule_receipt_cannot_replace_newer_rule_at_same_wall_time(setup):
+    store,_,_,metadata,_=setup;event=_event(station='KATL');guard=RuleGuard(store)
+    f=fingerprint_event(event,station_timezone=metadata.timezone,metadata_fingerprint=metadata.fingerprint)
+    store.capture('old',event_id=f.payload['event_id'],kind='RULES',provider='fixture',source_identity='gamma',
+        revision='old',payload={'event':event},evidence_class='SYNTHETIC')
+    observe_rule(store,guard,event,metadata,'new')
+    with pytest.raises(EvidenceError,match='RULE_RECEIPT_SUPERSEDED'):
+        guard.observe('late-old',f,raw_evidence_id='old')
+    assert store.latest(kind='RULE_STATE',event_id=f.payload['event_id'])['id']=='new'

@@ -537,7 +537,8 @@ class EventQueue:
         d = rules['body'].get('details', {})
         if (rules['kind'] != 'RULE_STATE' or rules['event_id'] != route.event_id
                 or d.get('fingerprint') != route.rule_fingerprint or d.get('quarantined') is not False
-                or not 0 <= now-rules['body']['recorded_at'] < self.policy.max_rule_age_seconds):
+                or not 0 <= now-rules['body']['recorded_at'] < self.policy.max_rule_age_seconds
+                or not 0 <= now-d.get('source_received_at',rules['body']['recorded_at']) < self.policy.max_rule_age_seconds):
             raise EvidenceError('CENSUS_CURRENT_STABLE_RULE_REQUIRED')
         if self.store.latest(kind='RULE_STATE', event_id=route.event_id)['id'] != rule_state_id:
             raise EvidenceError('CENSUS_RULE_SUPERSEDED')

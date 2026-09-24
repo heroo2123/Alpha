@@ -210,3 +210,26 @@ def test_runtime_reaches_common_account_using_explicit_synthetic_economic_fixtur
 @pytest.mark.parametrize('bad', [dict(maximum_events=0),dict(maximum_updates=65),dict(maximum_cancel_plans=9),dict(maximum_tick_seconds=61)])
 def test_runtime_policy_rejects_unbounded_or_disabled_limits(bad):
     with pytest.raises(EvidenceError,match='POLICY_BOUND'):runtime.RuntimePolicy('bad',**bad)
+
+
+def test_minimum_cancel_budget_does_not_starve_rule_quarantine_behind_healthy_or_busy_operator_channel(rig,monkeypatch):
+    from polymarket_scanner.v11.rules import RuleGuard
+    from test_weather_final_gpt6_exact_replays import _event
+    rt=assembled(rig,monkeypatch,census=False,policy=runtime.RuntimePolicy('one',maximum_cancel_plans=1))
+    event=rig['context'].event_id
+    original=rig['store'].capture('original-rule',event_id=event,kind='RULES',provider='fixture',source_identity=event,
+        revision='original',payload={'event':_event(station='KATL')},evidence_class='SYNTHETIC')
+    RuleGuard(rig['store']).observe('original-guard',rig['rule'],raw_evidence_id=original['id'])
+    raw=rig['store'].capture('quarantine-raw',event_id=event,kind='RULES',provider='fixture',source_identity=event,
+        revision='changed',payload={'event':{'id':event,'description':'Unsupported rule'}},evidence_class='SYNTHETIC')
+    guard=RuleGuard(rig['store']).invalidate('quarantine',event_id=event,raw_evidence_id=raw['id'],reason='UNSUPPORTED')
+    safety=SafetyReductions(rig['store'])
+    safety.apply('halt-one',scope='ACCOUNT',scope_id='account',action='CANCEL_AND_HALT',actor='fixture',reason='TEST')
+    one=rt.tick('one')['body']['details']
+    assert one['state']['operator_cursor']==rig['store'].get('halt-one')['seq']
+    assert one['state']['rule_cursor']<guard['seq']
+    safety.apply('halt-two',scope='ACCOUNT',scope_id='account',action='CANCEL_AND_HALT',actor='fixture',reason='TEST')
+    two=rt.tick('two')['body']['details']
+    assert two['state']['rule_cursor']==guard['seq']
+    assert len(two['cancellation_report_ids'])<=3  # one old + one health + one intake
+    assert not two['account_batch_ids']

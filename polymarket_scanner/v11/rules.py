@@ -10,7 +10,10 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from ..weather_only_contract_strict import compile_strict_temperature_event, strict_contract_identity
 from ..weather_only_rules import compile_temperature_rule_authority
-from .evidence import EvidenceError, EvidenceStore, canonical, digest, identity, sha
+from .evidence import EvidenceError, EvidenceStore, canonical, digest, finite, identity, sha
+
+
+GUARD_VERSION = 'alpha_v11_rule_guard_v1'
 
 
 @dataclass(frozen=True)
@@ -91,6 +94,30 @@ class RuleGuard:
     def __init__(self, store: EvidenceStore):
         self.store = store
 
+    def _receipt(self, raw, previous):
+        """Keep delayed catalog extraction behind any newer original receipt."""
+        body=raw['body'];payload=body['payload'];origin=raw
+        if body.get('evidence_class') not in {'PUBLIC_OBSERVED','SYNTHETIC'}:
+            raise EvidenceError('RULE_CAUSAL_RECEIPT_REQUIRED')
+        if 'discovery_page_id' in payload:
+            origin=self.store.get(payload['discovery_page_id']);ob=origin['body']
+            events=ob.get('payload',{}).get('response',{}).get('events')
+            index=payload.get('page_index')
+            if (origin['kind']!='RULES' or origin['event_id']!='v11-discovery-catalog'
+                    or payload.get('discovery_page_sha256')!=origin['sha256']
+                    or type(events) is not list or type(index) is not int or not 0 <= index < len(events)
+                    or events[index]!=payload.get('event') or origin['seq']>=raw['seq']
+                    or body['received_at']!=ob['received_at'] or body['evidence_class']!=ob['evidence_class']):
+                raise EvidenceError('RULE_DISCOVERY_PAGE_LINEAGE_REQUIRED')
+        if not body['received_at'] <= body['available_at'] <= self.store.clock():
+            raise EvidenceError('RULE_RAW_RECEIPT_NONCAUSAL')
+        last=previous['body']['details'] if previous else {}
+        last_seq=max(last.get('source_receipt_seq',0),last.get('rejected_source_receipt_seq',0))
+        last_time=max(last.get('source_received_at',0),last.get('rejected_source_received_at',0))
+        if origin['seq']<last_seq or body['received_at']<last_time:
+            raise EvidenceError('RULE_RECEIPT_SUPERSEDED')
+        return origin['seq']
+
     def observe(self, record_id: str, fingerprint: RuleFingerprint, *, raw_evidence_id: str) -> dict:
         payload = fingerprint.payload
         event_id = payload["event_id"]
@@ -102,19 +129,45 @@ class RuleGuard:
                 or fingerprint_event(supplied, station_timezone=payload["timezone"],
                                      metadata_fingerprint=payload["metadata_fingerprint"]) != fingerprint):
             raise EvidenceError("RULE_PREIMAGE_RAW_BINDING_INVALID")
-        past = history(self.store, "RULE_STATE", event_id)
-        last = past[-1]["body"]["details"] if past else {}
+        past = self.store.latest(kind='RULE_STATE', event_id=event_id)
+        last = past['body']['details'] if past else {}
+        receipt_seq=self._receipt(raw,past)
         changed = bool(last and fingerprint.sha256 != last["fingerprint"])
         quarantined = changed or last.get("quarantined", False)
         return self.store.audit(record_id, event_id=event_id, kind="RULE_STATE",
-                                details={"fingerprint": fingerprint.sha256, "preimage": payload,
+                                details={"version":GUARD_VERSION, "fingerprint": fingerprint.sha256, "preimage": payload,
                                          "source_event_sha256": fingerprint.source_event_sha256,
+                                         "source_received_at":raw['body']['received_at'],
+                                         "source_receipt_seq":receipt_seq,
                                          "changed": changed, "quarantined": quarantined,
                                          "state": "RULE_DRIFT" if quarantined else "SEMANTICS_OBSERVED",
                                          "cancel_managed_new_risk_requested": quarantined,
                                          "preserve_fills_and_reconciliation": True,
                                          "automatic_recertification": False}, evidence_ids=(raw_evidence_id,),
-                                expected_previous_seq=past[-1]["seq"] if past else 0)
+                                expected_previous_seq=past['seq'] if past else 0)
+
+    def invalidate(self, record_id: str, *, event_id: str, raw_evidence_id: str, reason: str) -> dict | None:
+        """Reject changed/unsupported data without inventing a new valid rule.
+
+        Keep the last valid preimage and account history. Only protected reviewed
+        recertification may remove the quarantine, even if later data reverts.
+        """
+        identity(reason)
+        raw = self.store.get(raw_evidence_id)
+        if raw['kind'] != 'RULES' or raw['event_id'] != event_id or not isinstance(raw['body']['payload'].get('event'), dict):
+            raise EvidenceError('RULE_RAW_EVIDENCE_MISMATCH')
+        previous = self.store.latest(kind='RULE_STATE', event_id=event_id)
+        if previous is None:
+            return None
+        receipt_seq=self._receipt(raw,previous)
+        d = previous['body']['details']
+        return self.store.audit(record_id, event_id=event_id, kind='RULE_STATE', details=dict(d,
+            version=GUARD_VERSION, state='RULE_INPUT_REJECTED', quarantined=True, changed=True,
+            rejection_reason=reason, rejected_source_event_sha256=digest(raw['body']['payload']['event']),
+            rejected_source_received_at=raw['body']['received_at'], cancel_managed_new_risk_requested=True,
+            rejected_source_receipt_seq=receipt_seq,
+            preserve_fills_and_reconciliation=True, automatic_recertification=False),
+            evidence_ids=(raw_evidence_id, previous['id']), expected_previous_seq=previous['seq'])
 
     def recertify(self, record_id: str, *, event_id: str, registry, scope, stage: str) -> dict:
         # The registry reads the fixed protected manifest itself; a caller's bool
@@ -148,15 +201,15 @@ class RuleGuard:
         age = finite(max_age_seconds)
         if age <= 0:
             raise EvidenceError("RULE_FRESHNESS_BOUND_INVALID")
-        records = history(self.store, "RULE_STATE", event_id)
+        last = self.store.latest(kind='RULE_STATE', event_id=event_id)
         reason = "RULE_EVIDENCE_MISSING"
-        if records:
-            last = records[-1]
+        if last:
             elapsed = finite(self.store.clock()) - last["body"]["recorded_at"]
             detail = last["body"]["details"]
+            received_age = finite(self.store.clock()) - detail.get('source_received_at', last['body']['recorded_at'])
             reason = ("RULE_DRIFT_QUARANTINED" if detail["quarantined"] else
                       "RULE_FINGERPRINT_CHANGED" if detail["fingerprint"] != expected else
-                      "RULE_CLOCK_INVALID" if elapsed < 0 else
-                      "RULE_EVIDENCE_STALE" if elapsed > age else "RULE_BINDING_MATCH")
+                      "RULE_CLOCK_INVALID" if elapsed < 0 or received_age < 0 else
+                      "RULE_EVIDENCE_STALE" if elapsed > age or received_age > age else "RULE_BINDING_MATCH")
         return {"passed": reason == "RULE_BINDING_MATCH", "reason": reason,
                 "financial_authority": False, "rule_fingerprint": expected}

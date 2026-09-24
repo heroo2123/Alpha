@@ -23,9 +23,9 @@ reach the common coordinator. Source/queue/health changes invalidate downstream
 admission. TemperatureEventAdapter uses the existing protected model and source
 admission pipeline; missing strategy dependencies gate that sleeve independently.
 
-Cancellation is serviced before evaluations. Existing pending plans get a bounded
+Cancellation and maker safety retirement are serviced before evaluations. Existing pending plans get a bounded
 round-robin service budget; separate bounded intake prevents ambiguous old cancels
-from starving fresh safety requests. At most twice maximum_cancel_plans adapters
+from starving fresh safety requests. At most twice maximum_cancel_plans plus one health adapter
 run per tick, each bounded to 16 local account requests. Cash remains reserved
 through ambiguity. Account faults, unhealthy clock/worker state and required-source
 loss feed the same cancellation records. A terminal proof is reconciled by the
@@ -67,3 +67,10 @@ calibration, independent guardian or financial acceptance is claimed. Remaining
 provider/request adapters and empirical acceptance stay open. Subsequent reporting
 and public-census integrations are recorded in V11_PERFORMANCE.md and
 V11_PUBLIC_BOOK_CENSUS.md; those component milestones do not grant acceptance.
+
+Public market discovery and semantic/rule cancellation are integrated through
+`discovery.py`; see V11_MARKET_DISCOVERY.md. Health has one dedicated bounded
+intake check, separate from rotating operator/EVENT/rule channels, so no-op health
+checks and busy operator streams do not starve rule quarantine at a budget of one.
+Maker retirement precedes queue claims and is retained when census work holds
+the queue lock. Dynamic route registration and independent guardian remain open.

@@ -10,6 +10,7 @@ from .event_risk import VERSION as EVENT_VERSION, EventContext
 from .evidence import EvidenceError, canonical, digest, finite, identity
 from .paper_coordinator import ACCOUNT_KEY, UNRESOLVED, TERMINAL, VERSION as ACCOUNT_VERSION, cancel_identity
 from .runtime_health import VERSION as HEALTH_VERSION, KEY as HEALTH_KEY, cancellation_required
+from .rules import GUARD_VERSION
 
 
 VERSION = 'alpha_v11_paper_cancellation_v1'
@@ -76,7 +77,10 @@ class PaperCancellation:
         if prior: return prior
         source = self.store.get(trigger_id); d = source['body'].get('details', {}); r = d.get('request', {})
         health_trigger = source['kind'] == 'RUNTIME_STATUS' and source['event_id'] == HEALTH_KEY and d.get('version') == HEALTH_VERSION
-        if not health_trigger and (d.get('version') != EVENT_VERSION or d.get('cancellation_status') != 'REQUESTED_NOT_CONFIRMED'):
+        rule_trigger = (source['kind'] == 'RULE_STATE' and d.get('version') in {None, GUARD_VERSION}
+                        and d.get('quarantined') is True and d.get('cancel_managed_new_risk_requested') is True
+                        and d.get('preimage', {}).get('event_id') == source['event_id'])
+        if not health_trigger and not rule_trigger and (d.get('version') != EVENT_VERSION or d.get('cancellation_status') != 'REQUESTED_NOT_CONFIRMED'):
             raise EvidenceError('RECORDED_CANCELLATION_TRIGGER_REQUIRED')
         trigger_head = self.store.latest(kind=source['kind'], event_id=source['event_id'])
         passive_or_new_risk_only = False; superseded_event = False
@@ -84,6 +88,9 @@ class PaperCancellation:
             if trigger_head['id'] != trigger_id or d.get('account_id') != self.coordinator.policy.account_id:
                 raise EvidenceError('CURRENT_RUNTIME_HEALTH_ACCOUNT_REQUIRED')
             scope, scope_id = 'ACCOUNT', self.coordinator.policy.account_id
+        elif rule_trigger:
+            scope, scope_id = 'EVENT', source['event_id']; passive_or_new_risk_only = True
+            superseded_event = trigger_head['id'] != trigger_id
         elif source['kind'] == 'OPERATOR_EVENT':
             scope, scope_id = r.get('scope'), r.get('scope_id')
             if (d.get('cancellation_request_id') != trigger_id or scope not in {'ACCOUNT', 'CITY', 'STATION', 'EVENT'}

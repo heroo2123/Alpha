@@ -21,6 +21,7 @@ from .evidence import EvidenceError, EvidenceStore, KINDS, canonical, finite, id
 
 ALLOWED_GET_ENDPOINTS = {
     ("gamma-api.polymarket.com", "/events"),
+    ("gamma-api.polymarket.com", "/events/keyset"),
     ("clob.polymarket.com", "/book"),
     ("aviationweather.gov", "/api/data/metar"),
     ("madis-data.ncep.noaa.gov", "/madisPublic1/cgi-bin/madisXmlPublicDir"),
@@ -54,6 +55,14 @@ class SourceRequest:
         if len(dict(self.params)) != len(self.params):
             raise EvidenceError("DUPLICATE_REQUEST_PARAMS")
         canonical(dict(self.params))
+        if url.hostname == 'gamma-api.polymarket.com' and url.path == '/events/keyset':
+            params = dict(self.params)
+            if (self.provider != 'GAMMA_DISCOVERY' or self.kind != 'RULES'
+                    or self.event_id != 'v11-discovery-catalog'
+                    or set(params)-{'closed','limit','after_cursor'}
+                    or params.get('closed') != 'false' or not re.fullmatch(r'[1-9][0-9]{0,2}', params.get('limit',''))
+                    or int(params['limit']) > 100 or 'after_cursor' in params and not params['after_cursor']):
+                raise EvidenceError('DISCOVERY_EXACT_PUBLIC_QUERY_REQUIRED')
         if reward_market:
             if (self.params or self.kind != "RULES" or self.provider != "GAMMA_REWARDS"
                     or self.source_identity != "reward-market:"+url.path.split('/')[-1]):
