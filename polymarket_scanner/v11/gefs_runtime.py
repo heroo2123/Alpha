@@ -4,7 +4,7 @@ Runs are explicitly pinned plans. Missing/malformed fields never shrink an
 ensemble or generate a partial model. No service or financial interface exists.
 """
 from copy import deepcopy
-from dataclasses import asdict
+from dataclasses import asdict, replace
 import fcntl
 import os
 import time
@@ -12,6 +12,7 @@ import time
 from .evidence import EvidenceError, digest, identity
 from .gefs_sources import (GEFSPlan, PROVIDER, FIELD_VERSION, field_request,
     normalize_field, assemble_path, current_path_heads)
+from .gefs_schedule import GEFSRunPolicy, requested_plan
 
 
 VERSION='alpha_v11_gefs_worker_v1'
@@ -19,13 +20,17 @@ KEY='v11-gefs-source-worker'
 
 
 class GEFSWorker:
-    def __init__(self,scheduled,health,plans):
+    def __init__(self,scheduled,health,plans,*,rollover=None):
         if (scheduled.store is not health.store or type(plans) is not tuple or not 1<=len(plans)<=16
                 or any(not isinstance(p,GEFSPlan) for p in plans) or len({p.event_id for p in plans})!=len(plans)):
             raise EvidenceError('GEFS_WORKER_SCOPE_BOUND')
+        if rollover is not None and not isinstance(rollover,GEFSRunPolicy):
+            raise EvidenceError('GEFS_RUN_SCHEDULE_TYPED_PLAN_REQUIRED')
         self.scheduled,self.health,self.store=scheduled,health,health.store
         self.plans={p.event_id:p for p in plans}
+        self.rollover=rollover
         self.config=digest(dict(plans=[asdict(p) for p in plans],health=health.config))
+        if rollover is not None:self.config=digest(dict(base=self.config,rollover=asdict(rollover)))
 
     def _get(self,key):
         try:return self.store.get(key)
@@ -63,9 +68,26 @@ class GEFSWorker:
             if active is None:
                 events=sorted(self.plans);event=next((e for e in events if e>state['last_event']),events[0]);state['last_event']=event
                 saved=state['events'].setdefault(event,dict(field_ids=[],completed_id=None))
+                if self.rollover is not None:
+                    previous=saved.get('initialized_at',self.plans[event].initialized_at)
+                    try:
+                        selected=requested_plan(self.plans[event],self.rollover,now=self.store.clock(),previous_initialization=previous)
+                    except EvidenceError as exc:
+                        return self._save(key,state,outcome='GEFS_SOURCE_GATED',event_id=event,reason=str(exc))
+                    saved['initialized_at']=previous
+                    if selected.initialized_at!=previous:
+                        # The previous state and every raw/normalized object stay
+                        # in the append-only archive. No current HTTP is cancelled.
+                        state['events'][event]=dict(field_ids=[],completed_id=None,initialized_at=selected.initialized_at)
+                        return self._save(key,state,outcome='GEFS_REQUESTED_RUN_ADVANCED',event_id=event,
+                            previous_state_id=head['id'] if head else None,previous_initialization=previous,
+                            requested_initialization=selected.initialized_at,previous_field_count=len(saved['field_ids']),
+                            previous_model_id=saved['completed_id'],provider_availability_verified=False)
                 active=dict(event_id=event,collection_id='gefs-get:'+digest([key,event,len(saved['field_ids'])]))
                 state['active']=active;self._save(key+':begin',state,outcome='GEFS_STEP_RESERVED',event_id=event)
             event=active['event_id'];plan=self.plans[event];saved=state['events'][event]
+            if self.rollover is not None:plan=replace(plan,initialized_at=saved['initialized_at'])
+            run_key=[self.config,event] if self.rollover is None else [self.config,event,plan.initialized_at]
             try:
                 if not 0<=self.store.clock()-plan.initialized_at<plan.maximum_run_age_seconds:
                     raise EvidenceError('GEFS_RUN_PLAN_STALE_OR_FUTURE')
@@ -76,13 +98,13 @@ class GEFSWorker:
                                       model_id=saved['completed_id'])
                 slots=[(m,h) for m in range(31) for h in plan.hours]
                 if len(saved['field_ids'])==len(slots):
-                    model=assemble_path(self.store,plan=plan,field_ids=tuple(saved['field_ids']),record_id='gefs-path:'+digest([self.config,event]),
+                    model=assemble_path(self.store,plan=plan,field_ids=tuple(saved['field_ids']),record_id='gefs-path:'+digest(run_key),
                                         deadline=time.monotonic()+2.)
                     saved['completed_id']=model['id'];state['active']=None
                     return self._save(key,state,outcome='RUN_BOUND_LINEAR_PATH_ARCHIVED_UNCALIBRATED',event_id=event,model_id=model['id'])
                 member,hour=slots[len(saved['field_ids'])];request=field_request(plan,member,hour)
                 source=self.store.latest_source(kind='MODEL',event_id=event,provider=PROVIDER,source_identity=request.source_identity)
-                normalized_id='gefs-field:'+digest([self.config,event,member,hour])
+                normalized_id='gefs-field:'+digest([*run_key,member,hour])
                 if source is None:
                     cid=active['collection_id']
                     # Reconcile an interrupted GET from its durable receipt. A

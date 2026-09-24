@@ -1,6 +1,6 @@
 # Alpha V11 work checkpoint
 
-Updated 2026-09-24, after forecast-vector learning capture integration. Resume here. **NOT_READY_TO_FUND**.
+Updated 2026-09-24, after bounded forecast-run rollover integration. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
 
 ## Current priority override — V11 runtime integration
@@ -23,7 +23,49 @@ runtime scheduling, causal source inputs, heartbeat/clock gates and cancellation
 integration subsequently advanced as recorded below. V10 health/resource findings remain
 open. No funding, deployment, financial activation or new host workload authorized.
 
-## Current continuation — forecast-vector learning capture
+## Current continuation — forecast-run rollover
+
+Published learning implementation **943d704dd269db274f37ca34075e2578ca829a49**,
+tree **4062b72a48e3d9538bde0ab8e088860abb6710e7**; GitHub/local equality and
+fetch/alignment passed (session 89243, exit 0), clean worktree. Continued from
+that state without replacing prior work or touching V10.
+
+Implemented `v11/gefs_schedule.py`, optional runtime rollover and its typed
+candidate policy. Request selection uses an explicit bounded lag, exact six-hour
+initializations and full local-day coverage; scheduled time is not publication
+proof. Partial fields and earlier models remain archived. New runs receive
+distinct input/path identities. Interrupted prior operations reconcile before
+advancement, and provider cooldowns remain shared. Ended days/stale plans gate.
+The unchanged fixed-run default remains available. The runtime policy cannot be
+changed silently on recovery. See `docs/V11_GEFS_SOURCE.md`.
+
+Initial focused run: **70 passed / 2 failed in 30.35 s**. One failure found that
+a newer run selection could hide an invalid recovered initialization; recovered
+state is now validated independently. The other was a fixture expecting a field
+fetch during a deliberate separate rollover step; the candidate collection test
+now starts with its current scheduled seed. Final source/schedule/candidate/clock
+integration: **112 passed in 38.26 s, exit 0** (session 49339), including **18 new
+cases**, now **1209** above baseline 2336. No open assertion failure remains.
+
+Estimate remains **79/200, approximately 40%**; formal **1/50 (2%)**. R09/R11
+already have source integration credits. This expands them without earning
+actual provider, empirical, independent or deployment acceptance.
+
+Next verification: a uniquely named locked full regression covering the new
+shared GEFS, candidate and learning changes. Do not edit tracked files during
+that run or claim the prior 3442-pass result covers the new implementation.
+Next code dependency: multi-step forecast census with fresh-response and
+loss-generation fences. Current census intentionally refuses required MODEL;
+do not clear it by substituting old raw data or extending an event work deadline.
+Then continue remaining exact-label/calibration/learning, provider, guardian and
+full-master acceptance work. No new owner command is needed for off-host work.
+
+V10 unchanged; stale cycles/memory pressure, alpha-dev resource/isolation and
+preservation/recovery gates remain open. Maintenance remains DEFERRED. Inventory
+is OWNER-REPORTED / INDEPENDENT VERIFICATION PENDING. No financial or deployment
+authority is granted by this checkpoint.
+
+## Previous continuation — forecast-vector learning capture
 
 Recovered saved implementation **6681d68b7d21357c83e702f048dadf71e77223aa**,
 tree **f3668f94a4b75d017078b9e8ea05e86611369e1a**, on the unchanged V11 branch.

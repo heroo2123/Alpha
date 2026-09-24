@@ -23,6 +23,7 @@ from polymarket_scanner.v11.weather_sources import madis_request
 from polymarket_scanner.v11.forecast_sources import ForecastPlan, PROVIDER as FORECAST_PROVIDER, OPEN_METEO_ENSEMBLE, request_parameters
 from polymarket_scanner.v11.strategy_admission import SourceLease
 from polymarket_scanner.v11.gefs_sources import GEFSPlan, FIELD_VERSION
+from polymarket_scanner.v11.gefs_schedule import GEFSRunPolicy, requested_plan
 from polymarket_scanner.v11.valuation import HOLD_RISKS, SALE_RISKS, SALE
 from test_v11_basket_coordinator import rig, reserve
 from test_v11_certification_rules import setup
@@ -63,14 +64,18 @@ def synthetic_clock(r,monkeypatch):
     monkeypatch.setattr(app,'RuntimeHealth',health)
 
 
-def test_candidate_schedules_one_run_bound_grib_file_with_shared_collector_and_safety(factory,setup,monkeypatch):
+@pytest.mark.parametrize('rolling',[False,True])
+def test_candidate_schedules_one_run_bound_grib_file_with_shared_collector_and_safety(factory,setup,monkeypatch,rolling):
     from test_v11_grib_fields import grib
     from datetime import datetime,timezone
     import math
     r=factory('FUTURE_FORECAST');lane=app.TemperatureLane('temperature',inputs(r),(target(r),),'fixture',r['request'].valuation_policy,10.)
     cfg=scoped_plan(r,lane);run=datetime.fromtimestamp(r['now'][0],timezone.utc).replace(hour=0,minute=0,second=0,microsecond=0).timestamp()
     p=GEFSPlan(ForecastPlan(r['rule'],setup[3],50.,3600.),run)
-    cfg=replace(cfg,gefs=(p,),candidate=replace(cfg.candidate,maximum_jobs=4,maximum_seconds=10.))
+    if rolling:
+        p=requested_plan(p,GEFSRunPolicy('fixture',21600.),now=r['now'][0]);run=p.initialized_at
+    cfg=replace(cfg,gefs=(p,),gefs_rollover=GEFSRunPolicy('fixture',21600.) if rolling else None,
+        candidate=replace(cfg.candidate,maximum_jobs=4,maximum_seconds=10.))
     synthetic_clock(r,monkeypatch);calls=[];base=transport(r,calls)
     async def handle(req):
         if req.url.host=='nomads.ncep.noaa.gov':
@@ -83,6 +88,7 @@ def test_candidate_schedules_one_run_bound_grib_file_with_shared_collector_and_s
         async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
             candidate=app.assemble_candidate(r['store'],client,cfg,generation='gefs-candidate')
             assert candidate.gefs.scheduled is candidate.census.scheduled and candidate.gefs.health is candidate.runtime.health
+            assert candidate.gefs.rollover==cfg.gefs_rollover
             ready(r,candidate.runtime.health)
             row=await candidate.run('gefs-run')
             return row

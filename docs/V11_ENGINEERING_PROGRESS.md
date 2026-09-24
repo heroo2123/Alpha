@@ -93,3 +93,8 @@ economics; global universe coverage and independent label truth remain unverifie
 Other learning targets, actual calibration, isolated training and learning
 acceptance remain open. Total **79/200**, approximately **40%** by the same
 whole-percentage rounding. Formal **1/50 (2%)** remains unchanged.
+
+Bounded GEFS rollover subsequently passed 112 related checks (18 new cases).
+R09/R11 already hold their source integration credits, so this expansion leaves
+**79/200, approximately 40%**, and formal **1/50 (2%)** unchanged. Actual source
+availability/packing, calibration, independent and deployment gates stay open.

@@ -41,9 +41,26 @@ time. Current constituent changes invalidate model health/admission. The origina
 guard, rather than silently truncating constituent evidence. Assembly has a
 two-second cooperative budget in the worker; this is not an isolated guardian.
 
-Plans currently pin a run explicitly. Automatic run selection/rollover and a
-bounded multi-step MODEL census protocol remain unfinished. A stale run plan
-gates further collection. A complete model does not clear an unrelated stream
+Plans retain an explicit initial run. Optional `GEFSRunPolicy` now advances the
+requested run on the six-hour grid after a configured 1–6 hour request lag,
+capped at the last run that can cover the entire local day. This lag is a request
+schedule, not proof of provider publication. Matching bytes still prove identity;
+missing files retain the ordinary shared cooldown and source gate. The policy is
+bound into candidate/worker recovery identity and cannot silently replace it.
+No policy means the original fixed-run behavior and worker identity remain.
+
+Rollover archives a separate transition and retains the previous state and all
+partial fields. Run-specific identities prevent cross-run mixing. An interrupted
+old-run operation is reconciled before selecting another run. The existing
+completed model is not overwritten by a request or a missing response; its own
+freshness/admission checks still apply. Ended target days and stale plans gate.
+Eighteen new schedule/candidate cases join the related suite: **112 passed in
+38.26 s**. An initial run found one recovered-timestamp validation defect and one
+fixture incorrectly expecting collection during the separate rollover step;
+both were corrected. These checks are synthetic, not actual source acceptance.
+
+A bounded multi-step MODEL census protocol remains unfinished. A complete model
+does not clear an unrelated stream
 gap or approve any strategy. The existing census still refuses a required MODEL
 adapter until its complete fresh-input protocol is implemented.
 
