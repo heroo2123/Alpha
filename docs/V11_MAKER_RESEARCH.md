@@ -1,0 +1,77 @@
+# V11 maker research quote lifecycle
+
+Implemented off-host in v11/maker_research.py. R34 and R35 remain PARTIAL.
+This records non-executing proposed quotes and observations, not managed exchange
+orders, hypothetical fills or an approved first-canary policy.
+
+## Admission and shared risk
+
+A proposal binds exact contract/token/side, rule, code/config/model bundle,
+protected MAKER_RESEARCH capability/model/source admission, current event/operator
+state, current reproduced book features, price, size, declared cost reserve and
+expiry. Crossing the current opposing best quote fails the post-only boundary.
+Unknown models/permissions cannot be supplied as caller probabilities or local
+claims. Tests supply explicitly synthetic protected-review/model fixtures;
+production authority has not been provisioned or accepted.
+
+The module reads the existing common paper account and projects adverse optional
+fills of all observing research quotes alongside actual paper inventory and all
+unresolved paper intents. It reuses the coordinator's cash, inventory, scenario,
+correlation, daily-loss, capital and intent limits. Uncertain orders retain risk;
+sales cannot exceed held inventory; a hypothetical payout is not spendable cash.
+The projection makes no account-ledger write or real cash/inventory reservation.
+It is identified as a hypothetical overlay with declared research cost assumptions,
+not verified venue fees or executable maker EV. It cannot be submitted as an
+economically admitted coordinator proposal.
+
+Separate bounded research state enforces unique quote/thesis/token exposure,
+policy identity and retention. Default values are caller-supplied reviewed research
+policy, not coefficients taken from the reference paper. Absolute implementation
+ceilings: 120-second quote lifetime, 30-second feature age, 16 simultaneously
+observing quotes, 128 retained quotes and the existing account/position ceilings.
+The earliest source/event/admission/quote expiry controls eligibility. Account,
+source, event, operator and research-head CAS preserve concurrent updates.
+
+## Sampling, withdrawal and markout
+
+Only distinct linked book updates advance a sampled eligibility span. Missing
+sequence links, reconnects and polling gaps reset the span. Repeated observations
+of the same book do not become longer proven survival. These are sampled research
+points; a hypothetical quote never has independently observed exchange survival,
+queue priority or a confirmed fill.
+
+Expiry, operator/event restrictions, source revisions, stale/invalid features,
+crossing prices and failed common-account risk checks retire the research quote.
+Failed risk checks do not advance the eligible span. Retirement makes no claim
+that an order was canceled, that inventory was sold or that cash was released.
+Retired quotes cannot silently resume. Replay preserves the original record and
+clock; a changed request needs a new ID. Public trade-through remains public data.
+
+Markouts at 1, 5, 30, 120 and 600 seconds take the first received exact-channel book
+inside the declared horizon/tolerance. No favorable later replacement is selected
+when that first book is stale, unhealthy, mismatched, historical-availability
+unknown or insufficient. Both book receipt and observation must be causal.
+At most 2,000 archived books are scanned; incomplete bounded scans remain unknown.
+Missing fees remain unknown. BUY marks use visible exit bids; SELL marks use
+visible replacement asks. Entry prices/cost reserves are explicit hypothetical
+assumptions. All resulting marks remain counterfactual, with actual trading P&L
+unset. Lifecycle expiry does not prevent later historical markout measurement.
+
+## Verification and remaining acceptance
+
+32 new synthetic tests and 151 related maker/microstructure/account/admission/
+event/evidence tests passed in 8.29 seconds. The initial 28-test run passed;
+additional common-account cases passed in a 150-test related run. Review then
+found that failed risk revalidation could advance sampled eligibility before
+withdrawal; the correction and new negative case passed the final related run.
+No failed test remains open. Exact final run duration is also in the checkpoint.
+
+Remaining: proposed-quote context enrichment (protected fair value/release timing),
+provider/runtime scheduling, prospective observation completeness, the separately
+reviewed first-canary execution baseline, actual cancellation/telemetry/guardian
+acceptance and genuine canary data. Fill/intensity/adverse-selection models stay
+unknown until supported. Prior real fills are not a prerequisite for the first
+separately approved bounded canary. Broader learned authority/scaling still needs
+prospective support, genuine canary evidence and out-of-sample validation.
+Rewards/rebates are separate from trading alpha; no funding or deployment is
+authorized. V10 remains untouched and its resource/health finding stays open.

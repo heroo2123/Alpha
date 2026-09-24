@@ -2,9 +2,13 @@
 
 Current decision: owner approved preservation preparation ONLY. V10 remains
 unchanged. The final preparation checklist in V11_CONTROL_SUSPENSION_PLAN.md is
-SUSPENSION_NOT_READY: fresh protected preservation is pending and the requested
-unconditional no-automatic-action guarantee cannot be certified under unchanged
-Restart=on-failure / SendSIGKILL=yes / OOMPolicy=stop behavior. No signal is armed.
+SUSPENSION_NOT_READY: fresh protected preservation is pending. Read-only inspection
+at 11:42 identified a reversible same-boot runtime drop-in/marker mechanism for
+systemd restart, activation and final-kill behavior. It is documented and not
+installed; configuration changes and SIGTERM remain unapproved. Kernel OOM is not
+prevented and memory/OOM safeguards are not relaxed. The unconditional guarantee
+remains unavailable. No signal is armed. The next owner-only action is the
+prepared protected metadata inventory; exact command/hash are in that plan.
 The earlier conditional suspension recommendation is not execution approval.
 Continue independent off-host V11 implementation.
 

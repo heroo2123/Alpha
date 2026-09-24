@@ -1,17 +1,155 @@
 # V10 preservation preparation and suspension readiness
 
-Updated September 24 after explicit approval for PREPARATION ONLY.
+Updated September 24 after the 11:42 UTC read-only maintenance assessment.
 **SUSPENSION_NOT_READY. No SIGTERM, stop, restart, restore, executor change or V11
 service deployment is approved or performed.** This supersedes the previous
 conditional suspension recommendation. Do not use that older plan as permission.
 
-## Actual supervision check (11:06 UTC)
+## Reversible systemd maintenance mechanism
+
+A temporary, uniquely named runtime drop-in can suppress this unit's automatic
+restart and final-kill escalation without editing its permanent unit or resource
+drop-ins. A runtime marker adds a failed start condition, and manual starts are
+also refused. This is a PREPARED mechanism, not a loaded or accepted guard.
+The owner explicitly prohibits installing it until separately approved.
+
+Exact proposed drop-in path:
+/run/systemd/system/alpha-paper-demo.service.d/zz-alpha-v11-maintenance-20260924.conf
+
+Exact UTF-8 bytes, with LF line endings and a final LF:
+
+```ini
+[Unit]
+RefuseManualStart=yes
+ConditionPathExists=!/run/alpha-v11-maintenance-20260924/hold
+
+[Service]
+Restart=no
+RestartForceExitStatus=
+SendSIGKILL=no
+```
+
+SHA-256: 1f99c3a8e2668c51d6316b08256135ea1bd24b6e5679b285ba836c8e181792c1.
+
+No MemoryHigh, MemoryMax, MemorySwapMax, OOMPolicy, KillMode, watchdog or executor
+setting is relaxed. Clearing RestartForceExitStatus prevents that setting from
+overriding Restart=no. SendSIGKILL=no disables the unit manager's final signal;
+the unchanged FinalKillSignal=9 is therefore not used by that normal escalation
+path. The existing stop timeout need not be lengthened or disabled. We still do
+not propose an ordinary stop job or any repeated/escalating signal loop.
+
+The guard has a precise scope: this unit's systemd restart, start-condition and
+normal final-kill paths in the SAME BOOT. Kernel/parent-cgroup OOM and independent
+administrative actions are not prevented. Reboot removes /run state; original
+enablement can then start V10. A reboot/boot-ID change ends the guarded maintenance
+claim and requires fresh assessment. Do not reboot as a rollback or recovery step.
+An unconditional promise that no actor can ever issue SIGKILL is still unavailable.
+
+Basis: the installed systemd 255 manuals were read directly, including runtime
+drop-in ordering, negated ConditionPathExists, RefuseManualStart, RestartForceExitStatus,
+SendSIGKILL, daemon-reload and kill. The online manual endpoint returned HTTP 403;
+no online retrieval is claimed. Installed compressed-manual hashes:
+
+| File | SHA-256 |
+|---|---|
+| systemd.kill.5.gz | 562c8f01d74061f9b31d5447c6434a031a482e413be319c518e5c497f8f6d43e |
+| systemd.service.5.gz | e1474882c411afe27115522a72c45bffd9432905b2017cfbcc50086edbf21223 |
+| systemd.unit.5.gz | 3e90b2126d4e03a69cb881e22812eff08e0d436977c26743b5d095296eb4b1a8 |
+| systemctl.1.gz | a25b32a428b63ed72482fac06ae1e9169e05014e66748d881b917adf5a61f0a2 |
+
+## Exact next owner-only action: protected inventory, no service mutation
+
+Prepared and staged outside V10:
+/home/alphaadmin/alpha-v11-preservation-prep-20260924/control_maintenance.py
+
+SHA-256: 50a5067f9d58405ae62c9ef84ecfdefd69fb3cfbf77f8b1008a12aa9e34cd6b9.
+The file is mode 0400 in the existing private preparation directory. It has NOT
+been executed on alpha-dev. Reverify this reviewed hash at the point of use; it
+is an owner-review artifact, not an installed protected-authority component.
+
+After verifying that exact helper hash, the owner-only command is:
+
+```sh
+sudo /usr/bin/nice -n 19 /usr/bin/python3 -I -B /home/alphaadmin/alpha-v11-preservation-prep-20260924/control_maintenance.py --owner-inventory-only
+```
+
+This inventories the six fixed source roots below into the exclusively created,
+root-owned 0700 directory
+/var/tmp/alpha-v10-presuspension-inventory-20260924-01.
+Output files are 0600. Existing output is never overwritten. It bounds entries
+at 30,000, compact metadata at 8 MiB, final manifest at 32 MiB and elapsed work at
+15 seconds cooperatively. A blocked kernel read can exceed that cooperative limit;
+there is no kill/escalation wrapper. Only six named small configuration/launcher
+files are read for hashing. DB/WAL/SHM are stat'ed, never opened. Credentials and
+raw metadata stay private; stdout contains counts, size and the inventory hash.
+The script contains no subprocess, service, signal, permission-change or restore
+API. Tests: eight new / 24 preparation-preservation checks pass off-host.
+
+This action is needed because the connected development identity cannot read the
+protected current state/configuration and its privileged route was previously
+denied. It does not repeat the completed owner health probe. Its result is an
+inventory, NOT a fresh backup or recovery pass. It exposes size/special-file/link
+and access findings for the bounded preservation step; journal/enablement,
+external Git/interpreter dependencies and additional configuration references
+still need explicit coverage. No secrets should be pasted into chat.
+
+## Subsequent owner actions, PREPARED ONLY and NOT approved
+
+1. Complete the bounded consistent/physical preservation procedure below, with
+   a fresh private configuration manifest and independently retained hashes.
+   Record boot ID, PID/start ticks, unit/drop-in identities, source HEAD/tree,
+   dirty/untracked history, journal coverage, permissions and executor containment.
+   Abort visibly on access, resource, dependency, write-activity or identity gaps.
+2. Obtain explicit approval for the runtime guard installation. Check no pending
+   service job, unchanged boot/PID and no conflicting override. Exclusively create
+   /run/alpha-v11-maintenance-20260924 (root:root 0700) and its hold marker (0600),
+   and the exact drop-in above (root:root 0644) under a root-owned 0755 drop-in
+   directory. Do not overwrite existing paths. No original unit file is edited.
+3. The only proposed manager operation at this stage is `/usr/bin/systemctl
+   daemon-reload`. This reloads unit definitions/dependencies and reruns generators;
+   it is not an application reload, stop or restart. No such command ran here.
+   Recheck the effective properties rather than trusting on-disk text alone:
+   Restart=no; RestartForceExitStatus empty; SendSIGKILL=no; RefuseManualStart=yes;
+   exact negated marker condition loaded and marker present. Confirm original
+   memory/OOM policies, executor mask and V10 PID/start identity are unchanged,
+   no new job/restart/hook appeared, and persistent file hashes still match.
+   A conflicting effective property, boot/PID change or unknown state blocks
+   all signals. Do not test the guard by attempting a V10 start/stop/restart.
+4. Return the fresh backup identities and loaded-guard evidence in the final
+   checklist. Obtain a SEPARATE explicit approval for one SIGTERM. Guard approval
+   alone is not signal approval. Only after both technical and owner gates pass
+   may the review-only signal operation below be considered.
+5. Observe a bounded interval without another signal or force kill. If the D-state
+   process remains, report SUSPENSION_INCOMPLETE, retain guards and all evidence,
+   and wait for a new decision. Do not restore escalation/restart policies while
+   a signal/stop is pending or remaining processes could trigger automatic action.
+6. After any approved actual exit, preserve a new stable post-exit physical set
+   before recovery. Record the forward-evidence interruption. No V11 deployment
+   follows automatically from memory becoming available.
+
+Runtime guard rollback is scoped to OUR additions only. Preserve their bytes and
+hashes in the private maintenance record. With explicit recovery/abort approval
+and no pending signal/job, rename only the hash-matching new .conf file to an
+unused .conf.disabled name (no overwrite), reload definitions and verify original
+properties/hashes. Keep the marker as evidence until its separately approved
+cleanup; no original data or configuration is deleted. A marker alone has no
+effect after its referencing drop-in is unloaded. NEVER use systemctl revert:
+it can remove unrelated overrides or unmask a unit. Do not roll back through
+reboot, reset-failed, daemon-reexec, a restart or a historical database overwrite.
+
+## Actual supervision check (11:42 UTC; prior process details at 11:06)
 
 The unit remains active/running with the same main process, six threads, a single
 cgroup PID, D state and 454,397,952 bytes charged. Source HEAD is still
 5bbac24759349714d4521faf9e087a14c5c0ae05, tree
 d5d2b806e273f11e2f832940f483a5f656462584; source status is clean.
 Financial executor remains MASKED/INACTIVE; controller INACTIVE.
+Those executor identities were last independently checked in the earlier read;
+this continuation changed no executor state. At 11:42, V10's same main PID,
+active/running state, zero restarts, memory charge and all listed policies were
+read again specifically to assess the new runtime mechanism. NeedDaemonReload=no;
+the proposed runtime drop-in directory/file are absent. This closes that new
+mechanism inspection; unchanged checks need not be repeatedly rerun.
 
 Observed: Type=simple, Restart=on-failure, RestartUSec=15s,
 RestartForceExitStatus empty, KillMode=control-group, KillSignal=15,
@@ -30,11 +168,11 @@ SIGTERM does not promise application cleanup, a completed cycle or flushed
 uncommitted buffers. No application SIGTERM drain handler was found.
 
 **The requested unconditional guarantee that no automatic restart, escalation or
-SIGKILL can occur is NOT SATISFIED.** The preparation code cannot issue a signal or
-service command, but cannot disable systemd or kernel behavior. No unit mutation,
-resource-policy weakening, mask change or privilege workaround is proposed as an
-implicit fix. Ordinary systemctl stop remains prohibited. The earlier proposed
-single SIGTERM command is withdrawn from execution readiness pending review.
+SIGKILL can occur is NOT SATISFIED.** The scoped reversible mechanism above can
+address systemd's controllable paths after approval, installation and verification.
+It does not disable kernel resource safeguards. No unit mutation, resource-policy
+weakening, mask change or privilege workaround has occurred. Ordinary systemctl
+stop remains prohibited. The proposed single SIGTERM is not execution-ready.
 No approved signal executable is staged, scheduled or armed.
 
 Exact operation previously proposed, for REVIEW ONLY and not execution:
@@ -184,10 +322,13 @@ gap and intentional suspension from uninterrupted V10/V11 comparisons.
 | Current source/unit identity and executor containment | PASS at recorded reads |
 | Existing snapshot recovery/hash check | PASS off-host; historical snapshot only |
 | Preservation-only code/hash and synthetic WAL recovery | PASS; 16 new / 41 related tests |
+| Reversible same-boot systemd maintenance mechanism | DOCUMENTED from installed manuals; NOT installed or runtime-tested |
+| Protected metadata inventory helper | Prepared/staged; eight new / 24 related tests; owner execution pending |
 | Exact new destination selected and nonexistence checked | PASS at recorded read; creation pending |
 | Fresh private config/history inventory and preservation set | PENDING owner access; no new capture/hash |
 | Complete current backup and full-runtime recovery verification | NOT PASSED |
-| Unconditional no automatic escalation/SIGKILL/restart guarantee | NOT SATISFIED under unchanged unit/kernel policies |
+| Effective runtime restart/escalation/start guard | NOT INSTALLED; configuration-change approval absent |
+| Unconditional no automatic escalation/SIGKILL/restart guarantee | Unavailable for kernel/external actions; scoped systemd guard remains pending |
 | Explicit approval to send SIGTERM | ABSENT; wait for a new owner decision |
 | V11 resource/isolation and deployment acceptance | NOT PASSED |
 

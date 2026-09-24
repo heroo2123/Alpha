@@ -62,9 +62,10 @@ still need common-account/risk/source integration. No unobserved cancellation or
 addition rates are fabricated. Provider adapters must preserve exact identity,
 causal receipt/sequence semantics and completeness limitations.
 
-Next implement maker research proposals and quote-survival/markout observations
-through the existing evidence and common account/risk interfaces, then the
-reviewed bounded baseline policy. Cancellation and telemetry acceptance remain
+Maker research proposals, sampled eligibility and horizon markout observations
+are now implemented through the evidence and common account/risk interfaces;
+see V11_MAKER_RESEARCH.md. Next complete the reviewed bounded baseline policy.
+Cancellation and telemetry acceptance remain
 required. A first separately approved tiny canary need not already have real
 maker fills; unlearned metrics stay unknown. Broader learned authority or scaling
 still requires prospective/shadow support, genuine tiny-canary evidence and

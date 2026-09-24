@@ -1,6 +1,6 @@
 # Alpha V11 work checkpoint
 
-Updated 2026-09-24, after preservation preparation and off-host maker features. Resume here. **NOT_READY_TO_FUND**.
+Updated 2026-09-24, after reversible maintenance preparation and maker quote research. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
 
 ## Exact identities and scope
@@ -779,6 +779,53 @@ service action, new backup, real order or financial activation occurred.
 
 ## Models, authority and exact continuation
 
+### Latest continuation: reversible maintenance and maker research
+
+Recovered 53cae2da33e97c993c76ab976d2f079a97bf6ae1, tree
+cbb409b292f9d63f417ae8e7b0f6d3c7744f4980, on the same development branch with a
+clean worktree and no active project operation. No reset, clean or repeated
+snapshot/forensic analysis occurred. The owner again withheld suspension, service
+configuration changes, restart/kill/executor operations, funding and deployment.
+
+11:42 UTC read-only inspection confirmed V10 PID 233096, zero restarts,
+454,397,952 bytes charged, original unit/drop-in hashes and unchanged policies.
+Installed systemd 255 manuals establish a reversible /run drop-in plus marker
+mechanism: Restart=no, clear RestartForceExitStatus, SendSIGKILL=no, refused manual
+starts and a failed marker condition. Memory/OOM protections stay unchanged.
+This is a same-boot scoped systemd mechanism, not a kernel-OOM/global guarantee.
+No runtime file, manager reload or signal was applied. All remote probes finished.
+
+v11/control_maintenance.py prepares the exact proposal and a bounded metadata-only
+owner inventory. Eight new / 24 related tests passed in 0.59 s. An initial test
+expected a size-change error but its replacement string had the same size; the
+source-metadata change was correctly rejected, and the assertion was corrected.
+The helper was staged mode 0400 outside V10 and hash checked, not executed:
+/home/alphaadmin/alpha-v11-preservation-prep-20260924/control_maintenance.py,
+SHA-256 50a5067f9d58405ae62c9ef84ecfdefd69fb3cfbf77f8b1008a12aa9e34cd6b9.
+The exact owner inventory command, private destination, runtime guard bytes/hash,
+limited guarantee, recovery steps and final pending checklist are in
+V11_CONTROL_SUSPENSION_PLAN.md. Current backup and full recovery acceptance remain
+pending protected access. No repeated privileged-access workaround was attempted.
+
+v11/maker_research.py implements non-executing quote proposals through protected
+maker/source/event admission and common paper-account hypothetical risk. Existing
+inventory and ambiguous intents retain their risk; proposed research quotes do
+not reserve cash, submit orders or create fills. Linked sampled eligibility,
+gap/reconnect resets, irreversible research retirement and first-received horizon
+markouts are durable and replayable. Public prints cannot become our fills.
+
+32 new / 151 related tests passed in 8.29 s. Initial 28-test and later 150-related
+runs passed. Review then found that failed risk revalidation could advance the
+sampled eligibility span; moving that risk check before advancement and adding a
+negative regression case produced the final 151-pass result. Source/account CAS,
+existing inventory, uncertain-order reservations, protected admission changes,
+causal marks and no ledger mutations are covered. All evidence is synthetic
+off-host testing, not independent review or empirical/live acceptance.
+
+R34/R35 remain PARTIAL. Latest full regression is still 2,894 pass at f69e318;
+unchanged components were not subjected to another full run. Cumulative distinct
+new tests across recorded runs: 641. Fixed completed packages: 1/50 = 2%.
+
 - No V11 live/paper/control/challenger ledger is shared or migrated.
 - Causal dataset, immutable bundle and bounded learner infrastructure implemented; only synthetic test challengers, no actual V10 fit, accepted champion or model promotion.
 - Public CWOP access/coverage verified; no actual PWS lead, executable-exit or maker-fill validation.
@@ -786,10 +833,10 @@ service action, new backup, real order or financial activation occurred.
 - No executor mask change or real-money activation. No arbitrary paper waiting
   period is imposed; mandatory technical/evidence gates remain.
 
-Next concrete engineering action: integrate maker research proposals and quote
-survival/markout observations with the existing evidence and common account/risk
-interfaces, then the reviewed bounded first-canary baseline. Reuse the tested
-microstructure/measurement modules; do not fabricate fills. Continue rewards,
+Next concrete engineering action: complete the bounded maker baseline's protected
+fair-value/release context, cancellation/telemetry and runtime interfaces. Research
+proposals, sampled eligibility and markout/common-risk integration are now locally
+verified; do not restart those modules or fabricate fills. Continue rewards,
 guardian/clock/operator integration and ALL remaining matrix/master requirements.
 
 Do not restart completed strategy/basket/exits/forensic work. Protected scoped
@@ -816,8 +863,10 @@ Current continuation boundary: health freshness FAIL, financial executor
 MASKED/INACTIVE, no suspension/restart/deployment/financial action authorized or
 performed. Explicit owner approval is required only for the prepared V10
 suspension/recovery decisions; independent off-host maker work is authorized.
-Latest full suite: 2,894 pass; subsequent preservation suite: 41 pass; subsequent
-microstructure/evidence/valuation/queue suite: 113 pass. No local test or publication
+Latest full suite: 2,894 pass; subsequent preparation/preservation suite: 24 pass;
+latest maker/microstructure/account/admission/event/evidence suite: 151 pass.
+Earlier preservation 41 and microstructure/evidence/valuation/queue 113 passed.
+No local test or publication
 operation is intentionally left running. The checkpoint/matrix retain the full
-specification. Fixed completion remains 1/50 = 2%; R32 and R35 are PARTIAL.
+specification. Fixed completion remains 1/50 = 2%; R32, R34 and R35 are PARTIAL.
 No independent reviewer or empirical strategy-eligibility pass is claimed.
