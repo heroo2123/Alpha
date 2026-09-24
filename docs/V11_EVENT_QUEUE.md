@@ -44,7 +44,23 @@ crash recovery, late outputs, incomplete resync and concurrent commits. The join
 test evaluates a real synthetic forecast through the protected-reader fixtures;
 uncalibrated economics reject it and no fill is created.
 
+Paper admission now checks queue state before account reservation and again
+before the paper submission-state transition. Once a queue exists, the exact
+valuation needs a current completed event evaluation. Pending work, a stream gap,
+expired completion or changed raw source suppresses new admission. Completion
+expiry bounds the intent lifetime. Queue state and source heads join the account
+transaction's atomic guards, including an absent queue head so one appearing
+mid-transaction cannot be ignored. Cancellation requests and reconciliation
+remain possible; a suppressed submission does not release its reservation.
+
+Nine additional boundary tests cover reservation/submission races, unnotified
+source changes, valuation binding, expiry and reserved-cash preservation. They
+reuse explicit downstream economics/admission fixtures; they do not show that
+the current uncalibrated strategy qualifies an entry. An offline evaluator with
+no queue is still subject to its other data gates, never financially commissioned
+by the absence of queue state.
+
 Websocket protocol decoding, automatic periodic-census scheduling, protected
-route reconfiguration, runtime supervision and propagation of queue faults into
-the final coordinator/guardian still require integration. No service or workload
-was added to alpha-dev. This module does not close the V10 resource/health gate.
+route reconfiguration, runtime supervision and live guardian propagation still
+require integration. No service or workload was added to alpha-dev. This module
+does not close the V10 resource/health gate.

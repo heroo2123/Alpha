@@ -19,6 +19,7 @@ from .scenario_risk import (Attribution, Position, PendingOrder, CorrelationMap,
                             event_scenarios, portfolio_risk, number, _attribution, precise)
 from .valuation import VERSION as EV_VERSION, contract_target
 from .strategy_admission import StrategyAdmission
+from .event_queue import admission_heads as event_queue_admission
 
 
 VERSION = 'alpha_v11_paper_coordinator_v1'
@@ -199,6 +200,8 @@ class PaperCoordinator:
         # Read reduction heads BEFORE validation; a racing new reduction then
         # invalidates either the state pin or the final transaction's head guards.
         heads = SafetyReductions(self.store).atomic_heads(proposal.context)
+        queue = event_queue_admission(self.store, event_id=proposal.context.event_id, valuation_id=proposal.valuation_id)
+        heads += tuple(tuple(h) for h in queue['heads'])
         event = EventRiskEngine(self.store).revalidate(proposal.event_state_id)
         event_row = self.store.get(proposal.event_state_id)
         heads += (('COORDINATOR_EVENT', event_row['event_id'], event_row['seq']),)
@@ -248,6 +251,8 @@ class PaperCoordinator:
                      event['guard']['lifetime_multiplier'], event['valid_until'], bound_at,
                      book['body']['observed_at']+book_age, book['body']['received_at']+book_age)
         expiry = min(expiry, *(a['valid_until'] for a in admissions))
+        if queue['valid_until'] is not None:
+            expiry = min(expiry, queue['valid_until'])
         if not value['as_of'] <= now < expiry:
             raise EvidenceError('PROPOSAL_EVIDENCE_OR_SIGNAL_EXPIRED')
         if any(c['valid_until'] is not None and now > c['valid_until'] for c in cost_rows['components']):
@@ -271,6 +276,7 @@ class PaperCoordinator:
                          attribution=[asdict(a) for a in proposal.attribution], expires_at=expiry,
                          valuation_id=proposal.valuation_id, event_state_id=proposal.event_state_id,
                          admission_ids=list(proposal.admission_ids), binding=value['binding'],
+                         event_queue_completion_id=queue['completion_id'],
                          rule_fingerprint=proposal.rule.sha256, conservative_ev_total=str(number(ev)*quantity),
                          capital_at_risk=str(capital), status='RESERVED', cancel_requested=False, financial_authority=False)
         return candidate, heads
@@ -376,6 +382,10 @@ class PaperCoordinator:
         if status == 'SUBMITTING':
             context = EventContext(**state['contexts'][intent['event_id']])
             heads = SafetyReductions(self.store).atomic_heads(context)
+            queue = event_queue_admission(self.store, event_id=intent['event_id'], valuation_id=intent['valuation_id'])
+            heads += tuple(tuple(h) for h in queue['heads'])
+            if queue['completion_id'] != intent.get('event_queue_completion_id'):
+                raise EvidenceError('EVENT_QUEUE_EVALUATION_CHANGED_RECOMPUTE')
             event = EventRiskEngine(self.store).revalidate(intent['event_state_id'])
             event_row = self.store.get(intent['event_state_id'])
             heads += (('COORDINATOR_EVENT', event_row['event_id'], event_row['seq']),)

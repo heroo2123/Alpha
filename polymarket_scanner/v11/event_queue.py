@@ -113,8 +113,10 @@ class EventQueue:
             value = row['body']['details']
             if value.get('version') != VERSION or value.get('config_sha256') != self.config:
                 raise EvidenceError('TRIGGER_CONFIGURATION_CHANGED_REQUIRES_RECONCILIATION')
-            return row, deepcopy(value['state'])
-        return None, dict(pending={}, active=None, channels={}, needs_census={}, metrics={
+            state=deepcopy(value['state'])
+            state.setdefault('evaluations', {})  # Older local queues must reevaluate, never inherit eligibility.
+            return row, state
+        return None, dict(pending={}, active=None, channels={}, needs_census={}, evaluations={}, metrics={
             'received':0, 'unmapped':0, 'duplicate':0, 'out_of_order':0, 'coalesced':0,
             'expired':0, 'overflow':0, 'failed':0, 'completed':0, 'abandoned':0})
 
@@ -381,10 +383,16 @@ class EventQueue:
                     break
         if reason:
             state['metrics']['failed'] += 1
+            state['evaluations'].pop(active['event_id'], None)
             if reason != 'NEW_SOURCE_UPDATE_REQUIRES_REEVALUATION':
                 state['needs_census'][active['event_id']] = reason
         else:
             state['metrics']['completed'] += 1
+            bounds=[active['deadline'], *(s['valid_until'] for s in active['sources'])]
+            if active['coverage_valid_until'] is not None:
+                bounds.append(active['coverage_valid_until'])
+            state['evaluations'][active['event_id']]=dict(completion_id=record_id, result_ids=list(result_ids),
+                         source_heads=active['source_heads'], valid_until=min(bounds), completed_at=now)
         state['active'] = None
         return self._commit(record_id, request, row, state, dict(outcome='STALE_RESEARCH_RESULT' if reason else 'RESEARCH_EVALUATED',
                     reason=reason, evaluation_seconds=now-active['claimed_at'], submission_ready_latency=None,
@@ -497,3 +505,44 @@ class EventQueue:
         return self.store.audit(record_id, event_id=KEY, kind='RUNTIME_STATUS', details=details,
                     evidence_ids=book_ids+source_ids+(rule_state_id,), expected_previous_seq=row['seq'],
                     expected_heads=tuple(heads))
+
+
+def admission_heads(store: EvidenceStore, *, event_id: str, valuation_id: str) -> dict:
+    """Data gate for paper reservation and its submission-state transition.
+
+    Offline tests/periodic evaluators may have no queue installed. Absence is
+    itself guarded atomically, so a queue appearing with faults during admission
+    cannot be ignored. Once present, its current event evaluation is mandatory.
+    This does not commission any financially active runtime.
+    """
+    row=store.latest(kind='RUNTIME_STATUS',event_id=KEY)
+    heads=[('RUNTIME_STATUS',KEY,row['seq'] if row else 0)]
+    if row is None:
+        return dict(heads=heads, completion_id=None, valid_until=None, financial_authority=False)
+    details=row['body']['details']
+    if details.get('version') != VERSION:
+        raise EvidenceError('EVENT_QUEUE_STATE_VERSION_UNKNOWN')
+    state=details['state']
+    if event_id in state['needs_census']:
+        raise EvidenceError('EVENT_QUEUE_REQUIRES_CENSUS')
+    if event_id in state['pending'] or state['active'] and state['active']['event_id']==event_id:
+        raise EvidenceError('EVENT_QUEUE_REEVALUATION_PENDING')
+    value=state.get('evaluations',{}).get(event_id)
+    now=finite(store.clock())
+    if value is None or not value['completed_at'] <= now < value['valid_until']:
+        raise EvidenceError('EVENT_QUEUE_CURRENT_EVALUATION_REQUIRED')
+    matched=False
+    for key in value['result_ids']:
+        output=store.get(key)
+        if output['event_id'] != event_id:
+            raise EvidenceError('EVENT_QUEUE_EVALUATION_SCOPE_INVALID')
+        p=output['body'].get('details',{}).get('proposal')
+        matched |= key==valuation_id or isinstance(p,dict) and p.get('valuation_id')==valuation_id
+    if not matched:
+        raise EvidenceError('EVENT_QUEUE_VALUATION_NOT_EVALUATED')
+    for kind,event_key,seq in value['source_heads']:
+        head=store.latest(kind=kind,event_id=event_key)
+        if (head['seq'] if head else 0) != seq:
+            raise EvidenceError('EVENT_QUEUE_SOURCE_CHANGED_REEVALUATE')
+        heads.append((kind,event_key,seq))
+    return dict(heads=heads, completion_id=value['completion_id'], valid_until=value['valid_until'], financial_authority=False)
