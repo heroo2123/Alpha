@@ -3,6 +3,26 @@
 Updated 2026-09-24, after bounded forecast-run rollover integration. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
 
+Latest fully verified implementation: **d073d34a82c3d8d38602a6936e158986e6460654**,
+tree **e596aee1e66b258d01d38a10947d9cb75abad208**. GitHub/local tree equality
+and fetch/alignment passed (session 29784, exit 0), clean worktree. This later
+reporting checkpoint changes documentation only.
+
+Full combined regression **PASS: 3545 passed, four existing FastAPI warnings,
+243.99 s, exit 0**. Wrapper elapsed 244.680 s; user 170.027036 s; system 65.531045 s;
+peak RSS 157768 KiB. All **802 tracked files** remained unchanged; input-map digest
+`1d37bcf938f606b4d9e6bc1ba0891674d289035c3ea48c60229d2348189a171b`.
+Exclusive session 59899 completed. Evidence outside Git:
+`/workspace/scratch/38af7099c566/v11-test-evidence/gefs-learning-full-20260924-01.json`
+and `.log`, runner `run_gefs_learning_full.py`. Do not overwrite/reuse this name
+or duplicate the completed run without a relevant source change or finding.
+
+Off-host resource gate before this run: 20 GiB cgroup limit, 6869114880 bytes
+current use, eight CPU quota equivalents, 25707712512 bytes disk free; high/max/
+OOM counters zero. This is not alpha-dev headroom evidence. No V10 workload or
+service action occurred. Estimate **79/200, approximately 40%**, formal **1/50
+(2%)**, unchanged. Next implementation: fresh multi-step forecast census.
+
 ## Current priority override — V11 runtime integration
 
 Owner update September 24: V10 maintenance/suspension preparation is DEFERRED.

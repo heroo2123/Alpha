@@ -73,8 +73,9 @@ calibration or activation. Initial checks: 61 passed in 4.88 s; expanded checks:
 31 passed and one fixture lookup failure, then the corrected candidate case
 passed in 1.75 s. Final related suite: **242 passed in 46.97 s**. An earlier wider
 command named a nonexistent test file and exited 4 before running tests; the
-corrected command produced the recorded pass. Full regression is due for the
-shared collector/candidate/health changes, not yet claimed for this milestone.
+corrected command produced the recorded pass. The subsequent combined source/learning/rollover full regression passed 3545
+tests with four existing warnings in 243.99 s; all 802 tracked inputs stayed
+unchanged. This is off-host integration evidence, not source/host acceptance.
 
 One authorized bounded off-host public probe failed **before HTTP**: the pinned
 HTTP client rejects this environment's `socks5h` proxy scheme. No proxy or access
