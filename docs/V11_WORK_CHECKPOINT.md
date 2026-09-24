@@ -1,6 +1,6 @@
 # Alpha V11 work checkpoint
 
-Updated 2026-09-24, 09:33 UTC. Resume here. **NOT_READY_TO_FUND**.
+Updated 2026-09-24, after the 10:31 UTC owner health probe. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
 
 ## Exact identities and scope
@@ -646,6 +646,37 @@ CI run `35980156386` completed successfully at `3e84ca3822b5925dc30c502d18eec5dd
 No test remains running. Fixed full-package completion remains **1/50 = 2%**.
 The V10 owner-only freshness read, host pressure and all deployment/financial
 safeguards remain as described above; off-host work continues independently.
+
+## Owner health evidence and bounded suspension proposal
+
+The owner completed the protected read-only probe at 10:31:16 UTC. Its reported
+latest success is September 22 at 23:41:47.652562 UTC, age 125,369 seconds (34 h
+49 m); status bytes match the preserved snapshot. WAL mtime is September 23 at
+00:05:39 UTC. The privileged two-hour journal metadata query succeeded with no
+records. This is OWNER_REPORTED evidence, not an independently accessed current
+private file. The prior owner action is COMPLETE; do not request or retry it.
+Fresh persisted successful-cycle health is FAIL. Historical true health flags do
+not pass current health. The complete root cause remains unproven.
+
+Read-only service properties at 10:33 UTC still show 454,397,952 bytes charged,
+executor MASKED/INACTIVE and controller INACTIVE. No V10 file, service, permission,
+limit or mask was changed. No new backup, stop, signal, restart or V11 host workload
+ran. The existing snapshot and completed forensic baseline remain intact.
+
+Recommendation now: seek explicit approval for preservation-first bounded
+SIGTERM-only temporary suspension as detailed in V11_CONTROL_SUSPENSION_PLAN.md.
+No approval is present. The plan rejects ordinary stop's possible SIGKILL
+escalation, requires a new consistent committed-WAL backup plus complete private
+preservation, preserves originals, records the existing health gap separately
+from suspension, and requires separate recovery approval. Expected memory relief
+is conditional on actual exit; no otherwise-ready V11 release is blocked solely
+by V10. V11 resource/isolation and all other deployment gates remain open.
+
+This documentation milestone supersedes earlier pending-owner-read statements.
+Recovered HEAD before edits: 6a602a7fe7f8f36aa238140f89b15b3e071423fa, tree
+82629c14d54fe309201cc3e85b83176ae3931bb4. Worktree was clean and no project
+operations were running. Existing checks were not duplicated. Off-host strategy
+and active-position implementation continues independently. Completion: 1/50.
 
 ## Models, authority and exact continuation
 

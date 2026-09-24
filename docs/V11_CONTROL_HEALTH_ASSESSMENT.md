@@ -1,94 +1,81 @@
 # Bounded V10 operational assessment — 2026-09-24
 
-Recommendation: preserve V10 unchanged while obtaining the owner-only redacted
-health read below. Continue V11 implementation and tests off-host. A suspension
-solely to make room for V11 is not yet justified: no specific V11 PAPER/SHADOW
-deployment has passed its other readiness gates. This assessment authorizes no
-service stop, restart, deployment, funding or financial activation.
+Recommendation: approve a preservation-first, bounded SIGTERM-only temporary
+suspension under `V11_CONTROL_SUSPENSION_PLAN.md`. Approval is still absent; no
+signal, stop, restart, new preservation capture or V11 deployment was performed.
+Continue independent V11 implementation and tests off-host. This recommendation
+addresses an unhealthy control process and host pressure, not V11 readiness.
 
-## Observed evidence
+## Closed freshness check
 
-Two lightweight, read-only samples were taken at 09:12:44 and 09:14:17 UTC through
-the authorized development connection. No live database query or backup ran.
+The owner ran the prepared read-only probe at 10:31:16 UTC with effective UID 0
+and supplied its result. Provenance is OWNER_REPORTED, not an independent read of
+the protected files through the development account. That account's access has
+not changed. The prior request to run this probe is complete; do not repeat it.
 
 | Check | Result |
 |---|---|
-| V10 unit | Active/running since September 22; same main process; zero restarts |
-| V10 memory | 454,397,952 bytes (433.3 MiB), above 419,430,400-byte MemoryHigh; MemoryMax 524,288,000 bytes |
-| V10 pressure | Full memory PSI avg60 approximately 75.4–75.9%; memory.high events increased by 3,672 in about 93 seconds |
-| V10 OOM | No recorded OOM or OOM kill; cgroup swap is zero |
-| Process | D state at the first sample; protected process I/O details unavailable |
-| Host | One CPU; 751 MiB available RAM, approximately 747 MiB host swap used, 5.34 GiB free disk; host memory PSI also severe |
-| Configured cycle interval | 180 seconds, read as a numeric literal from the existing launcher |
-| Financial containment | Executor MASKED/INACTIVE; controller INACTIVE; no mask or authority change |
-| Current cycle status / DB / WAL / SHM | Development account receives PermissionError |
-| Current journals | No journal files opened: insufficient permissions |
+| Latest successful cycle | September 22, 23:41:47.652562 UTC; age 125,369 seconds (34 h 49 m) |
+| Configured interval | 180 seconds; neither one- nor two-interval freshness passes |
+| Current status | Exact hash match to the preserved snapshot; mtime September 22, 23:42:08 UTC |
+| Database / WAL | Last mtimes September 22, 23:26:35 / September 23, 00:05:39 UTC |
+| SHM | September 23, 20:03:50 UTC; this is not cycle-success evidence |
+| Journal metadata | Successful privileged query, no records in the last two hours; no raw messages read |
+| Historical flags | cycle_ok and paper_tracker_ok true, but attached to the stale cycle |
+| Financial flags | financial_authority, automatic_order_placement and wallet_or_order_api_loaded false in that same stale status |
+| Live containment | Independently read at 10:33 UTC: executor MASKED/INACTIVE; controller INACTIVE |
+| Probe side effects | No database opened, snapshot changed, service/permission changed or deployment authorized |
 
-The preserved September 23 snapshot contains a successful-cycle finish timestamp
-of September 22 at 23:41:47.652562 UTC. It was already stale at capture. Its true
-cycle_ok flag is historical evidence, not a current heartbeat. It remains useful
-for the completed forensic baseline; fresh forward-control evidence since capture
-is **UNVERIFIED**. No absence of fills or alerts is being used as a health proxy.
+**Current fresh successful-cycle health: FAIL.** Persisted status and database
+metadata provide no fresh forward-control evidence. This does not prove every
+possible in-memory activity has stopped. Empty journal metadata is not proof of
+healthy cycles or a complete root-cause diagnosis. The preserved snapshot remains
+useful for the completed forensic baseline; it cannot represent a healthy forward
+comparison. Record the evidence gap from the last verified successful cycle,
+separately from any future approved suspension interval.
 
-The pressure finding is confirmed. A causal diagnosis of the stalled/stale cycle
-is not complete. D state and memory reclaim pressure are consistent with resource
-stalling, but do not alone identify the complete cause or latest useful evidence.
+## Resource evidence
 
-## One owner-only action
+Two lightweight read-only samples at 09:12:44 and 09:14:17 UTC found:
 
-A standalone, bounded probe was prepared at:
-`/home/alphaadmin/alpha-v11-control-health-20260924.py`
+| Check | Result |
+|---|---|
+| V10 unit | Active/running, same main process, zero restarts |
+| Memory | 454,397,952 bytes (433.3 MiB), above MemoryHigh 419,430,400 bytes; MemoryMax 524,288,000 bytes |
+| Pressure | Full memory PSI avg60 approximately 75.4–75.9%; memory.high events increased by 3,672 in about 93 seconds |
+| OOM / swap | No recorded cgroup OOM or OOM kill; cgroup swap zero |
+| Process | D state at the first sample; CPU advanced only about 0.095 seconds between samples |
+| Host | One CPU; about 751 MiB available RAM, 747 MiB swap used and 5.34 GiB free disk; severe host memory PSI |
 
-SHA-256:
-`5cc5c61285577bd1bd63bb4f6cbbda5d511d9957e0a08eb4c0b8c5de9b3d0578`
+Memory usage remained 454,397,952 bytes at the 10:33 UTC service-property read.
+The pressure finding is confirmed. Reclaim pressure and D state are consistent
+with stalling, but do not establish the complete cause. No limits were increased
+or protections weakened. No training, tests or V11 workload ran on this host.
 
-After reviewing these exact bytes, the owner can run:
+Expected benefit of an approved successful suspension: release approximately
+433 MiB currently charged to this unit and potentially reduce reclaim pressure.
+Actual host relief must be measured; not all charged memory necessarily becomes
+immediately free, and other pressure causes may remain. A D-state process may not
+exit promptly on SIGTERM, so the expected benefit is not guaranteed.
 
-```sh
-sudo /usr/bin/timeout 12s /usr/bin/python3 -I -B /home/alphaadmin/alpha-v11-control-health-20260924.py
-```
+## Operational boundaries and remaining deployment blockers
 
-The connected tool rejected the corresponding noninteractive privileged call as
-**Command not allowed**. No privilege-route workaround was attempted. The probe
-reads bounded status JSON, stats database/WAL/SHM files without opening a database,
-and requests only 20 journal timestamp/priority records from the past two hours.
-It excludes raw log messages, credentials, financial aggregates and unknown JSON
-fields. It neither writes V10 files nor changes services/permissions. Seven local
-tests passed, including stale/future timestamps, redaction, read bounds and races.
+The unit has Type=simple, Restart=on-failure, KillSignal=SIGTERM,
+KillMode=control-group, TimeoutStopUSec=25s and SendSIGKILL=yes. No explicit SIGTERM
+handler was found in the inspected launcher/runtime path. Normal SIGTERM must not
+be described as application-drained shutdown. Ordinary stop can escalate; the
+separate plan requires a verified preservation set and a non-escalating signal
+path, bounded observation, and no repeat signal or forced kill.
 
-Expected benefit: determine the age and success of the actual latest cycle and
-whether evidence files are advancing, without interrupting control history or
-changing its containment. A single status sample is not continuous-cycle proof.
-Further targeted diagnosis can then be based on that evidence.
+There is **no specific otherwise-ready V11 PAPER/SHADOW deployment** whose sole
+remaining obstacle is V10 resource use. Provider/runtime scheduling, exact-source
+and finality support, remaining strategy/exit integration, approved calibration
+and champion artifacts, protected capability/model-authority commissioning,
+isolated service/resource configuration, guardian/clock/operator integration and
+recovery/acceptance remain unfinished or unverified. Independent review has not
+occurred. No V11 service was installed. Suspension cannot clear these gates.
 
-## Suspension and preservation boundary
-
-No suspension is recommended for approval yet, and none was performed. The unit
-currently has a 25-second stop timeout and SendSIGKILL=yes. An ordinary stop could
-therefore escalate beyond the user's no-force-kill boundary; it must not be issued
-as a convenient diagnostic. The process's D state also makes prompt graceful exit
-uncertain. Stopping is not a substitute for demonstrated V11 readiness.
-
-If a later assessment supports temporary suspension, a separate approval must
-name the exact graceful shutdown/recovery mechanism and preservation destination.
-It must preserve the existing immutable snapshot; create a separately named,
-consistent current SQLite backup including committed WAL; preserve current source,
-configuration, permissions, unit state and history; verify resulting hashes and
-integrity; retain rather than delete WAL/SHM or code; and record the forward-control
-interruption interval. Only the exact reviewed V10 identity may resume, with
-containment and genuinely fresh successful cycles rechecked. No such procedure
-has been executed or represented as approved.
-
-## What still blocks V11 deployment
-
-Shared-account basket code passed its off-host full regression, but this is not a
-deployment package acceptance. Provider/runtime scheduling, remaining strategy
-and exit integration, actual approved calibration/model artifacts, protected
-capability/model-authority commissioning, isolated service/resource configuration,
-guardian/clock/operator integration and recovery/acceptance remain unfinished or
-unverified. No V11 service is installed by this task. Independent review has not
-occurred. Freeing V10 memory alone cannot satisfy these gates.
-
-Resource/isolation acceptance remains failed/unproven for adding a V11 workload to
-this host. It does not block unrelated off-host engineering. The fixed completion
-matrix remains 1/50 fully accepted local packages, and status is NOT_READY_TO_FUND.
+Resource/isolation acceptance remains failed/unproven for adding a V11 workload.
+It does not block unrelated off-host work. Fixed completion remains 1/50 fully
+accepted local packages. Status remains NOT_READY_TO_FUND. No funding, account
+creation, money movement, real order or executor-mask change is authorized.
