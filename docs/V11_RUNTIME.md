@@ -186,3 +186,35 @@ complete basket hedge, unchanged actual lots/cash without fills and replay safet
 Next work is bounded current source/request assembly and remaining route/provider
 integration. Protected model/certification custody in tests is a fixture; actual
 calibration, independent review, host isolation and runtime acceptance stay open.
+
+## Current-input factories and tested recovery identity
+
+`request_assembly.py` replaces supplied evidence-ID callbacks with configured
+source selectors and exact current-token book lookup. ScopeInputs is a fixed
+nonfinancial plan, not model/certification approval. StrategyAdmission still reads
+protected scope/bundle state. Every request requires the actual held event claim,
+completed census where needed, matching current risk/source/book inputs and an
+unexpired decision. New sources require risk recomputation; a missing channel never
+falls back to another provider or re-dates an older receipt. Receipt-order
+predecessor lookup retains revision semantics without loading an entire history.
+
+Temperature, relative-value, PWS, received-release and exit factories share this
+assembly. Paired PWS admissions remain separate. Unknown costs still gate economics;
+configured exit sizes are checked against actual held inventory downstream. Typed
+factory plan hashes are bound into adapter/runtime recovery. Changed plans cannot
+replay old runtime completion, and changes within an adapter require review.
+Legacy callback seams remain for engineering fixtures and are not attested plans.
+
+EventRiskEngine now interprets a qualified PWS summary through its as_of and
+oldest contributing sensor age. No raw observation timestamp is invented. An old
+sensor, bad QC, missing/future/negative age or unchanged reprocessed summary cannot
+create freshness/recovery. Other missing risk inputs remain unknown.
+
+Assembly/QC-time milestone: 26 new cases, **54 focused passes in 5.17 s**;
+**full regression 3344 passed, four existing warnings, 203.31 s**, exit 0,
+peak RSS 156820 KiB. Tests include finite public-mock census -> current-input
+factory -> protected basket valuation -> common account, periodic census ->
+factory-built held-inventory exit, per-lane missing-source isolation, invalid
+plans, receipt ordering and changed-plan recovery rejection. No live fees, fills,
+calibrated champion or deployment readiness are inferred. Next integration is
+bounded risk derivation and remaining source/dynamic-route work.

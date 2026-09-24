@@ -1,6 +1,6 @@
 # Alpha V11 work checkpoint
 
-Updated 2026-09-24, after reaction/exit runtime verification. Resume here. **NOT_READY_TO_FUND**.
+Updated 2026-09-24, after current-input assembly full regression. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
 
 ## Current priority override — V11 runtime integration
@@ -25,26 +25,28 @@ open. No funding, deployment, financial activation or new host workload authoriz
 
 ## Latest continuation milestone
 
-PWS observation-lead joins, received source-release reactions and actual-inventory
-exits now connect to bounded shared runtime evaluation. **175 related tests passed
-in 57.55 s**, including **17 new cases**. Source/observation/payout separation,
-current admission after census, exact queue completion, whole-basket hold floors,
-account identity and a new-gap-before-reservation fault are covered off-host.
-Latest full regression remains **3293 passed in 212.37 s** at the runner milestone;
-the eight relative-value and 17 reaction cases were added afterward.
+Current-input request factories now assemble temperature, relative-value, PWS,
+received-release and exit requests from configured exact source channels, books
+and matching risk evidence under an actual queue claim. Runtime configuration
+pins the factory plan. PWS event risk uses the oldest contributing QC sensor time
+without rewriting raw timestamps or advancing recovery on a reprocessed sample.
+**Full regression: 3344 passed, four existing warnings, 203.31 s; exit 0.**
+All tested source/test hashes stayed unchanged. Peak child RSS 156820 KiB.
+This adds 26 new assembly/source-time cases after the 17 reaction/exit cases.
 Fully completed implementation packages remain **1/50**; formal, empirical and
 independent acceptance remain open. No test operation is running.
-Next concrete implementation: assemble current source/book/model/admission requests
-from bounded scope plans, then remaining dynamic route/provider and master-spec
-requirements. No V10 maintenance, deployment or funding action is requested.
+Next concrete implementation: derive bounded current event-risk inputs in the
+candidate, retaining UNKNOWN for unproven execution/sequence/settlement timing;
+then remaining dynamic route/provider and master-spec requirements.
+No V10 maintenance, deployment or funding action is requested.
 
 ## Exact identities and scope
 
 - Branch: `weather-v11-profitability-upgrade-2026-09-23`.
-- Last verified implementation HEAD: `e8ed2fdc8ff15878b8245fd6ed826a9fdaf4593d`.
-- Last verified implementation tree: `c3914cd8f0445592f0673abce83615f1a932f813`.
-- Relative-value/structural runtime implementation identity is above. Public/local
-  tree equality passed; fetch/alignment exited 0 (session 18460), with a clean
+- Last verified implementation HEAD: `47ed0a0324efb6dca8c5871cd54010c1821e8d05`.
+- Last verified implementation tree: `d3ad95dd238e50e0c89dc78cc4c9fd417a8c6847`.
+- Reaction/exit runtime implementation identity is above. Public/local
+  tree equality passed; fetch/alignment exited 0 (session 98637), with a clean
   worktree. No unfinished work was discarded. This later documentation checkpoint
   records that exact tested implementation without changing source/tests.
 - A later commit containing this checkpoint may include the newer work below. Resolve its own
@@ -1528,3 +1530,41 @@ The next reporting checkpoint records this implementation's exact public HEAD
 and tree after successful publication. V10 and all deferred maintenance artifacts
 remain unchanged. Host resource/isolation, protected model/strategy review,
 calibration, forward evidence, independent guardian and release gates stay open.
+
+## Current-input assembly full regression — 2026-09-24
+
+Implemented `v11/request_assembly.py`: fixed nonfinancial scope/source selectors,
+exact current-token books, current risk/source matching, protected admission pins,
+bounded temperature/relative/PWS/release/exit factories and decision expiries.
+Factory configuration is included in adapter/runtime recovery identity. Changing
+a plan cannot silently replay a prior runtime completion. Actual held queue/census
+and source/model/certification/account requirements remain enforced. Exact release
+predecessors use a one-row scoped receipt-sequence query, not provider-time sorting
+or a full history load. No request factory fetches/re-dates/imputes an input.
+
+Testing found that valid QC captures deliberately have no singular observed_at.
+EventRiskEngine now uses as_of minus the oldest contributing sensor age. Bad QC,
+raw feeds, missing/negative/future ages remain EVENT gates; reprocessing unchanged
+sensors cannot count as fresh recovery. The raw evidence stays unchanged.
+
+Two test-collection syntax errors were corrected before tests ran. The first
+executing assembly run had 15 passed / 2 failed in 3.83 s: a test attempted to
+mutate a decoded rule copy, and PWS exposed the QC timestamp join above. After
+correction, assembly/source-time/event-risk checks: **54 passed in 5.17 s**,
+including 17 new factory and nine QC-clock cases.
+Full unchanged-input regression: **3344 passed, four existing FastAPI warnings,
+203.31 s; exit 0**, wrapper 204.03 s, user 139.345783 s, system 57.727246 s,
+peak RSS 156820 KiB. Retained private local log/result:
+`/workspace/scratch/38af7099c566/v11-test-evidence/assembly-full-20260924-01.log`
+and `.json`. Distinct new tests total **1008** above baseline 2336.
+Off-host resource check before the run: 20 GiB cgroup limit, 6.84 GB current use,
+eight CPU quota equivalents and 25.72 GB disk free. This is not alpha-dev headroom.
+
+The public-mock finite candidate now reaches protected whole-event inference,
+exact queue completion and atomic common-account basket reservation using the
+current-input factory. Periodic census reaches a factory-built actual-inventory
+exit reservation. PWS/release factories retain separate payout rejection. Risk
+measurements and protected custody in these tests remain explicit fixtures, not
+live inputs, approved champions or independent acceptance.
+Next step: replace supplied risk measurement callbacks with bounded derived inputs
+and continue source/route integration; no maintenance dependency has reopened.

@@ -10,7 +10,7 @@ from dataclasses import dataclass, replace
 from .certification import CapabilityScope
 from .evidence import EvidenceError, ReleaseBinding, digest, identity
 from .model_registry import ActiveModelRegistry
-from .paper_runtime import Evaluation, VERSION as RUNTIME_VERSION
+from .paper_runtime import Evaluation, VERSION as RUNTIME_VERSION, request_adapter_config, check_request_adapter
 from .position_management import ExitRequest, PositionManager
 from .pws_admission import PWSPreconfirmation
 from .pws_lead import LeadPolicy, PWSObservationLead
@@ -66,6 +66,7 @@ def _admission(store, claim, key):
 
 
 def _evaluate(adapter, claim, prefix, request_type, engine, prepare):
+    check_request_adapter(adapter)
     requests = adapter.requests_for_event(claim)
     if type(requests) is not tuple or not 1 <= len(requests) <= 6 or any(not isinstance(r, request_type) for r in requests):
         raise EvidenceError('RUNTIME_REACTION_REQUEST_BOUND')
@@ -91,6 +92,7 @@ def _evaluate(adapter, claim, prefix, request_type, engine, prepare):
 class PWSLeadEventAdapter:
     def __init__(self, store, requests_for_event):
         self.store, self.requests_for_event = store, requests_for_event
+        self.config = request_adapter_config(type(self).__name__,requests_for_event)
 
     def _prepare(self, claim, key, request):
         payout = _admission(self.store, claim, request.entry.admission_id)
@@ -121,6 +123,7 @@ class PWSLeadEventAdapter:
 class SourceReleaseEventAdapter:
     def __init__(self, store, requests_for_event):
         self.store, self.requests_for_event = store, requests_for_event
+        self.config = request_adapter_config(type(self).__name__,requests_for_event)
 
     def _prepare(self, claim, key, request):
         original = _admission(self.store, claim, request.entry.admission_id)
@@ -139,6 +142,7 @@ class PositionExitEventAdapter:
     def __init__(self, coordinator, requests_for_event):
         self.coordinator, self.store = coordinator, coordinator.store
         self.requests_for_event = requests_for_event
+        self.config = request_adapter_config(type(self).__name__,requests_for_event)
 
     def _prepare(self, claim, key, request):
         original = _admission(self.store, claim, request.admission_id)

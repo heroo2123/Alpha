@@ -6,7 +6,8 @@ admission/CAS gates remain in PaperRuntime and PaperCoordinator.
 from base64 import urlsafe_b64encode
 
 from .evidence import EvidenceError, digest, identity
-from .paper_runtime import Evaluation, TemperatureEventAdapter, VERSION as RUNTIME_VERSION
+from .paper_runtime import (Evaluation, TemperatureEventAdapter, VERSION as RUNTIME_VERSION,
+                            request_adapter_config, check_request_adapter)
 from .relative_value import DiscoveryRequest, RelativeValueStrategies
 from .reaction_runtime import PWSLeadEventAdapter, SourceReleaseEventAdapter, PositionExitEventAdapter
 from .runtime_health import admission_heads
@@ -20,8 +21,10 @@ def _gated(store,key,claim,reason,lane):
 class RelativeValueEventAdapter:
     def __init__(self,store,requests_for_event):
         self.store,self.requests_for_event=store,requests_for_event
+        self.config=request_adapter_config(type(self).__name__,requests_for_event)
 
     def evaluate(self,claim,prefix):
+        check_request_adapter(self)
         requests=self.requests_for_event(claim)
         if (type(requests) is not tuple or not 1 <= len(requests) <= 6
                 or any(not isinstance(r,DiscoveryRequest) for r in requests)
@@ -64,6 +67,8 @@ class MultiStrategyEventAdapter:
                 coordinator=adapter.coordinator
         if len(set(names))!=len(names):raise EvidenceError('RUNTIME_STRATEGY_ADAPTER_DUPLICATE')
         self.store,self.adapters,self.coordinator=store,adapters,coordinator
+        configs=[(name,type(adapter).__name__,adapter.config) for name,adapter in adapters]
+        self.config=digest(configs) if any(p[2] is not None for p in configs) else None
 
     def evaluate(self,claim,prefix):
         outputs=[];proposals=[]

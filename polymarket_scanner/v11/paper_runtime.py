@@ -48,12 +48,27 @@ class Evaluation:
     proposals: tuple = ()
 
 
+def request_adapter_config(name, requests_for_event):
+    config = getattr(requests_for_event,'config',None)
+    if config is None: return None  # Historical callback fixtures are not attested plans.
+    from .evidence import sha
+    sha(config)
+    return digest(dict(adapter=name,requests=config))
+
+
+def check_request_adapter(adapter):
+    if request_adapter_config(type(adapter).__name__,adapter.requests_for_event) != adapter.config:
+        raise EvidenceError('RUNTIME_REQUEST_PLAN_CHANGED_REVIEW_REQUIRED')
+
+
 class TemperatureEventAdapter:
     """Use existing reviewed request assembly and the real temperature pipeline."""
     def __init__(self, store, requests_for_event):
         self.store, self.requests_for_event = store, requests_for_event
+        self.config = request_adapter_config(type(self).__name__,requests_for_event)
 
     def evaluate(self, claim, prefix):
+        check_request_adapter(self)
         requests = self.requests_for_event(claim)
         if type(requests) is not tuple or not 1 <= len(requests) <= 6 or any(not isinstance(r, EntryRequest) for r in requests):
             raise EvidenceError('RUNTIME_TEMPERATURE_REQUEST_BOUND')
@@ -95,8 +110,10 @@ class PaperRuntime:
         if self.audits.store is not self.store: raise EvidenceError('RUNTIME_AUDIT_NAMESPACE_MISMATCH')
         self.cancellation = PaperCancellation(coordinator, CancellationPolicy('runtime-bounded-v1', 16, 256))
         self.feed = EvidenceFeed(queue, feed_policy or FeedPolicy('bounded-receipt-delivery-v1'))
-        self.config = digest(dict(runtime=asdict(policy), account=coordinator.policy_sha, queue=queue.config, health=health.config, feed=self.feed.config,
-                                  rewards=rewards.config if rewards is not None else None, audits=self.audits.config))
+        config = dict(runtime=asdict(policy), account=coordinator.policy_sha, queue=queue.config, health=health.config, feed=self.feed.config,
+                      rewards=rewards.config if rewards is not None else None, audits=self.audits.config)
+        if getattr(evaluator,'config',None) is not None: config['evaluator'] = evaluator.config
+        self.config = digest(config)
 
     def _head(self):
         row = self.store.latest(kind='RUNTIME_STATUS', event_id=KEY)

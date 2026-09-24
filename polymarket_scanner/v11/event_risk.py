@@ -276,6 +276,21 @@ class EventRiskEngine:
                 if row['event_id'] != context.event_id or row['kind'] not in allowed:
                     raise EvidenceError('EVENT_EVIDENCE_IDENTITY')
                 at = body['observed_at']
+                if row['kind'] == 'PWS_OBSERVATION':
+                    # QC summaries are features, not a new sensor observation.
+                    # Use the oldest contributing sensor; recomputing a summary
+                    # cannot advance stale sensors or bootstrap recovery.
+                    qc = body['payload']; ages = qc.get('observation_age_seconds')
+                    at = None
+                    if (body['provider'] == 'ALPHA_PWS_QC' and qc.get('health') == 'HEALTHY'
+                            and qc.get('station') == context.station_id
+                            and isinstance(ages,list) and 1 <= len(ages) <= 400):
+                        try:
+                            as_of = finite(qc.get('as_of'))
+                            oldest = as_of-max(finite(age) for age in ages)
+                            if 0 <= oldest <= as_of <= body['available_at'] <= now: at = oldest
+                        except EvidenceError:
+                            pass  # Unknown/malformed QC time stays an EVENT gate.
                 if at is not None:
                     expires.extend((at+max_age, body['received_at']+max_age))
                 if (body['available_at'] > now or body['evidence_class'] == 'HISTORICAL_AVAILABILITY_UNKNOWN'

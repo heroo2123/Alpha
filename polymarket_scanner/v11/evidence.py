@@ -380,6 +380,24 @@ class EvidenceStore:
                              (kind, event_id, provider, source_identity)).fetchone()
         return None if row is None else self._decode(row)
 
+    def previous_source(self, record_id: str) -> dict | None:
+        """Immediate earlier receipt of the exact same namespace/source channel.
+
+        Provider observation time never reorders revisions. This reads one row,
+        without loading a channel's history or upgrading its source semantics.
+        """
+        current = self.get(record_id)
+        if current['kind'] not in KINDS:
+            raise EvidenceError('CAPTURE_KIND_INVALID')
+        body = current['body']
+        with self._connect() as db:
+            row = db.execute("SELECT * FROM v11_records WHERE kind=? AND event_id=? AND seq<? "
+                             "AND json_extract(body,'$.provider')=? "
+                             "AND json_extract(body,'$.source_identity')=? ORDER BY seq DESC LIMIT 1",
+                             (current['kind'], current['event_id'], current['seq'],
+                              body['provider'], body['source_identity'])).fetchone()
+        return None if row is None else self._decode(row)
+
     def audit(self, record_id: str, *, event_id: str, kind: str, details: dict,
               evidence_ids: tuple[str, ...] = (), expected_previous_seq: int | None = None,
               expected_heads: tuple[tuple[str, str, int], ...] = ()) -> dict:
