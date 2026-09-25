@@ -255,3 +255,12 @@ and DriftPolicy digests remain unchanged; no automatic calibration or restoratio
 inferred. **117 related passes / 8.85 s, 14 new cases**. Existing integration credits
 are not counted again: **82/200, approximately 41%**, formal **1/50 (2%)**, unchanged.
 Actual calibration/independent/host/unfunded gates and six remaining hour ranges remain.
+
+Automatic realized-PAPER monitoring now joins new ledger realizations, original entry
+scope/model/fill proofs, conserved partial-exit accounting, protected predeclared loss/
+drawdown reviews, account CAS/recovery, finite candidate safety and audits. **202 related
+passes / 35.32 s, 30 new cases**; no new scoring milestone closes because R40/R42 C/J
+already apply. **82/200, approximately 41%**, formal **1/50 (2%)**, unchanged. Realized
+loss does not establish mark-to-market risk, live execution, net-EV capture or actual
+calibration. Independent, host and unfunded readiness remain open; six hour ranges and
+separation of external/owner waiting remain appropriate to the unresolved scope.

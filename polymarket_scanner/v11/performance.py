@@ -4,10 +4,11 @@ Reports do not promote models, infer fills, validate capital or mark inventory t
 a midpoint. Exit fragments, flat entry intents and settlement are distinct units.
 """
 from collections import defaultdict
-from decimal import Decimal
+from dataclasses import asdict
+from decimal import Decimal, ROUND_FLOOR
 import time
 
-from .evidence import EvidenceError, finite
+from .evidence import EvidenceError, canonical, finite, sha
 from .paper_coordinator import ACCOUNT_KEY, TERMINAL, VERSION as ACCOUNT_VERSION
 from .scenario_risk import number, precise
 
@@ -43,6 +44,132 @@ def distribution(values):
 class PerformanceLab:
     def __init__(self, coordinator):
         self.coordinator, self.store = coordinator, coordinator.store
+
+    @precise
+    def scoped_realized(self, *, scope, bundle_sha256, start, end, account_ref, monotonic=time.monotonic):
+        """All realized fragments for one original admission scope in a pinned account.
+
+        This reports realized-only PAPER loss, with actual ledger entry attribution.
+        It does not estimate open inventory value, final settlement, EV capture or
+        independent sample size. Unknown or inconsistent lineage gates the cohort.
+        """
+        from .certification import CapabilityScope
+        from .learning_sources import learning_source_view
+        from .position_attribution import intent_lineage
+        from .rules import RuleFingerprint
+        from .strategy_admission import VERSION as ADMISSION_VERSION
+        if not isinstance(scope,CapabilityScope) or self.store.namespace!='V11_PAPER':
+            raise EvidenceError('PERFORMANCE_SCOPED_PAPER_REQUIRED')
+        sha(bundle_sha256); start,end=finite(start),finite(end)
+        if (start>=end or end>self.store.clock() or not isinstance(account_ref,dict) or set(account_ref)!={'id','sha256','seq'}
+                or type(account_ref['seq']) is not int):
+            raise EvidenceError('PERFORMANCE_SCOPED_WINDOW_OR_SNAPSHOT')
+        deadline=monotonic()+2.; rows=[]; cache={}; events=set(); days=set(); fill_totals={}
+        with learning_source_view(self.store,deadline=deadline,monotonic=monotonic) as view:
+            account=view.get(account_ref['id'])
+            if (dict(id=account['id'],sha256=account['sha256'],seq=account['seq'])!=account_ref
+                    or account['body']['recorded_at']>end):
+                raise EvidenceError('PERFORMANCE_ACCOUNT_SNAPSHOT_BINDING')
+            report=self.build(start=start,end=end,account_row=account)
+            state=self.coordinator._state(account)
+            if (state.get('financial_authority') is not False or report['faults'] or not report['reconciliation']['complete']
+                    or report['attribution']['unknown_entry_pieces']):
+                raise EvidenceError('PERFORMANCE_SCOPED_RECONCILIATION_REQUIRED')
+            by_event=defaultdict(Decimal)
+            for item in state['realized_entries']:by_event[item['event_id']]+=number(item['pnl'],signed=True)
+            if any(by_event[e]!=number(state['event_realized_pnl'].get(e,'0'),signed=True)
+                   for e in set(by_event)|state['event_realized_pnl'].keys()):
+                raise EvidenceError('PERFORMANCE_SCOPED_EVENT_RECONCILIATION')
+
+            def proof(fill_id,intent,direction):
+                row=view.by_hash(kind='TRADE',event_id=intent['event_id'],sha256=state['fills'][fill_id]);b=row['body'];p=b['payload']
+                if (row['seq']>=account['seq'] or b.get('evidence_class')!='SYNTHETIC'
+                        or p.get('record_type')!='PAPER_FILL' or p.get('account_id')!=self.coordinator.policy.account_id
+                        or p.get('execution_namespace')!=self.store.namespace or p.get('fill_id')!=fill_id
+                        or p.get('intent_id')!=intent['proposal_id'] or p.get('token_id')!=intent['token_id']
+                        or p.get('direction')!=direction or number(p['units'])<=0):
+                    raise EvidenceError('PERFORMANCE_SCOPED_FILL_PROOF')
+                return row
+
+            def admissions(intent):
+                key=intent['proposal_id']
+                if key in cache:return cache[key]
+                if not 1<=len(intent['admission_ids'])<=4:raise EvidenceError('PERFORMANCE_SCOPED_ADMISSIONS_BOUND')
+                context=state['contexts'][intent['event_id']];rule=RuleFingerprint(**state['rules'][intent['event_id']])
+                result={}
+                for ref in intent['admission_ids']:
+                    row=view.get(ref);d=row['body']['details'];r=d['request'];a=d['assessment'];s=CapabilityScope(**r['scope'])
+                    if (row['kind']!='REGISTRY' or d.get('version')!=ADMISSION_VERSION or row['seq']>=account['seq']
+                            or r['context']!=context or r['rule']!=asdict(rule) or r['binding']!=intent['binding']
+                            or context['account_id']!=self.coordinator.policy.account_id or r['stage']!='PAPER'
+                            or context['station_id']!=s.station or rule.payload['station']!=s.station
+                            or rule.payload['source_family']!=s.source_rule_family
+                            or {'daily_high_temperature':'HIGH','daily_low_temperature':'LOW'}.get(rule.payload['family'])!=s.family
+                            or a['model_bundle_sha256']!=intent['binding']['bundle_sha256'] or s.strategy in result):
+                        raise EvidenceError('PERFORMANCE_ORIGINAL_ADMISSION_SCOPE')
+                    result[s.strategy]=(row,s,a)
+                if set(result)!={a['strategy'] for a in intent['attribution']}:
+                    raise EvidenceError('PERFORMANCE_ATTRIBUTION_ADMISSION_MISMATCH')
+                cache[key]=(result,rule,context)
+                return cache[key]
+
+            last_at=-1.
+            for realization in state['realized_entries']:
+                view.check();at=finite(realization['at'])
+                if at<last_at or at>account['body']['recorded_at']:
+                    raise EvidenceError('PERFORMANCE_REALIZATION_CHRONOLOGY')
+                last_at=at
+                if not start<=at<end:continue
+                exit_intent=state['intents'][realization['exit']['intent_id']]
+                if (exit_intent['direction']!='SELL' or realization['exit']!=intent_lineage(view,exit_intent)
+                        or realization['event_id']!=exit_intent['event_id']):
+                    raise EvidenceError('PERFORMANCE_EXIT_LINEAGE')
+                sale=proof(realization['fill_id'],exit_intent,'SELL');payload=sale['body']['payload'];pieces=realization['allocations']
+                if (sale['body']['available_at']>at or view.get(exit_intent['valuation_id'])['seq']>=sale['seq']
+                        or sum((number(a['units']) for a in pieces),Decimal(0))!=number(payload['units'])
+                        or sum((number(a['net_proceeds']) for a in pieces),Decimal(0))!=number(payload['all_in_collateral'])):
+                    raise EvidenceError('PERFORMANCE_EXIT_FILL_ALLOCATION')
+                for piece in pieces:
+                    view.check();intent=state['intents'][piece['entry']['intent_id']]
+                    if (intent['direction']!='BUY' or intent['event_id']!=realization['event_id']
+                            or intent['token_id']!=exit_intent['token_id'] or piece['entry']!=intent_lineage(view,intent)
+                            or piece.get('entry_lineage_status')!='RECORDED' or piece.get('acquisition_order')!='RECEIPT_SEQUENCE_FIFO'):
+                        raise EvidenceError('PERFORMANCE_ENTRY_LINEAGE')
+                    buy=proof(piece['lot_id'],intent,'BUY');original,rule,context=admissions(intent)
+                    if (buy['seq']>=sale['seq'] or view.get(intent['valuation_id'])['seq']>=buy['seq']
+                            or number(piece['units'])>number(buy['body']['payload']['units'])
+                            or any(row['seq']>=buy['seq'] for row,_,_ in original.values())):
+                        raise EvidenceError('PERFORMANCE_ENTRY_FILL_CHRONOLOGY')
+                    amount=number(piece['realized_pnl'],signed=True)
+                    if number(piece['net_proceeds'])-number(piece['allocated_basis'])!=amount:
+                        raise EvidenceError('PERFORMANCE_ALLOCATION_BASIS')
+                    weights=intent['attribution'];remaining=amount;expected=[]
+                    if len({w['strategy'] for w in weights})!=len(weights) or sum((number(w['weight']) for w in weights),Decimal(0))!=1:
+                        raise EvidenceError('PERFORMANCE_ENTRY_ATTRIBUTION_WEIGHTS')
+                    for index,weight in enumerate(weights):
+                        share=remaining if index==len(weights)-1 else (amount*number(weight['weight'])).quantize(Decimal('1e-18'),rounding=ROUND_FLOOR)
+                        remaining-=share;expected.append(dict(strategy=weight['strategy'],pnl=str(share)))
+                    if canonical(expected)!=canonical(piece['strategy_realized_pnl']):
+                        raise EvidenceError('PERFORMANCE_REALIZED_ATTRIBUTION_MISMATCH')
+                    for part in expected:
+                        admission,entry_scope,assessment=original[part['strategy']]
+                        if entry_scope!=scope or intent['binding']['bundle_sha256']!=bundle_sha256:continue
+                        city_day=context['city_id']+':'+rule.payload['target_date'];events.add(intent['event_id']);days.add(city_day)
+                        fill_totals.setdefault(realization['fill_id'],Decimal(0));fill_totals[realization['fill_id']]+=number(part['pnl'],signed=True)
+                        rows.append(dict(fill_id=realization['fill_id'],entry_intent_id=intent['proposal_id'],
+                            event_id=intent['event_id'],city_day=city_day,at=at,pnl=part['pnl'],
+                            entry_fill_ref=dict(id=buy['id'],sha256=buy['sha256']),exit_fill_ref=dict(id=sale['id'],sha256=sale['sha256']),
+                            admission_ref=dict(id=admission['id'],sha256=admission['sha256']),
+                            model_state_sha256=assessment['model_state_sha256']))
+            view.check();stats=distribution(list(fill_totals.values()))
+        result=dict(account_ref=account_ref,rows=rows,realization_statistics=stats,n_realizations=len(fill_totals),
+            n_events=len(events),n_city_days=len(days),all_account_window_pnl=report['paper_realized_pnl'],
+            other_known_scope_pnl=str(number(report['paper_realized_pnl'],signed=True)-number(stats['total'],signed=True)),
+            remaining_inventory_lots=len(state['lots']),reconciliation=report['reconciliation'],
+            mark_to_market_drawdown=None,net_ev_capture=None,live_pnl=None,financial_authority=False,
+            independent_acceptance=False,evidence_class='SYNTHETIC',entry_attribution_preserved=True)
+        if len(canonical(result).encode())>512*1024:raise EvidenceError('PERFORMANCE_SCOPED_RESULT_BOUND')
+        return result
 
     def _metadata(self, state, intent_id, deadline, cache):
         if intent_id in cache: return cache[intent_id]

@@ -53,6 +53,14 @@ class LearningSourceView:
             'ORDER BY seq DESC LIMIT 1',(kind,event_id,finite(as_of),provider,source_identity)).fetchone()
         return self.get(row['record_id']) if row is not None else None
 
+    def by_hash(self, *, kind, event_id, sha256):
+        """Resolve a retained ledger proof in this read-only, deadline-bound view."""
+        identity(kind); identity(event_id); sha(sha256); self.check()
+        rows=self._db.execute('SELECT record_id FROM v11_records WHERE kind=? AND event_id=? '
+            'AND body_sha256=? LIMIT 2',(kind,event_id,sha256)).fetchall()
+        if len(rows)!=1:raise EvidenceError('SOURCE_VIEW_EXACT_HASH_REQUIRED')
+        return self.get(rows[0]['record_id'])
+
 
 @contextmanager
 def learning_source_view(store, *, deadline=None, monotonic=time.monotonic):

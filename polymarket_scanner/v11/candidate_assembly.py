@@ -251,7 +251,7 @@ class CandidatePlan:
         if self.maker:scopes.extend(self.maker.inputs)
         if (type(self.drift) is not tuple or len(self.drift)>16
                 or any(not isinstance(p,DriftPlan) for p in self.drift)
-                or len({p.scope.key for p in self.drift})!=len(self.drift)
+                or len({(p.scope.key,p.channel) for p in self.drift})!=len(self.drift)
                 or any(not any(s.scope==p.scope and s.binding.bundle_sha256==p.bundle_sha256 for s in scopes) for p in self.drift)):
             raise EvidenceError('CANDIDATE_DRIFT_PLAN_SCOPE')
 

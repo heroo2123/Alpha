@@ -13,6 +13,7 @@ from .learning_capture import VERSION as FORECAST_VERSION, labeled_examples
 from .learning_sources import learning_source_view
 from .probability import CALIBRATION_ERROR_METHOD, score_vectors
 from .rules import RuleFingerprint
+from .scenario_risk import number
 from .strategy_admission import VERSION as ADMISSION_VERSION
 
 
@@ -57,6 +58,64 @@ class CalibrationDriftPolicy(DriftPolicy):
         if (self.calibration_error_method != CALIBRATION_ERROR_METHOD
                 or not 0 <= finite(self.maximum_calibration_error) <= 1):
             raise EvidenceError('DRIFT_CALIBRATION_METHOD_OR_BOUND')
+
+
+REALIZED_METHOD='SCOPED_REALIZED_PAPER_COLLATERAL_V1'
+REALIZED_SELECTION='ALL_RECONCILED_ACCOUNT_REALIZATIONS_IN_WINDOW_FOR_SCOPE'
+
+
+@dataclass(frozen=True)
+class RealizedDriftPolicy:
+    """Explicit collateral loss thresholds; never a mark-to-market or live proxy."""
+    version: str
+    evidence_class: str
+    window_seconds: float
+    minimum_realizations: int
+    minimum_events: int
+    minimum_city_days: int
+    maximum_realized_loss: str
+    maximum_realized_drawdown: str
+    metric_method: str
+
+    def __post_init__(self):
+        identity(self.version);number(self.maximum_realized_loss);number(self.maximum_realized_drawdown)
+        if (self.evidence_class!='SYNTHETIC' or self.metric_method!=REALIZED_METHOD
+                or not 1<=finite(self.window_seconds)<=366*86400
+                or type(self.minimum_realizations) is not int or not 1<=self.minimum_realizations<=2048
+                or type(self.minimum_events) is not int or not 1<=self.minimum_events<=64
+                or type(self.minimum_city_days) is not int or not 1<=self.minimum_city_days<=self.minimum_events):
+            raise EvidenceError('DRIFT_REALIZED_POLICY_BOUND_OR_METHOD')
+
+    @property
+    def sha256(self): return digest(asdict(self))
+
+
+def measure_realized_window(coordinator, *, scope, bundle_sha256, policy, account_ref, as_of, monotonic=time.monotonic):
+    from .performance import PerformanceLab
+    if not isinstance(policy,RealizedDriftPolicy):raise EvidenceError('DRIFT_REALIZED_POLICY_REQUIRED')
+    as_of=finite(as_of);start=as_of-policy.window_seconds
+    measured=PerformanceLab(coordinator).scoped_realized(scope=scope,bundle_sha256=bundle_sha256,
+        start=start,end=as_of,account_ref=account_ref,monotonic=monotonic)
+    sufficient=(measured['n_realizations']>=policy.minimum_realizations and measured['n_events']>=policy.minimum_events
+        and measured['n_city_days']>=policy.minimum_city_days)
+    scores=measured['realization_statistics'];breaches=[]
+    if -number(scores['total'],signed=True)>number(policy.maximum_realized_loss):
+        breaches.append('REALIZED_WINDOW_LOSS_ABOVE_DECLARED_MAXIMUM')
+    if number(scores['max_realized_only_drawdown'])>number(policy.maximum_realized_drawdown):
+        breaches.append('REALIZED_ONLY_DRAWDOWN_ABOVE_DECLARED_MAXIMUM')
+    request=dict(scope=asdict(scope),account_id=coordinator.policy.account_id,bundle_sha256=bundle_sha256,
+        namespace=coordinator.store.namespace,policy=asdict(policy),account_ref=account_ref,as_of=as_of)
+    result=dict(version='alpha_v11_scoped_realized_drift_measurement_v1',request=request,request_sha256=digest(request),
+        window=dict(start_inclusive=start,end_exclusive=as_of),selection=REALIZED_SELECTION,
+        rows=measured['rows'],account_ref=account_ref,account_measurement={k:v for k,v in measured.items() if k!='rows'},
+        cohort_sufficient=sufficient,threshold_breaches=breaches,
+        outcome='INSUFFICIENT_COHORT' if not sufficient else 'DEGRADATION_CANDIDATE' if breaches else 'NO_DECLARED_BREACH',
+        evidence_class='SYNTHETIC',account_window_coverage_verified=True,global_universe_coverage_verified=False,
+        predeclared_policy_review_verified=False,independent_label_attestation=False,
+        unsupported_metrics=['MARK_TO_MARKET_DRAWDOWN','NET_EV_CAPTURE','HORIZON_MATCHED_MARKOUT','SOURCE_RESIDUAL_BIAS'],
+        demotion_applied=False,financial_authority=False,calibration_acceptance=False)
+    if len(canonical(result).encode())>512*1024:raise EvidenceError('DRIFT_RESULT_BYTES_BOUND')
+    return result
 
 
 def measure_window(source_store, *, scope, account_id, bundle_sha256, policy, joins, as_of,

@@ -338,3 +338,36 @@ This is cooperative off-host paper/shadow preparation, not an isolated guardian 
 operational quality/threshold acceptance. Scalar calibration error and profitability/
 source-residual metric reductions are still gated; actual observed evidence and
 independent policy/label/host reviews remain required for acceptance.
+
+## Explicit calibration and realized-paper monitoring
+
+The optional `CalibrationDriftPolicy` preserves existing default scorer and DriftPolicy
+identities. Its mandatory method CITY_DAY_EVENT_SNAPSHOT_BUCKET_EQUAL_WIDTH_10_V1 and
+maximum_calibration_error bind ten fixed bins, equal city-day/event/snapshot weighting,
+and equal shares for each vector's buckets. The resulting ECE is descriptive and
+bin-dependent, without a confidence or calibration-acceptance claim. Existing reviews
+cannot authorize the added threshold.
+
+`RealizedDriftPolicy` uses SCOPED_REALIZED_PAPER_COLLATERAL_V1 with explicit decimal
+maximum_realized_loss/maximum_realized_drawdown, window and cohort minimums. It accepts
+only SYNTHETIC paper accounting evidence. Its review selection must be
+ALL_RECONCILED_ACCOUNT_REALIZATIONS_IN_WINDOW_FOR_SCOPE. The usual protected review
+schema, pre-window approval, current original model epoch and expiry checks still apply.
+
+The finite worker automatically pins one current account snapshot when retained
+realized history changes. It measures every realized fragment in the declared half-open
+window from its original entry admission/model, verifies fill proofs and account/event
+conservation, and never substitutes exit attribution. Repeated fragments remain one
+event/city-day. Missing/unknown lineage gates the result. Unchanged history does not
+retrigger a completed action; explicit request replay also does not renew work. An
+account race before reduction gates that measurement and permits a new exact snapshot.
+Pending requests/measurements/actions survive interruption without rewriting old records.
+
+One prediction-quality and one realized-paper plan may share the same exact scope;
+all configured plans still share one bounded pending slot and common account. A reviewed
+realized loss breach records DISABLED without changing model parameters, pointers or
+permissions. Existing reducing exits/inventory are retained and the ordinary admission/
+cancellation path remains authoritative. Audits include durable drift outcome counts.
+Realized-only drawdown is not mark-to-market drawdown; these statistics do not establish
+live execution, matched EV capture, settlement truth or source residual bias. The
+independent guardian and actual host/operational acceptance remain uncommissioned.

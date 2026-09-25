@@ -13,13 +13,13 @@ import stat
 import time
 
 from .certification import CapabilityScope, StationRegistry, _root_custody
-from .drift import DriftPolicy, measure_window
+from .drift import DriftPolicy, RealizedDriftPolicy, REALIZED_SELECTION, measure_window, measure_realized_window
 from .evidence import EvidenceError, canonical, digest, finite, identity, sha
 from .forecast_learning import ForecastLabelJoin
 from .learning_sources import learning_source_view
 from .model_artifacts import parse_data
 from .model_registry import ActiveModelRegistry
-from .paper_coordinator import PaperCoordinator
+from .paper_coordinator import ACCOUNT_KEY, PaperCoordinator
 
 
 VERSION = 'alpha_v11_reviewed_drift_worker_v1'
@@ -30,16 +30,19 @@ REVIEW_PATH = Path('/etc/alpha-v11/approvals/drift-policies.json')
 class DriftPlan:
     scope: CapabilityScope
     bundle_sha256: str
-    policy: DriftPolicy
+    policy: DriftPolicy | RealizedDriftPolicy
 
     def __post_init__(self):
-        if (not isinstance(self.scope, CapabilityScope) or not isinstance(self.policy, DriftPolicy)
+        if (not isinstance(self.scope, CapabilityScope) or not isinstance(self.policy, (DriftPolicy,RealizedDriftPolicy))
                 or self.policy.minimum_events > 64):
             raise EvidenceError('DRIFT_TYPED_PLAN_REQUIRED')
         sha(self.bundle_sha256)
 
     @property
     def key(self): return digest(asdict(self))
+
+    @property
+    def channel(self): return 'REALIZED_PAPER' if isinstance(self.policy,RealizedDriftPolicy) else 'PREDICTION_QUALITY'
 
 
 def protected_reviews():
@@ -66,7 +69,7 @@ class DriftWorker:
         if (not isinstance(coordinator, PaperCoordinator) or coordinator.store.namespace not in {'V11_PAPER','V11_SHADOW'}
                 or type(plans) is not tuple or not 1 <= len(plans) <= 16
                 or any(not isinstance(p, DriftPlan) for p in plans)
-                or len({p.scope.key for p in plans}) != len(plans)):
+                or len({(p.scope.key,p.channel) for p in plans}) != len(plans)):
             raise EvidenceError('DRIFT_WORKER_SCOPE_OR_BOUND')
         self.coordinator, self.store = coordinator, coordinator.store
         self.plans = {p.key:p for p in plans}
@@ -97,13 +100,13 @@ class DriftWorker:
             yield
         finally: os.close(fd)
 
-    def _save(self, key, head, state, *, action, evidence_ids=(), **details):
+    def _save(self, key, head, state, *, action, evidence_ids=(), heads=(), **details):
         if len(canonical(state).encode()) > 256*1024: raise EvidenceError('DRIFT_STATE_BYTES_BOUND')
         return self.store.audit(key, event_id=self.key, kind='MODEL_EVENT', details=dict(
             version=VERSION, config_sha256=self.config, action=action, state=state,
             financial_authority=False, automatic_restoration=False, calibration_acceptance=False,
             independent_guardian_commissioned=False, **details), evidence_ids=evidence_ids,
-            expected_previous_seq=head['seq'] if head else 0)
+            expected_previous_seq=head['seq'] if head else 0, expected_heads=heads)
 
     def request(self, request_id, *, plan_key, joins, as_of):
         """One pending exact cohort, explicitly submitted; no unbounded archive scan.
@@ -112,33 +115,70 @@ class DriftWorker:
         Request acceptance is not approval of the policy or statistical evidence.
         """
         identity(request_id); sha(plan_key); as_of = finite(as_of)
-        if (plan_key not in self.plans or as_of > self.store.clock() or type(joins) is not tuple
+        if (plan_key not in self.plans or isinstance(self.plans[plan_key].policy,RealizedDriftPolicy)
+                or as_of > self.store.clock() or type(joins) is not tuple
                 or not 1 <= len(joins) <= 64 or any(not isinstance(j, ForecastLabelJoin)
                     or j.prior_exposure != 'DEVELOPMENT' for j in joins)
                 or len({j.capture_id for j in joins}) != len(joins)):
             raise EvidenceError('DRIFT_REQUEST_SCOPE_COHORT_CUTOFF')
-        key = 'drift-request:' + digest([self.key, request_id])
         request = dict(plan_key=plan_key, joins=[asdict(j) for j in joins], as_of=as_of)
+        with self._lock():return self._enqueue(request_id, request)
+
+    def request_account(self, request_id, *, plan_key, account_id, as_of):
+        """Explicit pinned paper account request; completed identities never renew."""
+        identity(request_id);sha(plan_key);as_of=finite(as_of)
+        if (plan_key not in self.plans or not isinstance(self.plans[plan_key].policy,RealizedDriftPolicy)
+                or as_of>self.store.clock()):raise EvidenceError('DRIFT_ACCOUNT_REQUEST_SCOPE')
+        account=self.store.get(account_id)
+        request=dict(plan_key=plan_key,account_ref=dict(id=account['id'],sha256=account['sha256'],seq=account['seq']),as_of=as_of)
+        with self._lock():return self._enqueue(request_id,request)
+
+    def _enqueue(self, request_id, request):
+        """Caller holds the worker lock; source/account writes remain independently guarded."""
+        key = 'drift-request:' + digest([self.key, request_id]);plan_key=request['plan_key'];as_of=request['as_of']
         request_sha = digest(request)
-        with self._lock():
-            old = self._get(key)
-            if old:
-                if (old['body']['details'].get('config_sha256') != self.config
-                        or old['body']['details'].get('request_sha256') != request_sha):
-                    raise EvidenceError('DRIFT_REQUEST_REPLAY_CONFLICT')
-                return old
-            head = self._head()
-            state = head['body']['details']['state'] if head else dict(active=None, last={})
-            if state['active'] is not None: raise EvidenceError('DRIFT_PENDING_COHORT_MUST_FINISH')
-            previous = state['last'].get(plan_key)
-            cohort_sha = digest(request['joins'])
-            if previous and (as_of <= previous['as_of'] or previous.get('demotion_applied')
-                             and cohort_sha == previous['cohort_sha256']):
-                raise EvidenceError('DRIFT_NEW_COHORT_AND_CUTOFF_REQUIRED')
-            state['active'] = dict(request=request, request_id=key, request_sha256=request_sha)
-            state['last'][plan_key] = dict(as_of=as_of, cohort_sha256=cohort_sha)
-            return self._save(key, head, state, action='DRIFT_COHORT_REQUEST',
-                outcome='QUEUED_NOT_REVIEWED', request_sha256=request_sha)
+        old = self._get(key)
+        if old:
+            if (old['body']['details'].get('config_sha256') != self.config
+                    or old['body']['details'].get('request_sha256') != request_sha):
+                raise EvidenceError('DRIFT_REQUEST_REPLAY_CONFLICT')
+            return old
+        head = self._head();heads=();extra={}
+        state = head['body']['details']['state'] if head else dict(active=None, last={})
+        if state['active'] is not None: raise EvidenceError('DRIFT_PENDING_COHORT_MUST_FINISH')
+        if 'account_ref' in request:
+            account=self.coordinator._head();ref=request['account_ref']
+            if (account is None or dict(id=account['id'],sha256=account['sha256'],seq=account['seq'])!=ref
+                    or account['body']['recorded_at']>as_of):raise EvidenceError('DRIFT_CURRENT_ACCOUNT_SNAPSHOT_REQUIRED')
+            heads=(('COORDINATOR_EVENT',ACCOUNT_KEY,account['seq']),)
+            extra=dict(account_history_sha256=digest(account['body']['details']['state']['realized_entries']),account_id=account['id'])
+            cohort_sha=digest(ref)
+        else:cohort_sha = digest(request['joins'])
+        previous = state['last'].get(plan_key)
+        if previous and (as_of <= previous['as_of'] or previous.get('demotion_applied') and cohort_sha == previous['cohort_sha256']):
+            raise EvidenceError('DRIFT_NEW_COHORT_AND_CUTOFF_REQUIRED')
+        state['active'] = dict(request=request, request_id=key, request_sha256=request_sha)
+        state['last'][plan_key] = dict(as_of=as_of, cohort_sha256=cohort_sha, **extra)
+        return self._save(key, head, state, action='DRIFT_COHORT_REQUEST',heads=heads,
+            outcome='QUEUED_NOT_REVIEWED', request_sha256=request_sha)
+
+    def _automatic_account(self, state):
+        plans=[p for p in self.plans.values() if isinstance(p.policy,RealizedDriftPolicy)]
+        if not plans:return None
+        account=self.coordinator._head()
+        if account is None:return None
+        entries=account['body']['details']['state']['realized_entries']
+        if not entries:return None
+        if len(entries)>2048:raise EvidenceError('DRIFT_ACCOUNT_HISTORY_BOUND')
+        history_sha=digest(entries);now=finite(self.store.clock())
+        for plan in plans:
+            previous=state['last'].get(plan.key)
+            if previous and now<=previous['as_of']:continue
+            retry=previous and previous.get('reason') in {'AUDIT_GUARDED_STATE_CHANGED','DRIFT_ACCOUNT_CHANGED_BEFORE_REDUCTION'} and previous.get('account_id')!=account['id']
+            if previous and previous.get('account_history_sha256')==history_sha and not retry:continue
+            request=dict(plan_key=plan.key,account_ref=dict(id=account['id'],sha256=account['sha256'],seq=account['seq']),as_of=now)
+            return self._enqueue('automatic-account:'+digest([self.config,plan.key,account['id'],now]),request)
+        return None
 
     def _review(self, plan, result):
         now = finite(self.store.clock()); request = result['request']
@@ -150,8 +190,9 @@ class DriftWorker:
                   'model_state_sha256','maximum_measurement_age_seconds','selection','action','financial_authority'}
         if set(r) != fields: raise EvidenceError('DRIFT_REVIEW_SCHEMA')
         identity(r['review_id']); identity(r['reviewer']); sha(r['model_state_sha256'])
+        selection=REALIZED_SELECTION if isinstance(plan.policy,RealizedDriftPolicy) else 'EXPLICIT_CAPTURE_COHORT'
         if (r['action'] != 'SAFETY_REDUCTION_ONLY' or r['financial_authority'] is not False
-                or r['selection'] != result['selection'] or r['selection'] != 'EXPLICIT_CAPTURE_COHORT'
+                or r['selection'] != result['selection'] or r['selection'] != selection
                 or not finite(r['approved_at']) <= result['window']['start_inclusive'] <= request['as_of'] <= now < finite(r['expires_at'])
                 or not 1 <= finite(r['maximum_measurement_age_seconds']) <= 86400
                 or now-request['as_of'] > r['maximum_measurement_age_seconds']):
@@ -187,15 +228,23 @@ class DriftWorker:
             head = self._head(); state = head['body']['details']['state'] if head else dict(active=None, last={})
             active = state['active']
             if active is None:
-                return self._save(key, head, state, action='DRIFT_IDLE', outcome='NO_EXPLICIT_COHORT')
+                queued=self._automatic_account(state)
+                if queued is not None:head=queued;state=queued['body']['details']['state'];active=state['active']
+            if active is None:
+                return self._save(key, head, state, action='DRIFT_IDLE', outcome='NO_NEW_ACCOUNT_REALIZATION'
+                    if any(isinstance(p.policy,RealizedDriftPolicy) for p in self.plans.values()) else 'NO_EXPLICIT_COHORT')
             request = active['request']; plan = self.plans[request['plan_key']]
             measurement_key = 'drift-measurement:' + digest(active['request_id'])
             measurement = self._get(measurement_key)
             if measurement is None:
                 try:
-                    joins = tuple(ForecastLabelJoin(**dict(j, label_ids=tuple(tuple(p) for p in j['label_ids']))) for j in request['joins'])
-                    result = measure_window(self.store, scope=plan.scope, account_id=self.coordinator.policy.account_id,
-                        bundle_sha256=plan.bundle_sha256, policy=plan.policy, joins=joins, as_of=request['as_of'])
+                    if isinstance(plan.policy,RealizedDriftPolicy):
+                        result=measure_realized_window(self.coordinator,scope=plan.scope,bundle_sha256=plan.bundle_sha256,
+                            policy=plan.policy,account_ref=request['account_ref'],as_of=request['as_of'])
+                    else:
+                        joins = tuple(ForecastLabelJoin(**dict(j, label_ids=tuple(tuple(p) for p in j['label_ids']))) for j in request['joins'])
+                        result = measure_window(self.store, scope=plan.scope, account_id=self.coordinator.policy.account_id,
+                            bundle_sha256=plan.bundle_sha256, policy=plan.policy, joins=joins, as_of=request['as_of'])
                     details = dict(result=result, result_sha256=digest(result), outcome=result['outcome'])
                 except (EvidenceError, KeyError, TypeError, ValueError) as exc:
                     details = dict(result=None, outcome='MEASUREMENT_GATED',
@@ -221,9 +270,15 @@ class DriftWorker:
             elif result is not None and result['outcome'] == 'DEGRADATION_CANDIDATE':
                 try:
                     station = self.store.latest(kind='REGISTRY', event_id='station:'+plan.scope.station)
-                    label_heads = tuple(('LABEL', event, self.store.latest(kind='LABEL',event_id=event)['seq'])
-                                        for event in sorted({row['event_id'] for row in result['rows']}))
-                    self._labels_current(result)
+                    if isinstance(plan.policy,RealizedDriftPolicy):
+                        account=self.coordinator._head();ref=result['account_ref']
+                        if account is None or dict(id=account['id'],sha256=account['sha256'],seq=account['seq'])!=ref:
+                            raise EvidenceError('DRIFT_ACCOUNT_CHANGED_BEFORE_REDUCTION')
+                        input_heads=(('COORDINATOR_EVENT',ACCOUNT_KEY,account['seq']),)
+                    else:
+                        input_heads = tuple(('LABEL', event, self.store.latest(kind='LABEL',event_id=event)['seq'])
+                                            for event in sorted({row['event_id'] for row in result['rows']}))
+                        self._labels_current(result)
                     review = self._review(plan, result)
                     # Preserve the exact accepted review with the decision; the
                     # source measurement does not assert independent approval.
@@ -236,15 +291,18 @@ class DriftWorker:
                     if saved_review['body']['details']['review_sha256'] != digest(review):
                         raise EvidenceError('DRIFT_REVIEW_CHANGED_DURING_RECOVERY')
                     if self._review(plan, result) != review: raise EvidenceError('DRIFT_REVIEW_CHANGED_BEFORE_REDUCTION')
-                    demotion = StationRegistry(self.store).demote(demotion_key, plan.scope, state='CALIBRATION_DEGRADED',
-                        reason='REVIEWED_ROLLING_QUALITY_BREACH', evidence_ids=(measurement['id'],),
-                        expected_previous_seq=station['seq'] if station else 0, expected_heads=label_heads)
+                    realized=isinstance(plan.policy,RealizedDriftPolicy)
+                    demotion = StationRegistry(self.store).demote(demotion_key, plan.scope,
+                        state='DISABLED' if realized else 'CALIBRATION_DEGRADED',
+                        reason='REVIEWED_REALIZED_PAPER_LOSS' if realized else 'REVIEWED_ROLLING_QUALITY_BREACH',
+                        evidence_ids=(measurement['id'],),expected_previous_seq=station['seq'] if station else 0, expected_heads=input_heads)
                     outcome = 'SCOPED_SAFETY_REDUCTION_APPLIED'
                 except (EvidenceError, KeyError, TypeError, ValueError) as exc:
                     outcome = 'REDUCTION_GATED'
                     reason = str(exc) if isinstance(exc, EvidenceError) else 'DRIFT_REVIEW_MALFORMED'
             state['active'] = None
             state['last'][request['plan_key']]['demotion_applied'] = demotion is not None
+            if isinstance(plan.policy,RealizedDriftPolicy):state['last'][request['plan_key']].update(outcome=outcome,reason=reason)
             refs = (active['request_id'], measurement['id']) + ((demotion['id'],) if demotion else ())
             return self._save(key, head, state, action='DRIFT_RESULT', outcome=outcome, reason=reason,
                 request_sha256=active['request_sha256'], measurement_id=measurement['id'],
