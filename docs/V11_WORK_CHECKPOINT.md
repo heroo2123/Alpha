@@ -1,9 +1,47 @@
 # Alpha V11 work checkpoint
 
-Updated 2026-09-25, after receipt-cost and causal price-comparison audit integration. Resume here. **NOT_READY_TO_FUND**.
+Updated 2026-09-25, after bounded historical economic replay implementation. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
 
-## Latest verified checkpoint — receipt costs and candidate audits
+## Latest implementation checkpoint — bounded historical economics and account context
+
+Recovered clean published/local **124c4c9c05f1f6076bead923279d172e2a9a3e27**,
+tree **e1de4e7afd4f382d2f21ecce21467e2d6a13a43d**. All 756 implementation inputs
+matched the saved 4046-pass regression, master SHA-256 matched, no test/operation
+was running and the full-regression lock was free. No V10 work was reopened.
+
+Added bounded read-only `causal_replay.py`, exposed by PerformanceLab. Future and
+same-day temperature decisions now reconstruct their original typed requests,
+receipt-sequence/time boundaries, source derivations, model state prefix and exact
+immutable bundle. Complete retained protected history links/reviews/overlays are
+checked; missing history/artifacts gate without selecting today's champion.
+Original prediction and full executable valuation recompute through shared runtime
+functions. Original account policy and pre-decision snapshot join the same common
+scenario/cash/risk calculations, including original-record-time risk comparison.
+No source/account/model record, economic command, current admission or pointer is
+modified. Runtime approval checks and existing serialized outputs are preserved.
+
+This is economic replay, not complete engine/control-flow replay or historical
+executable attestation. Early control gates and unimplemented PWS/source-release
+joins remain explicit GATED results. Candidate/automatic audit integration is next.
+18 new replay cases plus existing strategy/valuation checks: **72 passed in 4.48 s,
+exit 0**, session **38653**. Initial run: 8 failed / 5 passed in 1.54 s from archived
+JSON cost-cover lists needing typed tuple reconstruction. After that fix, 3 failed /
+10 passed in 1.58 s were native tuple versus archived-list assertions; tests now
+compare canonical JSON. No runtime authority rule was relaxed. Broader/full tests
+of this changed tree remain due; the earlier 4046-pass result is not reused for it.
+Resolve this save with `git log -1 --format='%H %T' -- polymarket_scanner/v11/causal_replay.py`.
+
+**82/200, approximately 41%**, formal **1/50 (2%)**, unchanged. The initial slice
+does not close complete engine replay or actual/independent acceptance. V10 unchanged,
+maintenance DEFERRED, **NOT_READY_TO_FUND**. Six readiness milestones/hours below
+remain current and exclude owner actions/external waiting. No owner action blocks
+continuation. Exact next action: join original-decision replay to the scheduled
+candidate audit worker with bounded complete-population selection, pinned refs,
+restart recovery and explicit unsupported/missing evidence; then verify affected
+and full integration once on the saved combined tree.
+
+## Historical verified checkpoint — receipt costs and candidate audits
 
 Published implementation **79a7b1e98388c34a9c817fc567cef5867ea59e0e**, tree
 **1852925219ce2ab0453b97a226fd0bbae44dc1f1**, passed the locked full regression:

@@ -41,16 +41,19 @@ class LearningSourceView:
         self.check()
         return copy.deepcopy(self._cache[record_id])
 
-    def latest_source(self, *, kind, event_id, provider, source_identity, as_of):
+    def latest_source(self, *, kind, event_id, provider, source_identity, as_of, through_seq=None):
         """Exact source revision within this same read snapshot and cutoff."""
         from .evidence import finite
         for value in (kind,event_id,provider,source_identity): identity(value)
         self.check()
+        boundary=self.snapshot_seq if through_seq is None else through_seq
+        if type(boundary) is not int or not 0<=boundary<=self.snapshot_seq:
+            raise EvidenceError('SOURCE_VIEW_SEQUENCE_BOUND')
         # Source identities live in the canonical body; this uses the existing
         # bounded archive, read-only transaction and SQLite progress deadline.
-        row=self._db.execute('SELECT record_id FROM v11_records WHERE kind=? AND event_id=? AND available_at<=? '
+        row=self._db.execute('SELECT record_id FROM v11_records WHERE kind=? AND event_id=? AND available_at<=? AND seq<=? '
             'AND json_extract(body,\'$.provider\')=? AND json_extract(body,\'$.source_identity\')=? '
-            'ORDER BY seq DESC LIMIT 1',(kind,event_id,finite(as_of),provider,source_identity)).fetchone()
+            'ORDER BY seq DESC LIMIT 1',(kind,event_id,finite(as_of),boundary,provider,source_identity)).fetchone()
         return self.get(row['record_id']) if row is not None else None
 
     def by_hash(self, *, kind, sha256, event_id=None):

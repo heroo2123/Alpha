@@ -45,6 +45,11 @@ class PerformanceLab:
     def __init__(self, coordinator):
         self.coordinator, self.store = coordinator, coordinator.store
 
+    def replay_temperature(self, evaluation_id, *, policy, **options):
+        """Original model/receipts through shared economics and account context."""
+        from .causal_replay import replay_temperature
+        return replay_temperature(self.coordinator, evaluation_id, policy=policy, **options)
+
     def scoped_fill_markouts(self, **request):
         """Pinned reconciled PAPER fills and hypothetical horizon depth, read-only."""
         from .fill_markout import measure_fill_window

@@ -141,6 +141,15 @@ def _condition(store, rule, request, cutoff, components, *, available_cutoff):
     return observed, coverage
 
 
+def temperature_inputs(store, rule, request, *, strategy, cutoff, inference_cutoff):
+    """Shared causal input reconstruction; this grants no admission authority."""
+    components = _model_inputs(store, rule, request.model_input_ids, inference_cutoff,
+        target=FINAL_EXTREME if strategy == 'FUTURE_FORECAST' else UNRESOLVED_EXTREME)
+    observed, coverage = (None, None) if strategy == 'FUTURE_FORECAST' else _condition(
+        store, rule, request, inference_cutoff, components, available_cutoff=cutoff)
+    return components, observed, coverage
+
+
 class TemperatureStrategies:
     """Evaluate one pinned thesis; reservation is a separate account operation.
 
@@ -242,10 +251,8 @@ class TemperatureStrategies:
                 inference_cutoff = finite(coverage_row['body']['payload'].get('as_of'))
                 if inference_cutoff > cutoff:
                     raise EvidenceError('COVERAGE_CUTOFF_IN_FUTURE')
-            components = _model_inputs(self.store, rule, request.model_input_ids, inference_cutoff,
-                                       target=FINAL_EXTREME if scope.strategy == 'FUTURE_FORECAST' else UNRESOLVED_EXTREME)
-            observed, coverage = (None, None) if scope.strategy == 'FUTURE_FORECAST' else _condition(
-                       self.store, rule, request, inference_cutoff, components, available_cutoff=cutoff)
+            components, observed, coverage = temperature_inputs(self.store, rule, request,
+                strategy=scope.strategy, cutoff=cutoff, inference_cutoff=inference_cutoff)
             mode = 'V11_PAPER' if original['stage'] == 'PAPER' else 'V11_SHADOW'
             model = ActiveModelRegistry().pin(scope_key=scope.key, mode=mode)
             if model.state_sha256 != assessment['model_state_sha256'] or model.bundle.sha256 != binding.bundle_sha256:

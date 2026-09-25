@@ -388,3 +388,14 @@ approximately 41%**, formal **1/50 (2%)**, unchanged. Replay review identified t
 remaining historical-model/receipt-boundary join; it is not yet implemented or
 credited. Six full-scope active-hour milestones and external dependencies remain
 in V11_WORK_CHECKPOINT.md; no calendar wait or financial authority is implied.
+
+
+Historical economic replay first slice — 2026-09-25: PerformanceLab now reconstructs
+original future/same-day temperature source/receipt boundaries, retained protected
+model history and immutable bundles, reuses runtime prediction/valuation functions,
+and compares original common-account risk/context. 18 new cases / 72 related passes
+in 4.48 s after documented JSON decoding/assertion corrections. Automatic candidate
+audits, full control-flow/PWS/challenger replay and historical executable attestation
+remain open. No new named milestone is credited at this intermediate checkpoint:
+**82/200, approximately 41%**, formal **1/50 (2%)**, unchanged. Actual independent,
+host and unfunded evidence remain unearned; six active-hour ranges are unchanged.

@@ -215,7 +215,7 @@ def _cost_scope_reasons(costs: tuple[CostComponent, ...], at: float, depth: dict
     return sorted(set(reasons))
 
 
-def settlement_entry(store: EvidenceStore, record_id: str, *, rule: RuleFingerprint,
+def settlement_entry_details(store: EvidenceStore, *, rule: RuleFingerprint,
                      prediction: BucketPrediction, binding: ReleaseBinding, market_id: str,
                      side: str, units: str, book_id: str, policy: ValuationPolicy,
                      costs: tuple[CostComponent, ...]) -> dict:
@@ -252,6 +252,16 @@ def settlement_entry(store: EvidenceStore, record_id: str, *, rule: RuleFingerpr
                    trading_ev_includes_rewards=False, incremental_reward_ev=None,
                    rewards_for_spendable_cash='0', execution_status='NOT_SUBMITTED',
                    trading_pnl=None, financial_authority=False)
+    return details
+
+
+def settlement_entry(store: EvidenceStore, record_id: str, *, rule: RuleFingerprint,
+                     prediction: BucketPrediction, binding: ReleaseBinding, market_id: str,
+                     side: str, units: str, book_id: str, policy: ValuationPolicy,
+                     costs: tuple[CostComponent, ...]) -> dict:
+    """Persist the same numerical result used by bounded read-only replay."""
+    details = settlement_entry_details(store, rule=rule, prediction=prediction, binding=binding,
+        market_id=market_id, side=side, units=units, book_id=book_id, policy=policy, costs=costs)
     return store.audit(record_id, event_id=rule.payload['event_id'], kind='MEASUREMENT',
                        details=details, evidence_ids=(book_id,))
 
