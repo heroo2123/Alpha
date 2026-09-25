@@ -162,7 +162,8 @@ def measure_context(research, key, *, quote_id, model_input_ids, payout_admissio
                 raise EvidenceError('COVERAGE_CUTOFF_IN_FUTURE')
         components = _model_inputs(store, quote.rule, model_input_ids, inference_cutoff,
                                     target=UNRESOLVED_EXTREME if same_day else FINAL_EXTREME)
-        condition = SimpleNamespace(observed_input_id=observed_input_id, coverage_input_id=coverage_input_id)
+        condition = SimpleNamespace(observed_input_id=observed_input_id, coverage_input_id=coverage_input_id,
+                                    model_input_ids=model_input_ids)
         observed, coverage = _condition(store, quote.rule, condition, inference_cutoff, components,
                                        available_cutoff=cutoff) if same_day else (None, None)
         model = ActiveModelRegistry().pin(scope_key=scope.key,

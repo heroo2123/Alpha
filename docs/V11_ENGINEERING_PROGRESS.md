@@ -139,3 +139,12 @@ Total remains **80/200, approximately 40%**, formal **1/50 (2%)**. Actual label,
 calibration, process isolation, initial champion and learning acceptance remain
 open. The current six active-work ranges are in the checkpoint; they are not
 derived from this percentage and exclude external/owner waiting.
+
+The archived exact-interval/GEFS remaining-path join now reaches protected same-day
+inference and conservative economics, with 24 new cases verified. A shared-source
+admission guard defect was corrected: identical guards merge and differing reads
+gate. R11/R26 already have their integration credits. Total remains **80/200,
+approximately 40%**, formal **1/50 (2%)**; actual exact-population coverage,
+calibration and operational/independent acceptance remain unearned. The first
+remaining milestone now excludes this bounded derivation implementation, but its
+45–90 active-hour range remains appropriate to the larger unresolved source scope.

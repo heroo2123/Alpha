@@ -153,6 +153,16 @@ class StrategyAdmission:
             if kind == 'PWS_OBSERVATION':
                 if not head or head['id'] not in {s.evidence_id for s in source_leases if s.role == 'PWS'}:
                     raise EvidenceError('NEW_PWS_EVIDENCE_REQUIRES_QC_RECOMPUTE')
+        # Derived paths/QC can share a kind head with their explicit leases.
+        # One identical guard is sufficient; differing reads must never be
+        # collapsed into whichever revision was observed last.
+        distinct = {}
+        for kind, event, seq in heads:
+            key = (kind,event)
+            if key in distinct and distinct[key] != seq:
+                raise EvidenceError('STRATEGY_SOURCE_CHANGED_DURING_ASSESSMENT')
+            distinct[key] = seq
+        heads = [(kind,event,seq) for (kind,event),seq in distinct.items()]
         return dict(certification=certification, rule=rules, source_refs=source_refs, heads=heads,
                     model_epoch=model.epoch, model_state_sha256=model.state_sha256,
                     model_bundle_sha256=model.bundle.sha256, model_size_multiplier=model.size_multiplier,

@@ -1,7 +1,69 @@
 # Alpha V11 work checkpoint
 
-Updated 2026-09-24, after separate bounded learner-worker integration. Resume here. **NOT_READY_TO_FUND**.
+Updated 2026-09-25, after remaining-path/same-day integration. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
+
+## Latest saved implementation — archived remaining-day paths
+
+Recovered published/local **86fe65dd6cb5c59843ed7ef91342f6207d7063fd**, tree
+**4ca9b0374d581945a6a563bb9f23e7d176db3b24**, clean workspace and no outstanding
+operation. GitHub read-only ref agreed. Master specification SHA-256 matched
+`a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+This checkpoint's exact published HEAD/tree resolves with
+`git log -1 --format='%H %T' -- docs/V11_WORK_CHECKPOINT.md` on the existing branch.
+
+Implemented `v11/remaining_forecast.py`: explicit exact-population interval
+coverage and an immutable full GEFS path produce unresolved high/low members and
+the FEATURES coverage record consumed by the existing protected same-day engine.
+It retains every elapsed gap, 23/25-hour local days, all 31 members, original run
+and oldest constituent receipt. Reprocessing does not renew source time. A proxy
+or collection of point reports cannot establish accepted interval coverage. The
+actual exact-source adapter/coverage certification remains unavailable; the new
+contract is not independent attestation. Interpolation, revision and calibration
+uncertainty remain explicit. No next-observation probability becomes payout or
+executable sale proceeds.
+
+Current parent/field and official revisions are rechecked in health/admission.
+The same-day pipeline, derived risk and maker paths verify that the coverage
+record describes the same observation and interval partition as the derived
+members. Appends use atomic source guards; completed replay is historical and an
+interrupted MODEL/FEATURES pair can resume without replacing or refreshing the
+saved model. Shared linear-path extrema logic is reused by whole-day forecasts.
+
+The end-to-end test exposed an existing duplicate-guard defect in strategy
+admission for derived source channels. Identical guards now merge; differing
+versions fail closed. No permission, freshness threshold or production risk
+policy was relaxed. Synthetic metadata/GRIB and risk-age fixture defects were
+also corrected. The final related run was **211 passed, one failed / 56.73 s**;
+the failure was the integration fixture's 120-second source policy rejecting a
+16-hour model run. The targeted correction and shared-guard checks then passed
+**3 passed, 21 deselected / 1.95 s, exit 0**. All **24 new cases** have passed
+across these runs. A combined full regression is required after the next shared
+inference milestone; no new full-suite pass is claimed yet. Latest full remains
+3610 passes at `6347e704`, predating this change and the learner worker.
+
+The preserved venv had a missing `bin/python3` launcher after environment
+recovery; initial test invocation exited 127 without running tests. Restored only
+that missing symlink to the recorded Python 3.12.14 runtime; existing packages
+were retained (pytest 8.3.3, httpx 0.27.2, pydantic 2.9.2). Off-host preflight:
+4655427584 bytes memory used / 8589934592 limit, eight CPU quota equivalents,
+27020976 KiB disk free, memory high/max/OOM counters zero. This is not alpha-dev
+resource or deployment evidence.
+
+Estimate **80/200, approximately 40% (unchanged)**; formal **1/50 (2%)**. R11/R26
+already hold their named integration credits; no E/A is earned. The six remaining
+active-work ranges below remain unchanged; the bounded observed-interval/GEFS
+join is implemented, while source acceptance, broader paths and physical/PWS
+inference are still part of the first milestone. No external waiting is counted.
+
+Next concrete action: connect causal physical/PWS feature values to a declared
+immutable inference contract and paired next-observation model, including missing
+source fallback and exact-family ablation. Reuse protected observation/payout
+scopes; do not hard-code meteorology as calibrated probability. Actual labels,
+calibration, independent guardian/auth/host and acceptance gates stay open.
+V10 and executor remain unchanged; maintenance DEFERRED, no deployment or funding.
+Inventory hash remains OWNER-REPORTED / INDEPENDENT VERIFICATION PENDING, and all
+recorded stale-control/memory-pressure/resource/backup findings remain open.
 
 ## Latest saved implementation — finite learner worker
 

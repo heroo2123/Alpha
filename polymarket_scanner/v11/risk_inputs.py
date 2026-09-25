@@ -66,7 +66,8 @@ class EventRiskInputs:
         conditioned = any(s.role == 'FEATURES' for s in leases)
         cutoff = now; request = None
         if conditioned:
-            request = SimpleNamespace(observed_input_id=_single(leases,'OFFICIAL'),coverage_input_id=_single(leases,'FEATURES'))
+            request = SimpleNamespace(observed_input_id=_single(leases,'OFFICIAL'),coverage_input_id=_single(leases,'FEATURES'),
+                                      model_input_ids=models)
             cutoff = finite(self.store.get(request.coverage_input_id)['body']['payload'].get('as_of'))
             if cutoff > now: raise EvidenceError('RISK_MODEL_CUTOFF_IN_FUTURE')
         components = _model_inputs(self.store,a.inputs.rule,models,cutoff,

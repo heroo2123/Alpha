@@ -30,6 +30,19 @@ MODEL_ID = 'NOAA_GEFS_0P50_LINEAR_DAY_V1'
 MAX_FIELDS = 341
 
 
+def linear_extreme(points, values, intervals, *, high):
+    """Extreme of a declared piecewise-linear path over every unresolved interval."""
+    def interpolate(at):
+        if at == points[-1]: return values[-1]
+        i = next(i for i in range(len(points)-1) if points[i] <= at <= points[i+1])
+        return values[i]+(values[i+1]-values[i])*(at-points[i])/(points[i+1]-points[i])
+    samples = []
+    for start, end in intervals:
+        samples.extend((interpolate(start), interpolate(end)))
+        samples.extend(v for t, v in zip(points, values) if start < t < end)
+    return (max if high else min)(samples)
+
+
 @dataclass(frozen=True)
 class GEFSPlan:
     forecast: ForecastPlan
@@ -202,12 +215,7 @@ def assemble_path(store,*,plan,field_ids,record_id,deadline=None):
     start,end=plan.window; points=[plan.initialized_at+h*3600 for h in plan.hours]; members=[]
     for member in range(31):
         values=[fields[member,h] for h in plan.hours]
-        def interpolate(at):
-            if at==points[-1]: return values[-1]
-            i=next(i for i in range(len(points)-1) if points[i]<=at<=points[i+1])
-            return values[i]+(values[i+1]-values[i])*(at-points[i])/(points[i+1]-points[i])
-        local=[interpolate(start),interpolate(end),*[v for t,v in zip(points,values) if start<t<end]]
-        kelvin=(max if plan.rule.payload['family']==DAILY_HIGH else min)(local)
+        kelvin=linear_extreme(points,values,((start,end),),high=plan.rule.payload['family']==DAILY_HIGH)
         celsius=kelvin-273.15; members.append(celsius*1.8+32 if plan.rule.payload['unit']=='F' else celsius)
     p=plan.rule.payload
     payload=dict(version=VERSION,path_sha256=fingerprint,rule_fingerprint=plan.rule.sha256,
@@ -229,6 +237,9 @@ def assemble_path(store,*,plan,field_ids,record_id,deadline=None):
 def current_path_heads(store,row):
     """One aggregate MODEL CAS guard covers all bounded constituent channels."""
     p=row['body'].get('payload',{})
+    from .remaining_forecast import VERSION as REMAINING_VERSION, current_remaining_heads
+    if p.get('version') == REMAINING_VERSION:
+        return current_remaining_heads(store,row)
     if p.get('version')!=VERSION: return ()
     refs=p.get('field_references')
     if type(refs) is not list or not 1<=len(refs)<=MAX_FIELDS: raise EvidenceError('GEFS_PATH_LINEAGE_INVALID')

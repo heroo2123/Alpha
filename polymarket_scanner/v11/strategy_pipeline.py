@@ -132,6 +132,8 @@ def _condition(store, rule, request, cutoff, components, *, available_cutoff):
                   tuple(tuple(p) for p in data['accepted_intervals']),
                   tuple(tuple(p) for p in data['unresolved_intervals']),
                   tuple(data['model_evidence_sha256']), row['sha256'])
+    from .remaining_forecast import validate_condition_binding
+    validate_condition_binding(store, request.model_input_ids, observation, data)
     observed.validate(rule, cutoff)
     coverage.validate(rule, components, cutoff)
     return observed, coverage
