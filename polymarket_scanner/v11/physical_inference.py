@@ -19,6 +19,10 @@ VERSION = 'alpha_v11_physical_model_input_v1'
 FAMILY = 'GAUSSIAN_PHYSICAL_MEMBER_MIXTURE'
 
 
+def physical_model_identity(rule,input_target,base_provider,base_identity,feature_identity):
+    return 'physical-model:'+digest([rule.sha256,input_target,base_provider,base_identity,feature_identity])
+
+
 @dataclass(frozen=True)
 class PhysicalFeatureContract:
     model_widths: tuple[tuple[str, int], ...]
@@ -240,8 +244,8 @@ def archive_physical_model(store,record_id,*,rule,base_model_id,feature_id,input
         else:
             payload['remaining_context'] = {k:cp[k] for k in ('observation_id','observation_sha256','accepted_intervals','unresolved_intervals')}
         b = base['body']; ready = finite(store.clock())
-        body = dict(provider='ALPHA_PHYSICAL_MODEL',source_identity='physical-model:'+digest([rule.sha256,input_target,
-            b['provider'],b['source_identity'],feature['body']['source_identity']]),revision=request_sha,payload=payload,
+        body = dict(provider='ALPHA_PHYSICAL_MODEL',source_identity=physical_model_identity(rule,input_target,
+            b['provider'],b['source_identity'],feature['body']['source_identity']),revision=request_sha,payload=payload,
             observed_at=None,issued_at=b['issued_at'],published_at=None,received_at=b['received_at'],
             evidence_class='SYNTHETIC' if any(r['body']['evidence_class']=='SYNTHETIC' for r in parents) else 'PUBLIC_OBSERVED',source_kind='MODEL')
         # Verify the exact same graph as inference, before the first append.

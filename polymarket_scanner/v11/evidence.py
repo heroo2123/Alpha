@@ -249,6 +249,11 @@ class EvidenceStore:
     @staticmethod
     def _validate_safety_append(db, kind, event_id, body):
         d = body.get('details', {}); action = d.get('request', {}).get('action')
+        if (kind=='RUNTIME_STATUS' and event_id=='v11-input-preparation-worker'
+                and d.get('version')=='alpha_v11_input_preparation_worker_v1'
+                and d.get('financial_authority') is False and d.get('calibrated_probability') is False
+                and d.get('source_truth_independently_attested') is False and d.get('forward_acceptance') is False):
+            return  # Scoped preparation telemetry only; source/model appends use ordinary clock/CAS guards.
         if kind == 'RUNTIME_STATUS' and d.get('version') in {
                 'alpha_v11_runtime_health_v1', 'alpha_v11_paper_runtime_v1', 'alpha_v11_observation_pump_v1',
                 'alpha_v11_census_worker_v1', 'alpha_v11_market_discovery_v1', 'alpha_v11_candidate_runner_v1',

@@ -165,3 +165,13 @@ This completed run was recovered rather than repeated. **81/200, approximately
 41%**, formal **1/50 (2%)**, unchanged; actual-source, operational and independent
 acceptance milestones remain unearned. The stale 40% summary in the matrix header
 was corrected to agree with the already recorded R13 credit; no new unit was added.
+
+Bounded current-input preparation now connects archived remaining paths and
+physical/PWS paired inputs to the typed finite candidate, with preserved clock,
+source, event and conservative economic gates. Final affected verification:
+**245 passed / 56.98 s**, including 24 new cases. R09/R11/R13/R26/R33 already have
+the applicable integration milestones. **81/200, approximately 41%**, formal
+**1/50 (2%)**, unchanged. Source truth, calibrated target models, independent
+review, isolated deployment and operational acceptance remain unearned. The six
+remaining active-work ranges are retained with this completed preparation join
+removed from the source implementation tasks; they exclude external waiting.

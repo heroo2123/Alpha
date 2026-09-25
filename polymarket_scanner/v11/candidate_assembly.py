@@ -35,6 +35,7 @@ from .forecast_runtime import ForecastNormalizationWorker
 from .gefs_sources import GEFSPlan
 from .gefs_runtime import GEFSWorker
 from .gefs_schedule import GEFSRunPolicy
+from .preparation_runtime import PreparationSettings, PreparationWorker
 from .maker_research import MakerResearch, MakerResearchPolicy
 from .maker_telemetry import MakerTelemetryPolicy, MakerTelemetryWorker
 from .maker_runtime import MakerTarget, MakerRequestFactory, MakerEventAdapter
@@ -189,6 +190,7 @@ class CandidatePlan:
     forecasts: tuple[ForecastPlan, ...] = ()
     gefs: tuple[GEFSPlan, ...] = ()
     gefs_rollover: GEFSRunPolicy | None = None
+    preparations: PreparationSettings | None = None
 
     def __post_init__(self):
         identity(self.version); identity(self.worker_id)
@@ -238,6 +240,9 @@ class CandidatePlan:
             raise EvidenceError('CANDIDATE_GEFS_SCOPE')
         if self.gefs_rollover is not None and (not self.gefs or not isinstance(self.gefs_rollover,GEFSRunPolicy)):
             raise EvidenceError('CANDIDATE_GEFS_ROLLOVER_REQUIRES_PLANS')
+        if self.preparations is not None and (not isinstance(self.preparations,PreparationSettings)
+                or any(p.event_id not in events or p.rule!=events[p.event_id].census.rule for p in self.preparations.plans)):
+            raise EvidenceError('CANDIDATE_PREPARATION_SCOPE')
 
 
 def _lane(queue,coordinator,lane,maker):
@@ -333,6 +338,6 @@ def assemble_candidate(store,client,plan,*,generation):
         maker_telemetry=MakerTelemetryWorker(maker,health,plan.maker.telemetry,event_ids=tuple(maker_scopes)) if maker else None,
         pws_quality=PWSQualityWorker(store,health,plan.pws_quality) if plan.pws_quality else None,
         forecasts=ForecastNormalizationWorker(store,health,plan.forecasts) if plan.forecasts else None,
-        gefs=gefs)
+        gefs=gefs,preparations=PreparationWorker(store,health,plan.preparations) if plan.preparations else None)
     runner.assembly_sha256=digest(asdict(plan))
     return runner

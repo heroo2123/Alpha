@@ -1,7 +1,52 @@
 # Alpha V11 work checkpoint
 
-Updated 2026-09-25, after recovery of completed physical/PWS full regression. Resume here. **NOT_READY_TO_FUND**.
+Updated 2026-09-25, after bounded current-input preparation integration. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
+
+## Latest implementation — bounded current-input preparation
+
+Recovered reporting checkpoint **a84c3049e2eda4d629b7ed168d433ef600081dda**, tree
+**f48d6766dda393e4b51f76686476da51d4da3a02**. New code adds typed remaining-day and
+physical/paired-ablation preparation plans to the finite candidate. Each turn
+selects bounded current archived sources or performs one durable stage; clock
+health, source revisions, optional-source absence, expiry, input identity and
+attempt budgets remain enforced. No HTTP, fitting, approvals or financial
+transport are added. Existing archived newer GEFS runs can be adopted with the
+original plan policy and complete field binding. Partial outputs survive restart
+without timestamp renewal; an invalid plan rotates to other independent work.
+
+The integration corrected two concrete joins: normalized AWC physical features
+now verify their original raw response/receipt, and observation/payout plans share
+the same immutable physical feature record so one target cannot supersede the
+other. PWS ablation retains the identical non-PWS evidence and inference cutoff.
+The demonstrated synthetic scheduled path reaches protected observation and
+payout scopes, derived risk, conservative economics and the common candidate.
+It retains the event entry-suppression gate and rejects nonpositive conservative
+EV; no executable exit, trade, filled inventory or financial authority is inferred.
+
+Verification: final affected suite **245 passed / 56.98 s / exit 0**, including
+**24 new preparation cases**. File-backed result/log:
+`/workspace/scratch/38af7099c566/v11-test-evidence/preparation-targeted-20260925-01.json`
+and `.log`; wrapper 57.246 s, peak RSS 76068 KiB, all 819 tracked/untracked inputs
+unchanged. Input digest `8b4ad4d0e294f38981595c8d144d2ff9eed0c826d1aabcd81e86a15e84520783`.
+An earlier interrupted affected run lost its terminal handle and had no retained
+final result; it is not counted. Initial targeted failures exposed the telemetry
+allowlist and shared-feature join defects, both corrected before this final run.
+The latest completed full regression is still the recovered **3677-pass** run at
+`47c3b999`; do not attribute it to these new changes. Run one locked file-backed
+full regression after saving this implementation, without editing its inputs.
+
+Fixed estimate **81/200, approximately 41%**, formal **1/50 (2%)**, unchanged:
+R09/R11/R13/R26/R33 already hold the applicable integration credits. No actual
+provider, model calibration, protected review, isolation or acceptance is earned.
+The six remaining milestones below retain their active-hour ranges; the source
+milestone now excludes the completed bounded preparation join. Next independent
+implementation: target-specific learning capture with exact conditioning and
+receipt-level provenance, before economic filtering. Unsupported targets must
+remain explicitly gated; do not invent labels or widen learner/model authority.
+No owner action is needed for that off-host implementation. Resolve this commit
+and tree with `git log -1 --format='%H %T' -- docs/V11_WORK_CHECKPOINT.md`.
+V10 remains unchanged and maintenance DEFERRED. **NOT_READY_TO_FUND**.
 
 ## Recovered full verification — physical/PWS and remaining paths
 
@@ -362,7 +407,7 @@ still require separate budget and live approval. No arbitrary paper wait applies
 
 | Remaining milestone | Work remaining and proof of completion | Active hours | Confidence | External/owner dependency |
 |---|---|---:|---|---|
-| Source, weather and label closure | Complete required provider/target adapters and bounded runtime scheduling, physical/lead fitting, exact labels and calibration/fallback; the explicit-interval/GEFS and physical/PWS inference joins are implemented. Prove causal source/target identity, coverage, lead/ablation and required OOS quality on actual evidence. R06–R13, R25–R28, R31. | 45–90 | LOW | Working authorized provider access; exact source/version history and sufficient evidence; independent semantic/calibration review. |
+| Source, weather and label closure | Complete remaining provider/target adapters and scheduling, physical/lead fitting, exact labels and calibration/fallback; explicit-interval/GEFS and physical/PWS inference now have bounded candidate preparation scheduling. Prove causal source/target identity, coverage, lead/ablation and required OOS quality on actual evidence. R06–R13, R25–R28, R31. | 45–90 | LOW | Working authorized provider access; exact source/version history and sufficient evidence; independent semantic/calibration review. |
 | Evidence and controlled learning | Close complete replay/provenance, markout/selection/report joins, operational learner scheduling/isolation, target-specific capture, lifecycle and accepted initial-bundle/learning governance. Prove deterministic dataset-to-artifact and rollback/reuse/failure behavior with required real evidence. R02–R05, R14–R17, R40–R42, R47. | 30–60 | LOW | Upstream exact labels; independent initial champion and governance acceptance; isolated learning environment. |
 | Strategy, portfolio and execution integration | Finish missing relative/structural/exit/redemption, correlation, costs and maker/reward paths. Prove full common-account scenario/reservation/reconciliation and strategy eligibility across required failure cases. R18–R24, R29–R30, R32–R36. | 35–70 | LOW | Reviewed mappings/parameters and actual source/execution evidence; funded fill learning remains later and separately authorized. |
 | Independent safety, identity and host | Finish independent cancel-only guardian and protected command/auth routing; prepare and verify isolated deployment/recovery configuration. Prove custody, permissions, resource budgets and authenticated safety behavior. R37–R39, R43–R44. | 30–60 | LOW | Owner account entitlement/access, approved isolated host and deployment action; alpha-dev resource/isolation currently unpassed. V10 maintenance stays deferred absent an exact dependency. |

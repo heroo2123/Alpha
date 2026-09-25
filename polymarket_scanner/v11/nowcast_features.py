@@ -37,12 +37,33 @@ PHYSICAL_SCHEMA=FeatureSchema('alpha_v11_physical_candidates_v1',(
 ))
 
 
+def physical_feature_identity(official, ablated_families, maximum_age, window, gap):
+    return 'physical:'+digest([official.fingerprint,sorted(ablated_families),maximum_age,window,gap])
+
+
+def _awc_response(store, row):
+    """Decode the exact raw response behind a normalized receipt, when present."""
+    b=row['body'];p=b['payload']
+    if 'raw_evidence_id' not in p:
+        return p['response']
+    raw=store.get(p['raw_evidence_id']);rb=raw['body']
+    if (raw['sha256']!=p.get('raw_evidence_sha256') or raw['seq']>=row['seq']
+            or raw['kind']!=row['kind'] or raw['event_id']!=row['event_id']
+            or any(rb.get(k)!=b.get(k) for k in ('provider','source_identity','revision','received_at','evidence_class'))
+            or rb['available_at']>b['available_at']
+            or p.get('adapter_version')!='alpha_v11_awc_metar_v2_physical_body'):
+        raise EvidenceError('PHYSICAL_AWC_RAW_LINEAGE_MISMATCH')
+    return rb['payload']['response']
+
+
 def archive_nowcast_features(store: EvidenceStore, record_id: str, *, event_id: str,
         official: StationMetadata, awc_capture_ids: tuple[str,...],
         max_observation_age_seconds: float, trajectory_window_seconds: float,
         maximum_gap_seconds: float, pws_capture_id: str | None=None,
-        daylight_capture_id: str | None=None, ablated_families: frozenset[str]=frozenset()) -> dict:
-    now=finite(store.clock())
+        daylight_capture_id: str | None=None, ablated_families: frozenset[str]=frozenset(),
+        as_of: float | None=None) -> dict:
+    ready=finite(store.clock());now=ready if as_of is None else finite(as_of)
+    if now>ready:raise EvidenceError('PHYSICAL_FEATURE_CUTOFF_IN_FUTURE')
     if (not isinstance(awc_capture_ids,tuple) or len(awc_capture_ids)>32
             or len(set(awc_capture_ids))!=len(awc_capture_ids)):
         raise EvidenceError('PHYSICAL_CAPTURE_BOUND')
@@ -65,7 +86,7 @@ def archive_nowcast_features(store: EvidenceStore, record_id: str, *, event_id: 
             raise EvidenceError('PHYSICAL_OFFICIAL_INPUT_NOT_CAUSAL')
         # Consume the archived response itself, not a mutable latest report or a
         # caller's claimed normalized physical fields.
-        parsed=parse_awc_metar(b['payload']['response'],station=official.station,received_at=b['received_at'],
+        parsed=parse_awc_metar(_awc_response(store,r),station=official.station,received_at=b['received_at'],
                                max_age_seconds=max(max_observation_age_seconds,trajectory_window_seconds))
         for obs in parsed['observations']:
             if now-obs['observed_at']<=trajectory_window_seconds:
@@ -171,7 +192,7 @@ def archive_nowcast_features(store: EvidenceStore, record_id: str, *, event_id: 
         context=dict(version='alpha_v11_physical_context_v1',station=official.station,metadata_fingerprint=official.fingerprint,
             as_of=now,valid_until=min(expiries) if expiries else now+max_observation_age_seconds,
             ablated_families=sorted(ablated_families)),
-        source_identity='physical:'+digest([official.fingerprint,sorted(ablated_families),max_observation_age_seconds,
-                                           trajectory_window_seconds,maximum_gap_seconds]))
+        source_identity=physical_feature_identity(official,ablated_families,max_observation_age_seconds,
+                                                 trajectory_window_seconds,maximum_gap_seconds))
     store.audit(record_id+':explanation',event_id=event_id,kind='MEASUREMENT',details=details,evidence_ids=(feature['id'],))
     return feature

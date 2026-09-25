@@ -19,6 +19,7 @@ from .maker_telemetry import MakerTelemetryWorker
 from .pws_runtime import PWSQualityWorker
 from .forecast_runtime import ForecastNormalizationWorker
 from .gefs_runtime import GEFSWorker
+from .preparation_runtime import PreparationWorker
 from .paper_runtime import PaperRuntime
 from .runtime_health import KEY as HEALTH_KEY
 
@@ -82,7 +83,7 @@ class ObservationBatch:
 
 
 class CandidateRunner:
-    def __init__(self,runtime,policy,*,census,discovery,audits,observation=None,observation_batch=None,maker_telemetry=None,pws_quality=None,forecasts=None,gefs=None):
+    def __init__(self,runtime,policy,*,census,discovery,audits,observation=None,observation_batch=None,maker_telemetry=None,pws_quality=None,forecasts=None,gefs=None,preparations=None):
         if (not isinstance(runtime,PaperRuntime) or not isinstance(policy,CandidatePolicy)
                 or not isinstance(census,CensusWorker) or not isinstance(discovery,MarketDiscovery)
                 or not isinstance(audits,AuditWorker)):
@@ -120,7 +121,14 @@ class CandidateRunner:
             raise EvidenceError('CANDIDATE_GEFS_SCOPE')
         self.gefs=gefs
         if census.gefs is not gefs:raise EvidenceError('CANDIDATE_CENSUS_GEFS_MUST_SHARE_WORKER')
+        if preparations is not None and (not isinstance(preparations,PreparationWorker)
+                or preparations.health is not runtime.health
+                or any(p.event_id not in runtime.queue.routes or p.rule.sha256!=runtime.queue.routes[p.event_id].rule_fingerprint
+                       for p in preparations.plans.values())):
+            raise EvidenceError('CANDIDATE_PREPARATION_SCOPE')
+        self.preparations=preparations
         self.kinds=('CENSUS','DISCOVERY','AUDIT')+(('OBSERVATION',) if observation else ())+(('MAKER_TELEMETRY',) if maker_telemetry else ())+(('PWS_QUALITY',) if pws_quality else ())+(('FORECAST_NORMALIZATION',) if forecasts else ())+(('GEFS_SOURCE',) if gefs else ())
+        if preparations is not None:self.kinds+=('INPUT_PREPARATION',)
         config=dict(policy=asdict(policy),runtime=runtime.config,census=census.config,
             discovery=discovery.config,audits=audits.config,worker_id=runtime.worker_id,
             observation=asdict(observation_batch) if observation_batch else None)
@@ -128,6 +136,7 @@ class CandidateRunner:
         if pws_quality is not None:config['pws_quality']=pws_quality.config
         if forecasts is not None:config['forecasts']=forecasts.config
         if gefs is not None:config['gefs']=gefs.config
+        if preparations is not None:config['preparations']=preparations.config
         self.config=digest(config)
 
     def _get(self,key):
@@ -173,6 +182,7 @@ class CandidateRunner:
         if kind=='MAKER_TELEMETRY':return self.maker_telemetry.step(key)
         if kind=='PWS_QUALITY':return self.pws_quality.step(key)
         if kind=='FORECAST_NORMALIZATION':return self.forecasts.step(key)
+        if kind=='INPUT_PREPARATION':return self.preparations.step(key)
         if kind=='GEFS_SOURCE':return await self.gefs.step(key,exclude_events=tuple(
             e for e in self.runtime.queue.preparing_model_events() if e in self.gefs.plans))
         batch=self.observation_batch
