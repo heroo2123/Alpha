@@ -1,7 +1,49 @@
 # Alpha V11 work checkpoint
 
-Updated 2026-09-25, after full scoped drift integration regression verification. Resume here. **NOT_READY_TO_FUND**.
+Updated 2026-09-25, after explicit calibration-error integration. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
+
+## Latest implementation — grouped calibration error and reviewed withdrawal
+
+Recovered clean/published **3f5771b7062935c04b77cd9a43715862170e4961**, tree
+**7862d3749f63f1a65ece480ad9303a008892e7a7**. All 744 non-document inputs matched
+the saved 3831-pass full run; no unfinished process or locked regression was present.
+The authoritative attached specification hash matched. No unchanged suite was rerun.
+
+`score_vectors` now offers the explicit optional method
+CITY_DAY_EVENT_SNAPSHOT_BUCKET_EQUAL_WIDTH_10_V1. It gives equal weight to city-days,
+then events, repeated snapshots and each vector's buckets, using ten fixed bins.
+The scalar is bin-weighted absolute probability/frequency discrepancy. Empty bins,
+p=1, exact boundaries and differing partition sizes are explicit; no confidence
+interval, sample independence or calibrated-model acceptance is claimed. Omitting
+the method preserves the original serialized scores and offline learner behavior.
+
+An additive CalibrationDriftPolicy requires the method and numerical threshold
+explicitly; original DriftPolicy fields/digests, protected reviews and completed
+records remain unchanged. The new policy's identity reaches the existing candidate
+worker, predeclared review, original-model check, scoped safety reduction, PAPER
+withdrawal, terminal reconciliation and pinned audits. An old review cannot approve
+this added threshold. A measured pass never restores authority.
+
+Verification: **117 passed / 8.85 s / exit 0**, session 36407, including **14 new
+cases** and existing probability, drift, worker and offline learner checks. No failed
+run occurred. Tool result/post-run hashes (not a locked prehashed full run):
+`/workspace/scratch/38af7099c566/v11-test-evidence/calibration-targeted-20260925-01.json`.
+Prior full verification is 3831 / 245.54 s and predates this additive extension.
+
+**82/200, approximately 41%**, formal **1/50 (2%)**, unchanged. This extends existing
+quality/lifecycle integration; actual-label calibration and independent/host/unfunded
+acceptance remain open. **NOT_READY_TO_FUND**. V10 unchanged and maintenance DEFERRED.
+
+Exact next implementation: connect PerformanceLab and original entry attribution to
+an immutable account-window drift measurement for realized PAPER P&L and realized-only
+drawdown, then reuse the protected review and finite candidate safety path. Preserve
+account/model/scope provenance, unknown-lineage gates, partial-exit conservation and
+replay; do not relabel realized-only loss as mark-to-market loss or infer net-EV capture.
+A pinned account change before reduction must gate the old measurement. No owner-only
+action blocks this off-host step. The six readiness milestones and active-hour ranges
+below remain current; external waiting/owner actions remain separate. Resolve this
+checkpoint commit/tree with `git log -1 --format='%H %T' -- docs/V11_WORK_CHECKPOINT.md`.
 
 ## Latest verification — scoped drift candidate and lifecycle integration
 

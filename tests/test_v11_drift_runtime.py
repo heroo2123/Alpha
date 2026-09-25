@@ -228,7 +228,8 @@ def test_protected_review_reader_checks_real_parent_custody(tmp_path,monkeypatch
     with pytest.raises(EvidenceError,match='CUSTODY'):drift.protected_reviews()
 
 
-def test_captured_quality_through_reduction_withdrawal_terminal_reconciliation_and_daily_audit(factory,setup,monkeypatch):
+@pytest.mark.parametrize('calibration',[False,True])
+def test_captured_quality_through_reduction_withdrawal_terminal_reconciliation_and_daily_audit(factory,setup,monkeypatch,calibration):
     from polymarket_scanner.v11.audit_reports import AuditScheduler, AuditWorker
     from test_v11_audit_reports import finish
     from test_v11_basket_coordinator import proof
@@ -243,9 +244,17 @@ def test_captured_quality_through_reduction_withdrawal_terminal_reconciliation_a
     c=coordinator(r);assert c.coordinate('reserve',(proposal,))['body']['details']['reserved_intent_ids']==['intent']
     r['labels']=labels(r,r['capture'],delay=1.);r['join']=ForecastLabelJoin(r['capture']['id'],tuple(r['labels'].items()),r['context'].city_id,r['scope'].horizon,r['scope'].season)
     r['policy']=DriftPolicy('SYNTHETIC_ONLY','FORECAST','SYNTHETIC',86400.,1,1,0.,0.)
+    if calibration:
+        from polymarket_scanner.v11.drift import CalibrationDriftPolicy
+        from polymarket_scanner.v11.probability import CALIBRATION_ERROR_METHOD
+        r['policy']=CalibrationDriftPolicy('SYNTHETIC_CALIBRATION','FORECAST','SYNTHETIC',86400.,1,1,2.,1000.,
+            CALIBRATION_ERROR_METHOD,0.)
     rt=runtime(r,monkeypatch);healthy=rt.tick('before')
     assert all(c['passed'] for c in checks(rt,healthy)),[c['reason'] for c in checks(rt,healthy)]
     w,p,_=build(r,monkeypatch,c=rt.coordinator);enqueue(w,r,p);result=w.step('quality');rt.tick('withdraw')
+    if calibration:
+        measurement=rt.store.get(result['body']['details']['measurement_id'])['body']['details']['result']
+        assert measurement['threshold_breaches']==['CALIBRATION_ERROR_ABOVE_DECLARED_MAXIMUM']
     assert state(rt)['intents']['intent']['status']=='CANCEL_REQUESTED'
     assert Decimal(rt.coordinator.snapshot()['reserved_cash'])==Decimal('.4')
     terminal=proof(r,'intent','terminal','PAPER_TERMINAL',status='CANCELED',cumulative_fill_units='0',

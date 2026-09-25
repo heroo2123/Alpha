@@ -328,13 +328,23 @@ def predict_buckets(rule: RuleFingerprint, components: tuple[ForecastComponent, 
     return BucketPrediction(canonical(body), digest(body))
 
 
+CALIBRATION_ERROR_METHOD = 'CITY_DAY_EVENT_SNAPSHOT_BUCKET_EQUAL_WIDTH_10_V1'
+
+
 def score_vectors(probabilities: list[list[float]], outcomes: list[int], *,
-                  event_ids: list[str], city_days: list[str]) -> dict:
+                  event_ids: list[str], city_days: list[str], calibration_error_method: str | None = None) -> dict:
     """Equal city-day weight, then event weight, then repeated-decision weight.
 
     Correlated snapshots are retained but cannot inflate effective sample count.
     Infinite log loss is reported, never silently clipped away.
+    Optional ECE gives each vector's buckets equal shares of that vector's weight.
+    Ten fixed [lower,upper) bins include p=1 in the final bin. The reported value
+    is sum(bin weight * abs(mean probability - observed frequency)). It is a
+    finite-bin descriptive statistic, not a confidence bound or calibration proof.
+    Omitted method preserves the original serialized output and learner identities.
     """
+    if calibration_error_method not in {None, CALIBRATION_ERROR_METHOD}:
+        raise EvidenceError('CALIBRATION_ERROR_METHOD_UNSUPPORTED')
     n = len(probabilities)
     if not 1 <= n <= 100_000 or not len(outcomes) == len(event_ids) == len(city_days) == n:
         raise EvidenceError("SCORE_SHAPE_INVALID")
@@ -374,9 +384,25 @@ def score_vectors(probabilities: list[list[float]], outcomes: list[int], *,
         bins.append({"lower": low/10, "upper": (low+1)/10, "n_bucket_predictions": len(entries),
                      "mean_probability": math.fsum(p*w for p, _, w in entries)/total if total else None,
                      "outcome_rate": math.fsum(y*w for _, y, w in entries)/total if total else None})
-    return {"n_predictions": n, "n_events": len(event_groups), "n_city_days": len(groups),
+    result = {"n_predictions": n, "n_events": len(event_groups), "n_city_days": len(groups),
             "effective_independent_samples": None, "dependence_unit": "CITY_DAY_NOT_PROVEN_INDEPENDENT",
             "brier": math.fsum(w*r["brier"] for w, r in zip(weights, rows)),
             "log_loss": None if infinite else math.fsum(w*r["log_loss"] for w, r in zip(weights, rows)),
             "log_loss_infinite": infinite, "sharpness": math.fsum(w*r["sharpness"] for w, r in zip(weights, rows)),
             "reliability": bins, "calibration_status": "SCORED_NOT_CALIBRATED"}
+    if calibration_error_method is not None:
+        calibration_bins = []
+        for low in range(10):
+            entries = [(p, int(j == outcomes[i]), weights[i]/len(v)) for i, v in enumerate(probabilities)
+                       for j, p in enumerate(v) if min(9, int(p*10)) == low]
+            mass = math.fsum(w for _, _, w in entries)
+            mean = math.fsum(p*w for p, _, w in entries)/mass if mass else None
+            rate = math.fsum(y*w for _, y, w in entries)/mass if mass else None
+            calibration_bins.append(dict(lower=low/10, upper=(low+1)/10,
+                upper_inclusive=low==9, weight=mass, n_bucket_predictions=len(entries),
+                mean_probability=mean, outcome_rate=rate, absolute_gap=abs(mean-rate) if mass else None))
+        result['calibration_error'] = dict(method=calibration_error_method,
+            value=math.fsum(b['weight']*b['absolute_gap'] for b in calibration_bins if b['weight']),
+            bins=calibration_bins, confidence_interval=None, independent_sample_claim=False,
+            interpretation='BIN_DEPENDENT_DESCRIPTIVE_ECE_NOT_CALIBRATION_ACCEPTANCE')
+    return result

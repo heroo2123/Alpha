@@ -248,3 +248,10 @@ no extra credit is earned from tests or work sessions. **82/200, approximately 4
 formal **1/50 (2%)**, unchanged. Remaining metric families and actual/independent/
 host/unfunded acceptance remain open. Six active-work ranges remain appropriate to
 that larger scope and exclude external/owner waiting.
+
+Explicit grouped scalar calibration error now reaches predeclared reviewed drift,
+scoped reduction, PAPER withdrawal/reconciliation and audits. Original default scorer
+and DriftPolicy digests remain unchanged; no automatic calibration or restoration is
+inferred. **117 related passes / 8.85 s, 14 new cases**. Existing integration credits
+are not counted again: **82/200, approximately 41%**, formal **1/50 (2%)**, unchanged.
+Actual calibration/independent/host/unfunded gates and six remaining hour ranges remain.

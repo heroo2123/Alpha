@@ -11,12 +11,13 @@ from .evidence import EvidenceError, canonical, digest, finite, identity, sha
 from .forecast_learning import ForecastLabelJoin
 from .learning_capture import VERSION as FORECAST_VERSION, labeled_examples
 from .learning_sources import learning_source_view
-from .probability import score_vectors
+from .probability import CALIBRATION_ERROR_METHOD, score_vectors
 from .rules import RuleFingerprint
 from .strategy_admission import VERSION as ADMISSION_VERSION
 
 
 VERSION='alpha_v11_scoped_drift_measurement_v1'
+CALIBRATION_VERSION='alpha_v11_scoped_calibration_drift_measurement_v1'
 
 
 @dataclass(frozen=True)
@@ -43,6 +44,19 @@ class DriftPolicy:
 
     @property
     def sha256(self): return digest(asdict(self))
+
+
+@dataclass(frozen=True)
+class CalibrationDriftPolicy(DriftPolicy):
+    """Explicit additive policy; existing DriftPolicy hashes/thresholds do not change."""
+    calibration_error_method: str
+    maximum_calibration_error: float
+
+    def __post_init__(self):
+        super().__post_init__()
+        if (self.calibration_error_method != CALIBRATION_ERROR_METHOD
+                or not 0 <= finite(self.maximum_calibration_error) <= 1):
+            raise EvidenceError('DRIFT_CALIBRATION_METHOD_OR_BOUND')
 
 
 def measure_window(source_store, *, scope, account_id, bundle_sha256, policy, joins, as_of,
@@ -131,20 +145,24 @@ def measure_window(source_store, *, scope, account_id, bundle_sha256, policy, jo
             rows.append(dict(capture_id=capture['id'],capture_sha256=capture['sha256'],admission_ref=ref,
                 model_state_sha256=assessment['model_state_sha256'],prediction_sha256=d['prediction_sha256'],
                 event_id=capture['event_id'],city_day=city_days[-1],prediction_at=prediction_at,labels=label_refs,examples=example_refs))
-        view.check(); scores=score_vectors(vectors,outcomes,event_ids=events,city_days=city_days); view.check()
+        view.check(); scores=score_vectors(vectors,outcomes,event_ids=events,city_days=city_days,
+            calibration_error_method=policy.calibration_error_method if isinstance(policy,CalibrationDriftPolicy) else None); view.check()
         through_seq=view.snapshot_seq
     sufficient=scores['n_events']>=policy.minimum_events and scores['n_city_days']>=policy.minimum_city_days
     breaches=[]
     if scores['brier']>policy.maximum_brier: breaches.append('BRIER_ABOVE_DECLARED_MAXIMUM')
     if scores['log_loss_infinite'] or scores['log_loss']>policy.maximum_log_loss: breaches.append('LOG_LOSS_ABOVE_DECLARED_MAXIMUM')
-    result=dict(version=VERSION,request_sha256=digest(request),request=request,source_through_seq=through_seq,
+    calibration=isinstance(policy,CalibrationDriftPolicy)
+    if calibration and scores['calibration_error']['value']>policy.maximum_calibration_error:
+        breaches.append('CALIBRATION_ERROR_ABOVE_DECLARED_MAXIMUM')
+    result=dict(version=CALIBRATION_VERSION if calibration else VERSION,request_sha256=digest(request),request=request,source_through_seq=through_seq,
         window=dict(start_inclusive=start,end_inclusive=as_of),rows=rows,scores=scores,
         cohort_sufficient=sufficient,threshold_breaches=breaches,
         outcome='INSUFFICIENT_COHORT' if not sufficient else 'DEGRADATION_CANDIDATE' if breaches else 'NO_DECLARED_BREACH',
         selection='EXPLICIT_CAPTURE_COHORT',global_universe_coverage_verified=False,
         evidence_class=policy.evidence_class,independent_label_attestation=False,
         predeclared_policy_review_verified=False,prior_exposure='DEVELOPMENT',
-        unsupported_metrics=['SCALAR_CALIBRATION_ERROR','HORIZON_MATCHED_MARKOUT','NET_EV_CAPTURE','REALIZED_PNL','DRAWDOWN','SOURCE_RESIDUAL_BIAS'],
+        unsupported_metrics=([] if calibration else ['SCALAR_CALIBRATION_ERROR'])+['HORIZON_MATCHED_MARKOUT','NET_EV_CAPTURE','REALIZED_PNL','DRAWDOWN','SOURCE_RESIDUAL_BIAS'],
         demotion_applied=False,financial_authority=False,calibration_acceptance=False)
     if len(canonical(result).encode())>512*1024: raise EvidenceError('DRIFT_RESULT_BYTES_BOUND')
     return result
