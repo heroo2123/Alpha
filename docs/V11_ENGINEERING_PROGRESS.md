@@ -465,3 +465,22 @@ future/same-day, PWS observation/payout and received-source candidate replay joi
 It does not close full control/command/label/executable replay or actual/independent/
 operational acceptance. **83/200, approximately 42%**, formal **1/50 (2%)**, unchanged.
 No additional C/J/E/A is credited for extension, regression count or elapsed effort.
+
+
+Conditional PAPER account replay integration — 2026-09-25: original pre-state,
+policy, prepared candidates/rejections, conditional exit checks and exact clock/
+receipt inputs now feed the shared coordinator numerical engine without commands
+or current admission. Reservation/status/recovery/fill/terminal comparisons join
+complete bounded scheduled candidate audit cohorts, including protected synthetic
+basket/exit reconciliation. Missing originals and incomplete cohorts gate; legacy
+and unsupported commands remain unknown denominator members. Final focused
+**82 passed / 10.84 s**, session **42335**, with initial shared-runtime **69 / 8.45 s**.
+Intermediate fixture errors and raw evidence: docs/V11_ACCOUNT_REPLAY_EVIDENCE.md.
+Affected/full regression on the saved implementation is next.
+
+No new milestone is earned: R04 and the joined account/audit packages already have
+C/J. Preparation/control-flow and executable replay, genuine source/model evidence,
+independent acceptance, verified isolated deployment and unfunded READY_TO_FUND
+remain open. **83/200 = 41.5%, approximately 42%; formal 1/50 (2%)**, unchanged.
+The denominator remains 200 and covers all engineering through verified deployment
+and unfunded readiness. V10 unchanged/DEFERRED; no financial authority.

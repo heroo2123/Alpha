@@ -12,6 +12,7 @@ from dataclasses import asdict, dataclass
 from decimal import Decimal, localcontext
 
 from .allocation import rank_candidates
+from .account_effects import EffectInputs
 from .basket_coordinator import BasketProposal
 from .event_risk import EventContext, EventRiskEngine, SafetyReductions
 from .evidence import EvidenceError, EvidenceStore, canonical, digest, finite, identity
@@ -163,14 +164,14 @@ class PaperCoordinator:
         return tuple(views)
 
     @precise
-    def _risk(self, state):
+    def _risk(self, state, *, at=None, clock=None):
         views = self._views(state)
         risk = portfolio_risk(views, correlation=self.correlation, limits=self.limits,
                               execution_namespace=self.store.namespace, account_id=self.policy.account_id)
         holds = sum(Decimal(v['reserved_buy_cash']) for v in views)
         held_cost = sum(number(p['all_in_cost_basis']) for p in state['lots'].values())
         all_losses = sum(max(Decimal(0), -number(r['pnl'], signed=True)) for r in state['realized_entries'])
-        now = finite(self.store.clock()); day_start = int(now//86400)*86400
+        now = finite((clock or self.store.clock)() if at is None else at); day_start = int(now//86400)*86400
         day_losses = sum(max(Decimal(0), -number(r['pnl'], signed=True)) for r in state['realized_entries'] if r['at'] >= day_start)
         open_loss = sum(Decimal(v['worst_case_loss']) for v in self._views(state, include_realized=False))
         active = sum(p['status'] in UNRESOLVED for p in state['intents'].values())
@@ -193,10 +194,12 @@ class PaperCoordinator:
     def policy_amount(self, name):
         return number(getattr(self.policy, name))
 
-    def _commit(self, record_id, request, row, state, details, *, evidence_ids=(), heads=(), receipt_seq=None):
+    def _commit(self, record_id, request, row, state, details, *, evidence_ids=(), heads=(), receipt_seq=None, effect_inputs=None):
         if (len(state['rules']) > 32 or len(state['intents']) > 512 or len(state['fills']) > 2048
                 or len(state['lots']) > 512 or len(state.get('baskets', {})) > 128):
             raise EvidenceError('PAPER_ACCOUNT_RETENTION_BOUND_NO_UNSAFE_PRUNING')
+        if effect_inputs is not None:
+            details = dict(details, effect_inputs=effect_inputs.payload(row, request, heads=heads, receipt_seq=receipt_seq))
         audit = self.store.safety_audit if request.get('action') == 'TRANSITION' and request.get('status') == 'CANCEL_REQUESTED' else self.store.audit
         return audit(record_id, event_id=ACCOUNT_KEY, kind='COORDINATOR_EVENT',
                                 details=dict(version=VERSION, policy_sha256=self.policy_sha,
@@ -403,6 +406,19 @@ class PaperCoordinator:
                 prepared.append(candidate)
             except EvidenceError as exc:
                 evaluated.append(dict(proposal_id=proposal.proposal_id, outcome='REJECT', reason=str(exc)))
+        effects = EffectInputs(self, state)
+        effects.preparation = deepcopy(dict(prepared=prepared, rejected=evaluated))
+        state, details = self._coordinate_effects(state, proposals, prepared, evaluated, effects)
+        return self._commit(batch_id, request, row, state, details,
+                            evidence_ids=tuple(dict.fromkeys(references)),
+                            heads=tuple((k, e, n) for (k, e), n in guards.items()), receipt_seq=receipt_seq,
+                            effect_inputs=effects)
+
+    def _coordinate_effects(self, state, proposals, prepared, evaluated, effects):
+        """Shared numerical allocation from original, already prepared inputs.
+
+        Mutates private state only; does not prepare, admit, commit or submit.
+        """
         ranking = rank_candidates(tuple(prepared))
         chosen, batch_tokens = [], set()
         by_id = {p.proposal_id: p for p in proposals}
@@ -441,8 +457,7 @@ class PaperCoordinator:
                 # reserved a hedge. Recompute against the proposed account state,
                 # not just the pre-batch inventory used during ranking.
                 try:
-                    from .position_management import revalidate_exit
-                    revalidate_exit(self, proposal, self.store.get(proposal.valuation_id)['body']['details'], state=test)
+                    effects.exit_check(proposal, test)
                 except EvidenceError as exc:
                     reason = str(exc)
             if reason is None:
@@ -455,11 +470,11 @@ class PaperCoordinator:
                         proposal=asdict(proposal), intent_ids=[leg['proposal_id'] for leg in legs],
                         conservative_ev_total=candidate['conservative_ev_total'], financial_authority=False)
                 try:
-                    assessed = self._risk(test)
+                    assessed = effects.risk(test)
                     if not assessed['accepted']:
                         reason = 'ACCOUNT_SCENARIO_OR_RESERVATION_LIMIT'
-                    elif SafetyReductions(self.store).view(proposal.context)['flags']['reduce_only']:
-                        before = self._risk(state)
+                    elif effects.reduce_only(proposal.context):
+                        before = effects.risk(state)
                         before_loss = Decimal(before['portfolio']['groups']['PORTFOLIO'].get('ALL', '0'))
                         after_loss = Decimal(assessed['portfolio']['groups']['PORTFOLIO'].get('ALL', '0'))
                         if candidate['direction'] != 'SELL' or after_loss > before_loss:
@@ -472,11 +487,8 @@ class PaperCoordinator:
                 batch_tokens.update(leg['token_id'] for leg in legs)
             evaluated.append(dict(proposal_id=candidate['proposal_id'], outcome='RESERVED_RESEARCH' if reason is None else 'REJECT',
                                   reason=reason or 'ATOMIC_ACCOUNT_CASH_INVENTORY_AND_SCENARIO_RESERVATION'))
-        return self._commit(batch_id, request, row, state,
-                            dict(ranking=ranking, results=evaluated, reserved_intent_ids=chosen, risk=self._risk(state),
-                                 execution_status='NOT_SUBMITTED', economic_attribution_is_not_multiple_fills=True),
-                            evidence_ids=tuple(dict.fromkeys(references)),
-                            heads=tuple((k, e, n) for (k, e), n in guards.items()), receipt_seq=receipt_seq)
+        return state, dict(ranking=ranking, results=evaluated, reserved_intent_ids=chosen, risk=effects.risk(state),
+                           execution_status='NOT_SUBMITTED', economic_attribution_is_not_multiple_fills=True)
 
     def transition(self, command_id: str, *, intent_id: str, status: str, expected_cancel_identity: str | None = None) -> dict:
         if status not in {'SUBMITTING', 'UNKNOWN', 'ACKNOWLEDGED', 'CANCEL_REQUESTED'}:
@@ -491,15 +503,7 @@ class PaperCoordinator:
         if replay:
             return replay
         row = self._head(); state = self._state(row)
-        intent = state['intents'].get(intent_id)
-        if intent is None or intent['status'] not in UNRESOLVED:
-            raise EvidenceError('UNRESOLVED_INTENT_REQUIRED')
-        if expected_cancel_identity is not None and cancel_identity(intent) != expected_cancel_identity:
-            raise EvidenceError('PAPER_CANCEL_MANAGED_IDENTITY_CHANGED')
-        if status == 'SUBMITTING' and intent['status'] != 'RESERVED':
-            raise EvidenceError('AMBIGUOUS_SUBMISSION_CANNOT_BE_RETRIED_AS_NEW')
-        if status in {'UNKNOWN', 'ACKNOWLEDGED'} and intent['status'] == 'RESERVED':
-            raise EvidenceError('SUBMISSION_NOT_STARTED')
+        intent = self._transition_intent(state, request)
         heads = (); receipt_seq = None
         if status == 'SUBMITTING':
             heads, receipt_seq = receipt_admission(self.store, account_id=self.policy.account_id,
@@ -565,13 +569,38 @@ class PaperCoordinator:
             heads += runtime_health_admission(self.store, account_id=self.policy.account_id,
                 event_id=intent['event_id'], strategies=tuple(a['strategy'] for a in intent['attribution']))
             heads = tuple(dict.fromkeys(heads))
+        effects = EffectInputs(self, state)
+        details = self._transition_effects(state, request, effects)
+        return self._commit(command_id, request, row, state, details,
+                            heads=heads, receipt_seq=receipt_seq, effect_inputs=effects)
+
+    @staticmethod
+    def _transition_intent(state, request):
+        intent_id, status = request['intent_id'], request['status']
+        expected_cancel_identity = request.get('expected_cancel_identity')
+        if status not in {'SUBMITTING', 'UNKNOWN', 'ACKNOWLEDGED', 'CANCEL_REQUESTED'}:
+            raise EvidenceError('NONTERMINAL_RESEARCH_TRANSITION_REQUIRED')
+        if expected_cancel_identity is not None and status != 'CANCEL_REQUESTED':
+            raise EvidenceError('CANCEL_IDENTITY_PIN_ONLY_FOR_CANCELLATION')
+        intent = state['intents'].get(intent_id)
+        if intent is None or intent['status'] not in UNRESOLVED:
+            raise EvidenceError('UNRESOLVED_INTENT_REQUIRED')
+        if expected_cancel_identity is not None and cancel_identity(intent) != expected_cancel_identity:
+            raise EvidenceError('PAPER_CANCEL_MANAGED_IDENTITY_CHANGED')
+        if status == 'SUBMITTING' and intent['status'] != 'RESERVED':
+            raise EvidenceError('AMBIGUOUS_SUBMISSION_CANNOT_BE_RETRIED_AS_NEW')
+        if status in {'UNKNOWN', 'ACKNOWLEDGED'} and intent['status'] == 'RESERVED':
+            raise EvidenceError('SUBMISSION_NOT_STARTED')
+        return intent
+
+    def _transition_effects(self, state, request, effects):
+        intent = self._transition_intent(state, request)
+        status = request['status']
         if status == 'CANCEL_REQUESTED':
             intent['cancel_requested'] = True
         intent['status'] = ('CANCEL_REQUESTED' if intent['cancel_requested'] else
                             'PARTIAL' if status == 'ACKNOWLEDGED' and number(intent['filled_units']) > 0 else status)
-        return self._commit(command_id, request, row, state,
-                            dict(risk=self._risk(state), reservation_released=False, real_submission_performed=False),
-                            heads=heads, receipt_seq=receipt_seq)
+        return dict(risk=effects.risk(state), reservation_released=False, real_submission_performed=False)
 
     def recover(self, command_id: str) -> dict:
         request = dict(action='RECOVER')
@@ -579,11 +608,16 @@ class PaperCoordinator:
         if replay:
             return replay
         row = self._head(); state = self._state(row)
+        effects = EffectInputs(self, state)
+        details = self._recover_effects(state, effects)
+        return self._commit(command_id, request, row, state, details, effect_inputs=effects)
+
+    @staticmethod
+    def _recover_effects(state, effects):
         for intent in state['intents'].values():
             if intent['status'] == 'SUBMITTING':
                 intent['status'] = 'UNKNOWN'
-        return self._commit(command_id, request, row, state,
-                            dict(risk=self._risk(state), reservation_released=False, ambiguous_resubmission_allowed=False))
+        return dict(risk=effects.risk(state), reservation_released=False, ambiguous_resubmission_allowed=False)
 
     def _proof(self, evidence_id, state, record_type):
         row = self.store.get(evidence_id); b = row['body']; p = b.get('payload', {})
@@ -602,12 +636,17 @@ class PaperCoordinator:
         if replay:
             return replay
         row = self._head(); state = self._state(row)
+        effects = EffectInputs(self, state)
+        details, refs = self._fill_effects(state, evidence_id, effects)
+        return self._commit(command_id, request, row, state, details, evidence_ids=refs, effect_inputs=effects)
+
+    def _fill_effects(self, state, evidence_id, effects):
         proof, payload, intent = self._proof(evidence_id, state, 'PAPER_FILL')
         fill_id = identity(payload['fill_id'])
         if fill_id in state['fills']:
             if state['fills'][fill_id] != proof['sha256']:
                 raise EvidenceError('FILL_ID_CONFLICT')
-            return self._commit(command_id, request, row, state, dict(duplicate_fill=True, risk=self._risk(state)))
+            return dict(duplicate_fill=True, risk=effects.risk(state)), ()
         quantity, collateral = number(payload['units']), number(payload['all_in_collateral'])
         remaining = number(intent['units'])-number(intent['filled_units'])
         if quantity <= 0 or quantity > remaining or payload.get('direction') != intent['direction']:
@@ -633,7 +672,7 @@ class PaperCoordinator:
                 state['cash'] = str(number(state['cash'], signed=True)+collateral)
                 pnl = collateral-basis
                 state['event_realized_pnl'][event] = str(number(state['event_realized_pnl'].get(event, '0'), signed=True)+pnl)
-                state['realized_entries'].append(dict(fill_id=fill_id, event_id=event, pnl=str(pnl), at=finite(self.store.clock()),
+                state['realized_entries'].append(dict(fill_id=fill_id, event_id=event, pnl=str(pnl), at=effects.clock(),
                           exit=intent_lineage(self.store, intent), allocations=allocations,
                           attribution_basis='ENTRY_LOTS_PARTITION_ONE_REALIZED_RESULT',
                           exit_attribution_is_decision_metadata_not_extra_pnl=True))
@@ -643,7 +682,7 @@ class PaperCoordinator:
             intent['status'] = ('FILLED' if number(intent['filled_units']) == number(intent['units']) else
                                 'CANCEL_REQUESTED' if intent['cancel_requested'] else 'PARTIAL')
             state['fills'][fill_id] = proof['sha256']
-        risk = self._risk(state)
+        risk = effects.risk(state)
         if risk['faults']:
             state['faults'].append('POST_FILL_ACCOUNT_RISK_BREACH')
         state['faults'] = sorted(set(state['faults']))
@@ -659,8 +698,7 @@ class PaperCoordinator:
                 extra['execution_evidence']=dict(status='GATED',
                     reason=str(exc) if isinstance(exc,EvidenceError) else 'FILL_EXECUTION_DETAILS_MALFORMED',
                     reconciliation_preserved=True,financial_authority=False)
-        return self._commit(command_id, request, row, state, dict(risk=risk, duplicate_fill=False,
-                                                                realized_pnl_class='SYNTHETIC_PAPER_ONLY',**extra), evidence_ids=(evidence_id,))
+        return dict(risk=risk, duplicate_fill=False, realized_pnl_class='SYNTHETIC_PAPER_ONLY', **extra), (evidence_id,)
 
     def reconcile_terminal(self, command_id: str, evidence_id: str) -> dict:
         request = dict(action='TERMINAL', evidence_id=evidence_id)
@@ -668,6 +706,11 @@ class PaperCoordinator:
         if replay:
             return replay
         row = self._head(); state = self._state(row)
+        effects = EffectInputs(self, state)
+        details = self._terminal_effects(state, evidence_id, effects)
+        return self._commit(command_id, request, row, state, details, evidence_ids=(evidence_id,), effect_inputs=effects)
+
+    def _terminal_effects(self, state, evidence_id, effects):
         _, payload, intent = self._proof(evidence_id, state, 'PAPER_TERMINAL')
         if (payload.get('status') not in TERMINAL or payload.get('all_fills_reconciled') is not True
                 or payload.get('terminal_authority') != 'SYNTHETIC_PAPER_ENGINE_FINAL'
@@ -679,6 +722,4 @@ class PaperCoordinator:
                 intent['status'] in TERMINAL and intent['status'] != payload['status']):
             raise EvidenceError('TERMINAL_STATE_CONFLICT')
         intent['status'] = payload['status']
-        return self._commit(command_id, request, row, state, dict(risk=self._risk(state),
-                                                                reservation_released=True,
-                                                                existing_fills_preserved=True), evidence_ids=(evidence_id,))
+        return dict(risk=effects.risk(state), reservation_released=True, existing_fills_preserved=True)

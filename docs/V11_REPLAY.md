@@ -44,7 +44,7 @@ inputs, not full control-flow replay, original executable attestation, independe
 source truth or renewed permission. GATED and MISMATCH remain distinct. Early
 control gates, PWS label/outcome scoring, relative-value/maker/exits,
 challenger comparison,
-reservation/execution command replay and operational acceptance remain open.
+full preparation/control-flow and operational acceptance remain open. Conditional account effects are described below.
 Scheduled candidate audit integration is described below. Tests/provenance:
 V11_WORK_CHECKPOINT.md. NOT_READY_TO_FUND; no financial authority is added.
 
@@ -136,3 +136,48 @@ metadata, complete shared input map, outputs and corrected development failures.
 These results supersede the pending verification notes above; no new implementation
 or acceptance claim is inferred from the test count. Full control/command/label/
 executable replay and independent operational acceptance remain open.
+
+
+## Original PAPER account numerical effects
+
+`PerformanceLab.replay_account_command(command_id, policy=ReplayPolicy(...))`
+uses shared coordinator effect methods for COORDINATE, TRANSITION, RECOVER, FILL
+and TERMINAL. New journal rows preserve pre-state/request hashes, exact original
+pre-ranking preparation (including rejections), conditional exit control results,
+clock reads and atomic guard inputs. Replay reconstructs the immediate original
+account predecessor and uses only an exactly matching original policy hash. Even
+initial cash requires the original command's policy hash; this does not change
+the UNKNOWN policy rule for a decision without any archived account command.
+
+The original preparation transcript is input, never reconstructed from the final
+ranking or state. Runtime admission/exit checks and all atomic guards still run.
+Replay consumes the original conditional exit result and never calls current
+protected admission, submits a command or changes source/account records. Read-only
+historical safety overlays and guard heads cannot be replaced by current flags.
+The shared engine compares full state/effects/risk and cash, intents, lots, fills,
+FIFO realized allocation and faults at the original numerical clock reads.
+MISMATCH distinguishes a differing numerical output from missing-input GATED.
+
+This **does not replay preparation/control-flow**, establish independent source
+truth or attest the historical executable. Missing old transcripts, predecessor,
+policy, required receipts, clocks or guard heads gate. Optional telemetry failures
+cannot hide a known original fill; missing replay receipts gate the whole replay.
+A safe cancellation under raw clock regression remains recorded and effective,
+while that history cannot claim causal numerical replay.
+
+`AuditPolicy(account_replay=ReplayPolicy(...))` passes through the existing typed
+candidate. It is optional and omitted from default policy hashing. The complete
+pinned audit scan retains all account commands in the half-open original window,
+including unknown actions and legacy rows. At most 32 command references, 64 clock
+reads/guard heads, six conditional exit checks per batch and 512 KiB input metadata
+are permitted. Existing account and read-view bounds still apply. One cooperative
+0.05–5 s policy budget (default two seconds) covers the entire account cohort.
+Incomplete scans, overflow or deadline exhaustion clear comparisons; no favorable
+prefix receives complete credit. Reports remain durable across report-before-cursor
+crashes. The reporting budget is separate from cooperative safety-loop work and
+is not evidence of the required independently isolated guardian or host capacity.
+
+Tests and raw evidence: `tests/test_v11_account_replay.py`,
+`tests/test_v11_account_replay_integration.py`, the joined candidate case in
+`tests/test_v11_causal_replay.py`, and `docs/V11_ACCOUNT_REPLAY_EVIDENCE.md`.
+All new accounting/strategy evidence is synthetic. NOT_READY_TO_FUND.

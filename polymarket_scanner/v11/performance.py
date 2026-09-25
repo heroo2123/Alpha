@@ -50,6 +50,11 @@ class PerformanceLab:
         from .causal_replay import replay_temperature
         return replay_temperature(self.coordinator, evaluation_id, policy=policy, **options)
 
+    def replay_account_command(self, command_id, *, policy, **options):
+        """Read-only conditional numeric effects; no account command invocation."""
+        from .account_replay import replay_account_command
+        return replay_account_command(self.coordinator, command_id, policy=policy, **options)
+
     def scoped_fill_markouts(self, **request):
         """Pinned reconciled PAPER fills and hypothetical horizon depth, read-only."""
         from .fill_markout import measure_fill_window

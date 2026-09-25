@@ -1,5 +1,66 @@
 # Alpha V11 work checkpoint
 
+Updated 2026-09-25, after original PAPER account effects reached candidate audits.
+Resume here. **NOT_READY_TO_FUND**.
+
+## Latest implementation checkpoint — original account commands and numerical effects
+
+Recovered clean published **7a8fc1127b2d57e5c6713e0ec9f87ece6e0a33f4**, tree
+**0b0d0aa78ea7636def0c0e62c9a5006e8cf06f79**; all **760 non-document inputs**
+matched the prior 4104-pass saved regression. Remote/local heads agreed; no
+operation was running and the full-regression lock was free. Preserved all work.
+
+Completed: the PAPER coordinator now records original pre-state/request hashes,
+pre-ranking prepared candidates and preparation rejections, conditional exit
+checks, exact risk/realized-loss clock reads and atomic guard inputs. Runtime and
+read-only replay share allocation, transitions, recovery, fill and terminal
+numerical calculations. Replay binds the original policy, immediate predecessor,
+receipt boundary and original proofs. It independently compares reservation,
+cash, inventory, FIFO basis/P&L, ambiguity, cancellation, risk and reconciliation
+effects; it never invokes account commands or current protected admission.
+
+Optional typed account replay now joins the existing finite candidate audit:
+complete pinned cohorts up to 32 commands, original window, bounded shared time
+budget, unsupported/legacy records retained in the denominator, no favorable
+prefix on overflow/deadline/incomplete scans, published-report recovery preserved.
+Protected synthetic basket/exit/fill fixtures and the source-to-temperature
+candidate audit exercise the joins. Required missing receipts, old preparation,
+policy or clocks gate. Runtime cancellation remains permitted during raw clock
+regression while causal replay correctly gates that history.
+
+Preparation and admission decisions remain **original conditional inputs**, not
+recomputed or independently accepted controls. Historical executable, strategy/
+challenger/PWS-label replay and actual/independent/operational acceptance remain
+open. No false model calibration, venue execution, control-flow acceptance or
+financial authority is inferred from successful numerical comparisons.
+
+Final focused **82 passed / 10.84 s / exit 0**, session **42335**. Prior combined
+**58 passed / 7.61 s**, session **51749**, and initial shared-runtime **69 passed /
+8.45 s**, session **34868**. Two intermediate failures were test fixture mistakes:
+wrong safety API (**1 failed, 27 passed / 1.89 s**, session **83182**) and comparing
+Decimal text rather than value (**1 failed, 80 passed / 10.81 s**, session **37605**).
+Both corrected without relaxing production guards. Raw logs/hashes and scope:
+**docs/V11_ACCOUNT_REPLAY_EVIDENCE.md**. Affected and full regression are next;
+the old 4104-pass result is not claimed for this changed tree.
+
+**83/200, approximately 42%; formal 1/50 (2%)**, unchanged. R04, R20–R22 and R41
+already have C/J. This integration earns no E/A or new formal completion.
+V10 unchanged; maintenance DEFERRED. Alpha-dev resource/isolation and original
+readiness gates remain unpassed. No host/service, permission, wallet, money,
+real order, funding or financial authority changed. No owner action blocks the
+next off-host implementation.
+
+Resolve this saved implementation with
+`git log -1 --format='%H %T' -- polymarket_scanner/v11/account_replay.py` and inspect
+actual worktree/operations before retrying. **Exact next action:** run the affected
+account/reconciliation/candidate/audit integrations, then one locked full regression
+on this saved tree. After verification, reconstruct original basket and exit
+valuation preparation from historical model/source evidence, replacing conditional
+inputs with numerical proof where possible while retaining missing-control gates.
+The six readiness milestones below remain current; active hours exclude external
+waiting and owner actions. Preserve newer work. NOT_READY_TO_FUND.
+
+
 Updated 2026-09-25, after verified historical replay for all temperature variants.
 Resume here. **NOT_READY_TO_FUND**.
 

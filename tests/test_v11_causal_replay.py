@@ -232,7 +232,8 @@ def test_full_candidate_source_risk_temperature_decision_reaches_scheduled_repla
     from test_v11_request_assembly import inputs,target
     from test_v11_runtime_health import ready,advance
     r=factory();coordinator(r).recover('candidate-account');lane=app.TemperatureLane('temperature',inputs(r),(target(r),),PROVIDER,r['request'].valuation_policy,10.)
-    p=scoped_plan(r,lane);p=replace(p,audits=replace(p.audits,records_per_step=256,replay=replay.ReplayPolicy('candidate')))
+    p=scoped_plan(r,lane);p=replace(p,audits=replace(p.audits,records_per_step=256,
+        replay=replay.ReplayPolicy('candidate'),account_replay=replay.ReplayPolicy('candidate-accounts')))
     synthetic_clock(r,monkeypatch);calls=[]
     async def go():
         async with httpx.AsyncClient(transport=transport(r,calls)) as client:
@@ -253,6 +254,10 @@ def test_full_candidate_source_risk_temperature_decision_reaches_scheduled_repla
     assert v['rows'][0]['decision_ref']['id']==evaluations[0]['id'] and calls
     assert not d['acceptance_granted'] and not candidate.runtime.coordinator._state(candidate.runtime.coordinator._head())['intents']
     assert v['rows'][0]['account_context_status']=='RECOMPUTED_ARCHIVED_CONTEXT'
+    accounts=d['account_replay']
+    assert accounts['status']=='EFFECTS_REPRODUCED',accounts
+    assert accounts['retained_command_count'] and d['coverage']['retained_account_effects_reproduced']
+    assert not accounts['full_control_flow_replayed'] and accounts['new_economic_commands']==0
     assert not r['store'].records(kind='TRADE')
 
 
