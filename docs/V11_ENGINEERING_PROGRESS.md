@@ -1,5 +1,14 @@
 # Supplementary engineering estimate
 
+Actual local custody/restart, 2026-09-25: **20 passed / 9.84 s**, no skips, exit 0,
+778 canonical inputs unchanged. Four real mapped-principal PAPER scenarios verify
+denied state/endpoint/signal access, peer and order-verb refusal, authorized cancel
+delivery and three abrupt broker crash/restart boundaries with client replacement.
+Evidence: `docs/V11_GUARDIAN_CUSTODY_EVIDENCE.md`. This closes the local gate blocked
+by uidmap and strengthens existing R37 C/J. E still requires the complete required
+operational/deployment evidence; A still requires full acceptance. No new unit:
+**85/200 = 42.5%, approximately 43%; 1/50 (2%)**. NOT_READY_TO_FUND; V10 DEFERRED.
+
 PAPER Unix-socket guardian broker continuation, 2026-09-25: bounded typed local
 protocol, mutual kernel peer checks, broker-owned cancellation journal, immutable
 retry receipts, both-process lease fences and finite independent client driving.

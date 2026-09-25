@@ -26,6 +26,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import traceback
 
 if sys.platform == "linux":
     import pwd
@@ -237,7 +238,8 @@ class CustodyContext:
 
     def _setup(self, request):
         _mount(None, "/", flags=(1 << 18) | 16384)  # MS_PRIVATE | MS_REC
-        _mount("tmpfs", self.root, "tmpfs", 2 | 4, "size=64m,nr_inodes=8192,mode=0755")
+        # Preserve the archive's 64 MiB free-space safety floor in this bounded fixture.
+        _mount("tmpfs", self.root, "tmpfs", 2 | 4, "size=128m,nr_inodes=8192,mode=0755")
         _mount("proc", "/proc", "proc", 2 | 4 | 8)
         _bind_readonly(Path(request["repository"]), self.repository)
         base = self.root / "python-base"
@@ -334,11 +336,64 @@ def _role_child(role, argv):
     os.execve(argv[0], argv, ENV)
 
 
+def _enter_custody_namespace():
+    """Clear inherited groups, then deny setgroups before an inner GID map.
+
+    Linux requires a populated GID map before setgroups can clear inherited
+    groups, but forbids switching setgroups to deny after populating that map.
+    The helper-authorized outer namespace clears groups; its controller maps
+    an inner namespace with the same IDs after the child irrevocably denies
+    setgroups. All capability-bearing controllers remain namespace-only root.
+    """
+    os.setgroups([])
+    if os.getgroups():
+        raise NamespaceUnavailable("outer namespace supplementary groups remain")
+    ready_read, ready_write = os.pipe()
+    mapped_read, mapped_write = os.pipe()
+    child = os.fork()
+    if child:
+        os.close(ready_write)
+        os.close(mapped_read)
+        try:
+            if os.read(ready_read, 1) != b"1":
+                raise NamespaceFailure("inner namespace mapping handshake failed")
+            identity_map = "0 0 1\n1001 1001 3\n"
+            (Path("/proc") / str(child) / "uid_map").write_text(identity_map)
+            (Path("/proc") / str(child) / "gid_map").write_text(identity_map)
+            os.write(mapped_write, b"1")
+            _, result = os.waitpid(child, 0)
+            return os.waitstatus_to_exitcode(result)
+        finally:
+            os.close(ready_read)
+            os.close(mapped_write)
+    os.close(ready_read)
+    os.close(mapped_write)
+    try:
+        _libc_call("unshare", 0x10000000 | 0x20000 | 0x40000000)  # USER, MOUNT, NET
+        Path("/proc/self/setgroups").write_text("deny")
+        os.write(ready_write, b"1")
+        if os.read(mapped_read, 1) != b"1":
+            raise NamespaceFailure("inner namespace mapping was not completed")
+    finally:
+        os.close(ready_write)
+        os.close(mapped_read)
+    if (os.getresuid() != (0, 0, 0) or os.getresgid() != (0, 0, 0)
+            or os.getgroups() or Path("/proc/self/setgroups").read_text().strip() != "deny"):
+        raise NamespaceUnavailable("inner namespace group/identity boundary failed")
+    try:
+        os.setgroups([])
+    except PermissionError:
+        pass
+    else:
+        raise NamespaceFailure("inner namespace setgroups remained permitted")
+    return None
+
+
 def _namespace_child():
     try:
         if os.getuid() == 0:
             raise NamespaceUnavailable("host root launch is forbidden")
-        _libc_call("unshare", 0x10000000 | 0x20000 | 0x40000000)  # USER, MOUNT, NET
+        _libc_call("unshare", 0x10000000)  # Outer USER namespace for helper maps.
         print(json.dumps({"mapping_ready": os.getpid()}), flush=True)
         raw = sys.stdin.buffer.readline(MAX_INPUT + 2)
         if len(raw) > MAX_INPUT + 1:
@@ -346,12 +401,9 @@ def _namespace_child():
         request = json.loads(raw)
         if os.getresuid() != (0, 0, 0) or os.getresgid() != (0, 0, 0):
             raise NamespaceUnavailable("caller mapping did not establish namespace-only root")
-        # newgidmap performs the authorized write, so setgroups must still allow
-        # this removal. The convenience --map-root-user path cannot substitute.
-        os.setgroups([])
-        Path("/proc/self/setgroups").write_text("deny")
-        if os.getgroups() or Path("/proc/self/setgroups").read_text().strip() != "deny":
-            raise NamespaceUnavailable("supplementary groups were not irrevocably cleared")
+        proxy_result = _enter_custody_namespace()
+        if proxy_result is not None:
+            return proxy_result
         _libc_call("unshare", 0x20000000)  # PID; the next fork becomes namespace init.
         child = os.fork()
         if child:
@@ -383,7 +435,10 @@ def _namespace_child():
             if context is not None:
                 context.close()
     except BaseException as exc:
-        print(json.dumps({"status": "FAILED", "error_type": type(exc).__name__, "reason": str(exc)[:1000]}), flush=True)
+        trace = [{"function": frame.name, "line": frame.lineno}
+                 for frame in traceback.extract_tb(exc.__traceback__)[-8:]]
+        print(json.dumps({"status": "FAILED", "error_type": type(exc).__name__,
+                          "reason": str(exc)[-1000:], "stage_trace": trace}), flush=True)
         return 2
 
 

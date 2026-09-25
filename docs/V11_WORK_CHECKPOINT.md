@@ -1,5 +1,45 @@
 # Alpha V11 work checkpoint
 
+## Latest verified checkpoint - actual local custody/restart, 2026-09-25
+
+Fetched/recovered **7b5db86f7d0d66a26318478581819005862bb10a**, tree
+**8097c2ed408e79bfed48f65a473eb0791e991d62**, matching remote with a clean workspace.
+Owner-installed uidmap is available. The actual separate-principal PAPER broker
+test now passes, including unauthorized peer/financial verb rejection, denied
+ledger/config/sidecar/endpoint/signal access, and abrupt broker restart at three
+durability boundaries with a replacement client. Exactly one cancel request
+survives; unrelated account state and reservations remain unchanged.
+
+The harness needed correct nested-namespace ordering to clear inherited groups
+before irrevocably denying setgroups, and 128 MiB fixture capacity to preserve the
+unchanged 64 MiB archive headroom guard. All roles prove distinct real/effective/
+saved IDs, empty groups, zero capability sets and no-new-privileges before/after
+exec. No production code, host permission, account, service or safety gate changed.
+
+Final **20 passed / 9.84 s / exit 0**, session **80805**, no skips, all **778 canonical
+source/mirror inputs unchanged**. Four actual namespace custody/restart scenarios
+and sixteen harness validation cases. Evidence: `V11_GUARDIAN_CUSTODY_EVIDENCE.md`.
+The preceding integrated/runtime suites belong to unchanged parent production code;
+they were not rerun merely for another number. No test/guardian operation remains.
+Resolve this checkpoint's publishing identity with
+`git log -1 --format='%H %T' -- docs/V11_WORK_CHECKPOINT.md`.
+
+Estimated completion remains **85/200 = 42.5%, approximately 43%; formal 1/50 (2%)**.
+This closes the local custody/restart proof, strengthens R37 C/J, and does not
+complete required deployment, operational evidence or independent acceptance.
+**NOT_READY_TO_FUND; V10 unchanged/DEFERRED.** Private inputs, credentials, databases
+and raw private evidence remain excluded. No alpha-dev access or financial action.
+
+**Exact next unfinished action:** implement coherent heartbeat/health publication
+and bounded consistent health reads for guardian/admission, preserving head CAS,
+clock/freshness gates and already durable cancellation. No owner-only blocker remains
+for that local integration. Protected producer transport, real authentication and
+operational commissioning remain later gates. The six READY_TO_FUND milestones and
+active-work ranges below remain current (LOW confidence; external waiting/owner
+actions excluded); the local uidmap dependency is now satisfied.
+
+## Previous published checkpoint
+
 ## Latest verified checkpoint - PAPER Unix-socket guardian broker, 2026-09-25
 
 Recovered/fetched published **5bd4460404ab6d384d44f34d17c6bebcdda6e81d**, tree

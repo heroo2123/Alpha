@@ -13,6 +13,7 @@ import socket
 import sqlite3
 import sys
 import time
+from copy import deepcopy
 
 import pytest
 
@@ -27,7 +28,10 @@ from guardian_custody_namespace import (NamespaceFailure, NamespaceUnavailable, 
 
 
 def _line(process):
-    return json.loads(_readline(process.stdout, time.monotonic() + 5))
+    try:return json.loads(_readline(process.stdout, time.monotonic() + 5))
+    except NamespaceFailure:
+        out,err=process.communicate(timeout=1)
+        raise AssertionError(dict(child_exit=process.returncode,stderr=err.decode(errors='replace')[-2500:])) from None
 
 
 def _finish(process):
@@ -67,37 +71,61 @@ def _denials(config):
     return refused
 
 
-def _broker(private, endpoint, worker_pid):
+def _broker(private, endpoint, worker_pid, failure='none'):
     from test_v11_paper_coordinator import coordinator, proposal, rig
     from polymarket_scanner.v11.guardian_lease import GuardianPolicy, process_identity
     from polymarket_scanner.v11.guardian_protocol import BrokerPolicy
-    from polymarket_scanner.v11.paper_guardian import PaperGuardian
+    from polymarket_scanner.v11.paper_guardian import PaperGuardian, configuration, restore
     from polymarket_scanner.v11.paper_guardian_broker import PaperGuardianBroker
+    from polymarket_scanner.v11.evidence import canonical
 
     patch = pytest.MonkeyPatch()
-    fixture = rig.__wrapped__(Path(private), patch)
-    account = coordinator(fixture)
-    account.coordinate("custody-seed", (proposal(fixture, units="2"),))
-    original = account.snapshot()
-    guardian = PaperGuardian(account, policy=GuardianPolicy("synthetic-custody"),
-                             health_config="d" * 64, worker=process_identity(int(worker_pid)))
+    saved_config=Path(private,'fixture-config.json')
+    if not saved_config.exists():
+        fixture = rig.__wrapped__(Path(private), patch)
+        account = coordinator(fixture)
+        account.coordinate("custody-seed", (proposal(fixture, units="2"),))
+        initial = PaperGuardian(account, policy=GuardianPolicy("synthetic-custody"),
+                                health_config="d" * 64, worker=process_identity(int(worker_pid)))
+        saved_config.write_text(canonical(configuration(account,policy=initial.policy,
+            health_config=initial.health_config,worker=initial.worker)))
+        saved_config.chmod(0o600)
+    guardian=restore(json.loads(saved_config.read_text()))
+    account=guardian.coordinator;original=account.snapshot();before=deepcopy(account._state(account._head()))
     policy = BrokerPolicy("synthetic-custody", 1001, 1001, 1002, 1002)
     broker = PaperGuardianBroker(guardian, policy)
     config = dict(socket=endpoint, private=private, policy=asdict(policy), config=broker.config, broker_pid=os.getpid())
-    Path(private, "fixture-config.json").write_text(json.dumps(config))
-    Path(private, "fixture-config.json").chmod(0o600)
+    # Fault injection is confined to this synthetic fixture, never the broker API.
+    save=broker._save;transition=account.transition
+    def fault_save(request,phase,response=None):
+        row=save(request,phase,response)
+        if request['operation']=='CANCEL' and (failure,phase) in {('accepted','ACCEPTED'),('receipt','COMPLETED')}:
+            os._exit(71 if failure=='accepted' else 73)
+        return row
+    def fault_transition(*args,**kwargs):
+        row=transition(*args,**kwargs)
+        if failure=='account':os._exit(72)
+        return row
+    broker._save=fault_save;account.transition=fault_transition
     # Keep actual WAL/SHM files present for access-denial checks; no write lock.
-    holder = sqlite3.connect(fixture["store"].path)
+    holder = sqlite3.connect(broker.store.path)
     holder.execute("PRAGMA journal_mode=WAL")
     holder.execute("SELECT COUNT(*) FROM v11_records").fetchone()
+    class ListeningSocket(socket.socket):
+        def listen(self,*args,**kwargs):
+            super().listen(*args,**kwargs)
+            print('{"listening":true}',flush=True)
+    patch.setattr(socket,'socket',ListeningSocket)
     print(json.dumps(config), flush=True)
     try:
-        broker.serve(Path(endpoint), connections=4, seconds=15)
+        broker.serve(Path(endpoint), connections=5, seconds=15)
         state = account._state(account._head())
         assert state["intents"]["proposal"]["cancel_requested"] is True
         assert state["intents"]["proposal"]["status"] == "CANCEL_REQUESTED"
         assert account.snapshot()["reserved_cash"] == original["reserved_cash"]
-        requests = [row for row in fixture["store"].records(kind="COORDINATOR_EVENT")
+        expected=deepcopy(before);expected['intents']['proposal'].update(status='CANCEL_REQUESTED',cancel_requested=True)
+        assert canonical(state)==canonical(expected), 'cancel changed unrelated account state'
+        requests = [row for row in broker.store.records(kind="COORDINATOR_EVENT")
                     if row["body"]["details"].get("request", {}).get("status") == "CANCEL_REQUESTED"]
         assert len(requests) == 1
         print(json.dumps(dict(cancel_requests=len(requests), reserved_cash_unchanged=True,
@@ -107,13 +135,25 @@ def _broker(private, endpoint, worker_pid):
         patch.undo()
 
 
-def _guardian(config):
-    from polymarket_scanner.v11.guardian_protocol import BrokerPolicy, GuardianClient
+def _guardian(config,expect_disconnect=False):
+    from polymarket_scanner.v11.guardian_protocol import BrokerPolicy, GuardianClient, request, send
+    from polymarket_scanner.v11.evidence import EvidenceError
     denied = _denials(config)
     client = GuardianClient(config["socket"], BrokerPolicy(**config["policy"]), config["config"])
+    # Even the authorized safety principal cannot turn the wire into an order API.
+    with socket.socket(socket.AF_UNIX,socket.SOCK_STREAM) as conn:
+        conn.settimeout(2);conn.connect(config['socket'])
+        send(conn,request(config['config'],'forbidden-order','NEW_ORDER'),time.monotonic()+1)
+        assert conn.recv(1)==b''
     snapshot = client.snapshot("custody-snapshot")["result"]
     assert set(snapshot["intents"]) == {"proposal"}
     arguments = {key: snapshot[key] for key in ("snapshot_id", "snapshot_sha256", "intents")}
+    if expect_disconnect:
+        try:client.cancel('custody-cancel',**arguments)
+        except (EvidenceError,OSError):pass
+        else:raise AssertionError('crashed broker unexpectedly returned a success')
+        print(json.dumps(dict(uncertain_delivery=True,credentials=_credentials(),financial_authority=False)),flush=True)
+        return
     first = client.cancel("custody-cancel", **arguments)
     repeated = client.cancel("custody-cancel", **arguments)
     assert first == repeated and first["outcome"] == "REQUESTED_NOT_CONFIRMED"
@@ -143,21 +183,43 @@ def run(context, payload):
     worker = context.spawn("candidate", prefix + ["--wait"])
     assert _line(worker) == {"ready": True}
     endpoint = context.socket_directory / "paper.sock"
-    broker = context.spawn("broker", prefix + ["--broker", str(context.private["broker"]), str(endpoint), str(worker.pid)])
+    failure=(payload or {}).get('failure','none')
+    assert failure in {'none','accepted','account','receipt'}
+    broker_args=prefix + ["--broker", str(context.private["broker"]), str(endpoint), str(worker.pid)]
+    broker = context.spawn("broker", broker_args+[failure])
     config = _line(broker)
-    deadline = time.monotonic() + 5
-    while not endpoint.is_socket():
-        assert broker.poll() is None
-        if time.monotonic() >= deadline:
-            raise AssertionError("broker did not bind its private-custody endpoint")
-        time.sleep(.01)
+    assert _line(broker)=={'listening':True}
     for suffix in ("", "-wal", "-shm"):
         assert Path(str(context.private["broker"] / "paper.sqlite") + suffix).is_file()
-    guardian = context.spawn("guardian", prefix + ["--guardian"])
+    guardian = context.spawn("guardian", prefix + ["--guardian-failure" if failure!='none' else '--guardian'])
     guardian.stdin.write(json.dumps(config).encode())
     guardian.stdin.close()
     guardian.stdin = None
     guardian_result = _finish(guardian)
+    crash_result=None
+    if failure!='none':
+        out,err=broker.communicate(timeout=5)
+        assert broker.returncode=={'accepted':71,'account':72,'receipt':73}[failure] and not out and not err
+        assert guardian_result['uncertain_delivery'] is True
+        original_pid=broker.pid;original_client=guardian.pid;original_config=config['config']
+        assert endpoint.is_socket(), 'abrupt exit must leave a stale socket for recovery'
+        broker=context.spawn('broker',broker_args+['none'])
+        config=_line(broker)
+        assert broker.pid!=original_pid and config['config']==original_config
+        assert _line(broker)=={'listening':True}
+        # A ready socket is published only after durable cancellation recovery.
+        deadline=time.monotonic()+5
+        while True:
+            with sqlite3.connect('file:'+str(context.private['broker']/'paper.sqlite')+'?mode=ro',uri=True) as db:
+                row=db.execute("SELECT body FROM v11_records WHERE record_id LIKE 'broker-completed:%' ORDER BY seq DESC LIMIT 1").fetchone()
+            if row and json.loads(row[0])['details']['request']['operation']=='CANCEL':break
+            assert broker.poll() is None and time.monotonic()<deadline
+            time.sleep(.01)
+        guardian=context.spawn('guardian',prefix+['--guardian'])
+        assert guardian.pid!=original_client
+        guardian.stdin.write(json.dumps(config).encode());guardian.stdin.close();guardian.stdin=None
+        guardian_result=_finish(guardian)
+        crash_result=dict(point=failure,broker_restarted=True,client_replaced=True,recovered_before_retry=True)
     candidate = context.spawn("candidate", prefix + ["--candidate"])
     candidate.stdin.write(json.dumps(config).encode())
     candidate.stdin.close()
@@ -166,19 +228,22 @@ def run(context, payload):
     broker_result = _finish(broker)
     assert worker.poll() is None
     return dict(guardian=guardian_result, candidate=candidate_result, broker=broker_result,
-                actual_distinct_principals=True, production_commissioned=False)
+                actual_distinct_principals=True, production_commissioned=False,crash=crash_result)
 
 
-def test_actual_mapped_principal_broker_custody_and_cancel_only_delivery():
+@pytest.mark.parametrize('failure',['none','accepted','account','receipt'])
+def test_actual_mapped_principal_broker_custody_and_cancel_only_delivery(failure):
     try:
         prerequisites()
     except NamespaceUnavailable as exc:
         pytest.skip("EXTERNAL_CUSTODY_GATE_UNAVAILABLE: " + str(exc))
-    result = run_namespace_fixture(__file__, timeout=40)
+    result = run_namespace_fixture(__file__,{'failure':failure},timeout=40)
     assert result["status"] == "PASSED"
     assert result["setgroups"] == "deny"
     assert {proof["role"] for proof in result["roles"]} == {"broker", "guardian", "candidate"}
     assert result["result"]["actual_distinct_principals"] is True
+    assert result['network_namespace']!=os.readlink('/proc/self/ns/net')
+    if failure!='none':assert result['result']['crash']['recovered_before_retry'] is True
 
 
 @pytest.mark.parametrize("timeout", [True, None, "30", 0, 61, float("nan")])
@@ -227,7 +292,7 @@ def test_namespace_requires_three_assigned_subordinate_ids(entry, monkeypatch):
 
 if __name__ == "__main__":
     mode = sys.argv[1]
-    role = {"--wait": "candidate", "--broker": "broker", "--guardian": "guardian", "--candidate": "candidate"}.get(mode)
+    role = {"--wait": "candidate", "--broker": "broker", "--guardian": "guardian", '--guardian-failure':'guardian',"--candidate": "candidate"}.get(mode)
     if role is None:
         raise SystemExit("unsupported explicit synthetic fixture role")
     _validate_role(_credentials(), role)  # Recheck after exec, before fixture access.
@@ -236,8 +301,9 @@ if __name__ == "__main__":
         time.sleep(30)
     elif mode == "--broker":
         _broker(*sys.argv[2:])
-    elif mode in {"--guardian", "--candidate"}:
+    elif mode in {"--guardian", '--guardian-failure', "--candidate"}:
         configuration = json.loads(sys.stdin.buffer.read(32769))
-        (_guardian if mode == "--guardian" else _candidate)(configuration)
+        if mode=='--candidate':_candidate(configuration)
+        else:_guardian(configuration,expect_disconnect=mode=='--guardian-failure')
     else:
         raise SystemExit("unsupported explicit synthetic fixture role")

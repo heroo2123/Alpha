@@ -1,5 +1,11 @@
 # V11 clock, liveness and cancellation integration
 
+Latest local custody gate: actual distinct capability-free broker/guardian/candidate
+principals and three abrupt broker restart boundaries passed **20 checks / 9.84 s**,
+no skips, on 2026-09-25. uidmap is installed; no further owner setup is currently
+needed. See `V11_GUARDIAN_CUSTODY_EVIDENCE.md` for precise scope. Coherent health
+publication, protected producer transport and operational commissioning remain open.
+
 ## PAPER Unix-socket broker continuation
 
 `paper_guardian_broker.py`, `guardian_protocol.py` and `guardian_client.py` add a
