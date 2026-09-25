@@ -136,16 +136,39 @@ class PaperCancellation:
         if prior: return prior
         source = self.store.get(trigger_id); d = source['body'].get('details', {}); r = d.get('request', {})
         health_trigger = source['kind'] == 'RUNTIME_STATUS' and source['event_id'] == HEALTH_KEY and d.get('version') == HEALTH_VERSION
+        from .guardian_lease import VERSION as GUARDIAN_VERSION, journal_key, validate_details
+        guardian_trigger = source['kind'] == 'RUNTIME_STATUS' and d.get('version') == GUARDIAN_VERSION
         admission_trigger = (source['kind'] == 'MEASUREMENT' and d.get('version') == ADMISSION_VERSION
                              and d.get('passed') is False and d.get('cancellation_status') == 'REQUESTED_NOT_CONFIRMED')
         rule_trigger = (source['kind'] == 'RULE_STATE' and d.get('version') in {None, GUARD_VERSION}
                         and d.get('quarantined') is True and d.get('cancel_managed_new_risk_requested') is True
                         and d.get('preimage', {}).get('event_id') == source['event_id'])
-        if not health_trigger and not rule_trigger and not admission_trigger and (d.get('version') != EVENT_VERSION or d.get('cancellation_status') != 'REQUESTED_NOT_CONFIRMED'):
+        if not guardian_trigger and not health_trigger and not rule_trigger and not admission_trigger and (d.get('version') != EVENT_VERSION or d.get('cancellation_status') != 'REQUESTED_NOT_CONFIRMED'):
             raise EvidenceError('RECORDED_CANCELLATION_TRIGGER_REQUIRED')
         trigger_head = self.store.latest(kind=source['kind'], event_id=source['event_id'])
         passive_or_new_risk_only = False; superseded_event = False
-        if admission_trigger:
+        if guardian_trigger:
+            validate_details(source['event_id'], d)
+            if (source['event_id'] != journal_key(self.coordinator.policy.account_id)
+                    or d['account_policy_sha256'] != self.coordinator.policy_sha
+                    or d['status'] != 'GATED' or not d['cancel_intents'] or d['pending_trigger'] != source['id']):
+                raise EvidenceError('GUARDIAN_CANCEL_BINDING')
+            current = trigger_head['body']['details']
+            validate_details(trigger_head['event_id'], current)
+            if (current['config_sha256'] != d['config_sha256'] or current['pending_trigger'] != source['id']
+                    or current['cancel_intents'] != d['cancel_intents']):
+                raise EvidenceError('GUARDIAN_PENDING_TRIGGER_CHANGED')
+            snapshot = self.store.get(d['account_snapshot_id'])
+            if (snapshot['kind'] != 'COORDINATOR_EVENT' or snapshot['event_id'] != ACCOUNT_KEY
+                    or snapshot['seq'] >= source['seq'] or snapshot['body']['details'].get('policy_sha256') != self.coordinator.policy_sha):
+                raise EvidenceError('GUARDIAN_CANCEL_SNAPSHOT')
+            saved = self.coordinator._state(snapshot)
+            if any(pid not in saved['intents'] or cancel_identity(saved['intents'][pid]) != signature
+                   for pid,signature in d['cancel_intents'].items()):
+                raise EvidenceError('GUARDIAN_CANCEL_SIGNATURE')
+            scope, scope_id = 'ACCOUNT', self.coordinator.policy.account_id
+            passive_or_new_risk_only = True
+        elif admission_trigger:
             snapshot = self.store.get(d['account_snapshot_id'])
             saved = self.coordinator._state(snapshot)
             expected_event = 'resting-admission:'+digest([self.store.namespace, self.coordinator.policy.account_id, d['intent_id']])
@@ -188,6 +211,10 @@ class PaperCancellation:
         selected = []
         for intent_id, intent in sorted(account['intents'].items()):
             if intent['status'] not in UNRESOLVED: continue
+            if guardian_trigger:
+                if intent_id not in d['cancel_intents'] or intent.get('cancel_requested') is True: continue
+                if cancel_identity(intent) != d['cancel_intents'][intent_id]:
+                    raise EvidenceError('PAPER_CANCEL_MANAGED_IDENTITY_CHANGED')
             if health_trigger and intent.get('cancel_requested') is True: continue
             context = EventContext(**account['contexts'][intent['event_id']])
             if context.account_id != self.coordinator.policy.account_id:

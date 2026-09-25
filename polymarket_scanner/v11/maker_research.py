@@ -154,7 +154,10 @@ class MakerResearch:
         if not member or member.city!=context.city_id or member.metadata_fingerprint!=quote.rule.payload['metadata_fingerprint']:
             raise EvidenceError('MAKER_CITY_METADATA_SCOPE')
         from .runtime_health import admission_heads
+        from .guardian_lease import admission_heads as guardian_admission
         heads=list(SafetyReductions(self.store).atomic_heads(context))
+        heads.extend(guardian_admission(self.store, account_id=c.policy.account_id,
+            account_policy_sha=c.policy_sha, required_config=c.guardian_config))
         heads.extend(admission_heads(self.store, account_id=context.account_id,
                      event_id=context.event_id, strategies=('MAKER_RESEARCH',)))
         event=EventRiskEngine(self.store).revalidate(quote.event_state_id)

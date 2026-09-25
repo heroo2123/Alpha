@@ -1,8 +1,101 @@
 # V11 clock, liveness and cancellation integration
 
-Implemented off-host; no service deployment or financial authority. The runtime
-health monitor and paper cancellation adapter share a process and are NOT a
-commissioned independent production guardian. R37/R38 remain PARTIAL.
+Implemented off-host; no service deployment or financial authority. The original
+runtime health monitor and cooperative cancellation adapter still share a process.
+The separate finite PAPER guardian described below adds local process independence;
+it is NOT a commissioned independent production guardian. R37/R38 remain PARTIAL.
+
+## Independent local PAPER process
+
+`guardian_lease.py` and `paper_guardian.py` add a finite Linux sibling process,
+separate from the candidate's event loop and runtime lock. Local verification uses
+WSL2 Ubuntu 24.04.2 LTS, Python 3.11.16, a native Linux filesystem, `/proc` process
+identity, `flock`/`O_NOFOLLOW`, signals, hard resource limits and `no_new_privs`.
+Native Windows cannot meaningfully verify these semantics. This local environment
+already exists; no owner installation or alpha-dev access is needed for this slice.
+
+The explicit `launch_guardian(config, cycles=...)` helper uses the current absolute
+interpreter, fixed module, closed descriptors, a separate session and a two-variable
+environment. Its child accepts one bounded JSON launch description, no arbitrary
+commands/callbacks, credentials, fills, exits or order transport. Configuration is
+created by `configuration(...)` from the existing PAPER coordinator, guardian policy,
+health configuration and `process_identity(candidate_pid)`. Any saved launch input
+belongs in private local state outside Git. The caller owns the child handle and
+drains its single result line. It is not scheduled by `CandidateRunner` and does
+not install a daemon or service. Direct CLI execution inherits the caller's startup
+environment; use the explicit sanitized launcher for this local contract.
+
+The child has hard limits of 512 MiB address space, 64 descriptors, 256 MiB file
+size, 30 CPU seconds, zero core dump size, and a terminal 65-second wall alarm.
+Inherited lower hard limits are preserved. Runs allow at most 200 cycles and 60
+seconds of scheduled intervals. The wall alarm escapes internal per-intent error
+handlers. The finite process ends with a STOPPED lease. It is not a continuous or
+accepted production supervisor, network sandbox, separate UID or credential broker.
+
+Guardian identity binds PID, Linux start ticks, boot and UID. Worker identity,
+account policy, archive resource limits, health configuration and guardian policy
+bind the configuration digest. A new worker identity/configuration requires review;
+restarting the guardian alone preserves durable cancellation. Archive paths are
+intentionally portable local locators, not independently attested custody identities.
+Two copied same-account archives are not claimed to be the same protected ledger.
+
+An optional `CandidatePlan.guardian_config` requires the first valid guardian lease
+before any reservation. Once a guardian journal exists, fresh coordinators also
+enforce it. The default omitted option preserves historical assembly/runtime hashes.
+Account reservation, single-leg/basket SUBMITTING, and maker admission fence the
+exact original journal head. Freshness is checked again after SQLite acquires its
+write lock; lease expiry during preparation/waiting cannot admit a new opening.
+Stopped/dead/reused guardian identity, raw backward clocks, changed boot/configuration,
+missing status and expired wall/monotonic leases gate. This lease does not replace
+the existing model, source, rule, risk, receipt or account gates.
+
+Each cycle withdraws its preceding lease before checking the candidate's existing
+health journal. It never writes a candidate heartbeat or renews a historical sample.
+Pending cancellation is persisted before account effects and retried using the same
+plan/request identity even if health recovers or the process restarts. A bounded
+rotating scan checks managed resting intents against current health, protected
+admissions and event/operator state. Failures request cancellation through the
+existing exact cancel-only account transition. Reducing nonmaker SELL intents are
+preserved. Cash, fills, inventory, faults and reservations remain unchanged until
+the existing explicit reconciliation route supplies its own proof.
+
+Current polling is intentionally strict: a heartbeat arriving between the worker's
+sample and guardian poll invalidates the pinned sample and can durably request
+cancellation. A later healthy sample cannot revoke that request. This behavior is
+covered mechanically, not accepted as profitable continuous operation. Coherent
+cross-process health publication and forward cancellation/churn measurement remain
+required before an operating acceptance claim.
+
+SQLite writer contention, archive limits and shared storage remain common failure
+domains. The guardian cannot bypass them or claim a real/exchange cancellation.
+Failure prevents renewal; process death or lease expiry blocks further admission.
+There is no same-UID hostile-process security guarantee, kernel network restriction,
+supported authenticated cancel route, service deployment, separate-custody proof or
+independent commissioning. Exact local checks: `V11_GUARDIAN_ISOLATION_EVIDENCE.md`.
+
+### Next custody boundary
+
+Implement a PAPER-only cancel broker and typed AF_UNIX client with kernel
+`SO_PEERCRED`. The broker owns private synthetic account/journal state; the guardian
+client has no direct write route. Accept only a bounded cancellation request bound
+to command, account/policy, current intent signature and trigger identity. Keep
+idempotent request receipts and existing reservation/reconciliation semantics;
+accept no client-chosen database path, SQL, callback, order, replacement, fill or
+terminal operation. Bound frames, nesting, connection time, work and shutdown.
+
+That protocol/recovery work is preparable with the existing environment and no
+owner action. Once the finite harness is concrete and reviewed, custody acceptance
+needs three distinct unprivileged Linux principals: broker, guardian client and
+rejected candidate. A finite local privilege-dropping launcher can use temporary
+numeric identities and private native-Linux directories; no permanent account,
+service, package, Docker membership or venue credential is required. Any privileged
+owner step must be limited to that reviewed launcher, not a broad interactive shell.
+Prove actual peer rejection, denied candidate/guardian ledger writes, denied
+cross-principal signals, successful authorized cancellation and restart/replay.
+Do not label same-UID preliminary tests as that proof. No such setup or privileged
+launcher execution has occurred in this milestone.
+
+## Existing health and cancellation foundation
 
 runtime_health.py reads the local boot identity, wall/monotonic clock pair and
 the fixed read-only timedatectl NTPSynchronized property. Missing/failed/unknown

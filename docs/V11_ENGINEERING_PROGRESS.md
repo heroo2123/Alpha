@@ -1,5 +1,20 @@
 # Supplementary engineering estimate
 
+Independent local PAPER guardian, 2026-09-25: **46 focused passed / 13.53 s**,
+exit 0, with 771 canonical inputs unchanged. Full integrated regression **4294
+passed / four existing FastAPI warnings / 600.37 s**, exit 0; all source/mirror
+inputs unchanged. Evidence: `docs/V11_GUARDIAN_ISOLATION_EVIDENCE.md`.
+R37 newly earns **C** for a bounded independently scheduled Linux process and actual
+local process-failure/resource/restart checks, and **J** for durable cancellation,
+account/basket/maker lease and required candidate configuration integration.
+These are newly implemented substeps, not additional credit for the preceding
+cooperative cancellation tests. Retain the recovered baseline below unchanged.
+**83 + 2 = 85/200 = 42.5%, approximately 43%** using the existing half-up rule.
+Formal completion remains **1/50 (2%)**. R37 E/A and all unearned R43/R44 milestones
+remain open: same-UID trusted process tests and shared SQLite do not establish
+protected custody, supported cancel authentication, network isolation, deployment
+or independent commissioning. NOT_READY_TO_FUND; V10 unchanged/DEFERRED.
+
 Scheduled PWS score-audit continuation, 2026-09-25: the existing pinned worker
 now optionally reports complete retained receipt-score cohorts, including UNKNOWN,
 legacy and unsupported protocols. Measured labels and score matches remain

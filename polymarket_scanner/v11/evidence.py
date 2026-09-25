@@ -247,6 +247,8 @@ class EvidenceStore:
             last = db.execute("SELECT MAX(recorded_at) FROM v11_records").fetchone()[0]
             if last is not None and recorded_at < last and not safety_only:
                 raise EvidenceError("CLOCK_REGRESSION")
+            from .guardian_lease import check_transaction
+            check_transaction(self, db, kind, event_id, body, expected_heads)
             db.execute("INSERT INTO v11_records(record_id,kind,event_id,recorded_at,available_at,body,body_sha256) "
                        "VALUES(?,?,?,?,?,?,?)", (record_id, kind, event_id, recorded_at,
                                                available_at, encoded, digest(body)))
@@ -256,6 +258,10 @@ class EvidenceStore:
     @staticmethod
     def _validate_safety_append(db, kind, event_id, body):
         d = body.get('details', {}); action = d.get('request', {}).get('action')
+        if kind == 'RUNTIME_STATUS' and d.get('version') == 'alpha_v11_paper_guardian_v1':
+            from .guardian_lease import validate_details
+            validate_details(event_id, d)
+            return  # Exact guardian schema only; no financial or clock authority.
         if (kind=='RUNTIME_STATUS' and event_id=='v11-input-preparation-worker'
                 and d.get('version')=='alpha_v11_input_preparation_worker_v1'
                 and d.get('financial_authority') is False and d.get('calibrated_probability') is False

@@ -1,6 +1,61 @@
 # Alpha V11 work checkpoint
 
-## Latest verified checkpoint ? scheduled PWS score cohorts, 2026-09-25
+## Latest verified checkpoint - independent local PAPER guardian, 2026-09-25
+
+Recovered/fetched published **02fe3f2c28882b04f32381df395f17baa79d590b**, tree
+**2e75cf8d79ebe38bb6bce5cd044efacc61bd2936**; local HEAD matched remote. Preserved
+the interrupted guardian edits and completed the local trusted-process core.
+The guardian now runs independently of the candidate/runtime lock, retains pending
+cancellation across restart and gates account/basket/maker openings with a durable
+process-bound lease checked again inside the SQLite transaction. Candidate plans
+can require that external guardian before the first reservation. Cancellation,
+explicit fills/terminal reconciliation and research retirement keep their separate
+existing guards; reservations do not disappear on attempted cancellation.
+
+Linux semantics require WSL2/native Linux. Existing local **WSL2 Ubuntu 24.04.2 LTS,
+Python 3.11.16** suffices; no owner setup or alpha-dev access was needed. Hard child
+limits, no-new-privileges, sanitized launch, process/boot/start identity, blocking,
+death, FD exhaustion, lock/storage failures and recovery are covered locally.
+Same-UID access and shared SQLite/disk remain limitations; this is not authenticated
+cancel-only custody or commissioned production isolation. Heartbeat/sample gaps
+conservatively request cancellation; profitable continuous operation is unaccepted.
+
+Final focused **46 passed / 13.53 s / exit 0**, session **96608**, all **771 canonical
+non-document inputs unchanged**. Full regression **4294 passed / four existing
+FastAPI warnings / 600.37 s / exit 0**, session **55623**, uses the same canonical
+input map; all source/mirror inputs unchanged. No test/guardian operation remains
+running. Evidence: `docs/V11_GUARDIAN_ISOLATION_EVIDENCE.md`. Do not repeat this
+unchanged full run without a concrete integrated/release reason. Resolve this
+checkpoint's publishing commit/tree with
+`git log -1 --format='%H %T' -- docs/V11_WORK_CHECKPOINT.md`.
+
+Local R37 C/J evidence is new: **85/200 = 42.5%, approximately 43%; fully completed
+requirements 1/50 (2%)**. E/A and R43/R44 remain unearned. **NOT_READY_TO_FUND**.
+V10 unchanged/maintenance DEFERRED.
+Private inputs/evidence, secrets and wallet material remain outside Git. No host,
+service, wallet, funding, money movement, real order or financial authority change.
+
+The six remaining milestones/proof/dependency table below remains current. Active
+engineering estimates: sources/labels **45-90 h**; replay/learning **30-60 h**;
+strategy/portfolio/execution **35-70 h**; safety/identity/host **30-60 h**;
+independent unfunded acceptance **25-50 h**; operating comparison/release **15-30 h**.
+All LOW confidence; external waiting and owner actions are excluded. Local guardian
+checks do not close authentication, custody, deployment or operational acceptance.
+
+**Exact next unfinished implementation action:** build the bounded PAPER-only
+AF_UNIX cancel broker and typed guardian client described in
+`docs/V11_GUARDIAN_CLOCK.md`, replacing the guardian's direct account mutation with
+kernel peer-identity checks and broker-owned synthetic state. Preserve durable
+idempotency, intent signatures, reservations and explicit reconciliation. Implement
+the protocol/recovery tests before the separate-principal custody harness. No
+owner action blocks that preparatory code; only a later concrete, reviewed local
+privilege-dropping harness needs owner-only setup/execution. No production host,
+service, real credential or order work is authorized. Coherent health publication,
+real authenticated cancellation and independent operational acceptance remain open.
+
+## Previous published checkpoint
+
+## Latest verified checkpoint - scheduled PWS score cohorts, 2026-09-25
 
 Continued/preserved published **fdf85f560f44d0e164038196e52492f3b6f3aac0**, tree
 **e8274c87743706cce30f456c3cb4552f9508bf60**. Optional receipt-score replay now
@@ -2080,7 +2135,7 @@ still require separate budget and live approval. No arbitrary paper wait applies
 | Sources, weather and labels | Finish remaining provider/target adapters, physical/lead fitting, exact labels and calibration/fallback. Finish when actual evidence proves causal identity, coverage, lead/ablation and required out-of-sample quality. R06–R13, R25–R28, R31. | 45–90 | LOW | Authorized provider access, exact history/labels and independent semantic/calibration review. |
 | Full replay and controlled learning | Finish original preparation/control and other-strategy/PWS-label replay, remaining learning targets, isolated learner scheduling, matched EV/residual/drift evidence and initial-champion governance. Finish with deterministic effects/artifact/rollback/failure evidence and accepted real-data learning results. R02–R05, R14–R17, R40–R42, R47. | 30–60 | LOW | Exact labels, isolated learner environment, independent champion/governance review. |
 | Strategy, portfolio and execution | Finish remaining relative/structural/exit/redemption, correlation, cost and maker/reward integration. Finish when required common-account scenario, reservation, reconciliation and failure cases pass. R18–R24, R29–R30, R32–R36. | 35–70 | LOW | Reviewed mappings/parameters and actual source/execution evidence; funded learning remains separately authorized. |
-| Independent safety, identity and host | Finish independent cancel-only guardian, protected auth/routing and isolated deployment/recovery. Finish with verified custody, permissions, resource limits and authenticated safety/recovery behavior. R37–R39, R43–R44. | 30–60 | LOW | Owner entitlement/access and approved isolated host/deployment; alpha-dev resource/isolation unpassed. V10 maintenance stays deferred. |
+| Independent safety, identity and host | Local trusted-process guardian core/integration verified; finish separate-principal cancel broker/custody, coherent health publication, protected auth/routing and isolated deployment/recovery. Finish with verified custody, permissions, resource limits and authenticated safety/recovery behavior. R37–R39, R43–R44. | 30–60 | LOW | Owner entitlement/access and approved isolated host/deployment; alpha-dev resource/isolation unpassed. V10 maintenance stays deferred. |
 | Independent regression and unfunded acceptance | Complete remaining full integration/fault/security and permitted unfunded checks; resolve findings. Finish with reproducible exact-tree results and independent acceptance against the original matrix. R45, R48. | 25–50 | LOW | Independent reviewers and permitted existing-account access; no account creation or financial activation implied. |
 | Operating comparison and release | Verify isolated paper/shadow operations, empirical V10/V11 comparison, release/rollback identities and all unfunded readiness gates. Document the stale forward-control gap. Finish with every READY_TO_FUND requirement evidenced. R00, R46, R49. | 15–30 | LOW | Separate deployment approval, actual source/clock/host evidence and independent acceptance; external collection time is unestimated. |
 

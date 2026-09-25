@@ -196,9 +196,13 @@ class CandidatePlan:
     preparations: PreparationSettings | None = None
     drift: tuple[DriftPlan, ...] = ()
     reconciliation: ReconciliationPolicy | None = None
+    guardian_config: str | None = None
 
     def __post_init__(self):
         identity(self.version); identity(self.worker_id)
+        if self.guardian_config is not None:
+            from .evidence import sha
+            sha(self.guardian_config)
         if self.reconciliation is not None and not isinstance(self.reconciliation, ReconciliationPolicy):
             raise EvidenceError('CANDIDATE_TYPED_RECONCILIATION_REQUIRED')
         for value,kind in ((self.account,PaperAccountPolicy),(self.correlation,CorrelationMap),(self.limits,ScenarioLimits),
@@ -313,7 +317,8 @@ def assemble_candidate(store,client,plan,*,generation):
     if not isinstance(plan,CandidatePlan):raise EvidenceError('CANDIDATE_PLAN_REQUIRED')
     identity(generation)
     scheduled=ScheduledCollector(PublicCollector(store,client))
-    coordinator=PaperCoordinator(store,policy=plan.account,correlation=plan.correlation,limits=plan.limits)
+    coordinator=PaperCoordinator(store,policy=plan.account,correlation=plan.correlation,limits=plan.limits,
+                                 guardian_config=plan.guardian_config)
     # Refuse a conflicting existing account or queue; construction never replaces
     # their state to make a new configuration appear compatible.
     coordinator._head()
@@ -365,5 +370,6 @@ def assemble_candidate(store,client,plan,*,generation):
     assembly=asdict(plan)
     assembly['audits']=plan.audits.payload()
     if plan.reconciliation is None:assembly.pop('reconciliation')
+    if plan.guardian_config is None:assembly.pop('guardian_config')
     runner.assembly_sha256=digest(assembly)
     return runner

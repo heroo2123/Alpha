@@ -122,6 +122,7 @@ class PaperRuntime:
         if getattr(evaluator,'config',None) is not None: config['evaluator'] = evaluator.config
         if maker is not None:config['maker_research']=maker.policy_sha
         if reconciliation is not None:config['paper_reconciliation']=reconciliation.config
+        if coordinator.guardian_config is not None:config['independent_paper_guardian']=coordinator.guardian_config
         self.config = digest(config)
 
     def _head(self):

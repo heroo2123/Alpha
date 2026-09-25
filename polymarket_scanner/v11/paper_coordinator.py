@@ -25,6 +25,7 @@ from .event_queue import admission_heads as event_queue_admission
 from .position_attribution import intent_lineage, consume_lots
 from .runtime_health import admission_heads as runtime_health_admission
 from .paper_reconciliation import admission_heads as receipt_admission
+from .guardian_lease import admission_heads as guardian_admission
 
 
 VERSION = 'alpha_v11_paper_coordinator_v1'
@@ -105,10 +106,14 @@ class Proposal:
 
 class PaperCoordinator:
     def __init__(self, store: EvidenceStore, *, policy: PaperAccountPolicy,
-                 correlation: CorrelationMap, limits: ScenarioLimits):
+                 correlation: CorrelationMap, limits: ScenarioLimits, guardian_config=None):
         self.store, self.policy, self.correlation, self.limits = store, policy, correlation, limits
         self.policy_sha = digest(dict(account=asdict(policy), correlation=asdict(correlation), limits=asdict(limits)))
         self.reconciliation_config = None
+        if guardian_config is not None:
+            from .evidence import sha
+            sha(guardian_config)
+        self.guardian_config = guardian_config
 
     def _head(self):
         row = self.store.latest(kind='COORDINATOR_EVENT', event_id=ACCOUNT_KEY)
@@ -383,6 +388,8 @@ class PaperCoordinator:
         receipt_heads, receipt_seq = receipt_admission(self.store, account_id=self.policy.account_id,
             account_policy_sha=self.policy_sha, required_config=self.reconciliation_config)
         guards.update({(k, e): n for k, e, n in receipt_heads})
+        guards.update({(k, e): n for k, e, n in guardian_admission(self.store, account_id=self.policy.account_id,
+            account_policy_sha=self.policy_sha, required_config=self.guardian_config)})
         for proposal in proposals:
             try:
                 try:
@@ -508,6 +515,8 @@ class PaperCoordinator:
         if status == 'SUBMITTING':
             heads, receipt_seq = receipt_admission(self.store, account_id=self.policy.account_id,
                 account_policy_sha=self.policy_sha, required_config=self.reconciliation_config)
+            heads += guardian_admission(self.store, account_id=self.policy.account_id,
+                account_policy_sha=self.policy_sha, required_config=self.guardian_config)
         if status == 'SUBMITTING' and intent.get('basket_id') is not None:
             from .basket_coordinator import submission_heads
             heads += submission_heads(self, state, intent)
