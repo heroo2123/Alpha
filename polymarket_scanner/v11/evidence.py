@@ -262,6 +262,16 @@ class EvidenceStore:
         if (kind == 'MEASUREMENT' and d.get('version') == 'alpha_v11_paper_cancellation_v1'
                 and action in {'PLAN', 'DELIVER_LOCAL_CANCEL_REQUESTS', 'OBSERVE_ACCOUNT_RECONCILIATION'}):
             return
+        if (kind == 'MEASUREMENT' and event_id.startswith('resting-admission:')
+                and d.get('version') == 'alpha_v11_resting_admission_check_v1'
+                and action == 'CHECK_RESTING_ADMISSION'
+                and set(d) == {'version','policy_sha256','request','account_id','account_snapshot_id',
+                    'intent_id','intent_signature','admission_ids','preconfirmation_id','passed','reason',
+                    'cancellation_status','financial_authority','authority_restored','independent_guardian_commissioned'}
+                and type(d.get('passed')) is bool
+                and d.get('cancellation_status') == ('NOT_REQUESTED' if d['passed'] else 'REQUESTED_NOT_CONFIRMED')
+                and all(d.get(k) is False for k in ('financial_authority','authority_restored','independent_guardian_commissioned'))):
+            return  # Point-in-time cancellation telemetry, never an admission pin or clock repair.
         if kind == 'MEASUREMENT' and d.get('version') == 'alpha_v11_maker_research_v1' and action == 'RETIRE':
             prior = db.execute('SELECT body FROM v11_records WHERE kind=? AND event_id=? ORDER BY seq DESC LIMIT 1',
                                (kind,event_id)).fetchone()

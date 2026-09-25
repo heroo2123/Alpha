@@ -232,6 +232,16 @@ class MakerResearch:
         except EvidenceError as exc:
             return self._commit(key,request,previous,self._state(previous),outcome='GATED',reason=str(exc),refs=refs)
 
+    def revalidate_admission(self, quote_id):
+        """Safety check independent of new books, telemetry jobs or queue work."""
+        quotes = self._state(self._head())
+        if quote_id not in quotes or quotes[quote_id]['status'] != 'OBSERVING':
+            raise EvidenceError('MAKER_OBSERVING_QUOTE_REQUIRED')
+        quote = quotes[quote_id]
+        now = finite(self.store.clock())
+        if now >= quote['expires_at']: raise EvidenceError('MAKER_QUOTE_EXPIRED')
+        self._admission(_restore(quote['request']), now)
+
     def observe(self,key,*,quote_id,microstructure_id):
         request=dict(action='OBSERVE',quote_id=identity(quote_id),microstructure_id=identity(microstructure_id))
         prior=self._replay(key,request)

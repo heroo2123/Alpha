@@ -205,3 +205,14 @@ hold these integration credits. **81/200, approximately 41%**, formal **1/50 (2%
 unchanged. Actual labels/calibration, physical/observation learning, process/host
 isolation and independent acceptance stay open. The six active-work ranges remain
 appropriate to that larger scope and exclude owner/external waiting.
+
+Protected lifecycle withdrawal: R42 earns J for existing protected model/station/
+strategy failure -> original admission invalidation -> finite PAPER cancellation ->
+exact common-account reconciliation and maker retirement -> durable audit join.
+Evidence: **24 new cases, 267 related passes / 35.43 s**; both PWS model scopes,
+interruption, late fills, preservation of reducing exits, reviewed recovery without
+resurrection and clock/identity guards are demonstrated. Fixed total **82/200,
+approximately 41%**. Formal completion remains **1/50 (2%)**. Statistical drift
+threshold/evidence acceptance, real calibration/lead quality, OS-independent guardian,
+protected host and unfunded operational acceptance stay unearned. R37 gets no C/J
+credit from the cooperative runtime. No numerator change is attributed to more tests.

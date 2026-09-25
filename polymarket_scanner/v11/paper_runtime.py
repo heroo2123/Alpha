@@ -13,7 +13,8 @@ import uuid
 
 from .evidence import EvidenceError, canonical, digest, finite, identity
 from .event_risk import SafetyReductions
-from .paper_cancellation import PaperCancellation, CancellationPolicy
+from .paper_cancellation import PaperCancellation, CancellationPolicy, ADMISSION_VERSION, managed_opening
+from .paper_coordinator import UNRESOLVED
 from .runtime_health import KEY as HEALTH_KEY, admission_heads, host_stamp
 from .strategy_pipeline import TemperatureStrategies, EntryRequest
 from .runtime_feed import EvidenceFeed, FeedPolicy
@@ -111,7 +112,8 @@ class PaperRuntime:
         self.cancellation = PaperCancellation(coordinator, CancellationPolicy('runtime-bounded-v1', 16, 256))
         self.feed = EvidenceFeed(queue, feed_policy or FeedPolicy('bounded-receipt-delivery-v1'))
         config = dict(runtime=asdict(policy), account=coordinator.policy_sha, queue=queue.config, health=health.config, feed=self.feed.config,
-                      rewards=rewards.config if rewards is not None else None, audits=self.audits.config)
+                      rewards=rewards.config if rewards is not None else None, audits=self.audits.config,
+                      resting_admission_policy=ADMISSION_VERSION)
         if getattr(evaluator,'config',None) is not None: config['evaluator'] = evaluator.config
         if maker is not None:config['maker_research']=maker.policy_sha
         self.config = digest(config)
@@ -167,6 +169,7 @@ class PaperRuntime:
         state.setdefault('rule_cursor', 0)
         state.setdefault('cancel_intake_next', 0)
         state.setdefault('last_maker_quote', '')
+        state.setdefault('last_admission_intent', '')
         state['attempt'] += 1
         prefix = 'tick:'+digest([request, state['attempt']])
         step = [0]
@@ -186,6 +189,7 @@ class PaperRuntime:
             state['generation'] = self.generation
             save(outcome='PAPER_WORKER_RESTART_RECONCILED')
         errors = []; cancellation_reports = []; evaluations = []; coordinated = []; retired = []; reward_reports = []
+        admission_checks = []
         # Resume durable plans before consuming new triggers. Requests retain risk.
         plan_ids = sorted(state['active_plans'])
         plan_ids = [p for p in plan_ids if p > state['last_cancel_plan']]+[p for p in plan_ids if p <= state['last_cancel_plan']]
@@ -226,7 +230,8 @@ class PaperRuntime:
                 else: state[cursor] = row['seq']
                 if requested: break
         for index, trigger in enumerate(triggers):
-            if not budget() or remaining <= 0 or len(state['active_plans']) >= 32: break
+            if (not budget() or remaining <= 0
+                    or sum('admission_intent_id' not in p for p in state['active_plans'].values()) >= 32): break
             plan_id = 'runtime-plan:'+digest([trigger['id'], trigger['sha256']])
             if plan_id in serviced: continue
             if trigger['kind'] != 'RUNTIME_STATUS': remaining -= 1
@@ -245,6 +250,37 @@ class PaperRuntime:
             if trigger['kind'] != 'RUNTIME_STATUS':
                 state['cancel_intake_next'] = (next(i for i,c in enumerate(channels) if c[0] == trigger['kind'])+1)%len(channels)
             save(outcome='CANCELLATION_PROGRESS')
+        # A separate bounded sweep cannot be starved by a busy source/operator
+        # stream or a healthy prefix. Each admission plan owns one unresolved
+        # intent; at most the account's 512 retained intents can be tracked in
+        # addition to the existing 32 general safety plans. Pending terminal
+        # reconciliation never prevents cancellation of another invalid pin.
+        account = self.coordinator._state(self.coordinator._head())
+        planned = {p['admission_intent_id'] for p in state['active_plans'].values() if 'admission_intent_id' in p}
+        candidates = sorted(pid for pid, intent in account['intents'].items()
+            if intent['status'] in UNRESOLVED and not intent.get('cancel_requested')
+            and managed_opening(intent) and pid not in planned)
+        candidates = [p for p in candidates if p > state['last_admission_intent']]+[p for p in candidates if p <= state['last_admission_intent']]
+        remaining = self.policy.maximum_cancel_plans
+        for pid in candidates[:self.policy.maximum_updates]:
+            if not budget() or remaining <= 0: break
+            try:
+                check = self.cancellation.check_admission('admission-check:'+digest([prefix,pid]), intent_id=pid)
+                admission_checks.append(check['id'])
+                if not check['body']['details']['passed']:
+                    remaining -= 1
+                    plan_id = 'admission-plan:'+digest([check['id'],check['sha256']])
+                    # Persist registration first so an interrupted dispatch is
+                    # replayed using the original immutable intent identity.
+                    state['active_plans'][plan_id] = dict(trigger_id=check['id'], admission_intent_id=pid)
+                    save(outcome='ADMISSION_CANCELLATION_REGISTERED')
+                    self.cancellation.plan(plan_id, trigger_id=check['id'])
+                    report = self.cancellation.advance('dispatch:'+digest([prefix,plan_id]), plan_id=plan_id)
+                    cancellation_reports.append(report['id'])
+                    if report['body']['details']['outcome'] == 'ALL_TARGETS_TERMINAL': state['active_plans'].pop(plan_id)
+            except EvidenceError as exc: errors.append(dict(stage='RESTING_ADMISSION', intent_id=pid, reason=str(exc)))
+            state['last_admission_intent'] = pid
+            save(outcome='RESTING_ADMISSION_PROGRESS')
         if self.maker is not None and budget():
             quotes = self.maker._state(self.maker._head())
             observing = sorted(key for key,q in quotes.items() if q['status'] == 'OBSERVING')
@@ -259,6 +295,7 @@ class PaperRuntime:
                         raise EvidenceError('MAKER_RULE_QUARANTINED')
                     admission_heads(self.store, account_id=context['account_id'], event_id=context['event_id'], strategies=('MAKER_RESEARCH',))
                     if finite(self.store.clock()) >= quote['expires_at']: raise EvidenceError('MAKER_QUOTE_EXPIRED')
+                    self.maker.revalidate_admission(quote_id)
                 except EvidenceError as exc:
                     try:
                         row = self.maker.retire('retire:'+digest([prefix,quote_id]), quote_id=quote_id, reason=str(exc))
@@ -337,6 +374,7 @@ class PaperRuntime:
             health_id=health['id'], errors=errors, evaluation_ids=evaluations, account_batch_ids=coordinated,
             updates_consumed=not hd['global_reasons'] and not any(e['stage']=='INGEST' for e in errors),
             cancellation_report_ids=cancellation_reports, retired_quote_ids=retired,
+            resting_admission_check_ids=admission_checks,
             reward_report_ids=reward_reports,
             audit_request_ids=audit_request_ids,
             duration_monotonic_seconds=time.monotonic()-started, budget_exhausted=not budget(),

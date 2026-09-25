@@ -11,9 +11,15 @@ from .evidence import EvidenceError, canonical, digest, finite, identity
 from .paper_coordinator import ACCOUNT_KEY, UNRESOLVED, TERMINAL, VERSION as ACCOUNT_VERSION, cancel_identity
 from .runtime_health import VERSION as HEALTH_VERSION, KEY as HEALTH_KEY, cancellation_required
 from .rules import GUARD_VERSION
+from .strategy_admission import StrategyAdmission
 
 
 VERSION = 'alpha_v11_paper_cancellation_v1'
+ADMISSION_VERSION = 'alpha_v11_resting_admission_check_v1'
+
+
+def managed_opening(intent):
+    return intent['direction'] == 'BUY' or any(a['strategy'] == 'MAKER_RESEARCH' for a in intent['attribution'])
 
 
 @dataclass(frozen=True)
@@ -70,21 +76,88 @@ class PaperCancellation:
             evidence_ids=tuple(dict.fromkeys(refs)), expected_previous_seq=previous['seq'] if previous else 0,
             expected_heads=tuple(heads))
 
+    def check_admission(self, key, *, intent_id):
+        """Read existing authority; request withdrawal only, never restore a pin.
+
+        This also revalidates the separate PWS observation admission. A healthy
+        result is a point observation, not renewed eligibility or an order lease.
+        The account snapshot/signature prevents a delayed check targeting a new
+        intent. Terminal receipts and fills remain the coordinator's concern.
+        """
+        identity(key, maximum=100); identity(intent_id)
+        request = dict(action='CHECK_RESTING_ADMISSION', intent_id=intent_id)
+        event = 'resting-admission:'+digest([self.store.namespace, self.coordinator.policy.account_id, intent_id])
+        try:
+            prior = self.store.get(key)
+        except EvidenceError as exc:
+            if str(exc) != 'EVIDENCE_MISSING': raise
+        else:
+            d = prior['body'].get('details', {})
+            if (prior['kind'] != 'MEASUREMENT' or prior['event_id'] != event
+                    or d.get('version') != ADMISSION_VERSION or d.get('policy_sha256') != self.policy_sha
+                    or d.get('request') != request):
+                raise EvidenceError('RESTING_ADMISSION_REPLAY_CONFLICT')
+            return prior
+        head = self.coordinator._head(); account = self.coordinator._state(head)
+        intent = account['intents'].get(intent_id)
+        if intent is None or intent['status'] not in UNRESOLVED or not managed_opening(intent):
+            raise EvidenceError('RESTING_MANAGED_OPENING_REQUIRED')
+        context = EventContext(**account['contexts'][intent['event_id']])
+        rule = self.coordinator._rule(account['rules'][intent['event_id']])
+        if context.account_id != self.coordinator.policy.account_id:
+            raise EvidenceError('PAPER_CANCEL_ACCOUNT_MISMATCH')
+        strategies = tuple(a['strategy'] for a in intent['attribution'])
+        reason = None
+        try:
+            if finite(self.store.clock()) >= intent['expires_at']:
+                raise EvidenceError('RESTING_INTENT_EXPIRED')
+            admissions = [StrategyAdmission(self.store).revalidate(ref, context=context, rule=rule,
+                binding=intent['binding'], strategies=strategies) for ref in intent['admission_ids']]
+            if not admissions or {a['strategy'] for a in admissions} != set(strategies):
+                raise EvidenceError('RESTING_ADMISSION_STRATEGIES_MISMATCH')
+            self.coordinator._preconfirmation(intent.get('preconfirmation_id'), strategies=strategies,
+                context=context, rule=rule, binding=intent['binding'], admissions=tuple(intent['admission_ids']))
+        except (EvidenceError, OSError) as exc:
+            reason = str(exc) if isinstance(exc, EvidenceError) else 'RESTING_AUTHORITY_UNAVAILABLE'
+        return self.store.safety_audit(key, event_id=event, kind='MEASUREMENT', details=dict(
+            version=ADMISSION_VERSION, policy_sha256=self.policy_sha, request=request,
+            account_id=self.coordinator.policy.account_id, account_snapshot_id=head['id'],
+            intent_id=intent_id, intent_signature=cancel_identity(intent),
+            admission_ids=intent['admission_ids'], preconfirmation_id=intent.get('preconfirmation_id'),
+            passed=reason is None, reason=reason or 'RESTING_ADMISSION_VALID_AT_CHECK',
+            cancellation_status='REQUESTED_NOT_CONFIRMED' if reason else 'NOT_REQUESTED',
+            financial_authority=False, authority_restored=False, independent_guardian_commissioned=False),
+            evidence_ids=(head['id'],), expected_heads=(('COORDINATOR_EVENT', ACCOUNT_KEY, head['seq']),))
+
     def plan(self, key, *, trigger_id):
-        """Freeze existing managed intents affected by an operator or EVENT record."""
+        """Freeze existing managed intents affected by a recorded safety check."""
         request = dict(action='PLAN', trigger_id=identity(trigger_id))
         prior = self._replay(key, request, key)
         if prior: return prior
         source = self.store.get(trigger_id); d = source['body'].get('details', {}); r = d.get('request', {})
         health_trigger = source['kind'] == 'RUNTIME_STATUS' and source['event_id'] == HEALTH_KEY and d.get('version') == HEALTH_VERSION
+        admission_trigger = (source['kind'] == 'MEASUREMENT' and d.get('version') == ADMISSION_VERSION
+                             and d.get('passed') is False and d.get('cancellation_status') == 'REQUESTED_NOT_CONFIRMED')
         rule_trigger = (source['kind'] == 'RULE_STATE' and d.get('version') in {None, GUARD_VERSION}
                         and d.get('quarantined') is True and d.get('cancel_managed_new_risk_requested') is True
                         and d.get('preimage', {}).get('event_id') == source['event_id'])
-        if not health_trigger and not rule_trigger and (d.get('version') != EVENT_VERSION or d.get('cancellation_status') != 'REQUESTED_NOT_CONFIRMED'):
+        if not health_trigger and not rule_trigger and not admission_trigger and (d.get('version') != EVENT_VERSION or d.get('cancellation_status') != 'REQUESTED_NOT_CONFIRMED'):
             raise EvidenceError('RECORDED_CANCELLATION_TRIGGER_REQUIRED')
         trigger_head = self.store.latest(kind=source['kind'], event_id=source['event_id'])
         passive_or_new_risk_only = False; superseded_event = False
-        if health_trigger:
+        if admission_trigger:
+            snapshot = self.store.get(d['account_snapshot_id'])
+            saved = self.coordinator._state(snapshot)
+            expected_event = 'resting-admission:'+digest([self.store.namespace, self.coordinator.policy.account_id, d['intent_id']])
+            if (source['event_id'] != expected_event or d.get('policy_sha256') != self.policy_sha
+                    or d.get('account_id') != self.coordinator.policy.account_id
+                    or snapshot['kind'] != 'COORDINATOR_EVENT' or snapshot['event_id'] != ACCOUNT_KEY
+                    or snapshot['body']['details'].get('policy_sha256') != self.coordinator.policy_sha
+                    or snapshot['seq'] >= source['seq'] or d['intent_id'] not in saved['intents']
+                    or cancel_identity(saved['intents'][d['intent_id']]) != d.get('intent_signature')):
+                raise EvidenceError('RESTING_ADMISSION_CANCEL_BINDING')
+            scope, scope_id = 'INTENT', d['intent_id']; passive_or_new_risk_only = True
+        elif health_trigger:
             if trigger_head['id'] != trigger_id or d.get('account_id') != self.coordinator.policy.account_id:
                 raise EvidenceError('CURRENT_RUNTIME_HEALTH_ACCOUNT_REQUIRED')
             scope, scope_id = 'ACCOUNT', self.coordinator.policy.account_id
@@ -119,14 +192,17 @@ class PaperCancellation:
             context = EventContext(**account['contexts'][intent['event_id']])
             if context.account_id != self.coordinator.policy.account_id:
                 raise EvidenceError('PAPER_CANCEL_ACCOUNT_MISMATCH')
-            if (scope, scope_id) not in context.scopes: continue
+            if scope == 'INTENT':
+                if intent_id != scope_id: continue
+                if cancel_identity(intent) != d['intent_signature']:
+                    raise EvidenceError('PAPER_CANCEL_MANAGED_IDENTITY_CHANGED')
+            elif (scope, scope_id) not in context.scopes: continue
             # A durable earlier EVENT cancel can be delivered after recovery,
             # but cannot target a newly valued post-event intent through it.
             if superseded_event and self.store.get(intent['valuation_id'])['seq'] > source['seq']: continue
             if health_trigger and not cancellation_required(d, context.event_id, tuple(a['strategy'] for a in intent['attribution'])):
                 continue
-            passive = any(a['strategy'] == 'MAKER_RESEARCH' for a in intent['attribution'])
-            if passive_or_new_risk_only and not (intent['direction'] == 'BUY' or passive): continue
+            if passive_or_new_risk_only and not managed_opening(intent): continue
             selected.append((intent_id, intent))
         # Do not claim cancellation of an omitted suffix or prune managed risk.
         if len(selected) > self.policy.maximum_plan_intents:

@@ -20,6 +20,7 @@ from .runtime_health import KEY as HEALTH_KEY
 VERSION = 'alpha_v11_audit_reports_v1'
 WORKER_KEY = 'v11-audit-report-worker'
 PERIODS = {'DAILY':86400,'WEEKLY':7*86400}
+LAYOUT_VERSION = 'alpha_v11_audit_lifecycle_counts_v1'
 
 
 @dataclass(frozen=True)
@@ -81,6 +82,7 @@ def _aggregate():
         funnel_counts={},rejection_reasons={},account_outcomes={},station_transitions={},station_latest={},
         rule_drifts=0,rule_quarantines={},model_actions={},model_result_ids=[],learning_watermarks=[],
         runtime_outcomes={},health_failure_samples=0,markout_counts={},
+        resting_admission_checks={},paper_cancellation_outcomes={},maker_retirement_reasons={},
         incident_refs=[],malformed_records=0,metadata_overflow=False,runtime_durations=dict(count=0,total=0.,maximum=0.))
 
 
@@ -133,6 +135,15 @@ def _fold(row,a,window):
     elif kind=='MEASUREMENT' and d.get('version')=='alpha_v11_maker_research_v1' and d.get('request',{}).get('action')=='MARKOUT':
         # Sample counts only: averaging mixed horizons/targets is invalid.
         _bump(a['markout_counts'],str(d['request']['horizon_seconds'])+':'+d.get('status','UNKNOWN'))
+    elif kind=='MEASUREMENT' and d.get('version')=='alpha_v11_resting_admission_check_v1':
+        _bump(a['resting_admission_checks'],d.get('reason','UNKNOWN'))
+        if d.get('passed') is False:_sample(a['incident_refs'],row)
+    elif kind=='MEASUREMENT' and d.get('version')=='alpha_v11_paper_cancellation_v1':
+        # These count audit records, not unique orders or exchange cancellations.
+        _bump(a['paper_cancellation_outcomes'],d.get('outcome','UNKNOWN'))
+    elif kind=='MEASUREMENT' and d.get('version')=='alpha_v11_maker_research_v1' and d.get('request',{}).get('action')=='RETIRE':
+        _bump(a['maker_retirement_reasons'],d['request'].get('reason','UNKNOWN'))
+        _sample(a['incident_refs'],row)
 
 
 class AuditWorker:
@@ -141,7 +152,8 @@ class AuditWorker:
             raise EvidenceError('AUDIT_COMPONENT_SCOPE')
         self.coordinator,self.store,self.policy,self.rewards=coordinator,coordinator.store,policy,rewards
         self.schedule_config=digest(asdict(policy))
-        self.config=digest(dict(schedule=self.schedule_config,account=coordinator.policy_sha,rewards=rewards.config if rewards else None))
+        self.config=digest(dict(schedule=self.schedule_config,account=coordinator.policy_sha,rewards=rewards.config if rewards else None,
+                               layout=LAYOUT_VERSION))
 
     def _head(self):
         row=self.store.latest(kind='RUNTIME_STATUS',event_id=WORKER_KEY)

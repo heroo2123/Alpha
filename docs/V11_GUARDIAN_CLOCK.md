@@ -51,3 +51,24 @@ Remaining production gates include OS-separated identity, narrow supported cance
 authentication, expiry/revocation/network failure behavior, GTD defense in depth,
 external reconciliation, worker/guardian isolation, resource limits and independent
 review. No live guardian, credential route or financial clock authority is claimed.
+
+The runtime now checks retained opening/passive intents against their original
+protected strategy admissions, including both PWS model scopes, before optional
+event work. A failed check records the account snapshot and exact immutable intent
+signature, then uses the same cancellation/reconciliation bridge. The dedicated
+rotating sweep shares the existing per-tick update and new-plan budgets. Pending
+terminal reconciliation cannot consume its separate intake capacity: at most one
+plan is tracked per retained account intent (hard bound 512), alongside at most 32
+general trigger plans. Healthy checks do not renew eligibility or recreate orders.
+Reducing SELL intents are preserved. Maker research revalidates admission without
+waiting for a new book. Runtime/report identities explicitly gate incompatible old
+state; there is no silent migration or deletion.
+
+The backward-clock telemetry extension accepts only the exact nonauthorizing
+resting-admission-check schema. Capture/model/decision chronology and the existing
+cancel-only account state comparison remain unchanged. Daily/weekly reports count
+check reasons, cancellation audit outcomes and maker retirements; counts are audit
+records, not inferred unique fills or confirmed exchange cancellations. Protected
+recovery still requires its existing independent review and cannot undo already
+requested cancellation. Rolling statistical drift acceptance and independent live
+cancellation remain open.

@@ -1,7 +1,69 @@
 # Alpha V11 work checkpoint
 
-Updated 2026-09-25, after same-day conditioned research integration. Resume here. **NOT_READY_TO_FUND**.
+Updated 2026-09-25, after protected lifecycle withdrawal integration. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
+
+## Latest implementation — protected lifecycle withdrawal and audit integration
+
+Recovered actual clean/published **4c3a7a1f52cc670a625612c22473f18af9148668**,
+tree **c154fc8740d51caaa6f229e5f045f2d7405031e3**; no unfinished operation or newer
+work was present. Prior conditioned-learning 87-test result was retained, not rerun
+as a recovery step. The full master specification and all approval boundaries apply.
+
+The finite PAPER runtime now sweeps existing managed opening/passive intents through
+their original StrategyAdmission checks, including the separately protected PWS
+observation/payout pair. Model overlay/epoch changes, station demotion, capability
+failure, metadata drift, lost review, stale source and expired admission cause a
+recorded withdrawal request. No model pointer, frozen parameter or review is written.
+The same common-account cancellation bridge binds the exact account snapshot and
+immutable intent signature; requests retain reservations, accept late fills and wait
+for explicit terminal reconciliation. Reducing SELL intents are preserved. Healthy
+checks do not renew pins or restore authority; reviewed recovery cannot resurrect
+old canceled intents. Existing broader admission-source invalidation stays intact.
+
+Dedicated rotating intake uses the existing maximum_updates and maximum_cancel_plans
+bounds ahead of optional event work. One tracked plan per retained intent (account
+hard bound 512), separately from the existing 32 general trigger plans, prevents
+pending reconciliation/busy trigger streams from consuming its intake slots. Plan
+registration is saved before dispatch. Maker admission now revalidates without a new
+book or telemetry job. Daily/weekly pinned audits record failure reasons, cancellation
+audit counts and maker retirements; these are not unique fills or exchange cancels.
+Runtime safety policy and report-layout identities change explicitly: an existing
+incompatible runtime/report job requires review, with old state retained unchanged.
+
+Verification: **267 passed / 35.43 s / exit 0**, session 37406, including **24 new
+lifecycle integration cases**. Actual source/model/certification and basket/common-
+account code is exercised with explicit synthetic reviews/prices. Coverage includes
+both PWS model slots, late fills, terminal inventory preservation, recovery without
+resurrection, interrupted registration, bounded rotation, expiry/authority checks,
+clock regression without capture-clock repair, immutable intent mismatch and audits.
+The first focused attempt exposed a missing admission-check telemetry allowlist:
+13 failed / 4 passed; the scoped nonauthorizing telemetry guard was added without
+relaxing ordinary evidence or account mutation checks. Next 17 passed / 5.54 s;
+final affected run includes the additional clock/audit/identity checks. Earlier
+unchanged cancellation/runtime checks: 50 passed / 2.79 s. Final tool transcript
+and post-run hashes are saved in
+`/workspace/scratch/38af7099c566/v11-test-evidence/lifecycle-targeted-20260925-01.json`.
+This is a recorded tool result, not a prehashed locked run. A full regression is
+next because shared evidence, runtime, maker and reporting behavior changed.
+
+**R42 earns J** for the demonstrated protected model/station/strategy failure →
+existing PAPER cancellation/reconciliation → monitoring/audit integration. Total
+**82/200, approximately 41%**, formal **1/50 (2%)**. Actual statistically meaningful
+rolling drift/lead/calibration evidence and independent guardian/host acceptance
+remain unearned. R37 receives no credit for cooperative cancellation. Six remaining
+readiness milestones below retain their active-hour ranges and exclude external
+waiting; the completed lifecycle withdrawal join is removed from remaining work.
+
+Next: save this exact implementation and run one locked full regression; then
+continue explicit evidence-bound rolling degradation integration under predeclared
+scope/policy and reviewed recovery. Genuine blockers remain actual source/label and
+calibration evidence, independent initial champion/semantic/security review, owner
+account entitlement and approved isolated host/unfunded acceptance. No owner action
+is needed for the next off-host work. V10 is unchanged; maintenance DEFERRED. No
+service, permission, deployment, funding, transfer or real-order action occurred.
+**NOT_READY_TO_FUND**. Resolve saved commit/tree using
+`git log -1 --format='%H %T' -- docs/V11_WORK_CHECKPOINT.md`.
 
 ## Latest implementation — explicit same-day conditioned research
 
@@ -573,7 +635,7 @@ still require separate budget and live approval. No arbitrary paper wait applies
 | Remaining milestone | Work remaining and proof of completion | Active hours | Confidence | External/owner dependency |
 |---|---|---:|---|---|
 | Source, weather and label closure | Complete remaining provider/target adapters and scheduling, physical/lead fitting, exact labels and calibration/fallback; explicit-interval/GEFS and physical/PWS inference now have bounded candidate preparation scheduling. Prove causal source/target identity, coverage, lead/ablation and required OOS quality on actual evidence. R06–R13, R25–R28, R31. | 45–90 | LOW | Working authorized provider access; exact source/version history and sufficient evidence; independent semantic/calibration review. |
-| Evidence and controlled learning | Close complete replay/provenance, markout/selection/report joins, operational learner scheduling/isolation, remaining target families, lifecycle and accepted initial-bundle/learning governance; conditioned payout/paired observation capture and explicit same-day Gaussian fitting are now joined. Prove deterministic dataset-to-artifact and rollback/reuse/failure behavior with required real evidence. R02–R05, R14–R17, R40–R42, R47. | 30–60 | LOW | Upstream exact labels; independent initial champion and governance acceptance; isolated learning environment. |
+| Evidence and controlled learning | Close complete replay/provenance, markout/selection/report joins, operational learner scheduling/isolation, remaining target families, rolling degradation evidence and accepted initial-bundle/learning governance; conditioned capture/fitting and protected lifecycle withdrawal through PAPER reconciliation/audits are now joined. Prove deterministic dataset-to-artifact and rollback/reuse/failure behavior with required real evidence. R02–R05, R14–R17, R40–R42, R47. | 30–60 | LOW | Upstream exact labels; independent initial champion and governance acceptance; isolated learning environment. |
 | Strategy, portfolio and execution integration | Finish missing relative/structural/exit/redemption, correlation, costs and maker/reward paths. Prove full common-account scenario/reservation/reconciliation and strategy eligibility across required failure cases. R18–R24, R29–R30, R32–R36. | 35–70 | LOW | Reviewed mappings/parameters and actual source/execution evidence; funded fill learning remains later and separately authorized. |
 | Independent safety, identity and host | Finish independent cancel-only guardian and protected command/auth routing; prepare and verify isolated deployment/recovery configuration. Prove custody, permissions, resource budgets and authenticated safety behavior. R37–R39, R43–R44. | 30–60 | LOW | Owner account entitlement/access, approved isolated host and deployment action; alpha-dev resource/isolation currently unpassed. V10 maintenance stays deferred absent an exact dependency. |
 | Regression and unfunded acceptance | Run complete integration/fault/security acceptance and permitted unfunded account/execution checks; resolve findings. Proof is the original acceptance matrix with independent review and reproducible exact-tree results. R45, R48. | 25–50 | LOW | Independent reviewers and permitted existing-account access; no wallet/account creation or financial activation is implied. |
