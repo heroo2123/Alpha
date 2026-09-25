@@ -637,8 +637,20 @@ class PaperCoordinator:
         if risk['faults']:
             state['faults'].append('POST_FILL_ACCOUNT_RISK_BREACH')
         state['faults'] = sorted(set(state['faults']))
+        extra={}
+        if 'execution_details' in payload:
+            # The existing fill proof controls ledger reconciliation. Optional
+            # metric metadata must never hide a known position or cash movement.
+            from .fill_evidence import execution_details
+            try:
+                extra['execution_evidence']=execution_details(self.store,proof,intent,
+                    account_id=self.policy.account_id,collateral_asset=self.policy.collateral_asset)
+            except (EvidenceError,KeyError,TypeError,ValueError) as exc:
+                extra['execution_evidence']=dict(status='GATED',
+                    reason=str(exc) if isinstance(exc,EvidenceError) else 'FILL_EXECUTION_DETAILS_MALFORMED',
+                    reconciliation_preserved=True,financial_authority=False)
         return self._commit(command_id, request, row, state, dict(risk=risk, duplicate_fill=False,
-                                                                realized_pnl_class='SYNTHETIC_PAPER_ONLY'), evidence_ids=(evidence_id,))
+                                                                realized_pnl_class='SYNTHETIC_PAPER_ONLY',**extra), evidence_ids=(evidence_id,))
 
     def reconcile_terminal(self, command_id: str, evidence_id: str) -> dict:
         request = dict(action='TERMINAL', evidence_id=evidence_id)

@@ -136,6 +136,21 @@ def _fold(row,a,window):
                 outcome=measured['outcome'],threshold_breaches=measured['threshold_breaches'],
                 retained_quote_window_coverage_verified=measured['retained_quote_window_coverage_verified'],
                 global_universe_coverage_verified=False,actual_trading_pnl=None,net_ev_capture=None))
+        if (d.get('version')=='alpha_v11_reviewed_drift_worker_v1' and d.get('action')=='DRIFT_MEASUREMENT'
+                and (d.get('result') or {}).get('version')=='alpha_v11_scoped_paper_fill_markout_v1'):
+            measured=d['result'];request=measured['request'];policy=request['policy']
+            if digest(measured)!=d.get('result_sha256') or measured.get('financial_authority') is not False:
+                raise EvidenceError('AUDIT_FILL_MARKOUT_MEASUREMENT_BINDING')
+            summaries=a.setdefault('fill_markout_monitoring',[])
+            if len(summaries)>=32:a['metadata_overflow']=True
+            else:summaries.append(dict(record_id=row['id'],sha256=row['sha256'],result_sha256=d['result_sha256'],
+                scope=request['scope'],bundle_sha256=request['bundle_sha256'],policy_sha256=digest(policy),
+                horizon_seconds=policy['horizon_seconds'],direction=policy['direction'],evidence_class=measured['evidence_class'],
+                execution_class=measured['execution_class'],measurement_class=measured['measurement_class'],
+                window=measured['window'],scores=measured['scores'],outcome=measured['outcome'],threshold_breaches=measured['threshold_breaches'],
+                reconciled_fill_selection_verified=measured['reconciled_fill_selection_verified'],
+                execution_timing_coverage_verified=measured['execution_timing_coverage_verified'],
+                global_universe_coverage_verified=False,actual_trading_pnl=None,net_ev_capture=None))
         if d.get('version')=='alpha_v11_reviewed_drift_worker_v1' and d.get('action')=='DRIFT_RESULT':
             _bump(a['drift_outcomes'],d.get('outcome','UNKNOWN'))
             if d.get('outcome')!='NO_DECLARED_BREACH':_sample(a['incident_refs'],row)

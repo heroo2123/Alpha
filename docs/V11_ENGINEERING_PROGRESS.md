@@ -290,3 +290,16 @@ the required `docs/V11_MARKOUT.md` records implemented behavior and remaining fi
 evidence semantics. Verification/documentation add no extra credit: **82/200,
 approximately 41%**, formal **1/50 (2%)**, unchanged. Actual/independent/host/unfunded
 acceptance and six active-work ranges remain open; external/owner waiting is separate.
+
+
+Reconciled synthetic PAPER fill quality now joins explicit engine timing/price/cost,
+original single-leg/basket/exit attribution, conservative unknown-timing selection,
+all five causal depth horizons, reviewed automatic reduction, candidate cancellation
+and bounded audits. **338 affected passes / 57.18 s**, **57 targeted / 8.23 s**, plus
+**one single-leg case / 0.42 s**. Bad optional telemetry never hides reconciled cash
+or units. Existing R05/R35/R40/R42 C/J credits already cover the integration slice;
+**82/200, approximately 41%**, formal **1/50 (2%)**, unchanged. This does not validate
+actual execution, EV capture, empirical adverse selection, independent review,
+host deployment or unfunded acceptance. Full changed-tree regression is next.
+Six remaining active-hour ranges remain appropriate to the unresolved source,
+proof-delivery/governance/host scope; external waiting and owner actions are separate.

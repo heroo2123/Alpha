@@ -16,6 +16,7 @@ from .certification import CapabilityScope, StationRegistry, _root_custody
 from .drift import DriftPolicy, RealizedDriftPolicy, REALIZED_SELECTION, measure_window, measure_realized_window
 from .evidence import EvidenceError, canonical, digest, finite, identity, sha
 from .forecast_learning import ForecastLabelJoin
+from .fill_markout import FillMarkoutPolicy, SELECTION as FILL_SELECTION, snapshot_fill_cohort
 from .learning_sources import learning_source_view
 from .markout_drift import MarkoutDriftPolicy, SELECTION as MARKOUT_SELECTION, snapshot_cohort, measure_markout_window
 from .model_artifacts import parse_data
@@ -31,10 +32,10 @@ REVIEW_PATH = Path('/etc/alpha-v11/approvals/drift-policies.json')
 class DriftPlan:
     scope: CapabilityScope
     bundle_sha256: str
-    policy: DriftPolicy | RealizedDriftPolicy | MarkoutDriftPolicy
+    policy: DriftPolicy | RealizedDriftPolicy | MarkoutDriftPolicy | FillMarkoutPolicy
 
     def __post_init__(self):
-        if (not isinstance(self.scope, CapabilityScope) or not isinstance(self.policy, (DriftPolicy,RealizedDriftPolicy,MarkoutDriftPolicy))
+        if (not isinstance(self.scope, CapabilityScope) or not isinstance(self.policy, (DriftPolicy,RealizedDriftPolicy,MarkoutDriftPolicy,FillMarkoutPolicy))
                 or self.policy.minimum_events > 64
                 or isinstance(self.policy,MarkoutDriftPolicy) and self.scope.strategy!='MAKER_RESEARCH'):
             raise EvidenceError('DRIFT_TYPED_PLAN_REQUIRED')
@@ -45,6 +46,7 @@ class DriftPlan:
 
     @property
     def channel(self):
+        if isinstance(self.policy,FillMarkoutPolicy):return 'PAPER_FILL_MARKOUT:'+str(self.policy.horizon_seconds)+':'+self.policy.direction+':'+self.policy.evidence_class
         if isinstance(self.policy,MarkoutDriftPolicy):return 'MAKER_COUNTERFACTUAL:'+str(self.policy.horizon_seconds)+':'+self.policy.direction
         return 'REALIZED_PAPER' if isinstance(self.policy,RealizedDriftPolicy) else 'PREDICTION_QUALITY'
 
@@ -76,6 +78,8 @@ class DriftWorker:
                 or len({(p.scope.key,p.channel) for p in plans}) != len(plans)):
             raise EvidenceError('DRIFT_WORKER_SCOPE_OR_BOUND')
         self.coordinator, self.store = coordinator, coordinator.store
+        if self.store.namespace!='V11_PAPER' and any(isinstance(p.policy,FillMarkoutPolicy) for p in plans):
+            raise EvidenceError('DRIFT_FILL_MARKOUT_PAPER_ONLY')
         from .maker_telemetry import MakerTelemetryWorker
         markout=any(isinstance(p.policy,MarkoutDriftPolicy) for p in plans)
         if markout and (not isinstance(maker_telemetry,MakerTelemetryWorker)
@@ -155,6 +159,13 @@ class DriftWorker:
                 or as_of>self.store.clock()):raise EvidenceError('DRIFT_MARKOUT_REQUEST_SCOPE')
         with self._lock():return self._enqueue(request_id,dict(plan_key=plan_key,cohort=cohort,as_of=as_of))
 
+    def request_fill_markouts(self, request_id, *, plan_key, cohort, as_of):
+        """Pin every reconciled fill that could belong to the declared window."""
+        identity(request_id);sha(plan_key);as_of=finite(as_of)
+        if (plan_key not in self.plans or not isinstance(self.plans[plan_key].policy,FillMarkoutPolicy)
+                or as_of>self.store.clock()):raise EvidenceError('DRIFT_FILL_REQUEST_SCOPE')
+        with self._lock():return self._enqueue(request_id,dict(plan_key=plan_key,fill_cohort=cohort,as_of=as_of))
+
     def _enqueue(self, request_id, request, *, verified_cohort=False):
         """Caller holds the worker lock; source/account writes remain independently guarded."""
         key = 'drift-request:' + digest([self.key, request_id]);plan_key=request['plan_key'];as_of=request['as_of']
@@ -175,6 +186,14 @@ class DriftWorker:
             heads=(('COORDINATOR_EVENT',ACCOUNT_KEY,account['seq']),)
             extra=dict(account_history_sha256=digest(account['body']['details']['state']['realized_entries']),account_id=account['id'])
             cohort_sha=digest(ref)
+        elif 'fill_cohort' in request:
+            plan=self.plans[plan_key];cohort=request['fill_cohort']
+            if not verified_cohort:
+                current=snapshot_fill_cohort(self.coordinator,scope=plan.scope,bundle_sha256=plan.bundle_sha256,
+                    policy=plan.policy,as_of=as_of)
+                if cohort is None or cohort!=current:raise EvidenceError('DRIFT_CURRENT_FILL_COHORT_REQUIRED')
+            heads=tuple(tuple(h) for h in cohort['input_heads']);cohort_sha=cohort['history_sha256']
+            extra=dict(fill_history_sha256=cohort_sha,fill_heads_sha256=digest(cohort['input_heads']))
         elif 'cohort' in request:
             plan=self.plans[plan_key];cohort=request['cohort']
             if not verified_cohort:
@@ -189,7 +208,7 @@ class DriftWorker:
             raise EvidenceError('DRIFT_NEW_COHORT_AND_CUTOFF_REQUIRED')
         state['active'] = dict(request=request, request_id=key, request_sha256=request_sha)
         state['last'][plan_key] = dict(as_of=as_of, cohort_sha256=cohort_sha, **extra)
-        if request_id.startswith(('automatic-account:','automatic-markout:')):state['last_automatic_plan']=plan_key
+        if request_id.startswith(('automatic-account:','automatic-markout:','automatic-fill:')):state['last_automatic_plan']=plan_key
         return self._save(key, head, state, action='DRIFT_COHORT_REQUEST',heads=heads,
             outcome='QUEUED_NOT_REVIEWED', request_sha256=request_sha)
 
@@ -226,7 +245,7 @@ class DriftWorker:
         return None
 
     def _automatic(self,state):
-        plans=[p for p in self.plans.values() if isinstance(p.policy,(RealizedDriftPolicy,MarkoutDriftPolicy))]
+        plans=[p for p in self.plans.values() if isinstance(p.policy,(RealizedDriftPolicy,MarkoutDriftPolicy,FillMarkoutPolicy))]
         cursor=state.get('last_automatic_plan');keys=[p.key for p in plans]
         if cursor in keys:
             index=keys.index(cursor)+1;plans=plans[index:]+plans[:index]
@@ -235,10 +254,22 @@ class DriftWorker:
         deadline=time.monotonic()+2.
         for plan in plans:
             if time.monotonic()>=deadline:raise EvidenceError('DRIFT_AUTOMATIC_SELECTION_TIME_BOUND')
-            queued=self._automatic_account(state,(plan,)) if isinstance(plan.policy,RealizedDriftPolicy) else \
-                self._automatic_markouts(state,(plan,),deadline)
+            if isinstance(plan.policy,FillMarkoutPolicy):queued=self._automatic_fills(state,plan,deadline)
+            elif isinstance(plan.policy,RealizedDriftPolicy):queued=self._automatic_account(state,(plan,))
+            else:queued=self._automatic_markouts(state,(plan,),deadline)
             if queued is not None:return queued
         return None
+
+    def _automatic_fills(self,state,plan,deadline):
+        now=finite(self.store.clock());previous=state['last'].get(plan.key)
+        if previous and now<=previous['as_of']:return None
+        cohort=snapshot_fill_cohort(self.coordinator,scope=plan.scope,bundle_sha256=plan.bundle_sha256,
+            policy=plan.policy,as_of=now,deadline=deadline)
+        if cohort is None or not cohort['fills']:return None
+        retry=previous and previous.get('reason') in {'AUDIT_GUARDED_STATE_CHANGED','DRIFT_MARKOUT_CHANGED_BEFORE_REDUCTION'} and previous.get('fill_heads_sha256')!=digest(cohort['input_heads'])
+        if previous and previous.get('fill_history_sha256')==cohort['history_sha256'] and not retry:return None
+        return self._enqueue('automatic-fill:'+digest([self.config,plan.key,cohort,now]),
+            dict(plan_key=plan.key,fill_cohort=cohort,as_of=now),verified_cohort=True)
 
     def _markouts_current(self, result):
         heads=tuple(tuple(h) for h in result['input_heads'])
@@ -257,7 +288,7 @@ class DriftWorker:
                   'model_state_sha256','maximum_measurement_age_seconds','selection','action','financial_authority'}
         if set(r) != fields: raise EvidenceError('DRIFT_REVIEW_SCHEMA')
         identity(r['review_id']); identity(r['reviewer']); sha(r['model_state_sha256'])
-        selection=MARKOUT_SELECTION if isinstance(plan.policy,MarkoutDriftPolicy) else REALIZED_SELECTION if isinstance(plan.policy,RealizedDriftPolicy) else 'EXPLICIT_CAPTURE_COHORT'
+        selection=FILL_SELECTION if isinstance(plan.policy,FillMarkoutPolicy) else MARKOUT_SELECTION if isinstance(plan.policy,MarkoutDriftPolicy) else REALIZED_SELECTION if isinstance(plan.policy,RealizedDriftPolicy) else 'EXPLICIT_CAPTURE_COHORT'
         if (r['action'] != 'SAFETY_REDUCTION_ONLY' or r['financial_authority'] is not False
                 or r['selection'] != result['selection'] or r['selection'] != selection
                 or not finite(r['approved_at']) <= result['window']['start_inclusive'] <= request['as_of'] <= now < finite(r['expires_at'])
@@ -298,14 +329,18 @@ class DriftWorker:
                 queued=self._automatic(state)
                 if queued is not None:head=queued;state=queued['body']['details']['state'];active=state['active']
             if active is None:
-                return self._save(key, head, state, action='DRIFT_IDLE', outcome='NO_NEW_MARKOUT_OR_REALIZATION' if self.maker_telemetry is not None else 'NO_NEW_ACCOUNT_REALIZATION'
+                return self._save(key, head, state, action='DRIFT_IDLE', outcome='NO_NEW_FILL_MARKOUT_OR_REALIZATION' if any(isinstance(p.policy,FillMarkoutPolicy) for p in self.plans.values()) else 'NO_NEW_MARKOUT_OR_REALIZATION' if self.maker_telemetry is not None else 'NO_NEW_ACCOUNT_REALIZATION'
                     if any(isinstance(p.policy,RealizedDriftPolicy) for p in self.plans.values()) else 'NO_EXPLICIT_COHORT')
             request = active['request']; plan = self.plans[request['plan_key']]
             measurement_key = 'drift-measurement:' + digest(active['request_id'])
             measurement = self._get(measurement_key)
             if measurement is None:
                 try:
-                    if isinstance(plan.policy,MarkoutDriftPolicy):
+                    if isinstance(plan.policy,FillMarkoutPolicy):
+                        from .performance import PerformanceLab
+                        result=PerformanceLab(self.coordinator).scoped_fill_markouts(scope=plan.scope,bundle_sha256=plan.bundle_sha256,
+                            policy=plan.policy,cohort=request['fill_cohort'],as_of=request['as_of'])
+                    elif isinstance(plan.policy,MarkoutDriftPolicy):
                         result=measure_markout_window(self.maker_telemetry,scope=plan.scope,bundle_sha256=plan.bundle_sha256,
                             policy=plan.policy,cohort=request['cohort'],as_of=request['as_of'])
                     elif isinstance(plan.policy,RealizedDriftPolicy):
@@ -340,7 +375,7 @@ class DriftWorker:
             elif result is not None and result['outcome'] == 'DEGRADATION_CANDIDATE':
                 try:
                     station = self.store.latest(kind='REGISTRY', event_id='station:'+plan.scope.station)
-                    if isinstance(plan.policy,MarkoutDriftPolicy):
+                    if isinstance(plan.policy,(MarkoutDriftPolicy,FillMarkoutPolicy)):
                         input_heads=self._markouts_current(result)
                     elif isinstance(plan.policy,RealizedDriftPolicy):
                         account=self.coordinator._head();ref=result['account_ref']
@@ -365,9 +400,10 @@ class DriftWorker:
                     if self._review(plan, result) != review: raise EvidenceError('DRIFT_REVIEW_CHANGED_BEFORE_REDUCTION')
                     realized=isinstance(plan.policy,RealizedDriftPolicy)
                     markout=isinstance(plan.policy,MarkoutDriftPolicy)
+                    fill_markout=isinstance(plan.policy,FillMarkoutPolicy)
                     demotion = StationRegistry(self.store).demote(demotion_key, plan.scope,
-                        state='DISABLED' if realized or markout else 'CALIBRATION_DEGRADED',
-                        reason='REVIEWED_MAKER_COUNTERFACTUAL_DEGRADATION' if markout else 'REVIEWED_REALIZED_PAPER_LOSS' if realized else 'REVIEWED_ROLLING_QUALITY_BREACH',
+                        state='DISABLED' if realized or markout or fill_markout else 'CALIBRATION_DEGRADED',
+                        reason='REVIEWED_PAPER_FILL_MARKOUT_DEGRADATION' if fill_markout else 'REVIEWED_MAKER_COUNTERFACTUAL_DEGRADATION' if markout else 'REVIEWED_REALIZED_PAPER_LOSS' if realized else 'REVIEWED_ROLLING_QUALITY_BREACH',
                         evidence_ids=(measurement['id'],),expected_previous_seq=station['seq'] if station else 0, expected_heads=input_heads)
                     outcome = 'SCOPED_SAFETY_REDUCTION_APPLIED'
                 except (EvidenceError, KeyError, TypeError, ValueError) as exc:
@@ -375,7 +411,7 @@ class DriftWorker:
                     reason = str(exc) if isinstance(exc, EvidenceError) else 'DRIFT_REVIEW_MALFORMED'
             state['active'] = None
             state['last'][request['plan_key']]['demotion_applied'] = demotion is not None
-            if isinstance(plan.policy,(RealizedDriftPolicy,MarkoutDriftPolicy)):state['last'][request['plan_key']].update(outcome=outcome,reason=reason)
+            if isinstance(plan.policy,(RealizedDriftPolicy,MarkoutDriftPolicy,FillMarkoutPolicy)):state['last'][request['plan_key']].update(outcome=outcome,reason=reason)
             refs = (active['request_id'], measurement['id']) + ((demotion['id'],) if demotion else ())
             return self._save(key, head, state, action='DRIFT_RESULT', outcome=outcome, reason=reason,
                 request_sha256=active['request_sha256'], measurement_id=measurement['id'],

@@ -45,6 +45,11 @@ class PerformanceLab:
     def __init__(self, coordinator):
         self.coordinator, self.store = coordinator, coordinator.store
 
+    def scoped_fill_markouts(self, **request):
+        """Pinned reconciled PAPER fills and hypothetical horizon depth, read-only."""
+        from .fill_markout import measure_fill_window
+        return measure_fill_window(self.coordinator,**request)
+
     @precise
     def scoped_realized(self, *, scope, bundle_sha256, start, end, account_ref, monotonic=time.monotonic):
         """All realized fragments for one original admission scope in a pinned account.

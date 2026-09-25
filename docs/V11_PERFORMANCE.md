@@ -87,3 +87,18 @@ manifest/output: docs/V11_MARKOUT_REGRESSION_EVIDENCE.md. The preceding calibrat
 P&L full run passed 3875 / 252.03 s. R40/R41/R42 remain PARTIAL. Actual fill-based
 markouts, separately identified fill prices/fees, matched EV capture, empirical
 calibration and independent/host/unfunded acceptance stay open.
+
+
+## Reconciled fill quality update — 2026-09-25
+
+The previous full regression above remains historical evidence. PerformanceLab now
+joins reconciled PAPER fills to explicit synthetic execution details, original
+single-leg/basket/exit decision scope and causal 1/5/30/120/600-second depth marks.
+All retained proofs and intent quantities reconcile before cohort selection;
+unknown timing/cost/depth stays visible and gates reduction. Partial fills do not
+inflate independent intent counts; basket EV and entry/exit P&L remain separate.
+Automatic reviewed monitoring, candidate cancellation and bounded daily/weekly
+summaries consume this path. See docs/V11_MARKOUT.md for the metric and its limits.
+Legacy reports/proofs are preserved. This does not certify live prices/fees,
+empirical adverse selection, net-EV capture, finality or operational acceptance.
+R40/R41/R42 remain PARTIAL; progress is unchanged at 82/200, approximately 41%.
