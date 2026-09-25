@@ -72,5 +72,6 @@ original inputs. Retained scope coverage does not attest the market universe.
 
 The finite candidate integration uses mocked public source input and synthetic
 model/account history. The uncalibrated temperature decision stays rejected; replay
-does not make it eligible. Final targeted 27 passed in 4.94 s. Broader saved-tree
-verification follows. All original acceptance/authority boundaries remain open.
+does not make it eligible. Final targeted 27 passed in 4.94 s. Affected 218 passed in 28.45 s; locked full 4073 passed with four existing warnings
+in 285.58 s, all 849 tracked inputs unchanged at 1fea164a. Exact provenance:
+docs/V11_REPLAY_REGRESSION_EVIDENCE.md. All original acceptance/authority boundaries remain open.

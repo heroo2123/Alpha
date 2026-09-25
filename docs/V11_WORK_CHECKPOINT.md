@@ -1,9 +1,51 @@
 # Alpha V11 work checkpoint
 
+Updated 2026-09-25, after verified candidate historical economic replay integration.
+Resume here. **NOT_READY_TO_FUND**.
+
+## Latest verified checkpoint — original temperature decisions reach candidate replay audits
+
+Published implementation **1fea164abd676d0b6f15f5ec11beba2e9fb45576**, tree
+**af0a53888907076e68072b8a52fec163502751b5**, passed affected **218 tests / 28.45 s**
+(session **75771**) and locked full **4073 tests / four existing FastAPI warnings /
+285.58 s** (session **68165**), both exit 0. All **849 tracked inputs unchanged**
+through both runs and reverified before this evidence save. Full wrapper 286.303 s;
+user 208.780785 s; system 66.989198 s; peak RSS 165068 KiB. Final focused replay
+**27 passed / 4.94 s**, session **7375**. No test is running; full lock is free.
+Exact manifest, metadata, outputs and development failures:
+**docs/V11_REPLAY_REGRESSION_EVIDENCE.md**.
+
+Completed: original receipt-sequence/time and protected model history reconstruction
+-> shared temperature prediction/valuation -> archived common-account risk context
+-> optional bounded scheduled candidate replay audits. Later revisions, promotions,
+demotions, rollback and report-time account changes cannot replace original inputs.
+Missing original policy/history/artifacts stays UNKNOWN/GATED. Report crash recovery
+preserves exact published comparisons. No account commands or current authority are
+replayed or renewed. The finite candidate proof uses mocked public input and an
+uncalibrated rejected decision; no order, fill or actual-source acceptance is inferred.
+
+R04 earns its previously unearned **J** for that demonstrated integration slice,
+under the fixed method. New total **83/200, approximately 42%**; formal **1/50 (2%)**
+unchanged. Full historical control flow, PWS/other-strategy/challenger replay,
+historical executable attestation and actual/independent acceptance remain open.
+This score credits the new integration, not test count or elapsed effort.
+V10 unchanged, maintenance DEFERRED; host/resource/isolation gates remain unpassed.
+No services, permissions, wallet, real orders or financial authority changed.
+
+This evidence save changes documentation only; resolve its saved identity with
+`git log -1 --format='%H %T' -- docs/V11_WORK_CHECKPOINT.md`.
+Exact next implementation action: extend historical replay to the original PWS
+pre-confirmation observation pair and separately scoped payout evidence. Reuse the
+runtime numerical calculations with original lineage, observation horizon, model
+pins and receipt boundaries; later official confirmation is outcome-only. Missing
+historical inputs must remain GATED. No owner action blocks this off-host coding.
+Six readiness milestones/hours below remain current, LOW confidence; active work
+excludes external waiting and owner actions. NOT_READY_TO_FUND.
+
 Updated 2026-09-25, after candidate economic replay audit integration. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
 
-## Latest implementation checkpoint — candidate economic replay audits
+## Historical implementation checkpoint — candidate economic replay audits
 
 The first historical replay unit is saved/published as
 **afd4dccf7fcb2eb0728d54da454364aa6e25b803**, tree

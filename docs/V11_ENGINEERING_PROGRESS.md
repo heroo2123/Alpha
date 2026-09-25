@@ -412,3 +412,21 @@ Combined affected/full saved-tree regression remains due before scoring R04's ne
 join. Intermediate total stays **82/200, approximately 41%**, formal **1/50 (2%)**.
 This does not credit full control flow, PWS/other strategy/executable attestation,
 actual sources/calibration, independent review or host/unfunded acceptance.
+
+
+Verified historical temperature replay integration — 2026-09-25: **R04 earns J**
+for original receipt-bound source/model reconstruction -> shared prediction and
+valuation -> archived common-account context -> scheduled typed candidate audit.
+The core C existed, but this upstream/downstream historical join did not. Later
+source revisions, protected model changes and account appends cannot replace the
+original inputs; missing history/policy gates, and report crash recovery is pinned.
+Finite mocked-source candidate coverage plus 218 affected passes / 28.45 s and
+4073 full passes / four existing warnings / 285.58 s verify implementation
+`1fea164abd676d0b6f15f5ec11beba2e9fb45576`, tree
+`af0a53888907076e68072b8a52fec163502751b5`, all 849 inputs unchanged.
+Exact evidence: docs/V11_REPLAY_REGRESSION_EVIDENCE.md. New total **83/200**,
+**approximately 42%** by the fixed half-up rounding. Formal **1/50 (2%)** unchanged.
+This is the named integration slice, not complete engine/control-flow replay,
+original executable attestation, empirical calibration or renewed financial
+permission. PWS/other strategies/challengers, real/operational evidence and original
+acceptance remain open. No E/A credit and no credit for more tests or elapsed time.
