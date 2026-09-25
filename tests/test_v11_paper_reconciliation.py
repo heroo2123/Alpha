@@ -270,3 +270,69 @@ def test_malformed_account_markers_match_archive_and_public_feed_classification(
     feed=EvidenceFeed(queue(rig),FeedPolicy('envelopes'))
     result=feed.drain('continue');assert result['body']['details']['state']['cursors']['TRADE']==row['seq']
     assert not state(rig)['fills']
+
+
+def test_account_delivery_requests_fresh_event_work_and_replay_does_not_request_twice(rig):
+    from test_v11_paper_runtime import queue
+    c,p=reserved(rig);q=queue(rig);fill_receipt(rig)
+    w=PaperReconciliation(c,ReconciliationPolicy('event-join'),queue=q)
+    d=w.step('one')['body']['details'];event=p.context.event_id
+    assert d['outcome']=='RECONCILED' and q.snapshot()['needs_census'][event]=='RECONCILED_ACCOUNT_CHANGE'
+    assert not q.snapshot()['pending'] and q.snapshot()['metrics']['received']==0
+    routed=rig['store'].get(d['receipt_outcomes'][0]['event_queue_record_id'])
+    assert routed['body']['details']['result']['account_change_is_not_market_data']
+    before=q._read()[0];w.step('one');w.step('two');assert q._read()[0]==before
+    with q.work('inventory-evaluation') as claim:
+        assert claim['requires_full_census'] and claim['event_id']==event and claim['sources']==[]
+
+
+def test_new_account_receipt_invalidates_in_flight_evaluation_and_keeps_loss_findings(rig):
+    from test_v11_paper_runtime import queue, census_fixture
+    c,p=reserved(rig);q=queue(rig);event=p.context.event_id;q.schedule_census('schedule')
+    with q.work('claim') as claim:
+        fresh=census_fixture(rig)(claim,'census-before-fill')
+        q.complete_census('fresh',claim_id=claim['claim_id'],**fresh)
+        fill_receipt(rig);w=PaperReconciliation(c,ReconciliationPolicy('event-join'),queue=q);w.step('one')
+        rig['store'].audit('value-after',event_id=event,kind='MEASUREMENT',details={'outcome':'GATED'})
+        done=q.finish('finish',claim_id=claim['claim_id'],result_ids=('value-after',))['body']['details']['result']
+        assert done['outcome']=='STALE_RESEARCH_RESULT' and done['reason']=='FULL_CENSUS_STILL_REQUIRED'
+    q.stream_gap('known-gap',event_id=event,reason='KNOWN_SOURCE_LOSS')
+    before=q.snapshot()['census_generations'][event]
+    terminal(rig);w.step('terminal')
+    assert q.snapshot()['needs_census'][event]=='STREAM_GAP:KNOWN_SOURCE_LOSS'
+    assert q.snapshot()['census_generations'][event]==before+1
+
+
+@pytest.mark.parametrize('when',['before_queue','after_queue'])
+def test_event_delivery_retries_after_crash_without_duplicating_fill_or_wake(rig,monkeypatch,when):
+    from test_v11_paper_runtime import queue
+    c,p=reserved(rig);q=queue(rig);fill_receipt(rig);w=PaperReconciliation(c,ReconciliationPolicy('join'),queue=q)
+    original=q.reconciled_account_change
+    def crash(*a,**kw):
+        if when=='after_queue':original(*a,**kw)
+        raise RuntimeError('SYNTHETIC_QUEUE_CRASH')
+    monkeypatch.setattr(q,'reconciled_account_change',crash)
+    with pytest.raises(RuntimeError,match='SYNTHETIC_QUEUE_CRASH'):w.step('one')
+    head=c._head();assert Decimal(state(rig)['cash'])==Decimal('9.6')
+    monkeypatch.setattr(q,'reconciled_account_change',original)
+    assert w.step('two')['body']['details']['outcome']=='RECONCILED' and c._head()==head
+    assert q.snapshot()['census_generations'][p.context.event_id]==1
+
+
+def test_runtime_reevaluates_after_fill_without_waiting_for_periodic_census(rig,monkeypatch):
+    from test_v11_paper_runtime import assembled
+    from polymarket_scanner.v11.paper_runtime import PaperRuntime
+    c,p=reserved(rig);base=assembled(rig,monkeypatch)
+    w=PaperReconciliation(base.coordinator,ReconciliationPolicy('join'),queue=base.queue)
+    rt=PaperRuntime(base.coordinator,base.queue,base.health,base.policy,evaluator=base.evaluator,
+        census=base.census,reconciliation=w)
+    rt.tick('initial');assert base.evaluator.calls==1
+    fill_receipt(rig);d=rt.tick('after-fill')['body']['details']
+    assert d['evaluation_ids'] and base.evaluator.calls==2
+    assert Decimal(state(rig)['cash'])==Decimal('9.6') and len(state(rig)['fills'])==1
+    assert not base.queue.snapshot()['needs_census'] and not d['real_orders_sent']
+    # Fresh census books can independently trigger the public source feed on
+    # a later tick; replay of the account receipt must not add another wake.
+    before=base.queue.snapshot()['census_generations'][p.context.event_id]
+    w.step('no-new-account-receipt')
+    assert base.queue.snapshot()['census_generations'][p.context.event_id]==before

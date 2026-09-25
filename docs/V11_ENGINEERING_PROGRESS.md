@@ -335,3 +335,17 @@ No actual source/calibration, independent acceptance, guardian or deployment gat
 closed. The six active-hour ranges remain appropriate to the broader unresolved
 scope. Account-change reevaluation, actual/owner evidence and READY_TO_FUND remain
 open. Affected/full verification of this new tree is pending at this checkpoint.
+
+
+The subsequent receipt-to-event join now advances the current census generation,
+preserves source-loss findings and invalidates old inventory evaluations. The
+candidate can consume an archived BUY fill, evaluate the existing whole-event
+exit, reserve a common-account SELL, consume its explicit PAPER fill and reevaluate
+remaining inventory with realized-P&L attribution. Final focused 40 / 6.33 s;
+preceding saved receipt tree affected 328 / 39.18 s, all 842 inputs unchanged.
+This is existing C/J scope: **82/200, approximately 41%**, formal **1/50 (2%)**,
+unchanged. Source, calibration, independent and deployment/unfunded acceptance
+remain open. Full verification of the combined integration is pending; next
+implementation is validated receipt cost/slippage reporting through existing
+PerformanceLab/audits, keeping unmatched evidence UNKNOWN. Six remaining active
+hour ranges retain LOW confidence and exclude external waiting/owner actions.

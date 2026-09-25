@@ -1,9 +1,56 @@
 # Alpha V11 work checkpoint
 
-Updated 2026-09-25, after archived PAPER receipt reconciliation integration. Resume here. **NOT_READY_TO_FUND**.
+Updated 2026-09-25, after archived receipt-to-inventory exit integration. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
 
-## Latest implementation checkpoint — archived PAPER receipts through candidate reconciliation
+## Latest integration checkpoint — receipt-driven fresh inventory and exits
+
+The preceding receipt implementation is saved/published as
+**031779b3596c08964b63e370e5d6caae8bc91cc6**, tree
+**12d687b57e9c5fded1d59b942fc2c2edbe28b8c1**. Its affected regression passed
+**328 tests in 39.18 s, exit 0**, session **33408**, all **842 inputs unchanged**;
+wrapper 39.490 s, peak RSS 64180 KiB. The exact manifest/output is now recorded in
+`docs/V11_RECONCILIATION_REGRESSION_EVIDENCE.md`.
+
+Continued the remaining account-to-event join: the candidate receipt worker now
+shares its exact EventQueue. Successful account reconciliation requests fresh
+census/evaluation without creating a market trade or artificial source notice.
+Existing source-loss findings survive; census generations advance and old or
+in-flight evaluations cannot admit against pre-fill inventory. Receipt-derived
+account and event command identities survive crashes before/after queue delivery.
+Only after both joins succeed may that receipt advance out of the pending journal.
+Absent/expired registered routes remain explicitly reported. Optional unconfigured
+runtime/assembly behavior and protected-source/exit gates remain unchanged.
+
+Final focused result: **40 passed in 6.33 s, exit 0**, session **70198**, including
+archived BUY fill -> fresh source census -> existing whole-event exit decision ->
+common-account SELL reservation -> archived SELL receipt -> retained lot and
+realized PAPER P&L -> fresh reevaluation, with replay preserving the account.
+No manual record_fill/reconcile_terminal call is used in that integrated case.
+A development run had 2 failed / 37 passed in 5.26 s: an incorrect test census
+method name and an incorrect assertion that fresh census books could not trigger
+the ordinary source feed. Assertions corrected; production source/census gates
+were not weakened. The full saved-tree regression is the next verification gate.
+
+Resolve this integration save with `git log -1 --format='%H %T' --
+polymarket_scanner/v11/event_queue.py`. The historical 3981-pass run is not a
+verification claim for these new changes. No full test remains running at this save.
+
+**82/200, approximately 41%**, formal **1/50 (2%)**, unchanged: existing C/J
+integration scope, no new actual-evidence or acceptance milestone. V10 remains
+unchanged and maintenance DEFERRED. **NOT_READY_TO_FUND**. The six remaining
+milestones/hours below cover the full engineering scope; all LOW confidence,
+external waiting and owner actions excluded. No owner-only action blocks safe
+off-host work.
+
+Exact next action: verify affected event/exit behavior, then run one locked full
+regression on this saved tree and preserve the exact manifest/output. The next
+implementation after verification is to join validated receipt execution details
+to PerformanceLab cost/slippage reporting and daily audits; preserve UNKNOWN for
+legacy or unmatched causal price/cost evidence, without inventing matched EV,
+finality, provider calibration or venue execution acceptance.
+
+## Historical implementation checkpoint — archived PAPER receipts through candidate reconciliation
 
 Recovered published/local **95f37a182d02401355dabfcc66ecd5dad0283486**, tree
 **32bcd474d94d23208af6cd35fae502bd4c20249d**, with a clean workspace, free regression
@@ -1221,7 +1268,7 @@ still require separate budget and live approval. No arbitrary paper wait applies
 | Remaining milestone | Work remaining and proof of completion | Active hours | Confidence | External/owner dependency |
 |---|---|---:|---|---|
 | Source, weather and label closure | Complete remaining provider/target adapters and scheduling, physical/lead fitting, exact labels and calibration/fallback; explicit-interval/GEFS and physical/PWS inference now have bounded candidate preparation scheduling. Prove causal source/target identity, coverage, lead/ablation and required OOS quality on actual evidence. R06–R13, R25–R28, R31. | 45–90 | LOW | Working authorized provider access; exact source/version history and sufficient evidence; independent semantic/calibration review. |
-| Evidence and controlled learning | Close complete replay/provenance, remaining proof-delivery/selection/report joins, operational learner scheduling/isolation, remaining target families, rolling degradation evidence and accepted initial-bundle/learning governance; conditioned capture/fitting, scoped Brier/log-loss/reliability/calibration error and automatic entry-attributed realized-paper P&L/drawdown now reach reviewed safety reduction and audits; horizon-specific maker counterfactuals also reach scoped monitoring/retirement/audits; reconciled synthetic fill-based markouts now reach the same monitoring/audit path; bounded archived PAPER fill/terminal delivery now reaches the common account and audits; account-change reevaluation, matched EV/residual and operational evidence remain open. Prove deterministic dataset-to-artifact and rollback/reuse/failure behavior with required real evidence. R02–R05, R14–R17, R40–R42, R47. | 30–60 | LOW | Upstream exact labels; independent initial champion and governance acceptance; isolated learning environment. |
+| Evidence and controlled learning | Close complete replay/provenance, remaining proof-delivery/selection/report joins, operational learner scheduling/isolation, remaining target families, rolling degradation evidence and accepted initial-bundle/learning governance; conditioned capture/fitting, scoped Brier/log-loss/reliability/calibration error and automatic entry-attributed realized-paper P&L/drawdown now reach reviewed safety reduction and audits; horizon-specific maker counterfactuals also reach scoped monitoring/retirement/audits; reconciled synthetic fill-based markouts now reach the same monitoring/audit path; bounded archived PAPER fill/terminal delivery now reaches the common account and audits; receipt-driven fresh census/exit reevaluation now also joins the candidate; matched cost/EV/residual and operational evidence remain open. Prove deterministic dataset-to-artifact and rollback/reuse/failure behavior with required real evidence. R02–R05, R14–R17, R40–R42, R47. | 30–60 | LOW | Upstream exact labels; independent initial champion and governance acceptance; isolated learning environment. |
 | Strategy, portfolio and execution integration | Finish missing relative/structural/exit/redemption, correlation, costs and maker/reward paths. Prove full common-account scenario/reservation/reconciliation and strategy eligibility across required failure cases. R18–R24, R29–R30, R32–R36. | 35–70 | LOW | Reviewed mappings/parameters and actual source/execution evidence; funded fill learning remains later and separately authorized. |
 | Independent safety, identity and host | Finish independent cancel-only guardian and protected command/auth routing; prepare and verify isolated deployment/recovery configuration. Prove custody, permissions, resource budgets and authenticated safety behavior. R37–R39, R43–R44. | 30–60 | LOW | Owner account entitlement/access, approved isolated host and deployment action; alpha-dev resource/isolation currently unpassed. V10 maintenance stays deferred absent an exact dependency. |
 | Regression and unfunded acceptance | Run complete integration/fault/security acceptance and permitted unfunded account/execution checks; resolve findings. Proof is the original acceptance matrix with independent review and reproducible exact-tree results. R45, R48. | 25–50 | LOW | Independent reviewers and permitted existing-account access; no wallet/account creation or financial activation is implied. |

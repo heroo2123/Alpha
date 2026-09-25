@@ -108,3 +108,19 @@ Latest complete verification: **3981 passed / four existing warnings / 277.46 s*
 all **840 inputs unchanged**, implementation **33d92731**. Final fill-specific
 suite **59 / 10.17 s**. Exact trees, manifests, earlier failure/fix and outputs:
 docs/V11_FILL_REGRESSION_EVIDENCE.md. All acceptance limitations above remain.
+
+
+## Archived receipts and account-driven reevaluation
+
+The optional candidate PAPER receipt worker now consumes explicitly classified
+archived fills/terminal proofs through existing coordinator APIs, fences new
+admissions until archive/account/journal progress agrees, requests fresh event
+census for changed inventory and retains delivery-attempt/pending outcomes in
+runtime and daily audits. Tests exercise archive-only BUY -> source-gated exit ->
+common-account SELL -> archive-only SELL -> realized PAPER P&L and fresh work.
+This neither generates fills nor attests actual venue or source evidence.
+Next: expose separately validated receipt price/fee/cost and matched causal
+slippage in PerformanceLab/audits. The historical ledger-only cost status remains
+UNKNOWN where explicit execution details are absent; no unmatched EV ratio is
+invented. Checkpoint/evidence: V11_WORK_CHECKPOINT.md and
+V11_RECONCILIATION_REGRESSION_EVIDENCE.md.

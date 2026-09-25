@@ -124,7 +124,8 @@ def test_failed_request_does_not_discard_valid_release_evaluation_in_same_claim(
     assert [d['outcome'] for d in ds] == ['GATED', 'REJECT'] and not result.proposals
 
 
-def exit_runtime(r, monkeypatch):
+def exit_runtime(r, monkeypatch, *, reconcile=False):
+    from polymarket_scanner.v11.paper_reconciliation import PaperReconciliation, ReconciliationPolicy
     store = r['store']; c = coordinator(r); event = r['context'].event_id
     m = health(r, monkeypatch, r['scope'].strategy); q = queue(r); selected = []
     def census(claim, prefix):
@@ -149,7 +150,8 @@ def exit_runtime(r, monkeypatch):
         return (exit_request(r, admission_id=pin['id'], book_id=selected[0], event_state_id=state['id']),)
     a = MultiStrategyEventAdapter(store, (('exit', PositionExitEventAdapter(c, requests)),))
     return PaperRuntime(c, q, m, RuntimePolicy('exit-runtime-fixture'), evaluator=a, census=census,
-                        worker_id='worker', generation='exit-runtime')
+                        worker_id='worker', generation='exit-runtime',
+                        reconciliation=PaperReconciliation(c,ReconciliationPolicy('exit-receipts'),queue=q) if reconcile else None)
 
 
 @pytest.mark.parametrize('complete', [False, True])
@@ -171,6 +173,30 @@ def test_runtime_rechecks_actual_inventory_and_whole_basket_before_common_exit_r
     head = rt.coordinator._head()
     assert rt.tick('exit-tick') == row and rt.coordinator._head() == head
     assert not d['real_orders_sent'] and not d['forward_or_live_acceptance']
+
+
+def test_archived_receipts_reach_fresh_inventory_exit_and_realized_paper_accounting(rig,monkeypatch):
+    from test_v11_basket_coordinator import reserve, proof
+    reserve(rig)
+    proof(rig,'basket:leg:0','archived-buy','PAPER_FILL',fill_id='archived-buy',units='2',all_in_collateral='.4',direction='BUY')
+    for leg in (1,2):
+        proof(rig,'basket:leg:'+str(leg),'archived-terminal'+str(leg),'PAPER_TERMINAL',status='CANCELED',
+            cumulative_fill_units='0',all_fills_reconciled=True,terminal_authority='SYNTHETIC_PAPER_ENGINE_FINAL')
+    rt=exit_runtime(rig,monkeypatch,reconcile=True)
+    assert not rt.coordinator._state(rt.coordinator._head())['lots']
+    d=rt.tick('archived-entry')['body']['details'];assert d['outcome']=='TICK_COMPLETED',d
+    state=rt.coordinator._state(rt.coordinator._head())
+    sells=[p for p in state['intents'].values() if p['direction']=='SELL']
+    assert len(sells)==1 and sells[0]['status']=='RESERVED' and sells[0]['units']=='1'
+    assert sells[0]['event_queue_completion_id']==d['evaluation_ids'][0]
+    proof(rig,sells[0]['proposal_id'],'archived-sell','PAPER_FILL',fill_id='archived-sell',units='1',
+        all_in_collateral='.1',direction='SELL')
+    after=rt.tick('archived-exit')['body']['details'];assert after['evaluation_ids']
+    state=rt.coordinator._state(rt.coordinator._head())
+    assert state['lots']['archived-buy']['units']=='1' and Decimal(state['cash'])==Decimal('9.7')
+    assert len(state['realized_entries'])==1 and Decimal(state['realized_entries'][0]['pnl'])==Decimal('-.1')
+    head=rt.coordinator._head();assert rt.tick('archived-exit')['body']['details']==after and rt.coordinator._head()==head
+    assert not after['real_orders_sent'] and not after['forward_or_live_acceptance']
 
 
 def test_new_queue_gap_after_runtime_exit_evaluation_prevents_inventory_reservation(rig, monkeypatch):

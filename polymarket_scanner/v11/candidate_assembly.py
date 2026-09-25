@@ -349,7 +349,7 @@ def assemble_candidate(store,client,plan,*,generation):
     evaluator=RiskAwareEventAdapter(_EventDispatch(coordinator,adapters),tuple(risk))
     runtime=PaperRuntime(coordinator,queue,health,plan.runtime,evaluator=evaluator,worker_id=plan.worker_id,
         generation=generation,feed_policy=plan.feed,audits=AuditScheduler(store,plan.audits),maker=maker,
-        reconciliation=PaperReconciliation(coordinator,plan.reconciliation) if plan.reconciliation else None)
+        reconciliation=PaperReconciliation(coordinator,plan.reconciliation,queue=queue) if plan.reconciliation else None)
     runtime._head()
     gefs=GEFSWorker(scheduled,health,plan.gefs,rollover=plan.gefs_rollover) if plan.gefs else None
     census=CensusWorker(scheduled,queue,health,plans=tuple(e.census for e in plan.events),policy=plan.census,book_policy=plan.books,gefs=gefs)

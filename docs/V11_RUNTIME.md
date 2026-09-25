@@ -442,4 +442,13 @@ still blocks ordinary financial-state/journal writes. Receipt worker errors reta
 cancellation service. Audits expose delivery attempts separately from unique fills.
 The five-horizon measurement/candidate test includes archive-only input, scoped
 reduction, cancellation, later terminal receipts and daily audit without direct
-manual `record_fill`. Receipt-triggered event/exit reevaluation remains the next join.
+manual `record_fill`. Candidate assembly also shares its exact EventQueue with this worker. Each proven
+account update requests a fresh census before new decisions, preserves existing
+source-loss reasons, advances the generation and removes the old evaluation.
+In-flight work cannot complete against pre-fill inventory. Separate deterministic
+queue IDs make recovery before/after event delivery idempotent without new cash or
+fake market prints. Unregistered/expired event routes are explicitly reported.
+The receipt remains pending if event delivery fails; success covers both the
+account and queue. The existing inventory-aware exit runtime is verified from
+archived BUY receipt through fresh sources and a SELL reservation to an archived
+SELL receipt, realized PAPER accounting and another fresh evaluation.

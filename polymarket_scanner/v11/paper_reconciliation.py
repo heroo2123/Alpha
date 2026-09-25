@@ -58,12 +58,17 @@ def admission_heads(store, *, account_id, account_policy_sha, required_config=No
 
 
 class PaperReconciliation:
-    def __init__(self, coordinator, policy):
+    def __init__(self, coordinator, policy, *, queue=None):
         if not isinstance(policy, ReconciliationPolicy) or coordinator.store.namespace != 'V11_PAPER':
             raise EvidenceError('PAPER_RECEIPT_COMPONENT_SCOPE')
         self.coordinator, self.store, self.policy = coordinator, coordinator.store, policy
+        if queue is not None and queue.store is not self.store:
+            raise EvidenceError('PAPER_RECEIPT_QUEUE_SCOPE')
+        self.queue = queue
         self.key = journal_key(coordinator.policy.account_id)
-        self.config = digest(dict(policy=asdict(policy), account=coordinator.policy_sha))
+        config = dict(policy=asdict(policy), account=coordinator.policy_sha)
+        if queue is not None: config['queue'] = queue.config
+        self.config = digest(config)
         if coordinator.reconciliation_config not in {None, self.config}:
             raise EvidenceError('PAPER_RECEIPT_CONFIG_CHANGED')
         coordinator.reconciliation_config = self.config
@@ -131,7 +136,13 @@ class PaperReconciliation:
         command = 'paper-receipt-account:'+digest(dict(account=self.key, receipt=row['sha256']))
         result = (self.coordinator.record_fill(command, row['id']) if kind == 'PAPER_FILL'
                   else self.coordinator.reconcile_terminal(command, row['id']))
-        return dict(outcome='RECONCILED_RECEIPT', account_record_id=result['id'])
+        details = dict(outcome='RECONCILED_RECEIPT', account_record_id=result['id'])
+        if self.queue is not None:
+            routed = self.queue.reconciled_account_change('paper-receipt-event:'+digest([self.config,row['sha256']]),
+                account_record_id=result['id'], account_id=self.coordinator.policy.account_id,
+                account_policy_sha=self.coordinator.policy_sha)
+            details['event_queue_record_id'] = routed['id']
+        return details
 
     def _step(self, key, request, head, end):
         state = deepcopy(head['body']['details']['state'])
@@ -165,6 +176,7 @@ class PaperReconciliation:
             account = self.coordinator._head()
             if (old['attempted_account_seq'] != (account['seq'] if account else 0)
                     or old['reason'] in {'CLOCK_REGRESSION', 'AUDIT_CLOCK_REGRESSION', 'AUDIT_STATE_CHANGED',
+                                         'AUDIT_GUARDED_STATE_CHANGED', 'TRIGGER_STATE_BYTES_BOUND',
                                          'ARCHIVE_DISK_HEADROOM', 'ARCHIVE_BYTES_LIMIT', 'ARCHIVE_RECORD_LIMIT'}):
                 row = self.store.get(receipt_id)
                 if row['sha256'] != old['receipt_sha256']: raise EvidenceError('PAPER_RECEIPT_IDENTITY_CHANGED')

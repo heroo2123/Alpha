@@ -110,9 +110,10 @@ intents while preserving cash, positions and reconciliation. Audits retain a
 separate bounded fill_markout_monitoring summary, without averaging across horizons
 or mixing synthetic execution with maker quote counterfactuals or live labels.
 
-Remaining: archived PAPER proof delivery into candidate reconciliation still
-requires its own bounded runtime integration (the new measurement consumes already
-reconciled proofs). The candidate does not invent fills. Matched EV capture,
+Archived explicit PAPER proof delivery now reaches bounded candidate reconciliation,
+receipt/account/journal admission guards, fresh event/exit reevaluation and audits.
+The candidate does not invent fills. Remaining: validated receipt cost reporting,
+matched EV capture,
 settlement/finality, source residuals, actual-source/calibration/forward execution,
 independent review and isolated host/unfunded acceptance remain required. No owner
 action is needed for the next off-host integration. No financial or deployment
@@ -120,7 +121,7 @@ authority is added. Targeted verification and exact checkpoints are recorded in
 docs/V11_WORK_CHECKPOINT.md.
 
 
-Latest complete verification: **3981 passed / four existing warnings / 277.46 s**,
+Prior fill-measurement verification (before the new receipt worker): **3981 passed / four existing warnings / 277.46 s**,
 all **840 inputs unchanged**, implementation **33d92731**. Final fill-specific
 suite **59 / 10.17 s**. Exact trees, manifests, earlier failure/fix and outputs:
 docs/V11_FILL_REGRESSION_EVIDENCE.md. All acceptance limitations above remain.

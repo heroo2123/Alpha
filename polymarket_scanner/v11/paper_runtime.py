@@ -110,6 +110,8 @@ class PaperRuntime:
         self.reconciliation = reconciliation
         if reconciliation is not None and reconciliation.coordinator is not coordinator:
             raise EvidenceError('RUNTIME_RECONCILIATION_ACCOUNT_MISMATCH')
+        if reconciliation is not None and reconciliation.queue is not None and reconciliation.queue is not queue:
+            raise EvidenceError('RUNTIME_RECONCILIATION_QUEUE_MISMATCH')
         self.audits = audits or AuditScheduler(self.store,AuditPolicy('bounded-audit-v1'))
         if self.audits.store is not self.store: raise EvidenceError('RUNTIME_AUDIT_NAMESPACE_MISMATCH')
         self.cancellation = PaperCancellation(coordinator, CancellationPolicy('runtime-bounded-v1', 16, 256))

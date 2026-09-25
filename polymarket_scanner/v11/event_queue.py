@@ -362,6 +362,44 @@ class EventQueue:
                       receipt_to_route_seconds=now-body['available_at'])
         return self._commit(record_id, request, row, state, result, (evidence_id,))
 
+    def reconciled_account_change(self, record_id: str, *, account_record_id: str,
+                                  account_id: str, account_policy_sha: str) -> dict:
+        """A proven account change requires fresh event work, never a market print."""
+        from .paper_coordinator import ACCOUNT_KEY, VERSION as ACCOUNT_VERSION
+        request = dict(action='RECONCILED_ACCOUNT_CHANGE', account_record_id=identity(account_record_id),
+                       account_id=identity(account_id), account_policy_sha256=account_policy_sha)
+        prior = self._replay(record_id, request)
+        if prior: return prior
+        source = self.store.get(account_record_id); d = source['body'].get('details', {})
+        account = d.get('state', {}); action = d.get('request', {})
+        if (source['kind'] != 'COORDINATOR_EVENT' or source['event_id'] != ACCOUNT_KEY
+                or d.get('version') != ACCOUNT_VERSION or d.get('policy_sha256') != account_policy_sha
+                or account.get('account_id') != account_id or account.get('execution_namespace') != self.store.namespace
+                or action.get('action') not in {'FILL', 'TERMINAL'}):
+            raise EvidenceError('TRIGGER_RECONCILED_ACCOUNT_PROOF_REQUIRED')
+        proof = self.store.get(identity(action.get('evidence_id'))); p = proof['body'].get('payload', {})
+        intent = account['intents'].get(identity(p.get('intent_id')))
+        if (proof['kind'] != 'TRADE' or proof['body'].get('evidence_class') != 'SYNTHETIC'
+                or p.get('account_id') != account_id or p.get('execution_namespace') != self.store.namespace
+                or p.get('record_type') != ('PAPER_FILL' if action['action']=='FILL' else 'PAPER_TERMINAL')
+                or intent is None or proof['event_id'] != intent['event_id'] or p.get('token_id') != intent['token_id']):
+            raise EvidenceError('TRIGGER_RECONCILED_ACCOUNT_SCOPE')
+        event = intent['event_id']; route = self.routes.get(event)
+        head = self.store.latest(kind='COORDINATOR_EVENT', event_id=ACCOUNT_KEY)
+        row, state = self._read()
+        outcome = 'NO_ACTIVE_REGISTERED_ACCOUNT_EVENT'
+        if route is not None and route.valid_until > finite(self.store.clock()):
+            # Preserve existing loss findings, but advance the generation so an
+            # in-flight census/evaluation cannot finish against old inventory.
+            reason = state['needs_census'].get(event, 'RECONCILED_ACCOUNT_CHANGE')
+            self._require_census(state, event, reason)
+            state['evaluations'].pop(event, None)
+            outcome = 'ACCOUNT_CHANGE_REQUIRES_FRESH_CENSUS'
+        return self._commit(record_id, request, row, state,
+            dict(outcome=outcome, affected_event=event, account_record_id=account_record_id,
+                 source_evidence_id=proof['id'], account_change_is_not_market_data=True),
+            (account_record_id, proof['id']), (('COORDINATOR_EVENT', ACCOUNT_KEY, head['seq']),))
+
     def stream_gap(self, record_id: str, *, event_id: str, reason: str) -> dict:
         if event_id not in self.routes:
             raise EvidenceError('UNREGISTERED_EVENT')
