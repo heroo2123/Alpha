@@ -3,7 +3,53 @@
 Updated 2026-09-25, after archived receipt-to-inventory exit integration. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
 
-## Latest integration checkpoint — receipt-driven fresh inventory and exits
+## Latest verified checkpoint — archived receipts, fresh inventory and exits
+
+Saved/published implementation **5bfd38f0caa1f891738df459826fd1a7d6a4e203**, tree
+**5b29ee49eba4ed46639205b4d3cc0916f6f97789**, passed the locked full regression:
+**4020 passed, four existing FastAPI warnings, 276.83 seconds, exit 0**, session
+**42473**. All **843 tracked inputs unchanged**, reverified before this report.
+Wrapper elapsed 277.584 s; user 200.572825 s; system 67.346589 s; peak RSS 163248 KiB.
+No failed/excluded test in this run; no full regression remains active and the lock
+is free. This report changes documentation only. Resolve its latest reporting
+commit/tree with `git log -1 --format='%H %T' -- docs/V11_WORK_CHECKPOINT.md`.
+
+Exact full/affected manifests and captured outputs:
+**docs/V11_RECONCILIATION_REGRESSION_EVIDENCE.md**. Local full result:
+`/workspace/scratch/38af7099c566/v11-test-evidence/reconciliation-full-20260925-01.json`
+and corresponding `.log`; input digest
+`9474ee2793f46420a0b7a28ee83b2bbe806efd0934bba07af89e30b33d80e060`.
+Final event/exit regression **91 passed in 9.84 s**, session **46830**, exit 0;
+focused **40 passed in 6.33 s**, session **70198**, exit 0. Preceding receipt tree
+**031779b3596c08964b63e370e5d6caae8bc91cc6** passed **328 / 39.18 s**, with all
+842 inputs unchanged. Development assertion corrections are preserved below.
+
+Completed: bounded archived explicit PAPER fill/terminal delivery; durable pending
+proofs and cursor recovery; atomic receipt/journal/account admission and submission
+guards; configured startup gating; malformed/foreign/public separation; proof-based
+terminal release; health-loss cancellation; fresh event generations and census after
+account changes; existing whole-event exit/common SELL reservation; explicit SELL
+reconciliation and realized PAPER attribution; candidate monitoring and daily audits.
+Crash replay preserves cash, reservations and lots across both account and queue
+commits. Unconfigured legacy identities and existing proof/source/exit checks remain.
+Public prints and maker quotes are never inferred to be fills. Changes since the
+recovered 95f37a1 reporting checkpoint are confined to V11 code/tests/docs.
+
+**82/200, approximately 41%**, formal **1/50 (2%)**, unchanged. Existing integration
+credits apply; no actual source/calibration, independent guardian/review, host or
+unfunded acceptance milestone closed. **NOT_READY_TO_FUND**. V10 unchanged;
+maintenance DEFERRED. No host/service, permissions, wallet, orders or financial
+authority changed. No owner-only action blocks the next off-host work.
+
+Exact next implementation action: join validated execution details from reconciled
+receipts to PerformanceLab cost/slippage reporting and daily audits, with exact
+original signal/post-validation book and fill-quantity pairing. Keep legacy,
+incomplete or unmatched cost/price evidence UNKNOWN; do not invent matched EV,
+settlement/finality, calibrated provider truth or actual venue execution.
+The six remaining readiness milestones/active-hour estimates below remain current,
+all LOW confidence, excluding external waiting and owner-dependent actions.
+
+## Historical integration checkpoint — receipt-driven fresh inventory and exits
 
 The preceding receipt implementation is saved/published as
 **031779b3596c08964b63e370e5d6caae8bc91cc6**, tree

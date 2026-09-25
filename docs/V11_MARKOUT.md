@@ -125,3 +125,12 @@ Prior fill-measurement verification (before the new receipt worker): **3981 pass
 all **840 inputs unchanged**, implementation **33d92731**. Final fill-specific
 suite **59 / 10.17 s**. Exact trees, manifests, earlier failure/fix and outputs:
 docs/V11_FILL_REGRESSION_EVIDENCE.md. All acceptance limitations above remain.
+
+
+The subsequent archive-receipt/event/exit integration passed **4020 tests, four
+existing warnings, 276.83 s**, all **843 inputs unchanged**, implementation
+**5bfd38f0**. The candidate now delivers explicit receipts before common-account
+admission, requests fresh census/evaluation for changed inventory, and preserves
+markout/exit/P&L/audit attribution. Exact evidence is in
+V11_RECONCILIATION_REGRESSION_EVIDENCE.md; no empirical or deployment acceptance
+is claimed. Matched execution cost/slippage reporting is the next off-host join.

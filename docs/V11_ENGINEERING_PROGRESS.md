@@ -349,3 +349,16 @@ remain open. Full verification of the combined integration is pending; next
 implementation is validated receipt cost/slippage reporting through existing
 PerformanceLab/audits, keeping unmatched evidence UNKNOWN. Six remaining active
 hour ranges retain LOW confidence and exclude external waiting/owner actions.
+
+
+Combined receipt/event/exit verification is complete at saved implementation
+**5bfd38f0caa1f891738df459826fd1a7d6a4e203**, tree
+**5b29ee49eba4ed46639205b4d3cc0916f6f97789**: **4020 passed, four existing warnings,
+276.83 s, exit 0**, all **843 inputs unchanged**. Final event/exit regression
+**91 / 9.84 s**; focused **40 / 6.33 s**; preceding receipt tree **328 / 39.18 s**.
+Full manifest/output: V11_RECONCILIATION_REGRESSION_EVIDENCE.md. Verification of
+already credited integrations earns no extra unit: **82/200, approximately 41%**,
+formal **1/50 (2%)**, unchanged. READY_TO_FUND, six active-hour ranges, independent,
+actual-source/calibration and owner/host gates remain open. Next off-host action is
+validated receipt cost/slippage reporting through PerformanceLab and daily audits;
+legacy or unmatched evidence remains UNKNOWN. No owner action blocks that code.
