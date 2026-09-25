@@ -39,7 +39,8 @@ def arguments(r):
         prediction=BucketPrediction(canonical(p),digest(p)),
         pinned_bundle=ActiveModelRegistry().pin(scope_key=r['scope'].key,mode='V11_PAPER').bundle,
         model_input_ids=r['request'].model_input_ids,observed_input_id=r['request'].observed_input_id,
-        coverage_input_id=r['request'].coverage_input_id,expires_at=r['request'].expires_at)
+        coverage_input_id=r['request'].coverage_input_id,expires_at=r['request'].expires_at,
+        admission_id=r['request'].admission_id)
 
 
 def join_payout(r):

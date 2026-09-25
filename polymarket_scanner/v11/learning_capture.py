@@ -27,7 +27,22 @@ def _get(store,key):
     return None
 
 
-def capture_forecast_vector(store,record_id,*,context,rule,binding,prediction,pinned_bundle,model_input_ids,expires_at):
+def capture_admission_ref(store, admission_id, *, context, rule, binding, strategy, cutoff):
+    """Optional original scoped pin, never reconstructed later from a new review."""
+    if admission_id is None: return None
+    from .strategy_admission import StrategyAdmission
+    row=store.get(admission_id)
+    result=StrategyAdmission(store).revalidate(admission_id,context=context,rule=rule,
+        binding=asdict(binding),strategies=(strategy,))
+    # Same-day evidence retains an earlier physical cutoff. The reviewed pin
+    # belongs to this decision/capture, not a claim of authority at that cutoff.
+    now=finite(store.clock())
+    if not row['body']['recorded_at'] <= now < result['valid_until'] or cutoff > now:
+        raise EvidenceError('LEARNING_ADMISSION_NOT_AT_CAPTURE')
+    return dict(id=row['id'],sha256=row['sha256'])
+
+
+def capture_forecast_vector(store,record_id,*,context,rule,binding,prediction,pinned_bundle,model_input_ids,expires_at,admission_id=None):
     identity(record_id,maximum=110)
     if (not isinstance(rule,RuleFingerprint) or not isinstance(binding,ReleaseBinding) or not isinstance(context,EventContext)
             or not isinstance(prediction,BucketPrediction) or type(model_input_ids) is not tuple
@@ -37,8 +52,10 @@ def capture_forecast_vector(store,record_id,*,context,rule,binding,prediction,pi
     old=_get(store,record_id)
     version=old['body'].get('details',{}).get('version') if old else VERSION
     if version not in {VERSION,LEGACY_VERSION}: raise EvidenceError('LEARNING_CAPTURE_REPLAY_CONFLICT')
-    request_sha=digest(dict(context=asdict(context),rule=asdict(rule),binding=asdict(binding),prediction_sha256=prediction.sha256,
-                           model_input_ids=model_input_ids,expires_at=expires_at,version=version))
+    request=dict(context=asdict(context),rule=asdict(rule),binding=asdict(binding),prediction_sha256=prediction.sha256,
+                 model_input_ids=model_input_ids,expires_at=expires_at,version=version)
+    if admission_id is not None: request['admission_id']=identity(admission_id)
+    request_sha=digest(request)
     if old:
         if old['body'].get('details',{}).get('request_sha256')!=request_sha: raise EvidenceError('LEARNING_CAPTURE_REPLAY_CONFLICT')
         return old
@@ -49,6 +66,8 @@ def capture_forecast_vector(store,record_id,*,context,rule,binding,prediction,pi
         raise EvidenceError('LEARNING_UNCONDITIONED_FORECAST_CONTRACT_REQUIRED')
     now=finite(store.clock());expiry=finite(expires_at);cutoff=finite(p['as_of'])
     if not cutoff<=now<expiry: raise EvidenceError('LEARNING_CAPTURE_EXPIRED_OR_FUTURE')
+    admission=capture_admission_ref(store,admission_id,context=context,rule=rule,binding=binding,
+        strategy='FUTURE_FORECAST',cutoff=cutoff)
     deadline=time.monotonic()+2.
     sources=[store.get(key) for key in model_input_ids];by_hash={s['sha256']:s for s in sources}
     components=sorted(p['model_inputs'],key=lambda c:c['model_id'])
@@ -122,7 +141,8 @@ def capture_forecast_vector(store,record_id,*,context,rule,binding,prediction,pi
         parent_feature_artifact_sha256=parent['bundle']['artifacts']['FEATURES'],parent_feature_contract_verified=True,
         target=TARGET,selection='ALL_SUPPORTED_PREDICTIONS',selection_scope='ALL_BUCKETS_OF_THIS_EVALUATED_EVENT',
         global_universe_coverage_verified=False,rows=rows,complete_event_vector=True,labels_created=False,
-        financial_authority=False,training_or_promotion_started=False),evidence_ids=model_input_ids)
+        financial_authority=False,training_or_promotion_started=False,
+        **(dict(admission_ref=admission) if admission is not None else {})),evidence_ids=model_input_ids)
 
 
 def labeled_examples(store,capture_id,*,label_ids,city,horizon,season,prior_exposure='DEVELOPMENT'):

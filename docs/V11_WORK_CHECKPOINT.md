@@ -1,7 +1,48 @@
 # Alpha V11 work checkpoint
 
-Updated 2026-09-25, after full protected lifecycle regression verification. Resume here. **NOT_READY_TO_FUND**.
+Updated 2026-09-25, after scoped rolling measurement implementation. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
+
+## Latest implementation — original-admission scoped rolling measurement
+
+Recovered clean/published **3c9d5cce1416f96e09cc21b49fd4537c52f450b1**, tree
+**443ef03b7a9a36fc959a70765a2c143af61f306a**, with no active operation. All 740
+non-document files matched the prior locked full-run inputs; the unchanged full
+suite was not rerun. The authoritative master-specification hash was rechecked.
+
+Forecast and conditioned payout captures now optionally bind the original checked
+strategy admission; actual TemperatureStrategies passes that identity. Existing
+unscoped records and completed replay identities remain unchanged and cannot gain a
+retroactive scope. The bounded read-only rolling measurement uses explicit exact
+labels, rejects superseded revisions at the cutoff, verifies original station,
+strategy, model bundle, horizon, season, source class and full event vectors, then
+reports event/city-day weighted Brier, log-loss, reliability and cohort sufficiency.
+Explicit policies have no invented default thresholds. Measurement writes no source,
+model or account state, makes no calibration/label attestation, and records missing
+universe coverage and unsupported markout/EV/PnL/source-bias metrics honestly.
+
+**121 passed / 22.01 s / exit 0**, session 29060, including 27 new drift cases.
+A prior affected run had 93 passes / one replay-fixture failure / 18.71 s: its replay
+omitted the new explicit admission identity. The fixture was corrected without
+weakening replay conflict checks; drift/target checks then passed 47 / 5.01 s.
+Tool-result and post-run hashes (not a prehashed full run):
+`/workspace/scratch/38af7099c566/v11-test-evidence/drift-measurement-targeted-20260925-01.json`.
+Latest full regression remains the prior **3769 / 231.74 s**, below; it predates this
+measurement extension. The matrix's stale full-run wording is corrected here.
+
+**82/200, approximately 41%**, formal **1/50 (2%)**, unchanged. R42 already has C/J;
+this adds no actual-source, independent or acceptance milestone. **NOT_READY_TO_FUND**.
+V10 unchanged and DEFERRED; no owner action blocks the next off-host implementation.
+
+Exact next action: connect this measurement to a durable bounded candidate worker,
+protected predeclared safety-only policy review and idempotent StationRegistry
+reduction; demonstrate degraded captures -> paper withdrawal -> reconciliation/audit.
+No learner may write approvals/model pointers or restore authority. A missing review,
+new protected model epoch, insufficient cohort or unsupported target must remain gated.
+After the integrated milestone run the affected checks, then one locked full regression.
+The six remaining readiness milestones below remain current; their active hours exclude
+external waiting and owner actions. Resolve this checkpoint's commit/tree with
+`git log -1 --format='%H %T' -- docs/V11_WORK_CHECKPOINT.md`.
 
 ## Latest verification — protected lifecycle integration
 

@@ -223,3 +223,11 @@ credited and the earlier conditioned-learning extension; it adds no E/A mileston
 **82/200, approximately 41%**, formal **1/50 (2%)**, unchanged. The next implementation
 is scoped, predeclared rolling degradation measurement from exact captured/labelled
 vectors; actual source/calibration, independent, host and unfunded gates stay open.
+
+Scoped drift measurement now joins original admissions, model-bound complete forecast/
+conditioned vectors and current exact labels in a read-only bounded snapshot. Policies
+are explicit, cohorts grouped by event/city-day and unsupported metrics/attestations
+remain visible. **121 related checks / 22.01 s, 27 new cases**. Automatic reviewed
+reduction/candidate scheduling remains next. R42 already holds C/J; **82/200,
+approximately 41%**, formal **1/50 (2%)**, unchanged. No actual or independent evidence
+is inferred. Six remaining active-work ranges still apply; waiting is excluded.

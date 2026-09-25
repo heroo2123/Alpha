@@ -260,7 +260,7 @@ class TemperatureStrategies:
                 try:
                     captured=capture_forecast_vector(self.store,record_id+':learning',context=context,rule=rule,binding=binding,
                         prediction=prediction,pinned_bundle=model.bundle,model_input_ids=request.model_input_ids,
-                        expires_at=min(request.expires_at,assessment['valid_until']))
+                        expires_at=min(request.expires_at,assessment['valid_until']),admission_id=request.admission_id)
                     learning_capture=dict(status='EVENT_VECTOR_CAPTURED_LABELS_PENDING',capture_id=captured['id'])
                 except EvidenceError as exc:
                     learning_capture=dict(status='DATASET_CAPTURE_GATED',capture_id=None,reason=str(exc))
@@ -270,7 +270,8 @@ class TemperatureStrategies:
                     captured=capture_conditioned_vector(self.store,record_id+':learning',context=context,strategy=scope.strategy,
                         rule=rule,binding=binding,prediction=prediction,pinned_bundle=model.bundle,
                         model_input_ids=request.model_input_ids,observed_input_id=request.observed_input_id,
-                        coverage_input_id=request.coverage_input_id,expires_at=min(request.expires_at,assessment['valid_until']))
+                        coverage_input_id=request.coverage_input_id,expires_at=min(request.expires_at,assessment['valid_until']),
+                        admission_id=request.admission_id)
                     learning_capture=dict(status='CONDITIONED_VECTOR_CAPTURED_LABELS_PENDING',capture_id=captured['id'])
                 except EvidenceError as exc:
                     learning_capture=dict(status='DATASET_CAPTURE_GATED',capture_id=None,reason=str(exc))

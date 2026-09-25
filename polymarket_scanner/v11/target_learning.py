@@ -12,7 +12,7 @@ from .datasets import CausalExample, archive_features, build_example
 from .event_risk import EventContext
 from .evidence import EvidenceError, ReleaseBinding, canonical, digest, finite, identity
 from .forecast_features import ForecastFeatureContract
-from .learning_capture import _get
+from .learning_capture import _get, capture_admission_ref
 from .model_artifacts import PinnedBundle, predict_with_bundle
 from .physical_inference import FAMILY, PhysicalFeatureContract
 from .probability import BucketPrediction, FINAL_EXTREME, NEXT_OBSERVATION, UNRESOLVED_EXTREME, _partition
@@ -64,7 +64,7 @@ def _inputs(store, rule, prediction, pinned, ids, *, target, observation_id=None
 
 def _capture(store, record_id, *, context, strategy, rule, binding, prediction, pinned_bundle,
              model_input_ids, expires_at, observed_input_id=None, coverage_input_id=None,
-             observation_target=None, pair_id=None, ablation=None):
+             observation_target=None, pair_id=None, ablation=None, admission_id=None):
     identity(record_id, maximum=110); identity(strategy)
     if (not isinstance(context, EventContext) or not isinstance(rule, RuleFingerprint)
             or not isinstance(binding, ReleaseBinding) or not isinstance(prediction, BucketPrediction)
@@ -75,6 +75,7 @@ def _capture(store, record_id, *, context, strategy, rule, binding, prediction, 
         prediction_sha256=prediction.sha256, bundle_sha256=pinned_bundle.sha256, model_input_ids=model_input_ids,
         expires_at=expires_at, observed_input_id=observed_input_id, coverage_input_id=coverage_input_id,
         observation_target=observation_target, pair_id=pair_id, ablation=ablation)
+    if admission_id is not None: request['admission_id']=identity(admission_id)
     request_sha = digest(request); old = _get(store, record_id)
     if old is not None:
         if old['kind'] != 'MEASUREMENT' or old['body'].get('details', {}).get('request_sha256') != request_sha:
@@ -92,6 +93,8 @@ def _capture(store, record_id, *, context, strategy, rule, binding, prediction, 
     if (target == PAYOUT and (p['observed_constraint'] is None or p['remaining_coverage'] is None)
             or target == NEXT_OBSERVATION and (observed_input_id is not None or coverage_input_id is not None)):
         raise EvidenceError('TARGET_LEARNING_CONDITIONING_REQUIRED')
+    admission=capture_admission_ref(store,admission_id,context=context,rule=rule,binding=binding,
+        strategy=strategy,cutoff=p['as_of'])
     deadline = time.monotonic() + 2.
     schema, mapping, values, conditioning, parent = _inputs(store, rule, prediction, pinned_bundle, model_input_ids,
         target=input_target, observation_id=observed_input_id, coverage_id=coverage_input_id)
@@ -140,7 +143,8 @@ def _capture(store, record_id, *, context, strategy, rule, binding, prediction, 
         parent_feature_artifact_sha256=parent['bundle']['artifacts']['FEATURES'], parent_feature_contract_verified=True,
         complete_event_vector=target == PAYOUT, complete_observation_distribution=target == NEXT_OBSERVATION,
         global_universe_coverage_verified=False, labels_created=False, financial_authority=False,
-        training_or_promotion_started=False, fit_status='TARGET_SPECIFIC_LEARNER_REQUIRED'))
+        training_or_promotion_started=False, fit_status='TARGET_SPECIFIC_LEARNER_REQUIRED',
+        **(dict(admission_ref=admission) if admission is not None else {})))
 
 
 def capture_conditioned_vector(store, record_id, **kwargs):

@@ -41,6 +41,18 @@ class LearningSourceView:
         self.check()
         return copy.deepcopy(self._cache[record_id])
 
+    def latest_source(self, *, kind, event_id, provider, source_identity, as_of):
+        """Exact source revision within this same read snapshot and cutoff."""
+        from .evidence import finite
+        for value in (kind,event_id,provider,source_identity): identity(value)
+        self.check()
+        # Source identities live in the canonical body; this uses the existing
+        # bounded archive, read-only transaction and SQLite progress deadline.
+        row=self._db.execute('SELECT record_id FROM v11_records WHERE kind=? AND event_id=? AND available_at<=? '
+            'AND json_extract(body,\'$.provider\')=? AND json_extract(body,\'$.source_identity\')=? '
+            'ORDER BY seq DESC LIMIT 1',(kind,event_id,finite(as_of),provider,source_identity)).fetchone()
+        return self.get(row['record_id']) if row is not None else None
+
 
 @contextmanager
 def learning_source_view(store, *, deadline=None, monotonic=time.monotonic):
