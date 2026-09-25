@@ -22,6 +22,7 @@ from .scenario_risk import Attribution
 VERSION = 'alpha_v11_paper_account_effect_replay_v1'
 SUPPORTED = {'COORDINATE', 'TRANSITION', 'RECOVER', 'FILL', 'TERMINAL'}
 AUDIT_MAX_COMMANDS = 32
+AUDIT_MAX_BYTES = 256*1024
 
 
 class AccountHistoricalView(HistoricalView):
@@ -268,6 +269,8 @@ def account_replay_audit(c, *, selection, through_seq, window, archive_complete,
             row['result_sha256'] = digest(replayed)
             if replay_valuations: row['prepared_valuations'] = replayed.get('prepared_valuations')
             result['rows'].append(row)
+            if len(canonical(result).encode()) > AUDIT_MAX_BYTES:
+                raise EvidenceError('ACCOUNT_REPLAY_AUDIT_OUTPUT_BOUND')
         count = sum(r['effects_match'] for r in result['rows'])
         result.update(status='NO_RETAINED_COMMANDS' if not result['rows'] else 'EFFECTS_REPRODUCED' if count==len(result['rows']) else 'PARTIAL',
             reason='RETAINED_CONDITIONAL_NUMERICAL_EFFECTS_ONLY', complete_retained_selection=True,
@@ -284,8 +287,14 @@ def account_replay_audit(c, *, selection, through_seq, window, archive_complete,
             result['prepared_valuation_coverage'].update(complete=complete, prepared_count=total if complete else None,
                 economic_matches=matched, rejected_preparation_count=sum(v['rejected_preparation_count'] for v in values) if complete else None,
                 all_prepared_valuations_reproduced=complete and total > 0 and matched==total)
+        if len(canonical(result).encode()) > AUDIT_MAX_BYTES:
+            raise EvidenceError('ACCOUNT_REPLAY_AUDIT_OUTPUT_BOUND')
+        if monotonic() >= deadline: raise EvidenceError('ACCOUNT_REPLAY_AUDIT_TIME_BOUND')
         return result
     except (EvidenceError, KeyError, TypeError, ValueError) as exc:
         result.update(status='GATED',reason=str(exc) if isinstance(exc,EvidenceError) else 'ACCOUNT_REPLAY_AUDIT_MALFORMED_SELECTION',
             rows=[],complete_retained_selection=False,effect_matches=0,all_effects_reproduced=False)
+        if replay_valuations:
+            result['prepared_valuation_coverage'].update(complete=False, prepared_count=None, economic_matches=0,
+                rejected_preparation_count=None, all_prepared_valuations_reproduced=False)
         return result

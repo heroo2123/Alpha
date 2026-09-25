@@ -4,7 +4,11 @@ Latest 2026-09-25 continuation: original prepared basket/exit numerical valuatio
 comparisons now join account replay and existing audits. Shared runtime extraction
 passed **43 / 5.00 s**; portfolio/account checks **51 / 5.80 s**, exit 0. Candidate
 scheduling and failure integration now pass **102 / 16.66 s**, exit 0; derived
-new-risk gates remain intact. Affected/full regression is next; evidence is in
+new-risk gates remain intact. Saved **0a655cb3** passed affected **411 / 63.04 s**
+and full **4163 / four existing warnings / 306.16 s**, exit 0, all **861 tracked
+inputs unchanged**. Subsequent aggregate audit byte/deadline enforcement passed
+final focused **99 / 20.57 s**, exit 0. The broad run explicitly predates that
+nine-line reporting guard; it adds no runtime/financial authority. Exact evidence is in
 docs/V11_PORTFOLIO_REPLAY_EVIDENCE.md. This strengthens existing C/J credit,
 including R04; it does not close real-evidence, independent acceptance or isolated
 deployment. **83/200 = 41.5%, rounded approximately 42%; formal 1/50 (2%)**, unchanged.

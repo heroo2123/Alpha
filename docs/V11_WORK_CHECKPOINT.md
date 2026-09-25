@@ -1,6 +1,22 @@
 # Alpha V11 work checkpoint
 
-## Latest checkpoint — original basket/exit valuation joins, 2026-09-25
+## Latest checkpoint — verified basket/exit replay and bounded audit, 2026-09-25
+
+Final verification: **99 passed / 20.57 s / exit 0**, session **45106**, includes
+the final aggregate account-audit byte/deadline guard. Per-command proofs and
+the whole account-audit result now each have a 256 KiB limit; overflow/deadline
+clears all prefix rows, matches and valuation coverage, including final summaries.
+This nine-line reporting guard and three cases followed broad regression below;
+actual runtime accounting, basket/exit mathematics and authority gates are unchanged.
+
+Published integrated tree **0a655cb35f44d434d8e292fba124a1ab45c87d6c** /
+**a0a97f2eaa333dd0f54015211744923b8a5a94ac** passed full **4163 tests, four existing
+FastAPI warnings / 306.16 s / exit 0**, session **74614**, and affected **411 /
+63.04 s / exit 0**, session **13322**. All **861 tracked inputs unchanged** during
+both runs. Final code is that full input manifest with only `v11/account_replay.py`
+and `tests/test_v11_portfolio_replay.py` changed; exact final hashes and the 766
+non-document input identity are retained in **docs/V11_PORTFOLIO_REPLAY_EVIDENCE.md**.
+No regression is left running; do not rerun these completed unchanged operations.
 
 Recovered clean published **b351cdb584ddbc8e17af4e77eee96b3709849f57**, tree
 **33a74215b090094f78c5b049a0a63af2968555b9**, matching all 764 saved implementation
@@ -34,8 +50,10 @@ settlement window and unsynchronized stream; its audit still verifies original
 prepared values. The separate mock-census/protected-strategy integration explicitly
 declares synthetic risk metrics and can emit multiple coordinate commands; every
 original prepared value is checked. No production safety gate was weakened.
-Exact logs/hashes: **docs/V11_PORTFOLIO_REPLAY_EVIDENCE.md**. Affected/full checks
-on this integration are pending; older broad results below do not cover it.
+Exact logs/hashes and complete full-test input map:
+**docs/V11_PORTFOLIO_REPLAY_EVIDENCE.md**. Broad checks above cover the integrated
+implementation before the isolated final reporting guard; final focused checks
+cover that guard. No independent acceptance or deployed operational pass is claimed.
 
 **83/200 = 41.5%, approximately 42%; formal 1/50 (2%)**, unchanged. C/J already
 cover these packages; no E/A or full requirement closed. **NOT_READY_TO_FUND**.
@@ -45,11 +63,13 @@ external blockers; no owner-only action blocks this implementation.
 
 Resolve this checkpoint with `git log -1 --format='%H %T' -- docs/V11_WORK_CHECKPOINT.md`;
 inspect worktree, newest saved state and operations before continuing.
-**Exact next action:** run affected and full integrated suites once on this saved
-unchanged tree; preserve their input hashes and results. Then connect original
-temperature entry numerical valuations to prepared account candidates using the
-existing five temperature replay joins, retaining unsupported/legacy proposals
-and original control-flow gaps explicitly. Do not replay completed operations.
+**Exact next implementation action:** connect original temperature entry numerical
+valuations to prepared account candidates using the existing five temperature
+replay joins and the same original receipt/deadline bounds. Preserve unsupported/
+legacy proposals and early rejection/control-flow gaps in the denominator. Source/
+calibration, derived settlement/execution-health/stream inputs and actual operating
+acceptance remain distinct unfinished work; no synthetic zero or stale input may
+replace them. Do not replay completed operations.
 The six concrete readiness milestones below remain current: sources/labels
 45–90 h; replay/learning 30–60 h; portfolio/execution 35–70 h; independent safety/
 identity/host 30–60 h; independent unfunded acceptance 25–50 h; operating comparison/

@@ -42,7 +42,7 @@ No favorable partial result can be reported as an economic match.
 ECONOMICS_REPRODUCED means equality of the shared numerical result on retained
 inputs, not full control-flow replay, original executable attestation, independent
 source truth or renewed permission. GATED and MISMATCH remain distinct. Early
-control gates, PWS label/outcome scoring, relative-value/maker/exits,
+control gates, PWS label/outcome scoring, full relative-value/maker/exit selection,
 challenger comparison,
 full preparation/control-flow and operational acceptance remain open. Conditional account effects are described below.
 Scheduled candidate audit integration is described below. Tests/provenance:
@@ -181,3 +181,37 @@ Tests and raw evidence: `tests/test_v11_account_replay.py`,
 `tests/test_v11_account_replay_integration.py`, the joined candidate case in
 `tests/test_v11_causal_replay.py`, and `docs/V11_ACCOUNT_REPLAY_EVIDENCE.md`.
 All new accounting/strategy evidence is synthetic. NOT_READY_TO_FUND.
+
+## Original prepared basket and exit numerical valuations
+
+`PerformanceLab.replay_account_command(..., replay_valuations=True)` additionally
+reconstructs the original prepared basket/exit valuations before account effects.
+For scheduled candidate audits use typed
+`AuditPolicy(account_replay=ReplayPolicy(...), account_valuation_replay=True)`.
+The option is omitted from default policy payloads, preserving previous identities.
+
+Shared `basket_details` computes the whole-event prediction/scenarios and costs
+without returning an already archived journal row as a recomputation. Shared
+`payout_inputs` and `_value` recompute exit payout, joint hold/sale and FIFO economics
+from the original pre-evaluation account snapshot. Replay uses original admission,
+protected bundle history, source leases, raw derivation and exact book/time/receipt
+boundaries. Basket hypothetical scenario positions remain declared inputs; they
+are not relabeled as actual common-account holdings. Synthetic provenance and
+missing raw derivation stay explicit. Later models, fills or books cannot replace
+the original inputs. Runtime current-admission and atomic controls still execute.
+
+All original prepared candidates remain counted, including later allocation
+rejections. Unsupported entry values stay GATED; original rejected preparation and
+control-flow remain conditional. Account effects and numerical valuation matches
+have separate coverage fields. Unknown commands prevent complete preparation
+coverage. Both per-command valuation proofs and the account-audit aggregate have
+256 KiB bounds; the existing shared cohort deadline includes final aggregation.
+Overflow/deadline clears all favorable prefixes and coverage. Report-before-cursor
+recovery reuses the published report without another computation or command.
+
+The typed candidate schedules this audit while its derived new-risk gates remain
+intact. Separate mock-census strategy fixtures verify raw normalized-book lineage
+under explicitly synthetic risk inputs. These do not attest actual forward
+eligibility, executable identity, independent source truth or operational readiness.
+Exact full/affected/final-focused evidence and limits:
+`docs/V11_PORTFOLIO_REPLAY_EVIDENCE.md`. **NOT_READY_TO_FUND**.

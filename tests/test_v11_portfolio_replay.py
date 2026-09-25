@@ -172,6 +172,48 @@ def test_valuation_work_shares_whole_audit_budget_and_discards_favorable_prefix(
     assert not d['prepared_valuation_coverage']['complete']
 
 
+@pytest.mark.parametrize('final_summary', [False,True])
+def test_whole_audit_byte_bound_clears_preceding_successful_commands(rig,monkeypatch,final_summary):
+    import polymarket_scanner.v11.account_replay as module
+    from polymarket_scanner.v11.evidence import canonical
+    c=coordinator(rig);c.recover('preceding');reserve(rig)
+    original=audit(rig)
+    assert original['effect_matches']==2 and original['prepared_valuation_coverage']['economic_matches']==1
+    # The first successful command fits; the following real basket proof pushes
+    # the combined payload past this test budget. No oversized fake rows needed.
+    one=deepcopy(original);one['rows']=one['rows'][:1]
+    budget=len(canonical(original).encode())-1 if final_summary else len(canonical(one).encode())+100
+    assert budget < len(canonical(original).encode())
+    monkeypatch.setattr(module,'AUDIT_MAX_BYTES',budget)
+    summaries=[]
+    def measured(value):
+        if isinstance(value,dict) and value.get('status')=='EFFECTS_REPRODUCED' and 'retained_command_count' in value:
+            summaries.append(value['effect_matches'])
+        return canonical(value)
+    monkeypatch.setattr(module,'canonical',measured)
+    d=audit(rig)
+    assert d['status']=='GATED' and d['reason']=='ACCOUNT_REPLAY_AUDIT_OUTPUT_BOUND'
+    assert d['retained_command_count']==2 and d['rows']==[] and d['effect_matches']==0
+    assert d['prepared_valuation_coverage']['prepared_count'] is None
+    assert not d['prepared_valuation_coverage']['economic_matches']
+    assert not d['prepared_valuation_coverage']['all_prepared_valuations_reproduced']
+    assert bool(summaries)==final_summary
+
+
+def test_deadline_during_final_aggregation_clears_valuation_coverage(rig,monkeypatch):
+    import polymarket_scanner.v11.account_replay as module
+    reserve(rig);elapsed=[0.];original=module.canonical
+    def final_encoding(value):
+        encoded=original(value)
+        if isinstance(value,dict) and 'retained_command_count' in value and value.get('rows'):
+            elapsed[0]=6.
+        return encoded
+    monkeypatch.setattr(module,'canonical',final_encoding)
+    d=audit(rig,monotonic=lambda:elapsed[0])
+    assert d['status']=='GATED' and d['reason']=='ACCOUNT_REPLAY_AUDIT_TIME_BOUND' and not d['rows']
+    assert not d['prepared_valuation_coverage']['complete'] and d['prepared_valuation_coverage']['economic_matches']==0
+
+
 def test_published_valuation_report_recovers_without_recomputing_or_reserving(rig,monkeypatch):
     import polymarket_scanner.v11.account_replay as module
     inventory(rig);reserved_exit(rig);c=coordinator(rig);head=c._head()
