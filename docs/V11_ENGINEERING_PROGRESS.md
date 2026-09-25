@@ -216,3 +216,10 @@ approximately 41%**. Formal completion remains **1/50 (2%)**. Statistical drift
 threshold/evidence acceptance, real calibration/lead quality, OS-independent guardian,
 protected host and unfunded operational acceptance stay unearned. R37 gets no C/J
 credit from the cooperative runtime. No numerator change is attributed to more tests.
+
+Full lifecycle regression at `7dd8a462` passed **3769 tests**, four existing warnings,
+**231.74 s**, with all 823 inputs unchanged. This verifies the R42 integration just
+credited and the earlier conditioned-learning extension; it adds no E/A milestone.
+**82/200, approximately 41%**, formal **1/50 (2%)**, unchanged. The next implementation
+is scoped, predeclared rolling degradation measurement from exact captured/labelled
+vectors; actual source/calibration, independent, host and unfunded gates stay open.

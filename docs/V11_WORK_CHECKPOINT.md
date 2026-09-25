@@ -1,7 +1,48 @@
 # Alpha V11 work checkpoint
 
-Updated 2026-09-25, after protected lifecycle withdrawal integration. Resume here. **NOT_READY_TO_FUND**.
+Updated 2026-09-25, after full protected lifecycle regression verification. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
+
+## Latest verification — protected lifecycle integration
+
+Published implementation **7dd8a4621de5fb1637eb1442d2f04a34e195ec26**, tree
+**fd35f8c0c2f6af2f9a6976ac985be0028e527548**, passed the locked full regression:
+**3769 passed, four existing FastAPI deprecation warnings, 231.74 seconds, exit 0**.
+All **823 tracked inputs** remained unchanged and were rechecked before this report.
+Wrapper elapsed 232.391 s; user 169.365129 s; system 53.898211 s; peak RSS 161284 KiB.
+Session **55992** has completed. No full regression or publication remains running.
+Evidence: `/workspace/scratch/38af7099c566/v11-test-evidence/lifecycle-full-20260925-01.json`
+and `.log`; input digest
+`70e2cff06499ab80e8ffbfdb72bad91b229f8e66b2bd40ab8ef9a93d8f5c3ce9`.
+The prior affected run was **267 passed / 35.43 s**, including 24 new cases. This
+full run also covers the preceding explicit conditioned-learning extension; it
+replaces no historical record and was not repeated against an unchanged tree.
+
+Current fixed score remains **82/200, approximately 41%**, formal **1/50 (2%)**.
+R42 J was credited to the implementation below; verification adds no new unit.
+No actual drift/calibration, isolated guardian/host, independent or unfunded
+acceptance is inferred. **NOT_READY_TO_FUND**. V10 is unchanged and maintenance
+remains DEFERRED; no owner maintenance/verifier action is requested.
+
+Exact next implementation: bind existing complete-vector forecast/conditioned
+capture and explicit exact-label joins to a bounded rolling Brier/log-loss and
+reliability measurement, grouped by event/city-day, under a frozen declared
+station/strategy/model policy. Bind each cohort to its original scoped admission
+and model bundle; connect eligible degradation to the existing StationRegistry
+safety demotion and the now-tested withdrawal path. Missing labels, insufficient
+coverage, unreviewed thresholds or unsupported target families must remain explicit
+gates; do not invent a statistical threshold or label attestation. The already
+built `score_vectors`, `labeled_examples` / `labeled_target_examples`, read-only
+learning-source view, StationRegistry and finite audit/worker interfaces are the
+reuse points. Preserve reviewed recovery, no model parameter mutation and no
+learner access to protected publishers or real cancellation credentials.
+
+The six remaining milestones and active-hour ranges below remain current; external
+waiting and owner actions remain separate. No owner-only action blocks the next
+off-host code step. Actual source/label/calibration evidence, accepted initial
+champion/independent review, account entitlement, approved isolated host and unfunded
+operational acceptance remain genuine later blockers. Resolve this reporting
+checkpoint's commit/tree with `git log -1 --format='%H %T' -- docs/V11_WORK_CHECKPOINT.md`.
 
 ## Latest implementation — protected lifecycle withdrawal and audit integration
 
