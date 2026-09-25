@@ -25,7 +25,7 @@ def test_original_prediction_and_valuation_recompute_read_only(factory,strategy,
     before=r['store'].pin_read_view();r['now'][0]+=1000;d=run(r)
     assert d['status']=='ECONOMICS_REPRODUCED',d
     assert d['recomputed_prediction']==original['prediction'] and canonical(d['recomputed_valuation'])==canonical(original['valuation'])
-    assert d['account']['snapshot_ref'] is None and d['account']['risk_at_decision']['cash']=='10'
+    assert d['account']['snapshot_ref'] is None and d['account']['risk_at_decision'] is None
     assert not d['full_control_flow_replayed'] and not d['historical_executable_attested']
     assert r['store'].pin_read_view()==before and not d['new_economic_commands'] and not d['admission_authority']
 
@@ -148,3 +148,118 @@ def test_unsupported_pws_join_is_honest_and_never_relabelled_temperature(factory
     store.audit('unsupported',event_id=original['event_id'],kind='MEASUREMENT',details=details)
     d=run(r,'unsupported')
     assert d['status']=='GATED' and d['reason']=='REPLAY_STRATEGY_JOIN_NOT_IMPLEMENTED' and not d['economic_match']
+
+
+
+def audit_job(r, **changes):
+    from polymarket_scanner.v11.audit_reports import AuditPolicy,AuditScheduler,AuditWorker
+    p=replace(AuditPolicy('replay',records_per_step=4,replay=replay.ReplayPolicy('fixture')),**changes)
+    r['now'][0]=(int(r['now'][0]//86400)+1)*86400+1
+    AuditScheduler(r['store'],p).request_due()
+    return AuditWorker(coordinator(r),p)
+
+
+def test_audit_replay_resumes_original_population_after_new_decisions_and_model_promotion(factory,bundle):
+    from polymarket_scanner.v11.audit_reports import AuditWorker
+    from test_v11_audit_reports import finish
+    r=factory();evaluate(r);w=audit_job(r)
+    assert w.step()['outcome']=='AUDIT_PARTIAL_PROGRESS'
+    # A later GATED decision must not enter the already pinned job.
+    evaluate(r,'later');r['model_state'][0]=promote(new_bundle(bundle),r['model_state'][0],review_id='new')
+    d=finish(AuditWorker(w.coordinator,w.policy))['body']['details'];v=d['economic_replay']
+    assert v['status']=='ECONOMICS_REPRODUCED' and v['retained_decision_count']==1,v
+    assert v['rows'][0]['decision_ref']['id']=='evaluation'
+    assert d['coverage']['retained_economics_reproduced'] and not v['full_control_flow_replayed']
+
+
+def test_replay_audit_crash_after_publication_does_not_recompute_report(factory,monkeypatch):
+    from polymarket_scanner.v11.audit_reports import AuditWorker
+    from test_v11_audit_reports import finish
+    r=factory();evaluate(r);w=audit_job(r,records_per_step=256);save=w._save
+    def crash(head,state,**kw):
+        if kw.get('outcome')=='AUDIT_COMPLETE':raise OSError('SYNTHETIC_AFTER_REPORT')
+        return save(head,state,**kw)
+    monkeypatch.setattr(w,'_save',crash)
+    with pytest.raises(OSError,match='SYNTHETIC_AFTER_REPORT'):finish(w)
+    row=r['store'].latest(kind='RUNTIME_STATUS',event_id='v11-audit-report:DAILY')
+    r['model_state'][0]['events'][0]['previous_state_sha256']='f'*64
+    assert finish(AuditWorker(w.coordinator,w.policy))==row
+
+
+@pytest.mark.parametrize('cap',[False,True])
+def test_audit_never_credits_a_favorable_prefix_of_capped_or_overflowed_decisions(factory,cap):
+    from test_v11_audit_reports import finish
+    r=factory()
+    for i in range(9):evaluate(r,'decision-'+str(i))
+    w=audit_job(r,records_per_step=256,maximum_job_records=32 if cap else 20000)
+    d=finish(w)['body']['details']['economic_replay']
+    assert d['status']=='GATED' and not d['rows'] and not d['economic_matches']
+    assert not d['complete_retained_selection']
+
+
+def test_audit_keeps_unimplemented_control_gates_in_denominator(factory):
+    from test_v11_audit_reports import finish
+    r=factory();evaluate(r);r['now'][0]+=30;evaluate(r,'expired')
+    v=finish(audit_job(r,records_per_step=256))['body']['details']['economic_replay']
+    assert v['status']=='PARTIAL' and v['retained_decision_count']==2 and v['economic_matches']==1
+    assert v['complete_retained_selection'] and not v['all_economics_reproduced']
+
+
+def test_replay_audit_policy_default_identity_and_configuration_change(factory):
+    from polymarket_scanner.v11.audit_reports import AuditPolicy,AuditScheduler
+    p=AuditPolicy('fixture')
+    assert p.payload()==dict(version='fixture',records_per_step=64,maximum_step_seconds=2.,maximum_job_records=20000)
+    r=factory();w=audit_job(r)
+    with pytest.raises(EvidenceError,match='AUDIT_POLICY_CHANGED_REVIEW_REQUIRED'):
+        AuditScheduler(r['store'],replace(w.policy,replay=replay.ReplayPolicy('changed'))).request_due()
+
+
+def test_audit_deadline_clears_matches_instead_of_returning_a_prefix(factory):
+    r=factory();evaluate(r);row=r['store'].get('evaluation');counter=[0]
+    def tick():counter[0]+=1;return float(counter[0])
+    d=replay.replay_audit(coordinator(r),selection=dict(count=1,refs=[replay._ref(row)],overflow=False),
+        through_seq=row['seq'],window=dict(start=0,end=r['now'][0]+1),archive_complete=True,
+        policy=replay.ReplayPolicy('fixture'),monotonic=tick)
+    assert d['status']=='GATED' and not d['rows'] and not d['economic_matches']
+
+
+def test_full_candidate_source_risk_temperature_decision_reaches_scheduled_replay_audit(factory,monkeypatch):
+    import asyncio
+    import httpx
+    from polymarket_scanner.v11 import candidate_assembly as app
+    from test_v11_candidate_assembly import scoped_plan,synthetic_clock,transport
+    from test_v11_book_inputs import PROVIDER
+    from test_v11_request_assembly import inputs,target
+    from test_v11_runtime_health import ready,advance
+    r=factory();coordinator(r).recover('candidate-account');lane=app.TemperatureLane('temperature',inputs(r),(target(r),),PROVIDER,r['request'].valuation_policy,10.)
+    p=scoped_plan(r,lane);p=replace(p,audits=replace(p.audits,records_per_step=256,replay=replay.ReplayPolicy('candidate')))
+    synthetic_clock(r,monkeypatch);calls=[]
+    async def go():
+        async with httpx.AsyncClient(transport=transport(r,calls)) as client:
+            candidate=app.assemble_candidate(r['store'],client,p,generation='historical-replay')
+            ready(r,candidate.runtime.health);first=await candidate.run('source-decision')
+            evaluations=[x for x in r['store'].records(kind='MEASUREMENT',limit=1000)
+                if x['body']['details'].get('version')==replay.STRATEGY_VERSION and 'outcome' in x['body']['details']]
+            assert evaluations,first['body']['details']
+            advance(r,(int(r['now'][0]//86400)+1)*86400+1-r['now'][0])
+            for i in range(12):
+                await candidate.run('replay-audit-'+str(i))
+                report=r['store'].latest(kind='RUNTIME_STATUS',event_id='v11-audit-report:DAILY')
+                if report and report['body']['details']['economic_replay']['retained_decision_count']:
+                    return candidate,report,evaluations
+            pytest.fail('bounded candidate did not finish replay audit')
+    candidate,report,evaluations=asyncio.run(go());d=report['body']['details'];v=d['economic_replay']
+    assert v['status']=='ECONOMICS_REPRODUCED',v
+    assert v['rows'][0]['decision_ref']['id']==evaluations[0]['id'] and calls
+    assert not d['acceptance_granted'] and not candidate.runtime.coordinator._state(candidate.runtime.coordinator._head())['intents']
+    assert v['rows'][0]['account_context_status']=='RECOMPUTED_ARCHIVED_CONTEXT'
+    assert not r['store'].records(kind='TRADE')
+
+
+
+def test_missing_historical_account_policy_cannot_be_replaced_by_current_initial_cash(factory):
+    r=factory();evaluate(r);first=run(r);c=coordinator(r)
+    changed=type(c)(r['store'],policy=replace(c.policy,initial_hypothetical_cash='9'),correlation=c.correlation,limits=c.limits)
+    again=PerformanceLab(changed).replay_temperature('evaluation',policy=replay.ReplayPolicy('fixture'))
+    assert first['account']==again['account'] and again['account']['risk_at_decision'] is None
+    assert again['account']['status']=='UNKNOWN_NO_ARCHIVED_ACCOUNT_POLICY_OR_STATE'

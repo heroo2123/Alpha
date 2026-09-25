@@ -182,3 +182,15 @@ policy change and report-publication crash recovery. No failed run. The precedin
 passed 245 affected tests in 35.93 s and the full 4046 tests / four existing warnings
 in 347.89 s, exit 0, all 845 tracked inputs unchanged. Exact shared manifest and
 outputs: docs/V11_EXECUTION_COST_REGRESSION_EVIDENCE.md. No acceptance credit added.
+
+
+## Historical economic replay
+
+PerformanceLab.replay_temperature now compares original retained future/same-day
+predictions, executable valuations and archived common-account context through shared
+runtime calculations. Optional AuditPolicy.replay joins the typed candidate's
+scheduled daily/weekly worker, with complete bounded populations, shared time budget
+and immutable report recovery. Missing original account policy stays UNKNOWN.
+ECONOMICS_REPRODUCED is a numerical comparison, not full control-flow/executable or
+independent acceptance. PWS/other strategy and reservation-command replay remain
+open. Exact semantics, bounds and targeted verification: docs/V11_REPLAY.md.

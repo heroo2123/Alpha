@@ -399,3 +399,16 @@ audits, full control-flow/PWS/challenger replay and historical executable attest
 remain open. No new named milestone is credited at this intermediate checkpoint:
 **82/200, approximately 41%**, formal **1/50 (2%)**, unchanged. Actual independent,
 host and unfunded evidence remain unearned; six active-hour ranges are unchanged.
+
+
+Candidate replay audit join — 2026-09-25: optional typed replay now runs from the
+scheduled candidate audit worker against all retained in-window temperature
+decisions, with bounded references/shared budget, unknown-preserving selection,
+original model/account identities and report recovery. The finite candidate test
+covers mocked census -> derived risk -> original temperature decision -> common
+account context -> replay audit. Final new 27 / 4.94 s; initial related 65 / 13.93 s;
+a new invalid initial-cash fixture was corrected without relaxing account limits.
+Combined affected/full saved-tree regression remains due before scoring R04's new
+join. Intermediate total stays **82/200, approximately 41%**, formal **1/50 (2%)**.
+This does not credit full control flow, PWS/other strategy/executable attestation,
+actual sources/calibration, independent review or host/unfunded acceptance.

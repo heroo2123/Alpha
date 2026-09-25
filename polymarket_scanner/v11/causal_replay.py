@@ -169,14 +169,19 @@ def _account(c, view):
         risk_matches = canonical(original._risk(state)) == canonical(d.get('risk')) if 'risk' in d else None
         if risk_matches is False: raise EvidenceError('REPLAY_ACCOUNT_RISK_MISMATCH')
     else:
-        state = replay._state(None); risk_matches = None
+        # An absent ledger head does not archive the then-configured initial
+        # cash/policy. Today's supplied policy cannot fill that historical gap.
+        return dict(snapshot_ref=None, policy_sha256=None, recorded_risk_matches=None,
+            risk_at_decision=None, status='UNKNOWN_NO_ARCHIVED_ACCOUNT_POLICY_OR_STATE',
+            population='PRE_DECISION_ACCOUNT_CONTEXT', reservation_commands_replayed=False,
+            economic_commands_issued=0, financial_authority=False)
     return dict(snapshot_ref=_ref(row) if row else None, policy_sha256=c.policy_sha,
-        recorded_risk_matches=risk_matches, risk_at_decision=replay._risk(state),
+        recorded_risk_matches=risk_matches, risk_at_decision=replay._risk(state), status='RECOMPUTED_ARCHIVED_CONTEXT',
         population='PRE_DECISION_ACCOUNT_CONTEXT', reservation_commands_replayed=False,
         economic_commands_issued=0, financial_authority=False)
 
 
-def replay_temperature(c, evaluation_id, *, policy, monotonic=time.monotonic):
+def replay_temperature(c, evaluation_id, *, policy, monotonic=time.monotonic, deadline=None):
     if not isinstance(policy, ReplayPolicy) or c.store.namespace != 'V11_PAPER':
         raise EvidenceError('REPLAY_PAPER_POLICY_REQUIRED')
     identity(evaluation_id)
@@ -185,11 +190,13 @@ def replay_temperature(c, evaluation_id, *, policy, monotonic=time.monotonic):
         historical_executable_attested=False, full_control_flow_replayed=False,
         new_economic_commands=0, source_truth_independently_attested=False)
     try:
-        with learning_source_view(c.store, deadline=monotonic()+policy.maximum_seconds, monotonic=monotonic) as source:
+        stop = monotonic()+policy.maximum_seconds
+        if deadline is not None: stop = min(stop, finite(deadline))
+        with learning_source_view(c.store, deadline=stop, monotonic=monotonic) as source:
             row = source.get(evaluation_id); d = row['body'].get('details', {})
             if row['kind'] != 'MEASUREMENT' or d.get('version') != STRATEGY_VERSION:
                 raise EvidenceError('REPLAY_TEMPERATURE_DECISION_REQUIRED')
-            result.update(decision_ref=_ref(row), original_outcome=d['outcome'], original_reason=d['reason'],
+            result.update(decision_ref=_ref(row), decision_recorded_at=row['body']['recorded_at'], original_outcome=d['outcome'], original_reason=d['reason'],
                           original_binding=d['binding'])
             if d['strategy'] not in SUPPORTED: raise EvidenceError('REPLAY_STRATEGY_JOIN_NOT_IMPLEMENTED')
             request = _request(d['request']); start = source.get(evaluation_id+':start')
@@ -264,4 +271,68 @@ def replay_temperature(c, evaluation_id, *, policy, monotonic=time.monotonic):
             economic_match=False, comparisons={}, account=None)
         for key in ('recomputed_prediction','recomputed_valuation','model','input_refs'):
             result.pop(key,None)
+        return result
+
+
+AUDIT_MAX_DECISIONS = 8
+
+
+def fold_replay_decisions(row, aggregate, window):
+    """Retain all decision counts; never call a capped sample complete coverage."""
+    d = row['body'].get('details', {})
+    if (row['kind'] != 'MEASUREMENT' or d.get('version') != STRATEGY_VERSION
+            or d.get('stage') == 'EVALUATION_STARTED'
+            or not window['start'] <= row['body']['recorded_at'] < window['end']):
+        return
+    cohort = aggregate.setdefault('economic_replay_selection', dict(count=0, refs=[], overflow=False))
+    cohort['count'] += 1
+    if len(cohort['refs']) < AUDIT_MAX_DECISIONS: cohort['refs'].append(_ref(row))
+    else: cohort['overflow'] = True
+
+
+def replay_audit(c, *, selection, through_seq, window, archive_complete, policy, monotonic=time.monotonic):
+    """One bounded complete retained cohort, for the separate audit worker."""
+    if not isinstance(policy, ReplayPolicy): raise EvidenceError('REPLAY_POLICY_REQUIRED')
+    result = dict(version=VERSION, policy=asdict(policy), window=window, through_seq=through_seq,
+        retained_decision_count=selection['count'], status='GATED', reason=None, rows=[],
+        complete_retained_selection=False, economic_matches=0, all_economics_reproduced=False,
+        full_control_flow_replayed=False, historical_executable_attested=False,
+        financial_authority=False, admission_authority=False)
+    try:
+        if (type(through_seq) is not int or through_seq < 0
+                or not finite(window['start']) < finite(window['end'])
+                or type(selection['count']) is not int or selection['count'] < 0
+                or not archive_complete or selection['overflow'] or len(selection['refs']) != selection['count']
+                or len(selection['refs']) > AUDIT_MAX_DECISIONS):
+            raise EvidenceError('REPLAY_AUDIT_INCOMPLETE_OR_OVERFLOW')
+        deadline = monotonic()+policy.maximum_seconds
+        seen = set()
+        for ref in selection['refs']:
+            if (type(ref) is not dict or set(ref) != {'id','sha256','seq'} or ref['id'] in seen
+                    or type(ref['seq']) is not int or not 0 < ref['seq'] <= through_seq):
+                raise EvidenceError('REPLAY_AUDIT_REFERENCE_BOUND')
+            seen.add(ref['id']); sha(ref['sha256'])
+            if monotonic() >= deadline: raise EvidenceError('REPLAY_AUDIT_TIME_BOUND')
+            replayed = replay_temperature(c, ref['id'], policy=policy, monotonic=monotonic, deadline=deadline)
+            if monotonic() >= deadline: raise EvidenceError('REPLAY_AUDIT_TIME_BOUND')
+            if (replayed.get('decision_ref') != ref
+                    or not window['start'] <= replayed.get('decision_recorded_at',-1) < window['end']):
+                raise EvidenceError('REPLAY_AUDIT_DECISION_BINDING')
+            # Compact immutable comparison evidence; do not duplicate whole model
+            # vectors and account states in every daily/weekly report.
+            row = {k:replayed.get(k) for k in ('decision_ref','status','reason','economic_match','comparisons',
+                'original_outcome','original_reason','original_binding','model','cutoff','inference_cutoff',
+                'input_boundary_seq','valuation_ref','source_derivation_sha256')}
+            row.update(result_sha256=digest(replayed), account_snapshot_ref=(replayed.get('account') or {}).get('snapshot_ref'),
+                account_context_status=(replayed.get('account') or {}).get('status','NOT_RECOMPUTED'),
+                account_comparison_sha256=digest(replayed['account']) if replayed.get('account') else None)
+            result['rows'].append(row)
+        count = sum(r['economic_match'] for r in result['rows'])
+        result.update(status='NO_RETAINED_DECISIONS' if not result['rows'] else 'ECONOMICS_REPRODUCED' if count==len(result['rows']) else 'PARTIAL',
+            reason='RETAINED_TEMPERATURE_ECONOMICS_ONLY', complete_retained_selection=True,
+            economic_matches=count, all_economics_reproduced=bool(result['rows']) and count==len(result['rows']))
+        return result
+    except (EvidenceError,KeyError,TypeError,ValueError) as exc:
+        result.update(status='GATED',reason=str(exc) if isinstance(exc,EvidenceError) else 'REPLAY_AUDIT_MALFORMED_SELECTION',
+            rows=[],complete_retained_selection=False,economic_matches=0,all_economics_reproduced=False)
         return result

@@ -158,7 +158,7 @@ def test_legacy_default_performance_and_audit_identity_are_preserved(rig):
     reserve(rig);fill(rig,0);rig['now'][0]+=.01;c=coordinator(rig);lab=PerformanceLab(c)
     before=lab.build(start=0,end=rig['now'][0]);lab.execution_costs(start=0,end=rig['now'][0],policy=policy())
     assert lab.build(start=0,end=rig['now'][0])==before and 'execution_costs' not in before
-    legacy=AuditPolicy('fixture');raw=asdict(legacy);raw.pop('execution_costs')
+    legacy=AuditPolicy('fixture');raw=dict(version='fixture',records_per_step=64,maximum_step_seconds=2.,maximum_job_records=20000)
     assert AuditScheduler(rig['store'],legacy).config==digest(raw)
     assert AuditWorker(c,legacy).schedule_config==digest(raw)
 

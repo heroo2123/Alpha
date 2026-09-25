@@ -464,3 +464,14 @@ independent cancellation latency or production resource guarantee is claimed.
 Default policy/assembly identities are preserved. The candidate integration and
 crash/pin/config cases are included in the 26 focused cost tests. See
 V11_PERFORMANCE.md and the latest checkpoint for remaining acceptance gates.
+
+
+Optional historical economic replay audits — 2026-09-25: AuditPolicy.replay connects
+bounded original-model/receipt comparisons to the existing separate publishing
+worker. Eight retained temperature decisions maximum share one explicit replay
+budget (default two, maximum five seconds), in addition to scan/metadata/cost work.
+Overflow/incomplete scan/time failure gates the complete cohort; unsupported control
+paths remain visible. Default config/assembly identities are preserved. This adds
+no independent cancellation latency guarantee or host-capacity acceptance. The
+finite candidate source/risk/decision/account/audit test is included in the 27 replay
+checks. See V11_REPLAY.md and the latest work checkpoint.

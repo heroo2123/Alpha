@@ -15,6 +15,7 @@ from .evidence import EvidenceError, digest, finite, identity
 from .paper_coordinator import ACCOUNT_KEY
 from .performance import PerformanceLab
 from .execution_costs import ExecutionCostPolicy
+from .causal_replay import ReplayPolicy, fold_replay_decisions, replay_audit
 from .runtime_health import KEY as HEALTH_KEY
 
 
@@ -31,9 +32,12 @@ class AuditPolicy:
     maximum_step_seconds: float = 2.
     maximum_job_records: int = 20000
     execution_costs: ExecutionCostPolicy | None = None
+    replay: ReplayPolicy | None = None
 
     def __post_init__(self):
         identity(self.version)
+        if self.replay is not None and not isinstance(self.replay,ReplayPolicy):
+            raise EvidenceError('AUDIT_REPLAY_POLICY_REQUIRED')
         if self.execution_costs is not None and not isinstance(self.execution_costs,ExecutionCostPolicy):
             raise EvidenceError('AUDIT_EXECUTION_COST_POLICY_REQUIRED')
         if (type(self.records_per_step) is not int or not 1 <= self.records_per_step <= 256
@@ -43,6 +47,7 @@ class AuditPolicy:
     def payload(self):
         value=asdict(self)
         if self.execution_costs is None:value.pop('execution_costs')
+        if self.replay is None:value.pop('replay')
         return value
 
 
@@ -260,7 +265,9 @@ class AuditWorker:
                 rows=self.store.page_through(through_seq=job['view']['through_seq'],after_seq=job['cursor'],limit=limit)
                 if not rows:raise EvidenceError('AUDIT_PINNED_SEQUENCE_MISSING')
                 for row in rows:
-                    try:_fold(row,job['aggregate'],window)
+                    try:
+                        _fold(row,job['aggregate'],window)
+                        if self.policy.replay is not None:fold_replay_decisions(row,job['aggregate'],window)
                     except (EvidenceError,KeyError,TypeError,ValueError):
                         job['aggregate']['malformed_records']+=1;_sample(job['aggregate']['incident_refs'],row)
                     job['cursor']=row['seq'];job['scanned']+=1;consumed+=1
@@ -310,6 +317,15 @@ class AuditWorker:
                 result['coverage']['execution_cost_population_complete']=costs['complete_cost_population']
                 result['coverage']['execution_price_comparisons_complete']=costs['complete_price_comparisons']
                 result['unresolved']['slippage']='SEPARATE_SYNTHETIC_RECEIPT_COMPARISONS_'+costs['status']
+            if self.policy.replay is not None:
+                replayed=replay_audit(self.coordinator,
+                    selection=job['aggregate'].get('economic_replay_selection',dict(count=0,refs=[],overflow=False)),
+                    through_seq=job['view']['through_seq'],window=result['window'],
+                    archive_complete=finished and not job['aggregate']['malformed_records'],policy=self.policy.replay)
+                result['economic_replay']=replayed
+                result['coverage']['economic_replay_selection_complete']=replayed['complete_retained_selection']
+                result['coverage']['retained_economics_reproduced']=replayed['all_economics_reproduced']
+                result['unresolved']['full_engine_replay']='CONTROL_FLOW_OTHER_STRATEGIES_AND_HISTORICAL_EXECUTABLE_UNVERIFIED'
             refs=[job['request_id'],head['id']]+[p['record_id'] for p in job['view']['heads'] if p['record_id']]
             complete=self.store.audit(report_key,event_id='v11-audit-report:'+window['period'],kind='RUNTIME_STATUS',details=result,evidence_ids=tuple(dict.fromkeys(refs)))
         state['cursors'][window['period']]=job['request_seq'];state['active']=None
