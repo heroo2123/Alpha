@@ -303,3 +303,12 @@ actual execution, EV capture, empirical adverse selection, independent review,
 host deployment or unfunded acceptance. Full changed-tree regression is next.
 Six remaining active-hour ranges remain appropriate to the unresolved source,
 proof-delivery/governance/host scope; external waiting and owner actions are separate.
+
+
+Initial fill integration full regression at **3fa1663c** passed **3980 / four
+existing warnings / 267.20 s**, all **839 inputs unchanged**. Review then found a
+repeating per-share Decimal incorrectly rejected as a ledger input; the new case
+failed once, and the corrected aggregation passed **59 targeted / 10.17 s**.
+Full changed-tree verification follows. Evidence: docs/V11_FILL_REGRESSION_EVIDENCE.md.
+This is correctness work within existing credit: **82/200, approximately 41%**,
+formal **1/50 (2%)**, unchanged. Six active-hour ranges and external gates remain.

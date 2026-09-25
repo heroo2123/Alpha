@@ -3,6 +3,28 @@
 Updated 2026-09-25, after reconciled PAPER fill-markout candidate integration. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
 
+## Precision correction checkpoint — full verification pending
+
+The initial fill integration at **3fa1663c64755c5d793e2c7a5025ae346d99b808**, tree
+**8e84b3bdda18d4f4fe40b36f6ff4a2e672b716b4**, passed **3980 tests / four existing
+FastAPI warnings / 267.20 s / exit 0**, session **23310**, all **839 tracked inputs
+unchanged**. The complete manifest/output is now in
+**docs/V11_FILL_REGRESSION_EVIDENCE.md**. That run is completed, not still active.
+
+A newly added fractional-fill case then exposed RISK_DECIMAL_REPRESENTATION in
+metric aggregation (one failure / 0.50 s). Calculated repeating per-share Decimal
+values now bypass only the external ledger input parser; no ledger bounds,
+price/cost validation, cash accounting or financial authority changed. All **59
+new targeted cases pass / 10.17 s / exit 0** after the correction. A single full
+regression on the changed saved tree is next; the prior full result cannot certify
+this correction. Preserve both full manifests and do not retry an active run.
+
+Progress **82/200, approximately 41%**, formal **1/50 (2%)**, unchanged. No extra
+credit for this correctness fix. **NOT_READY_TO_FUND**; V10 unchanged and deferred.
+After full verification/evidence save, the exact next implementation remains the
+bounded archived PAPER fill/terminal reconciliation path described below. No
+owner-only action blocks that work. The six readiness milestones/hours still apply.
+
 ## Latest integration checkpoint — reconciled PAPER fill markouts
 
 Recovered **6d237ef47c537f17c77db38002508fb75d989506**, tree

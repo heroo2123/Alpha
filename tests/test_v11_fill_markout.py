@@ -140,6 +140,13 @@ def test_partial_fills_weight_by_units_and_do_not_inflate_independent_intents(ri
     assert measure(r,policy(minimum_intents=2))['outcome']=='INSUFFICIENT_COHORT'
 
 
+def test_fractional_fill_with_repeating_cost_per_share_remains_measurable(rig):
+    r=rig;filled(r,units='1.5',fees='.001',other='.001');d=measure(r)
+    assert d['outcome']=='DEGRADATION_CANDIDATE' and d['scores']['n_measured']==1
+    assert abs(Decimal(d['scores']['mean_fill_markout_per_share'])-Decimal('-.09133333333333333333333333333'))<Decimal('1e-27')
+    assert Decimal(coordinator(r)._head()['body']['details']['state']['cash'])==Decimal('9.728')
+
+
 def test_automatic_reviewed_reduction_is_idempotent_and_preserves_cash_lots_model(rig,monkeypatch):
     r=rig;filled(r);w,p,_=monitor(r,monkeypatch);account=deepcopy(w.coordinator._head());model=deepcopy(r['model_state'][0])
     result=w.step('automatic');d=result['body']['details'];reduction=r['store'].get(d['demotion_id'])['body']['details']

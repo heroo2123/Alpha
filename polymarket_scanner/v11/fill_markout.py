@@ -214,7 +214,10 @@ def measure_fill_window(c,*,scope,bundle_sha256,policy,cohort,as_of,monotonic=ti
     groups=defaultdict(lambda:defaultdict(lambda:defaultdict(list)));unknown=Counter()
     for row in rows:
         if row['status']!='MEASURED':unknown[row['reason']]+=1;continue
-        groups[row['city_day']][row['event_id']][row['intent_id']].append((number(row['markout_per_share'],signed=True),number(row['units'])))
+        # This value was computed above from validated bounded inputs. A
+        # repeating per-share quotient is not an external ledger amount and
+        # must not be rejected by the ledger's 48-place input restriction.
+        groups[row['city_day']][row['event_id']][row['intent_id']].append((Decimal(row['markout_per_share']),number(row['units'])))
     average=lambda xs:sum(xs,Decimal(0))/len(xs)
     intent_mean=lambda xs:sum((v*q for v,q in xs),Decimal(0))/sum((q for _,q in xs),Decimal(0))
     mean=average([average([average([intent_mean(xs) for xs in intents.values()]) for intents in events.values()]) for events in groups.values()]) if groups else None
