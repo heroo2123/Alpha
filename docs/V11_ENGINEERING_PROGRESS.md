@@ -442,3 +442,15 @@ verification remains due. **83/200, approximately 42%**, formal **1/50 (2%)**,
 unchanged: R04 J is already earned. Full control-flow/commands/other strategies,
 PWS label scoring, empirical source/calibration/lead and all independent/operational
 acceptance remain open. No more credit for this expansion or additional tests.
+
+
+Received-source strategy replay — 2026-09-25: SOURCE_SHOCK and RELEASE_OPPORTUNITY
+now join the original received-report predecessor, exact post-receipt book/event
+context, original payout model and common-account context to scheduled candidate
+audits. Shared runtime receipt/change-type calculations and bounded historical
+source queries preserve causal ordering after later reports/promotions. All five
+temperature strategy variants have numerical joins. PWS affected 380 passed /
+57.74 s at f0335ede; combined focused 79 passed / 17.50 s, with final combined
+regression still due. **83/200, approximately 42%**, formal **1/50 (2%)**, unchanged.
+R04 C/J are already earned. No full control/command/label replay, actual evidence,
+independent/operational acceptance or financial authority is credited.

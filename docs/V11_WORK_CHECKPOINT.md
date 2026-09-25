@@ -1,9 +1,57 @@
 # Alpha V11 work checkpoint
 
+Updated 2026-09-25, after all temperature-family economic replay joins.
+Resume here. **NOT_READY_TO_FUND**.
+
+## Latest implementation checkpoint — original received-source reaction reaches candidate audits
+
+PWS baseline saved/published **f0335ede51526670ab65c3f41a7c5155e5c2ead8**, tree
+**be4f98bb3fbf160011b89bc393132c304f541b1d**, passed **380 affected tests in 57.74 s,
+exit 0**, session **65960**, all **851 tracked inputs unchanged**. Source-release
+work followed this saved checkpoint; no PWS-only full run was started or repeated.
+One combined full regression is due after the final affected checks.
+
+Completed SOURCE_SHOCK and RELEASE_OPPORTUNITY historical numerical joins:
+original scoped admission/model -> bounded immediate before/after official receipt
+pair -> exact post-receipt book and archived event context -> recomputed payout
+model lineage, prediction and valuation -> common-account context -> candidate
+scheduled replay audit. Runtime and replay share the exact received-report and
+change-type calculations. A read-only bounded source query respects the original
+pin sequence even after more than 1000 later official reports. New reports or
+champions cannot replace the original model/report/book. Missing original records
+gate the whole comparison. Schedules remain provenance, not proof of release;
+event guards are archived context, not reissued directional permission or finality.
+All five TemperatureStrategies variants now have numerical joins; full engine,
+control/command/label/executable and actual acceptance remain open.
+
+Combined focused **79 passed in 17.50 s, exit 0**, session **68969**. This includes
+16 new source-release cases and the 15 PWS cases. Initial new candidate test used
+an unsupported schedule_id constructor argument (**1 failed / 14 passed in 4.04 s**,
+session **83290**); it now uses the existing factory's schedule resolution. No
+production constructor or approval check was broadened. Exact intermediate
+metadata/logs: **docs/V11_SCOPED_REPLAY_REGRESSION_EVIDENCE.md**. Resolve this save
+with `git log -1 --format='%H %T' -- polymarket_scanner/v11/causal_replay.py`.
+
+**83/200, approximately 42%**, formal **1/50 (2%)**, unchanged. R04 already has C/J;
+this remaining numerical integration does not earn E/A or full engine acceptance.
+V10 unchanged and maintenance DEFERRED; resource/isolation/host and actual/independent
+readiness gates remain unpassed. No financial authority or service/permission change.
+
+Exact next action: run the affected combined source/reaction/PWS/learning/candidate/
+audit checks, then one locked full regression on this saved tree. Preserve exact
+input/result evidence. Next implementation after verification: reconstruct archived
+PAPER coordinator batch/transition requests and compare original reservation/risk/
+reconciliation effects through shared numerical account logic, without issuing
+commands or substituting current approval/policy. `_commit` retains request and
+state; `coordinate` still relies on current admission. Missing historical policy/
+control evidence must remain a gate. No owner action blocks this off-host work.
+The same six readiness milestones/hours below remain current, LOW confidence,
+excluding external waiting and owner actions. NOT_READY_TO_FUND.
+
 Updated 2026-09-25, after PWS historical observation/payout replay integration.
 Resume here. **NOT_READY_TO_FUND**.
 
-## Latest implementation checkpoint — original PWS observation pair reaches candidate replay audits
+## Historical implementation checkpoint — original PWS observation pair reaches candidate replay audits
 
 Continued from published **df85e325c4d7b181b1af15a84c671b34440ed275**, tree
 **8027c7dd4cca38e209b4bdd93659af669fb50854**, preserving the verified 4073-pass
@@ -1594,7 +1642,7 @@ still require separate budget and live approval. No arbitrary paper wait applies
 | Remaining milestone | Work remaining and proof of completion | Active hours | Confidence | External/owner dependency |
 |---|---|---:|---|---|
 | Source, weather and label closure | Complete remaining provider/target adapters and scheduling, physical/lead fitting, exact labels and calibration/fallback; explicit-interval/GEFS and physical/PWS inference now have bounded candidate preparation scheduling. Prove causal source/target identity, coverage, lead/ablation and required OOS quality on actual evidence. R06–R13, R25–R28, R31. | 45–90 | LOW | Working authorized provider access; exact source/version history and sufficient evidence; independent semantic/calibration review. |
-| Evidence and controlled learning | Close full control-flow, PWS label/outcome and other-strategy replay and provenance beyond the new temperature and PWS observation/payout candidate-audit joins, remaining selection/report joins, operational learner scheduling/isolation, remaining target families, rolling degradation evidence and accepted initial-bundle/learning governance; conditioned capture/fitting, scoped Brier/log-loss/reliability/calibration error and automatic entry-attributed realized-paper P&L/drawdown now reach reviewed safety reduction and audits; horizon-specific maker counterfactuals also reach scoped monitoring/retirement/audits; reconciled synthetic fill-based markouts now reach the same monitoring/audit path; bounded archived PAPER fill/terminal delivery now reaches the common account and audits; receipt-driven fresh census/exit reevaluation now also joins the candidate; validated execution-window cost/causal price reporting now also reaches the candidate audit worker; matched EV/residual, actual execution-cost calibration and operational evidence remain open. Prove deterministic dataset-to-artifact and rollback/reuse/failure behavior with required real evidence. R02–R05, R14–R17, R40–R42, R47. | 30–60 | LOW | Upstream exact labels; independent initial champion and governance acceptance; isolated learning environment. |
+| Evidence and controlled learning | Close full control-flow, PWS label/outcome and other-strategy replay and provenance beyond the new future/same-day, PWS observation/payout and source-release candidate-audit joins, remaining selection/report joins, operational learner scheduling/isolation, remaining target families, rolling degradation evidence and accepted initial-bundle/learning governance; conditioned capture/fitting, scoped Brier/log-loss/reliability/calibration error and automatic entry-attributed realized-paper P&L/drawdown now reach reviewed safety reduction and audits; horizon-specific maker counterfactuals also reach scoped monitoring/retirement/audits; reconciled synthetic fill-based markouts now reach the same monitoring/audit path; bounded archived PAPER fill/terminal delivery now reaches the common account and audits; receipt-driven fresh census/exit reevaluation now also joins the candidate; validated execution-window cost/causal price reporting now also reaches the candidate audit worker; matched EV/residual, actual execution-cost calibration and operational evidence remain open. Prove deterministic dataset-to-artifact and rollback/reuse/failure behavior with required real evidence. R02–R05, R14–R17, R40–R42, R47. | 30–60 | LOW | Upstream exact labels; independent initial champion and governance acceptance; isolated learning environment. |
 | Strategy, portfolio and execution integration | Finish missing relative/structural/exit/redemption, correlation, costs and maker/reward paths. Prove full common-account scenario/reservation/reconciliation and strategy eligibility across required failure cases. R18–R24, R29–R30, R32–R36. | 35–70 | LOW | Reviewed mappings/parameters and actual source/execution evidence; funded fill learning remains later and separately authorized. |
 | Independent safety, identity and host | Finish independent cancel-only guardian and protected command/auth routing; prepare and verify isolated deployment/recovery configuration. Prove custody, permissions, resource budgets and authenticated safety behavior. R37–R39, R43–R44. | 30–60 | LOW | Owner account entitlement/access, approved isolated host and deployment action; alpha-dev resource/isolation currently unpassed. V10 maintenance stays deferred absent an exact dependency. |
 | Regression and unfunded acceptance | Run complete integration/fault/security acceptance and permitted unfunded account/execution checks; resolve findings. Proof is the original acceptance matrix with independent review and reproducible exact-tree results. R45, R48. | 25–50 | LOW | Independent reviewers and permitted existing-account access; no wallet/account creation or financial activation is implied. |

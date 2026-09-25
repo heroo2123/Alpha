@@ -1,8 +1,8 @@
 # V11 bounded causal economic replay
 
 `PerformanceLab.replay_temperature(evaluation_id, policy=ReplayPolicy(...))`
-recomputes a retained FUTURE_FORECAST, SAME_DAY_LATE_LOCK or PWS_OBSERVATION_LEAD
-economic evaluation.
+recomputes retained FUTURE_FORECAST, SAME_DAY_LATE_LOCK, PWS_OBSERVATION_LEAD,
+SOURCE_SHOCK and RELEASE_OPPORTUNITY economic evaluations.
 This is read-only and separate from runtime admission, current model authority,
 external transport and the original common-account commands.
 
@@ -42,7 +42,7 @@ No favorable partial result can be reported as an economic match.
 ECONOMICS_REPRODUCED means equality of the shared numerical result on retained
 inputs, not full control-flow replay, original executable attestation, independent
 source truth or renewed permission. GATED and MISMATCH remain distinct. Early
-control gates, PWS label/outcome scoring, source-release/relative-value/maker/exits,
+control gates, PWS label/outcome scoring, relative-value/maker/exits,
 challenger comparison,
 reservation/execution command replay and operational acceptance remain open.
 Scheduled candidate audit integration is described below. Tests/provenance:
@@ -58,8 +58,7 @@ replay calculations run only in the separate publishing worker.
 
 Original completed temperature decisions are selected by half-open recorded-time
 window within the pinned archive sequence. Start-only records are not decisions.
-All completed variants count, including unsupported source-release or early
-control gates. The worker retains at most eight exact refs and the full count.
+All completed variants count, including early control gates and unknown variants. The worker retains at most eight exact refs and the full count.
 Overflow or incomplete archive scanning gates the entire cohort. Unknown individual
 comparisons stay visible; no sample of favorable results is called full coverage.
 
@@ -104,3 +103,23 @@ Assembled PWS lane and report-before-cursor recovery are covered. Final focused
 flow, original executable attestation, separate label/outcome replay, empirical
 lead/lag benefit and independent acceptance remain open. These are synthetic
 checks and do not certify PWS independence or source truth. NOT_READY_TO_FUND.
+
+
+## Historical received-source reactions
+
+SOURCE_SHOCK and RELEASE_OPPORTUNITY now reconstruct the original release pin,
+scoped admission/model, immediate before/after same-source report pair, post-receipt
+exact book, archived event context, declared schedule and recomputed model lineage.
+The runtime's receipt-pair and change-type helpers are shared. Original pin time and
+sequence bound the read-only predecessor scan to at most 1000 records; later reports
+cannot overflow or replace that original population. Original payout inference,
+valuation and common-account context use the existing historical engine.
+
+A numerical source/lineage or payout mismatch remains MISMATCH; missing original
+report/book/event/schedule/model evidence gates the entire result. Optional candidate
+audits include compact receipt/pin/event refs, separate comparisons and a full-result
+hash, within the same shared budget. No schedule proves an actual release, no event
+permission is reissued and no settlement finality is inferred. Full control-flow,
+account-command and independent operational acceptance remain unimplemented/unpassed.
+Combined focused 79 / 17.50 s; PWS baseline affected 380 / 57.74 s; combined affected/
+full checks are due. Exact evidence: V11_SCOPED_REPLAY_REGRESSION_EVIDENCE.md.

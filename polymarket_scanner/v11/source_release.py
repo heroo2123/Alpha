@@ -20,6 +20,33 @@ VERSION = 'alpha_v11_received_source_release_pin_v1'
 STRATEGIES = {'SOURCE_SHOCK', 'RELEASE_OPPORTUNITY'}
 
 
+def received_report_pair(store, *, rule, previous_official_id, current_official_id):
+    """Exact bounded immediate receipt pair, shared with read-only replay."""
+    before, after = store.get(previous_official_id), store.get(current_official_id)
+    prior_value, value = _report(before, rule), _report(after, rule)
+    b, n = before['body'], after['body']
+    if (before['seq'] >= after['seq'] or b['available_at'] > n['available_at']
+            or (b['provider'], b['source_identity']) != (n['provider'], n['source_identity'])):
+        raise EvidenceError('RELEASE_PREVIOUS_EXACT_SOURCE_IDENTITY_REQUIRED')
+    subsequent = store.records(kind='OFFICIAL_OBSERVATION', event_id=rule.payload['event_id'],
+                                    after_seq=before['seq'], limit=1000)
+    same_source = [r for r in subsequent if (r['body']['provider'], r['body']['source_identity']) ==
+                   (n['provider'], n['source_identity'])]
+    if len(subsequent) == 1000 or not same_source or same_source[0]['id'] != after['id']:
+        raise EvidenceError('RELEASE_PREDECESSOR_NOT_IMMEDIATE_OR_SCAN_BOUND')
+    return before, after, prior_value, value
+
+
+def received_change_type(before, after):
+    b, n = before['body'], after['body']
+    if n['observed_at'] < b['observed_at']:
+        raise EvidenceError('LATE_OLDER_REPORT_REQUIRES_DISTINCT_REVISION_MODEL')
+    kind = 'NEW_OFFICIAL_OBSERVATION' if n['observed_at'] > b['observed_at'] else 'OFFICIAL_REVISION'
+    if kind == 'OFFICIAL_REVISION' and digest(n['payload']) == digest(b['payload']):
+        raise EvidenceError('DUPLICATE_RECEIPT_IS_NOT_SOURCE_REVISION')
+    return kind
+
+
 class SourceRelease:
     def __init__(self, store: EvidenceStore):
         self.store = store
@@ -39,28 +66,15 @@ class SourceRelease:
         heads = list(admission['heads'])
         book_head = self.store.latest(kind='BOOK', event_id=context.event_id)
         heads.append(('BOOK', context.event_id, book_head['seq'] if book_head else 0))
-        before, after = self.store.get(previous_official_id), self.store.get(current_official_id)
-        prior_value, value = _report(before, rule), _report(after, rule)
+        before, after, prior_value, value = received_report_pair(self.store, rule=rule,
+            previous_official_id=previous_official_id, current_official_id=current_official_id)
         b, n = before['body'], after['body']
-        if (before['seq'] >= after['seq'] or b['available_at'] > n['available_at']
-                or (b['provider'], b['source_identity']) != (n['provider'], n['source_identity'])):
-            raise EvidenceError('RELEASE_PREVIOUS_EXACT_SOURCE_IDENTITY_REQUIRED')
-        subsequent = self.store.records(kind='OFFICIAL_OBSERVATION', event_id=context.event_id,
-                                        after_seq=before['seq'], limit=1000)
-        same_source = [r for r in subsequent if (r['body']['provider'], r['body']['source_identity']) ==
-                       (n['provider'], n['source_identity'])]
-        if len(subsequent) == 1000 or not same_source or same_source[0]['id'] != after['id']:
-            raise EvidenceError('RELEASE_PREDECESSOR_NOT_IMMEDIATE_OR_SCAN_BOUND')
         latest = self.store.latest(kind='OFFICIAL_OBSERVATION', event_id=context.event_id)
         leases = {s['evidence_id']:s for s in request['source_leases']}
         if (not latest or latest['id'] != current_official_id or current_official_id not in leases
                 or leases[current_official_id]['role'] != 'OFFICIAL'):
             raise EvidenceError('RELEASE_CURRENT_OFFICIAL_LEASE_REQUIRED')
-        if n['observed_at'] < b['observed_at']:
-            raise EvidenceError('LATE_OLDER_REPORT_REQUIRES_DISTINCT_REVISION_MODEL')
-        kind = 'NEW_OFFICIAL_OBSERVATION' if n['observed_at'] > b['observed_at'] else 'OFFICIAL_REVISION'
-        if kind == 'OFFICIAL_REVISION' and digest(n['payload']) == digest(b['payload']):
-            raise EvidenceError('DUPLICATE_RECEIPT_IS_NOT_SOURCE_REVISION')
+        kind = received_change_type(before, after)
         event = EventRiskEngine(self.store).revalidate(event_state_id)
         event_row = self.store.get(event_state_id); er = event['request']; metrics = er['metrics']; policy = er['policy']
         if (er['context'] != asdict(context) or er['binding'] != asdict(binding)

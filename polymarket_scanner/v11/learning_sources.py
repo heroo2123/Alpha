@@ -69,6 +69,18 @@ class LearningSourceView:
         if len(rows)!=1:raise EvidenceError('SOURCE_VIEW_EXACT_HASH_REQUIRED')
         return self.get(rows[0]['record_id'])
 
+    def records(self, *, kind, event_id, after_seq=0, through_seq=None, limit=1000):
+        """Bounded original receipt ordering for immediate-predecessor replay."""
+        identity(kind); identity(event_id); self.check()
+        boundary = self.snapshot_seq if through_seq is None else through_seq
+        if (type(after_seq) is not int or type(boundary) is not int
+                or not 0 <= after_seq <= boundary <= self.snapshot_seq
+                or type(limit) is not int or not 1 <= limit <= 1000):
+            raise EvidenceError('SOURCE_VIEW_RECORD_SEQUENCE_BOUND')
+        rows = self._db.execute('SELECT record_id FROM v11_records WHERE kind=? AND event_id=? '
+            'AND seq>? AND seq<=? ORDER BY seq LIMIT ?', (kind,event_id,after_seq,boundary,limit)).fetchall()
+        return [self.get(row['record_id']) for row in rows]
+
     def latest(self, *, kind, event_id, through_seq=None):
         """A kind head at an immutable receipt boundary, without a live-head read."""
         identity(kind); identity(event_id); self.check()

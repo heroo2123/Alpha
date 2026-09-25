@@ -20,7 +20,7 @@ from .strategy_pipeline import EntryRequest, VERSION as STRATEGY_VERSION, temper
 from .valuation import CostComponent, ValuationPolicy, settlement_entry_details
 
 VERSION = 'alpha_v11_causal_economic_replay_v1'
-SUPPORTED = {'FUTURE_FORECAST', 'SAME_DAY_LATE_LOCK', 'PWS_OBSERVATION_LEAD'}
+SUPPORTED = {'FUTURE_FORECAST', 'SAME_DAY_LATE_LOCK', 'PWS_OBSERVATION_LEAD', 'SOURCE_SHOCK', 'RELEASE_OPPORTUNITY'}
 
 
 @dataclass(frozen=True)
@@ -66,6 +66,11 @@ class HistoricalView:
         row = self._view.latest_source(kind=kind, event_id=event_id, provider=provider,
             source_identity=source_identity, as_of=at, through_seq=self.through_seq)
         return self.get(row['id']) if row else None
+
+    def records(self, *, kind, event_id, after_seq=0, limit=1000):
+        rows = self._view.records(kind=kind, event_id=event_id, after_seq=after_seq,
+            through_seq=self.through_seq, limit=limit)
+        return [self.get(row['id']) for row in rows]
 
 
 def historical_bundle(*, scope_key, mode, epoch, state_sha256, bundle_sha256, at, check):
@@ -281,6 +286,73 @@ def _pws_pair(inputs, *, request, decision, payout_request, payout_assessment, p
         observation_is_payout_or_exit=False, admission_authority=False, financial_authority=False)
 
 
+def _received_release(inputs, *, request, decision, admission_request, model, bundle):
+    """Reconstruct the original receipt reaction; event permissions stay inactive."""
+    from .source_release import VERSION as RELEASE_VERSION, received_report_pair, received_change_type
+    from .event_risk import VERSION as EVENT_VERSION
+    from .pws_lead import _lineage
+    pin = inputs.get(request.source_release_id); d = pin['body']['details']
+    if pin['kind'] != 'REGISTRY' or d.get('version') != RELEASE_VERSION:
+        raise EvidenceError('REPLAY_ORIGINAL_SOURCE_RELEASE_REQUIRED')
+    original, before = d['request'], d['assessment']
+    if (canonical(before) != canonical(decision['received_source_release'])
+            or any(original[k] != v for k,v in dict(admission_id=request.admission_id,
+                event_state_id=request.event_state_id, book_id=request.book_id, current_official_id=request.observed_input_id).items())
+            or any(before[k] != original[k] for k in ('admission_id','event_state_id','book_id','current_official_id','previous_official_id'))
+            or any(before[k] != admission_request[k] for k in ('context','rule','binding'))
+            or before['strategy'] != decision['strategy'] or before['model_state_sha256'] != model['state_sha256']
+            or bundle.payload['bundle']['target'] != 'FINAL_CONTRACT_PAYOUT'
+            or not pin['body']['recorded_at'] <= inputs.at < finite(before['valid_until'])):
+        raise EvidenceError('REPLAY_ORIGINAL_SOURCE_RELEASE_BINDING')
+    for kind, event, seq in before['heads']:
+        head = inputs.latest(kind=kind, event_id=event)
+        if (head['seq'] if head else 0) != seq: raise EvidenceError('REPLAY_ORIGINAL_RELEASE_HEAD_CHANGED')
+    release_inputs = HistoricalView(inputs._view, through_seq=pin['seq']-1, at=pin['body']['recorded_at'])
+    rule = RuleFingerprint(**admission_request['rule']); event_id = rule.payload['event_id']
+    prior, current, prior_value, value = received_report_pair(release_inputs, rule=rule,
+        previous_official_id=original['previous_official_id'], current_official_id=original['current_official_id'])
+    change = received_change_type(prior, current); n = current['body']
+    book = release_inputs.get(request.book_id); b = book['body']
+    event = release_inputs.get(request.event_state_id); ed = event['body']['details']; er = ed['request']
+    if (current['sha256'] != before['current_official_sha256'] or book['sha256'] != before['book_sha256']
+            or book['kind'] != 'BOOK' or book['event_id'] != event_id or not current['seq'] < book['seq'] < event['seq']
+            or b['observed_at'] is None or not n['available_at'] <= b['observed_at'] <= b['available_at'] <= release_inputs.at
+            or event['kind'] != 'COORDINATOR_EVENT' or ed.get('version') != EVENT_VERSION
+            or any(er[k] != admission_request[k] for k in ('context','binding'))
+            or current['id'] not in er['source_ids'] or book['id'] not in er['book_ids']
+            or ed['state'] != before['event_state'] or ed['guard'] != before['stronger_guard']
+            or not inputs.at <= finite(ed['valid_until'])):
+        raise EvidenceError('REPLAY_ORIGINAL_RELEASE_BOOK_EVENT_BINDING')
+    latest = release_inputs.latest_source(kind='BOOK', event_id=event_id, provider=b['provider'],source_identity=b['source_identity'])
+    if latest is None or latest['id'] != book['id']: raise EvidenceError('REPLAY_ORIGINAL_RELEASE_BOOK_SUPERSEDED')
+    graph = _lineage(release_inputs, request.model_input_ids, event_id=event_id, cutoff=release_inputs.at)
+    if graph['records'].get(current['id']) != current['sha256']:
+        raise EvidenceError('REPLAY_RELEASE_MODEL_MISSING_RECEIVED_OFFICIAL')
+    for key in request.model_input_ids:
+        own = _lineage(release_inputs, (key,), event_id=event_id, cutoff=release_inputs.at)
+        if release_inputs.get(key)['seq'] <= current['seq'] or current['id'] not in own['records']:
+            raise EvidenceError('REPLAY_RELEASE_COMPONENT_NOT_RECOMPUTED')
+    schedule = None; schedule_ref = None
+    if original['schedule_id'] is not None:
+        row = release_inputs.get(original['schedule_id']); sd = row['body']['details']; schedule_ref = _ref(row)
+        if (row['kind'] != 'SOURCE_SCHEDULE' or row['event_id'] != event_id or row['seq'] >= current['seq']
+                or row['body']['recorded_at'] > n['available_at'] or sd.get('version') != 'alpha_v11_release_schedule_v1'
+                or sd['station'] != admission_request['context']['station_id']):
+            raise EvidenceError('REPLAY_ORIGINAL_SCHEDULE_BINDING')
+        schedule = dict(id=row['id'],sha256=row['sha256'],expected_release_at=finite(sd['expected_release_at']),
+            actual_receipt_at=n['available_at'],proves_actual_release=False)
+    recomputed = dict(change_type=change, reported_temperature_change=value-prior_value, temperature_unit=rule.payload['unit'],
+        received_at=n['available_at'], provider_published_at=n['published_at'], schedule=schedule, model_lineage=graph,
+        model_input_sha256=sorted(release_inputs.get(k)['sha256'] for k in request.model_input_ids))
+    comparisons = {k:canonical(v)==canonical(before[k]) for k,v in recomputed.items()}
+    inputs.check()
+    return dict(release_ref=_ref(pin), previous_official_ref=_ref(prior), current_official_ref=_ref(current),
+        book_ref=_ref(book), event_ref=_ref(event), schedule_ref=schedule_ref,
+        input_boundary_seq=pin['seq']-1, at=release_inputs.at, comparisons=comparisons, recomputed=recomputed,
+        later_reports_used=False, schedule_proves_release=False, settlement_finality=False,
+        event_guard_replayed=False, directional_permission_reissued=False, financial_authority=False)
+
+
 def replay_temperature(c, evaluation_id, *, policy, monotonic=time.monotonic, deadline=None):
     if not isinstance(policy, ReplayPolicy) or c.store.namespace != 'V11_PAPER':
         raise EvidenceError('REPLAY_PAPER_POLICY_REQUIRED')
@@ -339,6 +411,8 @@ def replay_temperature(c, evaluation_id, *, policy, monotonic=time.monotonic, de
                 raise EvidenceError('REPLAY_ORIGINAL_ARTIFACT_OR_OVERLAY_BINDING')
             pws_pair = _pws_pair(inputs, request=request, decision=d, payout_request=ar, payout_assessment=a,
                 payout_model=model, payout_bundle=bundle) if scope.strategy=='PWS_OBSERVATION_LEAD' else None
+            release = _received_release(inputs, request=request, decision=d, admission_request=ar, model=model,
+                bundle=bundle) if scope.strategy in {'SOURCE_SHOCK','RELEASE_OPPORTUNITY'} else None
             components, observed, coverage = temperature_inputs(inputs, rule, request, strategy=scope.strategy,
                 cutoff=cutoff, inference_cutoff=inference_cutoff)
             prediction = predict_with_bundle(bundle, rule, components, as_of=inference_cutoff,
@@ -359,6 +433,8 @@ def replay_temperature(c, evaluation_id, *, policy, monotonic=time.monotonic, de
                 economic_reasons=measured['reasons']==value['reasons'])
             if pws_pair is not None:
                 comparisons.update({'pws_'+key:matched for key,matched in pws_pair['comparisons'].items()})
+            if release is not None:
+                comparisons.update({'release_'+key:matched for key,matched in release['comparisons'].items()})
             account = _account(c, inputs); source.check()
             result.update(status='ECONOMICS_REPRODUCED' if all(comparisons.values()) else 'MISMATCH',
                 reason='SHARED_NUMERIC_ENGINE_HISTORICAL_INPUTS_CONTROL_AUTHORITY_NOT_REPLAYED',
@@ -369,12 +445,13 @@ def replay_temperature(c, evaluation_id, *, policy, monotonic=time.monotonic, de
                 recomputed_prediction=prediction.payload, recomputed_valuation=measured,
                 proposal_recreated=False, orders_or_fills_inferred=False)
             if pws_pair is not None: result['pws_observation'] = pws_pair
+            if release is not None: result['source_release'] = release
             if len(canonical(result).encode()) > 512*1024: raise EvidenceError('REPLAY_OUTPUT_BOUND')
             return result
     except (EvidenceError, KeyError, TypeError, ValueError, InvalidOperation, OSError) as exc:
         result.update(status='GATED', reason=str(exc) if isinstance(exc,EvidenceError) else 'REPLAY_MALFORMED_OR_UNAVAILABLE_EVIDENCE',
             economic_match=False, comparisons={}, account=None)
-        for key in ('recomputed_prediction','recomputed_valuation','model','input_refs','pws_observation'):
+        for key in ('recomputed_prediction','recomputed_valuation','model','input_refs','pws_observation','source_release'):
             result.pop(key,None)
         return result
 
@@ -438,6 +515,10 @@ def replay_audit(c, *, selection, through_seq, window, archive_complete, policy,
                     'comparisons','feature_ready_at','input_boundary_seq','source_derivation_sha256',
                     'later_official_reports_used','label_or_outcome_replayed','lead_advantage_verified','observation_is_payout_or_exit')}
                 row['pws_observation']['comparison_sha256'] = digest(pair)
+            if replayed.get('source_release') is not None:
+                release = replayed['source_release']
+                row['source_release'] = {k:v for k,v in release.items() if k!='recomputed'}
+                row['source_release']['comparison_sha256'] = digest(release)
             result['rows'].append(row)
         count = sum(r['economic_match'] for r in result['rows'])
         result.update(status='NO_RETAINED_DECISIONS' if not result['rows'] else 'ECONOMICS_REPRODUCED' if count==len(result['rows']) else 'PARTIAL',
