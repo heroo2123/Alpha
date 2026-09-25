@@ -56,6 +56,28 @@ def analyze_basket(store: EvidenceStore, record_id: str, *, rule: RuleFingerprin
                    binding: ReleaseBinding, strategy: str, account_id: str, legs: tuple[BasketLeg, ...],
                    policy: BasketPolicy, positions: tuple[Position, ...] = (), pending: tuple[PendingOrder, ...] = (),
                    realized_event_pnl: str = '0') -> dict:
+    _, request = _basket_request(record_id, rule, prediction, binding, strategy, account_id,
+                                 legs, policy, positions, pending, realized_event_pnl)
+    try:
+        previous = store.get(record_id)
+    except EvidenceError as exc:
+        if str(exc) != 'EVIDENCE_MISSING':
+            raise
+    else:
+        d = previous['body'].get('details', {})
+        if previous['kind'] != 'MEASUREMENT' or d.get('version') != VERSION or d.get('request_sha256') != digest(request):
+            raise EvidenceError('BASKET_REQUEST_ID_COLLISION')
+        return previous
+    details = basket_details(store, record_id, rule=rule, prediction=prediction, binding=binding,
+        strategy=strategy, account_id=account_id, legs=legs, policy=policy, positions=positions,
+        pending=pending, realized_event_pnl=realized_event_pnl)
+    return store.audit(record_id, event_id=rule.payload['event_id'], kind='MEASUREMENT', details=details,
+                       evidence_ids=tuple(dict.fromkeys(leg.book_id for leg in legs)),
+                       expected_heads=tuple(details['source_heads']))
+
+
+def _basket_request(record_id, rule, prediction, binding, strategy, account_id,
+                    legs, policy, positions, pending, realized_event_pnl):
     identity(record_id, maximum=80); identity(account_id)
     if (strategy not in STRATEGIES or type(legs) is not tuple or not 1 <= len(legs) <= 32
             or any(not isinstance(leg, BasketLeg) for leg in legs)):
@@ -67,16 +89,21 @@ def analyze_basket(store: EvidenceStore, record_id: str, *, rule: RuleFingerprin
                    account_id=account_id, legs=[asdict(l) for l in legs], policy=asdict(policy),
                    positions=[asdict(p) for p in positions], pending=[asdict(p) for p in pending],
                    realized_event_pnl=realized_event_pnl)
-    try:
-        previous = store.get(record_id)
-    except EvidenceError as exc:
-        if str(exc) != 'EVIDENCE_MISSING':
-            raise
-    else:
-        d = previous['body'].get('details', {})
-        if previous['kind'] != 'MEASUREMENT' or d.get('version') != VERSION or d.get('request_sha256') != digest(request):
-            raise EvidenceError('BASKET_REQUEST_ID_COLLISION')
-        return previous
+    return targets, request
+
+
+@precise
+def basket_details(store, record_id: str, *, rule: RuleFingerprint, prediction: BucketPrediction,
+                   binding: ReleaseBinding, strategy: str, account_id: str, legs: tuple[BasketLeg, ...],
+                   policy: BasketPolicy, positions: tuple[Position, ...] = (), pending: tuple[PendingOrder, ...] = (),
+                   realized_event_pnl: str = '0') -> dict:
+    """Shared calculation; no journal lookup/return, audit or account command.
+
+    Historical callers supply an original receipt/time view. RuleGuard is only
+    the archived data gate here, never renewed strategy certification/admission.
+    """
+    targets, request = _basket_request(record_id, rule, prediction, binding, strategy, account_id,
+                                      legs, policy, positions, pending, realized_event_pnl)
     now = finite(store.clock()); event = rule.payload['event_id']
     heads = []
     for kind in ('RULE_STATE', 'BOOK'):
@@ -162,5 +189,4 @@ def analyze_basket(store: EvidenceStore, record_id: str, *, rule: RuleFingerprin
                         ['CONSERVATIVE_JOINT_EV_NOT_ABOVE_THRESHOLD']),
                    proposal=None, locked_executable_profit=None, trading_pnl=None, redeemed_collateral='0',
                    rewards_in_trading_ev=False, financial_authority=False)
-    return store.audit(record_id, event_id=event, kind='MEASUREMENT', details=details,
-                       evidence_ids=tuple(dict.fromkeys(leg.book_id for leg in legs)), expected_heads=tuple(heads))
+    return details

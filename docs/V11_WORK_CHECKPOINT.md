@@ -1,5 +1,49 @@
 # Alpha V11 work checkpoint
 
+## Latest checkpoint — original basket/exit valuation joins, 2026-09-25
+
+Recovered clean published **b351cdb584ddbc8e17af4e77eee96b3709849f57**, tree
+**33a74215b090094f78c5b049a0a63af2968555b9**, matching all 764 saved implementation
+inputs; no operation was running. Preserved all newer work and V10 evidence.
+
+Shared `basket_details` now computes independently of journal lookup/write;
+runtime behavior is retained. Exit source/conditioning inputs are shared without
+moving runtime protected-model checks. Optional typed account valuation replay
+reconstructs original prepared baskets and exits from archived admissions,
+protected model history, sources/books and original inventory snapshots. All
+prepared candidates remain counted, including numerical allocation rejections;
+missing/unsupported values gate separately from account effects. Existing account
+audits expose complete selection and numerical matches. No approval/control-flow,
+source truth or original executable attestation is claimed. Defaults keep prior
+configuration identities; all paths remain nonfinancial and read-only in replay.
+
+Verification so far: **43 passed / 5.00 s / exit 0** shared-runtime extraction;
+**51 passed / 5.80 s / exit 0** new portfolio and existing account replay suites.
+Four initial fixture-expectation failures were corrected (synthetic sources have
+no raw derivation edges; required account dependencies can gate the whole command;
+inventory proof binds the original snapshot, not an unused older fill command).
+Exact logs/hashes: **docs/V11_PORTFOLIO_REPLAY_EVIDENCE.md**. Affected/full checks
+on this integration are pending; older broad results below do not cover it.
+
+**83/200 = 41.5%, approximately 42%; formal 1/50 (2%)**, unchanged. C/J already
+cover these packages; no E/A or full requirement closed. **NOT_READY_TO_FUND**.
+V10 unchanged/maintenance DEFERRED; alpha-dev isolation/resource gates unpassed.
+Actual source/calibration, independent review and deployment evidence remain
+external blockers; no owner-only action blocks this implementation.
+
+Resolve this checkpoint with `git log -1 --format='%H %T' -- docs/V11_WORK_CHECKPOINT.md`;
+inspect worktree, newest saved state and operations before continuing.
+**Exact next action:** finish candidate-run audit integration, original model
+history/mixed-cohort/deadline/recovery checks for the prepared valuation joins,
+then run the affected and full integrated suites once on a saved unchanged tree.
+The six concrete readiness milestones below remain current: sources/labels
+45–90 h; replay/learning 30–60 h; portfolio/execution 35–70 h; independent safety/
+identity/host 30–60 h; independent unfunded acceptance 25–50 h; operating comparison/
+release 15–30 h. All LOW confidence, active work only; proof criteria and external/
+owner dependencies remain in that table. No calendar waits inferred.
+
+## Previous saved checkpoint
+
 Updated 2026-09-25, after final original-policy validation and saved regression evidence.
 Resume here. **NOT_READY_TO_FUND**.
 

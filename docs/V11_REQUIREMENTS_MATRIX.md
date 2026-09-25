@@ -15,7 +15,18 @@ not an automatic V11 acceptance pass. Tests are mapped when run. Runtime, canary
 eligibility and empirical validation are separate columns; no unit test grants
 financial authority. Detailed requirements remain in the private specification. The separate approximate full-scope engineering estimate is 42% (83/200 evidence milestones), defined in docs/V11_ENGINEERING_PROGRESS.md; it does not change this formal 1/50 (2%) count.
 
-Latest account replay integration: published **e21ae6e4**, tree
+Latest prepared-valuation integration (R04, R20–R22, R29–R30, R40–R42, R45):
+shared numerical basket/exit replay now joins original account commands and
+existing audits with complete prepared-candidate selection, original protected
+model/source/book/inventory bindings, separate effect/valuation results and
+explicit missing/unsupported gates. Runtime extraction **43 / 5.00 s**; portfolio
+plus account replay **51 / 5.80 s**, both exit 0. Candidate/failure expansion and
+affected/full checks remain next. Exact evidence:
+**docs/V11_PORTFOLIO_REPLAY_EVIDENCE.md**. Original preparation/control-flow,
+actual evidence, independent acceptance and deployment remain open. No statuses
+or credits changed: **83/200 (~42%); 1/50 (2%)**. NOT_READY_TO_FUND; V10 DEFERRED.
+
+Previous account replay integration: published **e21ae6e4**, tree
 **adf2367c7ca319b607f629d910acf54fb73cb7d8**, passed full **4138 / four existing
 FastAPI warnings / 298.08 s** and affected **573 / 70.83 s**, exit 0; all **858
 tracked inputs unchanged**. A subsequent two-line original-policy digest guard

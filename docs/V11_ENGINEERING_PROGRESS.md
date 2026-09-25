@@ -1,5 +1,15 @@
 # Supplementary engineering estimate
 
+Latest 2026-09-25 continuation: original prepared basket/exit numerical valuation
+comparisons now join account replay and existing audits. Shared runtime extraction
+passed **43 / 5.00 s**; portfolio/account checks **51 / 5.80 s**, exit 0. Candidate
+and failure integration plus affected/full regression are next; evidence is in
+docs/V11_PORTFOLIO_REPLAY_EVIDENCE.md. This strengthens existing C/J credit,
+including R04; it does not close real-evidence, independent acceptance or isolated
+deployment. **83/200 = 41.5%, rounded approximately 42%; formal 1/50 (2%)**, unchanged.
+All 200 milestones still cover the full scope through unfunded READY_TO_FUND.
+V10 unchanged/DEFERRED. No financial authority or readiness granted.
+
 This estimate covers the full final-reviewed engineering scope, including real
 source evidence, integration, verified deployment and unfunded readiness. It is
 separate from the requirements matrix: formal completion is still **1/50 (2%)**.

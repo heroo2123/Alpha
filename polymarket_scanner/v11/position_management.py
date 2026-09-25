@@ -125,10 +125,9 @@ def _joint_value(coordinator, state, rule, value, *, own_intent_id=None):
                 actual_realized_pnl=None, financial_authority=False)
 
 
-def _predict(store, request, original, scope, context, rule, binding, cutoff):
+def payout_inputs(store, request, original, rule, cutoff):
+    """Shared causal payout inputs; no protected pointer or approval is read."""
     from .strategy_pipeline import _model_inputs, _condition
-    admission = StrategyAdmission(store).revalidate(request.admission_id, context=context, rule=rule,
-                            binding=asdict(binding), strategies=(scope.strategy,))
     leased = {s['evidence_id']:s for s in original['source_leases']}
     ids = tuple(k for k,s in leased.items() if s['role'] == 'MODEL')
     if not ids:
@@ -145,11 +144,18 @@ def _predict(store, request, original, scope, context, rule, binding, cutoff):
     components = _model_inputs(store, rule, ids, inference_at,
                                target=UNRESOLVED_EXTREME if conditioned else FINAL_EXTREME)
     observed, coverage = _condition(store, rule, request, inference_at, components, available_cutoff=cutoff) if conditioned else (None, None)
+    return components, observed, coverage, inference_at, min(leased[k]['maximum_age_seconds'] for k in ids)
+
+
+def _predict(store, request, original, scope, context, rule, binding, cutoff):
+    admission = StrategyAdmission(store).revalidate(request.admission_id, context=context, rule=rule,
+                            binding=asdict(binding), strategies=(scope.strategy,))
+    components, observed, coverage, inference_at, maximum_age = payout_inputs(store, request, original, rule, cutoff)
     model = ActiveModelRegistry().pin(scope_key=scope.key, mode='V11_PAPER' if original['stage']=='PAPER' else 'V11_SHADOW')
     if model.state_sha256 != admission['model_state_sha256'] or model.bundle.sha256 != binding.bundle_sha256:
         raise EvidenceError('EXIT_MODEL_CHANGED_RECOMPUTE')
     prediction = predict_with_bundle(model.bundle, rule, components, as_of=inference_at,
-            max_source_age_seconds=min(leased[k]['maximum_age_seconds'] for k in ids),
+            max_source_age_seconds=maximum_age,
             observed=observed, remaining_coverage=coverage)
     if not ActiveModelRegistry().revalidate(model)['passed']:
         raise EvidenceError('EXIT_MODEL_CHANGED_RECOMPUTE')

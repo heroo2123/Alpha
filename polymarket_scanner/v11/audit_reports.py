@@ -35,6 +35,7 @@ class AuditPolicy:
     execution_costs: ExecutionCostPolicy | None = None
     replay: ReplayPolicy | None = None
     account_replay: ReplayPolicy | None = None
+    account_valuation_replay: bool = False
 
     def __post_init__(self):
         identity(self.version)
@@ -42,6 +43,9 @@ class AuditPolicy:
             raise EvidenceError('AUDIT_REPLAY_POLICY_REQUIRED')
         if self.account_replay is not None and not isinstance(self.account_replay,ReplayPolicy):
             raise EvidenceError('AUDIT_ACCOUNT_REPLAY_POLICY_REQUIRED')
+        if (type(self.account_valuation_replay) is not bool
+                or self.account_valuation_replay and self.account_replay is None):
+            raise EvidenceError('AUDIT_ACCOUNT_VALUATION_REPLAY_POLICY_REQUIRED')
         if self.execution_costs is not None and not isinstance(self.execution_costs,ExecutionCostPolicy):
             raise EvidenceError('AUDIT_EXECUTION_COST_POLICY_REQUIRED')
         if (type(self.records_per_step) is not int or not 1 <= self.records_per_step <= 256
@@ -53,6 +57,7 @@ class AuditPolicy:
         if self.execution_costs is None:value.pop('execution_costs')
         if self.replay is None:value.pop('replay')
         if self.account_replay is None:value.pop('account_replay')
+        if not self.account_valuation_replay:value.pop('account_valuation_replay')
         return value
 
 
@@ -336,10 +341,14 @@ class AuditWorker:
                 replayed=account_replay_audit(self.coordinator,
                     selection=job['aggregate'].get('account_replay_selection',dict(count=0,refs=[],overflow=False)),
                     through_seq=job['view']['through_seq'],window=result['window'],
-                    archive_complete=finished and not job['aggregate']['malformed_records'],policy=self.policy.account_replay)
+                    archive_complete=finished and not job['aggregate']['malformed_records'],policy=self.policy.account_replay,
+                    replay_valuations=self.policy.account_valuation_replay)
                 result['account_replay']=replayed
                 result['coverage']['account_replay_selection_complete']=replayed['complete_retained_selection']
                 result['coverage']['retained_account_effects_reproduced']=replayed['all_effects_reproduced']
+                if self.policy.account_valuation_replay:
+                    result['coverage']['prepared_valuation_selection_complete']=replayed['prepared_valuation_coverage']['complete']
+                    result['coverage']['retained_prepared_valuations_reproduced']=replayed['prepared_valuation_coverage']['all_prepared_valuations_reproduced']
                 result['unresolved']['full_engine_replay']='ORIGINAL_PREPARATION_CONTROL_OTHER_COMMANDS_AND_EXECUTABLE_UNVERIFIED'
             refs=[job['request_id'],head['id']]+[p['record_id'] for p in job['view']['heads'] if p['record_id']]
             complete=self.store.audit(report_key,event_id='v11-audit-report:'+window['period'],kind='RUNTIME_STATUS',details=result,evidence_ids=tuple(dict.fromkeys(refs)))

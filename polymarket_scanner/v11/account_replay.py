@@ -121,9 +121,11 @@ def _inputs(view, row, before, state, request):
     return inputs, guards
 
 
-def replay_account_command(c, command_id, *, policy, monotonic=time.monotonic, deadline=None):
+def replay_account_command(c, command_id, *, policy, monotonic=time.monotonic, deadline=None, replay_valuations=False):
     if not isinstance(policy, ReplayPolicy) or c.store.namespace != 'V11_PAPER':
         raise EvidenceError('ACCOUNT_REPLAY_PAPER_POLICY_REQUIRED')
+    if type(replay_valuations) is not bool:
+        raise EvidenceError('ACCOUNT_REPLAY_VALUATION_OPTION_REQUIRED')
     identity(command_id)
     result = dict(version=VERSION, policy=asdict(policy), command_id=command_id, status='GATED', reason=None,
         effects_match=False, comparisons={}, financial_authority=False, admission_authority=False,
@@ -175,6 +177,10 @@ def replay_account_command(c, command_id, *, policy, monotonic=time.monotonic, d
                 for proposal in proposals:
                     if proposal.proposal_id in prepared_ids:
                         view.get(proposal.valuation_id); view.get(proposal.event_state_id)
+                if replay_valuations:
+                    from .portfolio_replay import prepared_valuations
+                    result['prepared_valuations'] = prepared_valuations(historical, source, command=row,
+                        before_state=state, proposals=proposals, preparation=preparation)
                 state, calculated = historical._coordinate_effects(state, proposals,
                     preparation['prepared'], preparation['rejected'], effects)
             elif action == 'TRANSITION':
@@ -205,7 +211,7 @@ def replay_account_command(c, command_id, *, policy, monotonic=time.monotonic, d
                       'ACCOUNT_REPLAY_MALFORMED_OR_UNAVAILABLE_EVIDENCE', effects_match=False, comparisons={})
         for key in ('before_ref','original_policy_sha256','input_boundary_seq','effect_inputs_sha256','input_refs',
                     'original_guard_refs','original_state_sha256','recomputed_state_sha256',
-                    'original_effects_sha256','recomputed_effects_sha256'):
+                    'original_effects_sha256','recomputed_effects_sha256','prepared_valuations'):
             result.pop(key, None)
         return result
 
@@ -221,14 +227,20 @@ def fold_account_commands(row, aggregate, window):
     else: cohort['overflow'] = True
 
 
-def account_replay_audit(c, *, selection, through_seq, window, archive_complete, policy, monotonic=time.monotonic):
+def account_replay_audit(c, *, selection, through_seq, window, archive_complete, policy, monotonic=time.monotonic,
+                         replay_valuations=False):
     """Complete retained cohort or an explicit gate, never a favorable prefix."""
     if not isinstance(policy, ReplayPolicy): raise EvidenceError('ACCOUNT_REPLAY_POLICY_REQUIRED')
+    if type(replay_valuations) is not bool: raise EvidenceError('ACCOUNT_REPLAY_VALUATION_OPTION_REQUIRED')
     result = dict(version=VERSION, policy=asdict(policy), window=window, through_seq=through_seq,
         retained_command_count=selection.get('count'), status='GATED', reason=None, rows=[],
         complete_retained_selection=False, effect_matches=0, all_effects_reproduced=False,
         full_control_flow_replayed=False, preparation_recomputed=False, historical_executable_attested=False,
         financial_authority=False, admission_authority=False, new_economic_commands=0)
+    if replay_valuations:
+        result['prepared_valuation_coverage'] = dict(complete=False, prepared_count=None, economic_matches=0,
+            rejected_preparation_count=None, all_prepared_valuations_reproduced=False,
+            scope='ORIGINAL_PREPARED_CANDIDATES_ONLY_FULL_PREPARATION_AND_CONTROLS_UNVERIFIED')
     try:
         if (type(through_seq) is not int or through_seq < 0
                 or not finite(window['start']) < finite(window['end'])
@@ -244,7 +256,8 @@ def account_replay_audit(c, *, selection, through_seq, window, archive_complete,
                 raise EvidenceError('ACCOUNT_REPLAY_AUDIT_REFERENCE_BOUND')
             seen.add(original['id']); sha(original['sha256'])
             if monotonic() >= deadline: raise EvidenceError('ACCOUNT_REPLAY_AUDIT_TIME_BOUND')
-            replayed = replay_account_command(c, original['id'], policy=policy, monotonic=monotonic, deadline=deadline)
+            replayed = replay_account_command(c, original['id'], policy=policy, monotonic=monotonic, deadline=deadline,
+                                               replay_valuations=replay_valuations)
             if monotonic() >= deadline: raise EvidenceError('ACCOUNT_REPLAY_AUDIT_TIME_BOUND')
             if (replayed.get('command_ref') != original
                     or not window['start'] <= replayed.get('command_recorded_at',-1) < window['end']):
@@ -253,11 +266,24 @@ def account_replay_audit(c, *, selection, through_seq, window, archive_complete,
                 'before_ref','original_policy_sha256','input_boundary_seq','effect_inputs_sha256',
                 'original_state_sha256','recomputed_state_sha256','original_effects_sha256','recomputed_effects_sha256')}
             row['result_sha256'] = digest(replayed)
+            if replay_valuations: row['prepared_valuations'] = replayed.get('prepared_valuations')
             result['rows'].append(row)
         count = sum(r['effects_match'] for r in result['rows'])
         result.update(status='NO_RETAINED_COMMANDS' if not result['rows'] else 'EFFECTS_REPRODUCED' if count==len(result['rows']) else 'PARTIAL',
             reason='RETAINED_CONDITIONAL_NUMERICAL_EFFECTS_ONLY', complete_retained_selection=True,
             effect_matches=count, all_effects_reproduced=bool(result['rows']) and count==len(result['rows']))
+        if replay_valuations:
+            # Unknown/legacy commands could hide preparation. Never credit a
+            # positive subset as full coverage when the original cohort is open.
+            complete = all(r['status'] != 'GATED' and (r['action'] != 'COORDINATE'
+                or r['prepared_valuations'] is not None and r['prepared_valuations']['complete_prepared_selection'])
+                for r in result['rows'])
+            values = [r['prepared_valuations'] for r in result['rows'] if r['prepared_valuations'] is not None]
+            total = sum(v['prepared_count'] for v in values)
+            matched = sum(v['economic_matches'] for v in values)
+            result['prepared_valuation_coverage'].update(complete=complete, prepared_count=total if complete else None,
+                economic_matches=matched, rejected_preparation_count=sum(v['rejected_preparation_count'] for v in values) if complete else None,
+                all_prepared_valuations_reproduced=complete and total > 0 and matched==total)
         return result
     except (EvidenceError, KeyError, TypeError, ValueError) as exc:
         result.update(status='GATED',reason=str(exc) if isinstance(exc,EvidenceError) else 'ACCOUNT_REPLAY_AUDIT_MALFORMED_SELECTION',
