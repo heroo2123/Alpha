@@ -454,3 +454,14 @@ temperature strategy variants have numerical joins. PWS affected 380 passed /
 regression still due. **83/200, approximately 42%**, formal **1/50 (2%)**, unchanged.
 R04 C/J are already earned. No full control/command/label replay, actual evidence,
 independent/operational acceptance or financial authority is credited.
+
+
+Final combined scoped replay verification — 2026-09-25: **4104 passed, four existing
+warnings, 296.20 s**, plus affected **463 passed / 64.41 s** on published
+`41d406951579a4c0acbe75f256cf3fc96ac588ed`, tree
+`1d3cb8c4ea543a61681361428e68d44cd988ce1d`. All **853 inputs unchanged**.
+Exact provenance: docs/V11_SCOPED_REPLAY_REGRESSION_EVIDENCE.md. This verifies the
+future/same-day, PWS observation/payout and received-source candidate replay joins.
+It does not close full control/command/label/executable replay or actual/independent/
+operational acceptance. **83/200, approximately 42%**, formal **1/50 (2%)**, unchanged.
+No additional C/J/E/A is credited for extension, regression count or elapsed effort.

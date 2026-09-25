@@ -123,3 +123,16 @@ permission is reissued and no settlement finality is inferred. Full control-flow
 account-command and independent operational acceptance remain unimplemented/unpassed.
 Combined focused 79 / 17.50 s; PWS baseline affected 380 / 57.74 s; combined affected/
 full checks are due. Exact evidence: V11_SCOPED_REPLAY_REGRESSION_EVIDENCE.md.
+
+
+## Combined verified checkpoint
+
+All above numerical joins passed **463 affected checks / 64.41 s** and locked
+full **4104 tests / four existing warnings / 296.20 s**, exit 0, at published
+`41d406951579a4c0acbe75f256cf3fc96ac588ed`, tree
+`1d3cb8c4ea543a61681361428e68d44cd988ce1d`, all **853 tracked inputs unchanged**.
+Final focused 79 / 17.50 s. See V11_SCOPED_REPLAY_REGRESSION_EVIDENCE.md for exact
+metadata, complete shared input map, outputs and corrected development failures.
+These results supersede the pending verification notes above; no new implementation
+or acceptance claim is inferred from the test count. Full control/command/label/
+executable replay and independent operational acceptance remain open.
