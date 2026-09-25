@@ -3,6 +3,28 @@
 Updated 2026-09-25, after target-specific learning capture integration. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
 
+## Full verification — conditioned and observation capture
+
+Implementation **61a5cc84b09d17a4918cf69aa05a30f08aaabaeb**, tree
+**1eafb00f217e6016c4ecde45477febd70d136245**, passed the locked full regression:
+**3727 passed, four existing FastAPI deprecation warnings, 260.57 seconds, exit 0**.
+All 821 tracked inputs remained unchanged. Wrapper 261.171 s; user 167.172302 s,
+system 85.439772 s; peak RSS 164544 KiB. Evidence:
+`/workspace/scratch/38af7099c566/v11-test-evidence/target-learning-full-20260925-01.json`
+and `.log`. Input digest
+`a6a60b90193c62d0f1e77ed6d216b9dfca7841009df3523fac30baea675c9d5c`.
+No full regression remains running. No source collection or host action occurred.
+
+Fixed estimate **81/200, approximately 41%**, formal **1/50 (2%)**, unchanged.
+The six remaining readiness milestones/ranges below still apply. Next implementation
+is explicit same-day-conditioned Gaussian research fitting through the existing
+read-only job and finite learner worker, with a new frozen policy identity and
+numerical inference parity. Existing unconditioned histories and policies stay
+unchanged. Physical/observation fitting and all real-label/calibration, independent,
+host and operational gates remain open. V10 is unchanged; maintenance DEFERRED.
+This reporting entry changes no tested code. Resolve its eventual commit/tree
+with `git log -1 --format='%H %T' -- docs/V11_WORK_CHECKPOINT.md`.
+
 ## Latest implementation — conditioned and paired observation learning capture
 
 Recovered reporting HEAD **13070495008a312200d57ac00e032f04752b7e8f**, tree

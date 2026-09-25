@@ -190,3 +190,8 @@ checks; 26 new cases. R14/R15/R27 already have their named integration credits.
 **81/200, approximately 41%**, formal **1/50 (2%)**, unchanged. Exact real labels,
 calibration, target-specific fitting and operational/independent acceptance stay
 open. The unchanged six active-work ranges exclude external/owner waiting.
+
+Full target-capture integration at `61a5cc84` passed **3727 tests**, four existing
+warnings, **260.57 s**, all 821 tracked inputs unchanged. The code's added joins
+are verified locally; no new real or independent acceptance is earned.
+**81/200, approximately 41%**, formal **1/50 (2%)**, unchanged.
