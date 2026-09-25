@@ -1,7 +1,64 @@
 # Alpha V11 work checkpoint
 
-Updated 2026-09-25, after recovery of the completed preparation full regression. Resume here. **NOT_READY_TO_FUND**.
+Updated 2026-09-25, after target-specific learning capture integration. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
+
+## Latest implementation — conditioned and paired observation learning capture
+
+Recovered reporting HEAD **13070495008a312200d57ac00e032f04752b7e8f**, tree
+**d7315789a3b9eab3b182168e40d9822e0d58d872**, with publication/fetch/alignment
+complete and no unfinished work. The master hash remains unchanged. This work
+adds `v11/target_learning.py` and joins it to the existing temperature and PWS
+candidate paths before economic filtering. All exact payout buckets retain the
+accepted observation revision, remaining-day intervals, original inference cutoff,
+immutable parent contract and reproduced prediction. Paired observation captures
+retain one first-Alpha-receipt target/window/anchor and separately archived ablation
+inputs. A received-report target is not a certified next-publication label.
+
+An integration failure exposed learning records advancing the live FEATURES head.
+The additive LEARNING_FEATURES record kind now keeps research snapshots out of
+operational feature leases and preserves existing head/CAS/admission safeguards;
+no existing records or database schema were rewritten. Both scheduled observation
+and separately protected payout captures reach the candidate while entry economics,
+event suppression, cancellation and common-account gates remain intact.
+
+The read-only dataset path expands physical/remaining models, PWS QC and normalized
+AWC/MADIS/GEFS to original receipt hashes and times. Ambiguous graphs, missing or
+changed references, future/cross-event/label inputs and synthetic-to-public evidence
+substitution gate. Observation labels require an exact retained first-received-report
+score and source binding; paired examples count as one event/city-day. Known labels
+cannot become new by backdated knowability plus later archival. Conditioning and
+prediction time survive dataset assembly. The unconditioned grid learner explicitly
+rejects these new conditioned examples; physical/observation fitting remains open.
+No code creates labels, source truth, calibrated confidence, approvals or orders.
+
+Verification: initial changed integration **63 passed / two failed / 6.99 s**
+exposed the live feature-head issue plus an obsolete not-implemented assertion;
+both were corrected. Expanded run **98 passed / two fixture-call failures / 13.18 s**
+then **154 passed / 26.41 s / exit 0** after correcting test arguments/provenance.
+Final source/label-provenance verification **41 passed / 4.82 s / exit 0**.
+There are **26 new cases** (20 target capture, six derivation checks). A single
+locked file-backed full regression is next because archive/dataset/runtime joins
+changed; the earlier 3701-pass run is not attributed to this implementation.
+
+Fixed estimate **81/200, approximately 41%**, formal **1/50 (2%)**, unchanged:
+R14/R15/R27 already hold their integration credits. Actual source labels, calibration,
+independent acceptance and isolated deployment remain unearned. The six remaining
+milestones/ranges below retain their scope and estimates; target-specific capture
+is now implemented for these supported paths, with broader targets and fitting
+still unfinished. Off-host preflight: 4813762560 / 8589934592 memory bytes,
+eight CPU quota equivalents, 26937540 KiB disk available, zero high/max/OOM events.
+This is not alpha-dev headroom or deployment evidence.
+
+Next: publish this exact implementation and run one recorded full regression,
+then extend the existing bounded offline fit to reproduce same-day conditioning
+for the already supported Gaussian member family, with explicit target-mode
+separation. Keep physical coefficient/observation learners gated until their own
+contracts and checks exist. No owner action is needed. V10 remains unchanged,
+maintenance DEFERRED, all host/resource/control findings preserved. No deployment,
+service action, funding, transfer or real order occurred. **NOT_READY_TO_FUND**.
+Resolve this checkpoint's commit/tree with
+`git log -1 --format='%H %T' -- docs/V11_WORK_CHECKPOINT.md`.
 
 ## Recovered verification — bounded preparation
 

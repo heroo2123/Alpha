@@ -68,11 +68,17 @@ def _references(row):
         raise EvidenceError('SOURCE_DERIVATION_PAYLOAD')
     raw = 'raw_evidence_id' in p or 'raw_evidence_sha256' in p
     fields = 'field_references' in p
+    derived = 'dependencies' in p
+    qc = row['kind'] == 'PWS_OBSERVATION' and row['body']['provider'] == 'ALPHA_PWS_QC'
     version = p.get('version')
+    if sum((raw,fields,derived,qc))>1:
+        raise EvidenceError('SOURCE_DERIVATION_AMBIGUOUS_RELATION')
     # These are archived format contracts, not permissions or source authority.
     if version == 'alpha_v11_gefs_linear_day_v1' and not fields:
         raise EvidenceError('SOURCE_DERIVATION_MISSING')
     if version in {'alpha_v11_gefs_field_v1', 'alpha_v11_archived_gefs_normalization_v1'} and not raw:
+        raise EvidenceError('SOURCE_DERIVATION_MISSING')
+    if version in {'alpha_v11_physical_model_input_v1', 'alpha_v11_gefs_remaining_path_v1'} and not derived:
         raise EvidenceError('SOURCE_DERIVATION_MISSING')
     if fields:
         refs = p['field_references']
@@ -84,6 +90,16 @@ def _references(row):
         if 'raw_evidence_id' not in p or 'raw_evidence_sha256' not in p:
             raise EvidenceError('SOURCE_DERIVATION_RAW_BINDING_REQUIRED')
         refs = [dict(id=p['raw_evidence_id'], sha256=p['raw_evidence_sha256'])]
+    elif derived or qc:
+        refs = p.get('dependencies') if derived else p.get('source_captures')
+        if (row['kind'] not in {'MODEL','FEATURES','PWS_OBSERVATION'}
+                or type(refs) is not list or not (0 if qc else 1) <= len(refs) <= 64
+                or any(type(r) is not dict or set(r) != {'id','sha256'} for r in refs)):
+            raise EvidenceError('SOURCE_DERIVATION_DEPENDENCIES_INVALID')
+    elif version == 'alpha_v11_archived_remaining_coverage_v1':
+        if row['kind'] != 'FEATURES':
+            raise EvidenceError('SOURCE_DERIVATION_COVERAGE_INVALID')
+        refs = [dict(id=p.get('observation_id'), sha256=p.get('observation_sha256'))]
     else:
         return []
     for ref in refs:
@@ -122,7 +138,7 @@ runtime a larger decision/CAS budget. Larger multi-model jobs remain gated.
         if len(seen) >= 1024:
             raise EvidenceError('SOURCE_DERIVATION_RECORD_BOUND')
         seen.add(row['id']); body = row['body']
-        if (row['event_id'] != event_id or row['kind'] not in {'MODEL','OFFICIAL_OBSERVATION','PWS_OBSERVATION','BOOK','TRADE'}
+        if (row['event_id'] != event_id or row['kind'] not in {'MODEL','FEATURES','OFFICIAL_OBSERVATION','PWS_OBSERVATION','BOOK','TRADE','STATION_METADATA','RULES'}
                 or body['available_at'] > cutoff or body['recorded_at'] > cutoff
                 or body.get('evidence_class') not in {'PUBLIC_OBSERVED','SYNTHETIC'}):
             raise EvidenceError('NONCAUSAL_SOURCE_DERIVATION')
@@ -134,9 +150,11 @@ runtime a larger decision/CAS budget. Larger multi-model jobs remain gated.
                                   'received_at','available_at','recorded_at','evidence_class')}, dependencies=refs))
         for ref in refs:
             child = store.get(ref['id'])
-            if (child['sha256'] != ref['sha256'] or child['seq'] >= row['seq'] or child['kind'] != row['kind']
-                    or child['body']['provider'] != body['provider']
+            raw_relation = 'raw_evidence_id' in body['payload'] or 'field_references' in body['payload']
+            if (child['sha256'] != ref['sha256'] or child['seq'] >= row['seq']
+                    or raw_relation and (child['kind'] != row['kind'] or child['body']['provider'] != body['provider'])
                     or child['body']['available_at'] > body['available_at']
+                    or body['evidence_class']=='PUBLIC_OBSERVED' and child['body'].get('evidence_class')!='PUBLIC_OBSERVED'
                     or ('source_identity' in ref and child['body']['source_identity'] != ref['source_identity'])):
                 raise EvidenceError('SOURCE_DERIVATION_BINDING')
             pending.append(child)

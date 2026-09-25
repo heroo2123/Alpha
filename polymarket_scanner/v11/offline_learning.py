@@ -209,6 +209,8 @@ def run_research_fit(*, artifacts: ArtifactStore, journal: ExperimentJournal, pl
             or any(not features[key]['missing_allowed'] for key in cuts)):
         raise EvidenceError('LEARNER_COMPLETE_PARENT_FEATURE_MAPPING_REQUIRED')
     rows={part:[r['example'] for r in values] for part,values in manifest['partitions'].items()}
+    if any(r.get('conditioning') is not None for values in rows.values() for r in values):
+        raise EvidenceError('LEARNER_CONDITIONED_TARGET_UNSUPPORTED')
     if len({r['selection'] for values in rows.values() for r in values})!=1:
         raise EvidenceError('LEARNER_SELECTION_COHORT_MIXED')
     selection_id=run_id+':selection'

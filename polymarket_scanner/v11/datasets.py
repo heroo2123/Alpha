@@ -28,10 +28,16 @@ def validate_target_identity(kind: str, value: dict, *, station: str, decision_a
         for v in value.values():
             identity(v)
     elif kind=='NEXT_OFFICIAL_OBSERVATION':
-        if (set(value)!={'station','population','window_start','window_end'} or value['station']!=station
+        base={'station','population','window_start','window_end'}
+        exact=base|{'clock','unit','source_family','official_anchor_sha256'}
+        if (set(value) not in (base,exact) or value['station']!=station
                 or not decision_at <= finite(value['window_start']) < finite(value['window_end'])):
             raise EvidenceError('EXACT_OBSERVATION_TARGET_REQUIRED')
         identity(value['population'])
+        if set(value)==exact:
+            if value['clock']!='FIRST_ALPHA_RECEIPT' or value['unit'] not in {'C','F'}:
+                raise EvidenceError('OBSERVATION_TARGET_CLOCK_OR_UNIT')
+            identity(value['source_family']);sha(value['official_anchor_sha256'])
     else:
         if set(value)!={'token_id','units','horizon_seconds','measurement_class'}:
             raise EvidenceError('EXACT_EXECUTION_TARGET_REQUIRED')
@@ -91,7 +97,10 @@ class FeatureSchema:
 
 def archive_features(store: EvidenceStore, record_id: str, *, event_id: str, schema: FeatureSchema,
                      values: dict, evidence_ids: tuple[str, ...], source_versions: dict,
-                     context: dict | None = None, source_identity: str | None = None) -> dict:
+                     context: dict | None = None, source_identity: str | None = None,
+                     learning_only: bool = False) -> dict:
+    if type(learning_only) is not bool:
+        raise EvidenceError('FEATURE_RECORD_CLASS_INVALID')
     schema.validate(values)
     if not evidence_ids or len(evidence_ids) > 64 or len(set(evidence_ids)) != len(evidence_ids):
         raise EvidenceError("FEATURE_EVIDENCE_BOUND")
@@ -114,7 +123,9 @@ def archive_features(store: EvidenceStore, record_id: str, *, event_id: str, sch
         if type(context) is not dict or len(canonical(context).encode()) > 16*1024:
             raise EvidenceError('FEATURE_CONTEXT_BOUND')
         payload['context'] = context
-    return store.capture(record_id, event_id=event_id, kind='FEATURES', provider='ALPHA_V11_FEATURES',
+    # Dataset snapshots must not advance the live FEATURES head or satisfy a
+    # source lease. Existing records and live feature semantics are unchanged.
+    return store.capture(record_id, event_id=event_id, kind='LEARNING_FEATURES' if learning_only else 'FEATURES', provider='ALPHA_V11_FEATURES',
                          source_identity=schema.version if source_identity is None else identity(source_identity), revision=record_id, payload=payload,
                          evidence_class='SYNTHETIC' if any(r['body']['evidence_class']=='SYNTHETIC' for r in inputs)
                          else 'PUBLIC_OBSERVED')
@@ -143,13 +154,21 @@ def build_example(store: EvidenceStore, *, decision_id: str, feature_id: str, la
     if target not in TARGETS or selection not in SELECTIONS or prior_exposure not in {'DEVELOPMENT', 'UNINSPECTED'}:
         raise EvidenceError("LEARNING_TARGET_OR_SELECTION_INVALID")
     decision, feature, label = (store.get(i) for i in (decision_id, feature_id, label_id))
-    if decision['kind'] != 'DECISION' or feature['kind'] != 'FEATURES' or label['kind'] != 'LABEL':
+    if decision['kind'] != 'DECISION' or feature['kind'] not in {'FEATURES','LEARNING_FEATURES'} or label['kind'] != 'LABEL':
         raise EvidenceError("EXAMPLE_RECORD_KINDS")
     if not decision['event_id'] == feature['event_id'] == label['event_id']:
         raise EvidenceError("EXAMPLE_EVENT_MISMATCH")
     d, f, lab = decision['body'], feature['body'], label['body']
     target_context=d.get('explanation',{}).get('target_identity')
-    validate_target_identity(target,target_context,station=station,decision_at=d['recorded_at'])
+    conditioning=d.get('explanation',{}).get('conditioning')
+    prediction_at=d['recorded_at']
+    if conditioning is not None:
+        if (type(conditioning) is not dict or conditioning.get('version')!='alpha_v11_learning_conditioning_v1'
+                or f.get('payload',{}).get('context')!=conditioning or conditioning.get('target')!=target
+                or not finite(conditioning.get('inference_cutoff'))<=d['feature_ready_at']<=d['recorded_at']):
+            raise EvidenceError('LEARNING_CONDITIONING_CONTEXT_MISMATCH')
+        prediction_at=conditioning['inference_cutoff']
+    validate_target_identity(target,target_context,station=station,decision_at=prediction_at)
     pinned = {r['id']: r['sha256'] for r in d['evidence']}
     if pinned.get(feature_id) != feature['sha256'] or f['available_at'] > d['feature_ready_at']:
         raise EvidenceError("FEATURE_NOT_PINNED_TO_DECISION")
@@ -174,6 +193,8 @@ def build_example(store: EvidenceStore, *, decision_id: str, feature_id: str, la
         raise EvidenceError("LABEL_AVAILABILITY_INVALID")
     if lab['available_at'] < d['recorded_at']:
         raise EvidenceError("OUTCOME_KNOWN_BEFORE_PREDICTION")
+    if conditioning is not None and finite(lp.get('knowable_at')) <= d['recorded_at']:
+        raise EvidenceError('TARGET_OUTCOME_KNOWN_BEFORE_CAPTURE')
     if lp.get('evidence_type') not in {'EXACT_SOURCE_LABEL', 'OBSERVATION_LABEL', 'DEPTH_COUNTERFACTUAL',
                                         'RECONCILED_LIVE_EXECUTION', 'VIRTUAL_MAKER', 'SYNTHETIC'}:
         raise EvidenceError("LABEL_EVIDENCE_TYPE_INVALID")
@@ -184,6 +205,12 @@ def build_example(store: EvidenceStore, *, decision_id: str, feature_id: str, la
         raise EvidenceError("PROXY_IS_NOT_SETTLEMENT_LABEL")
     if target == 'NEXT_OFFICIAL_OBSERVATION' and lp['evidence_type'] not in {'OBSERVATION_LABEL', 'SYNTHETIC'}:
         raise EvidenceError("NEXT_OBSERVATION_LABEL_REQUIRED")
+    if target == 'NEXT_OFFICIAL_OBSERVATION' and conditioning is not None:
+        if (conditioning.get('observation_target')!=target_context
+                or type(lp.get('value')) is not int or abs(lp['value'])>250
+                or not target_context['window_start'] < finite(lp.get('source_received_at')) <= target_context['window_end']
+                or finite(lp.get('source_received_at'))>lp['knowable_at']):
+            raise EvidenceError('OBSERVATION_LABEL_RECEIPT_WINDOW_OR_VALUE')
     value = lp.get('value')
     finite(value, nonnegative=False)
     if target == 'FINAL_CONTRACT_PAYOUT' and value not in (0, 1):
@@ -210,7 +237,7 @@ def build_example(store: EvidenceStore, *, decision_id: str, feature_id: str, la
                            'issued_at': body['issued_at'], 'published_at': body['published_at'],
                            'received_at': body['received_at'], 'available_at': body['available_at'],
                            'evidence_class': body['evidence_class']})
-        if row['kind'] == 'FEATURES':
+        if row['kind'] in {'FEATURES','LEARNING_FEATURES'} and body['payload'].get('version')!='alpha_v11_archived_remaining_coverage_v1':
             refs = body['payload'].get('dependencies')
             if not isinstance(refs, list) or not 1 <= len(refs) <= 64:
                 raise EvidenceError("FEATURE_DERIVATION_MISSING")
@@ -238,6 +265,9 @@ def build_example(store: EvidenceStore, *, decision_id: str, feature_id: str, la
     derived=source_derivation(store,source_roots,event_id=decision['event_id'],cutoff=d['feature_ready_at'])
     if derived is not None:
         result['source_derivation']=derived
+    if conditioning is not None:
+        result.update(conditioning=conditioning,prediction_at=prediction_at,
+                      prediction_sha256=d['explanation']['prediction_sha256'])
     return CausalExample(canonical(result), digest(result))
 
 
@@ -278,7 +308,7 @@ def build_dataset(examples: tuple[CausalExample, ...], plan: DatasetPlan, *, as_
         decisions.add(p['decision_id'])
         if p['feature_schema_sha256'] != plan.feature_schema_sha256 or p['target'] != plan.target:
             raise EvidenceError("DATASET_SCHEMA_OR_TARGET_MISMATCH")
-        at = finite(p['decision_at'])
+        at = finite(p.get('prediction_at',p['decision_at']))
         if not plan.train_start <= at < plan.confirmation_end or p['label_available_at'] > as_of:
             raise EvidenceError("EXAMPLE_OUTSIDE_AVAILABLE_WINDOW")
         part = 'TRAIN' if at < plan.training_cutoff else 'DEVELOPMENT' if at < plan.development_end else 'CONFIRMATION'
@@ -293,10 +323,10 @@ def build_dataset(examples: tuple[CausalExample, ...], plan: DatasetPlan, *, as_
         partitions[part].append({'sha256': example.sha256, 'example': p})
     counts, slices = {}, {}
     for part, rows in partitions.items():
-        rows.sort(key=lambda r: (r['example']['decision_at'], r['example']['decision_id']))
+        rows.sort(key=lambda r: (r['example'].get('prediction_at',r['example']['decision_at']), r['example']['decision_id']))
         counts[part] = {'examples': len(rows), 'events': len({r['example']['event_id'] for r in rows}),
                         'city_days': len({r['example']['city_day'] for r in rows}),
-                        'decision_range': [rows[0]['example']['decision_at'], rows[-1]['example']['decision_at']] if rows else None}
+                        'decision_range': [r['example'].get('prediction_at',r['example']['decision_at']) for r in (rows[0],rows[-1])] if rows else None}
         for r in rows:
             p=r['example']
             key=canonical([part,p['station'],p['horizon'],p['season'],p['strategy'],p['selection']])

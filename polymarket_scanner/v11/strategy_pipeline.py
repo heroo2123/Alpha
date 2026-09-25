@@ -265,7 +265,15 @@ class TemperatureStrategies:
                 except EvidenceError as exc:
                     learning_capture=dict(status='DATASET_CAPTURE_GATED',capture_id=None,reason=str(exc))
             else:
-                learning_capture=dict(status='CONDITIONED_TARGET_CAPTURE_NOT_IMPLEMENTED',capture_id=None)
+                from .target_learning import capture_conditioned_vector
+                try:
+                    captured=capture_conditioned_vector(self.store,record_id+':learning',context=context,strategy=scope.strategy,
+                        rule=rule,binding=binding,prediction=prediction,pinned_bundle=model.bundle,
+                        model_input_ids=request.model_input_ids,observed_input_id=request.observed_input_id,
+                        coverage_input_id=request.coverage_input_id,expires_at=min(request.expires_at,assessment['valid_until']))
+                    learning_capture=dict(status='CONDITIONED_VECTOR_CAPTURED_LABELS_PENDING',capture_id=captured['id'])
+                except EvidenceError as exc:
+                    learning_capture=dict(status='DATASET_CAPTURE_GATED',capture_id=None,reason=str(exc))
             refs = (*request.model_input_ids, request.observed_input_id, request.coverage_input_id, request.book_id)
             references.extend(key for key in refs if key is not None)
             value_id = record_id+':valuation'

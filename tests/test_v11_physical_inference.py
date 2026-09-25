@@ -274,4 +274,5 @@ def test_physical_pws_pair_reaches_protected_separate_payout_and_shared_economic
     result=TemperatureStrategies(s).evaluate('physical-entry',request)['body']['details']
     assert result['prediction']['target']==FINAL_EXTREME and result['prediction']['observed_constraint'] is not None
     assert result['reason']=='CONSERVATIVE_EV_NOT_ABOVE_THRESHOLD' and result['proposal'] is None
+    assert result['learning_capture']['status']=='CONDITIONED_VECTOR_CAPTURED_LABELS_PENDING'
     assert result['executable_exit_value'] is None and not result['financial_authority']

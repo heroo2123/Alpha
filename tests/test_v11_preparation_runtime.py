@@ -263,6 +263,10 @@ def test_scheduled_models_flow_through_protected_candidate_pws_and_payout_scopes
     assert outcomes[-1]['reason']=='EVENT_STATE_SUPPRESSES_TEMPERATURE_ENTRY'
     assert outcomes[-1]['valuation']['reasons']==['CONSERVATIVE_EV_NOT_ABOVE_THRESHOLD']
     assert outcomes[-1]['proposal'] is None and outcomes[-1]['executable_exit_value'] is None
+    assert outcomes[-1]['learning_capture']['status']=='CONDITIONED_VECTOR_CAPTURED_LABELS_PENDING'
+    observation_captures=[x['body']['details'] for x in records
+        if x['body']['details'].get('version')=='alpha_v11_observation_learning_status_v1']
+    assert observation_captures and observation_captures[-1]['status']=='PAIRED_OBSERVATIONS_CAPTURED_LABELS_PENDING'
     assert candidate.runtime.coordinator.snapshot()['reserved_cash']=='0' and not s.records(kind='TRADE')
 
 

@@ -137,11 +137,15 @@ def test_capture_budget_failure_preserves_partial_evidence_and_economic_result(f
     assert d['learning_capture']==dict(status='DATASET_CAPTURE_GATED',capture_id=None,reason='LEARNING_CAPTURE_FEATURE_BOUND')
 
 
-def test_conditioned_pipeline_does_not_feed_an_unconditioned_learner_contract(factory):
+def test_conditioned_pipeline_retains_separate_target_capture_before_economics(factory):
     r=evaluate(factory,'SAME_DAY_LATE_LOCK');d=r['evaluation']['body']['details']
     assert d['prediction']['observed_constraint'] is not None
-    assert d['learning_capture']['status']=='CONDITIONED_TARGET_CAPTURE_NOT_IMPLEMENTED'
-    assert not r['store'].records(kind='DECISION')
+    assert d['learning_capture']['status']=='CONDITIONED_VECTOR_CAPTURED_LABELS_PENDING'
+    captured=r['store'].get(d['learning_capture']['capture_id'])['body']['details']
+    assert captured['conditioning']['observed_constraint']==d['prediction']['observed_constraint']
+    assert captured['conditioning']['remaining_coverage']==d['prediction']['remaining_coverage']
+    assert captured['fit_status']=='TARGET_SPECIFIC_LEARNER_REQUIRED'
+    assert len(r['store'].records(kind='DECISION'))==3
 
 
 def test_undeclared_parent_schema_gates_capture_without_mutating_original_forecast(factory,bundle):

@@ -95,6 +95,23 @@ def test_view_deadline_prevents_unbounded_reads(tmp_path):
         with pytest.raises(EvidenceError,match='TIME_BOUND'):view.get('model')
 
 
+@pytest.mark.parametrize('fault',['missing','duplicate','hash','label','evidence_class','ambiguous'])
+def test_derived_weather_graph_preserves_original_references_and_evidence_class(tmp_path,fault):
+    store,now,model=small_archive(tmp_path);now[0]=3.
+    child=store.get('raw')
+    if fault=='label':
+        child=store.capture('outcome',event_id='event',kind='LABEL',provider='fixture',source_identity='outcome',revision='1',
+            payload={},evidence_class='SYNTHETIC')
+    ref=dict(id=child['id'],sha256='f'*64 if fault=='hash' else child['sha256'])
+    p=dict(version='alpha_v11_physical_model_input_v1',dependencies=[ref,ref] if fault=='duplicate' else [ref])
+    if fault=='missing':p.pop('dependencies')
+    if fault=='ambiguous':p.update(raw_evidence_id=child['id'],raw_evidence_sha256=child['sha256'])
+    derived=store.capture('derived',event_id='event',kind='MODEL',provider='derived',source_identity='physical',revision='1',
+        payload=p,evidence_class='PUBLIC_OBSERVED' if fault=='evidence_class' else 'SYNTHETIC')
+    with learning_source_view(store) as view:
+        with pytest.raises(EvidenceError):source_derivation(view,[derived],event_id='event',cutoff=now[0])
+
+
 def test_view_has_a_real_decoded_byte_budget(tmp_path):
     store,now,_=small_archive(tmp_path)
     for i in range(10):

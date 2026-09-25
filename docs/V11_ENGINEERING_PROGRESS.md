@@ -181,3 +181,12 @@ Recovered preparation full regression at published tree
 warnings, 221.56 seconds; all 819 inputs reverified unchanged. No duplicate run
 was made. **81/200, approximately 41%**, formal **1/50 (2%)**, unchanged. This
 verification adds no actual-source, independent or operational acceptance credit.
+
+Conditioned payout and paired receipt-window observation capture now reach the
+finite candidate and read-only exact-label dataset path, preserving conditioning,
+original source derivations and separate learning feature records. Related checks
+passed **154 / 26.41 s**, followed by **41 / 4.82 s** after the final provenance
+checks; 26 new cases. R14/R15/R27 already have their named integration credits.
+**81/200, approximately 41%**, formal **1/50 (2%)**, unchanged. Exact real labels,
+calibration, target-specific fitting and operational/independent acceptance stay
+open. The unchanged six active-work ranges exclude external/owner waiting.

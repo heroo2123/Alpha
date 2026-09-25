@@ -9,6 +9,7 @@ from dataclasses import dataclass, replace
 
 from .certification import CapabilityScope
 from .evidence import EvidenceError, ReleaseBinding, digest, identity
+from .event_risk import EventContext
 from .model_registry import ActiveModelRegistry
 from .paper_runtime import Evaluation, VERSION as RUNTIME_VERSION, request_adapter_config, check_request_adapter
 from .position_management import ExitRequest, PositionManager
@@ -112,6 +113,21 @@ class PWSLeadEventAdapter:
             binding=ReleaseBinding(**observation['binding']), policy=request.policy,
             official_id=sources['OFFICIAL'][0], pws_id=sources['PWS'][0], model_ids=sources['MODEL'],
             without_pws_model_ids=request.without_pws_model_ids, bundle=model.bundle, without_pws_bundle=model.bundle)
+        # Capture the paired observation target before payout/economic filtering.
+        # Dataset failure cannot turn observation probabilities into authority or
+        # prevent unrelated economic evaluation and cooperative cancellation.
+        capture_status_id=key+':observation-learning-status'
+        from .learning_capture import _get
+        if _get(self.store,capture_status_id) is None:
+            from .target_learning import capture_observation_pair
+            try:
+                captured=capture_observation_pair(self.store,key+':observation-learning',lead_id=lead['id'],
+                    context=EventContext(**observation['context']),bundle=model.bundle,without_pws_bundle=model.bundle)
+                status=dict(status='PAIRED_OBSERVATIONS_CAPTURED_LABELS_PENDING',capture_id=captured['id'])
+            except EvidenceError as exc:
+                status=dict(status='DATASET_CAPTURE_GATED',capture_id=None,reason=str(exc))
+            self.store.audit(capture_status_id,event_id=claim['event_id'],kind='MEASUREMENT',evidence_ids=(lead['id'],),
+                details=dict(version='alpha_v11_observation_learning_status_v1',**status,financial_authority=False))
         paired = PWSPreconfirmation(self.store).pin(key+':pair', lead_id=lead['id'],
             observation_admission_id=request.observation_admission_id, payout_admission_id=request.entry.admission_id)
         return replace(request.entry, preconfirmation_id=paired['id'])
