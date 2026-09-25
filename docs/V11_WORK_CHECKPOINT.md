@@ -1,7 +1,50 @@
 # Alpha V11 work checkpoint
 
-Updated 2026-09-25, after reviewed drift worker and candidate integration. Resume here. **NOT_READY_TO_FUND**.
+Updated 2026-09-25, after full scoped drift integration regression verification. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
+
+## Latest verification — scoped drift candidate and lifecycle integration
+
+Published implementation **4bbb8bee10cebd1cef0ec942f90233c460e5515b**, tree
+**30ca456a2eb9d4f3e74afd65c0099315d400d3da**, passed the locked full suite:
+**3831 passed, four existing FastAPI deprecation warnings, 245.54 seconds, exit 0**.
+All **827 tracked inputs** were unchanged and rechecked before this report. Wrapper
+elapsed 246.224 s; user 180.206336 s; system 56.734231 s; peak RSS 160344 KiB.
+Session **7667** has completed; no test or publication operation remains active.
+
+The input manifest, exact full output, targeted results and earlier fixture failures
+are now durably recorded in **docs/V11_DRIFT_REGRESSION_EVIDENCE.md**. Original local
+records remain at `/workspace/scratch/38af7099c566/v11-test-evidence/drift-full-20260925-01.json`
+and `.log`; input digest
+`b51ba1288bf1c6cc63ecac3e23b48af7442c2b4176429391d242c48646c3cfdc`.
+Affected verification: 121 passed / 22.01 s for measurement/capture; 156 passed /
+29.77 s for worker/candidate/withdrawal/audits, then two final review/recovery checks /
+0.60 s. The full run includes all 62 new cases and final bound/metric declarations.
+This reporting checkpoint changes no source/test behavior; no unchanged full suite
+needs rerunning just because these documents were updated.
+
+Fixed score **82/200, approximately 41%**, formal **1/50 (2%)**, unchanged. R42 C/J
+already covered lifecycle integration; the wider tested slice earns no duplicate
+unit. Actual meaningful degradation/calibration, approved policies and independent
+labels, isolated guardian/host, account entitlement and unfunded acceptance remain
+open. **NOT_READY_TO_FUND**. V10 was unchanged and maintenance remains DEFERRED.
+No owner-only action blocks the next off-host coding step.
+
+Exact next implementation: finish the scalar calibration-error metric in the existing
+grouped score_vectors output, with an explicit weighting/bin definition and reviewed
+threshold policy that preserves already-saved policy identities. Then connect required
+profitability drift from the existing PerformanceLab/position-attribution records using
+original entry model/scope and a pinned account window. Do not treat realized-only
+drawdown as executable mark-to-market loss, aggregate unmatched markout horizons, infer
+net-EV capture from unrelated P&L, or invent finality/source-residual labels. Missing
+metric evidence stays gated while independent eligible work continues. Existing
+PerformanceLab explicitly reports these missing joins; maker research markouts are
+counterfactuals with distinct horizons and cannot be silently pooled with fills.
+
+The six remaining milestones/active-hour ranges below remain current (no percentage-
+to-hours conversion). External waiting and owner actions are excluded and listed
+separately. Resolve this reporting checkpoint's own commit/tree with
+`git log -1 --format='%H %T' -- docs/V11_WORK_CHECKPOINT.md`; preserve any newer work.
 
 ## Latest implementation — reviewed drift through paper withdrawal and audits
 

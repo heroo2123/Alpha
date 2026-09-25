@@ -239,3 +239,12 @@ terminal reconciliation and audit outcomes. **156 related passes / 29.77 s**, th
 is next. R42 C/J already credited: **82/200, approximately 41%**, formal **1/50 (2%)**,
 unchanged. Remaining metrics, meaningful actual evidence, independent review and host/
 unfunded acceptance remain unearned. The six active-work ranges exclude external waits.
+
+Full scoped drift/candidate/lifecycle regression at **4bbb8bee** passed **3831 tests**,
+four existing warnings, **245.54 s**, with all **827 inputs unchanged**. The complete
+manifest/output and recorded targeted results are saved in
+`docs/V11_DRIFT_REGRESSION_EVIDENCE.md`. This confirms the extended R42 C/J slice;
+no extra credit is earned from tests or work sessions. **82/200, approximately 41%**,
+formal **1/50 (2%)**, unchanged. Remaining metric families and actual/independent/
+host/unfunded acceptance remain open. Six active-work ranges remain appropriate to
+that larger scope and exclude external/owner waiting.
