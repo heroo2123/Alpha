@@ -1,5 +1,18 @@
 # Supplementary engineering estimate
 
+Coherent PAPER health continuation, 2026-09-25: atomic heartbeat/sample publication,
+consistent snapshot reads, health-head fences and READY freshness revalidation
+close the local healthy-publication race while retaining durable cancellation.
+Malformed data/config, extended deadlines and true liveness failures still cancel
+without releasing reservations. Final targeted **184 passed / 30.75 s**, exit 0,
+no skips, all 781 canonical inputs unchanged. Full shared-writer regression:
+**4549 passed / four existing FastAPI warnings / 623.00 s / exit 0**, no skips,
+same canonical source/mirror inputs unchanged. Evidence:
+`docs/V11_HEALTH_PUBLICATION_EVIDENCE.md`. Existing R37/R38 C/J only; no additional
+E/A or full acceptance: **85/200 = 42.5%, approximately 43%; 1/50 (2%)**, unchanged.
+Protected producer transport and operational evidence remain open. NOT_READY_TO_FUND;
+V10 unchanged/DEFERRED.
+
 Actual local custody/restart, 2026-09-25: **20 passed / 9.84 s**, no skips, exit 0,
 778 canonical inputs unchanged. Four real mapped-principal PAPER scenarios verify
 denied state/endpoint/signal access, peer and order-verb refusal, authorized cancel

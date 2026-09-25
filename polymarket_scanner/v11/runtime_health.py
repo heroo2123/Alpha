@@ -4,6 +4,7 @@ Local sync status is read through timedated; unavailable status fails closed.
 Synthetic probes are dependency-injected only in off-host mechanical tests.
 This same-process monitor is not the independently commissioned live guardian.
 """
+from copy import copy
 from dataclasses import asdict, dataclass
 from pathlib import Path
 import re
@@ -79,6 +80,53 @@ class SourceNeed:
 
 def _worker_key(worker):
     return 'v11-worker:'+digest(worker)
+
+
+def read_health_snapshot(store, *, workers=None):
+    """Bounded coherent observation; callers retain exact heads for write CAS.
+
+    Malformed health retains its head and an error, so a guardian can fence a
+    failing observation before publishing cancellation. A missing health row is
+    also fenced. No archive sequence guard is needed for unrelated telemetry.
+    """
+    def names(values):
+        if (type(values) not in (tuple, list) or not 1 <= len(values) <= 8
+                or any(type(v) is not str for v in values) or len(set(values)) != len(values)):
+            raise EvidenceError('RUNTIME_HEALTH_WORKER_SCHEMA')
+        for value in values: identity(value)
+        return tuple(values)
+    selected = names(workers) if workers is not None else ()
+    with store._connect() as db:
+        if not db.in_transaction: db.execute('BEGIN')
+        raw = db.execute('SELECT * FROM v11_records WHERE kind=? AND event_id=? ORDER BY seq DESC LIMIT 1',
+                         ('RUNTIME_STATUS', KEY)).fetchone()
+        row = store._decode(raw) if raw is not None else None
+        error = None
+        if row is not None:
+            d = row['body'].get('details', {})
+            try:
+                configured = names(d['policy']['workers'])
+                declared = d['workers']
+                if (type(declared) is not list or len(declared) != len(configured)
+                        or any(type(w) is not dict for w in declared)
+                        or tuple(w.get('worker') for w in declared) != configured):
+                    raise EvidenceError('RUNTIME_HEALTH_WORKER_SCHEMA')
+                if workers is None: selected = configured
+            except (EvidenceError, KeyError, TypeError):
+                error = 'RUNTIME_HEALTH_WORKER_SCHEMA'
+                if workers is None:
+                    try: selected = names(d['policy']['workers'])
+                    except (EvidenceError, KeyError, TypeError): selected = ()
+        heads = [('RUNTIME_STATUS', KEY, row['seq'] if row else 0)]
+        observed = {}
+        for worker in selected:
+            raw = db.execute('SELECT * FROM v11_records WHERE kind=? AND event_id=? ORDER BY seq DESC LIMIT 1',
+                             ('RUNTIME_STATUS', _worker_key(worker))).fetchone()
+            h = store._decode(raw) if raw is not None else None
+            observed[worker] = h
+            heads.append(('RUNTIME_STATUS', _worker_key(worker), h['seq'] if h else 0))
+        high = db.execute('SELECT MAX(recorded_at) FROM v11_records').fetchone()[0]
+    return dict(row=row, workers=observed, archive_high=high, heads=tuple(heads), error=error)
 
 
 def _source_status(store, need, now):
@@ -171,17 +219,60 @@ class RuntimeHealth:
         request = dict(action='SAMPLE')
         prior = self._replay(key, request)
         if prior: return prior
-        previous = self.store.latest(kind='RUNTIME_STATUS', event_id=KEY)
+        sync = self.sync_probe()
+        return self._sample(key, request=request, sync=sync)
+
+    def _publication_replay(self, key, heartbeat_key, worker, generation):
+        request = dict(action='SAMPLE', heartbeat_key=heartbeat_key, worker=worker, generation=generation)
+        heartbeat = dict(action='HEARTBEAT', worker=worker, generation=generation)
+        with self.store._connect() as db:
+            if not db.in_transaction: db.execute('BEGIN')
+            rows = {r['record_id']: self.store._decode(r) for r in db.execute(
+                'SELECT * FROM v11_records WHERE record_id IN (?,?)', (key, heartbeat_key)).fetchall()}
+        if not rows: return None
+        if set(rows) != {key, heartbeat_key}: raise EvidenceError('RUNTIME_HEALTH_INCOMPLETE_PUBLICATION')
+        for record, expected, event in ((rows[key], request, KEY), (rows[heartbeat_key], heartbeat, _worker_key(worker))):
+            d = record['body'].get('details', {})
+            if (record['kind'] != 'RUNTIME_STATUS' or record['event_id'] != event
+                    or d.get('version') != VERSION or d.get('config_sha256') != self.config or d.get('request') != expected):
+                raise EvidenceError('RUNTIME_HEALTH_REPLAY_CONFLICT')
+        sample, h = rows[key], rows[heartbeat_key]
+        if (sum(w.get('worker') == worker and w.get('record_id') == h['id'] for w in sample['body']['details']['workers']) != 1
+                or dict(id=h['id'], sha256=h['sha256']) not in sample['body']['evidence']):
+            raise EvidenceError('RUNTIME_HEALTH_PUBLICATION_BINDING')
+        return sample
+
+    def publish(self, key, *, heartbeat_key, worker, generation):
+        """Atomically publish one worker heartbeat and its original health sample."""
+        identity(key); identity(heartbeat_key); identity(generation)
+        if key == heartbeat_key: raise EvidenceError('RUNTIME_HEALTH_PUBLICATION_KEYS')
+        if worker not in self.policy.workers: raise EvidenceError('UNCONFIGURED_WORKER')
+        prior = self._publication_replay(key, heartbeat_key, worker, generation)
+        if prior: return prior
+        sync = self.sync_probe()  # No external probe while holding SQLite's writer lock.
+        with self.store.runtime_health_publication() as bound:
+            monitor = copy(self); monitor.store = bound
+            prior = monitor._publication_replay(key, heartbeat_key, worker, generation)
+            if prior: return prior
+            monitor.heartbeat(heartbeat_key, worker=worker, generation=generation)
+            return monitor._sample(key, request=dict(action='SAMPLE', heartbeat_key=heartbeat_key,
+                worker=worker, generation=generation), sync=sync)
+
+    def _sample(self, key, *, request, sync):
+        view = read_health_snapshot(self.store, workers=self.policy.workers)
+        if view['error']: raise EvidenceError(view['error'])
+        previous = view['row']
         old = previous['body']['details'] if previous else None
         if old and old.get('config_sha256') != self.config:
             raise EvidenceError('RUNTIME_HEALTH_CONFIG_CHANGED_REVIEW_REQUIRED')
-        stamp = host_stamp(self.store); sync = self.sync_probe(); failures = []; refs = []; heads = []
+        # Compare the archive observed before this stamp; a concurrent healthy
+        # append must not make an earlier local timestamp look like rollback.
+        stamp = host_stamp(self.store); failures = []; refs = []; heads = []
         if stamp['boot_id'] == 'UNKNOWN': failures.append('LOCAL_BOOT_ID_UNAVAILABLE')
         if (not isinstance(sync, dict) or sync.get('synchronized') is not True
                 or sync.get('mechanism') not in {'LOCAL_SYSTEMD_TIMEDATED','SYNTHETIC_OFF_HOST_FIXTURE'}):
             failures.append('CLOCK_SYNC_UNVERIFIED')
-        with self.store._connect() as db:
-            archive_high = db.execute('SELECT MAX(recorded_at) FROM v11_records').fetchone()[0]
+        archive_high = view['archive_high']
         stable = 0; counted = None; high = max(stamp['wall'], old['wall_high_water'] if old else stamp['wall'], archive_high or 0)
         if stamp['wall'] < high: failures.append('EVIDENCE_CLOCK_HIGH_WATER_AHEAD')
         if old:
@@ -200,7 +291,7 @@ class RuntimeHealth:
         clock_reasons = list(failures)
         worker_status = []
         for worker in self.policy.workers:
-            row = self.store.latest(kind='RUNTIME_STATUS', event_id=_worker_key(worker)); reason = 'WORKER_HEARTBEAT_MISSING'
+            row = view['workers'][worker]; reason = 'WORKER_HEARTBEAT_MISSING'
             heads.append(('RUNTIME_STATUS', _worker_key(worker), row['seq'] if row else 0))
             if row:
                 d = row['body']['details']; s = d.get('stamp', {}); refs.append(row['id'])
@@ -231,9 +322,10 @@ class RuntimeHealth:
 
 def admission_heads(store, *, account_id, event_id, strategies):
     """Once installed, current health is mandatory at every paper opening CAS."""
-    row = store.latest(kind='RUNTIME_STATUS', event_id=KEY)
-    heads = [('RUNTIME_STATUS', KEY, row['seq'] if row else 0)]
+    view = read_health_snapshot(store)
+    row = view['row']; heads = list(view['heads'])
     if row is None: return tuple(heads)  # Standalone offline components; absence is fenced.
+    if view['error']: raise EvidenceError(view['error'])
     d = row['body']['details']; stamp = host_stamp(store)
     if (d.get('version') != VERSION or d.get('account_id') != account_id
             or event_id not in d.get('scopes', {}) or not strategies
@@ -245,12 +337,11 @@ def admission_heads(store, *, account_id, event_id, strategies):
             or abs((stamp['wall']-d['stamp']['wall'])-(stamp['monotonic']-d['stamp']['monotonic'])) > d['policy']['maximum_wall_step_seconds']):
         raise EvidenceError('RUNTIME_CLOCK_OR_LIVENESS_GATED')
     for worker in d['workers']:
-        h = store.latest(kind='RUNTIME_STATUS', event_id=_worker_key(worker['worker']))
+        h = view['workers'][worker['worker']]
         if not h or h['id'] != worker['record_id']: raise EvidenceError('RUNTIME_HEARTBEAT_CHANGED_RESAMPLE')
         s = h['body']['details']['stamp']
         if not 0 <= stamp['monotonic']-s['monotonic'] < d['policy']['heartbeat_age_seconds']:
             raise EvidenceError('RUNTIME_HEARTBEAT_EXPIRED')
-        heads.append(('RUNTIME_STATUS', h['event_id'], h['seq']))
     for source in d['sources']:
         n = SourceNeed(**source['requirement'])
         if n.event_id != event_id or n.strategy not in {'*', *strategies}: continue

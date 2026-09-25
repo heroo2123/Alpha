@@ -186,6 +186,25 @@ class EvidenceStore:
         if db.execute("SELECT COUNT(*) FROM v11_records").fetchone()[0] >= self.limits.max_records:
             raise EvidenceError("ARCHIVE_RECORD_LIMIT")
 
+    def _begin_append(self, db):
+        db.execute("BEGIN IMMEDIATE")
+
+    @contextmanager
+    def runtime_health_publication(self):
+        """One fixed heartbeat/sample pair; no other writes or nested batches.
+
+        Reads and both existing safety appends share the same connection. A
+        failed/incomplete pair rolls back, including when its caller catches an
+        append error. Zero appends permits read-only replay of an original pair.
+        """
+        with self._connect() as db:
+            if db.in_transaction: raise EvidenceError('HEALTH_PUBLICATION_NESTED_TRANSACTION')
+            db.execute('BEGIN IMMEDIATE')
+            bound = _RuntimeHealthPublicationStore(self, db)
+            yield bound
+            if bound.failed or len(bound.written) not in (0, 2):
+                raise EvidenceError('HEALTH_PUBLICATION_INCOMPLETE')
+
     def _append(self, record_id: str, kind: str, event_id: str, body: dict,
                 available_at: float, recorded_at: float,
                 expected_previous_seq: int | None = None,
@@ -199,7 +218,7 @@ class EvidenceStore:
                     recorded_at=recorded_at, available_at=available_at)
         encoded = canonical(body)
         with self._connect() as db:
-            db.execute("BEGIN IMMEDIATE")
+            self._begin_append(db)
             found = db.execute("SELECT * FROM v11_records WHERE record_id=?", (record_id,)).fetchone()
             if found:
                 if found["body"] != encoded or found["kind"] != kind or found["event_id"] != event_id:
@@ -666,3 +685,65 @@ class EvidenceStore:
                              "state": state, "reason": identity(reason),
                              "elapsed_ms": finite(elapsed_ms), "capture_ids": capture_ids,
                              "attempts": attempts, "retry_not_before": retry_not_before}, at, at)
+
+
+class _RuntimeHealthPublicationStore(EvidenceStore):
+    """Private borrowed connection with exactly two nonfinancial write shapes."""
+    def __init__(self, parent, db):
+        self.path, self.namespace, self.limits, self.clock = parent.path, parent.namespace, parent.limits, parent.clock
+        self.parent, self.db = parent, db
+        self.written, self.pending_bytes, self.failed = [], 0, False
+
+    @contextmanager
+    def _connect(self):
+        yield self.db  # The outer context alone commits or rolls back.
+
+    def _begin_append(self, db):
+        if db is not self.db or not db.in_transaction:
+            raise EvidenceError('HEALTH_PUBLICATION_TRANSACTION_REQUIRED')
+
+    def _budget(self, db, encoded_bytes):
+        self.parent._budget(db, encoded_bytes)
+        # SQLite need not flush the first insert before the second budget check.
+        size = sum(p.stat().st_size for p in (self.path, Path(str(self.path)+'-wal')) if p.exists())
+        total = self.pending_bytes+encoded_bytes
+        if size+total+32768 > self.limits.max_database_bytes:
+            raise EvidenceError('ARCHIVE_BYTES_LIMIT')
+        if shutil.disk_usage(self.path.parent).free < self.limits.minimum_free_bytes+total+32768:
+            raise EvidenceError('ARCHIVE_DISK_HEADROOM')
+
+    def _append(self, record_id, kind, event_id, body, *args, **kwargs):
+        complete = False
+        try:
+            d = body.get('details', {}); request = d.get('request', {})
+            if (self.failed or len(self.written) >= 2 or kind != 'RUNTIME_STATUS'
+                    or kwargs.get('safety_only') is not True
+                    or d.get('version') != 'alpha_v11_runtime_health_v1'
+                    or d.get('financial_authority') is not False):
+                raise EvidenceError('HEALTH_PUBLICATION_WRITE_REFUSED')
+            if not self.written:
+                if (set(d) != {'version','config_sha256','request','stamp','worker','generation','financial_authority'}
+                        or request != dict(action='HEARTBEAT',worker=d['worker'],generation=d['generation'])
+                        or event_id != 'v11-worker:'+digest(identity(d['worker']))):
+                    raise EvidenceError('HEALTH_PUBLICATION_HEARTBEAT_REQUIRED')
+                sha(d['config_sha256']); identity(d['generation'])
+            else:
+                h = self.written[0]; first = h['body']['details']
+                keys = {'version','config_sha256','request','account_id','policy','scopes','stamp','sync',
+                        'wall_high_water','stable_samples','last_stable_monotonic','clock_reasons','global_reasons',
+                        'workers','sources','valid_until','monotonic_valid_until','financial_authority',
+                        'independent_guardian_commissioned'}
+                if (set(d) != keys or event_id != 'v11-runtime-health'
+                        or d['config_sha256'] != first['config_sha256']
+                        or d['independent_guardian_commissioned'] is not False
+                        or request != dict(action='SAMPLE',heartbeat_key=h['id'],worker=first['worker'],generation=first['generation'])
+                        or sum(w.get('worker') == first['worker'] and w.get('record_id') == h['id'] for w in d['workers']) != 1
+                        or dict(id=h['id'],sha256=h['sha256']) not in body.get('evidence', [])):
+                    raise EvidenceError('HEALTH_PUBLICATION_SAMPLE_BINDING')
+            row = super()._append(record_id, kind, event_id, body, *args, **kwargs)
+            self.written.append(row)
+            self.pending_bytes += len(canonical(row['body']).encode())
+            complete = True
+            return row
+        finally:
+            if not complete: self.failed = True

@@ -1,5 +1,48 @@
 # Alpha V11 work checkpoint
 
+## Latest verified checkpoint - coherent PAPER health publication, 2026-09-25
+
+Continued after published **4fae0b89b3fef191a7e5f5a201ac7861e88a9c7f**, tree
+**33c0afa5df02b75b19f0354eef894d7fde275696**, preserving the verified custody/
+restart milestone. Candidate heartbeat/sample publication is now atomic; guardian
+and admission readers observe consistent health snapshots. Exact health/worker
+heads fence new cancellation triggers and READY decisions. At most two decision
+attempts avoid stale-publication cancellation; repeated contention stays GATED.
+Pending cancellation remains durable across healthy recovery and restart.
+READY rechecks policy-bounded freshness and process identity after the write lock.
+Malformed health/config/source data and altered deadlines still request cancellation,
+without changing reservations or account economics.
+
+Final targeted **184 passed / 30.75 s / exit 0**, session **35878**, no skips; all
+**781 canonical source/mirror inputs unchanged**. The **173 / 30.70 s** preliminary
+run predates final malformed-data hardening. Full regression **4549 passed / four
+existing FastAPI deprecation warnings / 623.00 s / exit 0**, session **81263**, no
+skips, with the same 781 canonical source/mirror inputs unchanged. This full run
+is justified by the changed common evidence append and transaction-time admission
+path. Evidence and scope: `docs/V11_HEALTH_PUBLICATION_EVIDENCE.md`. Resolve this
+checkpoint's publishing identity with
+`git log -1 --format='%H %T' -- docs/V11_WORK_CHECKPOINT.md`.
+
+**85/200 = 42.5%, approximately 43%; fully completed requirements 1/50 (2%)**,
+unchanged. This strengthens existing R37/R38 C/J, not complete operational E/A.
+**NOT_READY_TO_FUND. V10 unchanged/maintenance DEFERRED.** Private inputs, raw
+evidence, databases, secrets and wallet material remain excluded. No alpha-dev
+access, deployment, service change, financial authority or real order.
+
+**Exact next unfinished action:** add a bounded authenticated candidate-liveness
+producer endpoint into the broker-owned PAPER archive, with exact trusted health
+configuration/digest and pinned candidate process/generation. The broker derives
+timestamps, sync/source/account health and the atomic pair; the producer supplies
+no health/READY/time/account state. Keep guardian SNAPSHOT/CHECK/CANCEL unchanged.
+Prove distinct-principal custody, unauthorized-field/peer refusal, immutable replay,
+interrupted-pulse non-renewal, worker-death cancellation and capacity reserved for
+cancellation during producer stalls/flooding. No owner-only action blocks this
+local work. Full candidate/source custody and operational commissioning remain
+separate later gates. The six readiness milestones below remain current; LOW
+confidence active-work ranges exclude all external waiting and owner actions.
+
+## Previous published checkpoint
+
 ## Latest verified checkpoint - actual local custody/restart, 2026-09-25
 
 Fetched/recovered **7b5db86f7d0d66a26318478581819005862bb10a**, tree
@@ -2229,7 +2272,7 @@ still require separate budget and live approval. No arbitrary paper wait applies
 | Sources, weather and labels | Finish remaining provider/target adapters, physical/lead fitting, exact labels and calibration/fallback. Finish when actual evidence proves causal identity, coverage, lead/ablation and required out-of-sample quality. R06–R13, R25–R28, R31. | 45–90 | LOW | Authorized provider access, exact history/labels and independent semantic/calibration review. |
 | Full replay and controlled learning | Finish original preparation/control and other-strategy/PWS-label replay, remaining learning targets, isolated learner scheduling, matched EV/residual/drift evidence and initial-champion governance. Finish with deterministic effects/artifact/rollback/failure evidence and accepted real-data learning results. R02–R05, R14–R17, R40–R42, R47. | 30–60 | LOW | Exact labels, isolated learner environment, independent champion/governance review. |
 | Strategy, portfolio and execution | Finish remaining relative/structural/exit/redemption, correlation, cost and maker/reward integration. Finish when required common-account scenario, reservation, reconciliation and failure cases pass. R18–R24, R29–R30, R32–R36. | 35–70 | LOW | Reviewed mappings/parameters and actual source/execution evidence; funded learning remains separately authorized. |
-| Independent safety, identity and host | Local trusted-process guardian core/integration verified; finish separate-principal cancel broker/custody, coherent health publication, protected auth/routing and isolated deployment/recovery. Finish with verified custody, permissions, resource limits and authenticated safety/recovery behavior. R37–R39, R43–R44. | 30–60 | LOW | Owner entitlement/access and approved isolated host/deployment; alpha-dev resource/isolation unpassed. V10 maintenance stays deferred. |
+| Independent safety, identity and host | Local guardian/broker separate-principal custody and coherent health integration verified; finish authenticated producer transport, candidate/source custody, protected real auth/routing and isolated deployment/recovery. Finish with verified custody, permissions, resource limits and authenticated safety/recovery behavior. R37–R39, R43–R44. | 30–60 | LOW | Owner entitlement/access and approved isolated host/deployment; alpha-dev resource/isolation unpassed. V10 maintenance stays deferred. |
 | Independent regression and unfunded acceptance | Complete remaining full integration/fault/security and permitted unfunded checks; resolve findings. Finish with reproducible exact-tree results and independent acceptance against the original matrix. R45, R48. | 25–50 | LOW | Independent reviewers and permitted existing-account access; no account creation or financial activation implied. |
 | Operating comparison and release | Verify isolated paper/shadow operations, empirical V10/V11 comparison, release/rollback identities and all unfunded readiness gates. Document the stale forward-control gap. Finish with every READY_TO_FUND requirement evidenced. R00, R46, R49. | 15–30 | LOW | Separate deployment approval, actual source/clock/host evidence and independent acceptance; external collection time is unestimated. |
 

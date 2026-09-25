@@ -188,8 +188,11 @@ class PaperRuntime:
             state.update(boot_id=stamp['boot_id'], next_census_monotonic=0., visited=[], census_retry={})
         save(outcome='IN_PROGRESS', request=request)
         if self.worker_id is not None:
-            self.health.heartbeat(prefix+':heartbeat', worker=self.worker_id, generation=self.generation)
-        health = self.health.sample(prefix+':health'); hd = health['body']['details']
+            health = self.health.publish(prefix+':health', heartbeat_key=prefix+':heartbeat',
+                worker=self.worker_id, generation=self.generation)
+        else:
+            health = self.health.sample(prefix+':health')
+        hd = health['body']['details']
         if state.get('generation') != self.generation and not hd['clock_reasons']:
             if self.coordinator._head() is not None:
                 self.coordinator.recover(prefix+':recover')

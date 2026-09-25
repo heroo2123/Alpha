@@ -141,6 +141,10 @@ def check_transaction(store, db, kind, event_id, body, heads):
     receipt reconciliation deliberately do not take this lease dependency.
     """
     d = body.get('details', {}); request = d.get('request', {})
+    if kind=='RUNTIME_STATUS' and d.get('version')==VERSION and d.get('status')=='READY':
+        from .paper_guardian import check_ready_transaction
+        check_ready_transaction(store,db,d,heads)
+        return
     opening = (kind == 'COORDINATOR_EVENT' and event_id == 'v11-paper-account-state'
                and (request.get('action') == 'COORDINATE'
                     or request.get('action') == 'TRANSITION' and request.get('status') == 'SUBMITTING'))

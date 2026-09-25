@@ -1,10 +1,18 @@
 # V11 clock, liveness and cancellation integration
 
+Coherent local publication now uses one bounded heartbeat/sample transaction,
+consistent health snapshots and exact head CAS before guardian triggers/READY.
+READY also refreshes time/process checks after acquiring the write lock; malformed
+health requests cancellation without changing account economics. Final targeted
+**184 passed / 30.75 s**; full **4549 passed / four existing warnings / 623.00 s**,
+exit 0 with the same canonical inputs. See `V11_HEALTH_PUBLICATION_EVIDENCE.md` for evidence,
+race/restart semantics and the remaining protected producer boundary.
+
 Latest local custody gate: actual distinct capability-free broker/guardian/candidate
 principals and three abrupt broker restart boundaries passed **20 checks / 9.84 s**,
 no skips, on 2026-09-25. uidmap is installed; no further owner setup is currently
-needed. See `V11_GUARDIAN_CUSTODY_EVIDENCE.md` for precise scope. Coherent health
-publication, protected producer transport and operational commissioning remain open.
+needed. See `V11_GUARDIAN_CUSTODY_EVIDENCE.md` for precise scope. Protected producer
+transport and operational commissioning remain open.
 
 ## PAPER Unix-socket broker continuation
 
@@ -57,7 +65,7 @@ setup privilege, a private tmpfs and distinct capability-free roles; no host-roo
 launcher, permanent accounts or host permission changes are requested. Missing
 prerequisites are an explicit unavailable/skip, never successful isolation evidence.
 See `V11_GUARDIAN_BROKER_EVIDENCE.md` for exact verified scope and remaining gates.
-Shared storage contention, coherent healthy publication, supported real cancel
+Shared storage contention, protected producer integration, supported real cancel
 authentication, deployment and independent operational acceptance remain open.
 
 Implemented off-host; no service deployment or financial authority. The original
@@ -119,21 +127,24 @@ existing exact cancel-only account transition. Reducing nonmaker SELL intents ar
 preserved. Cash, fills, inventory, faults and reservations remain unchanged until
 the existing explicit reconciliation route supplies its own proof.
 
-Current polling is intentionally strict: a heartbeat arriving between the worker's
-sample and guardian poll invalidates the pinned sample and can durably request
-cancellation. A later healthy sample cannot revoke that request. This behavior is
-covered mechanically, not accepted as profitable continuous operation. Coherent
-cross-process health publication and forward cancellation/churn measurement remain
-required before an operating acceptance claim.
+Legacy unpaired heartbeat polling remains intentionally strict: a heartbeat after
+the sampled worker head can durably request cancellation. The candidate runtime's
+paired publication avoids that intermediate state. A publication changing during
+guardian decisions causes at most one retry; repeated contention stays GATED.
+A later healthy sample never revokes an already durable trigger. Coherent local
+cross-process mechanics are verified; forward cancellation/churn measurements are
+still required before an operating acceptance claim.
 
 SQLite writer contention, archive limits and shared storage remain common failure
 domains. The guardian cannot bypass them or claim a real/exchange cancellation.
 Failure prevents renewal; process death or lease expiry blocks further admission.
 There is no same-UID hostile-process security guarantee, kernel network restriction,
-supported authenticated cancel route, service deployment, separate-custody proof or
-independent commissioning. Exact local checks: `V11_GUARDIAN_ISOLATION_EVIDENCE.md`.
+supported real authenticated cancel route, service deployment or independent
+commissioning in this original shared-store mode. The distinct-principal broker
+custody proof is documented separately above. Original local process checks:
+`V11_GUARDIAN_ISOLATION_EVIDENCE.md`.
 
-### Original custody plan (protocol implemented above; actual custody pending)
+### Original custody plan (now verified locally; operational commissioning open)
 
 Implement a PAPER-only cancel broker and typed AF_UNIX client with kernel
 `SO_PEERCRED`. The broker owns private synthetic account/journal state; the guardian

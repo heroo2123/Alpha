@@ -19,13 +19,14 @@ import sys
 import time
 import uuid
 
-from .evidence import EvidenceError, EvidenceStore, Limits, canonical, digest
+from .evidence import EvidenceError, EvidenceStore, Limits, canonical, digest, finite, identity
 from .event_risk import EventRiskEngine
 from .guardian_lease import (VERSION, GuardianPolicy, config_digest, journal_key,
                              process_identity, validate_details)
 from .paper_cancellation import CancellationPolicy, PaperCancellation, managed_opening
 from .paper_coordinator import PaperAccountPolicy, PaperCoordinator, UNRESOLVED, cancel_identity
-from .runtime_health import KEY as HEALTH_KEY, VERSION as HEALTH_VERSION, admission_heads, host_stamp, _worker_key
+from .runtime_health import (KEY as HEALTH_KEY, VERSION as HEALTH_VERSION, HealthPolicy, admission_heads, host_stamp,
+                             read_health_snapshot, _worker_key)
 from .scenario_risk import CorrelationMap, StationMembership, ScenarioLimits
 
 
@@ -34,6 +35,85 @@ MAX_CONFIG_BYTES = 32768
 
 class GuardianDeadline(BaseException):
     """Terminal alarm; deliberately not caught by per-intent failure handlers."""
+
+
+class GuardianObservationChanged(EvidenceError):
+    """The decision's health snapshot changed before publication; no cancel trigger."""
+
+
+def validate_health_observation(store,observed,*,worker,health_config,account_id):
+    try:
+        _validate_health_observation(store,observed,worker=worker,health_config=health_config,account_id=account_id)
+    except (KeyError,TypeError,ValueError,IndexError,OverflowError):
+        raise EvidenceError('GUARDIAN_HEALTH_MALFORMED') from None
+
+
+def _validate_health_observation(store,observed,*,worker,health_config,account_id):
+    if observed.get('error'):raise EvidenceError(observed['error'])
+    if process_identity(worker['pid'])!=worker:raise EvidenceError('GUARDIAN_WORKER_IDENTITY_CHANGED')
+    row=observed['row']
+    if row is None:raise EvidenceError('GUARDIAN_HEALTH_MISSING')
+    d=row['body']['details'];now=host_stamp(store);stamp=d.get('stamp',{})
+    if (d.get('version')!=HEALTH_VERSION or d.get('config_sha256')!=health_config or d.get('account_id')!=account_id):
+        raise EvidenceError('GUARDIAN_HEALTH_IDENTITY_CHANGED')
+    policy=HealthPolicy(**dict(d['policy'],workers=tuple(d['policy']['workers'])))
+    if (type(d['sources']) is not list or not 1<=len(d['sources'])<=32
+            or digest(dict(policy=d['policy'],account_id=d['account_id'],scopes=d['scopes'],
+                           sources=[s['requirement'] for s in d['sources']]))!=health_config):
+        raise EvidenceError('GUARDIAN_HEALTH_CONFIG_MISMATCH')
+    if (type(d['global_reasons']) is not list or any(type(r) is not str for r in d['global_reasons'])
+            or type(d['workers']) is not list or tuple(w['worker'] for w in d['workers'])!=policy.workers
+            or d.get('financial_authority') is not False or d.get('independent_guardian_commissioned') is not False):
+        raise EvidenceError('GUARDIAN_HEALTH_MALFORMED')
+    for value in (stamp['wall'],stamp['monotonic'],d['valid_until'],d['monotonic_valid_until']):finite(value)
+    high=observed['archive_high']
+    if high is not None and now['wall']<high:raise EvidenceError('GUARDIAN_ARCHIVE_CLOCK_AHEAD')
+    if (d['global_reasons'] or now['boot_id']!=stamp['boot_id']
+            or not stamp['wall']<=now['wall']<d['valid_until']
+            or not stamp['monotonic']<=now['monotonic']<d['monotonic_valid_until']
+            or not 0<=now['wall']-stamp['wall']<policy.maximum_sample_age_seconds
+            or not 0<=now['monotonic']-stamp['monotonic']<policy.maximum_sample_age_seconds
+            or abs((now['wall']-stamp['wall'])-(now['monotonic']-stamp['monotonic']))>d['policy']['maximum_wall_step_seconds']):
+        raise EvidenceError('GUARDIAN_CLOCK_OR_HEALTH_GATED')
+    for entry in d['workers']:
+        heartbeat=observed['workers'][entry['worker']]
+        if heartbeat is None or heartbeat['id']!=entry['record_id']:raise EvidenceError('GUARDIAN_HEARTBEAT_CHANGED')
+        h=heartbeat['body']['details']
+        if (h.get('version')!=HEALTH_VERSION or h.get('worker')!=entry['worker']
+                or h.get('financial_authority') is not False
+                or h.get('request')!=dict(action='HEARTBEAT',worker=entry['worker'],generation=identity(h['generation']))):
+            raise EvidenceError('GUARDIAN_HEARTBEAT_MALFORMED')
+        finite(h['stamp']['wall']);finite(h['stamp']['monotonic'])
+        if (h.get('config_sha256')!=health_config or h['stamp']['boot_id']!=now['boot_id']
+                or not 0<=now['wall']-h['stamp']['wall']<d['policy']['heartbeat_age_seconds']
+                or not 0<=now['monotonic']-h['stamp']['monotonic']<d['policy']['heartbeat_age_seconds']):
+            raise EvidenceError('GUARDIAN_WORKER_HEARTBEAT_EXPIRED')
+
+
+def check_ready_transaction(store,db,details,heads):
+    """Refresh the pinned observation's time/process checks after the write lock.
+
+    This applies only to a READY decision carrying an observed health head. Raw
+    safety cancellation, pending recovery and explicit fixture leases are untouched.
+    """
+    pins={(kind,event):seq for kind,event,seq in heads}
+    if ('RUNTIME_STATUS',HEALTH_KEY) not in pins:return
+    def pinned(event):
+        seq=pins.get(('RUNTIME_STATUS',event),0)
+        return store._decode(db.execute('SELECT * FROM v11_records WHERE seq=?',(seq,)).fetchone()) if seq else None
+    try:
+        row=pinned(HEALTH_KEY)
+        entries=row['body']['details']['workers'] if row else []
+        if type(entries) is not list or not 1<=len(entries)<=8:raise EvidenceError('GUARDIAN_WORKER_SCHEMA')
+        observed=dict(row=row,workers={w['worker']:pinned(_worker_key(w['worker'])) for w in entries},
+            archive_high=db.execute('SELECT MAX(recorded_at) FROM v11_records').fetchone()[0])
+        validate_health_observation(store,observed,worker=details['worker'],health_config=details['health_config'],
+            account_id=details['account_id'])
+        for key in ('process','broker_process'):
+            if key in details and process_identity(details[key]['pid'])!=details[key]:
+                raise EvidenceError('GUARDIAN_PROCESS_CHANGED_BEFORE_READY')
+    except (EvidenceError,KeyError,TypeError,ValueError,IndexError,OverflowError):
+        raise GuardianObservationChanged('GUARDIAN_HEALTH_EXPIRED_BEFORE_READY') from None
 
 
 def _deadline(*_):
@@ -127,7 +207,8 @@ class PaperGuardian:
                 raise EvidenceError('GUARDIAN_CONFIG_CHANGED_REVIEW_REQUIRED')
         return row
 
-    def _save(self, head, *, status, reasons, cursor, intents=None, snapshot=None, pending_trigger=None, record_id=None):
+    def _save(self, head, *, status, reasons, cursor, intents=None, snapshot=None, pending_trigger=None, record_id=None,
+              observed_heads=None):
         details = dict(version=VERSION, config_sha256=self.config, account_id=self.coordinator.policy.account_id,
             account_policy_sha256=self.coordinator.policy_sha, health_config=self.health_config, policy=asdict(self.policy),
             worker=self.worker, process=self.process, stamp=host_stamp(self.store), generation=self.generation,
@@ -138,39 +219,34 @@ class PaperGuardian:
         if hasattr(self, 'broker_process'):
             details['broker_process'] = self.broker_process
         validate_details(self.key, details)
-        return self.store.safety_audit(record_id or 'guardian:'+uuid.uuid4().hex, event_id=self.key, kind='RUNTIME_STATUS', details=details,
-            evidence_ids=(snapshot['id'],) if snapshot else (), expected_previous_seq=head['seq'] if head else 0)
+        try:
+            return self.store.safety_audit(record_id or 'guardian:'+uuid.uuid4().hex, event_id=self.key, kind='RUNTIME_STATUS', details=details,
+                evidence_ids=(snapshot['id'],) if snapshot else (), expected_previous_seq=head['seq'] if head else 0,
+                expected_heads=observed_heads or ())
+        except EvidenceError as exc:
+            if observed_heads is not None and str(exc)=='AUDIT_GUARDED_STATE_CHANGED':
+                raise GuardianObservationChanged('GUARDIAN_HEALTH_PUBLICATION_CHANGED') from None
+            raise
 
     def _health(self):
         """Observe the worker's health; never impersonate its heartbeat/sample writer."""
-        if process_identity(self.worker['pid']) != self.worker:
-            raise EvidenceError('GUARDIAN_WORKER_IDENTITY_CHANGED')
-        row = self.store.latest(kind='RUNTIME_STATUS', event_id=HEALTH_KEY)
-        if row is None: raise EvidenceError('GUARDIAN_HEALTH_MISSING')
-        d = row['body']['details']; now = host_stamp(self.store); s = d.get('stamp', {})
-        if (d.get('version') != HEALTH_VERSION or d.get('config_sha256') != self.health_config
-                or d.get('account_id') != self.coordinator.policy.account_id):
-            raise EvidenceError('GUARDIAN_HEALTH_IDENTITY_CHANGED')
-        with self.store._connect() as db:
-            high = db.execute('SELECT MAX(recorded_at) FROM v11_records').fetchone()[0]
-        if high is not None and now['wall'] < high:
-            raise EvidenceError('GUARDIAN_ARCHIVE_CLOCK_AHEAD')
-        if (d['global_reasons'] or now['boot_id'] != s['boot_id']
-                or not s['wall'] <= now['wall'] < d['valid_until']
-                or not s['monotonic'] <= now['monotonic'] < d['monotonic_valid_until']
-                or abs((now['wall']-s['wall'])-(now['monotonic']-s['monotonic'])) > d['policy']['maximum_wall_step_seconds']):
-            raise EvidenceError('GUARDIAN_CLOCK_OR_HEALTH_GATED')
-        for worker in d['workers']:
-            heartbeat = self.store.latest(kind='RUNTIME_STATUS', event_id=_worker_key(worker['worker']))
-            if heartbeat is None or heartbeat['id'] != worker['record_id']:
-                raise EvidenceError('GUARDIAN_HEARTBEAT_CHANGED')
-            h = heartbeat['body']['details']
-            if (h.get('config_sha256') != self.health_config or h['stamp']['boot_id'] != now['boot_id']
-                    or not 0 <= now['wall']-h['stamp']['wall'] < d['policy']['heartbeat_age_seconds']
-                    or not 0 <= now['monotonic']-h['stamp']['monotonic'] < d['policy']['heartbeat_age_seconds']):
-                raise EvidenceError('GUARDIAN_WORKER_HEARTBEAT_EXPIRED')
+        observed=read_health_snapshot(self.store)
+        self._observed_health_heads=observed['heads']
+        validate_health_observation(self.store,observed,worker=self.worker,health_config=self.health_config,
+            account_id=self.coordinator.policy.account_id)
 
     def _cycle(self):
+        # A changing publication is a reason to reread, not a cancellation cause.
+        # Exactly two bounded attempts; neither can publish a stale trigger/READY.
+        for _ in range(2):
+            try:return self._cycle_attempt()
+            except GuardianObservationChanged:pass
+        head=self._head();d=head['body']['details']
+        return self._save(head,status='GATED',reasons=['GUARDIAN_HEALTH_PUBLICATION_CHANGED'],cursor=d['cursor'],
+            intents=d['cancel_intents'],pending_trigger=d['pending_trigger'],
+            snapshot=self.store.get(d['account_snapshot_id']) if d['pending_trigger'] else None)
+
+    def _cycle_attempt(self):
         previous = self._head(); cursor = previous['body']['details']['cursor'] if previous else ''
         saved = previous['body']['details'] if previous else {}
         # Withdraw the preceding lease before any work which could block or fail.
@@ -180,6 +256,7 @@ class PaperGuardian:
         if saved.get('pending_trigger'):
             return self._resume(head)  # A recovered health sample cannot revoke durable cancellation.
         failures = []
+        self._observed_health_heads=()
         try: self._health()
         except EvidenceError as exc: failures.append(str(exc))
         snapshot = self.coordinator._head(); account = self.coordinator._state(snapshot)
@@ -198,7 +275,7 @@ class PaperGuardian:
                     bad = not check['body']['details']['passed']
                     event = EventRiskEngine(self.store).revalidate(intent['event_state_id'])
                     bad = bad or event['cancellation_status'] == 'REQUESTED_NOT_CONFIRMED'
-                except EvidenceError:
+                except (EvidenceError,KeyError,TypeError,ValueError,IndexError,OverflowError):
                     bad = True
             if bad: targets[pid] = cancel_identity(intent)
         if targets:
@@ -207,11 +284,13 @@ class PaperGuardian:
             snapshot = self.coordinator._head()
             key = 'guardian:'+uuid.uuid4().hex
             head = self._save(head, status='GATED', reasons=failures or ['GUARDIAN_RESTING_ADMISSION_GATED'],
-                              cursor=cursor, intents=targets, snapshot=snapshot, pending_trigger=key, record_id=key)
+                              cursor=cursor, intents=targets, snapshot=snapshot, pending_trigger=key, record_id=key,
+                              observed_heads=self._observed_health_heads)
             return self._resume(head)
         # A failed/incomplete delivery never grants a success lease. Retained
         # requests and reservations are observed afresh on restart, without fills.
-        return self._save(head, status='GATED' if failures else 'READY', reasons=failures, cursor=cursor)
+        return self._save(head, status='GATED' if failures else 'READY', reasons=failures, cursor=cursor,
+                          observed_heads=self._observed_health_heads)
 
     def _resume(self, head):
         saved = head['body']['details']; trigger = saved['pending_trigger']
