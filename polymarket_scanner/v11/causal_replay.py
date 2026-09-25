@@ -20,7 +20,7 @@ from .strategy_pipeline import EntryRequest, VERSION as STRATEGY_VERSION, temper
 from .valuation import CostComponent, ValuationPolicy, settlement_entry_details
 
 VERSION = 'alpha_v11_causal_economic_replay_v1'
-SUPPORTED = {'FUTURE_FORECAST', 'SAME_DAY_LATE_LOCK'}
+SUPPORTED = {'FUTURE_FORECAST', 'SAME_DAY_LATE_LOCK', 'PWS_OBSERVATION_LEAD'}
 
 
 @dataclass(frozen=True)
@@ -181,6 +181,106 @@ def _account(c, view):
         economic_commands_issued=0, financial_authority=False)
 
 
+def _pws_pair(inputs, *, request, decision, payout_request, payout_assessment, payout_model, payout_bundle):
+    """Original observation pair, never a replacement for payout or admission.
+
+    Inference uses the earlier lead boundary, not the later entry or label time.
+    Only the observation champion has a protected scope; the exact archived
+    without-PWS bundle is a research input and receives no champion authority.
+    """
+    from .pws_admission import VERSION as PAIR_VERSION, _heads
+    from .pws_lead import VERSION as LEAD_VERSION, LeadPolicy, _report, paired_inference
+    from .probability import NEXT_OBSERVATION
+    pin = inputs.get(request.preconfirmation_id); pd = pin['body']['details']
+    if pin['kind'] != 'REGISTRY' or pd.get('version') != PAIR_VERSION:
+        raise EvidenceError('REPLAY_PWS_PRECONFIRMATION_REQUIRED')
+    p, before = pd['request'], pd['assessment']
+    if (p['payout_admission_id'] != request.admission_id
+            or canonical(decision['preconfirmation']) != canonical(dict(before,
+                preconfirmation_id=pin['id'], preconfirmation_sha256=pin['sha256']))
+            or not pin['body']['recorded_at'] <= inputs.at < finite(before['valid_until'])):
+        raise EvidenceError('REPLAY_PWS_ORIGINAL_PAIR_BINDING')
+    lead = inputs.get(p['lead_id']); ld = lead['body']['details']; original = ld['request']
+    observation = inputs.get(p['observation_admission_id']); od = observation['body']['details']
+    if (lead['kind'] != 'MEASUREMENT' or ld.get('version') != LEAD_VERSION
+            or ld['target'] != NEXT_OBSERVATION or ld['valuation_type'] != 'OBSERVATION_ONLY'
+            or observation['kind'] != 'REGISTRY' or od.get('version') != ADMISSION_VERSION
+            or not max(lead['seq'], observation['seq']) < pin['seq']):
+        raise EvidenceError('REPLAY_PWS_ORIGINAL_OBSERVATION_REQUIRED')
+    ar, a = od['request'], od['assessment']; scope = CapabilityScope(**ar['scope'])
+    rule = RuleFingerprint(**original['rule']); policy = LeadPolicy(**original['policy'])
+    cutoff = finite(ld['feature_ready_at'])
+    if (scope.strategy != 'PWS_OBSERVATION_LEAD' or ar['rule'] != original['rule']
+            or ar['rule'] != payout_request['rule'] or ar['binding'] != original['binding']
+            or ar['context'] != payout_request['context'] or ar['stage'] != payout_request['stage']
+            or ar['binding']['bundle_sha256'] != original['bundle_sha256']
+            or a['model_bundle_sha256'] != original['bundle_sha256']
+            or any(ar['scope'][k] != payout_request['scope'][k] for k in
+                ('station','family','source_rule_family','strategy','season','time_of_day'))
+            or any(ar['binding'][k] != payout_request['binding'][k] for k in
+                ('code_commit','code_tree','config_sha256','rule_fingerprint'))
+            or not cutoff <= lead['body']['recorded_at'] <= pin['body']['recorded_at']
+            or not inputs.at < min(finite(a['valid_until']), cutoff+policy.horizon_seconds)
+            or ld['observation_window'] != dict(station=rule.payload['station'], population=rule.payload['observation_population'],
+                window_start=cutoff, window_end=cutoff+policy.horizon_seconds, clock='FIRST_ALPHA_RECEIPT')):
+        raise EvidenceError('REPLAY_PWS_SEPARATE_TARGET_CONTEXT')
+    for admitted in (ar, payout_request):
+        leases = {x['evidence_id']:x for x in admitted['source_leases']}
+        if any(leases.get(original[k], {}).get('role') != role for k, role in
+               (('official_id','OFFICIAL'), ('pws_id','PWS'))):
+            raise EvidenceError('REPLAY_PWS_PAIRED_SOURCE_LEASES')
+    if set(original['model_ids']) != {x['evidence_id'] for x in ar['source_leases'] if x['role']=='MODEL'}:
+        raise EvidenceError('REPLAY_PWS_OBSERVATION_MODEL_LEASES')
+    heads = _heads([*a['heads'], *payout_assessment['heads'], *ld['source_heads']])
+    for kind, event, seq in heads:
+        head = inputs.latest(kind=kind, event_id=event)
+        if (head['seq'] if head else 0) != seq: raise EvidenceError('REPLAY_PWS_ORIGINAL_HEAD_CHANGED')
+    obs_bundle, obs_model = historical_bundle(scope_key=scope.key, mode=payout_model['mode'],
+        epoch=a['model_epoch'], state_sha256=a['model_state_sha256'], bundle_sha256=original['bundle_sha256'],
+        at=observation['body']['recorded_at'], check=inputs.check)
+    if (obs_bundle.payload['bundle']['target'] != NEXT_OBSERVATION
+            or payout_bundle.payload['bundle']['target'] != 'FINAL_CONTRACT_PAYOUT'
+            or obs_model['original_overlay']['size_multiplier'] != a['model_size_multiplier']):
+        raise EvidenceError('REPLAY_PWS_SEPARATE_OBSERVATION_AND_PAYOUT_MODELS')
+    if (before['lead_sha256'] != lead['sha256'] or before['lead_id'] != lead['id']
+            or before['observation_admission_id'] != observation['id'] or before['payout_admission_id'] != request.admission_id
+            or before['context'] != payout_request['context'] or before['rule'] != payout_request['rule']
+            or before['binding'] != payout_request['binding'] or before['observation_prediction_sha256'] != digest(ld['with_pws'])
+            or before['observation_bundle_sha256'] != obs_bundle.sha256 or before['payout_bundle_sha256'] != payout_bundle.sha256
+            or before['model_states'] != [obs_model['state_sha256'], payout_model['state_sha256']]
+            or canonical(before['heads']) != canonical(heads)
+            or before['model_size_multiplier'] != min(a['model_size_multiplier'], payout_assessment['model_size_multiplier'])):
+        raise EvidenceError('REPLAY_PWS_ORIGINAL_MODEL_PAIR_BINDING')
+    inputs.check(); without = model_registry.ApprovedArtifactReader().pin(original['without_pws_bundle_sha256']); inputs.check()
+    if (ld['artifact_refs'] != dict(with_pws=obs_bundle.payload['bundle']['artifacts'],
+                                  without_pws=without.payload['bundle']['artifacts'])):
+        raise EvidenceError('REPLAY_PWS_ORIGINAL_ABLATION_ARTIFACTS')
+    lead_inputs = HistoricalView(inputs._view, through_seq=lead['seq']-1, at=cutoff)
+    for kind, event, seq in ld['source_heads']:
+        head = lead_inputs.latest(kind=kind, event_id=event)
+        if (head['seq'] if head else 0) != seq: raise EvidenceError('REPLAY_PWS_ORIGINAL_LEAD_HEAD_CHANGED')
+    official = lead_inputs.get(original['official_id']); _report(official, rule)
+    if ld['official_anchor_observed_at'] != official['body']['observed_at']:
+        raise EvidenceError('REPLAY_PWS_ORIGINAL_OFFICIAL_ANCHOR')
+    ids = tuple(dict.fromkeys((original['official_id'],original['pws_id'],*original['model_ids'],*original['without_pws_model_ids'])))
+    roots = [lead_inputs.get(k) for k in ids]
+    derivation = source_derivation(lead_inputs, roots, event_id=lead['event_id'], cutoff=cutoff)
+    paired = paired_inference(lead_inputs, rule=rule, policy=policy, official=official, pws_id=original['pws_id'],
+        model_ids=tuple(original['model_ids']), without_pws_model_ids=tuple(original['without_pws_model_ids']),
+        bundle=obs_bundle, without_pws_bundle=without, cutoff=cutoff)
+    comparisons = {k:canonical(paired[k])==canonical(ld[k]) for k in ('with_pws','without_pws','paired_provenance')}
+    inputs.check()
+    return dict(lead_ref=_ref(lead), preconfirmation_ref=_ref(pin), observation_admission_ref=_ref(observation),
+        observation_model=obs_model, payout_bundle_sha256=payout_bundle.sha256,
+        without_pws_bundle_sha256=without.sha256, without_pws_bundle_role='RESEARCH_ABLATION_NOT_CHAMPION_APPROVAL',
+        comparisons=comparisons, feature_ready_at=cutoff, input_boundary_seq=lead['seq']-1,
+        observation_window=ld['observation_window'], input_refs=[_ref(r) for r in roots],
+        source_derivation_sha256=derivation['sha256'] if derivation else None,
+        recomputed_with_pws=paired['with_pws'], recomputed_without_pws=paired['without_pws'],
+        later_official_reports_used=False, label_or_outcome_replayed=False, lead_advantage_verified=False,
+        observation_is_payout_or_exit=False, admission_authority=False, financial_authority=False)
+
+
 def replay_temperature(c, evaluation_id, *, policy, monotonic=time.monotonic, deadline=None):
     if not isinstance(policy, ReplayPolicy) or c.store.namespace != 'V11_PAPER':
         raise EvidenceError('REPLAY_PAPER_POLICY_REQUIRED')
@@ -237,6 +337,8 @@ def replay_temperature(c, evaluation_id, *, policy, monotonic=time.monotonic, de
             if (d['artifact_refs'] != bundle.payload['bundle']['artifacts']
                     or model['original_overlay']['size_multiplier'] != a['model_size_multiplier']):
                 raise EvidenceError('REPLAY_ORIGINAL_ARTIFACT_OR_OVERLAY_BINDING')
+            pws_pair = _pws_pair(inputs, request=request, decision=d, payout_request=ar, payout_assessment=a,
+                payout_model=model, payout_bundle=bundle) if scope.strategy=='PWS_OBSERVATION_LEAD' else None
             components, observed, coverage = temperature_inputs(inputs, rule, request, strategy=scope.strategy,
                 cutoff=cutoff, inference_cutoff=inference_cutoff)
             prediction = predict_with_bundle(bundle, rule, components, as_of=inference_cutoff,
@@ -255,6 +357,8 @@ def replay_temperature(c, evaluation_id, *, policy, monotonic=time.monotonic, de
             comparisons = dict(prediction=canonical(prediction.payload)==canonical(d['prediction']),
                 valuation=canonical(measured)==canonical(value), economic_outcome=measured['outcome']==value['outcome'],
                 economic_reasons=measured['reasons']==value['reasons'])
+            if pws_pair is not None:
+                comparisons.update({'pws_'+key:matched for key,matched in pws_pair['comparisons'].items()})
             account = _account(c, inputs); source.check()
             result.update(status='ECONOMICS_REPRODUCED' if all(comparisons.values()) else 'MISMATCH',
                 reason='SHARED_NUMERIC_ENGINE_HISTORICAL_INPUTS_CONTROL_AUTHORITY_NOT_REPLAYED',
@@ -264,12 +368,13 @@ def replay_temperature(c, evaluation_id, *, policy, monotonic=time.monotonic, de
                 source_derivation_sha256=derivation['sha256'] if derivation else None,
                 recomputed_prediction=prediction.payload, recomputed_valuation=measured,
                 proposal_recreated=False, orders_or_fills_inferred=False)
+            if pws_pair is not None: result['pws_observation'] = pws_pair
             if len(canonical(result).encode()) > 512*1024: raise EvidenceError('REPLAY_OUTPUT_BOUND')
             return result
     except (EvidenceError, KeyError, TypeError, ValueError, InvalidOperation, OSError) as exc:
         result.update(status='GATED', reason=str(exc) if isinstance(exc,EvidenceError) else 'REPLAY_MALFORMED_OR_UNAVAILABLE_EVIDENCE',
             economic_match=False, comparisons={}, account=None)
-        for key in ('recomputed_prediction','recomputed_valuation','model','input_refs'):
+        for key in ('recomputed_prediction','recomputed_valuation','model','input_refs','pws_observation'):
             result.pop(key,None)
         return result
 
@@ -326,6 +431,13 @@ def replay_audit(c, *, selection, through_seq, window, archive_complete, policy,
             row.update(result_sha256=digest(replayed), account_snapshot_ref=(replayed.get('account') or {}).get('snapshot_ref'),
                 account_context_status=(replayed.get('account') or {}).get('status','NOT_RECOMPUTED'),
                 account_comparison_sha256=digest(replayed['account']) if replayed.get('account') else None)
+            if replayed.get('pws_observation') is not None:
+                pair = replayed['pws_observation']
+                row['pws_observation'] = {k:pair[k] for k in ('lead_ref','preconfirmation_ref','observation_admission_ref',
+                    'observation_model','payout_bundle_sha256','without_pws_bundle_sha256','without_pws_bundle_role',
+                    'comparisons','feature_ready_at','input_boundary_seq','source_derivation_sha256',
+                    'later_official_reports_used','label_or_outcome_replayed','lead_advantage_verified','observation_is_payout_or_exit')}
+                row['pws_observation']['comparison_sha256'] = digest(pair)
             result['rows'].append(row)
         count = sum(r['economic_match'] for r in result['rows'])
         result.update(status='NO_RETAINED_DECISIONS' if not result['rows'] else 'ECONOMICS_REPRODUCED' if count==len(result['rows']) else 'PARTIAL',

@@ -30,8 +30,11 @@ def joined(factory, setup, bundle, monkeypatch):
     official = store.capture('anchor', event_id=event, kind='OFFICIAL_OBSERVATION', provider=old['provider'],
                 source_identity=old['source_identity'], revision='report', observed_at=old['observed_at'],
                 payload=report, evidence_class='SYNTHETIC')
+    raw = store.capture('pws-raw', event_id=event, kind='PWS_OBSERVATION', provider='NOAA_MADIS_CWOP',
+                        source_identity='CWOP_NEAR:KATL', revision='1', payload=dict(synthetic=True), evidence_class='SYNTHETIC')
     qc = dict(station='KATL', official_metadata_fingerprint=metadata.fingerprint, health='HEALTHY',
-              as_of=now[0], observation_age_seconds=[2., 3.])
+              as_of=now[0], observation_age_seconds=[2., 3.], source_captures=[dict(id=raw['id'],sha256=raw['sha256'])],
+              metadata_heads=[], stations=[])
     pws = store.capture('pws', event_id=event, kind='PWS_OBSERVATION', provider='ALPHA_PWS_QC',
                        source_identity='KATL', revision='1', payload=qc, evidence_class='SYNTHETIC')
     coverage = deepcopy(store.get('coverage')['body']['payload'])

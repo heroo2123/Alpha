@@ -1,7 +1,8 @@
 # V11 bounded causal economic replay
 
 `PerformanceLab.replay_temperature(evaluation_id, policy=ReplayPolicy(...))`
-recomputes a retained FUTURE_FORECAST or SAME_DAY_LATE_LOCK economic evaluation.
+recomputes a retained FUTURE_FORECAST, SAME_DAY_LATE_LOCK or PWS_OBSERVATION_LEAD
+economic evaluation.
 This is read-only and separate from runtime admission, current model authority,
 external transport and the original common-account commands.
 
@@ -41,7 +42,8 @@ No favorable partial result can be reported as an economic match.
 ECONOMICS_REPRODUCED means equality of the shared numerical result on retained
 inputs, not full control-flow replay, original executable attestation, independent
 source truth or renewed permission. GATED and MISMATCH remain distinct. Early
-control gates, PWS/source-release/relative-value/maker/exits, challenger comparison,
+control gates, PWS label/outcome scoring, source-release/relative-value/maker/exits,
+challenger comparison,
 reservation/execution command replay and operational acceptance remain open.
 Scheduled candidate audit integration is described below. Tests/provenance:
 V11_WORK_CHECKPOINT.md. NOT_READY_TO_FUND; no financial authority is added.
@@ -56,7 +58,7 @@ replay calculations run only in the separate publishing worker.
 
 Original completed temperature decisions are selected by half-open recorded-time
 window within the pinned archive sequence. Start-only records are not decisions.
-All completed variants count, including unsupported PWS/source-release or early
+All completed variants count, including unsupported source-release or early
 control gates. The worker retains at most eight exact refs and the full count.
 Overflow or incomplete archive scanning gates the entire cohort. Unknown individual
 comparisons stay visible; no sample of favorable results is called full coverage.
@@ -75,3 +77,30 @@ model/account history. The uncalibrated temperature decision stays rejected; rep
 does not make it eligible. Final targeted 27 passed in 4.94 s. Affected 218 passed in 28.45 s; locked full 4073 passed with four existing warnings
 in 285.58 s, all 849 tracked inputs unchanged at 1fea164a. Exact provenance:
 docs/V11_REPLAY_REGRESSION_EVIDENCE.md. All original acceptance/authority boundaries remain open.
+
+
+## Historical PWS observation pair and separate payout
+
+PWS_OBSERVATION_LEAD now reconstructs its original preconfirmation/admission
+records and both protected model history prefixes. The original observation
+champion is scoped to NEXT_OFFICIAL_OBSERVATION; the original payout champion
+remains FINAL_CONTRACT_PAYOUT. The exact without-PWS bundle is read as a research
+ablation, never promoted or inferred from today's champion.
+
+`pws_lead.paired_inference` is shared with ordinary runtime observation research.
+Both PWS-on/off variants use the original lead feature-ready time and sequence
+boundary, official anchor/horizon, model revisions and non-PWS leaf evidence.
+Raw-to-QC derivation is verified. Later same-clock source revisions and later
+official reports cannot enter either variant. Separately, the original entry
+payout and valuation recompute at their existing boundaries; observation output
+never becomes a payout or exit price. Historical source/pin/model/artifact absence
+gates the whole comparison. Numeric changes produce MISMATCH even if the payout
+still matches. No control permission or account command is recreated.
+
+Optional candidate audits retain compact separate target identities, comparisons
+and a full-result hash within the existing shared eight-decision/time budget.
+Assembled PWS lane and report-before-cursor recovery are covered. Final focused
+15 passed / 5.15 s; combined affected/full verification remains due. Full control
+flow, original executable attestation, separate label/outcome replay, empirical
+lead/lag benefit and independent acceptance remain open. These are synthetic
+checks and do not certify PWS independence or source truth. NOT_READY_TO_FUND.

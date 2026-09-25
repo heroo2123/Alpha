@@ -142,9 +142,9 @@ def test_interrupted_evaluation_keeps_original_valuation_timestamp(factory,monke
     d=run(r);assert d['status']=='ECONOMICS_REPRODUCED' and d['valuation_at']==at
 
 
-def test_unsupported_pws_join_is_honest_and_never_relabelled_temperature(factory):
+def test_unsupported_release_join_is_honest_and_never_relabelled_temperature(factory):
     r=factory();evaluate(r);store=r['store'];original=store.get('evaluation')
-    details=deepcopy(original['body']['details']);details['strategy']='PWS_OBSERVATION_LEAD'
+    details=deepcopy(original['body']['details']);details['strategy']='SOURCE_SHOCK'
     store.audit('unsupported',event_id=original['event_id'],kind='MEASUREMENT',details=details)
     d=run(r,'unsupported')
     assert d['status']=='GATED' and d['reason']=='REPLAY_STRATEGY_JOIN_NOT_IMPLEMENTED' and not d['economic_match']

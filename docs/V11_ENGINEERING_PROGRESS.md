@@ -430,3 +430,15 @@ This is the named integration slice, not complete engine/control-flow replay,
 original executable attestation, empirical calibration or renewed financial
 permission. PWS/other strategies/challengers, real/operational evidence and original
 acceptance remain open. No E/A credit and no credit for more tests or elapsed time.
+
+
+PWS historical observation/payout replay — 2026-09-25: the existing R04 integration
+now also reconstructs original separate observation/payout epochs, paired PWS-on/
+PWS-off inputs and exact research ablation, feeding shared observation and payout
+calculations and scheduled candidate audits. Later labels cannot leak into the
+original receipt boundary; original policies/history/inputs cannot be replaced.
+15 new checks passed / 5.15 s, including candidate/audit recovery. Affected/full
+verification remains due. **83/200, approximately 42%**, formal **1/50 (2%)**,
+unchanged: R04 J is already earned. Full control-flow/commands/other strategies,
+PWS label scoring, empirical source/calibration/lead and all independent/operational
+acceptance remain open. No more credit for this expansion or additional tests.

@@ -86,6 +86,38 @@ def _lineage(store, model_ids, *, event_id, cutoff):
     return dict(records=seen, non_pws_leaves=leaves, pws_ids=sorted(pws))
 
 
+def paired_inference(store, *, rule, policy, official, pws_id, model_ids, without_pws_model_ids,
+                     bundle, without_pws_bundle, cutoff):
+    """Shared observation-only numerics and paired lineage; no admission or write."""
+    if any(b.payload['bundle']['target'] != NEXT_OBSERVATION for b in (bundle,without_pws_bundle)):
+        raise EvidenceError('LEAD_OBSERVATION_BUNDLE_REQUIRED_NOT_PAYOUT_OR_EXIT')
+    event_id=rule.payload['event_id']; official_id=official['id']; heads=[]
+    with_graph=_lineage(store,model_ids,event_id=event_id,cutoff=cutoff)
+    without_graph=_lineage(store,without_pws_model_ids,event_id=event_id,cutoff=cutoff)
+    if (with_graph['pws_ids']!=[pws_id] or without_graph['pws_ids']
+            or with_graph['non_pws_leaves']!=without_graph['non_pws_leaves']
+            or with_graph['non_pws_leaves'].get(official_id)!=official['sha256']):
+        raise EvidenceError('LEAD_PAIRED_ABLATION_NOT_SAME_NON_PWS_EVIDENCE')
+    expected_context=dict(official_anchor_id=official_id,official_anchor_sha256=official['sha256'],
+                          horizon_seconds=policy.horizon_seconds,window_clock='FIRST_ALPHA_RECEIPT')
+    predictions=[]
+    for ids, pinned in ((model_ids,bundle),(without_pws_model_ids,without_pws_bundle)):
+        for key in ids:
+            row=store.get(key); body=row['body']
+            from .gefs_sources import current_path_heads
+            heads.extend(current_path_heads(store,row))
+            if body['payload'].get('observation_context')!=expected_context:
+                raise EvidenceError('LEAD_MODEL_ANCHOR_OR_HORIZON_MISMATCH')
+            latest=store.latest_source(kind='MODEL',event_id=event_id,provider=body['provider'],source_identity=body['source_identity'])
+            if latest['id']!=key:
+                raise EvidenceError('LEAD_MODEL_REVISION_SUPERSEDED')
+        components=_model_inputs(store,rule,ids,cutoff,target=NEXT_OBSERVATION)
+        predictions.append(predict_with_bundle(pinned,rule,components,as_of=cutoff,
+                           max_source_age_seconds=policy.max_model_age_seconds).payload)
+    return dict(with_pws=predictions[0], without_pws=predictions[1],
+                paired_provenance=dict(with_pws=with_graph,without_pws=without_graph), source_heads=heads)
+
+
 class PWSObservationLead:
     def __init__(self, store: EvidenceStore):
         self.store=store
@@ -137,28 +169,10 @@ class PWSObservationLead:
         if (not 0<=now-pws_as_of<policy.max_pws_age_seconds
                 or any(finite(age)+now-pws_as_of>=policy.max_pws_age_seconds for age in qc['observation_age_seconds'])):
             raise EvidenceError('LEAD_PWS_SENSOR_AGE_STALE')
-        with_graph=_lineage(self.store,model_ids,event_id=event_id,cutoff=now)
-        without_graph=_lineage(self.store,without_pws_model_ids,event_id=event_id,cutoff=now)
-        if (with_graph['pws_ids']!=[pws_id] or without_graph['pws_ids']
-                or with_graph['non_pws_leaves']!=without_graph['non_pws_leaves']
-                or with_graph['non_pws_leaves'].get(official_id)!=official['sha256']):
-            raise EvidenceError('LEAD_PAIRED_ABLATION_NOT_SAME_NON_PWS_EVIDENCE')
-        expected_context=dict(official_anchor_id=official_id,official_anchor_sha256=official['sha256'],
-                              horizon_seconds=policy.horizon_seconds,window_clock='FIRST_ALPHA_RECEIPT')
-        predictions=[]
-        for ids, pinned in ((model_ids,bundle),(without_pws_model_ids,without_pws_bundle)):
-            for key in ids:
-                row=self.store.get(key); body=row['body']
-                from .gefs_sources import current_path_heads
-                heads.extend(current_path_heads(self.store,row))
-                if body['payload'].get('observation_context')!=expected_context:
-                    raise EvidenceError('LEAD_MODEL_ANCHOR_OR_HORIZON_MISMATCH')
-                latest=self.store.latest_source(kind='MODEL',event_id=event_id,provider=body['provider'],source_identity=body['source_identity'])
-                if latest['id']!=key:
-                    raise EvidenceError('LEAD_MODEL_REVISION_SUPERSEDED')
-            components=_model_inputs(self.store,rule,ids,now,target=NEXT_OBSERVATION)
-            predictions.append(predict_with_bundle(pinned,rule,components,as_of=now,
-                               max_source_age_seconds=policy.max_model_age_seconds).payload)
+        paired=paired_inference(self.store,rule=rule,policy=policy,official=official,pws_id=pws_id,
+                    model_ids=model_ids,without_pws_model_ids=without_pws_model_ids,bundle=bundle,
+                    without_pws_bundle=without_pws_bundle,cutoff=now)
+        heads.extend(paired['source_heads'])
         unique_heads = {}
         for kind,event,seq in heads:
             if (kind,event) in unique_heads and unique_heads[kind,event] != seq:
@@ -170,7 +184,7 @@ class PWSObservationLead:
         refs=tuple(dict.fromkeys((official_id,pws_id,*model_ids,*without_pws_model_ids)))
         details=dict(version=VERSION,request=request,strategy='PWS_OBSERVATION_LEAD',lifecycle='RESEARCH',
                      valuation_type='OBSERVATION_ONLY',target=NEXT_OBSERVATION,observation_window=window,
-                     with_pws=predictions[0],without_pws=predictions[1],paired_provenance=dict(with_pws=with_graph,without_pws=without_graph),
+                     with_pws=paired['with_pws'],without_pws=paired['without_pws'],paired_provenance=paired['paired_provenance'],
                      artifact_refs=dict(with_pws=bundle.payload['bundle']['artifacts'],without_pws=without_pws_bundle.payload['bundle']['artifacts']),
                      source_heads=heads,official_anchor_observed_at=official['body']['observed_at'],
                      pws_independence_status=qc.get('independence_status','UNKNOWN'),
