@@ -264,3 +264,11 @@ already apply. **82/200, approximately 41%**, formal **1/50 (2%)**, unchanged. R
 loss does not establish mark-to-market risk, live execution, net-EV capture or actual
 calibration. Independent, host and unfunded readiness remain open; six hour ranges and
 separation of external/owner waiting remain appropriate to the unresolved scope.
+
+Locked full calibration/P&L integration regression at **95b00abc** passed **3875
+tests**, four existing warnings, **252.03 s**, all **830 inputs unchanged**.
+The manifest/output and targeted evidence are saved in
+`docs/V11_QUALITY_REGRESSION_EVIDENCE.md`. No new C/J/E/A milestone closes:
+**82/200, approximately 41%**, formal **1/50 (2%)**, unchanged. Actual/independent/
+host/unfunded acceptance and the six active-hour ranges remain open; waiting is
+excluded. The interrupted save was recovered without duplicate publication.

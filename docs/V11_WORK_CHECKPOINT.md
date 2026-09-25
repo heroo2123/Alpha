@@ -1,7 +1,36 @@
 # Alpha V11 work checkpoint
 
-Updated 2026-09-25, after automatic scoped realized-paper drift integration. Resume here. **NOT_READY_TO_FUND**.
+Updated 2026-09-25, after verified calibration and realized-paper integration. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
+
+## Latest verification — calibration and automatic realized-paper drift
+
+Recovered the interrupted publication rather than repeating it: local and remote
+both equal **95b00abc42fd8233f29a28d6c7d164fad1e59c38**, tree
+**d6a52c9ca7f1e89f57fa98a7e638ce4d15197b2c**, with a clean workspace and no pending
+operation. The locked full regression completed: **3875 passed, four existing
+FastAPI warnings, 252.03 seconds, exit 0**, session **73588**. All **830 tracked
+inputs** remained unchanged and matched again before this documentation update.
+Wrapper elapsed 252.703 s; user 186.78011 s; system 56.612016 s; peak RSS 164412 KiB.
+Manifest/output and the 117-pass calibration / 202-pass realized-paper targeted
+results are durable in **docs/V11_QUALITY_REGRESSION_EVIDENCE.md**. Original evidence:
+`/workspace/scratch/38af7099c566/v11-test-evidence/quality-full-20260925-01.json`
+and `.log`; input digest
+`3d121681c1471c14e4c6e5f5737221db721d94a3c9716ecfd98dfaa265e906eb`.
+No test failed or was excluded. No full regression remains running.
+
+**82/200, approximately 41%**, formal **1/50 (2%)**, unchanged. These are already
+credited integrations; actual source, independent, host and unfunded acceptance
+remain open. **NOT_READY_TO_FUND**. V10 unchanged; maintenance DEFERRED. This report
+changes documentation only, so do not rerun the unchanged suite for this checkpoint.
+
+Exact next action: connect horizon-specific maker counterfactual markout measurements
+to original quote/admission/model scope, reviewed monitoring and finite candidate/
+audit reporting. Preserve missing-evidence gates and each horizon; do not infer fills,
+net-EV capture, calibration or residual truth. No owner action blocks this off-host
+implementation. The six remaining milestones and hour ranges below remain current;
+external/owner waiting is separate. Resolve this checkpoint's own commit/tree with
+`git log -1 --format='%H %T' -- docs/V11_WORK_CHECKPOINT.md` and preserve newer work.
 
 ## Latest implementation — automatic scoped realized-paper quality monitoring
 
