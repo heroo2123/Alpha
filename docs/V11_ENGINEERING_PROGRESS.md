@@ -148,3 +148,13 @@ approximately 40%**, formal **1/50 (2%)**; actual exact-population coverage,
 calibration and operational/independent acceptance remain unearned. The first
 remaining milestone now excludes this bounded derivation implementation, but its
 45–90 active-hour range remains appropriate to the larger unresolved source scope.
+
+Physical/PWS inference: R13 earns J for raw MADIS/AWC -> QC/physical feature archive
+-> immutable parameter/feature contract -> paired observation model -> separately
+protected payout/same-day economics. The final new suite passed 26 tests in 2.06 s;
+source absence, stale/revised inputs, actual dependency ablation, target separation
+and immutable coefficients are demonstrated with synthetic sources/review fixtures.
+Production scheduling, feature fitting, actual OOS/calibration and deployment
+remain unearned. Total **81/200, approximately 41%** under the unchanged rounding
+rule; formal **1/50 (2%)**. This is one named integration credit, not credit for
+additional tests or an assertion that all R13 implementation is complete.

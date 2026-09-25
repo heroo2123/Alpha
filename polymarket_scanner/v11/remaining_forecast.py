@@ -85,7 +85,7 @@ def validate_condition_binding(store, model_ids, observation, coverage):
     """A new coverage record cannot relabel a previously derived remaining path."""
     for key in model_ids:
         p = store.get(key)['body']['payload']
-        if p.get('version') != VERSION: continue
+        if p.get('version') not in {VERSION,'alpha_v11_physical_model_input_v1'}: continue
         c = p.get('remaining_context', {})
         expected = dict(observation_id=observation['id'],observation_sha256=observation['sha256'],
             accepted_intervals=coverage['accepted_intervals'],unresolved_intervals=coverage['unresolved_intervals'])

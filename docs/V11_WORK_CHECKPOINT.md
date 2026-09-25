@@ -1,7 +1,71 @@
 # Alpha V11 work checkpoint
 
-Updated 2026-09-25, after remaining-path/same-day integration. Resume here. **NOT_READY_TO_FUND**.
+Updated 2026-09-25, after causal physical/PWS inference integration. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
+
+## Latest saved implementation — physical/PWS inference
+
+Previous milestone published and aligned as **1bdd091e6679e122174cd21a0f7202f31377e340**,
+tree **8a44c1398ffcbd153a4bb2f64c972b98b1e7c1fe**, session 92040 exit 0, clean
+workspace. Resolve this checkpoint's exact HEAD/tree with the existing
+`git log -1 --format='%H %T' -- docs/V11_WORK_CHECKPOINT.md` command.
+
+`v11/physical_inference.py` connects the existing AWC physical decoder and MADIS
+QC features to a declared member/feature/unit/family/target contract and frozen
+numeric inference parameters. Only immutable PROBABILITY artifact coefficients
+apply standardized feature adjustments; the archive retains unchanged base
+members and original run/receipt identity. Coefficient/scale/term/effective-bias
+bounds fail closed. Material missing features require a strictly wider kernel;
+missing PWS retains healthy official features, while PWS-lead eligibility still
+requires healthy QC. Bounds remain vacuous and probabilities UNCALIBRATED.
+No meteorological coefficient or calibrated status is hard-coded into production.
+The existing grid learner rejects the new family; fitting and OOS acceptance of
+physical coefficients remain required work.
+
+Features now retain metadata, causal expiry and distinct ablation stream identity.
+A PWS ablation removes its entire dependency and values while keeping the same
+non-PWS evidence and observation bundle. Current raw/feature/model sources and
+PWS metadata revisions participate in atomic guards. New context-less/expired or
+mismatched feature records cannot enter the declared family. Unchanged legacy
+predictions retain their prior serialized field set (no new null field).
+
+The demonstrated synthetic path is raw MADIS + AWC -> QC/physical features ->
+paired next-official observation prediction -> separately protected observation
+and payout pins -> same-day revision/remaining-path inference -> conservative
+settlement economics. Economics rejects entry; there is no payout inferred from
+crossing and no assumed executable exit. The same-day derived risk/maker paths
+retain their source and condition guards. Automated scheduling of these new
+preparations and fitting/datasets for the additional targets remain unfinished.
+
+Tests: unchanged-family regression **113 passed / 2.75 s**; initial new physical
+suite **18 passed / 1.75 s** after correcting a reused synthetic review ID. The
+expanded affected suite returned **307 passed, one failed / 55.10 s**. Its outage
+case exposed an unnecessary healthy-QC lineage requirement when every PWS value
+was missing. Corrected that fallback: source-arrival guards remain, and material
+PWS values still require healthy QC/metadata. Final new suite **26 passed / 2.06 s,
+exit 0**, session 27509. No actual source, label, independent review or strategy
+eligibility is claimed. A single combined full regression is the next gate;
+latest completed full remains 3610 passes at `6347e704` and is not attributed to
+this changed tree.
+
+R13 earns its named J milestone for the demonstrated physical-source -> protected
+inference integration. Fixed estimate **81/200, approximately 41%**; formal
+**1/50 (2%)**. C/J are limited engineering substeps; no E/A is earned. The six
+remaining active-work ranges below are retained, with the completed bounded
+source/feature joins removed from the listed implementation tasks. Actual-source,
+calibration, wider runtime scheduling, independent safety/auth/isolation and
+unfunded acceptance remain open. R01 remains the sole formally complete package.
+
+Next concrete action: publish the exact tree and run one locked full regression
+because shared inference, source guards and dataset feature archival changed.
+After that, connect bounded current-input scheduling for these preparations to
+the finite candidate, with durable replay and unchanged event/cancellation gates;
+then complete target-specific learning/capture and empirical acceptance where
+inputs are available. Do not duplicate a running regression or edit its inputs.
+V10 maintenance stays DEFERRED; no V10 service/executor change, host workload,
+deployment or financial action occurred. Its stale-cycle/memory-pressure finding,
+alpha-dev resource/isolation and backup/recovery gates remain open. Inventory
+SHA-256 remains OWNER-REPORTED / INDEPENDENT VERIFICATION PENDING.
 
 ## Latest saved implementation — archived remaining-day paths
 
@@ -271,8 +335,8 @@ still require separate budget and live approval. No arbitrary paper wait applies
 
 | Remaining milestone | Work remaining and proof of completion | Active hours | Confidence | External/owner dependency |
 |---|---|---:|---|---|
-| Source, weather and label closure | Complete required provider/target adapters, observed-prefix and remaining-path/PWS joins, exact labels and calibration/fallback. Prove causal source/target identity, coverage, lead/ablation and required OOS quality on actual evidence. R06–R13, R25–R28, R31. | 45–90 | LOW | Working authorized provider access; exact source/version history and sufficient evidence; independent semantic/calibration review. |
-| Evidence and controlled learning | Close complete replay/provenance, markout/selection/report joins, bounded learner scheduling, lifecycle and accepted initial-bundle/learning governance. Prove deterministic dataset-to-artifact and rollback/reuse/failure behavior with required real evidence. R02–R05, R14–R17, R40–R42, R47. | 30–60 | LOW | Upstream exact labels; independent initial champion and governance acceptance; isolated learning environment. |
+| Source, weather and label closure | Complete required provider/target adapters and bounded runtime scheduling, physical/lead fitting, exact labels and calibration/fallback; the explicit-interval/GEFS and physical/PWS inference joins are implemented. Prove causal source/target identity, coverage, lead/ablation and required OOS quality on actual evidence. R06–R13, R25–R28, R31. | 45–90 | LOW | Working authorized provider access; exact source/version history and sufficient evidence; independent semantic/calibration review. |
+| Evidence and controlled learning | Close complete replay/provenance, markout/selection/report joins, operational learner scheduling/isolation, target-specific capture, lifecycle and accepted initial-bundle/learning governance. Prove deterministic dataset-to-artifact and rollback/reuse/failure behavior with required real evidence. R02–R05, R14–R17, R40–R42, R47. | 30–60 | LOW | Upstream exact labels; independent initial champion and governance acceptance; isolated learning environment. |
 | Strategy, portfolio and execution integration | Finish missing relative/structural/exit/redemption, correlation, costs and maker/reward paths. Prove full common-account scenario/reservation/reconciliation and strategy eligibility across required failure cases. R18–R24, R29–R30, R32–R36. | 35–70 | LOW | Reviewed mappings/parameters and actual source/execution evidence; funded fill learning remains later and separately authorized. |
 | Independent safety, identity and host | Finish independent cancel-only guardian and protected command/auth routing; prepare and verify isolated deployment/recovery configuration. Prove custody, permissions, resource budgets and authenticated safety behavior. R37–R39, R43–R44. | 30–60 | LOW | Owner account entitlement/access, approved isolated host and deployment action; alpha-dev resource/isolation currently unpassed. V10 maintenance stays deferred absent an exact dependency. |
 | Regression and unfunded acceptance | Run complete integration/fault/security acceptance and permitted unfunded account/execution checks; resolve findings. Proof is the original acceptance matrix with independent review and reproducible exact-tree results. R45, R48. | 25–50 | LOW | Independent reviewers and permitted existing-account access; no wallet/account creation or financial activation is implied. |

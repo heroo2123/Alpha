@@ -195,6 +195,7 @@ def run_research_fit(*, artifacts: ArtifactStore, journal: ExperimentJournal, pl
     probability=parent['components']['PROBABILITY']
     models=probability['parameters']['models']
     if (parent['bundle']['target']!='FINAL_CONTRACT_PAYOUT' or manifest['plan']['target']!='FINAL_CONTRACT_PAYOUT'
+            or probability['parameters']['family']!='GAUSSIAN_MEMBER_MIXTURE'
             or len(models)!=1 or models[0]['model_id']!=envelope.model_id
             or parent['bundle']['feature_schema_sha256']!=manifest['plan']['feature_schema_sha256']):
         raise EvidenceError('LEARNER_SINGLE_MODEL_TARGET_OR_SCHEMA_UNSUPPORTED')

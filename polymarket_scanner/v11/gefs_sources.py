@@ -237,6 +237,9 @@ def assemble_path(store,*,plan,field_ids,record_id,deadline=None):
 def current_path_heads(store,row):
     """One aggregate MODEL CAS guard covers all bounded constituent channels."""
     p=row['body'].get('payload',{})
+    from .physical_inference import VERSION as PHYSICAL_VERSION, current_physical_heads
+    if p.get('version') == PHYSICAL_VERSION:
+        return current_physical_heads(store,row)
     from .remaining_forecast import VERSION as REMAINING_VERSION, current_remaining_heads
     if p.get('version') == REMAINING_VERSION:
         return current_remaining_heads(store,row)

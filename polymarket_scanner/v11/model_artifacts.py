@@ -101,11 +101,12 @@ def validate_artifact(value: dict) -> dict:
             raise EvidenceError('FEATURE_SCHEMA_DIGEST_MISMATCH')
     elif kind=='PROBABILITY':
         exact(p, {'family','models','group_weights'}, 'PROBABILITY_ARTIFACT_SCHEMA')
-        if p['family']!='GAUSSIAN_MEMBER_MIXTURE' or not isinstance(p['models'],list) or not 1 <= len(p['models']) <= 16:
+        if p['family'] not in {'GAUSSIAN_MEMBER_MIXTURE','GAUSSIAN_PHYSICAL_MEMBER_MIXTURE'} or not isinstance(p['models'],list) or not 1 <= len(p['models']) <= 16:
             raise EvidenceError('PROBABILITY_MODEL_SHAPE')
         names, groups = set(), set()
         for m in p['models']:
-            exact(m, {'model_id','dependence_group','bias','kernel_sigma','within_group_weight'}, 'MODEL_PARAMETER_SCHEMA')
+            extra = {'feature_terms','missing_kernel_sigma'} if p['family']=='GAUSSIAN_PHYSICAL_MEMBER_MIXTURE' else set()
+            exact(m, {'model_id','dependence_group','bias','kernel_sigma','within_group_weight'} | extra, 'MODEL_PARAMETER_SCHEMA')
             identity(m['model_id'])
             identity(m['dependence_group'])
             if m['model_id'] in names:
@@ -115,6 +116,9 @@ def validate_artifact(value: dict) -> dict:
             if (abs(finite(m['bias'],nonnegative=False))>30 or not .01 <= finite(m['kernel_sigma']) <= 50
                     or not 0 < finite(m['within_group_weight']) <= 1):
                 raise EvidenceError('MODEL_PARAMETER_BOUND')
+            if extra:
+                from .physical_inference import validate_terms
+                validate_terms(m)
         weights=p['group_weights']
         if not isinstance(weights,dict) or set(weights)!=groups:
             raise EvidenceError('MODEL_DEPENDENCE_GROUPS')
@@ -283,10 +287,22 @@ def predict_with_bundle(pinned: PinnedBundle, rule, components: tuple, *, as_of:
         from .forecast_features import ForecastFeatureContract
         ForecastFeatureContract(tuple((c.model_id,len(c.members)) for c in components),
                                 rule.payload['unit'],rule.payload['family']).require_bundle(pinned)
+    physical = params['family']=='GAUSSIAN_PHYSICAL_MEMBER_MIXTURE'
+    if physical:
+        from .physical_inference import PhysicalFeatureContract
+        from .probability import UNRESOLVED_EXTREME
+        PhysicalFeatureContract(tuple((c.model_id,len(c.members)) for c in components),rule.payload['unit'],
+            rule.payload['family'],NEXT_OBSERVATION if target==NEXT_OBSERVATION else UNRESOLVED_EXTREME).require_bundle(pinned)
+    elif any(c.auxiliary is not None for c in components):
+        raise EvidenceError('AUXILIARY_INPUT_REQUIRES_DECLARED_PHYSICAL_MODEL')
     configured=[]
     for c in components:
         m=models[c.model_id]
-        configured.append(replace(c,dependence_group=m['dependence_group'],bias=m['bias'],kernel_sigma=m['kernel_sigma'],
+        bias,sigma = m['bias'],m['kernel_sigma']
+        if physical:
+            from .physical_inference import adjusted_parameters
+            bias,sigma = adjusted_parameters(c,m)
+        configured.append(replace(c,dependence_group=m['dependence_group'],bias=bias,kernel_sigma=sigma,
                                   within_group_weight=m['within_group_weight']))
     return predict_buckets(rule,tuple(configured),group_weights=tuple(sorted(params['group_weights'].items())),
                            as_of=as_of,bundle_sha256=pinned.sha256,max_source_age_seconds=max_source_age_seconds,

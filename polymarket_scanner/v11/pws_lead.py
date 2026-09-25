@@ -149,6 +149,8 @@ class PWSObservationLead:
         for ids, pinned in ((model_ids,bundle),(without_pws_model_ids,without_pws_bundle)):
             for key in ids:
                 row=self.store.get(key); body=row['body']
+                from .gefs_sources import current_path_heads
+                heads.extend(current_path_heads(self.store,row))
                 if body['payload'].get('observation_context')!=expected_context:
                     raise EvidenceError('LEAD_MODEL_ANCHOR_OR_HORIZON_MISMATCH')
                 latest=self.store.latest_source(kind='MODEL',event_id=event_id,provider=body['provider'],source_identity=body['source_identity'])
@@ -157,6 +159,12 @@ class PWSObservationLead:
             components=_model_inputs(self.store,rule,ids,now,target=NEXT_OBSERVATION)
             predictions.append(predict_with_bundle(pinned,rule,components,as_of=now,
                                max_source_age_seconds=policy.max_model_age_seconds).payload)
+        unique_heads = {}
+        for kind,event,seq in heads:
+            if (kind,event) in unique_heads and unique_heads[kind,event] != seq:
+                raise EvidenceError('LEAD_SOURCE_CHANGED_DURING_INFERENCE')
+            unique_heads[kind,event] = seq
+        heads = [(k,e,s) for (k,e),s in unique_heads.items()]
         window=dict(station=rule.payload['station'],population=rule.payload['observation_population'],
                     window_start=now,window_end=now+policy.horizon_seconds,clock='FIRST_ALPHA_RECEIPT')
         refs=tuple(dict.fromkeys((official_id,pws_id,*model_ids,*without_pws_model_ids)))

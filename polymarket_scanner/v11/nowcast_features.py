@@ -12,7 +12,7 @@ from zoneinfo import ZoneInfo
 
 from .certification import StationMetadata
 from .datasets import FeatureDefinition, FeatureSchema, archive_features
-from .evidence import EvidenceError, EvidenceStore, finite
+from .evidence import EvidenceError, EvidenceStore, digest, finite
 from .weather_sources import parse_awc_metar
 
 
@@ -55,6 +55,7 @@ def archive_nowcast_features(store: EvidenceStore, record_id: str, *, event_id: 
     values={f.name:None for f in PHYSICAL_SCHEMA.features}
     reasons=[]
     inputs=[]
+    expiries=[]
     observations=[]
     for key in awc_capture_ids:
         r=store.get(key)
@@ -80,6 +81,7 @@ def archive_nowcast_features(store: EvidenceStore, record_id: str, *, event_id: 
     ordered=sorted(by_time.values(),key=lambda x:x['observed_at'])
     latest=ordered[-1] if ordered else None
     if latest and now-latest['observed_at']<=max_observation_age_seconds:
+        expiries.append(latest['observed_at']+max_observation_age_seconds)
         values['official_proxy_temperature_c']=latest['temperature_c']
         values['official_observation_age_seconds']=now-latest['observed_at']
         physical=latest['physical_context']
@@ -113,7 +115,7 @@ def archive_nowcast_features(store: EvidenceStore, record_id: str, *, event_id: 
                 values['temperature_acceleration_c_per_hour2']=median(accelerations)
     else:
         reasons.append('NO_FRESH_OFFICIAL_PROXY')
-    if pws_capture_id:
+    if pws_capture_id and 'PWS' not in ablated_families:
         r=store.get(pws_capture_id)
         b,p=r['body'],r['body']['payload']
         if (r['kind']!='PWS_OBSERVATION' or r['event_id']!=event_id or b['provider']!='ALPHA_PWS_QC'
@@ -122,6 +124,7 @@ def archive_nowcast_features(store: EvidenceStore, record_id: str, *, event_id: 
             raise EvidenceError('PHYSICAL_PWS_CONTEXT_OR_TIME')
         fresh=[s for s in p['stations'] if s['weight']>0 and 0<=now-s['observed_at']<=max_observation_age_seconds]
         if p['health']=='HEALTHY' and len(fresh)==p['usable_station_count'] and fresh:
+            expiries.append(min(s['observed_at'] for s in fresh)+max_observation_age_seconds)
             values['pws_weighted_median_c']=p['weighted_median_c']
             values['pws_iqr_c']=p['iqr_c']
             values['pws_change_15m_c']=p['temperature_changes']['900']['change_c']
@@ -131,7 +134,7 @@ def archive_nowcast_features(store: EvidenceStore, record_id: str, *, event_id: 
             reasons.append('PWS_UNAVAILABLE_DEGRADED_OR_STALE')
         inputs.append(pws_capture_id)
     else:
-        reasons.append('PWS_NOT_SUPPLIED')
+        reasons.append('PWS_ABLATED' if 'PWS' in ablated_families else 'PWS_NOT_SUPPLIED')
     if daylight_capture_id:
         r=store.get(daylight_capture_id)
         b,p=r['body'],r['body']['payload']
@@ -146,6 +149,7 @@ def archive_nowcast_features(store: EvidenceStore, record_id: str, *, event_id: 
                        for t in (sunrise,sunset))):
             raise EvidenceError('DAYLIGHT_WINDOW_INVALID')
         values['daylight_remaining_seconds']=max(0.,sunset-max(now,sunrise))
+        expiries.append(sunset if now < sunset else now+max_observation_age_seconds)
         inputs.append(daylight_capture_id)
     # Physical outliers make that optional feature missing, never a fabricated
     # probability or a reason to drop unrelated healthy source values.
@@ -163,6 +167,11 @@ def archive_nowcast_features(store: EvidenceStore, record_id: str, *, event_id: 
     if not inputs:
         return store.audit(record_id,event_id=event_id,kind='MEASUREMENT',details={**details,'state':'NO_SOURCE_INPUTS'})
     feature=archive_features(store,record_id,event_id=event_id,schema=PHYSICAL_SCHEMA,values=values,
-        evidence_ids=tuple(inputs),source_versions={'physical':'alpha_v11_physical_candidates_v1','AWC':'alpha_v11_awc_metar_v2_physical_body'})
+        evidence_ids=tuple(inputs),source_versions={'physical':'alpha_v11_physical_candidates_v1','AWC':'alpha_v11_awc_metar_v2_physical_body'},
+        context=dict(version='alpha_v11_physical_context_v1',station=official.station,metadata_fingerprint=official.fingerprint,
+            as_of=now,valid_until=min(expiries) if expiries else now+max_observation_age_seconds,
+            ablated_families=sorted(ablated_families)),
+        source_identity='physical:'+digest([official.fingerprint,sorted(ablated_families),max_observation_age_seconds,
+                                           trajectory_window_seconds,maximum_gap_seconds]))
     store.audit(record_id+':explanation',event_id=event_id,kind='MEASUREMENT',details=details,evidence_ids=(feature['id'],))
     return feature

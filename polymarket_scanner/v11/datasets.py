@@ -90,7 +90,8 @@ class FeatureSchema:
 
 
 def archive_features(store: EvidenceStore, record_id: str, *, event_id: str, schema: FeatureSchema,
-                     values: dict, evidence_ids: tuple[str, ...], source_versions: dict) -> dict:
+                     values: dict, evidence_ids: tuple[str, ...], source_versions: dict,
+                     context: dict | None = None, source_identity: str | None = None) -> dict:
     schema.validate(values)
     if not evidence_ids or len(evidence_ids) > 64 or len(set(evidence_ids)) != len(evidence_ids):
         raise EvidenceError("FEATURE_EVIDENCE_BOUND")
@@ -109,8 +110,12 @@ def archive_features(store: EvidenceStore, record_id: str, *, event_id: str, sch
     payload = {"feature_schema": asdict(schema), "feature_schema_sha256": schema.sha256,
                "values": values, "feature_ready_at": ready, "source_versions": source_versions,
                "dependencies": [{"id": r['id'], "sha256": r['sha256']} for r in inputs]}
+    if context is not None:
+        if type(context) is not dict or len(canonical(context).encode()) > 16*1024:
+            raise EvidenceError('FEATURE_CONTEXT_BOUND')
+        payload['context'] = context
     return store.capture(record_id, event_id=event_id, kind='FEATURES', provider='ALPHA_V11_FEATURES',
-                         source_identity=schema.version, revision=record_id, payload=payload,
+                         source_identity=schema.version if source_identity is None else identity(source_identity), revision=record_id, payload=payload,
                          evidence_class='SYNTHETIC' if any(r['body']['evidence_class']=='SYNTHETIC' for r in inputs)
                          else 'PUBLIC_OBSERVED')
 

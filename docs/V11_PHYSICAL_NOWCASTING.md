@@ -41,3 +41,31 @@ behavior. AWC remains a proxy for the exact contract observation population.
 Features are research candidates with no probability, settlement or financial
 authority. Incremental out-of-sample value, trained physical/PWS effects, exact
 source integration, cache/event scheduling and production acceptance remain open.
+
+## Declared inference integration
+
+`v11/physical_inference.py` now connects these features to immutable numeric model
+artifacts and the existing next-observation/same-day inference engines. The
+contract binds model member counts, physical schema, unit, family and target.
+Standardized feature adjustments use only bounded coefficients from the pinned
+PROBABILITY artifact. There are no production meteorological coefficients in
+code. Missing material terms contribute no adjustment and require a wider kernel;
+an effective adjustment outside the protected bound gates instead of clipping.
+All conservative bounds remain vacuous and predictions remain UNCALIBRATED.
+
+The model archive retains original members, run/receipt identity and exact feature
+dependencies. Features carry metadata, expiry and separate ablation stream
+identities. PWS ablation removes both its values and dependency, preserving the
+same non-PWS evidence and frozen observation model. Current source/metadata guards
+and append races are checked. Missing PWS can retain healthy official features
+and the conservative fallback; material PWS influence still requires healthy QC.
+
+The 26 new synthetic integration cases include raw MADIS/AWC -> QC/features ->
+paired next-observation inference -> separate protected payout pin -> exact
+same-day conditioning -> conservative settlement economics. Entry is rejected;
+observation confirmation supplies neither payout truth nor executable proceeds.
+Legacy inference serialization remains unchanged without auxiliary features.
+The existing bounded grid learner explicitly rejects the new family. Fitting,
+target-specific datasets, actual OOS feature value/calibration, automated current
+input preparation and operational acceptance remain required. Fixture reviews
+are not independent review, and artifact construction cannot promote a model.

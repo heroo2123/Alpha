@@ -89,10 +89,12 @@ def _model_inputs(store, rule, ids, cutoff, *, target):
             raise EvidenceError('ARCHIVED_MODEL_INPUT_SCHEMA_OR_TARGET')
         if body['issued_at'] is None:
             raise EvidenceError('MODEL_RUN_AGE_UNKNOWN')
+        from .physical_inference import auxiliary_input
+        auxiliary = auxiliary_input(store,row,rule,cutoff)
         # Fitted parameters come exclusively from the protected bundle below.
         result.append(ForecastComponent(value['model_id'], 'BUNDLE_CONFIGURED', value['target_sha256'],
                       tuple(value['members']), 0., 1., 1., row['sha256'], body['received_at'],
-                      body['available_at'], body['issued_at']))
+                      body['available_at'], body['issued_at'],auxiliary))
     return tuple(result)
 
 

@@ -51,6 +51,24 @@ class ProbabilityInterval:
 
 
 @dataclass(frozen=True)
+class AuxiliaryFeatures:
+    schema_sha256: str
+    evidence_sha256: str
+    values: tuple[tuple[str, float | None], ...]
+
+    def __post_init__(self):
+        sha(self.schema_sha256); sha(self.evidence_sha256)
+        if (type(self.values) is not tuple or not 1 <= len(self.values) <= 64
+                or any(type(p) is not tuple or len(p) != 2 for p in self.values)
+                or len({p[0] for p in self.values}) != len(self.values)):
+            raise EvidenceError('AUXILIARY_FEATURE_INPUT_SHAPE')
+        for key,value in self.values:
+            identity(key)
+            if value is not None and abs(finite(value,nonnegative=False)) > 1_000_000:
+                raise EvidenceError('AUXILIARY_FEATURE_VALUE_BOUND')
+
+
+@dataclass(frozen=True)
 class ForecastComponent:
     model_id: str
     dependence_group: str
@@ -63,6 +81,7 @@ class ForecastComponent:
     received_at: float
     feature_ready_at: float
     issued_at: float | None
+    auxiliary: AuxiliaryFeatures | None = None
 
     def __post_init__(self):
         identity(self.model_id)
@@ -81,6 +100,8 @@ class ForecastComponent:
             raise EvidenceError("FEATURE_PRECEDES_RECEIPT")
         if self.issued_at is not None and finite(self.issued_at) > self.received_at:
             raise EvidenceError("MODEL_ISSUE_AFTER_RECEIPT")
+        if self.auxiliary is not None and not isinstance(self.auxiliary,AuxiliaryFeatures):
+            raise EvidenceError('TYPED_AUXILIARY_FEATURES_REQUIRED')
 
     def cdf(self, x: float) -> float:
         # The empirical members are correlated model scenarios, never n IID trials.
@@ -293,7 +314,8 @@ def predict_buckets(rule: RuleFingerprint, components: tuple[ForecastComponent, 
             "calibration_status": "UNCALIBRATED", "uncertainty_method": "VACUOUS_BOUNDS_NO_CALIBRATION_EVIDENCE",
             "lower_bounds_normalized": False, "model_quantization_hypothesis": MODEL_QUANTIZATION,
             "quantization_is_source_rule": False, "group_weights": dict(group_weights),
-            "model_weights": weights, "model_inputs": [asdict(c) for c in components],
+            "model_weights": weights, "model_inputs": [{k:v for k,v in asdict(c).items()
+                if k != 'auxiliary' or v is not None} for c in components],
             "independent_sample_count": None, "member_count_is_effective_sample_size": False,
             "dependence_validation": "DECLARED_GROUPS_NOT_EMPIRICALLY_VALIDATED",
             "between_model_mean_variance": math.fsum(weights[k]*(v-mean)**2 for k, v in model_means.items()),
