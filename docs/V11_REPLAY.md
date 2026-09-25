@@ -215,3 +215,32 @@ under explicitly synthetic risk inputs. These do not attest actual forward
 eligibility, executable identity, independent source truth or operational readiness.
 Exact full/affected/final-focused evidence and limits:
 `docs/V11_PORTFOLIO_REPLAY_EVIDENCE.md`. **NOT_READY_TO_FUND**.
+
+
+## Original prepared temperature entries
+
+Prepared single-leg temperature entries now reuse the same historical numerical
+engine inside the account replay source snapshot and deadline. The original
+valuation must link to its completed strategy decision before the account command
+in both receipt sequence and recorded time. The exact archived proposal must match
+the original account request. Missing/legacy/unsupported linkage remains GATED.
+
+All five temperature sleeves are supported. Prediction, valuation, reasons and
+outcomes compare independently; separate temperature comparison keys also preserve
+PWS observation/ablation and source-release mismatches. Later models, sources,
+books, accounts and dates cannot replace originals. The result retains compact
+original references and comparison hashes, without duplicating model vectors.
+
+Every prepared proposal still counts, including allocation rejections. Preparation
+rejections remain separately counted, and the temperature decision audit retains
+its wider population of early gates and rejected decisions. A prepared-subset match
+is not full preparation/control replay. Shared deadline or output overflow clears
+favorable prefix results. Scheduled candidate audits and report-before-cursor
+recovery use the existing mechanisms without reserving or creating fills.
+
+Positive entry tests explicitly inject a synthetic payout oracle after the actual
+prediction binding/target/age/bound checks. This is downstream plumbing evidence,
+not calibrated probability evidence or production entry qualification. Five
+unmodified-model checks preserve vacuous-bound rejection; removing the oracle
+causes the synthetic positive valuation to mismatch. No calibration, empirical
+source truth, independent acceptance or financial authority is claimed.

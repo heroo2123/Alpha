@@ -1,5 +1,19 @@
 # Supplementary engineering estimate
 
+Local temperature-account replay continuation, 2026-09-25: all five original
+temperature valuations now join exact prepared account proposals within the same
+read snapshot/deadline. Every PWS/release comparison remains material, and early
+strategy/preparation/allocation rejections retain their distinct populations.
+Existing replay extraction: **83 passed / 194.17 s**; final new integration:
+**29 passed / 54.16 s**, exit 0. The latter includes candidate scheduling,
+report recovery, unavailable originals, mismatches and budget exhaustion.
+Positive branches use an explicit test-only payout oracle; unmodified production
+vacuous bounds still reject. Full canonical-input local regression: **4195 passed,
+four existing FastAPI warnings / 578.00 s / exit 0**; all 763 non-document
+source/mirror inputs unchanged, session 9247. No new C/J/E/A or formal completion:
+**83/200 = 41.5%, approximately 42%; 1/50 (2%)**. V10 unchanged/DEFERRED;
+NOT_READY_TO_FUND. Evidence: docs/V11_TEMPERATURE_ACCOUNT_REPLAY_EVIDENCE.md.
+
 Latest 2026-09-25 continuation: original prepared basket/exit numerical valuation
 comparisons now join account replay and existing audits. Shared runtime extraction
 passed **43 / 5.00 s**; portfolio/account checks **51 / 5.80 s**, exit 0. Candidate

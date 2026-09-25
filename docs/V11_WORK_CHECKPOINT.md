@@ -1,5 +1,62 @@
 # Alpha V11 work checkpoint
 
+## Latest verified checkpoint ? prepared temperature entries, 2026-09-25
+
+Recovered/fetched branch `weather-v11-profitability-upgrade-2026-09-23` at
+**18d123696a974de8426487460935b8f8f8c4b8b1**, tree
+**21c5b5cf31763f0686f7c9c338ba5c304504e9e0**, clean and matching origin. Preserved
+all published work and historical evidence. All five private input hashes match;
+the complete original master and four reference PDF text extractions were read.
+Private source contents remain outside the repository. Manifest re-verification
+preserves the earlier visual-review record without claiming a new visual review.
+
+Prepared temperature-entry numerical replay now joins original account commands
+for all five existing sleeves, using the same immutable source view and shared
+deadline. Exact original proposal/decision/valuation ordering and binding are
+required. Prediction, valuation and auxiliary PWS/release mismatches remain
+material. Preparation/allocation/early strategy rejections retain distinct
+populations; complete original control-flow and admission are not claimed.
+Positive-path tests explicitly use a synthetic payout oracle. Unmodified vacuous
+bounds still reject; no calibrated probability, viable entry or authority is
+inferred from the fixtures. All replay paths remain read-only/nonfinancial.
+
+Verification so far: existing replay extraction **83 passed / 194.17 s**; final
+new integration **29 passed / 54.16 s**, exit 0. Corrected canonical-Linux full
+regression **4195 passed, four existing FastAPI warnings / 578.00 s / exit 0**,
+session 9247. All 763 canonical non-document source/mirror inputs remained
+unchanged. No test operation remains running at this checkpoint. The first Windows-byte mirror run was interrupted
+at about 30% after eight observed failures, exit 1 / 486.814 s; it is not a pass.
+A concrete CRLF Bash incompatibility and disk-commit stalls required correcting
+the verification setup. Original logs/input hashes remain retained. The second
+run uses Git-clean-filter contents and standard failed-only pytest fixture
+retention on bounded local temporary memory storage; no runtime durability or
+risk control changed. The corrected run passed all tests, including the regions
+with earlier failures; no source change was required to obtain the full pass.
+Exact evidence: **docs/V11_TEMPERATURE_ACCOUNT_REPLAY_EVIDENCE.md**.
+
+Fixed ledger remains **83/200 = 41.5%, approximately 42%; formal 1/50 (2%)**.
+No new C/J/E/A or full requirement is accepted. **NOT_READY_TO_FUND**. V10
+unchanged/maintenance DEFERRED. Actual source/calibration, independent acceptance,
+identity/guardian and deployment/isolation evidence remain unpassed. No owner-only
+action blocks the next local implementation; no funding, wallet, real order,
+service, permission or financial authority changed.
+
+**Next unfinished implementation action:** pin each PWS receipt-score scan with a
+durable start record, replay its original selection and paired score numerics,
+and require that proof in observation-label datasets. Preserve legacy/unknown
+labels as gated and retain the separate original prediction cutoff. Draft work
+is outside this repository while the integrated temperature inputs are frozen;
+it is not yet verified or published. Do not repeat completed unchanged tests.
+
+The six readiness milestones below remain current, including proof criteria and
+external/owner dependencies: sources/labels **45?90 active h**; full replay/learning
+**30?60 h**; strategy/portfolio/execution **35?70 h**; safety/identity/host **30?60 h**;
+independent unfunded acceptance **25?50 h**; operating comparison/release **15?30 h**.
+All estimates have LOW confidence and exclude external waiting and owner actions.
+Resolve the saved identity with `git log -1 --format='%H %T' -- docs/V11_WORK_CHECKPOINT.md`.
+
+## Prior published checkpoint
+
 ## Latest checkpoint — verified basket/exit replay and bounded audit, 2026-09-25
 
 Final verification: **99 passed / 20.57 s / exit 0**, session **45106**, includes

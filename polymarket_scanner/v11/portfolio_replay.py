@@ -1,4 +1,4 @@
-"""Original basket/exit numerical inputs for conditional account-effect replay.
+"""Original prepared numerical inputs for conditional account-effect replay.
 
 Only original prepared candidates are selected, including candidates later
 rejected by allocation. This does not reproduce preparation, rejected proposals,
@@ -11,7 +11,7 @@ from decimal import InvalidOperation
 from .account_effects import EffectReplayError, ref
 from .basket_coordinator import BasketProposal
 from .basket_valuation import BasketLeg, BasketPolicy, basket_details, VERSION as BASKET_VERSION
-from .causal_replay import HistoricalView, historical_bundle
+from .causal_replay import HistoricalView, ReplayPolicy, historical_bundle, replay_temperature_in_view
 from .certification import CapabilityScope
 from .event_risk import EventContext
 from .evidence import EvidenceError, ReleaseBinding, canonical, digest, finite
@@ -153,6 +153,37 @@ def _exit(c, source, proposal, row, before_state):
         inventory_ref=ref(head), inventory_inputs_sha256=saved['inventory_sha256'])
 
 
+def _entry(c, source, proposal, row, command):
+    if not row['id'].endswith(':valuation'):
+        raise EvidenceError('PORTFOLIO_REPLAY_PREPARED_VALUATION_NOT_IMPLEMENTED')
+    evaluation_id = row['id'][:-len(':valuation')]
+    decision = source.get(evaluation_id); original = decision['body']['details']
+    if (decision['event_id'] != row['event_id'] or not row['seq'] < decision['seq'] < command['seq']
+            or not row['body']['recorded_at'] <= decision['body']['recorded_at'] <= command['body']['recorded_at']
+            or original.get('outcome') != 'ACCEPT_RESEARCH'
+            or canonical(original.get('proposal')) != canonical(asdict(proposal))):
+        raise EvidenceError('PORTFOLIO_REPLAY_ORIGINAL_ENTRY_PROPOSAL_BINDING')
+    # This policy names the comparison only. The source retains the enclosing
+    # account command's snapshot and deadline; no nested read or time budget.
+    replay = replay_temperature_in_view(c, evaluation_id, policy=ReplayPolicy('prepared-temperature'), source=source)
+    if replay['status'] == 'GATED':
+        raise EvidenceError(replay['reason'])
+    if replay.get('valuation_ref') != ref(row):
+        raise EvidenceError('PORTFOLIO_REPLAY_ORIGINAL_ENTRY_VALUATION_BINDING')
+    metadata = {key:replay[key] for key in ('decision_ref','model','cutoff','inference_cutoff',
+        'input_boundary_seq','valuation_at','input_refs','source_derivation_sha256')}
+    metadata.update(temperature_comparisons=replay['comparisons'], temperature_replay_sha256=digest(replay),
+        account_context_sha256=digest(replay['account']),
+        account_snapshot_ref=(replay['account'] or {}).get('snapshot_ref'),
+        account_context_status=(replay['account'] or {}).get('status','NOT_RECOMPUTED'))
+    for key in ('pws_observation','source_release'):
+        if key in replay:
+            auxiliary = replay[key]
+            metadata[key] = {k:v for k,v in auxiliary.items() if not k.startswith('recomputed')}
+            metadata[key]['comparison_sha256'] = digest(auxiliary)
+    return replay['recomputed_valuation'], replay['recomputed_prediction'], metadata
+
+
 def prepared_valuations(c, source, *, command, before_state, proposals, preparation):
     """Same source snapshot/deadline as the enclosing account command replay."""
     by_id = {p.proposal_id:p for p in proposals}; rows = []
@@ -173,10 +204,13 @@ def prepared_valuations(c, source, *, command, before_state, proposals, preparat
                 measured, prediction, metadata = _exit(c, source, proposal, row, before_state)
                 original_prediction = value['model']['prediction']
             else:
-                raise EvidenceError('PORTFOLIO_REPLAY_PREPARED_VALUATION_NOT_IMPLEMENTED')
+                measured, prediction, metadata = _entry(c, source, proposal, row, command)
+                original_prediction = value['model']['prediction']
             comparisons = dict(prediction=canonical(prediction)==canonical(original_prediction),
                 valuation=canonical(measured)==canonical(value), outcome=measured['outcome']==value['outcome'],
                 reasons=canonical(measured['reasons'])==canonical(value['reasons']))
+            comparisons.update({'temperature_'+key:matched for key,matched in
+                               metadata.pop('temperature_comparisons', {}).items()})
             result.update(status='ECONOMICS_REPRODUCED' if all(comparisons.values()) else 'MISMATCH',
                 reason='SHARED_NUMERICAL_VALUATION_ORIGINAL_EVIDENCE', economic_match=all(comparisons.values()),
                 comparisons=comparisons, valuation_ref=ref(row), original_valuation_sha256=digest(value),

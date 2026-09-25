@@ -38,5 +38,27 @@
       "visual_review": true
     }
   ],
-  "publication": "Identity metadata only; private source contents excluded."
+  "publication": "Identity metadata only; private source contents excluded.",
+  "local_reverification": {
+    "verified_on": "2026-09-25",
+    "required_input_count": 5,
+    "all_manifest_sha256_matched": true,
+    "master_expected_sha256_matched": true,
+    "master_read_in_full": true,
+    "pdf_text_read_in_full": true,
+    "pdf_pages": [
+      42,
+      2,
+      3,
+      10
+    ],
+    "actual_filenames": [
+      "Alpha_V11_Master_Prompt_Controlled_Continual_Learning_PWS_Observation_Lead_V10_Forensic_Baseline_Final_Reviewed(1).txt",
+      "Optimal Market Making in Prediction Markets-by-Dom_260918_204527(1).pdf",
+      "three-wallet-pnl-and-improvements_260918_204548(1).pdf",
+      "toronto_market_making_incident_report_260918_204513(1).pdf",
+      "weather_hot_v2_architecture_recommendation_260918_204453(1).pdf"
+    ],
+    "prior_visual_review": "Retained from original verification; this local reverification reads all PDF text."
+  }
 }

@@ -353,7 +353,7 @@ def _received_release(inputs, *, request, decision, admission_request, model, bu
         event_guard_replayed=False, directional_permission_reissued=False, financial_authority=False)
 
 
-def replay_temperature(c, evaluation_id, *, policy, monotonic=time.monotonic, deadline=None):
+def _temperature_result(c, evaluation_id, policy):
     if not isinstance(policy, ReplayPolicy) or c.store.namespace != 'V11_PAPER':
         raise EvidenceError('REPLAY_PAPER_POLICY_REQUIRED')
     identity(evaluation_id)
@@ -361,93 +361,109 @@ def replay_temperature(c, evaluation_id, *, policy, monotonic=time.monotonic, de
         economic_match=False, comparisons={}, account=None, financial_authority=False, admission_authority=False,
         historical_executable_attested=False, full_control_flow_replayed=False,
         new_economic_commands=0, source_truth_independently_attested=False)
+    return result
+
+
+def replay_temperature(c, evaluation_id, *, policy, monotonic=time.monotonic, deadline=None):
+    result = _temperature_result(c, evaluation_id, policy)
     try:
         stop = monotonic()+policy.maximum_seconds
         if deadline is not None: stop = min(stop, finite(deadline))
         with learning_source_view(c.store, deadline=stop, monotonic=monotonic) as source:
-            row = source.get(evaluation_id); d = row['body'].get('details', {})
-            if row['kind'] != 'MEASUREMENT' or d.get('version') != STRATEGY_VERSION:
-                raise EvidenceError('REPLAY_TEMPERATURE_DECISION_REQUIRED')
-            result.update(decision_ref=_ref(row), decision_recorded_at=row['body']['recorded_at'], original_outcome=d['outcome'], original_reason=d['reason'],
-                          original_binding=d['binding'])
-            if d['strategy'] not in SUPPORTED: raise EvidenceError('REPLAY_STRATEGY_JOIN_NOT_IMPLEMENTED')
-            request = _request(d['request']); start = source.get(evaluation_id+':start')
-            cutoff = finite(d['evaluation_started_at']); sd = start['body']['details']
-            if (start['kind'] != 'MEASUREMENT' or start['event_id'] != row['event_id'] or start['seq'] >= row['seq']
-                    or sd.get('version') != STRATEGY_VERSION or sd.get('stage') != 'EVALUATION_STARTED'
-                    or sd.get('request') != d['request'] or sd.get('request_sha256') != digest(asdict(request))
-                    or d['request_sha256'] != sd['request_sha256'] or start['body']['recorded_at'] != cutoff
-                    or row['body']['recorded_at'] < cutoff):
-                raise EvidenceError('REPLAY_ORIGINAL_REQUEST_OR_START')
-            inputs = HistoricalView(source, through_seq=start['seq'], at=cutoff)
-            admission = inputs.get(request.admission_id); ad = admission['body']['details']; ar = ad['request']; a = ad['assessment']
-            scope = CapabilityScope(**ar['scope']); rule = RuleFingerprint(**ar['rule']); binding = ReleaseBinding(**ar['binding'])
-            if (admission['kind'] != 'REGISTRY' or ad.get('version') != ADMISSION_VERSION
-                    or admission['seq'] >= start['seq'] or ar['binding'] != d['binding'] or ar['scope'] != d['scope']
-                    or scope.strategy != d['strategy'] or rule.payload['event_id'] != row['event_id']
-                    or ar['context']['account_id'] != c.policy.account_id or ar['context']['event_id'] != row['event_id']
-                    or ar['stage'] not in {'PAPER','SHADOW'} or not cutoff < min(finite(a['valid_until']),request.expires_at)):
-                raise EvidenceError('REPLAY_ORIGINAL_ADMISSION_BINDING')
-            if d.get('prediction') is None or d.get('valuation') is None:
-                raise EvidenceError('REPLAY_EARLY_CONTROL_GATE_NOT_RECOMPUTED')
-            for kind, event, seq in a['heads']:
-                head = inputs.latest(kind=kind, event_id=event)
-                if (head['seq'] if head else 0) != seq: raise EvidenceError('REPLAY_ORIGINAL_ADMISSION_HEAD_CHANGED')
-            leases = {x['evidence_id']:x for x in ar['source_leases']}
-            if set(request.model_input_ids) != {k for k,v in leases.items() if v['role']=='MODEL'}:
-                raise EvidenceError('REPLAY_ORIGINAL_MODEL_LEASES')
-            roots = [inputs.get(x) for x in dict.fromkeys((*leases,request.book_id))]
-            derivation = source_derivation(inputs, roots, event_id=row['event_id'], cutoff=cutoff)
-            inference_cutoff = cutoff if scope.strategy=='FUTURE_FORECAST' else finite(inputs.get(request.coverage_input_id)['body']['payload']['as_of'])
-            if inference_cutoff > cutoff or inference_cutoff != d['inference_cutoff']:
-                raise EvidenceError('REPLAY_ORIGINAL_INFERENCE_CUTOFF')
-            if d.get('model_epoch') != a['model_epoch'] or a['model_bundle_sha256'] != binding.bundle_sha256:
-                raise EvidenceError('REPLAY_ORIGINAL_MODEL_BINDING')
-            bundle, model = historical_bundle(scope_key=scope.key, mode='V11_PAPER' if ar['stage']=='PAPER' else 'V11_SHADOW',
-                epoch=a['model_epoch'], state_sha256=a['model_state_sha256'], bundle_sha256=binding.bundle_sha256,
-                at=admission['body']['recorded_at'], check=source.check)
-            if (d['artifact_refs'] != bundle.payload['bundle']['artifacts']
-                    or model['original_overlay']['size_multiplier'] != a['model_size_multiplier']):
-                raise EvidenceError('REPLAY_ORIGINAL_ARTIFACT_OR_OVERLAY_BINDING')
-            pws_pair = _pws_pair(inputs, request=request, decision=d, payout_request=ar, payout_assessment=a,
-                payout_model=model, payout_bundle=bundle) if scope.strategy=='PWS_OBSERVATION_LEAD' else None
-            release = _received_release(inputs, request=request, decision=d, admission_request=ar, model=model,
-                bundle=bundle) if scope.strategy in {'SOURCE_SHOCK','RELEASE_OPPORTUNITY'} else None
-            components, observed, coverage = temperature_inputs(inputs, rule, request, strategy=scope.strategy,
-                cutoff=cutoff, inference_cutoff=inference_cutoff)
-            prediction = predict_with_bundle(bundle, rule, components, as_of=inference_cutoff,
-                max_source_age_seconds=min(leases[k]['maximum_age_seconds'] for k in request.model_input_ids),
-                observed=observed, remaining_coverage=coverage)
-            value_row = source.get(evaluation_id+':valuation'); value = value_row['body']['details']
-            at = finite(value_row['body']['recorded_at'])
-            if (value_row['kind'] != 'MEASUREMENT' or value_row['event_id'] != row['event_id']
-                    or not start['seq'] < value_row['seq'] < row['seq'] or not cutoff <= at <= row['body']['recorded_at']
-                    or canonical(value) != canonical(d['valuation']) or value['as_of'] != at):
-                raise EvidenceError('REPLAY_ORIGINAL_VALUATION_BINDING')
-            valuation_view = HistoricalView(source, through_seq=value_row['seq']-1, at=at)
-            measured = settlement_entry_details(valuation_view, rule=rule, prediction=prediction, binding=binding,
-                market_id=request.market_id, side=request.side, units=request.units, book_id=request.book_id,
-                policy=request.valuation_policy, costs=request.costs)
-            comparisons = dict(prediction=canonical(prediction.payload)==canonical(d['prediction']),
-                valuation=canonical(measured)==canonical(value), economic_outcome=measured['outcome']==value['outcome'],
-                economic_reasons=measured['reasons']==value['reasons'])
-            if pws_pair is not None:
-                comparisons.update({'pws_'+key:matched for key,matched in pws_pair['comparisons'].items()})
-            if release is not None:
-                comparisons.update({'release_'+key:matched for key,matched in release['comparisons'].items()})
-            account = _account(c, inputs); source.check()
-            result.update(status='ECONOMICS_REPRODUCED' if all(comparisons.values()) else 'MISMATCH',
-                reason='SHARED_NUMERIC_ENGINE_HISTORICAL_INPUTS_CONTROL_AUTHORITY_NOT_REPLAYED',
-                economic_match=all(comparisons.values()), comparisons=comparisons, account=account, model=model,
-                cutoff=cutoff, inference_cutoff=inference_cutoff, input_boundary_seq=start['seq'],
-                valuation_at=at, valuation_ref=_ref(value_row), input_refs=[_ref(x) for x in roots],
-                source_derivation_sha256=derivation['sha256'] if derivation else None,
-                recomputed_prediction=prediction.payload, recomputed_valuation=measured,
-                proposal_recreated=False, orders_or_fills_inferred=False)
-            if pws_pair is not None: result['pws_observation'] = pws_pair
-            if release is not None: result['source_release'] = release
-            if len(canonical(result).encode()) > 512*1024: raise EvidenceError('REPLAY_OUTPUT_BOUND')
-            return result
+            return replay_temperature_in_view(c, evaluation_id, policy=policy, source=source)
+    except (EvidenceError, KeyError, TypeError, ValueError, InvalidOperation, OSError) as exc:
+        result['reason'] = str(exc) if isinstance(exc, EvidenceError) else 'REPLAY_MALFORMED_OR_UNAVAILABLE_EVIDENCE'
+        return result
+
+
+def replay_temperature_in_view(c, evaluation_id, *, policy, source):
+    """Reuse the caller's immutable source snapshot and shared deadline."""
+    result = _temperature_result(c, evaluation_id, policy)
+    try:
+        source.check()
+        row = source.get(evaluation_id); d = row['body'].get('details', {})
+        if row['kind'] != 'MEASUREMENT' or d.get('version') != STRATEGY_VERSION:
+            raise EvidenceError('REPLAY_TEMPERATURE_DECISION_REQUIRED')
+        result.update(decision_ref=_ref(row), decision_recorded_at=row['body']['recorded_at'], original_outcome=d['outcome'], original_reason=d['reason'],
+                      original_binding=d['binding'])
+        if d['strategy'] not in SUPPORTED: raise EvidenceError('REPLAY_STRATEGY_JOIN_NOT_IMPLEMENTED')
+        request = _request(d['request']); start = source.get(evaluation_id+':start')
+        cutoff = finite(d['evaluation_started_at']); sd = start['body']['details']
+        if (start['kind'] != 'MEASUREMENT' or start['event_id'] != row['event_id'] or start['seq'] >= row['seq']
+                or sd.get('version') != STRATEGY_VERSION or sd.get('stage') != 'EVALUATION_STARTED'
+                or sd.get('request') != d['request'] or sd.get('request_sha256') != digest(asdict(request))
+                or d['request_sha256'] != sd['request_sha256'] or start['body']['recorded_at'] != cutoff
+                or row['body']['recorded_at'] < cutoff):
+            raise EvidenceError('REPLAY_ORIGINAL_REQUEST_OR_START')
+        inputs = HistoricalView(source, through_seq=start['seq'], at=cutoff)
+        admission = inputs.get(request.admission_id); ad = admission['body']['details']; ar = ad['request']; a = ad['assessment']
+        scope = CapabilityScope(**ar['scope']); rule = RuleFingerprint(**ar['rule']); binding = ReleaseBinding(**ar['binding'])
+        if (admission['kind'] != 'REGISTRY' or ad.get('version') != ADMISSION_VERSION
+                or admission['seq'] >= start['seq'] or ar['binding'] != d['binding'] or ar['scope'] != d['scope']
+                or scope.strategy != d['strategy'] or rule.payload['event_id'] != row['event_id']
+                or ar['context']['account_id'] != c.policy.account_id or ar['context']['event_id'] != row['event_id']
+                or ar['stage'] not in {'PAPER','SHADOW'} or not cutoff < min(finite(a['valid_until']),request.expires_at)):
+            raise EvidenceError('REPLAY_ORIGINAL_ADMISSION_BINDING')
+        if d.get('prediction') is None or d.get('valuation') is None:
+            raise EvidenceError('REPLAY_EARLY_CONTROL_GATE_NOT_RECOMPUTED')
+        for kind, event, seq in a['heads']:
+            head = inputs.latest(kind=kind, event_id=event)
+            if (head['seq'] if head else 0) != seq: raise EvidenceError('REPLAY_ORIGINAL_ADMISSION_HEAD_CHANGED')
+        leases = {x['evidence_id']:x for x in ar['source_leases']}
+        if set(request.model_input_ids) != {k for k,v in leases.items() if v['role']=='MODEL'}:
+            raise EvidenceError('REPLAY_ORIGINAL_MODEL_LEASES')
+        roots = [inputs.get(x) for x in dict.fromkeys((*leases,request.book_id))]
+        derivation = source_derivation(inputs, roots, event_id=row['event_id'], cutoff=cutoff)
+        inference_cutoff = cutoff if scope.strategy=='FUTURE_FORECAST' else finite(inputs.get(request.coverage_input_id)['body']['payload']['as_of'])
+        if inference_cutoff > cutoff or inference_cutoff != d['inference_cutoff']:
+            raise EvidenceError('REPLAY_ORIGINAL_INFERENCE_CUTOFF')
+        if d.get('model_epoch') != a['model_epoch'] or a['model_bundle_sha256'] != binding.bundle_sha256:
+            raise EvidenceError('REPLAY_ORIGINAL_MODEL_BINDING')
+        bundle, model = historical_bundle(scope_key=scope.key, mode='V11_PAPER' if ar['stage']=='PAPER' else 'V11_SHADOW',
+            epoch=a['model_epoch'], state_sha256=a['model_state_sha256'], bundle_sha256=binding.bundle_sha256,
+            at=admission['body']['recorded_at'], check=source.check)
+        if (d['artifact_refs'] != bundle.payload['bundle']['artifacts']
+                or model['original_overlay']['size_multiplier'] != a['model_size_multiplier']):
+            raise EvidenceError('REPLAY_ORIGINAL_ARTIFACT_OR_OVERLAY_BINDING')
+        pws_pair = _pws_pair(inputs, request=request, decision=d, payout_request=ar, payout_assessment=a,
+            payout_model=model, payout_bundle=bundle) if scope.strategy=='PWS_OBSERVATION_LEAD' else None
+        release = _received_release(inputs, request=request, decision=d, admission_request=ar, model=model,
+            bundle=bundle) if scope.strategy in {'SOURCE_SHOCK','RELEASE_OPPORTUNITY'} else None
+        components, observed, coverage = temperature_inputs(inputs, rule, request, strategy=scope.strategy,
+            cutoff=cutoff, inference_cutoff=inference_cutoff)
+        prediction = predict_with_bundle(bundle, rule, components, as_of=inference_cutoff,
+            max_source_age_seconds=min(leases[k]['maximum_age_seconds'] for k in request.model_input_ids),
+            observed=observed, remaining_coverage=coverage)
+        value_row = source.get(evaluation_id+':valuation'); value = value_row['body']['details']
+        at = finite(value_row['body']['recorded_at'])
+        if (value_row['kind'] != 'MEASUREMENT' or value_row['event_id'] != row['event_id']
+                or not start['seq'] < value_row['seq'] < row['seq'] or not cutoff <= at <= row['body']['recorded_at']
+                or canonical(value) != canonical(d['valuation']) or value['as_of'] != at):
+            raise EvidenceError('REPLAY_ORIGINAL_VALUATION_BINDING')
+        valuation_view = HistoricalView(source, through_seq=value_row['seq']-1, at=at)
+        measured = settlement_entry_details(valuation_view, rule=rule, prediction=prediction, binding=binding,
+            market_id=request.market_id, side=request.side, units=request.units, book_id=request.book_id,
+            policy=request.valuation_policy, costs=request.costs)
+        comparisons = dict(prediction=canonical(prediction.payload)==canonical(d['prediction']),
+            valuation=canonical(measured)==canonical(value), economic_outcome=measured['outcome']==value['outcome'],
+            economic_reasons=measured['reasons']==value['reasons'])
+        if pws_pair is not None:
+            comparisons.update({'pws_'+key:matched for key,matched in pws_pair['comparisons'].items()})
+        if release is not None:
+            comparisons.update({'release_'+key:matched for key,matched in release['comparisons'].items()})
+        account = _account(c, inputs); source.check()
+        result.update(status='ECONOMICS_REPRODUCED' if all(comparisons.values()) else 'MISMATCH',
+            reason='SHARED_NUMERIC_ENGINE_HISTORICAL_INPUTS_CONTROL_AUTHORITY_NOT_REPLAYED',
+            economic_match=all(comparisons.values()), comparisons=comparisons, account=account, model=model,
+            cutoff=cutoff, inference_cutoff=inference_cutoff, input_boundary_seq=start['seq'],
+            valuation_at=at, valuation_ref=_ref(value_row), input_refs=[_ref(x) for x in roots],
+            source_derivation_sha256=derivation['sha256'] if derivation else None,
+            recomputed_prediction=prediction.payload, recomputed_valuation=measured,
+            proposal_recreated=False, orders_or_fills_inferred=False)
+        if pws_pair is not None: result['pws_observation'] = pws_pair
+        if release is not None: result['source_release'] = release
+        if len(canonical(result).encode()) > 512*1024: raise EvidenceError('REPLAY_OUTPUT_BOUND')
+        return result
     except (EvidenceError, KeyError, TypeError, ValueError, InvalidOperation, OSError) as exc:
         result.update(status='GATED', reason=str(exc) if isinstance(exc,EvidenceError) else 'REPLAY_MALFORMED_OR_UNAVAILABLE_EVIDENCE',
             economic_match=False, comparisons={}, account=None)
