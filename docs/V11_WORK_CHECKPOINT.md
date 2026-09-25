@@ -17,11 +17,23 @@ audits expose complete selection and numerical matches. No approval/control-flow
 source truth or original executable attestation is claimed. Defaults keep prior
 configuration identities; all paths remain nonfinancial and read-only in replay.
 
-Verification so far: **43 passed / 5.00 s / exit 0** shared-runtime extraction;
-**51 passed / 5.80 s / exit 0** new portfolio and existing account replay suites.
+Implementation saved/published **583bc1e7258f7d9ee1ee86812efd83a6281d3bb5**, tree
+**64e2b29d5b07e5d24bea82aec4448891b382c27c**; candidate/failure checks now complete.
+Final focused **102 passed / 16.66 s / exit 0**, session **82485**, covers protected
+basket/exit values, source derivation and missing raw receipts, later model/book/
+account/day changes, numeric regression, unsupported prepared entries, incomplete
+cohorts, shared deadlines and report-before-cursor recovery. Typed candidate runs
+schedule the joined audit without creating fills or qualifying new risk.
+Initial checks: **43 / 5.00 s** shared-runtime extraction; **51 / 5.80 s** replay.
 Four initial fixture-expectation failures were corrected (synthetic sources have
 no raw derivation edges; required account dependencies can gate the whole command;
 inventory proof binds the original snapshot, not an unused older fill command).
+Two candidate fixture assumptions were corrected: the fully derived candidate
+properly suppresses new risk with unknown market history/execution health/
+settlement window and unsynchronized stream; its audit still verifies original
+prepared values. The separate mock-census/protected-strategy integration explicitly
+declares synthetic risk metrics and can emit multiple coordinate commands; every
+original prepared value is checked. No production safety gate was weakened.
 Exact logs/hashes: **docs/V11_PORTFOLIO_REPLAY_EVIDENCE.md**. Affected/full checks
 on this integration are pending; older broad results below do not cover it.
 
@@ -33,9 +45,11 @@ external blockers; no owner-only action blocks this implementation.
 
 Resolve this checkpoint with `git log -1 --format='%H %T' -- docs/V11_WORK_CHECKPOINT.md`;
 inspect worktree, newest saved state and operations before continuing.
-**Exact next action:** finish candidate-run audit integration, original model
-history/mixed-cohort/deadline/recovery checks for the prepared valuation joins,
-then run the affected and full integrated suites once on a saved unchanged tree.
+**Exact next action:** run affected and full integrated suites once on this saved
+unchanged tree; preserve their input hashes and results. Then connect original
+temperature entry numerical valuations to prepared account candidates using the
+existing five temperature replay joins, retaining unsupported/legacy proposals
+and original control-flow gaps explicitly. Do not replay completed operations.
 The six concrete readiness milestones below remain current: sources/labels
 45–90 h; replay/learning 30–60 h; portfolio/execution 35–70 h; independent safety/
 identity/host 30–60 h; independent unfunded acceptance 25–50 h; operating comparison/

@@ -3,7 +3,8 @@
 Latest 2026-09-25 continuation: original prepared basket/exit numerical valuation
 comparisons now join account replay and existing audits. Shared runtime extraction
 passed **43 / 5.00 s**; portfolio/account checks **51 / 5.80 s**, exit 0. Candidate
-and failure integration plus affected/full regression are next; evidence is in
+scheduling and failure integration now pass **102 / 16.66 s**, exit 0; derived
+new-risk gates remain intact. Affected/full regression is next; evidence is in
 docs/V11_PORTFOLIO_REPLAY_EVIDENCE.md. This strengthens existing C/J credit,
 including R04; it does not close real-evidence, independent acceptance or isolated
 deployment. **83/200 = 41.5%, rounded approximately 42%; formal 1/50 (2%)**, unchanged.

@@ -20,8 +20,11 @@ shared numerical basket/exit replay now joins original account commands and
 existing audits with complete prepared-candidate selection, original protected
 model/source/book/inventory bindings, separate effect/valuation results and
 explicit missing/unsupported gates. Runtime extraction **43 / 5.00 s**; portfolio
-plus account replay **51 / 5.80 s**, both exit 0. Candidate/failure expansion and
-affected/full checks remain next. Exact evidence:
+plus account replay **51 / 5.80 s**, both exit 0. Candidate scheduling/provenance/
+model-history/denominator/deadline/recovery expansion now passes **102 / 16.66 s**,
+exit 0, including existing basket/exit runtime regressions. New-risk eligibility
+stays gated where derived market-history, execution-health, settlement or stream
+evidence is absent. Affected/full checks remain next. Exact evidence:
 **docs/V11_PORTFOLIO_REPLAY_EVIDENCE.md**. Original preparation/control-flow,
 actual evidence, independent acceptance and deployment remain open. No statuses
 or credits changed: **83/200 (~42%); 1/50 (2%)**. NOT_READY_TO_FUND; V10 DEFERRED.

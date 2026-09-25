@@ -18,6 +18,17 @@ def run(rig, key, **kw):
     return PerformanceLab(coordinator(rig)).replay_account_command(key, policy=ReplayPolicy('fixture'), **kw)
 
 
+def test_unimplemented_prepared_entry_values_remain_counted_and_conditional(rig):
+    c=coordinator(rig)
+    c.coordinate('batch',(proposal(rig,'weak',bucket=1,ev='.1'),proposal(rig,'strong')))
+    d=run(rig,'batch',replay_valuations=True)
+    assert d['status']=='EFFECTS_REPRODUCED' and not d['preparation_recomputed']
+    values=d['prepared_valuations']
+    assert values['complete_prepared_selection'] and values['prepared_count']==2
+    assert not values['economic_matches'] and not values['all_prepared_valuations_reproduced']
+    assert all(r['status']=='GATED' and r['reason']=='PORTFOLIO_REPLAY_PREPARED_VALUATION_NOT_IMPLEMENTED' for r in values['rows'])
+
+
 def commands(rig):
     c = coordinator(rig)
     c.coordinate('batch', (proposal(rig, 'weak', bucket=1, ev='.1'), proposal(rig, 'strong')))
