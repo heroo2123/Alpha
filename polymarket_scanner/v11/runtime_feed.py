@@ -9,7 +9,7 @@ import fcntl
 import os
 import time
 
-from .evidence import EvidenceError, canonical, digest, finite, identity
+from .evidence import EvidenceError, EvidenceStore, canonical, digest, finite, identity
 
 
 VERSION = 'alpha_v11_runtime_feed_v1'
@@ -65,7 +65,7 @@ class EvidenceFeed:
             # Its own health dependency stays gated. An auxiliary research
             # normalization must not manufacture a whole-event census fault.
             return 'FORECAST_RUN_PROVENANCE_REQUIRED'
-        if kind == 'TRADE' and p.get('record_type') in {'PAPER_FILL','PAPER_TERMINAL'}:
+        if kind == 'TRADE' and EvidenceStore.is_paper_receipt(p):
             return 'ACCOUNT_RECEIPT_NOT_PUBLIC_MARKET_TRADE'
         return kind
 

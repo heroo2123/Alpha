@@ -23,6 +23,7 @@ from .strategy_admission import StrategyAdmission
 from .event_queue import admission_heads as event_queue_admission
 from .position_attribution import intent_lineage, consume_lots
 from .runtime_health import admission_heads as runtime_health_admission
+from .paper_reconciliation import admission_heads as receipt_admission
 
 
 VERSION = 'alpha_v11_paper_coordinator_v1'
@@ -106,6 +107,7 @@ class PaperCoordinator:
                  correlation: CorrelationMap, limits: ScenarioLimits):
         self.store, self.policy, self.correlation, self.limits = store, policy, correlation, limits
         self.policy_sha = digest(dict(account=asdict(policy), correlation=asdict(correlation), limits=asdict(limits)))
+        self.reconciliation_config = None
 
     def _head(self):
         row = self.store.latest(kind='COORDINATOR_EVENT', event_id=ACCOUNT_KEY)
@@ -191,7 +193,7 @@ class PaperCoordinator:
     def policy_amount(self, name):
         return number(getattr(self.policy, name))
 
-    def _commit(self, record_id, request, row, state, details, *, evidence_ids=(), heads=()):
+    def _commit(self, record_id, request, row, state, details, *, evidence_ids=(), heads=(), receipt_seq=None):
         if (len(state['rules']) > 32 or len(state['intents']) > 512 or len(state['fills']) > 2048
                 or len(state['lots']) > 512 or len(state.get('baskets', {})) > 128):
             raise EvidenceError('PAPER_ACCOUNT_RETENTION_BOUND_NO_UNSAFE_PRUNING')
@@ -199,7 +201,8 @@ class PaperCoordinator:
         return audit(record_id, event_id=ACCOUNT_KEY, kind='COORDINATOR_EVENT',
                                 details=dict(version=VERSION, policy_sha256=self.policy_sha,
                                              request=request, state=state, **details), evidence_ids=evidence_ids,
-                                expected_previous_seq=row['seq'] if row else 0, expected_heads=heads)
+                                expected_previous_seq=row['seq'] if row else 0, expected_heads=heads,
+                                **({'expected_receipt_seq': receipt_seq} if receipt_seq is not None else {}))
 
     def snapshot(self):
         row = self._head()
@@ -374,6 +377,9 @@ class PaperCoordinator:
             return replay
         row = self._head(); state = self._state(row); now = finite(self.store.clock())
         evaluated, prepared, guards, references = [], [], {}, []
+        receipt_heads, receipt_seq = receipt_admission(self.store, account_id=self.policy.account_id,
+            account_policy_sha=self.policy_sha, required_config=self.reconciliation_config)
+        guards.update({(k, e): n for k, e, n in receipt_heads})
         for proposal in proposals:
             try:
                 try:
@@ -470,7 +476,7 @@ class PaperCoordinator:
                             dict(ranking=ranking, results=evaluated, reserved_intent_ids=chosen, risk=self._risk(state),
                                  execution_status='NOT_SUBMITTED', economic_attribution_is_not_multiple_fills=True),
                             evidence_ids=tuple(dict.fromkeys(references)),
-                            heads=tuple((k, e, n) for (k, e), n in guards.items()))
+                            heads=tuple((k, e, n) for (k, e), n in guards.items()), receipt_seq=receipt_seq)
 
     def transition(self, command_id: str, *, intent_id: str, status: str, expected_cancel_identity: str | None = None) -> dict:
         if status not in {'SUBMITTING', 'UNKNOWN', 'ACKNOWLEDGED', 'CANCEL_REQUESTED'}:
@@ -494,10 +500,13 @@ class PaperCoordinator:
             raise EvidenceError('AMBIGUOUS_SUBMISSION_CANNOT_BE_RETRIED_AS_NEW')
         if status in {'UNKNOWN', 'ACKNOWLEDGED'} and intent['status'] == 'RESERVED':
             raise EvidenceError('SUBMISSION_NOT_STARTED')
-        heads = ()
+        heads = (); receipt_seq = None
+        if status == 'SUBMITTING':
+            heads, receipt_seq = receipt_admission(self.store, account_id=self.policy.account_id,
+                account_policy_sha=self.policy_sha, required_config=self.reconciliation_config)
         if status == 'SUBMITTING' and intent.get('basket_id') is not None:
             from .basket_coordinator import submission_heads
-            heads = submission_heads(self, state, intent)
+            heads += submission_heads(self, state, intent)
             unique = {}
             for kind, event_id, seq in heads:
                 if (kind, event_id) in unique and unique[(kind, event_id)] != seq:
@@ -506,7 +515,7 @@ class PaperCoordinator:
             heads = tuple((k, e, seq) for (k, e), seq in unique.items())
         elif status == 'SUBMITTING':
             context = EventContext(**state['contexts'][intent['event_id']])
-            heads = SafetyReductions(self.store).atomic_heads(context)
+            heads += SafetyReductions(self.store).atomic_heads(context)
             queue = event_queue_admission(self.store, event_id=intent['event_id'], valuation_id=intent['valuation_id'])
             heads += tuple(tuple(h) for h in queue['heads'])
             if queue['completion_id'] != intent.get('event_queue_completion_id'):
@@ -561,7 +570,8 @@ class PaperCoordinator:
         intent['status'] = ('CANCEL_REQUESTED' if intent['cancel_requested'] else
                             'PARTIAL' if status == 'ACKNOWLEDGED' and number(intent['filled_units']) > 0 else status)
         return self._commit(command_id, request, row, state,
-                            dict(risk=self._risk(state), reservation_released=False, real_submission_performed=False), heads=heads)
+                            dict(risk=self._risk(state), reservation_released=False, real_submission_performed=False),
+                            heads=heads, receipt_seq=receipt_seq)
 
     def recover(self, command_id: str) -> dict:
         request = dict(action='RECOVER')

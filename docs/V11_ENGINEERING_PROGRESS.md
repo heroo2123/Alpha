@@ -322,3 +322,16 @@ in docs/V11_FILL_REGRESSION_EVIDENCE.md. No new scored milestone closes:
 independent, host and unfunded gates, six active-hour ranges and separation of
 external/owner waiting are unchanged. Next is bounded candidate reconciliation
 of archived PAPER fill/terminal receipts; no owner action blocks that code.
+
+
+Archived PAPER receipt reconciliation now joins the finite candidate priority tick,
+existing common-account proof checks, atomic admission/submission fences, resumable
+pending/cursor state and audits. The 34 targeted passes (5.12 s) include archive-only
+fill input through reviewed monitoring/cancellation, proven terminal release and
+daily audit. Malformed/public/foreign separation, interrupted delivery and health
+loss remain fail-closed. Applicable R02/R03/R05/R21/R32/R33/R40/R45 C/J slices were
+already credited; **82/200, approximately 41%**, formal **1/50 (2%)**, unchanged.
+No actual source/calibration, independent acceptance, guardian or deployment gate
+closed. The six active-hour ranges remain appropriate to the broader unresolved
+scope. Account-change reevaluation, actual/owner evidence and READY_TO_FUND remain
+open. Affected/full verification of this new tree is pending at this checkpoint.

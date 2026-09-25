@@ -92,7 +92,7 @@ class TemperatureEventAdapter:
 
 
 class PaperRuntime:
-    def __init__(self, coordinator, queue, health, policy, *, evaluator, census=None, maker=None, worker_id=None, generation=None, feed_policy=None, rewards=None, audits=None):
+    def __init__(self, coordinator, queue, health, policy, *, evaluator, census=None, maker=None, worker_id=None, generation=None, feed_policy=None, rewards=None, audits=None, reconciliation=None):
         if (not isinstance(policy, RuntimePolicy) or coordinator.store is not queue.store or coordinator.store is not health.store
                 or health.account_id != coordinator.policy.account_id or set(queue.routes) != set(health.scopes)):
             raise EvidenceError('RUNTIME_COMPONENT_SCOPE_MISMATCH')
@@ -107,6 +107,9 @@ class PaperRuntime:
         if rewards is not None and (maker is None or rewards.research is not maker):
             raise EvidenceError('RUNTIME_REWARD_RESEARCH_MISMATCH')
         self.rewards = rewards
+        self.reconciliation = reconciliation
+        if reconciliation is not None and reconciliation.coordinator is not coordinator:
+            raise EvidenceError('RUNTIME_RECONCILIATION_ACCOUNT_MISMATCH')
         self.audits = audits or AuditScheduler(self.store,AuditPolicy('bounded-audit-v1'))
         if self.audits.store is not self.store: raise EvidenceError('RUNTIME_AUDIT_NAMESPACE_MISMATCH')
         self.cancellation = PaperCancellation(coordinator, CancellationPolicy('runtime-bounded-v1', 16, 256))
@@ -116,6 +119,7 @@ class PaperRuntime:
                       resting_admission_policy=ADMISSION_VERSION)
         if getattr(evaluator,'config',None) is not None: config['evaluator'] = evaluator.config
         if maker is not None:config['maker_research']=maker.policy_sha
+        if reconciliation is not None:config['paper_reconciliation']=reconciliation.config
         self.config = digest(config)
 
     def _head(self):
@@ -190,6 +194,16 @@ class PaperRuntime:
             save(outcome='PAPER_WORKER_RESTART_RECONCILED')
         errors = []; cancellation_reports = []; evaluations = []; coordinated = []; retired = []; reward_reports = []
         admission_checks = []
+        receipt_reports = []
+        if self.reconciliation is not None and not hd['clock_reasons'] and budget():
+            try:
+                report = self.reconciliation.step(prefix+':receipts',
+                    deadline=min(deadline, time.monotonic()+self.policy.maximum_tick_seconds/4))
+                receipt_reports.append(report['id'])
+                if report['body']['details']['outcome'] != 'RECONCILED':
+                    errors.append(dict(stage='RECONCILIATION', reason='PAPER_RECEIPTS_REQUIRE_RECONCILIATION'))
+            except (EvidenceError, OSError, TimeoutError) as exc:
+                errors.append(dict(stage='RECONCILIATION', reason=str(exc)))
         # Resume durable plans before consuming new triggers. Requests retain risk.
         plan_ids = sorted(state['active_plans'])
         plan_ids = [p for p in plan_ids if p > state['last_cancel_plan']]+[p for p in plan_ids if p <= state['last_cancel_plan']]
@@ -377,5 +391,6 @@ class PaperRuntime:
             resting_admission_check_ids=admission_checks,
             reward_report_ids=reward_reports,
             audit_request_ids=audit_request_ids,
+            **({'receipt_reconciliation_ids': receipt_reports} if self.reconciliation is not None else {}),
             duration_monotonic_seconds=time.monotonic()-started, budget_exhausted=not budget(),
             queue_metrics=self.queue.snapshot()['metrics'], forward_or_live_acceptance=False)

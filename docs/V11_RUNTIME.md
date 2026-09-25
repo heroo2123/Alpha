@@ -28,8 +28,8 @@ round-robin service budget; separate bounded intake prevents ambiguous old cance
 from starving fresh safety requests. At most twice maximum_cancel_plans plus one health adapter
 run per tick, each bounded to 16 local account requests. Cash remains reserved
 through ambiguity. Account faults, unhealthy clock/worker state and required-source
-loss feed the same cancellation records. A terminal proof is reconciled by the
-existing account API, never inferred by this scheduler. Maker quotes can be
+loss feed the same cancellation records. Explicit archived fill/terminal proofs can now be delivered by the optional receipt
+worker through the existing account API; terminal state is never inferred by this scheduler. Maker quotes can be
 retired even during backward wall-clock movement and remain research-only.
 
 Tests demonstrate periodic census -> causal source coverage -> real scoped
@@ -404,3 +404,42 @@ across horizons or claim full universe coverage. More than 32 summaries sets
 metadata overflow and incomplete semantic coverage. The additive optional field
 preserves existing completed reports and in-progress aggregate identity. Evidence:
 `tests/test_v11_markout_drift.py`; 276 affected checks plus final 47 cases passed.
+
+
+## Archived PAPER receipt reconciliation
+
+`CandidatePlan.reconciliation=ReconciliationPolicy(...)` binds a
+`PaperReconciliation` worker to the exact candidate coordinator. Construction does
+not write or deploy anything. The configured coordinator rejects new reservations
+and SUBMITTING until the first successful journal reconciliation. Once activated,
+its durable journal also fences other coordinator instances sharing that account.
+Historical plans without this field keep their original assembly/runtime hashes.
+
+Each priority tick gives receipts at most a quarter of its cooperative time budget
+(and the worker's own <=2-second policy), before cancellation/evaluation. Scans use
+archive sequence, at most 64 rows and 2 MiB, with a SQLite read deadline; pending
+receipts have a <=64-entry bound and round-robin retries. SQLite/account writes are
+not preemptible; this is not independent wall-time/host guardian acceptance. The
+worker lock is nonblocking, no-follow and regular-file checked. A full pending map
+retains the first unrecordable failure behind the scan cursor and gates admission.
+
+TRADE records with account/intent/namespace markers or PAPER_* type are classified
+separately from public trades, including malformed envelopes. Valid explicit foreign
+identities are retained/classified; missing identities, wrong classes/targets,
+unknown types and incomplete terminal reconciliation remain pending. Deterministic
+receipt-derived coordinator command IDs make restart after an account commit
+idempotent. Only the existing synthetic proof, all-in cost, inventory, cumulative
+fill quantity and final terminal authority checks may mutate the paper ledger.
+No public print or maker quote becomes a fill. Data is never relabeled as actual
+venue execution, and received proofs do not certify a simulation or production engine.
+
+A ready journal must have no pending receipts and reach the exact receipt frontier.
+New reservations/submission guard its head plus the account/source/health heads and
+that frontier inside the same SQLite account transaction. New arrivals, concurrent
+activation and account/journal races invalidate the old admission. Cancellation and
+known-fill reconciliation do not require new-risk health approval; clock regression
+still blocks ordinary financial-state/journal writes. Receipt worker errors retain
+cancellation service. Audits expose delivery attempts separately from unique fills.
+The five-horizon measurement/candidate test includes archive-only input, scoped
+reduction, cancellation, later terminal receipts and daily audit without direct
+manual `record_fill`. Receipt-triggered event/exit reevaluation remains the next join.

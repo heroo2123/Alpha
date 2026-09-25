@@ -190,7 +190,8 @@ class EvidenceStore:
                 available_at: float, recorded_at: float,
                 expected_previous_seq: int | None = None,
                 expected_heads: tuple[tuple[str, str, int], ...] = (),
-                safety_only: bool = False, expected_archive_seq: int | None = None) -> dict:
+                safety_only: bool = False, expected_archive_seq: int | None = None,
+                expected_receipt_seq: int | None = None) -> dict:
         identity(record_id)
         identity(event_id)
         body = dict(body, namespace=self.namespace, financial_authority=False,
@@ -216,6 +217,12 @@ class EvidenceStore:
                                    (kind, event_id)).fetchone()[0]
                 if prior != expected_previous_seq:
                     raise EvidenceError("AUDIT_STATE_CHANGED")
+            if expected_receipt_seq is not None:
+                if (self.namespace != 'V11_PAPER' or type(expected_receipt_seq) is not int
+                        or expected_receipt_seq < 0):
+                    raise EvidenceError('PAPER_RECEIPT_CAS_INVALID')
+                if self._receipt_frontier(db) != expected_receipt_seq:
+                    raise EvidenceError('PAPER_RECEIPT_FRONTIER_CHANGED')
             if type(expected_heads) is not tuple or len(expected_heads) > 64:
                 raise EvidenceError("AUDIT_HEAD_GUARD_INVALID")
             guarded = set()
@@ -352,6 +359,48 @@ class EvidenceStore:
                               (kind, after_seq, event_id, event_id, limit)).fetchall()
         return [self._decode(row) for row in rows]
 
+    # Include malformed and unknown account receipt envelopes, but never infer
+    # an account fill from an ordinary public trade or a maker quote.
+    _receipt_where = ("kind='TRADE' AND (json_type(body,'$.payload.execution_namespace') IS NOT NULL "
+                      "OR json_type(body,'$.payload.account_id') IS NOT NULL "
+                      "OR json_type(body,'$.payload.intent_id') IS NOT NULL "
+                      "OR (json_type(body,'$.payload.record_type')='text' "
+                      "AND substr(json_extract(body,'$.payload.record_type'),1,6)='PAPER_'))")
+
+    @staticmethod
+    def is_paper_receipt(payload):
+        kind = payload.get('record_type')
+        return (any(key in payload for key in ('execution_namespace', 'account_id', 'intent_id'))
+                or isinstance(kind, str) and kind.startswith('PAPER_'))
+
+    @classmethod
+    def _receipt_frontier(cls, db):
+        return db.execute('SELECT COALESCE(MAX(seq),0) FROM v11_records WHERE '+cls._receipt_where).fetchone()[0]
+
+    def paper_receipt_window(self, *, after_seq=0, limit=32, deadline=None):
+        """Bounded archive-order receipts and their exact admission CAS frontier."""
+        if (self.namespace != 'V11_PAPER' or type(after_seq) is not int or after_seq < 0
+                or type(limit) is not int or not 0 <= limit <= 64):
+            raise EvidenceError('PAPER_RECEIPT_QUERY_BOUND')
+        end = min(time.monotonic()+2., finite(deadline) if deadline is not None else math.inf)
+        rows = []; size = 0
+        with self._connect() as db:
+            db.execute('BEGIN'); db.set_progress_handler(lambda: time.monotonic() >= end, 1000)
+            try:
+                if time.monotonic() >= end: raise EvidenceError('PAPER_RECEIPT_TIME_BOUND')
+                frontier = self._receipt_frontier(db)
+                for row in db.execute('SELECT * FROM v11_records WHERE '+self._receipt_where+
+                                      ' AND seq>? AND seq<=? ORDER BY seq LIMIT ?', (after_seq, frontier, limit)):
+                    if time.monotonic() >= end: raise EvidenceError('PAPER_RECEIPT_TIME_BOUND')
+                    size += len(row['body'].encode())
+                    if size > 2*1024*1024: break
+                    rows.append(self._decode(row))
+                return dict(frontier=frontier, records=rows)
+            except sqlite3.OperationalError as exc:
+                if 'interrupted' in str(exc).lower(): raise EvidenceError('PAPER_RECEIPT_TIME_BOUND') from None
+                raise
+            finally: db.set_progress_handler(None, 0)
+
     def pin_read_view(self, heads: tuple[tuple[str, str], ...] = ()) -> dict:
         """Pin append-only sequence and selected heads in one short read transaction."""
         if type(heads) is not tuple or len(heads) > 16 or len(set(heads)) != len(heads):
@@ -476,7 +525,8 @@ class EvidenceStore:
 
     def audit(self, record_id: str, *, event_id: str, kind: str, details: dict,
               evidence_ids: tuple[str, ...] = (), expected_previous_seq: int | None = None,
-              expected_heads: tuple[tuple[str, str, int], ...] = ()) -> dict:
+              expected_heads: tuple[tuple[str, str, int], ...] = (),
+              expected_receipt_seq: int | None = None) -> dict:
         if kind not in AUDIT_KINDS or not isinstance(details, dict):
             raise EvidenceError("AUDIT_KIND_INVALID")
         if (len(evidence_ids) > self.limits.max_evidence_per_decision
@@ -489,7 +539,8 @@ class EvidenceStore:
         return self._append(record_id, kind, event_id,
                             {"details": details, "evidence": [{"id": r["id"], "sha256": r["sha256"]}
                                                             for r in references]}, at, at,
-                            expected_previous_seq=expected_previous_seq, expected_heads=expected_heads)
+                            expected_previous_seq=expected_previous_seq, expected_heads=expected_heads,
+                            expected_receipt_seq=expected_receipt_seq)
 
     def capture(self, record_id: str, *, event_id: str, kind: str, provider: str,
                 source_identity: str, revision: str, payload: dict,

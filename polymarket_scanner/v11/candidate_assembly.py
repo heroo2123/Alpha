@@ -19,6 +19,7 @@ from .evidence import EvidenceError, digest, finite, identity
 from .observation_pump import ObservationPump
 from .observation_runtime import ObservationRuntime, ScheduledCollector
 from .paper_coordinator import PaperAccountPolicy, PaperCoordinator
+from .paper_reconciliation import PaperReconciliation, ReconciliationPolicy
 from .paper_runtime import PaperRuntime, RuntimePolicy, TemperatureEventAdapter
 from .reaction_runtime import PWSLeadEventAdapter, SourceReleaseEventAdapter, PositionExitEventAdapter
 from .request_assembly import (ScopeInputs, TargetPlan, SourceSelector, RequestAssembler, EntryRequestFactory,
@@ -194,9 +195,12 @@ class CandidatePlan:
     gefs_rollover: GEFSRunPolicy | None = None
     preparations: PreparationSettings | None = None
     drift: tuple[DriftPlan, ...] = ()
+    reconciliation: ReconciliationPolicy | None = None
 
     def __post_init__(self):
         identity(self.version); identity(self.worker_id)
+        if self.reconciliation is not None and not isinstance(self.reconciliation, ReconciliationPolicy):
+            raise EvidenceError('CANDIDATE_TYPED_RECONCILIATION_REQUIRED')
         for value,kind in ((self.account,PaperAccountPolicy),(self.correlation,CorrelationMap),(self.limits,ScenarioLimits),
             (self.trigger,TriggerPolicy),(self.health,HealthPolicy),(self.runtime,RuntimePolicy),(self.candidate,CandidatePolicy),
             (self.census,CensusPolicy),(self.books,BookPolicy),(self.discovery,DiscoveryPolicy),(self.audits,AuditPolicy),(self.feed,FeedPolicy)):
@@ -344,7 +348,8 @@ def assemble_candidate(store,client,plan,*,generation):
     health=RuntimeHealth(store,plan.health,account_id=plan.account.account_id,scopes=scopes,sources=tuple(needs[k] for k in sorted(needs)))
     evaluator=RiskAwareEventAdapter(_EventDispatch(coordinator,adapters),tuple(risk))
     runtime=PaperRuntime(coordinator,queue,health,plan.runtime,evaluator=evaluator,worker_id=plan.worker_id,
-        generation=generation,feed_policy=plan.feed,audits=AuditScheduler(store,plan.audits),maker=maker)
+        generation=generation,feed_policy=plan.feed,audits=AuditScheduler(store,plan.audits),maker=maker,
+        reconciliation=PaperReconciliation(coordinator,plan.reconciliation) if plan.reconciliation else None)
     runtime._head()
     gefs=GEFSWorker(scheduled,health,plan.gefs,rollover=plan.gefs_rollover) if plan.gefs else None
     census=CensusWorker(scheduled,queue,health,plans=tuple(e.census for e in plan.events),policy=plan.census,book_policy=plan.books,gefs=gefs)
@@ -357,5 +362,7 @@ def assemble_candidate(store,client,plan,*,generation):
         forecasts=ForecastNormalizationWorker(store,health,plan.forecasts) if plan.forecasts else None,
         gefs=gefs,preparations=PreparationWorker(store,health,plan.preparations) if plan.preparations else None,
         drift=DriftWorker(coordinator,plan.drift,maker_telemetry=telemetry) if plan.drift else None)
-    runner.assembly_sha256=digest(asdict(plan))
+    assembly=asdict(plan)
+    if plan.reconciliation is None:assembly.pop('reconciliation')
+    runner.assembly_sha256=digest(assembly)
     return runner

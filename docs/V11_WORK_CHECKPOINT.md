@@ -1,9 +1,71 @@
 # Alpha V11 work checkpoint
 
-Updated 2026-09-25, after reconciled PAPER fill-markout candidate integration. Resume here. **NOT_READY_TO_FUND**.
+Updated 2026-09-25, after archived PAPER receipt reconciliation integration. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
 
-## Latest verified checkpoint — reconciled fill quality and candidate safety
+## Latest implementation checkpoint — archived PAPER receipts through candidate reconciliation
+
+Recovered published/local **95f37a182d02401355dabfcc66ecd5dad0283486**, tree
+**32bcd474d94d23208af6cd35fae502bd4c20249d**, with a clean workspace, free regression
+lock, no running operation, and all 752 non-document implementation inputs matching
+the prior 3981-pass run. The authoritative master hash was reverified. Newer work,
+V10 evidence and deferred maintenance were preserved. No owner action was needed.
+
+Implemented `paper_reconciliation.py`: explicit PAPER_FILL/PAPER_TERMINAL archive
+receipts now reach the existing common-account proof APIs through bounded scans,
+a durable cursor/pending journal, one nonblocking worker lock and deterministic
+receipt commands. Candidate priority ticks reconcile before new admissions and
+before cancellation consumes the account snapshot. Both configured startup and
+activated account journals fail closed; other same-account coordinators must obey
+activated progress. Admission/submission atomically pin account, journal and the
+receipt frontier. A concurrent receipt or activation invalidates the admission.
+Unrelated public prints do not change that frontier.
+
+Malformed, unknown, mismatched or incomplete terminal proofs remain visible and
+pending; later valid receipts still process within bounds. Only explicit valid
+foreign identities are classified as foreign. Pending-capacity exhaustion leaves
+the unretained receipt behind the cursor. Cumulative quantity and terminal authority
+remain the existing coordinator checks; ambiguity retains reservations. Crashes
+after an account commit replay the same economic command. Clock regression does
+not rewrite timestamps or expand safety-write authority. Health loss and worker
+errors retain cancellation service. A quarter of the tick budget bounds this
+cooperative receipt slice; independent guardian and deployment gates remain open.
+
+The public source feed uses matching account-envelope classification, including
+malformed markers, so these cannot become market prints or stop later feed progress.
+Audits separately expose journal outcomes, delivery-attempt outcomes and pending
+count (attempts are not unique fills). Legacy unconfigured runtime/plan identities
+remain unchanged. No network, order, wallet, financial or deployment authority added.
+
+Targeted result: **34 passed in 5.12 s, exit 0** (session **73168**), including the
+finite candidate archive -> account -> five-horizon monitoring -> reviewed scoped
+cancellation -> terminal reconciliation -> daily audit path. Other cases cover
+startup, receipt/account/journal races, crash replay, pending capacity, malformed
+and foreign evidence, health loss, failed worker, nonblocking/symlink lock and
+clock regression. Earlier development runs: 2 failed / 18 passed in 1.31 s due to
+an incorrect test terminal field name, then 22 passed in 4.33 s; 1 failed / 27 passed
+in 4.62 s due to string formatting in a numeric assertion, then 29 passed in 4.84 s.
+Both fixture assertions corrected without changing accounting/proof requirements.
+Affected and full regression on this new implementation have not yet run.
+
+Save identity: resolve this implementation commit/tree with
+`git log -1 --format='%H %T' -- polymarket_scanner/v11/paper_reconciliation.py`.
+Do not treat the historical 3981-pass result below as verification of this new tree.
+
+**82/200, approximately 41%**, formal **1/50 (2%)**, unchanged. This closes more of
+existing credited reconciliation/runtime/monitoring integrations, not a new E/A
+milestone. **NOT_READY_TO_FUND**. V10 unchanged, maintenance DEFERRED. The six active
+work estimates below remain LOW confidence; external waiting/owner actions excluded.
+
+Exact next action: run the affected account/runtime/feed/audit/candidate tests,
+then one locked full regression on the saved unchanged tree and preserve its
+manifest/output. Next implementation after verification: deliver reconciled account
+changes into bounded event reevaluation, preserving current-source/census and exit
+inventory gates so new fills trigger existing eligible exit/strategy decisions.
+Actual-source/model/calibration, matched EV/finality/residual and operational
+acceptance remain open; no owner action blocks this off-host integration.
+
+## Historical verified checkpoint — reconciled fill quality and candidate safety
 
 Saved/published implementation **33d927314075539de465ea90ae677d13fece0fe6**, tree
 **32e337563da1b4ad9af86f338e36574ed5447a99**, passed the locked full regression:
@@ -1159,7 +1221,7 @@ still require separate budget and live approval. No arbitrary paper wait applies
 | Remaining milestone | Work remaining and proof of completion | Active hours | Confidence | External/owner dependency |
 |---|---|---:|---|---|
 | Source, weather and label closure | Complete remaining provider/target adapters and scheduling, physical/lead fitting, exact labels and calibration/fallback; explicit-interval/GEFS and physical/PWS inference now have bounded candidate preparation scheduling. Prove causal source/target identity, coverage, lead/ablation and required OOS quality on actual evidence. R06–R13, R25–R28, R31. | 45–90 | LOW | Working authorized provider access; exact source/version history and sufficient evidence; independent semantic/calibration review. |
-| Evidence and controlled learning | Close complete replay/provenance, remaining proof-delivery/selection/report joins, operational learner scheduling/isolation, remaining target families, rolling degradation evidence and accepted initial-bundle/learning governance; conditioned capture/fitting, scoped Brier/log-loss/reliability/calibration error and automatic entry-attributed realized-paper P&L/drawdown now reach reviewed safety reduction and audits; horizon-specific maker counterfactuals also reach scoped monitoring/retirement/audits; reconciled synthetic fill-based markouts now reach the same monitoring/audit path; archived proof delivery, matched EV/residual and operational evidence remain open. Prove deterministic dataset-to-artifact and rollback/reuse/failure behavior with required real evidence. R02–R05, R14–R17, R40–R42, R47. | 30–60 | LOW | Upstream exact labels; independent initial champion and governance acceptance; isolated learning environment. |
+| Evidence and controlled learning | Close complete replay/provenance, remaining proof-delivery/selection/report joins, operational learner scheduling/isolation, remaining target families, rolling degradation evidence and accepted initial-bundle/learning governance; conditioned capture/fitting, scoped Brier/log-loss/reliability/calibration error and automatic entry-attributed realized-paper P&L/drawdown now reach reviewed safety reduction and audits; horizon-specific maker counterfactuals also reach scoped monitoring/retirement/audits; reconciled synthetic fill-based markouts now reach the same monitoring/audit path; bounded archived PAPER fill/terminal delivery now reaches the common account and audits; account-change reevaluation, matched EV/residual and operational evidence remain open. Prove deterministic dataset-to-artifact and rollback/reuse/failure behavior with required real evidence. R02–R05, R14–R17, R40–R42, R47. | 30–60 | LOW | Upstream exact labels; independent initial champion and governance acceptance; isolated learning environment. |
 | Strategy, portfolio and execution integration | Finish missing relative/structural/exit/redemption, correlation, costs and maker/reward paths. Prove full common-account scenario/reservation/reconciliation and strategy eligibility across required failure cases. R18–R24, R29–R30, R32–R36. | 35–70 | LOW | Reviewed mappings/parameters and actual source/execution evidence; funded fill learning remains later and separately authorized. |
 | Independent safety, identity and host | Finish independent cancel-only guardian and protected command/auth routing; prepare and verify isolated deployment/recovery configuration. Prove custody, permissions, resource budgets and authenticated safety behavior. R37–R39, R43–R44. | 30–60 | LOW | Owner account entitlement/access, approved isolated host and deployment action; alpha-dev resource/isolation currently unpassed. V10 maintenance stays deferred absent an exact dependency. |
 | Regression and unfunded acceptance | Run complete integration/fault/security acceptance and permitted unfunded account/execution checks; resolve findings. Proof is the original acceptance matrix with independent review and reproducible exact-tree results. R45, R48. | 25–50 | LOW | Independent reviewers and permitted existing-account access; no wallet/account creation or financial activation is implied. |

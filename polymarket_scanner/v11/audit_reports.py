@@ -159,6 +159,14 @@ def _fold(row,a,window):
             a['learning_watermarks'].append(dict(record_id=row['id'],training_cutoff=d.get('plan',{}).get('training_cutoff'),
                                                    registration_timing=d.get('registration_timing')))
     elif kind=='RUNTIME_STATUS':
+        if d.get('version')=='alpha_v11_paper_receipt_reconciliation_v1':
+            receipt=a.setdefault('paper_receipt_reconciliation',dict(journal_outcomes={},delivery_attempt_outcomes={},
+                latest_pending_count=0,latest_journal_id=None))
+            _bump(receipt['journal_outcomes'],d.get('outcome','UNKNOWN'))
+            for item in d.get('receipt_outcomes',[]):
+                _bump(receipt['delivery_attempt_outcomes'],item['outcome'])
+            receipt.update(latest_pending_count=len(d['state']['pending']),latest_journal_id=row['id'])
+            if d.get('outcome')!='RECONCILED':_sample(a['incident_refs'],row)
         if d.get('version') in {'alpha_v11_paper_runtime_v1','alpha_v11_observation_pump_v1'}:
             _bump(a['runtime_outcomes'],d.get('outcome','UNKNOWN'))
             duration=d.get('duration_monotonic_seconds')

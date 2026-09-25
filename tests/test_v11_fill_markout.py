@@ -255,14 +255,20 @@ def test_summaries_are_separate_from_counterfactuals_and_never_pool_horizons(rig
     assert len(a['fill_markout_monitoring'])==32 and a['metadata_overflow']
 
 
-def test_candidate_automatically_measures_cancels_and_audits_without_mutating_inventory(rig,monkeypatch):
+@pytest.mark.parametrize('archived_receipts',[False,True])
+def test_candidate_automatically_measures_cancels_and_audits_without_mutating_inventory(rig,monkeypatch,archived_receipts):
     from polymarket_scanner.v11 import candidate_assembly as app
     from polymarket_scanner.v11.audit_reports import AuditScheduler, AuditWorker
     from test_v11_audit_reports import finish
     from test_v11_candidate_assembly import plan, synthetic_clock, transport
     from test_v11_runtime_health import ready
-    r=rig;filled(r);w,p,_=monitor(r,monkeypatch)
+    from polymarket_scanner.v11.paper_reconciliation import ReconciliationPolicy
+    from test_v11_basket_coordinator import proof
+    r=rig;filled(r,reconcile=not archived_receipts);w,p,_=monitor(r,monkeypatch)
     cfg=plan(r);cfg=replace(cfg,drift=(p,),candidate=replace(cfg.candidate,maximum_jobs=4))
+    if archived_receipts:
+        cfg=replace(cfg,reconciliation=ReconciliationPolicy('candidate-receipts'))
+        assert not coordinator(r)._state(coordinator(r)._head())['fills']
     synthetic_clock(r,monkeypatch);calls=[]
     async def go():
         async with httpx.AsyncClient(transport=transport(r,calls)) as client:
@@ -274,6 +280,16 @@ def test_candidate_automatically_measures_cancels_and_audits_without_mutating_in
     assert state['lots']['explicit']['units']=='1' and Decimal(state['cash'])==Decimal('9.8')
     assert all(i['cancel_requested'] for i in state['intents'].values())
     assert len(d['runtime_ids'])>=4 and d['all_async_jobs_drained'] and not d['real_orders_sent']
+    if archived_receipts:
+        assert candidate.runtime.reconciliation.coordinator is candidate.runtime.coordinator
+        assert any(r['store'].get(key)['body']['details']['receipt_reconciliation_ids'] for key in d['runtime_ids'])
+        for intent in state['intents'].values():
+            proof(r,intent['proposal_id'],'terminal-'+intent['proposal_id'],'PAPER_TERMINAL',status='CANCELED',
+                cumulative_fill_units=intent['filled_units'],all_fills_reconciled=True,
+                terminal_authority='SYNTHETIC_PAPER_ENGINE_FINAL')
+        candidate.runtime.tick('terminal-receipts')
+        assert candidate.runtime.coordinator.snapshot()['reserved_cash']=='0'
+        assert candidate.runtime.coordinator._state(candidate.runtime.coordinator._head())['lots']==state['lots']
     r['now'][0]=(int(r['now'][0]//86400)+1)*86400+1;AuditScheduler(r['store'],cfg.audits).request_due()
     auditor=AuditWorker(candidate.runtime.coordinator,cfg.audits)
     for _ in range(3):
@@ -281,3 +297,6 @@ def test_candidate_automatically_measures_cancels_and_audits_without_mutating_in
         if report['operations'].get('fill_markout_monitoring'):break
     assert report['operations']['fill_markout_monitoring'][0]['scores']['n_fills']==1
     assert report['coverage']['archive_scan_complete'] and not report['financial_authority']
+    if archived_receipts:
+        receipts=report['operations']['paper_receipt_reconciliation']
+        assert receipts['latest_pending_count']==0 and receipts['delivery_attempt_outcomes']['RECONCILED_RECEIPT']==4

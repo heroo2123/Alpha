@@ -17,7 +17,7 @@ def book(r,key,original,**changes):
         payload=dict(b['payload'],**changes))
 
 
-def detailed_fill(r,*,intent_id='basket:leg:0',key='explicit',units='1',price='.18',fees='.01',other='.01',mutate=None):
+def detailed_fill(r,*,intent_id='basket:leg:0',key='explicit',units='1',price='.18',fees='.01',other='.01',mutate=None,reconcile=True):
     c=coordinator(r);intent=c._state(c._head())['intents'][intent_id]
     original=valuation_book(r['store'].get(intent['valuation_id'])['body']['details'],intent)
     signal=r['store'].get(original['book_id']);r['now'][0]+=.01
@@ -28,7 +28,7 @@ def detailed_fill(r,*,intent_id='basket:leg:0',key='explicit',units='1',price='.
     all_in=Decimal(price)*Decimal(units)+(Decimal(fees)+Decimal(other))*(1 if intent['direction']=='BUY' else -1)
     if mutate:mutate(d)
     proof(r,intent_id,key,'PAPER_FILL',fill_id=key,units=units,all_in_collateral=str(all_in),direction=intent['direction'],execution_details=d)
-    return c.record_fill('record-'+key,key)
+    return c.record_fill('record-'+key,key) if reconcile else r['store'].get(key)
 
 
 def test_explicit_cost_timing_and_original_basket_leg_are_additive(rig):
