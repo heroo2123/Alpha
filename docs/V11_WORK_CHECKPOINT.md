@@ -1,7 +1,64 @@
 # Alpha V11 work checkpoint
 
-Updated 2026-09-25, after verified calibration and realized-paper integration. Resume here. **NOT_READY_TO_FUND**.
+Updated 2026-09-25, after scoped maker-markout candidate integration. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
+
+## Latest implementation — horizon-specific maker quality through candidate safety/audits
+
+Recovered verified calibration/P&L reporting checkpoint
+**b85ce68115a5fffbd6befe1a256ca5eeabafb982**, tree
+**66f8e7a8c5aecbf1fac4cb388c4f634c3f96bae7**, before extending this integration.
+Prior implementation **95b00abc** passed 3875 / four existing warnings / 252.03 s;
+all 830 inputs matched. Existing completed records, histories and policy identities
+were preserved; no V10 or host operation was performed.
+
+MarkoutDriftPolicy now declares an exact horizon (1/5/30/120/600 s), BUY/SELL direction,
+evidence class, cost/tolerance assumptions, cohort minimums and mean-loss threshold.
+Bounded read-only snapshots include EVERY matured retained quote for the original
+MAKER_RESEARCH scope/bundle and half-open horizon-target window. The original quote,
+admission, rule, model state and source class/derivations are verified. Every measured
+value is reproduced from the first received horizon book, exact token/collateral,
+full depth and explicit cost. Unknown fee/depth/book/unpublished members are retained;
+any incomplete cohort gates reduction instead of selecting only observed winners or
+losers. Means weight city-days equally, then events, then quotes. Sign/fraction counts
+are descriptive counterfactuals, never fills, payout accuracy, actual adverse-selection
+rates, P&L or net-EV capture. Retained-window coverage is not universe coverage.
+
+The existing DriftWorker automatically queues new immutable markout cohorts and
+shares round-robin scope scheduling with realized-paper monitoring; busy short horizons
+cannot starve other eligible scopes. Pending requests, exact replay, original receipt
+cutoffs, measurement/review/reduction recovery and no automatic restoration are retained.
+A protected pre-window review and the original current model epoch are required before
+DISABLED can be recorded. Pinned quote/measurement heads are checked and guarded atomically;
+a concurrent change gates old evidence and permits a fresh snapshot retry. The typed
+candidate shares the existing telemetry/research/account instances and demonstrates
+measurement -> reviewed reduction -> quote retirement -> daily audit. Reports add
+bounded per-scope/horizon summaries without averaging across horizons or rewriting old
+reports; summary overflow makes semantic coverage incomplete. Old quality policy/scorer
+identities and optional-free candidate configurations are unchanged.
+
+Verification: **276 passed / 49.78 s / exit 0**, session 80647; final **47 new cases
+passed / 7.98 s / exit 0**, session 66772 after the explicit zero-deadline check and
+raw-derivation case. Earlier 117 / 23.03 s, 30 / 4.21 s and 43 / 8.49 s also passed;
+no failed run occurred. Post-run source hashes/tool results:
+`/workspace/scratch/38af7099c566/v11-test-evidence/markout-targeted-20260925-01.json`.
+These targeted runs are not prehashed locked runs. A single locked full exact-tree
+regression is next because shared worker/source-view/candidate/reporting code changed.
+
+**82/200, approximately 41%**, formal **1/50 (2%)**, unchanged. R05/R35/R42 already
+hold applicable integration credits; this adds no actual/independent/host/unfunded
+acceptance. **NOT_READY_TO_FUND**. V10 unchanged and maintenance DEFERRED. No owner
+step blocks this verification or the next off-host implementation.
+
+Exact next action: complete the locked full regression on this saved tree and preserve
+its manifest/output. Then connect the existing reconciled synthetic PAPER fill proofs
+to horizon-aligned executable-depth markouts and original entry/exit attribution in
+PerformanceLab and monitoring. Keep fill-based measurements separate from maker quote
+counterfactuals, unknown venue fees and unmatched payout/EV/residual evidence. Actual
+source/calibration/host acceptance remains open. The six readiness milestones and
+active-hour ranges below remain current; external/owner waiting is excluded. Resolve
+this checkpoint's own commit/tree with
+`git log -1 --format='%H %T' -- docs/V11_WORK_CHECKPOINT.md`; preserve newer work.
 
 ## Latest verification — calibration and automatic realized-paper drift
 
@@ -949,7 +1006,7 @@ still require separate budget and live approval. No arbitrary paper wait applies
 | Remaining milestone | Work remaining and proof of completion | Active hours | Confidence | External/owner dependency |
 |---|---|---:|---|---|
 | Source, weather and label closure | Complete remaining provider/target adapters and scheduling, physical/lead fitting, exact labels and calibration/fallback; explicit-interval/GEFS and physical/PWS inference now have bounded candidate preparation scheduling. Prove causal source/target identity, coverage, lead/ablation and required OOS quality on actual evidence. R06–R13, R25–R28, R31. | 45–90 | LOW | Working authorized provider access; exact source/version history and sufficient evidence; independent semantic/calibration review. |
-| Evidence and controlled learning | Close complete replay/provenance, markout/selection/report joins, operational learner scheduling/isolation, remaining target families, rolling degradation evidence and accepted initial-bundle/learning governance; conditioned capture/fitting, scoped Brier/log-loss/reliability/calibration error and automatic entry-attributed realized-paper P&L/drawdown now reach reviewed safety reduction and audits; markout/EV/residual and operational evidence remain open. Prove deterministic dataset-to-artifact and rollback/reuse/failure behavior with required real evidence. R02–R05, R14–R17, R40–R42, R47. | 30–60 | LOW | Upstream exact labels; independent initial champion and governance acceptance; isolated learning environment. |
+| Evidence and controlled learning | Close complete replay/provenance, fill-based markout/selection/report joins, operational learner scheduling/isolation, remaining target families, rolling degradation evidence and accepted initial-bundle/learning governance; conditioned capture/fitting, scoped Brier/log-loss/reliability/calibration error and automatic entry-attributed realized-paper P&L/drawdown now reach reviewed safety reduction and audits; horizon-specific maker counterfactuals also reach scoped monitoring/retirement/audits; fill-based markout/EV/residual and operational evidence remain open. Prove deterministic dataset-to-artifact and rollback/reuse/failure behavior with required real evidence. R02–R05, R14–R17, R40–R42, R47. | 30–60 | LOW | Upstream exact labels; independent initial champion and governance acceptance; isolated learning environment. |
 | Strategy, portfolio and execution integration | Finish missing relative/structural/exit/redemption, correlation, costs and maker/reward paths. Prove full common-account scenario/reservation/reconciliation and strategy eligibility across required failure cases. R18–R24, R29–R30, R32–R36. | 35–70 | LOW | Reviewed mappings/parameters and actual source/execution evidence; funded fill learning remains later and separately authorized. |
 | Independent safety, identity and host | Finish independent cancel-only guardian and protected command/auth routing; prepare and verify isolated deployment/recovery configuration. Prove custody, permissions, resource budgets and authenticated safety behavior. R37–R39, R43–R44. | 30–60 | LOW | Owner account entitlement/access, approved isolated host and deployment action; alpha-dev resource/isolation currently unpassed. V10 maintenance stays deferred absent an exact dependency. |
 | Regression and unfunded acceptance | Run complete integration/fault/security acceptance and permitted unfunded account/execution checks; resolve findings. Proof is the original acceptance matrix with independent review and reproducible exact-tree results. R45, R48. | 25–50 | LOW | Independent reviewers and permitted existing-account access; no wallet/account creation or financial activation is implied. |

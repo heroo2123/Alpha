@@ -61,6 +61,33 @@ class LearningSourceView:
         if len(rows)!=1:raise EvidenceError('SOURCE_VIEW_EXACT_HASH_REQUIRED')
         return self.get(rows[0]['record_id'])
 
+    def latest(self, *, kind, event_id, through_seq=None):
+        """A kind head at an immutable receipt boundary, without a live-head read."""
+        identity(kind); identity(event_id); self.check()
+        boundary=self.snapshot_seq if through_seq is None else through_seq
+        if type(boundary) is not int or not 0<=boundary<=self.snapshot_seq:
+            raise EvidenceError('SOURCE_VIEW_SEQUENCE_BOUND')
+        row=self._db.execute('SELECT record_id FROM v11_records WHERE kind=? AND event_id=? '
+            'AND seq<=? ORDER BY seq DESC LIMIT 1',(kind,event_id,boundary)).fetchone()
+        return self.get(row['record_id']) if row is not None else None
+
+    def first_received_source(self, *, kind, event_id, provider, source_identity,
+                              after_seq, through_seq, received_from, recorded_until):
+        """Reproduce first-receipt selection, including an unusable first book."""
+        from .evidence import finite
+        for value in (kind,event_id,provider,source_identity):identity(value)
+        if (type(after_seq) is not int or type(through_seq) is not int
+                or not 0<=after_seq<=through_seq<=self.snapshot_seq):
+            raise EvidenceError('SOURCE_VIEW_SEQUENCE_BOUND')
+        self.check()
+        row=self._db.execute('SELECT record_id FROM v11_records WHERE kind=? AND event_id=? '
+            'AND seq>? AND seq<=? AND recorded_at<=? AND json_extract(body,\'$.received_at\')>=? '
+            'AND json_extract(body,\'$.provider\')=? AND json_extract(body,\'$.source_identity\')=? '
+            'ORDER BY seq LIMIT 1',(kind,event_id,after_seq,through_seq,finite(recorded_until),
+                finite(received_from),provider,source_identity)).fetchone()
+        self.check()
+        return self.get(row['record_id']) if row is not None else None
+
 
 @contextmanager
 def learning_source_view(store, *, deadline=None, monotonic=time.monotonic):

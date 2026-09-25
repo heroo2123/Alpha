@@ -371,3 +371,36 @@ cancellation path remains authoritative. Audits include durable drift outcome co
 Realized-only drawdown is not mark-to-market drawdown; these statistics do not establish
 live execution, matched EV capture, settlement truth or source residual bias. The
 independent guardian and actual host/operational acceptance remain uncommissioned.
+
+## Horizon-specific maker quality monitoring
+
+A `MarkoutDriftPolicy` in `CandidatePlan.drift` requires the candidate's shared
+maker telemetry and matching explicit cost/tolerance assumptions. One policy
+covers one horizon, direction, evidence class and original MAKER_RESEARCH scope/
+bundle. Policies for different horizons share fair round-robin scheduling with
+realized-paper plans; the total remains at most 16 plans. The optional-free worker
+and candidate configuration identities are unchanged. Changing a configured plan
+still requires review and cannot replace saved worker history.
+
+The read-only selection includes all matured retained quotes in a half-open
+horizon-target window, at a pinned receipt boundary. It is bounded to 128 quotes,
+64 events, two-second selection/measurement views, existing view byte limits and
+a 512 KiB result. Unknown observations remain explicit; a partial observed subset
+cannot authorize reduction. Mean counterfactual price quality weights city-days,
+events and quotes equally within each level. Actual fills, payout calibration,
+real P&L, venue fee attestation and net EV capture are not inferred.
+
+Protected reviews use selection
+`ALL_RETAINED_MATURED_MAKER_QUOTES_IN_WINDOW_FOR_SCOPE`, the exact plan key and
+original current model state. Review must precede the window and remain fresh;
+only safety reduction is allowed. Quote and event-measurement heads are guarded
+atomically; changed evidence gates action and may trigger a new snapshot. Completed
+requests never renew, a successful measure never restores authority, and model
+parameters/pointers are untouched. Existing paper safety ticks retire quotes.
+
+Daily/weekly reports retain separate bounded summaries by scope, direction and
+horizon, including unknowns and exact measurement references. They never average
+across horizons or claim full universe coverage. More than 32 summaries sets
+metadata overflow and incomplete semantic coverage. The additive optional field
+preserves existing completed reports and in-progress aggregate identity. Evidence:
+`tests/test_v11_markout_drift.py`; 276 affected checks plus final 47 cases passed.

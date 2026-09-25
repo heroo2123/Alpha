@@ -129,6 +129,7 @@ class CandidateRunner:
             raise EvidenceError('CANDIDATE_PREPARATION_SCOPE')
         self.preparations=preparations
         if drift is not None and (not isinstance(drift,DriftWorker) or drift.coordinator is not runtime.coordinator
+                or drift.maker_telemetry is not None and drift.maker_telemetry is not maker_telemetry
                 or any(not any(p.scope.station==route.station and p.scope.strategy in runtime.health.scopes[eid]
                     for eid,route in runtime.queue.routes.items()) for p in drift.plans.values())):
             raise EvidenceError('CANDIDATE_DRIFT_SCOPE')

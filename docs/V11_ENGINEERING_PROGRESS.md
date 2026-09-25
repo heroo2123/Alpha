@@ -272,3 +272,13 @@ The manifest/output and targeted evidence are saved in
 **82/200, approximately 41%**, formal **1/50 (2%)**, unchanged. Actual/independent/
 host/unfunded acceptance and the six active-hour ranges remain open; waiting is
 excluded. The interrupted save was recovered without duplicate publication.
+
+Horizon-specific maker counterfactual quality now joins original admission/model/
+source/depth provenance, complete retained-window selection, fair automatic scope
+scheduling, protected reduction, finite candidate retirement and bounded audits.
+**276 related passes / 49.78 s**, then final **47 new cases / 7.98 s**. R05/R35/R42
+already hold applicable integration credits; **82/200, approximately 41%**, formal
+**1/50 (2%)**, unchanged. No actual fill, EV capture, calibration, independent,
+host or unfunded acceptance is inferred. A single full regression is next. Six
+remaining active-hour ranges remain appropriate to the larger unresolved scope,
+with fill-based markout joins still open and external/owner waiting excluded.
