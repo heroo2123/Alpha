@@ -13,7 +13,7 @@ only a delivered and locally verified package counts as complete. Partial,
 blocked, unverified, or stub work scores zero. Existing code is a reuse candidate,
 not an automatic V11 acceptance pass. Tests are mapped when run. Runtime, canary
 eligibility and empirical validation are separate columns; no unit test grants
-financial authority. Detailed requirements remain in the private specification. The separate approximate full-scope engineering estimate is 40% (80/200 evidence milestones), defined in docs/V11_ENGINEERING_PROGRESS.md; it does not change this formal 1/50 (2%) count.
+financial authority. Detailed requirements remain in the private specification. The separate approximate full-scope engineering estimate is 41% (81/200 evidence milestones), defined in docs/V11_ENGINEERING_PROGRESS.md; it does not change this formal 1/50 (2%) count.
 
 All implementation paths below are relative to `polymarket_scanner/` unless
 explicitly prefixed with `docs/`, `tests/`, `deploy/` or `host_trust/`.

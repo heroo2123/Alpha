@@ -158,3 +158,10 @@ Production scheduling, feature fitting, actual OOS/calibration and deployment
 remain unearned. Total **81/200, approximately 41%** under the unchanged rounding
 rule; formal **1/50 (2%)**. This is one named integration credit, not credit for
 additional tests or an assertion that all R13 implementation is complete.
+
+Recovered full regression at `47c3b999` passed **3677 tests**, four existing warnings,
+in 201.69 seconds. All 817 tracked inputs remained unchanged and match on recovery.
+This completed run was recovered rather than repeated. **81/200, approximately
+41%**, formal **1/50 (2%)**, unchanged; actual-source, operational and independent
+acceptance milestones remain unearned. The stale 40% summary in the matrix header
+was corrected to agree with the already recorded R13 credit; no new unit was added.

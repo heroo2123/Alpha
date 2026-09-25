@@ -1,7 +1,34 @@
 # Alpha V11 work checkpoint
 
-Updated 2026-09-25, after causal physical/PWS inference integration. Resume here. **NOT_READY_TO_FUND**.
+Updated 2026-09-25, after recovery of completed physical/PWS full regression. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
+
+## Recovered full verification — physical/PWS and remaining paths
+
+Recovered implementation **47c3b999d0e08468da0941075d0bf8c1ce32b6f4**, tree
+**6db94c2af4a746381d1c2adf34690ac1f0f914b2**. Local and GitHub branch refs agree;
+one clean worktree, no running test/publication process. The master specification
+bytes again match the recorded SHA-256. Newer completed evidence was found before
+retrying the next action in the older checkpoint: **3677 passed, four existing
+FastAPI deprecation warnings, 201.69 seconds, exit 0**. No duplicate run was made.
+
+Evidence: `/workspace/scratch/38af7099c566/v11-test-evidence/physical-remaining-full-20260925-01.json`
+and `.log`; wrapper 202.353 s, user 149.776305 s, system 44.445409 s, peak RSS
+160776 KiB. All 817 tracked inputs were unchanged during the run and independently
+rehash identically on recovery. Input digest
+`3db83f973ab654f5cef4f0b07217c4442aae9e3cbd29c97b90777be80fcbdd87`.
+This reporting checkpoint changes documentation only; resolve its own identity
+with `git log -1 --format='%H %T' -- docs/V11_WORK_CHECKPOINT.md`.
+
+Estimate **81/200, approximately 41%**, formal **1/50 (2%)**, unchanged. The six
+remaining active-work ranges below are retained; no operational or independent
+acceptance is earned by the recovered regression. Next implementation: bounded
+current-input preparation scheduling in the finite candidate, including durable
+recovery and unchanged source/event/cancellation gates. Actual source/label and
+calibration evidence, independent guardian/auth/host and readiness acceptance
+remain open. No owner-only action is required for this next off-host task.
+V10 stays unchanged, maintenance DEFERRED, with all recorded control-health,
+inventory verification, backup and host-isolation findings preserved.
 
 ## Latest saved implementation — physical/PWS inference
 
