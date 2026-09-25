@@ -15,11 +15,11 @@ not an automatic V11 acceptance pass. Tests are mapped when run. Runtime, canary
 eligibility and empirical validation are separate columns; no unit test grants
 financial authority. Detailed requirements remain in the private specification. The separate approximate full-scope engineering estimate is 41% (82/200 evidence milestones), defined in docs/V11_ENGINEERING_PROGRESS.md; it does not change this formal 1/50 (2%) count.
 
-Latest reconciled-fill verification: initial full **3980 / four warnings / 267.20 s**
-at **3fa1663c**, all **839 inputs unchanged**. A later fractional per-share metric
-correction passes **59 new targeted cases / 10.17 s**; full changed-tree verification
-is pending. Evidence and original results: docs/V11_FILL_REGRESSION_EVIDENCE.md.
-No formal status or engineering credit changed.
+Latest reconciled-fill verification: corrected full **3981 / four existing warnings /
+277.46 s** at **33d92731**, all **840 inputs unchanged**, exit 0;
+**59 new targeted cases / 10.17 s**. Prior 3980-pass run and fractional-cost
+finding/fix are preserved in docs/V11_FILL_REGRESSION_EVIDENCE.md. No formal status
+or engineering credit changed; archive-to-ledger proof delivery remains open.
 
 All implementation paths below are relative to `polymarket_scanner/` unless
 explicitly prefixed with `docs/`, `tests/`, `deploy/` or `host_trust/`.

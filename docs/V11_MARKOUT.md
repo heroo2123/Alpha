@@ -118,3 +118,9 @@ independent review and isolated host/unfunded acceptance remain required. No own
 action is needed for the next off-host integration. No financial or deployment
 authority is added. Targeted verification and exact checkpoints are recorded in
 docs/V11_WORK_CHECKPOINT.md.
+
+
+Latest complete verification: **3981 passed / four existing warnings / 277.46 s**,
+all **840 inputs unchanged**, implementation **33d92731**. Final fill-specific
+suite **59 / 10.17 s**. Exact trees, manifests, earlier failure/fix and outputs:
+docs/V11_FILL_REGRESSION_EVIDENCE.md. All acceptance limitations above remain.

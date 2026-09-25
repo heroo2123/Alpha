@@ -3,7 +3,47 @@
 Updated 2026-09-25, after reconciled PAPER fill-markout candidate integration. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
 
-## Precision correction checkpoint — full verification pending
+## Latest verified checkpoint — reconciled fill quality and candidate safety
+
+Saved/published implementation **33d927314075539de465ea90ae677d13fece0fe6**, tree
+**32e337563da1b4ad9af86f338e36574ed5447a99**, passed the locked full regression:
+**3981 passed, four existing FastAPI warnings, 277.46 seconds, exit 0**, session **59890**. All **840 tracked
+inputs unchanged**, checked again before this report. Wrapper elapsed 278.689 s; user 197.504531 s; system 71.520638 s; peak RSS 165656 KiB.
+No failed/excluded test in this run; no full regression remains active.
+
+Manifest/output and prior run/correction/targeted evidence are durable in
+**docs/V11_FILL_REGRESSION_EVIDENCE.md**. Local result:
+`/workspace/scratch/38af7099c566/v11-test-evidence/fill-full-20260925-02.json` and corresponding `.log`; input digest
+`c62b6e508c77d20b7c1a2b238601bd1c39dd67c3684b0027cf76de44850b0eeb`. The first 3980-pass run and subsequent fractional
+cost defect/fix are preserved. Final targeted **59 / 10.17 s**, affected **338 /
+57.18 s**, added single-leg **1 / 0.42 s**. This checkpoint updates docs only;
+all implementation inputs remain as tested. Resolve this reporting commit/tree
+with `git log -1 --format='%H %T' -- docs/V11_WORK_CHECKPOINT.md`.
+
+Completed: additive synthetic PAPER timing/price/cost validation; reconciled
+original single-leg/basket/exit fills to five causal depth horizons; unknown-
+preserving window selection and partial-fill weighting; reviewed automatic
+monitoring, candidate scoped cancellation and durable audits. Legacy hashes,
+all-in accounting, inventory and original strategy/model/EV attribution remain.
+A fractional per-share metric bug is corrected without relaxing ledger bounds.
+
+**82/200, approximately 41%**, formal **1/50 (2%)**, unchanged. Existing integration
+credits apply; actual-source/calibration, independent, host and unfunded acceptance
+are still open. **NOT_READY_TO_FUND**. V10 unchanged; maintenance DEFERRED.
+No owner action blocks the next off-host implementation. The six remaining
+readiness milestones and active-hour ranges below remain current; all LOW
+confidence, excluding external waiting and owner-dependent actions.
+
+Exact next implementation action: connect archived, explicitly classified
+PAPER_FILL/PAPER_TERMINAL receipts to bounded, resumable common-account
+reconciliation inside the finite candidate. Consume known fills before new-risk
+admission, guard receipt/account progress against races, preserve idempotency and
+ambiguous reservations, and retain malformed/foreign evidence explicitly. Public
+prints and maker quotes cannot become fills. Current metrics consume already
+reconciled proofs; archive-to-ledger delivery is not yet integrated. Matched
+EV/finality/residual, actual model/source and operational gates remain required.
+
+## Historical precision correction checkpoint — superseded by verification above
 
 The initial fill integration at **3fa1663c64755c5d793e2c7a5025ae346d99b808**, tree
 **8e84b3bdda18d4f4fe40b36f6ff4a2e672b716b4**, passed **3980 tests / four existing

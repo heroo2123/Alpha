@@ -102,3 +102,9 @@ summaries consume this path. See docs/V11_MARKOUT.md for the metric and its limi
 Legacy reports/proofs are preserved. This does not certify live prices/fees,
 empirical adverse selection, net-EV capture, finality or operational acceptance.
 R40/R41/R42 remain PARTIAL; progress is unchanged at 82/200, approximately 41%.
+
+
+Latest complete verification: **3981 passed / four existing warnings / 277.46 s**,
+all **840 inputs unchanged**, implementation **33d92731**. Final fill-specific
+suite **59 / 10.17 s**. Exact trees, manifests, earlier failure/fix and outputs:
+docs/V11_FILL_REGRESSION_EVIDENCE.md. All acceptance limitations above remain.

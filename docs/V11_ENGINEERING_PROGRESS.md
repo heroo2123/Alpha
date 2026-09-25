@@ -312,3 +312,13 @@ failed once, and the corrected aggregation passed **59 targeted / 10.17 s**.
 Full changed-tree verification follows. Evidence: docs/V11_FILL_REGRESSION_EVIDENCE.md.
 This is correctness work within existing credit: **82/200, approximately 41%**,
 formal **1/50 (2%)**, unchanged. Six active-hour ranges and external gates remain.
+
+
+Final corrected fill integration full regression at **33d92731** passed
+**3981 / four existing warnings / 277.46 s / exit 0**, all **840 inputs unchanged**.
+Both full manifests/output and the fractional-cost failure/correction are preserved
+in docs/V11_FILL_REGRESSION_EVIDENCE.md. No new scored milestone closes:
+**82/200, approximately 41%**, formal **1/50 (2%)**, unchanged. Remaining actual,
+independent, host and unfunded gates, six active-hour ranges and separation of
+external/owner waiting are unchanged. Next is bounded candidate reconciliation
+of archived PAPER fill/terminal receipts; no owner action blocks that code.
