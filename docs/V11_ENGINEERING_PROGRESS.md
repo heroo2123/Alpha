@@ -376,3 +376,15 @@ pending; the saved 4020-pass run remains evidence for the preceding implementati
 R05/R40/R41 already hold C/J, so this earns no new named milestone: **82/200,
 approximately 41%**, formal **1/50 (2%)**, unchanged. No E/A, venue execution,
 source calibration, independent safety or host/unfunded acceptance is credited.
+
+
+Receipt-cost integration final verification: published 79a7b1e98388c34a9c817fc567cef5867ea59e0e,
+tree 1852925219ce2ab0453b97a226fd0bbae44dc1f1, passed **4046 / four existing warnings /
+347.89 s**, exit 0; all **845 inputs unchanged**. Affected **245 / 35.93 s** on the
+same tree. Complete shared manifest/results are in
+V11_EXECUTION_COST_REGRESSION_EVIDENCE.md. The preceding pending-verification note
+is historical. More regression checks earn no new C/J/E/A milestone: **82/200,
+approximately 41%**, formal **1/50 (2%)**, unchanged. Replay review identified the
+remaining historical-model/receipt-boundary join; it is not yet implemented or
+credited. Six full-scope active-hour milestones and external dependencies remain
+in V11_WORK_CHECKPOINT.md; no calendar wait or financial authority is implied.

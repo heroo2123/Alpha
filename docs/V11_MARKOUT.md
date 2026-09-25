@@ -135,5 +135,7 @@ admission, requests fresh census/evaluation for changed inventory, and preserves
 markout/exit/P&L/audit attribution. Exact evidence is in
 V11_RECONCILIATION_REGRESSION_EVIDENCE.md; no empirical or deployment acceptance
 is claimed. Subsequent synthetic cost/comparison integration has 26 focused passes
-in 6.99 s; its affected/full verification is pending. Actual execution-cost evidence
-and matched EV capture remain open.
+in 6.99 s; affected 245 / 35.93 s and full 4046 / four existing warnings / 347.89 s
+passed on the new saved tree, all 845 inputs unchanged. Exact evidence:
+V11_EXECUTION_COST_REGRESSION_EVIDENCE.md. Actual execution-cost evidence and
+matched EV capture remain open.

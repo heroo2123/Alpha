@@ -178,4 +178,7 @@ Focused verification: 26 passed in 6.99 s, exit 0, including archived receipt ->
 common account -> candidate-scheduled audit, BUY/SELL signs and P&L conservation,
 partial/fractional fill depth, unknown/malformed/stale evidence, pinned windows,
 policy change and report-publication crash recovery. No failed run. The preceding
-4020-pass baseline predates this work; affected/full new-tree verification follows.
+4020-pass baseline predates this work. The new published 79a7b1e implementation
+passed 245 affected tests in 35.93 s and the full 4046 tests / four existing warnings
+in 347.89 s, exit 0, all 845 tracked inputs unchanged. Exact shared manifest and
+outputs: docs/V11_EXECUTION_COST_REGRESSION_EVIDENCE.md. No acceptance credit added.

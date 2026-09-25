@@ -3,7 +3,54 @@
 Updated 2026-09-25, after receipt-cost and causal price-comparison audit integration. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
 
-## Latest implementation checkpoint — reconciled execution costs and candidate audits
+## Latest verified checkpoint — receipt costs and candidate audits
+
+Published implementation **79a7b1e98388c34a9c817fc567cef5867ea59e0e**, tree
+**1852925219ce2ab0453b97a226fd0bbae44dc1f1**, passed the locked full regression:
+**4046 passed, four existing FastAPI warnings, 347.89 s, exit 0**, session
+**49643**. All **845 tracked inputs unchanged**, reverified before this report.
+Wrapper 348.766 s; user 208.85164 s; system 129.962257 s; peak RSS 165020 KiB.
+Affected suite **245 passed in 35.93 s, exit 0**, session **73652**, on the same
+unchanged tree. Final new suite **26 passed in 6.99 s**, session **99815**, exit 0.
+No failed run in this unit. No full test remains running; its lock is free.
+
+Exact metadata, shared complete manifest and captured outputs:
+**docs/V11_EXECUTION_COST_REGRESSION_EVIDENCE.md**. Local result:
+`/workspace/scratch/38af7099c566/v11-test-evidence/execution-cost-full-20260925-01.json`
+and corresponding `.log`; input digest
+`9e4829135de9a295c010e5ddeb6ddabea38a50fb1e67ca5f7bda7e811f073164`.
+This final report changes documentation only. Resolve the latest reporting save
+with `git log -1 --format='%H %T' -- docs/V11_WORK_CHECKPOINT.md`.
+
+Completed: exact reconciled synthetic cost population, explicit optional execution
+details, original signal/post-validation full marginal depth, correct BUY/SELL
+shortfall signs and additive decomposition, legacy/malformed unknowns, pinned
+execution windows, and candidate scheduled audit integration/recovery. Costs stay
+inside existing all-in ledger amounts, with zero additional P&L adjustment. No
+venue execution, empirical impact, matched EV, finality or deployment is inferred.
+
+**82/200, approximately 41%**, formal **1/50 (2%)**, unchanged. Existing C/J credits
+cover this work; no actual-evidence or acceptance gate closed. **NOT_READY_TO_FUND**.
+V10 unchanged; maintenance DEFERRED. No host/service, wallet, permissions, orders
+or financial authority changed. No owner-only action blocks the next coding step.
+
+Exact next implementation action: add a bounded read-only historical model/evidence
+context for deterministic replay, then join the existing strategy evaluator and
+common-account PAPER path. Code inspection found EvidenceStore.replay still takes
+a caller-supplied evaluator, while TemperatureStrategies and StrategyAdmission read
+the current protected model epoch. Replay must bind the original model/receipt
+boundary and compare original decisions/account effects after later revisions or
+promotions, without substituting current heads or changing active approval gates.
+Missing historical inputs must be explicit gates. Inspect those seams before any
+refactor; do not repeat collection or original economic commands. Full engine,
+PWS pre-confirmation and challenger-same-input replay remain open in R04.
+
+The six readiness milestones/active-hour ranges below remain current. All have
+LOW confidence and exclude external waiting and owner-dependent actions. Actual
+source/history/labels/calibration, independent reviews and approved isolated host/
+unfunded access block readiness; they do not block this safe off-host replay work.
+
+## Historical implementation checkpoint — reconciled execution costs and candidate audits
 
 Recovered clean published/local **495124429647627f35bf2e0b66883b35c23be825**,
 tree **2a7e6b768fecd1aaa323b3320a19da55e4d3500a**. All 754 non-document inputs
