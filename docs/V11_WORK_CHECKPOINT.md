@@ -1,5 +1,106 @@
 # Alpha V11 work checkpoint
 
+Updated 2026-09-25, after final original-policy validation and saved regression evidence.
+Resume here. **NOT_READY_TO_FUND**.
+
+## Latest checkpoint — account replay with freshly verified original policy
+
+Final implementation also rejects a replaced caller policy/limit object even if
+its cached coordinator hash is unchanged: the historical configuration is hashed
+again and must equal the original command policy. This two-line read-only guard
+was added after full regression; shared runtime accounting/control paths did not
+change. Final targeted **84 passed / 8.92 s / exit 0**, session **39669**. The exact
+final code is the saved full input manifest with only `v11/account_replay.py` and
+`tests/test_v11_account_replay.py` changed; their final hashes and the complete
+764 non-document input identity are in **docs/V11_ACCOUNT_REPLAY_EVIDENCE.md**.
+
+Published integrated baseline **e21ae6e4fbef2c14e3fd748fbda8314d8d54773a**, tree
+**adf2367c7ca319b607f629d910acf54fb73cb7d8**, passed **4138 tests, four existing
+FastAPI warnings / 298.08 s / exit 0**, session **44615**, and affected **573 passed /
+70.83 s / exit 0**, session **55056**. All **858 tracked inputs unchanged** through
+those runs. Those broad results precede the isolated policy guard; the final
+84-case verification includes that guard. No duplicate regression is running;
+full lock is free. All exact metadata/logs/maps and corrected development fixture
+failures are preserved in the evidence document. Full release/independent
+acceptance is still open; these results do not imply unfunded readiness.
+
+Completed original numerical account replay now spans batch allocation, ambiguity,
+recovery, fills/FIFO basis/P&L, cancel/late acknowledgements and terminal release,
+with original request/pre-state/policy/time/receipt bindings. All commands remain
+nonfinancial, and replay issues no commands. Complete bounded cohorts join the
+existing candidate audits; protected synthetic basket/exit and source-to-decision
+candidate integrations are verified. Preparation/exit approval results remain
+conditional inputs, not reissued or independently accepted control decisions.
+Legacy/missing/unknown inputs stay gated and counted; no favorable capped prefix.
+
+**83/200, approximately 42%; formal 1/50 (2%)**, unchanged. No E/A or formal
+requirement closed. V10 unchanged and maintenance DEFERRED. Alpha-dev resource/
+isolation, actual source/calibration, independent acceptance and operational
+readiness remain open. No service/permission, wallet, money, real order, funding
+or financial authority changed. No owner-only action blocks the next safe code.
+
+Resolve this newest saved identity with
+`git log -1 --format='%H %T' -- docs/V11_WORK_CHECKPOINT.md`; inspect actual worktree
+and operations before any retry. **Exact next implementation action:** reconstruct
+original basket and exit numerical valuation preparation from archived admission/
+model/source/inventory evidence using `causal_replay.historical_bundle`, shared
+basket valuation and `position_management._value` at original receipt/time
+boundaries; connect comparisons to account/candidate audits. Keep original
+control-flow, executable and missing-evidence gates. Do not repeat completed runs.
+Six remaining readiness milestones/hours below remain current, all LOW confidence;
+active work excludes external waiting and owner actions. NOT_READY_TO_FUND.
+
+
+Updated 2026-09-25, after verified account-effect replay and full regression.
+Resume here. **NOT_READY_TO_FUND**.
+
+## Latest verified checkpoint — original account effects through candidate audits
+
+Published implementation **e21ae6e4fbef2c14e3fd748fbda8314d8d54773a**, tree
+**adf2367c7ca319b607f629d910acf54fb73cb7d8**, passed **4138 passed, 4 warnings in 298.08s (0:04:58)**, exit 0,
+session **44615**. Affected **573 passed in 70.83s (0:01:10)**, exit 0,
+session **55056**, on the same saved tree. All **858 tracked inputs unchanged**
+through both runs and reverified before this documentation-only checkpoint;
+**764 non-document inputs**. Full wrapper 298.892 s, user
+218.406885 s, system 69.908529 s, peak RSS 166072 KiB.
+Full lock is free; no test is running. Exact metadata, outputs, file map and
+intermediate fixture failures: **docs/V11_ACCOUNT_REPLAY_EVIDENCE.md**.
+Final focused **82 passed / 10.84 s**, session **42335**.
+
+Completed: new PAPER journal rows retain original conditional preparation,
+pre-state/policy/request bindings, clock reads and guard inputs. Shared numerical
+allocation, status/recovery, fills and terminal reconciliation reproduce original
+reservations, cash, inventory, FIFO basis/P&L and risk without issuing commands.
+Original receipts/heads/time boundaries survive later appends and model changes.
+Missing originals gate. Bounded complete command cohorts now join scheduled
+candidate audits, including protected synthetic basket/exits and the source-to-
+temperature candidate path. Legacy/unsupported/overflowed cohorts remain honestly
+unknown or gated; report-before-cursor recovery never duplicates comparisons.
+
+**83/200, approximately 42%; formal 1/50 (2%)**, unchanged. R04 and joined account/
+audit packages already have C/J. No E/A or formal requirement was newly completed.
+Original preparation/control-flow, other-strategy/challenger/PWS-label replay,
+historical executable attestation and actual/independent/operational acceptance
+remain open. All new source/account evidence is synthetic. V10 unchanged and
+maintenance DEFERRED. Alpha-dev resource/isolation/readiness gates remain unpassed.
+No service/permission, wallet, real order, money, funding or financial authority
+changed. No owner-only action blocks the next off-host implementation.
+
+This final save changes documentation only. Resolve its newest saved identity with
+`git log -1 --format='%H %T' -- docs/V11_WORK_CHECKPOINT.md`; inspect actual worktree
+and operations before any retry. Do not repeat these unchanged regression runs.
+
+**Exact next implementation action:** reconstruct original basket and exit
+valuation preparation from archived admission/model/source/inventory evidence,
+using `causal_replay.historical_bundle`, shared basket valuation and
+`position_management._value` at original receipt/time boundaries. Compare those
+numerical valuations and join their proof to account/candidate audits, replacing
+conditional numeric inputs where supported. Do not invoke current approvals or
+claim historical control-flow/executable authority; missing original evidence
+gates. Six remaining readiness milestones/hours below remain current, confidence
+LOW, active work only; external waiting and owner actions are separate.
+
+
 Updated 2026-09-25, after original PAPER account effects reached candidate audits.
 Resume here. **NOT_READY_TO_FUND**.
 
@@ -1755,7 +1856,7 @@ still require separate budget and live approval. No arbitrary paper wait applies
 | Remaining milestone | Work remaining and proof of completion | Active hours | Confidence | External/owner dependency |
 |---|---|---:|---|---|
 | Sources, weather and labels | Finish remaining provider/target adapters, physical/lead fitting, exact labels and calibration/fallback. Finish when actual evidence proves causal identity, coverage, lead/ablation and required out-of-sample quality. R06–R13, R25–R28, R31. | 45–90 | LOW | Authorized provider access, exact history/labels and independent semantic/calibration review. |
-| Full replay and controlled learning | Finish account/control/command and other-strategy/PWS-label replay, remaining learning targets, isolated learner scheduling, matched EV/residual/drift evidence and initial-champion governance. Finish with deterministic effects/artifact/rollback/failure evidence and accepted real-data learning results. R02–R05, R14–R17, R40–R42, R47. | 30–60 | LOW | Exact labels, isolated learner environment, independent champion/governance review. |
+| Full replay and controlled learning | Finish original preparation/control and other-strategy/PWS-label replay, remaining learning targets, isolated learner scheduling, matched EV/residual/drift evidence and initial-champion governance. Finish with deterministic effects/artifact/rollback/failure evidence and accepted real-data learning results. R02–R05, R14–R17, R40–R42, R47. | 30–60 | LOW | Exact labels, isolated learner environment, independent champion/governance review. |
 | Strategy, portfolio and execution | Finish remaining relative/structural/exit/redemption, correlation, cost and maker/reward integration. Finish when required common-account scenario, reservation, reconciliation and failure cases pass. R18–R24, R29–R30, R32–R36. | 35–70 | LOW | Reviewed mappings/parameters and actual source/execution evidence; funded learning remains separately authorized. |
 | Independent safety, identity and host | Finish independent cancel-only guardian, protected auth/routing and isolated deployment/recovery. Finish with verified custody, permissions, resource limits and authenticated safety/recovery behavior. R37–R39, R43–R44. | 30–60 | LOW | Owner entitlement/access and approved isolated host/deployment; alpha-dev resource/isolation unpassed. V10 maintenance stays deferred. |
 | Independent regression and unfunded acceptance | Complete remaining full integration/fault/security and permitted unfunded checks; resolve findings. Finish with reproducible exact-tree results and independent acceptance against the original matrix. R45, R48. | 25–50 | LOW | Independent reviewers and permitted existing-account access; no account creation or financial activation implied. |

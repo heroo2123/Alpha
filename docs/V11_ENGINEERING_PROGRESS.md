@@ -484,3 +484,27 @@ independent acceptance, verified isolated deployment and unfunded READY_TO_FUND
 remain open. **83/200 = 41.5%, approximately 42%; formal 1/50 (2%)**, unchanged.
 The denominator remains 200 and covers all engineering through verified deployment
 and unfunded readiness. V10 unchanged/DEFERRED; no financial authority.
+
+
+Verified original account-effect integration — 2026-09-25: **4138 passed, 4 warnings in 298.08s (0:04:58)**,
+exit 0, session **44615**, and **573 passed in 70.83s (0:01:10)**, exit 0, session **55056**,
+on published implementation **e21ae6e4fbef2c14e3fd748fbda8314d8d54773a**, tree
+**adf2367c7ca319b607f629d910acf54fb73cb7d8**. All 858 tracked inputs unchanged through both runs;
+exact metadata/logs/map: docs/V11_ACCOUNT_REPLAY_EVIDENCE.md. This verifies the
+shared conditional numerical account/candidate audit integration; it does not
+complete original preparation/control-flow, actual evidence, independent review,
+isolated deployment or unfunded readiness. More regression earns no extra credit.
+**83/200 (~42%)**, formal **1/50 (2%)**, unchanged; V10 DEFERRED/unchanged and
+NOT_READY_TO_FUND. No financial authority.
+
+
+Final original-policy guard — 2026-09-25: replay also verifies the freshly
+constructed historical configuration digest, preventing a replaced caller
+policy/limit object from hiding behind a cached hash. Two production lines and
+two focused cases followed the 4138-pass full integration. Final **84 passed /
+8.92 s / exit 0**, session **39669**; exact final file hashes and the prior full
+manifest are retained in docs/V11_ACCOUNT_REPLAY_EVIDENCE.md. Broad tests are
+explicitly attributed to e21ae6e4; final targeted tests include the additional
+guard. No additional full release or independent acceptance is claimed.
+**83/200 (~42%)**, formal **1/50 (2%)**, unchanged. Existing C/J coverage improved;
+no new milestone or authority. V10 unchanged/DEFERRED; NOT_READY_TO_FUND.

@@ -90,6 +90,17 @@ def test_replay_requires_original_policy_even_for_first_command(rig):
     assert d['status'] == 'GATED' and d['reason'] == 'ACCOUNT_REPLAY_ORIGINAL_POLICY_REQUIRED'
 
 
+@pytest.mark.parametrize('changed', ['policy','limits'])
+def test_cached_policy_identity_cannot_mask_replaced_configuration(rig, changed):
+    c=coordinator(rig);c.recover('first');original_sha=c.policy_sha
+    if changed=='policy':c.policy=replace(c.policy,capital_limit='20')
+    else:c.limits=replace(c.limits,per_event='90')
+    assert c.policy_sha==original_sha  # Cached constructor identity is insufficient.
+    d=replay.replay_account_command(c,'first',policy=ReplayPolicy('fixture'))
+    assert d['status']=='GATED' and d['reason']=='ACCOUNT_REPLAY_ORIGINAL_POLICY_REQUIRED'
+    assert not d['effects_match'] and not d['comparisons']
+
+
 def test_clock_regression_still_allows_cancel_but_cannot_claim_causal_replay(rig):
     c=coordinator(rig);c.coordinate('batch',(proposal(rig,'one'),))
     rig['now'][0]-=30

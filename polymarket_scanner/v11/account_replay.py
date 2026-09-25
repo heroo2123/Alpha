@@ -147,6 +147,8 @@ def replay_account_command(c, command_id, *, policy, monotonic=time.monotonic, d
             request = d['request']; _request(request)
             view = AccountHistoricalView(source, through_seq=row['seq']-1, at=row['body']['recorded_at'])
             historical = PaperCoordinator(view, policy=c.policy, correlation=c.correlation, limits=c.limits)
+            if historical.policy_sha != d['policy_sha256']:
+                raise EvidenceError('ACCOUNT_REPLAY_ORIGINAL_POLICY_REQUIRED')
             before = historical._head(); state = historical._state(before)
             if (state['account_id'] != c.policy.account_id or state['execution_namespace'] != c.store.namespace
                     or state['financial_authority'] is not False
