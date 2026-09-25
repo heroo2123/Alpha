@@ -231,3 +231,11 @@ remain visible. **121 related checks / 22.01 s, 27 new cases**. Automatic review
 reduction/candidate scheduling remains next. R42 already holds C/J; **82/200,
 approximately 41%**, formal **1/50 (2%)**, unchanged. No actual or independent evidence
 is inferred. Six remaining active-work ranges still apply; waiting is excluded.
+
+Reviewed drift now connects the finite candidate, original model/capture scope,
+predeclared protected policy, durable safety demotion, existing paper withdrawal/
+terminal reconciliation and audit outcomes. **156 related passes / 29.77 s**, then
+**two final boundary checks / 0.60 s**, 35 new worker cases. Full exact-tree regression
+is next. R42 C/J already credited: **82/200, approximately 41%**, formal **1/50 (2%)**,
+unchanged. Remaining metrics, meaningful actual evidence, independent review and host/
+unfunded acceptance remain unearned. The six active-work ranges exclude external waits.

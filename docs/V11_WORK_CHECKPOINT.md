@@ -1,7 +1,66 @@
 # Alpha V11 work checkpoint
 
-Updated 2026-09-25, after scoped rolling measurement implementation. Resume here. **NOT_READY_TO_FUND**.
+Updated 2026-09-25, after reviewed drift worker and candidate integration. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
+
+## Latest implementation — reviewed drift through paper withdrawal and audits
+
+Saved measurement checkpoint **5730dd604d183569c01e9886b332d20f49531096**, tree
+**ab52d8ef3a1ac03c56c13d1acb2b4bdb57f3f51c**, was published/aligned cleanly before
+this integration continued. Existing work and historical evidence were preserved.
+
+The typed candidate now includes an optional DriftWorker sharing the existing
+paper account, scope routes, cooperative safety ticks and audit archive. It accepts
+one explicit pending cohort (maximum 64 captures, 16 configured scopes), preserving
+its exact request and cutoff. Read-only measurement remains bounded to two seconds,
+128 captures / 2048 buckets; worker action has the tighter 64-event label-head CAS
+bound. Missing, malformed, insufficient or unsupported evidence finishes as a
+visible gate so independent jobs can continue. Idle jobs do not invent cohorts.
+
+Automatic action requires an exact root-protected read-only review at
+`/etc/alpha-v11/approvals/drift-policies.json`, with numerical policy identity,
+account/namespace, explicit-cohort selection, safety-reduction-only authority,
+approval before the measurement window, finite freshness/expiry and the original
+current protected model epoch. Changed labels, reviews or epochs gate the action.
+The worker persists the original measurement and review, then atomically guards
+station and label heads when recording the existing CALIBRATION_DEGRADED barrier.
+Interruptions recover the exact action once; later reviewed station recovery never
+causes the old action to run again. No PASS automatically restores authority. No
+parameter, protected pointer, approval file, financial transport or learner is added
+to the runtime. A learner still has no protected publisher interface.
+
+The existing lifecycle path then invalidates original admissions, requests PAPER
+cancellation, retains cash until terminal reconciliation, and reports both the drift
+outcome and cancellation evidence in pinned daily/weekly audits. The report layout
+identity changes explicitly; incompatible old jobs stay preserved and require review.
+Synthetic thresholds and labels prove mechanics only, with no statistical, real-input,
+independent label/calibration, host or guardian acceptance claim. Scalar calibration
+error, markout/EV/PnL/drawdown/residual-bias reducers remain unsupported explicitly.
+
+Verification: **156 passed / 29.77 s / exit 0**, session 44183, then **2 passed /
+0.60 s** for reviewed restoration/review-replacement boundaries. **35 new worker
+cases** join the 27 earlier measurement cases. The first worker run had 30 passes /
+three fixture failures / 4.15 s: two unserialized binding calls and label timestamps
+beyond intent expiry. Corrected fixtures preserve the existing expiry/API gates;
+intermediate diagnostic results (2 pass/1 fail in 0.88 s; 1 fail in 0.64 s) remain
+recorded. Final plan bound/unsupported-metric naming followed targeted verification;
+one full exact-tree regression is next. Post-run hashes and tool results:
+`/workspace/scratch/38af7099c566/v11-test-evidence/drift-runtime-targeted-20260925-01.json`.
+Latest completed full run is still **3769 / 231.74 s**, before this extension.
+
+**82/200, approximately 41%**, formal **1/50 (2%)**, unchanged; R42 C/J was already
+credited. Actual quality/degradation, independently reviewed policies/labels, approved
+host and unfunded acceptance remain open. **NOT_READY_TO_FUND**. V10 untouched and
+DEFERRED. No owner action blocks the next off-host verification.
+
+Exact next action: run one locked full regression of this saved integrated tree,
+including existing security/replay/account/model/source tests; record unchanged
+inputs and results. Then finish the remaining required quality/profitability drift
+metrics from the existing prediction and attribution evidence, preserving exact
+scope, horizon and target semantics. Do not manufacture actual labels or threshold
+reviews. The six readiness milestones below remain current, with active-hour ranges
+separate from external waiting/owner actions. Resolve this checkpoint's own saved
+commit/tree with `git log -1 --format='%H %T' -- docs/V11_WORK_CHECKPOINT.md`.
 
 ## Latest implementation — original-admission scoped rolling measurement
 
@@ -717,7 +776,7 @@ still require separate budget and live approval. No arbitrary paper wait applies
 | Remaining milestone | Work remaining and proof of completion | Active hours | Confidence | External/owner dependency |
 |---|---|---:|---|---|
 | Source, weather and label closure | Complete remaining provider/target adapters and scheduling, physical/lead fitting, exact labels and calibration/fallback; explicit-interval/GEFS and physical/PWS inference now have bounded candidate preparation scheduling. Prove causal source/target identity, coverage, lead/ablation and required OOS quality on actual evidence. R06–R13, R25–R28, R31. | 45–90 | LOW | Working authorized provider access; exact source/version history and sufficient evidence; independent semantic/calibration review. |
-| Evidence and controlled learning | Close complete replay/provenance, markout/selection/report joins, operational learner scheduling/isolation, remaining target families, rolling degradation evidence and accepted initial-bundle/learning governance; conditioned capture/fitting and protected lifecycle withdrawal through PAPER reconciliation/audits are now joined. Prove deterministic dataset-to-artifact and rollback/reuse/failure behavior with required real evidence. R02–R05, R14–R17, R40–R42, R47. | 30–60 | LOW | Upstream exact labels; independent initial champion and governance acceptance; isolated learning environment. |
+| Evidence and controlled learning | Close complete replay/provenance, markout/selection/report joins, operational learner scheduling/isolation, remaining target families, rolling degradation evidence and accepted initial-bundle/learning governance; conditioned capture/fitting, scoped rolling Brier/log-loss/reliability and reviewed safety reduction through PAPER reconciliation/audits are now joined; remaining metric families and operational evidence stay open. Prove deterministic dataset-to-artifact and rollback/reuse/failure behavior with required real evidence. R02–R05, R14–R17, R40–R42, R47. | 30–60 | LOW | Upstream exact labels; independent initial champion and governance acceptance; isolated learning environment. |
 | Strategy, portfolio and execution integration | Finish missing relative/structural/exit/redemption, correlation, costs and maker/reward paths. Prove full common-account scenario/reservation/reconciliation and strategy eligibility across required failure cases. R18–R24, R29–R30, R32–R36. | 35–70 | LOW | Reviewed mappings/parameters and actual source/execution evidence; funded fill learning remains later and separately authorized. |
 | Independent safety, identity and host | Finish independent cancel-only guardian and protected command/auth routing; prepare and verify isolated deployment/recovery configuration. Prove custody, permissions, resource budgets and authenticated safety behavior. R37–R39, R43–R44. | 30–60 | LOW | Owner account entitlement/access, approved isolated host and deployment action; alpha-dev resource/isolation currently unpassed. V10 maintenance stays deferred absent an exact dependency. |
 | Regression and unfunded acceptance | Run complete integration/fault/security acceptance and permitted unfunded account/execution checks; resolve findings. Proof is the original acceptance matrix with independent review and reproducible exact-tree results. R45, R48. | 25–50 | LOW | Independent reviewers and permitted existing-account access; no wallet/account creation or financial activation is implied. |

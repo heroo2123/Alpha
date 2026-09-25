@@ -20,7 +20,7 @@ from .runtime_health import KEY as HEALTH_KEY
 VERSION = 'alpha_v11_audit_reports_v1'
 WORKER_KEY = 'v11-audit-report-worker'
 PERIODS = {'DAILY':86400,'WEEKLY':7*86400}
-LAYOUT_VERSION = 'alpha_v11_audit_lifecycle_counts_v1'
+LAYOUT_VERSION = 'alpha_v11_audit_drift_lifecycle_counts_v1'
 
 
 @dataclass(frozen=True)
@@ -82,7 +82,7 @@ def _aggregate():
         funnel_counts={},rejection_reasons={},account_outcomes={},station_transitions={},station_latest={},
         rule_drifts=0,rule_quarantines={},model_actions={},model_result_ids=[],learning_watermarks=[],
         runtime_outcomes={},health_failure_samples=0,markout_counts={},
-        resting_admission_checks={},paper_cancellation_outcomes={},maker_retirement_reasons={},
+        resting_admission_checks={},paper_cancellation_outcomes={},maker_retirement_reasons={},drift_outcomes={},
         incident_refs=[],malformed_records=0,metadata_overflow=False,runtime_durations=dict(count=0,total=0.,maximum=0.))
 
 
@@ -120,6 +120,9 @@ def _fold(row,a,window):
         if d.get('changed') is True:a['rule_drifts']+=1;_sample(a['incident_refs'],row)
     elif kind=='MODEL_EVENT':
         _bump(a['model_actions'],d.get('action','UNKNOWN'))
+        if d.get('version')=='alpha_v11_reviewed_drift_worker_v1' and d.get('action')=='DRIFT_RESULT':
+            _bump(a['drift_outcomes'],d.get('outcome','UNKNOWN'))
+            if d.get('outcome')!='NO_DECLARED_BREACH':_sample(a['incident_refs'],row)
         if d.get('action')=='IMMUTABLE_RESEARCH_RESULT':_sample(a['model_result_ids'],row)
         if d.get('action')=='REGISTER_PLAN' and len(a['learning_watermarks'])<32:
             a['learning_watermarks'].append(dict(record_id=row['id'],training_cutoff=d.get('plan',{}).get('training_cutoff'),

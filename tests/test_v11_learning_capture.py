@@ -40,8 +40,8 @@ def kwargs(r):
                 model_input_ids=r['request'].model_input_ids,expires_at=r['request'].expires_at)
 
 
-def labels(r,manifest,*,values=(0,1,0),evidence_type='SYNTHETIC'):
-    ids={};r['now'][0]+=30;d=manifest['body']['details'];p=r['rule'].payload
+def labels(r,manifest,*,values=(0,1,0),evidence_type='SYNTHETIC',delay=30.):
+    ids={};r['now'][0]+=delay;d=manifest['body']['details'];p=r['rule'].payload
     for i,row in enumerate(d['rows']):
         target=row['target_identity'];key='label:'+target['market_id'];ids[target['market_id']]=key
         r['store'].capture(key,event_id=p['event_id'],kind='LABEL',provider='TEST_ONLY',source_identity=target['token_id'],revision='test-v1',

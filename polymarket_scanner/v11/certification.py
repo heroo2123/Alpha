@@ -170,13 +170,15 @@ class StationRegistry:
                                 evidence_ids=(raw_evidence_id,), expected_previous_seq=past[-1]["seq"] if past else 0)
 
     def demote(self, record_id: str, scope: CapabilityScope, *, state: str, reason: str,
-               evidence_ids: tuple[str, ...]) -> dict:
+               evidence_ids: tuple[str, ...], expected_previous_seq: int | None = None,
+               expected_heads: tuple[tuple[str, str, int], ...] = ()) -> dict:
         if state not in FAIL_STATES or not evidence_ids:
             raise EvidenceError("DEMOTION_REQUIRES_REASON_EVIDENCE")
         return self.store.audit(record_id, event_id="station:" + scope.station, kind="REGISTRY",
                                 details={"action": "DEMOTION", "scope_key": scope.key,
                                          "scope": asdict(scope), "state": state, "reason": identity(reason)},
-                                evidence_ids=evidence_ids)
+                                evidence_ids=evidence_ids, expected_previous_seq=expected_previous_seq,
+                                expected_heads=expected_heads)
 
     def proof(self, record_id: str, scope: CapabilityScope, *, capability: str,
               metadata_fingerprint: str, rule_fingerprint: str, evidence_ids: tuple[str, ...],

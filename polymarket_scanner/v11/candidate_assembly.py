@@ -12,6 +12,7 @@ from .candidate_runner import CandidatePolicy, CandidateRunner, ObservationBatch
 from .census_worker import CensusPlan, CensusPolicy, CensusWorker
 from .collection import PublicCollector
 from .discovery import DiscoveryPolicy, MarketDiscovery
+from .drift_runtime import DriftPlan, DriftWorker
 from .event_queue import EventRoute, EventQueue, TriggerPolicy
 from .evidence import EvidenceError, digest, finite, identity
 from .observation_pump import ObservationPump
@@ -191,6 +192,7 @@ class CandidatePlan:
     gefs: tuple[GEFSPlan, ...] = ()
     gefs_rollover: GEFSRunPolicy | None = None
     preparations: PreparationSettings | None = None
+    drift: tuple[DriftPlan, ...] = ()
 
     def __post_init__(self):
         identity(self.version); identity(self.worker_id)
@@ -243,6 +245,15 @@ class CandidatePlan:
         if self.preparations is not None and (not isinstance(self.preparations,PreparationSettings)
                 or any(p.event_id not in events or p.rule!=events[p.event_id].census.rule for p in self.preparations.plans)):
             raise EvidenceError('CANDIDATE_PREPARATION_SCOPE')
+        scopes=[s for e in self.events for s in [e.risk_inputs,*[l.inputs for l in e.lanes],
+            *[l.observation_inputs for l in e.lanes if type(l) is PWSLeadLane],
+            *[l.payout_inputs for l in e.lanes if type(l) is MakerLane and l.payout_inputs is not None]]]
+        if self.maker:scopes.extend(self.maker.inputs)
+        if (type(self.drift) is not tuple or len(self.drift)>16
+                or any(not isinstance(p,DriftPlan) for p in self.drift)
+                or len({p.scope.key for p in self.drift})!=len(self.drift)
+                or any(not any(s.scope==p.scope and s.binding.bundle_sha256==p.bundle_sha256 for s in scopes) for p in self.drift)):
+            raise EvidenceError('CANDIDATE_DRIFT_PLAN_SCOPE')
 
 
 def _lane(queue,coordinator,lane,maker):
@@ -338,6 +349,7 @@ def assemble_candidate(store,client,plan,*,generation):
         maker_telemetry=MakerTelemetryWorker(maker,health,plan.maker.telemetry,event_ids=tuple(maker_scopes)) if maker else None,
         pws_quality=PWSQualityWorker(store,health,plan.pws_quality) if plan.pws_quality else None,
         forecasts=ForecastNormalizationWorker(store,health,plan.forecasts) if plan.forecasts else None,
-        gefs=gefs,preparations=PreparationWorker(store,health,plan.preparations) if plan.preparations else None)
+        gefs=gefs,preparations=PreparationWorker(store,health,plan.preparations) if plan.preparations else None,
+        drift=DriftWorker(coordinator,plan.drift) if plan.drift else None)
     runner.assembly_sha256=digest(asdict(plan))
     return runner

@@ -310,3 +310,31 @@ Source models, clock custody and risk metrics in these tests remain fixtures.
 The nine new factory/adapter tests passed in 3.19 s. Final integrated regression
 is recorded in V11_WORK_CHECKPOINT.md. Public trade collection, empirical models,
 reviewed first-canary baseline and formal/independent acceptance remain open.
+
+## Scoped drift reduction in the finite candidate
+
+`CandidatePlan.drift` optionally supplies up to 16 exact DriftPlans whose scope and
+bundle match configured inputs. CandidateRunner's DRIFT job shares the coordinator
+and existing safety cadence. It processes one explicitly queued complete-label cohort
+(maximum 64 captures); no implicit source universe, historical label backfill or
+threshold default is inferred. Completed requests replay without renewing work;
+pending cohorts are retained across interruption and a busy slot rejects new work.
+
+The separate read-only review path is `/etc/alpha-v11/approvals/drift-policies.json`.
+Its schema is `alpha_v11_drift_reviews_v1` with `reviews`. Each exact review supplies
+plan_key, account_id, namespace, review_id, reviewer, approved_at, expires_at,
+model_state_sha256, maximum_measurement_age_seconds, selection
+EXPLICIT_CAPTURE_COHORT, action SAFETY_REDUCTION_ONLY and financial_authority false.
+The plan digest covers all thresholds, window, cohort minimums and target/evidence
+class; approval must predate the window. This implementation installs no reviews.
+Capture epochs, current protected epoch and policy must match. Label revisions and
+station changes are guarded at the safety write. Action is CALIBRATION_DEGRADED in
+the existing scoped StationRegistry; there is no model-parameter change or automatic
+restoration. Saved reduction recovery reports the original action without reapplying
+it after an independent station review. The learner is not attached to this runtime.
+
+Drift result counts and incident references join the versioned pinned audit layout.
+This is cooperative off-host paper/shadow preparation, not an isolated guardian or
+operational quality/threshold acceptance. Scalar calibration error and profitability/
+source-residual metric reductions are still gated; actual observed evidence and
+independent policy/label/host reviews remain required for acceptance.

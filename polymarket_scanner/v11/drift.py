@@ -144,7 +144,7 @@ def measure_window(source_store, *, scope, account_id, bundle_sha256, policy, jo
         selection='EXPLICIT_CAPTURE_COHORT',global_universe_coverage_verified=False,
         evidence_class=policy.evidence_class,independent_label_attestation=False,
         predeclared_policy_review_verified=False,prior_exposure='DEVELOPMENT',
-        unsupported_metrics=['HORIZON_MATCHED_MARKOUT','NET_EV_CAPTURE','REALIZED_PNL','DRAWDOWN','SOURCE_RESIDUAL_BIAS'],
+        unsupported_metrics=['SCALAR_CALIBRATION_ERROR','HORIZON_MATCHED_MARKOUT','NET_EV_CAPTURE','REALIZED_PNL','DRAWDOWN','SOURCE_RESIDUAL_BIAS'],
         demotion_applied=False,financial_authority=False,calibration_acceptance=False)
     if len(canonical(result).encode())>512*1024: raise EvidenceError('DRIFT_RESULT_BYTES_BOUND')
     return result
