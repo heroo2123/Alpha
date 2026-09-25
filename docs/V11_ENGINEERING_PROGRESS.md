@@ -1,5 +1,15 @@
 # Supplementary engineering estimate
 
+Scheduled PWS score-audit continuation, 2026-09-25: the existing pinned worker
+now optionally reports complete retained receipt-score cohorts, including UNKNOWN,
+legacy and unsupported protocols. Measured labels and score matches remain
+separate; shared resource/selection failures clear every positive prefix.
+Integrated **156 / 58.68 s** precedes the final read-budget propagation guard;
+final guarded **35 / 13.16 s**, exit 0, includes combined temperature/account/PWS
+reporting and finite candidate/recovery checks. All 767 final canonical inputs
+unchanged. Evidence: `docs/V11_PWS_SCORE_AUDIT_EVIDENCE.md`. **83/200 (~42%);
+formal 1/50 (2%)**, unchanged. NOT_READY_TO_FUND; V10 unchanged/DEFERRED.
+
 Pinned PWS receipt-score continuation, 2026-09-25: a durable original scan start
 now survives interrupted/completed scoring, and shared selection/numerics replay
 is required by paired observation-label datasets. Later receipts cannot change

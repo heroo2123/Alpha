@@ -1,5 +1,52 @@
 # Alpha V11 work checkpoint
 
+## Latest verified checkpoint ? scheduled PWS score cohorts, 2026-09-25
+
+Continued/preserved published **fdf85f560f44d0e164038196e52492f3b6f3aac0**, tree
+**e8274c87743706cce30f456c3cb4552f9508bf60**. Optional receipt-score replay now
+joins the existing pinned daily/weekly worker and finite candidate. All retained
+UNKNOWN, legacy and unsupported scores remain counted; matched UNKNOWN is not a
+measured label. Full cohort selection and score reproduction are separate.
+Original cutoff/receipt scan proof survives later data, and shared read/time/
+output exhaustion or missing selected originals clears successful prefixes.
+Default configuration identities, P&L and unaccepted PWS evidence claims remain
+unchanged. Report-before-cursor recovery reuses the saved report without rescoring.
+
+Integrated **156 passed / 58.68 s**, session 11892, precedes the final shared-budget
+propagation guard. Final guarded **35 passed / 13.16 s**, session 23394, includes
+that failure case, combined temperature/account/PWS reporting and candidate
+recovery. All **767 canonical non-document inputs unchanged**, both exit 0.
+No test operation remains running. Exact evidence and final identity:
+**docs/V11_PWS_SCORE_AUDIT_EVIDENCE.md**. The previous full **4195 / 578.00 s**
+belongs to **0776697**, before both PWS milestones; do not attribute it to this
+newer code or repeat it without a concrete integrated/release reason.
+
+**83/200 = 41.5%, approximately 42%; fully completed requirements 1/50 (2%)**,
+unchanged. Existing R04/R41 C/J evidence is strengthened; no E/A or full requirement
+is newly accepted. **NOT_READY_TO_FUND**. V10 unchanged/maintenance DEFERRED.
+Private inputs/evidence and credentials remain excluded from repository artifacts.
+No wallet, funding, money movement, real order, service or authority change occurred.
+
+**Next unfinished implementation action:** resume the required independent
+cancel-only guardian boundary and local fault-isolation acceptance from
+`docs/V11_GUARDIAN_CLOCK.md`, preserving the existing cooperative PAPER cancellation
+path and its reservations/reconciliation. Begin with the local process/identity
+boundary and blocked-worker/restart/resource failure cases; live authentication,
+isolated-host deployment and operational commissioning remain separately gated.
+Prioritize required safety and existing integration over optional learner families.
+No owner-only action blocks reviewing/implementing that local nonfinancial slice.
+
+The six remaining READY_TO_FUND milestones and proof/dependency table below remain
+current: sources/labels **45?90 active h**; full replay/learning **30?60 h**;
+strategy/portfolio/execution **35?70 h**; safety/identity/host **30?60 h**;
+independent unfunded acceptance **25?50 h**; operating comparison/release **15?30 h**.
+All LOW confidence, excluding external waiting and owner actions. Actual labels/
+calibration, independent review, authenticated safety and isolated operating
+acceptance remain unresolved. Resolve this checkpoint's commit/tree using
+`git log -1 --format='%H %T' -- docs/V11_WORK_CHECKPOINT.md` before continuing.
+
+## Previous verified milestone
+
 ## Latest verified checkpoint ? pinned PWS receipt scores, 2026-09-25
 
 Published preceding milestone **0776697aab3032853d99af35902a7f9eafb4ba6a**, tree

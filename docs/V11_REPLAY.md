@@ -257,3 +257,13 @@ that proof while retaining the original earlier feature cutoff and one event
 for both ablation arms. This does not certify source truth, next publication,
 calibration, original inference, P&L or promotion. Evidence and testing boundaries:
 `docs/V11_PWS_SCORE_REPLAY_EVIDENCE.md`.
+
+
+Optional `AuditPolicy.pws_score_replay` carries complete retained score cohorts
+through the existing pinned daily/weekly worker and finite candidate. UNKNOWN and
+legacy scores stay counted; original status, replay match and measured-label
+count remain distinct. Missing selected originals, incomplete/overflowed cohorts,
+shared resource limits and final output bounds clear successful prefixes. Default
+policy identities are unchanged. No P&L, calibration, independent sample or
+publication-continuity claim is added. Exact evidence and run boundaries:
+`docs/V11_PWS_SCORE_AUDIT_EVIDENCE.md`.

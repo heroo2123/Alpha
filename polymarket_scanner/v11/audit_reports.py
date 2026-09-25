@@ -17,6 +17,7 @@ from .performance import PerformanceLab
 from .execution_costs import ExecutionCostPolicy
 from .causal_replay import ReplayPolicy, fold_replay_decisions, replay_audit
 from .account_replay import fold_account_commands, account_replay_audit
+from .pws_score_audit import fold_pws_scores, pws_score_audit
 from .runtime_health import KEY as HEALTH_KEY
 
 
@@ -36,6 +37,7 @@ class AuditPolicy:
     replay: ReplayPolicy | None = None
     account_replay: ReplayPolicy | None = None
     account_valuation_replay: bool = False
+    pws_score_replay: ReplayPolicy | None = None
 
     def __post_init__(self):
         identity(self.version)
@@ -43,6 +45,8 @@ class AuditPolicy:
             raise EvidenceError('AUDIT_REPLAY_POLICY_REQUIRED')
         if self.account_replay is not None and not isinstance(self.account_replay,ReplayPolicy):
             raise EvidenceError('AUDIT_ACCOUNT_REPLAY_POLICY_REQUIRED')
+        if self.pws_score_replay is not None and not isinstance(self.pws_score_replay,ReplayPolicy):
+            raise EvidenceError('AUDIT_PWS_SCORE_REPLAY_POLICY_REQUIRED')
         if (type(self.account_valuation_replay) is not bool
                 or self.account_valuation_replay and self.account_replay is None):
             raise EvidenceError('AUDIT_ACCOUNT_VALUATION_REPLAY_POLICY_REQUIRED')
@@ -58,6 +62,7 @@ class AuditPolicy:
         if self.replay is None:value.pop('replay')
         if self.account_replay is None:value.pop('account_replay')
         if not self.account_valuation_replay:value.pop('account_valuation_replay')
+        if self.pws_score_replay is None:value.pop('pws_score_replay')
         return value
 
 
@@ -279,6 +284,7 @@ class AuditWorker:
                         _fold(row,job['aggregate'],window)
                         if self.policy.replay is not None:fold_replay_decisions(row,job['aggregate'],window)
                         if self.policy.account_replay is not None:fold_account_commands(row,job['aggregate'],window)
+                        if self.policy.pws_score_replay is not None:fold_pws_scores(row,job['aggregate'],window)
                     except (EvidenceError,KeyError,TypeError,ValueError):
                         job['aggregate']['malformed_records']+=1;_sample(job['aggregate']['incident_refs'],row)
                     job['cursor']=row['seq'];job['scanned']+=1;consumed+=1
@@ -350,6 +356,15 @@ class AuditWorker:
                     result['coverage']['prepared_valuation_selection_complete']=replayed['prepared_valuation_coverage']['complete']
                     result['coverage']['retained_prepared_valuations_reproduced']=replayed['prepared_valuation_coverage']['all_prepared_valuations_reproduced']
                 result['unresolved']['full_engine_replay']='ORIGINAL_PREPARATION_CONTROL_OTHER_COMMANDS_AND_EXECUTABLE_UNVERIFIED'
+            if self.policy.pws_score_replay is not None:
+                replayed=pws_score_audit(self.store,
+                    selection=job['aggregate'].get('pws_score_selection',dict(count=0,refs=[],overflow=False)),
+                    through_seq=job['view']['through_seq'],window=result['window'],
+                    archive_complete=finished and not job['aggregate']['malformed_records'],policy=self.policy.pws_score_replay)
+                result['pws_score_replay']=replayed
+                result['coverage']['pws_score_selection_complete']=replayed['complete_retained_selection']
+                result['coverage']['retained_pws_scores_reproduced']=replayed['all_scores_reproduced']
+                result['unresolved']['pws_label_truth']='RECEIPT_SCORE_REPLAY_NOT_PUBLICATION_CONTINUITY_OR_CALIBRATION'
             refs=[job['request_id'],head['id']]+[p['record_id'] for p in job['view']['heads'] if p['record_id']]
             complete=self.store.audit(report_key,event_id='v11-audit-report:'+window['period'],kind='RUNTIME_STATUS',details=result,evidence_ids=tuple(dict.fromkeys(refs)))
         state['cursors'][window['period']]=job['request_seq'];state['active']=None
