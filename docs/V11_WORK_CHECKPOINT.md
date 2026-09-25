@@ -1,7 +1,44 @@
 # Alpha V11 work checkpoint
 
-Updated 2026-09-25, after scoped maker-markout candidate integration. Resume here. **NOT_READY_TO_FUND**.
+Updated 2026-09-25, after verified scoped maker-markout candidate integration. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
+
+## Latest verified checkpoint — maker-markout candidate integration
+
+Saved/published implementation **444c71fdd4bf300b08e399de7598d38e9c3419dd**, tree
+**70f716f8a02f83a2f140edef81792c17b7bc5a37**, passed the locked full regression:
+**3922 passed, four existing FastAPI warnings, 264.11 seconds, exit 0**, session
+**45388**. All **833 tracked inputs** remained unchanged and matched again before
+this report. Wrapper elapsed 264.826 s; user 195.229953 s; system 60.022824 s; peak RSS 163804 KiB.
+No failed run or exclusion occurred. No regression remains active.
+
+The full manifest/output and 276-pass affected / 47-pass final targeted evidence
+are durable in **docs/V11_MARKOUT_REGRESSION_EVIDENCE.md**. Original local records:
+`/workspace/scratch/38af7099c566/v11-test-evidence/markout-full-20260925-01.json`
+and `.log`; input digest
+`06ca24ce74f5492616890e5867e58e7b64ef0e2033a4e38a936d2cebfd7b679a`.
+The prior calibration/P&L implementation passed 3875 / four warnings / 252.03 s,
+with its separate durable report preserved. This checkpoint changes docs only;
+no unchanged full-suite rerun is needed. **docs/V11_MARKOUT.md** now records the
+implemented integration, evidence distinctions and remaining execution join.
+
+**82/200, approximately 41%**, formal **1/50 (2%)**, unchanged. Existing C/J credits
+cover this integration; actual-source/calibration, independent, identity/guardian/
+host and unfunded operational acceptance remain open. **NOT_READY_TO_FUND**.
+V10 unchanged; maintenance DEFERRED. No owner action blocks the next off-host code.
+The six remaining milestones/active-hour ranges below remain current and exclude
+external waiting and owner-dependent actions; all retain LOW confidence.
+
+Exact next implementation action: validate an additive synthetic PAPER fill timing/
+cost evidence contract, preserving old record hashes and unknown unsupported fields;
+then connect reconciled fills and original single-leg/basket/exit valuations to
+horizon-specific depth marks in PerformanceLab and monitoring. Existing fill proofs
+have all-in collateral, not separately identified fill price/fees/slippage; source
+observed_at is not automatically attested exchange fill time. Keep partial fills,
+original strategy/model scope and joint basket EV conserved. Do not infer matched
+EV capture or source residuals from maker quote counterfactuals or unrelated P&L.
+Resolve this reporting commit/tree with
+`git log -1 --format='%H %T' -- docs/V11_WORK_CHECKPOINT.md` and preserve newer work.
 
 ## Latest implementation — horizon-specific maker quality through candidate safety/audits
 

@@ -70,3 +70,20 @@ An added scoped-station regression prevents one strategy's state from overwritin
 another. Final report/account/runtime/reward/evidence checks: 151 passed in 22.07 s.
 The preceding default-runtime checks passed 28 tests in 4.42 s. Full repository regression passed 3,200 tests / four existing warnings in
 211.18 s, peak child RSS 153,452 KiB. All fixtures are synthetic and off-host.
+
+## Scoped quality integration update — 2026-09-25
+
+Automatic entry-attributed realized-paper loss/drawdown now reaches the existing
+reviewed drift worker, candidate safety and audits. Original entry fill/admission/
+model lineage, immutable account windows, conserved partial exits, account CAS and
+recovery are checked. Horizon-specific maker counterfactual quality also reaches
+that worker and candidate retirement; reports keep bounded summaries by original
+scope, horizon, direction and evidence class without mixing them with PAPER P&L.
+Summary overflow makes semantic coverage incomplete. See docs/V11_MARKOUT.md.
+
+These additions preserve the older reporting evidence above. Latest full regression:
+**3922 passed, four existing warnings, 264.11 s**, with all 833 inputs unchanged;
+manifest/output: docs/V11_MARKOUT_REGRESSION_EVIDENCE.md. The preceding calibration/
+P&L full run passed 3875 / 252.03 s. R40/R41/R42 remain PARTIAL. Actual fill-based
+markouts, separately identified fill prices/fees, matched EV capture, empirical
+calibration and independent/host/unfunded acceptance stay open.

@@ -282,3 +282,11 @@ already hold applicable integration credits; **82/200, approximately 41%**, form
 host or unfunded acceptance is inferred. A single full regression is next. Six
 remaining active-hour ranges remain appropriate to the larger unresolved scope,
 with fill-based markout joins still open and external/owner waiting excluded.
+
+Locked full maker-markout integration regression at **444c71fd** passed **3922
+tests**, four existing warnings, **264.11 s**, all **833 inputs unchanged**.
+Manifest/output and targeted results are in `docs/V11_MARKOUT_REGRESSION_EVIDENCE.md`;
+the required `docs/V11_MARKOUT.md` records implemented behavior and remaining fill-
+evidence semantics. Verification/documentation add no extra credit: **82/200,
+approximately 41%**, formal **1/50 (2%)**, unchanged. Actual/independent/host/unfunded
+acceptance and six active-work ranges remain open; external/owner waiting is separate.
