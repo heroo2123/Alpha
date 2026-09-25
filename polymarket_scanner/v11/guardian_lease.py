@@ -73,15 +73,22 @@ def validate_details(event_id, d):
     keys = {'version','config_sha256','account_id','account_policy_sha256','health_config',
             'policy','worker','process','stamp','generation','status','reasons','cursor','archive_limits',
             'cancel_intents','account_snapshot_id','pending_trigger','financial_authority','independent_guardian_commissioned'}
-    if (type(d) is not dict or set(d) != keys or d.get('version') != VERSION
+    if (type(d) is not dict or set(d) not in (keys, keys|{'broker_process'}) or d.get('version') != VERSION
             or event_id != journal_key(d.get('account_id'))
             or d.get('financial_authority') is not False or d.get('independent_guardian_commissioned') is not False
             or d.get('status') not in {'READY','GATED','STOPPED'}):
         raise EvidenceError('GUARDIAN_STATUS_SCHEMA')
     policy = GuardianPolicy(**d['policy'])
+    if policy.version.startswith('broker-policy:') and d['status']=='READY' and 'broker_process' not in d:
+        raise EvidenceError('GUARDIAN_BROKER_IDENTITY_REQUIRED')
     expected = config_digest(policy=policy, account_policy_sha=d['account_policy_sha256'],
                              health_config=d['health_config'], worker=d['worker'], archive_limits=Limits(**d['archive_limits']))
     validate_process_identity(d['process']); identity(d['generation']); identity(d['cursor'] or '-')
+    if 'broker_process' in d:
+        validate_process_identity(d['broker_process'])
+        if (d['broker_process'] in (d['process'], d['worker'])
+                or d['broker_process']['boot_id'] != d['process']['boot_id']):
+            raise EvidenceError('GUARDIAN_BROKER_IDENTITY')
     if (d['config_sha256'] != expected or d['process'] == d['worker']
             or type(d['stamp']) is not dict or set(d['stamp']) != {'wall','monotonic','boot_id'}
             or d['stamp']['boot_id'] != d['process']['boot_id']
@@ -110,7 +117,8 @@ def check_lease(store, row, *, account_id, account_policy_sha, required_config=N
             or not 0 <= stamp['wall']-saved['wall'] < p.lease_seconds
             or not 0 <= stamp['monotonic']-saved['monotonic'] < p.lease_seconds
             or abs((stamp['wall']-saved['wall'])-(stamp['monotonic']-saved['monotonic'])) > p.maximum_wall_step_seconds
-            or process_identity(d['process']['pid']) != d['process']):
+            or process_identity(d['process']['pid']) != d['process']
+            or 'broker_process' in d and process_identity(d['broker_process']['pid']) != d['broker_process']):
         raise EvidenceError('GUARDIAN_LEASE_GATED')
 
 

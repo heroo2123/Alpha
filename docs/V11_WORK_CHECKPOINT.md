@@ -1,5 +1,59 @@
 # Alpha V11 work checkpoint
 
+## Latest verified checkpoint - PAPER Unix-socket guardian broker, 2026-09-25
+
+Recovered/fetched published **5bd4460404ab6d384d44f34d17c6bebcdda6e81d**, tree
+**d0e3be325a8787e1a860180204e8abfcc99404a6**; local HEAD matched remote and the
+workspace was clean. A fresh fetch before publication still matched that parent.
+The broker now owns the PAPER archive and guardian engine. Its typed AF_UNIX
+client has no direct archive route and only SNAPSHOT/CHECK/CANCEL operations.
+Mutual kernel UID/GID/process checks, exact account/signature pins, accepted-before-
+effect journaling, deterministic cancellation commands and immutable receipts
+preserve cancellation through restart/disconnect. Both client and broker identities
+are required by broker READY leases at the existing account/basket/maker fences.
+The finite independent client drives broker safety checks without supplying health,
+READY, timestamps or account state. No financial action or service is introduced.
+
+Affected integration: **512 passed / 75.25 s / exit 0**, session **78271**,
+all **776 canonical source/mirror inputs unchanged**. This covers affected account/
+basket/maker/cancellation/health/runtime/candidate/reconciliation suites and precedes
+the final overflow-identity guard. Final focused verification: **305 passed, 1
+skipped / 26.83 s / exit 0**, session **88990**, all **778 canonical inputs unchanged**.
+The sole skip is the actual mapped-principal custody gate, missing `newuidmap`.
+The 16 pure harness checks pass; no actual custody claim is made. No test/guardian
+process remains running. Preliminary 76 and 214 passes are separately identified in
+`docs/V11_GUARDIAN_BROKER_EVIDENCE.md`; the full 4294 run belongs to parent
+`5bd4460`. Do not rerun an unchanged expensive suite merely for a number.
+Resolve this checkpoint's publishing commit/tree using
+`git log -1 --format='%H %T' -- docs/V11_WORK_CHECKPOINT.md`.
+
+**85/200 = 42.5%, approximately 43%; fully completed requirements 1/50 (2%)**,
+unchanged. Existing R37 C/J is strengthened. Same-UID protocol/process evidence is
+not separate-user custody, supported venue authentication, deployment or independent
+acceptance. **NOT_READY_TO_FUND. V10 unchanged/maintenance DEFERRED.**
+All five private input hashes still match the authoritative private hash list and
+repository metadata; contents, databases, credentials and raw evidence stay out of
+Git. No alpha-dev access, sudo on any server, wallet, funding, transfer or real order.
+
+**Exact next unfinished action:** execute the prepared actual mapped-principal
+broker/custody test in local WSL Ubuntu, resolve failures and extend actual
+distinct-principal restart/failure proof. The concrete owner-only prerequisite is
+`sudo apt-get install uidmap` in local Ubuntu; existing subordinate UID/GID ranges
+are already configured. The helper uses disposable namespaces and private tmpfs,
+distinct capability-free roles, no persistent accounts or host permission changes.
+Its missing-prerequisite skip is explicitly not proof. This owner request is pending;
+no package installation or privilege change was performed by this implementation.
+
+The six remaining READY_TO_FUND milestones/proof/dependency table below is still
+current. Active engineering estimates remain sources/labels **45-90 h**;
+replay/learning **30-60 h**; strategy/portfolio/execution **35-70 h**;
+safety/identity/host **30-60 h**; independent unfunded acceptance **25-50 h**;
+operating comparison/release **15-30 h**, all LOW confidence. These exclude external
+waiting and owner actions. The local package wait is part of the safety milestone;
+it neither authorizes deployment nor closes the remaining operational gates.
+
+## Previous published checkpoint
+
 ## Latest verified checkpoint - independent local PAPER guardian, 2026-09-25
 
 Recovered/fetched published **02fe3f2c28882b04f32381df395f17baa79d590b**, tree

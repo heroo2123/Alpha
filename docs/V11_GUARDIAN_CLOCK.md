@@ -1,5 +1,59 @@
 # V11 clock, liveness and cancellation integration
 
+## PAPER Unix-socket broker continuation
+
+`paper_guardian_broker.py`, `guardian_protocol.py` and `guardian_client.py` add a
+finite local AF_UNIX boundary. The broker retains the existing PAPER coordinator
+and guardian engine; the client receives no archive handle. Kernel SO_PEERCRED
+authenticates configured UID/GID in both directions, with boot/start/PID checks.
+Kernel overflow UID/GID values and unavailable overflow metadata are refused because
+unmapped peers can otherwise appear to have those configured identities.
+Distinct principals are the default; explicitly named same-UID synthetic mechanics
+mode is available for preliminary tests and cannot establish protected custody.
+The peer policy binds both broker identity and the downstream guardian config.
+
+The fixed protocol accepts SNAPSHOT, CHECK and CANCEL only. SNAPSHOT returns
+bounded managed-intent signatures and an original account record/hash/sequence.
+CHECK asks the broker to run the existing safety cycle; all health/clock/status
+decisions remain broker-derived. CANCEL pins an exact account snapshot and target
+signatures to a request identity. The accepted request itself is its durable local
+trigger; it does not supply an independent external trigger or venue attestation.
+Unknown/extra operations or fields, ambiguous peers and unavailable identities
+fail closed. No order, replacement, fill, terminal, SQL or client database path is
+accepted. Typed responses also reject extra state and authority claims.
+
+An atomic ACCEPTED journal head precedes cancellation effects. Stable per-intent
+account commands make effect-before-receipt recovery idempotent. COMPLETED receipts
+retain the observed account reference and never imply terminal confirmation or
+release reservations. Restart drains a pending cancellation before any new CHECK;
+interrupted observations become explicit refusals. Replaying CHECK never resamples
+or renews its old lease. Both guardian-client and broker process identities must be
+present/alive for a broker READY lease. Existing account/basket/maker and transaction
+guards still apply. Cancellation and explicit reconciliation keep their own gates.
+
+The broker checks private archive parent/file/sidecar custody, takes the shared
+guardian lock, pins endpoint configuration and refuses foreign files/symlinks or
+live endpoint replacement. Only a matching stale socket is replaced. Absolute
+transport deadlines, 32 KiB frames, JSON depth/duplicate-key checks, bounded target
+counts, finite connections and hard child limits bound work. Transport timeouts
+can leave delivery uncertain; retry the same request to obtain its durable receipt.
+The launcher-level 65-second alarm bounds an operation that outlives socket I/O.
+
+`launch_broker(...)` and `launch_client(...)` are explicit caller-owned local
+sibling launchers with fixed modules, clean environments and closed descriptors.
+The finite client drives CHECK independently; the broker does not automatically
+poll while no client connects. Client disconnection/failure has no archive fallback;
+process death or lease expiry closes opening admission. No service is installed.
+
+Separate-user custody needs the local WSL Ubuntu `uidmap` package and the existing
+assigned subordinate UID/GID ranges. The disposable harness uses namespace-only
+setup privilege, a private tmpfs and distinct capability-free roles; no host-root
+launcher, permanent accounts or host permission changes are requested. Missing
+prerequisites are an explicit unavailable/skip, never successful isolation evidence.
+See `V11_GUARDIAN_BROKER_EVIDENCE.md` for exact verified scope and remaining gates.
+Shared storage contention, coherent healthy publication, supported real cancel
+authentication, deployment and independent operational acceptance remain open.
+
 Implemented off-host; no service deployment or financial authority. The original
 runtime health monitor and cooperative cancellation adapter still share a process.
 The separate finite PAPER guardian described below adds local process independence;
@@ -73,7 +127,7 @@ There is no same-UID hostile-process security guarantee, kernel network restrict
 supported authenticated cancel route, service deployment, separate-custody proof or
 independent commissioning. Exact local checks: `V11_GUARDIAN_ISOLATION_EVIDENCE.md`.
 
-### Next custody boundary
+### Original custody plan (protocol implemented above; actual custody pending)
 
 Implement a PAPER-only cancel broker and typed AF_UNIX client with kernel
 `SO_PEERCRED`. The broker owns private synthetic account/journal state; the guardian

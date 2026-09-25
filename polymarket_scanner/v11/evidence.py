@@ -258,6 +258,10 @@ class EvidenceStore:
     @staticmethod
     def _validate_safety_append(db, kind, event_id, body):
         d = body.get('details', {}); action = d.get('request', {}).get('action')
+        if kind == 'RUNTIME_STATUS' and d.get('version') == 'alpha_v11_paper_cancel_broker_v1':
+            from .paper_guardian_broker import validate_journal
+            validate_journal(event_id, d)
+            return  # Exact cancel-only broker journal; never account/clock authority.
         if kind == 'RUNTIME_STATUS' and d.get('version') == 'alpha_v11_paper_guardian_v1':
             from .guardian_lease import validate_details
             validate_details(event_id, d)

@@ -135,6 +135,8 @@ class PaperGuardian:
             account_snapshot_id=snapshot['id'] if snapshot else None, pending_trigger=pending_trigger,
             archive_limits=asdict(self.store.limits),
             financial_authority=False, independent_guardian_commissioned=False)
+        if hasattr(self, 'broker_process'):
+            details['broker_process'] = self.broker_process
         validate_details(self.key, details)
         return self.store.safety_audit(record_id or 'guardian:'+uuid.uuid4().hex, event_id=self.key, kind='RUNTIME_STATUS', details=details,
             evidence_ids=(snapshot['id'],) if snapshot else (), expected_previous_seq=head['seq'] if head else 0)

@@ -1,5 +1,16 @@
 # Supplementary engineering estimate
 
+PAPER Unix-socket guardian broker continuation, 2026-09-25: bounded typed local
+protocol, mutual kernel peer checks, broker-owned cancellation journal, immutable
+retry receipts, both-process lease fences and finite independent client driving.
+Affected integration **512 passed / 75.25 s** precedes the final overflow-identity
+guard. Final focused **305 passed, 1 skipped / 26.83 s**, exit 0, all 778 canonical
+inputs unchanged. Evidence: `docs/V11_GUARDIAN_BROKER_EVIDENCE.md`. The actual
+distinct-user custody harness is prepared but remains unverified pending the local
+owner `uidmap` prerequisite. This extends existing R37 C/J, without new E/A,
+authentication/deployment or full-package acceptance. **85/200 = 42.5%, approximately
+43%; completed requirements 1/50 (2%)**, unchanged. NOT_READY_TO_FUND; V10 DEFERRED.
+
 Independent local PAPER guardian, 2026-09-25: **46 focused passed / 13.53 s**,
 exit 0, with 771 canonical inputs unchanged. Full integrated regression **4294
 passed / four existing FastAPI warnings / 600.37 s**, exit 0; all source/mirror
