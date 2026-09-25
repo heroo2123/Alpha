@@ -13,7 +13,7 @@ from .forecast_features import ForecastFeatureContract
 from .learning_capture import VERSION, labeled_examples
 from .learning_sources import learning_source_view
 from .model_artifacts import validate_provenance
-from .offline_learning import run_research_fit
+from .offline_learning import ConditionedLearningEnvelope, run_research_fit
 from .rules import RuleFingerprint
 
 
@@ -102,13 +102,17 @@ An interrupted fitting attempt is never rerun implicitly under the same run ID.
         return {'result': result['result'], 'sha256': result['sha256']}
     deadline = monotonic() + 10.
     examples, captures = [], []
+    conditioned=isinstance(envelope,ConditionedLearningEnvelope)
+    if conditioned:
+        from .target_learning import VERSION as target_version, labeled_target_examples
+    capture_version=target_version if conditioned else VERSION
     with learning_source_view(source_store, deadline=deadline, monotonic=monotonic) as view:
         for join in joins:
             if monotonic() >= deadline:
                 raise EvidenceError('FORECAST_RESEARCH_ASSEMBLY_TIME_BOUND')
             capture = view.get(join.capture_id)
             data = capture['body'].get('details', {})
-            if (capture['kind'] != 'MEASUREMENT' or data.get('version') != VERSION
+            if (capture['kind'] != 'MEASUREMENT' or data.get('version') != capture_version
                     or not data.get('parent_feature_contract_verified') or not data.get('complete_event_vector')
                     or data.get('feature_schema_sha256') != plan.feature_schema_sha256
                     or capture['body']['available_at'] > as_of):
@@ -122,7 +126,8 @@ An interrupted fitting attempt is never rerun implicitly under the same run ID.
                 raise EvidenceError('FORECAST_RESEARCH_MEMBER_MAPPING_MISMATCH')
             # Historical predictions remain bound to their original bundle. A parent
             # with the identical declared schema is compared on those causal inputs.
-            batch = labeled_examples(view, join.capture_id, label_ids=dict(join.label_ids), city=join.city,
+            join_examples=labeled_target_examples if conditioned else labeled_examples
+            batch = join_examples(view, join.capture_id, label_ids=dict(join.label_ids), city=join.city,
                                       horizon=join.horizon, season=join.season, prior_exposure=join.prior_exposure)
             examples.extend(batch)
             if len(examples) > 2048 or monotonic() >= deadline:

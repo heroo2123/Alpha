@@ -78,7 +78,41 @@ dataset/learner/artifact/strategy/candidate run passed 114 tests in 22.55 second
 No real or forward learning evidence is claimed.
 
 Still required: actual exact-label production and independent attestation;
-universe coverage and selection analysis; conditioned, next-observation,
-execution and maker target-specific features; accepted calibration; isolated
+universe coverage and selection analysis; remaining execution and maker
+target-specific features; accepted calibration; isolated
 training and champion/learning acceptance. A next official observation remains
 distinct from final payout and an executable exit.
+
+## Conditioned and paired observation captures
+
+`target_learning.py` now joins same-day payout and paired PWS observation
+predictions to the candidate and read-only dataset path before economic filtering.
+All payout buckets retain the exact observed revision, complete unresolved interval
+coverage, original inference cutoff and reproduced frozen prediction. Physical
+features/member values match the parent contract. Observation pairs retain the
+same first-Alpha-receipt window, official anchor, unit/source/population and
+otherwise-identical ablation inputs. Receipt-window targets are never silently
+relabeled as next publication, final payout or executable proceeds.
+
+New learning snapshots use LEARNING_FEATURES, which cannot satisfy operational
+FEATURES leases and do not advance their source heads. The existing source/CAS,
+clock, model and cancellation safeguards remain unchanged. Interrupted children
+remain immutable and completed captures replay without timestamp renewal. The
+bounded source derivation also follows explicit mixed-provider physical/remaining
+model dependencies and PWS QC captures down to original AWC/MADIS/GEFS receipts.
+Original normalized raw-reference edges still require the same provider/kind.
+Malformed/ambiguous references, future inputs, labels in feature graphs and
+synthetic-to-public evidence substitution gate. Limits are unchanged.
+
+`labeled_target_examples` accepts only explicitly supplied labels. Observation
+labels bind an existing first-received-report score and its exact official source,
+with receipt/observation/revision identity retained in the example. It does not
+create or independently attest a label. Two ablations remain one paired target;
+statistical independence is unknown, and dataset counts group them by event and
+city-day. Original prediction time determines temporal partitioning; archival time
+is retained separately, and a known label cannot become new through later capture.
+
+Conditioned Gaussian payout examples have a separately declared fitting policy;
+ordinary forecast policies still reject them. Physical coefficient and observation
+fitting remain gated until their own verified contracts/evidence exist. Other
+required execution/markout/maker target coverage and empirical acceptance are open.

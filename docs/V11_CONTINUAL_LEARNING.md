@@ -74,3 +74,22 @@ Actual OS credential/network/CPU/RAM isolation and operational scheduling,
 source-specific authoritative labels, wider model families, strategy-quality and
 execution learning, promotion evidence and operational acceptance remain pending.
 No learner workload has been added to alpha-dev.
+
+## Explicit same-day conditioned policy
+
+`ConditionedLearningEnvelope` is an explicit additional policy type with its own
+frozen digest. Existing LearningEnvelope serialization and unconditioned meaning
+are unchanged. Only complete conditioned payout cohorts of the declared single
+Gaussian-member family use this path. Original rule/feature/unit/family, model and
+observation hashes, accepted revision, original cutoff and complete local-day
+coverage must match. Unknown physical/observation families cannot be substituted.
+
+The read-only capture job and finite worker use the declared mode when checking
+cohorts. Both trials and parent comparison use the same observed high/low constraint
+as `predict_with_bundle`. TRAIN alone selects parameters; confirmation never selects
+them. All new evidence thresholds, budgets, backoff, immutable recipes and recovery
+rules remain in force. Eighteen new cases, included in 87 related passes, verify
+C/F high/low numerical parity, target separation and completed-job reuse. The result
+is still an uncalibrated, nonfinancial NO_PROMOTION challenger. Actual source labels,
+calibration, OS isolation and independent acceptance are not established by these
+synthetic tests. No learner runs inside the candidate or on alpha-dev.

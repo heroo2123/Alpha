@@ -195,3 +195,13 @@ Full target-capture integration at `61a5cc84` passed **3727 tests**, four existi
 warnings, **260.57 s**, all 821 tracked inputs unchanged. The code's added joins
 are verified locally; no new real or independent acceptance is earned.
 **81/200, approximately 41%**, formal **1/50 (2%)**, unchanged.
+
+Explicit same-day-conditioned Gaussian fitting now joins captured exact revisions
+and remaining-day coverage to the existing offline job and finite research worker.
+Original unconditioned policy hashes/semantics and all promotion/safety boundaries
+remain unchanged. **87 related checks passed / 15.31 s**, including 18 new cases;
+C/F and high/low candidate inference matches fitting numerically. R14/R15 already
+hold these integration credits. **81/200, approximately 41%**, formal **1/50 (2%)**,
+unchanged. Actual labels/calibration, physical/observation learning, process/host
+isolation and independent acceptance stay open. The six active-work ranges remain
+appropriate to that larger scope and exclude owner/external waiting.

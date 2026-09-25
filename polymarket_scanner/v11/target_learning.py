@@ -178,7 +178,7 @@ def capture_observation_pair(store, record_id, *, lead_id, context, bundle, with
         children.append(dict(ablation=name, id=child['id'], sha256=child['sha256']))
     return store.audit(record_id, event_id=lead['event_id'], kind='MEASUREMENT', evidence_ids=(lead_id, *(c['id'] for c in children)),
         details=dict(version=VERSION, request_sha256=request_sha, lead_id=lead_id, children=children, target=NEXT_OBSERVATION,
-            target_identity=exact, pair_complete=True, independent_sample_count=1, labels_created=False,
+            target_identity=exact, pair_complete=True, paired_target_count=1, independent_sample_count=None, labels_created=False,
             source_truth_independently_attested=False, financial_authority=False, training_or_promotion_started=False))
 
 
@@ -245,6 +245,9 @@ def labeled_target_examples(store, capture_id, *, label_ids, city, horizon, seas
             selection='ALL_SUPPORTED_PREDICTIONS', prior_exposure=prior_exposure)
         if receipt_provenance is not None:
             payload=dict(example.payload,label_receipt_provenance=receipt_provenance)
+            example=CausalExample(canonical(payload),digest(payload))
+        elif target==PAYOUT:
+            payload=dict(example.payload,conditioning_rule=d['rule'])
             example=CausalExample(canonical(payload),digest(payload))
         results.append(example)
     if target == PAYOUT and sum(e.payload['label_value'] for e in results) != 1:

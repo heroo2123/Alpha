@@ -65,12 +65,16 @@ class ForecastLearningWorker:
             financial_authority=False, automatic_promotion=False, os_isolation_verified=False, **details),
             expected_previous_seq=head['seq'] if head else 0)
 
-    def _groups(self, joins, as_of):
+    def _groups(self, joins, as_of, envelope):
+        from .offline_learning import ConditionedLearningEnvelope
+        capture_version=CAPTURE_VERSION
+        if isinstance(envelope,ConditionedLearningEnvelope):
+            from .target_learning import VERSION as capture_version
         groups, receipts = set(), []
         with learning_source_view(self.source) as view:
             for join in joins:
                 row = view.get(join.capture_id); d = row['body'].get('details', {})
-                if (row['kind'] != 'MEASUREMENT' or d.get('version') != CAPTURE_VERSION
+                if (row['kind'] != 'MEASUREMENT' or d.get('version') != capture_version
                         or not d.get('complete_event_vector') or not d.get('parent_feature_contract_verified')
                         or row['body']['available_at'] > as_of or d['context']['city_id'] != join.city):
                     raise EvidenceError('LEARNING_TRIGGER_CAPTURE_INVALID')
@@ -171,7 +175,7 @@ class ForecastLearningWorker:
             day = int(now//86400)
             if state['attempt_day'] == day and state['day_attempts'] >= self.policy.maximum_daily_attempts:
                 return gated('DEFERRED_LEARNING_DAILY_BUDGET')
-            groups, cohort_sha = self._groups(joins, as_of)
+            groups, cohort_sha = self._groups(joins, as_of, envelope)
             new = groups-set(state['used_city_days'])
             if len(new) < self.policy.minimum_new_city_days:
                 return gated('DEFERRED_NEW_RESOLVED_EVIDENCE', new_city_days=len(new))

@@ -166,7 +166,8 @@ def test_known_label_cannot_be_made_new_by_a_later_archive_receipt(conditioned):
 
 def test_physical_pair_reaches_read_only_dataset_with_raw_madis_awc_and_one_observation(rig,setup):
     r=rig;pair,context=observation_capture(r,setup);d=pair['body']['details']
-    assert d['pair_complete'] and d['independent_sample_count']==1 and not r['store'].records(kind='LABEL')
+    assert d['pair_complete'] and d['paired_target_count']==1 and d['independent_sample_count'] is None
+    assert not r['store'].records(kind='LABEL')
     assert d['target_identity']['clock']=='FIRST_ALPHA_RECEIPT'
     label=observation_label(r,pair,context);before=r['store'].pin_read_view()
     with learning_source_view(r['store']) as view:

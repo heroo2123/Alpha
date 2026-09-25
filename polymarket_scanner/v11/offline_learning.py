@@ -83,6 +83,61 @@ class _Budget:
             raise EvidenceError('LEARNER_RESOURCE_BUDGET_EXHAUSTED')
 
 
+@dataclass(frozen=True)
+class ConditionedLearningEnvelope(LearningEnvelope):
+    """Explicit new policy identity; existing envelopes remain unconditioned."""
+    conditioning_contract: str = 'EXACT_REVISION_COMPLETE_REMAINING_DAY_V1'
+
+    def __post_init__(self):
+        super().__post_init__()
+        if self.conditioning_contract != 'EXACT_REVISION_COMPLETE_REMAINING_DAY_V1':
+            raise EvidenceError('LEARNER_CONDITIONING_POLICY_UNSUPPORTED')
+
+
+def validate_conditioned_example(row, envelope, unit):
+    from .forecast_features import ForecastFeatureContract
+    from .probability import ForecastComponent, ObservedConstraint, RemainingPathCoverage, UNRESOLVED_EXTREME, target_identity
+    from .rules import RuleFingerprint
+    c=row.get('conditioning')
+    try:
+        if (type(c) is not dict or c.get('version')!='alpha_v11_learning_conditioning_v1'
+                or c.get('input_target')!=UNRESOLVED_EXTREME or c.get('target')!='FINAL_CONTRACT_PAYOUT'
+                or any(c.get(k) is not None for k in ('pair_id','ablation','observation_target'))):
+            raise EvidenceError('LEARNER_EXACT_CONDITIONED_PAYOUT_REQUIRED')
+        rule=RuleFingerprint(**row['conditioning_rule']);rp=rule.payload
+        contract=ForecastFeatureContract(((envelope.model_id,len(envelope.member_features)),),rp['unit'],rp['family'])
+        if (contract.schema.sha256!=row['feature_schema_sha256']
+                or tuple(contract.mapping[envelope.model_id])!=envelope.member_features):
+            raise EvidenceError('LEARNER_CONDITIONED_FEATURE_CONTRACT_REQUIRED')
+        at=finite(c['inference_cutoff'])
+        if (rule.sha256!=row['binding']['rule_fingerprint'] or rp['station']!=row['station']
+                or rp['target_date']!=row['local_date'] or rp['unit']!=unit
+                or at!=row['prediction_at'] or not at<=row['feature_ready_at']<=row['decision_at']):
+            raise EvidenceError('LEARNER_CONDITIONING_RULE_OR_TIME')
+        observed=ObservedConstraint(**c['observed_constraint']);observed.validate(rule,at)
+        coverage=dict(c['remaining_coverage'])
+        for key in ('accepted_intervals','unresolved_intervals'):
+            coverage[key]=tuple(tuple(pair) for pair in coverage[key])
+        coverage['model_evidence_sha256']=tuple(coverage['model_evidence_sha256'])
+        coverage=RemainingPathCoverage(**coverage)
+        if len(coverage.model_evidence_sha256)!=1:
+            raise EvidenceError('LEARNER_SINGLE_REMAINING_MODEL_REQUIRED')
+        refs={p['id']:p for p in row['provenance']}
+        models=[p for p in refs.values() if p['kind']=='MODEL' and p['sha256']==coverage.model_evidence_sha256[0]]
+        if (len(models)!=1 or refs[c['observation_id']]['sha256']!=observed.evidence_sha256
+                or refs[c['observation_id']]['kind']!='OFFICIAL_OBSERVATION'
+                or refs[c['coverage_id']]['sha256']!=coverage.source_coverage_sha256
+                or refs[c['coverage_id']]['kind']!='FEATURES' or models[0]['available_at']>at):
+            raise EvidenceError('LEARNER_CONDITIONING_SOURCE_BINDING')
+        source=models[0]
+        model=ForecastComponent(envelope.model_id,'REPLAY',target_identity(rule,UNRESOLVED_EXTREME),
+            tuple(finite(row['values'][key],nonnegative=False) for key in envelope.member_features),
+            0.,1.,1.,source['sha256'],source['received_at'],source['available_at'],source['issued_at'])
+        coverage.validate(rule,(model,),at)
+    except (KeyError,TypeError,ValueError):
+        raise EvidenceError('LEARNER_CONDITIONING_PROVENANCE_REQUIRED') from None
+
+
 def _predict(rows,envelope,bias,sigma,budget):
     result=[]
     for p in rows:
@@ -98,7 +153,13 @@ def _predict(rows,envelope,bias,sigma,budget):
         upper=math.inf if hi is None else finite(hi,nonnegative=False)
         if lower>=upper or not members:
             raise EvidenceError('LEARNER_BUCKET_CUTS_INVALID')
-        cdf=lambda cut:math.fsum(.5*math.erfc(-(cut-x-bias)/(sigma*math.sqrt(2))) for x in members)/len(members)
+        def cdf(cut):
+            if isinstance(envelope,ConditionedLearningEnvelope):
+                from ..weather_only_contracts import DAILY_HIGH, DAILY_LOW
+                observed=p['conditioning']['observed_constraint'];value=observed['whole_degree_value']
+                if observed['family']==DAILY_HIGH and cut<=value:return 0.
+                if observed['family']==DAILY_LOW and cut>value:return 1.
+            return math.fsum(.5*math.erfc(-(cut-x-bias)/(sigma*math.sqrt(2))) for x in members)/len(members)
         probability=cdf(upper)-cdf(lower)
         if p['target_identity']['side']=='NO':
             probability=1-probability
@@ -209,7 +270,13 @@ def run_research_fit(*, artifacts: ArtifactStore, journal: ExperimentJournal, pl
             or any(not features[key]['missing_allowed'] for key in cuts)):
         raise EvidenceError('LEARNER_COMPLETE_PARENT_FEATURE_MAPPING_REQUIRED')
     rows={part:[r['example'] for r in values] for part,values in manifest['partitions'].items()}
-    if any(r.get('conditioning') is not None for values in rows.values() for r in values):
+    budget=_Budget(envelope,monotonic)
+    if isinstance(envelope,ConditionedLearningEnvelope):
+        for values in rows.values():
+            for row in values:
+                budget.use()
+                validate_conditioned_example(row,envelope,next(iter(features.values()))['unit'])
+    elif any(r.get('conditioning') is not None for values in rows.values() for r in values):
         raise EvidenceError('LEARNER_CONDITIONED_TARGET_UNSUPPORTED')
     if len({r['selection'] for values in rows.values() for r in values})!=1:
         raise EvidenceError('LEARNER_SELECTION_COHORT_MIXED')
@@ -217,7 +284,6 @@ def run_research_fit(*, artifacts: ArtifactStore, journal: ExperimentJournal, pl
     journal.attempt(selection_id,plan_record_id=plan_record_id,
         candidate_sha256=digest({'parent':parent_bundle_sha256,'dataset':dataset['sha256'],'policy':envelope.sha256}),
         parent_champion_sha256=parent_bundle_sha256,hyperparameters=asdict(envelope))
-    budget=_Budget(envelope,monotonic)
     try:
         if len({r['city_day'] for r in rows['TRAIN']})<envelope.minimum_train_city_days:
             result={'status':'NO_PROMOTION','reason':'INSUFFICIENT_TRAINING_GROUPS','candidate_bundle_sha256':None,
@@ -269,6 +335,8 @@ def run_research_fit(*, artifacts: ArtifactStore, journal: ExperimentJournal, pl
                     'confirmation_role':confirmation_role if rows['CONFIRMATION'] else 'ABSENT',
                     'ablation':'PARENT_PARAMETERS_ON_IDENTICAL_CAUSAL_ROWS',
                     'calibration_status':'FITTED_NOT_CALIBRATED','financial_authority':False}
+        if isinstance(envelope,ConditionedLearningEnvelope):
+            result['conditioning_contract']=envelope.conditioning_contract
         journal.store.audit(run_id+':result',event_id=journal.event_id,kind='MODEL_EVENT',
                             details={'action':'IMMUTABLE_RESEARCH_RESULT','result':result,'sha256':digest(result)},
                             evidence_ids=(selection_id,))

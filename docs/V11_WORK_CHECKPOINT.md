@@ -1,7 +1,68 @@
 # Alpha V11 work checkpoint
 
-Updated 2026-09-25, after target-specific learning capture integration. Resume here. **NOT_READY_TO_FUND**.
+Updated 2026-09-25, after same-day conditioned research integration. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
+
+## Latest implementation — explicit same-day conditioned research
+
+Recovered/published reporting checkpoint **bb2be4133470e14bcc28e52a9476106ad092c76b**,
+tree **a7759fc20b3cc35c2892ddc28a0473442f307450**, clean worktree, no remaining
+operation. This implementation extends the existing offline fit/job/finite worker;
+it does not install a trainer on the candidate path or create an active model.
+
+`ConditionedLearningEnvelope` has a distinct, frozen policy digest for exact accepted
+revision plus complete remaining-day coverage. Original LearningEnvelope fields,
+serialization, hashes and unconditioned meaning are unchanged. The new path checks
+the rule, feature/member/unit/family contract, exact observation/coverage/model
+references, original prediction cutoff and complete local-day interval partition.
+Only the existing single Gaussian-member family is supported. All parameter trials
+and parent comparison apply the same high/low condition as numerical inference;
+TRAIN alone selects bias/dispersion. The existing read-only job and separate worker
+accept the conditioned capture only under that policy. Mixed/incorrect target
+modes remain gated; physical coefficients and observation-distribution fitting
+remain unsupported rather than silently using the unconditioned learner.
+
+Exact completed jobs replay saved results, parents/source archives remain unchanged,
+and new city-day, backoff, daily-budget, journal, holdout-reuse and no-promotion
+boundaries are retained. Capture-to-example derivations now include the original
+conditioning rule; prior source captures/decisions are never rewritten. New paired
+observation summaries explicitly leave statistical independent-sample count unknown
+and retain a paired-target count of one; dataset event/city-day grouping is unchanged.
+
+Verification: **87 passed / 15.31 s / exit 0**, session 96386, including **18 new
+conditioned-learning cases**. Tests demonstrate C/F and high/low numerical parity,
+train-only selection, exact source/coverage faults, target-mode separation, immutable
+parent/source preservation, completed replay and finite-worker evidence backoff.
+Result transcript metadata and post-run hashes:
+`/workspace/scratch/38af7099c566/v11-test-evidence/conditioned-learning-targeted-20260925-01.json`.
+This is transparently a saved tool result with post-run hashes, not a prehashed
+locked run. No test was repeated merely to create that record. The latest full
+regression remains **3727 passed / 260.57 s** at `61a5cc84`, covering the preceding
+shared archive/candidate/capture integration. It predates this bounded offline
+extension; no full 3745-test result is claimed. Future broad release acceptance
+remains required; the affected tests are sufficient for this off-host work unit.
+
+Fixed estimate **81/200, approximately 41%**, formal **1/50 (2%)**, unchanged.
+R14/R15 already hold the relevant engineering integrations. Actual exact-label and
+calibration evidence, accepted initial champion, independent safety/auth, host
+isolation and operational/unfunded acceptance remain open. The six remaining
+milestones/ranges below retain their estimates; they now exclude these completed
+capture and same-day Gaussian fit joins, not the larger missing evidence/learning
+scope. No estimate is derived from elapsed effort or percentage.
+
+Next concrete implementation: connect existing drift/degradation evidence to the
+protected model/station/strategy demotion and paper cancellation paths (R42),
+using explicit bounded policy inputs and retained reviewed recovery. Inspect
+`v11/model_registry.py`, `host_trust/v11-model-authority/authority.py`,
+`v11/certification.py` and `v11/paper_cancellation.py` before adding any join.
+Unsupported optional physical/observation learners stay gated while required safety
+integration proceeds. No owner action is needed for that off-host preparation.
+Actual source/calibration and isolated host/identity acceptance remain external
+dependencies; do not reopen deferred V10 inventory/maintenance without a concrete
+required dependency. V10 and executor remain unchanged. No deployment, service,
+permission, funding, transfer or real-order action occurred. **NOT_READY_TO_FUND**.
+Resolve this milestone's commit/tree with
+`git log -1 --format='%H %T' -- docs/V11_WORK_CHECKPOINT.md`.
 
 ## Full verification — conditioned and observation capture
 
@@ -512,7 +573,7 @@ still require separate budget and live approval. No arbitrary paper wait applies
 | Remaining milestone | Work remaining and proof of completion | Active hours | Confidence | External/owner dependency |
 |---|---|---:|---|---|
 | Source, weather and label closure | Complete remaining provider/target adapters and scheduling, physical/lead fitting, exact labels and calibration/fallback; explicit-interval/GEFS and physical/PWS inference now have bounded candidate preparation scheduling. Prove causal source/target identity, coverage, lead/ablation and required OOS quality on actual evidence. R06–R13, R25–R28, R31. | 45–90 | LOW | Working authorized provider access; exact source/version history and sufficient evidence; independent semantic/calibration review. |
-| Evidence and controlled learning | Close complete replay/provenance, markout/selection/report joins, operational learner scheduling/isolation, target-specific capture, lifecycle and accepted initial-bundle/learning governance. Prove deterministic dataset-to-artifact and rollback/reuse/failure behavior with required real evidence. R02–R05, R14–R17, R40–R42, R47. | 30–60 | LOW | Upstream exact labels; independent initial champion and governance acceptance; isolated learning environment. |
+| Evidence and controlled learning | Close complete replay/provenance, markout/selection/report joins, operational learner scheduling/isolation, remaining target families, lifecycle and accepted initial-bundle/learning governance; conditioned payout/paired observation capture and explicit same-day Gaussian fitting are now joined. Prove deterministic dataset-to-artifact and rollback/reuse/failure behavior with required real evidence. R02–R05, R14–R17, R40–R42, R47. | 30–60 | LOW | Upstream exact labels; independent initial champion and governance acceptance; isolated learning environment. |
 | Strategy, portfolio and execution integration | Finish missing relative/structural/exit/redemption, correlation, costs and maker/reward paths. Prove full common-account scenario/reservation/reconciliation and strategy eligibility across required failure cases. R18–R24, R29–R30, R32–R36. | 35–70 | LOW | Reviewed mappings/parameters and actual source/execution evidence; funded fill learning remains later and separately authorized. |
 | Independent safety, identity and host | Finish independent cancel-only guardian and protected command/auth routing; prepare and verify isolated deployment/recovery configuration. Prove custody, permissions, resource budgets and authenticated safety behavior. R37–R39, R43–R44. | 30–60 | LOW | Owner account entitlement/access, approved isolated host and deployment action; alpha-dev resource/isolation currently unpassed. V10 maintenance stays deferred absent an exact dependency. |
 | Regression and unfunded acceptance | Run complete integration/fault/security acceptance and permitted unfunded account/execution checks; resolve findings. Proof is the original acceptance matrix with independent review and reproducible exact-tree results. R45, R48. | 25–50 | LOW | Independent reviewers and permitted existing-account access; no wallet/account creation or financial activation is implied. |
