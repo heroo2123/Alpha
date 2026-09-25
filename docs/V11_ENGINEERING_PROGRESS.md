@@ -362,3 +362,17 @@ formal **1/50 (2%)**, unchanged. READY_TO_FUND, six active-hour ranges, independ
 actual-source/calibration and owner/host gates remain open. Next off-host action is
 validated receipt cost/slippage reporting through PerformanceLab and daily audits;
 legacy or unmatched evidence remains UNKNOWN. No owner action blocks that code.
+
+
+Receipt cost/causal price audit integration — 2026-09-25: validated optional
+synthetic execution details now join retained reconciled fills to bounded
+PerformanceLab execution-window costs, original signal/post-validation depth
+comparisons and scheduled candidate audits. Partial fills share exact-book depth;
+legacy/malformed timing stays in possible cohorts, costs already in all-in ledger
+are never deducted twice, and pinned crash/replay preserves report identities.
+Final 26 new checks passed in 6.99 s (exit 0), including the actual typed candidate
+receipt-to-account-to-audit path. Affected/full verification of this new tree is
+pending; the saved 4020-pass run remains evidence for the preceding implementation.
+R05/R40/R41 already hold C/J, so this earns no new named milestone: **82/200,
+approximately 41%**, formal **1/50 (2%)**, unchanged. No E/A, venue execution,
+source calibration, independent safety or host/unfunded acceptance is credited.

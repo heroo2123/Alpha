@@ -452,3 +452,15 @@ The receipt remains pending if event delivery fails; success covers both the
 account and queue. The existing inventory-aware exit runtime is verified from
 archived BUY receipt through fresh sources and a SELL reservation to an archived
 SELL receipt, realized PAPER accounting and another fresh evaluation.
+
+
+Optional execution-cost audits — 2026-09-25: AuditPolicy.execution_costs declares a
+bounded receipt-cost/causal-book comparison policy. The existing separate audit
+worker publishes this alongside the pinned common-account report, after receipt
+reconciliation. It adds at most two cooperative read seconds to publishing work;
+scan and metadata budgets remain as documented. Runtime safety still schedules
+small requests only; candidate worker dispatch remains safety-interleaved. No
+independent cancellation latency or production resource guarantee is claimed.
+Default policy/assembly identities are preserved. The candidate integration and
+crash/pin/config cases are included in the 26 focused cost tests. See
+V11_PERFORMANCE.md and the latest checkpoint for remaining acceptance gates.

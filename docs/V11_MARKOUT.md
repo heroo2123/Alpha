@@ -112,8 +112,9 @@ or mixing synthetic execution with maker quote counterfactuals or live labels.
 
 Archived explicit PAPER proof delivery now reaches bounded candidate reconciliation,
 receipt/account/journal admission guards, fresh event/exit reevaluation and audits.
-The candidate does not invent fills. Remaining: validated receipt cost reporting,
-matched EV capture,
+The candidate does not invent fills. Validated synthetic receipt cost reporting
+and paired signal/post-validation price comparisons now reach PerformanceLab and
+candidate audits (docs/V11_PERFORMANCE.md). Remaining: matched EV capture,
 settlement/finality, source residuals, actual-source/calibration/forward execution,
 independent review and isolated host/unfunded acceptance remain required. No owner
 action is needed for the next off-host integration. No financial or deployment
@@ -133,4 +134,6 @@ existing warnings, 276.83 s**, all **843 inputs unchanged**, implementation
 admission, requests fresh census/evaluation for changed inventory, and preserves
 markout/exit/P&L/audit attribution. Exact evidence is in
 V11_RECONCILIATION_REGRESSION_EVIDENCE.md; no empirical or deployment acceptance
-is claimed. Matched execution cost/slippage reporting is the next off-host join.
+is claimed. Subsequent synthetic cost/comparison integration has 26 focused passes
+in 6.99 s; its affected/full verification is pending. Actual execution-cost evidence
+and matched EV capture remain open.

@@ -50,6 +50,13 @@ class PerformanceLab:
         from .fill_markout import measure_fill_window
         return measure_fill_window(self.coordinator,**request)
 
+    def execution_costs(self, *, start, end, policy, account_row=_CURRENT, **options):
+        """Separately attributed conserved receipt costs; no second P&L debit."""
+        from .execution_costs import measure_execution_costs
+        if account_row is _CURRENT: account_row = self.coordinator._head()
+        return measure_execution_costs(self.coordinator, start=start, end=end,
+            account_row=account_row, policy=policy, **options)
+
     @precise
     def scoped_realized(self, *, scope, bundle_sha256, start, end, account_ref, monotonic=time.monotonic):
         """All realized fragments for one original admission scope in a pinned account.
@@ -202,7 +209,7 @@ class PerformanceLab:
         return result
 
     @precise
-    def build(self, *, start, end, account_row=_CURRENT, maximum_metadata_seconds=1.):
+    def build(self, *, start, end, account_row=_CURRENT, maximum_metadata_seconds=1., execution_policy=None):
         start,end = finite(start),finite(end)
         if start >= end or not 0 < finite(maximum_metadata_seconds) <= 3:
             raise EvidenceError('PERFORMANCE_WINDOW_OR_BUDGET_BOUND')
@@ -282,7 +289,10 @@ class PerformanceLab:
             if intent.get('joint_ev_only'): continue
             expected[key] = dict(amount=intent.get('conservative_ev_total'), direction=intent['direction'],
                                 comparison_to_realized='UNMATCHED_HORIZON_NOT_EV_CAPTURE')
+        execution = (self.execution_costs(start=start, end=end, policy=execution_policy, account_row=account_row)
+                     if execution_policy is not None else None)
         return dict(version=VERSION, execution_namespace=self.store.namespace, account_id=c.policy.account_id,
+            **({'execution_costs':execution} if execution is not None else {}),
             window=dict(start_inclusive=start,end_exclusive=end),
             account_head_id=account_row['id'] if account_row else None,
             account_snapshot_at=account_row['body']['recorded_at'] if account_row else None,

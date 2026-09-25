@@ -119,8 +119,63 @@ census for changed inventory and retains delivery-attempt/pending outcomes in
 runtime and daily audits. Tests exercise archive-only BUY -> source-gated exit ->
 common-account SELL -> archive-only SELL -> realized PAPER P&L and fresh work.
 This neither generates fills nor attests actual venue or source evidence.
-Next: expose separately validated receipt price/fee/cost and matched causal
-slippage in PerformanceLab/audits. The historical ledger-only cost status remains
+The subsequent section records separately validated receipt price/fee/cost and
+matched causal price comparisons. The historical ledger-only cost status remains
 UNKNOWN where explicit execution details are absent; no unmatched EV ratio is
 invented. Checkpoint/evidence: V11_WORK_CHECKPOINT.md and
 V11_RECONCILIATION_REGRESSION_EVIDENCE.md.
+
+
+## Explicit receipt costs and causal price comparisons — 2026-09-25
+
+`PerformanceLab.execution_costs` and `build(execution_policy=...)` accept an explicit
+ExecutionCostPolicy. `AuditPolicy.execution_costs` connects that policy through the
+existing typed candidate to pinned daily/weekly reports. Omitting it preserves
+legacy report/configuration/assembly identities. Maximum signal and post-validation
+book ages are explicit research policy, not an implicitly approved live threshold.
+
+Every immutable retained PAPER fill is checked against the pinned account, original
+intent/valuation and filled quantity before selecting the half-open execution-time
+window. Legacy or invalid timing is included whenever valuation-to-receipt time
+could overlap the window. An unknown time in an intent prevents reliable partial
+fill ordering. Such cases remain UNKNOWN, with partial known subtotals clearly
+separated from complete-window totals. Valid fees/costs can still be reported when
+only the book comparison is invalid. No receipt is inferred from a public print.
+
+Signal benchmarks use the exact original valuation book at signal time. Post
+benchmarks use the exact declared post-validation book at execution time. Both
+require healthy uncrossed causal books, valid raw lineage, explicit age limits and
+full marginal depth. Fills sharing an intent consume original signal depth in
+execution-time/receipt order; fills sharing a post-validation book consume that
+book's cumulative depth. Earlier out-of-window fills also consume depth. Different
+book revisions remain distinct visible snapshots, with no claim of venue impact.
+
+For BUY, price shortfall is gross execution cost minus benchmark acquisition cost;
+for SELL it is benchmark sale proceeds minus gross execution proceeds. Positive
+means adverse in both cases. Matched pairs decompose signal-to-post price movement
+plus post-to-fill shortfall exactly. Fees and other costs are additive receipt
+values already conserved in ledger all-in cash. `additional_pnl_adjustment` is zero.
+Direction/evidence-class groups include matched rows only; row and cohort coverage
+is explicit. Neither cross-class averaging, basket EV allocation, empirical market
+impact nor matched realized-EV capture is inferred.
+
+These execution-window costs are separate from realized-P&L entry/exit cohorts.
+The legacy top-level realized-report fee/slippage fields remain UNKNOWN rather than
+claiming the two populations match. Reports cannot mutate cash, lots or authority.
+Cost policy changes require a new compatible scheduler/worker configuration.
+Published-report recovery and immutable account/proof references exclude later
+fills, corrections or better-book substitutions.
+
+Bounds: 2048 retained proof references/512 intents, 128 selected rows, existing
+8 MiB read-view limit, at most two cooperative read seconds and 512 KiB output.
+Overflow/deadline failure clears rows/subtotals and gates the whole result. The
+optional cost read is additional publishing-worker time, outside the cancellation
+loop; it is not a host-capacity or independent-guardian guarantee. Retained-account
+coverage never proves universe coverage. Actual venue fees/slippage, calibrated
+execution and independent/host/unfunded acceptance remain open.
+
+Focused verification: 26 passed in 6.99 s, exit 0, including archived receipt ->
+common account -> candidate-scheduled audit, BUY/SELL signs and P&L conservation,
+partial/fractional fill depth, unknown/malformed/stale evidence, pinned windows,
+policy change and report-publication crash recovery. No failed run. The preceding
+4020-pass baseline predates this work; affected/full new-tree verification follows.

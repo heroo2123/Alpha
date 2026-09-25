@@ -363,6 +363,7 @@ def assemble_candidate(store,client,plan,*,generation):
         gefs=gefs,preparations=PreparationWorker(store,health,plan.preparations) if plan.preparations else None,
         drift=DriftWorker(coordinator,plan.drift,maker_telemetry=telemetry) if plan.drift else None)
     assembly=asdict(plan)
+    assembly['audits']=plan.audits.payload()
     if plan.reconciliation is None:assembly.pop('reconciliation')
     runner.assembly_sha256=digest(assembly)
     return runner

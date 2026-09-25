@@ -14,6 +14,7 @@ import time
 from .evidence import EvidenceError, digest, finite, identity
 from .paper_coordinator import ACCOUNT_KEY
 from .performance import PerformanceLab
+from .execution_costs import ExecutionCostPolicy
 from .runtime_health import KEY as HEALTH_KEY
 
 
@@ -29,12 +30,20 @@ class AuditPolicy:
     records_per_step: int = 64
     maximum_step_seconds: float = 2.
     maximum_job_records: int = 20000
+    execution_costs: ExecutionCostPolicy | None = None
 
     def __post_init__(self):
         identity(self.version)
+        if self.execution_costs is not None and not isinstance(self.execution_costs,ExecutionCostPolicy):
+            raise EvidenceError('AUDIT_EXECUTION_COST_POLICY_REQUIRED')
         if (type(self.records_per_step) is not int or not 1 <= self.records_per_step <= 256
                 or type(self.maximum_job_records) is not int or not 1 <= self.maximum_job_records <= 100000
                 or not 0 < finite(self.maximum_step_seconds) <= 5): raise EvidenceError('AUDIT_POLICY_BOUND')
+
+    def payload(self):
+        value=asdict(self)
+        if self.execution_costs is None:value.pop('execution_costs')
+        return value
 
 
 def request_event(period): return 'v11-audit-request:'+period
@@ -43,7 +52,7 @@ def request_event(period): return 'v11-audit-request:'+period
 class AuditScheduler:
     def __init__(self, store, policy):
         if not isinstance(policy,AuditPolicy): raise EvidenceError('AUDIT_POLICY_REQUIRED')
-        self.store,self.policy=store,policy; self.config=digest(asdict(policy))
+        self.store,self.policy=store,policy; self.config=digest(policy.payload())
 
     def request_due(self):
         """At most two request writes; no report computation in the safety loop."""
@@ -193,7 +202,7 @@ class AuditWorker:
         if not isinstance(policy,AuditPolicy) or rewards is not None and rewards.research.coordinator is not coordinator:
             raise EvidenceError('AUDIT_COMPONENT_SCOPE')
         self.coordinator,self.store,self.policy,self.rewards=coordinator,coordinator.store,policy,rewards
-        self.schedule_config=digest(asdict(policy))
+        self.schedule_config=digest(policy.payload())
         self.config=digest(dict(schedule=self.schedule_config,account=coordinator.policy_sha,rewards=rewards.config if rewards else None,
                                layout=LAYOUT_VERSION))
 
@@ -264,7 +273,8 @@ class AuditWorker:
             # the cancellation loop; periodic invocation controls its CPU share.
             pinned={p['event_id']:p['record_id'] for p in job['view']['heads']}
             account=self.store.get(pinned[ACCOUNT_KEY]) if pinned.get(ACCOUNT_KEY) else None
-            performance=PerformanceLab(self.coordinator).build(start=window['start'],end=window['end'],account_row=account)
+            performance=PerformanceLab(self.coordinator).build(start=window['start'],end=window['end'],account_row=account,
+                execution_policy=self.policy.execution_costs)
             exposure=self.coordinator._risk(self.coordinator._state(account))
             reward=None
             if self.rewards and pinned.get(self.rewards.key):
@@ -295,6 +305,11 @@ class AuditWorker:
                 review_required=True,financial_authority=False,acceptance_granted=False,messages_sent=False,
                 delivery='DURABLE_LOCAL_ONLY',duration_seconds=time.monotonic()-started,
                 reporter_process_peak_rss_kib=resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
+            if self.policy.execution_costs is not None:
+                costs=performance['execution_costs']
+                result['coverage']['execution_cost_population_complete']=costs['complete_cost_population']
+                result['coverage']['execution_price_comparisons_complete']=costs['complete_price_comparisons']
+                result['unresolved']['slippage']='SEPARATE_SYNTHETIC_RECEIPT_COMPARISONS_'+costs['status']
             refs=[job['request_id'],head['id']]+[p['record_id'] for p in job['view']['heads'] if p['record_id']]
             complete=self.store.audit(report_key,event_id='v11-audit-report:'+window['period'],kind='RUNTIME_STATUS',details=result,evidence_ids=tuple(dict.fromkeys(refs)))
         state['cursors'][window['period']]=job['request_seq'];state['active']=None
