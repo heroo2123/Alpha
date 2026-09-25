@@ -10,7 +10,7 @@ import time
 
 from .datasets import CausalExample, archive_features, build_example
 from .event_risk import EventContext
-from .evidence import EvidenceError, ReleaseBinding, canonical, digest, finite, identity
+from .evidence import EvidenceError, EvidenceStore, ReleaseBinding, canonical, digest, finite, identity
 from .forecast_features import ForecastFeatureContract
 from .learning_capture import _get, capture_admission_ref
 from .model_artifacts import PinnedBundle, predict_with_bundle
@@ -188,6 +188,11 @@ def capture_observation_pair(store, record_id, *, lead_id, context, bundle, with
 
 def labeled_target_examples(store, capture_id, *, label_ids, city, horizon, season, prior_exposure='DEVELOPMENT'):
     """Join supplied labels to exact targets; pairing adds no independent event."""
+    if isinstance(store, EvidenceStore):
+        from .learning_sources import learning_source_view
+        with learning_source_view(store) as source:
+            return labeled_target_examples(source, capture_id, label_ids=label_ids, city=city,
+                horizon=horizon, season=season, prior_exposure=prior_exposure)
     capture = store.get(capture_id); d = capture['body'].get('details', {})
     if capture['kind'] != 'MEASUREMENT' or d.get('version') != VERSION:
         raise EvidenceError('TARGET_LEARNING_CAPTURE_REQUIRED')
@@ -239,7 +244,14 @@ def labeled_target_examples(store, capture_id, *, label_ids, city, horizon, seas
                        {r['id']:r['sha256'] for r in score['body']['evidence']}.items()
                     or sb['evidence_class']=='SYNTHETIC' and label['body']['evidence_class']!='SYNTHETIC'):
                 raise EvidenceError('TARGET_LEARNING_LABEL_SOURCE_BINDING')
-            receipt_provenance=dict(receipt_score_id=score['id'],receipt_score_sha256=score['sha256'],
+            from .pws_scoring import replay_first_received_report
+            proof = replay_first_received_report(store, score['id'])
+            if not proof['score_match']:
+                raise EvidenceError('TARGET_LEARNING_RECEIPT_SCORE_REPLAY_REQUIRED:'+proof['reason'])
+            receipt_provenance=dict(score_replay_sha256=digest(proof),
+                scoring_as_of=proof['scoring_as_of'], scan_through_seq=proof['scan_through_seq'],
+                scanned_report_refs_sha256=proof['scanned_report_refs_sha256'],
+                receipt_score_id=score['id'],receipt_score_sha256=score['sha256'],
                 official_id=source['id'],official_sha256=source['sha256'],source_revision=sb['revision'],
                 observed_at=sb['observed_at'],published_at=sb['published_at'],received_at=sb['received_at'],
                 available_at=sb['available_at'],evidence_class=sb['evidence_class'],

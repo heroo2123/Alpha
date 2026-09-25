@@ -1,5 +1,16 @@
 # Supplementary engineering estimate
 
+Pinned PWS receipt-score continuation, 2026-09-25: a durable original scan start
+now survives interrupted/completed scoring, and shared selection/numerics replay
+is required by paired observation-label datasets. Later receipts cannot change
+old scores; UNKNOWN and missing legacy boundaries remain explicit. **149 focused
+and candidate integration passes / 37.30 s**, plus **233 affected learning,
+admission and audit passes / 62.06 s**, exit 0; all canonical inputs unchanged.
+Full 4195 / 578.00 s belongs to preceding published **0776697**, before this
+PWS change. No new milestone credit: **83/200 (approximately 42%); formal 1/50
+(2%)**. NOT_READY_TO_FUND; V10 unchanged/DEFERRED. Evidence:
+`docs/V11_PWS_SCORE_REPLAY_EVIDENCE.md`.
+
 Local temperature-account replay continuation, 2026-09-25: all five original
 temperature valuations now join exact prepared account proposals within the same
 read snapshot/deadline. Every PWS/release comparison remains material, and early

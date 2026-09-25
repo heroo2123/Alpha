@@ -244,3 +244,16 @@ not calibrated probability evidence or production entry qualification. Five
 unmodified-model checks preserve vacuous-bound rejection; removing the oracle
 causes the synthetic positive valuation to mismatch. No calibration, empirical
 source truth, independent acceptance or financial authority is claimed.
+
+
+## Pinned PWS receipt scores
+
+New receipt scores archive a durable start with the exact observation identity.
+Their receipt prefix and label cutoff survive retries and later arrivals; an
+UNKNOWN score requires a new ID to inspect newer evidence. The bounded read-only
+replay compares complete original selection, scan digest, score numerics and
+references. Missing legacy pins stay gated. Paired observation datasets require
+that proof while retaining the original earlier feature cutoff and one event
+for both ablation arms. This does not certify source truth, next publication,
+calibration, original inference, P&L or promotion. Evidence and testing boundaries:
+`docs/V11_PWS_SCORE_REPLAY_EVIDENCE.md`.

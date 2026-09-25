@@ -1,5 +1,45 @@
 # Alpha V11 work checkpoint
 
+## Latest verified checkpoint ? pinned PWS receipt scores, 2026-09-25
+
+Published preceding milestone **0776697aab3032853d99af35902a7f9eafb4ba6a**, tree
+**acf1ba8f19ab02900c6c405d36424cbca8506c2c**, matches GitHub development branch.
+It passed full **4195 / four existing FastAPI warnings / 578.00 s**, exit 0.
+The full run predates the new PWS changes; it is not attributed to this newer code.
+
+Completed: durable PWS score start/receipt cutoff, idempotent UNKNOWN/completed
+scores, interruption recovery, shared bounded selection/Brier/log-loss replay,
+explicit missing/legacy gates, malformed-distribution checks and paired dataset
+proof integration. This reproduces scoring of archived predictions, without
+attesting their inference/source truth or granting calibration/promotion/financial
+authority. Original feature and later label cutoffs stay separate; paired rows
+remain one event. **149 passed / 37.30 s**, session 70788; affected **233 passed /
+62.06 s**, session 2645, both exit 0. All **765 canonical non-document inputs**
+remained unchanged. No test operation remains running. Exact commands, hashes and
+local evidence: **docs/V11_PWS_SCORE_REPLAY_EVIDENCE.md**.
+
+**83/200 = 41.5%, approximately 42%; fully completed requirements 1/50 (2%)**,
+unchanged. R04/R14/R27 existing C/J credits are strengthened; no E/A or formal
+requirement closes. V10 unchanged/maintenance DEFERRED. **NOT_READY_TO_FUND**.
+Actual source/labels/calibration, independent safety/identity/review and isolated
+operational evidence remain unpassed. No owner-only action blocks safe local code.
+
+**Next unfinished implementation action:** join complete retained PWS receipt-score
+cohorts to the existing scheduled audit worker/candidate reporting. Count UNKNOWN,
+legacy and missing/failed proofs honestly, retain original receipt boundaries,
+and clear successful prefixes if any cohort limit/deadline fails. Prioritize this
+existing integration before introducing a separate observation-target fitter.
+No private input or evidence, credential, wallet, service or money action is added.
+
+The same six READY_TO_FUND milestones and proof/dependency table below remain
+current: sources/labels **45?90 active h**; full replay/learning **30?60 h**;
+strategy/portfolio/execution **35?70 h**; safety/identity/host **30?60 h**;
+independent unfunded acceptance **25?50 h**; operating comparison/release **15?30 h**.
+All LOW confidence; estimates exclude external waiting and owner actions.
+Resolve this saved commit/tree with `git log -1 --format='%H %T' -- docs/V11_WORK_CHECKPOINT.md`.
+
+## Previous verified milestone
+
 ## Latest verified checkpoint ? prepared temperature entries, 2026-09-25
 
 Recovered/fetched branch `weather-v11-profitability-upgrade-2026-09-23` at

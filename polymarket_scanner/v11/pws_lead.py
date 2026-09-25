@@ -7,7 +7,6 @@ report scores. It cannot create a paper position or an execution proposal.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-import math
 
 from .evidence import EvidenceError, EvidenceStore, ReleaseBinding, digest, finite, identity
 from .model_artifacts import PinnedBundle, predict_with_bundle
@@ -196,59 +195,37 @@ class PWSObservationLead:
                                 expected_heads=tuple(heads))
 
     def score_first_received_report(self, record_id: str, *, observation_id: str) -> dict:
-        """Describe the first archived new report; missing collection is unknown.
-
-        This does not certify the next published report, settlement labels,
-        statistical independence, out-of-sample benefit or executable repricing.
-        """
-        observation=self.store.get(observation_id); d=observation['body'].get('details',{})
-        if observation['kind']!='MEASUREMENT' or d.get('version')!=VERSION:
+        """Score a durable original receipt prefix; repeated IDs never gain labels."""
+        from .learning_sources import learning_source_view
+        from .pws_scoring import VERSION as SCORE_VERSION, first_received_report_details, ref
+        identity(record_id, maximum=100); identity(observation_id)
+        try:
+            old = self.store.get(record_id)
+        except EvidenceError as exc:
+            if str(exc) != 'EVIDENCE_MISSING':
+                raise
+        else:
+            d = old['body'].get('details', {})
+            if (old['kind'] != 'MEASUREMENT' or d.get('version') != VERSION
+                    or d.get('observation_id') != observation_id or d.get('target') != NEXT_OBSERVATION):
+                raise EvidenceError('LEAD_SCORE_REQUEST_ID_COLLISION')
+            return old
+        observation = self.store.get(observation_id); d = observation['body'].get('details', {})
+        if (observation['kind'] != 'MEASUREMENT' or d.get('version') != VERSION
+                or d.get('target') != NEXT_OBSERVATION or 'observation_window' not in d):
             raise EvidenceError('LEAD_OBSERVATION_RECORD_REQUIRED')
-        rule=RuleFingerprint(**d['request']['rule']); now=finite(self.store.clock()); window=d['observation_window']
-        rows=self.store.records(kind='OFFICIAL_OBSERVATION',event_id=observation['event_id'],after_seq=observation['seq'],limit=1000)
-        if len(rows)==1000:
-            raise EvidenceError('LEAD_LABEL_SCAN_BOUND')
-        chosen=None; invalidated_by=None
-        for row in rows:
-            if row['body']['available_at']>now:
-                continue
-            if invalidated_by is None:
-                invalidated_by=row['id']
-            try:
-                value=_report(row,rule)
-            except EvidenceError:
-                continue
-            if row['body']['observed_at']<=d['official_anchor_observed_at']:
-                continue  # A correction of the anchor is not the next observation.
-            if not observation['body']['recorded_at']<=row['body']['available_at']<=window['window_end']:
-                break
-            chosen=(row,value); break
-        result=dict(version=VERSION,observation_id=observation_id,target=NEXT_OBSERVATION,
-                    status='UNKNOWN',reason='NO_RECEIVED_ELIGIBLE_REPORT_IN_WINDOW',first_official_update=invalidated_by,
-                    target_is_true_next_published_report=False,collection_continuity_verified=False,
-                    comparison_partition='DEVELOPMENT',calibration_status='SCORED_NOT_CALIBRATED',
-                    lead_advantage_verified=False,settlement_label=None,executable_markout=None,trading_pnl=None,
-                    financial_authority=False)
-        refs=[observation_id]
-        if chosen:
-            row,value=chosen
-            matches=[b['market_id'] for b in rule.payload['partition'] if
-                     (b['lower'] is None or value>=b['lower']) and (b['upper'] is None or value<=b['upper'])]
-            if len(matches)!=1:
-                raise EvidenceError('LEAD_REPORTED_VALUE_NOT_IN_EXACT_PARTITION')
-            scores=[]
-            for prediction in (d['with_pws'],d['without_pws']):
-                vector=prediction['buckets']; win=next(b['point'] for b in vector if b['market_id']==matches[0])
-                scores.append(dict(brier=math.fsum((b['point']-(b['market_id']==matches[0]))**2 for b in vector),
-                                   log_loss=-math.log(win) if win>0 else None,log_loss_infinite=win==0))
-            result.update(status='MEASURED_FIRST_RECEIVED_REPORT',reason='ARCHIVED_RECEIPT_COMPARISON_NOT_CERTIFIED_NEXT_LABEL',
-                          official_id=row['id'],official_sha256=row['sha256'],reported_whole_degree=value,
-                          observed_at=row['body']['observed_at'],received_at=row['body']['received_at'],
-                          provider_published_at=row['body']['published_at'],
-                          receipt_lead_seconds=row['body']['received_at']-observation['body']['recorded_at'],
-                          with_pws=scores[0],without_pws=scores[1],
-                          brier_improvement=scores[1]['brier']-scores[0]['brier'],
-                          log_loss_improvement=scores[1]['log_loss']-scores[0]['log_loss'] if all(s['log_loss'] is not None for s in scores) else None,
-                          label_evidence_class=row['body']['evidence_class'])
-            refs.append(row['id'])
-        return self.store.audit(record_id,event_id=observation['event_id'],kind='MEASUREMENT',details=result,evidence_ids=tuple(refs))
+        request = dict(observation_ref=ref(observation))
+        details = dict(version=SCORE_VERSION, stage='START', request=request, request_sha256=digest(request))
+        try:
+            start = self.store.get(record_id+':start')
+        except EvidenceError as exc:
+            if str(exc) != 'EVIDENCE_MISSING':
+                raise
+            start = self.store.audit(record_id+':start', event_id=observation['event_id'],
+                kind='MEASUREMENT', details=details, evidence_ids=(observation_id,))
+        if start['body'].get('details') != details:
+            raise EvidenceError('LEAD_SCORE_REQUEST_ID_COLLISION')
+        with learning_source_view(self.store) as source:
+            result, refs = first_received_report_details(source, start)
+        return self.store.audit(record_id, event_id=observation['event_id'], kind='MEASUREMENT',
+            details=result, evidence_ids=refs)
