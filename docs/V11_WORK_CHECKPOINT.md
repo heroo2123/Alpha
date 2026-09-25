@@ -1,7 +1,32 @@
 # Alpha V11 work checkpoint
 
-Updated 2026-09-25, after bounded current-input preparation integration. Resume here. **NOT_READY_TO_FUND**.
+Updated 2026-09-25, after recovery of the completed preparation full regression. Resume here. **NOT_READY_TO_FUND**.
 This is an implementation checkpoint, not release or financial approval.
+
+## Recovered verification — bounded preparation
+
+Published/local HEAD **2073e53383be0eae85571be8195b81d8f45c4448**, tree
+**6cd23e57f8ef1765fc8f3767549438f87a330c52**. One clean worktree, no remaining
+test/publication operation, and the connected GitHub branch agrees. The full
+regression completed after the prior chat update: **3701 passed, four existing
+FastAPI deprecation warnings, 221.56 seconds, exit 0**. All 819 recorded inputs
+independently rehash unchanged. The runner recorded the pre-publication local
+commit e396c069095e4a2f17bf1ad6133e1d1cdd6dcf7a; its tested tree is exactly the
+published tree above. This evidence was recovered, not rerun.
+
+Evidence: `/workspace/scratch/38af7099c566/v11-test-evidence/preparation-full-20260925-01.json`
+and `.log`; wrapper 222.214 s, user 161.623836 s, system 51.757070 s,
+peak RSS 161920 KiB. Input digest
+`9168f6738cb1f951923f510f54e5cbaac5e5aa69e3510dc81519ce46b886ba9f`.
+
+Fixed estimate **81/200, approximately 41%**, formal **1/50 (2%)**, unchanged.
+The six remaining milestones/ranges below remain applicable. Next implementation:
+target-specific conditioned payout and paired next-observation capture, preserving
+exact conditioning, observation horizons and receipt-level provenance before
+economic filtering. Actual labels/calibration, independent safety and host/release
+acceptance stay open. No owner action is needed for this off-host work. V10 stays
+unchanged and its maintenance DEFERRED. Resolve this reporting checkpoint's own
+commit/tree with `git log -1 --format='%H %T' -- docs/V11_WORK_CHECKPOINT.md`.
 
 ## Latest implementation — bounded current-input preparation
 

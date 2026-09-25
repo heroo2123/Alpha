@@ -175,3 +175,9 @@ the applicable integration milestones. **81/200, approximately 41%**, formal
 review, isolated deployment and operational acceptance remain unearned. The six
 remaining active-work ranges are retained with this completed preparation join
 removed from the source implementation tasks; they exclude external waiting.
+
+Recovered preparation full regression at published tree
+`6cd23e57f8ef1765fc8f3767549438f87a330c52`: **3701 passed**, four existing
+warnings, 221.56 seconds; all 819 inputs reverified unchanged. No duplicate run
+was made. **81/200, approximately 41%**, formal **1/50 (2%)**, unchanged. This
+verification adds no actual-source, independent or operational acceptance credit.
