@@ -1,5 +1,47 @@
 # Alpha V11 work checkpoint
 
+## Independent Codex review correction — 2026-09-26 (supervisor batch 3)
+
+Reviewed published `1b0a74a98a5f1c886ece23745d5c8c532f3614d9` against predecessor
+`12d245c1bb04cd7e930d067f0b80506e063c1dd7`, starting with a clean worktree,
+matching remote branch and no active Claude worker. Repository operations and
+checks used Remote Desktop Commander on alpha-dev, sequentially without agents.
+The authoritative master sections 10/10A require preserved census/reconciliation
+and continuation of unrelated healthy events during partial source failure.
+
+The pending/census alternation is valid and retained, but its census-only branch
+always chose the first event. With gaps on e1/e3 and continuous BOOK updates on
+e2, claims repeated e2/e1 and never reached e3 when e1 could not complete census.
+Without pending traffic, e1 alone repeated. This is a residual queue fairness
+defect, not a newly introduced financial-authority path. Existing PaperRuntime
+visited/retry state and CensusWorker rotation already mitigate it in their callers.
+Six production lines now rotate eligible census-only events using a cursor saved
+atomically with the claim. Restart, failed/abandoned work and exclusions retain
+fairness without clearing loss findings or granting a current evaluation.
+
+Validation: the existing queue/admission/runtime baseline passed **64 / 11.34s**.
+Five new cases failed on the reviewed implementation (**5 failed, 35 deselected /
+1.40s**); after correction all queue cases passed **40 / 3.49s**. The final affected
+integration passed **279 / 189.39s**, exit 0, using the V11 development interpreter:
+
+```bash
+/home/alphaadmin/AlphaV11_Dev/venv/bin/python -m pytest -q tests/test_v11_{event_queue,queue_admission,paper_runtime,census_worker,model_census,pws_census,candidate_runner,candidate_assembly,paper_reconciliation,position_management,reaction_runtime,relative_value,runtime_feed,runtime_pipeline,strategy_pipeline,strategy_runtime}.py --tb=short --maxfail=3
+```
+
+The earlier batch entry below now qualifies its unsupported attribution of all
+47 full-suite failures and removes the already-completed PWS wiring next action.
+No full-suite rerun or whole-candidate acceptance is claimed by this review.
+This strengthens existing R33 C/J only: **85/200 = 42.5%; formal 1/50 (2%)**,
+unchanged. **NOT_READY_TO_FUND; V10 unchanged/DEFERRED.** No production, service,
+credential or financial-authority change was made.
+
+**Next unfinished action:** reconcile the 47 recorded full-suite failures by
+exact test ID against the predecessor in a dedicated regression batch; retain
+unresolved attribution as unknown. Real-source, independent and operational
+acceptance gates in the master and matrix remain open.
+
+## Previous published checkpoint
+
 ## R07 station-certification clean-audit checkpoint, 2026-09-26 (supervised batch 3)
 
 Recovery check: local and remote HEAD both matched `1c6a9d2` on
@@ -4622,18 +4664,22 @@ item and the next census-only event whenever both are ready, tracked via a new
 `test_census_only_event_is_not_starved_by_continuous_pending_traffic_elsewhere`
 to `tests/test_v11_event_queue.py` covering the alternation.
 
-Targeted run: `pytest tests/test_v11_event_queue.py` — 35 passed. Full regression:
-**4701 passed, 47 failed, 11 skipped, 4 warnings, 1113.73s**. Confirmed by
-stashing this diff and re-running the 9 failing test files unchanged: identical
-29 failed / 105 passed, i.e. all 47 full-run failures are pre-existing baseline
-gaps in operator notifications/panel/recovery/safety-priority, production
-transport/fee-review, guardian-broker, and weather rollback/deployment-identity
-suites, unrelated to and unaffected by this fairness fix. No new failure was
-introduced. Formal completion remains unchanged; this is a defect fix within an
-already-credited slice, not a new requirement package.
+The batch recorded `pytest tests/test_v11_event_queue.py` — 35 passed, and a
+full regression of **4701 passed, 47 failed, 11 skipped, 4 warnings, 1113.73s**.
+It also recorded a comparison with the diff stashed across nine failing test
+files: 29 failed / 105 passed. That comparison supports baseline attribution
+only for the reproduced cases; it does not establish that all 47 full-run
+failures were pre-existing or that no new full-suite failure was introduced.
+The recorded failure groups are operator notifications/panel/recovery/safety-
+priority, production transport/fee-review, guardian-broker, and weather rollback/
+deployment-identity. Exact failure-by-failure attribution remains open. Formal
+completion remains unchanged; this is a defect fix within an already-credited
+slice, not a new requirement package.
 
-Next concrete unfinished source step remains as previously recorded: connect
-`samples_from_capture` / `archive_neighborhood` to the bounded observation/census
-path, then the remaining full-master requirements. The 47 pre-existing baseline
-failures above are not addressed by this batch and remain open for a future
-dedicated batch.
+The source-wiring next-action note formerly here was stale: the earlier
+2026-09-26 checkpoint correction already established that `samples_from_capture`
+/ `archive_neighborhood` reach the census path. The independent review also
+confirmed `archive_neighborhood` is called by `v11/census_worker.py`. Do not
+repeat that completed integration. Next concrete unfinished action: reconcile
+the 47 recorded full-suite failures by exact test ID against the predecessor in
+a dedicated regression batch, retaining any unresolved attribution as unknown.

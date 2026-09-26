@@ -448,6 +448,10 @@ class EventQueue:
             # forever behind continuous pending traffic on other events: alternate
             # turns whenever both a pending item and a census-only event are ready.
             census_only = [e for e in census if e not in state['pending']]
+            # A failed or abandoned census must not monopolize census turns.
+            last_census = state.get('last_census_only_event', '')
+            census_only = ([e for e in census_only if e > last_census]
+                           + [e for e in census_only if e <= last_census])
             turn = state.get('census_only_turn', False)
             if ordered and census_only:
                 event = census_only[0] if turn else ordered[0]['event_id']
@@ -462,6 +466,8 @@ class EventQueue:
                 self._commit(record_id, request, row, state, dict(outcome='IDLE'))
                 yield None
                 return
+            if event in census_only:
+                state['last_census_only_event'] = event
             pending = state['pending'].pop(event, None)
             watched = {(kind,event) for kind in ('BOOK','TRADE','MODEL','OFFICIAL_OBSERVATION','PWS_OBSERVATION','RULE_STATE')}
             for notice in pending['sources'].values() if pending else ():

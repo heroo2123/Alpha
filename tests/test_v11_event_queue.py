@@ -247,6 +247,49 @@ def test_census_only_event_is_not_starved_by_continuous_pending_traffic_elsewher
     assert claimed.count('e2') >= 1
 
 
+@pytest.mark.parametrize('continuous_pending', [False, True])
+@pytest.mark.parametrize('abandon_census', [False, True])
+def test_failed_census_cannot_starve_another_census_across_restart(rig, continuous_pending, abandon_census):
+    q=queue(rig)
+    for event in ('e1', 'e3'):
+        q.stream_gap('gap:'+event, event_id=event, reason='DISCONNECT')
+    claimed=[]
+    for i in range(6):
+        q=queue(rig)
+        rig['now'][0]+=1
+        if continuous_pending:
+            publish(q,rig,f'book{i}','BOOK',event='e2')
+        with q.work(f'claim{i}') as claim:
+            assert claim is not None
+            event=claim['event_id']; claimed.append(event)
+            if event != 'e2':
+                assert claim['requires_full_census'] and not claim['sources']
+                if abandon_census:
+                    continue
+            result(rig,f'res{i}',event=event)
+            outcome=q.finish(f'finish{i}',claim_id=f'claim{i}',result_ids=(f'res{i}',))['body']['details']['result']
+            assert outcome['outcome']==('RESEARCH_EVALUATED' if event=='e2' else 'STALE_RESEARCH_RESULT')
+    census_claims=[event for event in claimed if event != 'e2']
+    assert census_claims[:2]==['e1', 'e3']
+    assert all(a != b for a,b in zip(census_claims,census_claims[1:]))
+    assert claimed.count('e2')==(3 if continuous_pending else 0)
+    assert set(q.snapshot()['needs_census'])=={'e1', 'e3'}
+    assert not {'e1', 'e3'} & q.snapshot()['evaluations'].keys()
+
+
+def test_census_rotation_respects_exclusion_and_wraps_after_restart(rig):
+    q=queue(rig); q.schedule_census('periodic')
+    claimed=[]
+    for i, excluded in enumerate(((), ('e2',), ('e1', 'e3'))):
+        q=queue(rig)
+        with q.work(f'claim{i}',exclude_events=excluded) as claim:
+            claimed.append(claim['event_id'])
+            result(rig,f'res{i}',event=claim['event_id'])
+            q.finish(f'finish{i}',claim_id=f'claim{i}',result_ids=(f'res{i}',))
+    assert claimed==['e1', 'e3', 'e2']
+    assert set(q.snapshot()['needs_census'])=={'e1', 'e2', 'e3'}
+
+
 @pytest.mark.parametrize('change,error',[({'missing_book':True},'ALL_EVENT_TOKENS'),({'stale':True},'NEW_FULL_BOOK')])
 def test_incomplete_or_stale_resync_cannot_clear_gap(rig,change,error):
     q=queue(rig); q.stream_gap('gap',event_id='e1',reason='DISCONNECT')
