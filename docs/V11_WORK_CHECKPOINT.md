@@ -1,5 +1,64 @@
 # Alpha V11 work checkpoint
 
+## R08 and R32 clean-audit checkpoint, 2026-09-26 (supervised batch 2)
+
+Recovery check: local and remote HEAD both matched `1cc84c6142f6a8d82615ff660cab75af24861181`
+on `weather-v11-profitability-upgrade-2026-09-23`, clean workspace, no dirty
+recovered work. Following the prior checkpoint's own recommended next action
+("a fresh, line-by-line audit of one still-PARTIAL package not touched in the
+last several sessions ... to find a real, previously-missed local defect or
+gap"), this batch performed two independent full-file audits rather than adding
+new depth to already-credited slices.
+
+R08 (universal rule fingerprints and quarantine): a full line-by-line pass over
+`v11/rules.py`, its `evidence.py` canonical/digest/CAS dependencies,
+`weather_only_contract_strict.py`/`weather_only_rules.py` field derivation, the
+`certification.py` recertify gate, every caller (`RuleGuard`/`fingerprint_event`
+via discovery/pws_lead/strategy_admission/basket_valuation) and the real test
+file `tests/test_v11_certification_rules.py` found no exploitable defect.
+Checked specifically: fingerprint hashing determinism (`canonical()` sorts keys;
+partition buckets are explicitly sorted before hashing, so unordered iteration
+cannot cause spurious drift or a collision); quarantine stickiness (`quarantined`
+cannot self-clear on a reverted fingerprint; only `recertify()` can clear it, and
+only against a matching protected-manifest review bounded by
+`reviewed_through_seq`); CAS write safety (`expected_previous_seq` makes every
+`observe`/`invalidate`/`recertify` fail closed with `AUDIT_STATE_CHANGED` on a
+race rather than corrupt state); exception handling (every malformed/ambiguous
+input raises `EvidenceError`, none fail open to "unchanged"); and real
+drift-detection test coverage (a genuine token-substitution mutation changes the
+fingerprint and triggers `RULE_DRIFT_QUARANTINED`, not just identity-case tests).
+No caller swallows a failed `revalidate()`.
+
+R32 (active exits and reductions): a full read of `v11/position_management.py`
+found the same pattern — `revalidate_exit` independently re-derives the entire
+prediction/inventory/valuation chain from the saved request and compares it
+`canonical()`-equal to the saved value before any proposal is trusted, so a
+stale or tampered valuation fails closed rather than being reused. No defect
+identified in inventory fingerprinting, FIFO lot consumption, or the
+GATED/REDUCE_RESEARCH_CANDIDATE outcome transitions.
+
+No code changed; no new C/J/E/A is claimed for either audit. Estimate stays
+**85/200 = 42.5%, approximately 43%; formal 1/50 (2%)**, unchanged. This is a
+documentation-accuracy/audit-trail entry only: R08 and R32's PARTIAL status
+reflects missing J/E/A (integration/evidence/acceptance) credit and, for R08,
+externally-gated dependencies, not a found local logic bug in either file.
+**NOT_READY_TO_FUND; V10 unchanged/DEFERRED.** No alpha-dev access, deployment,
+service change, financial authority or real order was requested or performed.
+
+**Exact next unfinished action:** continue the same untouched-package audit
+sweep on another still-PARTIAL package not covered by R08/R32/R37/R38 in this or
+the immediately preceding session — e.g. R06 (`v11/collection.py`,
+`v11/discovery.py`), R07 (`v11/certification.py` station-certification path
+distinct from the rules recertify gate just audited), or R33
+(`v11/event_queue.py`) — to keep looking for a genuine, previously-missed local
+defect. As before, the remaining PARTIAL gaps that are not purely local (R09,
+R10, R13, R14, R25-R28 needing real provider/label access; R37/R38/R43/R44/R46-49
+needing owner-authorized isolated host/deployment/production access; R31
+needing external source/version proof) cannot be advanced without owner or
+production action.
+
+## Previous published checkpoint
+
 ## Checkpoint correction — stale next-action note, 2026-09-26 (supervised batch 1)
 
 This batch found no dirty worktree and no unpublished recovered work: local and

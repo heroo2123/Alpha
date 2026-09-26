@@ -1,5 +1,21 @@
 # Supplementary engineering estimate
 
+R08/R32 clean-audit checkpoint — 2026-09-26 (supervised batch 2): following the
+prior checkpoint's own recommended next action, performed two independent
+full-file, line-by-line audits of untouched PARTIAL packages rather than
+deepening already-credited slices. R08 (`v11/rules.py` and its `evidence.py`
+CAS/canonical dependencies, `weather_only_contract_strict.py`/
+`weather_only_rules.py`, the `certification.py` recertify gate, every caller and
+`tests/test_v11_certification_rules.py`) found no exploitable fingerprint-hash,
+quarantine-transition, TOCTOU, fail-open, or caller-misuse defect; a genuine
+mutated-rule test already exercises real drift detection, not just identity
+cases. R32 (`v11/position_management.py`) found the same self-checking pattern:
+`revalidate_exit` independently re-derives and `canonical()`-compares the entire
+prediction/inventory/valuation chain before trusting any proposal, so a stale or
+tampered valuation fails closed. No code changed; no C/J/E/A claimed for either
+audit. Total unchanged: **85/200 = 42.5%, approximately 43%; formal 1/50 (2%)**.
+Full detail: `docs/V11_WORK_CHECKPOINT.md`.
+
 Checkpoint correction — 2026-09-26 (supervised batch 1): the prior checkpoint's
 "Exact next unfinished action" (connect `samples_from_capture`/`archive_neighborhood`
 to the census path, then forecast-run provenance/labels) was verified against
