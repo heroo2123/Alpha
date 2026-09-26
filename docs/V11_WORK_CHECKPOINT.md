@@ -1,5 +1,121 @@
 # Alpha V11 work checkpoint
 
+## Independent Codex regression-evidence review — 2026-09-26 (supervisor batch 1)
+
+Reviewed published `fc75ce2655011cb34b9f2366a29c2b0a3bbd6f15` against
+`d79efc09af3f15618208758227e11bc44a4fc970`: only this checkpoint changed.
+Started clean with matching local/remote HEAD and no active Claude worker.
+Read CLAUDE.md, the checkpoint/matrix/progress ledgers and the hash-verified
+original master. All repository operations used Remote Desktop Commander on
+alpha-dev, sequentially without workers. Valid queue implementation is preserved.
+
+The handoff incorrectly called a ten-file selection nine files, inferred timing/
+order sensitivity from non-equivalent totals, and deferred exact attribution to
+another full run despite an available retained failure log. Corrected those
+claims below. This advances regression evidence under master sections 4A/33/40,
+not implementation or acceptance of a new requirement.
+
+Recovered `/tmp/v11-full-regression-20260926.log`, SHA-256
+`09c867f938d248d4bcc7aedd607f7876152bbe81f984f9c8dac085e5660c9c0d`:
+**47 failed, 4700 passed, 11 skipped, four warnings / 1124.76 s**. Its 47 exact
+IDs include all 24 from the isolated comparison and 23 in six additional files.
+This log does not embed a tested commit/runtime manifest and differs from the
+previously reported **4701 passed / 1113.73 s** run. Keep that historical run's
+identity and the **29 failed / 105 passed** stash comparison UNKNOWN; do not
+silently equate their inputs or infer nondeterminism from different totals.
+
+Selected only the 47 IDs below and ran them sequentially with the same V11
+interpreter and offline fixtures, retaining tracebacks/JUnit rather than IDs alone:
+
+| Source commit | Git tree | Focused result |
+|---|---|---|
+| `fc75ce2655011cb34b9f2366a29c2b0a3bbd6f15` | `d2144876c364baf136062de2675e6611490d060b` | 47 failed / 18.28 s / pytest exit 1 |
+| `12d245c1bb04cd7e930d067f0b80506e063c1dd7` (before both queue fixes) | `6b232520539ed083e6abed834ac42b1d1aad8b8f` | 47 failed / 19.18 s / pytest exit 1 |
+
+All 47 node IDs, failure messages and traceback locations match after normalizing
+object memory addresses. All these failure symptoms therefore reproduce before
+the queue fixes; root causes remain unresolved. This does not prove an unchanged
+whole-suite outcome or exclude defects masked by an earlier assertion failure.
+The temporary baseline worktree was verified clean and removed. Logs, JUnit and
+commit/tree/command/hash metadata remain local as
+`/tmp/v11-codex-fc75-{current47,baseline47}.{log,xml,json}`; no raw logs are committed.
+Sorted node IDs joined by LF with a final LF have SHA-256
+`ddebe803792946708c486011a5c5b91e58d74e5da84c8b55c1929da39c6bb0e0`.
+
+The 47-case command used `/home/alphaadmin/AlphaV11_Dev/venv/bin/python -m pytest
+-q -p no:cacheprovider --tb=short --junitxml=<local-output>` followed by the IDs
+below in retained full-log order. A separate queue/admission/PAPER-runtime check
+passed **69 / 12.17 s / exit 0** using that interpreter with `-m pytest -q -p
+no:cacheprovider tests/test_v11_event_queue.py tests/test_v11_queue_admission.py
+tests/test_v11_paper_runtime.py --tb=short --maxfail=3`. Its local log is
+`/tmp/v11-codex-fc75-queue-integration.log`, SHA-256
+`1f697d0573b28972b02796f64039feb2a1473622e541a73503450a72f5571dc6`.
+No full-suite rerun, source change, test relaxation or safety-gate change occurred.
+
+**85/200 = 42.5% (~43%); formal 1/50 (2%)**, unchanged. No additional C/J/E/A.
+Regression failures still block CODE READY; **NOT_READY_TO_FUND**. V10 remains
+unchanged/DEFERRED; no service, credential, deployment or financial action occurred.
+
+**Next unfinished action:** diagnose the reproduced baseline authority failure in
+`tests/test_operator_executor.py::test_automatic_uses_existing_lifecycle_and_pause_is_immediate`
+with its isolated fixture and actual denial reason, preserving production gates;
+then address the other baseline failure groups. Preserve the two unmatched
+historical-run records as UNKNOWN until their original evidence is recovered.
+
+Exact retained full-run/focused comparison cohort (sorted, 47 IDs):
+
+```text
+tests/test_frozen_production_review.py::test_real_weather_refresh_binds_station_day_budget_to_verified_contract
+tests/test_host_authority_production_boundary.py::test_active_release_and_both_environments_restored_on_next_generation_failure
+tests/test_host_authority_production_boundary.py::test_failed_recovery_staging_can_be_retried_without_candidate_helpers
+tests/test_host_authority_production_boundary.py::test_ordinary_legacy_venv_restores_after_entire_candidate_git_is_destroyed
+tests/test_host_authority_production_boundary.py::test_second_snapshot_while_candidate_current_cannot_replace_predecessor
+tests/test_host_operator_roles.py::test_second_snapshot_cannot_replace_predecessor_for_three_roles
+tests/test_operator_direct_stop_race.py::test_fresh_stop_cannot_be_lost_to_concurrent_status_revision
+tests/test_operator_executor.py::test_automatic_uses_existing_lifecycle_and_pause_is_immediate
+tests/test_operator_executor.py::test_confirm_one_attempt_revalidates_and_cannot_duplicate
+tests/test_operator_executor.py::test_control_transaction_failure_preserves_previous_state_and_revokes_authority
+tests/test_operator_executor.py::test_deleted_control_history_cannot_reopen_trading
+tests/test_operator_executor.py::test_pause_during_weather_validation_prevents_signing_and_post
+tests/test_operator_executor.py::test_rejected_confirmation_is_consumed_without_automatic_retry
+tests/test_operator_executor.py::test_settings_change_during_signing_aborts_durable_submission
+tests/test_operator_executor.py::test_settings_revision_requests_cancel_but_preserves_partial_fill[experience-SIGNALS]
+tests/test_operator_executor.py::test_settings_revision_requests_cancel_but_preserves_partial_fill[per_order-4]
+tests/test_operator_executor.py::test_settings_revision_requests_cancel_but_preserves_partial_fill[strategy:DIRECTIONAL-False]
+tests/test_operator_executor.py::test_unknown_submission_stays_one_order_after_restart
+tests/test_operator_notifications.py::test_cancel_request_is_distinct_from_confirmation_and_full_fill
+tests/test_operator_notifications.py::test_exchange_expiry_is_visible_without_erasing_accounting
+tests/test_operator_notifications.py::test_local_emergency_stop_has_durable_notification_without_inventing_cancellation
+tests/test_operator_notifications.py::test_notifications_are_from_durable_events_not_delivery_or_ack_fills
+tests/test_operator_notifications.py::test_settlement_and_redemption_do_not_claim_spendable_cash
+tests/test_operator_notifications.py::test_unknown_and_rejected_submission_notifications[REJECTED-SUBMISSION_REJECTED]
+tests/test_operator_notifications.py::test_unknown_and_rejected_submission_notifications[UNKNOWN-SUBMISSION_UNKNOWN]
+tests/test_operator_panel.py::test_double_click_pause_is_idempotent_and_does_not_wait_for_telegram
+tests/test_operator_panel.py::test_mode_preview_does_not_activate_and_resume_is_separate
+tests/test_operator_panel.py::test_unknown_order_and_claimable_cash_distinction_visible
+tests/test_operator_recovery.py::test_grant_rotation_rejects_unsafe_preconditions_without_journal_change[activation]
+tests/test_operator_recovery.py::test_grant_rotation_rejects_unsafe_preconditions_without_journal_change[identity]
+tests/test_operator_recovery.py::test_grant_rotation_rejects_unsafe_preconditions_without_journal_change[nonempty]
+tests/test_operator_recovery.py::test_grant_rotation_rejects_unsafe_preconditions_without_journal_change[outstanding]
+tests/test_operator_recovery.py::test_local_grant_rotation_preserves_fills_fault_and_consumed_receipts
+tests/test_operator_safety_priority.py::test_cancel_recorded_before_restart_survives_request_expiry
+tests/test_operator_safety_priority.py::test_full_reply_queue_does_not_drop_later_safety_commands
+tests/test_operator_safety_priority.py::test_navigation_preview_backlog_cannot_block_emergency_stop
+tests/test_operator_safety_priority.py::test_stop_followed_by_cancel_in_same_poll_must_cancel_outstanding
+tests/test_operator_safety_priority.py::test_trade_preview_cannot_rebind_to_newer_more_permissive_revision
+tests/test_production_frozen_fee_review.py::test_real_adapter_unknown_post_then_confirmed_breach_queues_and_attempts_cancel
+tests/test_production_transport_integration.py::test_real_adapter_intent_submission_restart_and_chain_fill_accounting[EXCHANGE_PUBLISHED_SCHEDULE-False]
+tests/test_production_transport_integration.py::test_real_adapter_intent_submission_restart_and_chain_fill_accounting[EXCHANGE_PUBLISHED_SCHEDULE-True]
+tests/test_production_transport_integration.py::test_real_adapter_intent_submission_restart_and_chain_fill_accounting[ONCHAIN_BOUND-False]
+tests/test_production_transport_integration.py::test_real_adapter_intent_submission_restart_and_chain_fill_accounting[ONCHAIN_BOUND-True]
+tests/test_v11_guardian_broker.py::test_actual_broker_death_stale_socket_restart_and_receipt_replay
+tests/test_weather_all_paper_deployment_identity.py::test_recovery_restores_each_exact_predecessor_unit_and_marker
+tests/test_weather_rollback_generation_freshness.py::test_archive_integrity_alone_does_not_prove_current_venv_and_tree_check_detects_drift
+tests/test_weather_rollback_generation_freshness.py::test_snapshot_of_candidate_cannot_replace_immutable_predecessor
+```
+
+## Previous published checkpoint
+
 ## Independent Codex review correction — 2026-09-26 (supervisor batch 3)
 
 Reviewed published `1b0a74a98a5f1c886ece23745d5c8c532f3614d9` against predecessor
@@ -4687,45 +4803,37 @@ a dedicated regression batch, retaining any unresolved attribution as unknown.
 ## Partial reconciliation of the 47 recorded full-suite failures — 2026-09-26
 
 This is bookkeeping on the already-credited event-queue starvation fix, not a new
-requirement package. The four failure groups named in the prior checkpoint entry
-(operator notifications/panel/recovery/safety-priority, production transport/
-fee-review, guardian-broker, weather rollback/deployment-identity) correspond
-exactly to nine test files: `test_weather_all_paper_deployment_identity.py`,
+requirement package. The isolated comparison selected the following ten test files
+from the broad failure groups named in the prior checkpoint; this selection did
+not cover every file in those groups: `test_weather_all_paper_deployment_identity.py`,
 `test_v11_guardian_broker.py`, `test_operator_panel.py`,
 `test_production_frozen_fee_review.py`, `test_production_transport_integration.py`,
 `test_operator_notifications.py`, `test_weather_v5_atomic_rollback.py`,
 `test_operator_safety_priority.py`, `test_weather_only_clob_transport_resilience.py`,
 `test_weather_rollback_generation_freshness.py`.
 
-Ran that exact nine-file set in isolation (no concurrent full run, no stash) on two
-trees: current published `d79efc09af3f15618208758227e11bc44a4fc970` and its true
-predecessor `12d245c1bb04cd7e930d067f0b80506e063c1dd7` (immediately before both
-starvation-fix commits, via a temporary `git worktree`, removed after use). Both
-trees produced the byte-identical result: **24 failed, 109 passed**, and the
-`diff` of the two `FAILED` node-ID lists is empty — the exact same 24 test IDs
-fail on both trees. This confirms those 24 failures are pre-existing and
-unrelated to the `EventQueue.work()` claim-selection change; the fix introduces
-no new failure among them. Full exact list retained in
+Recorded that ten-file set in isolation (no concurrent full run, no stash) on two
+trees: published `d79efc09af3f15618208758227e11bc44a4fc970` and pre-fix baseline
+`12d245c1bb04cd7e930d067f0b80506e063c1dd7` (before both starvation-fix commits,
+via a temporary `git worktree`, removed after use). Both recorded runs returned
+**24 failed, 109 passed**, with identical `FAILED` node-ID lists. The logs differ
+in duration and contain no tracebacks, so matching IDs alone do not establish
+matching failure causes or a green full suite. Full exact lists remain in
 `/tmp/current_head_ninefiles.log` and `/tmp/baseline_ninefiles.log` (local, not
 committed).
 
-This does not close the full reconciliation: the previously recorded full
-regression counted **47 failed**, and an earlier stash-based comparison of the
-same nine files recorded **29 failed / 105 passed** (5 more failures than this
-isolated run), so some of these tests are order/resource/timing-sensitive under
-full-suite or concurrent-run conditions rather than fully deterministic in
-isolation. The residual gap (up to 23 failures outside these nine files, plus the
-29-vs-24 discrepancy inside them) is not reproduced here and stays UNKNOWN
-attribution, not assumed pre-existing. Root-causing that residual requires a full
-regression run long enough to exceed this session's foreground tool budget; leave
-it for a dedicated batch rather than guessing. No test, safety gate, or source
-file changed in this reconciliation. **85/200 (~43%); 1/50 (2%)**, unchanged.
-NOT_READY_TO_FUND; V10 unchanged/DEFERRED.
+This initial comparison did not close reconciliation. The earlier stash-based
+**29 failed / 105 passed** report totals 134 cases, whereas this ten-file selection
+totals 133. Without that earlier run's exact collection, inputs and failure IDs,
+the difference stays UNKNOWN; it does not establish order/resource/timing
+sensitivity. The independent review at the top of this checkpoint subsequently
+recovered a retained 47-failure full-run log and compared all its exact IDs on
+both trees, without another full-suite run. That retained log has different pass
+and duration totals from the earlier 4701-pass/1113.73-second report, so those
+historical records must not be silently equated.
 
-Next concrete unfinished action: either (a) run a full regression with a budget
-that permits foreground completion (prior full run measured 1113.73 s) and diff
-its exact `FAILED` node-ID list against this nine-file baseline to resolve the
-29-vs-24 and 47-vs-24 gaps, or (b) continue the master-specification requirement
-work (forecast run/issue provenance, calibration, champion/learning lifecycle)
-per the priority order in CLAUDE.md, since this reconciliation is diagnostic
-bookkeeping on an already-credited slice, not a blocking requirement gap.
+No test, safety gate, or source file changed in this reconciliation.
+**85/200 (~43%); 1/50 (2%)**, unchanged. NOT_READY_TO_FUND; V10 unchanged/DEFERRED.
+The current next action and exact comparison cohort are in the independent
+regression-evidence review above. Reproduced baseline failures remain unresolved
+acceptance defects; diagnostic attribution grants no CODE READY or funding gate.
