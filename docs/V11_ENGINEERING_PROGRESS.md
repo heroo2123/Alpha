@@ -1,5 +1,19 @@
 # Supplementary engineering estimate
 
+R07 clean-audit checkpoint — 2026-09-26 (supervised batch 3): following the
+prior checkpoint's own recommended next action, performed a full-file,
+line-by-line audit of `v11/certification.py`'s station-registry/capability-
+certification path — `StationMetadata`/`CapabilityScope` validation and
+fingerprinting, root-custodied `protected_reviews` read path, and
+`StationRegistry.observe`/`demote`/`proof`/`assess` — plus the one real
+caller (`StrategyAdmission._assess`). Found no exploitable provenance,
+quarantine, CAS, capability-proof-forgery, or replay defect; `CapabilityScope
+.station` is only loosely validated by `certification.py` itself, but its
+sole caller pins it against the already-validated rule-preimage station
+identity before use, so the looseness is not locally exploitable. No code
+changed; no C/J/E/A claimed. Total unchanged: **85/200 = 42.5%, approximately
+43%; formal 1/50 (2%)**. Full detail: `docs/V11_WORK_CHECKPOINT.md`.
+
 R08/R32 clean-audit checkpoint — 2026-09-26 (supervised batch 2): following the
 prior checkpoint's own recommended next action, performed two independent
 full-file, line-by-line audits of untouched PARTIAL packages rather than

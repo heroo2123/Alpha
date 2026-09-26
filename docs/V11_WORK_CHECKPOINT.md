@@ -1,5 +1,71 @@
 # Alpha V11 work checkpoint
 
+## R07 station-certification clean-audit checkpoint, 2026-09-26 (supervised batch 3)
+
+Recovery check: local and remote HEAD both matched `1c6a9d2` on
+`weather-v11-profitability-upgrade-2026-09-23`, clean workspace, no dirty
+recovered work. Following the prior checkpoint's own recommended next action,
+this batch performed a full line-by-line audit of `v11/certification.py`'s
+station-registry/capability-certification path (R07) — distinct from the
+`rules.py` recertify gate and R32 `position_management.py` audited in the
+immediately preceding session — looking for a genuine, previously-missed local
+defect.
+
+Checked specifically: `StationMetadata`/`CapabilityScope` field validation
+(regex-bound station id, lat/lon/timezone bounds, wildcard-forbidden scope
+fields, immutable provider tuples) and fingerprinting (provenance timestamps
+excluded, provider sets sorted before hashing, so ordering/relocation cannot
+cause spurious drift); `_root_custody`/`protected_reviews` (absolute path, no
+`..`, every parent and the file itself must be root-owned and not
+group/other-writable via `lstat`, `O_NOFOLLOW` open plus a dev/ino
+before/after compare blocks a symlink-swap TOCTOU, and a decode/schema/size
+bound gates the manifest); `StationRegistry.observe` (raw evidence kind and
+payload-hash provenance match, metadata drift correctly forces
+`QUARANTINED`/`METADATA_DRIFT` with no self-clear, CAS via
+`expected_previous_seq`); `demote`/`proof` (fail states and non-empty evidence
+required to demote; `CANARY_EXECUTION_VERIFIED` at `PASS` requires a real
+`PUBLIC_OBSERVED`/`RECONCILED_LIVE_EXECUTION` label, so synthetic evidence
+cannot manufacture canary-verified capability); and `assess` (exactly one
+matching reviewed-manifest row required — zero or ambiguous matches fail
+closed; review window is a strict half-open `approved_at <= now <
+expires_at`; the metadata/demotion "barrier" seq plus an independent
+recorded-at-vs-approved-at check both gate quarantine-requires-new-review;
+every required capability proof is independently re-fetched and compared
+`sha256`/kind/scope_key/capability/result/fingerprint-exact against the
+registry row, not trusted from the manifest's own claim; and a later
+capability failure recorded after `reviewed_through_seq` cannot be hidden
+behind an earlier replayed `PASS`). Cross-checked the one real caller,
+`StrategyAdmission._assess` in `v11/strategy_admission.py`, and confirmed it
+never trusts `CapabilityScope.station` on its own: it independently requires
+`scope.station == rule.payload['station']` (the validated station identity
+from the rule's own preimage) before ever calling `assess`, closing the one
+loose end found in `certification.py` alone — `CapabilityScope.station` is
+validated only by generic `identity()` (length/control-char bound), not the
+stricter `StationMetadata` station-id regex, but the sole real caller pins it
+against an already-validated station identity before use, so it is not
+locally exploitable. No exploitable defect found in `certification.py` or its
+one caller.
+
+No code changed; no new C/J/E/A is claimed. Estimate stays **85/200 = 42.5%,
+approximately 43%; formal 1/50 (2%)**, unchanged. This is a
+documentation-accuracy/audit-trail entry only: R07's PARTIAL status reflects
+missing J/E/A (source checkers, host commissioning, independent acceptance),
+not a found local logic bug. **NOT_READY_TO_FUND; V10 unchanged/DEFERRED.** No
+alpha-dev access, deployment, service change, financial authority or real
+order was requested or performed.
+
+**Exact next unfinished action:** continue the same untouched-package audit
+sweep on another still-PARTIAL package not yet covered by this or the two
+immediately preceding sessions (R08/R32/R07) — e.g. R06 (`v11/collection.py`,
+`v11/discovery.py`) or R33 (`v11/event_queue.py`) — to keep looking for a
+genuine, previously-missed local defect. As before, the remaining PARTIAL gaps
+that are not purely local (R09, R10, R13, R14, R25-R28 needing real
+provider/label access; R37/R38/R43/R44/R46-49 needing owner-authorized
+isolated host/deployment/production access; R31 needing external
+source/version proof) cannot be advanced without owner or production action.
+
+## Previous published checkpoint
+
 ## R08 and R32 clean-audit checkpoint, 2026-09-26 (supervised batch 2)
 
 Recovery check: local and remote HEAD both matched `1cc84c6142f6a8d82615ff660cab75af24861181`
