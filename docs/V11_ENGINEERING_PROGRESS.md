@@ -1,5 +1,32 @@
 # Supplementary engineering estimate
 
+Regression recovery and guardian-stop test synchronization — 2026-09-26
+(supervisor batch 2): clean local/remote source
+`640a5d5421e625059a98aab45294756cc41829cf`, tree
+`6a1554517fa4fa55fa0a825b74862fc1c2a50972`, passed initial targeted **2 / 3.68 s**
+and affected integration **279 / 78.14 s**. The single foreground full regression
+completed through Remote Desktop Commander: **4752 passed, 1 failed, 11 skipped,
+four existing warnings / 1245.36 s**, exit 1; all 788 input hashes unchanged.
+All 47 retained earlier failure IDs passed within the full run.
+
+The sole additional failure was the guardian-stop test checking admission before
+confirming asynchronous SIGSTOP delivery. A synthetic 100-cycle kernel-state
+probe observed R immediately after signal return in 14 cycles, T in 86; the
+unchanged isolated test passed 5/5 times. The test now awaits an actual stopped
+child notification, asserts SIGSTOP and then checks admission once. Production
+code and safety gates are unchanged. Final stop/kill pair passed in five
+invocations (10 passes); eight affected guardian/health modules passed
+**338 / 42.88 s**, exit 0. Final hashes stayed unchanged; only that test differs
+from the full-run source. No second full run or post-fix full-green claim.
+
+Eleven actual custody cases remain skipped for missing `newuidmap`. No helper,
+host policy, service, V10, deployment or financial action was performed; no owner
+action was needed for this bounded batch. Exact evidence:
+`docs/V11_REGRESSION_RECOVERY_EVIDENCE.md`. R45 remains PARTIAL, with no new
+C/J/E/A: **85/200 = 42.5% (approximately 43%); formal 1/50 (2%)**, unchanged.
+**NOT_READY_TO_FUND**. Next: one full regression on the published synchronization
+fix in the next batch; unavailable custody and independent acceptance stay open.
+
 R07 clean-audit checkpoint — 2026-09-26 (supervised batch 3): following the
 prior checkpoint's own recommended next action, performed a full-file,
 line-by-line audit of `v11/certification.py`'s station-registry/capability-

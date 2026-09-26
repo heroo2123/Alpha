@@ -1,5 +1,72 @@
 # Alpha V11 work checkpoint
 
+## Full regression recovered; guardian-stop synchronization fixed — 2026-09-26 (supervisor batch 2)
+
+Recovered clean, matching local/remote HEAD
+`640a5d5421e625059a98aab45294756cc41829cf`, tree
+`6a1554517fa4fa55fa0a825b74862fc1c2a50972`, on
+`weather-v11-profitability-upgrade-2026-09-23`; no unfinished pytest worker.
+Read the authoritative hash-verified master and the durable ledgers. Preserved
+both published test fixes and followed the prior checkpoint's exact next action.
+
+Remote Desktop Commander supported the sequential foreground run beyond the
+prior tool's 600-second limit, without detached/background testing. Initial
+targeted checks: **2 passed / 3.68 s**, exit 0. The 14 prior affected modules plus
+queue/admission/PAPER-runtime integration: **279 passed / 78.14 s**, exit 0.
+The single full regression at the clean source commit above: **4752 passed,
+1 failed, 11 skipped, four existing FastAPI warnings / 1245.36 s**, exit 1.
+All 788 saved tracked non-document inputs, HEAD and clean worktree state were
+unchanged through those runs. Every ID in the retained 47-failure cohort
+(SHA-256 `ddebe803792946708c486011a5c5b91e58d74e5da84c8b55c1929da39c6bb0e0`)
+passed within that full invocation; none was missing or skipped.
+
+The additional failure was
+`tests/test_v11_paper_guardian.py::test_actual_guardian_death_closes_lease_while_candidate_still_lives[stop]`:
+admission did not raise immediately after sending SIGSTOP. The test had not
+confirmed kernel delivery. It passed 5/5 isolated pre-fix runs. A separate
+100-cycle synthetic stop/resume probe observed the child still R in 14 immediate
+post-signal reads and T in 86; all subsequent waitpid notifications confirmed
+SIGSTOP. The production process-identity guard already rejects stopped states.
+
+Fixed only that test to await the exact child's kernel stopped notification
+using the existing bounded wait helper and `waitpid(WUNTRACED | WNOHANG)`,
+assert SIGSTOP, then perform the unchanged admission rejection check once.
+No production code, timeout, safety/custody gate or kill-case behavior changed.
+Final stop/kill pair: **2 passed in each of five invocations** (10 passes total;
+1.24, 1.21, 1.27, 1.23, 1.15 s). Final eight-module guardian/health integration:
+**338 passed / 42.88 s**, exit 0, no skips/warnings. All 788 final input hashes
+remained unchanged during verification; only the corrected test differs from
+the full-run input. No second full regression was run in this batch. The full
+result remains a pre-fix failure; a passing full result is not claimed.
+
+Exact commands, input/patch/log/JUnit hashes, case selections and limits:
+`docs/V11_REGRESSION_RECOVERY_EVIDENCE.md`. Raw synthetic logs, JUnit and
+manifests remain local under `/tmp/v11-b2-gvgbqzij/`, excluded from Git.
+Changed files: that evidence document, this checkpoint, the matrix, the
+engineering ledger and `tests/test_v11_paper_guardian.py`. The publishing
+commit/tree is resolved separately with
+`git log -1 --format='%H %T' -- docs/V11_REGRESSION_RECOVERY_EVIDENCE.md`.
+
+The eleven custody skips explicitly report missing `newuidmap`: four guardian
+custody/restart cases and seven candidate-liveness custody cases. They remain
+unavailable proofs; historical WSL acceptance is not alpha-dev acceptance.
+No owner action was needed to finish/publish this bounded batch. No package,
+host policy, service, V10 runtime, deployment, credential or financial action
+was performed. Existing deployment/model/champion/challenger/data-watermark
+and independent acceptance gaps remain unchanged; no new operational evidence
+is inferred from fixtures. V10 remains owner-reported stopped/disabled and
+DEFERRED, without runtime reinspection or modification.
+
+R45 remains PARTIAL; **85/200 = 42.5% (approximately 43%); formal 1/50 (2%)**,
+unchanged. No new C/J/E/A. **NOT_READY_TO_FUND**; project completion is not claimed.
+
+**Exact next unfinished action:** in the next batch run one full regression
+against the published guardian-stop synchronization fix, retaining exact
+source/runtime attribution. This batch's single full-run allowance is used.
+Separately, the eleven actual custody cases need an already authorized
+namespace-capable runner or separately approved host prerequisite; do not
+silently install helpers/change host policy or count skips as passes.
+
 ## Guardian-broker restart test defect fixed — 2026-09-26 (supervisor batch 1, continuation)
 
 Investigated the exact next action left by the umask-fix checkpoint entry below:

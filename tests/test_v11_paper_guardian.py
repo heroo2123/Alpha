@@ -279,7 +279,14 @@ def test_actual_guardian_death_closes_lease_while_candidate_still_lives(rig,work
     try:
         row=wait_for(lambda:(r if (r:=g._head()) and r['body']['details']['status']=='READY' else None))
         assert row['body']['details']['process']['pid']==p.pid
-        if mode=='stop':os.kill(p.pid,signal.SIGSTOP)
+        if mode=='stop':
+            os.kill(p.pid,signal.SIGSTOP)
+            # Signal delivery is asynchronous: wait for the actual kernel stop,
+            # then check admission once without waiting for lease expiry.
+            stopped_pid, stopped_status=wait_for(lambda:(event if
+                (event:=os.waitpid(p.pid,os.WUNTRACED|os.WNOHANG))[0] else None))
+            assert stopped_pid==p.pid and os.WIFSTOPPED(stopped_status)
+            assert os.WSTOPSIG(stopped_status)==signal.SIGSTOP
         else:p.kill();p.wait(timeout=3)
         with pytest.raises(EvidenceError):admission(g)
         assert worker.poll() is None
