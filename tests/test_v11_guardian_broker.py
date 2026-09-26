@@ -240,14 +240,20 @@ def test_actual_broker_death_stale_socket_restart_and_receipt_replay(broker):
     with running(b) as (p,path,raw):
         client=protocol.GuardianClient(path,b.policy,b.config)
         pin=client.snapshot('pin')['result'];args={k:pin[k] for k in ('snapshot_id','snapshot_sha256','intents')}
-        expected=client.cancel('cancel',**args);before=b.c._head();old_inode=path.stat().st_ino
+        expected=client.cancel('cancel',**args);before=b.c._head()
         p.kill();p.communicate(timeout=5)
         with pytest.raises((EvidenceError,OSError)):client.snapshot('unavailable')
         replacement=launch(dict(raw,seconds=2))
         try:
-            wait_for(lambda:replacement.poll() is not None or path.exists() and path.stat().st_ino!=old_inode)
+            def replay():
+                try:return client.cancel('cancel',**args)
+                except (EvidenceError,OSError):return None
+            # The stale socket path can be unlinked and rebound to a recycled inode number
+            # within the same instant, so only an actual successful call proves the
+            # replacement has taken over the endpoint; a filesystem identity comparison cannot.
+            result=wait_for(lambda:replacement.poll() is not None or replay())
             assert replacement.poll() is None, replacement.communicate()
-            assert client.cancel('cancel',**args)==expected
+            assert result==expected
             finished(replacement)
             assert b.c._head()==before
             assert b.g._head()['body']['details']['status']=='GATED'

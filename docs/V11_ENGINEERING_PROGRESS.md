@@ -701,3 +701,28 @@ claims no new C/J/E/A milestone: **85/200 (~43%); formal 1/50 (2%)**, unchanged.
 NOT_READY_TO_FUND; V10 unchanged/DEFERRED. Next: investigate the guardian-broker
 subprocess-timing failure, then run one full regression to confirm the
 corrected failure count.
+
+
+Guardian-broker restart test defect fixed — 2026-09-26: the remaining
+`test_v11_guardian_broker.py::test_actual_broker_death_stale_socket_restart_and_receipt_replay`
+failure (100% reproducible, not flaky) was a test defect: it detected broker
+takeover of a killed sibling's stale Unix-domain socket by comparing inode
+numbers, but this filesystem recycles an unlinked path's inode number into the
+very next bind at that path, so the comparison never distinguished "still
+stale" from "already replaced" and the wait loop only exited once the
+replacement's whole finite run had already ended. Fixed by waiting for an
+actual successful replayed `cancel` call instead of a filesystem identity
+comparison; `paper_guardian_broker.py`'s stale-socket takeover logic was
+verified correct via temporary reverted debug instrumentation and left
+unchanged. Fixed test: 5/5 isolated passes. Retained 47-ID cohort against
+current HEAD: **47 passed / 21.52 s**, exit 0 (previously 46/1 failed); same 14
+contributing modules in full: **210 passed / 63.10 s**, exit 0 (previously
+209/1 failed), no new failures. No production source changed. Full-suite
+regression still not run this batch: this host has a single CPU and recorded
+full runs take 1113-1125 s against this tool's 600 s foreground cap with no
+background execution permitted — the same constraint the immediately preceding
+entry recorded. No new C/J/E/A milestone: **85/200 (~43%); formal 1/50 (2%)**,
+unchanged. NOT_READY_TO_FUND; V10 unchanged/DEFERRED. Next: run one full
+regression when a background-capable or longer test window is available to
+confirm the fully corrected failure count, then continue closing PARTIAL
+requirements end-to-end.

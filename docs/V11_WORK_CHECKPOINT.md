@@ -1,5 +1,69 @@
 # Alpha V11 work checkpoint
 
+## Guardian-broker restart test defect fixed — 2026-09-26 (supervisor batch 1, continuation)
+
+Investigated the exact next action left by the umask-fix checkpoint entry below:
+`test_v11_guardian_broker.py::test_actual_broker_death_stale_socket_restart_and_receipt_replay`
+failed deterministically (100% of isolated runs, not flaky). Root cause is in the
+test, not the broker: `running()`'s stale-socket-replacement check
+(`tests/test_v11_guardian_broker.py`) waited for
+`path.stat().st_ino != old_inode` to detect that the replacement broker
+subprocess had taken over the killed original's Unix-domain socket path. On
+this host/filesystem, `_socket()`'s own stale-socket `unlink()` immediately
+followed by its own `bind()` at the identical path gets the identical recycled
+inode number within the same instant (confirmed with temporary stderr
+instrumentation in `paper_guardian_broker.py`, reverted after diagnosis —
+`DEBUG_STALE_UNLINK` then `DEBUG_BOUND <same inode>` both logged before the
+first 20ms poll). So the wait condition never fired early, the `wait_for` loop
+only returned once `replacement.poll()` was already not `None` — i.e. after the
+replacement's whole 2-second finite run had already ended normally
+(`FINITE_RUN_ENDED_GATED`, exit 0) — and the subsequent
+`assert replacement.poll() is None` failed. `paper_guardian_broker.py` was not
+changed; its stale-socket takeover (probe-connect, `ConnectionRefusedError` ->
+`unlink` -> rebind) is correct.
+
+Fixed the test to detect takeover with an actual successful call instead of a
+filesystem identity comparison: the wait predicate now retries
+`client.cancel(**args)` (catching `EvidenceError`/`OSError` while the socket is
+mid-replacement) until it succeeds or the replacement process exits, and the
+returned response is asserted equal to the pre-restart `expected` receipt in
+place of a separate follow-up call. This still proves durable receipt replay
+across the broker restart; it no longer depends on inode-number non-reuse,
+which is not a guarantee any Unix filesystem makes.
+
+Verification: the fixed test alone, 5/5 isolated runs, 1 passed each (previously
+0/3). The retained exact 47-ID cohort from the umask-fix entry
+(`/tmp/v11_47_ids.txt`, unchanged) against current HEAD plus this test-only
+change: **47 passed / 21.52 s**, exit 0 (previously 46 passed, 1 failed — this
+was the sole remaining failure). The same 14 contributing modules in full:
+**210 passed / 63.10 s**, exit 0 (previously 209 passed, 1 failed), no new
+failures anywhere in those modules. Logs: `/tmp/v11_47_after_broker_fix.log`,
+`/tmp/v11_affected_modules_after_broker_fix.log` (local, not committed). No
+production source file changed; no safety/custody check touched.
+
+No full-suite regression was run this batch: this host has a single CPU
+(`nproc` = 1), and the last several recorded full runs on this branch took
+1113-1125 s against this Bash tool's 600-second hard per-call timeout with no
+background/detached execution permitted — the same jointly-incompatible
+constraint the umask-fix entry already recorded and left open. Given the
+change is confined to one test file, touches no production source, and the
+exact previously-failing ID plus its full contributing-module set now pass with
+no regressions, this is recorded as targeted + affected-module evidence only.
+A full-suite confirmation remains the next step if a longer-running or
+background-capable test window becomes available.
+
+This closes the diagnostic action left open by the umask-fix entry below: the
+one remaining failure in the retained 47-ID cohort was a second, independent
+test-environment defect (inode-reuse assumption), not a production defect and
+not related to the umask fix. No new C/J/E/A milestone is claimed: **85/200
+(~43%); 1/50 (2%)**, unchanged. NOT_READY_TO_FUND; V10 unchanged/DEFERRED.
+
+**Next unfinished action:** run one full-suite regression (background-capable
+window permitting, given the single-CPU ~1113-1125 s runtime exceeds this
+tool's 600 s foreground cap) to confirm the full corrected failure count for
+R45, then continue closing PARTIAL requirements end-to-end per the priority
+order in CLAUDE.md.
+
 ## Umask-dependent test permission defect fixed — 2026-09-26 (supervisor batch 1, continuation)
 
 Diagnosed the prior checkpoint's stated next action: the reproduced baseline
