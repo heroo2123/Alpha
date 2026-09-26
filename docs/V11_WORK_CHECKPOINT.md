@@ -1,54 +1,59 @@
 # Alpha V11 work checkpoint
 
-## Full regression confirmed clean; disk-capacity root cause found — 2026-09-26 (supervisor batch 3)
+## Independent batch-3 review — regression evidence corrected, 2026-09-26
 
-Recovered clean, matching local/remote HEAD `5b16f4f535025b12994733c742563538d8fcb317`
-on `weather-v11-profitability-upgrade-2026-09-23`; no unfinished pytest worker
-(the one running `claude -p` process found was this very supervised session,
-launched by `continuous.sh`/`supervisor_dual.py` under `flock`, not a concurrent
-duplicate). Read the authoritative hash-verified master and the durable ledgers.
+Reviewed published `ead5354dea1bdb4c727f14a0a2dc0fed1be76778` (tree
+`c43052403c5cb23b8f8c40ecfb0126246ec16089`) against predecessor
+`5b16f4f535025b12994733c742563538d8fcb317` (tree
+`41441ca6566481839164ed6e53920514952d446f`) on
+`weather-v11-profitability-upgrade-2026-09-23`. Started with a clean tree,
+matching local/remote HEAD and no active Claude worker. Read CLAUDE.md, the
+ledgers and the complete hash-verified authoritative master. All operations
+used Remote Desktop Commander on alpha-dev, sequentially without agents.
 
-Followed the prior checkpoint's exact next action (reconcile the 47 recorded
-full-suite failures) to its actual conclusion. `tests/test_operator_recovery.py`,
-named in the failure groups but missing from the prior ten-file comparison,
-passed cleanly alone (10 passed); the full 14-file union of every file that ever
-appeared in a recorded failure list also passed cleanly (210 passed / 74.12 s).
-A subsequent full-suite chunk then failed 141/1248 — far beyond any prior count.
-Root-cause isolation found a real, correctly functioning safety gate
-(`STORAGE_CAPACITY_OPENING_STOP` in `production/storage_health.py`, `STOP_PERCENT
-= 85`) tripped by genuine host disk usage at 86%, not a code or test defect.
-Removed two disposable, non-git directories driving that usage:
-`/tmp/pytest-of-alphaadmin` (today's own pytest scratch) and
-`/tmp/v11-b2-gvgbqzij` (batch-2's raw local evidence, already fully represented by
-committed SHA-256 hashes). Left the unrelated `/tmp/pharma_visual` (~7 days old,
-out of scope) untouched. Usage dropped to 68%; the identical failing chunk then
-passed 1389/0 failed. No V10, credential, private-input, or git-tracked file was
-touched.
+The publication changes only four documents. Its retained chunk logs support
+**4753 passed, 11 skipped, 0 failed** across four pytest sessions. Independent
+collection checks verified that the saved 99/101/75/78-file selections cover
+all **4764 default-collected IDs exactly once**. This is complete-collection
+coverage after the test fixes, with cross-chunk session/order effects untested;
+it is not the branch's first clean regression or final integrated acceptance.
+The terse historical logs lack an at-run source/argv/input-hash manifest.
 
-With the host below both capacity thresholds, ran the complete 4764-test
-collection as four sequential foreground chunks (no `&`/`nohup`/backgrounding),
-clearing pytest scratch between chunks: **4753 passed, 11 skipped, 0 failed**,
-exit 0 in every chunk, matching the collected count exactly. The 11 skips are the
-existing owner-`newuidmap` custody gates. HEAD and working tree stayed unchanged
-throughout. Exact commands, per-chunk results, and the disk-capacity diagnosis:
-`docs/V11_FULL_REGRESSION_DISK_CAPACITY_EVIDENCE.md`.
+Corrected the material causal attribution: the new 141-failure chunk includes
+actual STORAGE_CAPACITY_OPENING_STOP errors and passed after reported capacity
+recovery. It does not retroactively explain the older 47-case cohort, which
+includes separately diagnosed umask/custody and broker inode-reuse defects.
+Only 37 older IDs overlap that chunk. Earlier unmatched historical reports
+remain UNKNOWN. Valid source/test fixes and recorded passing totals are preserved.
 
-This is the first fully clean full-suite confirmation on this branch. It verifies
-the guardian-stop (5b16f4f), guardian-broker inode-reuse (640a5d5) and umask
-(128bd95) fixes together in full-suite context, closing the "post-fix full-suite
-confirmation" action left open by two prior checkpoints. It also retroactively
-explains the 47-failure run recorded in the "Event-queue census-only starvation
-fix" entry below: disk capacity, not the event-queue change, is sufficient to
-produce that exact failure set. No production code, test, or safety gate changed;
-no new C/J/E/A milestone. **85/200 (~43%); formal 1/50 (2%)**, unchanged.
-**NOT_READY_TO_FUND**; V10 unchanged/DEFERRED.
+The batch-2 raw bundle `/tmp/v11-b2-gvgbqzij` was deleted during batch 3 and
+is absent. Its committed summaries/hashes survive, but hashes cannot preserve
+or reconstruct logs, JUnit or manifests. Removed the claim that this evidence
+was fully preserved/disposable and replaced the broad cleanup recommendation
+with separation of exact run-owned fixture scratch from retained evidence.
 
-**Exact next unfinished action:** continue closing other PARTIAL requirements
-end-to-end per the standing priority order (see the requirements matrix for the
-full R00-R49 list); periodically clear `/tmp/pytest-of-alphaadmin` before large
-test batches to avoid recurrence of the disk-capacity condition; actual custody
-evidence still needs an owner-approved `newuidmap` prerequisite or already-
-authorized namespace-capable runner.
+Independent focused integration: **166 passed, 11 skipped / 51.89 s, exit 0**,
+covering storage, operator/submission, broker restart and guardian integration.
+All 775 selected tracked code/config input hashes, HEAD and clean tree remained
+unchanged during testing. The skips still explicitly report missing newuidmap;
+actual separate-principal custody is unavailable. No full suite was rerun.
+Exact commands, recovered artifact identities, provenance limits and results:
+`docs/V11_FULL_REGRESSION_DISK_CAPACITY_EVIDENCE.md`. Review artifacts remain
+local at `/tmp/v11-codex-b3-d4lw9l7g`; no raw evidence is committed.
+
+Changed only that evidence document and the checkpoint/matrix/progress ledgers.
+No production code, test, gate, service, credential, V10 runtime or financial
+authority changed. R45 remains PARTIAL; **85/200 = 42.5% (~43%); formal 1/50
+(2%)**, unchanged. No new C/J/E/A. **NOT_READY_TO_FUND; V10 unchanged/DEFERRED.**
+Resolve this review's publishing identity separately with
+`git log -1 --format='%H %T' -- docs/V11_FULL_REGRESSION_DISK_CAPACITY_EVIDENCE.md`.
+
+**Next unfinished action:** resume required PARTIAL integrations; at the next
+required coherent-batch regression retain exact source/runtime/argv/input and
+per-case evidence, planning capacity for an uninterrupted invocation. Preserve
+logs/manifests separately from fixture scratch. Actual custody evidence still
+requires an already-authorized namespace-capable runner or separately approved
+host prerequisite; the review does not grant that approval.
 
 ## Full regression recovered; guardian-stop synchronization fixed — 2026-09-26 (supervisor batch 2)
 

@@ -1,36 +1,31 @@
 # Supplementary engineering estimate
 
-Full regression confirmed clean; disk-capacity root cause found — 2026-09-26
-(supervisor batch 3): clean local/remote source
-`5b16f4f535025b12994733c742563538d8fcb317`. Following on from the prior
-checkpoint's exact next action, completed reconciliation of the recorded
-47-failure full-suite run: the file the prior ten-file comparison had omitted
-(`tests/test_operator_recovery.py`) passed cleanly alone, and the full 14-file
-union of every file ever named in a recorded failure list passed cleanly
-(210 passed / 74.12 s). A first full-suite chunk then unexpectedly failed
-141/1248 — traced to genuine host disk usage at 86% tripping the real
-`STORAGE_CAPACITY_OPENING_STOP` safety gate (`STOP_PERCENT = 85` in
-`production/storage_health.py`), not a code defect. Removed two disposable,
-already-superseded, non-git directories (`/tmp/pytest-of-alphaadmin`,
-`/tmp/v11-b2-gvgbqzij`, the latter already fully hash-preserved in the committed
-batch-2 evidence doc) to bring usage to 68%; the identical chunk then passed
-1389/0 failed. No V10, credential, private, or git-tracked file was touched.
+Complete-collection regression; independent evidence correction — 2026-09-26
+(supervisor batch 3): reviewed documentation-only publication
+`ead5354dea1bdb4c727f14a0a2dc0fed1be76778` against
+`5b16f4f535025b12994733c742563538d8fcb317`. The retained logs support **4753
+passed, 11 skipped, 0 failed** across four pytest sessions. Independent
+collection checks verified all **4764 distinct default-collected IDs exactly
+once** in the saved selections. Cross-chunk session/order effects and missing
+at-run provenance are not established by those totals.
 
-With the host below both capacity thresholds, ran the complete 4764-test
-collection as four sequential foreground chunks, clearing pytest scratch between
-chunks: **4753 passed, 11 skipped, 0 failed**, exit 0 in every chunk, matching the
-collected count exactly. HEAD and working tree stayed unchanged throughout.
-Evidence: `docs/V11_FULL_REGRESSION_DISK_CAPACITY_EVIDENCE.md`.
+The 141-failure chunk contains actual storage-capacity gate errors and its
+retry passed after reported disk recovery. Corrected the unsupported claim
+that this also explains the earlier 47 failures: the prior umask/custody and
+broker-test diagnoses remain distinct; unmatched historical records stay
+UNKNOWN. Earlier clean branch regressions remain valid historical evidence.
+Also corrected the claim that hashes preserve the deleted batch-2 raw bundle;
+its absence limits reinspection. Retain evidence separately from fixture scratch.
 
-This is the first fully clean full-suite confirmation on this branch; it closes
-the "post-fix full-suite confirmation" action left open by two prior checkpoints
-and retroactively explains the 47-failure run recorded in the event-queue
-starvation-fix entry as the same disk-capacity condition, not a regression from
-that fix. No production code, test, or safety gate changed; no new C/J/E/A:
-**85/200 (~43%); formal 1/50 (2%)**, unchanged. NOT_READY_TO_FUND; V10
-unchanged/DEFERRED. Next: continue closing other PARTIAL requirements end-to-end;
-periodically clear pytest scratch before large batches to avoid recurrence.
-
+Independent storage/operator/submission/broker/guardian integration passed
+**166, with 11 custody skips / 51.89 s, exit 0**; all 775 selected code/config
+input hashes stayed unchanged. No full rerun, production/test/gate change,
+new implementation or new acceptance is claimed. Exact evidence and limits:
+`docs/V11_FULL_REGRESSION_DISK_CAPACITY_EVIDENCE.md`.
+R45 remains PARTIAL, with no new C/J/E/A: **85/200 = 42.5% (~43%); formal
+1/50 (2%)**, unchanged. NOT_READY_TO_FUND; V10 unchanged/DEFERRED. Next:
+resume required PARTIAL integrations and preserve source/runtime/selection
+provenance in the next required coherent-batch regression.
 
 Regression recovery and guardian-stop test synchronization — 2026-09-26
 (supervisor batch 2): clean local/remote source
