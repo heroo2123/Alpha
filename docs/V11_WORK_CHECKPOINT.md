@@ -4683,3 +4683,49 @@ confirmed `archive_neighborhood` is called by `v11/census_worker.py`. Do not
 repeat that completed integration. Next concrete unfinished action: reconcile
 the 47 recorded full-suite failures by exact test ID against the predecessor in
 a dedicated regression batch, retaining any unresolved attribution as unknown.
+
+## Partial reconciliation of the 47 recorded full-suite failures — 2026-09-26
+
+This is bookkeeping on the already-credited event-queue starvation fix, not a new
+requirement package. The four failure groups named in the prior checkpoint entry
+(operator notifications/panel/recovery/safety-priority, production transport/
+fee-review, guardian-broker, weather rollback/deployment-identity) correspond
+exactly to nine test files: `test_weather_all_paper_deployment_identity.py`,
+`test_v11_guardian_broker.py`, `test_operator_panel.py`,
+`test_production_frozen_fee_review.py`, `test_production_transport_integration.py`,
+`test_operator_notifications.py`, `test_weather_v5_atomic_rollback.py`,
+`test_operator_safety_priority.py`, `test_weather_only_clob_transport_resilience.py`,
+`test_weather_rollback_generation_freshness.py`.
+
+Ran that exact nine-file set in isolation (no concurrent full run, no stash) on two
+trees: current published `d79efc09af3f15618208758227e11bc44a4fc970` and its true
+predecessor `12d245c1bb04cd7e930d067f0b80506e063c1dd7` (immediately before both
+starvation-fix commits, via a temporary `git worktree`, removed after use). Both
+trees produced the byte-identical result: **24 failed, 109 passed**, and the
+`diff` of the two `FAILED` node-ID lists is empty — the exact same 24 test IDs
+fail on both trees. This confirms those 24 failures are pre-existing and
+unrelated to the `EventQueue.work()` claim-selection change; the fix introduces
+no new failure among them. Full exact list retained in
+`/tmp/current_head_ninefiles.log` and `/tmp/baseline_ninefiles.log` (local, not
+committed).
+
+This does not close the full reconciliation: the previously recorded full
+regression counted **47 failed**, and an earlier stash-based comparison of the
+same nine files recorded **29 failed / 105 passed** (5 more failures than this
+isolated run), so some of these tests are order/resource/timing-sensitive under
+full-suite or concurrent-run conditions rather than fully deterministic in
+isolation. The residual gap (up to 23 failures outside these nine files, plus the
+29-vs-24 discrepancy inside them) is not reproduced here and stays UNKNOWN
+attribution, not assumed pre-existing. Root-causing that residual requires a full
+regression run long enough to exceed this session's foreground tool budget; leave
+it for a dedicated batch rather than guessing. No test, safety gate, or source
+file changed in this reconciliation. **85/200 (~43%); 1/50 (2%)**, unchanged.
+NOT_READY_TO_FUND; V10 unchanged/DEFERRED.
+
+Next concrete unfinished action: either (a) run a full regression with a budget
+that permits foreground completion (prior full run measured 1113.73 s) and diff
+its exact `FAILED` node-ID list against this nine-file baseline to resolve the
+29-vs-24 and 47-vs-24 gaps, or (b) continue the master-specification requirement
+work (forecast run/issue provenance, calibration, champion/learning lifecycle)
+per the priority order in CLAUDE.md, since this reconciliation is diagnostic
+bookkeeping on an already-credited slice, not a blocking requirement gap.
