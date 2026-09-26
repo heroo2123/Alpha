@@ -1,5 +1,87 @@
 # Alpha V11 work checkpoint
 
+## Umask-dependent test permission defect fixed — 2026-09-26 (supervisor batch 1, continuation)
+
+Diagnosed the prior checkpoint's stated next action: the reproduced baseline
+authority failure in
+`tests/test_operator_executor.py::test_automatic_uses_existing_lifecycle_and_pause_is_immediate`.
+Manual reproduction of the `op` fixture showed `ExecutionEngine.authority()`
+returning `False` because `ProductionConfig.activation_requested()`
+(`polymarket_scanner/production/config.py:307-308`) rejected the fixture's
+`activation.json` as unsafe: `st.st_mode & 0o022` was true. The file was written
+with plain `Path.write_text()`, so its mode came from the process umask alone;
+this host's umask is `0o002` (confirmed: `umask` -> `0002`), not the traditional
+`0o022`, so the file landed at `0o664` (group-writable) and tripped the intended
+security check. The same `st_mode & 0o022` / `& 0o077` custody pattern exists in
+`polymarket_scanner/production/config.py`, `polymarket_scanner/production/io.py`,
+`polymarket_scanner/production/exchange.py`, and all three
+`host_trust/*/authority.py` implementations, each guarding against group/other
+writable production files/directories/repos — a real, intentional security
+requirement per the master specification, not a defect and NOT weakened here.
+
+The defect is in the test environment only: fixtures across 14 test modules
+create activation files, repo snapshots, or venv directories without an explicit
+mode, implicitly depending on a `0o022` umask that this host does not have.
+Fixed by pinning a deterministic umask for the whole pytest process in
+`tests/conftest.py::pytest_configure` (`os.umask(0o022)`), alongside the existing
+offline-network enforcement already established there. No production source file
+changed; no safety/custody check was relaxed, renamed, or bypassed.
+
+Verification: re-ran the exact retained 47-ID cohort from the immediately
+preceding checkpoint entry (`/tmp/v11_47_ids.txt`, sorted, matches the fenced
+47-ID block below it byte-for-byte) against unmodified current HEAD plus this
+one-line `conftest.py` change: **46 passed, 1 failed / 22.82 s**, exit 1. The
+sole remaining failure,
+`tests/test_v11_guardian_broker.py::test_actual_broker_death_stale_socket_restart_and_receipt_replay`,
+is unrelated: a replacement broker subprocess exits immediately with
+`FINITE_RUN_ENDED_GATED` instead of running for its 2-second window, a
+subprocess-lifecycle/timing issue, not a permission one. Root cause not yet
+investigated; left open.
+
+Full affected-module run (all 14 modules that contributed to the 47-ID cohort,
+not just the failing IDs): `tests/test_frozen_production_review.py`,
+`tests/test_host_authority_production_boundary.py`,
+`tests/test_host_operator_roles.py`, `tests/test_operator_direct_stop_race.py`,
+`tests/test_operator_executor.py`, `tests/test_operator_notifications.py`,
+`tests/test_operator_panel.py`, `tests/test_operator_recovery.py`,
+`tests/test_operator_safety_priority.py`,
+`tests/test_production_frozen_fee_review.py`,
+`tests/test_production_transport_integration.py`,
+`tests/test_v11_guardian_broker.py`,
+`tests/test_weather_all_paper_deployment_identity.py`,
+`tests/test_weather_rollback_generation_freshness.py` —
+**209 passed, 1 failed / 66.93 s**, exit 1, same single guardian-broker failure,
+no new failures introduced anywhere in those modules. Logs retained locally at
+`/tmp/v11_47_after_fix_full.log` and `/tmp/v11_affected_modules.log` (not
+committed).
+
+No full-suite regression was run this batch. This host's Bash tool enforces a
+hard 600-second per-call timeout and the supervisor's batch instructions
+prohibit background/detached test execution, while the last several recorded
+full runs on this branch took 1113-1125 s; the two constraints are jointly
+incompatible for a single foreground full run here. Given the change is confined
+to test-process setup (`tests/conftest.py`), touches no production source, and
+every test module known to construct the affected fixtures now passes except
+the one already-isolated unrelated failure, this is recorded as targeted +
+affected-module evidence only, not full-suite evidence. A full regression to
+confirm the previously-recorded 47-failure full run now shows 46 fewer failures
+is the natural next verification step if a longer-running or backgroundable
+test window is available.
+
+No source/test-target production behavior changed; no safety gate weakened;
+no new C/J/E/A milestone claimed. This closes out the diagnostic action from the
+immediately preceding checkpoint entry: the 46 reproduced baseline failures were
+a single shared test-environment defect (umask assumption), now fixed at the
+test level, not 46 independent production defects. **85/200 (~43%); 1/50 (2%)**,
+unchanged. NOT_READY_TO_FUND; V10 unchanged/DEFERRED.
+
+**Next unfinished action:** investigate the remaining
+`test_v11_guardian_broker.py::test_actual_broker_death_stale_socket_restart_and_receipt_replay`
+subprocess-timing failure (replacement broker process exiting immediately with
+`FINITE_RUN_ENDED_GATED` instead of surviving its configured window), then run
+one full regression (background-capable window permitting) to confirm the
+corrected failure count before closing R45's regression-evidence gap further.
+
 ## Independent Codex regression-evidence review — 2026-09-26 (supervisor batch 1)
 
 Reviewed published `fc75ce2655011cb34b9f2366a29c2b0a3bbd6f15` against

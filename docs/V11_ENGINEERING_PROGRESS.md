@@ -672,3 +672,32 @@ explicitly attributed to e21ae6e4; final targeted tests include the additional
 guard. No additional full release or independent acceptance is claimed.
 **83/200 (~42%)**, formal **1/50 (2%)**, unchanged. Existing C/J coverage improved;
 no new milestone or authority. V10 unchanged/DEFERRED; NOT_READY_TO_FUND.
+
+
+Test-environment umask defect fixed — 2026-09-26: diagnosed the reproduced
+baseline authority failure carried over from the prior regression-attribution
+checkpoint. Root cause: `ProductionConfig.activation_requested()` and the
+equivalent `host_trust/*/authority.py` custody checks correctly reject
+group/other-writable production files (`st_mode & 0o022`/`0o077`) as a real
+security requirement; several test fixtures wrote those files without an
+explicit mode, relying on umask `0o022` to produce safe permissions, but this
+host's umask is `0o002`, so fixtures landed group-writable and tripped the
+checks with no production defect. Pinned `os.umask(0o022)` for the whole pytest
+process in `tests/conftest.py::pytest_configure`; no production source changed.
+
+Verification: the retained 47-ID full-run failure cohort re-run against
+unmodified HEAD plus this fix: **46 passed, 1 failed / 22.82 s**; all 14
+contributing modules in full: **209 passed, 1 failed / 66.93 s**. The one
+remaining failure (`test_v11_guardian_broker.py::test_actual_broker_death_stale_socket_restart_and_receipt_replay`)
+is an unrelated subprocess-timing issue, root cause not yet investigated.
+No full-suite regression was run this batch: the Bash tool's 600 s hard timeout
+and the no-background-execution constraint are jointly incompatible with the
+~1113-1125 s duration of the last several recorded full runs on this branch.
+
+This resolves the diagnostic ambiguity left by the immediately preceding
+regression-attribution checkpoint (46 independent-looking failures were one
+shared test-infrastructure defect, not 46 separate production defects), but
+claims no new C/J/E/A milestone: **85/200 (~43%); formal 1/50 (2%)**, unchanged.
+NOT_READY_TO_FUND; V10 unchanged/DEFERRED. Next: investigate the guardian-broker
+subprocess-timing failure, then run one full regression to confirm the
+corrected failure count.
