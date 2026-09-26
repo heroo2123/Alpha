@@ -1,5 +1,19 @@
 # Supplementary engineering estimate
 
+Checkpoint correction — 2026-09-26 (supervised batch 1): the prior checkpoint's
+"Exact next unfinished action" (connect `samples_from_capture`/`archive_neighborhood`
+to the census path, then forecast-run provenance/labels) was verified against
+`polymarket_scanner/v11/pws_quality.py`, `census_worker.py`, `pws_runtime.py`,
+`pws_lead.py` and git history and found already implemented since commit
+`cbe5796` (2026-09-24) — it had been copy-pasted forward unverified through three
+later checkpoint entries. No code changed; this is a documentation-accuracy fix,
+not new work. No remaining PARTIAL requirement was found with a concrete,
+purely-local, non-owner, non-production implementation gap this batch; the true
+remainder for every PARTIAL package is real external source/label/provider access,
+independent review, or owner-authorized host/deployment access. Total unchanged:
+**85/200 = 42.5%, approximately 43%; formal 1/50 (2%)**. Full detail:
+`docs/V11_WORK_CHECKPOINT.md`.
+
 Authenticated PAPER candidate liveness — 2026-09-26: recovered unpublished local
 work (`v11/liveness_protocol.py`, `v11/candidate_liveness.py`,
 `v11/liveness_broker.py`, plus binding changes in `v11/evidence.py` and

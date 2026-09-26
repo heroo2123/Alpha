@@ -1,5 +1,60 @@
 # Alpha V11 work checkpoint
 
+## Checkpoint correction — stale next-action note, 2026-09-26 (supervised batch 1)
+
+This batch found no dirty worktree and no unpublished recovered work: local and
+remote HEAD both matched `36fadd3116c543123d1d00107d1989e3e89bc70f` on
+`weather-v11-profitability-upgrade-2026-09-23`, clean workspace. Before adding
+new work, the below checkpoint's own "Exact next unfinished action" note (connect
+`samples_from_capture`/`archive_neighborhood` to the census path, then join
+forecast-run provenance/labels) was verified against the actual code and found
+**stale**, not open: `archive_neighborhood` already performs causal raw receipt
+lineage checks, `pws-qc-work:`-keyed replay/partial-work handling,
+`PWSIdentityTracker` metadata quarantine and `expected_source_seq`/
+`PWS_QC_SOURCE_CHANGED` atomic source-change rejection, and is already called
+from `v11/census_worker.py:268` and `v11/pws_runtime.py:143`. Git history shows
+this wiring landed in commit `cbe5796` (2026-09-24), the same day the original
+note below was first written (`## Saved implementation handoff — 2026-09-24`) —
+the note was copy-pasted forward into every subsequent checkpoint entry through
+2026-09-26 without being re-checked against the code it described. The claimed
+forecast-run-provenance/label join is also already present: R09
+(`v11/forecast_sources.py`, `v11/forecast_runtime.py`) and R14
+(`v11/target_learning.py`) already bind exact request/grid/receipt provenance
+and conditioned label/source joins. A further check of whether the QC verdict
+(quarantine/health) actually reaches the label/scoring path found that it does:
+`v11/pws_lead.py:155` already gates prediction capture on
+`qc.get('health')=='HEALTHY'` before either PWS-on/PWS-off vector is recorded.
+
+No code changed and no new C/J/E/A is claimed for this correction; the estimate
+stays **85/200 = 42.5%, approximately 43%; formal 1/50 (2%)**, unchanged. This is
+a documentation-accuracy correction only, per the requirement that checkpoints
+never misstate the true remaining gap. The genuinely open remainder for R09/R14
+is what the matrix already names: actual provider access/packing parity, other
+MODEL providers, global coverage, other learning targets and independent label
+attestation — all of which need real external source access or independent
+review, not further local wiring. Every other PARTIAL requirement's remaining
+gap is likewise either owner/production/credential-gated (R43, R44, R46-R49) or
+externally source-gated (R31), or is R37/R38, which CLAUDE.md's development
+priority instructs not to deepen further this batch since its local C/J is
+already repeatedly strengthened across five consecutive prior sessions with no
+denominator movement. No safe, non-owner, non-production, local implementation
+gap was found this batch beyond this correction. **NOT_READY_TO_FUND; V10
+unchanged/DEFERRED.** No alpha-dev access, deployment, service change, financial
+authority or real order was requested or performed.
+
+**Exact next unfinished action:** none of the remaining PARTIAL requirements has
+a concrete, still-open, purely-local implementation gap identified as of this
+checkpoint. The next actual coding thread requires either (a) owner-provided
+real provider/labels/history access to advance R09/R10/R13/R14/R25-R28 from C/J
+toward E, or (b) owner-authorized isolated host/deployment access to advance
+R37/R38/R43/R44 toward E/A. Absent that, the next useful local action is a fresh,
+line-by-line audit of one still-PARTIAL package not touched in the last several
+sessions (e.g. R06-R08 collector/certification/rules, or R32-R36 exit/maker
+packages) to find a real, previously-missed local defect or gap, rather than
+re-verifying already-closed integration points.
+
+## Previous published checkpoint
+
 ## Latest verified checkpoint - authenticated PAPER candidate liveness, 2026-09-26
 
 Continued after published **3e80339818ddc5b67b4485c28b9fda54c4f391e8**, tree
