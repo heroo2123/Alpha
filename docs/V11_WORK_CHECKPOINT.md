@@ -1,5 +1,60 @@
 # Alpha V11 work checkpoint
 
+## Latest verified checkpoint - authenticated PAPER candidate liveness, 2026-09-26
+
+Continued after published **3e80339818ddc5b67b4485c28b9fda54c4f391e8**, tree
+**7237035f2142c9335c93694b14a4d90ec42610db**. Recovered unpublished local work
+from the previous session was reviewed, preserved and verified rather than
+discarded: `v11/liveness_protocol.py`, `v11/candidate_liveness.py` and
+`v11/liveness_broker.py` add a bounded authenticated candidate-liveness producer
+endpoint, plus supporting changes in `v11/evidence.py` and `v11/runtime_health.py`
+that bind an accepted producer receipt into the existing atomic heartbeat/sample
+publication path.
+
+The candidate reaches the broker over a separate AF_UNIX SOCK_SEQPACKET endpoint,
+authenticated per packet by kernel SCM_CREDENTIALS in addition to the connected
+peer, and pinned to the exact worker PID/start time/UID/boot/GID/generation and
+health configuration digest. It can send only a PULSE against a freshly issued
+challenge; it can never supply timestamps, health, READY, source, account state
+or any order/financial verb. The guardian's SNAPSHOT/CHECK/CANCEL stream protocol
+is unchanged and retains its own connection budget, independent of the producer's.
+A valid authenticated guardian request still preempts and reaps the single
+publication child before the existing safety handler runs; that child is confined
+to a private process group with parent-death guards, closed inherited descriptors
+and a sanitized environment. Completed retries return the original receipt only;
+after interruption, recovery either returns an already-complete pair or durably
+refuses the observation, and never reruns or renews an old pulse. Journal replay,
+config-change and clock-discontinuity checks reuse the existing evidence-store and
+health machinery rather than adding a parallel trust path.
+
+Full new-module suite: **202 passed, 7 skipped**, exit 0 (skips are the same local
+`uidmap` distinct-principal prerequisite already noted for R37 custody proof).
+Affected guardian/health/evidence integration: **782 passed, 11 skipped**, exit 0,
+plus one pre-existing failure
+(`tests/test_v11_guardian_broker.py::test_actual_broker_death_stale_socket_restart_and_receipt_replay`)
+verified to reproduce identically on the unmodified published
+3e80339818ddc5b67b4485c28b9fda54c4f391e8 tree (real-subprocess restart timing on
+this host), so it is pre-existing and not attributed to this work. Evidence and
+scope: `docs/V11_CANDIDATE_LIVENESS_EVIDENCE.md`.
+
+This strengthens existing R37 (independent cancel-only guardian) and R38 (clock
+health and safe recovery) PARTIAL C/J with protected producer transport; it does
+not add E/A or complete either package. Full candidate source/execution/model
+custody, protected review, calibrated champion, independent guardian commissioning
+and all remaining full-master gates stay open. **85/200 = 42.5%, approximately
+43%; fully completed requirements 1/50 (2%)**, unchanged: strengthening an
+existing PARTIAL slice earns no additional denominator credit. NOT_READY_TO_FUND;
+V10 unchanged/maintenance DEFERRED. No alpha-dev access, deployment, service
+change, financial authority or real order was requested or performed.
+
+**Exact next unfinished action:** connect `samples_from_capture` /
+`archive_neighborhood` to the bounded observation/census path (causal raw receipt
+lineage, replay/partial-work handling, metadata quarantine, atomic source-change
+rejection), then original forecast run/issue provenance and exact labels/
+calibration, per the still-open step recorded in the prior checkpoint below.
+
+## Previous published checkpoint
+
 ## Latest verified checkpoint - coherent PAPER health publication, 2026-09-25
 
 Continued after published **4fae0b89b3fef191a7e5f5a201ac7861e88a9c7f**, tree

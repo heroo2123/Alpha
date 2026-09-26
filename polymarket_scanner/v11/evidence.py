@@ -281,6 +281,10 @@ class EvidenceStore:
             from .paper_guardian_broker import validate_journal
             validate_journal(event_id, d)
             return  # Exact cancel-only broker journal; never account/clock authority.
+        if kind == 'RUNTIME_STATUS' and d.get('version') == 'alpha_v11_candidate_liveness_v1':
+            from .candidate_liveness import validate_journal
+            validate_journal(event_id, d)
+            return  # Original authenticated pulse receipt, without financial authority.
         if kind == 'RUNTIME_STATUS' and d.get('version') == 'alpha_v11_paper_guardian_v1':
             from .guardian_lease import validate_details
             validate_details(event_id, d)
@@ -722,13 +726,31 @@ class _RuntimeHealthPublicationStore(EvidenceStore):
                     or d.get('financial_authority') is not False):
                 raise EvidenceError('HEALTH_PUBLICATION_WRITE_REFUSED')
             if not self.written:
+                expected = dict(action='HEARTBEAT',worker=d.get('worker'),generation=d.get('generation'))
+                if 'observation_id' in request: expected['observation_id'] = request['observation_id']
                 if (set(d) != {'version','config_sha256','request','stamp','worker','generation','financial_authority'}
-                        or request != dict(action='HEARTBEAT',worker=d['worker'],generation=d['generation'])
+                        or request != expected
                         or event_id != 'v11-worker:'+digest(identity(d['worker']))):
                     raise EvidenceError('HEALTH_PUBLICATION_HEARTBEAT_REQUIRED')
                 sha(d['config_sha256']); identity(d['generation'])
+                if 'observation_id' in request:
+                    from .candidate_liveness import record_ids, validate_journal
+                    observation = self.get(identity(request['observation_id'])); original = observation['body']['details']
+                    validate_journal(observation['event_id'], original)
+                    ids = record_ids(original['config_sha256'], original['request']['request_id'])
+                    if (observation['kind'] != 'RUNTIME_STATUS' or original['phase'] != 'ACCEPTED'
+                            or observation['id'] != ids['accepted'] or record_id != ids['heartbeat']
+                            or original['health_config'] != d['config_sha256']
+                            or original['producer']['worker'] != d['worker']
+                            or original['producer']['generation'] != d['generation']
+                            or d['stamp'] != original['receipt']['stamp']
+                            or body.get('evidence') != [dict(id=observation['id'],sha256=observation['sha256'])]):
+                        raise EvidenceError('HEALTH_PUBLICATION_OBSERVATION_BINDING')
             else:
                 h = self.written[0]; first = h['body']['details']
+                expected = dict(action='SAMPLE',heartbeat_key=h['id'],worker=first['worker'],generation=first['generation'])
+                observation_id = first['request'].get('observation_id')
+                if observation_id is not None: expected['observation_id'] = observation_id
                 keys = {'version','config_sha256','request','account_id','policy','scopes','stamp','sync',
                         'wall_high_water','stable_samples','last_stable_monotonic','clock_reasons','global_reasons',
                         'workers','sources','valid_until','monotonic_valid_until','financial_authority',
@@ -736,10 +758,20 @@ class _RuntimeHealthPublicationStore(EvidenceStore):
                 if (set(d) != keys or event_id != 'v11-runtime-health'
                         or d['config_sha256'] != first['config_sha256']
                         or d['independent_guardian_commissioned'] is not False
-                        or request != dict(action='SAMPLE',heartbeat_key=h['id'],worker=first['worker'],generation=first['generation'])
+                        or request != expected
                         or sum(w.get('worker') == first['worker'] and w.get('record_id') == h['id'] for w in d['workers']) != 1
                         or dict(id=h['id'],sha256=h['sha256']) not in body.get('evidence', [])):
                     raise EvidenceError('HEALTH_PUBLICATION_SAMPLE_BINDING')
+                if observation_id is not None:
+                    from .runtime_health import validate_liveness_observation
+                    from .candidate_liveness import record_ids
+                    observation = validate_liveness_observation(self, observation_id, health_config=d['config_sha256'],
+                        account_id=d['account_id'], worker=first['worker'], generation=first['generation'],
+                        maximum_wall_step_seconds=d['policy']['maximum_wall_step_seconds'])
+                    original = observation['body']['details']
+                    if (record_id != record_ids(original['config_sha256'], original['request']['request_id'])['health']
+                            or dict(id=observation['id'],sha256=observation['sha256']) not in body.get('evidence', [])):
+                        raise EvidenceError('HEALTH_PUBLICATION_OBSERVATION_BINDING')
             row = super()._append(record_id, kind, event_id, body, *args, **kwargs)
             self.written.append(row)
             self.pending_bytes += len(canonical(row['body']).encode())

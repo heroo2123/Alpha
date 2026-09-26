@@ -26,7 +26,7 @@ from .guardian_lease import (VERSION, GuardianPolicy, config_digest, journal_key
 from .paper_cancellation import CancellationPolicy, PaperCancellation, managed_opening
 from .paper_coordinator import PaperAccountPolicy, PaperCoordinator, UNRESOLVED, cancel_identity
 from .runtime_health import (KEY as HEALTH_KEY, VERSION as HEALTH_VERSION, HealthPolicy, admission_heads, host_stamp,
-                             read_health_snapshot, _worker_key)
+                             read_health_snapshot, validate_liveness_observation, _worker_key)
 from .scenario_risk import CorrelationMap, StationMembership, ScenarioLimits
 
 
@@ -79,9 +79,19 @@ def _validate_health_observation(store,observed,*,worker,health_config,account_i
         heartbeat=observed['workers'][entry['worker']]
         if heartbeat is None or heartbeat['id']!=entry['record_id']:raise EvidenceError('GUARDIAN_HEARTBEAT_CHANGED')
         h=heartbeat['body']['details']
+        expected=dict(action='HEARTBEAT',worker=entry['worker'],generation=identity(h['generation']))
+        if 'observation_id' in h.get('request',{}):
+            observation_id=h['request']['observation_id'];expected['observation_id']=observation_id
+            observation=validate_liveness_observation(store,observation_id,health_config=health_config,
+                account_id=account_id,worker=entry['worker'],generation=h['generation'],
+                maximum_wall_step_seconds=policy.maximum_wall_step_seconds)
+            original=observation['body']['details']
+            if (original['worker']!=worker or h['stamp']!=original['receipt']['stamp']
+                    or dict(id=observation['id'],sha256=observation['sha256']) not in heartbeat['body']['evidence']):
+                raise EvidenceError('GUARDIAN_LIVENESS_OBSERVATION_BINDING')
         if (h.get('version')!=HEALTH_VERSION or h.get('worker')!=entry['worker']
                 or h.get('financial_authority') is not False
-                or h.get('request')!=dict(action='HEARTBEAT',worker=entry['worker'],generation=identity(h['generation']))):
+                or h.get('request')!=expected):
             raise EvidenceError('GUARDIAN_HEARTBEAT_MALFORMED')
         finite(h['stamp']['wall']);finite(h['stamp']['monotonic'])
         if (h.get('config_sha256')!=health_config or h['stamp']['boot_id']!=now['boot_id']

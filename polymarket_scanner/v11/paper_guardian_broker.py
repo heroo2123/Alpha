@@ -4,6 +4,7 @@ This is a local synthetic-custody adapter, not a venue transport or service.
 The only account mutation is the existing signature-pinned CANCEL_REQUESTED.
 """
 from dataclasses import asdict, replace
+from contextlib import contextmanager
 import fcntl
 import os
 from pathlib import Path
@@ -209,14 +210,46 @@ class PaperGuardianBroker:
                 if not stat.S_ISREG(info.st_mode) or info.st_uid!=os.getuid() or info.st_mode&0o077:
                     raise EvidenceError('BROKER_ARCHIVE_CUSTODY')
 
-    def serve(self,path,*,connections=100,seconds=30):
-        if (type(connections) is not int or not 1<=connections<=200
-                or type(seconds) not in (int,float) or not .1<=seconds<=60):
-            raise EvidenceError('BROKER_FINITE_RUN_BOUND')
+    @contextmanager
+    def _socket(self,path,config,*,socket_type=socket.SOCK_STREAM,passcred=False):
+        """Broker-owned endpoint custody shared by the two distinct protocols."""
+        path=endpoint_parent(path,self.policy.broker_uid);sha(config);bound=False
+        meta=Path(str(path)+'.broker-id')
+        mfd=os.open(meta,os.O_CREAT|os.O_EXCL|os.O_WRONLY|os.O_NOFOLLOW,0o600) if not meta.exists() else None
+        if mfd is not None:
+            try:os.write(mfd,config.encode());os.fsync(mfd)
+            finally:os.close(mfd)
+        mfd=os.open(meta,os.O_RDONLY|os.O_NOFOLLOW)
+        try:
+            info=os.fstat(mfd)
+            if (not stat.S_ISREG(info.st_mode) or info.st_uid!=os.getuid() or info.st_mode&0o077
+                    or os.read(mfd,65)!=config.encode()):
+                raise EvidenceError('BROKER_ENDPOINT_CONFIG_CUSTODY')
+        finally:os.close(mfd)
+        if path.exists() or path.is_symlink():
+            info=path.lstat()
+            if not stat.S_ISSOCK(info.st_mode) or info.st_uid!=os.getuid():
+                raise EvidenceError('BROKER_EXISTING_ENDPOINT_REFUSED')
+            with socket.socket(socket.AF_UNIX,socket_type) as probe:
+                probe.settimeout(self.policy.timeout_seconds)
+                try:probe.connect(str(path))
+                except ConnectionRefusedError:path.unlink()
+                else:raise EvidenceError('BROKER_ENDPOINT_IN_USE')
+        try:
+            with socket.socket(socket.AF_UNIX,socket_type) as listener:
+                if passcred:listener.setsockopt(socket.SOL_SOCKET,socket.SO_PASSCRED,1)
+                listener.bind(str(path));bound=True;inode=path.stat().st_ino
+                os.chmod(path,0o666);listener.listen(4)
+                yield listener
+        finally:
+            if bound and path.is_socket() and path.stat().st_ino==inode:path.unlink()
+
+    @contextmanager
+    def _listener(self,path):
         self._custody();path=endpoint_parent(path,self.policy.broker_uid)
         # The shared lock excludes the previous direct trusted guardian too.
         fd=os.open(str(self.store.path)+'.guardian.lock',os.O_CREAT|os.O_RDWR|os.O_NOFOLLOW,0o600)
-        bound=False;locked=False
+        locked=False
         try:
             info=os.fstat(fd)
             if not stat.S_ISREG(info.st_mode) or info.st_uid!=os.getuid() or info.st_mode&0o077:
@@ -224,57 +257,35 @@ class PaperGuardianBroker:
             try:fcntl.flock(fd,fcntl.LOCK_EX|fcntl.LOCK_NB)
             except BlockingIOError:raise EvidenceError('BROKER_ALREADY_RUNNING') from None
             locked=True
-            # Refuse another configuration's stale endpoint, including crash remnants.
-            meta=Path(str(path)+'.broker-id')
-            mfd=os.open(meta,os.O_CREAT|os.O_EXCL|os.O_WRONLY|os.O_NOFOLLOW,0o600) if not meta.exists() else None
-            if mfd is not None:
-                try:os.write(mfd,self.config.encode());os.fsync(mfd)
-                finally:os.close(mfd)
-            mfd=os.open(meta,os.O_RDONLY|os.O_NOFOLLOW)
-            try:
-                info=os.fstat(mfd)
-                if (not stat.S_ISREG(info.st_mode) or info.st_uid!=os.getuid() or info.st_mode&0o077
-                        or os.read(mfd,65)!=self.config.encode()):
-                    raise EvidenceError('BROKER_ENDPOINT_CONFIG_CUSTODY')
-            finally:os.close(mfd)
             self._gate('BROKER_STARTING');self.recover()
-            if path.exists() or path.is_symlink():
-                info=path.lstat()
-                if not stat.S_ISSOCK(info.st_mode) or info.st_uid!=os.getuid():
-                    raise EvidenceError('BROKER_EXISTING_ENDPOINT_REFUSED')
-                # A live listener is never replaced. Only stale broker-owned sockets.
-                with socket.socket(socket.AF_UNIX,socket.SOCK_STREAM) as probe:
-                    probe.settimeout(self.policy.timeout_seconds)
-                    try:probe.connect(str(path))
-                    except ConnectionRefusedError:path.unlink()
-                    else:raise EvidenceError('BROKER_ENDPOINT_IN_USE')
-            with socket.socket(socket.AF_UNIX,socket.SOCK_STREAM) as listener:
-                listener.bind(str(path));bound=True;inode=path.stat().st_ino
-                os.chmod(path,0o666);listener.listen(4)
-                end=time.monotonic()+seconds
-                for _ in range(connections):
-                    left=end-time.monotonic()
-                    if left<=0:break
-                    listener.settimeout(left)
-                    try:conn,_=listener.accept()
-                    except TimeoutError:break
-                    with conn:
-                        try:
-                            peer=peer_identity(conn,uid=self.policy.guardian_uid,gid=self.policy.guardian_gid)
-                            deadline=min(end,time.monotonic()+self.policy.timeout_seconds)
-                            q=receive(conn,deadline);check_peer(conn,peer)
-                            response=self.handle(q,peer)
-                            check_peer(conn,peer);send(conn,response,deadline)
-                        except (EvidenceError,OSError,sqlite3.Error,ValueError,TypeError,KeyError,RecursionError,OverflowError):
-                            # No error details or partial account data cross the boundary.
-                            # A durable accepted cancellation is recovered before new work.
-                            continue
+            with self._socket(path,self.config) as listener:yield listener
         finally:
             try:
                 if locked:self._gate('BROKER_FINITE_RUN_ENDED')
             finally:
-                if bound and path.is_socket() and path.stat().st_ino==inode:path.unlink()
                 os.close(fd)
+
+    def serve(self,path,*,connections=100,seconds=30):
+        if (type(connections) is not int or not 1<=connections<=200
+                or type(seconds) not in (int,float) or not .1<=seconds<=60):
+            raise EvidenceError('BROKER_FINITE_RUN_BOUND')
+        with self._listener(path) as listener:
+            end=time.monotonic()+seconds
+            for _ in range(connections):
+                left=end-time.monotonic()
+                if left<=0:break
+                listener.settimeout(left)
+                try:conn,_=listener.accept()
+                except TimeoutError:break
+                with conn:
+                    try:
+                        peer=peer_identity(conn,uid=self.policy.guardian_uid,gid=self.policy.guardian_gid)
+                        deadline=min(end,time.monotonic()+self.policy.timeout_seconds)
+                        q=receive(conn,deadline);check_peer(conn,peer)
+                        response=self.handle(q,peer)
+                        check_peer(conn,peer);send(conn,response,deadline)
+                    except (EvidenceError,OSError,sqlite3.Error,ValueError,TypeError,KeyError,RecursionError,OverflowError):
+                        continue
 
 
 def main():

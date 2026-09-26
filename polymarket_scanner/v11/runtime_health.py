@@ -5,9 +5,12 @@ Synthetic probes are dependency-injected only in off-host mechanical tests.
 This same-process monitor is not the independently commissioned live guardian.
 """
 from copy import copy
+import ctypes
 from dataclasses import asdict, dataclass
+import os
 from pathlib import Path
 import re
+import signal
 import subprocess
 import time
 
@@ -25,12 +28,28 @@ def host_stamp(store):
     return dict(boot_id=boot, monotonic=finite(time.monotonic()), wall=finite(store.clock()))
 
 
-def local_sync_status():
+def _sync_parent_death(expected_parent):
+    """Fixed Linux child guard; a failed or raced parent binding cannot exec."""
+    try:
+        libc = ctypes.CDLL(None, use_errno=True)
+        if libc.prctl(1, signal.SIGKILL, 0, 0, 0) == 0 and os.getppid() == expected_parent:
+            return
+    except (OSError, AttributeError):
+        pass
+    os._exit(127)
+
+
+def local_sync_status(*, parent_death=False):
     """Fixed read-only command, no sudo, shell, time setting or service action."""
+    if type(parent_death) is not bool: raise EvidenceError('RUNTIME_SYNC_PARENT_GUARD_INVALID')
+    kwargs = {}
+    if parent_death:
+        parent = os.getpid()
+        kwargs['preexec_fn'] = lambda: _sync_parent_death(parent)
     try:
         result = subprocess.run(['/usr/bin/timedatectl', 'show', '--property=NTPSynchronized', '--value'],
             stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-            timeout=2, check=False, env={'PATH':'/usr/bin:/bin', 'LC_ALL':'C', 'SYSTEMD_PAGER':'cat'})
+            timeout=2, check=False, env={'PATH':'/usr/bin:/bin', 'LC_ALL':'C', 'SYSTEMD_PAGER':'cat'}, **kwargs)
         raw = result.stdout
         if result.returncode != 0 or raw not in {b'yes\n', b'no\n'}:
             return dict(synchronized=None, mechanism='LOCAL_SYSTEMD_TIMEDATED', reason='SYNC_STATUS_UNAVAILABLE', offset_seconds=None)
@@ -80,6 +99,30 @@ class SourceNeed:
 
 def _worker_key(worker):
     return 'v11-worker:'+digest(worker)
+
+
+def validate_liveness_observation(store, observation_id, *, health_config, account_id,
+                                 worker, generation, maximum_wall_step_seconds):
+    """Validate an immutable broker receipt without renewing its process proof."""
+    from .candidate_liveness import record_ids, validate_journal
+    try:
+        identity(observation_id)
+        row = store.get(observation_id); d = row['body']['details']
+        validate_journal(row['event_id'], d)
+        if (row['kind'] != 'RUNTIME_STATUS' or d['phase'] != 'ACCEPTED'
+                or d['health_config'] != health_config or d['account_id'] != account_id
+                or d['producer']['worker'] != worker or d['producer']['generation'] != generation
+                or observation_id != record_ids(d['config_sha256'], d['request']['request_id'])['accepted']):
+            raise EvidenceError('RUNTIME_LIVENESS_OBSERVATION_BINDING')
+        # Journal validation checks exact peer/process identity, finite stamps,
+        # boot equality and both challenge ages. Also retain health's stricter
+        # wall/monotonic discontinuity budget for the original observation.
+        receipt = d['receipt']; start, end = receipt['challenge_stamp'], receipt['stamp']
+        if abs((end['wall']-start['wall'])-(end['monotonic']-start['monotonic'])) > finite(maximum_wall_step_seconds):
+            raise EvidenceError('RUNTIME_LIVENESS_OBSERVATION_CLOCK')
+        return row
+    except (KeyError, TypeError, ValueError, OverflowError):
+        raise EvidenceError('RUNTIME_LIVENESS_OBSERVATION_INVALID') from None
 
 
 def read_health_snapshot(store, *, workers=None):
@@ -195,14 +238,21 @@ class RuntimeHealth:
         self.config = digest(dict(policy=asdict(policy), account_id=account_id, scopes=scopes, sources=[asdict(s) for s in sources]))
 
     def heartbeat(self, key, *, worker, generation):
+        return self._heartbeat(key, worker=worker, generation=generation)
+
+    def _heartbeat(self, key, *, worker, generation, observation=None):
         if worker not in self.policy.workers: raise EvidenceError('UNCONFIGURED_WORKER')
         request = dict(action='HEARTBEAT', worker=worker, generation=identity(generation))
+        if observation is not None: request['observation_id'] = observation['id']
         prior = self._replay(key, request)
         if prior: return prior
-        stamp = host_stamp(self.store); head = self.store.latest(kind='RUNTIME_STATUS', event_id=_worker_key(worker))
+        stamp = observation['body']['details']['receipt']['stamp'] if observation is not None else host_stamp(self.store)
+        head = self.store.latest(kind='RUNTIME_STATUS', event_id=_worker_key(worker))
         return self.store.safety_audit(key, event_id=_worker_key(worker), kind='RUNTIME_STATUS', details=dict(
             version=VERSION, config_sha256=self.config, request=request, stamp=stamp,
-            worker=worker, generation=generation, financial_authority=False), expected_previous_seq=head['seq'] if head else 0)
+            worker=worker, generation=generation, financial_authority=False),
+            evidence_ids=(observation['id'],) if observation is not None else (),
+            expected_previous_seq=head['seq'] if head else 0)
 
     def _replay(self, key, request):
         identity(key)
@@ -222,9 +272,19 @@ class RuntimeHealth:
         sync = self.sync_probe()
         return self._sample(key, request=request, sync=sync)
 
-    def _publication_replay(self, key, heartbeat_key, worker, generation):
+    def _publication_replay(self, key, heartbeat_key, worker, generation, *, observation_id=None):
         request = dict(action='SAMPLE', heartbeat_key=heartbeat_key, worker=worker, generation=generation)
         heartbeat = dict(action='HEARTBEAT', worker=worker, generation=generation)
+        observation = None
+        if observation_id is not None:
+            observation = validate_liveness_observation(self.store, observation_id, health_config=self.config,
+                account_id=self.account_id, worker=worker, generation=generation,
+                maximum_wall_step_seconds=self.policy.maximum_wall_step_seconds)
+            from .candidate_liveness import record_ids
+            d = observation['body']['details']; ids = record_ids(d['config_sha256'], d['request']['request_id'])
+            if key != ids['health'] or heartbeat_key != ids['heartbeat']:
+                raise EvidenceError('RUNTIME_LIVENESS_PUBLICATION_KEYS')
+            request['observation_id'] = heartbeat['observation_id'] = observation_id
         with self.store._connect() as db:
             if not db.in_transaction: db.execute('BEGIN')
             rows = {r['record_id']: self.store._decode(r) for r in db.execute(
@@ -240,23 +300,43 @@ class RuntimeHealth:
         if (sum(w.get('worker') == worker and w.get('record_id') == h['id'] for w in sample['body']['details']['workers']) != 1
                 or dict(id=h['id'], sha256=h['sha256']) not in sample['body']['evidence']):
             raise EvidenceError('RUNTIME_HEALTH_PUBLICATION_BINDING')
+        if observation is not None:
+            ref = dict(id=observation['id'], sha256=observation['sha256'])
+            if (h['body']['details']['stamp'] != observation['body']['details']['receipt']['stamp']
+                    or any(ref not in row['body']['evidence'] for row in (h, sample))):
+                raise EvidenceError('RUNTIME_LIVENESS_PUBLICATION_BINDING')
         return sample
 
     def publish(self, key, *, heartbeat_key, worker, generation):
         """Atomically publish one worker heartbeat and its original health sample."""
+        return self._publish(key, heartbeat_key=heartbeat_key, worker=worker, generation=generation)
+
+    def publish_observation(self, key, *, heartbeat_key, worker, generation, observation_id):
+        """Publish a broker-observed pulse without restamping its liveness."""
+        identity(observation_id)
+        return self._publish(key, heartbeat_key=heartbeat_key, worker=worker,
+                             generation=generation, observation_id=observation_id)
+
+    def _publish(self, key, *, heartbeat_key, worker, generation, observation_id=None):
         identity(key); identity(heartbeat_key); identity(generation)
         if key == heartbeat_key: raise EvidenceError('RUNTIME_HEALTH_PUBLICATION_KEYS')
         if worker not in self.policy.workers: raise EvidenceError('UNCONFIGURED_WORKER')
-        prior = self._publication_replay(key, heartbeat_key, worker, generation)
+        prior = self._publication_replay(key, heartbeat_key, worker, generation, observation_id=observation_id)
         if prior: return prior
         sync = self.sync_probe()  # No external probe while holding SQLite's writer lock.
         with self.store.runtime_health_publication() as bound:
             monitor = copy(self); monitor.store = bound
-            prior = monitor._publication_replay(key, heartbeat_key, worker, generation)
+            prior = monitor._publication_replay(key, heartbeat_key, worker, generation, observation_id=observation_id)
             if prior: return prior
-            monitor.heartbeat(heartbeat_key, worker=worker, generation=generation)
-            return monitor._sample(key, request=dict(action='SAMPLE', heartbeat_key=heartbeat_key,
-                worker=worker, generation=generation), sync=sync)
+            observation = None
+            request = dict(action='SAMPLE', heartbeat_key=heartbeat_key, worker=worker, generation=generation)
+            if observation_id is not None:
+                observation = validate_liveness_observation(bound, observation_id, health_config=self.config,
+                    account_id=self.account_id, worker=worker, generation=generation,
+                    maximum_wall_step_seconds=self.policy.maximum_wall_step_seconds)
+                request['observation_id'] = observation_id
+            monitor._heartbeat(heartbeat_key, worker=worker, generation=generation, observation=observation)
+            return monitor._sample(key, request=request, sync=sync)
 
     def _sample(self, key, *, request, sync):
         view = read_health_snapshot(self.store, workers=self.policy.workers)
@@ -308,6 +388,7 @@ class RuntimeHealth:
         sources = [_source_status(self.store, n, stamp['wall']) for n in self.sources]
         # Health-only source state is rechecked again at account/maker admission.
         refs += [s['record_id'] for s in sources if s['record_id']]
+        if 'observation_id' in request: refs.append(request['observation_id'])
         valid = stamp['wall']+self.policy.maximum_sample_age_seconds
         details = dict(version=VERSION, config_sha256=self.config, request=request, account_id=self.account_id,
             policy=asdict(self.policy), scopes=self.scopes, stamp=stamp, sync=sync,

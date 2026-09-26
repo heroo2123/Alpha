@@ -1,5 +1,27 @@
 # Supplementary engineering estimate
 
+Authenticated PAPER candidate liveness — 2026-09-26: recovered unpublished local
+work (`v11/liveness_protocol.py`, `v11/candidate_liveness.py`,
+`v11/liveness_broker.py`, plus binding changes in `v11/evidence.py` and
+`v11/runtime_health.py`) reviewed, preserved and verified. Adds a bounded
+authenticated candidate-liveness producer endpoint: a separate AF_UNIX
+SOCK_SEQPACKET listener, packet-level SCM_CREDENTIALS plus connected-peer
+authentication, exact pinned worker/health-configuration identity, single
+preemptible publication child confined to a private process group, and durable
+accepted-before-effect journal entries bound into the existing atomic
+heartbeat/sample publication path. The guardian's cancel-only stream protocol
+and its own connection budget are unchanged. New-module suite: **202 passed, 7
+skipped**, exit 0. Affected guardian/health/evidence integration: **782 passed,
+11 skipped**, exit 0, plus one pre-existing failure
+(`test_actual_broker_death_stale_socket_restart_and_receipt_replay`) verified to
+reproduce identically on the unmodified published 3e80339818ddc5b67b4485c28b9fda54c4f391e8
+tree, so it is unrelated to this work. Evidence:
+`docs/V11_CANDIDATE_LIVENESS_EVIDENCE.md`. Existing R37/R38 C/J strengthened
+only; no additional E/A or full acceptance: **85/200 = 42.5%, approximately
+43%; 1/50 (2%)**, unchanged. Full candidate source/execution custody and
+independent commissioning remain open. NOT_READY_TO_FUND; V10 unchanged/DEFERRED.
+
+
 Coherent PAPER health continuation, 2026-09-25: atomic heartbeat/sample publication,
 consistent snapshot reads, health-head fences and READY freshness revalidation
 close the local healthy-publication race while retaining durable cancellation.
