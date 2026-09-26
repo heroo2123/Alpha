@@ -1,5 +1,37 @@
 # Supplementary engineering estimate
 
+Full regression confirmed clean; disk-capacity root cause found — 2026-09-26
+(supervisor batch 3): clean local/remote source
+`5b16f4f535025b12994733c742563538d8fcb317`. Following on from the prior
+checkpoint's exact next action, completed reconciliation of the recorded
+47-failure full-suite run: the file the prior ten-file comparison had omitted
+(`tests/test_operator_recovery.py`) passed cleanly alone, and the full 14-file
+union of every file ever named in a recorded failure list passed cleanly
+(210 passed / 74.12 s). A first full-suite chunk then unexpectedly failed
+141/1248 — traced to genuine host disk usage at 86% tripping the real
+`STORAGE_CAPACITY_OPENING_STOP` safety gate (`STOP_PERCENT = 85` in
+`production/storage_health.py`), not a code defect. Removed two disposable,
+already-superseded, non-git directories (`/tmp/pytest-of-alphaadmin`,
+`/tmp/v11-b2-gvgbqzij`, the latter already fully hash-preserved in the committed
+batch-2 evidence doc) to bring usage to 68%; the identical chunk then passed
+1389/0 failed. No V10, credential, private, or git-tracked file was touched.
+
+With the host below both capacity thresholds, ran the complete 4764-test
+collection as four sequential foreground chunks, clearing pytest scratch between
+chunks: **4753 passed, 11 skipped, 0 failed**, exit 0 in every chunk, matching the
+collected count exactly. HEAD and working tree stayed unchanged throughout.
+Evidence: `docs/V11_FULL_REGRESSION_DISK_CAPACITY_EVIDENCE.md`.
+
+This is the first fully clean full-suite confirmation on this branch; it closes
+the "post-fix full-suite confirmation" action left open by two prior checkpoints
+and retroactively explains the 47-failure run recorded in the event-queue
+starvation-fix entry as the same disk-capacity condition, not a regression from
+that fix. No production code, test, or safety gate changed; no new C/J/E/A:
+**85/200 (~43%); formal 1/50 (2%)**, unchanged. NOT_READY_TO_FUND; V10
+unchanged/DEFERRED. Next: continue closing other PARTIAL requirements end-to-end;
+periodically clear pytest scratch before large batches to avoid recurrence.
+
+
 Regression recovery and guardian-stop test synchronization — 2026-09-26
 (supervisor batch 2): clean local/remote source
 `640a5d5421e625059a98aab45294756cc41829cf`, tree
