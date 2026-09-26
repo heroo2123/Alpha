@@ -444,7 +444,20 @@ class EventQueue:
             ordered = sorted((p for p in state['pending'].values() if p['event_id'] not in exclude_events),
                              key=lambda p:(p['priority'], p['first_received_at'], p['event_id']))
             census = sorted(e for e in state['needs_census'] if self.routes[e].valid_until > now and e not in exclude_events)
-            event = ordered[0]['event_id'] if ordered else next(iter(census), None)
+            # A census-only event (no pending update of its own) must not starve
+            # forever behind continuous pending traffic on other events: alternate
+            # turns whenever both a pending item and a census-only event are ready.
+            census_only = [e for e in census if e not in state['pending']]
+            turn = state.get('census_only_turn', False)
+            if ordered and census_only:
+                event = census_only[0] if turn else ordered[0]['event_id']
+                state['census_only_turn'] = not turn
+            elif census_only:
+                event = census_only[0]
+            elif ordered:
+                event = ordered[0]['event_id']
+            else:
+                event = None
             if event is None:
                 self._commit(record_id, request, row, state, dict(outcome='IDLE'))
                 yield None

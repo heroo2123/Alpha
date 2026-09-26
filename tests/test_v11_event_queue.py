@@ -231,6 +231,22 @@ def test_stream_gap_does_not_clear_on_reconnect_until_fresh_full_census(rig):
         assert q.finish('finish',claim_id='work',result_ids=('result',))['body']['details']['result']['outcome']=='RESEARCH_EVALUATED'
 
 
+def test_census_only_event_is_not_starved_by_continuous_pending_traffic_elsewhere(rig):
+    q=queue(rig); q.stream_gap('gap',event_id='e3',reason='DISCONNECT')
+    claimed=[]
+    for i in range(6):
+        rig['now'][0]+=1
+        publish(q,rig,f'm{i}',event='e2')
+        with q.work(f'claim{i}') as claim:
+            if claim is None:
+                continue
+            claimed.append(claim['event_id'])
+            result(rig,f'res{i}',event=claim['event_id'])
+            q.finish(f'finish{i}',claim_id=f'claim{i}',result_ids=(f'res{i}',))
+    assert 'e3' in claimed
+    assert claimed.count('e2') >= 1
+
+
 @pytest.mark.parametrize('change,error',[({'missing_book':True},'ALL_EVENT_TOKENS'),({'stale':True},'NEW_FULL_BOOK')])
 def test_incomplete_or_stale_resync_cannot_clear_gap(rig,change,error):
     q=queue(rig); q.stream_gap('gap',event_id='e1',reason='DISCONNECT')

@@ -4608,3 +4608,32 @@ comparison, independent guardian/review and commissioning gates stay open.
 Maintenance remains DEFERRED. Inventory hash remains OWNER-REPORTED / INDEPENDENT
 VERIFICATION PENDING. No owner maintenance action, deployment, funding, real order
 or executor change is requested or performed. **NOT_READY_TO_FUND**.
+
+## Event-queue census-only starvation fix — 2026-09-26
+
+Recovered a prior same-batch fix, uncommitted at session start, to
+`EventQueue.work()` in `polymarket_scanner/v11/event_queue.py`: a census-only
+event (one with `needs_census` but no `pending` update of its own) could starve
+indefinitely behind continuous pending traffic on other events, because claim
+selection always preferred `ordered[0]` (pending) over census whenever any
+pending item existed. Selection now alternates a turn between the next pending
+item and the next census-only event whenever both are ready, tracked via a new
+`census_only_turn` state flag (plain dict key, no schema break). Added
+`test_census_only_event_is_not_starved_by_continuous_pending_traffic_elsewhere`
+to `tests/test_v11_event_queue.py` covering the alternation.
+
+Targeted run: `pytest tests/test_v11_event_queue.py` — 35 passed. Full regression:
+**4701 passed, 47 failed, 11 skipped, 4 warnings, 1113.73s**. Confirmed by
+stashing this diff and re-running the 9 failing test files unchanged: identical
+29 failed / 105 passed, i.e. all 47 full-run failures are pre-existing baseline
+gaps in operator notifications/panel/recovery/safety-priority, production
+transport/fee-review, guardian-broker, and weather rollback/deployment-identity
+suites, unrelated to and unaffected by this fairness fix. No new failure was
+introduced. Formal completion remains unchanged; this is a defect fix within an
+already-credited slice, not a new requirement package.
+
+Next concrete unfinished source step remains as previously recorded: connect
+`samples_from_capture` / `archive_neighborhood` to the bounded observation/census
+path, then the remaining full-master requirements. The 47 pre-existing baseline
+failures above are not addressed by this batch and remain open for a future
+dedicated batch.
