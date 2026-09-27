@@ -1,5 +1,43 @@
 # Supplementary engineering estimate
 
+Supervisor batch 11 — 2026-09-27: recovery check found `git status` clean,
+local HEAD `51740f2` equal to
+`origin/weather-v11-profitability-upgrade-2026-09-23`, no unfinished process
+to recover. Per the independent batch-3 review's own recorded next step
+("implement `time_of_day` from the same pinned admission-scope mechanism...
+already present on `CapabilityScope`"), and since batch 8's compiled
+credit-state audit (every purely-local requirement already holds C and J
+except R31) still holds, this batch targeted a fully-completed local-
+implementation sub-step rather than a blind defect audit or a repeat of an
+already-credited slice.
+
+`v11/performance.py::DIMENSIONS` gained `time_of_day`, populated in
+`PerformanceLab._metadata` from `scope.time_of_day` on the same pinned
+admission-scope list already read for `horizon`/`weather_variable`,
+preserving UNKNOWN whenever no admission is pinned or the scope lookup
+fails — the exact mechanism and risk profile of the prior `weather_variable`
+addition (batch 4), with no change to any admission/scope validation or
+conservation invariant. Two new cases mirroring the existing
+`weather_variable` pair: **18 passed / 5.04 s** in `tests/test_v11_performance.py`
+(was 16), plus **261 passed / 135.07 s** across every other module found to
+import `PerformanceLab`/reference `DIMENSIONS`/`performance.py`, exit 0, no
+failures, no skips. `git diff --stat` confirms exactly two touched files. No
+full regression: additive single-field change to an already-generic
+mechanism, verified across every located consumer, matching the batch-4
+precedent's scope.
+
+This closes one of the three remaining Upgrade N profile gaps the
+batch-4/independent-review pair named (country/source, PWS density/quality,
+apparent-edge now remain; weather-variable and time-of-day are done).
+`country/source` needs `StationMetadata.country` threaded into a pinned
+admission/entry record (an evidence-plumbing decision not yet made); `PWS
+density/quality` and `apparent-edge` each need identifying which specific
+pinned PWS-quality/valuation field the master's profile name refers to —
+neither has a ready-made pinned scalar the way `time_of_day` did. No new
+C/J/E/A milestone: **87/200 (~44%); 1/50 (2%)**, unchanged. NOT_READY_TO_FUND;
+V10 unchanged/DEFERRED. No V10, private, credential or production file
+touched. Full detail: `docs/V11_WORK_CHECKPOINT.md` (supervisor batch 11).
+
 Independent supervisor-batch-3 review — 2026-09-27: corrected the
 batches 8–10 backlog/redirect inference below. This ledger defines C/J as
 bounded slices, so absence of another immediately awardable C/J unit does not

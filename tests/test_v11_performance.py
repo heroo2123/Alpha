@@ -129,6 +129,20 @@ def test_weather_variable_slice_falls_back_to_unknown_without_pinned_scope(rig):
     assert d['pnl_slices']['weather_variable']=={'UNKNOWN':'6'}
 
 
+def test_time_of_day_slice_groups_by_pinned_admission_scope_field(rig):
+    c,s=recorded(rig,('6','-4'))
+    rig['store'].audit('admission-morning',event_id='e0',kind='REGISTRY',
+        details={'request':{'scope':{'horizon':'H24','family':'HIGH','time_of_day':'MORNING'}}})
+    s['intents']['entry0']['admission_ids']=['admission-morning']
+    save(c,s);d=report(rig,c)
+    assert d['pnl_slices']['time_of_day']=={'MORNING':'6','UNKNOWN':'-4'}
+
+
+def test_time_of_day_slice_falls_back_to_unknown_without_pinned_scope(rig):
+    c,s=recorded(rig,('6',));save(c,s);d=report(rig,c)
+    assert d['pnl_slices']['time_of_day']=={'UNKNOWN':'6'}
+
+
 def test_report_namespace_cannot_mix_another_ledger(rig):
     c,s=recorded(rig);s['execution_namespace']='CHALLENGER:other';save(c,s)
     with pytest.raises(EvidenceError,match='NAMESPACE'):report(rig,c)

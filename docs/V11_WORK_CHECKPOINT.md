@@ -1,5 +1,68 @@
 # Alpha V11 work checkpoint
 
+## Supervisor batch 11 — 2026-09-27: R40 time_of_day profile
+
+Recovery check: `git status` clean, local HEAD `51740f2` equal to
+`origin/weather-v11-profitability-upgrade-2026-09-23`, no unfinished process
+to recover. Per the independent batch-3 review's own next-action note (this
+file, "Next: implement `time_of_day` from the same pinned admission-scope
+mechanism... already present on `CapabilityScope`"), and consistent with the
+score-velocity rule's "shortest unblocked path... to a fully completed
+requirement" (no new C/J/E/A boundary is reachable per batch 8's compiled
+credit-state audit, still valid: R01-R42/R45 minus R31 already hold C and J),
+closed one more of R40's four remaining named Upgrade N profile gaps
+(country/source, PWS density/quality, time-of-day, apparent-edge).
+
+`v11/performance.py::DIMENSIONS` gained `time_of_day`, populated in
+`PerformanceLab._metadata` from the same pinned admission-scope list already
+read for `horizon`/`weather_variable` (`scope.time_of_day`, the same field
+`pws_admission.py` already uses unchanged for its own equality-join),
+preserving `UNKNOWN` whenever no admission is pinned or the scope lookup
+fails. Exactly mirrors the prior `weather_variable` addition's mechanism and
+risk profile: no new evidence source, no change to admission/scope validation,
+no change to any conservation invariant (`PERFORMANCE_SLICE_NONCONSERVATION`
+still holds since `time_of_day` is folded through the same generic
+`DIMENSIONS` loop as every other slice).
+
+Two new cases mirroring the existing `weather_variable` pair (pinned-scope
+split, no-admission UNKNOWN fallback): `tests/test_v11_performance.py` **18
+passed / 5.04 s** (was 16). Broader affected selection — every file found by
+searching for `PerformanceLab`/`DIMENSIONS`/`performance.py` references
+(`test_v11_account_replay.py`, `test_v11_causal_replay.py`,
+`test_v11_execution_costs.py`, `test_v11_fill_markout.py`,
+`test_v11_performance.py`, `test_v11_pws_replay.py`,
+`test_v11_realized_drift.py`, `test_v11_release_replay.py`,
+`test_v11_audit_reports.py`, `test_v11_drift_runtime.py`): **261 passed /
+135.07 s**, exit 0, no failures/skips. `git diff --stat` shows exactly two
+touched files (`polymarket_scanner/v11/performance.py`,
+`tests/test_v11_performance.py`), confirming no private, V10, credential or
+unrelated production file was touched. No full regression run: this is the
+same additive single-field change to an already-generic dimension mechanism
+the prior `weather_variable` batch used, verified across every located
+consumer, consistent with that precedent's no-full-rerun scope.
+
+This closes exactly one of the four remaining Upgrade N profile gaps.
+`country/source` (needs `StationMetadata.country` threaded into a pinned
+entry/admission record — a real evidence-plumbing decision, not yet made),
+`PWS density/quality` (needs identifying which pinned PWS-quality field the
+master's "density/quality" profile means) and `apparent-edge` (needs
+identifying which pinned valuation/assessment field is the "apparent edge")
+remain open; none of the three has a ready-made pinned scalar field the way
+`time_of_day` and `weather_variable` did. No new C/J/E/A milestone: **87/200
+= 43.5% (~44%); formal 1/50 (2%)**, unchanged — real narrowing of R40's named
+PARTIAL gap, not a completed sub-slice or full Upgrade N acceptance.
+NOT_READY_TO_FUND; V10 unchanged/DEFERRED. No V10, private-input, credential
+or production file touched.
+
+Next: either (a) make the `country/source` evidence-plumbing decision
+(thread `StationMetadata.country` into a pinned admission/entry record) and
+add that profile the same way, or (b) identify the specific pinned
+valuation/assessment fields for `PWS density/quality` and `apparent-edge`
+before attempting them; R31 (exact finality source/version proof) and
+R37's E/A, R43, R44, R46-R49 remain genuinely owner/external/production
+gated and are not expected to move without real evidence, credentials or
+deployment action.
+
 ## Independent supervisor-batch-3 review: backlog classification correction — 2026-09-27
 
 Reviewed `0858ececf8ce38ed89c35e6a51d94f33dbb403fc` against
