@@ -1,59 +1,75 @@
 # Alpha V11 work checkpoint
 
-## Protected operator command routing closes an R39 open item — 2026-09-27 (supervisor batch 4)
+## Independent batch-4 review — authentication boundary corrected, 2026-09-27
 
-Recovered from a dirty worktree left by the immediately preceding invocation,
-which had stopped mid-batch waiting on a background test run with no published
-commit. Local and remote `weather-v11-profitability-upgrade-2026-09-23` were
-already equal at `1a33743`; the only outstanding work was two untracked files
-already written to disk: `polymarket_scanner/v11/operator_safety_router.py`
-and `tests/test_v11_operator_safety_router.py`. Read both in full before acting;
-neither touches V10, credentials, private inputs, or financial authority.
+Reviewed published `5f78840938563955ad6d5b9a625b330156dc2cfc` (tree
+`475f39de6a3863446b303be3970bb61916e2462d`) against predecessor
+`1a33743c5a2a78734e2d6de50a10a45dc5326f53`. Started with a clean tree,
+matching local/remote HEAD and no active Claude worker. Read CLAUDE.md, the
+current ledgers and the complete hash-verified authoritative master. All work
+used Remote Desktop Commander on alpha-dev, sequentially without agents.
 
-`v11/event_risk.py`'s `SafetyReductions.apply` accepts a caller-supplied
-actor/scope/action and explicitly disclaims authentication ("Production
-routing must authenticate separately and bind exact account scope"); nothing
-in the tree previously called it outside test simulation of an already-
-authorized call. `OperatorSafetyRouter` is that missing caller: a preauthorized
-numeric-operator allowlist plus a scope/action ceiling (mirroring the existing
-numeric-operator-allowlist/experience-ceiling model in `production/control.py`),
-command-freshness enforcement (reject backdated, expired, or over-window
-commands), and account-scope binding, before ever invoking the existing
-durable, replay-safe, monotonic-only `SafetyReductions.apply`. It can only
-narrow an account's live posture, never restore or expand one. Real Telegram
-delivery, its credential, and independent operational acceptance remain
-separate and are not performed or assumed here.
+The new helper is useful authorization core, but the claim that it closes
+protected/authenticated command routing was unsupported. `route` receives the
+actor, times and policy from its caller; integer allowlist membership does not
+authenticate a sender. No transport or candidate entry point calls the helper.
+The existing `production/telegram.py` principal checks are not connected to it.
+Corrected the module's trust-boundary docstrings and the batch-4 ledger claims;
+all executable code and existing tests are preserved. Authenticated transport,
+protected policy/account binding and executor/guardian integration remain open.
 
-Verified the new module's references resolve against the current tree
-(`ACTIONS`, `EventContext`, `SafetyReductions` in `event_risk.py`; `identity`,
-`EvidenceError`, `EvidenceStore` in `evidence.py`). Ran the new suite standalone
-and with directly affected event-risk/evidence coverage in the foreground:
-`tests/test_v11_operator_safety_router.py` **11 passed**; combined with
-`tests/test_v11_event_risk.py`, `tests/test_v11_event_risk_source_time.py`,
-`tests/test_v11_evidence_foundation.py` **80 passed**, exit 0, no skips or
-warnings. No full regression run in this batch (single new module plus its
-direct integration surface; the CLAUDE.md testing budget reserves full runs for
-broad shared-infrastructure change or acceptance checkpoints, neither of which
-applies here).
+Independent focused integration: **166 passed / 30.91 s, exit 0**, no skips or
+warnings, across operator-safety-router, event-risk, event-risk-source-time,
+evidence-foundation, paper-cancellation, paper-coordinator, paper-runtime and
+candidate-runner suites. All **710 tracked Python/config input hashes**, HEAD
+and the clean worktree were unchanged throughout that run. Exact argv, input
+hashes, log and JUnit remain local in `/tmp/v11-codex-b4-fpha2enn/baseline/`;
+no raw evidence is committed. The initial system-Python attempt lacked pytest
+and ran no tests; the successful run used the recorded project interpreter
+`/home/alphaadmin/AlphaV11_Dev/venv/bin/python`. No full regression was rerun.
+After the correction, compilation and `git diff --check` passed; the module's
+AST excluding docstrings is identical to the tested publication, and every other
+hashed input remains unchanged. Checks/patch are retained in the same review bundle.
 
-This closes R39's "protected command routing" open item at the core/
-integration level: an identified, allowlisted operator can now durably narrow
-an account's/city's/station's/event's live posture through one authenticated,
-replay-safe, monotonic-only path. Independent executor/guardian integration
-(an actual Telegram operator surface calling this router with real credentials
-and independent operational acceptance) remains open and is not claimed here.
-No production code outside the new module changed; no test, gate, service,
-credential, V10 runtime, or financial authority changed. **85/200 (~43%);
-1/50 (2%)**, unchanged — this strengthens an already-PARTIAL requirement's C/J
-surface; it does not itself complete R39 or grant new formal credit.
+Also removed the stale blanket instruction to resume the old 47-case cohort:
+prior batch-2 evidence records those IDs passing, and batch-3 evidence records
+complete default-collection coverage in four sessions. Missing historical causal
+attribution stays UNKNOWN; chunk/session limitations and custody skips remain.
+**85/200 = 42.5% (~43%); formal 1/50 (2%)**, unchanged, no new C/J/E/A.
+**NOT_READY_TO_FUND; V10 unchanged/DEFERRED.** Resolve this correction's publishing
+commit/tree with `git log -1 --format='%H %T' -- docs/V11_WORK_CHECKPOINT.md`.
+
+**Next unfinished action:** implement and test the upstream authenticated
+operator adapter and protected policy/account binding with offline fixtures,
+including original command-envelope and retry handling, before connecting it
+to this helper. Real delivery, credentials, deployment and independent acceptance
+remain separate gates. At the next required coherent-batch regression, retain
+exact source/runtime/per-case provenance and preserve evidence separately from
+fixture scratch; an unchanged full-suite rerun is not required by this review.
+
+## Operator authorization helper — 2026-09-27 (supervisor batch 4, claim corrected above)
+
+Recovered two untracked files left by the immediately preceding stopped
+invocation: `polymarket_scanner/v11/operator_safety_router.py` and
+`tests/test_v11_operator_safety_router.py`. Local and remote were otherwise
+equal at `1a33743` on `weather-v11-profitability-upgrade-2026-09-23`.
+
+The helper checks a supplied numeric-operator allowlist, scope/action ceilings,
+command freshness and ACCOUNT target equality before calling the existing
+`SafetyReductions.apply`. It adds a reusable authorization step and a synthetic
+integration with durable, replay-safe, monotonic reductions in a nonfinancial
+namespace. It does not authenticate its caller, protect policy custody, or
+supply a transport/candidate entry point. The command window is checked on every
+call, including retries; the underlying accepted reduction remains durable.
+This does not close R39's protected command-routing requirement.
+
+Original batch verification: the new suite **11 passed**; combined with
+`test_v11_event_risk.py`, `test_v11_event_risk_source_time.py` and
+`test_v11_evidence_foundation.py`, **80 passed**, exit 0, no skips/warnings.
+No full regression ran. Existing work is preserved; no formal credit changes:
+**85/200 (~43%); 1/50 (2%)**. Authenticated operator-surface wiring, independent
+executor/guardian integration and operational acceptance remain pending.
 NOT_READY_TO_FUND; V10 unchanged/DEFERRED.
-
-**Next unfinished action:** wire an actual authenticated operator-command
-surface (e.g. the referenced Telegram delivery path) to call
-`OperatorSafetyRouter.route`, with its own credential/deployment acceptance
-evidence kept separate from this routing/authorization core; independently,
-resume the still-open 47-case full-regression reconciliation left by the prior
-checkpoint entry below.
 
 ## Independent batch-3 review — regression evidence corrected, 2026-09-26
 

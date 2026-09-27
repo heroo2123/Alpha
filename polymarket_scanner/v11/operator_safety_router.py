@@ -1,18 +1,20 @@
-"""Authenticated routing of operator safety-reduction commands into event_risk.
+"""Policy checks for operator safety reductions in a nonfinancial namespace.
 
-`event_risk.SafetyReductions.apply` accepts any caller-supplied actor/scope/action
-and explicitly disclaims authentication: "Production routing must authenticate
-separately and bind exact account scope." Nothing in this tree previously called
-`apply`; every existing exercise of it is a test simulating an already-authorized
-call. This module is that missing caller: it binds a preauthorized numeric-operator
-allowlist and a scope/action ceiling (mirroring the numeric-operator-allowlist and
-experience-ceiling trust model already used by `production/control.py`), enforces
-freshness before accepting a command, and only then invokes the existing durable,
-replay-safe, monotonic-reduction-only `SafetyReductions.apply`.
+This helper checks a caller-supplied numeric actor against an allowlist; it does
+not authenticate that actor or provide a protected command endpoint. A trusted
+upstream adapter must authenticate the sender, retain original command timestamps,
+and bind a protected policy/account to this store before calling ``route``. Actor
+identity, timestamps and policy must not be taken from untrusted command fields.
 
-Real Telegram bot delivery, its credential and independent operational acceptance
-remain separate and are not performed or assumed here. This module never restores,
-expands, or bypasses a reduction; it can only ever narrow what the candidate does.
+The helper checks scope/action ceilings, ACCOUNT target equality and freshness,
+then invokes the existing durable, replay-safe, monotonic-only
+``event_risk.SafetyReductions.apply``. It does not retain a transport-authentication
+receipt. The command window is checked on every call, including retries; the
+underlying reduction remains durable after that window expires.
+
+No transport or candidate entry point currently calls this helper. Authenticated
+transport integration, real delivery and independent operational acceptance remain
+open. The helper cannot restore posture or grant financial authority.
 """
 from __future__ import annotations
 
@@ -67,7 +69,7 @@ class OperatorSafetyPolicy:
 
 
 class OperatorSafetyRouter:
-    """The one path by which an identified operator may reach `SafetyReductions`."""
+    """Authorize reductions for an operator authenticated by a trusted caller."""
 
     def __init__(self, store: EvidenceStore, policy: OperatorSafetyPolicy, *, clock=time.time):
         self.store, self.policy, self.clock = store, policy, clock
