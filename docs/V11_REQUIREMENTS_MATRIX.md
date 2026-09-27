@@ -1,5 +1,40 @@
 # V11 requirement-to-code/test/evidence matrix
 
+Supervisor batch 8 — 2026-09-27: cross-referenced the current C/J state of every
+PARTIAL/OPEN requirement (docs/V11_ENGINEERING_PROGRESS.md's per-requirement
+credit table plus every "earns J"/credit-correction entry) against the matrix.
+Every requirement whose remaining tail is purely local implementation already
+holds C and J; the only requirements still short of C and/or J (R00, R31, R37's
+E/A, R43, R44, R46-R49) are blocked on real signal authorization, exact
+settlement-source/version proof, or owner/production/credentialed
+deployment/acceptance — each already confirmed OPEN/GATED across multiple
+prior batches, not a fresh finding. No further local-only C/J boundary is
+currently reachable without inventing evidence; this conclusion, not a guess,
+is why this batch redirected into defect-hunting instead.
+
+Audited `v11/paper_coordinator.py` in full (R20/R21/R22's `coordinate`,
+`_coordinate_effects`, `transition`, `_fill_effects`, `_terminal_effects`) and
+`v11/position_attribution.py` in full (R32's `consume_lots` FIFO basis/proceeds
+split) for exploitable defects, extending the R06/R07/R08/R18/R23/R29/R30/R32/
+R34-R36 audit-sweep pool to the account-reservation/scenario-risk core and the
+lot-consumption math specifically (R32's own module had previously only been
+swept for the R23 sticky-fault guardian gap class, not its FIFO/rounding
+conservation). No defect found: reserved-cash/capital/daily-loss/active-intent
+faults, the BUY/SELL reserved-bound faults, and FIFO proceeds/basis rounding
+(exact on the terminal take, floor-quantized otherwise, with the remaining lot
+absorbing the residual) all conserve exactly; sticky faults still route through
+the existing guardian fix. 45 direct passed / 16.73 s; 103 broader passed
+(`-k "paper_coordinator or position_management or position_attribution or
+basket_coordinator or basket_valuation or scenario_risk"`) / 28.35 s, exit 0,
+four pre-existing unrelated FastAPI warnings, no failures/skips. No code
+changed. No new C/J/E/A: **87/200 = 43.5% (~44%); formal 1/50 (2%)**,
+unchanged. NOT_READY_TO_FUND; V10 unchanged/DEFERRED. Next: either a genuine
+P0/P1 defect in a still-unaudited module (R05, R09-R17, R24-R28, R33, R38,
+R40-R42, R45 remain untouched by this style of adversarial sweep) or real
+external/operational evidence accumulation for an existing C/J requirement's
+E tier; no further blind local-implementation C/J credit is expected from the
+already-swept requirements above.
+
 Supervisor batch 7 — 2026-09-27: R39's remaining tail was cross-checked
 directly against the private master (section 31) and confirmed to be a
 real-deployment verification step ("Telegram consumer ownership... before

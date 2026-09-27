@@ -1,5 +1,80 @@
 # Alpha V11 work checkpoint
 
+## Supervisor batch 8: compiled credit-state audit; paper_coordinator/position_attribution defect sweep clean — 2026-09-27
+
+Recovery check: `git status` clean; local HEAD `d8b5996594e98fc80cb344b4d104e8448df811dd`
+equal to `origin/weather-v11-profitability-upgrade-2026-09-23`. No unfinished
+same-batch work found. Current durable score at start: **87/200 (~44%);
+formal 1/50 (2%)**.
+
+Before editing, compiled the current per-requirement C/J/E/A state directly
+from `docs/V11_ENGINEERING_PROGRESS.md`'s credit table plus every subsequent
+"earns J"/credit-correction entry (R10, R11, R12, R13, R14, R15, R23, R37,
+R42 and others), and cross-checked it against `docs/V11_REQUIREMENTS_MATRIX.md`.
+Conclusion: every requirement whose remaining tail is purely local
+implementation already holds **C and J**. The requirements still short of C
+and/or J — R00 (real signal authorization), R31 (exact settlement source/
+version proof, confirmed absent across batches 6/15/independent review), R37's
+E/A, and R43/R44/R46-R49 (real credentials/isolated deployment/V10 comparison/
+funding) — are each already confirmed OPEN/GATED across multiple prior
+batches, not a new finding here. This means there is currently **no reachable
+new C/J boundary through pure local code changes**: the batch-5 exhaustive
+"earns J" sweep, closed by batch 6's R23 fix and re-confirmed clean by batch 7
+for R02/R03/R29/R30, already found and closed the one gap that existed.
+
+Per the score-velocity rule this redirected effort into a genuine-defect
+sweep of modules not yet covered by the existing R06/R07/R08/R18/R23/R29/R30/
+R32/R34-R36 audit pattern, rather than re-running the exhausted sweep or
+padding an already-credited slice (e.g. more Upgrade N profile dimensions,
+which the immediately preceding commit already confirmed earns no credit).
+
+**paper_coordinator.py / position_attribution.py defect sweep.** Read
+`v11/paper_coordinator.py` in full — `coordinate`/`_coordinate_effects`
+(R20/R21/R22's atomic per-batch reservation, token-conflict, thesis, rule/
+context and scenario-risk gating), `transition`, `_fill_effects` and
+`_terminal_effects` (cash/inventory mutation and terminal reconciliation) —
+and `v11/position_attribution.py` in full (R32's `consume_lots` FIFO lot
+allocation), looking for the same class of reachable defect the independent
+batch-6 review found in the guardian's sticky-fault handling. This is the
+first adversarial pass over this exact code specifically for R32's own
+rounding/conservation math (it had previously only been checked for the R23
+sticky-fault guardian gap class, not FIFO correctness).
+
+No defect found. The `_risk` fault gates compare the correct account-wide
+aggregates (reserved cash vs. cash, held cost + holds + realized losses vs.
+capital limit, daily losses + open downside vs. daily limit, active-intent
+count vs. policy). The BUY/SELL reserved-bound faults
+(`ACTUAL_PAPER_COST_EXCEEDED_RESERVED_BOUND` /
+`ACTUAL_PAPER_SALE_BELOW_RESERVED_BOUND`) both feed `state['faults']`, which
+the existing `ed949ae` guardian fix already cancels all unresolved managed
+intents on generically, so this fault class does not need a separate
+per-path guardian check. `consume_lots` gives the exact (non-quantized)
+residual to the terminal take on both cost-basis and net-proceeds, so
+rounding never accumulates across a multi-lot partial sale; the untaken
+remainder of a partially-consumed lot keeps the exact non-quantized leftover.
+`_coordinate_effects` recomputes available position delta and the exit hedge
+check against the *proposed* in-batch account state (`test`), not the
+pre-batch snapshot, so a same-batch SELL cannot double-hedge against a BUY
+reserved earlier in the same batch.
+
+Verification: `pytest tests/test_v11_paper_coordinator.py
+tests/test_v11_position_management.py` — **45 passed / 16.73 s**;
+`pytest -k "paper_coordinator or position_management or position_attribution
+or basket_coordinator or basket_valuation or scenario_risk"` — **103 passed /
+28.35 s**, exit 0, four pre-existing unrelated FastAPI warnings, no
+failures/skips. `git status` before this doc-only commit shows no code, test,
+V10, private-input or credential file touched.
+
+No new C/J/E/A milestone: **87/200 = 43.5% (~44%); formal 1/50 (2%)**,
+unchanged. NOT_READY_TO_FUND; V10 unchanged/DEFERRED.
+
+Next unfinished action: R05, R09-R17, R24-R28, R33, R38, R40-R42 and R45
+remain untouched by this specific adversarial-defect audit style and are the
+next candidates for it. R31, R37's E/A, and R43/R44/R46-R49 remain owner/
+external/production-gated and should not be re-audited again without a new
+master citation, real evidence, credentials or deployment action — repeating
+those checks would not move the score.
+
 ## Supervisor batch 7: R39 velocity redirect confirmed against master; R29/R30 and R02/R03 audited clean — 2026-09-27
 
 Recovery check: `git status` clean; local HEAD `ed949aeb2b6b97341a7682643a10fd5ea7644273`

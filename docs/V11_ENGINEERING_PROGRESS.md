@@ -1,5 +1,63 @@
 # Supplementary engineering estimate
 
+Supervisor batch 8 — 2026-09-27: recovery check found `git status` clean,
+local HEAD `d8b5996` equal to `origin/weather-v11-profitability-upgrade-2026-09-23`;
+no unfinished same-batch work to recover.
+
+Before editing, compiled the current per-requirement credit state from this
+file's own credit table (line ~945) plus every subsequent "earns J"/credit-
+correction entry, and cross-checked it against the requirements matrix. Result:
+every requirement whose remaining tail is purely local implementation already
+holds **C and J** (R01-R42, R45 minus the still-open R31); the requirements
+still short of C and/or J — R00 (needs real signal authorization), R31 (needs
+exact settlement source/version proof that does not exist), R37's E/A and
+R43/R44/R46-R49 (need real credentials/deployment/comparison/funding) — are
+each already confirmed OPEN/GATED across multiple prior batches. This is a
+compiled confirmation, not a new finding, and it means there is currently no
+reachable new C/J boundary through pure local code changes; the batch-5/6/7
+"earns J" sweep already closed the one gap (R23) that existed.
+
+Per the score-velocity rule this redirected effort into defect-hunting on
+modules not yet covered by the R06/R07/R08/R18/R23/R29/R30/R32/R34-R36
+audit-sweep pattern, rather than re-polishing an already-credited slice or
+re-running the exhausted "earns J" sweep. Read `v11/paper_coordinator.py` in
+full (R20/R21/R22's `coordinate`/`_coordinate_effects`/`transition`/
+`_fill_effects`/`_terminal_effects` — the actual reservation, cash/inventory,
+scenario-risk-gate and fill/terminal reconciliation logic) and
+`v11/position_attribution.py` in full (R32's `consume_lots` FIFO lot
+allocation) looking for a genuine reachable defect, the same kind the
+independent batch-6 review found in the guardian's sticky-fault handling.
+
+No defect found. Specifically checked: the `_risk` fault gates (reserved cash
+vs. cash, held cost + holds + realized losses vs. capital limit, daily losses
++ open downside vs. daily limit, active-intent count) all compare the correct
+account-wide aggregates; the BUY/SELL reserved-bound faults
+(`ACTUAL_PAPER_COST_EXCEEDED_RESERVED_BOUND` /
+`ACTUAL_PAPER_SALE_BELOW_RESERVED_BOUND`) both feed `state['faults']`, which
+the existing guardian fix (`ed949ae`) already cancels all unresolved managed
+intents on, so this class is covered generically rather than per-path;
+`consume_lots`'s FIFO split gives the exact residual (not a rounding-lossy
+share) to the terminal take on both the cost-basis and net-proceeds sides,
+with the untaken remainder of a partially-consumed lot keeping the exact
+non-quantized remainder, so basis/proceeds conserve exactly across partial
+sales. `_coordinate_effects`'s per-batch token-conflict/thesis/rule/context/
+inventory checks re-derive available position delta from the *proposed*
+account state (`test`), not the pre-batch snapshot, so a same-batch SELL
+correctly cannot double-hedge against a BUY reserved earlier in the same
+batch. 45 direct passed / 16.73 s
+(`tests/test_v11_paper_coordinator.py tests/test_v11_position_management.py`);
+103 broader passed / 28.35 s (`-k "paper_coordinator or position_management or
+position_attribution or basket_coordinator or basket_valuation or
+scenario_risk"`), exit 0, four pre-existing unrelated FastAPI warnings, no
+failures/skips. No code changed.
+
+No new C/J/E/A milestone: **87/200 = 43.5% (~44%); formal 1/50 (2%)**,
+unchanged. NOT_READY_TO_FUND; V10 unchanged/DEFERRED. R05, R09-R17, R24-R28,
+R33, R38, R40-R42 and R45 remain untouched by this adversarial audit style and
+are the next candidates for a genuine-defect sweep; R31/R37(E/A)/R43/R44/
+R46-R49 remain owner/external/production-gated and are not expected to move
+without real evidence, credentials or deployment action.
+
 Supervisor batch 7 — 2026-09-27: recovery check found `git status` clean,
 local HEAD `ed949ae` equal to `origin/weather-v11-profitability-upgrade-2026-09-23`;
 no unfinished same-batch work to recover. Per the score-velocity rule, R39
