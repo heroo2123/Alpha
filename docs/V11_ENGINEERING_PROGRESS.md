@@ -1,5 +1,33 @@
 # Supplementary engineering estimate
 
+Bounded Telegram-command polling loop — 2026-09-27 (supervisor batch 6): closed
+the exact gap batch 5 identified by adding `v11/operator_command_poller.py`.
+`TelegramOperatorCommandPoller` calls `telegram.updates(offset)` (any object
+shaped like the real `production.telegram.Telegram`) and applies each update
+through the unchanged `TelegramOperatorCommandAdapter.handle()`, durably
+advancing its own per-worker-key offset as a CAS-guarded `RUNTIME_STATUS`
+record — the same pattern the existing audit worker uses for its resumable
+cursor — so a restart resumes rather than replays or skips. A non-blocking
+`flock` on a per-worker lock file refuses a second concurrent poll for the
+same key. One authentication/grammar/authorization failure is reported without
+stalling later updates in the same batch or wedging the offset. New suite
+**7 passed**; combined with the adapter, router, event-risk, evidence-foundation
+and operator-panel suites: **138 passed, 13.36s, exit 0**, no skips/warnings,
+foreground. No full regression run (one new module plus its direct integration
+surface); an initial `-k "v11 or operator or telegram"` selection matched most
+of the suite and exceeded the foreground timeout twice, so both partial runs
+were stopped rather than left running in the background.
+
+This is the missing polling *loop*, usable unchanged by a real credentialed
+Telegram client, but it is not itself a live deployment: no production script
+yet constructs a real credentialed client plus this poller and drives `step()`
+on an interval, that wiring/credential decision is left for a dedicated batch
+with owner input, callback/button commands remain unsupported, and protected
+policy/account-binding review and independent operational acceptance remain
+open. No V10, credential, private-input or existing production code changed.
+No new C/J/E/A milestone: **85/200 = 42.5% (~43%); formal 1/50 (2%)**, unchanged.
+NOT_READY_TO_FUND; V10 unchanged/DEFERRED.
+
 Authenticated Telegram-command adapter — 2026-09-27 (supervisor batch 5): closed
 the exact gap the batch-4 review identified by adding
 `v11/operator_command_adapter.py`. `TelegramOperatorCommandAdapter` reuses the

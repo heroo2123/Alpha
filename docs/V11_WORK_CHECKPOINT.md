@@ -1,5 +1,83 @@
 # Alpha V11 work checkpoint
 
+## Bounded Telegram-command polling loop for operator safety routing — 2026-09-27 (supervisor batch 6)
+
+Recovered a clean tree: local/remote `weather-v11-profitability-upgrade-2026-09-23`
+were already equal at `d49b3a0`, no dirty files, no unfinished background
+process. Read CLAUDE.md, this checkpoint, the requirements matrix and progress
+ledger. Followed batch 5's exact next action: `TelegramOperatorCommandAdapter`
+authenticates one already-received update, but nothing in the tree called
+`Telegram.updates`/`adapter.handle()` in a loop, so no code path could ever
+receive a real update to authenticate.
+
+Implemented `polymarket_scanner/v11/operator_command_poller.py`
+(`TelegramOperatorCommandPoller`). Its `step()` fetches at most one bounded
+batch from `telegram.updates(offset)` (any object shaped like the existing,
+already-tested `production.telegram.Telegram`, so a real credentialed instance
+works unchanged), applies each update through the unchanged
+`TelegramOperatorCommandAdapter.handle()`, and durably advances its own
+per-worker-key offset as a `RUNTIME_STATUS` evidence record using the same
+CAS (`expected_previous_seq`) pattern the existing audit worker uses for its
+resumable cursor — so a restart resumes after the last update it actually
+attempted rather than replaying an already-applied command or silently
+skipping one it never saw. An exclusive, non-blocking `flock` on a per-worker
+lock file refuses a second concurrent `step()` for the same worker key, since
+two processes racing Telegram's stateful `getUpdates` offset could otherwise
+double-poll or desynchronize. One update that fails authentication, grammar,
+or router authorization is reported in that update's outcome and does not
+raise out of `step()` or stall later updates in the same batch, matching the
+existing cooperative `Controller.commands` behavior; its offset still
+advances so a permanently-malformed update cannot wedge the cursor.
+
+New suite `tests/test_v11_operator_command_poller.py`: **7 passed**, covering
+first-poll-from-zero, resuming from the durable offset (not zero) on a second
+call, no-op when there are no updates (no head record written), an
+unauthenticated update not stalling a later authenticated one in the same
+batch, idempotent replay of an already-applied batch, the concurrent-lock
+refusal (verified by holding the same lock file externally in the test), and
+worker-key identity validation. Combined with
+`test_v11_operator_command_adapter.py`, `test_v11_operator_safety_router.py`,
+`test_v11_event_risk.py`, `test_v11_event_risk_source_time.py`,
+`test_v11_evidence_foundation.py`, and `test_operator_panel.py` (the last
+exercises the reused `Telegram.principal` in its own existing suite): **138
+passed, 13.36s, exit 0**, no skips or warnings, foreground, on the recorded
+project interpreter `/home/alphaadmin/AlphaV11_Dev/venv/bin/python`. No full
+regression run this batch: one new module plus its direct integration
+surface, not a broad shared-infrastructure change or acceptance checkpoint —
+an initial attempt at a `-k "v11 or operator or telegram"` selection matched
+a large fraction of the whole suite (that keyword spans hundreds of test
+files) and exceeded the foreground tool's timeout twice; both partial runs
+were stopped rather than left running in the background, since this batch's
+instructions prohibit background/detached test execution, and the targeted
+run above already covers this change's real dependency surface.
+
+This closes the specific gap batch 5 named next: the polling *loop* itself
+now exists as a reusable, testable production primitive that a real
+credentialed `Telegram` client can be handed to unchanged. It does not itself
+complete R39: no production script yet constructs a real, already-credentialed
+`Telegram` instance, an `OperatorSafetyPolicy`, and this poller together and
+drives `step()` in a live loop (that live wiring needs its own bot-token
+provisioning/deployment decision, which is a separate, owner-scoped action
+this batch does not take); callback/button-based commands remain unsupported;
+and protected policy/account-binding review and independent
+executor/guardian/operational acceptance all remain open. No V10, credential,
+private-input, financial-authority, or existing production code changed; the
+only new files are the poller module and its test. **85/200 (~43%); 1/50
+(2%)**, unchanged — this strengthens R39's C/J surface further; it does not
+itself complete R39 or grant new formal credit. **NOT_READY_TO_FUND; V10
+unchanged/DEFERRED.**
+
+**Next unfinished action:** decide and implement the actual live-wiring script
+(a bounded scheduled loop, analogous to `Controller.run`'s `repeated(...)`
+pattern) that constructs a real, already-credentialed `production.telegram.Telegram`,
+an explicit `OperatorSafetyPolicy`/`TelegramCommandIdentity`, and this poller,
+and calls `step()` on an interval — with its own credential/deployment
+acceptance evidence kept separate from this adapter/router/poller core; that
+wiring decision may itself require owner input on bot-token provisioning and
+deployment location, so confirm scope before implementing it. Independently,
+consider a callback/button-based command envelope if operator UX requires it,
+and the protected policy/account-binding review batch 4/5 both left open.
+
 ## Authenticated Telegram-command adapter for operator safety routing — 2026-09-27 (supervisor batch 5)
 
 Recovered a clean tree: local/remote `weather-v11-profitability-upgrade-2026-09-23`
