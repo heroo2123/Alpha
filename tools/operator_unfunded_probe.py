@@ -17,6 +17,12 @@ from unittest.mock import patch
 
 import httpx
 
+from polymarket_scanner.weather_only_contract_strict import (
+    StrictWeatherContractError,
+    compile_strict_temperature_event,
+    strict_contract_identity,
+)
+
 PUBLIC_HOSTS = frozenset({"gamma-api.polymarket.com", "clob.polymarket.com",
     "api.weather.gov", "www.weather.gov", "api.synopticdata.com",
     "ensemble-api.open-meteo.com"})
@@ -122,6 +128,20 @@ def release(expected):
     return {"sha":sha, "tree":tree}
 
 
+def strict_supported_sample(events, cursor, limit=6):
+    """Return only events admitted by the same strict contract boundary as V11."""
+    supported=[]
+    for event in sorted(events, key=lambda x:str(x.get("id",""))):
+        try:
+            compiled=compile_strict_temperature_event(event)
+            strict_contract_identity(event, compiled)
+        except StrictWeatherContractError:
+            continue
+        supported.append(event)
+    selected=[x for x in supported if str(x.get("id",""))>cursor] or supported
+    return selected[:limit]
+
+
 async def collect(cycles, interval, meter):
     from polymarket_scanner.production.weather import WeatherPipeline, STRATEGIES
     weather = WeatherPipeline()
@@ -134,9 +154,10 @@ async def collect(cycles, interval, meter):
                     async with asyncio.timeout(900):
                         found = await weather.discover()
                         row["census"] = found["status"]
-                        events = sorted(found["events"], key=lambda x:str(x.get("id","")))
-                        selected = [x for x in events if str(x.get("id",""))>cursor] or events
-                        for event in selected[:6]:
+                        events = list(found["events"])
+                        selected = strict_supported_sample(events, cursor, limit=6)
+                        row["supported_sample_size"] = len(selected)
+                        for event in selected:
                             cursor = str(event.get("id", ""))
                             candidates = await weather.evaluate(event, STRATEGIES, Decimal(".08"), Decimal(".02"))
                             row["evaluated"] += 1

@@ -2,7 +2,8 @@ import asyncio
 import httpx
 import pytest
 
-from tools.operator_unfunded_probe import PublicMeter
+import tools.operator_unfunded_probe as probe
+from tools.operator_unfunded_probe import PublicMeter, strict_supported_sample
 
 
 @pytest.mark.parametrize("url,method,headers", [
@@ -46,3 +47,33 @@ def test_synchronous_wrh_requests_share_public_budget_and_guards():
         with pytest.raises(RuntimeError,match="REQUEST_REJECTED"):
             client.post("https://clob.polymarket.com/order")
     assert meter.rows["www.weather.gov"]["response_bytes"]==3
+
+
+
+def test_strict_supported_sample_filters_rotates_and_wraps(monkeypatch):
+    events=[
+        {"id":"4","supported":False},
+        {"id":"2","supported":True},
+        {"id":"3","supported":True},
+        {"id":"1","supported":False},
+    ]
+    def compile_event(event):
+        if not event["supported"]:
+            raise probe.StrictWeatherContractError("UNSUPPORTED")
+        return object()
+    monkeypatch.setattr(probe,"compile_strict_temperature_event",compile_event)
+    monkeypatch.setattr(probe,"strict_contract_identity",lambda event,compiled: {"ok":True})
+    assert [x["id"] for x in strict_supported_sample(events,"",limit=6)]==["2","3"]
+    assert [x["id"] for x in strict_supported_sample(events,"2",limit=6)]==["3"]
+    assert [x["id"] for x in strict_supported_sample(events,"9",limit=6)]==["2","3"]
+
+
+def test_strict_supported_sample_respects_identity_failure_and_limit(monkeypatch):
+    events=[{"id":str(i),"supported":True} for i in range(1,5)]
+    monkeypatch.setattr(probe,"compile_strict_temperature_event",lambda event: object())
+    def identity(event,compiled):
+        if event["id"]=="2":
+            raise probe.StrictWeatherContractError("IDENTITY_UNSUPPORTED")
+        return {"ok":True}
+    monkeypatch.setattr(probe,"strict_contract_identity",identity)
+    assert [x["id"] for x in strict_supported_sample(events,"",limit=2)]==["1","3"]
