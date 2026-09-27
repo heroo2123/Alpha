@@ -1,5 +1,70 @@
 # Alpha V11 work checkpoint
 
+## Authenticated Telegram-command adapter for operator safety routing — 2026-09-27 (supervisor batch 5)
+
+Recovered a clean tree: local/remote `weather-v11-profitability-upgrade-2026-09-23`
+were already equal at `fdf8c1c`, no dirty files, no unfinished background process.
+Read CLAUDE.md, this checkpoint, the requirements matrix and progress ledger.
+Followed the batch-4 correction's exact next action: `OperatorSafetyRouter.route`
+trusts a caller-supplied actor/scope/reason/timestamps and nothing in the tree
+called it from an authenticated source; the open gap was an upstream adapter
+that authenticates the sender before any of those values reach the router.
+
+Implemented `polymarket_scanner/v11/operator_command_adapter.py`
+(`TelegramCommandIdentity`, `TelegramOperatorCommandAdapter`). It reuses the
+existing, already-tested private-chat identity check
+(`production.telegram.Telegram.principal`) rather than reimplementing
+authentication: bot id, chat id, chat type, operator id, non-bot sender, no
+forward/sender-chat/via-bot markers and message-date freshness are all checked
+by that existing function against a bound identity. Only after `principal`
+returns an authenticated actor id does the adapter parse one strict command
+grammar (`/ACTION SCOPE scope_id reason...`, scope in
+`ACCOUNT|CITY|STATION|EVENT`) from the message text, and derive the command id
+and `created`/`expires` from the message's own envelope (chat id, message id,
+message date) rather than any client-supplied field, before calling
+`OperatorSafetyRouter.route` with the authenticated actor and parsed values.
+Callback-query (button) updates are explicitly rejected
+(`COMMAND_CALLBACK_NOT_SUPPORTED`): a callback's message belongs to the bot,
+not the operator, so a button envelope needs its own binding this adapter does
+not provide. Retries are not separately deduplicated: an unchanged Telegram
+redelivery has the same message id/date, so the derived command id and
+timestamps are identical and the existing router/`SafetyReductions` idempotency
+and `REPLAY_REQUEST_CONFLICT` handling already apply unchanged.
+
+New suite `tests/test_v11_operator_command_adapter.py`: **16 passed**, covering
+identity-mismatch construction, authenticated success, idempotent replay,
+conflicting replay, unauthenticated/forwarded/non-private/stale-date rejection,
+callback rejection, malformed-grammar rejection, and that the underlying
+policy's own scope/action preauthorization still applies (a station-scope
+command reaches the existing safety view; an authenticated but non-preauthorized
+action is still rejected). Combined with `test_v11_operator_safety_router.py`,
+`test_v11_event_risk.py`, `test_v11_event_risk_source_time.py`,
+`test_v11_evidence_foundation.py` and `test_operator_panel.py` (the last exercises
+the reused `Telegram.principal` in its own existing suite): **131 passed, 11.98s,
+exit 0**, no skips or warnings, in the foreground on the recorded project
+interpreter `/home/alphaadmin/AlphaV11_Dev/venv/bin/python`. No full regression
+run in this batch: one new module plus its direct integration surface, not a
+broad shared-infrastructure change or acceptance checkpoint.
+
+This is a real authenticated-caller integration step for R39, not a full close:
+no production entry point yet constructs this adapter against a real, credentialed
+`Telegram` client and polls real Telegram updates with it — that live-polling
+wiring, its own credential/deployment evidence, protected policy/account-binding
+review, button/callback command support, and independent executor/guardian
+integration and operational acceptance all remain open. No V10, credential,
+private-input, financial-authority, or existing production code changed; the
+only new files are the adapter module and its test. **85/200 (~43%); 1/50 (2%)**,
+unchanged — this strengthens R39's C/J surface further; it does not itself
+complete R39 or grant new formal credit. **NOT_READY_TO_FUND; V10 unchanged/DEFERRED.**
+
+**Next unfinished action:** wire a real production entry point (e.g. a bounded
+polling loop analogous to the existing `Telegram.updates`/`OperatorPanel` flow)
+that constructs `TelegramOperatorCommandAdapter` against a real, already-
+credentialed `Telegram` client and an explicit `TelegramCommandIdentity`, and
+calls `.handle()` per incoming update, with its own credential/deployment
+acceptance evidence kept separate from this adapter/router core; independently,
+consider a callback/button-based command envelope if operator UX requires it.
+
 ## Independent batch-4 review — authentication boundary corrected, 2026-09-27
 
 Reviewed published `5f78840938563955ad6d5b9a625b330156dc2cfc` (tree

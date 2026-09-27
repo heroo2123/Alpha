@@ -1,5 +1,32 @@
 # Supplementary engineering estimate
 
+Authenticated Telegram-command adapter — 2026-09-27 (supervisor batch 5): closed
+the exact gap the batch-4 review identified by adding
+`v11/operator_command_adapter.py`. `TelegramOperatorCommandAdapter` reuses the
+existing, already-tested `production.telegram.Telegram.principal` private-chat
+identity check to authenticate the Telegram sender (bot id, chat id, chat type,
+operator id, non-bot, no forward/sender-chat/via-bot markers, message-date
+freshness), then parses a strict `/ACTION SCOPE scope_id reason` grammar and
+derives the command id and timestamps from the message's own envelope, before
+calling `OperatorSafetyRouter.route` with only the authenticated actor and
+parsed values. Callback/button updates are explicitly out of scope
+(`COMMAND_CALLBACK_NOT_SUPPORTED`). New suite **16 passed**; combined with the
+router, event-risk, evidence-foundation and operator-panel suites (the last
+exercises the reused `principal` in its own existing coverage): **131 passed,
+11.98s, exit 0**, no skips/warnings, foreground, on the recorded project
+interpreter. No full regression run (single new module plus its direct
+integration surface).
+
+Text-command routing is now sender-authenticated end to end at the core/
+integration level, but no production entry point yet constructs this adapter
+against a real credentialed `Telegram` client and polls real Telegram updates
+with it; that live-polling wiring and its own credential/deployment evidence,
+protected policy/account-binding review, callback/button command support, and
+independent executor/guardian integration and operational acceptance all remain
+open. No V10, credential, private-input or existing production code changed.
+No new C/J/E/A milestone: **85/200 = 42.5% (~43%); formal 1/50 (2%)**, unchanged.
+NOT_READY_TO_FUND; V10 unchanged/DEFERRED.
+
 Independent batch-4 review — 2026-09-27: corrected the published claim that
 `OperatorSafetyRouter` closes protected/authenticated command routing. It checks
 a caller-supplied numeric actor and policy, and has no transport or candidate
