@@ -1,5 +1,70 @@
 # Alpha V11 work checkpoint
 
+## R34-R36 audit sweep, 2026-09-27 (supervisor batch 14)
+
+Recovery check: `git status` clean, local HEAD `7ef687e` equal to
+`origin/weather-v11-profitability-upgrade-2026-09-23`, no unfinished process.
+Read this checkpoint's tail, the requirements matrix and the engineering
+progress ledger before editing; both already named R34-R36
+(`v11/maker_research.py`, `v11/microstructure.py`, `v11/reward_rules.py`,
+plus their direct dependents `v11/maker_context.py` and `v11/maker_rewards.py`)
+as the next untouched local-audit candidate after the prior batch exhausted
+R06/R07 clean and excluded R39 (nine-plus batches) and R37's CI EPERM (three
+batches) under the score-velocity rule. Per that rule, R39 and R37's CI EPERM
+were not touched this batch.
+
+Performed a full line-by-line read of all five files (1,347 lines total):
+`ResearchQuote`/`MakerResearchPolicy` bounds, `MakerResearch._admission`
+(city/station/metadata scope, guardian/safety/admission head collection,
+event-state suppression, size/expiry ceilings), `_feature` (exact book-source
+binding, staleness, post-only crossing guard), `_project` (hypothetical
+common-account risk overlay, per-intent cash bound, collateral bound formula),
+`propose`/`observe`/`retire`/`markout`'s replay/CAS and failure-path head
+handling; `microstructure.py`'s `_source`/`_frame`/`_link`/`_temporal`/`_trades`
+(book staleness, crossed/locked-book rejection, book-sequence gap/reorder
+detection, public-trade dedup and taker-side/aggressor semantics, cross-provider
+rejection); `reward_rules.py`'s `parameters`/`_bounded`/`_day`/`liquidity_score`/
+`pursuit_gate` (exact-market receipt binding, allocation window/boundary
+handling, the documented one-sided minimum-score floor for mid in [.1,.9]);
+`maker_context.py`'s `_notice`/`measure_context` (release-notice schema/age/time
+bounds, same-day/future-day scope binding, model-pin/state-hash consistency,
+expiry-floor composition); and `maker_rewards.py`'s `_assessment`/`track`/
+`refresh`/`reconcile_synthetic_payment`/`report` (methodology/parameter
+staleness, fee-conditional rebate computation, round-robin refresh ordering,
+distinct-statement/transfer synthetic-payment matching, income aggregation by
+asset).
+
+No exploitable defect was found: every failure path fails closed; BUY/SELL and
+YES/NO sign conventions are applied consistently (collateral bound, liquidity-
+score distance-to-reference, aggregator grouping); CAS/heads checks are
+internally consistent, including the deliberate asymmetry where a rejected
+`propose` or a retiring `observe`/`refresh` omits the collected heads from its
+failure-record commit (documented: a local research withdrawal cannot create
+exposure or release ledger cash, so it need not assert freshness against the
+upstream heads it never acted on). This matches the outcome of the prior
+R06/R07/R08/R32 audits. No code changed; no new C/J/E/A credit is claimed.
+
+No new C/J/E/A this batch: **85/200 = 42.5% (~43%); formal 1/50 (2%)**,
+unchanged. R34-R36 removed from the untouched-audit pool. NOT_READY_TO_FUND;
+V10 unchanged/DEFERRED. No V10, credential, private-input, service or
+production file was touched; no alpha-dev deployment, financial authority or
+real order was requested or performed.
+
+**Exact next unfinished action:** no further local, non-owner, non-external
+audit candidate remains identified — R00-R08, R32, R33, R34-R36 have all been
+read for exploitable defects and cleared; R39's remaining gap and R37's CI
+EPERM are velocity-rule excluded pending either a credit-crossing idea or a
+new P0/P1 finding; every other PARTIAL requirement's recorded remaining tail
+(R09-R31, R40-R49) needs real external source/label/provider access or
+owner-authorized deployment/credential/review action per the existing
+requirements-matrix table. Recommend either (a) owner-provided real
+provider/label/deployment access to move any blocked PARTIAL toward E/A, or
+(b) a fresh master-citation review to check whether any PARTIAL's recorded
+"pending" tail actually hides a purely local implementation gap that this
+audit sweep did not consider (the R39 batch-13 precedent for exactly this
+pattern). Do not resume R39 or R37's CI EPERM until either crosses a credit
+boundary or a genuinely new P0/P1 defect is found in them.
+
 ## Velocity-rule redirect, full-regression flakiness diagnosis and audit sweep, 2026-09-27
 
 Recovery check: `git status` clean, local HEAD `3dbb4c2` equal to

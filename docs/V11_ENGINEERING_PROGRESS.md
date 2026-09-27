@@ -1,5 +1,21 @@
 # Supplementary engineering estimate
 
+R34-R36 audit sweep — 2026-09-27 (supervisor batch 14): following the prior
+checkpoint's own recommended next action, performed a full line-by-line audit
+of the remaining untouched local PARTIAL packages `v11/maker_research.py`,
+`v11/microstructure.py`, `v11/reward_rules.py` and their direct dependents
+`v11/maker_context.py`/`v11/maker_rewards.py` (1,347 lines), rather than
+resuming R39/R37 (both velocity-rule excluded, unchanged this batch). Checked
+admission/scope binding, book/trade source validation, the collateral bound
+and liquidity-score/reward-parameter formulas (including BUY/SELL and YES/NO
+sign conventions), and the CAS/heads replay logic across every method. No
+exploitable defect was found, matching the prior R06/R07/R08/R32 audit
+outcome. No code changed; no C/J/E/A claimed. Total unchanged: **85/200 =
+42.5%, approximately 43%; formal 1/50 (2%)**. R34-R36 removed from the
+untouched-audit pool; no further local non-owner audit candidate remains
+identified. NOT_READY_TO_FUND; V10 unchanged/DEFERRED. Full detail:
+`docs/V11_WORK_CHECKPOINT.md`.
+
 Velocity-rule redirect and audit sweep — 2026-09-27: excluded R39/R37-CI per
 the score-velocity rule (nine-plus and three stalled batches respectively). A
 chunked full-regression attempt for R45 hit 148 failures in the first of six

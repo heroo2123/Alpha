@@ -1,5 +1,18 @@
 # V11 requirement-to-code/test/evidence matrix
 
+R34-R36 audit sweep — 2026-09-27 (supervisor batch 14): a full line-by-line
+read of `v11/maker_research.py`, `v11/microstructure.py`, `v11/reward_rules.py`,
+`v11/maker_context.py` and `v11/maker_rewards.py` (1,347 lines) found no
+exploitable defect in admission/scope binding, book/trade source validation,
+the collateral/liquidity-score/reward-parameter formulas, or the CAS/heads
+replay logic, including the deliberate asymmetry that omits collected heads
+from a rejected/retired quote's failure-record commit. This matches the
+R06/R07/R08/R32 audit outcome. No code changed. No new C/J/E/A: **85/200 =
+42.5% (~43%); 1/50 (2%)**, unchanged. R34-R36 removed from the untouched-audit
+pool; no further local non-owner audit candidate remains identified.
+NOT_READY_TO_FUND; V10 unchanged/DEFERRED. Full detail:
+`docs/V11_WORK_CHECKPOINT.md` (R34-R36 audit sweep, supervisor batch 14).
+
 Velocity-rule redirect and audit sweep — 2026-09-27: R39 (nine-plus batches)
 and R37's custody-CI EPERM (three batches) were excluded this batch per the
 score-velocity rule; neither changed. A chunked full-regression attempt
