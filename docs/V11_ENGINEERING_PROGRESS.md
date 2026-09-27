@@ -1,5 +1,25 @@
 # Supplementary engineering estimate
 
+Supervisor batch 13 — 2026-09-27: master-grounded correction (section 35/6A)
+of R39/R44's remaining-gap framing, plus a real code fix: `host_trust/
+weather-paper-authority-v3/authority.py` gained an optional
+`legacy_consumer_units` policy field so future-generation controller/execution/
+signals units render an explicit `Conflicts=` line against a legacy (V10)
+unit, closing the master's actual "Telegram consumer ownership before
+side-by-side deployment" code-path gap. Verified read-only against the live
+host that V10's installed unit already declares the forward Conflicts= but the
+V11 unit's `ConflictedBy=` was empty, motivating the explicit reverse
+declaration rather than reliance on unverified automatic symmetry. 4 new /
+14 passing tests; 298 passed across the broader authority/host_trust
+selection; 54 passed across direct dependents; exactly two files touched; no
+V10/credential/private file touched, no unit started/stopped/masked/reloaded.
+R37's custody-namespace CI EPERM was diagnosed (preconditions per `man 7
+user_namespaces` are met, yet the syscall still fails across two different
+code orderings) and recorded as likely GitHub-runner-environment-blocked
+rather than re-attempted blind. No new C/J/E/A credit: **85/200 (~43%);
+1/50 (2%)**, unchanged. NOT_READY_TO_FUND; V10 unchanged/DEFERRED. Full detail:
+`docs/V11_WORK_CHECKPOINT.md` (supervisor batch 13).
+
 Independent batch-12 review — 2026-09-27: published `d4f960d` moved group
 clearing before the outer GID map, which a native empty-map probe and five
 failing regression cases disproved. Its CI run `36294265757` failed all

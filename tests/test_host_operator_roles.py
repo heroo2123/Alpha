@@ -57,6 +57,26 @@ def test_three_role_policy_uses_independent_paths_and_fresh_environments(panel_h
     assert host.m.verify_runtime_files(gid,host.b,require_root=False)["manifest"]==manifest
 
 
+def test_legacy_consumer_conflicts_reach_controller_and_execution_units_not_scanner(panel_host):
+    host=panel_host
+    host.policy["legacy_consumer_units"]=("alpha-paper-demo.service",)
+    assert host.m._validate_policy(host.policy)["legacy_consumer_units"]==("alpha-paper-demo.service",)
+    prepare(host)
+    for name in ("controller","execution"):
+        text=Path(host.policy["components"][name]["unit_file"]).read_text()
+        assert "Conflicts=alpha-paper-demo.service" in text
+    scanner_text=Path(host.policy["components"]["scanner"]["unit_file"]).read_text()
+    assert "Conflicts=alpha-paper-demo.service" not in scanner_text
+
+
+@pytest.mark.parametrize("value",[("alpha paper demo",),("dup.service","dup.service"),("signals.service",)])
+def test_legacy_consumer_units_reject_malformed_or_self_referential_names(panel_host,value):
+    host=panel_host
+    host.policy["legacy_consumer_units"]=value
+    with pytest.raises(host.m.AuthorityError,match="AUTHORITY_LEGACY_CONSUMER_UNITS_INVALID"):
+        host.m._validate_policy(host.policy)
+
+
 @pytest.mark.parametrize("kind",["uid","directory","config_path","lock","mixed"])
 def test_role_boundary_confusion_rejected(panel_host,kind):
     host=panel_host; policy=deepcopy(host.policy)

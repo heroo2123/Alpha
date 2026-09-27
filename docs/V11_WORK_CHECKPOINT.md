@@ -1,5 +1,122 @@
 # Alpha V11 work checkpoint
 
+## Supervisor batch 13 — master-grounded R39/R44 scope correction plus legacy-consumer Conflicts=, 2026-09-27
+
+Recovery check at batch start: `git status` clean, local HEAD `4210a6c` equal to
+`origin/weather-v11-profitability-upgrade-2026-09-23`. Read the requirements
+matrix, engineering progress ledger and this checkpoint's tail before editing.
+
+R39 had consumed seven consecutive published batches (5-11) and R37's custody
+CI fixture two more (batch 12 plus the still-red `4210a6c` run) without any new
+C/J/E/A credit, which the supervisor's velocity rule treats as a stop signal
+unless this batch can cross a credit boundary or fix a P0/P1 defect. Per
+CLAUDE.md ("read the master when implementation or interpretation requires
+it"), the actual authoritative master
+(`Alpha_V11_Master_Prompt_Controlled_Continual_Learning_PWS_Observation_Lead_V10_Forensic_Baseline_Final_Reviewed(1).txt`,
+SHA-256 verified against the pinned digest) was read for the specific open
+question batches 8-12 left unresolved: what "protected (non-cooperative)
+configuration custody" and "cross-deployment consumer exclusion" for R39
+actually require, since no batch had located a master-derived authorization
+model and batch 11 explicitly declined to invent one.
+
+Section 35 (SECURITY REQUIREMENTS) states the actual requirement: "Verify
+installed unit Conflicts/dependencies, Telegram consumer ownership, DB paths
+and resource ceilings before side-by-side deployment." This is a
+deployment-time systemd mutual-exclusion check, not an application-level
+database authorization protocol. Section 6A (the section that actually defines
+R39, "OPERATOR SAFETY MODES AND ROUTINE OPERATIONAL AUDITS") lists the required
+action set and daily/weekly report fields but never asks for a cross-host
+ownership/claim system. Code inspection confirms R39's section-6A core is
+already complete: all eight actions
+(`CANCEL_ALL_MANAGED_ORDERS`/`CANCEL_AND_HALT`/`CANCEL_EVENT`/
+`QUARANTINE_STATION`/`QUARANTINE_CITY`/`NO_NEW_ORDERS`/`REDUCE_ONLY`/
+`DISABLE_INVENTORY_OPERATIONS`/`REQUIRE_MANUAL_REVIEW`) exist in
+`v11/event_risk.py`'s `ACTIONS`/`SafetyReductions.apply`, and
+`v11/audit_reports.py`'s `_fold`/`AuditWorker._step` already populate every
+daily/weekly field the master lists (source/data health, station
+certification/quarantine, rule-fingerprint drift, funnel accept/reject,
+paper/live P&L, markout, reconciliation exceptions, stale-data incidents,
+current exposure, rewards separated from alpha, unresolved faults, and the
+weekly-only drift/champion-challenger/concentration/promotion fields). This
+does not itself award new credit (the databases/CAS ownership work batches
+8-12 built is not wasted — it strengthens local consistency — but the
+"remaining gap" framing repeated across those batches was not derived from the
+master and should not continue to consume future batches).
+
+Real verified evidence for the actual master requirement: on this host,
+`systemctl show alpha-paper-demo.service --property=Conflicts` already returns
+`Conflicts=alpha-weather-controller.service shutdown.target
+alpha-weather-execution.service` (V10's installed unit already conflicts with
+the V11 controller/execution units — read-only `systemctl`/`systemctl cat`
+inspection only, no unit was started, stopped, masked or reloaded). However,
+`systemctl show alpha-weather-controller.service --property=ConflictedBy`
+returns empty, so the commonly assumed automatic bidirectional back-edge
+(`man systemd.unit`'s Conflicts= section says "starting the former will stop
+the latter and vice versa") is not observably in effect for the currently
+*installed* V11 unit on this host; verifying the real runtime direction
+further would require starting a unit, which is forbidden (V10 must not be
+restarted, and no sudo/system service change is authorized). The safe,
+bounded fix is to make the V11 side's declaration explicit rather than rely on
+unverified implicit symmetry.
+
+Added an optional, backward-compatible `legacy_consumer_units` policy field to
+`host_trust/weather-paper-authority-v3/authority.py` (`_validate_policy`):
+a tuple of `NAME.service` strings, rejecting malformed names, duplicates and
+self-reference. `_render_unit` now emits an explicit `Conflicts=...` line in
+the `[Unit]` section for the `controller`/`execution`/`signals` components
+when configured, and emits nothing (byte-identical output to before) when the
+field is absent. This only changes what a *future* candidate generation
+renders; it does not touch the already-installed live units and requires no
+systemctl/sudo call. Four new tests in `tests/test_host_operator_roles.py`
+cover: `_validate_policy` accepting and returning the tuple; the rendered
+`controller`/`execution` unit files containing the `Conflicts=` line while the
+`scanner` unit does not; and three malformed/duplicate/self-referential
+rejection cases.
+
+Verification: `tests/test_host_operator_roles.py` **14 passed / 4.45 s**;
+`tests/test_host_authority_production_boundary.py` plus
+`tests/test_weather_final_corrective_deployment.py` (confirms the
+`legacy_consumer_units`-absent case is byte-for-byte unchanged) **42 passed /
+14.94 s**; broader `-k "authority or host_trust or host_operator or
+host_authority"` **298 passed / 37.79 s**; direct dependents
+`test_weather_stage1_findings_1_4.py`, `test_weather_post_final_review_corrective.py`,
+`test_weather_only_live_paper.py`, `test_weather_host_trust_environment.py`
+**54 passed / 4.27 s**. No failures, no skips introduced. `git diff --stat`
+shows exactly two files: `host_trust/weather-paper-authority-v3/authority.py`
+and `tests/test_host_operator_roles.py`. No full regression: bounded
+host_trust-scoped addition plus its direct dependents, consistent with the
+established no-full-rerun precedent for single-module scope. No V10, private
+input, or credential file touched or staged.
+
+This closes the actual master-cited "Telegram consumer ownership... before
+side-by-side deployment" gap in the code path that *generates* future V11
+units (a real, testable local defect: absence of an explicit reverse
+Conflicts=). It does not itself commission a new generation on the live host
+(that remains an owner-authorized deployment action against
+`host_trust/weather-paper-authority-v3/authority.py`'s existing cutover/
+approval workflow) and does not change R39/R44's live acceptance status.
+R39/R44 remain PARTIAL. No new C/J/E/A credit is claimed: **85/200 (~43%);
+1/50 (2%)**, unchanged. NOT_READY_TO_FUND; V10 unchanged/DEFERRED (no V10 unit
+was started, stopped, masked, or reloaded; only `systemctl show`/`cat`
+read-only inspection was used).
+
+R37's custody-namespace CI (still red on `4210a6c`, run `36295259980`) was
+diagnosed but not changed further this batch: the failure dump shows
+`gid_map`/`uid_map` populated via the privileged `newgidmap`/`newuidmap` path
+and `/proc/pid/setgroups` reporting `allow`, which per `man 7
+user_namespaces` are the only two documented preconditions for `setgroups(2)`
+to succeed inside the mapped namespace — yet the call still raises `EPERM`.
+Two different code-level orderings (before-map in batches through 11,
+after-map in batch 12/`4210a6c`) have both failed identically in real CI,
+which is evidence against a further local ordering fix and consistent with an
+environment-level restriction on GitHub's hosted runner (e.g. an LSM/sandbox
+policy) rather than a fixable defect in this repository. Per the velocity
+rule, no further blind fix-and-push cycle was attempted this batch; this is
+recorded once as the next actionable diagnostic step (confirm via a
+sandbox-detection probe added to the fixture's own failure path, e.g.
+`/proc/version`, `systemd-detect-virt`, or an AppArmor/seccomp status dump,
+before trying another ordering change).
+
 ## Independent batch-12 review — mapped group clearing, 2026-09-27
 
 Reviewed published `d4f960d18080f7051cfeb9139f10602c990e0ae1` against
