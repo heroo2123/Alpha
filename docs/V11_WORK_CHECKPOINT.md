@@ -1,5 +1,60 @@
 # Alpha V11 work checkpoint
 
+## Protected operator command routing closes an R39 open item — 2026-09-27 (supervisor batch 4)
+
+Recovered from a dirty worktree left by the immediately preceding invocation,
+which had stopped mid-batch waiting on a background test run with no published
+commit. Local and remote `weather-v11-profitability-upgrade-2026-09-23` were
+already equal at `1a33743`; the only outstanding work was two untracked files
+already written to disk: `polymarket_scanner/v11/operator_safety_router.py`
+and `tests/test_v11_operator_safety_router.py`. Read both in full before acting;
+neither touches V10, credentials, private inputs, or financial authority.
+
+`v11/event_risk.py`'s `SafetyReductions.apply` accepts a caller-supplied
+actor/scope/action and explicitly disclaims authentication ("Production
+routing must authenticate separately and bind exact account scope"); nothing
+in the tree previously called it outside test simulation of an already-
+authorized call. `OperatorSafetyRouter` is that missing caller: a preauthorized
+numeric-operator allowlist plus a scope/action ceiling (mirroring the existing
+numeric-operator-allowlist/experience-ceiling model in `production/control.py`),
+command-freshness enforcement (reject backdated, expired, or over-window
+commands), and account-scope binding, before ever invoking the existing
+durable, replay-safe, monotonic-only `SafetyReductions.apply`. It can only
+narrow an account's live posture, never restore or expand one. Real Telegram
+delivery, its credential, and independent operational acceptance remain
+separate and are not performed or assumed here.
+
+Verified the new module's references resolve against the current tree
+(`ACTIONS`, `EventContext`, `SafetyReductions` in `event_risk.py`; `identity`,
+`EvidenceError`, `EvidenceStore` in `evidence.py`). Ran the new suite standalone
+and with directly affected event-risk/evidence coverage in the foreground:
+`tests/test_v11_operator_safety_router.py` **11 passed**; combined with
+`tests/test_v11_event_risk.py`, `tests/test_v11_event_risk_source_time.py`,
+`tests/test_v11_evidence_foundation.py` **80 passed**, exit 0, no skips or
+warnings. No full regression run in this batch (single new module plus its
+direct integration surface; the CLAUDE.md testing budget reserves full runs for
+broad shared-infrastructure change or acceptance checkpoints, neither of which
+applies here).
+
+This closes R39's "protected command routing" open item at the core/
+integration level: an identified, allowlisted operator can now durably narrow
+an account's/city's/station's/event's live posture through one authenticated,
+replay-safe, monotonic-only path. Independent executor/guardian integration
+(an actual Telegram operator surface calling this router with real credentials
+and independent operational acceptance) remains open and is not claimed here.
+No production code outside the new module changed; no test, gate, service,
+credential, V10 runtime, or financial authority changed. **85/200 (~43%);
+1/50 (2%)**, unchanged — this strengthens an already-PARTIAL requirement's C/J
+surface; it does not itself complete R39 or grant new formal credit.
+NOT_READY_TO_FUND; V10 unchanged/DEFERRED.
+
+**Next unfinished action:** wire an actual authenticated operator-command
+surface (e.g. the referenced Telegram delivery path) to call
+`OperatorSafetyRouter.route`, with its own credential/deployment acceptance
+evidence kept separate from this routing/authorization core; independently,
+resume the still-open 47-case full-regression reconciliation left by the prior
+checkpoint entry below.
+
 ## Independent batch-3 review — regression evidence corrected, 2026-09-26
 
 Reviewed published `ead5354dea1bdb4c727f14a0a2dc0fed1be76778` (tree

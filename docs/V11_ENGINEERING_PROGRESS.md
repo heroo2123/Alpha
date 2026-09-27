@@ -1,5 +1,35 @@
 # Supplementary engineering estimate
 
+Protected operator command routing closes an R39 open item — 2026-09-27
+(supervisor batch 4): recovered two already-written untracked files from a
+dirty worktree left by a stopped prior invocation; local/remote were otherwise
+equal. `v11/operator_safety_router.py` supplies the missing authenticated
+caller for `v11/event_risk.py`'s `SafetyReductions.apply`, which previously
+disclaimed authentication and was only ever invoked by tests simulating an
+already-authorized call: a preauthorized numeric-operator allowlist and
+scope/action ceiling, command-freshness/backdating rejection, and account-scope
+binding, ahead of the existing durable, replay-safe, monotonic-reduction-only
+apply path. It can only narrow a live posture, never restore or expand one.
+
+New suite `tests/test_v11_operator_safety_router.py` **11 passed**; combined
+with directly affected `test_v11_event_risk.py`, `test_v11_event_risk_source_
+time.py`, `test_v11_evidence_foundation.py`: **80 passed**, exit 0, no skips
+or warnings. No full regression run this batch — a single new module plus its
+direct integration surface is neither broad shared-infrastructure change nor
+an acceptance checkpoint under the CLAUDE.md testing budget. No production
+code outside the new module changed; no test, gate, service, credential, V10
+runtime, or financial authority changed.
+
+This closes R39's "protected command routing" open item at the core/
+integration level only. Real Telegram delivery, its credential, and
+independent operational/executor-guardian acceptance remain separate and
+unclaimed. **85/200 (~43%); formal 1/50 (2%)**, unchanged — this strengthens
+an already-PARTIAL requirement's C/J surface without new formal credit.
+NOT_READY_TO_FUND; V10 unchanged/DEFERRED. Next: wire an actual authenticated
+operator surface to call `OperatorSafetyRouter.route` with its own separate
+credential/deployment acceptance evidence; independently, resume the still-open
+47-case full-regression reconciliation from the prior batch-3 entries below.
+
 Complete-collection regression; independent evidence correction — 2026-09-26
 (supervisor batch 3): reviewed documentation-only publication
 `ead5354dea1bdb4c727f14a0a2dc0fed1be76778` against
