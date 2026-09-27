@@ -2200,3 +2200,60 @@ genuinely unblocked local activity remains either R40/R24's named
 implementation tails or another untouched guardian-class-defect audit
 target (R01, R04, R07, R11, R16-R17, R19, R25-R28, R41 have not yet been
 read end-to-end by this audit style).
+
+## Supervisor batch 13 — 2026-09-27
+
+Recovery check: `git status` clean, local HEAD `198784d` equal to
+`origin/weather-v11-profitability-upgrade-2026-09-23`, no unfinished process
+found. Before picking a new target, independently re-verified batch 12's R24
+exclusion rather than inheriting it: grepped the tree for `SizingFactors`'s
+nine factor names and confirmed none is computed as a real quantity outside
+`v11/allocation.py`'s own unit tests, then re-read the private master section
+12 ("REQUIRED UPGRADE H") and confirmed it lists them only as "Possible
+factors" with no per-factor formula — wiring real production computation
+would require inventing an unsupported calibration formula, so R24 remains
+correctly excluded, now independently confirmed.
+
+Continued the guardian-class-defect audit series onto R19 ("Conservative
+executable EV and target contracts"), reading `v11/valuation.py`,
+`v11/measurement.py` and `production/fees.py` end-to-end (600 lines).
+Traced the whole conservative-EV chain for the pattern this series checks
+for: `_costs` fails closed (`COST_RISK_DOUBLE_COUNT`/
+`UNKNOWN_OR_MISSING_COST_COVERAGE`) on any double-counted or unpriced/missing
+required risk; `executable_depth` cannot report `full_depth=True` without
+actually summing to the requested size; `fee_requirement` binds an
+sha256-pinned immutable fee snapshot to the exact target identity and uses
+`peak=min(limit_price, 0.5)` — the true worst-case of `price*(1-price)` over
+every fill price reachable up to the limit — doubled for documented
+rounding-quantization headroom. Given the implemented prediction family's
+mandatory vacuous `[0,1]` bound, `conservative_ev_per_share` is provably
+non-positive today, so `settlement_entry_details` cannot `ACCEPT_RESEARCH`
+until a real calibrated model exists — this matches R19's own row text
+rather than revealing a defect. **No defect found**; no code changed.
+
+Verification (foreground, direct family): `tests/test_v11_valuation.py
+tests/test_production_fee_policy.py tests/test_production_frozen_fee_review.py
+tests/test_production_published_fee_schedule.py
+tests/test_v11_markout_drift.py` — 148 passed / 28.91 s. Broader affected
+selection (`-k "valuation or fee or measurement or markout"`): 403 passed, 4
+pre-existing FastAPI warnings / 103.87 s. `git status --short` showed no
+changes outside this entry, the matching `docs/V11_REQUIREMENTS_MATRIX.md`
+R19/R24 rows and `docs/V11_WORK_CHECKPOINT.md` — no production, test, V10,
+private-input or credential file was touched. No full regression: a
+documentation-only audit correction carries no regression risk, consistent
+with the no-full-rerun precedent every other no-defect audit batch has set.
+
+No new C/J/E/A milestone: **87/200 (~44%); formal 1/50 (2%)**, unchanged.
+NOT_READY_TO_FUND; V10 unchanged/DEFERRED. Exact matrix update:
+`docs/V11_REQUIREMENTS_MATRIX.md` (R19/R24 rows plus a new top summary
+entry); checkpoint: `docs/V11_WORK_CHECKPOINT.md`.
+
+Next unfinished action: R19/R24/R40's real local-implementation/evidence
+tails remain genuinely blocked without inventing unsupported per-factor
+sizing formulas or a calibrated probability model. R39 should not be
+revisited by more local code without first identifying a concrete,
+master-derived authorization model. R43/R44/R46-R49 remain genuinely
+owner/external/production blocked. The next genuinely unblocked local
+activity is another untouched guardian-class-defect audit target (R01 is
+already COMPLETE; R04, R07, R11, R16-R17, R25-R28, R41 have not yet been
+read end-to-end by this audit style; R02/R03/R05/R06/R08/R19/R24 now have).
