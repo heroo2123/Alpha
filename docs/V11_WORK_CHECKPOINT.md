@@ -8403,3 +8403,90 @@ remains real engineering work still waiting on genuine full-regression
 capacity or a narrower staged rollout. R31/R39 remain implementation/evidence
 gaps rather than blanket owner blockers; R43/R44/R46-R49 remain genuinely
 owner/external/production blocked.
+
+## Supervisor batch 11 — 2026-09-27: R08 rule-quarantine-to-independent-guardian propagation audit, clean
+
+Recovery check: `git status` clean, local HEAD `8f27244` equal to
+`origin/weather-v11-profitability-upgrade-2026-09-23`, no unfinished process
+found. Read this checkpoint (including the independent supervisor-batch-9
+review at its top), the requirements matrix and the progress ledger before
+editing. Current durable score at start: **87/200 (~44%); formal 1/50 (2%)**.
+
+Per the mandatory score-velocity rule, R40 was excluded: four consecutive
+published batches (weather_variable, time_of_day, apparent_edge,
+source/country) already each explicitly earned no new C/J/E/A boundary, and
+the row's own text describes the one remaining named slice (PWS
+density/quality) as "one more bounded profile slice within existing
+implementation," not a new integration class, so a fifth slice cannot
+credibly cross a boundary either. R39 was excluded even more strongly: its
+matrix row records "no new C/J/E/A credit" across at least seven consecutive
+batches (7-13), and re-reading the private master (SHA-256
+`a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`, verified
+matching) section 6A confirmed it defines only the eight named safety-mode
+actions and daily/weekly report contents, not any bot-ownership/configuration
+authorization protocol — so R39's remaining "protected configuration custody"
+tail still cannot be locally implemented without inventing an unsupported
+permission scheme, exactly as recorded by every prior batch that reached this
+row. Re-verified `v11/event_risk.py::ACTIONS` already implements all eight
+master-named safety modes, so that half of R39/section-6A is not a gap.
+
+Batch 8's compiled credit-state audit already concluded no new local-only C/J
+boundary is reachable except via a genuine defect fix; batch 5's exhaustive
+"earns C/J/E/A" cross-reference (found R12) and batch 6's C-only-row re-check
+(found R23) already closed the only two scoring gaps that style of sweep
+could find. Consistent with that conclusion, this batch redirected to the
+"guardian-class defect" adversarial-audit style against R08 ("Universal rule
+fingerprints and quarantine", `v11/rules.py`), previously untouched by this
+audit series, targeting its own matrix row's named open concern: "final
+execution/guardian propagation pending."
+
+Traced the propagation path for a `RULE_STATE` drift-quarantine from
+`RuleGuard.observe`/`invalidate` through to the independent PAPER guardian
+(the process meant to keep cancelling even if the main candidate process is
+dead or compromised — distinct from the main process's own already-credited
+`rule_trigger`-driven `PaperCancellation.plan` path). `PaperGuardian
+._cycle_attempt` calls `PaperCancellation.check_admission` for every retained
+resting intent on every cycle, unconditionally — not only when a `RULE_STATE`
+trigger event happens to fire. `check_admission` calls `StrategyAdmission
+.revalidate` -> `_assess` -> `RuleGuard.revalidate`, which raises
+`RULE_DRIFT_QUARANTINED` whenever the pinned rule is currently quarantined;
+`check_admission` catches this, records `passed=False`, and the guardian's
+own `bad = not check[...]['passed']` then targets the intent for cancellation
+independently of whether the main process ever processed the quarantine
+trigger. A rule-drift quarantine therefore reaches the independent PAPER
+guardian's cancellation decision through its ordinary per-cycle admission
+re-check, not only through the main process's dedicated trigger path.
+**No defect found**; this closes the PAPER-guardian half of the row's named
+concern.
+
+No code changed. Verification (foreground): direct family —
+`tests/test_v11_strategy_admission.py tests/test_v11_paper_cancellation.py
+tests/test_v11_paper_guardian.py tests/test_v11_certification_rules.py
+tests/test_weather_only_rules.py tests/test_v11_paper_runtime.py` — **136
+passed / 26.57 s**, exit 0, no failures/skips. Broader affected selection
+(`-k "rule or strategy_admission or paper_guardian or paper_cancellation or
+event_risk or guardian_lease"`): **241 passed, 4 pre-existing FastAPI
+warnings / 36.62 s**, exit 0, no failures/skips. `git status --short` shows
+no changes outside the three durable ledgers (this entry, the matching
+`docs/V11_REQUIREMENTS_MATRIX.md` R08 row clarification, and
+`docs/V11_ENGINEERING_PROGRESS.md`) — no production, test, V10, private-input
+or credential file touched. No full regression: a documentation-only audit
+correction carries no regression risk, consistent with the no-full-rerun
+precedent every prior no-defect audit batch set.
+
+A real production/live execution guardian, into which this exact propagation
+has never been demonstrated, remains genuinely open (credential/deployment-
+gated); R08's "protected recertification unchanged" gap is also untouched.
+No new C/J/E/A milestone: **87/200 (~44%); formal 1/50 (2%)**, unchanged.
+NOT_READY_TO_FUND; V10 unchanged/DEFERRED.
+
+Next: R40's PWS neighborhood density/quality profile and R24's dynamic-sizing
+wiring remain real local-implementation/engineering tasks, excluded from only
+*this* batch by the score-velocity repetition limit, not resolved. R39 should
+not be revisited by more local code without first identifying a concrete,
+master-derived configuration-authorization model (none exists today per this
+batch's section-6A re-check). R43/R44/R46-R49 remain genuinely
+owner/external/production blocked. The next genuinely unblocked local
+activity is either R40/R24's named implementation tails or another untouched
+guardian-class-defect audit target (R01, R03, R04, R06-R07, R11, R16-R17,
+R19, R25-R28, R41 have not yet been read end-to-end by this audit style).
