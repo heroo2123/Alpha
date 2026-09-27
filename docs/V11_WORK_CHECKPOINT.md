@@ -8490,3 +8490,62 @@ owner/external/production blocked. The next genuinely unblocked local
 activity is either R40/R24's named implementation tails or another untouched
 guardian-class-defect audit target (R01, R03, R04, R06-R07, R11, R16-R17,
 R19, R25-R28, R41 have not yet been read end-to-end by this audit style).
+
+## Supervisor batch 12 (numbering per this session) — 2026-09-27
+
+Recovery pass for a prior invocation (log
+`batch-01-20260927T125510Z.log`) that started after commit `9a6c43d`
+(batch 11) and stalled waiting on a background test without writing any
+file changes; `git status` was clean and local/remote already matched, so
+there was nothing dirty to recover. Continued the guardian-class-defect
+audit series onto its next untouched target: R06 ("Partial-success
+collector resilience"), reading `v11/collection.py`, `v11/discovery.py` and
+`v11/observation_runtime.py` end-to-end (573 + 165 lines directly read,
+`observation_runtime.py` fully).
+
+Focused on the pattern this series looks for: a place where a partial or
+omitted source result could be silently treated as full coverage.
+`ObservationRuntime.cycle` computes, per event and provider, `ready` as the
+set of providers whose count of `SUCCESS` entries in `normalized` equals
+the count of *planned* requests for that provider at that event; a
+cooldown-omitted source (`ScheduledCollector._cycle`'s `omitted` list) never
+reaches `collected["sources"]` and therefore never reaches `normalized`, so
+it cannot inflate the numerator — `covered=bool(required) and
+required<=ready` correctly fails closed for that event/strategy pair rather
+than treating "no attempt made" as "succeeded". `PublicCollector.cycle`
+retries only on `TRANSPORT_FAILURE` (never on `RATE_LIMIT` or malformed
+bodies), clears client cookies and re-checks client anonymity before every
+attempt, and blocks a rate-limited host for the rest of the cycle rather
+than guessing a retry time when the provider gives none. `MarketDiscovery
+.step`'s resumable page/event walk marks `phase='INCOMPLETE'` (never
+`COMPLETE`) on a stale page receipt, a repeated/empty cursor, exceeding
+`maximum_page_failures`/`maximum_pages`/`maximum_event_hits`, or a scan-time
+bound overrun, so `summary()['semantic_coverage_complete']` cannot be true
+for a truncated traversal. **No defect found.**
+
+No code changed. Verification (foreground): direct family —
+`tests/test_v11_collection.py tests/test_v11_discovery.py
+tests/test_v11_observation_pump.py` — **42 passed / 7.76 s**, exit 0.
+Broader affected selection (`-k "collection or discovery or
+observation_runtime or observation_pump or scheduled_collector"`): **88
+passed, 4 pre-existing FastAPI warnings / 30.53 s**, exit 0, no
+failures/skips. `git status --short` shows no changes outside this entry,
+the matching `docs/V11_REQUIREMENTS_MATRIX.md` R06 row and
+`docs/V11_ENGINEERING_PROGRESS.md` — no production, test, V10, private-input
+or credential file touched. No full regression: a documentation-only audit
+correction carries no regression risk, consistent with the no-full-rerun
+precedent every prior no-defect audit batch (6, 8, 9, 10, 12, 13, 15, 16)
+set.
+
+No new C/J/E/A milestone: **87/200 (~44%); formal 1/50 (2%)**, unchanged.
+NOT_READY_TO_FUND; V10 unchanged/DEFERRED.
+
+Next: R40's PWS neighborhood density/quality profile and R24's dynamic-
+sizing wiring remain real local-implementation/engineering tasks. R39
+should not be revisited by more local code without first identifying a
+concrete, master-derived configuration-authorization model. R43/R44/R46-R49
+remain genuinely owner/external/production blocked. The next genuinely
+unblocked local activity is either R40/R24's named implementation tails or
+another untouched guardian-class-defect audit target (R01, R04, R07,
+R11, R16-R17, R19, R25-R28, R41 have not yet been read end-to-end by this
+audit style; R02/R03/R05/R08/R06 now have).

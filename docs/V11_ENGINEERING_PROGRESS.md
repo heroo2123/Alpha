@@ -2156,3 +2156,47 @@ unblocked local activity remains either R40/R24's named implementation
 tails or another untouched guardian-class-defect audit target (R01, R03,
 R04, R06-R07, R11, R16-R17, R19, R25-R28, R41 have not yet been read
 end-to-end by this audit style).
+
+## Supervisor batch 12 (numbering per this session) — 2026-09-27
+
+Recovery pass: the immediately preceding invocation stalled mid-audit
+without writing any file changes (working tree was already clean and
+local/remote HEAD already matched at `9a6c43d`), so there was nothing
+dirty to recover. Continued the guardian-class-defect audit series onto
+R06 ("Partial-success collector resilience"): read `v11/collection.py`,
+`v11/discovery.py` and `v11/observation_runtime.py` end-to-end. Traced
+`ObservationRuntime.cycle`'s per-event/provider `ready`-set computation —
+cooldown-omitted sources never reach `normalized` and cannot inflate the
+success count used to decide per-strategy source coverage — and
+`MarketDiscovery.step`'s resumable page/event walk, which marks the scan
+`INCOMPLETE` (never `COMPLETE`) on any stale receipt, repeated cursor,
+failure-bound or time-bound overrun, so a truncated traversal cannot be
+reported as `semantic_coverage_complete`. **No defect found**; no code
+changed.
+
+Verification (foreground, direct family): `tests/test_v11_collection.py
+tests/test_v11_discovery.py tests/test_v11_observation_pump.py` — 42
+passed / 7.76 s. Broader affected selection (`-k "collection or discovery
+or observation_runtime or observation_pump or scheduled_collector"`): 88
+passed, 4 pre-existing FastAPI warnings / 30.53 s. `git status --short`
+showed no changes outside this entry, the matching
+`docs/V11_REQUIREMENTS_MATRIX.md` R06 row and
+`docs/V11_WORK_CHECKPOINT.md` — no production, test, V10, private-input or
+credential file was touched. No full regression: a documentation-only
+audit correction carries no regression risk, consistent with the
+no-full-rerun precedent every other no-defect audit batch has set.
+
+No new C/J/E/A milestone: **87/200 (~44%); formal 1/50 (2%)**, unchanged.
+NOT_READY_TO_FUND; V10 unchanged/DEFERRED. Exact matrix update:
+`docs/V11_REQUIREMENTS_MATRIX.md` (R06 row); checkpoint:
+`docs/V11_WORK_CHECKPOINT.md`.
+
+Next unfinished action: R40's PWS neighborhood density/quality profile and
+R24's dynamic-sizing wiring remain real local-implementation/engineering
+tasks. R39 should not be revisited by more local code without first
+identifying a concrete, master-derived authorization model. R43/R44/
+R46-R49 remain genuinely owner/external/production blocked. The next
+genuinely unblocked local activity remains either R40/R24's named
+implementation tails or another untouched guardian-class-defect audit
+target (R01, R04, R07, R11, R16-R17, R19, R25-R28, R41 have not yet been
+read end-to-end by this audit style).
