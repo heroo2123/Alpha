@@ -1,5 +1,51 @@
 # Supplementary engineering estimate
 
+Supervisor batch 16 — 2026-09-27: recovery check found `git status` clean,
+local HEAD `4413c48` equal to `origin/weather-v11-profitability-upgrade-2026-09-23`.
+Re-tested batch 15's own "most concrete known local-implementation gap" (R24's
+`SizingFactors` wiring) against the score-velocity rule's credit test: R24
+already holds C and J (batch-8 compiled credit-state audit, unchallenged
+since), so wiring the reducer changes only the separately evidence-gated
+calibration tail, not the row's credit state, and carries real regression
+risk to the live PAPER capital-sizing path for zero new score — correctly
+not reattempted. Extended the adversarial-defect audit sweep instead onto
+R02/R03 (`v11/evidence.py`, 781 lines — the append-only causal evidence
+archive every other subsystem's CAS/capture/audit path is built on) plus its
+`v11/guardian_lease.py` cross-cutting lease integration, neither previously
+read end-to-end by this series.
+
+Traced one specific candidate defect closely: `check_transaction`'s guard
+loop (`v11/guardian_lease.py`) only re-verifies a guardian lease when a head
+tuple's `seq` is truthy, so a `seq=0` guard skips lease re-validation. This
+is not a bypass: `guardian_lease.admission_heads` returns `seq=0` only when
+the caller does not require a guardian (`required_config is None`) and none
+exists yet — there is no lease to check in that state — and raises
+`GUARDIAN_REQUIRED_BEFORE_OPENING` before such a guard could exist whenever
+a guardian actually is required. `PaperCoordinator.guardian_config` and
+`CandidatePlan.guardian_config` both default to `None` today, so guardian
+enforcement is currently opt-in absent explicit configuration, matching
+R37's own already-disclosed "deployment and independent commissioning
+remain open" status rather than revealing a new gap.
+
+No defect found. Verification (foreground, no code changed):
+`tests/test_v11_evidence_foundation.py tests/test_v11_fill_evidence.py` —
+**40 passed / 6.04 s**; `-k "guardian_lease or paper_guardian or
+maker_research"` — **85 passed / 25.09 s**; broader `-k
+"evidence_foundation or paper_coordinator or basket_coordinator or
+guardian_lease or paper_guardian or maker_research or fill_evidence"` —
+**171 passed / 43.28 s**, exit 0, four pre-existing FastAPI warnings, no
+failures/skips. `git status --short`/`git diff --stat` empty (audit-only).
+No full regression: no source changed. No new C/J/E/A milestone:
+**87/200 (~44%); formal 1/50 (2%)**, unchanged. NOT_READY_TO_FUND; V10
+unchanged/DEFERRED. R02/R03 join the audit-clean pool alongside
+R05/R06/R07/R08/R09/R18/R23/R24/R29/R30/R32/R33/R34-R36/R38/R42. Next: R24's
+dynamic-sizing wiring still needs a batch/environment with genuine
+full-regression capacity or a narrower staged rollout to attempt safely;
+otherwise continue the audit sweep onto R10-R17/R19-R22/R25-R28/R41/R45,
+none of which this series has yet covered. R31/R39's E-A/R43/R44/R46-R49
+remain genuinely owner/external/production blocked and should not consume
+another batch without new real evidence or an owner decision.
+
 Supervisor batch 15 — 2026-09-27: recovery check found `git status` clean,
 local HEAD `fecfc59` equal to `origin/weather-v11-profitability-upgrade-2026-09-23`.
 Per the mandatory score-velocity rule, excluded R40 (batch 14's `apparent_edge`

@@ -1,5 +1,87 @@
 # Alpha V11 work checkpoint
 
+## Supervisor batch 16 — 2026-09-27: R02/R03 evidence-archive + guardian-lease audit, clean
+
+Recovery check: `git status` clean, local HEAD `4413c48` equal to
+`origin/weather-v11-profitability-upgrade-2026-09-23`, no unfinished process
+found (the only running `claude` process was this invocation itself, matching
+`AlphaV11_Supervisor/STATUS.md`'s batch-9 entry at the same HEAD). Read this
+checkpoint, the requirements matrix and the progress ledger before editing.
+Current durable score at start: **87/200 (~44%); formal 1/50 (2%)**.
+
+Per the mandatory score-velocity rule, R40/R39/R42 were excluded (each either
+already non-boundary-crossing for two-plus consecutive batches or already
+audit-clean with only owner/credential-gated tails left). R24's dynamic-sizing
+wiring, batch 15's own named "most concrete known local-implementation gap,"
+was re-examined against the rule's own credit test rather than reattempted:
+batch 8's compiled credit-state audit (reconfirmed by every subsequent batch,
+not contradicted here) already gives R24 both C and J — `rank_candidates`
+ranking and the fail-closed ceiling-reject check are both live in the
+production path today. Wiring `SizingFactors`'s per-factor reducer would not
+itself cross a new C/J boundary (real calibration for the nine factors stays
+separately evidence-gated per the row's own text, as batch 12/13/15 already
+established) and would carry real regression risk to the live PAPER
+capital-sizing path for a change this batch's own analysis shows earns zero
+new score. Per the rule's "shortest UNBLOCKED path to a new credit" test,
+that makes it the wrong target this batch; it remains correctly recorded as
+real engineering work for a future batch with a narrower staged plan or
+longer regression window, not attempted here.
+
+Redirected to R02/R03 (`v11/evidence.py`, the append-only causal evidence
+archive every other subsystem's CAS/audit/capture path is built on) and its
+`v11/guardian_lease.py` cross-cutting integration, neither previously read
+end-to-end by this batch's adversarial-defect audit series, looking for the
+same class of gap the batch-6 review found in R23: a check that should
+trigger a safety reduction or reject an unsafe append but silently doesn't.
+
+Read `v11/evidence.py` in full (781 lines: `EvidenceStore` CAS/budget/clock
+guards, `_validate_safety_append`'s allow-list of exactly which safety-marked
+append shapes are accepted, `_RuntimeHealthPublicationStore`'s two-write
+heartbeat/sample protocol) and `v11/guardian_lease.py`'s `check_transaction`,
+`admission_heads`, `check_lease` and `validate_details` (guardian lease
+issuance/verification, used by every "opening" `COORDINATE`/`SUBMITTING`
+account transition and every non-`RETIRE` maker-research append). Traced one
+specific candidate defect closely: `check_transaction`'s guard loop only
+re-verifies a guardian lease when `seq` is truthy (`if k == 'RUNTIME_STATUS'
+and e.startswith('paper-guardian:') and seq:`), so a guard tuple with
+`seq=0` skips lease re-validation entirely. Confirmed this is not a bypass:
+`guardian_lease.admission_heads` only ever returns `seq=0` when
+`required_config is None` (the caller does not require a guardian) and no
+guardian record exists yet — exactly the state where there is no lease to
+re-verify. When `required_config` is not `None`, `admission_heads` itself
+raises `GUARDIAN_REQUIRED_BEFORE_OPENING` before a `seq=0` guard could ever
+be constructed. `PaperCoordinator.guardian_config` (the value threaded into
+every call site, both `coordinate()` and the `SUBMITTING` transition) and
+`CandidatePlan.guardian_config` both default to `None` today, so guardian
+enforcement is currently opt-in wherever it is not explicitly configured —
+this exactly matches, and does not contradict, R37's own already-disclosed
+"deployment and independent commissioning remain open" status; it is not a
+new, previously-unstated gap.
+
+**No defect found.** Verification (foreground, no code changed):
+`pytest tests/test_v11_evidence_foundation.py tests/test_v11_fill_evidence.py`
+— **40 passed / 6.04 s**; `-k "guardian_lease or paper_guardian or
+maker_research"` — **85 passed / 25.09 s**; broader `-k
+"evidence_foundation or paper_coordinator or basket_coordinator or
+guardian_lease or paper_guardian or maker_research or fill_evidence"` —
+**171 passed / 43.28 s**, exit 0, four pre-existing FastAPI warnings, no
+failures/skips. `git status --short` and `git diff --stat` are both empty
+(audit-only). No full regression: no source changed.
+
+This does not close any of R02/R03's own remaining gaps ("wider source and
+strategy integration," "runtime/operator integration" both still pending per
+the row text) and claims no new C/J/E/A credit: **87/200 (~44%); formal
+1/50 (2%)**, unchanged. NOT_READY_TO_FUND; V10 unchanged/DEFERRED. R02/R03
+join the audit-clean pool alongside R05/R06/R07/R08/R09/R18/R23/R24/R29/R30/
+R32/R33/R34-R36/R38/R42. Next: R24's dynamic-sizing wiring remains the one
+identified local-implementation task, but still needs a batch/environment
+with genuine full-regression capacity or a narrower staged rollout to
+attempt safely (unchanged from batch 15); absent that, continue the audit
+sweep onto R10-R17/R19-R22/R25-R28/R41/R45, none of which this series has
+yet covered. R31/R39's E-A/R43/R44/R46-R49 remain genuinely owner/external/
+production blocked and should not consume another batch without new real
+evidence or an owner decision.
+
 ## Supervisor batch 15 — 2026-09-27: R24 wiring risk assessment, R42 audit-clean
 
 Recovery check: `git status` clean, local HEAD `fecfc59` equal to
