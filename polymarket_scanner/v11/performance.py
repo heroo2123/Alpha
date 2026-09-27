@@ -16,7 +16,7 @@ from .scenario_risk import number, precise
 VERSION = 'alpha_v11_performance_v1'
 UNKNOWN = 'UNKNOWN'
 _CURRENT = object()
-DIMENSIONS = ('station','city','entry_price','event_state','model_bundle','horizon','model_confidence','market_liquidity','weather_variable','time_of_day','apparent_edge','source','country')
+DIMENSIONS = ('station','city','entry_price','event_state','model_bundle','horizon','model_confidence','market_liquidity','weather_variable','time_of_day','apparent_edge','source','country','pws_density','pws_quality')
 
 
 def _add(groups, key, amount):
@@ -219,10 +219,23 @@ class PerformanceLab:
             if intent.get('event_state_id'):
                 result['event_state'] = self.store.get(intent['event_state_id'])['body']['details'].get('state',UNKNOWN)
             if intent.get('admission_ids'):
-                scopes = [self.store.get(k)['body']['details']['request']['scope'] for k in intent['admission_ids'][:8]]
+                admission_details = [self.store.get(k)['body']['details'] for k in intent['admission_ids'][:8]]
+                scopes = [d['request']['scope'] for d in admission_details]
                 result['horizon'] = '|'.join(sorted({s['horizon'] for s in scopes}))
                 result['weather_variable'] = '|'.join(sorted({s['family'] for s in scopes}))
                 result['time_of_day'] = '|'.join(sorted({s['time_of_day'] for s in scopes}))
+                pws_refs = [ref for d in admission_details for ref in d.get('assessment',{}).get('source_refs',[])
+                            if ref.get('role') == 'PWS']
+                densities,qualities = set(),set()
+                for ref in pws_refs:
+                    pws_row = self.store.get(ref['id'])
+                    if pws_row['sha256'] != ref.get('sha256') or pws_row['kind'] != 'PWS_OBSERVATION':
+                        continue
+                    pws_payload = pws_row['body']['payload']
+                    densities.add(str(pws_payload.get('usable_station_count', UNKNOWN)))
+                    qualities.add(str(pws_payload.get('health', UNKNOWN)))
+                if densities: result['pws_density'] = '|'.join(sorted(densities))
+                if qualities: result['pws_quality'] = '|'.join(sorted(qualities))
             if intent.get('valuation_id'):
                 value = self.store.get(intent['valuation_id'])['body']['details']
                 result['model_confidence'] = value.get('model',{}).get('prediction',{}).get('calibration_status',UNKNOWN)

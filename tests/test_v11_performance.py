@@ -217,6 +217,42 @@ def test_country_slice_resolves_consistently_for_two_intents_sharing_a_station(r
     assert d['pnl_slices']['country']=={'US':'2'}
 
 
+def test_pws_density_and_quality_slices_group_by_pinned_admission_source_ref(rig):
+    c,s=recorded(rig,('6','-4'))
+    pws=rig['store'].capture('pws-qc-fixture',event_id='e0',kind='PWS_OBSERVATION',provider='ALPHA_PWS_QC',
+        source_identity='STATION',revision='r1',payload={'usable_station_count':7,'health':'HEALTHY'})
+    rig['store'].audit('admission-pws',event_id='e0',kind='REGISTRY',
+        details={'request':{'scope':{'horizon':'H24','family':'HIGH','time_of_day':'MORNING'}},
+                 'assessment':{'source_refs':[{'id':pws['id'],'sha256':pws['sha256'],'role':'PWS'}]}})
+    s['intents']['entry0']['admission_ids']=['admission-pws']
+    save(c,s);d=report(rig,c)
+    assert d['pnl_slices']['pws_density']=={'7':'6','UNKNOWN':'-4'}
+    assert d['pnl_slices']['pws_quality']=={'HEALTHY':'6','UNKNOWN':'-4'}
+
+
+def test_pws_density_and_quality_slices_fall_back_to_unknown_without_pws_source_ref(rig):
+    c,s=recorded(rig,('6',))
+    rig['store'].audit('admission-no-pws',event_id='e0',kind='REGISTRY',
+        details={'request':{'scope':{'horizon':'H24','family':'HIGH','time_of_day':'MORNING'}},'assessment':{'source_refs':[]}})
+    s['intents']['entry0']['admission_ids']=['admission-no-pws']
+    save(c,s);d=report(rig,c)
+    assert d['pnl_slices']['pws_density']=={'UNKNOWN':'6'}
+    assert d['pnl_slices']['pws_quality']=={'UNKNOWN':'6'}
+
+
+def test_pws_density_and_quality_slices_fall_back_to_unknown_when_ref_sha256_is_stale(rig):
+    c,s=recorded(rig,('6',))
+    pws=rig['store'].capture('pws-qc-fixture',event_id='e0',kind='PWS_OBSERVATION',provider='ALPHA_PWS_QC',
+        source_identity='STATION',revision='r1',payload={'usable_station_count':7,'health':'HEALTHY'})
+    rig['store'].audit('admission-stale-pws',event_id='e0',kind='REGISTRY',
+        details={'request':{'scope':{'horizon':'H24','family':'HIGH','time_of_day':'MORNING'}},
+                 'assessment':{'source_refs':[{'id':pws['id'],'sha256':'0'*64,'role':'PWS'}]}})
+    s['intents']['entry0']['admission_ids']=['admission-stale-pws']
+    save(c,s);d=report(rig,c)
+    assert d['pnl_slices']['pws_density']=={'UNKNOWN':'6'}
+    assert d['pnl_slices']['pws_quality']=={'UNKNOWN':'6'}
+
+
 def test_report_namespace_cannot_mix_another_ledger(rig):
     c,s=recorded(rig);s['execution_namespace']='CHALLENGER:other';save(c,s)
     with pytest.raises(EvidenceError,match='NAMESPACE'):report(rig,c)

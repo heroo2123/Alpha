@@ -8988,3 +8988,99 @@ COMPLETE; R02/R03/R05/R06/R07/R08/R16/R17/R19/R24/R25-R28/R41 now have.
 ## Independent post-milestone review of supervisor batch 6 — 2026-09-27
 
 Found one bounded R41 archive-coverage defect. `AuditWorker._step` rejected an empty pinned page, but accepted a nonempty page that skipped an intermediate sequence; its cursor could then pass the gap and publish `archive_scan_complete=True`. Added a consecutive-sequence guard before folding or advancing each row, plus a test that omits a middle row from a pinned page. Focused gap/resume/recovery selection: 3 passed / 1.43 s. Direct audit-report and paper-runtime family: 34 passed / 11.24 s, exit 0. No broad regression rerun because the worker scan is the only changed behavior and the batch's 190-test affected selection was fresh. No new C/J/E/A: 87/200 (~44%), formal 1/50 (2%). NOT_READY_TO_FUND; V10 untouched. The original batch 6 no-defect claim is superseded for this gap only; its other verified conclusions remain.
+
+## Supervisor batch 7 — 2026-09-27: R40 Upgrade N PWS neighborhood density/quality profile
+
+Recovery check: `git status` clean, local HEAD `6a5237a` equal to
+`origin/weather-v11-profitability-upgrade-2026-09-23`, no unfinished process
+found. Read this checkpoint, the requirements matrix and the progress ledger
+before editing. Current durable score at start: **87/200 (~44%); formal 1/50
+(2%)**.
+
+The last several published batches (5, 6, and 6's independent review) were
+guardian-class-defect audits with no defect and no new credit; the
+CROSS-REQUIREMENT ANTI-CHURN rule bars starting another such sweep (R04/R11)
+merely to stay busy. The checkpoint's own next-step line already named a
+concrete, unblocked local-implementation gap instead: R40's Upgrade N PWS
+neighborhood density/quality profile, the one dimension the earlier
+weather_variable/time_of_day/apparent_edge/source/country profile work left
+open (`docs/V11_REQUIREMENTS_MATRIX.md` R40 row; batch-9-review note "R40
+still has country/source and PWS neighborhood density/quality integration
+work").
+
+Traced how a PWS-material admission already pins its neighborhood evidence:
+`StrategyAdmission._assess` (`v11/strategy_admission.py:135-146`) requires a
+`SourceLease(role='PWS')` for the `PWS_OBSERVATION_LEAD` strategy, validates
+that lease's `PWS_OBSERVATION` record is `provider=='ALPHA_PWS_QC'` and
+`health=='HEALTHY'`, and records it into `assessment['source_refs']` as
+`{'id','sha256','role':'PWS'}` — the same `source_refs` list already read
+implicitly by nothing in `performance.py` today. That pinned `ALPHA_PWS_QC`
+record (built by `pws_quality.py::neighborhood`/`archive_neighborhood`)
+already carries `usable_station_count` (density: independent, weighted,
+non-co-located, non-outlier stations) and `health` (quality status:
+HEALTHY/DEGRADED/UNAVAILABLE) as already-computed, already-archived fields —
+no new derivation or calibration was invented.
+
+Extended `performance.py::_metadata` (which already reads
+`self.store.get(k)['body']['details']` for each of the intent's pinned
+`admission_ids` to populate `horizon`/`weather_variable`/`time_of_day`) to
+also collect every `role=='PWS'` entry from those same admissions'
+`assessment['source_refs']`, re-fetch each referenced record, and reject it
+unless its live `sha256` still matches the pinned reference and its `kind`
+is still `PWS_OBSERVATION` (the same defensive re-verification pattern
+`_station_country` already uses against a stale/mismatched fingerprint).
+`DIMENSIONS` gained `pws_density` (`str(usable_station_count)`) and
+`pws_quality` (`health`), both defaulting to `UNKNOWN` via the existing
+`dict.fromkeys(DIMENSIONS, UNKNOWN)` when no admission carries a PWS lease,
+the reference is stale, or the record is not a `PWS_OBSERVATION` — matching
+every other Upgrade N dimension's UNKNOWN-preserving fallback. No new store
+read pattern, no live/current station or PWS state (only the one pinned
+`source_refs` reference read at entry time), and the aggregation loop's
+existing per-dimension conservation check (`PERFORMANCE_SLICE_NONCONSERVATION`)
+still applies unchanged to both new dimensions.
+
+Added three tests mirroring the existing source/country coverage: (1) an
+admission pinning a `role='PWS'` `source_refs` entry against a captured
+`ALPHA_PWS_QC`-shaped `PWS_OBSERVATION` record groups the entry's pnl by
+`usable_station_count`/`health`; (2) an admission with no PWS source_refs
+falls back to UNKNOWN for both dimensions; (3) a stale/forged `sha256` on the
+pinned reference also falls back to UNKNOWN rather than trusting an
+unverified record. Verification (foreground): direct family —
+`tests/test_v11_performance.py` — **30 passed / 7.18 s**, exit 0, no
+failures/skips (27 previously passing plus 3 new). Broader affected
+selection (`-k "performance or pws_admission or pws_quality or
+strategy_admission"`) — **88 passed / 24.63 s**, exit 0, no failures/skips,
+only pre-existing FastAPI deprecation warnings. `git status --short` shows
+changes only in `polymarket_scanner/v11/performance.py`,
+`tests/test_v11_performance.py`, the matching `docs/V11_REQUIREMENTS_MATRIX.md`
+R40 row and this checkpoint entry — no production, V10, private-input or
+credential file touched. No full regression: this is an additive,
+UNKNOWN-preserving read-only reporting slice with no behavioral change to
+admission, coordination, sizing or any financial-authority path, consistent
+with the no-full-rerun precedent every prior additive R40 profile batch set.
+
+This closes R40's last explicitly named open local-implementation gap in the
+Upgrade N per-dimension slice set. It does **not** cross a new C/J/E/A
+boundary: R40 already holds C/J in `docs/V11_ENGINEERING_PROGRESS.md`, and
+the genuinely evidence-gated tail (independent labels/calibration,
+horizon-matched EV capture, actual fees/slippage, empirical comparison)
+remains open exactly as before — matching every earlier Upgrade N profile
+addition (weather_variable, time_of_day, apparent_edge, source, country),
+none of which changed the score either. **87/200 (~44%); formal 1/50 (2%)**,
+unchanged. NOT_READY_TO_FUND; V10 unchanged/DEFERRED.
+
+Next: R40's Upgrade N per-dimension profile set is now complete; its
+remaining tail (independent labels/calibration, horizon-matched EV capture,
+actual fees/slippage, empirical comparison) is genuinely evidence-gated, not
+a further local-implementation step. R19/R24's real local-implementation
+tails remain genuinely blocked without inventing unsupported formulas or a
+calibrated model (already independently re-verified in batches 13/17). R39
+should not be revisited by more local code without first identifying a
+concrete, master-derived configuration-authorization model. R31,
+R43/R44/R46-R49 remain genuinely owner/external/production blocked. Per the
+CROSS-REQUIREMENT ANTI-CHURN rule, another generic guardian-class-defect
+audit sweep (R04/R11) should not be the next default action unless a
+concrete implementation/testing path or a genuine P0/P1 defect signal
+emerges first; the next batch should look for another named, unblocked
+local-implementation gap across the requirement set before returning to
+audit rotation.
