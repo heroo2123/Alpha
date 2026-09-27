@@ -1,7 +1,32 @@
 # Supplementary engineering estimate
 
-Reviewed candidate configuration continuation — 2026-09-27 (supervisor batch
-10): the independent batch-9 review named three remaining offline R39 gaps
+Independent batch-10 review — 2026-09-27: two checks failed on published
+9cf6fae (2 / 4.81 s): the claimed operator-rotation continuation still gated
+polling on bot ownership, and arbitrary worker removal could retain an invalid
+scheduler index. The constructor does not validate durable ownership or migrate
+worker state. The corrected acknowledgement requires the exact previous runner,
+unchanged worker contracts, and an already completed same-cursor bot-owner
+handoff. Scheduling changes remain supported; other component/cursor migrations
+stay gated. Candidate and bot locks cover validation/sync through the CAS audit,
+which links the prior candidate/owner records. Latest-review retries, repeated
+rotations and interrupted-job recovery preserve history and pending commands.
+
+**129 focused / 38.01 s; 433 integration / 177.31 s**, exit 0, no skips/warnings;
+754 tracked input hashes unchanged through both final runs. Twenty-one added
+cases and strengthened rotation checks include failures, both CAS conflicts,
+lock cleanup and rotated-command cancellation requests with reservations retained.
+No full rerun. Exact evidence: docs/V11_WORK_CHECKPOINT.md (independent batch-10
+review), /tmp/v11-codex-b10-1qxnjcak/.
+
+This closes the bounded scheduling/same-cursor rotation path, not arbitrary
+configuration migration or independent authorization. Protected configuration,
+cross-deployment ownership/recovery, real delivery/deployment, callbacks and
+independent operating acceptance remain open. Next: offline protected
+configuration and shared ownership/recovery tests; no credentials are needed.
+R39 PARTIAL; **85/200 = 42.5% (~43%); 1/50 (2%)**, unchanged.
+NOT_READY_TO_FUND; V10 unchanged/DEFERRED.
+
+Original supervisor batch 10 — 2026-09-27 (claims corrected by the independent review above): the independent batch-9 review named three remaining offline R39 gaps
 (protected operator configuration, cross-deployment consumer ownership/
 recovery, reviewed candidate configuration continuation); this batch closed
 the third, the one with an existing reproduced test demonstrating the gap.

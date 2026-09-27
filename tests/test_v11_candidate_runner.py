@@ -483,12 +483,28 @@ def test_reviewed_configuration_change_lets_a_rotated_operator_policy_continue(r
             resumed=CandidateRunner(runner.runtime,runner.policy,census=runner.census,
                 discovery=runner.discovery,audits=runner.audits,operator_commands=changed)
             with pytest.raises(EvidenceError,match='CONFIGURATION_CHANGED'):await resumed.run('blocked')
-            result=resumed.acknowledge_configuration_review(reason='rotated operator policy')
+            count=len(bot.calls)
+            with pytest.raises(EvidenceError,match='OPERATOR_COMMANDS_BOT_OWNER_MISMATCH'):
+                resumed.acknowledge_configuration_review(previous=runner,reason='rotated operator policy')
+            assert runner._head()==original_head and len(bot.calls)==count
+            changed.handoff_bot_owner(previous_identity=oc.adapter.identity,
+                previous_policy=oc.adapter.router.policy,reason='rotated operator policy')
+            result=resumed.acknowledge_configuration_review(previous=runner,reason='rotated operator policy')
+            assert resumed.acknowledge_configuration_review(previous=runner,reason='rotated operator policy')==result
+            assert result['body']['details']['previous_candidate_seq']==original_head['seq']
+            assert original_head['id'] in {r['id'] for r in result['body']['evidence']}
             assert (result['body']['details']['outcome']=='CANDIDATE_CONFIGURATION_REVIEWED'
                     and result['body']['details']['previous_config_sha256']==runner.config
                     and result['body']['details']['config_sha256']==resumed.config
                     and result['body']['details']['state']==original_head['body']['details']['state'])
+            with pytest.raises(EvidenceError,match='CONFIGURATION_CHANGED'):await runner.run('old-controller')
+            with pytest.raises(EvidenceError,match='REPLAY_CONFIG'):await resumed.run('original')
+            bot._updates.append(message_update('/NO_NEW_ORDERS ACCOUNT account reviewed',uid=3))
             row=await resumed.run('continued')
+            assert not row['body']['details']['errors'], row['body']['details']['errors']
+            assert row['body']['details']['operator_results'][0]['outcome']=='OPERATOR_COMMANDS_POLLED'
+            assert changed.poller.offset()==4
+            assert SafetyReductions(rig['store']).view(rig['context'])['flags']['no_new_orders']
             return row,original_head
     row,original_head=asyncio.run(run())
     d=row['body']['details']
@@ -497,13 +513,13 @@ def test_reviewed_configuration_change_lets_a_rotated_operator_policy_continue(r
     assert d['state']['sequence']==original_head['body']['details']['state']['sequence']+1
 
 
-@pytest.mark.parametrize('bad',['','   ','x'*201,'two\nlines'])
+@pytest.mark.parametrize('bad',['','   ','x'*201,'two\nlines',None,7,'tab\there','bad\x00','bad\x7f','two\u2028lines'])
 def test_configuration_review_reason_must_be_a_short_single_line(rig,monkeypatch,bad):
     async def run():
         async with httpx.AsyncClient(transport=httpx.MockTransport(transport(rig,[]))) as client:
             runner=built(rig,monkeypatch,client,policy=CandidatePolicy('operator-review-bad',maximum_jobs=1))
             with pytest.raises(EvidenceError,match='CANDIDATE_CONFIGURATION_REVIEW_REASON_INVALID'):
-                runner.acknowledge_configuration_review(reason=bad)
+                runner.acknowledge_configuration_review(previous=runner,reason=bad)
     asyncio.run(run())
 
 
@@ -512,7 +528,7 @@ def test_configuration_review_without_any_prior_run_is_not_applicable(rig,monkey
         async with httpx.AsyncClient(transport=httpx.MockTransport(transport(rig,[]))) as client:
             runner=built(rig,monkeypatch,client,policy=CandidatePolicy('operator-review-fresh',maximum_jobs=1))
             with pytest.raises(EvidenceError,match='CANDIDATE_CONFIGURATION_REVIEW_NOT_APPLICABLE'):
-                runner.acknowledge_configuration_review(reason='nothing to review yet')
+                runner.acknowledge_configuration_review(previous=runner,reason='nothing to review yet')
     asyncio.run(run())
 
 
@@ -522,14 +538,14 @@ def test_configuration_review_refuses_a_no_op_and_a_concurrent_run(rig,monkeypat
             runner=built(rig,monkeypatch,client,policy=CandidatePolicy('operator-review-noop',maximum_jobs=1))
             await runner.run('original')
             with pytest.raises(EvidenceError,match='CANDIDATE_CONFIGURATION_REVIEW_NOT_CHANGED'):
-                runner.acknowledge_configuration_review(reason='nothing actually changed')
+                runner.acknowledge_configuration_review(previous=runner,reason='nothing actually changed')
             fd=os.open(runner.store.path.with_name(runner.store.path.name+'.candidate.lock'),os.O_CREAT|os.O_WRONLY,0o600)
             try:
                 fcntl.flock(fd,fcntl.LOCK_EX|fcntl.LOCK_NB)
                 changed=CandidateRunner(runner.runtime,replace(runner.policy,version='review-locked'),
                     census=runner.census,discovery=runner.discovery,audits=runner.audits)
                 with pytest.raises(EvidenceError,match='CANDIDATE_ALREADY_RUNNING'):
-                    changed.acknowledge_configuration_review(reason='blocked by a concurrent run')
+                    changed.acknowledge_configuration_review(previous=runner,reason='blocked by a concurrent run')
             finally:os.close(fd)
     asyncio.run(run())
 
@@ -603,4 +619,246 @@ def test_handed_off_operator_command_reaches_cancellation_during_blocked_collect
                 release.set()
                 await task
 
+    asyncio.run(run())
+
+
+def test_configuration_review_refuses_removed_worker_before_rebinding_progress(rig,monkeypatch):
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(transport(rig,[]))) as client:
+            original=built(rig,monkeypatch,client,observations=True)
+            await original.run('before-worker-removal')
+            head=original._head()
+            assert head['body']['details']['state']['next_kind']==3
+            changed=CandidateRunner(original.runtime,original.policy,census=original.census,
+                discovery=original.discovery,audits=original.audits)
+            with pytest.raises(EvidenceError,match='CANDIDATE_CONFIGURATION_REVIEW_INCOMPATIBLE'):
+                changed.acknowledge_configuration_review(previous=original,reason='remove observation worker')
+            assert original._head()==head
+    asyncio.run(run())
+
+
+def copy_candidate(runner,**changes):
+    components=dict(runtime=runner.runtime,policy=runner.policy,census=runner.census,
+        discovery=runner.discovery,audits=runner.audits,observation=runner.observation,
+        observation_batch=runner.observation_batch,operator_commands=runner.operator_commands)
+    components.update(changes)
+    return CandidateRunner(**components)
+
+
+def seed_review_state(runner):
+    return runner._save('fixture-review-head',dict(sequence=7,next_kind=1,active=None,
+        discovery_not_before=0.),outcome='SYNTHETIC_REVIEW_SETUP')
+
+
+@pytest.mark.parametrize('component',['observation-plan','discovery','runtime'])
+def test_configuration_review_refuses_changed_worker_contracts(rig,monkeypatch,component):
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(transport(rig,[]))) as client:
+            original=built(rig,monkeypatch,client,observations=component=='observation-plan')
+            head=seed_review_state(original)
+            if component=='observation-plan':
+                batch=replace(original.observation_batch,strategies=('changed',),
+                    required_providers_by_strategy=(('changed',('NOAA_AWC',)),))
+                changed=copy_candidate(original,observation_batch=batch)
+            elif component=='discovery':
+                changed=copy_candidate(original,discovery=MarketDiscovery(original.discovery.scheduled,
+                    original.runtime.health,replace(original.discovery.policy,version='changed')))
+            else:
+                rt=original.runtime
+                changed=copy_candidate(original,runtime=PaperRuntime(rt.coordinator,rt.queue,rt.health,
+                    replace(rt.policy,version='changed'),evaluator=rt.evaluator,
+                    worker_id=rt.worker_id,generation=rt.generation,audits=rt.audits))
+            with pytest.raises(EvidenceError,match='CANDIDATE_CONFIGURATION_REVIEW_INCOMPATIBLE'):
+                changed.acknowledge_configuration_review(previous=original,reason='changed component')
+            assert original._head()==head
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize('change',['add','remove','worker','bot'])
+def test_configuration_review_cannot_migrate_or_remove_operator_cursor(rig,monkeypatch,change):
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(transport(rig,[]))) as client:
+            original=built(rig,monkeypatch,client)
+            oc=operator_commands(rig,Bot([]))
+            original=copy_candidate(original,operator_commands=None if change=='add' else oc)
+            head=seed_review_state(original)
+            new=None if change=='remove' else CandidateOperatorCommands(rig['store'],'account',
+                'other-worker' if change=='worker' else oc.poller.worker_key,
+                telegram=Bot([],bot_id='124') if change=='bot' else oc.adapter.telegram,
+                identity=replace(oc.adapter.identity,bot_id=124) if change=='bot' else oc.adapter.identity,
+                policy=oc.adapter.router.policy)
+            changed=copy_candidate(original,operator_commands=new)
+            with pytest.raises(EvidenceError,match='CANDIDATE_CONFIGURATION_REVIEW_INCOMPATIBLE'):
+                changed.acknowledge_configuration_review(previous=original,reason='change operator scope')
+            assert original._head()==head and not oc.adapter.telegram.calls
+    asyncio.run(run())
+
+
+def test_configuration_review_binds_exact_prior_and_repeated_rotations(rig,monkeypatch):
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(transport(rig,[]))) as client:
+            a=built(rig,monkeypatch,client);head=seed_review_state(a)
+            b=copy_candidate(a,policy=replace(a.policy,version='review-b'))
+            c=copy_candidate(a,policy=replace(a.policy,version='review-c'))
+            first=b.acknowledge_configuration_review(previous=a,reason='reviewed scheduling')
+            with pytest.raises(EvidenceError,match='REVIEW_PRIOR_MISMATCH'):
+                c.acknowledge_configuration_review(previous=a,reason='stale review')
+            assert b._head()==first
+            c.acknowledge_configuration_review(previous=b,reason='next review')
+            a.acknowledge_configuration_review(previous=c,reason='reviewed rollback')
+            second=b.acknowledge_configuration_review(previous=a,reason='reviewed scheduling')
+            assert first['id']!=second['id']
+            assert first['body']['details']['state']==second['body']['details']['state']==head['body']['details']['state']
+            rig['now'][0]+=1
+            assert b.acknowledge_configuration_review(previous=a,reason='reviewed scheduling')==second
+            with pytest.raises(EvidenceError,match='REVIEW_NOT_CHANGED'):
+                b.acknowledge_configuration_review(previous=b,reason='no change')
+            assert b._head()==second
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize('fault',['before','after'])
+def test_configuration_review_failed_commit_and_lost_reply_recover(rig,monkeypatch,fault):
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(transport(rig,[]))) as client:
+            old=built(rig,monkeypatch,client);head=seed_review_state(old)
+            new=copy_candidate(old,policy=replace(old.policy,version='recovery'))
+            append=rig['store'].safety_audit
+            def interrupted(*args,**kwargs):
+                if fault=='after':append(*args,**kwargs)
+                raise OSError('synthetic commit interruption')
+            with monkeypatch.context() as patch:
+                patch.setattr(rig['store'],'safety_audit',interrupted)
+                with pytest.raises(OSError):
+                    new.acknowledge_configuration_review(previous=old,reason='recover review')
+            if fault=='before':assert old._head()==head
+            from polymarket_scanner.v11.evidence import EvidenceStore
+            reopened=EvidenceStore(rig['store'].path,'V11_PAPER',clock=rig['store'].clock)
+            durable=reopened.latest(kind='RUNTIME_STATUS',event_id='v11-candidate-runner')
+            result=copy_candidate(new).acknowledge_configuration_review(
+                previous=copy_candidate(old),reason='recover review')
+            if fault=='after':assert result==durable
+            assert result['body']['details']['state']==head['body']['details']['state']
+            assert copy_candidate(new).acknowledge_configuration_review(previous=old,reason='recover review')==result
+    asyncio.run(run())
+
+
+def test_configuration_review_candidate_cas_conflict_preserves_newer_progress(rig,monkeypatch):
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(transport(rig,[]))) as client:
+            old=built(rig,monkeypatch,client);head=seed_review_state(old)
+            new=copy_candidate(old,policy=replace(old.policy,version='cas'))
+            append=rig['store'].safety_audit;concurrent=[]
+            def conflicting(*args,**kwargs):
+                other=deepcopy(head['body']['details']);other['state']['sequence']+=1
+                concurrent.append(append('fixture-racing-progress',event_id='v11-candidate-runner',
+                    kind='RUNTIME_STATUS',details=other,expected_previous_seq=head['seq']))
+                return append(*args,**kwargs)
+            with monkeypatch.context() as patch:
+                patch.setattr(rig['store'],'safety_audit',conflicting)
+                with pytest.raises(EvidenceError,match='AUDIT_STATE_CHANGED'):
+                    new.acknowledge_configuration_review(previous=old,reason='racing progress')
+            assert old._head()==concurrent[0]
+            result=new.acknowledge_configuration_review(previous=old,reason='racing progress')
+            assert result['body']['details']['state']==concurrent[0]['body']['details']['state']
+    asyncio.run(run())
+
+
+def test_configuration_review_holds_bot_lock_and_releases_it_on_failure(rig,monkeypatch):
+    from contextlib import ExitStack
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(transport(rig,[]))) as client:
+            old=built(rig,monkeypatch,client);oc=operator_commands(rig,Bot([]))
+            await oc.step()
+            old=copy_candidate(old,operator_commands=oc);head=seed_review_state(old)
+            new=copy_candidate(old,policy=replace(old.policy,version='bot-lock'))
+            def failed_sync(fd):raise OSError('synthetic sync failure')
+            with monkeypatch.context() as patch:
+                patch.setattr(oc.poller,'_fsync_lock_and_parent',failed_sync)
+                with pytest.raises(OSError):
+                    new.acknowledge_configuration_review(previous=old,reason='bot exclusion')
+            assert old._head()==head
+            with ExitStack() as cleanup:
+                oc.poller._open_locked_bot_lock(cleanup)
+                with pytest.raises(EvidenceError,match='OPERATOR_COMMANDS_BOT_ALREADY_POLLING'):
+                    new.acknowledge_configuration_review(previous=old,reason='bot exclusion')
+            append=rig['store'].safety_audit
+            def verify_exclusion(*args,**kwargs):
+                with ExitStack() as cleanup:
+                    with pytest.raises(EvidenceError,match='OPERATOR_COMMANDS_BOT_ALREADY_POLLING'):
+                        oc.poller._open_locked_bot_lock(cleanup)
+                return append(*args,**kwargs)
+            with monkeypatch.context() as patch:
+                patch.setattr(rig['store'],'safety_audit',verify_exclusion)
+                result=new.acknowledge_configuration_review(previous=old,reason='bot exclusion')
+            assert result['body']['details']['state']==head['body']['details']['state']
+            with ExitStack() as cleanup:
+                oc.poller._open_locked_bot_lock(cleanup)
+    asyncio.run(run())
+
+
+def test_configuration_review_preserves_interrupted_job_and_delivers_rotated_safety_command(rig,monkeypatch):
+    c=coordinator(rig);p=proposal(rig,units='2');c.coordinate('reserve',(p,))
+    calls=[]
+    async def blocked(req):
+        calls.append(req)
+        await asyncio.Event().wait()
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(blocked)) as client:
+            original=built(rig,monkeypatch,client,policy=CandidatePolicy('pending-review',
+                maximum_seconds=2,maximum_jobs=1,job_timeout_seconds=.1,safety_interval_seconds=.05))
+            prior=operator_commands(rig,Bot([]))
+            original=copy_candidate(original,operator_commands=prior)
+            first=await original.run('interrupted-before-review')
+            pending=first['body']['details']['state']['active']
+            assert pending and len(calls)==1
+            ident=replace(prior.adapter.identity,chat_id=43,operators=(43,))
+            policy=replace(prior.adapter.router.policy,operators=(43,))
+            bot=Bot([message_update('/CANCEL_AND_HALT ACCOUNT account reviewed rotation',
+                uid=1,actor=43,chat=43)],chat_id='43',operators=('43',))
+            successor=CandidateOperatorCommands(rig['store'],'account',prior.poller.worker_key,
+                telegram=bot,identity=ident,policy=policy)
+            successor.handoff_bot_owner(previous_identity=prior.adapter.identity,
+                previous_policy=prior.adapter.router.policy,reason='reviewed rotation')
+            resumed=copy_candidate(original,operator_commands=successor)
+            result=resumed.acknowledge_configuration_review(previous=original,reason='reviewed rotation')
+            assert result['body']['details']['state']==first['body']['details']['state']
+            row=await resumed.run('after-review')
+            details=row['body']['details']
+            assert len(calls)==1 and details['worker_results'][0]['command_id']==pending['id']
+            assert details['worker_results'][0]['outcome']=='INTERRUPTED_COLLECTION_NOT_RETRIED'
+            assert not details['active_command_requires_recovery'] and not details['errors']
+            assert successor.poller.offset()==2
+            assert c._state(c._head())['intents'][p.proposal_id]['status']=='CANCEL_REQUESTED'
+            assert Decimal(c.snapshot()['reserved_cash'])==Decimal('.8')
+            command=rig['store'].get('telegram:43:1001')['body']['details']
+            assert command['request']['actor']=='43'
+            assert command['cancellation_status']=='REQUESTED_NOT_CONFIRMED'
+    asyncio.run(run())
+
+
+def test_configuration_review_owner_cas_conflict_does_not_rebind_candidate(rig,monkeypatch):
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(transport(rig,[]))) as client:
+            old=built(rig,monkeypatch,client);prior=operator_commands(rig,Bot([]))
+            await prior.step()
+            old=copy_candidate(old,operator_commands=prior);head=seed_review_state(old)
+            successor=CandidateOperatorCommands(rig['store'],'account',prior.poller.worker_key,
+                telegram=prior.adapter.telegram,identity=prior.adapter.identity,
+                policy=replace(prior.adapter.router.policy,allowed_actions=('NO_NEW_ORDERS',)))
+            successor.handoff_bot_owner(previous_identity=prior.adapter.identity,
+                previous_policy=prior.adapter.router.policy,reason='reviewed rotation')
+            new=copy_candidate(old,operator_commands=successor)
+            owner=rig['store'].latest(kind='OPERATOR_EVENT',event_id=successor.poller._owner_event())
+            append=rig['store'].safety_audit
+            def conflicting(*args,**kwargs):
+                rig['store'].audit('fixture-owner-race',event_id=owner['body']['event_id'],
+                    kind='OPERATOR_EVENT',details=owner['body']['details'],expected_previous_seq=owner['seq'])
+                return append(*args,**kwargs)
+            with monkeypatch.context() as patch:
+                patch.setattr(rig['store'],'safety_audit',conflicting)
+                with pytest.raises(EvidenceError,match='AUDIT_GUARDED_STATE_CHANGED'):
+                    new.acknowledge_configuration_review(previous=old,reason='reviewed rotation')
+            assert old._head()==head
+            new.acknowledge_configuration_review(previous=old,reason='reviewed rotation')
     asyncio.run(run())

@@ -1,6 +1,84 @@
 # Alpha V11 work checkpoint
 
-## Reviewed candidate configuration continuation — 2026-09-27 (supervisor batch 10)
+## Independent batch-10 review — compatible candidate continuation, 2026-09-27
+
+Reviewed published 9cf6fae592bb6de4c18c90cb87d06046ff7f631d (tree
+c15b3cdaa0514fec4ae199f3ace44c0f26a63d18) against
+62727a7a3b8ca1c3465bc4fd5cef171a03f3a3ed. Started clean on
+weather-v11-profitability-upgrade-2026-09-23, local/remote equal, with no
+active Claude worker. Read CLAUDE.md, the V11 ledgers and the complete
+hash-verified authoritative master. All repository/file/git/test operations
+used Remote Desktop Commander on alpha-dev, sequentially, without delegated workers.
+
+Two regression checks failed on the published implementation (**2 failed /
+4.81 s**):
+
+- Its rotation test resumed ordinary jobs while operator polling returned
+  OPERATOR_COMMANDS_BOT_OWNER_MISMATCH: no bot-owner handoff had occurred.
+  The constructor checks component scope, not durable consumer ownership.
+- Removing the observation worker could acknowledge an incompatible scheduler
+  state: the saved next_kind was 3 but the new worker list had only 3 entries.
+  Preserving arbitrary component progress is not a migration. Changed workers
+  also retain their own configuration gates, which construction does not check.
+
+Preserved the acknowledgement operation, reason validation, candidate lock, exact
+progress carry-forward and atomic audit. It now requires previous= with the
+exact prior CandidateRunner configuration, reconstructable without running it.
+Only CandidatePolicy scheduling changes and existing same-cursor operator
+identity/policy rotations may continue. Runtime/worker/plan changes and operator
+addition, removal or bot/worker migration remain gated for explicit migration.
+A stale prior configuration cannot acknowledge a newer intervening review.
+Normal configuration digests, completed-run replay and worker recovery are unchanged.
+
+Complete the existing bot-owner handoff before acknowledgement. The candidate
+and bot locks now cover ownership validation/sync through the candidate commit.
+The CAS audit binds both the prior candidate head and current ownership head,
+links their records, and preserves the exact pending command and progress state.
+Retrying the latest committed review returns its original audit; repeated
+rotations have distinct history. This is caller-authorized local consistency,
+not independent approval, protected configuration custody or deployment acceptance.
+
+Verification with /home/alphaadmin/AlphaV11_Dev/venv/bin/python (3.12.3):
+
+- Final candidate + poller suites: **129 passed / 38.01 s**, exit 0.
+- Relevant integration: **433 passed / 177.31 s**, exit 0, no skips/warnings.
+  Covers candidate runner/assembly, operator poller/adapter/router, event risk/
+  source time, evidence, paper cancellation/coordinator/runtime, runtime health,
+  census/model/PWS/discovery, audits and maker telemetry.
+- Twenty-one additional cases plus stronger existing rotation assertions cover
+  incompatible plans/cursors, stale reviews, repeated rotations, pre-commit
+  failure/lost post-commit response, reopened-store evidence, both CAS conflicts,
+  lock exclusion/cleanup and sync failure. Interrupted collection retains its
+  original command without another HTTP attempt while the rotated operator's
+  cancellation is applied; reservations remain held and cancellation stays
+  REQUESTED_NOT_CONFIRMED until reconciliation.
+- Initial corrected selection: 14 passed / 6.27 s. Expanded focused run:
+  128 passed, 1 new-fixture failure / 38.85 s (mock bot identity mismatched the
+  deliberately changed bot). Corrected the mock; no safety check was relaxed.
+- All **754 tracked Python/configuration/dependency input hashes** matched
+  before/after both final runs. No full regression rerun for this bounded change.
+  Exact argv, patches, manifests, logs, JUnit and results are retained in
+  /tmp/v11-codex-b10-1qxnjcak/{red,initial-focused,focused,final-focused,integration}/;
+  runner: /tmp/v11-codex-b10-1qxnjcak/run.py. Test scratch is separate per run.
+  Changed-Python compilation and git diff --check passed; final code hashes
+  still match the tested inputs.
+
+Changed implementation/test files: candidate_runner.py and
+test_v11_candidate_runner.py. These three ledgers correct the original broad
+continuation claim below while retaining its implementation/test history.
+R39 remains PARTIAL; no new C/J/E/A: **85/200 = 42.5% (~43%); 1/50 (2%)**.
+**NOT_READY_TO_FUND; V10 unchanged/DEFERRED.** No credentials, private inputs,
+services, production configuration or financial authority changed. Resolve this
+review's publishing commit/tree with
+git log -1 --format='%H %T' -- docs/V11_WORK_CHECKPOINT.md.
+
+**Exact next unfinished action:** implement/test protected operator configuration
+and shared consumer ownership/recovery across deployment paths using offline
+fixtures. General worker/configuration migration remains explicitly gated.
+Actual delivery/deployment, callbacks and independent executor/guardian/operating
+acceptance remain separate gates; these offline tasks need no real credentials.
+
+## Original supervisor batch 10 — 2026-09-27 (claims corrected by the independent review above)
 
 Recovery check at batch start: `git status` clean, local HEAD
 `62727a7a3b8ca1c3465bc4fd5cef171a03f3a3ed` equal to

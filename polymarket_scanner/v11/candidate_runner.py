@@ -4,6 +4,7 @@ One public collection job shares cooperative execution with priority safety tick
 This is not an OS-isolated guardian or a hard real-time/deployment acceptance claim.
 """
 import asyncio
+from contextlib import ExitStack
 from copy import deepcopy
 from dataclasses import asdict, dataclass, replace
 import fcntl
@@ -155,6 +156,10 @@ class CandidateRunner:
         if operator_commands is not None:
             config['operator_commands']=dict(component=operator_commands.config,scheduling='priority_poll_v1')
         self.config=digest(config)
+        # Only scheduling limits and same-cursor operator rotation can retain
+        # these workers' commands/progress without a component-specific migration.
+        self._continuation_config=digest({k:v for k,v in config.items()
+            if k not in {'policy','operator_commands'}})
 
     def _get(self,key):
         try:return self.store.get(key)
@@ -180,37 +185,69 @@ class CandidateRunner:
         head=self._head()
         return self._save('candidate-progress:'+digest([run_id,head['seq'] if head else 0]),state,**details)
 
-    def acknowledge_configuration_review(self,*,reason:str) -> dict:
-        """Explicitly continue this candidate's durable progress under a
-        reviewed configuration change (e.g. after a deliberate operator-command
-        identity/policy rotation), instead of leaving every future run()
-        permanently blocked by CANDIDATE_CONFIGURATION_CHANGED_REVIEW_REQUIRED.
-        The caller supplies the reason for the durable audit trail; existing
-        progress state carries forward unchanged, only the config binding
-        moves. This is a caller-authorized local consistency operation, not
-        independent approval: every component invariant was already freshly
-        re-checked against the new configuration at construction time.
+    def acknowledge_configuration_review(self,*,previous,reason:str) -> dict:
+        """Continue after reviewed scheduling or same-cursor operator changes.
+
+        Reconstruct the previous runner from its exact configuration (without
+        running it). Its digest must match the durable head. Worker identity,
+        plans and configuration must be unchanged so pending command identities
+        and scheduling progress retain their meaning. Other changes need a
+        component-specific migration and remain gated. Complete bot-owner
+        handoff first; the successor must already own the original cursor.
+
+        The candidate and bot locks cover validation through the CAS commit.
+        Matching retries return the original audit; history and state are never
+        rewritten. This is caller-authorized local consistency, not independent
+        approval, deployment acceptance or increased financial authority.
         """
         if (not isinstance(reason,str) or not reason.strip() or len(reason)>200
                 or len(reason.splitlines())!=1 or any(ord(c)<32 or ord(c)==127 for c in reason)):
             raise EvidenceError('CANDIDATE_CONFIGURATION_REVIEW_REASON_INVALID')
-        fd=os.open(self.store.path.with_name(self.store.path.name+'.candidate.lock'),os.O_CREAT|os.O_WRONLY|os.O_NOFOLLOW,0o600)
-        try:
+        with ExitStack() as cleanup:
+            fd=os.open(self.store.path.with_name(self.store.path.name+'.candidate.lock'),os.O_CREAT|os.O_WRONLY|os.O_NOFOLLOW,0o600)
+            cleanup.callback(os.close,fd)
             try:fcntl.flock(fd,fcntl.LOCK_EX|fcntl.LOCK_NB)
             except BlockingIOError:raise EvidenceError('CANDIDATE_ALREADY_RUNNING') from None
             row=self.store.latest(kind='RUNTIME_STATUS',event_id=KEY)
             if row is None:raise EvidenceError('CANDIDATE_CONFIGURATION_REVIEW_NOT_APPLICABLE')
-            previous_config=row['body']['details'].get('config_sha256')
-            if previous_config==self.config:raise EvidenceError('CANDIDATE_CONFIGURATION_REVIEW_NOT_CHANGED')
-            state=deepcopy(row['body']['details']['state'])
+            if (not isinstance(previous,CandidateRunner) or previous.store.path!=self.store.path
+                    or previous.store.namespace!=self.store.namespace):
+                raise EvidenceError('CANDIDATE_CONFIGURATION_REVIEW_PRIOR_MISMATCH')
+            details=row['body']['details'];previous_config=details.get('config_sha256')
+            if previous_config==self.config:
+                if (details.get('outcome')=='CANDIDATE_CONFIGURATION_REVIEWED'
+                        and details.get('previous_config_sha256')==previous.config
+                        and details.get('reason')==reason):return row
+                raise EvidenceError('CANDIDATE_CONFIGURATION_REVIEW_NOT_CHANGED')
+            if previous_config!=previous.config:
+                raise EvidenceError('CANDIDATE_CONFIGURATION_REVIEW_PRIOR_MISMATCH')
+            if (details.get('version')!=VERSION or previous._continuation_config!=self._continuation_config
+                    or previous.kinds!=self.kinds):
+                raise EvidenceError('CANDIDATE_CONFIGURATION_REVIEW_INCOMPATIBLE')
+            before,after=previous.operator_commands,self.operator_commands
+            if ((before is None)!=(after is None) or after is not None and (
+                    before.poller.worker_key!=after.poller.worker_key
+                    or before.adapter.identity.bot_id!=after.adapter.identity.bot_id
+                    or before.account_id!=after.account_id)):
+                raise EvidenceError('CANDIDATE_CONFIGURATION_REVIEW_INCOMPATIBLE')
+            refs=[row['id']];expected_heads=()
+            if after is not None:
+                poller=after.poller
+                bot_fd=poller._open_locked_bot_lock(cleanup)
+                _,current,owner=poller._owner_state(bot_fd)
+                if current!=poller._binding():
+                    raise EvidenceError('OPERATOR_COMMANDS_BOT_OWNER_MISMATCH')
+                poller._fsync_lock_and_parent(bot_fd)
+                expected_heads=(('OPERATOR_EVENT',poller._owner_event(),owner['seq'] if owner else 0),)
+                if owner:refs.append(owner['id'])
+            state=deepcopy(details['state'])
             key='candidate-configuration-review:'+digest([KEY,row['seq'],previous_config,self.config,reason])
             return self.store.safety_audit(key,event_id=KEY,kind='RUNTIME_STATUS',details=dict(
                 version=VERSION,config_sha256=self.config,state=state,
                 outcome='CANDIDATE_CONFIGURATION_REVIEWED',reason=reason,previous_config_sha256=previous_config,
-                financial_authority=False,real_orders_sent=False,deployment_acceptance=False,
-                independent_guardian_commissioned=False),expected_previous_seq=row['seq'])
-        finally:
-            os.close(fd)
+                previous_candidate_seq=row['seq'],financial_authority=False,real_orders_sent=False,
+                deployment_acceptance=False,independent_guardian_commissioned=False),
+                evidence_ids=tuple(refs),expected_previous_seq=row['seq'],expected_heads=expected_heads)
 
     def _healthy_clock(self):
         row=self.store.latest(kind='RUNTIME_STATUS',event_id=HEALTH_KEY)
