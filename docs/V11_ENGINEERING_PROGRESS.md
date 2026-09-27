@@ -2369,3 +2369,51 @@ risk.
 
 No new C/J/E/A milestone: **87/200 (~44%); formal 1/50 (2%)**, unchanged.
 NOT_READY_TO_FUND; V10 unchanged/DEFERRED.
+
+## Supervisor batch 5 — 2026-09-27: R16/R17 guardian-class-defect audit, clean
+
+Recovery check: `git status` clean, local HEAD `31765cc` equal to
+`origin/weather-v11-profitability-upgrade-2026-09-23`. Read this ledger, the
+checkpoint and the requirements matrix before editing. Current durable score
+at start: **87/200 (~44%); formal 1/50 (2%)**.
+
+Independently re-derived batch 8's compiled "no reachable local-only C/J
+boundary" conclusion rather than trusting it, spot-checking R33 (its
+"websocket transport" open item is not required by the master's Upgrade F
+bounded-trigger language, and R33 already holds C/J) and R31 (still a
+genuine external archived-evidence dependency per
+`docs/V11_FINALITY_DEPENDENCIES.md`). Both hold; redirected into the
+guardian-class-defect audit series' next untouched target: R16/R17's
+champion/challenger bundle registry and promotion/rollback/overlay
+authority (`v11/model_artifacts.py`, `v11/model_registry.py`,
+`host_trust/v11-model-authority/authority.py`; 765 lines total).
+
+Read all three files end-to-end. `ArtifactStore`/`PinnedBundle` re-derive
+and re-validate every object's sha256 from actual bytes before use;
+`authority.py::transition` binds PROMOTE/ROLLBACK/RESTORE_OVERLAY to an
+explicit review matched to the exact pre-transition epoch/parent-bundle/
+time-window (CAS'd, replay-proof), restricts ROLLBACK to the immediately
+prior bundle only, and never clears a DEMOTE-set safety overlay except via
+an explicit reviewed RESTORE_OVERLAY bound to the current bundle;
+`publish()` commits atomically under an exclusive lock. Full trace in
+`docs/V11_WORK_CHECKPOINT.md` (supervisor batch 5, 2026-09-27). **No defect
+found.**
+
+No code changed. Verification (foreground): direct family — 92 passed /
+14.73 s, exit 0. Broader affected selection (properly scoped to the audited
+files) — 93 passed / 17.37 s, exit 0, superset of the direct family, no
+failures/skips. A separately observed 17-test failure set came only from an
+overly broad `-k "authority"` match hitting an unrelated, pre-existing
+`STORAGE_CAPACITY_OPENING_STOP` disk-capacity gate already documented under
+R45's storage-capacity incident — not caused by this audit (no code
+touched) and not a model-authority defect. No full regression:
+documentation-only audit correction, no regression risk.
+
+No new C/J/E/A milestone: **87/200 (~44%); formal 1/50 (2%)**, unchanged.
+NOT_READY_TO_FUND; V10 unchanged/DEFERRED.
+
+Next unfinished action: R19/R24/R40 real evidence tails and R39's
+configuration-authorization model remain genuinely blocked. R31, R43/R44/
+R46-R49 remain owner/external/production blocked (R31 independently
+re-confirmed this batch). Next untouched guardian-class-defect audit
+targets: R04, R11, then R41.

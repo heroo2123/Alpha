@@ -8788,3 +8788,92 @@ next genuinely unblocked local activity is another untouched
 guardian-class-defect audit target (R01 is already COMPLETE; R04, R11,
 R16-R17, R41 have not yet been read end-to-end by this audit style;
 R02/R03/R05/R06/R07/R08/R19/R24/R25-R28 now have).
+
+## Supervisor batch 5 — 2026-09-27: R16/R17 guardian-class-defect audit, clean
+
+Recovery check: `git status` clean, local HEAD `31765cc` equal to
+`origin/weather-v11-profitability-upgrade-2026-09-23`, no unfinished process
+found. Read this checkpoint, the requirements matrix and the progress ledger
+before editing. Current durable score at start: **87/200 (~44%); formal
+1/50 (2%)**.
+
+Before choosing a target, independently re-derived (not merely trusted) batch
+8's compiled conclusion that every requirement whose remaining tail is purely
+local implementation already holds C and J, spot-checking it against two
+candidates: R33's matrix text lists "other forecast providers, dynamic
+routing, websocket transport" as an open item, but the master's own Upgrade F
+event-driven-operation section requires only "bounded/fail-safe triggers"
+(the existing REST-polled triggers already satisfy this), and R33's own row
+already records "R33 C/J only" — so websocket transport would not cross a
+new local credit boundary. R31 (`docs/V11_FINALITY_DEPENDENCIES.md`) still
+requires an exact-source adapter and archived WRH publication/version
+history that does not exist locally — a genuine external-data dependency,
+not a coding gap. Both checks confirm the compiled conclusion still holds;
+no fresh local-only C/J boundary was found reachable this batch either.
+Continued the guardian-class-defect audit series onto its next untouched,
+financially load-bearing target instead: R16/R17's shared champion/
+challenger bundle and promotion/rollback/overlay authority (`v11/
+model_artifacts.py`, 309 lines; `v11/model_registry.py`, 142 lines;
+`host_trust/v11-model-authority/authority.py`, 314 lines — 765 lines total,
+not previously read end-to-end by this audit style).
+
+Read all three files in full, focused on this series' recurring question:
+can a partial/omitted evidence pin, a stale review, or a directional
+exception ever leave an unreviewed or incompatible model bundle active, or
+silently clear a safety overlay. `model_artifacts.py`'s `ArtifactStore`/
+`PinnedBundle` never trust a caller-supplied hash: every read re-derives the
+sha256 from actual bytes and re-validates canonical encoding before use, and
+`_write`'s temp-file-then-`os.link` sequence cannot publish a half-written or
+foreign object under its content-addressed key; `predict_with_bundle` only
+ever applies parameters sourced from one hash-verified pinned bundle, never a
+caller's own fit. `authority.py::transition` binds every `PROMOTE`/
+`ROLLBACK`/`RESTORE_OVERLAY` to an explicit review whose `expected_epoch`,
+`parent_bundle_sha256` and `[approved_at, expires_at)` window must match the
+exact pre-transition state (CAS'd against `expected_state_sha256`, with
+per-`review_id` reuse rejected), `ROLLBACK` may only target the immediately
+prior `previous_bundle_sha256` (never an arbitrary earlier epoch), and a
+`DEMOTE`-set safety overlay (`require_manual_review=True`, non-increasing
+`size_multiplier`) is never cleared as a side effect of a later PROMOTE/
+ROLLBACK — only an explicit `RESTORE_OVERLAY` review bound to the
+then-current active bundle can clear it. `publish()` commits the new
+epoch/pointer/history atomically (tempfile write + fsync, `os.replace`,
+directory fsync, all under an exclusive `flock`). `model_registry.py`'s
+`ActiveModelRegistry.pin()` independently re-reads the approved bundle
+object (not trusting the state pointer alone) and its
+`reviews[-1]['artifact_refs']` cross-check, while redundant given content
+addressing, is harmless defense-in-depth, not a gap. **No defect found.**
+
+No code changed. Verification (foreground): direct family —
+`tests/test_v11_model_artifacts.py tests/test_v11_model_governance.py
+tests/test_v11_model_slots.py tests/test_host_authority_production_boundary.py`
+— **92 passed / 14.73 s**, exit 0, no failures/skips. Broader affected
+selection (`-k "model_artifact or model_registry or model_governance or
+model_slot or model_bundle or model_authority or host_authority_production"`)
+— **93 passed / 17.37 s**, exit 0, no failures/skips (superset of the direct
+family). A separate, overly broad `-k "authority"` selection transiently
+also matched an unrelated, pre-existing `STORAGE_CAPACITY_OPENING_STOP`
+disk-capacity gate failing on 17 production/operator tests — this is the
+same storage-capacity condition already documented under R45's storage-
+capacity incident, not caused by this audit (`git status --short` was clean
+throughout, no code touched) and not a model-authority defect; the correctly
+scoped selection above is clean. `git status --short` shows no changes
+outside this entry and the matching `docs/V11_REQUIREMENTS_MATRIX.md`
+R16/R17 rows and `docs/V11_ENGINEERING_PROGRESS.md` — no production, test,
+V10, private-input or credential file touched. No full regression: a
+documentation-only audit correction carries no regression risk, consistent
+with the no-full-rerun precedent every prior no-defect audit batch set.
+
+No new C/J/E/A milestone: **87/200 (~44%); formal 1/50 (2%)**, unchanged.
+NOT_READY_TO_FUND; V10 unchanged/DEFERRED.
+
+Next: R19/R24/R40's real local-implementation/evidence tails remain
+genuinely blocked without inventing unsupported formulas or a calibrated
+model. R39 should not be revisited by more local code without first
+identifying a concrete, master-derived configuration-authorization model.
+R31, R43/R44/R46-R49 remain genuinely owner/external/production blocked
+(re-independently confirmed this batch for R31, not merely re-stated). The
+next genuinely unblocked local activity is another untouched
+guardian-class-defect audit target: R04 and R11 have not yet been read
+end-to-end by this audit style (R41 is now the smallest remaining untouched
+target after R04/R11); R01 is already COMPLETE;
+R02/R03/R05/R06/R07/R08/R16/R17/R19/R24/R25-R28 now have.
