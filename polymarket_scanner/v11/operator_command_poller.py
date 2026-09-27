@@ -16,19 +16,20 @@ namespace, worker key and adapter identity/policy before any network request,
 including an idle first poll. A different consumer is refused even between
 polls or after restart: Telegram confirms older updates on a higher offset,
 so merely serializing requests from independent cursors can lose commands.
-The original consumer resumes its existing evidence-store cursor unchanged.
+The current consumer resumes its existing evidence-store cursor unchanged.
 A mismatched or incomplete binding requires review; it is never overwritten.
 
 Both locks live beside the store. This is cooperative same-directory binding,
 not protected configuration custody: other directories/hosts, older code and
 controllers that ignore these locks are not excluded. Existing empty lock files
 can be claimed on first use with the reviewed configuration; stop old consumers
-before upgrading. Binding changes and database replacement require the reviewed
-``handoff_bot_owner`` transfer below, not lock deletion: it keeps this poller's
-own worker_key/store cursor untouched -- only the bot-scoped network binding
-moves -- and durably records the exact prior/new bindings and the caller's
-stated reason so the change is never silent. Deleting or truncating the lock
-file directly still bypasses that review and remains unsupported.
+before upgrading. Identity/policy rotation uses handoff_bot_owner with the exact
+prior configuration on the SAME store/file, namespace, worker, bot and account.
+A CAS-guarded durable audit advances ownership atomically while the lock retains
+its original anchor. Database replacement or cursor migration requires a separate
+reviewed recovery procedure; this API cannot perform it. Deleting or truncating
+the lock file bypasses review and remains unsupported. Older consumers must stay
+stopped: they do not understand the handoff journal.
 
 An update that fails authentication, grammar, or router authorization is reported
 without stalling later commands; storage/integrity failures retain the cursor for
@@ -41,13 +42,16 @@ from contextlib import ExitStack
 from dataclasses import asdict
 import fcntl
 import os
+import re
 import stat
 
 from .evidence import EvidenceError, EvidenceStore, digest, identity
-from .operator_command_adapter import TelegramOperatorCommandAdapter
-from .operator_safety_router import OperatorSafetyError
+from .operator_command_adapter import TelegramCommandIdentity, TelegramOperatorCommandAdapter
+from .operator_safety_router import OperatorSafetyError, OperatorSafetyPolicy
 
 VERSION = "alpha_v11_operator_command_poller_v1"
+HANDOFF_VERSION = "alpha_v11_operator_bot_handoff_v1"
+_BINDING_PATTERN = re.compile(rb"alpha_v11_operator_bot_owner_v1:[0-9a-f]{64}\n")
 # These reducer/input rejections cannot succeed on an unchanged retry.
 _COMMAND_REJECTIONS = frozenset({
     "INVALID_IDENTITY", "SAFETY_ACTION_INVALID", "SAFETY_SCOPE_MISMATCH",
@@ -90,12 +94,35 @@ class TelegramOperatorCommandPoller:
             self._bind_bot_owner(bot_fd)
             return await self._step()
 
-    def _binding(self) -> bytes:
+    def _cursor_scope(self) -> dict:
         store_info = self.store.path.stat()
+        return dict(store=str(self.store.path), store_file=[store_info.st_dev, store_info.st_ino],
+                    namespace=self.store.namespace, worker_key=self.worker_key)
+
+    def _binding(self, *, previous_identity=None, previous_policy=None) -> bytes:
         return ("alpha_v11_operator_bot_owner_v1:" + digest(dict(
-            store=str(self.store.path), store_file=[store_info.st_dev, store_info.st_ino],
-            namespace=self.store.namespace, worker_key=self.worker_key,
-            identity=asdict(self.adapter.identity), policy=asdict(self.adapter.router.policy))) + "\n").encode()
+            **self._cursor_scope(),
+            identity=asdict(previous_identity if previous_identity is not None else self.adapter.identity),
+            policy=asdict(previous_policy if previous_policy is not None else self.adapter.router.policy))) + "\n").encode()
+
+    def _owner_event(self) -> str:
+        return "operator-bot-owner:" + str(self.adapter.identity.bot_id)
+
+    def _owner_state(self, fd: int):
+        """Read the immutable lock anchor and its atomic, same-cursor handoff head."""
+        saved = os.read(fd, len(self._binding()) + 1)
+        head = self.store.latest(kind="OPERATOR_EVENT", event_id=self._owner_event())
+        if head is None:
+            return saved, saved, None
+        details = head["body"]["details"]
+        if (details.get("version") != HANDOFF_VERSION
+                or details.get("anchor_binding") != saved.decode("ascii", "replace")
+                or details.get("cursor_sha256") != digest(self._cursor_scope())
+                or not _BINDING_PATTERN.fullmatch(saved)
+                or not isinstance(details.get("new_binding"), str)
+                or not _BINDING_PATTERN.fullmatch(details["new_binding"].encode())):
+            raise OperatorCommandPollerError("OPERATOR_COMMANDS_BOT_OWNER_MISMATCH")
+        return saved, details["new_binding"].encode(), head
 
     def _bot_lock_path(self):
         return self.store.path.with_name("operator-bot-" + str(self.adapter.identity.bot_id) + ".lock")
@@ -124,8 +151,8 @@ class TelegramOperatorCommandPoller:
     def _bind_bot_owner(self, fd: int) -> None:
         """Pin a local consumer before polling; never overwrite or transfer it."""
         binding = self._binding()
-        saved = os.read(fd, len(binding) + 1)
-        if saved and saved != binding:
+        saved, current, _ = self._owner_state(fd)
+        if current and current != binding:
             raise OperatorCommandPollerError("OPERATOR_COMMANDS_BOT_OWNER_MISMATCH")
         if not saved and os.write(fd, binding) != len(binding):
             raise OperatorCommandPollerError("OPERATOR_COMMANDS_BOT_OWNER_WRITE_INCOMPLETE")
@@ -133,37 +160,58 @@ class TelegramOperatorCommandPoller:
         # complete binding but failed to make it durable. No network before both.
         self._fsync_lock_and_parent(fd)
 
-    def handoff_bot_owner(self, *, reason: str) -> dict:
-        """Durably replace the bot lock's owner binding after explicit review.
+    def handoff_bot_owner(self, *, previous_identity: TelegramCommandIdentity,
+                          previous_policy: OperatorSafetyPolicy, reason: str) -> dict:
+        """Rotate a reviewed identity/policy on the original store and cursor.
 
-        This keeps ``self.worker_key``/``self.store`` as-is, so the poller's own
-        durable cursor is untouched by the transfer; only the bot-scoped network
-        binding moves to this poller's identity/policy. Unlike deleting the lock
-        file, the exact prior binding, the new one and the caller's stated reason
-        are recorded as a durable ``OPERATOR_EVENT`` before the lock is rewritten,
-        so history is never silently lost, and a no-op handoff (nothing to change)
-        is refused rather than manufacturing a redundant record.
+        The caller supplies the exact previous configuration for comparison under
+        the bot lock; this is a consistency check, not independent authorization.
+        Store/file, namespace, worker, bot and account migration are refused.
+        One durable CAS-guarded audit IS the ownership change. The original lock
+        anchor is never rewritten, so failures cannot expose an empty/unowned bot.
+        Retrying the latest committed transition returns its original result.
+        Pending messages still pass the successor's authentication/freshness policy.
         """
-        if not isinstance(reason, str) or not reason.strip() or len(reason) > 200 or "\n" in reason:
+        if (not isinstance(reason, str) or not reason.strip() or len(reason) > 200
+                or len(reason.splitlines()) != 1 or any(ord(c) < 32 or ord(c) == 127 for c in reason)):
             raise OperatorCommandPollerError("OPERATOR_COMMANDS_HANDOFF_REASON_INVALID")
+        if (not isinstance(previous_identity, TelegramCommandIdentity)
+                or not isinstance(previous_policy, OperatorSafetyPolicy)
+                or previous_identity.bot_id != self.adapter.identity.bot_id
+                or previous_policy.account_id != self.adapter.router.policy.account_id):
+            raise OperatorCommandPollerError("OPERATOR_COMMANDS_HANDOFF_SCOPE_MISMATCH")
+        expected = self._binding(previous_identity=previous_identity, previous_policy=previous_policy)
+        binding = self._binding()
         with ExitStack() as cleanup:
             fd = self._open_locked_bot_lock(cleanup)
-            previous = os.read(fd, 4096)
-            binding = self._binding()
-            if previous == binding:
+            anchor, current, head = self._owner_state(fd)
+            result = dict(outcome="OPERATOR_COMMANDS_BOT_OWNER_HANDOFF", reason=reason)
+            if expected == binding:
                 raise OperatorCommandPollerError("OPERATOR_COMMANDS_HANDOFF_NOT_CHANGED")
-            previous_text, new_text = previous.decode("utf-8", "replace"), binding.decode()
-            record_id = "operator-bot-owner-handoff:" + digest([self.worker_key, previous_text, new_text])
-            self.store.audit(record_id, event_id=self.worker_key, kind="OPERATOR_EVENT",
-                details=dict(version=VERSION, outcome="OPERATOR_COMMANDS_BOT_OWNER_HANDOFF",
-                             reason=reason, previous_binding=previous_text,
-                             new_binding=new_text, financial_authority=False, messages_sent=False))
-            os.lseek(fd, 0, os.SEEK_SET)
-            os.ftruncate(fd, 0)
-            if os.write(fd, binding) != len(binding):
-                raise OperatorCommandPollerError("OPERATOR_COMMANDS_BOT_OWNER_WRITE_INCOMPLETE")
+            if head and current == binding:
+                details = head["body"]["details"]
+                if details.get("previous_binding") == expected.decode() and details.get("reason") == reason:
+                    self._fsync_lock_and_parent(fd)
+                    return result
+            if current != expected:
+                raise OperatorCommandPollerError("OPERATOR_COMMANDS_BOT_OWNER_MISMATCH")
             self._fsync_lock_and_parent(fd)
-            return dict(outcome="OPERATOR_COMMANDS_BOT_OWNER_HANDOFF", reason=reason)
+            cursor = self._head()
+            cursor_seq = cursor["seq"] if cursor else 0
+            previous_seq = head["seq"] if head else 0
+            record_id = "operator-bot-owner-handoff:" + digest(
+                [self._owner_event(), previous_seq, expected.decode(), binding.decode(), reason])
+            self.store.audit(record_id, event_id=self._owner_event(), kind="OPERATOR_EVENT",
+                details=dict(version=HANDOFF_VERSION, **result,
+                             anchor_binding=anchor.decode(), previous_binding=expected.decode(),
+                             new_binding=binding.decode(), cursor_sha256=digest(self._cursor_scope()),
+                             cursor_seq=cursor_seq, offset=cursor["body"]["details"]["offset"] if cursor else 0,
+                             previous_handoff_seq=previous_seq,
+                             financial_authority=False, messages_sent=False),
+                evidence_ids=tuple(row["id"] for row in (head, cursor) if row),
+                expected_previous_seq=previous_seq,
+                expected_heads=(("RUNTIME_STATUS", self.worker_key, cursor_seq),))
+            return result
 
     async def _step(self) -> list[dict]:
         head = self._head()

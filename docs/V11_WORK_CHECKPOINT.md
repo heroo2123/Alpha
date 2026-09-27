@@ -1,5 +1,90 @@
 # Alpha V11 work checkpoint
 
+## Independent batch-9 review — atomic same-cursor handoff, 2026-09-27
+
+Reviewed published 5876bfd03b874fb5ac847b8a06c11c571549646c (tree
+d3d4317e1b2668241935d15e35402ad121a518ba) against 106b504d21897d78d71a927e732ca8fb1bc33983.
+Started clean on weather-v11-profitability-upgrade-2026-09-23, local/remote
+equal, with no active Claude process. Read CLAUDE.md, the current V11 ledgers
+and the complete authoritative master; its SHA-256 matches the authority in
+CLAUDE.md. All repository/file/git/test operations used Remote Desktop Commander
+on alpha-dev, sequentially, without delegated workers.
+
+**Nine reproductions failed / 0.94 s** on the published implementation:
+
+- The successor retaining *its own* store/worker did not prove it retained the
+  predecessor's cursor. A different worker, different store or replaced database
+  could claim the bot, bypassing the batch-8 ownership fence.
+- Truncation before writing could leave an empty lock on a failed transfer,
+  allowing an ordinary poll to claim an already-owned bot. Empty, partial and
+  oversized/non-ASCII bindings were also overwritten without establishing their
+  prior owner.
+- The audit key reused only worker/prior/new binding. Repeated A→B→A→B rotations
+  and retry after an audit commit collided with immutable records/timestamps.
+  A recorded pre-write audit did not prove the ownership change committed.
+
+Preserved the existing polling locks, first-use binding format, authentication,
+command freshness, reducer, cursor and candidate scheduling. The handoff now
+requires the exact previous identity/policy and proves it belongs to the same
+store/file, namespace, worker, bot and account. Other cursor/database migration
+is refused. Under the bot lock, one append-only OPERATOR_EVENT transaction
+atomically records and advances ownership, with CAS on the preceding handoff
+and the original cursor head. The lock remains an immutable anchor. The audit
+links the prior handoff and cursor records and retains the original offset.
+Matching retries return the committed result; repeated rotations get distinct
+history. No truncate/rewrite or second ownership commit can fail halfway through.
+
+This is a caller-authorized local consistency API, not independently protected
+approval or a deployment migration. Old consumers must remain stopped because
+they do not understand the journal. Missing/corrupt anchors remain gated. Pending
+messages still undergo the successor's authentication and freshness checks.
+Cross-directory/host/controller exclusion, protected configuration custody,
+database/cursor recovery and reviewed CandidateRunner configuration continuation
+remain open. In particular, a changed component config still meets the existing
+CANDIDATE_CONFIGURATION_CHANGED_REVIEW_REQUIRED gate; this fix does not bypass it.
+
+Verification using /home/alphaadmin/AlphaV11_Dev/venv/bin/python (3.12.3):
+
+- Final focused poller + candidate suites: **101 passed / 28.43 s**, exit 0.
+- Relevant integration: **432 passed / 164.14 s**, exit 0, no skips/warnings.
+  Covers poller/adapter/router, event risk/source time, evidence, operator panel,
+  paper cancellation/coordinator/runtime, candidate runner/assembly, health,
+  census/model/PWS/discovery, audits and maker telemetry.
+- Twenty-seven additional cases cover the above defects, exact prior scope,
+  pre-commit audit/file/directory-sync failures and descriptor cleanup, actual
+  child-process exits before/after commit with reopened-store recovery, cursor
+  CAS conflict, lock exclusion and handoff-to-candidate cancellation while public
+  collection waits. Existing reservations remain held and cancellation remains
+  REQUESTED_NOT_CONFIRMED until reconciliation.
+- All **754 tracked Python/configuration/dependency input hashes** matched before
+  and after both final runs. No full regression rerun for this bounded change.
+- Initial corrected code passed 57 / 2.88 s. The expanded run had 73 passes and
+  one new-test KeyError (asserted a nonexistent cancellation flag); corrected
+  the assertion to the reducer's existing cancellation_request_id. No production
+  behavior or safety check was relaxed to resolve that test error.
+- Exact argv, input manifests, patches, logs, JUnit and results are retained in
+  /tmp/v11-codex-b9-7jbsdzr9/{red,initial-focused,focused,final-focused,integration}/.
+  The runner is /tmp/v11-codex-b9-7jbsdzr9/run.py; scratch is separate per run.
+  Final changed-Python compilation and git diff --check passed; final files
+  still match all 754 tested input hashes.
+
+Changed implementation: operator_command_poller.py and its candidate-component
+handoff wrapper. Changed tests: test_v11_operator_command_poller.py and
+test_v11_candidate_runner.py. The three ledgers correct the original batch's
+claims below; original implementation/test history remains recorded.
+
+R39 remains PARTIAL; no new C/J/E/A: **85/200 = 42.5% (~43%); formal 1/50 (2%)**.
+**NOT_READY_TO_FUND; V10 unchanged/DEFERRED.** No credentials, private inputs,
+production configuration, services or financial authority changed. Resolve this
+review's publishing commit/tree with
+git log -1 --format='%H %T' -- docs/V11_WORK_CHECKPOINT.md.
+
+**Exact next unfinished action:** implement/test protected operator configuration
+and shared consumer ownership/recovery across deployment paths using offline
+fixtures, including reviewed candidate configuration continuation. These code/test
+tasks need no real credentials. Actual delivery/deployment, callback support and
+independent executor/guardian/operating acceptance remain separate gates.
+
 ## Independent batch-8 review — durable bot ownership and lock cleanup, 2026-09-27
 
 Reviewed published `75bdd2d480b4743f46e06c0af7cbe2f8319a186c` (tree
@@ -5638,7 +5723,11 @@ actual deployed account (owner credential/deployment decision required), or
 still-open R31 result-lag finality source/version evidence or R43/R44
 authentication/isolated-deployment verification.
 
-## Reviewed bot-owner handoff — 2026-09-27 (supervisor batch 9)
+## Reviewed bot-owner handoff — 2026-09-27 (supervisor batch 9, original report)
+
+The independent batch-9 review above supersedes the cursor-preservation,
+crash/replay-safety and gap-closure claims in this original report.
+
 
 Recovery check at batch start: `git status` clean, local HEAD
 `106b504d21897d78d71a927e732ca8fb1bc33983` equal to

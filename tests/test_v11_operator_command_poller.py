@@ -386,7 +386,7 @@ def test_handoff_transfers_binding_without_disturbing_the_cursor(rig):
         TelegramOperatorCommandAdapter(successor_bot, new_identity, OperatorSafetyRouter(store, new_policy)))
     with pytest.raises(OperatorCommandPollerError, match="BOT_OWNER_MISMATCH"):
         asyncio.run(successor.step())
-    result = successor.handoff_bot_owner(reason="operator rotation drill")
+    result = reviewed_handoff(successor, first, "operator rotation drill")
     assert result == {"outcome": "OPERATOR_COMMANDS_BOT_OWNER_HANDOFF", "reason": "operator rotation drill"}
     # The cursor (offset 2, keyed by the unchanged worker_key/store) is preserved.
     assert successor.offset() == 2
@@ -407,10 +407,10 @@ def test_handoff_refuses_a_no_op_transfer(rig):
     poller = build(Bot([]))
     asyncio.run(poller.step())
     with pytest.raises(OperatorCommandPollerError, match="OPERATOR_COMMANDS_HANDOFF_NOT_CHANGED"):
-        poller.handoff_bot_owner(reason="nothing actually changed")
+        reviewed_handoff(poller, poller, "nothing actually changed")
 
 
-@pytest.mark.parametrize("reason", ["", "   ", "x" * 201, "line one\nline two"])
+@pytest.mark.parametrize("reason", ["", "   ", "x" * 201, "line one\nline two", "one\rtwo", "one\x00two", "one\u2028two"])
 def test_handoff_rejects_an_invalid_reason(rig, reason):
     store, build = rig
     from dataclasses import replace
@@ -423,7 +423,7 @@ def test_handoff_rejects_an_invalid_reason(rig, reason):
         TelegramOperatorCommandAdapter(Bot(chat_id="43", operators=("43",)), identity,
                                         OperatorSafetyRouter(store, policy)))
     with pytest.raises(OperatorCommandPollerError, match="OPERATOR_COMMANDS_HANDOFF_REASON_INVALID"):
-        successor.handoff_bot_owner(reason=reason)
+        reviewed_handoff(successor, owner, reason)
 
 
 def test_handoff_is_refused_while_a_poll_holds_the_bot_lock(rig, tmp_path):
@@ -437,7 +437,7 @@ def test_handoff_is_refused_while_a_poll_holds_the_bot_lock(rig, tmp_path):
     try:
         fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
         with pytest.raises(OperatorCommandPollerError, match="OPERATOR_COMMANDS_BOT_ALREADY_POLLING"):
-            poller.handoff_bot_owner(reason="cannot run concurrently")
+            reviewed_handoff(poller, poller, "cannot run concurrently")
     finally:
         fcntl.flock(fd, fcntl.LOCK_UN)
         os.close(fd)
@@ -576,3 +576,304 @@ def test_real_telegram_client_uses_bounded_mocked_transport_and_resumes(rig):
     assert calls == [{"offset": offset, "timeout": 0, "limit": 25,
                       "allowed_updates": ["message", "callback_query"]} for offset in (0, 3)]
     assert len(store.records(kind="OPERATOR_EVENT", limit=10)) == 1
+
+
+# Independent batch-9 review: transfer boundaries and durable recovery.
+def rotated_poller(owner, *, store=None, worker_key=None):
+    from dataclasses import replace
+
+    store = store or owner.store
+    identity = replace(owner.adapter.identity, chat_id=43, operators=(43,))
+    policy = replace(owner.adapter.router.policy, operators=(43,))
+    return TelegramOperatorCommandPoller(store, worker_key or owner.worker_key,
+        TelegramOperatorCommandAdapter(Bot(chat_id="43", operators=("43",)), identity,
+                                        OperatorSafetyRouter(store, policy)))
+
+
+def reviewed_handoff(successor, predecessor, reason="reviewed rotation"):
+    return successor.handoff_bot_owner(previous_identity=predecessor.adapter.identity,
+                                       previous_policy=predecessor.adapter.router.policy, reason=reason)
+
+
+@pytest.mark.parametrize("changed", ["worker", "store", "namespace", "database"])
+def test_review_handoff_cannot_adopt_an_independent_cursor(rig, tmp_path, changed):
+    store, build = rig
+    owner = build(Bot([message_update("/NO_NEW_ORDERS ACCOUNT account original")]))
+    asyncio.run(owner.step())
+    original_binding = owner._bot_lock_path().read_bytes()
+    original_worker = owner.worker_key
+    if changed in {"store", "namespace"}:
+        target = EvidenceStore(tmp_path / "other.sqlite",
+                               "ABLATION:review" if changed == "namespace" else "V11_PAPER")
+    elif changed == "database":
+        store.path.rename(tmp_path / "preserved.sqlite")
+        target = EvidenceStore(store.path, "V11_PAPER")
+    else:
+        target = store
+    successor = rotated_poller(owner, store=target,
+                              worker_key="other-worker" if changed == "worker" else original_worker)
+    assert successor.offset() == 0 and (changed == "database" or owner.offset() == 2)
+    with pytest.raises(OperatorCommandPollerError):
+        reviewed_handoff(successor, owner)
+    assert owner._bot_lock_path().read_bytes() == original_binding
+    assert successor.adapter.telegram.calls == []
+
+
+def test_review_failed_handoff_cannot_empty_the_owner_lock(rig, monkeypatch):
+    store, build = rig
+    owner = build(Bot())
+    asyncio.run(owner.step())
+    lock_path = owner._bot_lock_path()
+    before = lock_path.read_bytes()
+    successor = rotated_poller(owner)
+
+    def fail_write(*args):
+        raise OSError("synthetic owner write failure")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(os, "write", fail_write)
+        try:
+            reviewed_handoff(successor, owner)
+        except OSError:
+            pass
+    # A handoff must never turn an owned bot into an unclaimed empty file.
+    assert lock_path.read_bytes() == before
+
+
+def test_review_repeated_rotation_has_distinct_durable_history(rig):
+    store, build = rig
+    owner = build(Bot())
+    asyncio.run(owner.step())
+    successor = rotated_poller(owner)
+    reviewed_handoff(successor, owner, "first rotation")
+    reviewed_handoff(owner, successor, "reviewed rollback")
+    reviewed_handoff(successor, owner, "second rotation")
+    handoffs = [r for r in store.records(kind="OPERATOR_EVENT", limit=10)
+                if r["body"]["details"].get("outcome") == "OPERATOR_COMMANDS_BOT_OWNER_HANDOFF"]
+    assert len(handoffs) == 3
+    assert [r["body"]["details"]["reason"] for r in handoffs] == [
+        "first rotation", "reviewed rollback", "second rotation"]
+
+
+@pytest.mark.parametrize("saved", [b"", b"partial", b"\xff" * 4097],
+                         ids=["empty", "partial", "oversized-non-ascii"])
+def test_review_handoff_cannot_overwrite_unknown_owner_state(rig, saved):
+    store, build = rig
+    owner = build(Bot())
+    asyncio.run(owner.step())
+    path = owner._bot_lock_path()
+    path.write_bytes(saved)
+    successor = rotated_poller(owner)
+    with pytest.raises(OperatorCommandPollerError):
+        reviewed_handoff(successor, owner)
+    assert path.read_bytes() == saved
+    assert not store.records(kind="OPERATOR_EVENT", limit=10)
+
+
+def test_review_handoff_retry_after_committed_audit_is_idempotent(rig, monkeypatch):
+    store, build = rig
+    owner = build(Bot())
+    asyncio.run(owner.step())
+    successor = rotated_poller(owner)
+    audit = store.audit
+
+    def interrupted(*args, **kwargs):
+        audit(*args, **kwargs)
+        raise OSError("synthetic interruption after audit commit")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(store, "audit", interrupted)
+        with pytest.raises(OSError, match="after audit commit"):
+            reviewed_handoff(successor, owner)
+    reviewed_handoff(successor, owner)
+    assert asyncio.run(successor.step()) == []
+    with pytest.raises(OperatorCommandPollerError, match="BOT_OWNER_MISMATCH"):
+        asyncio.run(owner.step())
+    assert len(store.records(kind="OPERATOR_EVENT", limit=10)) == 1
+
+
+@pytest.mark.parametrize("failure", ["audit", "file_sync", "directory_sync"])
+def test_handoff_failure_before_commit_preserves_owner_and_cursor(rig, monkeypatch, failure):
+    import stat
+
+    store, build = rig
+    owner = build(Bot([message_update("/NO_NEW_ORDERS ACCOUNT account existing")]))
+    asyncio.run(owner.step())
+    successor = rotated_poller(owner)
+    anchor = owner._bot_lock_path().read_bytes()
+    original_head = owner._head()
+    original_events = store.records(kind="OPERATOR_EVENT", limit=10)
+    real_fsync = os.fsync
+
+    def fail_audit(*args, **kwargs):
+        raise EvidenceError("ARCHIVE_DISK_HEADROOM")
+
+    def fsync(fd):
+        directory = stat.S_ISDIR(os.fstat(fd).st_mode)
+        if (failure == "directory_sync" and directory) or (failure == "file_sync" and not directory):
+            raise OSError("synthetic sync failure")
+        return real_fsync(fd)
+
+    before = len(os.listdir("/proc/self/fd"))
+    with monkeypatch.context() as patch:
+        if failure == "audit":
+            patch.setattr(store, "audit", fail_audit)
+        else:
+            patch.setattr(os, "fsync", fsync)
+        with pytest.raises((EvidenceError, OSError)):
+            reviewed_handoff(successor, owner)
+    assert len(os.listdir("/proc/self/fd")) == before
+    assert owner._bot_lock_path().read_bytes() == anchor
+    assert owner._head() == original_head
+    assert store.records(kind="OPERATOR_EVENT", limit=10) == original_events
+    with pytest.raises(OperatorCommandPollerError, match="BOT_OWNER_MISMATCH"):
+        asyncio.run(successor.step())
+    assert asyncio.run(owner.step()) == []
+    reviewed_handoff(successor, owner)
+    assert asyncio.run(successor.step()) == []
+
+
+@pytest.mark.parametrize("after_commit", [False, True])
+def test_handoff_recovers_after_actual_process_exit(rig, after_commit):
+    store, build = rig
+    owner = build(Bot([message_update("/NO_NEW_ORDERS ACCOUNT account existing")]))
+    asyncio.run(owner.step())
+    successor = rotated_poller(owner)
+    before = owner._head()
+    pid = os.fork()
+    if pid == 0:
+        audit = store.audit
+
+        def crash(*args, **kwargs):
+            if after_commit:
+                audit(*args, **kwargs)
+            os._exit(73)
+
+        store.audit = crash
+        reviewed_handoff(successor, owner)
+        os._exit(74)
+    _, status = os.waitpid(pid, 0)
+    assert os.waitstatus_to_exitcode(status) == 73
+    reopened = EvidenceStore(store.path, store.namespace)
+    recovered = rotated_poller(owner, store=reopened)
+    if after_commit:
+        with pytest.raises(OperatorCommandPollerError, match="BOT_OWNER_MISMATCH"):
+            asyncio.run(owner.step())
+        assert asyncio.run(recovered.step()) == []
+    else:
+        with pytest.raises(OperatorCommandPollerError, match="BOT_OWNER_MISMATCH"):
+            asyncio.run(recovered.step())
+        assert asyncio.run(owner.step()) == []
+    reviewed_handoff(recovered, owner)
+    assert recovered._head() == before
+    assert asyncio.run(recovered.step()) == []
+    handoffs = [r for r in reopened.records(kind="OPERATOR_EVENT", limit=10)
+                if r["body"]["details"].get("outcome") == "OPERATOR_COMMANDS_BOT_OWNER_HANDOFF"]
+    assert len(handoffs) == 1
+    details = handoffs[0]["body"]["details"]
+    assert details["cursor_seq"] == before["seq"] and details["offset"] == 2
+    assert details["previous_binding"] == owner._binding().decode()
+    assert details["new_binding"] == recovered._binding().decode()
+    assert handoffs[0]["body"]["evidence"] == [{"id": before["id"], "sha256": before["sha256"]}]
+
+
+@pytest.mark.parametrize("changed", ["identity", "policy", "bot", "account"])
+def test_handoff_requires_the_exact_previous_configuration_and_same_account(rig, changed):
+    from dataclasses import replace
+
+    store, build = rig
+    owner = build(Bot())
+    asyncio.run(owner.step())
+    successor = rotated_poller(owner)
+    prior_identity, prior_policy = owner.adapter.identity, owner.adapter.router.policy
+    if changed == "identity":
+        prior_identity = replace(prior_identity, chat_id=99)
+    elif changed == "policy":
+        prior_policy = replace(prior_policy, allowed_actions=("NO_NEW_ORDERS",))
+    elif changed == "bot":
+        prior_identity = replace(prior_identity, bot_id=999)
+    else:
+        prior_policy = replace(prior_policy, account_id="different-account")
+    with pytest.raises(OperatorCommandPollerError):
+        successor.handoff_bot_owner(previous_identity=prior_identity,
+                                    previous_policy=prior_policy, reason="incorrect review")
+    assert not store.records(kind="OPERATOR_EVENT", limit=10)
+    assert asyncio.run(owner.step()) == []
+
+
+def test_handoff_cursor_cas_refuses_an_intervening_cursor_write(rig, monkeypatch):
+    from polymarket_scanner.v11.operator_command_poller import VERSION
+
+    store, build = rig
+    owner = build(Bot())
+    asyncio.run(owner.step())
+    successor = rotated_poller(owner)
+    audit = store.audit
+
+    def racing_audit(*args, **kwargs):
+        audit("synthetic-intervening-cursor", event_id=WORKER_KEY, kind="RUNTIME_STATUS",
+              details=dict(version=VERSION, offset=2, financial_authority=False, messages_sent=False))
+        return audit(*args, **kwargs)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(store, "audit", racing_audit)
+        with pytest.raises(EvidenceError, match="AUDIT_GUARDED_STATE_CHANGED"):
+            reviewed_handoff(successor, owner)
+    assert not store.records(kind="OPERATOR_EVENT", limit=10)
+    assert asyncio.run(owner.step()) == []
+    with pytest.raises(OperatorCommandPollerError, match="BOT_OWNER_MISMATCH"):
+        asyncio.run(successor.step())
+
+
+def test_handoff_holds_bot_lock_until_the_ownership_transaction_commits(rig, monkeypatch):
+    store, build = rig
+    owner = build(Bot())
+    asyncio.run(owner.step())
+    successor = rotated_poller(owner)
+    audit = store.audit
+
+    def competing_audit(*args, **kwargs):
+        with pytest.raises(OperatorCommandPollerError, match="BOT_ALREADY_POLLING"):
+            reviewed_handoff(successor, owner)
+        with pytest.raises(OperatorCommandPollerError, match="BOT_ALREADY_POLLING"):
+            asyncio.run(owner.step())
+        return audit(*args, **kwargs)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(store, "audit", competing_audit)
+        reviewed_handoff(successor, owner)
+    assert asyncio.run(successor.step()) == []
+
+
+def test_handoff_anchor_cannot_be_cleared_to_revive_an_old_owner(rig):
+    store, build = rig
+    owner = build(Bot())
+    asyncio.run(owner.step())
+    successor = rotated_poller(owner)
+    reviewed_handoff(successor, owner)
+    owner._bot_lock_path().write_bytes(b"")
+    for poller in (owner, successor):
+        with pytest.raises(OperatorCommandPollerError, match="BOT_OWNER_MISMATCH"):
+            asyncio.run(poller.step())
+    assert owner._bot_lock_path().read_bytes() == b""
+
+
+def test_candidate_component_handoff_resumes_original_offset_and_pending_command(rig):
+    from polymarket_scanner.v11.operator_command_runtime import CandidateOperatorCommands
+
+    store, build = rig
+    owner = build(Bot([message_update("/NO_NEW_ORDERS ACCOUNT account original")]))
+    asyncio.run(owner.step())
+    rotated = rotated_poller(owner)
+    pending = message_update("/CANCEL_AND_HALT ACCOUNT account emergency", uid=2, actor=43, chat=43)
+    bot = Bot([pending], chat_id="43", operators=("43",))
+    component = CandidateOperatorCommands(store, "account", WORKER_KEY, telegram=bot,
+        identity=rotated.adapter.identity, policy=rotated.adapter.router.policy)
+    component.handoff_bot_owner(previous_identity=owner.adapter.identity,
+                                previous_policy=owner.adapter.router.policy, reason="reviewed component rotation")
+    outcome = asyncio.run(component.step())
+    assert bot.calls == [2]
+    assert component.poller.offset() == 3
+    result = outcome["outcomes"][0]["outcome"]["result"]["body"]["details"]
+    assert result["cancellation_status"] == "REQUESTED_NOT_CONFIRMED"
+    assert result["flags"]["no_new_orders"] and result["cancellation_request_id"] == "telegram:43:1002"

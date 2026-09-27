@@ -50,6 +50,7 @@ class CandidateOperatorCommands:
         return dict(outcome='OPERATOR_COMMANDS_POLLED' if outcomes else 'NO_OPERATOR_COMMANDS',
                     financial_authority=False, outcomes=outcomes)
 
-    def handoff_bot_owner(self, *, reason: str) -> dict:
-        """Reviewed transfer of the bot lock to this bound candidate; see the poller."""
-        return self.poller.handoff_bot_owner(reason=reason)
+    def handoff_bot_owner(self, *, previous_identity, previous_policy, reason: str) -> dict:
+        """Reviewed same-cursor rotation; caller authorization remains external."""
+        return self.poller.handoff_bot_owner(
+            previous_identity=previous_identity, previous_policy=previous_policy, reason=reason)

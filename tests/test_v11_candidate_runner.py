@@ -483,3 +483,58 @@ def test_operator_store_and_supplied_policy_account_must_match(rig,monkeypatch,t
                 CandidateRunner(runner.runtime,runner.policy,census=runner.census,
                     discovery=runner.discovery,audits=runner.audits,operator_commands=other)
     asyncio.run(run())
+
+
+def test_handed_off_operator_command_reaches_cancellation_during_blocked_collection(rig, monkeypatch):
+    c = coordinator(rig)
+    p = proposal(rig, units='2')
+    c.coordinate('reserve', (p,))
+    calls = []
+
+    async def run():
+        prior = operator_commands(rig, Bot([
+            message_update('/NO_NEW_ORDERS ACCOUNT account original', uid=1)]))
+        await prior.step()
+        identity = replace(prior.adapter.identity, chat_id=43, operators=(43,))
+        policy = replace(prior.adapter.router.policy, operators=(43,))
+        bot = Bot(chat_id='43', operators=('43',))
+        successor = CandidateOperatorCommands(rig['store'], 'account', prior.poller.worker_key,
+            telegram=bot, identity=identity, policy=policy)
+        successor.handoff_bot_owner(previous_identity=prior.adapter.identity,
+                                    previous_policy=prior.adapter.router.policy, reason='reviewed rotation')
+        assert successor.poller.offset() == 2
+        entered, release = asyncio.Event(), asyncio.Event()
+        base = transport(rig, calls)
+
+        async def blocked(req):
+            entered.set()
+            await release.wait()
+            return base(req)
+
+        async with httpx.AsyncClient(transport=httpx.MockTransport(blocked)) as client:
+            original = built(rig, monkeypatch, client, policy=CandidatePolicy('handoff-cancellation',
+                maximum_seconds=5, maximum_jobs=4, safety_interval_seconds=.05,
+                minimum_job_spacing_seconds=.05))
+            runner = CandidateRunner(original.runtime, original.policy, census=original.census,
+                discovery=original.discovery, audits=original.audits, operator_commands=successor)
+            task = asyncio.create_task(runner.run('handoff-command'))
+            try:
+                await asyncio.wait_for(entered.wait(), 2)
+                bot._updates.append(message_update('/CANCEL_AND_HALT ACCOUNT account new operator',
+                                                   uid=2, actor=43, chat=43))
+                for _ in range(50):
+                    if c._state(c._head())['intents'][p.proposal_id]['status'] == 'CANCEL_REQUESTED':
+                        break
+                    await asyncio.sleep(.02)
+                assert c._state(c._head())['intents'][p.proposal_id]['status'] == 'CANCEL_REQUESTED'
+                assert not task.done() and not release.is_set()
+                assert Decimal(c.snapshot()['reserved_cash']) == Decimal('.8')
+                assert successor.poller.offset() == 3 and bot.calls[0] == 2
+                command = rig['store'].get('telegram:43:1002')['body']['details']
+                assert command['request']['actor'] == '43'
+                assert command['cancellation_status'] == 'REQUESTED_NOT_CONFIRMED'
+            finally:
+                release.set()
+                await task
+
+    asyncio.run(run())

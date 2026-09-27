@@ -1,6 +1,26 @@
 # Supplementary engineering estimate
 
-Reviewed ownership handoff — 2026-09-27 (supervisor batch 9): recovery check at
+Independent batch-9 review — 2026-09-27: **nine reproductions failed / 0.94 s**
+on published 5876bfd. The handoff admitted unrelated cursors/databases, could
+empty an owned lock on failure, overwrote unknown bindings, and collided with
+prior audits on repeated/retried rotations. The corrected API requires the exact
+prior identity/policy on the same store/file, namespace, worker, bot and account.
+One CAS-guarded durable audit atomically advances ownership and binds the original
+cursor; the lock anchor is never rewritten. Committed retries and repeated
+rotations retain correct history. **101 focused / 28.43 s; 432 integration /
+164.14 s**, exit 0, no skips/warnings; 754 tracked input hashes unchanged during
+both final runs. Actual process-exit recovery and candidate cancellation while
+collection waits are covered. No full rerun. Evidence and exact next action:
+docs/V11_WORK_CHECKPOINT.md (independent batch-9 review).
+
+This strengthens local rotation only. Protected configuration, cross-deployment
+consumer ownership/recovery and reviewed candidate configuration continuation
+still require offline implementation/tests; they do not require real credentials.
+Real delivery/deployment, callbacks and independent operating acceptance remain
+open. R39 PARTIAL; **85/200 = 42.5% (~43%); 1/50 (2%)**, unchanged.
+NOT_READY_TO_FUND; V10 unchanged/DEFERRED.
+
+Original supervisor batch 9 — 2026-09-27 (claims corrected by the independent review above): recovery check at
 batch start found `git status` clean, local HEAD `106b504d21897d78d71a927e732ca8fb1bc33983`
 equal to `origin/weather-v11-profitability-upgrade-2026-09-23`, and no
 unfinished process; the checkpoint/matrix/ledger already reflected that exact
