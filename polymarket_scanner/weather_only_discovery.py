@@ -32,6 +32,10 @@ DEFAULT_TAGS = ("daily-temperature", "weather")
 PAGE_SIZE = 25
 GLOBAL_PAGE_SIZE = 50
 MAX_PAGE_BYTES = 16 * 1024 * 1024
+# Keep the absolute 16 MiB fail-closed response cap, but avoid decoding large
+# legal global-census pages in one shot on constrained commissioning hosts.
+# Oversized global pages are retried at the same cursor with a smaller limit.
+GLOBAL_PARSE_PAGE_BYTES = 4 * 1024 * 1024
 MAX_PAGES_PER_TAG = 200
 MAX_GLOBAL_PAGES = 5_000
 MAX_GLOBAL_EVENT_HITS = 250_000
@@ -268,66 +272,79 @@ class WeatherOnlyDiscovery:
         *,
         page_size: int = PAGE_SIZE,
     ) -> tuple[list[dict], str | None]:
-        params: dict[str, object] = {
-            "active": "true",
-            "closed": "false",
-            "limit": int(page_size),
-        }
-        if tag:
-            params["tag_slug"] = tag
-        if cursor:
-            params["after_cursor"] = cursor
-        for attempt in range(4):
-            try:
-                response = await self.http.get(f"{GAMMA}/events/keyset", params=params)
-            except httpx.TimeoutException:
-                if attempt == 3:
-                    raise WeatherDiscoveryError("HTTP_TIMEOUT")
-                await asyncio.sleep(min(4.0, 0.5 * (2 ** attempt)))
-                continue
-            except httpx.RequestError:
-                if attempt == 3:
-                    raise WeatherDiscoveryError("HTTP_TRANSPORT")
-                await asyncio.sleep(min(4.0, 0.5 * (2 ** attempt)))
-                continue
-            if response.status_code == 429 or response.status_code >= 500:
-                if attempt < 3:
+        current_page_size = max(1, int(page_size))
+        while True:
+            params: dict[str, object] = {
+                "active": "true",
+                "closed": "false",
+                "limit": current_page_size,
+            }
+            if tag:
+                params["tag_slug"] = tag
+            if cursor:
+                params["after_cursor"] = cursor
+            resize = False
+            for attempt in range(4):
+                try:
+                    response = await self.http.get(f"{GAMMA}/events/keyset", params=params)
+                except httpx.TimeoutException:
+                    if attempt == 3:
+                        raise WeatherDiscoveryError("HTTP_TIMEOUT")
                     await asyncio.sleep(min(4.0, 0.5 * (2 ** attempt)))
                     continue
-                raise WeatherDiscoveryError("HTTP_STATUS")
-            if response.status_code >= 400:
-                raise WeatherDiscoveryError("HTTP_STATUS")
-            if len(response.content) > MAX_PAGE_BYTES:
-                # Preserve the fixed per-response byte ceiling, but do not make
-                # catalog growth at one legal keyset cursor a permanent outage.
-                # Retry the exact same cursor with fewer events.  No oversized
-                # response is parsed or accepted.  If a single-event page still
-                # exceeds the cap, fail closed as before.
-                if int(page_size) > 1:
-                    return await self._keyset_page(
-                        tag,
-                        cursor,
-                        page_size=max(1, int(page_size) // 2),
-                    )
-                raise WeatherDiscoveryError("PAGE_BYTES_CAP")
-            try:
-                payload = response.json()
-            except Exception:
-                raise WeatherDiscoveryError("MALFORMED_JSON")
-            if not isinstance(payload, dict):
-                raise WeatherDiscoveryError("MALFORMED_ENVELOPE")
-            events = payload.get("events")
-            if not isinstance(events, list) or any(not isinstance(event, dict) for event in events):
-                raise WeatherDiscoveryError("MALFORMED_EVENTS")
-            raw_cursor = payload.get("next_cursor")
-            if raw_cursor is not None and not isinstance(raw_cursor, str):
-                raise WeatherDiscoveryError("MALFORMED_CURSOR")
-            next_cursor = raw_cursor.strip() if isinstance(raw_cursor, str) else ""
-            next_cursor = next_cursor or None
-            if next_cursor is not None and not events:
-                raise WeatherDiscoveryError("EMPTY_PAGE_WITH_CURSOR")
-            return events, next_cursor
-        raise WeatherDiscoveryError("HTTP_RETRY_EXHAUSTED")
+                except httpx.RequestError:
+                    if attempt == 3:
+                        raise WeatherDiscoveryError("HTTP_TRANSPORT")
+                    await asyncio.sleep(min(4.0, 0.5 * (2 ** attempt)))
+                    continue
+                if response.status_code == 429 or response.status_code >= 500:
+                    if attempt < 3:
+                        await asyncio.sleep(min(4.0, 0.5 * (2 ** attempt)))
+                        continue
+                    raise WeatherDiscoveryError("HTTP_STATUS")
+                if response.status_code >= 400:
+                    raise WeatherDiscoveryError("HTTP_STATUS")
+                response_bytes = len(response.content)
+                absolute_oversize = response_bytes > MAX_PAGE_BYTES
+                global_parse_oversize = (
+                    tag is None
+                    and response_bytes > GLOBAL_PARSE_PAGE_BYTES
+                    and current_page_size > 1
+                )
+                if (absolute_oversize or global_parse_oversize) and current_page_size > 1:
+                    # Retry the exact same cursor with fewer events, but release
+                    # the current response before the retry. Recursive retries
+                    # retain every oversized body on the Python stack and can
+                    # exceed the host cgroup even when each response is legal.
+                    await response.aclose()
+                    del response
+                    current_page_size = max(1, current_page_size // 2)
+                    resize = True
+                    break
+                if absolute_oversize:
+                    # A single event that still exceeds the absolute cap cannot
+                    # be split further and remains a fixed fail-closed error.
+                    raise WeatherDiscoveryError("PAGE_BYTES_CAP")
+                try:
+                    payload = response.json()
+                except Exception:
+                    raise WeatherDiscoveryError("MALFORMED_JSON")
+                if not isinstance(payload, dict):
+                    raise WeatherDiscoveryError("MALFORMED_ENVELOPE")
+                events = payload.get("events")
+                if not isinstance(events, list) or any(not isinstance(event, dict) for event in events):
+                    raise WeatherDiscoveryError("MALFORMED_EVENTS")
+                raw_cursor = payload.get("next_cursor")
+                if raw_cursor is not None and not isinstance(raw_cursor, str):
+                    raise WeatherDiscoveryError("MALFORMED_CURSOR")
+                next_cursor = raw_cursor.strip() if isinstance(raw_cursor, str) else ""
+                next_cursor = next_cursor or None
+                if next_cursor is not None and not events:
+                    raise WeatherDiscoveryError("EMPTY_PAGE_WITH_CURSOR")
+                return events, next_cursor
+            if resize:
+                continue
+            raise WeatherDiscoveryError("HTTP_RETRY_EXHAUSTED")
 
     @staticmethod
     def _weather_looking_candidate(event: dict) -> bool:

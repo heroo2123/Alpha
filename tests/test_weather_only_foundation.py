@@ -256,6 +256,143 @@ def test_discovery_page_bytes_cap_retries_same_cursor_with_smaller_limit(monkeyp
     assert next_cursor=="cursor-next"
 
 
+def test_global_parse_cap_releases_response_before_same_cursor_retry(monkeypatch):
+    monkeypatch.setattr(discovery_module, "GLOBAL_PARSE_PAGE_BYTES", 300)
+    monkeypatch.setattr(discovery_module, "MAX_PAGE_BYTES", 1000)
+
+    class Response:
+        status_code = 200
+
+        def __init__(self, limit):
+            self.limit = limit
+            self.content = b"x" * (limit * 50)
+            self.closed = False
+
+        async def aclose(self):
+            self.closed = True
+
+        def json(self):
+            return {
+                "events": [{"id": f"e-{i}", "markets": []} for i in range(self.limit)],
+                "next_cursor": "cursor-next",
+            }
+
+    class Client:
+        def __init__(self):
+            self.calls = []
+            self.responses = []
+
+        async def get(self, _url, params):
+            if self.responses:
+                assert self.responses[-1].closed is True
+            self.calls.append((int(params["limit"]), params.get("after_cursor")))
+            response = Response(int(params["limit"]))
+            self.responses.append(response)
+            return response
+
+        async def aclose(self):
+            pass
+
+    async def run():
+        client = WeatherOnlyDiscovery()
+        await client.http.aclose()
+        fake = Client()
+        client.http = fake
+        try:
+            result = await client._keyset_page(None, "cursor-start", page_size=8)
+            return result, fake
+        finally:
+            await client.close()
+
+    (events, next_cursor), fake = asyncio.run(run())
+    assert fake.calls == [(8, "cursor-start"), (4, "cursor-start")]
+    assert fake.responses[0].closed is True
+    assert len(events) == 4
+    assert next_cursor == "cursor-next"
+
+
+def test_global_parse_cap_does_not_shrink_tagged_pages(monkeypatch):
+    monkeypatch.setattr(discovery_module, "GLOBAL_PARSE_PAGE_BYTES", 300)
+    monkeypatch.setattr(discovery_module, "MAX_PAGE_BYTES", 1000)
+    calls = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        limit = int(request.url.params["limit"])
+        calls.append(limit)
+        payload = {
+            "events": [{"id": f"e-{i}", "markets": []} for i in range(limit)],
+            "next_cursor": "cursor-next",
+        }
+        return httpx.Response(200, content=b"x" * (limit * 50), extensions={"payload": payload})
+
+    class Client:
+        async def get(self, _url, params):
+            limit = int(params["limit"])
+            calls.append(limit)
+            response = httpx.Response(
+                200,
+                json={
+                    "events": [{"id": f"e-{i}", "markets": []} for i in range(limit)],
+                    "next_cursor": "cursor-next",
+                },
+            )
+            response._content = b"x" * (limit * 50)
+            response.json = lambda: {
+                "events": [{"id": f"e-{i}", "markets": []} for i in range(limit)],
+                "next_cursor": "cursor-next",
+            }
+            return response
+
+        async def aclose(self):
+            pass
+
+    async def run():
+        client = WeatherOnlyDiscovery()
+        await client.http.aclose()
+        client.http = Client()
+        try:
+            return await client._keyset_page("weather", "cursor-start", page_size=8)
+        finally:
+            await client.close()
+
+    events, next_cursor = asyncio.run(run())
+    assert calls == [8]
+    assert len(events) == 8
+    assert next_cursor == "cursor-next"
+
+
+def test_single_global_event_over_parse_threshold_but_under_hard_cap_is_allowed(monkeypatch):
+    monkeypatch.setattr(discovery_module, "GLOBAL_PARSE_PAGE_BYTES", 25)
+    monkeypatch.setattr(discovery_module, "MAX_PAGE_BYTES", 1000)
+
+    class Client:
+        async def get(self, _url, params):
+            assert int(params["limit"]) == 1
+            response = httpx.Response(
+                200,
+                json={"events": [{"id": "e", "markets": []}], "next_cursor": None},
+            )
+            response._content = b"x" * 50
+            response.json = lambda: {"events": [{"id": "e", "markets": []}], "next_cursor": None}
+            return response
+
+        async def aclose(self):
+            pass
+
+    async def run():
+        client = WeatherOnlyDiscovery()
+        await client.http.aclose()
+        client.http = Client()
+        try:
+            return await client._keyset_page(None, None, page_size=1)
+        finally:
+            await client.close()
+
+    events, next_cursor = asyncio.run(run())
+    assert [event["id"] for event in events] == ["e"]
+    assert next_cursor is None
+
+
 def test_discovery_page_bytes_cap_is_fixed_failure(monkeypatch):
     monkeypatch.setattr(discovery_module, "MAX_PAGE_BYTES", 32)
 
