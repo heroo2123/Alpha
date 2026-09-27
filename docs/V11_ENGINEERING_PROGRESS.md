@@ -1,5 +1,22 @@
 # Supplementary engineering estimate
 
+Independent supervisor-batch-6 review — 2026-09-27: supersedes worker
+batches 12/13's blanket owner/external-only backlog classification. Master
+sections 12, 18 and 42 require remaining local sizing/profile integration and
+authorize documented engineering choices; absent field mappings do not create
+an owner-only gate. Keep missing evidence UNKNOWN and protected ceilings
+unchanged. Sections 27/28's historical Session 403 gates actual access, not all
+supported-adapter research/tests; R31 finality activation stays GATED without
+blocking offline adapter/replay work. Preserve batch 11's valid pinned
+`time_of_day` addition and batches 12/13's bounded audit results. Their reported
+runs have no at-run manifest paths in these entries; they are not independently
+source-bound here. No audit establishes universal safety from a returned flag.
+Independent performance/report/candidate verification: **32 passed / 12.30 s**,
+756 tracked input hashes unchanged; exact command/artifacts in the checkpoint.
+Documentation correction only. **87/200 = 43.5%; formal 1/50 (2%)** unchanged;
+NOT_READY_TO_FUND, V10 unchanged/DEFERRED. Next: implement one remaining R40
+causal profile/report integration, even without additional C/J credit.
+
 Supervisor batch 13 — 2026-09-27: recovery check found `git status` clean,
 local HEAD `2388d37` equal to
 `origin/weather-v11-profitability-upgrade-2026-09-23`, no unfinished process

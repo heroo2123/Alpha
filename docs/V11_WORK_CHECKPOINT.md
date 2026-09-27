@@ -1,5 +1,62 @@
 # Alpha V11 work checkpoint
 
+## Independent supervisor-batch-6 review — 2026-09-27
+
+Reviewed published `242a217717ea137c2d23229452de55119614724e` against
+`51740f2f3bf26f20fff8de1dfb7fb5cf997e7ae5` (worker batches 11–13).
+Initial tree clean, local/remote HEAD equal, no Claude worker active.
+Sequential Remote Desktop Commander only. Read CLAUDE.md, ledger history,
+changed implementation/tests and relevant authoritative master requirements;
+master SHA-256 matches `a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+
+**Material handoff correction:** the batch-12/13 owner/external-only and
+no-local-implementation conclusions are superseded. Section 12 requires
+integrated dynamic sizing within protected ceilings; its illustrative factor
+list does not require all nine factors or prescribe Python field names.
+Selecting documented causal inputs, implementing conservative sizing and
+revaluing/revalidating the resulting quantity are engineering work, not an
+owner-only permission. Never substitute invented calibration or bypass gates.
+The existing unused reducer and ceiling-reject checks remain valid bounded
+work, but do not complete that integration. Section 42 explicitly permits
+reasonable documented/tested engineering choices; CLAUDE.md prohibits invented
+evidence, not evidence-schema design. Bounded C/J credit does not exhaust
+required local implementation.
+
+Likewise, section 18's remaining country/source, PWS density/quality and
+apparent-edge profiles need local causal metadata/report integration. Missing
+field mappings are implementation tasks; genuine missing evidence must remain
+UNKNOWN. Batch 11's pinned `time_of_day` profile is preserved and advances
+R40 without earning another unit. Sections 27/28 distinguish actual account
+entitlement/creation from supported-adapter research and tests: the historical
+403 does not prove all remaining R43 work is owner-only or current access
+status. No account/credential action was attempted here. R31 stays OPEN/GATED
+for absent exact finality proof, without blocking offline adapter/replay work.
+
+Preserve batches 12/13's bounded audit observations and reported test totals;
+they add no implementation or acceptance credit. Their entries identify no
+fresh at-run manifest/log paths, so this review does not independently bind
+those reported runs to inputs. An audit finding no defect, or a returned
+`financial_authority=False` field, is not proof that every downstream use is
+safe; existing admission/execution controls remain necessary.
+
+Independent focused/relevant integration at published HEAD: **32 passed /
+12.30 s**, exit 0, no skips/warnings, **756 tracked code/test/config input
+hashes unchanged**. Command from repository root:
+`/home/alphaadmin/AlphaV11_Dev/venv/bin/python -m pytest -q -p no:cacheprovider
+--tb=short --maxfail=2 tests/test_v11_performance.py tests/test_v11_audit_reports.py
+tests/test_v11_candidate_assembly.py::test_typed_builder_runs_census_derived_risk_strategies_discovery_and_audit_in_one_candidate`.
+Local evidence: `/tmp/alpha-v11-supervisor6-review-c3t8dn6y/`;
+`manifest.json` SHA-256 `429c9c7fb4f2a4f97503987526faf460badf47054a337f106bae35b3e47fd678`;
+`pytest.log` SHA-256 `830d90f6240b78bdab3268a519af5dbdf40f2961286639b65e5b757e1049c336`.
+No broad suite repeated. This correction changes only the three ledgers.
+
+No new C/J/E/A: **87/200 = 43.5%; formal 1/50 (2%)**.
+NOT_READY_TO_FUND; no runtime, V10, service, credential or financial change.
+Next: complete one remaining R40 profile from original pinned entry evidence
+through PerformanceLab and scheduled reports, documenting field semantics and
+checking UNKNOWN fallback, historical immutability and P&L conservation.
+Do not redirect to another audit solely because no new score unit is available.
+
 ## Supervisor batch 13 — 2026-09-27: master re-verification plus R05 defect audit clean
 
 Recovery check: `git status` clean, local HEAD `2388d37` equal to
