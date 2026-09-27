@@ -1,5 +1,71 @@
 # Alpha V11 work checkpoint
 
+## Independent batch-6 review: preserve R23 J; fix guardian account-fault cancellation — 2026-09-27
+
+Reviewed published `de4cec80d37c375dc05f38b9c254003e4d627c2d` against
+`28d5895dff7e9282722abdcbc894cd70713a2d1d`, CLAUDE.md, all three ledgers and
+the authoritative master (SHA-256 verified). Initial tree clean; local HEAD,
+upstream and remote branch agreed. No Claude process was active. All operations
+used Remote Desktop Commander; no subagents, V10 or production actions.
+
+R23's **C J** credit is supportable as the bounded configured-PAPER join:
+NWS-schema membership builder -> metadata-bound CandidatePlan -> assembled
+PaperCoordinator -> portfolio admission ceilings. The factory returns a runner;
+`candidate_runner.py` does not call that factory. Existing tests use parsed
+fixtures, and prior public lookup evidence demonstrates the administrative-region
+adapter only. Directly constructed CorrelationMap objects are still accepted;
+types/hashes do not prove origin, freshness, certification or protected review.
+No actual deployed NWS-to-admission run, E, A or financial authority is credited.
+
+**Material defect:** the declined guardian work was based on a false invariant.
+Under unchanged policy, reserve 20 units at 0.4 (8 risk) with a regional ceiling
+of 8.5; reconcile 5 units at all-in cost 3. The remaining reservation is 6 and
+held cost is 3, so regional loss becomes 9. `record_fill()` correctly retains
+both `ACTUAL_PAPER_COST_EXCEEDED_RESERVED_BOUND` and
+`POST_FILL_ACCOUNT_RISK_BREACH`. With otherwise healthy checks, the guardian
+previously left the remaining order PARTIAL and published READY. An existing
+cost-overrun test only checked rejection of new admission, missing cancellation.
+
+Smallest runtime fix: four added lines in `paper_guardian.py` route durable
+account faults through the existing bounded cancel-only path with reason
+`GUARDIAN_ACCOUNT_FAULT_ACTIVE`. Three parameterized cases cover healthy fills,
+a cost overrun below the regional ceiling, and an actual regional breach.
+They use real account reservation/fill/risk and cancellation logic with synthetic
+admission/health fixtures; the risk state is not mocked or corrupted. Fills,
+positions, cash, sticky faults and reservations remain intact; restart does not
+duplicate the cancellation. Cancellation is requested, never claimed confirmed.
+This consumes committed account faults; it does not independently rederive all
+portfolio ceilings each cycle or complete production guardian custody.
+
+Verification on the reviewed HEAD plus the saved patch:
+
+- Before runtime fix: **1 passed, 2 failed / 1.31 s**, exposing both missed faults.
+- Final direct selection: **11 passed / 4.00 s**, exit 0; includes the three new
+  cases, existing cost-overrun/policy guards, candidate mapping/builder join,
+  map aggregation and shared-UNKNOWN dependence checks.
+- Relevant integration: **237 passed / 57.62 s**, exit 0, no skips/warnings:
+  `test_v11_paper_guardian.py`, `test_v11_guardian_broker.py`,
+  `test_v11_guardian_integration.py`, `test_v11_guardian_publication.py`,
+  `test_v11_paper_cancellation.py`, `test_v11_paper_coordinator.py`,
+  `test_v11_paper_reconciliation.py`, `test_v11_account_replay.py`,
+  `test_v11_account_replay_integration.py` (all under `tests/`).
+  Invoked with the development venv's `python -m pytest -q -p no:cacheprovider`.
+- All **744 selected tracked code/config/test inputs unchanged** during each
+  run. Exact argv, before/after hashes, source patches, logs and JUnit are retained
+  in `/tmp/alpha-v11-batch6-review-sbza0_5n/` as `before-fix`, `focused` and
+  `integration` artifacts. The worker's historical 145/169/55 counts have no
+  at-run manifest path in this checkpoint and were not relabeled as independently
+  verified. No full regression was duplicated.
+
+**87/200 = 43.5% (~44%); formal 1/50 (2%)**, unchanged from the reviewed
+credit correction. This fix earns no extra milestone. NOT_READY_TO_FUND;
+V10 unchanged/DEFERRED. Finer supported dependence, protected mapping review,
+archival/freshness and independent full risk rederivation remain open. R31
+source/version proof and R39 offline protected-configuration work are not
+blanket owner/production blockers. Next: implement R23 mapping evidence
+archival/freshness with fail-closed fixtures; retain real-source and protected
+approval gates explicitly.
+
 ## R23 credit correction: uncredited real-region-mapping candidate integration earns J — 2026-09-27 (supervisor batch 6)
 
 Recovery check: `git status` clean, local HEAD `28d5895` equal to
@@ -30,9 +96,9 @@ withheld until both existed.
 Tracing the actual code shows the candidate-side half alone already
 satisfies the matrix's own J definition ("a demonstrated upstream/downstream
 integration of that core"), and does so more directly than R12's own
-just-credited pipeline: `candidate_assembly.assemble_candidate` — the real
-finite-candidate builder `candidate_runner.py` actually invokes for a live
-run, not a side pipeline — constructs its `PaperCoordinator` directly from
+just-credited pipeline: `candidate_assembly.assemble_candidate` — the builder
+that returns a configured `CandidateRunner` for bounded PAPER runs — constructs
+its `PaperCoordinator` directly from
 the validated plan: `coordinator=PaperCoordinator(store,policy=plan.account,
 correlation=plan.correlation,limits=plan.limits,guardian_config=plan.guardian_config)`
 (`polymarket_scanner/v11/candidate_assembly.py:325`). `CandidatePlan`'s own
@@ -47,7 +113,8 @@ on breach (`paper_coordinator.py:481-482`) — verified against the existing
 passing test suite, not newly written. Real NWS-derived region mapping
 (`weather_only_station_region.py` -> `region_membership.build_correlation_map`,
 batch 15) therefore already flows, upstream to downstream, all the way into
-the live candidate's actual paper-account admission gate.
+the configured PAPER candidate's account admission gate. This is a typed
+configuration join, not evidence of a deployed real-source run.
 
 This is distinct from R22's own already-credited J: R22's core is the
 scenario/ceiling-math wiring itself (`portfolio_risk` integrated into
@@ -58,35 +125,20 @@ integration of its own core had never been separately credited — this is a
 scoring correction, not new implementation, and does not double-count R22's
 credit.
 
-Before crediting, investigated whether the recorded "next R23 action"
-(independent guardian-side portfolio-ceiling revalidation) was a real,
-implementable gap this batch should close instead of or in addition to the
-scoring correction. It is not reachable under the current architecture:
-`PaperCoordinator.__init__` binds `policy_sha` over the account policy,
-correlation map and limits together (`digest(dict(account=...,
-correlation=...,limits=...))`), and `_head()` raises
-`PAPER_ACCOUNT_POLICY_OR_IDENTITY_CHANGED` on any mismatch against the
-account's own already-committed records — there is no reviewed-migration
-path for the coordinator's own risk policy comparable to
-`CandidateRunner.acknowledge_configuration_review`. Every reservation is
-already gated atomically against the full current account state at commit
-time (`coordinate()` -> `_coordinate_effects` -> `effects.risk(test)` ->
-`ACCOUNT_SCENARIO_OR_RESERVATION_LIMIT` on any breach, computed fresh from
-*all* current positions on every single reservation, not just the new one).
-No path was found — short of directly corrupting the SQLite store — by which
-an already-resting position could come to violate the account's own current
-correlation ceilings for a later, independent guardian cycle to usefully
-catch. Adding a per-cycle guardian-side portfolio_risk recheck would be
-defensive code with no demonstrated reachable trigger and no meaningful test
-beyond mocking the internals to force it — exactly the kind of speculative
-complexity this project's operating instructions ask not to add. Recorded as
-an audit finding, matching the R06/R07/R08/R18/R32/R34-R36 "no exploitable
-defect found" precedent, rather than implemented.
+Independent review correction: the original claim that unchanged account
+policy makes a post-admission ceiling breach unreachable was false.
+`record_fill()` can reconcile a partial fill above its reserved cost bound,
+preserve that actual synthetic cost, and record `POST_FILL_ACCOUNT_RISK_BREACH`.
+The guardian previously ignored these sticky account faults while source/event
+checks remained healthy. The independent review entry above records the
+reproduction and bounded cancellation fix. Policy immutability prevents policy
+replacement; it does not make realized fill costs immutable. A separate full
+per-cycle portfolio recalculation remains unimplemented and is not waived.
 
-No production or research code was changed; this batch is a scoring
-correction plus one investigated-and-declined implementation path. Does not
-touch V10, private inputs, credentials or any financial path. Verification,
-foreground, no code changed:
+The original worker batch changed no production or research code; its
+verification below predates the independent guardian correction above.
+V10, private inputs, credentials and financial authority remain untouched.
+Original worker verification, foreground:
 
 ```
 pytest tests/test_v11_region_membership.py tests/test_v11_candidate_assembly.py \
@@ -111,7 +163,7 @@ administrative office), protected review/certification of the mapping
 itself, evidence archival/freshness, and any form of guardian-side
 per-cycle re-derivation all remain genuinely open, and none of them are
 claimed here. Real prospective evidence (E) and full package acceptance (A)
-for R23 remain open and cannot be produced locally.
+for R23 remain unearned.
 
 R23: **C -> C J**. New total **87/200 = 43.5% (~44%)** (was 86/200 = 43%).
 Formal completion remains **1/50 (2%)**. NOT_READY_TO_FUND; V10
@@ -120,8 +172,10 @@ unchanged/DEFERRED. Exact matrix update: `docs/V11_REQUIREMENTS_MATRIX.md`
 
 Next unfinished action: R23's remaining local-implementation/evidence gaps
 (finer dependence mapping, protected review/certification, archival/
-freshness) are real but not quick; R31/R37/R39/R43/R44/R46-R49 remain
-owner/external/production-blocked as previously recorded. The "cross-check
+freshness) remain open local work. R31 source/version proof, R39 protected
+configuration and offline adapters/tests are not inherently owner-blocked;
+actual credentials, commissioning, funding and activation retain their gates.
+The "cross-check
 every earns-event against the matrix" method that found both the R12 and
 R23 gaps is not expected to find further gaps (all 50 rows are now either
 correctly J-credited or explicitly still C-only for a stated, now-verified

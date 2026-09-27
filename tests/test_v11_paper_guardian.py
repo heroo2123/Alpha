@@ -361,3 +361,53 @@ def test_interleaved_new_heartbeat_is_conservatively_cancelled_until_resampled(r
     g.fixture_monitor.sample('new-sample');g._cycle()
     assert state(c)['intents']['proposal']['cancel_requested'] is True
     assert g._head()['body']['details']['status']=='READY'
+
+
+@pytest.mark.parametrize('collateral,region_limit,expected_faults', [
+    ('2', '8.5', ()),
+    ('3', '100', ('ACTUAL_PAPER_COST_EXCEEDED_RESERVED_BOUND',)),
+    ('3', '8.5', ('ACTUAL_PAPER_COST_EXCEEDED_RESERVED_BOUND', 'POST_FILL_ACCOUNT_RISK_BREACH')),
+])
+def test_guardian_cancels_resting_remainder_after_reconciled_account_fault(
+        rig, worker, monkeypatch, collateral, region_limit, expected_faults):
+    rig['limits'] = replace(rig['limits'], per_region=region_limit)
+    c = coordinator(rig)
+    p = proposal(rig)
+    c.coordinate('reserve', (p,))
+    c.transition('submit', intent_id=p.proposal_id, status='SUBMITTING')
+    c.transition('ack', intent_id=p.proposal_id, status='ACKNOWLEDGED')
+    policy_sha = c.policy_sha
+    receipt = proof(rig, p.proposal_id, 'cost-receipt', 'PAPER_FILL',
+                    fill_id='cost-fill', units='5', all_in_collateral=collateral, direction='BUY')
+    c.record_fill('record-cost', receipt)
+    before = deepcopy(state(c))
+    reserved = c.snapshot()['reserved_cash']
+    assert tuple(before['faults']) == expected_faults
+    assert before['intents'][p.proposal_id]['status'] == 'PARTIAL'
+    if 'POST_FILL_ACCOUNT_RISK_BREACH' in expected_faults:
+        assert any(f['gate'] == 'REGION_LOSS_LIMIT' for f in c.snapshot()['portfolio']['faults'])
+    g = build(rig, worker)
+    # Isolate the account trigger: worker/source health is healthy, and real
+    # resting-admission/event checks remain in use. The risk state is not mocked.
+    monkeypatch.setattr(g, '_health', lambda: None)
+    g._cycle()
+    after = state(c)
+    assert c.policy_sha == policy_sha
+    assert after['lots'] == before['lots'] and after['fills'] == before['fills']
+    assert after['cash'] == before['cash'] and after['faults'] == before['faults']
+    assert c.snapshot()['reserved_cash'] == reserved
+    assert after['intents'][p.proposal_id]['cancel_requested'] is bool(expected_faults)
+    if expected_faults:
+        assert after['intents'][p.proposal_id]['status'] == 'CANCEL_REQUESTED'
+        triggers = [r['body']['details'] for r in g.store.records(kind='RUNTIME_STATUS')
+                    if r['body']['details'].get('pending_trigger')]
+        assert any('GUARDIAN_ACCOUNT_FAULT_ACTIVE' in t['reasons'] for t in triggers)
+        restarted = build(rig, worker)
+        monkeypatch.setattr(restarted, '_health', lambda: None)
+        restarted._cycle()
+        requests = [r for r in g.store.records(kind='COORDINATOR_EVENT')
+                    if r['body']['details'].get('request', {}).get('status') == 'CANCEL_REQUESTED']
+        assert len(requests) == 1
+    else:
+        assert after == before
+        assert g._head()['body']['details']['status'] == 'READY'

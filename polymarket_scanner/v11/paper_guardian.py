@@ -270,6 +270,10 @@ class PaperGuardian:
         try: self._health()
         except EvidenceError as exc: failures.append(str(exc))
         snapshot = self.coordinator._head(); account = self.coordinator._state(snapshot)
+        # Reconciled fills can exceed a reserved cost/risk bound without any
+        # policy change. Sticky account faults must also withdraw resting risk.
+        if account['faults']:
+            failures.append('GUARDIAN_ACCOUNT_FAULT_ACTIVE')
         retained = sorted(pid for pid,i in account['intents'].items()
                           if i['status'] in UNRESOLVED and not i.get('cancel_requested') and managed_opening(i))
         order = [p for p in retained if p > cursor]+[p for p in retained if p <= cursor]

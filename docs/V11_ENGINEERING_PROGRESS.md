@@ -1,5 +1,30 @@
 # Supplementary engineering estimate
 
+Independent supervisor-batch-6 review — 2026-09-27: reviewed `de4cec80`
+against `28d5895d`. Preserve R23's bounded configured-PAPER **C J** credit,
+but correct the false claim that immutable policy makes resting regional
+breaches unreachable. A real synthetic-account partial fill can exceed its
+reserved cost bound: initial regional risk 8, ceiling 8.5, reconciled risk 9.
+The coordinator records sticky faults and blocks new admission; the guardian
+previously left the remainder resting when health/event checks passed.
+
+Four runtime lines now route committed account faults through existing bounded
+cancel-only delivery. Three regression cases preserve healthy behavior, actual
+fill/cash/position history, reservations and idempotent restart. Before fix:
+**1 passed / 2 failed**. After fix: **11 direct passed / 4.00 s** and **237
+related passed / 57.62 s**, no skips/warnings, exit 0; all **744 selected
+inputs unchanged** during each run. Exact commands, source patches, manifests,
+logs and JUnit: `/tmp/alpha-v11-batch6-review-sbza0_5n/`; details and limitations:
+`docs/V11_WORK_CHECKPOINT.md`. No full regression duplicated.
+
+This is fault-to-cancellation integration, not a full per-cycle portfolio
+recalculation or production custody acceptance. Parsed fixtures and configured
+mapping propagation do not prove real deployed input provenance. No extra
+credit: **87/200 = 43.5% (~44%); formal 1/50 (2%)**. NOT_READY_TO_FUND;
+V10 unchanged/DEFERRED. Next local work: R23 evidence archival/freshness with
+fail-closed tests. R31 source proof and R39 offline custody implementation are
+not blanket owner blockers; actual commissioning/financial gates remain.
+
 R12 credit correction — 2026-09-27 (supervisor batch 5): recovery check found
 `git status` clean, local HEAD `5565403` equal to
 `origin/weather-v11-profitability-upgrade-2026-09-23`, no unfinished process.
@@ -1417,9 +1442,9 @@ whether its own recorded "candidate-side half only, no credit" conclusion
 (batch-1 recovery, 2026-09-27) still held now that the real NWS region
 adapter and `CandidatePlan` validation were both already built and green.
 
-Traced the actual live wiring: `candidate_assembly.assemble_candidate` (the
-real finite-candidate builder used by `candidate_runner.py`'s live run path,
-not a side pipeline) constructs its `PaperCoordinator` directly from
+Traced the configured PAPER wiring: `candidate_assembly.assemble_candidate`
+(the builder returning a configured `CandidateRunner`) constructs its
+`PaperCoordinator` directly from
 `plan.correlation` — `PaperCoordinator(store,policy=plan.account,
 correlation=plan.correlation,limits=plan.limits,...)` — and `CandidatePlan`'s
 own `__post_init__` already refuses to construct with a correlation map
@@ -1444,22 +1469,15 @@ R23's own core is specifically the real region/dependence *mapping* that
 feeds that same gate, and that mapping's live-path integration had not been
 separately credited.
 
-Investigated the recorded "next R23 action" (independent guardian-side
-portfolio-ceiling revalidation) before deciding not to implement it this
-batch: `PaperCoordinator.__init__` binds `policy_sha` over the account
-policy, correlation map and limits together, and `_head()` raises
-`PAPER_ACCOUNT_POLICY_OR_IDENTITY_CHANGED` on any mismatch against the
-account's own committed records, with no reviewed-migration path comparable
-to `CandidateRunner.acknowledge_configuration_review`. Every reservation is
-already gated atomically against the full current account state at commit
-time (`coordinate()` -> `effects.risk(test)` -> `ACCOUNT_SCENARIO_OR_RESERVATION_LIMIT`).
-No reachable path was found by which an already-resting position could come
-to violate the account's own current correlation ceilings for an independent
-guardian cycle to catch. Recording this as an audit finding rather than
-adding untestable, unreachable defensive code, consistent with the R06/R07/
-R08/R18/R32/R34-R36 "no exploitable defect found" precedent.
+Independent batch-6 review supersedes the original "no reachable breach"
+audit: unchanged policy does not prevent reconciled partial-fill cost overruns
+from breaching regional ceilings. The coordinator correctly records sticky
+faults, but the guardian previously ignored them with otherwise healthy checks.
+The independent entry at the top of this ledger records the bounded fix and
+verification. Full independent portfolio recalculation remains open.
 
-No production or research code was changed. Verification, foreground:
+The original worker batch changed no production or research code; the
+independent guardian correction is recorded above. Original verification:
 `pytest tests/test_v11_region_membership.py tests/test_v11_candidate_assembly.py
 tests/test_v11_scenario_risk.py tests/test_v11_paper_coordinator.py
 tests/test_weather_only_station_region.py` — **145 passed / 27.47 s**; broader
@@ -1478,10 +1496,10 @@ unchanged/DEFERRED. Exact matrix update: `docs/V11_REQUIREMENTS_MATRIX.md`
 Next unfinished action: supported finer dependence mappings beyond NWS
 administrative regions, protected review/certification and archival/
 freshness for R23 remain open local-implementation/evidence gaps; R31's
-result-lag finality source/version proof, R37's supported venue
-authentication/deployment, R39's protected (non-cooperative) configuration
-custody, and R43/R44/R46-R49's account/credential/deployment/funding gates
-remain owner/external/production-blocked. Continuing the same "cross-check
+source/version proof and R39's offline protected-configuration work remain
+implementation/evidence gaps, not blanket owner blockers. Actual credentials,
+commissioning, funding and live activation retain their authorization gates.
+Continuing the same "cross-check
 every earns-event against the matrix" sweep for any other baseline-C-only
 requirement is not expected to find further gaps (the batch-5 R12 sweep was
 already exhaustive across all 50 rows), so the next batch should return to
