@@ -1,5 +1,81 @@
 # Alpha V11 work checkpoint
 
+## Supervisor batch 10: runtime_health.py/candidate_liveness.py/paper_guardian.py/paper_cancellation.py defect sweep clean — 2026-09-27
+
+Recovery check: `git status` clean; local HEAD `89baf62` equal to
+`origin/weather-v11-profitability-upgrade-2026-09-23`. No unfinished
+same-batch work found. Current durable score at start: **87/200 (~44%);
+formal 1/50 (2%)**.
+
+Per batch 8's own compiled cross-reference (every requirement whose remaining
+tail is purely local implementation already holds C and J) and batch 9's own
+next-action list, continued the genuine-defect sweep onto R38/R09's health/
+guardian-cancellation modules: `v11/runtime_health.py` (445 lines),
+`v11/candidate_liveness.py` (184 lines), `v11/paper_guardian.py` (367 lines)
+and `v11/paper_cancellation.py` (343 lines), none previously covered by the
+R06/R07/R08/R18/R23/R29/R30/R32/R33/R34-R36 adversarial-defect audit pattern.
+This is specifically the health-observation -> guardian-cycle ->
+cancellation-plan chain that gates whether a stale clock, missing heartbeat,
+expired required source or sticky account fault actually forces the
+independent guardian to cancel resting risk — the same class of gap the
+independent batch-6 review previously found in the sticky-fault path.
+
+Traced the full chain: `RuntimeHealth._sample` computes `global_reasons`/
+per-source `reason`s and publishes an atomic heartbeat+sample pair via
+`_publish`/`_publication_replay`, refusing to publish under a stale
+observation, config drift, clock rollback/discontinuity or incomplete
+recovery-sample count; `admission_heads` (the actual PAPER-opening data gate)
+independently re-verifies the pinned health record's clock/heartbeat/source
+freshness against the current wall/monotonic stamp at every account/maker
+admission, not just at publication time. `PaperGuardian._cycle_attempt`
+withdraws its own prior lease before doing any work, observes health via
+`_health()`/`validate_health_observation` (which independently re-derives
+`health_config` from the raw policy/scopes/sources rather than trusting a
+copied hash, and re-checks worker process identity, clock bounds and every
+heartbeat's liveness-observation binding), and on any health failure marks
+*every* retained managed intent bad for that cycle (`bad = bool(failures)`)
+rather than relying on `cancellation_required`'s per-event scoping, which is
+strictly more conservative than the scoped path. Confirmed the two guardian
+lock files (`check_ready_transaction`'s READY-decision re-check and the
+account fault-triggered path added by `ed949ae`) both still route into this
+same `targets`/`_resume`/`cancellation.plan(...,trigger_id=...)` chain, which
+resolves to `PaperCancellation.plan`'s `guardian_trigger` branch: it
+independently re-validates the guardian's own published `cancel_intents`
+signatures against the current account snapshot before selecting any intent,
+and refuses (`GUARDIAN_CANCEL_SIGNATURE`/`GUARDIAN_PENDING_TRIGGER_CHANGED`)
+if the account state or the guardian's own pending trigger has moved
+underneath it. Separately confirmed `CandidateLiveness.publish`/`recover`
+never silently resumes or re-samples an interrupted pulse (`_complete` marks
+an unresumable observation `REFUSED`/`INTERRUPTED_OBSERVATION` rather than
+retrying), and that `validate_journal`/`validate_receipt` reject any
+malformed or replayed liveness receipt before it can reach the health
+publication path.
+
+No defect found. This is the first adversarial pass over this exact health-
+observation/guardian-cancellation chain for this specific defect class (prior
+R37/R38 credit lines describe integration and CI status, not an adversarial
+fail-closed audit of this chain).
+
+Verification: `pytest tests/test_v11_runtime_health.py
+tests/test_v11_candidate_liveness.py tests/test_v11_paper_guardian.py
+tests/test_v11_paper_cancellation.py` — **130 passed / 26.81 s**; `pytest -k
+"runtime_health or candidate_liveness or paper_guardian or paper_cancellation
+or health_publication or candidate_runner"` — **214 passed / 62.64 s**, exit
+0, four pre-existing unrelated FastAPI warnings, no failures/skips. `git
+status` before this doc-only commit shows no code, test, V10, private-input
+or credential file touched.
+
+No new C/J/E/A milestone: **87/200 = 43.5% (~44%); formal 1/50 (2%)**,
+unchanged. NOT_READY_TO_FUND; V10 unchanged/DEFERRED.
+
+Next unfinished action: R05, R10-R17, R24-R28, R40-R42 and R45 remain
+untouched by this specific adversarial-defect audit style (R09 and R38's
+health/guardian chain are now removed from that pool, alongside the
+already-removed R06/R07/R08/R18/R23/R29/R30/R32-R36). R31, R37's E/A, and
+R43/R44/R46-R49 remain owner/external/production-gated and should not be
+re-audited again without a new master citation, real evidence, credentials
+or deployment action.
+
 ## Supervisor batch 9: event_queue.py/backpressure.py defect sweep clean — 2026-09-27
 
 Recovery check: `git status` clean; local HEAD `eaa9be9` equal to

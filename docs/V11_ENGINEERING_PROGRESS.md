@@ -1,5 +1,32 @@
 # Supplementary engineering estimate
 
+Supervisor batch 10 — 2026-09-27: recovery check found `git status` clean,
+local HEAD `89baf62` equal to `origin/weather-v11-profitability-upgrade-2026-09-23`;
+no unfinished same-batch work to recover. Continued the batch-8/9 defect
+sweep onto R38/R09's health-observation/guardian-cancellation chain:
+`v11/runtime_health.py`, `v11/candidate_liveness.py`, `v11/paper_guardian.py`
+and `v11/paper_cancellation.py` — the next candidates named in batch 9's own
+next-action list, not previously covered by the R06/R07/R08/R18/R23/R29/R30/
+R32-R36 audit pattern.
+
+Traced the full chain from health-sample publication through the live PAPER
+admission gate to the guardian's own cycle and its cancellation-plan
+dispatch, plus `CandidateLiveness`'s crash-recovery handling, looking for the
+same guardian-class gap the independent batch-6 review found in the sticky-
+fault path. Confirmed the guardian conservatively cancels every retained
+managed intent on any health failure (stricter than the scoped
+`cancellation_required` path already used for direct health triggers), and
+that the cancellation planner independently re-validates the guardian's
+published intent signatures against the current account snapshot before
+selecting anything. No defect found; full detail:
+`docs/V11_WORK_CHECKPOINT.md` (supervisor batch 10). 130 direct passed /
+26.81 s; 214 broader passed / 62.64 s, exit 0, four pre-existing FastAPI
+warnings, no failures/skips. No code changed. No new C/J/E/A: **87/200 =
+43.5% (~44%); formal 1/50 (2%)**, unchanged. NOT_READY_TO_FUND; V10
+unchanged/DEFERRED. Next: R05, R10-R17, R24-R28, R40-R42, R45 remain
+untouched by this audit style; R31/R37's E/A/R43/R44/R46-R49 remain
+owner/external/production-gated.
+
 Supervisor batch 9 — 2026-09-27: recovery check found `git status` clean,
 local HEAD `eaa9be9` equal to `origin/weather-v11-profitability-upgrade-2026-09-23`;
 no unfinished same-batch work to recover. Per batch 8's compiled conclusion

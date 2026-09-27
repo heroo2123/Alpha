@@ -1,5 +1,33 @@
 # V11 requirement-to-code/test/evidence matrix
 
+Supervisor batch 10 — 2026-09-27: continued the batch-8/9 defect-hunting sweep
+onto R38/R09's health-observation/guardian-cancellation chain: `v11/runtime_health.py`
+(445 lines), `v11/candidate_liveness.py` (184 lines), `v11/paper_guardian.py`
+(367 lines) and `v11/paper_cancellation.py` (343 lines), the next candidates
+named in batch 9's own next-action list, extending the R06/R07/R08/R18/R23/
+R29/R30/R32-R36 audit-sweep pool. Traced the full chain from health-sample
+publication (`RuntimeHealth._sample`/`_publish`) through the live admission
+gate (`admission_heads`) to the guardian's own cycle (`PaperGuardian.
+_cycle_attempt`, `_health`, `validate_health_observation`) and its
+cancellation-plan dispatch (`PaperCancellation.plan`'s `guardian_trigger`
+branch), including `CandidateLiveness.publish`/`recover`'s crash-recovery
+handling. Confirmed the guardian conservatively marks every retained managed
+intent bad for a cycle on any health failure (stricter than the scoped
+`cancellation_required` path already used for direct health triggers), and
+that the cancellation planner independently re-validates the guardian's
+published intent signatures against the current account snapshot before
+selecting anything. No defect found; every checked gate fails closed. 130
+direct passed / 26.81 s; 214 broader passed (`-k "runtime_health or
+candidate_liveness or paper_guardian or paper_cancellation or
+health_publication or candidate_runner"`) / 62.64 s, exit 0, four
+pre-existing unrelated FastAPI warnings, no failures/skips. No code changed.
+No new C/J/E/A: **87/200 = 43.5% (~44%); formal 1/50 (2%)**, unchanged.
+NOT_READY_TO_FUND; V10 unchanged/DEFERRED. R09/R38's health/guardian chain
+removed from the untouched-audit pool; R05, R10-R17, R24-R28, R40-R42, R45
+remain the next candidates for this specific adversarial-defect audit style;
+R31/R37's E/A/R43/R44/R46-R49 remain owner/external/production-gated. Full
+detail: `docs/V11_WORK_CHECKPOINT.md` (supervisor batch 10).
+
 Supervisor batch 9 — 2026-09-27: continued the batch-8 defect-hunting sweep
 onto R33's `v11/event_queue.py` (734 lines) and `backpressure.py` (112 lines),
 the next candidates named in batch 8's own next-action list, extending the
