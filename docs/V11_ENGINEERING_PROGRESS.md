@@ -1,5 +1,29 @@
 # Supplementary engineering estimate
 
+Master-vs-matrix blocker audit and R23 real-mapping implementation — 2026-09-27
+(supervisor batch 15): audited R09-R31/R40-R49 against the master to challenge
+the prior batch's "no further local non-owner audit candidate remains
+identified" conclusion; corrected stale R37 CI-EPERM language (GitHub Actions
+run 36300914533 on `3dbb4c2` passed on 3.11/3.12). Confirmed real public
+network egress (`api.weather.gov` et al.) works from this host, opening a
+`PUBLIC_EXTERNAL_EVIDENCE` path prior local-only audits did not test. R31/R43/
+R44/R46-R49 were re-verified and remain genuinely OPEN/owner-external-gated
+against their cited master sections. R23 (master section 13A, "REQUIRED
+UPGRADE I2") was reclassified: no code path anywhere constructs a real
+`CorrelationMap`/`StationMembership` for an actual station. Implemented
+`weather_only_station_region.py` (real `api.weather.gov` `/points`->`/offices`
+chain resolving a certified station's actual NWS region) and
+`v11/region_membership.py` (`build_station_membership`, binding certified
+`StationMetadata` plus the real region evidence into a `StationMembership`
+with conservative real-provider-derived dependence groups). 23 new tests /
+0.43 s; 104 related passes / 6.81 s, no failures; live verification against
+five real stations confirmed correct real NWS regions. Exact evidence:
+docs/V11_REGION_MEMBERSHIP_EVIDENCE.md. This closes R23's "actual mappings"
+tail only; protected review and candidate/guardian runtime integration remain
+open. No new C/J/E/A: **85/200 (~43%); 1/50 (2%)**, unchanged. NOT_READY_TO_FUND;
+V10 unchanged/DEFERRED.
+
+
 R34-R36 audit sweep — 2026-09-27 (supervisor batch 14): following the prior
 checkpoint's own recommended next action, performed a full line-by-line audit
 of the remaining untouched local PARTIAL packages `v11/maker_research.py`,

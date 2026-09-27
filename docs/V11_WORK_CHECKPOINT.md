@@ -1,5 +1,126 @@
 # Alpha V11 work checkpoint
 
+## Master-vs-matrix blocker audit and R23 real-mapping implementation, 2026-09-27 (supervisor batch 15)
+
+Recovery check: `git status` clean, local HEAD `b457aab` equal to
+`origin/weather-v11-profitability-upgrade-2026-09-23`, no unfinished process.
+Read this checkpoint, the requirements matrix and the progress ledger; verified
+the private master's SHA-256 (`a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`)
+still matches the pinned `PRIVATE_INPUT_HASHES.txt` identity. Confirmed
+GitHub Actions run 36300914533 (commit `3dbb4c2`) completed SUCCESS on both
+Python 3.11 and 3.12 including the previously failing custody-namespace tests
+per the assignment's correction; prior checkpoint language treating that CI
+EPERM as unresolved is stale and is corrected in the requirements-matrix entry
+for this batch (R37 remains PARTIAL for its own separately-cited open
+production/deployment/credential gaps, not that CI failure).
+
+Per the assignment, audited every remaining PARTIAL/OPEN requirement R09-R31
+and R40-R49 against the master directly rather than repeating prior ledger
+language, specifically to challenge the batch-14 conclusion that "no further
+local non-owner audit candidate remains identified." First checked whether
+this host actually has public network egress, since every prior batch's
+"actual source/real evidence pending" language implicitly assumed it did not:
+`curl` to `api.weather.gov`, `aviationweather.gov` and
+`nomads.ncep.noaa.gov` all succeeded. This reopens a `PUBLIC_EXTERNAL_EVIDENCE`
+category the prior 14 batches' local-only audits did not exercise.
+
+Re-verified the OPEN/owner-cited requirements first, since those carry the
+highest risk of stale over-broad blocking: R31's `docs/V11_FINALITY_DEPENDENCIES.md`
+correctly cites master section 21 ("REQUIRED UPGRADE Q") — proof of
+irreversibility under actual settlement semantics, not a calendar wait — and
+still has no exact-source adapter or archived publication/version history;
+this remains genuinely OPEN, not stale. R43 (real exchange account
+entitlement/EOA allowlist), R44's remaining owner-inventory/isolation gates,
+R46 (protected V10 snapshot comparison), R47 (initial accepted champion) and
+R48/R49 (funded execution/release) all cite master sections requiring a real
+account, credential, host-isolation, or funding/production-approval action
+this worker cannot take; the existing OWNER_ONLY/PRODUCTION_GATED/EMPIRICAL_WAIT
+classifications for these hold.
+
+Then swept the PARTIAL requirements for a boundary the network-egress finding
+could actually close. R23 ("REQUIRED UPGRADE I2", master section 13A) stood
+out: the matrix's own text ("actual mappings/protected review/runtime
+integration pending") is precise, and a direct code check confirmed it —
+`grep -rn "region="` across `v11/*.py` outside tests returns nothing, and
+`StationMembership`/`CorrelationMap` are constructed only inside test
+fixtures. No real station anywhere gets a real region, city-dependence, or
+source/model-dependence grouping; `v11/scenario_risk.py`'s ceilings would
+apply against these correctly, but nothing ever supplies them for an actual
+candidate. The master explicitly asks for "a versioned mapping or clustering
+layer capable of representing: station -> city; city/station -> region;
+shared synoptic/weather-system exposure...; common model/source dependence"
+and explicitly permits conservative, non-precise grouping ("do not create
+fragile pseudo-precision from small samples"), so this is a genuine
+`LOCAL_IMPLEMENTATION` + `PUBLIC_EXTERNAL_EVIDENCE` gap, not owner-gated.
+
+Verified the real, free, unauthenticated `api.weather.gov` schema directly
+(`curl https://api.weather.gov/stations/KDEN`, `.../points/{lat},{lon}`,
+`.../offices/{id}`) before writing any table by hand, specifically to avoid
+inventing or misremembering NWS regional boundaries: a station's real
+coordinates resolve through `/points/{lat},{lon}` to a real `cwa` (county
+warning area, e.g. `BOU` for Denver) and real `forecastOffice` URL, and
+`/offices/{cwa}` returns that office's own real `nwsRegion` code
+(`er`/`sr`/`cr`/`wr`/`pr`/`ar`) directly from the authoritative source — no
+hand-authored state/region table was needed or written.
+
+Added `polymarket_scanner/weather_only_station_region.py`: strict pure parsers
+`parse_nws_point_office`/`parse_nws_office_region` (mirroring the existing
+`weather_only_station_metadata.py` pattern exactly: `WeatherStationRegionError`
+with a `.code`, coordinate/identity/schema fail-closed checks, evidence-hash
+binding, no settlement/calibration/financial authority) plus a bounded
+`NWSStationRegionClient` chaining both real endpoints. Added
+`polymarket_scanner/v11/region_membership.py`: `build_station_membership`
+binds an already-certified `StationMetadata` (v11/certification.py) to this
+real region evidence — refusing a coordinate mismatch between the certified
+station and the region query, and refusing an office-chain mismatch between
+the point's resolved `cwa` and the office actually fetched — and returns a
+`scenario_risk.StationMembership` whose `region` is the real NWS region,
+whose `weather_groups` conservatively default to that same real region (an
+interpretable synoptic-exposure proxy, not invented precision), and whose
+`source_groups`/`model_groups` default to the station's own already-certified
+real `observation_providers`/`forecast_providers`. An empty provider group
+still fails closed rather than defaulting to a guessed value.
+
+Added `tests/test_weather_only_station_region.py` (14 cases: real-shaped
+point/office payload parsing, coordinate rounding/mismatch, office-URL/CWA
+validation, all six real NWS region codes, unrecognized-code and
+identity-mismatch refusals) and `tests/test_v11_region_membership.py` (9
+cases: real-evidence binding, coordinate/office-chain mismatch refusal, empty
+provider-group refusal, typed-input requirements). Targeted: **23 passed /
+0.43 s**. Broader affected selection (`-k "scenario_risk or certification or
+station_metadata or station_region or region_membership or forecast_sources"`):
+**104 passed / 6.81 s**, no skips, four pre-existing FastAPI warnings, no
+failures. No full regression: two new additive modules with no changed call
+sites in existing production code, consistent with the no-full-rerun
+precedent for comparable single-slice additions throughout this ledger.
+
+Also ran the new client once against the live public `api.weather.gov`
+service (not part of the pytest suite, to avoid a network-flaky CI test) for
+five real stations to confirm the parser's real-schema assumptions actually
+match the live service rather than only the hand-built test fixtures:
+KATL->SOUTHERN (cwa FFC), KDEN->CENTRAL (cwa BOU), KLAX->WESTERN (cwa LOX),
+KJFK->EASTERN (cwa OKX), KSEA->WESTERN (cwa SEW) — all correct against the
+real, independently-checkable NWS regional-headquarters structure. Exact
+commands and output: `docs/V11_REGION_MEMBERSHIP_EVIDENCE.md`.
+
+This closes the "actual mappings" tail of R23's three explicitly named
+remaining gaps only. Protected-review governance (no authority/permission
+protocol is invented here, matching this project's established refusal to
+invent an authorization scheme the master does not itself prescribe — the
+same caution independent supervisor-batch-1 applied to R39) and
+candidate/guardian runtime wiring (no production call site yet constructs a
+real `CorrelationMap` for an actual running candidate) both remain open. No
+V10, credential, private-input, or existing production call-site was touched.
+No new formal C/J/E/A milestone: **85/200 = 42.5% (~43%); 1/50 (2%)**,
+unchanged — this closes one of three named tails, not the full boundary.
+NOT_READY_TO_FUND; V10 unchanged/DEFERRED. Next: either (a) protected-review
+governance for R23's `CorrelationMap` (would need a concrete authorization
+model, similar unresolved-design-question caution as R39's protected
+configuration custody), (b) wiring `build_station_membership` into an actual
+candidate/guardian construction path for full runtime integration credit, or
+(c) continuing the R09-R31/R40-R49 audit for another local candidate; R31/
+R43/R44/R46-R49 remain genuinely owner/external-gated as re-verified above.
+
 ## R34-R36 audit sweep, 2026-09-27 (supervisor batch 14)
 
 Recovery check: `git status` clean, local HEAD `7ef687e` equal to
