@@ -1,5 +1,133 @@
 # Alpha V11 work checkpoint
 
+## R23 credit correction: uncredited real-region-mapping candidate integration earns J — 2026-09-27 (supervisor batch 6)
+
+Recovery check: `git status` clean, local HEAD `28d5895` equal to
+`origin/weather-v11-profitability-upgrade-2026-09-23`, no unfinished process
+found. Read CLAUDE.md and the checkpoint/matrix/progress tails first.
+
+The immediately preceding batch (R12 credit correction) found its gap by
+cross-referencing every explicit "earns C/J/E/A" event in the engineering
+progress ledger against the full 50-row matrix and closing the one
+requirement whose baseline C credit was never followed by a J entry. That
+sweep left R23 ("Regional and source-dependence ceilings") as the only
+remaining baseline-C-only requirement, but did not itself re-open R23 since
+the sweep's method was "find requirements with zero J mentions," not
+"re-litigate requirements that already declined J for a stated reason." This
+batch re-examined that stated reason instead of repeating the broader sweep
+(which the R12 batch already ran exhaustively across all 50 rows).
+
+R23's batch-1 recovery entry (2026-09-27, earlier in this file) built the
+real NWS region adapter chain and a `CandidatePlan.__post_init__` check
+rejecting any correlation map missing a real per-station membership or whose
+`metadata_fingerprint` disagreed with that event's own census rule, then
+explicitly declined J: "This closes the 'candidate integration' half of
+R23's previously-open 'candidate/guardian integration' gap... No new formal
+C/J/E/A milestone." That reasoning treated "candidate-side integration" and
+"guardian-side integration" as two halves of one required whole, with J
+withheld until both existed.
+
+Tracing the actual code shows the candidate-side half alone already
+satisfies the matrix's own J definition ("a demonstrated upstream/downstream
+integration of that core"), and does so more directly than R12's own
+just-credited pipeline: `candidate_assembly.assemble_candidate` — the real
+finite-candidate builder `candidate_runner.py` actually invokes for a live
+run, not a side pipeline — constructs its `PaperCoordinator` directly from
+the validated plan: `coordinator=PaperCoordinator(store,policy=plan.account,
+correlation=plan.correlation,limits=plan.limits,guardian_config=plan.guardian_config)`
+(`polymarket_scanner/v11/candidate_assembly.py:325`). `CandidatePlan`'s own
+`__post_init__` (lines ~219-222) already refuses construction if any event's
+station lacks a real membership or fingerprint match. Every
+`PaperCoordinator.coordinate()` reservation then gates on
+`portfolio_risk(views,correlation=self.correlation,limits=self.limits,...)`
+(`paper_coordinator.py:174`, `scenario_risk.py:266`), which computes real
+per-station city/region/weather/source/model group losses against
+`ScenarioLimits` ceilings and rejects with `ACCOUNT_SCENARIO_OR_RESERVATION_LIMIT`
+on breach (`paper_coordinator.py:481-482`) — verified against the existing
+passing test suite, not newly written. Real NWS-derived region mapping
+(`weather_only_station_region.py` -> `region_membership.build_correlation_map`,
+batch 15) therefore already flows, upstream to downstream, all the way into
+the live candidate's actual paper-account admission gate.
+
+This is distinct from R22's own already-credited J: R22's core is the
+scenario/ceiling-math wiring itself (`portfolio_risk` integrated into
+`coordinate()`), which holds for *any* supplied correlation map, including a
+synthetic test fixture; R23's own core is specifically the real
+region/dependence *mapping* that feeds that same gate. R23's live-path
+integration of its own core had never been separately credited — this is a
+scoring correction, not new implementation, and does not double-count R22's
+credit.
+
+Before crediting, investigated whether the recorded "next R23 action"
+(independent guardian-side portfolio-ceiling revalidation) was a real,
+implementable gap this batch should close instead of or in addition to the
+scoring correction. It is not reachable under the current architecture:
+`PaperCoordinator.__init__` binds `policy_sha` over the account policy,
+correlation map and limits together (`digest(dict(account=...,
+correlation=...,limits=...))`), and `_head()` raises
+`PAPER_ACCOUNT_POLICY_OR_IDENTITY_CHANGED` on any mismatch against the
+account's own already-committed records — there is no reviewed-migration
+path for the coordinator's own risk policy comparable to
+`CandidateRunner.acknowledge_configuration_review`. Every reservation is
+already gated atomically against the full current account state at commit
+time (`coordinate()` -> `_coordinate_effects` -> `effects.risk(test)` ->
+`ACCOUNT_SCENARIO_OR_RESERVATION_LIMIT` on any breach, computed fresh from
+*all* current positions on every single reservation, not just the new one).
+No path was found — short of directly corrupting the SQLite store — by which
+an already-resting position could come to violate the account's own current
+correlation ceilings for a later, independent guardian cycle to usefully
+catch. Adding a per-cycle guardian-side portfolio_risk recheck would be
+defensive code with no demonstrated reachable trigger and no meaningful test
+beyond mocking the internals to force it — exactly the kind of speculative
+complexity this project's operating instructions ask not to add. Recorded as
+an audit finding, matching the R06/R07/R08/R18/R32/R34-R36 "no exploitable
+defect found" precedent, rather than implemented.
+
+No production or research code was changed; this batch is a scoring
+correction plus one investigated-and-declined implementation path. Does not
+touch V10, private inputs, credentials or any financial path. Verification,
+foreground, no code changed:
+
+```
+pytest tests/test_v11_region_membership.py tests/test_v11_candidate_assembly.py \
+tests/test_v11_scenario_risk.py tests/test_v11_paper_coordinator.py \
+tests/test_weather_only_station_region.py
+```
+**145 passed / 27.47 s**, exit 0, no skips/failures. Plus:
+```
+pytest -k "region_membership or candidate_assembly or scenario_risk or \
+weather_only_station_region or basket_coordinator or paper_coordinator"
+```
+**169 passed / 35.30 s**, exit 0, four pre-existing unrelated FastAPI
+warnings. Plus `pytest -k "candidate_runner"`: **55 passed / 32.96 s**, exit
+0. `git status` after the doc edits shows only the three durable ledger files
+changed (this checkpoint, the requirements matrix, the engineering progress
+ledger) — no code, test, V10, private-input or credential file.
+
+What this does **not** establish, stated explicitly to avoid overclaiming:
+supported finer dependence mapping beyond NWS administrative regions
+(station-to-station physical/meteorological correlation, not just shared
+administrative office), protected review/certification of the mapping
+itself, evidence archival/freshness, and any form of guardian-side
+per-cycle re-derivation all remain genuinely open, and none of them are
+claimed here. Real prospective evidence (E) and full package acceptance (A)
+for R23 remain open and cannot be produced locally.
+
+R23: **C -> C J**. New total **87/200 = 43.5% (~44%)** (was 86/200 = 43%).
+Formal completion remains **1/50 (2%)**. NOT_READY_TO_FUND; V10
+unchanged/DEFERRED. Exact matrix update: `docs/V11_REQUIREMENTS_MATRIX.md`
+(R23 row); ledger update: `docs/V11_ENGINEERING_PROGRESS.md`.
+
+Next unfinished action: R23's remaining local-implementation/evidence gaps
+(finer dependence mapping, protected review/certification, archival/
+freshness) are real but not quick; R31/R37/R39/R43/R44/R46-R49 remain
+owner/external/production-blocked as previously recorded. The "cross-check
+every earns-event against the matrix" method that found both the R12 and
+R23 gaps is not expected to find further gaps (all 50 rows are now either
+correctly J-credited or explicitly still C-only for a stated, now-verified
+reason), so the next batch should target a PARTIAL requirement's genuine
+local-implementation tail directly rather than repeating that audit.
+
 ## R12 credit correction: uncredited prospective-calibration pipeline earns J — 2026-09-27 (supervisor batch 5)
 
 Recovery check: `git status` clean, local HEAD `5565403` equal to

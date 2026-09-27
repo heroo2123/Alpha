@@ -1405,3 +1405,85 @@ published CI remained red. The independent entry above and
 WSL evidence and remaining CI diagnosis. R39 offline protected-configuration
 and consumer-ownership work remains required; only actual credentials and
 commissioning require the corresponding authorization.
+
+
+R23 credit correction: uncredited real-region-mapping candidate integration
+earns J — 2026-09-27 (supervisor batch 6): the immediately preceding batch's
+own R12 correction found exactly one uncredited baseline-C-only requirement
+by cross-referencing every explicit "earns J" event against the full matrix.
+This batch re-examined the sole requirement still recorded as C-only in the
+current matrix (R23, "Regional and source-dependence ceilings") to check
+whether its own recorded "candidate-side half only, no credit" conclusion
+(batch-1 recovery, 2026-09-27) still held now that the real NWS region
+adapter and `CandidatePlan` validation were both already built and green.
+
+Traced the actual live wiring: `candidate_assembly.assemble_candidate` (the
+real finite-candidate builder used by `candidate_runner.py`'s live run path,
+not a side pipeline) constructs its `PaperCoordinator` directly from
+`plan.correlation` — `PaperCoordinator(store,policy=plan.account,
+correlation=plan.correlation,limits=plan.limits,...)` — and `CandidatePlan`'s
+own `__post_init__` already refuses to construct with a correlation map
+missing a real per-station membership or whose `metadata_fingerprint`
+disagrees with that event's own census rule (`CANDIDATE_CORRELATION_STATION_SCOPE`).
+Every `PaperCoordinator.coordinate()` call gates new reservations on
+`portfolio_risk(views,correlation=self.correlation,...)`'s real per-station
+city/region/weather/source/model ceilings, rejecting with
+`ACCOUNT_SCENARIO_OR_RESERVATION_LIMIT` on breach — demonstrated by existing
+passing tests. This is a complete, demonstrated upstream (real
+`api.weather.gov`-derived NWS region mapping, `weather_only_station_region.py`
+-> `region_membership.build_correlation_map`) to downstream (the live paper
+account's own admission gate) integration — the same J bar the immediately
+preceding R12 correction applied, met here even more directly since this path
+is the actual live candidate decision path rather than a pipeline explicitly
+noted as not yet wired into it.
+
+This is distinct from R22's own already-credited J: R22's core is the
+scenario/ceiling-math wiring itself (`portfolio_risk` integrated into
+`coordinate()`), which holds regardless of which correlation map is supplied;
+R23's own core is specifically the real region/dependence *mapping* that
+feeds that same gate, and that mapping's live-path integration had not been
+separately credited.
+
+Investigated the recorded "next R23 action" (independent guardian-side
+portfolio-ceiling revalidation) before deciding not to implement it this
+batch: `PaperCoordinator.__init__` binds `policy_sha` over the account
+policy, correlation map and limits together, and `_head()` raises
+`PAPER_ACCOUNT_POLICY_OR_IDENTITY_CHANGED` on any mismatch against the
+account's own committed records, with no reviewed-migration path comparable
+to `CandidateRunner.acknowledge_configuration_review`. Every reservation is
+already gated atomically against the full current account state at commit
+time (`coordinate()` -> `effects.risk(test)` -> `ACCOUNT_SCENARIO_OR_RESERVATION_LIMIT`).
+No reachable path was found by which an already-resting position could come
+to violate the account's own current correlation ceilings for an independent
+guardian cycle to catch. Recording this as an audit finding rather than
+adding untestable, unreachable defensive code, consistent with the R06/R07/
+R08/R18/R32/R34-R36 "no exploitable defect found" precedent.
+
+No production or research code was changed. Verification, foreground:
+`pytest tests/test_v11_region_membership.py tests/test_v11_candidate_assembly.py
+tests/test_v11_scenario_risk.py tests/test_v11_paper_coordinator.py
+tests/test_weather_only_station_region.py` — **145 passed / 27.47 s**; broader
+`-k "region_membership or candidate_assembly or scenario_risk or
+weather_only_station_region or basket_coordinator or paper_coordinator"` —
+**169 passed / 35.30 s**; `-k "candidate_runner"` — **55 passed / 32.96 s**;
+all exit 0, no failures/skips, four pre-existing unrelated FastAPI warnings.
+`git status` after the doc edits shows only the three durable ledger files
+changed — no code, test, V10, private-input or credential file.
+
+R23: **C -> C J**. New total **87/200 = 43.5% (~44%)** (was 86/200 = 43%).
+Formal completion remains **1/50 (2%)**. NOT_READY_TO_FUND; V10
+unchanged/DEFERRED. Exact matrix update: `docs/V11_REQUIREMENTS_MATRIX.md`
+(R23 row); ledger update: this entry; checkpoint: `docs/V11_WORK_CHECKPOINT.md`.
+
+Next unfinished action: supported finer dependence mappings beyond NWS
+administrative regions, protected review/certification and archival/
+freshness for R23 remain open local-implementation/evidence gaps; R31's
+result-lag finality source/version proof, R37's supported venue
+authentication/deployment, R39's protected (non-cooperative) configuration
+custody, and R43/R44/R46-R49's account/credential/deployment/funding gates
+remain owner/external/production-blocked. Continuing the same "cross-check
+every earns-event against the matrix" sweep for any other baseline-C-only
+requirement is not expected to find further gaps (the batch-5 R12 sweep was
+already exhaustive across all 50 rows), so the next batch should return to
+closing a PARTIAL requirement's genuine local-implementation tail rather
+than repeating that audit.
