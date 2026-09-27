@@ -9084,3 +9084,108 @@ concrete implementation/testing path or a genuine P0/P1 defect signal
 emerges first; the next batch should look for another named, unblocked
 local-implementation gap across the requirement set before returning to
 audit rotation.
+
+## Commissioning evidence review — daily-temperature strict-grammar compatibility fix — 2026-09-27
+
+Recovery check: `git status` clean, local HEAD `dc03020` equal to
+`origin/weather-v11-profitability-upgrade-2026-09-23`, no unfinished process
+found. Task: review new commissioning evidence
+(`/home/alphaadmin/AlphaV11_Commissioning/evidence/public_probe_5x60.json`,
+five account-free public census cycles, 566 requests, all transport-successful,
+`strict_supported_events=0`/`retained_events=0`/`candidates=0` against ~19,404
+scanned active events) and determine whether current live daily-temperature
+markets are intentionally out of the reviewed strict scope or a compatibility
+defect against `polymarket_scanner/weather_only_contract_strict.py`
+(R08's strict admission gate).
+
+The evidence file's own `unsupported_examples` field is capped at 20 and, in
+scan order, fills entirely with `STRICT_FAMILY_UNSUPPORTED` titles (earthquakes,
+volcanoes, hurricanes, disease counts — correctly excluded non-temperature
+"weather-looking" events) before reaching any of the 266 `STRICT_OPERATIVE_
+RULE_STRUCTURE_UNSUPPORTED` events, which is the dominant bucket (266 of 386)
+and the one plausibly containing genuine daily-temperature markets under the
+`daily-temperature`/`weather` tag pages already fetched. That left the
+evidence file alone insufficient to prove A vs B for the dominant bucket.
+
+Ran one additional read-only, unauthenticated public diagnostic (same
+`gamma-api.polymarket.com` census the existing evidence and the repo's own
+sanctioned `.github/workflows/weather-three-layer-live-universe-census.yml`
+already perform: `WeatherOnlyDiscovery().discover()` plus per-event
+`compile_strict_temperature_event`, capturing a few full sample
+descriptions per rejection code — no orders, no auth, no DB/service/soak).
+Reproduced `strict_supported_events=0` with the same code-count breakdown as
+the commissioning evidence, then inspected real samples:
+- `STRICT_FAMILY_UNSUPPORTED` (89), `STRICT_SOURCE_STATION_MISMATCH` (24,
+  unreviewed cities e.g. Jinan/Zhengzhou) and `STRICT_BUCKET_GRAMMAR_UNSUPPORTED`
+  (6, the already-documented deliberate NYC/KLGA omission) are all correctly
+  intentional exclusions, unchanged.
+- `STRICT_OPERATIVE_RULE_STRUCTURE_UNSUPPORTED` (266) is the real finding: all
+  263 distinct live descriptions in this bucket share one byte-identical
+  static paragraph — a new erroneous-data/"Clarification" dispute-window
+  clause — inserted between the already-reviewed precision sentence and the
+  already-reviewed revision-cutoff sentence, verified present verbatim across
+  both Fahrenheit (e.g. KDAL) and Celsius (e.g. EGLC) already-reviewed
+  stations. Source, station, precision and revision-cutoff text are byte-for-
+  byte unchanged; only this one boilerplate paragraph is new. This is a
+  concrete compatibility defect (case B), not a scope decision: Polymarket's
+  live grammar drifted by exactly one static clause after the 2026-09-15
+  review, and the fullmatch-anchored `current_template` regex has no
+  tolerance for it.
+
+Fix (smallest possible): added
+`_CURRENT_TEMPLATE_ERRONEOUS_DATA_CLAUSE` (the exact captured static text) as
+an optional non-capturing group in `current_template` between the precision
+and revision-cutoff sentences, in
+`polymarket_scanner/weather_only_contract_strict.py`. Nothing else changed:
+`public_template`/`compact_template` (legacy grammars), `_question_supported`,
+station/city binding, bucket grammar and the fail-closed
+`fullmatch`-the-entire-text discipline are untouched. Re-ran the same
+read-only live diagnostic after the fix: `strict_supported_events` went from
+0 to 78 on the identical live universe (385 events); the remaining 185
+`STRICT_OPERATIVE_RULE_STRUCTURE_UNSUPPORTED` events were independently
+confirmed to be exclusively unreviewed stations (Ankara/LTAC, Lucknow/VILK,
+Munich/EDDM, Tel Aviv/LLBG, Shanghai/ZSPD, etc. — none of the 13 stations in
+`_CURRENT_STATION_DISPLAY_NAMES` remained failing), so no scope was broadened
+beyond the already-reviewed corpus.
+
+Added 5 regression tests to `tests/test_weather_current_polymarket_grammar_v7.py`
+using sanitized synthetic fixtures (same pattern as the file's existing
+`_current_rules` helper, no real/private data): accept-with-the-live-clause
+for one Celsius station and all 10 reviewed Fahrenheit stations; reject a
+materially reworded clause (different dispute-window length) to confirm the
+whitelist is not loosened into a fuzzy/blacklist match; reject trailing text
+appended even after a valid clause, to confirm fail-closed
+"consume-the-entire-text" discipline still holds. Verification (foreground):
+direct file — `tests/test_weather_current_polymarket_grammar_v7.py` —
+**31 passed / 0.18 s**, exit 0 (26 previously passing plus 5 new). Affected
+selection (`-k "weather_only_contract_strict or
+weather_current_polymarket_grammar or weather_only_discovery or
+weather_production_review or weather_only_v4_corrective or weather_final_gpt6
+or weather_gpt6 or weather_final_adversarial"`) — **94 passed / 10.19 s**,
+exit 0, no failures/skips, only pre-existing FastAPI deprecation warnings. No
+full regression: this is a single-function whitelist-grammar addition with no
+touched call sites outside the one already-exercised function, matching the
+no-full-rerun precedent every prior narrow-defect-fix batch set. `git status
+--short` shows changes only in `polymarket_scanner/weather_only_contract_strict.py`,
+`tests/test_weather_current_polymarket_grammar_v7.py`, the matching
+`docs/V11_REQUIREMENTS_MATRIX.md` R08 row and this checkpoint entry — no
+production, V10, private-input or credential file touched. No PAPER service,
+soak, order, or credential access was started or used; the only network
+activity was public unauthenticated `gamma-api.polymarket.com` reads
+identical in kind to the commissioning evidence and the repo's own existing
+sanctioned live-census workflow.
+
+No new C/J/E/A: this restores R08's already-credited strict admission gate
+(`weather_only_contract_strict.py`) to its intended already-reviewed scope; it
+does not newly integrate a source, produce new operational/forward evidence,
+or reach full acceptance. **87/200 (~44%); formal 1/50 (2%)**, unchanged.
+NOT_READY_TO_FUND; V10 unchanged/DEFERRED.
+
+Next: rerun (or ask the owner to rerun) the commissioning public probe to
+confirm `strict_supported_events>0` in that harness now; the unreviewed-city
+station-name-binding gap (Ankara/LTAC, Lucknow/VILK, Munich/EDDM, Tel Aviv/LLBG,
+Shanghai/ZSPD and others) is separate, genuine additive review work — each
+new station's live display-name text must be independently observed and
+reviewed before being added to `_CURRENT_STATION_DISPLAY_NAMES`/
+`_REVIEWED_STATION_CITIES`, not guessed. It is explicitly out of scope for
+this fix and should not be broadened without that per-station review.

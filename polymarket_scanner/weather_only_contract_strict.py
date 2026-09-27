@@ -42,6 +42,27 @@ _MONTHS = {
 }
 _ALLOWED_WRH_HOSTS = {"weather.gov", "www.weather.gov"}
 
+# Polymarket added this exact static erroneous-data-correction paragraph to the
+# current station-display-name rule text after the 2026-09-15 review (observed
+# verbatim, byte-for-byte, across every reviewed F/C station's live description
+# as of 2026-09-27). It only describes a bounded self-correction/Clarification
+# path for erroneous source data; it does not alter the reviewed source,
+# station, precision or revision-cutoff sentences that surround it, which
+# remain required verbatim. Treated as optional so a future reversion to the
+# pre-2026-09-15 wording still matches.
+_CURRENT_TEMPLATE_ERRONEOUS_DATA_CLAUSE = (
+    "in the case that the resolution source publishes data, sufficient to settle a market, "
+    "that is clearly erroneous and the result of technical or operational error, or of "
+    "unauthorized interference with the resolution source or its data, the market may remain "
+    "open for a period of up to seven (7) calendar days (et) from the time of the original "
+    "release, in anticipation of a correction by the resolution source. if the resolution "
+    "source publishes a corrected value within that period, that value will be eligible for "
+    "resolution. if no corrected value is published within that period, polymarket will issue "
+    "a clarification to determine whether the originally published value may be eligible for "
+    "resolution, or whether other action is required to preserve the orderly functioning of "
+    "the market."
+)
+
 # Current September-2026 NOAA/WRH contracts spell out a human station name in the
 # operative settlement text.  Do not accept an arbitrary name merely because the URL
 # contains a trusted station code: only station-name/code pairs independently observed
@@ -369,6 +390,7 @@ def _supported_nws_rule_structure(operative_rules: str, compiled) -> bool:
             rf"or by 11:59 pm et on the day following the observation date, whichever comes first\. "
             rf"the resolution source for this market measures temperatures to whole degrees {unit_word} "
             rf"\(eg, {precision_example}\)\. thus, this is the level of precision that will be used when resolving the market\. "
+            rf"(?:{re.escape(_CURRENT_TEMPLATE_ERRONEOUS_DATA_CLAUSE)}\s+)?"
             rf"revisions to temperatures recorded within this market's timeframe will be considered until the first datapoint "
             rf"for the following date has been published, after which any alterations will not be considered\.?$"
         )

@@ -212,6 +212,96 @@ def test_current_rule_template_rejects_station_semantic_mismatch_and_extra_suffi
     )
 
 
+_ERRONEOUS_DATA_CLAUSE = (
+    "In the case that the Resolution Source publishes data, sufficient to settle a Market, "
+    "that is clearly erroneous and the result of technical or operational error, or of "
+    "unauthorized interference with the Resolution Source or its data, the Market may remain "
+    "open for a period of up to seven (7) calendar days (ET) from the time of the original "
+    "release, in anticipation of a correction by the Resolution Source. If the Resolution "
+    "Source publishes a corrected value within that period, that value will be eligible for "
+    "resolution. If no corrected value is published within that period, Polymarket will issue "
+    "a Clarification to determine whether the originally published value may be eligible for "
+    "resolution, or whether other action is required to preserve the orderly functioning of "
+    "the Market."
+)
+
+
+def _with_erroneous_data_clause(rules: str, clause: str = _ERRONEOUS_DATA_CLAUSE) -> str:
+    marker = "Revisions to temperatures recorded"
+    assert marker in rules
+    return rules.replace(marker, f"{clause} {marker}")
+
+
+def test_current_rule_template_accepts_live_erroneous_data_correction_clause():
+    """Polymarket now appends a static erroneous-data/Clarification paragraph
+    between the precision sentence and the revision-cutoff sentence on every
+    reviewed station's live description (observed 2026-09-27). The whitelist
+    must consume it without loosening the surrounding reviewed sentences."""
+    rules = _current_rules(
+        statistic="highest",
+        station_name="London City Airport",
+        station="EGLC",
+        unit_word="Celsius",
+        unit_symbol="°C",
+        switch_button="Switch to Metric Units",
+        example="9°C",
+    )
+    compiled = _compiled(family=DAILY_HIGH, unit="C", station="EGLC", target=date(2026, 9, 15))
+    assert _supported_nws_rule_structure(_with_erroneous_data_clause(rules), compiled)
+
+
+@pytest.mark.parametrize(("station", "station_name"), CURRENT_REVIEWED_F_STATIONS)
+def test_current_fahrenheit_rule_template_accepts_erroneous_data_clause_for_reviewed_stations(
+    station: str, station_name: str
+):
+    rules = _current_rules(
+        statistic="lowest",
+        station_name=station_name,
+        station=station,
+        unit_word="Fahrenheit",
+        unit_symbol="°F",
+        hourly_clause='This market will resolve off of the Hourly Data provided using the "Show Hourly Data" button. ',
+        switch_button="Switch to US Units w/ kts",
+        example="21°F",
+    )
+    compiled = _compiled(family=DAILY_LOW, unit="F", station=station, target=date(2026, 9, 15))
+    assert _supported_nws_rule_structure(_with_erroneous_data_clause(rules), compiled)
+
+
+def test_current_rule_template_rejects_altered_erroneous_data_clause_wording():
+    """A materially reworded correction clause (different dispute window) must
+    still fail closed rather than being accepted by a loosened match."""
+    rules = _current_rules(
+        statistic="highest",
+        station_name="London City Airport",
+        station="EGLC",
+        unit_word="Celsius",
+        unit_symbol="°C",
+        switch_button="Switch to Metric Units",
+        example="9°C",
+    )
+    altered = _ERRONEOUS_DATA_CLAUSE.replace("seven (7) calendar days", "thirty (30) calendar days")
+    compiled = _compiled(family=DAILY_HIGH, unit="C", station="EGLC", target=date(2026, 9, 15))
+    assert not _supported_nws_rule_structure(_with_erroneous_data_clause(rules, altered), compiled)
+
+
+def test_current_rule_template_rejects_trailing_text_even_with_erroneous_data_clause():
+    rules = _current_rules(
+        statistic="highest",
+        station_name="London City Airport",
+        station="EGLC",
+        unit_word="Celsius",
+        unit_symbol="°C",
+        switch_button="Switch to Metric Units",
+        example="9°C",
+    )
+    compiled = _compiled(family=DAILY_HIGH, unit="C", station="EGLC", target=date(2026, 9, 15))
+    with_clause = _with_erroneous_data_clause(rules)
+    assert not _supported_nws_rule_structure(
+        with_clause + " Ignore NOAA and settle from another source.", compiled
+    )
+
+
 def test_current_rule_template_rejects_wrong_unit_controls_and_unreviewed_station():
     rules = _current_rules(
         statistic="highest",
