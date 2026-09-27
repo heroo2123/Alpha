@@ -1,16 +1,17 @@
 from __future__ import annotations
 
-"""Strict NWS regional-office identity for a certified station's real coordinates.
+"""Strict NWS regional-office identity for supplied station coordinates.
 
 Master upgrade I2 requires "a versioned mapping or clustering layer capable of
 representing station -> city; city/station -> region ... common model/source
 dependence" for regional/correlated-exposure ceilings. This adapter supplies the
 region half of that layer from the official public ``api.weather.gov`` service,
-using exactly two real, free, unauthenticated endpoints chained on a certified
-station's own coordinates:
+using two real, free, unauthenticated endpoints chained on supplied station
+coordinates (station certification is a separate gate):
 
 - ``/points/{lat},{lon}`` resolves the real NWS county warning area (``cwa``)
-  responsible for that exact point;
+  responsible for the four-decimal query point; exact supplied coordinates
+  remain bound separately in the normalized evidence;
 - ``/offices/{cwa}`` returns that office's real ``nwsRegion`` code.
 
 This module performs no HTTP by default (the client class does) and never
@@ -26,6 +27,7 @@ import math
 import re
 import time
 from dataclasses import asdict, dataclass, field
+from urllib.parse import urlsplit
 
 import httpx
 
@@ -34,7 +36,7 @@ from .config import settings
 
 NWS_POINTS_ENDPOINT = "https://api.weather.gov/points/{lat},{lon}"
 NWS_OFFICES_ENDPOINT = "https://api.weather.gov/offices/{office}"
-NWS_STATION_REGION_VERSION = "nws_point_office_region_v1_strict_identity"
+NWS_STATION_REGION_VERSION = "nws_point_office_region_v2_strict_identity"
 NWS_STATION_REGION_ROLE = "REGION_IDENTITY_ONLY"
 # Real, public NWS regional-headquarters codes (api.weather.gov ``nwsRegion``).
 NWS_REGION_NAMES = {
@@ -82,6 +84,62 @@ def _canonical_hash(value: object) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
+def _coordinates(latitude: object, longitude: object) -> tuple[float, float]:
+    lat = _finite(latitude, "STATION_REGION_COORDINATES_INVALID")
+    lon = _finite(longitude, "STATION_REGION_COORDINATES_INVALID")
+    if not -90 <= lat <= 90 or not -180 <= lon <= 180:
+        raise WeatherStationRegionError("STATION_REGION_COORDINATES_INVALID")
+    return lat, lon
+
+
+def _official_path(value: object, code: str) -> str:
+    if not isinstance(value, str) or value != value.strip():
+        raise WeatherStationRegionError(code)
+    try:
+        url = urlsplit(value)
+    except ValueError:
+        raise WeatherStationRegionError(code) from None
+    if (url.scheme != "https" or url.netloc != "api.weather.gov"
+            or url.query or url.fragment):
+        raise WeatherStationRegionError(code)
+    return url.path.rstrip("/")
+
+
+def _office_url(value: object, office: str, code: str) -> str:
+    if _official_path(value, code) != f"/offices/{office}":
+        raise WeatherStationRegionError(code)
+    return NWS_OFFICES_ENDPOINT.format(office=office)
+
+
+def _point_url(value: object, latitude: float, longitude: float) -> str:
+    code = "STATION_REGION_POINT_SOURCE_IDENTITY_MISMATCH"
+    path = _official_path(value, code)
+    match = re.fullmatch(r"/points/(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)", path)
+    if (match is None or float(match[1]) != latitude or float(match[2]) != longitude):
+        raise WeatherStationRegionError(code)
+    return NWS_POINTS_ENDPOINT.format(lat=latitude, lon=longitude)
+
+
+def _evidence_hash(row: dict) -> str:
+    return _canonical_hash({key: value for key, value in row.items()
+                            if key not in {"evidence_sha256", "settlement_authority",
+                                           "calibration_label_authority",
+                                           "calibrated_probability_authority", "financial_authority"}})
+
+
+def _validate_evidence(row) -> None:
+    value = row.as_dict()
+    if (row.adapter != NWS_STATION_REGION_VERSION or row.source != "National Weather Service API"
+            or row.source_role != NWS_STATION_REGION_ROLE
+            or any(value[key] is not False for key in ("settlement_authority", "calibration_label_authority",
+                                                       "calibrated_probability_authority", "financial_authority"))
+            or not isinstance(row.source_payload_sha256, str)
+            or not re.fullmatch(r"[0-9a-f]{64}", row.source_payload_sha256)
+            or _finite(row.received_at, "STATION_REGION_RECEIPT_INVALID") < 0
+            or row.evidence_sha256 != _evidence_hash(value)):
+        raise WeatherStationRegionError("STATION_REGION_EVIDENCE_INTEGRITY")
+
+
 @dataclass(frozen=True, slots=True)
 class NWSPointOffice:
     adapter: str
@@ -99,6 +157,14 @@ class NWSPointOffice:
     calibration_label_authority: bool = field(init=False, default=False)
     calibrated_probability_authority: bool = field(init=False, default=False)
     financial_authority: bool = field(init=False, default=False)
+
+    def validate(self) -> None:
+        _validate_evidence(self)
+        lat, lon = _coordinates(self.latitude, self.longitude)
+        _point_url(self.source_url, round(lat, _COORDINATE_DECIMALS), round(lon, _COORDINATE_DECIMALS))
+        if _office(self.cwa) != self.cwa:
+            raise WeatherStationRegionError("STATION_REGION_OFFICE_INVALID")
+        _office_url(self.forecast_office, self.cwa, "STATION_REGION_OFFICE_URL_MISMATCH")
 
     def as_dict(self) -> dict:
         return asdict(self)
@@ -121,6 +187,14 @@ class NWSOfficeRegion:
     calibrated_probability_authority: bool = field(init=False, default=False)
     financial_authority: bool = field(init=False, default=False)
 
+    def validate(self) -> None:
+        _validate_evidence(self)
+        if _office(self.office) != self.office:
+            raise WeatherStationRegionError("STATION_REGION_OFFICE_INVALID")
+        if NWS_REGION_NAMES.get(self.nws_region_code) != self.nws_region:
+            raise WeatherStationRegionError("STATION_REGION_CODE_UNRECOGNIZED")
+        _office_url(self.source_url, self.office, "STATION_REGION_OFFICE_SOURCE_IDENTITY_MISMATCH")
+
     def as_dict(self) -> dict:
         return asdict(self)
 
@@ -132,10 +206,10 @@ def parse_nws_point_office(
     requested_longitude: float,
     received_at: float,
 ) -> NWSPointOffice:
-    latitude = round(_finite(requested_latitude, "STATION_REGION_COORDINATES_INVALID"), _COORDINATE_DECIMALS)
-    longitude = round(_finite(requested_longitude, "STATION_REGION_COORDINATES_INVALID"), _COORDINATE_DECIMALS)
-    if not -90.0 <= latitude <= 90.0 or not -180.0 <= longitude <= 180.0:
-        raise WeatherStationRegionError("STATION_REGION_COORDINATES_INVALID")
+    # Keep exact station identity; only the HTTP query uses four decimals.
+    latitude, longitude = _coordinates(requested_latitude, requested_longitude)
+    query_latitude = round(latitude, _COORDINATE_DECIMALS)
+    query_longitude = round(longitude, _COORDINATE_DECIMALS)
     receipt = _finite(received_at, "STATION_REGION_RECEIPT_INVALID")
     if receipt < 0.0:
         raise WeatherStationRegionError("STATION_REGION_RECEIPT_INVALID")
@@ -154,38 +228,22 @@ def parse_nws_point_office(
         raise WeatherStationRegionError("STATION_REGION_POINT_GEOMETRY_INVALID")
     echoed_longitude = _finite(coordinates[0], "STATION_REGION_POINT_GEOMETRY_INVALID")
     echoed_latitude = _finite(coordinates[1], "STATION_REGION_POINT_GEOMETRY_INVALID")
-    if (round(echoed_latitude, _COORDINATE_DECIMALS) != latitude
-            or round(echoed_longitude, _COORDINATE_DECIMALS) != longitude):
+    if echoed_latitude != query_latitude or echoed_longitude != query_longitude:
         raise WeatherStationRegionError("STATION_REGION_POINT_COORDINATE_MISMATCH")
 
     cwa = _office(properties.get("cwa"))
     forecast_office = str(properties.get("forecastOffice") or "").strip()
-    expected_suffix = f"/offices/{cwa}"
-    if not forecast_office or not forecast_office.rstrip("/").upper().endswith(expected_suffix.upper()):
-        raise WeatherStationRegionError("STATION_REGION_OFFICE_URL_MISMATCH")
-
-    expected_id_suffix = f"/points/{latitude},{longitude}"
-    candidates = [payload.get("id"), properties.get("@id")]
-    source_url = next(
-        (str(value).strip() for value in candidates if isinstance(value, str) and str(value).strip()),
-        NWS_POINTS_ENDPOINT.format(lat=latitude, lon=longitude),
-    )
-    if "/points/" in source_url and not source_url.rstrip("/").endswith(expected_id_suffix):
+    forecast_office = _office_url(forecast_office, cwa, "STATION_REGION_OFFICE_URL_MISMATCH")
+    if "gridId" in properties and _office(properties["gridId"]) != cwa:
+        raise WeatherStationRegionError("STATION_REGION_OFFICE_CHAIN_MISMATCH")
+    candidates = [obj[key] for obj, key in ((payload, "id"), (properties, "@id")) if key in obj]
+    if not candidates:
         raise WeatherStationRegionError("STATION_REGION_POINT_SOURCE_IDENTITY_MISMATCH")
+    for value in candidates:
+        source_url = _point_url(value, query_latitude, query_longitude)
 
     source_payload_sha = _canonical_hash(payload)
-    evidence = _canonical_hash({
-        "adapter": NWS_STATION_REGION_VERSION,
-        "source": "National Weather Service API",
-        "source_url": source_url,
-        "latitude": latitude,
-        "longitude": longitude,
-        "cwa": cwa,
-        "forecast_office": forecast_office,
-        "source_payload_sha256": source_payload_sha,
-        "source_role": NWS_STATION_REGION_ROLE,
-    })
-    return NWSPointOffice(
+    values = dict(
         adapter=NWS_STATION_REGION_VERSION,
         source="National Weather Service API",
         source_url=source_url,
@@ -195,8 +253,13 @@ def parse_nws_point_office(
         forecast_office=forecast_office,
         received_at=receipt,
         source_payload_sha256=source_payload_sha,
-        evidence_sha256=evidence,
+        source_role=NWS_STATION_REGION_ROLE,
     )
+    evidence = _evidence_hash(values)
+    values.pop("source_role")
+    row = NWSPointOffice(**values, evidence_sha256=evidence)
+    row.validate()
+    return row
 
 
 def parse_nws_office_region(
@@ -221,27 +284,13 @@ def parse_nws_office_region(
     if region is None:
         raise WeatherStationRegionError("STATION_REGION_CODE_UNRECOGNIZED")
 
-    expected_suffix = f"/offices/{office}"
-    candidates = [payload.get("@id"), payload.get("id") and NWS_OFFICES_ENDPOINT.format(office=payload.get("id"))]
-    source_url = next(
-        (str(value).strip() for value in candidates if isinstance(value, str) and str(value).strip()),
-        NWS_OFFICES_ENDPOINT.format(office=office),
-    )
-    if "/offices/" in source_url and not source_url.rstrip("/").upper().endswith(expected_suffix.upper()):
-        raise WeatherStationRegionError("STATION_REGION_OFFICE_SOURCE_IDENTITY_MISMATCH")
+    source_url = _office_url(payload.get("@id"), office, "STATION_REGION_OFFICE_SOURCE_IDENTITY_MISMATCH")
+    if "parentOrganization" in payload:
+        _office_url(payload["parentOrganization"], region_code.upper()+"H",
+                    "STATION_REGION_OFFICE_SOURCE_IDENTITY_MISMATCH")
 
     source_payload_sha = _canonical_hash(payload)
-    evidence = _canonical_hash({
-        "adapter": NWS_STATION_REGION_VERSION,
-        "source": "National Weather Service API",
-        "source_url": source_url,
-        "office": office,
-        "nws_region_code": region_code,
-        "nws_region": region,
-        "source_payload_sha256": source_payload_sha,
-        "source_role": NWS_STATION_REGION_ROLE,
-    })
-    return NWSOfficeRegion(
+    values = dict(
         adapter=NWS_STATION_REGION_VERSION,
         source="National Weather Service API",
         source_url=source_url,
@@ -250,8 +299,13 @@ def parse_nws_office_region(
         nws_region=region,
         received_at=receipt,
         source_payload_sha256=source_payload_sha,
-        evidence_sha256=evidence,
+        source_role=NWS_STATION_REGION_ROLE,
     )
+    evidence = _evidence_hash(values)
+    values.pop("source_role")
+    row = NWSOfficeRegion(**values, evidence_sha256=evidence)
+    row.validate()
+    return row
 
 
 class NWSStationRegionClient:
@@ -274,7 +328,29 @@ class NWSStationRegionClient:
                     cap_code: str, json_code: str):
         for attempt in range(MAX_RETRIES):
             try:
-                response = await self.http.get(url)
+                async with self.http.stream("GET", url) as response:
+                    if response.status_code == 429 or response.status_code >= 500:
+                        if attempt + 1 >= MAX_RETRIES:
+                            raise WeatherStationRegionError(status_code)
+                        retry = True
+                    else:
+                        retry = False
+                        if not 200 <= response.status_code < 300:
+                            raise WeatherStationRegionError(status_code)
+                        content = bytearray()
+                        async for chunk in response.aiter_bytes(chunk_size=16 * 1024):
+                            if len(content) + len(chunk) > MAX_RESPONSE_BYTES:
+                                raise WeatherStationRegionError(cap_code)
+                            content.extend(chunk)
+                        received = time.time()
+                        try:
+                            payload = json.loads(content)
+                        except (ValueError, UnicodeError):
+                            raise WeatherStationRegionError(json_code) from None
+                        return payload, received
+                if retry:
+                    await asyncio.sleep(0.5 * (2 ** attempt))
+                    continue
             except httpx.TimeoutException:
                 if attempt + 1 >= MAX_RETRIES:
                     raise WeatherStationRegionError(timeout_code)
@@ -286,26 +362,12 @@ class NWSStationRegionClient:
                 await asyncio.sleep(0.5 * (2 ** attempt))
                 continue
 
-            if response.status_code == 429 or response.status_code >= 500:
-                if attempt + 1 >= MAX_RETRIES:
-                    raise WeatherStationRegionError(status_code)
-                await asyncio.sleep(0.5 * (2 ** attempt))
-                continue
-            if response.status_code >= 400:
-                raise WeatherStationRegionError(status_code)
-            if len(response.content) > MAX_RESPONSE_BYTES:
-                raise WeatherStationRegionError(cap_code)
-            received = time.time()
-            try:
-                payload = response.json()
-            except Exception:
-                raise WeatherStationRegionError(json_code)
-            return payload, received
         raise WeatherStationRegionError(transport_code)
 
     async def point_office(self, latitude: float, longitude: float) -> NWSPointOffice:
-        lat = round(_finite(latitude, "STATION_REGION_COORDINATES_INVALID"), _COORDINATE_DECIMALS)
-        lon = round(_finite(longitude, "STATION_REGION_COORDINATES_INVALID"), _COORDINATE_DECIMALS)
+        latitude, longitude = _coordinates(latitude, longitude)
+        lat = round(latitude, _COORDINATE_DECIMALS)
+        lon = round(longitude, _COORDINATE_DECIMALS)
         url = NWS_POINTS_ENDPOINT.format(lat=lat, lon=lon)
         payload, received = await self._get(
             url,
@@ -315,7 +377,7 @@ class NWSStationRegionClient:
             cap_code="STATION_REGION_POINT_RESPONSE_CAP",
             json_code="STATION_REGION_POINT_JSON_INVALID",
         )
-        return parse_nws_point_office(payload, requested_latitude=lat, requested_longitude=lon, received_at=received)
+        return parse_nws_point_office(payload, requested_latitude=latitude, requested_longitude=longitude, received_at=received)
 
     async def office_region(self, office: str) -> NWSOfficeRegion:
         office_id = _office(office)

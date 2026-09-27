@@ -1,5 +1,31 @@
 # V11 requirement-to-code/test/evidence matrix
 
+Independent R23 review correction — 2026-09-27: reviewed exact commit
+`0378b381` versus `b457aabd` with GPT-6 Astra at high effort. Reproduced precise
+station-coordinate rejection, conflicting official identities, unchecked typed
+region evidence, removable dependence groups, unsupported cross-region weather
+independence, and a response cap applied after buffering. Fixed only the two R23
+modules and their tests: exact request identity plus rounded public query,
+strict official identity/evidence validation, additive groups with shared UNKNOWN
+weather/source/model floors, and incremental HTTP response limits. **81 focused
+passed / 0.97 s; 156 relevant passed / 4.27 s**, no skips/warnings; no full
+regression. Five public station lookups and local membership bindings now pass;
+non-coordinate metadata in that binding probe is explicitly unverified test data.
+Independent follow-up found no remaining concrete defect in the corrected Python
+slice. Evidence and reproducible command: `docs/V11_REGION_MEMBERSHIP_EVIDENCE.md`.
+
+This supersedes batch 15's closure of the whole "actual mappings" tail and its
+"already-certified" input and region/provider-only conservative-group claims.
+Public administrative region lookup is demonstrated; supported finer dependence
+mapping, protected review, certification, evidence archival/freshness and runtime
+integration remain open. Schema validation and hashes confer no authority.
+R37's stale CI correction independently verified against run 36300914533 on
+`3dbb4c2`: pytest passed on 3.11 and 3.12. No change outside this commit's R23
+slice/ledgers; V10, private inputs, credentials, financial and host boundaries
+unchanged. **85/200 = 42.5%; 1/50 complete; NOT_READY_TO_FUND**, no added credit.
+Next R23 action: evidence-backed dependence mapping and protected/runtime
+integration; this review does not implement or authorize those separate gates.
+
 Master-vs-matrix blocker audit and R23 real-mapping implementation — 2026-09-27
 (supervisor batch 15): corrected commit `3dbb4c2`'s CI status first: GitHub
 Actions run 36300914533 completed SUCCESS on Python 3.11/3.12, including the
@@ -576,7 +602,7 @@ explicitly prefixed with `docs/`, `tests/`, `deploy/` or `host_trust/`.
 | R20 | 5 | Namespaced city-day coordinator | v11/paper_coordinator.py; production/engine.py | PARTIAL: exact scoped proposals, desired-position netting, ranking and common paper admission tested; scoped certification/rule/model/source admission integrated; bounded multi-strategy/relative-value runtime adapter feeds exact linked outputs through existing common-account coordination; bounded v11/request_assembly.py factories resolve exact current source/book/risk/admission inputs and bind runtime plan identity; v11/candidate_assembly.py connects typed event/scope plans, current factories, derived risk and common-account runtime; raw providers, route migration and production integration pending | NOT VERIFIED / NOT ELIGIBLE / NONE |
 | R21 | 5 | Atomic account reservations and ambiguity | v11/paper_coordinator.py; v11/evidence.py; production/ledger.py | PARTIAL: receipt delivery now includes durable fresh-event routing, with idempotent recovery across account and queue commits; bounded archived PAPER fill/terminal delivery now uses the common account with atomic receipt/journal/account admission guards and crash idempotency; account CAS plus atomic safety/source/book heads, cash/inventory/scenario reservations, ambiguity and explicit paper reconciliation tested; original numerical input journaling and shared read-only effect replay now compare batch/transition/recovery/fill/terminal results without reissuing commands or controls (82 focused passes / 10.84 s); external/live account integration pending | NOT VERIFIED / NOT ELIGIBLE / NONE |
 | R22 | 5 | Event scenario-risk matrix | v11/scenario_risk.py; tests/test_v11_scenario_risk.py | PARTIAL: exact YES/NO outcomes, adverse optional fills, attribution and incremental risk tested; common account, basket/exit and maker risk are joined through the typed candidate; broader portfolio/runtime acceptance pending | NOT VERIFIED / NOT ELIGIBLE / NONE |
-| R23 | 5 | Regional and source-dependence ceilings | v11/scenario_risk.py; v11/region_membership.py; weather_only_station_region.py; production/config.py | PARTIAL: metadata-bound versioned city/region/weather/source/model groups and conservative ceilings; 15 scenario tests pass; a real chained `/points`->`/offices` NWS adapter (weather_only_station_region.py) now resolves a certified station's actual public NWS region, and `v11/region_membership.py` binds it plus the station's own certified real provider identities into a StationMembership, closing the "actual mappings" tail with real live-source verification against api.weather.gov (23 new tests / 0.43 s; 104 related passes / 6.81 s; docs/V11_REGION_MEMBERSHIP_EVIDENCE.md); protected review and candidate/guardian runtime integration remain pending | NOT VERIFIED / NOT ELIGIBLE / NONE |
+| R23 | 5 | Regional and source-dependence ceilings | v11/scenario_risk.py; v11/region_membership.py; weather_only_station_region.py; production/config.py | PARTIAL: reviewed v2 NWS administrative-region adapter preserves exact station coordinates, validates official identities/evidence and binds metadata; conservative shared UNKNOWN weather/source/model groups retain known providers and permit only additive extras; 81 focused / 156 relevant passes and five public lookup/local-binding probes (docs/V11_REGION_MEMBERSHIP_EVIDENCE.md); supported finer dependence mappings, protected review/certification, archival/freshness and candidate/guardian integration remain pending | NOT VERIFIED / NOT ELIGIBLE / NONE |
 | R24 | 5 | Dynamic sizing and opportunity ranking | v11/allocation.py; v11/paper_coordinator.py | PARTIAL: bounded reduction factors, deterministic EV/capital ranking, fixed policy and retained cash; 20 account/allocation tests pass; full calibrated strategy allocation pending | NOT VERIFIED / NOT ELIGIBLE / NONE |
 | R25 | 6 | Future forecast migration | v11/strategy_pipeline.py; tests/test_v11_strategy_pipeline.py | PARTIAL: archived model inputs, frozen bundle, local-day routing, scoped admission, executable EV and common proposal integration; 27 strategy tests pass; provider adapters/calibration/runtime acceptance pending | NOT VERIFIED / NOT ELIGIBLE / NONE |
 | R26 | 6 | Same-day late lock migration | v11/strategy_pipeline.py; weather_only_same_day_envelope.py | PARTIAL: exact-population revision, unresolved-day/model coverage, preserved inference cutoff and distinct observation/payout targets tested; v11/remaining_forecast.py now joins explicit exact-population intervals and full archived GEFS fields to protected same-day economics, including elapsed gaps, DST, revision guards and resumable pair preparation (24 new cases verified); finite candidate now prepares these pairs from current archived paths/official intervals, including received newer-run adoption and interrupted pair recovery (245 related passes); exact source adapter/certification, broader scope-regimes and empirical acceptance pending | NOT VERIFIED / NOT ELIGIBLE / NONE |

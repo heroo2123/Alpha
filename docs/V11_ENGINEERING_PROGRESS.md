@@ -1,5 +1,31 @@
 # Supplementary engineering estimate
 
+Independent R23 review correction — 2026-09-27: reviewed exact commit
+`0378b381` versus `b457aabd` with GPT-6 Astra at high effort. Reproduced precise
+station-coordinate rejection, conflicting official identities, unchecked typed
+region evidence, removable dependence groups, unsupported cross-region weather
+independence, and a response cap applied after buffering. Fixed only the two R23
+modules and their tests: exact request identity plus rounded public query,
+strict official identity/evidence validation, additive groups with shared UNKNOWN
+weather/source/model floors, and incremental HTTP response limits. **81 focused
+passed / 0.97 s; 156 relevant passed / 4.27 s**, no skips/warnings; no full
+regression. Five public station lookups and local membership bindings now pass;
+non-coordinate metadata in that binding probe is explicitly unverified test data.
+Independent follow-up found no remaining concrete defect in the corrected Python
+slice. Evidence and reproducible command: `docs/V11_REGION_MEMBERSHIP_EVIDENCE.md`.
+
+This supersedes batch 15's closure of the whole "actual mappings" tail and its
+"already-certified" input and region/provider-only conservative-group claims.
+Public administrative region lookup is demonstrated; supported finer dependence
+mapping, protected review, certification, evidence archival/freshness and runtime
+integration remain open. Schema validation and hashes confer no authority.
+R37's stale CI correction independently verified against run 36300914533 on
+`3dbb4c2`: pytest passed on 3.11 and 3.12. No change outside this commit's R23
+slice/ledgers; V10, private inputs, credentials, financial and host boundaries
+unchanged. **85/200 = 42.5%; 1/50 complete; NOT_READY_TO_FUND**, no added credit.
+Next R23 action: evidence-backed dependence mapping and protected/runtime
+integration; this review does not implement or authorize those separate gates.
+
 Master-vs-matrix blocker audit and R23 real-mapping implementation — 2026-09-27
 (supervisor batch 15): audited R09-R31/R40-R49 against the master to challenge
 the prior batch's "no further local non-owner audit candidate remains
