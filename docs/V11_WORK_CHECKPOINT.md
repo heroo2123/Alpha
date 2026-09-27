@@ -1,5 +1,83 @@
 # Alpha V11 work checkpoint
 
+## Supervisor batch 7: R39 velocity redirect confirmed against master; R29/R30 and R02/R03 audited clean — 2026-09-27
+
+Recovery check: `git status` clean; local HEAD `ed949aeb2b6b97341a7682643a10fd5ea7644273`
+equal to `origin/weather-v11-profitability-upgrade-2026-09-23`. No unfinished
+same-batch work found. Current durable score at start: **87/200 (~44%);
+formal 1/50 (2%)**.
+
+R39 has consumed at least seven consecutive published batches (7 through 13,
+plus the batch-1 independent correction) without crossing a new C/J/E/A
+boundary, so the score-velocity rule forbids further work on it this batch
+unless it can credibly cross a boundary or fixes a P0/P1 defect. Before
+redirecting away again, read the private master's section 31 ("V10 CONTROL
+VS V11 EXPERIMENT") directly, since prior batches repeatedly stated the
+remaining tail — protected/non-cooperative configuration custody and
+cross-deployment consumer ownership — needed master clarification. The
+master states only: "Verify installed unit Conflicts/dependencies, Telegram
+consumer ownership, DB paths and resource ceilings before side-by-side
+deployment." This is a deployment-time verification instruction, not a
+prescribed local authorization/custody model; it does not unlock new local
+implementation work and confirms every prior batch's conclusion. R39 was not
+touched this batch.
+
+Two bounded audits looked for a new credit boundary or a genuine defect
+elsewhere instead of R39:
+
+**R02/R03 funnel-wiring re-check.** Traced whether the existing **C J**
+credit for "decision explanations and lane funnels" is still correctly
+justified, given the recurring pattern (R12, R23) of matrix text
+understating actual live wiring. `v11/discovery.py:209` and
+`v11/observation_runtime.py:154` call `store.funnel(...)`; both modules are
+wired live into `CandidateRunner` by `candidate_assembly.assemble_candidate`
+(`MarketDiscovery`, `ObservationPump`), and `CandidateRunner.step`/`.cycle`
+(`candidate_runner.py:261-276`) actually invoke them each cycle — this is
+genuine, reachable, non-dead code, so the existing J credit for the funnel
+half is correct as recorded, not a new finding. `store.decision(...)` is
+still called only from `learning_capture.py`/`target_learning.py`, neither
+of which `candidate_runner.py` imports, matching the matrix's own "runtime/
+operator integration pending" note for the decision half. No credit change;
+this closes the open question of whether R02/R03 needed a similar correction
+to R12/R23 (it does not).
+
+**R29/R30 guardian/fault audit.** Audited `v11/basket_coordinator.py`,
+`v11/relative_value.py` and `v11/basket_valuation.py` for the same class of
+gap the batch-6 review found in R23 (a guardian/admission path that fails to
+account for sticky account faults). `PaperCoordinator.coordinate()`'s
+admission gate (`paper_coordinator.py:197`, `accepted=not faults and not
+state['faults']`) is one shared function used by every intent, basket legs
+included — there is no separate basket admission path that could bypass it.
+`basket_coordinator.submission_heads` (`basket_coordinator.py:234`)
+independently re-checks `state['faults']` before basket-leg submission, and
+the existing generic
+`test_actual_paper_fee_overrun_is_preserved_and_faults_new_admission` case
+(`tests/test_v11_paper_coordinator.py:178`) already exercises this shared
+gate for any intent kind. No exploitable defect found. R29/R30 join
+R06/R07/R08/R18/R32/R34-R36 in the pool of audit-clean requirements.
+
+No production or test code was changed. Verification:
+`pytest tests/test_v11_relative_value.py tests/test_v11_basket_valuation.py
+tests/test_v11_basket_coordinator.py tests/test_v11_paper_coordinator.py` —
+**76 passed / 18.82 s**, exit 0, no skips/warnings. No full regression: no
+source changed, consistent with the no-rerun-for-reassurance testing rule.
+`git status`/`git diff --stat` after the doc edits show only the three
+durable ledger files changed — no V10, credential, private-input or
+production file touched.
+
+No new C/J/E/A credit: **87/200 = 43.5% (~44%); formal 1/50 (2%)**,
+unchanged. NOT_READY_TO_FUND; V10 unchanged/DEFERRED.
+
+**Exact next unfinished action:** the untouched-defect-audit pool now
+contains R20-R22, R33, R41 and R42; a fresh line-by-line audit of one of
+these is the next candidate for a genuine local defect fix. R31 (exact
+finality source/version proof), R39 (protected configuration custody and
+real bot-token delivery), R43/R44 (auth/isolated-deployment verification)
+and R46-R49 (forward comparison, learning acceptance, unfunded
+commissioning, release) remain genuinely owner/external/production blocked
+and should not consume another batch without new real evidence or an owner
+decision.
+
 ## Independent batch-6 review: preserve R23 J; fix guardian account-fault cancellation — 2026-09-27
 
 Reviewed published `de4cec80d37c375dc05f38b9c254003e4d627c2d` against

@@ -1,5 +1,24 @@
 # V11 requirement-to-code/test/evidence matrix
 
+Supervisor batch 7 — 2026-09-27: R39's remaining tail was cross-checked
+directly against the private master (section 31) and confirmed to be a
+real-deployment verification step ("Telegram consumer ownership... before
+side-by-side deployment"), not a further prescribed local authorization
+model; R39 was correctly redirected away from again per the score-velocity
+rule after seven-plus consecutive batches without new credit. R02/R03's
+existing **C J** credit was re-traced and remains correctly justified: the
+funnel half (`discovery.py`, `observation_runtime.py`) is live-wired into
+`CandidateRunner` via `candidate_assembly.py`; the decision half
+(`learning_capture.py`, `target_learning.py`) is not, matching the matrix's
+own "runtime/operator integration pending" note. R29/R30
+(`basket_coordinator.py`, `relative_value.py`, `basket_valuation.py`) were
+audited for the guardian/fault gap class the batch-6 review found in R23:
+`PaperCoordinator.coordinate()`'s shared admission gate and
+`basket_coordinator.submission_heads` both already block/refuse on sticky
+account faults for basket legs; no defect found. No code changed; 76 direct
+passed / 18.82 s. No new C/J/E/A: **87/200 = 43.5% (~44%); formal 1/50 (2%)**,
+unchanged. NOT_READY_TO_FUND. Exact evidence: `docs/V11_WORK_CHECKPOINT.md`.
+
 Independent batch-6 review — 2026-09-27: R23's configured-PAPER integration
 credit is retained, but a reachable partial-fill cost overrun disproved the
 worker's guardian audit. Committed account faults now trigger bounded guardian

@@ -1,5 +1,64 @@
 # Supplementary engineering estimate
 
+Supervisor batch 7 — 2026-09-27: recovery check found `git status` clean,
+local HEAD `ed949ae` equal to `origin/weather-v11-profitability-upgrade-2026-09-23`;
+no unfinished same-batch work to recover. Per the score-velocity rule, R39
+was not touched: it has consumed at least seven consecutive published
+batches (7-13 plus the batch-1 correction) without a new C/J/E/A boundary.
+Cross-checked its remaining tail against the private master (section 31,
+"V10 CONTROL VS V11 EXPERIMENT": "Verify installed unit Conflicts/
+dependencies, Telegram consumer ownership, DB paths and resource ceilings
+before side-by-side deployment") — this confirms Telegram consumer ownership
+is framed as a real-deployment verification step, not a further local
+authorization model the master itself prescribes; the prior batches'
+conclusion that this tail is deployment/credential-gated stands.
+
+Two bounded audits looked for a new credit boundary or a genuine defect
+elsewhere instead:
+
+1. Re-traced R02/R03's existing **C J** credit (decision/funnel evidence).
+`v11/discovery.py:209` and `v11/observation_runtime.py:154` call
+`store.funnel(...)` from code paths that `candidate_assembly.assemble_candidate`
+wires live into `CandidateRunner` (`MarketDiscovery`, `ObservationPump`), and
+`CandidateRunner.step`/`.cycle` (`candidate_runner.py:261-276`) actually invoke
+them — confirming the existing J credit is correctly justified by live
+integration, not a stale claim needing correction (unlike the R12/R23 cases).
+`store.decision(...)` remains called only from `learning_capture.py` and
+`target_learning.py`, which `candidate_runner.py` does not import — matching
+the matrix's own "runtime/operator integration pending" note for the decision
+half. No credit change.
+
+2. Audited `v11/basket_coordinator.py`, `v11/relative_value.py` and
+`v11/basket_valuation.py` (R29/R30) for the same class of guardian/fault gap
+the batch-6 review found in R23: whether a basket reservation could bypass
+sticky account faults the way single-leg admission once could. `PaperCoordinator
+.coordinate()`'s admission gate (`paper_coordinator.py:197`,
+`accepted=not faults and not state['faults']`) is shared by every intent
+including basket legs, and `basket_coordinator.submission_heads` independently
+re-checks `state['faults']` before basket-leg submission
+(`basket_coordinator.py:234`). The existing generic
+`test_actual_paper_fee_overrun_is_preserved_and_faults_new_admission` case
+already exercises this shared gate. No exploitable gap found; R29/R30 are
+removed from the pool of untouched audit candidates alongside the
+previously-cleared R06/R07/R08/R18/R32/R34-R36.
+
+No code changed. `pytest tests/test_v11_relative_value.py
+tests/test_v11_basket_valuation.py tests/test_v11_basket_coordinator.py
+tests/test_v11_paper_coordinator.py` — **76 passed / 18.82 s**, exit 0, no
+skips/warnings. No full regression: no production code changed, consistent
+with the no-rerun-for-reassurance rule. No new C/J/E/A credit: **87/200 =
+43.5% (~44%); formal 1/50 (2%)**, unchanged. NOT_READY_TO_FUND; V10
+unchanged/DEFERRED. No V10, credential, private-input or production file was
+touched.
+
+Next unfinished action: remaining untouched audit candidates are R20-R22,
+R33, R41 and R42 (no known defect, not yet re-examined this cycle); R31
+(exact finality source proof), R39 (protected/non-cooperative configuration
+custody and real bot delivery), R43/R44 (auth/isolated-deployment
+verification) and R46-R49 (comparison/learning/unfunded acceptance/release)
+remain genuinely owner/external/production blocked and should not consume
+another batch without new real evidence or an owner decision.
+
 Independent supervisor-batch-6 review — 2026-09-27: reviewed `de4cec80`
 against `28d5895d`. Preserve R23's bounded configured-PAPER **C J** credit,
 but correct the false claim that immutable policy makes resting regional
