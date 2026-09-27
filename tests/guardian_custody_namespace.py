@@ -337,17 +337,17 @@ def _role_child(role, argv):
 
 
 def _enter_custody_namespace():
-    """Clear inherited groups, then deny setgroups before an inner GID map.
+    """Deny setgroups before an inner GID map, then fork the inner namespace.
 
-    Linux requires a populated GID map before setgroups can clear inherited
-    groups, but forbids switching setgroups to deny after populating that map.
-    The helper-authorized outer namespace clears groups; its controller maps
-    an inner namespace with the same IDs after the child irrevocably denies
-    setgroups. All capability-bearing controllers remain namespace-only root.
+    The outer namespace already cleared its inherited groups immediately after
+    its own unshare, before the external uidmap helpers ran (see
+    ``_namespace_child``): once an unprivileged helper writes a GID map for a
+    process, that process's own setgroups is left permanently denied, so
+    clearing groups must happen before that write, not after. Its controller
+    maps an inner namespace with the same IDs after the child irrevocably
+    denies setgroups. All capability-bearing controllers remain namespace-only
+    root.
     """
-    os.setgroups([])
-    if os.getgroups():
-        raise NamespaceUnavailable("outer namespace supplementary groups remain")
     ready_read, ready_write = os.pipe()
     mapped_read, mapped_write = os.pipe()
     child = os.fork()
@@ -394,6 +394,12 @@ def _namespace_child():
         if os.getuid() == 0:
             raise NamespaceUnavailable("host root launch is forbidden")
         _libc_call("unshare", 0x10000000)  # Outer USER namespace for helper maps.
+        # Clear inherited groups now: once the external uidmap helpers below
+        # write this process's GID map, its own setgroups is left permanently
+        # denied and this call would fail with EPERM.
+        os.setgroups([])
+        if os.getgroups():
+            raise NamespaceUnavailable("outer namespace supplementary groups remain")
         print(json.dumps({"mapping_ready": os.getpid()}), flush=True)
         raw = sys.stdin.buffer.readline(MAX_INPUT + 2)
         if len(raw) > MAX_INPUT + 1:

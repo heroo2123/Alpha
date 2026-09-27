@@ -27,3 +27,36 @@ runners. The subsequent coordinator implementation passed run `35933951235` at
 `8437079613ec0d3fd17eb20c82ae89bbedebcca9`. This portability finding is closed;
 the blocked local UID probe is still not represented as a successful test. These
 synthetic checks do not prove real host commissioning or independent review.
+
+# Guardian/liveness custody namespace fixture finding
+
+Every GitHub Actions `tests` run since commit `7b5db86f7d` ("Add PAPER
+cancel-only guardian broker and durable recovery", 2026-09-25) failed the same
+11 parametrized cases in `tests/test_v11_guardian_custody.py` and
+`tests/test_v11_liveness_custody.py`, each raising
+`guardian_custody_namespace.NamespaceFailure` wrapping
+`PermissionError: [Errno 1] Operation not permitted` inside
+`_enter_custody_namespace` at its first `os.setgroups([])` call.
+
+This dev host lacks `newuidmap`/`newgidmap`, so `prerequisites()` always
+raises `NamespaceUnavailable` here and the same 11 cases skip locally
+(`EXTERNAL_CUSTODY_GATE_UNAVAILABLE`); GitHub's runner has real `uidmap`
+tooling installed, so it is the first environment that ever executed this
+fixture's actual namespace path. Root cause: the outer helper-mapped
+namespace tried to clear its inherited groups only after the external
+unprivileged `newuidmap`/`newgidmap` helpers had already written its GID map;
+per Linux user-namespace semantics that write permanently denies
+`setgroups()` for that process as a side effect, so the later clear call
+always fails with `EPERM` on any host with real `uidmap` tooling — not a
+GitHub-specific restriction.
+
+Fix (`tests/guardian_custody_namespace.py`, batch 12, 2026-09-27): moved the
+group-clearing call to immediately after the first `unshare(CLONE_NEWUSER)`,
+before the external uidmap helpers run, when the process is still
+full-capability in its own fresh namespace and no GID map has been written
+yet. No production code changed; no security property loosened. Local
+`-k "guardian or liveness or custody"`: 491 passed, 11 skipped (same skip
+count as before, all attributable to the missing local `uidmap` package), 0
+failed. Confirmation that this resolves the actual GitHub Actions failure
+requires the next run on the real runner; record that run's ID/result here
+once observed.

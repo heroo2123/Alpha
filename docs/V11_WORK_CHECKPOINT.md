@@ -6191,3 +6191,48 @@ required), or (c) R31's result-lag finality source/version evidence or
 R43/R44 authentication/isolated-deployment verification, both of which need
 real external source or owner-authorized access rather than further local
 implementation.
+
+## Supervisor batch 12 — 2026-09-27
+
+Recovery check: `git status` clean, local HEAD `102812d` equal to
+`origin/weather-v11-profitability-upgrade-2026-09-23`;
+`AlphaV11_Supervisor/STATUS.md` recorded this exact invocation as batch 12/24.
+No unfinished same-batch work to recover.
+
+Before continuing R39, the master specification (hash-verified against the
+pinned digest in CLAUDE.md) was checked directly for a non-cooperative
+operator-configuration authorization/custody model, since that was the one
+remaining local-only R39 gap every batch since 8 deferred pending exactly this
+check. The master defines only generic "operator/reviewer request" and user
+"explicit authorization" language for configuration changes; it does not
+define who is authorized to approve a specific configuration change or any
+concrete non-cooperative custody scheme. Inventing one would be exactly the
+kind of unsupported permission this project's operating rules forbid, so this
+sub-item is correctly gated, not a local implementation gap; R39 is not
+touched further this batch to avoid endlessly deepening an already-credited
+slice per the batch's own priority rules.
+
+`gh run list` showed 30+ consecutive failing CI runs since commit `7b5db86f7d`
+(2026-09-25), always the same 11 parametrized guardian/liveness custody cases
+failing with `PermissionError` inside the disposable namespace test fixture
+`tests/guardian_custody_namespace.py`. Diagnosed and fixed the root cause
+(fixture cleared inherited groups after an external `uidmap` helper had
+already permanently denied `setgroups()` for that process, instead of
+before); see docs/V11_CI_FINDINGS.md and the matching engineering-progress
+entry for full detail. Only the test fixture changed; no production code
+touched. Local `-k "guardian or liveness or custody"`: 491 passed / 11
+skipped / 0 failed, 55.01 s — the 11 skips are the same pre-existing
+`EXTERNAL_CUSTODY_GATE_UNAVAILABLE` cases caused by this dev host lacking the
+`uidmap` package (no sudo used to install it), unrelated to the fix. No full
+regression: single test-fixture-file change.
+
+This restores existing required CI verification; it does not complete new
+requirement scope. No new C/J/E/A milestone: **85/200 (~43%); 1/50 (2%)**,
+unchanged. NOT_READY_TO_FUND; V10 unchanged/DEFERRED. Next: confirm the
+pushed commit's GitHub Actions run turns the 11 previously-failing cases
+green (the real environment this defect needed to be observed in); if a
+different failure surfaces there, diagnose it next. Otherwise continue
+closing PARTIAL requirements whose remaining gaps are genuinely local, since
+R39's, R31's and R43/R44's remaining gaps all now require owner-authorized
+credentials/infrastructure/deployment decisions rather than further local
+implementation.
