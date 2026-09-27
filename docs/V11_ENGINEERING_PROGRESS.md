@@ -2257,3 +2257,87 @@ owner/external/production blocked. The next genuinely unblocked local
 activity is another untouched guardian-class-defect audit target (R01 is
 already COMPLETE; R04, R07, R11, R16-R17, R25-R28, R41 have not yet been
 read end-to-end by this audit style; R02/R03/R05/R06/R08/R19/R24 now have).
+
+## Supervisor batch 14 — 2026-09-27: R25/R26/R27/R28 guardian-class-defect audit, clean
+
+Recovery check: `git status` clean, local HEAD `a02da53` equal to
+`origin/weather-v11-profitability-upgrade-2026-09-23`, no unfinished process
+found. Read this ledger, the checkpoint and the requirements matrix before
+editing. Current durable score at start: **87/200 (~44%); formal 1/50 (2%)**.
+
+Before choosing a target, re-confirmed batch 8's compiled conclusion still
+holds: every requirement whose remaining tail is purely local implementation
+already holds C and J; the only requirements short of C/J/E/A are the
+already-recorded owner/external/production-gated set. No fresh local-only
+C/J boundary was found reachable this batch either. Continued the
+guardian-class-defect audit series onto its next untouched, financially
+load-bearing target: the four PARTIAL rows (R25 future-forecast migration,
+R26 same-day late-lock migration, R27 PWS observation-lead sleeve, R28
+source-shock/release-opportunity) that all share `v11/strategy_pipeline.py`,
+plus `v11/pws_lead.py`, `v11/pws_admission.py` and `v11/source_release.py`
+(939 lines total, not previously read end-to-end by this audit style),
+letting one pass cover all four untouched rows at once.
+
+Read all four files in full. Focused on the pattern this series checks
+for: a place a partial/omitted evidence pin, a stale receipt, or a
+directional-state exception could silently be treated as a fully validated
+one. Traced `TemperatureStrategies.evaluate`'s per-sleeve gating
+(`_model_inputs`/`_condition`'s exact schema/target/cutoff binding, the
+admission-lease membership checks for model/official/coverage inputs, the
+`FUTURE_FORECAST` vs same-day mutual exclusion on observed/coverage inputs)
+and the two optional-pin helpers strategy_pipeline delegates to
+(`PWSPreconfirmation`, `SourceRelease`), each of which is required exactly
+when its owning strategy is in scope and forbidden otherwise (also
+independently re-checked in `paper_coordinator._preconfirmation`/
+`_source_release`, which raise if the pin is missing when required or
+present when not attributed).
+
+Specifically traced R28's documented "directional EVENT exception is data
+eligibility only" claim end-to-end: `source_release.py`'s
+`directional_event_data_eligible=event['state']=='EVENT'` only ever relaxes
+`paper_coordinator`'s `event['ordinary_new_risk_research_allowed']` check
+(`_prepare` line ~321, `transition` line ~574); every other event-state
+guard remains enforced regardless of the exception — `flags['reduce_only']`
+still blocks BUY, the EVENT-state `size_multiplier`/`additional_ev_per_share`
+/`liquidity_multiplier`/`lifetime_multiplier` ceilings still apply
+unconditionally, and `_source_release` independently requires the pinned
+prediction's `as_of` to postdate the release's `received_at` with matching
+model-input hashes (`RELEASE_VALUATION_REQUIRES_POST_RECEIPT_MODEL_INPUTS`).
+Also checked `pws_admission.py`'s preconfirmation expiry arithmetic
+(`qc['as_of']+max_pws_age_seconds-max(observation_age_seconds)`): using the
+*maximum* (oldest) sensor age produces the tightest, most conservative
+expiry bound across every paired sensor, matching the per-sensor staleness
+check in `pws_lead.py::observe`, not a loosening. `pws_lead.py::_lineage`'s
+provenance walk correctly requires derivation (`dependencies`) for `MODEL`/
+`FEATURES` rows while allowing raw `PWS_OBSERVATION`/`OFFICIAL_OBSERVATION`
+leaves, and `received_report_pair` fails closed
+(`RELEASE_PREDECESSOR_NOT_IMMEDIATE_OR_SCAN_BOUND`) if its 1000-row scan
+bound is hit rather than assuming immediacy. **No defect found.**
+
+No code changed. Verification (foreground): direct family —
+`tests/test_v11_strategy_pipeline.py tests/test_v11_pws_lead.py
+tests/test_v11_pws_admission.py tests/test_v11_source_release.py` — **83
+passed / 32.27 s**, exit 0, no failures/skips. Broader affected selection
+(`-k "strategy_pipeline or pws_lead or pws_admission or source_release or
+pws_runtime or pws_quality or pws_census or strategy_admission"`): **140
+passed, 4 pre-existing FastAPI warnings / 41.95 s**, exit 0, no
+failures/skips. `git status --short` shows no changes outside this entry,
+the matching `docs/V11_REQUIREMENTS_MATRIX.md` R25-R28 rows and
+`docs/V11_WORK_CHECKPOINT.md` — no production, test, V10, private-input or
+credential file touched. No full regression: a documentation-only audit
+correction carries no regression risk, consistent with the no-full-rerun
+precedent every prior no-defect audit batch set.
+
+No new C/J/E/A milestone: **87/200 (~44%); formal 1/50 (2%)**, unchanged.
+NOT_READY_TO_FUND; V10 unchanged/DEFERRED.
+
+Next unfinished action: R19/R24/R40's real local-implementation/evidence
+tails remain genuinely blocked without inventing unsupported per-factor
+sizing formulas or a calibrated probability model. R39 should not be
+revisited by more local code without first identifying a concrete,
+master-derived authorization model. R43/R44/R46-R49 remain genuinely
+owner/external/production blocked. The next genuinely unblocked local
+activity is another untouched guardian-class-defect audit target (R01 is
+already COMPLETE; R04, R07, R11, R16-R17, R41 have not yet been read
+end-to-end by this audit style; R02/R03/R05/R06/R08/R19/R24/R25-R28 now
+have).
