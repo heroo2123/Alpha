@@ -2417,3 +2417,61 @@ configuration-authorization model remain genuinely blocked. R31, R43/R44/
 R46-R49 remain owner/external/production blocked (R31 independently
 re-confirmed this batch). Next untouched guardian-class-defect audit
 targets: R04, R11, then R41.
+
+## Supervisor batch 6 — 2026-09-27: R41 guardian-class-defect audit, clean
+
+Recovery check: `git status` clean, local HEAD `724f264` equal to
+`origin/weather-v11-profitability-upgrade-2026-09-23`. Read this ledger, the
+checkpoint and the requirements matrix before editing. Current durable score
+at start: **87/200 (~44%); formal 1/50 (2%)**.
+
+Re-examined R24's independent-review-flagged reducer-wiring step first: the
+per-requirement table above already credits R24 with C/J (grouped with
+R25-R30), and batch 13's private-master re-verification already established
+that real per-factor `SizingFactors` values would require inventing an
+unsupported calibration formula (Upgrade H lists the nine names only as
+"Possible factors" with no derivation). Confirmed again this is not a
+reachable new C/J boundary; not reattempted. Redirected into the
+guardian-class-defect audit series' next untouched, smallest target: R41's
+durable audit scheduler/worker (`v11/audit_reports.py`, 372 lines) plus its
+`v11/paper_runtime.py` caller (402 lines; 774 lines total).
+
+Read both files end-to-end. `AuditScheduler.request_due` fails closed on any
+policy change since the last request and never duplicates an already-covered
+window. `AuditWorker._step`'s report publication is keyed by a content-
+addressed `request_id`, making it safely resumable if a crash lands between
+publishing the report and saving the worker's own head — the recovery branch
+matches on `config_sha256`/`request_id` and skips straight to the cursor
+update without re-scanning or double-publishing. `_fold`'s window-boundary
+gate excludes any row at/after the window end before either the "latest
+state as of window end" trackers or the per-window counters see it. In
+`paper_runtime.py`, traced the health-gating hierarchy: cancellation/
+retirement paths run regardless of health (they can only reduce risk), while
+new-risk creation gates on `hd['global_reasons']` alone — confirmed
+sufficient because `runtime_health.py::_sample` builds `clock_reasons` as a
+snapshot of the same `failures` list before worker/account checks are
+appended, so `clock_reasons` is always a subset of `global_reasons`. The
+health-independent maker-quote-retirement loop is still protected because
+its own `admission_heads` call (before the loop's expiry comparison)
+re-validates a live clock/liveness snapshot and raises
+`RUNTIME_CLOCK_OR_LIVENESS_GATED` on any staleness. Full trace in
+`docs/V11_WORK_CHECKPOINT.md` (supervisor batch 6, 2026-09-27). **No defect
+found.**
+
+No code changed. Verification (foreground): direct family —
+`tests/test_v11_audit_reports.py tests/test_v11_paper_runtime.py` — 33
+passed / 9.24 s, exit 0. Broader affected selection (`-k "audit_report or
+paper_runtime or runtime_health or paper_cancellation or maker_research or
+candidate_runner"`) — 190 passed / 56.67 s, exit 0, four pre-existing
+FastAPI warnings, no failures/skips. No full regression: documentation-only
+audit correction, no regression risk.
+
+No new C/J/E/A milestone: **87/200 (~44%); formal 1/50 (2%)**, unchanged.
+NOT_READY_TO_FUND; V10 unchanged/DEFERRED.
+
+Next unfinished action: R19/R24/R40 real evidence tails and R39's
+configuration-authorization model remain genuinely blocked. R43/R44/
+R46-R49 remain owner/external/production blocked. Next untouched
+guardian-class-defect audit targets: R04 (1,419 lines) and R11 (1,446
+lines) remain the largest; R01 is COMPLETE;
+R02/R03/R05/R06/R07/R08/R16/R17/R19/R24/R25-R28/R41 now audited clean.

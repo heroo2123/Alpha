@@ -8877,3 +8877,110 @@ guardian-class-defect audit target: R04 and R11 have not yet been read
 end-to-end by this audit style (R41 is now the smallest remaining untouched
 target after R04/R11); R01 is already COMPLETE;
 R02/R03/R05/R06/R07/R08/R16/R17/R19/R24/R25-R28 now have.
+
+## Supervisor batch 6 — 2026-09-27: R41 guardian-class-defect audit, clean
+
+Recovery check: `git status` clean, local HEAD `724f264` equal to
+`origin/weather-v11-profitability-upgrade-2026-09-23`, no unfinished process
+found. Read this checkpoint, the requirements matrix and the progress ledger
+before editing. Current durable score at start: **87/200 (~44%); formal
+1/50 (2%)**.
+
+Before choosing a target, re-examined whether R24's independent-review-
+flagged reducer wiring (`SizingFactors`/`size_within_ceiling` into
+`paper_coordinator._prepare`/`basket_coordinator`) could cross a fresh
+credit boundary this batch now that tests can be run across multiple
+sequential foreground calls instead of one single-call full regression.
+Confirmed this does not change the underlying credit accounting:
+`docs/V11_ENGINEERING_PROGRESS.md`'s per-requirement table already lists
+R24 at `C J` (grouped with R25-R30), and batch 13's independent
+private-master re-verification already established that real per-factor
+values would require inventing an unsupported calibration/quality formula
+(Upgrade H lists the nine names only as "Possible factors" with no
+derivation). Wiring the reducer with neutral placeholder factors would not
+add a new formal C/J credit (already held) and real calibration remains
+evidence-gated; it would only be defensible as a P0/P1 safety fix, which
+this is not (the existing reject-if-too-big ceiling check already fails
+closed). Confirmed still not a reachable local C/J boundary; not
+reattempted.
+
+Continued the guardian-class-defect audit series onto its next untouched,
+smallest target: R41's durable daily/weekly audit scheduler and worker
+(`v11/audit_reports.py`, 372 lines) plus the paper-runtime tick that calls
+it and gates all risk-creation on live health (`v11/paper_runtime.py`, 402
+lines) — 774 lines total, not previously read end-to-end by this audit
+style.
+
+Read both files in full, focused on this series' recurring question: can a
+partial/stale check ever let unreviewed state pass as reviewed, or let new
+risk creation proceed when it should be gated. `AuditScheduler.request_due`
+fails closed on a policy change since the last request
+(`AUDIT_POLICY_CHANGED_REVIEW_REQUIRED`) and never re-issues a request for
+an already-covered window (`old['end']>=end` short-circuit). `AuditWorker`
+is fully resumable and idempotent: `_step`'s report-publication path is
+re-derived from a content-addressed `report_key` (keyed only on
+`request_id`), so a crash after `store.audit(report_key, ...)` publishes
+but before the worker's own `_save(... 'AUDIT_COMPLETE')` head update is
+safely recovered on the next call — the `complete=self.store.get(report_key)`
+branch matches the same `config_sha256`/`request_id` and skips straight to
+the cursor/head update without re-scanning or double-publishing. `_fold`'s
+window-boundary handling is deliberate, not a leak: the "latest state as of
+window end" trackers (`station_latest`, `rule_quarantines`) run before the
+`at>=window['end']` gate is applied to per-window counters, but that gate
+itself is checked first and returns immediately for any row at/after the
+window end, so no future-dated row ever contributes to either the state
+trackers or the counters. The `AUDIT_PINNED_SEQUENCE_MISSING` guard in the
+scan loop fails closed on any gap in the pinned view's sequence range
+rather than silently treating a missing page as "nothing more to scan".
+
+For `paper_runtime.py`, traced the full per-tick health-gating hierarchy:
+the cancellation/retirement paths (active-plan resume, new-trigger
+cancellation, resting-admission cancellation checks, maker quote retirement)
+all run regardless of `hd['global_reasons']`/`hd['clock_reasons']` by
+design (they can only reduce risk, never create it), while new risk
+creation (source ingest, census scheduling, event evaluation/coordination)
+is gated behind `if hd['global_reasons']: ... else: ...` at
+`paper_runtime.py:326`. Independently confirmed this single check is
+sufficient rather than a gap: `runtime_health.py::_sample` builds
+`clock_reasons` as a snapshot of the same `failures` list before
+worker/account checks are appended, so `set(clock_reasons) <= set(
+global_reasons)` always holds — an empty `global_reasons` implies clock
+reasons are also empty, so gating new-risk creation on `global_reasons`
+alone (as `paper_runtime.py` does) cannot admit a clock failure the
+narrower `clock_reasons` check would have caught. Also traced the maker
+quote-retirement loop's unconditional-of-health execution (`paper_runtime.
+py:304-325`): its own `admission_heads(...)` call (line 316) independently
+re-reads a live `read_health_snapshot` and re-validates `global_reasons`,
+boot-id, and fresh wall/monotonic bounds against the health record's own
+stamp before the loop's later `quote['expires_at']` comparison is ever
+reached (`runtime_health.py::admission_heads`, lines 404-419), so a stale
+or untrusted local clock cannot let a bad quote be misjudged as still valid
+at this call site — it raises `RUNTIME_CLOCK_OR_LIVENESS_GATED` first.
+**No defect found.**
+
+No code changed. Verification (foreground): direct family —
+`tests/test_v11_audit_reports.py tests/test_v11_paper_runtime.py` —
+**33 passed / 9.24 s**, exit 0, no failures/skips. Broader affected
+selection (`-k "audit_report or paper_runtime or runtime_health or
+paper_cancellation or maker_research or candidate_runner"`): **190 passed,
+4 pre-existing FastAPI warnings / 56.67 s**, exit 0, no failures/skips.
+`git status --short` shows no changes outside this entry, the matching
+`docs/V11_REQUIREMENTS_MATRIX.md` R41 row and
+`docs/V11_ENGINEERING_PROGRESS.md` — no production, test, V10, private-input
+or credential file touched. No full regression: a documentation-only audit
+correction carries no regression risk, consistent with the no-full-rerun
+precedent every prior no-defect audit batch set.
+
+No new C/J/E/A milestone: **87/200 (~44%); formal 1/50 (2%)**, unchanged.
+NOT_READY_TO_FUND; V10 unchanged/DEFERRED.
+
+Next: R19/R24/R40's real local-implementation/evidence tails remain
+genuinely blocked without inventing unsupported formulas or a calibrated
+model (re-independently confirmed this batch for R24, not merely
+re-stated). R39 should not be revisited by more local code without first
+identifying a concrete, master-derived configuration-authorization model.
+R43/R44/R46-R49 remain genuinely owner/external/production blocked. The
+next genuinely unblocked local activity is another untouched
+guardian-class-defect audit target: R04 and R11 remain the largest
+untouched targets (1,419 and 1,446 lines respectively); R01 is already
+COMPLETE; R02/R03/R05/R06/R07/R08/R16/R17/R19/R24/R25-R28/R41 now have.
