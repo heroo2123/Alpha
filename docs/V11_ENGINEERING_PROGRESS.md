@@ -1,5 +1,56 @@
 # Supplementary engineering estimate
 
+Supervisor batch 15 — 2026-09-27: recovery check found `git status` clean,
+local HEAD `fecfc59` equal to `origin/weather-v11-profitability-upgrade-2026-09-23`.
+Per the mandatory score-velocity rule, excluded R40 (batch 14's `apparent_edge`
+addition already did not cross a boundary, so a second consecutive R40 batch
+needs a P0/P1 defect to justify it, and none was found) and R39 (already
+holds C/J; only owner/credential-gated E/A remain).
+
+Seriously investigated R24's dynamic-sizing wiring (`size_within_ceiling`/
+`SizingFactors` into `paper_coordinator._prepare`/`basket_coordinator`'s live
+quantity computation), which the independent batch-6 review flagged as real,
+non-owner-blocked engineering work distinct from R40/R39's evidence-gated
+tails. Concluded it is genuinely local-implementation work but has a blast
+radius (live `units`/`capital_at_risk`/`conservative_ev_total` computation,
+consumed by replay/performance/drift/position-management tests across many
+files, with zero existing coordinator-level integration test coverage today)
+that cannot be safely verified within this batch: this host's full suite runs
+approximately 1113-1125s against this tool's 600s foreground cap with no
+background execution authorized. Shipping it unverified would trade one
+batch's score-velocity for an unverified change to live PAPER capital sizing,
+which this project's correctness-over-velocity and financial-boundary rules
+weigh against. Not attempted; recorded once per the redirect rule.
+
+Redirected to R42, the next requirement on batch 10's own untouched-audit
+list. Read `v11/drift.py`, `v11/drift_runtime.py`, `v11/model_registry.py`
+and `host_trust/v11-model-authority/authority.py` in full (1,102 lines, none
+previously covered by this audit series) for the same guardian-class defect
+class the batch-6 review found in R23. No defect found: `DriftWorker.step()`
+fails closed to `REDUCTION_GATED`/`MEASUREMENT_GATED` on any review/label/
+account/head mismatch; `authority.py`'s `DEMOTE` transition only ever reduces
+(never restores) the overlay `size_multiplier` and always sets
+`require_manual_review=True`; and that overlay is independently re-checked on
+every `StrategyAdmission._assess()`/`revalidate()` call, so a mid-flight
+demotion both blocks new admissions (`MODEL_MANUAL_REVIEW`) and invalidates
+already-pinned ones (`STRATEGY_AUTHORITY_OR_SOURCE_CHANGED_RECOMPUTE`) before
+`model_size_multiplier` reaches `paper_coordinator._prepare`'s sizing gate —
+confirming the demotion is enforced end-to-end, not merely written. No new
+C/J/E/A milestone: **87/200 (~44%); 1/50 (2%)**, unchanged. NOT_READY_TO_FUND;
+V10 unchanged/DEFERRED.
+
+Verification: `pytest tests/test_v11_drift.py tests/test_v11_drift_runtime.py
+tests/test_v11_calibration_drift.py tests/test_v11_realized_drift.py
+tests/test_v11_markout_drift.py tests/test_v11_model_governance.py
+tests/test_v11_model_slots.py tests/test_v11_strategy_admission.py` —
+**204 passed / 68.92 s**, exit 0, no failures/skips. Broader:
+`-k "drift or model_governance or model_slots or strategy_admission or
+paper_coordinator or basket_coordinator or host_authority"` — **400 passed /
+102.74 s**, exit 0, four pre-existing FastAPI warnings, no failures/skips. No
+production or test code changed (audit-only); `git status --short`/`git diff
+--stat` both empty. No full regression: no source changed. Full detail:
+`docs/V11_WORK_CHECKPOINT.md` (supervisor batch 15).
+
 Supervisor batch 14 — 2026-09-27: acting on the independent batch-6 review's
 own next step below ("complete one remaining R40 profile ... do not redirect
 to another audit solely because no new score unit is available"), added the

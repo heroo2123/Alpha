@@ -1,5 +1,131 @@
 # Alpha V11 work checkpoint
 
+## Supervisor batch 15 — 2026-09-27: R24 wiring risk assessment, R42 audit-clean
+
+Recovery check: `git status` clean, local HEAD `fecfc59` equal to
+`origin/weather-v11-profitability-upgrade-2026-09-23`, no unfinished process
+found (the only running `claude` process was this invocation). Read this
+checkpoint, the requirements matrix and the progress ledger before editing.
+
+Per the mandatory score-velocity rule, R40 was excluded this batch: batch 14
+(immediately preceding) added R40's `apparent_edge` Upgrade N profile without
+crossing a new C/J/E/A boundary (R40 already held C/J), so a further R40
+profile this batch would be a second consecutive non-crossing batch on the
+same requirement, which the rule forbids absent a P0/P1 defect. R39 was also
+not touched, per the same rule already applied by batch 14 (it already holds
+C/J; only owner/credential-gated E/A remain).
+
+The independent supervisor-batch-6 review (recorded lower in this file)
+explicitly named R24's dynamic-sizing wiring — `size_within_ceiling`/
+`SizingFactors` into `paper_coordinator._prepare`'s and
+`basket_coordinator`'s live quantity computation, replacing the current
+reject-if-too-big-only ceiling check — as real, non-owner-blocked local
+engineering work, distinct from R40/R39's genuinely evidence/owner-gated
+tails. This batch investigated it seriously before deciding whether to
+attempt it.
+
+Traced the actual call sites: `v11/paper_coordinator.py::_prepare` computes
+`quantity = number(value['units'])` directly from the pinned valuation and
+only rejects the whole proposal if it exceeds
+`max_position_units*size_multiplier*model_size` (`EVENT_STATE_SIZE_LIMIT`);
+`v11/basket_coordinator.py` enforces the identical check per leg. Wiring in
+`size_within_ceiling` would change `quantity`/`units` itself (scaled down by
+the product of nine caller-supplied `SizingFactors`, each in `[0,1]`) for
+every candidate that currently passes the ceiling check, which cascades into
+`capital_at_risk`, `conservative_ev_total`, every downstream reconciliation/
+performance/drift/replay computation that reads those fields, and very
+likely the exact-quantity assertions in `tests/test_v11_paper_coordinator.py`
+(346 lines) and `tests/test_v11_basket_coordinator.py` (298 lines) plus an
+unknown number of the broader replay/performance/drift suites that consume
+candidate output transitively. Confirmed via `grep` that `SizingFactors`/
+`size_within_ceiling` are exercised today only by direct unit tests inside
+`test_v11_paper_coordinator.py` (no `test_v11_allocation.py` exists), calling
+the function in isolation — never through the coordinator — so there is no
+existing integration test coverage to lean on for this change's actual blast
+radius.
+
+Given this host's recorded full-suite runs take approximately 1113-1125s
+against this tool's 600s foreground cap with no background execution
+authorized this batch, a change with this blast radius could not be safely
+verified end-to-end within this batch. Implementing it now would mean either
+(a) shipping an unverified change to the live PAPER capital-sizing path, which
+CLAUDE.md's correctness-over-velocity instruction and this project's
+financial-boundary caution both weigh against, or (b) spending the entire
+batch's testing budget updating every affected assertion across an unknown
+number of files without being able to confirm no other regression exists.
+Neither is an acceptable trade for one batch's score-velocity gain, especially
+since wiring the reducer would not itself close R24's row (real calibration
+for the nine factors remains separately evidence-gated per the existing text).
+Recorded once here per the redirect rule; not attempted this batch. This is
+not a claim that R24 is owner-blocked — it is a genuine local-implementation
+task that needs a batch/environment with adequate regression capacity (or a
+deliberately staged, narrowly-scoped rollout designed across multiple
+batches) rather than a single-pass attempt here.
+
+Redirected to R42 (Drift and station/strategy lifecycle), the next
+requirement on batch 10's own "R05, R10-R17, R24-R28, R40-R42, R45 remain
+untouched by this audit style" list whose predecessors (R05, R24, R40) are
+now each either audit-clean or completed. Read `v11/drift.py` (227 lines),
+`v11/drift_runtime.py` (419 lines), `v11/model_registry.py` (142 lines) and
+`host_trust/v11-model-authority/authority.py` (314 lines) — 1,102 lines total,
+none previously read end-to-end by this audit series — looking for the same
+class of guardian-class defect (a check that should trigger a safety
+reduction/review but silently doesn't) the batch-6 review found in R23's
+sticky-fault path.
+
+Traced the full demotion chain: `DriftWorker.step()` only reaches
+`StationRegistry.demote(...)` after `_review()` validates an exact,
+predeclared, unexpired, reduction-only (`SAFETY_REDUCTION_ONLY`,
+`financial_authority=False`) review bound to the current active model epoch
+via `ActiveModelRegistry.revalidate()`, and after `_labels_current()`/
+`_markouts_current()`/an account-snapshot-identity check confirm no
+underlying evidence changed since measurement; any `EvidenceError`,
+`KeyError`, `TypeError` or `ValueError` in that block falls through to
+`outcome='REDUCTION_GATED'` rather than a silent pass, and `step()`'s own
+replay path (`old['body']['details']`) refuses to re-run under a changed
+config. Separately, `host_trust/v11-model-authority/authority.py::transition()`'s
+`DEMOTE` action rejects any `size_multiplier` greater than the overlay's
+current value (`AUTOMATIC_RECOVERY_FORBIDDEN` otherwise — monotonic, no
+same-action self-restoration) and unconditionally sets
+`require_manual_review=True`. Confirmed this overlay is not merely written
+and ignored: every subsequent `StrategyAdmission._assess()` call re-pins via
+`ActiveModelRegistry().pin()`/`.revalidate()` (`v11/strategy_admission.py:88-91`),
+raising immediately if `require_manual_review` is set or `size_multiplier<=0`;
+`revalidate()` (the CAS-style recheck of an already-pinned admission) compares
+`model_size_multiplier` against the originally pinned value and raises
+`STRATEGY_AUTHORITY_OR_SOURCE_CHANGED_RECOMPUTE` the instant it changes — so a
+demotion applied mid-flight invalidates every outstanding pinned admission
+before `paper_coordinator._prepare`'s `model_size = min(... model_size_multiplier
+...)` ever reads a stale value. No defect found in this chain.
+
+This does not close any of R42's own actually-named remaining gaps (archived
+proof delivery, matched EV/mark-to-market drawdown/residual bias,
+statistically meaningful rolling drift, actual operational/independent
+acceptance are all explicitly still open per the row's own text), so no new
+C/J/E/A credit is claimed. Verification (foreground):
+`tests/test_v11_drift.py tests/test_v11_drift_runtime.py
+tests/test_v11_calibration_drift.py tests/test_v11_realized_drift.py
+tests/test_v11_markout_drift.py tests/test_v11_model_governance.py
+tests/test_v11_model_slots.py tests/test_v11_strategy_admission.py` —
+**204 passed / 68.92 s**, exit 0, no failures/skips. Broader:
+`-k "drift or model_governance or model_slots or strategy_admission or
+paper_coordinator or basket_coordinator or host_authority"` — **400 passed /
+102.74 s**, exit 0, four pre-existing FastAPI warnings, no failures/skips.
+`git status --short` and `git diff --stat` are both empty: no production,
+test, V10, private-input or credential file touched (audit-only). No full
+regression: no source changed.
+
+**87/200 (~44%); formal 1/50 (2%)**, unchanged. NOT_READY_TO_FUND; V10
+unchanged/DEFERRED. R42 joins the audit-clean pool alongside R05/R06/R07/R08/
+R18/R23/R24/R29/R30/R32/R33/R34-R36/R38/R09. Next: R24's dynamic-sizing wiring
+remains the most concrete known local-implementation gap but needs a batch or
+environment with genuine full-regression capacity (or a deliberately staged,
+narrowly-scoped multi-batch rollout) to attempt safely; absent that, continue
+the audit sweep onto R02/R03/R10-R17/R19-R22/R25-R28/R41/R45, none of which
+this series has yet covered. R31/R39's E-A/R43/R44/R46-R49 remain genuinely
+owner/external/production blocked and should not consume another batch
+without new real evidence or an owner decision.
+
 ## Supervisor batch 14 — 2026-09-27: R40 apparent-edge Upgrade N profile
 
 Recovery check: `git status` clean, local HEAD `4ca7402` equal to
