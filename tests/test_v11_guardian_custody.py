@@ -290,6 +290,66 @@ def test_namespace_requires_three_assigned_subordinate_ids(entry, monkeypatch):
         custody._subordinate("subuid")
 
 
+@pytest.mark.parametrize("condition", ["allowed", "denied", "residual_groups", "bad_uid", "bad_gid"])
+def test_namespace_outer_groups_require_completed_mapping(condition, monkeypatch, capsys):
+    """Model the kernel gate and parent handshake without granting host privileges."""
+    from types import SimpleNamespace
+
+    state = dict(mapped=False, groups=[27], clear_attempts=[], entered=False)
+    overflow = (65534,) * 3
+
+    def unshare(name, flags):
+        assert (name, flags) == ("unshare", 0x10000000)
+
+    def mapped_request(maximum):
+        # The parent can install mappings only after this exact ready message.
+        assert json.loads(capsys.readouterr().out) == {"mapping_ready": os.getpid()}
+        state["mapped"] = True
+        return b"{}\n"
+
+    def identities(kind):
+        return (0,) * 3 if state["mapped"] and condition != "bad_" + kind else overflow
+
+    def setgroups(groups):
+        state["clear_attempts"].append(state["mapped"])
+        if not state["mapped"] or condition == "denied":
+            raise PermissionError(errno.EPERM, "setgroups requires a permitted populated GID map")
+        assert groups == []
+        if condition != "residual_groups":
+            state["groups"] = []
+
+    def enter_inner():
+        assert state["mapped"] and state["groups"] == []
+        state["entered"] = True
+        return 0  # Stop before creating any real namespace or role process.
+
+    monkeypatch.setattr(custody, "_libc_call", unshare)
+    monkeypatch.setattr(custody.os, "getuid", lambda: 1000)
+    monkeypatch.setattr(custody.os, "getresuid", lambda: identities("uid"), raising=False)
+    monkeypatch.setattr(custody.os, "getresgid", lambda: identities("gid"), raising=False)
+    monkeypatch.setattr(custody.os, "setgroups", setgroups, raising=False)
+    monkeypatch.setattr(custody.os, "getgroups", lambda: list(state["groups"]))
+    monkeypatch.setattr(custody.sys, "stdin", SimpleNamespace(buffer=SimpleNamespace(readline=mapped_request)))
+    monkeypatch.setattr(custody, "_enter_custody_namespace", enter_inner)
+
+    outcome = custody._namespace_child()
+    assert state["mapped"], "group clearing must not precede the helper-map handshake"
+    assert state["clear_attempts"] == ([] if condition.startswith("bad_") else [True])
+    assert state["entered"] is (condition == "allowed")
+    output = capsys.readouterr().out
+    if condition == "allowed":
+        assert outcome == 0 and output == ""
+    else:
+        assert outcome == 2
+        failure = json.loads(output)
+        assert failure["status"] == "FAILED"
+        assert "PASSED" not in output
+        if condition == "denied":
+            assert failure["error_type"] == "NamespaceFailure"
+            assert "mapped outer namespace cannot clear groups" in failure["reason"]
+            assert all(name in failure["reason"] for name in ("gid_map", "setgroups", "CapEff"))
+
+
 if __name__ == "__main__":
     mode = sys.argv[1]
     role = {"--wait": "candidate", "--broker": "broker", "--guardian": "guardian", '--guardian-failure':'guardian',"--candidate": "candidate"}.get(mode)

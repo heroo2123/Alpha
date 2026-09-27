@@ -1,5 +1,17 @@
 # V11 requirement-to-code/test/evidence matrix
 
+Independent batch-12 review — 2026-09-27: repaired the published fixture's
+pre-mapping group-clear regression; all five new cases failed before correction.
+**21 focused passed / 11 prerequisite skips; 496 integration passed / 11 skips,
+four existing warnings / 54.80 s**, with 740 input hashes unchanged. Local
+mapped-principal custody remains unavailable; the predecessor's separate
+post-mapping CI refusal still needs runner diagnostics. Historical WSL evidence
+is preserved. See `V11_CI_FINDINGS.md` and the independent batch-12 checkpoint.
+R39 protected-configuration and consumer-ownership work remains an offline
+implementation/test obligation; real credentials and commissioning are separate.
+R37/R38/R39/R45 remain PARTIAL. No new C/J/E/A: **85/200 = 42.5% (~43%);
+1/50 (2%)**. NOT_READY_TO_FUND; V10 unchanged/DEFERRED.
+
 Independent batch-11 review — 2026-09-27: the published first-claim mechanism
 blocked an exact legacy owner handoff until the previous configuration polled
 again. Reproduced with the predecessor's actual code, then four failing upgrade/

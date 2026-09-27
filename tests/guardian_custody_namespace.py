@@ -339,14 +339,11 @@ def _role_child(role, argv):
 def _enter_custody_namespace():
     """Deny setgroups before an inner GID map, then fork the inner namespace.
 
-    The outer namespace already cleared its inherited groups immediately after
-    its own unshare, before the external uidmap helpers ran (see
-    ``_namespace_child``): once an unprivileged helper writes a GID map for a
-    process, that process's own setgroups is left permanently denied, so
-    clearing groups must happen before that write, not after. Its controller
-    maps an inner namespace with the same IDs after the child irrevocably
-    denies setgroups. All capability-bearing controllers remain namespace-only
-    root.
+    The helper-mapped outer namespace has already cleared inherited groups in
+    ``_namespace_child``. Its controller maps an inner namespace with the same
+    IDs after the child irrevocably denies setgroups. This preserves empty
+    groups while preventing role processes from adding any later. All
+    capability-bearing controllers remain namespace-only root.
     """
     ready_read, ready_write = os.pipe()
     mapped_read, mapped_write = os.pipe()
@@ -394,12 +391,6 @@ def _namespace_child():
         if os.getuid() == 0:
             raise NamespaceUnavailable("host root launch is forbidden")
         _libc_call("unshare", 0x10000000)  # Outer USER namespace for helper maps.
-        # Clear inherited groups now: once the external uidmap helpers below
-        # write this process's GID map, its own setgroups is left permanently
-        # denied and this call would fail with EPERM.
-        os.setgroups([])
-        if os.getgroups():
-            raise NamespaceUnavailable("outer namespace supplementary groups remain")
         print(json.dumps({"mapping_ready": os.getpid()}), flush=True)
         raw = sys.stdin.buffer.readline(MAX_INPUT + 2)
         if len(raw) > MAX_INPUT + 1:
@@ -407,6 +398,19 @@ def _namespace_child():
         request = json.loads(raw)
         if os.getresuid() != (0, 0, 0) or os.getresgid() != (0, 0, 0):
             raise NamespaceUnavailable("caller mapping did not establish namespace-only root")
+        # Even namespace-root needs a populated GID map before setgroups works.
+        # Approved subordinate-ID helpers can preserve setgroups=allow. Clear
+        # inherited groups here, before the inner namespace irreversibly denies it.
+        try:
+            os.setgroups([])
+        except PermissionError as exc:
+            state = {name: Path("/proc/self", name).read_text().strip()
+                     for name in ("uid_map", "gid_map", "setgroups")}
+            state["credentials"] = _credentials()
+            raise NamespaceFailure("mapped outer namespace cannot clear groups: "
+                                   + json.dumps(state, sort_keys=True)) from exc
+        if os.getgroups():
+            raise NamespaceUnavailable("outer namespace supplementary groups remain")
         proxy_result = _enter_custody_namespace()
         if proxy_result is not None:
             return proxy_result

@@ -28,35 +28,57 @@ runners. The subsequent coordinator implementation passed run `35933951235` at
 the blocked local UID probe is still not represented as a successful test. These
 synthetic checks do not prove real host commissioning or independent review.
 
-# Guardian/liveness custody namespace fixture finding
+# Guardian/liveness custody namespace fixture finding — corrected review
 
-Every GitHub Actions `tests` run since commit `7b5db86f7d` ("Add PAPER
-cancel-only guardian broker and durable recovery", 2026-09-25) failed the same
-11 parametrized cases in `tests/test_v11_guardian_custody.py` and
-`tests/test_v11_liveness_custody.py`, each raising
-`guardian_custody_namespace.NamespaceFailure` wrapping
-`PermissionError: [Errno 1] Operation not permitted` inside
-`_enter_custody_namespace` at its first `os.setgroups([])` call.
+Independent batch-12 review, 2026-09-27, of published
+`d4f960d18080f7051cfeb9139f10602c990e0ae1` against
+`102812d48bcd54891a84b4e00aeb112cd0675672`.
 
-This dev host lacks `newuidmap`/`newgidmap`, so `prerequisites()` always
-raises `NamespaceUnavailable` here and the same 11 cases skip locally
-(`EXTERNAL_CUSTODY_GATE_UNAVAILABLE`); GitHub's runner has real `uidmap`
-tooling installed, so it is the first environment that ever executed this
-fixture's actual namespace path. Root cause: the outer helper-mapped
-namespace tried to clear its inherited groups only after the external
-unprivileged `newuidmap`/`newgidmap` helpers had already written its GID map;
-per Linux user-namespace semantics that write permanently denies
-`setgroups()` for that process as a side effect, so the later clear call
-always fails with `EPERM` on any host with real `uidmap` tooling — not a
-GitHub-specific restriction.
+The published change moved `os.setgroups([])` before the outer GID map.
+That ordering cannot work on Linux, even with namespace capabilities.
+A disposable unprivileged probe on alpha-dev confirmed: `unshare` succeeded,
+`gid_map` was empty, `setgroups` policy was `allow`, and the syscall returned
+`EPERM`. The [Linux user-namespace manual](https://man7.org/linux/man-pages/man7/user_namespaces.7.html)
+requires a populated GID map before group-changing calls. The
+[upstream newgidmap implementation](https://github.com/shadow-maint/shadow/blob/master/src/newgidmap.c)
+preserves permission to call setgroups when an assigned subordinate-GID range
+is authorized; mapping does not unconditionally force a permanent deny.
 
-Fix (`tests/guardian_custody_namespace.py`, batch 12, 2026-09-27): moved the
-group-clearing call to immediately after the first `unshare(CLONE_NEWUSER)`,
-before the external uidmap helpers run, when the process is still
-full-capability in its own fresh namespace and no GID map has been written
-yet. No production code changed; no security property loosened. Local
-`-k "guardian or liveness or custody"`: 491 passed, 11 skipped (same skip
-count as before, all attributable to the missing local `uidmap` package), 0
-failed. Confirmation that this resolves the actual GitHub Actions failure
-requires the next run on the real runner; record that run's ID/result here
-once observed.
+The published commit's [CI run 36294265757](https://github.com/heroo2123/Alpha/actions/runs/36294265757)
+subsequently failed all 11 custody cases on both Python versions, before
+`mapping_ready`, at `_namespace_child` line 400. Python 3.11 recorded
+**11 failed, 4909 passed, four warnings / 606.73 s**; Python 3.12 recorded
+**11 failed, 4909 passed, four warnings / 483.82 s**. These are failures,
+not successful custody proofs or skips.
+
+Correction: wait for the helpers' mapping handshake, verify namespace-only
+root IDs, then clear and verify supplementary groups before entering the
+inner namespace. The inner deny-before-map handshake, distinct role IDs,
+zero-capability/no-new-privileges checks, network/PID isolation, time/resource
+bounds and all production code remain unchanged. A post-mapping permission
+failure remains a failed fixture and now includes bounded UID/GID-map,
+setgroups-policy and process-credential diagnostics. No skip or host-policy
+exception was added.
+
+The predecessor's [CI run 36293719634](https://github.com/heroo2123/Alpha/actions/runs/36293719634)
+failed at the later, post-mapping group clear. Its logs lack the kernel-state
+diagnostics needed to establish that cause. This review fixes the newly
+introduced ordering defect; it does **not** claim the older CI failure is
+resolved. Read the new diagnostics on the corrected commit's runner before
+choosing a further remedy. Do not weaken custody assertions or change host
+policy to obtain a green result.
+
+The earlier claim that GitHub was the first environment to execute the fixture
+was also incorrect: `V11_GUARDIAN_CUSTODY_EVIDENCE.md` records **20 passed,
+zero skipped** in WSL on 2026-09-25, including four actual custody/restart
+scenarios. Preserve that historical evidence for its recorded scope.
+
+Local alpha-dev still lacks `newuidmap`/`newgidmap`; all 11 actual custody
+cases remain explicitly unavailable. Five new bootstrap regression cases
+failed on the published code. The corrected custody modules passed **21,
+with 11 prerequisite skips / 0.22 s**. They cover successful mapped clearing,
+permission denial, residual groups, and invalid UID/GID mappings; simulated
+bootstrap checks do not establish actual mapped-principal custody.
+Final related integration, provenance and remaining requirements are recorded
+in the independent batch-12 entry in `V11_WORK_CHECKPOINT.md`. No full local
+regression, new C/J/E/A credit or production acceptance is claimed.

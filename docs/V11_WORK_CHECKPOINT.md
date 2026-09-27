@@ -1,5 +1,76 @@
 # Alpha V11 work checkpoint
 
+## Independent batch-12 review — mapped group clearing, 2026-09-27
+
+Reviewed published `d4f960d18080f7051cfeb9139f10602c990e0ae1` against
+`102812d48bcd54891a84b4e00aeb112cd0675672` on
+`weather-v11-profitability-upgrade-2026-09-23`. Started clean with local/remote
+agreement and no active Claude process. Read CLAUDE.md, the V11 ledgers and the
+complete authoritative master; its SHA-256 matches the pinned digest. All
+file/Git/test operations used Remote Desktop Commander on alpha-dev,
+sequentially, without delegated workers.
+
+The published fixture cleared supplementary groups before its outer GID map
+existed. A disposable native probe reproduced EPERM with an empty map and
+setgroups policy `allow`; five new regression cases failed on the published
+code (**5 failed / 0.18 s**). The published commit's completed CI run
+`36294265757` confirms the same pre-mapping failure in all 11 custody cases
+on Python 3.11 and 3.12. Exact results and primary Linux/uidmap references:
+[CI findings](V11_CI_FINDINGS.md).
+
+Group clearing now follows the completed helper-map handshake and verified
+namespace-only root IDs. It must succeed and leave no supplementary groups
+before the unchanged inner deny-before-map sequence. Post-mapping refusal
+remains a failed fixture, with bounded map/policy/credential diagnostics.
+Role privilege drops, custody assertions, isolation and production behavior
+are unchanged. No missing-prerequisite or failure condition became a pass.
+
+Verification with `/home/alphaadmin/AlphaV11_Dev/venv/bin/python` (3.12.3):
+
+- Custody modules: **21 passed, 11 skipped / 0.22 s**, exit 0.
+- Related `-k "guardian or liveness or custody"` integration:
+  **496 passed, 11 skipped, four existing warnings / 54.80 s**, exit 0.
+- The five added cases cover successful mapped clearing, permission refusal,
+  residual groups and invalid UID/GID mappings. These are bootstrap model
+  tests; the native empty-map probe verifies the kernel prerequisite only.
+- All **740 tracked Python/configuration/dependency input hashes** matched
+  before/after each run and the final tested source. Logs, JUnit, exact argv,
+  patches, manifests and results: `/tmp/v11-codex-b12-tqfc0cuu/`;
+  runner: `run.py`; successful integration: `integration-final/`.
+- The first integration attempt recorded 7 failed, 489 passed, 11 skipped:
+  this review's scratch parent was created mode 0775 under the host umask,
+  correctly tripping BROKER_SOCKET_PARENT_CUSTODY. Creating the review-owned
+  parent as 0700 fixed the harness; the two affected broker modules then
+  passed **89 / 23.51 s** before the successful related integration.
+  No repository guard was changed. Both attempts are retained.
+- No full local regression rerun for this fixture-only correction.
+
+This fixes the new pre-mapping defect, not the predecessor's post-mapping
+CI EPERM. That earlier cause remains unverified pending the corrected runner's
+new kernel-state diagnostics. The 11 alpha-dev custody skips still require
+uidmap prerequisites; no package or host-policy change was attempted. Prior
+WSL custody evidence in `V11_GUARDIAN_CUSTODY_EVIDENCE.md` remains valid for
+its recorded scope, contrary to batch 12's original first-execution claim.
+
+Batch 12's blanket deferral of R39 offline work was also unsupported. The
+master requires the established independent host authority and protected
+boundaries; absence of a prescribed implementation does not waive offline
+configuration-custody and consumer-ownership/recovery design and tests.
+Actual credentials and commissioning require separate authorization. No R39
+code or acceptance is changed by this review.
+
+No new C/J/E/A credit: **85/200 = 42.5% (~43%); 1/50 (2%)**.
+R37/R38/R39/R45 remain PARTIAL; **NOT_READY_TO_FUND**. V10 unchanged/DEFERRED;
+no services, credentials, private inputs or financial authority changed.
+Resolve this review's publishing commit/tree with
+`git log -1 --format='%H %T' -- docs/V11_WORK_CHECKPOINT.md`.
+
+**Exact next unfinished action:** inspect the corrected commit's CI custody
+diagnostics and resolve the remaining post-mapping refusal without relaxing
+the boundary. Preserve any genuine runner prerequisite explicitly. Continue
+R39's offline protected-configuration/consumer-ownership work using the
+existing independent authority; do not infer production approval.
+
 ## Independent batch-11 review — preserve legacy operator rotation, 2026-09-27
 
 Reviewed published 462c40309c0c098bdcf7ae42ec88ca6c2b0da779 (tree
@@ -6192,47 +6263,16 @@ R43/R44 authentication/isolated-deployment verification, both of which need
 real external source or owner-authorized access rather than further local
 implementation.
 
-## Supervisor batch 12 — 2026-09-27
+## Original supervisor batch 12 — 2026-09-27, corrected above
 
-Recovery check: `git status` clean, local HEAD `102812d` equal to
-`origin/weather-v11-profitability-upgrade-2026-09-23`;
-`AlphaV11_Supervisor/STATUS.md` recorded this exact invocation as batch 12/24.
-No unfinished same-batch work to recover.
+The original invocation started clean at `102812d`, matching the V11 remote.
+It changed only the custody fixture and documentation and reported **16 passed,
+11 skipped** in the custody modules, then **491 passed, 11 skipped / 55.01 s**
+in the related selection. Those local skips did not execute the changed path.
+No full local regression or new C/J/E/A credit was claimed:
+**85/200 (~43%); 1/50 (2%)**, NOT_READY_TO_FUND; V10 unchanged/DEFERRED.
 
-Before continuing R39, the master specification (hash-verified against the
-pinned digest in CLAUDE.md) was checked directly for a non-cooperative
-operator-configuration authorization/custody model, since that was the one
-remaining local-only R39 gap every batch since 8 deferred pending exactly this
-check. The master defines only generic "operator/reviewer request" and user
-"explicit authorization" language for configuration changes; it does not
-define who is authorized to approve a specific configuration change or any
-concrete non-cooperative custody scheme. Inventing one would be exactly the
-kind of unsupported permission this project's operating rules forbid, so this
-sub-item is correctly gated, not a local implementation gap; R39 is not
-touched further this batch to avoid endlessly deepening an already-credited
-slice per the batch's own priority rules.
-
-`gh run list` showed 30+ consecutive failing CI runs since commit `7b5db86f7d`
-(2026-09-25), always the same 11 parametrized guardian/liveness custody cases
-failing with `PermissionError` inside the disposable namespace test fixture
-`tests/guardian_custody_namespace.py`. Diagnosed and fixed the root cause
-(fixture cleared inherited groups after an external `uidmap` helper had
-already permanently denied `setgroups()` for that process, instead of
-before); see docs/V11_CI_FINDINGS.md and the matching engineering-progress
-entry for full detail. Only the test fixture changed; no production code
-touched. Local `-k "guardian or liveness or custody"`: 491 passed / 11
-skipped / 0 failed, 55.01 s — the 11 skips are the same pre-existing
-`EXTERNAL_CUSTODY_GATE_UNAVAILABLE` cases caused by this dev host lacking the
-`uidmap` package (no sudo used to install it), unrelated to the fix. No full
-regression: single test-fixture-file change.
-
-This restores existing required CI verification; it does not complete new
-requirement scope. No new C/J/E/A milestone: **85/200 (~43%); 1/50 (2%)**,
-unchanged. NOT_READY_TO_FUND; V10 unchanged/DEFERRED. Next: confirm the
-pushed commit's GitHub Actions run turns the 11 previously-failing cases
-green (the real environment this defect needed to be observed in); if a
-different failure surfaces there, diagnose it next. Otherwise continue
-closing PARTIAL requirements whose remaining gaps are genuinely local, since
-R39's, R31's and R43/R44's remaining gaps all now require owner-authorized
-credentials/infrastructure/deployment decisions rather than further local
-implementation.
+Its pre-mapping group-clear fix, universal uidmap-denial explanation,
+first-execution claim and blanket R39 owner-only deferral were incorrect.
+The independent review at the top of this checkpoint supersedes those claims
+and records the bounded correction, actual CI failure and remaining work.

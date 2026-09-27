@@ -1,5 +1,31 @@
 # Supplementary engineering estimate
 
+Independent batch-12 review — 2026-09-27: published `d4f960d` moved group
+clearing before the outer GID map, which a native empty-map probe and five
+failing regression cases disproved. Its CI run `36294265757` failed all
+11 custody cases on both Python versions before the mapping handshake.
+The fixture now clears/verifies groups after helper mapping and verified root
+IDs, before the unchanged inner deny-before-map boundary. Permission failures
+remain failures with bounded kernel-state diagnostics; no production gate changed.
+
+**21 focused passed, 11 skipped / 0.22 s; 496 related integration passed,
+11 skipped, four existing warnings / 54.80 s**, exit 0; all 740 tracked input
+hashes unchanged. The review's initial integration scratch-parent mode caused
+seven custody failures; correcting only that harness parent yielded 89 broker
+passes and then the successful related run. Exact attempts and provenance:
+`docs/V11_WORK_CHECKPOINT.md`, `/tmp/v11-codex-b12-tqfc0cuu/`.
+No full local regression. Missing local uidmap and the predecessor's separate
+post-mapping CI refusal remain unverified; prior recorded WSL custody passes
+are preserved. The original batch's universal-denial/first-execution explanation
+and blanket R39 owner-only deferral are superseded. Offline configuration
+custody and consumer-ownership design/tests remain required under the existing
+independent authority; credentials/commissioning remain separate gates.
+
+No new C/J/E/A: **85/200 = 42.5% (~43%); 1/50 (2%)**.
+R37/R38/R39/R45 PARTIAL; NOT_READY_TO_FUND; V10 unchanged/DEFERRED.
+Next: inspect corrected CI kernel-state diagnostics without weakening custody,
+then continue the required offline integrations.
+
 Independent batch-11 review — 2026-09-27: the published first-claim mechanism
 blocked an exact legacy owner handoff until the previous configuration polled
 again. Reproduced with the predecessor's actual code, then four failing upgrade/
@@ -1114,70 +1140,17 @@ confirm the fully corrected failure count, then continue closing PARTIAL
 requirements end-to-end.
 
 
-Guardian/liveness custody namespace fixture defect fixed (CI red for 30+
-commits) — 2026-09-27: recovery check found `git status` clean, local HEAD
-`102812d` matching `origin/weather-v11-profitability-upgrade-2026-09-23`, and
-`AlphaV11_Supervisor/STATUS.md` recording this exact invocation as batch
-12/24. R39's own remaining local option (protected, non-cooperative
-configuration custody) was checked against the hash-verified authoritative
-master (`sha256sum` matched the pinned digest in CLAUDE.md): the master
-defines only generic "operator/reviewer request" and user "explicit
-authorization" language for configuration changes, no concrete non-cooperative
-authorization/custody model to implement, confirming prior batches' choice not
-to invent one; this sub-item remains correctly gated rather than a local
-implementation gap.
+Original supervisor batch 12 — 2026-09-27 (corrected by the independent
+review above): changed the custody test fixture and documentation after finding
+repeated CI failures. Reported **16 passed, 11 skipped** in the custody modules
+and **491 passed, 11 skipped / 55.01 s** in the related selection. Missing local
+uidmap meant those skips never executed the altered namespace path. No full
+local regression or new C/J/E/A credit: **85/200 (~43%); formal 1/50 (2%)**,
+NOT_READY_TO_FUND; V10 unchanged/DEFERRED.
 
-`gh run list` showed every push since commit `7b5db86f7d` ("Add PAPER
-cancel-only guardian broker and durable recovery", 2026-09-25) had failed CI
-(30+ consecutive red runs), always the same 11 parametrized
-`test_v11_guardian_custody.py`/`test_v11_liveness_custody.py` cases, each
-raising `PermissionError: [Errno 1] Operation not permitted` inside
-`tests/guardian_custody_namespace.py`'s `_enter_custody_namespace` at the
-first `os.setgroups([])` call. This dev host has no `newuidmap`/`newgidmap`
-installed, so the fixture's `prerequisites()` check always skips these tests
-locally (`EXTERNAL_CUSTODY_GATE_UNAVAILABLE`) and the defect was invisible
-here; GitHub's runner has real `uidmap` tooling and is the first environment
-that ever actually executed this fixture's namespace path.
-
-Root cause: the fixture's outer helper-mapped namespace called
-`os.setgroups([])` to clear inherited groups only *after* the external
-unprivileged `newuidmap`/`newgidmap` helpers had already written this
-process's own GID map (`run_namespace_fixture`, before
-`_enter_custody_namespace` runs). Per Linux user-namespace semantics, once an
-unprivileged helper populates a process's GID map, that process's own
-`/proc/pid/setgroups` is left permanently `deny`d as a side effect, so any
-later `setgroups()` call by that same process fails with `EPERM`
-unconditionally — not an environment/runner peculiarity, but a genuine
-ordering defect that fails on any real host with `uidmap` installed.
-
-Fix: moved the group-clearing call (and its verification) from
-`_enter_custody_namespace` into `_namespace_child`, immediately after the
-first `unshare(CLONE_NEWUSER)` and *before* printing `mapping_ready` (i.e.
-before the external uidmap helpers run and force the permanent deny). At that
-point the process is still full-capability in its brand-new namespace and no
-GID map has been written yet, so the call succeeds. No security property
-changes: groups are still fully cleared before any further namespace work,
-the inner-namespace deny-then-verify sequence (`_enter_custody_namespace`'s
-own fork/unshare/deny handshake) is untouched, and role-child privilege
-dropping (`_role_child`'s capability-bset drop, `setresuid`/`setresgid`,
-`PR_SET_NO_NEW_PRIVS`) is unchanged. Only `tests/guardian_custody_namespace.py`
-(a disposable, non-collected test fixture, never production code) changed.
-
-Verification: local `test_v11_liveness_custody.py`/`test_v11_guardian_custody.py`
-still correctly skip the 11 namespace cases here (no `uidmap` package, no sudo
-used to install it) — **16 passed, 11 skipped**; the broader
-`-k "guardian or liveness or custody"` selection — **491 passed, 11 skipped,
-0 failed / 55.01 s**, no new failures, same skip count as before the change.
-Because the actual defect only manifests where real `uidmap` tooling exists,
-final confirmation requires the next GitHub Actions run on the pushed commit,
-which is exactly the environment that first exposed it. No full local
-regression: single-file, narrowly-scoped test-fixture-only change. No new
-C/J/E/A milestone (this restores existing required verification rather than
-completing new scope): **85/200 (~43%); formal 1/50 (2%)**, unchanged.
-NOT_READY_TO_FUND; V10 unchanged/DEFERRED. Next: confirm the pushed commit's
-GitHub Actions run turns the 11 previously-failing cases green (or, if it
-surfaces a different remaining defect, diagnose that against the real runner
-log), then resume closing PARTIAL requirements end-to-end; R39's remaining
-gaps are cross-host/cross-database consumer exclusion and real-credential
-production wiring, both of which need owner-authorized infrastructure/
-deployment decisions rather than further local implementation.
+The original pre-mapping fix and claimed root cause were incorrect; the
+published CI remained red. The independent entry above and
+`docs/V11_CI_FINDINGS.md` record the corrected sequence, preserved historical
+WSL evidence and remaining CI diagnosis. R39 offline protected-configuration
+and consumer-ownership work remains required; only actual credentials and
+commissioning require the corresponding authorization.
