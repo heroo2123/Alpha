@@ -6,8 +6,9 @@ the operator safety-router path: the adapter and router were only reachable
 from tests. This poller is the missing caller. It fetches at most one bounded
 batch of already-delivered updates per ``step()``, authenticates and routes
 each one through the unchanged adapter/router, and durably advances its own
-polling cursor as a ``RUNTIME_STATUS`` evidence record so a restart resumes
-after the last update it actually attempted rather than replaying or skipping.
+polling cursor as a ``RUNTIME_STATUS`` evidence record after the batch. A
+restart resumes at that committed cursor. A failed batch is redelivered;
+the adapter/router preserve any already-committed reductions idempotently.
 
 One offset is shared by exactly one worker key; a file lock refuses a second
 concurrent ``step()`` for that key so two processes never race Telegram's
@@ -24,9 +25,15 @@ import fcntl
 import os
 
 from .evidence import EvidenceError, EvidenceStore, digest, identity
-from .operator_command_adapter import OperatorCommandError, TelegramOperatorCommandAdapter
+from .operator_command_adapter import TelegramOperatorCommandAdapter
+from .operator_safety_router import OperatorSafetyError
 
 VERSION = "alpha_v11_operator_command_poller_v1"
+# These reducer/input rejections cannot succeed on an unchanged retry.
+_COMMAND_REJECTIONS = frozenset({
+    "INVALID_IDENTITY", "SAFETY_ACTION_INVALID", "SAFETY_SCOPE_MISMATCH",
+    "REPLAY_REQUEST_CONFLICT",
+})
 
 
 class OperatorCommandPollerError(EvidenceError):
@@ -75,9 +82,11 @@ class TelegramOperatorCommandPoller:
                 continue
             try:
                 outcomes.append(dict(update_id=uid, outcome=self.adapter.handle(update)))
-            except OperatorCommandError as exc:
-                # Unauthenticated/malformed/conflicting updates must not stall
-                # later commands in this poll or be retried forever unchanged.
+            except EvidenceError as exc:
+                if not isinstance(exc, OperatorSafetyError) and str(exc) not in _COMMAND_REJECTIONS:
+                    # Storage, integrity and CAS failures must remain retryable;
+                    # acknowledging them could lose an unapplied safety command.
+                    raise
                 outcomes.append(dict(update_id=uid, error=str(exc)))
             applied_through = max(applied_through, uid + 1)
         if applied_through != offset:

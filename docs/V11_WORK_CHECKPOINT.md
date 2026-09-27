@@ -1,5 +1,62 @@
 # Alpha V11 work checkpoint
 
+## Independent batch-6 review — command rejection recovery, 2026-09-27
+
+Reviewed published `f425cc4d357affcf16cdc7355a73d1d61556cda6` (tree
+`900738c1ec85b079968bb6e189e15b0f3c397db5`) against predecessor
+`d49b3a07dcd6a3b8c4a9fcb741289cf194365c97`. Started clean on
+`weather-v11-profitability-upgrade-2026-09-23`, local/remote equal, with no
+active Claude worker. Read CLAUDE.md, the ledgers and the complete hash-verified
+authoritative master. Used Remote Desktop Commander only, sequentially.
+
+Found a material R39 availability defect: the poller caught only
+`OperatorCommandError`, while router authorization/freshness errors are
+`OperatorSafetyError` and reducer validation/replay conflicts are `EvidenceError`.
+An authenticated wrong-account command, disallowed action, invalid reason or
+conflicting redelivery aborted the batch before a later emergency command and
+left the cursor unchanged. Seven new regression cases failed against the
+published implementation (**7 failed / 0.81 s**); its original seven tests did
+not exercise these rejection paths.
+
+The minimal fix changes only the poller's exception classification: adapter/
+router rejections and four explicit permanent input/reducer rejection codes are
+reported per update and do not stop later commands. Other evidence errors,
+SQLite failures and cursor-write failures still propagate without acknowledging
+unapplied work. Existing authentication, scope/action ceilings, reducer semantics,
+record identities and cursor schema are unchanged. The cursor commits after the
+batch: interrupted batches can replay, and already-committed reductions remain
+idempotent. The original report's blanket no-replay claim is corrected below.
+
+Verification: **21 focused passed / 0.97 s**; **238 integration passed / 39.90 s**,
+exit 0, no skips/warnings. Fourteen added cases cover permanent rejection,
+conflicting recovery, router freshness, disk/CAS/integrity/SQLite failures,
+cursor-write interruption and the real Telegram client through an offline
+`httpx.MockTransport` with synthetic configuration. The integration selection was:
+`test_v11_operator_command_poller.py`, `test_v11_operator_command_adapter.py`,
+`test_v11_operator_safety_router.py`, `test_v11_event_risk.py`,
+`test_v11_event_risk_source_time.py`, `test_v11_evidence_foundation.py`,
+`test_operator_panel.py`, `test_v11_paper_cancellation.py`,
+`test_v11_paper_coordinator.py`, `test_v11_paper_runtime.py`, and
+`test_v11_candidate_runner.py`, all under `tests/`, run with the project
+`/home/alphaadmin/AlphaV11_Dev/venv/bin/python -m pytest -q --tb=short`.
+All **731 tracked Python/configuration/dependency input hashes** stayed unchanged
+during each run. Exact argv, manifests, patches, logs and JUnit are retained in
+`/tmp/v11-codex-b6-2dpn9enc/{red,focused,integration}/`, outside fixture scratch.
+Final compilation and `git diff --check` passed; all tested inputs still match.
+No full regression rerun: this is a narrow poller correction with its relevant
+integration surface verified. Only the poller, its tests and these three ledgers
+changed. No production credential, service, financial authority or V10 mutation.
+
+R39 remains PARTIAL. No new C/J/E/A: **85/200 = 42.5% (~43%); 1/50 (2%)**,
+unchanged. **NOT_READY_TO_FUND; V10 unchanged/DEFERRED.** Resolve this review's
+publishing commit/tree with `git log -1 --format='%H %T' -- docs/V11_WORK_CHECKPOINT.md`.
+
+**Next unfinished action:** bind the adapter/router/poller to protected policy,
+account and bot-consumer configuration and test a bounded runner offline.
+One consumer per bot must be established across stores/worker keys and existing
+controllers before real polling. Actual credentials, deployment, callback support
+and independent executor/guardian/operational acceptance remain separate gates.
+
 ## Bounded Telegram-command polling loop for operator safety routing — 2026-09-27 (supervisor batch 6)
 
 Recovered a clean tree: local/remote `weather-v11-profitability-upgrade-2026-09-23`
@@ -18,9 +75,9 @@ works unchanged), applies each update through the unchanged
 `TelegramOperatorCommandAdapter.handle()`, and durably advances its own
 per-worker-key offset as a `RUNTIME_STATUS` evidence record using the same
 CAS (`expected_previous_seq`) pattern the existing audit worker uses for its
-resumable cursor — so a restart resumes after the last update it actually
-attempted rather than replaying an already-applied command or silently
-skipping one it never saw. An exclusive, non-blocking `flock` on a per-worker
+resumable cursor. A restart resumes at the last committed batch cursor;
+uncommitted batches may replay already-applied commands idempotently (verified
+by the independent review above). An exclusive, non-blocking `flock` on a per-worker
 lock file refuses a second concurrent `step()` for the same worker key, since
 two processes racing Telegram's stateful `getUpdates` offset could otherwise
 double-poll or desynchronize. One update that fails authentication, grammar,

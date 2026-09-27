@@ -1,5 +1,20 @@
 # Supplementary engineering estimate
 
+Independent batch-6 review — 2026-09-27: fixed a material command-polling
+availability defect. The original poller caught adapter errors but let router
+rejections and reducer validation/replay conflicts abort the batch, blocking
+later emergency commands. Seven reproductions failed on the published code.
+The poller now continues only for recognized command rejections; storage,
+integrity, CAS and cursor-write failures remain retryable without advancing the
+cursor. Interrupted batches replay committed reductions idempotently.
+**21 focused passes / 0.97 s; 238 integration passes / 39.90 s**, exit 0, no
+skips/warnings, all 731 tracked code/configuration/dependency hashes unchanged
+during testing. No full rerun. Exact scope/evidence: `docs/V11_WORK_CHECKPOINT.md`
+(independent batch-6 review). R39 remains PARTIAL; no new C/J/E/A:
+**85/200 = 42.5% (~43%); formal 1/50 (2%)**, unchanged. Protected binding,
+runner/deployment and independent acceptance remain open. NOT_READY_TO_FUND;
+V10 unchanged/DEFERRED.
+
 Bounded Telegram-command polling loop — 2026-09-27 (supervisor batch 6): closed
 the exact gap batch 5 identified by adding `v11/operator_command_poller.py`.
 `TelegramOperatorCommandPoller` calls `telegram.updates(offset)` (any object
@@ -7,7 +22,8 @@ shaped like the real `production.telegram.Telegram`) and applies each update
 through the unchanged `TelegramOperatorCommandAdapter.handle()`, durably
 advancing its own per-worker-key offset as a CAS-guarded `RUNTIME_STATUS`
 record — the same pattern the existing audit worker uses for its resumable
-cursor — so a restart resumes rather than replays or skips. A non-blocking
+cursor. Restart resumes at the committed batch boundary; an interrupted batch
+may replay already-committed reductions idempotently. A non-blocking
 `flock` on a per-worker lock file refuses a second concurrent poll for the
 same key. One authentication/grammar/authorization failure is reported without
 stalling later updates in the same batch or wedging the offset. New suite

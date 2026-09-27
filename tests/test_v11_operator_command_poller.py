@@ -1,5 +1,6 @@
 import asyncio
 import os
+import sqlite3
 import time
 
 import pytest
@@ -131,3 +132,127 @@ def test_worker_key_must_be_a_valid_identity(rig):
     adapter = TelegramOperatorCommandAdapter(bot, identity, OperatorSafetyRouter(store, policy))
     with pytest.raises(EvidenceError, match="INVALID_IDENTITY"):
         TelegramOperatorCommandPoller(store, "", adapter)
+
+
+@pytest.mark.parametrize("text, error", [
+    ("/DISABLE_INVENTORY_OPERATIONS ACCOUNT account denied", "ACTION_NOT_PREAUTHORIZED"),
+    ("/CANCEL_AND_HALT ACCOUNT other-account stop", "ACCOUNT_SCOPE_MISMATCH"),
+    ("/QUARANTINE_STATION ACCOUNT account wrong scope", "SAFETY_SCOPE_MISMATCH"),
+    ("/CANCEL_AND_HALT EVENT " + "x" * 161 + " stop", "INVALID_IDENTITY"),
+    ("/CANCEL_AND_HALT ACCOUNT account " + "x" * 161, "INVALID_IDENTITY"),
+    ("/CANCEL_AND_HALT ACCOUNT account multi\nline reason", "INVALID_IDENTITY"),
+])
+def test_rejected_command_does_not_block_later_emergency_command(rig, text, error):
+    store, build = rig
+    bot = Bot([message_update(text, uid=1),
+               message_update("/CANCEL_AND_HALT ACCOUNT account emergency", uid=2)])
+    poller = build(bot)
+    outcomes = asyncio.run(poller.step())
+    assert outcomes[0] == {"update_id": 1, "error": error}
+    assert outcomes[1]["outcome"]["result"]["body"]["details"]["flags"]["no_new_orders"]
+    assert poller.offset() == 3
+    assert len(store.records(kind="OPERATOR_EVENT", limit=10)) == 1
+    assert asyncio.run(build(bot).step()) == []
+    assert bot.calls == [0, 3]
+
+
+def test_conflicting_redelivery_preserves_original_and_processes_later_command(rig):
+    store, build = rig
+    first = message_update("/NO_NEW_ORDERS ACCOUNT account original", uid=1)
+    poller = build(Bot([]))
+    original = poller.adapter.handle(first)["result"]
+    # Simulate a committed command whose batch cursor was not committed.
+    bot = Bot([message_update("/CANCEL_AND_HALT ACCOUNT account changed", uid=1),
+               message_update("/CANCEL_AND_HALT ACCOUNT account emergency", uid=2)])
+    poller = build(bot)
+    outcomes = asyncio.run(poller.step())
+    assert outcomes[0] == {"update_id": 1, "error": "REPLAY_REQUEST_CONFLICT"}
+    assert outcomes[1]["outcome"]["result"]["body"]["details"]["cancellation_status"] == "REQUESTED_NOT_CONFIRMED"
+    assert store.get(original["id"]) == original
+    assert len(store.records(kind="OPERATOR_EVENT", limit=10)) == 2
+    assert poller.offset() == 3
+
+
+@pytest.mark.parametrize("kind, error", [
+    ("OPERATOR_EVENT", EvidenceError("ARCHIVE_DISK_HEADROOM")),
+    ("OPERATOR_EVENT", EvidenceError("AUDIT_STATE_CHANGED")),
+    ("OPERATOR_EVENT", EvidenceError("RECORD_INTEGRITY_FAILED")),
+    ("OPERATOR_EVENT", sqlite3.OperationalError("database is locked")),
+    ("RUNTIME_STATUS", EvidenceError("AUDIT_STATE_CHANGED")),
+])
+def test_failed_write_keeps_cursor_retryable_and_prior_reductions_intact(rig, monkeypatch, kind, error):
+    store, build = rig
+    bot = Bot([message_update("/NO_NEW_ORDERS ACCOUNT account first", uid=1),
+               message_update("/CANCEL_AND_HALT ACCOUNT account emergency", uid=2)])
+    poller = build(bot)
+    audit = store.audit
+
+    def fail_write(record_id, **kwargs):
+        if kwargs["kind"] == kind and record_id != "telegram:42:1001":
+            raise error
+        return audit(record_id, **kwargs)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(store, "audit", fail_write)
+        with pytest.raises(type(error), match=str(error)):
+            asyncio.run(poller.step())
+    assert poller.offset() == 0
+    original = store.get("telegram:42:1001")
+    assert len(store.records(kind="OPERATOR_EVENT", limit=10)) == (2 if kind == "RUNTIME_STATUS" else 1)
+    recovered = build(bot)
+    outcomes = asyncio.run(recovered.step())
+    assert bot.calls == [0, 0]
+    assert outcomes[0]["outcome"]["result"] == original
+    assert outcomes[1]["outcome"]["result"]["body"]["details"]["cancellation_status"] == "REQUESTED_NOT_CONFIRMED"
+    assert len(store.records(kind="OPERATOR_EVENT", limit=10)) == 2
+    assert recovered.offset() == 3
+
+
+def test_router_freshness_rejection_does_not_block_later_command(rig):
+    store, build = rig
+    now = int(time.time())
+    bot = Bot([message_update("/NO_NEW_ORDERS ACCOUNT account future", uid=1, date=now),
+               message_update("/CANCEL_AND_HALT ACCOUNT account emergency", uid=2, date=now - 2)])
+    poller = build(bot)
+    poller.adapter.router.clock = lambda: now - 1
+    outcomes = asyncio.run(poller.step())
+    assert outcomes[0] == {"update_id": 1, "error": "COMMAND_EXPIRED_OR_BACKDATED"}
+    assert outcomes[1]["outcome"]["actor"] == 42
+    assert poller.offset() == 3
+    assert len(store.records(kind="OPERATOR_EVENT", limit=10)) == 1
+
+
+def test_real_telegram_client_uses_bounded_mocked_transport_and_resumes(rig):
+    import json
+    import httpx
+
+    store, build = rig
+    config = store.path.with_name("telegram-test.json")
+    config.write_text(json.dumps({"token": "123:synthetic_test_only", "chat_id": 42,
+                                  "operator_user_ids": [42]}))
+    config.chmod(0o600)
+    updates = [message_update("/CANCEL_AND_HALT ACCOUNT wrong-account typo", uid=1),
+               message_update("/CANCEL_AND_HALT ACCOUNT account emergency", uid=2)]
+    calls = []
+
+    def respond(request):
+        assert request.method == "POST" and request.url.path.endswith("/getUpdates")
+        payload = json.loads(request.content)
+        calls.append(payload)
+        return httpx.Response(200, json={"ok": True, "result": [
+            update for update in updates if update["update_id"] >= payload["offset"]]})
+
+    async def run():
+        bot = Telegram(config, transport=httpx.MockTransport(respond))
+        try:
+            outcomes = await build(bot).step()
+            assert outcomes[0] == {"update_id": 1, "error": "ACCOUNT_SCOPE_MISMATCH"}
+            assert outcomes[1]["outcome"]["actor"] == 42
+            assert await build(bot).step() == []
+        finally:
+            await bot.close()
+
+    asyncio.run(run())
+    assert calls == [{"offset": offset, "timeout": 0, "limit": 25,
+                      "allowed_updates": ["message", "callback_query"]} for offset in (0, 3)]
+    assert len(store.records(kind="OPERATOR_EVENT", limit=10)) == 1
