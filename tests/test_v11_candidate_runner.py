@@ -240,11 +240,11 @@ def test_operator_commands_bound_to_a_different_account_than_the_runner_is_refus
     asyncio.run(run())
 
 
-def test_authenticated_telegram_safety_command_is_polled_and_applied_as_a_scheduled_job(rig,monkeypatch):
+def test_authenticated_telegram_safety_command_is_polled_and_applied_alongside_jobs(rig,monkeypatch):
     calls=[]
     async def run():
         async with httpx.AsyncClient(transport=httpx.MockTransport(transport(rig,calls))) as client:
-            runner=built(rig,monkeypatch,client,policy=CandidatePolicy('operator-commands',maximum_jobs=4,
+            runner=built(rig,monkeypatch,client,policy=CandidatePolicy('operator-commands',maximum_jobs=3,
                 safety_interval_seconds=.05,minimum_job_spacing_seconds=.05))
             bot=Bot([message_update('/CANCEL_AND_HALT ACCOUNT account stop trading',uid=1)])
             oc=operator_commands(rig,bot)
@@ -252,12 +252,58 @@ def test_authenticated_telegram_safety_command_is_polled_and_applied_as_a_schedu
                 audits=runner.audits,operator_commands=oc)
             return await resumed.run('one')
     d=asyncio.run(run())['body']['details']
-    assert [j['kind'] for j in d['worker_results']]==['CENSUS','DISCOVERY','AUDIT','OPERATOR_COMMANDS'],d
-    last=d['worker_results'][-1]
-    assert last['outcome']=='OPERATOR_COMMANDS_POLLED'
+    assert [j['kind'] for j in d['worker_results']]==['CENSUS','DISCOVERY','AUDIT'],d
+    assert d['operator_results'][0]['outcome']=='OPERATOR_COMMANDS_POLLED'
+    assert d['all_async_jobs_drained'] and not d['operator_poll_requires_retry']
     assert not d['financial_authority']
     reductions=rig['store'].records(kind='OPERATOR_EVENT',limit=10)
     assert len(reductions)==1 and reductions[0]['body']['details']['request']['actor']=='42'
+
+
+def test_operator_commands_remain_available_with_unhealthy_clock(rig,monkeypatch):
+    calls=[];bot=Bot([message_update('/CANCEL_AND_HALT ACCOUNT account clock degraded')])
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(transport(rig,calls))) as client:
+            runner=built(rig,monkeypatch,client,policy=CandidatePolicy('operator-clock',
+                maximum_seconds=.4,safety_interval_seconds=.05,minimum_job_spacing_seconds=.05))
+            runner=CandidateRunner(runner.runtime,runner.policy,census=runner.census,
+                discovery=runner.discovery,audits=runner.audits,operator_commands=operator_commands(rig,bot))
+            rig['sync'][0]=False
+            return await runner.run('clock-commands')
+    d=asyncio.run(run())['body']['details']
+    assert bot.calls, 'clock health must not suppress authenticated safety reductions'
+    assert not calls and not d['clock_healthy_at_finish']
+    assert SafetyReductions(rig['store']).view(rig['context'])['flags']['no_new_orders']
+    assert not d['financial_authority']
+
+
+def test_operator_command_cancels_while_public_collection_is_blocked(rig,monkeypatch):
+    c=coordinator(rig);p=proposal(rig,units='2');c.coordinate('reserve',(p,))
+    calls=[];bot=Bot([])
+    async def run():
+        entered=asyncio.Event();release=asyncio.Event();base=transport(rig,calls)
+        async def blocked(req):
+            entered.set();await release.wait();return base(req)
+        async with httpx.AsyncClient(transport=httpx.MockTransport(blocked)) as client:
+            runner=built(rig,monkeypatch,client,policy=CandidatePolicy('operator-stalled-source',
+                maximum_seconds=5,maximum_jobs=4,safety_interval_seconds=.05,minimum_job_spacing_seconds=.05))
+            runner=CandidateRunner(runner.runtime,runner.policy,census=runner.census,
+                discovery=runner.discovery,audits=runner.audits,operator_commands=operator_commands(rig,bot))
+            task=asyncio.create_task(runner.run('stalled-source'))
+            try:
+                await asyncio.wait_for(entered.wait(),2)
+                bot._updates.append(message_update('/CANCEL_AND_HALT ACCOUNT account stop now'))
+                for _ in range(50):
+                    if c._state(c._head())['intents'][p.proposal_id]['status']=='CANCEL_REQUESTED':break
+                    await asyncio.sleep(.02)
+                assert c._state(c._head())['intents'][p.proposal_id]['status']=='CANCEL_REQUESTED'
+                assert not task.done() and not release.is_set()
+                assert SafetyReductions(rig['store']).view(rig['context'])['flags']['no_new_orders']
+                assert Decimal(c.snapshot()['reserved_cash'])==Decimal('.8')
+            finally:
+                release.set()
+                await task
+    asyncio.run(run())
 
 
 def test_operator_commands_with_no_pending_updates_reports_no_work(rig,monkeypatch):
@@ -271,6 +317,169 @@ def test_operator_commands_with_no_pending_updates_reports_no_work(rig,monkeypat
                 audits=runner.audits,operator_commands=oc)
             return await resumed.run('one')
     d=asyncio.run(run())['body']['details']
-    assert d['worker_results'][-1]==dict(kind='OPERATOR_COMMANDS',command_id=d['worker_results'][-1]['command_id'],
-        outcome='NO_OPERATOR_COMMANDS',record_id=None)
+    assert d['operator_results']
+    assert all(j['kind']=='OPERATOR_COMMANDS' and j['outcome']=='NO_OPERATOR_COMMANDS'
+               and j['record_id'] is None for j in d['operator_results'])
+    assert d['all_async_jobs_drained'] and not d['operator_poll_requires_retry']
     assert not rig['store'].records(kind='OPERATOR_EVENT',limit=10)
+
+
+class WaitingOperatorBot(Bot):
+    def __init__(self, updates=()):
+        super().__init__(updates)
+        self.entered=asyncio.Event();self.active=0;self.maximum_active=0
+
+    async def updates(self, offset):
+        self.calls.append(offset);self.active+=1
+        self.maximum_active=max(self.maximum_active,self.active);self.entered.set()
+        try:await asyncio.Event().wait()
+        finally:self.active-=1
+
+
+def test_slow_operator_poll_keeps_safety_and_collection_running_and_is_drained(rig,monkeypatch):
+    calls=[]
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(transport(rig,calls))) as client:
+            runner=built(rig,monkeypatch,client)
+            bot=WaitingOperatorBot();oc=operator_commands(rig,bot)
+            runner=CandidateRunner(runner.runtime,runner.policy,census=runner.census,
+                discovery=runner.discovery,audits=runner.audits,operator_commands=oc)
+            row=await runner.run('slow-operator')
+            assert bot.entered.is_set() and bot.active==0 and bot.maximum_active==1
+            assert oc.poller.offset()==0
+            count=len(bot.calls);head=runner._head()
+            assert await runner.run('slow-operator')==row
+            assert len(bot.calls)==count and runner._head()==head
+            monkeypatch.setattr(bot,'updates',lambda offset: Bot.updates(bot,offset))
+            assert await oc.poller.step()==[]  # The cancelled poll released its lock.
+            return row
+    d=asyncio.run(run())['body']['details']
+    assert [j['kind'] for j in d['worker_results']]==['CENSUS','DISCOVERY','AUDIT']
+    assert d['worker_results'][-1]['outcome']=='AUDIT_COMPLETE' and len(calls)==8
+    assert len(d['runtime_ids'])>=2 and d['all_async_jobs_drained']
+    assert d['operator_poll_requires_retry'] and d['outcome']=='DEGRADED'
+    assert d['operator_results'][-1]['outcome']=='INTERRUPTED_PENDING_RETRY'
+
+
+def test_operator_poll_timeouts_are_bounded_without_overlapping_requests(rig,monkeypatch):
+    calls=[]
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(transport(rig,calls))) as client:
+            policy=CandidatePolicy('operator-timeout',maximum_seconds=.5,
+                job_timeout_seconds=.1,safety_interval_seconds=.05,minimum_job_spacing_seconds=.05)
+            runner=built(rig,monkeypatch,client,policy=policy)
+            bot=WaitingOperatorBot();oc=operator_commands(rig,bot)
+            runner=CandidateRunner(runner.runtime,policy,census=runner.census,
+                discovery=runner.discovery,audits=runner.audits,operator_commands=oc)
+            rig['sync'][0]=False
+            row=await runner.run('operator-timeout')
+            assert bot.active==0 and bot.maximum_active==1
+            assert 1<=len(bot.calls)<=policy.maximum_safety_ticks and oc.poller.offset()==0
+            return row
+    d=asyncio.run(run())['body']['details']
+    assert any(x.get('reason')=='JOB_TIME_BOUND' for x in d['operator_results'])
+    assert len(d['runtime_ids'])>=2 and d['all_async_jobs_drained'] and not calls
+    assert d['outcome']=='DEGRADED' and not d['financial_authority']
+
+
+def test_interruption_drains_operator_poll_and_restart_retries_unacknowledged_command(rig,monkeypatch):
+    calls=[]
+    async def run():
+        entered=asyncio.Event()
+        async def blocked(req):
+            calls.append(req);entered.set();await asyncio.Event().wait()
+        async with httpx.AsyncClient(transport=httpx.MockTransport(blocked)) as client:
+            runner=built(rig,monkeypatch,client,policy=CandidatePolicy('operator-interrupt',maximum_jobs=1))
+            bot=WaitingOperatorBot([message_update('/CANCEL_AND_HALT ACCOUNT account interrupted')])
+            oc=operator_commands(rig,bot)
+            runner=CandidateRunner(runner.runtime,runner.policy,census=runner.census,
+                discovery=runner.discovery,audits=runner.audits,operator_commands=oc)
+            unrelated=asyncio.create_task(asyncio.Event().wait())
+            task=asyncio.create_task(runner.run('operator-interrupt'))
+            try:
+                await asyncio.wait_for(bot.entered.wait(),2)
+                await asyncio.wait_for(entered.wait(),2)
+                task.cancel()
+                with pytest.raises(asyncio.CancelledError):await task
+                assert not unrelated.done() and bot.active==0 and oc.poller.offset()==0
+                assert not rig['store'].records(kind='OPERATOR_EVENT',limit=10)
+                pending=runner._head()['body']['details']['state']['active']
+                monkeypatch.setattr(bot,'updates',lambda offset: Bot.updates(bot,offset))
+                resumed=CandidateRunner(runner.runtime,runner.policy,census=runner.census,
+                    discovery=runner.discovery,audits=runner.audits,operator_commands=oc)
+                row=await resumed.run('operator-interrupt')
+                assert oc.poller.offset()==2 and len(calls)==1
+                assert len(rig['store'].records(kind='OPERATOR_EVENT',limit=10))==1
+                assert row['body']['details']['worker_results'][0]['command_id']==pending['id']
+                count=len(bot.calls)
+                assert await resumed.run('operator-interrupt')==row and len(bot.calls)==count
+                return row
+            finally:
+                task.cancel();unrelated.cancel()
+                await asyncio.gather(task,unrelated,return_exceptions=True)
+    d=asyncio.run(run())['body']['details']
+    assert d['all_async_jobs_drained'] and not d['operator_poll_requires_retry']
+    assert not d['active_command_requires_recovery'] and not d['financial_authority']
+
+
+def test_operator_transport_error_is_redacted_and_retries_without_losing_command(rig,monkeypatch):
+    calls=[];bot=Bot([message_update('/CANCEL_AND_HALT ACCOUNT account retry')])
+    original=bot.updates;attempts=[]
+    async def flaky(offset):
+        attempts.append(offset)
+        if len(attempts)==1:raise RuntimeError('PRIVATE_DETAIL_MUST_NOT_ESCAPE')
+        return await original(offset)
+    monkeypatch.setattr(bot,'updates',flaky)
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(transport(rig,calls))) as client:
+            runner=built(rig,monkeypatch,client,policy=CandidatePolicy('operator-retry',
+                maximum_seconds=.5,safety_interval_seconds=.05,minimum_job_spacing_seconds=.05))
+            oc=operator_commands(rig,bot)
+            runner=CandidateRunner(runner.runtime,runner.policy,census=runner.census,
+                discovery=runner.discovery,audits=runner.audits,operator_commands=oc)
+            rig['sync'][0]=False
+            row=await runner.run('operator-retry')
+            assert oc.poller.offset()==2 and attempts[:2]==[0,0]
+            return row
+    d=asyncio.run(run())['body']['details']
+    assert d['operator_results'][0]['reason']=='RuntimeError' and 'PRIVATE_DETAIL' not in str(d)
+    assert any(x['outcome']=='OPERATOR_COMMANDS_POLLED' for x in d['operator_results'])
+    assert SafetyReductions(rig['store']).view(rig['context'])['flags']['no_new_orders']
+    assert not calls and d['all_async_jobs_drained']
+
+
+def test_operator_policy_change_requires_review_before_any_new_poll(rig,monkeypatch):
+    calls=[];bot=Bot([])
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(transport(rig,calls))) as client:
+            runner=built(rig,monkeypatch,client,policy=CandidatePolicy('operator-config',maximum_jobs=1))
+            oc=operator_commands(rig,bot)
+            runner=CandidateRunner(runner.runtime,runner.policy,census=runner.census,
+                discovery=runner.discovery,audits=runner.audits,operator_commands=oc)
+            await runner.run('original')
+            count=len(bot.calls);head=runner._head()
+            changed=CandidateOperatorCommands(rig['store'],'account','operator-fixture',telegram=bot,
+                identity=oc.adapter.identity,policy=replace(oc.adapter.router.policy,allowed_actions=('NO_NEW_ORDERS',)))
+            resumed=CandidateRunner(runner.runtime,runner.policy,census=runner.census,
+                discovery=runner.discovery,audits=runner.audits,operator_commands=changed)
+            with pytest.raises(EvidenceError,match='CONFIGURATION_CHANGED'):await resumed.run('changed')
+            with pytest.raises(EvidenceError,match='REPLAY_CONFIG'):await resumed.run('original')
+            assert len(bot.calls)==count and runner._head()==head
+    asyncio.run(run())
+
+
+def test_operator_store_and_supplied_policy_account_must_match(rig,monkeypatch,tmp_path):
+    from polymarket_scanner.v11.evidence import EvidenceStore
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(transport(rig,[]))) as client:
+            runner=built(rig,monkeypatch,client);oc=operator_commands(rig,Bot([]))
+            with pytest.raises(EvidenceError,match='OPERATOR_COMMANDS_ACCOUNT_MISMATCH'):
+                CandidateOperatorCommands(rig['store'],'other','operator-fixture',telegram=oc.adapter.telegram,
+                    identity=oc.adapter.identity,policy=oc.adapter.router.policy)
+            other=CandidateOperatorCommands(EvidenceStore(tmp_path/'other.sqlite','V11_PAPER'),
+                'account','operator-fixture',telegram=oc.adapter.telegram,
+                identity=oc.adapter.identity,policy=oc.adapter.router.policy)
+            with pytest.raises(EvidenceError,match='CANDIDATE_OPERATOR_COMMANDS_SCOPE'):
+                CandidateRunner(runner.runtime,runner.policy,census=runner.census,
+                    discovery=runner.discovery,audits=runner.audits,operator_commands=other)
+    asyncio.run(run())

@@ -143,7 +143,6 @@ class CandidateRunner:
         self.kinds=('CENSUS','DISCOVERY','AUDIT')+(('OBSERVATION',) if observation else ())+(('MAKER_TELEMETRY',) if maker_telemetry else ())+(('PWS_QUALITY',) if pws_quality else ())+(('FORECAST_NORMALIZATION',) if forecasts else ())+(('GEFS_SOURCE',) if gefs else ())
         if preparations is not None:self.kinds+=('INPUT_PREPARATION',)
         if drift is not None:self.kinds+=('DRIFT',)
-        if operator_commands is not None:self.kinds+=('OPERATOR_COMMANDS',)
         config=dict(policy=asdict(policy),runtime=runtime.config,census=census.config,
             discovery=discovery.config,audits=audits.config,worker_id=runtime.worker_id,
             observation=asdict(observation_batch) if observation_batch else None)
@@ -153,7 +152,8 @@ class CandidateRunner:
         if gefs is not None:config['gefs']=gefs.config
         if preparations is not None:config['preparations']=preparations.config
         if drift is not None:config['drift']=drift.config
-        if operator_commands is not None:config['operator_commands']=operator_commands.config
+        if operator_commands is not None:
+            config['operator_commands']=dict(component=operator_commands.config,scheduling='priority_poll_v1')
         self.config=digest(config)
 
     def _get(self,key):
@@ -201,7 +201,6 @@ class CandidateRunner:
         if kind=='FORECAST_NORMALIZATION':return self.forecasts.step(key)
         if kind=='INPUT_PREPARATION':return self.preparations.step(key)
         if kind=='DRIFT':return self.drift.step(key)
-        if kind=='OPERATOR_COMMANDS':return await self.operator_commands.step()
         if kind=='GEFS_SOURCE':return await self.gefs.step(key,exclude_events=tuple(
             e for e in self.runtime.queue.preparing_model_events() if e in self.gefs.plans))
         batch=self.observation_batch
@@ -230,6 +229,32 @@ class CandidateRunner:
         started=time.monotonic();deadline=started+self.policy.maximum_seconds
         next_safety=started;next_job=started;ticks=[];jobs=[];errors=[];task=None;job_deadline=None
         maximum_gap=0.;last_safety=None;interrupted=False;end_reason='RUN_BUDGET';runtime_outcomes={}
+        operator_task=None;operator_results=[]
+
+        async def poll_commands():
+            # Safety input cannot wait for collection or a healthy opening clock.
+            # One owned poll at a time; the poller's durable cursor owns recovery.
+            interval=max(self.policy.safety_interval_seconds,self.policy.minimum_job_spacing_seconds)
+            for index in range(self.policy.maximum_safety_ticks):
+                remaining=deadline-time.monotonic()
+                if remaining<=0:return
+                output=dict(kind='OPERATOR_COMMANDS',command_id='candidate-operator:'+digest(
+                    [self.config,run_id,index]),record_id=None)
+                try:
+                    async with asyncio.timeout(min(remaining,self.policy.job_timeout_seconds)):
+                        result=await self.operator_commands.step()
+                    output['outcome']=result['outcome']
+                except asyncio.CancelledError:
+                    output.update(outcome='INTERRUPTED_PENDING_RETRY',reason=end_reason)
+                    raise
+                except Exception as exc:
+                    output.update(outcome='WORKER_GATED',reason=(str(exc) if isinstance(exc,EvidenceError)
+                        else 'JOB_TIME_BOUND' if isinstance(exc,TimeoutError) else type(exc).__name__))
+                    errors.append(output)
+                finally:
+                    operator_results.append(output)
+                    self._progress(run_id,state,outcome='OPERATOR_RESULT_RECORDED',worker=output)
+                await asyncio.sleep(interval)
 
         def safety():
             nonlocal last_safety,maximum_gap,next_safety
@@ -273,7 +298,11 @@ class CandidateRunner:
             self._progress(run_id,state,outcome='WORKER_RESULT_RECORDED',worker=output)
 
         try:
+            if self.operator_commands is not None:
+                operator_task=asyncio.create_task(poll_commands())
+                await asyncio.sleep(0)
             while time.monotonic()<deadline and len(ticks)<self.policy.maximum_safety_ticks-1:
+                if operator_task is not None and operator_task.done():await operator_task
                 now=time.monotonic()
                 if now>=next_safety:safety()
                 if errors and errors[-1].get('stage')=='SAFETY':end_reason='SAFETY_UNAVAILABLE';break
@@ -305,15 +334,24 @@ class CandidateRunner:
         except asyncio.CancelledError:
             interrupted=True;end_reason='CALLER_INTERRUPTED';raise
         finally:
-            if task is not None:
-                await finish_task(end_reason)
+            try:
+                if task is not None:
+                    await finish_task(end_reason)
+            finally:
+                if operator_task is not None:
+                    operator_task.cancel()
+                    try:await operator_task
+                    except asyncio.CancelledError:pass
             if len(ticks)<self.policy.maximum_safety_ticks:safety()
             self._progress(run_id,state,outcome='INTERRUPTED' if interrupted else 'RUN_DRAINED',reason=end_reason)
         duration=time.monotonic()-started
-        return self._save(final,state,outcome='DEGRADED' if errors or state['active'] is not None else 'BOUNDED_RUN_FINISHED',
+        operator_retry=bool(operator_results and operator_results[-1]['outcome']=='INTERRUPTED_PENDING_RETRY')
+        return self._save(final,state,outcome='DEGRADED' if errors or state['active'] is not None or operator_retry else 'BOUNDED_RUN_FINISHED',
             end_reason=end_reason,runtime_ids=ticks,worker_results=jobs,errors=errors,
             duration_monotonic_seconds=duration,cooperative_budget_overrun_seconds=max(0,duration-self.policy.maximum_seconds),
             maximum_safety_start_gap_seconds=maximum_gap,clock_healthy_at_finish=self._healthy_clock(),
             runtime_outcome_counts=runtime_outcomes,
             all_async_jobs_drained=True,active_command_requires_recovery=state['active'] is not None,
+            **(dict(operator_results=operator_results,operator_poll_requires_retry=operator_retry)
+               if self.operator_commands is not None else {}),
             forward_acceptance=False,hard_realtime_guarantee=False)

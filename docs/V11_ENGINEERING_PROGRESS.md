@@ -1,5 +1,19 @@
 # Supplementary engineering estimate
 
+Independent batch-7 review — 2026-09-27: fixed operator-command starvation in
+the optional candidate integration. Degraded synchronization suppressed polling,
+and blocked public collection prevented an authenticated cancel from being
+applied. Two regression cases failed before the fix. One bounded, owned polling
+coroutine now runs alongside ordinary jobs and is drained on shutdown, preserving
+authentication, freshness, durable retry and cancellation/reservation semantics.
+**26 focused / 22.33 s; 361 integration / 94.04 s**, exit 0, no skips/warnings;
+754 tracked input hashes match before/after each run. No full rerun.
+Exact scope/evidence: `docs/V11_WORK_CHECKPOINT.md` (independent batch-7 review).
+The original wiring proves account/store consistency; protected configuration
+custody and exclusive bot-consumer ownership remain unverified. No new C/J/E/A:
+**85/200 = 42.5% (~43%); formal 1/50 (2%)**, unchanged. NOT_READY_TO_FUND;
+V10 unchanged/DEFERRED. The original batch report below predates this correction.
+
 Candidate-runner operator-command wiring — 2026-09-27 (supervisor batch 7):
 closed R39's "runner wiring"/"protected policy/account binding" gap with
 `v11/operator_command_runtime.py` (`CandidateOperatorCommands`), which refuses

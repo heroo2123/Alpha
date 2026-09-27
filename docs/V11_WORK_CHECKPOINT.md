@@ -1,5 +1,72 @@
 # Alpha V11 work checkpoint
 
+## Independent batch-7 review — operator polling availability, 2026-09-27
+
+Reviewed published `f992864e14488bf396ac8e7588c28fd6e7ea2416` against
+`fbe8327627755efbfb800a9f6c1730f6aa660000`. Started clean on
+`weather-v11-profitability-upgrade-2026-09-23`, local/remote equal and no
+active Claude worker. Read CLAUDE.md, the V11 ledgers and the complete
+hash-verified authoritative master. Used Remote Desktop Commander only,
+sequentially, with no agent delegation or concurrent test runs.
+
+Found a material R39 availability defect in the new runner integration:
+`OPERATOR_COMMANDS` shared the ordinary round-robin queue and its healthy-clock
+gate. An unhealthy synchronization status suppressed all polling; an in-flight
+public collection request prevented a later authenticated halt from reaching
+the reducer/cancellation path. Both new offline reproductions failed on the
+published code: **2 failed / 6.16 s**. The original happy-path test established
+an operator event, but did not exercise degraded availability or cancellation
+while collection was blocked.
+
+The fix retains the account/store checks and existing adapter/router/poller,
+but gives the candidate one owned polling coroutine alongside ordinary jobs.
+It starts without the opening-clock gate, has at most one request in flight,
+uses the existing job timeout and overall run deadline, spaces polls by the
+larger safety interval/minimum job spacing, and caps attempts by
+`maximum_safety_ticks`. The candidate cancels and awaits this coroutine on
+normal shutdown, timeout and caller interruption. The poller's durable cursor
+continues to own recovery; interrupted polls are reported as pending retry.
+Poll outcomes are durably summarized separately from ordinary worker results.
+Authentication, command freshness, store-integrity checks and cancellation
+confirmation/reservation rules are unchanged.
+
+The optional component's configuration now includes a scheduling version.
+Earlier ordinary-job operator configurations require review rather than silently
+reinterpreting their saved round-robin state. Candidates without the optional
+component retain their prior configuration identity and scheduling. This is
+cooperative local scheduling, not independent guardian or hard-real-time proof.
+
+Verification on the project Python 3.12.3 interpreter:
+- **26 focused passed / 22.33 s**.
+- **361 integration passed / 94.04 s**, exit 0, no skips/warnings.
+- Eight new cases cover degraded clocks, authenticated cancellation during
+  blocked collection, slow polling without starving safety/collection, timeout
+  bounds, caller interruption/restart, redacted transport failure/retry, changed
+  policy rejection and account/store mismatches. Completed replay stays read-only.
+- Integration includes candidate runner/assembly, operator poller/adapter/router,
+  event risk/source time, evidence foundation, production operator panel, paper
+  cancellation/coordinator/runtime, runtime health, census, discovery, audit
+  reports and maker telemetry.
+- All **754 tracked Python/configuration/dependency input hashes** match before
+  and after each run. Exact argv, patches, manifests, logs and JUnit are retained
+  in `/tmp/v11-codex-b7-vzdsa48i/{red,repaired,focused,integration}/`, separately
+  from fixture scratch. No full regression rerun: the changed behavior is the
+  optional operator scheduling path, with its relevant integration verified.
+
+The milestone advances local account/store consistency and runner integration.
+It does **not** establish protected configuration custody or exclusive Telegram
+consumer ownership across stores, worker keys and existing controllers. The
+original batch's broader "protected binding" wording below is limited by this
+review. Real delivery, callbacks, deployment and independent operational/
+executor/guardian acceptance remain open. No V10, production service, credential
+or financial-authority change. R39 remains PARTIAL; no new C/J/E/A:
+**85/200 = 42.5% (~43%); 1/50 (2%)**. **NOT_READY_TO_FUND.**
+
+**Next unfinished action:** bind protected operator configuration and exclusive
+bot-consumer ownership with offline tests before any real polling/deployment.
+Resolve this review's publishing commit/tree with
+`git log -1 --format='%H %T' -- docs/V11_WORK_CHECKPOINT.md`.
+
 ## Independent batch-6 review — command rejection recovery, 2026-09-27
 
 Reviewed published `f425cc4d357affcf16cdc7355a73d1d61556cda6` (tree

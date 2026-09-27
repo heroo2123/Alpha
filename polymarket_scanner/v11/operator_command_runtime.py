@@ -8,11 +8,12 @@ candidate itself runs. This binds that check once, here, rather than trusting
 a separately configured account id, so a routed command can only ever reduce
 risk on the runner's own protected account.
 
-This performs no message delivery, credential provisioning or independent
-operational acceptance; it schedules the existing tested poller/adapter/router
-as one more finite candidate job, exactly like the existing AUDIT job. A real
-credentialed ``Telegram`` client and its own deployment/acceptance evidence
-remain a separate, unclaimed concern.
+The candidate owns one bounded polling coroutine alongside ordinary work so
+collection waits and opening-clock gates cannot suppress safety input. Polls
+retain the existing command freshness checks and durable cursor; shutdown drains
+that coroutine. This performs no message delivery, credential provisioning or
+independent operational acceptance. Protected configuration custody, exclusive
+bot-consumer ownership and real delivery/deployment evidence remain unclaimed.
 """
 from __future__ import annotations
 
