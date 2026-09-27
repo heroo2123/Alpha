@@ -21,8 +21,8 @@ can only add constraints. Protected review and runtime admission remain separate
 from __future__ import annotations
 
 from .certification import StationMetadata
-from .evidence import EvidenceError, identity
-from .scenario_risk import StationMembership
+from .evidence import EvidenceError, digest, identity
+from .scenario_risk import CorrelationMap, StationMembership
 from ..weather_only_station_region import NWSOfficeRegion, NWSPointOffice, WeatherStationRegionError
 
 VERSION = "alpha_v11_region_membership_v2"
@@ -85,3 +85,33 @@ def build_station_membership(
         model_groups=model_groups,
         metadata_fingerprint=metadata.fingerprint,
     )
+
+
+def build_correlation_map(
+    *,
+    version: str,
+    entries: tuple[tuple[StationMetadata, NWSPointOffice, NWSOfficeRegion], ...],
+) -> CorrelationMap:
+    """Aggregate real per-station NWS region evidence into one reviewable map.
+
+    This is the only constructor that turns a candidate's actual certified
+    stations into the ``CorrelationMap`` ``scenario_risk.portfolio_risk``
+    enforces at runtime -- a caller can no longer hand a candidate an opaque,
+    unrelated correlation policy: ``CandidatePlan`` binds it to each event's
+    real station and metadata fingerprint (see ``candidate_assembly.py``).
+    The map's own evidence_sha256 folds in every entry's own receipt-bound
+    point/office evidence hashes, so it cannot silently drop or substitute the
+    real evidence ``build_station_membership`` already validated per station.
+    """
+    identity(version)
+    if type(entries) is not tuple or not 1 <= len(entries) <= 256:
+        raise EvidenceError("REGION_MEMBERSHIP_CORRELATION_ENTRIES_BOUND")
+    memberships = tuple(
+        build_station_membership(metadata=metadata, point=point, office=office)
+        for metadata, point, office in entries
+    )
+    evidence_sha256 = digest(tuple(sorted(
+        (metadata.station, point.evidence_sha256, office.evidence_sha256)
+        for metadata, point, office in entries
+    )))
+    return CorrelationMap(version=version, evidence_sha256=evidence_sha256, memberships=memberships)

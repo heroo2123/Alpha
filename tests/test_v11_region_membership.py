@@ -7,8 +7,9 @@ import pytest
 from polymarket_scanner.v11 import certification as cert
 from polymarket_scanner.v11.evidence import EvidenceError, digest
 from polymarket_scanner.v11.region_membership import (
-    build_station_membership, UNKNOWN_WEATHER, UNKNOWN_SOURCE, UNKNOWN_MODEL,
+    build_station_membership, build_correlation_map, UNKNOWN_WEATHER, UNKNOWN_SOURCE, UNKNOWN_MODEL,
 )
+from polymarket_scanner.v11.scenario_risk import CorrelationMap
 from polymarket_scanner.weather_only_station_region import parse_nws_office_region, parse_nws_point_office
 from test_weather_only_station_region import _point_payload, _office_payload
 
@@ -121,6 +122,36 @@ def test_additional_groups_retain_known_and_unresolved_dependence():
 def test_invalid_additional_groups_fail_closed(field, value):
     with pytest.raises(EvidenceError):
         build_station_membership(metadata=_metadata(), point=_point(), office=_office(), **{field: value})
+
+
+def test_build_correlation_map_aggregates_real_per_station_evidence():
+    jfk = _metadata(station="KJFK", city="New York", latitude=40.63915, longitude=-73.76393,
+                     observation_providers=("other-observer",), forecast_providers=("other-model",))
+    entries = (
+        (_metadata(), _point(), _office()),
+        (jfk, _point(latitude=jfk.latitude, longitude=jfk.longitude, cwa="OKX"), _office(office="OKX", region="er")),
+    )
+    result = build_correlation_map(version="review-v1", entries=entries)
+    assert isinstance(result, CorrelationMap) and result.version == "review-v1"
+    by_station = {m.station: m for m in result.memberships}
+    assert set(by_station) == {"KDEN", "KJFK"}
+    assert by_station["KDEN"].region == "CENTRAL" and by_station["KJFK"].region == "EASTERN"
+    assert by_station["KDEN"].metadata_fingerprint == _metadata().fingerprint
+    assert by_station["KJFK"].metadata_fingerprint == jfk.fingerprint
+    other = build_correlation_map(version="review-v1", entries=(entries[0],))
+    assert other.evidence_sha256 != result.evidence_sha256
+
+
+def test_build_correlation_map_rejects_out_of_bound_entries():
+    with pytest.raises(EvidenceError, match="CORRELATION_ENTRIES_BOUND"):
+        build_correlation_map(version="review-v1", entries=())
+    with pytest.raises(EvidenceError, match="CORRELATION_ENTRIES_BOUND"):
+        build_correlation_map(version="review-v1", entries=[(_metadata(), _point(), _office())])
+
+
+def test_build_correlation_map_still_fails_closed_on_bad_region_evidence():
+    with pytest.raises(EvidenceError, match="OFFICE_CHAIN_MISMATCH"):
+        build_correlation_map(version="review-v1", entries=((_metadata(), _point(cwa="OUN"), _office()),))
 
 
 @pytest.mark.parametrize("ceiling,gate,unknown", [

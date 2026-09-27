@@ -25,6 +25,8 @@ from polymarket_scanner.v11.strategy_admission import SourceLease
 from polymarket_scanner.v11.gefs_sources import GEFSPlan, FIELD_VERSION
 from polymarket_scanner.v11.gefs_schedule import GEFSRunPolicy, requested_plan
 from polymarket_scanner.v11.valuation import HOLD_RISKS, SALE_RISKS, SALE
+from polymarket_scanner.v11.region_membership import build_correlation_map
+from test_v11_region_membership import _point, _office, _metadata
 from test_v11_basket_coordinator import rig, reserve
 from test_v11_certification_rules import setup
 from test_v11_model_artifacts import bundle
@@ -372,3 +374,16 @@ def test_typed_candidate_rejects_inconsistent_or_overlarge_plan_before_running(r
         elif defect=='proposal_cap':replace(event,lanes=(replace(lane,maximum_proposals=6),replace(lane,name='second')))
         elif defect=='wrong_worker':replace(cfg,worker_id='unconfigured')
         else:replace(cfg,account=replace(cfg.account,account_id='another-account'))
+
+
+def test_candidate_plan_binds_correlation_to_the_real_event_station(rig,setup):
+    cfg=plan(rig);metadata=setup[3]
+    real=build_correlation_map(version='review-v1',entries=(
+        (metadata,_point(latitude=metadata.latitude,longitude=metadata.longitude),_office()),))
+    replace(cfg,correlation=real)
+    unrelated=build_correlation_map(version='review-v1',entries=((_metadata(station='KDEN'),_point(),_office()),))
+    with pytest.raises(EvidenceError,match='CANDIDATE_CORRELATION_STATION_SCOPE'):
+        replace(cfg,correlation=unrelated)
+    stale=replace(real,memberships=(replace(real.memberships[0],metadata_fingerprint='f'*64),))
+    with pytest.raises(EvidenceError,match='CANDIDATE_CORRELATION_STATION_SCOPE'):
+        replace(cfg,correlation=stale)

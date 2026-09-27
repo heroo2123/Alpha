@@ -216,6 +216,11 @@ class CandidatePlan:
                 or any(e.risk_inputs.context.account_id != self.account.account_id for e in self.events)
                 or self.observation is not None and not isinstance(self.observation,ObservationBatch)):
             raise EvidenceError('CANDIDATE_PLAN_SCOPE_BOUND')
+        correlation_memberships={m.station:m for m in self.correlation.memberships}
+        if any((membership:=correlation_memberships.get(e.route.station)) is None
+                or membership.metadata_fingerprint!=e.census.rule.payload['metadata_fingerprint']
+                for e in self.events):
+            raise EvidenceError('CANDIDATE_CORRELATION_STATION_SCOPE')
         if self.maker is not None:
             if not isinstance(self.maker,MakerTelemetryPlan):raise EvidenceError('CANDIDATE_MAKER_PLAN_REQUIRED')
             events={e.route.event_id:e for e in self.events}

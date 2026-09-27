@@ -1,5 +1,40 @@
 # Alpha V11 work checkpoint
 
+R23 candidate-integration binding, 2026-09-27 (batch 1 recovery): recovered a
+dirty worktree left by the immediately preceding supervised invocation, which
+had started (but not published) real per-station `CorrelationMap` construction
+plus a `CandidatePlan` binding check, then stalled waiting on a detached
+background pytest run instead of finishing in the foreground. Inspected the
+uncommitted diff line by line before touching anything: `region_membership.py`
+gained `build_correlation_map`, which turns a candidate's actual certified
+`(StationMetadata, NWSPointOffice, NWSOfficeRegion)` triples into one
+`CorrelationMap` via the existing `build_station_membership` chain (so each
+membership still carries its own validated official identity/evidence), with
+an `evidence_sha256` folding in every entry's own point/office evidence hash so
+no entry can be silently dropped or substituted; `candidate_assembly.py`'s
+`CandidatePlan.__post_init__` now rejects any correlation map missing a
+membership for one of its own events' stations, or whose membership
+`metadata_fingerprint` disagrees with that event's own census rule payload,
+closing the prior gap where a `CandidatePlan` could be assembled with an
+unrelated or stale correlation policy attached instead of the real one bound
+to its own certified stations. Re-ran the work in the foreground rather than
+trusting the stalled background job: `pytest tests/test_v11_region_membership.py
+tests/test_v11_candidate_assembly.py` **60 passed / 22.95 s**; broader
+`region_membership`/`candidate_assembly`/`scenario_risk`/
+`weather_only_station_region`/`basket_coordinator` selection **148 passed /
+32.52 s**, no skips/warnings, foreground, no full regression (single-slice
+change, consistent with prior no-full-rerun batches). `git diff --stat`
+confirmed only the four already-modified V11/tests files were touched; no V10,
+private-input, credential or unrelated file changed. This closes the
+"candidate integration" half of R23's previously-open "candidate/guardian
+integration" gap; independent guardian-side integration, supported finer
+dependence mappings, protected review/certification and archival/freshness
+remain open. No new formal C/J/E/A milestone: **85/200 = 42.5%; 1/50 (2%)**,
+unchanged. NOT_READY_TO_FUND; V10/private/financial boundaries unchanged.
+Next R23 action: independent guardian-side wiring of the same real
+`CorrelationMap` into runtime portfolio-risk admission, and evidence-backed
+finer dependence mapping.
+
 Independent R23 review correction — 2026-09-27: reviewed exact commit
 `0378b381` versus `b457aabd` with GPT-6 Astra at high effort. Reproduced precise
 station-coordinate rejection, conflicting official identities, unchecked typed

@@ -1,5 +1,15 @@
 # Supplementary engineering estimate
 
+R23 candidate-integration binding, 2026-09-27 (batch 1 recovery): recovered
+and published the preceding invocation's uncommitted `build_correlation_map`
+(real per-station `CorrelationMap` aggregation) and `CandidatePlan` correlation-
+station/fingerprint binding after verifying it in the foreground (60 focused /
+148 relevant passes; see docs/V11_WORK_CHECKPOINT.md for detail). Closes the
+candidate-side half of R23's prior "candidate/guardian integration" gap only;
+guardian-side runtime wiring, finer dependence mapping, protected review and
+archival/freshness remain open. No new C/J/E/A: **85/200 = 42.5%; 1/50 (2%)**,
+unchanged.
+
 Independent R23 review correction — 2026-09-27: reviewed exact commit
 `0378b381` versus `b457aabd` with GPT-6 Astra at high effort. Reproduced precise
 station-coordinate rejection, conflicting official identities, unchecked typed
