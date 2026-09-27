@@ -1,6 +1,28 @@
 # Supplementary engineering estimate
 
-Supervisor batch 13 — 2026-09-27: master-grounded correction (section 35/6A)
+Independent supervisor-batch-1 review — 2026-09-27: reviewed `3c616d1`
+against `4210a6c`. Five new cases reproduced policy-digest incompatibility,
+accepted conflicts with managed sibling units, and missing stop/start ordering.
+The optional legacy-consumer field is preserved: omission now retains the old
+canonical policy digest, all managed component names are excluded, and named
+consumers render `Conflicts=` plus `After=`. Six added cases include real anchor
+verification and refusal of an unapproved target-policy change. **20 focused /
+88 relevant integration passed**, no skips/warnings; 740 tracked input hashes
+unchanged before/after each run. No broad/full rerun. Exact evidence and scope:
+`docs/V11_WORK_CHECKPOINT.md` (independent supervisor-batch-1 review).
+
+Batch 13's requirement-narrowing/closure claims are superseded: master section
+35 separately requires installed dependencies, Telegram consumer ownership and
+independent host trust; section 40 retains protected risk configuration and
+verified operator controls. Optional generated unit declarations do not prove
+those outcomes or close R39/R44's offline integration/recovery obligations.
+Systemd documents bidirectional Conflicts semantics and requires ordering for
+stop completion before start. No installed service or V10 asset was changed.
+The reported R37 CI refusal remains unresolved; environment restriction is an
+unverified hypothesis. No new C/J/E/A: **85/200 = 42.5% (~43%); 1/50 (2%)**.
+R37/R38/R39/R44/R45 PARTIAL; NOT_READY_TO_FUND; V10 unchanged/DEFERRED.
+
+Original supervisor batch 13 (scope and closure claims superseded above) — 2026-09-27: master-grounded correction (section 35/6A)
 of R39/R44's remaining-gap framing, plus a real code fix: `host_trust/
 weather-paper-authority-v3/authority.py` gained an optional
 `legacy_consumer_units` policy field so future-generation controller/execution/

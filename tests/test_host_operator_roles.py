@@ -8,7 +8,7 @@ import subprocess
 
 import pytest
 
-from test_host_authority_production_boundary import host, prepare, cutover
+from test_host_authority_production_boundary import host, prepare, cutover, load
 
 
 @pytest.fixture
@@ -67,6 +67,66 @@ def test_legacy_consumer_conflicts_reach_controller_and_execution_units_not_scan
         assert "Conflicts=alpha-paper-demo.service" in text
     scanner_text=Path(host.policy["components"]["scanner"]["unit_file"]).read_text()
     assert "Conflicts=alpha-paper-demo.service" not in scanner_text
+
+
+@pytest.mark.parametrize("fixture_name", ["host", "panel_host"])
+def test_legacy_consumer_stop_is_ordered_before_every_consumer_start(request, fixture_name):
+    host = request.getfixturevalue(fixture_name)
+    legacy = ("legacy-paper.service", "legacy-controller.service")
+    host.policy["legacy_consumer_units"] = legacy
+    gid, manifest = prepare(host)
+    for name, component in host.policy["components"].items():
+        text = Path(component["unit_file"]).read_text()
+        directives = {}
+        for line in text.split("[Service]", 1)[0].splitlines():
+            if "=" in line:
+                key, value = line.split("=", 1)
+                directives.setdefault(key, set()).update(value.split())
+        if name == "scanner":
+            assert not set(legacy) & directives.get("Conflicts", set())
+            assert not set(legacy) & directives.get("After", set())
+        else:
+            assert set(legacy) <= directives.get("Conflicts", set())
+            assert set(legacy) <= directives.get("After", set())
+        assert "network-online.target" in directives["After"]
+    assert host.m.verify_runtime_files(gid, host.b, require_root=False)["manifest"] == manifest
+
+
+def test_absent_legacy_policy_preserves_existing_anchor_digest(host):
+    # This fixture's policy is already in the pre-extension canonical form.
+    # Use the real verifier: the generation fixture normally mocks verify_self.
+    m = load()
+    digest = m._sha_bytes(m._canonical(host.policy))
+    anchor = host.root / "authority-anchor.json"
+    anchor.write_text(json.dumps({"version": m.AUTHORITY_VERSION,
+        "authority_sha256": m.authority_digest(), "policy": host.policy,
+        "policy_sha256": digest}))
+    assert m.verify_self(anchor, require_root=False)["policy_sha256"] == digest
+
+
+def test_legacy_consumer_policy_is_bound_to_independent_anchor(host):
+    m = load()
+    host.policy["legacy_consumer_units"] = ["legacy-paper.service"]
+    policy = m._validate_policy(host.policy)
+    digest = m._sha_bytes(m._canonical(policy))
+    anchor = host.root / "authority-anchor.json"
+    record = {"version": m.AUTHORITY_VERSION,
+        "authority_sha256": m.authority_digest(), "policy": host.policy,
+        "policy_sha256": digest}
+    anchor.write_text(json.dumps(record))
+    assert m.verify_self(anchor, require_root=False)["policy_sha256"] == digest
+    record["policy"]["legacy_consumer_units"] = []
+    anchor.write_text(json.dumps(record))
+    with pytest.raises(m.AuthorityError, match="AUTHORITY_POLICY_DIGEST_MISMATCH"):
+        m.verify_self(anchor, require_root=False)
+
+
+@pytest.mark.parametrize("name", ["execution", "scanner"])
+def test_legacy_consumer_rejects_every_managed_component(panel_host, name):
+    host = panel_host
+    host.policy["legacy_consumer_units"] = (host.policy["components"][name]["unit_name"],)
+    with pytest.raises(host.m.AuthorityError, match="AUTHORITY_LEGACY_CONSUMER_UNITS_INVALID"):
+        host.m._validate_policy(host.policy)
 
 
 @pytest.mark.parametrize("value",[("alpha paper demo",),("dup.service","dup.service"),("signals.service",)])

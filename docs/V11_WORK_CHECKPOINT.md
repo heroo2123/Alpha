@@ -1,6 +1,81 @@
 # Alpha V11 work checkpoint
 
-## Supervisor batch 13 — master-grounded R39/R44 scope correction plus legacy-consumer Conflicts=, 2026-09-27
+## Independent supervisor-batch-1 review — repair batch-13 unit policy, 2026-09-27
+
+Reviewed published `3c616d190a390bba71144535f0fa5946bb8ce84e` against
+`4210a6c2d01a21ebaf8266c7bc6bd64ebeb40737`. Started with a clean tree,
+local/remote equality and no active Claude process. Read CLAUDE.md, the V11
+ledgers and the authoritative master's relevant continuation, execution-order,
+operator-safety, guardian, security and acceptance sections; its SHA-256 matches
+`a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+All file/Git/test work used Remote Desktop Commander on alpha-dev, sequentially.
+
+Five new cases failed against the published code (5 failed / 1.62 s):
+
+- Omitting the optional field inserted an empty value into the canonical
+  policy. The real `verify_self` then rejected a previously valid policy digest
+  with `AUTHORITY_POLICY_DIGEST_MISMATCH`; the existing generation fixture mocks
+  that verifier and did not cover this compatibility boundary.
+- The validator rejected only the primary unit, allowing execution/scanner
+  component names to become legacy targets. Such a policy can create a
+  self-conflict or stop a required sibling component.
+- Both supported consumer layouts emitted `Conflicts=` without ordering.
+  The installed `systemd.unit(5)` documents bidirectional conflict semantics
+  and separately requires `After=`/`Before=` to finish the stop before start.
+  A conflict alone therefore does not establish non-overlapping consumers.
+
+Preserved the optional policy field and all valid existing behavior. Omission
+now preserves the canonical policy; every declared component name is excluded
+from legacy targets; configured consumers emit both `Conflicts=` and `After=`.
+Scanner output is unaffected. A sixth added check uses the real anchor verifier
+and proves that changing the configured conflict targets without updating the
+independently pinned policy digest remains rejected. Authority self-digest,
+root-custody, approval and release gates are unchanged; installing any changed
+reference authority still requires the established independent approval process.
+
+The original batch-13 scope/closure claims below are superseded. Master section
+35 lists unit dependencies and Telegram ownership as distinct checks alongside
+independent host trust, exact release identity and isolated state. An optional
+reference-unit declaration neither identifies all bot consumers nor proves
+protected candidate configuration, ownership/recovery, installed dependencies,
+or runtime coexistence. An empty reported `ConflictedBy` property does not
+disprove systemd's documented semantics. The master does not prescribe a
+cross-host database protocol, but this is not a waiver of its safety outcomes.
+R39/R44 offline integration and tests remain open; credentialed commissioning
+is separate. No V10 transition is authorized by this change.
+
+Verification used `/home/alphaadmin/AlphaV11_Dev/venv/bin/python`:
+
+- Focused `tests/test_host_operator_roles.py`: **20 passed / 7.32 s**.
+- Relevant integration: that module plus `test_host_authority_production_boundary.py`,
+  `test_weather_final_corrective_deployment.py` and
+  `test_weather_host_trust_environment.py`: **88 passed / 25.08 s**, exit 0,
+  no skips or warnings.
+- All **740 tracked Python/configuration/dependency input hashes** matched before
+  and after every run. Exact argv, patch, manifests, logs, JUnit and results:
+  `/tmp/v11-codex-b13-review/{red,focused,integration}/`; runner: `run.py`.
+- The implementation's reported 298/54-pass selections are retained below as
+  historical reports. Its checkpoint supplies no at-run manifest/log location;
+  no fresh batch-13 bundle was located in the bounded evidence search. Those
+  counts are not claimed as independently reproduced. No broad/full rerun.
+
+R37's reported CI EPERM is not resolved here. A runner restriction is a
+hypothesis, not an established cause; mapped IDs and `setgroups=allow` alone do
+not establish all permission/capability conditions. Keep the failure explicit
+and obtain a bounded diagnostic reproduction before assigning its cause.
+
+No new C/J/E/A credit: **85/200 = 42.5% (~43%); 1/50 (2%)**.
+R37/R38/R39/R44/R45 remain PARTIAL; **NOT_READY_TO_FUND**. No service,
+installed authority, V10 file, credential, private input or financial authority
+was changed. This advances the safety and compatibility of reference unit
+generation only, not host commissioning or master acceptance.
+
+**Next unfinished action:** continue the offline protected V11 operator
+configuration and consumer-ownership/recovery integration under the existing
+independent authority; preserve the unresolved custody CI gate and all prior
+valid work. Do not repeat broad suites or infer deployment approval.
+
+## Original supervisor batch 13 — scope and closure claims superseded above, 2026-09-27
 
 Recovery check at batch start: `git status` clean, local HEAD `4210a6c` equal to
 `origin/weather-v11-profitability-upgrade-2026-09-23`. Read the requirements

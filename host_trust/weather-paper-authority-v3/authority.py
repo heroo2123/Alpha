@@ -405,9 +405,12 @@ def _validate_policy(raw: dict) -> dict:
     if not isinstance(legacy_units, (list, tuple)) or any(
             not isinstance(name, str) or not re.fullmatch(r"[A-Za-z0-9_.@-]+\.service", name) for name in legacy_units):
         fail("AUTHORITY_LEGACY_CONSUMER_UNITS_INVALID")
-    if len(set(legacy_units)) != len(legacy_units) or unit in legacy_units:
+    managed_units = {row["unit_name"] for row in components.values()}
+    if len(set(legacy_units)) != len(legacy_units) or managed_units.intersection(legacy_units):
         fail("AUTHORITY_LEGACY_CONSUMER_UNITS_INVALID")
-    out["legacy_consumer_units"] = tuple(legacy_units)
+    # Omission must preserve existing anchor/generation policy digests.
+    if "legacy_consumer_units" in raw:
+        out["legacy_consumer_units"] = tuple(legacy_units)
     return out
 
 
@@ -1219,14 +1222,11 @@ def _render_unit(policy: dict, generation_id: str, candidate: str, runtime: dict
         if component_name != "execution" and "execution" in policy["components"]:
             hidden.extend([policy["execution_credentials_file"], policy["execution_activation_file"], policy["execution_db_path"], policy["execution_db_path"]+"-wal", policy["execution_db_path"]+"-shm"])
     inaccessible = "InaccessiblePaths=" + " ".join("-"+path for path in hidden) + "\n" if hidden else ""
-    # Telegram/execution consumer ownership must not rely on the untested claim
-    # that systemd back-fills a reverse Conflicts= edge on its own: the reverse
-    # edge was observed absent from a live installed unit's ConflictedBy=, so
-    # an explicit declaration is required on this side too, for any component
-    # that can consume the shared bot/order-entry identity a legacy deployment
-    # already occupies.
+    # Conflicts stops the other unit in either direction; ordering also waits
+    # for that stop to finish before the successor consumer starts. These
+    # declarations apply only to independently approved, named local units.
     legacy = policy.get("legacy_consumer_units", ()) if component_name in ("controller", "execution", "signals") else ()
-    conflicts = "Conflicts=" + " ".join(legacy) + "\n" if legacy else ""
+    conflicts = "Conflicts=" + " ".join(legacy) + "\nAfter=" + " ".join(legacy) + "\n" if legacy else ""
     return f"""[Unit]
 Description=Alpha weather production {component_name}
 Wants=network-online.target
