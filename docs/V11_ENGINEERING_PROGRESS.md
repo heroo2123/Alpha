@@ -2341,3 +2341,31 @@ activity is another untouched guardian-class-defect audit target (R01 is
 already COMPLETE; R04, R07, R11, R16-R17, R41 have not yet been read
 end-to-end by this audit style; R02/R03/R05/R06/R08/R19/R24/R25-R28 now
 have).
+
+## Supervisor batch 4 (recovered same-batch pass, 2026-09-27)
+
+The prior invocation left no dirty state; `HEAD` already matched
+`origin/weather-v11-profitability-upgrade-2026-09-23` at batch 14's
+published commit. Nothing to recover. Continued the documented next
+unblocked activity: audited R07's full file set (`certification.py`,
+its `strategy_admission.py`/`drift_runtime.py` integration, and the two
+NWS/WRH station-metadata adapters) for the guardian-class defect this
+audit series checks for — whether a demotion or an expired/forged/
+out-of-scope review can still leave a strategy eligible for admission.
+`StationRegistry.assess` fail-closes on root custody, exact
+scope/fingerprint/namespace/stage match, seq- and timestamp-dominant
+barrier coverage over metadata-drift and scope-matched demotions, and
+independently re-read (not manifest-trusted) capability proofs;
+`strategy_admission.py::_assess`/`revalidate` both raise on
+`not certification['eligible']` and re-derive certification from
+scratch on revalidation. Full trace details and evidence are in
+`docs/V11_WORK_CHECKPOINT.md`. **No defect found.**
+
+No code changed. Verification (foreground): direct family — 54 passed /
+4.19 s, exit 0. Broader affected selection: 333 passed, 4 pre-existing
+FastAPI warnings / 79.78 s, exit 0. No failures/skips in either run. No
+full regression: documentation-only audit correction, no regression
+risk.
+
+No new C/J/E/A milestone: **87/200 (~44%); formal 1/50 (2%)**, unchanged.
+NOT_READY_TO_FUND; V10 unchanged/DEFERRED.

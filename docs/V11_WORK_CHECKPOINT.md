@@ -8711,3 +8711,80 @@ next genuinely unblocked local activity is another untouched
 guardian-class-defect audit target (R01 is already COMPLETE; R04, R07,
 R11, R16-R17, R41 have not yet been read end-to-end by this audit style;
 R02/R03/R05/R06/R08/R19/R24/R25-R28 now have).
+
+## Supervisor batch 4 (recovered same-batch pass, 2026-09-27)
+
+The immediately preceding invocation left no dirty state and no pending
+commit; `git status`/`git log` confirmed the tree was already clean and
+`HEAD` already matched `origin/weather-v11-profitability-upgrade-2026-09-23`
+at batch 14's published commit (guardian-class-defect audits of
+R25-R28's shared `strategy_pipeline.py`/`pws_lead.py`/`pws_admission.py`/
+`source_release.py`). There was nothing to recover; this batch instead
+continues the documented next unblocked activity: another untouched
+guardian-class-defect audit target.
+
+Audited R07's full file set: `certification.py` (272 lines, not previously
+read end-to-end by this audit style), its `strategy_admission.py` (203
+lines) and `drift_runtime.py` demotion-call integration, and the two
+NWS/WRH station-metadata identity adapters (250 + 312 lines). Specifically
+traced whether a station demotion or an expired/forged/out-of-scope review
+can still leave a strategy eligible for PAPER/SHADOW admission:
+`StationRegistry.assess` requires a root-custodied review
+(`protected_reviews`/`_root_custody` validate every parent directory and
+the file itself for root ownership and no group/world-write bit) whose
+`scope_key`/`metadata_fingerprint`/`rule_fingerprint`/`namespace`/`stage`
+match exactly, whose `reviewed_through_seq` is at or after every barrier
+seq (metadata-drift `material_changed` records and scope-matched
+`DEMOTION` records) and whose `approved_at` postdates every such barrier's
+own `recorded_at` (a second, timestamp-based check independent of seq
+ordering), and whose every required `CAPABILITY_EVIDENCE` proof is
+independently re-read from the store (not trusted from the manifest) and
+rejected if its hash, kind, scope, capability, result, or fingerprints
+mismatch, or if it postdates the review, or if any later scope-matched
+capability failure exists past `reviewed_through_seq`
+(`NEW_CAPABILITY_FAILURE_REQUIRES_REVIEW`). `strategy_admission.py::_assess`
+raises `certification['reason']` whenever `eligible` is false, and its
+`revalidate` re-derives `certification` from scratch and rejects any
+canonical mismatch against the pinned value
+(`STRATEGY_AUTHORITY_OR_SOURCE_CHANGED_RECOMPUTE`), so a demotion applied
+after initial admission still blocks the next revalidation before
+`model_size_multiplier` reaches `paper_coordinator._prepare`'s sizing —
+the same "is the gate enforced end-to-end at the live admission path"
+question this audit series checks for. `drift_runtime.py`'s only caller of
+`StationRegistry.demote` requires a reviewed `DEGRADATION_CANDIDATE`
+measurement, an unchanged account/label/markout head at demotion time, and
+a non-empty evidence reference; `demote` itself rejects any `state` outside
+`FAIL_STATES` or an empty `evidence_ids`. The two station-metadata adapters
+(`weather_only_station_metadata.py`, `weather_only_wrh_station_metadata.py`)
+carry `settlement_authority`/`calibration_label_authority`/
+`calibrated_probability_authority`/`financial_authority` permanently
+`False` on every returned record and reject on envelope/identity/geometry/
+timezone/coordinate mismatch; the WRH fallback only triggers on an explicit
+NWS 404/410, never masking a schema or identity failure. **No defect
+found.**
+
+No code changed. Verification (foreground): direct family —
+`tests/test_v11_certification_rules.py tests/test_weather_only_station_metadata.py
+tests/test_weather_only_wrh_station_metadata.py tests/test_v11_strategy_admission.py`
+— **54 passed / 4.19 s**, exit 0, no failures/skips. Broader affected
+selection (`-k "certification or station_metadata or strategy_admission or
+drift or model_registry or rules"`): **333 passed, 4 pre-existing FastAPI
+warnings / 79.78 s**, exit 0, no failures/skips. `git status --short` shows
+no changes outside this entry, the matching `docs/V11_REQUIREMENTS_MATRIX.md`
+R07 row and `docs/V11_ENGINEERING_PROGRESS.md` — no production, test, V10,
+private-input or credential file touched. No full regression: a
+documentation-only audit correction carries no regression risk, consistent
+with the no-full-rerun precedent every prior no-defect audit batch set.
+
+No new C/J/E/A milestone: **87/200 (~44%); formal 1/50 (2%)**, unchanged.
+NOT_READY_TO_FUND; V10 unchanged/DEFERRED.
+
+Next: R19/R24/R40's real local-implementation/evidence tails remain
+genuinely blocked without inventing unsupported formulas or a calibrated
+model. R39 should not be revisited by more local code without first
+identifying a concrete, master-derived configuration-authorization model.
+R43/R44/R46-R49 remain genuinely owner/external/production blocked. The
+next genuinely unblocked local activity is another untouched
+guardian-class-defect audit target (R01 is already COMPLETE; R04, R11,
+R16-R17, R41 have not yet been read end-to-end by this audit style;
+R02/R03/R05/R06/R07/R08/R19/R24/R25-R28 now have).
