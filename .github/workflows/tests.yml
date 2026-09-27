@@ -109,7 +109,44 @@ jobs:
                       assert version(name.split('[')[0]) == expected, name
           print('All runtime and test pins match exactly.')
           PY
+      - name: Permit user namespaces for the CI Python only
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          restriction="$(cat /proc/sys/kernel/apparmor_restrict_unprivileged_userns 2>/dev/null || printf '0')"
+          echo "apparmor_restrict_unprivileged_userns=$restriction"
+          if [[ "$restriction" != "1" ]]; then
+            echo "No Ubuntu AppArmor user-namespace restriction is active; scoped profile not needed."
+            exit 0
+          fi
+          command -v apparmor_parser >/dev/null
+          python_bin="$(readlink -f "$(command -v python)")"
+          profile="$RUNNER_TEMP/alpha-v11-ci-python-userns.apparmor"
+          cat > "$profile" <<EOF
+          abi <abi/4.0>,
+          include <tunables/global>
+
+          $python_bin flags=(unconfined) {
+            userns,
+          }
+          EOF
+          sudo apparmor_parser -r -K "$profile"
+          printf '%s\n' "$profile" > "$RUNNER_TEMP/alpha-v11-ci-python-userns.profile-path"
+          python - <<'PYAPPARMOR'
+          from pathlib import Path
+          print("python_exe=" + str(Path('/proc/self/exe').resolve()))
+          print("apparmor_label=" + Path('/proc/self/attr/current').read_text().strip())
+          PYAPPARMOR
       - run: python -m pytest -q --junitxml=test-results.xml
+      - name: Remove CI-only Python userns profile
+        if: always()
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          marker="$RUNNER_TEMP/alpha-v11-ci-python-userns.profile-path"
+          if [[ -s "$marker" ]]; then
+            sudo apparmor_parser -R -K "$(cat "$marker")"
+          fi
       - run: python -m compileall -q app.py app_stable.py app_stable_v2.py app_trade_only.py command_worker.py command_worker_trade_only.py polymarket_scanner deploy host_trust tests tools
       - run: for script in deploy/*.sh deploy/oracle/*.sh deploy/gcp/*.sh host_trust/*/*.sh; do bash -n "$script" || exit; done
       - name: Verify rendered systemd services without starting them
