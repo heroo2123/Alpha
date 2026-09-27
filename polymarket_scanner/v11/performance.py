@@ -16,7 +16,7 @@ from .scenario_risk import number, precise
 VERSION = 'alpha_v11_performance_v1'
 UNKNOWN = 'UNKNOWN'
 _CURRENT = object()
-DIMENSIONS = ('station','city','entry_price','event_state','model_bundle','horizon','model_confidence','market_liquidity','weather_variable','time_of_day')
+DIMENSIONS = ('station','city','entry_price','event_state','model_bundle','horizon','model_confidence','market_liquidity','weather_variable','time_of_day','apparent_edge')
 
 
 def _add(groups, key, amount):
@@ -215,6 +215,8 @@ class PerformanceLab:
                 value = self.store.get(intent['valuation_id'])['body']['details']
                 result['model_confidence'] = value.get('model',{}).get('prediction',{}).get('calibration_status',UNKNOWN)
                 result['market_liquidity'] = value.get('book',{}).get('reason',UNKNOWN)
+                edge = value.get('conservative_ev_per_share')
+                result['apparent_edge'] = edge if edge is not None else UNKNOWN
             result['metadata_status'] = 'PINNED_ENTRY_RECORDS_ONLY_NOT_CURRENT_CHAMPION'
         except (EvidenceError,KeyError,TypeError): result['metadata_status'] = 'INCOMPLETE_PINNED_METADATA'
         cache[intent_id] = result

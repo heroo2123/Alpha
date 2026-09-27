@@ -143,6 +143,29 @@ def test_time_of_day_slice_falls_back_to_unknown_without_pinned_scope(rig):
     assert d['pnl_slices']['time_of_day']=={'UNKNOWN':'6'}
 
 
+def test_apparent_edge_slice_groups_by_pinned_entry_valuation(rig):
+    c,s=recorded(rig,('6','-4'))
+    rig['store'].audit('valuation-priced',event_id='e0',kind='MEASUREMENT',
+        details={'conservative_ev_per_share':'0.05'})
+    s['intents']['entry0']['valuation_id']='valuation-priced'
+    save(c,s);d=report(rig,c)
+    assert d['pnl_slices']['apparent_edge']=={'0.05':'6','UNKNOWN':'-4'}
+
+
+def test_apparent_edge_slice_falls_back_to_unknown_without_pinned_valuation(rig):
+    c,s=recorded(rig,('6',));save(c,s);d=report(rig,c)
+    assert d['pnl_slices']['apparent_edge']=={'UNKNOWN':'6'}
+
+
+def test_apparent_edge_slice_falls_back_to_unknown_when_valuation_is_gated(rig):
+    c,s=recorded(rig,('6',))
+    rig['store'].audit('valuation-gated',event_id='e0',kind='MEASUREMENT',
+        details={'conservative_ev_per_share':None})
+    s['intents']['entry0']['valuation_id']='valuation-gated'
+    save(c,s);d=report(rig,c)
+    assert d['pnl_slices']['apparent_edge']=={'UNKNOWN':'6'}
+
+
 def test_report_namespace_cannot_mix_another_ledger(rig):
     c,s=recorded(rig);s['execution_namespace']='CHALLENGER:other';save(c,s)
     with pytest.raises(EvidenceError,match='NAMESPACE'):report(rig,c)

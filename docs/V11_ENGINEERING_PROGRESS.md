@@ -1,5 +1,29 @@
 # Supplementary engineering estimate
 
+Supervisor batch 14 — 2026-09-27: acting on the independent batch-6 review's
+own next step below ("complete one remaining R40 profile ... do not redirect
+to another audit solely because no new score unit is available"), added the
+`apparent_edge` Upgrade N profile: `v11/performance.py::DIMENSIONS` gained
+`apparent_edge`, populated in `PerformanceLab._metadata` from
+`conservative_ev_per_share` already present in the same pinned entry-valuation
+record already read for `model_confidence`/`market_liquidity` — a real,
+already-computed field, zero new store reads — preserving `UNKNOWN` whenever
+no valuation is pinned or the pinned valuation is GATED/REJECT (no numeric
+EV). `country/source` (needs `StationMetadata.country`, not itself carried on
+the pinned `CapabilityScope`; only reachable via an extra historical
+`REGISTRY` lookup keyed by `metadata_fingerprint`) and `PWS density/quality`
+(no identified pinned field yet) remain open. Three new cases; **21 focused /
+6.49 s** (was 18), **291 broader / 148.33 s** across every located
+`PerformanceLab`/`performance.py` consumer test file, exit 0, no failures/
+skips. `git diff --stat` confirms exactly two touched files. No full
+regression: additive single-field change to an already-generic mechanism,
+matching the batch-11 precedent's scope. This closes the second of R40's
+three remaining Upgrade N profile gaps (weather-variable and time-of-day were
+already done). No new C/J/E/A milestone: **87/200 (~44%); 1/50 (2%)**,
+unchanged. NOT_READY_TO_FUND; V10 unchanged/DEFERRED. No V10, private,
+credential or unrelated production file touched. Full detail:
+`docs/V11_WORK_CHECKPOINT.md` (supervisor batch 14).
+
 Independent supervisor-batch-6 review — 2026-09-27: supersedes worker
 batches 12/13's blanket owner/external-only backlog classification. Master
 sections 12, 18 and 42 require remaining local sizing/profile integration and

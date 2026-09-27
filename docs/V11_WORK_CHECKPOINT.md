@@ -1,5 +1,81 @@
 # Alpha V11 work checkpoint
 
+## Supervisor batch 14 — 2026-09-27: R40 apparent-edge Upgrade N profile
+
+Recovery check: `git status` clean, local HEAD `4ca7402` equal to
+`origin/weather-v11-profitability-upgrade-2026-09-23`, no unfinished process
+found. Read this checkpoint, the requirements matrix and the progress ledger.
+The most recent entry — the independent supervisor-batch-6 review immediately
+below — explicitly assigned "complete one remaining R40 profile ... Do not
+redirect to another audit solely because no new score unit is available,"
+superseding the batch-12/13 "owner/external-only" conclusion for this tail.
+R39 was not touched: per the score-velocity rule it has already consumed many
+consecutive published batches without a new C/J/E/A boundary (it already holds
+C and J; only E/A remain, gated on real credentials/deployment), and no new
+defect or boundary was found reachable there this batch.
+
+Of the three remaining Upgrade N profiles (country/source, PWS density/
+quality, apparent-edge), `apparent_edge` was the only one with a real,
+already-computed, already-pinned field requiring zero new store reads or
+evidence-plumbing decisions: `v11/valuation.py::settlement_entry_details`
+already stores `conservative_ev_per_share` (the conservative per-share EV
+computed at entry time, `None` whenever the valuation is GATED/REJECT) in the
+exact `MEASUREMENT` record `PerformanceLab._metadata` already fetches via
+`intent['valuation_id']` for `model_confidence`/`market_liquidity`. By
+contrast, `country/source` needs `StationMetadata.country`, which is not
+itself carried on the pinned `CapabilityScope`/admission record — the only
+route is an extra historical `REGISTRY` lookup on `station:<id>` keyed by the
+admission's pinned `metadata_fingerprint` (adds a store round-trip inside the
+per-report metadata budget and a new evidence-linking decision) — and
+`PWS density/quality` still has no identified pinned field at all. Both remain
+open local-implementation gaps, not owner/external blockers.
+
+`v11/performance.py`: `DIMENSIONS` gained `apparent_edge`; `_metadata` now
+reads `value.get('conservative_ev_per_share')` from the same already-fetched
+valuation `details` dict, setting `UNKNOWN` whenever that key is absent or
+`None` (no admission/valuation pinned, or the pinned valuation is GATED/
+REJECT with no numeric EV) — the same fallback discipline as every existing
+dimension. No change to any admission/valuation/conservation invariant.
+
+Three new cases in `tests/test_v11_performance.py` mirror the existing
+`weather_variable`/`time_of_day` pattern: a pinned `MEASUREMENT` record with a
+priced `conservative_ev_per_share` groups realized P&L by that value; an entry
+intent with no `valuation_id` falls back to `UNKNOWN`; a pinned valuation
+whose `conservative_ev_per_share` is explicitly `None` (GATED) also falls back
+to `UNKNOWN` rather than the literal string `"None"`.
+
+Verification (foreground): `tests/test_v11_performance.py` — **21 passed /
+6.49 s** (was 18). Broader (every module importing `PerformanceLab`/
+referencing `performance.py`, plus every consumer test file located via
+`grep -rl`): `tests/test_v11_performance.py tests/test_v11_account_replay.py
+tests/test_v11_causal_replay.py tests/test_v11_execution_costs.py
+tests/test_v11_fill_markout.py tests/test_v11_pws_replay.py
+tests/test_v11_release_replay.py tests/test_v11_realized_drift.py
+tests/test_v11_audit_reports.py tests/test_v11_drift.py
+tests/test_v11_drift_runtime.py` — **291 passed / 148.33 s**, exit 0, no
+failures/skips. `git diff --stat` shows exactly two touched files:
+`polymarket_scanner/v11/performance.py` and `tests/test_v11_performance.py` —
+no V10, private-input, credential or unrelated production file touched. No
+full regression: additive single-field change to an already-generic
+mechanism, verified across every located consumer, matching the batch-11
+precedent's scope.
+
+This closes the second of the three remaining Upgrade N profile gaps
+(`weather_variable`/`time_of_day` were already done; `apparent_edge` now
+joins them). `country/source` and `PWS density/quality` remain open, each
+needing its own evidence-plumbing/field-identification decision as described
+above. No new C/J/E/A milestone: R40 already held C/J before this addition
+(per the batch-8 compiled credit-state audit, not contradicted here) —
+**87/200 (~44%); formal 1/50 (2%)**, unchanged. NOT_READY_TO_FUND; V10
+unchanged/DEFERRED. Next: either (a) `country/source`'s historical-registry
+evidence-plumbing decision (feasible via the `metadata_fingerprint`-keyed
+`REGISTRY` lookup identified above, not owner-blocked, but needs a station-
+level cache and time-budget check inside `_metadata`'s existing deadline), or
+(b) `PWS density/quality`'s field identification, to close R40's remaining
+two profile gaps; R31/R39's E-A/R43/R44/R46-R49 remain genuinely owner/
+external/production blocked and should not consume another batch without new
+real evidence or an owner decision.
+
 ## Independent supervisor-batch-6 review — 2026-09-27
 
 Reviewed published `242a217717ea137c2d23229452de55119614724e` against
