@@ -256,7 +256,10 @@ def test_authenticated_telegram_safety_command_is_polled_and_applied_alongside_j
     assert d['operator_results'][0]['outcome']=='OPERATOR_COMMANDS_POLLED'
     assert d['all_async_jobs_drained'] and not d['operator_poll_requires_retry']
     assert not d['financial_authority']
-    reductions=rig['store'].records(kind='OPERATOR_EVENT',limit=10)
+    reductions=[r for r in rig['store'].records(kind='OPERATOR_EVENT',limit=10)
+                if 'request' in r['body']['details']]
+    # One durable bot first-claim record plus the one applied safety reduction.
+    assert len(rig['store'].records(kind='OPERATOR_EVENT',limit=10))==2
     assert len(reductions)==1 and reductions[0]['body']['details']['request']['actor']=='42'
 
 
@@ -321,7 +324,8 @@ def test_operator_commands_with_no_pending_updates_reports_no_work(rig,monkeypat
     assert all(j['kind']=='OPERATOR_COMMANDS' and j['outcome']=='NO_OPERATOR_COMMANDS'
                and j['record_id'] is None for j in d['operator_results'])
     assert d['all_async_jobs_drained'] and not d['operator_poll_requires_retry']
-    assert not rig['store'].records(kind='OPERATOR_EVENT',limit=10)
+    # Only the durable bot first-claim record; no commands were pending.
+    assert len(rig['store'].records(kind='OPERATOR_EVENT',limit=10))==1
 
 
 class WaitingOperatorBot(Bot):
@@ -402,14 +406,17 @@ def test_interruption_drains_operator_poll_and_restart_retries_unacknowledged_co
                 task.cancel()
                 with pytest.raises(asyncio.CancelledError):await task
                 assert not unrelated.done() and bot.active==0 and oc.poller.offset()==0
-                assert not rig['store'].records(kind='OPERATOR_EVENT',limit=10)
+                # The bind's durable first-claim commits before the blocked
+                # network call the interruption targets.
+                assert len(rig['store'].records(kind='OPERATOR_EVENT',limit=10))==1
                 pending=runner._head()['body']['details']['state']['active']
                 monkeypatch.setattr(bot,'updates',lambda offset: Bot.updates(bot,offset))
                 resumed=CandidateRunner(runner.runtime,runner.policy,census=runner.census,
                     discovery=runner.discovery,audits=runner.audits,operator_commands=oc)
                 row=await resumed.run('operator-interrupt')
                 assert oc.poller.offset()==2 and len(calls)==1
-                assert len(rig['store'].records(kind='OPERATOR_EVENT',limit=10))==1
+                # The first-claim record plus the one applied safety reduction.
+                assert len(rig['store'].records(kind='OPERATOR_EVENT',limit=10))==2
                 assert row['body']['details']['worker_results'][0]['command_id']==pending['id']
                 count=len(bot.calls)
                 assert await resumed.run('operator-interrupt')==row and len(bot.calls)==count

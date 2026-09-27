@@ -6002,3 +6002,115 @@ deployed account (owner credential/deployment decision required), or (b) R31's
 result-lag finality source/version evidence or R43/R44 authentication/
 isolated-deployment verification, both of which need real external source or
 owner-authorized access rather than further local implementation.
+
+## Durable cross-deployment bot-claim — 2026-09-27 (supervisor batch 11)
+
+Recovery check at batch start: `git status` clean, local HEAD
+`6c1bfbf91538f37867679c24b1ddf8a33339f27f` equal to
+`origin/weather-v11-profitability-upgrade-2026-09-23`; `AlphaV11_Supervisor/STATUS.md`
+showed this exact invocation as the only running process, batch 11/24. No
+unfinished same-batch work to recover.
+
+The independent batch-10 review's own recorded next action for R39 was
+"offline protected configuration and shared ownership/recovery tests; no
+credentials are needed." The requirements matrix named the two remaining
+purely local gaps precisely: "cross-directory/cross-host consumer ownership"
+and "protected (non-cooperative) configuration custody." Of the two, the
+first has a concrete, bounded, testable local defect: every previous batch's
+"first bind" for a bot was decided purely by the LOCAL lock file beside the
+store (empty means unclaimed). A second consumer in a different directory or
+host that happens to share the same underlying evidence store — the
+definition of "cross-deployment" this module already uses for its cursor
+scope (store path/file identity, namespace, worker key) — has its OWN,
+necessarily empty, local lock file, and under every prior batch's code could
+therefore freely claim the same bot and race the real owner's cursor. This is
+purely local (no real Telegram credentials needed to reproduce or fix) and
+distinct from "protected (non-cooperative) configuration custody," which
+would require inventing an authorization scheme beyond consistency-checking
+the caller's own supplied configuration — not attempted this batch, since the
+master specification does not obviously define who is authorized to approve
+a configuration change, and inventing that would risk exactly the kind of
+unsupported permission this project's operating rules forbid.
+
+Added a CAS-guarded durable `OPERATOR_EVENT` "claim" record
+(`alpha_v11_operator_bot_claim_v1`, `expected_previous_seq=0`) in
+`TelegramOperatorCommandPoller._bind_bot_owner`: the very first bind for a bot
+now commits this record to the shared evidence store before the local lock
+file is ever trusted as evidence of "unclaimed." `_owner_state` now resolves
+current ownership from the durable store first (a claim or a handoff record,
+whichever is latest), falling back to the local file only when the store has
+never recorded anything for this bot at all. A second consumer sharing the
+same store/file/namespace/worker scope — even with its own empty local lock
+file, exactly what a fresh directory or host would have — reads the same
+durable claim through `store.latest()` and is refused
+(`OPERATOR_COMMANDS_BOT_OWNER_MISMATCH`) before any network call; a genuinely
+separate store/database is unaffected, since ownership is deliberately scoped
+per-store, matching the existing (batch-9-established) identity design rather
+than expanding it.
+
+Before any handoff has ever occurred, the local lock file must still
+independently be empty or exactly correct — the local-file integrity
+requirement every prior batch relied on is preserved, not loosened by the new
+durable check, so a short/partial local write still permanently requires
+review exactly as before. After a handoff, the local file deliberately keeps
+its original anchor (unchanged from batch 9), so this check no longer applies
+to it. `handoff_bot_owner` gained a matching guard for the pre-handoff
+(claim-only) state: it now requires the local file to exactly mirror the
+durable claim before permitting a transfer, refusing
+(`OPERATOR_COMMANDS_BOT_OWNER_MISMATCH`) a handoff whose local anchor is
+corrupted or partial even though the durable claim already correctly
+identifies the true owner — otherwise a corrupted anchor could be carried
+forward into the handoff's own `anchor_binding` field and brick all future
+validation. A handoff attempted before any bot was ever durably claimed is
+now refused with a new, distinct `OPERATOR_COMMANDS_HANDOFF_NOT_CLAIMED`
+rather than silently treating "never claimed" the same as "claimed by nobody
+in particular."
+
+This closes the specific "empty local file believes it is unclaimed" defect
+for consumers sharing one store. It is explicitly not protected
+(non-cooperative) configuration custody: `handoff_bot_owner` is still a
+same-host, cooperative rotation performed by whoever currently holds the
+configuration, not independent third-party authorization, and an
+older/uncooperative controller that ignores these locks/claims entirely (e.g.
+one that deletes the lock file and writes directly) is still not excluded —
+both remain open exactly as the matrix already stated.
+
+Every existing count-based assertion across the two affected test files that
+implicitly assumed "no durable `OPERATOR_EVENT` record exists before the
+first handoff" was reviewed and updated to account for the new durable claim
+record, rather than loosened or deleted; none of the underlying invariants
+those tests were verifying (offset preservation, CAS conflict handling,
+descriptor cleanup, corrupted-state refusal, crash/replay idempotency) were
+changed. Two new cases were added: a durable first-claim that survives and
+blocks a same-store intruder even after its local lock file is reset to
+empty (the exact defect being closed), and a handoff-before-any-claim
+refusal.
+
+Verification: `tests/test_v11_operator_command_poller.py` **76 passed / ~4 s**
+(was 74; two new cases), exit 0, no skips. `tests/test_v11_candidate_runner.py`
+**55 passed / ~33 s**, exit 0, no skips. Broader affected selection
+(`-k "candidate_runner or operator_command or operator_safety or event_risk
+or telegram"`, includes production `Telegram.principal`/panel coverage):
+**225 passed, ~46 s, exit 0** (was 223), no skips, four pre-existing FastAPI
+warnings, foreground. `test_v11_account_replay.py` and
+`test_v11_source_views.py` (the only other files referencing `OPERATOR_EVENT`
+in this tree) do not exercise the poller and pass unchanged (40 passed).
+`git diff --stat` shows exactly four touched files:
+`v11/operator_command_poller.py`, `v11/operator_command_runtime.py`
+(docstring only), `tests/test_v11_operator_command_poller.py` and
+`tests/test_v11_candidate_runner.py` — confirming no private, V10, credential
+or unrelated production file was touched. No full regression: single-module
+scope, consistent with the no-full-rerun precedent batches 5-10 set.
+
+No new C/J/E/A milestone: **85/200 (~43%); 1/50 (2%)**, unchanged.
+NOT_READY_TO_FUND; V10 unchanged/DEFERRED. Next: either (a) protected
+(non-cooperative) configuration custody for R39 — this genuinely needs a
+concrete authorization model, which is not obviously derivable from the
+matrix/checkpoint alone and may warrant checking the private master
+specification directly before inventing one, or (b) a production entry point
+wiring a real credentialed `Telegram` client to `CandidateOperatorCommands`
+for an actual deployed account (owner credential/deployment decision
+required), or (c) R31's result-lag finality source/version evidence or
+R43/R44 authentication/isolated-deployment verification, both of which need
+real external source or owner-authorized access rather than further local
+implementation.

@@ -19,17 +19,25 @@ so merely serializing requests from independent cursors can lose commands.
 The current consumer resumes its existing evidence-store cursor unchanged.
 A mismatched or incomplete binding requires review; it is never overwritten.
 
-Both locks live beside the store. This is cooperative same-directory binding,
-not protected configuration custody: other directories/hosts, older code and
-controllers that ignore these locks are not excluded. Existing empty lock files
-can be claimed on first use with the reviewed configuration; stop old consumers
-before upgrading. Identity/policy rotation uses handoff_bot_owner with the exact
-prior configuration on the SAME store/file, namespace, worker, bot and account.
-A CAS-guarded durable audit advances ownership atomically while the lock retains
-its original anchor. Database replacement or cursor migration requires a separate
-reviewed recovery procedure; this API cannot perform it. Deleting or truncating
-the lock file bypasses review and remains unsupported. Older consumers must stay
-stopped: they do not understand the handoff journal.
+Both locks live beside the store, but ownership itself is anchored in the
+shared evidence store, not in either lock file. The very first bind for a bot
+records a CAS-guarded durable ``OPERATOR_EVENT`` claim (``expected_previous_seq
+=0``) before the local lock file is trusted, so a second consumer in a
+different directory or host that merely happens to have its own empty local
+lock file cannot silently believe the bot is unclaimed: it reads the same
+durable claim through the shared store and is refused. Existing empty lock
+files from before this claim existed can still be claimed on first use with
+the reviewed configuration, which durably records the claim retroactively;
+stop old consumers before upgrading. Identity/policy rotation uses
+handoff_bot_owner with the exact prior configuration on the SAME store/file,
+namespace, worker, bot and account, cooperatively performed by whichever local
+process currently holds that configuration; it does not by itself grant a
+brand-new host authorization it never had. A CAS-guarded durable audit advances
+ownership atomically while the lock retains its original anchor. Database
+replacement or cursor migration requires a separate reviewed recovery
+procedure; this API cannot perform it. Deleting or truncating the lock file
+bypasses review and remains unsupported. Older consumers must stay stopped:
+they do not understand the handoff/claim journal.
 
 An update that fails authentication, grammar, or router authorization is reported
 without stalling later commands; storage/integrity failures retain the cursor for
@@ -51,6 +59,7 @@ from .operator_safety_router import OperatorSafetyError, OperatorSafetyPolicy
 
 VERSION = "alpha_v11_operator_command_poller_v1"
 HANDOFF_VERSION = "alpha_v11_operator_bot_handoff_v1"
+CLAIM_VERSION = "alpha_v11_operator_bot_claim_v1"
 _BINDING_PATTERN = re.compile(rb"alpha_v11_operator_bot_owner_v1:[0-9a-f]{64}\n")
 # These reducer/input rejections cannot succeed on an unchanged retry.
 _COMMAND_REJECTIONS = frozenset({
@@ -109,13 +118,26 @@ class TelegramOperatorCommandPoller:
         return "operator-bot-owner:" + str(self.adapter.identity.bot_id)
 
     def _owner_state(self, fd: int):
-        """Read the immutable lock anchor and its atomic, same-cursor handoff head."""
+        """Read the local lock anchor and the durable claim/handoff head, if any.
+
+        The durable store, not either local lock file, is authoritative: a
+        durable claim or handoff head always wins. ``current`` is ``None`` only
+        when nobody has ever durably claimed this bot, in which case the local
+        lock file is inert (the store, not this file, decides "unclaimed").
+        """
         saved = os.read(fd, len(self._binding()) + 1)
         head = self.store.latest(kind="OPERATOR_EVENT", event_id=self._owner_event())
         if head is None:
-            return saved, saved, None
+            return saved, None, None
         details = head["body"]["details"]
-        if (details.get("version") != HANDOFF_VERSION
+        version = details.get("version")
+        if version == CLAIM_VERSION:
+            if (details.get("cursor_sha256") != digest(self._cursor_scope())
+                    or not isinstance(details.get("binding"), str)
+                    or not _BINDING_PATTERN.fullmatch(details["binding"].encode())):
+                raise OperatorCommandPollerError("OPERATOR_COMMANDS_BOT_OWNER_MISMATCH")
+            return saved, details["binding"].encode(), head
+        if (version != HANDOFF_VERSION
                 or details.get("anchor_binding") != saved.decode("ascii", "replace")
                 or details.get("cursor_sha256") != digest(self._cursor_scope())
                 or not _BINDING_PATTERN.fullmatch(saved)
@@ -151,9 +173,36 @@ class TelegramOperatorCommandPoller:
     def _bind_bot_owner(self, fd: int) -> None:
         """Pin a local consumer before polling; never overwrite or transfer it."""
         binding = self._binding()
-        saved, current, _ = self._owner_state(fd)
-        if current and current != binding:
+        saved, current, head = self._owner_state(fd)
+        if current is not None and current != binding:
             raise OperatorCommandPollerError("OPERATOR_COMMANDS_BOT_OWNER_MISMATCH")
+        # Before any handoff, the local file IS the binding, so it must
+        # independently be empty or exactly correct, whether or not a durable
+        # claim already backs it: a mismatched or incomplete local binding
+        # still requires review and is never silently repaired. After a
+        # handoff the local file deliberately keeps its original anchor
+        # instead, so this check no longer applies to it.
+        if ((head is None or head["body"]["details"].get("version") == CLAIM_VERSION)
+                and saved and saved != binding):
+            raise OperatorCommandPollerError("OPERATOR_COMMANDS_BOT_OWNER_MISMATCH")
+        if current is None:
+            # Nobody has ever durably claimed this bot. Record a CAS-guarded
+            # claim before trusting the local file, so a different directory
+            # or host sharing this same store cannot silently believe it is
+            # unclaimed too.
+            record_id = "operator-bot-owner-claim:" + digest(
+                [self._owner_event(), self._cursor_scope(), binding.decode()])
+            try:
+                self.store.audit(record_id, event_id=self._owner_event(), kind="OPERATOR_EVENT",
+                    details=dict(version=CLAIM_VERSION, outcome="OPERATOR_COMMANDS_BOT_OWNER_CLAIM",
+                                 binding=binding.decode(), cursor_sha256=digest(self._cursor_scope()),
+                                 financial_authority=False, messages_sent=False),
+                    expected_previous_seq=0)
+            except EvidenceError as exc:
+                if str(exc) != "AUDIT_STATE_CHANGED":
+                    raise
+                # A different consumer durably claimed this bot first.
+                raise OperatorCommandPollerError("OPERATOR_COMMANDS_BOT_OWNER_MISMATCH") from None
         if not saved and os.write(fd, binding) != len(binding):
             raise OperatorCommandPollerError("OPERATOR_COMMANDS_BOT_OWNER_WRITE_INCOMPLETE")
         # Also sync an existing match: a previous attempt may have written the
@@ -185,6 +234,14 @@ class TelegramOperatorCommandPoller:
         with ExitStack() as cleanup:
             fd = self._open_locked_bot_lock(cleanup)
             anchor, current, head = self._owner_state(fd)
+            if current is None:
+                raise OperatorCommandPollerError("OPERATOR_COMMANDS_HANDOFF_NOT_CLAIMED")
+            if head["body"]["details"].get("version") == CLAIM_VERSION and anchor != current:
+                # Before any handoff the local lock file must exactly mirror the
+                # durable claim; an unknown/partial local file is never trusted
+                # as the anchor for a transfer, even though the durable claim
+                # itself already identifies the true current owner.
+                raise OperatorCommandPollerError("OPERATOR_COMMANDS_BOT_OWNER_MISMATCH")
             result = dict(outcome="OPERATOR_COMMANDS_BOT_OWNER_HANDOFF", reason=reason)
             if expected == binding:
                 raise OperatorCommandPollerError("OPERATOR_COMMANDS_HANDOFF_NOT_CHANGED")

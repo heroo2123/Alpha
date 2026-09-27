@@ -60,7 +60,8 @@ def test_fresh_poller_starts_at_offset_zero_and_advances_past_applied_updates(ri
     assert bot.calls == [0]
     assert len(outcomes) == 1 and outcomes[0]["outcome"]["actor"] == 42
     assert poller.offset() == 2
-    assert len(store.records(kind="OPERATOR_EVENT", limit=10)) == 1
+    # One durable first-claim record plus one applied safety reduction.
+    assert len(store.records(kind="OPERATOR_EVENT", limit=10)) == 2
 
 
 def test_second_step_resumes_from_the_durable_offset_not_zero(rig):
@@ -95,7 +96,8 @@ def test_unauthenticated_update_is_reported_but_does_not_stall_a_later_one(rig):
     assert "error" in outcomes[0] and outcomes[0]["error"] == "UPDATE_NOT_FROM_AUTHENTICATED_OPERATOR"
     assert outcomes[1]["outcome"]["actor"] == 42
     assert poller.offset() == 3
-    assert len(store.records(kind="OPERATOR_EVENT", limit=10)) == 1
+    # One durable first-claim record plus one applied safety reduction.
+    assert len(store.records(kind="OPERATOR_EVENT", limit=10)) == 2
 
 
 def test_replaying_the_same_batch_twice_is_idempotent(rig):
@@ -105,7 +107,8 @@ def test_replaying_the_same_batch_twice_is_idempotent(rig):
     first = asyncio.run(poller.step())
     second = asyncio.run(build(Bot(bot._updates)).step())
     assert second == []
-    assert len(store.records(kind="OPERATOR_EVENT", limit=10)) == 1
+    # One durable first-claim record plus one applied safety reduction.
+    assert len(store.records(kind="OPERATOR_EVENT", limit=10)) == 2
 
 
 def test_concurrent_step_on_the_same_worker_key_is_refused(rig):
@@ -212,7 +215,9 @@ def test_idle_bot_owner_cannot_be_replaced_by_a_consumer_with_an_independent_cur
             assert str(exc) == "OPERATOR_COMMANDS_BOT_OWNER_MISMATCH"
     # A fresh poller for the original owner must still receive this safety command.
     asyncio.run(build(bot).step())
-    assert len(store.records(kind="OPERATOR_EVENT", limit=10)) == 1
+    # One durable first-claim record plus the one applied emergency command;
+    # no competitor ever durably claims or writes anything.
+    assert len(store.records(kind="OPERATOR_EVENT", limit=10)) == 2
     assert competitor.calls == []
     assert bot.calls == [0, 0]
 
@@ -295,7 +300,10 @@ def test_owner_binding_must_be_durable_before_network_and_failed_claims_preserve
         with pytest.raises((OperatorCommandPollerError, OSError)):
             asyncio.run(poller.step())
     assert bot.calls == [] and poller.offset() == 0
-    assert not store.records(kind="OPERATOR_EVENT", limit=10)
+    # The durable first-claim commits before the local lock file write/sync
+    # that these failures target, so it survives even though the local
+    # binding does not.
+    assert len(store.records(kind="OPERATOR_EVENT", limit=10)) == 1
     assert len(os.listdir("/proc/self/fd")) == before
     if failure == "short_write":
         with pytest.raises(OperatorCommandPollerError, match="BOT_OWNER_MISMATCH"):
@@ -351,8 +359,39 @@ def test_distinct_bots_in_one_directory_have_independent_owners_and_cursors(rig,
             OperatorSafetyRouter(other_store, first.adapter.router.policy)))
     assert asyncio.run(other.step())[0]["outcome"]["actor"] == 42
     assert first.offset() == 2 and other.offset() == 6
+    # Each store holds its own bot's first-claim record plus its own applied
+    # safety reduction.
+    assert len(store.records(kind="OPERATOR_EVENT", limit=10)) == 2
+    assert len(other_store.records(kind="OPERATOR_EVENT", limit=10)) == 2
+
+
+def test_a_fresh_empty_local_lock_file_cannot_reclaim_a_durably_claimed_bot(rig):
+    """The durable claim, not the local lock file, is authoritative.
+
+    A different directory or host sharing this same evidence store starts
+    with its own empty local lock file; that must not let it believe the bot
+    is unclaimed. Simulate that by resetting the local file to empty after a
+    real claim and attempting to bind a different, independent identity.
+    """
+    from dataclasses import replace
+
+    store, build = rig
+    owner = build(Bot([]))
+    assert asyncio.run(owner.step()) == []
+    owner._bot_lock_path().write_bytes(b"")
+    independent_identity = replace(owner.adapter.identity, chat_id=99, operators=(99,))
+    independent_policy = replace(owner.adapter.router.policy, operators=(99,))
+    intruder_bot = Bot(chat_id="99", operators=("99",))
+    intruder = TelegramOperatorCommandPoller(store, WORKER_KEY,
+        TelegramOperatorCommandAdapter(intruder_bot, independent_identity,
+                                        OperatorSafetyRouter(store, independent_policy)))
+    with pytest.raises(OperatorCommandPollerError, match="BOT_OWNER_MISMATCH"):
+        asyncio.run(intruder.step())
+    assert intruder_bot.calls == []
+    # The true owner is unaffected and its cursor still advances normally.
+    owner._bot_lock_path().write_bytes(owner._binding())
+    assert asyncio.run(owner.step()) == []
     assert len(store.records(kind="OPERATOR_EVENT", limit=10)) == 1
-    assert len(other_store.records(kind="OPERATOR_EVENT", limit=10)) == 1
 
 
 def test_replacing_the_database_at_an_owned_path_requires_review(rig):
@@ -400,6 +439,15 @@ def test_handoff_transfers_binding_without_disturbing_the_cursor(rig):
     # The old binding still refuses to poll once superseded.
     with pytest.raises(OperatorCommandPollerError, match="BOT_OWNER_MISMATCH"):
         asyncio.run(first.step())
+
+
+def test_handoff_refuses_a_bot_that_was_never_durably_claimed(rig):
+    store, build = rig
+    owner = build(Bot([]))
+    successor = rotated_poller(owner)
+    with pytest.raises(OperatorCommandPollerError, match="OPERATOR_COMMANDS_HANDOFF_NOT_CLAIMED"):
+        reviewed_handoff(successor, owner)
+    assert not store.records(kind="OPERATOR_EVENT", limit=10)
 
 
 def test_handoff_refuses_a_no_op_transfer(rig):
@@ -471,7 +519,8 @@ def test_rejected_command_does_not_block_later_emergency_command(rig, text, erro
     assert outcomes[0] == {"update_id": 1, "error": error}
     assert outcomes[1]["outcome"]["result"]["body"]["details"]["flags"]["no_new_orders"]
     assert poller.offset() == 3
-    assert len(store.records(kind="OPERATOR_EVENT", limit=10)) == 1
+    # One durable first-claim record plus the one applied emergency command.
+    assert len(store.records(kind="OPERATOR_EVENT", limit=10)) == 2
     assert asyncio.run(build(bot).step()) == []
     assert bot.calls == [0, 3]
 
@@ -489,7 +538,9 @@ def test_conflicting_redelivery_preserves_original_and_processes_later_command(r
     assert outcomes[0] == {"update_id": 1, "error": "REPLAY_REQUEST_CONFLICT"}
     assert outcomes[1]["outcome"]["result"]["body"]["details"]["cancellation_status"] == "REQUESTED_NOT_CONFIRMED"
     assert store.get(original["id"]) == original
-    assert len(store.records(kind="OPERATOR_EVENT", limit=10)) == 2
+    # The direct adapter.handle() call (original), the second poller's
+    # first-claim record, and its one applied emergency command.
+    assert len(store.records(kind="OPERATOR_EVENT", limit=10)) == 3
     assert poller.offset() == 3
 
 
@@ -504,6 +555,10 @@ def test_failed_write_keeps_cursor_retryable_and_prior_reductions_intact(rig, mo
     store, build = rig
     bot = Bot([message_update("/NO_NEW_ORDERS ACCOUNT account first", uid=1),
                message_update("/CANCEL_AND_HALT ACCOUNT account emergency", uid=2)])
+    # Durably claim the bot first so the injected OPERATOR_EVENT failure below
+    # targets a command's own reduction, not the unrelated first-claim record.
+    assert asyncio.run(build(Bot()).step()) == []
+    claimed = len(store.records(kind="OPERATOR_EVENT", limit=10))
     poller = build(bot)
     audit = store.audit
 
@@ -518,13 +573,13 @@ def test_failed_write_keeps_cursor_retryable_and_prior_reductions_intact(rig, mo
             asyncio.run(poller.step())
     assert poller.offset() == 0
     original = store.get("telegram:42:1001")
-    assert len(store.records(kind="OPERATOR_EVENT", limit=10)) == (2 if kind == "RUNTIME_STATUS" else 1)
+    assert len(store.records(kind="OPERATOR_EVENT", limit=10)) == claimed + (2 if kind == "RUNTIME_STATUS" else 1)
     recovered = build(bot)
     outcomes = asyncio.run(recovered.step())
     assert bot.calls == [0, 0]
     assert outcomes[0]["outcome"]["result"] == original
     assert outcomes[1]["outcome"]["result"]["body"]["details"]["cancellation_status"] == "REQUESTED_NOT_CONFIRMED"
-    assert len(store.records(kind="OPERATOR_EVENT", limit=10)) == 2
+    assert len(store.records(kind="OPERATOR_EVENT", limit=10)) == claimed + 2
     assert recovered.offset() == 3
 
 
@@ -539,7 +594,8 @@ def test_router_freshness_rejection_does_not_block_later_command(rig):
     assert outcomes[0] == {"update_id": 1, "error": "COMMAND_EXPIRED_OR_BACKDATED"}
     assert outcomes[1]["outcome"]["actor"] == 42
     assert poller.offset() == 3
-    assert len(store.records(kind="OPERATOR_EVENT", limit=10)) == 1
+    # One durable first-claim record plus one applied safety reduction.
+    assert len(store.records(kind="OPERATOR_EVENT", limit=10)) == 2
 
 
 def test_real_telegram_client_uses_bounded_mocked_transport_and_resumes(rig):
@@ -575,7 +631,8 @@ def test_real_telegram_client_uses_bounded_mocked_transport_and_resumes(rig):
     asyncio.run(run())
     assert calls == [{"offset": offset, "timeout": 0, "limit": 25,
                       "allowed_updates": ["message", "callback_query"]} for offset in (0, 3)]
-    assert len(store.records(kind="OPERATOR_EVENT", limit=10)) == 1
+    # One durable first-claim record plus one applied safety reduction.
+    assert len(store.records(kind="OPERATOR_EVENT", limit=10)) == 2
 
 
 # Independent batch-9 review: transfer boundaries and durable recovery.
@@ -667,7 +724,8 @@ def test_review_handoff_cannot_overwrite_unknown_owner_state(rig, saved):
     with pytest.raises(OperatorCommandPollerError):
         reviewed_handoff(successor, owner)
     assert path.read_bytes() == saved
-    assert not store.records(kind="OPERATOR_EVENT", limit=10)
+    # Only the original first-claim record; the refused handoff writes nothing.
+    assert len(store.records(kind="OPERATOR_EVENT", limit=10)) == 1
 
 
 def test_review_handoff_retry_after_committed_audit_is_idempotent(rig, monkeypatch):
@@ -689,7 +747,8 @@ def test_review_handoff_retry_after_committed_audit_is_idempotent(rig, monkeypat
     assert asyncio.run(successor.step()) == []
     with pytest.raises(OperatorCommandPollerError, match="BOT_OWNER_MISMATCH"):
         asyncio.run(owner.step())
-    assert len(store.records(kind="OPERATOR_EVENT", limit=10)) == 1
+    # The original first-claim record plus the one committed handoff.
+    assert len(store.records(kind="OPERATOR_EVENT", limit=10)) == 2
 
 
 @pytest.mark.parametrize("failure", ["audit", "file_sync", "directory_sync"])
@@ -774,7 +833,14 @@ def test_handoff_recovers_after_actual_process_exit(rig, after_commit):
     assert details["cursor_seq"] == before["seq"] and details["offset"] == 2
     assert details["previous_binding"] == owner._binding().decode()
     assert details["new_binding"] == recovered._binding().decode()
-    assert handoffs[0]["body"]["evidence"] == [{"id": before["id"], "sha256": before["sha256"]}]
+    # The handoff's evidence now also cites the durable first-claim record it
+    # supersedes, in addition to the preserved cursor.
+    claim = next(r for r in reopened.records(kind="OPERATOR_EVENT", limit=10)
+                 if r["body"]["details"].get("outcome") == "OPERATOR_COMMANDS_BOT_OWNER_CLAIM")
+    assert handoffs[0]["body"]["evidence"] == [
+        {"id": claim["id"], "sha256": claim["sha256"]},
+        {"id": before["id"], "sha256": before["sha256"]},
+    ]
 
 
 @pytest.mark.parametrize("changed", ["identity", "policy", "bot", "account"])
@@ -797,7 +863,8 @@ def test_handoff_requires_the_exact_previous_configuration_and_same_account(rig,
     with pytest.raises(OperatorCommandPollerError):
         successor.handoff_bot_owner(previous_identity=prior_identity,
                                     previous_policy=prior_policy, reason="incorrect review")
-    assert not store.records(kind="OPERATOR_EVENT", limit=10)
+    # Only the original first-claim record; the refused handoff writes nothing.
+    assert len(store.records(kind="OPERATOR_EVENT", limit=10)) == 1
     assert asyncio.run(owner.step()) == []
 
 
@@ -819,7 +886,8 @@ def test_handoff_cursor_cas_refuses_an_intervening_cursor_write(rig, monkeypatch
         patch.setattr(store, "audit", racing_audit)
         with pytest.raises(EvidenceError, match="AUDIT_GUARDED_STATE_CHANGED"):
             reviewed_handoff(successor, owner)
-    assert not store.records(kind="OPERATOR_EVENT", limit=10)
+    # Only the original first-claim record; the aborted handoff writes nothing.
+    assert len(store.records(kind="OPERATOR_EVENT", limit=10)) == 1
     assert asyncio.run(owner.step()) == []
     with pytest.raises(OperatorCommandPollerError, match="BOT_OWNER_MISMATCH"):
         asyncio.run(successor.step())

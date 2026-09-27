@@ -11,14 +11,16 @@ risk on the runner's own protected account.
 The candidate owns one bounded polling coroutine alongside ordinary work so
 collection waits and opening-clock gates cannot suppress safety input. Polls
 retain the existing command freshness checks and durable cursor; shutdown drains
-that coroutine. The poller's bot lock retains a consumer binding across polls
-and restarts; a different store, worker or identity/policy in the same directory
-is refused before polling. This is local consistency, not protected configuration
-custody or exclusion of older/uncooperative controllers. ``handoff_bot_owner``
-exposes the poller's reviewed ownership transfer here so a deliberate binding
-change never needs raw lock-file deletion. Real delivery/deployment, credential
-provisioning, cross-directory/cross-host ownership and independent operational
-acceptance remain unclaimed.
+that coroutine. The poller's first bind for a bot is a CAS-guarded durable claim
+in the shared evidence store, not merely a local lock file, so a different
+directory or host sharing this same store cannot silently believe the bot is
+unclaimed; a different store, worker or identity/policy is refused before
+polling. ``handoff_bot_owner`` exposes the poller's reviewed ownership transfer
+here so a deliberate binding change never needs raw lock-file deletion, but that
+transfer itself is still a same-host cooperative operation, not independent
+authorization or protected non-cooperative configuration custody. Real
+delivery/deployment, credential provisioning, older/uncooperative controllers
+and independent operational acceptance remain unclaimed.
 """
 from __future__ import annotations
 

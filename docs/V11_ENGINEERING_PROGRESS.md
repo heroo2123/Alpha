@@ -1,5 +1,30 @@
 # Supplementary engineering estimate
 
+Durable cross-deployment bot-claim — 2026-09-27 (supervisor batch 11): closed
+the "cross-directory/cross-host consumer ownership" half of the two remaining
+purely local R39 gaps the requirements matrix named. Every prior batch's first
+bind for a Telegram bot was decided purely by a LOCAL lock file beside the
+store; a second consumer in a different directory/host sharing the same store
+has its own necessarily-empty local file and could previously claim the same
+bot too. `TelegramOperatorCommandPoller._bind_bot_owner` now commits a
+CAS-guarded durable `OPERATOR_EVENT` claim (`expected_previous_seq=0`) before
+trusting the local file; a same-store intruder is refused via the durable
+record even after its local lock file is reset to empty. `handoff_bot_owner`
+gained a matching pre-handoff anchor-consistency guard and a dedicated refusal
+for handing off a never-claimed bot. Existing local-file integrity and
+handoff-anchor-preservation invariants from batches 8-10 are unchanged; every
+count-based test assertion that implicitly assumed no durable record existed
+before the first handoff was reviewed and updated to match, not loosened.
+Two new cases added. **76 focused (`operator_command_poller`, was 74) / 55
+candidate-runner / 225 broader affected (was 223)**, exit 0, no skips, four
+pre-existing FastAPI warnings, foreground. `git diff --stat`: exactly four
+files (two modules, two test files). No full regression (single-module scope,
+consistent with the batches 5-10 precedent). Protected (non-cooperative)
+configuration custody and older/uncooperative controllers remain open; handoff
+itself is still same-host cooperative rotation, not independent authorization.
+No new C/J/E/A: R39 remains PARTIAL; **85/200 = 42.5% (~43%); 1/50 (2%)**,
+unchanged. NOT_READY_TO_FUND; V10 unchanged/DEFERRED.
+
 Independent batch-10 review — 2026-09-27: two checks failed on published
 9cf6fae (2 / 4.81 s): the claimed operator-rotation continuation still gated
 polling on bot ownership, and arbitrary worker removal could retain an invalid
