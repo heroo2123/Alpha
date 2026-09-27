@@ -1,5 +1,91 @@
 # Alpha V11 work checkpoint
 
+## Blocked-tail audit sweep and R21 paper_coordinator audit, 2026-09-27 (supervisor batch 3)
+
+Recovery check: `git status` clean, local HEAD `50f0da1` equal to
+`origin/weather-v11-profitability-upgrade-2026-09-23`, no unfinished process.
+Per the score-velocity rule, R23 (three-plus stalled batches) and R18 (audited
+clean last batch) stayed excluded; searched for a different requirement whose
+remaining tail is genuinely local and unblocked, verifying each candidate
+against actual code rather than trusting prior matrix prose (the same method
+that found R23's real gap in supervisor batch 15).
+
+Re-checked five specific candidates against the master (SHA-256
+`a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`, verified
+this batch) and the current code:
+
+- R31 (REQUIRED UPGRADE Q, result-lag finality): `docs/V11_FINALITY_DEPENDENCIES.md`
+  already correctly identifies the missing piece as "an exact-source adapter
+  and archived publication/version history... sufficient for the actual
+  contract's... irreversible winner." No such history source exists in any
+  free public NWS/NOAA endpoint this host can reach; remains genuinely OPEN,
+  not merely undiscovered like R23 was.
+- REQUIRED UPGRADE P (semantic coverage expansion, R06): the master asks for
+  a census->cluster->certify report of total/supported/unsupported-reason/
+  family counts. `v11/discovery.py` (`unsupported_reason_counts`,
+  `semantic_family_counts`, `semantic_coverage_complete`) and
+  `v11/audit_reports.py` (`semantic_coverage_complete`) already implement
+  this; not a fresh gap.
+- REQUIRED UPGRADE N (station/horizon/strategy selection, R40/R42): the
+  master's eleven-dimension performance-profile requirement is implemented by
+  `v11/performance.py`'s `DIMENSIONS = ('station','city','entry_price',
+  'event_state','model_bundle','horizon','model_confidence','market_liquidity')`,
+  consumed by `v11/drift.py`/`v11/drift_runtime.py` to reduce a poor
+  station-strategy scope to PAPER_ONLY/DISABLED — not a fresh gap.
+- REQUIRED UPGRADE O's "automatically demote... when degradation occurs"
+  (also R40/R42): traced `DriftWorker._review` in `v11/drift_runtime.py` and
+  found it requires an exact pre-declared, unexpired entry in
+  `protected_reviews()` (`/etc/alpha-v11/approvals/drift-policies.json`)
+  before ANY reduction is applied, even for a PAPER/SHADOW scope. This looks
+  at first like a gap against the master's "automatic" demotion language
+  (only *promotion* is required to need protected ceilings), but
+  `docs/V11_WORK_CHECKPOINT.md`'s own prior implementation record ("A
+  distinct protected review must approve this exact policy and all-account-
+  window selection before the window") shows this was a deliberate original
+  design choice, not an oversight: a measurement crossing a threshold alone
+  cannot prove "statistically/operationally meaningful degradation" without
+  independent verification of the policy/threshold itself. Building a
+  genuinely unreviewed automatic-demotion path would require inventing the
+  same kind of authorization/significance model this project has already and
+  explicitly declined to invent for R23's protected-review tail. Not
+  implemented this batch; recorded as intentionally gated, not a defect.
+- R21 (external/live account integration): confirmed `production/ledger.py`
+  has zero callers anywhere under `v11/`; the matrix's "external/live account
+  integration pending" language is accurate — real-money ledger integration
+  requires real exchange credentials this batch cannot obtain, correctly
+  production/owner-gated.
+
+With no fresh unblocked local-implementation gap found among these five,
+performed a full-file audit of `v11/paper_coordinator.py`'s reservation core
+(`_prepare`, `coordinate`, `_coordinate_effects`, lines 262-500) instead of
+repeating another "no defect" pass on an already-audited module. Traced
+membership/valuation/admission/preconfirmation/source-release binding, event-
+state/queue/book pin and freshness checks, EV/size/liquidity/cash-limit
+guards, and the batch-level token-conflict/thesis-dedup/held-vs-reserved
+netting math for BUY and SELL legs (including the reduce-only scenario-loss
+comparison and the basket-opposing-intent guard). No exploitable defect
+found: held/reserved accounting correctly nets pending same-direction
+intents against actual lots before admitting a new delta, and CAS head
+guards are read before validation and re-checked at commit, closing the same
+race class already fixed in other modules' audits.
+
+No code changed. `tests/test_v11_paper_coordinator.py`: **21 passed / 3.93 s**.
+Broader `-k "paper_coordinator or basket_coordinator or position_management
+or allocation or scenario_risk"`: **103 passed / 26.62 s**, exit 0, four
+pre-existing FastAPI warnings, no skips/failures, foreground. No full
+regression (audit only, no code change). `git diff --stat` against `50f0da1`
+is empty outside this checkpoint/matrix/progress update.
+
+No new C/J/E/A: **85/200 (~43%); 1/50 (2%)**, unchanged. NOT_READY_TO_FUND;
+V10/private/financial boundaries unchanged. Next: continue the same
+verify-against-code method on the remaining un-audited PARTIAL requirements
+(R02-R05, R09-R17, R24-R30, R33, R41) looking for another R23-shaped gap
+where the matrix's prose claims integration that the actual code does not
+perform; absent that, the honest remaining tails across R09-R49 are
+consistently real-evidence/owner/production/protected-review gated.
+
+## Previous published checkpoint
+
 ## Velocity-rule redirect off R23 and R18 independent-guardian audit, 2026-09-27 (supervisor batch 2)
 
 Recovery check: `git status` clean, local HEAD `385e4da` equal to

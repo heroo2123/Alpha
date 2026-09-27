@@ -1,5 +1,31 @@
 # V11 requirement-to-code/test/evidence matrix
 
+Blocked-tail audit sweep and R21 paper_coordinator audit — 2026-09-27
+(supervisor batch 3): re-verified five candidate gaps against the master
+(SHA-256 `a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`)
+and actual code rather than prior matrix prose, the method that found R23's
+real gap in batch 15. R31 remains genuinely OPEN (no free public source
+provides the required archived publication/version history). REQUIRED
+UPGRADE P's semantic-coverage report is already implemented
+(`v11/discovery.py`, `v11/audit_reports.py`). REQUIRED UPGRADE N's eleven-
+dimension station/horizon/strategy performance profile is already
+implemented (`v11/performance.py` `DIMENSIONS`, consumed by
+`v11/drift.py`/`v11/drift_runtime.py`). REQUIRED UPGRADE O's "automatic"
+demotion language is intentionally gated behind a protected pre-declared
+review (`v11/drift_runtime.py::DriftWorker._review`) per the module's own
+original documented design rationale — building an unreviewed automatic
+path would require inventing the same authorization/significance model
+already declined for R23's protected-review tail, so this is recorded as
+deliberately gated, not a defect. R21's `production/ledger.py` has zero
+`v11/` callers, confirming its "external/live account integration pending"
+language is accurate and production/credential-gated. Full audit of
+`v11/paper_coordinator.py`'s reservation core (`_prepare`/`coordinate`/
+`_coordinate_effects`) found no exploitable defect in held/reserved netting,
+CAS head guards or the reduce-only scenario-loss comparison. No code
+changed; `tests/test_v11_paper_coordinator.py` 21 passed / 3.93 s; broader
+selection 103 passed / 26.62 s, exit 0, no skips/failures. No new C/J/E/A:
+**85/200 (~43%); 1/50 (2%)**, unchanged. NOT_READY_TO_FUND; V10 unchanged/DEFERRED.
+
 Velocity-rule redirect off R23 and R18 independent-guardian audit —
 2026-09-27 (supervisor batch 2): R23 had consumed three consecutive
 published batches without new C/J/E/A credit; its remaining tail (protected
