@@ -5376,3 +5376,66 @@ No test, safety gate, or source file changed in this reconciliation.
 The current next action and exact comparison cohort are in the independent
 regression-evidence review above. Reproduced baseline failures remain unresolved
 acceptance defects; diagnostic attribution grants no CODE READY or funding gate.
+
+## Candidate-runner operator-command wiring — 2026-09-27 (supervisor batch 7)
+
+Recovery check at batch start: `git status` clean, local HEAD
+`fbe8327627755efbfb800a9f6c1730f6aa660000` equal to
+`origin/weather-v11-profitability-upgrade-2026-09-23`, no unfinished process
+found. Reviewed this checkpoint, the requirements matrix and the progress
+ledger; the batch-6 review's own recorded next action for R39 was "protected
+policy/account/consumer binding, runner wiring, actual delivery and
+independent acceptance remain open." The consumer binding (SafetyReductions
+feeding paper cancellation) was already implemented; the router/adapter/poller
+chain had no caller shaped like the actual finite PAPER candidate runner, and
+nothing checked that a supplied policy's account actually matched the
+candidate's own protected account. That is a purely local implementation gap,
+not an owner/credential/production one, so it was this batch's target.
+
+Added `v11/operator_command_runtime.py` (`CandidateOperatorCommands`): it
+constructs `OperatorSafetyRouter`, `TelegramOperatorCommandAdapter` and
+`TelegramOperatorCommandPoller` from a caller-supplied `OperatorSafetyPolicy`,
+`TelegramCommandIdentity` and `telegram` client, but refuses to do so unless
+`policy.account_id` equals the account id passed alongside it
+(`OPERATOR_COMMANDS_ACCOUNT_MISMATCH`). `CandidateRunner` (`v11/candidate_runner.py`)
+now accepts this as an optional `operator_commands` component, checks it
+against its own `runtime.coordinator.policy.account_id` and `runtime.store`
+identity at construction (`CANDIDATE_OPERATOR_COMMANDS_SCOPE` on mismatch),
+folds its config into the runner's own configuration digest, and schedules it
+as one more finite job kind, `OPERATOR_COMMANDS`, in the same round-robin
+selection as `CENSUS`/`DISCOVERY`/`AUDIT`/etc. — dispatched exactly like the
+existing `AUDIT` job (`self.operator_commands.step()`), with no change to the
+existing safety-tick/job-timeout/interruption machinery.
+
+Added three new `tests/test_v11_candidate_runner.py` cases: a scope-mismatch
+construction refusal, an authenticated `/CANCEL_AND_HALT ACCOUNT account ...`
+Telegram update actually polled, routed and applied to `SafetyReductions`
+inside one bounded candidate run (verified via the resulting `OPERATOR_EVENT`
+record, since `finish_task`'s existing job-result summarization does not
+surface a worker's full return payload beyond `outcome`/`record_id`, matching
+the existing `AUDIT_COMPLETE` pattern), and an idle poll with no pending
+updates. Targeted: **18 passed / 14.26s**. Combined with the operator-command
+adapter/poller/router, event-risk, paper-runtime/coordinator and candidate-
+assembly suites: **159 passed / 53.08s**. Broader affected selection
+(`-k "candidate_runner or operator_command or operator_safety or event_risk
+or telegram"`, includes production `Telegram.principal`/panel coverage):
+**133 passed, 23.42s, exit 0**, no skips/warnings, foreground. No full
+regression: this is a single new module plus its direct candidate/operator/
+event-risk/telegram integration surface, consistent with the testing budget
+for one coherent batch.
+
+This closes the local "runner wiring" and "protected policy/account binding"
+gap only. No production entry point yet constructs a real credentialed
+`Telegram` client plus this wiring for an actual account and drives it on an
+interval — that needs an owner credential/deployment decision, is not
+performed here, and is not requested as blocking further safe local work.
+Callback/button commands remain unsupported. Independent policy/account-
+binding review and operational/independent acceptance remain open. No V10,
+credential, private-input or existing production code changed. No new
+C/J/E/A milestone: **85/200 (~43%); 1/50 (2%)**, unchanged. NOT_READY_TO_FUND;
+V10 unchanged/DEFERRED. Next: either (a) a production entry point wiring a
+real credentialed `Telegram` client to `CandidateOperatorCommands` for an
+actual deployed account (owner credential/deployment decision required), or
+(b) continue closing other PARTIAL requirements' purely local gaps, e.g. the
+still-open R31 result-lag finality source/version evidence or R43/R44
+authentication/isolated-deployment verification.

@@ -18,10 +18,14 @@ from polymarket_scanner.v11.evidence import EvidenceError
 from polymarket_scanner.v11.event_risk import SafetyReductions
 from polymarket_scanner.v11.observation_pump import ObservationPump
 from polymarket_scanner.v11.observation_runtime import ObservationRuntime, ScheduledCollector
+from polymarket_scanner.v11.operator_command_adapter import TelegramCommandIdentity
+from polymarket_scanner.v11.operator_command_runtime import CandidateOperatorCommands
+from polymarket_scanner.v11.operator_safety_router import OperatorSafetyPolicy
 from polymarket_scanner.v11.paper_runtime import PaperRuntime
 from test_v11_paper_coordinator import rig, coordinator, proposal
 from test_v11_paper_runtime import assembled
 from test_v11_census_worker import prepare, transport_for
+from test_v11_operator_command_poller import Bot, message_update
 
 
 def built(rig,monkeypatch,client,*,policy=None,observations=False):
@@ -215,3 +219,58 @@ def test_runner_lock_and_configuration_identity_are_preserved(rig,monkeypatch):
     dict(safety_interval_seconds=0),dict(job_timeout_seconds=61),dict(minimum_job_spacing_seconds=0)])
 def test_policy_requires_finite_explicit_limits(bad):
     with pytest.raises(EvidenceError,match='BOUND'):CandidatePolicy('bad',**bad)
+
+
+def operator_commands(rig,telegram,*,account_id='account',worker_key='operator-fixture'):
+    policy=OperatorSafetyPolicy(account_id=account_id,operators=(42,),
+        allowed_scopes=('ACCOUNT',),allowed_actions=('CANCEL_AND_HALT',))
+    return CandidateOperatorCommands(rig['store'],account_id,worker_key,telegram=telegram,
+        identity=TelegramCommandIdentity(bot_id=123,chat_id=42,operators=(42,)),policy=policy)
+
+
+def test_operator_commands_bound_to_a_different_account_than_the_runner_is_refused(rig,monkeypatch):
+    calls=[]
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(transport(rig,calls))) as client:
+            runner=built(rig,monkeypatch,client)
+            oc=operator_commands(rig,Bot([]),account_id='other-account')
+            with pytest.raises(EvidenceError,match='CANDIDATE_OPERATOR_COMMANDS_SCOPE'):
+                CandidateRunner(runner.runtime,runner.policy,census=runner.census,discovery=runner.discovery,
+                    audits=runner.audits,operator_commands=oc)
+    asyncio.run(run())
+
+
+def test_authenticated_telegram_safety_command_is_polled_and_applied_as_a_scheduled_job(rig,monkeypatch):
+    calls=[]
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(transport(rig,calls))) as client:
+            runner=built(rig,monkeypatch,client,policy=CandidatePolicy('operator-commands',maximum_jobs=4,
+                safety_interval_seconds=.05,minimum_job_spacing_seconds=.05))
+            bot=Bot([message_update('/CANCEL_AND_HALT ACCOUNT account stop trading',uid=1)])
+            oc=operator_commands(rig,bot)
+            resumed=CandidateRunner(runner.runtime,runner.policy,census=runner.census,discovery=runner.discovery,
+                audits=runner.audits,operator_commands=oc)
+            return await resumed.run('one')
+    d=asyncio.run(run())['body']['details']
+    assert [j['kind'] for j in d['worker_results']]==['CENSUS','DISCOVERY','AUDIT','OPERATOR_COMMANDS'],d
+    last=d['worker_results'][-1]
+    assert last['outcome']=='OPERATOR_COMMANDS_POLLED'
+    assert not d['financial_authority']
+    reductions=rig['store'].records(kind='OPERATOR_EVENT',limit=10)
+    assert len(reductions)==1 and reductions[0]['body']['details']['request']['actor']=='42'
+
+
+def test_operator_commands_with_no_pending_updates_reports_no_work(rig,monkeypatch):
+    calls=[]
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(transport(rig,calls))) as client:
+            runner=built(rig,monkeypatch,client,policy=CandidatePolicy('operator-commands-idle',maximum_jobs=4,
+                safety_interval_seconds=.05,minimum_job_spacing_seconds=.05))
+            oc=operator_commands(rig,Bot([]))
+            resumed=CandidateRunner(runner.runtime,runner.policy,census=runner.census,discovery=runner.discovery,
+                audits=runner.audits,operator_commands=oc)
+            return await resumed.run('one')
+    d=asyncio.run(run())['body']['details']
+    assert d['worker_results'][-1]==dict(kind='OPERATOR_COMMANDS',command_id=d['worker_results'][-1]['command_id'],
+        outcome='NO_OPERATOR_COMMANDS',record_id=None)
+    assert not rig['store'].records(kind='OPERATOR_EVENT',limit=10)

@@ -1,5 +1,20 @@
 # Supplementary engineering estimate
 
+Candidate-runner operator-command wiring — 2026-09-27 (supervisor batch 7):
+closed R39's "runner wiring"/"protected policy/account binding" gap with
+`v11/operator_command_runtime.py` (`CandidateOperatorCommands`), which refuses
+to bind unless the caller's policy account matches the account passed to it,
+and integrated it into `CandidateRunner` as one more finite job kind
+(`OPERATOR_COMMANDS`), scoped against the runner's own protected
+`coordinator.policy.account_id`. **18 focused / 14.26s; 159 directly related
+/ 53.08s; 133 broader affected / 23.42s**, exit 0, no skips/warnings,
+foreground. No full rerun (single new module plus direct integration
+surface). Exact scope/evidence: `docs/V11_WORK_CHECKPOINT.md` (supervisor
+batch 7). R39 remains PARTIAL; no new C/J/E/A: **85/200 = 42.5% (~43%);
+formal 1/50 (2%)**, unchanged. Real credentialed delivery/deployment,
+callback/button support and independent acceptance remain open.
+NOT_READY_TO_FUND; V10 unchanged/DEFERRED.
+
 Independent batch-6 review — 2026-09-27: fixed a material command-polling
 availability defect. The original poller caught adapter errors but let router
 rejections and reducer validation/replay conflicts abort the batch, blocking
