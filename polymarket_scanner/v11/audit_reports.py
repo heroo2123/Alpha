@@ -280,6 +280,8 @@ class AuditWorker:
                 rows=self.store.page_through(through_seq=job['view']['through_seq'],after_seq=job['cursor'],limit=limit)
                 if not rows:raise EvidenceError('AUDIT_PINNED_SEQUENCE_MISSING')
                 for row in rows:
+                    if row['seq'] != job['cursor']+1:
+                        raise EvidenceError('AUDIT_PINNED_SEQUENCE_MISSING')
                     try:
                         _fold(row,job['aggregate'],window)
                         if self.policy.replay is not None:fold_replay_decisions(row,job['aggregate'],window)

@@ -55,6 +55,21 @@ def test_read_view_bounds(args,rig):
     with pytest.raises(EvidenceError,match='PAGE_BOUND'):rig['store'].page_through(**args)
 
 
+def test_worker_rejects_gap_in_pinned_archive_scan(rig, monkeypatch):
+    _, worker, _ = jobs(rig)
+    original = rig['store'].page_through
+
+    def missing_middle_row(**kwargs):
+        rows = original(**kwargs)
+        assert len(rows) >= 3
+        return rows[:1] + rows[2:]
+
+    monkeypatch.setattr(rig['store'], 'page_through', missing_middle_row)
+    with pytest.raises(EvidenceError, match='AUDIT_PINNED_SEQUENCE_MISSING'):
+        worker.step()
+    assert rig['store'].latest(kind='RUNTIME_STATUS', event_id='v11-audit-report:DAILY') is None
+
+
 def test_worker_resumes_and_freezes_new_receipts_outside_existing_job(rig):
     scheduler,worker,ids=jobs(rig,records_per_step=5)
     first=worker.step();assert first['outcome']=='AUDIT_PARTIAL_PROGRESS'

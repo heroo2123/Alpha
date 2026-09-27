@@ -8984,3 +8984,7 @@ next genuinely unblocked local activity is another untouched
 guardian-class-defect audit target: R04 and R11 remain the largest
 untouched targets (1,419 and 1,446 lines respectively); R01 is already
 COMPLETE; R02/R03/R05/R06/R07/R08/R16/R17/R19/R24/R25-R28/R41 now have.
+
+## Independent post-milestone review of supervisor batch 6 — 2026-09-27
+
+Found one bounded R41 archive-coverage defect. `AuditWorker._step` rejected an empty pinned page, but accepted a nonempty page that skipped an intermediate sequence; its cursor could then pass the gap and publish `archive_scan_complete=True`. Added a consecutive-sequence guard before folding or advancing each row, plus a test that omits a middle row from a pinned page. Focused gap/resume/recovery selection: 3 passed / 1.43 s. Direct audit-report and paper-runtime family: 34 passed / 11.24 s, exit 0. No broad regression rerun because the worker scan is the only changed behavior and the batch's 190-test affected selection was fresh. No new C/J/E/A: 87/200 (~44%), formal 1/50 (2%). NOT_READY_TO_FUND; V10 untouched. The original batch 6 no-defect claim is superseded for this gap only; its other verified conclusions remain.

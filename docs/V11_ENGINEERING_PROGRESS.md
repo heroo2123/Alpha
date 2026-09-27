@@ -2475,3 +2475,7 @@ R46-R49 remain owner/external/production blocked. Next untouched
 guardian-class-defect audit targets: R04 (1,419 lines) and R11 (1,446
 lines) remain the largest; R01 is COMPLETE;
 R02/R03/R05/R06/R07/R08/R16/R17/R19/R24/R25-R28/R41 now audited clean.
+
+## Independent post-milestone review of supervisor batch 6 — 2026-09-27
+
+R41 audit coverage needed one correction: a nonempty pinned archive page could skip a sequence, yet the worker could publish `archive_scan_complete=True`. The worker now rejects every nonconsecutive row before advancing its cursor; a new missing-middle-row test and the audit-report/paper-runtime family passed (3 focused; 34 direct-family, 11.24 s). No broader suite repeated. This is a bounded data-integrity repair, not new C/J/E/A credit: **87/200 (~44%); formal 1/50 (2%)**, unchanged. NOT_READY_TO_FUND; V10 untouched.
