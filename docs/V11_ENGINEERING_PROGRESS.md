@@ -1,5 +1,20 @@
 # Supplementary engineering estimate
 
+Upgrade N weather-variable profile — 2026-09-27 (supervisor batch 4):
+`v11/performance.py::DIMENSIONS` gained `weather_variable`, derived from the
+same pinned admission `CapabilityScope.family` (HIGH/LOW) already fetched for
+the existing `horizon` dimension, with UNKNOWN preserved whenever no
+admission is pinned or the scope is incomplete. Two new focused cases (one
+real pinned-scope split, one no-admission UNKNOWN fallback); 16
+passed / 4.22 s in `tests/test_v11_performance.py` (was 14), plus 259 passed
+across every other module found to import `PerformanceLab`/reference
+`DIMENSIONS`/`performance.py`, exit 0, no failures, no skips. `git diff
+--stat` confirms exactly two touched files. This closes one of the five
+Upgrade N profile gaps the prior audit named (country/source, PWS
+density/quality, weather variable, time-of-day, apparent-edge); the other
+four remain open. No new C/J/E/A milestone: **85/200 (~43%); 1/50 (2%)**,
+unchanged. NOT_READY_TO_FUND; V10 unchanged/DEFERRED.
+
 Blocked-tail audit sweep and R21 paper_coordinator audit — 2026-09-27
 (supervisor batch 3, corrected by independent review): the original audit
 incorrectly treated Upgrade N's eleven required profile dimensions as complete.

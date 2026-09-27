@@ -1,5 +1,84 @@
 # Alpha V11 work checkpoint
 
+## Upgrade N weather-variable profile — 2026-09-27 (supervisor batch 4)
+
+Recovery check: `git status` clean, local HEAD `37fc3ee` equal to
+`origin/weather-v11-profitability-upgrade-2026-09-23`, no unfinished process
+found. Read CLAUDE.md, the checkpoint/matrix/progress ledger tails and the
+authoritative master's REQUIRED UPGRADE N section (SHA-256
+`a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`, verified
+this batch) to get the master's exact eleven profile names: station, city,
+country/source, PWS neighborhood density/quality state, weather variable,
+lead time, time of day, strategy, price range, apparent edge range, market
+liquidity. The immediately preceding checkpoint entry's own recorded next
+action named this gap directly and asked for exactly one missing profile,
+implemented from real pinned entry evidence rather than invented labels.
+
+`v11/performance.py::DIMENSIONS` already derives `horizon` for each realized
+entry from that entry's own pinned admission scope
+(`self.store.get(admission_id)['body']['details']['request']['scope']`).
+That same scope is a `CapabilityScope` (`v11/certification.py`) carrying a
+`family` field constrained to exactly `{"HIGH","LOW"}` — the daily
+high/low-temperature variable each strategy/admission is scoped to, and
+already cross-checked elsewhere in this file against
+`RuleFingerprint.payload['family']`. This is the master's "weather variable"
+profile with no new evidence source: added `weather_variable` to
+`DIMENSIONS` and populated it in `_metadata` from the identical scope list
+already fetched for `horizon`, in the same try/except budget-bounded block,
+so a missing/incomplete pinned scope still preserves `UNKNOWN` exactly as
+every other dimension already does. No other module reads `DIMENSIONS`
+positionally (verified by search), and the rest of `build()`/`pnl_slices`
+is already generic over the `DIMENSIONS` tuple, so no other file needed a
+change.
+
+Added two focused cases to `tests/test_v11_performance.py`: one commits a
+real `REGISTRY` admission scope (`family: HIGH`) pinned to one realized
+entry's own admission and confirms `pnl_slices['weather_variable']` splits
+`{'HIGH': <that entry's pnl>, 'UNKNOWN': <the other entry's pnl>}`; the other
+confirms an entry with no pinned admission at all still reports
+`{'UNKNOWN': <pnl>}`, so the conservation check the file already enforces
+(`PERFORMANCE_SLICE_NONCONSERVATION`) continues to hold with the new
+dimension included.
+
+Verification, foreground: `tests/test_v11_performance.py` **16 passed / 4.22
+s**, exit 0 (was 14; two new cases). Every other module found by searching
+for `PerformanceLab`/`DIMENSIONS`/`performance.py` importers —
+`tests/test_v11_execution_costs.py`, `tests/test_v11_account_replay.py`,
+`tests/test_v11_causal_replay.py`, `tests/test_v11_release_replay.py`,
+`tests/test_v11_fill_markout.py`, `tests/test_v11_pws_replay.py`,
+`tests/test_v11_realized_drift.py`, `tests/test_v11_audit_reports.py`,
+`tests/test_v11_drift_runtime.py`: **259 passed / 0 failed**, exit 0, no
+skips. `git diff --stat` shows exactly two touched files:
+`polymarket_scanner/v11/performance.py` and `tests/test_v11_performance.py` —
+confirming no private, V10, credential or unrelated production file was
+touched. No full regression run: this is an additive single-field change
+to one already-generic dimension mechanism, verified across every consumer
+found by search, consistent with the no-full-rerun precedent recent batches
+established for comparable narrow scope.
+
+This closes exactly one of five remaining Upgrade N profile gaps named by
+the prior checkpoint entry. `country/source`, `PWS neighborhood
+density/quality state`, `time of day` and `apparent edge range` remain
+unimplemented in the performance report; `strategy`, `price range` (as
+`entry_price`) and `market liquidity` were already present, alongside
+`station`/`city`. No new C/J/E/A milestone: **85/200 (~43%); 1/50 (2%)**,
+unchanged — this is real narrowing of R40's named PARTIAL gap, not a
+completed sub-slice or full Upgrade N acceptance. NOT_READY_TO_FUND; V10
+unchanged/DEFERRED.
+
+Next: implement `time_of_day` from the same pinned admission-scope
+mechanism (also directly present on `CapabilityScope` as
+`scope.time_of_day`, already used unchanged for the same equality-join
+purpose in `pws_admission.py`), or `weather_variable`'s sibling
+`RuleFingerprint.payload['family']`-derived coarser label if the master's
+"weather variable" is judged to need the raw HIGH/LOW→variable label rather
+than the scope's own reduction — otherwise continue with `country/source`
+(would need `StationMetadata.country`, currently not threaded into any
+pinned entry/admission record, so it needs a real evidence-plumbing
+decision, not just a new `DIMENSIONS` entry) or `apparent edge range`
+(would need to identify which pinned valuation/assessment field is the
+"apparent edge" the master means, which was not yet located this batch).
+
 ## Independent post-milestone review correction — 2026-09-27
 
 Reviewed published `76fefee0a2b15b4d846b45a0216bac8fe853bd85`

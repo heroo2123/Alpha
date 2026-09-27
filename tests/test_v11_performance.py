@@ -115,6 +115,20 @@ def test_joint_basket_ev_is_never_summed_per_leg(rig):
     assert not d['expected_ev']['individual'] and d['expected_ev']['joint_baskets']=={'basket':'.5'}
 
 
+def test_weather_variable_slice_groups_by_pinned_admission_scope_family(rig):
+    c,s=recorded(rig,('6','-4'))
+    rig['store'].audit('admission-high',event_id='e0',kind='REGISTRY',
+        details={'request':{'scope':{'horizon':'H24','family':'HIGH'}}})
+    s['intents']['entry0']['admission_ids']=['admission-high']
+    save(c,s);d=report(rig,c)
+    assert d['pnl_slices']['weather_variable']=={'HIGH':'6','UNKNOWN':'-4'}
+
+
+def test_weather_variable_slice_falls_back_to_unknown_without_pinned_scope(rig):
+    c,s=recorded(rig,('6',));save(c,s);d=report(rig,c)
+    assert d['pnl_slices']['weather_variable']=={'UNKNOWN':'6'}
+
+
 def test_report_namespace_cannot_mix_another_ledger(rig):
     c,s=recorded(rig);s['execution_namespace']='CHALLENGER:other';save(c,s)
     with pytest.raises(EvidenceError,match='NAMESPACE'):report(rig,c)

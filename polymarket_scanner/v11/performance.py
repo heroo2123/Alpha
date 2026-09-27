@@ -16,7 +16,7 @@ from .scenario_risk import number, precise
 VERSION = 'alpha_v11_performance_v1'
 UNKNOWN = 'UNKNOWN'
 _CURRENT = object()
-DIMENSIONS = ('station','city','entry_price','event_state','model_bundle','horizon','model_confidence','market_liquidity')
+DIMENSIONS = ('station','city','entry_price','event_state','model_bundle','horizon','model_confidence','market_liquidity','weather_variable')
 
 
 def _add(groups, key, amount):
@@ -209,6 +209,7 @@ class PerformanceLab:
             if intent.get('admission_ids'):
                 scopes = [self.store.get(k)['body']['details']['request']['scope'] for k in intent['admission_ids'][:8]]
                 result['horizon'] = '|'.join(sorted({s['horizon'] for s in scopes}))
+                result['weather_variable'] = '|'.join(sorted({s['family'] for s in scopes}))
             if intent.get('valuation_id'):
                 value = self.store.get(intent['valuation_id'])['body']['details']
                 result['model_confidence'] = value.get('model',{}).get('prediction',{}).get('calibration_status',UNKNOWN)
