@@ -5,7 +5,7 @@ import time
 
 import pytest
 
-from polymarket_scanner.production.collection import ScanStore, Scanner, drain_scanner
+from polymarket_scanner.production.collection import ScanStore, Scanner, drain_scanner, strict_supported_events
 from polymarket_scanner.production.control import ControlError
 from polymarket_scanner.production.controller import Controller
 from polymarket_scanner.production.io import atomic_json
@@ -97,3 +97,40 @@ def test_scanner_public_inputs_run_without_telegram_or_signer(collection,op):
     assert status["last_cycle"]>0 and status["discovery"]["unsupported"]==2
     assert not bot.messages and not op[4].posts
     asyncio.run(controller.collect()); assert len(bot.messages)==1
+
+
+
+def test_strict_supported_events_filters_broad_discovery_and_preserves_legacy_fixture():
+    events=[{"id":"1"},{"id":"2"},{"id":"3"}]
+    assert strict_supported_events({"events":events,"status":{}})==events
+    discovered={
+        "events":events,
+        "status":{
+            "strict_supported_events":2,
+            "semantic_event_ledger":[
+                {"event_id":"1","classification":"UNSUPPORTED_FAMILY"},
+                {"event_id":"2","classification":"SUPPORTED"},
+                {"event_id":"3","classification":"SUPPORTED"},
+            ],
+        },
+    }
+    assert [x["id"] for x in strict_supported_events(discovered)]==["2","3"]
+
+
+def test_strict_supported_events_fails_closed_on_inconsistent_census():
+    with pytest.raises(ControlError,match="LEDGER_MISMATCH"):
+        strict_supported_events({
+            "events":[{"id":"2"}],
+            "status":{
+                "strict_supported_events":2,
+                "semantic_event_ledger":[{"event_id":"2","classification":"SUPPORTED"}],
+            },
+        })
+    with pytest.raises(ControlError,match="EVENT_MISSING"):
+        strict_supported_events({
+            "events":[{"id":"1"}],
+            "status":{
+                "strict_supported_events":1,
+                "semantic_event_ledger":[{"event_id":"2","classification":"SUPPORTED"}],
+            },
+        })

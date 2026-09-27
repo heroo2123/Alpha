@@ -80,6 +80,32 @@ class ScanStore:
             db.execute("INSERT OR IGNORE INTO scan_events(id,kind,data,created) VALUES(?,?,?,?)",(digest({"kind":kind,"data":data}),kind,canonical(data),time.time()))
 
 
+def strict_supported_events(discovered):
+    """Use the discovery census' strict semantic authority for runtime sampling.
+
+    Legacy/test discovery fixtures without a semantic ledger retain their bounded
+    event list. Real exhaustive discovery publishes the ledger and must not let
+    broad weather-tag events consume the scanner's six-event runtime budget.
+    """
+    events=list(discovered.get("events") or [])
+    status=discovered.get("status") or {}
+    ledger=status.get("semantic_event_ledger")
+    if not isinstance(ledger,list):
+        return events
+    supported_ids={
+        str(row.get("event_id") or "")
+        for row in ledger
+        if isinstance(row,dict) and row.get("classification")=="SUPPORTED"
+    }
+    expected=status.get("strict_supported_events")
+    if type(expected) is int and expected != len(supported_ids):
+        raise ControlError("SCANNER_STRICT_SUPPORTED_LEDGER_MISMATCH")
+    filtered=[event for event in events if str(event.get("id") or "") in supported_ids]
+    if supported_ids and len({str(event.get("id") or "") for event in filtered}) != len(supported_ids):
+        raise ControlError("SCANNER_STRICT_SUPPORTED_EVENT_MISSING")
+    return filtered
+
+
 class Scanner:
     def __init__(self,config,store,weather):
         self.config,self.store,self.weather=config,store,weather
@@ -103,7 +129,7 @@ class Scanner:
                 self.publish("TERMINAL",{"id":row["id"],"status":"EXPIRED" if time.time()>=row["expires"] else "INVALIDATED","reason":reason})
         discovered=await self.weather.discover()
         self.census=discovered["status"]
-        events=sorted(discovered["events"],key=lambda x:str(x.get("id","")))
+        events=sorted(strict_supported_events(discovered),key=lambda x:str(x.get("id","")))
         cursor=self.store.state("event_cursor")
         selected=[x for x in events if str(x.get("id",""))>cursor] or events
         settings=json.loads(self.controls.state("collection_settings"))
