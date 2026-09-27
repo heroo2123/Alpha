@@ -1,5 +1,62 @@
 # Alpha V11 work checkpoint
 
+## Independent post-milestone review correction — 2026-09-27
+
+Reviewed published `76fefee0a2b15b4d846b45a0216bac8fe853bd85`
+(tree `afd4242fab8aec3ceae985e66449eb2ea21a3982`) against
+`ea579b76914293e321ae1e4c4a39864122fde1e2`, including all three intervening
+batches. Branch: `weather-v11-profitability-upgrade-2026-09-23`.
+Start: clean tree, local/remote HEAD equal, no Claude process found; sequential
+Remote Desktop Commander operations only. Read CLAUDE.md, ledgers, authoritative
+master (verified SHA-256 below), changed implementation and cited audit paths.
+
+Material finding: batch 3 incorrectly declared Upgrade N's eleven performance
+profile dimensions implemented, then redirected away from remaining local work.
+Corrected the three ledgers and R40's pending scope to name the missing profiles.
+Also narrowed unsupported finality-source/credential-blocker claims and clarified
+that protected advance review can coexist with automatic safe demotion; prior
+design notes do not replace master acceptance. Correlation-map documentation now
+separates schema/hash consistency from certification/protected provenance. Valid
+R23 aggregation and station/fingerprint binding are preserved; no executable
+behavior, authority, deployment or production/V10 state changed. This correction
+repairs the audit/next-action record; it does not implement the missing profiles.
+
+Worker evidence: checkpoint records 60 focused / 148 related passes for the code
+change, 69 + 11 for the R18 audit, and 21 / 103 for batch 3. Those entries link no
+fresh input-hash test manifests, so they are recorded results, not independently
+verified changed-input manifests. No broad suite was duplicated. Independent
+focused verification on the published code: **35 passed / 13.07 s**, exit 0,
+no skips/warnings. Covered the four added tests, typed candidate integration,
+performance attribution/accounting and reviewed/unreviewed drift reductions.
+All **722 tracked Python/test/config inputs** had identical before/after hashes.
+After the explanatory docstring edit, an AST comparison with docstrings removed
+confirmed executable code unchanged; `git diff --check` passed.
+
+Reproduce from the repository root with
+`/home/alphaadmin/AlphaV11_Dev/venv/bin/python -m pytest -q --tb=short --maxfail=2`
+and these exact nodes:
+
+- `tests/test_v11_region_membership.py::test_build_correlation_map_aggregates_real_per_station_evidence`
+- `tests/test_v11_region_membership.py::test_build_correlation_map_rejects_out_of_bound_entries`
+- `tests/test_v11_region_membership.py::test_build_correlation_map_still_fails_closed_on_bad_region_evidence`
+- `tests/test_v11_candidate_assembly.py::test_candidate_plan_binds_correlation_to_the_real_event_station`
+- `tests/test_v11_candidate_assembly.py::test_typed_builder_runs_census_derived_risk_strategies_discovery_and_audit_in_one_candidate`
+- `tests/test_v11_performance.py`
+- `tests/test_v11_drift_runtime.py::test_reviewed_original_model_scope_demotes_once_without_mutating_model_or_account`
+- `tests/test_v11_drift_runtime.py::test_unreviewed_or_changed_scope_is_measured_but_cannot_apply_reduction`
+
+Local review artifacts: `/tmp/alpha-v11-batch3-review-bc4j536_/manifest.json`
+(SHA-256 `15b70a069d36a5ca5bdb753898b3d8c66a9451cfe0e028f62deb093c04c17dd3`)
+and `pytest.log`
+(SHA-256 `1820aab24f290dcb0dfb475cb42c50dc8646377f9cff3c1e982a9e10f9d73b02`).
+An initial system-Python availability check found no pytest; all tests above used
+the existing development virtualenv. No dependency installation was performed.
+
+No new C/J/E/A: **85/200 = 42.5%; 1/50 (2%)**, NOT_READY_TO_FUND.
+Next: implement one missing Upgrade N profile from original pinned entry evidence,
+preserving UNKNOWN where evidence is absent, with focused accounting/causal tests.
+No owner or production action is required for this documentation correction.
+
 ## Blocked-tail audit sweep and R21 paper_coordinator audit, 2026-09-27 (supervisor batch 3)
 
 Recovery check: `git status` clean, local HEAD `50f0da1` equal to
@@ -14,49 +71,42 @@ Re-checked five specific candidates against the master (SHA-256
 `a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`, verified
 this batch) and the current code:
 
-- R31 (REQUIRED UPGRADE Q, result-lag finality): `docs/V11_FINALITY_DEPENDENCIES.md`
-  already correctly identifies the missing piece as "an exact-source adapter
-  and archived publication/version history... sufficient for the actual
-  contract's... irreversible winner." No such history source exists in any
-  free public NWS/NOAA endpoint this host can reach; remains genuinely OPEN,
-  not merely undiscovered like R23 was.
-- REQUIRED UPGRADE P (semantic coverage expansion, R06): the master asks for
-  a census->cluster->certify report of total/supported/unsupported-reason/
-  family counts. `v11/discovery.py` (`unsupported_reason_counts`,
-  `semantic_family_counts`, `semantic_coverage_complete`) and
-  `v11/audit_reports.py` (`semantic_coverage_complete`) already implement
-  this; not a fresh gap.
+- R31 (REQUIRED UPGRADE Q, result-lag finality):
+  `docs/V11_FINALITY_DEPENDENCIES.md` identifies an exact-source adapter and
+  archived publication/version history **or other independently reviewed
+  evidence** proving the actual contract's irreversible winner. No such proof
+  is delivered by this batch; R31 remains OPEN/GATED. The evidence does not
+  establish that no suitable free public source exists.
+- REQUIRED UPGRADE P (semantic coverage expansion, R06): the requested
+  total/supported/rejection/family report exists in `v11/discovery.py` and
+  `v11/audit_reports.py`. This does not complete reviewed semantic-family
+  expansion or current-universe acceptance.
 - REQUIRED UPGRADE N (station/horizon/strategy selection, R40/R42): the
-  master's eleven-dimension performance-profile requirement is implemented by
-  `v11/performance.py`'s `DIMENSIONS = ('station','city','entry_price',
-  'event_state','model_bundle','horizon','model_confidence','market_liquidity')`,
-  consumed by `v11/drift.py`/`v11/drift_runtime.py` to reduce a poor
-  station-strategy scope to PAPER_ONLY/DISABLED — not a fresh gap.
-- REQUIRED UPGRADE O's "automatically demote... when degradation occurs"
-  (also R40/R42): traced `DriftWorker._review` in `v11/drift_runtime.py` and
-  found it requires an exact pre-declared, unexpired entry in
-  `protected_reviews()` (`/etc/alpha-v11/approvals/drift-policies.json`)
-  before ANY reduction is applied, even for a PAPER/SHADOW scope. This looks
-  at first like a gap against the master's "automatic" demotion language
-  (only *promotion* is required to need protected ceilings), but
-  `docs/V11_WORK_CHECKPOINT.md`'s own prior implementation record ("A
-  distinct protected review must approve this exact policy and all-account-
-  window selection before the window") shows this was a deliberate original
-  design choice, not an oversight: a measurement crossing a threshold alone
-  cannot prove "statistically/operationally meaningful degradation" without
-  independent verification of the policy/threshold itself. Building a
-  genuinely unreviewed automatic-demotion path would require inventing the
-  same kind of authorization/significance model this project has already and
-  explicitly declined to invent for R23's protected-review tail. Not
-  implemented this batch; recorded as intentionally gated, not a defect.
-- R21 (external/live account integration): confirmed `production/ledger.py`
-  has zero callers anywhere under `v11/`; the matrix's "external/live account
-  integration pending" language is accurate — real-money ledger integration
-  requires real exchange credentials this batch cannot obtain, correctly
-  production/owner-gated.
+  original audit's claim that all eleven master profile dimensions were
+  implemented was incorrect. `v11/performance.py::DIMENSIONS` has eight
+  entries: station, city, entry_price, event_state, model_bundle, horizon,
+  model_confidence and market_liquidity; strategy attribution is separate.
+  Required country/source, PWS neighborhood density/quality, weather variable,
+  time-of-day and apparent-edge profiles are absent from this report. Scope
+  metadata and a scoped demotion consumer do not implement those profiles.
+  Their causal entry-metadata/report integration is remaining local work;
+  unknown evidence must remain UNKNOWN. Full profile acceptance is pending.
+- REQUIRED UPGRADE O (automatic safe demotion, R40/R42):
+  `v11/drift_runtime.py::DriftWorker._review` requires a pre-declared protected
+  policy review. Automatic account/markout scheduling and reductions exist
+  for reviewed policies; advance review is compatible with automatic action.
+  Unreviewed measurements remain REDUCTION_GATED. Preserve that boundary, but
+  prior design notes do not waive the master's monitoring/automatic-demotion
+  requirement or prove operational acceptance. Wider monitoring, meaningful
+  thresholds and operational evidence remain open as recorded in R42.
+- R21 (external/live account integration): no `production/ledger.py` callers
+  under `v11/` establishes missing wiring, not that every remaining adapter or
+  offline integration test requires credentials. Actual account evidence and
+  live commissioning remain owner/production gated. Local implementation
+  feasibility must be assessed separately without weakening financial gates.
 
-With no fresh unblocked local-implementation gap found among these five,
-performed a full-file audit of `v11/paper_coordinator.py`'s reservation core
+The implementation worker then performed a full-file audit of
+`v11/paper_coordinator.py`'s reservation core
 (`_prepare`, `coordinate`, `_coordinate_effects`, lines 262-500) instead of
 repeating another "no defect" pass on an already-audited module. Traced
 membership/valuation/admission/preconfirmation/source-release binding, event-
@@ -77,12 +127,10 @@ regression (audit only, no code change). `git diff --stat` against `50f0da1`
 is empty outside this checkpoint/matrix/progress update.
 
 No new C/J/E/A: **85/200 (~43%); 1/50 (2%)**, unchanged. NOT_READY_TO_FUND;
-V10/private/financial boundaries unchanged. Next: continue the same
-verify-against-code method on the remaining un-audited PARTIAL requirements
-(R02-R05, R09-R17, R24-R30, R33, R41) looking for another R23-shaped gap
-where the matrix's prose claims integration that the actual code does not
-perform; absent that, the honest remaining tails across R09-R49 are
-consistently real-evidence/owner/production/protected-review gated.
+V10/private/financial boundaries unchanged. Next: close a bounded missing
+Upgrade N profile using original pinned entry evidence and UNKNOWN-preserving
+reporting/tests; do not classify remaining local work as external-gated from
+matrix prose or absent production callers alone.
 
 ## Previous published checkpoint
 
@@ -151,12 +199,13 @@ had started (but not published) real per-station `CorrelationMap` construction
 plus a `CandidatePlan` binding check, then stalled waiting on a detached
 background pytest run instead of finishing in the foreground. Inspected the
 uncommitted diff line by line before touching anything: `region_membership.py`
-gained `build_correlation_map`, which turns a candidate's actual certified
+gained `build_correlation_map`, which turns supplied station metadata and
 `(StationMetadata, NWSPointOffice, NWSOfficeRegion)` triples into one
 `CorrelationMap` via the existing `build_station_membership` chain (so each
-membership still carries its own validated official identity/evidence), with
-an `evidence_sha256` folding in every entry's own point/office evidence hash so
-no entry can be silently dropped or substituted; `candidate_assembly.py`'s
+membership is derived from schema-validated point/office evidence), with
+an `evidence_sha256` aggregating the supplied point/office evidence hashes;
+this is consistency evidence, not protected provenance or certification.
+`candidate_assembly.py`'s
 `CandidatePlan.__post_init__` now rejects any correlation map missing a
 membership for one of its own events' stations, or whose membership
 `metadata_fingerprint` disagrees with that event's own census rule payload,

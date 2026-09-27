@@ -94,14 +94,12 @@ def build_correlation_map(
 ) -> CorrelationMap:
     """Aggregate real per-station NWS region evidence into one reviewable map.
 
-    This is the only constructor that turns a candidate's actual certified
-    stations into the ``CorrelationMap`` ``scenario_risk.portfolio_risk``
-    enforces at runtime -- a caller can no longer hand a candidate an opaque,
-    unrelated correlation policy: ``CandidatePlan`` binds it to each event's
-    real station and metadata fingerprint (see ``candidate_assembly.py``).
-    The map's own evidence_sha256 folds in every entry's own receipt-bound
-    point/office evidence hashes, so it cannot silently drop or substitute the
-    real evidence ``build_station_membership`` already validated per station.
+    Each supplied metadata/point/office triple passes the existing membership
+    validation. CandidatePlan separately checks event station and metadata
+    fingerprint coverage. The aggregate hash identifies supplied point/office
+    evidence; it does not authenticate origin or prove station certification,
+    protected policy approval, completeness or freshness. CorrelationMap remains
+    directly constructible; protected provenance validation is separate work.
     """
     identity(version)
     if type(entries) is not tuple or not 1 <= len(entries) <= 256:

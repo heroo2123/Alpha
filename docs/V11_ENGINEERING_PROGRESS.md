@@ -1,23 +1,26 @@
 # Supplementary engineering estimate
 
 Blocked-tail audit sweep and R21 paper_coordinator audit — 2026-09-27
-(supervisor batch 3): checked five candidate gaps against the master and
-actual code (not prior matrix prose): R31 remains genuinely OPEN (no free
-public archived publication/version-history source exists); REQUIRED UPGRADE
-P's semantic-coverage report and REQUIRED UPGRADE N's eleven-dimension
-station/horizon/strategy performance profile are already implemented
-(`v11/discovery.py`/`v11/audit_reports.py`; `v11/performance.py` `DIMENSIONS`
-consumed by `v11/drift.py`/`v11/drift_runtime.py`); REQUIRED UPGRADE O's
-"automatic" demotion is intentionally gated behind a protected pre-declared
-review by original design, not an oversight — an unreviewed automatic path
-would require inventing an authorization/significance model already declined
-for R23; R21's `production/ledger.py` has zero `v11/` callers, confirming
-real production/credential gating. Full audit of `v11/paper_coordinator.py`'s
-`_prepare`/`coordinate`/`_coordinate_effects` reservation core found no
-exploitable defect. No code changed; `tests/test_v11_paper_coordinator.py`
-**21 passed / 3.93 s**; broader selection **103 passed / 26.62 s**, exit 0,
-no skips/failures. No new C/J/E/A: **85/200 (~43%); 1/50 (2%)**, unchanged.
-NOT_READY_TO_FUND; V10 unchanged/DEFERRED.
+(supervisor batch 3, corrected by independent review): the original audit
+incorrectly treated Upgrade N's eleven required profile dimensions as complete.
+`v11/performance.py` has eight `DIMENSIONS` plus separate strategy attribution;
+country/source, PWS neighborhood density/quality, weather variable, time-of-day
+and apparent-edge profiles remain missing from that report. Their causal
+metadata/report integration is local implementation work, not inherently an
+owner/production dependency. Existing C/J credit covers the narrower slice.
+
+Upgrade P's coverage report exists, but full semantic expansion remains open.
+R31 has no delivered exact-source finality proof; the cited evidence does not
+prove that no suitable free source exists. Upgrade O supports automatic
+account/markout reductions under pre-reviewed policies; preserve the review
+boundary without treating prior design as a waiver of master acceptance.
+R21's absent production-ledger callers show missing wiring, not that all local
+adapter/test work requires credentials. Live evidence/commissioning remains gated.
+The worker's reservation-core audit found no defect and recorded 21 direct /
+103 related passes; this is bounded audit evidence, not full acceptance.
+No new C/J/E/A: **85/200 = 42.5%; 1/50 (2%)**, unchanged.
+NOT_READY_TO_FUND; V10 unchanged/DEFERRED. Independent review and focused test
+manifest details: `docs/V11_WORK_CHECKPOINT.md`.
 
 Velocity-rule redirect off R23 and R18 independent-guardian audit — 2026-09-27
 (supervisor batch 2): R23 had consumed three consecutive published batches
