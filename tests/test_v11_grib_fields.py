@@ -28,7 +28,7 @@ def message(sections):
 
 def grib(*,member=0,hour=3,run=RUN,values=(290.,291.,292.,293.),packing=0,lat=33.,lon=276.,scan=64):
     d=datetime.fromtimestamp(run,timezone.utc);a=section(1,21)
-    a[5:12]=u(7,2)+u(0,2)+bytes([2,1,1]);a[12:19]=u(d.year,2)+bytes([d.month,d.day,d.hour,d.minute,d.second])
+    a[5:12]=u(7,2)+u(2,2)+bytes([2,1,1]);a[12:19]=u(d.year,2)+bytes([d.month,d.day,d.hour,d.minute,d.second])
     a[19:21]=bytes([0,3 if member==0 else 4])
     b=section(3,72);b[6:10]=u(4,4);b[14]=6;b[30:38]=u(2,4)+u(2,4);b[42:46]=b'\xff'*4
     dx=-.5 if scan&128 else .5;dy=.5 if scan&64 else -.5
@@ -73,7 +73,7 @@ def test_scan_directions_and_signed_southern_latitude(scan):
 
 
 @pytest.mark.parametrize('section_id,offset,value,reason',[
-    (1,5,u(98,2),'OPERATIONAL_NCEP'),(1,11,b'\x00','OPERATIONAL_NCEP'),(1,19,b'\x01','OPERATIONAL_NCEP'),
+    (1,5,u(98,2),'OPERATIONAL_NCEP'),(1,7,u(0,2),'OPERATIONAL_NCEP'),(1,11,b'\x00','OPERATIONAL_NCEP'),(1,19,b'\x01','OPERATIONAL_NCEP'),
     (4,7,u(11,2),'POINT_TEMPERATURE'),(4,10,b'\x04','POINT_TEMPERATURE'),(4,13,b'\x60','POINT_TEMPERATURE'),
     (4,24,u(10,4),'POINT_TEMPERATURE'),(4,35,b'\x1f','MEMBER_OR_FORECAST'),
     (4,18,u(4,4),'MEMBER_OR_FORECAST'),(3,30,u(1000000,4),'POINT_BOUND'),

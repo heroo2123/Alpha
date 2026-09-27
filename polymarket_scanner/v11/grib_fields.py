@@ -62,7 +62,7 @@ class GEFSField:
 def decode_gefs_field(data):
     """Decode exactly one bounded NCEP operational 2m TMP ensemble field."""
     s = _sections(data); ident, grid, product, packing = (s[n] for n in (1,3,4,5))
-    if (len(ident) != 21 or _uint(ident,5,7) != 7 or _uint(ident,7,9) != 0
+    if (len(ident) != 21 or _uint(ident,5,7) != 7 or _uint(ident,7,9) != 2
             or not 2 <= ident[9] <= 35 or ident[11] != 1 or ident[19] != 0):
         raise EvidenceError('GRIB_OPERATIONAL_NCEP_INITIALIZATION_REQUIRED')
     try:
