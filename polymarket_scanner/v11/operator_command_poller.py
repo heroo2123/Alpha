@@ -12,12 +12,22 @@ the adapter/router preserve any already-committed reductions idempotently.
 
 One offset is shared by exactly one worker key; a file lock refuses a second
 concurrent ``step()`` for that key so two processes never race Telegram's
-stateful ``getUpdates`` offset. An update that fails authentication, grammar,
-or router authorization does not raise out of ``step()`` and does not stall
-later updates in the same batch; its outcome is reported and its offset still
-advances, matching the existing cooperative ``Controller.commands`` behavior.
-This performs no message delivery, credential provisioning, account mutation,
-or independent operational acceptance; those remain separate and unclaimed.
+stateful ``getUpdates`` offset. A second file lock, keyed by the adapter's
+configured ``bot_id`` rather than the worker key or store, refuses a second
+concurrent ``step()`` against the same Telegram bot even from a different
+worker key or a different store's poller, since Telegram's ``getUpdates``
+offset is shared by the whole bot token, not by whichever local worker
+key/store happens to be polling it; two such consumers would otherwise
+silently desynchronize each other's cursor. Both lock files live beside this
+poller's own store, so exclusivity is only established for stores that share
+one directory; a store kept in a different directory is not detected by this
+lock, and this performs no cross-host or cross-deployment claim. An update
+that fails authentication, grammar, or router authorization does not raise
+out of ``step()`` and does not stall later updates in the same batch; its
+outcome is reported and its offset still advances, matching the existing
+cooperative ``Controller.commands`` behavior. This performs no message
+delivery, credential provisioning, account mutation, or independent
+operational acceptance; those remain separate and unclaimed.
 """
 from __future__ import annotations
 
@@ -59,16 +69,24 @@ class TelegramOperatorCommandPoller:
 
     async def step(self) -> list[dict]:
         """One bounded poll; never sleeps, retries, or blocks on Telegram."""
-        fd = os.open(self.store.path.with_name(self.store.path.name + "." + self.worker_key + ".lock"),
+        worker_fd = os.open(self.store.path.with_name(self.store.path.name + "." + self.worker_key + ".lock"),
                      os.O_CREAT | os.O_WRONLY | os.O_NOFOLLOW, 0o600)
+        bot_fd = os.open(self.store.path.with_name(
+                "operator-bot-" + str(self.adapter.identity.bot_id) + ".lock"),
+                os.O_CREAT | os.O_WRONLY | os.O_NOFOLLOW, 0o600)
         try:
             try:
-                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                fcntl.flock(worker_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
             except BlockingIOError:
                 raise OperatorCommandPollerError("POLLER_ALREADY_RUNNING") from None
+            try:
+                fcntl.flock(bot_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                raise OperatorCommandPollerError("OPERATOR_COMMANDS_BOT_ALREADY_POLLING") from None
             return await self._step()
         finally:
-            os.close(fd)
+            os.close(bot_fd)
+            os.close(worker_fd)
 
     async def _step(self) -> list[dict]:
         head = self._head()

@@ -1,5 +1,68 @@
 # Alpha V11 work checkpoint
 
+## Same-directory exclusive Telegram bot-consumer lock — 2026-09-27 (supervisor batch 8)
+
+Recovered a clean tree: local/remote `weather-v11-profitability-upgrade-2026-09-23`
+were already equal at `d3a6191`, no dirty files, no unfinished background process.
+Read CLAUDE.md, this checkpoint, the requirements matrix and progress ledger.
+Followed independent batch-7 review's exact next action: bind protected operator
+configuration and exclusive bot-consumer ownership before any real polling/deployment.
+
+Confirmed the gap is real and already demonstrated by an existing test:
+`test_v11_candidate_runner.py::test_operator_store_and_supplied_policy_account_must_match`
+already constructs two `CandidateOperatorCommands` against the *same* Telegram bot
+identity from two *different* `EvidenceStore` files in the same directory, and the
+constructor accepted both — only `CandidateRunner`'s own store-identity check
+(unrelated to Telegram) happened to catch the mismatch in that test's particular
+wiring, not anything guarding the shared bot. Telegram's `getUpdates` offset is
+scoped to the whole bot token, not to a worker key or a store file, so two
+independently configured consumers of one bot would silently desynchronize each
+other's cursor with no code path preventing it.
+
+`TelegramOperatorCommandPoller.step()` (`polymarket_scanner/v11/operator_command_poller.py`)
+now takes a second non-blocking file lock, alongside the existing per-worker-key
+lock, keyed only by the adapter's configured `bot_id` and placed beside this
+poller's own store. A second poller — same worker key, a different worker key, or
+a different store's poller — cannot run `telegram.updates()` for the same bot at
+the same time; the refusal is `OPERATOR_COMMANDS_BOT_ALREADY_POLLING` and does not
+touch a different bot's independent lock. Existing per-worker-key exclusivity,
+command freshness, authentication, cursor CAS and idempotent replay are unchanged.
+
+This closes the *same-directory* instance of the flagged gap only. It does not
+detect a conflicting consumer whose store lives in a different directory (no
+existing lock in this codebase is cross-directory; all of them are placed beside
+their own store), and it does not and cannot reach the disabled legacy V10
+`Controller.commands` path, which CLAUDE.md prohibits altering. Protected
+operator-configuration custody was reviewed separately: `CandidateRunner.run()`
+already pins the whole candidate configuration digest — including
+`CandidateOperatorCommands.config` — and rejects `CONFIGURATION_CHANGED`/
+`REPLAY_CONFIG` on a later run with a different operator identity/policy for the
+same run id (see `test_operator_policy_change_requires_review_before_any_new_poll`,
+already passing and unchanged). No new custody code was needed there.
+
+Verification on the project Python 3.12.3 interpreter:
+- **24 focused poller passed / 1.46 s** (4 new cases: same worker key already
+  covered; new cross-worker-key, cross-store-same-directory and unaffected-
+  different-bot cases).
+- **252 combined passed / 51.57 s**, exit 0, no skips/warnings: the poller,
+  adapter, router, event-risk, evidence-foundation, operator-panel, paper
+  cancellation/coordinator/runtime and candidate-runner suites.
+- Only `v11/operator_command_poller.py`, `v11/operator_command_runtime.py`
+  (docstring only) and `tests/test_v11_operator_command_poller.py` changed;
+  `git diff --stat` confirms no other file touched. No V10, credential,
+  private-input or production-service change. No full regression rerun: this is
+  a narrow lock addition with its direct integration surface verified, matching
+  the same-batch precedent set by batches 5-7 on this exact module family.
+
+No new C/J/E/A milestone: R39 already holds C/J. **85/200 = 42.5% (~43%);
+formal 1/50 (2%)**, unchanged. **NOT_READY_TO_FUND; V10 unchanged/DEFERRED.**
+
+**Exact next unfinished action:** cross-directory/cross-host bot-consumer
+exclusivity, real credentialed delivery/deployment wiring, callback/button
+command support and independent executor/guardian/operational acceptance all
+remain open; any of these needs owner input on real Telegram credentials and a
+deployment target before further code closes it.
+
 ## Independent batch-7 review — operator polling availability, 2026-09-27
 
 Reviewed published `f992864e14488bf396ac8e7588c28fd6e7ea2416` against

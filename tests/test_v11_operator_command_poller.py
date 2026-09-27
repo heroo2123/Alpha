@@ -123,6 +123,59 @@ def test_concurrent_step_on_the_same_worker_key_is_refused(rig):
         os.close(fd)
 
 
+def test_concurrent_step_on_the_same_bot_from_a_different_worker_key_is_refused(rig):
+    import fcntl
+    store, build = rig
+    identity = TelegramCommandIdentity(bot_id=123, chat_id=42, operators=(42,))
+    policy = OperatorSafetyPolicy(account_id="account", operators=(42,),
+        allowed_scopes=("ACCOUNT",), allowed_actions=("CANCEL_AND_HALT",))
+    adapter = TelegramOperatorCommandAdapter(Bot([]), identity, OperatorSafetyRouter(store, policy))
+    poller = TelegramOperatorCommandPoller(store, "a-different-worker-key", adapter)
+    lock_path = store.path.with_name("operator-bot-123.lock")
+    fd = os.open(lock_path, os.O_CREAT | os.O_WRONLY, 0o600)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        with pytest.raises(OperatorCommandPollerError, match="OPERATOR_COMMANDS_BOT_ALREADY_POLLING"):
+            asyncio.run(poller.step())
+    finally:
+        fcntl.flock(fd, fcntl.LOCK_UN)
+        os.close(fd)
+
+
+def test_concurrent_step_on_the_same_bot_from_a_different_store_in_the_same_directory_is_refused(rig, tmp_path):
+    import fcntl
+    store, build = rig
+    other_store = EvidenceStore(tmp_path / "other.sqlite", "V11_PAPER")
+    identity = TelegramCommandIdentity(bot_id=123, chat_id=42, operators=(42,))
+    policy = OperatorSafetyPolicy(account_id="account", operators=(42,),
+        allowed_scopes=("ACCOUNT",), allowed_actions=("CANCEL_AND_HALT",))
+    adapter = TelegramOperatorCommandAdapter(Bot([]), identity, OperatorSafetyRouter(other_store, policy))
+    poller = TelegramOperatorCommandPoller(other_store, WORKER_KEY, adapter)
+    lock_path = store.path.with_name("operator-bot-123.lock")
+    fd = os.open(lock_path, os.O_CREAT | os.O_WRONLY, 0o600)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        with pytest.raises(OperatorCommandPollerError, match="OPERATOR_COMMANDS_BOT_ALREADY_POLLING"):
+            asyncio.run(poller.step())
+    finally:
+        fcntl.flock(fd, fcntl.LOCK_UN)
+        os.close(fd)
+
+
+def test_concurrent_step_on_a_different_bot_is_not_affected(rig):
+    import fcntl
+    store, build = rig
+    poller = build(Bot([]))
+    lock_path = store.path.with_name("operator-bot-999.lock")
+    fd = os.open(lock_path, os.O_CREAT | os.O_WRONLY, 0o600)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        assert asyncio.run(poller.step()) == []
+    finally:
+        fcntl.flock(fd, fcntl.LOCK_UN)
+        os.close(fd)
+
+
 def test_worker_key_must_be_a_valid_identity(rig):
     store, build = rig
     bot = Bot([])

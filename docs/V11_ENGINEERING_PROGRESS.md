@@ -1,5 +1,24 @@
 # Supplementary engineering estimate
 
+Same-directory exclusive Telegram bot-consumer lock — 2026-09-27 (supervisor
+batch 8): closed the exact next action independent batch-7 review left open.
+`TelegramOperatorCommandPoller.step()` now takes a second non-blocking file
+lock keyed only by the adapter's configured `bot_id`, alongside the existing
+per-worker-key lock, so a second poller — same or different worker key,
+different store — cannot poll the same Telegram bot concurrently as long as
+its store shares a directory with this poller's store. Reviewed and confirmed
+`CandidateRunner.run()` already pins the whole operator-commands configuration
+digest and rejects a changed identity/policy on replay, so no separate custody
+code was needed for that half of the gap. **24 focused / 1.46 s; 252 combined
+/ 51.57 s**, exit 0, no skips/warnings; only the poller module, one docstring
+and its own test file changed. No full rerun (single-module lock addition with
+its direct integration surface verified). Exact scope/evidence:
+`docs/V11_WORK_CHECKPOINT.md` (supervisor batch 8). R39 remains PARTIAL; no new
+C/J/E/A: **85/200 = 42.5% (~43%); formal 1/50 (2%)**, unchanged.
+Cross-directory/cross-host bot-consumer exclusivity, real credentialed
+delivery/deployment, callback/button support and independent acceptance
+remain open. NOT_READY_TO_FUND; V10 unchanged/DEFERRED.
+
 Independent batch-7 review — 2026-09-27: fixed operator-command starvation in
 the optional candidate integration. Degraded synchronization suppressed polling,
 and blocked public collection prevented an authenticated cancel from being
