@@ -1,5 +1,47 @@
 # Supplementary engineering estimate
 
+Supervisor batch 13 — 2026-09-27: recovery check found `git status` clean,
+local HEAD `2388d37` equal to
+`origin/weather-v11-profitability-upgrade-2026-09-23`, no unfinished process
+to recover. Batches 11 and 12 both closed with no new C/J/E/A milestone;
+before repeating that pattern a third time, re-verified batch 12's two named
+"next" leads directly against the private master (hash re-confirmed
+`a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`) rather
+than only against prior batches' own summaries. Master section 12 lists R24's
+nine dynamic-sizing factors under "Possible factors:" with no named source
+field for any of them, confirming wiring `SizingFactors` would require
+guessing an evidence-plumbing mapping the master does not supply. Master
+section 27 records the actual Session-key authorization attempt returning
+`HTTP 403` with Builder support already contacted, and section 28's fallback
+ladder is gated on real external venue/API research, not local code; a `grep`
+for "entitlement"/"allowlist" across `production/exchange.py`,
+`production/owner_account.py` and their tests confirms there is no missing
+local check — the matrix's phrase names the real exchange's own entitlement
+decision. Both leads are genuinely owner/external-blocked exactly as
+previously recorded, so this batch redirected to the next untouched item on
+batch 12's own list: R05, the executable-EV/markout measurement core that
+directly feeds R19's admission gate.
+
+Read `v11/valuation.py`, `v11/measurement.py`, `v11/fill_evidence.py`,
+`v11/fill_markout.py` and `v11/markout_drift.py` in full (1,043 lines, none
+previously read end-to-end by this audit series), looking for the same class
+of gap the batch-6 review found in R23. No defect found: every EV/cost/markout
+path is fail-closed on missing depth, unknown cost coverage, oversized
+request, expired cost evidence, crossed/stale book, or any
+proof/valuation/admission/source binding, sequence or chronology mismatch;
+every returned record carries `financial_authority=False`, confirming this
+subsystem is research/measurement-only and cannot itself authorize a trade.
+No new C/J/E/A milestone: **87/200 (~44%); 1/50 (2%)**, unchanged.
+NOT_READY_TO_FUND; V10 unchanged/DEFERRED.
+
+Verification: `pytest tests/test_v11_valuation.py tests/test_v11_fill_evidence.py
+tests/test_v11_fill_markout.py tests/test_v11_markout_drift.py
+tests/test_v11_basket_valuation.py` — **152 passed / 53.35 s**, exit 0, no
+failures/skips. No production or test code changed (audit-only); `git diff
+--stat` after the doc-only commit shows only the three ledger files changed.
+No full regression: no source changed. Full detail:
+`docs/V11_WORK_CHECKPOINT.md` (supervisor batch 13).
+
 Supervisor batch 12 — 2026-09-27: recovery check found `git status` clean,
 local HEAD `f4d63c4` equal to
 `origin/weather-v11-profitability-upgrade-2026-09-23`, no unfinished process

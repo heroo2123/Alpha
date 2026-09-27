@@ -1,5 +1,91 @@
 # Alpha V11 work checkpoint
 
+## Supervisor batch 13 — 2026-09-27: master re-verification plus R05 defect audit clean
+
+Recovery check: `git status` clean, local HEAD `2388d37` equal to
+`origin/weather-v11-profitability-upgrade-2026-09-23`, no unfinished process
+to recover (the only running `claude` process was this invocation itself).
+Current durable score at start: **87/200 (~44%); formal 1/50 (2%)**. Batches
+11 and 12 both closed with no new C/J/E/A milestone, so before repeating that
+pattern this batch first re-verified, directly against the private master
+rather than relying solely on prior batches' own conclusions, whether either
+of the two named "next" leads (R24's dynamic-sizing field mapping, R43's
+entitlement/allowlist) is actually reachable through pure local
+implementation.
+
+SHA-256 of the private master re-verified as
+`a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`, matching
+CLAUDE.md. Section 12 ("REQUIRED UPGRADE H — DYNAMIC RISK AND POSITION
+SIZING") lists its nine sizing factors under the heading "Possible factors:"
+— an illustrative, not mandated, list with no named source field for any of
+them — confirming that wiring `SizingFactors` would require guessing an
+evidence-plumbing mapping the master does not supply, exactly as batch 12
+concluded. Section 27 ("AUTHENTICATION / TRADING ACCESS — SESSION KEY FIRST")
+records the actual attempted Session-key authorization
+(`POST /v1/session-signers/authorizations` -> `HTTP 403`) with Polymarket
+Builder support already contacted, and Section 28's fallback ladder (dedicated
+bot EOA / official proxy-or-Safe / new dedicated account / fail closed) is
+explicitly gated on "official Polymarket documentation, SDK source, API
+behavior" review — i.e. real external venue state, not local code. `grep` for
+"entitlement"/"allowlist" across `production/exchange.py`,
+`production/owner_account.py` and their test files returns nothing local to
+implement; the matrix's "account-specific entitlement and EOA allowlist
+unverified" phrase refers to the real exchange's entitlement decision, not a
+missing local check. Both leads are genuinely owner/external-blocked exactly
+as previously recorded; re-recording that conclusion a third time would add
+no value, so this batch redirected to the next item on batch 12's own
+untouched-audit list instead: R05, R10-R17, R25-28, R40-42, R45 remain
+candidates, and R05 (the executable-EV/markout measurement core that directly
+feeds R19's admission gate) was picked as the highest-stakes untouched module.
+
+Read `v11/valuation.py` (326 lines: `CostComponent`, `ValuationPolicy`,
+`settlement_entry_details`, `compare_hold_sale`, `_book`, `_costs`,
+`_prediction`), `v11/measurement.py` (145 lines: `executable_depth`,
+`measure_markout`, `score_binary`), `v11/fill_evidence.py` (81 lines:
+`execution_details`, `_book`), `v11/fill_markout.py` (248 lines:
+`snapshot_fill_cohort`, `measure_fill_window`) and `v11/markout_drift.py` (243
+lines: `snapshot_cohort`, `measure_markout_window`) in full — 1,043 lines,
+none previously read end-to-end by this audit series — looking for the same
+class of gap the batch-6 review found in R23 (a path that silently diverges
+from its documented/tested guarantee).
+
+**No defect found.** Every EV/cost/markout computation path is fail-closed:
+`settlement_entry_details`/`compare_hold_sale` only compute a numeric EV when
+`reasons` is empty (missing depth, unknown cost coverage, oversized request,
+expired cost evidence, or crossed/stale book all short-circuit to
+`GATED`/`REJECT` first); `_costs` rejects double-counted or unexpected risk
+coverage before any total is summed; `executable_depth` rejects malformed,
+duplicate-priced, or over-limit book levels before walking them;
+`execution_details`/`fill_markout`/`markout_drift`'s reconciliation chains
+independently re-validate proof/valuation/admission/source binding, sequence
+ordering and chronology at every step, raising a distinct `EvidenceError`
+rather than silently accepting a partial or mismatched record. Every returned
+record carries `financial_authority=False` (or an unset/`None` P&L field),
+confirming this whole subsystem is research/measurement-only and cannot
+itself authorize a trade regardless of what it computes — the R23-class risk
+(a live guardian/cancellation gap) does not apply here since nothing in R05
+touches account state.
+
+Verification: `pytest tests/test_v11_valuation.py tests/test_v11_fill_evidence.py
+tests/test_v11_fill_markout.py tests/test_v11_markout_drift.py
+tests/test_v11_basket_valuation.py` — **152 passed / 53.35 s**, exit 0, no
+failures/skips. No production or test code was changed (audit-only, matching
+the batch-7/8/9/10/12 no-op-on-clean-audit precedent); `git status`/`git diff
+--stat` after the doc-only commit show only the three ledger files changed —
+no V10, private-input, credential or production file touched. No full
+regression: no source changed.
+
+No new C/J/E/A milestone: **87/200 = 43.5% (~44%); formal 1/50 (2%)**,
+unchanged. NOT_READY_TO_FUND; V10 unchanged/DEFERRED.
+
+Next: R10-R17, R25-R28, R40-R42 and R45 remain untouched by this adversarial
+audit style (R05 now joins the audit-clean pool alongside
+R06/R07/R08/R18/R23/R24/R29/R30/R32/R33/R34-R36/R38/R09). R00, R31, R37's E/A,
+R43, R44 and R46-R49 remain owner/external/production-gated, now
+independently re-confirmed against the master text itself rather than only
+against prior batches' own summaries, and should not be re-audited again
+without new master citation, real evidence, credentials or deployment action.
+
 ## Supervisor batch 12 — 2026-09-27: R24 allocation/sizing defect audit clean
 
 Recovery check: `git status` clean, local HEAD `f4d63c4` equal to
