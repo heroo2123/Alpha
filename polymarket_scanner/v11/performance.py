@@ -16,7 +16,7 @@ from .scenario_risk import number, precise
 VERSION = 'alpha_v11_performance_v1'
 UNKNOWN = 'UNKNOWN'
 _CURRENT = object()
-DIMENSIONS = ('station','city','entry_price','event_state','model_bundle','horizon','model_confidence','market_liquidity','weather_variable','time_of_day','apparent_edge')
+DIMENSIONS = ('station','city','entry_price','event_state','model_bundle','horizon','model_confidence','market_liquidity','weather_variable','time_of_day','apparent_edge','source','country')
 
 
 def _add(groups, key, amount):
@@ -193,7 +193,19 @@ class PerformanceLab:
         if len(canonical(result).encode())>512*1024:raise EvidenceError('PERFORMANCE_SCOPED_RESULT_BOUND')
         return result
 
-    def _metadata(self, state, intent_id, deadline, cache):
+    def _station_country(self, station, rule_metadata_fingerprint, station_cache):
+        """Historical registry lookup, not the current champion/live station state."""
+        if station in station_cache: return station_cache[station]
+        from .rules import history
+        country = UNKNOWN
+        records = history(self.store, 'REGISTRY', 'station:'+station)
+        observed = [r for r in records if r['body']['details'].get('action') == 'METADATA']
+        if observed and observed[-1]['body']['details'].get('metadata_fingerprint') == rule_metadata_fingerprint:
+            country = observed[-1]['body']['details']['metadata'].get('country') or UNKNOWN
+        station_cache[station] = country
+        return country
+
+    def _metadata(self, state, intent_id, deadline, cache, station_cache):
         if intent_id in cache: return cache[intent_id]
         intent = state['intents'].get(intent_id,{})
         context = state['contexts'].get(intent.get('event_id'),{})
@@ -217,6 +229,13 @@ class PerformanceLab:
                 result['market_liquidity'] = value.get('book',{}).get('reason',UNKNOWN)
                 edge = value.get('conservative_ev_per_share')
                 result['apparent_edge'] = edge if edge is not None else UNKNOWN
+            rule_raw = state.get('rules',{}).get(intent.get('event_id'))
+            if rule_raw:
+                from .rules import RuleFingerprint
+                payload = RuleFingerprint(rule_raw['canonical_json'],rule_raw['sha256'],rule_raw['source_event_sha256']).payload
+                result['source'] = payload.get('source_family') or UNKNOWN
+                if payload.get('station'):
+                    result['country'] = self._station_country(payload['station'],payload.get('metadata_fingerprint'),station_cache)
             result['metadata_status'] = 'PINNED_ENTRY_RECORDS_ONLY_NOT_CURRENT_CHAMPION'
         except (EvidenceError,KeyError,TypeError): result['metadata_status'] = 'INCOMPLETE_PINNED_METADATA'
         cache[intent_id] = result
@@ -242,7 +261,7 @@ class PerformanceLab:
         entries = [e for e in state['realized_entries'] if start <= finite(e['at']) < end]
         if len({e['fill_id'] for e in state['realized_entries']}) != len(state['realized_entries']):
             raise EvidenceError('PERFORMANCE_DUPLICATE_REALIZATION')
-        dims = {d:{} for d in DIMENSIONS}; strategy = {}; entry_pnl = {}; sold = {}; cache = {}; unknown = Decimal(0)
+        dims = {d:{} for d in DIMENSIONS}; strategy = {}; entry_pnl = {}; sold = {}; cache = {}; station_cache = {}; unknown = Decimal(0)
         deadline = time.monotonic()+maximum_metadata_seconds; count = 0; unknown_count = 0
         for entry in entries:
             pnl = number(entry['pnl'],signed=True); allocations = entry.get('allocations',[])
@@ -266,7 +285,7 @@ class PerformanceLab:
                     if sum((number(s['pnl'],signed=True) for s in split),Decimal(0)) != amount:
                         raise EvidenceError('PERFORMANCE_STRATEGY_ATTRIBUTION_NONCONSERVATION')
                     for part in split: _add(strategy,part['strategy'],number(part['pnl'],signed=True))
-                metadata = dict(self._metadata(state,intent_id,deadline,cache))
+                metadata = dict(self._metadata(state,intent_id,deadline,cache,station_cache))
                 quantity = number(allocation['units'])
                 if quantity <= 0: raise EvidenceError('PERFORMANCE_ALLOCATION_UNITS')
                 metadata['entry_price'] = str(number(allocation['allocated_basis'])/quantity)

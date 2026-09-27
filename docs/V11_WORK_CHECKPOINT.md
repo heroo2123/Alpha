@@ -8356,3 +8356,50 @@ Its pre-mapping group-clear fix, universal uidmap-denial explanation,
 first-execution claim and blanket R39 owner-only deferral were incorrect.
 The independent review at the top of this checkpoint supersedes those claims
 and records the bounded correction, actual CI failure and remaining work.
+
+
+## Supervisor batch 10 — 2026-09-27: R40 country/source Upgrade N profiles
+
+Recovery check: `git status` clean, local HEAD `63100af` equal to
+`origin/weather-v11-profitability-upgrade-2026-09-23`, no unfinished process
+found. Read this checkpoint (including the independent supervisor-batch-9
+review at its top), the requirements matrix and the progress ledger before
+editing. Current durable score at start: **87/200 (~44%); formal 1/50 (2%)**.
+
+The independent review's own recorded next action, unambiguous and dated the
+same day as the current HEAD, was to implement R40's country/source profile
+rather than redirect to another audit merely because the step earns no new
+score unit. That review also explicitly superseded batches 15/16's exclusion
+of R40 from further work. This batch followed that directive directly.
+
+Implementation, tests and exact verification are recorded in
+`docs/V11_ENGINEERING_PROGRESS.md` (R40 country/source Upgrade N profiles
+entry) and the corresponding `docs/V11_REQUIREMENTS_MATRIX.md` R40 row
+update: `PerformanceLab.DIMENSIONS` gained `source` (from the pinned rule's
+`source_family`, no new store read) and `country` (from a bounded, cached
+`StationRegistry` `METADATA` history lookup gated on the pinned rule's own
+`metadata_fingerprint` still matching the registry's latest observation).
+Targeted **27 passed / 6.94 s** (was 22); broader affected selection **90
+passed / 39.68 s**, exit 0, four pre-existing FastAPI warnings, no
+failures/skips. `git diff --stat` shows exactly two touched files —
+`polymarket_scanner/v11/performance.py` and `tests/test_v11_performance.py` —
+no private, V10, credential or unrelated production file was touched. No
+full regression: bounded two-field addition to one existing module plus its
+direct test file, consistent with the no-full-rerun precedent the prior
+weather_variable/time_of_day/apparent_edge additions to this same row set.
+
+This closes R40's named "country/source" local-implementation gap; PWS
+neighborhood density/quality is now the row's only remaining named local-
+implementation gap. Consistent with the prior three Upgrade N profile
+additions to this row, this is one more bounded slice within R40's existing
+substantial C-level implementation, not a new upstream-to-downstream
+integration or evidence class, so it claims no new C/J/E/A milestone:
+**87/200 (~44%); formal 1/50 (2%)**, unchanged. NOT_READY_TO_FUND; V10
+unchanged/DEFERRED.
+
+Next: R40's PWS neighborhood density/quality profile is the one remaining
+named local-implementation gap for this row. R24's dynamic-sizing wiring
+remains real engineering work still waiting on genuine full-regression
+capacity or a narrower staged rollout. R31/R39 remain implementation/evidence
+gaps rather than blanket owner blockers; R43/R44/R46-R49 remain genuinely
+owner/external/production blocked.

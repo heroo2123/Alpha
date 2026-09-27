@@ -7,6 +7,13 @@ from polymarket_scanner.v11.evidence import EvidenceError
 from polymarket_scanner.v11.performance import PerformanceLab, distribution
 from test_v11_maker_research import rig, factory, setup, bundle
 from test_v11_position_management import rig as exit_rig, inventory, reserved_exit, proof, coordinator
+from test_v11_probability import rule as _rule_fixture
+
+
+def _pin_rule(s, event_id='e0'):
+    r = _rule_fixture()
+    s['rules'][event_id] = dict(canonical_json=r.canonical_json, sha256=r.sha256, source_event_sha256=r.source_event_sha256)
+    return r
 
 
 def recorded(rig, pnls=('6','-4','3')):
@@ -164,6 +171,50 @@ def test_apparent_edge_slice_falls_back_to_unknown_when_valuation_is_gated(rig):
     s['intents']['entry0']['valuation_id']='valuation-gated'
     save(c,s);d=report(rig,c)
     assert d['pnl_slices']['apparent_edge']=={'UNKNOWN':'6'}
+
+
+def test_source_slice_groups_by_pinned_rule_source_family(rig):
+    c,s=recorded(rig,('6','-4'));r=_pin_rule(s)
+    save(c,s);d=report(rig,c)
+    assert d['pnl_slices']['source']=={r.payload['source_family']:'6','UNKNOWN':'-4'}
+
+
+def test_source_slice_falls_back_to_unknown_without_pinned_rule(rig):
+    c,s=recorded(rig,('6',));save(c,s);d=report(rig,c)
+    assert d['pnl_slices']['source']=={'UNKNOWN':'6'}
+
+
+def test_country_slice_groups_by_pinned_station_registry_metadata(rig):
+    c,s=recorded(rig,('6','-4'));r=_pin_rule(s)
+    rig['store'].audit('station-metadata',event_id='station:'+r.payload['station'],kind='REGISTRY',
+        details={'action':'METADATA','metadata_fingerprint':r.payload['metadata_fingerprint'],
+                 'metadata':{'country':'US'}})
+    save(c,s);d=report(rig,c)
+    assert d['pnl_slices']['country']=={'US':'6','UNKNOWN':'-4'}
+
+
+def test_country_slice_falls_back_to_unknown_without_pinned_rule(rig):
+    c,s=recorded(rig,('6',));save(c,s);d=report(rig,c)
+    assert d['pnl_slices']['country']=={'UNKNOWN':'6'}
+
+
+def test_country_slice_falls_back_to_unknown_when_registry_fingerprint_is_stale(rig):
+    c,s=recorded(rig,('6',));r=_pin_rule(s)
+    rig['store'].audit('station-metadata',event_id='station:'+r.payload['station'],kind='REGISTRY',
+        details={'action':'METADATA','metadata_fingerprint':'0'*64,'metadata':{'country':'US'}})
+    save(c,s);d=report(rig,c)
+    assert d['pnl_slices']['country']=={'UNKNOWN':'6'}
+
+
+def test_country_slice_resolves_consistently_for_two_intents_sharing_a_station(rig):
+    c,s=recorded(rig,('6','-4'));r=_pin_rule(s,'e0')
+    s['contexts']['e1']=dict(station_id=r.payload['station'],city_id='city1')
+    s['rules']['e1']=dict(s['rules']['e0'])
+    rig['store'].audit('station-metadata',event_id='station:'+r.payload['station'],kind='REGISTRY',
+        details={'action':'METADATA','metadata_fingerprint':r.payload['metadata_fingerprint'],
+                 'metadata':{'country':'US'}})
+    save(c,s);d=report(rig,c)
+    assert d['pnl_slices']['country']=={'US':'2'}
 
 
 def test_report_namespace_cannot_mix_another_ledger(rig):

@@ -1972,3 +1972,83 @@ requirement is not expected to find further gaps (the batch-5 R12 sweep was
 already exhaustive across all 50 rows), so the next batch should return to
 closing a PARTIAL requirement's genuine local-implementation tail rather
 than repeating that audit.
+
+
+R40 country/source Upgrade N profiles — 2026-09-27 (supervisor batch 10):
+recovery check at batch start found `git status` clean, local HEAD `63100af`
+equal to `origin/weather-v11-profitability-upgrade-2026-09-23`. Read this
+ledger, the requirements matrix and the checkpoint, including the independent
+supervisor-batch-9 review at the top of the checkpoint, whose explicit next
+action was: "implement a bounded country/source profile using the original
+admission's station metadata fingerprint and source-rule family, with
+historical registry lookup/cache, UNKNOWN fallback and scheduled-report
+coverage... Do not redirect to another audit merely because the required
+implementation earns no new score unit." That review also found batches
+15/16's exclusion of R40 as "already audit-clean" incorrect: R40 still had
+this genuine local-implementation gap, so this batch targeted it directly
+rather than continuing the R02/R03-style adversarial-defect audit sweep.
+
+`v11/performance.py`'s `DIMENSIONS` gained two fields. `source` reads
+`source_family` from the same per-event `state['rules']` `RuleFingerprint`
+payload the account/scenario-risk path already reconstructs for admission
+scoping — no new store read, matching the existing `apparent_edge` precedent
+of reusing an already-available pinned record. `country` required the
+evidence-plumbing decision the matrix row had flagged: a station's country is
+not carried on the pinned `CapabilityScope` at all, only on the separate
+`StationRegistry` `METADATA` record archived by `v11/certification.py`, keyed
+by `event_id="station:"+station`. Added `PerformanceLab._station_country`,
+which calls the existing `history(store,'REGISTRY','station:'+station)`
+helper (already used by `certification.py`'s own `assess`), takes the latest
+`action=="METADATA"` record, and only trusts its `country` field when that
+record's own `metadata_fingerprint` still matches the value pinned in the
+entry's own rule payload — a later station relocation/re-observation cannot
+retroactively relabel a historical entry's country, and a station with no
+observed registry record, or whose latest record no longer matches the pinned
+fingerprint, stays UNKNOWN. A `station_cache` dict (analogous to the existing
+per-intent `cache`) is threaded through `build()` so multiple realized
+entries against the same station within one report share one registry
+lookup rather than repeating it per intent.
+
+Five new `tests/test_v11_performance.py` cases: `source` grouping by the
+pinned rule's `source_family` and its UNKNOWN fallback without a pinned rule;
+`country` grouping by a matching registry `METADATA` record, its UNKNOWN
+fallback with no pinned rule, its UNKNOWN fallback when the registry's latest
+`metadata_fingerprint` no longer matches the pinned rule (simulating a
+relocated/re-observed station), and a two-intent case confirming both
+entries sharing one station resolve the same country through the shared
+cache. Targeted: **27 passed / 6.94 s** (was 22; 5 new cases). Broader
+affected selection (`-k "performance or audit_reports or certification or
+rule_fingerprint or candidate_assembly"`): **90 passed / 39.68 s**, exit 0,
+four pre-existing FastAPI warnings, no failures/skips, foreground. No full
+regression: this is a bounded two-field addition to one existing module plus
+its direct test file, consistent with the testing budget and the no-full-
+rerun precedent the prior weather_variable/time_of_day/apparent_edge Upgrade
+N additions to this same row set. `git diff --stat` shows exactly two
+touched files — `polymarket_scanner/v11/performance.py` and
+`tests/test_v11_performance.py` — confirming no private, V10, credential or
+unrelated production file was touched.
+
+This closes R40's "country/source" local-implementation gap named by the
+independent review; the row's one remaining named local-implementation gap
+is now only the PWS neighborhood density/quality profile. Per the same
+precedent the prior weather_variable/time_of_day/apparent_edge additions to
+this row set (each recorded as advancing R40 without crossing a new C/J/E/A
+boundary, since R40's own row already carries substantial prior C-level
+implementation and this is one more bounded profile slice within that same
+existing implementation, not a new upstream-to-downstream integration or
+evidence class), this does not cross a new C/J/E/A boundary either: **87/200
+(~44%); formal 1/50 (2%)**, unchanged. NOT_READY_TO_FUND; V10
+unchanged/DEFERRED. Exact matrix update: `docs/V11_REQUIREMENTS_MATRIX.md`
+(R40 row); checkpoint: `docs/V11_WORK_CHECKPOINT.md`.
+
+Next unfinished action: R40's PWS neighborhood density/quality profile is the
+one remaining named local-implementation gap for this row (needs its own
+evidence-plumbing decision: which pinned record carries per-station PWS
+neighbor density/quality at entry time). R24's dynamic-sizing wiring remains
+a real engineering task still waiting on a batch/environment with genuine
+full-regression capacity or a narrower staged rollout (unchanged from batches
+15/16). R31's source/version proof and R39's offline protected-configuration/
+cross-deployment work remain implementation/evidence gaps, not blanket owner
+blockers; R43/R44/R46-R49 remain genuinely owner/external/production blocked
+and should not consume a batch without new real evidence or an owner
+decision.
