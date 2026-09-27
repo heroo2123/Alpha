@@ -1,5 +1,64 @@
 # Alpha V11 work checkpoint
 
+## Independent supervisor-batch-9 review — 2026-09-27
+
+Reviewed published `9a107db2b72ec34260b3025b24b1a72e55ffa968` against
+`4ca740250fb253def73c9926b366bef64b7d3e0a` (worker batches 14–16).
+Initial tree clean, local/remote HEAD equal, no Claude worker active. Sequential
+Remote Desktop Commander only. Read CLAUDE.md, the ledgers, implementation and
+relevant authoritative master requirements; master SHA-256 matches
+`a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+
+**Material handoff correction:** batches 15/16's renewed score-based exclusion
+of required local implementation is superseded. Existing C/J credit is not
+completion of the master requirements. R40 still has country/source and PWS
+neighborhood density/quality integration work; it does not have only
+owner/credential-gated tails. R24's reducer is still unused by coordinators;
+its existing ceiling-rejection checks are valid safety work but do not finish
+section 12's dynamic sizing. Section 42 permits documented, tested engineering
+choices. The reported full-suite/tool-duration mismatch does not establish that
+every bounded implementation step is blocked: scope a small change, verify its
+affected paths, and broaden tests when justified. Preserve the master section
+11 rule to skip qualifying sizes exceeding approved caps; sizing work must not
+silently resize such proposals or reuse economics computed for another size.
+
+Batch 14's `apparent_edge` addition is valid incremental R40 implementation:
+realized entry allocations are grouped by the original pinned valuation's
+conservative net EV per share, without another store read or an authority change.
+It is an exact-value slice, not yet section 18's apparent-edge-range profile;
+range aggregation and explicit metric semantics remain local implementation
+work. It closes neither the entire profile requirement nor a new C/J/E/A unit.
+The batch-14 "second of three" closure count is superseded. Missing/None EV stays
+UNKNOWN. Contrary to the earlier wording, a REJECT valuation can retain numeric
+EV (`settlement_entry_details` rejects below-threshold numeric EV); no such
+valuation is thereby admitted, because coordinator economics gates still apply.
+Country/source and PWS density/quality remain open as previously identified.
+
+Preserve batches 15/16's bounded audit observations. The inspected guardian
+lease and model-demotion paths do not reveal a new bypass; optional PAPER
+configuration and missing independent commissioning are not release acceptance.
+The worker entries supply test selections/totals but no fresh at-run manifest or
+log paths, so those reported runs are not independently source-bound here.
+No broad suite was duplicated.
+
+Independent focused/report/candidate verification at the reviewed HEAD:
+**35 passed / 11.47 s**, exit 0, no skips/warnings; **795 tracked code/test/config
+input hashes unchanged**. Command from repository root:
+`/home/alphaadmin/AlphaV11_Dev/venv/bin/python -m pytest -q -p no:cacheprovider
+--tb=short --maxfail=2 tests/test_v11_performance.py tests/test_v11_audit_reports.py
+tests/test_v11_candidate_assembly.py::test_typed_builder_runs_census_derived_risk_strategies_discovery_and_audit_in_one_candidate`.
+Local evidence: `/tmp/alpha-v11-supervisor9-review-qvj3_whi/`;
+`manifest.json` SHA-256 `eb33a5b7be76751cf30077af946cae2edd11cc38d9ee2f66a3cd01a60ab44880`;
+`pytest.log` SHA-256 `37134bf82064994cbe00a3c2354ff41bc00cf2db37069057b7835cb4ac8b7e94`.
+This correction changes only the three ledgers; implementation/tests preserved.
+
+**87/200 = 43.5%; formal 1/50 (2%)**, unchanged. NOT_READY_TO_FUND.
+Next: implement a bounded country/source profile using the original admission's
+station metadata fingerprint and source-rule family, with historical registry
+lookup/cache, UNKNOWN fallback and scheduled-report coverage. Verify historical
+immutability, metadata budget and P&L conservation. Do not redirect to another
+audit merely because the required implementation earns no new score unit.
+
 ## Supervisor batch 16 — 2026-09-27: R02/R03 evidence-archive + guardian-lease audit, clean
 
 Recovery check: `git status` clean, local HEAD `4413c48` equal to

@@ -1,5 +1,26 @@
 # Supplementary engineering estimate
 
+Independent supervisor-batch-9 review — 2026-09-27: supersedes batches 15/16's
+renewed score-based exclusion of required local implementation. Existing C/J
+credit does not finish R24 dynamic sizing or R40 profiles. R24's ceiling checks
+remain valid, but its reducer is not integrated; a reported full-suite duration
+limit does not block every bounded implementation step. Scope and test affected
+paths, broadening only when justified; preserve approved-cap skip semantics and
+size-dependent valuation. R40 country/source and PWS density/quality remain local
+work, not owner-only tails. Preserve batch 14's pinned `apparent_edge` scalar
+slice: it advances R40, but section 18's edge-range aggregation/metric semantics
+remain unfinished. Missing/None EV is UNKNOWN; REJECT can retain numeric EV and
+remains inadmissible through existing coordinator gates. The earlier profile
+closure count is superseded. Preserve bounded audit observations without treating
+them as independent acceptance. Worker entries identify no fresh at-run
+manifest/log paths. Independent performance/report/candidate checks: **35 passed /
+11.47 s**, exit 0, **795 tracked input hashes unchanged**; exact command/artifacts
+in the checkpoint. No broad suite repeated; correction changes only the ledgers.
+**87/200 = 43.5%; formal 1/50 (2%)**, unchanged; NOT_READY_TO_FUND.
+Next: bounded country/source profile from original admission metadata/source
+pins through scheduled reports, checking historical immutability, UNKNOWN,
+metadata budget and P&L conservation, even without another score unit.
+
 Supervisor batch 16 — 2026-09-27: recovery check found `git status` clean,
 local HEAD `4413c48` equal to `origin/weather-v11-profitability-upgrade-2026-09-23`.
 Re-tested batch 15's own "most concrete known local-implementation gap" (R24's
