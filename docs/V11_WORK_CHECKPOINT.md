@@ -1,5 +1,82 @@
 # Alpha V11 work checkpoint
 
+## Independent batch-11 review — preserve legacy operator rotation, 2026-09-27
+
+Reviewed published 462c40309c0c098bdcf7ae42ec88ca6c2b0da779 (tree
+173b642db2abc262d6f056b8a6c1e3f3fcd0ac12) against
+6c1bfbf91538f37867679c24b1ddf8a33339f27f. Started on
+weather-v11-profitability-upgrade-2026-09-23 with a clean tree, local/remote
+agreement and no active Claude process. Read CLAUDE.md, the current checkpoint,
+requirements matrix/progress ledgers, the complete authoritative master and all
+four reference PDFs' text. All five private input hashes match the manifest.
+All file/Git/test operations used Remote Desktop Commander on alpha-dev,
+sequentially, without delegated workers.
+
+The published claim mechanism regressed upgrades from the preceding owner
+format. Reproduced with the predecessor's actual poller against a disposable
+synthetic database: it retained offset 2 and a valid local owner binding but no
+owner journal. The upgraded handoff refused with
+OPERATOR_COMMANDS_HANDOFF_NOT_CLAIMED; the predecessor still completed the same
+handoff. Requiring an old-policy poll to bootstrap the new claim prevents an
+offline operator rotation and can consume pending commands under the policy
+being replaced. Four added regression cases failed on the published code;
+nine added claim/integrity checks already passed (4 failed, 9 passed / 1.08 s).
+
+Preserved the claim mechanism and changed three ownership checks. With no owner
+journal, return the legacy binding for exact comparison. A normal poll still
+commits its CAS-guarded claim before network access, including when adopting a
+valid legacy binding. An exact reviewed legacy handoff can establish the owner
+journal directly through the existing atomic handoff audit, without polling
+the previous policy. Once a claim/handoff exists it always takes precedence.
+Empty, partial, unknown and mismatched bindings remain refused for handoff;
+store/file/namespace/worker/bot/account migrations remain gated. The original
+anchor, cursor, authentication, freshness, pending-command handling and
+cancellation-request/confirmation distinction are preserved.
+
+The original batch-11 cross-deployment completion wording below was too broad.
+The implementation adds database-scoped configuration consistency. Claims reject
+a different cursor/configuration that reads the same evidence database; active
+polling still relies on shared local locks. Separate databases, identically
+configured consumers with unshared locks, older/uncooperative controllers and
+cross-host storage/locking are not excluded or accepted by this change. The
+original test truncated one existing local lock; it did not verify independent
+hosts. Protected configuration custody and cross-deployment exclusion/recovery
+remain open. Module documentation and the R39 matrix now state that scope.
+
+Verification with /home/alphaadmin/AlphaV11_Dev/venv/bin/python (3.12.3):
+
+- Poller + candidate suites: **144 passed / 38.43 s**, exit 0.
+- Relevant integration: **503 passed / 126.33 s**, exit 0, no skips/warnings.
+  Covers poller/adapter/router, candidate/assembly, event risk/source time,
+  evidence, PAPER cancellation/coordinator/runtime, runtime health, census,
+  discovery, audits, maker telemetry, account replay/source views and existing
+  operator panel/safety-priority behavior.
+- Thirteen new cases cover legacy rotation with idle/advanced cursors and pending
+  old/new-operator commands, legacy claim-before-network adoption, malformed
+  anchors, pre/post-commit handoff and claim failures, and deterministic initial
+  claim CAS competition through a separate local lock and reopened same database.
+- All **718 tracked Python/configuration/dependency input hashes** matched
+  before/after both final runs. Exact argv, patches, manifests, logs, JUnit and
+  results: /tmp/v11-codex-b11-bmwggeya/{red,focused,integration}/;
+  runner: /tmp/v11-codex-b11-bmwggeya/run.py. Test scratch is separate per run.
+  Changed-Python compilation and git diff --check passed; final code hashes match
+  tested inputs. No full regression rerun for this bounded correction.
+
+Changed: operator_command_poller.py (three executable lines plus documentation),
+operator_command_runtime.py (documentation), test_v11_operator_command_poller.py,
+and these three ledgers. No new C/J/E/A credit: R39 remains PARTIAL;
+**85/200 = 42.5% (~43%); 1/50 (2%)**. **NOT_READY_TO_FUND.**
+V10 unchanged/DEFERRED; no services, credentials, private inputs, production
+configuration or financial authority changed. Resolve this review's publishing
+commit/tree with git log -1 --format='%H %T' -- docs/V11_WORK_CHECKPOINT.md.
+
+**Exact next unfinished action:** implement/test protected operator configuration
+and deployment-wide bot-consumer ownership/recovery with offline fixtures and
+the established independent host authority. Keep unshared-store/lock scenarios
+explicitly gated; actual credentials/deployment and independent executor/guardian/
+operating acceptance remain separate gates. No new owner action is needed for
+that bounded offline work.
+
 ## Independent batch-10 review — compatible candidate continuation, 2026-09-27
 
 Reviewed published 9cf6fae592bb6de4c18c90cb87d06046ff7f631d (tree
@@ -6003,7 +6080,7 @@ result-lag finality source/version evidence or R43/R44 authentication/
 isolated-deployment verification, both of which need real external source or
 owner-authorized access rather than further local implementation.
 
-## Durable cross-deployment bot-claim — 2026-09-27 (supervisor batch 11)
+## Original supervisor batch 11 — 2026-09-27 (upgrade and scope claims corrected by the independent review above)
 
 Recovery check at batch start: `git status` clean, local HEAD
 `6c1bfbf91538f37867679c24b1ddf8a33339f27f` equal to

@@ -945,3 +945,174 @@ def test_candidate_component_handoff_resumes_original_offset_and_pending_command
     result = outcome["outcomes"][0]["outcome"]["result"]["body"]["details"]
     assert result["cancellation_status"] == "REQUESTED_NOT_CONFIRMED"
     assert result["flags"]["no_new_orders"] and result["cancellation_request_id"] == "telegram:43:1002"
+
+
+# Independent batch-11 review: upgrades from the pre-claim owner format.
+def legacy_owner(rig, *, offset=0):
+    """The predecessor persisted this lock and cursor without an owner event."""
+    from polymarket_scanner.v11.evidence import digest
+    from polymarket_scanner.v11.operator_command_poller import VERSION
+
+    store, build = rig
+    owner = build(Bot())
+    path = owner._bot_lock_path()
+    with path.open("wb") as lock:
+        path.chmod(0o600)
+        lock.write(owner._binding())
+        lock.flush()
+        os.fsync(lock.fileno())
+    if offset:
+        store.audit("operator-poll:" + digest([WORKER_KEY, 0, offset]),
+                    event_id=WORKER_KEY, kind="RUNTIME_STATUS",
+                    details=dict(version=VERSION, offset=offset,
+                                 financial_authority=False, messages_sent=False),
+                    expected_previous_seq=0)
+    assert store.latest(kind="OPERATOR_EVENT", event_id=owner._owner_event()) is None
+    return owner
+
+
+@pytest.mark.parametrize("offset", [0, 2])
+def test_review_legacy_owner_can_rotate_without_polling_the_previous_policy(rig, offset):
+    owner = legacy_owner(rig, offset=offset)
+    store = owner.store
+    successor = rotated_poller(owner)
+    anchor, cursor = owner._bot_lock_path().read_bytes(), owner._head()
+    result = reviewed_handoff(successor, owner)
+    head = store.latest(kind="OPERATOR_EVENT", event_id=owner._owner_event())
+    assert head["body"]["details"]["previous_binding"] == owner._binding().decode()
+    assert head["body"]["details"]["cursor_seq"] == (cursor["seq"] if cursor else 0)
+    assert head["body"]["details"]["offset"] == offset
+    assert head["body"]["evidence"] == ([{"id": cursor["id"], "sha256": cursor["sha256"]}] if cursor else [])
+    assert successor._head() == cursor and owner._bot_lock_path().read_bytes() == anchor
+    assert owner.adapter.telegram.calls == successor.adapter.telegram.calls == []
+    assert reviewed_handoff(successor, owner) == result
+    assert store.latest(kind="OPERATOR_EVENT", event_id=owner._owner_event()) == head
+    with pytest.raises(OperatorCommandPollerError, match="BOT_OWNER_MISMATCH"):
+        asyncio.run(owner.step())
+    assert owner.adapter.telegram.calls == []
+    # Pending messages are interpreted only under the successor's policy.
+    successor.adapter.telegram._updates = [
+        message_update("/CANCEL_AND_HALT ACCOUNT account old operator", uid=offset),
+        message_update("/CANCEL_AND_HALT ACCOUNT account new operator", uid=offset + 1, actor=43, chat=43),
+    ]
+    outcomes = asyncio.run(successor.step())
+    assert outcomes[0]["error"] == "UPDATE_NOT_FROM_AUTHENTICATED_OPERATOR"
+    assert outcomes[1]["outcome"]["actor"] == 43
+    assert outcomes[1]["outcome"]["result"]["body"]["details"]["cancellation_status"] == "REQUESTED_NOT_CONFIRMED"
+    assert successor.adapter.telegram.calls == [offset] and successor.offset() == offset + 2
+    assert store.latest(kind="OPERATOR_EVENT", event_id=owner._owner_event()) == head
+
+
+@pytest.mark.parametrize("offset", [0, 2])
+def test_review_legacy_poll_records_claim_before_network_and_preserves_cursor(rig, offset):
+    from polymarket_scanner.v11.operator_command_poller import CLAIM_VERSION
+
+    owner = legacy_owner(rig, offset=offset)
+    cursor = owner._head()
+
+    async def updates(received):
+        head = owner.store.latest(kind="OPERATOR_EVENT", event_id=owner._owner_event())
+        assert head["body"]["details"]["version"] == CLAIM_VERSION
+        assert head["body"]["details"]["binding"] == owner._binding().decode()
+        assert received == offset
+        return []
+
+    owner.adapter.telegram.updates = updates
+    assert asyncio.run(owner.step()) == []
+    assert owner._head() == cursor
+    assert len(owner.store.records(kind="OPERATOR_EVENT", limit=10)) == 1
+
+
+@pytest.mark.parametrize("saved", [b"", b"partial", b"\xff" * 4097,
+                                    b"alpha_v11_operator_bot_owner_v1:" + b"0" * 64 + b"\n"])
+def test_review_legacy_handoff_refuses_unknown_or_mismatched_binding(rig, saved):
+    owner = legacy_owner(rig, offset=2)
+    owner._bot_lock_path().write_bytes(saved)
+    successor = rotated_poller(owner)
+    cursor = owner._head()
+    with pytest.raises(OperatorCommandPollerError):
+        reviewed_handoff(successor, owner)
+    assert owner._head() == cursor and owner._bot_lock_path().read_bytes() == saved
+    assert not owner.store.records(kind="OPERATOR_EVENT", limit=10)
+    assert owner.adapter.telegram.calls == successor.adapter.telegram.calls == []
+
+
+@pytest.mark.parametrize("after_commit", [False, True])
+def test_review_legacy_handoff_failure_recovers_without_reactivating_old_policy(rig, monkeypatch, after_commit):
+    owner = legacy_owner(rig, offset=2)
+    successor = rotated_poller(owner)
+    cursor, anchor = owner._head(), owner._bot_lock_path().read_bytes()
+    audit = owner.store.audit
+
+    def interrupted(*args, **kwargs):
+        if after_commit:
+            audit(*args, **kwargs)
+        raise OSError("synthetic legacy handoff interruption")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(owner.store, "audit", interrupted)
+        with pytest.raises(OSError, match="legacy handoff interruption"):
+            reviewed_handoff(successor, owner)
+    assert owner._head() == cursor and owner._bot_lock_path().read_bytes() == anchor
+    assert len(owner.store.records(kind="OPERATOR_EVENT", limit=10)) == int(after_commit)
+    reopened = EvidenceStore(owner.store.path, owner.store.namespace)
+    recovered = rotated_poller(owner, store=reopened)
+    reviewed_handoff(recovered, owner)
+    assert recovered._head() == cursor and owner.adapter.telegram.calls == []
+    assert len(reopened.records(kind="OPERATOR_EVENT", limit=10)) == 1
+    assert asyncio.run(recovered.step()) == []
+
+
+@pytest.mark.parametrize("after_commit", [False, True])
+def test_review_first_claim_failure_keeps_network_and_cursor_untouched(rig, monkeypatch, after_commit):
+    store, build = rig
+    owner = build(Bot([message_update("/CANCEL_AND_HALT ACCOUNT account emergency")]))
+    audit = store.audit
+
+    def interrupted(*args, **kwargs):
+        if after_commit:
+            audit(*args, **kwargs)
+        raise OSError("synthetic first claim interruption")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(store, "audit", interrupted)
+        with pytest.raises(OSError, match="first claim interruption"):
+            asyncio.run(owner.step())
+    assert owner.adapter.telegram.calls == [] and owner._head() is None
+    assert owner._bot_lock_path().read_bytes() == b""
+    assert len(store.records(kind="OPERATOR_EVENT", limit=10)) == int(after_commit)
+    assert asyncio.run(owner.step())[0]["outcome"]["actor"] == 42
+    assert owner.adapter.telegram.calls == [0] and owner.offset() == 2
+    assert len(store.records(kind="OPERATOR_EVENT", limit=10)) == 2
+
+
+def test_review_first_claim_cas_blocks_a_competing_cursor_with_separate_local_lock(rig, tmp_path, monkeypatch):
+    store, build = rig
+    owner = build(Bot())
+    other_store = EvidenceStore(store.path, store.namespace)
+    other = TelegramOperatorCommandPoller(other_store, "competing-cursor",
+        TelegramOperatorCommandAdapter(Bot(), owner.adapter.identity,
+            OperatorSafetyRouter(other_store, owner.adapter.router.policy)))
+    lock = tmp_path / "separate-local-lock"
+    monkeypatch.setattr(other, "_bot_lock_path", lambda: lock)
+    audit = store.audit
+
+    def competing_claim(*args, **kwargs):
+        assert asyncio.run(other.step()) == []
+        return audit(*args, **kwargs)
+
+    # Interleave deterministically after the first owner read, before its CAS.
+    # Avoid nesting event loops by invoking the synchronous binding operation.
+    from contextlib import ExitStack
+    with monkeypatch.context() as patch:
+        patch.setattr(store, "audit", competing_claim)
+        with ExitStack() as cleanup:
+            fd = owner._open_locked_bot_lock(cleanup)
+            with pytest.raises(OperatorCommandPollerError, match="BOT_OWNER_MISMATCH"):
+                owner._bind_bot_owner(fd)
+    assert owner.adapter.telegram.calls == [] and owner._head() is None
+    assert other.adapter.telegram.calls == [0] and other._head() is None
+    assert owner._bot_lock_path().read_bytes() == b""
+    assert len(store.records(kind="OPERATOR_EVENT", limit=10)) == 1
+    with pytest.raises(OperatorCommandPollerError, match="BOT_OWNER_MISMATCH"):
+        asyncio.run(owner.step())

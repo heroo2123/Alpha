@@ -19,25 +19,25 @@ so merely serializing requests from independent cursors can lose commands.
 The current consumer resumes its existing evidence-store cursor unchanged.
 A mismatched or incomplete binding requires review; it is never overwritten.
 
-Both locks live beside the store, but ownership itself is anchored in the
-shared evidence store, not in either lock file. The very first bind for a bot
-records a CAS-guarded durable ``OPERATOR_EVENT`` claim (``expected_previous_seq
-=0``) before the local lock file is trusted, so a second consumer in a
-different directory or host that merely happens to have its own empty local
-lock file cannot silently believe the bot is unclaimed: it reads the same
-durable claim through the shared store and is refused. Existing empty lock
-files from before this claim existed can still be claimed on first use with
-the reviewed configuration, which durably records the claim retroactively;
-stop old consumers before upgrading. Identity/policy rotation uses
-handoff_bot_owner with the exact prior configuration on the SAME store/file,
-namespace, worker, bot and account, cooperatively performed by whichever local
-process currently holds that configuration; it does not by itself grant a
-brand-new host authorization it never had. A CAS-guarded durable audit advances
-ownership atomically while the lock retains its original anchor. Database
-replacement or cursor migration requires a separate reviewed recovery
-procedure; this API cannot perform it. Deleting or truncating the lock file
-bypasses review and remains unsupported. Older consumers must stay stopped:
-they do not understand the handoff/claim journal.
+Both locks live beside the store. A CAS-guarded durable ``OPERATOR_EVENT``
+claim (``expected_previous_seq=0``) also binds the first polling configuration
+in that evidence database before any network request. A consumer with a
+different cursor or configuration is refused by the journal even if its local
+lock file is empty. This is database-scoped consistency; separate databases,
+identically configured consumers with unshared locks, and older/uncooperative
+controllers are not excluded by the claim. Cross-host storage/locking and
+protected deployment ownership remain unverified.
+
+Stop old consumers before upgrading. An exact legacy local binding with no
+journal can be adopted by a claim on the next poll, or rotated directly by
+handoff_bot_owner without polling the previous configuration. The caller must
+supply the exact prior identity/policy on the SAME store/file, namespace,
+worker, bot and account. The durable claim or handoff always takes precedence
+over the local binding once it exists. One CAS-guarded audit advances ownership
+atomically while the lock retains its original anchor. This is cooperative
+consistency, not independent authorization. Database replacement or cursor
+migration requires a separate reviewed recovery procedure; this API cannot
+perform it. Deleting or truncating the lock file remains unsupported.
 
 An update that fails authentication, grammar, or router authorization is reported
 without stalling later commands; storage/integrity failures retain the cursor for
@@ -120,15 +120,15 @@ class TelegramOperatorCommandPoller:
     def _owner_state(self, fd: int):
         """Read the local lock anchor and the durable claim/handoff head, if any.
 
-        The durable store, not either local lock file, is authoritative: a
-        durable claim or handoff head always wins. ``current`` is ``None`` only
-        when nobody has ever durably claimed this bot, in which case the local
-        lock file is inert (the store, not this file, decides "unclaimed").
+        A durable claim or handoff head always wins. Without a journal, the
+        legacy local binding is returned for exact validation by the caller.
+        Polling must first persist a claim; a reviewed legacy handoff can
+        establish the journal directly without polling the previous policy.
         """
         saved = os.read(fd, len(self._binding()) + 1)
         head = self.store.latest(kind="OPERATOR_EVENT", event_id=self._owner_event())
         if head is None:
-            return saved, None, None
+            return saved, saved or None, None
         details = head["body"]["details"]
         version = details.get("version")
         if version == CLAIM_VERSION:
@@ -185,7 +185,7 @@ class TelegramOperatorCommandPoller:
         if ((head is None or head["body"]["details"].get("version") == CLAIM_VERSION)
                 and saved and saved != binding):
             raise OperatorCommandPollerError("OPERATOR_COMMANDS_BOT_OWNER_MISMATCH")
-        if current is None:
+        if head is None:
             # Nobody has ever durably claimed this bot. Record a CAS-guarded
             # claim before trusting the local file, so a different directory
             # or host sharing this same store cannot silently believe it is
@@ -236,7 +236,7 @@ class TelegramOperatorCommandPoller:
             anchor, current, head = self._owner_state(fd)
             if current is None:
                 raise OperatorCommandPollerError("OPERATOR_COMMANDS_HANDOFF_NOT_CLAIMED")
-            if head["body"]["details"].get("version") == CLAIM_VERSION and anchor != current:
+            if head and head["body"]["details"].get("version") == CLAIM_VERSION and anchor != current:
                 # Before any handoff the local lock file must exactly mirror the
                 # durable claim; an unknown/partial local file is never trusted
                 # as the anchor for a transfer, even though the durable claim

@@ -1,6 +1,26 @@
 # Supplementary engineering estimate
 
-Durable cross-deployment bot-claim — 2026-09-27 (supervisor batch 11): closed
+Independent batch-11 review — 2026-09-27: the published first-claim mechanism
+blocked an exact legacy owner handoff until the previous configuration polled
+again. Reproduced with the predecessor's actual code, then four failing upgrade/
+recovery checks. Three ownership checks now retain exact legacy bindings only
+when no owner journal exists: polling commits a claim before network access;
+reviewed rotation may establish the atomic handoff journal without an old-policy
+poll. Existing claims/handoffs always win, and malformed bindings/migrations
+remain gated. Thirteen added cases include pending-command authentication,
+pre/post-commit recovery and competing initial-claim CAS through separate locks.
+**144 focused / 38.43 s; 503 integration / 126.33 s**, exit 0, no skips/warnings;
+718 tracked input hashes unchanged through both final runs. No full rerun.
+
+Batch 11 advances database-scoped consistency, not verified cross-deployment
+consumer exclusion. Shared local locks remain required; separate databases,
+unshared locks, older/uncooperative controllers and cross-host storage/locking
+remain open alongside protected operator configuration. No new C/J/E/A:
+**85/200 = 42.5% (~43%); 1/50 (2%)**. R39 PARTIAL; NOT_READY_TO_FUND;
+V10 unchanged/DEFERRED. Evidence and next offline action: independent batch-11
+review in docs/V11_WORK_CHECKPOINT.md.
+
+Original supervisor batch 11 — 2026-09-27 (upgrade and scope claims corrected above): reported closing
 the "cross-directory/cross-host consumer ownership" half of the two remaining
 purely local R39 gaps the requirements matrix named. Every prior batch's first
 bind for a Telegram bot was decided purely by a LOCAL lock file beside the
