@@ -468,6 +468,72 @@ def test_operator_policy_change_requires_review_before_any_new_poll(rig,monkeypa
     asyncio.run(run())
 
 
+def test_reviewed_configuration_change_lets_a_rotated_operator_policy_continue(rig,monkeypatch):
+    calls=[];bot=Bot([])
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(transport(rig,calls))) as client:
+            runner=built(rig,monkeypatch,client,policy=CandidatePolicy('operator-review',maximum_jobs=1))
+            oc=operator_commands(rig,bot)
+            runner=CandidateRunner(runner.runtime,runner.policy,census=runner.census,
+                discovery=runner.discovery,audits=runner.audits,operator_commands=oc)
+            await runner.run('original')
+            original_head=runner._head()
+            changed=CandidateOperatorCommands(rig['store'],'account','operator-fixture',telegram=bot,
+                identity=oc.adapter.identity,policy=replace(oc.adapter.router.policy,allowed_actions=('NO_NEW_ORDERS',)))
+            resumed=CandidateRunner(runner.runtime,runner.policy,census=runner.census,
+                discovery=runner.discovery,audits=runner.audits,operator_commands=changed)
+            with pytest.raises(EvidenceError,match='CONFIGURATION_CHANGED'):await resumed.run('blocked')
+            result=resumed.acknowledge_configuration_review(reason='rotated operator policy')
+            assert (result['body']['details']['outcome']=='CANDIDATE_CONFIGURATION_REVIEWED'
+                    and result['body']['details']['previous_config_sha256']==runner.config
+                    and result['body']['details']['config_sha256']==resumed.config
+                    and result['body']['details']['state']==original_head['body']['details']['state'])
+            row=await resumed.run('continued')
+            return row,original_head
+    row,original_head=asyncio.run(run())
+    d=row['body']['details']
+    assert d['config_sha256']!=original_head['body']['details']['config_sha256']
+    assert d['worker_results'] and d['worker_results'][0]['kind']!='CENSUS'
+    assert d['state']['sequence']==original_head['body']['details']['state']['sequence']+1
+
+
+@pytest.mark.parametrize('bad',['','   ','x'*201,'two\nlines'])
+def test_configuration_review_reason_must_be_a_short_single_line(rig,monkeypatch,bad):
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(transport(rig,[]))) as client:
+            runner=built(rig,monkeypatch,client,policy=CandidatePolicy('operator-review-bad',maximum_jobs=1))
+            with pytest.raises(EvidenceError,match='CANDIDATE_CONFIGURATION_REVIEW_REASON_INVALID'):
+                runner.acknowledge_configuration_review(reason=bad)
+    asyncio.run(run())
+
+
+def test_configuration_review_without_any_prior_run_is_not_applicable(rig,monkeypatch):
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(transport(rig,[]))) as client:
+            runner=built(rig,monkeypatch,client,policy=CandidatePolicy('operator-review-fresh',maximum_jobs=1))
+            with pytest.raises(EvidenceError,match='CANDIDATE_CONFIGURATION_REVIEW_NOT_APPLICABLE'):
+                runner.acknowledge_configuration_review(reason='nothing to review yet')
+    asyncio.run(run())
+
+
+def test_configuration_review_refuses_a_no_op_and_a_concurrent_run(rig,monkeypatch):
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(transport(rig,[]))) as client:
+            runner=built(rig,monkeypatch,client,policy=CandidatePolicy('operator-review-noop',maximum_jobs=1))
+            await runner.run('original')
+            with pytest.raises(EvidenceError,match='CANDIDATE_CONFIGURATION_REVIEW_NOT_CHANGED'):
+                runner.acknowledge_configuration_review(reason='nothing actually changed')
+            fd=os.open(runner.store.path.with_name(runner.store.path.name+'.candidate.lock'),os.O_CREAT|os.O_WRONLY,0o600)
+            try:
+                fcntl.flock(fd,fcntl.LOCK_EX|fcntl.LOCK_NB)
+                changed=CandidateRunner(runner.runtime,replace(runner.policy,version='review-locked'),
+                    census=runner.census,discovery=runner.discovery,audits=runner.audits)
+                with pytest.raises(EvidenceError,match='CANDIDATE_ALREADY_RUNNING'):
+                    changed.acknowledge_configuration_review(reason='blocked by a concurrent run')
+            finally:os.close(fd)
+    asyncio.run(run())
+
+
 def test_operator_store_and_supplied_policy_account_must_match(rig,monkeypatch,tmp_path):
     from polymarket_scanner.v11.evidence import EvidenceStore
     async def run():

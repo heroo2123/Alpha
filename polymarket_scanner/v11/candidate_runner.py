@@ -180,6 +180,38 @@ class CandidateRunner:
         head=self._head()
         return self._save('candidate-progress:'+digest([run_id,head['seq'] if head else 0]),state,**details)
 
+    def acknowledge_configuration_review(self,*,reason:str) -> dict:
+        """Explicitly continue this candidate's durable progress under a
+        reviewed configuration change (e.g. after a deliberate operator-command
+        identity/policy rotation), instead of leaving every future run()
+        permanently blocked by CANDIDATE_CONFIGURATION_CHANGED_REVIEW_REQUIRED.
+        The caller supplies the reason for the durable audit trail; existing
+        progress state carries forward unchanged, only the config binding
+        moves. This is a caller-authorized local consistency operation, not
+        independent approval: every component invariant was already freshly
+        re-checked against the new configuration at construction time.
+        """
+        if (not isinstance(reason,str) or not reason.strip() or len(reason)>200
+                or len(reason.splitlines())!=1 or any(ord(c)<32 or ord(c)==127 for c in reason)):
+            raise EvidenceError('CANDIDATE_CONFIGURATION_REVIEW_REASON_INVALID')
+        fd=os.open(self.store.path.with_name(self.store.path.name+'.candidate.lock'),os.O_CREAT|os.O_WRONLY|os.O_NOFOLLOW,0o600)
+        try:
+            try:fcntl.flock(fd,fcntl.LOCK_EX|fcntl.LOCK_NB)
+            except BlockingIOError:raise EvidenceError('CANDIDATE_ALREADY_RUNNING') from None
+            row=self.store.latest(kind='RUNTIME_STATUS',event_id=KEY)
+            if row is None:raise EvidenceError('CANDIDATE_CONFIGURATION_REVIEW_NOT_APPLICABLE')
+            previous_config=row['body']['details'].get('config_sha256')
+            if previous_config==self.config:raise EvidenceError('CANDIDATE_CONFIGURATION_REVIEW_NOT_CHANGED')
+            state=deepcopy(row['body']['details']['state'])
+            key='candidate-configuration-review:'+digest([KEY,row['seq'],previous_config,self.config,reason])
+            return self.store.safety_audit(key,event_id=KEY,kind='RUNTIME_STATUS',details=dict(
+                version=VERSION,config_sha256=self.config,state=state,
+                outcome='CANDIDATE_CONFIGURATION_REVIEWED',reason=reason,previous_config_sha256=previous_config,
+                financial_authority=False,real_orders_sent=False,deployment_acceptance=False,
+                independent_guardian_commissioned=False),expected_previous_seq=row['seq'])
+        finally:
+            os.close(fd)
+
     def _healthy_clock(self):
         row=self.store.latest(kind='RUNTIME_STATUS',event_id=HEALTH_KEY)
         return (row is not None and not row['body']['details']['clock_reasons']

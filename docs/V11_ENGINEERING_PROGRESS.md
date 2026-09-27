@@ -1,5 +1,36 @@
 # Supplementary engineering estimate
 
+Reviewed candidate configuration continuation — 2026-09-27 (supervisor batch
+10): the independent batch-9 review named three remaining offline R39 gaps
+(protected operator configuration, cross-deployment consumer ownership/
+recovery, reviewed candidate configuration continuation); this batch closed
+the third, the one with an existing reproduced test demonstrating the gap.
+Added `CandidateRunner.acknowledge_configuration_review(reason=...)`,
+modeled on `handoff_bot_owner`'s reviewed/audited pattern: under the same
+exclusive candidate lock, it validates a short single-line reason, refuses
+when there is nothing to review or the configuration already matches, and
+otherwise writes one CAS-guarded durable record carrying the exact prior
+progress state forward under the new configuration hash, so a deliberately
+reviewed component-configuration change (e.g. an operator bot-owner
+rotation) no longer permanently blocks every future run of the same
+candidate identity. No component invariant is re-derived or loosened;
+`__init__` already re-validates every bound component against the new
+configuration before this method is reachable. Five new cases (full
+continuity path, four invalid-reason cases, no-prior-run, no-op, concurrent-
+run refusal). **34 focused / 31.05 s** (was 29); broader affected **202
+passed / 43.83 s**, exit 0, no skips, four pre-existing unrelated FastAPI
+warnings; direct-dependency evidence-foundation/paper-runtime/paper-
+coordinator **69 passed / 13.35 s**. Exactly two files touched
+(`v11/candidate_runner.py`, its test file); no full regression, consistent
+with the no-full-rerun precedent batches 5-9 set for comparable single-
+module scope. Protected (non-cooperative) operator configuration custody and
+cross-directory/cross-host/older-controller consumer exclusion remain open;
+real delivery/deployment, callbacks and independent operating acceptance
+remain open. No new C/J/E/A: R39 remains PARTIAL; **85/200 (~43%); 1/50
+(2%)**, unchanged. NOT_READY_TO_FUND; V10 unchanged/DEFERRED. Full detail:
+docs/V11_WORK_CHECKPOINT.md (reviewed candidate configuration continuation,
+supervisor batch 10).
+
 Independent batch-9 review — 2026-09-27: **nine reproductions failed / 0.94 s**
 on published 5876bfd. The handoff admitted unrelated cursors/databases, could
 empty an owned lock on failure, overwrote unknown bindings, and collided with

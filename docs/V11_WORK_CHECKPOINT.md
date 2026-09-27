@@ -1,5 +1,115 @@
 # Alpha V11 work checkpoint
 
+## Reviewed candidate configuration continuation — 2026-09-27 (supervisor batch 10)
+
+Recovery check at batch start: `git status` clean, local HEAD
+`62727a7a3b8ca1c3465bc4fd5cef171a03f3a3ed` equal to
+`origin/weather-v11-profitability-upgrade-2026-09-23`; `AlphaV11_Supervisor/STATUS.md`
+showed batch 10/24 at the same HEAD with this invocation as the only running
+`claude` process, so there was no unfinished prior work to recover. Read
+CLAUDE.md, this checkpoint, the requirements matrix and the progress ledger.
+The independent batch-9 review's own recorded "exact next unfinished action"
+named three remaining offline gaps for R39: protected operator configuration,
+cross-deployment consumer ownership/recovery, and reviewed candidate
+configuration continuation. It also reaffirmed that R31 and R43/R44 need real
+external source or owner-authorized access rather than local implementation.
+This batch targeted "reviewed candidate configuration continuation": the one
+of the three with an existing, concretely reproduced, already-tested gap
+(`test_operator_policy_change_requires_review_before_any_new_poll` in
+`tests/test_v11_candidate_runner.py`), rather than the two open-ended custody
+gaps, which are harder to bound safely in one batch without repeating the
+pattern of the last several independently-corrected batches.
+
+`CandidateRunner._head()` already fails closed with
+`CANDIDATE_CONFIGURATION_CHANGED_REVIEW_REQUIRED` whenever any bound
+component's configuration digest (including `operator_commands`, which
+changes on every reviewed bot-owner identity/policy rotation) no longer
+matches the durably recorded one — by design, matching every other
+`*_CONFIG_CHANGED_REVIEW_REQUIRED`/`*_CONFIGURATION_CHANGED_REVIEW_REQUIRED`
+gate elsewhere in this codebase (`paper_runtime.py`, `audit_reports.py`,
+`census_worker.py`, `discovery.py`, `pws_runtime.py`, `gefs_runtime.py`,
+`forecast_runtime.py`, `preparation_runtime.py`, `drift_runtime.py`,
+`maker_telemetry.py`, `runtime_health.py`, `paper_guardian.py`,
+`paper_guardian_broker.py`, `candidate_liveness.py`, `learning_worker.py`,
+`runtime_feed.py`). That existing test already proved the gate itself is
+correct and must not be silently bypassed: after a deliberate operator
+rotation, `run()` stays gated and a same-`run_id` replay stays
+`CANDIDATE_REPLAY_CONFIG`, with no new poll and no state mutation. The gap
+was that nothing let an operator who legitimately reviewed the change
+actually continue the candidate afterward without inventing a new
+`worker_id`/store identity and discarding all prior durable progress — every
+future run of the same candidate identity would stay permanently blocked.
+
+Added `CandidateRunner.acknowledge_configuration_review(*, reason: str)`,
+modeled on the same reviewed/audited pattern
+`TelegramOperatorCommandPoller.handoff_bot_owner` already uses for bot-owner
+rotation: under the same exclusive `*.candidate.lock` `run()` already takes
+(refusing with `CANDIDATE_ALREADY_RUNNING` if a run is active), it validates
+`reason` (non-empty, at most 200 characters, one line, no control
+characters -> `CANDIDATE_CONFIGURATION_REVIEW_REASON_INVALID`), reads the
+existing durable `RUNTIME_STATUS` head without going through the raising
+`_head()`, refuses when there is nothing to review
+(`CANDIDATE_CONFIGURATION_REVIEW_NOT_APPLICABLE`, no prior head) or when the
+configuration already matches (`CANDIDATE_CONFIGURATION_REVIEW_NOT_CHANGED`,
+including on a retry after the review already committed), then writes one
+CAS-guarded (`expected_previous_seq`) durable record carrying the exact
+previous progress `state` forward unchanged under the new `config_sha256`,
+with the reason and previous config hash retained as evidence
+(`outcome='CANDIDATE_CONFIGURATION_REVIEWED'`). No component invariant is
+re-derived or loosened here: `CandidateRunner.__init__` already independently
+re-validates every bound component (runtime/queue/health/account/store scope
+checks) fresh against the new configuration before this method could even be
+reached, so this operation only concerns the durable continuity record, not
+authorization of the new configuration itself. Caller authorization to invoke
+this at all remains external, exactly as `handoff_bot_owner`'s docstring
+already states for the poller-level rotation.
+
+Five new cases in `tests/test_v11_candidate_runner.py`: the full path (blocked
+run -> reviewed acknowledgment carrying the exact prior `state` forward,
+verified equal to the pre-review head's `state` -> a subsequent run resumes
+from that state, verified by the round-robin job pointer continuing rather
+than restarting at `CENSUS` and the progress `sequence` counter advancing by
+exactly one rather than resetting), four parametrized invalid reasons (empty,
+whitespace-only, 201 characters, embedded newline), calling it with no prior
+run at all, calling it when the configuration has not actually changed
+(including immediately after a just-committed review, proving it does not
+silently re-apply), and refusal while a concurrent run holds the candidate
+lock. Targeted: `pytest tests/test_v11_candidate_runner.py` — **34 passed /
+31.05 s** (was 29). Broader affected selection (`-k "candidate_runner or
+operator_command or operator_safety or event_risk or telegram"`): **202
+passed / 43.83 s**, exit 0, no skips, four pre-existing unrelated FastAPI
+`on_event` deprecation warnings. Additional direct-dependency check:
+`tests/test_v11_evidence_foundation.py`, `tests/test_v11_paper_runtime.py`,
+`tests/test_v11_paper_coordinator.py` — **69 passed / 13.35 s**, exit 0, no
+skips. `git status --short`/`git diff --stat` after the change show exactly
+two touched files, `polymarket_scanner/v11/candidate_runner.py` and
+`tests/test_v11_candidate_runner.py`, confirming no private, V10, credential
+or unrelated production file was touched. No full regression run, consistent
+with the no-full-rerun precedent batches 5-9 set for a single-module addition
+plus its direct integration surface.
+
+This closes the local "reviewed candidate configuration continuation" gap
+named by the independent batch-9 review. It does not touch, and does not
+claim to close, the other two named gaps: protected (non-cooperative,
+independently approved) operator configuration custody, and
+cross-directory/cross-host/older-controller consumer exclusion — both remain
+exactly as open as the independent batch-9 review left them. No production
+entry point yet constructs a real credentialed `Telegram` client plus this
+wiring for an actual deployed account; callback/button commands, real
+delivery/credentials and independent executor/guardian/operating acceptance
+remain unclaimed. No new C/J/E/A milestone: R39 remains PARTIAL;
+**85/200 (~43%); 1/50 (2%)**, unchanged. NOT_READY_TO_FUND; V10
+unchanged/DEFERRED. No V10, credential, private-input, financial or
+production-configuration action was taken. Next: either (a) protected
+(non-cooperative) operator configuration custody and cross-deployment
+consumer exclusion using offline fixtures (no real credentials needed), (b) a
+production entry point wiring a real credentialed `Telegram` client to
+`CandidateOperatorCommands` for an actual deployed account (owner
+credential/deployment decision required), or (c) R31's result-lag finality
+source/version evidence or R43/R44 authentication/isolated-deployment
+verification, both of which need real external source or owner-authorized
+access rather than further local implementation.
+
 ## Independent batch-9 review — atomic same-cursor handoff, 2026-09-27
 
 Reviewed published 5876bfd03b874fb5ac847b8a06c11c571549646c (tree
