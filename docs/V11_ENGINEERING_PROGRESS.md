@@ -1,5 +1,39 @@
 # Supplementary engineering estimate
 
+Supervisor batch 12 — 2026-09-27: recovery check found `git status` clean,
+local HEAD `f4d63c4` equal to
+`origin/weather-v11-profitability-upgrade-2026-09-23`, no unfinished process
+to recover. Batch 8's compiled credit-state audit (every purely-local
+requirement already holds C and J except R31) still holds, so this batch
+continued the batch-7/8/9/10 adversarial-defect-audit style onto R24 (the
+next untouched requirement on batch 11's own list) rather than attempting
+another Upgrade N profile dimension already known to need an unmade
+evidence-plumbing decision.
+
+Read `v11/allocation.py` in full plus every call site in
+`v11/paper_coordinator.py` (`_prepare`/`_coordinate_effects`) and
+`v11/basket_coordinator.py`'s parallel leg-sizing path. No defect found.
+Confirmed precisely: `size_within_ceiling`/`SizingFactors` (the per-factor
+dynamic-sizing reducer) is unit-tested (`tests/test_v11_paper_coordinator.py:
+268-276`) but called from no production path anywhere in the repository;
+both the single-leg and basket order paths instead enforce only a
+fail-closed reject-if-too-big ceiling check, identically in both paths (no
+single-leg/basket inconsistency, no silent under/over-sizing). This confirms
+R24's existing "full calibrated strategy allocation pending" text was already
+accurate — not a hidden overclaim to correct, and not a newly reachable C/J
+boundary, since wiring the nine named factors would require the same kind of
+evidence-plumbing/field-identification decision blocking R40's remaining
+profile gaps, which CLAUDE.md forbids guessing or defaulting. No new C/J/E/A
+milestone: **87/200 (~44%); 1/50 (2%)**, unchanged. NOT_READY_TO_FUND; V10
+unchanged/DEFERRED.
+
+Verification: `pytest tests/test_v11_paper_coordinator.py
+tests/test_v11_basket_coordinator.py` — **45 passed / 11.82 s**, exit 0, no
+failures/skips. No production or test code changed (audit-only); `git diff
+--stat` after the doc-only commit shows only the three ledger files changed.
+No full regression: no source changed. Full detail:
+`docs/V11_WORK_CHECKPOINT.md` (supervisor batch 12).
+
 Supervisor batch 11 — 2026-09-27: recovery check found `git status` clean,
 local HEAD `51740f2` equal to
 `origin/weather-v11-profitability-upgrade-2026-09-23`, no unfinished process

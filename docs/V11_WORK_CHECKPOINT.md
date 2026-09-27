@@ -1,5 +1,81 @@
 # Alpha V11 work checkpoint
 
+## Supervisor batch 12 — 2026-09-27: R24 allocation/sizing defect audit clean
+
+Recovery check: `git status` clean, local HEAD `f4d63c4` equal to
+`origin/weather-v11-profitability-upgrade-2026-09-23`, no unfinished process
+to recover. Current durable score at start: **87/200 (~44%); formal 1/50
+(2%)**. Per batch 11's own next-action list (R05, R10-R17, R24-R28, R40-R42,
+R45 remain untouched by the batch-7/8/9/10 adversarial-defect-audit style)
+and batch 8's still-valid compiled credit-state audit (R01-R42/R45 minus R31
+already hold C and J, so no new C/J boundary is reachable through pure local
+code), continued that audit style onto R24 rather than attempting another
+Upgrade N profile dimension the checkpoint already flagged as needing an
+unmade evidence-plumbing decision (country/source, PWS density/quality,
+apparent-edge).
+
+Read `v11/allocation.py` in full (74 lines: `SizingFactors`,
+`size_within_ceiling`, `rank_candidates`) — not previously read end-to-end by
+this audit series — plus every call site in `v11/paper_coordinator.py`
+(`_prepare`, lines 262-375, and `_coordinate_effects`, which calls
+`rank_candidates` at line 429) and `v11/basket_coordinator.py`'s parallel
+leg-sizing path (`prepare`, lines ~172-203), looking for the same class of
+gap the batch-6 review found (a path that silently diverges from its
+documented/tested guarantee).
+
+**No defect found**, but one precise, previously-undocumented-at-this-detail
+fact confirmed: `size_within_ceiling`/`SizingFactors` (the module's
+multiplicative, per-factor "dynamic sizing" reduction, floored to
+`quantity_step`) is defined and unit-tested
+(`tests/test_v11_paper_coordinator.py:268-276`, hardcoded factor values) but
+is **never called from any production path** — `grep` across the entire
+repository for `size_within_ceiling`/`SizingFactors` outside test files
+returns only `allocation.py` itself. Both the single-leg path (`_prepare`,
+line 323: `quantity = number(value['units'])`) and the basket-leg path
+(`basket_coordinator.py:178`, `qty = number(leg['units'])`) instead take the
+order quantity as already fixed by the upstream valuation and enforce a
+single fail-closed ceiling check (`quantity > max_position_units *
+event['guard']['size_multiplier'] * model_size_multiplier` →
+`EVENT_STATE_SIZE_LIMIT`/reject) — a reject-if-too-big cap, not a reduce-
+to-fit dynamic size. This cap check is identical in both the single-leg and
+basket paths, so there is no single-leg/basket inconsistency. The cap is
+conservative (fails closed to SKIP/reject rather than silently under- or
+over-sizing), so this is not a safety defect.
+
+This exactly matches, and gives precise code-level grounding to, the matrix's
+existing honest "full calibrated strategy allocation pending" tail for R24 —
+it is not a hidden overclaim (the matrix already does not claim the dynamic
+per-factor reducer is live) and not a newly reachable C/J boundary: wiring
+`SizingFactors`'s nine named inputs (`ev_quality`, `forecast_confidence`,
+`source_confidence`, `liquidity_quality`, `station_horizon_quality`,
+`settlement_time`, `event_state`, `portfolio_exposure`, `strategy_quality`)
+into the live candidate path would require identifying which existing pinned
+field, if any, each factor should read from `value`/`event`/`admissions` —
+the same unmade evidence-plumbing/field-identification decision already
+blocking R40's remaining profile gaps, not a ready-made pinned scalar. Per
+CLAUDE.md this must not be guessed or defaulted to invented placeholder
+factors; it stays PARTIAL/pending until a real per-factor evidence source is
+identified. No new C/J/E/A milestone: **87/200 = 43.5% (~44%); formal 1/50
+(2%)**, unchanged. NOT_READY_TO_FUND; V10 unchanged/DEFERRED.
+
+Verification: `pytest tests/test_v11_paper_coordinator.py
+tests/test_v11_basket_coordinator.py` — **45 passed / 11.82 s**, exit 0, no
+failures/skips. No production or test code was changed (audit-only, matching
+the batch-7/8/9/10 no-op-on-clean-audit precedent); `git status`/`git diff
+--stat` after the doc-only commit show only the three ledger files changed —
+no V10, private-input, credential or production file touched. No full
+regression: no source changed.
+
+Next: R05, R10-R17, R25-R28, R40-R42 and R45 remain untouched by this
+adversarial-defect audit style (R24 now joins the audit-clean pool alongside
+R06/R07/R08/R18/R23/R29/R30/R32/R33/R34-R36/R38/R09). Wiring R24's dynamic
+sizing needs the same kind of evidence-plumbing decision as R40's remaining
+profiles, or the private master's section on Upgrade N/dynamic sizing should
+be re-read directly to check for a named field mapping before attempting
+either. R31, R37's E/A, and R43/R44/R46-R49 remain owner/external/production-
+gated and should not be re-audited again without new master citation, real
+evidence, credentials or deployment action.
+
 ## Supervisor batch 11 — 2026-09-27: R40 time_of_day profile
 
 Recovery check: `git status` clean, local HEAD `51740f2` equal to
