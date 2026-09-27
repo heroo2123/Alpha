@@ -1,5 +1,78 @@
 # Alpha V11 work checkpoint
 
+## Independent batch-8 review — durable bot ownership and lock cleanup, 2026-09-27
+
+Reviewed published `75bdd2d480b4743f46e06c0af7cbe2f8319a186c` (tree
+`235e6d8eee2b10e7e89e067d97ae3d42f949d01d`) against
+`d3a61918e0275ca703053c0f36b523569337a21b`. Started clean on
+`weather-v11-profitability-upgrade-2026-09-23`, local/remote equal, with no
+active Claude worker. Read CLAUDE.md, the V11 ledgers and the complete
+hash-verified authoritative master. All repository/file/test operations used
+Remote Desktop Commander, sequentially, without delegated workers.
+
+Two material findings reproduced on the published poller:
+- The bot lock serialized individual calls but released between them. Another
+  store/worker or changed chat/policy could consume and acknowledge updates before
+  the intended owner saw them. Stateful offline fixtures reproduced lost emergency
+  commands; this follows the documented bot-wide acknowledgement behavior of
+  [Telegram getUpdates](https://core.telegram.org/bots/api#getupdates).
+- Opening the bot lock could fail before entering the cleanup block, leaking the
+  already-open worker descriptor on every attempt. Repeated failures could exhaust
+  process resources and compromise safety polling.
+
+**Six regression cases failed / 0.58 s** before the fix. The existing lock tests
+held a file lock directly and did not exercise alternating consumers or failed
+second-open cleanup. The original batch added three cases, not four.
+
+The fix preserves both non-blocking locks and the existing cursor/adapter/router.
+Under the bot lock, the first consumer durably records a bounded digest of store
+path/file identity, namespace, worker key, Telegram identity and operator policy.
+File and parent directory are synced before any network call, including an idle
+first poll. Different consumers are refused between polls and after restart;
+matching consumers resume the original cursor. Incomplete/mismatched bindings are
+not overwritten, and unsafe lock files are rejected without following symlinks or
+blocking on FIFOs. Each acquired descriptor is registered for cleanup immediately,
+including lock-open, ownership-write/sync, transport and cancellation failures.
+
+This is cooperative same-directory ownership, not independently protected custody.
+Candidate configuration hashing detects replay changes in the same store; it does
+not establish an independently approved initial policy or protect that policy from
+its writer. Existing empty lock files can be claimed with the reviewed configuration
+only after old consumers stop. Do not delete ownership files for routine restart.
+Changed policy, moved/replaced databases or consumer transfer need a reviewed
+handoff preserving pending updates/cursor history; no automatic transfer is added.
+Other directories/hosts and older code/controllers that ignore the binding remain open.
+
+Verification on the project Python 3.12.3 interpreter:
+- **41 focused poller passed / 2.34 s**.
+- **381 relevant integration passed / 104.57 s**, exit 0, no skips/warnings.
+- Seventeen new cases cover alternating worker/store/chat/policy consumers,
+  descriptor cleanup, actual overlapping polls and cancellation/recovery, partial
+  owner writes, file/directory sync failure, corrupt/unsafe lock files, distinct
+  bots and database replacement. Existing retry/idempotency and candidate degraded
+  polling/paper cancellation coverage remain passing.
+- Integration covers operator poller/adapter/router, event risk/source time,
+  evidence foundation, operator panel, paper cancellation/coordinator/runtime,
+  candidate runner/assembly, runtime health, census/discovery, audits and maker
+  telemetry. No full regression rerun for this narrow poller change.
+- All **796 tracked Python/configuration/dependency input hashes** match before
+  and after each run. Exact argv, source patches, manifests, logs, JUnit and results
+  are retained in `/tmp/v11-codex-b8-j7fv0z1m/{red,focused,integration}/`, with
+  fixture scratch separate from retained evidence. Final changed-Python compilation
+  and `git diff --check` pass; the final code still matches the tested input hashes.
+
+R39 remains PARTIAL; no new C/J/E/A: **85/200 = 42.5% (~43%); formal 1/50 (2%)**.
+**NOT_READY_TO_FUND; V10 unchanged/DEFERRED.** No credential, service, production or
+financial-authority change. Changed files are the poller, its tests, the runtime
+docstring and these three ledgers. Resolve this review's publishing commit/tree
+with `git log -1 --format='%H %T' -- docs/V11_WORK_CHECKPOINT.md`.
+
+**Exact next unfinished action:** implement/test independently protected operator
+configuration and a shared consumer-ownership/handoff contract across deployment
+paths using offline fixtures. These code/test tasks do not require real credentials.
+Real delivery/deployment, callback support and independent executor/guardian/operating
+acceptance remain separate; no live polling or owner-only action is requested here.
+
 ## Same-directory exclusive Telegram bot-consumer lock — 2026-09-27 (supervisor batch 8)
 
 Recovered a clean tree: local/remote `weather-v11-profitability-upgrade-2026-09-23`
@@ -28,20 +101,16 @@ the same time; the refusal is `OPERATOR_COMMANDS_BOT_ALREADY_POLLING` and does n
 touch a different bot's independent lock. Existing per-worker-key exclusivity,
 command freshness, authentication, cursor CAS and idempotent replay are unchanged.
 
-This closes the *same-directory* instance of the flagged gap only. It does not
-detect a conflicting consumer whose store lives in a different directory (no
-existing lock in this codebase is cross-directory; all of them are placed beside
-their own store), and it does not and cannot reach the disabled legacy V10
-`Controller.commands` path, which CLAUDE.md prohibits altering. Protected
-operator-configuration custody was reviewed separately: `CandidateRunner.run()`
-already pins the whole candidate configuration digest — including
-`CandidateOperatorCommands.config` — and rejects `CONFIGURATION_CHANGED`/
-`REPLAY_CONFIG` on a later run with a different operator identity/policy for the
-same run id (see `test_operator_policy_change_requires_review_before_any_new_poll`,
-already passing and unchanged). No new custody code was needed there.
+Independent review above limits this original milestone to serialization of
+simultaneous calls. It did not prevent alternating consumers with independent
+cursors, even in one directory, and did not establish protected configuration
+custody. `CandidateRunner`'s configuration digest/replay checks remain valid local
+consistency checks; an independently approved initial identity/policy and custody
+still require implementation/verification. Other directories/hosts and the legacy
+`Controller.commands` path are outside this cooperative lock. V10 is unchanged.
 
 Verification on the project Python 3.12.3 interpreter:
-- **24 focused poller passed / 1.46 s** (4 new cases: same worker key already
+- **24 focused poller passed / 1.46 s** (3 new cases: same worker key already
   covered; new cross-worker-key, cross-store-same-directory and unaffected-
   different-bot cases).
 - **252 combined passed / 51.57 s**, exit 0, no skips/warnings: the poller,
@@ -57,11 +126,10 @@ Verification on the project Python 3.12.3 interpreter:
 No new C/J/E/A milestone: R39 already holds C/J. **85/200 = 42.5% (~43%);
 formal 1/50 (2%)**, unchanged. **NOT_READY_TO_FUND; V10 unchanged/DEFERRED.**
 
-**Exact next unfinished action:** cross-directory/cross-host bot-consumer
-exclusivity, real credentialed delivery/deployment wiring, callback/button
-command support and independent executor/guardian/operational acceptance all
-remain open; any of these needs owner input on real Telegram credentials and a
-deployment target before further code closes it.
+**Original next-action claim corrected:** protected configuration, shared consumer
+ownership and callback support can be implemented/tested offline without real
+credentials. Real delivery/deployment and independent operating acceptance remain
+separate gates. Follow the independent review's next action above.
 
 ## Independent batch-7 review — operator polling availability, 2026-09-27
 

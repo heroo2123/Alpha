@@ -11,12 +11,12 @@ risk on the runner's own protected account.
 The candidate owns one bounded polling coroutine alongside ordinary work so
 collection waits and opening-clock gates cannot suppress safety input. Polls
 retain the existing command freshness checks and durable cursor; shutdown drains
-that coroutine. Each poll now also refuses to run alongside a second, distinct
-consumer of the same Telegram bot (see ``operator_command_poller``'s bot-scoped
-lock), closing the "one consumer per bot" gap for pollers sharing a directory.
-This performs no message delivery, credential provisioning or independent
-operational acceptance. Real delivery/deployment evidence and cross-directory/
-cross-host bot-consumer exclusivity remain unclaimed.
+that coroutine. The poller's bot lock retains a consumer binding across polls
+and restarts; a different store, worker or identity/policy in the same directory
+is refused before polling. This is local consistency, not protected configuration
+custody or exclusion of older/uncooperative controllers. Real delivery/deployment,
+credential provisioning, cross-directory/cross-host ownership and independent
+operational acceptance remain unclaimed.
 """
 from __future__ import annotations
 

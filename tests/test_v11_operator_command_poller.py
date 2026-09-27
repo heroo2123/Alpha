@@ -176,6 +176,201 @@ def test_concurrent_step_on_a_different_bot_is_not_affected(rig):
         os.close(fd)
 
 
+@pytest.mark.parametrize("changed", ["worker", "store", "policy", "chat"])
+def test_idle_bot_owner_cannot_be_replaced_by_a_consumer_with_an_independent_cursor_or_policy(rig, tmp_path, changed):
+    from dataclasses import replace
+
+    class AcknowledgingBot(Bot):
+        async def updates(self, offset):
+            # Telegram confirms and forgets older updates on the next request.
+            self._updates[:] = [u for u in self._updates if u["update_id"] >= offset]
+            return await super().updates(offset)
+
+    store, build = rig
+    pending = []
+    bot = AcknowledgingBot()
+    bot._updates = pending
+    owner = build(bot)
+    assert asyncio.run(owner.step()) == []
+    other_store = EvidenceStore(tmp_path / "other.sqlite", "V11_PAPER") if changed == "store" else store
+    worker_key = "other-worker" if changed == "worker" else WORKER_KEY
+    identity, policy = owner.adapter.identity, owner.adapter.router.policy
+    if changed == "policy":
+        policy = replace(policy, allowed_actions=("NO_NEW_ORDERS",))
+    if changed == "chat":
+        identity = replace(identity, chat_id=43, operators=(43,))
+        policy = replace(policy, operators=(43,))
+    competitor = AcknowledgingBot(chat_id=str(identity.chat_id), operators=tuple(map(str, identity.operators)))
+    competitor._updates = pending
+    other = TelegramOperatorCommandPoller(other_store, worker_key,
+        TelegramOperatorCommandAdapter(competitor, identity, OperatorSafetyRouter(other_store, policy)))
+    pending.append(message_update("/CANCEL_AND_HALT ACCOUNT account emergency"))
+    for _ in range(2):
+        try:
+            asyncio.run(other.step())
+        except OperatorCommandPollerError as exc:
+            assert str(exc) == "OPERATOR_COMMANDS_BOT_OWNER_MISMATCH"
+    # A fresh poller for the original owner must still receive this safety command.
+    asyncio.run(build(bot).step())
+    assert len(store.records(kind="OPERATOR_EVENT", limit=10)) == 1
+    assert competitor.calls == []
+    assert bot.calls == [0, 0]
+
+
+@pytest.mark.parametrize("obstruction", ["directory", "symlink"])
+def test_failed_bot_lock_open_does_not_leak_worker_descriptors(rig, tmp_path, obstruction):
+    store, build = rig
+    lock_path = store.path.with_name("operator-bot-123.lock")
+    if obstruction == "directory":
+        lock_path.mkdir()
+    else:
+        lock_path.symlink_to(tmp_path / "absent")
+    before = len(os.listdir("/proc/self/fd"))
+    for _ in range(3):
+        with pytest.raises(OSError):
+            asyncio.run(build(Bot()).step())
+    assert len(os.listdir("/proc/self/fd")) == before
+
+
+@pytest.mark.parametrize("different_store", [False, True])
+def test_inflight_owner_excludes_a_real_competing_poll_and_recovers_after_cancellation(rig, tmp_path, different_store):
+    store, build = rig
+
+    async def run():
+        entered = asyncio.Event()
+
+        class WaitingBot(Bot):
+            async def updates(self, offset):
+                entered.set()
+                await asyncio.Event().wait()
+
+        owner = build(WaitingBot())
+        task = asyncio.create_task(owner.step())
+        try:
+            await asyncio.wait_for(entered.wait(), 1)
+            other_store = EvidenceStore(tmp_path / "other.sqlite", "V11_PAPER") if different_store else store
+            bot = Bot()
+            other = TelegramOperatorCommandPoller(other_store, "competing-worker",
+                TelegramOperatorCommandAdapter(bot, owner.adapter.identity,
+                    OperatorSafetyRouter(other_store, owner.adapter.router.policy)))
+            with pytest.raises(OperatorCommandPollerError, match="BOT_ALREADY_POLLING"):
+                await other.step()
+            assert bot.calls == []
+        finally:
+            task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await task
+        assert owner.offset() == 0
+        recovered = build(Bot([message_update("/CANCEL_AND_HALT ACCOUNT account recovered")]))
+        assert (await recovered.step())[0]["outcome"]["actor"] == 42
+        assert recovered.offset() == 2
+
+    before = len(os.listdir("/proc/self/fd"))
+    asyncio.run(run())
+    assert len(os.listdir("/proc/self/fd")) == before
+
+
+@pytest.mark.parametrize("failure", ["short_write", "file_sync", "directory_sync"])
+def test_owner_binding_must_be_durable_before_network_and_failed_claims_preserve_state(rig, monkeypatch, failure):
+    import stat
+
+    store, build = rig
+    bot = Bot([message_update("/CANCEL_AND_HALT ACCOUNT account durable")])
+    poller = build(bot)
+    real_write, real_fsync = os.write, os.fsync
+
+    def write(fd, data):
+        return real_write(fd, data[:5] if failure == "short_write" else data)
+
+    def fsync(fd):
+        directory = stat.S_ISDIR(os.fstat(fd).st_mode)
+        if (failure == "directory_sync" and directory) or (failure == "file_sync" and not directory):
+            raise OSError("synthetic sync failure")
+        return real_fsync(fd)
+
+    before = len(os.listdir("/proc/self/fd"))
+    with monkeypatch.context() as patch:
+        patch.setattr(os, "write", write)
+        patch.setattr(os, "fsync", fsync)
+        with pytest.raises((OperatorCommandPollerError, OSError)):
+            asyncio.run(poller.step())
+    assert bot.calls == [] and poller.offset() == 0
+    assert not store.records(kind="OPERATOR_EVENT", limit=10)
+    assert len(os.listdir("/proc/self/fd")) == before
+    if failure == "short_write":
+        with pytest.raises(OperatorCommandPollerError, match="BOT_OWNER_MISMATCH"):
+            asyncio.run(build(bot).step())
+        assert store.path.with_name("operator-bot-123.lock").read_bytes() == b"alpha"
+    else:
+        assert asyncio.run(build(bot).step())[0]["outcome"]["actor"] == 42
+
+
+def test_corrupt_owner_binding_is_not_overwritten_or_used_for_polling(rig):
+    store, build = rig
+    bot = Bot()
+    asyncio.run(build(bot).step())
+    lock_path = store.path.with_name("operator-bot-123.lock")
+    lock_path.write_bytes(b"partial-or-unknown-owner")
+    with pytest.raises(OperatorCommandPollerError, match="BOT_OWNER_MISMATCH"):
+        asyncio.run(build(bot).step())
+    assert bot.calls == [0]
+    assert lock_path.read_bytes() == b"partial-or-unknown-owner"
+
+
+@pytest.mark.parametrize("unsafe", ["fifo", "hardlink", "permissions"])
+def test_unsafe_bot_lock_is_refused_without_polling_or_mutating_it(rig, tmp_path, unsafe):
+    store, build = rig
+    lock_path = store.path.with_name("operator-bot-123.lock")
+    if unsafe == "fifo":
+        os.mkfifo(lock_path, 0o600)
+    else:
+        lock_path.write_bytes(b"preserve")
+        lock_path.chmod(0o600 if unsafe == "hardlink" else 0o644)
+        if unsafe == "hardlink":
+            os.link(lock_path, tmp_path / "other-link")
+    bot = Bot()
+    before = len(os.listdir("/proc/self/fd"))
+    with pytest.raises(OperatorCommandPollerError, match="BOT_LOCK_UNSAFE"):
+        asyncio.run(build(bot).step())
+    assert bot.calls == []
+    assert len(os.listdir("/proc/self/fd")) == before
+    if unsafe != "fifo":
+        assert lock_path.read_bytes() == b"preserve"
+
+
+def test_distinct_bots_in_one_directory_have_independent_owners_and_cursors(rig, tmp_path):
+    from dataclasses import replace
+
+    store, build = rig
+    first = build(Bot([message_update("/CANCEL_AND_HALT ACCOUNT account first")]))
+    asyncio.run(first.step())
+    other_store = EvidenceStore(tmp_path / "other.sqlite", "V11_PAPER")
+    bot = Bot([message_update("/CANCEL_AND_HALT ACCOUNT account second", uid=5)], bot_id="999")
+    other = TelegramOperatorCommandPoller(other_store, WORKER_KEY,
+        TelegramOperatorCommandAdapter(bot, replace(first.adapter.identity, bot_id=999),
+            OperatorSafetyRouter(other_store, first.adapter.router.policy)))
+    assert asyncio.run(other.step())[0]["outcome"]["actor"] == 42
+    assert first.offset() == 2 and other.offset() == 6
+    assert len(store.records(kind="OPERATOR_EVENT", limit=10)) == 1
+    assert len(other_store.records(kind="OPERATOR_EVENT", limit=10)) == 1
+
+
+def test_replacing_the_database_at_an_owned_path_requires_review(rig):
+    store, build = rig
+    owner = build(Bot())
+    asyncio.run(owner.step())
+    original_path = store.path.with_name("preserved.sqlite")
+    store.path.rename(original_path)
+    fresh = EvidenceStore(store.path, "V11_PAPER")
+    bot = Bot()
+    replacement = TelegramOperatorCommandPoller(fresh, WORKER_KEY,
+        TelegramOperatorCommandAdapter(bot, owner.adapter.identity,
+            OperatorSafetyRouter(fresh, owner.adapter.router.policy)))
+    with pytest.raises(OperatorCommandPollerError, match="BOT_OWNER_MISMATCH"):
+        asyncio.run(replacement.step())
+    assert bot.calls == [] and original_path.is_file()
+
+
 def test_worker_key_must_be_a_valid_identity(rig):
     store, build = rig
     bot = Bot([])

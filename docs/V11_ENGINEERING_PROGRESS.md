@@ -1,23 +1,30 @@
 # Supplementary engineering estimate
 
-Same-directory exclusive Telegram bot-consumer lock — 2026-09-27 (supervisor
-batch 8): closed the exact next action independent batch-7 review left open.
-`TelegramOperatorCommandPoller.step()` now takes a second non-blocking file
-lock keyed only by the adapter's configured `bot_id`, alongside the existing
-per-worker-key lock, so a second poller — same or different worker key,
-different store — cannot poll the same Telegram bot concurrently as long as
-its store shares a directory with this poller's store. Reviewed and confirmed
-`CandidateRunner.run()` already pins the whole operator-commands configuration
-digest and rejects a changed identity/policy on replay, so no separate custody
-code was needed for that half of the gap. **24 focused / 1.46 s; 252 combined
-/ 51.57 s**, exit 0, no skips/warnings; only the poller module, one docstring
-and its own test file changed. No full rerun (single-module lock addition with
-its direct integration surface verified). Exact scope/evidence:
-`docs/V11_WORK_CHECKPOINT.md` (supervisor batch 8). R39 remains PARTIAL; no new
-C/J/E/A: **85/200 = 42.5% (~43%); formal 1/50 (2%)**, unchanged.
-Cross-directory/cross-host bot-consumer exclusivity, real credentialed
-delivery/deployment, callback/button support and independent acceptance
-remain open. NOT_READY_TO_FUND; V10 unchanged/DEFERRED.
+Independent batch-8 review — 2026-09-27: fixed two material defects in the
+same-directory bot lock. Alternating consumers could acknowledge and lose safety
+commands despite never overlapping; failed bot-lock opens leaked worker file
+descriptors. **Six reproductions failed / 0.58 s** on the published code. The
+bot lock now durably binds the store/file, namespace, worker and identity/policy
+before polling, including idle polls, with no automatic reassignment. Immediate
+descriptor cleanup, partial-write/sync rejection and unsafe-file checks preserve
+bounded retry/recovery. **41 focused / 2.34 s; 381 integration / 104.57 s**,
+exit 0, no skips/warnings; 796 tracked input hashes unchanged during each run.
+No full rerun. Exact scope/evidence: `docs/V11_WORK_CHECKPOINT.md` (independent
+batch-8 review). No new C/J/E/A: **85/200 = 42.5% (~43%); formal 1/50 (2%)**.
+R39 remains PARTIAL. Local hashes/bindings do not establish independent protected
+configuration custody or cross-directory/host/controller ownership. Those remain
+open, along with real delivery/deployment, callbacks and independent acceptance.
+Offline custody/ownership code and tests need no real credentials. NOT_READY_TO_FUND;
+V10 unchanged/DEFERRED.
+
+Original supervisor batch 8 — 2026-09-27, claims corrected by review above:
+added a same-directory bot-scoped non-blocking lock alongside the worker lock.
+This serialized simultaneous polls only; it did not close consumer ownership
+between polls or protected configuration custody. Candidate configuration hashing
+remains a valid local replay check. Original **24 focused / 1.46 s; 252 combined
+/ 51.57 s**, exit 0, no skips/warnings, no full rerun. Three added cases, not four.
+The independent review preserves that serialization and adds durable local owner
+binding/cleanup. No original or review milestone credit was added.
 
 Independent batch-7 review — 2026-09-27: fixed operator-command starvation in
 the optional candidate integration. Degraded synchronization suppressed polling,

@@ -10,29 +10,35 @@ polling cursor as a ``RUNTIME_STATUS`` evidence record after the batch. A
 restart resumes at that committed cursor. A failed batch is redelivered;
 the adapter/router preserve any already-committed reductions idempotently.
 
-One offset is shared by exactly one worker key; a file lock refuses a second
-concurrent ``step()`` for that key so two processes never race Telegram's
-stateful ``getUpdates`` offset. A second file lock, keyed by the adapter's
-configured ``bot_id`` rather than the worker key or store, refuses a second
-concurrent ``step()`` against the same Telegram bot even from a different
-worker key or a different store's poller, since Telegram's ``getUpdates``
-offset is shared by the whole bot token, not by whichever local worker
-key/store happens to be polling it; two such consumers would otherwise
-silently desynchronize each other's cursor. Both lock files live beside this
-poller's own store, so exclusivity is only established for stores that share
-one directory; a store kept in a different directory is not detected by this
-lock, and this performs no cross-host or cross-deployment claim. An update
-that fails authentication, grammar, or router authorization does not raise
-out of ``step()`` and does not stall later updates in the same batch; its
-outcome is reported and its offset still advances, matching the existing
-cooperative ``Controller.commands`` behavior. This performs no message
-delivery, credential provisioning, account mutation, or independent
-operational acceptance; those remain separate and unclaimed.
+A per-worker lock and a bot-scoped lock serialize concurrent ``step()`` calls.
+The bot lock also retains a durable digest of the store path/file identity,
+namespace, worker key and adapter identity/policy before any network request,
+including an idle first poll. A different consumer is refused even between
+polls or after restart: Telegram confirms older updates on a higher offset,
+so merely serializing requests from independent cursors can lose commands.
+The original consumer resumes its existing evidence-store cursor unchanged.
+A mismatched or incomplete binding requires review; it is never overwritten.
+
+Both locks live beside the store. This is cooperative same-directory binding,
+not protected configuration custody: other directories/hosts, older code and
+controllers that ignore these locks are not excluded. Existing empty lock files
+can be claimed on first use with the reviewed configuration; stop old consumers
+before upgrading. Binding changes and database replacement require a reviewed
+handoff that preserves pending updates and the original cursor, not lock deletion.
+No ownership-transfer or deployment procedure is provided by this module.
+
+An update that fails authentication, grammar, or router authorization is reported
+without stalling later commands; storage/integrity failures retain the cursor for
+retry. Real delivery, credential provisioning and independent operational
+acceptance remain unclaimed.
 """
 from __future__ import annotations
 
+from contextlib import ExitStack
+from dataclasses import asdict
 import fcntl
 import os
+import stat
 
 from .evidence import EvidenceError, EvidenceStore, digest, identity
 from .operator_command_adapter import TelegramOperatorCommandAdapter
@@ -69,24 +75,49 @@ class TelegramOperatorCommandPoller:
 
     async def step(self) -> list[dict]:
         """One bounded poll; never sleeps, retries, or blocks on Telegram."""
-        worker_fd = os.open(self.store.path.with_name(self.store.path.name + "." + self.worker_key + ".lock"),
-                     os.O_CREAT | os.O_WRONLY | os.O_NOFOLLOW, 0o600)
-        bot_fd = os.open(self.store.path.with_name(
-                "operator-bot-" + str(self.adapter.identity.bot_id) + ".lock"),
-                os.O_CREAT | os.O_WRONLY | os.O_NOFOLLOW, 0o600)
-        try:
+        with ExitStack() as cleanup:
+            worker_fd = os.open(self.store.path.with_name(self.store.path.name + "." + self.worker_key + ".lock"),
+                                os.O_CREAT | os.O_WRONLY | os.O_NOFOLLOW, 0o600)
+            cleanup.callback(os.close, worker_fd)
             try:
                 fcntl.flock(worker_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
             except BlockingIOError:
                 raise OperatorCommandPollerError("POLLER_ALREADY_RUNNING") from None
+            bot_fd = os.open(self.store.path.with_name(
+                "operator-bot-" + str(self.adapter.identity.bot_id) + ".lock"),
+                os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600)
+            cleanup.callback(os.close, bot_fd)
             try:
                 fcntl.flock(bot_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
             except BlockingIOError:
                 raise OperatorCommandPollerError("OPERATOR_COMMANDS_BOT_ALREADY_POLLING") from None
+            self._bind_bot_owner(bot_fd)
             return await self._step()
+
+    def _bind_bot_owner(self, fd: int) -> None:
+        """Pin a local consumer before polling; never overwrite or transfer it."""
+        info = os.fstat(fd)
+        if (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1
+                or info.st_uid != os.geteuid() or info.st_mode & 0o077):
+            raise OperatorCommandPollerError("OPERATOR_COMMANDS_BOT_LOCK_UNSAFE")
+        store_info = self.store.path.stat()
+        binding = ("alpha_v11_operator_bot_owner_v1:" + digest(dict(
+            store=str(self.store.path), store_file=[store_info.st_dev, store_info.st_ino],
+            namespace=self.store.namespace, worker_key=self.worker_key,
+            identity=asdict(self.adapter.identity), policy=asdict(self.adapter.router.policy))) + "\n").encode()
+        saved = os.read(fd, len(binding) + 1)
+        if saved and saved != binding:
+            raise OperatorCommandPollerError("OPERATOR_COMMANDS_BOT_OWNER_MISMATCH")
+        if not saved and os.write(fd, binding) != len(binding):
+            raise OperatorCommandPollerError("OPERATOR_COMMANDS_BOT_OWNER_WRITE_INCOMPLETE")
+        # Also sync an existing match: a previous attempt may have written the
+        # complete binding but failed to make it durable. No network before both.
+        os.fsync(fd)
+        parent_fd = os.open(self.store.path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        try:
+            os.fsync(parent_fd)
         finally:
-            os.close(bot_fd)
-            os.close(worker_fd)
+            os.close(parent_fd)
 
     async def _step(self) -> list[dict]:
         head = self._head()
