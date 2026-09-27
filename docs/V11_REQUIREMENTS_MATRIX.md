@@ -1,5 +1,20 @@
 # V11 requirement-to-code/test/evidence matrix
 
+Independent supervisor-batch-3 review — 2026-09-27: the batches 8–10
+backlog/redirect conclusions below are superseded. Bounded C/J credit does not
+mean remaining local implementation is complete. Master section 18 and R40's
+existing row still require country/source, PWS density/quality, time-of-day and
+apparent-edge performance profiles; only weather-variable profiling has since
+been added. Complete one causal profile/report integration next. Master section
+21 gates RESULT_LAG activation on proof; missing delivered proof does not make
+all offline finality adapter/replay work owner-only. R23's finer supported
+mapping, protected review/certification and archival integration remain open.
+Preserve audit observations and reported totals without treating them as new
+implementation/acceptance. Independent performance/report/candidate checks:
+30 passed / 11.07 s, 702 input hashes unchanged; exact command, manifests and
+limits in the checkpoint. Documentation correction only; **87/200 = 43.5%;
+formal 1/50 (2%)**, unchanged. NOT_READY_TO_FUND; V10 unchanged/DEFERRED.
+
 Supervisor batch 10 — 2026-09-27: continued the batch-8/9 defect-hunting sweep
 onto R38/R09's health-observation/guardian-cancellation chain: `v11/runtime_health.py`
 (445 lines), `v11/candidate_liveness.py` (184 lines), `v11/paper_guardian.py`

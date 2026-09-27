@@ -1,5 +1,58 @@
 # Alpha V11 work checkpoint
 
+## Independent supervisor-batch-3 review: backlog classification correction — 2026-09-27
+
+Reviewed `0858ececf8ce38ed89c35e6a51d94f33dbb403fc` against
+`d8b5996594e98fc80cb344b4d104e8448df811dd` (worker batches 8–10).
+Only the three ledgers changed. Initial tree clean, local/published branch
+identical, no Claude process found. Sequential Remote Desktop Commander only.
+Read CLAUDE.md, ledger definitions/history, relevant implementation/tests and
+master requirements; master SHA-256 verified as
+`a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+
+Material correction, superseding the backlog/redirect conclusions below:
+exhausting previously uncredited C/J slices does not exhaust local required
+implementation. The scoring definition explicitly limits C/J to bounded
+substeps. Master section 18 (Upgrade N), `performance.py::DIMENSIONS` and
+`PerformanceLab._metadata`, and the existing R40 matrix row still identify
+missing country/source, PWS density/quality, time-of-day and apparent-edge
+profiles. Weather-variable profiling is implemented and preserved. Those
+remaining causal metadata/report integrations are local work; real calibration
+and operational acceptance are separate evidence gates. Closing such work can
+advance master compliance without earning another C/J unit.
+
+Likewise, master section 21 requires a finality subsystem and proof before
+RESULT_LAG activation; absent delivered source/version proof is not evidence
+that offline adapter/replay research requires owner credentials. R31 stays
+OPEN/GATED, without a blanket external-only classification. R23's supported
+mapping, protected review/certification and archival integration also remain
+unfinished; already credited integration does not waive them. Actual protected
+installation, account access, commissioning and live actions retain their gates.
+
+Preserve batches 8–10's bounded audit observations and reported test totals;
+they add no implementation or acceptance credit. Their entries supply no fresh
+at-run manifest/log paths, so their runs are not independently source-bound by
+this review. The exact reviewed Git range changes no executable/test/config
+inputs. No broad suite was repeated.
+
+Independent focused/relevant integration: **30 passed / 11.07 s**, exit 0,
+no skips/warnings, **702 tracked code/test/config input hashes unchanged**.
+Command from repository root: `/home/alphaadmin/AlphaV11_Dev/venv/bin/python
+-m pytest -q -p no:cacheprovider --tb=short --maxfail=2
+ tests/test_v11_performance.py tests/test_v11_audit_reports.py
+ tests/test_v11_candidate_assembly.py::test_typed_builder_runs_census_derived_risk_strategies_discovery_and_audit_in_one_candidate`.
+Local artifacts: `/tmp/alpha-v11-supervisor3-review-4qlq7358/`:
+`manifest.json` SHA-256 `2a05404a274b2d624e0874da4c61f792c24a679675631ca08caeeb1a90258d88`;
+`pytest.log` SHA-256 `4af76345c342cdafdd37eb049be7a858b2d89e7f0b2e98fffc8a556f7f1e509e`.
+Tests ran on the published code before this documentation-only correction.
+
+No new C/J/E/A: **87/200 = 43.5%; formal 1/50 (2%)**.
+NOT_READY_TO_FUND; no code, V10, service, credential or financial change.
+Next: implement one missing Upgrade N profile from original pinned entry
+evidence through PerformanceLab and scheduled reports, preserving UNKNOWN for
+missing evidence and testing causal provenance and P&L conservation. Do not
+substitute another credit-table/audit sweep for this known implementation gap.
+
 ## Supervisor batch 10: runtime_health.py/candidate_liveness.py/paper_guardian.py/paper_cancellation.py defect sweep clean — 2026-09-27
 
 Recovery check: `git status` clean; local HEAD `89baf62` equal to

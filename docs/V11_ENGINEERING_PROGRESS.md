@@ -1,5 +1,22 @@
 # Supplementary engineering estimate
 
+Independent supervisor-batch-3 review — 2026-09-27: corrected the
+batches 8–10 backlog/redirect inference below. This ledger defines C/J as
+bounded slices, so absence of another immediately awardable C/J unit does not
+prove absence of required local work. Master section 18 still requires R40's
+country/source, PWS density/quality, time-of-day and apparent-edge profiles;
+weather-variable profiling remains valid. Their causal report integration is
+the next implementation task even if it earns no additional C/J. R31 stays
+OPEN/GATED for missing finality proof, without classifying offline source/
+version adapter research as inherently owner-only; R23's named implementation
+and evidence tails also remain open. Actual operational/financial gates stand.
+Batches 8–10 produced bounded audits, not new master implementation. Preserve
+their reported results, whose entries provide no at-run manifest locations.
+Independent focused/relevant integration: 30 passed / 11.07 s, 702 tracked
+input hashes unchanged; evidence and exact scope in the checkpoint. Only the
+three ledgers changed. **87/200 = 43.5%; formal 1/50 (2%)**, unchanged;
+NOT_READY_TO_FUND, V10 unchanged/DEFERRED.
+
 Supervisor batch 10 — 2026-09-27: recovery check found `git status` clean,
 local HEAD `89baf62` equal to `origin/weather-v11-profitability-upgrade-2026-09-23`;
 no unfinished same-batch work to recover. Continued the batch-8/9 defect
