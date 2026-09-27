@@ -1,5 +1,71 @@
 # Supplementary engineering estimate
 
+R12 credit correction — 2026-09-27 (supervisor batch 5): recovery check found
+`git status` clean, local HEAD `5565403` equal to
+`origin/weather-v11-profitability-upgrade-2026-09-23`, no unfinished process.
+Per the score-velocity rule, the preceding run of published batches (R23
+redirected after 3+ stalled batches; R18/R21/R34-R36 audits found no defect;
+R40's batch 4 profile addition earned no new milestone because R40 already
+holds C/J) had produced no new C/J/E/A credit for many consecutive batches.
+Rather than deepen another already-credited slice or repeat a no-defect audit,
+cross-referenced every explicit "earns C/J/E/A" event in this ledger (baseline
+table plus every subsequent credit line) against the full 50-requirement
+matrix and found R12 ("Calibration and conservative fallback") is the only
+requirement whose baseline **C**-only credit was never followed by any J/E/A
+mention anywhere in this file or `docs/V11_WORK_CHECKPOINT.md` (grep-verified,
+zero hits for "R12" outside the original baseline row).
+
+Auditing R12's actual code (matrix-cited `v11/probability.py`,
+`weather_only_calibration.py`) surfaced an already-built, tested, previously
+unattributed pipeline living at the top level of `polymarket_scanner/` (so it
+was not surfaced by prior audits that read `v11/*.py`): isolated prospective
+GEFS capture (`weather_only_calibration_worker.py` /
+`weather_only_calibration_worker_runtime.py`, explicitly no financial
+authority) -> strict WRH settlement label authorization
+(`weather_only_calibration_authority.py`) -> a read-only SQLite reader that
+independently re-derives every capture/label from raw evidence and refuses
+any stored-authority shortcut (`weather_only_calibration_reader.py`) ->
+a dataset bridge into `ProbabilityCalibrationSample`
+(`weather_only_calibration_dataset.py`) -> R12's already-credited core
+(`weather_only_calibration.py::assess_probability_calibration`) -> a
+per-model/per-bin readiness report (`weather_calibration_readiness.py`).
+`deploy/render-shadow-units.py` renders a real `polymarket-weather-calibration
+.service` systemd shadow unit running this worker loop with a preflight
+check, confirming deployment-track integration rather than a discarded
+prototype. This is a genuine demonstrated upstream/downstream integration of
+R12's core — exactly the J definition — that was simply never scored.
+
+No code was changed; this is a correction of a pre-existing scoring gap, not
+new implementation. Verification (foreground): the full calibration-family
+suite — `test_weather_calibration.py`, `test_weather_calibration_policy.py`,
+`test_weather_only_calibration_reader.py`,
+`test_weather_only_calibration_dataset.py`, `test_weather_calibration_experiment.py`,
+`test_weather_calibration_readiness.py`, `test_weather_only_calibration_authority.py`,
+`test_weather_only_calibration_worker.py`, `test_weather_only_calibration_worker_runtime.py`,
+`test_weather_only_calibration_horizon.py`, `test_weather_only_calibration_policy_types.py`,
+`test_weather_only_calibration_reader_adversarial.py`,
+`test_weather_only_calibration_runtime_horizon_integration.py` — **75 passed /
+4.37 s**, exit 0, no skips/failures; plus `test_shadow_deployment.py`,
+`validate_shadow_units.py`, `test_weather_calibration_service_preflight.py`,
+`test_weather_calibration_live_preflight.py`, `test_weather_calibration_backup.py`,
+`test_weather_calibration_census.py` — **19 passed / 0.92 s**, exit 0. Combined
+**94 passed, 0 failed, 0 skipped**, confirming the pipeline is real and
+currently green.
+
+This does not establish E or A: the module family's own docstrings fix
+`calibrated_probability_authority`/`financial_authority`/`promotion_authority`
+permanently False, the WRH authority gate fails closed pending R31's still-open
+exact finality-source/version proof (so no real sample can currently be
+authorized end-to-end from live data), and this research-only readiness
+pipeline is not wired into the live v11 candidate/strategy decision path
+(separate from R11's already-credited vacuous-bounds probability-bundle join,
+which remains the only calibration-adjacent path feeding live decisions). Real
+prospective outcome accumulation and full package acceptance remain genuinely
+open and cannot be produced locally. R12: C -> **C J**. New total **86/200 =
+43%**. Formal completion remains **1/50 (2%)**. NOT_READY_TO_FUND; V10
+unchanged/DEFERRED. No V10, private, credential or production file touched.
+Exact matrix update: `docs/V11_REQUIREMENTS_MATRIX.md` (R12 row).
+
 Upgrade N weather-variable profile — 2026-09-27 (supervisor batch 4):
 `v11/performance.py::DIMENSIONS` gained `weather_variable`, derived from the
 same pinned admission `CapabilityScope.family` (HIGH/LOW) already fetched for

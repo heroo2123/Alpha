@@ -1,5 +1,124 @@
 # Alpha V11 work checkpoint
 
+## R12 credit correction: uncredited prospective-calibration pipeline earns J — 2026-09-27 (supervisor batch 5)
+
+Recovery check: `git status` clean, local HEAD `5565403` equal to
+`origin/weather-v11-profitability-upgrade-2026-09-23`, no unfinished process
+found. Read CLAUDE.md and the checkpoint/matrix/progress tails first.
+
+Per the mandatory score-velocity rule, the immediately preceding batches had
+not produced any new C/J/E/A credit: R23 was redirected after three-plus
+stalled batches; R18, R21 and R34-R36 were audited and found defect-free
+(no credit available); batch 4's Upgrade N `weather_variable` profile
+addition (R40) verified real code but earned no new milestone because R40
+already holds both C and J. Rather than add a fourth consecutive no-credit
+batch by deepening another already-credited slice or repeating a no-defect
+audit, this batch searched systematically for a requirement whose scoring
+itself might be wrong.
+
+Cross-referencing every explicit "earns C", "earns J", "earns E" or "earns A"
+event recorded across the full 1300+ line `docs/V11_ENGINEERING_PROGRESS.md`
+(the baseline credit table plus every later credit-earning entry) against the
+50-row requirements matrix found exactly one gap: **R12** ("Calibration and
+conservative fallback") received its baseline **C** credit and was never
+mentioned again by name in either `V11_ENGINEERING_PROGRESS.md` or this
+checkpoint (`grep -c "R12\b"` returns 0 in both files outside the original
+baseline row). Every sibling requirement in the same baseline row (R11, R13,
+R14, R15) had since earned an explicit, individually justified J credit; R12
+alone had not, despite the matrix already listing `weather_only_calibration.py`
+as one of its two implementation files.
+
+Auditing that file and its neighborhood (all top-level `polymarket_scanner/`
+modules, not under `v11/`, which is likely why prior PARTIAL-package sweeps —
+which read `v11/*.py` — never surfaced them) found a complete, already-built,
+tested pipeline that no prior batch had ever attributed to any requirement:
+
+- `weather_only_calibration_worker.py` / `weather_only_calibration_worker_runtime.py`:
+  an isolated prospective GEFS-bucket capture loop, explicitly "not a trading
+  runtime," no Telegram/order/CLOB/financial authority, preregistered T-1
+  station-local capture window.
+- `weather_only_calibration_authority.py`: the strict production authority
+  gate that independently revalidates the prediction digest, prospective rule
+  capture, finalized WRH digest, frozen partition winner, payout and exact
+  label before authorizing a `ProbabilityCalibrationSample`; grants
+  calibration-label authority only, `financial_authority` permanently False.
+- `weather_only_calibration_reader.py`: opens the collector SQLite database
+  read-only and independently re-derives every capture/label/horizon
+  attestation from raw evidence rather than trusting any stored
+  `authorized_json`/`settlement_evidence_json` audit copy; one invalid or
+  ambiguous row fails the whole read (no silent skipping / selection bias).
+- `weather_only_calibration_dataset.py`: bridges the strict reconstructed rows
+  into `ProbabilityCalibrationSample` under a caller-frozen `CalibrationPolicy`.
+- `weather_only_calibration.py::assess_probability_calibration`: R12's
+  already-credited core (Wilson-bound bin readiness, Brier gate, clean-label
+  filtering).
+- `weather_calibration_readiness.py`: the downstream report — evaluates every
+  model version across every preregistered bin and returns
+  `research_calibration_ready_any_bin` with `promotion_authority` /
+  `calibrated_probability_authority` / `financial_authority` /
+  `automatic_order_placement` all fixed False.
+
+`deploy/render-shadow-units.py` renders a real `polymarket-weather-calibration
+.service` systemd unit (`ExecStart=... weather_only_calibration_worker_runtime
+--loop --interval-seconds 30 ...` with an `ExecStartPre` preflight check),
+confirming this is deployment-track infrastructure, not an abandoned
+prototype. Capture -> authority -> read-only reconstruction -> dataset ->
+core assessment -> readiness report is a genuine, demonstrated
+upstream/downstream integration of R12's core — precisely the ledger's own
+definition of **J** ("a demonstrated upstream/downstream integration of that
+core") — that had simply never been scored.
+
+No production or research code was changed; this batch is a scoring
+correction, not new implementation, and does not touch V10, private inputs,
+credentials or any financial path. Verification, foreground, no code changed:
+
+```
+tests/test_weather_calibration.py tests/test_weather_calibration_policy.py \
+tests/test_weather_only_calibration_reader.py tests/test_weather_only_calibration_dataset.py \
+tests/test_weather_calibration_experiment.py tests/test_weather_calibration_readiness.py \
+tests/test_weather_only_calibration_authority.py tests/test_weather_only_calibration_worker.py \
+tests/test_weather_only_calibration_worker_runtime.py tests/test_weather_only_calibration_horizon.py \
+tests/test_weather_only_calibration_policy_types.py tests/test_weather_only_calibration_reader_adversarial.py \
+tests/test_weather_only_calibration_runtime_horizon_integration.py
+```
+**75 passed / 4.37 s**, exit 0, no skips/failures. Plus:
+```
+tests/test_shadow_deployment.py tests/validate_shadow_units.py \
+tests/test_weather_calibration_service_preflight.py tests/test_weather_calibration_live_preflight.py \
+tests/test_weather_calibration_backup.py tests/test_weather_calibration_census.py
+```
+**19 passed / 0.92 s**, exit 0. Combined **94 passed, 0 failed, 0 skipped**
+across the entire calibration-research module family, confirming the pipeline
+is real, wired together and currently green. `git status` after the doc edits
+shows only the three durable ledger files changed (this checkpoint, the
+requirements matrix, the engineering progress ledger) — no code, test, V10,
+private-input or credential file.
+
+What this does **not** establish, stated explicitly to avoid overclaiming:
+`calibrated_probability_authority`, `financial_authority` and
+`promotion_authority` are fixed False throughout this entire module family by
+design; the WRH authority gate fails closed pending R31's still-open exact
+finality-source/version proof (`docs/V11_FINALITY_DEPENDENCIES.md`), so no
+real sample can currently be authorized end-to-end from live data; and this
+research-readiness pipeline is not wired into the live v11 candidate/strategy
+decision path in `v11/rules.py` / `v11/valuation.py` (that live path's
+vacuous-bounds probability-bundle join is R11's separate, already-credited J).
+Real prospective outcome accumulation (E) and full package acceptance (A) for
+R12 remain genuinely open and cannot be produced locally or by more tests.
+
+R12: **C -> C J**. New total **86/200 = 43%** (was 85/200 = 42.5%, ~43%).
+Formal completion remains **1/50 (2%)**. NOT_READY_TO_FUND; V10
+unchanged/DEFERRED. Exact matrix update: `docs/V11_REQUIREMENTS_MATRIX.md`
+(R12 row); ledger update: `docs/V11_ENGINEERING_PROGRESS.md`.
+
+Next unfinished action: continue the same systematic cross-check (explicit
+"earns C/J/E/A" events vs. the full matrix) across the remaining
+requirements to look for any other uncredited-but-already-built integration
+before returning to owner/production-blocked tails (R23 dependence
+mapping/protected review, R31 finality source, R37 venue authentication/
+deployment, R39 protected configuration custody, R43/R44/R46-R49
+auth/isolated-deployment/acceptance) or further no-defect audits.
+
 ## Upgrade N weather-variable profile — 2026-09-27 (supervisor batch 4)
 
 Recovery check: `git status` clean, local HEAD `37fc3ee` equal to
