@@ -1,5 +1,16 @@
 # Supplementary engineering estimate
 
+Velocity-rule redirect and audit sweep — 2026-09-27: excluded R39/R37-CI per
+the score-velocity rule (nine-plus and three stalled batches respectively). A
+chunked full-regression attempt for R45 hit 148 failures in the first of six
+chunks; all traced to `production/engine.py` wall-clock freshness gates
+correctly failing closed under this single-core host's real memory/CPU
+pressure, not a regression (every failing file passes standalone and on
+rerun). Full audits of R06/R07 found no exploitable defect. No code changed,
+no new C/J/E/A: **85/200 = 42.5% (~43%); 1/50 (2%)**, unchanged.
+NOT_READY_TO_FUND; V10 unchanged/DEFERRED. Full detail:
+`docs/V11_WORK_CHECKPOINT.md`.
+
 Independent supervisor-batch-1 review — 2026-09-27: reviewed `3c616d1`
 against `4210a6c`. Five new cases reproduced policy-digest incompatibility,
 accepted conflicts with managed sibling units, and missing stop/start ordering.

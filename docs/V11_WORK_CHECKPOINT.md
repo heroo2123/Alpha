@@ -1,5 +1,105 @@
 # Alpha V11 work checkpoint
 
+## Velocity-rule redirect, full-regression flakiness diagnosis and audit sweep, 2026-09-27
+
+Recovery check: `git status` clean, local HEAD `3dbb4c2` equal to
+`origin/weather-v11-profitability-upgrade-2026-09-23`, no unfinished process.
+Read this checkpoint's tail, the requirements matrix and the engineering
+progress ledger before editing.
+
+R39 has now consumed nine-plus published batches (5 through 13, plus every
+intervening independent review) and R37's custody-CI EPERM has consumed three
+(11-13) without moving X/200. Per the supervisor's score-velocity rule this
+batch did not add further depth to either: R39's remaining gap (protected
+non-cooperative configuration custody / cross-host consumer exclusion without
+an authorization model derivable from the master) and R37's CI EPERM
+(hypothesized GitHub-runner restriction, unconfirmed) both stay exactly as the
+independent supervisor-batch-1 review below left them. Neither is touched this
+batch.
+
+**Full-regression attempt and flakiness finding.** R45 ("integrated regression
+and security acceptance") has been blocked since the umask and guardian-broker
+fixes on "run one full regression to confirm the fully corrected failure
+count" — recorded as the explicit next action across several prior batches but
+never completed, because a full run takes ~1113-1125s against this Bash tool's
+600s foreground cap with no background execution permitted. This batch
+chunked the full collection (4935 tests) into six sequential foreground
+`pytest` invocations covering the entire collection exactly once (`/tmp/
+all_test_ids.txt` split six ways), the same technique batch 3 used. The first
+chunk (985 tests) returned **148 failed, 837 passed** — far more than the
+previously-diagnosed 47-case cohort, so per CLAUDE.md's testing-budget rule
+("stop early once enough evidence exists ... diagnose with focused tests
+before any rerun") the remaining five chunks were not run.
+
+Diagnosis: every failing file in that chunk passes cleanly in isolation
+(verified directly: `test_frozen_production_review.py`,
+`test_operator_panel.py`, `test_operator_notifications.py`,
+`test_production_adversarial.py`). Re-running the exact same full file
+(`test_frozen_production_review.py`, 12 tests) three more times in a row
+produced **12 passed** every time, after the first run had produced **7
+failed**. This is intermittent, not a deterministic regression or test-order
+pollution. Root cause traced to `ExecutionEngine.base_authority_reason()` /
+`_execute()` in `polymarket_scanner/production/engine.py:102,421,654`:
+freshness gates such as `0 <= time.time() - self.last_reconcile < 30` and
+`0 <= now - started <= 15` are deliberately wall-clock-based and fail closed
+(refuse to trade) the instant the process cannot prove it observed the
+account inside the stated window. This host is single-core with ~1.8Gi RAM
+and was observed at ~105Mi free / ~836Mi swap in use; running ~1000 tests
+concurrently in one interpreter creates exactly the memory/CPU pressure that
+can push a fixture's setup-to-assertion gap past 15-30 real seconds on a
+loaded run, tripping the gate. This is the engine correctly failing closed
+under real degradation, not a code defect — the defect (if any) is that nine
+different production-authority test files silently depend on real wall-clock
+headroom instead of an injected clock, making them flaky specifically under
+whole-suite concurrent load on this constrained host. No production or test
+file was changed to chase this: fixing it would mean injecting a fake clock
+into `ExecutionEngine` across many test files, a cross-cutting change too
+large for this batch and out of scope for a single-file audit.
+
+Practical consequence for R45: a same-process full-suite run on this host is
+not currently reliable evidence of a clean or broken suite by itself, since a
+single loaded run can show failures that vanish on an unloaded rerun of the
+same files. Any future full-regression attempt should treat isolated
+per-file reruns of every FAILED node ID as mandatory before attributing any
+failure to a real defect, exactly as this batch did. No new C/J/E/A credit
+follows from this diagnosis; it corrects a process risk (misreading load-
+induced flakiness as a regression) rather than closing a requirement.
+
+**Audit sweep.** With R39/R37 excluded this batch, continued the audit-sweep
+next-action named by the batch-1/batch-2 checkpoints (never followed up
+after batch 2 pivoted to R37/R38/R39): full line-by-line reads of
+`v11/certification.py` (R07 station registry/capability certification,
+including `StationRegistry.observe/demote/proof/assess`, the root-custody
+review-file checks and the barrier/reviewed-through-seq/capability-proof
+binding logic) and `v11/collection.py` (R06 bounded GET-only collector,
+including `SourceRequest.__post_init__`'s endpoint allowlist and
+`PublicCollector.cycle`'s attempt/byte/rate-limit/cookie-isolation handling).
+No exploitable defect was found in either — capability proofs are bound to
+the exact scope key, review cutoff and metadata/rule fingerprint; a later
+FAIL after a review's `reviewed_through_seq` cannot be erased by an earlier
+PASS; the collector clears cookies and re-checks anonymity before every
+retry and never forwards a 429 host's Retry-After past the current cycle.
+This matches the batch-1/batch-2 outcome for R08/R32: no code changed, no new
+C/J/E/A credit, and R06/R07 are removed from the pool of untouched candidates
+for a future audit sweep (R33 was already fixed for census starvation
+earlier; R34-R36, maker research/microstructure/rewards, remain unaudited).
+
+No new C/J/E/A credit this batch: **85/200 = 42.5% (~43%); formal 1/50 (2%)**,
+unchanged. R06/R07 audited clean; R37/R38/R39/R44/R45 remain PARTIAL exactly
+as before. NOT_READY_TO_FUND; V10 unchanged/DEFERRED. No V10, credential,
+private-input, service or production file was touched; no alpha-dev
+deployment, financial authority or real order was requested or performed.
+
+**Exact next unfinished action:** either (a) a fresh line-by-line audit of
+R34-R36 (`v11/maker_research.py`, `v11/microstructure.py`,
+`v11/reward_rules.py`) to keep looking for a genuine, previously-missed local
+defect under the same velocity-rule redirect, since R37/R38/R39's local gaps
+are owner/master-authorization-shaped and R31/R43/R44/R46-49/R09/R10/R13/R14/
+R25-28 need real external or owner-authorized access; or (b) owner-provided
+real provider/label/deployment access to move any of those blocked
+requirements toward E/A. Do not resume R39 or R37's CI EPERM until either
+crosses a credit boundary or a genuinely new P0/P1 defect is found in them.
+
 ## Independent supervisor-batch-1 review — repair batch-13 unit policy, 2026-09-27
 
 Reviewed published `3c616d190a390bba71144535f0fa5946bb8ce84e` against

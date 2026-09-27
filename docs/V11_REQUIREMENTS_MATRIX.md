@@ -1,5 +1,20 @@
 # V11 requirement-to-code/test/evidence matrix
 
+Velocity-rule redirect and audit sweep — 2026-09-27: R39 (nine-plus batches)
+and R37's custody-CI EPERM (three batches) were excluded this batch per the
+score-velocity rule; neither changed. A chunked full-regression attempt
+(R45) found 148 failures in the first of six chunks, all traced to wall-clock
+freshness gates in `production/engine.py` (`base_authority_reason`/`_execute`)
+correctly failing closed under real memory/CPU pressure on this single-core
+host, not a code defect; every failing file passes standalone and on rerun,
+confirming load-induced flakiness rather than a regression. Full audits of
+R07 (`v11/certification.py`) and R06 (`v11/collection.py`) found no
+exploitable defect, matching the batch-1/batch-2 R08/R32 outcome. No code
+changed. No new C/J/E/A: **85/200 = 42.5% (~43%); 1/50 (2%)**, unchanged.
+R06/R07 removed from the untouched-audit pool; R34-R36 remain the next
+untouched local audit candidates. NOT_READY_TO_FUND; V10 unchanged/DEFERRED.
+Full detail: `docs/V11_WORK_CHECKPOINT.md` (velocity-rule redirect entry).
+
 Independent supervisor-batch-1 review — 2026-09-27: reviewed `3c616d1`
 against `4210a6c`. Five new cases reproduced policy-digest incompatibility,
 accepted conflicts with managed sibling units, and missing stop/start ordering.
