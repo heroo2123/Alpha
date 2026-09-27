@@ -1,5 +1,65 @@
 # Alpha V11 work checkpoint
 
+## Supervisor batch 9: event_queue.py/backpressure.py defect sweep clean — 2026-09-27
+
+Recovery check: `git status` clean; local HEAD `eaa9be9` equal to
+`origin/weather-v11-profitability-upgrade-2026-09-23`. No unfinished
+same-batch work found. Current durable score at start: **87/200 (~44%);
+formal 1/50 (2%)**.
+
+Per batch 8's own compiled conclusion — every requirement whose remaining
+tail is purely local implementation already holds C and J, so no new C/J
+boundary is reachable through pure local code changes — this batch continued
+the recommended genuine-defect sweep onto the next unaudited module named in
+batch 8's own next-action list: R33's `v11/event_queue.py` (734 lines) and
+`backpressure.py` (112 lines), neither previously covered by the
+R06/R07/R08/R18/R23/R29/R30/R32/R34-R36 adversarial-defect audit pattern.
+
+Read both files in full. Checked `EventQueue.publish`'s per-source staleness/
+duplicate/out-of-order/fanout gating and its required-census escalation on any
+non-exempt rejection reason; `_enqueue`'s pending-item expiry, which can only
+shrink (`min(item['expires_at'], notice['valid_until'])`), never extend, so a
+stale pending item cannot be kept alive by a later notice; `work()`'s
+abandoned-claim-on-restart handling (any live `state['active']` found at claim
+time is treated as lost and forces a fresh census, never silently resumed) and
+its census-only/pending starvation-avoidance alternation; `finish()`'s five
+independent fail-closed conditions (work-budget/clock regression, census still
+required, new pending source arrived, a source expiring mid-evaluation,
+coverage expiring mid-evaluation) plus its final unconditional re-check that
+every one of the claim's recorded `source_heads` is still exactly current
+before an evaluation is accepted; `complete_census`'s per-source freshness/
+coverage/supersession checks and its binding of an optional model-preparation
+epoch; and `admission_heads` (R20/R21's actual paper-admission data gate),
+confirming it fails closed whenever the event is pending, active, needs
+census, has no current unexpired evaluation, or any evaluation source head has
+since changed — matching the already-credited J integration audited into
+`paper_coordinator` in prior batches. Separately audited `backpressure.py`'s
+`coalesce_signal_batches` duplicate-episode resolution (a later, larger
+duplicate that would overflow the byte budget is correctly rejected while
+leaving the smaller prior copy in place, never silently dropping to an empty
+slot) and its ACTIONABLE-priority/WATCH-retention sort keys.
+
+No defect found. This is the first adversarial pass over this exact event-
+routing/admission-gate code for this specific defect class (the prior R33
+credit lines describe integration, not an adversarial fail-closed audit).
+
+Verification: `pytest tests/test_v11_event_queue.py
+tests/test_v11_queue_admission.py tests/test_backpressure.py` — **55 passed /
+4.47 s**; `pytest -k "event_queue or queue_admission or backpressure or
+candidate_runner"` — **112 passed / 38.99 s**, exit 0, four pre-existing
+unrelated FastAPI warnings, no failures/skips. `git status` before this
+doc-only commit shows no code, test, V10, private-input or credential file
+touched.
+
+No new C/J/E/A milestone: **87/200 = 43.5% (~44%); formal 1/50 (2%)**,
+unchanged. NOT_READY_TO_FUND; V10 unchanged/DEFERRED.
+
+Next unfinished action: R05, R09, R10-R17, R24-R28, R38, R40-R42 and R45
+remain untouched by this specific adversarial-defect audit style (R33 is now
+removed from that pool). R31, R37's E/A, and R43/R44/R46-R49 remain owner/
+external/production-gated and should not be re-audited again without a new
+master citation, real evidence, credentials or deployment action.
+
 ## Supervisor batch 8: compiled credit-state audit; paper_coordinator/position_attribution defect sweep clean — 2026-09-27
 
 Recovery check: `git status` clean; local HEAD `d8b5996594e98fc80cb344b4d104e8448df811dd`

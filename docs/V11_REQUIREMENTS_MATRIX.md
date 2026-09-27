@@ -1,5 +1,28 @@
 # V11 requirement-to-code/test/evidence matrix
 
+Supervisor batch 9 — 2026-09-27: continued the batch-8 defect-hunting sweep
+onto R33's `v11/event_queue.py` (734 lines) and `backpressure.py` (112 lines),
+the next candidates named in batch 8's own next-action list, extending the
+R06/R07/R08/R18/R23/R29/R30/R32/R34-R36 audit-sweep pool. Read both files in
+full: `EventQueue.publish`'s staleness/duplicate/out-of-order/fanout gating and
+required-census escalation on rejection, `_enqueue`'s expiry-can-only-shrink
+invariant, `work()`'s abandoned-claim-forces-census handling and census/
+pending starvation alternation, `finish()`'s five independent fail-closed
+conditions plus its final source-head re-check, `complete_census`'s per-source
+freshness/supersession checks, and `admission_heads` (the actual paper-
+admission data gate R20/R21 rely on). Also audited `backpressure.py`'s
+`coalesce_signal_batches` duplicate/overflow resolution and priority sort
+keys. No defect found; every checked gate fails closed. 55 direct passed /
+4.47 s; 112 broader passed (`-k "event_queue or queue_admission or
+backpressure or candidate_runner"`) / 38.99 s, exit 0, four pre-existing
+unrelated FastAPI warnings, no failures/skips. No code changed. No new
+C/J/E/A: **87/200 = 43.5% (~44%); formal 1/50 (2%)**, unchanged.
+NOT_READY_TO_FUND; V10 unchanged/DEFERRED. R33 removed from the untouched-
+audit pool; R05, R09-R17, R24-R28, R38, R40-R42, R45 remain the next
+candidates for this specific adversarial-defect audit style; R31/R37's E/A/
+R43/R44/R46-R49 remain owner/external/production-gated. Full detail:
+`docs/V11_WORK_CHECKPOINT.md` (supervisor batch 9).
+
 Supervisor batch 8 — 2026-09-27: cross-referenced the current C/J state of every
 PARTIAL/OPEN requirement (docs/V11_ENGINEERING_PROGRESS.md's per-requirement
 credit table plus every "earns J"/credit-correction entry) against the matrix.

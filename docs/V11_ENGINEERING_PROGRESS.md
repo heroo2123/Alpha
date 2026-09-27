@@ -1,5 +1,38 @@
 # Supplementary engineering estimate
 
+Supervisor batch 9 — 2026-09-27: recovery check found `git status` clean,
+local HEAD `eaa9be9` equal to `origin/weather-v11-profitability-upgrade-2026-09-23`;
+no unfinished same-batch work to recover. Per batch 8's compiled conclusion
+(no new C/J boundary is reachable through pure local code changes), continued
+the recommended defect sweep onto R33's `v11/event_queue.py` and
+`backpressure.py` — the next candidates named in batch 8's own next-action
+list, not previously covered by the R06/R07/R08/R18/R23/R29/R30/R32/R34-R36
+audit pattern.
+
+Read both files in full: `EventQueue.publish`'s staleness/duplicate/fanout
+gating and required-census escalation, `_enqueue`'s expiry-can-only-shrink
+invariant, `work()`'s abandoned-claim-forces-census handling and starvation
+alternation, `finish()`'s five independent fail-closed conditions plus its
+final source-head re-check, `complete_census`'s per-source freshness/
+supersession checks, and `admission_heads` (the actual paper-admission data
+gate R20/R21 rely on) — confirming every one fails closed rather than open.
+Also audited `backpressure.py`'s `coalesce_signal_batches` duplicate/overflow
+resolution and priority sort keys. No defect found; full detail:
+`docs/V11_WORK_CHECKPOINT.md` (supervisor batch 9).
+
+Verification (foreground): `pytest tests/test_v11_event_queue.py
+tests/test_v11_queue_admission.py tests/test_backpressure.py` — 55 passed /
+4.47 s; `pytest -k "event_queue or queue_admission or backpressure or
+candidate_runner"` — 112 passed / 38.99 s, exit 0, four pre-existing FastAPI
+warnings, no failures/skips. No code changed.
+
+No new C/J/E/A milestone: **87/200 = 43.5% (~44%); formal 1/50 (2%)**,
+unchanged. NOT_READY_TO_FUND; V10 unchanged/DEFERRED. R05, R09-R17, R24-R28,
+R38, R40-R42 and R45 remain untouched by this adversarial-defect audit style
+and are the next candidates; R31/R37(E/A)/R43/R44/R46-R49 remain owner/
+external/production-gated and are not expected to move without real evidence,
+credentials or deployment action.
+
 Supervisor batch 8 — 2026-09-27: recovery check found `git status` clean,
 local HEAD `d8b5996` equal to `origin/weather-v11-profitability-upgrade-2026-09-23`;
 no unfinished same-batch work to recover.
