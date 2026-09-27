@@ -1,5 +1,26 @@
 # V11 requirement-to-code/test/evidence matrix
 
+Velocity-rule redirect off R23 and R18 independent-guardian audit —
+2026-09-27 (supervisor batch 2): R23 had consumed three consecutive
+published batches without new C/J/E/A credit; its remaining tail (protected
+review/certification, which would require inventing an authorization model
+the master does not prescribe, and archival/freshness, which needs real
+accumulated operating evidence) cannot credibly be closed by more local code
+this batch, so it was not touched again — recorded once, redirected per the
+score-velocity rule. Audited `v11/event_risk.py`, `v11/paper_guardian.py` and
+`v11/risk_inputs.py` for R18's own "independent guardian integration
+pending" gap and confirmed the guardian's per-intent
+`EventRiskEngine.revalidate()` call fails closed on stale/changed risk state
+(raised `EvidenceError` -> `bad=True` -> cancel), so its cancellation
+decision does not depend on the main candidate process staying alive; no
+defect found. This does not close R18's own named remaining gaps (execution
+quality/settlement timing/reviewed baseline/calibration, explicitly UNKNOWN
+pending real evidence per `v11/risk_inputs.py`'s docstring). No code changed;
+`tests/test_v11_event_risk.py tests/test_v11_paper_guardian.py` 69 passed /
+14.42 s, `tests/test_v11_risk_inputs.py` 11 passed / 6.92 s, no failures. No
+new C/J/E/A: **85/200 (~43%); 1/50 (2%)**, unchanged. NOT_READY_TO_FUND; V10
+unchanged/DEFERRED.
+
 Independent R23 review correction — 2026-09-27: reviewed exact commit
 `0378b381` versus `b457aabd` with GPT-6 Astra at high effort. Reproduced precise
 station-coordinate rejection, conflicting official identities, unchecked typed

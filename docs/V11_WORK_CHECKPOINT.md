@@ -1,5 +1,64 @@
 # Alpha V11 work checkpoint
 
+## Velocity-rule redirect off R23 and R18 independent-guardian audit, 2026-09-27 (supervisor batch 2)
+
+Recovery check: `git status` clean, local HEAD `385e4da` equal to
+`origin/weather-v11-profitability-upgrade-2026-09-23`, no unfinished process.
+This checkpoint's own top entry (R23 candidate-integration binding) is the
+third consecutive published batch to touch R23 (following supervisor batch
+15's real-mapping implementation and the independent review correction)
+without moving X/200. Per the score-velocity rule, continuing R23 a fourth
+time requires this batch to credibly cross a missing C/J/E/A boundary; it
+cannot: the matrix's own remaining R23 tail is "supported finer dependence
+mappings, protected review/certification, archival/freshness and independent
+guardian-side integration." Protected review/certification would require
+inventing an authorization model the master does not itself prescribe — the
+same caution this project already applied to R39's protected configuration
+custody — and archival/freshness requires real evidence accumulated over
+actual operating time, not code. Finishing only the guardian-side wiring
+piece in isolation would not close R23's J boundary while those two remain
+open, so a fourth consecutive R23 batch was not attempted. Recorded once
+here; redirecting to a different requirement this batch, per the redirect
+rule.
+
+Audited `v11/event_risk.py`, `v11/paper_guardian.py` and `v11/risk_inputs.py`
+end to end for R18 ("independent guardian integration pending" per the
+matrix), since R18 is the only other requirement whose named remaining gap
+explicitly cites the same "independent guardian" language as R23. Traced the
+full pipeline: `EventRiskInputs.evaluate()` measures dispersion/model
+age/book depth-loss/cross-bucket motion/loss-utilization from real
+book/model/observation evidence and publishes a `COORDINATOR_EVENT`
+`MEASUREMENT`; `EventRiskEngine.step()` consumes it (plus safety-reduction
+flags) to publish a `state`/`valid_until`/`cancellation_status` record;
+`PaperGuardian._cycle_attempt()` calls
+`EventRiskEngine(self.store).revalidate(intent['event_state_id'])` for every
+retained intent before granting a resting-admission pass, and any raised
+`EvidenceError` (stale `valid_until`, changed operator-safety heads,
+mismatched latest head) is caught and treated as `bad=True`, forcing
+cancellation rather than silently passing. This means the guardian's
+cancellation decision does not depend on the main candidate process staying
+alive: if `EventRiskInputs.evaluate()` stops running, `valid_until` expires
+and `revalidate()` fails closed on the very next guardian cycle. No
+exploitable defect was found in this path.
+
+This does not close any of R18's actually-named remaining gaps (execution
+quality, exact settlement timing, reviewed first-canary baseline and
+calibration are all explicitly UNKNOWN/pending real evidence per
+`v11/risk_inputs.py`'s own module docstring), so no new C/J/E/A credit is
+claimed. Verification: `tests/test_v11_event_risk.py
+tests/test_v11_paper_guardian.py` **69 passed / 14.42 s**;
+`tests/test_v11_risk_inputs.py` **11 passed / 6.92 s**, no skips/warnings,
+foreground. No code changed; `git diff --stat` is empty against `385e4da`.
+**85/200 = 42.5% (~43%); 1/50 (2%)**, unchanged. NOT_READY_TO_FUND; V10/
+private/financial boundaries unchanged. R31/R43/R44/R46-R49 remain
+owner/external-gated per the batch-15 audit (not re-verified this batch).
+Next: continue the R09-R31/R40-R49 local audit sweep (R18 now excluded,
+clean) for a requirement whose remaining tail is not owner/external/
+production-gated, or find another concrete un-implemented real-source
+binding analogous to R23's real NWS region mapping.
+
+## Previous published checkpoint
+
 R23 candidate-integration binding, 2026-09-27 (batch 1 recovery): recovered a
 dirty worktree left by the immediately preceding supervised invocation, which
 had started (but not published) real per-station `CorrelationMap` construction

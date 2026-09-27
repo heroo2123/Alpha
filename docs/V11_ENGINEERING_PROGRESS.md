@@ -1,5 +1,24 @@
 # Supplementary engineering estimate
 
+Velocity-rule redirect off R23 and R18 independent-guardian audit — 2026-09-27
+(supervisor batch 2): R23 had consumed three consecutive published batches
+without moving X/200; its remaining tail (protected review/certification
+needing an uninvented authorization model, plus archival/freshness needing
+real accumulated operating evidence) cannot credibly be closed by more local
+code, so a fourth R23 batch was not attempted — recorded once, redirected.
+Audited `v11/event_risk.py`/`v11/paper_guardian.py`/`v11/risk_inputs.py` for
+R18's "independent guardian integration pending" gap: confirmed the guardian's
+per-intent `EventRiskEngine.revalidate()` call fails closed (raises, treated
+as `bad=True`) on stale/changed risk state, so cancellation does not depend on
+the main candidate process staying alive; no defect found. This does not close
+R18's own named remaining gaps (execution quality/settlement timing/reviewed
+baseline/calibration, explicitly UNKNOWN pending real evidence). No code
+changed; **69 + 11 passed** (event_risk/paper_guardian/risk_inputs), no
+failures. No new C/J/E/A: **85/200 (~43%); 1/50 (2%)**, unchanged.
+NOT_READY_TO_FUND; V10 unchanged/DEFERRED. Full detail:
+`docs/V11_WORK_CHECKPOINT.md`.
+
+
 R23 candidate-integration binding, 2026-09-27 (batch 1 recovery): recovered
 and published the preceding invocation's uncommitted `build_correlation_map`
 (real per-station `CorrelationMap` aggregation) and `CandidatePlan` correlation-
