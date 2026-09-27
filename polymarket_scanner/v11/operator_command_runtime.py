@@ -14,9 +14,11 @@ retain the existing command freshness checks and durable cursor; shutdown drains
 that coroutine. The poller's bot lock retains a consumer binding across polls
 and restarts; a different store, worker or identity/policy in the same directory
 is refused before polling. This is local consistency, not protected configuration
-custody or exclusion of older/uncooperative controllers. Real delivery/deployment,
-credential provisioning, cross-directory/cross-host ownership and independent
-operational acceptance remain unclaimed.
+custody or exclusion of older/uncooperative controllers. ``handoff_bot_owner``
+exposes the poller's reviewed ownership transfer here so a deliberate binding
+change never needs raw lock-file deletion. Real delivery/deployment, credential
+provisioning, cross-directory/cross-host ownership and independent operational
+acceptance remain unclaimed.
 """
 from __future__ import annotations
 
@@ -47,3 +49,7 @@ class CandidateOperatorCommands:
         outcomes = await self.poller.step()
         return dict(outcome='OPERATOR_COMMANDS_POLLED' if outcomes else 'NO_OPERATOR_COMMANDS',
                     financial_authority=False, outcomes=outcomes)
+
+    def handoff_bot_owner(self, *, reason: str) -> dict:
+        """Reviewed transfer of the bot lock to this bound candidate; see the poller."""
+        return self.poller.handoff_bot_owner(reason=reason)

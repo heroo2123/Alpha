@@ -371,6 +371,78 @@ def test_replacing_the_database_at_an_owned_path_requires_review(rig):
     assert bot.calls == [] and original_path.is_file()
 
 
+def test_handoff_transfers_binding_without_disturbing_the_cursor(rig):
+    store, build = rig
+    from dataclasses import replace
+
+    first = build(Bot([message_update("/CANCEL_AND_HALT ACCOUNT account first")]))
+    asyncio.run(first.step())
+    assert first.offset() == 2
+    new_identity = replace(first.adapter.identity, chat_id=43, operators=(43,))
+    new_policy = replace(first.adapter.router.policy, operators=(43,))
+    successor_bot = Bot([message_update("/CANCEL_AND_HALT ACCOUNT account second", uid=5, actor=43, chat=43)],
+                         chat_id="43", operators=("43",))
+    successor = TelegramOperatorCommandPoller(store, WORKER_KEY,
+        TelegramOperatorCommandAdapter(successor_bot, new_identity, OperatorSafetyRouter(store, new_policy)))
+    with pytest.raises(OperatorCommandPollerError, match="BOT_OWNER_MISMATCH"):
+        asyncio.run(successor.step())
+    result = successor.handoff_bot_owner(reason="operator rotation drill")
+    assert result == {"outcome": "OPERATOR_COMMANDS_BOT_OWNER_HANDOFF", "reason": "operator rotation drill"}
+    # The cursor (offset 2, keyed by the unchanged worker_key/store) is preserved.
+    assert successor.offset() == 2
+    outcomes = asyncio.run(successor.step())
+    assert outcomes[0]["outcome"]["actor"] == 43
+    assert successor.offset() == 6
+    handoffs = [r for r in store.records(kind="OPERATOR_EVENT", limit=10)
+                if r["body"]["details"].get("outcome") == "OPERATOR_COMMANDS_BOT_OWNER_HANDOFF"]
+    assert len(handoffs) == 1
+    assert handoffs[0]["body"]["details"]["reason"] == "operator rotation drill"
+    # The old binding still refuses to poll once superseded.
+    with pytest.raises(OperatorCommandPollerError, match="BOT_OWNER_MISMATCH"):
+        asyncio.run(first.step())
+
+
+def test_handoff_refuses_a_no_op_transfer(rig):
+    store, build = rig
+    poller = build(Bot([]))
+    asyncio.run(poller.step())
+    with pytest.raises(OperatorCommandPollerError, match="OPERATOR_COMMANDS_HANDOFF_NOT_CHANGED"):
+        poller.handoff_bot_owner(reason="nothing actually changed")
+
+
+@pytest.mark.parametrize("reason", ["", "   ", "x" * 201, "line one\nline two"])
+def test_handoff_rejects_an_invalid_reason(rig, reason):
+    store, build = rig
+    from dataclasses import replace
+
+    owner = build(Bot([]))
+    asyncio.run(owner.step())
+    identity = replace(owner.adapter.identity, chat_id=43, operators=(43,))
+    policy = replace(owner.adapter.router.policy, operators=(43,))
+    successor = TelegramOperatorCommandPoller(store, WORKER_KEY,
+        TelegramOperatorCommandAdapter(Bot(chat_id="43", operators=("43",)), identity,
+                                        OperatorSafetyRouter(store, policy)))
+    with pytest.raises(OperatorCommandPollerError, match="OPERATOR_COMMANDS_HANDOFF_REASON_INVALID"):
+        successor.handoff_bot_owner(reason=reason)
+
+
+def test_handoff_is_refused_while_a_poll_holds_the_bot_lock(rig, tmp_path):
+    import fcntl
+
+    store, build = rig
+    poller = build(Bot([]))
+    asyncio.run(poller.step())
+    lock_path = store.path.with_name("operator-bot-123.lock")
+    fd = os.open(lock_path, os.O_CREAT | os.O_WRONLY, 0o600)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        with pytest.raises(OperatorCommandPollerError, match="OPERATOR_COMMANDS_BOT_ALREADY_POLLING"):
+            poller.handoff_bot_owner(reason="cannot run concurrently")
+    finally:
+        fcntl.flock(fd, fcntl.LOCK_UN)
+        os.close(fd)
+
+
 def test_worker_key_must_be_a_valid_identity(rig):
     store, build = rig
     bot = Bot([])

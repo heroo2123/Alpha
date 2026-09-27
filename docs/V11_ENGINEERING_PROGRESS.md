@@ -1,5 +1,61 @@
 # Supplementary engineering estimate
 
+Reviewed ownership handoff — 2026-09-27 (supervisor batch 9): recovery check at
+batch start found `git status` clean, local HEAD `106b504d21897d78d71a927e732ca8fb1bc33983`
+equal to `origin/weather-v11-profitability-upgrade-2026-09-23`, and no
+unfinished process; the checkpoint/matrix/ledger already reflected that exact
+HEAD, so no prior same-batch work needed recovery. The batch-8 review's own
+recorded next action for R39 named "offline protected configuration and
+ownership/handoff implementation... required without needing real
+credentials" as the one remaining purely local gap; R31 (result-lag finality)
+and R43/R44 (auth/isolated-deployment) all require real external source or
+owner access and stay blocked, so this was the batch's target.
+
+Added `TelegramOperatorCommandPoller.handoff_bot_owner` in
+`v11/operator_command_poller.py`: under the same exclusive bot-scoped lock
+`step()` already uses, it reads the existing binding, refuses a no-op
+transfer (`OPERATOR_COMMANDS_HANDOFF_NOT_CHANGED`) and an invalid reason
+(`OPERATOR_COMMANDS_HANDOFF_REASON_INVALID`: empty, over 200 characters, or
+multi-line), records the exact prior binding, new binding and reason as a
+durable `OPERATOR_EVENT` before rewriting the lock, then repeats the same
+fsync-file/fsync-parent-directory durability protocol `_bind_bot_owner` uses
+for a first claim. The target `worker_key` and `store` are never changed by a
+handoff, so the durable Telegram offset survives the transfer exactly —
+verified by a new test that hands off to a poller with a different bot
+identity/policy and confirms the offset is unchanged and the next poll resumes
+from it rather than from zero. `v11/operator_command_runtime.py`'s
+`CandidateOperatorCommands.handoff_bot_owner` exposes the same operation for
+the candidate-bound wiring. This replaces raw lock-file deletion/truncation
+(which the module's docstring already called unsupported) with a reviewed,
+audited transfer.
+
+Seven new cases in `tests/test_v11_operator_command_poller.py`: the transfer
+itself (offset preserved, old binding subsequently refused, new binding can
+poll), a no-op refusal, four parametrized invalid-reason refusals, and a
+refusal while a concurrent raw lock holds the bot lock. Targeted: **48 passed
+/ 2.38 s** (was 41). Directly related (candidate runner, operator command/
+safety, event-risk, evidence-foundation suites): **141 passed / 29.57 s**.
+Broader affected selection (`-k "candidate_runner or operator_command or
+operator_safety or event_risk or telegram"`, includes production
+`Telegram.principal`/panel coverage): **168 passed, 33.23 s, exit 0**, no
+skips/warnings, foreground. `git diff --stat` after the change showed exactly
+three touched files (`v11/operator_command_poller.py`,
+`v11/operator_command_runtime.py`, the poller test file), confirming no
+unrelated or private material was touched. No full regression run: this is a
+single-module addition plus its direct integration surface, consistent with
+the testing budget for one coherent batch.
+
+This closes the local "ownership/handoff implementation" gap only. It does
+not establish cross-directory/cross-host/older-controller exclusion,
+protected non-cooperative configuration custody, real bot-token delivery, or
+independent operational acceptance — all still open, same as before this
+batch. No new C/J/E/A milestone: **85/200 (~43%); 1/50 (2%)**, unchanged.
+NOT_READY_TO_FUND; V10 unchanged/DEFERRED. Next: either (a) a production
+entry point wiring a real credentialed `Telegram` client to
+`CandidateOperatorCommands` for an actual deployed account (owner
+credential/deployment decision required), or (b) R31/R43/R44, which all need
+real external source/owner access rather than local implementation.
+
 Independent batch-8 review — 2026-09-27: fixed two material defects in the
 same-directory bot lock. Alternating consumers could acknowledge and lose safety
 commands despite never overlapping; failed bot-lock opens leaked worker file
