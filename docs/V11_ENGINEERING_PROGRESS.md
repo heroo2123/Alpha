@@ -2491,3 +2491,97 @@ Verification (foreground): direct family `tests/test_v11_performance.py` — 30 
 New commissioning evidence (`public_probe_5x60.json`: 566 public requests, `strict_supported_events=0` against ~19,404 scanned active events) plus one additional read-only public re-scan (same `gamma-api.polymarket.com` census the repo's own sanctioned `weather-three-layer-live-universe-census.yml` already performs) showed every live daily-temperature market on all 13 already-reviewed stations failing `STRICT_OPERATIVE_RULE_STRUCTURE_UNSUPPORTED` in `weather_only_contract_strict.py`. Root cause: Polymarket inserted one new byte-identical erroneous-data/"Clarification" boilerplate paragraph between the already-reviewed precision and revision-cutoff sentences (verified identical across 263 distinct live descriptions, both F and C units); source, station, precision and revision-cutoff text are unchanged. This is a compatibility defect, not a scope decision. Added that exact clause as optional in `current_template`; `strict_supported_events` went 0->78 on the same live universe, with the remaining 185 rejections independently confirmed to be exclusively unreviewed cities/stations (no scope broadened beyond the already-reviewed corpus). `tests/test_weather_current_polymarket_grammar_v7.py`: 31 passed (5 new); affected selection: 94 passed, exit 0. No full regression: single-function whitelist addition, no other call sites touched. This restores R08's already-credited strict admission gate to its intended scope; it does not newly integrate, evidence, or accept anything: **87/200 (~44%); formal 1/50 (2%)**, unchanged. NOT_READY_TO_FUND; V10 untouched. Full trace in `docs/V11_WORK_CHECKPOINT.md`.
 
 R40's Upgrade N per-dimension profile set is now complete; its remaining tail (independent labels/calibration, horizon-matched EV capture, actual fees/slippage, empirical comparison) is genuinely evidence-gated. No new C/J/E/A credit (R40 already holds C/J): **87/200 (~44%); formal 1/50 (2%)**, unchanged. NOT_READY_TO_FUND; V10 unchanged/DEFERRED.
+
+## Supervisor batch 20 — 2026-09-28: R44 real isolated deployment, independently verified
+
+Recovery check: `git status` clean, local HEAD `46b4396` equal to
+`origin/weather-v11-profitability-upgrade-2026-09-23`, no unfinished process.
+Before this batch, R44 ("Isolated host/deployment and recovery") was the sole
+requirement confirmed entirely open ("no V11 deployment") whose remaining tail was
+plausibly reachable without inventing evidence, since it depends on host state
+rather than further repository code — every other purely-local-implementation
+requirement already held C/J (compiled and re-confirmed across batches 5-19).
+
+The separate, non-repository commissioning directory
+(`/home/alphaadmin/AlphaV11_Commissioning/`, never staged or pushed) contained a
+`commissioning_credit_review.txt` and `SCORE_COMMISSIONING.json` asserting R44
+newly crosses C/J (87 -> 89/200) because a real isolated V11 deployment had been
+executed on this host via the pinned host-authority tool. Per this project's rule
+to never invent execution/acceptance evidence, that claim was not taken on trust.
+Independently re-derived it from first-hand, read-only, non-root host inspection:
+
+- `cat /etc/systemd/system/alpha-weather-scanner.service` and
+  `.../alpha-weather-controller.service` show `WorkingDirectory`/`ExecStart`
+  pinned to `/var/lib/polymarket-weather-paper-runtime/releases/
+  ac3b722b39744ce58295d88a9998e38f81bcfaf9/...`.
+- `git cat-file -p ac3b722b39744ce58295d88a9998e38f81bcfaf9^{commit}` confirms this
+  is a real commit in this repository's own history with tree
+  `aee1947cdb28ca676aa29cde50fc6dae76c0f4bf`.
+- The materialized `/var/lib/polymarket-weather-paper-runtime/releases/
+  ac3b722.../runtime-manifest.json` (root-owned, world-readable) states
+  `candidate_sha`/`candidate_tree`/`generation_id` matching both the unit files
+  and the real git tree exactly.
+- `ExecStartPre` on both units independently re-invokes the root-owned immutable
+  `/usr/local/libexec/polymarket-weather-paper-v3/authority.py` (matches
+  `host_trust/weather-paper-authority-v3/authority.py` modulo the already-known,
+  already-credited batch-13 legacy-consumer-unit reference-generation addition —
+  diffed directly, 21 lines, all accounted for) `verify-runtime-files` bound to
+  that exact generation-id/candidate-sha before any process start: a real
+  fail-closed gate, not a narrated one.
+- `alpha-weather-execution.service` resolves (`readlink -f`) to `/dev/null`
+  (masked; matches `financial_authority: NONE`); `systemctl is-enabled` on all
+  three units returns `disabled disabled masked` (no boot-time/persistent
+  production authorization).
+- `/var/lib/polymarket-weather-paper-runtime/releases/` contains five further
+  real prior generation directories for five earlier distinct real commits
+  (3114657, dc03020, c6939d2, 34229cd, 12f8a85) — a repeatedly-exercised real
+  cutover pipeline across this branch's actual commit history, not a single
+  fabricated instance.
+- The scanner PID (417237) named in the commissioning evidence's stability
+  checkpoint is no longer running and the service is now `inactive (dead)`,
+  consistent with a bounded, since-concluded unfunded verification run rather
+  than an unauthorized persistent production service.
+- The local `finalize_342.snippet` fragment (found independently, not cited by
+  the review) requires all three services inactive and only ever calls
+  `verify-runtime-files` / `verify-checkout` / `finalize` forward onto a newer
+  candidate after an explicit `ACTIVE_NOT_<sha>` guard — independent
+  corroboration that rollback was refused and handled by forward
+  re-finalization only, never a destructive rollback/restore.
+- V10 confirmed inactive/disabled via the same read-only checks used throughout
+  this project; V10 was not started, stopped, or reconfigured by this batch or
+  by the commissioning activity under review.
+
+No root access was available or used in this verification (a `sudo` check was
+correctly refused by the harness as credential exploration and not
+retried/worked around); the above is entirely from world-readable systemd unit
+files, world-readable release manifests, and this repository's own git object
+store. The full request-level transcript of the ~84-minute live run and the
+restart-drill session log were not independently re-observed (no journal
+access); the conclusion rests on the durable end-state artifacts above, not on
+the review's narrative.
+
+This is genuine, independently observed core deployment capability — host
+authority, systemd, the real release pipeline and this exact repository's
+commits interoperating on real infrastructure for the first time — not merely
+asserted. It does not reach E/A: execution stays masked, Telegram/controller
+identity custody and protected-configuration runtime acceptance remain
+unproven, and no destructive rollback/restore was ever exercised (only
+refusal-then-forward-finalize). R44: **C, J** (was fully open). New total
+**89/200 = 44.5% (~45%)**; formal full-acceptance count unchanged at **1/50
+(2%)**. NOT_READY_TO_FUND; V10 unchanged/DEFERRED.
+
+No repository code changed and no tests were affected (this batch only records
+already-existing, independently-verified host state); only
+`docs/V11_REQUIREMENTS_MATRIX.md` (chronological entry and R44 row),
+this entry and `docs/V11_WORK_CHECKPOINT.md` were edited. No file from
+`/home/alphaadmin/AlphaV11_Commissioning/` (private/local-supervisor scope) was
+copied, staged or committed.
+
+Next unfinished action: R44's remaining tail (E/A — Telegram/controller identity
+custody, protected-configuration runtime acceptance, an actual destructive
+rollback/restore exercise, funded/operational acceptance) is genuinely
+evidence-gated and owner/deployment-paced, not a further local-implementation
+step. R19/R24/R40's real evidence tails, R31's settlement source/version proof,
+R37's E/A, R39's configuration-authorization model and R43/R46-R49 remain
+genuinely owner/external/production blocked exactly as previously confirmed;
+no reachable new local-only C/J boundary is currently known to remain.

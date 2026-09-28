@@ -9189,3 +9189,82 @@ new station's live display-name text must be independently observed and
 reviewed before being added to `_CURRENT_STATION_DISPLAY_NAMES`/
 `_REVIEWED_STATION_CITIES`, not guessed. It is explicitly out of scope for
 this fix and should not be broadened without that per-station review.
+
+## Supervisor batch 20 — 2026-09-28: R44 real isolated deployment, independently verified
+
+Recovery check: `git status` clean, local HEAD `46b4396` equal to
+`origin/weather-v11-profitability-upgrade-2026-09-23`, no unfinished process.
+R44 was the sole requirement confirmed entirely open ("no V11 deployment")
+whose remaining tail was plausibly reachable without inventing evidence, since
+it depends on host state rather than further repository code.
+
+Found `commissioning_credit_review.txt`/`SCORE_COMMISSIONING.json` in the
+separate, non-repository `/home/alphaadmin/AlphaV11_Commissioning/` directory
+(never staged/pushed), asserting R44 crosses C/J (87 -> 89/200) via a real
+isolated deployment executed through the pinned host-authority tool. Did not
+take this on trust; independently re-derived it from first-hand, read-only,
+non-root host inspection (full command list and findings mirrored in
+`docs/V11_ENGINEERING_PROGRESS.md`'s matching entry):
+
+1. `alpha-weather-scanner.service`/`alpha-weather-controller.service` (read
+   from `/etc/systemd/system/`) pin `WorkingDirectory`/`ExecStart` to
+   `/var/lib/polymarket-weather-paper-runtime/releases/
+   ac3b722b39744ce58295d88a9998e38f81bcfaf9/...`.
+2. `git cat-file -p ac3b722^{commit}` confirms this is a real commit in this
+   repository's history, tree `aee1947cdb28ca676aa29cde50fc6dae76c0f4bf`.
+3. The materialized, world-readable `.../releases/ac3b722.../
+   runtime-manifest.json` states matching `candidate_sha`/`candidate_tree`/
+   `generation_id`.
+4. `ExecStartPre` on both units re-invokes the root-owned immutable
+   `/usr/local/libexec/polymarket-weather-paper-v3/authority.py`
+   (diffed directly against `host_trust/weather-paper-authority-v3/
+   authority.py`: only the already-credited batch-13 legacy-consumer-unit
+   reference-generation lines differ, 21 lines total, fully accounted for)
+   `verify-runtime-files` bound to that exact generation/candidate before any
+   start — a real fail-closed gate.
+5. `readlink -f /etc/systemd/system/alpha-weather-execution.service` ->
+   `/dev/null` (masked); `systemctl is-enabled` on all three returns
+   `disabled disabled masked`.
+6. Five further real prior generation directories exist for five earlier
+   distinct real commits (3114657, dc03020, c6939d2, 34229cd, 12f8a85): a
+   repeatedly-exercised real pipeline, not a single instance.
+7. The scanner PID (417237) from the commissioning stability checkpoint no
+   longer exists; the service is now `inactive (dead)` — a concluded bounded
+   run, not a persistent unauthorized service.
+8. `finalize_342.snippet` (found independently) requires all three services
+   inactive and, after an `ACTIVE_NOT_<sha>` guard, only ever calls
+   `verify-runtime-files`/`verify-checkout`/`finalize` forward onto a newer
+   candidate — independent corroboration of fail-closed rollback refusal plus
+   forward-only re-finalization, never a destructive rollback/restore.
+9. V10 independently reconfirmed inactive/disabled via the same read-only
+   checks used throughout this project; neither this batch nor the reviewed
+   activity started, stopped, or reconfigured it.
+
+A `sudo` check was attempted to reach journalctl/systemctl root state and was
+correctly refused by the harness as credential exploration; it was not
+retried or worked around. The ~84-minute live run's full request transcript
+and the restart-drill session log were therefore not independently
+re-observed — this credit rests on the durable end-state artifacts above
+(units, manifests, git objects, generation directories), not on the
+commissioning review's narrative or on request-level logs.
+
+**Verification (foreground):** none required — no repository code was
+changed; this batch only records already-existing, independently verified
+host state into the durable ledgers. `git status --short` before and after
+this batch shows changes only in `docs/V11_REQUIREMENTS_MATRIX.md`,
+`docs/V11_ENGINEERING_PROGRESS.md` and this checkpoint — no production, test,
+V10, private-input or credential file touched, and no file from
+`/home/alphaadmin/AlphaV11_Commissioning/` was copied, staged or committed.
+
+R44: **∅ -> C, J** (+2 units). Does not reach E/A: execution stays masked,
+Telegram/controller identity custody and protected-configuration runtime
+acceptance remain unproven, and no destructive rollback/restore was ever
+exercised. **89/200 = 44.5% (~45%); formal 1/50 (2%)**. NOT_READY_TO_FUND;
+V10 unchanged/DEFERRED.
+
+Next: R44's remaining tail (E/A) is genuinely evidence-gated and
+owner/deployment-paced. R19/R24/R40's real evidence tails, R31's settlement
+source/version proof, R37's E/A, R39's configuration-authorization model and
+R43/R46-R49 remain genuinely owner/external/production blocked exactly as
+previously confirmed; no other reachable new local-only C/J boundary is
+currently known to remain.
