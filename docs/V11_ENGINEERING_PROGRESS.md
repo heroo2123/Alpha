@@ -2585,3 +2585,64 @@ step. R19/R24/R40's real evidence tails, R31's settlement source/version proof,
 R37's E/A, R39's configuration-authorization model and R43/R46-R49 remain
 genuinely owner/external/production blocked exactly as previously confirmed;
 no reachable new local-only C/J boundary is currently known to remain.
+
+Supervisor batch 21 — 2026-09-28: bounded R47 ("CONTROLLED-LEARNING ACCEPTANCE")
+gap analysis, scoped only to that requirement per this batch's assignment.
+Checked the private master's 14 "CONTROLLED LEARNING READY" bullets against
+actual code/tests rather than the matrix's narrative. Thirteen already have
+durable local evidence under R14-R17/R40-R42 (immutable content-addressed
+bundle registry pinned at every real decision site via
+`ActiveModelRegistry().pin(...)`; atomic/auditable/reversible promotion and
+rollback in `host_trust/v11-model-authority/authority.py`; causal dataset
+manifests/provenance; existing no-lookahead/leakage tests
+(`test_v11_datasets.py::test_city_day_and_event_cannot_leak_across_time_splits`,
+`test_v11_model_artifacts.py`'s `LOOKAHEAD` cases); reproducibility tests;
+resource-failure-safety tests; and `run_research_fit`'s permanent
+`NO_PROMOTION` default). One bullet — "learning/training plane is isolated
+from financial credentials/order authority" — was true in practice (confirmed
+by manual import inspection of `v11/offline_learning.py`,
+`v11/forecast_learning.py`, `v11/learning_worker.py`) but, unlike the sibling
+promotion-authority publisher's existing
+`test_root_publisher_does_not_import_candidate_code_or_use_network` AST check,
+had no equivalent persisted automated regression test for the learner itself.
+
+Closed that one narrow gap: added
+`tests/test_v11_offline_learning.py::test_learner_plane_never_imports_financial_order_or_host_authority_code`,
+statically AST-scanning `offline_learning`/`forecast_learning`/`learning_worker`
+for any top-level import resolving to `production`, `host_trust`, or a raw
+network/subprocess/pickle primitive. Verification: direct file 13 passed /
+4.49 s; affected family (`offline_learning`/`forecast_learning`/
+`learning_worker`/`model_governance`/`model_artifacts`) 93 passed / 32.83 s,
+exit 0, only pre-existing FastAPI deprecation warnings, no production code
+changed. `git status --short` shows changes only in
+`tests/test_v11_offline_learning.py` plus the matching
+`docs/V11_REQUIREMENTS_MATRIX.md` R47 row and `docs/V11_WORK_CHECKPOINT.md`
+entry.
+
+This hardens evidence for one already-true bullet only; it does not create an
+initial champion and does not reach R47's own aggregate acceptance. On closer
+inspection, "shadow evaluation" has more existing structure than a first grep
+suggested: `v11/strategy_admission.py::_assess` enforces
+`CHALLENGER_ABLATION_REQUIRE_SHADOW_STAGE` (any non-`V11_PAPER` store
+namespace must present `stage='SHADOW'`), `V11_SHADOW` is a real, separately
+reviewed model-epoch mode in `host_trust/v11-model-authority/authority.py`/
+`v11/model_registry.py`, and `v11/causal_replay.py`/`v11/portfolio_replay.py`
+already select `mode='V11_SHADOW'` for `stage='SHADOW'` replays. Whether this
+already forms a genuine end-to-end challenger replay/ablation/holdout/shadow
+pipeline, or where exactly it stops short, was not traced this batch and is
+not asserted either way — that trace is real scoped follow-up work, not a
+finding of this batch. R47's real blocker is unchanged regardless: no initial
+champion has ever been fit against real data or accepted
+(`docs/V11_CONTINUAL_LEARNING.md`: "No actual V10 dataset has been fitted"),
+which is an owner/empirical action this worker cannot fabricate. No new
+C/J/E/A. **89/200 = 44.5% (~45%); formal 1/50 (2%)**, unchanged.
+NOT_READY_TO_FUND; V10 unchanged/DEFERRED.
+
+Next unfinished action: trace whether `V11_SHADOW`/
+`CHALLENGER_ABLATION_REQUIRE_SHADOW_STAGE` plus `causal_replay.py`'s
+SHADOW-mode replay already constitute a genuine end-to-end challenger
+shadow-evaluation stage, or find the exact missing link — scoped, reachable,
+non-owner-gated local investigation. R47's aggregate acceptance itself still
+requires an actual real-data champion fit and independent/owner review, which
+remains genuinely OWNER_ONLY/PRODUCTION_GATED/EMPIRICAL_WAIT exactly as
+supervisor batch 15 concluded.

@@ -1,6 +1,8 @@
 from dataclasses import asdict, replace
+import ast
 import copy
 import json
+from pathlib import Path
 
 import pytest
 
@@ -9,6 +11,7 @@ from polymarket_scanner.v11.datasets import (
 )
 from polymarket_scanner.v11.evidence import EvidenceError, EvidenceStore, ReleaseBinding, canonical, digest
 from polymarket_scanner.v11.model_artifacts import ArtifactStore
+from polymarket_scanner.v11 import offline_learning, forecast_learning, learning_worker
 from polymarket_scanner.v11.offline_learning import LearningEnvelope, run_research_fit
 from test_v11_model_artifacts import make_artifacts, provenance
 
@@ -167,3 +170,34 @@ def test_frozen_policy_cannot_drop_or_reinterpret_parent_feature_columns(tmp_pat
     with pytest.raises(EvidenceError,match='COMPLETE_PARENT_FEATURE_MAPPING_REQUIRED'):
         run_research_fit(**cfg)
     assert cfg['journal'].store.pin_read_view()==before
+
+
+# Forbidden import roots for the learner/challenger plane: the entire financial
+# execution/order/account package (`production`), the privileged deployment/host
+# authority package (`host_trust`), and any direct network, subprocess or pickle
+# primitive. This is a static, durable check that the fitting and scheduling
+# code (not just its narrative docstrings) can never reach financial credentials
+# or order authority -- matching the sibling check in
+# test_v11_model_governance.py::test_root_publisher_does_not_import_candidate_code_or_use_network,
+# which covers the promotion-authority publisher rather than the learner itself.
+_FORBIDDEN_LEARNER_IMPORT_ROOTS = (
+    'production', 'host_trust', 'requests', 'http', 'urllib', 'socket', 'subprocess', 'pickle', 'ctypes',
+)
+
+
+def _imported_roots(module):
+    source = Path(module.__file__).read_text()
+    names = []
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, ast.Import):
+            names.extend(n.name for n in node.names)
+        if isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
+            names.append(node.module)
+    return {str(name).split('.')[0] for name in names}
+
+
+@pytest.mark.parametrize('module', [offline_learning, forecast_learning, learning_worker])
+def test_learner_plane_never_imports_financial_order_or_host_authority_code(module):
+    roots = _imported_roots(module)
+    forbidden = roots & set(_FORBIDDEN_LEARNER_IMPORT_ROOTS)
+    assert not forbidden, f'{module.__name__} imports forbidden root(s): {forbidden}'

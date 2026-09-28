@@ -9268,3 +9268,95 @@ source/version proof, R37's E/A, R39's configuration-authorization model and
 R43/R46-R49 remain genuinely owner/external/production blocked exactly as
 previously confirmed; no other reachable new local-only C/J boundary is
 currently known to remain.
+
+## Supervisor batch 21 — 2026-09-28: R47 gap analysis, learner isolation test
+
+Recovery check: `git status` clean, local HEAD `626aaa4` equal to
+`origin/weather-v11-profitability-upgrade-2026-09-23`, no unfinished process,
+no newer uncommitted work found. Scope: R47 "CONTROLLED-LEARNING ACCEPTANCE"
+only, per the private master's 14-bullet "CONTROLLED LEARNING READY"
+definition (section preceding "LIVE EXECUTION READY").
+
+Cross-referenced each of the 14 bullets against actual code/tests rather than
+narrative. Thirteen already have durable local evidence, spread across
+R14-R17/R40-R42: immutable content-addressed bundle registry with inference
+pinned via `ActiveModelRegistry().pin(...)` at every real decision site
+(`strategy_pipeline.py`, `position_management.py`, `relative_value.py`,
+`basket_coordinator.py`, `pws_admission.py`, `source_release.py`,
+`maker_context.py`, `reaction_runtime.py`, `drift_runtime.py`,
+`risk_inputs.py`, `strategy_admission.py`); atomic/auditable/reversible
+PROMOTE/ROLLBACK/DEMOTE/RESTORE_OVERLAY in
+`host_trust/v11-model-authority/authority.py` (already R17 C/J, independently
+guardian-audited batch 5); causal dataset manifests/provenance in
+`v11/datasets.py`; no-lookahead/leakage tests already exist
+(`test_v11_datasets.py::test_city_day_and_event_cannot_leak_across_time_splits`,
+`test_v11_model_artifacts.py`'s `LOOKAHEAD` cases); reproducibility tests in
+`test_v11_offline_learning.py`; resource-failure-safety tests
+(`RESOURCE_BUDGET_EXHAUSTED`); and `v11/offline_learning.py::run_research_fit`
+permanently returns `NO_PROMOTION` (fails closed on insufficient evidence by
+construction, not by policy toggle).
+
+One bullet was genuinely under-evidenced: "learning/training plane is isolated
+from financial credentials/order authority." This was true in practice (manual
+`grep`/import inspection of `v11/offline_learning.py`, `v11/forecast_learning.py`,
+`v11/learning_worker.py` confirms none imports `production.*`, `host_trust.*`,
+or any network/subprocess primitive) but, unlike the sibling promotion-authority
+publisher — which already has a persisted
+`test_v11_model_governance.py::test_root_publisher_does_not_import_candidate_code_or_use_network`
+AST-import-boundary regression test — the learner itself had no equivalent
+durable automated check; the isolation claim rested only on docstrings and
+one-off inspection.
+
+Closed that narrow gap: added
+`tests/test_v11_offline_learning.py::test_learner_plane_never_imports_financial_order_or_host_authority_code`,
+parametrized over the `offline_learning`, `forecast_learning` and
+`learning_worker` modules, statically walking each file's AST and asserting no
+top-level absolute import resolves to `production`, `host_trust`, `requests`,
+`http`, `urllib`, `socket`, `subprocess`, `pickle` or `ctypes`. This mirrors
+the existing publisher-side check and gives the isolation bullet the same
+kind of durable, automated, tamper-evident evidence the other 13 bullets
+already have, rather than relying on narrative.
+
+**Verification (foreground):** `tests/test_v11_offline_learning.py` — 13
+passed / 4.49 s, exit 0 (10 previously passing plus 3 new parametrized cases).
+Affected family (`-k "offline_learning or forecast_learning or
+learning_worker or model_governance or model_artifacts"`) — 93 passed / 32.83 s,
+exit 0, only the four pre-existing FastAPI `on_event` deprecation warnings, no
+failures/skips. No full regression: single-file test addition with no
+production code touched. `git status --short` shows changes only in
+`tests/test_v11_offline_learning.py` plus this checkpoint entry and the
+matching `docs/V11_REQUIREMENTS_MATRIX.md` R47 row — no production, V10,
+private-input or credential file touched. No PAPER service, order, wallet,
+credential or network access was used.
+
+This closes one specific evidence gap for one already-true bullet; it does
+**not** create an initial champion and does not reach the aggregate acceptance
+R47 itself gates on. A closer look at "shadow evaluation" found more existing
+structure than a first grep suggested and worth recording precisely instead of
+asserting it is simply missing: `v11/strategy_admission.py::_assess` already
+enforces `CHALLENGER_ABLATION_REQUIRE_SHADOW_STAGE` (a non-`V11_PAPER` store
+namespace must present `stage='SHADOW'`), `V11_SHADOW` is a real, separately
+reviewed model-epoch mode distinct from `V11_PAPER` in
+`host_trust/v11-model-authority/authority.py`/`v11/model_registry.py`, and
+`v11/causal_replay.py`/`v11/portfolio_replay.py` already select
+`mode='V11_SHADOW'` for `stage='SHADOW'` replays. Whether this amounts to the
+master's full "challenger replay/ablation/holdout/shadow evaluation pipeline"
+end to end (i.e. a genuine non-PAPER challenger run exercised through
+admission, replay and the learner's own TRAIN/CONFIRMATION holdout split, with
+evidence tying them together) was not traced end-to-end this batch and is not
+asserted either way; that trace, or the specific missing link if one is found,
+is real, scoped follow-up work, not a claim made here. R47's actual blocker is
+unchanged and is not locally reachable regardless: an initial champion has
+never been fit against real data or accepted
+(`docs/V11_CONTINUAL_LEARNING.md`: "No actual V10 dataset has been fitted"),
+and CONTROLLED LEARNING READY requires that acceptance to be genuine, not
+synthetic or invented. No new C/J/E/A. **89/200 = 44.5% (~45%); formal 1/50
+(2%)**, unchanged. NOT_READY_TO_FUND; V10 unchanged/DEFERRED.
+
+Next: trace whether `V11_SHADOW`/`CHALLENGER_ABLATION_REQUIRE_SHADOW_STAGE`
+plus `causal_replay.py`'s SHADOW-mode replay already constitute a genuine
+end-to-end challenger shadow-evaluation stage, or identify the exact missing
+link, before doing further R47 implementation work in that area — this is
+real, scoped, local investigation (not owner/credential-gated). The aggregate
+R47 acceptance itself remains blocked on an actual real-data champion fit and
+owner/independent review, which this worker cannot fabricate.
