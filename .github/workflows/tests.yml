@@ -94,6 +94,14 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
+      - name: Install namespace custody test prerequisite
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends uidmap
+          command -v newuidmap
+          command -v newgidmap
       - run: pip install --require-hashes -r requirements-dev.txt
       - name: Exact dependency lock and consistency
         run: |
