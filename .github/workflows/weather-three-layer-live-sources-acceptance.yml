@@ -7,6 +7,7 @@ on:
     branches:
       - main
       - weather-telegram-operator-continuation-2026-09-16
+      - weather-v11-profitability-upgrade-2026-09-23
       - weather-production-integration-2026-09-16
       - weather-three-layer-meticulous-final-2026-09-15
       - weather-three-layer-live-grammar-corrective-2026-09-15
