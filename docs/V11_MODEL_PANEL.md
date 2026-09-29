@@ -53,11 +53,12 @@ statistics use flattened hourly lead times. The full-ensemble bucket has request
 pays enabled. No billing configuration or chargeable request is implemented here.
 
 [WeatherNext access documentation](https://developers.google.com/weathernext/guides/access-forecast)
-requires allowlisting for operational access. GCS, BigQuery and Earth Engine
-remain separate future transport implementations. Historical availability and
-local entitlement are not assumed. Passing `AccessState.REVIEWED` alone cannot
-activate a connector: absent transport returns `NOT_AVAILABLE`; an arbitrary
-transport returns `CONNECTOR_REVIEW_REQUIRED`. No access request was submitted.
+requires allowlisting for operational access. This source is now explicitly
+**DEFERRED_NO_ACCESS** and is not on the V11 critical path; GCS, BigQuery and Earth
+Engine transports remain future optional work. Historical availability and local
+entitlement are not assumed. Passing `AccessState.REVIEWED` alone cannot activate
+a connector: absent transport returns `NOT_AVAILABLE`; an arbitrary transport
+returns `CONNECTOR_REVIEW_REQUIRED`.
 
 ## Contracts and data flow
 
@@ -127,11 +128,11 @@ families. No GEFS transport, schedule, model input or learner behavior changes.
 - Default EvidenceStore record limit remains 1 MiB. Larger GRIB fields require an
   explicitly sized existing `Limits(payload_bytes=8*1024**2)` archive; otherwise
   its normal budget rejection applies. Database/disk limits remain enforced.
-- GRIB decoder: one regular 0.25-degree field, at most 1440×721 grid points;
-  only selected nearest candidates are unpacked. Simple and IEEE packing work.
-  CCSDS template 5.42 is decoded through ECMWF ecCodes when that reviewed optional
-  dependency is available. Before any selected value is trusted, the bounded field
-  is fully decoded and re-encoded and must reproduce the original GRIB bytes exactly;
+- GRIB decoder: one regular 0.25-degree field, at most 1440×721 grid points.
+  Simple and IEEE packing use bounded direct extraction. CCSDS template 5.42 is
+  decoded through ECMWF ecCodes when that reviewed optional dependency is available;
+  for CCSDS only, the single bounded field is fully decoded and re-encoded before
+  the selected station value is trusted, and must reproduce the original GRIB bytes exactly;
   this closes an independently reproduced ecCodes behavior where self-consistent
   truncated CCSDS could otherwise return plausible wrong values. Missing Python or
   native ecCodes, malformed metadata/index types, JPEG/complex packing, bitmaps and
@@ -170,16 +171,26 @@ CCSDS template 5.42 regular 0.25-degree fields and decoded to the same nearest K
 grid point (33.75, -84.5). The observed IFS ensemble index was 1,995,799 bytes / 8,500
 rows, motivating the still-bounded 3 MiB / 12,000-row index ceiling. This proves
 current public-source layout/decoder parity only; it does not prove historical
-archive entitlement, future release stability, WeatherNext access, calibration or
-acceptance.
+AIFS archive entitlement, future release stability, calibration or acceptance.
+WeatherNext is deferred rather than an integration blocker. Separately, anonymous
+object/metadata access was verified for the public WeatherBench2 IFS-ENS
+`2018-2022-1440x721.zarr` archive. Its 2 m-temperature array is 0.25-degree
+721x1440 with 50 members and 61 forecast-lead values. WeatherBench2 documents
+this TIGGE-derived ensemble data as research-only, so it is strictly an auxiliary
+historical research candidate: it is not production/financial input and must not
+be conflated with current Cycle 50r1.
 
 ECMWF ecCodes was installed only in the development test interpreter to exercise
 CCSDS; production runtime requirements and services were not changed. The adapter
 imports it lazily and fails closed if unavailable. No V10, PAPER service, BrainWork
 downloader, financial credential or execution authority was changed.
 
-Independent review must inspect this branch against its base, rerun the focused
-suite, and review the documented operational gates before merging the CCSDS/parity
-follow-up into `weather-v11-profitability-upgrade-2026-09-23`. Current credit is
-unchanged by source plumbing alone: **89/200 (44.5%), 1/50 fully accepted**;
-**NOT_READY_TO_FUND**.
+Independent review on 2026-09-29 re-ran the final focused model-panel suite
+(**110/110 passed / 11.06 s**) and the base GRIB suite (**36/36 passed / 0.53 s**),
+and independently repeated the four real public ECMWF decode paths successfully.
+An affected GEFS-source module produced one transient source-gate failure under load;
+the exact case passed alone (**1/1**) and untouched main passed the complete same
+module (**32/32**), while the Agent-2 branch changes no GEFS source/schedule/GRIB
+file or import dependency. Preserve that diagnostic as a non-ECMWF flake signal.
+Current credit remains unchanged by source plumbing alone: **89/200 (44.5%), 1/50
+fully accepted**; **NOT_READY_TO_FUND**.
