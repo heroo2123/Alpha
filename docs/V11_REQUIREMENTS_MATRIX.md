@@ -1,5 +1,39 @@
 # V11 requirement-to-code/test/evidence matrix
 
+Supervisor batch 23 — 2026-09-29: recovery check found `git status` clean,
+local HEAD `882c05f` equal to `origin/weather-v11-profitability-upgrade-2026-09-23`,
+no unfinished process (the isolated `alpha-weather-scanner.service`, release
+`ac3b722`, was running since 03:38:54 UTC with controller inactive and
+execution masked — same fail-closed shape as batches 20/22, ~22 more minutes
+of accumulated PAPER runtime, immaterial to R46). Per the mandatory
+evidence-inspection step, reviewed three more commissioning-evidence files
+created after batch 22 published (03:46-04:00 UTC):
+`v10_nws_current_history_corroboration_20260929.json`,
+`v10_gamma_complete_payout_vectors_20260929.json` and
+`r47_gamma_reattestation_path_20260929.json`. All three are honestly
+self-labeled non-credit ("claim": "NO_ACCEPTANCE_CREDIT",
+`financial_authority`/`promotion_authority`/`independent_model_acceptance`/
+`settlement_label_authority` all `false`). The Gamma file is a genuine
+read-only public re-fetch of 34 resolved weather events / 374 final markets
+(payout vectors only, not source-cutoff proof). The NWS corroboration file
+re-fetches current WRH history against 206 preserved V10 settled positions
+(146 agree / 0 disagree / 60 no comparable record / 7 of 27 source pairs
+failed to fetch) and its own `scope` field states plainly this is "NOT exact
+contract-cutoff finality" — confirming, not closing, R31's already-recorded
+gate ("bounded WRH polling cannot reconstruct unobserved revisions... exact
+source/version proof absent, remains GATED"). The reattestation file proposes
+assembling a real-data V11 research dataset and running the existing
+`NO_PROMOTION` offline learner as a next step, but R47 holds no incremental
+C/J at all (aggregate acceptance gate per `docs/V11_ENGINEERING_PROGRESS.md`),
+so even a completed dataset/learner run would not itself cross a boundary —
+full acceptance separately requires independent/owner review regardless. No
+boundary reachable from either file; attempting the proposed dataset work
+would be a third consecutive non-crossing R47 touch, which the anti-churn
+rule forbids absent a P0/P1 defect (none found). No source or test code
+changed; no new C/J/E/A. **89/200 = 44.5% (~45%); formal 1/50 (2%)**,
+unchanged. NOT_READY_TO_FUND; V10 unchanged/DEFERRED. Full detail:
+`docs/V11_WORK_CHECKPOINT.md` (supervisor batch 23).
+
 Supervisor batch 22 — 2026-09-29: recovery check found `git status` clean,
 local HEAD `77ec2a5` equal to `origin/weather-v11-profitability-upgrade-2026-09-23`,
 no unfinished process. Per the mandatory evidence-inspection step, reviewed all

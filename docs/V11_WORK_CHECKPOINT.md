@@ -9471,3 +9471,96 @@ gap identified above is real follow-up but not itself credit-bearing); R31
 deployment/configuration review); R43/R48/R49 (credentialed/production
 acceptance). Next unfinished action: none locally reachable this cycle;
 hand off to acceptance-watch routing pending new owner/operational evidence.
+
+## Supervisor batch 23 — 2026-09-29: reviewed three more new commissioning-evidence files (post-batch-22); no new C/J/E/A
+
+Recovery check: `git status` clean, local HEAD `882c05f` equal to
+`origin/weather-v11-profitability-upgrade-2026-09-23`, no unfinished process
+other than this invocation itself and the currently-running isolated
+`alpha-weather-scanner.service` (release `ac3b722`, started 2026-09-29
+03:38:54 UTC, `alpha-weather-controller.service` inactive,
+`alpha-weather-execution.service` masked — same fail-closed, no-financial-
+authority shape independently confirmed in batches 20/22, ~22 minutes of
+additional accumulated PAPER runtime, immaterial to R46's operating-time
+threshold). Read this checkpoint, the requirements matrix and the progress
+ledger before editing.
+
+Per the mandatory pre-work step, inspected
+`/home/alphaadmin/AlphaV11_Commissioning/evidence/` for files newer than
+batch 22's review cutoff (`r47_master_clarification_20260929.txt`,
+01:11 UTC) and found three, all created 03:46-04:00 UTC today, after batch 22
+published: `v10_nws_current_history_corroboration_20260929.json`,
+`v10_gamma_complete_payout_vectors_20260929.json` and
+`r47_gamma_reattestation_path_20260929.json`.
+
+**Reviewed, not taken on trust.** All three are honestly self-labeled, not
+asserted as acceptance evidence:
+`financial_authority`/`promotion_authority`/`independent_model_acceptance`/
+`settlement_label_authority` are `false` throughout, and the reattestation
+file's own `claim` field is `"NO_ACCEPTANCE_CREDIT"`. Its `next_safe_local_action`
+proposes independently re-fetching Gamma exact-token payout vectors for
+preserved V10 settled PAPER positions and, if causal forecast-feature lineage
+can be proven, assembling a bounded real-data V11 research dataset to run
+through the existing `NO_PROMOTION` offline learner — a real, non-owner-gated
+research path, but explicitly framed as a proposal for future work, not a
+completed step.
+
+Checked each file's content directly rather than the review's framing:
+- `v10_gamma_complete_payout_vectors_20260929.json`: a real read-only public
+  Gamma re-fetch of 34 weather events / 374 markets, all `status: FINAL`,
+  `uma_resolution_status: resolved`, with exact bucket bounds and
+  yes/no payout vectors — genuine public settlement data, but by itself only
+  the market side of a label, not proof of exact NWS/WRH source-cutoff
+  finality (a different, already-identified gap).
+- `v10_nws_current_history_corroboration_20260929.json`: re-fetched current
+  public WRH history against 206 preserved V10 settled positions: 146 agree,
+  0 disagree, 60 `no_metric_history` (no comparable current record), 7 of 27
+  metric-unit source pairs failed to fetch. Its own `scope` field states
+  plainly: "Current WRH history may include later corrections and therefore
+  is NOT exact contract-cutoff finality or promotion label authority... still
+  corroboration only, not exact cutoff authority." That is the same
+  structural limitation R31's row already records ("bounded WRH polling
+  cannot reconstruct unobserved revisions... exact source/version proof
+  absent, remains GATED") — this file corroborates, and does not close, that
+  already-known gate.
+
+**No boundary crossed, for two independent reasons.** First, per batch 22's
+already-recorded finding, R47 holds no incremental C/J at all
+(`docs/V11_ENGINEERING_PROGRESS.md`'s "—" entry): it is an aggregate
+acceptance gate, so even a fully-assembled real-data research dataset and a
+completed `NO_PROMOTION` learner run would not itself cross a C/J boundary —
+only genuine full acceptance would, and that still separately requires
+independent/owner review per every prior R47 finding (batches 15/20/21/22).
+Second, the corroboration file's own disclaimer confirms it is not the exact
+source/version finality proof R31 is gated on, so it does not unblock R31
+either. Attempting the proposed dataset-assembly/learner-run step this batch
+would therefore not be reachable-boundary-crossing work; it would be a third
+consecutive non-crossing touch on R47, which the score-velocity anti-churn
+rule forbids absent a P0/P1 defect (there is none here). Not attempted.
+
+**Verification (foreground):** none required — no source or test code was
+changed; this batch only reviews existing host evidence files (never copied,
+staged or committed) and records independently-verified findings into the
+durable ledgers. `git status --short` before and after this batch shows
+changes only in `docs/V11_REQUIREMENTS_MATRIX.md`,
+`docs/V11_ENGINEERING_PROGRESS.md` and this checkpoint.
+
+No new C/J/E/A: **89/200 = 44.5% (~45%); formal 1/50 (2%)**, unchanged.
+NOT_READY_TO_FUND; V10 unchanged/DEFERRED (confirmed inactive/disabled,
+read-only, not touched this batch). `LOCAL_SCORE_WORK_EXHAUSTED`: no
+unblocked local implementation or newly available safe evidence path was
+found this batch that can credibly advance a missing C/J/E/A boundary. Exact
+blocked items needing external/owner/empirical input to unblock further
+scoring, updated with this batch's findings: R44 E/A (Telegram identity
+custody handoff, protected-configuration runtime acceptance review, an
+authorized destructive-rollback drill); R46 (real accumulated V11 paper
+operating time plus a live runtime status snapshot); R47 (full acceptance
+requires both an actual real-data initial-champion fit — for which the
+gamma-payout side of a research dataset now exists but the exact-cutoff label
+side remains R31-gated — and independent/owner review; not incrementally
+creditable regardless); R31 (exact NWS/WRH source/version finality proof —
+today's corroboration file explicitly confirms it is not that proof); R37/R39
+(owner-authorized deployment/configuration review); R43/R48/R49
+(credentialed/production acceptance). Next unfinished action: none locally
+reachable this cycle; hand off to acceptance-watch routing pending new
+owner/operational evidence or a genuine WRH exact-cutoff source.
