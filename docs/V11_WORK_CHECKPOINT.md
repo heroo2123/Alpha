@@ -9564,3 +9564,116 @@ today's corroboration file explicitly confirms it is not that proof); R37/R39
 (credentialed/production acceptance). Next unfinished action: none locally
 reachable this cycle; hand off to acceptance-watch routing pending new
 owner/operational evidence or a genuine WRH exact-cutoff source.
+
+## Supervisor batch 24 — 2026-09-29: reviewed a genuine real-data retrospective fit attempt plus a large historical-catalog probe; independently confirmed R46's live-status blocker is a real permission wall; no new C/J/E/A
+
+Recovery check: `git status` clean, local HEAD `0011982` equal to
+`origin/weather-v11-profitability-upgrade-2026-09-23`, no unfinished process
+other than this invocation and the same isolated `alpha-weather-scanner.service`
+(release `ac3b722`, started 2026-09-29 03:38:54 UTC, `NRestarts=0`, ~61
+minutes accumulated runtime at review time, `alpha-weather-controller.service`
+inactive, `alpha-weather-execution.service` masked — unchanged fail-closed,
+no-financial-authority shape). Read this checkpoint, the requirements matrix
+and the progress ledger before editing. Per this batch's own anti-churn
+constraint (batches 22/23 were both audit-only/no-credit R47/R31-adjacent
+evidence-file reviews), this batch did not perform another generic
+guardian/adversarial sweep; it targeted only the two concrete items the
+supervisor prompt names — new commissioning-evidence files, and the isolated
+PAPER scanner's actual current runtime state — and a direct re-verification
+(not an assumption) of R46's named remaining blocker.
+
+**New commissioning-evidence files (mandatory pre-work check).** Found four
+files newer than batch 23's review cutoff (`r47_gamma_reattestation_path_
+20260929.json`, 03:59:57 UTC): `v11_real_data_fit_preregistration_20260929.json`
+(04:01:33), `v11_real_data_fit_result_20260929.json` (04:03:00),
+`v11_historical_daily_temperature_catalog_20260929.json` (04:35:03) and
+`v11_noaa_gefs_historical_archive_probe_20260929.json` (04:36:31).
+
+- `v11_real_data_fit_preregistration_20260929.json` / `..._result_20260929.json`:
+  a genuine, pre-registered (grid/seed fixed before the fit ran, `seed=20260929`,
+  fixed `bias_grid`/`sigma_grid`) retrospective fit against real data — the 34
+  events with re-fetched Gamma final payout vectors plus preserved V10 31-member
+  GEFS forecasts, reviewed in batch 23. Independently checked the result rather
+  than its framing: only 20 of those 34 events actually had a complete
+  `daily_high_temperature` city-day/forecast pair and all 20 went to `TRAIN`
+  (`dataset_counts.CONFIRMATION.events=0`, `DEVELOPMENT.events=0`) — i.e. this
+  is a real grid-search fit (28 trials logged, `selected_parameters:
+  {bias:1.0, kernel_sigma:0.01}`) with **zero held-out events**, so it cannot
+  itself demonstrate generalization. The artifact's own `calibration_status`
+  is `FITTED_NOT_CALIBRATED`, `status: NO_PROMOTION`, `reason:
+  INDEPENDENT_LABEL_AND_DEPENDENCE_REVIEW_REQUIRED`,
+  `dependence_unit: CITY_DAY_NOT_PROVEN_INDEPENDENT`, and both
+  `financial_authority`/`promotion_authority` are `false` throughout — honestly
+  self-labeled as a DEVELOPMENT-only research artifact requiring independent
+  review before any promotion, not an accepted champion. This is real forward
+  progress on the "real fit against real data" half of R47's named blocker
+  (supervisor batch 15/21's phrasing: "an actual accepted initial champion —
+  a real fit against real data plus owner/independent review"), but the other
+  half (independent/owner review and acceptance) is explicitly absent and not
+  fabricable by this worker, and the fit's own dependence/holdout gaps mean it
+  would not be a defensible champion even if reviewed today. Also, per
+  R47's already-established aggregate-gate finding (batches 20-23), this row
+  is not incrementally creditable from infrastructure/attempt evidence alone —
+  only full acceptance would cross a boundary, and this is not that.
+- `v11_historical_daily_temperature_catalog_20260929.json`: a much larger
+  genuine read-only public catalog (4,139 closed Polymarket daily-temperature
+  events, 2025-12-30 to 2026-09-28, `NWS_WRH_TIMESERIES`/`WEATHER_UNDERGROUND`
+  sources, `promotion_authority`/`financial_authority` false,
+  `untouched_holdout_claim: false`) — unlike the 34-event `SELECTED_TRADES`
+  set used for the fit above (which the preregistration itself flags as
+  selection-biased: "event inclusion originates from V10 selected-position
+  history"), this is the full public market population, a plausible future
+  source for an actual unbiased train/confirmation split. It has no GEFS
+  forecast features or Gamma payout vectors attached yet, so it is a dataset
+  scaffold, not a usable dataset by itself.
+- `v11_noaa_gefs_historical_archive_probe_20260929.json`: a genuine read-only
+  NOAA NODD S3 (`noaa-gefs-pds`) fetch proving a full 31-member historical
+  GEFS ensemble is retrievable for an arbitrary past cycle (2025-12-29,
+  KATL) — confirms feasibility of building a larger real feature set, no
+  claim beyond that.
+
+None of these four cross a boundary: R47 remains an aggregate acceptance gate
+requiring both a defensible (held-out, dependence-reviewed) champion fit and
+independent/owner review, and today's fit result, while genuinely new and
+real, is neither. Building the larger unbiased catalog into an actual
+GEFS-feature-plus-Gamma-label confirmation-capable dataset and re-running the
+fit is real, identifiable follow-up work, but it is a substantial new
+multi-step research pipeline, not a bounded step this batch could complete
+and verify safely, and would still not cross R47's credit boundary by itself
+per the standing aggregate-gate finding. Not attempted this batch.
+
+**R46 live-status blocker independently re-verified, not assumed.** Batches
+20-23 stated this worker "has no read-only host status snapshot" for
+`accept_first_all_paper_cycle`'s ~50-field live cycle-status object without
+demonstrating why. Checked directly this batch: `systemctl status` confirms
+the scanner is running (PID 484217, 0 restarts, ~61 min uptime); the
+lightweight external watchdog file `/home/alphaadmin/AlphaV11_Commissioning/STATUS.json`
+exists but only carries coarse process/memory/health fields, none of the
+~50 cycle-specific booleans (`cycle_ok`, `maker_healthy`, `financial_authority`,
+etc.) `accept_first_all_paper_cycle` requires; and `journalctl -u
+alpha-weather-scanner.service` returns "No journal files were opened due to
+insufficient permissions" for this account. This confirms the blocker is a
+genuine host permission wall (no group membership for `adm`/`systemd-journal`),
+not a missing implementation step or an unverified assumption — consistent
+with, and now independently hardening, the prior finding.
+
+**No boundary crossed.** No source or test code changed this batch; only
+evidence review and one read-only host permission check. `git status --short`
+before and after shows changes only in `docs/V11_REQUIREMENTS_MATRIX.md`,
+`docs/V11_ENGINEERING_PROGRESS.md` and this checkpoint.
+
+No new C/J/E/A: **89/200 = 44.5% (~45%); formal 1/50 (2%)**, unchanged.
+NOT_READY_TO_FUND; V10 unchanged/DEFERRED. `LOCAL_SCORE_WORK_EXHAUSTED`
+again. Per the score-velocity anti-churn rule, this makes three consecutive
+audit/evidence-only R47/R31/R46-adjacent batches (22, 23, 24) at an unchanged
+score; **the next batch should not repeat this pattern** on any requirement
+absent a genuinely new defect signal or newly available evidence — it should
+either (a) receive a real owner/operational input (a readable live cycle
+status snapshot for R46, a Telegram identity custody handoff or destructive-
+rollback drill for R44, an exact WRH source/version cutoff proof for R31, or
+an actual independent/owner review decision for R47), or (b) be explicitly
+routed to acceptance-watch/idle rather than spending another model batch on
+local-only confirmation of already-known blockers. Blocked items unchanged
+from batch 23's list. Next unfinished action: none locally reachable this
+cycle; hand off to acceptance-watch routing pending new owner/operational
+evidence.

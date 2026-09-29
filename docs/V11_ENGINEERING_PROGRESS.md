@@ -2705,3 +2705,44 @@ V10 unchanged/DEFERRED. `LOCAL_SCORE_WORK_EXHAUSTED`. Full detail:
 (supervisor batch 23). Next unfinished action: none locally reachable this
 cycle; hand off to acceptance-watch routing pending new owner/operational
 evidence or a genuine WRH exact-cutoff source.
+
+## Supervisor batch 24 — 2026-09-29: reviewed a genuine real-data retrospective fit attempt; independently re-verified (not assumed) R46's live-status permission blocker; no new C/J/E/A
+
+Found four commissioning-evidence files newer than batch 23's cutoff. Two are
+genuinely new in kind, not just in timestamp: `v11_real_data_fit_
+preregistration_20260929.json` / `v11_real_data_fit_result_20260929.json`
+record a pre-registered (grid/seed fixed before running) real-data
+retrospective fit against the 34-event Gamma-payout/GEFS set. Checked the
+result directly rather than trusting its framing: only 20 events had a
+complete pair and all 20 went to `TRAIN` (`CONFIRMATION.events=0` — no
+held-out evaluation), and the artifact is honest about this:
+`calibration_status: FITTED_NOT_CALIBRATED`, `status: NO_PROMOTION`,
+`reason: INDEPENDENT_LABEL_AND_DEPENDENCE_REVIEW_REQUIRED`. This is real
+progress on half of R47's named compound blocker ("a real fit against real
+data") but not the other half (independent/owner review), and the fit's own
+holdout gap means it would not be a defensible champion even if reviewed
+today. A same-day `v11_historical_daily_temperature_catalog_20260929.json`
+(4,139 real closed Polymarket events, full unbiased public population) is a
+plausible future dataset scaffold for an actual confirmation split, unlike
+the smaller selection-biased set the fit used, but has no GEFS/Gamma features
+attached and building it out is a substantial new multi-step pipeline, not a
+bounded step — not attempted, and would not cross R47's aggregate boundary by
+itself regardless. Separately, re-verified rather than assumed R46's named
+live-status blocker: `systemctl status` confirms the scanner running with 0
+restarts; the external `STATUS.json` watchdog file carries none of the ~50
+cycle-specific fields `accept_first_all_paper_cycle` requires; and
+`journalctl -u alpha-weather-scanner.service` fails with "insufficient
+permissions" for this account — a genuine host permission wall, now
+independently confirmed rather than inferred. No source or test code
+changed. No new C/J/E/A: **89/200 = 44.5% (~45%); formal 1/50 (2%)**,
+unchanged. NOT_READY_TO_FUND; V10 unchanged/DEFERRED. `LOCAL_SCORE_WORK_EXHAUSTED`
+again — this is the third consecutive audit/evidence-only batch (22, 23, 24)
+at an unchanged score; per score-velocity anti-churn, the next batch should
+not repeat this pattern on any requirement absent a genuinely new defect
+signal or new owner/operational input (a readable live cycle-status
+snapshot, a Telegram identity custody handoff, a WRH exact-cutoff source, or
+an actual owner/independent review decision for R47) — it should instead be
+routed to acceptance-watch/idle. Full detail: `docs/V11_WORK_CHECKPOINT.md`
+and `docs/V11_REQUIREMENTS_MATRIX.md` (supervisor batch 24). Next unfinished
+action: none locally reachable this cycle; hand off to acceptance-watch
+routing pending new owner/operational evidence.
