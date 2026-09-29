@@ -10053,3 +10053,54 @@ NOT_READY_TO_FUND. `LOCAL_SCORE_WORK_EXHAUSTED`: unchanged, same blocked
 list as batch 28 (R44 E/A; R46; R47; R31; R37/R39; R43/R48/R49). Next
 unfinished action: re-check the backfill progress file on the next
 invocation (~107 minutes from completion as of this check).
+
+## Supervisor batch 30 — 2026-09-29: named-blocker re-check only (backfill still non-terminal, no new evidence file); LOCAL_SCORE_WORK_EXHAUSTED unchanged, no audit sweep
+
+Recovery check: `git status` clean, local HEAD `ed0346f` equal to
+`origin/weather-v11-profitability-upgrade-2026-09-23`. Scanner unchanged
+(`MainPID` 484217, `NRestarts` 0, active/running since 03:38:54 UTC, ~1h56min
+uptime this check, `ExecStartPre` verify-runtime-files exited 0/SUCCESS for
+the same pinned `ac3b722` generation); `groups` still shows no `adm`/
+`systemd-journal` membership; `STATUS.json` (05:35:09 UTC) still exposes only
+the same coarse `scanner`/`controller`/`execution` process fields plus
+`financial_execution_active: false` and `problems: []` — none of the ~50
+cycle-specific booleans R46's runtime-acceptance evidence needs.
+
+Per the standing anti-churn rule (batches 26-29 were four consecutive
+no-credit, audit/re-check-only batches at the same 89/200 score), this batch
+did not open a new guardian-class-defect audit on any further module and did
+not repeat the matrix-wide scan already exhausted at batch 26 — both are
+explicitly forbidden as default filler by the score-velocity rules absent a
+new concrete defect signal or a named bounded local gap, and none surfaced.
+Instead this batch was scoped to exactly the two things batch 29 named as
+worth checking next: the backfill job and any genuinely new evidence file.
+`v11_brain_historical_backfill_progress.json` now reads `messages_done:
+8460`/`33759` (25.06%), `station_days_done: 135`/`541` (24.95%),
+`splits.DEVELOPMENT.done: 0`/`120`, `splits.HISTORICAL_CONFIRMATION.done:
+0`/`64` (`TRAIN.done: 135`/`357`), `state: RUNNING`, `eta_seconds: 6553` —
+real further progress on the same external job, still non-terminal and still
+zero completed station-days in either held-out split, so it crosses no
+boundary. Listed `/home/alphaadmin/AlphaV11_Commissioning/evidence/` in
+full (22 entries): no file is newer than batch 29's commit (`f1ce6aa`,
+05:27:06 UTC) other than this same progress file's own in-place update;
+`v11_weather_model_panel_plan_20260929.json` (05:29 UTC) was already reviewed
+in batch 29 and remains a non-crediting forward roadmap.
+
+**No boundary crossed; no code or matrix-row changed.** `git status --short`
+before and after this batch shows changes only in this checkpoint and
+`docs/V11_ENGINEERING_PROGRESS.md` (matrix untouched, since no row's status
+or evidence changed). No new C/J/E/A: **89/200 = 44.5% (~45%); formal 1/50
+(2%)**, unchanged. NOT_READY_TO_FUND; V10 unchanged/DEFERRED (confirmed
+inactive/disabled, not touched this batch). No alpha-dev access, deployment,
+service change, financial authority or real order was requested or
+performed.
+
+`LOCAL_SCORE_WORK_EXHAUSTED`: unchanged, same blocked list as batch 29 (R44
+E/A; R46; R47 — backfill now 25.1% complete, both held-out splits still at
+zero; R31; R37/R39; R43/R48/R49). Next unfinished action: re-check
+`v11_brain_historical_backfill_progress.json` on the next invocation
+(`eta_seconds: 6553`, i.e. ~109 minutes from this check) — once it reaches a
+terminal state with populated DEVELOPMENT/HISTORICAL_CONFIRMATION splits,
+that is the first genuinely new input worth a full evidence review; until
+then, do not repeat a matrix-wide scan or guardian-class audit sweep as
+filler, and continue handing off to acceptance-watch routing.

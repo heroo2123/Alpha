@@ -3055,3 +3055,39 @@ HISTORICAL_CONFIRMATION splits, that is the first genuinely new input worth
 a full evidence review; until then, do not repeat a matrix-wide scan or
 guardian-class audit sweep as filler, and continue handing off to
 acceptance-watch routing.
+
+## Supervisor batch 30 — 2026-09-29: named-blocker re-check only (backfill still non-terminal, no new evidence file); LOCAL_SCORE_WORK_EXHAUSTED unchanged, no audit sweep
+
+Recovery check: `git status` clean, local HEAD `ed0346f` equal to
+`origin/weather-v11-profitability-upgrade-2026-09-23`. Scanner unchanged
+(`MainPID` 484217, 0 restarts, ~1h56min uptime, `STATUS.json` HEALTHY at
+05:35:09 UTC, still only coarse process/memory fields); `groups` still shows
+no `adm`/`systemd-journal` membership.
+
+Per the standing anti-churn rule, batches 26-29 were four consecutive
+no-credit, re-check/audit-only batches at the same 89/200 score, so this
+batch did not open a new guardian-class-defect audit or repeat the
+matrix-wide scan already exhausted at batch 26. Scoped instead to batch 29's
+two named checks: `v11_brain_historical_backfill_progress.json` now reads
+`messages_done: 8460`/`33759` (25.06%), `station_days_done: 135`/`541`
+(24.95%), `splits.DEVELOPMENT.done: 0`/`120`,
+`splits.HISTORICAL_CONFIRMATION.done: 0`/`64`, `state: RUNNING`,
+`eta_seconds: 6553` — real further progress on the same external job, still
+non-terminal, both held-out splits still at zero completed station-days, so
+it crosses no boundary. No file in `/home/alphaadmin/AlphaV11_Commissioning/
+evidence/` is newer than batch 29's commit besides this same progress file's
+own in-place update.
+
+No code, test or matrix-row change; no new C/J/E/A: **89/200 = 44.5%
+(~45%); formal 1/50 (2%)**, unchanged. NOT_READY_TO_FUND; V10
+unchanged/DEFERRED (not touched this batch). No alpha-dev access,
+deployment, service change, financial authority or real order was requested
+or performed.
+
+`LOCAL_SCORE_WORK_EXHAUSTED`: unchanged, same blocked list as batch 29 (R44
+E/A; R46; R47 — backfill now 25.1% complete, both held-out splits still at
+zero; R31; R37/R39; R43/R48/R49). Next unfinished action: re-check the
+backfill progress file on the next invocation (~109 minutes from completion
+as of this check); until it reaches a terminal state with populated
+held-out splits, do not repeat a matrix-wide scan or guardian-class audit
+sweep as filler, and continue handing off to acceptance-watch routing.
