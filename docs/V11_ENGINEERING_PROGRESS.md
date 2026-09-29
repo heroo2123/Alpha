@@ -3165,3 +3165,102 @@ backfill progress file on the next invocation (~112 minutes from completion
 as of this check); until it reaches a terminal state with populated
 held-out splits, do not repeat a matrix-wide scan or guardian-class audit
 sweep as filler, and continue handing off to acceptance-watch routing.
+
+## Supervisor batch 32 — 2026-09-29: GEFS Brain backfill reached terminal state; real held-out historical fit and shadow-prep evidence reviewed; no new C/J/E/A
+
+Recovery check: `git status` clean, local HEAD `2e85fd2` equal to
+`origin/weather-v11-profitability-upgrade-2026-09-23`, no unfinished process
+on this worktree. Scanner: `alpha-weather-scanner.service` active/running
+since 08:09:41 UTC, `ExecStartPre verify-runtime-files` exited 0/SUCCESS for
+the same pinned `ac3b722` generation; `groups` still shows no `adm`/
+`systemd-journal` membership, so R46's runtime-acceptance evidence remains
+unreachable exactly as every prior batch found.
+
+Per the mandatory instruction to inspect all NEW files in
+`/home/alphaadmin/AlphaV11_Commissioning/evidence/` before declaring work
+exhausted, listed all 49 entries by mtime. This is the first batch where the
+NOAA GEFS Brain historical backfill (the job batches 26-31 repeatedly found
+non-terminal) actually reached completion:
+`v11_brain_historical_backfill_progress.json` now reads `state: COMPLETE`,
+33759/33759 messages, 541/541 station-days, `splits.DEVELOPMENT.done:
+120/120`, `splits.HISTORICAL_CONFIRMATION.done: 64/64` (both previously
+always zero across six prior checks). Its automatic post-pipeline produced
+`v11_post_gefs_pipeline_status.json` (`stage: HISTORICAL_RESEARCH_COMPLETE`,
+`next_step: PREPARE_NONFINANCIAL_SHADOW`) and a real
+`v11_gefs_all_market_research_result_20260929.json`: for both
+`daily_high_temperature` and `daily_low_temperature`, a TRAIN-fitted (357
+city-days) challenger beats the vacuous champion on both real held-out
+splits — DEVELOPMENT (120 city-days): Brier 0.160/0.158 vs 0.173/0.201;
+HISTORICAL_CONFIRMATION (64 city-days): Brier 0.158/0.180 vs 0.172/0.217 —
+while remaining self-labeled `calibration_status: FITTED_NOT_CALIBRATED`,
+`status: NO_PROMOTION`, `reason:
+HISTORICAL_EVIDENCE_PASSES_FORWARD_SHADOW_REQUIRED`, and
+`historical_confirmation_is_forward_holdout: false` (its own field: this
+split is historical, not a forward-blind test). A resulting
+`v11_brain_shadow_preparation_20260929.json` now exists,
+`state: PREPARED_NOT_COMMISSIONED`, naming four explicit remaining
+prerequisites, most concretely
+`END_TO_END_V11_SHADOW_DECISION_PATH_REGRESSION` — precisely the gap batch
+22 traced (every real decision site wires
+`ActiveModelRegistry().pin(mode='V11_SHADOW')` but no test drives any of
+them with `stage='SHADOW'`) and correctly declined to build at the time for
+lack of a real champion/shadow-prep event; that event has now genuinely
+occurred. Independently verified `financial_authority`/`promotion_authority`/
+`order_authority` are `false` on every new artifact read this batch rather
+than relaying the files' own claims. Separately, and independently read
+directly: `v11_brain_ecmwf_backfill_progress.json` (a distinct pipeline from
+GEFS, run on the concurrent `brain-ecmwf-backfill-20260929` worktree/branch —
+3 commits ahead of this branch's `2e85fd2`, not merged here) also reads
+`state: COMPLETE`, 541/541 station-days, both `IFS` and `AIFS` providers,
+both held-out splits full, as of 21:35 UTC, with watchdog/terminal-manager
+status files confirming `state: COMPLETE`/`POST_ECMWF_HANDOFF_ACTIVE` and an
+active supervisor process (PID 593388) still running as of 21:42 UTC with no
+research-result/fit artifact yet produced from it. That branch's extra
+commits were not merged or touched by this batch — out of scope for this
+worktree, and merging another in-flight, still-running branch's work without
+instruction would risk grabbing an incomplete state.
+
+Assessed both results directly against the credit boundaries they could
+plausibly affect rather than assuming either crosses one. R47: this row's
+own "—" (zero incremental credit) entry above is a hard aggregate-acceptance
+gate; this real but explicitly historical-only, non-forward, `NO_PROMOTION`
+fit is genuine further progress on half of R47's named compound blocker
+(real fit against real data, now with genuine held-out confirmation instead
+of zero holdout) but supplies neither an actual accepted champion nor the
+independent/owner review the other half requires, so it crosses no
+boundary — consistent with every prior batch's finding. R09: of its four
+named remaining items ("Actual IFS/AIFS backfill completion, day-extreme
+assembly, learner admission/calibration and independent acceptance"), the
+first is now genuinely satisfied (both GEFS and ECMWF/IFS/AIFS backfills
+independently confirmed terminal), but day-extreme assembly, learner
+calibration (still `FITTED_NOT_CALIBRATED`) and independent acceptance
+remain pending, so R09 keeps its existing C,J only. No code or test changed;
+updated `docs/V11_REQUIREMENTS_MATRIX.md` (top entry, R09 and R47 rows) and
+this file to record the real terminal-state evidence and narrow the named
+remaining gaps — no fabricated credit. **89/200 = 44.5% (~45%); formal 1/50
+(2%)**, unchanged. NOT_READY_TO_FUND; V10 unchanged/DEFERRED (confirmed
+inactive/disabled, not touched this batch). No alpha-dev access, deployment,
+service change, financial authority or real order was requested or
+performed.
+
+`LOCAL_SCORE_WORK_EXHAUSTED` (boundary-crossing sense) reaffirmed: no C/J/E/A
+boundary was reachable without inventing a champion or an owner/independent
+review this worker cannot fabricate. The concrete named next unblocked
+local-implementation opportunity: build
+`END_TO_END_V11_SHADOW_DECISION_PATH_REGRESSION` — a test driving each of
+the 11 real decision-site modules (`strategy_pipeline.py`,
+`position_management.py`, `relative_value.py`, `basket_coordinator.py`,
+`pws_admission.py`, `source_release.py`, `maker_context.py`,
+`reaction_runtime.py`, `drift_runtime.py`, `risk_inputs.py`,
+`strategy_admission.py`) with `stage='SHADOW'` and asserting
+`financial_authority` stays false throughout. This is real, bounded,
+non-owner-blocked engineering directly named as a prerequisite by this
+batch's fresh evidence, but would not itself cross R47's aggregate credit
+boundary (confirmed structurally zero-credit above), so it was not attempted
+this batch under the strict rule requiring boundary-crossing work or a
+genuine P0/P1 defect; flagged for a batch with a coherent budget to build
+and verify it end-to-end, and/or for whenever the concurrent ECMWF branch's
+work is merged and a combined IFS/AIFS+GEFS day-extreme assembly/fit exists
+(the next evidence worth a full review for R09). Other blocked items
+unchanged from batch 31: R44 E/A; R46 (same host permission wall); R31;
+R37/R39; R43/R48/R49.
