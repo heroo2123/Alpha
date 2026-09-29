@@ -2803,3 +2803,113 @@ implementation gap is currently named in the matrix for R40; remaining open
 items across the tree are the same owner/external/empirical-gated set
 recorded by batch 24 (R31, R37/R39, R43/R44/R46/R47/R48/R49) plus general
 audit-sweep follow-up (R06-R08, R32-R36) if a new defect signal appears.
+
+## Supervisor batch 26 — 2026-09-29: mandatory evidence check (in-progress backfill, no boundary crossed); matrix-wide unblocked-gap scan; opportunistic R32 review; LOCAL_SCORE_WORK_EXHAUSTED
+
+Recovery check: `git status` clean, local HEAD `02f03b2` equal to
+`origin/weather-v11-profitability-upgrade-2026-09-23`, no unfinished process
+other than this invocation and the same isolated `alpha-weather-scanner.service`
+(PID 484217, 0 restarts, now ~1h31min uptime — unchanged fail-closed,
+no-financial-authority shape, not touched this batch). Read this checkpoint,
+the requirements matrix and the progress ledger before editing.
+
+**Mandatory pre-work evidence check.** One commissioning-evidence file is
+newer than batch 25's cutoff (`v11_brain_historical_backfill_plan_20260929.json`,
+04:52:45 UTC): `v11_brain_historical_backfill_progress.json` (05:10:37 UTC).
+Inspected it directly: an honestly-labeled (`financial_authority`/
+`promotion_authority` both `false`) progress marker for batch 25's reviewed
+fetch plan, `state: RUNNING`, `messages_done: 3876`/`messages_total: 33759`
+(11.48%), `station_days_done: 60`/`station_days_total: 541` (11.09%), all 60
+completed station-days landing in `TRAIN` (`DEVELOPMENT`/
+`HISTORICAL_CONFIRMATION` both `0` so far), `eta_seconds: 5730`. This is a
+real, external, still-running job (not started or controlled by this
+session) making genuine progress toward the unbiased dataset batch 25
+identified as a plausible future input to a defensible R47 fit, but it is
+non-terminal — no observed temperatures, GEFS values or Gamma labels are
+attached yet, and the confirmation split has zero entries so far — so it
+crosses no boundary this batch. Re-verified rather than assumed R46's named
+live-status blocker is unchanged: `groups` still shows no `adm`/
+`systemd-journal` membership and `journalctl -u alpha-weather-scanner.service`
+still fails with "insufficient permissions" for this account.
+
+**Matrix-wide scan for a bounded local implementation gap.** Per the
+standing preference for a concrete named local gap over another audit
+sweep, checked every requirement's status field (`R00`-`R49`): only `R01` is
+`COMPLETE`; every other row is `PARTIAL`. Read the full remaining-work text
+of `R02`-`R05`, `R09`-`R13`, `R18`-`R30`, `R41`, `R42` and, in detail,
+`R06`-`R08`/`R32`-`R36` (the checkpoint's named fallback set). Every row's
+stated remaining tail is either already-rejected-as-unfabricable
+(`R24`: wiring `SizingFactors`' per-factor sizing would require inventing an
+unsupported calibration formula, already independently re-verified against
+the private master in batch 13) or requires operational/evidence/owner
+input this session cannot produce (`R06`/`R07`: "current-universe freshness
+and broader family review", "source checkers/host commissioning" — live
+host/source commissioning, not code; `R09`/`R10`/`R11`/`R25`-`R30`: "runtime
+acceptance pending", "independent operational validation", "actual
+calibration"; `R36`: "official scoring reference, epoch evidence and
+independent actual payment/discrepancy reconciliation"). No row names a
+bounded, closeable, purely-local gap comparable to `R40`'s now-closed
+apparent-edge item. No new C/J/E/A boundary is reachable this way.
+
+**Opportunistic P0/P1 check on an unaudited module (R32).** `R32`
+("Active exits and reductions") is one of the checkpoint's named fallback
+rows and, unlike `R06`-`R08`/`R24`/`R25`, its matrix row cites no prior
+dedicated guardian-class-defect batch. Read `v11/position_management.py`
+(339 lines) and `v11/position_attribution.py` (61 lines) in full, looking
+specifically for this audit series' recurring pattern: can inventory be
+silently released, double-consumed, or a hold dropped without a matched
+terminal proof? `PositionManager.evaluate` pins the account head at
+evaluation start (`start['body']['details']['account_head_id']`) and
+re-checks it against the live head before valuing
+(`EXIT_ACCOUNT_CHANGED_DURING_EVALUATION`); `revalidate_exit` recomputes the
+full prediction/inventory/valuation chain byte-for-byte
+(`canonical(recomputed) != canonical(value)` ->
+`EXIT_INVENTORY_OR_VALUATION_CHANGED_RECOMPUTE`) and the final head-collision
+loop rejects any contradictory `(kind, event)` head pair
+(`EXIT_STATE_CHANGED_RECOMPUTE`). `_value` calls `consume_lots` only on a
+`deepcopy(lots)` to compute a hypothetical FIFO P&L
+(`hypothetical_lifetime_pnl`), never the live account state — the audit
+record itself carries `actual_inventory_changed=False`,
+`financial_authority=False`; a negative net-sale outcome is downgraded to
+`GATED` (`EXIT_NET_PROCEEDS_NEGATIVE`) before any joint-value computation
+runs, and the second `outcome != 'GATED'` guard correctly skips
+`_joint_value` in that case. `consume_lots` itself raises
+`SALE_ALLOCATION_INVENTORY_MISMATCH` unless `todo == 0` and
+`proceeds_left == 0` exactly, and its FIFO ordering explicitly ranks
+legacy lots without `acquired_sequence` first (`-1` sentinel) as a
+documented unknown-order cohort rather than silently interleaving them by
+dict order. No defect found. Per the standing instruction that the
+guardian-class-defect audit sweep is exhausted as a default work source
+after repeated no-defect/no-credit batches, this review was not extended
+into a full formal multi-file `R32` audit absent an actual defect signal;
+this was a single bounded opportunistic check on the checkpoint's own named
+fallback module, not a resumed Rxx-by-Rxx rotation.
+
+**No boundary crossed; no code changed.** `git status --short` before and
+after this batch shows changes only in `docs/V11_REQUIREMENTS_MATRIX.md`
+(unchanged; no row's status changed), `docs/V11_ENGINEERING_PROGRESS.md` and
+this checkpoint. No new C/J/E/A: **89/200 = 44.5% (~45%); formal 1/50 (2%)**,
+unchanged. NOT_READY_TO_FUND; V10 unchanged/DEFERRED (confirmed
+inactive/disabled, not touched this batch). No alpha-dev access, deployment,
+service change, financial authority or real order was requested or
+performed.
+
+`LOCAL_SCORE_WORK_EXHAUSTED`: no unblocked local implementation or newly
+available safe evidence path was found this batch that can credibly advance
+a missing C/J/E/A boundary. Remaining blocked items are unchanged from batch
+25's list: R44 E/A (Telegram identity custody handoff, protected-
+configuration runtime acceptance, an authorized destructive-rollback drill);
+R46 (real accumulated V11 paper operating time plus a live runtime status
+snapshot — still blocked on the same host permission wall, independently
+re-confirmed this batch); R47 (an actual real-data initial-champion fit with
+genuine held-out evaluation, plus independent/owner review — the external
+backfill job is 11% complete and may produce a usable dataset scaffold on a
+future batch if it finishes cleanly, but is not there yet); R31 (exact
+NWS/WRH source/version finality proof); R37/R39 (owner-authorized deployment/
+configuration review); R43/R48/R49 (credentialed/production acceptance).
+Next unfinished action: none locally reachable this cycle; check the
+backfill job's completion state (`v11_brain_historical_backfill_progress.json`
+in the commissioning evidence directory, ETA was ~95 minutes from
+2026-09-29T05:10Z) on the next invocation before any further evidence-cluster
+review, and otherwise hand off to acceptance-watch routing pending new
+owner/operational evidence.
