@@ -1,20 +1,27 @@
 # Alpha V11 work checkpoint
 
-## Agent-2 model-panel input architecture — 2026-09-29
+## Agent-2 model-panel input architecture + real ECMWF parity — 2026-09-29
 
-On `agent2-weather-model-panel-20260929`, added a separate pull-only typed
+On the isolated Agent-2 worktree, added a separate pull-only typed
 provider/run/member/station/target input boundary, ECMWF index/range collection
 and bounded station decoding, and gated WeatherNext 3 fixture normalization.
-Raw/derived archive replay preserves receipt and completion-time causality and
-explicit cross-model dependence. Existing GEFS is unchanged, with a compatibility
-bridge. No daily-extreme/payout admission, credentials, inference, deployment,
-financial authority or BrainWork downloader change. No live source success claim.
-Operational release/packing parity, Google allowlisting/connector, full historical
-access, later local-day assembly and dependence-aware learning remain gated.
-Details, public references, limits and review instructions: `docs/V11_MODEL_PANEL.md`.
-Verification: `pytest -q -p no:cacheprovider --tb=short --maxfail=3
-tests/test_v11_model_panel.py` — **99 passed / 5.79 s**, no skips/warnings.
-No new C/J/E/A: **89/200 = 44.5%; formal 1/50**, unchanged. **NOT_READY_TO_FUND**.
+The follow-up branch `agent2-weather-model-panel-ccsds-20260929` now matches
+the current 2026 ECMWF layouts: AIFS uses separate `enfo/cf` and `enfo/pf`
+files; IFS Cycle 50r1 uses `oper/fc` for the control and `enfo/ef` for the
+50 perturbed members. CCSDS GRIB2 template 5.42 is decoded through lazy ecCodes
+with fail-closed behavior when unavailable.
+
+Bounded anonymous real-source parity passed on four 2026-09-29 00z fields:
+AIFS control/member-35 and IFS control/member-12. The observed IFS ensemble
+index was 1,995,799 bytes / 8,500 rows, so the still-bounded index ceiling is
+3 MiB / 12,000 rows. Focused verification: **105 passed / 5.01 s**. Affected
+forecast/GEFS regression: **257 passed / 257.43 s**, exit 0. Existing GEFS,
+PAPER services, V10, BrainWork downloader, credentials and all financial/order/
+promotion authority are unchanged. Current-open-data parity is established;
+full historical ECMWF archive access, Google WeatherNext access/connector,
+later local-day assembly and dependence-aware learning remain gated. Details:
+`docs/V11_MODEL_PANEL.md`. No new C/J/E/A: **89/200 = 44.5%; formal 1/50**,
+unchanged. **NOT_READY_TO_FUND**.
 
 ## Independent supervisor-batch-9 review — 2026-09-27
 

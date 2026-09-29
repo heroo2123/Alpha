@@ -16,8 +16,8 @@ from .model_panel import (SourceIdentity, StationTarget, ForecastSlice, MemberOb
                           archive_raw, read_raw, strict_json, temperature, MAX_RAW_BYTES)
 
 BASE = 'https://data.ecmwf.int/forecasts'
-MAX_INDEX_BYTES = 768 * 1024
-MAX_INDEX_ROWS = 4096
+MAX_INDEX_BYTES = 3 * 1024 * 1024
+MAX_INDEX_ROWS = 12000
 MAX_FIELD_BYTES = MAX_RAW_BYTES
 MAX_TOTAL_BYTES = 16 * 1024 * 1024
 
@@ -34,7 +34,7 @@ class ECMWFRequest:
     def __post_init__(self):
         if not isinstance(self.source, SourceIdentity) or self.source.provider not in {'ECMWF_IFS_ENS', 'ECMWF_AIFS_ENS'}:
             raise EvidenceError('ECMWF_ENSEMBLE_SOURCE_REQUIRED')
-        if self.source.dataset != 'ecmwf-open-data:0p25:enfo':
+        if self.source.dataset != 'ecmwf-open-data:0p25':
             raise EvidenceError('ECMWF_DATASET_IDENTITY')
         run = datetime.fromtimestamp(finite(self.initialized_at), timezone.utc)
         if run.hour not in (0, 6, 12, 18) or run.minute or run.second or self.initialized_at % 1:
@@ -51,15 +51,33 @@ class ECMWFRequest:
     @property
     def selectors(self):
         run = datetime.fromtimestamp(self.initialized_at, timezone.utc)
+        if self.source.model == 'aifs-ens':
+            stream, kind = 'enfo', ('cf' if self.member == 0 else 'pf')
+        elif self.member == 0:
+            # Since IFS Cycle 50r1 the former ENS control is identical to HRES
+            # and is published in oper/fc rather than enfo/cf.
+            stream, kind = 'oper', 'fc'
+        else:
+            stream, kind = 'enfo', 'pf'
         return {'date': run.strftime('%Y%m%d'), 'time': run.strftime('%H%M'),
                 'class': 'ai' if self.source.model == 'aifs-ens' else 'od',
-                'stream': 'enfo', 'type': 'cf' if self.member == 0 else 'pf',
-                'step': str(self.step), 'levtype': 'sfc', 'param': '2t', 'number': str(self.member)}
+                'stream': stream, 'type': kind, 'step': str(self.step),
+                'levtype': 'sfc', 'param': '2t', 'number': str(self.member)}
 
     @property
     def url(self):
         run = datetime.fromtimestamp(self.initialized_at, timezone.utc)
-        return f'{BASE}/{run:%Y%m%d}/{run:%H}z/{self.source.model}/0p25/enfo/{run:%Y%m%d%H}0000-{self.step}h-enfo-ef.grib2'
+        selectors = self.selectors
+        if self.source.model == 'aifs-ens':
+            file_kind = selectors['type']
+        elif self.member == 0:
+            file_kind = 'fc'
+        else:
+            # IFS perturbed members are multiplexed in one ensemble file even
+            # though individual index rows remain type=pf.
+            file_kind = 'ef'
+        return (f'{BASE}/{run:%Y%m%d}/{run:%H}z/{self.source.model}/0p25/{selectors["stream"]}/'
+                f'{run:%Y%m%d%H}0000-{self.step}h-{selectors["stream"]}-{file_kind}.grib2')
 
     @property
     def identity(self):
@@ -119,8 +137,8 @@ def plan_ranges(index, requests):
         for req in requests:
             expected = req.selectors
             actual = {k: str(row.get(k, '')) for k in expected}
-            # ECMWF indexes may omit number for the control and use time=0/6/12/18.
-            if row.get('type') == 'cf' and 'number' not in row: actual['number'] = '0'
+            # ECMWF indexes omit number for AIFS cf and IFS oper/fc controls.
+            if row.get('type') in {'cf', 'fc'} and 'number' not in row: actual['number'] = '0'
             t = actual['time']
             if t in {'0', '6', '12', '18'}: actual['time'] = f'{int(t):02}00'
             if t in {'00', '06'}: actual['time'] = t+'00'

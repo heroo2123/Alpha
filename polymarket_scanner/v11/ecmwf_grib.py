@@ -102,15 +102,29 @@ def decode_station(data, *, request, target):
         run = datetime(uint(ident, 12, 14), *ident[14:19], tzinfo=timezone.utc).timestamp()
     except ValueError:
         raise EvidenceError('ECMWF_GRIB_TIME_INVALID') from None
-    if (len(product) != 37 or uint(product, 5, 7) != 0 or uint(product, 7, 9) != 1
-            or product[9:11] != b'\0\0' or product[17] != 1
+    template = uint(product, 7, 9) if len(product) >= 9 else -1
+    if (uint(product, 5, 7) != 0 or product[9:11] != b'\0\0' or product[17] != 1
             or product[22:24] != bytes([103, 0]) or uint(product, 24, 28) != 2
             or product[28:34] != b'\xff'*6):
-        raise EvidenceError('ECMWF_POINT_2T_ENSEMBLE_REQUIRED')
+        raise EvidenceError('ECMWF_POINT_2T_REQUIRED')
+    model = request.source.model
+    if model == 'aifs-ens':
+        valid_product = (len(product) == 37 and template == 1 and product[11] == 4
+                         and product[34] == (5 if request.member == 0 else 6)
+                         and product[35] == request.member and product[36] == 51
+                         and ident[20] == 10)
+    elif model == 'ifs' and request.member == 0:
+        # IFS Cycle 50r1 publishes the former ensemble control as oper/fc.
+        valid_product = (len(product) == 34 and template == 0 and product[11] == 2
+                         and ident[20] == 1)
+    elif model == 'ifs':
+        valid_product = (len(product) == 37 and template == 1 and product[11] == 4
+                         and product[34] == 255 and product[35] == request.member
+                         and product[36] == 51 and ident[20] == 4)
+    else:
+        valid_product = False
     if (run != request.initialized_at or uint(product, 18, 22) != request.step
-            or product[35] != request.member or product[36] not in (50, 51)
-            or product[34] != (0 if request.member == 0 else 3)
-            or ident[20] != (3 if request.member == 0 else 4)):
+            or not valid_product):
         raise EvidenceError('ECMWF_RUN_MEMBER_STEP_MISMATCH')
     if (len(grid) != 72 or grid[5] != 0 or grid[10:14] != b'\0'*4
             or grid[14] not in (6, 8) or uint(grid, 38, 42) != 0

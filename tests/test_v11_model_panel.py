@@ -25,7 +25,7 @@ from polymarket_scanner.v11.weathernext_sources import (
     WeatherNextRequest, AccessState, access_gate, archive_fixture, normalize_weathernext,
     SCHEMA, ENSEMBLE_DATASET, STATISTICS_DATASET,
 )
-from test_v11_grib_fields import grib, mutate, u, signed
+from test_v11_grib_fields import grib, mutate, u, signed, message
 
 RUN = datetime(2026, 9, 28, tzinfo=timezone.utc).timestamp()
 TARGET = StationTarget('test-panel', 'KATL', '2026-09-28', 'America/New_York', 33., -84., 'a'*64, 'b'*64)
@@ -38,20 +38,36 @@ def store(tmp_path):
 
 
 def source(provider='ECMWF_AIFS_ENS'):
-    dataset = ENSEMBLE_DATASET if provider == 'GOOGLE_WEATHERNEXT3' else 'ecmwf-open-data:0p25:enfo'
+    dataset = ENSEMBLE_DATASET if provider == 'GOOGLE_WEATHERNEXT3' else 'ecmwf-open-data:0p25'
     return SourceIdentity(provider, '3.0.0' if provider == 'GOOGLE_WEATHERNEXT3' else 'test-release-v1', dataset, 'c'*64)
 
 
-def ecmwf_bytes(member=0, packing=0):
+def ecmwf_bytes(member=0, packing=0, provider='ECMWF_AIFS_ENS'):
     data = grib(member=member, hour=6, run=RUN, packing=packing)
     data = mutate(data, 1, 5, u(98, 2)+u(0, 2))
-    data = mutate(data, 4, 34, bytes([0 if member == 0 else 3, member, 51]))
+    if provider == 'ECMWF_AIFS_ENS':
+        data = mutate(data, 1, 20, b'\x0a')
+        data = mutate(data, 4, 34, bytes([5 if member == 0 else 6, member, 51]))
+    elif provider == 'ECMWF_IFS_ENS' and member == 0:
+        parts = []; pos = 16
+        while pos < len(data)-4:
+            size = int.from_bytes(data[pos:pos+4], 'big')
+            part = bytearray(data[pos:pos+size]); pos += size
+            if part[4] == 1: part[20] = 1
+            if part[4] == 4:
+                part = part[:34]; part[:4] = u(34, 4); part[7:9] = u(0, 2); part[11] = 2
+            parts.append(part)
+        data = message(parts)
+    elif provider == 'ECMWF_IFS_ENS':
+        data = mutate(data, 4, 34, bytes([255, member, 51]))
+    else:
+        raise AssertionError(provider)
     data = mutate(data, 3, 55, signed(33250000, 4)+signed(276250000, 4))
     return mutate(data, 3, 63, u(250000, 4)+u(250000, 4))
 
 
 def request(data=None, provider='ECMWF_AIFS_ENS', member=0):
-    data = ecmwf_bytes(member) if data is None else data
+    data = ecmwf_bytes(member, provider=provider) if data is None else data
     return ECMWFRequest(source(provider), RUN, 6, member, release_signature(data))
 
 
@@ -124,7 +140,7 @@ def test_bad_units_and_values(value, unit):
 @pytest.mark.parametrize('member', [0, 1, 50])
 @pytest.mark.parametrize('packing', [0, 1, 2])
 def test_ecmwf_run_member_station_normalization_and_replay(store, provider, member, packing):
-    data = ecmwf_bytes(member, packing); req = request(data, provider, member)
+    data = ecmwf_bytes(member, packing, provider); req = request(data, provider, member)
     archive_ecmwf(store, req, data)
     first = normalize_ecmwf(store, 'raw', request=req, target=TARGET, index_id='index')
     second = normalize_ecmwf(store, 'raw', request=req, target=TARGET, index_id='index')
@@ -169,6 +185,19 @@ def test_aifs_all_cycles_and_ifs_conservative_step_limit():
     with pytest.raises(EvidenceError): replace(request(provider='ECMWF_IFS_ENS'), initialized_at=RUN+21600, step=360)
 
 
+@pytest.mark.parametrize('provider,member,stream,index_type,file_suffix', [
+    ('ECMWF_AIFS_ENS', 0, 'enfo', 'cf', '-enfo-cf.grib2'),
+    ('ECMWF_AIFS_ENS', 1, 'enfo', 'pf', '-enfo-pf.grib2'),
+    ('ECMWF_IFS_ENS', 0, 'oper', 'fc', '-oper-fc.grib2'),
+    ('ECMWF_IFS_ENS', 1, 'enfo', 'pf', '-enfo-ef.grib2'),
+])
+def test_ecmwf_cycle50r1_and_aifs_v2_file_layout(provider, member, stream, index_type, file_suffix):
+    req = request(provider=provider, member=member)
+    assert req.selectors['stream'] == stream and req.selectors['type'] == index_type
+    assert req.selectors['number'] == str(member)
+    assert req.url.endswith(file_suffix)
+
+
 @pytest.mark.parametrize('mutation', ['duplicate', 'overlap', 'missing', 'oversize', 'negative', 'bool', 'duplicate-key', 'many-rows'])
 def test_ecmwf_index_rejects_ambiguous_or_unbounded_data(mutation):
     data = ecmwf_bytes(); req = request(data); ix = index_bytes(req, data)
@@ -178,12 +207,14 @@ def test_ecmwf_index_rejects_ambiguous_or_unbounded_data(mutation):
     elif mutation == 'negative': ix = index_bytes(req, data, _offset=-1)
     elif mutation == 'bool': ix = index_bytes(req, data, _length=True)
     elif mutation == 'duplicate-key': ix = b'{"_offset":0,"_offset":1,"_length":5}'
-    else: ix = b'{}\n'*4097
+    else: ix = b'{}\n'*12001
     with pytest.raises(EvidenceError): plan_ranges(ix, (req,))
 
 
-def test_control_number_optional_and_time_encoding():
-    data = ecmwf_bytes(); req = request(data); row = json.loads(index_bytes(req, data)); del row['number']; row['time'] = '0'
+@pytest.mark.parametrize('provider', ['ECMWF_AIFS_ENS', 'ECMWF_IFS_ENS'])
+def test_control_number_optional_and_time_encoding(provider):
+    data = ecmwf_bytes(provider=provider); req = request(data, provider); row = json.loads(index_bytes(req, data))
+    del row['number']; row['time'] = '0'
     selection, = plan_ranges(canonical(row).encode(), (req,))
     assert selection.header == f'bytes=0-{len(data)-1}'
 

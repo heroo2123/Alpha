@@ -9,8 +9,8 @@ Existing NOAA GEFS files and BrainWork historical downloader are unchanged.
 | Provider | Implemented now | Explicit remaining gate |
 | --- | --- | --- |
 | NOAA GEFS | Compatibility bridge through the existing field normalizer into the common typed point contract | Existing GEFS operational/evidence gates remain unchanged |
-| ECMWF IFS ENS | Exact request identity, JSON-lines index selection, anonymous streamed byte-range capture, strict GRIB2 station extraction, archive replay | Reviewed operational release/header pins and real-data decoder parity; unsupported packing/grid returns a decoder gate |
-| ECMWF AIFS ENS | Same machinery, separate source/model identity and `ai` class | Same decoder/release gates; full historical archive requires external access |
+| ECMWF IFS ENS | Exact request identity, Cycle-50r1 `oper/fc` control plus `enfo/ef` perturbed layout, JSON-lines index selection, anonymous streamed byte-range capture, CCSDS GRIB2 station extraction, archive replay | Current public-open-data parity is verified on real 2026-09-29 bytes; full historical archive still requires reviewed external archive access |
+| ECMWF AIFS ENS | Exact request identity, separate `enfo/cf` and `enfo/pf` files, the same bounded CCSDS/index/archive path, separate source/model identity and `ai` class | Current public-open-data parity is verified on real 2026-09-29 bytes; full historical archive still requires reviewed external archive access |
 | Google WeatherNext 3 | Exact dataset/request identity, allowlist gate, bounded archived station/grid temperature schema, 64-member or separate statistics normalization | No reviewed cloud connector, credentials or local historical access; public evidence normalization is refused |
 | AIFS Single | Auxiliary source/dependence identity only | No adapter; shares AIFS vote family, never an additional independent vote |
 
@@ -24,9 +24,12 @@ assembler/capture integration. There is no scheduler or runtime registration.
 
 [ECMWF Open Data](https://www.ecmwf.int/en/forecasts/datasets/open-data)
 retains approximately the latest 12 IFS/AIFS runs. AIFS ENS uses `model=aifs-ens`,
-`class=ai`, `stream=enfo`, `type=pf/cf`, cycles 00/06/12/18 UTC, six-hour steps
-0–360, including surface `2t`. The code uses a conservative 72-hour eligibility
-window; eligible does not mean published or accessible. Historical mode returns
+`class=ai`, `stream=enfo`, separate `type=cf` and `type=pf` files, cycles
+00/06/12/18 UTC and six-hour steps 0–360, including surface `2t`. Since IFS Cycle
+50r1 (May 2026), the IFS control is the deterministic `stream=oper,type=fc`
+forecast while the 50 perturbed members remain indexed as `type=pf` inside the
+`stream=enfo` `ef` file. The code uses a conservative 72-hour eligibility window;
+eligible does not mean published or accessible. Historical mode returns
 `EXTERNAL_ACCESS_REQUIRED`, old/future run requests `NOT_AVAILABLE`.
 
 The [ECMWF client documentation](https://github.com/ecmwf/ecmwf-opendata)
@@ -112,8 +115,10 @@ families. No GEFS transport, schedule, model input or learner behavior changes.
 
 - Up to 64 members; ECMWF control plus 50 perturbed members. No member concatenation
   across providers and no voting/confidence formula.
-- Index: 768 KiB / 4096 lines; strict JSON, duplicate keys rejected; ordered,
-  nonoverlapping offsets. Planning: at most 51 fields and 16 MiB selected bytes.
+- Index: 3 MiB / 12000 lines; strict JSON, duplicate keys rejected; ordered,
+  nonoverlapping offsets. Those bounds cover the observed 2026-09-29 IFS `enfo`
+  index (1,995,799 bytes / 8,500 rows) without accepting an unbounded document.
+  Planning remains at most 51 fields and 16 MiB selected bytes.
 - Field: 4 MiB maximum, bounded object offsets, exact HTTP 206/Content-Range and
   byte count; injected test transports are forced to SYNTHETIC evidence. No
   redirect, cookie forwarding, auth, proxy environment, compressed
@@ -124,10 +129,12 @@ families. No GEFS transport, schedule, model input or learner behavior changes.
   its normal budget rejection applies. Database/disk limits remain enforced.
 - GRIB decoder: one regular 0.25-degree field, at most 1440×721 grid points;
   only selected nearest candidates are unpacked. Simple and IEEE packing work.
-  CCSDS, JPEG, complex packing, bitmaps and other grids fail closed. This build
-  does not claim operational ECMWF packing coverage. A release/header signature
-  mismatch fails closed; unannounced vendor changes invisible in metadata cannot
-  be inferred, so operational release monitoring/parity remains required.
+  CCSDS template 5.42 is decoded through ECMWF ecCodes when that reviewed optional
+  dependency is available; missing ecCodes, JPEG/complex packing, bitmaps and other
+  grids fail closed. Real 2026-09-29 AIFS control/member and IFS control/member
+  fields all decoded successfully from anonymous HTTP ranges. A release/header
+  signature mismatch still fails closed; unannounced vendor changes invisible in
+  metadata cannot be inferred, so operational release monitoring remains required.
 - WN extraction envelope: 64 KiB, one variable/run/time/grid point, at most 16
   raw-parent hashes. No raw ensemble compression/decoding dependency is installed.
 
@@ -139,26 +146,34 @@ work. Source presence or provider agreement earns no learning/financial authorit
 
 ## Verification and handoff
 
-Focused result: **99 passed / 5.79 s**, no skips or warnings. Command:
-`pytest -q -p no:cacheprovider --tb=short --maxfail=3 tests/test_v11_model_panel.py`.
-Only this new test surface was run; no broad regression.
+Focused result after real-provider parity corrections: **105 passed / 5.01 s**.
+Affected forecast/GEFS regression: **257 passed / 257.43 s**, exit 0, covering the
+model panel plus forecast sources, GEFS schedule/source/GRIB decoding, remaining-day
+forecast assembly and forecast learning. No financial/order/promotion path changed.
 
-Focused synthetic tests cover both ECMWF providers, all supported packing modes,
-member edges, schema/run/version mismatch, bounds, source dependence, unit
-conversion, transport denial/range failures, receipt causality, archive tampering,
-derived-value replay, WN statistics/member separation, absent access and the GEFS
-bridge. No new financial, order, label or promotion events are emitted.
+The focused suite covers both ECMWF providers, Cycle-50r1/AIFS-v2 URL layouts,
+control/member metadata, simple/IEEE/CCSDS packing, member edges, schema/run/version
+mismatch, bounds, source dependence, unit conversion, transport denial/range
+failures, receipt causality, archive tampering, derived-value replay, WN
+statistics/member separation, absent access and the GEFS bridge.
 
-One bounded anonymous request for an ECMWF AIFS index returned HTTP 404. No live
-forecast bytes, source parity, Google access or historical entitlement were
-established. Tests and fixtures are not live evidence. No packages were installed.
-The existing test interpreter was reused read-only with bytecode/cache disabled;
-all test databases were temporary. No V10, service, separate checkout or BrainWork
-downloader files were changed.
+A bounded anonymous live-parity check on the public 2026-09-29 00z release passed
+four representative paths end to end: AIFS control (`enfo/cf`), AIFS member 35
+(`enfo/pf`), IFS control (`oper/fc`) and IFS member 12 (`enfo/ef`). All four were
+CCSDS template 5.42 regular 0.25-degree fields and decoded to the same nearest KATL
+grid point (33.75, -84.5). The observed IFS ensemble index was 1,995,799 bytes / 8,500
+rows, motivating the still-bounded 3 MiB / 12,000-row index ceiling. This proves
+current public-source layout/decoder parity only; it does not prove historical
+archive entitlement, future release stability, WeatherNext access, calibration or
+acceptance.
 
-Independent review must inspect this branch against its base, rerun only
-`tests/test_v11_model_panel.py`, and review the documented operational gates before
-merging `agent2-weather-model-panel-20260929` into
-`weather-v11-profitability-upgrade-2026-09-23`. Merge and deployment are not part of
-this task. Current credit remains **89/200 (44.5%), 1/50 fully accepted**;
+ECMWF ecCodes was installed only in the development test interpreter to exercise
+CCSDS; production runtime requirements and services were not changed. The adapter
+imports it lazily and fails closed if unavailable. No V10, PAPER service, BrainWork
+downloader, financial credential or execution authority was changed.
+
+Independent review must inspect this branch against its base, rerun the focused
+suite, and review the documented operational gates before merging the CCSDS/parity
+follow-up into `weather-v11-profitability-upgrade-2026-09-23`. Current credit is
+unchanged by source plumbing alone: **89/200 (44.5%), 1/50 fully accepted**;
 **NOT_READY_TO_FUND**.
