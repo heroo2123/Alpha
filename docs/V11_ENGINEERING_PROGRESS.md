@@ -3342,3 +3342,76 @@ unfinished action: re-check the `brain-ecmwf-backfill-20260929` branch for a
 produced research-result artifact (none yet as of this batch's check), and/or
 build `END_TO_END_V11_SHADOW_DECISION_PATH_REGRESSION` only once it can be
 tied to an actual crossable boundary.
+
+## Supervisor batch 34 — 2026-09-29: stale-row and new-evidence sweep after R43 correction; no new C/J/E/A, LOCAL_SCORE_WORK_EXHAUSTED reaffirmed
+
+Recovery check: `git status` clean, local HEAD `b14667f` equal to
+`origin/weather-v11-profitability-upgrade-2026-09-23`, no unfinished process
+on this worktree. Batch 33 delivered real credit (R43 ∅ → C,J), so this batch
+is not a second consecutive no-credit repeat of the same style; per the
+anti-churn rule it is legitimate to run one more targeted sweep for un-recorded
+credit before falling back to named-blocker polling, and this batch did so
+rather than assuming the prior finding was exhaustive.
+
+Checked, in order: (1) the concurrent `brain-ecmwf-backfill-20260929` branch
+(still 3 commits ahead, unmerged, out of scope to merge without instruction)
+— `v11_brain_ecmwf_backfill_progress.json`/`v11_brain_ecmwf_watchdog_status.json`/
+`v11_ecmwf_terminal_manager_status.json` all still read `state: COMPLETE`/
+`POST_ECMWF_HANDOFF_ACTIVE` as of 22:01 UTC with no research-result/fit
+artifact produced yet — same non-crediting state batch 33 found, now
+independently re-confirmed rather than assumed unchanged. (2) Full listing of
+`/home/alphaadmin/AlphaV11_Commissioning/evidence/` (31 entries): no file
+newer than batch 33's check other than the same in-place watchdog/progress
+status updates already covered above. (3) A stale-row sweep applying the same
+method that found R43: read every currently OPEN row (R31, R46, R47, R48, R49)
+and the still-partial owner/external tails on R09, R37, R39, R44 directly
+against the matrix's own current text (not the legacy "Supplementary
+engineering estimate" summary table in `docs/V11_ENGINEERING_PROGRESS.md`
+lines ~1387-1409, which is confirmed stale — it still shows R43/R44 as "—"
+and R37 as "—" though the matrix and this ledger's own batch entries have
+held R37/R43/R44 at C,J since batches 20/22/33 respectively; that legacy table
+is pre-existing drift in a supplementary/non-authoritative section, not a new
+finding, and correcting it would be documentation cleanup with no credit
+boundary, so it was left alone). Findings: R31's `docs/V11_FINALITY_DEPENDENCIES.md`
+gate was already independently re-verified in an earlier batch as the
+"highest risk of stale over-broad blocking" row and confirmed still genuinely
+GATED on an absent exact-source/version proof — no new file or evidence
+changes that conclusion. R37/R39 already hold C,J; their named remaining
+gaps (supported venue authentication, deployment, independent commissioning
+acceptance) require real owner-authorized credentials/deployment, not local
+code. R44 already holds C,J; its three remaining named E/A gaps (Telegram/
+controller identity custody, protected-configuration runtime acceptance, an
+actual destructive rollback/restore exercise) are owner/production-shaped and
+the last is explicitly risky to attempt outside an authorized drill. R24's
+`SizingFactors` dynamic-sizing reducer remains correctly excluded per batch
+13's private-master citation (section 12, "REQUIRED UPGRADE H" lists factors
+only as "Possible", no derivation formula) — wiring it would require
+inventing an unsupported calibration formula, forbidden by CLAUDE.md. R09's
+"day-extreme assembly" tail depends on either the unmerged ECMWF branch or
+learner calibration, neither reachable this batch without merging unreviewed
+in-flight work or fabricating calibration evidence.
+
+No stale-row miscredit found beyond the one R43 already corrected in batch
+33. No new C/J/E/A. No code or test changed; `git status --short` before and
+after this batch shows changes only in this checkpoint and
+`docs/V11_ENGINEERING_PROGRESS.md` (matrix untouched, since no row's status or
+evidence changed). **91/200 = 45.5% (~46%); formal 1/50 (2%)**, unchanged.
+NOT_READY_TO_FUND; V10 unchanged/DEFERRED (confirmed inactive/disabled, not
+touched this batch). No alpha-dev access, deployment, service change,
+financial authority or real order was requested or performed.
+
+`LOCAL_SCORE_WORK_EXHAUSTED`: no unblocked local implementation or newly
+available safe evidence path can credibly advance a missing C/J/E/A boundary
+this batch. Exact blocked requirements/evidence needed: R31 (exact
+settlement source/version proof, external); R37/R39 (venue
+authentication/deployment/independent commissioning, owner-authorized); R44
+(identity custody, protected-config runtime acceptance, an authorized
+destructive-rollback drill); R09/R47 (the unmerged ECMWF branch producing its
+own research-result artifact, then real independent/owner review of any
+resulting champion — neither fabricable); R46 (host `adm`/`systemd-journal`
+group membership, owner-granted); R48/R49 (owner-authorized credentials and
+funding decision, explicitly out of scope per the financial boundary). Next
+unfinished action: re-check the `brain-ecmwf-backfill-20260929` branch for a
+produced research-result artifact on the next invocation; until either that
+artifact appears or a genuinely new evidence file lands, further re-checks of
+the same named blockers should stay brief rather than repeating full sweeps.
