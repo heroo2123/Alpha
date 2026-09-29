@@ -2746,3 +2746,60 @@ routed to acceptance-watch/idle. Full detail: `docs/V11_WORK_CHECKPOINT.md`
 and `docs/V11_REQUIREMENTS_MATRIX.md` (supervisor batch 24). Next unfinished
 action: none locally reachable this cycle; hand off to acceptance-watch
 routing pending new owner/operational evidence.
+
+## Supervisor batch 25 — 2026-09-29: implemented R40's last named local-implementation gap (apparent-edge-range aggregation); no new C/J/E/A
+
+Per the mandatory pre-work check, found one commissioning-evidence file newer
+than batch 24's cutoff: `v11_brain_historical_backfill_plan_20260929.json`
+(04:52:45 UTC). Reviewed it: an honestly-labeled (`financial_authority`/
+`promotion_authority` false, `untouched_forward_holdout_claim: false`) plan
+for an actual unbiased TRAIN/DEVELOPMENT/HISTORICAL_CONFIRMATION split across
+15 real stations/37 dates/1,082 events, superior in design to the
+selection-biased 34-event set batch 24 reviewed. It is a fetch plan only —
+each of its 541 `station_days` entries names a GEFS cycle/hour set to
+retrieve, but none carry actual fetched forecast values, observed
+temperatures or Gamma settlement labels yet. It does not itself advance R47
+(no fit, no dataset) and executing it is a substantial new multi-step
+pipeline, not a bounded step; per the standing score-velocity anti-churn
+rule (batches 22-24 were three consecutive audit-only touches on this same
+R47/R31/R46 cluster), a fourth such audit-only batch was not performed.
+
+Instead, per the supervisor's explicit preference for a concrete named local
+implementation gap over another audit sweep, closed R40's one remaining item
+from its own row: "apparent-edge-range aggregation and metric semantics
+still pending." `v11/performance.py::_metadata` stored the raw exact
+`conservative_ev_per_share` string as the `apparent_edge` slice key, so
+every distinct priced EV value formed its own singleton group — unlike every
+other `DIMENSIONS` entry, this one never actually aggregated multiple
+entries together. Added `_edge_bucket`, a fixed non-adaptive
+`Decimal('0.01')`-wide floor-rounded range (e.g. `[+0.05,+0.06)`) over the
+same already-pinned value (no new store read, no calibration or
+profitability threshold invented — the bucket width is a declared constant
+independent of any observed outcome), with boundaries formatted so lexical
+and numeric sort order agree. UNKNOWN/None/gated-valuation fallback is
+unchanged. Updated `tests/test_v11_performance.py`'s three existing
+exact-value assertions to the new bucket labels and added three new cases:
+two distinct edges in the same bucket now sum together (real aggregation,
+not just relabeling), negative-edge floor-not-truncation, and exact-boundary
+assignment. Verification (foreground): direct module 33 passed / 9.84s;
+broader affected family (performance/fill_markout/execution_costs/
+account_replay/causal_replay/release_replay/realized_drift/pws_replay) 227
+passed / 160.63s, exit 0. `git status --short` shows changes only in
+`polymarket_scanner/v11/performance.py` and `tests/test_v11_performance.py`
+plus these three ledger files.
+
+This closes R40's last explicitly named open local-implementation item; R40
+already holds C/J credit from prior batches, and this is a hardening of that
+same already-credited slice, not a new subsystem — no new C/J/E/A per the
+standing rule against crediting repeated/refinement work on an already-scored
+requirement. **89/200 = 44.5% (~45%); formal 1/50 (2%)**, unchanged.
+NOT_READY_TO_FUND; V10 unchanged/DEFERRED (not touched this batch). This
+batch breaks the three-batch audit-only streak (22-24) with genuine
+implementation/test work, satisfying the anti-churn rule without requiring a
+score change. Full detail: `docs/V11_WORK_CHECKPOINT.md` and
+`docs/V11_REQUIREMENTS_MATRIX.md` (supervisor batch 25 / R40 row). Next
+unfinished action: no further purely-local, non-owner, non-evidence-gated
+implementation gap is currently named in the matrix for R40; remaining open
+items across the tree are the same owner/external/empirical-gated set
+recorded by batch 24 (R31, R37/R39, R43/R44/R46/R47/R48/R49) plus general
+audit-sweep follow-up (R06-R08, R32-R36) if a new defect signal appears.

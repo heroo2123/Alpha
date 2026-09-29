@@ -17,10 +17,30 @@ VERSION = 'alpha_v11_performance_v1'
 UNKNOWN = 'UNKNOWN'
 _CURRENT = object()
 DIMENSIONS = ('station','city','entry_price','event_state','model_bundle','horizon','model_confidence','market_liquidity','weather_variable','time_of_day','apparent_edge','source','country','pws_density','pws_quality')
+EDGE_BUCKET_WIDTH = Decimal('0.01')
 
 
 def _add(groups, key, amount):
     groups[key] = groups.get(key, Decimal(0))+amount
+
+
+def _edge_bucket(edge):
+    """Fixed-width EV/share cohort, not a calibration or profitability threshold.
+
+    A raw per-event exact value groups every entry into its own singleton, so
+    concentration/drawdown slices over `apparent_edge` were never actually
+    aggregating anything. Bucketing into a declared, non-adaptive width keeps
+    entries with materially similar priced edge together while leaving the
+    width itself independent of any observed outcome. Boundaries are formatted
+    at the bucket width's own fixed precision so labels also sort lexically in
+    numeric order.
+    """
+    if edge is None:
+        return UNKNOWN
+    value = number(edge, signed=True)
+    lower = (value / EDGE_BUCKET_WIDTH).to_integral_value(rounding=ROUND_FLOOR) * EDGE_BUCKET_WIDTH
+    upper = lower + EDGE_BUCKET_WIDTH
+    return '[{:+.2f},{:+.2f})'.format(lower, upper)
 
 
 @precise
@@ -240,8 +260,7 @@ class PerformanceLab:
                 value = self.store.get(intent['valuation_id'])['body']['details']
                 result['model_confidence'] = value.get('model',{}).get('prediction',{}).get('calibration_status',UNKNOWN)
                 result['market_liquidity'] = value.get('book',{}).get('reason',UNKNOWN)
-                edge = value.get('conservative_ev_per_share')
-                result['apparent_edge'] = edge if edge is not None else UNKNOWN
+                result['apparent_edge'] = _edge_bucket(value.get('conservative_ev_per_share'))
             rule_raw = state.get('rules',{}).get(intent.get('event_id'))
             if rule_raw:
                 from .rules import RuleFingerprint

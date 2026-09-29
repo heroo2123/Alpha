@@ -156,7 +156,33 @@ def test_apparent_edge_slice_groups_by_pinned_entry_valuation(rig):
         details={'conservative_ev_per_share':'0.05'})
     s['intents']['entry0']['valuation_id']='valuation-priced'
     save(c,s);d=report(rig,c)
-    assert d['pnl_slices']['apparent_edge']=={'0.05':'6','UNKNOWN':'-4'}
+    assert d['pnl_slices']['apparent_edge']=={'[+0.05,+0.06)':'6','UNKNOWN':'-4'}
+
+
+def test_apparent_edge_slice_buckets_distinct_values_into_the_same_fixed_width_range(rig):
+    c,s=recorded(rig,('6','-4'))
+    rig['store'].audit('valuation-low',event_id='e0',kind='MEASUREMENT',details={'conservative_ev_per_share':'0.051'})
+    rig['store'].audit('valuation-high',event_id='e1',kind='MEASUREMENT',details={'conservative_ev_per_share':'0.058'})
+    s['intents']['entry0']['valuation_id']='valuation-low'
+    s['intents']['entry1']['valuation_id']='valuation-high'
+    save(c,s);d=report(rig,c)
+    assert d['pnl_slices']['apparent_edge']=={'[+0.05,+0.06)':'2'}
+
+
+def test_apparent_edge_slice_buckets_negative_edge_by_floor_not_truncation(rig):
+    c,s=recorded(rig,('6',))
+    rig['store'].audit('valuation-negative',event_id='e0',kind='MEASUREMENT',details={'conservative_ev_per_share':'-0.005'})
+    s['intents']['entry0']['valuation_id']='valuation-negative'
+    save(c,s);d=report(rig,c)
+    assert d['pnl_slices']['apparent_edge']=={'[-0.01,+0.00)':'6'}
+
+
+def test_apparent_edge_slice_bucket_boundary_belongs_to_upper_range(rig):
+    c,s=recorded(rig,('6',))
+    rig['store'].audit('valuation-boundary',event_id='e0',kind='MEASUREMENT',details={'conservative_ev_per_share':'0.06'})
+    s['intents']['entry0']['valuation_id']='valuation-boundary'
+    save(c,s);d=report(rig,c)
+    assert d['pnl_slices']['apparent_edge']=={'[+0.06,+0.07)':'6'}
 
 
 def test_apparent_edge_slice_falls_back_to_unknown_without_pinned_valuation(rig):

@@ -9677,3 +9677,143 @@ local-only confirmation of already-known blockers. Blocked items unchanged
 from batch 23's list. Next unfinished action: none locally reachable this
 cycle; hand off to acceptance-watch routing pending new owner/operational
 evidence.
+
+## Supervisor batch 25 — 2026-09-29: implemented R40's last named local-implementation gap (apparent-edge-range aggregation); no new C/J/E/A
+
+Recovery check: `git status` clean, local HEAD `198d100` equal to
+`origin/weather-v11-profitability-upgrade-2026-09-23`, no unfinished process
+other than this invocation and the same isolated `alpha-weather-scanner.service`
+(unchanged fail-closed, no-financial-authority shape; not touched this
+batch). Read this checkpoint, the requirements matrix and the progress
+ledger before editing.
+
+**Mandatory pre-work evidence check.** One commissioning-evidence file is
+newer than batch 24's review cutoff (`v11_noaa_gefs_historical_archive_probe_
+20260929.json`, 04:36:31 UTC): `v11_brain_historical_backfill_plan_20260929.json`
+(04:52:45 UTC). Reviewed rather than skipped: it is a genuine, honestly
+self-labeled (`financial_authority`/`promotion_authority` both `false`,
+`untouched_forward_holdout_claim: false`) plan for an actual unbiased
+TRAIN (through 2026-09-15) / DEVELOPMENT (09-16..23) /
+HISTORICAL_CONFIRMATION (09-24..28) split across 15 real stations, 37 dates
+and 1,082 events — structurally superior to the selection-biased 34-event
+`SELECTED_TRADES` set used by batch 24's fit, since its own `selection` field
+states "all complete reviewed-station NWS daily high/low events, not
+V10 trade-selected." Inspected the actual content, not just the summary
+fields: each of the 541 `station_days` entries specifies a GEFS
+run/cycle/forecast-hour set to fetch for one station-day (e.g. `KATL`,
+`run_date: 2026-08-23`, `forecast_hours: [3,6,...,30]`), but none carry an
+actual fetched forecast value, an observed temperature or a Gamma settlement
+label — it is a fetch plan, not a dataset, and `unique_archive_messages:
+33759` only counts messages the plan expects to retrieve, not messages
+already retrieved. It does not itself advance R47 (still no fit, no labels
+attached), and executing it (fetching 33,759+ archive messages, joining
+observations and Gamma payouts, and refitting) is real, identifiable, but
+substantial new multi-step work, not a bounded step for this batch. Per the
+standing score-velocity anti-churn rule, batches 22, 23 and 24 were three
+consecutive audit-only/no-credit touches on this same R47/R31/R46 cluster; a
+fourth such review-only batch on this file would repeat that exact pattern,
+which the rule forbids absent a new defect signal or crossing opportunity.
+Neither is present here, so no further action was taken on this file this
+batch beyond this recorded review.
+
+**Implementation: R40's remaining apparent-edge gap.** Per the supervisor's
+explicit instruction to prefer a concrete named remaining local
+implementation gap over another audit sweep, re-read R40's own matrix row.
+Five of its named Upgrade N profile items (`weather_variable`, `time_of_day`,
+`source`, `country`, `pws_density`/`pws_quality`) were already closed by
+prior batches, but the row's `apparent_edge` sentence explicitly states: "this
+is a conservative-net-EV exact-value slice, with apparent-edge-range
+aggregation and metric semantics still pending." Verified this directly
+against the actual code rather than trusting the row text: `v11/performance.py
+::_metadata` set `result['apparent_edge'] = edge if edge is not None else
+UNKNOWN`, i.e. the literal `conservative_ev_per_share` decimal string. In
+`build()`'s aggregation loop (`for dimension in DIMENSIONS: _add(dims[dimension],
+str(metadata[dimension]),amount)`), this means every distinct priced EV value
+forms its own singleton bucket in `dims['apparent_edge']` — unlike every
+other dimension in the same tuple, this one never actually aggregates
+multiple entries together, so the existing concentration/attribution
+machinery cannot show anything meaningful about how realized P&L relates to
+priced edge.
+
+Closed this specific, bounded gap. Added `EDGE_BUCKET_WIDTH = Decimal('0.01')`
+and `_edge_bucket(edge)` to `v11/performance.py`: returns `UNKNOWN` for
+`None`, otherwise parses the value with the existing `scenario_risk.number(
+signed=True)` bound-checker (same validation already used elsewhere in this
+module) and floors it (`ROUND_FLOOR`, i.e. floor division toward negative
+infinity so `-0.005` buckets to `[-0.01,+0.00)`, not `[+0.00,+0.01)`) into a
+fixed, non-adaptive `0.01`-wide range, formatted as `[+0.05,+0.06)` with
+boundaries at the bucket width's own fixed precision so labels also sort
+lexically in numeric order (the row's "metric semantics" half). The width is
+a declared coarse-graining constant independent of any observed outcome or
+performance threshold — no calibration, profitability cutoff or backtested
+parameter is invented. No new store read: the function operates on the same
+already-pinned `conservative_ev_per_share` value `_metadata` already reads
+for `model_confidence`/`market_liquidity`. `_metadata`'s existing
+`except (EvidenceError,KeyError,TypeError)` still catches a malformed edge
+string exactly as it already does for every other field in that block.
+
+Updated `tests/test_v11_performance.py`'s three existing exact-value
+`apparent_edge` assertions to the new bucket labels
+(`test_apparent_edge_slice_groups_by_pinned_entry_valuation`,
+`..._falls_back_to_unknown_without_pinned_valuation`,
+`..._falls_back_to_unknown_when_valuation_is_gated`) and added three new
+cases: `test_apparent_edge_slice_buckets_distinct_values_into_the_same_
+fixed_width_range` (two entries at 0.051 and 0.058 now sum into one
+`[+0.05,+0.06)` group — proving actual aggregation, not just relabeling),
+`test_apparent_edge_slice_buckets_negative_edge_by_floor_not_truncation`
+(-0.005 buckets to `[-0.01,+0.00)`), and
+`test_apparent_edge_slice_bucket_boundary_belongs_to_upper_range` (an edge of
+exactly 0.06 buckets to `[+0.06,+0.07)`, not the lower range).
+
+**Verification (foreground).** Direct module: `tests/test_v11_performance.py`
+**33 passed / 9.84s**, exit 0. Checked every other module referencing
+`PerformanceLab`/`performance.py` for any dependency on the old exact-value
+`apparent_edge` key or on `DIMENSIONS` ordering (`drift.py`, `drift_runtime.py`,
+`fill_markout.py`, `audit_reports.py` and their test files) — none found.
+Ran the broader affected family anyway: `tests/test_v11_performance.py`,
+`tests/test_v11_fill_markout.py`, `tests/test_v11_execution_costs.py`,
+`tests/test_v11_account_replay.py`, `tests/test_v11_causal_replay.py`,
+`tests/test_v11_release_replay.py`, `tests/test_v11_realized_drift.py`,
+`tests/test_v11_pws_replay.py`: **227 passed / 160.63s**, exit 0, no
+failures/skips. `git status --short` before and after this batch shows
+changes only in `polymarket_scanner/v11/performance.py`,
+`tests/test_v11_performance.py`, and the three durable ledger files
+(`docs/V11_REQUIREMENTS_MATRIX.md`, `docs/V11_ENGINEERING_PROGRESS.md`, this
+checkpoint). No private input, credential, database, raw evidence, local
+supervisor file or CLAUDE.md is staged.
+
+**Score.** This closes R40's last explicitly named open local-implementation
+item in its own matrix row. R40 already holds existing C/J credit from prior
+batches (its core performance/concentration machinery, common-account P&L,
+drawdown/tail/concentration and the other four Upgrade N profiles were
+already implemented and credited); this apparent-edge fix hardens that same
+already-credited slice rather than adding a new subsystem, so per the
+standing rule against crediting repeated/refinement work on an
+already-scored requirement, no new C/J/E/A is claimed. **89/200 = 44.5%
+(~45%); formal 1/50 (2%)**, unchanged. NOT_READY_TO_FUND; V10
+unchanged/DEFERRED (confirmed inactive/disabled, not touched this batch). No
+alpha-dev access, deployment, service change, financial authority or real
+order was requested or performed.
+
+This batch breaks the three-consecutive-audit-only-batch streak (22, 23, 24)
+with genuine implementation and test work, per the supervisor's explicit
+instruction that a fourth generic audit sweep should not be the default even
+though this particular fix does not itself move the score. **Next unfinished
+action:** no further purely-local, non-owner, non-evidence-gated
+implementation gap is currently named anywhere in the matrix for R40 — its
+remaining tail (independent labels/calibration, horizon-matched EV capture,
+actual fees/slippage, empirical comparison) is genuinely evidence/owner-gated
+exactly as already recorded. Remaining open items across the tree are
+unchanged from batch 24's list: R44 E/A (Telegram identity custody handoff,
+protected-configuration runtime acceptance, an authorized destructive-rollback
+drill); R46 (real accumulated V11 paper operating time plus a live runtime
+status snapshot — still blocked on the same host permission wall); R47 (an
+actual real-data initial-champion fit with genuine held-out evaluation, plus
+independent/owner review — today's backfill plan is a real step toward a
+better dataset but not yet a fit); R31 (exact NWS/WRH source/version finality
+proof); R37/R39 (owner-authorized deployment/configuration review); R43/R48/
+R49 (credentialed/production acceptance). If no further concrete local
+implementation gap can be found next batch, a fresh line-by-line defect audit
+of an untouched package (R06-R08, R32-R36) is the fallback per the pre-R47-era
+precedent, not another pass over the already-exhausted R47/R31/R46 evidence
+cluster.
