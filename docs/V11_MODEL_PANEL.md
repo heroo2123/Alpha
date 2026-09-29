@@ -130,9 +130,13 @@ families. No GEFS transport, schedule, model input or learner behavior changes.
 - GRIB decoder: one regular 0.25-degree field, at most 1440×721 grid points;
   only selected nearest candidates are unpacked. Simple and IEEE packing work.
   CCSDS template 5.42 is decoded through ECMWF ecCodes when that reviewed optional
-  dependency is available; missing ecCodes, JPEG/complex packing, bitmaps and other
-  grids fail closed. Real 2026-09-29 AIFS control/member and IFS control/member
-  fields all decoded successfully from anonymous HTTP ranges. A release/header
+  dependency is available. Before any selected value is trusted, the bounded field
+  is fully decoded and re-encoded and must reproduce the original GRIB bytes exactly;
+  this closes an independently reproduced ecCodes behavior where self-consistent
+  truncated CCSDS could otherwise return plausible wrong values. Missing Python or
+  native ecCodes, malformed metadata/index types, JPEG/complex packing, bitmaps and
+  other grids fail closed. Real 2026-09-29 AIFS control/member and IFS control/member
+  fields all pass the hardened path from anonymous HTTP ranges. A release/header
   signature mismatch still fails closed; unannounced vendor changes invisible in
   metadata cannot be inferred, so operational release monitoring remains required.
 - WN extraction envelope: 64 KiB, one variable/run/time/grid point, at most 16
@@ -146,7 +150,7 @@ work. Source presence or provider agreement earns no learning/financial authorit
 
 ## Verification and handoff
 
-Focused result after real-provider parity corrections: **105 passed / 5.01 s**.
+Focused result after real-provider parity and independent-review hardening: **110 passed / 6.08 s**.
 Affected forecast/GEFS regression: **257 passed / 257.43 s**, exit 0, covering the
 model panel plus forecast sources, GEFS schedule/source/GRIB decoding, remaining-day
 forecast assembly and forecast learning. No financial/order/promotion path changed.
@@ -155,7 +159,9 @@ The focused suite covers both ECMWF providers, Cycle-50r1/AIFS-v2 URL layouts,
 control/member metadata, simple/IEEE/CCSDS packing, member edges, schema/run/version
 mismatch, bounds, source dependence, unit conversion, transport denial/range
 failures, receipt causality, archive tampering, derived-value replay, WN
-statistics/member separation, absent access and the GEFS bridge.
+statistics/member separation, absent access and the GEFS bridge. Independent review
+also reproduced and is now regression-covered for: self-consistent CCSDS truncation,
+missing native ecCodes, malformed JSON selector types, and undersized product metadata.
 
 A bounded anonymous live-parity check on the public 2026-09-29 00z release passed
 four representative paths end to end: AIFS control (`enfo/cf`), AIFS member 35

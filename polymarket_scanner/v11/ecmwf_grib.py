@@ -3,7 +3,8 @@
 Simple and IEEE packing are decoded locally. CCSDS template 5.42 is decoded
 through ECMWF ecCodes when that reviewed optional dependency is available;
 unsupported packing and decoder failures remain explicit fail-closed gates.
-Only the selected station value is requested from the compressed field.
+CCSDS fields must exactly survive a bounded decode/re-encode integrity round-trip
+before the selected station value is returned.
 """
 from datetime import datetime, timezone
 import hashlib
@@ -24,7 +25,8 @@ def _ccsds_value(data, index, count, ni, nj):
         raise EvidenceError('ECMWF_CCSDS_INDEX_BOUND')
     try:
         import eccodes
-    except (ImportError, OSError):
+    except Exception:
+        # The Python package can exist while its native ecCodes library is absent.
         raise EvidenceError('ECMWF_CCSDS_DECODER_UNAVAILABLE') from None
     handle = None
     try:
@@ -45,10 +47,21 @@ def _ccsds_value(data, index, count, ni, nj):
                 raise EvidenceError('ECMWF_CCSDS_DECODER_METADATA_MISMATCH')
         if eccodes.codes_get(handle, 'packingType', str) != 'grid_ccsds':
             raise EvidenceError('ECMWF_CCSDS_DECODER_METADATA_MISMATCH')
-        values = eccodes.codes_get_double_elements(handle, 'values', [index])
-        if len(values) != 1 or not math.isfinite(float(values[0])):
+        # ecCodes can decode a self-consistent but truncated CCSDS section by
+        # synthesizing plausible-looking values. Force a bounded full decode and
+        # deterministic re-encode; the exact GRIB message must round-trip byte for
+        # byte before any selected value is trusted.
+        values = eccodes.codes_get_values(handle)
+        if len(values) != count or any(not math.isfinite(float(v)) for v in values):
             raise EvidenceError('ECMWF_CCSDS_DECODE_FAILED')
-        return float(values[0])
+        clone = eccodes.codes_clone(handle)
+        try:
+            eccodes.codes_set_values(clone, values)
+            if eccodes.codes_get_message(clone) != data:
+                raise EvidenceError('ECMWF_CCSDS_INTEGRITY_FAILED')
+        finally:
+            eccodes.codes_release(clone)
+        return float(values[index])
     except EvidenceError:
         raise
     except Exception as exc:
@@ -102,7 +115,9 @@ def decode_station(data, *, request, target):
         run = datetime(uint(ident, 12, 14), *ident[14:19], tzinfo=timezone.utc).timestamp()
     except ValueError:
         raise EvidenceError('ECMWF_GRIB_TIME_INVALID') from None
-    template = uint(product, 7, 9) if len(product) >= 9 else -1
+    if len(product) not in (34, 37):
+        raise EvidenceError('ECMWF_POINT_2T_REQUIRED')
+    template = uint(product, 7, 9)
     if (uint(product, 5, 7) != 0 or product[9:11] != b'\0\0' or product[17] != 1
             or product[22:24] != bytes([103, 0]) or uint(product, 24, 28) != 2
             or product[28:34] != b'\xff'*6):

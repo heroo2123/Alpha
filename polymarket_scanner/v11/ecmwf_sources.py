@@ -138,7 +138,9 @@ def plan_ranges(index, requests):
             expected = req.selectors
             actual = {k: str(row.get(k, '')) for k in expected}
             # ECMWF indexes omit number for AIFS cf and IFS oper/fc controls.
-            if row.get('type') in {'cf', 'fc'} and 'number' not in row: actual['number'] = '0'
+            row_type = row.get('type')
+            if type(row_type) is str and row_type in {'cf', 'fc'} and 'number' not in row:
+                actual['number'] = '0'
             t = actual['time']
             if t in {'0', '6', '12', '18'}: actual['time'] = f'{int(t):02}00'
             if t in {'00', '06'}: actual['time'] = t+'00'

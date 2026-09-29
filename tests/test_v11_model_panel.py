@@ -19,13 +19,14 @@ from polymarket_scanner.v11.model_panel import (
 )
 from polymarket_scanner.v11.ecmwf_sources import (
     ECMWFRequest, ByteRange, plan_ranges, access_state, ECMWFCollector, normalize_ecmwf,
+    MAX_INDEX_BYTES,
 )
 from polymarket_scanner.v11.ecmwf_grib import release_signature, decode_station
 from polymarket_scanner.v11.weathernext_sources import (
     WeatherNextRequest, AccessState, access_gate, archive_fixture, normalize_weathernext,
     SCHEMA, ENSEMBLE_DATASET, STATISTICS_DATASET,
 )
-from test_v11_grib_fields import grib, mutate, u, signed, message
+from test_v11_grib_fields import grib, mutate, u, signed, message, section
 
 RUN = datetime(2026, 9, 28, tzinfo=timezone.utc).timestamp()
 TARGET = StationTarget('test-panel', 'KATL', '2026-09-28', 'America/New_York', 33., -84., 'a'*64, 'b'*64)
@@ -230,6 +231,28 @@ def test_ecmwf_grib_gates_unsupported_or_mismatched_fields(sec, offset, value, e
     with pytest.raises(EvidenceError, match=error): decode_station(mutate(data, sec, offset, value), request=req, target=TARGET)
 
 
+def test_ecmwf_short_product_section_fails_closed_without_index_error():
+    base = ecmwf_bytes()
+    parts = []; pos = 16
+    while pos < len(base)-4:
+        size = int.from_bytes(base[pos:pos+4], 'big')
+        part = bytearray(base[pos:pos+size]); pos += size
+        if part[4] == 4:
+            short = section(4, 17)
+            short[5:7] = u(0, 2); short[7:9] = u(1, 2); short[9:11] = b'\0\0'
+            part = short
+        parts.append(part)
+    data = message(parts); req = request(data)
+    with pytest.raises(EvidenceError, match='POINT_2T'):
+        decode_station(data, request=req, target=TARGET)
+
+
+def test_ecmwf_index_byte_bound_is_explicit():
+    req = request()
+    with pytest.raises(EvidenceError, match='INDEX_BYTES_BOUND'):
+        plan_ranges(b' ' * (MAX_INDEX_BYTES + 1), (req,))
+
+
 def test_ecmwf_ccsds_template_42_decodes_with_eccodes():
     eccodes = pytest.importorskip('eccodes')
     simple = ecmwf_bytes()
@@ -244,6 +267,52 @@ def test_ecmwf_ccsds_template_42_decodes_with_eccodes():
     assert point['kelvin'] == pytest.approx(290.0)
     assert point['latitude'] == pytest.approx(33.0)
     assert point['longitude'] == pytest.approx(-84.0)
+
+
+def test_ecmwf_ccsds_self_consistent_truncation_fails_integrity_roundtrip():
+    eccodes = pytest.importorskip('eccodes')
+    handle = eccodes.codes_new_from_message(ecmwf_bytes())
+    try:
+        eccodes.codes_set(handle, 'packingType', 'grid_ccsds')
+        data = eccodes.codes_get_message(handle)
+    finally:
+        eccodes.codes_release(handle)
+    req = request(data)
+    from polymarket_scanner.v11.ecmwf_grib import sections
+    parts = sections(data)
+    section7 = parts[7]
+    parts[7] = u(6, 4) + section7[4:6]
+    bad = message(list(parts.values()))
+    assert release_signature(bad) == req.grib_signature_sha256
+    with pytest.raises(EvidenceError, match='CCSDS_INTEGRITY'):
+        decode_station(bad, request=req, target=TARGET)
+
+
+def test_ecmwf_ccsds_native_library_failure_is_explicit(monkeypatch):
+    import builtins
+    from polymarket_scanner.v11.ecmwf_grib import _ccsds_value
+    original = builtins.__import__
+    def blocked(name, *args, **kwargs):
+        if name == 'eccodes':
+            raise RuntimeError('native library unavailable')
+        return original(name, *args, **kwargs)
+    monkeypatch.setattr(builtins, '__import__', blocked)
+    with pytest.raises(EvidenceError, match='CCSDS_DECODER_UNAVAILABLE'):
+        _ccsds_value(b'not-used', 0, 1, 1, 1)
+
+
+def test_ecmwf_truncated_product_and_malformed_index_types_fail_closed():
+    data = ecmwf_bytes(); req = request(data)
+    from polymarket_scanner.v11.ecmwf_grib import sections
+    parts = sections(data)
+    parts[4] = u(17, 4) + parts[4][4:17]
+    bad = message(list(parts.values()))
+    assert release_signature(bad) == req.grib_signature_sha256
+    with pytest.raises(EvidenceError, match='POINT_2T'):
+        decode_station(bad, request=req, target=TARGET)
+    row = json.loads(index_bytes(req, data)); row['type'] = []
+    with pytest.raises(EvidenceError):
+        plan_ranges(canonical(row).encode(), (req,))
 
 
 def test_grib_release_change_and_station_distance_fail_closed():

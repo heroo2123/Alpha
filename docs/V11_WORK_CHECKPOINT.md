@@ -8,14 +8,20 @@ and bounded station decoding, and gated WeatherNext 3 fixture normalization.
 The follow-up branch `agent2-weather-model-panel-ccsds-20260929` now matches
 the current 2026 ECMWF layouts: AIFS uses separate `enfo/cf` and `enfo/pf`
 files; IFS Cycle 50r1 uses `oper/fc` for the control and `enfo/ef` for the
-50 perturbed members. CCSDS GRIB2 template 5.42 is decoded through lazy ecCodes
-with fail-closed behavior when unavailable.
+50 perturbed members. CCSDS GRIB2 template 5.42 is decoded through lazy ecCodes.
+An independent GPT-6 review reproduced one P1 decoder-integrity flaw plus three
+P2 error-handling gaps; all four are now fixed and regression-covered: CCSDS
+must survive an exact bounded decode/re-encode byte round-trip, missing native
+ecCodes fails as controlled unavailability, malformed index selector types fail
+closed, and undersized product metadata is rejected before field access.
 
 Bounded anonymous real-source parity passed on four 2026-09-29 00z fields:
-AIFS control/member-35 and IFS control/member-12. The observed IFS ensemble
-index was 1,995,799 bytes / 8,500 rows, so the still-bounded index ceiling is
-3 MiB / 12,000 rows. Focused verification: **105 passed / 5.01 s**. Affected
-forecast/GEFS regression: **257 passed / 257.43 s**, exit 0. Existing GEFS,
+AIFS control/member-35 and IFS control/member-12, and the same four pass after
+the hardening. The observed IFS ensemble index was 1,995,799 bytes / 8,500 rows,
+so the still-bounded index ceiling is 3 MiB / 12,000 rows. Focused verification:
+**110 passed / 6.08 s**. The prior affected regression at the pre-hardening
+provider-parity commit was **257 passed / 257.43 s**, exit 0; post-hardening
+affected regression is rerun before merge. Existing GEFS,
 PAPER services, V10, BrainWork downloader, credentials and all financial/order/
 promotion authority are unchanged. Current-open-data parity is established;
 full historical ECMWF archive access, Google WeatherNext access/connector,
