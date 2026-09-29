@@ -192,11 +192,27 @@ def test_control_number_optional_and_time_encoding():
     (1,12,u(2025,2),'RUN_MEMBER'), (4,35,b'\x01','RUN_MEMBER'),
     (4,18,u(12,4),'RUN_MEMBER'), (3,30,u(1000000,4),'GRID_POINT'),
     (3,63,u(500000,4),'RESOLUTION'), (6,5,b'\x00','BITMAP'),
-    (5,9,u(42,2),'PACKING_DECODER'),
+    (5,9,u(40,2),'PACKING_DECODER'),
 ])
 def test_ecmwf_grib_gates_unsupported_or_mismatched_fields(sec, offset, value, error):
     data = ecmwf_bytes(); req = request(data)
     with pytest.raises(EvidenceError, match=error): decode_station(mutate(data, sec, offset, value), request=req, target=TARGET)
+
+
+def test_ecmwf_ccsds_template_42_decodes_with_eccodes():
+    eccodes = pytest.importorskip('eccodes')
+    simple = ecmwf_bytes()
+    handle = eccodes.codes_new_from_message(simple)
+    try:
+        eccodes.codes_set(handle, 'packingType', 'grid_ccsds')
+        data = eccodes.codes_get_message(handle)
+    finally:
+        eccodes.codes_release(handle)
+    req = request(data)
+    point = decode_station(data, request=req, target=TARGET)
+    assert point['kelvin'] == pytest.approx(290.0)
+    assert point['latitude'] == pytest.approx(33.0)
+    assert point['longitude'] == pytest.approx(-84.0)
 
 
 def test_grib_release_change_and_station_distance_fail_closed():

@@ -1,8 +1,9 @@
-"""Bounded regular-grid ECMWF GRIB2 station extraction, no native dependencies.
+"""Bounded regular-grid ECMWF GRIB2 station extraction.
 
-Simple and IEEE packing only. CCSDS/JPEG/complex packing and other grids return
-an explicit decoder gate; never interpret compressed bytes as temperatures.
-Only a few nearest candidate values are unpacked, not a global Python array.
+Simple and IEEE packing are decoded locally. CCSDS template 5.42 is decoded
+through ECMWF ecCodes when that reviewed optional dependency is available;
+unsupported packing and decoder failures remain explicit fail-closed gates.
+Only the selected station value is requested from the compressed field.
 """
 from datetime import datetime, timezone
 import hashlib
@@ -14,11 +15,56 @@ from .grib_fields import _uint as uint, _signed as signed
 from .model_panel import MAX_RAW_BYTES, temperature
 from .pws_quality import geometry
 
-VERSION = 'alpha_v11_ecmwf_station_grib_v1'
+VERSION = 'alpha_v11_ecmwf_station_grib_v2'
+
+
+def _ccsds_value(data, index, count, ni, nj):
+    """Decode one independently selected value from GRIB2 template 5.42."""
+    if type(index) is not int or not 0 <= index < count:
+        raise EvidenceError('ECMWF_CCSDS_INDEX_BOUND')
+    try:
+        import eccodes
+    except (ImportError, OSError):
+        raise EvidenceError('ECMWF_CCSDS_DECODER_UNAVAILABLE') from None
+    handle = None
+    try:
+        handle = eccodes.codes_new_from_message(data)
+        if handle is None:
+            raise EvidenceError('ECMWF_CCSDS_DECODE_FAILED')
+        expected = {
+            'edition': 2,
+            'dataRepresentationTemplateNumber': 42,
+            'numberOfDataPoints': count,
+            'numberOfValues': count,
+            'Ni': ni,
+            'Nj': nj,
+            'bitmapPresent': 0,
+        }
+        for key, value in expected.items():
+            if int(eccodes.codes_get_long(handle, key)) != value:
+                raise EvidenceError('ECMWF_CCSDS_DECODER_METADATA_MISMATCH')
+        if eccodes.codes_get(handle, 'packingType', str) != 'grid_ccsds':
+            raise EvidenceError('ECMWF_CCSDS_DECODER_METADATA_MISMATCH')
+        values = eccodes.codes_get_double_elements(handle, 'values', [index])
+        if len(values) != 1 or not math.isfinite(float(values[0])):
+            raise EvidenceError('ECMWF_CCSDS_DECODE_FAILED')
+        return float(values[0])
+    except EvidenceError:
+        raise
+    except Exception as exc:
+        raise EvidenceError('ECMWF_CCSDS_DECODE_FAILED') from exc
+    finally:
+        if handle is not None:
+            try:
+                eccodes.codes_release(handle)
+            except Exception:
+                pass
 
 
 def sections(data):
-    if (type(data) is not bytes or not 16 <= len(data) <= MAX_RAW_BYTES or data[:8] != b'GRIB\0\0\0\x02'
+    if (type(data) is not bytes or not 16 <= len(data) <= MAX_RAW_BYTES
+            or data[:4] != b'GRIB' or data[4:6] not in {b'\0\0', b'\xff\xff'}
+            or data[6] != 0 or data[7] != 2
             or uint(data, 8, 16) != len(data) or data[-4:] != b'7777'):
         raise EvidenceError('ECMWF_GRIB_ENVELOPE')
     result = {}; offset = 16; order = []
@@ -108,6 +154,10 @@ def decode_station(data, *, request, target):
         width = 4 if packing[11] == 1 else 8
         if len(payload) != count*width: raise EvidenceError('ECMWF_IEEE_LENGTH')
         def value(i): return struct.unpack_from('>f' if width == 4 else '>d', payload, i*width)[0]
+    elif template == 42:
+        if len(packing) != 25:
+            raise EvidenceError('ECMWF_CCSDS_PACKING_SCHEMA')
+        def value(i): return _ccsds_value(data, i, count, ni, nj)
     else:
         raise EvidenceError('ECMWF_PACKING_DECODER_UNAVAILABLE')
     # At most 75 candidates, including wrap-around and endpoints. The grid must
