@@ -10027,3 +10027,29 @@ HISTORICAL_CONFIRMATION splits, that is the first genuinely new input worth
 a full evidence review; until then, do not repeat a matrix-wide scan or
 guardian-class audit sweep as filler, and continue handing off to
 acceptance-watch routing.
+
+## Supervisor batch 29 — 2026-09-29: named-blocker re-check plus new-file review (one new plan file, non-crediting); LOCAL_SCORE_WORK_EXHAUSTED unchanged
+
+Recovery check: `git status` clean, local HEAD `f1ce6aa` equal to
+`origin/weather-v11-profitability-upgrade-2026-09-23`. Checked scanner
+`STATUS.json` and all files under `/home/alphaadmin/AlphaV11_Commissioning/
+evidence` per this batch's explicit instruction. Backfill job real further
+progress (23.55% messages / 23.85% station-days), still `RUNNING`, both
+held-out splits (`DEVELOPMENT`, `HISTORICAL_CONFIRMATION`) still at zero
+completed station-days — crosses no boundary. One genuinely new file since
+batch 28's commit: `v11_weather_model_panel_plan_20260929.json` (written
+05:29 UTC, after batch 28's 05:27:06 commit) — a forward-looking multi-
+source weather-model roadmap (ECMWF IFS-ENS/AIFS-ENS, Google WeatherNext-3,
+all `historical_backfill: NOT_STARTED`, each gated on external registration/
+allowlist access) with no fit, code or acceptance content; reviewed in full
+in the progress ledger's batch-29 entry, does not advance any row's C/J/E/A
+boundary. Scanner `STATUS.json` unchanged in shape (coarse process/memory
+fields only, no new R46-relevant granular booleans); `groups` still shows
+no `adm`/`systemd-journal` membership. Did not repeat batch 26's
+matrix-wide scan (already exhausted as a default work source; no new
+bounded local gap surfaced since). No code, test or matrix-row change; no
+new C/J/E/A: **89/200 = 44.5% (~45%); formal 1/50 (2%)**, unchanged.
+NOT_READY_TO_FUND. `LOCAL_SCORE_WORK_EXHAUSTED`: unchanged, same blocked
+list as batch 28 (R44 E/A; R46; R47; R31; R37/R39; R43/R48/R49). Next
+unfinished action: re-check the backfill progress file on the next
+invocation (~107 minutes from completion as of this check).

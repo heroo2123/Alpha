@@ -2994,3 +2994,64 @@ HISTORICAL_CONFIRMATION splits, that is the first genuinely new input worth
 a full evidence review; until then, do not repeat a matrix-wide scan or
 guardian-class audit sweep as filler, and continue handing off to
 acceptance-watch routing.
+
+## Supervisor batch 29 — 2026-09-29: named-blocker re-check plus new-file review (one new plan file, non-crediting); LOCAL_SCORE_WORK_EXHAUSTED unchanged
+
+Recovery check: `git status` clean, local HEAD `f1ce6aa` equal to
+`origin/weather-v11-profitability-upgrade-2026-09-23`. Scanner unchanged
+(`STATUS.json` at 05:32:04 UTC still shows only coarse `MainPID`/
+`NRestarts`/`MemoryCurrent`/`ActiveState`/`SubState` fields, `state:
+HEALTHY`, `problems: []`, `financial_execution_active: false` — none of the
+~50 cycle-specific booleans R46 needs); `groups` still shows no `adm`/
+`systemd-journal` membership.
+
+Per this batch's explicit instruction to check both the scanner state and
+all NEW files in `/home/alphaadmin/AlphaV11_Commissioning/evidence` before
+declaring work exhausted, did both directly rather than assuming batch 28's
+"no new file" finding still held. `v11_brain_historical_backfill_
+progress.json` now reads `messages_done: 7950`/`33759` (23.55%),
+`station_days_done: 129`/`541` (23.85%), `splits.DEVELOPMENT.done: 0`/`120`,
+`splits.HISTORICAL_CONFIRMATION.done: 0`/`64` (`TRAIN.done: 129`/`357`),
+`state: RUNNING`, `eta_seconds: 6424` — real further progress on the same
+external job (PID 491812, not started or controlled by this session), still
+non-terminal and still zero entries in either held-out split, so it crosses
+no boundary. One file is genuinely new since batch 28's commit (`f1ce6aa`,
+05:27:06 UTC): `v11_weather_model_panel_plan_20260929.json`, written
+05:29:XX UTC — after batch 28 finished, so not reviewed before now. Read it
+in full: it is a forward-looking `V11_WEATHER_MODEL_PANEL_PLAN` naming four
+candidate "core" ensemble sources (NOAA GEFS — the one already
+`historical_backfill: RUNNING`; ECMWF IFS-ENS, ECMWF AIFS-ENS and Google
+WeatherNext-3, all three `historical_backfill: NOT_STARTED` and each gated
+on registration/allowlist access this worker cannot obtain), an explicit
+exclusion list (Aurora self-host, deprecated GraphCast/GenCast) and an
+evaluation policy requiring each source to prove standalone+combined
+out-of-sample improvement before joining the accepted panel;
+`financial_authority: false` throughout. It contains no fit, no code and no
+acceptance evidence for any of the three not-yet-started sources — it is a
+plan artifact, not new implementation or evidence — so it does not advance
+R09/R47 or any other row's C/J/E/A boundary. No other file in the evidence
+directory is newer than batch 28's cutoff besides this plan file and the
+backfill progress file's own in-place update.
+
+Per batch 26's exhaustion of the matrix-wide scan as a default work source
+and the standing anti-churn rule against repeating it, did not redo that
+scan this batch; R40's local Upgrade-N gap set remains fully closed since
+batch 25 and no other row names a bounded purely-local gap per batch 26's
+review. No code, test or matrix-row change; no new C/J/E/A: **89/200 =
+44.5% (~45%); formal 1/50 (2%)**, unchanged. NOT_READY_TO_FUND; V10
+unchanged/DEFERRED (confirmed inactive/disabled, not touched this batch). No
+alpha-dev access, deployment, service change, financial authority or real
+order was requested or performed.
+
+`LOCAL_SCORE_WORK_EXHAUSTED`: unchanged. Remaining blocked items are
+unchanged from batch 28's list: R44 E/A; R46 (still blocked on the same
+host permission wall); R47 (backfill now 23.5% complete, both held-out
+splits still at zero; the new panel plan is a future-source roadmap, not
+present progress toward a champion fit); R31; R37/R39; R43/R48/R49. Next
+unfinished action: re-check `v11_brain_historical_backfill_progress.json`
+on the next invocation (~107 minutes from completion as of this check) —
+once it reaches a terminal state with populated DEVELOPMENT/
+HISTORICAL_CONFIRMATION splits, that is the first genuinely new input worth
+a full evidence review; until then, do not repeat a matrix-wide scan or
+guardian-class audit sweep as filler, and continue handing off to
+acceptance-watch routing.
