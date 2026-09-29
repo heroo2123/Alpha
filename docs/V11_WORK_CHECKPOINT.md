@@ -9991,3 +9991,39 @@ DEVELOPMENT/HISTORICAL_CONFIRMATION splits, that is the first genuinely new
 input since batch 25 worth a full evidence review; until then, do not repeat
 a matrix-wide scan or guardian-class audit sweep as filler, and continue
 handing off to acceptance-watch routing.
+
+## Supervisor batch 28 — 2026-09-29: named-blocker re-check only (backfill still non-terminal); no re-audit, no new C/J/E/A
+
+Recovery check: `git status` clean, local HEAD `ef91ca3` equal to
+`origin/weather-v11-profitability-upgrade-2026-09-23`. Scanner unchanged
+(`MainPID` 484217, 0 restarts, ~1h46min uptime, `STATUS.json` HEALTHY, no
+new fields beyond coarse process/memory — still none of the ~50
+cycle-specific booleans R46 needs); `groups` still shows no `adm`/
+`systemd-journal` membership. Per batch 24's explicit instruction (embedded
+in R47's own matrix row) that no further R47/R31/R46-adjacent evidence-only
+batch should repeat absent new owner/operational input, and per batches
+26-27 having already exhausted the matrix-wide scan as a default work
+source, this batch was scoped to exactly the one named pending signal:
+`v11_brain_historical_backfill_progress.json` now reads `messages_done:
+6756`/`33759` (20.01%), `station_days_done: 105`/`541` (19.41%),
+`splits.DEVELOPMENT.done: 0`/`120`, `splits.HISTORICAL_CONFIRMATION.done:
+0`/`64`, `state: RUNNING`, `eta_seconds: 6239` — real further progress on
+the same external job, still non-terminal, still zero entries in either
+held-out split, so it crosses no boundary. `/home/alphaadmin/
+AlphaV11_Commissioning/evidence/` has no file newer than batch 27's cutoff
+besides this same progress file's own in-place update. No code, test or
+matrix-row change; no new C/J/E/A: **89/200 = 44.5% (~45%); formal 1/50
+(2%)**, unchanged. NOT_READY_TO_FUND; V10 unchanged/DEFERRED (not touched
+this batch). No alpha-dev access, deployment, service change, financial
+authority or real order was requested or performed.
+
+`LOCAL_SCORE_WORK_EXHAUSTED`: unchanged. Remaining blocked items are
+unchanged from batch 27's list: R44 E/A; R46; R47 (backfill now 20.0%
+complete, both held-out splits still at zero); R31; R37/R39; R43/R48/R49.
+Next unfinished action: re-check `v11_brain_historical_backfill_progress.json`
+on the next invocation (~104 minutes from completion as of this check) —
+once it reaches a terminal state with populated DEVELOPMENT/
+HISTORICAL_CONFIRMATION splits, that is the first genuinely new input worth
+a full evidence review; until then, do not repeat a matrix-wide scan or
+guardian-class audit sweep as filler, and continue handing off to
+acceptance-watch routing.
