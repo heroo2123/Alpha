@@ -19,9 +19,10 @@ Bounded anonymous real-source parity passed on four 2026-09-29 00z fields:
 AIFS control/member-35 and IFS control/member-12, and the same four pass after
 the hardening. The observed IFS ensemble index was 1,995,799 bytes / 8,500 rows,
 so the still-bounded index ceiling is 3 MiB / 12,000 rows. Focused verification:
-**110 passed / 6.08 s**. The prior affected regression at the pre-hardening
-provider-parity commit was **257 passed / 257.43 s**, exit 0; post-hardening
-affected regression is rerun before merge. Existing GEFS,
+**110 passed / 6.08 s**. Independent GPT-6 post-hardening review then
+verified **262 passing tests**, re-fetched all four real provider fields, attacked
+16 real-field truncation variants (all rejected), and reported **NO BLOCKING
+FINDINGS** on `640ea632db1478cb0d30ad866819d1396aa787bd`. Existing GEFS,
 PAPER services, V10, BrainWork downloader, credentials and all financial/order/
 promotion authority are unchanged. Current-open-data parity is established;
 full historical ECMWF archive access, Google WeatherNext access/connector,

@@ -152,9 +152,12 @@ work. Source presence or provider agreement earns no learning/financial authorit
 ## Verification and handoff
 
 Focused result after real-provider parity and independent-review hardening: **110 passed / 6.08 s**.
-Affected forecast/GEFS regression: **257 passed / 257.43 s**, exit 0, covering the
-model panel plus forecast sources, GEFS schedule/source/GRIB decoding, remaining-day
-forecast assembly and forecast learning. No financial/order/promotion path changed.
+Independent post-hardening review verification: **262 tests passed**, including all
+**110 model-panel tests**; an environment without ecCodes produced **108 passed / 2
+expected skips**. The reviewed set covers the model panel plus forecast sources, GEFS
+schedule/source/GRIB decoding, remaining-day forecast assembly and forecast learning.
+No financial/order/promotion path changed. GPT-6's second review reported **NO BLOCKING
+FINDINGS** on commit `640ea632db1478cb0d30ad866819d1396aa787bd`.
 
 The focused suite covers both ECMWF providers, Cycle-50r1/AIFS-v2 URL layouts,
 control/member metadata, simple/IEEE/CCSDS packing, member edges, schema/run/version
