@@ -197,6 +197,7 @@ def test_ecmwf_cycle50r1_and_aifs_v2_file_layout(provider, member, stream, index
     assert req.selectors['stream'] == stream and req.selectors['type'] == index_type
     assert req.selectors['number'] == str(member)
     assert req.url.endswith(file_suffix)
+    assert req.identity['adapter'] == 'alpha_v11_ecmwf_open_v2'
 
 
 @pytest.mark.parametrize('mutation', ['duplicate', 'overlap', 'missing', 'oversize', 'negative', 'bool', 'duplicate-key', 'many-rows'])

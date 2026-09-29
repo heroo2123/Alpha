@@ -81,7 +81,7 @@ class ECMWFRequest:
 
     @property
     def identity(self):
-        return dict(adapter='alpha_v11_ecmwf_open_v1', source=asdict(self.source),
+        return dict(adapter='alpha_v11_ecmwf_open_v2', source=asdict(self.source),
                     url=self.url, selectors=self.selectors, grib_signature_sha256=self.grib_signature_sha256)
 
 
