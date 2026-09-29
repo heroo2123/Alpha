@@ -10292,3 +10292,61 @@ work is merged and a combined IFS/AIFS+GEFS day-extreme assembly/fit exists
 (the next evidence worth a full review for R09). Other blocked items
 unchanged from batch 31: R44 E/A; R46 (same host permission wall); R31;
 R37/R39; R43/R48/R49.
+
+## Supervisor batch 33 — 2026-09-29: R43 auth-adapter credit correction (∅ → C, J); score 89 -> 91/200
+
+Recovery check: `git status` clean, local HEAD `4ce86ce` equal to
+`origin/weather-v11-profitability-upgrade-2026-09-23`. Per anti-churn, did not
+repeat the exhausted guardian-audit sweep or another bare GEFS/ECMWF re-check:
+confirmed the concurrent `brain-ecmwf-backfill-20260929` branch is unchanged
+(backfill `COMPLETE`, no research-result artifact yet) and confirmed the
+SHADOW-path regression batch 32 flagged still crosses no row's boundary
+(R16/R17/R41 already hold C,J; R47 is a hard aggregate gate regardless of
+infrastructure). Then swept remaining zero/partial-credit rows for a stale
+audit rather than assuming none existed, and found one: R43 ("Supported auth
+adapters and entitlement") was set `OPEN` in the matrix's first commit
+(`718e599`, 2026-09-23) against `production/exchange.py`/`owner_account.py`,
+but those files were last modified 2026-09-19 — four days *before* the matrix
+existed. The row inherited a default-OPEN status and was never actually
+re-audited against the code.
+
+Read both files (1,136 + 134 lines) against the SHA-256-verified private
+master's section 29 (AUTH ADAPTER DESIGN). Confirmed `ExchangeEOA`
+(DIRECT_EOA) and the restricted session-key/`ExchangeDepositOwner` adapter
+(DEPOSIT_WALLET_SESSION) implement every required attestation field
+(wallet/signer/account type/signature type/API credential identity/owner
+relationship/trading eligibility/balances/allowances/public activity/open
+orders/positions), including real account-specific entitlement checks
+(`/auth/api-keys`, `/auth/ban-status/closed-only`) and the "EOA allowlist"
+(`_deposit_wallet_owner_addresses` independently re-deriving pinned CREATE2
+forms to reject an owner EOA as a Session Key signer). `engine.py`/
+`ledger.py`/`panel.py` consume the adapter via `wallet_type` dispatch, and
+`test_production_deposit_session_engine.py` exercises it through a real
+`ExecutionEngine`+`ExecutionLedger` — genuine integration, not an isolated
+unit. The third named adapter type (OFFICIAL_PROXY_OR_SAFE) is unimplemented,
+but this is a disclosed, intentional V10-era scope exclusion (`docs/
+PRODUCTION_CHECKPOINT.md`), not a newly found gap. Verification (foreground):
+`test_production_exchange.py`+`test_production_owner_account.py` 115 passed /
+3.38s; broader directly-related family (12 files) 373 passed / 32.37s, exit
+0, no skips/failures. No code changed — this is recognition of already-
+existing, already-tested work, not new implementation, so it does not
+constitute a full rerun for score-closing purposes.
+
+Does not reach E/A: no real credentialed account has ever been attested
+against a live venue, OFFICIAL_PROXY_OR_SAFE remains unimplemented, and
+real-account entitlement/EOA-allowlist verification stays genuinely open
+pending owner-authorized credentials (master section 36: implementing/testing
+an adapter does not itself authorize real account creation/use). Updated
+`docs/V11_REQUIREMENTS_MATRIX.md` (header and R43 row) and `docs/
+V11_ENGINEERING_PROGRESS.md`. R43: **∅ → C, J** (+2 units). **91/200 = 45.5%
+(~46%); formal 1/50 (2%)**. NOT_READY_TO_FUND; V10 unchanged/DEFERRED. No
+alpha-dev access, deployment, service change, financial authority or real
+order was requested or performed.
+
+Remaining blocked items: R44 E/A; R46 (host permission wall); R31; R37/R39
+E/A; R47/R48/R49 (owner/production/empirical-wait gated). Next unfinished
+action: re-check the `brain-ecmwf-backfill-20260929` branch for a produced
+research-result artifact (none yet as of this batch), and/or sweep the
+remaining still-OPEN or stale-looking rows (e.g. any row whose cited files
+predate the row's own last-audited date) for further un-recorded credit
+before resuming named-blocker polling as filler.

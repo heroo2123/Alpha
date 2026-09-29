@@ -3264,3 +3264,81 @@ work is merged and a combined IFS/AIFS+GEFS day-extreme assembly/fit exists
 (the next evidence worth a full review for R09). Other blocked items
 unchanged from batch 31: R44 E/A; R46 (same host permission wall); R31;
 R37/R39; R43/R48/R49.
+
+## Supervisor batch 33 — 2026-09-29: R43 auth-adapter credit correction, independently verified
+
+Recovery check: `git status` clean, local HEAD `4ce86ce` equal to
+`origin/weather-v11-profitability-upgrade-2026-09-23`, no unfinished process on
+this worktree. Per the anti-churn rule, batches 26-32 (seven consecutive
+batches) had already exhausted the standing guardian-class-defect audit sweep
+and the GEFS/ECMWF backfill re-check at the same 89/200 score, so this batch
+did not repeat either pattern. Instead, re-checked the concurrent
+`brain-ecmwf-backfill-20260929` branch first (still `state: COMPLETE` for the
+backfill itself, `POST_ECMWF_HANDOFF_ACTIVE`, no research-result/fit artifact
+produced yet — same non-terminal state batch 32 found, no new fact), then
+audited the SHADOW-path regression batch 32 flagged and confirmed it would
+cross no row's boundary (R16/R17/R41 already hold C,J; R42 holds C only for
+unrelated drift/lifecycle reasons; R47 is a hard aggregate gate regardless of
+infrastructure completeness), so it was correctly left unbuilt.
+
+Before concluding local score work was exhausted, swept every requirement row
+still at zero or partial credit for a stale-audit signal rather than assuming
+none existed. Found one: R43 ("Supported auth adapters and entitlement") was
+set to `OPEN` in the matrix's very first commit (`718e599`, 2026-09-23) citing
+`production/exchange.py`/`owner_account.py`, but those exact files were last
+modified 2026-09-19 (`f5f0661`) — four days *before* the matrix was created.
+The row was never actually re-checked against the code it names; it inherited
+a default-OPEN status. Read both files directly (1,136 and 134 lines) against
+the SHA-256-verified private master's section 29 (AUTH ADAPTER DESIGN), which
+requires a clean interface supporting DEPOSIT_WALLET_SESSION, DIRECT_EOA and
+OFFICIAL_PROXY_OR_SAFE, each attesting wallet/signer/account
+type/signature type/API credential identity/owner relationship/trading
+eligibility/balances/allowances/public activity/open orders/positions/
+settlement-redemption behavior. Confirmed present and tested: `ExchangeEOA`
+(DIRECT_EOA) and `ExchangeDepositOwner`/the restricted session-key adapter
+(DEPOSIT_WALLET_SESSION); `eligibility()` performs real account-specific
+entitlement checks against `/auth/api-keys` and
+`/auth/ban-status/closed-only`; `_deposit_wallet_owner_addresses`/
+`_deposit_wallet_owner_forms` independently re-derive the pinned production
+Deposit Wallet CREATE2 forms (UUPS + beacon) to reject an owner EOA acting as
+the restricted Session Key signer (the row's "EOA allowlist"); `account_
+snapshot()` returns wallet/signer/wallet_type/signature_type/deposit_owner/
+eligibility/balance/allowances/open_orders/trades/positions together;
+`engine.py`/`ledger.py` (`bind_adapter_identity`)/`panel.py` branch on
+`wallet_type` and consume the adapter, exercised end-to-end by
+`test_production_deposit_session_engine.py`'s real `ExecutionEngine`+
+`ExecutionLedger` wiring — genuine upstream/downstream integration, not an
+isolated unit. OFFICIAL_PROXY_OR_SAFE is not implemented, but this is a
+disclosed, intentional scope exclusion already recorded in the inherited
+V10-era `docs/PRODUCTION_CHECKPOINT.md` ("Proxy wallets ... are outside the
+documented EOA BUY-to-resolution scope"), not a newly discovered gap.
+
+Verification (foreground, this batch): `tests/test_production_exchange.py` +
+`test_production_owner_account.py` **115 passed / 3.38s**; broader directly-
+related family (adding `test_production_deposit_session.py`,
+`test_production_deposit_session_engine.py`, `test_production_lifecycle.py`,
+`test_production_opening_eligibility.py`, `test_production_wallet_
+attestation.py`, `test_production_submission_boundary.py`, `test_production_
+adversarial.py`, `test_production_transport_integration.py`, `test_
+production_deposit_redemption.py`, `test_production_redemption_audit.py`)
+**373 passed / 32.37s**, exit 0, no skips/failures. No code changed; this is
+recognition of already-existing, already-tested implementation, not new
+implementation. It does not reach E/A: no real credentialed account has ever
+been attested against a live venue, the third adapter type is unimplemented,
+and real-account entitlement/EOA-allowlist verification stays genuinely open
+pending owner-authorized credentials — consistent with the master's own
+statement (section 36) that implementing/testing an adapter does not itself
+authorize real account creation or use. Updated
+`docs/V11_REQUIREMENTS_MATRIX.md` (top entry and the R43 row) and this file.
+R43: **∅ → C, J** (+2 units). New total **91/200 = 45.5% (~46%)**; formal
+full-acceptance count unchanged at **1/50 (2%)**. NOT_READY_TO_FUND; V10
+unchanged/DEFERRED (confirmed inactive/disabled, not touched this batch). No
+alpha-dev access, deployment, service change, financial authority or real
+order was requested or performed.
+
+Remaining blocked items unchanged: R44 E/A; R46 (host permission wall); R31;
+R37/R39 E/A; R47/R48/R49 (owner/production/empirical-wait gated). Next
+unfinished action: re-check the `brain-ecmwf-backfill-20260929` branch for a
+produced research-result artifact (none yet as of this batch's check), and/or
+build `END_TO_END_V11_SHADOW_DECISION_PATH_REGRESSION` only once it can be
+tied to an actual crossable boundary.
