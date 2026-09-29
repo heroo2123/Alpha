@@ -151,13 +151,14 @@ work. Source presence or provider agreement earns no learning/financial authorit
 
 ## Verification and handoff
 
-Focused result after real-provider parity and independent-review hardening: **110 passed / 6.08 s**.
-Independent post-hardening review verification: **262 tests passed**, including all
-**110 model-panel tests**; an environment without ecCodes produced **108 passed / 2
+Final focused result after the adapter-v2 provenance bump: **110 passed / 9.81 s**.
+Independent post-hardening affected regression: **290 passed / 485.22 s**, exit 0.
+The separate high-reasoning detached review reported **NO BLOCKING FINDINGS** on
+`640ea632db1478cb0d30ad866819d1396aa787bd`: **262 tests passed**, including all
+110 model-panel tests, and an environment without ecCodes produced **108 passed / 2
 expected skips**. The reviewed set covers the model panel plus forecast sources, GEFS
 schedule/source/GRIB decoding, remaining-day forecast assembly and forecast learning.
-No financial/order/promotion path changed. GPT-6's second review reported **NO BLOCKING
-FINDINGS** on commit `640ea632db1478cb0d30ad866819d1396aa787bd`.
+No financial/order/promotion path changed.
 
 The focused suite covers both ECMWF providers, Cycle-50r1/AIFS-v2 URL layouts,
 control/member metadata, simple/IEEE/CCSDS packing, member edges, schema/run/version
@@ -173,15 +174,18 @@ four representative paths end to end: AIFS control (`enfo/cf`), AIFS member 35
 CCSDS template 5.42 regular 0.25-degree fields and decoded to the same nearest KATL
 grid point (33.75, -84.5). The observed IFS ensemble index was 1,995,799 bytes / 8,500
 rows, motivating the still-bounded 3 MiB / 12,000-row index ceiling. This proves
-current public-source layout/decoder parity only; it does not prove historical
-AIFS archive entitlement, future release stability, calibration or acceptance.
-WeatherNext is deferred rather than an integration blocker. Separately, anonymous
-object/metadata access was verified for the public WeatherBench2 IFS-ENS
-`2018-2022-1440x721.zarr` archive. Its 2 m-temperature array is 0.25-degree
-721x1440 with 50 members and 61 forecast-lead values. WeatherBench2 documents
-this TIGGE-derived ensemble data as research-only, so it is strictly an auxiliary
-historical research candidate: it is not production/financial input and must not
-be conflated with current Cycle 50r1.
+current public-source layout/decoder parity only; it does not prove indefinite
+retention, future release stability, calibration or acceptance. WeatherNext is
+**DEFERRED_NO_ACCESS** and is not a V11 critical-path blocker.
+
+A separate anonymous-retention probe of ECMWF's official public AWS replica returned
+HTTP 206 for AIFS control/member and IFS control/member paths on sampled runs from
+**2026-05-13 through 2026-09-25**. All 541 preregistered Brain station-days fall
+between 2026-08-23 and 2026-09-28, so the planned cohort is inside the observed
+public-replica history window. This supports a bounded historical IFS/AIFS backfill
+without MARS credentials; it does not claim permanent AWS retention or substitute
+for the full ECMWF archive. WeatherBench2 remains research-only auxiliary material
+and is not required for this production-oriented backfill.
 
 ECMWF ecCodes was installed only in the development test interpreter to exercise
 CCSDS; production runtime requirements and services were not changed. The adapter

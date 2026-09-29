@@ -18,15 +18,23 @@ closed, and undersized product metadata is rejected before field access.
 Bounded anonymous real-source parity passed on four 2026-09-29 00z fields:
 AIFS control/member-35 and IFS control/member-12, and the same four pass after
 the hardening. The observed IFS ensemble index was 1,995,799 bytes / 8,500 rows,
-so the still-bounded index ceiling is 3 MiB / 12,000 rows. Focused verification:
-**110 passed / 6.08 s**. Independent GPT-6 post-hardening review then
-verified **262 passing tests**, re-fetched all four real provider fields, attacked
-16 real-field truncation variants (all rejected), and reported **NO BLOCKING
-FINDINGS** on `640ea632db1478cb0d30ad866819d1396aa787bd`. Existing GEFS,
-PAPER services, V10, BrainWork downloader, credentials and all financial/order/
-promotion authority are unchanged. Current-open-data parity is established;
-full historical ECMWF archive access, Google WeatherNext access/connector,
-later local-day assembly and dependence-aware learning remain gated. Details:
+so the still-bounded index ceiling is 3 MiB / 12,000 rows. Final focused
+verification after the adapter-v2 provenance bump: **110 passed / 9.81 s**;
+independent post-hardening affected regression: **290 passed / 485.22 s**.
+The separate high-reasoning GPT-6 review verified **262 tests**, re-fetched all
+four real provider fields, attacked 16 real-field truncation variants (all
+rejected), and reported **NO BLOCKING FINDINGS** on
+`640ea632db1478cb0d30ad866819d1396aa787bd`.
+
+A new anonymous retention probe of ECMWF's official public AWS replica returned
+HTTP 206 for AIFS control/member and IFS control/member paths on sampled dates
+from 2026-05-13 through 2026-09-25. All **541** preregistered Brain station-days
+are dated 2026-08-23 through 2026-09-28, so the exact planned cohort is within
+the observed public-replica window and can be attempted without MARS credentials.
+WeatherNext is **DEFERRED_NO_ACCESS** rather than a V11 critical-path blocker.
+Existing GEFS, PAPER services, V10, credentials and all financial/order/promotion
+authority are unchanged. Local-day assembly, actual IFS/AIFS backfill completion,
+dependence-aware learning and empirical acceptance remain pending. Details:
 `docs/V11_MODEL_PANEL.md`. No new C/J/E/A: **89/200 = 44.5%; formal 1/50**,
 unchanged. **NOT_READY_TO_FUND**.
 
