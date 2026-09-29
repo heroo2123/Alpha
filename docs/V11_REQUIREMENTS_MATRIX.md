@@ -1,5 +1,12 @@
 # V11 requirement-to-code/test/evidence matrix
 
+Agent-2 model-panel input architecture (2026-09-29): R09 source-layer extension
+only; no status or C/J/E/A change. Common typed causal point contract, ECMWF
+index/range/strict-decoder adapters, gated WeatherNext 3 members/statistics and
+unchanged-GEFS compatibility bridge are documented in `docs/V11_MODEL_PANEL.md`.
+Real source parity/access, day-extreme assembly, learner admission/calibration and
+independent acceptance remain pending. **89/200 (44.5%), 1/50; NOT_READY_TO_FUND**.
+
 Supervisor batch 23 — 2026-09-29: recovery check found `git status` clean,
 local HEAD `882c05f` equal to `origin/weather-v11-profitability-upgrade-2026-09-23`,
 no unfinished process (the isolated `alpha-weather-scanner.service`, release

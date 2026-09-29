@@ -1,5 +1,21 @@
 # Alpha V11 work checkpoint
 
+## Agent-2 model-panel input architecture — 2026-09-29
+
+On `agent2-weather-model-panel-20260929`, added a separate pull-only typed
+provider/run/member/station/target input boundary, ECMWF index/range collection
+and bounded station decoding, and gated WeatherNext 3 fixture normalization.
+Raw/derived archive replay preserves receipt and completion-time causality and
+explicit cross-model dependence. Existing GEFS is unchanged, with a compatibility
+bridge. No daily-extreme/payout admission, credentials, inference, deployment,
+financial authority or BrainWork downloader change. No live source success claim.
+Operational release/packing parity, Google allowlisting/connector, full historical
+access, later local-day assembly and dependence-aware learning remain gated.
+Details, public references, limits and review instructions: `docs/V11_MODEL_PANEL.md`.
+Verification: `pytest -q -p no:cacheprovider --tb=short --maxfail=3
+tests/test_v11_model_panel.py` — **99 passed / 5.79 s**, no skips/warnings.
+No new C/J/E/A: **89/200 = 44.5%; formal 1/50**, unchanged. **NOT_READY_TO_FUND**.
+
 ## Independent supervisor-batch-9 review — 2026-09-27
 
 Reviewed published `9a107db2b72ec34260b3025b24b1a72e55ffa968` against
