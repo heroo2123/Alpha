@@ -9360,3 +9360,114 @@ link, before doing further R47 implementation work in that area — this is
 real, scoped, local investigation (not owner/credential-gated). The aggregate
 R47 acceptance itself remains blocked on an actual real-data champion fit and
 owner/independent review, which this worker cannot fabricate.
+
+## Supervisor batch 22 — 2026-09-29: commissioning-evidence review, R47 shadow-pipeline trace, R46 re-check; no new credit
+
+Recovery check: `git status` clean, local HEAD `77ec2a5` equal to
+`origin/weather-v11-profitability-upgrade-2026-09-23`, no unfinished process.
+Read this checkpoint, the requirements matrix and the progress ledger. Per
+the mandatory pre-work step, inspected `/home/alphaadmin/AlphaV11_Commissioning/evidence/`
+for files newer than the last checkpoint update and found three:
+`r47_initial_champion_commissioning_gap_20260929.json`,
+`r47_master_clarification_20260929.txt` and
+`scanner_restart_drill_20260928.json` (the last already dated 2026-09-28 but
+not yet incorporated by batch 21).
+
+**R47 evidence file — verified and rejected.** The clarification file argues,
+citing private-master lines 3452-3475, that "a real-data fit must not be
+treated as a prerequisite" for creating R47's initial champion, since
+CONTROLLED LEARNING READY does not require a new challenger to outperform the
+initial champion before the first micro-canary. Per this project's rule to
+never take acceptance claims on trust, independently re-read the master at
+that exact citation: the master file's SHA-256 still matches
+`a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a` from
+CLAUDE.md, and lines 3454-3475 do say what the file quotes ("CONTROLLED
+LEARNING READY does NOT require that a newly trained challenger already
+outperform the initial champion..."). That part is accurate. Its further
+inference is not: read `polymarket_scanner/v11/forecast_features.py::build_initial_forecast_bundle`
+in full and confirmed the `INITIAL_NO_FIT` bundle it names as the candidate
+initial champion sets `EXECUTION_COST = {'method': 'NO_EMPIRICAL_EXECUTION_MODEL',
+'evidence_class': 'UNKNOWN'}` and `CALIBRATION = {'method': 'VACUOUS_BOUNDS',
+'status': 'UNCALIBRATED'}` by construction (`docs/V11_CONTINUAL_LEARNING.md`
+independently confirms: "No actual V10 dataset has been fitted"). This is an
+explicitly vacuous, non-inference-capable placeholder, not a champion "live
+inference uses" as the master's own bullet one requires. Commissioning it as
+the initial champion would be inventing acceptance evidence, which CLAUDE.md
+forbids — this correction protects a future batch from being misled by that
+file's framing into a false R47 credit claim.
+
+**R44 restart-drill evidence — reviewed, no boundary crossed.** The drill
+records a real clean stop/restart recovery cycle on release `ac3b722` with
+prechecks (`verify-generation`/`verify-runtime-files`/`verify-checkout`)
+enforced before restart, zero failures over 70s observation, V10 and
+financial authority unaffected. Genuine additional recovery evidence, but it
+does not close any of the three gaps R44's own row already names as required
+for E/A (Telegram/controller identity custody, protected-configuration
+runtime acceptance, an actual destructive rollback/restore exercise). No new
+credit.
+
+**R47 shadow-evaluation trace — completed as batch 21 requested.** Confirmed
+`ActiveModelRegistry().pin(mode=...)` is wired into every real decision site
+(`strategy_pipeline.py`, `position_management.py`, `relative_value.py`,
+`basket_coordinator.py`, `pws_admission.py`, `source_release.py`,
+`maker_context.py`, `reaction_runtime.py`, `drift_runtime.py`,
+`risk_inputs.py`, `strategy_admission.py`) and mechanically supports routing
+a `V11_SHADOW`-pinned challenger through the normal decision path with
+financial authority forced false (existing `financial_authority is not False`
+guards in `causal_replay.py`/`drift_runtime.py`/`model_registry.py`/
+`host_trust/v11-model-authority/authority.py`). `grep -rl "SHADOW" tests/*.py`
+followed by a targeted check of every decision-site test module found zero
+tests that actually drive a decision site with `stage='SHADOW'` — the
+mechanism is wired but never exercised end-to-end. This is the exact "missing
+link" batch 21 asked to identify. It is real, addressable, non-owner-gated
+work, but not attempted this batch: R47 holds no C/J today
+(`docs/V11_ENGINEERING_PROGRESS.md`'s "—" entry) because it is an aggregate
+acceptance gate, not an incrementally-creditable subsystem — batch 21 already
+added durable test coverage for a different already-true bullet and got "no
+new C/J/E/A" for genuinely equivalent reasons, so a shadow-pipeline test would
+almost certainly repeat that outcome. Attempting it now would make this the
+second consecutive non-crossing R47 batch, which the score-velocity rule
+forbids absent a P0/P1 defect (there is none here). Recorded as real scoped
+follow-up, correctly not attempted.
+
+**R46 re-checked against the now-confirmed real deployment.** Since batch 20
+independently confirmed a real isolated V11 deployment exists, re-examined
+whether R46 ("V11 paper acceptance and V10 comparison") is now reachable.
+`docs/V11_V10_BASELINE_FORENSICS.md` (the V10 protected snapshot) already
+exists. `weather_only_all_paper_deployment_acceptance.py::accept_first_all_paper_cycle`
+requires roughly 50 boolean/version fields from an actual live runtime status
+snapshot (`cycle_ok`, `maker_healthy`, every `financial_authority`/
+`automatic_order_placement`/`wallet_or_order_api_loaded` flag false, etc.) to
+all match exactly — genuine live-operational evidence this worker has no
+read-only status snapshot for and will not fabricate. A real forward
+comparison additionally needs meaningfully accumulated V11 paper operating
+time, which the isolated deployment's brief observed run/restart-drill
+windows do not yet provide. Remains genuinely blocked on real accumulated
+operational evidence, not a further local-implementation step.
+
+**Verification (foreground):** none required — no source or test code was
+changed; this batch only records independently-verified findings from
+existing host evidence and a read-only code trace into the durable ledgers.
+`git status --short` before and after this batch shows changes only in
+`docs/V11_REQUIREMENTS_MATRIX.md`, `docs/V11_ENGINEERING_PROGRESS.md` and this
+checkpoint — no production, test, V10, private-input or credential file
+touched, and no file from `/home/alphaadmin/AlphaV11_Commissioning/` was
+copied, staged or committed.
+
+No new C/J/E/A: **89/200 = 44.5% (~45%); formal 1/50 (2%)**, unchanged.
+NOT_READY_TO_FUND; V10 unchanged/DEFERRED. R19/R24/R40's real evidence tails,
+R31's settlement source/version proof, R37's E/A, R39's configuration-
+authorization model and R43/R46-R49 remain genuinely owner/external/
+production blocked. This batch found no unblocked local implementation or
+newly available safe evidence path that can credibly advance a missing
+C/J/E/A boundary: `LOCAL_SCORE_WORK_EXHAUSTED`. Exact blocked items needing
+external/owner/empirical input to unblock further scoring: R44 E/A (Telegram
+identity custody handoff, protected-configuration runtime acceptance review,
+an authorized destructive-rollback drill); R46 (real accumulated V11 paper
+operating time plus a live runtime status snapshot); R47 (an actual real-data
+initial-champion fit plus independent/owner review — the shadow-pipeline test
+gap identified above is real follow-up but not itself credit-bearing); R31
+(settlement source/version finality proof); R37/R39 (owner-authorized
+deployment/configuration review); R43/R48/R49 (credentialed/production
+acceptance). Next unfinished action: none locally reachable this cycle;
+hand off to acceptance-watch routing pending new owner/operational evidence.

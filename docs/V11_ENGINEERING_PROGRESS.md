@@ -2646,3 +2646,34 @@ non-owner-gated local investigation. R47's aggregate acceptance itself still
 requires an actual real-data champion fit and independent/owner review, which
 remains genuinely OWNER_ONLY/PRODUCTION_GATED/EMPIRICAL_WAIT exactly as
 supervisor batch 15 concluded.
+
+Supervisor batch 22 — 2026-09-29: reviewed new files in the separate,
+non-repository commissioning evidence directory (mandatory pre-work check);
+verified and rejected an R47 evidence file's inference that the vacuous,
+uncalibrated `INITIAL_NO_FIT` bundle could substitute for a real-data initial
+champion (its master citation was accurate; the inference was not, and acting
+on it would have invented acceptance); reviewed a new scanner restart-drill
+file against R44's named remaining E/A gaps (does not close any of them);
+completed batch 21's requested trace of the R47 shadow-evaluation pipeline
+(mechanism is wired at every decision site via `ActiveModelRegistry().pin`
+but never exercised end-to-end by any test — a real, addressable, but not
+credit-bearing gap for this aggregate-gate row); and re-checked R46 against
+the now-confirmed real isolated deployment (still blocked on a live runtime
+status snapshot and insufficient accumulated operating time, neither
+fabricable). No source or test code changed. No new C/J/E/A: **89/200 =
+44.5% (~45%); formal 1/50 (2%)**, unchanged. NOT_READY_TO_FUND; V10
+unchanged/DEFERRED. Full detail: `docs/V11_WORK_CHECKPOINT.md` and the
+matching `docs/V11_REQUIREMENTS_MATRIX.md` R44/R46/R47 rows.
+
+No unblocked local implementation or newly available safe evidence path was
+found this batch that can credibly advance a missing C/J/E/A boundary:
+`LOCAL_SCORE_WORK_EXHAUSTED`. Remaining blocked items all need external/
+owner/empirical input: R44 E/A (Telegram identity custody handoff,
+protected-configuration runtime acceptance, an authorized destructive-
+rollback drill); R46 (real accumulated V11 paper operating time plus a live
+runtime status snapshot); R47 (an actual real-data initial-champion fit plus
+independent/owner review); R31 (settlement source/version finality proof);
+R37/R39 (owner-authorized deployment/configuration review); R43/R48/R49
+(credentialed/production acceptance). Next unfinished action: none locally
+reachable this cycle; hand off to acceptance-watch routing pending new
+owner/operational evidence.
