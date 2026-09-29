@@ -2913,3 +2913,48 @@ in the commissioning evidence directory, ETA was ~95 minutes from
 2026-09-29T05:10Z) on the next invocation before any further evidence-cluster
 review, and otherwise hand off to acceptance-watch routing pending new
 owner/operational evidence.
+
+## Supervisor batch 27 — 2026-09-29: named-blocker re-check only (backfill non-terminal); LOCAL_SCORE_WORK_EXHAUSTED re-affirmed, no re-audit
+
+Recovery check: `git status` clean, local HEAD `5da9dc1` equal to
+`origin/weather-v11-profitability-upgrade-2026-09-23`, no unfinished process
+other than this invocation and the same isolated `alpha-weather-scanner.service`
+(PID 484217, running since 03:38:54 UTC, 0 restarts, ~1h40min uptime this
+check). Per batch 26's own named next action, checked the backfill job's
+progress file rather than re-running a full matrix scan or another
+guardian-class audit (both explicitly exhausted as a default work source by
+the standing score-velocity rules, and re-proving that fact again would
+itself be the waste those rules forbid). `v11_brain_historical_backfill_
+progress.json` now reads `messages_done: 5586`/`33759` (16.55%),
+`station_days_done: 90`/`541` (16.64%), `splits.DEVELOPMENT.done: 0`/`120`,
+`splits.HISTORICAL_CONFIRMATION.done: 0`/`541`, `state: RUNNING`,
+`eta_seconds: 6012` — real further progress on the same external job
+(PID 491812, ~21 min elapsed, not started or controlled by this session),
+still non-terminal and still zero entries in either held-out split, so it
+crosses no new boundary. Independently re-confirmed rather than assumed
+R31/R37/R39/R44/R46's rows are unchanged: their matrix text still names
+exactly the same owner/host/operational gaps (WRH exact-cutoff proof;
+owner-authorized deployment/configuration review; Telegram identity custody
+handoff, protected-configuration runtime acceptance and an authorized
+destructive-rollback drill; a live ~50-field runtime status snapshot still
+blocked by the same missing `adm`/`systemd-journal` group membership). No
+other file in `/home/alphaadmin/AlphaV11_Commissioning/evidence/` is newer
+than batch 26's cutoff besides this same progress file's own update. No
+code, test or matrix-row change; no new C/J/E/A: **89/200 = 44.5% (~45%);
+formal 1/50 (2%)**, unchanged. NOT_READY_TO_FUND; V10 unchanged/DEFERRED
+(not touched this batch). No alpha-dev access, deployment, service change,
+financial authority or real order was requested or performed.
+
+`LOCAL_SCORE_WORK_EXHAUSTED`: unchanged from batch 26 — no unblocked local
+implementation or newly available safe evidence path advances a missing
+C/J/E/A boundary this cycle. Per the explicit instruction not to burn a
+batch re-proving an already-recorded fact, this batch is deliberately short:
+a targeted re-check of the one named pending external signal (the backfill
+job), not a repeat of batch 26's matrix-wide scan or R32-style opportunistic
+audit. Remaining blocked items are unchanged from batch 26's list: R44 E/A;
+R46; R47 (backfill now 16.6% complete, still short of a usable dataset);
+R31; R37/R39; R43/R48/R49. Next unfinished action: none locally reachable
+this cycle; re-check `v11_brain_historical_backfill_progress.json` on the
+next invocation (still ~100 minutes from completion as of this check) before
+any further evidence-cluster review, and otherwise continue handing off to
+acceptance-watch routing pending new owner/operational evidence.

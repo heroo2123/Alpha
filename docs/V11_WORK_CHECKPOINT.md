@@ -9927,3 +9927,67 @@ in the commissioning evidence directory, ETA was ~95 minutes from
 2026-09-29T05:10Z) on the next invocation before any further evidence-cluster
 review, and otherwise hand off to acceptance-watch routing pending new
 owner/operational evidence.
+
+## Supervisor batch 27 — 2026-09-29: named-blocker re-check only (backfill non-terminal); LOCAL_SCORE_WORK_EXHAUSTED re-affirmed, no re-audit
+
+Recovery check: `git status` clean, local HEAD `5da9dc1` equal to
+`origin/weather-v11-profitability-upgrade-2026-09-23`, no unfinished process
+other than this invocation and the same isolated `alpha-weather-scanner.service`
+(PID 484217, running since 03:38:54 UTC, 0 restarts, ~1h40min uptime this
+check, confirmed via `systemctl status`). Read this checkpoint and the
+progress ledger before editing; the matrix's per-row text for the relevant
+requirements was also re-read and is unchanged (not edited this batch).
+
+**Mandatory pre-work evidence check, scoped per the anti-churn rule.**
+Batch 26 explicitly named its own next action: check the one still-running
+external job (`v11_brain_historical_backfill_progress.json`) before any
+further evidence-cluster review, and not repeat its matrix-wide scan or
+R32-style opportunistic audit as a default way to stay busy — both are
+explicitly exhausted as a default work source by the standing score-velocity
+rules, and redoing either just to re-confirm the same "no boundary reached"
+fact would itself be the usage waste those rules forbid. Did exactly that
+narrow check: the progress file now reads `messages_done: 5586`/`33759`
+(16.55%, up from 11.48%), `station_days_done: 90`/`541` (16.64%),
+`splits.DEVELOPMENT.done: 0`/`120`, `splits.HISTORICAL_CONFIRMATION.done:
+0`/`541`, `state: RUNNING`, `eta_seconds: 6012`. Confirmed the job is real
+and still active (`ps` shows PID 491812, ~21 min elapsed CPU time, matching
+the worker script path recorded in prior batches) and not started or
+controlled by this session. Both held-out splits remain at zero completed
+station-days, so — exactly as in every prior check of this same job — no
+observed temperature, GEFS value or Gamma label has yet reached either
+split; it crosses no C/J/E/A boundary this batch. Listed
+`/home/alphaadmin/AlphaV11_Commissioning/evidence/` in full: no file is
+newer than batch 26's cutoff other than this same progress file's own
+in-place update. Re-confirmed rather than assumed that R31/R37/R39/R44/R46's
+matrix rows still name the same owner/host/operational gaps as batch 26
+recorded (WRH exact-cutoff proof; owner-authorized deployment/configuration
+review; Telegram identity custody handoff, protected-configuration runtime
+acceptance and an authorized destructive-rollback drill; a live ~50-field
+runtime status snapshot still blocked by the same missing `adm`/
+`systemd-journal` group membership, re-verified via `groups` and
+`journalctl -u alpha-weather-scanner.service` failing with "insufficient
+permissions" for this account) — nothing has changed on any of these rows.
+
+**No boundary crossed; no code or matrix-row changed.** `git status --short`
+before and after this batch shows changes only in
+`docs/V11_ENGINEERING_PROGRESS.md` and this checkpoint (the matrix file is
+untouched, unlike batch 26, since no row's status or evidence changed). No
+new C/J/E/A: **89/200 = 44.5% (~45%); formal 1/50 (2%)**, unchanged.
+NOT_READY_TO_FUND; V10 unchanged/DEFERRED (confirmed inactive/disabled, not
+touched this batch). No alpha-dev access, deployment, service change,
+financial authority or real order was requested or performed.
+
+`LOCAL_SCORE_WORK_EXHAUSTED`: re-affirmed, unchanged from batch 26. Per the
+explicit instruction against burning a batch re-proving an already-recorded
+fact, this batch was deliberately scoped to the one named pending signal
+rather than a fresh full audit or matrix scan. Remaining blocked items are
+unchanged: R44 E/A; R46; R47 (backfill now 16.6% complete station-days,
+still zero in either held-out split, still short of a usable dataset); R31;
+R37/R39; R43/R48/R49. **Next unfinished action:** re-check
+`v11_brain_historical_backfill_progress.json` on the next invocation (its
+own `eta_seconds: 6012` as of this check, i.e. still roughly 100 minutes
+from completion) — if it reaches a terminal state with populated
+DEVELOPMENT/HISTORICAL_CONFIRMATION splits, that is the first genuinely new
+input since batch 25 worth a full evidence review; until then, do not repeat
+a matrix-wide scan or guardian-class audit sweep as filler, and continue
+handing off to acceptance-watch routing.
