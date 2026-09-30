@@ -1,5 +1,42 @@
 # Alpha V11 work checkpoint
 
+## R09 Gate 3 (G3-I) review round 1 found/fixed one P2, round 2 launched — 2026-09-30 18:30 UTC
+
+The independent reviewer for exact commit `de8c7bc` (agent `aea7b8f2d78fadc2e`,
+worktree `/tmp/alpha-v11-r09-gate3-collector-review-de8c7bc/Alpha`) returned
+verdict `R09_GATE3_COLLECTOR_REVIEW_CHANGES_REQUIRED` — preserved at
+`docs/V11_R09_GATE3_COLLECTOR_REVIEW_de8c7bc.md` in that worktree (not
+committed to main; contains full adversarial detail). Sole P1/P2: `BudgetTracker`'s
+`max_field_bytes` only enforced the protocol's own looser nominal 16 MiB
+ceiling, not the actually-stricter, already-reviewed real 4 MiB bound
+(`model_panel.MAX_RAW_BYTES`) the module's own docstring claimed to enforce —
+a real, verified defect (constructed and confirmed live by the reviewer), not
+a false positive. Three P3 notes (protocol-doc P3-1 sentence still unapplied,
+free-text dossier fields, request-count-consumed-before-byte-check) remain
+non-blocking.
+
+Repaired in the same isolated branch (`r09-gate3-collector-20260930`),
+commit `3e6a872`: pinned the real production bounds as named module constants
+(`_EXISTING_MAX_INDEX_BYTES`=3 MiB, `_EXISTING_MAX_FIELD_BYTES`=4 MiB) rather
+than importing the production `ecmwf_sources`/`model_panel` modules directly
+(forbidden by protocol Section 7), tightened `max_field_bytes`'s `require()`
+and default to the real 4 MiB bound, and added a regression test for the
+exact counterexample (a value strictly between 4 MiB and 16 MiB). 46/46 new
+tests pass; targeted regression unchanged (263 passed, 2 skipped, 0 failed).
+
+Per protocol Section 7's "no writer self-acceptance," this new commit cannot
+be self-approved by the same session that wrote the fix. Launched a second,
+narrower independent review (agent `aade8129622b52fda`, read-only worktree
+`/tmp/alpha-v11-r09-gate3-collector-review-3e6a872/Alpha`, exact commit
+`3e6a872`) to confirm the fix closes the counterexample, check for sibling
+instances of the same claims-vs-code mismatch pattern, and re-confirm no
+regression. Still no C/J/E/A boundary crossed: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**. Publication hold remains in force; no push attempted.
+Next unfinished action: on the next invocation, check whether the round-2
+review has completed; if PASS, merge `r09-gate3-collector-20260930` and
+record acceptance; if CHANGES_REQUIRED, repair and re-review again before any
+G3-L manifest work.
+
 ## R09 Gate 3 (G3-I) collector built, awaiting independent review — 2026-09-30 18:10 UTC
 
 Executed the next unblocked task named by the prior entry: built and tested,
