@@ -1,5 +1,31 @@
 # Alpha V11 work checkpoint
 
+## Coordinator integration — R09 offline gate 2 PASS — 2026-09-30 17:18 UTC
+
+The preserved R09 builder's final N1–N4 repair `1ab551d` (tree `ad542166`)
+received a completed independent exact-commit **PASS** with no P1/P2 finding:
+181 affected tests passed, one skipped, and 45 independent probes passed,
+including 37 unchanged-resolver rejections through both admission APIs. The
+earlier `a1e29fa` CHANGES_REQUIRED finding remains in its own terminal; the
+new commit binds absent-provider slots and canonical outage payload/clock to
+the frozen protocol, decision and complete inventory. The review and terminal
+are preserved at [R09 gate-2 PASS review](V11_R09_GATE2_REVIEW_1ab551d.md)
+and `/tmp/alpha-v11-r09-review-1ab551d/`.
+
+The compatible candidate was merged locally as `0050759`; the actual merged
+main passed **291 affected tests, one skipped** in 16.46 s and is clean. This
+closes **R09 offline implementation gate 2 only**. Gate 3 remains OPEN: no
+reviewed real release/source collection protocol, no admitted real trajectory
+example, no fit or forward evidence. Next unblocked step is an independent
+Gate-3 protocol design/review for source identity, bounded acquisition,
+availability evidence and frozen full-cohort reporting before any real adapter
+or collection. GEFS SHADOW commissioning remains separate; no qualifying
+forward sample appeared. PAPER scanner, V10 paper demo, V11 controller and
+masked execution are inactive. Protected model authority is absent, and the
+private FINAL-REVIEWED master matches its SHA-256 pin. No V10, service,
+authority, financial or external publication action occurred. No C/J/E/A
+boundary crossed: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator recovery — R09 N4 fallback repair committed — 2026-09-30 17:12 UTC
 
 Since the 16:20 checkpoint, the preserved R09 builder committed `a1e29fa`

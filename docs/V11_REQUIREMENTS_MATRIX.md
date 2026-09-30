@@ -1,5 +1,17 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## R09 offline gate 2 reviewed and integrated — 2026-09-30 17:18 UTC
+
+Final synthetic trajectory contract `1ab551d` passed independent exact-commit
+N1–N4 acceptance (45 independent probes; 181 affected passes, one skip) and
+was integrated on local main as `0050759`. Merged-tree affected tests passed
+291 with one skip. [Review](V11_R09_GATE2_REVIEW_1ab551d.md). This closes
+only the offline implementation/review gate in the R09 adjudication. R09's
+real causal corpus, adapter, fit, calibration, forward evidence and source
+health/settlement obligations remain PARTIAL/OPEN; zero real trajectory
+examples were admitted. No C/J/E/A credit changed: **91/200 (45.5%), formal
+1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator R09 N4 fallback repair — 2026-09-30 17:12 UTC
 
 Exact-commit independent review of `a1e29fa` completed `CHANGES_REQUIRED`:

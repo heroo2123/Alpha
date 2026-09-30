@@ -1,5 +1,18 @@
 # Supplementary engineering estimate
 
+## R09 offline contract integrated — 2026-09-30 17:18 UTC
+
+The final N1–N4 R09 repair `1ab551d` passed fresh independent exact-commit
+review with no P1/P2 finding (45 independent probes, 181 affected passes and
+one skip). Local merge `0050759` passed 291 affected tests with one skip.
+The synthetic contract now binds decoded message and grid facts, canonical
+label payload/version/lineage, settlement timezone metadata, and the finite
+all-required-provider run inventory/outage evidence. This is an offline schema
+and admission-validation milestone only; no real adapter, causal corpus, fit,
+calibration, forward sample or financial authority was created. Next is
+independent Gate-3 release/source protocol design and review. No C/J/E/A
+milestone: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator R09 N4 fallback repair — 2026-09-30 17:12 UTC
 
 The R09 builder committed `a1e29fa`; independent exact-commit review completed
