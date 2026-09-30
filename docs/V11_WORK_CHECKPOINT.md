@@ -1,5 +1,14 @@
 # Alpha V11 work checkpoint
 
+## Gate 3 integration review requires two repairs — 2026-09-30 23:29 UTC
+
+Recovered the completed independent Astra/high [full-branch report](/tmp/AlphaV11_Gate3IntegrationReview_0b7209d_worker/review.md), [result](/tmp/AlphaV11_Gate3IntegrationReview_0b7209d_worker/result.json) and [terminal](/tmp/AlphaV11_Gate3IntegrationReview_0b7209d_worker/terminal.json): **CHANGES_REQUIRED**, not an integration pass. Reviewer and driver have exited. Exact held author candidate `0b7209d` is clean; main is clean at `5f13cdc` (5 ahead of tracking ref). The prospective tree `bb415eb7` preserved all newer main files and added exactly nine candidate paths. Its affected, retained and adjacent suites recorded 726 passes and 37 skips; 15 preservation/import probes passed again after a ledger-only main refresh. Two new acceptance regressions each failed twice and are genuine P2 blockers:
+
+- I1: an inherited `DurableBudget` allows a fork child and parent to each consume one byte under a shared one-byte cap; journal replay then rejects `JOURNAL_SEQUENCE`. The composed store correctly refuses the child. Repair PID ownership before budget state, descriptor or journal use; child cleanup must leave parent ownership intact. Test composed fork, parent integrity, separate-open exclusion and restart.
+- I2: strict launch-manifest artifact resolution opens a digest-named FIFO with blocking `O_RDONLY` before checking file type. Public `validate_manifest` hangs past the bounded probe. Reject nonregular references without blocking, including the TZif path, while retaining owner/mode/link, inode/path, length and digest checks. Test public validation with bounded owned-child cleanup and regular controls.
+
+Keep the author worktree and rejected evidence intact. Route substantive offline repair in the same isolated author worktree, then fresh different-model exact-commit review and combined-main reconciliation. Do not merge/publish, capture provider data, construct G3-L, admit learner/SHADOW evidence or grant financial authority from this review. Accepted release resolution `6ec371e` remains an ancestor; the old load-sensitive full-suite failure has no new evidence. Commissioning has status writes only, no new forward sample. Private FINAL-REVIEWED master still matches its pinned SHA-256. Actual demo/scanner/controller services are disabled/inactive, execution masked/inactive, protected model-authority paths absent. Disk 4.2 GiB free and memory about 879 MiB available. V10 and AxiomTrade were untouched. No C/J/E/A crossing: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator recovery — 2026-09-30 23:22 UTC
 
 Main is clean at `8792b68` (4 ahead of its tracking ref); the held Gate 3
