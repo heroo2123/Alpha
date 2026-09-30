@@ -10634,6 +10634,90 @@ research-result, review, or owner-authorized model-authority artifact before
 repeating this chain's analysis; until one appears, further checks of this
 same named blocker should stay brief rather than repeating the full code-read.
 
+## Separate research worker, branch r47-gefs-live-schema-bundle-20260930 — 2026-09-30: GEFS31/live-schema compatibility resolved as a real, provable mismatch; no bundle fabricated, no new C/J/E/A
+
+Scope note: this entry is from a separate, narrowly-scoped Alpha V11 research
+worker (not the "Supervisor batch N" sequence above), invoked specifically to
+resolve one open question: the frozen all-market historical fit
+(`v11_gefs_all_market_research_result_20260929.json`, `frozen_parameters.model_id:
+'gefs31'`) is not directly usable by the live run-bound source, whose
+`gefs_sources.py::MODEL_ID` is `NOAA_GEFS_0P50_LINEAR_DAY_V1` --
+`ForecastFeatureContract`/`require_bundle` key on that string, so a `"gefs31"`
+bundle cannot accept live 31-member components. The question was whether
+renaming the label is a safe, provable identity operation, or whether it would
+paper over a real difference and needs to fail closed instead.
+
+Read `model_artifacts.py`, `forecast_features.py`, `gefs_sources.py`,
+`offline_learning.py`, `probability.py`, `datasets.py`, `evidence.py`, and the
+four post-GEFS research evidence files, then independently recomputed every
+hash relationship among them (frozen-parameter digests against
+`candidate_parameter_sha256`, the dataset `.json.gz`'s canonical-JSON digest
+against `dataset_sha256`, its compressed-file digest against
+`compressed_file_sha256`, and the preregistration/manifest cross-links) rather
+than trusting any single field -- all matched. Found the answer inside the
+dataset file itself: `v11_gefs_all_market_dataset_20260929.json.gz` declares
+its own per-member daily-extreme algorithm as top-level `feature_method:
+"GEFS_3H_SNAPSHOT_MEMBER_DAILY_MAX_OR_MIN"` (confirmed against its
+`station_days[*].high_members_c`/`low_members_c`/`hours` rows: plain max/min
+over the raw 3-hourly snapshots). The live source computes something
+materially different: `gefs_sources.py::assemble_path` calls `linear_extreme`,
+recorded in its own payload as `coverage.method:
+"PIECEWISE_LINEAR_POINT_TEMPERATURE_PATH"`, which *interpolates* the
+piecewise-linear forecast path at the exact local-day boundary instants and
+excludes the raw snapshot values sitting exactly at those instants whenever
+the boundary lands strictly inside a 3-hour bracket -- which is the normal
+case for most of this dataset's station timezones (already independently
+visible in this repo's own `tests/test_v11_gefs_sources.py::
+test_full_31_member_path_reaches_model_input_with_original_run_and_unknown_publication`,
+which asserts the live path interpolates a non-grid-aligned 04:00 UTC
+boundary). Built a concrete worked counterexample (a 10-point snapshot series
+whose raw endpoints are the true max, discarded by live interpolation) proving
+the two methods disagree, not just differ in label.
+
+Per this task's own instruction to fail closed rather than hide a real gap
+behind an alias, did not fabricate a "rename" bundle. Added
+`tools/gefs_schema_rebind.py` (research-only; never imports `host_trust`,
+never references `/var/lib`, writes only to a caller-supplied private output
+root) that: (1) proves contract-shape equivalence (width/unit/family/
+quantization -- genuinely true, a pure rename at that level); (2) proves or
+refuses member-semantics equivalence by comparing the two declared
+feature-construction methods; (3) only when both hold, builds one real
+`FITTED_NOT_CALIBRATED`/`VACUOUS_BOUNDS`/`financial_authority=false`
+ArtifactStore bundle keyed on the live `MODEL_ID`/31-member contract, carrying
+full component hashes, a candidate bundle SHA, and provenance linking the
+source dataset/parameter/preregistration SHAs plus this repo's code
+commit/tree. 16 new tests in `tests/test_gefs_schema_rebind.py` cover: the
+true contract-shape claim; the real member-semantics refusal (and a synthetic
+case where it is honestly satisfied, which does build and pin a real bundle
+accepting live `NOAA_GEFS_0P50_LINEAR_DAY_V1`/31-member input); numerically
+identical predictions between the "gefs31"-labeled and live-labeled forms once
+semantics are equal; fail-closed behavior on wrong model_id/width/unit/family;
+member-order invariance (documented rather than asserted as a failure, since
+the mixture CDF sums members unordered); and a static scan that the tool
+imports nothing from `host_trust` and contains no wallet/credential/order
+code path. All 16 pass; the broader `test_v11_gefs_sources.py`/
+`test_v11_model_artifacts.py`/`test_v11_probability.py`/
+`test_v11_forecast_learning.py` suites (120 tests total) still pass unchanged.
+Ran the tool for real against the actual evidence files, writing only to
+`/home/alphaadmin/AlphaV11_BrainWork/live_schema_bundle_20260930/
+v11_gefs_live_schema_rebind_manifest_20260930.json` (no `/var/lib` write, no
+`objects/` bundle directory created, since the fail-closed path is taken for
+both families): `overall_status: NO_BUNDLE_CREATED`, both
+`daily_high_temperature`/`daily_low_temperature` results carry `reason:
+GEFS31_LIVE_MEMBER_SEMANTICS_METHOD_MISMATCH`, `no_promotion`/
+`not_host_approved`/`historical_research_only` all true, `financial_authority`/
+`promotion_authority` both false.
+
+This closes the specific open question ("is `gefs31` -> live schema rebind
+safe?") with a definite, evidenced no, rather than leaving it ambiguous or
+silently aliased. It does not create a champion, a shadow sample, a
+calibration, or any promotion-relevant artifact, and it does not change what
+R47 is blocked on: R47 still requires an actual accepted, reviewed champion,
+and the underlying GEFS backfill evidence this row already tracked remains a
+historical (not forward-blind) confirmation regardless of schema labeling.
+No new C/J/E/A for R47 or any other row. Only `tools/gefs_schema_rebind.py`,
+`tests/test_gefs_schema_rebind.py`, and this checkpoint entry changed;
+`git status --short` and `git diff --check` were both clean before commit.
 
 ## Coordinator follow-up — 2026-09-30: corrected exact-day/live-schema R47 research candidates
 
