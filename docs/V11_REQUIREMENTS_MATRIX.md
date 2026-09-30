@@ -1,5 +1,21 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## R09 Gate 3 restart R6/R7 author repair; no acceptance credit — 2026-09-30 22:42 UTC
+
+Held `d080eac` (doc follow-up `1fa3902`) repairs R6/R7 from the exact `7bc627e`
+independent review: process-ownership rejection before instance-mutex
+acquisition on both `seal_with_provenance` and `read_receipt`, and one
+consistent `MAX_DESCRIPTOR` bound enforced before metadata creation and during
+recovery. Expanded bounded fork and descriptor-boundary coverage; affected
+offline I/O, launch, collector and GRIB suites pass **285 author tests**.
+[Handoff](/tmp/alpha-v11-r09-gate3-strict-offline-20260930/docs/V11_R09_GATE3_STORE_RESTART_HANDOFF.md)
+and [terminal](/tmp/alpha-v11-gate3-restart-repair-d080eac/terminal.json) pin
+the evidence. Fresh **different-model exact-commit review** is OPEN; candidate
+remains clean and unmerged. Physical filesystem qualification, real
+clock/provider evidence, G3-L, learner admission, forward SHADOW and historical
+runtime-use proof remain OPEN. No C/J/E/A crossing: **91/200 (45.5%), formal
+1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator recovery: Gate 3 R6/R7 still OPEN — 2026-09-30 22:33 UTC
 
 Read-only recovery confirms the held `7bc627e` candidate and its independent

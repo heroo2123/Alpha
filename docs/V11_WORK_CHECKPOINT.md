@@ -1,5 +1,36 @@
 # Alpha V11 work checkpoint
 
+## Gate 3 restart R6/R7 repair candidate; review held — 2026-09-30 22:42 UTC
+
+Sonnet/high repaired R6/R7 from the [two-finding independent review](V11_R09_GATE3_STORE_RESTART_REVIEW_7bc627e.md)
+in the same preserved offline worktree used for the prior R1–R5 repair. Exact
+commit `d080eac0a7b431cbd1d70ca70f8adbccaad3719f` makes the code/test change;
+a follow-up documentation-only commit `1fa39026662075974ecc31a84c716774eed7f38e`
+updates the author handoff to match. Both are clean and unmerged. The
+[revised handoff](/tmp/alpha-v11-r09-gate3-strict-offline-20260930/docs/V11_R09_GATE3_STORE_RESTART_HANDOFF.md)
+and [completed author terminal](/tmp/alpha-v11-gate3-restart-repair-d080eac/terminal.json)
+bind the repair and evidence. `seal_with_provenance` and `read_receipt` now
+reject foreign/inherited process ownership before attempting the instance
+mutex, so a forked child no longer blocks on an `RLock` copied mid-hold from a
+parent thread that does not exist in the child; fork cleanup stays lock-free
+and descriptor-close-only. A single `MAX_DESCRIPTOR` bound now gates the
+encoded descriptor consistently before metadata creation and during recovery's
+bounded read, so oversized/Unicode-expanded context is refused up front rather
+than bricking every future reopen. Author affected suites: **285 passed**;
+diff check passed. This is author evidence, not independent acceptance or
+physical power-loss qualification.
+
+Next: **fresh different-model exact-commit review** of `d080eac` (worktree HEAD
+`1fa3902`) against the two-finding review and the original restart design, with
+independent adversarial probes for R6/R7. Keep merge, publication, provider
+capture, G3-L, SHADOW and learner holds. No new forward SHADOW artifact was
+sought or found in this batch; only the held offline worktree was touched.
+Safety/commissioning state is otherwise unchanged from the `2f86d9c` checkpoint
+(main clean at `2f86d9c`, 51 ahead / 0 behind its tracked remote branch; no
+other repair worker active). No service, authority, V10, AxiomTrade, financial
+or publication action. No C/J/E/A crossing: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Coordinator recovery: route two Gate 3 restart repairs — 2026-09-30 22:33 UTC
 
 Recovered clean main `35e7aad` (50 commits ahead of its local tracking ref),

@@ -1,5 +1,37 @@
 # Supplementary engineering estimate
 
+## Gate 3 restart R6/R7 repaired in held author candidate — 2026-09-30 22:42 UTC
+
+Sonnet/high committed the routed repair on top of exact held `7bc627e` in the
+same preserved offline worktree: commit `d080eac`/tree unchanged path, followed
+by a documentation-only `1fa3902` updating the author handoff. Both public
+mutating operations (`seal_with_provenance`, `read_receipt`) now check process
+ownership before attempting the instance mutex, matching the pattern `close()`
+already used, so a forked child rejects immediately instead of blocking on an
+`RLock` copied mid-hold from a vanished parent thread (R6). A single
+`MAX_DESCRIPTOR` (4096 byte) bound now gates the encoded descriptor before any
+metadata file is created, matching the bound recovery's bounded read already
+used, so oversized/Unicode-expanded context is refused up front instead of
+silently bricking every future reopen (R7). Two bounded fork tests and three
+descriptor-capacity boundary tests were added;
+[handoff](/tmp/alpha-v11-r09-gate3-strict-offline-20260930/docs/V11_R09_GATE3_STORE_RESTART_HANDOFF.md)
+and [terminal](/tmp/alpha-v11-gate3-restart-repair-d080eac/terminal.json) bind
+the evidence. Affected suite: **285 passed** (279 prior + 6 new); `git diff
+--check` passed before both commits. This is author evidence, not independent
+acceptance or physical power-loss qualification.
+
+Next: fresh **different-model exact-commit review** of `d080eac` (worktree HEAD
+`1fa3902`) against
+[the two-finding review](V11_R09_GATE3_STORE_RESTART_REVIEW_7bc627e.md), with
+independent adversarial probes for R6/R7. Candidate stays clean and unmerged;
+no worktree files outside the offline store, its tests and its handoff were
+touched. Every merge, publication, provider capture, G3-L, SHADOW and learner
+hold remains in place; no V10, AxiomTrade, service, authority or financial
+action was taken. Safety/commissioning state is otherwise unchanged from the
+`2f86d9c` checkpoint (no new worker started or stopped, no forward SHADOW
+artifact produced). No C/J/E/A crossing: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Coordinator recovery: route R6/R7 repair — 2026-09-30 22:33 UTC
 
 The exact `7bc627e` Gate 3 candidate remains clean and unmerged, with no
