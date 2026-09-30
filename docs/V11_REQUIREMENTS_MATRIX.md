@@ -1,5 +1,16 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## R09 Gate 3 protocol G3-P independently accepted — 2026-09-30 17:54 UTC
+
+Exact-commit `117830a`/tree `07c4d72f` received completed independent
+`R09_GATE3_PROTOCOL_REVIEW_PASS`, with no P1/P2 finding. The
+[preserved review](V11_R09_GATE3_PROTOCOL_REVIEW_117830a.md) and terminal
+SHA-256 agree. G3-P permits offline synthetic G3-I collector implementation
+only; G3-I review, concrete G3-L manifest/launch, G3-E real capture, Gate 4
+adapter/fit and Gate 5 forward evidence remain OPEN. GEFS SHADOW still has
+zero qualifying forward samples and no root model authority. No C/J/E/A
+credit: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Gate 3 review recovery — 2026-09-30 17:50 UTC
 
 The exact-commit `117830a` independent protocol review remains live with no

@@ -1,5 +1,18 @@
 # Supplementary engineering estimate
 
+## R09 G3-P review accepted — 2026-09-30 17:54 UTC
+
+The independent Sonnet/high review of exact protocol commit `117830a`
+completed `PASS` with matching verdict, terminal and report hash; see
+[review](V11_R09_GATE3_PROTOCOL_REVIEW_117830a.md). It verified source and
+clock boundaries, Gate 2's synthetic-only admission, fixed 2,713-message
+denominator and private master pin. No P1/P2 finding; three P3 notes belong
+to offline G3-I and future launch planning. The next substantive task is
+offline collector implementation and exact-commit G3-I review. No collection,
+real admission or forward sample occurred. SHADOW authority and forward gates
+remain open; publication remains on hold. **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Coordinator recovery — 2026-09-30 17:50 UTC
 
 The sole independent Sonnet/high reviewer remains active on R09 Gate 3 protocol
