@@ -1,5 +1,15 @@
 # Supplementary engineering estimate
 
+## Coordinator recovery — 2026-09-30 15:23 UTC
+
+The sole live R09 repair worker expanded its synthetic counterexamples and
+passed 90/90 focused contract tests. Its affected gate, terminal, commit,
+and independent review are pending. PAPER and V11 execution remain inactive;
+recent commissioning evidence is watchdog status only. Protected model
+authority is absent and the private master hash matches its pin. No new
+qualifying forward SHADOW sample or C/J/E/A milestone: **91/200 (45.5%),
+formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator recovery — 2026-09-30 15:18 UTC
 
 The preserved R09 repair worker remains live; its latest focused contract run
