@@ -19,6 +19,7 @@ from dataclasses import replace
 from datetime import datetime, timezone as dt_timezone
 from pathlib import Path
 import hashlib
+import inspect
 
 import pytest
 
@@ -28,10 +29,25 @@ from tools import v11_trajectory_contract as tc
 ZONE = 'America/New_York'
 TARGET_DATE = '2027-01-15'
 EXPECTED_HOURS = (12, 24)
+EVIDENCE = {}
+
+
+def put(data):
+    identity = hashlib.sha256(data).hexdigest()
+    EVIDENCE[identity] = data
+    return identity
+
+
+def resolve(identity):
+    return EVIDENCE.get(identity)
+
+
+def bind_clock(ts, subject):
+    return replace(ts, evidence_sha256=put(tc.clock_payload(ts, subject)))
 
 
 def sha(label_text):
-    return hashlib.sha256(label_text.encode()).hexdigest()
+    return put(label_text.encode())
 
 
 RULE_VERSION = sha('rule-v1')
@@ -60,18 +76,22 @@ def declared_ts(utc):
 
 
 def receipt_ts(utc, uncertainty=30.0, origin=None, health='SYNCED'):
-    return tc.Timestamp(utc=utc, origin=origin or next(iter(tc.ALLOWED_ORIGINS['response_completed_at'])),
-                         uncertainty_seconds=uncertainty, clock_health=health)
+    origin = origin or next(iter(tc.ALLOWED_ORIGINS['response_completed_at']))
+    ts = tc.Timestamp(utc=utc, origin=origin, uncertainty_seconds=uncertainty,
+                      clock_health=health)
+    return bind_clock(ts, 'LOCAL_CLOCK')
 
 
 def protocol_ts(utc, role, uncertainty=0.0, health='SYNCED'):
-    return tc.Timestamp(utc=utc, origin=next(iter(tc.ALLOWED_ORIGINS[role])),
-                         uncertainty_seconds=uncertainty, clock_health=health)
+    origin = next(iter(tc.ALLOWED_ORIGINS[role]))
+    ts = tc.Timestamp(utc=utc, origin=origin,
+                      uncertainty_seconds=uncertainty, clock_health=health)
+    return bind_clock(ts, role)
 
 
 def make_point(member, hour, *, target_date=TARGET_DATE, receipt_offset=3 * 3600, rule_version=RULE_VERSION,
                station_version=STATION_VERSION, response_origin=None, response_health='SYNCED', feature_offset=60,
-               response_utc=None, run_date=None, cycle=None, byte_key=None):
+               response_utc=None, run_date=None, cycle=None, byte_key=None, station_id='KATL', provider='GEFS'):
     run_utc, ctx_run_date, ctx_cycle = run_context(target_date)
     run_date = ctx_run_date if run_date is None else run_date
     cycle = ctx_cycle if cycle is None else cycle
@@ -80,56 +100,110 @@ def make_point(member, hour, *, target_date=TARGET_DATE, receipt_offset=3 * 3600
     if response_utc is None:
         response_utc = run_utc + receipt_offset
     response_completed_at = receipt_ts(response_utc, origin=response_origin, health=response_health)
-    feature_ready_at = tc.Timestamp(utc=response_utc + feature_offset,
-                                     origin=next(iter(tc.ALLOWED_ORIGINS['feature_ready_at'])),
-                                     uncertainty_seconds=30.0, clock_health='SYNCED')
-    byte_key = byte_key or f'{member}-{hour}-{target_date}'
+    byte_key = byte_key or f'{provider}-{member}-{hour}-{target_date}'
+    raw = f'synthetic-GRIB:{byte_key}'.encode()
+    index = f'synthetic-index:{byte_key}'.encode()
+    raw_sha = put(raw)
+    idx_sha = put(index)
+    response_completed_at = bind_clock(response_completed_at, raw_sha)
+    grid = tc.GridExtraction(nearest_lat=33.64, nearest_lon=-84.43, distance_km=5.0,
+                             grid_resolution_deg=0.25, grid_sha256=put(f'grid-{byte_key}'.encode()))
+    ev = tc.CaptureEvidence(request_url=f'https://synthetic.invalid/{byte_key}',
+                            range_start=0, range_end=len(raw)-1, resource_size=len(raw),
+                            request_started_at=receipt_ts(response_utc - 100, uncertainty=0),
+                            response_completed_at=response_completed_at, http_status=206,
+                            content_range=f'bytes 0-{len(raw)-1}/{len(raw)}',
+                            response_headers=(('content-range', f'bytes 0-{len(raw)-1}/{len(raw)}'),
+                                              ('content-length', str(len(raw))),
+                                              ('etag', sha(byte_key))), raw_bytes=raw, index_bytes=index,
+                            clock_evidence_bytes=resolve(response_completed_at.evidence_sha256), sealed=True)
+    extraction = tc.ExtractionEvidence(raw_sha256=raw_sha, station_id=station_id,
+                                       station_version=station_version,
+                                       grid_sha256=grid.grid_sha256, value_native_k=280.0 + member * 0.01,
+                                       decoder_sha256=put(b'decoder-v1'), extraction_sha256=sha('placeholder'),
+                                       code_sha256=put(b'code-v1'), policy_sha256=put(b'extract-policy-v1'),
+                                       dependency_sha256=put(b'deps-v1'))
+    extraction = replace(extraction, extraction_sha256=tc.extraction_digest(extraction))
+    put(tc.canonical(dict(raw_sha256=extraction.raw_sha256,
+            station_id=extraction.station_id, station_version=extraction.station_version,
+            grid_sha256=extraction.grid_sha256,
+            value_native_k=extraction.value_native_k, decoder_sha256=extraction.decoder_sha256,
+            code_sha256=extraction.code_sha256, policy_sha256=extraction.policy_sha256,
+            dependency_sha256=extraction.dependency_sha256)))
+    feature_ready_at = bind_clock(receipt_ts(response_utc + feature_offset), extraction.extraction_sha256)
+    put(ev.manifest_bytes)
     return tc.TrajectoryPoint(
-        contract_identity=tc.CONTRACT_ID, provider='GEFS', source_release=f'GEFS:{run_date}:{cycle:02d}Z',
+        contract_identity=tc.CONTRACT_ID, provider=provider, source_release=f'{provider}:{run_date}:{cycle:02d}Z',
         release_binding='OBSERVED_HEADER_ONLY', run_date=run_date, cycle=cycle, member=member,
         forecast_hour=hour, run_initialized_at=run_initialized_at, valid_at=valid_at,
         source_published_at=None, response_completed_at=response_completed_at,
         feature_ready_at=feature_ready_at, value_native_k=280.0 + member * 0.01,
         conversion=tc.UnitConversion(original_unit='K', stored_unit='C', formula='SUBTRACT_273.15'),
-        grid=tc.GridExtraction(nearest_lat=33.64, nearest_lon=-84.43, distance_km=5.0,
-                                grid_resolution_deg=0.25, grid_sha256=sha(f'grid-{byte_key}')),
-        capture=tc.CaptureRef(byte_sha256=sha(f'bytes-{byte_key}'), index_sha256=sha(f'idx-{byte_key}'),
-                               store='private-evidence/r09-trajectory-cas', immutable=True),
+        grid=grid,
+        capture=tc.CaptureRef(byte_sha256=raw_sha, index_sha256=idx_sha,
+                               store=f'private-evidence/r09-trajectory-cas/{raw_sha}', immutable=True, evidence=ev),
+        extraction=extraction,
         rule_version=rule_version, station_version=station_version)
 
 
-def full_points(target_date=TARGET_DATE, **kwargs):
-    return [make_point(m, h, target_date=target_date, **kwargs)
-            for m in range(PROVIDERS['GEFS']) for h in EXPECTED_HOURS]
+def full_points(target_date=TARGET_DATE, provider='GEFS', **kwargs):
+    return [make_point(m, h, target_date=target_date, provider=provider, **kwargs)
+            for m in range(PROVIDERS[provider]) for h in EXPECTED_HOURS]
 
 
-def coverage_policy(required_providers=('GEFS',), extra_expected=None, policy_id=None):
+def cohort():
+    return tuple((station, f'{station}-event', 'temperature-rule', date, 'daily_high_temperature')
+                 for station in ('KATL', 'KORD', 'KDEN')
+                 for date in ('2027-01-10', '2027-01-15', '2027-02-10', '2027-03-05'))
+
+
+def coverage_policy(required_providers=('GEFS',), extra_expected=None, requested=None,
+                    fallback_mode='NONE', expected_hours=EXPECTED_HOURS):
+    requested = requested or cohort()
+    trial_keys = sorted({(station, event, date) for station, event, _, date, _ in requested})
+    schedule = tuple((key, protocol_ts(local_day(key[2]).start_utc - 3600,
+                                        'decision_at')) for key in trial_keys)
     expected = {'GEFS': tc.ExpectedCoverage(provider='GEFS', expected_members=tuple(range(PROVIDERS['GEFS'])),
-                                             expected_hours=EXPECTED_HOURS)}
+                                             expected_hours=expected_hours,
+                                             native_window_hours=(expected_hours[0], expected_hours[-1]))}
     if extra_expected:
         expected.update(extra_expected)
-    return tc.CoveragePolicy(policy_id=policy_id or sha('coverage-policy-v1'),
-                              required_providers=required_providers, expected=expected)
+    policy = tc.CoveragePolicy(required_providers=required_providers, expected=expected,
+                              preregistered_at=protocol_ts(local_day().start_utc - 30 * 86400, 'decision_at'),
+                              requested_cohort=requested, decision_schedule=schedule,
+                              max_run_age_seconds=24 * 3600,
+                              run_selection='LATEST_COMPLETE_READY',
+                              allowed_cycles=(0, 6, 12, 18),
+                              fallback_mode=fallback_mode)
+    return replace(policy, preregistered_at=bind_clock(policy.preregistered_at, policy.protocol_subject))
 
 
 def clocks(target_date=TARGET_DATE, decision_offset=3600, freeze_offset=60):
     day = local_day(target_date)
     decision_at = protocol_ts(day.start_utc - decision_offset, 'decision_at')
-    prediction_frozen_at = tc.Timestamp(utc=decision_at.utc + freeze_offset,
-                                         origin=next(iter(tc.ALLOWED_ORIGINS['prediction_frozen_at'])),
-                                         uncertainty_seconds=0.0, clock_health='SYNCED')
+    prediction_frozen_at = receipt_ts(decision_at.utc + freeze_offset, uncertainty=0)
     return tc.CausalClocks(decision_at=decision_at, prediction_frozen_at=prediction_frozen_at)
 
 
 def label(target_date=TARGET_DATE, label_offset=3600, label_version=None, revision_of=None, status='FINAL',
-          bucket_count=10, winner_bucket=3):
+          bucket_count=10, winner_bucket=3, station_id='KATL', station_version=STATION_VERSION,
+          rule_version=RULE_VERSION, family='daily_high_temperature'):
     day = local_day(target_date)
-    knowable = tc.Timestamp(utc=day.end_utc_exclusive + label_offset,
-                             origin=next(iter(tc.ALLOWED_ORIGINS['label_knowable_at'])),
-                             uncertainty_seconds=0.0, clock_health='SYNCED')
-    return tc.LabelFact(label_version=label_version or sha('label-v1'), label_knowable_at=knowable,
-                         family='daily_high_temperature', bucket_count=bucket_count, winner_bucket=winner_bucket,
-                         status=status, revision_of=revision_of)
+    version = label_version or sha(f'label-v1:{station_id}:{target_date}:{family}')
+    knowable = bind_clock(protocol_ts(day.end_utc_exclusive + label_offset, 'label_knowable_at'), version)
+    station_subject = tc.station_metadata_subject(station_id, f'{station_id}-event', station_version)
+    rule_subject = tc.rule_metadata_subject('temperature-rule', rule_version, family,
+                                            'CELSIUS', 'NEAREST_INTEGER', tuple(range(bucket_count + 1)))
+    target = tc.SettlementTarget(station_id=station_id, event_id=f'{station_id}-event',
+                                 rule_id='temperature-rule', station_version=station_version,
+                                 rule_version=rule_version, target_date=target_date, family=family,
+                                 bucket_count=bucket_count, unit='CELSIUS', rounding='NEAREST_INTEGER',
+                                 bucket_edges=tuple(range(bucket_count + 1)),
+                                 station_metadata_available_at=bind_clock(receipt_ts(day.start_utc - 2 * 86400), station_subject),
+                                 rule_metadata_available_at=bind_clock(receipt_ts(day.start_utc - 2 * 86400), rule_subject))
+    return tc.LabelFact(label_version=version, label_knowable_at=knowable,
+                         family=family, bucket_count=bucket_count, winner_bucket=winner_bucket,
+                         status=status, revision_of=revision_of, target=target)
 
 
 def split_cutoffs(target_date=TARGET_DATE, fit_offset=3600, dev_gap=200000, conf_gap=200000):
@@ -140,11 +214,40 @@ def split_cutoffs(target_date=TARGET_DATE, fit_offset=3600, dev_gap=200000, conf
     return dict(TRAIN=fit_cutoff, DEVELOPMENT=selection_freeze_at, CONFIRMATION=evaluation_asof)
 
 
-def baseline_example(city_day='KATL|2027-01-15', split='TRAIN', target_date=TARGET_DATE):
-    return dict(city_day=city_day, split=split, points=full_points(target_date=target_date),
-                coverage_policy=coverage_policy(), local_day=local_day(target_date), clocks=clocks(target_date),
-                label_history=(label(target_date),), split_cutoffs=split_cutoffs(target_date),
-                capture_registry=tc.CaptureRegistry(), label_registry=tc.LabelVersionRegistry())
+def artifact_for(split, cutoffs, policy, target_date):
+    prior = cutoffs['TRAIN' if split == 'DEVELOPMENT' else 'DEVELOPMENT']
+    payload = f'synthetic-parameters:{split}:{target_date}'.encode()
+    return tc.TrainedArtifact(artifact_id=put(payload), produced_after_split='TRAIN' if split == 'DEVELOPMENT' else 'DEVELOPMENT',
+                              split_cutoffs_sha256=tc.split_cutoffs_sha256(cutoffs),
+                              available_at=bind_clock(receipt_ts(prior.utc + 60, uncertainty=0),
+                                                      hashlib.sha256(payload).hexdigest()), artifact_bytes=payload,
+                              family='daily_high_temperature', bucket_partition_sha256=tc.digest(list(range(11))),
+                              coverage_policy_id=policy.policy_id)
+
+
+def candidate_for(points):
+    probe = tc.RunCandidate(provider=points[0].provider,
+                            run_initialized_at=points[0].run_initialized_at,
+                            ready_at=receipt_ts(max(p.feature_ready_at.conservative_upper_bound
+                                                    for p in points) + 1, uncertainty=0), complete=True)
+    return replace(probe, ready_at=bind_clock(probe.ready_at, probe.subject))
+
+
+def baseline_example(city_day='KATL|2027-01-15', split='TRAIN', target_date=TARGET_DATE,
+                     station_version=STATION_VERSION, rule_version=RULE_VERSION, cutoffs=None, policy=None):
+    station_id = city_day.split('|')[0].replace('_ALT', '')
+    points = full_points(target_date=target_date, station_version=station_version,
+                         rule_version=rule_version, station_id=station_id)
+    cutoffs = cutoffs or split_cutoffs(target_date)
+    policy = policy or coverage_policy()
+    return dict(city_day=city_day, split=split, points=points,
+                coverage_policy=policy, local_day=local_day(target_date), clocks=clocks(target_date),
+                label_history=(label(target_date, station_id=station_id, station_version=station_version,
+                                     rule_version=rule_version),), split_cutoffs=cutoffs,
+                capture_registry=tc.CaptureRegistry(), label_registry=tc.LabelVersionRegistry(),
+                station_id=station_id, rule_id='temperature-rule', evidence_resolver=resolve,
+                run_candidates=(candidate_for(points),),
+                artifact=artifact_for(split, cutoffs, policy, target_date) if split != 'TRAIN' else None)
 
 
 # --- baseline sanity -------------------------------------------------------
@@ -154,7 +257,7 @@ def test_baseline_example_validates_and_admits_nothing_real():
     assert record.learner_admitted is False
     assert record.evidence_class == 'SYNTHETIC'
     assert record.financial_authority is False
-    assert record.coverage['required'] == record.coverage['present_all']
+    assert record.coverage.required == record.coverage.present_all
     assert record.out_of_day_points == 0
 
 
@@ -166,16 +269,7 @@ def test_never_admits_a_real_example():
 # --- identity must never alias the legacy contracts -------------------------
 
 def _point_kwargs(contract_identity):
-    return dict(contract_identity=contract_identity, provider='GEFS',
-                source_release=f'GEFS:{RUN_DATE}:{CYCLE:02d}Z', release_binding='OBSERVED_HEADER_ONLY',
-                run_date=RUN_DATE, cycle=CYCLE, member=0, forecast_hour=12,
-                run_initialized_at=declared_ts(RUN_UTC), valid_at=declared_ts(RUN_UTC + 12 * 3600),
-                source_published_at=None,
-                response_completed_at=receipt_ts(RUN_UTC + 3 * 3600), feature_ready_at=receipt_ts(RUN_UTC + 3 * 3600 + 60),
-                value_native_k=280.0, conversion=tc.UnitConversion('K', 'C', 'SUBTRACT_273.15'),
-                grid=tc.GridExtraction(33.64, -84.43, 5.0, 0.25, sha('g')),
-                capture=tc.CaptureRef(sha('b'), sha('i'), 'private-evidence/x', True),
-                rule_version=RULE_VERSION, station_version=STATION_VERSION)
+    return {**make_point(0, 12).__dict__, 'contract_identity': contract_identity}
 
 
 def test_contract_identity_accepts_only_the_new_identity():
@@ -204,7 +298,7 @@ def test_late_partial_receipt_still_covers_but_fails_decision_availability():
     points = [p for p in full_points() if not (p.member == 5 and p.forecast_hour == 24)]
     points.append(make_point(5, 24, receipt_offset=late_offset))
     coverage = tc.validate_coverage(points, coverage_policy())
-    assert set(coverage['required']) == set(coverage['present_all'])  # coverage complete; only the clock gate fails
+    assert set(coverage.required) == set(coverage.present_all)  # coverage complete; only the clock gate fails
     with pytest.raises(PanelError, match='FEATURE_NOT_AVAILABLE_BY_DECISION'):
         tc.validate_example(**{**baseline_example(), 'points': points})
 
@@ -217,7 +311,7 @@ def test_future_valid_forecast_already_received_is_admitted_and_tagged_out_of_da
     future_hour = int((day.end_utc_exclusive - RUN_UTC) / 3600) + 10
     points.append(make_point(0, future_hour, receipt_offset=3 * 3600))
     coverage = tc.validate_coverage(points, coverage_policy())
-    assert (0, future_hour) in coverage['extra_native_points']
+    assert ('GEFS', 0, future_hour) in coverage.extra_native_points
     record = tc.validate_example(**{**baseline_example(), 'points': points})
     assert record.out_of_day_points == 1
     assert record.points == PROVIDERS['GEFS'] * len(EXPECTED_HOURS) + 1
@@ -289,7 +383,8 @@ def test_label_knowable_at_rejects_catalog_created_at_basis():
                              uncertainty_seconds=0.0, clock_health='SYNCED')
     with pytest.raises(PanelError):
         tc.LabelFact(label_version=sha('l'), label_knowable_at=knowable, family='daily_high_temperature',
-                     bucket_count=10, winner_bucket=0, status='FINAL', revision_of=None)
+                     bucket_count=10, winner_bucket=0, status='FINAL', revision_of=None,
+                     target=label().target)
 
 
 # --- 6. rule drift -------------------------------------------------------------
@@ -305,7 +400,8 @@ def test_rule_drift_within_single_example_rejected():
 def test_rule_drift_across_reappearance_of_same_city_day_caught_as_duplicate():
     r1 = tc.validate_example(**baseline_example(city_day='KATL|2027-01-15', split='TRAIN'))
     drifted_points = [replace(p, rule_version=sha('rule-v2')) for p in full_points()]
-    r2 = tc.validate_example(**{**baseline_example(city_day='KATL|2027-01-15', split='TRAIN'),
+    r2 = tc.validate_example(**{**baseline_example(city_day='KATL|2027-01-15', split='TRAIN',
+                                                   rule_version=sha('rule-v2')),
                                  'points': drifted_points})
     with pytest.raises(PanelError, match='DUPLICATE_CITY_DAY'):
         tc.validate_no_duplicate_city_days([r1, r2])
@@ -322,8 +418,8 @@ def test_duplicate_city_day_ingestion_rejected():
 
 def test_distinct_city_days_pass():
     r1 = tc.validate_example(**baseline_example(city_day='KATL|2027-01-15'))
-    r2 = tc.validate_example(**{**baseline_example(city_day='KORD|2027-01-15'),
-                                 'points': full_points(station_version=sha('station-kord'))})
+    r2 = tc.validate_example(**{**baseline_example(city_day='KORD|2027-01-15', station_version=sha('station-kord')),
+                                 'points': full_points(station_version=sha('station-kord'), station_id='KORD')})
     tc.validate_no_duplicate_city_days([r1, r2])  # no raise
 
 
@@ -333,19 +429,11 @@ def test_clock_uncertainty_crossing_decision_cutoff_fails_even_if_nominal_passes
     decision_at = clocks().decision_at
     nominal_receipt = decision_at.utc - 5  # nominal value is safely before cutoff
     response_completed_at = receipt_ts(nominal_receipt, uncertainty=30.0)
-    feature_ready_at = tc.Timestamp(utc=nominal_receipt + 1, origin='LOCAL_RECEIPT_WALL_CLOCK',
-                                     uncertainty_seconds=30.0, clock_health='SYNCED')
+    feature_ready_at = receipt_ts(nominal_receipt + 1, uncertainty=30.0)
     assert feature_ready_at.utc <= decision_at.utc  # nominal value passes
     assert feature_ready_at.conservative_upper_bound > decision_at.utc  # but uncertainty crosses it
-    point = tc.TrajectoryPoint(
-        contract_identity=tc.CONTRACT_ID, provider='GEFS', source_release=f'GEFS:{RUN_DATE}:{CYCLE:02d}Z',
-        release_binding='OBSERVED_HEADER_ONLY', run_date=RUN_DATE, cycle=CYCLE, member=0, forecast_hour=12,
-        run_initialized_at=declared_ts(RUN_UTC), valid_at=declared_ts(RUN_UTC + 12 * 3600),
-        source_published_at=None, response_completed_at=response_completed_at, feature_ready_at=feature_ready_at,
-        value_native_k=280.0, conversion=tc.UnitConversion('K', 'C', 'SUBTRACT_273.15'),
-        grid=tc.GridExtraction(33.64, -84.43, 5.0, 0.25, sha('g')),
-        capture=tc.CaptureRef(sha('b'), sha('i'), 'private-evidence/x', True),
-        rule_version=RULE_VERSION, station_version=STATION_VERSION)
+    point = replace(make_point(0, 12), response_completed_at=response_completed_at,
+                    feature_ready_at=feature_ready_at)
     points = [p for p in full_points() if not (p.member == 0 and p.forecast_hour == 12)] + [point]
     with pytest.raises(PanelError, match='FEATURE_NOT_AVAILABLE_BY_DECISION'):
         tc.validate_example(**{**baseline_example(), 'points': points})
@@ -367,30 +455,41 @@ def test_unknown_split_cutoff_origin_fails_closed():
 
 def test_immutable_replay_of_identical_bytes_is_a_noop():
     registry = tc.CaptureRegistry()
-    key = ('GEFS', RUN_DATE, CYCLE, 0, 12)
-    capture = tc.CaptureRef(sha('bytes-0-12'), sha('idx-0-12'), 'private-evidence/x', True)
-    assert registry.register(key, capture, 280.0) is True
-    assert registry.register(key, capture, 280.0) is False  # idempotent replay
+    point = make_point(0, 12)
+    args = dict(raw_key=('GEFS', RUN_DATE, CYCLE, 0, 12), station_id=point.extraction.station_id,
+                station_version=point.station_version,
+                capture=point.capture, value_native_k=point.value_native_k, grid=point.grid,
+                receipt=point.response_completed_at, extraction=point.extraction,
+                source_published_at=point.source_published_at, evidence_resolver=resolve)
+    assert registry.register(**args) is True
+    assert registry.register(**args) is False
 
 
 def test_immutable_replay_conflicting_overwrite_rejected():
     registry = tc.CaptureRegistry()
-    key = ('GEFS', RUN_DATE, CYCLE, 0, 12)
-    registry.register(key, tc.CaptureRef(sha('bytes-v1'), sha('idx-v1'), 'private-evidence/x', True), 280.0)
-    with pytest.raises(PanelError, match='IMMUTABLE_CAPTURE_CONFLICT'):
-        registry.register(key, tc.CaptureRef(sha('bytes-v2'), sha('idx-v1'), 'private-evidence/x', True), 280.0)
+    point = make_point(0, 12)
+    other = make_point(0, 12, byte_key='different-raw')
+    for p in (point, other):
+        args = dict(raw_key=('GEFS', RUN_DATE, CYCLE, 0, 12), station_id=p.extraction.station_id,
+                    station_version=p.station_version,
+                    capture=p.capture, value_native_k=p.value_native_k, grid=p.grid,
+                    receipt=p.response_completed_at, extraction=p.extraction,
+                    source_published_at=p.source_published_at, evidence_resolver=resolve)
+        if p is point:
+            assert registry.register(**args)
+        else:
+            with pytest.raises(PanelError, match='IMMUTABLE_RAW_MESSAGE_CONFLICT'):
+                registry.register(**args)
 
 
 # --- 10. legitimate cadence gaps vs missing messages --------------------------------
 
-def test_native_cadence_beyond_required_policy_is_not_a_missing_message():
+def test_unregistered_hour_inside_native_window_is_rejected():
     points = full_points()
-    # A finer-cadence native point (hour 15) beyond the frozen required policy is
-    # legitimate extra evidence, not a gap and not gating.
+    # Hour 15 is not in the frozen twelve-hour native cadence/window.
     points.append(make_point(0, 15))
-    coverage = tc.validate_coverage(points, coverage_policy())
-    assert (0, 15) in coverage['extra_native_points']
-    tc.validate_example(**{**baseline_example(), 'points': points})  # does not raise
+    with pytest.raises(PanelError, match='UNREGISTERED_NATIVE_HOUR'):
+        tc.validate_coverage(points, coverage_policy())
 
 
 def test_true_missing_message_within_required_policy_gates():
@@ -431,8 +530,7 @@ def test_cross_split_label_embargo_respected_when_properly_sequenced():
 
 def test_prediction_frozen_before_decision_rejected():
     decision_at = protocol_ts(local_day().start_utc - 3600, 'decision_at')
-    prediction_frozen_at = tc.Timestamp(utc=decision_at.utc - 10, origin='LOCAL_RECEIPT_WALL_CLOCK',
-                                         uncertainty_seconds=0.0, clock_health='SYNCED')
+    prediction_frozen_at = receipt_ts(decision_at.utc - 10, uncertainty=0)
     with pytest.raises(PanelError, match='PREDICTION_NOT_FROZEN_AFTER_DECISION'):
         tc.CausalClocks(decision_at=decision_at, prediction_frozen_at=prediction_frozen_at)
 
@@ -447,15 +545,14 @@ def test_full_corpus_validates_with_no_real_admission():
         CONFIRMATION=protocol_ts(label(target_date=dates['CONFIRMATION']).label_knowable_at.utc + 60, 'evaluation_asof'),
     )
     records = []
+    policy = coverage_policy()
     for split, city, station in (('TRAIN', 'KATL', STATION_VERSION), ('DEVELOPMENT', 'KORD', sha('station-kord')),
                                   ('CONFIRMATION', 'KDEN', sha('station-kden'))):
         d = dates[split]
-        records.append(tc.validate_example(
-            city_day=f'{city}|{d}', split=split, points=full_points(target_date=d, station_version=station),
-            coverage_policy=coverage_policy(), local_day=local_day(d), clocks=clocks(target_date=d),
-            label_history=(label(target_date=d),), split_cutoffs=cutoffs,
-            capture_registry=tc.CaptureRegistry(), label_registry=tc.LabelVersionRegistry()))
-    result = tc.validate_corpus(records, cutoffs)
+        records.append(tc.validate_example(**baseline_example(
+            city_day=f'{city}|{d}', split=split, target_date=d, station_version=station,
+            cutoffs=cutoffs, policy=policy)))
+    result = tc.validate_corpus(records, cutoffs, policy, resolve)
     assert result['admitted_real_examples'] == 0
     assert result['historical_541_day_admissions'] == 0
     assert result['splits'] == dict(TRAIN=1, DEVELOPMENT=1, CONFIRMATION=1)
@@ -473,19 +570,11 @@ def test_gate2_review_f1_receipt_uncertainty_cannot_be_erased_by_a_precise_featu
     # 1s later must not erase that.
     nominal_receipt = decision_at.utc - 2
     response_completed_at = receipt_ts(nominal_receipt, uncertainty=120.0)
-    feature_ready_at = tc.Timestamp(utc=nominal_receipt + 1, origin='LOCAL_RECEIPT_WALL_CLOCK',
-                                     uncertainty_seconds=0.0, clock_health='SYNCED')
+    feature_ready_at = receipt_ts(nominal_receipt + 1, uncertainty=0)
     assert feature_ready_at.conservative_upper_bound <= decision_at.utc  # feature side alone looks fine
     assert response_completed_at.conservative_upper_bound > decision_at.utc  # receipt side is not
-    point = tc.TrajectoryPoint(
-        contract_identity=tc.CONTRACT_ID, provider='GEFS', source_release=f'GEFS:{RUN_DATE}:{CYCLE:02d}Z',
-        release_binding='OBSERVED_HEADER_ONLY', run_date=RUN_DATE, cycle=CYCLE, member=0, forecast_hour=12,
-        run_initialized_at=declared_ts(RUN_UTC), valid_at=declared_ts(RUN_UTC + 12 * 3600),
-        source_published_at=None, response_completed_at=response_completed_at, feature_ready_at=feature_ready_at,
-        value_native_k=280.0, conversion=tc.UnitConversion('K', 'C', 'SUBTRACT_273.15'),
-        grid=tc.GridExtraction(33.64, -84.43, 5.0, 0.25, sha('g')),
-        capture=tc.CaptureRef(sha('b'), sha('i'), 'private-evidence/x', True),
-        rule_version=RULE_VERSION, station_version=STATION_VERSION)
+    point = replace(make_point(0, 12), response_completed_at=response_completed_at,
+                    feature_ready_at=feature_ready_at)
     points = [p for p in full_points() if not (p.member == 0 and p.forecast_hour == 12)] + [point]
     with pytest.raises(PanelError, match='FEATURE_NOT_AVAILABLE_BY_DECISION'):
         tc.validate_example(**{**baseline_example(), 'points': points})
@@ -503,10 +592,8 @@ def test_gate2_review_f2_development_prediction_before_fit_cutoff_rejected():
     evaluation_asof = protocol_ts(selection_freeze_at.utc + 200000, 'evaluation_asof')
     cutoffs = dict(TRAIN=fit_cutoff, DEVELOPMENT=selection_freeze_at, CONFIRMATION=evaluation_asof)
     with pytest.raises(PanelError, match='DEVELOPMENT_PREDICTION_BEFORE_FIT_CUTOFF'):
-        tc.validate_example(city_day=f'KATL|{target_date}', split='DEVELOPMENT',
-                             points=full_points(target_date=target_date), coverage_policy=coverage_policy(),
-                             local_day=day, clocks=cl, label_history=(lab,), split_cutoffs=cutoffs,
-                             capture_registry=tc.CaptureRegistry(), label_registry=tc.LabelVersionRegistry())
+        tc.validate_example(**baseline_example(city_day=f'KATL|{target_date}', split='DEVELOPMENT',
+                                               target_date=target_date, cutoffs=cutoffs))
 
 
 def test_gate2_review_f2_confirmation_prediction_before_selection_freeze_rejected():
@@ -519,18 +606,15 @@ def test_gate2_review_f2_confirmation_prediction_before_selection_freeze_rejecte
     evaluation_asof = protocol_ts(lab.label_knowable_at.utc + 60, 'evaluation_asof')
     cutoffs = dict(TRAIN=fit_cutoff, DEVELOPMENT=selection_freeze_at, CONFIRMATION=evaluation_asof)
     with pytest.raises(PanelError, match='CONFIRMATION_PREDICTION_BEFORE_SELECTION_FREEZE'):
-        tc.validate_example(city_day=f'KDEN|{target_date}', split='CONFIRMATION',
-                             points=full_points(target_date=target_date), coverage_policy=coverage_policy(),
-                             local_day=day, clocks=cl, label_history=(lab,), split_cutoffs=cutoffs,
-                             capture_registry=tc.CaptureRegistry(), label_registry=tc.LabelVersionRegistry())
+        tc.validate_example(**baseline_example(city_day=f'KDEN|{target_date}', split='CONFIRMATION',
+                                               target_date=target_date, cutoffs=cutoffs))
 
 
 def test_gate2_review_f2_prediction_frozen_after_local_day_start_rejected():
     example = baseline_example()
     day = example['local_day']
     late_decision = protocol_ts(day.start_utc + 10, 'decision_at')
-    late_freeze = tc.Timestamp(utc=late_decision.utc + 60, origin='LOCAL_RECEIPT_WALL_CLOCK',
-                                uncertainty_seconds=0.0, clock_health='SYNCED')
+    late_freeze = receipt_ts(late_decision.utc + 60, uncertainty=0)
     example['clocks'] = tc.CausalClocks(decision_at=late_decision, prediction_frozen_at=late_freeze)
     with pytest.raises(PanelError, match='PREDICTION_NOT_FROZEN_BEFORE_LOCAL_DAY_START'):
         tc.validate_example(**example)
@@ -541,27 +625,30 @@ def test_gate2_review_f2_prediction_frozen_after_local_day_start_rejected():
 def test_gate2_review_f3_corpus_rejects_records_that_are_not_validated_examples():
     record = tc.validate_example(**baseline_example())
     with pytest.raises(PanelError, match='CORPUS_RECORDS_MUST_BE_VALIDATED_EXAMPLES'):
-        tc.validate_corpus([record.__dict__], split_cutoffs())
+        tc.validate_corpus([record.__dict__], split_cutoffs(), coverage_policy(), resolve)
 
 
 def test_gate2_review_f3_corpus_rejects_detached_cutoffs():
     record = tc.validate_example(**baseline_example())
     other_cutoffs = split_cutoffs(fit_offset=7200)
     with pytest.raises(PanelError, match='DETACHED_CORPUS_CUTOFFS'):
-        tc.validate_corpus([record], other_cutoffs)
+        tc.validate_corpus([record], other_cutoffs, coverage_policy(), resolve)
 
 
 def test_gate2_review_f3_corpus_rejects_mixed_coverage_policy():
     cutoffs = split_cutoffs()
+    full_policy = coverage_policy()
+    shortened_policy = coverage_policy(expected_hours=(12,))
     r1 = tc.validate_example(**{**baseline_example(city_day='KATL|2027-01-15'),
-                                 'coverage_policy': coverage_policy(policy_id=sha('policy-a')),
+                                 'coverage_policy': full_policy,
                                  'split_cutoffs': cutoffs})
-    r2 = tc.validate_example(**{**baseline_example(city_day='KORD|2027-01-15'),
-                                 'points': full_points(station_version=sha('station-kord')),
-                                 'coverage_policy': coverage_policy(policy_id=sha('policy-b')),
+    r2 = tc.validate_example(**{**baseline_example(city_day='KORD|2027-01-15', station_version=sha('station-kord')),
+                                 'points': [p for p in full_points(station_version=sha('station-kord'), station_id='KORD')
+                                            if p.forecast_hour == 12],
+                                 'coverage_policy': shortened_policy,
                                  'split_cutoffs': cutoffs})
     with pytest.raises(PanelError, match='CORPUS_COVERAGE_POLICY_MUST_BE_FROZEN'):
-        tc.validate_corpus([r1, r2], cutoffs)
+        tc.validate_corpus([r1, r2], cutoffs, full_policy, resolve)
 
 
 def test_gate2_review_f3_cross_split_embargo_checked_for_nonadjacent_splits_without_middle():
@@ -596,7 +683,8 @@ def test_gate2_review_f4_mixed_source_release_within_example_rejected():
 
 def test_gate2_review_f5_station_drift_within_example_rejected():
     points = full_points()
-    tampered = replace(points[-1], station_version=sha('station-other'))
+    tampered = make_point(points[-1].member, points[-1].forecast_hour,
+                          station_version=sha('station-other'))
     points = points[:-1] + [tampered]
     with pytest.raises(PanelError, match='STATION_DRIFT_WITHIN_EXAMPLE'):
         tc.validate_station_consistency(points)
@@ -647,11 +735,11 @@ def test_gate2_review_f7_capture_registry_rejects_byte_conflict_across_examples(
     shared_registry = tc.CaptureRegistry()
     example = {**baseline_example(), 'capture_registry': shared_registry}
     tc.validate_example(**example)  # first pass registers every point's capture
-    tampered_points = [replace(full_points()[0], capture=tc.CaptureRef(
-        sha('different-bytes'), full_points()[0].capture.index_sha256, 'private-evidence/x', True))] + full_points()[1:]
-    with pytest.raises(PanelError, match='IMMUTABLE_CAPTURE_CONFLICT'):
-        tc.validate_example(**{**baseline_example(city_day='KORD|2027-01-15'),
-                                'points': tampered_points, 'capture_registry': shared_registry})
+    other = baseline_example(city_day='KORD|2027-01-15', station_version=sha('station-kord'))
+    tampered_points = [make_point(0, 12, station_version=sha('station-kord'), station_id='KORD',
+                                  byte_key='different-raw')] + other['points'][1:]
+    with pytest.raises(PanelError, match='IMMUTABLE_RAW_MESSAGE_CONFLICT'):
+        tc.validate_example(**{**other, 'points': tampered_points, 'capture_registry': shared_registry})
 
 
 def test_gate2_review_f7_capture_registry_rejects_semantic_rewrite_under_same_byte_digest():
@@ -659,13 +747,11 @@ def test_gate2_review_f7_capture_registry_rejects_semantic_rewrite_under_same_by
     example = {**baseline_example(), 'capture_registry': shared_registry}
     tc.validate_example(**example)
     original = full_points()[0]
-    # Same byte digest, but a different index digest and a different decoded value:
-    # a semantic rewrite that must not be a no-op.
-    rewritten = replace(original, capture=tc.CaptureRef(original.capture.byte_sha256, sha('different-index'),
-                                                          'private-evidence/x', True), value_native_k=290.0)
+    # Same raw bytes and extraction identity; a rewritten grid value must conflict.
+    rewritten = replace(original, grid=replace(original.grid, nearest_lat=34.0))
     tampered_points = [rewritten] + full_points()[1:]
     with pytest.raises(PanelError, match='IMMUTABLE_CAPTURE_CONFLICT'):
-        tc.validate_example(**{**baseline_example(city_day='KORD|2027-01-15'),
+        tc.validate_example(**{**baseline_example(city_day='KATL_ALT|2027-01-15'),
                                 'points': tampered_points, 'capture_registry': shared_registry})
 
 
@@ -688,7 +774,7 @@ def test_gate2_review_f8_absent_required_provider_is_reported_not_dropped():
                                          expected_hours=EXPECTED_HOURS),
         })
     coverage = tc.validate_coverage(full_points(), policy)
-    assert coverage['absent_providers'] == ('AIFS', 'IFS')
+    assert coverage.absent_providers == ('AIFS', 'IFS')
 
 
 def test_gate2_review_f8_shrinking_expectation_to_match_received_data_rejected():
@@ -696,15 +782,468 @@ def test_gate2_review_f8_shrinking_expectation_to_match_received_data_rejected()
     # look complete: ExpectedCoverage itself only accepts the full member set, and
     # the resulting policy_id differs from the frozen one used elsewhere, so a
     # corpus mixing the two is caught by CORPUS_COVERAGE_POLICY_MUST_BE_FROZEN.
-    shrunk = tc.CoveragePolicy(policy_id=sha('shrunk-policy'), required_providers=('GEFS',),
-                                expected={'GEFS': tc.ExpectedCoverage(provider='GEFS',
-                                                                       expected_members=tuple(range(PROVIDERS['GEFS'])),
-                                                                       expected_hours=(12,))})
+    shrunk = coverage_policy(expected_hours=(12,))
     cutoffs = split_cutoffs()
     r1 = tc.validate_example(**{**baseline_example(city_day='KATL|2027-01-15'), 'split_cutoffs': cutoffs})
-    r2 = tc.validate_example(**{**baseline_example(city_day='KORD|2027-01-15'),
-                                 'points': [p for p in full_points(station_version=sha('station-kord'))
+    r2 = tc.validate_example(**{**baseline_example(city_day='KORD|2027-01-15', station_version=sha('station-kord')),
+                                 'points': [p for p in full_points(station_version=sha('station-kord'), station_id='KORD')
                                             if p.forecast_hour == 12],
                                  'coverage_policy': shrunk, 'split_cutoffs': cutoffs})
     with pytest.raises(PanelError, match='CORPUS_COVERAGE_POLICY_MUST_BE_FROZEN'):
-        tc.validate_corpus([r1, r2], cutoffs)
+        tc.validate_corpus([r1, r2], cutoffs, coverage_policy(), resolve)
+
+
+# R1-R7: adversarial controls from the exact 2d116af independent review.
+
+def heldout_example():
+    cutoffs = dict(
+        TRAIN=protocol_ts(label('2027-01-10').label_knowable_at.utc + 60, 'fit_cutoff'),
+        DEVELOPMENT=protocol_ts(label('2027-02-10').label_knowable_at.utc + 60, 'selection_freeze_at'),
+        CONFIRMATION=protocol_ts(label('2027-03-05').label_knowable_at.utc + 60, 'evaluation_asof'))
+    return baseline_example(city_day='KORD|2027-02-10', split='DEVELOPMENT',
+                            target_date='2027-02-10', station_version=sha('station-kord'),
+                            cutoffs=cutoffs)
+
+
+@pytest.mark.parametrize('offset,uncertainty', [(0, 0), (-1, 120)])
+def test_r1_freeze_boundary_equality_and_uncertainty_rejected(offset, uncertainty):
+    ex = baseline_example()
+    freeze = receipt_ts(ex['local_day'].start_utc + offset, uncertainty=uncertainty)
+    ex['clocks'] = replace(ex['clocks'], prediction_frozen_at=freeze)
+    with pytest.raises(PanelError, match='PREDICTION_NOT_FROZEN_BEFORE_LOCAL_DAY_START'):
+        tc.validate_example(**ex)
+
+
+def test_r1_artifact_must_be_available_by_decision_and_match_target_policy():
+    ex = heldout_example()
+    late = bind_clock(receipt_ts(ex['clocks'].decision_at.utc + 1, uncertainty=0),
+                      ex['artifact'].artifact_id)
+    with pytest.raises(PanelError, match='DEVELOPMENT_PREDICTION_BEFORE_FIT_CUTOFF'):
+        tc.validate_example(**{**ex, 'artifact': replace(ex['artifact'], available_at=late)})
+    with pytest.raises(PanelError, match='ARTIFACT_TARGET_POLICY_MISMATCH'):
+        tc.validate_example(**{**ex, 'artifact': replace(ex['artifact'],
+            bucket_partition_sha256=sha('wrong-partition'))})
+
+
+def test_r1_artifact_available_at_decision_boundary_is_accepted():
+    ex = heldout_example()
+    at_decision = bind_clock(receipt_ts(ex['clocks'].decision_at.utc, uncertainty=0),
+                             ex['artifact'].artifact_id)
+    record = tc.validate_example(**{**ex, 'artifact': replace(ex['artifact'], available_at=at_decision)})
+    assert record.evidence_class == 'SYNTHETIC'
+
+
+def reseal(record, **changes):
+    data = {**record.__dict__, **changes}
+    names = inspect.signature(tc._validated_example_seal).parameters
+    data['content_seal'] = tc._validated_example_seal(**{name: data[name] for name in names})
+    return replace(record, **{**changes, 'content_seal': data['content_seal']})
+
+
+@pytest.mark.parametrize('change', [{'decision_at': 1.0},
+                                     {'label_knowable_upper_bound': 1.0}])
+def test_r2_resealed_public_record_cannot_bypass_source_revalidation(change):
+    ex = baseline_example()
+    record = tc.validate_example(**ex)
+    forged = reseal(record, **change)
+    with pytest.raises(PanelError, match='CORPUS_RECORD_NOT_SOURCE_REVALIDATION'):
+        tc.validate_corpus([forged], ex['split_cutoffs'], ex['coverage_policy'], resolve)
+
+
+def test_r2_inconsistent_point_count_is_rejected_before_corpus():
+    record = tc.validate_example(**baseline_example())
+    with pytest.raises(PanelError, match='VALIDATED_EXAMPLE_POINT_COUNT_INCONSISTENT'):
+        reseal(record, points=999)
+
+
+def test_r2_revalidated_source_bytes_require_injected_evidence():
+    ex = baseline_example()
+    record = tc.validate_example(**ex)
+    bad_resolver = lambda identity: b'forged' if identity == ex['points'][0].capture.byte_sha256 else resolve(identity)
+    with pytest.raises(PanelError, match='INJECTED_EVIDENCE_VERIFICATION_FAILED'):
+        tc.validate_corpus([record], ex['split_cutoffs'], ex['coverage_policy'], bad_resolver)
+
+
+def test_r2_target_metadata_bytes_are_reverified_at_corpus_boundary():
+    ex = baseline_example()
+    record = tc.validate_example(**ex)
+    station_digest = ex['label_history'][0].target.station_version
+    missing = lambda identity: None if identity == station_digest else resolve(identity)
+    with pytest.raises(PanelError, match='INJECTED_DEPENDENCY_BYTES_VERIFICATION_FAILED'):
+        tc.validate_corpus([record], ex['split_cutoffs'], ex['coverage_policy'], missing)
+
+
+def test_r2_revalidated_complete_source_rejects_missing_message_even_with_old_summary():
+    ex = baseline_example()
+    record = tc.validate_example(**ex)
+    altered_inputs = replace(record.source_inputs, points=record.source_inputs.points[:-1])
+    forged = replace(record, source_inputs=altered_inputs)
+    with pytest.raises(PanelError, match='MISSING_EXPECTED_MESSAGE'):
+        tc.validate_corpus([forged], ex['split_cutoffs'], ex['coverage_policy'], resolve)
+
+
+def test_r3_label_transplant_across_station_rejected():
+    ex = baseline_example(city_day='KORD|2027-01-15', station_version=sha('station-kord'))
+    ex['label_history'] = (label(station_id='KATL'),)
+    with pytest.raises(PanelError, match='SETTLEMENT_TARGET_STATION_MISMATCH'):
+        tc.validate_example(**ex)
+
+
+@pytest.mark.parametrize('role', ['station', 'rule'])
+def test_r3_metadata_boundary_and_uncertainty_rejected(role):
+    ex = baseline_example()
+    target = ex['label_history'][0].target
+    subject = (tc.station_metadata_subject(target.station_id, target.event_id, target.station_version)
+               if role == 'station' else tc.rule_metadata_subject(target.rule_id, target.rule_version,
+               target.family, target.unit, target.rounding, target.bucket_edges))
+    late = bind_clock(receipt_ts(ex['clocks'].decision_at.utc - 1, uncertainty=120), subject)
+    field = f'{role}_metadata_available_at'
+    changed_label = replace(ex['label_history'][0], target=replace(target, **{field: late}))
+    with pytest.raises(PanelError, match='TARGET_METADATA_NOT_AVAILABLE_BY_DECISION'):
+        tc.validate_example(**{**ex, 'label_history': (changed_label,)})
+
+
+def test_r3_metadata_available_exactly_at_decision_passes():
+    ex = baseline_example()
+    target = ex['label_history'][0].target
+    subject = tc.rule_metadata_subject(target.rule_id, target.rule_version,
+        target.family, target.unit, target.rounding, target.bucket_edges)
+    at_cutoff = bind_clock(receipt_ts(ex['clocks'].decision_at.utc, uncertainty=0), subject)
+    changed = replace(ex['label_history'][0], target=replace(target,
+        rule_metadata_available_at=at_cutoff))
+    record = tc.validate_example(**{**ex, 'label_history': (changed,)})
+    assert record.rule_version == RULE_VERSION
+
+
+def test_r3_partition_identity_is_more_than_bucket_count():
+    ex = heldout_example()
+    target = ex['label_history'][0].target
+    edges = tuple(x * 2 for x in target.bucket_edges)
+    rule_subject = tc.rule_metadata_subject(target.rule_id, target.rule_version,
+                                            target.family, target.unit, target.rounding, edges)
+    changed_target = replace(target, bucket_edges=edges,
+                             rule_metadata_available_at=bind_clock(target.rule_metadata_available_at, rule_subject))
+    changed_label = replace(ex['label_history'][0], target=changed_target)
+    with pytest.raises(PanelError, match='ARTIFACT_TARGET_POLICY_MISMATCH'):
+        tc.validate_example(**{**ex, 'label_history': (changed_label,)})
+
+
+def test_r4_correction_cannot_change_family_or_partition():
+    v1 = label(label_version=sha('first'))
+    for v2 in (label(label_offset=7200, label_version=sha('second'), revision_of=v1.label_version,
+                     family='daily_low_temperature', bucket_count=2, winner_bucket=1),
+               label(label_offset=7200, label_version=sha('third'), revision_of=v1.label_version,
+                     bucket_count=2, winner_bucket=1)):
+        with pytest.raises(PanelError, match='LABEL_LINEAGE_TARGET_DRIFT'):
+            tc.validate_label_lineage((v1, v2))
+
+
+def test_r4_corpus_catches_same_label_version_different_payload_across_registries():
+    version = sha('reused-cross-station-label-version')
+    a = baseline_example()
+    b = baseline_example(city_day='KORD|2027-01-15', station_version=sha('station-kord'))
+    a['label_history'] = (label(label_version=version),)
+    b['label_history'] = (label(label_version=version, station_id='KORD',
+                                station_version=sha('station-kord'), winner_bucket=7),)
+    records = [tc.validate_example(**a), tc.validate_example(**b)]
+    with pytest.raises(PanelError, match='LABEL_VERSION_CONTENT_REWRITE'):
+        tc.validate_corpus(records, a['split_cutoffs'], a['coverage_policy'], resolve)
+
+
+def test_r4_label_revision_selected_as_of_split_cutoff():
+    ex = baseline_example()
+    v1 = ex['label_history'][0]
+    v2 = label(label_offset=7200, label_version=sha('late-correction'),
+               revision_of=v1.label_version, winner_bucket=7)
+    record = tc.validate_example(**{**ex, 'label_history': (v1, v2)})
+    assert record.label_version == v1.label_version
+    assert record.winner_bucket == v1.winner_bucket
+
+
+@pytest.mark.parametrize('mutation,reason', [
+    ({'http_status': 200}, 'CAPTURE_HTTP_STATUS'),
+    ({'content_range': 'bytes 0-1/*'}, 'CAPTURE_CONTENT_RANGE'),
+    ({'sealed': False}, 'CAPTURE_STATE_SEAL_CONSISTENCY'),
+    ({'range_end': 999}, 'CAPTURE_RESOURCE_SIZE'),
+])
+def test_r5_request_http_range_and_seal_are_typed(mutation, reason):
+    ev = make_point(0, 12).capture.evidence
+    with pytest.raises(PanelError, match=reason):
+        replace(ev, **mutation)
+
+
+def test_r5_partial_and_failed_attempts_are_typed_but_not_admitted():
+    ex = baseline_example()
+    point = ex['points'][0]
+    partial_raw = point.capture.evidence.raw_bytes[:-1]
+    partial_clock = bind_clock(point.response_completed_at,
+                               hashlib.sha256(partial_raw).hexdigest())
+    partial = replace(point.capture.evidence, sealed=False, state='PARTIAL',
+                      raw_bytes=partial_raw, http_status=206,
+                      response_completed_at=partial_clock,
+                      clock_evidence_bytes=resolve(partial_clock.evidence_sha256))
+    assert partial.state == 'PARTIAL'
+    with pytest.raises(PanelError, match='CAPTURE_NOT_SEALED'):
+        tc.validate_example(**{**ex, 'points': [replace(point, capture=replace(
+            point.capture, evidence=partial))] + ex['points'][1:]})
+    failed_clock = bind_clock(point.response_completed_at, hashlib.sha256(b'').hexdigest())
+    failed = replace(point.capture.evidence, sealed=False, state='FAILED',
+                     raw_bytes=b'', index_bytes=b'', http_status=503,
+                     content_range='', response_headers=(),
+                     response_completed_at=failed_clock,
+                     clock_evidence_bytes=resolve(failed_clock.evidence_sha256))
+    assert failed.state == 'FAILED'
+
+
+def test_r5_injected_header_manifest_and_clock_evidence_are_verified():
+    ex = baseline_example()
+    point = ex['points'][0]
+    altered = replace(point.capture.evidence, response_headers=(
+        ('content-range', point.capture.evidence.content_range),
+        ('content-length', str(len(point.capture.evidence.raw_bytes))), ('etag', sha('changed'))))
+    changed_point = replace(point, capture=replace(point.capture, evidence=altered))
+    with pytest.raises(PanelError, match='INJECTED_EVIDENCE_VERIFICATION_FAILED'):
+        tc.validate_example(**{**ex, 'points': [changed_point] + ex['points'][1:]})
+    with pytest.raises(PanelError, match='CAPTURE_CLOCK_EVIDENCE_MISMATCH'):
+        replace(point.capture.evidence, clock_evidence_bytes=b'bad-clock')
+    forged_clock = replace(point.response_completed_at, evidence_sha256=put(b'bad-clock'))
+    with pytest.raises(PanelError, match='CAPTURE_CLOCK_CONTENT_MISMATCH'):
+        replace(point.capture.evidence, response_completed_at=forged_clock,
+                clock_evidence_bytes=b'bad-clock')
+
+
+@pytest.mark.parametrize('kind', ['decoder_sha256', 'code_sha256', 'policy_sha256',
+                                  'dependency_sha256', 'grid_sha256'])
+def test_r5_admission_requires_actual_injected_dependency_bytes(kind):
+    ex = baseline_example()
+    point = ex['points'][0]
+    identity = (point.grid.grid_sha256 if kind == 'grid_sha256'
+                else getattr(point.extraction, kind))
+    missing = lambda digest: None if digest == identity else resolve(digest)
+    with pytest.raises(PanelError, match='INJECTED_DEPENDENCY_BYTES_VERIFICATION_FAILED'):
+        tc.validate_example(**{**ex, 'evidence_resolver': missing})
+
+
+def test_r5_request_end_boundary_equality_and_uncertainty():
+    ev = make_point(0, 12).capture.evidence
+    request = receipt_ts(ev.response_completed_at.conservative_lower_bound, uncertainty=0)
+    assert replace(ev, request_started_at=request).sealed
+    crossing = receipt_ts(request.utc, uncertainty=1)
+    with pytest.raises(PanelError, match='CAPTURE_REQUEST_AFTER_RESPONSE'):
+        replace(ev, request_started_at=crossing)
+
+
+def test_r5_attested_release_requires_bound_publication_evidence():
+    point = make_point(0, 12)
+    with pytest.raises(PanelError, match='ATTESTED_RELEASE_REQUIRES_PUBLICATION_EVIDENCE'):
+        replace(point, release_binding='ATTESTED')
+    publication = bind_clock(protocol_ts(point.response_completed_at.utc - 10,
+                                          'source_published_at'), point.capture.byte_sha256)
+    ex = baseline_example()
+    changed = replace(point, release_binding='ATTESTED', source_published_at=publication)
+    record = tc.validate_example(**{**ex, 'points': [changed] + ex['points'][1:]})
+    assert record.evidence_class == 'SYNTHETIC'
+
+
+def reextract(point, **changes):
+    extraction = replace(point.extraction, **changes)
+    extraction = replace(extraction, extraction_sha256=tc.extraction_digest(extraction))
+    put(tc.canonical(dict(raw_sha256=extraction.raw_sha256,
+        station_id=extraction.station_id, station_version=extraction.station_version,
+        grid_sha256=extraction.grid_sha256, value_native_k=extraction.value_native_k,
+        decoder_sha256=extraction.decoder_sha256, code_sha256=extraction.code_sha256,
+        policy_sha256=extraction.policy_sha256, dependency_sha256=extraction.dependency_sha256)))
+    ready = bind_clock(point.feature_ready_at, extraction.extraction_sha256)
+    return replace(point, extraction=extraction, value_native_k=extraction.value_native_k,
+                   feature_ready_at=ready)
+
+
+@pytest.mark.parametrize('field', ['decoder_sha256', 'code_sha256', 'policy_sha256',
+                                    'dependency_sha256'])
+def test_r5_extraction_code_policy_dependency_rewrite_conflicts(field):
+    shared = tc.CaptureRegistry()
+    ex = baseline_example()
+    tc.validate_example(**{**ex, 'capture_registry': shared})
+    point = reextract(ex['points'][0], **{field: put(('changed-' + field).encode())})
+    with pytest.raises(PanelError, match='IMMUTABLE_CAPTURE_CONFLICT'):
+        tc.validate_example(**{**ex, 'points': [point] + ex['points'][1:],
+                               'capture_registry': shared})
+
+
+def test_r5_receipt_rewrite_under_same_raw_bytes_conflicts():
+    shared = tc.CaptureRegistry()
+    ex = baseline_example()
+    tc.validate_example(**{**ex, 'capture_registry': shared})
+    later = make_point(0, 12, response_utc=ex['points'][0].response_completed_at.utc + 10)
+    with pytest.raises(PanelError, match='IMMUTABLE_RAW_MESSAGE_CONFLICT'):
+        tc.validate_example(**{**ex, 'points': [later] + ex['points'][1:],
+                               'capture_registry': shared})
+
+
+def test_r5_feature_availability_equality_and_uncertainty():
+    ex = baseline_example()
+    decision = ex['clocks'].decision_at.utc
+    point = make_point(0, 12, response_utc=decision - 90, feature_offset=60)
+    points = [point] + ex['points'][1:]
+    candidate = candidate_for(points)
+    candidate = replace(candidate, ready_at=bind_clock(
+        receipt_ts(decision, uncertainty=0), candidate.subject))
+    valid = {**ex, 'points': points, 'run_candidates': (candidate,)}
+    assert tc.validate_example(**valid).points == len(points)
+    uncertain = replace(point, feature_ready_at=bind_clock(
+        receipt_ts(decision - 30, uncertainty=31), point.extraction.extraction_sha256))
+    with pytest.raises(PanelError, match='FEATURE_NOT_AVAILABLE_BY_DECISION'):
+        tc.validate_example(**{**valid, 'points': [uncertain] + points[1:]})
+
+
+def test_r6_two_stations_share_raw_message_with_distinct_extractions():
+    shared = tc.CaptureRegistry()
+    a = baseline_example()
+    b = baseline_example(city_day='KORD|2027-01-15', station_version=sha('station-kord'))
+    b['points'] = [reextract(b['points'][0], value_native_k=281.0)] + b['points'][1:]
+    a['capture_registry'] = shared
+    b['capture_registry'] = shared
+    records = [tc.validate_example(**a), tc.validate_example(**b)]
+    report = tc.validate_corpus(records, a['split_cutoffs'], a['coverage_policy'], resolve)
+    assert report['city_days'] == 2
+    assert report['provider_counts']['GEFS'] == 2
+
+
+def test_r7_protocol_content_mutation_changes_identity_and_is_immutable():
+    policy = coverage_policy()
+    with pytest.raises(TypeError):
+        policy.expected['GEFS'] = tc.ExpectedCoverage('GEFS', tuple(range(31)), (12,),
+                                                        native_window_hours=(12, 12))
+    changed = coverage_policy(expected_hours=(12,))
+    assert changed.policy_id != policy.policy_id
+    assert changed.protocol_subject != policy.protocol_subject
+
+
+def test_r7_latest_complete_ready_run_selection_and_freshness():
+    ex = baseline_example()
+    with pytest.raises(PanelError, match='RUN_CANDIDATE_INVENTORY_INCOMPLETE_OR_DUPLICATE'):
+        tc.validate_example(**{**ex, 'run_candidates': ()})
+    selected = ex['run_candidates'][0]
+    newer = tc.RunCandidate(provider='GEFS',
+        run_initialized_at=declared_ts(selected.run_initialized_at.utc + 6 * 3600),
+        ready_at=receipt_ts(selected.run_initialized_at.utc + 7 * 3600, uncertainty=0), complete=True)
+    newer = replace(newer, ready_at=bind_clock(newer.ready_at, newer.subject))
+    with pytest.raises(PanelError, match='RUN_SELECTION_NOT_LATEST_ELIGIBLE'):
+        tc.validate_example(**{**ex, 'run_candidates': (selected, newer)})
+    short = replace(ex['coverage_policy'], max_run_age_seconds=3600)
+    short = replace(short, preregistered_at=bind_clock(short.preregistered_at, short.protocol_subject))
+    with pytest.raises(PanelError, match='NO_ELIGIBLE_RUN_CANDIDATE'):
+        tc.validate_example(**{**ex, 'coverage_policy': short})
+
+
+def test_r7_run_freshness_equality_and_ready_uncertainty():
+    ex = baseline_example()
+    age = int(ex['clocks'].decision_at.utc - ex['points'][0].run_initialized_at.utc)
+    boundary = replace(ex['coverage_policy'], max_run_age_seconds=age)
+    boundary = replace(boundary, preregistered_at=bind_clock(
+        boundary.preregistered_at, boundary.protocol_subject))
+    assert tc.validate_example(**{**ex, 'coverage_policy': boundary}).evidence_class == 'SYNTHETIC'
+    crossing_ready = replace(ex['run_candidates'][0], ready_at=receipt_ts(
+        ex['clocks'].decision_at.utc - 1, uncertainty=120))
+    crossing_ready = replace(crossing_ready, ready_at=bind_clock(
+        crossing_ready.ready_at, crossing_ready.subject))
+    with pytest.raises(PanelError, match='NO_ELIGIBLE_RUN_CANDIDATE'):
+        tc.validate_example(**{**ex, 'run_candidates': (crossing_ready,)})
+
+
+def test_r7_empty_corpus_still_verifies_frozen_protocol_and_reports_full_cohort():
+    policy = coverage_policy()
+    report = tc.validate_corpus([], split_cutoffs(), policy, resolve)
+    assert report['requested_city_days'] == len(cohort())
+    assert len(report['missing_from_requested_cohort']) == len(cohort())
+    missing = lambda digest: None if digest == policy.preregistered_at.evidence_sha256 else resolve(digest)
+    with pytest.raises(PanelError, match='INJECTED_EVIDENCE_VERIFICATION_FAILED'):
+        tc.validate_corpus([], split_cutoffs(), policy, missing)
+
+
+def test_r7_preregistration_boundary_and_uncertainty():
+    ex = baseline_example()
+    policy = ex['coverage_policy']
+    earliest_decision = min(ts.utc for _, ts in policy.decision_schedule)
+    at_decision = replace(policy, preregistered_at=protocol_ts(
+        earliest_decision, 'decision_at'))
+    at_decision = replace(at_decision, preregistered_at=bind_clock(
+        at_decision.preregistered_at, at_decision.protocol_subject))
+    assert tc.validate_example(**{**ex, 'coverage_policy': at_decision}).evidence_class == 'SYNTHETIC'
+    with pytest.raises(PanelError, match='PROTOCOL_NOT_PREREGISTERED_BY_DECISION'):
+        replace(policy, preregistered_at=protocol_ts(
+            earliest_decision - 1, 'decision_at', uncertainty=120))
+
+
+def test_r7_decision_schedule_is_complete_and_enforced_per_city_day():
+    ex = baseline_example()
+    policy = ex['coverage_policy']
+    with pytest.raises(PanelError, match='DECISION_SCHEDULE_COHORT_MISMATCH'):
+        replace(policy, decision_schedule=policy.decision_schedule[:-1])
+    early_decision = protocol_ts(ex['clocks'].decision_at.utc - 60, 'decision_at')
+    with pytest.raises(PanelError, match='DECISION_NOT_ON_FROZEN_SCHEDULE'):
+        tc.validate_example(**{**ex, 'clocks': replace(ex['clocks'], decision_at=early_decision)})
+
+
+def test_r7_provider_completeness_fallback_grouping_and_full_cohort_report():
+    expected_ifs = tc.ExpectedCoverage('IFS', tuple(range(PROVIDERS['IFS'])), EXPECTED_HOURS)
+    strict = coverage_policy(required_providers=('GEFS', 'IFS'), extra_expected={'IFS': expected_ifs})
+    ex = baseline_example(policy=strict)
+    with pytest.raises(PanelError, match='REQUIRED_PROVIDER_ABSENT_NO_FALLBACK'):
+        tc.validate_example(**ex)
+    fallback = coverage_policy(required_providers=('GEFS', 'IFS'),
+                               extra_expected={'IFS': expected_ifs}, fallback_mode='FROZEN_OUTAGE')
+    ex = baseline_example(policy=fallback)
+    observed = bind_clock(receipt_ts(ex['clocks'].decision_at.utc - 1000, uncertainty=0), 'IFS')
+    outage = tc.OutageEvidence('IFS', observed, put(b'synthetic-provider-outage-record'))
+    ex['outage_evidence'] = (outage,)
+    record = tc.validate_example(**ex)
+    report = tc.validate_corpus([record], ex['split_cutoffs'], fallback, resolve)
+    assert report['city_days'] == 1
+    assert report['requested_city_days'] == len(cohort())
+    assert len(report['missing_from_requested_cohort']) == len(cohort()) - 1
+    assert report['provider_missing_by_target'][record.dedup_key] == ('IFS',)
+    assert report['provider_counts'] == {'GEFS': 1, 'IFS': 0}
+
+
+def test_r7_multi_provider_single_outcome_group():
+    expected_ifs = tc.ExpectedCoverage('IFS', tuple(range(PROVIDERS['IFS'])), EXPECTED_HOURS)
+    policy = coverage_policy(required_providers=('GEFS', 'IFS'), extra_expected={'IFS': expected_ifs})
+    ex = baseline_example(policy=policy)
+    ifs = full_points(provider='IFS')
+    ex['points'] = ex['points'] + ifs
+    ex['run_candidates'] = ex['run_candidates'] + (candidate_for(ifs),)
+    record = tc.validate_example(**ex)
+    report = tc.validate_corpus([record], ex['split_cutoffs'], policy, resolve)
+    assert report['city_days'] == 1
+    assert report['provider_counts'] == {'GEFS': 1, 'IFS': 1}
+    assert not record.coverage.absent_providers
+
+
+def test_r7_provider_specific_native_cadence_and_window():
+    expected_ifs = tc.ExpectedCoverage('IFS', tuple(range(PROVIDERS['IFS'])),
+                                       (12, 18, 24), native_cadence_hours=6,
+                                       native_window_hours=(12, 24))
+    policy = coverage_policy(required_providers=('GEFS', 'IFS'), extra_expected={'IFS': expected_ifs})
+    ex = baseline_example(policy=policy)
+    ifs = [make_point(member, hour, provider='IFS')
+           for member in range(PROVIDERS['IFS']) for hour in expected_ifs.expected_hours]
+    ex['points'] = ex['points'] + ifs
+    ex['run_candidates'] = ex['run_candidates'] + (candidate_for(ifs),)
+    record = tc.validate_example(**ex)
+    assert len([x for x in record.coverage.required if x[0] == 'IFS']) == 153
+
+
+def test_r3_r7_high_low_rows_share_one_independent_city_day():
+    low_key = ('KATL', 'KATL-event', 'temperature-rule', TARGET_DATE,
+               'daily_low_temperature')
+    policy = coverage_policy(requested=cohort() + (low_key,))
+    high = baseline_example(policy=policy)
+    low = baseline_example(policy=policy)
+    low['label_history'] = (label(family='daily_low_temperature'),)
+    report = tc.validate_corpus([tc.validate_example(**high), tc.validate_example(**low)],
+                                high['split_cutoffs'], policy, resolve)
+    assert report['city_days'] == 1
+    assert report['splits']['TRAIN'] == 1
+    assert report['provider_counts']['GEFS'] == 1
+    assert report['requested_city_days'] == len(cohort())
