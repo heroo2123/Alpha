@@ -1,5 +1,31 @@
 # Alpha V11 work checkpoint
 
+## Combined release integration exposes load-sensitive GEFS gate — 2026-09-30
+
+On clean main `89b5f76`, staged all three scheduler test-fix commits
+(`e35cbfc`, `f1462c7`, `26056af`) and the independently reviewed SHADOW patch
+`7f3cf6c` in isolated worktree
+`/tmp/alpha-v11-release-integration-20260930`, now clean at `42b1346`.
+Before cherry-pick, newer main had no changes to the affected source/test files;
+all four commits applied without conflict and `git diff --check` was clean.
+The scheduler branch's terminal full suite remains PASS (5,332 passed, 12
+skipped), but the combined branch's 12-file affected test set finished **395
+passed, 1 failed / 559.76 s**. The failure is
+`test_v11_remaining_forecast.py::test_official_arrival_racing_either_append_gates_atomic_publication[remaining]`
+during `prepare()`: `GEFS_ASSEMBLY_TIME_BOUND` from the unchanged two-second
+`EvidenceStore.source_batch` source-view cap. The exact test then passed alone
+**1 passed / 8.06 s** on the same combined branch. This is a load/order-sensitive
+release gate, not permission to increase or bypass the runtime bound. Do not
+merge the branch or claim a combined release PASS. Next: bounded Sol/high
+diagnosis of actual elapsed source-view work and competing load, a narrow
+correctness-preserving remedy, focused/affected retest, then one combined
+full-suite release run and independent compatibility review as needed.
+
+The single R09 gate 2 Sonnet/high worker remains active in its isolated
+worktree with terminal marker pending. No new forward SHADOW evidence,
+financial/service/protected-state action, or C/J/E/A boundary: **91/200
+(45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## GEFS release diagnostic PASS; R09 gate 2 worker active — 2026-09-30
 
 The bounded scheduler full-suite diagnostic completed with terminal

@@ -1,5 +1,15 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Combined GEFS/SHADOW release gate — 2026-09-30
+
+The isolated combined branch `42b1346` contains the scheduler fixes and
+reviewed SHADOW patch without conflict. Its affected suite failed once under
+load at the unchanged GEFS two-second source-view bound (395 passed, 1 failed);
+the exact failing test passed in isolation. Thus the scheduler-only full-suite
+PASS is not a combined release PASS. Integration and forward SHADOW evidence
+remain OPEN. R09 gate 2 worker remains active; no C/J/E/A credit changed:
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## GEFS release and R09 offline gate — 2026-09-30
 
 The scheduler branch `26056af` completed a terminal full-suite PASS (5,332

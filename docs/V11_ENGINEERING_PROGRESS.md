@@ -1,5 +1,14 @@
 # Supplementary engineering estimate
 
+## Combined release gate remains open — 2026-09-30
+
+The scheduler-only terminal full suite passed, but combined scheduler/SHADOW
+integration on `42b1346` had 395 affected tests pass and one load-sensitive
+GEFS source-view time-bound failure. The exact test passed alone. The
+two-second runtime cap is unchanged; no combined release PASS or SHADOW merge
+is claimed. R09 gate 2 proceeds separately in one isolated worker. **91/200
+(45.5%), formal 1/50; NOT_READY_TO_FUND** remains unchanged.
+
 ## GEFS full-suite diagnostic and R09 gate 2 — 2026-09-30
 
 The scheduler-fix branch passed the terminal full suite: 5,332 passed, 12
