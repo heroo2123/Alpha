@@ -1,5 +1,17 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Coordinator recovery — R09 repair expanded to tests — 2026-09-30
+
+The single preserved R09 gate-2 worker remains active and now edits both the
+contract source and its synthetic tests. `git diff --check` passes, but the
+latest focused run still fails while fixtures are being adapted. There is no
+finished repair test, commit, terminal, or independent exact-commit review;
+gate 2 remains OPEN. Main and the SHADOW worktree are clean. The scanner is
+actually inactive after its recorded disk stop, with only watchdog status
+files newly written and no qualifying forward sample. Protected model
+authority remains absent. No requirement status or C/J/E/A credit changes:
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator recovery — R09 repair in progress — 2026-09-30
 
 The one preserved R09 gate-2 worker is live and has added source repairs and

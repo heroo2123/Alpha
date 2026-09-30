@@ -2,6 +2,17 @@
 
 ## Coordinator recovery — 2026-09-30
 
+The one R09 gate-2 repair worker remains live in its preserved worktree and
+has added synthetic test edits to its source repair. Its two-file diff passes
+`git diff --check`; focused tests are still failing as the worker updates
+fixtures. No terminal, commit, completed test gate, or independent review is
+available. Main and the SHADOW worktree are clean; the scanner and V11
+controller/execution remain inactive, and no recent forward SHADOW sample
+qualifies. Disk is 82% used with 3.4 GiB free. Protected model authority is
+absent. **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
+## Coordinator recovery — 2026-09-30
+
 Recovered the live, single R09 gate-2 repair worker in its original isolated
 worktree. Its source diff has progressed and compiles, but test completion,
 terminal, commit and independent review remain pending. Main development

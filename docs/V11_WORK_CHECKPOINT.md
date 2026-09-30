@@ -1,5 +1,32 @@
 # Alpha V11 work checkpoint
 
+## Coordinator recovery — R09 tests now being repaired — 2026-09-30
+
+Recovered actual processes and worktrees at about 14:55 UTC. The sole R09
+repair driver PID 799619 and Codex child PID 799624 are still active in the
+preserved `/tmp/alpha-v11-r09-trajectory-gate2/Alpha` worktree. Since the
+previous checkpoint, the worker also began editing
+`tests/test_v11_trajectory_contract.py`; the current two-file diff is 799
+insertions/101 deletions and `git diff --check` passes. The live log shows
+focused fixture/API failures being repaired, including a `CoverageResult`
+assertion mismatch. There is still no completed test gate, commit,
+`terminal.json`, or independent exact-commit review. Do not duplicate, merge,
+or admit real data from this unfinished diff; recover its actual result when it
+finishes and then seek independent review.
+
+Main is clean at `ab4feaf`, 11 commits ahead of origin. The isolated SHADOW
+worktree is clean at `15e99bd`; no recent commissioning artifact beyond
+watchdog status appeared. The scanner, controller, paper demo, and masked
+execution service are actually inactive. Scanner `STATUS.json` still describes
+a 13:53 active process but is stale; `STOP_REASON.txt` records
+`DISK_AT_OR_ABOVE_85_PERCENT`. Root disk is 82% used with 3.4 GiB free,
+and about 885 MiB memory is available. Protected model-authority paths remain
+absent. The private FINAL-REVIEWED master SHA-256 still matches
+`a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+No service, V10, protected authority, or financial action was taken. No
+qualifying forward SHADOW sample or C/J/E/A boundary was established:
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator recovery — R09 repair progressing; commissioning still stopped — 2026-09-30
 
 Recovered actual state at about 14:51 UTC. The single R09 gate-2 repair driver
