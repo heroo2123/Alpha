@@ -1,5 +1,14 @@
 # Supplementary engineering estimate
 
+## Coordinator route failover — 2026-09-30 16:20 UTC
+
+The Sonnet/high router failed three times at session startup due to its
+session limit; no N1–N4 repair worker ran. The preserved R09 builder remains
+clean at `16c0756` with a completed `CHANGES_REQUIRED` review. Route the
+bounded implementation to Sol/high in that worktree and require fresh
+independent exact-commit acceptance. No forward SHADOW evidence or C/J/E/A
+milestone: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator recovery — 2026-09-30 16:12 UTC
 
 Confirmed exact-commit R09 terminal `CHANGES_REQUIRED`, clean idle builder

@@ -1,5 +1,14 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Coordinator R09 route failover — 2026-09-30 16:20 UTC
+
+Sonnet/high implementation routing hit its session limit three times before
+any repair worker started. The clean `16c0756` builder and completed N1–N4
+`CHANGES_REQUIRED` review are unchanged. Route the bounded repair to Sol/high
+in the same worktree, then obtain fresh independent exact-commit review.
+Gate 2, real trajectory admission and forward SHADOW qualification remain
+OPEN. **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator R09 repair handoff — 2026-09-30 16:12 UTC
 
 The exact-commit `16c0756` review terminal confirms `CHANGES_REQUIRED` for

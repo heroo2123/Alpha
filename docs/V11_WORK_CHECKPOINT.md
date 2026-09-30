@@ -1,5 +1,27 @@
 # Alpha V11 work checkpoint
 
+## Coordinator recovery — R09 implementation route failover — 2026-09-30 16:20 UTC
+
+Main is clean at `795c3b1` (25 local commits ahead of origin); the preserved
+R09 builder remains clean at `16c0756`, and SHADOW remains clean at `15e99bd`.
+The independent exact-commit R09 review is completed `CHANGES_REQUIRED` for
+N1–N4; gate 2 stays OPEN. Three attempted Sonnet/high router handoffs ended
+immediately with a Claude session-limit message (reset stated as 17:20 UTC),
+before any implementation worker started. Route the bounded substantive
+repair as a Sol/high failover in the SAME R09 builder worktree. Run the
+independent counterexample harness and focused/affected tests, commit the
+repair, then require a fresh independent exact-commit review before merge or
+real-data admission.
+
+Since the prior checkpoint, only Brain watchdog status files changed in
+commissioning evidence; no qualifying forward SHADOW sample appeared. PAPER
+scanner, V10 paper demo, V11 controller and masked execution are inactive.
+The private FINAL-REVIEWED master still matches its SHA-256 pin; protected
+model-authority paths remain absent. Disk is 76% used with 4.7 GiB free;
+available memory is about 988 MiB. No service, V10, authority, financial or
+publication action was taken. No C/J/E/A change: **91/200 (45.5%), formal
+1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator recovery — R09 repair handoff — 2026-09-30 16:12 UTC
 
 Recovered main clean at `a282523` (24 commits ahead of origin), R09 builder
