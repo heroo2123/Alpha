@@ -1,5 +1,10 @@
 # Supplementary engineering estimate
 
+## Coordinator integration — reviewed R09/R47 branches — 2026-09-30
+
+Independent review passed for both the R09 historical multi-model panel and the R47 deterministic-v2 GEFS candidate lineage. R09 review independently reproduced the 505/541 boundary-gap result, 357/120/64 split preservation, deterministic real-input rebuilds and grouped-dependence gates; no real fit is admitted. R47 review independently reproduced a third byte-identical 37-file build, exact live GEFS semantics, v2 hashes, C/F invariance and 22 + 181 relevant passing tests. No runtime/protected/financial authority changed. Engineering score remains **91/200 (45.5%), formal 1/50**; NOT_READY_TO_FUND.
+
+
 ## R09 multi-model historical implementation — 2026-09-30
 
 Built and tested a deterministic, immutable GEFS/IFS/AIFS historical point panel

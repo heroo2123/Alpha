@@ -1,5 +1,14 @@
 # Alpha V11 work checkpoint
 
+## Coordinator integration — R09 + R47 independent reviews passed — 2026-09-30
+
+R09 implementation commits `1d0ac918...`/`fb0f4b7f...` passed an independent GPT-6 Astra review with no blocking findings. The reviewer independently reproduced the 505/541 ECMWF boundary-gap count, preserved 357/120/64 splits, grouped-dependence handling, two byte-identical real-input builds, and 339 related tests with one expected opt-in skip. This is an implementation/evidence review only: R09 still has no admitted real exact-day fit, no calibration, and no model acceptance.
+
+R47 deterministic-v2 commits `937c968e...`/`3efb66e1...` passed an independent Claude Opus review with no blocking findings. A third clean build reproduced all 37 files byte-identically, the manifest and bundle hashes, exact deployed GEFS model/day semantics, C/F invariance, and the focused 22 + related 181 tests. The v2 artifacts remain `FITTED_NOT_CALIBRATED` / `NO_PROMOTION`; independent implementation review is complete, but owner acceptance, protected nonfinancial SHADOW installation, forward SHADOW evidence/sample target, calibration and execution-cost evidence remain.
+
+Both reviewed branches are being integrated without changing V10, services, protected model state, credentials, funding or financial authority. Score remains **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND** pending combined integration regression.
+
+
 ## R09 multi-model historical panel — 2026-09-30
 
 Recovered clean `r09-multimodel-brain-20260930` at `7bb4f27`; preserved all newer

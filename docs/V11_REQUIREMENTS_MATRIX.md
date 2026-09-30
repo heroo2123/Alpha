@@ -1,5 +1,8 @@
 # V11 requirement-to-code/test/evidence matrix
 
+Coordinator integration note (2026-09-30): independent reviews of both new branches passed with no blocking findings. R09's historical multi-model implementation is verified, but real exact-day learner admission remains blocked by insufficient ECMWF interval-extreme/causal evidence; it remains existing C,J only. R47's deterministic v2 candidate lineage and reproducibility are independently verified; the implementation-review portion of the prior blocker is closed, while owner acceptance, protected nonfinancial SHADOW installation, forward SHADOW evidence/sample target, calibration and execution-cost evidence remain. No new C/J/E/A credit: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
+
 R09 post-ECMWF implementation (2026-09-30, supersedes only the generic
 "day-extreme assembly still pending" description): the deterministic read-only
 historical point panel, immutable file/content/provenance verification, exact
