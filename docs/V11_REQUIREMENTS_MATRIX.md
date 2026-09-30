@@ -1,5 +1,14 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Coordinator live recovery — 2026-09-30 23:14 UTC
+
+The clean, held `0b7209d` Gate 3 candidate remains under one active independent
+full-branch integration review. No terminal or combined-tree acceptance exists
+yet; local merge, provider capture, G3-L, learner, SHADOW and publication remain
+held. Commissioning produced only status writes, not qualifying forward evidence.
+The accepted release resolution is still on main. **No row crossed a C/J/E/A
+boundary: 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND.**
+
 ## Gate 3 composition independently passes; full-branch review running — 2026-09-30 23:11 UTC
 
 Astra/high independently reviewed Sonnet/high exact `0b7209d` / tree

@@ -1,5 +1,26 @@
 # Alpha V11 work checkpoint
 
+## Coordinator live recovery — 2026-09-30 23:14 UTC
+
+Recovered clean main `cc655c0` (3 ahead of its local tracking ref), clean held
+Gate 3 author candidate `0b7209d`, and clean SHADOW `15e99bd`. The single
+Astra/high Gate 3 full-branch integration reviewer launched at 23:10:57 UTC is
+still active in its isolated worktree (driver 926580, worker 926587); its
+terminal and verdict do not yet exist. It remains the next unblocked offline
+step, so no duplicate worker or candidate merge was started. On completion,
+inspect its result, exact prospective tree and test evidence against then-current
+main before deciding any local integration; all publication and operational
+holds remain.
+
+The newest commissioning writes are manager/watchdog statuses only; no forward
+SHADOW sample was admitted. Accepted release resolution `6ec371e` remains an
+ancestor of main. Read-only checks found the FINAL-REVIEWED private master at
+its pinned SHA-256, demo/scanner/controller/execution services inactive,
+execution masked, and protected model-authority paths absent. Disk has 4.2 GiB
+free and memory about 787 MiB available. No service, V10, AxiomTrade,
+authority, capture, financial or publication action. No C/J/E/A crossing:
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Gate 3 composition independently passes; full-branch review running — 2026-09-30 23:11 UTC
 
 Astra/high independently reviewed Sonnet/high exact `0b7209d` / tree

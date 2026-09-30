@@ -1,5 +1,16 @@
 # Supplementary engineering estimate
 
+## Coordinator live recovery — 2026-09-30 23:14 UTC
+
+The independent Gate 3 full-branch reviewer is active in its isolated tree;
+neither a terminal verdict nor a prospective combined-tree test result exists
+yet. The author candidate and SHADOW worktrees remain clean and held. The next
+safe action is to inspect the review result and reconcile it with then-current
+main, without granting capture, G3-L, learner or SHADOW authority. Commissioning
+has only newer status writes. The release resolution remains accepted, safety
+services are inactive, execution is masked, and the private master hash matches
+its pin. **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**, unchanged.
+
 ## Gate 3 composition independently passes; full-branch review running — 2026-09-30 23:11 UTC
 
 Astra/high independently reviewed Sonnet/high exact `0b7209d` / tree
