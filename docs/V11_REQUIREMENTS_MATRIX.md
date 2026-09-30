@@ -1,5 +1,14 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Coordinator diagnostic result — 2026-09-30
+
+The scheduler branch's bounded GEFS family diagnostic completed with **56 passed
+in 173.44 s** (terminal exit 0), including the replay that failed in the earlier
+full suite. This does not establish a full-suite PASS or change the two-second
+source-view gate. The SHADOW candidate still has two adjudicated P2 defects and
+remains unmerged. No forward SHADOW evidence or C/J/E/A boundary changed:
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator diagnostic — 2026-09-30
 
 The two adjudicated SHADOW P2 defects remain unimplemented and unmerged; the

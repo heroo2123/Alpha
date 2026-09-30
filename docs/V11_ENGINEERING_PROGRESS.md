@@ -1,5 +1,14 @@
 # Supplementary engineering estimate
 
+## Coordinator diagnostic result — 2026-09-30
+
+The isolated scheduler branch passed its bounded GEFS family diagnostic:
+**56 passed in 173.44 s**, terminal exit 0. Its prior full-suite
+`GEFS_ASSEMBLY_TIME_BOUND` remains unresolved under load, and no release PASS
+is claimed. The clean isolated SHADOW candidate still needs two adjudicated P2
+repairs and fresh independent review. No forward SHADOW evidence or C/J/E/A
+change: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator recovery — 2026-09-30
 
 The SHADOW repair remains blocked by two adjudicated P2 defects; the Sonnet/high
