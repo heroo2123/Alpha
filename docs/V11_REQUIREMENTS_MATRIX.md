@@ -1,5 +1,30 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## SHADOW repair adjudicated — two P2 repairs required — 2026-09-30
+
+Astra/high resolved the Opus written-PASS/terminal-INCOMPLETE conflict for
+`dd18e38`: the driver searched only final console output, and the reviewer
+hit its session limit after writing the report. The report is usable independent
+evidence, but **merge acceptance is not established; CHANGES_REQUIRED**.
+Four new synthetic reproductions passed (6.33 s), proving that mutated queue/book
+policy still receives a positive bound preflight and executes, and that an
+advancing-clock bounded restart fails on the first completed iteration with
+`RECORD_ID_CONFLICT`. These are P2 configuration-provenance/recovery defects;
+the report's other P3 notes remain non-blocking. The repair stays unmerged.
+
+Exact adjudication, evidence hashes and implementation criteria:
+[V11 SHADOW repair adjudication](V11_SHADOW_COMMISSION_ADJUDICATION_dd18e38.md).
+Next: repair both defects in the existing SHADOW worktree, focused/affected
+verification, then fresh independent review of the resulting commit. No duplicate
+worker was started; this bounded adjudication hands implementation to the router.
+Scheduler branch remains `26056af`; GEFS load diagnosis and full release remain
+open. Isolated passes do not clear either failed broad test set.
+
+PAPER scanner active at PID 514629, zero restarts; protected authority absent.
+The private master hash matches; no V10, service, authority or publication action
+was performed. No forward evidence or C/J/E/A: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## SHADOW repair committed; fresh independent review running — 2026-09-30
 
 Repaired all five `4557904` commissioning findings in the original isolated
