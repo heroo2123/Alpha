@@ -1,5 +1,16 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Interrupted R09 gate 2 repair recovery — 2026-09-30
+
+The Sonnet/high R1–R7 attempt stopped at its session limit with one uncommitted
+source diff in the preserved gate-2 worktree. No terminal, tests, independent
+review or admission result exists for that diff. The seven P2 findings in
+[V11_R09_GATE2_REVIEW_2d116af.md](V11_R09_GATE2_REVIEW_2d116af.md) remain
+OPEN pending completed repair and exact-commit review. Development SHADOW
+integration is accepted locally, while PAPER scanning remains stopped by its
+85% disk guard; no forward qualification. **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Combined release accepted and integrated locally — 2026-09-30
 
 Astra/high completed exact-branch integration/safety acceptance of `6ec371e`

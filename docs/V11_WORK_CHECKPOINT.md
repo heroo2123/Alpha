@@ -1,5 +1,26 @@
 # Alpha V11 work checkpoint
 
+## Coordinator recovery — interrupted R09 repair preserved — 2026-09-30
+
+Main code remains at accepted development integration `4e40972`. A later
+Sonnet/high R1–R7 repair stopped at its session limit without a terminal marker
+or test result. Its preserved `/tmp/alpha-v11-r09-trajectory-gate2/Alpha`
+worktree is now dirty at base `2d116af`: only
+`tools/v11_trajectory_contract.py` changed (388 insertions, 62 deletions;
+`git diff --check` clean). The diff introduces artifact, settlement-target,
+capture/extraction and coverage changes, but its own notes leave deeper R5/R7
+evidence and fallback requirements open. Do not claim a completed repair,
+review, or gate-2 acceptance. Resume this exact diff without reset or cleanup;
+complete R1–R7 against the independent review, run focused/affected tests,
+commit, and obtain fresh independent exact-commit review.
+
+PAPER scanner is inactive after `DISK_AT_OR_ABOVE_85_PERCENT`; root disk is
+85% used with 2.9 GiB free. Weather execution remains masked/inactive,
+protected model authority absent, and the private FINAL-REVIEWED master still
+matches its pinned SHA-256. Recent commissioning files are watchdog status,
+not qualifying forward SHADOW evidence. No C/J/E/A change: **91/200 (45.5%),
+formal 1/50; NOT_READY_TO_FUND**.
+
 ## Combined release accepted and integrated locally — 2026-09-30
 
 Astra/high completed exact-branch integration/safety acceptance of `6ec371e`

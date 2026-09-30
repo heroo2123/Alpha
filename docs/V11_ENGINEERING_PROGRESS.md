@@ -1,5 +1,15 @@
 # Supplementary engineering estimate
 
+## R09 repair interrupted and preserved — 2026-09-30
+
+Sonnet/high stopped at a session limit while editing the existing gate-2
+worktree. One source file has an uncommitted 388-line-addition/62-line-deletion
+diff; no new tests or terminal marker were produced. Continue in that worktree,
+verify all seven independent P2 counterexamples, and seek fresh review before
+integration. The accepted SHADOW release is development-only; the PAPER scanner
+is inactive at its disk guard and no forward sample qualifies. **91/200
+(45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Combined release accepted and integrated locally — 2026-09-30
 
 Astra/high completed exact-branch integration/safety acceptance of `6ec371e`
