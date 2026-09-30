@@ -1,5 +1,47 @@
 # Alpha V11 work checkpoint
 
+## R09 multi-model historical panel — 2026-09-30
+
+Recovered clean `r09-multimodel-brain-20260930` at `7bb4f27`; preserved all newer
+R47, source-adapter and supervisor work. Implemented a read-only deterministic
+GEFS/IFS/AIFS point-panel builder, input/content/provenance checks, native local-day
+coverage audit and a separately gated grouped stacking reference evaluator.
+The 541 station-days / 1,082 HIGH+LOW events retain TRAIN/DEVELOPMENT/
+HISTORICAL_CONFIRMATION = 357/120/64; historical confirmation is not forward
+untouched evidence. No ensemble-member independence is assumed.
+
+**Proven design blocker:** the six-hour subset loses one or both midnight brackets
+on 505/541 city-days. Even the 36 aligned KBKF days have only point temperatures,
+not evidence of between-sample extrema. Historical receipts, label knowable times,
+rule/revision lineage and original GRIB bytes also remain unavailable. Real fitting
+fails closed: **NOT_FITTED / NOT_CALIBRATED / NO_PROMOTION**, all four comparison
+scores unset. Synthetic evaluator tests are not actual calibration evidence.
+
+Relevant integration regression: **337 passed, 1 expected real-input opt-in skip,
+109.75 s**. Final focused UTC/city-alias guards: **58 passed, 1 expected skip,
+2.82 s**. Full-store precommit audit checked every source row and confirmed the
+split/coverage findings. Final reproducibility hashes and commands are recorded in
+`docs/V11_R09_MULTIMODEL_HISTORICAL_PANEL.md` after the committed-code build.
+
+Committed-code build at `1d0ac918a6c1bb61546b1d3eb5454dd8be1ffc5d`
+(tree `2718ce32a8aae99dd44e221b275c9df74701b91a`): **1 real-input integration
+test passed / 142.19 s**, two complete builds with byte-identical dataset,
+manifest and result. Dataset SHA-256
+`1f5ac64b4e5d47d2a32f87bc02d9193ffba5259afb7b3d94f74b90721632a04b`;
+result SHA-256 `04dc449e3f287428e489db22c1575ad786d48017287255c5715b8f29f2bf8c8c`.
+Compile checks and diff whitespace checks pass. All artifacts remain in ignored
+local `private-evidence/r09-multimodel/`; only code, tests, hash pins and
+documentation are published. This verification is not independent acceptance.
+
+No C/J/E/A awarded: **91/200 (45.5%), formal 1/50**, NOT_READY_TO_FUND. R09's
+historical panel/integrity audit now exists, but exact-day feature semantics,
+causal learner admission, real calibration and independent acceptance remain.
+Next: independently review the documented feature/evidence gap and establish a
+valid source-native extreme or explicitly reviewed alternate predictor contract;
+preserve these immutable inputs. No source download, V10, service, protected-state,
+model installation/promotion or financial action was performed.
+
+
 ## Agent-2 model-panel input architecture + real ECMWF parity — 2026-09-29
 
 On the isolated Agent-2 worktree, added a separate pull-only typed

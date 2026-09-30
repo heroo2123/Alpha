@@ -1,5 +1,21 @@
 # V11 requirement-to-code/test/evidence matrix
 
+R09 post-ECMWF implementation (2026-09-30, supersedes only the generic
+"day-extreme assembly still pending" description): the deterministic read-only
+historical point panel, immutable file/content/provenance verification, exact
+native local-day filtering and grouped reference stacking evaluator now exist.
+The completed common-six-hour download plan loses start/end brackets on 505 of
+541 station-days; the other 36 days still cannot identify between-sample daily
+extremes. Historical availability, label knowable-time/rule-revision proof and
+raw-GRIB re-verification remain missing. Thus the real fit correctly refuses
+admission rather than inventing exact-day values: NOT_FITTED / NOT_CALIBRATED /
+NO_PROMOTION; GEFS-only/IFS-only/AIFS-only/multi-model scores are unset. Frozen
+357/120/64 splits are preserved and historical confirmation is not forward proof.
+See `docs/V11_R09_MULTIMODEL_HISTORICAL_PANEL.md` for implementation, tests and
+artifact hashes. R09 remains PARTIAL, existing C,J only; **91/200 (45.5%), formal
+1/50**, NOT_READY_TO_FUND. No new unit for research tooling or a fail-closed result.
+
+
 Coordinator follow-up (2026-09-30, supersedes only the earlier R47 live-schema-compatibility finding): a label-only gefs31 -> deployed-model-id rebind was rejected because historical bracket snapshot extrema are not equivalent to deployed exact-local-day piecewise-linear clipping. The preserved 541-station-day NOAA backfill was recomputed with deployed linear_extreme() semantics; both HIGH/LOW retained bias 0.0 C / sigma 0.5 C and passed the frozen DEVELOPMENT + HISTORICAL_CONFIRMATION comparisons. Four immutable HIGH/LOW x C/F research bundles now use exact deployed model id NOAA_GEFS_0P50_LINEAR_DAY_V1; deployed and development gefs_sources.py are byte-identical; bundle/schema/prediction and unit-transform checks pass. These candidates remain FITTED_NOT_CALIBRATED, NO_PROMOTION, nonfinancial, not host-approved, and historical-confirmation is not a forward untouched holdout. Thus live-schema research compatibility is no longer the R47 blocker, but independent/owner review, protected model-authority installation, forward shadow evidence/sample target, calibration and execution-cost evidence remain. R47 stays OPEN with no new C/J/E/A credit. See docs/V11_R47_EXACT_DAY_LIVE_SCHEMA_REBUILD.md.
 
 
