@@ -1,5 +1,30 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Gate 3 restart independently rejected; five bounded repairs — 2026-09-30 22:04 UTC
+
+Astra/high completed exact-commit review of held Sol/high `74bd122`/tree
+`ed59c54`: **CHANGES_REQUIRED**, with [report, probes and terminal](V11_R09_GATE3_STORE_RESTART_REVIEW_74bd122.md).
+Independent evidence: **204 affected passes; 60 adversarial passes**, including
+seven reproductions of five P2 defects: retained recovery pins ignored on an
+empty namespace, close releasing ownership during an active seal, mutable clock
+prefix acknowledging an unreplayable COMMIT, reserve exhaustion after PREPARE,
+and missing original host identity. Other probes cover initialization/seal/recovery
+I/O uncertainty, sparse/nonregular files, original clocks and external heads.
+Full interruption coverage remains a repair acceptance requirement; no power-loss
+qualification is claimed.
+
+Candidate stays clean, unchanged and unmerged. Next: Sol/high implementation
+failover in the same held worktree (Sonnet's actual latest output remains limited
+until 22:20 UTC), then fresh different-model exact-commit review. The bounded
+review is complete; no worker duplicated or launched. Keep merge, publication,
+capture, G3-L, SHADOW and learner holds. Main recovered at `38d6aa9`; SHADOW clean.
+New commissioning writes are watchdog/manager statuses only; accepted release
+resolution `6ec371e` remains current. Master hash matches its pin, V10 demo
+inactive/disabled, execution inactive/masked, protected authority absent; disk
+4.4 GiB free, memory about 1.0 GiB available. No service, authority, financial,
+V10, AxiomTrade or publication action. No C/J/E/A crossing: **91/200 (45.5%),
+formal 1/50; NOT_READY_TO_FUND**.
+
 ## R09 Gate 3 restart author candidate; no acceptance credit — 2026-09-30 21:58 UTC
 
 Held Sol/high `74bd122`/tree `ed59c54` implements an offline v1 store/clock

@@ -1,0 +1,46 @@
+{
+  "status": "REVIEW_COMPLETE_CHANGES_REQUIRED",
+  "reviewer": "Astra/high",
+  "author": "Sol/high",
+  "utc": "2026-09-30T22:05:41.762503+00:00",
+  "commit": "74bd1222ebf0a17ec654abb2783f2444ae119430",
+  "tree": "ed59c54c22a63ee4e16b6ff6274a910ca26447ba",
+  "candidate_clean": true,
+  "candidate_unchanged": true,
+  "merged": false,
+  "findings": [
+    "P2 R1 recovery pin bypass",
+    "P2 R2 close lock lifetime",
+    "P2 R3 mutable clock prefix",
+    "P2 R4 moving capacity reserve",
+    "P2 R5 missing original host identity"
+  ],
+  "affected_result": "204 passed in 3.62s",
+  "probe_result": "60 passed in 0.95s; 7 defect reproductions; 53 controls/fault cases",
+  "affected_command": "PYTHONPATH=. /home/alphaadmin/AlphaV11_Dev/venv/bin/python -m pytest -q tests/test_v11_r09_gate3_store_v1.py tests/test_v11_r09_gate3_offline_io.py tests/test_v11_r09_gate3_launch.py tests/test_v11_r09_gate3_collector.py tests/test_v11_grib_fields.py",
+  "probe_command": "PYTHONPATH=. /home/alphaadmin/AlphaV11_Dev/venv/bin/python -m pytest -q /home/alphaadmin/AlphaV11_Dev/Alpha/docs/V11_R09_GATE3_STORE_RESTART_REVIEW_74bd122_probes.py",
+  "test_cwd": "/tmp/alpha-v11-r09-gate3-strict-offline-20260930",
+  "report_sha256": "ede79ed4504c22dffa4d69e501ddc93b5956478ffb3f496a94b4893f73b8ed59",
+  "probes_sha256": "da49e771146af1e036e2705b2587e3b02b885543ff4b5e455c02a4214f1b8d83",
+  "logs": {
+    "/tmp/alpha-v11-gate3-restart-review-74bd122/affected.log": "560f71367a6515020d47e761e5481d208195997dcfbebfa782878959d1aa61f9",
+    "/tmp/alpha-v11-gate3-restart-review-74bd122/probes.log": "e8acea1e1ba645a9f35aa5c0b94d42d996aa513a396216745741663ac61af598"
+  },
+  "candidate_files_sha256": {
+    "tools/v11_r09_gate3_store_v1.py": "11f770cf7be47870685234e868b8bcd0df153f4c700d62a0556e41023fb34c57",
+    "tools/v11_r09_gate3_offline_io.py": "bca02a320402ca6c0f908cd035fecd08854012c25b744d8cc7436ca370c50235",
+    "tests/test_v11_r09_gate3_store_v1.py": "691519afc3c2d68ad41911a471990067d645f678de1e6cfda80403216d90122a",
+    "docs/V11_R09_GATE3_STORE_RESTART_HANDOFF.md": "2b6713b0165cfbc29ad6081741c59712fadaa086a97c497de8065ef0550f369d"
+  },
+  "holds": [
+    "merge",
+    "publication",
+    "provider_capture",
+    "G3-L",
+    "SHADOW",
+    "learner_admission"
+  ],
+  "score": "91/200; formal 1/50; NOT_READY_TO_FUND",
+  "next_route": "ROUTE_SOL_HIGH",
+  "repair_started": false
+}
