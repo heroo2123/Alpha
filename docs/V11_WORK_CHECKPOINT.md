@@ -1,5 +1,32 @@
 # Alpha V11 work checkpoint
 
+## Coordinator recovery — release suite failed; SHADOW repair remains next — 2026-09-30
+
+The detached full-suite retry on clean scheduler-fix commit `e35cbfc` finished
+at 10:01:57 UTC with **2 failed, 5,330 passed, 12 skipped** (exit 1; 1,770.29 s).
+Terminal evidence is `/tmp/alpha-v11-scheduler-full-suite-retry.{terminal,log}`.
+`test_v11_markout_drift.py::test_typed_candidate_automatically_monitors_retires_and_audits_original_scope`
+again omitted the expected DRIFT worker, despite focused/family passes.
+`test_v11_remaining_forecast.py::test_replay_preserves_source_times_and_completed_outputs`
+failed earlier in GEFS path assembly with `GEFS_ASSEMBLY_TIME_BOUND`. The
+test-only scheduler branch stays unmerged; diagnose both failures with focused,
+load-aware reproductions and preserve source-time safety semantics before any
+release rerun. No full-suite PASS is claimed.
+
+The SHADOW commissioning branch remains clean at `4557904`, with five
+independently reproduced blocking findings in
+[the review](V11_SHADOW_COMMISSION_REVIEW_4557904.md). It remains outside main.
+Repair in its existing isolated worktree and independently re-review before
+integration; neither synthetic admission rows nor failed preflights count as
+forward SHADOW evidence. The latest commissioning files are watchdog status
+heartbeats, with no new forward evidence. PAPER scanner PID 514629 remains
+active with zero restarts; V10 is inactive; V11 controller and execution are
+inactive; root model-authority paths are absent. The FINAL-REVIEWED private
+master hash still matches `a0e16d9b...563b4a`. Main is clean and nine commits
+ahead of origin; the earlier GitHub approval rejection remains binding.
+Available disk: 3.2 GiB; memory: 691 MiB available plus 1.5 GiB free swap.
+No new C/J/E/A: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Independent SHADOW commissioning review blocked integration — 2026-09-30
 
 Astra independently reviewed `4557904` in its clean isolated worktree and

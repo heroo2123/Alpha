@@ -1,5 +1,15 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Release and SHADOW gate update — 2026-09-30
+
+The `e35cbfc` full-suite retry ended with **2 failed, 5,330 passed, 12 skipped**:
+missing DRIFT worker under load and a GEFS `GEFS_ASSEMBLY_TIME_BOUND` replay
+failure. Release remains open; the test-only fix is unmerged. The independently
+rejected SHADOW candidate `4557904` also remains unmerged pending repair and
+re-review. Neither result adds forward evidence or C/J/E/A credit:
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**. Exact release trace:
+`/tmp/alpha-v11-scheduler-full-suite-retry.{terminal,log}`.
+
 ## Independent SHADOW commissioning review blocked integration — 2026-09-30
 
 Astra independently reviewed `4557904` in its clean isolated worktree and

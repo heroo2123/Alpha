@@ -1,5 +1,16 @@
 # Supplementary engineering estimate
 
+## Coordinator gate update — 2026-09-30
+
+The full-suite retry on scheduler-fix `e35cbfc` finished exit 1 after
+1,770.29 s: **5,330 passed, 12 skipped, 2 failed** (missing DRIFT result
+under load and GEFS assembly time bound in a replay test). No release PASS,
+merge or publication. SHADOW `4557904` remains clean but review-rejected with
+five reproduced defects, so substantive repair and independent re-review remain
+the next commissioning steps. PAPER scanner is active with zero restarts;
+no new forward SHADOW evidence. Score stays **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Independent SHADOW commissioning review blocked integration — 2026-09-30
 
 Astra independently reviewed `4557904` in its clean isolated worktree and
