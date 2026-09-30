@@ -2,7 +2,7 @@
 
 ## R09 G3-I strict launch candidate pending cross-model review — 2026-09-30
 
-Isolated `7099a11`/tree `938b65c` implements an offline closed-schema
+Isolated `dc7f83b`/tree `5e440cb` implements an offline closed-schema
 validator and durable reservation/stream-byte journal; 62 focused collector
 and new synthetic tests pass. It rejects shortened 2,713-slot inventory,
 unsealed identity/wrong time, fake 64-hex Git SHA-1 OID, exhausted request

@@ -2,7 +2,7 @@
 
 ## Offline strict Gate 3 launch candidate — 2026-09-30 19:39 UTC
 
-Sol/high authored isolated `7099a11`/tree `938b65c`: new offline validator
+Sol/high authored isolated `dc7f83b`/tree `5e440cb`: new offline validator
 pins real Git objects and accepted protocol hashes, fixes the native 2,713-slot
 denominator, checks a closed private manifest shape and conservative subset
 reservations, and journals request/chunk outcomes durably across restart.

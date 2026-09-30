@@ -2,20 +2,21 @@
 
 ## Offline Gate 3 strict-validator candidate awaiting independent review — 2026-09-30 19:39 UTC
 
-Sol/high built isolated G3-I candidate `7099a11` (tree `938b65c`) in
+Sol/high built isolated G3-I candidate `dc7f83b` (tree `5e440cb`) in
 `/tmp/alpha-v11-r09-gate3-strict-offline-20260930` on branch
 `r09-gate3-strict-offline-20260930`; its worktree is clean. New
 `tools/v11_r09_gate3_launch.py` is offline only: closed canonical private
 manifest schema, exact reviewed protocol pins, real Git SHA-1/SHA-256 OID
 resolution, artifact digest checks, fixed 2,713 native slots and date-derived
 time checks, conservative ordered request reservations, and an exclusive,
-fsynced hash journal for crash-uncertain reservations and streamed received
+fsynced hash journal, including its directory entry before reservation, for
+crash-uncertain reservations and streamed received
 bytes. The journal records even a body chunk that violates its read allowance
 and then refuses further work. Synthetic tests reproduce the six addendum gaps
 and exercise tamper, dirty-code, symlink, pacing and restart cases. New and
 existing collector suites: **62 passed**. This is an author candidate, **not
 independently reviewed or merged**. Next: different-model exact-commit review
-of `7099a11`, with particular attention to schema completeness, schedule
+of `dc7f83b`, with particular attention to schema completeness, schedule
 binding, journal crash/concurrency edges and the fact that a validated payload
 grants no launch permission. Real transport/decoder/clock/storage integration,
 private manifest and exact-digest G3-L review remain OPEN. No network capture
