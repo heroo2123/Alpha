@@ -1,5 +1,16 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## R47/R09 Brain offline readiness independent review: CHANGES_REQUIRED — 2026-09-30
+
+[Astra/high exact-commit review](V11_BRAIN_OFFLINE_READINESS_REVIEW_a8362ad.md)
+rejects `a8362ad` for three P2 offline diagnostic bindings: canonical
+station/date-to-city-day/split, exact observation event-to-bundle execution
+membership, and `V11_PAPER` markout request namespace. Five adversarial
+executions reproduce the defects; eight author tests and two positive controls
+pass. One isolated repair worker is active; new exact-commit review remains
+required. Real multi-model admission, forward evidence and promotion remain
+OPEN. **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**, unchanged.
+
 ## R09 strict G3-I offline repair reviewed; integration still open — 2026-09-30
 
 The [independent Astra/high exact-commit review](V11_R09_GATE3_STRICT_REPAIR_REVIEW_1693dd5.md)

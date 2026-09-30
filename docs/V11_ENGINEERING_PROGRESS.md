@@ -1,5 +1,16 @@
 # Supplementary engineering estimate
 
+## Brain offline readiness review found three P2 bindings — 2026-09-30
+
+The [independent exact `a8362ad` review](V11_BRAIN_OFFLINE_READINESS_REVIEW_a8362ad.md)
+is CHANGES_REQUIRED: city-day aliases cross splits, LOW bundle execution
+evidence can attach to HIGH observations, and markout omits the actual PAPER
+namespace check. Five adversarial reproductions and two positive controls
+supplement eight passing focused tests. A single isolated repair worker is
+active; new exact-commit review is required before integration. The separate
+Gate 3 `1693dd5` offline repair remains PASS but unmerged. No C/J/E/A change:
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Gate 3 strict offline repair PASS; no launch credit — 2026-09-30
 
 Sol/high's final isolated `1693dd5`/tree `09840fc` repairs the five P2

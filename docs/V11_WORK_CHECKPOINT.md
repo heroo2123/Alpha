@@ -1,5 +1,22 @@
 # Alpha V11 work checkpoint
 
+## Brain readiness review rejected; isolated repair active — 2026-09-30
+
+Astra/high independently reviewed exact Brain author commit `a8362ad`/tree
+`625ef61`: **CHANGES_REQUIRED**. [The review](V11_BRAIN_OFFLINE_READINESS_REVIEW_a8362ad.md)
+records three P2 defects: caller city-day aliases can split the same station/date
+across cohorts, execution diagnostics can use another event family's bundle,
+and markout accepts a non-PAPER request namespace. Eight focused tests pass;
+five adversarial executions reproduce the defects, with two positive controls.
+One P3 handoff wording correction is also queued. A single offline repair
+worker is active in the same isolated Brain worktree, with a terminal JSON
+required at `/tmp/alpha-v11-brain-readiness-repair-terminal-20260930.json`.
+Do not merge the existing candidate; require fresh exact-commit cross-model
+review after repair. Gate 3 strict offline repair `1693dd5` remains separately
+reviewed PASS and unmerged under its explicit merge hold. No forward SHADOW
+evidence or C/J/E/A crossing: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Gate 3 strict offline repair independently reviewed; Brain review launched — 2026-09-30 20:19 UTC
 
 Sol/high repaired the five `dc7f83b` P2 offline findings in the same isolated
