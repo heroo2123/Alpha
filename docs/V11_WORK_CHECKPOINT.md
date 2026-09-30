@@ -17,8 +17,9 @@ checks and 76 affected tests passed; evidence is in
 synthetic SHADOW/candidate/request/Maker set passed **189 tests in 123.37 s**;
 the same 189 tests passed on newer main in **123.17 s**. Both diff checks were
 clean. The main-based integration worktree is
-`/tmp/alpha-v11-shadow-integration-15e99bd`; only the five reviewed source/test
-files were overlaid. Merge awaits the unresolved full-suite release gate.
+`/tmp/alpha-v11-shadow-integration-15e99bd`, committed at `7f3cf6c`;
+only the five reviewed source/test files were overlaid. Merge awaits the
+unresolved full-suite release gate.
 
 The separate scheduler branch remains at `26056af`; its 56-test GEFS family
 diagnostic passed, while the captured full-suite release gate remains **5,330
