@@ -1,5 +1,33 @@
 # Alpha V11 work checkpoint
 
+## Gate 3 offline I/O repair independently passes; all holds retained — 2026-09-30 21:27 UTC
+
+Astra/high independently reviewed exact Sol/high `7b5a235` (tree `3ff45d6`):
+**scoped PASS for all five P2 findings**, with [report, reproducible probes and
+completed terminal](V11_R09_GATE3_OFFLINE_IO_REVIEW_7b5a235.md). Independent
+verification: **176 affected passes; 53 adversarial probe passes**, including
+all supported rectangular-grid scan modes, every causal phase upper bound,
+global clock consistency, strong ETag syntax, eight store fault cases, five
+process-interruption boundaries and bounded nonregular-file rejection.
+Candidate remains clean, unchanged and **unmerged under its explicit hold**.
+
+The nonempty-store reopen refusal is accepted as conservative offline behavior,
+including after a successful seal; restart recovery is **not** accepted. Next
+store work requires separate review of durable successful-seal provenance,
+exclusive runtime ownership, uncertain-name reconciliation and original clock
+preservation. Real transport, measured clock attestation, source-specific dossier,
+private manifest and G3-L remain open. This routed review is complete; no worker
+was needed or remains running. Keep merge, publication, capture, G3-L, SHADOW
+and learner holds. No forward evidence is admitted.
+
+Recovered main `477a99d`; SHADOW worktree clean. Commissioning changes after
+06:43 remain watchdog status only. V10 demo, PAPER scanner/controller inactive /
+disabled; V11 execution inactive / masked. Protected authority paths absent;
+FINAL-REVIEWED master hash matches its pin. Disk 4.4 GiB free, memory about
+1.0 GiB available. Accepted `6ec371e` release resolution remains current.
+No service, V10, AxiomTrade, authority, financial or publication action.
+No C/J/E/A crossing: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Gate 3 offline I/O repair author candidate; independent review next — 2026-09-30 21:20 UTC
 
 The existing Sol/high repair worker finished with terminal status

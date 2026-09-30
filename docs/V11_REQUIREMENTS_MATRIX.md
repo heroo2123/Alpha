@@ -1,5 +1,16 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## R09 Gate 3 offline I/O repair independently accepted within scope — 2026-09-30 21:27 UTC
+
+[Exact-commit Astra/high review](V11_R09_GATE3_OFFLINE_IO_REVIEW_7b5a235.md)
+of Sol/high `7b5a235`/tree `3ff45d6`: **PASS for the five P2 repairs**.
+Independent tests: **176 affected and 53 adversarial passes**. Reopened nonempty
+stores deliberately refuse use; durable recovery and original clock provenance
+remain a separate design/review gate. Candidate stays clean and unmerged;
+merge, publication, capture, G3-L, SHADOW and learner holds remain. No real
+IFS/AIFS admission, forward evidence or C/J/E/A credit. **91/200 (45.5%),
+formal 1/50; NOT_READY_TO_FUND**.
+
 ## R09 Gate 3 offline I/O repair candidate awaiting independent review — 2026-09-30 21:20 UTC
 
 Sol/high author repair `7b5a235`/tree `3ff45d6` has a completed terminal,

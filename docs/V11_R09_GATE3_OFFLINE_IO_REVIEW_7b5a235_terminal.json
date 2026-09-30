@@ -1,0 +1,42 @@
+{
+  "status": "GATE3_OFFLINE_IO_REPAIR_REVIEW_PASS_SCOPED",
+  "completed": true,
+  "reviewer": "Astra/high",
+  "author": "Sol/high",
+  "completed_utc": "2026-09-30T21:27:31.588491+00:00",
+  "commit": "7b5a23582d444c0c499faec63b6afd8872a3e90d",
+  "tree": "3ff45d661fcd4c7db0faa536a9aae2152b992c6a",
+  "affected_tests": {
+    "passed": 176,
+    "seconds": 3.13
+  },
+  "independent_tests": {
+    "passed": 53,
+    "seconds": 0.71
+  },
+  "resolved_findings": [
+    "P2-1",
+    "P2-2",
+    "P2-3",
+    "P2-4",
+    "P2-5"
+  ],
+  "remaining_findings_in_repair_scope": [],
+  "candidate_unchanged": true,
+  "merged_at_verdict": false,
+  "report_sha256": "d3c757e130f1aa2fdc14f4dd9046d87e324854d0e2a060db3dcccb52eb7620b8",
+  "probes_sha256": "531be34f05202019ba91ca2cfe74c04be270a54c4fe6e07b468af18c575eba9a",
+  "affected_log_sha256": "7479ce04201699878f9e1e5912b1eb898cef32ddeba1559604d895e9b9826c57",
+  "independent_log_sha256": "5df8b7dbc782e94ec5fae2118c202276b8e283e24cb6f418254a6cf6dad0bd0e",
+  "reopened_nonempty_store_usable": false,
+  "restart_recovery_accepted": false,
+  "financial_authority": false,
+  "gate3_merge_hold": true,
+  "publication_hold": true,
+  "network_capture_authorized": false,
+  "g3_l_authorized": false,
+  "forward_evidence_accepted": false,
+  "learner_admission_authorized": false,
+  "score": "91/200",
+  "formal_complete": "1/50"
+}

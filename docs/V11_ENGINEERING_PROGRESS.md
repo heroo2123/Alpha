@@ -1,5 +1,18 @@
 # Supplementary engineering estimate
 
+## Gate 3 offline I/O five-finding repair independently passes — 2026-09-30 21:27 UTC
+
+Astra/high gives exact `7b5a235`/tree `3ff45d6` a scoped **PASS**, supported
+by **176 independently rerun affected tests and 53 independent adversarial
+probes**. [Review and completed terminal](V11_R09_GATE3_OFFLINE_IO_REVIEW_7b5a235.md)
+resolve all five prior P2 findings. Faulted publication preserves remaining bytes
+and poisons reuse; all nonempty reopens refuse, even for successful prior seals.
+This closes the offline repair review only; recovery provenance and original
+seal clocks still need separate design/review. Candidate unchanged, unmerged;
+merge/publication/capture/G3-L/SHADOW/learner holds remain. Routed review complete,
+no duplicate worker. No new forward evidence or C/J/E/A boundary crossing:
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Gate 3 offline I/O author repair completed; review gate open — 2026-09-30 21:20 UTC
 
 The existing Sol/high worker committed `7b5a235` (tree `3ff45d6`) in the
