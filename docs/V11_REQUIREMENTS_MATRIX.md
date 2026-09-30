@@ -1,5 +1,13 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## GEFS release and R09 offline gate — 2026-09-30
+
+The scheduler branch `26056af` completed a terminal full-suite PASS (5,332
+passed, 12 skipped). Newer-main and reviewed SHADOW integration remain open.
+The R09 contract passed independent review; a single isolated gate 2 offline
+schema/validator worker is active with no result yet. No real-data evidence or
+C/J/E/A boundary changed: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## R09 contract review gate — 2026-09-30
 
 Independent Sonnet/high review of `e80d5dd` completed with terminal PASS,

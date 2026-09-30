@@ -1,5 +1,24 @@
 # Alpha V11 work checkpoint
 
+## GEFS release diagnostic PASS; R09 gate 2 worker active — 2026-09-30
+
+The bounded scheduler full-suite diagnostic completed with terminal
+`SCHEDULER_RELEASE_FULL_SUITE_PASS` (exit 0) on clean isolated commit `26056af`:
+**5,332 passed, 12 skipped, 4 warnings in 1,491.87 s**. Its exact result and
+log hash are in `/tmp/alpha-v11-scheduler-full-suite-26056af.terminal.json`.
+This resolves the prior load/order-sensitive failure on that branch; compatible
+integration with newer main and the reviewed SHADOW candidate still require
+verification before merge or commissioning.
+
+The independently reviewed R09 contract cleared gate 1. One Sonnet/high worker
+is now active for separate offline schema/validator gate 2 in
+`/tmp/alpha-v11-r09-trajectory-gate2/Alpha`, based on `cdbc95c`. Driver
+PID 770250 and worker PID 770256, with a 5,400-second terminal-bound task;
+recover `started.json`, actual process/worktree, `worker.log`, `report.md`,
+`verdict.json` and `terminal.json` before acting. No real adapter, fit, raw
+collection, admission or forward evidence is claimed. No C/J/E/A boundary
+changed: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## R09 contract review PASS — 2026-09-30
 
 The independent Sonnet/high review of decision commit `e80d5dd` completed with

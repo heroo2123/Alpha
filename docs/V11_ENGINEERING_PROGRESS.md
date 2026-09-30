@@ -1,5 +1,14 @@
 # Supplementary engineering estimate
 
+## GEFS full-suite diagnostic and R09 gate 2 — 2026-09-30
+
+The scheduler-fix branch passed the terminal full suite: 5,332 passed, 12
+skipped in 1,491.87 s. This is release evidence for that isolated branch,
+pending compatible integration of the independently reviewed SHADOW candidate.
+The R09 data contract passed independent review and an isolated Sonnet/high
+offline schema/validator builder is running; no implementation result is yet
+claimed. **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## R09 independent contract review — 2026-09-30
 
 The exact-commit Sonnet/high review of `e80d5dd` passed with a verified terminal
