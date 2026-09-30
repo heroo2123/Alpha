@@ -1,5 +1,20 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## R09 Gate 3 restart five-finding author repair; no acceptance credit — 2026-09-30 22:19 UTC
+
+Held `7bc627e`/tree `bfe712b` repairs R1–R5 from the exact `74bd122`
+independent review: empty-root recovery pins, close ownership serialization,
+mutable original-clock prefixes, transaction reserve accounting, and original
+host/boot binding. Expanded synthetic process, thread, exec and deterministic
+survivor coverage plus affected offline I/O, launch, collector and GRIB suites
+pass **279 author tests**. [Handoff](/tmp/alpha-v11-r09-gate3-strict-offline-20260930/docs/V11_R09_GATE3_STORE_RESTART_HANDOFF.md)
+and [terminal](/tmp/alpha-v11-gate3-restart-repair-7bc627e/terminal.json)
+pin the evidence. Fresh **different-model exact-commit review** is OPEN;
+candidate remains clean and unmerged. Physical filesystem qualification, real
+clock/provider evidence, G3-L, learner admission, forward SHADOW and historical
+runtime-use proof remain OPEN. No C/J/E/A crossing: **91/200 (45.5%), formal
+1/50; NOT_READY_TO_FUND**.
+
 ## Gate 3 restart independently rejected; five bounded repairs — 2026-09-30 22:04 UTC
 
 Astra/high completed exact-commit review of held Sol/high `74bd122`/tree

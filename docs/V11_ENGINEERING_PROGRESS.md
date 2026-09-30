@@ -1,5 +1,19 @@
 # Supplementary engineering estimate
 
+## Gate 3 restart R1–R5 repaired in held author candidate — 2026-09-30 22:19 UTC
+
+Sol/high committed exact offline repair `7bc627e`/tree `bfe712b` in the
+preserved clean worktree. The three-file diff addresses all five P2 findings
+and expands the traceable synthetic interruption matrix. **279 affected author
+tests pass** and `git diff --check` passes; the
+[handoff](/tmp/alpha-v11-r09-gate3-strict-offline-20260930/docs/V11_R09_GATE3_STORE_RESTART_HANDOFF.md)
+and [terminal](/tmp/alpha-v11-gate3-restart-repair-7bc627e/terminal.json)
+bind the exact candidate. This is not independent acceptance or power-loss
+qualification. Route fresh Astra/high exact-commit review with independent
+adversarial probes. The candidate stays unmerged, and every merge, publication,
+capture, G3-L, SHADOW and learner hold remains. No new forward evidence or
+C/J/E/A crossing: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Gate 3 restart independently rejected; five bounded repairs — 2026-09-30 22:04 UTC
 
 Astra/high completed exact-commit review of held Sol/high `74bd122`/tree

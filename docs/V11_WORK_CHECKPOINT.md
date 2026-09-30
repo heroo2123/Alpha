@@ -1,5 +1,32 @@
 # Alpha V11 work checkpoint
 
+## Gate 3 restart five-finding repair author candidate; review held — 2026-09-30 22:19 UTC
+
+Sol/high repaired R1–R5 from the [independent rejection](V11_R09_GATE3_STORE_RESTART_REVIEW_74bd122.md)
+in the preserved offline worktree. Exact author commit `7bc627e52eda2142d9a7e5d9596185a6bb463192`,
+tree `bfe712bffe47f51b691281eab08e9e12cccb7a08`, is clean and unmerged.
+The [revised handoff](/tmp/alpha-v11-r09-gate3-strict-offline-20260930/docs/V11_R09_GATE3_STORE_RESTART_HANDOFF.md)
+and [completed author terminal](/tmp/alpha-v11-gate3-restart-repair-7bc627e/terminal.json)
+bind the repair and evidence. Retained pins now refuse empty-root reinitialization;
+close serializes with read/seal and refuses callback reentrancy; original clock
+prefixes are frozen; transaction reserve is consumed by remaining events; the
+pinned descriptor binds original host and boot. Synthetic initialization, seal,
+recovery, thread/exec and volatile-survivor interruption coverage was expanded.
+Author affected suites: **279 passed**; diff check passed. This is author evidence,
+not independent acceptance or physical power-loss qualification.
+
+Next: **fresh different-model Astra/high exact-commit review** of `7bc627e`
+against the five findings and approved restart design, with independent
+adversarial probes. Keep merge, publication, provider capture, G3-L, SHADOW and
+learner holds. No new forward SHADOW artifact was found. Main and commissioning
+worktrees were clean before this ledger update; no other repair worker was
+active. Private FINAL-REVIEWED master matched its pinned SHA-256; demo, PAPER
+scanner/controller and execution units were inactive, execution masked,
+protected model-authority paths absent. Disk 4.4 GiB free, memory about 1.0 GiB
+available. No service, authority, V10, AxiomTrade, financial or publication
+action. No C/J/E/A crossing: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Gate 3 restart independently rejected; five bounded repairs — 2026-09-30 22:04 UTC
 
 Astra/high completed exact-commit review of held Sol/high `74bd122`/tree
