@@ -1,5 +1,13 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Gate 3 review recovery — 2026-09-30 17:50 UTC
+
+The exact-commit `117830a` independent protocol review remains live with no
+terminal verdict; Gate 3 stays OPEN. No new real corpus or qualifying forward
+SHADOW evidence appeared, and the owner/root model-authority gate remains open.
+The accepted `6ec371e` release supersedes the historical full-suite failure.
+No C/J/E/A change: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## R09 Gate 3 protocol awaiting independent review — 2026-09-30 17:46 UTC
 
 Local `117830a` defines the [prospective collection protocol](V11_R09_GATE3_COLLECTION_PROTOCOL.md):
