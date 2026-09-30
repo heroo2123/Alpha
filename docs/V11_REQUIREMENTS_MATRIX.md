@@ -1,5 +1,14 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Coordinator recovery — R09 repair commit awaiting review — 2026-09-30 15:51 UTC
+
+The sole R09 builder committed `b0e2901` after 107 focused passes and 165
+affected passes with one skip. Its final terminal remains pending and no
+independent exact-commit review exists. Gate 2 and real trajectory admission
+remain OPEN. PAPER is stopped; commissioning has no qualifying forward SHADOW
+sample. No C/J/E/A credit changes: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Coordinator recovery — R09 repair still active — 2026-09-30 15:45 UTC
 
 The preserved R09 gate-2 worker passed 99/99 focused synthetic tests, then

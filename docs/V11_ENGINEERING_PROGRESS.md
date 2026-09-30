@@ -1,5 +1,15 @@
 # Supplementary engineering estimate
 
+## Coordinator recovery — 2026-09-30 15:51 UTC
+
+The R09 gate-2 repair is committed as `b0e2901` with 107 focused passes,
+165 affected passes and one skip, and a clean two-file diff. The builder
+terminal and independent exact-commit review are pending; no real examples
+are admitted. PAPER and V11 execution remain inactive, protected model authority
+is absent, and only watchdog status changed in commissioning evidence. No new
+qualifying forward sample or C/J/E/A milestone: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Coordinator recovery — 2026-09-30 15:45 UTC
 
 The sole R09 worker reached a 99/99 focused pass but continued editing; final

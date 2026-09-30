@@ -1,5 +1,28 @@
 # Alpha V11 work checkpoint
 
+## Coordinator recovery — R09 repair committed; worker terminal pending — 2026-09-30 15:51 UTC
+
+The sole R09 gate-2 builder remains live in the preserved
+`/tmp/alpha-v11-r09-trajectory-gate2/Alpha` worktree. It committed the
+two-file synthetic trajectory-contract repair as `b0e2901` (tree
+`b0dd533f674114dd7cdc61620434801f5ddce20e`), and that worktree is clean.
+The final focused suite passed **107/107** and the affected contract plus
+multi-model panel suite passed **165 with one skip**; the committed diff passes
+`git diff --check`. Its driver has not yet written `terminal.json` or a final
+handoff. Do not merge, admit real examples, or claim gate-2 acceptance before
+an independent cross-model review of this exact commit.
+
+Main was clean at `98e9c93`, 21 local commits ahead of origin. The SHADOW
+worktree remains clean at `15e99bd`; commissioning evidence has only new
+watchdog status writes, not a qualifying forward sample. PAPER scanner, V11
+controller/execution and V10 paper demo are inactive. Root disk is 76% used
+with 4.6 GiB free; memory available is about 855 MiB. Protected model-authority
+paths are absent and the private FINAL-REVIEWED master still matches SHA-256
+`a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+No service, V10, protected-authority, financial, or publication action was
+taken. No C/J/E/A boundary crossed: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Coordinator recovery — R09 worker advanced to 99-pass focused run — 2026-09-30 15:45 UTC
 
 Recovered the same live R09 gate-2 driver PID 799619 and Codex child PID
