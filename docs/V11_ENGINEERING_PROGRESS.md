@@ -1,5 +1,15 @@
 # Supplementary engineering estimate
 
+## Combined release driver recovery — 2026-09-30
+
+The exact `6ec371e` combined-release test driver stopped unexpectedly without
+a terminal marker after about 79% of its affected run. Its partial log and
+started record were preserved. One replacement bounded driver is active on the
+same clean worktree; no affected or full-suite result is claimed yet. R09 gate 2
+remains at CHANGES_REQUIRED pending repair and fresh independent review. No
+forward SHADOW evidence or score boundary changed: **91/200 (45.5%), formal
+1/50; NOT_READY_TO_FUND**.
+
 ## GEFS release gate active; R09 gate 2 requires repair — 2026-09-30
 
 Measured synthetic GEFS source views at 23–79 ms under focused conditions.

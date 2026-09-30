@@ -1,5 +1,14 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Release gate interrupted and restarted — 2026-09-30
+
+The prior combined-release affected run stopped around 79% with no terminal
+result. Its partial evidence was preserved, and one bounded exact-commit driver
+is running again on clean `6ec371e`; affected and full-suite results remain
+OPEN. R09 gate 2 still has eight independent-review P2 blockers, with no real
+admission. No requirement status or C/J/E/A credit changed: **91/200 (45.5%),
+formal 1/50; NOT_READY_TO_FUND**.
+
 ## Combined release retry and R09 gate 2 review — 2026-09-30
 
 The clean isolated combined branch `6ec371e` contains a test-only CPU-clock

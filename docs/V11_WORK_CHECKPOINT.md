@@ -1,5 +1,28 @@
 # Alpha V11 work checkpoint
 
+## Combined release gate recovered after interrupted driver — 2026-09-30
+
+The prior exact-commit release driver at PID 779342 and its pytest child stopped
+without a terminal marker. Its affected-set log ended at about 79%; there is no
+PASS or FAIL result. Preserved the original started record and partial log as
+`/tmp/alpha-v11-release-gate-6ec371e.interrupted-{started.json,affected.log}`.
+The isolated release worktree remains clean at `6ec371e6c03e` (tree
+`4d268adb7cf1`). Started exactly one replacement bounded driver at PID
+**781650**, with pytest child **781654**, on that same commit. Recover the actual
+process plus `/tmp/alpha-v11-release-gate-6ec371e.{started,affected,full,terminal}.json`
+and logs. It reruns the 12-file affected set and starts the full suite only if
+that passes. Neither gate has a result yet; no release merge is authorized.
+
+The independent R09 gate-2 review still requires eight P2 repairs and fresh
+exact-commit review in the preserved clean builder worktree. No duplicate R09
+worker was started while the release test consumes host capacity. Recent
+commissioning writes are watchdog status only; the PAPER scanner is active,
+V10 and V11 controller/execution units are inactive, protected authority is
+absent, and the private FINAL-REVIEWED master hash matches its pinned SHA-256.
+Disk has 4.2 GiB free and memory about 726 MiB available. No forward SHADOW
+qualification or C/J/E/A boundary changed: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## GEFS load-sensitive test repair under combined release gate; R09 gate 2 changes required — 2026-09-30
 
 On isolated combined release branch `v11-release-integration-20260930`, the
