@@ -1,5 +1,15 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Coordinator recovery — final R09 gate-2 commit — 2026-09-30 16:00 UTC
+
+The final clean R09 repair worktree is `16c0756` (tree `2c8e7041`), amended
+after the previously recorded `b0e2901`. Exact-final-commit focused plus
+affected suites passed 167 tests with one skip. The old worker terminal is
+for `fed1cbe`; independent review of `16c0756` and newer-main compatibility
+remain pending. Gate 2 and real trajectory admission remain OPEN. PAPER is
+stopped and SHADOW has no qualifying forward sample. **91/200 (45.5%),
+formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator recovery — R09 repair commit awaiting review — 2026-09-30 15:51 UTC
 
 The sole R09 builder committed `b0e2901` after 107 focused passes and 165

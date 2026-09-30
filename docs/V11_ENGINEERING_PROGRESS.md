@@ -1,5 +1,16 @@
 # Supplementary engineering estimate
 
+## Coordinator recovery — final R09 repair verified locally — 2026-09-30 16:00 UTC
+
+The sole R09 gate-2 builder worktree is clean at `16c0756`, a newer amended
+tree than checkpointed `b0e2901`. The exact final commit passed trajectory
+contract and multi-model panel tests: 167 passed, one skipped in 9.79 s.
+`git show --check` passes. Its independent cross-model review and main
+integration are pending; no real examples are admitted. PAPER and V11
+execution are inactive, protected model authority is absent, and no forward
+SHADOW sample qualifies. No new C/J/E/A milestone: **91/200 (45.5%),
+formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator recovery — 2026-09-30 15:51 UTC
 
 The R09 gate-2 repair is committed as `b0e2901` with 107 focused passes,

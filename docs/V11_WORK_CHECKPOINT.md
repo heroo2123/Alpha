@@ -1,5 +1,30 @@
 # Alpha V11 work checkpoint
 
+## Coordinator recovery — final R09 repair commit needs independent review — 2026-09-30 16:00 UTC
+
+The R09 gate-2 worktree is clean at final commit `16c0756` (tree
+`2c8e70418ef89f1f01f3a7595a72a2904f53a6b5`). The prior checkpoint's
+`b0e2901` was amended: the final tree adds 56 lines and removes 7 relative
+to it, so its test result and hash cannot stand as exact-commit acceptance.
+I independently reran the focused trajectory-contract and affected multi-model
+panel suites on `16c0756`: **167 passed, one skipped in 9.79 s**. `git show
+--check` passes. The `terminal.json` under the worker directory belongs to
+the older `fed1cbe` build and must not be treated as a final terminal for
+`16c0756`. No independent cross-model review of this final commit exists.
+Gate 2 and real trajectory admission remain OPEN; do not merge this branch
+until exact-commit review and compatibility with newer main are established.
+
+Main is clean at `f7766ba`, 22 local commits ahead of origin. SHADOW worktree
+is clean at `15e99bd`. PAPER scanner, V11 controller/execution and V10 paper
+demo are inactive; no qualifying forward SHADOW sample appeared. Protected
+model authority paths are absent. The private FINAL-REVIEWED master matches
+SHA-256 `a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+Root disk is 76% used with 4.7 GiB free; memory available is about 1.0 GiB.
+No service, V10, protected-authority, financial or publication action was
+taken. No C/J/E/A boundary crossed: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**. Next: independent acceptance review of `16c0756`,
+then integrate only on a positive verdict against current main.
+
 ## Coordinator recovery — R09 repair committed; worker terminal pending — 2026-09-30 15:51 UTC
 
 The sole R09 gate-2 builder remains live in the preserved
