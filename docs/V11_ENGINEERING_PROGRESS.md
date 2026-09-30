@@ -1,5 +1,15 @@
 # Supplementary engineering estimate
 
+## R09 G3-I provider-limit repair candidate — 2026-09-30
+
+Commit `ae53102` in isolated `r09-gate3-provider-budget-20260930` binds
+field-size preflight to the GEFS 64 KiB and IFS/AIFS 4 MiB existing bounds,
+with explicit provider identity when a field size is supplied. The offline
+collector and test files alone changed; 313 focused/affected tests passed.
+Independent exact-commit review and integration are pending. No collection,
+manifest acceptance, forward evidence or C/J/E/A credit: **91/200 (45.5%),
+formal 1/50; NOT_READY_TO_FUND**.
+
 ## R09 G3-I collector independently reviewed PASS, merged — 2026-09-30 18:40 UTC
 
 Round 1 review of `de8c7bc` found one real P2 (`BudgetTracker.max_field_bytes`

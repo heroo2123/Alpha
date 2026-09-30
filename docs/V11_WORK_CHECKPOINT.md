@@ -1,5 +1,31 @@
 # Alpha V11 work checkpoint
 
+## Coordinator follow-up — provider byte-bound candidate awaits independent review — 2026-09-30 18:34 UTC
+
+Recovered clean main `4d13aaa` and the reviewed G3-I PASS. The earlier full-suite
+failure remains closed by accepted release `6ec371e`. No Alpha implementation
+worker was active; SHADOW worktree `15e99bd` is clean, and commissioning has no
+new qualifying forward sample (only watchdog status writes). PAPER scanner,
+V11 execution and V10 are inactive; V11 execution remains masked and V10
+disabled. The private FINAL-REVIEWED master still matches its pinned SHA-256.
+Disk has 4.5 GiB free and available memory was 718 MiB. No AxiomTrade action.
+
+Addressed the G3-I review's latent P3-d in isolated worktree
+`/tmp/alpha-v11-r09-provider-budget-20260930`, branch
+`r09-gate3-provider-budget-20260930`, commit `ae53102` (not merged): when a
+field size is supplied, `BudgetTracker` now requires a provider and applies
+the stricter of its configured ceiling and that provider's reviewed parser
+bound (GEFS 64 KiB; IFS/AIFS 4 MiB). `begin_request` passes the field size to
+the same preflight. The candidate changes only the offline collector and its
+tests; 313 focused/affected tests passed, `git diff --check` was clean. It
+requires independent exact-commit review before integration or G3-L use.
+Real observed per-provider message sizes and a concrete private G3-L manifest
+remain missing; no network capture or launch occurred. Publication hold remains
+in force. No C/J/E/A boundary crossed: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**. Next: independently review `ae53102`; if accepted,
+integrate it after checking compatibility with newer main, then gather genuine
+message-size evidence and review the private launch manifest before any capture.
+
 ## R09 Gate 3 (G3-I) collector reviewed PASS and merged — 2026-09-30 18:40 UTC
 
 Round 2's independent reviewer (agent `aade8129622b52fda`, read-only worktree

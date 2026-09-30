@@ -1,5 +1,14 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## R09 G3-I provider-bound correction candidate — 2026-09-30
+
+Isolated `ae53102` adds provider-specific field preflight to the reviewed
+offline collector (GEFS 64 KiB; IFS/AIFS 4 MiB); 313 focused/affected tests
+pass. This closes a latent implementation gap only if independently reviewed
+and integrated. G3-L real size evidence, private manifest review, and all
+real capture/fit/forward gates remain OPEN. **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## R09 Gate 3 protocol G3-P independently accepted — 2026-09-30 17:54 UTC
 
 Exact-commit `117830a`/tree `07c4d72f` received completed independent
