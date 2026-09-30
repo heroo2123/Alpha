@@ -1,5 +1,30 @@
 # Alpha V11 work checkpoint
 
+## Offline Gate 3 strict-validator candidate awaiting independent review — 2026-09-30 19:39 UTC
+
+Sol/high built isolated G3-I candidate `7099a11` (tree `938b65c`) in
+`/tmp/alpha-v11-r09-gate3-strict-offline-20260930` on branch
+`r09-gate3-strict-offline-20260930`; its worktree is clean. New
+`tools/v11_r09_gate3_launch.py` is offline only: closed canonical private
+manifest schema, exact reviewed protocol pins, real Git SHA-1/SHA-256 OID
+resolution, artifact digest checks, fixed 2,713 native slots and date-derived
+time checks, conservative ordered request reservations, and an exclusive,
+fsynced hash journal for crash-uncertain reservations and streamed received
+bytes. The journal records even a body chunk that violates its read allowance
+and then refuses further work. Synthetic tests reproduce the six addendum gaps
+and exercise tamper, dirty-code, symlink, pacing and restart cases. New and
+existing collector suites: **62 passed**. This is an author candidate, **not
+independently reviewed or merged**. Next: different-model exact-commit review
+of `7099a11`, with particular attention to schema completeness, schedule
+binding, journal crash/concurrency edges and the fact that a validated payload
+grants no launch permission. Real transport/decoder/clock/storage integration,
+private manifest and exact-digest G3-L review remain OPEN. No network capture
+or qualifying forward SHADOW evidence. V10 inactive and untouched; V11 PAPER
+scanner inactive and execution masked. Protected master SHA-256 still matches
+`a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+No C/J/E/A boundary crossed: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**. Main publication hold remains.
+
 ## Gate 3 launch-contract addendum independently reviewed — 2026-09-30 19:15 UTC
 
 Sol/high independently reviewed exact Astra/high addendum commit `14c2413`

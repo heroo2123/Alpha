@@ -1,5 +1,16 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## R09 G3-I strict launch candidate pending cross-model review — 2026-09-30
+
+Isolated `7099a11`/tree `938b65c` implements an offline closed-schema
+validator and durable reservation/stream-byte journal; 62 focused collector
+and new synthetic tests pass. It rejects shortened 2,713-slot inventory,
+unsealed identity/wrong time, fake 64-hex Git SHA-1 OID, exhausted request
+budget and over-allowance streamed bytes. This is an unmerged author candidate;
+independent exact-commit review, real integration, private exact-digest G3-L,
+capture and forward evidence remain OPEN. **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## R09 G3-P addendum independently reviewed — 2026-09-30
 
 [Exact-commit review](V11_R09_GATE3_LAUNCH_CONTRACT_REVIEW_14c2413.md) of

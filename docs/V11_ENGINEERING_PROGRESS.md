@@ -1,5 +1,16 @@
 # Supplementary engineering estimate
 
+## Offline strict Gate 3 launch candidate — 2026-09-30 19:39 UTC
+
+Sol/high authored isolated `7099a11`/tree `938b65c`: new offline validator
+pins real Git objects and accepted protocol hashes, fixes the native 2,713-slot
+denominator, checks a closed private manifest shape and conservative subset
+reservations, and journals request/chunk outcomes durably across restart.
+Synthetic counterexamples and the existing collector suite pass 62/62. The
+candidate awaits independent different-model exact-commit review; it is not
+merged and grants no capture, launch or financial authority. G3-L and later
+evidence remain OPEN; **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Independent Gate 3 addendum review — 2026-09-30
 
 Sol/high accepted exact `14c2413` as an offline G3-P addendum after source
