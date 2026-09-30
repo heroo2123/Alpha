@@ -96,3 +96,21 @@ limited to the opt-in test fixture, two integration-test files and this note.
 
 No production module, service, protected state, credentials, live execution or
 financial authority is changed. Test stores and synthetic accounts are temporary.
+
+## Full-suite retry and follow-up — 2026-09-30
+
+The detached full suite on `e35cbfc` ended with 5,330 passed, 12 skipped,
+and two failures (exit 1). The markout-drift integration case omitted its
+fifth DRIFT job under real scheduler time; this test had not opted in to the
+controlled `candidate_clock` fixture used by the analogous corrected cases.
+The GEFS remaining-forecast replay case hit `GEFS_ASSEMBLY_TIME_BOUND` in
+`source_batch`, whose runtime cap remains two seconds. The latter passed in
+isolation while the independent SHADOW review was active: 1 passed / 18.81s.
+The full-suite failure remains a release blocker; an isolated pass does not
+clear it.
+
+The markout-drift test now opts into the existing test-only controlled clock.
+Its focused run passed: 1 passed / 14.41s. Only the test's clock binding and
+invocation changed; production scheduler and source-view bounds are unchanged.
+The GEFS failure still needs load-aware diagnosis. No new full-suite PASS or
+release acceptance is claimed.
