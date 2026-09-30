@@ -114,3 +114,12 @@ Its focused run passed: 1 passed / 14.41s. Only the test's clock binding and
 invocation changed; production scheduler and source-view bounds are unchanged.
 The GEFS failure still needs load-aware diagnosis. No new full-suite PASS or
 release acceptance is claimed.
+
+The independent SHADOW repair reviewer subsequently saw the queued-drift and
+scheduled-preparation candidate tests miss required jobs during a 397-test
+affected suite. Both passed twice in isolation (28.11 s and 22.86 s for the
+pair), which supports the same load-sensitive test-clock diagnosis. The
+queued-drift test already uses `candidate_clock` in this branch. The scheduled
+preparation test now opts into it as well; its focused run passed (1 passed /
+18.09 s). This branch remains unmerged while the reviewer completes its
+independent verdict and the GEFS two-second source-view failure remains open.
