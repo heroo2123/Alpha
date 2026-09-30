@@ -615,3 +615,21 @@ def test_journal_poisoned_if_directory_loses_private_mode(tmp_path):
         root.chmod(0o700)
         with pytest.raises(LaunchContractError, match='JOURNAL_DURABILITY_UNCERTAIN'):
             budget.reserve('one', 1, started_monotonic=0)
+
+
+def test_delivered_bytes_remain_known_when_privacy_fails_mid_request(tmp_path):
+    root = tmp_path / 'journal'
+    root.mkdir(mode=0o700)
+    with DurableBudget(root, 'f' * 64, max_bytes=2) as budget:
+        budget.reserve('one', 2, started_monotonic=0)
+        root.chmod(0o755)
+        with pytest.raises(LaunchContractError, match='JOURNAL_DIRECTORY_IDENTITY'):
+            budget.consume('one', b'x')
+        assert budget.failed
+        assert budget.received == 1 and budget.uncertain_received_bytes == 1
+        assert budget.reserved == 2 and budget.in_flight == 'one'
+        root.chmod(0o700)
+        with pytest.raises(LaunchContractError, match='JOURNAL_DURABILITY_UNCERTAIN'):
+            budget.complete('one')
+        with pytest.raises(LaunchContractError, match='JOURNAL_DURABILITY_UNCERTAIN'):
+            budget.reserve('two', 1, started_monotonic=2)

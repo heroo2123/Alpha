@@ -852,27 +852,27 @@ class DurableBudget:
                    self.max_bytes - self.received)
 
     def consume(self, key, body):
-        self._healthy()
+        if self.failed:
+            self._healthy()
         check(self.in_flight == key and type(body) is bytes, 'UNEXPECTED_BODY_CHUNK')
-        allowance = self.next_read_limit(max(len(body), 1))
-        if len(body) > allowance:
-            # Bytes already delivered by a faulty transport still count, even
-            # though the caller must abort and can never resume this request.
-            try:
+        recorded = False
+        try:
+            allowance = self.next_read_limit(max(len(body), 1))
+            if len(body) > allowance:
+                # A faulty transport's delivered bytes count even when it
+                # exceeds the permitted read or storage loses privacy.
                 self._append({'op': 'violation', 'key': key, 'bytes': len(body)})
-            except BaseException:
+                recorded = True
+                self._state()
+                raise LaunchContractError('STREAM_ABORT_AT_ALLOWANCE')
+            self._append({'op': 'chunk', 'key': key, 'bytes': len(body)})
+            recorded = True
+            self._state()
+        except BaseException:
+            if not recorded:
                 self.uncertain_received_bytes += len(body)
                 self.received += len(body)
-                raise
-            self._state()
-            raise LaunchContractError('STREAM_ABORT_AT_ALLOWANCE')
-        try:
-            self._append({'op': 'chunk', 'key': key, 'bytes': len(body)})
-        except BaseException:
-            self.uncertain_received_bytes += len(body)
-            self.received += len(body)
             raise
-        self._state()
 
     def complete(self, key):
         self._healthy()
