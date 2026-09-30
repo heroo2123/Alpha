@@ -1,5 +1,45 @@
 # Alpha V11 work checkpoint
 
+## G3-L architecture adjudication: exact package defined, launch blocked — 2026-09-30
+
+Astra/high completed the routed acceptance analysis at clean main `866a6a5`:
+[launch-contract adjudication](V11_R09_GATE3_LAUNCH_CONTRACT_ADJUDICATION.md).
+The 64 KiB CGI subset bound does not apply to the proposed S3 full field;
+the independently reviewed 2 MiB offline correction stands. The original
+candidate NOMADS/ECMWF origins versus historical S3 paths also need explicit
+source/access reconciliation, and the full-grid decoder needs its own review.
+Original protocol and review artifacts are preserved. This proposed addendum
+is **pending independent cross-model review**, not self-accepted G3-P/G3-L.
+
+Six offline probes reproduced concrete launch gaps: shortened denominator and
+unsealed manifest accepted by the helper, real Git SHA-1 OID rejected by its
+64-hex field, exhausted total bytes allowing another request to begin, an
+over-budget response omitted from the received counter, and raw-only full
+demand exceeding the cap. Observed maxima imply **1,469,234,173 bytes** for
+2,713 slots, 395,492,349 above 1 GiB before overhead. The helper's 2,125-slot
+fallback is not a reviewed schedule. The addendum defines the strict private
+package, detached exact-digest review envelope, immutable full denominator,
+bounded feasibility accounting and no-network bootstrap boundary. No private
+manifest or launch approval was manufactured.
+
+Next: independent exact-commit review of the addendum by a different model,
+then an isolated offline G3-I extension for strict launch validation and durable
+reservation/stream accounting; separately reviewed transport/decoder/clock
+integration and real dossiers remain prerequisites. No live probe is authorized.
+GEFS SHADOW remains owner/root-gated with no new qualifying forward evidence.
+The earlier release failure stays closed by accepted `6ec371e`; no unchanged
+full-suite rerun. Six focused counterexample checks reproduced; no code changed.
+
+Recovery matched the handoff: no newer implementation worker, SHADOW worktree
+clean at `15e99bd`, only watchdog status evidence newer than the last substantive
+commissioning artifacts. PAPER scanner/controller inactive, execution masked;
+V10 remains inactive/disabled and untouched. Protected model-authority paths
+absent. Private master hash matches its pin. Disk 4.5 GiB free, memory 1,152 MiB
+available at inspection. Main was 22 ahead/0 behind its local origin-tracking
+ref before these docs; publication hold remains, no push or remote fetch.
+No capture, authority, financial, AxiomTrade or service action. **91/200
+(45.5%), formal 1/50; NOT_READY_TO_FUND**, unchanged.
+
 ## Independent GEFS ceiling review PASS; local G3-I correction merged — 2026-09-30
 
 Sol/medium independently reviewed Sonnet/high's exact offline candidate

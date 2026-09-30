@@ -1,5 +1,18 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## R09 G3-L contract adjudicated; independent addendum review next — 2026-09-30
+
+The [Astra/high adjudication](V11_R09_GATE3_LAUNCH_CONTRACT_ADJUDICATION.md)
+reconciles the GEFS CGI/S3 bound and defines the exact private launch package
+and independent digest review requirements. It is a proposed protocol addendum,
+not launch acceptance. Six offline probes confirm launch-validation/accounting
+gaps; full raw estimated demand is 1,469,234,173 bytes before overhead, above
+the unchanged 1 GiB cap. Fresh G3-I integration and G3-L evidence remain required;
+no private manifest, transport, capture or forward evidence is admitted. The
+offline ceiling-fix PASS remains scoped to that correction. **91/200 (45.5%),
+formal 1/50; NOT_READY_TO_FUND**. Next: independent addendum review, then the
+strict offline validator/accounting extension. GEFS SHADOW authority stays gated.
+
 ## R09 G3-I GEFS path-bound correction reviewed and merged — 2026-09-30
 
 Independent Sol/medium [review](V11_R09_GATE3_GEFS_CEILING_REVIEW_95e07fa.md)

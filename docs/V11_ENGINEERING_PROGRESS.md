@@ -1,5 +1,19 @@
 # Supplementary engineering estimate
 
+## G3-L exact-package design and acceptance gaps resolved on paper — 2026-09-30
+
+Astra/high's [launch-contract adjudication](V11_R09_GATE3_LAUNCH_CONTRACT_ADJUDICATION.md)
+preserves the reviewed 2 MiB GEFS S3 correction while separating it from the
+unchanged 64 KiB production CGI decoder. Defines a strict private manifest,
+real Git OIDs versus artifact hashes, exact cohort/run/time pins, conservative
+all-request budgets, evidence-backed source/clock records and detached review
+envelopes. Independent review of this proposed addendum is still required.
+Six offline observations reproduced launch-helper gaps and the 1,469,234,173-byte
+raw estimate exceeding the unchanged 1 GiB cap. No implementation, full-suite
+rerun, network probe or new admission; next work is independent design review
+then isolated offline validation/accounting implementation. No C/J/E/A boundary
+crossed: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Reviewed G3-I GEFS S3 ceiling integrated locally — 2026-09-30
 
 Sol/medium independently accepted Sonnet/high `95e07fa`, and main merged it
