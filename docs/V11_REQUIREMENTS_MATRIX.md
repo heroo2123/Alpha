@@ -1,5 +1,15 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Coordinator R09 architecture handoff — 2026-09-30
+
+The reviewed R09 implementation remains integrated, but exact-day IFS/AIFS
+and causal source/label availability are still OPEN. Route an Astra/high
+adjudication of source-native extrema versus a separately reviewed sampled
+predictor/trajectory contract before extending real learner admission. The
+SHADOW integration candidate is `7f3cf6c`, unmerged pending the live full-suite
+release gate. No requirement status or C/J/E/A credit changed: **91/200
+(45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator SHADOW repair gate — 2026-09-30
 
 The two adjudicated P2 defects were repaired in the isolated SHADOW worktree.

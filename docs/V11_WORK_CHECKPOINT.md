@@ -1,5 +1,33 @@
 # Alpha V11 work checkpoint
 
+## Coordinator verification and R09 handoff — 2026-09-30
+
+Recovered clean main at `71e3884` (20 commits ahead of origin). The reviewed SHADOW
+integration candidate is clean at `7f3cf6c` and changes only the five expected
+source/test files. It remains unmerged. The single scheduler full-suite driver
+and pytest child remain live at PIDs 759953/759956; no terminal marker or release
+PASS exists yet. The older release retry failed two tests under full-suite load.
+No duplicate worker or test was started.
+
+R09 has an independent implementation review, but its preserved IFS/AIFS point
+stores do not establish exact half-open local-day extrema or causal availability.
+The published native-extrema inspection found 73 aligned IFS station-days,
+468 crossing intervals, and no AIFS native-extrema candidate in the inspected
+products. Route a bounded Astra/high architecture and acceptance adjudication:
+determine whether a source-native exact-day path can be evidenced or whether a
+separately reviewed sampled-predictor/trajectory contract is required; specify
+the source/label knowable-time, immutable capture, independent review and
+forward-evidence gates before any real adapter or fit. Preserve current stores
+and do not loosen existing admission gates.
+
+PAPER scanner PID 514629 is active; V11 controller/execution units are inactive;
+protected model authority is absent. The FINAL-REVIEWED private master SHA-256
+still matches `a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+Disk has 3.7 GiB available and memory about 630 MiB available plus 1.5 GiB
+free swap. Commissioning changes remain watchdog heartbeats, with zero qualified
+forward SHADOW samples. No C/J/E/A boundary changed: **91/200 (45.5%), formal
+1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator repair — SHADOW review PASS; release diagnostic running — 2026-09-30
 
 Recovered clean main `a225e7d`, clean scheduler branch `26056af`, and the

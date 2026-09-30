@@ -1,5 +1,15 @@
 # Supplementary engineering estimate
 
+## Coordinator R09 decision route — 2026-09-30
+
+The reviewed SHADOW integration candidate is preserved at `7f3cf6c`; the
+scheduler full suite remains active without a terminal result. R09's preserved
+IFS/AIFS evidence still cannot support exact-day causal fitting under the
+current contract. A bounded Astra/high architecture adjudication is the next
+step on that path while the GEFS release diagnostic runs. No forward SHADOW
+samples or score boundary changed: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Coordinator SHADOW repair under review — 2026-09-30
 
 The isolated SHADOW branch is clean at `15e99bd` after Sol/high repaired
