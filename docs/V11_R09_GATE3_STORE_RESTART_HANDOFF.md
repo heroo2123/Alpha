@@ -1,8 +1,10 @@
 # Gate 3 v1 offline store restart author handoff
 
 **REPAIRED AUTHOR CANDIDATE; fresh different-model exact-commit review required.**
-This batch extends the held `74bd122` Gate 3 restart candidate after the
-[five-finding independent rejection](V11_R09_GATE3_STORE_RESTART_REVIEW_74bd122.md).
+This batch extends the held `7bc627e` Gate 3 restart candidate after the
+[two-finding independent rejection](V11_R09_GATE3_STORE_RESTART_REVIEW_7bc627e.md)
+(itself a repair of `74bd122` after its earlier
+[five-finding independent rejection](V11_R09_GATE3_STORE_RESTART_REVIEW_74bd122.md)).
 It grants no merge, publication,
 provider capture, G3-L, SHADOW, learner admission or financial action. The
 legacy `ImmutableObjectStore.seal(bytes) -> digest` remains session-only and
@@ -96,6 +98,39 @@ leaves some unsynced bytes visible on this host; the deterministic survivor
 fixtures separately exercise loss and survival possibilities. These tests make
 no physical power-loss, filesystem qualification, real clock-attestation,
 provider-identity, historical feature-eligibility or learner-admission claim.
+
+## Two-finding repair on top of the five-finding candidate
+
+Independent Astra/high review of exact `7bc627e` accepted R1–R5 and reproduced
+two further P2 gaps with bounded probes (three defect-reproduction cases, 54
+SIGKILL boundary cases, 28 survivor cases; 279 affected + 153 independent probe
+passes). Both are now repaired in this commit:
+
+- R6: `seal_with_provenance` and `read_receipt` now check process ownership
+  (`os.getpid() == self._pid`) **before** attempting `self._mutex`, mirroring
+  the pattern `close()` already used. Previously, a forked child could block
+  indefinitely trying to acquire an `RLock` copied mid-hold from a parent
+  thread that does not exist in the child; the fork-child path stays lock-free
+  and descriptor-close-only, and never releases the parent's shared flock.
+- R7: a single `MAX_DESCRIPTOR` (4096 bytes) bound now gates the encoded
+  descriptor **before** any metadata file is created during initialization,
+  using the same constant recovery's bounded read already enforced. An
+  oversized encoded context (including Unicode expansion of `build_id`,
+  `clock_method` or `host_id`) is refused up front, with no partial
+  initialization left behind, instead of being silently accepted and then
+  bricking every future reopen with `JOURNAL_OR_IDENTITY_INVALID`.
+
+New bounded regression tests: two fork tests (read/seal) that pause a parent
+seal in its recorder, fork from another thread, and assert the child rejects
+in-process instead of hanging (bounded by `select`/pipe with a 2 s timeout, no
+SIGKILL needed since rejection is now prompt); and three descriptor-capacity
+tests — a monkeypatched below/exact/above `MAX_DESCRIPTOR` boundary with a full
+seal/reopen roundtrip for the accepted cases, plus the exact 128-character
+non-BMP Unicode reproduction from the independent review, now asserting
+upfront refusal rather than delayed bricking. Affected suite: **285 passed**
+(279 prior + 6 new: 2 fork-ownership cases, 3 descriptor-boundary cases, 1
+Unicode-expansion case). This is still synthetic evidence only; no independent
+review has inspected these exact bytes yet.
 
 Author verification command:
 
