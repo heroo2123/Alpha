@@ -1,5 +1,48 @@
 # Alpha V11 work checkpoint
 
+## R47 v2 same-worktree provenance recovery — 2026-09-30
+
+Completed the same-worktree provenance repair in code commit A
+`937c968e3edcedc6259c3e8602a29f709a39a668` (tree `8a39768a337a38c45d832305de8fa1cdc7340439`), committed before generating
+new artifacts. The generator verifies committed executable source bytes and pins
+the complete source dataset-manifest snapshot. Model lineage time is
+`2026-09-30T07:03:19+00:00`, later than completed dataset time
+`2026-09-29T13:36:42.402636+00:00`; the latter is the distinct frozen evidence
+watermark. Historical availability and forward proof remain explicitly unestablished.
+
+Two new private builds under `private-evidence/r47-v2-937c968e3edc{,-repeat}`
+are byte-identical across all 37 files. Final manifest artifact SHA-256:
+`b9bcd07f252ab38b4a1e6b7c0b2f932fb5968e1bdb5f673e9152e213d27fa957`.
+Four unique HIGH/LOW × C/F candidate hashes:
+
+- daily_high_temperature:C: `005d661fab697e0d9075a0e80cd54f64cd931b8ca26d8fc50a807c4793c7d7a5`.
+- daily_high_temperature:F: `fd9a32aa12ac7c8018ec524d1b74514bb57c42c0e60241672a4446b95908e641`.
+- daily_low_temperature:C: `b9a067c9030f41740789a5761d9d4ee68d88192935eda6569d093bc2863887b8`.
+- daily_low_temperature:F: `e5478c88dc7aeca03f486efc845d94c2e2e5c8900f6775d7d0840191e83f3c6d`.
+
+The external `exact_day_live_schema_bundles_v2_20260930` output is preserved,
+**REVIEW_REJECTED**, all 37 files unchanged. Its manifest
+`30a2fa77a07408b7f87fbe275ed9e3da0ff872666c7fad715323a79dbde69d0d` bound
+an earlier parent with no generator and a pre-completion creation time. New hashes
+reuse neither v1 nor rejected-v2 candidates. The detailed R47 document records
+complete rejected lineage, exact commands, output locations and audit/log hashes.
+
+Captured foreground tests: focused module **22 passed / 99.01 s**, including real
+evidence; eight relevant modules **181 passed / 68.75 s**; both exit 0, no skips.
+The old interrupted-builder regression claim was not accepted as a captured result.
+Final real artifacts pass all four live-contract predictions; model ID, 31 members,
+exact `linear_extreme` semantics and selected bias/sigma are unchanged.
+
+`FITTED_NOT_CALIBRATED` / `NO_PROMOTION`, no financial/order/promotion/host authority,
+and historical confirmation not forward untouched remain unchanged. R47 remains
+OPEN for independent/owner review, protected installation/reviewed shadow pointer,
+forward shadow evidence and frozen sample target, calibration and execution costs.
+No new C/J/E/A: **91/200 = 45.5%; formal 1/50 (2%)**. NOT_READY_TO_FUND.
+Next: independent review of exact A and the new artifacts, then separately gated
+owner commissioning. No V10/services/credentials/protected model state were changed.
+See `docs/V11_R47_EXACT_DAY_LIVE_SCHEMA_REBUILD.md` for the authoritative recovery record.
+
+
 ## Agent-2 model-panel input architecture + real ECMWF parity — 2026-09-29
 
 On the isolated Agent-2 worktree, added a separate pull-only typed
@@ -10831,3 +10874,25 @@ brief (file-mtime sweep only) rather than repeating a full per-row matrix
 audit, since batch 34 already performed that sweep exhaustively and this
 batch found no new stale-credit case beyond the one R43 already corrected in
 batch 33.
+
+## Rejected v2 attempt — preserved interrupted-builder notes
+
+> REVIEW_REJECTED/SUPERSEDED: the original notes below are retained as lineage.
+> Their preregistration timestamp/parent-commit provenance is invalid, and the
+> broad-regression terminal result was not captured. The recovery entry at the
+> top of this document supplies the final artifacts and actual test results.
+
+
+Closed the specific documented prerequisite from the prior entry's final note ("a deterministic v2 rebuild with a frozen creation timestamp and unique family run IDs is required before any protected model-authority review/install step"). Built `tools/gefs_exact_day_live_schema_bundle_v2.py`, a new committed generator that fixes both named v1 draft-generator defects and nothing else: (1) `created_at`/`causal_watermark` now derive from `v11_all_market_gefs_preregistration_20260929.json`'s own verified `created_utc` self-hash field instead of `time.time()`; (2) every `run_id` uses an explicit `HIGH`/`LOW` token, never a `family_name[-4:]` slice (`"daily_high_temperature"[-4:] == "daily_low_temperature"[-4:] == "ture"` was the exact prior collision, asserted directly as a regression).
+
+Independently recomputed, not trusted: plan/catalog/preregistration self-hashes and cross-links; the 541-station-day NOAA GEFS SQLite's content hash via the exact same `database_content_sha256` table/column/order specification as the original backfill pipeline (matches the previously recorded `96a40834...c494` exactly); confirmed `gefs_sources.py` at this worktree's HEAD is byte-identical to the deployed release commit `ac3b722b...` (a real ancestor commit, not merely asserted). The dataset-construction algorithm itself is unchanged from v1 (only provenance wrapping changed), so an independent recomputation reproduces the exact same previously-published corrected-dataset hash `649fd39a...90a9`, cross-validating that step's determinism.
+
+Generated four new, immutable, nonfinancial v2 candidate bundles (live model id `NOAA_GEFS_0P50_LINEAR_DAY_V1`, 31 members, `FINAL_CONTRACT_PAYOUT`; both families select bias 0.0 C / sigma 0.5 C, matching v1): HIGH/C `bdf43db4...5f7`, HIGH/F `1d54cd13...cfb`, LOW/C `7f026f52...c86`, LOW/F `ed4cd08f...ac5`. All four are confirmed disjoint from the four v1 draft hashes; the v1 candidates were not reused, aliased, or installed. Every candidate remains `FITTED_NOT_CALIBRATED`/`NO_PROMOTION`, `financial_authority=false`, `promotion_authority=false`, `order_authority=false`, `host_approved=false`, and `historical_confirmation_is_forward_holdout=false` (unchanged, explicit, carried through from v1).
+
+Ran the real generator twice from a clean output root against the actual 541-station-day evidence and got a byte-identical manifest both times (`artifact_sha256` unchanged: `30a2fa77a07408b7f87fbe275ed9e3da0ff872666c7fad715323a79dbde69d0d` — full detail in `docs/V11_R47_EXACT_DAY_LIVE_SCHEMA_REBUILD.md`). Added `tests/test_gefs_exact_day_live_schema_bundle_v2.py` (14 focused cases: repeat-generation byte-identity with a real wall-clock delay between runs on a fast synthetic fixture; HIGH/LOW run-identity uniqueness; the v1 defect reproduced directly as a string-slice regression; C/F affine invariance proven both algebraically against the selected fit and end-to-end via `predict_with_bundle`; fail-closed coverage for tampered plan self-hash, tampered GEFS-db content hash, broken preregistration link, forbidden protected output root, and wrong model/unit/family/member-count at prediction time; two real-evidence-gated cases that reproduce the published dataset hash and confirm non-reuse of v1 hashes). All 14 pass, no skips on this machine (real evidence present).
+
+Verification (foreground): `tests/test_gefs_exact_day_live_schema_bundle_v2.py` 14/14 passed. Regression on related suites potentially affected by shared infrastructure (`gefs_sources.py`, `model_artifacts.py`, `offline_learning.py`, `forecast_features.py` are all read-only imports, but exercised heavily by the new tool/tests): `test_v11_gefs_sources.py`, `test_gefs_schema_rebind.py`, `test_v11_r47_real_candidate_shadow_injection.py`, `test_v11_offline_learning.py`, `test_v11_forecast_learning.py`, `test_v11_model_artifacts.py`, `test_v11_model_governance.py`, `test_v11_probability.py` — 181 passed, 0 failed. `python3 -m py_compile` clean on both new files. `git diff --check` clean before commit.
+
+This closes only the named provenance/reproducibility prerequisite. It does **not** close R47: independent/owner review, root-owned model-authority installation, actual forward shadow evidence with a frozen sample target, calibration evidence, and execution-cost evidence all remain exactly as open as every prior batch found them. No new C/J/E/A credit: R47 is a hard aggregate acceptance gate on an actual accepted, owner-reviewed champion, which a provenance-quality fix to an already-non-eligible draft research candidate does not supply. **91/200 = 45.5% (~46%); formal 1/50 (2%)**, unchanged. NOT_READY_TO_FUND; V10 unchanged/DEFERRED (not touched). No alpha-dev access, deployment, service change, financial authority, sudo, credential, or real order was requested or performed. Only `tools/gefs_exact_day_live_schema_bundle_v2.py`, `tests/test_gefs_exact_day_live_schema_bundle_v2.py`, this checkpoint entry, `docs/V11_R47_EXACT_DAY_LIVE_SCHEMA_REBUILD.md`, and the matching `docs/V11_REQUIREMENTS_MATRIX.md`/`docs/V11_ENGINEERING_PROGRESS.md` R47 entries changed in the repository; the new private v2 artifact store and commissioning evidence manifest copy are outside the Git tree, exactly like every prior GEFS research artifact.
+
+Next unfinished action: unchanged from batch 37 — re-check `/home/alphaadmin/AlphaV11_Commissioning/evidence/` and `/home/alphaadmin/AlphaV11_BrainWork/` for a genuinely new (non-heartbeat) research-result, review, or owner-authorized artifact before repeating any R47/R09/R44/R46 analysis. The concrete remaining R47 blocker is unchanged and precise: an actual owner/independent review and installation decision into root-owned `/var/lib/alpha-v11/model-authority`, or an equivalent owner-reviewed acceptance, plus real forward shadow evidence against a frozen sample target — none of which is fabricable by this worker.

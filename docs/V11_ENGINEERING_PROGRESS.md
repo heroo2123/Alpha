@@ -1,5 +1,48 @@
 # Supplementary engineering estimate
 
+## R47 v2 same-worktree provenance recovery — 2026-09-30
+
+Completed the same-worktree provenance repair in code commit A
+`937c968e3edcedc6259c3e8602a29f709a39a668` (tree `8a39768a337a38c45d832305de8fa1cdc7340439`), committed before generating
+new artifacts. The generator verifies committed executable source bytes and pins
+the complete source dataset-manifest snapshot. Model lineage time is
+`2026-09-30T07:03:19+00:00`, later than completed dataset time
+`2026-09-29T13:36:42.402636+00:00`; the latter is the distinct frozen evidence
+watermark. Historical availability and forward proof remain explicitly unestablished.
+
+Two new private builds under `private-evidence/r47-v2-937c968e3edc{,-repeat}`
+are byte-identical across all 37 files. Final manifest artifact SHA-256:
+`b9bcd07f252ab38b4a1e6b7c0b2f932fb5968e1bdb5f673e9152e213d27fa957`.
+Four unique HIGH/LOW × C/F candidate hashes:
+
+- daily_high_temperature:C: `005d661fab697e0d9075a0e80cd54f64cd931b8ca26d8fc50a807c4793c7d7a5`.
+- daily_high_temperature:F: `fd9a32aa12ac7c8018ec524d1b74514bb57c42c0e60241672a4446b95908e641`.
+- daily_low_temperature:C: `b9a067c9030f41740789a5761d9d4ee68d88192935eda6569d093bc2863887b8`.
+- daily_low_temperature:F: `e5478c88dc7aeca03f486efc845d94c2e2e5c8900f6775d7d0840191e83f3c6d`.
+
+The external `exact_day_live_schema_bundles_v2_20260930` output is preserved,
+**REVIEW_REJECTED**, all 37 files unchanged. Its manifest
+`30a2fa77a07408b7f87fbe275ed9e3da0ff872666c7fad715323a79dbde69d0d` bound
+an earlier parent with no generator and a pre-completion creation time. New hashes
+reuse neither v1 nor rejected-v2 candidates. The detailed R47 document records
+complete rejected lineage, exact commands, output locations and audit/log hashes.
+
+Captured foreground tests: focused module **22 passed / 99.01 s**, including real
+evidence; eight relevant modules **181 passed / 68.75 s**; both exit 0, no skips.
+The old interrupted-builder regression claim was not accepted as a captured result.
+Final real artifacts pass all four live-contract predictions; model ID, 31 members,
+exact `linear_extreme` semantics and selected bias/sigma are unchanged.
+
+`FITTED_NOT_CALIBRATED` / `NO_PROMOTION`, no financial/order/promotion/host authority,
+and historical confirmation not forward untouched remain unchanged. R47 remains
+OPEN for independent/owner review, protected installation/reviewed shadow pointer,
+forward shadow evidence and frozen sample target, calibration and execution costs.
+No new C/J/E/A: **91/200 = 45.5%; formal 1/50 (2%)**. NOT_READY_TO_FUND.
+Next: independent review of exact A and the new artifacts, then separately gated
+owner commissioning. No V10/services/credentials/protected model state were changed.
+See `docs/V11_R47_EXACT_DAY_LIVE_SCHEMA_REBUILD.md` for the authoritative recovery record.
+
+
 ## Agent-2 model-panel input architecture + real ECMWF parity — 2026-09-29
 
 On the isolated Agent-2 worktree, added a separate pull-only typed
@@ -3581,3 +3624,71 @@ owner/host action, not a further local-implementation gap. Next unfinished
 action: re-check `evidence/`/`BrainWork/` for a genuinely new artifact before
 repeating any R47/R09/R44/R46 analysis; no further per-batch branch re-diffing
 is needed since all local branches are now confirmed stale or merged.
+
+## Rejected v2 attempt — preserved interrupted-builder notes
+
+> REVIEW_REJECTED/SUPERSEDED: the original notes below are retained as lineage.
+> Their preregistration timestamp/parent-commit provenance is invalid, and the
+> broad-regression terminal result was not captured. The recovery entry at the
+> top of this document supplies the final artifacts and actual test results.
+
+
+Closed the previous entry's own named prerequisite: the exact-day/live-schema
+v1 draft candidates used a wall-clock provenance timestamp and an ambiguous
+identical `"ture"` HIGH/LOW family run-id suffix
+(`"daily_high_temperature"[-4:] == "daily_low_temperature"[-4:]`), making them
+ineligible for owner review. Built `tools/gefs_exact_day_live_schema_bundle_v2.py`
+(new, committed), which fixes exactly those two defects: `created_at`/
+`causal_watermark` now derive from the preregistration file's own verified
+`created_utc` self-hash field instead of `time.time()`; every `run_id` uses an
+explicit `HIGH`/`LOW` token instead of a family-name slice.
+
+Independently recomputed, never merely trusted: the plan/catalog/
+preregistration files' self-hashes and cross-links, and the 541-station-day
+NOAA GEFS SQLite's content hash via the exact same table/column/order
+specification as the original backfill pipeline's `database_content_sha256`
+(matches the previously recorded value exactly). Confirmed `gefs_sources.py`
+at this worktree's HEAD is byte-identical to the deployed release commit, a
+real ancestor commit in this worktree's history. The dataset-construction
+algorithm is unchanged from v1, so an independent recomputation reproduces the
+already-published corrected-dataset hash `649fd39a...90a9` exactly, cross-
+validating that step's determinism separately from the provenance fixes.
+
+Generated four new v2 candidate bundles (live model id
+`NOAA_GEFS_0P50_LINEAR_DAY_V1`, 31 members, both families still select bias
+0.0 C / sigma 0.5 C): HIGH/C `bdf43db4...5f7`, HIGH/F `1d54cd13...cfb`, LOW/C
+`7f026f52...c86`, LOW/F `ed4cd08f...ac5` — all four confirmed disjoint from
+the four v1 draft hashes; the v1 candidates are not reused, aliased, or
+installed. Every candidate remains `FITTED_NOT_CALIBRATED`/`NO_PROMOTION`,
+`financial_authority=false`, `host_approved=false`, and
+`historical_confirmation_is_forward_holdout=false`.
+
+Added `tests/test_gefs_exact_day_live_schema_bundle_v2.py`: 14 focused cases
+proving byte-identical repeat generation across a real wall-clock delay
+(both on a fast synthetic fixture and, separately, by hand-running the real
+541-station-day generator twice into a clean output root), HIGH/LOW run-
+identity uniqueness, C/F affine invariance (algebraically against the
+selected fit and end-to-end via `predict_with_bundle`), and fail-closed
+behavior for tampered plan/GEFS-db hashes, a broken preregistration link, a
+forbidden protected output root, and wrong model/unit/family/member-count
+prediction inputs. All 14 pass, no skips (real evidence present on this
+machine).
+
+Verification (foreground): `tests/test_gefs_exact_day_live_schema_bundle_v2.py`
+14/14 passed. Regression on suites sharing the exercised infrastructure
+(`gefs_sources.py`, `model_artifacts.py`, `offline_learning.py`,
+`forecast_features.py`): `test_v11_gefs_sources.py`, `test_gefs_schema_rebind.py`,
+`test_v11_r47_real_candidate_shadow_injection.py`, `test_v11_offline_learning.py`,
+`test_v11_forecast_learning.py`, `test_v11_model_artifacts.py`,
+`test_v11_model_governance.py`, `test_v11_probability.py` — 181 passed, 0
+failed. `py_compile` clean; `git diff --check` clean.
+
+This closes only the named provenance/reproducibility prerequisite, not R47
+itself: independent/owner review, root-owned model-authority installation,
+actual forward shadow evidence with a frozen sample target, calibration
+evidence, and execution-cost evidence all remain exactly as open as before.
+No new C/J/E/A: **91/200 = 45.5% (~46%); formal 1/50 (2%)**, unchanged.
+NOT_READY_TO_FUND; V10 unchanged/DEFERRED, not touched. No alpha-dev access,
+deployment, service change, financial authority, sudo, credential, or real
+order was requested or performed. Full detail in
+`docs/V11_R47_EXACT_DAY_LIVE_SCHEMA_REBUILD.md`.
