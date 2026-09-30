@@ -1,9 +1,7 @@
 {
-  "ceiling_findings": [
-    "GEFS: 33759 of 33759 observed field messages exceed the pinned 65536-byte ceiling"
-  ],
+  "ceiling_findings": [],
   "evidence_class": "HISTORICAL_PUBLIC_RETRIEVAL_SIZE_ONLY",
-  "feasibility_input_usable": false,
+  "feasibility_input_usable": true,
   "financial_authority": false,
   "launch_authority": false,
   "network_access": false,
@@ -42,9 +40,9 @@
       "acquisition_path": "noaa-gefs-pds S3 pgrb2ap5 (0p50) .idx sidecar + single TMP:2 m byte range",
       "done_messages": 33759,
       "field_bytes": {
-        "ceiling_bytes": 65536,
+        "ceiling_bytes": 2097152,
         "count": 33759,
-        "exceeding_ceiling": 33759,
+        "exceeding_ceiling": 0,
         "max": 245209,
         "min": 117737,
         "p50": 143761,

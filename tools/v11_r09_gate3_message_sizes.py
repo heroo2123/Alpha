@@ -22,7 +22,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from tools.v11_r09_gate3_collector import (  # noqa: E402
-    _EXISTING_GEFS_MAX_FIELD_BYTES, _EXISTING_MAX_FIELD_BYTES, _EXISTING_MAX_INDEX_BYTES,
+    _EXISTING_MAX_FIELD_BYTES, _EXISTING_MAX_INDEX_BYTES, _GEFS_S3_FULL_FIELD_MAX_BYTES,
     VALID_PROVIDERS)
 
 VERSION = 'alpha_v11_r09_gate3_observed_message_sizes_v1'
@@ -34,7 +34,7 @@ ACQUISITION_PATHS = {
 }
 CEILINGS = {
     'index': {p: _EXISTING_MAX_INDEX_BYTES for p in VALID_PROVIDERS},
-    'field': {p: (_EXISTING_GEFS_MAX_FIELD_BYTES if p == 'GEFS' else _EXISTING_MAX_FIELD_BYTES)
+    'field': {p: (_GEFS_S3_FULL_FIELD_MAX_BYTES if p == 'GEFS' else _EXISTING_MAX_FIELD_BYTES)
               for p in VALID_PROVIDERS},
 }
 

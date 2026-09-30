@@ -504,17 +504,37 @@ class BudgetCeilingExceeded(ValueError):
 # module's ceiling must be re-reviewed and updated to match; it must never be looser.
 _EXISTING_MAX_INDEX_BYTES = 3 * 1024 * 1024
 _EXISTING_MAX_FIELD_BYTES = 4 * 1024 * 1024
-_EXISTING_GEFS_MAX_FIELD_BYTES = 64 * 1024  # grib_fields.MAX_BYTES
+
+# NOT duplicated from `grib_fields.MAX_BYTES` (64 KiB): that constant, and the
+# 25-point `decode_gefs_field` it bounds, belong to the production NOMADS CGI
+# `filter_gefs_atmos_0p50a.pl` 0.5-degree *subregion* product
+# (`polymarket_scanner/v11/gefs_sources.py::ENDPOINT`), a different consumer that
+# this module's own `check_index_availability` docstring distinguishes from Gate
+# 3's intended acquisition path: the S3 `noaa-gefs-pds` `.idx`-sidecar + `Range`
+# single-full-field request. No already-reviewed production bound exists for that
+# path, so this ceiling is instead derived here from real observed evidence
+# (`config/v11/r09_gate3_observed_message_sizes_20260930.json`, built by
+# `tools/v11_r09_gate3_message_sizes.py` from the historical GEFS S3 backfill
+# store): 33,759 DONE single-field byte-range captures ranged 117,737-245,209 B.
+# 2 MiB gives >8x headroom over that observed maximum -- comparable to or wider
+# than the ~6x margin IFS/AIFS already carry under the shared 4 MiB bound below --
+# while staying strictly tighter than that shared bound, consistent with GEFS's
+# lower (0.5-degree vs 0.25-degree) native resolution. Re-review and widen only if
+# a future observed maximum approaches it; must never exceed `_EXISTING_MAX_FIELD_BYTES`.
+_GEFS_S3_FULL_FIELD_MAX_BYTES = 2 * 1024 * 1024
 
 
 class BudgetTracker:
     """Enforces the pilot's hard ceilings (protocol Section 4), constructed with the
     STRICTER of the protocol's own numbers and any already-existing, already-reviewed
     tighter provider bound -- e.g. ECMWF's `MAX_INDEX_BYTES` (3 MiB) / `MAX_RAW_BYTES`
-    (4 MiB) in `polymarket_scanner/v11/ecmwf_sources.py` and `model_panel.py`, or
-    GEFS's `grib_fields.MAX_BYTES` (64 KiB) -- so this module can never loosen an
-    existing bound (the protocol document's own explicit constraint). Performs no
-    network access itself; callers report each attempt's start/outcome to it."""
+    (4 MiB) in `polymarket_scanner/v11/ecmwf_sources.py` and `model_panel.py` -- or,
+    for GEFS's S3 full-field acquisition path (which has no already-reviewed
+    production bound of its own), an evidence-derived ceiling per-acquisition-path
+    rather than per-product-family (`_GEFS_S3_FULL_FIELD_MAX_BYTES`, see above) --
+    so this module can never exceed the shared 4 MiB/3 MiB ceilings (the protocol
+    document's own explicit constraint). Performs no network access itself; callers
+    report each attempt's start/outcome to it."""
 
     def __init__(self, *, max_requests=3600, max_total_received_bytes=1024 ** 3,
                  min_interval_seconds=2.0, max_elapsed_seconds=3 * 3600.,
@@ -559,7 +579,7 @@ class BudgetTracker:
             raise BudgetCeilingExceeded('NOT_ATTEMPTED_BUDGET')
         if field_bytes is not None:
             require(provider in VALID_PROVIDERS, 'BUDGET_FIELD_PROVIDER_REQUIRED')
-            provider_ceiling = (_EXISTING_GEFS_MAX_FIELD_BYTES if provider == 'GEFS'
+            provider_ceiling = (_GEFS_S3_FULL_FIELD_MAX_BYTES if provider == 'GEFS'
                                 else _EXISTING_MAX_FIELD_BYTES)
             if field_bytes > min(self.max_field_bytes, provider_ceiling):
                 raise BudgetCeilingExceeded('NOT_ATTEMPTED_BUDGET')
