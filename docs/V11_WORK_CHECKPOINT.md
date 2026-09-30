@@ -1,5 +1,30 @@
 # Alpha V11 work checkpoint
 
+## R09 gate 2 repair resumed in one persistent worker — 2026-09-30
+
+Recovered the interrupted source diff in `/tmp/alpha-v11-r09-trajectory-gate2/Alpha`
+unchanged at base `2d116af` (one modified source file, `git diff --check` clean).
+No earlier repair process was active. A focused test of that preserved diff
+fails immediately because `CoveragePolicy` now rejects the old test fixture's
+`policy_id` argument; the diff itself also identifies unfinished R5 capture
+evidence and R7 coverage fallback. No repair commit or review is claimed.
+
+Started exactly one detached Sol/high repair driver, PID **799619**, with Codex
+child PID **799624**. Its evidence directory is
+`/tmp/alpha-v11-r09-gate2-resume-20260930/` (`started.json`, prompt, live
+`builder.log`, and eventual `terminal.json`). The worker must finish R1–R7,
+update synthetic tests, run focused/affected tests, and commit in the SAME
+isolated worktree. After terminal completion, inspect exact diff/tests and
+obtain a separate independent exact-commit review before any merge or real
+admission. Do not duplicate this active repair.
+
+Main remains at `ddf05b2` before this ledger commit; development SHADOW remains
+integrated locally. PAPER scanner and V11 execution/controller units are
+inactive; root disk is 85% used with about 2.9 GiB free, so the scanner was
+not restarted. The private FINAL-REVIEWED master still matches its pinned
+SHA-256. No new qualifying forward SHADOW evidence or C/J/E/A boundary was
+established: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator recovery — interrupted R09 repair preserved — 2026-09-30
 
 Main code remains at accepted development integration `4e40972`. A later

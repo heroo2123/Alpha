@@ -1,5 +1,16 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## R09 gate 2 repair worker active — 2026-09-30
+
+The preserved `2d116af` repair diff is being resumed in one Sol/high worker
+(`/tmp/alpha-v11-r09-gate2-resume-20260930/`). Its unchanged first focused
+test fails at the old `CoveragePolicy(policy_id=...)` fixture; R5 capture
+evidence and R7 frozen fallback also remain open in the interrupted source.
+No repair/test/review acceptance or real-data admission is claimed. Separate
+exact-commit independent review remains required. PAPER and forward SHADOW
+qualification are unchanged. **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Interrupted R09 gate 2 repair recovery — 2026-09-30
 
 The Sonnet/high R1–R7 attempt stopped at its session limit with one uncommitted

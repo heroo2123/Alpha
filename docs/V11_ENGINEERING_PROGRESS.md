@@ -1,5 +1,15 @@
 # Supplementary engineering estimate
 
+## Single R09 repair worker resumed — 2026-09-30
+
+Recovered the uncommitted, diff-check-clean R09 gate-2 source edit and launched
+one detached Sol/high builder in its existing isolated worktree. The first
+focused test fails at an obsolete policy fixture; the worker has the full seven
+P2 findings plus explicit capture-evidence and coverage-fallback acceptance
+criteria. Its terminal is pending; no completed repair or review is inferred.
+Disk guard keeps PAPER inactive, and there is no new forward SHADOW evidence.
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## R09 repair interrupted and preserved — 2026-09-30
 
 Sonnet/high stopped at a session limit while editing the existing gate-2
