@@ -1,5 +1,21 @@
 # V11 pull-only weather model input panel
 
+## R09 post-backfill correction — 2026-09-30
+
+The immutable GEFS/IFS/AIFS historical stores are complete for all 541 planned
+station-days. The new read-only historical panel verifies those stores and their
+plan/catalog/provenance links, but finds that filtering the three-hour bracketing
+plan to six-hour ECMWF fields loses a local-day bracket on **505/541** city-days
+(397 missing start, 145 missing end, 37 missing both). The other 36 city-days have
+native boundary samples, which still do not identify between-sample extrema.
+No interpolation or outside-day extrema are substituted. Exact-day and causal
+learner admission therefore remains blocked; real GEFS-only/IFS-only/AIFS-only/
+multi-model comparisons have no scores. Status: **NOT_FITTED / NOT_CALIBRATED /
+NO_PROMOTION**. See [the R09 implementation/evidence note](V11_R09_MULTIMODEL_HISTORICAL_PANEL.md).
+The earlier descriptions below remain historical source-layer documentation;
+their backfill-pending wording is superseded by this entry. No runtime source,
+R47 work, protected model state, promotion or financial authority changes.
+
 Agent-2 implementation, 2026-09-29. Nonfinancial source/archive infrastructure;
 no service deployment, model promotion, settlement change or acceptance credit.
 Existing NOAA GEFS files and BrainWork historical downloader are unchanged.

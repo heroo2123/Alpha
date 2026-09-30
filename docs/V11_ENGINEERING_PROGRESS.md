@@ -1,5 +1,31 @@
 # Supplementary engineering estimate
 
+## R09 multi-model historical implementation — 2026-09-30
+
+Built and tested a deterministic, immutable GEFS/IFS/AIFS historical point panel
+and a separately gated dependence-aware stacking reference. All 541 city-days and
+1,082 HIGH/LOW events retain the original 357/120/64 temporal partitions. Every
+input hash/content/provenance link and provider/run/member/hour grid is checked.
+The numerical baseline uses normalized provider distributions and a shared
+IFS/AIFS group budget, TRAIN/DEVELOPMENT-only frozen selection, grouped metrics,
+station/family slices, reliability and descriptive date-block uncertainty.
+
+The real evidence invalidates exact-day admission: 505/541 city-days lose a native
+start/end bracket after six-hour filtering, and none of the point paths identify
+between-sample extremes without an extra trajectory assumption. Historical
+availability, exact rule/revision/label-time proof and raw GRIB re-decoding evidence
+are also missing. Real status is NOT_FITTED / NOT_CALIBRATED / NO_PROMOTION, not a
+manufactured fit. The numerical evaluator is synthetic-only until a reviewed real
+adapter exists. Actual GEFS-only/IFS-only/AIFS-only/multi-model scores remain null.
+
+Affected regression: 337 passed / 1 expected opt-in skip / 109.75 s. Final focused
+validation: 58 passed / 1 expected skip / 2.82 s. Full-store integrity audit passed.
+Committed-code reproducibility details and hashes are in
+`docs/V11_R09_MULTIMODEL_HISTORICAL_PANEL.md`. No runtime or financial boundary
+changed. This narrows R09's remaining engineering work without granting a new
+C/J/E/A unit: **91/200 (45.5%), formal 1/50**, NOT_READY_TO_FUND.
+
+
 ## Agent-2 model-panel input architecture + real ECMWF parity — 2026-09-29
 
 On the isolated Agent-2 worktree, added a separate pull-only typed

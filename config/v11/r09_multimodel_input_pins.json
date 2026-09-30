@@ -1,0 +1,37 @@
+{
+  "inputs": {
+    "catalog": {
+      "file_sha256": "5f98fd5003cb7b2e376c721e63e3a101b03b027d751aad56a88699e8044aae94",
+      "path": "/home/alphaadmin/AlphaV11_Commissioning/evidence/v11_historical_daily_temperature_catalog_20260929.json"
+    },
+    "ecmwf_db": {
+      "content_sha256": "672ed1347eb10a01e595cba417b4293b0979b157d8e716ad701acf90938f31b8",
+      "file_sha256": "dc007dc2c4482f7170b9b0ab2a1805738d2d04f91bd733507bf142b3f3426725",
+      "path": "/home/alphaadmin/AlphaV11_BrainWork/historical_ecmwf_backfill.sqlite"
+    },
+    "ecmwf_progress": {
+      "file_sha256": "d04c9e05d86377ee33a830e54cf90c9eb86e4ed953e4109025580143c7d992b3",
+      "path": "/home/alphaadmin/AlphaV11_Commissioning/evidence/v11_brain_ecmwf_backfill_progress.json"
+    },
+    "gefs_db": {
+      "content_sha256": "72d7df59145b02c94cb46662a5faa16f6875858abcb0fc94ef1ac942b6512b82",
+      "file_sha256": "af2802f4cf204f76fa62c8ba231599ac0596a0e07cbaaf209b7b31a95c00e36e",
+      "path": "/home/alphaadmin/AlphaV11_BrainWork/historical_gefs_backfill.sqlite"
+    },
+    "gefs_manifest": {
+      "file_sha256": "c9f2909938a5dabdf856fcd096a04ea843bc0913dffd811222f8fab4bc7a71ff",
+      "path": "/home/alphaadmin/AlphaV11_Commissioning/evidence/v11_gefs_all_market_dataset_manifest_20260929.json"
+    },
+    "gefs_progress": {
+      "file_sha256": "d5669ab4873136de1f100ceb73a7d79882e653a22fee28b641d59ba8f0c5e9a3",
+      "path": "/home/alphaadmin/AlphaV11_Commissioning/evidence/v11_brain_historical_backfill_progress.json"
+    },
+    "plan": {
+      "file_sha256": "121d912f1a1f9e75c1eaaa9067e982bac11ceac9baecdce2451aa651a21da469",
+      "path": "/home/alphaadmin/AlphaV11_Commissioning/evidence/v11_brain_historical_backfill_plan_20260929.json"
+    }
+  },
+  "master_sha256": "a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a",
+  "pin_origin": "R09 read-only snapshot 2026-09-30; hashes pin identity, not independent source truth",
+  "version": "alpha_v11_multimodel_historical_panel_v1"
+}
