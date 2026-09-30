@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import hashlib
+import fcntl
 import ipaddress
 import math
 import os
@@ -341,10 +342,15 @@ class ImmutableObjectStore:
         check(self.root.is_absolute() and self.root == self.root.resolve() and
               all(not Path(p).is_symlink() for p in (self.root, *self.root.parents)),
               'OBJECT_ROOT_PATH')
-        self.dir_fd = os.open(self.root / 'objects', os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        self.root_fd = os.open(self.root, os.O_RDONLY | os.O_DIRECTORY |
+                               os.O_NOFOLLOW | os.O_CLOEXEC)
+        self.dir_fd = None
         try:
+            fcntl.flock(self.root_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            self.dir_fd = os.open('objects', os.O_RDONLY | os.O_DIRECTORY |
+                                  os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=self.root_fd)
             st = os.fstat(self.dir_fd)
-            parent = os.stat(self.root, follow_symlinks=False)
+            parent = os.fstat(self.root_fd)
             check(stat.S_ISDIR(st.st_mode) and st.st_uid == os.getuid() and
                   stat.S_IMODE(st.st_mode) == 0o700 and
                   stat.S_ISDIR(parent.st_mode) and parent.st_uid == os.getuid() and
@@ -354,6 +360,8 @@ class ImmutableObjectStore:
             self.root_identity = (parent.st_dev, parent.st_ino)
             with os.scandir(self.dir_fd) as entries:
                 self._recovery_required = next(entries, None) is not None
+            with os.scandir(self.root_fd) as entries:
+                self._recovery_required |= {entry.name for entry in entries} != {'objects'}
             self._failed = False
             self._sealed: set[str] = set()
         except BaseException:
@@ -465,9 +473,20 @@ class ImmutableObjectStore:
         if getattr(self, 'dir_fd', None) is not None:
             os.close(self.dir_fd)
             self.dir_fd = None
+        if getattr(self, 'root_fd', None) is not None:
+            os.close(self.root_fd)
+            self.root_fd = None
 
     def __enter__(self):
         return self
 
     def __exit__(self, *_):
         self.close()
+
+
+# The versioned recovery API is deliberately separate from the legacy,
+# session-only digest helper above. Its implementation has no network adapter.
+from tools.v11_r09_gate3_store_v1 import (  # noqa: E402
+    ClockEvidence, ObjectProvenance, ObjectReceipt, RecoveryReport,
+    VersionedImmutableObjectStore,
+)
