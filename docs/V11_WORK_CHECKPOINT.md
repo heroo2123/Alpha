@@ -1,5 +1,53 @@
 # Alpha V11 work checkpoint
 
+## R09 gate 2 repair independently reviewed — CHANGES_REQUIRED — 2026-09-30
+
+Independent Astra/high review completed on exact clean `2d116af4c7bc8aa5527ef28a064c5eff68abb87e`
+(tree `bfea9dfe580f39cab1825ee645865a43993cc212`). The preceding repair
+entry's claim that all F1–F8 are repaired is superseded by this verified verdict:
+several original probes now reject, but **seven P2 blockers remain**. These
+cover conservative prediction/artifact timing, reconstructible/mutable corpus
+records, missing settlement-target binding, cross-corpus label lineage/content,
+missing capture/clock evidence, the new multi-station capture-key collision,
+and mutable same-ID coverage policies with undefined provider fallback.
+Gate 2 stays OPEN; no merge or gate-3 admission is authorized.
+
+Full findings and precise repair criteria:
+[V11_R09_GATE2_REVIEW_2d116af.md](V11_R09_GATE2_REVIEW_2d116af.md).
+Evidence `/tmp/alpha-v11-r09-gate2-review-2d116af/` includes the independent
+script/results, report, matching verdict and `terminal.json` with exact
+commit/tree and artifact hashes. Terminal **R09_GATE2_REVIEW_CHANGES_REQUIRED**
+records a completed foreground review, not a missing or inferred driver exit.
+Verification: **61 contract tests passed / 3.64 s**, **34 existing boundary
+tests passed, 103 deselected / 2.13 s**, and **32/32 independent checks**
+covering both repaired controls and remaining counterexamples. Main differs
+from the implementation base only in navigation ledgers; no source conflict.
+Builder/review trees remain clean; implementation remains unmerged.
+
+Next: route substantive repair of R1–R7 to Sonnet/high in the SAME preserved
+`/tmp/alpha-v11-r09-trajectory-gate2/Alpha`, then fresh independent exact-commit
+review. Do not substitute ID/class assertions for content/evidence binding.
+No duplicate reviewer or builder launched in this review invocation.
+
+During final review persistence the separate combined release worker finished:
+terminal **RELEASE_FULL_SUITE_PASS** on clean exact `6ec371e` (tree
+`4d268adb7cf1870c07ea1b76e0b40b53d1c2d566`), **5,460 passed, 13 skipped,
+4 warnings / 1,509.45 s**, exit 0, after the 396-pass affected gate. Recomputed
+both log hashes against `/tmp/alpha-v11-release-gate-6ec371e.terminal.json`;
+they match. Driver/pytest have exited normally. The branch remains isolated;
+source/tests for the reviewed SHADOW patch are identical to `15e99bd`, and
+newer main has only ledger divergence from the release base. Reviewed the
+scheduler/GEFS test-only clock changes; production bounds are unchanged.
+This is a verified branch full-suite PASS, not a merge or commissioning result.
+Next path-A step is final integration acceptance against newer main and the
+prior SHADOW review evidence, then compatible development integration. Do not
+rerun the unchanged passing full suite for reassurance.
+
+PAPER scanner 514629 active, zero restarts; V10/V11 controller/execution inactive, weather execution masked,
+protected authority absent. Private FINAL-REVIEWED master hash matches its
+pin. Recent commissioning writes are watchdog status only. No new forward
+qualification or C/J/E/A: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## R09 gate 2 review findings repaired; fresh independent review pending — 2026-09-30
 
 Router handoff from SOL_HIGH: repaired all eight P2 findings F1-F8 from the

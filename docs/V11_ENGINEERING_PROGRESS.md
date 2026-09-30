@@ -1,5 +1,21 @@
 # Supplementary engineering estimate
 
+## R09 repair review completed; seven blockers remain — 2026-09-30
+
+Independent Astra/high review of `2d116af` reproduced **61 contract passes**,
+**34 existing boundary passes (103 deselected)** and **32 independent checks**.
+The repair fixes several original probes but does not close F1–F8 in full;
+seven P2 residual/regression findings require substantive repair. The report,
+matching verdict and terminal evidence are in
+`/tmp/alpha-v11-r09-gate2-review-2d116af/`, with durable findings in
+[V11_R09_GATE2_REVIEW_2d116af.md](V11_R09_GATE2_REVIEW_2d116af.md).
+Gate 2 remains CHANGES_REQUIRED and unmerged. The separate combined release
+worker completed during final persistence: terminal RELEASE_FULL_SUITE_PASS
+on clean `6ec371e`, 5,460 passed, 13 skipped, 4 warnings / 1,509.45 s; both
+affected/full log hashes independently verified. Final development integration
+acceptance remains next on that path. No forward evidence or C/J/E/A change:
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## R09 gate 2 findings F1-F8 repaired — 2026-09-30
 
 Repaired all eight P2 findings from the independent gate-2 review of `fed1cbe`

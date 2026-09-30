@@ -1,5 +1,20 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## R09 gate 2 repair review requires further changes — 2026-09-30
+
+Fresh independent review of exact `2d116af` completed with terminal
+`R09_GATE2_REVIEW_CHANGES_REQUIRED`, superseding the preceding unverified
+all-findings-repaired claim. Seven P2 blockers remain in prediction timing,
+corpus trust, target/label identity, capture evidence and station extraction,
+and content-bound coverage/fallback. See
+[V11_R09_GATE2_REVIEW_2d116af.md](V11_R09_GATE2_REVIEW_2d116af.md).
+61 supplied tests and 34 existing boundary tests pass; 32 independent checks
+establish repaired controls and remaining failures. Gate 2 is OPEN; zero real
+admissions and no merge/gate-3 authorization. The separate combined release
+now has a verified terminal full-suite PASS on `6ec371e` (5,460 passed,
+13 skipped), pending final integration acceptance; no forward qualification.
+Requirement statuses and C/J/E/A are unchanged: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## R09 gate 2 review findings repaired; gate 2 remains OPEN — 2026-09-30
 
 All eight independent-review P2 blockers on `fed1cbe` (receipt-uncertainty
