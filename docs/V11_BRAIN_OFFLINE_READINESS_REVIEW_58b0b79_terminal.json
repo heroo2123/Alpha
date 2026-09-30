@@ -1,0 +1,23 @@
+{
+  "status": "BRAIN_OFFLINE_REPAIR_REVIEW_PASS",
+  "reviewer": "Astra/high",
+  "author": "Sol/high",
+  "commit": "58b0b79971c49cc265148ffcf550cdeb31005fb9",
+  "tree": "dba54e265e04b49b7e6b1291c4e7f6ed73bc664c",
+  "scope": "Three P2 repair findings and P3 handoff correction; offline diagnostics only",
+  "affected_tests": {
+    "passed": 145,
+    "skipped": 1
+  },
+  "independent_tests": {
+    "passed": 23
+  },
+  "old_defect_manifestations_reproduced": 5,
+  "probes_sha256": "3c320cd55c847742a41f0880b1160086603311dabd1d207cd069d7d1bcaf1864",
+  "candidate_unchanged": true,
+  "merged_at_verdict": false,
+  "financial_authority": false,
+  "forward_evidence_accepted": false,
+  "gate3_merge_hold": true,
+  "publication_hold": true
+}
