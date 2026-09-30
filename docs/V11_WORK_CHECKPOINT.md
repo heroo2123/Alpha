@@ -1,5 +1,25 @@
 # Alpha V11 work checkpoint
 
+## Coordinator recovery and implementation route — 2026-09-30
+
+Recovered clean main `5ebddab` and clean isolated SHADOW branch `dd18e38`;
+no SHADOW repair, review, scheduler test or release worker is active. The
+adjudication terminal confirms CHANGES_REQUIRED, four defect reproductions
+passed, and the two P2 repairs in the entry below remain unimplemented. Route
+the substantive repair to Sonnet/high in the existing SHADOW worktree, then
+run focused/affected tests and obtain fresh independent review before merge.
+The separate scheduler branch remains `26056af`; its last full-suite retry
+failed two tests and the GEFS load-sensitive deadline is unresolved.
+
+PAPER scanner PID 514629 is active; the watchdog reports zero restarts and
+no new forward evidence beyond heartbeat updates. V10 and V11 controller
+units are inactive, protected authority paths are absent, and the immutable
+FINAL-REVIEWED private master hash still matches
+`a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+Available disk is 4.4 GiB, memory about 1.0 GiB available with 1.6 GiB free
+swap. No C/J/E/A or score change: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**. Matrix and progress statuses remain unchanged.
+
 ## SHADOW repair adjudicated — two P2 repairs required — 2026-09-30
 
 Astra/high resolved the Opus written-PASS/terminal-INCOMPLETE conflict for
