@@ -1,5 +1,25 @@
 # Alpha V11 work checkpoint
 
+## Coordinator recovery — R09 repair handoff — 2026-09-30 16:12 UTC
+
+Recovered main clean at `a282523` (24 commits ahead of origin), R09 builder
+clean at `16c0756`, and SHADOW worktree clean at `15e99bd`. No R09 repair
+worker is active. The exact-commit independent terminal is a completed
+`CHANGES_REQUIRED` review with four P2 blockers N1–N4; gate 2 stays OPEN and
+the candidate is not merged. Route the substantive repair to Sonnet/high in
+the SAME preserved R09 builder worktree, then run focused/affected tests and
+obtain fresh independent exact-commit review. See
+[the acceptance review](V11_R09_GATE2_REVIEW_16c0756.md).
+
+Only watchdog status files changed in commissioning evidence since the prior
+checkpoint; no qualifying forward SHADOW sample appeared. PAPER scanner, V10
+paper demo, V11 controller and masked execution service are inactive. The
+private FINAL-REVIEWED master still matches its SHA-256 pin; protected
+model-authority paths remain absent. Disk is 76% used with 4.7 GiB free;
+available memory is about 987 MiB. No service, V10, protected-authority,
+financial or publication action was taken. No C/J/E/A change: **91/200
+(45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Independent R09 gate-2 acceptance — CHANGES_REQUIRED — 2026-09-30 16:08 UTC
 
 Independent Astra/high review of final repair `16c0756` is complete, with a

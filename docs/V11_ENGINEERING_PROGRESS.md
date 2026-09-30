@@ -1,5 +1,13 @@
 # Supplementary engineering estimate
 
+## Coordinator recovery — 2026-09-30 16:12 UTC
+
+Confirmed exact-commit R09 terminal `CHANGES_REQUIRED`, clean idle builder
+`16c0756`, and no newer qualifying forward SHADOW evidence. N1–N4 require
+substantive repair in the preserved builder and a fresh independent review;
+gate 2 remains OPEN. No new C/J/E/A milestone: **91/200 (45.5%), formal
+1/50; NOT_READY_TO_FUND**.
+
 ## Independent R09 final-repair review — 2026-09-30 16:08 UTC
 
 Completed exact-commit Astra/high acceptance review of `16c0756`: 167 tests

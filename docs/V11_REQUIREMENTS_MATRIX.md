@@ -1,5 +1,13 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Coordinator R09 repair handoff — 2026-09-30 16:12 UTC
+
+The exact-commit `16c0756` review terminal confirms `CHANGES_REQUIRED` for
+N1–N4. The preserved builder is clean and idle; route repair there, followed
+by focused/affected tests and fresh independent review. No real trajectory
+admission or qualifying forward SHADOW sample; no C/J/E/A credit change:
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Independent R09 gate-2 review — 2026-09-30 16:08 UTC
 
 Exact repair `16c0756` received **CHANGES_REQUIRED** after 167 focused/affected
