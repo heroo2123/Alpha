@@ -1,5 +1,28 @@
 # Alpha V11 work checkpoint
 
+## Coordinator recovery — R09 affected gate passed; worker still reviewing — 2026-09-30 15:35 UTC
+
+Recovered the same live R09 gate-2 driver PID 799619 and Codex child PID
+799624 in `/tmp/alpha-v11-r09-trajectory-gate2/Alpha`. Its expanded
+synthetic contract suite passed **97/97 in 6.13 s**, and the affected R09
+contract plus multi-model panel suite passed **155, one skipped in 8.13 s**.
+The worker is still reviewing/editing its two-file diff. There is no commit,
+`terminal.json`, or independent exact-commit review, so gate 2 and real
+trajectory admission remain OPEN. Preserve this worker and inspect its final
+result before starting review or integration.
+
+Main is clean at `25efed8`, 18 local commits ahead of origin. The SHADOW
+worktree is clean at `15e99bd`. The PAPER scanner, V11 controller/execution,
+and V10 paper demo are actually inactive; the scanner's 13:53 status is stale
+after `DISK_AT_OR_ABOVE_85_PERCENT`. Root disk is 82% used with 3.4 GiB free;
+memory available was about 880 MiB. Commissioning changes are watchdog
+status only, with no qualifying forward SHADOW sample. Protected model
+authority remains absent. The private FINAL-REVIEWED master still matches
+SHA-256 `a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+No service, V10, authority, financial, or publication action was taken. No
+C/J/E/A boundary crossed: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Coordinator recovery — R09 worker active after renewed focused pass — 2026-09-30 15:27 UTC
 
 Recovered the actual R09 gate-2 repair driver PID 799619 and Codex child PID

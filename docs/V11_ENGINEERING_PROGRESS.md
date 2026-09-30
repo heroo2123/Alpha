@@ -1,5 +1,15 @@
 # Supplementary engineering estimate
 
+## Coordinator recovery — 2026-09-30 15:35 UTC
+
+The sole R09 worker passed 97/97 focused and 155 affected tests with one skip,
+then continued reviewing its uncommitted diff. Terminal, exact-commit review,
+and real admission remain pending. Main and SHADOW worktrees are clean; PAPER
+and V11 execution are inactive, commissioning writes are watchdog status only,
+and protected model authority is absent. The private master hash matches its
+pin. No qualifying forward sample or C/J/E/A milestone: **91/200 (45.5%),
+formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator recovery — 2026-09-30 15:27 UTC
 
 The single live R09 repair worker passed 90/90 focused tests after further
