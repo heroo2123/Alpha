@@ -1,5 +1,17 @@
 # Supplementary engineering estimate
 
+## Independent R09 final-repair review — 2026-09-30 16:08 UTC
+
+Completed exact-commit Astra/high acceptance review of `16c0756`: 167 tests
+passed, one skipped; 12 independent checks completed. Six incorrect corpus
+acceptances establish four P2 evidence/identity defects (N1–N4), documented in
+[V11_R09_GATE2_REVIEW_16c0756.md](V11_R09_GATE2_REVIEW_16c0756.md). Review verdict
+and terminal are CHANGES_REQUIRED. Mechanical main compatibility is clean;
+implementation remains unmerged, gate 2 OPEN, zero real admissions. Next is
+Sonnet/high repair in the preserved builder worktree, then independent review.
+PAPER/execution remain inactive, authority absent, no new forward SHADOW sample.
+No C/J/E/A milestone: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator recovery — final R09 repair verified locally — 2026-09-30 16:00 UTC
 
 The sole R09 gate-2 builder worktree is clean at `16c0756`, a newer amended

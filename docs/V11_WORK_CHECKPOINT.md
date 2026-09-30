@@ -1,5 +1,39 @@
 # Alpha V11 work checkpoint
 
+## Independent R09 gate-2 acceptance — CHANGES_REQUIRED — 2026-09-30 16:08 UTC
+
+Independent Astra/high review of final repair `16c0756` is complete, with a
+new exact-commit terminal in `/tmp/alpha-v11-r09-gate2-review-16c0756/`.
+The candidate's trajectory/affected panel suites pass **167 tests, one skipped
+in 10.54 s**. Twelve independent synthetic checks completed, including six
+incorrect acceptances grouped into **four remaining P2 blockers**: N1 unbound
+message/member/hour and grid semantics; N2 label payload not authenticated by
+its version/evidence; N3 settlement timezone not bound to metadata; N4 latest-run
+selection accepts a caller-truncated inventory. Every counterexample reaches
+both example and corpus validation using unchanged evidence bytes.
+
+Full findings, repair criteria and reproduction command:
+[V11_R09_GATE2_REVIEW_16c0756.md](V11_R09_GATE2_REVIEW_16c0756.md).
+**Gate 2 remains OPEN. Do not merge or admit real examples.** The review terminal
+records completed CHANGES_REQUIRED, not an incomplete reviewer or a PASS.
+Mechanical merge compatibility with main `e1b67da` is clean and would add only
+the two candidate files; no merge/release acceptance is claimed. Next: Sonnet/high
+repair N1–N4 in the SAME preserved builder worktree
+`/tmp/alpha-v11-r09-trajectory-gate2/Alpha`, focused/affected tests, commit, then
+fresh independent exact-commit review. No duplicate worker was started.
+
+Main was clean at `e1b67da` (23 commits ahead of origin), builder clean at
+`16c0756`, SHADOW clean at `15e99bd`. No active competing repair/test worker.
+PAPER scanner, V10 paper demo and V11/weather controller/execution units are
+inactive; weather execution is masked. Protected authority paths are absent.
+Since 16:00 only commissioning watchdog files changed; no qualifying forward
+sample. Private master SHA-256 still matches `a0e16d9b...563b4a`. Disk is 76%
+used with 4.7 GiB free; available memory about 997 MiB. Prior accepted combined
+release evidence is unchanged. No service, V10, protected-authority, financial
+or publication action. The earlier GitHub destination approval rejection remains
+unresolved; no push retry. No C/J/E/A change: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Coordinator recovery — final R09 repair commit needs independent review — 2026-09-30 16:00 UTC
 
 The R09 gate-2 worktree is clean at final commit `16c0756` (tree

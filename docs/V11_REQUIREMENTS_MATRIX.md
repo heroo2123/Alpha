@@ -1,5 +1,15 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Independent R09 gate-2 review — 2026-09-30 16:08 UTC
+
+Exact repair `16c0756` received **CHANGES_REQUIRED** after 167 focused/affected
+passes (one skip) and independent corpus counterexamples. Four P2 blockers remain:
+message/extraction semantics, immutable label payload, settlement timezone and
+complete run inventory. See [acceptance review](V11_R09_GATE2_REVIEW_16c0756.md).
+Gate 2 and real admission remain OPEN; repair N1–N4 before another exact-commit
+review. No qualifying forward SHADOW sample or requirement credit changed:
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator recovery — final R09 gate-2 commit — 2026-09-30 16:00 UTC
 
 The final clean R09 repair worktree is `16c0756` (tree `2c8e7041`), amended
