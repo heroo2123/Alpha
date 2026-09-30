@@ -521,6 +521,9 @@ class DurableBudget:
             raise LaunchContractError('JOURNAL_CONCURRENT_WRITER') from exc
         self.fd = os.open('gate3.jsonl', os.O_CREAT | os.O_RDWR | os.O_APPEND | os.O_NOFOLLOW,
                           0o600, dir_fd=self.dir_fd)
+        # The first reservation is unsafe if a crash can lose the journal's
+        # directory entry while preserving the request's network side effect.
+        os.fsync(self.dir_fd)
         self.manifest = manifest_sha256
         self.max_requests = max_requests
         self.max_bytes = max_bytes
