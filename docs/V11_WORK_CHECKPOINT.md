@@ -1,5 +1,43 @@
 # Alpha V11 work checkpoint
 
+## GEFS load-sensitive test repair under combined release gate; R09 gate 2 changes required — 2026-09-30
+
+On isolated combined release branch `v11-release-integration-20260930`, the
+source-view query took 23–79 ms in focused measurements (channel SQL 4–6 ms),
+far below its unchanged two-second wall-time cap. The earlier broad-test
+failure is consistent with host descheduling, not a demonstrated slow query.
+Commit `6ec371e` scopes a two-second **process-CPU** clock to synthetic
+`prepare()` in `test_v11_remaining_forecast.py`; production source-view code,
+wall-time limit, and explicit deadline tests are unchanged. The GEFS,
+remaining-forecast and source-view families passed **64/64 in 159.42 s**.
+The branch is clean. One bounded release test driver is active at PID **779342**
+in `/tmp/alpha-v11-release-integration-20260930`, testing the same 12 affected
+files, then the combined full suite if they pass. Recover actual process and
+`/tmp/alpha-v11-release-gate-6ec371e.{started,affected,full,terminal}.json`
+and matching logs before any merge. No combined release PASS is claimed yet.
+
+The independent Astra/high R09 gate-2 reviewer finished on exact clean
+`fed1cbe` with **CHANGES_REQUIRED**: eight P2 contract/correctness findings
+cover clock dependency, fit/selection timing, mutable corpus summaries, run
+coverage, city-day/label identity, and further capture/evidence gates. The
+review and matching verdict are in
+`/tmp/alpha-v11-r09-gate2-review-fed1cbe/`. Its original driver exited without
+`terminal.json`; `recovered-terminal.json` records the matching commit/tree,
+clean worktree, final answer/log marker and report hash transparently. Gate 2
+is not accepted; repair in its preserved isolated builder branch and obtain
+fresh independent exact-commit review before gate 3. No R09 real adapter or
+admission is authorized. Because the release gate and unrelated host tests
+are active with about 727 MiB available memory, no duplicate R09 worker was
+launched in this invocation.
+
+PAPER scanner PID 514629 is active; V10, V11 controller and V11 execution
+units are inactive. Only commissioning watchdog status files changed recently;
+no qualified forward SHADOW sample was found. Protected authority paths are
+absent, and the private FINAL-REVIEWED master still matches SHA-256
+`a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+No C/J/E/A boundary changed: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## R09 gate 2 builder complete; exact-commit review active — 2026-09-30
 
 The isolated Sonnet/high offline trajectory-contract builder finished at

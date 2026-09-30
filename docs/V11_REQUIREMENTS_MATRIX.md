@@ -1,5 +1,18 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Combined release retry and R09 gate 2 review — 2026-09-30
+
+The clean isolated combined branch `6ec371e` contains a test-only CPU-clock
+scope for synthetic GEFS preparation under host descheduling; production's
+two-second wall-time source-view gate is unchanged. Focused GEFS/source-view
+families passed 64/64, and one persistent exact-commit driver is running the
+12-file affected set followed by the combined full suite. Release and forward
+SHADOW evidence remain OPEN until terminal results and compatibility review.
+Independent exact-commit R09 gate-2 review found eight blocking P2 defects;
+its original terminal is absent but report, matching verdict, clean worktree
+and final marker were recovered. Gate 2 remains OPEN. No C/J/E/A credit
+changed: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## R09 gate 2 implementation review pending — 2026-09-30
 
 The separate offline trajectory/capture validator is committed at `fed1cbe`

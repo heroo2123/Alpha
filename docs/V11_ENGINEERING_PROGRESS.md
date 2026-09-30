@@ -1,5 +1,19 @@
 # Supplementary engineering estimate
 
+## GEFS release gate active; R09 gate 2 requires repair — 2026-09-30
+
+Measured synthetic GEFS source views at 23–79 ms under focused conditions.
+A test-only process-CPU clock in `prepare()` stabilizes source/race tests when
+the host deschedules pytest; production's two-second wall-time gate and its
+deadline tests are unchanged. All 64 GEFS/remaining/source-view tests passed.
+The isolated combined branch is clean at `6ec371e`; a bounded driver is
+running the 12-file affected gate and will run the full suite on pass. No
+combined release PASS is claimed. Independent R09 gate-2 review on `fed1cbe`
+found eight P2 blockers; its matching written verdict was recovered after
+the original driver missed its terminal marker. Offline gate 2 awaits repair
+and fresh independent review. **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND** remains unchanged.
+
 ## R09 offline validator ready for independent review — 2026-09-30
 
 The isolated gate 2 builder committed a separate offline trajectory/capture
