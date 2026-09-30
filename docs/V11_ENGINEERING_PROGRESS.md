@@ -1,5 +1,15 @@
 # Supplementary engineering estimate
 
+## Gate 3 I1/I2 offline repair under independent review — 2026-09-30 23:37 UTC
+
+Exact held author commit `e563e45` repairs inherited `DurableBudget` ownership
+and nonregular manifest artifact opens. The affected Gate 3 suite and both
+predecessor rejection probes pass: **301 passed**. A separate Astra/high reviewer
+is running against the exact tree; its result is pending, so local integration
+and all operational gates remain held. See the [checkpoint](V11_WORK_CHECKPOINT.md)
+and [review start](/tmp/alpha-v11-gate3-i1-i2-review-e563e45-worker/started.json).
+No new C/J/E/A: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Gate 3 integration review completed with two P2 findings — 2026-09-30 23:29 UTC
 
 Independent Astra/high full-branch review of held `0b7209d` against clean main `5f13cdc` ended **CHANGES_REQUIRED**. The prospective tree `bb415eb7` preserved newer main and passed 726 tests (37 skips), plus 15 repeated preservation/import probes after a documentation-only refresh. Twice-reproduced failures show fork-inherited `DurableBudget` can exceed a one-byte cap and corrupt replay, and a manifest artifact FIFO can block public validation indefinitely. See the [report](/tmp/AlphaV11_Gate3IntegrationReview_0b7209d_worker/review.md), [result](/tmp/AlphaV11_Gate3IntegrationReview_0b7209d_worker/result.json) and [terminal](/tmp/AlphaV11_Gate3IntegrationReview_0b7209d_worker/terminal.json). Next engineering step is bounded offline repair in the preserved author worktree, then independent review; all integration, publication and operational holds remain. No new forward SHADOW evidence or C/J/E/A crossing: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.

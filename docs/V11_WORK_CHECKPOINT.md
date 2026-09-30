@@ -1,5 +1,28 @@
 # Alpha V11 work checkpoint
 
+## Gate 3 I1/I2 repair committed; independent review running — 2026-09-30 23:37 UTC
+
+Repaired both confirmed P2 defects in the preserved author worktree at exact commit
+`e563e45a50f7b6df8b85c60df80aa879040edab8` (tree `19faace8`), clean and
+unmerged. `DurableBudget` now rejects inherited-process reserve/read/consume/
+complete before state or journal use; child close only closes inherited descriptors.
+Launch artifact validation pins a regular inode without device I/O before
+nonblocking data open, and rechecks path identity, size, owner/mode/link and
+digest, including TZif. New bounded tests cover composed fork/parent lock and
+restart plus FIFO, directory, symlink and regular controls. Author affected
+suite plus the predecessor's two rejection probes: **301 passed**, 2 expected
+multithreaded-fork warnings; `git diff --check` passed.
+
+Exactly one fresh Astra/high independent exact-commit reviewer started at
+23:37:35 UTC in `/tmp/alpha-v11-gate3-i1-i2-review-e563e45` (driver PID
+941477, worker PID 941478). Its [started record](/tmp/alpha-v11-gate3-i1-i2-review-e563e45-worker/started.json),
+[review log](/tmp/alpha-v11-gate3-i1-i2-review-e563e45-worker/worker.log) and
+eventual [terminal](/tmp/alpha-v11-gate3-i1-i2-review-e563e45-worker/terminal.json)
+are the evidence. Inspect actual terminal/report and reconcile newer main before
+any integration decision. Main is clean at `3ea398a` (6 ahead of tracking ref).
+No merge, publication, capture, G3-L, SHADOW/learner or authority action.
+No C/J/E/A crossing: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Gate 3 integration review requires two repairs — 2026-09-30 23:29 UTC
 
 Recovered the completed independent Astra/high [full-branch report](/tmp/AlphaV11_Gate3IntegrationReview_0b7209d_worker/review.md), [result](/tmp/AlphaV11_Gate3IntegrationReview_0b7209d_worker/result.json) and [terminal](/tmp/AlphaV11_Gate3IntegrationReview_0b7209d_worker/terminal.json): **CHANGES_REQUIRED**, not an integration pass. Reviewer and driver have exited. Exact held author candidate `0b7209d` is clean; main is clean at `5f13cdc` (5 ahead of tracking ref). The prospective tree `bb415eb7` preserved all newer main files and added exactly nine candidate paths. Its affected, retained and adjacent suites recorded 726 passes and 37 skips; 15 preservation/import probes passed again after a ledger-only main refresh. Two new acceptance regressions each failed twice and are genuine P2 blockers:

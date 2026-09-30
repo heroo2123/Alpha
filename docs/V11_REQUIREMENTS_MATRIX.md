@@ -1,5 +1,16 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Gate 3 I1/I2 repair candidate held for review — 2026-09-30 23:37 UTC
+
+Held `e563e45` adds process ownership to the durable budget and bounded
+regular-inode launch artifact resolution. Author tests plus the two independent
+rejection probes now pass (301 total); fresh Astra/high exact-commit review is
+running, with [terminal pending](/tmp/alpha-v11-gate3-i1-i2-review-e563e45-worker/terminal.json).
+No row changes status or earns C/J/E/A credit until independent review and
+combined-main reconciliation. All integration, publication, capture, G3-L,
+learner, forward SHADOW and authority holds remain. **91/200 (45.5%), formal
+1/50; NOT_READY_TO_FUND.**
+
 ## Gate 3 full-branch review rejected — 2026-09-30 23:29 UTC
 
 The completed independent `0b7209d`/current-main integration review is **CHANGES_REQUIRED**: inherited `DurableBudget` permits duplicate forked byte accounting and corrupts journal replay (I1); public strict manifest validation blocks on a digest-named FIFO before type rejection (I2). Both P2 acceptance probes failed twice. The prospective tree preserved newer main and 726 tests passed with 37 skips, but those passes do not close the defects. Repair in the held offline author worktree, obtain fresh different-model exact-commit review, then decide combined-main integration. No capture, G3-L, historical runtime-use, learner, forward SHADOW, publication or authority credit. **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND.** [Exact report](/tmp/AlphaV11_Gate3IntegrationReview_0b7209d_worker/review.md) and [terminal](/tmp/AlphaV11_Gate3IntegrationReview_0b7209d_worker/terminal.json).
