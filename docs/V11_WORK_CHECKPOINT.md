@@ -1,5 +1,49 @@
 # Alpha V11 work checkpoint
 
+## R09 gate 2 review findings repaired; fresh independent review pending — 2026-09-30
+
+Router handoff from SOL_HIGH: repaired all eight P2 findings F1-F8 from the
+independent gate-2 review (`/tmp/alpha-v11-r09-gate2-review-fed1cbe/review.md`,
+reviewed commit `fed1cbe`) in the preserved builder worktree
+`/tmp/alpha-v11-r09-trajectory-gate2/Alpha` (branch
+`r09-trajectory-contract-gate2-20260930`). Committed as `2d116af`: F1 now
+gates every point's `response_completed_at` conservative bound (not only
+`feature_ready_at`'s) against `decision_at`; F2 requires DEVELOPMENT/
+CONFIRMATION predictions to freeze after the prior split's cutoff and
+requires decision/freeze to precede local-day start (V1 is
+FUTURE_FORECAST-only); F3 makes `validate_corpus` accept only the immutable
+`ValidatedExample` records `validate_example` itself produces, bound to the
+exact `split_cutoffs`/coverage-policy identity used to build them, with
+cross-split embargo now checked over every split pair rather than only
+adjacent ones; F4 binds `run_date`/`cycle` to `run_initialized_at` and
+requires one `source_release` per example; F5 adds station-version
+consistency across an example's points and binds `city_day` to
+`local_day.target_date`, with duplicate detection keyed on
+`(station_version, target_date)` rather than the free-text label; F6 routes
+label admission through `validate_label_lineage` with a required FINAL
+status, bounds `winner_bucket` to a declared `bucket_count`, and adds a
+`LabelVersionRegistry` refusing label-version content reuse across separate
+calls; F7 actually invokes `CaptureRegistry` per point with byte+index+value
+content binding (catching semantic rewrites under an unchanged byte digest)
+and pins `LocalDay` to the on-disk tzdata file hash it was computed from; F8
+wraps `ExpectedCoverage` in a `CoveragePolicy` naming the full required
+provider set (absent providers are reported, not dropped) with
+`validate_corpus` requiring one frozen policy identity per corpus.
+
+Targeted: `tests/test_v11_trajectory_contract.py` 61 passed (38 original +
+23 new `test_gate2_review_*` repair tests exercising each finding's
+counterexample), 2.62s. Existing R09 geometry/causal-boundary selection over
+`tests/test_v11_ecmwf_extrema.py`/`tests/test_v11_multimodel_panel.py`
+unchanged: 34 passed, 103 deselected. `tools/v11_multimodel_panel.py`
+unchanged from newer main (no source conflict); nothing else in the tree
+imports the trajectory module. No real-admission flag anywhere flips to
+True; `evidence_class='REAL'` still rejected. Repair only — this is not the
+required fresh independent exact-commit review; gate 2 remains OPEN pending
+that review. Main repo untouched this batch (still clean at `c0ff095`); the
+combined release driver PID 781650 remains active on `6ec371e` and was left
+running, not touched. No C/J/E/A boundary crossed: **91/200 (45.5%), formal
+1/50; NOT_READY_TO_FUND**.
+
 ## Combined release affected gate PASS; full suite active — 2026-09-30
 
 Recovered the replacement exact-commit driver on clean isolated `6ec371e`

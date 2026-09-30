@@ -1,5 +1,16 @@
 # Supplementary engineering estimate
 
+## R09 gate 2 findings F1-F8 repaired — 2026-09-30
+
+Repaired all eight P2 findings from the independent gate-2 review of `fed1cbe`
+in the preserved builder worktree, committed as `2d116af` on
+`r09-trajectory-contract-gate2-20260930`. `tests/test_v11_trajectory_contract.py`:
+61 passed (38 original + 23 new counterexample-reproduction tests, one per
+finding). Existing R09 selection unaffected: 34 passed, 103 deselected. This
+is the repair only, not the required fresh independent exact-commit review;
+gate 2 stays OPEN. No C/J/E/A boundary changed: **91/200 (45.5%), formal
+1/50; NOT_READY_TO_FUND**.
+
 ## Combined affected regression passes — 2026-09-30
 
 The exact `6ec371e` combined-release affected run passed 396 tests in 417.19 s

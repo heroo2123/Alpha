@@ -1,5 +1,19 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## R09 gate 2 review findings repaired; gate 2 remains OPEN — 2026-09-30
+
+All eight independent-review P2 blockers on `fed1cbe` (receipt-uncertainty
+aggregation, split fit/selection/prediction ordering and FUTURE_FORECAST day
+boundary, corpus trust boundary and cross-split embargo coverage, run/release
+identity binding, station/day identity binding, label lineage/finality/target-
+partition admission, capture-registry content binding and tzdata pinning,
+coverage-policy provider-set binding) are repaired in the preserved builder
+worktree, committed `2d116af`. `tests/test_v11_trajectory_contract.py`: 61
+passed. R09 gate 2 requirement status is unchanged pending the required fresh
+independent exact-commit review of `2d116af`: still no real-data admission,
+still OPEN. No requirement status or C/J/E/A credit changed: **91/200
+(45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Combined release affected gate passed; full gate open — 2026-09-30
 
 The clean isolated `6ec371e` combined branch passed its 12-file affected gate:
