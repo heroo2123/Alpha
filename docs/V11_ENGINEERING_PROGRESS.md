@@ -1,5 +1,14 @@
 # Supplementary engineering estimate
 
+## R09 offline validator ready for independent review — 2026-09-30
+
+The isolated gate 2 builder committed a separate offline trajectory/capture
+validator at `fed1cbe`, with 38 new adversarial tests passing and 173 combined
+R09 passes (2 skips). One Astra/high exact-commit review is running. No real
+adapter, causal corpus, fit or forward evidence exists. The combined GEFS/SHADOW
+release gate is separately load-sensitive and unresolved. **91/200 (45.5%),
+formal 1/50; NOT_READY_TO_FUND** remains unchanged.
+
 ## Combined release gate remains open — 2026-09-30
 
 The scheduler-only terminal full suite passed, but combined scheduler/SHADOW

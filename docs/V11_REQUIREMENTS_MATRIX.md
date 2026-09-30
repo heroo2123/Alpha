@@ -1,5 +1,14 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## R09 gate 2 implementation review pending — 2026-09-30
+
+The separate offline trajectory/capture validator is committed at `fed1cbe`
+with 38 new adversarial passes and 173 combined R09 passes (2 skips). Its
+terminal says READY_FOR_REVIEW, and one independent Astra/high exact-commit
+review is active. No existing real-admission gate changed; no real or
+historical examples are admitted. R09 E/A and all score boundaries stay OPEN:
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Combined GEFS/SHADOW release gate — 2026-09-30
 
 The isolated combined branch `42b1346` contains the scheduler fixes and

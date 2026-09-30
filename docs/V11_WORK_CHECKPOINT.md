@@ -1,5 +1,31 @@
 # Alpha V11 work checkpoint
 
+## R09 gate 2 builder complete; exact-commit review active — 2026-09-30
+
+The isolated Sonnet/high offline trajectory-contract builder finished at
+`fed1cbe7d6c6343a6b76bd1a5966ee6857a02346` (tree `7ab53b8`), with
+terminal `R09_GATE2_READY_FOR_REVIEW` (exit 0), matching clean worktree,
+report and verdict. Its two new files are `tools/v11_trajectory_contract.py`
+and `tests/test_v11_trajectory_contract.py`; no existing admission module or
+ledger changed. Builder verification: **38 new tests passed**, existing R09
+files **135 passed, 2 skipped**, and combined **173 passed, 2 skipped**.
+The worker explicitly flags its new clock-origin taxonomy and plain-dict
+cross-split embargo helper for scrutiny. Its report is
+`/tmp/alpha-v11-r09-trajectory-gate2/report.md`. This is not independent
+acceptance, real adapter, fit or data admission.
+
+Exactly one independent Astra/high review is now active on the exact commit
+in `/tmp/alpha-v11-r09-gate2-review-fed1cbe/Alpha`: driver PID **774347**,
+reviewer PID **774354**, started 12:55 UTC, bounded to 1,800 seconds.
+Recover actual process and `started.json`, `worker.log`, `review.md`,
+`verdict.json`, and **`terminal.json`** in that parent directory before acting.
+Do not infer PASS from report text alone or duplicate the reviewer. If it
+passes, verify compatibility with newer main before any integration; if it
+finds defects, repair in the original isolated builder branch and re-review.
+The separate combined GEFS/SHADOW release gate remains open on clean isolated
+`42b1346` after the load-sensitive 395-pass/1-fail affected run below.
+No C/J/E/A change: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Combined release integration exposes load-sensitive GEFS gate — 2026-09-30
 
 On clean main `89b5f76`, staged all three scheduler test-fix commits
