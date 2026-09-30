@@ -1,0 +1,97 @@
+{
+  "ceiling_findings": [
+    "GEFS: 33759 of 33759 observed field messages exceed the pinned 65536-byte ceiling"
+  ],
+  "evidence_class": "HISTORICAL_PUBLIC_RETRIEVAL_SIZE_ONLY",
+  "feasibility_input_usable": false,
+  "financial_authority": false,
+  "launch_authority": false,
+  "network_access": false,
+  "promotion_authority": false,
+  "provider_message_size_estimate_bytes": {
+    "AIFS": 635346,
+    "GEFS": 245209,
+    "IFS": 672912
+  },
+  "providers": {
+    "AIFS": {
+      "acquisition_path": "ecmwf-forecasts S3 0p25 aifs-ens .index sidecar + single 2t byte range",
+      "done_messages": 27744,
+      "field_bytes": {
+        "ceiling_bytes": 4194304,
+        "count": 27744,
+        "exceeding_ceiling": 0,
+        "max": 635346,
+        "min": 607080,
+        "p50": 624096,
+        "p95": 630864,
+        "p99": 632804
+      },
+      "index_bytes": {
+        "ceiling_bytes": 3145728,
+        "count": 27744,
+        "exceeding_ceiling": 0,
+        "max": 1428302,
+        "min": 25692,
+        "p50": 1386210,
+        "p95": 1428138,
+        "p99": 1428282
+      }
+    },
+    "GEFS": {
+      "acquisition_path": "noaa-gefs-pds S3 pgrb2ap5 (0p50) .idx sidecar + single TMP:2 m byte range",
+      "done_messages": 33759,
+      "field_bytes": {
+        "ceiling_bytes": 65536,
+        "count": 33759,
+        "exceeding_ceiling": 33759,
+        "max": 245209,
+        "min": 117737,
+        "p50": 143761,
+        "p95": 241187,
+        "p99": 242999
+      },
+      "index_bytes": {
+        "ceiling_bytes": 3145728,
+        "count": 0,
+        "exceeding_ceiling": 0,
+        "note": "store records .idx sha256 only, not its length"
+      }
+    },
+    "IFS": {
+      "acquisition_path": "ecmwf-forecasts S3 0p25 oper/enfo .index sidecar + single 2t byte range",
+      "done_messages": 27744,
+      "field_bytes": {
+        "ceiling_bytes": 4194304,
+        "count": 27744,
+        "exceeding_ceiling": 0,
+        "max": 672912,
+        "min": 644977,
+        "p50": 659301,
+        "p95": 665998,
+        "p99": 668489
+      },
+      "index_bytes": {
+        "ceiling_bytes": 3145728,
+        "count": 27744,
+        "exceeding_ceiling": 0,
+        "max": 2004503,
+        "min": 40013,
+        "p50": 2004375,
+        "p95": 2004468,
+        "p99": 2004493
+      }
+    }
+  },
+  "sources": {
+    "ecmwf_sqlite": {
+      "path": "/home/alphaadmin/AlphaV11_BrainWork/historical_ecmwf_backfill.sqlite",
+      "sha256": "dc007dc2c4482f7170b9b0ab2a1805738d2d04f91bd733507bf142b3f3426725"
+    },
+    "gefs_sqlite": {
+      "path": "/home/alphaadmin/AlphaV11_BrainWork/historical_gefs_backfill.sqlite",
+      "sha256": "af2802f4cf204f76fa62c8ba231599ac0596a0e07cbaaf209b7b31a95c00e36e"
+    }
+  },
+  "version": "alpha_v11_r09_gate3_observed_message_sizes_v1"
+}

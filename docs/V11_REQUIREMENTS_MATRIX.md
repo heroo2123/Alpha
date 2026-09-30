@@ -2049,3 +2049,12 @@ set, 48/48 merged-tree). Merged into
 offline-collector implementation gap only; G3-L manifest review, real
 per-provider message-size evidence, and all real capture/fit/forward gates
 remain OPEN. **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
+## R09 Gate 3 observed message sizes and GEFS ceiling finding — 2026-09-30 19:05 UTC
+
+`config/v11/r09_gate3_observed_message_sizes_20260930.json` supplies the real
+observed per-provider sizes `estimate_feasibility` requires; it also records
+that the merged GEFS 64 KiB field ceiling is wrong for the byte-range path
+(all 33,759 observed GEFS messages exceed it). G3-L stays OPEN pending the
+ceiling correction and its review; see [checkpoint](V11_WORK_CHECKPOINT.md).
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.

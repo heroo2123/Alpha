@@ -1,5 +1,56 @@
 # Alpha V11 work checkpoint
 
+## Real observed per-provider message sizes; pinned GEFS 64 KiB ceiling contradicted — 2026-09-30 19:05 UTC
+
+Gathered the "real observed per-provider message sizes" the G3-I review named
+as the next prerequisite, offline and read-only, from the already-retrieved
+historical backfill stores (no network, no store writes): new
+`tools/v11_r09_gate3_message_sizes.py` (+ 3 synthetic-store tests in
+`tests/test_v11_r09_gate3_message_sizes.py`, 3/3 passed) reads
+`historical_ecmwf_backfill.sqlite` (`messages.byte_length`/`index_byte_length`)
+and `historical_gefs_backfill.sqlite` (`messages.bytes`) for `DONE` rows only,
+hashes both source stores, and emits
+`config/v11/r09_gate3_observed_message_sizes_20260930.json` (SHA-256
+`c68ee3305fdc259027c961906761ba85ae142e588be9aa246dc5992b532b43fd`). The
+estimate handed to `estimate_feasibility` is the observed **maximum** per
+provider, never a mean.
+
+Observed single-field byte-range sizes (DONE messages): IFS 27,744 msgs,
+644,977–672,912 B (p50 659,301), index ≤ 2,004,503 B; AIFS 27,744 msgs,
+607,080–635,346 B (p50 624,096), index ≤ 1,428,302 B; GEFS 33,759 msgs,
+117,737–245,209 B (p50 143,761; index length not recorded in that store).
+IFS/AIFS are inside the 4 MiB field / 3 MiB index ceilings with wide margin.
+
+**Finding (blocks G3-L as merged):** `ae53102` pinned
+`_EXISTING_GEFS_MAX_FIELD_BYTES = 64 KiB` from
+`polymarket_scanner/v11/grib_fields.py::MAX_BYTES`. That bound (and that
+decoder's `MAX_POINTS = 25`) belongs to the production NOMADS
+`filter_gefs_atmos_0p50a.pl` 0.5-degree **subregion** product, not to the
+S3 `noaa-gefs-pds` `.idx`-sidecar + `Range` single-`TMP:2 m` full-field path
+that the historical worker actually used and that the G3-I collector's own
+`check_index_availability` docstring says Gate 3 intends ("as opposed to the
+different, already-reviewed production GEFS CGI filter endpoint"). Against
+that path 33,759 of 33,759 observed GEFS messages exceed 64 KiB, so
+`BudgetTracker.begin_request(provider='GEFS', field_bytes=...)` would reject
+100% of real GEFS captures with `NOT_ATTEMPTED_BUDGET`. The Sonnet review of
+`ae53102` and this pass's second-identity verification both confirmed the
+constant matched its cited source; neither checked that the cited source
+applies to Gate 3's acquisition path. The merged code is fail-closed (it can
+only refuse), so nothing unsafe is live, but G3-L cannot proceed on it. The
+evidence JSON records this as `ceiling_findings` with
+`feasibility_input_usable: false`.
+
+Not fixed here: choosing the correct GEFS full-field ceiling (observed max
+245,209 B; must stay ≤ the 4 MiB `MAX_RAW_BYTES`) and the matching decoder
+path for full 0.5-degree fields is a bound/design decision on just-reviewed
+code and needs its own cross-model review; routed to a Sonnet/high worker.
+Publication hold remains in force; no push attempted. No C/J/E/A boundary
+crossed: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**. Next: worker
+fixes the GEFS provider ceiling in `tools/v11_r09_gate3_collector.py` against
+this evidence (per-path, not per-product-family), adds a regression test that
+feeds the observed maxima through `begin_request` and `estimate_feasibility`,
+then independent review before any G3-L manifest.
+
 ## Second-identity verification of G3-I merge; docs record committed — 2026-09-30 18:55 UTC
 
 The prior Sonnet coordinator pass stopped at a self-approval check when

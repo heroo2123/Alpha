@@ -4473,3 +4473,15 @@ merged tree. See checkpoint entry of the same title for full detail. Only the
 offline G3-I collector module and its tests changed; G3-L manifest, real
 message-size evidence, capture and forward gates remain OPEN. No C/J/E/A
 change: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
+## Observed message-size evidence contradicts merged GEFS ceiling — 2026-09-30 19:05 UTC
+
+New read-only `tools/v11_r09_gate3_message_sizes.py` derived real per-provider
+byte-range message sizes from the completed historical backfill stores into
+`config/v11/r09_gate3_observed_message_sizes_20260930.json`. IFS/AIFS
+(max 672,912 / 635,346 B) fit their ceilings; GEFS (min 117,737 B, max
+245,209 B over 33,759 messages) exceeds the 64 KiB ceiling `ae53102` pinned
+from the CGI-subregion decoder in every case, so the merged G3-I collector
+would refuse all real GEFS captures. Fail-closed, so no unsafe surface; fix
+routed for Sonnet/high implementation plus independent review. No C/J/E/A
+change: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
