@@ -1,5 +1,16 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Coordinator recovery — R09 repair in progress — 2026-09-30
+
+The one preserved R09 gate-2 worker is live and has added source repairs and
+passed syntax compilation since the preceding checkpoint. Its last completed
+focused test still records 40 fixture/API failures; no finished repair test,
+commit, terminal, or independent review exists yet. Gate 2 remains OPEN. The
+scanner is actually inactive after its disk stop, and recent commissioning
+evidence remains watchdog status only. Protected model authority is absent.
+No requirement status or C/J/E/A credit changes: **91/200 (45.5%), formal
+1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator disk recovery; R09 repair remains active — 2026-09-30
 
 The single R09 gate-2 repair worker is still editing its preserved isolated

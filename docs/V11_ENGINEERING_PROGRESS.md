@@ -2,6 +2,16 @@
 
 ## Coordinator recovery — 2026-09-30
 
+Recovered the live, single R09 gate-2 repair worker in its original isolated
+worktree. Its source diff has progressed and compiles, but test completion,
+terminal, commit and independent review remain pending. Main development
+integration is clean; scanner and V11 controller/execution are inactive, and
+recent evidence adds no qualified forward SHADOW sample. Protected model
+authority remains absent. **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
+## Coordinator recovery — 2026-09-30
+
 The one resumed R09 gate-2 worker remains live and editing its original
 worktree; its focused run reproduced 40 fixture/API failures and it has not
 produced a terminal or review. Removed only a verified inactive, completed

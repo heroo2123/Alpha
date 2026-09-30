@@ -1,5 +1,28 @@
 # Alpha V11 work checkpoint
 
+## Coordinator recovery — R09 repair progressing; commissioning still stopped — 2026-09-30
+
+Recovered actual state at about 14:51 UTC. The single R09 gate-2 repair driver
+PID 799619 and Codex child PID 799624 are live in the preserved
+`/tmp/alpha-v11-r09-trajectory-gate2/Alpha` worktree. Since the previous
+checkpoint, the source diff grew to 680 insertions/71 deletions in
+`tools/v11_trajectory_contract.py`, and syntax compilation passed. The earlier
+focused run reproduced 40 fixture/API failures; there is still no completed
+repair test, commit, `terminal.json`, or independent review. Leave the worker
+alone, then inspect its exact result and obtain independent exact-commit review
+before any integration or real admission. No duplicate worker was launched.
+
+Main is clean at `0a22261`, ten local commits ahead of origin. The scanner,
+controller, paper demo and masked execution unit are actually inactive; the
+scanner's 13:53 `STATUS.json` is stale and its recorded stop reason remains
+`DISK_AT_OR_ABOVE_85_PERCENT`. Disk use is now 82% with 3.4 GiB free, and
+memory available is about 887 MiB. Recent commissioning writes are watchdog
+status only, not qualified forward SHADOW samples. Protected model-authority
+paths are absent. The private FINAL-REVIEWED master still hashes to
+`a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+No service, V10, protected authority, or financial action was taken. No C/J/E/A
+boundary crossed: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator recovery — disk headroom restored; R09 worker still active — 2026-09-30
 
 Recovered actual process state after the preceding checkpoint: the single R09
