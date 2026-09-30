@@ -8,6 +8,8 @@ IFS/AIFS evidence is not attainable from the inspected products. Historical
 source/label causality and raw-evidence gaps remain blocking under either
 interpretation. Independent contract review, separate schema/validator, prospective
 causal capture, real-adapter review and forward evaluation are explicit gates.
+One bounded independent Sonnet/high contract review is active on `e80d5dd` at
+`/tmp/alpha-v11-r09-contract-review-e80d5dd/`; terminal result is pending.
 Existing admission APIs remain unchanged; R09 retains existing C,J only.
 Verification: seven original file pins match; 34 focused boundary tests pass.
 No score or requirement boundary changed: **91/200 (45.5%), formal 1/50;

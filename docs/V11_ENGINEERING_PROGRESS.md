@@ -8,8 +8,9 @@ distinct native-trajectory predictor through independent contract review and
 causal capture, preserving existing exact-day and real-admission gates. No real
 fit or new evidence is claimed: missing historical receipt and label/rule
 provenance cannot be repaired by relabelling samples. Seven input pins match;
-34 existing boundary tests pass. The separate GEFS full-suite diagnostic remains
-live and SHADOW integration unmerged. **91/200 (45.5%), formal 1/50;
+34 existing boundary tests pass. One bounded independent Sonnet/high review of
+contract commit `e80d5dd` is active (driver 766802), with no terminal verdict yet.
+The separate GEFS full-suite diagnostic remains live and SHADOW integration unmerged. **91/200 (45.5%), formal 1/50;
 NOT_READY_TO_FUND** remains unchanged.
 
 ## Coordinator R09 decision route — 2026-09-30

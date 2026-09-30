@@ -9,8 +9,18 @@ predictor, retaining the official HIGH/LOW settlement targets. The new
 [adjudication](V11_R09_DATA_CONTRACT_ADJUDICATION.md) specifies distinct source,
 receipt, feature, label, fit/selection/scoring clocks; immutable capture; missing
 member/provider handling; independent review; and genuine forward-evidence gates.
-It does not admit the historical stores or implement a real adapter. Independent
-contract review is the immediate next step, then offline schema/validator work.
+It does not admit the historical stores or implement a real adapter. Exactly one
+persistent Sonnet/high independent contract reviewer is now running on decision
+commit **`e80d5dd`** (tree `8935092b05897206db3eef6d75ca209959ea672d`) in
+`/tmp/alpha-v11-r09-contract-review-e80d5dd/Alpha`. Driver **766802**, reviewer
+**766805**, started **12:26:56 UTC**, bounded to 900 seconds. Recover that parent
+directory's `started.json`, `worker.log`, `review.md`, `verdict.json` and
+**`terminal.json`** before acting. No review result exists yet. The terminal marker
+is `R09_CONTRACT_REVIEW_{PASS,CHANGES_REQUIRED,INCOMPLETE}`; completion binds the
+exact commit/tree, clean worktree, process exit, report and matching verdict.
+Do not duplicate the reviewer or infer PASS from report text alone. Next after a
+verified review: repair findings if any, otherwise route offline schema/validator
+implementation (gate 2) to Sonnet/high and independently review its exact commit.
 
 All seven original input-file pins and the FINAL-REVIEWED master hash match.
 Existing geometry/causality counterexamples: **34 passed, 103 deselected / 0.53 s**.
