@@ -10423,3 +10423,37 @@ unfinished action: re-check the `brain-ecmwf-backfill-20260929` branch for a
 produced research-result artifact on the next invocation; until either that
 artifact appears or a genuinely new evidence file lands, further re-checks of
 the same named blockers should stay brief rather than repeating full sweeps.
+
+
+## OpenAI same-batch recovery 1 — 2026-09-30: shadow decision sites and drift namespace repair
+
+Recovered clean local `9e0cce7`, equal to origin on the existing V11 branch.
+The private master hash is `a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+Rechecked `brain-ecmwf-backfill-20260929`: still `009a88c`, three unmerged
+commits and no tracked research-result artifact. The external commissioning
+evidence directory is outside this task's explicit file scope, so no claim
+about its current contents is made.
+
+Implemented the checkpoint's bounded shadow-decision regression opportunity.
+`CHALLENGER:shadow-test` now runs a `V11_SHADOW` model state through all 11
+named decision sites, using the real admission/valuation/account code and
+separate nonfinancial evidence. Tests assert model pins, paired observation
+versus payout models, `NOT_SUBMITTED` basket coordination, unchanged inventory,
+false financial authority and no new TRADE records. Forecast drift additionally
+covers `ABLATION:shadow-test`.
+
+The initial drift test failed at `DRIFT_WORKER_SCOPE_OR_BOUND`: the worker and
+cohort checker expected literal `V11_SHADOW`, which `EvidenceStore` forbids as
+a namespace. Fixed worker/cohort validation and model-slot mapping for the
+store's actual `CHALLENGER`/`ABLATION` namespaces. The reviewed drift reduction
+now runs in shadow and remains nonfinancial; PAPER-only fill-markout is retained.
+
+Verification: **309 passed / 171.14 s**, exit 0, across the 13 affected test
+files; after extending the drift case to both research namespaces, **2 passed /
+1.31 s**, exit 0. `git diff --check` clean. No full regression. This is
+engineering regression evidence, not forward/operational model acceptance.
+No new C/J/E/A: **91/200 = 45.5%; formal 1/50 (2%)**. R47 remains OPEN,
+NOT_READY_TO_FUND. Next: inspect a new ECMWF research-result artifact when
+one is available within authorized scope, then obtain independent champion
+review and forward shadow commissioning. V10 and all financial authority
+unchanged.

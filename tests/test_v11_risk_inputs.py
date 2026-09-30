@@ -57,6 +57,16 @@ def evaluate(r,rt,worker,current,prefix='risk'):
     return measured['body']['details'],state['body']['details']
 
 
+@pytest.mark.parametrize('setup', ['CHALLENGER:shadow-test'], indirect=True)
+def test_shadow_risk_inputs_use_pinned_model_without_financial_authority(rig, monkeypatch):
+    rt, worker, _ = components(rig, monkeypatch)
+    current = books(rig, 'shadow')
+    details, state = evaluate(rig, rt, worker, current, prefix='shadow-risk')
+    assert details['prediction_sha256']
+    assert state['financial_authority'] is False
+    assert not rig['store'].records(kind='TRADE')
+
+
 def test_finite_candidate_derives_risk_without_supplied_metrics_and_keeps_unknown_gates(rig,monkeypatch):
     rt,worker,adapter=components(rig,monkeypatch)
     candidate=PaperRuntime(rt.coordinator,rt.queue,rt.health,rt.policy,evaluator=adapter,worker_id='worker',generation='derived-risk')

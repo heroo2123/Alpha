@@ -129,7 +129,9 @@ def measure_window(source_store, *, scope, account_id, bundle_sha256, policy, jo
     if not isinstance(scope,CapabilityScope) or not isinstance(policy,DriftPolicy):
         raise EvidenceError('DRIFT_TYPED_SCOPE_POLICY_REQUIRED')
     identity(account_id); sha(bundle_sha256); as_of=finite(as_of)
-    if (source_store.namespace not in {'V11_PAPER','V11_SHADOW'} or as_of > source_store.clock()
+    if (not (source_store.namespace == 'V11_PAPER'
+             or source_store.namespace.startswith(('CHALLENGER:', 'ABLATION:')))
+            or as_of > source_store.clock()
             or type(joins) is not tuple or not 1 <= len(joins) <= 128
             or any(not isinstance(j,ForecastLabelJoin) or j.prior_exposure!='DEVELOPMENT' for j in joins)
             or len({j.capture_id for j in joins}) != len(joins)):
@@ -156,7 +158,8 @@ def measure_window(source_store, *, scope, account_id, bundle_sha256, policy, jo
                     or assessment.get('model_bundle_sha256')!=bundle_sha256 or d['context']['account_id']!=account_id
                     or admission['seq']>=capture['seq']
                     or not admission['body']['recorded_at'] <= capture['body']['recorded_at'] < assessment['valid_until']
-                    or ('V11_PAPER' if r.get('stage')=='PAPER' else 'V11_SHADOW' if r.get('stage')=='SHADOW' else None)!=source_store.namespace
+                    or not ((r.get('stage')=='PAPER' and source_store.namespace=='V11_PAPER')
+                            or (r.get('stage')=='SHADOW' and source_store.namespace!='V11_PAPER'))
                     or (join.city,join.horizon,join.season)!=(d['context']['city_id'],scope.horizon,scope.season)):
                 raise EvidenceError('DRIFT_ADMISSION_SCOPE_BUNDLE_OR_TIME')
             rule=RuleFingerprint(**d['rule']); rp=rule.payload

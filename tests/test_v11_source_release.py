@@ -69,8 +69,9 @@ def release_factory(factory, setup, bundle, monkeypatch):
                     metrics=replace(metrics(now[0]), **flags), book_ids=(book['id'],),
                     source_ids=(current['id'], model['id']))
         scope = replace(rig['scope'], strategy=strategy)
-        approve_fixture(monkeypatch, (store, registry, scope, metadata, now), stage='PAPER', fingerprint=r.sha256, prefix='release:')
-        state = [promote(bundle, authority.empty_state(scope.key, 'V11_PAPER'))]
+        stage = rig['admission_kw']['stage']
+        approve_fixture(monkeypatch, (store, registry, scope, metadata, now), stage=stage, fingerprint=r.sha256, prefix='release:')
+        state = [promote(bundle, authority.empty_state(scope.key, 'V11_' + stage))]
         monkeypatch.setattr(model_registry, 'protected_state', lambda **kw:dict(state=state[0], sha256=digest(state[0])))
         kw = dict(rig['admission_kw'], scope=scope, source_leases=(SourceLease(model['id'], 'MODEL', 120.),
                   SourceLease(current['id'], 'OFFICIAL', 120.), SourceLease('release-coverage', 'FEATURES', 120.)))
@@ -105,6 +106,17 @@ def proposal(rig, *, ev='.2', units='2'):
     return Proposal('proposal', 'release-thesis', rig['context'], rig['rule'], 'positive-fixture', 'release-event',
                     (Attribution(rig['scope'].strategy, '1'),), rig['now'][0]+10, units,
                     ('release-admission',), source_release_id='release-pin')
+
+
+@pytest.mark.parametrize('setup', ['CHALLENGER:shadow-test'], indirect=True)
+def test_shadow_release_pins_post_receipt_model_without_financial_authority(release_factory):
+    rig = release_factory()
+    assessment = pin(rig)
+    result = evaluate(rig)
+    assert assessment['financial_authority'] is False
+    assert result['artifact_refs'] and result['model_epoch'] == 1
+    assert result['financial_authority'] is False
+    assert not rig['store'].records(kind='TRADE')
 
 
 @pytest.mark.parametrize('strategy', ['SOURCE_SHOCK', 'RELEASE_OPPORTUNITY'])

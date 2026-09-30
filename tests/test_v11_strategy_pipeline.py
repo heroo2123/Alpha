@@ -82,11 +82,12 @@ def factory(setup, bundle, monkeypatch):
                           source_identity='coverage', revision='1', payload=coverage, evidence_class='SYNTHETIC')
             leases += [SourceLease(official_id, 'OFFICIAL', 120.), SourceLease('coverage', 'FEATURES', 120.)]
         now[0] += .01  # Inference starts after source/feature archival, not at its exact clock tick.
-        approve_fixture(monkeypatch, (store, registry, scope, metadata, now), stage='PAPER', fingerprint=r.sha256)
-        state = [promote(bundle, authority.empty_state(scope.key, 'V11_PAPER'))]
+        stage = 'PAPER' if store.namespace == 'V11_PAPER' else 'SHADOW'
+        approve_fixture(monkeypatch, (store, registry, scope, metadata, now), stage=stage, fingerprint=r.sha256)
+        state = [promote(bundle, authority.empty_state(scope.key, 'V11_' + stage))]
         monkeypatch.setattr(model_registry, 'protected_state', lambda **kwargs:{'state':state[0], 'sha256':digest(state[0])})
         monkeypatch.setattr(model_registry, 'ApprovedArtifactReader', lambda:bundle[0])
-        admission_kw = dict(context=context, scope=scope, rule=r, binding=binding, stage='PAPER',
+        admission_kw = dict(context=context, scope=scope, rule=r, binding=binding, stage=stage,
                             rule_max_age_seconds=120., source_leases=tuple(leases))
         StrategyAdmission(store).pin('pin', **admission_kw)
         request = EntryRequest('pin', state_id, contract['market_id'], 'YES', '2', '2', book_id, now[0]+20,
@@ -99,6 +100,21 @@ def factory(setup, bundle, monkeypatch):
 
 def evaluate(rig, key='evaluation', **change):
     return TemperatureStrategies(rig['store']).evaluate(key, replace(rig['request'], **change))['body']['details']
+
+
+@pytest.mark.parametrize('setup', ['CHALLENGER:shadow-test'], indirect=True)
+@pytest.mark.parametrize('strategy', ['FUTURE_FORECAST', 'SAME_DAY_LATE_LOCK'])
+def test_shadow_decision_pins_bundle_and_keeps_financial_authority_false(factory, strategy):
+    rig = factory(strategy)
+    result = evaluate(rig)
+    assert rig['store'].namespace == 'CHALLENGER:shadow-test'
+    assert rig['admission_kw']['stage'] == 'SHADOW'
+    assert rig['model_state'][0]['mode'] == 'V11_SHADOW'
+    assert rig['model_state'][0]['financial_authority'] is False
+    assert result['artifact_refs'] and result['model_epoch'] == 1
+    assert result['prediction'] is not None
+    assert result['financial_authority'] is False
+    assert not rig['store'].records(kind='TRADE')
 
 
 def test_future_forecast_uses_archived_members_frozen_bundle_and_executable_costs(factory):

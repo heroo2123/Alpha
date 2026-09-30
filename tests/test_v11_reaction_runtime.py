@@ -53,6 +53,18 @@ def claimed(r, adapter, *, book=None):
     return result
 
 
+@pytest.mark.parametrize('setup', ['CHALLENGER:shadow-test'], indirect=True)
+def test_shadow_reaction_claim_uses_paired_models_without_financial_authority(joined, monkeypatch):
+    r = joined
+    health(r, monkeypatch, 'PWS_OBSERVATION_LEAD', 'lead-model')
+    adapter = PWSLeadEventAdapter(r['store'], lambda claim: (pws_request(r),))
+    result = claimed(r, adapter)
+    details = r['store'].get(result.result_ids[0])['body']['details']
+    assert details['prediction'] is not None
+    assert details['financial_authority'] is False
+    assert not result.proposals and not r['store'].records(kind='TRADE')
+
+
 def test_pws_runtime_joins_observation_ablation_and_separate_payout_under_queue_claim(joined, monkeypatch):
     r = joined; store = r['store']; health(r, monkeypatch, 'PWS_OBSERVATION_LEAD', 'lead-model')
     adapter = MultiStrategyEventAdapter(store, (('pws', PWSLeadEventAdapter(store, lambda claim:(pws_request(r),))),))

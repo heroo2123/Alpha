@@ -3415,3 +3415,32 @@ unfinished action: re-check the `brain-ecmwf-backfill-20260929` branch for a
 produced research-result artifact on the next invocation; until either that
 artifact appears or a genuinely new evidence file lands, further re-checks of
 the same named blockers should stay brief rather than repeating full sweeps.
+
+
+## OpenAI same-batch recovery 1 — 2026-09-30: R47 shadow decision regression
+
+Recovered clean `9e0cce7` with local and origin equal. The separate ECMWF
+backfill branch remains at `009a88c` (three unmerged commits); it has no
+tracked research-result artifact. Private master SHA-256 matches CLAUDE.md.
+The external commissioning evidence directory was outside this task's permitted
+Remote Desktop Commander scope and was not inspected.
+
+Added a real `CHALLENGER:shadow-test` fixture with `SHADOW` admission and
+`V11_SHADOW` protected model state. Tests now drive strategy admission,
+temperature strategy evaluation, relative value, basket coordination, PWS
+pairing, source release, maker context, position management, reaction runtime,
+risk inputs, and forecast drift. They assert pinned model evidence, false
+financial authority, no submitted account action, and separate shadow evidence.
+The first drift run reproduced an impossible namespace check. Drift now maps
+validated `CHALLENGER`/`ABLATION` evidence namespaces to the `V11_SHADOW`
+model slot while retaining exact review namespace and PAPER-only fill-markout
+restrictions. The final drift variant covers both accepted research namespaces.
+
+Affected integration: **309 passed / 171.14 s**, exit 0; final two drift
+variants: **2 passed / 1.31 s**, exit 0. No full regression. R47 still lacks
+an accepted initial champion and forward shadow evidence; no empirical or
+independent acceptance was inferred. **91/200 = 45.5%; formal 1/50 (2%)**,
+unchanged; NOT_READY_TO_FUND. Next: inspect a genuinely produced ECMWF
+research-result artifact when available within authorized scope, then seek
+independent champion review and forward shadow commissioning. No production,
+funding, order, credential, or V10 action was taken.

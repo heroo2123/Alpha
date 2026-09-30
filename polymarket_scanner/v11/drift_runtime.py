@@ -72,7 +72,9 @@ def protected_reviews():
 
 class DriftWorker:
     def __init__(self, coordinator, plans, *, maker_telemetry=None):
-        if (not isinstance(coordinator, PaperCoordinator) or coordinator.store.namespace not in {'V11_PAPER','V11_SHADOW'}
+        if (not isinstance(coordinator, PaperCoordinator)
+                or not (coordinator.store.namespace == 'V11_PAPER'
+                        or coordinator.store.namespace.startswith(('CHALLENGER:', 'ABLATION:')))
                 or type(plans) is not tuple or not 1 <= len(plans) <= 16
                 or any(not isinstance(p, DriftPlan) for p in plans)
                 or len({(p.scope.key,p.channel) for p in plans}) != len(plans)):
@@ -295,7 +297,9 @@ class DriftWorker:
                 or not 1 <= finite(r['maximum_measurement_age_seconds']) <= 86400
                 or now-request['as_of'] > r['maximum_measurement_age_seconds']):
             raise EvidenceError('DRIFT_REVIEW_NOT_PREDECLARED_CURRENT_OR_REDUCTION_ONLY')
-        registry = ActiveModelRegistry(); pin = registry.pin(scope_key=plan.scope.key, mode=self.store.namespace)
+        registry = ActiveModelRegistry()
+        mode = 'V11_PAPER' if self.store.namespace == 'V11_PAPER' else 'V11_SHADOW'
+        pin = registry.pin(scope_key=plan.scope.key, mode=mode)
         if (pin.bundle.sha256 != plan.bundle_sha256 or pin.state_sha256 != r['model_state_sha256']
                 or any(row['model_state_sha256'] != pin.state_sha256 for row in result['rows'])
                 or not registry.revalidate(pin)['passed']):

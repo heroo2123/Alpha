@@ -34,6 +34,15 @@ def notice(rig, key='notice', *, evidence_class='SYNTHETIC', issued=None, **chan
                 issued_at=rig['now'][0] if issued is None else issued, payload=p, evidence_class=evidence_class)
 
 
+@pytest.mark.parametrize('setup', ['CHALLENGER:shadow-test'], indirect=True)
+def test_shadow_context_pins_bundle_without_financial_authority(rig):
+    propose(rig)
+    d = measure(rig)
+    assert d['fair_value']['artifact_refs'] and d['fair_value']['model_epoch'] == 1
+    assert d['financial_authority'] is False and d['orders_submitted'] is False
+    assert not rig['store'].records(kind='TRADE')
+
+
 def test_protected_final_payout_distance_retains_uncalibrated_bounds_without_economic_authority(rig):
     propose(rig); head = maker(rig)._head(); d = measure(rig)
     assert d['outcome'] == 'MEASURED_RESEARCH_CONTEXT', d['reason']

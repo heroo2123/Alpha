@@ -26,6 +26,22 @@ def scan(rig, key='scan', req=None):
     return RelativeValueStrategies(rig['store']).evaluate(key, req or request(rig))['body']['details']
 
 
+@pytest.mark.parametrize('setup', ['CHALLENGER:shadow-test'], indirect=True)
+def test_shadow_discovery_uses_pinned_model_without_account_authority(rig):
+    d = scan(rig)
+    assert rig['store'].namespace == 'CHALLENGER:shadow-test'
+    assert d['artifact_refs'] and d['model_epoch'] == 1
+    assert d['prediction'] is not None
+    assert d['financial_authority'] is False
+    proposals = RelativeValueStrategies(rig['store']).proposals('scan')
+    assert proposals
+    account = coordinator(rig).coordinate('shadow-account', proposals)['body']['details']
+    assert account['reserved_intent_ids']
+    assert account['execution_status'] == 'NOT_SUBMITTED'
+    assert account['risk']['financial_authority'] is False
+    assert not rig['store'].records(kind='TRADE')
+
+
 def test_full_event_discovery_finds_underround_and_preserves_rejected_individual_gaps(rig):
     d = scan(rig)
     assert d['outcome']=='CANDIDATES' and len(d['proposals'])==1

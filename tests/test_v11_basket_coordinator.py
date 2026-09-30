@@ -54,7 +54,7 @@ def proof(rig, intent, key, kind, **payload):
     c = coordinator(rig); state = c._state(c._head()); p = state['intents'][intent]
     rig['store'].capture(key, event_id=p['event_id'], kind='TRADE', provider='synthetic-paper-engine',
             source_identity=intent, revision=key, observed_at=rig['now'][0], evidence_class='SYNTHETIC',
-            payload=dict(record_type=kind, execution_namespace='V11_PAPER', account_id='account',
+            payload=dict(record_type=kind, execution_namespace=rig['store'].namespace, account_id='account',
                          intent_id=intent, token_id=p['token_id'], **payload))
     return key
 

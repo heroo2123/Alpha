@@ -63,12 +63,13 @@ def joined(factory, setup, bundle, monkeypatch):
     payout_scope = replace(rig['scope'], strategy='PWS_OBSERVATION_LEAD')
     observation_scope = replace(payout_scope, model_version='lead-v1', horizon='NEXT_120_SECONDS')
     reviews = []
+    stage = rig['admission_kw']['stage']
     for prefix, scope in [('payout:', payout_scope), ('observation:', observation_scope)]:
-        m = approve_fixture(monkeypatch, (store, registry, scope, metadata, now), stage='PAPER',
+        m = approve_fixture(monkeypatch, (store, registry, scope, metadata, now), stage=stage,
                             fingerprint=rule.sha256, prefix=prefix)
         reviews += m['reviews']
     monkeypatch.setattr(certification, 'protected_reviews', lambda:deepcopy(dict(reviews=reviews)))
-    states = {scope.key:promote(b, authority.empty_state(scope.key, 'V11_PAPER')) for scope, b in
+    states = {scope.key:promote(b, authority.empty_state(scope.key, 'V11_' + stage)) for scope, b in
               ((observation_scope, observation_bundle), (payout_scope, bundle))}
     monkeypatch.setattr(model_registry, 'protected_state',
                         lambda *, scope_key, mode:dict(state=states[scope_key], sha256=digest(states[scope_key])))
@@ -133,6 +134,17 @@ def synthetic_proposal(rig, key='one'):
     return Proposal(key, 'same-thesis', rig['context'], rig['rule'], 'fixture-value-'+key,
                     rig['request'].event_state_id, (Attribution('PWS_OBSERVATION_LEAD', '1'),), rig['now'][0]+20,
                     '2', ('payout-pin',), 'paired-pin')
+
+
+@pytest.mark.parametrize('setup', ['CHALLENGER:shadow-test'], indirect=True)
+def test_shadow_pws_pair_keeps_observation_and_payout_nonfinancial(joined):
+    assessment = verify(joined)
+    result = evaluate(joined)
+    assert assessment['observation_bundle_sha256'] != assessment['payout_bundle_sha256']
+    assert assessment['financial_authority'] is False
+    assert result['artifact_refs'] and result['model_epoch'] == 1
+    assert result['financial_authority'] is False
+    assert not joined['store'].records(kind='TRADE')
 
 
 def test_two_separately_reviewed_targets_join_without_converting_observation_to_payout(joined):

@@ -1,5 +1,17 @@
 # V11 requirement-to-code/test/evidence matrix
 
+OpenAI same-batch recovery 1 (2026-09-30): R47 shadow-decision regression now
+exercises all 11 named decision sites on separate nonfinancial `CHALLENGER`
+evidence with `V11_SHADOW` model state; drift also exercises `ABLATION`.
+The first real run exposed and fixed an impossible drift namespace check:
+`EvidenceStore` permits `CHALLENGER:<id>`/`ABLATION:<id>` but drift required
+literal `V11_SHADOW`. The correction preserves PAPER-only fill-markout gates,
+exact review namespace matching, and nonfinancial demotion. **309 affected tests
+passed / 171.14 s**, plus **2 focused drift variants passed / 1.31 s** after
+the final parameter extension. R47 remains OPEN: no independently accepted
+initial champion or forward shadow evidence. No new C/J/E/A; **91/200 = 45.5%,
+formal 1/50**, NOT_READY_TO_FUND. See checkpoint for scope and next action.
+
 Supervisor batch 33 (2026-09-29): independent audit found R43 ("Supported auth
 adapters and entitlement") was left OPEN in the matrix despite already-existing,
 already-tested `production/exchange.py`/`owner_account.py` auth adapters

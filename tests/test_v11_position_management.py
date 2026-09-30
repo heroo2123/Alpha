@@ -50,6 +50,17 @@ def reserved_exit(rig, key='exit', **changes):
     return p, result
 
 
+@pytest.mark.parametrize('setup', ['CHALLENGER:shadow-test'], indirect=True)
+def test_shadow_exit_uses_isolated_inventory_without_financial_authority(rig):
+    inventory(rig)
+    trades_before = rig['store'].records(kind='TRADE')
+    d = evaluate(rig)
+    assert d['valuation']['model']['prediction'] is not None
+    assert d['financial_authority'] is False
+    assert d['actual_inventory_changed'] is False
+    assert rig['store'].records(kind='TRADE') == trades_before
+
+
 def test_unhedged_exit_uses_actual_inventory_and_protected_payout_model(rig):
     inventory(rig); d = evaluate(rig)
     assert d['outcome'] == 'REDUCE_RESEARCH_CANDIDATE'

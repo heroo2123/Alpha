@@ -11,10 +11,11 @@ from test_weather_final_gpt6_exact_replays import _event
 
 
 @pytest.fixture
-def setup(tmp_path):
+def setup(tmp_path, request):
     tmp_path.chmod(0o700)
     now = [1000.0]
-    store = EvidenceStore(tmp_path/'evidence.sqlite', 'V11_PAPER', clock=lambda:now[0])
+    namespace = getattr(request, 'param', 'V11_PAPER')
+    store = EvidenceStore(tmp_path/'evidence.sqlite', namespace, clock=lambda:now[0])
     registry = cert.StationRegistry(store)
     scope = cert.CapabilityScope('KATL','HIGH','NWS_WRH','test-model-v1','24_48_HOURS',
                                  'FUTURE_FORECAST','AUTUMN','DAY')
@@ -38,7 +39,7 @@ def approve_fixture(monkeypatch, setup, *, stage='CANARY_ELIGIBLE', fingerprint=
                               rule_fingerprint=fingerprint,evidence_ids=('metadata-raw',),result='PASS',
                               checker_version='SYNTHETIC_TEST_CHECKER')
         proofs[cap] = {'id':last['id'],'sha256':last['sha256']}
-    review = {'scope_key':scope.key,'namespace':'V11_PAPER','stage':stage,
+    review = {'scope_key':scope.key,'namespace':store.namespace,'stage':stage,
               'metadata_fingerprint':metadata.fingerprint,'rule_fingerprint':fingerprint,
               'reviewer':'synthetic-reviewer','review_id':'synthetic-review-1','approved_at':now[0],
               'expires_at':now[0]+100,'reviewed_through_seq':last['seq'],'capability_proofs':proofs}

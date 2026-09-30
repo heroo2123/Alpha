@@ -29,7 +29,7 @@ from test_v11_lifecycle_runtime import runtime, state, checks
 def build(r, monkeypatch, policy=None, c=None):
     plan = drift.DriftPlan(r['scope'], r['binding'].bundle_sha256, policy or r['policy'])
     w = drift.DriftWorker(c or coordinator(r), (plan,))
-    review = dict(plan_key=plan.key, account_id='account', namespace='V11_PAPER', review_id='SYNTHETIC',
+    review = dict(plan_key=plan.key, account_id='account', namespace=r['store'].namespace, review_id='SYNTHETIC',
         reviewer='TEST_ONLY', approved_at=r['now'][0]-plan.policy.window_seconds-1, expires_at=r['now'][0]+120,
         model_state_sha256=digest(r['model_state'][0]), maximum_measurement_age_seconds=60.,
         selection='EXPLICIT_CAPTURE_COHORT', action='SAFETY_REDUCTION_ONLY', financial_authority=False)
@@ -40,6 +40,18 @@ def build(r, monkeypatch, policy=None, c=None):
 
 def enqueue(w, r, plan, key='cohort'):
     return w.request(key, plan_key=plan.key, joins=(r['join'],), as_of=r['now'][0])
+
+
+@pytest.mark.parametrize('setup', ['CHALLENGER:shadow-test', 'ABLATION:shadow-test'], indirect=True)
+def test_shadow_drift_measures_causal_capture_without_financial_authority(sample, monkeypatch):
+    r = sample
+    worker, plan, _ = build(r, monkeypatch)
+    enqueue(worker, r, plan)
+    details = worker.step('shadow-drift')['body']['details']
+    assert details['outcome'] == 'SCOPED_SAFETY_REDUCTION_APPLIED'
+    assert details['demotion_applied'] and details['measurement_id']
+    assert details['financial_authority'] is False
+    assert not r['store'].records(kind='TRADE')
 
 
 @pytest.mark.parametrize('sample',['FUTURE_FORECAST','SAME_DAY_LATE_LOCK'],indirect=True)
