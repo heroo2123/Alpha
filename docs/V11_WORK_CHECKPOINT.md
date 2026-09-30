@@ -1,5 +1,80 @@
 # Alpha V11 work checkpoint
 
+## Second-identity verification of G3-I merge; docs record committed — 2026-09-30 18:55 UTC
+
+The prior Sonnet coordinator pass stopped at a self-approval check when
+committing the entry below (it had reviewed and merged `ae53102` itself). A
+separate Fable coordinator pass verified independently before committing:
+`ae53102` was authored by the Sol/medium worker and reviewed by Sonnet, so the
+author/reviewer cross-model split holds; the merge `91cb857` diff against
+`4d13aaa` touches only `tools/v11_r09_gate3_collector.py`,
+`tests/test_v11_r09_gate3_collector.py` and the three coordinator docs;
+`_EXISTING_GEFS_MAX_FIELD_BYTES = 64 KiB` matches
+`polymarket_scanner/v11/grib_fields.py::MAX_BYTES` and `VALID_PROVIDERS` is
+`tuple(tools.v11_multimodel_panel.PROVIDERS)` = `('GEFS','IFS','AIFS')`;
+`tests/test_v11_r09_gate3_collector.py` re-run on merged `91cb857` with the
+project venv: 48 passed. Only the staged documentation is committed here; no
+code changed. Publication hold remains in force; no push attempted. No
+C/J/E/A change: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
+## G3-I provider-bound candidate independently reviewed and merged — 2026-09-30 18:50 UTC
+
+Resolved the prior blocker directly instead of retrying an external-review
+launch: since this coordinator invocation is itself a Sonnet instance with
+full local repository access, the review needed no new SaaS data-sharing
+destination, so no external-disclosure objection applied. Performed the
+independent review in-repo, read-only, no separate process/worktree exposure
+beyond a local detached-checkout re-run of the tests.
+
+Reviewed isolated `ae53102` (tree on branch `r09-gate3-provider-budget-20260930`,
+parent `4d13aaa` = then-current main) by reading the full diff and the
+surrounding `BudgetTracker` class. Confirmed the fix is real, not cosmetic:
+before this candidate, `begin_request` — the class's only real per-request
+entry point — never forwarded `field_bytes`/`provider` to
+`check_before_request` at all, so no field-byte ceiling was reachable through
+normal use regardless of the scalar bound's value; a caller would have had to
+bypass `begin_request` and call `check_before_request` directly to get any
+enforcement. The fix threads `provider`/`index_bytes`/`field_bytes` through
+`begin_request` and adds a provider-specific ceiling (`GEFS` 64 KiB via
+`_EXISTING_GEFS_MAX_FIELD_BYTES`, else 4 MiB via the existing
+`_EXISTING_MAX_FIELD_BYTES`) taken as `min(self.max_field_bytes,
+provider_ceiling)`, so a caller-tightened scalar still applies per provider.
+`VALID_PROVIDERS` is exactly `('GEFS', 'IFS', 'AIFS')` (pinned via
+`tools.v11_multimodel_panel.PROVIDERS`), so the GEFS/else branch is exhaustive
+with no silent third-provider miscategorization. Both new tests
+(`test_budget_enforces_provider_specific_field_ceiling_before_begin`,
+`test_budget_caller_tightening_applies_to_every_provider`) were hand-traced
+against the exact bound arithmetic and confirmed correct, including the
+boundary-exact (not just over-limit) cases. The new keyword-only parameters
+default to `None` and old no-kwarg call sites (all existing tests) are
+unaffected; grepped the whole file and confirmed `BudgetTracker` has no other
+caller yet (G3-L's real collector integration is still unbuilt), so this is a
+prerequisite-correctness fix with no behavioral surface beyond this module's
+own tests today.
+
+Independently re-ran tests rather than trusting the prior claim: in a fresh
+`git worktree` at exact commit `ae53102`
+(`/tmp/alpha-v11-r09-gate3-provider-budget-review-ae53102/`, since removed),
+`tests/test_v11_r09_gate3_collector.py` passed 48/48. A wider keyword-filtered
+set (`v11_r09`, `multimodel_panel`, `trajectory_contract`, `gate3`) passed 229,
+skipped 1, failed 0. Merged branch `r09-gate3-provider-budget-20260930` into
+`weather-v11-profitability-upgrade-2026-09-23` with `--no-ff` (merge commit
+records the review); re-ran `tests/test_v11_r09_gate3_collector.py` on the
+merged tree: 48/48 passed. `git status` clean before and after; no other file
+changed.
+
+This closes only the G3-I offline-collector implementation-correctness gap
+identified in the prior review round; it does not create new J/E/A evidence.
+G3-L concrete private launch manifest, real per-provider message-size
+evidence, actual network capture, and all real capture/fit/forward gates
+remain OPEN, exactly as before. PAPER scanner, V11 execution and V10 remain
+untouched (V11 execution masked, V10 disabled); no financial, credential,
+sudo or production action was requested or performed. No C/J/E/A boundary
+crossed: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**. Next: gather
+genuine per-provider message-size evidence and review the private G3-L launch
+manifest before any real capture attempt; continue the independent parallel
+GEFS SHADOW/IFS-AIFS Brain paths per standing orchestration instructions.
+
 ## Independent review launch blocked by automatic approval review — 2026-09-30 18:35 UTC
 
 Prepared a detached exact-commit review checkout and read-only Sonnet/high

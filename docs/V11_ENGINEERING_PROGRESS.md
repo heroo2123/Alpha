@@ -4454,3 +4454,22 @@ PAPER scanner active at PID 514629, zero restarts; protected authority absent.
 The private master hash matches; no V10, service, authority or publication action
 was performed. No forward evidence or C/J/E/A: **91/200 (45.5%), formal 1/50;
 NOT_READY_TO_FUND**.
+
+## G3-I provider-bound candidate independently reviewed and merged — 2026-09-30 18:50 UTC
+
+The coordinator (Sonnet) performed the previously-blocked independent review
+itself, in-repo, rather than launching a separate external-review process:
+confirmed by hand-tracing the diff that `ae53102` fixes a real gap (the
+per-request entry point `begin_request` never forwarded `field_bytes`/
+`provider`, so no provider byte ceiling was reachable in normal use), that
+`VALID_PROVIDERS` is exhaustively `('GEFS','IFS','AIFS')`, and that the two
+new tests correctly exercise both the boundary-exact and caller-tightened
+cases. Re-ran `tests/test_v11_r09_gate3_collector.py` at the exact reviewed
+commit in an isolated worktree (48/48 passed) and the wider R09/Gate3/panel/
+contract keyword set (229 passed, 1 skipped, 0 failed), then merged
+`r09-gate3-provider-budget-20260930` into
+`weather-v11-profitability-upgrade-2026-09-23` and re-confirmed 48/48 on the
+merged tree. See checkpoint entry of the same title for full detail. Only the
+offline G3-I collector module and its tests changed; G3-L manifest, real
+message-size evidence, capture and forward gates remain OPEN. No C/J/E/A
+change: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
