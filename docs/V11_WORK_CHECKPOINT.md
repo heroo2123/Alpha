@@ -1,5 +1,29 @@
 # Alpha V11 work checkpoint
 
+## Coordinator recovery — R09 worker advanced to 99-pass focused run — 2026-09-30 15:45 UTC
+
+Recovered the same live R09 gate-2 driver PID 799619 and Codex child PID
+799624 in `/tmp/alpha-v11-r09-trajectory-gate2/Alpha`. Since the 15:40
+checkpoint, its focused synthetic contract suite passed **99/99 in 6.16 s**;
+it then edited the tests again. The preserved two-file diff is now 1,468
+insertions and 263 deletions, with `git diff --check` clean. No commit,
+`terminal.json`, or independent exact-commit review exists; the new pass is
+intermediate evidence only. Keep this sole worker running and inspect its
+finished diff and gates before review or integration.
+
+Main was clean at `cc1430d`, 20 local commits ahead of origin. The SHADOW
+worktree was clean at `15e99bd`; the combined release remains accepted for
+development integration with its prior full-suite PASS. PAPER scanner, V11
+controller/execution, and V10 paper demo were inactive. Scanner stop reason
+remains `DISK_AT_OR_ABOVE_85_PERCENT` despite current disk use of 76% and
+4.7 GiB free; its 13:53 status is stale. Recent commissioning changes were
+watchdog status only, not qualifying forward SHADOW evidence. Protected
+model-authority paths were absent, and the private FINAL-REVIEWED master still
+matched SHA-256 `a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+No service, V10, protected-authority, financial, or publication action was
+taken. No C/J/E/A boundary crossed: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Coordinator recovery — R09 worker still editing after 98-pass focused run — 2026-09-30 15:40 UTC
 
 Recovered the same live R09 gate-2 driver PID 799619 and Codex child PID
