@@ -1,5 +1,16 @@
 # Supplementary engineering estimate
 
+## Brain repair author candidate verified; review gate open — 2026-09-30 20:36 UTC
+
+The clean isolated Brain worktree now holds Sol/high `58b0b79`/tree `dba54e2`.
+It rejects station/day aliases across city-days or splits, wrong-event bundle
+cost/markout reports, and non-PAPER markout request namespaces; the handoff
+uses R09 native sampled-trajectory wording. Focused tests: 11 passed.
+Affected Brain/multimodel/execution-cost/markout suites: 145 passed, 1 skipped.
+Fresh different-model exact-commit review is mandatory before merge. No new
+forward evidence or C/J/E/A boundary: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Brain repair failover after Sonnet session limit — 2026-09-30 20:30 UTC
 
 The isolated Brain candidate remains unchanged at rejected `a8362ad`.

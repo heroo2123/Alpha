@@ -1,5 +1,28 @@
 # Alpha V11 work checkpoint
 
+## Brain P2 repair committed; fresh exact-commit review required — 2026-09-30 20:36 UTC
+
+Sol/high resumed the preserved Brain worktree and committed `58b0b79` (tree
+`dba54e2`) in `/home/alphaadmin/AlphaV11_BrainReadiness/Alpha`. It binds each
+station/local-date to one city-day and split, binds each cost/markout event to
+that observation's exact candidate bundle, and requires the upstream markout
+request namespace `V11_PAPER`. The P3 handoff now names the R09 native
+sampled-trajectory contract. Three adversarial tests cover split/weight aliases,
+complete numeric cross-family cost and markout reports, and non-PAPER requests;
+positive controls pass. Brain focused: 11 passed. Affected Brain/multimodel/
+execution-cost/markout suites: **145 passed, 1 skipped**. Diff check clean;
+worktree clean. This is an **unmerged author candidate**, pending fresh
+**different-model exact-commit review**; no acceptance or merge is claimed.
+
+Gate 3 `1693dd5` remains reviewed, clean and unmerged under its merge hold.
+SHADOW worktree remains clean at `15e99bd`; commissioning artifacts newer than
+06:43 UTC are watchdog statuses only, not qualifying forward samples. V10,
+PAPER scanner/controller and V11 execution services are inactive; V11 execution
+is masked. Protected model-authority paths remain absent; FINAL-REVIEWED master
+SHA-256 still matches its pin. Disk 4.4 GiB free, memory ~1.0 GiB available.
+Main publication hold remains. No C/J/E/A boundary crossed: **91/200 (45.5%),
+formal 1/50; NOT_READY_TO_FUND**.
+
 ## Brain repair routing failover — 2026-09-30 20:30 UTC
 
 Recovery still finds the Brain worktree clean at rejected `a8362ad`, with no

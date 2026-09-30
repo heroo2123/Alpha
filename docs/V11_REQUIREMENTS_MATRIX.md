@@ -1,5 +1,16 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## R47/R09 Brain offline P2 repair candidate — 2026-09-30 20:36 UTC
+
+Sol/high `58b0b79`/tree `dba54e2` repairs the three P2 bindings rejected in
+[the `a8362ad` review](V11_BRAIN_OFFLINE_READINESS_REVIEW_a8362ad.md) and
+corrects the P3 R09 handoff wording. Adversarial and positive regressions pass:
+11 Brain focused; 145 passed, 1 skipped across affected suites. The clean
+candidate remains **unmerged pending different-model exact-commit review**.
+R47 real calibration, IFS/AIFS admission, SHADOW evidence and promotion remain
+OPEN; Gate 3 `1693dd5` is separately reviewed but held. **91/200 (45.5%),
+formal 1/50; NOT_READY_TO_FUND**, unchanged.
+
 ## Brain repair route failover — 2026-09-30 20:30 UTC
 
 No new candidate exists after the rejected `a8362ad`: the isolated worktree
