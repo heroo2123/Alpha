@@ -3519,3 +3519,16 @@ worker does not have); both candidates remain zero-held-out. R47 stays OPEN.
 **91/200 = 45.5%; formal 1/50 (2%)**, unchanged. NOT_READY_TO_FUND. No
 production, V10, wallet, credential, funding, order, or protected-state
 action was taken.
+
+
+## R47 coordinator follow-up — 2026-09-30: exact-day correction + deployed-schema research candidates
+
+The first real-candidate shadow harness exposed a real incompatibility instead of hiding it: old artifact bundles used gefs31, while the deployed run-bound source uses NOAA_GEFS_0P50_LINEAR_DAY_V1. Further review found that a label-only rebind would also be wrong because the historical all-market feature builder used raw 3-hour bracket max/min whereas the deployed source uses exact-local-day piecewise-linear clipping/interpolation.
+
+Recomputed all 541 station-days with the deployed linear_extreme() semantics using only the preserved NOAA backfill. The correction changed 236 HIGH and 3,673 LOW member paths (max 1.6141 C / 3.1454 C). The frozen grid still selected bias 0.0 C / sigma 0.5 C for both families, and both still passed DEVELOPMENT (120 city-days) and HISTORICAL_CONFIRMATION (64 city-days).
+
+Generated four immutable research bundles for HIGH/LOW x C/F under the exact deployed model id; F sigma is the exact affine 0.9 F transform. All remain uncalibrated, no-promotion and nonfinancial. Development and deployed gefs_sources.py are byte-identical (7d02d4...0df5). All four bundles validate through ForecastFeatureContract and predict_with_bundle; 1,000-vector C/F invariance checks per family differ only at <=5.56e-16. Regression covering the new isolated harness + GEFS source + model artifacts: 77 passed.
+
+This supersedes only the earlier statement that no live-schema-compatible research candidate exists; the old retrospective bundles remain intentionally incompatible. It does not satisfy owner/independent review, root model-authority installation, forward shadow evidence or calibration. R47 remains OPEN; score stays 91/200 (45.5%), formal complete stays 1/50 (2%), NOT_READY_TO_FUND.
+
+See docs/V11_R47_EXACT_DAY_LIVE_SCHEMA_REBUILD.md and commissioning evidence v11_gefs_exact_day_live_schema_bundle_manifest_20260930.json.

@@ -1,5 +1,8 @@
 # V11 requirement-to-code/test/evidence matrix
 
+Coordinator follow-up (2026-09-30, supersedes only the earlier R47 live-schema-compatibility finding): a label-only gefs31 -> deployed-model-id rebind was rejected because historical bracket snapshot extrema are not equivalent to deployed exact-local-day piecewise-linear clipping. The preserved 541-station-day NOAA backfill was recomputed with deployed linear_extreme() semantics; both HIGH/LOW retained bias 0.0 C / sigma 0.5 C and passed the frozen DEVELOPMENT + HISTORICAL_CONFIRMATION comparisons. Four immutable HIGH/LOW x C/F research bundles now use exact deployed model id NOAA_GEFS_0P50_LINEAR_DAY_V1; deployed and development gefs_sources.py are byte-identical; bundle/schema/prediction and unit-transform checks pass. These candidates remain FITTED_NOT_CALIBRATED, NO_PROMOTION, nonfinancial, not host-approved, and historical-confirmation is not a forward untouched holdout. Thus live-schema research compatibility is no longer the R47 blocker, but independent/owner review, protected model-authority installation, forward shadow evidence/sample target, calibration and execution-cost evidence remain. R47 stays OPEN with no new C/J/E/A credit. See docs/V11_R47_EXACT_DAY_LIVE_SCHEMA_REBUILD.md.
+
+
 R47 implementation builder (2026-09-30, branch `r47-real-candidate-shadow-20260930`):
 given two genuine, immutable, `ArtifactStore`-backed real-data candidate
 bundles produced outside this repository after batch 35

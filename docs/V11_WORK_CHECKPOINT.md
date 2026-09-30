@@ -10633,3 +10633,18 @@ Next unfinished action: on the next invocation, re-check
 research-result, review, or owner-authorized model-authority artifact before
 repeating this chain's analysis; until one appears, further checks of this
 same named blocker should stay brief rather than repeating the full code-read.
+
+
+## Coordinator follow-up — 2026-09-30: corrected exact-day/live-schema R47 research candidates
+
+Recovered main at 3121f2439a50c3520fa5cb35866628b252d96fcf after accepting the isolated real-candidate shadow harness. The harness remains research-only and cannot access protected model state or financial authority.
+
+A deeper review rejected any gefs31 -> live-model-id alias: the old all-market dataset used 3-hour bracket snapshot extrema while deployed gefs_sources.py uses exact-local-day piecewise-linear boundary clipping. Recomputed the preserved 541-station-day NOAA backfill with the deployed function. HIGH changed 236/16,771 member paths (max 1.614095 C); LOW changed 3,673/16,771 (max 3.145426 C). The frozen research grid still selected bias 0 / sigma 0.5 C and still passed both 120-city-day DEVELOPMENT and 64-city-day HISTORICAL_CONFIRMATION comparisons for HIGH and LOW.
+
+Generated immutable, nonfinancial, uncalibrated research bundles with exact deployed model id NOAA_GEFS_0P50_LINEAR_DAY_V1: HIGH/C a7b8c839...c224d, HIGH/F ad72639c...75ca, LOW/C c2b8718e...6e54, LOW/F 8feed176...02c. Corrected dataset digest 649fd39a...90a9. Commissioning manifest file SHA-256 8d4b4a93...12e57; canonical artifact SHA 8645055c...bf55.
+
+Development and deployed-release gefs_sources.py hashes are exactly equal (7d02d473...0df5). All four candidates pass ForecastFeatureContract + predict_with_bundle with 31-member live-model-id input; C/F affine invariance worst error <=5.56e-16. Scanner remained active with zero restarts. Targeted regression: 77 passed. No protected pointer, service/config, wallet or order authority changed.
+
+R47 remains OPEN: owner/independent model review, root-owned model-authority installation, actual forward shadow evidence/sample target, calibration and execution-cost evidence remain. No C/J/E/A credit is added. 91/200 (45.5%); formal 1/50 (2%); NOT_READY_TO_FUND.
+
+Exact evidence: docs/V11_R47_EXACT_DAY_LIVE_SCHEMA_REBUILD.md.

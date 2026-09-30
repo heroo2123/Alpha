@@ -194,3 +194,16 @@ elsewhere in this suite, so this is a low-risk gap. A maintainer with the
 project's normal dev virtualenv should run
 `python -m pytest tests/test_v11_r47_real_candidate_shadow_injection.py -q`
 to get an unmocked, fully-installed confirmation.
+
+
+## Coordinator follow-up — 2026-09-30 (superseding compatibility conclusion only)
+
+The incompatibility documented above remains true for the original V10-retrospective real-fit bundles and is intentionally preserved as negative evidence. They were not renamed or commissioned.
+
+Subsequent coordinator review found a second issue: the historical all-market GEFS research used raw 3-hour bracket max/min, while the deployed source uses exact-local-day piecewise-linear clipping/interpolation. The preserved 541-station-day NOAA backfill was therefore recomputed with the exact deployed linear_extreme() semantics instead of installing an alias.
+
+That corrected rebuild retained bias 0.0 C / sigma 0.5 C for HIGH and LOW and still passed the frozen DEVELOPMENT and HISTORICAL_CONFIRMATION comparisons. It produced separate C/F research bundles using the exact deployed model id NOAA_GEFS_0P50_LINEAR_DAY_V1 and 31-member contract. Development and deployed gefs_sources.py were verified byte-identical; all four corrected bundles pass ForecastFeatureContract and predict_with_bundle; C/F probability invariance is within floating-point noise.
+
+Therefore the statement above that no live-schema-compatible research candidate exists is now superseded. The remaining R47 blockers are owner/independent review, protected model-authority installation, actual forward shadow evidence/sample target, calibration/promotion evidence and execution-cost evidence. The old retrospective bundles remain unapproved and incompatible; no evidence was rewritten.
+
+See docs/V11_R47_EXACT_DAY_LIVE_SCHEMA_REBUILD.md for exact hashes and limitations.
