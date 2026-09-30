@@ -10424,6 +10424,85 @@ produced research-result artifact on the next invocation; until either that
 artifact appears or a genuinely new evidence file lands, further re-checks of
 the same named blockers should stay brief rather than repeating full sweeps.
 
+## R47 implementation builder — 2026-09-30: real-candidate isolated shadow-injection harness and tests; R47 remains OPEN, no new C/J
+
+Worked on worktree branch `r47-real-candidate-shadow-20260930`, given two
+genuine, immutable, real-data candidate bundles that did not exist as of
+batch 35 (`/home/alphaadmin/AlphaV11_BrainWork/real_fit_20260929/{high,low}/
+objects`, candidates `de92cf90...17c46` / `f09730a5...5a5a9`, parents
+`7da9be82...77d2` / `8480555d...96f3`, both from
+`v11_real_data_fit_result_20260929.json`). Unlike the `frozen_parameters`
+object batch 35 examined (from the *all-market* research result, which has no
+`candidate_bundle_sha256` or bundle-level provenance), these are real
+`ArtifactStore`-backed bundles with full component/hash provenance — exactly
+the missing ingredient batch 35 identified as blocking "an equivalent isolated
+injection of the real evidenced candidate."
+
+Built that isolated injection: `tools/r47_isolated_shadow_injection.py` loads
+an explicitly caller-supplied private `ArtifactStore` root and bundle hash,
+validates it with the existing (unmodified) `ArtifactStore`/`PinnedBundle`
+machinery, and returns a frozen `IsolatedResearchInjection` whose `mode`
+(`V11_SHADOW`), `status` (`ISOLATED_RESEARCH_INJECTION`), and
+`host_approved`/`promotion_authority`/`financial_authority` (all `False`)
+cannot be constructed or `dataclasses.replace`d into any other value. It
+imports only `evidence.py`/`model_artifacts.py` — never `model_registry.py`,
+`certification.py`, `host_trust`, or `production` — and no real decision-site
+module imports it back; both directions are covered by a static AST
+import-boundary regression test, matching the existing pattern in
+`test_v11_offline_learning.py::test_learner_plane_never_imports_financial_
+order_or_host_authority_code`.
+
+`tests/test_v11_r47_real_candidate_shadow_injection.py` (26 cases) exercises
+both real candidates end-to-end through the actual `FUTURE_FORECAST`
+prediction path (`model_artifacts.predict_with_bundle`, the same function
+every real decision site calls) with a genuine 31-member GEFS-shaped input —
+not a down-converted toy vector. Independently reproduced (did not trust)
+each bundle's exact `feature_schema_sha256` from
+`ForecastFeatureContract((('gefs31', 31), ), 'F', <family>)`. Proved
+fail-closed behavior for a wrong root (`OSError`), a non-private root
+(`PRIVATE_ARTIFACT_DIRECTORY_REQUIRED`), a wrong `model_id`
+(`BUNDLE_MODEL_INPUT_SET_MISMATCH`), a 30-member input and a mismatched
+family (both `FORECAST_FEATURE_PARENT_CONTRACT_MISMATCH`).
+
+Investigated `LIVE_INPUT_FEATURE_SCHEMA_COMPATIBILITY_CHECK` from committed
+source only (no `/var/lib/alpha-weather-scanner` permission change attempted
+or made). Finding: the live GEFS collector (`gefs_sources.py`) already
+matches this candidate's 31-member count and unit conversion, but
+unconditionally captures `model_id=gefs_sources.MODEL_ID`
+(`'NOAA_GEFS_0P50_LINEAR_DAY_V1'`), never this candidate's fitted
+`'gefs31'`. A live-shaped input therefore fails
+`predict_with_bundle`'s own `BUNDLE_MODEL_INPUT_SET_MISMATCH` check today,
+proved directly against the real HIGH bundle
+(`test_natural_live_shaped_gefs_input_fails_bundle_model_input_set_mismatch_
+not_calibration`). This check is genuinely investigated and found
+**not compatible today** — a concrete, previously-undocumented gap, not a
+claim of closure.
+
+This closes the narrow "equivalent isolated injection of the real evidenced
+candidate" gap batch 35 named as the concrete next step, but not the
+"reviewed" half of R47's named blocker
+(`REVIEWED_NONFINANCIAL_SHADOW_MODEL_STATE_OR_EQUIVALENT_ISOLATED_INJECTION`):
+independent/owner review and installation into root-owned
+`/var/lib/alpha-v11/model-authority` via `host_trust/v11-model-authority/
+authority.py` remains absent and unfabricable without root/sudo, which this
+worker does not have and was explicitly instructed not to use. Both
+candidates also remain zero-held-out (`TRAIN` only, per the result record) —
+unchanged by this work. R47 therefore remains OPEN; no new C/J credit is
+claimed. Full detail, exact hashes, and the verification method used in this
+sandboxed session (real `pytest` could not be executed here; every assertion
+was independently verified by direct unmocked execution against the real
+object stores — see that doc for why) are in
+`docs/V11_R47_REAL_CANDIDATE_SHADOW_EVIDENCE.md`.
+
+**91/200 = 45.5%; formal 1/50 (2%)**, unchanged. NOT_READY_TO_FUND. No
+production, V10, wallet, credential, funding, order, or protected-state
+action was taken; `git status --short` after this batch shows only the new
+harness, test, and documentation files plus this checkpoint/matrix update.
+Next unfinished action: re-check
+`/home/alphaadmin/AlphaV11_Commissioning/evidence/` for an actual
+independent/owner review artifact or a committed `model_id` remap before
+repeating this analysis.
+
 
 ## OpenAI same-batch recovery 1 — 2026-09-30: shadow decision sites and drift namespace repair
 

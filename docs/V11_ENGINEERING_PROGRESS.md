@@ -3476,3 +3476,46 @@ No code or test changed; no new C/J/E/A milestone: **91/200 (~46%); formal
 1/50 (2%)**, unchanged. NOT_READY_TO_FUND. `LOCAL_SCORE_WORK_EXHAUSTED`
 reaffirmed — see checkpoint for the full blocker list and next-check
 instruction.
+
+## R47 implementation builder — 2026-09-30: real-candidate isolated shadow-injection harness and tests; no new C/J
+
+Given two genuine `ArtifactStore`-backed real-data candidate bundles that did
+not exist at batch 35 (`real_fit_20260929/{high,low}/objects`), built the
+"equivalent isolated injection of the real evidenced candidate" batch 35
+identified as the concrete next step: `tools/r47_isolated_shadow_injection.py`
+(loads an explicit private `ArtifactStore` root + bundle hash, validates via
+existing unmodified machinery, returns a frozen, non-`replace`-able
+`IsolatedResearchInjection` fixed to `mode='V11_SHADOW'`,
+`status='ISOLATED_RESEARCH_INJECTION'`, `financial_authority=host_approved=
+promotion_authority=False`) plus
+`tests/test_v11_r47_real_candidate_shadow_injection.py` (26 cases). Both real
+HIGH/LOW candidates are exercised end-to-end through the actual
+`FUTURE_FORECAST` path (`predict_with_bundle`) with a genuine 31-member
+GEFS-shaped input; exact bundle/component hashes and the
+`ForecastFeatureContract`-derived `feature_schema_sha256` are independently
+reproduced, not trusted from the file; fail-closed coverage for wrong
+root/schema/model-id/member-count; static AST import-boundary tests prove the
+harness never imports `production`/`host_trust`/`model_registry`/
+`certification` and no real decision-site module imports it back.
+
+Investigated `LIVE_INPUT_FEATURE_SCHEMA_COMPATIBILITY_CHECK` from committed
+source only: member count/unit already match, but the live GEFS collector
+always captures `model_id=gefs_sources.MODEL_ID`
+(`'NOAA_GEFS_0P50_LINEAR_DAY_V1'`), never this candidate's fitted `'gefs31'`,
+so a live-shaped input fails `BUNDLE_MODEL_INPUT_SET_MISMATCH` today — proved
+directly against the real HIGH bundle. Genuinely investigated, found **not
+compatible**, not closed.
+
+Real `pytest` could not be executed in this sandboxed session (missing
+`httpx`/`pydantic-settings`, no package-install path available); every new
+assertion was instead independently verified by direct unmocked execution
+against the real object stores (26/26 passed) plus `py_compile` on both new
+files. Full detail in `docs/V11_R47_REAL_CANDIDATE_SHADOW_EVIDENCE.md`.
+
+This closes the narrow isolated-injection-mechanism gap but not R47's
+"reviewed" half (root-owned `/var/lib/alpha-v11/model-authority`, install-only
+via `host_trust/v11-model-authority/authority.py`, requires owner/root this
+worker does not have); both candidates remain zero-held-out. R47 stays OPEN.
+**91/200 = 45.5%; formal 1/50 (2%)**, unchanged. NOT_READY_TO_FUND. No
+production, V10, wallet, credential, funding, order, or protected-state
+action was taken.
