@@ -1,5 +1,46 @@
 # Supplementary engineering estimate
 
+## SHADOW repair committed; fresh independent review running — 2026-09-30
+
+Repaired all five `4557904` commissioning findings in the original isolated
+SHADOW worktree and committed candidate `dd18e3800003a23e0a6bd005b9dd6dc6c8116d1d`
+(tree `8a1669873612eb815c24b21469811e4d5113b478`). It remains **UNMERGED**
+pending independent acceptance. The version-2 plan binds the actual typed
+assembly cohort; preflight validates exact rule/certification/model/feature
+identities and overlays; a durable pre-run freeze links candidate outcomes;
+status separates refused/completed/degraded attempts and paginates with explicit
+incomplete coverage. Forward qualification remains explicitly **unavailable/zero**;
+synthetic or repeated admissions, intent timestamps and completed ticks earn no
+forward sample credit. No protected authority was installed.
+
+Affected integration: **317 passed / 284.97 s**, exit 0. A later focused run
+exposed an existing forecast-normalization composition test ending at its
+five-second `RUN_BUDGET` after three workers (5.49457 s, no worker errors).
+Its test-only budget is now 30 seconds with an explicit `JOB_COUNT_BOUND`
+assertion; runtime and source-time gates are unchanged. Final focused regression:
+**62 passed / 49.48 s**, exit 0 (37 commissioning plus 25 assembly). Preserve
+`/tmp/alpha-v11-shadow-repair-{integration,final-focused,verified-focused}` logs;
+the failed run is retained rather than hidden. No full-suite PASS is claimed:
+the separate `e35cbfc` release remains 5,330 passed / 12 skipped / 2 failed.
+
+Exactly one fresh independent Claude Opus/high reviewer was launched on the
+exact repair commit in `/tmp/alpha-v11-shadow-repair-review-dd18e38/Alpha`.
+Driver PID **742874**, reviewer PID **742879**. Recover actual process/log state
+and inspect `review.md`, `worker.log` and **`terminal.json`** in that parent
+directory before proceeding; do not duplicate the review or infer PASS from a
+missing terminal file. This review may add temporary reproductions but must not
+change source or host state. Next: repair any independent findings in the same
+SHADOW worktree, then verify compatibility with newer main before integration.
+Do not merge the branch's older ledger history over newer main. The full repair
+contract/evidence is in that branch's `docs/V11_SHADOW_COMMISSION_REPAIR.md`.
+
+PAPER scanner remained PID 514629, zero restarts; no service or protected-state
+changes were made. Protected model-authority paths remained absent. The immutable
+FINAL-REVIEWED master hash matches `a0e16d9b...563b4a`. Newer R09/native-extrema
+work and main are preserved. No publication was attempted: the previous automatic
+approval rejection of the GitHub destination remains binding. No C/J/E/A crossed:
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator gate update — 2026-09-30
 
 The full-suite retry on scheduler-fix `e35cbfc` finished exit 1 after
