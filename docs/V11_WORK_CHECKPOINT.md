@@ -1,5 +1,28 @@
 # Alpha V11 work checkpoint
 
+## Coordinator recovery and Gate 3 offline integration route — 2026-09-30 20:48 UTC
+
+Recovered clean main `96017ad`, 38 local commits ahead of its tracking ref;
+Brain `58b0b79` is already independently accepted and locally merged. The
+SHADOW, Brain and held Gate 3 `1693dd5` worktrees are clean. No implementation
+worker or test is active; the only current Codex process is this coordinator.
+Commissioning's recent writes are watchdog statuses, not forward samples. The
+old load-sensitive release failure remains closed by accepted `6ec371e`.
+
+Next unblocked work is substantive Sonnet/high implementation in **one isolated
+worktree**: extend the reviewed, still-unmerged `1693dd5` Gate 3 offline
+validator with real transport/full-field decoder/clock/immutable-store
+interfaces and synthetic adversarial tests. Preserve its explicit merge hold;
+require fresh exact-commit independent review before integration. No network
+capture or G3-L permission follows from this route. GEFS forward SHADOW remains
+owner/root-gated; real IFS/AIFS learner admission still lacks Gate 3/4 evidence.
+
+Read-only checks: V10 demo and PAPER scanner/controller inactive, V11 execution
+inactive and masked; protected model-authority paths absent. FINAL-REVIEWED
+master hash matches its pin. Disk 4.4 GiB free; memory about 1.0 GiB available.
+No service, authority, financial, V10, AxiomTrade or publication action. No
+C/J/E/A boundary crossed: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Brain repair independently accepted and integrated locally — 2026-09-30
 
 Astra/high completed the routed review of Sol/high exact `58b0b79`, tree

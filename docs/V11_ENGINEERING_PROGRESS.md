@@ -1,5 +1,15 @@
 # Supplementary engineering estimate
 
+## Gate 3 next implementation routed — 2026-09-30 20:48 UTC
+
+Recovered clean main `96017ad` and clean held Gate 3 `1693dd5`; no duplicate
+implementation worker is active. The next safe engineering batch is one
+isolated, offline transport/full-field decoder/clock/immutable-store integration
+with synthetic failure tests, followed by exact-commit independent review. This
+route grants no network request, launch, merge, learner admission or acceptance.
+GEFS SHADOW remains owner/root-gated. **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**, unchanged.
+
 ## Brain repair independent PASS and local integration — 2026-09-30
 
 Astra/high independently verified exact Sol/high `58b0b79`/tree `dba54e2`:

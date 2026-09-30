@@ -1,5 +1,15 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## R09 Gate 3 offline integration route — 2026-09-30 20:48 UTC
+
+Current recovery confirms `1693dd5` is independently reviewed but clean,
+unmerged and held. Route its next transport/decoder/clock/immutable-store
+integration to one Sonnet/high isolated worker with synthetic adversarial tests
+and fresh exact-commit independent review. No G3-L, capture, real admission,
+forward SHADOW or C/J/E/A credit is granted. Brain integration is already on
+clean main `96017ad`; GEFS SHADOW authority remains owner/root-gated.
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## R47/R09 Brain offline repair reviewed and locally integrated — 2026-09-30
 
 [Astra/high review](V11_BRAIN_OFFLINE_READINESS_REVIEW_58b0b79.md) passes exact
