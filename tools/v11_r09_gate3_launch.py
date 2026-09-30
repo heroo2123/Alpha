@@ -6,6 +6,7 @@ payload is only a candidate for independent exact-digest G3-L review.
 from __future__ import annotations
 
 import fcntl
+import io
 import hashlib
 import ipaddress
 import json
@@ -17,11 +18,11 @@ import subprocess
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import urlsplit
-from zoneinfo import ZoneInfo
+from zoneinfo import TZPATH, ZoneInfo
 
 from tools.v11_multimodel_panel import canonical
 
-SCHEMA = 'R09_GATE3_LAUNCH_MANIFEST_V2'
+SCHEMA = 'R09_GATE3_LAUNCH_MANIFEST_V3'
 SLOTS = {'GEFS': (31, 3), 'IFS': (51, 3), 'AIFS': (51, 6)}
 SLOT_COUNT = 2713
 MAX_BYTES = 1024 ** 3
@@ -160,6 +161,42 @@ def _resolve_refs(value, root):
             _resolve_refs(child, root)
 
 
+def _zone_from_ref(cohort, root):
+    """Use the validated artifact bytes, never the host timezone database."""
+    key = cohort['timezone']
+    check(type(key) is str and
+          re.fullmatch(r'[A-Za-z0-9_+-]+(?:/[A-Za-z0-9_+-]+)*', key) is not None,
+          'COHORT_TIMEZONE_DATE')
+    value = cohort['tzdata']
+    ref(value, 'COHORT_ARTIFACT_REF')
+    integer(value['byte_length'], 1, 1024 ** 2, 'PINNED_TZDATA_BOUND')
+    _resolve_refs(value, root)
+    fd = os.open(root / 'objects' / value['sha256'], os.O_RDONLY | os.O_NOFOLLOW)
+    try:
+        st = os.fstat(fd)
+        check(stat.S_ISREG(st.st_mode) and st.st_uid == os.getuid() and
+              stat.S_IMODE(st.st_mode) == 0o600 and st.st_nlink == 1 and
+              st.st_size == value['byte_length'], 'PINNED_TZDATA_IDENTITY')
+        data = b''
+        while chunk := os.read(fd, 1024 ** 2):
+            data += chunk
+        check(hashlib.sha256(data).hexdigest() == value['sha256'],
+              'PINNED_TZDATA_DIGEST')
+    finally:
+        os.close(fd)
+    # Bind the IANA name to these bytes as well as using them for arithmetic.
+    # A host with different zone data refuses this candidate instead of
+    # silently evaluating the same manifest under different rules.
+    named_files = [Path(base) / key for base in TZPATH if (Path(base) / key).is_file()]
+    check(bool(named_files) and
+          hashlib.sha256(named_files[0].read_bytes()).hexdigest() == value['sha256'],
+          'PINNED_TZDATA_ZONE_MISMATCH')
+    try:
+        return ZoneInfo.from_file(io.BytesIO(data), key=key)
+    except (ValueError, OSError) as exc:
+        raise LaunchContractError('PINNED_TZDATA_INVALID') from exc
+
+
 def _slot_inventory(runs):
     return [[provider, runs[provider], member, hour]
             for provider, (members, cadence) in SLOTS.items()
@@ -274,10 +311,10 @@ def validate_manifest(raw, *, repo, object_root, now_utc):
         check(type(cohort[key]) in (int, float) and lo <= cohort[key] <= hi,
               'COORDINATES')
     try:
-        tz = ZoneInfo(cohort['timezone'])
         target = date.fromisoformat(cohort['target_date'])
     except (KeyError, ValueError, TypeError) as exc:
         raise LaunchContractError('COHORT_TIMEZONE_DATE') from exc
+    tz = _zone_from_ref(cohort, root)
     check(target.isoformat() == cohort['target_date'], 'TARGET_DATE_FORMAT')
     for key in ('tzdata', 'rule', 'settlement', 'metadata', 'selection', 'buckets'):
         ref(cohort[key], 'COHORT_ARTIFACT_REF')
@@ -342,16 +379,29 @@ def validate_manifest(raw, *, repo, object_root, now_utc):
                     'range_evidence', 'decoder_build', 'identity_pins'):
             ref(source[key], 'SOURCE_REF')
         members, cadence = SLOTS[provider]
-        check(source['member_range'] == [0, members - 1] and
+        check(type(source['member_range']) is list and
+              all(type(x) is int for x in source['member_range']) and
+              source['member_range'] == [0, members - 1] and
+              type(source['native_hours']) is list and
+              all(type(x) is int for x in source['native_hours']) and
               source['native_hours'] == list(range(0, 73, cadence)),
               'SOURCE_NATIVE_COHORT')
         check(type(source['effective_run_start_utc']) is int and
               type(source['effective_run_end_utc']) is int and
               source['effective_run_start_utc'] <= source['effective_run_end_utc'],
               'SOURCE_EFFECTIVE_INTERVAL')
+        template = source['path_template']
         check(_public_https_origin(source['origin']) and
               type(source['path_template']) is str and
-              '..' not in source['path_template'], 'SOURCE_ORIGIN')
+              template.startswith('/') and
+              template.count('{run}') == 1 and
+              template.count('{member}') == 1 and
+              template.count('{hour}') == 1 and
+              '..' not in template and
+              '{' not in template.replace('{run}', '').replace('{member}', '').replace('{hour}', '') and
+              '}' not in template.replace('{run}', '').replace('{member}', '').replace('{hour}', '') and
+              re.fullmatch(r'[A-Za-z0-9_/{}/.%-]+', template) is not None,
+              'SOURCE_ORIGIN')
         if source['publication_attestation'] is None:
             check(type(source['publication_absence_reason']) is str and
                   bool(source['publication_absence_reason']), 'PUBLICATION_ABSENCE_REASON')
@@ -359,18 +409,53 @@ def validate_manifest(raw, *, repo, object_root, now_utc):
             ref(source['publication_attestation'], 'PUBLICATION_REF')
     runs = payload['runs_and_slots']
     exact(runs, ('allowed_cycles', 'max_run_age_seconds', 'run_selection',
-                 'fallback_mode', 'run_utc', 'slots'), 'RUN_SCHEMA')
-    check(runs['allowed_cycles'] == [0] and runs['max_run_age_seconds'] == 86400 and
+                 'fallback_mode', 'run_utc', 'candidates', 'slots'), 'RUN_SCHEMA')
+    check(type(runs['allowed_cycles']) is list and
+          len(runs['allowed_cycles']) == 1 and type(runs['allowed_cycles'][0]) is int and
+          runs['allowed_cycles'][0] == 0 and type(runs['max_run_age_seconds']) is int and
+          runs['max_run_age_seconds'] == 86400 and
           runs['run_selection'] == 'LATEST_COMPLETE_READY' and
           runs['fallback_mode'] == 'NONE', 'RUN_POLICY')
     exact(runs['run_utc'], SLOTS, 'RUN_PROVIDER_SET')
+    lower = stamp('decision_lower_utc').timestamp()
+    first_day = datetime.fromtimestamp(lower - 86400, timezone.utc).date()
+    last_day = datetime.fromtimestamp(lower, timezone.utc).date()
+    candidates = []
+    day = first_day
+    while day <= last_day:
+        cycle = int(datetime.combine(day, datetime.min.time(), timezone.utc).timestamp())
+        if lower - 86400 <= cycle <= lower:
+            candidates.append(cycle)
+        day += timedelta(days=1)
+    check(type(runs['candidates']) is list and
+          len(runs['candidates']) == len(candidates) * len(SLOTS), 'RUN_CANDIDATES')
+    by_provider = {p: [] for p in SLOTS}
+    for item in runs['candidates']:
+        exact(item, ('provider', 'run_utc', 'status', 'ready_upper_utc'),
+              'RUN_CANDIDATE_SCHEMA')
+        p, cycle = item['provider'], item['run_utc']
+        check(type(p) is str and p in SLOTS and type(cycle) is int and
+              cycle in candidates and item['status'] in ('READY', 'INCOMPLETE', 'UNAVAILABLE') and
+              type(item['ready_upper_utc']) is int and
+              item['ready_upper_utc'] > cycle,
+              'RUN_CANDIDATE_VALUE')
+        by_provider[p].append(item)
     for provider, run in runs['run_utc'].items():
-        check(type(run) is int and datetime.fromtimestamp(run, timezone.utc).hour == 0 and
-              0 < decision.timestamp() - run <= 86400 and
+        inventory = by_provider[provider]
+        check(len(inventory) == len(candidates) and
+              {item['run_utc'] for item in inventory} == set(candidates),
+              'RUN_CANDIDATES')
+        eligible = [item['run_utc'] for item in inventory if
+                    item['status'] == 'READY' and item['ready_upper_utc'] <= lower]
+        check(type(run) is int and run in candidates and eligible and
+              run == max(eligible) and
               sources[provider]['effective_run_start_utc'] <= run <=
               sources[provider]['effective_run_end_utc'], 'RUN_TIME')
     expected = _slot_inventory(runs['run_utc'])
-    check(type(runs['slots']) is list and runs['slots'] == expected and
+    check(type(runs['slots']) is list and
+          all(type(slot) is list and len(slot) == 4 and
+              type(slot[0]) is str and all(type(x) is int for x in slot[1:])
+              for slot in runs['slots']) and runs['slots'] == expected and
           len(expected) == SLOT_COUNT, 'IMMUTABLE_2713_SLOT_DENOMINATOR')
 
     network = payload['network']
@@ -399,7 +484,9 @@ def validate_manifest(raw, *, repo, object_root, now_utc):
     integer(limits['max_received_bytes'], 1, MAX_BYTES, 'BODY_CAP')
     integer(limits['max_elapsed_seconds'], 1, 10800, 'ELAPSED_CAP')
     check(limits['single_in_flight'] is True and
+          type(limits['min_start_interval_seconds']) is int and
           limits['min_start_interval_seconds'] >= 2 and
+          type(limits['request_deadline_seconds']) is int and
           0 < limits['request_deadline_seconds'] <= 30, 'REQUEST_PACING')
     integer(limits['max_index_bytes'], 1, 3145728, 'INDEX_CAP')
     exact(limits['field_bytes'], SLOTS, 'FIELD_LIMIT_SET')
@@ -410,15 +497,19 @@ def validate_manifest(raw, *, repo, object_root, now_utc):
           'RESOURCE_MINIMUM')
     for key in ('headers', 'metadata', 'decoded', 'report_storage'):
         integer(limits[key], 1, MAX_BYTES, 'RESOURCE_BOUND')
+    check(limits['report_storage'] <= storage['report_reserve_bytes'],
+          'REPORT_RESERVE_INSUFFICIENT')
 
     schedule = payload['schedule']
     exact(schedule, ('slot_inventory_sha256', 'attempt_slots', 'requests',
                      'observed_sizes', 'estimated_full_raw_bytes', 'reservation_total_bytes',
-                     'full_denominator', 'capture_mode'), 'SCHEDULE_SCHEMA')
+                     'full_denominator', 'capture_mode', 'processing_seconds',
+                     'finalization_seconds'), 'SCHEDULE_SCHEMA')
     digest(schedule['slot_inventory_sha256'], 'SLOT_DIGEST')
-    check(hashlib.sha256(canonical(expected)).hexdigest() ==
+    check(hashlib.sha256(canonical(runs['slots'])).hexdigest() ==
           schedule['slot_inventory_sha256'], 'SLOT_DIGEST_MISMATCH')
-    check(schedule['full_denominator'] == SLOT_COUNT and
+    check(type(schedule['full_denominator']) is int and
+          schedule['full_denominator'] == SLOT_COUNT and
           schedule['capture_mode'] == ident['capture_mode'], 'SCHEDULE_DENOMINATOR')
     check(type(schedule['attempt_slots']) is list and
           bool(schedule['attempt_slots']) and
@@ -430,38 +521,83 @@ def validate_manifest(raw, *, repo, object_root, now_utc):
     total = 0
     field_slots = []
     prior_overhead = {}
+    request_ids = set()
     field_started = False
     for position, request in enumerate(schedule['requests']):
-        exact(request, ('purpose', 'slot_index', 'reservation_bytes', 'prerequisites'),
+        exact(request, ('request_id', 'purpose', 'slot_index', 'provider', 'origin',
+                        'path', 'object_id', 'index_id', 'cache_id', 'range_start',
+                        'range_end', 'reservation_bytes', 'prerequisites'),
               'SCHEDULE_REQUEST_SCHEMA')
-        check(request['purpose'] in ('FIELD', 'INDEX', 'OBJECT_ID', 'METADATA', 'PROBE') and
-              type(request['prerequisites']) is list, 'SCHEDULE_PURPOSE')
+        check(type(request['purpose']) is str and
+              request['purpose'] in ('FIELD', 'INDEX', 'OBJECT_ID', 'METADATA', 'PROBE') and
+              type(request['prerequisites']) is list and
+              all(type(i) is int and 0 <= i < position for i in request['prerequisites']) and
+              len(set(request['prerequisites'])) == len(request['prerequisites']),
+              'SCHEDULE_PREREQUISITES')
+        check(type(request['request_id']) is str and
+              re.fullmatch(r'[A-Za-z0-9_-]{1,80}', request['request_id']) and
+              request['request_id'] not in request_ids, 'SCHEDULE_REQUEST_ID')
+        request_ids.add(request['request_id'])
+        index = request['slot_index']
+        check(type(index) is int and index in schedule['attempt_slots'],
+              'SCHEDULE_SLOT_BINDING')
+        provider, run, member, hour = expected[index]
+        source = sources[provider]
+        path = source['path_template'].format(run=run, member=member, hour=hour)
+        object_id = hashlib.sha256(canonical([provider, source['origin'], path])).hexdigest()
+        index_id = hashlib.sha256(canonical([object_id, 'INDEX'])).hexdigest()
+        cache_id = hashlib.sha256(canonical([object_id, index_id])).hexdigest()
+        check(request['provider'] == provider and request['origin'] == source['origin'] and
+              request['path'] == path and request['object_id'] == object_id and
+              request['index_id'] == index_id and request['cache_id'] == cache_id,
+              'SCHEDULE_OBJECT_BINDING')
         if request['purpose'] == 'FIELD':
             field_started = True
-            check(request['slot_index'] in schedule['attempt_slots'], 'FIELD_OUTSIDE_SUBSET')
-            field_slots.append(request['slot_index'])
-            check(all(type(i) is int and i in prior_overhead for i in
-                      request['prerequisites']) and
-                  {'INDEX', 'OBJECT_ID', 'METADATA'} <=
-                  {prior_overhead[i] for i in request['prerequisites']},
+            field_slots.append(index)
+            check({'INDEX', 'OBJECT_ID', 'METADATA'} <=
+                  {prior_overhead[i]['purpose'] for i in request['prerequisites']
+                   if i in prior_overhead} and
+                  all(i in prior_overhead and
+                      all(prior_overhead[i][k] == request[k] for k in
+                          ('provider', 'origin', 'path', 'object_id', 'index_id', 'cache_id'))
+                      for i in request['prerequisites']),
                   'FIELD_PREREQUISITES')
-            provider = expected[request['slot_index']][0]
             minimum = limits['field_bytes'][provider]
+            integer(request['reservation_bytes'], minimum, MAX_BYTES,
+                    'RESERVATION_TOO_SMALL')
+            integer(request['range_start'], 0, MAX_BYTES, 'FIELD_RANGE')
+            integer(request['range_end'], request['range_start'], MAX_BYTES,
+                    'FIELD_RANGE')
+            check(request['range_end'] - request['range_start'] + 1 <=
+                  request['reservation_bytes'], 'FIELD_RANGE_RESERVATION')
         else:
             check(not field_started, 'OVERHEAD_MUST_PRECEDE_FIELD')
-            check(request['slot_index'] is None, 'NONFIELD_SLOT')
+            check(request['range_start'] is None and request['range_end'] is None and
+                  not request['prerequisites'], 'OVERHEAD_REQUEST_SHAPE')
             minimum = limits['max_index_bytes'] if request['purpose'] == 'INDEX' else limits['metadata']
-            prior_overhead[position] = request['purpose']
-        integer(request['reservation_bytes'], minimum, MAX_BYTES, 'RESERVATION_TOO_SMALL')
+            integer(request['reservation_bytes'], minimum, MAX_BYTES,
+                    'RESERVATION_TOO_SMALL')
+            prior_overhead[position] = request
         total += request['reservation_bytes']
-    check(total == schedule['reservation_total_bytes'] and
+    check(type(schedule['reservation_total_bytes']) is int and
+          type(schedule['estimated_full_raw_bytes']) is int and
+          total == schedule['reservation_total_bytes'] and
           total <= limits['max_received_bytes'] and
           schedule['estimated_full_raw_bytes'] >= 1469234173,
           'SCHEDULE_FEASIBILITY')
     check(field_slots == schedule['attempt_slots'] and
           len(field_slots) == len(set(field_slots)), 'ATTEMPT_ORDER_PARTITION')
     ref(schedule['observed_sizes'], 'OBSERVED_SIZE_REF')
-    check(len(schedule['requests']) * limits['request_deadline_seconds'] <=
+    integer(schedule['processing_seconds'], max(60, len(field_slots)), 10800,
+            'SCHEDULE_PROCESSING')
+    integer(schedule['finalization_seconds'], 60, 10800,
+            'SCHEDULE_FINALIZATION')
+    count = len(schedule['requests'])
+    serial_seconds = ((count - 1) * max(limits['min_start_interval_seconds'],
+                                       limits['request_deadline_seconds']) +
+                      limits['request_deadline_seconds'] +
+                      schedule['processing_seconds'] + schedule['finalization_seconds'])
+    check(serial_seconds <=
           limits['max_elapsed_seconds'], 'SCHEDULE_TIME_FEASIBILITY')
 
     clocks = payload['clocks_and_receipts']
@@ -505,25 +641,41 @@ class DurableBudget:
               min_start_interval_seconds >= 2, 'BUDGET_START_INTERVAL')
         check(type(boot_id) is str and boot_id, 'BUDGET_BOOT_ID')
         path = Path(directory)
-        check(not path.is_symlink() and path.is_dir(), 'JOURNAL_DIRECTORY')
-        self.dir_fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
-        directory_stat = os.fstat(self.dir_fd)
-        if directory_stat.st_uid != os.getuid() or stat.S_IMODE(directory_stat.st_mode) != 0o700:
-            os.close(self.dir_fd)
-            raise LaunchContractError('JOURNAL_DIRECTORY_PRIVATE_MODE')
-        self.lock_fd = os.open('gate3.lock', os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW,
-                               0o600, dir_fd=self.dir_fd)
+        check(path.is_absolute(), 'JOURNAL_DIRECTORY')
+        for ancestor in (path, *path.parents):
+            check(not stat.S_ISLNK(os.lstat(ancestor).st_mode), 'JOURNAL_PATH_SYMLINK')
+        check(path == path.resolve(), 'JOURNAL_DIRECTORY')
+        self.dir_fd = self.lock_fd = self.fd = None
+        self.failed = False
+        self.uncertain_received_bytes = 0
         try:
+            self.dir_fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+            directory_stat = os.fstat(self.dir_fd)
+            check(stat.S_ISDIR(directory_stat.st_mode) and
+                  directory_stat.st_uid == os.getuid() and
+                  stat.S_IMODE(directory_stat.st_mode) == 0o700 and
+                  os.stat(path).st_ino == directory_stat.st_ino and
+                  os.stat(path).st_dev == directory_stat.st_dev,
+                  'JOURNAL_DIRECTORY_PRIVATE_MODE')
+            self.path = path
+            self.directory_identity = (directory_stat.st_dev, directory_stat.st_ino)
+            self.lock_fd = os.open('gate3.lock', os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW |
+                                   os.O_NONBLOCK,
+                                   0o600, dir_fd=self.dir_fd)
+            self._check_file('gate3.lock', self.lock_fd)
             fcntl.flock(self.lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            self.fd = os.open('gate3.jsonl', os.O_CREAT | os.O_RDWR | os.O_APPEND |
+                              os.O_NOFOLLOW | os.O_NONBLOCK,
+                              0o600, dir_fd=self.dir_fd)
+            self._check_file('gate3.jsonl', self.fd)
+            # Seal a newly created directory entry before any reservation.
+            os.fsync(self.dir_fd)
         except BlockingIOError as exc:
-            os.close(self.lock_fd)
-            os.close(self.dir_fd)
+            self.close()
             raise LaunchContractError('JOURNAL_CONCURRENT_WRITER') from exc
-        self.fd = os.open('gate3.jsonl', os.O_CREAT | os.O_RDWR | os.O_APPEND | os.O_NOFOLLOW,
-                          0o600, dir_fd=self.dir_fd)
-        # The first reservation is unsafe if a crash can lose the journal's
-        # directory entry while preserving the request's network side effect.
-        os.fsync(self.dir_fd)
+        except BaseException:
+            self.close()
+            raise
         self.manifest = manifest_sha256
         self.max_requests = max_requests
         self.max_bytes = max_bytes
@@ -552,6 +704,30 @@ class DurableBudget:
             self.close()
             raise
 
+    def _check_file(self, name, fd):
+        st = os.fstat(fd)
+        check(stat.S_ISREG(st.st_mode) and st.st_uid == os.getuid() and
+              stat.S_IMODE(st.st_mode) == 0o600 and st.st_nlink == 1,
+              'JOURNAL_FILE_IDENTITY')
+        linked = os.stat(name, dir_fd=self.dir_fd, follow_symlinks=False)
+        check((linked.st_dev, linked.st_ino) == (st.st_dev, st.st_ino),
+              'JOURNAL_FILE_IDENTITY')
+
+    def _healthy(self):
+        check(not self.failed, 'JOURNAL_DURABILITY_UNCERTAIN')
+        try:
+            check(all(not stat.S_ISLNK(os.lstat(ancestor).st_mode)
+                      for ancestor in (self.path, *self.path.parents)),
+                  'JOURNAL_PATH_SYMLINK')
+            current = os.stat(self.path, follow_symlinks=False)
+            check((current.st_dev, current.st_ino) == self.directory_identity and
+                  stat.S_ISDIR(current.st_mode), 'JOURNAL_DIRECTORY_IDENTITY')
+            self._check_file('gate3.lock', self.lock_fd)
+            self._check_file('gate3.jsonl', self.fd)
+        except BaseException:
+            self.failed = True
+            raise
+
     def _replay(self):
         with os.fdopen(os.dup(self.fd), 'rb') as reader:
             reader.seek(0)
@@ -568,12 +744,21 @@ class DurableBudget:
                 self.events.append(record['event'])
 
     def _append(self, event):
+        self._healthy()
         record = {'seq': len(self.events), 'prev': self.prev, 'event': event}
         record['hash'] = hashlib.sha256(canonical(record)).hexdigest()
         data = canonical(record) + b'\n'
-        written = os.write(self.fd, data)
-        check(written == len(data), 'JOURNAL_SHORT_WRITE')
-        os.fsync(self.fd)
+        try:
+            written = os.write(self.fd, data)
+            check(written == len(data), 'JOURNAL_SHORT_WRITE')
+            os.fsync(self.fd)
+        except BaseException as exc:
+            self.failed = True
+            reason = ('JOURNAL_SHORT_WRITE_DURABILITY_UNCERTAIN'
+                      if isinstance(exc, LaunchContractError) and
+                      str(exc) == 'JOURNAL_SHORT_WRITE' else
+                      'JOURNAL_DURABILITY_UNCERTAIN')
+            raise LaunchContractError(reason) from exc
         self.prev = record['hash']
         self.events.append(event)
 
@@ -622,6 +807,7 @@ class DurableBudget:
               (self.received <= self.max_bytes or self.violated), 'JOURNAL_BUDGET_EXCEEDED')
 
     def reserve(self, key, bytes_required, *, started_monotonic):
+        self._healthy()
         check(type(key) is str and key and key not in self.attempts,
               'REQUEST_KEY_REUSE')
         integer(bytes_required, 1, self.max_bytes, 'REQUEST_RESERVATION')
@@ -644,6 +830,7 @@ class DurableBudget:
         self._state()
 
     def next_read_limit(self, maximum_chunk):
+        self._healthy()
         check(self.in_flight is not None and not self.violated, 'NO_ACTIVE_REQUEST')
         integer(maximum_chunk, 1, MAX_BYTES, 'READ_CHUNK_BOUND')
         attempt = self.attempts[self.in_flight]
@@ -651,26 +838,40 @@ class DurableBudget:
                    self.max_bytes - self.received)
 
     def consume(self, key, body):
+        self._healthy()
         check(self.in_flight == key and type(body) is bytes, 'UNEXPECTED_BODY_CHUNK')
         allowance = self.next_read_limit(max(len(body), 1))
         if len(body) > allowance:
             # Bytes already delivered by a faulty transport still count, even
             # though the caller must abort and can never resume this request.
-            self._append({'op': 'violation', 'key': key, 'bytes': len(body)})
+            try:
+                self._append({'op': 'violation', 'key': key, 'bytes': len(body)})
+            except BaseException:
+                self.uncertain_received_bytes += len(body)
+                self.received += len(body)
+                raise
             self._state()
             raise LaunchContractError('STREAM_ABORT_AT_ALLOWANCE')
-        self._append({'op': 'chunk', 'key': key, 'bytes': len(body)})
+        try:
+            self._append({'op': 'chunk', 'key': key, 'bytes': len(body)})
+        except BaseException:
+            self.uncertain_received_bytes += len(body)
+            self.received += len(body)
+            raise
         self._state()
 
     def complete(self, key):
+        self._healthy()
         check(self.in_flight == key and not self.violated, 'NO_ACTIVE_REQUEST')
         self._append({'op': 'complete', 'key': key})
         self._state()
 
     def close(self):
-        os.close(self.fd)
-        os.close(self.lock_fd)
-        os.close(self.dir_fd)
+        for name in ('fd', 'lock_fd', 'dir_fd'):
+            fd = getattr(self, name, None)
+            if fd is not None:
+                os.close(fd)
+                setattr(self, name, None)
 
     def __enter__(self):
         return self
