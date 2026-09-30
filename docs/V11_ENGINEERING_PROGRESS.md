@@ -1,5 +1,18 @@
 # Supplementary engineering estimate
 
+## Gate 3 restart architecture handoff completed — 2026-09-30 21:37 UTC
+
+Astra/high produced the [reviewable restart design](V11_R09_GATE3_STORE_RESTART_DESIGN_7b5a235.md)
+for held `7b5a235`, covering exclusive ownership, ordered persistent provenance,
+original clocks, conservative reconciliation and a concrete crash/fault test matrix.
+A disposable directory-lock experiment passed three primitive checks; recovery
+implementation and its tests are still future work. Prior 176 affected / 53 probe
+passes remain scoped to the earlier repair. No code or candidate changed, no
+worker was needed, and all merge/publication/capture/G3-L/SHADOW/learner holds remain.
+The next safe batch is offline implementation in the preserved isolated worktree,
+then fresh different-model review. No C/J/E/A crossing: **91/200 (45.5%), formal
+1/50; NOT_READY_TO_FUND**.
+
 ## Gate 3 restart design route; no new credit — 2026-09-30 21:29 UTC
 
 Recovered clean main and held worktrees; review and author terminals are

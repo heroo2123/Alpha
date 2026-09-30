@@ -1,5 +1,15 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## R09 Gate 3 restart design ready; no acceptance credit — 2026-09-30 21:37 UTC
+
+[Restart design for held `7b5a235`](V11_R09_GATE3_STORE_RESTART_DESIGN_7b5a235.md)
+now specifies exclusive ownership, durable seal provenance, preservation of original
+clock evidence, uncertain-name classifications and synthetic crash acceptance.
+This is design completion only: no implementation, restart readiness, real capture,
+G3-L, learner admission or forward evidence. Candidate stays unchanged/unmerged;
+all holds remain. Next is bounded offline implementation and fresh different-model
+exact-commit review. **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## R09 Gate 3 restart provenance design routed — 2026-09-30 21:29 UTC
 
 No newer worker or forward evidence exists after the scoped PASS of held

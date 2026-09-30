@@ -1,5 +1,34 @@
 # Alpha V11 work checkpoint
 
+## Gate 3 restart design completed; implementation acceptance still held — 2026-09-30 21:37 UTC
+
+Astra/high completed the exact restart-design handoff from `61bac9e` in
+[the reviewable design](V11_R09_GATE3_STORE_RESTART_DESIGN_7b5a235.md).
+It specifies lifetime ownership on the pinned root inode, versioned append-only
+PREPARE/COMMIT provenance, original clock preservation, conservative namespace
+reconciliation, and an explicit synthetic interruption/failure acceptance matrix.
+Recovered object-seal evidence is distinct from caller acknowledgement (UNKNOWN)
+and historical feature eligibility. Torn records, unresolved preparations,
+orphan names and legacy stores remain held with no cleanup or clock replacement.
+A disposable host lock probe passed three ownership checks; no implementation or
+restart acceptance is claimed, and the prior 176/53 tests were not rerun.
+
+Held `7b5a235`/tree `3ff45d6` remains clean, unchanged and unmerged. Next safe
+implementation is the bounded offline store/clock/tests/handoff batch described
+in the design, in the same isolated worktree, followed by fresh different-model
+exact-commit review. Preserve all merge, publication, capture, G3-L, SHADOW and
+learner holds. This routed design completed synchronously; no worker remains or
+was duplicated. Main recovered clean at `61bac9e` (45 ahead / 0 behind its local
+tracking ref); SHADOW remains clean. New commissioning writes are only watchdog
+statuses after 06:43 UTC. Accepted release resolution `6ec371e` remains current.
+
+Read-only checks: private FINAL-REVIEWED master matches its pinned SHA-256;
+V10 demo, PAPER scanner/controller inactive/disabled; V11 execution inactive/masked;
+protected authority absent. Disk 4.4 GiB free; memory about 1.0 GiB available.
+No V10, AxiomTrade, service, authority, financial or publication action. No new
+forward evidence or C/J/E/A crossing: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Coordinator recovery: route Gate 3 store design — 2026-09-30 21:29 UTC
 
 Recovered clean main `d947571` (44 ahead, 0 behind tracking ref), clean held
