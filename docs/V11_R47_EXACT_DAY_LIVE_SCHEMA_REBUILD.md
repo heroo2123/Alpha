@@ -80,3 +80,10 @@ Closed locally: real artifact-backed isolated research injection; exact deployed
 Still open: independent/owner review; root-owned model-authority installation/reviewed shadow pointer; actual forward current-input shadow evidence and frozen evidence-based sample target; calibration/promotion evidence; execution-cost evidence; every financial/live readiness gate.
 
 Therefore R47 remains OPEN and Alpha remains NOT_READY_TO_FUND.
+
+
+## Fail-closed alias regression and draft-v1 provenance note
+
+The repository now also contains tools/gefs_schema_rebind.py plus tests/test_gefs_schema_rebind.py. The tool proves contract-shape equivalence separately from member-value semantic equivalence and refuses the real historical evidence with GEFS31_LIVE_MEMBER_SEMANTICS_METHOD_MISMATCH. Its focused suite passes 16/16. This permanently guards against treating a model-id rename as a compatibility fix.
+
+The four bundle hashes above are retained as draft research evidence for the corrected feature/model/unit compatibility tests only. They are not eligible for owner review because their first one-shot generator used a wall-clock provenance timestamp and shortened the family suffix to the identical string "ture" for both HIGH and LOW run IDs. Those issues do not alter predictions, but they weaken exact provenance/reproducibility. A deterministic v2 rebuild with a frozen creation timestamp and unique family run IDs is required before any protected model-authority review/install step. No v1 candidate may be promoted or installed.
