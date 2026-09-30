@@ -2,6 +2,19 @@
 
 ## Coordinator recovery — live SHADOW worker resumed; release gate running — 2026-09-30
 
+Follow-up recovery at 09:32 UTC: the first scheduler full-suite process had
+ended after about 5% of tests, without a terminal marker or captured failure;
+its last log write was 09:23:57 UTC. No pytest process from that run remained.
+The cause is unproven, so it supplies no release PASS. Restarted the same
+full suite on the unchanged, clean `e35cbfc` worktree under a detached session
+(PID 723864, pytest child 723867). Inspect
+`/tmp/alpha-v11-scheduler-full-suite-retry.log` and its `.terminal` file for
+the real result before review or integration. The separate SHADOW worker is
+still active with uncommitted implementation/tests; no duplicate was launched.
+PAPER scanner PID 514629 is active with zero restarts, V10 is inactive, and
+protected model-authority paths remain absent. No new forward SHADOW evidence;
+score stays **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 Recovered actual process and worktree state before acting. The existing Sonnet
 SHADOW commissioning process (PID 695908) was stopped with unfinished, untracked
 `shadow_commission.py` in its isolated worktree; it was continued in place with

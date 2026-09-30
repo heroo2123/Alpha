@@ -2,6 +2,13 @@
 
 ## Coordinator recovery — 2026-09-30
 
+Follow-up at 09:32 UTC: the first full-suite scheduler regression ended without
+a terminal result after about 5% of tests. The gate remains open. A detached
+retry is running on the same clean `e35cbfc` branch, with durable log and
+terminal paths `/tmp/alpha-v11-scheduler-full-suite-retry.{log,terminal}`.
+The SHADOW worker remains active; no forward evidence or C/J/E/A credit was
+claimed. **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 Resumed the stopped Sonnet SHADOW commissioning process in its original isolated
 worktree; its unfinished code and new tests are preserved. Began the missing
 full-suite release regression on the separate test-only scheduler-fix branch

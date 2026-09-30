@@ -1,5 +1,11 @@
 # V11 requirement-to-code/test/evidence matrix
 
+Coordinator follow-up (2026-09-30, 09:32 UTC): the first scheduler full-suite
+process ended without a terminal result after about 5% of tests; a detached
+retry is running on the unchanged `e35cbfc` worktree. Release remains open.
+The SHADOW worker still has unfinished local changes; no new forward evidence
+or C/J/E/A credit: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 Coordinator live recovery (2026-09-30): the stopped, unfinished SHADOW
 commissioning worker was resumed in its existing worktree. No forward SHADOW
 evidence or root-protected authority exists yet. A test-only scheduler release
