@@ -1,5 +1,15 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Coordinator recovery — R09 counterexamples in progress — 2026-09-30
+
+The sole R09 gate-2 worker remains live in its preserved worktree. It has
+extended the 61-pass focused repair with additional independent-review
+counterexamples, but the diff is uncommitted and has no fresh completed test
+gate, terminal or exact-commit review. Gate 2 and real admission remain OPEN.
+The PAPER scanner is inactive after its disk stop; only watchdog status has
+changed in commissioning evidence. No requirement status or C/J/E/A credit
+changes: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator recovery — R09 focused suite passes — 2026-09-30
 
 The single R09 gate-2 repair worker remains active in its preserved worktree.

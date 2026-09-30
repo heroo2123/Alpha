@@ -1,5 +1,15 @@
 # Supplementary engineering estimate
 
+## Coordinator recovery — 2026-09-30 15:07 UTC
+
+The preserved R09 repair worker is still live and expanding test coverage
+after its 61/61 focused pass. Its source/test diff remains uncommitted;
+affected tests, terminal and independent exact-commit review are pending.
+The accepted SHADOW development release is unchanged, PAPER remains stopped
+after the disk guard, and no new forward sample qualifies. Protected model
+authority is absent; private master integrity still matches its pin.
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator recovery — 2026-09-30
 
 The preserved R09 gate-2 worker repaired its synthetic fixtures and reached
