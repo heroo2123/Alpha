@@ -1,5 +1,15 @@
 # Supplementary engineering estimate
 
+## Independent Gate 3 addendum review — 2026-09-30
+
+Sol/high accepted exact `14c2413` as an offline G3-P addendum after source
+tracing and independent reproduction of all six launch-helper counterexamples.
+[Review and completed terminal](V11_R09_GATE3_LAUNCH_CONTRACT_REVIEW_14c2413.md).
+Next unblocked work is the isolated strict launch validator and durable
+reservation/stream accounting, followed by cross-model review. No live probe,
+G3-L approval, forward sample or C/J/E/A credit. **91/200 (45.5%), formal
+1/50; NOT_READY_TO_FUND**.
+
 ## G3-L exact-package design and acceptance gaps resolved on paper — 2026-09-30
 
 Astra/high's [launch-contract adjudication](V11_R09_GATE3_LAUNCH_CONTRACT_ADJUDICATION.md)

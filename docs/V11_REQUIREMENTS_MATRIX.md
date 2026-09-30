@@ -1,5 +1,13 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## R09 G3-P addendum independently reviewed — 2026-09-30
+
+[Exact-commit review](V11_R09_GATE3_LAUNCH_CONTRACT_REVIEW_14c2413.md) of
+`14c2413` is PASS for the offline launch-contract addendum only. Six helper
+gaps were independently reproduced and remain required G3-I fixes. G3-L
+manifest, transport, capture and forward evidence remain OPEN. No C/J/E/A
+boundary crossed: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## R09 G3-L contract adjudicated; independent addendum review next — 2026-09-30
 
 The [Astra/high adjudication](V11_R09_GATE3_LAUNCH_CONTRACT_ADJUDICATION.md)

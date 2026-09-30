@@ -1,5 +1,21 @@
 # Alpha V11 work checkpoint
 
+## Gate 3 launch-contract addendum independently reviewed — 2026-09-30 19:15 UTC
+
+Sol/high independently reviewed exact Astra/high addendum commit `14c2413`
+(tree `d37d7ad`) and recorded a scoped offline G3-P addendum **PASS** in
+[review](V11_R09_GATE3_LAUNCH_CONTRACT_REVIEW_14c2413.md) with a completed
+terminal. All six synthetic helper defects reproduced independently; none is
+accepted for launch. The corrected GEFS S3 full-field bound and unchanged
+1 GiB total cap stand. Full raw estimated demand remains 1,469,234,173 bytes
+for the frozen 2,713-slot denominator, above the cap before overhead. No real
+transport, decoder, private manifest, exact-digest G3-L review or network
+permission exists. Next: isolated offline strict-validator and durable
+reservation/stream-accounting G3-I extension, then exact-commit independent
+review. GEFS SHADOW remains root/owner gated; no new qualifying forward
+evidence. V10 and protected authority untouched. **91/200 (45.5%), formal
+1/50; NOT_READY_TO_FUND**, unchanged.
+
 ## G3-L architecture adjudication: exact package defined, launch blocked — 2026-09-30
 
 Astra/high completed the routed acceptance analysis at clean main `866a6a5`:
