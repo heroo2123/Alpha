@@ -1,5 +1,24 @@
 # Supplementary engineering estimate
 
+## R09 G3-I collector built and tested offline — 2026-09-30 18:10 UTC
+
+Built the bounded G3-I collector the accepted G3-P protocol calls for, in
+isolated branch `r09-gate3-collector-20260930` (worktree
+`/home/alphaadmin/AlphaV11_R09Gate3Collector/Alpha`), committed at `de8c7bc`.
+`tools/v11_r09_gate3_collector.py` implements `SourceDossier`, a G3-I-only
+native IFS/AIFS three-hour request path (production `ECMWFRequest` confirmed
+unmodified by a dedicated regression test), the frozen `CaptureManifest`
+schema (independently reproducing the reviewed 2,713-message denominator),
+`AttemptLedger`/`RestrictionLedger`/`BudgetTracker`, and the P3-2/P3-3
+follow-ups the G3-P review asked for — all offline, no network transport
+implemented. 45/45 new tests pass; targeted regression on
+trajectory-contract/GEFS/model-panel suites is 263 passed / 2 skipped, 0
+failed. See [handoff](V11_R09_GATE3_COLLECTOR_G3I.md) for how each of the
+review's three P3 notes was addressed without editing the already-passed
+protocol document. No network access, acquisition, or launch occurred; this
+grants no admission and the branch stays unmerged pending an independent
+exact-commit G3-I review. **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## R09 G3-P review accepted — 2026-09-30 17:54 UTC
 
 The independent Sonnet/high review of exact protocol commit `117830a`

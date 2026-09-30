@@ -1,5 +1,36 @@
 # Alpha V11 work checkpoint
 
+## R09 Gate 3 (G3-I) collector built, awaiting independent review — 2026-09-30 18:10 UTC
+
+Executed the next unblocked task named by the prior entry: built and tested,
+offline only, the bounded G3-I collector the accepted G3-P protocol requires.
+Work happened in an isolated worktree/branch
+(`/home/alphaadmin/AlphaV11_R09Gate3Collector/Alpha`,
+`r09-gate3-collector-20260930`, base `40ad8f9`), committed at `de8c7bc`; main
+is untouched by the code itself. New files: `tools/v11_r09_gate3_collector.py`
+(`SourceDossier`, a separate native IFS/AIFS three-hour request path that does
+not modify production `ECMWFRequest`, the frozen `CaptureManifest` schema
+reproducing the reviewed 2,713-message denominator, `AttemptLedger`,
+`RestrictionLedger`, `BudgetTracker`, a P3-3 feasibility estimator and a P3-2
+origin dry-run check with no real transport implemented), its test suite
+(45/45 passed), and a handoff document
+(`docs/V11_R09_GATE3_COLLECTOR_G3I.md`) that addresses all three G3-P review
+P3 notes in the implementation rather than editing the already-passed
+protocol text. Targeted regression (`test_v11_trajectory_contract.py`,
+`test_v11_gefs_sources.py`, `test_v11_model_panel.py`): 263 passed / 2 skipped,
+0 failed — confirms no change to any existing production file. No network
+access, forecast acquisition, or capture launch occurred.
+
+This grants no new admission: per the protocol's own gate table, G3-I review
+(still pending, at exact commit `de8c7bc`) would permit only "preparation of a
+concrete launch manifest; no automatic network start." The branch remains
+unmerged pending that independent review, matching the Gate 2 precedent. No
+C/J/E/A boundary crossed: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+Publication hold remains in force; no push attempted. Next unfinished action:
+obtain an independent exact-commit review of `de8c7bc` (adversarial checks per
+protocol Section 7), then prepare a concrete private G3-L manifest only after
+that PASS.
+
 ## Coordinator acceptance — R09 Gate 3 protocol G3-P PASS — 2026-09-30 17:54 UTC
 
 Recovered the finished independent Sonnet/high review of exact commit `117830a`
