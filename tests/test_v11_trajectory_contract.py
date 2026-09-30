@@ -268,7 +268,7 @@ def candidate_for(points):
 
 def inventory_for(points, policy, decision_at, selected=None):
     selected = tuple(selected or (candidate_for(points),))
-    providers = {p.provider for p in points}
+    providers = set(policy.required_providers)
     slots = tc.run_candidate_slots(policy, decision_at.conservative_lower_bound)
     candidates = list(selected)
     for provider in providers:
@@ -1253,8 +1253,10 @@ def test_r7_provider_completeness_fallback_grouping_and_full_cohort_report():
     fallback = coverage_policy(required_providers=('GEFS', 'IFS'),
                                extra_expected={'IFS': expected_ifs}, fallback_mode='FROZEN_OUTAGE')
     ex = baseline_example(policy=fallback)
-    observed = bind_clock(receipt_ts(ex['clocks'].decision_at.utc - 1000, uncertainty=0), 'IFS')
-    outage = tc.OutageEvidence('IFS', observed, put(b'synthetic-provider-outage-record'))
+    outage_sha = put(tc.outage_manifest_bytes('IFS', fallback, ex['clocks'].decision_at,
+                                              ex['run_inventory_sha256']))
+    observed = bind_clock(receipt_ts(ex['clocks'].decision_at.utc - 1000, uncertainty=0), outage_sha)
+    outage = tc.OutageEvidence('IFS', observed, outage_sha)
     ex['outage_evidence'] = (outage,)
     record = tc.validate_example(**ex)
     report = tc.validate_corpus([record], ex['split_cutoffs'], fallback, resolve)
@@ -1324,6 +1326,7 @@ def reject_example_and_corpus(ex, changed, reason, evidence=None):
         'points': tuple(bad['points']), 'local_day': bad['local_day'],
         'label_history': tuple(bad['label_history']),
         'run_candidates': tuple(bad['run_candidates']),
+        'outage_evidence': tuple(bad.get('outage_evidence', ())),
         'run_inventory_sha256': bad['run_inventory_sha256']})
     forged = replace(record, source_inputs=source)
     with pytest.raises(PanelError, match=reason):
@@ -1478,6 +1481,53 @@ def test_n4_unavailable_status_must_be_observed_by_decision():
     reject_example_and_corpus(ex, {'run_candidates': candidates,
                                    'run_inventory_sha256': identity},
                               'RUN_CANDIDATE_STATUS_NOT_KNOWN_BY_DECISION')
+
+
+def fallback_example():
+    expected_ifs = tc.ExpectedCoverage('IFS', tuple(range(PROVIDERS['IFS'])), EXPECTED_HOURS)
+    policy = coverage_policy(required_providers=('GEFS', 'IFS'),
+                             extra_expected={'IFS': expected_ifs}, fallback_mode='FROZEN_OUTAGE')
+    ex = baseline_example(policy=policy)
+    outage_sha = put(tc.outage_manifest_bytes('IFS', policy, ex['clocks'].decision_at,
+                                              ex['run_inventory_sha256']))
+    observed = bind_clock(receipt_ts(ex['clocks'].decision_at.utc - 1000, uncertainty=0), outage_sha)
+    ex['outage_evidence'] = (tc.OutageEvidence('IFS', observed, outage_sha),)
+    return ex
+
+
+def test_n4_fallback_requires_all_absent_provider_slots_and_bound_outage_bytes():
+    ex = fallback_example()
+    slots = tc.run_candidate_slots(ex['coverage_policy'],
+                                   ex['clocks'].decision_at.conservative_lower_bound)
+    assert len([c for c in ex['run_candidates'] if c.provider == 'IFS']) == len(slots)
+    record = tc.validate_example(**ex)
+    assert record.coverage.absent_providers == ('IFS',)
+    unrelated = replace(ex['outage_evidence'][0],
+                        evidence_sha256=ex['points'][0].station_version)
+    reject_example_and_corpus(ex, {'outage_evidence': (unrelated,)},
+                              'INJECTED_EVIDENCE_VERIFICATION_FAILED')
+    omitted = tuple(c for c in ex['run_candidates'] if c.provider != 'IFS')
+    reject_example_and_corpus(ex, {'run_candidates': omitted},
+                              'RUN_CANDIDATE_INVENTORY_INCOMPLETE_OR_DUPLICATE')
+
+
+def test_n4_fallback_rejects_complete_ready_absent_provider_run():
+    ex = fallback_example()
+    candidate = next(c for c in ex['run_candidates'] if c.provider == 'IFS')
+    ready = replace(candidate, complete=True, status='READY')
+    ready = replace(ready, ready_at=bind_clock(ready.ready_at, ready.subject))
+    candidates = tuple(ready if c is candidate else c for c in ex['run_candidates'])
+    inventory_sha = put(tc.run_inventory_bytes(ex['coverage_policy'], ex['clocks'].decision_at,
+                                                candidates, {'GEFS', 'IFS'}))
+    outage_sha = put(tc.outage_manifest_bytes('IFS', ex['coverage_policy'],
+                                              ex['clocks'].decision_at, inventory_sha))
+    old = ex['outage_evidence'][0]
+    outage = replace(old, evidence_sha256=outage_sha,
+                     observed_at=bind_clock(old.observed_at, outage_sha))
+    reject_example_and_corpus(ex, {'run_candidates': candidates,
+                                   'run_inventory_sha256': inventory_sha,
+                                   'outage_evidence': (outage,)},
+                              'OUTAGE_PROVIDER_HAS_ELIGIBLE_RUN')
 
 
 def test_n1_distinct_messages_in_one_response_remain_admissible():

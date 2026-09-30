@@ -446,10 +446,17 @@ def run_candidate_slots(policy, decision_lower):
 
 
 def run_inventory_bytes(policy, decision_at, candidates, providers):
-    return canonical(dict(protocol_id=policy.policy_id, decision_at=asdict(decision_at),
+    return canonical(dict(contract_id=CONTRACT_ID, protocol_id=policy.policy_id,
+                          decision_at=asdict(decision_at),
                           providers=sorted(providers),
                           candidates=[asdict(c) for c in sorted(candidates,
                               key=lambda c: (c.provider, c.run_initialized_at.utc))]))
+
+
+def outage_manifest_bytes(provider, policy, decision_at, inventory_sha256):
+    return canonical(dict(contract_id=CONTRACT_ID, provider=provider,
+                          protocol_id=policy.policy_id, decision_at=asdict(decision_at),
+                          inventory_sha256=inventory_sha256, status='FROZEN_OUTAGE'))
 
 
 @dataclass(frozen=True)
@@ -1162,15 +1169,9 @@ def validate_example(*, city_day, split, points, coverage_policy, local_day, clo
     present_providers = {p.provider for p in points}
     if coverage.absent_providers:
         require(coverage_policy.fallback_mode == 'FROZEN_OUTAGE', 'REQUIRED_PROVIDER_ABSENT_NO_FALLBACK')
-        require(set(coverage.absent_providers) == {o.provider for o in outage_evidence},
+        require(set(coverage.absent_providers) == {o.provider for o in outage_evidence} and
+                len(outage_evidence) == len(coverage.absent_providers),
                 'OUTAGE_EVIDENCE_PROVIDER_SET')
-        for outage in outage_evidence:
-            verify_bound_clock(evidence_resolver, outage.observed_at, outage.provider)
-            actual = evidence_resolver(outage.evidence_sha256)
-            require(type(actual) is bytes and hashlib.sha256(actual).hexdigest() == outage.evidence_sha256,
-                    'OUTAGE_EVIDENCE_VERIFICATION_FAILED')
-            require(outage.observed_at.conservative_upper_bound <= decision_lower,
-                    'OUTAGE_NOT_KNOWN_BY_DECISION')
     else:
         require(not outage_evidence, 'UNDECLARED_OUTAGE_EVIDENCE')
     rule_version = validate_rule_consistency(points)
@@ -1257,18 +1258,19 @@ def validate_example(*, city_day, split, points, coverage_policy, local_day, clo
     require(clocks.decision_at == dict(coverage_policy.decision_schedule)[trial_key],
             'DECISION_NOT_ON_FROZEN_SCHEDULE')
     require(is_sha(run_inventory_sha256), 'RUN_INVENTORY_EVIDENCE_REQUIRED')
-    require({candidate.provider for candidate in run_candidates} == present_providers and
+    required_providers = set(coverage_policy.required_providers)
+    require({candidate.provider for candidate in run_candidates} == required_providers and
             len({(candidate.provider, candidate.run_initialized_at.utc)
                  for candidate in run_candidates}) == len(run_candidates),
             'RUN_CANDIDATE_INVENTORY_INCOMPLETE_OR_DUPLICATE')
     slots = set(run_candidate_slots(coverage_policy, decision_lower))
     require({(candidate.provider, candidate.run_initialized_at.utc)
              for candidate in run_candidates} ==
-            {(provider, stamp) for provider in present_providers for stamp in slots},
+            {(provider, stamp) for provider in required_providers for stamp in slots},
             'RUN_CANDIDATE_INVENTORY_INCOMPLETE_OR_DUPLICATE')
     verify_evidence_bytes(evidence_resolver,
                           run_inventory_bytes(coverage_policy, clocks.decision_at,
-                                              run_candidates, present_providers),
+                                              run_candidates, required_providers),
                           run_inventory_sha256)
     for candidate in run_candidates:
         verify_bound_clock(evidence_resolver, candidate.ready_at, candidate.subject)
@@ -1290,6 +1292,16 @@ def validate_example(*, city_day, split, points, coverage_policy, local_day, clo
         require(chosen.ready_at.utc >=
                 max(p.feature_ready_at.conservative_upper_bound for p in points if p.provider == provider),
                 'RUN_READY_BEFORE_COMPLETE_FEATURES')
+    for outage in outage_evidence:
+        require(not any(c.provider == outage.provider and c.complete and
+                        c.ready_at.conservative_upper_bound <= decision_lower
+                        for c in run_candidates), 'OUTAGE_PROVIDER_HAS_ELIGIBLE_RUN')
+        verify_evidence_bytes(evidence_resolver,
+            outage_manifest_bytes(outage.provider, coverage_policy, clocks.decision_at,
+                                  run_inventory_sha256), outage.evidence_sha256)
+        verify_bound_clock(evidence_resolver, outage.observed_at, outage.evidence_sha256)
+        require(outage.observed_at.conservative_upper_bound <= decision_lower,
+                'OUTAGE_NOT_KNOWN_BY_DECISION')
     require_trusted(cutoff, CUTOFF_ROLE[split])
     if split == 'TRAIN':
         require(current_label.label_knowable_at.conservative_upper_bound <= cutoff.conservative_lower_bound,
