@@ -97,8 +97,7 @@ def verify_response(request: dict, response: OfflineResponse, *, allowed_peer_ip
     check(headers.get('content-encoding', 'identity').lower() == 'identity' and
           headers.get('transfer-encoding') is None and
           headers.get('content-length') == str(body_length), 'RESPONSE_LENGTH_ENCODING')
-    check(type(expected_etag) is str and 1 <= len(expected_etag) <= 256 and
-          headers.get('etag') == expected_etag and not expected_etag.startswith('W/'),
+    check(_strong_etag(expected_etag) and headers.get('etag') == expected_etag,
           'RESPONSE_OBJECT_IDENTITY')
     if purpose == 'FIELD':
         start, end = request.get('range_start'), request.get('range_end')
@@ -174,6 +173,14 @@ def _distance(a: float, b: float, c: float, d: float) -> float:
     return 6371.0 * 2 * math.asin(min(1.0, math.sqrt(h)))
 
 
+def _strong_etag(value: str) -> bool:
+    """One RFC 9110 strong entity tag, including an empty opaque tag."""
+    return (type(value) is str and 2 <= len(value) <= 256 and
+            value[0] == value[-1] == '"' and
+            all(ord(char) == 0x21 or 0x23 <= ord(char) <= 0x7e or
+                0x80 <= ord(char) <= 0xff for char in value[1:-1]))
+
+
 def decode_full_grid_station(raw: bytes, *, provider: str, section_sha256: dict[int, str],
                              latitude: float, longitude: float,
                              max_points: int = 1040000) -> GridPoint:
@@ -212,8 +219,8 @@ def decode_full_grid_station(raw: bytes, *, provider: str, section_sha256: dict[
           'FULL_FIELD_BITMAP_UNSUPPORTED')
     lat0, lon0 = _signed(grid, 46, 50) / 1e6, _signed(grid, 50, 54) / 1e6
     latn, lonn = _signed(grid, 55, 59) / 1e6, _signed(grid, 59, 63) / 1e6
-    dx = _u(grid, 67, 71) / 1e6 * (-1 if grid[71] & 128 else 1)
-    dy = _u(grid, 63, 67) / 1e6 * (1 if grid[71] & 64 else -1)
+    dx = _u(grid, 63, 67) / 1e6 * (-1 if grid[71] & 128 else 1)
+    dy = _u(grid, 67, 71) / 1e6 * (1 if grid[71] & 64 else -1)
     check(0 < abs(dx) <= 1 and 0 < abs(dy) <= 1 and
           abs(lat0 + (nj - 1) * dy - latn) <= 1e-6 and
           abs(((lon0 + (ni - 1) * dx - lonn + 180) % 360) - 180) <= 1e-6,
@@ -308,18 +315,26 @@ class ClockSequence:
                       (reading.monotonic_seconds - previous.monotonic_seconds)) <=
                   reading.uncertainty_seconds + previous.uncertainty_seconds,
                   'CLOCK_STEP_OR_REVERSAL')
+        lower = max((r.utc_seconds - r.monotonic_seconds - r.uncertainty_seconds
+                     for _, r in self.readings), default=-math.inf)
+        upper = min((r.utc_seconds - r.monotonic_seconds + r.uncertainty_seconds
+                     for _, r in self.readings), default=math.inf)
+        offset = reading.utc_seconds - reading.monotonic_seconds
+        check(max(lower, offset - reading.uncertainty_seconds) <=
+              min(upper, offset + reading.uncertainty_seconds),
+              'CLOCK_STEP_OR_REVERSAL')
         self.readings.append((phase, reading))
 
     def causal_before(self, decision_lower_utc: float) -> bool:
         check(len(self.readings) == len(self.PHASES) and
               type(decision_lower_utc) in (int, float) and
               math.isfinite(decision_lower_utc), 'CLOCK_SEQUENCE_INCOMPLETE')
-        last = self.readings[-1][1]
-        return last.utc_seconds + last.uncertainty_seconds <= decision_lower_utc
+        return all(reading.utc_seconds + reading.uncertainty_seconds <=
+                   decision_lower_utc for _, reading in self.readings)
 
 
 class ImmutableObjectStore:
-    """Private digest-named objects, sealed with fsync and exclusive hard links."""
+    """Private objects; reopened nonempty stores require separate recovery review."""
 
     def __init__(self, root: Path):
         self.root = Path(root)
@@ -337,6 +352,10 @@ class ImmutableObjectStore:
                   'OBJECT_DIRECTORY_PRIVATE')
             self.identity = (st.st_dev, st.st_ino)
             self.root_identity = (parent.st_dev, parent.st_ino)
+            with os.scandir(self.dir_fd) as entries:
+                self._recovery_required = next(entries, None) is not None
+            self._failed = False
+            self._sealed: set[str] = set()
         except BaseException:
             self.close()
             raise
@@ -354,10 +373,23 @@ class ImmutableObjectStore:
               stat.S_IMODE(current.st_mode) == 0o700,
               'OBJECT_DIRECTORY_CHANGED')
 
+    def _usable(self):
+        check(not self._failed and not self._recovery_required,
+              'OBJECT_DURABILITY_UNCERTAIN')
+        self._healthy()
+
+    def _remove_temporary(self, temporary: str):
+        try:
+            os.unlink(temporary, dir_fd=self.dir_fd)
+            os.fsync(self.dir_fd)
+        except BaseException:
+            self._failed = True
+            raise
+
     def seal(self, data: bytes) -> str:
         check(type(data) is bytes and 0 < len(data) <= 4 * 1024 * 1024,
               'OBJECT_BYTES_BOUND')
-        self._healthy()
+        self._usable()
         sha = hashlib.sha256(data).hexdigest()
         temporary = '.tmp-' + secrets.token_hex(16)
         fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
@@ -368,25 +400,53 @@ class ImmutableObjectStore:
                 output.flush()
             os.fsync(fd)
             self._healthy()
+        except BaseException:
+            try:
+                self._remove_temporary(temporary)
+            finally:
+                os.close(fd)
+            raise
+        try:
             try:
                 os.link(temporary, sha, src_dir_fd=self.dir_fd,
                         dst_dir_fd=self.dir_fd, follow_symlinks=False)
             except FileExistsError as exc:
+                self._remove_temporary(temporary)
                 raise LaunchContractError('OBJECT_ALREADY_EXISTS') from exc
+            except BaseException:
+                self._failed = True
+                raise
             os.fsync(self.dir_fd)
-            return sha
-        finally:
-            os.close(fd)
             os.unlink(temporary, dir_fd=self.dir_fd)
             os.fsync(self.dir_fd)
+            self._sealed.add(sha)
+            return sha
+        except BaseException as exc:
+            # Any exception after link may have published the digest name.
+            # Preserve names that remain and refuse this store.
+            if not (isinstance(exc, LaunchContractError) and
+                    str(exc) == 'OBJECT_ALREADY_EXISTS' and not self._failed):
+                self._failed = True
+            raise
+        finally:
+            os.close(fd)
 
     def read(self, sha: str) -> bytes:
         digest(sha, 'OBJECT_DIGEST')
-        self._healthy()
-        fd = os.open(sha, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=self.dir_fd)
+        self._usable()
+        path_fd = os.open(sha, os.O_PATH | os.O_NOFOLLOW, dir_fd=self.dir_fd)
+        try:
+            path_stat = os.fstat(path_fd)
+            check(stat.S_ISREG(path_stat.st_mode), 'OBJECT_FILE_IDENTITY')
+        finally:
+            os.close(path_fd)
+        check(sha in self._sealed, 'OBJECT_NOT_SEALED_IN_SESSION')
+        fd = os.open(sha, os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW,
+                     dir_fd=self.dir_fd)
         try:
             st = os.fstat(fd)
-            check(stat.S_ISREG(st.st_mode) and st.st_uid == os.getuid() and
+            check((st.st_dev, st.st_ino) == (path_stat.st_dev, path_stat.st_ino) and
+                  stat.S_ISREG(st.st_mode) and st.st_uid == os.getuid() and
                   stat.S_IMODE(st.st_mode) == 0o600 and st.st_nlink == 1 and
                   0 < st.st_size <= 4 * 1024 * 1024, 'OBJECT_FILE_IDENTITY')
             data = b''
