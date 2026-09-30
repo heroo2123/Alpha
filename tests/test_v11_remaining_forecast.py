@@ -1,11 +1,14 @@
 from dataclasses import replace
 from datetime import date, datetime, time, timezone
 from types import SimpleNamespace
+import time as timing
+from unittest.mock import patch
 
 import pytest
 
 from polymarket_scanner.v11 import remaining_forecast as remaining
 from polymarket_scanner.v11 import gefs_sources
+from polymarket_scanner.v11 import evidence as evidence_module
 from polymarket_scanner.v11.evidence import EvidenceError, digest
 from polymarket_scanner.v11.forecast_sources import ForecastPlan
 from polymarket_scanner.v11.probability import UNRESOLVED_EXTREME
@@ -29,7 +32,11 @@ def prepare(r, *, family='high', intervals=None, change=None, day=None):
     fields = tuple(field(r,m,h,data=grib(member=m,hour=h,run=run,packing=1,
         values=(300. if family=='high' and h==9 else 270. if family=='low' and h==9 else 280.,290.,291.,292.)))['id']
         for m in range(31) for h in plan.hours)
-    path = gefs_sources.assemble_path(r['store'],plan=plan,field_ids=fields,record_id='whole-path')
+    # This helper tests source and publication semantics, not elapsed wall time.
+    # Give synthetic preparation a two-second CPU budget so host descheduling
+    # cannot fail unrelated tests; production retains its wall-time deadline.
+    with patch.object(evidence_module,'time',SimpleNamespace(monotonic=timing.process_time)):
+        path = gefs_sources.assemble_path(r['store'],plan=plan,field_ids=fields,record_id='whole-path')
     official = observation(r,intervals=intervals,change=change)
     return path, official
 
