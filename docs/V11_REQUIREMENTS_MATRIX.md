@@ -1,5 +1,28 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Gate 3 restart repair independently reviewed; two remaining defects — 2026-09-30 22:29 UTC
+
+Astra/high independently reviewed exact held Sol/high `7bc627e`/tree `bfe712b`:
+**CHANGES_REQUIRED**, with [report, probes and terminal](V11_R09_GATE3_STORE_RESTART_REVIEW_7bc627e.md).
+The five original defect manifestations are resolved. New bounded probes reproduce
+two P2 gaps: inherited read/seal can hang on a mutex held by another parent thread
+at fork, and accepted Unicode context can produce a descriptor larger than the
+fixed recovery read limit after an acknowledged seal. Independent evidence:
+**279 affected passes; 153 probe passes**, including three defect reproductions,
+54 SIGKILL boundary cases and 28 deterministic survivor cases. This is synthetic
+review evidence, not physical storage qualification or acceptance.
+
+Next: Sonnet/high repairs R6/R7 in the same preserved offline worktree, then fresh
+different-model exact-commit review. Candidate remains clean, unchanged and
+unmerged. All merge, publication, provider capture, G3-L, SHADOW and learner holds
+remain. No duplicate worker was launched; this routed review completed synchronously.
+Main recovered at `93a7685`; SHADOW clean. Only manager/watchdog commissioning
+statuses changed; accepted release resolution `6ec371e` remains current. Master
+hash matches its pin; demo/scanner/controller/execution inactive, execution masked,
+protected authority absent. Disk 4.4 GiB free, memory about 875 MiB available at
+inspection. No service, V10, AxiomTrade, authority, financial or publication action.
+No C/J/E/A crossing: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## R09 Gate 3 restart five-finding author repair; no acceptance credit — 2026-09-30 22:19 UTC
 
 Held `7bc627e`/tree `bfe712b` repairs R1–R5 from the exact `74bd122`
