@@ -1,5 +1,23 @@
 # Alpha V11 work checkpoint
 
+## Coordinator recovery — R09 native-extrema review integrated — 2026-09-30
+
+The isolated R09 native-extrema research branch (`fef0d0d`) received an
+independent PASS: the reviewer rebuilt both real public captures, reproduced
+the 541 station-days, 357/120/64 splits, 73 aligned and 468 crossing IFS
+boundaries, and passed 312 tests with two expected skips. Its three commits
+were merged into main at `d71eec7`; the merge tree is byte-identical to the
+reviewed branch tree. Post-merge focused verification: 77 passed, one expected
+skip; `git diff --check` clean. The adapter still admits zero exact-day fits:
+raw full-day assembly, historical availability and causal rule/label evidence
+remain absent. No new C/J/E/A: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
+The nonfinancial SHADOW commissioning worker remains active in its isolated
+worktree. The prior full-suite fill-markout failure still needs a captured
+load/order reproduction and diagnosis before a release PASS; the isolated/family
+passes alone do not clear that gate. V10 and protected authority remain untouched.
+
 ## R09 native-extreme continuation — 2026-09-30
 
 Verified code commit `f20d8791f19438b24bc33cda15d2d08ac9374843`, tree

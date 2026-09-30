@@ -1,5 +1,13 @@
 # V11 requirement-to-code/test/evidence matrix
 
+Coordinator recovery (2026-09-30): independently reviewed R09 native-extrema
+research was merged at `d71eec7`, with a byte-identical reviewed branch tree
+and 77 post-merge focused passes (one expected skip). It establishes real IFS
+native-extrema metadata and reproducible, bounded public-capture evidence, but
+admits zero exact-day station-days and no real fit, calibration, or promotion.
+R09 remains PARTIAL with existing C,J only. Total **91/200 (45.5%), formal
+1/50; NOT_READY_TO_FUND**. Release full-suite fill-markout failure remains open.
+
 ## R09 native-extreme continuation — 2026-09-30
 
 Verified code commit `f20d8791f19438b24bc33cda15d2d08ac9374843`, tree

@@ -1,5 +1,16 @@
 # Supplementary engineering estimate
 
+## Coordinator recovery — R09 native-extrema integration — 2026-09-30
+
+Independent review PASS for `fef0d0d` reproduced the public-capture result and
+312 tests with two expected skips. Main merged the three R09 commits at
+`d71eec7`; the merge tree matches the reviewed branch. Post-merge focused
+tests: 77 passed, one expected skip. Native IFS extrema evidence narrows the
+feasibility question but does not admit exact-day fitting or satisfy empirical
+acceptance. The SHADOW commissioning worker remains active; the release
+full-suite fill-markout failure remains unresolved. **91/200 (45.5%), formal
+1/50; NOT_READY_TO_FUND**.
+
 ## R09 native-extreme continuation — 2026-09-30
 
 Verified code commit `f20d8791f19438b24bc33cda15d2d08ac9374843`, tree
