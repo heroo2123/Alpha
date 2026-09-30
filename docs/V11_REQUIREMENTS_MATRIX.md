@@ -1,5 +1,28 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Independent SHADOW commissioning review blocked integration — 2026-09-30
+
+Astra independently reviewed `4557904` in its clean isolated worktree and
+reproduced five blocking findings: no plan-to-runner cohort binding;
+incompatible/expired/demoted state accepted by preflight; repeated synthetic
+admissions counted as forward samples; failed preflights counted as forward
+runs; and silently truncated status history. Original tests plus four defect
+reproductions: 25 passed / 15.21 s; two supplementary reproductions: 2 passed /
+3.47 s. These passes prove the defects, not commissioning acceptance.
+**CHANGES_REQUIRED; keep the branch out of main.** Repair in the same isolated
+worktree and independently re-review before integration. Exact findings,
+reproduction hashes and repair criteria:
+[V11 SHADOW commissioning review](V11_SHADOW_COMMISSION_REVIEW_4557904.md).
+
+The existing scheduler retry was still running around 36% at 09:43 UTC with
+no terminal result; no duplicate suite or worker was started. PAPER scanner
+remains active with zero restarts; controller inactive/disabled, execution
+inactive/masked, protected authority absent. No services or protected state
+changed. No new forward evidence or C/J/E/A: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**. The unblocked next step is substantive SHADOW repair;
+root installation is not a substitute for resolving this review.
+
+
 Coordinator follow-up (2026-09-30, 09:32 UTC): the first scheduler full-suite
 process ended without a terminal result after about 5% of tests; a detached
 retry is running on the unchanged `e35cbfc` worktree. Release remains open.
