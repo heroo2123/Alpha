@@ -378,11 +378,53 @@ def test_budget_enforces_provider_specific_field_ceiling_before_begin():
     with pytest.raises(PanelError, match='BUDGET_FIELD_PROVIDER_REQUIRED'):
         tracker.begin_request(0.0, field_bytes=1)
     with pytest.raises(g3i.BudgetCeilingExceeded, match='NOT_ATTEMPTED_BUDGET'):
-        tracker.begin_request(0.0, provider='GEFS', field_bytes=64 * 1024 + 1)
+        tracker.begin_request(0.0, provider='GEFS', field_bytes=g3i._GEFS_S3_FULL_FIELD_MAX_BYTES + 1)
     assert tracker.request_count == 0
-    tracker.begin_request(0.0, provider='GEFS', field_bytes=64 * 1024)
-    tracker.complete_request(64 * 1024)
+    tracker.begin_request(0.0, provider='GEFS', field_bytes=g3i._GEFS_S3_FULL_FIELD_MAX_BYTES)
+    tracker.complete_request(g3i._GEFS_S3_FULL_FIELD_MAX_BYTES)
     tracker.begin_request(2.0, provider='IFS', field_bytes=4 * 1024 * 1024)
+
+
+def test_budget_gefs_full_field_ceiling_is_per_acquisition_path_not_product_family():
+    """Regression for the coordinator's 2026-09-30 finding: Gate 3's GEFS ceiling
+    must bound the S3 `.idx`-sidecar + `Range` full-field path it actually intends
+    to use, not `grib_fields.MAX_BYTES` (64 KiB), which bounds a different consumer
+    -- the production NOMADS CGI subregion decoder. Real observed single-field
+    byte-range sizes (`config/v11/r09_gate3_observed_message_sizes_20260930.json`,
+    33,759 DONE GEFS captures, max 245,209 B; IFS/AIFS maxima from the same
+    evidence) must all fit under `begin_request`'s per-provider ceiling, and
+    `estimate_feasibility` must find the full manifest launchable at those real
+    sizes -- reproducing, with real evidence, the exact G3-L prerequisite this
+    module previously refused for every real GEFS capture."""
+    observed_max_bytes = {'GEFS': 245_209, 'IFS': 672_912, 'AIFS': 635_346}
+    assert g3i._GEFS_S3_FULL_FIELD_MAX_BYTES >= observed_max_bytes['GEFS']
+    assert g3i._GEFS_S3_FULL_FIELD_MAX_BYTES <= g3i._EXISTING_MAX_FIELD_BYTES
+    tracker = g3i.BudgetTracker()
+    tracker.start_window(0.0)
+    now = 0.0
+    for provider, size in observed_max_bytes.items():
+        tracker.begin_request(now, provider=provider, field_bytes=size)
+        tracker.complete_request(size)
+        now += tracker.min_interval_seconds
+    manifest = make_manifest()
+    # At the real observed sizes the full pilot denominator exceeds the protocol's
+    # 1 GiB total-bytes ceiling (a manifest-scale fact, not a per-message ceiling
+    # bug), so P3-3's prespecified bounded fallback applies; a per-provider ceiling
+    # wide enough for every real message (not the old 64 KiB one, which rejected
+    # all of them) still yields a positive, deterministic fallback.
+    plan = g3i.estimate_feasibility(manifest, provider_message_size_estimate_bytes=observed_max_bytes)
+    assert plan.launchable_at_full_denominator is False
+    assert 0 < plan.fallback_denominator < plan.nominal_denominator
+    for provider in g3i.VALID_PROVIDERS:
+        assert (provider, 0, 0) in plan.fallback_keys
+    # Against a ceiling sized for the real manifest total, the full denominator is
+    # launchable -- proving the earlier False above is the byte ceiling, not a
+    # leftover per-message rejection of real GEFS sizes.
+    plan_unbounded = g3i.estimate_feasibility(
+        manifest, provider_message_size_estimate_bytes=observed_max_bytes,
+        ceiling_bytes=plan.estimated_total_bytes)
+    assert plan_unbounded.launchable_at_full_denominator is True
+    assert plan_unbounded.fallback_denominator == plan_unbounded.nominal_denominator
 
 
 def test_budget_caller_tightening_applies_to_every_provider():

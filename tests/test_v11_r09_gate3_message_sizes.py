@@ -3,7 +3,7 @@ import sqlite3
 
 from tools import v11_r09_gate3_message_sizes as sizes
 from tools.v11_r09_gate3_collector import (
-    _EXISTING_GEFS_MAX_FIELD_BYTES, _EXISTING_MAX_FIELD_BYTES,
+    _EXISTING_MAX_FIELD_BYTES, _GEFS_S3_FULL_FIELD_MAX_BYTES,
     VALID_PROVIDERS)
 
 
@@ -37,7 +37,7 @@ def test_observed_maximum_is_the_estimate_and_pending_rows_are_ignored(tmp_path)
 
 
 def test_sizes_over_pinned_ceiling_are_reported_not_hidden(tmp_path):
-    ecmwf, gefs = _stores(tmp_path, [_EXISTING_GEFS_MAX_FIELD_BYTES, _EXISTING_GEFS_MAX_FIELD_BYTES + 1],
+    ecmwf, gefs = _stores(tmp_path, [_GEFS_S3_FULL_FIELD_MAX_BYTES, _GEFS_S3_FULL_FIELD_MAX_BYTES + 1],
                           [_EXISTING_MAX_FIELD_BYTES + 1])
     report = sizes.build(ecmwf, gefs)
     assert report['providers']['GEFS']['field_bytes']['exceeding_ceiling'] == 1
