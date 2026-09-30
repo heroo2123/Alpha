@@ -1,0 +1,201 @@
+{
+  "status": "PASS_OFFLINE_COMBINED_TREE",
+  "reviewer": "gpt-6-astra/high",
+  "independent_of_candidate_authorship": true,
+  "completion_issuer": "synchronous_reviewer_not_external_driver",
+  "finished_utc": "2026-09-30T23:58:51.220254+00:00",
+  "main_commit": "a7463311968440f0744dbe5aefd7ee6e68c7d12c",
+  "candidate_commit": "e563e45a50f7b6df8b85c60df80aa879040edab8",
+  "prospective_tree": "0c3e5d794dcedb2e43eef7b4d70446ab3d404ecd",
+  "paths": [
+    {
+      "path": "docs/V11_R09_GATE3_OFFLINE_IO_HANDOFF.md",
+      "candidate_sha256": "8d93ae52579ba442ddedd6a8adde99edfc079a4afe7324d1a9f0ead09f580435"
+    },
+    {
+      "path": "docs/V11_R09_GATE3_STORE_RESTART_HANDOFF.md",
+      "candidate_sha256": "8061fe3eb51e5d84b5c449b38727ee5c44ee566eb0ad436a76fcd6cf4fe98519"
+    },
+    {
+      "path": "tests/test_v11_r09_gate3_launch.py",
+      "candidate_sha256": "a48f75c455adbddcb54db64d13b60d652625d25d7a58049d93337f38c735b66d"
+    },
+    {
+      "path": "tests/test_v11_r09_gate3_offline_io.py",
+      "candidate_sha256": "845223cf28a6c7cf29f2ee1405e61f65989418f74fd74fd697f64155daddf0b1"
+    },
+    {
+      "path": "tests/test_v11_r09_gate3_restart_composition.py",
+      "candidate_sha256": "97b7b5bf20fc983c198e21ce441aa009379198aed4ea7156b854738efbdb3e07"
+    },
+    {
+      "path": "tests/test_v11_r09_gate3_store_v1.py",
+      "candidate_sha256": "4177b27bf24fb61a392684af277c59a7bc6a92b929c4e70b9b71cbcf5616b49b"
+    },
+    {
+      "path": "tools/v11_r09_gate3_launch.py",
+      "candidate_sha256": "bb49c3200f065f4a3b3d966967661b3b59fe02c834d3207a3fc01c1cd64ab50a"
+    },
+    {
+      "path": "tools/v11_r09_gate3_offline_io.py",
+      "candidate_sha256": "bca02a320402ca6c0f908cd035fecd08854012c25b744d8cc7436ca370c50235"
+    },
+    {
+      "path": "tools/v11_r09_gate3_store_v1.py",
+      "candidate_sha256": "cf65d164dba4a1937fc38a4cfa18cf686c53b248e97b15ac21d8a7d4bee0d636"
+    }
+  ],
+  "main_files": 996,
+  "candidate_tree": "19faace86e5c60276e9a69aeaab42fc090993aea",
+  "original_driver_terminal": "MISSING_PRESERVED",
+  "original_driver_exit_code": null,
+  "original_driver_termination_cause": "UNKNOWN",
+  "repair_acceptance": "I1_AND_I2_RESOLVED_BY_NEW_INDEPENDENT_ADJUDICATION",
+  "prior_evidence_verification": {
+    "checks": {
+      "repair.diff": true,
+      "diff_check.log": true,
+      "run_review.py": true,
+      "test_independent_review.py": true,
+      "test_predecessor_acceptance.py": true,
+      "conftest.py": true,
+      "identity_before.json": true,
+      "identity_after.json": true,
+      "verification.json": true,
+      "compatibility.json": true,
+      "affected_and_predecessor.json": true,
+      "affected_and_predecessor.log": true,
+      "independent.json": true,
+      "independent.log": true,
+      "report": true
+    },
+    "artifacts": {
+      "identity_before.json": "d9b0e0d4cdfed41c1a0fa3dec33f91e9356f56f1fe8e75ea4ecd806f49fd83f8",
+      "prompt.txt": "9de3caf9f019d86fb8403be3f3a64e60be3ae073f29faa3ec2727c43a0a54895",
+      "run_review.py": "821814741367025a9461d0d53a40369cce84f6c11ea253ef088fef1477104813",
+      "verification.json": "bc3bd253a99b484a6a75cb044e88a52d9ba877980830d25c06bc7136c3ed7a8c",
+      "write_report.py": "be5cb641f7e67dee9bc3f66c95b8ef710409eb9b48dce68b5829cb7314ea182a",
+      "independent.log": "3b6a9ce209c55ffbcc2fa117956da4ac35c68aeafbafbaac5303d8b4a8e61d29",
+      "result.json": "a76bee0e835f1d54f31f8f860c17545a73ee1bc96dbb7f96b76002eb1eeafb0f",
+      "worker.log": "84322452fc4b5a1e96fe1ff579a7899d63040b3b75e8c9f04152cbf3d41db373",
+      "independent.json": "27222eda95a03cf47f2990f3b923c05009904500a955642578c99c01fc7af11e",
+      "compatibility.json": "0c0f4135bf938211ac9403f956031fdabca556ff2ea63e2654df63272443be81",
+      "test_independent_review.py": "1e4df574626695cc5d99d16afc0896bfd6f652a26d93351ce466febf28511b57",
+      "review.md": "36c937d58c48661c3fb31259dc9468391f72c4854b2533bedf7ed60817d1a441",
+      "conftest.py": "3374b7073742c17e0b98bd3a7e299e62a5d5793d851225eafb668d8169b9a949",
+      "started.json": "ab9aeecf850a0a7e23bdcda412ee7b2d6253c09c6d07b2edb7bed1c4f67847ee",
+      "repair.diff": "18b5904131abc3806276290b6e585ba79c40f83b89f0e93b0a0d165767c3a094",
+      "driver.py": "f3b99c6c889a57d5e1c1233433da17b7a69a2fac174678e5039df1f94bba45bf",
+      "affected_and_predecessor.json": "a989503b117c21160842e0955a67eba0a72a029f5a9e1aef7a70037dacef15a3",
+      "driver.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "diff_check.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "test_predecessor_acceptance.py": "a9d24795b19ab457cbff2ae457982d3480ae442f80b5b5b1d86876f236d0943a",
+      "identity_after.json": "d9b0e0d4cdfed41c1a0fa3dec33f91e9356f56f1fe8e75ea4ecd806f49fd83f8",
+      "last_output.txt": "71e972a86cce5cc8c8546b404b992f86c405edda4c272c635589e81fb6583d20",
+      "affected_and_predecessor.log": "83718b3541a139f6cd8aa8baac02043d86a2d8c1b8db75517aa5ab44da36e599"
+    },
+    "original_terminal": "MISSING; not reconstructed",
+    "driver_exit_code": "UNKNOWN"
+  },
+  "tests": [
+    {
+      "name": "affected",
+      "cwd": "/tmp/alpha-v11-gate3-adjudication-e563e45-a746331",
+      "command": "/home/alphaadmin/alpha-review-test-venv/bin/python -m pytest -q -p no:cacheprovider --basetemp /tmp/alpha-v11-gate3-adjudication-e563e45-a746331-evidence/tmp_affected tests/test_v11_r09_gate3_store_v1.py tests/test_v11_r09_gate3_offline_io.py tests/test_v11_r09_gate3_launch.py tests/test_v11_r09_gate3_collector.py tests/test_v11_grib_fields.py tests/test_v11_r09_gate3_restart_composition.py /tmp/alpha-v11-gate3-adjudication-e563e45-a746331-evidence/test_predecessor_acceptance.py /tmp/alpha-v11-gate3-adjudication-e563e45-a746331-evidence/test_independent_review.py",
+      "environment": {
+        "PYTHONPATH": "/tmp/alpha-v11-gate3-adjudication-e563e45-a746331",
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "TMPDIR": "/tmp/alpha-v11-gate3-adjudication-e563e45-a746331-evidence/tmp",
+        "GIT_OPTIONAL_LOCKS": "0"
+      },
+      "timeout_seconds": 180,
+      "exit_code": 0,
+      "elapsed_seconds": 25.605,
+      "log": "/tmp/alpha-v11-gate3-adjudication-e563e45-a746331-evidence/affected.log",
+      "log_sha256": "2e28cd784a5be742be2078508c33f3e9578181f808572d2254737523a40fbe6f",
+      "commit": "a7463311968440f0744dbe5aefd7ee6e68c7d12c",
+      "tree": "0c3e5d794dcedb2e43eef7b4d70446ab3d404ecd",
+      "passed": 345,
+      "skipped": 0,
+      "summary": "345 passed, 2 warnings in 24.83s"
+    },
+    {
+      "name": "retained",
+      "cwd": "/tmp/alpha-v11-gate3-adjudication-e563e45-a746331",
+      "command": "/home/alphaadmin/alpha-review-test-venv/bin/python -m pytest -q -p no:cacheprovider --basetemp /tmp/alpha-v11-gate3-adjudication-e563e45-a746331-evidence/tmp_retained /tmp/alpha-v11-gate3-adjudication-e563e45-a746331-evidence/sources/V11_R09_GATE3_OFFLINE_IO_REVIEW_7b5a235_probes.py /tmp/alpha-v11-gate3-adjudication-e563e45-a746331-evidence/sources/V11_R09_GATE3_STORE_RESTART_REVIEW_d080eac_probes.py /tmp/alpha-v11-gate3-adjudication-e563e45-a746331-evidence/sources/V11_R09_GATE3_COMPOSITION_REVIEW_0b7209d_probes.py /tmp/alpha-v11-gate3-adjudication-e563e45-a746331-evidence/test_integration_probes.py",
+      "environment": {
+        "PYTHONPATH": "/tmp/alpha-v11-gate3-adjudication-e563e45-a746331",
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "TMPDIR": "/tmp/alpha-v11-gate3-adjudication-e563e45-a746331-evidence/tmp",
+        "GIT_OPTIONAL_LOCKS": "0"
+      },
+      "timeout_seconds": 180,
+      "exit_code": 0,
+      "elapsed_seconds": 7.801,
+      "log": "/tmp/alpha-v11-gate3-adjudication-e563e45-a746331-evidence/retained.log",
+      "log_sha256": "a4ad445c556b37c86fb550b3ce6edc71dc09714ff5e55de64c0e1e9ace3fabef",
+      "commit": "a7463311968440f0744dbe5aefd7ee6e68c7d12c",
+      "tree": "0c3e5d794dcedb2e43eef7b4d70446ab3d404ecd",
+      "passed": 238,
+      "skipped": 0,
+      "summary": "238 passed, 4 warnings in 7.49s"
+    },
+    {
+      "name": "boundaries",
+      "cwd": "/tmp/alpha-v11-gate3-adjudication-e563e45-a746331",
+      "command": "/home/alphaadmin/alpha-review-test-venv/bin/python -m pytest -q -p no:cacheprovider --basetemp /tmp/alpha-v11-gate3-adjudication-e563e45-a746331-evidence/tmp_boundaries tests/test_v11_brain_readiness.py tests/test_v11_multimodel_panel.py tests/test_v11_ecmwf_extrema.py tests/test_v11_r09_gate3_message_sizes.py tests/test_v11_candidate_assembly.py tests/test_v11_candidate_runner.py",
+      "environment": {
+        "PYTHONPATH": "/tmp/alpha-v11-gate3-adjudication-e563e45-a746331",
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "TMPDIR": "/tmp/alpha-v11-gate3-adjudication-e563e45-a746331-evidence/tmp",
+        "GIT_OPTIONAL_LOCKS": "0"
+      },
+      "timeout_seconds": 180,
+      "exit_code": 0,
+      "elapsed_seconds": 76.939,
+      "log": "/tmp/alpha-v11-gate3-adjudication-e563e45-a746331-evidence/boundaries.log",
+      "log_sha256": "041f3c2cac6f3ab0fef180b745c11171dff93a82dbd5ae3b59bbda2f611b2148",
+      "commit": "a7463311968440f0744dbe5aefd7ee6e68c7d12c",
+      "tree": "0c3e5d794dcedb2e43eef7b4d70446ab3d404ecd",
+      "passed": 196,
+      "skipped": 37,
+      "summary": "196 passed, 37 skipped in 76.58s (0:01:16)"
+    }
+  ],
+  "total_passed": 779,
+  "total_skipped": 37,
+  "expected_fork_warnings": 6,
+  "blocking_findings": [],
+  "holds": [
+    "merge",
+    "publication",
+    "provider_capture",
+    "G3-L",
+    "SHADOW",
+    "learner_admission",
+    "authority"
+  ],
+  "financial_authority": false,
+  "score": "91/200",
+  "formal": "1/50",
+  "readiness": "NOT_READY_TO_FUND",
+  "next_action": "Coordinator inspect new report/result/completion record, reconcile then-current main and make local offline integration decision; original missing driver terminal must not be fabricated or retried as an acceptance prerequisite. Then bounded offline transport/runtime design; no live requests.",
+  "evidence_sha256": {
+    "/tmp/alpha-v11-gate3-adjudication-e563e45-a746331-evidence/run_review.py": "0a97b1bea897f0d823f0978911cd628621b678312c3cea764a08247b5e3ccfc7",
+    "/tmp/alpha-v11-gate3-adjudication-e563e45-a746331-evidence/preserved_main_hashes.json": "a20fe611f3e28e591d7b6249b22737e13994700c60e876c29fa09a187a192712",
+    "/tmp/alpha-v11-gate3-adjudication-e563e45-a746331-evidence/affected.json": "f4e7e2bce946082717f577d230e89c93414817869bf7bae6e63a3eb1e07cdac0",
+    "/tmp/alpha-v11-gate3-adjudication-e563e45-a746331-evidence/identity.json": "02b59e9dd2ace715a7f344937f4694151c102482a590dfc70cfd3f53d7524f2e",
+    "/tmp/alpha-v11-gate3-adjudication-e563e45-a746331-evidence/affected.log": "2e28cd784a5be742be2078508c33f3e9578181f808572d2254737523a40fbe6f",
+    "/tmp/alpha-v11-gate3-adjudication-e563e45-a746331-evidence/test_integration_probes.py": "8e66a830ac9f8cc0dca7de1d155e78bd3ac3e88a26eb30b7646f89c7626fd83d",
+    "/tmp/alpha-v11-gate3-adjudication-e563e45-a746331-evidence/test_independent_review.py": "1e4df574626695cc5d99d16afc0896bfd6f652a26d93351ce466febf28511b57",
+    "/tmp/alpha-v11-gate3-adjudication-e563e45-a746331-evidence/review.md": "f17b0027f73c86bdf5dae6dddf13708da6c27c6ffa268f0d68ab45d7f29d336a",
+    "/tmp/alpha-v11-gate3-adjudication-e563e45-a746331-evidence/conftest.py": "3374b7073742c17e0b98bd3a7e299e62a5d5793d851225eafb668d8169b9a949",
+    "/tmp/alpha-v11-gate3-adjudication-e563e45-a746331-evidence/prepare.py": "c1b5e3ac957488818b63b89202ab65421b26d8d906e6109c736e275b4760407c",
+    "/tmp/alpha-v11-gate3-adjudication-e563e45-a746331-evidence/retained.json": "ae43903eb9d134b154478b4783b3edbfa88cfdfd9580e3eee0da255b3dc23f9e",
+    "/tmp/alpha-v11-gate3-adjudication-e563e45-a746331-evidence/prior_verification.json": "b25299bb662bb6d81c7b88aac1b1d575f3b29dde4d34be1a5ec4da22ae76982b",
+    "/tmp/alpha-v11-gate3-adjudication-e563e45-a746331-evidence/retained.log": "a4ad445c556b37c86fb550b3ce6edc71dc09714ff5e55de64c0e1e9ace3fabef",
+    "/tmp/alpha-v11-gate3-adjudication-e563e45-a746331-evidence/boundaries.log": "041f3c2cac6f3ab0fef180b745c11171dff93a82dbd5ae3b59bbda2f611b2148",
+    "/tmp/alpha-v11-gate3-adjudication-e563e45-a746331-evidence/boundaries.json": "411a695c939602f1320a52960f14f9ed9f5c01f2ddf9770ebd59980749d3dc08",
+    "/tmp/alpha-v11-gate3-adjudication-e563e45-a746331-evidence/test_predecessor_acceptance.py": "a9d24795b19ab457cbff2ae457982d3480ae442f80b5b5b1d86876f236d0943a"
+  }
+}

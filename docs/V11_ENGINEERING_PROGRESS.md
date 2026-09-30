@@ -1,5 +1,34 @@
 # Supplementary engineering estimate
 
+## Gate 3 repair adjudicated; full combined-tree review passes — 2026-09-30 23:58 UTC
+
+Independent Astra/high [review](V11_R09_GATE3_INTEGRATION_REVIEW_e563e45.md),
+[result](V11_R09_GATE3_INTEGRATION_REVIEW_e563e45_result.json) and
+[reviewer-issued completion record](V11_R09_GATE3_INTEGRATION_REVIEW_e563e45_terminal.json)
+resolve I1/I2 and the missing-terminal acceptance dependency. The old external
+driver terminal remains absent, its exit/cause UNKNOWN, and all original evidence
+is preserved; the new record does not impersonate that driver. All 15 prior
+evidence hash checks matched.
+
+Fresh isolated prospective merge of exact author `e563e45` with main `a746331`
+produces tree `0c3e5d79`: all 996 main files preserved, exactly nine candidate
+paths added, no collision or whitespace error. Independent full-lineage code
+review and serial verification: **779 passed, 37 skipped**, six expected fork
+warnings (345 affected/repair, 238 retained/import, 196 adjacent passes). No
+production import edge or existing executable change; accepted release `6ec371e`
+remains current. This is an offline integration recommendation, not G3-L or
+operational acceptance. The routed merge hold remains; no merge or push occurred.
+
+Next coordinator: inspect this new completion record, reconcile then-current main
+and decide local offline integration; do not recreate/retry the old missing
+terminal. Subsequent substantive work is bounded offline transport/runtime design
+under the review's exact handoff. Publication, provider capture, G3-L, SHADOW,
+learner and authority holds remain. Main/author/SHADOW preserved; no duplicate
+worker. Commissioning changes remain status-only; actual demo/scanner/controller
+inactive/disabled, execution inactive/masked, protected model authority absent,
+private master hash matches its pin. No V10 or AxiomTrade action. No new C/J/E/A:
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Gate 3 repair evidence and isolated combined-tree preflight — 2026-09-30 23:49 UTC
 
 The Astra/high exact-candidate review wrote scoped I1/I2 `PASS` findings and

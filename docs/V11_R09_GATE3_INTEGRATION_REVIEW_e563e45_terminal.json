@@ -1,0 +1,22 @@
+{
+  "status": "PASS_OFFLINE_COMBINED_TREE",
+  "marker": "GATE3_INTEGRATION_REVIEW_PASS",
+  "issuer": "synchronous_Astra_high_reviewer",
+  "not_original_external_driver_terminal": true,
+  "finished_utc": "2026-09-30T23:58:51.220254+00:00",
+  "candidate_commit": "e563e45a50f7b6df8b85c60df80aa879040edab8",
+  "reviewed_main_commit": "a7463311968440f0744dbe5aefd7ee6e68c7d12c",
+  "prospective_tree": "0c3e5d794dcedb2e43eef7b4d70446ab3d404ecd",
+  "artifacts_sha256": {
+    "docs/V11_R09_GATE3_INTEGRATION_REVIEW_e563e45.md": "f17b0027f73c86bdf5dae6dddf13708da6c27c6ffa268f0d68ab45d7f29d336a",
+    "docs/V11_R09_GATE3_INTEGRATION_REVIEW_e563e45_result.json": "688d90d28e01ed7b110051e710e3b906903bffe2d0715e60524e43ab9422684c",
+    "docs/V11_R09_GATE3_INTEGRATION_REVIEW_e563e45_repair_probes.py": "1e4df574626695cc5d99d16afc0896bfd6f652a26d93351ce466febf28511b57",
+    "docs/V11_R09_GATE3_INTEGRATION_REVIEW_e563e45_predecessor_probes.py": "a9d24795b19ab457cbff2ae457982d3480ae442f80b5b5b1d86876f236d0943a"
+  },
+  "merge_authorized": false,
+  "publication_authorized": false,
+  "network_capture_authorized": false,
+  "financial_authority": false,
+  "score": "91/200",
+  "readiness": "NOT_READY_TO_FUND"
+}
