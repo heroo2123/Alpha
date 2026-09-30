@@ -6,6 +6,7 @@ unsupported packing and decoder failures remain explicit fail-closed gates.
 CCSDS fields must exactly survive a bounded decode/re-encode integrity round-trip
 before the selected station value is returned.
 """
+from dataclasses import dataclass
 from datetime import datetime, timezone
 import hashlib
 import math
@@ -13,15 +14,29 @@ import struct
 
 from .evidence import EvidenceError, digest
 from .grib_fields import _uint as uint, _signed as signed
-from .model_panel import MAX_RAW_BYTES, temperature
+from .model_panel import MAX_RAW_BYTES, StationTarget, coordinates, temperature
 from .pws_quality import geometry
 
-VERSION = 'alpha_v11_ecmwf_station_grib_v2'
+VERSION = 'alpha_v11_ecmwf_station_grib_v3'
 
 
-def _ccsds_value(data, index, count, ni, nj):
-    """Decode one independently selected value from GRIB2 template 5.42."""
-    if type(index) is not int or not 0 <= index < count:
+@dataclass(frozen=True)
+class HistoricalPointTarget:
+    """Coordinates only: no fabricated event, rule or metadata fingerprints."""
+    latitude: float
+    longitude: float
+    maximum_grid_distance_km: float = 50.
+
+    def __post_init__(self):
+        coordinates(self.latitude, self.longitude)
+        distance = self.maximum_grid_distance_km
+        if type(distance) not in (float, int) or not 0 < distance <= 50:
+            raise EvidenceError('PANEL_GRID_DISTANCE_BOUND')
+
+
+def _ccsds_values(data, indices, count, ni, nj):
+    """Validate/decode once and return only the requested point values."""
+    if any(type(index) is not int or not 0 <= index < count for index in indices):
         raise EvidenceError('ECMWF_CCSDS_INDEX_BOUND')
     try:
         import eccodes
@@ -61,7 +76,7 @@ def _ccsds_value(data, index, count, ni, nj):
                 raise EvidenceError('ECMWF_CCSDS_INTEGRITY_FAILED')
         finally:
             eccodes.codes_release(clone)
-        return float(values[index])
+        return [float(values[index]) for index in indices]
     except EvidenceError:
         raise
     except Exception as exc:
@@ -72,6 +87,10 @@ def _ccsds_value(data, index, count, ni, nj):
                 eccodes.codes_release(handle)
             except Exception:
                 pass
+
+
+def _ccsds_value(data, index, count, ni, nj):
+    return _ccsds_values(data, (index,), count, ni, nj)[0]
 
 
 def sections(data):
@@ -106,6 +125,17 @@ def release_signature(data):
 
 
 def decode_station(data, *, request, target):
+    return decode_stations(data, request=request, targets=(target,))[0]
+
+
+def decode_stations(data, *, request, targets):
+    """Same strict field checks as decode_station, once for a bounded point batch."""
+    if not isinstance(targets, tuple) or not 1 <= len(targets) <= 1024:
+        raise EvidenceError('ECMWF_TARGET_BATCH_BOUND')
+    if any(not isinstance(target, (StationTarget, HistoricalPointTarget)) for target in targets):
+        raise EvidenceError('ECMWF_TARGET_TYPE')
+    for target in targets:
+        target.__post_init__()
     s = sections(data); ident, grid, product, packing = (s[n] for n in (1, 3, 4, 5))
     if release_signature(data) != request.grib_signature_sha256:
         raise EvidenceError('ECMWF_SOURCE_VERSION_CHANGED')
@@ -186,25 +216,31 @@ def decode_station(data, *, request, target):
     elif template == 42:
         if len(packing) != 25:
             raise EvidenceError('ECMWF_CCSDS_PACKING_SCHEMA')
-        def value(i): return _ccsds_value(data, i, count, ni, nj)
     else:
         raise EvidenceError('ECMWF_PACKING_DECODER_UNAVAILABLE')
-    # At most 75 candidates, including wrap-around and endpoints. The grid must
-    # be regular; the distance policy rejects any remote station substitution.
-    j0 = round((target.latitude-lat)/dy)
-    candidates = set()
-    for shift in (-360, 0, 360):
-        i0 = round((target.longitude+shift-lon)/dx)
-        for i in (i0-1, i0, i0+1, 0, ni-1):
-            for j in (j0-1, j0, j0+1, 0, nj-1):
-                if 0 <= i < ni and 0 <= j < nj: candidates.add((i, j))
-    def position(ij):
-        i, j = ij
-        return lat+j*dy, (lon+i*dx+180)%360-180
-    selected = min(candidates, key=lambda ij: (geometry(target.latitude, target.longitude, *position(ij))[0], position(ij)))
-    point = position(selected)
-    if geometry(target.latitude, target.longitude, *point)[0] > target.maximum_grid_distance_km:
-        raise EvidenceError('PANEL_GRID_DISTANCE_BOUND')
-    kelvin = temperature(value(selected[1]*ni+selected[0]), 'K', 'K')
-    return dict(latitude=point[0], longitude=point[1], kelvin=kelvin,
-                grid_sha256=hashlib.sha256(grid).hexdigest())
+    selected_points = []
+    for target in targets:
+        # At most 75 candidates, including wrap-around and endpoints. The grid must
+        # be regular; the distance policy rejects any remote station substitution.
+        j0 = round((target.latitude-lat)/dy)
+        candidates = set()
+        for shift in (-360, 0, 360):
+            i0 = round((target.longitude+shift-lon)/dx)
+            for i in (i0-1, i0, i0+1, 0, ni-1):
+                for j in (j0-1, j0, j0+1, 0, nj-1):
+                    if 0 <= i < ni and 0 <= j < nj: candidates.add((i, j))
+        def position(ij):
+            i, j = ij
+            return lat+j*dy, (lon+i*dx+180)%360-180
+        selected = min(candidates, key=lambda ij: (geometry(target.latitude, target.longitude, *position(ij))[0], position(ij)))
+        point = position(selected)
+        if geometry(target.latitude, target.longitude, *point)[0] > target.maximum_grid_distance_km:
+            raise EvidenceError('PANEL_GRID_DISTANCE_BOUND')
+        selected_points.append((point, selected[1]*ni+selected[0]))
+    indices = tuple(index for _, index in selected_points)
+    values = (_ccsds_values(data, indices, count, ni, nj) if template == 42
+              else [value(index) for index in indices])
+    grid_sha = hashlib.sha256(grid).hexdigest()
+    return [dict(latitude=point[0], longitude=point[1],
+                 kelvin=temperature(kelvin, 'K', 'K'), grid_sha256=grid_sha)
+            for (point, _), kelvin in zip(selected_points, values)]
