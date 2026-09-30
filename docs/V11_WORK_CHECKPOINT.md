@@ -1,5 +1,27 @@
 # Alpha V11 work checkpoint
 
+## Coordinator recovery: route two Gate 3 restart repairs — 2026-09-30 22:33 UTC
+
+Recovered clean main `35e7aad` (50 commits ahead of its local tracking ref),
+clean held Gate 3 `7bc627e`, and clean SHADOW `15e99bd`. The independent
+`7bc627e` review terminal is complete; no Gate 3 worker is running. The next
+unblocked step is Sonnet/high repair of R6/R7 in the preserved offline worktree:
+reject inherited read/seal before taking the instance mutex, and validate the
+canonical descriptor against one shared byte bound before creating metadata.
+Add bounded fork and encoded-boundary regression cases, rerun affected suites,
+then obtain fresh different-model exact-commit review. Keep the candidate
+unmerged and all capture, G3-L, SHADOW, learner and publication holds. No
+duplicate worker was launched by this coordinator invocation.
+
+Only commissioning manager/watchdog status files are newer; no forward SHADOW
+sample is admitted. The private FINAL-REVIEWED master matches its pinned hash.
+Actual V10 demo, PAPER scanner/controller and V11 execution units are inactive;
+execution remains masked, and protected model-authority paths are absent.
+Disk has 4.3 GiB free and memory about 953 MiB available. The accepted
+release resolution `6ec371e` remains an ancestor of main. No service, V10,
+AxiomTrade, authority, financial or publication action. No C/J/E/A boundary
+crossed: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Gate 3 restart repair independently reviewed; two remaining defects — 2026-09-30 22:29 UTC
 
 Astra/high independently reviewed exact held Sol/high `7bc627e`/tree `bfe712b`:

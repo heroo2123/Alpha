@@ -1,5 +1,16 @@
 # Supplementary engineering estimate
 
+## Coordinator recovery: route R6/R7 repair — 2026-09-30 22:33 UTC
+
+The exact `7bc627e` Gate 3 candidate remains clean and unmerged, with no
+repair worker active. The completed independent review requires bounded fork
+rejection before mutex acquisition and a common canonical descriptor byte cap
+checked before metadata creation. Route Sonnet/high implementation in the
+preserved worktree, followed by fresh different-model exact-commit review.
+Commissioning has no new qualifying forward sample; the release-resolution
+commit remains on main. No acceptance or C/J/E/A credit: **91/200 (45.5%),
+formal 1/50; NOT_READY_TO_FUND**.
+
 ## Gate 3 restart repair independently reviewed; two remaining defects — 2026-09-30 22:29 UTC
 
 Astra/high independently reviewed exact held Sol/high `7bc627e`/tree `bfe712b`:

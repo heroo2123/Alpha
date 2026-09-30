@@ -1,5 +1,16 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Coordinator recovery: Gate 3 R6/R7 still OPEN — 2026-09-30 22:33 UTC
+
+Read-only recovery confirms the held `7bc627e` candidate and its independent
+CHANGES_REQUIRED review remain current, clean and unmerged. R6 inherited-call
+mutex rejection and R7 canonical descriptor byte-bound validation require
+Sonnet/high repair in the preserved offline worktree, affected tests, and fresh
+different-model exact-commit review. No forward SHADOW artifact or new Gate 3
+acceptance evidence was found. All merge, publication, capture, G3-L, SHADOW
+and learner holds remain. **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**, unchanged.
+
 ## Gate 3 restart repair independently reviewed; two remaining defects — 2026-09-30 22:29 UTC
 
 Astra/high independently reviewed exact held Sol/high `7bc627e`/tree `bfe712b`:
