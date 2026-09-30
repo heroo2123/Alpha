@@ -3,6 +3,7 @@ import hashlib
 import multiprocessing
 import os
 import select
+import signal
 import subprocess
 import sys
 import threading
@@ -1060,12 +1061,22 @@ def test_repaired_r6_inherited_call_rejects_before_blocking_on_mutex(tmp_path, o
                 os.write(w, b'X')
             os._exit(0)
         os.close(w)
+        reaped = False
         try:
             assert select.select([r], [], [], 2)[0]
             assert os.read(r, 1) == b'R'
             assert os.waitpid(pid, 0) == (pid, 0)
+            reaped = True
         finally:
             os.close(r)
+            if not reaped:
+                # Bounded cleanup: a failed assertion above must not leave a
+                # blocked/orphaned child if the prompt-rejection regressed.
+                try:
+                    os.kill(pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                os.waitpid(pid, 0)
     finally:
         release.set()
         writer_thread.join(5)

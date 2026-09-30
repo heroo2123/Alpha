@@ -132,7 +132,7 @@ upfront refusal rather than delayed bricking. Affected suite: **285 passed**
 Unicode-expansion case). This is still synthetic evidence only; no independent
 review has inspected these exact bytes yet.
 
-Author verification command:
+Author verification command (prior to this batch):
 
 ```sh
 /home/alphaadmin/alpha-review-test-venv/bin/python -m pytest -q \
@@ -146,3 +146,79 @@ Author verification command:
 The final author test count, commit and tree are bound by the separate terminal
 marker. Independent review must inspect the exact committed bytes and rerun
 affected tests and adversarial probes before any integration decision.
+
+## Composed accounting contract batch (offline, unmerged)
+
+Routed by the `d080eac`/`1fa3902` review's "next concrete offline gap": the
+existing `test_synthetic_bytes_seal_decode_and_clock_compose` in
+`tests/test_v11_r09_gate3_offline_io.py` exercises the legacy session-only
+`ImmutableObjectStore`, closes the budget before opening the store, and attaches
+a disconnected `ClockSequence` afterward. It cannot certify the composed
+contract between `DurableBudget`, `SyntheticExchange`/`consume_synthetic_response`,
+`decode_full_grid_station` and `VersionedImmutableObjectStore`. That legacy test
+is retained unchanged as lineage; nothing about it or the legacy helper changed.
+
+New `tests/test_v11_r09_gate3_restart_composition.py` (7 cases) exercises the
+actual production APIs together on disposable synthetic fixtures, with no new
+operational admission API and no change to budget/launch/store semantics:
+
+- Ordering contract: a budget acquired before its store, closed in reverse
+  order, releases both; a failed second (store) acquisition releases only that
+  same invocation's own first (budget) acquisition; a separately held
+  invocation's budget/store remains untouched and provably still held.
+- A healthy synthetic receive (`consume_synthetic_response`) / decode
+  (`decode_full_grid_station`) / raw seal, followed by a dependent
+  `FEATURE_MANIFEST` seal, roundtrips through a reopen pinned by
+  `expected_descriptor_sha256` and `expected_head`. Raw and manifest receipts
+  stay distinct; both recovered acknowledgements are `UNKNOWN` and
+  `historical_feature_eligible` stays `False` for both. The clock fixtures used
+  are asserted to carry no `measured_attestation` or `historically_available`
+  attribute — synthetic evidence only.
+- A `FEATURE_MANIFEST` naming an uncommitted dependency is refused
+  (`STORE_DEPENDENCY_MISSING`) even after a real decode has run.
+- An incomplete/uncertain budget reservation beside a separately, successfully
+  committed store object: reopening each independently shows the budget still
+  holds its exact reserved/received bytes and in-flight key (refusing a new
+  reservation with `UNCERTAIN_REQUEST_HELD`), while the store object is `VALID`
+  and unaffected; the receipt exposes no `capture_success` attribute.
+- The converse: a fully completed budget beside a store `PREPARE`-fsync failure
+  (an uncertain journal write, mirroring the existing per-store fixture): the
+  budget stays completed and independently reservable, while the store reopens
+  `UNRESOLVED_PREPARE`, and neither side's state crosses into the other.
+- Repeated reopen of a budget left `violated` by a `STREAM_ABORT_AT_ALLOWANCE`
+  confirms the refusal is stable across reopens; passing a different `boot_id`
+  to `DurableBudget` is refused outright (`JOURNAL_IDENTITY_MISMATCH`), not
+  silently resumed. In parallel, the same-root store reopened under that
+  different boot reads the prior receipt historically
+  (`STORE_CROSS_BOOT_ACQUISITION_HELD` still refuses a new seal there), and a
+  same-boot reopen afterward remains normal.
+
+Separately, in `tests/test_v11_r09_gate3_store_v1.py`, the parametrized
+`test_repaired_r6_inherited_call_rejects_before_blocking_on_mutex` (read/seal)
+now adds bounded cleanup: if the bounded `select`/pipe assertion ever fails
+(a regression reintroducing the R6 hang), the forked child is now
+`SIGKILL`ed and reaped in a `finally` before the test fails, instead of
+potentially leaving a blocked child behind. This does not change the test's
+accepted-path assertions or reopen the R6 finding.
+
+Author verification command (this batch, three files: the new composition
+test file, the store_v1 fork-cleanup edit, and this handoff):
+
+```sh
+/home/alphaadmin/alpha-review-test-venv/bin/python -m pytest -q \
+  tests/test_v11_r09_gate3_store_v1.py \
+  tests/test_v11_r09_gate3_offline_io.py \
+  tests/test_v11_r09_gate3_launch.py \
+  tests/test_v11_r09_gate3_collector.py \
+  tests/test_v11_grib_fields.py \
+  tests/test_v11_r09_gate3_restart_composition.py
+```
+
+**292 passed** (285 prior + 7 new composition cases), with the same two expected
+multithreaded-fork `DeprecationWarning`s from the exercised R6 fork fixture. No
+full release suite was rerun; this is still synthetic offline evidence only. It
+makes no capture-success, historical-feature-eligibility, or budget/store
+admission claim, and grants no merge, publication, provider capture, G3-L,
+SHADOW or learner action. The candidate stays unmerged; a fresh different-model
+review of the exact committed bytes is required next. Score remains
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
