@@ -1,5 +1,18 @@
 # Supplementary engineering estimate
 
+## Coordinator SHADOW repair under review — 2026-09-30
+
+The isolated SHADOW branch is clean at `15e99bd` after Sol/high repaired
+configuration binding and advancing-clock audit replay. Astra/high reviews of
+earlier repair commits found additional behavior-bearing cached policy gaps;
+those were fixed in the same branch. **189 affected synthetic tests passed in
+123.37 s**, and 189 passed on newer main in 123.17 s. Fresh independent
+exact-commit review **PASS** included 13 new checks and 76 affected passes.
+The branch remains unmerged. A persistent full-suite diagnostic on the separate
+scheduler branch is running; the earlier suite still lacks a release PASS,
+and no forward SHADOW evidence exists. No score credit is added:
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator recovery — 2026-09-30
 
 No implementation worker is active. Sonnet/high is session-limited before

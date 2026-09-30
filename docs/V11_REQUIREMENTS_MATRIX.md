@@ -1,5 +1,18 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Coordinator SHADOW repair gate — 2026-09-30
+
+The two adjudicated P2 defects were repaired in the isolated SHADOW worktree.
+Independent reviews found and reproduced related cached Maker and direct
+runtime policy omissions; candidate `15e99bd` binds those current typed values
+and passed 189 affected synthetic tests both in its branch and over newer main.
+Fresh independent exact-commit review passed 13 mutation/replay checks and 76
+affected tests. The branch remains unmerged pending the full-suite release gate;
+one bounded diagnostic is running on separate scheduler commit `26056af`.
+No forward SHADOW evidence is claimed. No
+requirement status or C/J/E/A boundary changed: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Coordinator recovery — 2026-09-30
 
 No requirement boundary changed. The clean SHADOW candidate still has two

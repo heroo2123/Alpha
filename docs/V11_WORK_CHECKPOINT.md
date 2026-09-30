@@ -1,5 +1,42 @@
 # Alpha V11 work checkpoint
 
+## Coordinator repair — SHADOW review PASS; release diagnostic running — 2026-09-30
+
+Recovered clean main `a225e7d`, clean scheduler branch `26056af`, and the
+existing SHADOW worktree at `dd18e38`. Sol/high repaired the two adjudicated
+P2 defects there. Queue/book and other current typed runtime policies now
+participate in the cohort snapshot; immutable audit rows are reused only after
+kind, channel, configuration and semantic details match. Advancing-clock
+completed/rejected replay and bounded restart are covered by synthetic tests.
+Independent Astra/high review of `5e8bbfa` and `809336d` found additional
+cached Maker and direct runtime policy omissions. Those were repaired in the
+same worktree, now clean at **`15e99bd`** (tree `fe1463da`), still **UNMERGED**.
+Fresh independent exact-commit review gave **PASS**: 13 new mutation/replay
+checks and 76 affected tests passed; evidence is in
+`/tmp/alpha-v11-shadow-independent-15e99bd/`. The builder's affected
+synthetic SHADOW/candidate/request/Maker set passed **189 tests in 123.37 s**;
+the same 189 tests passed on newer main in **123.17 s**. Both diff checks were
+clean. The main-based integration worktree is
+`/tmp/alpha-v11-shadow-integration-15e99bd`; only the five reviewed source/test
+files were overlaid. Merge awaits the unresolved full-suite release gate.
+
+The separate scheduler branch remains at `26056af`; its 56-test GEFS family
+diagnostic passed, while the captured full-suite release gate remains **5,330
+passed, 12 skipped, two failed**. Started exactly one persistent, bounded
+full-suite diagnostic there (driver PID **759953**, pytest PID **759956**).
+Recover actual process and `/tmp/alpha-v11-scheduler-full-suite-26056af`
+`.{started,terminal}.json` and `.log` before acting. It has a 3,600-second
+timeout and a terminal PASS/FAIL marker; no release PASS is inferred while it
+runs. The two-second source-view bound is unchanged. Recent commissioning
+evidence consists only of watchdog status updates; no forward SHADOW samples
+are qualified. PAPER scanner PID 514629
+remains active. V11 controller/execution units are inactive, protected authority
+paths are absent, and the FINAL-REVIEWED private master still hashes to
+`a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+No V10, service, authority, AxiomTrade or publication action was performed.
+No C/J/E/A boundary crossed: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Coordinator recovery — SHADOW repair failover needed — 2026-09-30
 
 Recovered clean main `e2a0631`, clean SHADOW candidate `dd18e38`, and clean
