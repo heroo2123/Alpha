@@ -1,5 +1,27 @@
 # Alpha V11 work checkpoint
 
+## R09 contract review PASS — 2026-09-30
+
+The independent Sonnet/high review of decision commit `e80d5dd` completed with
+terminal `R09_CONTRACT_REVIEW_PASS` (exit 0) at 12:30:56 UTC. Its recorded commit
+and tree match the clean detached review worktree; `verdict.json` says PASS and
+the report hash in `terminal.json` matches `review.md`. The reviewer reproduced
+34 existing boundary tests and found no blocking contract ambiguity. Evidence:
+`/tmp/alpha-v11-r09-contract-review-e80d5dd/`. This clears contract-review
+gate 1 only. Gate 2 is a separate typed trajectory/capture schema and offline
+admission validator with adversarial synthetic tests, followed by independent
+exact-commit review. Existing real-admission flags and old 541-day stores stay
+unchanged; no fit, collection or forward evidence is admitted.
+
+The scheduler full-suite diagnostic on `26056af` was still active at roughly
+72% when checked; no terminal release result or SHADOW merge is claimed.
+Commissioning changes since the prior checkpoint were watchdog status only.
+PAPER scanner remained active; V10 and V11 execution were inactive; protected
+authority paths absent. The private FINAL-REVIEWED master hash still matched
+`a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+No C/J/E/A boundary changed: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## R09 data contract adjudicated — 2026-09-30
 
 Astra/high completed the bounded architecture decision on recovered main

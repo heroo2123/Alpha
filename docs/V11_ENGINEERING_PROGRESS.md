@@ -1,5 +1,15 @@
 # Supplementary engineering estimate
 
+## R09 independent contract review — 2026-09-30
+
+The exact-commit Sonnet/high review of `e80d5dd` passed with a verified terminal
+marker and 34 reproduced boundary tests. The reviewed architecture decision
+can advance to a distinct offline trajectory/capture schema and validator;
+real data admission, fitting, calibration, forward evidence and SHADOW release
+remain open. The GEFS full-suite diagnostic is still running, and the reviewed
+SHADOW candidate is unmerged. **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND** remains unchanged.
+
 ## R09 architecture route resolved — 2026-09-30
 
 Astra/high adjudicated the exact-day versus sampled-predictor question in

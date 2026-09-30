@@ -1,5 +1,14 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## R09 contract review gate — 2026-09-30
+
+Independent Sonnet/high review of `e80d5dd` completed with terminal PASS,
+matching exact commit/tree, clean worktree and report/verdict. It confirms a
+sound direction for a distinct source-native trajectory predictor, not real
+example admission or model acceptance. The typed offline schema/validator,
+causal capture and forward evidence gates remain OPEN. The existing R09 C,J
+credit and **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND** are unchanged.
+
 ## R09 contract decision — 2026-09-30
 
 The [Astra/high adjudication](V11_R09_DATA_CONTRACT_ADJUDICATION.md) selects a
