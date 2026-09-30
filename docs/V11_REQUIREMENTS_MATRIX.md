@@ -1,5 +1,15 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## R09 Gate 3 offline I/O repair candidate awaiting independent review — 2026-09-30 21:20 UTC
+
+Sol/high author repair `7b5a235`/tree `3ff45d6` has a completed terminal,
+clean held worktree, **45 focused and 176 affected author passes**. It addresses
+the five P2 findings against `a804034`; reopened nonempty object stores refuse
+use pending separate recovery design. Require Astra/high exact-commit
+independent review before any integration decision. Merge, capture, G3-L,
+real IFS/AIFS admission and forward SHADOW remain OPEN. **91/200 (45.5%),
+formal 1/50; NOT_READY_TO_FUND**.
+
 ## R09 Gate 3 offline I/O review rejected; bounded repair active — 2026-09-30 21:13 UTC
 
 [Independent Astra/high review](V11_R09_GATE3_OFFLINE_IO_REVIEW_a804034.md)

@@ -1,5 +1,31 @@
 # Alpha V11 work checkpoint
 
+## Gate 3 offline I/O repair author candidate; independent review next — 2026-09-30 21:20 UTC
+
+The existing Sol/high repair worker finished with terminal status
+`AUTHOR_CANDIDATE_READY_REQUIRES_INDEPENDENT_REVIEW` (exit 0). Its clean,
+unmerged worktree `/tmp/alpha-v11-r09-gate3-strict-offline-20260930` is at
+`7b5a235` (tree `3ff45d6`), changing only the offline I/O module, its tests,
+and its handoff. The actual diff addresses the five P2 review findings; author
+tests report **45 focused and 176 affected passes**, with a clean diff check.
+The [author terminal and logs](/tmp/alpha-v11-gate3-io-repair-a804034/terminal.json)
+record exact evidence. A reopened nonempty object store deliberately refuses
+use until a separate durability-recovery design is reviewed.
+
+Next: **Astra/high different-model independent review of exact `7b5a235`**
+against the five findings in
+[the rejected review](V11_R09_GATE3_OFFLINE_IO_REVIEW_a804034.md), including
+synthetic adversarial probes and the conservative store-recovery limitation.
+The author terminal is not acceptance. Keep the candidate merge, publication,
+provider capture, G3-L, SHADOW and learner holds. Main is clean at `d7fcd1c`,
+42 ahead of its tracking ref. Commissioning changes after 06:43 UTC are only
+watchdog statuses; V10 demo, PAPER scanner/controller and V11 execution are
+inactive, execution is masked, protected authority paths are absent, and the
+FINAL-REVIEWED master still matches its SHA-256 pin. Disk has 4.4 GiB free,
+memory about 903 MiB available. The accepted `6ec371e` release full-suite
+resolution remains current. No C/J/E/A crossing: **91/200 (45.5%), formal
+1/50; NOT_READY_TO_FUND**.
+
 ## Gate 3 offline I/O independently rejected; one repair worker launched — 2026-09-30 21:13 UTC
 
 Astra/high reviewed exact Sol/high `a804034`/tree `8ab1882`:

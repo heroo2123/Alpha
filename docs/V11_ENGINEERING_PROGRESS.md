@@ -1,5 +1,16 @@
 # Supplementary engineering estimate
 
+## Gate 3 offline I/O author repair completed; review gate open — 2026-09-30 21:20 UTC
+
+The existing Sol/high worker committed `7b5a235` (tree `3ff45d6`) in the
+held worktree. Three authorized files changed for the five P2 repairs; the
+worktree and diff check are clean. Author tests: **45 focused, 176 affected
+passes**. Store reopen is fail-closed for every nonempty store until durable
+recovery and original seal-clock provenance receive separate design/review.
+Different-model exact-commit review is the next gate; no merge, real capture,
+forward SHADOW or learner admission is accepted. **91/200 (45.5%), formal
+1/50; NOT_READY_TO_FUND**.
+
 ## Gate 3 offline I/O review completed; repair launched — 2026-09-30 21:13 UTC
 
 Astra/high independently rejected exact Sol/high `a804034` with five P2 findings
