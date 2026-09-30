@@ -1,5 +1,17 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## R09 Gate 3 offline I/O review rejected; bounded repair active — 2026-09-30 21:13 UTC
+
+[Independent Astra/high review](V11_R09_GATE3_OFFLINE_IO_REVIEW_a804034.md)
+of exact `a804034` is **CHANGES_REQUIRED** for five P2 decoder, clock,
+store-durability, nonregular-file and response-identity findings. Independent
+verification: 148 affected passes and 20 probe passes (12 reproduce defects;
+8 controls). One Sol/high repair worker is active in the existing held worktree,
+with terminal required at `/tmp/alpha-v11-gate3-io-repair-a804034/terminal.json`.
+Fresh exact-commit different-model review remains required; no candidate merge,
+G3-L, capture, real IFS/AIFS admission or qualifying forward SHADOW evidence.
+No C/J/E/A credit: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## R09 Gate 3 offline I/O author candidate — 2026-09-30 21:05 UTC
 
 Held isolated candidate `a804034`/tree `8ab1882` extends the previously

@@ -1,5 +1,39 @@
 # Alpha V11 work checkpoint
 
+## Gate 3 offline I/O independently rejected; one repair worker launched — 2026-09-30 21:13 UTC
+
+Astra/high reviewed exact Sol/high `a804034`/tree `8ab1882`:
+**CHANGES_REQUIRED**, with [review, probes and completed terminal](V11_R09_GATE3_OFFLINE_IO_REVIEW_a804034.md)
+committed at `a516e81`. Independent affected suites: **148 passed**;
+additional probes: **20 passed**, including **12 defect reproductions and
+8 controls**. Five P2 findings: swapped GRIB axis increments, omitted earlier
+clock upper bounds/cumulative clock inconsistency, uncertain store publication
+accepted after directory-fsync failure, blocking FIFO reads, and malformed
+ETags accepted as strong identity. Delivered-byte journal write/fsync failure
+accounting passed. The candidate was clean and unchanged by review; no merge.
+
+Exactly one persistent Sol/high repair worker started at 21:13:03 UTC in the
+same isolated `/tmp/alpha-v11-r09-gate3-strict-offline-20260930` worktree.
+Driver PID `885710`, worker wrapper PID `885714`, Codex PID `885721` were
+verified live. Sonnet's latest output is session-limited until 22:20 UTC, so
+this uses the existing implementation failover. Prompt/log/started record:
+`/tmp/alpha-v11-gate3-io-repair-a804034/`; terminal must be `terminal.json`
+there. Scope is the offline I/O module, its tests and handoff only. Fresh
+**different-model exact-commit review** is mandatory after repair; the driver
+can report author readiness, never independent acceptance. Preserve all edits
+if interrupted; never duplicate this worker based on stale supervisor state.
+
+Main recovered clean at `800ce29`, 40 ahead of its local tracking ref before
+review. SHADOW worktree remains clean. New commissioning writes are watchdog
+statuses only; GEFS forward SHADOW is owner/root-gated. The prior release
+failure remains resolved by accepted `6ec371e`. Master SHA-256 matches its pin;
+V10 demo, PAPER scanner/controller and V11 execution are inactive, execution
+masked, protected model-authority paths absent. Disk 4.4 GiB free; memory about
+1.05 GiB available at inspection. No V10/AxiomTrade/service/authority/financial
+or publication action. Public format docs only were consulted; no provider data
+capture or G3-L permission. Merge and publication holds remain.
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**, unchanged.
+
 ## Gate 3 offline I/O candidate committed; exact-commit review required — 2026-09-30 21:05 UTC
 
 Resumed the existing clean, held Gate 3 worktree at `1693dd5` and committed

@@ -93,7 +93,7 @@ all owner/mode/link/hash checks. Add bounded negative tests for nonregular files
 
 ## P2-5 — Equality to a pin does not establish a strong ETag
 
-`verify_response` lines 104–106 checks equality, length and absence of a `W/`
+`verify_response` lines 100–102 checks equality, length and absence of a `W/`
 prefix, but not entity-tag grammar. Matching expected/response values `*`,
 `not-quoted`, and `"one", "two"` all pass field identity checks. These are not
 single strong entity tags under [RFC 9110 section 8.8.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.3).

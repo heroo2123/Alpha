@@ -1,5 +1,19 @@
 # Supplementary engineering estimate
 
+## Gate 3 offline I/O review completed; repair launched — 2026-09-30 21:13 UTC
+
+Astra/high independently rejected exact Sol/high `a804034` with five P2 findings
+in [the durable review](V11_R09_GATE3_OFFLINE_IO_REVIEW_a804034.md).
+148 affected tests pass; 20 independent probes pass, including 12 reproductions
+and 8 controls. Correct GRIB axis interpretation, conservative clock causality,
+uncertain store publication/recovery, bounded nonregular reads and strong ETag
+syntax remain to repair. Delivered-byte journal persistence-failure controls
+pass. One persistent Sol/high implementation failover is running in the existing
+isolated worktree; Sonnet is session-limited. Require a completed terminal and
+fresh different-model exact-commit review, keeping merge/publication/capture
+holds. No new real model admission or forward evidence. **91/200 (45.5%),
+formal 1/50; NOT_READY_TO_FUND**, unchanged.
+
 ## Gate 3 offline I/O interface candidate completed — 2026-09-30 21:05 UTC
 
 The existing held worktree now has clean author commit `a804034`/tree
