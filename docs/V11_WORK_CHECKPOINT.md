@@ -1,5 +1,28 @@
 # Alpha V11 work checkpoint
 
+## Independent GEFS ceiling review PASS; local G3-I correction merged — 2026-09-30
+
+Sol/medium independently reviewed Sonnet/high's exact offline candidate
+`95e07fa` (tree `6a0880b`): the 2 MiB S3 full-field GEFS ceiling is more
+than eight times the observed 245,209 B maximum and below the shared 4 MiB
+bound; both read-only historical source hashes are unchanged and match disk;
+no executable Gate 3 caller retains the old 64 KiB assumption. Focused
+tests: 52 passed at candidate and merged HEAD. Affected suites: 265 passed,
+1 skipped. [Review](V11_R09_GATE3_GEFS_CEILING_REVIEW_95e07fa.md). Merged
+locally as `5d7ea98`; main clean before the documentation update. Publication
+hold remains, so no push.
+
+The old G3-P/G3-I review prose still cites the inapplicable 64 KiB CGI bound.
+G3-L must explicitly reconcile that changed assumption and independently
+review the exact private manifest digest before any network capture. There is
+no real transport or G3-L manifest yet. No new forward SHADOW evidence;
+root-custodied model authority remains absent. PAPER scanner and V11 execution
+are inactive; V11 execution masked, V10 inactive/disabled and untouched.
+Private FINAL-REVIEWED master SHA-256 still matches its pinned value. Disk
+4.4 GiB free, memory 824 MiB available at inspection. No AxiomTrade action.
+No C/J/E/A boundary crossed: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## GEFS Gate 3 field ceiling corrected per-acquisition-path; isolated, pending review — 2026-09-30 19:20 UTC
 
 Routed (FABLE_MEDIUM -> SONNET_HIGH) task done: fixed the GEFS provider ceiling

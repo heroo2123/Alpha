@@ -1,5 +1,16 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## R09 G3-I GEFS path-bound correction reviewed and merged — 2026-09-30
+
+Independent Sol/medium [review](V11_R09_GATE3_GEFS_CEILING_REVIEW_95e07fa.md)
+passed the isolated Sonnet/high `95e07fa` offline correction; merged locally
+as `5d7ea98`. The 2 MiB GEFS S3 full-field bound admits all observed
+single-field sizes while staying below the shared 4 MiB ceiling. This closes
+the G3-I byte-bound defect only. G3-P/G3-I historical prose must be reconciled
+in G3-L exact-manifest review; no private manifest, real capture, forward
+SHADOW evidence, or financial authority is admitted. **91/200 (45.5%), formal
+1/50; NOT_READY_TO_FUND**.
+
 ## G3-I provider-bound review blocked — 2026-09-30
 
 Automatic approval review rejected launch of the external independent reviewer

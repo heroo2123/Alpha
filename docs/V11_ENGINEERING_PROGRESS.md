@@ -1,5 +1,16 @@
 # Supplementary engineering estimate
 
+## Reviewed G3-I GEFS S3 ceiling integrated locally — 2026-09-30
+
+Sol/medium independently accepted Sonnet/high `95e07fa`, and main merged it
+as `5d7ea98`. The exact S3 full-field GEFS path now has a 2 MiB field
+preflight based on 33,759 observed DONE messages (maximum 245,209 B); the
+NOMADS CGI 64 KiB decoder bound no longer applies to this different path.
+Read-only source hashes match, 265 affected tests passed with one skip, and
+52 focused tests passed on merged main. The G3-L protocol/manifest review and
+all real evidence gates remain OPEN. **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## G3-I provider-limit independent review pending authorization — 2026-09-30
 
 The prepared read-only Sonnet review of `ae53102` did not start: automatic
