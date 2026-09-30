@@ -1,5 +1,44 @@
 # Alpha V11 work checkpoint
 
+## Gate 3 composition independently passes; full-branch review running — 2026-09-30 23:11 UTC
+
+Astra/high independently reviewed Sonnet/high exact `0b7209d` / tree
+`87cbb35`: **scoped PASS for the offline composition batch**, with
+[report, probes and terminal](V11_R09_GATE3_COMPOSITION_REVIEW_0b7209d.md).
+Independent verification: **292 affected passes; 9 supplementary probe passes**.
+The supplementary probes explicitly verify original request-start/window limits,
+unchanged budget journals across committed/held store recovery, complete accounting
+under stream violations, dependency/manifest cutoff distinctions, original clocks
+and reverse close. Synthetic evidence only; no capture or historical admission.
+The author worktree remains clean, unchanged and unmerged. No C/J/E/A crossing:
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
+Immediately launched exactly one bounded **Astra/high full-branch integration
+reviewer** in `/tmp/AlphaV11_Gate3IntegrationReview_0b7209d`, based on main
+`d2dbbe0`, reviewing the entire held lineage against newer main. Its branch is
+`gate3-integration-review-0b7209d-20260930`. Actual startup was verified:
+driver PID **926580**, worker PID **926587**, start **23:10:57 UTC**; timeout
+2700 seconds. [Started record](/tmp/AlphaV11_Gate3IntegrationReview_0b7209d_worker/started.json),
+[worker log](/tmp/AlphaV11_Gate3IntegrationReview_0b7209d_worker/worker.log),
+and eventual [terminal](/tmp/AlphaV11_Gate3IntegrationReview_0b7209d_worker/terminal.json).
+Do not duplicate it or infer completion from this checkpoint. It may build/test
+only a prospective combined tree in its isolated worktree and return a conditional
+integration recommendation. It may not merge/publish any branch or alter main,
+the author candidate, services, authority, capture, G3-L, SHADOW or learner state.
+Next coordinator: inspect actual report/result/terminal/tests and exact tree,
+reconcile with then-current main, then act only within remaining holds.
+
+Recovered main was clean at `d2dbbe0` (2 ahead / 0 behind local tracking ref);
+SHADOW `15e99bd` clean. New commissioning writes remain manager/watchdog statuses;
+no new forward sample is admitted. Accepted release resolution `6ec371e` remains
+current, so no stale full-suite failure was reopened. Master hash matches its pin;
+actual demo, PAPER scanner/controller inactive/disabled, execution inactive/masked,
+protected authority absent. Disk 4.2 GiB free; memory about 873 MiB available.
+GEFS forward work remains owner/root gated while offline IFS/AIFS/Gate 3 work
+continues. No service, V10, AxiomTrade, authority, financial or publication action.
+The prior automatic review-document push rejection remains pending; no push was
+retried. All candidate merge/publication and operational holds remain.
+
 ## Gate 3 restart R6/R7 independently passes; offline composition next — 2026-09-30 22:51 UTC
 
 Astra/high independently reviewed Sonnet/high code/test `d080eac` at doc HEAD

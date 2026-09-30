@@ -1,0 +1,39 @@
+{
+  "status": "SCOPED_PASS_OFFLINE_COMPOSITION",
+  "reviewer": "gpt-6-astra/high",
+  "author_model": "Sonnet/high",
+  "finished_utc": "2026-09-30T23:09:58.621498+00:00",
+  "candidate_commit": "0b7209dba3e0c6d3ab55aa984881b83855ae0692",
+  "candidate_tree": "87cbb35b6615d21b36a989197e490acebdfe0ad0",
+  "candidate_clean_unchanged_unmerged": true,
+  "blocking_findings": [],
+  "affected_tests": {
+    "result": "292 passed, 2 expected fork warnings in 7.32s",
+    "cwd": "/tmp/alpha-v11-r09-gate3-strict-offline-20260930",
+    "command": "/home/alphaadmin/alpha-review-test-venv/bin/python -m pytest -q tests/test_v11_r09_gate3_store_v1.py tests/test_v11_r09_gate3_offline_io.py tests/test_v11_r09_gate3_launch.py tests/test_v11_r09_gate3_collector.py tests/test_v11_grib_fields.py tests/test_v11_r09_gate3_restart_composition.py"
+  },
+  "independent_probes": {
+    "result": "9 passed in 0.52s",
+    "cwd": "/home/alphaadmin/AlphaV11_Dev/Alpha",
+    "command": "PYTHONPATH=/tmp/alpha-v11-r09-gate3-strict-offline-20260930 /home/alphaadmin/alpha-review-test-venv/bin/python -m pytest -q docs/V11_R09_GATE3_COMPOSITION_REVIEW_0b7209d_probes.py"
+  },
+  "artifacts_sha256": {
+    "/home/alphaadmin/AlphaV11_Dev/Alpha/docs/V11_R09_GATE3_COMPOSITION_REVIEW_0b7209d.md": "b1e7952ce4c3789cbdda43a5ff72eb022308312e0a4bd4061d4da66534a47517",
+    "/home/alphaadmin/AlphaV11_Dev/Alpha/docs/V11_R09_GATE3_COMPOSITION_REVIEW_0b7209d_probes.py": "6945fb15f0741806678c6965beec9132571ac5cfc0e806b5cff46baa037171fb",
+    "/tmp/alpha-v11-gate3-composition-review-0b7209d/affected.log": "fb4e548a6d8b7fd32b12a35463b5435d250f21f63ffebe5a1ce4f2565d5bfe4f",
+    "/tmp/alpha-v11-gate3-composition-review-0b7209d/probes.log": "4605579a6817f0e04ac42cbfc95954c6188b9fdb1836958657d804117ac06483"
+  },
+  "holds": [
+    "merge",
+    "candidate_publication",
+    "provider_capture",
+    "G3-L",
+    "SHADOW",
+    "learner_admission"
+  ],
+  "financial_authority": false,
+  "physical_power_loss_qualification": false,
+  "score": "91/200",
+  "readiness": "NOT_READY_TO_FUND",
+  "next_step": "Separate full-held-branch integration review against newer main in one persistent isolated reviewer; no branch integration or publication authorized."
+}
