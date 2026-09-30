@@ -1,5 +1,30 @@
 # Alpha V11 work checkpoint
 
+## Coordinator gate — SHADOW review report/terminal conflict — 2026-09-30
+
+The independent Opus/high review of SHADOW repair `dd18e38` ended at 10:43 UTC.
+Its `review.md` gives an implementation PASS with no P1/P2 finding, 13
+independent reproductions, 62 focused passes and 139 merged-tree focused
+passes (one skip). Its broad affected set had 395 passes and two load-sensitive
+candidate scheduler failures; both tests then passed twice in isolation.
+However, the worker's authoritative `terminal.json` says
+`SHADOW_REPAIR_REVIEW_INCOMPLETE` (exit 1), and `worker.log` says the Claude
+session limit was hit before a final response. The written PASS and terminal
+INCOMPLETE are contradictory. **Do not treat this as accepted integration or
+merge the branch until an independent acceptance adjudication resolves it.**
+The report's non-blocking P3 notes include undetected post-assembly mutation
+of queue/book policy and non-idempotent wrapper replay under an advancing
+clock; preserve these for adjudication. No forward qualification is available.
+
+In the separate scheduler-fix worktree, committed `f1462c7` to give the
+markout-drift integration test the existing controlled clock (1 focused pass),
+then `26056af` to do the same for scheduled preparation (1 focused pass).
+Both are test-only and unmerged. The GEFS two-second source-view failure under
+full-suite load remains unresolved; no full-suite PASS is claimed. Main is
+clean at the prior checkpoint commit `c4d9fbb` before this entry. No C/J/E/A
+change: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
+
 ## Coordinator follow-up — scheduler test correction; SHADOW review still running — 2026-09-30
 
 Recovered clean main `79ba316` (11 commits ahead of origin), clean isolated
