@@ -107,7 +107,7 @@ def test_paper_cost_and_markout_are_bound_and_missing_values_remain_unknown():
         complete_price_comparisons=False, rows=[dict(model_bundle_sha256=CANDIDATES[HIGH, 'C'],
             event_id='event-1', total_cost_vs_signal=None, price_shortfall_vs_signal=None)])
     markout = dict(selection=MARKOUT_SELECTION, execution_class='SYNTHETIC_PAPER_FILL',
-        financial_authority=False, request=dict(bundle_sha256=CANDIDATES[HIGH, 'C']),
+        financial_authority=False, request=dict(bundle_sha256=CANDIDATES[HIGH, 'C'], namespace='V11_PAPER'),
         rows=[dict(event_id='event-1', status='UNKNOWN')], outcome='INCOMPLETE_HORIZON_COHORT',
         cohort_sufficient=False, scores=dict(mean_fill_markout_per_share=None))
     out = evaluate(spec, rows, cost_report=cost, markout_report=markout)
@@ -144,7 +144,7 @@ def test_complete_paper_diagnostics_are_kept_separate_from_real_pnl():
         complete_cost_population=True, complete_price_comparisons=True, selected_fill_count=1,
         known_cost_count=1, rows=[cost_row])
     markout = dict(selection=MARKOUT_SELECTION, execution_class='SYNTHETIC_PAPER_FILL',
-        financial_authority=False, request={'bundle_sha256': CANDIDATES[HIGH, 'C']},
+        financial_authority=False, request={'bundle_sha256': CANDIDATES[HIGH, 'C'], 'namespace': 'V11_PAPER'},
         rows=[{'event_id': 'event-1', 'status': 'MEASURED'}], outcome='NO_DECLARED_BREACH',
         cohort_sufficient=True, scores={'n_fills': 1, 'mean_fill_markout_per_share': '-0.02'})
     out = evaluate(spec, rows, cost_report=cost, markout_report=markout)['execution']
@@ -155,3 +155,59 @@ def test_complete_paper_diagnostics_are_kept_separate_from_real_pnl():
     cost['known_cost_count'] = 0
     with pytest.raises(EvidenceError, match='COST_COMPLETENESS'):
         evaluate(spec, rows, cost_report=cost)
+
+
+def test_station_day_alias_cannot_split_or_double_weight_one_target():
+    spec, rows = fixture('HISTORICAL_CORRECTED')
+    rows[1]['station'] = rows[0]['station']
+    rows[1]['local_date'] = rows[0]['local_date']
+    rows[1]['split'] = 'DEVELOPMENT'
+    with pytest.raises(EvidenceError, match='STATION_DAY_ALIAS'):
+        evaluate(spec, rows)
+    rows[1]['split'] = 'HISTORICAL_CONFIRMATION'
+    with pytest.raises(EvidenceError, match='STATION_DAY_ALIAS'):
+        evaluate(spec, rows)
+    rows[1]['city_day'] = rows[0]['city_day']
+    out = evaluate(spec, rows)
+    assert out['scores']['CANDIDATE']['city_days'] == 1
+
+
+def test_cost_event_must_match_its_own_observation_bundle():
+    spec, rows = fixture()
+    low = 'daily_low_temperature'
+    rows[1]['family'] = low
+    rows[1]['candidate_bundle_sha256'] = CANDIDATES[low, 'C']
+    cost = dict(selection=COST_SELECTION, execution_namespace='V11_PAPER', financial_authority=False,
+        execution_class='SYNTHETIC_PAPER_FILL', status='COMPLETE_SYNTHETIC_COSTS_AND_COMPARISONS',
+        complete_cost_population=True, complete_price_comparisons=True, selected_fill_count=1,
+        known_cost_count=1, rows=[dict(event_id='event-1', model_bundle_sha256=CANDIDATES[low, 'C'],
+            cost_status='VALIDATED_SYNTHETIC_DETAILS', signal={'status': 'MATCHED_VISIBLE_DEPTH'},
+            post_validation={'status': 'MATCHED_VISIBLE_DEPTH'}, total_cost_vs_signal='0.03',
+            price_shortfall_vs_signal='0.01')])
+    with pytest.raises(EvidenceError, match='COST_SCOPE'):
+        evaluate(spec, rows, cost_report=cost)
+    cost['rows'][0]['model_bundle_sha256'] = CANDIDATES[HIGH, 'C']
+    out = evaluate(spec, rows, cost_report=cost)['execution']
+    assert out['cost_report_sha256'] == digest(cost) and out['known_costs'] == ['0.03']
+
+
+def test_markout_event_must_match_request_bundle_and_paper_namespace():
+    spec, rows = fixture()
+    low = 'daily_low_temperature'
+    rows[1]['family'] = low
+    rows[1]['candidate_bundle_sha256'] = CANDIDATES[low, 'C']
+    markout = dict(selection=MARKOUT_SELECTION, execution_class='SYNTHETIC_PAPER_FILL',
+        financial_authority=False, request={'bundle_sha256': CANDIDATES[low, 'C'],
+            'namespace': 'V11_PAPER'}, rows=[{'event_id': 'event-1', 'status': 'MEASURED'}],
+        outcome='NO_DECLARED_BREACH', cohort_sufficient=True,
+        scores={'n_fills': 1, 'mean_fill_markout_per_share': '-0.02'})
+    with pytest.raises(EvidenceError, match='MARKOUT_SCOPE'):
+        evaluate(spec, rows, markout_report=markout)
+    markout['rows'][0]['event_id'] = 'event-2'
+    out = evaluate(spec, rows, markout_report=markout)['execution']
+    assert out['markout_report_sha256'] == digest(markout)
+    assert out['mean_fill_markout_per_share'] == '-0.02'
+    for namespace in ('V11_LIVE', None):
+        markout['request']['namespace'] = namespace
+        with pytest.raises(EvidenceError, match='MARKOUT_REPORT_TYPE'):
+            evaluate(spec, rows, markout_report=markout)

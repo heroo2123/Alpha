@@ -48,7 +48,8 @@ complete **synthetic** examples only. Missing providers produce no multi-model
 score; no fallback or provider-count weighting is inferred. Historical IFS/AIFS
 point-panel bytes remain outside this interface and are not causal learner
 examples. Any real multi-model score still requires reviewed Gate 3/4 admission
-and a separate real exact-day feature adapter.
+and separately reviewed native sampled-trajectory feature binding under the
+R09 contract.
 
 ## Empirical and review boundaries
 

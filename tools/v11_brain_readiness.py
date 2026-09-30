@@ -73,7 +73,7 @@ def _cohort(spec, observations):
 def _score_rows(spec, observations):
     cls, cutoff = _cohort(spec, observations)
     rows, predictions, multi = [], {arm: [] for arm in ARMS}, []
-    seen, city_dates, city_splits = set(), {}, {}
+    seen, city_dates, city_splits, station_days = set(), {}, {}, {}
     for item in observations:
         require(type(item) is dict and set(item) == {'event_id', 'city_day', 'station', 'local_date',
             'family', 'split', 'winner', 'decision_at', 'source_received_at', 'label_received_at',
@@ -93,6 +93,10 @@ def _score_rows(spec, observations):
                  if cls == 'HISTORICAL_CORRECTED' else split == 'FORWARD_SHADOW'), 'BRAIN_PARTITION_CLASS')
         require(city_day not in city_splits or city_splits[city_day] == split, 'BRAIN_CITY_DAY_SPLIT')
         city_splits[city_day] = split
+        station_day = (station, day)
+        require(station_day not in station_days or station_days[station_day] == (city_day, split),
+                'BRAIN_STATION_DAY_ALIAS')
+        station_days[station_day] = (city_day, split)
         require(item['family'] in spec['candidate_bundles'], 'BRAIN_FAMILY')
         require(item['source_sha256'] == spec['source_sha256'] and
                 item['candidate_bundle_sha256'] == spec['candidate_bundles'][item['family']],
@@ -131,7 +135,7 @@ def _score_rows(spec, observations):
             [multi[i] for i in order], [observations[i] for i in order])
 
 
-def _execution(cost, markout, spec, ids):
+def _execution(cost, markout, spec, event_bundles):
     result = dict(status='UNKNOWN_PENDING_PAPER_SHADOW', cost_report_sha256=None, markout_report_sha256=None,
                   known_costs=None, price_shortfall_vs_signal=None, mean_fill_markout_per_share=None,
                   missed_fill_rate=None, slippage=None, paper_pnl=None, drawdown=None)
@@ -142,7 +146,8 @@ def _execution(cost, markout, spec, ids):
                 cost.get('execution_class') == 'SYNTHETIC_PAPER_FILL' and type(cost.get('rows')) is list,
                 'BRAIN_COST_REPORT_TYPE')
         for r in cost['rows']:
-            require(r['model_bundle_sha256'] in bundles and r['event_id'] in ids, 'BRAIN_COST_SCOPE')
+            require(r['event_id'] in event_bundles and
+                    r['model_bundle_sha256'] == event_bundles[r['event_id']], 'BRAIN_COST_SCOPE')
         result['cost_report_sha256'] = digest(cost)
         if cost.get('status') == 'COMPLETE_SYNTHETIC_COSTS_AND_COMPARISONS' and cost.get('rows') and cost.get('complete_cost_population') is True and cost.get('complete_price_comparisons') is True:
             # Retain typed source strings; never fill missing components with zero.
@@ -161,10 +166,14 @@ def _execution(cost, markout, spec, ids):
         require(type(markout) is dict and markout.get('selection') == MARKOUT_SELECTION and
                 markout.get('execution_class') == 'SYNTHETIC_PAPER_FILL' and
                 markout.get('financial_authority') is False and type(markout.get('rows')) is list and
-                markout.get('request', {}).get('bundle_sha256') in bundles,
+                type(markout.get('request')) is dict and
+                markout['request'].get('namespace') == 'V11_PAPER' and
+                markout['request'].get('bundle_sha256') in bundles,
                 'BRAIN_MARKOUT_REPORT_TYPE')
         for r in markout['rows']:
-            require(r['event_id'] in ids, 'BRAIN_MARKOUT_SCOPE')
+            require(r['event_id'] in event_bundles and
+                    markout['request']['bundle_sha256'] == event_bundles[r['event_id']],
+                    'BRAIN_MARKOUT_SCOPE')
         result['markout_report_sha256'] = digest(markout)
         if markout.get('outcome') in ('NO_DECLARED_BREACH', 'DEGRADATION_CANDIDATE') and markout.get('cohort_sufficient') is True and markout['rows'] and all(r.get('status') == 'MEASURED' for r in markout['rows']) and markout.get('scores', {}).get('n_fills') == len(markout['rows']) and _decimal(markout['scores'].get('mean_fill_markout_per_share')) is not None:
             result['mean_fill_markout_per_share'] = markout['scores']['mean_fill_markout_per_share']
@@ -197,7 +206,9 @@ def evaluate(spec, observations, *, cost_report=None, markout_report=None):
                         fixed_group_weights={'NOAA_GEFS': .5, 'ECMWF_LINEAGE': .5},
                         fixed_ecmwf_provider_weights={'IFS': .5, 'AIFS': .5}, missing_provider_events=missing,
                         scores=metrics(rows, multi) if cls == 'SYNTHETIC' and not missing else None),
-        execution=_execution(cost_report, markout_report, spec, {r.event_id for r in rows}),
+        execution=_execution(cost_report, markout_report, spec,
+                             {r.event_id: item['candidate_bundle_sha256']
+                              for r, item in zip(rows, ordered)}),
         machinery_status='MECHANISM_VALIDATED', calibration_status='CALIBRATION_EVIDENCE_PENDING_FORWARD_DATA',
         training_status='FITTED_NOT_CALIBRATED', promotion_status='NO_PROMOTION',
         historical_confirmation_is_forward_holdout=False, independent_acceptance=False,
