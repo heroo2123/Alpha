@@ -493,6 +493,19 @@ class BudgetCeilingExceeded(ValueError):
     pass
 
 
+# Duplicated BY VALUE, not by import, from the already-reviewed production bounds
+# (`polymarket_scanner/v11/ecmwf_sources.py::MAX_INDEX_BYTES` and
+# `polymarket_scanner/v11/model_panel.py::MAX_RAW_BYTES`). This module intentionally
+# imports no production/network-capable service (protocol Section 7), so these
+# ceilings are pinned here as named constants rather than the protocol's own looser
+# nominal figures (3 MiB/16 MiB) -- the protocol itself requires "the stricter
+# existing parser/field bound where present" and that "this document cannot loosen
+# it" (Section 4). If the real production bounds are ever tightened further, this
+# module's ceiling must be re-reviewed and updated to match; it must never be looser.
+_EXISTING_MAX_INDEX_BYTES = 3 * 1024 * 1024
+_EXISTING_MAX_FIELD_BYTES = 4 * 1024 * 1024
+
+
 class BudgetTracker:
     """Enforces the pilot's hard ceilings (protocol Section 4), constructed with the
     STRICTER of the protocol's own numbers and any already-existing, already-reviewed
@@ -504,13 +517,15 @@ class BudgetTracker:
 
     def __init__(self, *, max_requests=3600, max_total_received_bytes=1024 ** 3,
                  min_interval_seconds=2.0, max_elapsed_seconds=3 * 3600.,
-                 max_index_bytes=3 * 1024 * 1024, max_field_bytes=4 * 1024 * 1024):
+                 max_index_bytes=_EXISTING_MAX_INDEX_BYTES, max_field_bytes=_EXISTING_MAX_FIELD_BYTES):
         require(type(max_requests) is int and 0 < max_requests <= 3600, 'BUDGET_MAX_REQUESTS_CEILING')
         require(0 < max_total_received_bytes <= 1024 ** 3, 'BUDGET_MAX_BYTES_CEILING')
         require(min_interval_seconds >= 2.0, 'BUDGET_MIN_INTERVAL_CEILING')
         require(0 < max_elapsed_seconds <= 3 * 3600, 'BUDGET_MAX_ELAPSED_CEILING')
-        require(0 < max_index_bytes <= 3 * 1024 * 1024, 'BUDGET_MAX_INDEX_BYTES_CANNOT_LOOSEN_PROTOCOL')
-        require(0 < max_field_bytes <= 16 * 1024 * 1024, 'BUDGET_MAX_FIELD_BYTES_CANNOT_LOOSEN_PROTOCOL')
+        require(0 < max_index_bytes <= _EXISTING_MAX_INDEX_BYTES,
+                'BUDGET_MAX_INDEX_BYTES_CANNOT_LOOSEN_PROTOCOL')
+        require(0 < max_field_bytes <= _EXISTING_MAX_FIELD_BYTES,
+                'BUDGET_MAX_FIELD_BYTES_CANNOT_LOOSEN_PROTOCOL')
         self.max_requests = max_requests
         self.max_total_received_bytes = max_total_received_bytes
         self.min_interval_seconds = min_interval_seconds

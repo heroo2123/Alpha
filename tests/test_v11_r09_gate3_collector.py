@@ -358,6 +358,20 @@ def test_budget_cannot_loosen_protocol_index_or_field_ceilings():
         g3i.BudgetTracker(max_field_bytes=17 * 1024 * 1024)
 
 
+def test_budget_field_bytes_cannot_loosen_past_the_real_stricter_bound():
+    """Regression for the independent G3-I review's P2-1 finding: the protocol's own
+    nominal 16 MiB/field ceiling is looser than the already-reviewed real bound
+    (`model_panel.MAX_RAW_BYTES` = 4 MiB); this module must enforce the real, tighter
+    bound, not just the protocol's own nominal figure (protocol Section 4: "apply a
+    stricter existing parser/field bound where present; this document cannot loosen
+    it")."""
+    g3i.BudgetTracker(max_field_bytes=4 * 1024 * 1024)  # exactly at the real bound: fine
+    with pytest.raises(PanelError, match='BUDGET_MAX_FIELD_BYTES_CANNOT_LOOSEN_PROTOCOL'):
+        g3i.BudgetTracker(max_field_bytes=4 * 1024 * 1024 + 1)
+    with pytest.raises(PanelError, match='BUDGET_MAX_FIELD_BYTES_CANNOT_LOOSEN_PROTOCOL'):
+        g3i.BudgetTracker(max_field_bytes=10 * 1024 * 1024)  # strictly between 4 MiB and 16 MiB
+
+
 def test_budget_enforces_request_count_ceiling():
     tracker = g3i.BudgetTracker(max_requests=1)
     tracker.start_window(0.0)
