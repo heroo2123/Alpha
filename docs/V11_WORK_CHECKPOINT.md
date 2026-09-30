@@ -1,5 +1,17 @@
 # Alpha V11 work checkpoint
 
+## Publication hold — 2026-09-30 17:38 UTC
+
+The reconciliation below is committed locally as `43a607b` and the worktree
+is otherwise clean. Local main is one commit ahead of origin `c40eacd`.
+Automatic approval review rejected a push to
+`https://github.com/heroo2123/Alpha.git` because this session did not
+establish that `origin` is a trusted user-owned publication destination for
+the three internal coordinator documents. Do not retry the push indirectly.
+The local commit and accepted release/R09 gates remain intact; explicit
+destination approval is needed for publication. Gate-3 protocol design/review
+can proceed independently of this publication hold.
+
 ## Coordinator reconciliation — SHADOW release history supersedes stale handoff — 2026-09-30 17:35 UTC
 
 Main and origin are clean and equal at `c40eacd`. The 17:21 entry below
