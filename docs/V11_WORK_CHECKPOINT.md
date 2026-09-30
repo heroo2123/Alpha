@@ -1,5 +1,47 @@
 # Alpha V11 work checkpoint
 
+## Coordinator sync — local/remote publish of reviewed R09 gate 2 record — 2026-09-30 17:21 UTC
+
+Recovery check on invocation: `git status` clean, local HEAD `73721b7`, 35
+commits ahead of `origin/weather-v11-profitability-upgrade-2026-09-23`
+(`647637a`). The concurrent `gpt-6-sol/high` worker (PID 816156, running in
+this same worktree since 16:21 UTC) had already exited cleanly by the time of
+inspection; its final output confirms it produced no new uncommitted work
+beyond what the prior entry already documents (the `0050759` merge and the
+`73721b7` review-record commit), so no recovery or resume action was needed.
+
+Before publishing, verified the full unpublished range
+(`origin/...^..HEAD`) touches only docs, tests, and nonfinancial
+`polymarket_scanner/v11`/`tools` R09 gate-2 code — no private master/PDF
+content, credentials, tokens, or V10 assets — via a name-only diff plus a
+targeted grep for key/secret/credential markers (only prose matches, e.g.
+"no private material found", "no ... credentials"). Pushed
+`weather-v11-profitability-upgrade-2026-09-23` (no force); local and remote
+now agree at `73721b7`.
+
+Observed and left untouched, as outside this invocation's safe scope: the
+PAPER scanner (`alpha-weather-scanner.service`) is inactive/disabled, V11
+execution remains masked, and V10 remains inactive/disabled — all consistent
+with the existing safety boundary and the prior entry's own note that the
+scanner was already inactive; a scanner restart was attempted read-only-first
+and correctly refused by the local permission system as a safety-relevant
+action, so it was not pursued further. Confirmed the separate SHADOW
+commissioning repair branch (`v11-shadow-commissioning-20260930`, worktree
+`AlphaV11_ShadowCommission`, tip `dd18e38`) remains correctly gated
+**CHANGES_REQUIRED** per its own preserved adjudication
+(`V11_SHADOW_COMMISSION_ADJUDICATION_dd18e38.md`: two named P2 defects —
+stale cohort policy digests, and advancing-clock audit-row replay breaking
+bounded lifecycle recovery) — not merged, not re-litigated here. No new
+persistent worker was launched this invocation to avoid duplicating the
+existing automatic sol/astra planner rounds already cycling on this exact
+worktree set.
+
+No code or test changed; no new C/J/E/A. **91/200 = 45.5% (~46%); formal
+1/50 (2%)**, unchanged. NOT_READY_TO_FUND. Next unfinished action: the named
+P2 repair on the SHADOW commissioning branch, and Gate-3 protocol
+design/review for R09 real release/source collection, as already stated in
+the entry below.
+
 ## Coordinator integration — R09 offline gate 2 PASS — 2026-09-30 17:18 UTC
 
 The preserved R09 builder's final N1–N4 repair `1ab551d` (tree `ad542166`)
