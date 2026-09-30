@@ -210,7 +210,7 @@ def test_finite_candidate_runs_preparation_stages_and_keeps_other_workers(factor
     assert not s.records(kind='TRADE')
 
 
-def test_scheduled_models_flow_through_protected_candidate_pws_and_payout_scopes(joined,setup,tmp_path,monkeypatch):
+def test_scheduled_models_flow_through_protected_candidate_pws_and_payout_scopes(joined,setup,tmp_path,monkeypatch,candidate_clock):
     from polymarket_scanner.v11 import certification,model_registry
     from test_v11_certification_rules import approve_fixture
     from test_v11_model_governance import promote
@@ -252,7 +252,7 @@ def test_scheduled_models_flow_through_protected_candidate_pws_and_payout_scopes
             row=await candidate.run('scheduled-models')
             before=s.pin_read_view();assert await candidate.run('scheduled-models')==row and s.pin_read_view()==before
             return candidate,row
-    candidate,row=asyncio.run(go());d=row['body']['details']
+    candidate,row=candidate_clock.run(go());d=row['body']['details']
     stages=[j for j in d['worker_results'] if j['kind']=='INPUT_PREPARATION']
     assert sum(j['outcome']=='PREPARATION_COMPLETE' for j in stages)==2,d
     assert all(j['outcome'] in {'PREPARATION_STAGE_RECORDED','PREPARATION_COMPLETE','UNCHANGED_INPUTS_NO_RECEIPT_RENEWAL'} for j in stages),d

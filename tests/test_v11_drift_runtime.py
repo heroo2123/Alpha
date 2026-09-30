@@ -283,7 +283,7 @@ def test_captured_quality_through_reduction_withdrawal_terminal_reconciliation_a
     assert report['coverage']['archive_scan_complete'] and not report['financial_authority']
 
 
-def test_typed_candidate_runs_queued_drift_job_with_existing_safety_ticks(sample,monkeypatch):
+def test_typed_candidate_runs_queued_drift_job_with_existing_safety_ticks(sample,monkeypatch,candidate_clock):
     from test_v11_candidate_assembly import app, scoped_plan, inputs, target, synthetic_clock, transport
     r=sample;lane=app.TemperatureLane('temperature',inputs(r),(target(r),),'fixture',r['request'].valuation_policy,10.)
     cfg=scoped_plan(r,lane);plan=drift.DriftPlan(r['scope'],r['binding'].bundle_sha256,r['policy'])
@@ -297,7 +297,7 @@ def test_typed_candidate_runs_queued_drift_job_with_existing_safety_ticks(sample
             enqueue(candidate.drift,r,plan);ready(r,candidate.runtime.health)
             assert candidate.drift.coordinator is candidate.runtime.coordinator
             return await candidate.run('finite-drift')
-    d=asyncio.run(run())['body']['details'];jobs=[j for j in d['worker_results'] if j['kind']=='DRIFT']
+    d=candidate_clock.run(run())['body']['details'];jobs=[j for j in d['worker_results'] if j['kind']=='DRIFT']
     assert len(jobs)==1 and jobs[0]['outcome']=='SCOPED_SAFETY_REDUCTION_APPLIED',d
     assert len(d['runtime_ids'])>=4 and d['all_async_jobs_drained'] and not d['real_orders_sent']
     with pytest.raises(EvidenceError,match='DRIFT_PLAN_SCOPE'):

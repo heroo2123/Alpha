@@ -258,7 +258,7 @@ def test_new_measurement_during_review_fails_atomic_head_guard(rig,monkeypatch):
     advance(r,.01);assert w.step('fresh')['body']['details']['demotion_applied']
 
 
-def test_typed_candidate_automatically_monitors_retires_and_audits_original_scope(rig,monkeypatch):
+def test_typed_candidate_automatically_monitors_retires_and_audits_original_scope(rig,monkeypatch,candidate_clock):
     from polymarket_scanner.v11 import candidate_assembly as app
     from test_v11_candidate_assembly import scoped_plan, synthetic_clock, transport
     from test_v11_request_assembly import inputs, target
@@ -278,7 +278,7 @@ def test_typed_candidate_automatically_monitors_retires_and_audits_original_scop
             monitor(r,t,monkeypatch)
             advance(r,1);book(r,'horizon',bids=[dict(price='.05',size='20')]);advance(r,2)
             return candidate,await candidate.run('markout-candidate')
-    candidate,row=asyncio.run(run());d=row['body']['details']
+    candidate,row=candidate_clock.run(run());d=row['body']['details']
     assert [j['kind'] for j in d['worker_results']]==['CENSUS','DISCOVERY','AUDIT','MAKER_TELEMETRY','DRIFT']
     assert d['worker_results'][-1]['outcome']=='SCOPED_SAFETY_REDUCTION_APPLIED',d
     assert candidate.drift.maker_telemetry is candidate.maker_telemetry

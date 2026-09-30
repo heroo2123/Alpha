@@ -1,5 +1,31 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Combined release accepted and integrated locally — 2026-09-30
+
+Astra/high completed exact-branch integration/safety acceptance of `6ec371e`
+against main `9711391`: **PASS for development integration only**. The normal
+merge preserves newer main records and has the exact code/test tree of the
+verified release. Existing gates remain 396 affected passes and 5,460 full-suite
+passes (13 skipped); both log hashes match. Fresh acceptance probes passed
+**18/18 in 15.32 s**, including independent mutation/replay checks and unchanged
+runtime deadline/cancellation controls. The prior independent-review directory
+has a 13-pass probe log but no standalone verdict/terminal; this fresh acceptance
+records its own exact combined-commit decision rather than inferring that artifact.
+
+See [V11_RELEASE_ACCEPTANCE_6ec371e.md](V11_RELEASE_ACCEPTANCE_6ec371e.md) and
+`/tmp/alpha-v11-release-acceptance-6ec371e/` for report, verdict, probe log and
+final integration terminal. No unchanged full-suite rerun, deployment or push.
+The earlier GitHub destination approval rejection remains unresolved.
+
+PAPER scanner stays inactive after its 85% disk guard (current use 86%);
+weather execution stays masked/inactive and protected authority is absent.
+No forward SHADOW qualification is claimed; the wrapper explicitly counts zero
+qualifying samples. R09 gate 2 remains unmerged with seven P2 blockers. Next:
+Sonnet/high R1–R7 repair in `/tmp/alpha-v11-r09-trajectory-gate2/Alpha`, then fresh
+independent exact-commit review. No duplicate worker was launched during this
+acceptance. No C/J/E/A change: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
+
 
 ## Release candidate verified; scanner disk stop — 2026-09-30
 
