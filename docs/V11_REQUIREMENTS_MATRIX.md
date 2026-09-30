@@ -1,5 +1,14 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Coordinator recovery — R09 conservative-time repair ongoing — 2026-09-30
+
+The single live R09 gate-2 worker expanded its uncommitted two-file repair and
+again passed 61/61 focused contract tests. Its affected gate, terminal and
+independent exact-commit review are still pending. Gate 2 and real-data
+admission remain OPEN. PAPER remains stopped after its disk guard; recent
+commissioning writes are watchdog status only. No requirement status or
+C/J/E/A credit changes: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator recovery — R09 counterexamples in progress — 2026-09-30
 
 The sole R09 gate-2 worker remains live in its preserved worktree. It has

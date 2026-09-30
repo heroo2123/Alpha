@@ -1,5 +1,29 @@
 # Alpha V11 work checkpoint
 
+## Coordinator recovery — R09 conservative-time counterexamples — 2026-09-30 15:12 UTC
+
+Recovered the live, sole R09 repair driver PID 799619 and Codex child PID
+799624 in the preserved `/tmp/alpha-v11-r09-trajectory-gate2/Alpha` worktree.
+Since the previous checkpoint, its two-file source/test diff grew to 967
+insertions and 209 deletions. The worker added conservative lower-bound timing
+checks after its artifact, corpus, extraction and provider-fallback probes;
+the latest focused contract suite passes 61/61 in 1.84 s and `git diff --check`
+passes. This is unfinished worker evidence: no affected gate, commit,
+`terminal.json`, or independent exact-commit review exists. Leave this worker
+in place and inspect its terminal, exact diff and tests when it finishes.
+
+Main is clean at `ac48534`, 14 local commits ahead of origin. The previously
+accepted combined release full-suite PASS remains the SHADOW development
+evidence. PAPER scanner, V11 controller and execution unit are inactive; the
+scanner's recorded disk stop remains current, while only watchdog status files
+changed in commissioning evidence. Root disk is 82% used with 3.4 GiB free;
+memory available is about 886 MiB. Protected model authority is absent, and
+the private FINAL-REVIEWED master still matches SHA-256
+`a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+No service, V10, protected-authority or financial action was taken, and no
+qualifying forward SHADOW sample appeared. No C/J/E/A boundary crossed:
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator recovery — R09 counterexamples in progress — 2026-09-30 15:07 UTC
 
 Recovered the actual R09 gate-2 repair driver PID 799619 and Codex child PID
