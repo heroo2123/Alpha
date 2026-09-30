@@ -1,5 +1,14 @@
 # Supplementary engineering estimate
 
+## Coordinator recovery — 2026-09-30 15:18 UTC
+
+The preserved R09 repair worker remains live; its latest focused contract run
+passed 61/61, followed by more edits. The affected gate, terminal, commit and
+independent review are pending. Main and isolated SHADOW worktrees are clean;
+PAPER remains inactive after its recorded disk stop, and no forward sample
+qualifies. Protected model authority is absent and the private master hash
+matches its pin. **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator recovery — 2026-09-30 15:12 UTC
 
 The sole preserved R09 repair worker added conservative-time checks and retained

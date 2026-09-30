@@ -1,5 +1,15 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Coordinator recovery — R09 live repair — 2026-09-30 15:18 UTC
+
+The sole live R09 gate-2 worker has a check-clean two-file diff and a newer
+61/61 focused contract pass, but remains uncommitted and is still editing.
+Affected gate, terminal and independent exact-commit review remain OPEN; no
+real-data admission follows. SHADOW has zero qualifying forward samples,
+PAPER remains stopped after its disk guard, and protected model authority is
+absent. No requirement status or C/J/E/A credit changes: **91/200 (45.5%),
+formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator recovery — R09 conservative-time repair ongoing — 2026-09-30
 
 The single live R09 gate-2 worker expanded its uncommitted two-file repair and
