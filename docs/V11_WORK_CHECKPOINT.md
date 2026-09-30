@@ -1,5 +1,32 @@
 # Alpha V11 work checkpoint
 
+## Coordinator recovery — live SHADOW worker resumed; release gate running — 2026-09-30
+
+Recovered actual process and worktree state before acting. The existing Sonnet
+SHADOW commissioning process (PID 695908) was stopped with unfinished, untracked
+`shadow_commission.py` in its isolated worktree; it was continued in place with
+SIGCONT, without replacing or discarding its work. It is running again and has
+started its focused test file. No second commissioning worker was launched.
+
+The separate release-fix branch `e35cbfc` changes only deterministic test timing
+and related tests for the intermittent fill-markout/DRIFT candidate scheduler
+assertion. Its saved evidence reports 168 requested-family and 205 related
+passes, plus two 50-test fill-markout repeats. The original full-suite failure
+log was not retained, so the release gate remains open. A fresh full suite is
+running in that isolated branch, with output at
+`/tmp/alpha-v11-scheduler-full-suite.log` and terminal result to be written at
+`/tmp/alpha-v11-scheduler-full-suite.terminal`. Inspect the terminal result and
+actual diff before review/integration; focused passes do not clear release.
+
+The PAPER scanner remains active at its existing process, with zero restarts.
+`/etc/alpha-v11` and `/var/lib/alpha-v11/model-authority` remain absent; no
+protected-state installation or service change was made. Recent commissioning
+updates are heartbeat/status files, not new forward SHADOW evidence. Disk has
+5.0 GiB available and memory 736 MiB available plus 1.3 GiB free swap at
+recovery. Local main remains six commits ahead of origin; the earlier automatic
+approval rejection of that GitHub destination remains binding. No new C/J/E/A:
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator recovery — R09 native-extrema review integrated — 2026-09-30
 
 The isolated R09 native-extrema research branch (`fef0d0d`) received an

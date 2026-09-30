@@ -1,5 +1,16 @@
 # Supplementary engineering estimate
 
+## Coordinator recovery — 2026-09-30
+
+Resumed the stopped Sonnet SHADOW commissioning process in its original isolated
+worktree; its unfinished code and new tests are preserved. Began the missing
+full-suite release regression on the separate test-only scheduler-fix branch
+`e35cbfc`; log and terminal result are under `/tmp/alpha-v11-scheduler-full-suite.*`.
+The original intermittent failure log was unavailable, and release remains
+unaccepted pending the actual full-suite result and review. PAPER scanner is
+unchanged, protected model authority is absent, and no forward SHADOW evidence
+was claimed. **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator recovery — R09 native-extrema integration — 2026-09-30
 
 Independent review PASS for `fef0d0d` reproduced the public-capture result and

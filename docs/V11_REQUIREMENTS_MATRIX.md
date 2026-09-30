@@ -1,5 +1,12 @@
 # V11 requirement-to-code/test/evidence matrix
 
+Coordinator live recovery (2026-09-30): the stopped, unfinished SHADOW
+commissioning worker was resumed in its existing worktree. No forward SHADOW
+evidence or root-protected authority exists yet. A test-only scheduler release
+fix at `e35cbfc` has focused/related passes, while its full repository regression
+is running and release acceptance remains open. No row gains C/J/E/A credit:
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 Coordinator recovery (2026-09-30): independently reviewed R09 native-extrema
 research was merged at `d71eec7`, with a byte-identical reviewed branch tree
 and 77 post-merge focused passes (one expected skip). It establishes real IFS
