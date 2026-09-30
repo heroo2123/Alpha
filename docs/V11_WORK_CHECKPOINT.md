@@ -1,5 +1,28 @@
 # Alpha V11 work checkpoint
 
+## Independent strict Gate 3 review completed: five P2 blockers — 2026-09-30
+
+Astra/high independently reviewed exact Sol/high `dc7f83b`, tree `5e440cb`:
+**CHANGES_REQUIRED**, with a [completed review and repair criteria](V11_R09_GATE3_STRICT_REVIEW_dc7f83b.md)
+and [terminal](V11_R09_GATE3_STRICT_REVIEW_dc7f83b_terminal.json).
+62 author-suite tests pass independently; 12 additional probes pass, comprising
+10 defect reproductions and 2 positive controls. Journal write/fsync errors
+leave the object usable and can undercharge received bytes; hardlinked journal
+files can modify unrelated files; 00:59:59 runs and boolean inventory aliases
+pass; request/object binding and pacing feasibility are incomplete; pinned
+timezone bytes do not govern date calculations. The candidate stays clean and
+unmerged. Next: Sonnet/high repairs these five offline findings in the same
+worktree, then new independent exact-commit review. No transport/G3-L launch.
+
+A separate Sol/high Brain-readiness worker is active in
+`/home/alphaadmin/AlphaV11_BrainReadiness/Alpha`, with new untracked tool/tests;
+preserve and do not duplicate it. SHADOW remains clean at `15e99bd`; new
+commissioning files are status-only, no forward evidence. V10/scanner/controller
+inactive, execution masked, authority absent, private master hash verified.
+The old release failure remains closed by accepted `6ec371e`; no unchanged
+full-suite rerun. Main publication hold remains. No C/J/E/A crossing:
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Offline Gate 3 strict-validator candidate awaiting independent review — 2026-09-30 19:39 UTC
 
 Sol/high built isolated G3-I candidate `dc7f83b` (tree `5e440cb`) in

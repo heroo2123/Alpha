@@ -1,5 +1,17 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## R09 strict G3-I candidate independently rejected pending repair — 2026-09-30
+
+[Exact-commit Astra/high review](V11_R09_GATE3_STRICT_REVIEW_dc7f83b.md) of
+Sol/high `dc7f83b` is completed **CHANGES_REQUIRED**: five P2 findings in
+journal failure handling/file isolation, native inventory typing/run times,
+request schedule binding/feasibility and pinned timezone semantics. 62 focused
+tests pass; 12 independent probes reproduce ten defects and two working controls.
+Candidate remains unmerged; offline repair and independent re-review are next.
+G3-L, real integration/capture and forward evidence stay OPEN. Existing separate
+Brain-readiness worker continues. **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**, unchanged.
+
 ## R09 G3-I strict launch candidate pending cross-model review — 2026-09-30
 
 Isolated `dc7f83b`/tree `5e440cb` implements an offline closed-schema

@@ -1,5 +1,18 @@
 # Supplementary engineering estimate
 
+## Strict Gate 3 independent review: CHANGES_REQUIRED — 2026-09-30
+
+Astra/high completed the exact `dc7f83b`/tree `5e440cb` review of Sol/high's
+offline candidate. [Report, reproducible evidence and terminal](V11_R09_GATE3_STRICT_REVIEW_dc7f83b.md)
+record five P2 blockers: persistence-error continuation, journal file isolation,
+wrong native run/type acceptance, unbound/infeasible schedules and ambient rather
+than pinned timezone data. 62 focused tests pass independently; 12 adversarial
+probes pass (ten defect reproductions, two controls). Candidate unchanged and
+unmerged. Next is Sonnet/high offline repair in the existing isolated worktree
+and new independent exact-commit review; the already-active Brain-readiness
+worker is preserved. No launch, authority or new evidence credit.
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**, unchanged.
+
 ## Offline strict Gate 3 launch candidate — 2026-09-30 19:39 UTC
 
 Sol/high authored isolated `dc7f83b`/tree `5e440cb`: new offline validator
