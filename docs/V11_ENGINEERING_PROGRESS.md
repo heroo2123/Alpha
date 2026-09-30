@@ -1,5 +1,23 @@
 # Supplementary engineering estimate
 
+## R09 G3-I collector independently reviewed PASS, merged — 2026-09-30 18:40 UTC
+
+Round 1 review of `de8c7bc` found one real P2 (`BudgetTracker.max_field_bytes`
+enforced the protocol's own looser 16 MiB nominal ceiling instead of the
+actually-stricter, already-reviewed 4 MiB production bound its own docstring
+claimed). Fixed at `3e6a872` with named-constant pins and a regression test.
+Round 2 independently reviewed and PASSed exact commit `3e6a872`, verifying
+the fix live and finding no new P1/P2. Merged into main at `789ef44`; both
+review artifacts preserved:
+[round 1](V11_R09_GATE3_COLLECTOR_REVIEW_de8c7bc.md),
+[round 2 PASS](V11_R09_GATE3_COLLECTOR_REVIEW_3e6a872.md). One latent P3
+carries forward as an explicit prerequisite for G3-L: the collector's
+field-byte ceiling is one global 4 MiB figure, not yet differentiated
+per-provider (GEFS's real bound is 64 KiB) — harmless today only because no
+fetch loop exists yet in G3-I. This G3-I PASS grants no launch/G3-L/G3-E/
+financial/production/host authority; still **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## R09 G3-I collector built and tested offline — 2026-09-30 18:10 UTC
 
 Built the bounded G3-I collector the accepted G3-P protocol calls for, in

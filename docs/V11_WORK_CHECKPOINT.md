@@ -1,5 +1,46 @@
 # Alpha V11 work checkpoint
 
+## R09 Gate 3 (G3-I) collector reviewed PASS and merged — 2026-09-30 18:40 UTC
+
+Round 2's independent reviewer (agent `aade8129622b52fda`, read-only worktree
+`/tmp/alpha-v11-r09-gate3-collector-review-3e6a872/Alpha`) returned
+`R09_GATE3_COLLECTOR_REVIEW_PASS` for exact commit `3e6a872`, confirming: the
+diff since `de8c7bc` touches only the two claimed files; the round-1 P2 is
+genuinely closed (independently reconstructed
+`BudgetTracker(max_field_bytes=10*1024*1024)`/`16*1024*1024` both now raise
+`BUDGET_MAX_FIELD_BYTES_CANNOT_LOOSEN_PROTOCOL`, `4*1024*1024` still
+succeeds); the pinned `_EXISTING_MAX_INDEX_BYTES`/`_EXISTING_MAX_FIELD_BYTES`
+constants match the live `ecmwf_sources.MAX_INDEX_BYTES`/
+`model_panel.MAX_RAW_BYTES` values exactly; 46/46 new + 263 regression passed,
+2 skipped, 0 failed; and no other claimed ceiling in the file shares the same
+defect class. Two new non-blocking P3 notes: **P3-d** — the module's
+docstring claims it "can never loosen" GEFS's real 64 KiB
+(`grib_fields.MAX_BYTES`) bound, but `max_field_bytes` is one global 4 MiB
+ceiling with no GEFS-specific differentiation; confirmed **latent, not live**
+(no fetch loop exists yet in G3-I; `check_before_request`'s
+`index_bytes`/`field_bytes` params are never actually invoked in this
+commit) — **must be resolved before G3-L wires a real GEFS fetch path**.
+P3-e was a process note (review file location), no impact on verdict.
+
+Preserved both review artifacts on main:
+[round 1, CHANGES_REQUIRED](V11_R09_GATE3_COLLECTOR_REVIEW_de8c7bc.md) and
+[round 2, PASS](V11_R09_GATE3_COLLECTOR_REVIEW_3e6a872.md). Merged
+`r09-gate3-collector-20260930` (exact commit `3e6a872`) into main via
+`789ef44`, matching the Gate 2 trajectory-contract precedent — code/tests
+merged first, review artifacts and this record added in the immediately
+following commit. This is a G3-I PASS only: per the protocol's own gate
+table it permits "preparation of a concrete launch manifest; no automatic
+network start," and grants no G3-L/G3-E/launch/financial/production/host
+authority. No network access, acquisition, or capture launch occurred at any
+point in this batch. No new C/J/E/A boundary crossed: **91/200 (45.5%),
+formal 1/50; NOT_READY_TO_FUND**. Publication hold remains in force; no push
+attempted. Next unfinished action: before preparing any concrete private
+G3-L manifest, first resolve P3-d (bind `BudgetTracker`'s field-byte ceiling
+per-provider, e.g. GEFS's real 64 KiB, rather than one global 4 MiB figure,
+once a real fetch loop exists) and obtain real observed per-provider message
+sizes for `estimate_feasibility`; only then freeze and independently review
+the actual private manifest digest.
+
 ## R09 Gate 3 (G3-I) review round 1 found/fixed one P2, round 2 launched — 2026-09-30 18:30 UTC
 
 The independent reviewer for exact commit `de8c7bc` (agent `aea7b8f2d78fadc2e`,
