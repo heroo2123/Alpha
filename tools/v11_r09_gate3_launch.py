@@ -17,7 +17,7 @@ import stat
 import subprocess
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import urljoin, urlsplit
 from zoneinfo import TZPATH, ZoneInfo
 
 from tools.v11_multimodel_panel import canonical
@@ -217,6 +217,16 @@ def _public_https_origin(value):
         return '.' in parsed.hostname and not parsed.hostname.endswith('.local')
 
 
+def _canonical_request_path(origin, path):
+    """Require a literal root path that URL resolution cannot reinterpret."""
+    if (type(path) is not str or not path.startswith('/') or
+            path.startswith('//') or '%' in path or '//' in path):
+        return False
+    parts = path[1:].split('/')
+    return (all(part and part not in ('.', '..') for part in parts) and
+            urljoin(origin.rstrip('/') + '/', path) == origin.rstrip('/') + path)
+
+
 def validate_manifest(raw, *, repo, object_root, now_utc):
     """Validate a private candidate offline; return its digest, never permission."""
     payload = parse_canonical(raw)
@@ -393,14 +403,14 @@ def validate_manifest(raw, *, repo, object_root, now_utc):
         template = source['path_template']
         check(_public_https_origin(source['origin']) and
               type(source['path_template']) is str and
-              template.startswith('/') and
+              _canonical_request_path(source['origin'], template) and
               template.count('{run}') == 1 and
               template.count('{member}') == 1 and
               template.count('{hour}') == 1 and
               '..' not in template and
               '{' not in template.replace('{run}', '').replace('{member}', '').replace('{hour}', '') and
               '}' not in template.replace('{run}', '').replace('{member}', '').replace('{hour}', '') and
-              re.fullmatch(r'[A-Za-z0-9_/{}/.%-]+', template) is not None,
+              re.fullmatch(r'[A-Za-z0-9_/{}/.-]+', template) is not None,
               'SOURCE_ORIGIN')
         if source['publication_attestation'] is None:
             check(type(source['publication_absence_reason']) is str and
@@ -563,11 +573,13 @@ def validate_manifest(raw, *, repo, object_root, now_utc):
                       for i in request['prerequisites']),
                   'FIELD_PREREQUISITES')
             minimum = limits['field_bytes'][provider]
-            integer(request['reservation_bytes'], minimum, MAX_BYTES,
-                    'RESERVATION_TOO_SMALL')
             integer(request['range_start'], 0, MAX_BYTES, 'FIELD_RANGE')
             integer(request['range_end'], request['range_start'], MAX_BYTES,
                     'FIELD_RANGE')
+            check(request['range_end'] - request['range_start'] + 1 <= minimum,
+                  'FIELD_PROVIDER_LIMIT')
+            integer(request['reservation_bytes'], minimum, minimum,
+                    'RESERVATION_TOO_SMALL')
             check(request['range_end'] - request['range_start'] + 1 <=
                   request['reservation_bytes'], 'FIELD_RANGE_RESERVATION')
         else:
@@ -575,7 +587,7 @@ def validate_manifest(raw, *, repo, object_root, now_utc):
             check(request['range_start'] is None and request['range_end'] is None and
                   not request['prerequisites'], 'OVERHEAD_REQUEST_SHAPE')
             minimum = limits['max_index_bytes'] if request['purpose'] == 'INDEX' else limits['metadata']
-            integer(request['reservation_bytes'], minimum, MAX_BYTES,
+            integer(request['reservation_bytes'], minimum, minimum,
                     'RESERVATION_TOO_SMALL')
             prior_overhead[position] = request
         total += request['reservation_bytes']
@@ -721,7 +733,9 @@ class DurableBudget:
                   'JOURNAL_PATH_SYMLINK')
             current = os.stat(self.path, follow_symlinks=False)
             check((current.st_dev, current.st_ino) == self.directory_identity and
-                  stat.S_ISDIR(current.st_mode), 'JOURNAL_DIRECTORY_IDENTITY')
+                  stat.S_ISDIR(current.st_mode) and current.st_uid == os.getuid() and
+                  stat.S_IMODE(current.st_mode) == 0o700,
+                  'JOURNAL_DIRECTORY_IDENTITY')
             self._check_file('gate3.lock', self.lock_fd)
             self._check_file('gate3.jsonl', self.fd)
         except BaseException:

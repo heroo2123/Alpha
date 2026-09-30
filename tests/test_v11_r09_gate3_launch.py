@@ -434,6 +434,37 @@ def test_schedule_rejects_empty_paths_wrong_object_and_impossible_pacing(tmp_pat
         validate(payload, repo, root, start)
 
 
+def test_field_range_and_reservation_cannot_exceed_provider_cap(tmp_path, monkeypatch):
+    payload, repo, root, start = candidate(tmp_path, monkeypatch)
+    field = payload['schedule']['requests'][-1]
+    field['range_end'] += 1
+    field['reservation_bytes'] += 1
+    payload['schedule']['reservation_total_bytes'] += 1
+    with pytest.raises(LaunchContractError, match='FIELD_PROVIDER_LIMIT'):
+        validate(payload, repo, root, start)
+    field['range_end'] -= 1
+    with pytest.raises(LaunchContractError, match='RESERVATION_TOO_SMALL'):
+        validate(payload, repo, root, start)
+
+
+@pytest.mark.parametrize('template', [
+    '//outside.example/{run}/{member}/{hour}',
+    '/fixed/%2e%2e/{run}/{member}/{hour}',
+    '/fixed/../{run}/{member}/{hour}',
+    '/fixed//{run}/{member}/{hour}',
+])
+def test_schedule_rejects_origin_escape_paths(tmp_path, monkeypatch, template):
+    payload, repo, root, start = candidate(tmp_path, monkeypatch)
+    payload['sources']['GEFS']['path_template'] = template
+    payload['network']['path_templates']['GEFS'] = template
+    for position, request in enumerate(payload['schedule']['requests']):
+        replacement = request_for_slot(payload, 0, request['purpose'], position,
+                                       request['reservation_bytes'], request['prerequisites'])
+        request.update(replacement)
+    with pytest.raises(LaunchContractError, match='SOURCE_ORIGIN'):
+        validate(payload, repo, root, start)
+
+
 def test_pinned_timezone_bytes_govern_local_day(tmp_path, monkeypatch):
     payload, repo, root, start = candidate(tmp_path, monkeypatch)
     payload['cohort']['timezone'] = 'America/New_York'
@@ -572,3 +603,15 @@ def test_journal_rejects_nonregular_file_and_constructor_fsync_cleanup(tmp_path,
         with pytest.raises(OSError, match='synthetic directory fsync failure'):
             DurableBudget(root, 'd' * 64)
     assert len(os.listdir('/proc/self/fd')) == before
+
+
+def test_journal_poisoned_if_directory_loses_private_mode(tmp_path):
+    root = tmp_path / 'journal'
+    root.mkdir(mode=0o700)
+    with DurableBudget(root, 'e' * 64) as budget:
+        root.chmod(0o755)
+        with pytest.raises(LaunchContractError, match='JOURNAL_DIRECTORY_IDENTITY'):
+            budget.reserve('one', 1, started_monotonic=0)
+        root.chmod(0o700)
+        with pytest.raises(LaunchContractError, match='JOURNAL_DURABILITY_UNCERTAIN'):
+            budget.reserve('one', 1, started_monotonic=0)
