@@ -1,5 +1,27 @@
 # Alpha V11 work checkpoint
 
+## Coordinator recovery: route Gate 3 store design — 2026-09-30 21:29 UTC
+
+Recovered clean main `d947571` (44 ahead, 0 behind tracking ref), clean held
+Gate 3 `7b5a235` and clean SHADOW `15e99bd`. The author and independent review
+terminals are complete; no Gate 3 worker remains. Latest commissioning writes
+are watchdog statuses only, with no qualifying artifact after 06:43 UTC.
+The prior release full-suite resolution `6ec371e` remains accepted.
+
+Next unblocked step is an Astra/high architecture and acceptance review for
+offline `ImmutableObjectStore` restart recovery: exclusive runtime ownership,
+durable successful-seal and original clock provenance, uncertain-name
+reconciliation, crash boundaries, and synthetic acceptance criteria. Produce a
+reviewable design before implementation. Preserve `7b5a235` and its explicit
+merge, publication, capture, G3-L, SHADOW and learner holds. Do not alter real
+stores or protected authority. No duplicate worker launched.
+
+Read-only checks: FINAL-REVIEWED master matches its pinned SHA-256; V10 demo,
+PAPER scanner/controller and V11 execution are inactive, execution masked;
+protected authority paths absent. Disk 4.4 GiB free and memory about 1.0 GiB
+available. No C/J/E/A crossing: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Gate 3 offline I/O repair independently passes; all holds retained — 2026-09-30 21:27 UTC
 
 Astra/high independently reviewed exact Sol/high `7b5a235` (tree `3ff45d6`):

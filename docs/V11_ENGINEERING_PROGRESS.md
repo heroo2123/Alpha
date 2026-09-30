@@ -1,5 +1,14 @@
 # Supplementary engineering estimate
 
+## Gate 3 restart design route; no new credit — 2026-09-30 21:29 UTC
+
+Recovered clean main and held worktrees; review and author terminals are
+complete, and only watchdog statuses changed after the last commissioning
+artifact. The independent `7b5a235` PASS does not resolve restart provenance.
+Route a separate Astra/high design review before implementation or integration;
+retain every merge, publication, G3-L, capture, SHADOW and learner hold.
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**, unchanged.
+
 ## Gate 3 offline I/O five-finding repair independently passes — 2026-09-30 21:27 UTC
 
 Astra/high gives exact `7b5a235`/tree `3ff45d6` a scoped **PASS**, supported

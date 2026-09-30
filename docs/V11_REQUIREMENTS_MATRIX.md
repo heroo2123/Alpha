@@ -1,5 +1,14 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## R09 Gate 3 restart provenance design routed — 2026-09-30 21:29 UTC
+
+No newer worker or forward evidence exists after the scoped PASS of held
+`7b5a235`. Route a separate Astra/high design/acceptance review for exclusive
+store ownership, durable successful-seal and original clock provenance, and
+uncertain-name recovery. No merge or G3-L permission follows; capture, SHADOW
+and learner admission remain held. **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## R09 Gate 3 offline I/O repair independently accepted within scope — 2026-09-30 21:27 UTC
 
 [Exact-commit Astra/high review](V11_R09_GATE3_OFFLINE_IO_REVIEW_7b5a235.md)
