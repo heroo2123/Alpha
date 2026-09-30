@@ -137,3 +137,70 @@ trees; the existing design was `V11_PROBABILITY_ENGINE.md`. The reviewed private
 master SHA-256 was verified as
 `a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
 Private master text, raw databases, catalog and point data are not Git artifacts.
+
+## Verified artifacts and reproducibility
+
+Executable source commit: `1d0ac918a6c1bb61546b1d3eb5454dd8be1ffc5d`;
+tree: `2718ce32a8aae99dd44e221b275c9df74701b91a`.
+The subsequent evidence-documentation commit does not change executable bytes.
+Runtime: Python 3.12.3, SQLite 3.45.1, zlib 1.3; exact timezone-file hashes are in
+the manifest. The two builds read 33,759 GEFS messages / 165,447 GEFS points and
+55,488 ECMWF messages / 272,136 ECMWF points. All source file/content hashes
+matched before/after; the frozen legacy GEFS content digest also matched.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Canonical uncompressed panel | `1f5ac64b4e5d47d2a32f87bc02d9193ffba5259afb7b3d94f74b90721632a04b` |
+| `panel.json.gz` (5,283,095 bytes) | `251ebe7b655d6fa1788361f7842695afd73e4b1fc5acbb30db9a5e564fbc2667` |
+| `result.json` | `04dc449e3f287428e489db22c1575ad786d48017287255c5715b8f29f2bf8c8c` |
+| `manifest.json` | `63dde116174f6f647ee4669f408a61c5369a31111b9a80be4a26e7159c2f67cf` |
+
+Both output sets are preserved under this worktree's ignored
+`private-evidence/r09-multimodel/{repeat-a,repeat-b}/`; no raw data is pushed.
+The manifest includes the input byte/content hashes, code identity and policy
+digest. Its claim is reproducible identity and checks, not independent acceptance.
+
+Exact verification commands from the repository root:
+
+```bash
+/home/alphaadmin/AlphaV11_Dev/venv/bin/python -m pytest -q -p no:cacheprovider --tb=short \
+  tests/test_v11_multimodel_panel.py tests/test_v11_ecmwf_historical_backfill.py \
+  tests/test_v11_model_panel.py tests/test_v11_grib_fields.py \
+  tests/test_v11_probability.py tests/test_v11_datasets.py \
+  tests/test_v11_offline_learning.py tests/test_v11_conditioned_learning.py \
+  tests/test_v11_forecast_learning.py
+# 337 passed, 1 expected real-input opt-in skip; 109.75 s.
+
+# After the final explicit-UTC / city-alias guards and two extra focused tests:
+/home/alphaadmin/AlphaV11_Dev/venv/bin/python -m pytest -q -p no:cacheprovider --tb=short \
+  tests/test_v11_multimodel_panel.py
+# 58 passed, 1 expected opt-in skip; 2.82 s.
+
+ALPHA_R09_REAL_INPUTS=1 ALPHA_R09_CODE_COMMIT=1d0ac91 \
+  /home/alphaadmin/AlphaV11_Dev/venv/bin/python -m pytest -q -p no:cacheprovider --tb=short \
+  tests/test_v11_multimodel_panel.py::test_real_inputs_reproduce_all_outputs
+# 1 passed, no skips; 142.19 s. Two complete builds, all three files byte-identical.
+
+/home/alphaadmin/AlphaV11_Dev/venv/bin/python -m compileall -q \
+  tools/v11_multimodel_panel.py tools/v11_multimodel_stacking.py \
+  tests/test_v11_multimodel_panel.py
+git diff --check
+```
+
+The real-input test log is
+`private-evidence/r09-multimodel/reproducibility-test.log`. The earlier integration
+and focused results are the captured foreground tool outputs; separate log files
+were not claimed for those runs. Counts above overlap and must not be summed.
+No full-suite rerun: this batch adds isolated offline tools and changes no shared
+runtime modules. Staged inspection excludes private master/PDFs, credentials,
+databases, raw catalog/point data, model bundles and supervisor files.
+
+Standalone reproduction (an existing output directory must contain identical
+bytes, otherwise the command refuses to overwrite):
+
+```bash
+/home/alphaadmin/AlphaV11_Dev/venv/bin/python tools/v11_multimodel_panel.py \
+  --pins config/v11/r09_multimodel_input_pins.json \
+  --output private-evidence/r09-multimodel/repeat-a \
+  --code-commit 1d0ac918a6c1bb61546b1d3eb5454dd8be1ffc5d
+```

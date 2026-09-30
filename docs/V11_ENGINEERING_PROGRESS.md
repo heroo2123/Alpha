@@ -25,6 +25,13 @@ Committed-code reproducibility details and hashes are in
 changed. This narrows R09's remaining engineering work without granting a new
 C/J/E/A unit: **91/200 (45.5%), formal 1/50**, NOT_READY_TO_FUND.
 
+Committed-code real-input reproducibility subsequently passed: **1 test / 142.19 s**,
+two full builds with identical panel/result/manifest bytes, with all immutable input
+hashes unchanged. Source commit `1d0ac91`; dataset digest
+`1f5ac64b4e5d47d2a32f87bc02d9193ffba5259afb7b3d94f74b90721632a04b`.
+This closes deterministic panel production, not exact-day learner admission or
+independent review. Real comparative skill remains unknown; no model was installed.
+
 
 ## Agent-2 model-panel input architecture + real ECMWF parity — 2026-09-29
 

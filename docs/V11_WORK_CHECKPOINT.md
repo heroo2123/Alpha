@@ -23,6 +23,16 @@ Relevant integration regression: **337 passed, 1 expected real-input opt-in skip
 split/coverage findings. Final reproducibility hashes and commands are recorded in
 `docs/V11_R09_MULTIMODEL_HISTORICAL_PANEL.md` after the committed-code build.
 
+Committed-code build at `1d0ac918a6c1bb61546b1d3eb5454dd8be1ffc5d`
+(tree `2718ce32a8aae99dd44e221b275c9df74701b91a`): **1 real-input integration
+test passed / 142.19 s**, two complete builds with byte-identical dataset,
+manifest and result. Dataset SHA-256
+`1f5ac64b4e5d47d2a32f87bc02d9193ffba5259afb7b3d94f74b90721632a04b`;
+result SHA-256 `04dc449e3f287428e489db22c1575ad786d48017287255c5715b8f29f2bf8c8c`.
+Compile checks and diff whitespace checks pass. All artifacts remain in ignored
+local `private-evidence/r09-multimodel/`; only code, tests, hash pins and
+documentation are published. This verification is not independent acceptance.
+
 No C/J/E/A awarded: **91/200 (45.5%), formal 1/50**, NOT_READY_TO_FUND. R09's
 historical panel/integrity audit now exists, but exact-day feature semantics,
 causal learner admission, real calibration and independent acceptance remain.
