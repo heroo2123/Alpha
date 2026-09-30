@@ -1,5 +1,17 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## R09 Gate 3 offline I/O author candidate — 2026-09-30 21:05 UTC
+
+Held isolated candidate `a804034`/tree `8ab1882` extends the previously
+reviewed `1693dd5` strict validator with synthetic-only response/journal,
+full-grid station decoder, measured-clock, and immutable-store interfaces.
+Its new handoff and adversarial tests are committed in the isolated worktree;
+affected suites: **148 passed**. This is **not independently reviewed or
+merged**. Exact-commit different-model review, source-specific semantic pins,
+real transport and clock evidence, private G3-L package, capture, Gate 4
+admission and forward SHADOW remain OPEN. No C/J/E/A credit:
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## R09 Gate 3 offline integration route — 2026-09-30 20:48 UTC
 
 Current recovery confirms `1693dd5` is independently reviewed but clean,

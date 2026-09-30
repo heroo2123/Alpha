@@ -1,5 +1,32 @@
 # Alpha V11 work checkpoint
 
+## Gate 3 offline I/O candidate committed; exact-commit review required — 2026-09-30 21:05 UTC
+
+Resumed the existing clean, held Gate 3 worktree at `1693dd5` and committed
+author candidate `a804034` (tree `8ab1882`) in
+`/tmp/alpha-v11-r09-gate3-strict-offline-20260930`. New
+`tools/v11_r09_gate3_offline_io.py` provides a synthetic-only response exchange
+bound to the durable byte journal, full-grid GRIB2 simple/IEEE station
+extraction with externally frozen section pins, externally measured four-phase
+clock checks, and a private digest-named immutable object store. The candidate
+handoff is in that worktree at `docs/V11_R09_GATE3_OFFLINE_IO_HANDOFF.md`.
+Synthetic adversarial and affected Gate 3/GRIB suites:
+**148 passed**; candidate worktree clean. This is unmerged and under the same
+explicit merge hold. Require a **different-model exact-commit independent
+review** of `a804034` before any integration decision. No real transport,
+provider capture, clock attestation, private manifest or G3-L permission exists.
+
+Recovered clean main `82e4a2c` before this ledger update, 39 ahead of its
+tracking ref; no duplicate Gate 3 implementation worker. Commissioning writes
+after 06:43 UTC are watchdog statuses only, not forward SHADOW samples.
+Read-only checks found the FINAL-REVIEWED master SHA-256 equal to its pin;
+V10 demo, PAPER scanner/controller and V11 execution have no active process,
+and the relevant services remain disabled or masked. Disk 4.4 GiB free and
+about 1.0 GiB memory available. No V10, AxiomTrade, authority, financial,
+network, service or publication action. GEFS forward SHADOW remains owner/root
+gated. No C/J/E/A boundary crossed: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Coordinator recovery and Gate 3 offline integration route — 2026-09-30 20:48 UTC
 
 Recovered clean main `96017ad`, 38 local commits ahead of its tracking ref;
