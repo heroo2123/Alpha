@@ -25,6 +25,13 @@ authority absent. Disk 4.3 GiB free, memory about 939 MiB available. No service,
 V10, AxiomTrade, authority or financial action. No forward evidence or C/J/E/A
 crossing: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
 
+Publication status: review milestone `7ba9947` is committed locally. Automatic
+approval review rejected its push because remote ownership/trust and authorization
+for the internal paths and host/safety-state payload were not established. The
+owner has been asked to approve review-document publication; no remote write
+occurred. Keep working locally on the scoped composition batch while that approval
+is pending. Candidate publication remains separately held.
+
 ## R09 Gate 3 restart R6/R7 author repair; no acceptance credit — 2026-09-30 22:42 UTC
 
 Held `d080eac` (doc follow-up `1fa3902`) repairs R6/R7 from the exact `7bc627e`
