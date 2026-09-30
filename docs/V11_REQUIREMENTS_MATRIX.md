@@ -1,5 +1,11 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## G3-I provider-bound review blocked — 2026-09-30
+
+Automatic approval review rejected launch of the external independent reviewer
+for `ae53102`; no verdict exists. The isolated candidate remains unmerged and
+G3-L remains OPEN. **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## R09 G3-I provider-bound correction candidate — 2026-09-30
 
 Isolated `ae53102` adds provider-specific field preflight to the reviewed

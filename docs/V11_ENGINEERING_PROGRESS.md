@@ -1,5 +1,13 @@
 # Supplementary engineering estimate
 
+## G3-I provider-limit independent review pending authorization — 2026-09-30
+
+The prepared read-only Sonnet review of `ae53102` did not start: automatic
+approval review rejected external transmission of private repository source.
+No review verdict or integration is claimed. Offline candidate and 313 passing
+focused/affected tests remain preserved. **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## R09 G3-I provider-limit repair candidate — 2026-09-30
 
 Commit `ae53102` in isolated `r09-gate3-provider-budget-20260930` binds
