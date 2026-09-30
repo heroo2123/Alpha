@@ -3542,3 +3542,42 @@ Per CLAUDE.md's recovery duty, diffed all five never-merged local branches again
 Verified the tool imports nothing from `host_trust`/`production`/wallet/credential code, sends no auth/cookie headers, and hardcodes `financial_authority=False`/`promotion_authority=False`. Applied only the three genuinely new/changed files (not a full branch merge, which would revert unrelated newer HEAD fixes like the CHALLENGER/ABLATION drift-namespace correction); confirmed `ecmwf_grib.py` had zero HEAD/merge-base divergence so the edit applies cleanly. Targeted regression (`test_v11_ecmwf_historical_backfill.py` + `test_v11_model_panel.py` + `test_v11_grib_fields.py`): **177 passed / 6.37s**. Because this touches a module the live ECMWF adapter imports, ran the one full regression this batch's budget allows: **5250 passed, 11 skipped, 4 pre-existing warnings, exit 0, 1475.16s**.
 
 This closes the stale "unmerged branch" caveat repeatedly re-checked against R09/R47 without resolution, and corrects this ledger's own prior framing. It does not build a day-extreme dataset or research fit for ECMWF (explicitly out of single-batch scope per batch 24's precedent, and would not cross E/A regardless — GEFS's own more-mature, already-complete all-market pipeline did not). No new C/J/E/A: **91/200 = 45.5%; formal 1/50 (2%)**, unchanged. NOT_READY_TO_FUND; V10 unchanged. No financial, credential, production, or V10 action taken.
+
+## Supervisor batch 37 — 2026-09-30: local-branch recovery duty closed completely; evidence/PAPER-scanner re-swept; no new C/J/E/A, LOCAL_SCORE_WORK_EXHAUSTED reaffirmed
+
+Recovery clean at `5a1db3a`, equal to origin. Batches 34-36 were three
+consecutive no-credit batches, so per anti-churn this batch did not repeat a
+generic guardian-class-defect audit. Instead completed the two checks the
+supervisor's instructions require before any exhaustion claim: a fresh
+`evidence/`/`AlphaV11_BrainWork/` mtime sweep (only in-place heartbeat status
+files changed since batch 36; scanner still `active`, same release, 0
+restarts, now 21h uptime) and a full local-branch audit. That audit found
+three local branches (`agent2-weather-model-panel-20260929`,
+`agent2-weather-model-panel-ccsds-20260929`, `local-preserve-40783b1`) that no
+prior batch's checkpoint entry had ever individually named or diffed, despite
+CLAUDE.md's standing recovery duty. Diffed all three against HEAD: the two
+`agent2-*` branches carry zero commits ahead of HEAD; `local-preserve-40783b1`'s
+single commit (a CI `newuidmap`/`newgidmap` prerequisite step) is already
+present verbatim in HEAD's `.github/workflows/tests.yml` under a different
+commit hash. All three are fully superseded/stale; no unpublished content
+found. This closes the recovery duty completely — every local branch in this
+worktree has now been individually verified against HEAD, not merely
+summarized.
+
+No code or test changed. Matrix untouched (no row's status or evidence
+changed). Total unchanged: **91/200 = 45.5% (~46%); formal 1/50 (2%)**.
+NOT_READY_TO_FUND; V10 unchanged/DEFERRED, not touched. No alpha-dev access,
+deployment, service change, financial authority, sudo, or real order was
+requested or performed.
+
+`LOCAL_SCORE_WORK_EXHAUSTED`: every OPEN/partially-owner-gated row (R31, R37,
+R39, R44, R46, R47, R48, R49) remains blocked on the same external/owner
+facts batches 33-36 already independently verified, with no new evidence or
+unpublished work found this batch. One newly-precise note: R45's remaining
+"eleven actual custody cases unavailable for missing `newuidmap`" tail would
+require `sudo apt-get install uidmap`, which this batch's own operating
+constraints explicitly forbid (no sudo/system changes) — this is properly an
+owner/host action, not a further local-implementation gap. Next unfinished
+action: re-check `evidence/`/`BrainWork/` for a genuinely new artifact before
+repeating any R47/R09/R44/R46 analysis; no further per-batch branch re-diffing
+is needed since all local branches are now confirmed stale or merged.

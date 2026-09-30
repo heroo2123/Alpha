@@ -10748,3 +10748,86 @@ Verification (foreground): targeted `tests/test_v11_ecmwf_historical_backfill.py
 This closes the stale "unmerged ECMWF branch" caveat that batches 30-35 repeatedly cited as a checked-but-unresolved item, and corrects this ledger's own prior framing (the branch truly carried no data/evidence artifact, but did carry real deployed tooling that six batches never actually opened). It does not create a day-extreme dataset, a research fit, or any new evidence: R09's remaining tail (day-extreme assembly, learner calibration, independent/owner acceptance) and R47's remaining tail (owner/root model-authority review and install) are unchanged and stay genuinely evidence/owner-gated — building an ECMWF analog of the GEFS all-market dataset/research-fit pipeline from scratch was explicitly declined as out-of-scope for a single batch by batch 24's own precedent ("substantial new multi-step pipeline, not a bounded step"), and would not cross E/A regardless, since GEFS's own already-complete, more-mature all-market dataset+fit did not cross E/A either. No new C/J/E/A credit: **91/200 = 45.5% (~46%); formal 1/50 (2%)**, unchanged. NOT_READY_TO_FUND; V10 unchanged/DEFERRED (not touched). No alpha-dev access, deployment, service change, financial authority, credential, or real order was requested or performed. `git status --short` before commit shows only the three merged files plus this checkpoint and the matching matrix/progress entries.
 
 Next unfinished action: on the next invocation, re-check `/home/alphaadmin/AlphaV11_Commissioning/evidence/` for a genuinely new (non-heartbeat) research-result or independent/owner-review artifact before repeating any R47/R09 analysis; the four stale `r47-*-20260930` branches and now-merged `brain-ecmwf-backfill-20260929` branch require no further per-batch re-diffing since their unique content is now either merged or confirmed non-novel.
+
+## Supervisor batch 37 — 2026-09-30: full local-branch recovery closure and evidence re-sweep; no new C/J/E/A, LOCAL_SCORE_WORK_EXHAUSTED reaffirmed
+
+Recovery check: `git status` clean, local HEAD `5a1db3a` equal to
+`origin/weather-v11-profitability-upgrade-2026-09-23`. The other `claude -p`
+process visible in `ps` (PID 662389) is this same supervised invocation, not a
+concurrent duplicate; a separate unrelated PID (645901) is a different
+project's (AxiomTrade) session explicitly scoped away from any Alpha path.
+
+Score-velocity check: batches 34, 35 and 36 were all audit/recovery/no-credit
+at 91/200 (three consecutive). Per the mandatory anti-churn rule, did not run
+another generic guardian-class-defect audit sweep. Instead performed exactly
+the two checks CLAUDE.md and this batch's instructions require before any
+`LOCAL_SCORE_WORK_EXHAUSTED` claim: (1) a full re-sweep of
+`/home/alphaadmin/AlphaV11_Commissioning/evidence/` (find newer than the last
+commit's checkpoint file) plus `/home/alphaadmin/AlphaV11_BrainWork/` — the
+only files touched since batch 36 are three in-place heartbeat/status files
+(`v11_ecmwf_terminal_manager_status.json`, `v11_brain_pipeline_watchdog_status.json`,
+`v11_brain_ecmwf_watchdog_status.json`) plus their matching `AlphaV11_BrainWork`
+state mirror, all unchanged in meaning (still `COMPLETE`/`POST_ECMWF_HANDOFF_ACTIVE`);
+no new research-result, review or evidence artifact exists. The live PAPER
+scanner (`alpha-weather-scanner.service`) is `active (running)`, same release
+`ac3b722b`, 21h continuous uptime, 0 restarts — unchanged healthy state, no
+new evidence. (2) A genuine gap in the prior recovery sweeps: batch 36's
+checkpoint named "five local branches never merged into the tracked V11
+branch" (four `r47-*-20260930` plus `brain-ecmwf-backfill-20260929`), but
+`git branch --all` actually lists three more local branches no prior batch's
+entry ever named: `agent2-weather-model-panel-20260929`,
+`agent2-weather-model-panel-ccsds-20260929`, and `local-preserve-40783b1`.
+Diffed all three against HEAD directly rather than assuming they were already
+covered: both `agent2-weather-model-panel*` branches have zero commits ahead
+of HEAD and an empty `git diff --stat` against their merge-base (fully
+superseded, nothing unique). `local-preserve-40783b1` has exactly one commit
+("Run guardian custody tests with uidmap in CI", adding a `newuidmap`/
+`newgidmap` CI prerequisite step to `.github/workflows/tests.yml`); `git diff
+--stat` against its merge-base is also empty because the identical eight
+lines already exist verbatim in HEAD's `tests.yml` (confirmed by direct
+`grep`) — this branch's one commit was already published under a different
+commit hash on the tracked branch. This closes CLAUDE.md's standing recovery
+duty completely: every local branch in this worktree (eight, plus the
+now-fully-merged `brain-ecmwf-backfill-20260929`) has been individually
+diffed against HEAD and confirmed to carry no unpublished unique content; no
+further per-batch branch re-diffing is needed unless a new local branch
+appears.
+
+No code or test changed; no new C/J/E/A. `git status --short` before and
+after this batch shows changes only in this checkpoint and the matching
+`docs/V11_ENGINEERING_PROGRESS.md` entry (matrix untouched, since no row's
+status or evidence changed). **91/200 = 45.5% (~46%); formal 1/50 (2%)**,
+unchanged. NOT_READY_TO_FUND; V10 unchanged/DEFERRED (confirmed
+active/disabled-boot exactly as before, not touched this batch). No
+alpha-dev access, deployment, service change, financial authority, sudo, or
+real order was requested or performed.
+
+`LOCAL_SCORE_WORK_EXHAUSTED`: no unblocked local implementation, no newly
+available safe evidence path, and no further concrete safe post-backfill
+prerequisite remains. Every currently OPEN or partially-owner-gated row
+(R31, R37, R39, R44, R46, R47, R48, R49) was already independently
+re-verified against current code/evidence as recently as batch 34/35/36 with
+no change in blocking fact; this batch adds only the now-complete local-branch
+recovery closure above, which confirms (rather than merely assumes) there is
+no remaining unpublished Codex work anywhere in this worktree. Exact blocked
+requirements/evidence needed, unchanged: R31 (exact settlement source/version
+proof, external); R37/R39 (venue authentication/deployment/independent
+commissioning, owner-authorized); R44 (identity custody, protected-config
+runtime acceptance, an authorized destructive-rollback drill; note R45's
+"eleven actual custody cases remain unavailable for missing `newuidmap`" tail
+would require a `sudo apt-get install uidmap`, which this batch's own
+constraints explicitly forbid — an owner action, not a local one); R46 (host
+`adm`/`systemd-journal` group membership, owner-granted); R47 (owner
+installation/review of a real candidate into root-owned model-authority, or
+an equivalent owner-reviewed acceptance — already isolated-injection-tested,
+not fabricable further locally); R48/R49 (owner-authorized credentials and
+funding decision, out of scope per the financial boundary). Next unfinished
+action: on the next invocation, re-check
+`/home/alphaadmin/AlphaV11_Commissioning/evidence/` and
+`/home/alphaadmin/AlphaV11_BrainWork/` for a genuinely new (non-heartbeat)
+research-result, review, or owner-authorized artifact before repeating any
+R47/R09/R44/R46 analysis; if none has appeared, further checks should stay
+brief (file-mtime sweep only) rather than repeating a full per-row matrix
+audit, since batch 34 already performed that sweep exhaustively and this
+batch found no new stale-credit case beyond the one R43 already corrected in
+batch 33.
