@@ -1,0 +1,34 @@
+{
+  "status": "GATE3_OFFLINE_IO_REVIEW_CHANGES_REQUIRED",
+  "completed": true,
+  "reviewer": "Astra/high",
+  "author": "Sol/high",
+  "completed_utc": "2026-09-30T21:11:24.754591+00:00",
+  "commit": "a804034670becfe37082f49fa7a060955d8808f8",
+  "tree": "8ab1882aa9228c6d4ba89057ca883a69355b1f19",
+  "affected_tests": {
+    "passed": 148
+  },
+  "independent_tests": {
+    "passed": 20,
+    "defect_reproductions": 12,
+    "controls": 8
+  },
+  "findings": [
+    "P2-1",
+    "P2-2",
+    "P2-3",
+    "P2-4",
+    "P2-5"
+  ],
+  "candidate_unchanged": true,
+  "merged_at_verdict": false,
+  "report_sha256": "0a04e49c80fa8720e7c02f3e55cc3f39b2cf6c9e01f2cf76cf9437d0e8dc9e33",
+  "probes_sha256": "8ba489c5fdef18c12cae25af4cacf40e0a65771d5853b5bda858d64cf2da1d9f",
+  "affected_log_sha256": "47ae0eb198d5b06ee3b6ae603aa659a00ef0ce034fec4b825e50c36f845db970",
+  "independent_log_sha256": "1e2d3edad69a9b357369b5f7a38debffc2c344620f10d010e67f2be03346380c",
+  "financial_authority": false,
+  "gate3_merge_hold": true,
+  "publication_hold": true,
+  "forward_evidence_accepted": false
+}
