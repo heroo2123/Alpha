@@ -19,7 +19,7 @@ from zoneinfo import ZoneInfo
 import hashlib
 import math
 
-from tools.v11_multimodel_panel import FAMILIES, PROVIDERS, canonical, digest, file_sha, is_sha, require
+from tools.v11_multimodel_panel import FAMILIES, PROVIDERS, canonical, digest, file_sha, is_sha, require, strict_json
 
 CONTRACT_ID = 'R09_NATIVE_2T_TRAJECTORY_V1'
 
@@ -100,9 +100,10 @@ def clock_payload(ts, subject):
                           clock_health=ts.clock_health, subject=subject))
 
 
-def station_metadata_subject(station_id, event_id, station_version):
+def station_metadata_subject(station_id, event_id, station_version, metadata_sha256):
     return digest(dict(station_id=station_id, event_id=event_id,
-                       station_version=station_version))
+                       station_version=station_version,
+                       metadata_sha256=metadata_sha256))
 
 
 def rule_metadata_subject(rule_id, rule_version, family, unit, rounding, bucket_edges):
@@ -212,9 +213,23 @@ class CaptureEvidence:
 @dataclass(frozen=True)
 class ExtractionEvidence:
     raw_sha256: str
+    index_sha256: str
+    provider: str
+    source_release: str
+    run_date: str
+    cycle: int
+    member: int
+    forecast_hour: int
+    valid_utc: float
+    parameter: str
+    unit: str
+    response_range_start: int
+    response_range_end: int
+    message_offset: int
+    message_length: int
     station_id: str
     station_version: str
-    grid_sha256: str
+    grid: GridExtraction
     value_native_k: float
     decoder_sha256: str
     extraction_sha256: str
@@ -225,10 +240,24 @@ class ExtractionEvidence:
     def __post_init__(self):
         require(isinstance(self.station_id, str) and bool(self.station_id.strip()),
                 'EXTRACTION_STATION_ID')
-        require(all(is_sha(x) for x in (self.raw_sha256, self.station_version,
-                self.grid_sha256, self.decoder_sha256, self.extraction_sha256,
+        require(all(is_sha(x) for x in (self.raw_sha256, self.index_sha256,
+                self.station_version, self.decoder_sha256, self.extraction_sha256,
                 self.code_sha256, self.policy_sha256, self.dependency_sha256)),
                 'EXTRACTION_IDENTITY_DIGESTS')
+        require(self.provider in PROVIDERS and self.source_release ==
+                f'{self.provider}:{self.run_date}:{self.cycle:02d}Z' and
+                type(self.member) is int and 0 <= self.member < PROVIDERS[self.provider] and
+                type(self.forecast_hour) is int and self.forecast_hour >= 0,
+                'EXTRACTION_MESSAGE_COORDINATES')
+        require(self.parameter == '2t' and self.unit == 'K', 'EXTRACTION_PARAMETER_UNIT')
+        require(type(self.response_range_start) is int and type(self.response_range_end) is int and
+                type(self.message_offset) is int and type(self.message_length) is int and
+                self.response_range_start >= 0 and self.response_range_end >= self.response_range_start and
+                self.message_offset >= 0 and self.message_length > 0 and
+                self.message_offset + self.message_length <=
+                self.response_range_end - self.response_range_start + 1,
+                'EXTRACTION_MESSAGE_LOCATION')
+        require(isinstance(self.grid, GridExtraction), 'EXTRACTION_GRID_REQUIRED')
         require(math.isfinite(self.value_native_k), 'EXTRACTION_VALUE')
 
 
@@ -314,8 +343,18 @@ class TrajectoryPoint:
         require(self.feature_ready_at.utc >= self.response_completed_at.utc, 'FEATURE_READY_BEFORE_RECEIPT')
         require(isinstance(self.extraction, ExtractionEvidence), 'EXTRACTION_EVIDENCE_REQUIRED')
         require(self.extraction.raw_sha256 == self.capture.byte_sha256 and
+                self.extraction.index_sha256 == self.capture.index_sha256 and
+                self.extraction.provider == self.provider and
+                self.extraction.source_release == self.source_release and
+                self.extraction.run_date == self.run_date and
+                self.extraction.cycle == self.cycle and
+                self.extraction.member == self.member and
+                self.extraction.forecast_hour == self.forecast_hour and
+                self.extraction.valid_utc == self.valid_at.utc and
+                self.extraction.response_range_start == self.capture.evidence.range_start and
+                self.extraction.response_range_end == self.capture.evidence.range_end and
                 self.extraction.station_version == self.station_version and
-                self.extraction.grid_sha256 == self.grid.grid_sha256 and
+                self.extraction.grid == self.grid and
                 self.extraction.value_native_k == self.value_native_k,
                 'EXTRACTION_POINT_MISMATCH')
         require(self.extraction.extraction_sha256 == extraction_digest(self.extraction),
@@ -371,17 +410,46 @@ class RunCandidate:
     run_initialized_at: Timestamp
     ready_at: Timestamp
     complete: bool
+    status: str = 'READY'
 
     def __post_init__(self):
         require(self.provider in PROVIDERS and self.run_initialized_at.origin == DECLARED_ORIGIN,
                 'RUN_CANDIDATE_IDENTITY')
         require_trusted(self.ready_at, 'feature_ready_at')
         require(type(self.complete) is bool, 'RUN_CANDIDATE_COMPLETENESS')
+        require(self.status in ('READY', 'INCOMPLETE', 'UNAVAILABLE') and
+                (self.status == 'READY') == self.complete,
+                'RUN_CANDIDATE_STATUS_CONSISTENCY')
+        require(self.ready_at.utc > self.run_initialized_at.utc,
+                'RUN_CANDIDATE_STATUS_BEFORE_INITIALIZATION')
 
     @property
     def subject(self):
         return digest(dict(provider=self.provider, run_initialized_at=self.run_initialized_at.utc,
-                           complete=self.complete))
+                           complete=self.complete, status=self.status))
+
+
+def run_candidate_slots(policy, decision_lower):
+    """The finite UTC cycle inventory implied by the frozen lookback protocol."""
+    first_day = datetime.fromtimestamp(decision_lower - policy.max_run_age_seconds,
+                                       dt_timezone.utc).date()
+    last_day = datetime.fromtimestamp(decision_lower, dt_timezone.utc).date()
+    slots = set()
+    day = first_day
+    while day <= last_day:
+        for hour in policy.allowed_cycles:
+            stamp = datetime.combine(day, time(hour), dt_timezone.utc).timestamp()
+            if decision_lower - policy.max_run_age_seconds <= stamp <= decision_lower:
+                slots.add(stamp)
+        day += timedelta(days=1)
+    return tuple(sorted(slots))
+
+
+def run_inventory_bytes(policy, decision_at, candidates, providers):
+    return canonical(dict(protocol_id=policy.policy_id, decision_at=asdict(decision_at),
+                          providers=sorted(providers),
+                          candidates=[asdict(c) for c in sorted(candidates,
+                              key=lambda c: (c.provider, c.run_initialized_at.utc))]))
 
 
 @dataclass(frozen=True)
@@ -572,6 +640,8 @@ class SettlementTarget:
     unit: str
     rounding: str
     bucket_edges: tuple
+    settlement_timezone: str
+    station_metadata_sha256: str
     station_metadata_available_at: Timestamp
     rule_metadata_available_at: Timestamp
 
@@ -590,6 +660,8 @@ class SettlementTarget:
                 'SETTLEMENT_BUCKET_PARTITION')
         require_trusted(self.station_metadata_available_at, 'feature_ready_at')
         require_trusted(self.rule_metadata_available_at, 'feature_ready_at')
+        require(is_sha(self.station_metadata_sha256), 'STATION_METADATA_MANIFEST_DIGEST')
+        _timezone_path(self.settlement_timezone)
 
     @property
     def key(self):
@@ -608,6 +680,7 @@ class LabelFact:
     status: str
     revision_of: str | None
     target: SettlementTarget
+    source_revision_id: str = ''
 
     def __post_init__(self):
         require(is_sha(self.label_version), 'LABEL_VERSION_DIGEST')
@@ -624,6 +697,30 @@ class LabelFact:
         require(isinstance(self.target, SettlementTarget), 'LABEL_TARGET_TYPE')
         require(self.target.family == self.family, 'LABEL_TARGET_FAMILY_MISMATCH')
         require(self.target.bucket_count == self.bucket_count, 'LABEL_TARGET_BUCKET_COUNT_MISMATCH')
+        require(isinstance(self.source_revision_id, str) and bool(self.source_revision_id),
+                'LABEL_SOURCE_REVISION_ID')
+
+
+def station_metadata_bytes(target):
+    return canonical(dict(station_id=target.station_id, event_id=target.event_id,
+                          station_version=target.station_version,
+                          settlement_timezone=target.settlement_timezone))
+
+
+def label_payload_bytes(fact):
+    # The version is the hash of this payload. The clock refers to the version,
+    # so neither the version nor its clock evidence enters this preimage.
+    return canonical(dict(source_revision_id=fact.source_revision_id,
+                          family=fact.family, bucket_count=fact.bucket_count,
+                          winner_bucket=fact.winner_bucket, status=fact.status,
+                          revision_of=fact.revision_of, target=asdict(fact.target)))
+
+
+def label_version_for(*, source_revision_id, family, bucket_count, winner_bucket,
+                      status, revision_of, target):
+    return hashlib.sha256(canonical(dict(source_revision_id=source_revision_id,
+        family=family, bucket_count=bucket_count, winner_bucket=winner_bucket,
+        status=status, revision_of=revision_of, target=asdict(target)))).hexdigest()
 
 
 def validate_label_lineage(facts):
@@ -759,12 +856,53 @@ def _raw_content(capture):
 
 
 def extraction_digest(extraction):
-    return digest(dict(raw_sha256=extraction.raw_sha256,
-                       station_id=extraction.station_id, station_version=extraction.station_version,
-                       grid_sha256=extraction.grid_sha256,
-                       value_native_k=extraction.value_native_k, decoder_sha256=extraction.decoder_sha256,
-                       code_sha256=extraction.code_sha256, policy_sha256=extraction.policy_sha256,
-                       dependency_sha256=extraction.dependency_sha256))
+    return hashlib.sha256(extraction_manifest_bytes(extraction)).hexdigest()
+
+
+def extraction_manifest_bytes(extraction):
+    return canonical({key: value for key, value in asdict(extraction).items()
+                      if key != 'extraction_sha256'})
+
+
+def verify_synthetic_decoding(capture, extraction):
+    """Decode the content-addressed synthetic message at its indexed byte span.
+    This is deliberately a small offline wire format, not a GRIB parser or a real
+    provider attestation. The raw bytes, not a caller's manifest, supply the
+    message coordinates and station-specific value/geometry."""
+    ev = capture.evidence
+    start, length = extraction.message_offset, extraction.message_length
+    raw = ev.raw_bytes
+    require(raw[start:start + length] and start + length <= len(raw),
+            'SYNTHETIC_MESSAGE_SPAN_MISSING')
+    try:
+        index = strict_json(ev.index_bytes)
+    except (ValueError, UnicodeDecodeError, TypeError):
+        require(False, 'SYNTHETIC_MESSAGE_INDEX_DECODE_FAILED')
+    require(type(index) is list and dict(offset=start, length=length) in index,
+            'SYNTHETIC_MESSAGE_INDEX_MISMATCH')
+    message_bytes = raw[start:start + length]
+    try:
+        message = strict_json(message_bytes)
+    except (ValueError, UnicodeDecodeError, TypeError):
+        require(False, 'SYNTHETIC_MESSAGE_DECODE_FAILED')
+    require(canonical(message) == message_bytes and type(message) is dict,
+            'SYNTHETIC_MESSAGE_NOT_CANONICAL')
+    expected = dict(provider=extraction.provider, source_release=extraction.source_release,
+                    run_date=extraction.run_date, cycle=extraction.cycle,
+                    member=extraction.member, forecast_hour=extraction.forecast_hour,
+                    valid_utc=extraction.valid_utc, parameter=extraction.parameter,
+                    unit=extraction.unit)
+    require(all(message.get(k) == v for k, v in expected.items()),
+            'SYNTHETIC_MESSAGE_SEMANTICS_MISMATCH')
+    stations = message.get('stations')
+    require(type(stations) is dict and extraction.station_id in stations,
+            'SYNTHETIC_STATION_EXTRACTION_MISSING')
+    station = stations[extraction.station_id]
+    require(type(station) is dict and station.get('station_version') == extraction.station_version and
+            station.get('grid') == asdict(extraction.grid) and
+            station.get('value_native_k') == extraction.value_native_k and
+            station.get('policy_sha256') == extraction.policy_sha256,
+            'SYNTHETIC_STATION_EXTRACTION_MISMATCH')
 
 
 def _extraction_content(capture, value_native_k, grid, receipt, extraction, source_published_at):
@@ -831,16 +969,8 @@ class CaptureRegistry:
         verify_bound_clock(evidence_resolver, ev.request_started_at, 'LOCAL_CLOCK')
         verify_evidence_bytes(evidence_resolver, ev.manifest_bytes,
                               hashlib.sha256(ev.manifest_bytes).hexdigest())
-        verify_evidence_bytes(evidence_resolver,
-                              canonical(dict(raw_sha256=extraction.raw_sha256,
-                                  station_id=extraction.station_id,
-                                  station_version=extraction.station_version,
-                                  grid_sha256=extraction.grid_sha256,
-                                  value_native_k=extraction.value_native_k,
-                                  decoder_sha256=extraction.decoder_sha256,
-                                  code_sha256=extraction.code_sha256,
-                                  policy_sha256=extraction.policy_sha256,
-                                  dependency_sha256=extraction.dependency_sha256)),
+        verify_synthetic_decoding(capture, extraction)
+        verify_evidence_bytes(evidence_resolver, extraction_manifest_bytes(extraction),
                               extraction.extraction_sha256)
         for identity in (grid.grid_sha256, extraction.decoder_sha256,
                          extraction.code_sha256, extraction.policy_sha256,
@@ -848,9 +978,15 @@ class CaptureRegistry:
             verify_digest_payload(evidence_resolver, identity)
         require(ev.response_completed_at == receipt, 'CAPTURE_RECEIPT_MISMATCH')
         require(extraction.raw_sha256 == capture.byte_sha256 and
+                extraction.index_sha256 == capture.index_sha256 and
+                (extraction.provider, extraction.run_date, extraction.cycle,
+                 extraction.member, extraction.forecast_hour) == raw_key and
+                extraction.response_range_start == ev.range_start and
+                extraction.response_range_end == ev.range_end and
+                extraction.message_offset + extraction.message_length <= len(ev.raw_bytes) and
                 extraction.station_id == station_id and
                 extraction.station_version == station_version and
-                extraction.grid_sha256 == grid.grid_sha256 and
+                extraction.grid == grid and
                 extraction.value_native_k == value_native_k and
                 extraction.extraction_sha256 == extraction_digest(extraction),
                 'CAPTURE_EXTRACTION_MISMATCH')
@@ -901,6 +1037,7 @@ class ExampleInputs:
     rule_id: str
     artifact: TrainedArtifact | None
     run_candidates: tuple
+    run_inventory_sha256: str
     outage_evidence: tuple
 
     def kwargs(self):
@@ -908,7 +1045,9 @@ class ExampleInputs:
                     coverage_policy=self.coverage_policy, local_day=self.local_day, clocks=self.clocks,
                     label_history=self.label_history, split_cutoffs=dict(self.split_cutoffs),
                     station_id=self.station_id, rule_id=self.rule_id, artifact=self.artifact,
-                    run_candidates=self.run_candidates, outage_evidence=self.outage_evidence)
+                    run_candidates=self.run_candidates,
+                    run_inventory_sha256=self.run_inventory_sha256,
+                    outage_evidence=self.outage_evidence)
 
 
 @dataclass(frozen=True)
@@ -994,7 +1133,8 @@ class ValidatedExample:
 
 def validate_example(*, city_day, split, points, coverage_policy, local_day, clocks, label_history,
                       split_cutoffs, capture_registry, label_registry, station_id, rule_id,
-                      evidence_resolver, artifact=None, run_candidates=(), outage_evidence=(),
+                      evidence_resolver, artifact=None, run_candidates=(),
+                      run_inventory_sha256=None, outage_evidence=(),
                       evidence_class='SYNTHETIC'):
     """Validate one city-day trajectory/capture example end to end. Fails closed on
     any incomplete coverage, untrusted or missing clock, out-of-order causal
@@ -1020,24 +1160,6 @@ def validate_example(*, city_day, split, points, coverage_policy, local_day, clo
                 for key in coverage_policy.requested_cohort), 'TARGET_NOT_IN_REQUESTED_COHORT')
     coverage = validate_coverage(points, coverage_policy)
     present_providers = {p.provider for p in points}
-    require({candidate.provider for candidate in run_candidates} == present_providers and
-            len({(candidate.provider, candidate.run_initialized_at.utc)
-                 for candidate in run_candidates}) == len(run_candidates),
-            'RUN_CANDIDATE_INVENTORY_INCOMPLETE_OR_DUPLICATE')
-    for candidate in run_candidates:
-        verify_bound_clock(evidence_resolver, candidate.ready_at, candidate.subject)
-    for provider in {p.provider for p in points}:
-        selected = next(p for p in points if p.provider == provider)
-        eligible = [c for c in run_candidates if c.provider == provider and c.complete and
-                    c.ready_at.conservative_upper_bound <= decision_lower and
-                    c.run_initialized_at.utc <= decision_lower and
-                    decision_lower - c.run_initialized_at.utc <= coverage_policy.max_run_age_seconds and
-                    datetime.fromtimestamp(c.run_initialized_at.utc, dt_timezone.utc).hour in coverage_policy.allowed_cycles]
-        require(bool(eligible), 'NO_ELIGIBLE_RUN_CANDIDATE')
-        chosen = max(eligible, key=lambda c: c.run_initialized_at.utc)
-        require(selected.run_initialized_at.utc == chosen.run_initialized_at.utc,
-                'RUN_SELECTION_NOT_LATEST_ELIGIBLE')
-        require(selected.cycle in coverage_policy.allowed_cycles, 'RUN_CYCLE_NOT_IN_PROTOCOL')
     if coverage.absent_providers:
         require(coverage_policy.fallback_mode == 'FROZEN_OUTAGE', 'REQUIRED_PROVIDER_ABSENT_NO_FALLBACK')
         require(set(coverage.absent_providers) == {o.provider for o in outage_evidence},
@@ -1086,14 +1208,9 @@ def validate_example(*, city_day, split, points, coverage_policy, local_day, clo
                                                      p.response_completed_at, p.extraction,
                                                      p.source_published_at)))
     capture_entries = tuple(capture_entries)
-    for provider in {p.provider for p in points}:
-        selected = next(p for p in points if p.provider == provider)
-        selected_candidate = next(c for c in run_candidates if c.provider == provider and c.complete and
-                                  c.run_initialized_at.utc == selected.run_initialized_at.utc)
-        require(selected_candidate.ready_at.utc >=
-                max(p.feature_ready_at.conservative_upper_bound for p in points if p.provider == provider),
-                'RUN_READY_BEFORE_COMPLETE_FEATURES')
     for fact in label_history:
+        verify_evidence_bytes(evidence_resolver, label_payload_bytes(fact), fact.label_version)
+        verify_bound_clock(evidence_resolver, fact.label_knowable_at, fact.label_version)
         label_registry.register(fact)
     validate_label_lineage(label_history)
     cutoff = split_cutoffs[split]
@@ -1111,11 +1228,16 @@ def validate_example(*, city_day, split, points, coverage_policy, local_day, clo
     require(current_label.target.rule_version == rule_version, 'SETTLEMENT_TARGET_RULE_VERSION_MISMATCH')
     verify_digest_payload(evidence_resolver, station_version)
     verify_digest_payload(evidence_resolver, rule_version)
+    require(current_label.target.settlement_timezone == local_day.timezone,
+            'SETTLEMENT_TIMEZONE_MISMATCH')
+    verify_evidence_bytes(evidence_resolver, station_metadata_bytes(current_label.target),
+                          current_label.target.station_metadata_sha256)
     require(current_label.target.key in coverage_policy.requested_cohort, 'TARGET_NOT_IN_REQUESTED_COHORT')
     station_metadata = current_label.target.station_metadata_available_at
     rule_metadata = current_label.target.rule_metadata_available_at
     verify_bound_clock(evidence_resolver, station_metadata,
-        station_metadata_subject(station_id, current_label.target.event_id, station_version))
+        station_metadata_subject(station_id, current_label.target.event_id, station_version,
+                                 current_label.target.station_metadata_sha256))
     verify_bound_clock(evidence_resolver, rule_metadata,
         rule_metadata_subject(rule_id, rule_version, current_label.family,
                               current_label.target.unit, current_label.target.rounding,
@@ -1134,6 +1256,40 @@ def validate_example(*, city_day, split, points, coverage_policy, local_day, clo
     trial_key = (station_id, current_label.target.event_id, local_day.target_date)
     require(clocks.decision_at == dict(coverage_policy.decision_schedule)[trial_key],
             'DECISION_NOT_ON_FROZEN_SCHEDULE')
+    require(is_sha(run_inventory_sha256), 'RUN_INVENTORY_EVIDENCE_REQUIRED')
+    require({candidate.provider for candidate in run_candidates} == present_providers and
+            len({(candidate.provider, candidate.run_initialized_at.utc)
+                 for candidate in run_candidates}) == len(run_candidates),
+            'RUN_CANDIDATE_INVENTORY_INCOMPLETE_OR_DUPLICATE')
+    slots = set(run_candidate_slots(coverage_policy, decision_lower))
+    require({(candidate.provider, candidate.run_initialized_at.utc)
+             for candidate in run_candidates} ==
+            {(provider, stamp) for provider in present_providers for stamp in slots},
+            'RUN_CANDIDATE_INVENTORY_INCOMPLETE_OR_DUPLICATE')
+    verify_evidence_bytes(evidence_resolver,
+                          run_inventory_bytes(coverage_policy, clocks.decision_at,
+                                              run_candidates, present_providers),
+                          run_inventory_sha256)
+    for candidate in run_candidates:
+        verify_bound_clock(evidence_resolver, candidate.ready_at, candidate.subject)
+        if not candidate.complete:
+            require(candidate.ready_at.conservative_upper_bound <= decision_lower,
+                    'RUN_CANDIDATE_STATUS_NOT_KNOWN_BY_DECISION')
+    for provider in present_providers:
+        selected = next(p for p in points if p.provider == provider)
+        eligible = [c for c in run_candidates if c.provider == provider and c.complete and
+                    c.ready_at.conservative_upper_bound <= decision_lower and
+                    c.run_initialized_at.utc <= decision_lower and
+                    decision_lower - c.run_initialized_at.utc <= coverage_policy.max_run_age_seconds and
+                    datetime.fromtimestamp(c.run_initialized_at.utc, dt_timezone.utc).hour in coverage_policy.allowed_cycles]
+        require(bool(eligible), 'NO_ELIGIBLE_RUN_CANDIDATE')
+        chosen = max(eligible, key=lambda c: c.run_initialized_at.utc)
+        require(selected.run_initialized_at.utc == chosen.run_initialized_at.utc,
+                'RUN_SELECTION_NOT_LATEST_ELIGIBLE')
+        require(selected.cycle in coverage_policy.allowed_cycles, 'RUN_CYCLE_NOT_IN_PROTOCOL')
+        require(chosen.ready_at.utc >=
+                max(p.feature_ready_at.conservative_upper_bound for p in points if p.provider == provider),
+                'RUN_READY_BEFORE_COMPLETE_FEATURES')
     require_trusted(cutoff, CUTOFF_ROLE[split])
     if split == 'TRAIN':
         require(current_label.label_knowable_at.conservative_upper_bound <= cutoff.conservative_lower_bound,
@@ -1189,7 +1345,9 @@ def validate_example(*, city_day, split, points, coverage_policy, local_day, clo
                                   label_history=tuple(label_history),
                                   split_cutoffs=tuple((s, split_cutoffs[s]) for s in SPLITS),
                                   station_id=station_id, rule_id=rule_id, artifact=artifact,
-                                  run_candidates=tuple(run_candidates), outage_evidence=tuple(outage_evidence))
+                                  run_candidates=tuple(run_candidates),
+                                  run_inventory_sha256=run_inventory_sha256,
+                                  outage_evidence=tuple(outage_evidence))
     return ValidatedExample(
         city_day=city_day, dedup_key=dedup_key, split=split, coverage=coverage,
         rule_version=rule_version, station_version=station_version, station_id=station_id, rule_id=rule_id,
