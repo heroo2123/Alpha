@@ -1,5 +1,14 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Coordinator recovery — R09 active repair — 2026-09-30 15:27 UTC
+
+The sole preserved R09 gate-2 worker passed 90/90 focused contract tests
+after additional source/test edits, but remains live and uncommitted. Its
+affected gate, terminal, and independent exact-commit review are pending;
+gate 2 and real trajectory admission remain OPEN. PAPER remains stopped and
+no qualifying forward SHADOW evidence appeared. Requirement status and
+C/J/E/A credit stay **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator recovery — R09 expanded focused gate — 2026-09-30 15:23 UTC
 
 The sole preserved R09 gate-2 worker added counterexamples and reached a
