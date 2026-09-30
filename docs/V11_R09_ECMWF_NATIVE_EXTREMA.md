@@ -178,3 +178,107 @@ All seven pre-existing input SHA-256 pins still match, including both SQLite
 files. Final committed-code capture/reproducibility identities and final test
 results are appended after verification; these initial results are not an
 independent review.
+
+## Final committed-code verification and public evidence
+
+Final executable commit: `f20d8791f19438b24bc33cda15d2d08ac9374843`;
+tree: `a80132c1724f59e360ba9bfe5c28b3dc43e502bd`.
+The later evidence-only documentation commit does not change these executable
+bytes. Collection commit for the second capture:
+`1c8836a8ee7e45a5f544ea48e73cc60c0bb6054f`, tree
+`9a73ed4de93b139042b089cc8eb313cd404463b8`.
+
+After backoff, a separate current-only capture used 17 requests / 11,868,660
+response bytes: four indexes (HTTP 200) and **12 actual GRIB fields** (HTTP 206),
+plus the root listing. Both maximum/minimum parameters were verified at step 3
+(range **0–3**) and step 150 (range **144–150**) for control 0 and perturbed
+members **1 and 50**. All twelve pass the strict decoder and exact CCSDS byte
+round-trip. The six-hour products are really `mx2t6` / `mn2t6`, IDs **121 / 122**,
+with the same 450-second processing increment. All 15 frozen station coordinates
+were extracted per field in each replay. These September 29 forecasts are outside
+the frozen target cohort: **zero historical days are filled by these samples**.
+No further AWS request was made in this second capture.
+
+The first capture retained 30 requests / 21,203,504 response bytes. Its 58 planned
+index records comprise 22 HTTP 200, five 404, one 503, one 429 and 29 explicitly
+unattempted after throttling. The 22 successful indexes are 18 IFS products
+(September 27 00z, hours 6,9,…,30, control and perturbed) plus four AIFS products
+(September 28 00z, hours 6 and 24, control and perturbed). Index completeness
+covers two aligned September 27 days (KBKF, SBGR); **no complete native daily
+raw-field backfill was performed**. The remaining 71 aligned days lack complete
+index coverage in this capture. Missing raw coverage and unresolved endpoint
+semantics preclude exact-day assembly even for the two indexed days.
+
+| Coverage dimension | Count |
+| --- | ---: |
+| Frozen cohort | 541 station-days / 1,082 HIGH+LOW events |
+| IFS three-hour boundary alignment | 73 (TRAIN 48 / DEVELOPMENT 16 / CONFIRMATION 9) |
+| IFS unresolvable crossing intervals | 468 |
+| Complete IFS member/interval **index** coverage observed | 2 |
+| Complete native historical **raw-field** day coverage | 0 |
+| Exact-day admitted / causal learner-admitted days | 0 / 0 |
+| Native AIFS candidates in four captured cohort indexes | 0 |
+| Current IFS representative native fields decoded | 12, outside cohort |
+
+Public metadata, URLs, byte ranges, member identities, response outcomes, hashes
+and aggregate results are published in
+[`config/v11/r09_ecmwf_extrema_public_evidence.json`](../config/v11/r09_ecmwf_extrema_public_evidence.json).
+It includes no forecast values, catalog labels, raw GRIB bytes or private documents.
+AIFS's absence claim is scoped to inspected products; the separate IFS-only
+capture correctly reports AIFS as NOT_INSPECTED_THIS_CAPTURE.
+
+Two independent output directories per capture reproduce all three output files
+byte-for-byte. They are independent executions, **not independent review**.
+Local output roots (each has `a/` and `b/`):
+
+- `private-evidence/r09-extrema/verify-capture-v1-f20d8791f194/`
+- `private-evidence/r09-extrema/verify-capture-current-1c8836a-f20d8791f194/`
+
+| Artifact | Cohort-index audit SHA-256 | Current native-byte audit SHA-256 |
+| --- | --- | --- |
+| dataset.json | `fc5eceb546b70fff46bdd0c418d8092c7955488f808eb22c3da7139d73f6945e` | `04810f731a33e59bdb166b9d8414c2cfb8ce0bec74a649598992a4a81fa9942f` |
+| result.json | `9717d7d753ee65135cc758728571a0f61a9eb8ced6e59db7efdee1b3efee89a3` | `935b83d4d278b2a0f255064419f6829feecf5774435be22852bb4104f438e89c` |
+| manifest.json | `b42030bc4891e4a3c6d9deb2e1280ef90ec43c1f2a750293e5c0e1d25151e4e1` | `8eba7ccb30f15649b735dafadebafef7ce568248c9b0a0b5ec11177cd4e5537b` |
+
+Final focused suite: **77 passed, one expected opt-in skip / 9.93s**. Final
+related regression: **312 passed, two expected opt-in skips / 31.06s**. The
+explicit real-capture tests then passed separately: cohort **1 passed / 15.50s**,
+current native fields **1 passed / 35.20s**. Counts overlap; do not sum them as
+unique tests. Compilation, `pip check`, whitespace and staged secret/private
+material inspection pass. All original seven file pins, including both complete
+point-temperature SQLite databases, match before and after the work.
+
+Reproduction from this worktree (read-only raw captures must be available):
+
+```bash
+PY=/home/alphaadmin/AlphaV11_Dev/venv/bin/python
+COMMIT=f20d8791f19438b24bc33cda15d2d08ac9374843
+$PY -m pytest -q -p no:cacheprovider --tb=short \
+  tests/test_v11_ecmwf_extrema.py tests/test_v11_multimodel_panel.py \
+  tests/test_v11_ecmwf_historical_backfill.py tests/test_v11_model_panel.py \
+  tests/test_v11_grib_fields.py
+
+ALPHA_R09_EXTREMA_REAL=1 ALPHA_R09_EXTREMA_CODE_COMMIT=$COMMIT \
+  ALPHA_R09_EXTREMA_CAPTURE=private-evidence/r09-extrema/capture-v1 \
+  $PY -m pytest -q -p no:cacheprovider --tb=short \
+  tests/test_v11_ecmwf_extrema.py::test_real_capture_reproducible
+ALPHA_R09_EXTREMA_REAL=1 ALPHA_R09_EXTREMA_CODE_COMMIT=$COMMIT \
+  ALPHA_R09_EXTREMA_CAPTURE=private-evidence/r09-extrema/capture-current-1c8836a \
+  $PY -m pytest -q -p no:cacheprovider --tb=short \
+  tests/test_v11_ecmwf_extrema.py::test_real_capture_reproducible
+```
+
+Logs are `private-evidence/r09-extrema/{hardened-focused,final-related-tests,
+final-replay-cohort,final-replay-current}.log`. Re-fetching public URLs later need
+not reproduce retention, HTTP outcomes or bytes; the deterministic claim concerns
+replay of these preserved captures. The collector offers `collect --probe-only
+--code-commit <matching-commit> --output <new-private-directory>` for a separately
+bounded future public capture. It must not be used as a loop around throttling.
+
+The task yields a verified, fail-closed feasibility result and a native decoder,
+not a completed 541-day native backfill. Full history remains unverified under
+current provider throttling, 468 days are geometrically incompatible, 73 need
+both raw coverage and endpoint proof, and every causal learning gate above still
+applies. No real adapter, fit, calibration, champion comparison or promotion.
+
+R09_EXTREMA_READY_FOR_INDEPENDENT_REVIEW

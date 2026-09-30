@@ -2,6 +2,20 @@
 
 ## R09 native-extreme continuation — 2026-09-30
 
+Verified code commit `f20d8791f19438b24bc33cda15d2d08ac9374843`, tree
+`a80132c1724f59e360ba9bfe5c28b3dc43e502bd`: 77 focused passes / one opt-in skip;
+312 related passes / two opt-in skips. Two real replay tests passed separately,
+with byte-identical outputs for both captures. Twelve actual IFS native fields
+prove 3h/6h max/min semantics for control and members 1/50. Cohort coverage is
+73 aligned, 468 crossing, two fully indexed days, zero raw-complete/exact-admitted
+days. All original input hashes remain unchanged. Raw evidence stays private;
+public product metadata/hash pins are in `config/v11/r09_ecmwf_extrema_public_evidence.json`.
+Independent review and provider/semantic/causal blockers remain. No service or
+champion state was inspected or changed in this targeted task; prior containment
+is not freshly re-attested. Next: independently review the recorded research
+result and alternate sampled-trajectory contract before further acquisition/fit.
+The subsequent evidence-only commit records this verified code identity.
+
 On `r09-ecmwf-native-extrema-20260930`, based on integrated reviewed main
 `fd59e667bc948445e102241ace77653e1c3f0fe2`, actual public GRIB bytes prove IFS
 native three-hour temperature extrema (`mx2t3`/`mn2t3`, IDs 228026/228027).
