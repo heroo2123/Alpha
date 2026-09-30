@@ -1,5 +1,27 @@
 # Alpha V11 work checkpoint
 
+## Combined release affected gate PASS; full suite active — 2026-09-30
+
+Recovered the replacement exact-commit driver on clean isolated `6ec371e`
+(tree `4d268adb7cf1`). Its 12-file affected gate completed **396 passed in
+417.19 s**, exit 0; the result records SHA-256
+`813f60f9486daeb57401d824a00da9be651e64ad8f73cac19a5abe37cff20d27`
+for `/tmp/alpha-v11-release-gate-6ec371e.affected.log`. The same driver,
+PID 781650, then started the combined full suite (pytest PID 783254). Recover
+the actual processes and `/tmp/alpha-v11-release-gate-6ec371e.{full,terminal}.json`
+and `.full.log` before integration. No full-suite result or release merge is
+claimed. Newer main `ac73c54` is clean and 29 commits ahead of local origin;
+the release branch remains isolated and clean.
+
+The R09 gate-2 builder remains clean at `fed1cbe`; independent review's eight
+P2 findings still require substantive repair and fresh exact-commit review.
+The full suite and unrelated host work consume resources, so no duplicate
+worker was started. PAPER scanner remains active, V10 and V11 execution units
+inactive, protected model authority absent, and the private FINAL-REVIEWED
+master matches pinned SHA-256. Latest commissioning changes are watchdog
+status only. No forward SHADOW qualification or C/J/E/A boundary changed:
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Combined release gate recovered after interrupted driver — 2026-09-30
 
 The prior exact-commit release driver at PID 779342 and its pytest child stopped

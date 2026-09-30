@@ -1,5 +1,14 @@
 # Supplementary engineering estimate
 
+## Combined affected regression passes — 2026-09-30
+
+The exact `6ec371e` combined-release affected run passed 396 tests in 417.19 s
+with a recorded log hash. The same bounded driver has started the full suite;
+its terminal result and compatibility with newer main remain open. R09 gate 2
+still requires repair of eight reviewed P2 findings and fresh independent
+review. No forward SHADOW evidence or score boundary changed: **91/200
+(45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Combined release driver recovery — 2026-09-30
 
 The exact `6ec371e` combined-release test driver stopped unexpectedly without

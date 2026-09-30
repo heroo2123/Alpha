@@ -1,5 +1,14 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Combined release affected gate passed; full gate open — 2026-09-30
+
+The clean isolated `6ec371e` combined branch passed its 12-file affected gate:
+396/396, exit 0, with a captured log hash. Its bounded driver has begun the
+full suite; there is no terminal release result or integration acceptance yet.
+R09 gate 2 retains eight independent-review P2 blockers and no real-data
+admission. Requirement statuses and C/J/E/A credit are unchanged: **91/200
+(45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Release gate interrupted and restarted — 2026-09-30
 
 The prior combined-release affected run stopped around 79% with no terminal
