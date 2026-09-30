@@ -1,5 +1,21 @@
 # Supplementary engineering estimate
 
+## Gate 3 repair evidence and isolated combined-tree preflight — 2026-09-30 23:49 UTC
+
+The Astra/high exact-candidate review wrote scoped I1/I2 `PASS` findings and
+verified 301 affected/predecessor plus 44 independent passes, with no new
+actionable finding. Its driver/worker exited without the required terminal
+marker, so acceptance awaits independent adjudication. Coordinator constructed
+an uncommitted, conflict-free merge of main `928401a` and author `e563e45` in
+`/tmp/alpha-v11-gate3-combined-preflight-e563e45-928401a`; exactly nine
+candidate paths were added, current main documents were retained, `git diff
+--cached --check` passed, and the combined tree passed all 345 corresponding
+tests (two expected fork warnings). The 214-test four-file focus also passed.
+This is preflight evidence only. Astra/high adjudication and independent
+combined-tree acceptance precede any local integration; all operational and
+publication holds remain. No new C/J/E/A: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Gate 3 I1/I2 offline repair under independent review — 2026-09-30 23:37 UTC
 
 Exact held author commit `e563e45` repairs inherited `DurableBudget` ownership

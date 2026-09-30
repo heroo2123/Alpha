@@ -1,5 +1,17 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Gate 3 repair review report and combined-tree preflight — 2026-09-30 23:49 UTC
+
+The exact `e563e45` reviewer wrote a scoped I1/I2 `PASS` report/result with
+345 passing tests, but its external driver's terminal marker is missing after
+both processes exited. An isolated prospective merge with main `928401a` adds
+the expected nine paths without conflict and passes 345 affected, predecessor
+and independent acceptance tests. This is coordinator preflight, not independent
+combined-tree acceptance or driver-certified repair acceptance. Route Astra/high
+adjudication and full-branch review before integration. No R09/R47 or other row
+status changes; publication, provider capture, G3-L, learner, forward SHADOW and
+authority remain held. **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND.**
+
 ## Gate 3 I1/I2 repair candidate held for review — 2026-09-30 23:37 UTC
 
 Held `e563e45` adds process ownership to the durable budget and bounded

@@ -1,5 +1,35 @@
 # Alpha V11 work checkpoint
 
+## Gate 3 repair review evidence recovered; combined-tree preflight passes — 2026-09-30 23:49 UTC
+
+The exact `e563e45` Astra/high reviewer finished its work and wrote a scoped
+`PASS` [report](/tmp/alpha-v11-gate3-i1-i2-review-e563e45-worker/review.md),
+[result](/tmp/alpha-v11-gate3-i1-i2-review-e563e45-worker/result.json), and
+final output: I1/I2 resolved, 301 affected/predecessor plus 44 independent
+adversarial probes passed. **The external driver and worker have exited, but
+the required `terminal.json` is absent.** Do not infer a driver-certified
+review PASS or a full-branch integration PASS from the written report. Preserve
+all original review evidence and adjudicate the missing terminal independently.
+
+Separately constructed an uncommitted prospective merge of clean main `928401a`
+and exact author `e563e45` in
+`/tmp/alpha-v11-gate3-combined-preflight-e563e45-928401a`. It applies cleanly,
+adds exactly the candidate's nine paths, preserves newer main documents, and
+passes `git diff --cached --check`. On that actual combined tree, the affected,
+predecessor acceptance and new independent probe suites passed **345 tests**
+with two expected multithreaded-fork warnings; an earlier four-file focused
+run passed 214. This is a coordinator preflight, not an independent combined-tree
+acceptance. Main and author worktrees remain clean and unchanged; no merge or
+publication occurred. Next: Astra/high adjudication of the missing terminal and
+independent full-branch combined-tree review, using the preserved preflight tree
+or a fresh exact tree, before any integration decision. Operational, capture,
+SHADOW/learner, G3-L, authority and publication holds remain. New commissioning
+writes are status only; demo/scanner/controller inactive, execution masked and
+inactive, protected model-authority paths absent, private master hash matches
+its pin. Disk about 4.1 GiB free, memory about 844 MiB available at recovery.
+No V10 or AxiomTrade action. No C/J/E/A crossing: **91/200 (45.5%), formal
+1/50; NOT_READY_TO_FUND**.
+
 ## Gate 3 I1/I2 repair committed; independent review running — 2026-09-30 23:37 UTC
 
 Repaired both confirmed P2 defects in the preserved author worktree at exact commit
