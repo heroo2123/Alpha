@@ -1,5 +1,13 @@
 # Supplementary engineering estimate
 
+## Coordinator recovery — 2026-09-30
+
+No implementation worker is active. Sonnet/high is session-limited before
+repairing the two adjudicated SHADOW P2 defects; route the existing isolated
+worktree to Sol/high for substantive failover, then test and independently
+review. The 56-pass GEFS family diagnostic leaves the load-sensitive release
+failure open. **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND** is unchanged.
+
 ## Coordinator diagnostic result — 2026-09-30
 
 The isolated scheduler branch passed its bounded GEFS family diagnostic:

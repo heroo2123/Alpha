@@ -1,5 +1,24 @@
 # Alpha V11 work checkpoint
 
+## Coordinator recovery — SHADOW repair failover needed — 2026-09-30
+
+Recovered clean main `e2a0631`, clean SHADOW candidate `dd18e38`, and clean
+scheduler branch `26056af`. No SHADOW implementation or review worker is active.
+The GEFS family diagnostic passed 56 tests, but the load-sensitive release
+failure remains open. Sonnet/high repeatedly exited before touching the SHADOW
+worktree because its session limit resets at 12:20 UTC; the two P2 defects in
+`docs/V11_SHADOW_COMMISSION_ADJUDICATION_dd18e38.md` remain open. Route the
+substantive repair to Sol/high as provider failover in the same isolated
+worktree, followed by focused/affected tests and fresh independent review.
+
+Only commissioning watchdog heartbeat/status files changed. PAPER scanner PID
+514629 remains active with zero restarts; V10 and V11 execution are inactive;
+protected model-authority paths are absent. The FINAL-REVIEWED private master
+hash remains `a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+Disk has 4.4 GiB available and memory about 904 MiB available. No forward
+SHADOW evidence, release PASS, or C/J/E/A change: **91/200 (45.5%), formal
+1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator diagnostic complete; SHADOW implementation routed — 2026-09-30
 
 Recovered clean main `5601827`, clean SHADOW candidate `dd18e38`, and clean

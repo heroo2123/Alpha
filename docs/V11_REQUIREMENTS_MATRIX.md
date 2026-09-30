@@ -1,5 +1,13 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Coordinator recovery — 2026-09-30
+
+No requirement boundary changed. The clean SHADOW candidate still has two
+adjudicated P2 defects; Sonnet/high hit a session limit before implementation,
+so substantive repair is routed to Sol/high failover. The 56-pass GEFS family
+diagnostic does not clear the load-sensitive release gate. No forward SHADOW
+evidence: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator diagnostic result — 2026-09-30
 
 The scheduler branch's bounded GEFS family diagnostic completed with **56 passed
