@@ -1,0 +1,56 @@
+{
+  "status": "SCOPED_PASS_R6_R7",
+  "reviewer": "gpt-6-astra/high",
+  "author_model": "Sonnet/high",
+  "finished_utc": "2026-09-30T22:50:58.163922+00:00",
+  "candidate_commit": "d080eac0a7b431cbd1d70ca70f8adbccaad3719f",
+  "candidate_tree": "d828653843743ed85987398afbdea3361b202f24",
+  "reviewed_head": "1fa39026662075974ecc31a84c716774eed7f38e",
+  "reviewed_head_tree": "d8d1ecc8e5f21ba0678ca413e68275d2ab9038af",
+  "candidate_worktree": "/tmp/alpha-v11-r09-gate3-strict-offline-20260930",
+  "candidate_clean_unchanged_unmerged": true,
+  "resolved_findings": [
+    "R6",
+    "R7"
+  ],
+  "blocking_findings": [],
+  "nonblocking_notes": [
+    "Author fork regression tests need bounded child kill/reap on timeout; independent probes supply this cleanup."
+  ],
+  "affected_tests": {
+    "result": "285 passed, 2 expected fork warnings in 5.15s",
+    "cwd": "/tmp/alpha-v11-r09-gate3-strict-offline-20260930",
+    "command": "/home/alphaadmin/alpha-review-test-venv/bin/python -m pytest -q tests/test_v11_r09_gate3_store_v1.py tests/test_v11_r09_gate3_offline_io.py tests/test_v11_r09_gate3_launch.py tests/test_v11_r09_gate3_collector.py tests/test_v11_grib_fields.py"
+  },
+  "independent_probes": {
+    "result": "161 passed, 4 expected fork warnings in 2.94s",
+    "cwd": "/home/alphaadmin/AlphaV11_Dev/Alpha",
+    "command": "PYTHONPATH=/tmp/alpha-v11-r09-gate3-strict-offline-20260930 /home/alphaadmin/alpha-review-test-venv/bin/python -m pytest -q docs/V11_R09_GATE3_STORE_RESTART_REVIEW_d080eac_probes.py",
+    "retained_controls": 150,
+    "new_acceptance_cases": 11,
+    "sigkill_cases": 54,
+    "deterministic_survivor_cases": 28
+  },
+  "artifacts_sha256": {
+    "/home/alphaadmin/AlphaV11_Dev/Alpha/docs/V11_R09_GATE3_STORE_RESTART_REVIEW_d080eac.md": "366bd6d8356949f63dcb56ae140c08c3b862a164727b5a3b44797d379e7bb7b0",
+    "/home/alphaadmin/AlphaV11_Dev/Alpha/docs/V11_R09_GATE3_STORE_RESTART_REVIEW_d080eac_probes.py": "36d7a1ef1a59ed6564805d4c985eef56d84343143b1283878b0a2e92c845b76f",
+    "/home/alphaadmin/AlphaV11_Dev/Alpha/docs/V11_R09_GATE3_STORE_RESTART_REVIEW_7bc627e_probes.py": "25401944abcf599b4404bc32ff5fca2a27b8633908caab9db2eefbf948b0a833",
+    "/home/alphaadmin/AlphaV11_Dev/Alpha/docs/V11_R09_GATE3_STORE_RESTART_REVIEW_74bd122_probes.py": "da49e771146af1e036e2705b2587e3b02b885543ff4b5e455c02a4214f1b8d83",
+    "/tmp/alpha-v11-gate3-restart-review-d080eac/affected.log": "700c06c9699466973c623b5b4cbdde989b7ce6db65fb517d39157f0f3a8759ac",
+    "/tmp/alpha-v11-gate3-restart-review-d080eac/probes.log": "f0d8bdbb792bb49e10899598a5d6e32c7ff646d38d7d2309ec47152d2a9095a7"
+  },
+  "module_sha256": "cf65d164dba4a1937fc38a4cfa18cf686c53b248e97b15ac21d8a7d4bee0d636",
+  "holds": [
+    "merge",
+    "candidate_publication",
+    "provider_capture",
+    "G3-L",
+    "SHADOW",
+    "learner_admission"
+  ],
+  "physical_power_loss_qualification": false,
+  "financial_authority": false,
+  "score": "91/200",
+  "readiness": "NOT_READY_TO_FUND",
+  "next_step": "One Sonnet/high tests/documentation batch for actual offline budget/store restart composition, then fresh exact-commit different-model review; see report for scope."
+}

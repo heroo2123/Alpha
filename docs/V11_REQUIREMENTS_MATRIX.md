@@ -1,5 +1,30 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Gate 3 restart R6/R7 independently passes; offline composition next — 2026-09-30 22:51 UTC
+
+Astra/high independently reviewed Sonnet/high code/test `d080eac` at doc HEAD
+`1fa3902`: **scoped PASS for R6/R7**, with [report, probes and terminal](V11_R09_GATE3_STORE_RESTART_REVIEW_d080eac.md).
+Independent verification: **285 affected passes; 161 probe passes** (150 retained
+controls, 11 new acceptance cases). Forked read/seal rejects before mutex entry,
+including after child close, without releasing parent ownership. Actual encoded
+4095/4096-byte descriptors seal and repeatedly recover; 4097 bytes and Unicode
+expansion reject before metadata creation. Physical qualification is not claimed.
+
+Candidate stays clean, unchanged and unmerged under all existing holds. Next:
+one Sonnet/high tests/documentation batch in the same isolated worktree for the
+restart design's composed budget/store accounting contract, using real offline
+APIs and synthetic fixtures; include bounded cleanup for the author fork tests.
+The report contains the exact three-file handoff and acceptance criteria. Fresh
+different-model review follows. No duplicate worker launched; router handoff next.
+
+Main recovered clean at `7a054e9`, equal to its local tracking ref; SHADOW clean.
+New commissioning files are only manager/watchdog statuses. Accepted release
+resolution `6ec371e` remains current. Private master hash matches its pin; demo,
+PAPER scanner/controller and execution inactive, execution masked, protected
+authority absent. Disk 4.3 GiB free, memory about 939 MiB available. No service,
+V10, AxiomTrade, authority or financial action. No forward evidence or C/J/E/A
+crossing: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## R09 Gate 3 restart R6/R7 author repair; no acceptance credit — 2026-09-30 22:42 UTC
 
 Held `d080eac` (doc follow-up `1fa3902`) repairs R6/R7 from the exact `7bc627e`
