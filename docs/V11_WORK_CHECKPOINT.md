@@ -17,6 +17,10 @@ The nonfinancial SHADOW commissioning worker remains active in its isolated
 worktree. The prior full-suite fill-markout failure still needs a captured
 load/order reproduction and diagnosis before a release PASS; the isolated/family
 passes alone do not clear that gate. V10 and protected authority remain untouched.
+Publication is pending: local main is ahead of `origin` by the three reviewed
+R09 commits, the merge, and this checkpoint. Automatic approval review rejected
+the push because the configured GitHub destination's trust/privacy and ownership
+were not established; do not route around that rejection.
 
 ## R09 native-extreme continuation — 2026-09-30
 

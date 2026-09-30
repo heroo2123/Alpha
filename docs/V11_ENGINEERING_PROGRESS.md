@@ -10,6 +10,9 @@ feasibility question but does not admit exact-day fitting or satisfy empirical
 acceptance. The SHADOW commissioning worker remains active; the release
 full-suite fill-markout failure remains unresolved. **91/200 (45.5%), formal
 1/50; NOT_READY_TO_FUND**.
+The local branch is ahead of `origin`; automatic approval review rejected the
+GitHub push pending destination authorization. No alternate publication route
+was used.
 
 ## R09 native-extreme continuation — 2026-09-30
 
