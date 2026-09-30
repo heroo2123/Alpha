@@ -1,5 +1,9 @@
 # V11 pull-only weather model input panel
 
+Native-extreme continuation: [IFS public GRIB evidence and exact-cohort feasibility](V11_R09_ECMWF_NATIVE_EXTREMA.md).
+The point-store findings below remain valid; native interval coverage does not
+by itself establish exact half-open local-day or causal learner admission.
+
 ## R09 post-backfill correction — 2026-09-30
 
 The immutable GEFS/IFS/AIFS historical stores are complete for all 541 planned

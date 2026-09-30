@@ -1,5 +1,9 @@
 # R09 historical multi-model panel — 2026-09-30
 
+Native-extreme continuation: [IFS public GRIB evidence and exact-cohort feasibility](V11_R09_ECMWF_NATIVE_EXTREMA.md).
+The point-store findings below remain valid; native interval coverage does not
+by itself establish exact half-open local-day or causal learner admission.
+
 The completed GEFS/IFS/AIFS downloads do **not** support the requested exact-day,
 causal multi-model fit under the no-interpolation constraint. This implementation
 produces a deterministic, integrity-checked historical **point panel**, preserves

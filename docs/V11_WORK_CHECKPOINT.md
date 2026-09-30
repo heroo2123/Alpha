@@ -1,5 +1,24 @@
 # Alpha V11 work checkpoint
 
+## R09 native-extreme continuation — 2026-09-30
+
+On `r09-ecmwf-native-extrema-20260930`, based on integrated reviewed main
+`fd59e667bc948445e102241ace77653e1c3f0fe2`, actual public GRIB bytes prove IFS
+native three-hour temperature extrema (`mx2t3`/`mn2t3`, IDs 228026/228027).
+The frozen cohort has only 73/541 three-hour-aligned days; 468 require splitting
+an interval and cannot be reconstructed exactly. AIFS inspected products contain
+point `2t`, no native extreme fields. AWS 503 and later portal 429 are preserved
+as availability failures, not absence proofs; requests stop on throttling.
+A separate bounded typed research decoder and immutable coverage/output builder
+were added. No completed point store or runtime path changed. Exact-day and
+causal learner gates stay closed; NOT_FITTED / NOT_CALIBRATED / NO_PROMOTION.
+Splits remain 357/120/64; WeatherNext remains DEFERRED_NO_ACCESS. Source receipt,
+label knowable-time/rule revisions, endpoint convention and independent release
+identity remain unresolved. No new C/J/E/A: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**. Details, evidence scope and reproducibility:
+[Native-extreme feasibility](V11_R09_ECMWF_NATIVE_EXTREMA.md).
+
+
 ## Coordinator integration — R09 + R47 independent reviews passed — 2026-09-30
 
 R09 implementation commits `1d0ac918...`/`fb0f4b7f...` passed an independent GPT-6 Astra review with no blocking findings. The reviewer independently reproduced the 505/541 ECMWF boundary-gap count, preserved 357/120/64 splits, grouped-dependence handling, two byte-identical real-input builds, and 339 related tests with one expected opt-in skip. This is an implementation/evidence review only: R09 still has no admitted real exact-day fit, no calibration, and no model acceptance.
