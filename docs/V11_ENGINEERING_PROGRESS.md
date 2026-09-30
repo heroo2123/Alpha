@@ -3729,3 +3729,57 @@ NOT_READY_TO_FUND; V10 unchanged/DEFERRED, not touched. No alpha-dev access,
 deployment, service change, financial authority, sudo, credential, or real
 order was requested or performed. Full detail in
 `docs/V11_R47_EXACT_DAY_LIVE_SCHEMA_REBUILD.md`.
+
+## V11 nonfinancial SHADOW commissioning substrate — 2026-09-30: bounded plan/preflight/lifecycle wrapper; no new C/J/E/A
+
+Added `polymarket_scanner/v11/shadow_commission.py`: a reviewed plan-file
+schema/validator/loader (`ShadowCommissionPlan`/`ShadowScopeTarget`, explicit
+HIGH/LOW x C/F scope bindings matching R47's four-hash structure, no
+wildcards, 1-500 bounded per-scope sample target), a fail-closed `preflight()`
+that genuinely raises against this host's real, still-absent
+`/etc/alpha-v11`/`/var/lib/alpha-v11/model-authority` root planes (no
+monkeypatching required to prove it), and a bounded (never-daemonized)
+`ShadowCommissionRunner` lifecycle wrapper plus a read-only `evidence_status()`
+report, all layered on top of the existing, unmodified `CandidateRunner`/
+`assemble_candidate` machinery. Deliberately did not add a new
+`CandidatePlan` factory (one already exists), a daemon CLI that constructs a
+live `CandidateRunner` from scratch (would require fabricating real
+market/rule/scope data), or a systemd-unit renderer (the existing
+`deploy/render-shadow-units.py` is an unrelated legacy-scanner "silent
+shadow" concept, not V11's `V11_SHADOW` model-authority mode).
+
+`tests/test_v11_shadow_commission.py` (21 cases): static AST import-boundary
+check (plus a synthetic-negative proving the check detects a real forbidden
+import); real fail-closed preflight against genuinely absent root state;
+soft fail-closed when a scope is declared but not yet reviewed; namespace
+rejection (`V11_PAPER`/arbitrary strings refused, only `CHALLENGER:`/
+`ABLATION:` accepted); no-wildcard-scope; deterministic plan identity;
+bounded-loop termination and idempotent replay; and one genuine (not
+stubbed) `CandidateRunner`, built with the same fixture machinery
+`tests/test_v11_candidate_runner.py` already uses, run end-to-end through the
+wrapper with zero `TRADE` records and `financial_authority=False` throughout.
+Regression, run together rather than assumed unaffected: the existing
+11-decision-site SHADOW test coverage (`test_v11_strategy_pipeline.py`,
+`test_v11_position_management.py`, `test_v11_relative_value.py`,
+`test_v11_pws_admission.py`, `test_v11_source_release.py`,
+`test_v11_maker_context.py`, `test_v11_reaction_runtime.py`,
+`test_v11_drift_runtime.py`, `test_v11_risk_inputs.py`,
+`test_v11_basket_coordinator.py`, `test_v11_strategy_admission.py`) plus
+`test_v11_model_governance.py`, `test_v11_certification_rules.py`,
+`test_v11_model_artifacts.py`, `test_v11_candidate_runner.py`,
+`test_v11_candidate_assembly.py` — **415 passed / 353.27 s**, exit 0, no
+skips, no failures. `git diff --check` clean.
+
+This narrows two of the four SHADOW-prep prerequisites supervisor batch 35
+named (`LIVE_INPUT_FEATURE_SCHEMA_COMPATIBILITY_CHECK`,
+`FREEZE_EVIDENCE_BASED_FORWARD_SHADOW_SAMPLE_TARGET`) with real,
+independently-testable infrastructure, but does not close R47 or install any
+root state: independent/owner review, root-owned model-authority
+installation, station-capability review provisioning, a real reviewed plan
+file naming actual scopes, and genuine forward SHADOW evidence accumulated
+over time all remain exactly as open as before, and are not fabricable by
+this worker. No new C/J/E/A: **91/200 = 45.5% (~46%); formal 1/50 (2%)**,
+unchanged. NOT_READY_TO_FUND; V10 unchanged/DEFERRED, not touched. No
+alpha-dev access, deployment, service change, financial authority, sudo,
+credential, or real order was requested or performed. Full detail in
+`docs/V11_WORK_CHECKPOINT.md`.

@@ -10946,3 +10946,155 @@ Verification (foreground): `tests/test_gefs_exact_day_live_schema_bundle_v2.py` 
 This closes only the named provenance/reproducibility prerequisite. It does **not** close R47: independent/owner review, root-owned model-authority installation, actual forward shadow evidence with a frozen sample target, calibration evidence, and execution-cost evidence all remain exactly as open as every prior batch found them. No new C/J/E/A credit: R47 is a hard aggregate acceptance gate on an actual accepted, owner-reviewed champion, which a provenance-quality fix to an already-non-eligible draft research candidate does not supply. **91/200 = 45.5% (~46%); formal 1/50 (2%)**, unchanged. NOT_READY_TO_FUND; V10 unchanged/DEFERRED (not touched). No alpha-dev access, deployment, service change, financial authority, sudo, credential, or real order was requested or performed. Only `tools/gefs_exact_day_live_schema_bundle_v2.py`, `tests/test_gefs_exact_day_live_schema_bundle_v2.py`, this checkpoint entry, `docs/V11_R47_EXACT_DAY_LIVE_SCHEMA_REBUILD.md`, and the matching `docs/V11_REQUIREMENTS_MATRIX.md`/`docs/V11_ENGINEERING_PROGRESS.md` R47 entries changed in the repository; the new private v2 artifact store and commissioning evidence manifest copy are outside the Git tree, exactly like every prior GEFS research artifact.
 
 Next unfinished action: unchanged from batch 37 — re-check `/home/alphaadmin/AlphaV11_Commissioning/evidence/` and `/home/alphaadmin/AlphaV11_BrainWork/` for a genuinely new (non-heartbeat) research-result, review, or owner-authorized artifact before repeating any R47/R09/R44/R46 analysis. The concrete remaining R47 blocker is unchanged and precise: an actual owner/independent review and installation decision into root-owned `/var/lib/alpha-v11/model-authority`, or an equivalent owner-reviewed acceptance, plus real forward shadow evidence against a frozen sample target — none of which is fabricable by this worker.
+
+## V11 nonfinancial SHADOW commissioning substrate — 2026-09-30: bounded plan/preflight/lifecycle wrapper; fails closed on absent root state; no new C/J/E/A
+
+Worked on worktree branch `v11-shadow-commissioning-20260930`, starting clean at
+`fd59e66`. Built the narrowest defensible nonfinancial forward-SHADOW
+commissioning boundary named across supervisor batch 32/35 and the R47
+implementation-builder entries as the remaining local-implementation
+opportunity, without self-provisioning root authority and without inventing
+markets/rules/scopes. New module `polymarket_scanner/v11/shadow_commission.py`
+adds exactly one layer on top of the existing, unmodified `CandidateRunner`/
+`PaperRuntime`/`candidate_assembly.assemble_candidate` machinery — it is not a
+new `CandidatePlan` factory; one already exists and is untouched.
+
+`ShadowCommissionPlan`/`ShadowScopeTarget` define a reviewed, frozen,
+explicit plan-file schema (JSON) naming exact `CapabilityScope` bindings (no
+wildcards — already structurally forbidden by `certification.CapabilityScope`
+itself), explicit HIGH/LOW x C/F unit bindings (duplicate `(family, unit)` or
+duplicate `scope_key` both fail closed at construction, matching R47's real
+four-hash HIGH/LOW x C/F structure, since `ActiveModelRegistry` pins exactly
+one bundle per `scope_key`), a bounded per-scope sample target (1-500), an
+explicit release git SHA, and a nonfinancial namespace. Confirmed directly
+from `evidence.py`'s own constructor regex that literal `V11_SHADOW` is not
+and has never been a valid `EvidenceStore` namespace — it is the
+model-authority *mode* string, exactly as `strategy_admission.py`/
+`drift_runtime.py`/`model_registry.py` already define it — so "SHADOW
+namespace only" is enforced here as `CHALLENGER:.../ABLATION:...` required,
+`V11_PAPER` and anything else rejected. `load_plan()` strictly parses an
+externally authored plan file (duplicate-key rejection, exact key sets,
+bounded bytes, symlink refusal); the only example plan content in the
+repository lives inside the new test module as fixtures, clearly not
+production data.
+
+`preflight()` is a read-only dry run that genuinely fails closed on this host
+today: with no monkeypatching, calling it against a real `EvidenceStore`
+raises `SHADOW_PREFLIGHT_STATION_CAPABILITY_REVIEW_UNAVAILABLE` because
+`/etc/alpha-v11/approvals/station-capabilities.json` does not exist, and
+(once that manifest is simulated present) raises
+`SHADOW_PREFLIGHT_MODEL_AUTHORITY_STATE_UNAVAILABLE` because
+`/var/lib/alpha-v11/model-authority/...` does not exist — both read only
+through the existing, unmodified `certification.protected_reviews`/
+`model_registry.ActiveModelRegistry`, never a new installer or self-approval.
+Once both root planes exist, it separately soft-fails (`passed: False`,
+itemized reasons, no exception) when a declared scope is simply not yet named
+in the reviewed manifest, or the running release does not match the plan's
+pinned `release_git_sha`. Either failure mode is fail-closed for the caller:
+`ShadowCommissionRunner.run_once` refuses to invoke the wrapped
+`CandidateRunner.run()` at all unless `preflight()['passed']` is `True`, and
+records the refusal as an ordinary durable `RUNTIME_STATUS` row instead.
+
+`ShadowCommissionRunner` wraps an already-constructed, real `CandidateRunner`
+(built the ordinary way via `candidate_assembly.assemble_candidate`). It adds
+one extra fail-closed gate plus a bounded, never-daemonized lifecycle
+(`run_once`/`run_bounded`: exactly `lifecycle.maximum_iterations` finite
+ticks, an explicit `interval_seconds`, idempotent replay via
+`CandidateRunner.run()`'s own run_id-keyed cache) and durable
+`financial_authority=False`/`real_orders_sent=False`/`promotion_authority=
+False` status records via the ordinary CAS-guarded `store.audit()` path —
+initially written against `store.safety_audit()`, which turned out to
+enforce a small, explicit, hardcoded allow-list of safety-tick invariants
+(`_validate_safety_append`) that this module correctly does not belong to;
+switched to `store.audit()`, the same general path `certification.py`'s
+`StationRegistry` and `strategy_admission.py`'s `StrategyAdmission` already
+use. `evidence_status()` is a read-only forward-SHADOW evidence/status
+report: frozen target counts, per-scope forward-vs-historical admission-pin
+counts (split on the plan's own `created_at` watermark), gating reasons,
+model epoch/state hashes, and no profitability or promotion claim anywhere
+(`profitability_claim`/`promotion_claim` are always literally `None`).
+
+Two deliberate scope decisions, both fail-closed rather than invented: (1)
+did **not** add a CLI/daemon entrypoint that constructs a live
+`CandidateRunner` from scratch, since `candidate_runner.py` is still finite
+and off-host with no daemon CLI (unchanged ground truth), and building one
+here would mean either fabricating a real market/rule/scope `CandidatePlan`
+or duplicating the already-reviewed construction route outside test/CI
+control; the bounded lifecycle wrapper is a library API the owner/operator
+calls after constructing a real `CandidateRunner` themselves. A read-only
+`preflight`/`status` CLI subcommand pair was added instead, since those need
+only a plan file and an existing evidence store. (2) did **not** touch or
+extend `deploy/render-shadow-units.py`: that script renders systemd units for
+an unrelated, already-existing "silent shadow" concept (the legacy,
+currently-running V10-era `ac3b722` scanner's nonfinancial release mode,
+documented in `docs/LEGACY_SHADOW_README.md`/`docs/SILENT_SHADOW_HANDOFF.md`),
+not V11's `V11_SHADOW` model-authority mode; reusing that name for this would
+risk a naming collision, and there is no daemon entrypoint here to render a
+unit for in the first place (per decision 1). Judged this to be scope creep
+beyond the bounded runtime substrate and skipped it.
+
+Tests: `tests/test_v11_shadow_commission.py` (21 cases) prove: no
+financial/order/V10 import is reachable from this module (a static AST
+check matching the existing `authority.py`/`offline_learning.py` pattern,
+plus a synthetic-negative test proving the check itself actually detects a
+forbidden import when one is present); missing protected state fails closed
+for real, unmonkeypatched, against this actual host's genuinely absent
+`/etc/alpha-v11`/`/var/lib/alpha-v11/model-authority`; a declared-but-not-yet-
+reviewed exact scope fails closed (soft, itemized, non-crashing); `V11_PAPER`
+and arbitrary namespaces are rejected, only `CHALLENGER:`/`ABLATION:`
+accepted; no wildcard scope is constructible; deterministic plan identity
+(same file loaded twice -> same key, changed content -> different key); a
+bounded loop that terminates at exactly `maximum_iterations` and replays
+idempotently on a repeated run_id; and a genuine (not stubbed) `CandidateRunner`
+— built with the same real fixture machinery `tests/test_v11_candidate_runner.py`
+already uses (`GatedEvaluator`, real `PaperRuntime`/`CensusWorker`/
+`MarketDiscovery`/`AuditWorker`, an `httpx.MockTransport`), just re-pointed at
+a `CHALLENGER:` namespace instead of `V11_PAPER` — run end-to-end through the
+wrapper with zero `TRADE` records and `financial_authority=False` on every
+durable record. Regression: the existing 11-decision-site end-to-end SHADOW
+test coverage first built by "OpenAI same-batch recovery 1"
+(`tests/test_v11_strategy_pipeline.py`, `test_v11_position_management.py`,
+`test_v11_relative_value.py`, `test_v11_pws_admission.py`,
+`test_v11_source_release.py`, `test_v11_maker_context.py`,
+`test_v11_reaction_runtime.py`, `test_v11_drift_runtime.py`,
+`test_v11_risk_inputs.py`, plus `test_v11_basket_coordinator.py`/
+`test_v11_strategy_admission.py` exercised transitively through those) was
+re-run unchanged alongside this new module rather than duplicated, together
+with `test_v11_model_governance.py`, `test_v11_certification_rules.py`,
+`test_v11_model_artifacts.py`, `test_v11_candidate_runner.py` and
+`test_v11_candidate_assembly.py`: **415 passed / 353.27 s**, exit 0, no
+skips, no failures. `git diff --check` clean.
+
+This narrows, but does not close, the SHADOW-prep prerequisite chain
+supervisor batch 35 traced to one concrete owner-only root boundary: items 3
+(`LIVE_INPUT_FEATURE_SCHEMA_COMPATIBILITY_CHECK`, separately investigated and
+found not compatible today by the R47 implementation-builder entry) and 4
+(`FREEZE_EVIDENCE_BASED_FORWARD_SHADOW_SAMPLE_TARGET`) remain, as batch 35
+found, transitively blocked on an actually installed model-authority slot —
+this substrate is now ready to enforce and durably record that freeze the
+moment the owner supplies one and a real reviewed plan file, but it does not
+and cannot supply the scope/sample-target content itself. No repository code
+writes to `/etc/alpha-v11` or `/var/lib/alpha-v11`; both remain absent on
+this host exactly as every prior batch found. No new C/J/E/A:
+**91/200 = 45.5%; formal 1/50 (2%)**, unchanged. NOT_READY_TO_FUND; V10
+unchanged/DEFERRED (not touched). No alpha-dev access, deployment, service
+change, financial authority, sudo, credential, or real order was requested or
+performed.
+
+Remaining owner/root actions before any real forward SHADOW evidence can
+accumulate, precisely as before: independently review and install a real
+reviewed model bundle into root-owned `/var/lib/alpha-v11/model-authority`
+via the separate, unmodified `host_trust/v11-model-authority/authority.py`;
+independently provision `/etc/alpha-v11/approvals/station-capabilities.json`
+naming the exact scopes to be run; author and review a real
+`ShadowCommissionPlan` file naming the exact frozen scopes/sample targets (not
+fabricable by this worker); construct a real `CandidateRunner` against real
+collected market/station/GEFS data via the existing `assemble_candidate`; and
+then, only after all of that, actually run `ShadowCommissionRunner` to
+accumulate genuine forward SHADOW evidence over time. Next unfinished action:
+unchanged from batch 37 for R47/R09/R44/R46 — re-check
+`/home/alphaadmin/AlphaV11_Commissioning/evidence/` for a genuinely new
+research-result/review/owner-authorized artifact; for this new substrate
+specifically, the next unblocked step is an owner decision to install the
+first root-owned model-authority/station-capability state and author the
+first real plan file, neither of which this worker can do.
