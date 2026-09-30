@@ -226,7 +226,7 @@ def test_real_capture_reproducible(tmp_path):
         pytest.skip('Explicit local raw-evidence opt-in required')
     commit = os.environ['ALPHA_R09_EXTREMA_CODE_COMMIT']
     captured = os.environ['ALPHA_R09_EXTREMA_CAPTURE']
-    output = x.ROOT/'private-evidence'/'r09-extrema'/('verify-'+Path(captured).name)
+    output = x.ROOT/'private-evidence'/'r09-extrema'/('verify-'+Path(captured).name+'-'+commit[:12])
     a = x.build('config/v11/r09_multimodel_input_pins.json', captured, output/'a', commit)
     b = x.build('config/v11/r09_multimodel_input_pins.json', captured, output/'b', commit)
     assert a == b and a['cohort_station_days'] == 541
@@ -235,3 +235,17 @@ def test_real_capture_reproducible(tmp_path):
     assert a['exact_day_admitted_station_days'] == 0 and a['learner_admitted'] is False
     for name in ('dataset.json','result.json','manifest.json'):
         assert (output/'a'/name).read_bytes() == (output/'b'/name).read_bytes()
+
+
+def test_oversized_cas_rejected_before_read(tmp_path):
+    (tmp_path/'objects').mkdir()
+    sha='a'*64
+    (tmp_path/'objects'/sha).write_bytes(b'x')
+    with pytest.raises(x.panel.PanelError, match='OBJECT_BYTES_BOUND'):
+        x.read_object(tmp_path, dict(sha256=sha, bytes=x.MAX_RAW_BYTES+1))
+
+
+@pytest.mark.parametrize('value', [float('nan'), float('inf'), -10, True])
+def test_window_rejects_corrupt_values(value):
+    with pytest.raises(x.grib.EvidenceError):
+        x.native_window((field(0, 3, value),), 0, 3)

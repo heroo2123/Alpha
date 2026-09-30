@@ -25,7 +25,7 @@ if str(ROOT) not in sys.path:
 from tools import v11_multimodel_panel as panel
 from polymarket_scanner.v11 import ecmwf_grib as grib
 from polymarket_scanner.v11.ecmwf_sources import ByteRange, MAX_INDEX_BYTES, MAX_INDEX_ROWS
-from polymarket_scanner.v11.model_panel import temperature
+from polymarket_scanner.v11.model_panel import MAX_RAW_BYTES, temperature
 from polymarket_scanner.v11.pws_quality import geometry
 
 VERSION = 'alpha_v11_ecmwf_native_extrema_research_v1'
@@ -255,6 +255,14 @@ def native_window(fields, start, end):
     """
     require(type(fields) is tuple and 1 <= len(fields) <= 16, 'WINDOW_BOUND')
     require(all(type(f) is NativeField for f in fields), 'WINDOW_FIELD_TYPE')
+    for f in fields:
+        f.request.__post_init__()
+        require(panel.is_sha(f.raw_sha256) and panel.is_sha(f.index_sha256)
+                and panel.is_sha(f.metadata.get('observed_header_sha256')), 'WINDOW_PROVENANCE')
+        require(type(f.start_utc) in (float, int) and type(f.end_utc) in (float, int)
+                and f.start_utc < f.end_utc and 1 <= len(f.points) <= 15, 'WINDOW_FIELD')
+        for point in f.points:
+            temperature(point['kelvin'], 'K', 'K')
     first = fields[0]
     signature = lambda f: (f.request.product.model, f.request.product.run, f.request.member,
                            PARAMS[f.request.param][1], f.metadata['observed_header_sha256'],
@@ -355,7 +363,10 @@ def load_plan(pins_path):
 
 def read_object(directory, record):
     require(panel.is_sha(record['sha256']), 'OBJECT_HASH_SHAPE')
-    raw = (Path(directory)/'objects'/record['sha256']).read_bytes()
+    path = Path(directory)/'objects'/record['sha256']
+    require(type(record['bytes']) is int and 0 <= record['bytes'] <= MAX_RAW_BYTES
+            and path.stat().st_size == record['bytes'], 'OBJECT_BYTES_BOUND')
+    raw = path.read_bytes()
     require(len(raw) == record['bytes'] and hashlib.sha256(raw).hexdigest() == record['sha256'], 'OBJECT_HASH')
     return raw
 
@@ -441,9 +452,11 @@ def code_identity(code_commit):
 def build(pins_path, capture_dir, output, code_commit):
     pins, plan = load_plan(pins_path)
     capture_dir = Path(capture_dir)
+    require((capture_dir/'capture.json').stat().st_size <= 1024**2, 'CAPTURE_MANIFEST_BOUND')
     capture_raw = (capture_dir/'capture.json').read_bytes()
     captured = panel.strict_json(capture_raw)
     require(captured['version'] == VERSION and captured['input_pin_sha256'] == panel.digest(pins), 'CAPTURE_IDENTITY')
+    require(len(captured['indexes']) <= 100 and len(captured['fields']) <= 100, 'CAPTURE_RECORD_BOUND')
     identity = code_identity(code_commit)
     indexes = {}; summaries = []
     read_object(capture_dir, captured['listing'])
@@ -481,6 +494,10 @@ def build(pins_path, capture_dir, output, code_commit):
                 and int(match[2]) < int(match[3]) <= 16*1024**3, 'ARCHIVED_RANGE')
         field = decode(raw, index, req, targets)
         decoded.append(asdict(field))
+    aifs_indexes = [r for (source, key), r in indexes.items() if '/aifs-ens/' in key]
+    aifs_status = ('NOT_INSPECTED_THIS_CAPTURE' if not aifs_indexes else
+                   'NATIVE_CANDIDATE_REQUIRES_REVIEW' if any(r['param'] in CANDIDATES for rows in aifs_indexes for r in rows) else
+                   'NO_NATIVE_EXTREMA_IN_INSPECTED_PRODUCTS_HISTORY_NOT_EXHAUSTIVELY_SCANNED')
     days = []
     for row in plan['station_days']:
         ctx = panel.day_context(row); a, b = ctx['start_forecast_hour'], ctx['end_forecast_hour']
@@ -494,8 +511,8 @@ def build(pins_path, capture_dir, output, code_commit):
                     # Never combine sources to manufacture a member-complete file.
                     rows = indexes.get(('portal', p.key), indexes.get(('aws', p.key), []))
                     for param in ('mx2t3', 'mn2t3'):
-                        members = {int(r.get('number', '0')) for r in rows if r['param'] == param and r['levtype'] == 'sfc'}
-                        indexed += len(members)
+                        members = Counter(int(r.get('number', '0')) for r in rows if r['param'] == param and r['levtype'] == 'sfc')
+                        indexed += sum(count == 1 for count in members.values())
         expected = len(required)*102
         days.append(dict(station_day=row['station']+'|'+row['target_date'], context=row, local_day=ctx,
                          ifs_three_hour_boundaries_aligned=aligned, ifs_required_interval_end_hours=required,
@@ -503,13 +520,14 @@ def build(pins_path, capture_dir, output, code_commit):
                          ifs_all_members_intervals_indexed=bool(aligned and indexed == expected),
                          native_field_backfill_complete=False, exact_day_extrema_c=None,
                          status='GATED_BOUNDARY_CROSSING' if not aligned else 'GATED_RAW_COVERAGE_AND_ENDPOINT_SEMANTICS',
-                         aifs_status='NO_NATIVE_EXTREMA_IN_INSPECTED_PRODUCTS_HISTORY_NOT_EXHAUSTIVELY_SCANNED'))
+                         aifs_status=aifs_status))
     import eccodes
     result = dict(version=VERSION, cohort_station_days=len(days),
                   split_counts=dict(Counter(d['context']['split'] for d in days)),
                   ifs_boundaries_aligned=sum(d['ifs_three_hour_boundaries_aligned'] for d in days),
                   ifs_boundary_crossing=sum(not d['ifs_three_hour_boundaries_aligned'] for d in days),
                   ifs_complete_indexed_station_days=sum(d['ifs_all_members_intervals_indexed'] for d in days),
+                  aifs_index_products_inspected=len(aifs_indexes), aifs_status=aifs_status,
                   raw_complete_station_days=0, exact_day_admitted_station_days=0,
                   decoded_representative_fields=len(decoded),
                   decoded_fields_in_frozen_cohort=sum(f['request']['product']['run'] in
