@@ -2,6 +2,16 @@
 
 ## Coordinator recovery — 2026-09-30
 
+The preserved R09 gate-2 worker repaired its synthetic fixtures and reached
+61/61 focused contract passes in 1.39 s. The worker is still live with a
+check-clean, two-file uncommitted diff; affected tests, terminal, commit and
+independent review remain pending. PAPER and V11 controller/execution are
+inactive; no new forward SHADOW sample qualifies. Disk is 82% used with 3.4 GiB
+free, protected model authority is absent, and the private master hash matches.
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
+## Coordinator recovery — 2026-09-30
+
 The one R09 gate-2 repair worker remains live in its preserved worktree and
 has added synthetic test edits to its source repair. Its two-file diff passes
 `git diff --check`; focused tests are still failing as the worker updates

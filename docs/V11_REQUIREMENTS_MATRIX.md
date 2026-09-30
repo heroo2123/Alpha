@@ -1,5 +1,15 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Coordinator recovery — R09 focused suite passes — 2026-09-30
+
+The single R09 gate-2 repair worker remains active in its preserved worktree.
+Its latest focused contract suite passed 61/61, but the affected gate, commit,
+terminal and independent exact-commit review are pending. Gate 2 remains OPEN;
+no real-data admission follows from this intermediate pass. The scanner is
+inactive after its disk stop; current commissioning writes are watchdog status
+only. Protected model authority is absent. Requirement status and C/J/E/A
+credit remain **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator recovery — R09 repair expanded to tests — 2026-09-30
 
 The single preserved R09 gate-2 worker remains active and now edits both the

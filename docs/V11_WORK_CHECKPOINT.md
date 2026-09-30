@@ -1,5 +1,27 @@
 # Alpha V11 work checkpoint
 
+## Coordinator recovery — R09 focused suite passes; worker still active — 2026-09-30
+
+At about 15:02 UTC, the single preserved R09 gate-2 repair driver PID 799619
+and Codex child PID 799624 remained live in `/tmp/alpha-v11-r09-trajectory-gate2/Alpha`.
+The worker adapted the synthetic fixtures and its latest focused contract run
+passed **61/61 in 1.39 s**. The current two-file source/test diff is 870
+insertions/196 deletions and `git diff --check` passes. This is intermediate
+worker evidence only: no affected-test gate, commit, `terminal.json`, or fresh
+independent exact-commit review is yet present. Do not merge or admit real
+trajectory data from the unfinished worktree. Recover its terminal, inspect the
+exact diff and tests, then obtain independent review.
+
+Main is clean at `a18960a`, 12 local commits ahead of origin. PAPER scanner,
+V11 controller, paper demo and masked execution service are inactive; the
+scanner's 13:53 `STATUS.json` remains stale after `DISK_AT_OR_ABOVE_85_PERCENT`.
+Root disk is 82% used with 3.4 GiB free, memory available about 899 MiB.
+New commissioning evidence is watchdog status only, not a qualified forward
+SHADOW sample. Protected model authority is absent; the private FINAL-REVIEWED
+master still matches its pinned SHA-256. No service, V10, protected authority
+or financial action was taken. No C/J/E/A boundary crossed: **91/200 (45.5%),
+formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator recovery — R09 tests now being repaired — 2026-09-30
 
 Recovered actual processes and worktrees at about 14:55 UTC. The sole R09
