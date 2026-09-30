@@ -1,5 +1,31 @@
 # Alpha V11 work checkpoint
 
+## Coordinator recovery — R09 N4 fallback repair active — 2026-09-30 17:10 UTC
+
+Since the 16:20 checkpoint, the preserved R09 builder committed `a1e29fa`
+(tree `5cf1a9da`) and received a completed independent exact-commit
+`CHANGES_REQUIRED` review in `/tmp/alpha-v11-r09-review-a1e29fa/`.
+The reviewer ran 179 affected tests (one skipped) and 27 independent probes;
+N1–N3 and present-provider N4 checks held, but a P2 fallback defect remains:
+the absent provider's finite run inventory and outage payload are not fully
+authenticated. See that review's `review.md` and `terminal.json`. Gate 2 and
+real trajectory admission remain OPEN.
+
+The same Sol/high repair worker is live, editing only the preserved
+`/tmp/alpha-v11-r09-trajectory-gate2/Alpha` worktree. Its first focused run
+after the new edit had 113 passes and 10 fixture `KeyError` failures; this is
+intermediate work, not a final gate. Preserve its uncommitted two-file diff,
+then require focused/affected passes and a fresh independent exact-commit review
+before integration. Main is clean at `70271b7`, 26 commits ahead of origin;
+SHADOW worktree is clean at `15e99bd`. Commissioning evidence has only new
+watchdog status writes, no qualifying forward sample. PAPER scanner, V10 paper
+demo, V11 controller and execution units are inactive; execution remains masked.
+Protected model-authority paths are absent. The private FINAL-REVIEWED master
+matches SHA-256 `a0e16d9b...563b4a`. Disk is 76% used with 4.7 GiB free;
+available memory is about 879 MiB. No service, V10, authority, financial or
+publication action was taken. No C/J/E/A change: **91/200 (45.5%), formal
+1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator recovery — R09 implementation route failover — 2026-09-30 16:20 UTC
 
 Main is clean at `795c3b1` (25 local commits ahead of origin); the preserved

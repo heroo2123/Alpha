@@ -1,5 +1,15 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Coordinator R09 N4 fallback repair — 2026-09-30 17:10 UTC
+
+Exact-commit independent review of `a1e29fa` completed `CHANGES_REQUIRED`:
+179 affected tests passed (one skipped), but an independent counterexample
+showed the missing provider's finite run inventory and outage evidence are not
+fully authenticated. The same builder is actively repairing this P2 finding;
+its first focused rerun is intermediate and failing on fixture setup. Gate 2,
+real trajectory admission and forward SHADOW qualification remain OPEN.
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator R09 route failover — 2026-09-30 16:20 UTC
 
 Sonnet/high implementation routing hit its session limit three times before
