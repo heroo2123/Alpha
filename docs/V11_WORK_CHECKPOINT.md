@@ -1,5 +1,30 @@
 # Alpha V11 work checkpoint
 
+## Coordinator follow-up — scheduler test correction; SHADOW review still running — 2026-09-30
+
+Recovered clean main `79ba316` (11 commits ahead of origin), clean isolated
+SHADOW repair `dd18e38`, and the live independent Opus/high reviewer under
+`/tmp/alpha-v11-shadow-repair-review-dd18e38`. Its affected integration suite
+was still running; two test failures appeared in the live progress line, but
+there was no terminal result or report. Do not infer a verdict or merge it.
+
+The failed release retry on `e35cbfc` remains 5,330 passed, 12 skipped, two
+failed. One failing markout-drift test had omitted the test-only controlled
+clock already used by analogous candidate integration tests. Added that
+fixture only in the isolated scheduler-fix worktree, verified the exact test
+(1 passed / 14.41 s), and committed `f1462c7` there. The other failing GEFS
+replay test passed alone (1 passed / 18.81 s), while its two-second source-view
+cap remains unchanged; load-aware diagnosis is still required. The isolated
+release branch is not merged and no full-suite PASS is claimed.
+
+PAPER scanner PID 514629 remains active with zero restarts; V11 controller
+inactive, protected model-authority paths absent. The FINAL-REVIEWED master
+hash matches `a0e16d9b...563b4a`. Disk 4.4 GiB free; memory about 601 MiB
+available plus 1.4 GiB free swap. No publication was attempted; the prior
+GitHub automatic approval rejection remains binding. No new forward SHADOW
+evidence or C/J/E/A: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
+
 ## SHADOW repair committed; fresh independent review running — 2026-09-30
 
 Repaired all five `4557904` commissioning findings in the original isolated
