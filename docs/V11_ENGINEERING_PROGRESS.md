@@ -1,5 +1,14 @@
 # Supplementary engineering estimate
 
+## Brain repair recovery: stale active status corrected — 2026-09-30 20:25 UTC
+
+The Brain repair worktree is unchanged and clean at rejected `a8362ad`; no
+repair process or terminal record survives. The exact three P2 fixes and P3
+handoff wording correction remain open in that preserved worktree, followed by
+fresh independent exact-commit review. Gate 3 `1693dd5` remains reviewed but
+unmerged. No new forward evidence or C/J/E/A crossing: **91/200 (45.5%),
+formal 1/50; NOT_READY_TO_FUND**.
+
 ## Brain offline readiness review found three P2 bindings — 2026-09-30
 
 The [independent exact `a8362ad` review](V11_BRAIN_OFFLINE_READINESS_REVIEW_a8362ad.md)

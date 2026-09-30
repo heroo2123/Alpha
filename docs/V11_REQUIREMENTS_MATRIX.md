@@ -1,5 +1,14 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## R47/R09 Brain repair recovery — 2026-09-30 20:25 UTC
+
+The previously reported Brain repair worker is no longer active: no process,
+terminal record or candidate diff exists, and its isolated worktree remains
+clean at rejected `a8362ad`. Resume the three reviewed P2 binding fixes there
+and require a new exact-commit cross-model review. No admission or C/J/E/A
+credit follows from the interrupted attempt. **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## R47/R09 Brain offline readiness independent review: CHANGES_REQUIRED — 2026-09-30
 
 [Astra/high exact-commit review](V11_BRAIN_OFFLINE_READINESS_REVIEW_a8362ad.md)

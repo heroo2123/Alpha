@@ -1,5 +1,22 @@
 # Alpha V11 work checkpoint
 
+## Brain repair worker absent; resume in preserved worktree — 2026-09-30 20:25 UTC
+
+Recovery found no Brain repair process or terminal record. The isolated
+`/home/alphaadmin/AlphaV11_BrainReadiness/Alpha` worktree is clean and still at
+rejected `a8362ad`; the prior "active" worker claim below is stale. Resume the
+three P2 fixes and P3 handoff correction in that same worktree, add adversarial
+regressions, then seek fresh different-model exact-commit review. Do not merge
+`a8362ad`. The separately reviewed Gate 3 `1693dd5` remains clean, unmerged
+and under its explicit merge hold. Main is clean at `27c4673` before this
+entry; publication hold remains. Only watchdog status files are newer than the
+06:43 commissioning artifact, so no qualifying forward SHADOW evidence exists.
+PAPER scanner/controller and V10 demo are inactive; V11 execution is masked.
+Protected model-authority paths remain absent. The FINAL-REVIEWED master hash
+still matches its pin. Disk has 4.4 GiB free and available memory is about
+1.0 GiB. No C/J/E/A boundary crossed: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Brain readiness review rejected; isolated repair active — 2026-09-30
 
 Astra/high independently reviewed exact Brain author commit `a8362ad`/tree
