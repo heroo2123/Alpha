@@ -1,5 +1,32 @@
 # Alpha V11 work checkpoint
 
+## Gate 3 offline v1 restart author candidate; independent review next — 2026-09-30 21:58 UTC
+
+Sol/high implemented the reviewed restart design in the preserved held worktree
+`/tmp/alpha-v11-r09-gate3-strict-offline-20260930`. Exact author commit
+`74bd1222ebf0a17ec654abb2783f2444ae119430` has tree `ed59c54c22a63ee4e16b6ff6274a910ca26447ba`;
+the worktree is clean and **unmerged**. The [author handoff](/tmp/alpha-v11-r09-gate3-strict-offline-20260930/docs/V11_R09_GATE3_STORE_RESTART_HANDOFF.md)
+and [completed terminal](/tmp/alpha-v11-gate3-restart-74bd122/terminal.json)
+bind the files and exact-commit test command. The separate v1 API adds exclusive
+root-inode ownership, pinned descriptor context, append-only PREPARE/COMMIT and
+recovery records, original clock receipts, conservative replay and no automatic
+cleanup. Legacy nonempty reopening stays refused. Author synthetic and affected
+Gate 3/GRIB suites: **204 passed**, including 28 new restart cases.
+
+This is **author evidence, not independent acceptance**. Next safe step is a fresh
+different-model Astra/high exact-commit review of `74bd122` against the
+[restart design](V11_R09_GATE3_STORE_RESTART_DESIGN_7b5a235.md), especially
+lock lifetime, journal uncertainty, bounded replay, original clocks and the
+synthetic interruption matrix. Preserve merge, publication, provider capture,
+G3-L, SHADOW and learner holds. No implementation worker remains active; no
+new commissioning artifact or forward evidence was found. Main and SHADOW
+worktrees remain clean; accepted release resolution `6ec371e` remains current.
+Private FINAL-REVIEWED master hash matches its pin; demo, scanner, controller
+and execution units are inactive, execution masked, protected authority absent.
+Disk 4.4 GiB free; memory about 1.0 GiB available. No V10, AxiomTrade,
+service, authority, financial or publication action. No C/J/E/A boundary crossed:
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Gate 3 restart design completed; implementation acceptance still held — 2026-09-30 21:37 UTC
 
 Astra/high completed the exact restart-design handoff from `61bac9e` in

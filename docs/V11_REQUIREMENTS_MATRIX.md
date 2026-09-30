@@ -1,5 +1,18 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## R09 Gate 3 restart author candidate; no acceptance credit — 2026-09-30 21:58 UTC
+
+Held Sol/high `74bd122`/tree `ed59c54` implements an offline v1 store/clock
+restart candidate with exclusive root ownership, durable seal receipts,
+conservative replay and 28 new synthetic cases. The exact committed affected
+suite passes **204 tests**; [handoff](/tmp/alpha-v11-r09-gate3-strict-offline-20260930/docs/V11_R09_GATE3_STORE_RESTART_HANDOFF.md)
+and [terminal](/tmp/alpha-v11-gate3-restart-74bd122/terminal.json) are recorded.
+Fresh **different-model exact-commit review** is OPEN. This does not authorize
+merge, publication, real capture, G3-L, learner admission or forward SHADOW.
+Real clock, source and storage qualification and historical runtime-decision
+evidence remain OPEN. No C/J/E/A crossing: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## R09 Gate 3 restart design ready; no acceptance credit — 2026-09-30 21:37 UTC
 
 [Restart design for held `7b5a235`](V11_R09_GATE3_STORE_RESTART_DESIGN_7b5a235.md)

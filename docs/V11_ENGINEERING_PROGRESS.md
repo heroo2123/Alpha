@@ -1,5 +1,18 @@
 # Supplementary engineering estimate
 
+## Gate 3 restart implementation author candidate — 2026-09-30 21:58 UTC
+
+The held offline worktree is clean at Sol/high `74bd122`/tree `ed59c54`.
+The separate v1 store adds lock ownership, journaled seal provenance, preserved
+original clocks, conservative recovery and typed receipts. Author exact-commit
+affected suites pass **204 tests**, including 28 new synthetic restart cases;
+[handoff](/tmp/alpha-v11-r09-gate3-strict-offline-20260930/docs/V11_R09_GATE3_STORE_RESTART_HANDOFF.md)
+and [terminal](/tmp/alpha-v11-gate3-restart-74bd122/terminal.json) bind the
+evidence. Fresh Astra/high exact-commit independent review is next. Candidate
+remains unmerged; all merge/publication/capture/G3-L/SHADOW/learner holds remain.
+No new forward evidence or C/J/E/A boundary: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Gate 3 restart architecture handoff completed — 2026-09-30 21:37 UTC
 
 Astra/high produced the [reviewable restart design](V11_R09_GATE3_STORE_RESTART_DESIGN_7b5a235.md)
