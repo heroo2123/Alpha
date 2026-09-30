@@ -256,7 +256,8 @@ def test_summaries_are_separate_from_counterfactuals_and_never_pool_horizons(rig
 
 
 @pytest.mark.parametrize('archived_receipts',[False,True])
-def test_candidate_automatically_measures_cancels_and_audits_without_mutating_inventory(rig,monkeypatch,archived_receipts):
+@pytest.mark.parametrize('slow_prefix',[False,True],ids=['ordinary-budget','slow-prefix-small-budget'])
+def test_candidate_automatically_measures_cancels_and_audits_without_mutating_inventory(rig,monkeypatch,archived_receipts,slow_prefix,candidate_clock):
     from polymarket_scanner.v11 import candidate_assembly as app
     from polymarket_scanner.v11.audit_reports import AuditScheduler, AuditWorker
     from test_v11_audit_reports import finish
@@ -266,6 +267,8 @@ def test_candidate_automatically_measures_cancels_and_audits_without_mutating_in
     from test_v11_basket_coordinator import proof
     r=rig;filled(r,reconcile=not archived_receipts);w,p,_=monitor(r,monkeypatch)
     cfg=plan(r);cfg=replace(cfg,drift=(p,),candidate=replace(cfg.candidate,maximum_jobs=4))
+    if slow_prefix:
+        cfg=replace(cfg,candidate=replace(cfg.candidate,maximum_seconds=.1,maximum_jobs=1))
     if archived_receipts:
         cfg=replace(cfg,reconciliation=ReconciliationPolicy('candidate-receipts'))
         assert not coordinator(r)._state(coordinator(r)._head())['fills']
@@ -273,16 +276,45 @@ def test_candidate_automatically_measures_cancels_and_audits_without_mutating_in
     async def go():
         async with httpx.AsyncClient(transport=transport(r,calls)) as client:
             candidate=app.assemble_candidate(r['store'],client,cfg,generation='fill-markout-candidate');ready(r,candidate.runtime.health)
-            return await candidate.run('automatic-fill-run'),candidate
-    row,candidate=asyncio.run(go());d=row['body']['details'];jobs=[j for j in d['worker_results'] if j['kind']=='DRIFT']
-    assert len(jobs)==1 and jobs[0]['outcome']=='SCOPED_SAFETY_REDUCTION_APPLIED',d
+            if slow_prefix:
+                original_job=candidate._job
+                async def slow_job(job):
+                    assert job['kind']=='CENSUS'
+                    await asyncio.sleep(2*cfg.candidate.maximum_seconds)
+                    return await original_job(job)
+                monkeypatch.setattr(candidate,'_job',slow_job)
+            rows=[await candidate.run('automatic-fill-run')]
+            if slow_prefix:
+                first=rows[0]['body']['details']
+                assert first['end_reason']=='RUN_BUDGET' and first['active_command_requires_recovery']
+                assert first['state']['next_kind']==1 and first['state']['active']['kind']=='CENSUS'
+                # Reconstruct the runner: recovery must use durable state, not
+                # restart the prefix and indefinitely defer reviewed DRIFT work.
+                candidate=app.CandidateRunner(candidate.runtime,candidate.policy,census=candidate.census,
+                    discovery=candidate.discovery,audits=candidate.audits,drift=candidate.drift)
+                for index in range(len(candidate.kinds)):
+                    rows.append(await candidate.run('automatic-fill-resume-'+str(index)))
+                assert rows[1]['body']['details']['worker_results'][0]['command_id']==first['state']['active']['id']
+            head=candidate._head()
+            assert await candidate.run('automatic-fill-run')==rows[0] and candidate._head()==head
+            return rows,candidate
+    rows,candidate=candidate_clock.run(go());details=[row['body']['details'] for row in rows]
+    results=[job for d in details for job in d['worker_results']]
+    assert [job['kind'] for job in results]==(['CENSUS'] if slow_prefix else [])+['CENSUS','DISCOVERY','AUDIT','DRIFT']
+    if slow_prefix:
+        assert results[0]['outcome']=='INTERRUPTED_PENDING_RECOVERY'
+        assert all(len(d['worker_results'])<=1 and d['duration_monotonic_seconds']<=.1+1e-9 for d in details)
+    jobs=[j for j in results if j['kind']=='DRIFT']
+    assert len(jobs)==1 and jobs[0]['outcome']=='SCOPED_SAFETY_REDUCTION_APPLIED',details
+    assert all(not d['errors'] for d in details) and not details[-1]['active_command_requires_recovery']
     state=candidate.runtime.coordinator._state(candidate.runtime.coordinator._head())
     assert state['lots']['explicit']['units']=='1' and Decimal(state['cash'])==Decimal('9.8')
     assert all(i['cancel_requested'] for i in state['intents'].values())
-    assert len(d['runtime_ids'])>=4 and d['all_async_jobs_drained'] and not d['real_orders_sent']
+    runtime_ids=[key for d in details for key in d['runtime_ids']]
+    assert len(runtime_ids)>=4 and all(d['all_async_jobs_drained'] and not d['real_orders_sent'] and not d['financial_authority'] for d in details)
     if archived_receipts:
         assert candidate.runtime.reconciliation.coordinator is candidate.runtime.coordinator
-        assert any(r['store'].get(key)['body']['details']['receipt_reconciliation_ids'] for key in d['runtime_ids'])
+        assert any(r['store'].get(key)['body']['details']['receipt_reconciliation_ids'] for key in runtime_ids)
         for intent in state['intents'].values():
             proof(r,intent['proposal_id'],'terminal-'+intent['proposal_id'],'PAPER_TERMINAL',status='CANCELED',
                 cumulative_fill_units=intent['filled_units'],all_fills_reconciled=True,
