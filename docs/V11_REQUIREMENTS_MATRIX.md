@@ -1,5 +1,15 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Coordinator disk recovery; R09 repair remains active — 2026-09-30
+
+The single R09 gate-2 repair worker is still editing its preserved isolated
+worktree, with no terminal, completed tests, or independent exact-commit
+review. The inactive scanner's disk stop remains the latest commissioning
+state; removing a verified inactive pytest temporary tree reduced root use
+from 85% to 82%, but created no qualifying forward SHADOW evidence. Protected
+model authority remains absent. Requirement statuses and C/J/E/A stay
+unchanged: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## R09 gate 2 repair worker active — 2026-09-30
 
 The preserved `2d116af` repair diff is being resumed in one Sol/high worker

@@ -1,5 +1,32 @@
 # Alpha V11 work checkpoint
 
+## Coordinator recovery — disk headroom restored; R09 worker still active — 2026-09-30
+
+Recovered actual process state after the preceding checkpoint: the single R09
+gate-2 repair driver PID 799619 and Codex child PID 799624 remain active in
+`/tmp/alpha-v11-r09-trajectory-gate2/Alpha`. The preserved source diff is
+still being edited; the worker reproduced 40 focused fixture/API failures and
+has begun repairing them. There is no `terminal.json`, commit, passing repair
+test, or fresh independent review yet. Do not duplicate or merge this work.
+
+The scanner's 13:53 `STATUS.json` is stale: the actual
+`alpha-weather-scanner.service` is inactive, while the V11 controller, masked
+execution unit and paper demo are inactive. Its stop reason remains
+`DISK_AT_OR_ABOVE_85_PERCENT`. Audited `/tmp/pytest-of-alphaadmin/pytest-383`:
+it was a completed 09:23 pytest temporary tree, no open files referred to it,
+and `pytest-current` pointed elsewhere. Removed only that inactive temporary
+tree, recovering about 0.5 GiB; root disk is now **82% used, 3.4 GiB free**.
+The scanner was not restarted: its service launches a root-custodied production
+scanner unit, and protected model authority is still absent. This cleanup is
+host headroom, not a SHADOW sample or commissioning acceptance.
+
+The private FINAL-REVIEWED master still matches its pinned SHA-256. New
+commissioning writes remain watchdog status only. Main is clean at `a92fbd1`,
+9 local commits ahead of origin; no push was attempted. Next: recover the R09
+worker's actual terminal and exact diff/tests, then independent exact-commit
+review if complete. No C/J/E/A boundary crossed: **91/200 (45.5%), formal
+1/50; NOT_READY_TO_FUND**.
+
 ## R09 gate 2 repair resumed in one persistent worker — 2026-09-30
 
 Recovered the interrupted source diff in `/tmp/alpha-v11-r09-trajectory-gate2/Alpha`

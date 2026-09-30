@@ -1,5 +1,14 @@
 # Supplementary engineering estimate
 
+## Coordinator recovery — 2026-09-30
+
+The one resumed R09 gate-2 worker remains live and editing its original
+worktree; its focused run reproduced 40 fixture/API failures and it has not
+produced a terminal or review. Removed only a verified inactive, completed
+pytest temporary tree (about 0.5 GiB), reducing root disk use to 82% with
+3.4 GiB free. The scanner remains inactive and no new forward SHADOW sample
+qualifies. **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Single R09 repair worker resumed — 2026-09-30
 
 Recovered the uncommitted, diff-check-clean R09 gate-2 source edit and launched
