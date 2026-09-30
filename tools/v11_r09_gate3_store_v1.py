@@ -28,6 +28,7 @@ MAX_RECORD = 64 * 1024
 MAX_CLOCK_RAW = 16 * 1024
 MAX_EVENTS = 10000
 MAX_OBJECTS = 4096
+MAX_DESCRIPTOR = 4096
 REPORT_RESERVE = 64 * 1024
 FLAGS = os.O_CLOEXEC | os.O_NOFOLLOW
 
@@ -368,6 +369,7 @@ class VersionedImmutableObjectStore:
             'max_record': MAX_RECORD, 'max_events': MAX_EVENTS,
             'max_objects': MAX_OBJECTS, 'max_clock_raw': MAX_CLOCK_RAW}
         raw = _bytes(descriptor)
+        check(len(raw) <= MAX_DESCRIPTOR, 'STORE_DESCRIPTOR_CAPACITY')
         try:
             fd = os.open('store-v1.json', os.O_WRONLY | os.O_CREAT | os.O_EXCL | FLAGS,
                          0o600, dir_fd=self.root_fd)
@@ -392,7 +394,7 @@ class VersionedImmutableObjectStore:
             raise
 
     def _read_descriptor(self):
-        raw = _file(self.root_fd, 'store-v1.json', limit=4096)
+        raw = _file(self.root_fd, 'store-v1.json', limit=MAX_DESCRIPTOR)
         value = _parse(raw)
         check(type(value) is dict and set(value) == {'version', 'store_id', 'root_dev',
               'root_ino', 'objects_dev', 'objects_ino', *self.context,
@@ -603,6 +605,7 @@ class VersionedImmutableObjectStore:
     def seal_with_provenance(self, data: bytes, provenance: ObjectProvenance,
                              prefix: tuple[ClockEvidence, ClockEvidence, ClockEvidence],
                              recorder: Callable[[], ClockEvidence]) -> ObjectReceipt:
+        check(os.getpid() == self._pid, 'STORE_OWNER_PROCESS')
         with self._mutex:
             self._usable()
             check(not self._callback and type(data) is bytes and
@@ -687,6 +690,7 @@ class VersionedImmutableObjectStore:
                 raise
 
     def read_receipt(self, receipt: ObjectReceipt) -> bytes:
+        check(os.getpid() == self._pid, 'STORE_OWNER_PROCESS')
         with self._mutex:
             self._usable()
             check(not self._callback and type(receipt) is ObjectReceipt and

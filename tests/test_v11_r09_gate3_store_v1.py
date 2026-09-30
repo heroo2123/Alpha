@@ -2,12 +2,14 @@
 import hashlib
 import multiprocessing
 import os
+import select
 import subprocess
 import sys
 import threading
 
 import pytest
 
+from tools import v11_r09_gate3_store_v1 as store_v1
 from tools.v11_r09_gate3_launch import LaunchContractError
 from tools.v11_r09_gate3_offline_io import (ClockEvidence, MeasuredClock,
     ObjectProvenance, VersionedImmutableObjectStore)
@@ -1017,3 +1019,92 @@ def test_unsynced_temporary_bytes_do_not_resolve_prepare(tmp_path, surviving_byt
     with open_store(root) as held:
         assert held.report.classification == 'UNRESOLVED_PREPARE'
     assert (root / 'objects' / temporary).read_bytes() == surviving_bytes
+
+
+@pytest.mark.parametrize('operation', ['read', 'seal'])
+def test_repaired_r6_inherited_call_rejects_before_blocking_on_mutex(tmp_path, operation):
+    # A prior defect let a forked child block forever trying to acquire a mutex
+    # copied mid-hold from a parent thread that does not exist in the child.
+    root = root_at(tmp_path)
+    store = open_store(root)
+    entered, release = threading.Event(), threading.Event()
+    errors = []
+
+    def recorder():
+        entered.set()
+        assert release.wait(5)
+        return sample('durable_seal', 103, 4)
+
+    def writer():
+        try:
+            seal(store, recorder=recorder)
+        except BaseException as exc:
+            errors.append(exc)
+
+    writer_thread = threading.Thread(target=writer)
+    writer_thread.start()
+    try:
+        assert entered.wait(5)
+        r, w = os.pipe()
+        pid = os.fork()
+        if pid == 0:
+            os.close(r)
+            try:
+                if operation == 'read':
+                    store.read_receipt(None)
+                else:
+                    seal(store, raw=b'inherited')
+            except LaunchContractError:
+                os.write(w, b'R')
+            else:
+                os.write(w, b'X')
+            os._exit(0)
+        os.close(w)
+        try:
+            assert select.select([r], [], [], 2)[0]
+            assert os.read(r, 1) == b'R'
+            assert os.waitpid(pid, 0) == (pid, 0)
+        finally:
+            os.close(r)
+    finally:
+        release.set()
+        writer_thread.join(5)
+        store.close()
+    assert not writer_thread.is_alive() and not errors
+    with open_store(root) as reopened:
+        assert reopened.report.classification == 'VALID'
+
+
+@pytest.mark.parametrize('extra', [-1, 0, 1])
+def test_repaired_r7_descriptor_capacity_boundary_before_init_and_on_recovery(
+        tmp_path, monkeypatch, extra):
+    root = root_at(tmp_path)
+    with open_store(root) as store:
+        natural_size = (root / 'store-v1.json').stat().st_size
+    (root / 'store-v1.json').unlink()
+    (root / 'seals-v1.jsonl').unlink()
+    with monkeypatch.context() as patch:
+        patch.setattr(store_v1, 'MAX_DESCRIPTOR', natural_size + extra)
+        if extra < 0:
+            with pytest.raises(LaunchContractError, match='STORE_DESCRIPTOR_CAPACITY'):
+                open_store(root, expected_descriptor_sha256=None)
+            assert sorted(p.name for p in root.iterdir()) == ['objects']
+        else:
+            with open_store(root, expected_descriptor_sha256=None) as reinitialized:
+                assert reinitialized.report.classification == 'VALID'
+                pin = reinitialized.descriptor_sha256
+                receipt = seal(reinitialized)
+            with open_store(root, expected_descriptor_sha256=pin) as reopened:
+                assert reopened.report.classification == 'VALID'
+                assert reopened.read_receipt(
+                    reopened.receipts[receipt.object_sha256]) == b'fixture bytes'
+
+
+def test_repaired_r7_unicode_descriptor_expansion_rejected_before_init(tmp_path):
+    root = root_at(tmp_path)
+    label = '\U0001f680' * 128
+    with pytest.raises(LaunchContractError, match='STORE_DESCRIPTOR_CAPACITY'):
+        open_store(root, build_id=label, clock_method=label, host_id=label)
+    assert sorted(p.name for p in root.iterdir()) == ['objects']
+    with open_store(root) as fresh:
+        assert fresh.report.classification == 'VALID'
