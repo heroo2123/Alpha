@@ -1,5 +1,30 @@
 # Alpha V11 work checkpoint
 
+## Coordinator reconciliation — SHADOW release history supersedes stale handoff — 2026-09-30 17:35 UTC
+
+Main and origin are clean and equal at `c40eacd`. The 17:21 entry below
+mistakenly treats the older `dd18e38` SHADOW adjudication as the current
+branch gate. The preserved SHADOW branch is actually clean at `15e99bd`,
+whose later repairs are present byte-for-byte in combined release `6ec371e`.
+The [exact combined-release acceptance](V11_RELEASE_ACCEPTANCE_6ec371e.md)
+records a development-integration PASS, 396 affected passes, 5,460 full-suite
+passes (13 skipped), and 18 fresh acceptance probes. The accepted release was
+merged on main before R09 gate 2; the earlier load-sensitive test failures
+were resolved in that release. **Do not repeat the `dd18e38` P2 repair or the
+old fill-markout diagnosis as if still open.**
+
+The SHADOW wrapper still reports zero qualifying forward samples, and no
+protected model authority is installed. The PAPER scanner is inactive and
+disabled; weather execution is masked/inactive; V10 remains untouched and
+inactive. Only watchdog status files have changed in commissioning evidence.
+The private FINAL-REVIEWED master still matches its pinned SHA-256. Disk is
+76% used with 4.7 GiB free; available memory is about 920 MiB. The next
+unblocked substantive path is independent R09 Gate-3 real release/source
+collection protocol design and review, followed by bounded nonfinancial
+implementation only after that protocol is accepted. For SHADOW, preserve the
+owner/root-custodied authority and causal forward-evidence gates. No C/J/E/A
+boundary crossed: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator sync — local/remote publish of reviewed R09 gate 2 record — 2026-09-30 17:21 UTC
 
 Recovery check on invocation: `git status` clean, local HEAD `73721b7`, 35

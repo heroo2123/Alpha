@@ -1,5 +1,16 @@
 # Supplementary engineering estimate
 
+## Current integration handoff corrected — 2026-09-30 17:35 UTC
+
+The `dd18e38` SHADOW P2 verdict is historical. Repairs through `15e99bd`
+were included byte-for-byte in accepted combined release `6ec371e` and
+merged on main. The release passed 396 affected tests, 5,460 full-suite tests
+(13 skipped), and 18 fresh acceptance probes. The previous load-sensitive
+fill-markout failure is closed for that release. SHADOW still has zero
+qualifying forward samples; protected authority and causal forward evidence
+remain open. R09 offline gate 2 is reviewed/merged, with Gate-3 protocol
+design/review next. **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## R09 offline contract integrated — 2026-09-30 17:18 UTC
 
 The final N1–N4 R09 repair `1ab551d` passed fresh independent exact-commit

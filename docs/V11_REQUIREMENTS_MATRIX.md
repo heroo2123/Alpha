@@ -1,5 +1,16 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Current SHADOW/R09 gate reconciliation — 2026-09-30 17:35 UTC
+
+The older `dd18e38` SHADOW `CHANGES_REQUIRED` gate was superseded by repairs
+through `15e99bd` and the accepted combined development release `6ec371e`.
+Its 5,460-pass full regression and 18 fresh acceptance probes clear the prior
+load-sensitive release-test failure for that release. SHADOW forward
+qualification remains OPEN with zero qualifying samples and protected model
+authority absent. R09 offline gate 2 is reviewed and merged; Gate 3 real
+source protocol and subsequent real evidence remain OPEN. No C/J/E/A credit
+changed: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## R09 offline gate 2 reviewed and integrated — 2026-09-30 17:18 UTC
 
 Final synthetic trajectory contract `1ab551d` passed independent exact-commit
