@@ -1,5 +1,20 @@
 # Supplementary engineering estimate
 
+## R09 Gate 3 design advanced to independent review — 2026-09-30 17:46 UTC
+
+Astra/high committed `117830a`, the [Gate 3 collection protocol](V11_R09_GATE3_COLLECTION_PROTOCOL.md),
+and launched exactly one isolated persistent Sonnet/high reviewer of its exact
+commit/tree. Review artifacts and eventual terminal are under
+`/tmp/alpha-v11-r09-gate3-protocol-review-117830a/`. Pending review is not acceptance.
+The protocol distinguishes operational release from run/publication/receipt,
+sets finite pilot/request/resource bounds, requires native member/hour coverage,
+and preserves every refusal in a preregistered denominator. Offline collector,
+concrete launch manifest and real corpus reviews remain separate prerequisites.
+No forecast acquisition, adapter/fit, service/authority action or push occurred.
+Document checks and all seven original input hash pins pass; no code changed or
+new test-suite pass is claimed. GEFS still lacks qualifying forward evidence.
+No C/J/E/A milestone: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Current integration handoff corrected — 2026-09-30 17:35 UTC
 
 The `dd18e38` SHADOW P2 verdict is historical. Repairs through `15e99bd`

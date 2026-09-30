@@ -1,5 +1,17 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## R09 Gate 3 protocol awaiting independent review — 2026-09-30 17:46 UTC
+
+Local `117830a` defines the [prospective collection protocol](V11_R09_GATE3_COLLECTION_PROTOCOL.md):
+real release/receipt identity, bounded native fields, causal clocks, frozen cohort
+and complete refusal accounting. G3-P design, G3-I collector, G3-L launch manifest
+and G3-E actual corpus reviews are distinct; all remain OPEN. One independent
+Sonnet/high exact-commit review is running under
+`/tmp/alpha-v11-r09-gate3-protocol-review-117830a/`; no terminal verdict yet.
+Gate 2 remains accepted. No real collection, adapter, fit or forward sample was
+created. SHADOW authority/forward gates and publication hold remain unchanged.
+No new C/J/E/A: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Current SHADOW/R09 gate reconciliation — 2026-09-30 17:35 UTC
 
 The older `dd18e38` SHADOW `CHANGES_REQUIRED` gate was superseded by repairs

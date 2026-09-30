@@ -1,5 +1,46 @@
 # Alpha V11 work checkpoint
 
+## R09 Gate 3 protocol committed; independent review launched — 2026-09-30 17:46 UTC
+
+Completed the routed Astra/high design task as local commit `117830a`
+(tree `07c4d72f`): [Gate 3 collection protocol](V11_R09_GATE3_COLLECTION_PROTOCOL.md).
+It separates operational release/run/publication/receipt identities, freezes a
+bounded native-cadence prospective pilot and full refusal denominator, and names
+G3-P protocol, G3-I offline collector, G3-L concrete launch and G3-E real-capture
+reviews. No collection is authorized by the draft; real adapter/fit and trained
+forward predictions remain later gates. Current IFS six-hour request API cannot
+silently stand in for the proposed native three-hour trajectory.
+
+Exactly one persistent independent **Sonnet/high** review is active in isolated
+`/tmp/alpha-v11-r09-gate3-protocol-review-117830a/Alpha`, detached at the exact
+protocol commit. Driver PID `829752`, reviewer PID `829759`; started 17:45:53 UTC,
+bounded to 1,500 seconds. Recover `started.json`, `worker.log`, `review.md`,
+`verdict.json`, and driver-written `terminal.json` in the parent directory.
+Required terminal: `R09_GATE3_PROTOCOL_REVIEW_PASS` or
+`R09_GATE3_PROTOCOL_REVIEW_CHANGES_REQUIRED`; missing/conflicting terminal is
+INCOMPLETE, never approval. Do not launch a duplicate review. The reviewer may
+write only review artifacts, not change source, acquire forecast data or spawn
+workers. If PASS, implement/test the collector OFFLINE, then independent G3-I
+review; no actual capture before a resolved reviewed G3-L manifest. If findings,
+repair the protocol and require a fresh exact-commit review.
+
+Recovery confirmed main clean at prior `fd77930` (two ahead of recorded origin),
+SHADOW and Gate-2 builder clean at `15e99bd` / `1ab551d`, no active implementation
+worker and no newer qualifying commissioning evidence. Earlier release failure
+remains closed by accepted `6ec371e`; do not reopen the stale diagnosis. PAPER
+scanner inactive/disabled, weather execution inactive/masked; V10 remains
+untouched. Protected model-authority paths checked absent. Only watchdog status
+files advanced in commissioning. Private master SHA-256 and all seven historical
+input file hashes match their pins. Disk 76% used / 4.6 GiB free; about 1,009 MiB
+available memory at recovery. No AxiomTrade action.
+
+Validation: protocol references, 2,713-message arithmetic, original file pins and
+whitespace checks pass. No executable code changed; no new pytest/full-suite run
+or independent protocol verdict is claimed. GitHub publication hold remains in
+force; no push attempted. GEFS's owner/root authority and forward-evidence gates
+remain open. No C/J/E/A crossed: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Publication hold — 2026-09-30 17:38 UTC
 
 The reconciliation below is committed locally as `43a607b` and the worktree
