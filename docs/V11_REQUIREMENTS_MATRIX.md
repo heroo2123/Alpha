@@ -1,5 +1,14 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Coordinator diagnostic — 2026-09-30
+
+The two adjudicated SHADOW P2 defects remain unimplemented and unmerged; the
+Sonnet/high handoff hit a session limit. A bounded GEFS family diagnostic is
+running on isolated scheduler commit `26056af` with terminal marker
+`/tmp/alpha-v11-gefs-diagnostic-26056af.terminal.json`. It supplies no release
+PASS or forward SHADOW evidence. Requirement statuses and **91/200** are
+unchanged.
+
 ## SHADOW repair adjudicated — two P2 repairs required — 2026-09-30
 
 Astra/high resolved the Opus written-PASS/terminal-INCOMPLETE conflict for

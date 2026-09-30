@@ -1,5 +1,14 @@
 # Supplementary engineering estimate
 
+## Coordinator recovery — 2026-09-30
+
+The SHADOW repair remains blocked by two adjudicated P2 defects; the Sonnet/high
+handoff reached a session limit without changing its clean `dd18e38` branch.
+One isolated GEFS family test diagnostic is running on scheduler commit
+`26056af`; its terminal result is pending. Neither a release PASS nor forward
+SHADOW evidence is established. **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND** remains unchanged.
+
 ## SHADOW repair committed; fresh independent review running — 2026-09-30
 
 Repaired all five `4557904` commissioning findings in the original isolated

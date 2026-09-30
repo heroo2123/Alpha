@@ -1,5 +1,28 @@
 # Alpha V11 work checkpoint
 
+## Coordinator recovery — GEFS diagnostic running — 2026-09-30
+
+Recovered clean main `9273ca5`, clean SHADOW candidate `dd18e38`, and clean
+scheduler branch `26056af`. No SHADOW repair or review worker is active. The
+Sonnet/high repair handoff hit a session limit before work began; the two
+adjudicated P2 defects remain open and the candidate stays unmerged.
+
+Launched one bounded, nonfinancial GEFS test diagnostic on the scheduler
+branch (PID 752519). Its log is `/tmp/alpha-v11-gefs-diagnostic-26056af.log`
+and its terminal marker will be
+`/tmp/alpha-v11-gefs-diagnostic-26056af.terminal.json`. It measures the
+remaining-forecast and GEFS-source test families with `--durations=20`; it
+does not change the two-second source-view gate or establish a full-suite
+PASS. Recover the actual process and terminal result before further action.
+
+PAPER scanner remains active with zero recorded restarts; V10 and V11 units
+are inactive, protected model-authority paths are absent, and the immutable
+FINAL-REVIEWED master hash still matches `a0e16d9b...563b4a`. Disk has
+4.4 GiB available and memory about 973 MiB available plus 1.6 GiB free swap.
+Recent commissioning updates are watchdog heartbeats, not forward SHADOW
+evidence. No C/J/E/A change: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Coordinator recovery and implementation route — 2026-09-30
 
 Recovered clean main `5ebddab` and clean isolated SHADOW branch `dd18e38`;
