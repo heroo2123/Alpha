@@ -1,5 +1,17 @@
 # Supplementary engineering estimate
 
+## R09 architecture route resolved — 2026-09-30
+
+Astra/high adjudicated the exact-day versus sampled-predictor question in
+[the data contract](V11_R09_DATA_CONTRACT_ADJUDICATION.md). Proceed toward a
+distinct native-trajectory predictor through independent contract review and
+causal capture, preserving existing exact-day and real-admission gates. No real
+fit or new evidence is claimed: missing historical receipt and label/rule
+provenance cannot be repaired by relabelling samples. Seven input pins match;
+34 existing boundary tests pass. The separate GEFS full-suite diagnostic remains
+live and SHADOW integration unmerged. **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND** remains unchanged.
+
 ## Coordinator R09 decision route — 2026-09-30
 
 The reviewed SHADOW integration candidate is preserved at `7f3cf6c`; the

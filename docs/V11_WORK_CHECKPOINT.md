@@ -1,5 +1,30 @@
 # Alpha V11 work checkpoint
 
+## R09 data contract adjudicated — 2026-09-30
+
+Astra/high completed the bounded architecture decision on recovered main
+`7ff539e`: the inspected products cannot supply full-cohort exact-local-day
+IFS/AIFS extrema. Select a separately versioned source-native sampled-trajectory
+predictor, retaining the official HIGH/LOW settlement targets. The new
+[adjudication](V11_R09_DATA_CONTRACT_ADJUDICATION.md) specifies distinct source,
+receipt, feature, label, fit/selection/scoring clocks; immutable capture; missing
+member/provider handling; independent review; and genuine forward-evidence gates.
+It does not admit the historical stores or implement a real adapter. Independent
+contract review is the immediate next step, then offline schema/validator work.
+
+All seven original input-file pins and the FINAL-REVIEWED master hash match.
+Existing geometry/causality counterexamples: **34 passed, 103 deselected / 0.53 s**.
+No executable code, data store or admission gate changed. At 12:24 UTC the single
+scheduler full-suite diagnostic on `26056af` remained live (759953/759956), without
+a terminal result. Reviewed SHADOW candidate `7f3cf6c` remains unmerged.
+
+PAPER scanner 514629 active with zero restarts; V10 inactive/disabled; weather
+execution inactive/masked; V11 controller/execution inactive. Protected authority
+paths absent. Disk 3.5 GiB free; memory about 639 MiB available plus 1.5 GiB free
+swap. Recent commissioning changes remain watchdog status only. No publication
+attempt, provider-data retry, service or protected-state action. Zero qualified
+forward SHADOW evidence; **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator verification and R09 handoff — 2026-09-30
 
 Recovered clean main at `71e3884` (20 commits ahead of origin). The reviewed SHADOW

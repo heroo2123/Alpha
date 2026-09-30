@@ -1,5 +1,18 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## R09 contract decision — 2026-09-30
+
+The [Astra/high adjudication](V11_R09_DATA_CONTRACT_ADJUDICATION.md) selects a
+separately reviewed sampled-trajectory predictor; full-cohort native exact-day
+IFS/AIFS evidence is not attainable from the inspected products. Historical
+source/label causality and raw-evidence gaps remain blocking under either
+interpretation. Independent contract review, separate schema/validator, prospective
+causal capture, real-adapter review and forward evaluation are explicit gates.
+Existing admission APIs remain unchanged; R09 retains existing C,J only.
+Verification: seven original file pins match; 34 focused boundary tests pass.
+No score or requirement boundary changed: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Coordinator R09 architecture handoff — 2026-09-30
 
 The reviewed R09 implementation remains integrated, but exact-day IFS/AIFS
