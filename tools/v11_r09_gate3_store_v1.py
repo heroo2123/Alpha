@@ -338,7 +338,14 @@ class VersionedImmutableObjectStore:
             self._failed = True
             return
         if root_names == {'objects'} and not object_names:
-            self._initialize()
+            if (self.expected_descriptor_sha256 is not None or
+                    self.expected_head is not None):
+                self.report = RecoveryReport('JOURNAL_OR_IDENTITY_INVALID',
+                    ('retained recovery pin on empty namespace',), False,
+                    'UNAVAILABLE', None, 0)
+                self._failed = True
+            else:
+                self._initialize()
         elif {'store-v1.json', 'seals-v1.jsonl'} <= root_names:
             self._recover(root_names, object_names)
         else:
@@ -355,7 +362,9 @@ class VersionedImmutableObjectStore:
         descriptor = {'version': 1, 'store_id': secrets.token_hex(16),
             'root_dev': root_st.st_dev, 'root_ino': root_st.st_ino,
             'objects_dev': objects_st.st_dev, 'objects_ino': objects_st.st_ino,
-            **self.context, 'max_object': MAX_OBJECT, 'max_journal': MAX_JOURNAL,
+            **self.context, 'original_host_id': self.host_id,
+            'original_boot_id': self.boot_id,
+            'max_object': MAX_OBJECT, 'max_journal': MAX_JOURNAL,
             'max_record': MAX_RECORD, 'max_events': MAX_EVENTS,
             'max_objects': MAX_OBJECTS, 'max_clock_raw': MAX_CLOCK_RAW}
         raw = _bytes(descriptor)
@@ -387,6 +396,7 @@ class VersionedImmutableObjectStore:
         value = _parse(raw)
         check(type(value) is dict and set(value) == {'version', 'store_id', 'root_dev',
               'root_ino', 'objects_dev', 'objects_ino', *self.context,
+              'original_host_id', 'original_boot_id',
               'max_object', 'max_journal', 'max_record', 'max_events',
               'max_objects', 'max_clock_raw'}, 'JOURNAL_OR_IDENTITY_INVALID')
         expected = {**self.context, 'version': 1, 'root_dev': self.root_identity[0],
@@ -398,24 +408,30 @@ class VersionedImmutableObjectStore:
                     'max_objects': MAX_OBJECTS, 'max_clock_raw': MAX_CLOCK_RAW}
         check(all(type(value[k]) is type(v) and value[k] == v
                   for k, v in expected.items()) and
+              value['original_host_id'] == self.host_id and
+              type(value['original_boot_id']) is str and
+              0 < len(value['original_boot_id']) <= 128 and
               type(value['store_id']) is str and len(value['store_id']) == 32 and
               all(c in '0123456789abcdef' for c in value['store_id']),
               'JOURNAL_OR_IDENTITY_INVALID')
         self.descriptor, self.store_id = value, value['store_id']
+        self._cross_boot = value['original_boot_id'] != self.boot_id
         self.descriptor_sha256 = _hash(raw)
         check(self.expected_descriptor_sha256 == self.descriptor_sha256,
               'JOURNAL_OR_IDENTITY_INVALID')
 
-    def _append(self, event: str, data: dict):
+    def _append(self, event: str, data: dict, *, future_records: int = 0):
         self._check_dirs()
-        check(self._seq < MAX_EVENTS and os.fstat(self.journal_fd).st_size +
-              3 * MAX_RECORD + REPORT_RESERVE <= MAX_JOURNAL,
+        check(self._seq + 1 + future_records <= MAX_EVENTS,
               'STORE_JOURNAL_CAPACITY')
         base = {'version': 1, 'seq': self._seq + 1, 'prev': self._head,
                 'store_id': self.store_id, 'event': event, 'data': data}
         event_hash = _hash(_bytes(base))
         raw = _bytes({**base, 'hash': event_hash}) + b'\n'
         check(len(raw) <= MAX_RECORD, 'STORE_RECORD_CAPACITY')
+        check(os.fstat(self.journal_fd).st_size + len(raw) +
+              future_records * MAX_RECORD + REPORT_RESERVE <= MAX_JOURNAL,
+              'STORE_JOURNAL_CAPACITY')
         _write_all(self.journal_fd, raw)
         os.fsync(self.journal_fd)
         self._seq += 1
@@ -464,6 +480,9 @@ class VersionedImmutableObjectStore:
                 prefix = tuple(_clock_from_dict(c) for c in data['prefix'])
                 _validate_clocks(prefix, complete=False,
                                  max_age=self.context['max_clock_age'])
+                check(prefix[0].reading.boot_id ==
+                      self.descriptor['original_boot_id'],
+                      'JOURNAL_OR_IDENTITY_INVALID')
                 for dep in provenance.dependencies:
                     check(dep in committed, 'JOURNAL_OR_IDENTITY_INVALID')
                 self._operations.add(op)
@@ -592,6 +611,8 @@ class VersionedImmutableObjectStore:
                   'STORE_SEAL_INTERFACE')
             check(not self._cross_boot, 'STORE_CROSS_BOOT_ACQUISITION_HELD')
             provenance.checked()
+            check(type(prefix) in (tuple, list), 'CLOCK_PHASE_ORDER')
+            prefix = tuple(prefix)
             _validate_clocks(prefix, complete=False,
                              max_age=self.context['max_clock_age'])
             check(prefix[0].reading.boot_id == self.boot_id,
@@ -618,7 +639,7 @@ class VersionedImmutableObjectStore:
                           'dependencies': list(provenance.dependencies)},
                         'prefix': [_clock_to_dict(s) for s in prefix]}
             try:
-                prepare_hash = self._append('PREPARE', prepared)
+                prepare_hash = self._append('PREPARE', prepared, future_records=2)
                 fd = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | FLAGS,
                              0o600, dir_fd=self.dir_fd)
                 try:
@@ -653,7 +674,7 @@ class VersionedImmutableObjectStore:
                     'final_identity': {'dev': st.st_dev, 'ino': st.st_ino},
                     'clocks': [_clock_to_dict(s) for s in clocks],
                     'clock_policy_sha256': provenance.clock_policy_sha256}
-                commit_hash = self._append('COMMIT', commit)
+                commit_hash = self._append('COMMIT', commit, future_records=1)
                 receipt = ObjectReceipt(op, sha, len(data), commit_hash,
                                         clocks, provenance, 'ACKNOWLEDGED_THIS_SESSION')
                 self.receipts[sha] = receipt
@@ -685,12 +706,14 @@ class VersionedImmutableObjectStore:
         if os.getpid() != self._pid:
             self._fork_child()
             return
-        for attr in ('journal_fd', 'dir_fd', 'root_fd'):
-            fd = getattr(self, attr, None)
-            if fd is not None:
-                os.close(fd)
-                setattr(self, attr, None)
-        self._failed = True
+        with self._mutex:
+            check(not self._callback, 'STORE_CALLBACK_REENTRANCY')
+            for attr in ('journal_fd', 'dir_fd', 'root_fd'):
+                fd = getattr(self, attr, None)
+                if fd is not None:
+                    os.close(fd)
+                    setattr(self, attr, None)
+            self._failed = True
 
     def __enter__(self):
         return self

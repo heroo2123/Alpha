@@ -1,7 +1,9 @@
 # Gate 3 v1 offline store restart author handoff
 
-**AUTHOR CANDIDATE; independent exact-commit review required.** This batch extends
-the held `7b5a235` Gate 3 offline I/O worktree. It grants no merge, publication,
+**REPAIRED AUTHOR CANDIDATE; fresh different-model exact-commit review required.**
+This batch extends the held `74bd122` Gate 3 restart candidate after the
+[five-finding independent rejection](V11_R09_GATE3_STORE_RESTART_REVIEW_74bd122.md).
+It grants no merge, publication,
 provider capture, G3-L, SHADOW, learner admission or financial action. The
 legacy `ImmutableObjectStore.seal(bytes) -> digest` remains session-only and
 continues to refuse any nonempty or v1 root on reopen.
@@ -69,3 +71,43 @@ runtime-decision proof, or coherent rollback detection without an independently
 held head. Real-store use and any G3-L acceptance remain separately gated.
 
 Score remains **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
+## Five-finding repair and synthetic interruption evidence
+
+- R1: an empty pinned root with either a retained descriptor or journal head is
+  held before metadata creation; only an explicitly fresh empty root initializes.
+- R2: ordinary close shares the read/seal mutex and rejects close from a recorder
+  callback. The fork-child path still only closes inherited descriptors.
+- R3: the accepted list/tuple clock prefix is copied to a tuple before PREPARE;
+  PREPARE, complete validation, COMMIT and the receipt use that same snapshot.
+- R4: PREPARE reserves its own encoded bytes plus two maximum future records and
+  report space. COMMIT consumes one of those reserved records; recovery checks
+  its own encoded record and report reserve. Event limits are checked in the same
+  remaining-event manner. The cap remains 64 MiB with no eviction.
+- R5: the immutable pinned descriptor records original host and boot IDs. Reopen
+  requires the original host; a different boot can inspect historical receipts
+  but cannot acquire. INIT-only stores obey the same cross-boot hold.
+
+The author suite now includes bounded thread close/read/seal and callback checks,
+fork/exec ownership, 15 initialization interruption points, 25 seal interruption
+points, 12 recovery interruption points, complete/torn journal and volatile
+name/byte survivor states, plus explicit capacity boundaries. A process exit
+leaves some unsynced bytes visible on this host; the deterministic survivor
+fixtures separately exercise loss and survival possibilities. These tests make
+no physical power-loss, filesystem qualification, real clock-attestation,
+provider-identity, historical feature-eligibility or learner-admission claim.
+
+Author verification command:
+
+```sh
+/home/alphaadmin/alpha-review-test-venv/bin/python -m pytest -q \
+  tests/test_v11_r09_gate3_store_v1.py \
+  tests/test_v11_r09_gate3_offline_io.py \
+  tests/test_v11_r09_gate3_launch.py \
+  tests/test_v11_r09_gate3_collector.py \
+  tests/test_v11_grib_fields.py
+```
+
+The final author test count, commit and tree are bound by the separate terminal
+marker. Independent review must inspect the exact committed bytes and rerun
+affected tests and adversarial probes before any integration decision.

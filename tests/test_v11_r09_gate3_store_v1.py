@@ -2,6 +2,9 @@
 import hashlib
 import multiprocessing
 import os
+import subprocess
+import sys
+import threading
 
 import pytest
 
@@ -345,8 +348,8 @@ def _crash_seal(root, marker):
             os.link = interrupted
         else:
             real = V1._append
-            def interrupted(self, event, data):
-                result = real(self, event, data)
+            def interrupted(self, event, data, **kwargs):
+                result = real(self, event, data, **kwargs)
                 if event == 'COMMIT':
                     os._exit(18)
                 return result
@@ -458,3 +461,559 @@ def test_mutated_object_poisoned_and_reopen_namespace_conflict(tmp_path):
             store.read_receipt(receipt)
     with open_store(root) as held:
         assert held.report.classification == 'NAMESPACE_CONFLICT'
+
+
+@pytest.mark.parametrize('pins', ('descriptor', 'head', 'both'))
+def test_retained_pin_refuses_complete_same_root_state_loss(tmp_path, pins):
+    root = root_at(tmp_path)
+    with open_store(root) as store:
+        descriptor = store.descriptor_sha256
+        head = (1, store.report.journal_head)
+    (root / 'store-v1.json').unlink()
+    (root / 'seals-v1.jsonl').unlink()
+    PINNED.pop(root)
+    supplied = {}
+    if pins in ('descriptor', 'both'):
+        supplied['expected_descriptor_sha256'] = descriptor
+    if pins in ('head', 'both'):
+        supplied['expected_head'] = head
+    with open_store(root, **supplied) as held:
+        assert held.report.classification == 'JOURNAL_OR_IDENTITY_INVALID'
+        assert not held.report.recovery_validated
+    assert set(p.name for p in root.iterdir()) == {'objects'}
+    with open_store(root) as fresh:
+        assert fresh.report.classification == 'VALID'
+        assert fresh.descriptor_sha256 != descriptor
+
+
+def test_close_waits_for_seal_and_callback_cannot_close(tmp_path):
+    root = root_at(tmp_path)
+    entered, release, closed = threading.Event(), threading.Event(), threading.Event()
+    store = open_store(root)
+    errors = []
+    def recorder():
+        with pytest.raises(LaunchContractError, match='STORE_CALLBACK_REENTRANCY'):
+            store.close()
+        entered.set()
+        assert release.wait(5)
+        return sample('durable_seal', 103, 4)
+    def writer():
+        try:
+            seal(store, recorder=recorder)
+        except BaseException as exc:
+            errors.append(exc)
+    def closer():
+        try:
+            store.close()
+        except BaseException as exc:
+            errors.append(exc)
+        finally:
+            closed.set()
+    writer_thread = threading.Thread(target=writer)
+    close_thread = threading.Thread(target=closer)
+    try:
+        writer_thread.start()
+        assert entered.wait(5)
+        close_thread.start()
+        assert not closed.wait(0.1)
+        with pytest.raises(BlockingIOError):
+            open_store(root)
+        release.set()
+        writer_thread.join(5)
+        close_thread.join(5)
+        assert not writer_thread.is_alive() and not close_thread.is_alive()
+        assert not errors
+        assert closed.is_set()
+    finally:
+        release.set()
+        writer_thread.join(5)
+        close_thread.join(5) if close_thread.ident is not None else None
+        store.close()
+    with open_store(root) as reopened:
+        assert reopened.report.classification == 'VALID'
+        assert len(reopened.receipts) == 1
+
+
+def test_close_waits_for_read(tmp_path, monkeypatch):
+    from tools import v11_r09_gate3_store_v1 as module
+    root = root_at(tmp_path)
+    store = open_store(root)
+    receipt = seal(store)
+    entered, release, closed = threading.Event(), threading.Event(), threading.Event()
+    real_file = module._file
+    results = []
+    def paused_file(fd, name, **kwargs):
+        if fd == store.dir_fd and name == receipt.object_sha256:
+            entered.set()
+            assert release.wait(5)
+        return real_file(fd, name, **kwargs)
+    def reader():
+        results.append(store.read_receipt(receipt))
+    def closer():
+        store.close()
+        closed.set()
+    with monkeypatch.context() as patch:
+        patch.setattr(module, '_file', paused_file)
+        read_thread = threading.Thread(target=reader)
+        close_thread = threading.Thread(target=closer)
+        try:
+            read_thread.start()
+            assert entered.wait(5)
+            close_thread.start()
+            assert not closed.wait(0.1)
+            with pytest.raises(BlockingIOError):
+                open_store(root)
+            release.set()
+            read_thread.join(5)
+            close_thread.join(5)
+            assert not read_thread.is_alive() and not close_thread.is_alive()
+            assert results == [b'fixture bytes']
+        finally:
+            release.set()
+            read_thread.join(5)
+            close_thread.join(5) if close_thread.ident is not None else None
+            store.close()
+
+
+def test_fork_cleanup_and_exec_release_after_close(tmp_path):
+    root = root_at(tmp_path)
+    store = open_store(root)
+    pid = os.fork()
+    if pid == 0:
+        store.close()
+        os._exit(0)
+    assert os.waitpid(pid, 0)[1] == 0
+    with pytest.raises(BlockingIOError):
+        open_store(root)
+    store.close()
+    program = ('from pathlib import Path; from tools.v11_r09_gate3_store_v1 '
+               'import VersionedImmutableObjectStore as S; '
+               's=S(Path(__import__("sys").argv[1]), manifest_sha256="a"*64, '
+               'policy_sha256="b"*64, build_id="fixture-v1", '
+               'clock_method="synthetic", max_clock_age_seconds=10, '
+               'host_id="fixture-host", boot_id="fixture-boot", '
+               'expected_descriptor_sha256=__import__("sys").argv[2]); '
+               'assert s.report.classification=="VALID"; s.close()')
+    result = subprocess.run([sys.executable, '-c', program, str(root), PINNED[root]],
+                            capture_output=True, text=True, timeout=5)
+    assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.parametrize('mutation', ('recorder', 'thread'))
+def test_mutable_prefix_is_frozen_before_prepare(tmp_path, mutation):
+    root = root_at(tmp_path)
+    prefix = [sample(p, 100+i, 1+i) for i, p in enumerate(
+        ('request_start', 'body_receipt', 'decode_complete'))]
+    original = tuple(prefix)
+    provenance = ObjectProvenance('RAW', 'request-1', 'attempt-1',
+                                  'c'*64, 'd'*64, 'e'*64)
+    entered, release = threading.Event(), threading.Event()
+    def change():
+        prefix[:] = [sample(p, 200+i, 10+i) for i, p in enumerate(
+            ('request_start', 'body_receipt', 'decode_complete'))]
+    def recorder():
+        if mutation == 'recorder':
+            change()
+        else:
+            entered.set()
+            assert release.wait(5)
+        return sample('durable_seal', 103, 4)
+    with open_store(root) as store:
+        if mutation == 'thread':
+            worker = threading.Thread(target=lambda: (entered.wait(5), change(),
+                                                       release.set()))
+            worker.start()
+        receipt = store.seal_with_provenance(b'freeze-prefix', provenance, prefix,
+                                             recorder)
+        if mutation == 'thread':
+            worker.join(5)
+            assert not worker.is_alive()
+        assert receipt.clocks[:3] == original
+    with open_store(root) as recovered:
+        assert recovered.report.classification == 'VALID'
+        assert recovered.receipts[receipt.object_sha256].clocks == receipt.clocks
+
+
+@pytest.mark.parametrize('extra,accepted', ((-1, False), (0, True), (1, True)))
+def test_transaction_reserve_boundary_is_stable(tmp_path, monkeypatch,
+                                                extra, accepted):
+    from tools import v11_r09_gate3_store_v1 as module
+    root = root_at(tmp_path)
+    with open_store(root) as store:
+        initial = (root / 'seals-v1.jsonl').stat().st_size
+        cap = initial + 3 * module.MAX_RECORD + module.REPORT_RESERVE + extra
+        with monkeypatch.context() as patch:
+            patch.setattr(module, 'MAX_JOURNAL', cap)
+            if accepted:
+                receipt = seal(store)
+                assert store.read_receipt(receipt) == b'fixture bytes'
+            else:
+                with pytest.raises(LaunchContractError, match='STORE_JOURNAL_CAPACITY'):
+                    seal(store)
+                assert (root / 'seals-v1.jsonl').stat().st_size == initial
+        if not accepted:
+            assert seal(store).object_seal_witnessed
+    with open_store(root) as recovered:
+        assert recovered.report.classification == 'VALID'
+
+
+def test_recovery_record_capacity_refuses_without_writing(tmp_path, monkeypatch):
+    from tools import v11_r09_gate3_store_v1 as module
+    # INIT's canonical record length is fixed even though its hash and store ID vary.
+    first = tmp_path / 'first'
+    first.mkdir()
+    root = root_at(first)
+    with open_store(root):
+        pass
+    init_size = (root / 'seals-v1.jsonl').stat().st_size
+    second = tmp_path / 'second'
+    second.mkdir()
+    constrained = root_at(second)
+    cap = module.REPORT_RESERVE + init_size + 1
+    with monkeypatch.context() as patch:
+        patch.setattr(module, 'MAX_JOURNAL', cap)
+        with open_store(constrained) as store:
+            assert store.report.classification == 'VALID'
+        journal = constrained / 'seals-v1.jsonl'
+        original = journal.read_bytes()
+        with open_store(constrained) as held:
+            assert held.report.classification == 'RECOVERY_INCOMPLETE'
+        assert journal.read_bytes() == original
+
+
+def test_original_host_and_init_only_cross_boot_are_bound(tmp_path):
+    root = root_at(tmp_path)
+    with open_store(root) as store:
+        descriptor = (root / 'store-v1.json').read_bytes()
+        assert b'fixture-host' in descriptor and b'fixture-boot' in descriptor
+    with open_store(root, host_id='different-host') as held:
+        assert held.report.classification == 'JOURNAL_OR_IDENTITY_INVALID'
+    with open_store(root, boot_id='new-boot') as historic:
+        assert historic.report.classification == 'VALID'
+        with pytest.raises(LaunchContractError, match='STORE_CROSS_BOOT_ACQUISITION_HELD'):
+            seal(historic)
+    with open_store(root) as same_boot:
+        assert seal(same_boot).object_seal_witnessed
+
+
+def _crash_initialization_boundary(root, stage):
+    from tools.v11_r09_gate3_store_v1 import VersionedImmutableObjectStore as V1
+    real_open, real_write, real_fsync, real_append = (os.open, os.write,
+                                                     os.fsync, V1._append)
+    def path(fd):
+        return os.readlink(f'/proc/self/fd/{fd}')
+    def opening(name, flags, *args, **kwargs):
+        match = ((stage.endswith('descriptor_create') and name == 'store-v1.json') or
+                 (stage.endswith('journal_create') and name == 'seals-v1.jsonl'))
+        if match and stage.startswith('before_'):
+            os._exit(29)
+        fd = real_open(name, flags, *args, **kwargs)
+        if match and stage.startswith('after_'):
+            os._exit(29)
+        return fd
+    def writing(fd, raw):
+        match = (stage.endswith('descriptor_write') and
+                 path(fd).endswith('/store-v1.json')) or (
+                 stage.endswith('init_write') and path(fd).endswith('/seals-v1.jsonl'))
+        if match and stage.startswith('before_'):
+            os._exit(29)
+        count = real_write(fd, raw)
+        if match and stage.startswith('after_'):
+            os._exit(29)
+        return count
+    def syncing(fd):
+        name = path(fd)
+        match = ((stage.endswith('descriptor_fsync') and name.endswith('/store-v1.json')) or
+                 (stage.endswith('journal_fsync') and name.endswith('/seals-v1.jsonl')) or
+                 (stage.endswith('root_fsync') and name == str(root)))
+        if match and stage.startswith('before_'):
+            os._exit(29)
+        result = real_fsync(fd)
+        if match and stage.startswith('after_'):
+            os._exit(29)
+        return result
+    def appending(self, event, data, **kwargs):
+        result = real_append(self, event, data, **kwargs)
+        if event == 'INIT' and stage == 'after_init_fsync':
+            os._exit(29)
+        return result
+    os.open, os.write, os.fsync, V1._append = opening, writing, syncing, appending
+    open_store(root)
+
+
+@pytest.mark.parametrize('stage,expected', [
+    ('before_descriptor_create', 'VALID'),
+    ('after_descriptor_create', 'JOURNAL_OR_IDENTITY_INVALID'),
+    ('before_descriptor_write', 'JOURNAL_OR_IDENTITY_INVALID'),
+    ('after_descriptor_write', 'JOURNAL_OR_IDENTITY_INVALID'),
+    ('before_descriptor_fsync', 'JOURNAL_OR_IDENTITY_INVALID'),
+    ('after_descriptor_fsync', 'JOURNAL_OR_IDENTITY_INVALID'),
+    ('before_journal_create', 'JOURNAL_OR_IDENTITY_INVALID'),
+    ('after_journal_create', 'JOURNAL_OR_IDENTITY_INVALID'),
+    ('before_journal_fsync', 'JOURNAL_OR_IDENTITY_INVALID'),
+    ('after_journal_fsync', 'JOURNAL_OR_IDENTITY_INVALID'),
+    ('before_root_fsync', 'JOURNAL_OR_IDENTITY_INVALID'),
+    ('after_root_fsync', 'JOURNAL_OR_IDENTITY_INVALID'),
+    ('before_init_write', 'JOURNAL_OR_IDENTITY_INVALID'),
+    ('after_init_write', 'VALID'),
+    ('after_init_fsync', 'VALID'),
+])
+def test_initialization_process_interruption_matrix(tmp_path, stage, expected):
+    root = root_at(tmp_path)
+    child = multiprocessing.get_context('fork').Process(
+        target=_crash_initialization_boundary, args=(root, stage))
+    child.start()
+    try:
+        child.join(5)
+        assert not child.is_alive() and child.exitcode == 29
+    finally:
+        if child.is_alive():
+            child.terminate(); child.join(5)
+    descriptor = root / 'store-v1.json'
+    if descriptor.exists():
+        PINNED[root] = hashlib.sha256(descriptor.read_bytes()).hexdigest()
+    with open_store(root) as reopened:
+        assert reopened.report.classification == expected
+
+
+def _crash_seal_boundary(root, stage):
+    with open_store(root) as store:
+        real_write, real_fsync, real_open = os.write, os.fsync, os.open
+        real_link, real_unlink = os.link, os.unlink
+        journal_syncs = 0
+        directory_syncs = 0
+        def boundary(matched, action):
+            if matched and stage == 'before_' + action:
+                os._exit(31)
+            return matched
+        def after(matched, action):
+            if matched and stage == 'after_' + action:
+                os._exit(31)
+        def path(fd):
+            return os.readlink(f'/proc/self/fd/{fd}')
+        def writing(fd, raw):
+            name = path(fd)
+            payload = bytes(raw)
+            event = ('prepare_write' if b'"event":"PREPARE"' in payload else
+                     'commit_write' if b'"event":"COMMIT"' in payload else
+                     'temp_write' if '/objects/.tmp-' in name else '')
+            matched = bool(event)
+            boundary(matched, event)
+            count = real_write(fd, raw)
+            after(matched, event)
+            return count
+        def syncing(fd):
+            nonlocal journal_syncs, directory_syncs
+            name = path(fd)
+            action = ''
+            if name.endswith('/seals-v1.jsonl'):
+                journal_syncs += 1
+                action = 'prepare_fsync' if journal_syncs == 1 else 'commit_fsync'
+            elif name == str(root / 'objects'):
+                directory_syncs += 1
+                action = ('link_dir_fsync' if directory_syncs == 1 else
+                          'unlink_dir_fsync')
+            elif '/objects/.tmp-' in name:
+                action = 'temp_fsync'
+            boundary(bool(action), action)
+            result = real_fsync(fd)
+            after(bool(action), action)
+            return result
+        def opening(name, flags, *args, **kwargs):
+            matched = isinstance(name, str) and name.startswith('.tmp-') and bool(flags & os.O_CREAT)
+            boundary(matched, 'temp_create')
+            fd = real_open(name, flags, *args, **kwargs)
+            after(matched, 'temp_create')
+            return fd
+        def linking(*args, **kwargs):
+            boundary(True, 'link')
+            result = real_link(*args, **kwargs)
+            after(True, 'link')
+            return result
+        def unlinking(*args, **kwargs):
+            boundary(True, 'unlink')
+            result = real_unlink(*args, **kwargs)
+            after(True, 'unlink')
+            return result
+        def recorder():
+            boundary(True, 'recorder')
+            result = sample('durable_seal', 103, 4)
+            after(True, 'recorder')
+            return result
+        os.write, os.fsync, os.open = writing, syncing, opening
+        os.link, os.unlink = linking, unlinking
+        seal(store, recorder=recorder)
+        if stage == 'after_caller_return':
+            os._exit(31)
+
+
+@pytest.mark.parametrize('stage,expected', [
+    ('before_prepare_write', 'VALID'),
+    ('after_prepare_write', 'UNRESOLVED_PREPARE'),
+    ('before_prepare_fsync', 'UNRESOLVED_PREPARE'),
+    ('after_prepare_fsync', 'UNRESOLVED_PREPARE'),
+    ('before_temp_create', 'UNRESOLVED_PREPARE'),
+    ('after_temp_create', 'UNRESOLVED_PREPARE'),
+    ('before_temp_write', 'UNRESOLVED_PREPARE'),
+    ('after_temp_write', 'UNRESOLVED_PREPARE'),
+    ('before_temp_fsync', 'UNRESOLVED_PREPARE'),
+    ('after_temp_fsync', 'UNRESOLVED_PREPARE'),
+    ('before_link', 'UNRESOLVED_PREPARE'),
+    ('after_link', 'UNRESOLVED_PREPARE'),
+    ('before_link_dir_fsync', 'UNRESOLVED_PREPARE'),
+    ('after_link_dir_fsync', 'UNRESOLVED_PREPARE'),
+    ('before_unlink', 'UNRESOLVED_PREPARE'),
+    ('after_unlink', 'UNRESOLVED_PREPARE'),
+    ('before_unlink_dir_fsync', 'UNRESOLVED_PREPARE'),
+    ('after_unlink_dir_fsync', 'UNRESOLVED_PREPARE'),
+    ('before_recorder', 'UNRESOLVED_PREPARE'),
+    ('after_recorder', 'UNRESOLVED_PREPARE'),
+    ('before_commit_write', 'UNRESOLVED_PREPARE'),
+    ('after_commit_write', 'VALID'),
+    ('before_commit_fsync', 'VALID'),
+    ('after_commit_fsync', 'VALID'),
+    ('after_caller_return', 'VALID'),
+])
+def test_seal_process_interruption_matrix(tmp_path, stage, expected):
+    root = root_at(tmp_path)
+    with open_store(root):
+        pass
+    child = multiprocessing.get_context('fork').Process(
+        target=_crash_seal_boundary, args=(root, stage))
+    child.start()
+    try:
+        child.join(5)
+        assert not child.is_alive() and child.exitcode == 31
+    finally:
+        if child.is_alive():
+            child.terminate(); child.join(5)
+    with open_store(root) as reopened:
+        assert reopened.report.classification == expected
+        if expected == 'VALID' and reopened.receipts:
+            assert next(iter(reopened.receipts.values())).acknowledgement == 'UNKNOWN'
+
+
+def _crash_recovery_boundary(root, stage):
+    real_write, real_fsync = os.write, os.fsync
+    journal_syncs = 0
+    def boundary(action, before):
+        if stage == ('before_' if before else 'after_') + action:
+            os._exit(37)
+    def writing(fd, raw):
+        action = 'recovery_write' if b'"event":"RECOVERY_VALIDATED"' in bytes(raw) else ''
+        if action:
+            boundary(action, True)
+        result = real_write(fd, raw)
+        if action:
+            boundary(action, False)
+        return result
+    def syncing(fd):
+        nonlocal journal_syncs
+        name = os.readlink(f'/proc/self/fd/{fd}')
+        if name.endswith('/seals-v1.jsonl'):
+            journal_syncs += 1
+            action = ('journal_barrier' if journal_syncs == 1 else
+                      'recovery_fsync')
+        elif name == str(root / 'objects'):
+            action = 'objects_dir_barrier'
+        elif name == str(root):
+            action = 'root_barrier'
+        elif name.startswith(str(root / 'objects') + '/'):
+            action = 'object_barrier'
+        else:
+            action = ''
+        if action:
+            boundary(action, True)
+        result = real_fsync(fd)
+        if action:
+            boundary(action, False)
+        return result
+    os.write, os.fsync = writing, syncing
+    open_store(root)
+
+
+@pytest.mark.parametrize('stage', [
+    'before_object_barrier', 'after_object_barrier',
+    'before_journal_barrier', 'after_journal_barrier',
+    'before_objects_dir_barrier', 'after_objects_dir_barrier',
+    'before_root_barrier', 'after_root_barrier',
+    'before_recovery_write', 'after_recovery_write',
+    'before_recovery_fsync', 'after_recovery_fsync',
+])
+def test_recovery_process_interruption_matrix(tmp_path, stage):
+    root = root_at(tmp_path)
+    with open_store(root) as store:
+        original = seal(store)
+    child = multiprocessing.get_context('fork').Process(
+        target=_crash_recovery_boundary, args=(root, stage))
+    child.start()
+    try:
+        child.join(5)
+        assert not child.is_alive() and child.exitcode == 37
+    finally:
+        if child.is_alive():
+            child.terminate(); child.join(5)
+    with open_store(root) as recovered:
+        assert recovered.report.classification == 'VALID'
+        receipt = recovered.receipts[original.object_sha256]
+        assert receipt.clocks == original.clocks
+        assert receipt.acknowledgement == 'UNKNOWN'
+        assert recovered.read_receipt(receipt) == b'fixture bytes'
+
+
+@pytest.mark.parametrize('survivor,expected', [
+    ('init_only', 'VALID'),
+    ('init_with_object', 'NAMESPACE_CONFLICT'),
+    ('torn_prepare', 'JOURNAL_OR_IDENTITY_INVALID'),
+    ('torn_commit', 'JOURNAL_OR_IDENTITY_INVALID'),
+    ('complete_commit_without_object', 'NAMESPACE_CONFLICT'),
+    ('complete_commit_partial_object', 'NAMESPACE_CONFLICT'),
+    ('torn_recovery', 'JOURNAL_OR_IDENTITY_INVALID'),
+])
+def test_unsynced_survivor_model_extremes(tmp_path, survivor, expected):
+    # Deterministic byte/name survivor states only. No physical power-loss claim.
+    root = root_at(tmp_path)
+    with open_store(root) as store:
+        receipt = seal(store)
+    if survivor == 'torn_recovery':
+        with open_store(root) as recovered:
+            assert recovered.report.classification == 'VALID'
+    journal = root / 'seals-v1.jsonl'
+    lines = journal.read_bytes().splitlines(keepends=True)
+    if survivor.startswith('init_'):
+        journal.write_bytes(lines[0])
+    elif survivor == 'torn_prepare':
+        journal.write_bytes(lines[0] + lines[1][:len(lines[1]) // 2])
+    elif survivor == 'torn_commit':
+        journal.write_bytes(lines[0] + lines[1] +
+                            lines[2][:len(lines[2]) // 2])
+    elif survivor == 'torn_recovery':
+        journal.write_bytes(b''.join(lines[:-1]) +
+                            lines[-1][:len(lines[-1]) // 2])
+    if survivor in ('init_only', 'complete_commit_without_object'):
+        (root / 'objects' / receipt.object_sha256).unlink()
+    elif survivor == 'complete_commit_partial_object':
+        (root / 'objects' / receipt.object_sha256).write_bytes(b'partial')
+    original_names = set(p.name for p in (root / 'objects').iterdir())
+    original_journal = journal.read_bytes()
+    with open_store(root) as reopened:
+        assert reopened.report.classification == expected
+    assert set(p.name for p in (root / 'objects').iterdir()) == original_names
+    assert journal.read_bytes().startswith(original_journal)
+
+
+@pytest.mark.parametrize('surviving_bytes', (b'', b'partial', b'fixture bytes'))
+def test_unsynced_temporary_bytes_do_not_resolve_prepare(tmp_path, surviving_bytes):
+    root = root_at(tmp_path)
+    with open_store(root) as store:
+        receipt = seal(store)
+    journal = root / 'seals-v1.jsonl'
+    lines = journal.read_bytes().splitlines(keepends=True)
+    import json
+    temporary = json.loads(lines[1])['data']['temporary']
+    journal.write_bytes(b''.join(lines[:2]))
+    (root / 'objects' / receipt.object_sha256).unlink()
+    (root / 'objects' / temporary).write_bytes(surviving_bytes)
+    with open_store(root) as held:
+        assert held.report.classification == 'UNRESOLVED_PREPARE'
+    assert (root / 'objects' / temporary).read_bytes() == surviving_bytes
