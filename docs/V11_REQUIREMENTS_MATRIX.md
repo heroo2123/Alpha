@@ -1,5 +1,17 @@
 # V11 requirement-to-code/test/evidence matrix
 
+
+## Release candidate verified; scanner disk stop — 2026-09-30
+
+The isolated `6ec371e` combined release has a matching terminal full-suite
+PASS (5,460 passed, 13 skipped) and matching affected/full log hashes.
+Final integration acceptance against newer main is pending. R09 gate 2
+retains seven independently reviewed P2 blockers and no real admission.
+Actual PAPER scanner service is inactive after commissioning recorded
+`DISK_AT_OR_ABOVE_85_PERCENT`; execution stays masked and no forward SHADOW
+evidence is qualified. No C/J/E/A boundary changed: **91/200 (45.5%),
+formal 1/50; NOT_READY_TO_FUND**.
+
 ## R09 gate 2 repair review requires further changes — 2026-09-30
 
 Fresh independent review of exact `2d116af` completed with terminal

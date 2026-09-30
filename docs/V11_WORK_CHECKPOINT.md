@@ -1,5 +1,35 @@
 # Alpha V11 work checkpoint
 
+
+## Coordinator recovery — release gate verified, scanner disk stop — 2026-09-30
+
+Recovered clean main `647637a` and clean isolated release `6ec371e`. The
+release terminal records 396 affected passes and 5,460 full-suite passes
+(13 skipped); both on-disk log SHA-256 values match its terminal record.
+The release branch adds only the already reviewed SHADOW source/tests and
+scheduler/GEFS test-clock fixes to its `89b5f76` base; newer main has only
+ledger changes from that base. Final integration acceptance remains OPEN;
+do not merge or claim commissioning from the branch test result alone.
+The SHADOW source patch was independently reviewed at `15e99bd`, with PASS
+reported in the checkpoint; acceptance must bind the exact combined branch
+and newer main before development integration.
+
+Actual host state supersedes the previous scanner-active entry: `alpha-weather-scanner.service`
+is **inactive** and prior PID 514629 has exited. Commissioning
+`STOP_REASON.txt` states `DISK_AT_OR_ABOVE_85_PERCENT`; current root disk is
+86% used with 2.8 GiB free. Its 13:53 `STATUS.json` is stale and still says
+active, so it cannot override the live process/service check. The scanner
+was not restarted. Weather execution remains masked; weather controller and
+paper demo are inactive. Protected `/etc/alpha-v11` and model-authority paths
+are absent. The private FINAL-REVIEWED master retains its pinned SHA-256.
+Recent commissioning evidence is watchdog status only; no qualified forward
+SHADOW sample. R09 gate 2 still has seven P2 blockers and remains unmerged.
+Next: bounded Astra/high exact-branch integration/safety acceptance for path A;
+then compatible development integration if PASS. Path B needs Sonnet/high
+repair of R1-R7 in the preserved gate-2 worktree and fresh independent review.
+No C/J/E/A boundary changed: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## R09 gate 2 repair independently reviewed — CHANGES_REQUIRED — 2026-09-30
 
 Independent Astra/high review completed on exact clean `2d116af4c7bc8aa5527ef28a064c5eff68abb87e`

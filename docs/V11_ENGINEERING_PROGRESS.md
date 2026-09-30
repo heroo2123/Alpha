@@ -1,5 +1,18 @@
 # Supplementary engineering estimate
 
+
+## Coordinator release recovery and PAPER stop — 2026-09-30
+
+Confirmed clean `6ec371e` release terminal and both SHA-256 log pins: 396
+affected passes; full suite 5,460 passed, 13 skipped. Newer main adds only
+ledgers to the release base. Final combined integration acceptance remains
+open and is routed to Astra/high. The prior PAPER scanner PID has exited;
+`alpha-weather-scanner.service` is inactive and commissioning reports
+`DISK_AT_OR_ABOVE_85_PERCENT` at 86% root-disk use. No restart was made.
+Weather execution remains masked; no forward SHADOW evidence. R09 gate 2
+still needs seven P2 repairs and independent review. **91/200 (45.5%),
+formal 1/50; NOT_READY_TO_FUND**.
+
 ## R09 repair review completed; seven blockers remain — 2026-09-30
 
 Independent Astra/high review of `2d116af` reproduced **61 contract passes**,
