@@ -1,5 +1,29 @@
 # Alpha V11 work checkpoint
 
+## Brain offline readiness candidate completed; Gate 3 repair next — 2026-09-30
+
+The separate Sol/high Brain worker finished cleanly at `a8362ad` in
+`/home/alphaadmin/AlphaV11_BrainReadiness/Alpha` (terminal exit 0). Its
+three-file offline diagnostic candidate and handoff are committed; the worker's
+affected suite reported 142 passed, 1 skipped, and this coordinator reran its
+eight focused tests successfully. The candidate binds the corrected R47 v2
+GEFS identities and reports cohort diagnostics, while explicitly withholding
+forward calibration, real multi-model admission and promotion. It is **not
+independently reviewed or merged**. A different-model exact-commit review is
+required before integration; no C/J/E/A credit follows from these tests.
+
+The five P2 findings against the separate Gate 3 strict candidate `dc7f83b`
+remain open. Its existing isolated worktree is clean. Next substantive task:
+Sonnet/high repairs those findings there, converts the independent probes into
+negative regression tests, and produces a new exact commit for independent
+review. No G3-L capture or SHADOW qualification is authorized. Main is clean at
+`e8b3565` before this documentation update, 27 ahead of its local upstream
+tracking ref; publication hold remains. SHADOW worktree is clean at `15e99bd`;
+the newest commissioning evidence is status-only. PAPER scanner/controller
+inactive, execution masked, protected authority absent; FINAL-REVIEWED master
+SHA-256 matches its pin. Disk 4.4 GiB free, memory about 1.0 GiB available.
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**, unchanged.
+
 ## Independent strict Gate 3 review completed: five P2 blockers — 2026-09-30
 
 Astra/high independently reviewed exact Sol/high `dc7f83b`, tree `5e440cb`:

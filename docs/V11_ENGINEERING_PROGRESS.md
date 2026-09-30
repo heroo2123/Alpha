@@ -1,5 +1,17 @@
 # Supplementary engineering estimate
 
+## Offline Brain readiness author candidate complete — 2026-09-30
+
+Sol/high finished `a8362ad`, adding a 222-line offline evaluator, 157-line
+test file and 70-line handoff. Its affected suite passed 142 tests with one
+skip; the coordinator reran the eight focused tests successfully. The tool
+only reports diagnostics from caller-supplied cohorts, with no forward
+calibration, real IFS/AIFS learner admission, promotion or financial authority.
+Independent different-model review and integration remain open. Separately,
+the Gate 3 strict offline validator still needs five P2 repairs in its
+existing clean worktree before a new exact-commit review. No new C/J/E/A:
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Strict Gate 3 independent review: CHANGES_REQUIRED — 2026-09-30
 
 Astra/high completed the exact `dc7f83b`/tree `5e440cb` review of Sol/high's

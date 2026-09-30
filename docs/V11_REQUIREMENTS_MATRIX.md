@@ -1,5 +1,16 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## R47/R09 offline Brain readiness candidate completed — 2026-09-30
+
+Sol/high committed `a8362ad` in the isolated Brain readiness worktree. The
+read-only diagnostic tool and handoff pin the corrected R47 v2 identities and
+leave forward calibration, real multi-model admission, financial outcomes and
+promotion pending. Worker affected tests: 142 passed, 1 skipped; independent
+coordinator focused rerun: 8 passed. This is an **unreviewed, unmerged**
+candidate requiring different-model exact-commit review. Gate 3 strict
+`dc7f83b` still has five P2 blockers and remains unmerged. No C/J/E/A boundary
+crossed: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## R09 strict G3-I candidate independently rejected pending repair — 2026-09-30
 
 [Exact-commit Astra/high review](V11_R09_GATE3_STRICT_REVIEW_dc7f83b.md) of
