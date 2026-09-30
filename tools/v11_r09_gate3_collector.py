@@ -504,6 +504,7 @@ class BudgetCeilingExceeded(ValueError):
 # module's ceiling must be re-reviewed and updated to match; it must never be looser.
 _EXISTING_MAX_INDEX_BYTES = 3 * 1024 * 1024
 _EXISTING_MAX_FIELD_BYTES = 4 * 1024 * 1024
+_EXISTING_GEFS_MAX_FIELD_BYTES = 64 * 1024  # grib_fields.MAX_BYTES
 
 
 class BudgetTracker:
@@ -542,7 +543,8 @@ class BudgetTracker:
         require(self.window_started_at is None, 'BUDGET_WINDOW_ALREADY_STARTED')
         self.window_started_at = now_monotonic
 
-    def check_before_request(self, *, now_monotonic, index_bytes=None, field_bytes=None):
+    def check_before_request(self, *, now_monotonic, provider=None,
+                             index_bytes=None, field_bytes=None):
         require(self.window_started_at is not None, 'BUDGET_WINDOW_NOT_STARTED')
         if self.in_flight:
             raise BudgetCeilingExceeded('BUDGET_SINGLE_REQUEST_IN_FLIGHT_VIOLATION')
@@ -555,11 +557,17 @@ class BudgetTracker:
             raise BudgetCeilingExceeded('NOT_ATTEMPTED_BUDGET')
         if index_bytes is not None and index_bytes > self.max_index_bytes:
             raise BudgetCeilingExceeded('NOT_ATTEMPTED_BUDGET')
-        if field_bytes is not None and field_bytes > self.max_field_bytes:
-            raise BudgetCeilingExceeded('NOT_ATTEMPTED_BUDGET')
+        if field_bytes is not None:
+            require(provider in VALID_PROVIDERS, 'BUDGET_FIELD_PROVIDER_REQUIRED')
+            provider_ceiling = (_EXISTING_GEFS_MAX_FIELD_BYTES if provider == 'GEFS'
+                                else _EXISTING_MAX_FIELD_BYTES)
+            if field_bytes > min(self.max_field_bytes, provider_ceiling):
+                raise BudgetCeilingExceeded('NOT_ATTEMPTED_BUDGET')
 
-    def begin_request(self, now_monotonic):
-        self.check_before_request(now_monotonic=now_monotonic)
+    def begin_request(self, now_monotonic, *, provider=None, index_bytes=None,
+                      field_bytes=None):
+        self.check_before_request(now_monotonic=now_monotonic, provider=provider,
+                                  index_bytes=index_bytes, field_bytes=field_bytes)
         self.in_flight = True
         self.last_request_started_at = now_monotonic
         self.request_count += 1

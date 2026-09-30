@@ -372,6 +372,28 @@ def test_budget_field_bytes_cannot_loosen_past_the_real_stricter_bound():
         g3i.BudgetTracker(max_field_bytes=10 * 1024 * 1024)  # strictly between 4 MiB and 16 MiB
 
 
+def test_budget_enforces_provider_specific_field_ceiling_before_begin():
+    tracker = g3i.BudgetTracker()
+    tracker.start_window(0.0)
+    with pytest.raises(PanelError, match='BUDGET_FIELD_PROVIDER_REQUIRED'):
+        tracker.begin_request(0.0, field_bytes=1)
+    with pytest.raises(g3i.BudgetCeilingExceeded, match='NOT_ATTEMPTED_BUDGET'):
+        tracker.begin_request(0.0, provider='GEFS', field_bytes=64 * 1024 + 1)
+    assert tracker.request_count == 0
+    tracker.begin_request(0.0, provider='GEFS', field_bytes=64 * 1024)
+    tracker.complete_request(64 * 1024)
+    tracker.begin_request(2.0, provider='IFS', field_bytes=4 * 1024 * 1024)
+
+
+def test_budget_caller_tightening_applies_to_every_provider():
+    tracker = g3i.BudgetTracker(max_field_bytes=32 * 1024)
+    tracker.start_window(0.0)
+    with pytest.raises(g3i.BudgetCeilingExceeded, match='NOT_ATTEMPTED_BUDGET'):
+        tracker.begin_request(0.0, provider='IFS', field_bytes=32 * 1024 + 1)
+    with pytest.raises(g3i.BudgetCeilingExceeded, match='NOT_ATTEMPTED_BUDGET'):
+        tracker.begin_request(0.0, provider='GEFS', field_bytes=32 * 1024 + 1)
+
+
 def test_budget_enforces_request_count_ceiling():
     tracker = g3i.BudgetTracker(max_requests=1)
     tracker.start_window(0.0)
