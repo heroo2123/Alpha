@@ -3444,3 +3444,35 @@ unchanged; NOT_READY_TO_FUND. Next: inspect a genuinely produced ECMWF
 research-result artifact when available within authorized scope, then seek
 independent champion review and forward shadow commissioning. No production,
 funding, order, credential, or V10 action was taken.
+
+## Supervisor batch 35 — 2026-09-30: SHADOW-prep prerequisite chain verified owner-gated; no new C/J/E/A
+
+Recovered clean `c441783`, local equal to origin. Full sweep of
+`/home/alphaadmin/AlphaV11_Commissioning/evidence/` found only in-place
+heartbeat updates since the prior batch's check, no new research-result or
+review artifact. `systemctl status alpha-weather-scanner.service` confirms
+the isolated PAPER scanner unchanged: active, ~18h uptime, 0 restarts.
+
+Worked through `v11_brain_shadow_preparation_20260929.json`'s named
+`prerequisites_remaining` in order rather than assuming the chain was
+exhausted after the prior batch's SHADOW regression. Read
+`v11/model_registry.py` and `host_trust/v11-model-authority/authority.py`
+directly: real model state lives only under root-owned
+`/var/lib/alpha-v11/model-authority/...`, written only by the standalone
+`authority.py` tool, which is explicitly "preparation only until
+independently reviewed and installed by the owner." This worker has no
+root/sudo and cannot install or self-approve it without fabricating the
+named "reviewed" step. Independently recomputed the canonical-JSON SHA-256 of
+both real `frozen_parameters` objects in
+`v11_gefs_all_market_research_result_20260929.json` — both match their file's
+own `candidate_parameter_sha256` exactly, confirming the underlying evidence
+is genuine, but this does not change the owner-gated outcome. The remaining
+two prerequisites (feature-schema compatibility check, forward shadow sample
+target) are both logically downstream of an installed/reviewed model state
+and so are transitively blocked by the same step. R31/R46/R48/R49 re-swept
+and unchanged (external/host-permission/financial gates).
+
+No code or test changed; no new C/J/E/A milestone: **91/200 (~46%); formal
+1/50 (2%)**, unchanged. NOT_READY_TO_FUND. `LOCAL_SCORE_WORK_EXHAUSTED`
+reaffirmed — see checkpoint for the full blocker list and next-check
+instruction.

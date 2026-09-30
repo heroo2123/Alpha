@@ -1,5 +1,48 @@
 # V11 requirement-to-code/test/evidence matrix
 
+Supervisor batch 35 (2026-09-30): recovery clean at `c441783` (equal to
+origin). Per the mandatory pre-exhaustion checks: (1) swept
+`/home/alphaadmin/AlphaV11_Commissioning/evidence/` in full — the only files
+newer than the prior batch's check are `v11_brain_ecmwf_watchdog_status.json`/
+`v11_brain_pipeline_watchdog_status.json`/`v11_ecmwf_terminal_manager_status.json`,
+all in-place heartbeat updates still reporting the same `COMPLETE`/
+`POST_ECMWF_HANDOFF_ACTIVE` state already reviewed; no new research-result or
+review artifact. (2) Independently checked the live PAPER scanner:
+`systemctl status alpha-weather-scanner.service` shows `active (running)`,
+same PID 514629, 18h continuous uptime, 0 restarts — unchanged healthy state,
+no new evidence. (3) Took the fresh-evidence chain in
+`v11_brain_shadow_preparation_20260929.json` (`prerequisites_remaining`)
+seriously rather than assuming it was exhausted: item 1,
+`END_TO_END_V11_SHADOW_DECISION_PATH_REGRESSION`, was already completed by
+the immediately preceding "OpenAI same-batch recovery 1" batch below. Read
+item 2, `REVIEWED_NONFINANCIAL_SHADOW_MODEL_STATE_OR_EQUIVALENT_ISOLATED_INJECTION`,
+directly against `v11/model_registry.py` and
+`host_trust/v11-model-authority/authority.py` rather than assuming its
+status: real (non-monkeypatched) model state lives only under root-owned
+`/var/lib/alpha-v11/model-authority/scopes/<mode>/<key>.json`, written only
+by the standalone `authority.py` tool, whose own docstring states it is
+"preparation only until independently reviewed and installed by the owner" —
+this worker has no root/sudo and cannot install or self-review it without
+fabricating the review the prerequisite explicitly names. Independently
+recomputed (not trusted) the canonical-JSON SHA-256 of both `frozen_parameters`
+objects in `v11_gefs_all_market_research_result_20260929.json`; both match
+their stated `candidate_parameter_sha256` exactly, confirming the underlying
+research evidence is real and unaltered, but this does not change the
+owner-gated outcome. Items 3 (`LIVE_INPUT_FEATURE_SCHEMA_COMPATIBILITY_CHECK`)
+and 4 (`FREEZE_EVIDENCE_BASED_FORWARD_SHADOW_SAMPLE_TARGET`) are both
+logically downstream of an actually-installed model state to check schema
+against and gate forward sampling on, so they are transitively blocked by the
+same owner-only step, not independently actionable. This closes out the
+named prerequisite chain at a single, concretely-verified (not assumed)
+owner/root boundary rather than leaving it vague. Re-swept the other
+genuinely OPEN rows (R31, R46, R48, R49): unchanged from every prior
+audit — exact settlement source/version proof (R31), host `adm`/
+`systemd-journal` group membership (R46), and owner-authorized
+credentials/funding decision (R48/R49) all remain absent. No code or test
+changed; no new C/J/E/A: **91/200 = 45.5% (~46%); formal 1/50 (2%)**,
+unchanged. `LOCAL_SCORE_WORK_EXHAUSTED` reaffirmed — see checkpoint for the
+full blocker list.
+
 OpenAI same-batch recovery 1 (2026-09-30): R47 shadow-decision regression now
 exercises all 11 named decision sites on separate nonfinancial `CHALLENGER`
 evidence with `V11_SHADOW` model state; drift also exercises `ABLATION`.

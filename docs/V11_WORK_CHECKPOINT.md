@@ -10457,3 +10457,100 @@ NOT_READY_TO_FUND. Next: inspect a new ECMWF research-result artifact when
 one is available within authorized scope, then obtain independent champion
 review and forward shadow commissioning. V10 and all financial authority
 unchanged.
+
+## Supervisor batch 35 — 2026-09-30: verified the SHADOW-prep prerequisite chain terminates at an owner-only root boundary; mandatory evidence/scanner sweep; no new C/J/E/A
+
+Recovery check: `git status` clean, local HEAD `c441783` equal to
+`origin/weather-v11-profitability-upgrade-2026-09-23`, no unfinished process
+on this worktree. Batch 34 was a general stale-row sweep (not R47-specific)
+and the immediately preceding "OpenAI same-batch recovery 1" batch built the
+`END_TO_END_V11_SHADOW_DECISION_PATH_REGRESSION` prerequisite named by
+`v11_brain_shadow_preparation_20260929.json`. Per the mandatory pre-exhaustion
+checks, did not simply reassert exhaustion: (1) full listing of
+`/home/alphaadmin/AlphaV11_Commissioning/evidence/` — only in-place heartbeat
+updates (`v11_brain_ecmwf_watchdog_status.json`,
+`v11_brain_pipeline_watchdog_status.json`,
+`v11_ecmwf_terminal_manager_status.json`, all timestamped ~02:30 UTC) since
+the prior batch's check; all still report the same `COMPLETE`/
+`POST_ECMWF_HANDOFF_ACTIVE` state, no new research-result or review artifact.
+(2) Independently checked the live isolated PAPER scanner rather than
+assuming it unchanged: `systemctl status alpha-weather-scanner.service`
+confirms `active (running)`, PID 514629 continuously since 2026-09-29
+08:09:41 UTC (~18h), 0 restarts, memory nominal — same healthy state as
+every prior check, no new evidence.
+
+(3) Took the shadow-prep artifact's `prerequisites_remaining` list seriously
+rather than treating it as already exhausted by the SHADOW regression alone.
+It names four items in order: `END_TO_END_V11_SHADOW_DECISION_PATH_REGRESSION`
+(done, prior batch), `REVIEWED_NONFINANCIAL_SHADOW_MODEL_STATE_OR_EQUIVALENT_
+ISOLATED_INJECTION`, `LIVE_INPUT_FEATURE_SCHEMA_COMPATIBILITY_CHECK`, and
+`FREEZE_EVIDENCE_BASED_FORWARD_SHADOW_SAMPLE_TARGET`. Read `v11/model_registry.py`
+and `host_trust/v11-model-authority/authority.py` directly (not from memory)
+to determine whether item 2 is locally actionable. Found that real (non-test)
+model state is read only from root-owned paths
+(`/var/lib/alpha-v11/model-authority/{state.json,scopes/,objects/}`,
+enforced by `_root_custody`/`stat.S_ISDIR`/uid checks in
+`model_registry.py`), writable only by the standalone `authority.py` tool,
+whose own header states it is "preparation only until independently reviewed
+and installed by the owner" and that "the learner cannot install this helper,
+write its root-custodied approvals/state, or grant a financial mode." This
+worker has no root/sudo access (per CLAUDE.md) and installing/self-approving
+it would fabricate exactly the "reviewed" step the prerequisite requires —
+not a gap this batch can close. The prior batch's SHADOW regression test uses
+`monkeypatch.setattr(model_registry, 'protected_state', ...)` with generic
+fixture bundles; this is a genuine isolated-injection proof of the mechanism,
+but not the "equivalent isolated injection" of the *real* evidenced candidate,
+so as an added, bounded verification this batch independently recomputed
+(did not trust) the canonical-JSON SHA-256 of both `frozen_parameters` objects
+in `v11_gefs_all_market_research_result_20260929.json`
+(`{bias_c:0.0, kernel_sigma_c:0.5, model_id:'gefs31', dataset_sha256, family,
+preregistration_sha256, selection_partition:'TRAIN_ONLY', unit:'C'}` for both
+`daily_high_temperature` and `daily_low_temperature`); both reproduce their
+file's own `candidate_parameter_sha256` exactly, confirming this is real,
+unaltered evidence. Checked whether an in-repo path could construct a real
+`PinnedBundle` from it via `offline_learning.py::run_research_fit` (which does
+produce a genuine `artifacts.put_bundle(...)`-backed candidate): the external
+evidence file does not carry a `candidate_bundle_sha256` or the parent
+bundle/feature-schema provenance `run_research_fit` requires, so reproducing
+an equivalent real bundle would mean building a new, unverified provenance
+chain from scratch — the same "substantial new multi-step pipeline, not a
+bounded step" pattern already flagged and deferred in batch 24, not a bounded
+increment. Items 3 and 4 are both logically downstream of an actually
+installed/reviewed model state (there is no live state to check feature-schema
+compatibility against, and no commissioned shadow run to size a forward
+sample target for), so they are transitively blocked by the same owner-only
+step, not independently reachable.
+
+This closes out the shadow-prep prerequisite chain at one concretely-verified
+(code-read, not assumed) owner/root boundary rather than a vague "owner
+review" placeholder. Re-swept R31/R46/R48/R49 against their current matrix
+text: unchanged from every prior audit (R31 exact finality source/version
+proof absent; R46 host `adm`/`systemd-journal` permission wall; R48/R49
+owner-authorized credentials and funding decision, explicitly out of the
+financial boundary). No code or test changed; `git status --short` before and
+after this batch shows changes only in `docs/V11_REQUIREMENTS_MATRIX.md`,
+this file and `docs/V11_ENGINEERING_PROGRESS.md`. **91/200 = 45.5% (~46%);
+formal 1/50 (2%)**, unchanged. NOT_READY_TO_FUND; V10 unchanged/DEFERRED
+(confirmed inactive/disabled, not touched this batch). No alpha-dev access,
+deployment, service change, financial authority or real order was requested
+or performed.
+
+`LOCAL_SCORE_WORK_EXHAUSTED`: no unblocked local implementation, no newly
+available safe evidence path, and no further concrete safe post-backfill
+prerequisite remains in the named SHADOW-prep chain — it terminates at the
+owner-only host-authority install/review step documented above. Exact
+blocked requirements/evidence needed: R31 (exact settlement source/version
+proof, external); R37/R39 (venue authentication/deployment/independent
+commissioning, owner-authorized); R44 (identity custody, protected-config
+runtime acceptance, an authorized destructive-rollback drill); R47 (owner
+installation and review of `host_trust/v11-model-authority/authority.py`
+against the real evidenced GEFS candidate, or an equivalent owner-reviewed
+isolated injection — neither fabricable locally); R46 (host `adm`/
+`systemd-journal` group membership, owner-granted); R48/R49 (owner-authorized
+credentials and funding decision, out of scope per the financial boundary).
+Next unfinished action: on the next invocation, re-check
+`/home/alphaadmin/AlphaV11_Commissioning/evidence/` and the
+`brain-ecmwf-backfill-20260929`/model-panel branches for any new
+research-result, review, or owner-authorized model-authority artifact before
+repeating this chain's analysis; until one appears, further checks of this
+same named blocker should stay brief rather than repeating the full code-read.
