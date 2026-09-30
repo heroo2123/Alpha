@@ -1,5 +1,38 @@
 # Supplementary engineering estimate
 
+## R09 native-extreme continuation — 2026-09-30
+
+Verified code commit `f20d8791f19438b24bc33cda15d2d08ac9374843`, tree
+`a80132c1724f59e360ba9bfe5c28b3dc43e502bd`: 77 focused passes / one opt-in skip;
+312 related passes / two opt-in skips. Two real replay tests passed separately,
+with byte-identical outputs for both captures. Twelve actual IFS native fields
+prove 3h/6h max/min semantics for control and members 1/50. Cohort coverage is
+73 aligned, 468 crossing, two fully indexed days, zero raw-complete/exact-admitted
+days. All original input hashes remain unchanged. Raw evidence stays private;
+public product metadata/hash pins are in `config/v11/r09_ecmwf_extrema_public_evidence.json`.
+Independent review and provider/semantic/causal blockers remain. No service or
+champion state was inspected or changed in this targeted task; prior containment
+is not freshly re-attested. Next: independently review the recorded research
+result and alternate sampled-trajectory contract before further acquisition/fit.
+The subsequent evidence-only commit records this verified code identity.
+
+On `r09-ecmwf-native-extrema-20260930`, based on integrated reviewed main
+`fd59e667bc948445e102241ace77653e1c3f0fe2`, actual public GRIB bytes prove IFS
+native three-hour temperature extrema (`mx2t3`/`mn2t3`, IDs 228026/228027).
+The frozen cohort has only 73/541 three-hour-aligned days; 468 require splitting
+an interval and cannot be reconstructed exactly. AIFS inspected products contain
+point `2t`, no native extreme fields. AWS 503 and later portal 429 are preserved
+as availability failures, not absence proofs; requests stop on throttling.
+A separate bounded typed research decoder and immutable coverage/output builder
+were added. No completed point store or runtime path changed. Exact-day and
+causal learner gates stay closed; NOT_FITTED / NOT_CALIBRATED / NO_PROMOTION.
+Splits remain 357/120/64; WeatherNext remains DEFERRED_NO_ACCESS. Source receipt,
+label knowable-time/rule revisions, endpoint convention and independent release
+identity remain unresolved. No new C/J/E/A: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**. Details, evidence scope and reproducibility:
+[Native-extreme feasibility](V11_R09_ECMWF_NATIVE_EXTREMA.md).
+
+
 ## Coordinator integration — reviewed R09/R47 branches — 2026-09-30
 
 Independent review passed for both the R09 historical multi-model panel and the R47 deterministic-v2 GEFS candidate lineage. R09 review independently reproduced the 505/541 boundary-gap result, 357/120/64 split preservation, deterministic real-input rebuilds and grouped-dependence gates; no real fit is admitted. R47 review independently reproduced a third byte-identical 37-file build, exact live GEFS semantics, v2 hashes, C/F invariance and 22 + 181 relevant passing tests. No runtime/protected/financial authority changed. Engineering score remains **91/200 (45.5%), formal 1/50**; NOT_READY_TO_FUND.
