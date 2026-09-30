@@ -131,6 +131,34 @@ def _validate_code(code, repo):
     ref(code['dependency_lock'], 'DEPENDENCY_LOCK_REF')
 
 
+def _check_artifact_path(fd, path, reason):
+    opened = os.fstat(fd)
+    linked = os.stat(path, follow_symlinks=False)
+    check((opened.st_dev, opened.st_ino) == (linked.st_dev, linked.st_ino), reason)
+    return opened
+
+
+def _open_regular_artifact(path, reason):
+    """Pin metadata without device I/O, then reopen that exact regular inode."""
+    metadata_fd = os.open(path, os.O_PATH | os.O_NOFOLLOW)
+    try:
+        metadata = os.fstat(metadata_fd)
+        check(stat.S_ISREG(metadata.st_mode), reason)
+        # Linux /proc reopens the pinned inode, so a path swap cannot turn the
+        # data open into a FIFO/device open between type inspection and open.
+        fd = os.open(f'/proc/self/fd/{metadata_fd}', os.O_RDONLY | os.O_NONBLOCK)
+        try:
+            opened = _check_artifact_path(fd, path, reason)
+            check((opened.st_dev, opened.st_ino) ==
+                  (metadata.st_dev, metadata.st_ino), reason)
+            return fd
+        except BaseException:
+            os.close(fd)
+            raise
+    finally:
+        os.close(metadata_fd)
+
+
 def _resolve_refs(value, root):
     """All artifact triples must exist as immutable digest-named private objects."""
     if type(value) is dict:
@@ -140,7 +168,8 @@ def _resolve_refs(value, root):
             check(object_dir.is_dir() and not object_dir.is_symlink() and
                   stat.S_IMODE(object_dir.stat().st_mode) == 0o700,
                   'OBJECT_DIRECTORY')
-            fd = os.open(object_dir / value['sha256'], os.O_RDONLY | os.O_NOFOLLOW)
+            path = object_dir / value['sha256']
+            fd = _open_regular_artifact(path, 'ARTIFACT_LENGTH')
             try:
                 st = os.fstat(fd)
                 check(stat.S_ISREG(st.st_mode) and st.st_uid == os.getuid() and
@@ -150,6 +179,7 @@ def _resolve_refs(value, root):
                 h = hashlib.sha256()
                 while chunk := os.read(fd, 1024 ** 2):
                     h.update(chunk)
+                _check_artifact_path(fd, path, 'ARTIFACT_IDENTITY')
                 check(h.hexdigest() == value['sha256'], 'ARTIFACT_DIGEST')
             finally:
                 os.close(fd)
@@ -171,7 +201,8 @@ def _zone_from_ref(cohort, root):
     ref(value, 'COHORT_ARTIFACT_REF')
     integer(value['byte_length'], 1, 1024 ** 2, 'PINNED_TZDATA_BOUND')
     _resolve_refs(value, root)
-    fd = os.open(root / 'objects' / value['sha256'], os.O_RDONLY | os.O_NOFOLLOW)
+    path = root / 'objects' / value['sha256']
+    fd = _open_regular_artifact(path, 'PINNED_TZDATA_IDENTITY')
     try:
         st = os.fstat(fd)
         check(stat.S_ISREG(st.st_mode) and st.st_uid == os.getuid() and
@@ -180,6 +211,7 @@ def _zone_from_ref(cohort, root):
         data = b''
         while chunk := os.read(fd, 1024 ** 2):
             data += chunk
+        _check_artifact_path(fd, path, 'PINNED_TZDATA_IDENTITY')
         check(hashlib.sha256(data).hexdigest() == value['sha256'],
               'PINNED_TZDATA_DIGEST')
     finally:
@@ -657,6 +689,7 @@ class DurableBudget:
         for ancestor in (path, *path.parents):
             check(not stat.S_ISLNK(os.lstat(ancestor).st_mode), 'JOURNAL_PATH_SYMLINK')
         check(path == path.resolve(), 'JOURNAL_DIRECTORY')
+        self._owner_pid = os.getpid()
         self.dir_fd = self.lock_fd = self.fd = None
         self.failed = False
         self.uncertain_received_bytes = 0
@@ -726,6 +759,7 @@ class DurableBudget:
               'JOURNAL_FILE_IDENTITY')
 
     def _healthy(self):
+        self._require_owner()
         check(not self.failed, 'JOURNAL_DURABILITY_UNCERTAIN')
         try:
             check(all(not stat.S_ISLNK(os.lstat(ancestor).st_mode)
@@ -741,6 +775,9 @@ class DurableBudget:
         except BaseException:
             self.failed = True
             raise
+
+    def _require_owner(self):
+        check(os.getpid() == self._owner_pid, 'JOURNAL_OWNER_PROCESS')
 
     def _replay(self):
         with os.fdopen(os.dup(self.fd), 'rb') as reader:
@@ -852,6 +889,7 @@ class DurableBudget:
                    self.max_bytes - self.received)
 
     def consume(self, key, body):
+        self._require_owner()
         if self.failed:
             self._healthy()
         check(self.in_flight == key and type(body) is bytes, 'UNEXPECTED_BODY_CHUNK')

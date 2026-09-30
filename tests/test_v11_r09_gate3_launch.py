@@ -1,7 +1,10 @@
 """Synthetic, offline counterexamples for the Gate 3 launch boundary."""
 import copy
 import hashlib
+import json
 import os
+import select
+import signal
 import subprocess
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
@@ -200,6 +203,120 @@ def validate(payload, repo, root, start):
                              now_utc=start - 4000)
 
 
+def _bounded_fork_result(action, timeout=3):
+    """Run a synthetic fork probe and always reap only its owned child."""
+    read_fd, write_fd = os.pipe()
+    pid = os.fork()
+    if pid == 0:
+        os.close(read_fd)
+        try:
+            try:
+                result = action()
+            except BaseException as exc:
+                result = {'error': type(exc).__name__, 'reason': str(exc)}
+            os.write(write_fd, canonical(result) + b'\n')
+        finally:
+            os._exit(0)
+    os.close(write_fd)
+    try:
+        assert select.select([read_fd], [], [], timeout)[0], 'owned child blocked'
+        return json.loads(os.read(read_fd, 65536))
+    finally:
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        os.waitpid(pid, 0)
+        os.close(read_fd)
+
+
+@pytest.mark.parametrize('reference', ['identity', 'tzdata'])
+@pytest.mark.parametrize('replacement', ['fifo', 'directory', 'symlink'])
+def test_manifest_rejects_nonregular_artifact_without_blocking(
+        tmp_path, monkeypatch, reference, replacement):
+    payload, repo, root, start = candidate(tmp_path, monkeypatch)
+    assert len(validate(payload, repo, root, start)) == 64
+    artifact = (payload['identity']['created_ref'] if reference == 'identity'
+                else payload['cohort']['tzdata'])
+    path = root / 'objects' / artifact['sha256']
+    original = path.read_bytes()
+    path.unlink()
+    if replacement == 'fifo':
+        os.mkfifo(path, 0o600)
+    elif replacement == 'directory':
+        path.mkdir(mode=0o700)
+    else:
+        path.symlink_to(root / 'objects')
+    result = _bounded_fork_result(lambda: validate(payload, repo, root, start))
+    assert result['error'] == 'LaunchContractError', result
+    if replacement == 'directory':
+        path.rmdir()
+    else:
+        path.unlink()
+    path.write_bytes(original)
+    path.chmod(0o600)
+    assert len(validate(payload, repo, root, start)) == 64
+
+
+def test_inherited_budget_cannot_mutate_composed_store_journal(tmp_path):
+    from tools.v11_r09_gate3_offline_io import VersionedImmutableObjectStore
+
+    journal = tmp_path / 'budget'
+    journal.mkdir(mode=0o700)
+    root = tmp_path / 'store'
+    root.mkdir(mode=0o700)
+    (root / 'objects').mkdir(mode=0o700)
+    digest = 'a' * 64
+    with DurableBudget(journal, digest, max_bytes=1,
+                       boot_id='synthetic-boot') as budget:
+        with VersionedImmutableObjectStore(
+                root, manifest_sha256=digest, policy_sha256='b' * 64,
+                build_id='synthetic', clock_method='synthetic',
+                max_clock_age_seconds=10, host_id='synthetic-host',
+                boot_id='synthetic-boot') as store:
+            before = (journal / 'gate3.jsonl').read_bytes()
+
+            def inherited():
+                try:
+                    try:
+                        store.read_receipt(None)
+                    except LaunchContractError as exc:
+                        store_reason = str(exc)
+                    else:
+                        store_reason = 'accepted'
+                    for action in (
+                            lambda: budget.reserve('child', 1, started_monotonic=1),
+                            lambda: budget.next_read_limit(1),
+                            lambda: budget.consume('child', b'X'),
+                            lambda: budget.complete('child')):
+                        with pytest.raises(LaunchContractError,
+                                           match='JOURNAL_OWNER_PROCESS'):
+                            action()
+                    return {'store_reason': store_reason,
+                            'received': budget.received}
+                finally:
+                    budget.close()
+                    store.close()
+
+            result = _bounded_fork_result(inherited)
+            assert result == {'store_reason': 'STORE_OWNER_PROCESS',
+                              'received': 0}
+            assert (journal / 'gate3.jsonl').read_bytes() == before
+            with pytest.raises(LaunchContractError,
+                               match='JOURNAL_CONCURRENT_WRITER'):
+                DurableBudget(journal, digest, max_bytes=1,
+                              boot_id='synthetic-boot')
+            budget.reserve('parent', 1, started_monotonic=3)
+            budget.consume('parent', b'Y')
+            budget.complete('parent')
+            assert budget.received == 1
+    with DurableBudget(journal, digest, max_bytes=1,
+                       boot_id='synthetic-boot') as reopened:
+        assert reopened.received == 1
+        with pytest.raises(LaunchContractError, match='NOT_ATTEMPTED_BUDGET'):
+            reopened.reserve('second', 1, started_monotonic=5)
+
+
 def test_exact_synthetic_candidate_and_real_git_sha1(tmp_path, monkeypatch):
     payload, repo, root, start = candidate(tmp_path, monkeypatch)
     assert len(payload['code']['components']['collector']['commit_oid']) == 40
@@ -270,7 +387,7 @@ def test_object_symlink_and_raw_only_full_estimate_are_not_launch_schedule(tmp_p
     outside = tmp_path / 'outside'
     outside.write_bytes(data)
     object_path.symlink_to(outside)
-    with pytest.raises(OSError):
+    with pytest.raises(LaunchContractError, match='ARTIFACT_LENGTH'):
         validate(payload, repo, root, start)
 
 
