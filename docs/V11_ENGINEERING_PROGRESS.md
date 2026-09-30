@@ -1,12 +1,12 @@
 # Supplementary engineering estimate
 
-## Coordinator R09 N4 fallback repair — 2026-09-30 17:10 UTC
+## Coordinator R09 N4 fallback repair — 2026-09-30 17:12 UTC
 
 The R09 builder committed `a1e29fa`; independent exact-commit review completed
 `CHANGES_REQUIRED` after 179 affected passes (one skip) and 27 probes. One P2
-fallback inventory/outage-authentication defect remains. The same preserved
-builder has a live uncommitted repair with an intermediate focused fixture
-failure. No merge or real admission; fresh exact-commit acceptance is required.
+fallback inventory/outage-authentication defect remained. The preserved builder
+then committed `1ab551d` after 123 focused and 291 affected passes (one skip).
+No merge or real admission; fresh exact-commit review is underway.
 Only watchdog status changed for commissioning; no qualifying forward sample
 or C/J/E/A milestone. **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
 

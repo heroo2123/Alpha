@@ -1,6 +1,6 @@
 # Alpha V11 work checkpoint
 
-## Coordinator recovery — R09 N4 fallback repair active — 2026-09-30 17:10 UTC
+## Coordinator recovery — R09 N4 fallback repair committed — 2026-09-30 17:12 UTC
 
 Since the 16:20 checkpoint, the preserved R09 builder committed `a1e29fa`
 (tree `5cf1a9da`) and received a completed independent exact-commit
@@ -11,15 +11,16 @@ the absent provider's finite run inventory and outage payload are not fully
 authenticated. See that review's `review.md` and `terminal.json`. Gate 2 and
 real trajectory admission remain OPEN.
 
-The same Sol/high repair worker is live, editing only the preserved
-`/tmp/alpha-v11-r09-trajectory-gate2/Alpha` worktree. Its first focused run
-after the new edit had 113 passes and 10 fixture `KeyError` failures; this is
-intermediate work, not a final gate. Preserve its uncommitted two-file diff,
-then require focused/affected passes and a fresh independent exact-commit review
-before integration. Main is clean at `70271b7`, 26 commits ahead of origin;
+The same Sol/high worker repaired the first focused fixture failures and
+committed `1ab551d` (tree `ad542166`) in the preserved clean builder worktree.
+Focused tests passed 123/123; the affected suite passed 291 with one skip.
+The worker has started a fresh exact-commit independent review; no verdict or
+integration acceptance exists yet. Main is clean at the coordinator's
+`e0c5878` checkpoint commit, 27 commits ahead of origin;
 SHADOW worktree is clean at `15e99bd`. Commissioning evidence has only new
 watchdog status writes, no qualifying forward sample. PAPER scanner, V10 paper
 demo, V11 controller and execution units are inactive; execution remains masked.
+The scanner launches a root-managed production unit and was not restarted.
 Protected model-authority paths are absent. The private FINAL-REVIEWED master
 matches SHA-256 `a0e16d9b...563b4a`. Disk is 76% used with 4.7 GiB free;
 available memory is about 879 MiB. No service, V10, authority, financial or
