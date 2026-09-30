@@ -1,5 +1,33 @@
 # Alpha V11 work checkpoint
 
+## Coordinator recovery — 2026-09-30 23:22 UTC
+
+Main is clean at `8792b68` (4 ahead of its tracking ref); the held Gate 3
+author candidate `0b7209d` and SHADOW `15e99bd` worktrees are clean. The one
+Astra/high full-branch integration reviewer (driver 926580, worker 926587) is
+still running in its isolated tree. Its `result.json` remains INCOMPLETE and no
+terminal or merge verdict exists. Preserve its prospective tree and do not start
+a duplicate reviewer or merge the candidate.
+
+The review has produced provisional independent evidence: 292 affected passes;
+196 boundary passes and 37 skips. Two repeated adversarial probes fail: replacing
+a launch-manifest artifact with a FIFO blocks validation, and a forked child can
+write through an inherited `DurableBudget` while its parent owns the composed
+store. These are review findings in progress, not an accepted final verdict.
+On terminal completion, inspect the exact report and evidence, then route bounded
+repairs in the preserved author worktree if confirmed, followed by fresh
+independent review. The accepted release resolution `6ec371e` remains an
+ancestor of main; do not reopen the stale full-suite failure without new evidence.
+
+Commissioning has only newer manager/watchdog status writes; no forward SHADOW
+sample was admitted. The private FINAL-REVIEWED master matches its pinned
+SHA-256. Demo, scanner, controller and execution units are inactive; execution
+remains masked and protected model-authority paths are absent. Disk has 4.2 GiB
+free and memory about 742 MiB available. No service, V10, AxiomTrade,
+authority, capture, financial or publication action. The prior automatic push
+rejection remains pending. No C/J/E/A crossing: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Coordinator live recovery — 2026-09-30 23:14 UTC
 
 Recovered clean main `cc655c0` (3 ahead of its local tracking ref), clean held

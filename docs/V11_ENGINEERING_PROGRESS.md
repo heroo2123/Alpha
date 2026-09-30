@@ -1,5 +1,15 @@
 # Supplementary engineering estimate
 
+## Coordinator recovery — 2026-09-30 23:22 UTC
+
+The Gate 3 integration review is still running in its isolated worktree, with
+292 affected passes and 196 boundary passes (37 skips). Two repeated independent
+acceptance probes currently fail on manifest FIFO blocking and inherited-budget
+fork writes. Treat these as provisional until the reviewer writes its terminal;
+then reconcile its exact result with main and route confirmed repairs. No new
+forward SHADOW evidence or permission was found. **91/200 (45.5%), formal
+1/50; NOT_READY_TO_FUND**, unchanged.
+
 ## Coordinator live recovery — 2026-09-30 23:14 UTC
 
 The independent Gate 3 full-branch reviewer is active in its isolated tree;

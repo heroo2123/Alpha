@@ -1,5 +1,15 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Coordinator recovery — 2026-09-30 23:22 UTC
+
+The single Gate 3 full-branch reviewer remains active; its result is INCOMPLETE
+and no terminal verdict exists. Affected and boundary suites pass, but two
+repeated provisional probes expose launch-manifest FIFO blocking and forked
+inherited-budget writes. Keep local integration, capture, G3-L, learner, SHADOW
+and publication held pending its final report and any repair/review cycle.
+Commissioning added status writes only; no forward evidence or C/J/E/A boundary
+crossed. **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND.**
+
 ## Coordinator live recovery — 2026-09-30 23:14 UTC
 
 The clean, held `0b7209d` Gate 3 candidate remains under one active independent
