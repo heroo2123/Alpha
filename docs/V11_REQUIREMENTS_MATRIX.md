@@ -1,5 +1,17 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## R47/R09 Brain offline repair reviewed and locally integrated — 2026-09-30
+
+[Astra/high review](V11_BRAIN_OFFLINE_READINESS_REVIEW_58b0b79.md) passes exact
+Sol/high `58b0b79`/tree `dba54e2` for the three rejected P2 bindings and P3
+R09 handoff correction. Verdict committed at `150ddb0` before merge
+`36c0523`. Independent affected suites: 145 passed, 1 skipped; independent
+adversarial probes: 23 passed; merged focused/probes: 34 passed. This closes
+the offline repair and integration review gate only. Real calibration,
+IFS/AIFS learner admission, forward SHADOW evidence, promotion and root
+model authority remain OPEN. Gate 3 `1693dd5` is still held and unmerged;
+publication hold remains. **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## R47/R09 Brain offline P2 repair candidate — 2026-09-30 20:36 UTC
 
 Sol/high `58b0b79`/tree `dba54e2` repairs the three P2 bindings rejected in

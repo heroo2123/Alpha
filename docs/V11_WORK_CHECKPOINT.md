@@ -1,5 +1,38 @@
 # Alpha V11 work checkpoint
 
+## Brain repair independently accepted and integrated locally — 2026-09-30
+
+Astra/high completed the routed review of Sol/high exact `58b0b79`, tree
+`dba54e2`: scoped **PASS** for all three P2 findings and the P3 R09 wording
+correction. The [review](V11_BRAIN_OFFLINE_READINESS_REVIEW_58b0b79.md),
+reproducible synthetic probes and exact-commit terminal were committed at
+`150ddb0` **before** local integration. Independent affected suites: **145
+passed, 1 skipped**; additional adversarial cases: **23 passed**. The same
+inputs reproduce all five old defect manifestations at rejected `a8362ad`.
+No candidate files were edited during review. Main had no divergent changes
+in the three candidate paths, so Brain was merged locally as `36c0523`;
+merged focused plus independent probes: **34 passed**. No full-suite rerun
+was needed for this isolated offline tool. The accepted `6ec371e` release
+failure resolution remains unchanged.
+
+No duplicate worker exists or was launched; this bounded routed review and
+local integration completed synchronously. Gate 3 `1693dd5` remains clean,
+reviewed and **unmerged under its separate hold**. Further real multi-model
+admission still needs separately reviewed native sampled-trajectory binding,
+Gate 3/4 evidence and acceptance. GEFS forward SHADOW remains owner/root-gated;
+only watchdog status artifacts changed since the 20:36 handoff. Neither path
+has new qualifying forward evidence. Next substantive work must preserve the
+Gate 3 merge/launch boundaries and existing model-authority custody; this
+Brain verdict cannot substitute for either.
+
+Read-only safety check: V10 demo, PAPER scanner and controller are inactive /
+disabled; V11 execution inactive / masked. Protected authority paths absent;
+FINAL-REVIEWED master hash matches its pin. Disk 4.4 GiB free, memory 1,040 MiB
+available at inspection. SHADOW worktree is clean. Main was clean and 37 ahead /
+0 behind its local upstream ref after integration, before this ledger commit.
+Publication hold remains; no fetch, push, service, V10, authority, financial
+or AxiomTrade action. **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Brain P2 repair committed; fresh exact-commit review required — 2026-09-30 20:36 UTC
 
 Sol/high resumed the preserved Brain worktree and committed `58b0b79` (tree

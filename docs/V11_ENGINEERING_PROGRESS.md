@@ -1,5 +1,18 @@
 # Supplementary engineering estimate
 
+## Brain repair independent PASS and local integration — 2026-09-30
+
+Astra/high independently verified exact Sol/high `58b0b79`/tree `dba54e2`:
+station/day cohort identity, event-to-bundle cost/markout binding, and PAPER
+markout namespace now reject the five old defect manifestations. P3 handoff
+wording uses the R09 native sampled-trajectory contract. The committed
+[verdict and evidence](V11_BRAIN_OFFLINE_READINESS_REVIEW_58b0b79.md) at
+`150ddb0` preceded local merge `36c0523`. Independent affected tests: 145
+passed, 1 skipped; additional probes: 23 passed; merged checks: 34 passed.
+No new forward or real multi-model evidence and no C/J/E/A credit. Gate 3
+merge hold and main publication hold remain. **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**, unchanged.
+
 ## Brain repair author candidate verified; review gate open — 2026-09-30 20:36 UTC
 
 The clean isolated Brain worktree now holds Sol/high `58b0b79`/tree `dba54e2`.
