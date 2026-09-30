@@ -1,5 +1,29 @@
 # Alpha V11 work checkpoint
 
+## Coordinator recovery — R09 worker still editing after 98-pass focused run — 2026-09-30 15:40 UTC
+
+Recovered the same live R09 gate-2 driver PID 799619 and Codex child PID
+799624 in `/tmp/alpha-v11-r09-trajectory-gate2/Alpha`. Since the preceding
+checkpoint, its focused synthetic contract suite passed **98/98 in 6.11 s**;
+the earlier affected run passed **155 with one skip**. The worker then edited
+both files again, so neither pass is a final gate for the current diff. The
+two-file diff remains uncommitted and `git diff --check` passes. There is no
+`terminal.json` or independent exact-commit review. Preserve the live worker;
+inspect its final diff and gates, then seek independent review before merge or
+real trajectory admission.
+
+Main is clean at `b709f86`, 19 local commits ahead of origin. The SHADOW
+worktree remains at `15e99bd`. PAPER scanner, V11 controller/execution and V10
+paper demo are inactive; the scanner's 13:53 status is stale and its recorded
+stop reason remains `DISK_AT_OR_ABOVE_85_PERCENT`. Root disk is now 76% used
+with 4.7 GiB free; memory available is about 884 MiB. Recent commissioning
+writes are watchdog status only, with no qualifying forward SHADOW sample.
+Protected model-authority paths remain absent. The private FINAL-REVIEWED
+master still matches SHA-256 `a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+No service, V10, protected-authority, financial or publication action was
+taken. No C/J/E/A boundary crossed: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Coordinator recovery — R09 affected gate passed; worker still reviewing — 2026-09-30 15:35 UTC
 
 Recovered the same live R09 gate-2 driver PID 799619 and Codex child PID

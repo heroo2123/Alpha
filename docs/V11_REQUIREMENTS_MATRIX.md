@@ -1,5 +1,14 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Coordinator recovery — R09 worker continuing — 2026-09-30 15:40 UTC
+
+The preserved R09 gate-2 worker passed 98/98 focused synthetic tests after
+the prior 155-pass affected run, then continued editing its uncommitted diff.
+No final gate, terminal marker or independent exact-commit review exists;
+gate 2 and real trajectory admission remain OPEN. PAPER remains stopped and
+new commissioning files are watchdog status only. No requirement or C/J/E/A
+credit changes: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator recovery — R09 affected gate, review pending — 2026-09-30 15:35 UTC
 
 The preserved live R09 gate-2 worker passed 97/97 focused synthetic contract
