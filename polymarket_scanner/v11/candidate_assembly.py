@@ -377,4 +377,6 @@ def assemble_candidate(store,client,plan,*,generation):
     if plan.reconciliation is None:assembly.pop('reconciliation')
     if plan.guardian_config is None:assembly.pop('guardian_config')
     runner.assembly_sha256=digest(assembly)
+    from .candidate_cohort import register_assembly
+    register_assembly(runner, runner.assembly_sha256)
     return runner

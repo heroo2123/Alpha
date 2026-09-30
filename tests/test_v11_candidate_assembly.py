@@ -8,6 +8,7 @@ from polymarket_scanner.v11 import candidate_assembly as app
 from polymarket_scanner.v11.audit_reports import AuditPolicy
 from polymarket_scanner.v11.book_inputs import BookPolicy, PROVIDER
 from polymarket_scanner.v11.candidate_runner import CandidatePolicy
+from polymarket_scanner.v11.candidate_cohort import candidate_cohort
 from polymarket_scanner.v11.census_worker import CensusPolicy, CensusPlan
 from polymarket_scanner.v11.discovery import DiscoveryPolicy
 from polymarket_scanner.v11.evidence import EvidenceError
@@ -183,6 +184,28 @@ def test_pws_lane_retains_separate_observation_and_payout_models(joined,monkeypa
     assert d['executable_exit_value'] is None
 
 
+@pytest.mark.parametrize('field', ['policy', 'without'])
+def test_pws_factory_mutation_invalidates_registered_cohort(joined, monkeypatch, field):
+    r = joined
+    synthetic_clock(r, monkeypatch)
+    lane = app.PWSLeadLane('pws', inputs(r, r['payout_kw']), (target(r),), 'fixture',
+        r['request'].valuation_policy, 10., inputs(r, r['observation_kw']),
+        (SourceSelector('MODEL', 'fixture', 'ablation-model', 120.),), r['lead_kw']['policy'])
+    async def check():
+        async with httpx.AsyncClient() as client:
+            runner = app.assemble_candidate(r['store'], client, scoped_plan(r, lane), generation='pws-binding')
+            candidate_cohort(runner)
+            factory = runner.runtime.evaluator.evaluator.adapters[r['context'].event_id].adapters[0][1].requests_for_event
+            if field == 'policy':
+                factory.policy = replace(factory.policy, horizon_seconds=factory.policy.horizon_seconds + 1)
+            else:
+                source = factory.without[0]
+                factory.without = (replace(source, maximum_age_seconds=source.maximum_age_seconds + 1),)
+            with pytest.raises(EvidenceError, match='RUNTIME_REQUEST_PLAN_CHANGED_REVIEW_REQUIRED|COHORT_GRAPH_CHANGED'):
+                candidate_cohort(runner)
+    asyncio.run(check())
+
+
 @pytest.mark.parametrize('strategy',['SOURCE_SHOCK','RELEASE_OPPORTUNITY'])
 def test_release_lanes_resolve_actual_receipts_and_do_not_invent_finality(release_factory,monkeypatch,strategy):
     r=release_factory(strategy)
@@ -318,7 +341,9 @@ def test_candidate_normalizes_existing_forecast_without_new_network_or_unrelated
     r['store'].capture('archived-gefs',event_id=fp.event_id,kind='MODEL',provider=FORECAST_PROVIDER,source_identity=fp.source_identity,
         revision='archive',payload=dict(response=payload,request_url=OPEN_METEO_ENSEMBLE,request_params=request_parameters(fp),
                                        source_time_status='NOT_YET_NORMALIZED'),evidence_class='SYNTHETIC')
-    cfg=replace(cfg,forecasts=(fp,),candidate=replace(cfg.candidate,maximum_jobs=4))
+    # This is a four-worker composition assertion, not a five-second latency gate.
+    # Shared-host fsync load can exhaust that budget before normalization starts.
+    cfg=replace(cfg,forecasts=(fp,),candidate=replace(cfg.candidate,maximum_jobs=4,maximum_seconds=30.))
     synthetic_clock(r,monkeypatch)
     async def run():
         async with httpx.AsyncClient(transport=transport(r,calls)) as client:
@@ -326,6 +351,7 @@ def test_candidate_normalizes_existing_forecast_without_new_network_or_unrelated
             ready(r,candidate.runtime.health)
             return candidate,(await candidate.run('forecast-composed'))['body']['details']
     candidate,d=asyncio.run(run())
+    assert d['end_reason']=='JOB_COUNT_BOUND',d
     assert [j['kind'] for j in d['worker_results']]==['CENSUS','DISCOVERY','AUDIT','FORECAST_NORMALIZATION'],d
     assert d['worker_results'][-1]['outcome']=='FORECAST_MEMBERS_ARCHIVED_RUN_UNVERIFIED'
     assert len(calls)==8 and all(req.url.host!='ensemble-api.open-meteo.com' for req in calls)
