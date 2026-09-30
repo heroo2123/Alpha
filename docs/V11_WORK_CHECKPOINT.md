@@ -1,5 +1,28 @@
 # Alpha V11 work checkpoint
 
+## Gate 3 strict offline repair independently reviewed; Brain review launched — 2026-09-30 20:19 UTC
+
+Sol/high repaired the five `dc7f83b` P2 offline findings in the same isolated
+worktree, with author commits `ebebad9`, `e8cf57b` and final `1693dd5` (tree
+`09840fc`). Astra/high independently found and drove correction of three
+range/path/directory gaps and a delivered-byte accounting edge, then gave the
+exact final commit a scoped **PASS**. [The repair review](V11_R09_GATE3_STRICT_REPAIR_REVIEW_1693dd5.md)
+records the sequence and evidence: 95 focused launch/collector tests passed;
+12 final independent failure scenarios and 120 assertion groups passed. The
+candidate worktree is clean and **unmerged**, as the repair handoff explicitly
+withheld merge authority. No network capture, G3-L or SHADOW qualification.
+
+The separate Brain candidate `a8362ad` remains clean and unmerged; a new
+different-model exact-commit review is active. Main was clean at `d1ad222`
+before this documentation update, 28 ahead of its local upstream tracking
+reference; publication hold remains. SHADOW worktree is clean at `15e99bd`;
+the only commissioning evidence newer than 06:43 UTC is watchdog status.
+PAPER scanner/controller and V10 demo are inactive; V11 execution is masked
+and inactive. Protected model-authority paths are absent. FINAL-REVIEWED
+master SHA-256 matches its pin. Disk has 4.4 GiB free and available memory is
+about 1.0 GiB. No C/J/E/A boundary crossed: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Brain offline readiness candidate completed; Gate 3 repair next — 2026-09-30
 
 The separate Sol/high Brain worker finished cleanly at `a8362ad` in

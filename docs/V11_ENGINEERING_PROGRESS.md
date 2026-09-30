@@ -1,5 +1,17 @@
 # Supplementary engineering estimate
 
+## Gate 3 strict offline repair PASS; no launch credit — 2026-09-30
+
+Sol/high's final isolated `1693dd5`/tree `09840fc` repairs the five P2
+findings against `dc7f83b`; [Astra/high exact-commit review](V11_R09_GATE3_STRICT_REPAIR_REVIEW_1693dd5.md)
+is a scoped PASS after two intermediate CHANGES_REQUIRED re-reviews. The
+launch/collector suite passes 95 tests; the final reviewer passed 12 failure
+scenarios and 120 assertion groups. The branch remains unmerged under an
+explicit merge hold. Real evidence semantics, transport, decoder, clock,
+G3-L package, capture and forward SHADOW remain open. The separate Brain
+candidate has a different-model review in progress. **91/200 (45.5%), formal
+1/50; NOT_READY_TO_FUND**, unchanged.
+
 ## Offline Brain readiness author candidate complete — 2026-09-30
 
 Sol/high finished `a8362ad`, adding a 222-line offline evaluator, 157-line

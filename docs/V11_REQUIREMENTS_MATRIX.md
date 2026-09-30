@@ -1,5 +1,17 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## R09 strict G3-I offline repair reviewed; integration still open — 2026-09-30
+
+The [independent Astra/high exact-commit review](V11_R09_GATE3_STRICT_REPAIR_REVIEW_1693dd5.md)
+passes Sol/high `1693dd5`/tree `09840fc` for the five previously rejected P2
+offline findings. The repaired V3 validator and durable journal have 95 passing
+focused tests; 12 final independent failure scenarios and 120 assertion groups
+passed. Candidate remains clean and unmerged under the handoff's merge hold.
+Typed artifact meaning, real transport/decoder/clock integration, private
+exact-digest G3-L, capture and forward SHADOW evidence remain OPEN. Brain
+`a8362ad` is under separate different-model review. No C/J/E/A change:
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## R47/R09 offline Brain readiness candidate completed — 2026-09-30
 
 Sol/high committed `a8362ad` in the isolated Brain readiness worktree. The
