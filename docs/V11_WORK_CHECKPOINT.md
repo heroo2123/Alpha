@@ -1,5 +1,50 @@
 # Alpha V11 work checkpoint
 
+## GEFS Gate 3 field ceiling corrected per-acquisition-path; isolated, pending review — 2026-09-30 19:20 UTC
+
+Routed (FABLE_MEDIUM -> SONNET_HIGH) task done: fixed the GEFS provider ceiling
+the prior pass found wrong. `tools/v11_r09_gate3_collector.py` no longer reuses
+`grib_fields.MAX_BYTES` (64 KiB) -- the production NOMADS CGI subregion
+decoder's bound -- for Gate 3's S3 `.idx`-sidecar + `Range` full-field
+acquisition path, which that decoder cannot even parse (`MAX_POINTS=25`).
+New `_GEFS_S3_FULL_FIELD_MAX_BYTES = 2 MiB` (replacing
+`_EXISTING_GEFS_MAX_FIELD_BYTES`) is derived from the real observed evidence
+in `config/v11/r09_gate3_observed_message_sizes_20260930.json` (GEFS max
+245,209 B across 33,759 DONE captures) with >8x headroom, strictly under the
+shared 4 MiB ceiling IFS/AIFS already use. `BudgetTracker`'s docstring and the
+Section 4 comment's "can never loosen" claim were corrected to stop citing a
+production bound that never applied to this path. The evidence JSON was
+regenerated against the same read-only historical stores (source sha256
+unchanged): GEFS `ceiling_findings` is now empty, `feasibility_input_usable`
+is `true`. Added a regression test feeding the real observed per-provider
+maxima through `begin_request` and `estimate_feasibility` for all three
+providers, and fixed the one existing test that hardcoded the old 64 KiB GEFS
+boundary. 52/52 Gate 3 collector + message-size tests pass; 242 passed/1
+skipped (pre-existing, unrelated) on the broader r09/gate3/gefs/multimodel
+family.
+
+Committed `95e07fa` on isolated branch/worktree
+`r09-gate3-gefs-ceiling-fix-20260930`
+(`/tmp/alpha-v11-r09-gate3-gefs-ceiling-20260930`), off merged `9311649`,
+per this repo's established pattern (cf. `ae53102`/`91cb857`) of isolating
+substantive corrections to just-reviewed code for independent cross-model
+review before merge -- this Sonnet pass is the author and must not also be
+the reviewer. **Not merged.** Main dev tree
+(`weather-v11-profitability-upgrade-2026-09-23`) is untouched, still at
+`9311649`, tree clean, 18 commits ahead of `origin`/0 behind. Publication
+hold remains in force; no push attempted. No master/private-input access
+needed. No financial/credential/sudo/production action; V10/scanner untouched.
+No C/J/E/A boundary crossed: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
+Next: independent review of `95e07fa` (a different identity/model from this
+authoring pass) confirming (a) `_GEFS_S3_FULL_FIELD_MAX_BYTES` is correctly
+derived and bounded, (b) the regenerated evidence JSON's source hashes are
+unchanged from the version this pass read, (c) no other caller still assumes
+the old 64 KiB GEFS ceiling; then merge into
+`weather-v11-profitability-upgrade-2026-09-23` if clean. G3-L still requires
+its own separate manifest-digest review regardless (protocol Section 1) and
+is not unblocked by this fix alone.
+
 ## Real observed per-provider message sizes; pinned GEFS 64 KiB ceiling contradicted — 2026-09-30 19:05 UTC
 
 Gathered the "real observed per-provider message sizes" the G3-I review named
