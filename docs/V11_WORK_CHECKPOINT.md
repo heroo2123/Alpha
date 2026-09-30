@@ -1,5 +1,21 @@
 # Alpha V11 work checkpoint
 
+## Brain repair routing failover — 2026-09-30 20:30 UTC
+
+Recovery still finds the Brain worktree clean at rejected `a8362ad`, with no
+repair process, diff or terminal record. Repeated Sonnet/high router attempts
+ended at its session limit without touching the candidate; route the bounded
+offline P2 repair in that same worktree to Sol/high as a failover, then require
+fresh different-model exact-commit review. Main remains clean at `b76daa5`;
+Gate 3 `1693dd5` remains reviewed but unmerged under its hold. The latest
+commissioning changes are watchdog status only, so no forward SHADOW sample is
+admitted. V11 execution is masked/inactive, PAPER scanner/controller and V10
+are inactive, and protected model authority is absent. The FINAL-REVIEWED
+master still matches its SHA-256 pin. The prior load-sensitive release failure
+was resolved by the accepted `6ec371e` full-suite gate. Disk has 4.4 GiB free
+and memory about 1.0 GiB available. No C/J/E/A boundary crossed:
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Brain repair worker absent; resume in preserved worktree — 2026-09-30 20:25 UTC
 
 Recovery found no Brain repair process or terminal record. The isolated

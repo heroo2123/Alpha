@@ -1,5 +1,14 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Brain repair route failover — 2026-09-30 20:30 UTC
+
+No new candidate exists after the rejected `a8362ad`: the isolated worktree
+is clean, and Sonnet/high retries ended at a session limit. The three P2
+binding repairs and P3 handoff correction remain open for Sol/high failover,
+followed by a fresh different-model exact-commit review. R09 Gate 3 `1693dd5`
+remains reviewed, unmerged and held; no forward SHADOW evidence or new C/J/E/A
+credit. **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## R47/R09 Brain repair recovery — 2026-09-30 20:25 UTC
 
 The previously reported Brain repair worker is no longer active: no process,

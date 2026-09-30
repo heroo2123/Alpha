@@ -1,5 +1,14 @@
 # Supplementary engineering estimate
 
+## Brain repair failover after Sonnet session limit — 2026-09-30 20:30 UTC
+
+The isolated Brain candidate remains unchanged at rejected `a8362ad`.
+Repeated Sonnet/high attempts terminated at a session limit before work began;
+Sol/high is the available implementation failover for the three P2 fixes and
+P3 wording correction. Exact-commit independent review remains mandatory.
+No qualifying forward SHADOW evidence or C/J/E/A crossing:
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Brain repair recovery: stale active status corrected — 2026-09-30 20:25 UTC
 
 The Brain repair worktree is unchanged and clean at rejected `a8362ad`; no
