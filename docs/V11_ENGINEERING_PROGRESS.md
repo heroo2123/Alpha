@@ -1,5 +1,17 @@
 # Supplementary engineering estimate
 
+## G1–G4 repair active; next-window diagnostic — 2026-10-01 15:18 UTC
+
+Actual runner and worktree checks found one live Sol/high repair writer, four
+unfinished files and interim 75-pass focused, seven-pass targeted, and 445-pass
+Gate 3 family runs (two existing fork warnings).
+No terminal, exact-commit review or integration is claimed. A passive
+[next-window offline screen](V11_GATE3_NEXT_WINDOW_OFFLINE_SCREEN_20261001.md)
+for an October 3 target returned `BLOCKED_MISSING_REVIEWED_EVIDENCE`, all 77
+pre-review identities unresolved and `launchable=false`; the October 1 start
+was missed. G3-L NO-GO. **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND** unchanged.
+
 ## Slice-3 G1–G4 repair assigned — 2026-10-01 15:03 UTC
 
 Actual process/worktree recovery found clean `8e18553` unmerged and no other

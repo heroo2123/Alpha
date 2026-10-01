@@ -1,5 +1,14 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Next-window offline screen, no acceptance change — 2026-10-01 15:18 UTC
+
+The sole slice-3 G1–G4 worker remains live with uncommitted edits; its 445-pass
+Gate 3 family run is interim author evidence. An [offline candidate-window screen](V11_GATE3_NEXT_WINDOW_OFFLINE_SCREEN_20261001.md)
+for October 2 14:00 UTC / October 3 target retained the 2,713 denominator and
+77 missing pre-review evidence identities, with `launchable=false`. October 1
+14:00 UTC passed without G3-L PASS. No C/J/E/A boundary crossed:
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Slice-3 G1–G4 repair in progress — 2026-10-01 15:03 UTC
 
 The independent `8e18553` CHANGES_REQUIRED verdict is unchanged. One Sol/high
