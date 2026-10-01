@@ -1,5 +1,29 @@
 # Alpha V11 work checkpoint
 
+## MEMFS repair completed; exact independent review live — 2026-10-01 20:55 UTC
+
+Recovered the sole Sonnet/high repair worker from its matching terminal:
+clean, unmerged `cccc5d0b0398ef153289d460916813a4c79c532c` (tree
+`5a5f5d0fea1c103934947a2e56698c1d6f0f5226`, parent `8b0b32e`) in the
+same author worktree. It changed only the three MEMFS observation artifacts;
+`git diff --check` passes. The author reports corrections to logical-length
+claims, the relocation negative probe, post-payload gap attribution and
+malformed-ELF scope. These remain author claims pending review.
+
+One different-model Astra/high reviewer is verified live in the clean detached
+exact checkout `/tmp/alpha-v11-memfs-review-8b0b32e` at `cccc5d0`: runner
+1914268, child 1914275, terminal prefix
+`/tmp/alpha-v11-memfs-review-cccc5d0-20261001`. Inspect its actual report,
+terminal, process and worktree before integration; reconcile any accepted
+candidate with newer main. No candidate merge, G3-L approval, provider request
+or new forward SHADOW evidence. Disk is 1,186,930,688 bytes free, below the
+2 GiB floor; latest prospective screen still lacks 77 reviewed identities.
+PAPER scanner inactive/disabled and V11 execution inactive/masked. Private
+FINAL-REVIEWED master hash remains
+`a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+No C/J/E/A crossing: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## MEMFS exact review requires correction; sole repair worker live — 2026-10-01 20:42 UTC
 
 The replacement independent Astra/high review completed with matching

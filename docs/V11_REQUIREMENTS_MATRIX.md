@@ -1,5 +1,14 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## MEMFS repair awaits exact review — 2026-10-01 20:55 UTC
+
+Clean, unmerged `cccc5d0` repairs the prior MEMFS observation claims in three
+files; one independent Astra/high exact-commit review is live (runner 1914268,
+terminal prefix `/tmp/alpha-v11-memfs-review-cccc5d0-20261001`). No
+build/source/G3-L identity or forward SHADOW credit follows from author
+checks. Disk remains below 2 GiB and 77 prospective identities are missing.
+G3-L NO-GO; **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## MEMFS exact review changes required; repair active — 2026-10-01 20:42 UTC
 
 The independently reproduced 7,073/7,073 static byte inventory at `8b0b32e`

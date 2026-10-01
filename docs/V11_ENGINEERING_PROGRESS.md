@@ -1,5 +1,15 @@
 # Supplementary engineering estimate
 
+## MEMFS correction candidate in independent review — 2026-10-01 20:55 UTC
+
+The author repair ended cleanly at unmerged `cccc5d0` (tree `5a5f5d0`), with
+only three MEMFS observation files changed and `git diff --check` clean.
+An Astra/high reviewer is live at that exact commit in a detached checkout;
+terminal prefix `/tmp/alpha-v11-memfs-review-cccc5d0-20261001`. Its report
+and terminal must precede newer-main reconciliation. No G3-L approval,
+forward SHADOW sample or C/J/E/A change: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## MEMFS exact review rejected pending bounded repair — 2026-10-01 20:42 UTC
 
 The independent `8b0b32e` review reproduced all 7,073 static mappings but
