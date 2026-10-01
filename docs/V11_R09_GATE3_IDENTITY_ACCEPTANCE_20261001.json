@@ -1,0 +1,194 @@
+{
+  "accepted_static_review_verified": [
+    {
+      "commit": "cccc5d0b0398ef153289d460916813a4c79c532c",
+      "report": {
+        "byte_length": 5173,
+        "path": "/home/alphaadmin/AlphaV11_Dev/Alpha/docs/V11_R09_GATE3_MEMFS_STATIC_REVIEW_cccc5d0.md",
+        "sha256": "b5c0edb8216765890b6fa8045650d5f7ed170d55bbf85ac8f485c42890cd6d0c"
+      },
+      "scope": "STATIC_OBSERVATION_ONLY",
+      "terminal": {
+        "byte_length": 665,
+        "path": "/home/alphaadmin/AlphaV11_Dev/Alpha/docs/V11_R09_GATE3_MEMFS_STATIC_REVIEW_cccc5d0.json",
+        "sha256": "e57cdc32357570dd3d51536d525e08716963804c904d30ed0a08b73c0774627b"
+      },
+      "tree": "5a5f5d0fea1c103934947a2e56698c1d6f0f5226"
+    }
+  ],
+  "analysis_script": {
+    "byte_length": 6929,
+    "path": "/tmp/alpha-v11-gate3-identity-analysis-20261001.py",
+    "sha256": "fa668241d1c36b9cf77ba259efcea8205249fe2ab626516a1882f7aeac8bc777"
+  },
+  "first_proposed_GEFS_slot_bound": {
+    "available_memory_min_bytes": 637534208,
+    "boundary_controls": {
+      "at_both_minima_one_slot": true,
+      "one_byte_below_disk_zero_slots": true,
+      "one_byte_below_memory_zero_slots": true
+    },
+    "current_disk_shortfall_bytes": 382693376,
+    "free_disk_min_bytes": 2584739840,
+    "qualification": false,
+    "resources": {
+      "body_reservation_bytes": 13631488,
+      "budget_events_upper": 137,
+      "local_storage_quota_bytes": 403701760,
+      "requests": 4,
+      "serial_seconds_upper": 246,
+      "session_events_upper": 33,
+      "store_events_upper": 17,
+      "store_objects": 9
+    }
+  },
+  "funding": "NOT_READY_TO_FUND",
+  "future_candidate_screen": {
+    "artifact": {
+      "byte_length": 363761,
+      "path": "/tmp/alpha-v11-g3l-offline-screen-identity-analysis-20261001.json",
+      "sha256": "f70dde051184c4d12c3b0996731d49f9a0d687d3b090a204e0c22078ba371f1c"
+    },
+    "attempt_slots": [],
+    "decision_utc": "2026-10-02T18:00:00+00:00",
+    "finding_counts": {
+      "MISSING": 77
+    },
+    "last_acquisition_utc": "2026-10-02T17:00:00+00:00",
+    "launchable": false,
+    "nonmissing_findings": [],
+    "resource_snapshot": {
+      "available_memory_bytes": 1071845376,
+      "free_disk_bytes": 2202046464
+    },
+    "status": "BLOCKED_MISSING_REVIEWED_EVIDENCE",
+    "target_date": "2026-10-03",
+    "window_start_utc": "2026-10-02T14:00:00+00:00"
+  },
+  "g3l": "NO-GO",
+  "historical_release_full_log_verified": {
+    "byte_length": 7612,
+    "path": "/tmp/alpha-v11-release-gate-6ec371e.full.log",
+    "sha256": "c61c3f5861faebb7d586211b17efb8eb709b67bf6a1be410906a76c2048d4246"
+  },
+  "inputs": [
+    {
+      "byte_length": 31205,
+      "path": "/home/alphaadmin/AlphaV11_Dev/Alpha/tools/v11_r09_gate3_g3l_prep.py",
+      "sha256": "a5051a65aa219d40f5ac67acf9ca6f1e72839eb1d988ae5d08b2ea0565e89481"
+    },
+    {
+      "byte_length": 57812,
+      "path": "/home/alphaadmin/AlphaV11_Dev/Alpha/tools/v11_r09_gate3_launch.py",
+      "sha256": "d126744f3905b65b97dd19ccddc787d4bcdd71fca88288c1504966b0fb2681b8"
+    },
+    {
+      "byte_length": 47602,
+      "path": "/home/alphaadmin/AlphaV11_Dev/Alpha/tools/v11_r09_gate3_launch_v4.py",
+      "sha256": "a2fe4d99666ef744927cfba49de03726b3fc695a98e7836dc1f3642781cbe978"
+    },
+    {
+      "byte_length": 110679,
+      "path": "/home/alphaadmin/AlphaV11_Dev/Alpha/tools/v11_r09_gate3_runtime.py",
+      "sha256": "3a45eb46f156a1bd17764bfe9fc3d73765418927bbc68fe14744a8fee411f9ed"
+    },
+    {
+      "byte_length": 22644,
+      "path": "/home/alphaadmin/AlphaV11_Dev/Alpha/tools/v11_r09_gate3_offline_io.py",
+      "sha256": "bca02a320402ca6c0f908cd035fecd08854012c25b744d8cc7436ca370c50235"
+    },
+    {
+      "byte_length": 5577,
+      "path": "/home/alphaadmin/AlphaV11_Dev/Alpha/docs/V11_R09_GATE3_DECODER_SOURCE_OFFLINE_ASSESSMENT_20261001.md",
+      "sha256": "2f69349c5ce7fa685ed4cf96e751955df6b8d7de83b0a996b55970054e70b701"
+    },
+    {
+      "byte_length": 5540,
+      "path": "/home/alphaadmin/AlphaV11_Dev/Alpha/docs/V11_R09_GATE3_DECODER_BUILD_REVIEW_82e1619.md",
+      "sha256": "7c5e4e0c6d418a4b818f94c6acaa1944775050d3787790f42e4382d07d1dba82"
+    },
+    {
+      "byte_length": 7279,
+      "path": "/home/alphaadmin/AlphaV11_Dev/Alpha/docs/V11_R09_GATE3_DECODER_POINTOFUSE_REVIEW_93cd43c.md",
+      "sha256": "9c42226aa64c6042849c49357ef6539ab90c2e4f7c114a75d25afc0704a87769"
+    },
+    {
+      "byte_length": 5115,
+      "path": "/home/alphaadmin/AlphaV11_Dev/Alpha/docs/V11_R09_GATE3_V4_PROVIDER_MAPPING_REPAIR_REVIEW_23c11e0.md",
+      "sha256": "d2a617ce9155b1b1614210510e04bfd09bdd27620236e6cfee6a2c74650bd1af"
+    },
+    {
+      "byte_length": 6004,
+      "path": "/home/alphaadmin/AlphaV11_Dev/Alpha/docs/V11_R09_GATE3_V4_SLICE3_REVIEW_6340cb4.md",
+      "sha256": "00aba02cf47317578d598aed02bc742dcad434f058babea9387dc44ed52b4855"
+    },
+    {
+      "byte_length": 17309,
+      "path": "/home/alphaadmin/AlphaV11_Dev/Alpha/docs/V11_R09_GATE3_LAUNCH_CONTRACT_ADJUDICATION.md",
+      "sha256": "a4a2a18e83a53359e3a46cdf7cbda6031c6afec74e5d497f2cd126b1ae7b943c"
+    }
+  ],
+  "main_commit_at_analysis": "e754c6cad5ee0f667af9fc440193838b986e597e",
+  "main_tree_at_analysis": "d6452a6c22cd2cfa2d5ba7e8b585f121e1294d98",
+  "new_cjea_credit": 0,
+  "new_identity_credit": 0,
+  "observed_utc": "2026-10-01T22:17:08+00:00",
+  "pre_review_identity_groups": {
+    "clocks": 4,
+    "code": 10,
+    "cohort": 8,
+    "network": 6,
+    "protocol": 9,
+    "review": 2,
+    "schedule": 8,
+    "sources": 24,
+    "storage": 6
+  },
+  "prior_screen": {
+    "artifact": {
+      "byte_length": 363878,
+      "path": "/tmp/alpha-v11-g3l-offline-screen-20261001-2159.json",
+      "sha256": "fbbdcbbee6e9203809cbc0e70830ef81230697435dda297637c1231d1a2b4033"
+    },
+    "attempt_slots": [],
+    "decision_utc": "2026-10-01T18:00:00+00:00",
+    "finding_counts": {
+      "EXPIRED": 1,
+      "MISSING": 77
+    },
+    "last_acquisition_utc": "2026-10-01T17:00:00+00:00",
+    "launchable": false,
+    "nonmissing_findings": [
+      {
+        "id": "time.review_before_window",
+        "reason": "review cannot finish before frozen acquisition start",
+        "state": "EXPIRED"
+      }
+    ],
+    "resource_snapshot": {
+      "available_memory_bytes": 1115222016,
+      "free_disk_bytes": 2205609984
+    },
+    "status": "BLOCKED_MISSING_REVIEWED_EVIDENCE",
+    "target_date": "2026-10-02",
+    "window_start_utc": "2026-10-01T14:00:00+00:00"
+  },
+  "provider_requests": 0,
+  "repair_queue_verified": {
+    "artifact": {
+      "byte_length": 510,
+      "path": "/tmp/alpha-v11-gate3-pointofuse-repair-93cd43c-retry-2321.queue.json",
+      "sha256": "48604b1e78904ed5c2931739b85e4900f3d6c911db81483b154a29180199484b"
+    },
+    "clean": true,
+    "head": "93cd43c411de696dd575efc7038eca723ed1e41a",
+    "new_terminal_exists": false,
+    "not_before_utc": "2026-10-01T23:21:00+00:00",
+    "pid": 1925151,
+    "state": "WAITING_FOR_PROVIDER_SESSION_RESET",
+    "worktree": "/tmp/alpha-v11-gate3-decoder-pointofuse-20261001"
+  },
+  "schema": "ALPHA_V11_GATE3_IDENTITY_ACCEPTANCE_ANALYSIS_V1",
+  "score": "91/200",
+  "status": "CRITERIA_DEFINED_NO_QUALIFICATION"
+}

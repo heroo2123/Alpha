@@ -1,5 +1,19 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Gate 3 identity criteria and screen correction — 2026-10-01 22:20 UTC
+
+[Offline acceptance analysis](V11_R09_GATE3_IDENTITY_ACCEPTANCE_20261001.md)
+maps static MEMFS and pending observer repair to their narrow evidence scope,
+then specifies A1–A8 source/build/runtime acceptance and refusal criteria.
+No G3-L identity is filled or accepted by this analysis. All 77 PRE_REVIEW
+entries remain unfilled, including reusable historical-review references.
+The prior `fbbdcbbe...` screen was October 1 acquisition / October 2 target;
+the fresh October 2 acquisition / October 3 target proposal has 77 MISSING,
+zero EXPIRED and zero proposed slots. The sole observer repair remains queued
+to 23:21 UTC, clean `93cd43c`; exact corrected review remains required.
+No code/gate, forward SHADOW or C/J/E/A change. **G3-L NO-GO; 91/200
+(45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator recovery — 2026-10-01 22:11 UTC
 
 Main is clean at `4bb9c9e`; R1 remains integrated. The sole point-of-use
