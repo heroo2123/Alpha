@@ -1,5 +1,18 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Gate 3 V4 slice 2 accepted offline; G3-L still OPEN — 2026-10-01 UTC
+
+Owner-authorized R1 correction `58a465f` passed independent Opus/high
+[exact-commit review](V11_R09_GATE3_V4_SLICE2_REVIEW_58a465f.md), closing
+the prior S1-S9 and R1-R4 findings. Clean newer-main reconciliation and
+`--no-ff` integration landed as `bd0b65a`; merged Gate 3 family **364 passed**.
+This closes only the offline ledger slice. Slice 3, provider compatibility,
+clock/storage/source/restriction evidence, detached G3-L launch review,
+real capture and forward SHADOW remain OPEN. The
+[readiness audit](V11_GATE3_LAUNCH_READINESS_AUDIT_20261001.md) is NO-GO for
+the prospective window on present evidence. No C/J/E/A award:
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Gate 3 V4 slice-one R2 repair 599dfd1: different-model PASS; merged to main — 2026-10-01 UTC
 
 Sonnet exact-commit review of `f31305e..599dfd1` (R2 as a whole), different

@@ -1,5 +1,17 @@
 # Supplementary engineering estimate
 
+## Gate 3 V4 slice 2 integrated after independent PASS — 2026-10-01 UTC
+
+The exact `58a465f` owner-authorized R1 fix passed independent Opus/high
+review of the full `71fc948..58a465f` range: 364 Gate 3 tests and independent
+denial/restart/adversarial probes. Clean merge-tree reconciliation yielded
+local merge `bd0b65a`; merged main passed the same 364 tests. The offline
+shared/session ledgers are now integrated, while slice 3 and real launch
+qualification remain absent. The read-only Gate 3 launch audit is NO-GO
+pending provider, clock, storage, source, restriction and G3-L evidence.
+No C/J/E/A boundary crossed: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Gate 3 V4 slice-2 repair b92a12e reviewed: CHANGES_REQUIRED — 2026-10-01 UTC
 
 The Opus exact-commit review confirms that all nine 39b80fa findings are

@@ -1,5 +1,43 @@
 # Alpha V11 work checkpoint
 
+## Gate 3 V4 slice 2: owner-authorized R1 repair reviewed PASS and integrated — 2026-10-01 UTC
+
+Recovered clean main `d13ed06` and the preserved slice-2 worktree. The owner's
+explicit R1 authorization superseded the earlier permission-blocked checkpoint.
+The exact correction at `58a465f` removed only the inverted requirement that
+`receipt_upper_bound_utc >= window_end_utc` and replaced its wrong regression
+with an in-window denial/reopen/cooldown test. The candidate worktree is clean.
+
+Independent Opus/high [exact-commit review](V11_R09_GATE3_V4_SLICE2_REVIEW_58a465f.md)
+of `71fc948..58a465f` (tree `1336015d`) returned **PASS** with no P1/P2:
+52 focused tests, 364 Gate 3 family tests, a regression that fails against
+`54d00c2`, and 39 adversarial checks plus a hard-kill durability probe. It
+verified prior S1-S9 and R1-R4 findings closed. Its P3 carry-forward notes
+remain for slice 3; the [probe code](V11_R09_GATE3_V4_SLICE2_REVIEW_58a465f_probes.py)
+is preserved. A fresh `git merge-tree --write-tree d13ed06 58a465f` was clean
+(tree `55313d59`). Merged with `--no-ff` as `bd0b65a`; the actual merged-main
+Gate 3 family then passed **364/364**, with two existing fork warnings. No
+full-suite rerun was warranted for this isolated offline module.
+
+The independent read-only [launch-readiness audit](V11_GATE3_LAUNCH_READINESS_AUDIT_20261001.md)
+remains **G3-L NO-GO**: slice 3 transport/clock/resource composition, provider
+mapping and decoder qualification, source/restriction and exact-run evidence,
+private launch package, storage and clock proof, and exact-digest G3-L review
+are unfinished. The fixed 17:00 Kuwait prospective window cannot waive these
+gates; no real provider request is authorized before G3-L PASS. The PAPER
+scanner is inactive/disabled; weather execution is masked; protected model
+authority is absent. The FINAL-REVIEWED private master SHA-256 matches its
+pin; V10 and AxiomTrade were untouched. Prior release full-suite acceptance
+`6ec371e` remains valid. Main is locally ahead of origin; the earlier
+publication approval hold remains, so no push was attempted.
+
+No new C/J/E/A boundary: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**. Next: implement design section 7 slice 3 in a separate
+isolated worktree, with no provider/network request; obtain fresh different-model
+exact-commit review and newer-main reconciliation before integration. In
+parallel, prepare only offline provider-mapping correction and bounded preflight
+evidence; any actual preflight/provider request needs its own reviewed approval.
+
 ## Coordinator (Sonnet) Gate 3 V4 slice-2 second repair: R2-R4 fixed, R1 blocked by permission — 2026-10-01 UTC
 
 Main clean at `39039b3`, matching origin. Picked up the exact next
