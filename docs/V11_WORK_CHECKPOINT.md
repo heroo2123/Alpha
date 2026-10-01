@@ -1,5 +1,39 @@
 # Alpha V11 work checkpoint
 
+## Coordinator recovery and A5/A6 offline review handoff — 2026-10-01 22:34 UTC
+
+Recovered clean main `470a16f` (94 local commits ahead of origin). The
+owner-authorized R1 `58a465f` and accepted release `6ec371e` remain ancestors;
+the latter's 5,460-pass/13-skip result is prior evidence, not a new suite run.
+The sole A1 repair runner PID 1925151 is alive, queued no earlier than 23:21
+UTC in clean `93cd43c`; there is no corrected terminal. Do not duplicate it.
+The separate `9600510` inventory candidate is clean, unreviewed and unmerged.
+SHADOW and Brain worktrees remain clean; ECMWF `backfill_data/` is untracked
+and preserved. No newer SHADOW commissioning file appeared since 22:30 UTC.
+
+The A2/A3 offline dossier at `470a16f` is complete as an observation, but
+authenticated originals, explanations for all 25 `eckitlib.libs` RECORD
+discrepancies, a complete reproducible lock and separate reconstruction are
+still missing. The next independent Gate 3 step is an **offline-only A5/A6
+source and current-run evidence audit** against already retained bytes and
+the exact acceptance criteria. It must distinguish reusable reviewed static
+evidence from missing operational release/current-run pins, identify any
+causal or bootstrap conflict under the owner's no-provider-request-before-G3-L
+rule, and leave absent evidence null. It must not dispatch a provider request,
+weaken G3-L, or claim source qualification from a local decoder observation.
+This is routed for Astra/high acceptance judgment; no duplicate worker is
+started in this invocation.
+
+PAPER scanner, V11 controller and execution services are inactive; scanner is
+disabled and protected V11 authority roots are absent. The FINAL-REVIEWED
+private master SHA-256 is still
+`a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+Free disk is 2,195,738,624 bytes and available memory 1,098,358,784 bytes
+at the 22:34 UTC check. No V10, AxiomTrade, service, authority, financial,
+provider or remote-publication action. **G3-L NO-GO; 91/200 (45.5%), formal
+1/50; NOT_READY_TO_FUND.** Matrix and engineering-progress statuses are
+unchanged because no C/J/E/A boundary crossed.
+
 ## A2/A3 offline dossier captured; qualification still open — 2026-10-01 22:30 UTC
 
 Recovered clean main `dbf9c19` before this entry, plus the sole guarded A1
