@@ -8,6 +8,9 @@ no new terminal or exact acceptance. `9600510` remains unreviewed and
 unmerged. G3-L remains NO-GO on missing reviewed identities; no new forward
 SHADOW evidence or C/J/E/A crossing. **91/200 (45.5%), formal 1/50;
 NOT_READY_TO_FUND**.
+The new offline October 2 PRE_REVIEW screen exits 2 with 77 missing and one
+expired identity; its bounded capacity plan proposes zero slots at the
+observed disk headroom. G3-L remains NO-GO.
 
 ## Point-of-use exact review requires correction; repair queued — 2026-10-01 21:55 UTC
 

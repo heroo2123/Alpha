@@ -7,6 +7,9 @@ no repeat. The single point-of-use repair runner is live and still queued for
 23:21 UTC; its worktree is clean, with no terminal yet. The separate inventory
 candidate is clean and unreviewed. No new forward SHADOW evidence or G3-L
 approval; **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+The fresh offline October 2 G3-L screen has 77 missing identities, one
+expired identity and zero capacity-planned slots at current disk headroom;
+it cannot qualify capture.
 
 ## Point-of-use exact review requires correction; repair queued — 2026-10-01 21:55 UTC
 

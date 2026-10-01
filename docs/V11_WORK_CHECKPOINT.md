@@ -24,6 +24,16 @@ bytes. The latest prospective G3-L screen still lacks reviewed identities;
 authority, financial or remote-publication action. No C/J/E/A boundary
 crossed: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
 
+A fresh **offline-only** October 2 PRE_REVIEW screen is retained at
+`/tmp/alpha-v11-g3l-offline-screen-20261001-2159.json` (SHA-256
+`fbbdcbbee6e9203809cbc0e70830ef81230697435dda297637c1231d1a2b4033`).
+It exited 2, `BLOCKED_MISSING_REVIEWED_EVIDENCE`, `launchable=false`, with
+77 `MISSING` and one `EXPIRED` identity. At its observed disk snapshot
+(2,205,609,984 free bytes) the conservative plan has **zero proposed slots**;
+disk above the 2 GiB floor alone is insufficient for a reserved request.
+This is a fresh capacity/identity screen, not a G3-L acceptance or provider
+permission.
+
 ## Decoder point-of-use exact review: changes required; repair queued — 2026-10-01 21:55 UTC
 
 Independent Astra/high [review](V11_R09_GATE3_DECODER_POINTOFUSE_REVIEW_93cd43c.md)
