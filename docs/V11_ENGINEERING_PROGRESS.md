@@ -1,5 +1,14 @@
 # Supplementary engineering estimate
 
+## Gate 3 restriction chronology recorded — 2026-10-01 11:50 UTC
+
+Pinned the preserved ECMWF 503/429 and subsequent 200 chronology in the
+[offline lineage inventory](V11_GATE3_ECMWF_RESTRICTION_LINEAGE_20261001.md).
+It makes the absent response headers, expiry and control-domain reconciliation
+explicit for preflight and G3-L review. Both engineering workers remain live;
+no provider request or forward SHADOW evidence was added. G3-L stays NO-GO.
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Gate 3 evidence inventory updated — 2026-10-01 after 11:42 UTC
 
 Recovered both live offline workers without duplicate launches and corrected

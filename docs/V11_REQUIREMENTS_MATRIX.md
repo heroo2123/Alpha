@@ -1,5 +1,14 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Gate 3 restriction chronology inventoried — 2026-10-01 11:50 UTC
+
+The [offline ECMWF lineage inventory](V11_GATE3_ECMWF_RESTRICTION_LINEAGE_20261001.md)
+pins the existing S3 503, public-origin 429 and four later public-origin 200s.
+Response headers, cooldown expiry and cross-origin control-domain review are
+still missing; later success is not clearance. Both offline workers remain
+active without candidate commits. G3-L stays NO-GO, with no new C/J/E/A:
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Gate 3 launch-evidence reconciliation — 2026-10-01 after 11:42 UTC
 
 Both separate offline workers remain live and have no candidate result.

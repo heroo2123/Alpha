@@ -1,5 +1,32 @@
 # Alpha V11 work checkpoint
 
+## Offline ECMWF restriction chronology pinned — 2026-10-01 11:50 UTC
+
+Recovered main clean at `2fc26b9` (nine local commits ahead of tracking ref).
+Slice-3 and provider-mapping workers are still live in their separate clean
+worktrees at `9c3e748` and `f5f6cde`; both logs remain empty and neither has
+a terminal result. The accepted release still records 5,460 full-suite passes
+with 13 skips; no release test was repeated. Prepared a read-only
+[restriction-lineage inventory](V11_GATE3_ECMWF_RESTRICTION_LINEAGE_20261001.md)
+from the pinned exploratory evidence. It records the September 30 S3 503 and
+public-origin 429, plus four later 200s on that public origin which do not
+establish cooldown expiry. Exported rows contain no response headers or
+Retry-After, and cross-origin control-domain reconciliation remains open.
+
+No provider request, preflight, G3-L launch, SHADOW collection, service or
+V10 action was performed. PAPER scanner is inactive/disabled; weather
+execution inactive/masked; protected model-authority paths absent. The
+FINAL-REVIEWED private master matches its pinned SHA-256. Free disk 3.8 GiB;
+available memory about 684 MiB plus 1.5 GiB free swap. G3-L remains NO-GO;
+both candidate branches still need exact-commit independent review, newer-main
+reconciliation and real source/decoder/clock/storage evidence. No C/J/E/A
+boundary crossed: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
+Next: continue recovering both live workers from process/worktree/terminal
+state; on each candidate completion inspect its diff and tests and obtain
+separate independent review. Carry the restriction chronology into the
+separately reviewed preflight proposal and eventual exact-digest G3-L review.
+
 ## Coordinator recovery and G3-L evidence reconciliation — 2026-10-01 after 11:42 UTC
 
 Recovered clean main `f9afa7d`, eight local commits ahead of its tracking ref.
