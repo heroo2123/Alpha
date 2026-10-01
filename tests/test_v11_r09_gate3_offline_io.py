@@ -207,6 +207,59 @@ def test_full_field_rejects_tamper_bitmap_wrong_station_and_unsupported_packing(
                                  latitude=0, longitude=0)
 
 
+@pytest.mark.parametrize('provider,source_provider', [
+    ('IFS', 'ECMWF_IFS_ENS'), ('AIFS', 'ECMWF_AIFS_ENS'),
+])
+def test_valid_synthetic_ccsds_stays_unqualified_for_gate3(provider, source_provider):
+    """A decodable ECMWF field and matching section hashes do not qualify Gate 3."""
+    eccodes = pytest.importorskip('eccodes')
+    from test_v11_model_panel import TARGET, ecmwf_bytes, request
+    from polymarket_scanner.v11.ecmwf_grib import decode_station
+
+    handle = eccodes.codes_new_from_message(ecmwf_bytes(provider=source_provider))
+    try:
+        eccodes.codes_set(handle, 'packingType', 'grid_ccsds')
+        raw = eccodes.codes_get_message(handle)
+    finally:
+        eccodes.codes_release(handle)
+    assert int.from_bytes(sections(raw)[5][9:11], 'big') == 42
+    assert decode_station(raw, request=request(raw, provider=source_provider),
+                          target=TARGET)['kelvin'] == pytest.approx(290.0)
+
+    # These hashes are fixture-derived; only a separately frozen dossier could
+    # make them independent source evidence. Even matching hashes cannot enable
+    # the currently unsupported Gate 3 packing template.
+    pins = _pins(raw)
+    with pytest.raises(LaunchContractError, match='FULL_FIELD_SECTION_MISMATCH'):
+        decode_full_grid_station(raw, provider=provider,
+                                 section_sha256={**pins, 5: '0' * 64},
+                                 latitude=33, longitude=-84)
+    with pytest.raises(LaunchContractError, match='FULL_FIELD_PACKING_UNSUPPORTED'):
+        decode_full_grid_station(raw, provider=provider,
+                                 section_sha256=pins, latitude=33, longitude=-84)
+
+
+def test_ccsds_bitmap_still_fails_before_packing_gate():
+    eccodes = pytest.importorskip('eccodes')
+    from test_v11_model_panel import ecmwf_bytes
+
+    handle = eccodes.codes_new_from_message(ecmwf_bytes())
+    try:
+        eccodes.codes_set(handle, 'packingType', 'grid_ccsds')
+        raw = eccodes.codes_get_message(handle)
+    finally:
+        eccodes.codes_release(handle)
+    original = sections(raw)
+    bitmap = bytearray(original[6])
+    bitmap[5] = 0
+    body = b''.join(bytes(bitmap) if number == 6 else section
+                    for number, section in original.items()) + b'7777'
+    changed = raw[:8] + (16 + len(body)).to_bytes(8, 'big') + body
+    with pytest.raises(LaunchContractError, match='FULL_FIELD_BITMAP_UNSUPPORTED'):
+        decode_full_grid_station(changed, provider='AIFS', section_sha256=_pins(changed),
+                                 latitude=33, longitude=-84)
+
+
 def _clock(utc, mono, measured=None, boot='boot-a'):
     return MeasuredClock(utc, mono, 0.2, mono if measured is None else measured,
                          boot, 'a'*64)
