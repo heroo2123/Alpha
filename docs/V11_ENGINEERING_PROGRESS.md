@@ -1,5 +1,36 @@
 # Supplementary engineering estimate
 
+## Gate 3 transport/runtime design independently reviewed — PASS design-only — 2026-10-01 00:16 UTC
+
+Sonnet/high completed the independent exact-commit review the prior design
+batch routed for: [review report](V11_R09_GATE3_TRANSPORT_RUNTIME_REVIEW_7e132a0.md)
+of `7e132a0`/tree `89332f46`, [terminal record](V11_R09_GATE3_TRANSPORT_RUNTIME_REVIEW_7e132a0_terminal.json).
+Independently reverified (not trusted from the author's record): document and
+all four cited source SHA-256 digests, cited commit/tree ancestry, and the
+private master hash pin, all exact matches. Each of the six requested areas
+(V4 endpoint mappings, durable denial history, purpose budgets, crash
+ordering, absolute timing/pacing, receipt composition) was cross-checked
+against current `tools/v11_r09_gate3_launch.py`/`_collector.py`/
+`_offline_io.py`/`_store_v1.py` line by line; the V4 schedule-feasibility
+inequality was symbolically confirmed strictly stricter than V3's existing
+check. Zero findings; every proposed V4 group tightens or adds to V3 without
+loosening an existing accepted control. Verdict: **PASS, offline design
+only.**
+
+This is a documentary-consistency review, not execution of any new code
+(none exists yet) and not sufficiency testing of every Section 7 acceptance
+case, which remains explicit implementation-time work. It authorizes exactly
+the document's own next step — one bounded offline implementation slice at a
+time in an isolated worktree, each needing focused tests and a fresh
+different-model review before integration — and nothing beyond that: no
+provider request, G3-L, SHADOW/learner, authority, financial, or publication
+action occurred or is implied. Main remains clean at `7e132a0`, 25 ahead/0
+behind local upstream (no push). No duplicate Gate 3 worker found or started;
+held author `e563e45` and SHADOW `15e99bd` remain clean; protected authority
+paths absent; V10 untouched; AxiomTrade not touched. Disk about 4.0 GiB free,
+memory about 831 MiB available. No C/J/E/A boundary crosses from a design
+review: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**, unchanged.
+
 ## Gate 3 transport/runtime design complete; independent review next — 2026-10-01
 
 Completed the routed Astra/high [offline transport/runtime design](V11_R09_GATE3_TRANSPORT_RUNTIME_DESIGN.md)

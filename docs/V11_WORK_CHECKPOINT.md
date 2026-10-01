@@ -1,5 +1,45 @@
 # Alpha V11 work checkpoint
 
+## Gate 3 transport/runtime design independently reviewed — PASS design-only — 2026-10-01 00:16 UTC
+
+Routed Sonnet/high performed the requested [independent exact-commit review]
+(V11_R09_GATE3_TRANSPORT_RUNTIME_REVIEW_7e132a0.md) of the Astra/high design
+at exact `7e132a0`/tree `89332f46`, covering the six required areas: V4
+endpoint mappings, durable denial history, purpose budgets, crash ordering,
+absolute timing/pacing, and receipt composition. Verified independently
+(not trusted from the author record): the design document's own SHA-256,
+all four cited source file SHA-256 digests, the cited commit/tree ancestry
+(`f11541c`→`01dfd73`→`7e132a0`, `6ec371e` an ancestor of `HEAD`), and the
+private master hash pin — all matched exactly. Each of the six areas was
+cross-checked line-by-line against the actual current source
+(`tools/v11_r09_gate3_launch.py`, `_collector.py`, `_offline_io.py`,
+`_store_v1.py`), including a symbolic re-derivation confirming the V4
+feasibility inequality is strictly stricter than V3's existing schedule-time
+check. No contradiction, fabrication, or loosening of any existing V3 check
+was found; every proposed V4 addition is additive/tightening, not a
+replacement of an existing accepted control. **Verdict: PASS, offline design
+only.** [Terminal record](V11_R09_GATE3_TRANSPORT_RUNTIME_REVIEW_7e132a0_terminal.json).
+
+This authorizes only the document's own next step: bounded offline
+implementation one slice at a time in an isolated worktree (schema/budget
+replay; durable ledgers with crash matrix; transport/clock/resource state
+machine and receipt/report composition), each slice needing focused tests
+and a fresh different-model exact-commit review before integration. No
+schema, transport, socket adapter, or private manifest was constructed in
+this review batch; no provider request, G3-L, SHADOW/learner, authority,
+financial, or publication action occurred. Main remains clean at `7e132a0`,
+25 ahead/0 behind local upstream tracking (no push performed). No duplicate
+Gate 3 worker was found or started; held author `e563e45` and SHADOW
+`15e99bd` remain clean. Protected authority paths absent; V10 untouched;
+AxiomTrade not touched (a separate unrelated session is working there).
+Disk about 4.0 GiB free, memory about 831 MiB available. A design review
+crosses no C/J/E/A boundary: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**, unchanged. Next unfinished action: begin slice (1) of
+the authorized implementation (strict V4 schema/frozen purpose plan and
+bounded budget replay) in an isolated worktree, or continue the independent
+GEFS/IFS-AIFS path if a persistent worker is preferred for the next
+invocation.
+
 ## Gate 3 transport/runtime design complete; independent review next — 2026-10-01
 
 Completed the routed Astra/high [offline transport/runtime design](V11_R09_GATE3_TRANSPORT_RUNTIME_DESIGN.md)

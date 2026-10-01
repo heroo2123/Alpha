@@ -1,5 +1,27 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Gate 3 transport/runtime design independently reviewed — PASS design-only — 2026-10-01 00:16 UTC
+
+Routed Sonnet/high independently reviewed the Astra/high design at exact
+`7e132a0`/tree `89332f46` against the six requested areas (V4 endpoint
+mappings, durable denial history, purpose budgets, crash ordering, absolute
+timing/pacing, receipt composition): [review](V11_R09_GATE3_TRANSPORT_RUNTIME_REVIEW_7e132a0.md),
+[terminal](V11_R09_GATE3_TRANSPORT_RUNTIME_REVIEW_7e132a0_terminal.json).
+Independently reverified the document's own SHA-256, all four cited source
+SHA-256 digests, cited commit/tree ancestry, and the private master hash
+pin — all exact. Line-by-line cross-check of each area against current
+`tools/v11_r09_gate3_launch.py`/`_collector.py`/`_offline_io.py`/`_store_v1.py`
+found zero contradictions and no loosening of any existing accepted V3
+control; the proposed V4 feasibility inequality was symbolically confirmed
+strictly stricter than V3's existing check. Verdict: **PASS, offline design
+only.** This authorizes only bounded offline implementation one slice at a
+time per the document's own Section 7, each requiring focused tests and a
+fresh different-model review before integration; no schema, transport, or
+private manifest exists yet, and no provider/G3-L/SHADOW/financial/
+publication action occurred. R09's row remains unchanged: design-stage work
+only, no C/J/E/A boundary crossed. **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**, unchanged.
+
 ## Gate 3 transport/runtime design complete; independent review next — 2026-10-01
 
 Completed the routed Astra/high [offline transport/runtime design](V11_R09_GATE3_TRANSPORT_RUNTIME_DESIGN.md)
