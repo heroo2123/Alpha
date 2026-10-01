@@ -1,5 +1,26 @@
 # Alpha V11 work checkpoint
 
+## Reviewed offline G3-L preparation integrated — 2026-10-01 14:16 UTC
+
+Independent Astra/high [exact-commit review](V11_R09_GATE3_G3L_PREP_REPAIR_REVIEW_f03d2fd.md)
+and [terminal](V11_R09_GATE3_G3L_PREP_REPAIR_REVIEW_f03d2fd_terminal.json)
+returned **PASS** for offline prep repair `f03d2fd` (tree `a2417dfc`):
+the prior dual-scope and review-order findings are closed. Reviewer ran
+74 focused/V4 tests and 44 adversarial probes (**118 passed**). A clean
+`git merge-tree --write-tree` reconciled it with newer main; local merge
+`144ae35` integrates the full prep tool, null V4 template, 2,713-row report,
+tests and documentation. The merged-main focused/V4 set passed **74/74**.
+This accepts only a nonlaunchable offline inventory/checker; its old resource
+snapshot is not current launch evidence, and 77 pre-review identities remain
+missing. The `FINAL` inventory status remains `launchable=false` and cannot
+replace substantive exact-digest G3-L review or V4 validation.
+
+The separate slice-3 F1–F7 Sonnet/high repair writer remains live in its
+isolated worktree, with no accepted candidate. The October 1 14:00 UTC
+window was missed with G3-L NO-GO; no provider request or SHADOW launch
+occurred. No C/J/E/A boundary crossed: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Gate 3 exact review and prep repair recovery — 2026-10-01 14:08 UTC
 
 Independent Astra/high [slice-3 exact-commit review](V11_R09_GATE3_V4_SLICE3_REVIEW_ef45d35.md)

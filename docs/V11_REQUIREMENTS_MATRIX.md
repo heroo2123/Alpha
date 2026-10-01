@@ -1,5 +1,15 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Offline G3-L prep accepted locally — 2026-10-01 14:16 UTC
+
+`f03d2fd` passed [independent exact-commit review](V11_R09_GATE3_G3L_PREP_REPAIR_REVIEW_f03d2fd.md)
+with 118 tests/probes; merged locally as `144ae35` after clean reconciliation,
+and 74 merged-main focused/V4 tests passed. This is nonlaunchable inventory
+work only: 77 pre-review evidence identities, real source/decoder/clock/storage
+qualification, slice-3 acceptance and detached G3-L review remain open.
+October 1 14:00 UTC passed without G3-L PASS. **91/200 (45.5%), formal
+1/50; NOT_READY_TO_FUND** unchanged.
+
 ## Gate 3 slice-3 review and prep recovery — 2026-10-01 14:08 UTC
 
 Exact `ef45d35` is [CHANGES_REQUIRED](V11_R09_GATE3_V4_SLICE3_REVIEW_ef45d35.md)

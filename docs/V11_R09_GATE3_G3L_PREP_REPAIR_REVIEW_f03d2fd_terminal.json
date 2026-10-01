@@ -1,0 +1,59 @@
+{
+  "base_commit": "3241abf1640a631052a71b66d5a2c683f8b6e6e8",
+  "base_tree": "d4ef2d2602a1fda2c9f45be33cf9ee88114f993b",
+  "capacity_bypass_reproduced": false,
+  "capacity_plan_unchanged_from_base": true,
+  "completed_utc": "2026-10-01T14:12:50.386484+00:00",
+  "findings": [],
+  "g3l": "NO-GO",
+  "launch_authorized": false,
+  "prior_findings": [
+    {
+      "id": "F1",
+      "reason": "Window-only storage scope is satisfiable and retains window freshness.",
+      "status": "CLOSED"
+    },
+    {
+      "id": "F2",
+      "reason": "Complete pre-review inputs assemble before detached outputs; separate final stage requires them.",
+      "status": "CLOSED"
+    }
+  ],
+  "private_launch_manifest_created": false,
+  "probes": "/tmp/alpha-v11-g3l-prep-repair-review-f03d2fd-probes.py",
+  "probes_sha256": "6bb8ac123b6b78beca82da24d60850abc92472d1af80502a64edf4d32736307e",
+  "provider_requests": 0,
+  "repo_worktree_modified": false,
+  "report": "/tmp/alpha-v11-g3l-prep-repair-review-f03d2fd.md",
+  "report_sha256": "d4235cfb6eee606ac5dfe361c80b05b27852f3ab4af3ca58a39e6acb951e5568",
+  "resource_snapshot_valid_for_launch": false,
+  "review_scope": "exact offline preparation repair only",
+  "reviewed_commit": "f03d2fd87b409172656fae37043e1629d5ec6a6f",
+  "reviewed_file_sha256": {
+    "config/v11/r09_gate3_g3l_offline_prep_20261001.json": "bb5cd526e4d3126d6ff2cd86efff052511783aad6d7f0da2d59eec998b3a4d64",
+    "config/v11/r09_gate3_g3l_private_v4_null_template.json": "2a2b8f86342af00eac395ddc8abbdb8ebea30a3f6a76d2553c30695ca54c49ef",
+    "docs/V11_R09_GATE3_G3L_OFFLINE_PREP.md": "015b4d04f770cae1174e59c68413b507f6ed1fc71510cd104630580c27f7a965",
+    "tests/test_v11_r09_gate3_g3l_prep.py": "dfde2f31acfa863972471d2b58fabfdd16508e86443d87102f04490a772be65b",
+    "tools/v11_r09_gate3_g3l_prep.py": "a5051a65aa219d40f5ac67acf9ca6f1e72839eb1d988ae5d08b2ea0565e89481"
+  },
+  "reviewed_tree": "a2417dfcfca296cb7c494590b6db1e058f8b829c",
+  "schema": "ALPHA_V11_G3L_PREP_REVIEW_TERMINAL_V1",
+  "service_operations": 0,
+  "status": "COMPLETED",
+  "tests": {
+    "external_review_probes": {
+      "failed": 0,
+      "passed": 44,
+      "seconds": 18.69
+    },
+    "focused_candidate": {
+      "failed": 0,
+      "passed": 74,
+      "seconds": 9.89
+    },
+    "total_failed": 0,
+    "total_passed": 118
+  },
+  "verdict": "PASS",
+  "worktree": "/tmp/alpha-v11-gate3-g3l-prep-20261001"
+}

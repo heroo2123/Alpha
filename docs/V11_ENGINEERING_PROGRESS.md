@@ -1,5 +1,15 @@
 # Supplementary engineering estimate
 
+## Offline G3-L prep repair merged — 2026-10-01 14:16 UTC
+
+Exact `f03d2fd` closed the two inventory workflow defects under independent
+Astra/high review (74 focused/V4 tests, 44 adversarial probes). It reconciled
+cleanly with newer main as `144ae35`; the merged focused/V4 set passed 74.
+The planner remains nonlaunchable, with 2,713 denominator rows and 77 missing
+pre-review evidence identities. The separate slice-3 repair writer is live;
+G3-L and forward SHADOW evidence remain blocked. **91/200 (45.5%), formal
+1/50; NOT_READY_TO_FUND** unchanged.
+
 ## Gate 3 reviews after the fixed start — 2026-10-01 14:08 UTC
 
 Independent review found seven blocking defects in slice-3 candidate
