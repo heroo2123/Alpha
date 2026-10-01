@@ -1,5 +1,15 @@
 # Supplementary engineering estimate
 
+## Gate 3 worker recovery — 2026-10-01 22:52 UTC
+
+Recovered five newer isolated workers and preserved all work. A1 point-of-use
+repair and A2/A3 provenance are active; A4 runtime, A7 resources and A8
+composition are process-paused for the two-specialist limit, to be resumed
+one at a time after a slot frees. No worker terminal or accepted review yet;
+the inventory-transform five-P2 repair remains open. No source/current-run
+qualification or forward SHADOW evidence. **G3-L NO-GO; 91/200 (45.5%),
+formal 1/50; NOT_READY_TO_FUND**.
+
 ## Inventory review recovered — 2026-10-01 22:49 UTC
 
 The independent Astra/high review of `9600510` completed with five reproduced

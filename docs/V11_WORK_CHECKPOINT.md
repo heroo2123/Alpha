@@ -1,5 +1,35 @@
 # Alpha V11 work checkpoint
 
+## Gate 3 live-worker recovery and concurrency correction — 2026-10-01 22:52 UTC
+
+Recovered clean main `f7009ef` (97 commits ahead of origin), including the
+inventory-review rejection recorded below. Since that checkpoint, five
+isolated Sol/high runners started: A2/A3 provenance PID 1933280, A4 runtime
+PID 1933369, A7 decoder resources PID 1933486, A8 composition PID 1933615,
+and the A1 point-of-use repair PID 1934510. The old queued A1 PID 1925151 is
+gone; the new A1 runner owns the same clean `93cd43c` worktree. None of these
+runners had a terminal marker at the recovery screen. Their worktrees, the
+inventory candidate, SHADOW and Brain were clean; ECMWF `backfill_data/`
+remains untracked and preserved.
+
+The four A-lane runners started together before this invocation exceeded the
+owner's two-specialist parallel limit. To preserve work while honoring that
+limit, process groups 1933369 (A4), 1933486 (A7), and 1933615 (A8) were
+SIGSTOP-paused in place at 22:52 UTC; `ps` confirmed their runner and Codex
+children in `T` state. A1 and A2/A3 remain active. Before resuming any paused
+group, verify its PID, PGID, command, worktree and absence of a terminal; use
+`SIGCONT` only when a specialist slot is free. Do not launch duplicates.
+The unmerged inventory transform still needs repair of all five independent
+P2 findings and a fresh exact-commit review.
+
+No provider request, G3-L PASS, forward SHADOW sample, or C/J/E/A crossing
+occurred. PAPER scanner/controller/execution are inactive, protected V11
+authority roots absent, and the private FINAL-REVIEWED master still hashes to
+`a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+Free disk was 3,269,140,480 bytes and available memory 851,496,960 bytes.
+No V10, AxiomTrade, financial, authority or remote-publication action.
+**G3-L NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND.**
+
 ## Inventory exact review recovered; repair required — 2026-10-01 22:49 UTC
 
 Recovered the completed independent Astra/high review of clean, unmerged

@@ -1,5 +1,14 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Gate 3 worker recovery — 2026-10-01 22:52 UTC
+
+The prior inventory-transform `CHANGES_REQUIRED` verdict remains authoritative.
+New A1 and A2/A3 isolated workers are active; A4, A7 and A8 are preserved in
+SIGSTOP-paused worktrees to respect the owner's two-specialist limit. No new
+terminal or exact review has been accepted, and A5/A6 current-run pins remain
+null. No C/J/E/A boundary changed: **G3-L NO-GO; 91/200 (45.5%), formal
+1/50; NOT_READY_TO_FUND**.
+
 ## Inventory transform review correction — 2026-10-01 22:49 UTC
 
 Independent exact review of offline inventory candidate `9600510` finished
