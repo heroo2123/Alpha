@@ -1,5 +1,13 @@
 # Supplementary engineering estimate
 
+## MEMFS independent review retry live — 2026-10-01 20:14 UTC
+
+The initial exact review was infrastructure-blocked before any substantive
+check; its terminal is `MEMFS_REVIEW_INCOMPLETE`, not acceptance or rejection.
+A replacement Astra/high reviewer has started in the same isolated exact
+checkout and its first read-only command succeeded. `8b0b32e` remains unmerged
+and unqualified. **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Static MEMFS exact review launched — 2026-10-01 20:13 UTC
 
 The bounded Sonnet/high worker finished clean candidate `8b0b32e` and its

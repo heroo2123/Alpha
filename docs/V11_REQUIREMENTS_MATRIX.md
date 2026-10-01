@@ -1,5 +1,14 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## MEMFS review retry after sandbox failure — 2026-10-01 20:14 UTC
+
+The first exact reviewer returned `MEMFS_REVIEW_INCOMPLETE` before reading
+candidate files because its read-only sandbox could not initialize. One
+replacement Astra/high reviewer is live in the same detached `8b0b32e`
+checkout with bounded read-only verification enabled. Candidate remains
+unmerged; G3-L NO-GO, no C/J/E/A boundary. **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND** unchanged.
+
 ## Static MEMFS candidate awaits independent exact review — 2026-10-01 20:13 UTC
 
 Clean, unmerged Sonnet/high candidate `8b0b32e` (tree `f35be9c`) has three

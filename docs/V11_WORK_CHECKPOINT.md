@@ -1,5 +1,22 @@
 # Alpha V11 work checkpoint
 
+## MEMFS review infrastructure recovered; exact review in progress — 2026-10-01 20:14 UTC
+
+The initial detached Astra/high review of `8b0b32e` completed
+`MEMFS_REVIEW_INCOMPLETE`: its read-only bubblewrap sandbox failed before any
+command ran (`Failed RTM_NEWADDR`). Its report/terminal are preserved under
+`/tmp/alpha-v11-memfs-review-8b0b32e`; they contain no candidate finding or
+acceptance. The exact candidate remains clean and unmerged.
+
+Launched one replacement Astra/high reviewer in the **same** detached exact
+checkout using automatic approval for bounded read-only verification.
+Runner **1898821**, child **1898830** were verified live and the first `pwd`
+check succeeded. Its prompt/runner/log/report/terminal prefix is
+`/tmp/alpha-v11-memfs-review-retry-8b0b32e`. The failed first reviewer has
+exited; no duplicate review is active. Inspect the replacement terminal and
+independent findings before any merge. G3-L remains **NO-GO**; no qualification
+or C/J/E/A credit follows from retrying review.
+
 ## Static MEMFS candidate finished; independent exact review live — 2026-10-01 20:13 UTC
 
 Recovered the completed Sonnet/high worker from its actual terminal
