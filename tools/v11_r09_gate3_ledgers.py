@@ -18,11 +18,43 @@ Two durable, process-restart-safe ledgers:
 - ``SharedLedger``: the global, cross-purpose "shared denial root". Binds a
   single global open INTENT_OPEN/INTENT_CLOSED token (section 5: "One token
   globally covers all purposes/providers") and durable per-control-domain
-  denial/cooldown history (section 3).
+  denial/cooldown history (section 3). The root itself carries its own
+  genesis/lineage identity (a digest-bound review reference, plus a
+  mandatory expected history head on every reopen of a non-empty root); it
+  is not bound to any one caller's manifest, so distinct jobs with distinct
+  manifests may legitimately share it across time (never concurrently: only
+  one open intent at a time). Each intent instead records its own caller
+  manifest. A denial is recorded durably and immediately via
+  ``denial_observed`` while the intent stays open; closing the token
+  (``intent_closed``) is a strictly later, separate event, so the control
+  domain is blocked at once without releasing the global token early.
+  Known, explicitly stated limitation (section 3: "Different denial roots
+  are not interchangeable"): this module cannot and does not correlate a
+  control domain's denial history *across two distinct root directories*.
+  A fresh root has no memory of a denial recorded in a different root.
+  Only an out-of-scope, owner-reviewed root installation step establishes
+  that a given directory is *the* reviewed shared root for a control
+  domain; this offline slice does not perform or simulate that step.
 - ``SessionLedger``: the per-run "session root" durable order from section 4
-  step 1-6 (ATTEMPT_INTENT, BUDGET_RESERVED, DISPATCH_INTENT, denial,
-  TRANSPORT_CLOSED, ACCOUNTED, OBJECT_WITNESSED, terminal/report), with a
-  single open attempt at a time.
+  step 1-6 (ATTEMPT_INTENT, BUDGET_RESERVED, DISPATCH_INTENT, an optional
+  non-terminal denial annotation, TRANSPORT_CLOSED, ACCOUNTED, OBJECT_
+  WITNESSED, terminal/report), with a single open attempt at a time. A
+  denial observed in headers/status can only be recorded once an attempt is
+  DISPATCHED (pre-dispatch blocking is ``refuse``, never ``denial``); it is
+  a durable annotation on that attempt, not a terminal outcome, so the
+  attempt still requires TRANSPORT_CLOSED and ACCOUNTED before any
+  non-success terminal. SUCCESS is only reachable from WITNESSED (ACCOUNTED
+  alone proves accounting, not a store receipt). An observed overdelivery
+  (more bytes than the attempt's own reservation) is recorded durably,
+  blocks that attempt from ever reaching SUCCESS, and permanently poisons
+  the whole session ledger against any further attempt, surviving restart.
+
+Both ledgers compare the caller-supplied ``boot_id`` against the one
+recorded at genesis on every reopen (section 5: "Cross-boot acquisition is
+refused"); a mismatch never aborts construction (read-only inspection of a
+foreign-boot root stays possible) but permanently refuses every further
+progression call in that process. ``boot_id`` has no default: a caller must
+state it explicitly rather than inherit a shared placeholder.
 
 Both generalize the exact defect class R2 closed in ``DurableBudget``
 (commit 599dfd1: "never complete an inherited reservation") to every
@@ -104,6 +136,12 @@ class _HashChainJournal:
         self._mutex = threading.Lock()
         self.dir_fd = self.lock_fd = self.fd = None
         self.failed = False
+        # Reopening a root recorded under a different boot never aborts
+        # construction (read-only inspection stays possible); it instead
+        # permanently refuses every further progression call via
+        # ``_healthy()``. Subclasses flip this to False after comparing the
+        # replayed genesis ``boot_id`` against the caller-supplied one.
+        self._boot_ok = True
         try:
             self.dir_fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
             directory_stat = os.fstat(self.dir_fd)
@@ -168,6 +206,7 @@ class _HashChainJournal:
     def _healthy(self):
         self._require_owner()
         check(not self.failed, 'LEDGER_DURABILITY_UNCERTAIN')
+        check(self._boot_ok, 'LEDGER_BOOT_ID_MISMATCH')
         try:
             check(all(not stat.S_ISLNK(os.lstat(ancestor).st_mode)
                       for ancestor in (self.path, *self.path.parents)),
@@ -292,17 +331,24 @@ class SharedLedger(_HashChainJournal):
     request, matching "missing lineage or a prior unfinished intent is an
     unresolved hold across future jobs" and the R2 lesson generalized to
     every boundary, not just budget completion.
+
+    The root's own genesis/lineage identity is a digest-bound review
+    reference (``genesis_review_digest``), recorded once when the root is
+    empty; every later reopen of a non-empty root must state the exact
+    ``expected_history_head`` it observed last, or it refuses (a hash chain
+    alone cannot detect a coherent rollback to a valid prefix without an
+    independently retained head). The root is not bound to any single
+    caller manifest: each intent records its own ``manifest_sha256``, so
+    distinct jobs may legitimately reuse the same reviewed root over time.
     """
     LOCK_NAME = 'gate3_shared.lock'
     JOURNAL_NAME = 'gate3_shared.jsonl'
 
-    def __init__(self, directory, *, manifest_sha256, boot_id='synthetic-boot',
-                 expected_history_head=None, genesis_reviewed=False,
-                 max_requests=3600):
-        digest(manifest_sha256, 'SHARED_LEDGER_MANIFEST_DIGEST')
+    def __init__(self, directory, *, boot_id, genesis_review_digest=None,
+                 expected_history_head=None, max_requests=3600):
         check(type(boot_id) is str and boot_id, 'SHARED_LEDGER_BOOT_ID')
+        _optional_digest(genesis_review_digest, 'SHARED_LEDGER_GENESIS_DIGEST')
         _optional_digest(expected_history_head, 'SHARED_LEDGER_HISTORY_HEAD')
-        check(type(genesis_reviewed) is bool, 'SHARED_LEDGER_GENESIS_FLAG')
         integer(max_requests, 1, 3600, 'SHARED_LEDGER_REQUEST_CAP')
         super().__init__(directory)
         try:
@@ -310,22 +356,32 @@ class SharedLedger(_HashChainJournal):
             if not self.events:
                 # Design section 3: "empty new files are not evidence of no
                 # past denials". A brand-new empty root may only be used
-                # once genesis is explicitly reviewed, and never together
-                # with a claimed external head (nothing exists yet to bind).
+                # once genesis is explicitly, digest-bound reviewed, and
+                # never together with a claimed external head (nothing
+                # exists yet to bind).
                 check(expected_history_head is None,
                       'SHARED_LEDGER_LINEAGE_HEAD_MISMATCH')
-                check(genesis_reviewed is True, 'SHARED_LEDGER_LINEAGE_UNREVIEWED')
-                self._append({'op': 'init', 'manifest': manifest_sha256,
+                check(genesis_review_digest is not None,
+                      'SHARED_LEDGER_LINEAGE_UNREVIEWED')
+                self._append({'op': 'init', 'genesis_review_digest': genesis_review_digest,
                               'boot_id': boot_id, 'max_requests': max_requests})
             else:
+                # Genesis is recorded once, at creation; it is never
+                # re-asserted or re-reviewed on a later reopen.
+                check(genesis_review_digest is None,
+                      'SHARED_LEDGER_GENESIS_ALREADY_RECORDED')
+                # Mandatory on every non-empty root: a hash chain alone
+                # cannot detect rollback to a valid prefix.
+                check(expected_history_head is not None,
+                      'SHARED_LEDGER_LINEAGE_HEAD_REQUIRED')
+                check(self.prev == expected_history_head,
+                      'SHARED_LEDGER_LINEAGE_HEAD_MISMATCH')
                 init = self.events[0]
-                check(init.get('op') == 'init' and init.get('manifest') == manifest_sha256 and
-                      init.get('max_requests') == max_requests,
+                check(init.get('op') == 'init' and init.get('max_requests') == max_requests,
                       'SHARED_LEDGER_IDENTITY_MISMATCH')
-                if expected_history_head is not None:
-                    check(self.prev == expected_history_head,
-                          'SHARED_LEDGER_LINEAGE_HEAD_MISMATCH')
-            self.manifest = manifest_sha256
+                if init.get('boot_id') != boot_id:
+                    self._boot_ok = False
+            self.genesis_review_digest = self.events[0].get('genesis_review_digest')
             self.boot_id = boot_id
             self.max_requests = max_requests
             self._state()
@@ -350,14 +406,24 @@ class SharedLedger(_HashChainJournal):
                 self.request_ids_ever.add(rid)
                 self.open_intent = {k: event[k] for k in
                     ('request_id', 'purpose', 'endpoint_id', 'control_domain_id',
-                     'max_reservation_bytes')}
+                     'manifest_sha256', 'max_reservation_bytes')}
+                self.open_intent['denial_recorded'] = False
                 self.open_count += 1
+            elif op == 'denial_observed':
+                check(self.open_intent is not None and
+                      self.open_intent['request_id'] == event['request_id'],
+                      'SHARED_LEDGER_DENIAL_WITHOUT_OPEN')
+                check(not self.open_intent['denial_recorded'],
+                      'SHARED_LEDGER_DENIAL_ALREADY_RECORDED')
+                self._apply_denial(self.open_intent['control_domain_id'], event['denial'])
+                self.open_intent['denial_recorded'] = True
             elif op == 'intent_closed':
                 check(self.open_intent is not None and
                       self.open_intent['request_id'] == event['request_id'],
                       'SHARED_LEDGER_CLOSE_WITHOUT_OPEN')
                 if event['outcome'] == 'DENIED':
-                    self._apply_denial(self.open_intent['control_domain_id'], event['denial'])
+                    check(self.open_intent['denial_recorded'],
+                          'SHARED_LEDGER_DENIAL_NOT_OBSERVED')
                 self.open_intent = None
                 self.closed_count += 1
             else:
@@ -404,17 +470,24 @@ class SharedLedger(_HashChainJournal):
         check(type(denial['receipt_upper_bound_utc']) in (int, float) and
               math.isfinite(denial['receipt_upper_bound_utc']),
               'SHARED_LEDGER_DENIAL_RECEIPT_BOUND')
+        # The receipt upper bound is the conservative bound the window end
+        # is measured from (section 3); it cannot precede the window it is
+        # supposed to bound.
+        check(denial['receipt_upper_bound_utc'] >= denial['window_end_utc'],
+              'SHARED_LEDGER_DENIAL_ORDER')
         return dict(denial)
 
     def is_blocked(self, control_domain_id, *, now_utc):
         self._healthy()
+        check(type(now_utc) in (int, float) and math.isfinite(now_utc),
+              'SHARED_LEDGER_NOW_UTC')
         record = self.denials.get(control_domain_id)
         if record is None:
             return False
         return record['cooldown_until'] is None or now_utc < record['cooldown_until']
 
     def intent_open(self, request_id, *, purpose, endpoint_id, control_domain_id,
-                     max_reservation_bytes, now_utc):
+                     manifest_sha256, max_reservation_bytes, now_utc):
         with self._guard():
             self._healthy()
             check(type(request_id) is str and REQUEST_ID_RE.fullmatch(request_id),
@@ -422,6 +495,7 @@ class SharedLedger(_HashChainJournal):
             check(purpose in PURPOSES, 'SHARED_LEDGER_PURPOSE')
             digest(endpoint_id, 'SHARED_LEDGER_ENDPOINT_ID')
             digest(control_domain_id, 'SHARED_LEDGER_CONTROL_DOMAIN_ID')
+            digest(manifest_sha256, 'SHARED_LEDGER_MANIFEST_DIGEST')
             integer(max_reservation_bytes, 1, MAX_BYTES, 'SHARED_LEDGER_RESERVATION')
             # Covers both ordinary overlap and a permanently-inherited hold
             # uniformly: an inherited open intent is never cleared, so
@@ -435,10 +509,20 @@ class SharedLedger(_HashChainJournal):
                   'SHARED_LEDGER_CONTROL_DOMAIN_COOLDOWN')
             self._append({'op': 'intent_open', 'request_id': request_id, 'purpose': purpose,
                           'endpoint_id': endpoint_id, 'control_domain_id': control_domain_id,
+                          'manifest_sha256': manifest_sha256,
                           'max_reservation_bytes': max_reservation_bytes})
             self._state()
 
-    def intent_closed(self, request_id, *, outcome, denial=None):
+    def denial_observed(self, request_id, *, denial):
+        """Record a denial immediately when headers/status make it known.
+
+        Legal only while ``request_id``'s intent is still open. Blocks the
+        control domain at once (updates ``self.denials``) but deliberately
+        does **not** clear ``open_intent``: the single global token stays
+        held until a later, separate ``intent_closed`` call, matching
+        section 4's "Keep a single global token until transport is closed
+        and settlement complete."
+        """
         with self._guard():
             self._healthy()
             check(self.open_intent is not None and
@@ -446,14 +530,34 @@ class SharedLedger(_HashChainJournal):
                   'SHARED_LEDGER_CLOSE_WITHOUT_OPEN')
             check(request_id != self.inherited_open_request_id,
                   'SHARED_LEDGER_INHERITED_INTENT_HELD')
-            check(outcome in ('OK', 'DENIED', 'FAILED', 'AMBIGUOUS'),
-                  'SHARED_LEDGER_CLOSE_OUTCOME')
+            check(not self.open_intent['denial_recorded'],
+                  'SHARED_LEDGER_DENIAL_ALREADY_RECORDED')
+            denial = self._validate_denial(denial)
+            self._append({'op': 'denial_observed', 'request_id': request_id,
+                          'denial': denial})
+            self._state()
+
+    def intent_closed(self, request_id, *, outcome):
+        with self._guard():
+            self._healthy()
+            check(self.open_intent is not None and
+                  self.open_intent['request_id'] == request_id,
+                  'SHARED_LEDGER_CLOSE_WITHOUT_OPEN')
+            check(request_id != self.inherited_open_request_id,
+                  'SHARED_LEDGER_INHERITED_INTENT_HELD')
+            # AMBIGUOUS is deliberately not an accepted close outcome:
+            # ambiguity cannot complete. A caller facing it must simply not
+            # close the intent, so the token is inherited and held exactly
+            # like a crash would (the generalized R2 rule above), rather
+            # than being released by a close call that lacks exact closure
+            # evidence (section 4: "future jobs inherit a control-domain
+            # uncertainty hold unless exact closure evidence exists").
+            check(outcome in ('OK', 'DENIED', 'FAILED'), 'SHARED_LEDGER_CLOSE_OUTCOME')
             if outcome == 'DENIED':
-                denial = self._validate_denial(denial)
-            else:
-                check(denial is None, 'SHARED_LEDGER_CLOSE_OUTCOME')
+                check(self.open_intent['denial_recorded'],
+                      'SHARED_LEDGER_DENIAL_NOT_OBSERVED')
             self._append({'op': 'intent_closed', 'request_id': request_id,
-                          'outcome': outcome, 'denial': denial})
+                          'outcome': outcome})
             self._state()
 
 
@@ -462,13 +566,25 @@ class SessionLedger(_HashChainJournal):
 
     Implements the durable order from design section 4 steps 1-6 for a
     single frozen request at a time: ATTEMPT_INTENT, BUDGET_RESERVED,
-    DISPATCH_INTENT, an optional terminal ``denial``/``refuse``, or
+    DISPATCH_INTENT, an optional non-terminal ``denial`` annotation, then
     TRANSPORT_CLOSED -> ACCOUNTED -> optional OBJECT_WITNESSED -> terminal
     (the report boundary). Only one attempt may be open at a time ("at most
     one unfinished intent", section 3). An attempt left open by a prior
     process is snapshotted as ``inherited_request_id``; every further
     progression call against that exact request is permanently refused in
     every later process, the same generalized R2 rule as ``SharedLedger``.
+
+    A denial observed in headers/status can only be recorded once an
+    attempt has been dispatched (pre-dispatch blocking uses ``refuse``
+    instead, section 3) and does not end the attempt: section 4 steps 4-6
+    still apply, so TRANSPORT_CLOSED and ACCOUNTED (and the outstanding
+    budget reservation they settle) are still required before any terminal.
+    SUCCESS is only reachable from WITNESSED; ACCOUNTED alone "proves
+    accounting only" (section 6) and may terminate as FAILED. An observed
+    overdelivery (section 4: "An observed overdelivery halts") is recorded
+    durably, blocks that attempt's own terminal from ever being SUCCESS,
+    and permanently poisons the whole session ledger against any further
+    ``attempt_intent``, surviving restart via ordinary replay.
     """
     LOCK_NAME = 'gate3_session.lock'
     JOURNAL_NAME = 'gate3_session.jsonl'
@@ -480,7 +596,7 @@ class SessionLedger(_HashChainJournal):
              'transport_closed': 'CLOSED', 'accounted': 'ACCOUNTED',
              'object_witnessed': 'WITNESSED'}
 
-    def __init__(self, directory, *, manifest_sha256, boot_id='synthetic-boot',
+    def __init__(self, directory, *, manifest_sha256, boot_id,
                  report_reserve_bytes=REPORT_RESERVE_BYTES, max_requests=3600,
                  expected_head=None):
         digest(manifest_sha256, 'SESSION_LEDGER_MANIFEST_DIGEST')
@@ -502,6 +618,8 @@ class SessionLedger(_HashChainJournal):
                       init.get('report_reserve_bytes') == report_reserve_bytes and
                       init.get('max_requests') == max_requests,
                       'SESSION_LEDGER_IDENTITY_MISMATCH')
+                if init.get('boot_id') != boot_id:
+                    self._boot_ok = False
             if expected_head is not None:
                 check(self.prev == expected_head, 'SESSION_LEDGER_HEAD_MISMATCH')
             self.manifest = manifest_sha256
@@ -520,6 +638,7 @@ class SessionLedger(_HashChainJournal):
         self.attempt = None
         self.request_ids_ever = set()
         self.completed_count = 0
+        self.overdelivery_poisoned = False
         for event in self.events[1:]:
             op = event.get('op')
             rid = event.get('request_id')
@@ -530,12 +649,17 @@ class SessionLedger(_HashChainJournal):
                 check(self.completed_count < self.max_requests,
                       'SESSION_LEDGER_REQUEST_CAP_EXCEEDED')
                 self.request_ids_ever.add(rid)
-                self.attempt = {'request_id': rid, 'state': 'OPEN', 'outcome': None}
+                self.attempt = {'request_id': rid, 'state': 'OPEN', 'outcome': None,
+                                 'max_reservation_bytes': event['max_reservation_bytes'],
+                                 'denial_observed': False, 'overdelivered': False}
             elif op in self._ORDER:
                 check(self.attempt is not None and self.attempt['request_id'] == rid and
                       self.attempt['state'] == self._ORDER[op],
                       'SESSION_LEDGER_BAD_TRANSITION')
                 self.attempt['state'] = self._NEXT[op]
+                if op == 'transport_closed' and event.get('overdelivered'):
+                    self.attempt['overdelivered'] = True
+                    self.overdelivery_poisoned = True
             elif op == 'refuse':
                 check(self.attempt is not None and self.attempt['request_id'] == rid and
                       self.attempt['state'] == 'OPEN', 'SESSION_LEDGER_BAD_TRANSITION')
@@ -543,12 +667,15 @@ class SessionLedger(_HashChainJournal):
                 self.attempt['outcome'] = 'REFUSED'
                 self.completed_count += 1
             elif op == 'denial':
+                # A non-terminal annotation: pre-dispatch blocking is
+                # ``refuse``, and the attempt still requires
+                # TRANSPORT_CLOSED/ACCOUNTED before any terminal (section 4
+                # steps 4-6 still apply after a denial is observed).
                 check(self.attempt is not None and self.attempt['request_id'] == rid and
-                      self.attempt['state'] in ('OPEN', 'RESERVED', 'DISPATCHED'),
-                      'SESSION_LEDGER_BAD_TRANSITION')
-                self.attempt['state'] = 'TERMINAL'
-                self.attempt['outcome'] = 'DENIED'
-                self.completed_count += 1
+                      self.attempt['state'] == 'DISPATCHED', 'SESSION_LEDGER_BAD_TRANSITION')
+                check(not self.attempt['denial_observed'],
+                      'SESSION_LEDGER_DENIAL_ALREADY_RECORDED')
+                self.attempt['denial_observed'] = True
             elif op == 'terminal':
                 check(self.attempt is not None and self.attempt['request_id'] == rid and
                       self.attempt['state'] in ('ACCOUNTED', 'WITNESSED'),
@@ -574,6 +701,10 @@ class SessionLedger(_HashChainJournal):
                         denial_head=None):
         with self._guard():
             self._healthy()
+            # Durable, permanent hold: once any attempt in this session has
+            # ever been observed to overdeliver, no further attempt may be
+            # opened (section 4: "An observed overdelivery halts").
+            check(not self.overdelivery_poisoned, 'SESSION_LEDGER_OVERDELIVERY_POISONED')
             check(type(request_id) is str and REQUEST_ID_RE.fullmatch(request_id),
                   'SESSION_LEDGER_REQUEST_ID')
             check(purpose in PURPOSES, 'SESSION_LEDGER_PURPOSE')
@@ -626,10 +757,17 @@ class SessionLedger(_HashChainJournal):
             self._state()
 
     def denial(self, request_id, *, reason, shared_denial_event_hash=None):
+        """Record a denial observed in headers/status as a durable,
+        non-terminal annotation on a DISPATCHED attempt. Pre-dispatch
+        blocking must use ``refuse`` instead; a denial cannot be observed
+        before dispatch. The attempt still requires TRANSPORT_CLOSED and
+        ACCOUNTED before any (necessarily non-SUCCESS) terminal.
+        """
         with self._guard():
             self._guard_attempt(request_id)
-            check(self.attempt['state'] in ('OPEN', 'RESERVED', 'DISPATCHED'),
-                  'SESSION_LEDGER_BAD_TRANSITION')
+            check(self.attempt['state'] == 'DISPATCHED', 'SESSION_LEDGER_BAD_TRANSITION')
+            check(not self.attempt['denial_observed'],
+                  'SESSION_LEDGER_DENIAL_ALREADY_RECORDED')
             check(type(reason) is str and reason, 'SESSION_LEDGER_DENIAL_REASON')
             _optional_digest(shared_denial_event_hash, 'SESSION_LEDGER_DENIAL_HASH')
             self._append({'op': 'denial', 'request_id': request_id, 'reason': reason,
@@ -639,15 +777,19 @@ class SessionLedger(_HashChainJournal):
     def transport_closed(self, request_id, *, outcome, total_delivered_bytes,
                           denial_history_head=None, accounting_head=None):
         with self._guard():
-            self._guard_attempt(request_id)
+            attempt = self._guard_attempt(request_id)
             check(outcome in ('OK', 'FAILED', 'PARTIAL'), 'SESSION_LEDGER_CLOSE_OUTCOME')
             integer(total_delivered_bytes, 0, MAX_BYTES, 'SESSION_LEDGER_DELIVERED_BYTES')
             _optional_digest(denial_history_head, 'SESSION_LEDGER_DENIAL_HISTORY_HEAD')
             _optional_digest(accounting_head, 'SESSION_LEDGER_ACCOUNTING_HEAD')
+            # Section 4: "An observed overdelivery halts". Recorded durably
+            # on the event itself rather than recomputed at replay time.
+            overdelivered = total_delivered_bytes > attempt['max_reservation_bytes']
             self._append({'op': 'transport_closed', 'request_id': request_id,
                           'outcome': outcome, 'total_delivered_bytes': total_delivered_bytes,
                           'denial_history_head': denial_history_head,
-                          'accounting_head': accounting_head})
+                          'accounting_head': accounting_head,
+                          'overdelivered': overdelivered})
             self._state()
 
     def accounted(self, request_id, *, completion_event_hash):
@@ -671,8 +813,19 @@ class SessionLedger(_HashChainJournal):
             attempt = self._guard_attempt(request_id)
             check(attempt['state'] in ('ACCOUNTED', 'WITNESSED'),
                   'SESSION_LEDGER_BAD_TRANSITION')
-            check(outcome in ('SUCCESS', 'FAILED', 'AMBIGUOUS_HELD'),
-                  'SESSION_LEDGER_TERMINAL_OUTCOME')
+            # AMBIGUOUS_HELD is deliberately not an accepted terminal
+            # outcome: an ambiguous outcome must never become
+            # TERMINAL-and-released. A caller facing ambiguity must simply
+            # not call terminal, so the attempt is inherited and held on
+            # restart exactly like a crash (the generalized R2 rule above).
+            check(outcome in ('SUCCESS', 'FAILED'), 'SESSION_LEDGER_TERMINAL_OUTCOME')
+            if outcome == 'SUCCESS':
+                # Section 6: "ACCOUNTED without a store receipt proves
+                # accounting only". SUCCESS requires the store receipt.
+                check(attempt['state'] == 'WITNESSED',
+                      'SESSION_LEDGER_SUCCESS_REQUIRES_WITNESS')
+                check(not attempt['overdelivered'],
+                      'SESSION_LEDGER_OVERDELIVERY_BLOCKS_SUCCESS')
             check(type(reason) is str and reason, 'SESSION_LEDGER_TERMINAL_REASON')
             # Report reserve survives ordinary failure: it is fixed at
             # construction (replayed identically on every restart), never
