@@ -1,5 +1,23 @@
 # Gate 3 ECMWF restriction lineage: offline inventory, 2026-10-01 11:50 UTC
 
+## Additional offline recovery — 2026-10-01 22:45 UTC
+
+The [A5/A6 audit](V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.md) recovered
+the original raw manifests behind this public export. They retain selected
+headers: Date for the 07:54:39 S3 503 and an empty header map for the 07:55:15
+public-origin 429; neither supplies Retry-After/expiry. An earlier S3 503 at
+**September 30 07:48:13.707996 UTC** also survives in private
+`r09-extrema/aws-retry.json` and its 278-byte body, SHA-256
+`7c21325b9a8c5d3b7f06bed411ae11e6fa6dcb490320671bd8e1d49a64956a28`.
+It has no retained Retry-After either. These hashed records expand the history;
+they do not establish allowed resumption. Keep both origins/control-domain
+lineage unresolved and include all three known denials and later successes.
+The original inventory below is preserved. The owner's current rule forbids
+any provider request before G3-L PASS; the older preflight discussion below
+does not supply an exception. No request or gate change occurred.
+
+## Original inventory
+
 **G3-L NO-GO for these origins on present evidence.** This is a read-only
 inventory of existing exploratory captures, not a provider-access approval,
 cooldown expiry decision, preflight permission, or launch envelope. No request

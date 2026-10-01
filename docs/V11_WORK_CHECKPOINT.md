@@ -1,5 +1,53 @@
 # Alpha V11 work checkpoint
 
+## A5/A6 offline audit completed; bootstrap dependency explicit — 2026-10-01 22:45 UTC
+
+Completed the routed Astra/high [source/current-run audit](V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.md)
+against recovered main `b3cea1c`, with a read-only generator and
+[hashed machine observations](V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.json).
+Fresh assertions verify 47 retained response bodies / 33,072,164 bytes,
+17 historical receipts, 12 IFS field/index/range bindings and six loose
+GRIB/index pairs, without native decoding or forecast-value inspection.
+The mapping PASS report matches its terminal and main's validator source
+matches accepted `23c11e0` byte-for-byte. The historical native-extrema
+independent review log was recovered; its PASS remains research-scoped.
+
+Recovered an additional September 30 07:48:13 S3 503 and selected raw-manifest
+headers omitted by the public export. All three known 503/429 records lack
+retained expiry proof; later 200s do not authorize resumption. Updated the
+restriction inventory with this additional evidence. Historical IFS native
+extrema and loose AIFS point fields do not supply operational release
+attestation or current-run readiness. All 24 source qualification identities,
+current-run readiness and independent section pins remain **null**.
+
+The exact bootstrap block is now explicit: G3-L needs missing independently
+reviewed current-run pins before launch; acquiring them would require a provider
+request that the owner forbids before G3-L PASS. The older separately reviewed
+preflight provision supplies no exception. A separate owner/protocol resolution
+or genuinely pre-existing eligible evidence is needed; no gate was changed.
+The proposed October 2 acquisition / October 3 target remains unapproved and
+its candidate run has not occurred. September 29 field runs cannot qualify.
+
+New real process evidence supersedes the prior inventory status: independent
+inventory reviewer PID **1931166** is active at isolated clean `9600510`.
+Do not duplicate it. Sole A1 repair PID **1925151** remains queued to 23:21 UTC
+at clean `93cd43c`, without corrected terminal. SHADOW/Brain worktrees remain
+clean and ECMWF `backfill_data/` remains untracked/preserved. No new qualifying
+forward SHADOW evidence is claimed. Next: recover and exact-review A1's corrected
+terminal after completion and inspect the independent inventory review result;
+do not rehash the same historical captures as a substitute for missing A5/A6.
+
+Audit assertions and input-hash checks passed; no full release suite rerun.
+Accepted release `6ec371e` remains prior 5,460-pass / 13-skip evidence, and
+owner-authorized R1 remains integrated. V11 scanner/controller/execution are
+inactive, scanner disabled and execution masked; protected V11 authority
+roots remain absent. The FINAL-REVIEWED private master still hashes to
+`a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+Latest resource observation: 2,174,341,120 free disk bytes and 949,923,840
+available memory bytes, still below the existing first-slot disk requirement.
+No provider, service, authority, financial, V10, AxiomTrade or remote-publication
+action. **G3-L NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND.**
+
 ## Coordinator recovery and A5/A6 offline review handoff — 2026-10-01 22:34 UTC
 
 Recovered clean main `470a16f` (94 local commits ahead of origin). The

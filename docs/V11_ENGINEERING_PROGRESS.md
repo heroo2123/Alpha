@@ -1,5 +1,18 @@
 # Supplementary engineering estimate
 
+## A5/A6 offline evidence audit completed — 2026-10-01 22:45 UTC
+
+Completed the escalated [source/current-run audit](V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.md)
+and reproducible metadata-only observation report. Verified historical body,
+receipt, index/range and raw-header identities; recovered the original research
+review and an additional earlier S3 503. The audit separates reusable reviewed
+static evidence from missing release attestation/current-run pins and records
+the exact no-provider-request bootstrap dependency. It does not qualify A5/A6,
+authorize a preflight, change gates or create current-run receipts. The sole
+A1 repair remains queued and a separate exact inventory review is now active.
+No full suite rerun, provider request or forward SHADOW sample. **G3-L NO-GO;
+91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## A2/A3 offline observation completed — 2026-10-01 22:30 UTC
 
 The read-only [dossier](V11_R09_GATE3_A2A3_OFFLINE_DOSSIER_20261001.md)

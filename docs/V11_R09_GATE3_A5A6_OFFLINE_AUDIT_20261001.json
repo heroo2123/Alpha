@@ -1,0 +1,1553 @@
+{
+  "bootstrap": "OWNER_NO_PROVIDER_REQUEST_BEFORE_G3L_AND_MISSING_PRELAUNCH_CURRENT_RUN_PINS",
+  "captures": [
+    {
+      "capture": "capture-v1",
+      "fields": [],
+      "manifest": {
+        "byte_length": 20811,
+        "path": "/home/alphaadmin/AlphaV11_R09Extrema/Alpha/private-evidence/r09-extrema/capture-v1/capture.json",
+        "sha256": "443b4ad67c8ef71e80db2ec4eca6047032509495fc4ed39311f3913609d69806"
+      },
+      "operational_release_reviewed": false,
+      "release_binding": "OBSERVED_HEADER_ONLY",
+      "retained_receipts": [],
+      "status_counts": {
+        "200": 22,
+        "404": 5,
+        "429": 1,
+        "503": 1,
+        "NOT_ATTEMPTED_ORIGIN_THROTTLED": 29
+      },
+      "verified_body_bytes": 21203504,
+      "verified_body_count": 30
+    },
+    {
+      "capture": "capture-current-1c8836a",
+      "fields": [
+        {
+          "byte_length": 636253,
+          "headers": {
+            "bitmap_indicator": 255,
+            "centre": 98,
+            "data_type": 4,
+            "diagnostic_section_hashes": {
+              "1": "9632d024add4334d435ed1718c9a53dbe965e56cac83e54f3f83b5d089372eba",
+              "2": "5b5dd28fc8de334b16f1f9ccf38b0a6523e05f65929d9778749faaf4cd6d9a2c",
+              "3": "6e8229bf09d191ccf7d719ef88dc9e848fe663cf45a91d0691b7e17815a03036",
+              "4": "c34bcf7c784b9227f8986d653245ad87f97b1d44363819c2d4af3ccd54ab9dfb",
+              "5": "cfce3e8c1e36dc9e310775c4825f1e18e96601b4848424f27ce01ae4ea256271",
+              "6": "c2dc6153f4dc277f902b2b8e9f64f957e4de897eef89081b0de598f7b8fb3fac"
+            },
+            "ensemble_size": 51,
+            "ensemble_type": 255,
+            "forecast_hour": 144,
+            "forecast_unit": 1,
+            "generating_process_id": 161,
+            "generating_process_type": 4,
+            "grid_template": 0,
+            "independently_frozen_section_pins": null,
+            "level_scale": 0,
+            "level_type": 103,
+            "level_value": 2,
+            "local_tables": 0,
+            "member": 1,
+            "ni": 1440,
+            "nj": 721,
+            "packing_template": 42,
+            "parameter_category": 0,
+            "parameter_number": 0,
+            "point_count": 1038240,
+            "product_template": 11,
+            "run_utc": "2026-09-29T00:00:00+00:00",
+            "status": 0,
+            "subcentre": 0,
+            "tables": 32
+          },
+          "index_sha256": "990186d61752f2e434cd9e24f531dbe3bf302cc2eaf38fee4505b703392f454e",
+          "object_bytes": 6642695608,
+          "object_path": "/20260929/00z/ifs/0p25/enfo/20260929000000-150h-enfo-ef.grib2",
+          "raw_sha256": "b9577f5ceaa57e9fa6af67c00b9ab5bf955ea81ebcc3462a268b5f4ccf79f655",
+          "received_at": "2026-09-30T08:04:45.596002+00:00",
+          "recorded_etag": "00000000-0982-4249-0000-000000000000",
+          "request": {
+            "member": 1,
+            "param": "mx2t6",
+            "product": {
+              "kind": "ef",
+              "model": "ifs",
+              "run": "2026-09-29T00:00:00+00:00",
+              "step": 150
+            }
+          },
+          "selected_row": {
+            "_length": 636253,
+            "_offset": 379419099,
+            "class": "od",
+            "date": "20260929",
+            "domain": "g",
+            "expver": "0001",
+            "levtype": "sfc",
+            "number": "1",
+            "param": "mx2t6",
+            "step": "150",
+            "stream": "enfo",
+            "time": "0000",
+            "type": "pf"
+          }
+        },
+        {
+          "byte_length": 655242,
+          "headers": {
+            "bitmap_indicator": 255,
+            "centre": 98,
+            "data_type": 4,
+            "diagnostic_section_hashes": {
+              "1": "9632d024add4334d435ed1718c9a53dbe965e56cac83e54f3f83b5d089372eba",
+              "2": "5b5dd28fc8de334b16f1f9ccf38b0a6523e05f65929d9778749faaf4cd6d9a2c",
+              "3": "6e8229bf09d191ccf7d719ef88dc9e848fe663cf45a91d0691b7e17815a03036",
+              "4": "5fd5639d26735ba6c63c16180bfbdac954b5f4fbc6e9cd7c008d81ae4db9f115",
+              "5": "7e5d904086cad71b8f2ad95adaf086583fdabffbcd7af88c2adf820c9e621166",
+              "6": "c2dc6153f4dc277f902b2b8e9f64f957e4de897eef89081b0de598f7b8fb3fac"
+            },
+            "ensemble_size": 51,
+            "ensemble_type": 255,
+            "forecast_hour": 144,
+            "forecast_unit": 1,
+            "generating_process_id": 161,
+            "generating_process_type": 4,
+            "grid_template": 0,
+            "independently_frozen_section_pins": null,
+            "level_scale": 0,
+            "level_type": 103,
+            "level_value": 2,
+            "local_tables": 0,
+            "member": 1,
+            "ni": 1440,
+            "nj": 721,
+            "packing_template": 42,
+            "parameter_category": 0,
+            "parameter_number": 0,
+            "point_count": 1038240,
+            "product_template": 11,
+            "run_utc": "2026-09-29T00:00:00+00:00",
+            "status": 0,
+            "subcentre": 0,
+            "tables": 32
+          },
+          "index_sha256": "990186d61752f2e434cd9e24f531dbe3bf302cc2eaf38fee4505b703392f454e",
+          "object_bytes": 6642695608,
+          "object_path": "/20260929/00z/ifs/0p25/enfo/20260929000000-150h-enfo-ef.grib2",
+          "raw_sha256": "88e42f59c08deacf7793a5d601adc23bdc59be91596aaf51d8712d2e5e14287b",
+          "received_at": "2026-09-30T08:04:52.285362+00:00",
+          "recorded_etag": "00000000-0982-4249-0000-000000000000",
+          "request": {
+            "member": 1,
+            "param": "mn2t6",
+            "product": {
+              "kind": "ef",
+              "model": "ifs",
+              "run": "2026-09-29T00:00:00+00:00",
+              "step": 150
+            }
+          },
+          "selected_row": {
+            "_length": 655242,
+            "_offset": 426663595,
+            "class": "od",
+            "date": "20260929",
+            "domain": "g",
+            "expver": "0001",
+            "levtype": "sfc",
+            "number": "1",
+            "param": "mn2t6",
+            "step": "150",
+            "stream": "enfo",
+            "time": "0000",
+            "type": "pf"
+          }
+        },
+        {
+          "byte_length": 639877,
+          "headers": {
+            "bitmap_indicator": 255,
+            "centre": 98,
+            "data_type": 4,
+            "diagnostic_section_hashes": {
+              "1": "9632d024add4334d435ed1718c9a53dbe965e56cac83e54f3f83b5d089372eba",
+              "2": "5b5dd28fc8de334b16f1f9ccf38b0a6523e05f65929d9778749faaf4cd6d9a2c",
+              "3": "6e8229bf09d191ccf7d719ef88dc9e848fe663cf45a91d0691b7e17815a03036",
+              "4": "d2519900428f0135023ea1d565b500f705136376ef0a47b6e273237920c77603",
+              "5": "7c1b94f7734c48dd36e4f1182852fb61c24160426726e754ecb38f2df3b91841",
+              "6": "c2dc6153f4dc277f902b2b8e9f64f957e4de897eef89081b0de598f7b8fb3fac"
+            },
+            "ensemble_size": 51,
+            "ensemble_type": 255,
+            "forecast_hour": 144,
+            "forecast_unit": 1,
+            "generating_process_id": 161,
+            "generating_process_type": 4,
+            "grid_template": 0,
+            "independently_frozen_section_pins": null,
+            "level_scale": 0,
+            "level_type": 103,
+            "level_value": 2,
+            "local_tables": 0,
+            "member": 50,
+            "ni": 1440,
+            "nj": 721,
+            "packing_template": 42,
+            "parameter_category": 0,
+            "parameter_number": 0,
+            "point_count": 1038240,
+            "product_template": 11,
+            "run_utc": "2026-09-29T00:00:00+00:00",
+            "status": 0,
+            "subcentre": 0,
+            "tables": 32
+          },
+          "index_sha256": "990186d61752f2e434cd9e24f531dbe3bf302cc2eaf38fee4505b703392f454e",
+          "object_bytes": 6642695608,
+          "object_path": "/20260929/00z/ifs/0p25/enfo/20260929000000-150h-enfo-ef.grib2",
+          "raw_sha256": "49d0fe73a79523d9ce83b5f2f85cb79edbccb272c8289265fc7d07964574ad7e",
+          "received_at": "2026-09-30T08:04:58.937981+00:00",
+          "recorded_etag": "00000000-0982-4249-0000-000000000000",
+          "request": {
+            "member": 50,
+            "param": "mx2t6",
+            "product": {
+              "kind": "ef",
+              "model": "ifs",
+              "run": "2026-09-29T00:00:00+00:00",
+              "step": 150
+            }
+          },
+          "selected_row": {
+            "_length": 639877,
+            "_offset": 1662877278,
+            "class": "od",
+            "date": "20260929",
+            "domain": "g",
+            "expver": "0001",
+            "levtype": "sfc",
+            "number": "50",
+            "param": "mx2t6",
+            "step": "150",
+            "stream": "enfo",
+            "time": "0000",
+            "type": "pf"
+          }
+        },
+        {
+          "byte_length": 657585,
+          "headers": {
+            "bitmap_indicator": 255,
+            "centre": 98,
+            "data_type": 4,
+            "diagnostic_section_hashes": {
+              "1": "9632d024add4334d435ed1718c9a53dbe965e56cac83e54f3f83b5d089372eba",
+              "2": "5b5dd28fc8de334b16f1f9ccf38b0a6523e05f65929d9778749faaf4cd6d9a2c",
+              "3": "6e8229bf09d191ccf7d719ef88dc9e848fe663cf45a91d0691b7e17815a03036",
+              "4": "fde6da929e9fa2224b742aa792ff43e0999c16313d06df73e3ba44044d8e9a21",
+              "5": "ae3846ba775baa4aca84cd876b72a035bb58e4be139595e420b3c399fa622de6",
+              "6": "c2dc6153f4dc277f902b2b8e9f64f957e4de897eef89081b0de598f7b8fb3fac"
+            },
+            "ensemble_size": 51,
+            "ensemble_type": 255,
+            "forecast_hour": 144,
+            "forecast_unit": 1,
+            "generating_process_id": 161,
+            "generating_process_type": 4,
+            "grid_template": 0,
+            "independently_frozen_section_pins": null,
+            "level_scale": 0,
+            "level_type": 103,
+            "level_value": 2,
+            "local_tables": 0,
+            "member": 50,
+            "ni": 1440,
+            "nj": 721,
+            "packing_template": 42,
+            "parameter_category": 0,
+            "parameter_number": 0,
+            "point_count": 1038240,
+            "product_template": 11,
+            "run_utc": "2026-09-29T00:00:00+00:00",
+            "status": 0,
+            "subcentre": 0,
+            "tables": 32
+          },
+          "index_sha256": "990186d61752f2e434cd9e24f531dbe3bf302cc2eaf38fee4505b703392f454e",
+          "object_bytes": 6642695608,
+          "object_path": "/20260929/00z/ifs/0p25/enfo/20260929000000-150h-enfo-ef.grib2",
+          "raw_sha256": "ffed8da88c66d75d7ea20d9687b904cf1a91d6633b38c46551218ae57ab0ff71",
+          "received_at": "2026-09-30T08:05:05.292304+00:00",
+          "recorded_etag": "00000000-0982-4249-0000-000000000000",
+          "request": {
+            "member": 50,
+            "param": "mn2t6",
+            "product": {
+              "kind": "ef",
+              "model": "ifs",
+              "run": "2026-09-29T00:00:00+00:00",
+              "step": 150
+            }
+          },
+          "selected_row": {
+            "_length": 657585,
+            "_offset": 1728133539,
+            "class": "od",
+            "date": "20260929",
+            "domain": "g",
+            "expver": "0001",
+            "levtype": "sfc",
+            "number": "50",
+            "param": "mn2t6",
+            "step": "150",
+            "stream": "enfo",
+            "time": "0000",
+            "type": "pf"
+          }
+        },
+        {
+          "byte_length": 647763,
+          "headers": {
+            "bitmap_indicator": 255,
+            "centre": 98,
+            "data_type": 4,
+            "diagnostic_section_hashes": {
+              "1": "9632d024add4334d435ed1718c9a53dbe965e56cac83e54f3f83b5d089372eba",
+              "2": "5b5dd28fc8de334b16f1f9ccf38b0a6523e05f65929d9778749faaf4cd6d9a2c",
+              "3": "6e8229bf09d191ccf7d719ef88dc9e848fe663cf45a91d0691b7e17815a03036",
+              "4": "92281c7c8ff2013f9cc4a5a4028c182a736ce92af825cd9a25f39eeb954cb65e",
+              "5": "f744fcc52697e0d892e7e0196d6267c0616226051d8b21c6c0e4504720785874",
+              "6": "c2dc6153f4dc277f902b2b8e9f64f957e4de897eef89081b0de598f7b8fb3fac"
+            },
+            "ensemble_size": 51,
+            "ensemble_type": 255,
+            "forecast_hour": 0,
+            "forecast_unit": 1,
+            "generating_process_id": 161,
+            "generating_process_type": 4,
+            "grid_template": 0,
+            "independently_frozen_section_pins": null,
+            "level_scale": 0,
+            "level_type": 103,
+            "level_value": 2,
+            "local_tables": 0,
+            "member": 1,
+            "ni": 1440,
+            "nj": 721,
+            "packing_template": 42,
+            "parameter_category": 0,
+            "parameter_number": 0,
+            "point_count": 1038240,
+            "product_template": 11,
+            "run_utc": "2026-09-29T00:00:00+00:00",
+            "status": 0,
+            "subcentre": 0,
+            "tables": 32
+          },
+          "index_sha256": "f4ed0fc5d1ba110be1716b3905d18b3929e71bfafa9a45742205df8bc86ec103",
+          "object_bytes": 6614270162,
+          "object_path": "/20260929/00z/ifs/0p25/enfo/20260929000000-3h-enfo-ef.grib2",
+          "raw_sha256": "a5bc0c57a3737c372b7f11c7b98a2d383145b6f904e4c3b9f2d141fd5ea50c56",
+          "received_at": "2026-09-30T08:05:18.147099+00:00",
+          "recorded_etag": "00000000-0982-3522-0000-000000000000",
+          "request": {
+            "member": 1,
+            "param": "mx2t3",
+            "product": {
+              "kind": "ef",
+              "model": "ifs",
+              "run": "2026-09-29T00:00:00+00:00",
+              "step": 3
+            }
+          },
+          "selected_row": {
+            "_length": 647763,
+            "_offset": 249605024,
+            "class": "od",
+            "date": "20260929",
+            "domain": "g",
+            "expver": "0001",
+            "levtype": "sfc",
+            "number": "1",
+            "param": "mx2t3",
+            "step": "3",
+            "stream": "enfo",
+            "time": "0000",
+            "type": "pf"
+          }
+        },
+        {
+          "byte_length": 657987,
+          "headers": {
+            "bitmap_indicator": 255,
+            "centre": 98,
+            "data_type": 4,
+            "diagnostic_section_hashes": {
+              "1": "9632d024add4334d435ed1718c9a53dbe965e56cac83e54f3f83b5d089372eba",
+              "2": "5b5dd28fc8de334b16f1f9ccf38b0a6523e05f65929d9778749faaf4cd6d9a2c",
+              "3": "6e8229bf09d191ccf7d719ef88dc9e848fe663cf45a91d0691b7e17815a03036",
+              "4": "bf6ed71cd6acac43b4f40af39bd4ca1803ddc57d4f20ecbaed1ba1fa4f8783d0",
+              "5": "632a2b869bad519c053d498fffcc220bd6b274e86b89be54cbed355f4ad56ef8",
+              "6": "c2dc6153f4dc277f902b2b8e9f64f957e4de897eef89081b0de598f7b8fb3fac"
+            },
+            "ensemble_size": 51,
+            "ensemble_type": 255,
+            "forecast_hour": 0,
+            "forecast_unit": 1,
+            "generating_process_id": 161,
+            "generating_process_type": 4,
+            "grid_template": 0,
+            "independently_frozen_section_pins": null,
+            "level_scale": 0,
+            "level_type": 103,
+            "level_value": 2,
+            "local_tables": 0,
+            "member": 1,
+            "ni": 1440,
+            "nj": 721,
+            "packing_template": 42,
+            "parameter_category": 0,
+            "parameter_number": 0,
+            "point_count": 1038240,
+            "product_template": 11,
+            "run_utc": "2026-09-29T00:00:00+00:00",
+            "status": 0,
+            "subcentre": 0,
+            "tables": 32
+          },
+          "index_sha256": "f4ed0fc5d1ba110be1716b3905d18b3929e71bfafa9a45742205df8bc86ec103",
+          "object_bytes": 6614270162,
+          "object_path": "/20260929/00z/ifs/0p25/enfo/20260929000000-3h-enfo-ef.grib2",
+          "raw_sha256": "2590d77d6c8c769eb78b307d85dd332ca549b9a626635cf6a587d2df75c7b99b",
+          "received_at": "2026-09-30T08:05:24.577390+00:00",
+          "recorded_etag": "00000000-0982-3522-0000-000000000000",
+          "request": {
+            "member": 1,
+            "param": "mn2t3",
+            "product": {
+              "kind": "ef",
+              "model": "ifs",
+              "run": "2026-09-29T00:00:00+00:00",
+              "step": 3
+            }
+          },
+          "selected_row": {
+            "_length": 657987,
+            "_offset": 321063783,
+            "class": "od",
+            "date": "20260929",
+            "domain": "g",
+            "expver": "0001",
+            "levtype": "sfc",
+            "number": "1",
+            "param": "mn2t3",
+            "step": "3",
+            "stream": "enfo",
+            "time": "0000",
+            "type": "pf"
+          }
+        },
+        {
+          "byte_length": 646724,
+          "headers": {
+            "bitmap_indicator": 255,
+            "centre": 98,
+            "data_type": 4,
+            "diagnostic_section_hashes": {
+              "1": "9632d024add4334d435ed1718c9a53dbe965e56cac83e54f3f83b5d089372eba",
+              "2": "5b5dd28fc8de334b16f1f9ccf38b0a6523e05f65929d9778749faaf4cd6d9a2c",
+              "3": "6e8229bf09d191ccf7d719ef88dc9e848fe663cf45a91d0691b7e17815a03036",
+              "4": "fc0fba37a959439f4ee0b4c3baea1c8ff00812211055d2fd235c6172330fa596",
+              "5": "3278f89722cf96e631929452655041b6dfe17b269a4e8ab684975b23857b1b9f",
+              "6": "c2dc6153f4dc277f902b2b8e9f64f957e4de897eef89081b0de598f7b8fb3fac"
+            },
+            "ensemble_size": 51,
+            "ensemble_type": 255,
+            "forecast_hour": 0,
+            "forecast_unit": 1,
+            "generating_process_id": 161,
+            "generating_process_type": 4,
+            "grid_template": 0,
+            "independently_frozen_section_pins": null,
+            "level_scale": 0,
+            "level_type": 103,
+            "level_value": 2,
+            "local_tables": 0,
+            "member": 50,
+            "ni": 1440,
+            "nj": 721,
+            "packing_template": 42,
+            "parameter_category": 0,
+            "parameter_number": 0,
+            "point_count": 1038240,
+            "product_template": 11,
+            "run_utc": "2026-09-29T00:00:00+00:00",
+            "status": 0,
+            "subcentre": 0,
+            "tables": 32
+          },
+          "index_sha256": "f4ed0fc5d1ba110be1716b3905d18b3929e71bfafa9a45742205df8bc86ec103",
+          "object_bytes": 6614270162,
+          "object_path": "/20260929/00z/ifs/0p25/enfo/20260929000000-3h-enfo-ef.grib2",
+          "raw_sha256": "765cf483de83ac77c628aaf4feb6da0f8cdec53dade74900bfd0b45e2c38bf82",
+          "received_at": "2026-09-30T08:05:31.187172+00:00",
+          "recorded_etag": "00000000-0982-3522-0000-000000000000",
+          "request": {
+            "member": 50,
+            "param": "mx2t3",
+            "product": {
+              "kind": "ef",
+              "model": "ifs",
+              "run": "2026-09-29T00:00:00+00:00",
+              "step": 3
+            }
+          },
+          "selected_row": {
+            "_length": 646724,
+            "_offset": 1924665406,
+            "class": "od",
+            "date": "20260929",
+            "domain": "g",
+            "expver": "0001",
+            "levtype": "sfc",
+            "number": "50",
+            "param": "mx2t3",
+            "step": "3",
+            "stream": "enfo",
+            "time": "0000",
+            "type": "pf"
+          }
+        },
+        {
+          "byte_length": 655605,
+          "headers": {
+            "bitmap_indicator": 255,
+            "centre": 98,
+            "data_type": 4,
+            "diagnostic_section_hashes": {
+              "1": "9632d024add4334d435ed1718c9a53dbe965e56cac83e54f3f83b5d089372eba",
+              "2": "5b5dd28fc8de334b16f1f9ccf38b0a6523e05f65929d9778749faaf4cd6d9a2c",
+              "3": "6e8229bf09d191ccf7d719ef88dc9e848fe663cf45a91d0691b7e17815a03036",
+              "4": "dc3a3c08291e2386231aeac03b088d4e77d094e5e28594899ae94d72161e60a9",
+              "5": "8821cb1e49160bf48c7edeff96a7bdb41bda2bc7f3502be850162719c3d44ac7",
+              "6": "c2dc6153f4dc277f902b2b8e9f64f957e4de897eef89081b0de598f7b8fb3fac"
+            },
+            "ensemble_size": 51,
+            "ensemble_type": 255,
+            "forecast_hour": 0,
+            "forecast_unit": 1,
+            "generating_process_id": 161,
+            "generating_process_type": 4,
+            "grid_template": 0,
+            "independently_frozen_section_pins": null,
+            "level_scale": 0,
+            "level_type": 103,
+            "level_value": 2,
+            "local_tables": 0,
+            "member": 50,
+            "ni": 1440,
+            "nj": 721,
+            "packing_template": 42,
+            "parameter_category": 0,
+            "parameter_number": 0,
+            "point_count": 1038240,
+            "product_template": 11,
+            "run_utc": "2026-09-29T00:00:00+00:00",
+            "status": 0,
+            "subcentre": 0,
+            "tables": 32
+          },
+          "index_sha256": "f4ed0fc5d1ba110be1716b3905d18b3929e71bfafa9a45742205df8bc86ec103",
+          "object_bytes": 6614270162,
+          "object_path": "/20260929/00z/ifs/0p25/enfo/20260929000000-3h-enfo-ef.grib2",
+          "raw_sha256": "8bb9a8b6f6cd59ce412d88fdcf8d085be130046807031b41621d325b8b50513f",
+          "received_at": "2026-09-30T08:05:37.737144+00:00",
+          "recorded_etag": "00000000-0982-3522-0000-000000000000",
+          "request": {
+            "member": 50,
+            "param": "mn2t3",
+            "product": {
+              "kind": "ef",
+              "model": "ifs",
+              "run": "2026-09-29T00:00:00+00:00",
+              "step": 3
+            }
+          },
+          "selected_row": {
+            "_length": 655605,
+            "_offset": 2002942226,
+            "class": "od",
+            "date": "20260929",
+            "domain": "g",
+            "expver": "0001",
+            "levtype": "sfc",
+            "number": "50",
+            "param": "mn2t3",
+            "step": "3",
+            "stream": "enfo",
+            "time": "0000",
+            "type": "pf"
+          }
+        },
+        {
+          "byte_length": 639330,
+          "headers": {
+            "bitmap_indicator": 255,
+            "centre": 98,
+            "data_type": 1,
+            "diagnostic_section_hashes": {
+              "1": "c6cae68bd529a8822a88de26cf1e95699217a2289de68865035497b64a7649c4",
+              "2": "75170cf66c4c5a8ac56fca014c7c2b2fc4fea93cca50a086c3cee3bbff39b3e2",
+              "3": "6e8229bf09d191ccf7d719ef88dc9e848fe663cf45a91d0691b7e17815a03036",
+              "4": "5b44e1e0d50c20dd12d51a67e5cd686d4a95bef3cd4c5a1f95e68fd187cc00ba",
+              "5": "806d3587ed83ad42ed14f91a0884e09a69a4f62251b99522514aa7df735f8f16",
+              "6": "c2dc6153f4dc277f902b2b8e9f64f957e4de897eef89081b0de598f7b8fb3fac"
+            },
+            "ensemble_size": null,
+            "ensemble_type": null,
+            "forecast_hour": 144,
+            "forecast_unit": 1,
+            "generating_process_id": 161,
+            "generating_process_type": 2,
+            "grid_template": 0,
+            "independently_frozen_section_pins": null,
+            "level_scale": 0,
+            "level_type": 103,
+            "level_value": 2,
+            "local_tables": 0,
+            "member": null,
+            "ni": 1440,
+            "nj": 721,
+            "packing_template": 42,
+            "parameter_category": 0,
+            "parameter_number": 0,
+            "point_count": 1038240,
+            "product_template": 8,
+            "run_utc": "2026-09-29T00:00:00+00:00",
+            "status": 0,
+            "subcentre": 0,
+            "tables": 32
+          },
+          "index_sha256": "43d4c03cdbb867e389870184861fa6342be90fd731832379edc0416e1756fc77",
+          "object_bytes": 144706622,
+          "object_path": "/20260929/00z/ifs/0p25/oper/20260929000000-150h-oper-fc.grib2",
+          "raw_sha256": "094d8163c8bee0acb2ff42989e4a8e9ba46973db430790f8d7e24a4cd1493d8e",
+          "received_at": "2026-09-30T08:05:48.663749+00:00",
+          "recorded_etag": "00000000-0982-33aa-0000-000000000000",
+          "request": {
+            "member": 0,
+            "param": "mx2t6",
+            "product": {
+              "kind": "fc",
+              "model": "ifs",
+              "run": "2026-09-29T00:00:00+00:00",
+              "step": 150
+            }
+          },
+          "selected_row": {
+            "_length": 639330,
+            "_offset": 437417,
+            "class": "od",
+            "date": "20260929",
+            "domain": "g",
+            "expver": "0001",
+            "levtype": "sfc",
+            "param": "mx2t6",
+            "step": "150",
+            "stream": "oper",
+            "time": "0000",
+            "type": "fc"
+          }
+        },
+        {
+          "byte_length": 660874,
+          "headers": {
+            "bitmap_indicator": 255,
+            "centre": 98,
+            "data_type": 1,
+            "diagnostic_section_hashes": {
+              "1": "c6cae68bd529a8822a88de26cf1e95699217a2289de68865035497b64a7649c4",
+              "2": "75170cf66c4c5a8ac56fca014c7c2b2fc4fea93cca50a086c3cee3bbff39b3e2",
+              "3": "6e8229bf09d191ccf7d719ef88dc9e848fe663cf45a91d0691b7e17815a03036",
+              "4": "bbe0a965e1ef7587f43e764926c07b4e454a01cccecf5677ea1dd07c17e62ec9",
+              "5": "5742a53a0825cea16da4793b3bba8f190b1b676382a74ddaca8b18f6ec01857c",
+              "6": "c2dc6153f4dc277f902b2b8e9f64f957e4de897eef89081b0de598f7b8fb3fac"
+            },
+            "ensemble_size": null,
+            "ensemble_type": null,
+            "forecast_hour": 144,
+            "forecast_unit": 1,
+            "generating_process_id": 161,
+            "generating_process_type": 2,
+            "grid_template": 0,
+            "independently_frozen_section_pins": null,
+            "level_scale": 0,
+            "level_type": 103,
+            "level_value": 2,
+            "local_tables": 0,
+            "member": null,
+            "ni": 1440,
+            "nj": 721,
+            "packing_template": 42,
+            "parameter_category": 0,
+            "parameter_number": 0,
+            "point_count": 1038240,
+            "product_template": 8,
+            "run_utc": "2026-09-29T00:00:00+00:00",
+            "status": 0,
+            "subcentre": 0,
+            "tables": 32
+          },
+          "index_sha256": "43d4c03cdbb867e389870184861fa6342be90fd731832379edc0416e1756fc77",
+          "object_bytes": 144706622,
+          "object_path": "/20260929/00z/ifs/0p25/oper/20260929000000-150h-oper-fc.grib2",
+          "raw_sha256": "e69f6fd0d0289fdb5eb5fd4ced91d1858c6fe38fdd1b810549cb4b61a7c5fc3c",
+          "received_at": "2026-09-30T08:05:54.277203+00:00",
+          "recorded_etag": "00000000-0982-33aa-0000-000000000000",
+          "request": {
+            "member": 0,
+            "param": "mn2t6",
+            "product": {
+              "kind": "fc",
+              "model": "ifs",
+              "run": "2026-09-29T00:00:00+00:00",
+              "step": 150
+            }
+          },
+          "selected_row": {
+            "_length": 660874,
+            "_offset": 2413225,
+            "class": "od",
+            "date": "20260929",
+            "domain": "g",
+            "expver": "0001",
+            "levtype": "sfc",
+            "param": "mn2t6",
+            "step": "150",
+            "stream": "oper",
+            "time": "0000",
+            "type": "fc"
+          }
+        },
+        {
+          "byte_length": 635182,
+          "headers": {
+            "bitmap_indicator": 255,
+            "centre": 98,
+            "data_type": 1,
+            "diagnostic_section_hashes": {
+              "1": "c6cae68bd529a8822a88de26cf1e95699217a2289de68865035497b64a7649c4",
+              "2": "75170cf66c4c5a8ac56fca014c7c2b2fc4fea93cca50a086c3cee3bbff39b3e2",
+              "3": "6e8229bf09d191ccf7d719ef88dc9e848fe663cf45a91d0691b7e17815a03036",
+              "4": "16304ae2bb7806b0fe9418ef09b724ad5abd1b5f15151b010f0f286f83a5b01a",
+              "5": "19063f0e8c501450f774a6cd53098f0f6a3380bf2556b83a11dda065e543091a",
+              "6": "c2dc6153f4dc277f902b2b8e9f64f957e4de897eef89081b0de598f7b8fb3fac"
+            },
+            "ensemble_size": null,
+            "ensemble_type": null,
+            "forecast_hour": 0,
+            "forecast_unit": 1,
+            "generating_process_id": 161,
+            "generating_process_type": 2,
+            "grid_template": 0,
+            "independently_frozen_section_pins": null,
+            "level_scale": 0,
+            "level_type": 103,
+            "level_value": 2,
+            "local_tables": 0,
+            "member": null,
+            "ni": 1440,
+            "nj": 721,
+            "packing_template": 42,
+            "parameter_category": 0,
+            "parameter_number": 0,
+            "point_count": 1038240,
+            "product_template": 8,
+            "run_utc": "2026-09-29T00:00:00+00:00",
+            "status": 0,
+            "subcentre": 0,
+            "tables": 32
+          },
+          "index_sha256": "e6be372abb2af76fa01bf9bc813c0e2f797e6a64256af593466033b05c5982e3",
+          "object_bytes": 142780524,
+          "object_path": "/20260929/00z/ifs/0p25/oper/20260929000000-3h-oper-fc.grib2",
+          "raw_sha256": "d15ca40b8a48d0845f487c7cb5692dc39e098d002a56769f55bbb97fbc29139b",
+          "received_at": "2026-09-30T08:06:05.229062+00:00",
+          "recorded_etag": "00000000-0982-2fa9-0000-000000000000",
+          "request": {
+            "member": 0,
+            "param": "mx2t3",
+            "product": {
+              "kind": "fc",
+              "model": "ifs",
+              "run": "2026-09-29T00:00:00+00:00",
+              "step": 3
+            }
+          },
+          "selected_row": {
+            "_length": 635182,
+            "_offset": 2782455,
+            "class": "od",
+            "date": "20260929",
+            "domain": "g",
+            "expver": "0001",
+            "levtype": "sfc",
+            "param": "mx2t3",
+            "step": "3",
+            "stream": "oper",
+            "time": "0000",
+            "type": "fc"
+          }
+        },
+        {
+          "byte_length": 646651,
+          "headers": {
+            "bitmap_indicator": 255,
+            "centre": 98,
+            "data_type": 1,
+            "diagnostic_section_hashes": {
+              "1": "c6cae68bd529a8822a88de26cf1e95699217a2289de68865035497b64a7649c4",
+              "2": "75170cf66c4c5a8ac56fca014c7c2b2fc4fea93cca50a086c3cee3bbff39b3e2",
+              "3": "6e8229bf09d191ccf7d719ef88dc9e848fe663cf45a91d0691b7e17815a03036",
+              "4": "a09c35dede57e089c1afbe59df4c1a68bb8a858c4b31626b0c3a57bdf67fd8de",
+              "5": "fad417400dcf062f2ae569d119593b35822671446552c711d2bb65fa0140bf6f",
+              "6": "c2dc6153f4dc277f902b2b8e9f64f957e4de897eef89081b0de598f7b8fb3fac"
+            },
+            "ensemble_size": null,
+            "ensemble_type": null,
+            "forecast_hour": 0,
+            "forecast_unit": 1,
+            "generating_process_id": 161,
+            "generating_process_type": 2,
+            "grid_template": 0,
+            "independently_frozen_section_pins": null,
+            "level_scale": 0,
+            "level_type": 103,
+            "level_value": 2,
+            "local_tables": 0,
+            "member": null,
+            "ni": 1440,
+            "nj": 721,
+            "packing_template": 42,
+            "parameter_category": 0,
+            "parameter_number": 0,
+            "point_count": 1038240,
+            "product_template": 8,
+            "run_utc": "2026-09-29T00:00:00+00:00",
+            "status": 0,
+            "subcentre": 0,
+            "tables": 32
+          },
+          "index_sha256": "e6be372abb2af76fa01bf9bc813c0e2f797e6a64256af593466033b05c5982e3",
+          "object_bytes": 142780524,
+          "object_path": "/20260929/00z/ifs/0p25/oper/20260929000000-3h-oper-fc.grib2",
+          "raw_sha256": "660d78909cc6dfe0276ffa39e0c59d87a9df1a3cc06fbce21c4f976a7792336e",
+          "received_at": "2026-09-30T08:06:11.092022+00:00",
+          "recorded_etag": "00000000-0982-2fa9-0000-000000000000",
+          "request": {
+            "member": 0,
+            "param": "mn2t3",
+            "product": {
+              "kind": "fc",
+              "model": "ifs",
+              "run": "2026-09-29T00:00:00+00:00",
+              "step": 3
+            }
+          },
+          "selected_row": {
+            "_length": 646651,
+            "_offset": 5002822,
+            "class": "od",
+            "date": "20260929",
+            "domain": "g",
+            "expver": "0001",
+            "levtype": "sfc",
+            "param": "mn2t3",
+            "step": "3",
+            "stream": "oper",
+            "time": "0000",
+            "type": "fc"
+          }
+        }
+      ],
+      "manifest": {
+        "byte_length": 11651,
+        "path": "/home/alphaadmin/AlphaV11_R09Extrema/Alpha/private-evidence/r09-extrema/capture-current-1c8836a/capture.json",
+        "sha256": "ab49199fd831cb48ffd7b76c45226f38017fcf22b6d7fcf9683a663b5267939f"
+      },
+      "operational_release_reviewed": false,
+      "release_binding": "OBSERVED_HEADER_ONLY",
+      "retained_receipts": [
+        {
+          "byte_length": 276,
+          "path": "/home/alphaadmin/AlphaV11_R09Extrema/Alpha/private-evidence/r09-extrema/capture-current-1c8836a/receipts/0001.json",
+          "sha256": "7037f9858b1648fe48e296516c347fc51015fcccad808cede109760008c28626"
+        },
+        {
+          "byte_length": 386,
+          "path": "/home/alphaadmin/AlphaV11_R09Extrema/Alpha/private-evidence/r09-extrema/capture-current-1c8836a/receipts/0002.json",
+          "sha256": "0c374f0cb06d75b0295a73524951fa650c4dd6b6769b9ed5a38f6f93dcb7e332"
+        },
+        {
+          "byte_length": 440,
+          "path": "/home/alphaadmin/AlphaV11_R09Extrema/Alpha/private-evidence/r09-extrema/capture-current-1c8836a/receipts/0003.json",
+          "sha256": "8c6122a2c5f35d97998cae46167880d0965a3c3731b1ffe7cffabbde103c1969"
+        },
+        {
+          "byte_length": 440,
+          "path": "/home/alphaadmin/AlphaV11_R09Extrema/Alpha/private-evidence/r09-extrema/capture-current-1c8836a/receipts/0004.json",
+          "sha256": "d993abe6197c0eab30041ba6d6fa61413e233dc968110f591bc6eda5c186ac15"
+        },
+        {
+          "byte_length": 442,
+          "path": "/home/alphaadmin/AlphaV11_R09Extrema/Alpha/private-evidence/r09-extrema/capture-current-1c8836a/receipts/0005.json",
+          "sha256": "73ecfdb4c5188aabd66976d32b052449ced1c86cb125c8af1e6d72c2487dfc9a"
+        },
+        {
+          "byte_length": 442,
+          "path": "/home/alphaadmin/AlphaV11_R09Extrema/Alpha/private-evidence/r09-extrema/capture-current-1c8836a/receipts/0006.json",
+          "sha256": "52e7b634b00563b65789180dac17ee1aa62b78bdc87b642581643c805c45d2ac"
+        },
+        {
+          "byte_length": 384,
+          "path": "/home/alphaadmin/AlphaV11_R09Extrema/Alpha/private-evidence/r09-extrema/capture-current-1c8836a/receipts/0007.json",
+          "sha256": "22a418ce4cb81956c330a6668fcfd754d7bf8603a0ed2d18613f0adeaa39a3ef"
+        },
+        {
+          "byte_length": 438,
+          "path": "/home/alphaadmin/AlphaV11_R09Extrema/Alpha/private-evidence/r09-extrema/capture-current-1c8836a/receipts/0008.json",
+          "sha256": "290d2ba11e2919cd51f26c5fd43e61aa7f6f9004afaf76d4d60a0fb76168b652"
+        },
+        {
+          "byte_length": 438,
+          "path": "/home/alphaadmin/AlphaV11_R09Extrema/Alpha/private-evidence/r09-extrema/capture-current-1c8836a/receipts/0009.json",
+          "sha256": "aff15921df0380007aacfc456a3ebb0254d0a46c2306b28a55f8ce8d3c4e3103"
+        },
+        {
+          "byte_length": 440,
+          "path": "/home/alphaadmin/AlphaV11_R09Extrema/Alpha/private-evidence/r09-extrema/capture-current-1c8836a/receipts/0010.json",
+          "sha256": "845e070652623d0e6cb805b2cec35480e90341a438688b805a1a44aeeb5761af"
+        },
+        {
+          "byte_length": 440,
+          "path": "/home/alphaadmin/AlphaV11_R09Extrema/Alpha/private-evidence/r09-extrema/capture-current-1c8836a/receipts/0011.json",
+          "sha256": "423a76d0d79facefee8155476717520301c69a2f8173f323f3464986a9c79395"
+        },
+        {
+          "byte_length": 384,
+          "path": "/home/alphaadmin/AlphaV11_R09Extrema/Alpha/private-evidence/r09-extrema/capture-current-1c8836a/receipts/0012.json",
+          "sha256": "d340113147612329cae785dd1006576f036389d874aa2f52beab0cf640904d6e"
+        },
+        {
+          "byte_length": 434,
+          "path": "/home/alphaadmin/AlphaV11_R09Extrema/Alpha/private-evidence/r09-extrema/capture-current-1c8836a/receipts/0013.json",
+          "sha256": "6ee7b1b2cc45f987f6debde85b9b1ad90fcefafbfa48828b129e73be38a7c318"
+        },
+        {
+          "byte_length": 435,
+          "path": "/home/alphaadmin/AlphaV11_R09Extrema/Alpha/private-evidence/r09-extrema/capture-current-1c8836a/receipts/0014.json",
+          "sha256": "3a2e45d36a3f79898066cf2f42a56dc59df4b8b2289cffbe38eb31fc3f307241"
+        },
+        {
+          "byte_length": 382,
+          "path": "/home/alphaadmin/AlphaV11_R09Extrema/Alpha/private-evidence/r09-extrema/capture-current-1c8836a/receipts/0015.json",
+          "sha256": "9fa4483d2c3e5ffd96e0d6e262daea81df4a9d822898d9de8add705cd21ca475"
+        },
+        {
+          "byte_length": 433,
+          "path": "/home/alphaadmin/AlphaV11_R09Extrema/Alpha/private-evidence/r09-extrema/capture-current-1c8836a/receipts/0016.json",
+          "sha256": "31a84021954680a1772f22a0d30d6972ce189f94c26d3bfa882ae457e75c2de9"
+        },
+        {
+          "byte_length": 433,
+          "path": "/home/alphaadmin/AlphaV11_R09Extrema/Alpha/private-evidence/r09-extrema/capture-current-1c8836a/receipts/0017.json",
+          "sha256": "c731687f450822dbae6829d639ada3c2bfb123971dbc5dc48c2e9cc6710bf8e3"
+        }
+      ],
+      "status_counts": {
+        "200": 4
+      },
+      "verified_body_bytes": 11868660,
+      "verified_body_count": 17
+    }
+  ],
+  "current_run_readiness": null,
+  "g3l": "NO_GO",
+  "independent_section_pins": null,
+  "inputs": [
+    {
+      "byte_length": 75340,
+      "path": "/home/alphaadmin/AlphaV11_Dev/Alpha/config/v11/r09_ecmwf_extrema_public_evidence.json",
+      "sha256": "6fd3fc1defd4b9d10459903a9543c3118cbc34e27e3665588463d68140cb6f11"
+    },
+    {
+      "byte_length": 8876,
+      "path": "/home/alphaadmin/AlphaV11_R09Extrema/Alpha/private-evidence/r09-extrema/initial-metadata.json",
+      "sha256": "e882c6b4dbddf0981343400154f1e2b77172ac8bf3a89d0181e9f74846afa164"
+    },
+    {
+      "byte_length": 632,
+      "path": "/home/alphaadmin/AlphaV11_R09Extrema/Alpha/private-evidence/r09-extrema/aws-retry.json",
+      "sha256": "de578a0c51a8811d5bd5c84dcef4e6ece3969b3f631cd43585240c24176b6e19"
+    },
+    {
+      "byte_length": 278,
+      "path": "/home/alphaadmin/AlphaV11_R09Extrema/Alpha/private-evidence/r09-extrema/aws-retry-body",
+      "sha256": "7c21325b9a8c5d3b7f06bed411ae11e6fa6dcb490320671bd8e1d49a64956a28"
+    },
+    {
+      "byte_length": 9675,
+      "path": "/home/alphaadmin/AlphaV11_Dev/Alpha/tools/v11_r09_gate3_a5a6_audit.py",
+      "sha256": "fe9849628b31d3a0e860e41791c2cc7a977e835f483043cd2e3f8f3b1ab20134"
+    },
+    {
+      "byte_length": 3996,
+      "path": "/home/alphaadmin/AlphaV11_R09ExtremaReview/review.log",
+      "sha256": "51e22249deb8019001c38ca1fbc02ac2815c8c6a506def64ac7ed7e425843404"
+    },
+    {
+      "byte_length": 16704,
+      "path": "/home/alphaadmin/AlphaV11_Dev/Alpha/docs/V11_R09_GATE3_IDENTITY_ACCEPTANCE_20261001.md",
+      "sha256": "db298d49301a686711a7d89e7456d95fcd34da8616970fa7f52374b91440aa9d"
+    },
+    {
+      "byte_length": 5115,
+      "path": "/home/alphaadmin/AlphaV11_Dev/Alpha/docs/V11_R09_GATE3_V4_PROVIDER_MAPPING_REPAIR_REVIEW_23c11e0.md",
+      "sha256": "d2a617ce9155b1b1614210510e04bfd09bdd27620236e6cfee6a2c74650bd1af"
+    },
+    {
+      "byte_length": 998,
+      "path": "/home/alphaadmin/AlphaV11_Dev/Alpha/docs/V11_R09_GATE3_V4_PROVIDER_MAPPING_REPAIR_REVIEW_23c11e0_terminal.json",
+      "sha256": "11e4060e71bb5e0fb423408438054688c0a1d93983178047d38d1de3598a567f"
+    },
+    {
+      "byte_length": 17309,
+      "path": "/home/alphaadmin/AlphaV11_Dev/Alpha/docs/V11_R09_GATE3_LAUNCH_CONTRACT_ADJUDICATION.md",
+      "sha256": "a4a2a18e83a53359e3a46cdf7cbda6031c6afec74e5d497f2cd126b1ae7b943c"
+    },
+    {
+      "byte_length": 5577,
+      "path": "/home/alphaadmin/AlphaV11_Dev/Alpha/docs/V11_R09_GATE3_DECODER_SOURCE_OFFLINE_ASSESSMENT_20261001.md",
+      "sha256": "2f69349c5ce7fa685ed4cf96e751955df6b8d7de83b0a996b55970054e70b701"
+    },
+    {
+      "byte_length": 47602,
+      "path": "/home/alphaadmin/AlphaV11_Dev/Alpha/tools/v11_r09_gate3_launch_v4.py",
+      "sha256": "a2fe4d99666ef744927cfba49de03726b3fc695a98e7836dc1f3642781cbe978"
+    },
+    {
+      "byte_length": 31205,
+      "path": "/home/alphaadmin/AlphaV11_Dev/Alpha/tools/v11_r09_gate3_g3l_prep.py",
+      "sha256": "a5051a65aa219d40f5ac67acf9ca6f1e72839eb1d988ae5d08b2ea0565e89481"
+    },
+    {
+      "byte_length": 33142,
+      "path": "/home/alphaadmin/AlphaV11_Dev/Alpha/tools/v11_ecmwf_extrema.py",
+      "sha256": "d05b88e4a8479168af25ad516bb1561acb72c8c2df8c5dd51fa33deaf2bb4559"
+    },
+    {
+      "byte_length": 13179,
+      "path": "/home/alphaadmin/AlphaV11_Dev/Alpha/polymarket_scanner/v11/ecmwf_sources.py",
+      "sha256": "d02a298ff96ecaf98de7c3b514047d0b7c457237122217841bdbb9949bc1a523"
+    },
+    {
+      "byte_length": 12342,
+      "path": "/home/alphaadmin/AlphaV11_Dev/Alpha/polymarket_scanner/v11/ecmwf_grib.py",
+      "sha256": "224ae354c7c80ef2b8ff8206f5ebdaa428b86802eee316e1ae2f4d449c464a3c"
+    }
+  ],
+  "inspected_main_commit": "b3cea1ca168d3b96c43432b19120cf2c7251b81a",
+  "launchable": false,
+  "loose_fields": [
+    {
+      "file": {
+        "byte_length": 635182,
+        "path": "/home/alphaadmin/AlphaV11_R09Extrema/Alpha/private-evidence/r09-extrema/current-ifs-fc-mx2t3-0.grib2",
+        "sha256": "d15ca40b8a48d0845f487c7cb5692dc39e098d002a56769f55bbb97fbc29139b"
+      },
+      "headers": {
+        "bitmap_indicator": 255,
+        "centre": 98,
+        "data_type": 1,
+        "diagnostic_section_hashes": {
+          "1": "c6cae68bd529a8822a88de26cf1e95699217a2289de68865035497b64a7649c4",
+          "2": "75170cf66c4c5a8ac56fca014c7c2b2fc4fea93cca50a086c3cee3bbff39b3e2",
+          "3": "6e8229bf09d191ccf7d719ef88dc9e848fe663cf45a91d0691b7e17815a03036",
+          "4": "16304ae2bb7806b0fe9418ef09b724ad5abd1b5f15151b010f0f286f83a5b01a",
+          "5": "19063f0e8c501450f774a6cd53098f0f6a3380bf2556b83a11dda065e543091a",
+          "6": "c2dc6153f4dc277f902b2b8e9f64f957e4de897eef89081b0de598f7b8fb3fac"
+        },
+        "ensemble_size": null,
+        "ensemble_type": null,
+        "forecast_hour": 0,
+        "forecast_unit": 1,
+        "generating_process_id": 161,
+        "generating_process_type": 2,
+        "grid_template": 0,
+        "independently_frozen_section_pins": null,
+        "level_scale": 0,
+        "level_type": 103,
+        "level_value": 2,
+        "local_tables": 0,
+        "member": null,
+        "ni": 1440,
+        "nj": 721,
+        "packing_template": 42,
+        "parameter_category": 0,
+        "parameter_number": 0,
+        "point_count": 1038240,
+        "product_template": 8,
+        "run_utc": "2026-09-29T00:00:00+00:00",
+        "status": 0,
+        "subcentre": 0,
+        "tables": 32
+      },
+      "index": {
+        "byte_length": 40018,
+        "path": "/home/alphaadmin/AlphaV11_R09Extrema/Alpha/private-evidence/r09-extrema/current-ifs-fc.index",
+        "sha256": "e6be372abb2af76fa01bf9bc813c0e2f797e6a64256af593466033b05c5982e3"
+      },
+      "response_receipt": null,
+      "scope": "HISTORICAL_LOOSE_EXPLORATORY_BYTES",
+      "selected_row": {
+        "_length": 635182,
+        "_offset": 2782455,
+        "class": "od",
+        "date": "20260929",
+        "domain": "g",
+        "expver": "0001",
+        "levtype": "sfc",
+        "param": "mx2t3",
+        "step": "3",
+        "stream": "oper",
+        "time": "0000",
+        "type": "fc"
+      }
+    },
+    {
+      "file": {
+        "byte_length": 646651,
+        "path": "/home/alphaadmin/AlphaV11_R09Extrema/Alpha/private-evidence/r09-extrema/current-ifs-fc-mn2t3-0.grib2",
+        "sha256": "660d78909cc6dfe0276ffa39e0c59d87a9df1a3cc06fbce21c4f976a7792336e"
+      },
+      "headers": {
+        "bitmap_indicator": 255,
+        "centre": 98,
+        "data_type": 1,
+        "diagnostic_section_hashes": {
+          "1": "c6cae68bd529a8822a88de26cf1e95699217a2289de68865035497b64a7649c4",
+          "2": "75170cf66c4c5a8ac56fca014c7c2b2fc4fea93cca50a086c3cee3bbff39b3e2",
+          "3": "6e8229bf09d191ccf7d719ef88dc9e848fe663cf45a91d0691b7e17815a03036",
+          "4": "a09c35dede57e089c1afbe59df4c1a68bb8a858c4b31626b0c3a57bdf67fd8de",
+          "5": "fad417400dcf062f2ae569d119593b35822671446552c711d2bb65fa0140bf6f",
+          "6": "c2dc6153f4dc277f902b2b8e9f64f957e4de897eef89081b0de598f7b8fb3fac"
+        },
+        "ensemble_size": null,
+        "ensemble_type": null,
+        "forecast_hour": 0,
+        "forecast_unit": 1,
+        "generating_process_id": 161,
+        "generating_process_type": 2,
+        "grid_template": 0,
+        "independently_frozen_section_pins": null,
+        "level_scale": 0,
+        "level_type": 103,
+        "level_value": 2,
+        "local_tables": 0,
+        "member": null,
+        "ni": 1440,
+        "nj": 721,
+        "packing_template": 42,
+        "parameter_category": 0,
+        "parameter_number": 0,
+        "point_count": 1038240,
+        "product_template": 8,
+        "run_utc": "2026-09-29T00:00:00+00:00",
+        "status": 0,
+        "subcentre": 0,
+        "tables": 32
+      },
+      "index": {
+        "byte_length": 40018,
+        "path": "/home/alphaadmin/AlphaV11_R09Extrema/Alpha/private-evidence/r09-extrema/current-ifs-fc.index",
+        "sha256": "e6be372abb2af76fa01bf9bc813c0e2f797e6a64256af593466033b05c5982e3"
+      },
+      "response_receipt": null,
+      "scope": "HISTORICAL_LOOSE_EXPLORATORY_BYTES",
+      "selected_row": {
+        "_length": 646651,
+        "_offset": 5002822,
+        "class": "od",
+        "date": "20260929",
+        "domain": "g",
+        "expver": "0001",
+        "levtype": "sfc",
+        "param": "mn2t3",
+        "step": "3",
+        "stream": "oper",
+        "time": "0000",
+        "type": "fc"
+      }
+    },
+    {
+      "file": {
+        "byte_length": 647763,
+        "path": "/home/alphaadmin/AlphaV11_R09Extrema/Alpha/private-evidence/r09-extrema/current-ifs-ef-mx2t3-1.grib2",
+        "sha256": "a5bc0c57a3737c372b7f11c7b98a2d383145b6f904e4c3b9f2d141fd5ea50c56"
+      },
+      "headers": {
+        "bitmap_indicator": 255,
+        "centre": 98,
+        "data_type": 4,
+        "diagnostic_section_hashes": {
+          "1": "9632d024add4334d435ed1718c9a53dbe965e56cac83e54f3f83b5d089372eba",
+          "2": "5b5dd28fc8de334b16f1f9ccf38b0a6523e05f65929d9778749faaf4cd6d9a2c",
+          "3": "6e8229bf09d191ccf7d719ef88dc9e848fe663cf45a91d0691b7e17815a03036",
+          "4": "92281c7c8ff2013f9cc4a5a4028c182a736ce92af825cd9a25f39eeb954cb65e",
+          "5": "f744fcc52697e0d892e7e0196d6267c0616226051d8b21c6c0e4504720785874",
+          "6": "c2dc6153f4dc277f902b2b8e9f64f957e4de897eef89081b0de598f7b8fb3fac"
+        },
+        "ensemble_size": 51,
+        "ensemble_type": 255,
+        "forecast_hour": 0,
+        "forecast_unit": 1,
+        "generating_process_id": 161,
+        "generating_process_type": 4,
+        "grid_template": 0,
+        "independently_frozen_section_pins": null,
+        "level_scale": 0,
+        "level_type": 103,
+        "level_value": 2,
+        "local_tables": 0,
+        "member": 1,
+        "ni": 1440,
+        "nj": 721,
+        "packing_template": 42,
+        "parameter_category": 0,
+        "parameter_number": 0,
+        "point_count": 1038240,
+        "product_template": 11,
+        "run_utc": "2026-09-29T00:00:00+00:00",
+        "status": 0,
+        "subcentre": 0,
+        "tables": 32
+      },
+      "index": {
+        "byte_length": 1995794,
+        "path": "/home/alphaadmin/AlphaV11_R09Extrema/Alpha/private-evidence/r09-extrema/current-ifs-ef.index",
+        "sha256": "f4ed0fc5d1ba110be1716b3905d18b3929e71bfafa9a45742205df8bc86ec103"
+      },
+      "response_receipt": null,
+      "scope": "HISTORICAL_LOOSE_EXPLORATORY_BYTES",
+      "selected_row": {
+        "_length": 647763,
+        "_offset": 249605024,
+        "class": "od",
+        "date": "20260929",
+        "domain": "g",
+        "expver": "0001",
+        "levtype": "sfc",
+        "number": "1",
+        "param": "mx2t3",
+        "step": "3",
+        "stream": "enfo",
+        "time": "0000",
+        "type": "pf"
+      }
+    },
+    {
+      "file": {
+        "byte_length": 657987,
+        "path": "/home/alphaadmin/AlphaV11_R09Extrema/Alpha/private-evidence/r09-extrema/current-ifs-ef-mn2t3-1.grib2",
+        "sha256": "2590d77d6c8c769eb78b307d85dd332ca549b9a626635cf6a587d2df75c7b99b"
+      },
+      "headers": {
+        "bitmap_indicator": 255,
+        "centre": 98,
+        "data_type": 4,
+        "diagnostic_section_hashes": {
+          "1": "9632d024add4334d435ed1718c9a53dbe965e56cac83e54f3f83b5d089372eba",
+          "2": "5b5dd28fc8de334b16f1f9ccf38b0a6523e05f65929d9778749faaf4cd6d9a2c",
+          "3": "6e8229bf09d191ccf7d719ef88dc9e848fe663cf45a91d0691b7e17815a03036",
+          "4": "bf6ed71cd6acac43b4f40af39bd4ca1803ddc57d4f20ecbaed1ba1fa4f8783d0",
+          "5": "632a2b869bad519c053d498fffcc220bd6b274e86b89be54cbed355f4ad56ef8",
+          "6": "c2dc6153f4dc277f902b2b8e9f64f957e4de897eef89081b0de598f7b8fb3fac"
+        },
+        "ensemble_size": 51,
+        "ensemble_type": 255,
+        "forecast_hour": 0,
+        "forecast_unit": 1,
+        "generating_process_id": 161,
+        "generating_process_type": 4,
+        "grid_template": 0,
+        "independently_frozen_section_pins": null,
+        "level_scale": 0,
+        "level_type": 103,
+        "level_value": 2,
+        "local_tables": 0,
+        "member": 1,
+        "ni": 1440,
+        "nj": 721,
+        "packing_template": 42,
+        "parameter_category": 0,
+        "parameter_number": 0,
+        "point_count": 1038240,
+        "product_template": 11,
+        "run_utc": "2026-09-29T00:00:00+00:00",
+        "status": 0,
+        "subcentre": 0,
+        "tables": 32
+      },
+      "index": {
+        "byte_length": 1995794,
+        "path": "/home/alphaadmin/AlphaV11_R09Extrema/Alpha/private-evidence/r09-extrema/current-ifs-ef.index",
+        "sha256": "f4ed0fc5d1ba110be1716b3905d18b3929e71bfafa9a45742205df8bc86ec103"
+      },
+      "response_receipt": null,
+      "scope": "HISTORICAL_LOOSE_EXPLORATORY_BYTES",
+      "selected_row": {
+        "_length": 657987,
+        "_offset": 321063783,
+        "class": "od",
+        "date": "20260929",
+        "domain": "g",
+        "expver": "0001",
+        "levtype": "sfc",
+        "number": "1",
+        "param": "mn2t3",
+        "step": "3",
+        "stream": "enfo",
+        "time": "0000",
+        "type": "pf"
+      }
+    },
+    {
+      "file": {
+        "byte_length": 621131,
+        "path": "/home/alphaadmin/AlphaV11_R09Extrema/Alpha/private-evidence/r09-extrema/current-aifs-ens-cf-2t-0.grib2",
+        "sha256": "42dcdd7b3d8f63c5353dcb2cbb91fc15a478d9cd92121ff8ad936d2b5be988e4"
+      },
+      "headers": {
+        "bitmap_indicator": 255,
+        "centre": 98,
+        "data_type": 10,
+        "diagnostic_section_hashes": {
+          "1": "15c120434062cb99fd0f0fa514071e050b408b8e135f95b12f67fd6862525825",
+          "2": "e6cbad200c0c186816f049958f28109e1825df0d6d42ba28037fd342b22c7d5f",
+          "3": "6e8229bf09d191ccf7d719ef88dc9e848fe663cf45a91d0691b7e17815a03036",
+          "4": "51ba9b822b3f52bf07bcbe31478548d27aa70b22819d55a657bf0726fa0c7301",
+          "5": "5af47b7b4623edacf690341f4316bf270d928218ee0d3541cdd68883ade7024b",
+          "6": "c2dc6153f4dc277f902b2b8e9f64f957e4de897eef89081b0de598f7b8fb3fac"
+        },
+        "ensemble_size": 51,
+        "ensemble_type": 5,
+        "forecast_hour": 6,
+        "forecast_unit": 1,
+        "generating_process_id": 2,
+        "generating_process_type": 4,
+        "grid_template": 0,
+        "independently_frozen_section_pins": null,
+        "level_scale": 0,
+        "level_type": 103,
+        "level_value": 2,
+        "local_tables": 0,
+        "member": 0,
+        "ni": 1440,
+        "nj": 721,
+        "packing_template": 42,
+        "parameter_category": 0,
+        "parameter_number": 0,
+        "point_count": 1038240,
+        "product_template": 1,
+        "run_utc": "2026-09-29T00:00:00+00:00",
+        "status": 0,
+        "subcentre": 0,
+        "tables": 36
+      },
+      "index": {
+        "byte_length": 25694,
+        "path": "/home/alphaadmin/AlphaV11_R09Extrema/Alpha/private-evidence/r09-extrema/current-aifs-ens-cf.index",
+        "sha256": "be472ba3bd3104bb6ca214d9b1eb15ba35207d00ce66c4fb016205618b63c9fa"
+      },
+      "response_receipt": null,
+      "scope": "HISTORICAL_LOOSE_EXPLORATORY_BYTES",
+      "selected_row": {
+        "_length": 621131,
+        "_offset": 68110145,
+        "class": "ai",
+        "date": "20260929",
+        "domain": "g",
+        "expver": "0001",
+        "levtype": "sfc",
+        "model": "aifs-ens",
+        "param": "2t",
+        "step": "6",
+        "stream": "enfo",
+        "time": "0000",
+        "type": "cf"
+      }
+    },
+    {
+      "file": {
+        "byte_length": 629974,
+        "path": "/home/alphaadmin/AlphaV11_R09Extrema/Alpha/private-evidence/r09-extrema/current-aifs-ens-pf-2t-1.grib2",
+        "sha256": "ded2f4668ff3f54384a31f56dc77605339da77c3946e78005e181453c5810635"
+      },
+      "headers": {
+        "bitmap_indicator": 255,
+        "centre": 98,
+        "data_type": 10,
+        "diagnostic_section_hashes": {
+          "1": "15c120434062cb99fd0f0fa514071e050b408b8e135f95b12f67fd6862525825",
+          "2": "230c68b1c0e482354fec0adb918faf75e6bfcdda7925f350cac86b1fc2149b9a",
+          "3": "6e8229bf09d191ccf7d719ef88dc9e848fe663cf45a91d0691b7e17815a03036",
+          "4": "b597bc645050967bf537f46127c58089fc64059ca8afcfd7599ea4142744e0f3",
+          "5": "cc8ee3c7a7a23cf5d8c21cdeb7c9e7d3601291c46a631e37434f088e5b6f9714",
+          "6": "c2dc6153f4dc277f902b2b8e9f64f957e4de897eef89081b0de598f7b8fb3fac"
+        },
+        "ensemble_size": 51,
+        "ensemble_type": 6,
+        "forecast_hour": 6,
+        "forecast_unit": 1,
+        "generating_process_id": 2,
+        "generating_process_type": 4,
+        "grid_template": 0,
+        "independently_frozen_section_pins": null,
+        "level_scale": 0,
+        "level_type": 103,
+        "level_value": 2,
+        "local_tables": 0,
+        "member": 1,
+        "ni": 1440,
+        "nj": 721,
+        "packing_template": 42,
+        "parameter_category": 0,
+        "parameter_number": 0,
+        "point_count": 1038240,
+        "product_template": 1,
+        "run_utc": "2026-09-29T00:00:00+00:00",
+        "status": 0,
+        "subcentre": 0,
+        "tables": 36
+      },
+      "index": {
+        "byte_length": 1380643,
+        "path": "/home/alphaadmin/AlphaV11_R09Extrema/Alpha/private-evidence/r09-extrema/current-aifs-ens-pf.index",
+        "sha256": "b3f88da9310654e8863a6c8eeaddb0b0597f6eac994c60d9a651b96bbe3be30e"
+      },
+      "response_receipt": null,
+      "scope": "HISTORICAL_LOOSE_EXPLORATORY_BYTES",
+      "selected_row": {
+        "_length": 629974,
+        "_offset": 1432088225,
+        "class": "ai",
+        "date": "20260929",
+        "domain": "g",
+        "expver": "0001",
+        "levtype": "sfc",
+        "model": "aifs-ens",
+        "number": "1",
+        "param": "2t",
+        "step": "6",
+        "stream": "enfo",
+        "time": "0000",
+        "type": "pf"
+      }
+    }
+  ],
+  "native_decode_calls": 0,
+  "network_requests": 0,
+  "observed_utc": "2026-10-01T22:44:30.828972+00:00",
+  "qualified_source_identities": {
+    "sources.aifs_control_perturbed_mapping": null,
+    "sources.aifs_current_run_index_object_range": null,
+    "sources.aifs_grib_identity_decoder_build": null,
+    "sources.aifs_licence_anonymous_access": null,
+    "sources.aifs_operational_release_dossier": null,
+    "sources.aifs_publication_attestation_or_absence_reason": null,
+    "sources.aifs_purpose_endpoint_contracts": null,
+    "sources.aifs_release_document_retrieval": null,
+    "sources.gefs_control_perturbed_mapping": null,
+    "sources.gefs_current_run_index_object_range": null,
+    "sources.gefs_grib_identity_decoder_build": null,
+    "sources.gefs_licence_anonymous_access": null,
+    "sources.gefs_operational_release_dossier": null,
+    "sources.gefs_publication_attestation_or_absence_reason": null,
+    "sources.gefs_purpose_endpoint_contracts": null,
+    "sources.gefs_release_document_retrieval": null,
+    "sources.ifs_control_perturbed_mapping": null,
+    "sources.ifs_current_run_index_object_range": null,
+    "sources.ifs_grib_identity_decoder_build": null,
+    "sources.ifs_licence_anonymous_access": null,
+    "sources.ifs_operational_release_dossier": null,
+    "sources.ifs_publication_attestation_or_absence_reason": null,
+    "sources.ifs_purpose_endpoint_contracts": null,
+    "sources.ifs_release_document_retrieval": null
+  },
+  "restrictions": [
+    {
+      "capture": "earlier-loose-aws-retry",
+      "expiry_adjudication": null,
+      "response": {
+        "headers": {
+          "connection": "close",
+          "content-type": "application/xml",
+          "date": "Wed, 30 Sep 2026 07:48:13 GMT",
+          "server": "AmazonS3",
+          "transfer-encoding": "chunked",
+          "x-amz-id-2": "PFu5qXG/MgsE4nX1QIOndte50H568EIlXRL7CU+DYnCmpQZqIsLjms9f4KCnOqVsbEprD2az+udyoKM0KpePlgbWuruMlWWD",
+          "x-amz-request-id": "F69ZYP2JCF0639HX"
+        },
+        "received_at": "2026-09-30T07:48:13.707996+00:00",
+        "sha256": "7c21325b9a8c5d3b7f06bed411ae11e6fa6dcb490320671bd8e1d49a64956a28",
+        "status": 503,
+        "url": "https://ecmwf-forecasts.s3.eu-central-1.amazonaws.com/20260823/00z/ifs/0p25/oper/20260823000000-3h-oper-fc.index"
+      }
+    },
+    {
+      "capture": "capture-v1",
+      "expiry_adjudication": null,
+      "response": {
+        "bytes": 278,
+        "evidence_class": "PUBLIC_OBSERVED",
+        "headers": {
+          "date": "Wed, 30 Sep 2026 07:54:39 GMT"
+        },
+        "path": "/20260823/00z/ifs/0p25/oper/20260823000000-3h-oper-fc.index",
+        "received_at": "2026-09-30T07:54:39.435641+00:00",
+        "sha256": "0986be0818f5c4e80bddac64bcd37d8f77da4c43acb380aaa7e4bcb677a51460",
+        "source": "aws",
+        "status": 503
+      }
+    },
+    {
+      "capture": "capture-v1",
+      "expiry_adjudication": null,
+      "response": {
+        "bytes": 17,
+        "evidence_class": "PUBLIC_OBSERVED",
+        "headers": {},
+        "path": "/20260928/00z/ifs/0p25/enfo/20260928000000-12h-enfo-ef.index",
+        "received_at": "2026-09-30T07:55:15.376499+00:00",
+        "sha256": "3850dfdbf4489250268b5f0740240a9f4445e7c5c29e1d03aa0c5446808d7507",
+        "source": "portal",
+        "status": 429
+      }
+    }
+  ],
+  "reusable_mapping_review": {
+    "candidate": "23c11e059048257a284d514d3454b811b3866515",
+    "current_validator_matches_reviewed_bytes": true,
+    "grants_provider_qualification": false,
+    "report_matches_terminal": true,
+    "scope": "offline provider mapping repair only",
+    "tree": "979440fec2daaf5e7802d0c3d5afad3639d3ab9d",
+    "validator_sha256": "a2fe4d99666ef744927cfba49de03726b3fc695a98e7836dc1f3642781cbe978"
+  },
+  "schema": "R09_GATE3_A5A6_OFFLINE_AUDIT_V1",
+  "scope": "HISTORICAL_OBSERVATION_ONLY_NOT_SOURCE_OR_LAUNCH_QUALIFICATION"
+}

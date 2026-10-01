@@ -1,5 +1,20 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## A5/A6 source and current-run audit — 2026-10-01 22:45 UTC
+
+The [offline audit](V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.md) verifies
+47 retained bodies, 17 receipts, 12 historical IFS range bindings and six
+loose GRIB/index pairs. Reviewed mapping bytes remain exact; historical
+research review is reusable only within its original scope. An earlier S3
+503 expands unresolved restriction history. Original operational release,
+qualified build and current-run evidence remain missing; all 24 source
+qualification identities and independent section pins remain null. The owner's
+no-provider-request-before-G3-L rule blocks obtaining missing pre-launch pins;
+the audit grants no preflight exception. A1 repair and the separate inventory
+review remain active/queued and must not be duplicated. No new forward SHADOW
+or C/J/E/A acceptance: **G3-L NO-GO; 91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## A2/A3 local byte dossier — 2026-10-01 22:30 UTC
 
 The [offline dossier](V11_R09_GATE3_A2A3_OFFLINE_DOSSIER_20261001.md)
