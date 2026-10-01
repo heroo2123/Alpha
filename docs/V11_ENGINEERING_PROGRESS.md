@@ -1,5 +1,17 @@
 # Supplementary engineering estimate
 
+## Gate 3 candidate and preparation gate — 2026-10-01 13:55 UTC
+
+The slice-3 R1–R8 repair is committed as clean `ef45d35`, with 115 focused
+and 427 Gate 3 family author-reported passes. Different-model exact-commit
+review and newer-main reconciliation are outstanding. Separate offline G3-L
+prep `3241abf` received [CHANGES_REQUIRED](V11_R09_GATE3_G3L_PREP_REVIEW_3241abf.md):
+its storage evidence scope is unsatisfiable and its pre-review assembly
+requires later review outputs. A sole Sonnet/high repair writer is running in
+that isolated worktree. Neither candidate grants G3-L or forward evidence.
+The accepted release remains 5,460 passes/13 skips; no new full suite ran.
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND** unchanged.
+
 ## Offline decoder assessment integrated — 2026-10-01 13:23 UTC
 
 The completed two-file decoder assessment `e4c1fbe` adds three passing

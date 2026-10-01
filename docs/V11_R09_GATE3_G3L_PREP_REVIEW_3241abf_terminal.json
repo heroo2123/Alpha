@@ -1,0 +1,73 @@
+{
+  "base_commit": "98b5c26ff63b504fdd388fe21ebdfef685044f86",
+  "base_tree": "55b2c450372e0f1979089a307b324ea26a136db0",
+  "capacity_bypass_reproduced": false,
+  "completed_utc": "2026-10-01T13:37:54.867559+00:00",
+  "findings": [
+    {
+      "file": "tools/v11_r09_gate3_g3l_prep.py",
+      "id": "F1",
+      "lines": [
+        106,
+        111,
+        429,
+        436
+      ],
+      "priority": "P1",
+      "reproduced": true,
+      "title": "Mutually incompatible run and window scope makes complete inventory impossible"
+    },
+    {
+      "file": "tools/v11_r09_gate3_g3l_prep.py",
+      "id": "F2",
+      "lines": [
+        101,
+        104,
+        357,
+        361,
+        490,
+        492
+      ],
+      "priority": "P2",
+      "reproduced": true,
+      "title": "Pre-review assembly requires final detached review outputs"
+    }
+  ],
+  "g3l": "NO-GO",
+  "launch_authorized": false,
+  "private_launch_manifest_created": false,
+  "probes": "/tmp/alpha-v11-g3l-prep-review-3241abf-probes.py",
+  "probes_sha256": "c9d6a58c9efa43bb8a024f029bb60755a69b47ae5edfc704e7caf9b9441e6436",
+  "provider_requests": 0,
+  "repo_worktree_modified": false,
+  "report": "/tmp/alpha-v11-g3l-prep-review-3241abf.md",
+  "report_sha256": "4d272938499199cd76b82fb156498cd704ab49f780615170ec1acba39db581c8",
+  "resource_snapshot_valid_for_launch": false,
+  "reviewed_commit": "3241abf1640a631052a71b66d5a2c683f8b6e6e8",
+  "reviewed_file_sha256": {
+    "config/v11/r09_gate3_g3l_offline_prep_20261001.json": "044a17345e5f01e8daaa17fc42ce6c4e84b775304b3678c8f51a0aa8699d64b6",
+    "config/v11/r09_gate3_g3l_private_v4_null_template.json": "2a2b8f86342af00eac395ddc8abbdb8ebea30a3f6a76d2553c30695ca54c49ef",
+    "docs/V11_R09_GATE3_G3L_OFFLINE_PREP.md": "dbfab36d1520c93966329a71964b3d42ca3d903a448817ad9499464ca997f53c",
+    "tests/test_v11_r09_gate3_g3l_prep.py": "c88141402b0963da54d30c488ebcb22c1edc33766bdc1d5e49adf793dd507c4c",
+    "tools/v11_r09_gate3_g3l_prep.py": "e5080651de275308cb3544e2044328f289ff9ce157ead444c6390056ea035c78"
+  },
+  "reviewed_tree": "d4ef2d2602a1fda2c9f45be33cf9ee88114f993b",
+  "schema": "ALPHA_V11_G3L_PREP_REVIEW_TERMINAL_V1",
+  "service_operations": 0,
+  "status": "COMPLETED",
+  "tests": {
+    "defect_reproductions_passed": 3,
+    "external_review_probes": {
+      "failed": 0,
+      "passed": 19
+    },
+    "focused_candidate": {
+      "failed": 0,
+      "passed": 64
+    },
+    "total_failed": 0,
+    "total_passed": 83
+  },
+  "verdict": "CHANGES_REQUIRED",
+  "worktree": "/tmp/alpha-v11-gate3-g3l-prep-20261001"
+}

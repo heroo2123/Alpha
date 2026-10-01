@@ -1,5 +1,35 @@
 # Alpha V11 work checkpoint
 
+## Gate 3 worker recovery and offline prep review — 2026-10-01 13:55 UTC
+
+Recovered clean slice-3 R1–R8 repair candidate `ef45d35` from its completed
+isolated writer. Its five-file diff passes `git diff --check`; the author
+reports 115 focused and 427 Gate 3 family passes. A different-model exact-
+commit review is now running. The candidate is **not accepted or merged**;
+newer-main reconciliation remains mandatory after any PASS.
+
+Recovered clean offline G3-L prep candidate `3241abf` and independently
+reviewed its exact tree `d4ef2d2`. The [review](V11_R09_GATE3_G3L_PREP_REVIEW_3241abf.md)
+and [terminal](V11_R09_GATE3_G3L_PREP_REVIEW_3241abf_terminal.json) give
+**CHANGES_REQUIRED**: one storage observation is required to have mutually
+incompatible run/window scopes (P1), and pre-review assembly wrongly requires
+the later detached G3-L report and terminal (P2). The reviewer passed 64
+focused tests and 19 adversarial probes, including reproductions. Its
+2,713-row, eight-slot plan remains nonlaunchable. One Sonnet/high repair
+runner owns the same clean prep worktree; it has no accepted candidate yet.
+Its PID/prompt/log/terminal use `/tmp/alpha-v11-g3l-prep-repair-3241abf`.
+The prior accepted R1 correction `58a465f` is already on main.
+
+PAPER scanner and V11 controller remain inactive; protected model-authority
+paths are absent; the private FINAL-REVIEWED master matches its pinned hash.
+The accepted release full-suite remains 5,460 passes/13 skips; no new full
+suite ran. No provider request, G3-L PASS, SHADOW sample, V10, AxiomTrade,
+service, private-master or financial action occurred. The fixed October 1
+14:00 UTC acquisition start is still **NO-GO**: source/decoder/restriction,
+clock/storage, private manifest and exact-digest review evidence are missing.
+No C/J/E/A boundary crossed: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Decoder boundary evidence integrated — 2026-10-01 13:23 UTC
 
 Recovered completed offline decoder assessment `e4c1fbe` from its clean isolated

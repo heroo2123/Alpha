@@ -1,5 +1,17 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Gate 3 pending exact review and offline prep repair — 2026-10-01 13:55 UTC
+
+Slice-3 repair `ef45d35` is a clean offline candidate with 115 focused/427
+family author-reported passes; independent exact-commit review is running and
+no acceptance or integration credit is awarded. Offline G3-L prep `3241abf`
+is [CHANGES_REQUIRED](V11_R09_GATE3_G3L_PREP_REVIEW_3241abf.md) for two
+reproduced inventory workflow defects despite 83 passing reviewer tests.
+One isolated repair writer is active. The 2,713 denominator slots remain
+unqualified; 79 evidence identities are missing. G3-L NO-GO; no real
+provider or forward SHADOW evidence. **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND** unchanged.
+
 ## Decoder refusal evidence — 2026-10-01 13:23 UTC
 
 The offline decoder assessment and three synthetic CCSDS refusal tests from
