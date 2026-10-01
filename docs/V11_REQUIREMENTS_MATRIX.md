@@ -1,5 +1,21 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Slice 3 independently accepted and reconciled offline — 2026-10-01 19:17 UTC
+
+Exact `6340cb4` has independent Astra/high PASS for the injected RAW runtime:
+502 family tests and 131 independent probes pass, including termination and
+original-exception/byte/restriction conservation through reopen. Reconciliation
+with `b0111d5` preserves reviewed code and all newer history. Combined family:
+548 passed / 3 ecCodes skips; the existing development venv separately passed
+all 48 I/O tests, and all 131 probes passed on the combined tree. Evidence:
+[review](V11_R09_GATE3_V4_SLICE3_REVIEW_6340cb4.md) and
+[reconciliation](V11_R09_GATE3_V4_SLICE3_RECONCILIATION_6340cb4.json).
+This closes the slice-3 engineering review, not G3-L or feature admission.
+The new next-window screen still has 77 missing reviewed identities and only
+about 1.4 GiB free disk. Decoder/build qualification is the next offline step;
+GEFS authority remains owner/root gated. No provider request or forward sample.
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND** unchanged.
+
 ## J1 tested author candidate awaits exact review — 2026-10-01 19:00 UTC
 
 Clean unmerged `6340cb4` has author evidence of 502 Gate 3 family passes,

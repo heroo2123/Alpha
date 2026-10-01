@@ -958,8 +958,11 @@ class DurableBudget:
                 if self.window_started is None:
                     self.window_started = event['started_monotonic']
                 self.last_started = event['started_monotonic']
-            elif op == 'chunk':
+            elif op in ('chunk', 'eager_delivery'):
                 check(self.in_flight == key, 'JOURNAL_CHUNK_WITHOUT_RESERVATION')
+                if op == 'eager_delivery':
+                    integer(event['bytes'], 1, 2 ** 63 - 1,
+                            'JOURNAL_EAGER_DELIVERY_BYTES')
                 self.attempts[key]['received'] += event['bytes']
                 self.received += event['bytes']
             elif op == 'complete':
@@ -1011,18 +1014,38 @@ class DurableBudget:
         return min(maximum_chunk, attempt['reserved'] - attempt['received'],
                    self.max_bytes - self.received)
 
-    def consume(self, key, body):
+    def consume(self, key, body, *, overdelivery_total_bytes=None,
+                permitted_bytes=None):
+        """Charge one delivered chunk. ``overdelivery_total_bytes`` lets a
+        caller that already knows more bytes were delivered to the same
+        eager transport boundary (read-ahead/prefetch beyond this one chunk,
+        e.g. the remainder of an already-buffered response tuple) record the
+        true total in the single violation event this call produces, rather
+        than only this chunk's own length -- Gate 3 V4 slice-3 R6: "Account
+        all bytes already delivered to that boundary, including discarded
+        and prefetched bytes." Defaults to ``len(body)``, identical to prior
+        behavior, when the caller has no further boundary bytes to report.
+        """
         self._require_owner()
         if self.failed:
             self._healthy()
         check(self.in_flight == key and type(body) is bytes, 'UNEXPECTED_BODY_CHUNK')
+        if overdelivery_total_bytes is not None:
+            integer(overdelivery_total_bytes, len(body), MAX_BYTES,
+                    'REQUEST_OVERDELIVERY_TOTAL')
+        if permitted_bytes is not None:
+            integer(permitted_bytes, 0, 65536, 'REQUEST_READ_ALLOWANCE')
         recorded = False
         try:
             allowance = self.next_read_limit(max(len(body), 1))
+            if permitted_bytes is not None:
+                allowance = min(allowance, permitted_bytes)
             if len(body) > allowance:
                 # A faulty transport's delivered bytes count even when it
                 # exceeds the permitted read or storage loses privacy.
-                self._append({'op': 'violation', 'key': key, 'bytes': len(body)})
+                total = (len(body) if overdelivery_total_bytes is None
+                         else overdelivery_total_bytes)
+                self._append({'op': 'violation', 'key': key, 'bytes': total})
                 recorded = True
                 self._state()
                 raise LaunchContractError('STREAM_ABORT_AT_ALLOWANCE')
@@ -1045,6 +1068,35 @@ class DurableBudget:
                 if not self.failed:
                     self._mark_delivery_held(key)
             raise
+
+    def record_eager_delivery(self, key, known_bytes):
+        """Durably charge bytes already delivered by an eager adapter in one
+        bounded record. This is accounting only; it grants no read allowance or
+        response validity. An excess becomes a violation and holds the run.
+        """
+        self._require_owner()
+        check(self.in_flight == key and type(known_bytes) is int and
+              0 < known_bytes <= 2 ** 63 - 1, 'EAGER_DELIVERY_SHAPE')
+        recorded = False
+        try:
+            self._healthy()
+            check(key != self.inherited_in_flight and not self.violated,
+                  'UNCERTAIN_REQUEST_HELD')
+            remaining = min(self.attempts[key]['reserved'] -
+                            self.attempts[key]['received'],
+                            self.max_bytes - self.received)
+            operation = 'eager_delivery' if known_bytes <= remaining else 'violation'
+            self._append({'op': operation, 'key': key, 'bytes': known_bytes})
+            recorded = True
+            self._state()
+        except BaseException:
+            if not recorded:
+                self.uncertain_received_bytes += known_bytes
+                self.received += known_bytes
+                if not self.failed:
+                    self._mark_delivery_held(key)
+            raise
+        return operation == 'violation'
 
     def complete(self, key):
         self._healthy()
