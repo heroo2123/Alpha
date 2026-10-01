@@ -1,5 +1,17 @@
 # Supplementary engineering estimate
 
+## I1–I3 candidate sent to independent review — 2026-10-01 17:46 UTC
+
+Clean, unmerged `8efb60a` contains the three reviewed runtime repairs and
+focused offline regressions. Final author Gate 3 family: **476 passed**, two
+existing fork warnings, about 21 seconds. A separate Astra/high exact-commit
+review is live; no acceptance or integration is claimed. Completed author
+pytest scratch was cleared after the log was retained; volatile root free
+space rose to about 2.9 GiB before reviewer tests, without qualifying launch
+storage. G3-L NO-GO, 77 pre-review identities missing, no provider request or
+forward SHADOW sample. **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND** unchanged.
+
 ## Slice-3 independent verdict: changes required — 2026-10-01 17:35 UTC
 
 The exact `550305d` review report and terminal agree on **CHANGES_REQUIRED**.

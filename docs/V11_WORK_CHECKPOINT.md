@@ -1,5 +1,33 @@
 # Alpha V11 work checkpoint
 
+## I1–I3 repair under exact independent review — 2026-10-01 17:46 UTC
+
+Recovered clean main `5223b6e` and the clean, unmerged slice-3 repair worktree.
+The reviewed `550305d` findings I1–I3 were repaired in candidate `8efb60a`
+(tree `29f6b78c`): post-dispatch monotonic faults now conserve known eager
+bytes and observed restrictions; refusal records retain independently known
+uncertainty/permanent-block reasons when UTC is unusable; and timely sealing
+uses the validated observation cutoff. Added offline regressions for each
+finding and five post-dispatch clock-sample positions. The final author Gate 3
+family passed **476/476**, with two existing fork warnings; this is author
+evidence, not acceptance. `git diff --check 550305d..8efb60a` passed.
+
+Launched exactly one persistent different-model Astra/high exact review in
+clean detached `/tmp/alpha-v11-gate3-slice3-review-8efb60a` (runner PID
+`1809156`; prompt, runner, log, eventual report/terminal and driver use prefix
+`/tmp/alpha-v11-slice3-review-8efb60a`). Do not duplicate it or merge until
+its exact report and matching terminal are verified. A PASS still requires
+reconciliation with newer main and G3-L separately. Completed author pytest
+scratch alone was removed after preserving the 476-pass log; root free space
+was about 2.9 GiB before reviewer tests, not launch qualification. The
+offline next-window screen remains nonlaunchable with 77 missing identities;
+G3-L remains **NO-GO**. PAPER services were passively observed inactive;
+protected authority paths absent; private FINAL-REVIEWED master hash still
+matches `a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+No provider request, forward SHADOW sample, V10/AxiomTrade/service/authority,
+financial or private-master change was made. No C/J/E/A boundary crossed:
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Slice-3 exact review completed with three blockers — 2026-10-01 17:35 UTC
 
 Recovered the completed independent Astra/high report and matching terminal for

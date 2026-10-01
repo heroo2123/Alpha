@@ -1,5 +1,20 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## I1–I3 repair is author-tested, independent verdict pending — 2026-10-01 17:46 UTC
+
+Unmerged exact candidate `8efb60a` (tree `29f6b78c`) repairs I1
+post-dispatch observation conservation, I2 independently known refusal
+reasons, and I3 validated observation cutoff classification. New offline
+regressions cover the five reviewer counterexamples plus five post-dispatch
+clock positions; **476 Gate 3 family tests pass** with two existing fork
+warnings. A clean detached Astra/high exact review is live at
+`/tmp/alpha-v11-gate3-slice3-review-8efb60a` with evidence prefix
+`/tmp/alpha-v11-slice3-review-8efb60a`; no verdict yet. H6 and broader
+G1–G3/F2/F4/F5 remain unaccepted pending review and newer-main
+reconciliation. G3-L stays NO-GO with 77 missing pre-review identities and
+no forward sample. No C/J/E/A boundary crossed: **91/200 (45.5%), formal
+1/50; NOT_READY_TO_FUND**.
+
 ## Exact slice-3 review requires I1–I3 repair — 2026-10-01 17:35 UTC
 
 Independent exact-commit review of `550305d` completed **CHANGES_REQUIRED**:
