@@ -537,7 +537,8 @@ class SharedLedger(_HashChainJournal):
                           'denial': denial})
             self._state()
 
-    def intent_closed(self, request_id, *, outcome):
+    def intent_closed(self, request_id, *, outcome, accounting_head=None,
+                       total_delivered_bytes=None):
         with self._guard():
             self._healthy()
             check(self.open_intent is not None and
@@ -556,8 +557,25 @@ class SharedLedger(_HashChainJournal):
             if outcome == 'DENIED':
                 check(self.open_intent['denial_recorded'],
                       'SHARED_LEDGER_DENIAL_NOT_OBSERVED')
+            else:
+                # R3: outcome must be DENIED exactly when a denial was
+                # observed on this intent; OK/FAILED cannot paper over a
+                # recorded denial.
+                check(not self.open_intent['denial_recorded'],
+                      'SHARED_LEDGER_CLOSE_OUTCOME_DENIAL_MISMATCH')
+            # R3: "Shared INTENT_CLOSED must contain a complete bounded
+            # outcome; it cannot merely mean the caller invoked close()".
+            # Bind an accounting head and the exact delivered byte count the
+            # caller observed, plus this root's own current chain head as
+            # the denial-history binding (it already commits to every
+            # denial_observed event recorded for this intent).
+            digest(accounting_head, 'SHARED_LEDGER_CLOSE_ACCOUNTING_HEAD')
+            integer(total_delivered_bytes, 0, MAX_BYTES,
+                    'SHARED_LEDGER_CLOSE_DELIVERED_BYTES')
             self._append({'op': 'intent_closed', 'request_id': request_id,
-                          'outcome': outcome})
+                          'outcome': outcome, 'accounting_head': accounting_head,
+                          'total_delivered_bytes': total_delivered_bytes,
+                          'denial_history_head': self.prev})
             self._state()
 
 
@@ -657,9 +675,13 @@ class SessionLedger(_HashChainJournal):
                       self.attempt['state'] == self._ORDER[op],
                       'SESSION_LEDGER_BAD_TRANSITION')
                 self.attempt['state'] = self._NEXT[op]
-                if op == 'transport_closed' and event.get('overdelivered'):
-                    self.attempt['overdelivered'] = True
-                    self.overdelivery_poisoned = True
+                if op == 'transport_closed':
+                    # R4: recompute independently from the recorded delivery
+                    # count and the attempt's own reservation at every
+                    # replay, rather than trusting a stored boolean flag.
+                    if event['total_delivered_bytes'] > self.attempt['max_reservation_bytes']:
+                        self.attempt['overdelivered'] = True
+                        self.overdelivery_poisoned = True
             elif op == 'refuse':
                 check(self.attempt is not None and self.attempt['request_id'] == rid and
                       self.attempt['state'] == 'OPEN', 'SESSION_LEDGER_BAD_TRANSITION')
@@ -777,24 +799,28 @@ class SessionLedger(_HashChainJournal):
     def transport_closed(self, request_id, *, outcome, total_delivered_bytes,
                           denial_history_head=None, accounting_head=None):
         with self._guard():
-            attempt = self._guard_attempt(request_id)
+            self._guard_attempt(request_id)
             check(outcome in ('OK', 'FAILED', 'PARTIAL'), 'SESSION_LEDGER_CLOSE_OUTCOME')
             integer(total_delivered_bytes, 0, MAX_BYTES, 'SESSION_LEDGER_DELIVERED_BYTES')
-            _optional_digest(denial_history_head, 'SESSION_LEDGER_DENIAL_HISTORY_HEAD')
-            _optional_digest(accounting_head, 'SESSION_LEDGER_ACCOUNTING_HEAD')
-            # Section 4: "An observed overdelivery halts". Recorded durably
-            # on the event itself rather than recomputed at replay time.
-            overdelivered = total_delivered_bytes > attempt['max_reservation_bytes']
+            # R3: mandatory, not optional (no default binding was ever
+            # evidence of a complete bounded outcome).
+            digest(denial_history_head, 'SESSION_LEDGER_DENIAL_HISTORY_HEAD')
+            digest(accounting_head, 'SESSION_LEDGER_ACCOUNTING_HEAD')
             self._append({'op': 'transport_closed', 'request_id': request_id,
                           'outcome': outcome, 'total_delivered_bytes': total_delivered_bytes,
                           'denial_history_head': denial_history_head,
-                          'accounting_head': accounting_head,
-                          'overdelivered': overdelivered})
+                          'accounting_head': accounting_head})
             self._state()
 
     def accounted(self, request_id, *, completion_event_hash):
         with self._guard():
-            self._guard_attempt(request_id)
+            attempt = self._guard_attempt(request_id)
+            # R4: an observed overdelivery blocks ACCOUNTED, not merely
+            # SUCCESS; ACCOUNTED binds a budget completion-event hash, which
+            # an overdelivered attempt must never receive. The attempt stays
+            # held in CLOSED state (the session is already poisoned).
+            check(not attempt['overdelivered'],
+                  'SESSION_LEDGER_OVERDELIVERY_BLOCKS_ACCOUNTED')
             digest(completion_event_hash, 'SESSION_LEDGER_COMPLETION_HASH')
             self._append({'op': 'accounted', 'request_id': request_id,
                           'completion_event_hash': completion_event_hash})
@@ -826,6 +852,13 @@ class SessionLedger(_HashChainJournal):
                       'SESSION_LEDGER_SUCCESS_REQUIRES_WITNESS')
                 check(not attempt['overdelivered'],
                       'SESSION_LEDGER_OVERDELIVERY_BLOCKS_SUCCESS')
+                # R2 regression fix: a denied attempt is "(necessarily
+                # non-SUCCESS) terminal" per this module's own docstring, but
+                # the S5 repair (a non-terminal denial annotation) never
+                # actually enforced that. A denied body is not a successful
+                # validated body (section 6).
+                check(not attempt['denial_observed'],
+                      'SESSION_LEDGER_SUCCESS_AFTER_DENIAL')
             check(type(reason) is str and reason, 'SESSION_LEDGER_TERMINAL_REASON')
             # Report reserve survives ordinary failure: it is fixed at
             # construction (replayed identically on every restart), never

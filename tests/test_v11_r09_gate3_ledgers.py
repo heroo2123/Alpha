@@ -116,7 +116,8 @@ def test_shared_ledger_root_is_reusable_across_distinct_manifests(tmp_path):
     root = _root(tmp_path)
     with _new_shared(root) as ledger:
         _open_intent(ledger, 'req-1', manifest_sha256=MANIFEST)
-        ledger.intent_closed('req-1', outcome='OK')
+        ledger.intent_closed('req-1', outcome='OK',
+                              accounting_head='c' * 64, total_delivered_bytes=0)
         head = ledger.prev
     with SharedLedger(root, boot_id=BOOT, expected_history_head=head) as ledger:
         _open_intent(ledger, 'req-2', manifest_sha256='f' * 64)
@@ -139,7 +140,8 @@ def test_shared_ledger_intent_open_close_ok_roundtrip(tmp_path):
     with _new_shared(root) as ledger:
         _open_intent(ledger, 'req-1')
         assert ledger.open_intent['request_id'] == 'req-1'
-        ledger.intent_closed('req-1', outcome='OK')
+        ledger.intent_closed('req-1', outcome='OK',
+                              accounting_head='c' * 64, total_delivered_bytes=0)
         assert ledger.open_intent is None and ledger.closed_count == 1
         # Request ids are permanently retired even after a clean close.
         with pytest.raises(LaunchContractError, match='SHARED_LEDGER_REQUEST_ID_REUSE'):
@@ -166,7 +168,8 @@ def test_shared_ledger_rejects_bad_request_id_purpose_and_cap(tmp_path):
         with pytest.raises(LaunchContractError, match='SHARED_LEDGER_PURPOSE'):
             _open_intent(ledger, 'req-1', purpose='NOPE')
         _open_intent(ledger, 'req-1')
-        ledger.intent_closed('req-1', outcome='OK')
+        ledger.intent_closed('req-1', outcome='OK',
+                              accounting_head='c' * 64, total_delivered_bytes=0)
         with pytest.raises(LaunchContractError, match='SHARED_LEDGER_REQUEST_CAP_EXCEEDED'):
             _open_intent(ledger, 'req-2')
 
@@ -181,7 +184,8 @@ def test_shared_ledger_explicit_denial_never_auto_resumes(tmp_path):
         _open_intent(ledger, 'req-1')
         ledger.denial_observed('req-1',
                                 denial=_denial(status='403', retry_after_seconds=None))
-        ledger.intent_closed('req-1', outcome='DENIED')
+        ledger.intent_closed('req-1', outcome='DENIED',
+                              accounting_head='c' * 64, total_delivered_bytes=0)
         assert ledger.is_blocked('d' * 64, now_utc=0)
         assert ledger.is_blocked('d' * 64, now_utc=10 ** 12)
 
@@ -193,7 +197,8 @@ def test_shared_ledger_finite_cooldown_expires(tmp_path):
         ledger.denial_observed('req-1', denial=_denial(
             status='503', retry_after_seconds=5, window_end_utc=100.0,
             receipt_upper_bound_utc=100.0))
-        ledger.intent_closed('req-1', outcome='DENIED')
+        ledger.intent_closed('req-1', outcome='DENIED',
+                              accounting_head='c' * 64, total_delivered_bytes=0)
         assert ledger.is_blocked('d' * 64, now_utc=104.9)
         assert not ledger.is_blocked('d' * 64, now_utc=105.1)
         with pytest.raises(LaunchContractError,
@@ -208,7 +213,8 @@ def test_shared_ledger_denial_observed_schema_validation(tmp_path):
         _open_intent(ledger, 'req-1')
         with pytest.raises(LaunchContractError, match='SHARED_LEDGER_DENIAL_SCHEMA'):
             ledger.denial_observed('req-1', denial={})
-        ledger.intent_closed('req-1', outcome='OK')
+        ledger.intent_closed('req-1', outcome='OK',
+                              accounting_head='c' * 64, total_delivered_bytes=0)
 
 
 def test_shared_ledger_denial_evidence_xor_and_bad_status_rejected(tmp_path):
@@ -217,7 +223,8 @@ def test_shared_ledger_denial_evidence_xor_and_bad_status_rejected(tmp_path):
         _open_intent(ledger, 'req-1')
         with pytest.raises(LaunchContractError, match='SHARED_LEDGER_DENIAL_STATUS'):
             ledger.denial_observed('req-1', denial=_denial(status='999'))
-        ledger.intent_closed('req-1', outcome='OK')
+        ledger.intent_closed('req-1', outcome='OK',
+                              accounting_head='c' * 64, total_delivered_bytes=0)
         _open_intent(ledger, 'req-2')
         with pytest.raises(LaunchContractError, match='SHARED_LEDGER_DENIAL_EVIDENCE'):
             ledger.denial_observed('req-2', denial=_denial(
@@ -252,7 +259,8 @@ def test_shared_ledger_denial_observed_keeps_token_held_until_closed(tmp_path):
         # refused until req-1 is actually, separately closed.
         with pytest.raises(LaunchContractError, match='SHARED_LEDGER_INTENT_OPEN_HELD'):
             _open_intent(ledger, 'req-2', control_domain_id='e' * 64)
-        ledger.intent_closed('req-1', outcome='DENIED')
+        ledger.intent_closed('req-1', outcome='DENIED',
+                              accounting_head='c' * 64, total_delivered_bytes=0)
         assert ledger.open_intent is None
         head = ledger.prev
     with SharedLedger(root, boot_id=BOOT, expected_history_head=head) as ledger:
@@ -265,8 +273,10 @@ def test_shared_ledger_denial_close_requires_prior_observation(tmp_path):
     with _new_shared(root) as ledger:
         _open_intent(ledger, 'req-1')
         with pytest.raises(LaunchContractError, match='SHARED_LEDGER_DENIAL_NOT_OBSERVED'):
-            ledger.intent_closed('req-1', outcome='DENIED')
-        ledger.intent_closed('req-1', outcome='OK')
+            ledger.intent_closed('req-1', outcome='DENIED',
+                                  accounting_head='c' * 64, total_delivered_bytes=0)
+        ledger.intent_closed('req-1', outcome='OK',
+                              accounting_head='c' * 64, total_delivered_bytes=0)
 
 
 def test_shared_ledger_denial_observed_rejects_double_record(tmp_path):
@@ -277,6 +287,47 @@ def test_shared_ledger_denial_observed_rejects_double_record(tmp_path):
         with pytest.raises(LaunchContractError,
                             match='SHARED_LEDGER_DENIAL_ALREADY_RECORDED'):
             ledger.denial_observed('req-1', denial=_denial())
+
+
+# ---------------------------------------------------------------------------
+# R3 regression (probe N3): shared INTENT_CLOSED must bind an accounting
+# head, the delivered byte count, and a denial-history head, and the
+# outcome must be DENIED exactly when a denial was observed on the intent.
+# ---------------------------------------------------------------------------
+
+def test_shared_ledger_intent_closed_binds_evidence_and_denial_consistency(tmp_path):
+    root = _root(tmp_path)
+    with _new_shared(root) as ledger:
+        _open_intent(ledger, 'req-1')
+        ledger.denial_observed('req-1', denial=_denial())
+        # OK after a recorded denial papers over it: refused.
+        with pytest.raises(LaunchContractError,
+                            match='SHARED_LEDGER_CLOSE_OUTCOME_DENIAL_MISMATCH'):
+            ledger.intent_closed('req-1', outcome='OK',
+                                  accounting_head='c' * 64, total_delivered_bytes=0)
+        head_before_close = ledger.prev
+        ledger.intent_closed('req-1', outcome='DENIED',
+                              accounting_head='c' * 64, total_delivered_bytes=5)
+        closed = ledger.events[-1]
+        assert closed['accounting_head'] == 'c' * 64
+        assert closed['total_delivered_bytes'] == 5
+        # The denial-history binding is this root's own chain head at close
+        # time, which already commits to the denial_observed event above.
+        assert closed['denial_history_head'] == head_before_close
+
+
+def test_shared_ledger_intent_closed_requires_accounting_evidence(tmp_path):
+    root = _root(tmp_path)
+    with _new_shared(root) as ledger:
+        _open_intent(ledger, 'req-1')
+        with pytest.raises(LaunchContractError,
+                            match='SHARED_LEDGER_CLOSE_ACCOUNTING_HEAD'):
+            ledger.intent_closed('req-1', outcome='OK', total_delivered_bytes=0)
+        with pytest.raises(LaunchContractError,
+                            match='SHARED_LEDGER_CLOSE_DELIVERED_BYTES'):
+            ledger.intent_closed('req-1', outcome='OK', accounting_head='c' * 64)
+        ledger.intent_closed('req-1', outcome='OK',
+                              accounting_head='c' * 64, total_delivered_bytes=0)
 
 
 # ---------------------------------------------------------------------------
@@ -334,7 +385,8 @@ def test_shared_ledger_rejects_nan_now_utc(tmp_path):
     with _new_shared(root) as ledger:
         _open_intent(ledger, 'req-1', control_domain_id='d' * 64)
         ledger.denial_observed('req-1', denial=_denial(retry_after_seconds=10 ** 6))
-        ledger.intent_closed('req-1', outcome='DENIED')
+        ledger.intent_closed('req-1', outcome='DENIED',
+                              accounting_head='c' * 64, total_delivered_bytes=0)
         assert ledger.is_blocked('d' * 64, now_utc=0)
         with pytest.raises(LaunchContractError, match='SHARED_LEDGER_NOW_UTC'):
             ledger.is_blocked('d' * 64, now_utc=float('nan'))
@@ -382,7 +434,9 @@ def test_session_ledger_full_success_lifecycle(tmp_path):
         assert ledger.attempt['state'] == 'RESERVED'
         ledger.dispatch_intent('req-1', measured_start_monotonic=1.5)
         assert ledger.attempt['state'] == 'DISPATCHED'
-        ledger.transport_closed('req-1', outcome='OK', total_delivered_bytes=10)
+        ledger.transport_closed('req-1', outcome='OK', total_delivered_bytes=10,
+                                 denial_history_head='e' * 64,
+                                 accounting_head='c' * 64)
         assert ledger.attempt['state'] == 'CLOSED'
         ledger.accounted('req-1', completion_event_hash='c' * 64)
         assert ledger.attempt['state'] == 'ACCOUNTED'
@@ -406,7 +460,9 @@ def test_session_ledger_accounted_without_witness_can_reach_terminal(tmp_path):
                                max_reservation_bytes=10)
         ledger.budget_reserved('req-1', reserve_event_hash='b' * 64)
         ledger.dispatch_intent('req-1', measured_start_monotonic=0)
-        ledger.transport_closed('req-1', outcome='PARTIAL', total_delivered_bytes=3)
+        ledger.transport_closed('req-1', outcome='PARTIAL', total_delivered_bytes=3,
+                                 denial_history_head='e' * 64,
+                                 accounting_head='c' * 64)
         ledger.accounted('req-1', completion_event_hash='c' * 64)
         # ACCOUNTED (no object witness) is itself a valid non-success
         # terminal predecessor; SUCCESS is the one outcome that needs WITNESSED.
@@ -442,7 +498,9 @@ def test_session_ledger_success_requires_witness(tmp_path):
                                max_reservation_bytes=10)
         ledger.budget_reserved('req-1', reserve_event_hash='b' * 64)
         ledger.dispatch_intent('req-1', measured_start_monotonic=0)
-        ledger.transport_closed('req-1', outcome='OK', total_delivered_bytes=10)
+        ledger.transport_closed('req-1', outcome='OK', total_delivered_bytes=10,
+                                 denial_history_head='e' * 64,
+                                 accounting_head='c' * 64)
         ledger.accounted('req-1', completion_event_hash='c' * 64)
         with pytest.raises(LaunchContractError,
                             match='SESSION_LEDGER_SUCCESS_REQUIRES_WITNESS'):
@@ -465,7 +523,9 @@ def test_session_ledger_rejects_ambiguous_held_terminal(tmp_path):
                                max_reservation_bytes=10)
         ledger.budget_reserved('req-1', reserve_event_hash='b' * 64)
         ledger.dispatch_intent('req-1', measured_start_monotonic=0)
-        ledger.transport_closed('req-1', outcome='OK', total_delivered_bytes=10)
+        ledger.transport_closed('req-1', outcome='OK', total_delivered_bytes=10,
+                                 denial_history_head='e' * 64,
+                                 accounting_head='c' * 64)
         ledger.accounted('req-1', completion_event_hash='c' * 64)
         with pytest.raises(LaunchContractError, match='SESSION_LEDGER_TERMINAL_OUTCOME'):
             ledger.terminal('req-1', outcome='AMBIGUOUS_HELD', reason='x',
@@ -496,7 +556,9 @@ def test_session_ledger_denial_requires_dispatch_and_still_requires_close(tmp_pa
         with pytest.raises(LaunchContractError,
                             match='SESSION_LEDGER_DENIAL_ALREADY_RECORDED'):
             ledger.denial('req-1', reason='twice')
-        ledger.transport_closed('req-1', outcome='FAILED', total_delivered_bytes=0)
+        ledger.transport_closed('req-1', outcome='FAILED', total_delivered_bytes=0,
+                                 denial_history_head='e' * 64,
+                                 accounting_head='c' * 64)
         ledger.accounted('req-1', completion_event_hash='c' * 64)
         ledger.terminal('req-1', outcome='FAILED', reason='denied',
                          report_reserved_bytes=REPORT_RESERVE_BYTES)
@@ -521,28 +583,60 @@ def test_session_ledger_denial_then_crash_inherits_unsettled_attempt(tmp_path):
 
 
 # ---------------------------------------------------------------------------
+# R2 regression (probe N2): the S5 repair made a denial a non-terminal
+# annotation but never stopped it from reaching SUCCESS. This module's own
+# docstring calls a denied attempt "(necessarily non-SUCCESS) terminal".
+# ---------------------------------------------------------------------------
+
+def test_session_ledger_denied_attempt_cannot_reach_success(tmp_path):
+    root = _root(tmp_path)
+    with _session(root) as ledger:
+        ledger.attempt_intent('req-1', purpose='FIELD', endpoint_id='f' * 64,
+                               max_reservation_bytes=10)
+        ledger.budget_reserved('req-1', reserve_event_hash='b' * 64)
+        ledger.dispatch_intent('req-1', measured_start_monotonic=0)
+        ledger.denial('req-1', reason='429 seen in headers')
+        ledger.transport_closed('req-1', outcome='OK', total_delivered_bytes=10,
+                                 denial_history_head='e' * 64,
+                                 accounting_head='c' * 64)
+        ledger.accounted('req-1', completion_event_hash='c' * 64)
+        ledger.object_witnessed('req-1', store_receipt_commit_hash='d' * 64)
+        with pytest.raises(LaunchContractError,
+                            match='SESSION_LEDGER_SUCCESS_AFTER_DENIAL'):
+            ledger.terminal('req-1', outcome='SUCCESS', reason='x',
+                             report_reserved_bytes=REPORT_RESERVE_BYTES)
+        # Still closeable as a non-success terminal.
+        ledger.terminal('req-1', outcome='FAILED', reason='denied',
+                         report_reserved_bytes=REPORT_RESERVE_BYTES)
+
+
+# ---------------------------------------------------------------------------
 # S9: an observed overdelivery is recorded durably, blocks that attempt's
 # own terminal from ever being SUCCESS, and permanently poisons the whole
 # session ledger against any further attempt (survives restart).
 # ---------------------------------------------------------------------------
 
-def test_session_ledger_overdelivery_blocks_success_and_poisons_session(tmp_path):
+def test_session_ledger_overdelivery_blocks_accounted_and_poisons_session(tmp_path):
+    # R4 regression (probe N4): ACCOUNTED binds a budget completion-event
+    # hash, so it must be refused, not merely SUCCESS, once an overdelivery
+    # is observed. The attempt then stays held in CLOSED state forever; the
+    # session is already poisoned against any further attempt.
     root = _root(tmp_path)
     with _session(root) as ledger:
         ledger.attempt_intent('req-1', purpose='FIELD', endpoint_id='f' * 64,
                                max_reservation_bytes=10)
         ledger.budget_reserved('req-1', reserve_event_hash='b' * 64)
         ledger.dispatch_intent('req-1', measured_start_monotonic=1.0)
-        ledger.transport_closed('req-1', outcome='OK', total_delivered_bytes=11)
-        ledger.accounted('req-1', completion_event_hash='c' * 64)
-        ledger.object_witnessed('req-1', store_receipt_commit_hash='d' * 64)
+        ledger.transport_closed('req-1', outcome='OK', total_delivered_bytes=11,
+                                 denial_history_head='e' * 64,
+                                 accounting_head='c' * 64)
         with pytest.raises(LaunchContractError,
-                            match='SESSION_LEDGER_OVERDELIVERY_BLOCKS_SUCCESS'):
-            ledger.terminal('req-1', outcome='SUCCESS', reason='x',
+                            match='SESSION_LEDGER_OVERDELIVERY_BLOCKS_ACCOUNTED'):
+            ledger.accounted('req-1', completion_event_hash='c' * 64)
+        # Stuck in CLOSED: terminal still requires ACCOUNTED/WITNESSED.
+        with pytest.raises(LaunchContractError, match='SESSION_LEDGER_BAD_TRANSITION'):
+            ledger.terminal('req-1', outcome='FAILED', reason='overdelivered',
                              report_reserved_bytes=REPORT_RESERVE_BYTES)
-        # Still closeable as a non-success terminal.
-        ledger.terminal('req-1', outcome='FAILED', reason='overdelivered',
-                         report_reserved_bytes=REPORT_RESERVE_BYTES)
         with pytest.raises(LaunchContractError,
                             match='SESSION_LEDGER_OVERDELIVERY_POISONED'):
             ledger.attempt_intent('req-2', purpose='FIELD', endpoint_id='f' * 64,
@@ -563,7 +657,9 @@ def test_session_ledger_report_reserve_mismatch_rejected(tmp_path):
                                max_reservation_bytes=10)
         ledger.budget_reserved('req-1', reserve_event_hash='b' * 64)
         ledger.dispatch_intent('req-1', measured_start_monotonic=0)
-        ledger.transport_closed('req-1', outcome='OK', total_delivered_bytes=1)
+        ledger.transport_closed('req-1', outcome='OK', total_delivered_bytes=1,
+                                 denial_history_head='e' * 64,
+                                 accounting_head='c' * 64)
         ledger.accounted('req-1', completion_event_hash='c' * 64)
         with pytest.raises(LaunchContractError,
                             match='SESSION_LEDGER_REPORT_RESERVE_MISMATCH'):
