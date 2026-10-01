@@ -1,5 +1,14 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## A7 offline resource candidate; acceptance unchanged — 2026-10-01 23:36 UTC
+
+The clean A7 `e08858b` candidate and terminal are retained with 181 reported
+author-test passes. Its full-field observation uses unverified provenance and
+unlocked runtime libraries; independent exact review and A2–A6 evidence are
+still required. A4 remains active and A8 was resumed in A7's freed slot.
+No G3-L, forward SHADOW or C/J/E/A acceptance changed: **G3-L NO-GO;
+91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Retained A2/A3 candidate recovered — 2026-10-01 23:26 UTC
 
 The clean `89f85ac` candidate is present in its registered worktree, and its

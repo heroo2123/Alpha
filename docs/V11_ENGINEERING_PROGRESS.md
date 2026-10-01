@@ -1,5 +1,14 @@
 # Supplementary engineering estimate
 
+## A7 candidate retained and A8 resumed — 2026-10-01 23:36 UTC
+
+A7 completed a clean offline decoder/resource candidate at `e08858b` with
+181 reported targeted and adjacent author-test passes. Its retained-field
+measurement is not provenance or locked-ABI qualification; independent
+exact-commit review remains open. A4 is still authoring and the existing A8
+worker was resumed after A7 freed a slot. No C/J/E/A boundary crossed:
+**G3-L NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Gate 3 live recovery — 2026-10-01 23:26 UTC
 
 Verified the clean A2/A3 `89f85ac` worktree and terminal-bound artifact hashes;

@@ -1,5 +1,35 @@
 # Alpha V11 work checkpoint
 
+## A7 offline candidate recovered; existing A8 worker resumed — 2026-10-01 23:36 UTC
+
+Recovered clean main `92bfd68` and the completed A7 worker terminal at
+`/tmp/alpha-v11-gate3-a7-decoder-resources-20261001.terminal.json`. Its
+isolated worktree is clean at `e08858b` (tree `550ff4e`); the four-file
+candidate adds an offline decoder/resource harness and its author report
+records 181 targeted and adjacent test passes. A retained full AIFS field
+decoded and re-encoded under provisional limits, but its provenance and the
+runtime ABI are unqualified. A7 needs independent exact-commit review and
+upstream A2–A6 evidence before any acceptance or integration.
+
+The A7 process group exited after writing its terminal. Verified A8 process
+group 1933615 was SIGSTOP-paused with no terminal and a clean, sole worktree,
+then SIGCONT-resumed it in A7's freed specialist slot. A4 process group
+1933369 remains live with four staged, uncommitted candidate files and no
+terminal. These are now the two active specialists; no new worker was
+launched. A2/A3 `89f85ac` still awaits different-model exact review, and
+inventory `9600510` still needs its five reviewed P2 repairs.
+
+SHADOW and Brain readiness worktrees remain clean; ECMWF `backfill_data/`
+remains untracked and preserved. The owner-authorized R1 correction and
+accepted 5,460-pass/13-skip release result remain on main; no new suite run
+is claimed. The private FINAL-REVIEWED master still hashes to
+`a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+PAPER scanner/controller/execution units are inactive, protected V11 authority
+roots are absent, free disk is about 3.0 GiB and available memory about
+723 MiB. No provider request, G3-L PASS, qualifying forward SHADOW sample,
+or C/J/E/A crossing occurred: **G3-L NO-GO; 91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Live Gate 3 recovery and A2/A3 artifact verification — 2026-10-01 23:26 UTC
 
 Recovered clean main `17d1f8a` and the exact A2/A3 worktree at
