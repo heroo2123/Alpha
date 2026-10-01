@@ -1,5 +1,17 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## A2/A3 local byte dossier — 2026-10-01 22:30 UTC
+
+The [offline dossier](V11_R09_GATE3_A2A3_OFFLINE_DOSSIER_20261001.md)
+records eight installed Python packages, the resolved interpreter, 78
+previously mapped native files and all 25 `eckitlib.libs` RECORD discrepancies.
+It is observation-only: cached-wheel agreement lacks authenticated origin,
+the internal RECORD conflict remains unexplained per file, and a complete
+reproducible runtime lock/reconstruction is absent. No A2/A3 source/build
+identity is filled or accepted; A1 repair remains queued and separate.
+No G3-L, forward SHADOW or C/J/E/A boundary changed. **G3-L NO-GO;
+91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## A2/A3 offline handoff — 2026-10-01 22:24 UTC
 
 The reviewed R1 correction is already on main. A1 observer repair remains

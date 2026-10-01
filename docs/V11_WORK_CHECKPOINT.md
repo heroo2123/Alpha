@@ -1,5 +1,42 @@
 # Alpha V11 work checkpoint
 
+## A2/A3 offline dossier captured; qualification still open — 2026-10-01 22:30 UTC
+
+Recovered clean main `dbf9c19` before this entry, plus the sole guarded A1
+point-of-use repair runner PID 1925151. Its worktree remains clean at
+`93cd43c`, its queue still waits until 23:21 UTC, and no corrected terminal
+exists. The separate clean `9600510` inventory candidate remains unreviewed
+and unmerged. SHADOW and Brain worktrees are clean; ECMWF `backfill_data/`
+remains untracked and preserved. No newer qualifying forward SHADOW file was
+found. Owner-authorized R1 `58a465f` remains on main.
+
+Completed a new **offline observation** in
+[A2/A3 dossier](V11_R09_GATE3_A2A3_OFFLINE_DOSSIER_20261001.md) with
+[machine evidence](V11_R09_GATE3_A2A3_OFFLINE_DOSSIER_20261001.json)
+and a read-only generator. All hashed RECORD rows of the eight locally
+installed Python packages were checked: exactly 25 `eckitlib.libs` mismatches,
+zero missing hashed files; all 25 installed payloads match the cached wheel,
+which itself disagrees with its unchanged RECORD rows. The 25 individual
+hash/size/delta records remain **UNRESOLVED_DO_NOT_QUALIFY**. The resolved
+interpreter and 78 previously observed native mappings were rehashed.
+Authenticated originals, per-file causal explanation, complete runtime lock
+and separate unprivileged reconstruction remain missing; **A2/A3 are not
+qualified**. No package installation or provider request. The offline dossier
+assertions and `git diff --check` passed; no full release suite was run.
+
+The accepted `6ec371e` release log hash was reverified (5,460 passed / 13
+skipped). PAPER scanner, controller and execution services remain inactive;
+scanner disabled, protected V11 authority roots absent. The FINAL-REVIEWED
+private master SHA-256 remains
+`a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+Free disk is 2,198,175,744 bytes; available memory 1,079,459,840 bytes at
+22:30 UTC. The October 2 acquisition / October 3 target proposal still has
+77 unfilled identities and zero planned slots. No V10, AxiomTrade, service,
+authority, financial or remote-publication action. **G3-L NO-GO; 91/200
+(45.5%), formal 1/50; NOT_READY_TO_FUND.** Next: preserve the queued A1
+repair and exact-review its corrected terminal; for A2/A3, obtain authenticated
+originals and a complete reproducible lock before considering acceptance.
+
 ## Coordinator recovery and A2/A3 handoff — 2026-10-01 22:24 UTC
 
 Main is clean at `93a1118` (92 local commits ahead of origin). The owner-authorized

@@ -1,5 +1,18 @@
 # Supplementary engineering estimate
 
+## A2/A3 offline observation completed — 2026-10-01 22:30 UTC
+
+The read-only [dossier](V11_R09_GATE3_A2A3_OFFLINE_DOSSIER_20261001.md)
+rehashed all hashed RECORD entries for the eight local packages and all 25
+vendored payload discrepancies against the installed files and cached wheel;
+78 prior native mappings and the resolved interpreter were also rehashed.
+All 25 conflicts remain unexplained, and no independently authenticated
+original or reproducible complete lock is present. This closes the bounded
+local-observation handoff, **not A2/A3 qualification**. A1 remains queued to
+23:21 UTC, `9600510` remains unreviewed, and no new forward sample or provider
+request exists. **G3-L NO-GO; 91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Coordinator A2/A3 handoff — 2026-10-01 22:24 UTC
 
 Recovered clean main, the live queued A1 repair and the separate unreviewed
