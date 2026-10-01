@@ -1,5 +1,14 @@
 # Supplementary engineering estimate
 
+## A4 candidate committed, A8 active — 2026-10-01 23:43 UTC
+
+A4's clean `ef53d61` offline verifier candidate reports 18 focused author
+passes, but its outer runner terminal and independent review are pending.
+A8 has two untracked author files and nine focused synthetic passes in its
+sole live worktree. Both specialist slots are occupied; no new worker was
+launched. No C/J/E/A boundary crossed: **G3-L NO-GO; 91/200 (45.5%), formal
+1/50; NOT_READY_TO_FUND**.
+
 ## A7 candidate retained and A8 resumed — 2026-10-01 23:36 UTC
 
 A7 completed a clean offline decoder/resource candidate at `e08858b` with

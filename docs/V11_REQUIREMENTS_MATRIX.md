@@ -1,5 +1,13 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## A4 offline candidate committed; acceptance unchanged — 2026-10-01 23:43 UTC
+
+A4 `ef53d61` is a clean four-file author candidate with 18 focused passes;
+its runner terminal and independent exact-commit review remain pending. A8
+is still authoring in its own worktree. A2/A3, A7, and inventory remain
+unaccepted. No A4, G3-L, forward SHADOW, or C/J/E/A acceptance changed:
+**G3-L NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## A7 offline resource candidate; acceptance unchanged — 2026-10-01 23:36 UTC
 
 The clean A7 `e08858b` candidate and terminal are retained with 181 reported

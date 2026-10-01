@@ -1,5 +1,29 @@
 # Alpha V11 work checkpoint
 
+## A4 candidate committed; runner finalization pending — 2026-10-01 23:43 UTC
+
+Recovered clean main `33d72bc` and the live A4/A8 process groups. A4's sole
+worktree is clean at `ef53d61`; its four-file offline runtime-verifier
+candidate records 18 focused author-test passes and explicitly leaves A4
+unqualified. Its runner is still live and has not written its outer terminal,
+so independent exact-commit review and integration are pending. A8 remains
+live in its separate worktree with two untracked candidate files and nine
+focused synthetic passes; do not duplicate or overwrite it. A7's clean
+`e08858b` remains unreviewed, as do A2/A3 `89f85ac`; inventory `9600510`
+still needs the five independently found P2 repairs. Both specialist slots
+remain occupied, so no worker was launched.
+
+The accepted full release result remains 5,460 passed / 13 skipped; no new
+full suite was run. SHADOW and Brain readiness worktrees are clean, and
+ECMWF `backfill_data/` remains untracked and preserved. The private
+FINAL-REVIEWED master still hashes to
+`a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+PAPER scanner/controller/execution units are inactive; protected V11
+authority roots are absent. Free disk is about 3.0 GiB and available memory
+about 809 MiB. No provider request, G3-L PASS, forward SHADOW sample, or
+C/J/E/A crossing occurred: **G3-L NO-GO; 91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## A7 offline candidate recovered; existing A8 worker resumed — 2026-10-01 23:36 UTC
 
 Recovered clean main `92bfd68` and the completed A7 worker terminal at
