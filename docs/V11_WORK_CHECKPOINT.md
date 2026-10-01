@@ -1,5 +1,32 @@
 # Alpha V11 work checkpoint
 
+## H1–H6 focused tests pass; disk launch floor fails — 2026-10-01 17:16 UTC
+
+Actual main is clean at `ec259d4` (39 commits ahead of tracking). The sole
+H1–H6 Sol/high writer is still live (runner `1772979`, Codex `1772984`/
+`1772991`) in the same isolated slice-3 repair worktree at `6515233`.
+Its three modified files remain uncommitted; `git diff --check` passes and
+there is no terminal. The writer corrected a test fixture, removed only its
+own two failed basetemp directories, and reran the runtime/ledger focused set:
+**135 passed**. The earlier 13 failures were caused by the physical report
+reserve exhausting local disk during tests and are not a candidate verdict.
+Do not duplicate the writer or clean its live third test directory. Require
+its clean candidate, exact tests, fresh different-model exact-commit review,
+and reconciliation with newer main before integration.
+
+The worker's current basetemp occupies about 1.1 GiB; root free space is
+about **803 MiB**, below the 2 GiB launch floor. Available RAM is about
+853 MiB plus 1.7 GiB free swap. These volatile observations do not qualify
+resources. The offline next-window screen remains `launchable=false` with
+77 missing pre-review identities. G3-L is **NO-GO**; no provider request or
+forward SHADOW sample was observed. Scanner/controller/execution are inactive;
+scanner is disabled; protected authority paths are absent. The private
+FINAL-REVIEWED master still matches pinned SHA-256
+`a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+No V10, AxiomTrade, service, authority, financial or private-master change
+was made. No C/J/E/A boundary crossed: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Live H1–H6 recovery; G3-L still NO-GO — 2026-10-01 17:12 UTC
 
 Recovered actual main clean at `22d9a91` (38 commits ahead of tracking).

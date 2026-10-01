@@ -1,5 +1,12 @@
 # Gate 3 next-window offline screen — 2026-10-01
 
+**17:16 UTC resource refresh:** Root free space is about 803 MiB while the
+active slice-3 writer's current test directory occupies about 1.1 GiB. This
+is below the 2 GiB launch floor before any prospective allocation. The
+writer's files are still live and are preserved. The 77 missing pre-review
+identities and `launchable=false` status also remain. G3-L is NO-GO; this
+refresh makes no request or launch approval.
+
 **Nonlaunchable diagnostic. G3-L remains NO-GO.** The October 1 14:00 UTC
 start passed without exact-package approval. The next *candidate* fixed window
 is October 2 14:00–17:00 UTC for an October 3 local target date, subject to a

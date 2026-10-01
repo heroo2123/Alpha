@@ -1,5 +1,15 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Active H1–H6 test recovery, no acceptance — 2026-10-01 17:16 UTC
+
+The live slice-3 writer's focused runtime/ledger set now passes **135/135**
+after test-fixture correction and its own basetemp cleanup. Three files remain
+uncommitted at `6515233`; no candidate terminal or independent exact review
+exists. Current free disk is about 803 MiB, below the launch floor. The
+next-window screen retains 77 missing pre-review identities and
+`launchable=false`; G3-L remains NO-GO. No C/J/E/A boundary crossed:
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Live H1–H6 repair recovery — 2026-10-01 17:12 UTC
 
 Actual writer is live with unfinished ledger/runtime edits at `6515233`;
