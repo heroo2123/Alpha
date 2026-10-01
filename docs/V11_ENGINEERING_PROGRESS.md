@@ -1,5 +1,14 @@
 # Supplementary engineering estimate
 
+## Live Gate 3 worker recovery — 2026-10-01 23:14 UTC
+
+The A1 exact reviewer and A4 runtime author remain the two active
+specialists. A4's 10 targeted passes are author evidence only; no A1 or A4
+terminal verdict or integration is yet available. A2/A3 and inventory need
+independent review or repair; A7/A8 remain paused. No C/J/E/A boundary
+crossed: **G3-L NO-GO; 91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## A1/A2 author candidates and exact review — 2026-10-01 23:04 UTC
 
 Both active author workers completed clean isolated candidates. A1 `12a6e38`

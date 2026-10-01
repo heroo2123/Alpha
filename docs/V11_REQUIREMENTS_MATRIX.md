@@ -1,5 +1,13 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Live Gate 3 worker recovery — 2026-10-01 23:14 UTC
+
+Exact A1 `12a6e38` independent review is still running without a terminal;
+A4 has uncommitted author files and 10 targeted passes. A2/A3 awaits
+different-model exact review; A7/A8 remain paused. None changes source,
+runtime, G3-L, forward SHADOW or C/J/E/A acceptance: **G3-L NO-GO;
+91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## A1/A2 author candidates await independent acceptance — 2026-10-01 23:04 UTC
 
 Clean A1 `12a6e38` and A2/A3 `89f85ac` author candidates have terminal

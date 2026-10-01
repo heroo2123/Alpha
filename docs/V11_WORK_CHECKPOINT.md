@@ -1,5 +1,32 @@
 # Alpha V11 work checkpoint
 
+## Coordinator live recovery — 2026-10-01 23:14 UTC
+
+Main is clean at `d7aa0b5`; no newer commit has superseded the 23:04
+checkpoint. The independent Astra/high A1 review of exact `12a6e38` is
+still live (runner 1936885), has exercised malformed-trace and output-limit
+controls, and has no terminal verdict. A4 runtime verification (runner
+1933369) is the second active specialist; its two new, uncommitted files
+have passed 10 targeted tests in the author worktree. A7 (1933486) and A8
+(1933615) remain SIGSTOP-paused and preserved. No worker was duplicated,
+resumed or merged; recover actual terminal and exact worktree state before
+acting on either active candidate. A2/A3 `89f85ac` remains clean and awaits
+different-model exact review after a specialist slot opens. Inventory
+`9600510` still requires repair of five reviewed P2 findings.
+
+SHADOW and Brain readiness worktrees remain clean; ECMWF `backfill_data/`
+remains untracked and preserved. No file newer than 23:04 appeared in the
+SHADOW commissioning worktree. The accepted release run already resolved
+the earlier fill-markout suite failure (5,460 passed / 13 skipped); no new
+suite run is claimed. The private FINAL-REVIEWED master still hashes to
+`a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+Observed free disk is about 3.1 GiB and available memory about 904 MiB.
+V11 scanner/controller/execution units are inactive; no protected V11
+authority root was observed. No provider request, G3-L PASS, qualifying
+forward SHADOW sample, or C/J/E/A crossing. No V10, AxiomTrade, financial,
+service, authority, private-master or remote-publication action. **G3-L
+NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## A1/A2 candidates recovered; A1 exact review launched — 2026-10-01 23:04 UTC
 
 The two active author runners completed cleanly with terminal markers. A1
