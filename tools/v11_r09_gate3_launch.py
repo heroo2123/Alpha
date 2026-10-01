@@ -706,6 +706,7 @@ class DurableBudget:
         self.failed = False
         self.uncertain_received_bytes = 0
         self.delivery_held = False
+        self.inherited_in_flight = None
         try:
             self.dir_fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
             directory_stat = os.fstat(self.dir_fd)
@@ -759,6 +760,12 @@ class DurableBudget:
                                'min_start_interval_seconds': min_start_interval_seconds,
                                'boot_id': boot_id}, 'JOURNAL_IDENTITY_MISMATCH')
             self._state()
+            # Design section 5: an attempt left open by a prior process is
+            # uncertain whatever stopped it (capacity refusal, write/fsync or
+            # identity fault, crash). No sentinel write is needed to prove that,
+            # so a full disk cannot lose it: never read for, or complete/refund,
+            # an inherited reservation.
+            self.inherited_in_flight = self.in_flight
             self._load_delivery_held_marker()
         except BaseException:
             self.close()
@@ -998,6 +1005,7 @@ class DurableBudget:
     def next_read_limit(self, maximum_chunk):
         self._healthy()
         check(self.in_flight is not None and not self.violated, 'NO_ACTIVE_REQUEST')
+        check(self.in_flight != self.inherited_in_flight, 'UNCERTAIN_REQUEST_HELD')
         integer(maximum_chunk, 1, MAX_BYTES, 'READ_CHUNK_BOUND')
         attempt = self.attempts[self.in_flight]
         return min(maximum_chunk, attempt['reserved'] - attempt['received'],
@@ -1041,6 +1049,7 @@ class DurableBudget:
     def complete(self, key):
         self._healthy()
         check(self.in_flight == key and not self.violated, 'NO_ACTIVE_REQUEST')
+        check(key != self.inherited_in_flight, 'UNCERTAIN_REQUEST_HELD')
         self._append({'op': 'complete', 'key': key})
         self._state()
 

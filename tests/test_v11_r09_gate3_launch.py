@@ -1,5 +1,6 @@
 """Synthetic, offline counterexamples for the Gate 3 launch boundary."""
 import copy
+import errno
 import hashlib
 import json
 import os
@@ -996,3 +997,44 @@ def test_delivery_held_marker_corruption_fails_closed(tmp_path):
     with pytest.raises(LaunchContractError):
         DurableBudget(root, '3' * 64, max_bytes=10)
     assert len(os.listdir('/proc/self/fd')) == before
+
+
+@pytest.mark.parametrize('fault', ['write_raises', 'identity', 'crash'])
+def test_inherited_reservation_is_never_completed_after_any_post_delivery_failure(
+        tmp_path, monkeypatch, fault):
+    """Design section 5: no recovery path may complete() an old incomplete
+    reservation. Covers the non-capacity paths the gate3.held sentinel does not
+    write: a zero-byte journal write error, a directory identity fault, and a
+    process that stops after delivery without journaling or completing."""
+    root = tmp_path / f'budget_inherited_{fault}'
+    root.mkdir(mode=0o700)
+    with DurableBudget(root, '2' * 64, max_bytes=10) as budget:
+        budget.reserve('one', 10, started_monotonic=0)
+        if fault == 'write_raises':
+            journal_fd, real_write = budget.fd, os.write
+            def refuse(fd, data):
+                if fd == journal_fd:
+                    raise OSError(errno.ENOSPC, 'synthetic: zero bytes written')
+                return real_write(fd, data)
+            monkeypatch.setattr(launch.os, 'write', refuse)
+            with pytest.raises(LaunchContractError, match='JOURNAL_DURABILITY_UNCERTAIN'):
+                budget.consume('one', b'xyz')
+            monkeypatch.undo()
+        elif fault == 'identity':
+            root.chmod(0o755)
+            with pytest.raises(LaunchContractError, match='JOURNAL_DIRECTORY_IDENTITY'):
+                budget.consume('one', b'xyz')
+            root.chmod(0o700)
+        if fault != 'crash':
+            assert budget.failed and budget.uncertain_received_bytes == 3
+    with DurableBudget(root, '2' * 64, max_bytes=10) as reopened:
+        assert reopened.in_flight == 'one' and reopened.reserved == 10
+        assert reopened.received == 0  # no invented receipt bytes
+        for action in (lambda: reopened.complete('one'),
+                       lambda: reopened.next_read_limit(1),
+                       lambda: reopened.reserve('two', 1, started_monotonic=10)):
+            with pytest.raises(LaunchContractError, match='UNCERTAIN_REQUEST_HELD'):
+                action()
+        assert reopened.reserved == 10 and reopened.in_flight == 'one'
+    with DurableBudget(root, '2' * 64, max_bytes=10) as again:
+        assert again.reserved == 10 and again.in_flight == 'one'
