@@ -1,5 +1,18 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Opus review of R2 candidate 328d164 — CHANGES_REQUIRED; repair 599dfd1 pending review — 2026-10-01 UTC
+
+The sentinel in `328d164` covers only capacity-cap refusals. On the exact commit,
+a zero-byte write error, an identity fault, or a crash after delivery still lets
+a reopened `DurableBudget` `complete()`/refund the uncertain reservation, which
+design section 5 forbids. Repair candidate `599dfd1` refuses reads and completion
+on any reservation inherited at open. Its regression fails on `328d164` and
+passes on `599dfd1`; Gate 3 family 312 passed. It is unmerged until a
+different-model review. [Review](V11_R09_GATE3_V4_SLICE1_R2_REVIEW_328d164.md);
+detail in [checkpoint](V11_WORK_CHECKPOINT.md). R09 Gate 3 V4 slice-1 remains
+OPEN. No status or C/J/E/A credit changed: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Coordinator inspection — V4 R1-R6 repair candidate R2 incomplete — 2026-10-01 09:05 UTC
 
 Routed Sol/high repair `f31305e` (worktree

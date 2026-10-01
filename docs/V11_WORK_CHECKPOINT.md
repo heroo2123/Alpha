@@ -1,5 +1,39 @@
 # Alpha V11 work checkpoint
 
+## Opus exact-commit review of R2 candidate 328d164 — CHANGES_REQUIRED; repair candidate 599dfd1 — 2026-10-01 UTC
+
+Routed OPUS_HIGH after Astra/high hit a provider cooldown. Main was clean at
+`7ba0199`, matching its tracking ref. No other Gate 3 worker was running. Reviewed
+exact commit `328d164` (Sonnet writer) against R2 and transport runtime design
+section 5 ("do not add a recovery path that calls `complete()` on an old
+incomplete reservation"). **CHANGES_REQUIRED.** The `gate3.held` sentinel covers
+only the capacity-cap refusal. An independent probe on the exact commit shows
+that a zero-byte journal write error (synthetic ENOSPC), or a directory identity
+fault during `consume()`, leaves 3 uncertain bytes in-process with no marker.
+After reopen, `complete()` then refunds the reservation (10 -> 0). A crash after
+delivery reaches the same state with no handler at all.
+[Review](V11_R09_GATE3_V4_SLICE1_R2_REVIEW_328d164.md),
+[probe](V11_R09_GATE3_V4_SLICE1_R2_REVIEW_328d164_probes.py).
+
+Wrote narrow repair candidate `599dfd1`
+(`599dfd132b905a29515e1a4f79ef93086884c5b6`, tree `a4d716d4`, parent `328d164`,
+same isolated worktree, 2 files, +51 lines). It refuses `next_read_limit()`
+and `complete()` on any reservation already in flight when the `DurableBudget`
+opened. The new 3-case regression fails on `328d164` and passes on `599dfd1`.
+Launch + launch_v4 **99 passed**. Gate 3 family **312 passed** (2 pre-existing
+fork warnings). `merge-tree 7ba0199 599dfd1` is clean (tree `8707f346`). Not
+merged: Opus wrote it, so it needs a different-model review.
+
+Read-only recovery: master hash matches the pin. Scanner inactive, execution
+service masked. Disk 3.9 GiB free. V10/AxiomTrade untouched. No C/J/E/A boundary
+crossed: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
+Next unfinished action: a different-model (Sonnet/high or Astra/high, not Opus)
+exact-commit review of `f31305e..599dfd1` (R2 as a whole) in
+`/home/alphaadmin/AlphaV11_Gate3V4Slice1/Alpha`. Merge `599dfd1` into main only
+on a clean PASS and a clean newer-main merge-tree. Do not start slice 2 before
+then.
+
 ## Coordinator (Sonnet) R2 cross-restart repair — candidate, not merged — 2026-10-01 09:40 UTC
 
 Main was clean at `e6bcaa8`, matching its tracking ref. Confirmed no
