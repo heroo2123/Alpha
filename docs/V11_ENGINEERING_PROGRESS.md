@@ -1,5 +1,14 @@
 # Supplementary engineering estimate
 
+## Coordinator recovery — V4 repair route — 2026-10-01 01:02 UTC
+
+No V4 slice-1 repair is active or committed beyond rejected `6e4c95b`.
+Sonnet/high is session limited after three failed route attempts; route Sol/high
+for reviewed R1–R6 repair in the same isolated worktree. Fresh tests and
+different-model exact-commit review remain required before integration. No
+forward SHADOW sample, operational authority, or C/J/E/A credit was added:
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Gate 3 V4 slice-1 independent review complete — CHANGES_REQUIRED — 2026-10-01
 
 Astra/high reviewed exact candidate `6e4c95b` / tree `afc73013` against the

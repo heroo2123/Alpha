@@ -1,5 +1,14 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Coordinator recovery — V4 repair route — 2026-10-01 01:02 UTC
+
+The six P2 findings in the exact-candidate review below remain open. Candidate
+`6e4c95b` has no newer repair commit or active worker. Sonnet/high reached its
+session limit on three consecutive route attempts; route Sol/high failover for
+R1–R6 in the existing isolated worktree, then require a different-model review.
+No requirement status or C/J/E/A credit changed: **91/200 (45.5%), formal
+1/50; NOT_READY_TO_FUND**.
+
 ## Gate 3 V4 slice-1 independent review complete — CHANGES_REQUIRED — 2026-10-01
 
 Astra/high reviewed exact candidate `6e4c95b` / tree `afc73013` against the

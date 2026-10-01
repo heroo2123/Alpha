@@ -1,5 +1,26 @@
 # Alpha V11 work checkpoint
 
+## Coordinator recovery and V4 repair failover — 2026-10-01 01:02 UTC
+
+Main was clean at `2be42dc`, two commits ahead of its tracking ref, before
+this documentary update. The
+rejected V4 slice-1 candidate is unchanged and clean at `6e4c95b` in its
+isolated worktree; no repair worker or newer forward SHADOW evidence exists.
+The latest commissioning writes are watchdog/manager statuses only. Three
+consecutive Sonnet/high route attempts ended at its session limit without
+starting a repair. Route **Sol/high** for the six reviewed P2 repairs R1–R6
+in that same worktree, preserving the candidate and appending commits. Require
+focused tests, fresh different-model exact-commit review, and newer-main
+reconciliation before integration. Do not start V4 slice 2.
+
+The private FINAL-REVIEWED master matches its SHA-256 pin. Protected model
+authority is absent; no PAPER scanner process or provider capture is running.
+Held SHADOW `15e99bd` is clean;
+accepted release `6ec371e` remains an ancestor. Disk has about 3.9 GiB free
+and memory about 1.0 GiB available. V10 and AxiomTrade were untouched. No
+C/J/E/A boundary crossed: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Gate 3 V4 slice-1 independent review complete — CHANGES_REQUIRED — 2026-10-01
 
 Astra/high reviewed exact candidate `6e4c95b` / tree `afc73013` against the
