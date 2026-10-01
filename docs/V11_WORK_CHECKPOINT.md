@@ -1,5 +1,41 @@
 # Alpha V11 work checkpoint
 
+## Exact slice-3 review failed; H1–H6 repair running — 2026-10-01 17:08 UTC
+
+Recovered the completed independent Astra/high exact-commit review of
+`6515233` (tree `df3a8372`): terminal and report agree on
+**CHANGES_REQUIRED**. The reviewer reran 447 Gate 3 family tests and 16
+independent probes; ten probes reproduce six blocking defects H1–H6:
+manifest clock-age widening, lost known denials/eager bytes on error paths,
+direct-constructor precedence bypass, missing manifest-requested events in
+COMPLETE reports, clean same-boot continuation refused, and omitted known
+refusal reasons. Report and terminal are at
+`/tmp/alpha-v11-slice3-review-6515233.md` and
+`/tmp/alpha-v11-slice3-review-6515233.terminal.json`. Candidate remains
+clean and unmerged. Main is clean at `e2c8ad7`, 37 commits ahead of tracking.
+
+After confirming no prior repair writer remained, launched one persistent
+Sol/high H1–H6 worker in the existing clean isolated repair worktree at
+`6515233`: runner PID `1772979`, Codex children `1772984`/`1772991`.
+Prompt, runner, PID, log, last answer and terminal use prefix
+`/tmp/alpha-v11-slice3-h1h6-sol-20261001`. Its terminal will mark either
+`GATE3_SLICE3_H1H6_READY_FOR_REVIEW` for a clean new commit or
+`GATE3_SLICE3_H1H6_BLOCKED`. Preserve unfinished bytes; recover actual
+process/worktree/terminal before any next action. Require fresh different-model
+exact-commit review and newer-main reconciliation before integration.
+
+The October 1 14:00 UTC start has passed without G3-L PASS. G3-L remains
+**NO-GO**, with 77 missing pre-review identities; no provider request or
+forward SHADOW sample occurred. Scanner/controller/execution were passively
+observed inactive and scanner disabled; protected authority paths absent.
+The private FINAL-REVIEWED master still matches pinned SHA-256
+`a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+Root free space is about 1.9 GiB, available RAM about 1.0 GiB plus 1.7 GiB
+free swap; these do not qualify launch. No V10, AxiomTrade, service,
+authority, financial, publication or private-master change was made. No
+C/J/E/A boundary crossed: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Slice-3 G1–G4 candidate completed; exact review running — 2026-10-01 15:41 UTC
 
 Recovered the sole Sol/high writer's completed terminal. Its isolated worktree

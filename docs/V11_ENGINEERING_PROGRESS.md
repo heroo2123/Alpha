@@ -1,5 +1,15 @@
 # Supplementary engineering estimate
 
+## Slice-3 exact review and repair handoff — 2026-10-01 17:08 UTC
+
+Independent Astra/high review of clean candidate `6515233` completed
+**CHANGES_REQUIRED**: H1–H6 remain after 447 passing family tests and 16
+independent probes, including ten defect reproductions. The candidate stays
+unmerged. One persistent Sol/high worker is repairing those findings in the
+same isolated worktree. Fresh exact-commit review and newer-main reconciliation
+remain required. G3-L is NO-GO; no provider request or forward sample.
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND** unchanged.
+
 ## G1–G4 author candidate sent for independent review — 2026-10-01 15:41 UTC
 
 The sole repair writer completed clean candidate 6515233 (tree

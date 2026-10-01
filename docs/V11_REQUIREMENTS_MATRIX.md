@@ -1,5 +1,15 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Slice-3 exact review requires repair — 2026-10-01 17:08 UTC
+
+Independent Astra/high exact review of `6515233` returned
+**CHANGES_REQUIRED** with six blocking findings H1–H6; 447 family tests
+passed and ten of 16 independent probes reproduced defects. The candidate
+is unmerged. One Sol/high worker is repairing H1–H6 in the same isolated
+worktree. G3-L remains NO-GO with 77 missing pre-review identities and no
+forward sample. No C/J/E/A boundary crossed: **91/200 (45.5%), formal
+1/50; NOT_READY_TO_FUND**.
+
 ## Slice-3 candidate under independent exact review — 2026-10-01 15:41 UTC
 
 The G1–G4 repair is a clean author candidate 6515233 (tree df3a8372);
