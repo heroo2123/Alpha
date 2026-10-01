@@ -1,5 +1,15 @@
 # Supplementary engineering estimate
 
+## Coordinator recovery and Gate 3 slice-1 route — 2026-10-01 00:19 UTC
+
+Main and its tracking ref match at `3d3aeb6`. The reviewed Gate 3 design is
+ready only for bounded offline implementation; no worker is active. The next
+slice is V4 schema/frozen purpose planning and bounded `DurableBudget` replay,
+then independent exact-commit review before integration. The release fix
+`6ec371e` remains in main, protected authority is absent, and commissioning
+has no new forward sample. No C/J/E/A credit: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Gate 3 transport/runtime design independently reviewed — PASS design-only — 2026-10-01 00:16 UTC
 
 Sonnet/high completed the independent exact-commit review the prior design

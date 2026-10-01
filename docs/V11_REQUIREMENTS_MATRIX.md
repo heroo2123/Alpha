@@ -1,5 +1,13 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Coordinator recovery and Gate 3 slice-1 route — 2026-10-01 00:19 UTC
+
+R09 Gate 3 design `7e132a0` has independent `PASS_DESIGN_ONLY` at main
+`3d3aeb6`; implementation remains OPEN. Route strict V4 schema/frozen purpose
+plan and bounded budget replay as the first offline isolated slice, followed by
+different-model exact-commit review. No forward SHADOW sample or operational
+authority was added. **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Gate 3 transport/runtime design independently reviewed — PASS design-only — 2026-10-01 00:16 UTC
 
 Routed Sonnet/high independently reviewed the Astra/high design at exact
