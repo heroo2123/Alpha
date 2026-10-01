@@ -1,5 +1,17 @@
 # Supplementary engineering estimate
 
+## Two Gate 3 candidates completed, pending independent review — 2026-10-01 12:02 UTC
+
+Recovered the clean isolated provider-mapping candidate `15f054f` and
+its successful terminal. Coordinator rerun: 39/39 focused tests passed.
+The separate slice-3 candidate `8e446fd` also completed cleanly; its
+coordinator focused rerun passed 36/36. Both need separate different-model
+exact-commit reviews and combined newer-main reconciliation. Neither
+candidate is integrated; provider/source and launch evidence remain
+incomplete, and G3-L is NO-GO. No C/J/E/A boundary crossed:
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
+
 ## Gate 3 restriction chronology recorded — 2026-10-01 11:50 UTC
 
 Pinned the preserved ECMWF 503/429 and subsequent 200 chronology in the

@@ -1,5 +1,20 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Two Gate 3 candidates awaiting separate review — 2026-10-01 12:02 UTC
+
+The isolated V4 typed-path candidate `15f054f` is complete, clean and
+unmerged. Its author reported 39 focused and 375 Gate 3 family passes;
+the coordinator independently reran the focused suite at that commit
+(39 passed). The separate synthetic runtime candidate `8e446fd` also
+finished cleanly; its author reported 36 focused and 400 Gate 3 family
+passes, and the coordinator independently reran its focused suite (36
+passed). Each branch requires its own different-model exact-commit review,
+then combined newer-main reconciliation. Real source/decoder/clock/storage
+evidence and G3-L remain open. No provider request or forward SHADOW evidence
+was added. No C/J/E/A change: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
+
 ## Gate 3 restriction chronology inventoried — 2026-10-01 11:50 UTC
 
 The [offline ECMWF lineage inventory](V11_GATE3_ECMWF_RESTRICTION_LINEAGE_20261001.md)

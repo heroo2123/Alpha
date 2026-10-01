@@ -1,5 +1,45 @@
 # Alpha V11 work checkpoint
 
+## Two Gate 3 candidates recovered; separate exact-commit reviews next — 2026-10-01 12:02 UTC
+
+Recovered main clean at `62c7eec`, eleven local commits ahead of its tracking
+ref. The provider-mapping worker exited normally with terminal marker
+`GATE3_MAPPING_CANDIDATE_READY` and committed `15f054f` (base `f5f6cde`) in
+its clean isolated worktree. Its three-file diff changes only the V4 path
+validator, its tests, and a candidate handoff. The author reported 39 focused
+and 375 Gate 3 family passes; an independent coordinator rerun of the exact
+candidate's focused suite passed **39/39**. `git diff f5f6cde..15f054f
+--check` is clean. This is **not accepted or merged**: obtain a different-model
+exact-commit review of `f5f6cde..15f054f` against the V4 design, the actual
+GEFS/ECMWF adapters and the launch-readiness audit, then reconcile with newer
+main. Pay particular attention to whether typed component counts constrain
+the actual path structure, ECMWF shared-object identity, and the explicitly
+unevidenced S3/object/metadata/probe endpoints. Do not infer real-source or
+G3-L qualification from synthetic tests.
+
+The separate slice-3 worker then exited normally with terminal marker
+`GATE3_SLICE3_CANDIDATE_READY`, committing `8e446fd` (base `9c3e748`)
+in its clean isolated worktree. The candidate adds an injected synthetic
+runtime and tests, plus its own branch-local handoff; it does not change
+previously accepted Gate 3 modules. The author reported 36 focused and
+400 Gate 3 family passes; the coordinator independently reran the exact
+candidate's focused suite (**36/36**), and its diff check is clean. It too
+is **not accepted or merged**. Give it a separate different-model exact-commit
+review against the V4 runtime design, especially the two documented scope
+interpretations, durable journal ordering, denial-before-body behavior,
+clock/deadline arithmetic and full-denominator report. The candidates need
+separate verdicts, then combined newer-main reconciliation before integration.
+
+SHADOW commissioning has no newly modified files since the prior checkpoint.
+PAPER scanner and V11 controller are
+inactive; scanner disabled; protected model-authority paths are absent. The
+private FINAL-REVIEWED master still matches its pinned SHA-256. Free disk is
+3.7 GiB; available memory about 643 MiB plus 1.4 GiB free swap. No provider
+request, preflight, G3-L, SHADOW collection, service action, V10 or AxiomTrade
+action was performed. G3-L remains **NO-GO**; no C/J/E/A boundary crossed:
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
+
 ## Post-inventory worker transition — 2026-10-01 after 11:50 UTC
 
 After committing the restriction inventory as `3b37c11`, a fresh worktree
