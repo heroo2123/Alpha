@@ -8,11 +8,11 @@ per docs/V11_R09_GATE3_TRANSPORT_RUNTIME_DESIGN.md sections 4-7.
 """
 import contextlib
 import hashlib
-from dataclasses import asdict
+from dataclasses import asdict, replace
 
 import pytest
 
-from tools.v11_r09_gate3_launch import DurableBudget, LaunchContractError
+from tools.v11_r09_gate3_launch import DurableBudget, LaunchContractError, parse_canonical
 from tools.v11_multimodel_panel import canonical
 from tools.v11_r09_gate3_ledgers import SessionLedger, SharedLedger
 from tools.v11_r09_gate3_launch_v4 import validate_manifest_v4
@@ -119,7 +119,7 @@ def _frozen_plan(requests, window=None, events=()):
         'event_schedule_sha256': hashlib.sha256(
             canonical([asdict(e) for e in events])).hexdigest()})
     return FrozenPlan(MANIFEST, hashlib.sha256(raw).hexdigest(), window,
-                      requests, raw, events)
+                      requests, raw, events, synthetic_fixture=True)
 
 
 def _ok_response(body=b'0123456789012345678901234567890', etag=ETAG, status=200,
@@ -817,10 +817,12 @@ def test_reviewed_plan_bytes_bind_exact_schedule_and_window():
     plan = _frozen_plan((_request(),))
     with pytest.raises(LaunchContractError, match='RUNTIME_PLAN_REVIEW_MISMATCH'):
         FrozenPlan(MANIFEST, plan.review_sha256, _window(),
-                   (_request(path='/substituted'),), plan.review_raw)
+                   (_request(path='/substituted'),), plan.review_raw,
+                   synthetic_fixture=True)
     with pytest.raises(LaunchContractError, match='RUNTIME_PLAN_REVIEW_EVIDENCE'):
         FrozenPlan(MANIFEST, plan.review_sha256, _window(),
-                   (_request(),), plan.review_raw + b' ')
+                   (_request(),), plan.review_raw + b' ',
+                   synthetic_fixture=True)
 
 
 def test_frozen_prerequisite_receipt_graph_and_report(tmp_path):
@@ -1472,6 +1474,15 @@ def test_sparse_report_reserve_reopen_establishes_physical_allocation(tmp_path):
 def test_frozen_plan_derives_from_validated_v4_manifest_bytes(tmp_path, monkeypatch):
     from tests.test_v11_r09_gate3_launch_v4 import candidate
     payload, repo, root, start = candidate(tmp_path, monkeypatch)
+    precedence = ('PREREQUISITE', 'CLOCK', 'RESOURCE', 'DENIAL',
+                  'VALIDATION', 'SUCCESS', 'UNSCHEDULED')
+    precedence_raw = canonical(precedence)
+    precedence_sha = hashlib.sha256(precedence_raw).hexdigest()
+    (root / 'objects' / precedence_sha).write_bytes(precedence_raw)
+    (root / 'objects' / precedence_sha).chmod(0o600)
+    payload['accounting']['terminal_precedence'] = {
+        'sha256': precedence_sha, 'byte_length': len(precedence_raw),
+        'media_type': 'application/octet-stream'}
     raw = canonical(payload)
     manifest_sha256 = validate_manifest_v4(raw, repo=repo, object_root=root,
                                            now_utc=start - 4000)
@@ -1479,8 +1490,6 @@ def test_frozen_plan_derives_from_validated_v4_manifest_bytes(tmp_path, monkeypa
     schedule_requests = payload['schedule']['requests']
     ids = [item['request_id'] for item in schedule_requests]
     request_pins = {rid: {'expected_etag': ETAG, 'expected_object_bytes': None,
-        'source_pin': 'e' * 64, 'decoder_pin': 'f' * 64,
-        'clock_policy_sha256': '1' * 64, 'validator_sha256': None,
         'dependency_commit_hashes': ()} for rid in ids}
     expected_requests = []
     for item in schedule_requests:
@@ -1497,22 +1506,38 @@ def test_frozen_plan_derives_from_validated_v4_manifest_bytes(tmp_path, monkeypa
             reservation_bytes=item['reservation_bytes'],
             expected_etag=pins['expected_etag'],
             expected_object_bytes=pins['expected_object_bytes'],
-            source_pin=pins['source_pin'], decoder_pin=pins['decoder_pin'],
-            clock_policy_sha256=pins['clock_policy_sha256'],
-            validator_sha256=pins['validator_sha256'],
+            source_pin=payload['sources'][item['provider']]['dossier']['sha256'],
+            decoder_pin=payload['sources'][item['provider']]['decoder_build']['sha256'],
+            clock_policy_sha256=payload['runtime']['clock_policy']['sha256'],
+            validator_sha256=endpoint['parser_identity']['sha256'],
             dependency_commit_hashes=pins['dependency_commit_hashes'],
             prerequisite_request_ids=tuple(ids[i] for i in item['prerequisites'])))
-    window = _window(start_utc=0, acquisition_end_utc=2_000_000_000,
-                     decision_lower_utc=2_000_000_001)
-    review_raw = canonical({'schema_version': 1, 'manifest_sha256': manifest_sha256,
+    window = AbsoluteWindow(payload['time']['window_start_utc'],
+        payload['time']['last_acquisition_utc'], payload['time']['decision_lower_utc'],
+        payload['limits']['request_deadline_seconds'],
+        payload['limits']['max_elapsed_seconds'], payload['time']['uncertainty_seconds'])
+    runtime_context_raw = canonical({
+        'manifest_runtime_sha256': hashlib.sha256(canonical(payload['runtime'])).hexdigest(),
+        'boot_id': BOOT, 'shared_root': [1, 1], 'session_root': [1, 2],
+        'budget_root': [1, 3], 'store_descriptor': '2' * 64,
+        'report_root': [1, 4],
+        'store_policy': payload['runtime']['policy']['sha256'],
+        'clock_method': 'synthetic', 'allowed_peer_ips': ['8.8.8.8']})
+    extras = {rid: request_pins[rid] for rid in ids}
+    review_raw = canonical({'schema_version': 2, 'manifest_sha256': manifest_sha256,
         'window_sha256': hashlib.sha256(canonical(asdict(window))).hexdigest(),
         'request_schedule_sha256': hashlib.sha256(
             canonical([asdict(r) for r in expected_requests])).hexdigest(),
-        'event_schedule_sha256': hashlib.sha256(canonical([])).hexdigest()})
+        'event_schedule_sha256': hashlib.sha256(canonical([])).hexdigest(),
+        'supplemental_pins_sha256': hashlib.sha256(canonical(extras)).hexdigest(),
+        'terminal_precedence_sha256': hashlib.sha256(canonical(precedence)).hexdigest(),
+        'runtime_context_sha256': hashlib.sha256(runtime_context_raw).hexdigest()})
     review_sha256 = hashlib.sha256(review_raw).hexdigest()
     plan = FrozenPlan.from_validated_manifest(raw, repo=repo, object_root=root,
         now_utc=start - 4000, window=window, review_sha256=review_sha256,
-        review_raw=review_raw, request_pins=request_pins)
+        review_raw=review_raw, request_pins=request_pins,
+        runtime_context_raw=runtime_context_raw,
+        terminal_precedence=precedence)
     assert plan.manifest_sha256 == manifest_sha256
     assert [r.request_id for r in plan.requests] == ids
     assert plan.requests == tuple(expected_requests)
@@ -1522,3 +1547,168 @@ def test_frozen_plan_derives_from_validated_v4_manifest_bytes(tmp_path, monkeypa
     prereq_purposes = {r.purpose for r in plan.requests
                        if r.request_id in field.prerequisite_request_ids}
     assert prereq_purposes == {'INDEX', 'OBJECT_ID', 'METADATA'}
+    with pytest.raises(LaunchContractError, match='RUNTIME_PLAN_REVIEW_MISMATCH'):
+        replace(plan, runtime_context_raw=canonical({**parse_canonical(
+            runtime_context_raw), 'clock_method': 'changed'}))
+    with pytest.raises(LaunchContractError, match='RUNTIME_MANIFEST_WINDOW_MISMATCH'):
+        FrozenPlan.from_validated_manifest(raw, repo=repo, object_root=root,
+            now_utc=start - 4000, window=_window(), review_sha256=review_sha256,
+            review_raw=review_raw, request_pins=request_pins,
+            runtime_context_raw=runtime_context_raw,
+            terminal_precedence=precedence)
+    bad_pins = {rid: dict(pins) for rid, pins in request_pins.items()}
+    bad_pins[ids[0]]['clock_policy_sha256'] = '1' * 64
+    with pytest.raises(LaunchContractError, match='RUNTIME_PLAN_PIN_SCHEMA'):
+        FrozenPlan.from_validated_manifest(raw, repo=repo, object_root=root,
+            now_utc=start - 4000, review_sha256=review_sha256,
+            review_raw=review_raw, request_pins=bad_pins,
+            runtime_context_raw=runtime_context_raw,
+            terminal_precedence=precedence)
+
+
+def test_unvalidated_plan_cannot_enter_runtime(tmp_path):
+    request = _request(purpose='FIELD', provider='GEFS', slot_index=0,
+                       reservation_bytes=4)
+    fixture = _frozen_plan((request,))
+    with pytest.raises(LaunchContractError, match='RUNTIME_VALIDATED_MANIFEST_REQUIRED'):
+        FrozenPlan(fixture.manifest_sha256, fixture.review_sha256,
+                   fixture.window, fixture.requests, fixture.review_raw)
+    class OtherTransport(Transport):
+        def dispatch(self, request, *, deadline_monotonic, remaining_seconds):
+            raise AssertionError('must not dispatch')
+    _dirs(tmp_path)
+    with _acquire(tmp_path) as (shared, session, budget, store):
+        with pytest.raises(LaunchContractError, match='RUNTIME_SYNTHETIC_FIXTURE_ONLY'):
+            GateRuntime(shared=shared, session=session, budget=budget,
+                store=store, transport=OtherTransport(), clock=_clock(),
+                resources=_resources(), window=fixture.window,
+                allowed_peer_ips=('8.8.8.8',), manifest_sha256=MANIFEST,
+                plan=fixture, expected_plan_sha256=fixture.sha256,
+                report_sink=None)
+
+
+@pytest.mark.parametrize('bad_header', [False, True])
+def test_invalid_receipt_clock_retains_denial_and_eager_bytes(tmp_path, bad_header):
+    _dirs(tmp_path)
+    clock = _clock()
+    class BadClockTransport(SyntheticTransport):
+        def dispatch(self, request, **kwargs):
+            clock.set(uncertainty=2)
+            return super().dispatch(request, **kwargs)
+    headers = (('Retry-After', '1200'),)
+    if bad_header:
+        headers += (('ETag', '"duplicate"'),)
+    response = _ok_response(b'abcd', status=503, headers=headers)
+    with _acquire(tmp_path) as (shared, session, budget, store):
+        runtime = _runtime(shared, session, budget, store,
+            SyntheticExchange({'req-1': response}), clock=clock)
+        runtime.transport = BadClockTransport(runtime.transport._exchange)
+        with pytest.raises(LaunchContractError, match=(
+            'RUNTIME_DUPLICATE_HEADER' if bad_header else
+            'RUNTIME_CLOCK_UNCERTAINTY_EXCEEDED')):
+            runtime.run_attempt(_request(reservation_bytes=4))
+        assert budget.received == 4 and budget.in_flight == 'req-1'
+        assert shared.open_intent is not None
+        assert shared.denials['d' * 64]['status'] == '503'
+
+
+def test_header_error_retains_other_retry_after_and_overflow_is_unresolved(tmp_path):
+    for index, (status, headers, expected) in enumerate((
+        (200, (('Retry-After', '1200'), ('ETag', '"duplicate"')), 'OTHER'),
+        (503, (('Retry-After', '9' * 400),), '503'))):
+        root = tmp_path / str(index)
+        root.mkdir(mode=0o700)
+        _dirs(root)
+        response = _ok_response(b'abcd', status=status, headers=headers)
+        with _acquire(root) as (shared, session, budget, store):
+            runtime = _runtime(shared, session, budget, store,
+                               SyntheticExchange({'req-1': response}))
+            with pytest.raises(LaunchContractError):
+                runtime.run_attempt(_request(reservation_bytes=4))
+            assert budget.received == 4 and budget.in_flight == 'req-1'
+            denial = shared.denials['d' * 64]
+            assert denial['status'] == expected
+            assert denial['cooldown_until'] is None if index else denial['cooldown_until'] >= 1000
+
+
+def test_report_uses_reserved_ids_and_frozen_all_reason_precedence(tmp_path):
+    _dirs(tmp_path)
+    requests = (_request(), _request(request_id='req-2', purpose='FIELD',
+        provider='GEFS', slot_index=0, range_start=0, range_end=3,
+        expected_object_bytes=4, reservation_bytes=4,
+        prerequisite_request_ids=('req-1',)))
+    with _acquire(tmp_path) as (shared, session, budget, store):
+        runtime = _runtime(shared, session, budget, store,
+            SyntheticExchange({}), clock=_clock(utc=-1, mono=10), requests=requests)
+        assert runtime.run_attempt(requests[0])['outcome'] == 'REFUSED'
+        assert runtime.run_attempt(requests[1])['outcome'] == 'REFUSED'
+        report = build_terminal_report(plan=runtime.plan, session=session,
+            budget=budget, shared=shared, store=store)
+        row = report['rows'][0]
+        assert row['reason'] == 'RUNTIME_PREREQUISITE_MISSING'
+        assert {'RUNTIME_PREREQUISITE_MISSING',
+                'RUNTIME_CLOCK_BEFORE_WINDOW_START'} <= set(row['reasons'])
+        assert report['terminal_precedence'][0] == 'PREREQUISITE'
+        assert report['attempted_request_ids'] == []
+        assert report['refused_request_ids'] == ['req-1', 'req-2']
+        assert report['global_accounting']['attempted_count'] == 0
+
+
+def test_eager_many_chunks_uses_one_bounded_record_and_retains_all_bytes(tmp_path):
+    _dirs(tmp_path)
+    request = _request(reservation_bytes=64)
+    capacity = CapacityPlan.for_requests((request,))
+    response = _ok_response(b'a' * 64, chunks=(b'a',) * 64)
+    with _acquire(tmp_path) as (shared, session, budget, store):
+        runtime = _runtime(shared, session, budget, store,
+            SyntheticExchange({'req-1': response}), requests=(request,))
+        before = len(budget.events)
+        with pytest.raises(LaunchContractError, match='RUNTIME_CHUNK_COUNT_EXCEEDS_POLICY'):
+            runtime.run_attempt(request)
+        assert len(budget.events) - before <= capacity.budget_records
+        assert budget.received == 64 and budget.in_flight == 'req-1'
+        assert shared.open_intent is not None
+    assert capacity.disk_bytes >= (capacity.budget_records +
+        capacity.store_events + 20 + 4 + 4) * 65536 + REPORT_RESERVE_BYTES
+    with _acquire(tmp_path) as (shared, session, budget, store):
+        assert budget.received == 64 and budget.in_flight == 'req-1'
+        assert shared.open_intent is not None
+        with pytest.raises(LaunchContractError, match='UNCERTAIN_REQUEST_HELD'):
+            budget.next_read_limit(65536)
+
+
+def test_capacity_envelope_covers_normal_denial_violation_and_recovery(tmp_path):
+    responses = (
+        (_ok_response(b'abcd'), 4, False),
+        (_ok_response(b'abcd', status=503,
+                      headers=(('Retry-After', '1200'),)), 4, False),
+        (_ok_response(b'abcde'), 5, True),
+        (_ok_response(b'abcd', headers=(('ETag', '"duplicate"'),)), 4, True),
+    )
+    request = _request(reservation_bytes=4)
+    capacity = CapacityPlan.for_requests((request,))
+    for index, (response, known, held) in enumerate(responses):
+        root = tmp_path / str(index)
+        root.mkdir(mode=0o700)
+        _dirs(root)
+        with _acquire(root) as (shared, session, budget, store):
+            runtime = _runtime(shared, session, budget, store,
+                SyntheticExchange({'req-1': response}), requests=(request,))
+            before = len(budget.events)
+            if index == 3:
+                with pytest.raises(LaunchContractError, match='RUNTIME_DUPLICATE_HEADER'):
+                    runtime.run_attempt(request)
+            else:
+                runtime.run_attempt(request)
+            assert len(budget.events) - before <= capacity.budget_records
+            assert budget.received == known
+            assert (budget.in_flight is not None) == held
+
+
+def test_capacity_includes_nested_dependency_roots():
+    event = FrozenEvent('event-1', 'HIGH', 'GEFS',
+        tuple(f'field-{i}' for i in range(300)))
+    capacity = CapacityPlan.for_requests((_request(),), (event,))
+    assert capacity.aggregate_nodes == 3  # two leaves plus the root
+    assert capacity.store_events == 12
+    assert capacity.disk_bytes >= 3 * 2 * 4194304 + REPORT_RESERVE_BYTES

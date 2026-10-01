@@ -783,6 +783,12 @@ class SessionLedger(_HashChainJournal):
                 self.attempt['state'] = 'TERMINAL'
                 self.attempt['outcome'] = 'REFUSED'
                 self.attempt['reason'] = event['reason']
+                reasons = event.get('reasons', [event['reason']])
+                check(type(reasons) is list and reasons and
+                      all(type(value) is str and value for value in reasons) and
+                      len(set(reasons)) == len(reasons) and
+                      event['reason'] in reasons, 'SESSION_LEDGER_REFUSE_REASONS')
+                self.attempt['reasons'] = reasons
                 self.completed_count += 1
                 self.attempt_history[rid] = dict(self.attempt)
             elif op == 'elapsed_deadline_fixed':
@@ -950,12 +956,17 @@ class SessionLedger(_HashChainJournal):
                           'max_reservation_bytes': max_reservation_bytes})
             self._state()
 
-    def refuse(self, request_id, *, reason):
+    def refuse(self, request_id, *, reason, reasons=None):
         with self._guard():
             self._guard_attempt(request_id)
             check(self.attempt['state'] == 'OPEN', 'SESSION_LEDGER_BAD_TRANSITION')
             check(type(reason) is str and reason, 'SESSION_LEDGER_REFUSE_REASON')
-            self._append({'op': 'refuse', 'request_id': request_id, 'reason': reason})
+            reasons = [reason] if reasons is None else list(reasons)
+            check(reasons and len(set(reasons)) == len(reasons) and
+                  reason in reasons and all(type(value) is str and value
+                  for value in reasons), 'SESSION_LEDGER_REFUSE_REASONS')
+            self._append({'op': 'refuse', 'request_id': request_id,
+                          'reason': reason, 'reasons': reasons})
             self._state()
 
     def budget_reserved(self, request_id, *, reserve_event_hash):

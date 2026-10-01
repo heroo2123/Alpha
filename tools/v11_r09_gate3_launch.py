@@ -958,8 +958,11 @@ class DurableBudget:
                 if self.window_started is None:
                     self.window_started = event['started_monotonic']
                 self.last_started = event['started_monotonic']
-            elif op == 'chunk':
+            elif op in ('chunk', 'eager_delivery'):
                 check(self.in_flight == key, 'JOURNAL_CHUNK_WITHOUT_RESERVATION')
+                if op == 'eager_delivery':
+                    integer(event['bytes'], 1, 2 ** 63 - 1,
+                            'JOURNAL_EAGER_DELIVERY_BYTES')
                 self.attempts[key]['received'] += event['bytes']
                 self.received += event['bytes']
             elif op == 'complete':
@@ -1065,6 +1068,35 @@ class DurableBudget:
                 if not self.failed:
                     self._mark_delivery_held(key)
             raise
+
+    def record_eager_delivery(self, key, known_bytes):
+        """Durably charge bytes already delivered by an eager adapter in one
+        bounded record. This is accounting only; it grants no read allowance or
+        response validity. An excess becomes a violation and holds the run.
+        """
+        self._require_owner()
+        check(self.in_flight == key and type(known_bytes) is int and
+              0 < known_bytes <= 2 ** 63 - 1, 'EAGER_DELIVERY_SHAPE')
+        recorded = False
+        try:
+            self._healthy()
+            check(key != self.inherited_in_flight and not self.violated,
+                  'UNCERTAIN_REQUEST_HELD')
+            remaining = min(self.attempts[key]['reserved'] -
+                            self.attempts[key]['received'],
+                            self.max_bytes - self.received)
+            operation = 'eager_delivery' if known_bytes <= remaining else 'violation'
+            self._append({'op': operation, 'key': key, 'bytes': known_bytes})
+            recorded = True
+            self._state()
+        except BaseException:
+            if not recorded:
+                self.uncertain_received_bytes += known_bytes
+                self.received += known_bytes
+                if not self.failed:
+                    self._mark_delivery_held(key)
+            raise
+        return operation == 'violation'
 
     def complete(self, key):
         self._healthy()

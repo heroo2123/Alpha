@@ -1,13 +1,15 @@
 """Offline Gate 3 V4 slice-3 runtime and durable report composition.
 
 The injected transport, clock, and resource interfaces have synthetic fixtures
-only. Acquisition requires an exact reviewed frozen plan, a pinned expected
+only. Acquisition requires an exact validated V4 projection, a pinned expected
 plan digest, the four acquired journals, and a physically reserved report sink.
 The state machine binds request order, original clock evidence, denial history,
 known transport closure, budget accounting, store receipts, and bounded capture
 receipts. It does not grant provider access, G3-L, feature eligibility, or
-financial/SHADOW authority. Real source mapping, decoding, clock measurement,
-and network adapters require separate review.
+financial/SHADOW authority. A caller-supplied review digest or constructor
+value is data-integrity evidence, not external launch approval. Real source
+mapping, decoding, clock measurement, and network adapters require separate
+review.
 """
 from __future__ import annotations
 
@@ -260,9 +262,10 @@ class CapacityPlan:
     memory_bytes: int
     budget_records: int
     store_events: int
+    aggregate_nodes: int = 0
 
     @classmethod
-    def for_requests(cls, requests):
+    def for_requests(cls, requests, events=()):
         n = len(requests)
         body = sum(r.reservation_bytes for r in requests)
         # F7: a one-byte chunk is as admissible as a 64 KiB one on this
@@ -275,14 +278,30 @@ class CapacityPlan:
         # chunks and silently undercounts every smaller-chunked response).
         chunks = sum(min(r.reservation_bytes, MAX_BODY_CHUNKS_PER_REQUEST)
                      for r in requests)
-        # Object plus temporary copy, budget/three store/12 session/four
-        # shared records, a bounded descriptor, and the full report reserve.
+        # A tree with fanout 256 needs a bounded number of evidence nodes if
+        # requested events later require dependency aggregation. Reserve them
+        # even when this RAW-only slice never seals such a node.
+        aggregate_nodes = 0
+        for event in events:
+            width = len(event.field_request_ids)
+            aggregate_nodes += 1  # the event's root manifest
+            while width > 256:
+                width = (width + 255) // 256
+                aggregate_nodes += width
+        # Budget: reserve + at most 32 regular chunks + completion, or
+        # reserve + at most 32 regular chunks + one aggregate eager recovery
+        # or violation. Store: three records per RAW/object. Session: 20
+        # events per request. Shared: four. Four fixed journal/report closure
+        # records include initialization/finalization headroom on fresh and
+        # reopened roots. Objects include a temporary copy.
         records = chunks + 3 * n
-        disk = (2 * body + (records + 19 * n) * 65536 +
+        store_events = 3 * (n + aggregate_nodes)
+        disk = (2 * body + 2 * aggregate_nodes * 4194304 +
+                (records + store_events + 20 * n + 4 * n + 4) * 65536 +
                 REPORT_RESERVE_BYTES + 4096)
         memory = (max((r.reservation_bytes for r in requests), default=0) * 2 +
                   65536 * 4)
-        return cls(disk, memory, records, 3 * n)
+        return cls(disk, memory, records, store_events, aggregate_nodes)
 
 
 def _check_prospective_resources(probe, capacity):
@@ -320,7 +339,7 @@ class AbsoluteWindow:
         check(type(self.elapsed_cap_seconds) is int and
               0 < self.elapsed_cap_seconds <= 10800, 'RUNTIME_WINDOW_ELAPSED_CAP')
         check(type(self.uncertainty_cap_seconds) in (int, float) and
-              0 < self.uncertainty_cap_seconds <= 1, 'RUNTIME_WINDOW_UNCERTAINTY_CAP')
+              0 <= self.uncertainty_cap_seconds <= 1, 'RUNTIME_WINDOW_UNCERTAINTY_CAP')
 
 
 @dataclass(frozen=True)
@@ -424,10 +443,10 @@ class FrozenEvent:
 
 @dataclass(frozen=True)
 class FrozenPlan:
-    """Exact, ordered offline request schedule and independently pinned review.
+    """Exact ordered V4 projection with an explicit synthetic-fixture mode.
 
-    ``expected_sha256`` is supplied by the caller's reviewed artifact, separate
-    from this object. The runtime recomputes it and binds it to the session.
+    ``expected_sha256`` is supplied separately and recomputed by the runtime.
+    Neither that hash nor this Python object grants external launch authority.
     """
     manifest_sha256: str
     review_sha256: str
@@ -435,6 +454,14 @@ class FrozenPlan:
     requests: tuple[AttemptRequest, ...]
     review_raw: bytes
     events: tuple[FrozenEvent, ...] = ()
+    manifest_raw: bytes | None = None
+    validation_repo: Path | None = None
+    validation_object_root: Path | None = None
+    validation_now_utc: int | None = None
+    synthetic_fixture: bool = False
+    terminal_precedence: tuple[str, ...] = ('PREREQUISITE', 'CLOCK', 'RESOURCE',
+        'DENIAL', 'VALIDATION', 'SUCCESS', 'UNSCHEDULED')
+    runtime_context_raw: bytes | None = None
 
     def __post_init__(self):
         digest(self.manifest_sha256, 'RUNTIME_PLAN_MANIFEST')
@@ -446,6 +473,26 @@ class FrozenPlan:
         check(type(self.review_raw) is bytes and 0 < len(self.review_raw) <= 4096 and
               hashlib.sha256(self.review_raw).hexdigest() == self.review_sha256,
               'RUNTIME_PLAN_REVIEW_EVIDENCE')
+        check(type(self.synthetic_fixture) is bool and
+              type(self.terminal_precedence) is tuple and
+              set(self.terminal_precedence) == {'PREREQUISITE', 'CLOCK', 'RESOURCE',
+                  'DENIAL', 'VALIDATION', 'SUCCESS', 'UNSCHEDULED'} and
+              len(self.terminal_precedence) == 7,
+              'RUNTIME_TERMINAL_PRECEDENCE')
+        if not self.synthetic_fixture:
+            check(type(self.manifest_raw) is bytes and
+                  isinstance(self.validation_repo, Path) and
+                  isinstance(self.validation_object_root, Path) and
+                  type(self.validation_now_utc) in (int, float) and
+                  type(self.runtime_context_raw) is bytes and
+                  len(self.runtime_context_raw) <= 4096,
+                  'RUNTIME_VALIDATED_MANIFEST_REQUIRED')
+            self.verify_validated_projection()
+        else:
+            check(self.manifest_raw is None and self.validation_repo is None and
+                  self.validation_object_root is None and
+                  self.runtime_context_raw is None,
+                  'RUNTIME_SYNTHETIC_FIXTURE_ONLY')
         ids = [r.request_id for r in self.requests]
         check(len(set(ids)) == len(ids), 'RUNTIME_PLAN_REQUEST_REUSE')
         slots = [r.slot_index for r in self.requests
@@ -467,10 +514,13 @@ class FrozenPlan:
                   {requests_by_id[rid].provider for rid in event.field_request_ids},
                   'RUNTIME_EVENT_PRIMARY')
         review = parse_canonical(self.review_raw)
-        exact(review, ('schema_version', 'manifest_sha256', 'window_sha256',
-                       'request_schedule_sha256', 'event_schedule_sha256'),
-              'RUNTIME_PLAN_REVIEW_SCHEMA')
-        check(review['schema_version'] == 1 and
+        review_keys = ('schema_version', 'manifest_sha256', 'window_sha256',
+                       'request_schedule_sha256', 'event_schedule_sha256')
+        if not self.synthetic_fixture:
+            review_keys += ('supplemental_pins_sha256',
+                            'terminal_precedence_sha256', 'runtime_context_sha256')
+        exact(review, review_keys, 'RUNTIME_PLAN_REVIEW_SCHEMA')
+        check(review['schema_version'] == (1 if self.synthetic_fixture else 2) and
               review['manifest_sha256'] == self.manifest_sha256 and
               review['window_sha256'] ==
               hashlib.sha256(canonical(asdict(self.window))).hexdigest() and
@@ -479,6 +529,18 @@ class FrozenPlan:
               review['event_schedule_sha256'] ==
               hashlib.sha256(canonical([asdict(e) for e in self.events])).hexdigest(),
               'RUNTIME_PLAN_REVIEW_MISMATCH')
+        if not self.synthetic_fixture:
+            extras = {r.request_id: {'expected_etag': r.expected_etag,
+                'expected_object_bytes': r.expected_object_bytes,
+                'dependency_commit_hashes': r.dependency_commit_hashes}
+                for r in self.requests}
+            check(review['supplemental_pins_sha256'] ==
+                  hashlib.sha256(canonical(extras)).hexdigest() and
+                  review['terminal_precedence_sha256'] ==
+                  hashlib.sha256(canonical(self.terminal_precedence)).hexdigest() and
+                  review['runtime_context_sha256'] ==
+                  hashlib.sha256(self.runtime_context_raw).hexdigest(),
+                  'RUNTIME_PLAN_REVIEW_MISMATCH')
         prior_ids = set()
         for request in self.requests:
             check(len(set(request.dependency_commit_hashes)) ==
@@ -496,30 +558,108 @@ class FrozenPlan:
             'manifest': self.manifest_sha256, 'review': self.review_sha256,
             'window': asdict(self.window),
             'requests': [asdict(r) for r in self.requests],
-            'events': [asdict(e) for e in self.events]})).hexdigest()
+            'events': [asdict(e) for e in self.events],
+            'synthetic_fixture': self.synthetic_fixture,
+            'terminal_precedence': self.terminal_precedence,
+            'runtime_context_sha256': (None if self.runtime_context_raw is None else
+                hashlib.sha256(self.runtime_context_raw).hexdigest())})).hexdigest()
+
+    def verify_validated_projection(self):
+        """Revalidate the exact manifest at the runtime boundary as well as
+        at factory construction; a caller-built dataclass has no authority.
+        """
+        check(validate_manifest_v4(self.manifest_raw, repo=self.validation_repo,
+            object_root=self.validation_object_root,
+            now_utc=self.validation_now_utc) == self.manifest_sha256,
+            'RUNTIME_VALIDATED_MANIFEST_MISMATCH')
+        payload = parse_canonical(self.manifest_raw)
+        times, limits = payload['time'], payload['limits']
+        expected_window = AbsoluteWindow(times['window_start_utc'],
+            times['last_acquisition_utc'], times['decision_lower_utc'],
+            limits['request_deadline_seconds'], limits['max_elapsed_seconds'],
+            times['uncertainty_seconds'])
+        check(self.window == expected_window and
+              len(self.requests) == len(payload['schedule']['requests']),
+              'RUNTIME_MANIFEST_WINDOW_OR_SCHEDULE_MISMATCH')
+        ids = [item['request_id'] for item in payload['schedule']['requests']]
+        endpoints = {e['endpoint_id']: e for e in payload['network']['endpoints']}
+        for request, item in zip(self.requests, payload['schedule']['requests']):
+            endpoint = endpoints[item['endpoint_id']]
+            source = payload['sources'][item['provider']]
+            check((request.request_id, request.purpose, request.endpoint_id,
+                   request.control_domain_id, request.origin, request.path,
+                   request.provider, request.slot_index, request.range_start,
+                   request.range_end, request.reservation_bytes,
+                   request.prerequisite_request_ids) ==
+                  (item['request_id'], item['purpose'], item['endpoint_id'],
+                   endpoint['control_domain_id'], item['origin'], item['path'],
+                   item['provider'] if item['purpose'] == 'FIELD' else None,
+                   item['slot_index'], item['range_start'], item['range_end'],
+                   item['reservation_bytes'],
+                   tuple(ids[i] for i in item['prerequisites'])) and
+                  request.source_pin == source['dossier']['sha256'] and
+                  request.decoder_pin == source['decoder_build']['sha256'] and
+                  request.clock_policy_sha256 ==
+                  payload['runtime']['clock_policy']['sha256'] and
+                  request.validator_sha256 == endpoint['parser_identity']['sha256'],
+                  'RUNTIME_MANIFEST_REQUEST_PROJECTION')
+            check(payload['runs_and_slots']['slots'][request.slot_index][0] ==
+                  item['provider'], 'RUNTIME_MANIFEST_ORIGINAL_SLOT')
+        check({event.side for event in self.events} <=
+              set(payload['cohort']['events']), 'RUNTIME_MANIFEST_EVENT_COHORT')
+        context = parse_canonical(self.runtime_context_raw)
+        exact(context, ('manifest_runtime_sha256', 'boot_id', 'shared_root',
+            'session_root', 'budget_root', 'store_descriptor', 'report_root',
+            'store_policy', 'clock_method', 'allowed_peer_ips'),
+            'RUNTIME_CONTEXT_EVIDENCE_SCHEMA')
+        check(context['manifest_runtime_sha256'] ==
+              hashlib.sha256(canonical(payload['runtime'])).hexdigest() and
+              context['store_policy'] == payload['runtime']['policy']['sha256'] and
+              all(type(context[key]) is list and len(context[key]) == 2 and
+                  all(type(v) is int and v >= 0 for v in context[key])
+                  for key in ('shared_root', 'session_root', 'budget_root',
+                              'report_root')) and
+              type(context['allowed_peer_ips']) is list and
+              all(type(value) is str for value in context['allowed_peer_ips']),
+              'RUNTIME_CONTEXT_EVIDENCE_VALUE')
+        return payload
 
     @classmethod
     def from_validated_manifest(cls, manifest_raw, *, repo, object_root, now_utc,
-                                window, review_sha256, review_raw, request_pins,
-                                events=()):
+                                review_sha256, review_raw, request_pins,
+                                runtime_context_raw, events=(), window=None,
+                                terminal_precedence=None):
         """The one sanctioned way to build a production ``FrozenPlan``: every
         request is derived from the schedule/endpoint table of a manifest
         that has itself just passed the full, independent
         ``validate_manifest_v4`` review -- never from a caller-asserted
         schedule merely claiming to match some opaque manifest digest (F4).
 
-        ``request_pins`` supplies the handful of per-request fields this
-        module has never claimed to validate and that the V4 manifest schema
-        does not itself carry -- ``expected_etag``, ``expected_object_bytes``,
-        ``source_pin``, ``decoder_pin``, ``clock_policy_sha256``,
-        ``validator_sha256``, ``dependency_commit_hashes`` -- keyed by
-        ``request_id`` (source/decoder qualification and real networking
-        remain separate, explicit later work, exactly as this module's
-        docstring already states).
+        Source, decoder, parser and clock pins come from the validated V4
+        bytes. ``request_pins`` contains only expected ETag/object size and
+        external dependency commits; the review bytes bind that exact
+        supplemental map. These pins are evidence references, not source or
+        decoder qualification and not launch authority.
         """
         manifest_sha256 = validate_manifest_v4(manifest_raw, repo=repo,
             object_root=object_root, now_utc=now_utc)
         payload = parse_canonical(manifest_raw)
+        times, limits = payload['time'], payload['limits']
+        projected_window = AbsoluteWindow(times['window_start_utc'],
+            times['last_acquisition_utc'], times['decision_lower_utc'],
+            limits['request_deadline_seconds'], limits['max_elapsed_seconds'],
+            times['uncertainty_seconds'])
+        check(window is None or window == projected_window,
+              'RUNTIME_MANIFEST_WINDOW_MISMATCH')
+        window = projected_window
+        precedence = terminal_precedence
+        check(type(precedence) is tuple, 'RUNTIME_TERMINAL_PRECEDENCE_REQUIRED')
+        precedence_ref = payload['accounting']['terminal_precedence']
+        precedence_path = Path(object_root) / 'objects' / precedence_ref['sha256']
+        precedence_raw = precedence_path.read_bytes()
+        check(hashlib.sha256(precedence_raw).hexdigest() == precedence_ref['sha256'] and
+              parse_canonical(precedence_raw) == list(precedence),
+              'RUNTIME_TERMINAL_PRECEDENCE_EVIDENCE')
         schedule_requests = payload['schedule']['requests']
         endpoints_by_id = {e['endpoint_id']: e for e in payload['network']['endpoints']}
         ids = [item['request_id'] for item in schedule_requests]
@@ -532,9 +672,9 @@ class FrozenPlan:
                   endpoint['purpose'] == item['purpose'] and
                   endpoint['origin'] == item['origin'], 'RUNTIME_PLAN_ENDPOINT_BINDING')
             pins = request_pins[item['request_id']]
-            exact(pins, ('expected_etag', 'expected_object_bytes', 'source_pin',
-                         'decoder_pin', 'clock_policy_sha256', 'validator_sha256',
+            exact(pins, ('expected_etag', 'expected_object_bytes',
                          'dependency_commit_hashes'), 'RUNTIME_PLAN_PIN_SCHEMA')
+            source = payload['sources'][item['provider']]
             prerequisite_request_ids = tuple(ids[i] for i in item['prerequisites'])
             requests.append(AttemptRequest(
                 request_id=item['request_id'], purpose=item['purpose'],
@@ -547,22 +687,27 @@ class FrozenPlan:
                 reservation_bytes=item['reservation_bytes'],
                 expected_etag=pins['expected_etag'],
                 expected_object_bytes=pins['expected_object_bytes'],
-                source_pin=pins['source_pin'], decoder_pin=pins['decoder_pin'],
-                clock_policy_sha256=pins['clock_policy_sha256'],
-                validator_sha256=pins['validator_sha256'],
+                source_pin=source['dossier']['sha256'],
+                decoder_pin=source['decoder_build']['sha256'],
+                clock_policy_sha256=payload['runtime']['clock_policy']['sha256'],
+                validator_sha256=endpoint['parser_identity']['sha256'],
                 dependency_commit_hashes=pins['dependency_commit_hashes'],
                 prerequisite_request_ids=prerequisite_request_ids))
         return cls(manifest_sha256, review_sha256, window, tuple(requests),
-                  review_raw, events)
+                  review_raw, events, manifest_raw, Path(repo), Path(object_root),
+                  now_utc, False, precedence, runtime_context_raw)
 
 
-def _bounded_headers(response):
+def _bounded_headers(response, *, max_header_bytes=4096):
     check(type(response) is OfflineResponse and type(response.status) is int and
           type(response.headers) is tuple and len(response.headers) <= 32,
           'RUNTIME_HEADER_SHAPE')
     headers = {}
     size = 0
-    for key, value in response.headers:
+    for pair in response.headers:
+        check(type(pair) is tuple and len(pair) == 2,
+              'RUNTIME_HEADER_SHAPE')
+        key, value = pair
         check(type(key) is str and type(value) is str and key.isascii() and
               0 < len(key.encode()) <= 64 and len(value.encode()) <= 1024 and
               '\r' not in value and '\n' not in value,
@@ -571,10 +716,26 @@ def _bounded_headers(response):
         check(name not in headers, 'RUNTIME_DUPLICATE_HEADER')
         headers[name] = value
         size += len(key.encode()) + len(value.encode()) + 4
-    check(size <= 4096 and headers.get('transfer-encoding') is None and
+    check(size <= max_header_bytes and headers.get('transfer-encoding') is None and
           headers.get('content-encoding', 'identity').lower() == 'identity',
           'RUNTIME_HEADER_SHAPE')
     return headers
+
+
+def _observable_retry_after(response):
+    """Retain an unambiguous bounded restriction even if another header fails."""
+    values = []
+    if type(response.headers) is not tuple:
+        return {}
+    for pair in response.headers:
+        if (type(pair) is tuple and len(pair) == 2 and
+                type(pair[0]) is str and pair[0].lower() == 'retry-after'):
+            value = pair[1]
+            if (type(value) is str and value.isascii() and
+                    len(value.encode()) <= 1024 and '\r' not in value and
+                    '\n' not in value):
+                values.append(value)
+    return {'retry-after': values[0]} if len(values) == 1 else {}
 
 
 def _build_denial_record(status_str, response, *, window, receipt_evidence,
@@ -593,20 +754,21 @@ def _build_denial_record(status_str, response, *, window, receipt_evidence,
     retry_after_seconds = None
     evidence_sha256 = None
     evidence_raw_b64 = None
-    if evidence_missing_cause is None:
-        retry_raw = headers.get('retry-after')
-        if retry_raw is not None:
+    retry_raw = headers.get('retry-after')
+    if retry_raw is not None:
+        try:
             if retry_raw.isascii() and retry_raw.isdecimal():
-                retry_after_seconds = float(retry_raw)
+                candidate = float(retry_raw)
             else:
-                try:
-                    parsed = email.utils.parsedate_to_datetime(retry_raw)
-                    if parsed.tzinfo is not None:
-                        expiry = parsed.astimezone(datetime.timezone.utc).timestamp()
-                        retry_after_seconds = max(0.0, expiry -
-                            (receipt_reading.utc_seconds + receipt_reading.uncertainty_seconds))
-                except (TypeError, ValueError, OverflowError):
-                    pass
+                parsed = email.utils.parsedate_to_datetime(retry_raw)
+                candidate = (None if parsed.tzinfo is None else max(0.0,
+                    parsed.astimezone(datetime.timezone.utc).timestamp() -
+                    (receipt_reading.utc_seconds + receipt_reading.uncertainty_seconds)))
+            if candidate is not None and math.isfinite(candidate):
+                retry_after_seconds = candidate
+        except (TypeError, ValueError, OverflowError):
+            pass
+    if evidence_missing_cause is None:
         evidence_raw = canonical({'status': response.status, 'headers': list(response.headers)})
         evidence_sha256 = hashlib.sha256(evidence_raw).hexdigest()
         evidence_raw_b64 = base64.b64encode(evidence_raw).decode('ascii')
@@ -689,8 +851,49 @@ class GateRuntime:
         check(type(plan) is FrozenPlan and plan.sha256 == expected_plan_sha256 and
               plan.manifest_sha256 == manifest_sha256 and plan.window == window,
               'RUNTIME_FROZEN_PLAN_MISMATCH')
+        if plan.synthetic_fixture:
+            check(isinstance(transport, SyntheticTransport) and
+                  isinstance(clock, FakeClock),
+                  'RUNTIME_SYNTHETIC_FIXTURE_ONLY')
+            self.min_free_disk_bytes = MIN_FREE_DISK_BYTES
+            self.min_available_memory_bytes = MIN_AVAILABLE_MEMORY_BYTES
+            self.max_header_bytes = 4096
+        else:
+            payload = plan.verify_validated_projection()
+            limits = payload['limits']
+            self.min_free_disk_bytes = limits['min_free_disk_bytes']
+            self.min_available_memory_bytes = limits['min_available_memory_bytes']
+            self.max_header_bytes = limits['headers']
+            check(budget.max_requests == limits['max_requests'] and
+                  budget.max_bytes == limits['max_received_bytes'] and
+                  budget.max_elapsed_seconds == limits['max_elapsed_seconds'] and
+                  budget.min_start_interval_seconds ==
+                  limits['min_start_interval_seconds'] and
+                  session.max_requests == shared.max_requests == limits['max_requests'] and
+                  limits['report_storage'] == REPORT_RESERVE_BYTES and
+                  store.context['policy'] == payload['runtime']['policy']['sha256'],
+                  'RUNTIME_MANIFEST_ACCOUNTING_CONTEXT')
+            history_head = payload['runtime']['denial_root']['expected_history_head']
+            check((len(shared.events) == 1 if history_head == '0' * 64 else
+                   history_head in _journal_event_hashes(shared.events)),
+                  'RUNTIME_MANIFEST_DENIAL_LINEAGE')
         check(type(report_sink) is ReportSink and report_sink.dir_fd is not None and
               report_sink.reserved, 'RUNTIME_REPORT_RESERVE_REQUIRED')
+        if not plan.synthetic_fixture:
+            expected_context = parse_canonical(plan.runtime_context_raw)
+            actual_context = {'manifest_runtime_sha256':
+                hashlib.sha256(canonical(payload['runtime'])).hexdigest(),
+                'boot_id': session.boot_id,
+                'shared_root': list(shared.directory_identity),
+                'session_root': list(session.directory_identity),
+                'budget_root': list(budget.directory_identity),
+                'store_descriptor': store.descriptor_sha256,
+                'report_root': list(report_sink.directory_identity),
+                'store_policy': store.context['policy'],
+                'clock_method': store.context['clock_method'],
+                'allowed_peer_ips': list(allowed_peer_ips)}
+            check(expected_context == actual_context,
+                  'RUNTIME_REVIEWED_CONTEXT_MISMATCH')
         self.shared, self.session, self.budget, self.store = shared, session, budget, store
         self.transport, self.clock, self.resources = transport, clock, resources
         self.window = window
@@ -703,7 +906,10 @@ class GateRuntime:
         check(observed_ids == [r.request_id for r in plan.requests[:len(observed_ids)]],
               'RUNTIME_FROZEN_REQUEST_ORDER')
         remaining = plan.requests[len(observed_ids):]
-        self.capacity = CapacityPlan.for_requests(remaining)
+        remaining_ids = {r.request_id for r in remaining}
+        remaining_events = tuple(e for e in plan.events
+                                 if any(rid in remaining_ids for rid in e.field_request_ids))
+        self.capacity = CapacityPlan.for_requests(remaining, remaining_events)
         check(manifest_sha256 == session.manifest == budget.manifest ==
               store.context['manifest'], 'RUNTIME_MANIFEST_CONTEXT_MISMATCH')
         # F4: the shared denial root is deliberately not bound to one
@@ -727,10 +933,10 @@ class GateRuntime:
               os.fstat(store.journal_fd).st_size +
               self.capacity.store_events * 65536 + REPORT_RESERVE_BYTES <=
               STORE_MAX_JOURNAL and
-              len(store.receipts) + len(remaining) <= 4096 and
-              len(session.events) + SESSION_EVENTS_PER_REQUEST * len(remaining) <= 32768 and
+              len(store.receipts) + len(remaining) + self.capacity.aggregate_nodes <= 4096 and
+              len(session.events) + SESSION_EVENTS_PER_REQUEST * len(remaining) + 1 <= 32768 and
               session._journal_bytes +
-              SESSION_EVENTS_PER_REQUEST * len(remaining) * 65536 <= LEDGER_MAX_BYTES and
+              (SESSION_EVENTS_PER_REQUEST * len(remaining) + 1) * 65536 <= LEDGER_MAX_BYTES and
               len(shared.events) + 4 * len(remaining) <= 32768 and
               shared._journal_bytes + 4 * len(remaining) * 65536 <=
               LEDGER_MAX_BYTES,
@@ -745,9 +951,23 @@ class GateRuntime:
                    'session_root': session.directory_identity,
                    'budget_root': budget.directory_identity,
                    'store_descriptor': store.descriptor_sha256,
-                   'report_root': report_sink.directory_identity}
+                   'report_root': report_sink.directory_identity,
+                   'runtime_context_evidence_sha256':
+                   (None if plan.runtime_context_raw is None else
+                    hashlib.sha256(plan.runtime_context_raw).hexdigest())}
         self.session.bind_runtime_context(hashlib.sha256(canonical(context)).hexdigest())
-        _check_prospective_resources(self.resources, self.capacity)
+        self._check_capacity_resources()
+
+    def _check_capacity_resources(self):
+        snapshot = self.resources.snapshot()
+        check(type(snapshot) is ResourceSnapshot and
+              type(snapshot.free_disk_bytes) is int and
+              type(snapshot.available_memory_bytes) is int,
+              'RUNTIME_RESOURCE_PROBE_SHAPE')
+        check(snapshot.free_disk_bytes - self.capacity.disk_bytes >=
+              self.min_free_disk_bytes and
+              snapshot.available_memory_bytes - self.capacity.memory_bytes >=
+              self.min_available_memory_bytes, 'RUNTIME_PROSPECTIVE_CAPACITY')
 
     def _check_plan_request(self, request):
         index = len(self.session.request_ids_ever)
@@ -892,13 +1112,48 @@ class GateRuntime:
         self.session.capture_receipt(record)
 
     def _session_refuse(self, request, reason, evidence):
+        reasons = [reason]
+        def add(value):
+            if value not in reasons:
+                reasons.append(value)
+        try:
+            self._resolve_prerequisites(request)
+        except LaunchContractError as exc:
+            add(str(exc))
+        try:
+            self._check_capacity_resources()
+        except LaunchContractError as exc:
+            add(str(exc))
+        reading = evidence.reading
+        if (type(reading.utc_seconds) in (int, float) and
+                type(reading.uncertainty_seconds) in (int, float) and
+                math.isfinite(reading.utc_seconds) and
+                math.isfinite(reading.uncertainty_seconds)):
+            if reading.utc_seconds - reading.uncertainty_seconds < self.window.start_utc:
+                add('RUNTIME_CLOCK_BEFORE_WINDOW_START')
+            if reading.utc_seconds + reading.uncertainty_seconds >= self.window.acquisition_end_utc:
+                add('RUNTIME_CLOCK_AT_OR_AFTER_ACQUISITION_END')
+            if reading.uncertainty_seconds > self.window.uncertainty_cap_seconds:
+                add('RUNTIME_CLOCK_UNCERTAINTY_EXCEEDED')
+            try:
+                if self.shared.is_blocked(request.control_domain_id,
+                        now_utc=reading.utc_seconds - reading.uncertainty_seconds):
+                    add('RUNTIME_CONTROL_DOMAIN_BLOCKED')
+            except LaunchContractError:
+                pass
+        if (self.session.elapsed_deadline_mono is not None and
+                type(reading.monotonic_seconds) in (int, float) and
+                math.isfinite(reading.monotonic_seconds) and
+                reading.monotonic_seconds >= self.session.elapsed_deadline_mono):
+            add('RUNTIME_ELAPSED_DEADLINE')
         self.session.attempt_intent(request.request_id, purpose=request.purpose,
             endpoint_id=request.endpoint_id, max_reservation_bytes=request.reservation_bytes,
             range_start=request.range_start, range_end=request.range_end,
             validator_sha256=request.validator_sha256, denial_head=self.shared.prev)
-        self.session.refuse(request.request_id, reason=reason)
+        self.session.refuse(request.request_id, reason=reason, reasons=reasons)
         self._capture(request, clocks=(evidence,))
-        return {'request_id': request.request_id, 'outcome': 'REFUSED', 'reason': reason}
+        return {'request_id': request.request_id, 'outcome': 'REFUSED',
+                'reason': reason, 'reasons': reasons}
 
     def _account_prefetched_on_deadline(self, request, stream, *, receipt=None,
                                         denial_recorded=False):
@@ -922,39 +1177,42 @@ class GateRuntime:
         """
         response = stream.response
         try:
-            headers = _bounded_headers(response)
+            headers = _bounded_headers(response, max_header_bytes=self.max_header_bytes)
             evidence_missing_cause = None
         except LaunchContractError as exc:
-            headers = {}
+            headers = _observable_retry_after(response)
             evidence_missing_cause = f'RUNTIME_HEADER_VALIDATION_FAILED:{exc}'
-        if receipt is None:
+        new_receipt = receipt is None
+        if new_receipt:
             receipt = self.clock.evidence('body_receipt')
-            self._observe_local_clock(receipt)
-        denial_status = _DENIAL_STATUSES.get(response.status)
-        if (denial_status is None and evidence_missing_cause is None and
-                'retry-after' in headers):
-            denial_status = 'OTHER'
-        if denial_status is not None and not denial_recorded:
-            record = _build_denial_record(denial_status, response,
-                window=self.window, receipt_evidence=receipt,
-                headers=headers, origin=request.origin,
-                evidence_missing_cause=evidence_missing_cause)
-            self.shared.denial_observed(request.request_id, denial=record)
-            self.session.denial(request.request_id, reason=record['reason'],
-                                 shared_denial_event_hash=self.shared.prev)
-        delivered = sum(len(chunk) for chunk in response.chunks[:stream.index])
-        for chunk in response.chunks[stream.index:]:
-            check(type(chunk) is bytes and chunk, 'RUNTIME_PREFETCH_SHAPE')
-            allowance = self.budget.next_read_limit(65536)
             try:
-                self.budget.consume(request.request_id, chunk,
-                    overdelivery_total_bytes=stream.prefetched_bytes-delivered,
-                    permitted_bytes=allowance)
-            except LaunchContractError as exc:
-                if str(exc) != 'STREAM_ABORT_AT_ALLOWANCE':
-                    raise
-                break
-            delivered += len(chunk)
+                self._observe_local_clock(receipt)
+            except LaunchContractError:
+                # Invalid clock evidence remains raw denial evidence, not a
+                # validated sample or an excuse to erase delivered bytes.
+                pass
+        denial_status = (_DENIAL_STATUSES.get(response.status)
+                         if type(response.status) is int else None)
+        if denial_status is None and 'retry-after' in headers:
+            denial_status = 'OTHER'
+        try:
+            if denial_status is not None and not denial_recorded:
+                record = _build_denial_record(denial_status, response,
+                    window=self.window, receipt_evidence=receipt,
+                    headers=headers, origin=request.origin,
+                    evidence_missing_cause=evidence_missing_cause)
+                self.shared.denial_observed(request.request_id, denial=record)
+                self.session.denial(request.request_id, reason=record['reason'],
+                                     shared_denial_event_hash=self.shared.prev)
+        finally:
+            remaining = response.chunks[stream.index:]
+            check(all(type(chunk) is bytes and chunk for chunk in remaining),
+                  'RUNTIME_PREFETCH_SHAPE')
+            known_bytes = sum(map(len, remaining))
+            if known_bytes:
+                # One durable aggregate record bounds recovery even when an
+                # eager fixture supplies more than 32 tiny chunks.
+                self.budget.record_eager_delivery(request.request_id, known_bytes)
 
     def run_attempt(self, request: AttemptRequest) -> dict:
         check(type(request) is AttemptRequest, 'RUNTIME_REQUEST_SHAPE')
@@ -965,7 +1223,7 @@ class GateRuntime:
         pre = self.clock.evidence('request_start')
         try:
             resolved_dependencies = self._resolve_prerequisites(request)
-            _check_prospective_resources(self.resources, self.capacity)
+            self._check_capacity_resources()
             self._enforce_window(pre)
             # F3: a cooldown has only provably expired once the *lower*
             # (conservative) bound of our own current-time uncertainty has
@@ -1042,7 +1300,7 @@ class GateRuntime:
             self._account_prefetched_on_deadline(request, stream)
             raise LaunchContractError('RUNTIME_DISPATCH_DEADLINE')
         try:
-            headers = _bounded_headers(response)
+            headers = _bounded_headers(response, max_header_bytes=self.max_header_bytes)
         except LaunchContractError:
             # F2: a header-shape failure must not itself discard the known
             # denial/already-delivered-bytes observations -- account them
@@ -1078,6 +1336,13 @@ class GateRuntime:
             self.shared.denial_observed(request.request_id, denial=denial_record)
             self.session.denial(request.request_id, reason=denial_record['reason'],
                                  shared_denial_event_hash=self.shared.prev)
+            retry_raw = headers.get('retry-after')
+            if (retry_raw is not None and retry_raw.isascii() and
+                    retry_raw.isdecimal() and
+                    denial_record['retry_after_seconds'] is None):
+                self._account_prefetched_on_deadline(request, stream,
+                    receipt=header_receipt, denial_recorded=True)
+                raise LaunchContractError('RUNTIME_RETRY_AFTER_UNREPRESENTABLE')
 
         delivered = 0
         overdelivered = False
@@ -1175,7 +1440,7 @@ class GateRuntime:
 
         # Step 7: successful, verified body -- resource floor again before
         # this one-field decode/seal batch, then seal as a RAW object.
-        _check_prospective_resources(self.resources, self.capacity)
+        self._check_capacity_resources()
         provenance = ObjectProvenance('RAW', request.request_id, request.request_id,
             request.source_pin, request.decoder_pin, request.clock_policy_sha256,
             ())
@@ -1237,6 +1502,22 @@ def _journal_event_hashes(events):
     return result
 
 
+def _reason_category(reason):
+    if 'PREREQUISITE' in reason:
+        return 'PREREQUISITE'
+    if 'CLOCK' in reason or 'WINDOW' in reason or 'DEADLINE' in reason:
+        return 'CLOCK'
+    if 'RESOURCE' in reason or 'CAPACITY' in reason:
+        return 'RESOURCE'
+    if 'DENIAL' in reason or 'CONTROL_DOMAIN' in reason:
+        return 'DENIAL'
+    if 'SUCCESS' in reason:
+        return 'SUCCESS'
+    if 'SCHEDULE' in reason or 'SLOT_NOT' in reason:
+        return 'UNSCHEDULED'
+    return 'VALIDATION'
+
+
 def build_terminal_report(*, plan: FrozenPlan, session: SessionLedger,
                           budget: DurableBudget, shared: SharedLedger,
                           store: VersionedImmutableObjectStore) -> dict:
@@ -1258,6 +1539,10 @@ def build_terminal_report(*, plan: FrozenPlan, session: SessionLedger,
           'REPORT_REQUEST_ORDER')
     check(set(session.attempt_history) <= set(planned) and
           set(budget.attempts) <= set(planned), 'REPORT_UNPLANNED_ATTEMPT')
+    reserved_ids = [r.request_id for r in plan.requests if r.request_id in budget.attempts]
+    refused_ids = [r.request_id for r in plan.requests if
+                   session.attempt_history.get(r.request_id, {}).get('outcome') == 'REFUSED']
+    check(set(reserved_ids).isdisjoint(refused_ids), 'REPORT_ACCOUNTING_MISMATCH')
     receipts_by_commit = {r.commit_hash: r for r in store.receipts.values()}
     session_hashes = _journal_event_hashes(session.events)
     shared_hashes = _journal_event_hashes(shared.events)
@@ -1277,7 +1562,8 @@ def build_terminal_report(*, plan: FrozenPlan, session: SessionLedger,
         request = planned[rid]
         capture = session.capture_receipts.get(rid)
         resolved_deps = list(request.dependency_commit_hashes)
-        if attempt['reason'] != 'RUNTIME_PREREQUISITE_MISSING':
+        if 'RUNTIME_PREREQUISITE_MISSING' not in attempt.get('reasons',
+                                                             [attempt['reason']]):
             for prior_id in request.prerequisite_request_ids:
                 prior_capture = session.capture_receipts.get(prior_id)
                 check(prior_capture is not None and
@@ -1348,18 +1634,25 @@ def build_terminal_report(*, plan: FrozenPlan, session: SessionLedger,
         request = by_slot.get(slot)
         attempt = None if request is None else session.attempt_history.get(request.request_id)
         if request is None:
-            status, outcome, reason = 'NEVER_ATTEMPTED', None, 'RUNTIME_SLOT_NOT_IN_SCHEDULE'
+            status, outcome = 'NEVER_ATTEMPTED', None
+            reasons = ['RUNTIME_SLOT_NOT_IN_SCHEDULE']
         elif attempt is None:
             failed_dependency = any(session.attempt_history.get(prior_id, {}).get(
                 'outcome') != 'SUCCESS' for prior_id in request.prerequisite_request_ids)
             status, outcome = 'NEVER_ATTEMPTED', None
-            reason = ('RUNTIME_FAILED_PREREQUISITE' if failed_dependency else
-                      'RUNTIME_SCHEDULED_NOT_ATTEMPTED')
+            reasons = (['RUNTIME_FAILED_PREREQUISITE',
+                        'RUNTIME_SCHEDULED_NOT_ATTEMPTED'] if failed_dependency else
+                       ['RUNTIME_SCHEDULED_NOT_ATTEMPTED'])
         else:
-            outcome, reason = attempt['outcome'], attempt['reason']
+            outcome = attempt['outcome']
+            reasons = list(dict.fromkeys(attempt.get('reasons', [attempt['reason']])))
             status = 'REFUSED' if outcome == 'REFUSED' else 'ATTEMPTED'
+        precedence = {category: i for i, category in enumerate(plan.terminal_precedence)}
+        reason = min(reasons, key=lambda value: (precedence[_reason_category(value)],
+                                                  reasons.index(value)))
         row = {'slot_index': slot, 'status': status, 'outcome': outcome,
-               'reason': reason, 'request_id': None if request is None else request.request_id,
+               'reason': reason, 'reasons': reasons,
+               'request_id': None if request is None else request.request_id,
                'provider': None if request is None else request.provider}
         rows.append(row)
         label = outcome or status
@@ -1367,7 +1660,7 @@ def build_terminal_report(*, plan: FrozenPlan, session: SessionLedger,
     per_purpose = {}
     observed = {rid: 0 for rid in budget.attempts}
     for event in budget.events:
-        if event['op'] in ('chunk', 'violation'):
+        if event['op'] in ('chunk', 'eager_delivery', 'violation'):
             observed[event['key']] += event['bytes']
     for purpose in PURPOSES:
         requests = [r for r in plan.requests if r.purpose == purpose]
@@ -1423,7 +1716,9 @@ def build_terminal_report(*, plan: FrozenPlan, session: SessionLedger,
     return {'schema_version': 2, 'manifest_sha256': plan.manifest_sha256,
             'plan_sha256': plan.sha256, 'review_sha256': plan.review_sha256,
             'slot_count': SLOT_COUNT, 'rows': rows, 'outcome_counts': counts,
-            'attempted_request_ids': seen_ids,
+            'terminal_precedence': list(plan.terminal_precedence),
+            'attempted_request_ids': reserved_ids,
+            'refused_request_ids': refused_ids,
             'raw_completed_count': sum(r.purpose == 'FIELD' and
                 session.attempt_history.get(r.request_id, {}).get('outcome') == 'SUCCESS'
                 for r in plan.requests),
