@@ -1,5 +1,14 @@
 # Supplementary engineering estimate
 
+## Decoder correction finished; independent review next — 2026-10-01 19:48 UTC
+
+The former worker completed clean unmerged `82e1619`, correcting the three
+decoder observation artifacts. Terminal, worktree and basic artifact checks
+agree; author claims require a fresh different-model exact-commit review
+before integration. G3-L remains NO-GO with 77 missing and one expired item,
+and disk below 2 GiB. No new forward SHADOW sample or C/J/E/A boundary:
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Passive recovery; decoder correction still live — 2026-10-01 19:39 UTC
 
 The original isolated decoder correction worker remains active at `20a42f7`

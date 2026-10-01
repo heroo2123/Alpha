@@ -1,5 +1,34 @@
 # Alpha V11 work checkpoint
 
+## Decoder correction recovered; exact independent review next — 2026-10-01 19:48 UTC
+
+Recovered the previously live worker from its actual matching terminal and
+clean isolated worktree. It completed normally at
+`82e16191fb3b0dc4ca6f4cb068e1cba748957c48` (tree
+`3d8a7d3a1bb5815d2320110d115a0694960d713b`, parent `20a42f7`),
+terminal `/tmp/alpha-v11-decoder-build-repair-20261001.terminal.json`.
+Only the existing decoder-observation Markdown, JSON and probe changed;
+`git diff --check`, JSON parsing and probe Python syntax pass. The author
+reports 25 RECORD mismatches, the full 3,368–213,008 byte delta range,
+the 36 excluded loaded libraries, and six aligned unresolved gaps. These
+are author observations, not acceptance. The candidate remains unmerged.
+**Next: independent Astra/high exact-commit review**, including a bounded
+offline reproduction of the changed claims, then reconcile any PASS with
+newer main. Do not promote the inventory to G3-L identity or CCSDS approval.
+
+Main is clean at `b771a7c`; the owner-authorized R1 denial timing repair
+`58a465f` is already an ancestor. SHADOW and Brain worktrees are clean;
+ECMWF `backfill_data/` remains preserved. No newer commissioning file was
+found. PAPER scanner/controller and V11 execution are inactive; scanner is
+disabled and execution masked. Protected authority roots are absent. The
+private FINAL-REVIEWED master still hashes to
+`a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+Root disk has about 1.4 GiB free, below the 2 GiB G3-L floor, with about
+708 MiB available memory. Prior offline screen still has 77 missing and one
+expired reviewed item. G3-L **NO-GO**; no provider request, V10/AxiomTrade,
+service, authority, financial or remote-publication action. No C/J/E/A
+boundary crossed: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Passive Gate 3 recovery while decoder correction runs — 2026-10-01 19:39 UTC
 
 Recovered main clean at `3bf0544` and the same sole decoder correction worker

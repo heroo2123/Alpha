@@ -1,5 +1,14 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Decoder correction awaits independent exact review — 2026-10-01 19:48 UTC
+
+Worker completed clean candidate `82e1619` (tree `3d8a7d3`) in its isolated
+worktree. Three observation artifacts only; syntax, JSON and diff checks pass.
+Author evidence is not independent acceptance. Fresh Astra/high exact review
+and newer-main reconciliation remain required. No G3-L identity credited;
+prior screen has 77 missing plus one expired item, and disk remains below
+the 2 GiB floor. **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Passive recovery; decoder correction still live — 2026-10-01 19:39 UTC
 
 The sole correction worker remains live with an unfinished probe diff and no
