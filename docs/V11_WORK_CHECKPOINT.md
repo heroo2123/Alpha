@@ -1,5 +1,28 @@
 # Alpha V11 work checkpoint
 
+## Coordinator recovery and Gate 3 source identity handoff — 2026-10-01 22:11 UTC
+
+Main is clean at `4bb9c9e` (90 local commits ahead of origin); the owner-authorized
+R1 fix remains integrated. The sole guarded point-of-use repair runner (PID
+1925151) is alive and still waits for its stated 23:21 UTC provider-session
+reset. Its candidate worktree remains clean at `93cd43c`, with no new terminal;
+do not duplicate or preempt it. The separate clean inventory candidate
+`9600510` remains unreviewed and unmerged. SHADOW and Brain worktrees are clean;
+the ECMWF backfill worktree's `backfill_data/` remains preserved. No newer
+qualifying SHADOW sample appeared.
+
+The fresh offline October 2 PRE_REVIEW screen recorded in the preceding entry
+remains a G3-L **NO-GO**: 77 missing reviewed identities, one expired identity,
+and zero capacity-planned slots. Source/build provenance and decoder runtime
+identity require specialist acceptance analysis while the point-of-use repair
+waits; no provider request is permitted. Current free disk is 2,203,516,928
+bytes and available memory 1,116,868,608 bytes. PAPER scanner and V11
+controller/execution services are inactive; scanner disabled, protected V11
+authority roots absent. The private FINAL-REVIEWED master still hashes to
+`a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+No V10, AxiomTrade, service, authority, financial or remote-publication action.
+No C/J/E/A crossing: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator recovery: R1 already integrated; repair queue verified — 2026-10-01 21:58 UTC
 
 Recovered clean main `c6f8591` (88 local commits ahead of origin), rather

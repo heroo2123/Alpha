@@ -1,5 +1,15 @@
 # Supplementary engineering estimate
 
+## Coordinator recovery — 2026-10-01 22:11 UTC
+
+Main is clean at `4bb9c9e`; the R1 correction is already integrated. The sole
+point-of-use repair remains queued to 23:21 UTC with no terminal. Source/build
+identity acceptance analysis is the next independent Gate 3 step. The separate
+inventory candidate remains unreviewed and unmerged; no new qualifying forward
+SHADOW evidence exists. The October 2 offline screen still has 77 missing and
+one expired identity, with zero planned slots: **G3-L NO-GO**. No C/J/E/A
+crossing: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator recovery — 2026-10-01 21:58 UTC
 
 Verified that R1 `58a465f` is already integrated; the authorized edit needs

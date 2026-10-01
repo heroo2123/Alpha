@@ -1,5 +1,15 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Coordinator recovery — 2026-10-01 22:11 UTC
+
+Main is clean at `4bb9c9e`; R1 remains integrated. The sole point-of-use
+repair is still guarded until 23:21 UTC; no corrected terminal or exact review
+exists. The separate `9600510` candidate is unreviewed and unmerged. The
+October 2 offline PRE_REVIEW screen remains 77 missing identities, one expired
+identity and zero planned slots. G3-L **NO-GO**; source/build identity needs
+specialist analysis. No new forward SHADOW evidence or C/J/E/A crossing:
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator recovery — 2026-10-01 21:58 UTC
 
 R1 denial timing correction `58a465f` is already on clean main. The sole
