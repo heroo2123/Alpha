@@ -1,5 +1,13 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Slice-3 G1–G4 repair in progress — 2026-10-01 15:03 UTC
+
+The independent `8e18553` CHANGES_REQUIRED verdict is unchanged. One Sol/high
+writer is live in the existing isolated repair worktree, with a terminal
+marker required before candidate review. No new accepted implementation or
+evidence exists yet. G3-L NO-GO; disk below launch floor; no provider or
+SHADOW capture. **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND** unchanged.
+
 ## Slice-3 independent review remains CHANGES_REQUIRED — 2026-10-01 14:52 UTC
 
 Exact `8e18553` [review](V11_R09_GATE3_V4_SLICE3_REVIEW_8e18553.md): 439 family

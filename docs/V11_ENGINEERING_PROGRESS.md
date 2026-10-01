@@ -1,5 +1,15 @@
 # Supplementary engineering estimate
 
+## Slice-3 G1–G4 repair assigned — 2026-10-01 15:03 UTC
+
+Actual process/worktree recovery found clean `8e18553` unmerged and no other
+implementation writer. A sole Sol/high persistent writer now owns that
+isolated worktree to address the four independent review findings. Its
+candidate, tests and terminal are pending; exact-commit cross-model review
+and newer-main reconciliation still gate integration. Root free space is about
+479 MiB, below the launch floor. G3-L NO-GO; no C/J/E/A credit changed:
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Slice-3 second repair independently reviewed — 2026-10-01 14:52 UTC
 
 Independent Astra/high [review of exact `8e18553`](V11_R09_GATE3_V4_SLICE3_REVIEW_8e18553.md)

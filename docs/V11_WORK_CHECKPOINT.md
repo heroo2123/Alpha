@@ -1,5 +1,32 @@
 # Alpha V11 work checkpoint
 
+## Slice-3 G1–G4 Sol/high repair launched — 2026-10-01 15:03 UTC
+
+Recovered clean main `2771422` (33 commits ahead of tracking) and the clean,
+unmerged slice-3 candidate `8e18553` in its existing isolated worktree. The
+independent exact review remains **CHANGES_REQUIRED** for G1–G4. No other
+Alpha implementation writer was active. Claude/Sonnet was on provider cooldown,
+so a single Sol/high writer was launched in
+`/tmp/alpha-v11-gate3-v4-slice3-repair-20261001` after checking its exact
+HEAD and clean status. Runner PID `1715158` and Codex child `1715163` were
+verified live. Prompt, runner, PID, log, final output and terminal use prefix
+`/tmp/alpha-v11-slice3-g1g4-sol-20261001`. The runner emits
+`GATE3_SLICE3_G1G4_READY_FOR_REVIEW` only for a clean new commit and an
+explicit completion marker; otherwise it emits `GATE3_SLICE3_G1G4_BLOCKED`.
+Preserve any unfinished edits and recover actual process/log/terminal state
+before acting again. A different-model exact-commit review and newer-main
+reconciliation remain mandatory before integration.
+
+Root free space is about 479 MiB, below the launch floor; available RAM was
+about 1.1 GiB plus 1.7 GiB free swap. PAPER scanner/controller/execution
+were inactive (scanner disabled); protected authority paths absent. The
+private FINAL-REVIEWED master still matches its pinned SHA-256. SHADOW and
+Brain-readiness worktrees are clean; the ECMWF backfill's untracked data was
+left untouched. No provider request, prospective SHADOW launch, V10,
+AxiomTrade, service, authority, financial or remote publication action
+occurred. G3-L stays **NO-GO**. No C/J/E/A boundary crossed:
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Slice-3 exact repair review: four obligations remain — 2026-10-01 14:52 UTC
 
 Independent Astra/high [exact-commit review](V11_R09_GATE3_V4_SLICE3_REVIEW_8e18553.md)
