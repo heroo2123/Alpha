@@ -1,5 +1,16 @@
 # Supplementary engineering estimate
 
+## MEMFS exact review rejected pending bounded repair — 2026-10-01 20:42 UTC
+
+The independent `8b0b32e` review reproduced all 7,073 static mappings but
+found three documentation/probe defects; exact report and terminal are in
+`docs/V11_R09_GATE3_MEMFS_STATIC_REVIEW_8b0b32e.*`. One Sonnet/high repair
+worker is live (runner 1908141, terminal prefix
+`/tmp/alpha-v11-gate3-memfs-static-repair-20261001`). Its future commit needs
+fresh independent review and reconciliation. No qualification, G3-L approval,
+forward SHADOW sample or C/J/E/A change: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## MEMFS reviewer process recovered — 2026-10-01 20:25 UTC
 
 The incomplete retry log is not a verdict. A sole replacement Astra/high

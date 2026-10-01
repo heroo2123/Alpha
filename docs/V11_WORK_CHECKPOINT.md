@@ -1,5 +1,32 @@
 # Alpha V11 work checkpoint
 
+## MEMFS exact review requires correction; sole repair worker live — 2026-10-01 20:42 UTC
+
+The replacement independent Astra/high review completed with matching
+[report](V11_R09_GATE3_MEMFS_STATIC_REVIEW_8b0b32e.md) and
+[terminal](V11_R09_GATE3_MEMFS_STATIC_REVIEW_8b0b32e.json):
+`MEMFS_REVIEW_CHANGES_REQUIRED` for exact unmerged `8b0b32e` (tree
+`f35be9c`). Its static reproduction verified the installed library hash,
+all **7,073** path/relocation/table/payload hashes, representative raw byte
+ranges and the bounded probe. Three corrections are required: binary trailing
+zero was mislabelled as proven logical content length; the relocation negative
+probe bypassed the resolver; and prose misattributed 6,850 post-payload zero
+bytes to next symbols instead of gaps. Broad malformed-ELF rejection claims
+also need narrowing or direct validation. The review is observation-only;
+it grants no build/source/G3-L/CCSDS or launch qualification.
+
+One persistent Sonnet/high repair worker is verified live in the **same**
+clean author worktree `/tmp/alpha-v11-gate3-memfs-static-inventory-20261001`,
+starting at `8b0b32e`: runner **1908141**, child **1908147**, terminal prefix
+`/tmp/alpha-v11-gate3-memfs-static-repair-20261001`. Scope is only the three
+MEMFS observation artifacts. Recover its process/worktree/log/terminal before
+acting; do not duplicate the writer or merge its future candidate without a
+fresh different-model exact-commit review and newer-main reconciliation.
+Main's review record is committed at `df1a06e`; no candidate merge, new
+forward SHADOW sample, provider request or G3-L approval. Prior G3-L blockers
+remain, including 77 missing reviewed identities and disk below 2 GiB. No
+C/J/E/A crossing: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## MEMFS exact review recovered after unexplained process exit — 2026-10-01 20:25 UTC
 
 The first replacement Astra/high review of clean, unmerged `8b0b32e` reached

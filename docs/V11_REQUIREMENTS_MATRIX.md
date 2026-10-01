@@ -1,5 +1,15 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## MEMFS exact review changes required; repair active — 2026-10-01 20:42 UTC
+
+The independently reproduced 7,073/7,073 static byte inventory at `8b0b32e`
+is **not accepted** because logical-length metadata, a negative probe and
+post-payload-zero attribution require correction. Review and terminal are
+committed at `df1a06e`. A sole Sonnet/high worker (runner 1908141) is repairing
+only the three observation artifacts; fresh exact review is required. No
+build/source/G3-L identity or forward SHADOW credit. G3-L NO-GO;
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## MEMFS exact review recovered after process exit — 2026-10-01 20:25 UTC
 
 The `8b0b32e` retry reached read-only ELF inspection but exited without a
