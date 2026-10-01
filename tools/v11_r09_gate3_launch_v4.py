@@ -51,6 +51,157 @@ GROUPS = ('identity', 'code', 'protocol', 'storage', 'cohort', 'time',
           'sources', 'runs_and_slots', 'network', 'limits', 'schedule',
           'clocks_and_receipts', 'accounting', 'runtime')
 
+# --- Typed path representation -------------------------------------------
+#
+# V3/early V4 rendered every provider path with one generic
+# ``template.format(run=run, member=member, hour=hour)`` on raw integers.
+# That cannot express what real provider layouts actually do (see
+# docs/V11_GATE3_LAUNCH_READINESS_AUDIT_20261001.md section 2 and the
+# evidenced adapters below): GEFS needs zero-padded, control-vs-perturbed
+# member naming and a zero-padded hour; ECMWF IFS/AIFS need formatted dates,
+# a distinct control/perturbed stream and file-kind, and never embed a
+# member number in the path at all (perturbed members are multiplexed into
+# one shared file, selected only by an index-row/byte-range, exactly as
+# polymarket_scanner/v11/ecmwf_sources.py ECMWFRequest.url and
+# ECMWFRequest.selectors evidence).
+#
+# Each path is instead a ``path_spec``: an ordered list of components drawn
+# from a small closed vocabulary (PATH_COMPONENT_KINDS). Every non-LITERAL
+# kind is a fixed, reviewed, total function of (provider, run_utc, member,
+# hour) -- never a caller-supplied format string -- so there is no generic
+# substitution point to smuggle arbitrary text into a request path. A
+# provider's mapping may use only its own allowed kinds
+# (PROVIDER_PATH_KINDS); because no ECMWF kind takes the member value as
+# input, an ECMWF FIELD/INDEX path cannot structurally vary by member within
+# its control/perturbed class -- the multiplexed shared object identity
+# required for IFS/AIFS perturbed members falls directly out of the
+# vocabulary, not a special case layered on top.
+LITERAL_COMPONENT_RE = re.compile(r'[A-Za-z0-9_./-]{1,64}\Z')
+RENDERED_PATH_RE = re.compile(r'[A-Za-z0-9_/.-]+\Z')
+MAX_PATH_COMPONENTS = 24
+PATH_VALUE_KINDS = (
+    'RUN_DATE_YYYYMMDD', 'RUN_CYCLE_HH', 'RUN_CYCLE_HHZ',
+    'RUN_CYCLE_YYYYMMDDHH0000', 'GEFS_MEMBER_SUFFIX', 'GEFS_HOUR_3PAD',
+    'ECMWF_STEP_HOURS', 'ECMWF_STREAM', 'ECMWF_FILE_KIND',
+)
+PATH_COMPONENT_KINDS = ('LITERAL',) + PATH_VALUE_KINDS
+# GEFS (gefs_sources.field_request): ge{c00|pNN}.t{HH}z.pgrb2a.0p50.f{HHH}
+# under /gefs.{YYYYMMDD}/{HH}/atmos/pgrb2ap5 -- date once, cycle hour twice
+# (directory and "tHHz"), control/perturbed member suffix, padded hour.
+GEFS_PATH_KINDS = {'LITERAL', 'RUN_DATE_YYYYMMDD', 'RUN_CYCLE_HH',
+                   'GEFS_MEMBER_SUFFIX', 'GEFS_HOUR_3PAD'}
+# ECMWF (ecmwf_sources.ECMWFRequest.url): {date}/{HH}z/{model}/0p25/{stream}/
+# {date}{HH}0000-{step}h-{stream}-{file_kind}.grib2 -- stream appears twice
+# (directory and filename); no member token anywhere.
+ECMWF_PATH_KINDS = {'LITERAL', 'RUN_DATE_YYYYMMDD', 'RUN_CYCLE_HHZ',
+                    'RUN_CYCLE_YYYYMMDDHH0000', 'ECMWF_STEP_HOURS',
+                    'ECMWF_STREAM', 'ECMWF_FILE_KIND'}
+PROVIDER_PATH_KINDS = {'GEFS': GEFS_PATH_KINDS, 'IFS': ECMWF_PATH_KINDS,
+                       'AIFS': ECMWF_PATH_KINDS}
+def _lit(value):
+    return {'kind': 'LITERAL', 'value': value}
+
+
+def _val(kind):
+    return {'kind': kind, 'value': None}
+
+
+# Exact adapter-backed component order and literals. GEFS is the CGI
+# directory/file grammar, not evidence that the same string is a direct S3
+# object key or even a GET-only CGI request path. ECMWF includes BASE's
+# /forecasts prefix and the model directory, and INDEX is its .index sibling.
+GEFS_FIELD_SPEC = [
+    _lit('/gefs.'), _val('RUN_DATE_YYYYMMDD'), _lit('/'), _val('RUN_CYCLE_HH'),
+    _lit('/atmos/pgrb2ap5/ge'), _val('GEFS_MEMBER_SUFFIX'), _lit('.t'),
+    _val('RUN_CYCLE_HH'), _lit('z.pgrb2a.0p50.f'), _val('GEFS_HOUR_3PAD'),
+]
+
+
+def _ecmwf_spec(provider, suffix):
+    model = {'IFS': 'ifs', 'AIFS': 'aifs-ens'}[provider]
+    return [
+        _lit('/forecasts/'), _val('RUN_DATE_YYYYMMDD'), _lit('/'),
+        _val('RUN_CYCLE_HHZ'), _lit('/' + model + '/0p25/'),
+        _val('ECMWF_STREAM'), _lit('/'), _val('RUN_CYCLE_YYYYMMDDHH0000'),
+        _lit('-'), _val('ECMWF_STEP_HOURS'), _lit('h-'),
+        _val('ECMWF_STREAM'), _lit('-'), _val('ECMWF_FILE_KIND'), _lit(suffix),
+    ]
+
+
+EVIDENCED_PATH_SPECS = {
+    'GEFS': {'FIELD': GEFS_FIELD_SPEC},
+    **{provider: {'FIELD': _ecmwf_spec(provider, '.grib2'),
+                  'INDEX': _ecmwf_spec(provider, '.index')}
+       for provider in ('IFS', 'AIFS')},
+}
+
+# Fixed placeholders are permitted only in a manifest explicitly marked as
+# a synthetic offline fixture. They assert no source or transport truth.
+SYNTHETIC_PLACEHOLDER_SPECS = {
+    provider: {purpose: [_lit('/synthetic/' + provider.lower() + '/' + purpose.lower())]
+               for purpose in PURPOSES if purpose not in evidenced}
+    for provider, evidenced in EVIDENCED_PATH_SPECS.items()
+}
+
+
+def _render_path_component(component, *, provider, run, member, hour):
+    kind = component['kind']
+    if kind == 'LITERAL':
+        return component['value']
+    if kind == 'RUN_DATE_YYYYMMDD':
+        return run.strftime('%Y%m%d')
+    if kind == 'RUN_CYCLE_HH':
+        return run.strftime('%H')
+    if kind == 'RUN_CYCLE_HHZ':
+        return run.strftime('%H') + 'z'
+    if kind == 'RUN_CYCLE_YYYYMMDDHH0000':
+        return run.strftime('%Y%m%d%H') + '0000'
+    if kind == 'GEFS_MEMBER_SUFFIX':
+        return 'c00' if member == 0 else 'p' + str(member).zfill(2)
+    if kind == 'GEFS_HOUR_3PAD':
+        return str(hour).zfill(3)
+    if kind == 'ECMWF_STEP_HOURS':
+        return str(hour)
+    if kind == 'ECMWF_STREAM':
+        return 'enfo' if provider == 'AIFS' or member != 0 else 'oper'
+    if kind == 'ECMWF_FILE_KIND':
+        if provider == 'AIFS':
+            return 'cf' if member == 0 else 'pf'
+        return 'fc' if member == 0 else 'ef'
+    check(False, 'PATH_COMPONENT_KIND')
+
+
+def _validate_path_spec(spec, provider, reason):
+    allowed = PROVIDER_PATH_KINDS[provider]
+    check(type(spec) is list and 1 <= len(spec) <= MAX_PATH_COMPONENTS, reason)
+    for component in spec:
+        exact(component, ('kind', 'value'), reason)
+        check(component['kind'] in allowed, reason)
+        if component['kind'] == 'LITERAL':
+            check(type(component['value']) is str and
+                  LITERAL_COMPONENT_RE.fullmatch(component['value']) is not None and
+                  '..' not in component['value'], reason)
+        else:
+            check(component['value'] is None, reason)
+
+
+def _check_mapping_spec(spec, provider, purpose, *, synthetic):
+    evidenced = EVIDENCED_PATH_SPECS[provider].get(purpose)
+    if evidenced is not None:
+        check(spec == evidenced, 'SOURCE_MAPPING_EXACT_PATH')
+    else:
+        check(synthetic and spec == SYNTHETIC_PLACEHOLDER_SPECS[provider][purpose],
+              'SOURCE_MAPPING_UNSUPPORTED')
+
+
+def _render_path(spec, *, origin, provider, run_utc, member, hour):
+    run = datetime.fromtimestamp(run_utc, timezone.utc)
+    rendered = ''.join(_render_path_component(c, provider=provider, run=run,
+                                               member=member, hour=hour) for c in spec)
+    check(RENDERED_PATH_RE.fullmatch(rendered) is not None and
+          _canonical_request_path(origin, rendered), 'RENDERED_PATH_INVALID')
+    return rendered
+
 
 def validate_manifest_v4(raw, *, repo, object_root, now_utc):
     """Validate a private V4 candidate offline; return its digest, never permission.
@@ -68,7 +219,7 @@ def validate_manifest_v4(raw, *, repo, object_root, now_utc):
     ident = payload['identity']
     exact(ident, ('schema', 'pilot_id', 'purpose', 'capture_mode', 'created_ref',
                   'financial_authority', 'promotion_authority', 'host_approved',
-                  'launch_authority'), 'IDENTITY_SCHEMA')
+                  'launch_authority', 'mapping_scope'), 'IDENTITY_SCHEMA')
     check(ident['schema'] == SCHEMA and ident['purpose'] == 'NONFINANCIAL_RESEARCH' and
           ident['capture_mode'] == 'BOUNDED_FEASIBILITY', 'IDENTITY_MODE')
     check(type(ident['pilot_id']) is str and
@@ -76,6 +227,11 @@ def validate_manifest_v4(raw, *, repo, object_root, now_utc):
           'test' not in ident['pilot_id'].lower(), 'PILOT_ID')
     check(all(ident[k] is False for k in ('financial_authority', 'promotion_authority',
           'host_approved', 'launch_authority')), 'SELF_AUTHORITY_FORBIDDEN')
+    check(ident['mapping_scope'] in ('SYNTHETIC_OFFLINE_ONLY', 'PROVIDER_REVIEW_REQUIRED'),
+          'MAPPING_SCOPE')
+    synthetic = ident['mapping_scope'] == 'SYNTHETIC_OFFLINE_ONLY'
+    if synthetic:
+        check(ident['pilot_id'].startswith('synthetic_'), 'SYNTHETIC_IDENTITY')
     ref(ident['created_ref'], 'CREATION_REF')
     _validate_code(payload['code'], repo)
 
@@ -232,7 +388,7 @@ def validate_manifest_v4(raw, *, repo, object_root, now_utc):
     exact(sources, SLOTS, 'SOURCE_SET')
     for provider, source in sources.items():
         exact(source, ('dossier', 'release_document', 'licence', 'index_evidence',
-                       'range_evidence', 'decoder_build', 'origin', 'path_template',
+                       'range_evidence', 'decoder_build', 'origin', 'path_spec',
                        'publication_attestation', 'publication_absence_reason',
                        'member_range', 'native_hours', 'identity_pins',
                        'effective_run_start_utc', 'effective_run_end_utc',
@@ -256,40 +412,42 @@ def validate_manifest_v4(raw, *, repo, object_root, now_utc):
         ref(source['control_domain'], 'CONTROL_DOMAIN_REF')
         mappings = source['purpose_mappings']
         exact(mappings, PURPOSES, 'SOURCE_PURPOSE_MAPPINGS')
+        # Render with both member classes (control and the highest perturbed
+        # member) and both hour extremes, proving every mapping is renderable
+        # across its whole declared domain, never just a happy-path sample.
+        sample_members = sorted({0, members - 1})
+        sample_hours = sorted({source['native_hours'][0], source['native_hours'][-1]})
         for purpose, mapping in mappings.items():
-            exact(mapping, ('origin', 'path_template', 'control_domain_id',
+            exact(mapping, ('origin', 'path_spec', 'control_domain_id',
                             'mapping_evidence', 'validator', 'response_contract'), 'SOURCE_MAPPING_SCHEMA')
             for key in ('mapping_evidence', 'validator', 'response_contract'):
                 ref(mapping[key], 'SOURCE_MAPPING_REF')
             check(mapping['control_domain_id'] == source['control_domain']['sha256'],
                   'CONTROL_DOMAIN_BINDING')
-            mapping_template = mapping['path_template']
-            check(_public_https_origin(mapping['origin']) and
-                  type(mapping_template) is str and
-                  _canonical_request_path(mapping['origin'], mapping_template) and
-                  all(mapping_template.count(token) <= 1 for token in
-                      ('{run}', '{member}', '{hour}')) and
-                  '{' not in mapping_template.replace('{run}', '').replace(
-                      '{member}', '').replace('{hour}', '') and
-                  '}' not in mapping_template.replace('{run}', '').replace(
-                      '{member}', '').replace('{hour}', '') and
-                  re.fullmatch(r'[A-Za-z0-9_/{}/.-]+', mapping_template) is not None,
-                  'SOURCE_MAPPING_PATH')
+            check(_public_https_origin(mapping['origin']), 'SOURCE_MAPPING_PATH')
+            if synthetic:
+                check(mapping['origin'].endswith('.example.invalid'), 'SYNTHETIC_ORIGIN')
+            else:
+                # No reviewed GET-only contract exists for GEFS CGI or for
+                # OBJECT_ID/METADATA/PROBE. A digest reference supplied by the
+                # manifest cannot qualify one. A future provider review must
+                # introduce an exact independently anchored contract.
+                check(provider != 'GEFS' and purpose in ('FIELD', 'INDEX') and
+                      mapping['origin'] == 'https://data.ecmwf.int',
+                      'SOURCE_MAPPING_UNSUPPORTED')
+            _validate_path_spec(mapping['path_spec'], provider, 'SOURCE_MAPPING_PATH')
+            _check_mapping_spec(mapping['path_spec'], provider, purpose,
+                                synthetic=synthetic)
+            for sample_member in sample_members:
+                for sample_hour in sample_hours:
+                    _render_path(mapping['path_spec'], origin=mapping['origin'],
+                                provider=provider, run_utc=source['effective_run_start_utc'],
+                                member=sample_member, hour=sample_hour)
         check(mappings['FIELD']['origin'] == source['origin'] and
-              mappings['FIELD']['path_template'] == source['path_template'],
+              mappings['FIELD']['path_spec'] == source['path_spec'],
               'FIELD_SOURCE_MAPPING')
-        template = source['path_template']
-        check(_public_https_origin(source['origin']) and
-              type(source['path_template']) is str and
-              _canonical_request_path(source['origin'], template) and
-              template.count('{run}') == 1 and
-              template.count('{member}') == 1 and
-              template.count('{hour}') == 1 and
-              '..' not in template and
-              '{' not in template.replace('{run}', '').replace('{member}', '').replace('{hour}', '') and
-              '}' not in template.replace('{run}', '').replace('{member}', '').replace('{hour}', '') and
-              re.fullmatch(r'[A-Za-z0-9_/{}/.-]+', template) is not None,
-              'SOURCE_ORIGIN')
+        check(_public_https_origin(source['origin']), 'SOURCE_ORIGIN')
+        _validate_path_spec(source['path_spec'], provider, 'SOURCE_ORIGIN')
         if source['publication_attestation'] is None:
             check(type(source['publication_absence_reason']) is str and
                   bool(source['publication_absence_reason']), 'PUBLICATION_ABSENCE_REASON')
@@ -348,7 +506,7 @@ def validate_manifest_v4(raw, *, repo, object_root, now_utc):
           len(expected) == SLOT_COUNT, 'IMMUTABLE_2713_SLOT_DENOMINATOR')
 
     network = payload['network']
-    exact(network, ('origins', 'methods', 'path_templates', 'purposes', 'index_binding',
+    exact(network, ('origins', 'methods', 'path_specs', 'purposes', 'index_binding',
                     'anonymous', 'redirects', 'cookies', 'netrc', 'ambient_proxies',
                     'signed_urls', 'retries', 'dns_tls_policy', 'restriction_lineage',
                     'post_window_labels', 'endpoints'), 'NETWORK_SCHEMA')
@@ -356,7 +514,7 @@ def validate_manifest_v4(raw, *, repo, object_root, now_utc):
           all(network[k] is False for k in ('redirects', 'cookies', 'netrc',
           'ambient_proxies', 'signed_urls', 'retries', 'post_window_labels')),
           'NETWORK_POLICY')
-    check(network['path_templates'] == {p: sources[p]['path_template'] for p in SLOTS} and
+    check(network['path_specs'] == {p: sources[p]['path_spec'] for p in SLOTS} and
           network['purposes'] == list(PURPOSES) and
           network['index_binding'] == 'ETAG_IF_RANGE', 'NETWORK_REQUEST_SHAPE')
     for key in ('dns_tls_policy', 'restriction_lineage'):
@@ -370,21 +528,21 @@ def validate_manifest_v4(raw, *, repo, object_root, now_utc):
     first_use_origins = []
     for entry in endpoints:
         exact(entry, ('endpoint_id', 'provider', 'control_domain_id', 'origin', 'method',
-                      'purpose', 'path_template', 'dossier', 'access_reference',
+                      'purpose', 'path_spec', 'dossier', 'access_reference',
                       'response_contract', 'parser_identity'), 'ENDPOINT_SCHEMA')
         check(entry['provider'] in SLOTS and entry['purpose'] in PURPOSES and
               entry['method'] == 'GET', 'ENDPOINT_VALUE')
         source = sources[entry['provider']]
         mapping = source['purpose_mappings'][entry['purpose']]
         check(entry['origin'] == mapping['origin'] and
-              entry['path_template'] == mapping['path_template'] and
+              entry['path_spec'] == mapping['path_spec'] and
               entry['dossier'] == source['dossier'] and
               entry['access_reference'] == mapping['mapping_evidence'] and
               entry['parser_identity'] == mapping['validator'] and
               entry['response_contract'] == mapping['response_contract'],
               'ENDPOINT_SOURCE_BINDING')
         expected_id = hashlib.sha256(canonical(
-            [entry['provider'], entry['origin'], entry['path_template'],
+            [entry['provider'], entry['origin'], entry['path_spec'],
              entry['purpose']])).hexdigest()
         check(entry['endpoint_id'] == expected_id and entry['endpoint_id'] not in endpoint_ids,
               'ENDPOINT_ID_DERIVATION')
@@ -475,16 +633,18 @@ def validate_manifest_v4(raw, *, repo, object_root, now_utc):
               'SCHEDULE_SLOT_BINDING')
         provider, run, member, hour = expected[index]
         source = sources[provider]
-        field_path = source['path_template'].format(run=run, member=member, hour=hour)
+        field_mapping = source['purpose_mappings']['FIELD']
+        field_path = _render_path(field_mapping['path_spec'], origin=field_mapping['origin'],
+                                  provider=provider, run_utc=run, member=member, hour=hour)
         mapping = source['purpose_mappings'][request['purpose']]
-        request_path = mapping['path_template'].format(
-            run=run, member=member, hour=hour)
+        request_path = _render_path(mapping['path_spec'], origin=mapping['origin'],
+                                    provider=provider, run_utc=run, member=member, hour=hour)
         index_mapping = source['purpose_mappings']['INDEX']
-        index_path = index_mapping['path_template'].format(
-            run=run, member=member, hour=hour)
+        index_path = _render_path(index_mapping['path_spec'], origin=index_mapping['origin'],
+                                  provider=provider, run_utc=run, member=member, hour=hour)
         object_mapping = source['purpose_mappings']['OBJECT_ID']
-        object_path = object_mapping['path_template'].format(
-            run=run, member=member, hour=hour)
+        object_path = _render_path(object_mapping['path_spec'], origin=object_mapping['origin'],
+                                   provider=provider, run_utc=run, member=member, hour=hour)
         object_id = hashlib.sha256(canonical([
             provider, source['origin'], field_path,
             source['purpose_mappings']['FIELD']['mapping_evidence']['sha256'],
