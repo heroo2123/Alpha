@@ -1,5 +1,130 @@
 # Alpha V11 work checkpoint
 
+## Gate 3 V4 slice 3 candidate: injected transport/clock/resource runtime, cross-journal composition, full-denominator report — 2026-10-01 UTC
+
+Recovered the isolated worktree `/tmp/alpha-v11-gate3-v4-slice3-20261001`
+(branch `r09-gate3-v4-slice3-20261001`) clean at `9c3e748`, which already
+carries slice 1 and the independently-reviewed, integrated slice 2
+(`58a465f`/`bd0b65a`). This batch implements design section 7's slice (3) on
+top of that, as a new, additive module only: `tools/v11_r09_gate3_runtime.py`
+(733 lines) and `tests/test_v11_r09_gate3_runtime.py` (36 new focused/
+adversarial tests). **No existing file was modified** — `tools/v11_r09_gate3_
+ledgers.py`, `_launch.py`, `_launch_v4.py`, `_store_v1.py` and `_offline_io.py`
+are byte-identical to the integrated slice-2 state; this is pure composition
+on top of their already-reviewed public APIs.
+
+**What it implements**, per section 4 ("Session state machine and accounting
+composition"), section 5 ("Absolute window, pacing and measured time") and
+section 6 ("Budget, store, clock and runtime-use receipts"):
+- `Transport`/`Clock`/`ResourceProbe`: injected-interface ABCs, each with
+  only a synthetic/fake implementation (`SyntheticTransport` wraps the
+  already-reviewed `SyntheticExchange`; `FakeClock`/`FakeResourceProbe` are
+  fully scripted). No socket, real clock recorder, or host resource probe
+  exists anywhere in this module.
+- `acquire_runtime_journals`: an ordered context manager acquiring
+  `SharedLedger` → `SessionLedger` → `DurableBudget` → `VersionedImmutable
+  ObjectStore` in design section 3's exact lock order and releasing in
+  reverse, including on partial-acquisition failure (tested).
+- `GateRuntime.run_attempt`: the full per-attempt durable order (pre-checks →
+  refuse, or `ATTEMPT_INTENT`/`INTENT_OPEN` → `budget.reserve`/
+  `BUDGET_RESERVED` → recheck/`DISPATCH_INTENT`/dispatch → denial-recorded-
+  before-any-chunk-consumed → `TRANSPORT_CLOSED`/`INTENT_CLOSED` before
+  `budget.complete` → `ACCOUNTED` → seal as RAW + `OBJECT_WITNESSED` →
+  `terminal`), matching the already-accepted `SessionLedger`/`SharedLedger`
+  state machines exactly (no edits to either).
+- Absolute window (S/A/D) and uncertainty-interval checks, a durable dispatch
+  deadline (`min(m+request_deadline, A-O_hi, frozen elapsed deadline)`), and
+  resource-floor checks (2 GiB disk / 512 MiB memory) at startup, before each
+  attempt, and before each one-field decode/seal batch.
+- `build_terminal_report`: partitions the full, unconditional 2,713-slot
+  denominator (`SLOT_COUNT`) exactly once every call — every slot absent from
+  the caller's `attempted` mapping is `NEVER_ATTEMPTED`. `ReportSink`:
+  exclusive-creation, fsync-disciplined persistence into the pre-reserved
+  16 MiB report area, plus a separate bounded `INCOMPLETE` marker path.
+
+**Two deliberate scope interpretations**, documented in the module docstring
+for the next reviewer to evaluate:
+1. A pre-transport refusal (resource/window/denial failing before any
+   reservation) records only a session `REFUSED` (`attempt_intent` + `refuse`)
+   and never opens the shared global token — read as "Refused entries acquire
+   terminal reasons without DNS or transport calls" meaning the shared token
+   is reserved for attempts that actually proceed to transport.
+2. Monotonic pacing does **not** add a closure-monotonic sample to the
+   already-accepted `SessionLedger.transport_closed` schema (the slice-2
+   review's carried-forward P3 note: "TRANSPORT_CLOSED has no closure
+   monotonic sample" — left open, restated below). Instead it relies on
+   `DurableBudget.reserve`'s existing, already-durable `min_start_interval_
+   seconds` gate on successive `started_monotonic` values, which this
+   module's ordering calls once per attempt just before dispatch. This is a
+   substitution, not a resolution of that P3 note.
+
+**All other slice-2 P3 carry-forward notes are preserved, unresolved, and
+restated here verbatim** (not re-touched, since `ledgers.py` itself was not
+edited): newer-denial-overwrites-older-record in `_apply_denial`; a shared
+close can say OK after an overdelivery; the session `expected_head` is still
+optional; the shared root needs a reviewed boot-epoch reference across
+reboots; shared `INTENT_OPEN` lacks range/validator/denial-head fields;
+denial records lack origin and original clock evidence; no expected root
+device/inode is pinned and unknown file names are not rejected; `_state()` is
+O(n²); replay raises a raw `KeyError` on schema-incomplete events.
+
+**Explicitly not supplied by this slice** (per the task boundary): real
+provider endpoint mappings or source dossiers (`AttemptRequest.source_pin`/
+`decoder_pin`/`clock_policy_sha256` are caller-opaque digest references
+only); GRIB decoder qualification (a successful attempt seals the verified
+raw response bytes without decoding them); clock/storage qualification; G3-L
+approval; SHADOW evidence. No real DNS/TLS/HTTP/provider request is possible
+through this module — `Transport` has exactly one implementation and it
+wraps a fixture dictionary.
+
+**Tests (run by me, this batch, venv `/home/alphaadmin/AlphaV11_Dev/venv`):**
+- New suite: `tests/test_v11_r09_gate3_runtime.py` — **36 passed**, covering
+  success/denial/invalid-response/overdelivery outcomes; denial-recorded-
+  before-chunk-consumption; resource-floor and absolute-window pre-checks
+  (before start, exact safe boundary, uncertainty crossing A, uncertainty
+  over cap, control-domain cooldown); monotonic pacing (actual starts <2s
+  blocked, 2s gap accepted, a frozen elapsed-deadline rejecting a later
+  attempt whose own window check alone would still pass); crash/restart
+  holds at four distinct boundaries (post-attempt-intent, post-budget-
+  reserve, post-shared-open-pre-denial, post-accounted-pre-witnessed), each
+  verified by reopening fresh ledger/budget instances with the correct
+  `expected_head`/`expected_history_head`; a resource-floor drop between
+  `ACCOUNTED` and the pre-seal recheck holding (not retrying) the attempt;
+  ordered acquire/reverse release and partial-acquisition-failure release
+  scoping; the full 2,713-row terminal-report partition invariant (including
+  the all-`NEVER_ATTEMPTED` empty-schedule case) and its out-of-range-slot
+  rejection; `ReportSink` exclusive-creation, oversize-report rejection, and
+  the bounded `INCOMPLETE` marker path.
+- Full Gate 3 family regression (`test_v11_r09_gate3_collector.py`,
+  `_launch.py`, `_launch_v4.py`, `_ledgers.py`, `_message_sizes.py`,
+  `_offline_io.py`, `_restart_composition.py`, `_store_v1.py`, plus the new
+  `_runtime.py`): **400 passed, 0 failed**, only the two pre-existing fork
+  `DeprecationWarning`s (unchanged from the slice-2 baseline of 364).
+- `python3 -m py_compile` clean on both new files. `git diff --check` clean.
+  `git status --short` shows only the two new files.
+
+No C/J/E/A boundary crossed. No provider/network request, service action,
+credential, root-custodied authority, V10, AxiomTrade or financial execution
+occurred or is reachable from this module. No G3-L approval or SHADOW
+evidence is claimed. **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**,
+unchanged.
+
+**Handoff:** this is an unreviewed candidate on the isolated branch
+`r09-gate3-v4-slice3-20261001` (not merged, not pushed, not self-accepted).
+Next: a different-model exact-commit review of this exact diff against
+`9c3e748`, specifically scrutinizing the two documented scope
+interpretations above, the absolute-window/deadline arithmetic in
+`GateRuntime._enforce_window`/`_dispatch_deadline`, the denial-before-chunk
+ordering, and the overdelivery-poisoning composition (R4-equivalent at the
+runtime-orchestration layer, re-using `SessionLedger`'s own already-reviewed
+R4 logic rather than re-implementing it). After acceptance and newer-main
+reconciliation: implement the still-open P3 items above (most naturally as a
+slice-2 `ledgers.py` amendment, since several require a schema change this
+slice deliberately avoided), then proceed to the real-provider-compatibility,
+exact-run-evidence and private-package work the launch-readiness audit
+(`V11_GATE3_LAUNCH_READINESS_AUDIT_20261001.md`) already lists as the
+remaining critical path to G3-L.
+
 ## Gate 3 V4 slice 2: owner-authorized R1 repair reviewed PASS and integrated — 2026-10-01 UTC
 
 Recovered clean main `d13ed06` and the preserved slice-2 worktree. The owner's

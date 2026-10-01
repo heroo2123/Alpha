@@ -1,5 +1,49 @@
 # Supplementary engineering estimate
 
+## Gate 3 V4 slice 3 candidate: injected runtime, cross-journal composition, full-denominator report — 2026-10-01 UTC
+
+Implemented design section 7 slice (3) in the isolated worktree
+`/tmp/alpha-v11-gate3-v4-slice3-20261001` (branch
+`r09-gate3-v4-slice3-20261001`, clean at `9c3e748`) as two new, additive
+files only: `tools/v11_r09_gate3_runtime.py` and
+`tests/test_v11_r09_gate3_runtime.py`. No existing Gate 3 module was edited.
+`GateRuntime.run_attempt` drives one frozen `AttemptRequest` through the
+design section 4 durable order (pre-check-or-refuse, `ATTEMPT_INTENT`/
+`INTENT_OPEN`, `budget.reserve`/`BUDGET_RESERVED`, recheck/`DISPATCH_INTENT`/
+dispatch, denial-recorded-before-any-chunk-consumed, `TRANSPORT_CLOSED`/
+`INTENT_CLOSED` before `budget.complete`, `ACCOUNTED`, RAW seal +
+`OBJECT_WITNESSED`, `terminal`) over the already-reviewed `SharedLedger`/
+`SessionLedger`/`DurableBudget`/`VersionedImmutableObjectStore`, using only
+injected `Transport`/`Clock`/`ResourceProbe` interfaces with exclusively
+synthetic/fake implementations. Also adds the absolute S/A/D window and
+dispatch-deadline checks (section 5), resource-floor checks at startup/
+per-attempt/per-decode-batch (section 3), `build_terminal_report` (the full,
+unconditional 2,713-slot partition, section 6), and `ReportSink` (bounded,
+exclusive-creation persistence into the pre-reserved 16 MiB report area).
+
+Two scope interpretations are documented in the module docstring for
+reviewer scrutiny: a pre-transport refusal never opens the shared global
+token (only a session `REFUSED` record); and monotonic pacing reuses
+`DurableBudget.reserve`'s existing durable `min_start_interval_seconds` gate
+rather than adding a closure-monotonic field to the already-accepted
+`SessionLedger` schema — the slice-2 review's P3 note on that exact gap is
+preserved as still open, not resolved, along with every other slice-2 P3
+carry-forward item (none of which required touching `ledgers.py`, so none
+were touched). No provider mappings, source dossiers, decoder qualification,
+clock/storage qualification, or G3-L/SHADOW claims are made by this slice.
+
+Tests: new suite 36 passed (success/denial/invalid-response/overdelivery
+outcomes, denial-before-chunk ordering, resource-floor and absolute-window
+pre-checks, monotonic pacing including a frozen-elapsed-deadline case,
+crash/restart holds at four distinct boundaries via fresh-reopen with
+`expected_head`/`expected_history_head`, ordered acquire/reverse release and
+partial-acquisition-failure scoping, the full 2,713-row report partition
+invariant, and `ReportSink` exclusivity/capacity behavior). Full Gate 3
+family regression: 400 passed, 0 failed (364 prior + 36 new), only the two
+pre-existing fork warnings. `py_compile` and `git diff --check` clean.
+Unreviewed candidate; not merged, not pushed. No C/J/E/A boundary crossed:
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Gate 3 V4 slice 2 integrated after independent PASS — 2026-10-01 UTC
 
 The exact `58a465f` owner-authorized R1 fix passed independent Opus/high
