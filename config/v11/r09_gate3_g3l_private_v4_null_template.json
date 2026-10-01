@@ -1,0 +1,552 @@
+{
+  "accounting": {
+    "all_provider_intersection": null,
+    "all_reasons": null,
+    "diagnostics_no_credit": null,
+    "expired_local_only": null,
+    "journal_hash_chain": null,
+    "no_silent_retry": null,
+    "provider_eligibility": null,
+    "raw_partition": null,
+    "terminal_precedence": null
+  },
+  "clocks_and_receipts": {
+    "observation_schema": {
+      "cutoff_utc": null,
+      "phases": [
+        "request_start",
+        "body_receipt",
+        "decode_complete",
+        "durable_seal"
+      ],
+      "uncertainty_seconds_cap": 1
+    },
+    "preregistration": {
+      "host_boot": null,
+      "max_measurement_age_seconds": null,
+      "method": null,
+      "sync_evidence": null
+    }
+  },
+  "code": {
+    "components": {
+      "clock_recorder": {
+        "commit_oid": null,
+        "path": null,
+        "sha256": null,
+        "tree_oid": null
+      },
+      "collector": {
+        "commit_oid": null,
+        "path": null,
+        "sha256": null,
+        "tree_oid": null
+      },
+      "decoder": {
+        "commit_oid": null,
+        "path": null,
+        "sha256": null,
+        "tree_oid": null
+      },
+      "launch_validator": {
+        "commit_oid": null,
+        "path": null,
+        "sha256": null,
+        "tree_oid": null
+      },
+      "transport": {
+        "commit_oid": null,
+        "path": null,
+        "sha256": null,
+        "tree_oid": null
+      }
+    },
+    "dependency_lock": null,
+    "object_format": null
+  },
+  "cohort": {
+    "buckets": null,
+    "city_day": null,
+    "events": null,
+    "gate2_trial_keys": null,
+    "latitude": null,
+    "longitude": null,
+    "metadata": null,
+    "requested_keys": null,
+    "rounding": null,
+    "rule": null,
+    "selection": null,
+    "settlement": null,
+    "station_id": null,
+    "station_version": null,
+    "target_date": "2026-10-02",
+    "timezone": null,
+    "tzdata": null,
+    "units": "CELSIUS"
+  },
+  "identity": {
+    "capture_mode": "BOUNDED_FEASIBILITY",
+    "created_ref": null,
+    "financial_authority": false,
+    "host_approved": false,
+    "launch_authority": false,
+    "mapping_scope": null,
+    "pilot_id": null,
+    "promotion_authority": false,
+    "purpose": "NONFINANCIAL_RESEARCH",
+    "schema": "R09_GATE3_LAUNCH_MANIFEST_V4"
+  },
+  "limits": {
+    "decoded": 67108864,
+    "field_bytes": {
+      "AIFS": 4194304,
+      "GEFS": 2097152,
+      "IFS": 4194304
+    },
+    "headers": 4096,
+    "max_elapsed_seconds": 10800,
+    "max_index_bytes": 3145728,
+    "max_received_bytes": 1073741824,
+    "max_requests": 3600,
+    "metadata": 4194304,
+    "min_available_memory_bytes": 536870912,
+    "min_free_disk_bytes": 2147483648,
+    "min_start_interval_seconds": 2,
+    "report_storage": 16777216,
+    "request_deadline_seconds": 30,
+    "single_in_flight": true
+  },
+  "network": {
+    "ambient_proxies": false,
+    "anonymous": true,
+    "cookies": false,
+    "dns_tls_policy": null,
+    "endpoints": null,
+    "index_binding": "ETAG_IF_RANGE",
+    "methods": [
+      "GET"
+    ],
+    "netrc": false,
+    "origins": null,
+    "path_specs": {
+      "AIFS": null,
+      "GEFS": null,
+      "IFS": null
+    },
+    "post_window_labels": false,
+    "purposes": [
+      "FIELD",
+      "INDEX",
+      "OBJECT_ID",
+      "METADATA",
+      "PROBE"
+    ],
+    "redirects": false,
+    "restriction_lineage": null,
+    "retries": false,
+    "signed_urls": false
+  },
+  "protocol": {
+    "addendum_commit_oid": "14c2413c4cef63dab35a806955fcdd3ef0942f69",
+    "addendum_document": null,
+    "addendum_tree_oid": "d37d7ad55a76902cae0536e6f4d21b9db6aeaa81",
+    "original_commit_oid": "117830a9b418cdf2a1b1f5146e074343623b8e3f",
+    "original_document": null,
+    "original_tree_oid": "07c4d72fcafb4897896e27dfbcc415e7ab078ee9",
+    "reviewed_design": {
+      "commit_oid": "7e132a02ae0fcceed5e3fea65f7b86bed4a92c23",
+      "document": null,
+      "report": null,
+      "terminal": null,
+      "tree_oid": "89332f46dfc6b2111fe331fca54467cce96a3895"
+    },
+    "reviews": [
+      {
+        "name": "original_protocol",
+        "report": null,
+        "terminal": null
+      },
+      {
+        "name": "collector",
+        "report": null,
+        "terminal": null
+      },
+      {
+        "name": "provider_bound",
+        "report": null,
+        "terminal": null
+      },
+      {
+        "name": "gefs_ceiling",
+        "report": null,
+        "terminal": null
+      },
+      {
+        "name": "launch_addendum",
+        "report": null,
+        "terminal": null
+      }
+    ]
+  },
+  "runs_and_slots": {
+    "allowed_cycles": [
+      0
+    ],
+    "candidates": null,
+    "fallback_mode": "NONE",
+    "max_run_age_seconds": 86400,
+    "run_selection": "LATEST_COMPLETE_READY",
+    "run_utc": {
+      "AIFS": null,
+      "GEFS": null,
+      "IFS": null
+    },
+    "slots": null
+  },
+  "runtime": {
+    "clock_policy": null,
+    "denial_root": {
+      "descriptor": null,
+      "expected_history_head": null
+    },
+    "journal_bounds": null,
+    "policy": null,
+    "purpose_plan": {
+      "FIELD": {
+        "requests": null,
+        "reservation_bytes": null
+      },
+      "INDEX": {
+        "requests": null,
+        "reservation_bytes": null
+      },
+      "METADATA": {
+        "requests": null,
+        "reservation_bytes": null
+      },
+      "OBJECT_ID": {
+        "requests": null,
+        "reservation_bytes": null
+      },
+      "PROBE": {
+        "requests": null,
+        "reservation_bytes": null
+      }
+    },
+    "report_root": null,
+    "resource_bounds": {
+      "clock_record_max_bytes": null,
+      "denial_journal_max_bytes": null,
+      "denial_journal_max_events": null,
+      "descriptor_max_bytes": null,
+      "journal_record_max_bytes": null,
+      "local_storage_quota_bytes": null,
+      "max_body_chunks_per_request": null,
+      "receipt_max_dependencies": null,
+      "report_reserve_bytes": null,
+      "required_store_objects": null,
+      "session_journal_max_bytes": null,
+      "session_journal_max_events": null,
+      "store_journal_max_bytes": null,
+      "store_max_events": null,
+      "store_max_objects": null,
+      "store_object_max_bytes": null
+    },
+    "schedule_digest": null,
+    "session_root": null
+  },
+  "schedule": {
+    "attempt_slots": null,
+    "capture_mode": "BOUNDED_FEASIBILITY",
+    "estimated_full_raw_bytes": null,
+    "finalization_seconds": 60,
+    "full_denominator": 2713,
+    "observed_sizes": null,
+    "processing_seconds": 60,
+    "requests": null,
+    "reservation_total_bytes": null,
+    "slot_inventory_sha256": null
+  },
+  "sources": {
+    "AIFS": {
+      "control_domain": null,
+      "decoder_build": null,
+      "dossier": null,
+      "effective_run_end_utc": null,
+      "effective_run_start_utc": null,
+      "identity_pins": null,
+      "index_evidence": null,
+      "licence": null,
+      "member_range": [
+        0,
+        50
+      ],
+      "native_hours": [
+        0,
+        6,
+        12,
+        18,
+        24,
+        30,
+        36,
+        42,
+        48,
+        54,
+        60,
+        66,
+        72
+      ],
+      "origin": null,
+      "path_spec": null,
+      "publication_absence_reason": null,
+      "publication_attestation": null,
+      "purpose_mappings": {
+        "FIELD": {
+          "control_domain_id": null,
+          "mapping_evidence": null,
+          "origin": null,
+          "path_spec": null,
+          "response_contract": null,
+          "validator": null
+        },
+        "INDEX": {
+          "control_domain_id": null,
+          "mapping_evidence": null,
+          "origin": null,
+          "path_spec": null,
+          "response_contract": null,
+          "validator": null
+        },
+        "METADATA": {
+          "control_domain_id": null,
+          "mapping_evidence": null,
+          "origin": null,
+          "path_spec": null,
+          "response_contract": null,
+          "validator": null
+        },
+        "OBJECT_ID": {
+          "control_domain_id": null,
+          "mapping_evidence": null,
+          "origin": null,
+          "path_spec": null,
+          "response_contract": null,
+          "validator": null
+        },
+        "PROBE": {
+          "control_domain_id": null,
+          "mapping_evidence": null,
+          "origin": null,
+          "path_spec": null,
+          "response_contract": null,
+          "validator": null
+        }
+      },
+      "range_evidence": null,
+      "release_document": null
+    },
+    "GEFS": {
+      "control_domain": null,
+      "decoder_build": null,
+      "dossier": null,
+      "effective_run_end_utc": null,
+      "effective_run_start_utc": null,
+      "identity_pins": null,
+      "index_evidence": null,
+      "licence": null,
+      "member_range": [
+        0,
+        30
+      ],
+      "native_hours": [
+        0,
+        3,
+        6,
+        9,
+        12,
+        15,
+        18,
+        21,
+        24,
+        27,
+        30,
+        33,
+        36,
+        39,
+        42,
+        45,
+        48,
+        51,
+        54,
+        57,
+        60,
+        63,
+        66,
+        69,
+        72
+      ],
+      "origin": null,
+      "path_spec": null,
+      "publication_absence_reason": null,
+      "publication_attestation": null,
+      "purpose_mappings": {
+        "FIELD": {
+          "control_domain_id": null,
+          "mapping_evidence": null,
+          "origin": null,
+          "path_spec": null,
+          "response_contract": null,
+          "validator": null
+        },
+        "INDEX": {
+          "control_domain_id": null,
+          "mapping_evidence": null,
+          "origin": null,
+          "path_spec": null,
+          "response_contract": null,
+          "validator": null
+        },
+        "METADATA": {
+          "control_domain_id": null,
+          "mapping_evidence": null,
+          "origin": null,
+          "path_spec": null,
+          "response_contract": null,
+          "validator": null
+        },
+        "OBJECT_ID": {
+          "control_domain_id": null,
+          "mapping_evidence": null,
+          "origin": null,
+          "path_spec": null,
+          "response_contract": null,
+          "validator": null
+        },
+        "PROBE": {
+          "control_domain_id": null,
+          "mapping_evidence": null,
+          "origin": null,
+          "path_spec": null,
+          "response_contract": null,
+          "validator": null
+        }
+      },
+      "range_evidence": null,
+      "release_document": null
+    },
+    "IFS": {
+      "control_domain": null,
+      "decoder_build": null,
+      "dossier": null,
+      "effective_run_end_utc": null,
+      "effective_run_start_utc": null,
+      "identity_pins": null,
+      "index_evidence": null,
+      "licence": null,
+      "member_range": [
+        0,
+        50
+      ],
+      "native_hours": [
+        0,
+        3,
+        6,
+        9,
+        12,
+        15,
+        18,
+        21,
+        24,
+        27,
+        30,
+        33,
+        36,
+        39,
+        42,
+        45,
+        48,
+        51,
+        54,
+        57,
+        60,
+        63,
+        66,
+        69,
+        72
+      ],
+      "origin": null,
+      "path_spec": null,
+      "publication_absence_reason": null,
+      "publication_attestation": null,
+      "purpose_mappings": {
+        "FIELD": {
+          "control_domain_id": null,
+          "mapping_evidence": null,
+          "origin": null,
+          "path_spec": null,
+          "response_contract": null,
+          "validator": null
+        },
+        "INDEX": {
+          "control_domain_id": null,
+          "mapping_evidence": null,
+          "origin": null,
+          "path_spec": null,
+          "response_contract": null,
+          "validator": null
+        },
+        "METADATA": {
+          "control_domain_id": null,
+          "mapping_evidence": null,
+          "origin": null,
+          "path_spec": null,
+          "response_contract": null,
+          "validator": null
+        },
+        "OBJECT_ID": {
+          "control_domain_id": null,
+          "mapping_evidence": null,
+          "origin": null,
+          "path_spec": null,
+          "response_contract": null,
+          "validator": null
+        },
+        "PROBE": {
+          "control_domain_id": null,
+          "mapping_evidence": null,
+          "origin": null,
+          "path_spec": null,
+          "response_contract": null,
+          "validator": null
+        }
+      },
+      "range_evidence": null,
+      "release_document": null
+    }
+  },
+  "storage": {
+    "atomic_fsync_seal": null,
+    "directory_dev": null,
+    "directory_inode": null,
+    "exclusive_lock": null,
+    "layout": null,
+    "mode": null,
+    "no_reclamation": null,
+    "owner_uid": null,
+    "report_reserve_bytes": null,
+    "root": null
+  },
+  "time": {
+    "decision_lower_utc": null,
+    "decision_utc": 1790877600,
+    "expires_utc": null,
+    "feature_seal_upper_utc": null,
+    "last_acquisition_utc": 1790874000,
+    "local_day_end_utc": null,
+    "local_day_start_utc": null,
+    "preregistered_utc": null,
+    "review_completed_utc": null,
+    "uncertainty_seconds": 1,
+    "window_start_utc": 1790863200
+  }
+}
