@@ -1,5 +1,38 @@
 # Alpha V11 work checkpoint
 
+## Coordinator recovery and G3-L evidence reconciliation — 2026-10-01 after 11:42 UTC
+
+Recovered clean main `f9afa7d`, eight local commits ahead of its tracking ref.
+Both existing persistent workers are live: slice 3 runner/child
+`1560999`/`1561000` in `/tmp/alpha-v11-gate3-v4-slice3-20261001` at
+`9c3e748`, and provider mapping `1562328`/`1562329` in
+`/tmp/alpha-v11-gate3-v4-provider-mapping-20261001` at `f5f6cde`.
+Their worktrees are clean, logs are empty and neither terminal exists; no
+duplicate writer was launched. The SHADOW commissioning and accepted release
+worktrees are clean at `15e99bd` and `6ec371e`. The release acceptance
+records 396 affected passes and 5,460 full-suite passes with 13 skips; the
+older fill-markout/source-view failures were resolved by that acceptance.
+
+Updated the [G3-L launch-readiness audit](V11_GATE3_LAUNCH_READINESS_AUDIT_20261001.md)
+to correct its stale pre-integration slice-2 snapshot and pin the remaining
+ECMWF 503/429 restriction evidence and missing dossier/preflight lineage.
+No provider request, test, launch or SHADOW collection was performed. G3-L
+is NO-GO pending both workers' candidate completion, separate exact-commit
+reviews, newer-main reconciliation, real runtime/decoder/source/clock/storage
+evidence and a completed exact-digest launch review. No 14:00 UTC window is
+authorized yet. PAPER scanner remains inactive/disabled; execution is
+inactive/masked; protected model-authority paths remain absent. The private
+FINAL-REVIEWED master matches its pinned SHA-256. Free disk is about 3.8 GiB;
+available memory about 704 MiB plus 1.5 GiB free swap. V10 and AxiomTrade
+were untouched. No C/J/E/A boundary crossed: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
+Next: recover each worker from actual process, worktree, log and terminal;
+inspect its candidate diff/tests; obtain independent exact-commit review;
+then reconcile compatible accepted work with newer main. Continue offline
+source/restriction and bounded preflight preparation; no real request before
+the required independent preflight approval and G3-L PASS.
+
 ## Coordinator recovery and parallel offline mapping launch — 2026-10-01 11:42 UTC
 
 Recovered clean main `f5f6cde`, locally seven commits ahead of its tracking

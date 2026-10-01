@@ -1,5 +1,15 @@
 # Supplementary engineering estimate
 
+## Gate 3 evidence inventory updated — 2026-10-01 after 11:42 UTC
+
+Recovered both live offline workers without duplicate launches and corrected
+the stale slice-2 status in the G3-L readiness audit. The concrete remaining
+source gap includes unreconciled ECMWF 503/429 restriction evidence, alongside
+missing exact-run dossiers, range identity and separately approved preflight.
+This is documentation and coordination only; G3-L remains NO-GO and no
+forward SHADOW evidence was collected. **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Parallel offline Gate 3 mapping work launched — 2026-10-01 11:42 UTC
 
 The isolated slice-3 worker is still active. A second specialized worker is

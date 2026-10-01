@@ -1,5 +1,16 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Gate 3 launch-evidence reconciliation — 2026-10-01 after 11:42 UTC
+
+Both separate offline workers remain live and have no candidate result.
+The launch-readiness audit now distinguishes its earlier slice-2 snapshot
+from the reviewed and integrated slice-2 PASS. Existing ECMWF 503/429
+evidence still needs reviewed restriction-lineage reconciliation; exact
+source dossiers, current-run range identity and approved preflight remain
+missing. G3-L stays NO-GO. The prior accepted release resolved the old
+load-sensitive full-suite failures; no new release gate was run. No C/J/E/A
+boundary crossed: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Gate 3 offline mapping candidate in progress — 2026-10-01 11:42 UTC
 
 The slice-3 worker remains live. A separate isolated Sonnet/high worker is
