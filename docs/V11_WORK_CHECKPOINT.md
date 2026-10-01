@@ -1,5 +1,41 @@
 # Alpha V11 work checkpoint
 
+## Static MEMFS candidate finished; independent exact review live — 2026-10-01 20:13 UTC
+
+Recovered the completed Sonnet/high worker from its actual terminal
+`/tmp/alpha-v11-gate3-memfs-static-20261001.terminal.json`: clean, unmerged
+candidate `8b0b32ee98f7f366f686f9aeb3a40e58fe6df750` (tree
+`f35be9c28db9d67662405b6f4af1b31a00be5306`, parent `ca55079`) in
+`/tmp/alpha-v11-gate3-memfs-static-inventory-20261001`. It changed only
+three new static MEMFS observation/probe files. `git diff --check`, JSON
+parsing and Python syntax pass. The author reports exact table/relocation
+mapping for 7,073 embedded entries, including path, byte range and hash;
+these are **unreviewed author claims**, not G3-L/build qualification.
+
+Launched exactly one different-model independent Astra/high reviewer in
+detached `/tmp/alpha-v11-memfs-review-8b0b32e` at the exact candidate/tree.
+Persistent runner **1897966**, child **1897972** were verified live; prompt,
+runner, log, report and terminal prefix are
+`/tmp/alpha-v11-memfs-review-8b0b32e`. Terminal verdict must be inspected
+against the report and exact checkout before any integration. Do not duplicate
+the reviewer or merge the author candidate yet. Main is clean at `7f568da`;
+accepted R1 `58a465f` and release fix `6ec371e` remain ancestors.
+
+Commissioning evidence has no new qualifying forward sample after the
+September 30 06:43 artifact; later files are watchdog/status only. SHADOW and
+Brain worktrees remain clean; ECMWF `backfill_data/` is preserved. PAPER
+scanner/controller and V11 execution are inactive, scanner disabled and
+execution masked; protected authority roots absent. Private FINAL-REVIEWED
+master still matches SHA-256
+`a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+Observed root free disk **1,236,373,504 bytes**, below the 2 GiB G3-L floor,
+and available memory about 589 MiB. Latest prospective October 2 G3-L screen
+still lacks 77 reviewed identities; G3-L **NO-GO**, no provider request or
+forward SHADOW sample. Existing release result remains 5,460 passed / 13
+skipped. No V10, AxiomTrade, service, authority, financial or remote-publication
+action; no C/J/E/A crossing: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Passive recovery while static MEMFS evidence is in progress — 2026-10-01 20:07 UTC
 
 Main remains clean at `4bffadf`. The sole Alpha writer is still live (runner

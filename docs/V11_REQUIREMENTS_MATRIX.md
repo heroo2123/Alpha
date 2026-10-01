@@ -1,5 +1,16 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Static MEMFS candidate awaits independent exact review — 2026-10-01 20:13 UTC
+
+Clean, unmerged Sonnet/high candidate `8b0b32e` (tree `f35be9c`) has three
+new offline observation/probe files and a matching terminal. The author claims
+7,073/7,073 exact embedded path-to-payload entries; independent Astra/high
+exact-commit review is live in `/tmp/alpha-v11-memfs-review-8b0b32e` and must
+adjudicate the claim before integration. No G3-L/build/CCSDS identity credit.
+GEFS has no new forward sample; the proposed screen still lacks 77 reviewed
+inputs and disk remains below 2 GiB. **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND** unchanged.
+
 ## Static MEMFS worker recovery — 2026-10-01 20:07 UTC
 
 Main `4bffadf` is clean. The sole MEMFS worker remains live in its isolated

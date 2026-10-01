@@ -1,5 +1,16 @@
 # Supplementary engineering estimate
 
+## Static MEMFS exact review launched — 2026-10-01 20:13 UTC
+
+The bounded Sonnet/high worker finished clean candidate `8b0b32e` and its
+terminal agrees with the worktree. Three offline observation/probe files pass
+diff, JSON and syntax checks. The 7,073-entry mapping is an unreviewed author
+claim; one independent Astra/high exact-commit reviewer is now live in an
+isolated checkout. Main remains clean at `7f568da`. No new forward SHADOW
+evidence; G3-L remains NO-GO with 77 missing reviewed inputs and disk below
+the 2 GiB floor. No C/J/E/A boundary: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND** unchanged.
+
 ## Static MEMFS worker recovery — 2026-10-01 20:07 UTC
 
 The sole Alpha MEMFS writer remains live with one unfinished untracked probe;
