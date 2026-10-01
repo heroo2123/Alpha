@@ -1,5 +1,15 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Live J1 and offline source gate — 2026-10-01 18:35 UTC
+
+The sole J1 repair writer is live with no reviewable terminal or new commit.
+The owner-authorized R1 timing correction remains integrated. The October 2
+offline screen has 77 missing pre-review identities, with no new source,
+restriction, clock, storage, cohort or exact-package evidence. Root free space
+is below the 2 GiB launch floor. Brain readiness remains synthetic/offline;
+real IFS/AIFS examples await Gate 3/4 admission. No forward SHADOW sample or
+C/J/E/A boundary crossed: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## J1 blocks I1; repair writer live — 2026-10-01 18:28 UTC
 
 The exact independent review of unmerged `8efb60a` is

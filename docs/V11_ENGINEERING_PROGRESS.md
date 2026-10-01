@@ -1,5 +1,16 @@
 # Supplementary engineering estimate
 
+## Live J1 recovery and offline no-go audit — 2026-10-01 18:35 UTC
+
+Main is clean at `264536a` before this documentation update. The J1 repair
+runner and child remain live in a clean isolated worktree at `8efb60a` with
+no candidate or terminal. An offline next-window audit found no new G3-L
+evidence; 77 identities remain missing and root free disk is about 1.3 GiB,
+below the launch floor. Exact review and newer-main reconciliation remain
+pending after a tested candidate. Parallel Brain machinery is reviewed for
+offline/synthetic use, while real IFS/AIFS admission remains gated by Gate 3/4.
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND** unchanged.
+
 ## J1 exact-review blocker under repair — 2026-10-01 18:28 UTC
 
 Independent Astra/high review of clean unmerged `8efb60a` completed

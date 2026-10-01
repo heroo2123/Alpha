@@ -1,5 +1,33 @@
 # Alpha V11 work checkpoint
 
+## Live J1 repair and next-window audit — 2026-10-01 18:35 UTC
+
+Recovered clean main `264536a` (47 commits ahead of tracking). The sole
+Sonnet/high J1 repair runner `1835359` and child `1835364` remain live in the
+clean isolated slice-3 repair worktree at `8efb60a`; no new candidate commit,
+terminal or review verdict exists yet. Do not duplicate or edit that worktree.
+The owner-authorized R1 denial-timing correction is already integrated on
+main as `58a465f` lineage, so no second R1 edit is needed.
+
+An offline next-window audit found no new exact package, provider/source,
+clock, storage, restriction or frozen-cohort evidence. The existing screen
+still lists 77 missing pre-review identities and `launchable=false`. Root free
+space is about 1.3 GiB, below the 2 GiB launch floor; available memory is
+about 918 MiB plus 1.7 GiB free swap. PAPER scanner, demo, controller and
+execution were passively observed inactive; scanner disabled. Protected
+authority paths are absent, and the private FINAL-REVIEWED master still
+matches SHA-256 `a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+SHADOW and Brain-readiness worktrees are clean; the ECMWF backfill worktree's
+untracked `backfill_data/` remains preserved. Real IFS/AIFS learner admission
+still depends on the open Gate 3/4 causal source evidence.
+
+Next: recover the J1 runner's actual terminal and candidate bytes, inspect
+diff and exact tests, then obtain fresh different-model exact-commit review.
+Only a PASS can proceed to newer-main reconciliation. G3-L remains **NO-GO**;
+no provider request or forward SHADOW sample occurred. No V10, AxiomTrade,
+service, authority, financial or private-master change was made. No C/J/E/A
+boundary crossed: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## J1 repair launched after exact review — 2026-10-01 18:28 UTC
 
 Recovered clean main `78ec926` (46 commits ahead of tracking) and clean,
