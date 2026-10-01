@@ -1,5 +1,17 @@
 # Supplementary engineering estimate
 
+## G1–G4 author candidate sent for independent review — 2026-10-01 15:41 UTC
+
+The sole repair writer completed clean candidate 6515233 (tree
+df3a8372) with 83 focused and 447 offline Gate 3 family author-reported
+passes. The four-file diff is 641 insertions / 113 deletions and passes
+git diff --check. One Astra/high exact-commit reviewer is live in a
+separate clean checkout; report, terminal and newer-main reconciliation
+remain pending. G3-L is NO-GO with 77 missing pre-review identities, no
+provider or forward sample. **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND** unchanged.
+
+
 ## G1–G4 writer still live — 2026-10-01 15:24 UTC
 
 Recovered clean main `4004c6c` and one live isolated writer at `8e18553`

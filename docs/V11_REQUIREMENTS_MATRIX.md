@@ -1,5 +1,15 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Slice-3 candidate under independent exact review — 2026-10-01 15:41 UTC
+
+The G1–G4 repair is a clean author candidate 6515233 (tree df3a8372);
+83 focused and 447 family passes are author evidence only. A separate
+Astra/high exact-commit review is live; no PASS, integration, G3-L or
+forward sample is claimed. The 77 pre-review identities remain missing.
+No C/J/E/A boundary crossed: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
+
 ## Live Gate 3 recovery check — 2026-10-01 15:24 UTC
 
 The sole G1–G4 writer is still active with four unfinished files and no

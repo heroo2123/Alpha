@@ -1,5 +1,38 @@
 # Alpha V11 work checkpoint
 
+## Slice-3 G1–G4 candidate completed; exact review running — 2026-10-01 15:41 UTC
+
+Recovered the sole Sol/high writer's completed terminal. Its isolated worktree
+is clean at candidate 651523349409092907e25a8667b1ad3a25dc5ede (tree
+df3a83727e2ed39217a5bdd8769672076b25a0e4), parent 8e18553.
+The four-file G1–G4 diff has 641 insertions and 113 deletions and passes
+git diff --check. The author reports 83 focused and 447 offline Gate 3
+family passes, two existing fork warnings, plus the prior three closure
+controls. These are author results, not acceptance.
+
+A separate clean detached checkout at
+/tmp/alpha-v11-gate3-slice3-review-6515233 now has one persistent
+independent Astra/high exact-commit reviewer (runner PID 1736871, Codex
+child 1736877). Its prompt, runner, log, report, terminal and driver use
+/tmp/alpha-v11-slice3-review-6515233 as prefix. The first shell-background
+launch ended without running; the verified setsid launch supersedes it.
+Require the reviewer report, matching completed terminal, independent probes,
+and newer-main reconciliation before any integration. Do not duplicate review
+or modify the candidate while it runs.
+
+Main is clean at 4cf444e before this checkpoint. PAPER demo/scanner,
+controller and execution are inactive; scanner is disabled, protected
+/etc/alpha-v11 and /var/lib/alpha-v11 are absent. The private
+FINAL-REVIEWED master still matches pinned SHA-256
+a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a.
+Root free space is about 3.5 GiB; available RAM about 979 MiB plus 1.6 GiB
+free swap. NTP's passive root distance was 3.928 ms, which does not qualify
+the launch clock. G3-L stays **NO-GO** with 77 missing pre-review identities;
+no provider request, SHADOW capture, V10/AxiomTrade/service/authority/private
+master or financial change occurred. No C/J/E/A boundary crossed:
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
+
 ## Live G1–G4 recovery and safety check — 2026-10-01 15:24 UTC
 
 Actual main is clean at `4004c6c` (35 local commits ahead of tracking). The
