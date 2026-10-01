@@ -74,6 +74,7 @@ acceptance-slice table). Synthetic fixtures only; no network calls.
 """
 from __future__ import annotations
 
+import base64
 import contextlib
 import fcntl
 import hashlib
@@ -107,6 +108,22 @@ LEDGER_READ_CHUNK_BYTES = 64 * 1024
 REPORT_RESERVE_BYTES = 16 * 1024 ** 2
 
 REQUEST_ID_RE = re.compile(r'[A-Za-z0-9_-]{1,80}')
+
+# Gate 3 V4 slice-3 repair (independent review commit 8e446fd, findings R2-R4,
+# R7): both ledgers gained new durable fields/ops (denial raw-evidence bytes,
+# the elapsed-deadline/closure-monotonic/report-completion records below).
+# An old slice-2 journal predates these and is never silently reinterpreted:
+# every genesis record now carries an explicit ``schema_version``, and
+# reopening a root whose genesis lacks the current value refuses outright,
+# before any new-field access can ever reach an old-format event.
+SHARED_LEDGER_SCHEMA_VERSION = 2
+SESSION_LEDGER_SCHEMA_VERSION = 2
+# R4: "Raw evidence must be durably retained or have an explicit
+# missing-evidence cause; hashing an ephemeral header tuple does not retain
+# its bytes." Bounded like the store's own clock raw-evidence cap in spirit
+# (tools/v11_r09_gate3_store_v1.py's MAX_CLOCK_RAW), sized for the header
+# bound (<=4096 bytes) plus status/structure overhead.
+MAX_DENIAL_EVIDENCE_RAW_BYTES = 8192
 
 
 def _optional_digest(value, reason):
@@ -364,7 +381,8 @@ class SharedLedger(_HashChainJournal):
                 check(genesis_review_digest is not None,
                       'SHARED_LEDGER_LINEAGE_UNREVIEWED')
                 self._append({'op': 'init', 'genesis_review_digest': genesis_review_digest,
-                              'boot_id': boot_id, 'max_requests': max_requests})
+                              'boot_id': boot_id, 'max_requests': max_requests,
+                              'schema_version': SHARED_LEDGER_SCHEMA_VERSION})
             else:
                 # Genesis is recorded once, at creation; it is never
                 # re-asserted or re-reviewed on a later reopen.
@@ -377,7 +395,13 @@ class SharedLedger(_HashChainJournal):
                 check(self.prev == expected_history_head,
                       'SHARED_LEDGER_LINEAGE_HEAD_MISMATCH')
                 init = self.events[0]
-                check(init.get('op') == 'init' and init.get('max_requests') == max_requests,
+                # A root genesis written before this repair has no
+                # ``schema_version`` key at all: refuse explicitly rather
+                # than silently replaying new-field events it could never
+                # have written (slice-3 repair, R2/R4; never a silent
+                # journal migration).
+                check(init.get('op') == 'init' and init.get('max_requests') == max_requests and
+                      init.get('schema_version') == SHARED_LEDGER_SCHEMA_VERSION,
                       'SHARED_LEDGER_IDENTITY_MISMATCH')
                 if init.get('boot_id') != boot_id:
                     self._boot_ok = False
@@ -442,15 +466,33 @@ class SharedLedger(_HashChainJournal):
             # the conservative receipt upper bound.
             cooldown_until = (None if retry is None else
                 max(denial['window_end_utc'], denial['receipt_upper_bound_utc'] + retry))
+        previous = self.denials.get(control_domain_id)
+        if previous is not None:
+            prior_until = previous['cooldown_until']
+            if prior_until is None or cooldown_until is None:
+                cooldown_until = None
+            else:
+                cooldown_until = max(prior_until, cooldown_until)
         self.denials[control_domain_id] = {
             'status': denial['status'], 'reason': denial['reason'],
             'cooldown_until': cooldown_until}
 
     @staticmethod
     def _validate_denial(denial):
-        exact(denial, ('status', 'reason', 'evidence_sha256', 'evidence_missing_cause',
-                       'retry_after_seconds', 'window_end_utc', 'receipt_upper_bound_utc'),
-              'SHARED_LEDGER_DENIAL_SCHEMA')
+        exact(denial, ('status', 'reason', 'origin', 'evidence_sha256',
+                       'evidence_raw_b64', 'evidence_missing_cause',
+                       'receipt_clock_sha256', 'receipt_clock_raw_b64',
+                       'retry_after_seconds', 'window_end_utc',
+                       'receipt_upper_bound_utc'), 'SHARED_LEDGER_DENIAL_SCHEMA')
+        check(type(denial['origin']) is str and denial['origin'].startswith('https://'),
+              'SHARED_LEDGER_DENIAL_ORIGIN')
+        try:
+            clock_raw = base64.b64decode(denial['receipt_clock_raw_b64'], validate=True)
+        except (ValueError, TypeError) as exc:
+            raise LaunchContractError('SHARED_LEDGER_DENIAL_CLOCK') from exc
+        check(0 < len(clock_raw) <= 16384 and
+              hashlib.sha256(clock_raw).hexdigest() == denial['receipt_clock_sha256'],
+              'SHARED_LEDGER_DENIAL_CLOCK')
         check(denial['status'] in ('401', '403', '429', '503', 'EXPLICIT_DENIAL', 'OTHER'),
               'SHARED_LEDGER_DENIAL_STATUS')
         check(type(denial['reason']) is str and denial['reason'], 'SHARED_LEDGER_DENIAL_REASON')
@@ -458,7 +500,20 @@ class SharedLedger(_HashChainJournal):
               'SHARED_LEDGER_DENIAL_EVIDENCE')
         if denial['evidence_sha256'] is not None:
             digest(denial['evidence_sha256'], 'SHARED_LEDGER_DENIAL_EVIDENCE')
+            # R4: "hashing an ephemeral header tuple does not retain its
+            # bytes" -- the raw status/header evidence is retained inline,
+            # bounded, alongside its hash, never just the digest alone.
+            check(type(denial['evidence_raw_b64']) is str and denial['evidence_raw_b64'],
+                  'SHARED_LEDGER_DENIAL_EVIDENCE')
+            try:
+                raw = base64.b64decode(denial['evidence_raw_b64'], validate=True)
+            except (ValueError, TypeError) as exc:
+                raise LaunchContractError('SHARED_LEDGER_DENIAL_EVIDENCE') from exc
+            check(0 < len(raw) <= MAX_DENIAL_EVIDENCE_RAW_BYTES and
+                  hashlib.sha256(raw).hexdigest() == denial['evidence_sha256'],
+                  'SHARED_LEDGER_DENIAL_EVIDENCE')
         else:
+            check(denial['evidence_raw_b64'] is None, 'SHARED_LEDGER_DENIAL_EVIDENCE')
             check(type(denial['evidence_missing_cause']) is str and
                   denial['evidence_missing_cause'], 'SHARED_LEDGER_DENIAL_EVIDENCE')
         check(denial['retry_after_seconds'] is None or
@@ -624,12 +679,18 @@ class SessionLedger(_HashChainJournal):
             if not self.events:
                 self._append({'op': 'init', 'manifest': manifest_sha256, 'boot_id': boot_id,
                               'report_reserve_bytes': report_reserve_bytes,
-                              'max_requests': max_requests})
+                              'max_requests': max_requests,
+                              'schema_version': SESSION_LEDGER_SCHEMA_VERSION})
             else:
                 init = self.events[0]
+                # See SharedLedger's identical rationale: a pre-repair
+                # genesis has no ``schema_version`` and must refuse rather
+                # than replay the new elapsed-deadline/closure-monotonic/
+                # report-completion events below against it.
                 check(init.get('op') == 'init' and init.get('manifest') == manifest_sha256 and
                       init.get('report_reserve_bytes') == report_reserve_bytes and
-                      init.get('max_requests') == max_requests,
+                      init.get('max_requests') == max_requests and
+                      init.get('schema_version') == SESSION_LEDGER_SCHEMA_VERSION,
                       'SESSION_LEDGER_IDENTITY_MISMATCH')
                 if init.get('boot_id') != boot_id:
                     self._boot_ok = False
@@ -652,6 +713,18 @@ class SessionLedger(_HashChainJournal):
         self.request_ids_ever = set()
         self.completed_count = 0
         self.overdelivery_poisoned = False
+        # Gate 3 V4 slice-3 repair (R2/R3/R7): durable, ledger-wide (not
+        # per-attempt) state that must survive a fresh attempt_intent
+        # overwriting ``self.attempt`` and must survive process restart via
+        # ordinary replay.
+        self.elapsed_deadline_mono = None
+        self.clock_offset_interval = None
+        self.last_clock_monotonic = None
+        self.runtime_context_sha256 = None
+        self.last_closure_monotonic = None
+        self.attempt_history = {}
+        self.capture_receipts = {}
+        self.report_completed_sha256 = None
         for event in self.events[1:]:
             op = event.get('op')
             rid = event.get('request_id')
@@ -663,6 +736,7 @@ class SessionLedger(_HashChainJournal):
                       'SESSION_LEDGER_REQUEST_CAP_EXCEEDED')
                 self.request_ids_ever.add(rid)
                 self.attempt = {'request_id': rid, 'state': 'OPEN', 'outcome': None,
+                                 'purpose': event['purpose'],
                                  'max_reservation_bytes': event['max_reservation_bytes'],
                                  'denial_observed': False, 'overdelivered': False}
             elif op in self._ORDER:
@@ -670,19 +744,142 @@ class SessionLedger(_HashChainJournal):
                       self.attempt['state'] == self._ORDER[op],
                       'SESSION_LEDGER_BAD_TRANSITION')
                 self.attempt['state'] = self._NEXT[op]
+                if op == 'budget_reserved':
+                    self.attempt['reserve_event_hash'] = event['reserve_event_hash']
+                elif op == 'accounted':
+                    self.attempt['completion_event_hash'] = event['completion_event_hash']
+                elif op == 'object_witnessed':
+                    self.attempt['store_receipt_commit_hash'] = event['store_receipt_commit_hash']
                 if op == 'transport_closed':
+                    try:
+                        close_raw = base64.b64decode(event['closure_evidence_raw_b64'],
+                                                     validate=True)
+                    except (ValueError, TypeError) as exc:
+                        raise LaunchContractError('SESSION_LEDGER_CLOSURE_EVIDENCE') from exc
+                    check(0 < len(close_raw) <= 8192 and
+                          hashlib.sha256(close_raw).hexdigest() ==
+                          event['closure_evidence_sha256'],
+                          'SESSION_LEDGER_CLOSURE_EVIDENCE')
+                    self.attempt['closure_evidence_sha256'] = event[
+                        'closure_evidence_sha256']
                     # R4: recompute independently from the recorded delivery
                     # count and the attempt's own reservation at every
                     # replay, rather than trusting a stored boolean flag.
                     if event['total_delivered_bytes'] > self.attempt['max_reservation_bytes']:
                         self.attempt['overdelivered'] = True
                         self.overdelivery_poisoned = True
+                    self.attempt['total_delivered_bytes'] = event['total_delivered_bytes']
+                    # R3: the durable closure monotonic sample this attempt's
+                    # own TRANSPORT_CLOSED recorded, exposed ledger-wide so
+                    # the *next* attempt's pre-dispatch pacing check (owned
+                    # by the runtime, not this ledger) can require its own
+                    # dispatch sample >= this value + the frozen interval,
+                    # including across restart.
+                    self.attempt['closure_monotonic'] = event['closure_monotonic']
+                    self.last_closure_monotonic = event['closure_monotonic']
             elif op == 'refuse':
                 check(self.attempt is not None and self.attempt['request_id'] == rid and
                       self.attempt['state'] == 'OPEN', 'SESSION_LEDGER_BAD_TRANSITION')
                 self.attempt['state'] = 'TERMINAL'
                 self.attempt['outcome'] = 'REFUSED'
+                self.attempt['reason'] = event['reason']
                 self.completed_count += 1
+                self.attempt_history[rid] = dict(self.attempt)
+            elif op == 'elapsed_deadline_fixed':
+                # R2: persisted once, from the first valid session clock;
+                # never recomputed or widened on a later reopen (enforced by
+                # ``fix_elapsed_deadline`` refusing a differing value).
+                check(self.elapsed_deadline_mono is None, 'SESSION_LEDGER_ELAPSED_DEADLINE_RESET')
+                self.elapsed_deadline_mono = event['value']
+            elif op == 'request_deadline_fixed':
+                check(self.attempt is not None and
+                      self.attempt['request_id'] == rid and
+                      self.attempt['state'] == 'RESERVED' and
+                      'deadline_monotonic' not in self.attempt and
+                      type(event['value']) in (int, float) and
+                      math.isfinite(event['value']) and event['value'] >= 0,
+                      'SESSION_LEDGER_REQUEST_DEADLINE')
+                self.attempt['deadline_monotonic'] = event['value']
+            elif op == 'runtime_context_bound':
+                digest(event['sha256'], 'SESSION_LEDGER_RUNTIME_CONTEXT')
+                check(self.runtime_context_sha256 is None,
+                      'SESSION_LEDGER_RUNTIME_CONTEXT_REBOUND')
+                self.runtime_context_sha256 = event['sha256']
+            elif op == 'clock_observed':
+                try:
+                    raw = base64.b64decode(event['raw_b64'], validate=True)
+                except (ValueError, TypeError) as exc:
+                    raise LaunchContractError('SESSION_LEDGER_CLOCK_EVIDENCE') from exc
+                check(0 < len(raw) <= 16384 and
+                      hashlib.sha256(raw).hexdigest() == event['evidence_sha256'],
+                      'SESSION_LEDGER_CLOCK_EVIDENCE')
+                vals = (event['monotonic'], event['offset_low'], event['offset_high'])
+                check(all(type(v) in (int, float) and math.isfinite(v) for v in vals) and
+                      event['offset_low'] <= event['offset_high'],
+                      'SESSION_LEDGER_CLOCK_EVENT')
+                check(self.last_clock_monotonic is None or
+                      event['monotonic'] >= self.last_clock_monotonic,
+                      'SESSION_LEDGER_CLOCK_REVERSAL')
+                previous = self.clock_offset_interval or (-math.inf, math.inf)
+                low = max(previous[0], event['offset_low'])
+                high = min(previous[1], event['offset_high'])
+                check(low <= high, 'SESSION_LEDGER_CLOCK_STEP')
+                self.clock_offset_interval = (low, high)
+                self.last_clock_monotonic = event['monotonic']
+            elif op == 'report_completed':
+                check(self.report_completed_sha256 is None,
+                      'SESSION_LEDGER_REPORT_ALREADY_COMPLETED')
+                self.report_completed_sha256 = event['report_sha256']
+            elif op == 'capture_receipt':
+                record = event['record']
+                exact(record, ('version', 'manifest', 'plan_sha256', 'request_sha256',
+                    'request_id', 'purpose', 'endpoint_id', 'source_pin', 'decoder_pin',
+                    'outcome', 'session_terminal_head', 'shared_head', 'budget_head',
+                    'store_receipt_commit_hash', 'raw_sha256', 'clock_evidence_sha256',
+                    'dependencies', 'prerequisite_request_ids',
+                    'known_delivered_bytes', 'deadline_monotonic',
+                    'closure_monotonic',
+                    'closure_evidence_sha256'),
+                    'SESSION_LEDGER_CAPTURE_SCHEMA')
+                check(record['version'] == 1 and record['manifest'] == self.manifest and
+                      record['request_id'] in self.attempt_history and
+                      record['request_id'] not in self.capture_receipts and
+                      record['purpose'] == self.attempt_history[record['request_id']]['purpose'] and
+                      record['outcome'] == self.attempt_history[record['request_id']]['outcome'],
+                      'SESSION_LEDGER_CAPTURE_CONTEXT')
+                for key in ('plan_sha256', 'request_sha256', 'endpoint_id',
+                            'source_pin', 'decoder_pin', 'session_terminal_head',
+                            'shared_head', 'budget_head'):
+                    digest(record[key], 'SESSION_LEDGER_CAPTURE_DIGEST')
+                for key in ('store_receipt_commit_hash', 'raw_sha256',
+                            'closure_evidence_sha256'):
+                    if record[key] is not None:
+                        digest(record[key], 'SESSION_LEDGER_CAPTURE_DIGEST')
+                check(type(record['clock_evidence_sha256']) is list and
+                      all(type(h) is str for h in record['clock_evidence_sha256']) and
+                      type(record['dependencies']) is list and
+                      all(type(h) is str for h in record['dependencies']) and
+                      type(record['prerequisite_request_ids']) is list and
+                      all(type(v) is str and REQUEST_ID_RE.fullmatch(v)
+                          for v in record['prerequisite_request_ids']),
+                      'SESSION_LEDGER_CAPTURE_GRAPH')
+                for h in record['clock_evidence_sha256'] + record['dependencies']:
+                    digest(h, 'SESSION_LEDGER_CAPTURE_DIGEST')
+                integer(record['known_delivered_bytes'], 0, MAX_BYTES,
+                        'SESSION_LEDGER_CAPTURE_BYTES')
+                check(record['closure_monotonic'] is None or
+                      (type(record['closure_monotonic']) in (int, float) and
+                       math.isfinite(record['closure_monotonic'])),
+                      'SESSION_LEDGER_CAPTURE_CLOSURE')
+                check(record['deadline_monotonic'] ==
+                      self.attempt_history[record['request_id']].get(
+                          'deadline_monotonic'),
+                      'SESSION_LEDGER_CAPTURE_DEADLINE')
+                check(record['closure_evidence_sha256'] ==
+                      self.attempt_history[record['request_id']].get(
+                          'closure_evidence_sha256'),
+                      'SESSION_LEDGER_CAPTURE_CLOSURE')
+                self.capture_receipts[record['request_id']] = record
             elif op == 'denial':
                 # A non-terminal annotation: pre-dispatch blocking is
                 # ``refuse``, and the attempt still requires
@@ -699,7 +896,13 @@ class SessionLedger(_HashChainJournal):
                       'SESSION_LEDGER_BAD_TRANSITION')
                 self.attempt['state'] = 'TERMINAL'
                 self.attempt['outcome'] = event['outcome']
+                self.attempt['reason'] = event['reason']
                 self.completed_count += 1
+                # R7: a durable, replay-derived history of every terminal
+                # attempt this session ever made, keyed by request_id, so a
+                # terminal report can be built from verified ledger state
+                # instead of trusting an arbitrary caller-constructed dict.
+                self.attempt_history[rid] = dict(self.attempt)
             else:
                 raise LaunchContractError('SESSION_LEDGER_UNKNOWN_EVENT')
 
@@ -792,17 +995,35 @@ class SessionLedger(_HashChainJournal):
             self._state()
 
     def transport_closed(self, request_id, *, outcome, total_delivered_bytes,
+                          closure_monotonic, closure_evidence_raw,
                           denial_history_head=None, accounting_head=None):
         with self._guard():
             self._guard_attempt(request_id)
             check(outcome in ('OK', 'FAILED', 'PARTIAL'), 'SESSION_LEDGER_CLOSE_OUTCOME')
             integer(total_delivered_bytes, 0, MAX_BYTES, 'SESSION_LEDGER_DELIVERED_BYTES')
+            # R3: the actual monotonic sample taken after the transport's own
+            # explicit, known closure -- "sample monotonic time after each
+            # known transport closure, persist it in TRANSPORT_CLOSED" -- so
+            # the next attempt's dispatch can be bound to it durably, across
+            # restart, rather than only to the (earlier, fsync-delayable)
+            # reservation/dispatch-intent samples.
+            check(type(closure_monotonic) in (int, float) and
+                  math.isfinite(closure_monotonic) and closure_monotonic >= 0,
+                  'SESSION_LEDGER_CLOSURE_MONOTONIC')
+            check(type(closure_evidence_raw) is bytes and
+                  0 < len(closure_evidence_raw) <= 8192,
+                  'SESSION_LEDGER_CLOSURE_EVIDENCE')
             # R3: mandatory, not optional (no default binding was ever
             # evidence of a complete bounded outcome).
             digest(denial_history_head, 'SESSION_LEDGER_DENIAL_HISTORY_HEAD')
             digest(accounting_head, 'SESSION_LEDGER_ACCOUNTING_HEAD')
             self._append({'op': 'transport_closed', 'request_id': request_id,
                           'outcome': outcome, 'total_delivered_bytes': total_delivered_bytes,
+                          'closure_monotonic': closure_monotonic,
+                          'closure_evidence_raw_b64':
+                              base64.b64encode(closure_evidence_raw).decode('ascii'),
+                          'closure_evidence_sha256':
+                              hashlib.sha256(closure_evidence_raw).hexdigest(),
                           'denial_history_head': denial_history_head,
                           'accounting_head': accounting_head})
             self._state()
@@ -862,4 +1083,96 @@ class SessionLedger(_HashChainJournal):
                   'SESSION_LEDGER_REPORT_RESERVE_MISMATCH')
             self._append({'op': 'terminal', 'request_id': request_id, 'outcome': outcome,
                           'reason': reason, 'report_reserved_bytes': report_reserved_bytes})
+            self._state()
+
+    def fix_elapsed_deadline(self, value):
+        """Persist the session elapsed deadline exactly once (R2: "Persist
+        that elapsed deadline from the first valid session clock"). Replaying
+        this same value on every later attempt/restart is an idempotent
+        no-op; a caller that ever computes a *different* value (the only way
+        that could happen is a bug, since the design forbids widening it) is
+        refused rather than silently accepted, matching "it never extends an
+        already fixed request deadline."
+        """
+        with self._guard():
+            self._healthy()
+            check(type(value) in (int, float) and math.isfinite(value) and value >= 0,
+                  'SESSION_LEDGER_ELAPSED_DEADLINE_VALUE')
+            if self.elapsed_deadline_mono is not None:
+                check(self.elapsed_deadline_mono == value,
+                      'SESSION_LEDGER_ELAPSED_DEADLINE_WIDENED')
+                return
+            self._append({'op': 'elapsed_deadline_fixed', 'value': value})
+            self._state()
+
+    def fix_request_deadline(self, request_id, value):
+        """Persist the one absolute transport deadline before dispatch."""
+        with self._guard():
+            self._guard_attempt(request_id)
+            check(self.attempt['state'] == 'RESERVED' and
+                  'deadline_monotonic' not in self.attempt and
+                  type(value) in (int, float) and math.isfinite(value) and
+                  value >= 0, 'SESSION_LEDGER_REQUEST_DEADLINE')
+            self._append({'op': 'request_deadline_fixed',
+                          'request_id': request_id, 'value': value})
+            self._state()
+
+    def bind_runtime_context(self, sha256):
+        with self._guard():
+            self._healthy()
+            digest(sha256, 'SESSION_LEDGER_RUNTIME_CONTEXT')
+            if self.runtime_context_sha256 is not None:
+                check(self.runtime_context_sha256 == sha256,
+                      'SESSION_LEDGER_RUNTIME_CONTEXT_MISMATCH')
+                return
+            self._append({'op': 'runtime_context_bound', 'sha256': sha256})
+            self._state()
+
+    def observe_clock(self, *, monotonic, offset_low, offset_high,
+                      raw, evidence_sha256):
+        with self._guard():
+            self._healthy()
+            vals = (monotonic, offset_low, offset_high)
+            check(all(type(v) in (int, float) and math.isfinite(v) for v in vals) and
+                  offset_low <= offset_high, 'SESSION_LEDGER_CLOCK_EVENT')
+            check(self.last_clock_monotonic is None or
+                  monotonic >= self.last_clock_monotonic, 'SESSION_LEDGER_CLOCK_REVERSAL')
+            previous = self.clock_offset_interval or (-math.inf, math.inf)
+            check(max(previous[0], offset_low) <= min(previous[1], offset_high),
+                  'SESSION_LEDGER_CLOCK_STEP')
+            check(type(raw) is bytes and 0 < len(raw) <= 16384 and
+                  hashlib.sha256(raw).hexdigest() == evidence_sha256,
+                  'SESSION_LEDGER_CLOCK_EVIDENCE')
+            self._append({'op': 'clock_observed', 'monotonic': monotonic,
+                          'offset_low': offset_low, 'offset_high': offset_high,
+                          'raw_b64': base64.b64encode(raw).decode('ascii'),
+                          'evidence_sha256': evidence_sha256})
+            self._state()
+
+    def report_completed(self, *, report_sha256):
+        """Durably bind the one terminal report this session ever produces
+        to its exact digest (R7: "a runtime/report completion record links
+        a durable report digest to its context"). Recorded once; a caller
+        that already completed a report for this session and calls again
+        with a different digest is refused rather than silently replacing
+        the earlier binding.
+        """
+        with self._guard():
+            self._healthy()
+            digest(report_sha256, 'SESSION_LEDGER_REPORT_DIGEST')
+            if self.report_completed_sha256 is not None:
+                check(self.report_completed_sha256 == report_sha256,
+                      'SESSION_LEDGER_REPORT_ALREADY_COMPLETED')
+                return
+            self._append({'op': 'report_completed', 'report_sha256': report_sha256})
+            self._state()
+
+    def capture_receipt(self, record):
+        with self._guard():
+            self._healthy()
+            check(type(record) is dict and type(record.get('request_id')) is str and
+                  record['request_id'] in self.attempt_history,
+                  'SESSION_LEDGER_CAPTURE_CONTEXT')
+            check(len(canonical(record)) <= 16384, 'SESSION_LEDGER_CAPTURE_BOUND')
+            self._append({'op': 'capture_receipt', 'record': record})
             self._state()

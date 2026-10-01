@@ -9,6 +9,8 @@ docs/V11_R09_GATE3_V4_SLICE2_REVIEW_39b80fa.md. Each regression test below
 is annotated with the exact S-id it covers and fails against the
 unrepaired 39b80fa module.
 """
+import base64
+import hashlib
 import os
 
 import pytest
@@ -22,6 +24,10 @@ from tools.v11_r09_gate3_ledgers import (
 MANIFEST = 'a' * 64
 BOOT = 'boot-A'
 GENESIS = '7' * 64
+_DENIAL_EVIDENCE_RAW = b'{"status":503,"headers":[["Retry-After","30"]]}'
+_DENIAL_EVIDENCE_SHA256 = hashlib.sha256(_DENIAL_EVIDENCE_RAW).hexdigest()
+_DENIAL_EVIDENCE_RAW_B64 = base64.b64encode(_DENIAL_EVIDENCE_RAW).decode('ascii')
+_DENIAL_CLOCK_RAW = b'synthetic:receipt'
 
 
 def _root(tmp_path, name='ledger'):
@@ -32,7 +38,12 @@ def _root(tmp_path, name='ledger'):
 
 def _denial(**overrides):
     base = {'status': '503', 'reason': 'provider overloaded',
-            'evidence_sha256': 'b' * 64, 'evidence_missing_cause': None,
+            'origin': 'https://weather.example.invalid',
+            'evidence_sha256': _DENIAL_EVIDENCE_SHA256,
+            'evidence_raw_b64': _DENIAL_EVIDENCE_RAW_B64,
+            'evidence_missing_cause': None,
+            'receipt_clock_sha256': hashlib.sha256(_DENIAL_CLOCK_RAW).hexdigest(),
+            'receipt_clock_raw_b64': base64.b64encode(_DENIAL_CLOCK_RAW).decode('ascii'),
             'retry_after_seconds': 30, 'window_end_utc': 1000.0,
             'receipt_upper_bound_utc': 1001.0}
     base.update(overrides)
@@ -445,6 +456,7 @@ def test_session_ledger_full_success_lifecycle(tmp_path):
         ledger.dispatch_intent('req-1', measured_start_monotonic=1.5)
         assert ledger.attempt['state'] == 'DISPATCHED'
         ledger.transport_closed('req-1', outcome='OK', total_delivered_bytes=10,
+                                 closure_monotonic=2.0, closure_evidence_raw=b"closed",
                                  denial_history_head='e' * 64,
                                  accounting_head='c' * 64)
         assert ledger.attempt['state'] == 'CLOSED'
@@ -471,6 +483,7 @@ def test_session_ledger_accounted_without_witness_can_reach_terminal(tmp_path):
         ledger.budget_reserved('req-1', reserve_event_hash='b' * 64)
         ledger.dispatch_intent('req-1', measured_start_monotonic=0)
         ledger.transport_closed('req-1', outcome='PARTIAL', total_delivered_bytes=3,
+                                 closure_monotonic=2.0, closure_evidence_raw=b"closed",
                                  denial_history_head='e' * 64,
                                  accounting_head='c' * 64)
         ledger.accounted('req-1', completion_event_hash='c' * 64)
@@ -509,6 +522,7 @@ def test_session_ledger_success_requires_witness(tmp_path):
         ledger.budget_reserved('req-1', reserve_event_hash='b' * 64)
         ledger.dispatch_intent('req-1', measured_start_monotonic=0)
         ledger.transport_closed('req-1', outcome='OK', total_delivered_bytes=10,
+                                 closure_monotonic=2.0, closure_evidence_raw=b"closed",
                                  denial_history_head='e' * 64,
                                  accounting_head='c' * 64)
         ledger.accounted('req-1', completion_event_hash='c' * 64)
@@ -534,6 +548,7 @@ def test_session_ledger_rejects_ambiguous_held_terminal(tmp_path):
         ledger.budget_reserved('req-1', reserve_event_hash='b' * 64)
         ledger.dispatch_intent('req-1', measured_start_monotonic=0)
         ledger.transport_closed('req-1', outcome='OK', total_delivered_bytes=10,
+                                 closure_monotonic=2.0, closure_evidence_raw=b"closed",
                                  denial_history_head='e' * 64,
                                  accounting_head='c' * 64)
         ledger.accounted('req-1', completion_event_hash='c' * 64)
@@ -567,6 +582,7 @@ def test_session_ledger_denial_requires_dispatch_and_still_requires_close(tmp_pa
                             match='SESSION_LEDGER_DENIAL_ALREADY_RECORDED'):
             ledger.denial('req-1', reason='twice')
         ledger.transport_closed('req-1', outcome='FAILED', total_delivered_bytes=0,
+                                 closure_monotonic=2.0, closure_evidence_raw=b"closed",
                                  denial_history_head='e' * 64,
                                  accounting_head='c' * 64)
         ledger.accounted('req-1', completion_event_hash='c' * 64)
@@ -589,7 +605,8 @@ def test_session_ledger_denial_then_crash_inherits_unsettled_attempt(tmp_path):
         assert ledger.inherited_request_id == 'req-1'
         with pytest.raises(LaunchContractError,
                             match='SESSION_LEDGER_INHERITED_ATTEMPT_HELD'):
-            ledger.transport_closed('req-1', outcome='FAILED', total_delivered_bytes=0)
+            ledger.transport_closed('req-1', outcome='FAILED', total_delivered_bytes=0,
+                                     closure_monotonic=0.0, closure_evidence_raw=b"closed")
 
 
 # ---------------------------------------------------------------------------
@@ -607,6 +624,7 @@ def test_session_ledger_denied_attempt_cannot_reach_success(tmp_path):
         ledger.dispatch_intent('req-1', measured_start_monotonic=0)
         ledger.denial('req-1', reason='429 seen in headers')
         ledger.transport_closed('req-1', outcome='OK', total_delivered_bytes=10,
+                                 closure_monotonic=2.0, closure_evidence_raw=b"closed",
                                  denial_history_head='e' * 64,
                                  accounting_head='c' * 64)
         ledger.accounted('req-1', completion_event_hash='c' * 64)
@@ -638,6 +656,7 @@ def test_session_ledger_overdelivery_blocks_accounted_and_poisons_session(tmp_pa
         ledger.budget_reserved('req-1', reserve_event_hash='b' * 64)
         ledger.dispatch_intent('req-1', measured_start_monotonic=1.0)
         ledger.transport_closed('req-1', outcome='OK', total_delivered_bytes=11,
+                                 closure_monotonic=2.0, closure_evidence_raw=b"closed",
                                  denial_history_head='e' * 64,
                                  accounting_head='c' * 64)
         with pytest.raises(LaunchContractError,
@@ -668,6 +687,7 @@ def test_session_ledger_report_reserve_mismatch_rejected(tmp_path):
         ledger.budget_reserved('req-1', reserve_event_hash='b' * 64)
         ledger.dispatch_intent('req-1', measured_start_monotonic=0)
         ledger.transport_closed('req-1', outcome='OK', total_delivered_bytes=1,
+                                 closure_monotonic=2.0, closure_evidence_raw=b"closed",
                                  denial_history_head='e' * 64,
                                  accounting_head='c' * 64)
         ledger.accounted('req-1', completion_event_hash='c' * 64)
@@ -765,7 +785,8 @@ def test_session_ledger_inherited_open_attempt_held_through_every_method(tmp_pat
             lambda: ledger.denial('req-1', reason='x'),
             lambda: ledger.refuse('req-1', reason='x'),
             lambda: ledger.transport_closed('req-1', outcome='OK',
-                                             total_delivered_bytes=0),
+                                             total_delivered_bytes=0,
+                                             closure_monotonic=0.0, closure_evidence_raw=b"closed"),
         ):
             with pytest.raises(LaunchContractError,
                                 match='SESSION_LEDGER_INHERITED_ATTEMPT_HELD'):

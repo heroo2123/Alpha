@@ -1011,18 +1011,38 @@ class DurableBudget:
         return min(maximum_chunk, attempt['reserved'] - attempt['received'],
                    self.max_bytes - self.received)
 
-    def consume(self, key, body):
+    def consume(self, key, body, *, overdelivery_total_bytes=None,
+                permitted_bytes=None):
+        """Charge one delivered chunk. ``overdelivery_total_bytes`` lets a
+        caller that already knows more bytes were delivered to the same
+        eager transport boundary (read-ahead/prefetch beyond this one chunk,
+        e.g. the remainder of an already-buffered response tuple) record the
+        true total in the single violation event this call produces, rather
+        than only this chunk's own length -- Gate 3 V4 slice-3 R6: "Account
+        all bytes already delivered to that boundary, including discarded
+        and prefetched bytes." Defaults to ``len(body)``, identical to prior
+        behavior, when the caller has no further boundary bytes to report.
+        """
         self._require_owner()
         if self.failed:
             self._healthy()
         check(self.in_flight == key and type(body) is bytes, 'UNEXPECTED_BODY_CHUNK')
+        if overdelivery_total_bytes is not None:
+            integer(overdelivery_total_bytes, len(body), MAX_BYTES,
+                    'REQUEST_OVERDELIVERY_TOTAL')
+        if permitted_bytes is not None:
+            integer(permitted_bytes, 0, 65536, 'REQUEST_READ_ALLOWANCE')
         recorded = False
         try:
             allowance = self.next_read_limit(max(len(body), 1))
+            if permitted_bytes is not None:
+                allowance = min(allowance, permitted_bytes)
             if len(body) > allowance:
                 # A faulty transport's delivered bytes count even when it
                 # exceeds the permitted read or storage loses privacy.
-                self._append({'op': 'violation', 'key': key, 'bytes': len(body)})
+                total = (len(body) if overdelivery_total_bytes is None
+                         else overdelivery_total_bytes)
+                self._append({'op': 'violation', 'key': key, 'bytes': total})
                 recorded = True
                 self._state()
                 raise LaunchContractError('STREAM_ABORT_AT_ALLOWANCE')
