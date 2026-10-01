@@ -1620,6 +1620,63 @@ def test_invalid_receipt_clock_retains_denial_and_eager_bytes(tmp_path, bad_head
         assert shared.denials['d' * 64]['status'] == '503'
 
 
+@pytest.mark.parametrize('start_sample', [1, 2])
+@pytest.mark.parametrize('fault', [OSError, RuntimeError])
+def test_coupled_clock_source_failure_preserves_restriction_and_bytes(tmp_path, fault, start_sample):
+    """J1: ``Clock.evidence`` samples ``Clock.monotonic`` first, so a single
+    failing clock source backs both interface methods. Whichever onset hits
+    the failure first -- the first post-dispatch monotonic sample
+    (``start_sample=1``) or the header-receipt evidence call
+    (``start_sample=2``) -- recovery must still preserve the four
+    already-delivered eager bytes exactly once, record the observed HTTP
+    restriction with an explicit unresolved cause, retain the held
+    reservation/token, and re-raise the original failure -- identically for
+    OSError and RuntimeError, not only OSError.
+    """
+    _dirs(tmp_path)
+
+    class CoupledClock(FakeClock):
+        failed = False
+        calls = 0
+
+        def monotonic(self):
+            if self.failed:
+                self.calls += 1
+                if self.calls >= start_sample:
+                    raise fault('COUPLED_CLOCK_SOURCE_UNAVAILABLE')
+            return super().monotonic()
+
+        def evidence(self, phase):
+            self.monotonic()
+            return super().evidence(phase)
+
+    clock = CoupledClock(BOOT, utc=10, mono=10)
+
+    class FailAfterDispatch(SyntheticTransport):
+        def dispatch(self, request, **kwargs):
+            stream = super().dispatch(request, **kwargs)
+            clock.failed = True
+            return stream
+
+    response = _ok_response(b'abcd', status=503, headers=(('Retry-After', '1200'),))
+    with _acquire(tmp_path) as (shared, session, budget, store):
+        runtime = _runtime(shared, session, budget, store,
+            SyntheticExchange({'req-1': response}), clock=clock)
+        runtime.transport = FailAfterDispatch(runtime.transport._exchange)
+        with pytest.raises(fault):
+            runtime.run_attempt(_request(reservation_bytes=4))
+        assert budget.received == 4 and budget.in_flight == 'req-1'
+        assert shared.open_intent is not None and shared.open_intent['denial_recorded']
+        assert shared.denials['d' * 64]['cooldown_until'] is None
+        assert session.attempt['state'] != 'TERMINAL'
+    with _acquire(tmp_path) as (shared, session, budget, store):
+        assert budget.received == 4 and budget.in_flight == 'req-1'
+        assert shared.denials['d' * 64]['cooldown_until'] is None
+        assert shared.inherited_open_request_id == 'req-1'
+        with pytest.raises(LaunchContractError):
+            budget.complete('req-1')
+
+
 def test_header_error_retains_other_retry_after_and_overflow_is_unresolved(tmp_path):
     for index, (status, headers, expected) in enumerate((
         (200, (('Retry-After', '1200'), ('ETag', '"duplicate"')), 'OTHER'),

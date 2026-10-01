@@ -1278,7 +1278,11 @@ class GateRuntime:
             if receipt is None:
                 try:
                     receipt = self.clock.evidence('body_receipt')
-                except (LaunchContractError, OSError) as exc:
+                # J1: recovery itself can hit the same ordinary clock-source
+                # failure (OSError or RuntimeError) that brought us onto this
+                # path; it must degrade to an explicit unresolved cause here
+                # too, not propagate and skip restriction preservation below.
+                except (LaunchContractError, OSError, RuntimeError) as exc:
                     clock_cause = f'RUNTIME_RECEIPT_CLOCK_UNAVAILABLE:{exc}'
             if receipt is not None:
                 try:
@@ -1421,7 +1425,11 @@ class GateRuntime:
             raise
         try:
             header_receipt = self.clock.evidence('body_receipt')
-        except (LaunchContractError, OSError):
+        except (LaunchContractError, OSError, RuntimeError):
+            # J1: the same clock source can fail here as it did at the first
+            # post-dispatch monotonic sample; recovery must preserve known
+            # bytes/restriction identically regardless of which ordinary
+            # clock-source exception type it was.
             self._account_prefetched_on_deadline(request, stream)
             raise
         try:
