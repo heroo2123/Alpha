@@ -1,5 +1,14 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Coordinator recovery — 2026-10-01 21:58 UTC
+
+R1 denial timing correction `58a465f` is already on clean main. The sole
+point-of-use repair remains queued until 23:21 UTC at clean `93cd43c`, with
+no new terminal or exact acceptance. `9600510` remains unreviewed and
+unmerged. G3-L remains NO-GO on missing reviewed identities; no new forward
+SHADOW evidence or C/J/E/A crossing. **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Point-of-use exact review requires correction; repair queued — 2026-10-01 21:55 UTC
 
 Astra/high [exact review](V11_R09_GATE3_DECODER_POINTOFUSE_REVIEW_93cd43c.md)

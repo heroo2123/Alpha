@@ -1,5 +1,13 @@
 # Supplementary engineering estimate
 
+## Coordinator recovery — 2026-10-01 21:58 UTC
+
+Verified that R1 `58a465f` is already integrated; the authorized edit needs
+no repeat. The single point-of-use repair runner is live and still queued for
+23:21 UTC; its worktree is clean, with no terminal yet. The separate inventory
+candidate is clean and unreviewed. No new forward SHADOW evidence or G3-L
+approval; **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Point-of-use exact review requires correction; repair queued — 2026-10-01 21:55 UTC
 
 Astra/high [exact review](V11_R09_GATE3_DECODER_POINTOFUSE_REVIEW_93cd43c.md)
