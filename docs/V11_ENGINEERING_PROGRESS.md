@@ -1,5 +1,16 @@
 # Supplementary engineering estimate
 
+## J1 repair candidate ready for independent review — 2026-10-01 19:00 UTC
+
+The sole writer finished clean `6340cb4` with 502 Gate 3 family passes and
+author-reported 24 boundary plus 95 carried probe passes. Its ordinary clock
+exception repair remains unmerged pending different-model exact-commit review,
+newer-main reconciliation, and separate G3-L. The local collaboration-agent
+launch failed before creating a reviewer. Disk is about 1.5 GiB free, below
+the launch floor; the October 2 screen still lacks 77 reviewed identities.
+No forward SHADOW evidence or C/J/E/A change: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Live J1 repair and passive launch audit — 2026-10-01 18:57 UTC
 
 The single Sonnet/high repair worker is live, with an unfinished runtime diff

@@ -1,5 +1,15 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## J1 tested author candidate awaits exact review — 2026-10-01 19:00 UTC
+
+Clean unmerged `6340cb4` has author evidence of 502 Gate 3 family passes,
+24 prior boundary probes and 95 carried probes. Independent different-model
+exact-commit review, newer-main reconciliation, and G3-L remain open. The
+October 2 screen remains nonlaunchable with 77 missing reviewed identities,
+and free disk is below the 2 GiB launch floor. No provider request or forward
+sample; no C/J/E/A boundary crossed: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Live J1 repair; G3-L still NO-GO — 2026-10-01 18:57 UTC
 
 The sole J1 general-repair writer is live at `3a066a6` with unfinished runtime

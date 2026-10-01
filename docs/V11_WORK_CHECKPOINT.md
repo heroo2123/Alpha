@@ -1,5 +1,32 @@
 # Alpha V11 work checkpoint
 
+## J1 general repair finished; independent exact review next — 2026-10-01 19:00 UTC
+
+Recovered the sole J1 writer's matching clean terminal at
+`6340cb455eebae374039c9bae23cd806681dacb0` (tree `b452ba91`, parent
+`3a066a6`) in the isolated slice-3 repair worktree. Its two-file diff changes
+the recovery receipt resample and header-receipt clock catches to the same
+ordinary `Exception` boundary used by post-dispatch monotonic sampling, and
+extends tests across OSError, RuntimeError, ValueError, OverflowError, and a
+custom Exception subclass. Author evidence reports 24/24 prior boundary
+probes, 95/95 carried probes, and 502/502 Gate 3 family tests; the per-file
+family logs and clean tree were checked. This is author evidence only.
+
+The next step is a **different-model independent review of this exact commit**,
+including exception identity, known byte and restriction conservation, held
+reservations across reopen, and process-termination boundaries. Review launch
+via the local collaboration agent failed before an agent was created; no
+reviewer or duplicate writer is active. Do not merge before a matching PASS,
+then reconcile with newer main and run G3-L separately. Main is clean at
+`912c862`. The frozen next-window screen remains nonlaunchable with 77 missing
+reviewed identities; free root disk is about 1.5 GiB, below the 2 GiB launch
+floor. PAPER scanner/controller/execution are inactive; protected authority
+paths remain absent. The private FINAL-REVIEWED master hash still matches
+`a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+No provider request, forward SHADOW sample, V10, AxiomTrade, service,
+authority, financial, or private-master change was made. No C/J/E/A boundary
+crossed: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Live J1 repair and G3-L resource no-go — 2026-10-01 18:57 UTC
 
 Recovered clean main `e2fe247` and the sole live Sonnet/high J1 general-repair
