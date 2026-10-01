@@ -1,5 +1,13 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Coordinator recovery — 2026-10-01 00:39 UTC
+
+R09 Gate 3 V4 slice-1 candidate `6e4c95b` is clean and unmerged. Main's newer
+`fc6a7a6` contains only the candidate handoff after the candidate base. An
+independent exact-commit acceptance review remains required before integration;
+no forward SHADOW sample or new operational authority was found. R09 remains
+OPEN; **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator recovery and Gate 3 slice-1 route — 2026-10-01 00:19 UTC
 
 R09 Gate 3 design `7e132a0` has independent `PASS_DESIGN_ONLY` at main

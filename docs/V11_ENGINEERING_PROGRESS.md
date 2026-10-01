@@ -1,5 +1,13 @@
 # Supplementary engineering estimate
 
+## Coordinator recovery — 2026-10-01 00:39 UTC
+
+Recovered clean main `fc6a7a6` and clean isolated V4 slice-1 candidate
+`6e4c95b`. No independent reviewer is active; route Astra/high for the
+exact-commit acceptance review and newer-main reconciliation. Recent
+commissioning writes are status only; no new forward sample or full release
+suite result. **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Gate 3 V4 slice (1) implemented — candidate awaiting independent review — 2026-10-01 00:24 UTC
 
 Implemented the routed next action: strict V4 schema/frozen purpose plan

@@ -1,5 +1,27 @@
 # Alpha V11 work checkpoint
 
+## Coordinator recovery and V4 slice-1 review route — 2026-10-01 00:39 UTC
+
+Recovered clean main `fc6a7a6`, equal to its tracking ref; the only change
+since the candidate's `12eace0` base is the documentation handoff. Candidate
+`6e4c95b` remains clean and unmerged in its isolated worktree. No independent
+exact-commit V4 slice-1 reviewer or new forward SHADOW sample was found. The
+next unblocked action is an Astra/high acceptance review of that exact candidate
+against section 7 of the reviewed Gate 3 design, including the V3 compatibility
+boundary, endpoint/purpose binding, bounded journal replay, capacity holds,
+and synthetic counterexamples. Reconcile the result with newer main before any
+local integration; no writer self-acceptance or operational authority.
+
+Read-only safety recovery: private FINAL-REVIEWED master matches its SHA-256
+pin; demo, scanner, controller, and execution units are inactive, with execution
+masked. Protected model-authority paths are absent; the PAPER scanner is not
+running. Commissioning changes are watchdog/manager statuses only. Held SHADOW
+and Gate 3 author worktrees are clean. About 4.0 GiB disk and 847 MiB memory
+available. V10 and AxiomTrade were untouched. The accepted release resolution
+`6ec371e` remains an ancestor; no new release-suite evidence appeared. No
+C/J/E/A boundary crossed: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Gate 3 V4 slice (1) implemented — candidate awaiting independent review — 2026-10-01 00:24 UTC
 
 Routed Sonnet/high executed the next unblocked action named in the entry
