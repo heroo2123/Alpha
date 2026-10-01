@@ -1,5 +1,14 @@
 # Supplementary engineering estimate
 
+## Decoder-build candidate ready for exact review — 2026-10-01 19:25 UTC
+
+The sole worker finished clean docs-only candidate `20a42f7`, with a matching
+terminal and local synthetic probe. Its 24 vendored-library RECORD mismatches,
+missing wheel origin and non-enumerated MEMFS contents remain explicit gaps.
+This author evidence awaits different-model exact review; no G3-L credit or
+release qualification is claimed. G3-L NO-GO, no provider request or forward
+sample. **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND** unchanged.
+
 ## Offline next-window expiry observed — 2026-10-01 19:22 UTC
 
 The decoder-build evidence worker is still live and has no finished candidate.

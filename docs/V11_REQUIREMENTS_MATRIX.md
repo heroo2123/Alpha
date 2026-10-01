@@ -1,5 +1,15 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Decoder-build candidate awaits independent review — 2026-10-01 19:25 UTC
+
+Clean, unmerged docs-only `20a42f7` records local decoder and dependency
+bytes, synthetic decode observations and unresolved identities. The author
+reports 24 `eckitlib.libs` RECORD mismatches. This is an unreviewed observation,
+not an accepted decoder build or G3-L identity. Different-model exact review
+and independent probe are next. G3-L remains NO-GO; no provider request or
+forward SHADOW evidence. **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND** unchanged.
+
 ## Offline next-window expiry observed — 2026-10-01 19:22 UTC
 
 Fresh read-only G3-L screen: `launchable=false`, 77 missing identities and

@@ -1,5 +1,32 @@
 # Alpha V11 work checkpoint
 
+## Decoder build observation candidate recovered — 2026-10-01 19:25 UTC
+
+The sole decoder-build worker finished normally. Its matching terminal reports
+clean, unmerged `20a42f713571824c36236a63eb8870f6478268f8` (tree
+`39a67d3e77fb9e9ee78a1717713789d64b1871fa`, parent `06bab60`) in
+`/tmp/alpha-v11-gate3-decoder-build-inventory-20261001`; the runner and child
+have exited. The three-file, docs-only diff passes `git diff --check`.
+Its author reports a repeatable offline synthetic decode and local hash
+inventory, but 24 `eckitlib.libs` files disagree with their installed RECORD
+hash/size entries. The dossier explicitly leaves wheel origin and embedded
+MEMFS definition identities unresolved. These are author observations, **not
+independent acceptance**. Obtain different-model exact-commit review, including
+an independent bounded probe and assessment of the RECORD discrepancy, before
+any integration. Do not treat the inventory as G3-L evidence or qualify CCSDS.
+
+Main remains clean at `7090387`. SHADOW and Brain worktrees are clean;
+ECMWF's untracked `backfill_data/` is preserved. PAPER scanner, controller,
+demo and execution services were passively observed inactive; scanner is
+disabled. Root free disk remains about 1.4 GiB, below the 2 GiB floor;
+available memory about 607 MiB. The private FINAL-REVIEWED master still
+matches SHA-256 `a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+G3-L remains **NO-GO** with the prior offline screen's 77 missing and one
+expired pre-review item. No provider request, forward SHADOW sample,
+V10/AxiomTrade/service/authority/financial action or remote publication.
+No C/J/E/A boundary crossed: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Passive recovery and next-window expiry — 2026-10-01 19:22 UTC
 
 Recovered clean main `11e2b08` and the sole live decoder-build observation
