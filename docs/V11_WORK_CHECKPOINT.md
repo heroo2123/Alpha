@@ -1,5 +1,69 @@
 # Alpha V11 work checkpoint
 
+## Coordinator (Sonnet) Gate 3 V4 slice-2 repair: S1-S9 fixed, candidate, not merged — 2026-10-01 UTC
+
+Main was clean at `05af420`, matching its tracking ref. Picked up the exact
+next unfinished action from the prior entry: repaired all nine
+blocking/required findings (S1-S9) from Opus's exact-commit review of
+`39b80fa` ([review](V11_R09_GATE3_V4_SLICE2_REVIEW_39b80fa.md)), on top of
+`39b80fa` in the same isolated worktree
+(`/home/alphaadmin/AlphaV11_Gate3V4Slice2/Alpha`,
+branch `r09-gate3-v4-slice2-20261001`), committed there as `b92a12e`.
+Only `tools/v11_r09_gate3_ledgers.py` and
+`tests/test_v11_r09_gate3_ledgers.py` changed; no other file in the
+repository was touched by this batch.
+
+Summary of the nine fixes (full detail in the commit message at `b92a12e`):
+S1 split shared-denial recording into a new `denial_observed()` event that
+blocks the control domain at once without releasing the global token,
+which now only clears on a later, separate `intent_closed()`; S2 and S3
+remove `AMBIGUOUS`/`AMBIGUOUS_HELD` as accepted close/terminal outcomes, so
+ambiguity is held by never closing/terminating (inherited on restart via
+the existing generalized R2 rule) rather than released; S4 requires
+`SUCCESS` to come only from a `WITNESSED` attempt state; S5 makes
+`SessionLedger.denial()` a non-terminal annotation that requires the
+attempt already be `DISPATCHED`, so `TRANSPORT_CLOSED`/`ACCOUNTED` are
+still required afterward; S6 compares `boot_id` on every reopen of either
+ledger (refuses further progression, not construction, on mismatch;
+`boot_id` has no default); S7 rejects a non-finite `now_utc` in
+`is_blocked()` and an inverted denial window/receipt-bound ordering; S8
+replaces the shared root's boolean genesis with a digest-bound
+`genesis_review_digest`, makes `expected_history_head` mandatory on every
+reopen of a non-empty root, and unbinds the root from a single caller
+manifest (each intent now records its own `manifest_sha256`), stating the
+remaining cross-root-correlation limitation explicitly in the module
+docstring rather than implying it away; S9 records a durable overdelivery
+flag that blocks that attempt from ever reaching `SUCCESS` and
+permanently poisons the whole session ledger against any further
+`attempt_intent`, surviving restart.
+
+The existing 35 candidate tests were rewritten for the resulting API
+changes (required `boot_id`, per-intent `manifest_sha256`, mandatory
+`expected_history_head`, no more `AMBIGUOUS`/`AMBIGUOUS_HELD`/
+denial-from-RESERVED call sites), and one new regression test per S-id was
+added that fails against the unrepaired `39b80fa` module and passes
+against the repair. Verification (foreground,
+`/home/alphaadmin/alpha-review-test-venv`):
+`tests/test_v11_r09_gate3_ledgers.py` **49/49 passed** (was 35, +14 new).
+Wider Gate 3 V4 family (`_launch.py`/`_launch_v4.py`/`_offline_io.py`/
+`_restart_composition.py`/`_message_sizes.py`/`_collector.py`/
+`_store_v1.py`, plus the ledgers suite): **361 passed**, 2 pre-existing
+fork warnings, 0 failed. `python3 -m py_compile` clean on both changed
+files; `git diff --check` clean before commit.
+
+Not merged. Per the design's own slice workflow, a fresh different-model
+exact-commit review of the repaired range `71fc948..b92a12e` is required
+before any integration into main. No C/J/E/A boundary crossed: this is a
+repair of an already-non-eligible candidate module, not an accepted
+champion. V10 untouched; nothing financial, credential, sudo or
+production. **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND.**
+
+Next unfinished action: route a fresh, different-model exact-commit review
+of `/home/alphaadmin/AlphaV11_Gate3V4Slice2/Alpha` at `b92a12e` (diff range
+`71fc948..b92a12e`) against transport design sections 3-6, focused on
+confirming S1-S9 are actually closed (not just that new tests pass) before
+any merge is considered.
+
 ## Opus exact-commit review of slice-2 candidate 39b80fa — CHANGES_REQUIRED — 2026-10-01 10:11 UTC
 
 Main clean at `2668609`, matching origin. Reviewed

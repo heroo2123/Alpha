@@ -5217,3 +5217,33 @@ pre-existing fork warnings, 0 failed. Not merged; requires a fresh
 different-model exact-commit review before any integration, per the
 design's own slice workflow. No C/J/E/A change: **91/200 (45.5%), formal
 1/50; NOT_READY_TO_FUND**.
+
+## Gate 3 V4 slice-2 repair: S1-S9 from the Opus review fixed — 2026-10-01 UTC
+
+Repaired all nine blocking/required findings (S1-S9) from Opus's
+exact-commit review of candidate `39b80fa`
+([review](V11_R09_GATE3_V4_SLICE2_REVIEW_39b80fa.md)): shared-ledger denial
+recording split into a separate `denial_observed()` event that no longer
+releases the global token early (S1); `AMBIGUOUS`/`AMBIGUOUS_HELD` removed
+as accepted close/terminal outcomes so ambiguity is held by inheritance
+rather than released (S2, S3); `SUCCESS` now requires a `WITNESSED` attempt
+(S4); session `denial()` is now a non-terminal annotation requiring
+`DISPATCHED` first, still followed by `TRANSPORT_CLOSED`/`ACCOUNTED` (S5);
+`boot_id` is compared on every reopen of either ledger and has no default
+(S6); a non-finite `now_utc` and an inverted denial window/receipt-bound
+order are rejected (S7); the shared root's genesis is now a digest-bound
+reference with a mandatory `expected_history_head` on reopen, and the root
+is unbound from any single caller manifest (S8); an observed overdelivery
+is durably recorded, blocks that attempt's `SUCCESS`, and permanently
+poisons the whole session ledger against further attempts (S9). Committed
+as `b92a12e` on top of `39b80fa` in the isolated
+`/home/alphaadmin/AlphaV11_Gate3V4Slice2/Alpha` worktree; only
+`tools/v11_r09_gate3_ledgers.py` and its test file changed.
+`tests/test_v11_r09_gate3_ledgers.py`: 49 passed (was 35, +14 new
+regression tests, one per S-id). Wider family
+(+`_launch.py`/`_launch_v4.py`/`_offline_io.py`/`_restart_composition.py`/
+`_message_sizes.py`/`_collector.py`/`_store_v1.py`): 361 passed, two
+pre-existing fork warnings, 0 failed. Not merged; requires a fresh
+different-model exact-commit review of `71fc948..b92a12e` before any
+integration, per the design's own slice workflow. No C/J/E/A change:
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
