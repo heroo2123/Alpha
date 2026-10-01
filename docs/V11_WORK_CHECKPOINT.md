@@ -1,5 +1,117 @@
 # Alpha V11 work checkpoint
 
+## Coordinator (Sonnet) Gate 3 V4 slice 2: ledgers module recovered, tested; candidate, not merged — 2026-10-01 UTC
+
+Main was clean at `71fc948`, matching its tracking ref. Recovery check found
+a prior coordinator invocation had already started slice 2 in the existing
+isolated worktree `/home/alphaadmin/AlphaV11_Gate3V4Slice2/Alpha` (branch
+`r09-gate3-v4-slice2-20261001`, forked from main at the same tip): an
+untracked, uncommitted `tools/v11_r09_gate3_ledgers.py` (684 lines, created
+09:52 UTC, three minutes before this invocation started), with no test file
+and nothing staged. Treated this as the recovered-unpublished-work case
+CLAUDE.md requires validating and finishing before unrelated work, rather
+than starting a competing slice-2 attempt.
+
+Validated the recovered file before building on it: `python3 -m py_compile`
+clean; imports only already-reviewed Gate 3 modules (`v11_multimodel_panel
+.canonical`; `v11_r09_gate3_launch`'s `check`/`digest`/`exact`/`integer`/
+`parse_canonical`; `v11_r09_gate3_launch_v4.PURPOSES`) — no socket,
+transport, credential or launch-entrypoint surface, matching its own
+docstring's scope claim against design doc
+`docs/V11_R09_GATE3_TRANSPORT_RUNTIME_DESIGN.md` sections 3 ("Ownership,
+journals and durable denial history"), 4 ("Session state machine and
+accounting composition") and 7's persistence crash-matrix row. Read the
+full module by hand rather than trusting the docstring: it defines a
+shared `_HashChainJournal` base (deliberately duplicating, not
+subclassing, `DurableBudget`'s/`VersionedImmutableObjectStore`'s
+append-only hash-chain/bounded-reader-replay/`O_CREAT|O_EXCL`-and-fsync
+discipline, same rationale as `launch_v4.py`'s module docstring) plus two
+ledgers built on it: `SharedLedger` (one global open intent token, durable
+per-control-domain denial/cooldown history) and `SessionLedger` (the
+per-run `ATTEMPT_INTENT -> BUDGET_RESERVED -> DISPATCH_INTENT ->` denial/
+refuse or `TRANSPORT_CLOSED -> ACCOUNTED ->` optional `OBJECT_WITNESSED ->`
+terminal state machine). Both generalize the exact R2 lesson closed in
+`DurableBudget` (`599dfd1`: "never complete an inherited reservation") to
+every persisted boundary: on a fresh open, whatever was already open/
+in-flight is snapshotted as `inherited_open_request_id`/
+`inherited_request_id` and permanently refused by every further
+progression call in every later process, not just budget completion.
+
+No test file existed anywhere (checked the whole filesystem for any
+`*gate3_ledgers*` test, not just this worktree). Wrote
+`tests/test_v11_r09_gate3_ledgers.py` (35 new focused cases): genesis/
+identity/lineage validation on restart for both ledgers; the full
+`SharedLedger` intent lifecycle (overlap, close-without-open, request-id
+reuse, request cap, denial schema/evidence-xor/status validation);
+cooldown semantics (explicit denial — `401`/`403`/`EXPLICIT_DENIAL` —
+never auto-resumes; a finite `retry_after_seconds` expires exactly at the
+conservative `max(window_end_utc, receipt_upper_bound_utc + retry)`
+bound); the full `SessionLedger` state-machine lifecycle including
+refuse/denial terminals, an accounted-without-witness request reaching
+terminal directly, the `report_reserved_bytes` equality enforcement,
+out-of-order-transition rejection, and request-id reuse/cap; the
+generalized-R2 inherited-hold property exercised explicitly for both
+ledgers across a restart — every guarded method on the inherited key
+fails the same way, and a second restart still inherits the same
+unresolved hold; shared journal discipline (tampered hash, concurrent
+writer, symlinked/relative/non-private directory, event and byte caps,
+oversized record, torn final record, hardlinked journal file, a write
+failure poisoning the instance for every further call without corrupting
+the already-fsync'd journal on the next clean open).
+
+Three test-writing mistakes were caught and corrected by running the
+suite, not assumed correct: (1) `control_domain_id` must be a 64-hex-char
+digest like every other ID in this module, not a human-readable label —
+an initial `'domain-1'`/`'g' * 64` placeholder failed `digest()` validation
+immediately; (2) `SessionLedger.terminal()` accepts `ACCOUNTED` directly
+(object witnessing is optional), so a test asserting the opposite was
+backwards; (3) a rejected `intent_closed()`/`attempt_intent()` call
+validates before appending, so it leaves the intent/attempt open in the
+*same* process (only a restart makes a hold permanent) — two tests that
+assumed a failed close also closed the slot were corrected to close
+validly before continuing.
+
+Verification (venv `/home/alphaadmin/AlphaV11_Dev/venv`):
+`tests/test_v11_r09_gate3_ledgers.py` alone **35 passed**. Wider Gate 3
+family (`launch`, `launch_v4`, `collector`, `message_sizes`, `offline_io`,
+`restart_composition`, `store_v1`, `ledgers`): **372 passed**, 0 failed,
+only the two pre-existing fork/FastAPI deprecation warnings already
+present before this change. `python3 -m py_compile` clean on both files.
+`git diff --check` clean. Committed `39b80fa` on
+`r09-gate3-v4-slice2-20261001` in the isolated worktree (two new files
+only; slice 1's `tools/v11_r09_gate3_launch.py`/`_launch_v4.py` and their
+tests untouched). `git merge-tree` of `39b80fa` against current main tip
+`71fc948` is clean (tree `a09af8e6`).
+
+This is a candidate only: no transport/socket adapter, launch entrypoint,
+real clock recorder, or private manifest wiring exists yet (explicitly
+out of scope per the module's own docstring and design section 7). Per
+the established slice workflow (slice 1: review `6e4c95b` ->
+`CHANGES_REQUIRED` -> repair `f31305e` -> `328d164` -> review
+`CHANGES_REQUIRED` -> repair `599dfd1` -> PASS -> merge), this requires a
+fresh different-model exact-commit review of `71fc948..39b80fa` before any
+merge into the tracked branch. No C/J/E/A boundary crossed by writing and
+testing an unmerged offline module: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
+Read-only recovery before acting: no other Gate 3 worker was running (`ps
+aux`); only the continuous-coordinator supervisor and this invocation were
+present. No PAPER scanner, protected `/etc/alpha-v11`/`/var/lib/alpha-v11`
+model-authority path, or execution service was active. V10 and AxiomTrade
+untouched. Private master hash not re-verified this pass (unchanged since
+the last check recorded above).
+
+Next unfinished action: a different-model (not Sonnet) exact-commit review
+of `71fc948..39b80fa` in
+`/home/alphaadmin/AlphaV11_Gate3V4Slice2/Alpha`. Merge only on a clean
+PASS and a clean newer-main merge-tree. If slice 2 is accepted, the next
+unimplemented piece is the transport/socket adapter and launch entrypoint
+that would actually drive these ledgers (still undesigned as a concrete
+slice); if a reviewer instead finds slice 2 incomplete, repair in the same
+worktree rather than starting a new one. Diagnose the previously-noted
+order-sensitive fill-markout full-suite failure if slice-2 review does not
+occupy the next batch.
+
 ## Coordinator (Sonnet) different-model review of repair 599dfd1: PASS; merged — 2026-10-01 UTC
 
 Main was clean at `6d7b8c5`, matching its tracking ref. Performed the

@@ -1,5 +1,25 @@
 # Supplementary engineering estimate
 
+## Gate 3 V4 slice 2: ledgers module recovered and tested; candidate, not merged — 2026-10-01 UTC
+
+Found and validated real recovered work: `tools/v11_r09_gate3_ledgers.py`
+(684 lines) had already been written, uncommitted, in the existing isolated
+`r09-gate3-v4-slice2-20261001` worktree by a prior invocation, with no test
+coverage. It implements `SharedLedger` (global intent token plus durable
+per-control-domain denial/cooldown history) and `SessionLedger` (per-run
+`ATTEMPT_INTENT`-through-terminal state machine), both generalizing R2's
+"never complete an inherited reservation" rule (`599dfd1`) to every
+persisted boundary via a shared duplicated `_HashChainJournal` base, per
+design doc sections 3/4/7. Added `tests/test_v11_r09_gate3_ledgers.py` (35
+cases covering lifecycle, identity/lineage, denial/cooldown semantics, the
+generalized-R2 inherited-hold property for both ledgers, and journal fail-
+closed discipline); all pass. Wider Gate 3 family (incl. slice 1):
+372 passed, 0 failed. Committed `39b80fa` in the isolated worktree only;
+merge-tree against main tip `71fc948` is clean. Not merged: per the
+established slice workflow this needs a different-model exact-commit
+review first. No C/J/E/A change: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Gate 3 V4 slice-one R2 repair 599dfd1 reviewed PASS and merged — 2026-10-01 UTC
 
 Sonnet's different-model exact-commit review of `599dfd1` (the repair Opus
