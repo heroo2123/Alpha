@@ -1,0 +1,60 @@
+{
+  "a4": "OPEN",
+  "author_lane": "codex a4",
+  "base_commit": "6ce37ab6ba8b93bafacdcb1597f53916d994eea7",
+  "candidate_commit": "ef53d61174e7c23e58ddf879d94918c0eafd58e1",
+  "candidate_modified": false,
+  "candidate_tree": "d632c94475fd100e51c2417479ffd4fa054587f2",
+  "candidate_worktree": "/tmp/alpha-v11-gate3-a4-runtime-verification-20261001",
+  "financial_status": "NOT_READY_TO_FUND",
+  "findings": [
+    {
+      "id": "F1",
+      "priority": "P1",
+      "title": "Restart under different build accepted when resume digest omitted"
+    },
+    {
+      "id": "F2",
+      "priority": "P1",
+      "title": "Git replace refs / inherited GIT_* env spoof source blob identity"
+    },
+    {
+      "id": "F3",
+      "priority": "P2",
+      "title": "Duplicate-key / non-canonical lock JSON diverges from reviewed bytes"
+    },
+    {
+      "id": "F4",
+      "priority": "P2",
+      "title": "Pure-Python bootstrap modules unbound; doc overclaims"
+    },
+    {
+      "id": "F5",
+      "priority": "P3",
+      "title": "Seccomp omits metadata-mutation and pidfd/process_vm syscalls"
+    },
+    {
+      "id": "F6",
+      "priority": "P3",
+      "title": "from-import falls back to unverified host sys.modules"
+    }
+  ],
+  "gate3_launch": "NO-GO",
+  "probes_sha256": "3eaf57771d040373ed16f62aaf01f14e00e8c92df7ef9765513307af8b2b43cf",
+  "provider_network_service_financial_actions": false,
+  "review_date_utc": "2026-10-02",
+  "review_sha256": "fb9e5894c80df8cad5fda980cba3dc3337465a77bb90a0e019d940f0698c4939",
+  "review_type": "independent_exact_commit_offline",
+  "reviewer_model": "claude-opus",
+  "schema_version": 1,
+  "tests": {
+    "author_focused": {
+      "passed": 18
+    },
+    "independent_counterexamples": {
+      "pass_means": "defect reproduced",
+      "passed": 6
+    }
+  },
+  "verdict": "CHANGES_REQUIRED"
+}
