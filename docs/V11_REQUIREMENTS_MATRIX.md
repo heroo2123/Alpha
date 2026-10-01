@@ -1,5 +1,20 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Exact slice-3 review requires I1–I3 repair — 2026-10-01 17:35 UTC
+
+Independent exact-commit review of `550305d` completed **CHANGES_REQUIRED**:
+458 offline family passes and 31 distinct independent probes (26 controls,
+five defect reproductions). I1 loses known eager bytes/restriction on
+post-dispatch monotonic faults; I2 omits known refusal reasons when UTC is
+unusable; I3 ignores the validated observation cutoff in timeliness. H1,
+H3–H5 and the original five H2 cases closed, but H6 and broader G1–G3/F2/F4/F5
+remain open. Candidate is unmerged; fresh repair, exact review and newer-main
+reconciliation are required. Completed reviewer pytest basetemps were removed
+after its terminal was verified, raising volatile free disk to about 2.9 GiB;
+this is not launch storage qualification. G3-L remains NO-GO, with 77 missing
+identities and no forward sample. No C/J/E/A boundary crossed:
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Live exact review, no new acceptance — 2026-10-01 17:31 UTC
 
 Clean candidate `550305d` remains under its sole independent Astra/high exact

@@ -1,5 +1,36 @@
 # Alpha V11 work checkpoint
 
+## Slice-3 exact review completed with three blockers — 2026-10-01 17:35 UTC
+
+Recovered the completed independent Astra/high report and matching terminal for
+clean, unmerged candidate `550305d` (tree `ca8245fe`). The verdict is
+**CHANGES_REQUIRED**, not acceptance. The reviewer independently reran the
+458-test Gate 3 offline family (all passed, two existing fork warnings) and
+31 distinct synthetic probes: 26 controls and five reproductions. The three
+blocking findings are I1 (post-dispatch monotonic faults lose known eager
+bytes and sometimes the observed restriction), I2 (known uncertainty and
+permanent restriction reasons are omitted when UTC is unusable), and I3
+(timeliness ignores the validated observation cutoff). The initial probe
+harness failure was corrected within the review and is not a candidate defect.
+See `/tmp/alpha-v11-slice3-review-550305d.md` and its `.terminal.json` for
+exact evidence. H1, H3–H5 and the five original H2 cases closed; H6 and the
+broader G1–G3/F2/F4/F5 obligations remain open through I1–I3.
+
+Main and candidate worktrees remain clean and separate. Do not merge. Repair
+I1–I3 in the existing isolated slice-3 repair worktree, rerun focused and
+Gate 3 family tests, obtain a fresh different-model exact-commit review,
+then reconcile with newer main only on PASS. After the reviewer exited and
+its report/terminal hash was checked, only its completed pytest basetemps were
+removed; report, terminal, probe source and test logs remain intact. Root free
+space rose from about 813 MiB to 2.9 GiB, but this volatile cleanup does not
+qualify launch storage. G3-L remains **NO-GO** with 77 missing pre-review
+identities. PAPER services are inactive; scanner disabled; protected
+authority paths absent. The private FINAL-REVIEWED master still matches its
+pinned SHA-256 `a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+No provider request, forward SHADOW sample, V10/AxiomTrade/service/authority,
+financial or private-master change was made. No C/J/E/A boundary crossed:
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Live exact review and disk no-go recovery — 2026-10-01 17:31 UTC
 
 Recovered clean main `76adce7` (42 commits ahead of tracking), clean unmerged

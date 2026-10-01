@@ -1,5 +1,18 @@
 # Supplementary engineering estimate
 
+## Slice-3 independent verdict: changes required — 2026-10-01 17:35 UTC
+
+The exact `550305d` review report and terminal agree on **CHANGES_REQUIRED**.
+The reviewer passed 458 Gate 3 family tests and independently reproduced
+I1–I3 in five of 31 probes. The three gaps concern post-dispatch observation
+conservation, all known refusal reasons and the frozen observation cutoff.
+Candidate remains clean and unmerged. Repair, fresh exact review and
+newer-main reconciliation precede integration. Completed review test scratch
+was cleared after terminal verification; volatile free disk rose to about
+2.9 GiB without qualifying launch storage. G3-L remains NO-GO with 77
+missing identities and no forward sample. **91/200
+(45.5%), formal 1/50; NOT_READY_TO_FUND** unchanged.
+
 ## Exact review still live; launch floor fails — 2026-10-01 17:31 UTC
 
 Clean candidate `550305d` remains unmerged while its sole Astra/high reviewer
