@@ -1,5 +1,16 @@
 # Supplementary engineering estimate
 
+## Slice-3 review completed; eight blocking findings — 2026-10-01 12:11 UTC
+
+Astra/high independently reviewed exact `8e446fd` and recorded
+[CHANGES_REQUIRED](V11_R09_GATE3_V4_SLICE3_REVIEW_8e446fd.md). Existing
+36 focused/400 family tests pass, while 16 independent counterexamples expose
+timing, denial, context, accounting and reporting gaps; three additional
+controls confirm preserved refusal/denial ordering. Candidate remains clean,
+unmerged. Repair work is next; mapping review and real launch qualification
+remain open. G3-L NO-GO. No C/J/E/A award: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Two Gate 3 candidates completed, pending independent review — 2026-10-01 12:02 UTC
 
 Recovered the clean isolated provider-mapping candidate `15f054f` and

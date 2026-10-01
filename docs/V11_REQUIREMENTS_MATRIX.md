@@ -1,5 +1,16 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Slice-3 independent review requires repairs — 2026-10-01 12:11 UTC
+
+Exact runtime `8e446fd` reviewed **CHANGES_REQUIRED**: six P1 and two P2
+findings in [the review](V11_R09_GATE3_V4_SLICE3_REVIEW_8e446fd.md).
+36 focused/400 family passes do not close the reproduced runtime gaps;
+19 independent probes include 16 counterexamples and three working controls.
+No integration or G3-L acceptance. Mapping `15f054f` remains separately
+unreviewed. Repair, fresh exact-commit review and newer-main reconciliation
+are next; real evidence remains open. **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**, unchanged.
+
 ## Two Gate 3 candidates awaiting separate review — 2026-10-01 12:02 UTC
 
 The isolated V4 typed-path candidate `15f054f` is complete, clean and

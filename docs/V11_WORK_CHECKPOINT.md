@@ -1,5 +1,39 @@
 # Alpha V11 work checkpoint
 
+## Slice-3 exact-commit review: CHANGES_REQUIRED — 2026-10-01 12:11 UTC
+
+Astra/high completed the independent review of `9c3e748..8e446fd`, tree
+`5662b3a263d254d46a5b414f4f9418b68338bf61`. The exact candidate stayed clean
+and unmodified. [Review](V11_R09_GATE3_V4_SLICE3_REVIEW_8e446fd.md),
+[probes](V11_R09_GATE3_V4_SLICE3_REVIEW_8e446fd_probes.py), and
+[terminal](V11_R09_GATE3_V4_SLICE3_REVIEW_8e446fd_terminal.json) are preserved.
+Independent runs: 36 focused, 400 Gate 3 family (two existing fork warnings),
+and 19 probes passed; the latter comprise 16 defect reproductions plus three
+positive controls, not acceptance. Eight findings remain: unenforced transport
+deadlines/closure, invalid and nonpersistent clock state, missing post-close
+pacing, incomplete denial handling/wrong receipt clock, unbound frozen plan
+and journal context, dropped prefetched overdelivery bytes, incomplete report
+composition/reserve, and missing prospective capacity admission.
+
+Session-only pretransport refusal is accepted narrowly. Substituting reservation
+spacing for required closure pacing is rejected. Existing denial-before-budget
+ordering and permanent overdelivery poisoning work, but are insufficient for
+slice-3 acceptance. Do not merge `8e446fd`; repair offline and obtain a fresh
+different-model exact-commit review. Mapping `15f054f` still needs its separate
+review; no verdict or merge reconciliation is claimed for it here.
+
+Main recovered at `bc7b003`; original runtime, mapping and SHADOW worktrees
+are clean. Earlier release acceptance remains 5,460 passes/13 skips; no full
+release rerun. PAPER/demo/controller inactive/disabled; execution inactive/masked;
+protected authority absent; private FINAL-REVIEWED master matches its pin.
+No provider, V10, AxiomTrade, service or authority action occurred. Disk about
+3.8 GiB free; memory about 990 MiB available. G3-L remains NO-GO and no C/J/E/A
+boundary crossed: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
+Next: one isolated Sonnet/high repair worker for R1–R8, then fresh independent
+review and newer-main reconciliation. The mapping review remains independent
+offline work; all real-provider, private-package and G3-L prerequisites remain.
+
 ## Two Gate 3 candidates recovered; separate exact-commit reviews next — 2026-10-01 12:02 UTC
 
 Recovered main clean at `62c7eec`, eleven local commits ahead of its tracking
