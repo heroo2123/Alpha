@@ -1,5 +1,25 @@
 # Alpha V11 work checkpoint
 
+## Both repair workers recovered after Claude session limit — 2026-10-01 12:35 UTC
+
+Actual process/terminal check supersedes the earlier live-worker entry: the
+slice-3 Sonnet runner exited at 12:29:47 UTC with return code 1 and no terminal
+marker; its log says the Claude session limit resets at 13:20 UTC. Its isolated
+worktree retains unfinished edits in three files (ledger, launch, ledger tests),
+and no prior writer remains live. A single Sol/high failover agent now owns that
+same worktree and must preserve/recover those edits. The separate mapping
+repair Sonnet runner likewise exited before editing at 12:32:18 UTC with the
+same quota message; one Sol/high failover agent owns its clean isolated
+worktree. These are two independent writers in distinct worktrees, within the
+owner's parallel limit. Neither has a candidate or acceptance verdict.
+
+Main records the independent mapping CHANGES_REQUIRED evidence at `68518d9`;
+the 91/200 score and formal 1/50 remain unchanged. No provider request,
+launch, merge, push, service/authority action, V10 or AxiomTrade action occurred.
+G3-L NO-GO; **NOT_READY_TO_FUND**. Recover actual worktree/process/terminal
+state before the next action; require a fresh different-model exact-commit
+review and newer-main reconciliation for each eventual candidate.
+
 ## Provider mapping review CHANGES_REQUIRED; repair failover — 2026-10-01 12:34 UTC
 
 Independent Astra/high exact-commit review of `f5f6cde..15f054f` (tree

@@ -1,5 +1,13 @@
 # Supplementary engineering estimate
 
+## Gate 3 quota-stop recovery — 2026-10-01 12:35 UTC
+
+Both Sonnet runners ended on a 13:20 UTC session-limit message. The slice-3
+worktree retains unfinished edits; the mapping-repair worktree is clean.
+Separate Sol/high agents resumed each task in place without resetting work.
+Neither task crossed acceptance or evidence boundaries. **91/200 (45.5%),
+formal 1/50; NOT_READY_TO_FUND**.
+
 ## Mapping candidate rejected; isolated repair underway — 2026-10-01 12:34 UTC
 
 Astra/high found two P2 gaps in `15f054f`, with five independent accepted

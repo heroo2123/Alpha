@@ -1,5 +1,13 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Both Gate 3 repairs resumed after quota stops — 2026-10-01 12:35 UTC
+
+The original Sonnet runners stopped on the Claude session limit. Separate
+Sol/high failover agents own the preserved slice-3 unfinished worktree and
+the clean mapping-repair worktree. No candidate is accepted; both exact-review
+and reconciliation gates remain. **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Provider mapping review found two P2 gaps — 2026-10-01 12:34 UTC
 
 Exact candidate `15f054f` is [CHANGES_REQUIRED](V11_R09_GATE3_V4_PROVIDER_MAPPING_REVIEW_15f054f.md):
