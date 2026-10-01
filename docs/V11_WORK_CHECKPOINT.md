@@ -1,5 +1,22 @@
 # Alpha V11 work checkpoint
 
+## Slice-3 offline worker launched after slice-2 integration — 2026-10-01 UTC
+
+Started exactly one persistent Sonnet/high implementation worker in isolated
+`/tmp/alpha-v11-gate3-v4-slice3-20261001` (branch
+`r09-gate3-v4-slice3-20261001`, clean base `9c3e748`). Runner PID `1560999`,
+Claude child PID `1561000`, prompt and live log at
+`/tmp/alpha-v11-gate3-v4-slice3-20261001.{prompt.txt,worker.log}`. The
+one-shot runner will write
+`/tmp/alpha-v11-gate3-v4-slice3-20261001.terminal.json` when the worker
+exits; recover actual process/worktree/log before trusting that file. Scope:
+offline injected transport/clock/resource state machine, journal composition,
+denial/crash/receipt reporting, synthetic tests and candidate commit only.
+The worker must not merge, request providers, launch G3-L, or claim SHADOW.
+The independent review and newer-main reconciliation remain mandatory after
+its candidate. No additional C/J/E/A; **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Gate 3 V4 slice 2: owner-authorized R1 repair reviewed PASS and integrated — 2026-10-01 UTC
 
 Recovered clean main `d13ed06` and the preserved slice-2 worktree. The owner's
