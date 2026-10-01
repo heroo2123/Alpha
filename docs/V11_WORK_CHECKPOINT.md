@@ -1,5 +1,63 @@
 # Alpha V11 work checkpoint
 
+## Decoder correction independently accepted and merged; static MEMFS worker live — 2026-10-01 20:02 UTC
+
+Independent Astra/high [exact review](V11_R09_GATE3_DECODER_BUILD_REVIEW_82e1619.md)
+and [evidence](V11_R09_GATE3_DECODER_BUILD_REVIEW_82e1619.json), committed at
+`b929695`, accept corrected `82e16191fb3b0dc4ca6f4cb068e1cba748957c48`
+(tree `3d8a7d3`) **as offline observation only**. R1–R4 are closed: both
+source hashes, all 42 listed mapped objects, both synthetic IFS/AIFS decodes,
+every RECORD mismatch row and the local cached-wheel comparison reproduced.
+There are 25 mismatches with deltas 3,368–213,008 bytes, 27 unhashed rows,
+36 excluded mapped objects including reviewer-only libseccomp, and six
+aligned unresolved items. In-memory negatives confirm the newly honest
+observation-only exit contract. Native IPv4/IPv6 socket creation was denied
+before decode by reviewer seccomp. The review explicitly corrects a minor
+table error: 12 eckit/lib64 objects total, not core plus 12. Installed bytes,
+upstream origin, build qualification and G3-L identity remain unaccepted.
+
+Verified [reconciliation](V11_R09_GATE3_DECODER_BUILD_RECONCILIATION_82e1619.json)
+merged the exact three candidate blobs onto newer main `b929695` at
+`ca55079b5a69aaf5cf5c74748d4244334be02ab0`, tree `860fda7684297d94902bb39caa88a3fa2262b92b`.
+Every pre-existing newer-main blob is preserved. Product code/tests unchanged;
+JSON/Python syntax and diff checks pass. No full-suite rerun or new release
+claim is necessary for this observation-only merge. Accepted R1 `58a465f`
+and prior release/markout resolution `6ec371e` remain ancestors. Local merge
+only; no remote publication. Author/review worktrees and raw evidence retained.
+
+Exactly one persistent Sonnet/high worker is verified live: runner **1893085**,
+child **1893090**, isolated worktree
+`/tmp/alpha-v11-gate3-memfs-static-inventory-20261001`, branch
+`gate3-memfs-static-inventory-20261001`, initial clean `ca55079`.
+Prompt/runner/PIDs/log prefix `/tmp/alpha-v11-gate3-memfs-static-20261001`;
+terminal `.terminal.json` records `GATE3_MEMFS_STATIC_READY_FOR_REVIEW` or
+`GATE3_MEMFS_STATIC_BLOCKED`, exact commit/tree, clean state and changed paths.
+No terminal exists yet. Recover actual process/worktree/log before acting;
+do not duplicate the writer or merge its future unreviewed candidate.
+
+Task is bounded static ELF enumeration of the already-installed, hash-pinned
+`libeccodes_memfs.so`, at most three new observation/probe files. Exported
+OBJECT symbols provide a concrete lead; symbol names are not file paths.
+The worker must prove exact path/payload/logical-length mapping or honestly
+retain a symbol-range-only gap. No library execution, package install/build,
+network/provider request, installed-byte change or authority action. Fresh
+independent exact review is mandatory. This advances the IFS/AIFS offline
+prerequisite while GEFS forward commissioning remains owner/root gated.
+
+Fresh offline screen for the **proposed** October 2 acquisition / October 3
+target remains nonlaunchable with **77 missing** pre-review identities;
+free disk 1,413,423,104 bytes, available memory 802,996,224 bytes at that
+screen. The old expired October 1 window is not revived; this later proposed
+date has no reviewed freeze or launch approval. After worker launch, free
+disk was 1,379,463,168 bytes and available memory about 505 MiB. Disk stays
+below the 2 GiB floor; G3-L **NO-GO**. No provider request or new forward sample.
+SHADOW/Brain worktrees are clean, ECMWF `backfill_data/` preserved; no new
+commissioning files since the prior checkpoint. Scanner is inactive/disabled,
+execution inactive/masked; protected authority roots absent. Private master
+SHA-256 still `a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+V10/AxiomTrade/services/authority/financial state unchanged. No C/J/E/A
+crossing: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Decoder correction recovered; exact independent review next — 2026-10-01 19:48 UTC
 
 Recovered the previously live worker from its actual matching terminal and

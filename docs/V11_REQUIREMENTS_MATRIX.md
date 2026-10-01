@@ -1,5 +1,19 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Corrected decoder observation accepted; MEMFS prerequisite active — 2026-10-01 20:02 UTC
+
+Independent Astra/high [review](V11_R09_GATE3_DECODER_BUILD_REVIEW_82e1619.md)
+closes R1–R4 on exact `82e1619` for observation-only integration, with minor
+narrative errata explicitly retained. Verified local merge `ca55079` preserves
+all three candidate blobs and every newer-main blob. No build qualification,
+G3-L identity or CCSDS permission follows. One Sonnet/high static MEMFS worker
+is live (runner 1893085 / child 1893090), isolated worktree
+`/tmp/alpha-v11-gate3-memfs-static-inventory-20261001`, terminal prefix
+`/tmp/alpha-v11-gate3-memfs-static-20261001`. Exact review follows completion.
+Fresh prospective October 2 acquisition/October 3 target screen has 77 missing
+identities and disk below 2 GiB; G3-L NO-GO. No new forward SHADOW evidence
+or C/J/E/A crossing: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Decoder correction awaits independent exact review — 2026-10-01 19:48 UTC
 
 Worker completed clean candidate `82e1619` (tree `3d8a7d3`) in its isolated

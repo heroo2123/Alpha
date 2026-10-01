@@ -1,0 +1,17 @@
+{
+  "main_parent": "b9296958a3eea2f1256af25f8d8121763c9ee0e4",
+  "candidate_parent": "82e16191fb3b0dc4ca6f4cb068e1cba748957c48",
+  "expected_combined_tree": "860fda7684297d94902bb39caa88a3fa2262b92b",
+  "changed_files": [
+    "docs/V11_R09_GATE3_DECODER_BUILD_OBSERVATION_20261001.md",
+    "docs/V11_R09_GATE3_DECODER_BUILD_OBSERVATION_20261001.json",
+    "docs/V11_R09_GATE3_DECODER_BUILD_OBSERVATION_20261001_probe.py"
+  ],
+  "all_candidate_blobs_preserved": true,
+  "all_existing_main_blobs_preserved": true,
+  "merge_commit": "ca55079b5a69aaf5cf5c74748d4244334be02ab0",
+  "merge_tree": "860fda7684297d94902bb39caa88a3fa2262b92b",
+  "clean_after_merge": true,
+  "review_commit": "b9296958a3eea2f1256af25f8d8121763c9ee0e4",
+  "validation": "Exact merge tree and candidate blobs checked; every existing main blob preserved. JSON/Python syntax and git diff --check pass. Product code unchanged; no new release-suite claim."
+}
