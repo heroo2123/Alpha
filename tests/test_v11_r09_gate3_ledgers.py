@@ -231,15 +231,25 @@ def test_shared_ledger_denial_evidence_xor_and_bad_status_rejected(tmp_path):
                 evidence_sha256='b' * 64, evidence_missing_cause='both set'))
 
 
-def test_shared_ledger_denial_rejects_receipt_bound_before_window_end(tmp_path):
-    # S7 (ordering half): the conservative receipt upper bound cannot
-    # precede the window it is supposed to bound.
+def test_shared_ledger_in_window_denial_blocks_durably_until_window_end(tmp_path):
+    # R1: a denial received during the window must be recorded and block
+    # the control domain through the future window end, including on reopen.
     root = _root(tmp_path)
     with _new_shared(root) as ledger:
         _open_intent(ledger, 'req-1')
-        with pytest.raises(LaunchContractError, match='SHARED_LEDGER_DENIAL_ORDER'):
-            ledger.denial_observed('req-1', denial=_denial(
-                window_end_utc=1000.0, receipt_upper_bound_utc=999.0))
+        ledger.denial_observed('req-1', denial=_denial(
+            window_end_utc=10800.0, receipt_upper_bound_utc=600.0))
+        assert ledger.is_blocked('d' * 64, now_utc=600.0)
+        ledger.intent_closed('req-1', outcome='DENIED',
+                              accounting_head='c' * 64, total_delivered_bytes=0)
+        head = ledger.prev
+    with SharedLedger(root, boot_id=BOOT, expected_history_head=head) as ledger:
+        assert ledger.is_blocked('d' * 64, now_utc=10799.0)
+        with pytest.raises(LaunchContractError,
+                            match='SHARED_LEDGER_CONTROL_DOMAIN_COOLDOWN'):
+            _open_intent(ledger, 'req-2', now_utc=10799.0)
+        assert not ledger.is_blocked('d' * 64, now_utc=10800.0)
+        _open_intent(ledger, 'req-2', now_utc=10800.0)
 
 
 # ---------------------------------------------------------------------------

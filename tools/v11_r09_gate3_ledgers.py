@@ -470,11 +470,6 @@ class SharedLedger(_HashChainJournal):
         check(type(denial['receipt_upper_bound_utc']) in (int, float) and
               math.isfinite(denial['receipt_upper_bound_utc']),
               'SHARED_LEDGER_DENIAL_RECEIPT_BOUND')
-        # The receipt upper bound is the conservative bound the window end
-        # is measured from (section 3); it cannot precede the window it is
-        # supposed to bound.
-        check(denial['receipt_upper_bound_utc'] >= denial['window_end_utc'],
-              'SHARED_LEDGER_DENIAL_ORDER')
         return dict(denial)
 
     def is_blocked(self, control_domain_id, *, now_utc):
