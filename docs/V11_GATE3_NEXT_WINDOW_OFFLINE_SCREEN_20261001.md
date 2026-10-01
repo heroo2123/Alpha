@@ -1,5 +1,13 @@
 # Gate 3 next-window offline screen — 2026-10-01
 
+**17:48 UTC refresh:** Clean unmerged I1–I3 repair candidate `8efb60a`
+passed 476 offline Gate 3 family tests and is under independent exact-commit
+review. This is author evidence, not acceptance. The previously measured 77
+missing pre-review identities are unchanged; no new exact package, physical
+storage qualification, G3-L PASS or forward sample exists. The October 2
+candidate remains `launchable=false` and G3-L NO-GO. Reviewer test scratch is
+consuming volatile disk space; no provider request is authorized.
+
 **17:23 UTC refresh:** The H1–H6 author completed clean unmerged candidate
 `550305d`; its independent exact-commit review is active. Completed pytest
 basetemps were removed, returning root free space to about 2.9 GiB before
