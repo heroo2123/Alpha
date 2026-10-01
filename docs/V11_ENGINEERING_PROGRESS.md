@@ -1,5 +1,14 @@
 # Supplementary engineering estimate
 
+## Gate 3 V4 slice 2 candidate 39b80fa reviewed: CHANGES_REQUIRED — 2026-10-01 UTC
+
+Opus exact-commit review found nine reproduced state-machine defects in the
+ledgers. The main ones are that holds are released on denial, on ambiguity
+and on cross-boot reopen, and that SUCCESS is allowed without a store receipt.
+Details are in `docs/V11_R09_GATE3_V4_SLICE2_REVIEW_39b80fa.md`. The repair
+is routed to Sonnet/high. No C/J/E/A change: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND.**
+
 ## Gate 3 V4 slice 2: ledgers module recovered and tested; candidate, not merged — 2026-10-01 UTC
 
 Found and validated real recovered work: `tools/v11_r09_gate3_ledgers.py`

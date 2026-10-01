@@ -1,0 +1,17 @@
+{
+  "schema": "ALPHA_V11_INDEPENDENT_REVIEW_TERMINAL_V1",
+  "completed_utc": "2026-10-01T10:10:41.612667+00:00",
+  "issuer": "Claude Opus 5.5 independent reviewer (synchronous; different model from Sonnet writer)",
+  "status": "REVIEW_COMPLETE_CHANGES_REQUIRED",
+  "verdict": "CHANGES_REQUIRED",
+  "reviewed_commit": "39b80fab8e0b5bcf97862a0cd23d06f6634f5f6e",
+  "reviewed_tree": "a09af8e68d0302217f2c502456c96185d6afe1ec",
+  "report_path": "docs/V11_R09_GATE3_V4_SLICE2_REVIEW_39b80fa.md",
+  "report_sha256": "a70b315c572e827a2313d60b37cf3abd498d2935ed5e1fb510369a40ff077ad4",
+  "probes_path": "docs/V11_R09_GATE3_V4_SLICE2_REVIEW_39b80fa_probes.py",
+  "probes_sha256": "e77392c626fc53f695ab3759b9bbf0ff19b92cc98095c9332cffb2327f6f6014",
+  "probe_summary": "9 of 9 defects reproduced",
+  "integration_authorized": false,
+  "operational_authority": false,
+  "financial_authority": false
+}

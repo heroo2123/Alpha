@@ -1,5 +1,28 @@
 # Alpha V11 work checkpoint
 
+## Opus exact-commit review of slice-2 candidate 39b80fa — CHANGES_REQUIRED — 2026-10-01 10:11 UTC
+
+Main clean at `2668609`, matching origin. Reviewed
+`71fc948..39b80fa` (tree `a09af8e6`) in
+`/home/alphaadmin/AlphaV11_Gate3V4Slice2/Alpha` against design sections 3-6.
+Candidate suite 35 passed; journal primitive sound. Verdict
+**CHANGES_REQUIRED**: [review](V11_R09_GATE3_V4_SLICE2_REVIEW_39b80fa.md),
+[probes](V11_R09_GATE3_V4_SLICE2_REVIEW_39b80fa_probes.py) (9/9 reproduced),
+[terminal](V11_R09_GATE3_V4_SLICE2_REVIEW_39b80fa_terminal.json). Blocking:
+S1 the shared denial is recorded only by fusing it with INTENT_CLOSED, which
+releases the global token before transport closure/settlement; S2/S3
+AMBIGUOUS outcomes release the shared and session holds; S4 SUCCESS is
+allowed without a store receipt; S5 the session denial skips TRANSPORT_CLOSED
+and ACCOUNTED; S6 boot_id is never compared on reopen. Smaller: S7 a NaN
+clock bypasses the cooldown; S8 the shared-root lineage is caller-asserted
+(bool genesis, optional head, root bound to one manifest); S9 overdelivery
+reaches SUCCESS. The review also lists schema gaps for slice 3. Not merged.
+The reviewer wrote no candidate code. Next: a Sonnet/high repair on top of
+`39b80fa` in the same worktree with regression tests that fail on `39b80fa`,
+then a fresh different-model exact-commit review. V10 untouched; nothing
+financial, credential, sudo or production. **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND.**
+
 ## Coordinator (Sonnet) Gate 3 V4 slice 2: ledgers module recovered, tested; candidate, not merged — 2026-10-01 UTC
 
 Main was clean at `71fc948`, matching its tracking ref. Recovery check found
