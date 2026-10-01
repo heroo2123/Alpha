@@ -1,5 +1,24 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Gate 3 V4 slice-one R2 repair 599dfd1: different-model PASS; merged to main — 2026-10-01 UTC
+
+Sonnet exact-commit review of `f31305e..599dfd1` (R2 as a whole), different
+model from both the Sol author of `f31305e` and the Opus author of
+`328d164`/`599dfd1`. Independently re-ran the Opus probe against `599dfd1`:
+the synthetic-ENOSPC and directory-identity-fault scenarios that previously
+let a restart `complete()` refund an uncertain reservation now reject with
+`UNCERTAIN_REQUEST_HELD`. Full affected suite **312 passed** (both in the
+isolated worktree and after merge into main), matching the candidate's
+claimed counts; `merge-tree` against current main tip is clean. See
+[checkpoint](V11_WORK_CHECKPOINT.md) for full detail.
+
+Merged `r09-gate3-v4-slice1-20261001` into main (`--no-ff`), landing the
+actual V4 slice-1 implementation for the first time (only review records
+had previously been mirrored into main's docs). This closes Gate 3 V4
+slice 1 (R1-R6). Gate 3 V4 overall and R09 overall remain OPEN pending
+further slices; no C/J/E/A boundary crossed. **91/200 (45.5%), formal
+1/50; NOT_READY_TO_FUND**.
+
 ## Opus review of R2 candidate 328d164 — CHANGES_REQUIRED; repair 599dfd1 pending review — 2026-10-01 UTC
 
 The sentinel in `328d164` covers only capacity-cap refusals. On the exact commit,

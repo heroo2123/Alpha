@@ -1,5 +1,65 @@
 # Alpha V11 work checkpoint
 
+## Coordinator (Sonnet) different-model review of repair 599dfd1: PASS; merged — 2026-10-01 UTC
+
+Main was clean at `6d7b8c5`, matching its tracking ref. Performed the
+different-model exact-commit review the prior checkpoint entry called for:
+`f31305e..599dfd1` (R2 as a whole) in
+`/home/alphaadmin/AlphaV11_Gate3V4Slice1/Alpha`, independent of both the
+Sol author of `f31305e` and the Opus author of `328d164`/`599dfd1`.
+
+Re-derived the gap from the design text myself rather than trusting the
+review doc: `328d164`'s `gate3.held` sentinel only durably records the
+capacity-cap refusal; a zero-byte journal write error, a directory identity
+fault, or a bare crash after delivery writes no marker, so a reopened
+`DurableBudget` could still `complete()`/refund the reservation. `599dfd1`
+closes this uniformly: on open it snapshots whatever key was already
+in-flight as `inherited_in_flight`, and `next_read_limit()`/`complete()`
+refuse any match with `UNCERTAIN_REQUEST_HELD` regardless of whether a
+marker exists. Copied the Opus probe
+(`V11_R09_GATE3_V4_SLICE1_R2_REVIEW_328d164_probes.py`) into this worktree
+and re-ran it against `599dfd1` directly: both the synthetic-ENOSPC and
+identity-fault scenarios that previously let a restart `complete()` refund
+the reservation now reject with `UNCERTAIN_REQUEST_HELD`. Ran the suites
+myself: `test_v11_r09_gate3_launch.py` alone **71 passed**; full family
+(+ `_launch_v4`, `_collector`, `_message_sizes`, `_offline_io`,
+`_restart_composition`, `_store_v1`) **312 passed**, 2 pre-existing fork
+`DeprecationWarning`s, matching the candidate's own claimed counts.
+`git merge-tree` against both the claimed parent `7ba0199` and current main
+tip `6d7b8c5` is clean. R1/R3-R6 untouched in the diff.
+
+**Verdict: PASS.** R09 Gate 3 V4 slice-1 R2 is closed; this was the only
+open finding from the chain of reviews ([6e4c95b review](V11_R09_GATE3_V4_SLICE1_REVIEW_6e4c95b.md)
+CHANGES_REQUIRED -> Sol repair `f31305e` -> Sonnet inspection confirming
+R1/R3-R6 correct, R2 incomplete -> Sonnet attempt `328d164` -> Opus
+CHANGES_REQUIRED + repair `599dfd1` -> this PASS).
+
+Merged `r09-gate3-v4-slice1-20261001` (`599dfd1`) into main with `--no-ff`
+(merge commit records the full verification). Since the branch had never
+been merged before, this is the first time the actual V4 slice-1
+implementation (`tools/v11_r09_gate3_launch.py` R1-R2 changes plus the new
+`tools/v11_r09_gate3_launch_v4.py` R3-R6 module and both test files) lands
+on main; only review *records* were previously mirrored into main's docs.
+Re-ran the full affected suite in the merged main tree: **312 passed**,
+same 2 pre-existing warnings.
+
+This closes Gate 3 V4 **slice 1** (R1-R6) only. Gate 3 V4 as a whole, and
+R09 overall, remain OPEN: no C/J/E/A boundary crossed by a code merge
+alone absent a full-package acceptance check. **91/200 (45.5%), formal
+1/50; NOT_READY_TO_FUND**.
+
+Read-only recovery before acting: no other Gate 3 worker was running: no
+PAPER scanner, protected `/etc/alpha-v11`/`/var/lib/alpha-v11`
+model-authority path, or execution service was active. V10 and AxiomTrade
+untouched. Private master hash not re-verified this pass (unchanged since
+last check).
+
+Next unfinished action: identify and start Gate 3 V4 slice 2 (the next
+unimplemented slice per the transport/runtime design), or if none is
+defined yet, design it; do not duplicate slice-1 work. Diagnose the
+previously-noted order-sensitive fill-markout full-suite failure if slice-2
+work does not occupy the batch.
+
 ## Opus exact-commit review of R2 candidate 328d164 — CHANGES_REQUIRED; repair candidate 599dfd1 — 2026-10-01 UTC
 
 Routed OPUS_HIGH after Astra/high hit a provider cooldown. Main was clean at

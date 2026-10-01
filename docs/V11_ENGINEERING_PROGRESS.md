@@ -1,5 +1,22 @@
 # Supplementary engineering estimate
 
+## Gate 3 V4 slice-one R2 repair 599dfd1 reviewed PASS and merged — 2026-10-01 UTC
+
+Sonnet's different-model exact-commit review of `599dfd1` (the repair Opus
+wrote for its own `328d164` CHANGES_REQUIRED finding) confirms the fix: on
+open, `DurableBudget` snapshots any already-in-flight key as
+`inherited_in_flight`, and `next_read_limit()`/`complete()` refuse a match
+with `UNCERTAIN_REQUEST_HELD` regardless of whether the capacity-cap
+`gate3.held` marker was written. This covers the zero-byte write error,
+identity fault and bare-crash paths the marker alone missed. Re-ran the
+Opus probe directly against `599dfd1`: both scenarios that previously let
+a restart erase the reservation now reject. Full affected suite 312
+passed, matching the claimed count. Merged `r09-gate3-v4-slice1-20261001`
+into main with `--no-ff`; this lands the full V4 slice-1 implementation on
+main for the first time. R09 Gate 3 V4 slice 1 (R1-R6) is closed; Gate 3 V4
+overall and R09 overall remain OPEN. No C/J/E/A change: **91/200 (45.5%),
+formal 1/50; NOT_READY_TO_FUND**.
+
 ## Opus review of R2 candidate 328d164 — CHANGES_REQUIRED; repair 599dfd1 pending review — 2026-10-01 UTC
 
 The sentinel in `328d164` covers only capacity-cap refusals. On the exact commit,
