@@ -1,5 +1,35 @@
 # Alpha V11 work checkpoint
 
+## Live G1–G4 recovery and safety check — 2026-10-01 15:24 UTC
+
+Actual main is clean at `4004c6c` (35 local commits ahead of tracking). The
+sole G1–G4 Sol/high writer remains live in its existing isolated worktree at
+`8e18553`, with four unfinished files and no terminal or new candidate commit.
+Its latest family run passed 445 tests with two existing fork warnings, but
+the writer edited afterward; exact-candidate tests and different-model review
+remain pending. `git diff --check` currently passes. Do not duplicate or merge
+this work. The owner-authorized R1 correction is already integrated on main.
+
+The private FINAL-REVIEWED master SHA-256 still matches its pinned
+`a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+PAPER scanner/controller/execution are inactive; scanner is disabled; protected
+authority paths remain absent. SHADOW and Brain-readiness worktrees are clean;
+the ECMWF backfill worktree's untracked data is untouched. Commissioning has
+only older watchdog/status evidence, no qualifying forward sample. Disk has
+about 3.5 GiB free and memory about 880 MiB available with 1.7 GiB free swap;
+these passive readings do not qualify launch resources. The accepted release
+full-suite result remains 5,460 passes / 13 skips and resolved the older
+fill-markout failure. G3-L remains **NO-GO**: the offline next-window screen
+still lacks 77 pre-review identities. No provider request, service change,
+V10/AxiomTrade action, financial action or C/J/E/A boundary crossed:
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
+Next: recover the writer from its actual terminal and worktree; on a clean
+candidate inspect its final diff/tests and obtain fresh different-model
+exact-commit review before reconciliation with newer main. Continue offline
+source/restriction, decoder, clock, storage and cohort preparation; no request
+before G3-L PASS.
+
 ## Next-window offline screen while G1–G4 repair continues — 2026-10-01 15:18 UTC
 
 Recovered actual state after the 15:03 handoff: main is clean at `2359332`

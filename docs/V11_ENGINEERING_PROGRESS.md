@@ -1,5 +1,15 @@
 # Supplementary engineering estimate
 
+## G1–G4 writer still live — 2026-10-01 15:24 UTC
+
+Recovered clean main `4004c6c` and one live isolated writer at `8e18553`
+with four uncommitted files. Its 445-pass Gate 3 family result preceded
+later edits; final candidate, terminal and independent review remain open.
+The reviewed R1 correction is already integrated. No new launch evidence or
+forward sample exists; G3-L stays NO-GO. Accepted release full-suite remains
+5,460 passed / 13 skipped, with the earlier fill-markout failure resolved.
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND** unchanged.
+
 ## G1–G4 repair active; next-window diagnostic — 2026-10-01 15:18 UTC
 
 Actual runner and worktree checks found one live Sol/high repair writer, four

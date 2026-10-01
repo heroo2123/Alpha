@@ -1,5 +1,15 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Live Gate 3 recovery check — 2026-10-01 15:24 UTC
+
+The sole G1–G4 writer is still active with four unfinished files and no
+candidate terminal. Its 445-pass family run predates further edits and is
+interim author evidence only. The private master still matches its pin;
+the next-window screen remains nonlaunchable with 77 missing pre-review
+identities and no new forward sample. Exact-commit review and G3-L remain
+open. No C/J/E/A boundary crossed: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Next-window offline screen, no acceptance change — 2026-10-01 15:18 UTC
 
 The sole slice-3 G1–G4 worker remains live with uncommitted edits; its 445-pass
