@@ -1,5 +1,32 @@
 # Alpha V11 work checkpoint
 
+## Reviewed Gate 3 offline candidate integrated locally — 2026-10-01 00:02 UTC
+
+Recovered clean main `1eccdd3` and clean held author `e563e45`; no Gate 3
+worker was active. The independent Astra/high completion record and full review
+verify I1/I2 repair and the exact combined tree against `a746331`: 779 passed,
+37 skipped. The only subsequent main commit added review evidence and ledger
+text. A prospective merge with then-current main preserved all 1,001 main files
+and added exactly the nine reviewed candidate paths, with no conflict or
+whitespace error. Locally merged as `f11541c` (tree `accb47f9`); main is clean.
+The integrated six-file Gate 3 suite passed **299 tests** with two expected fork
+warnings. This is offline code integration only. No remote push was attempted;
+the prior automatic publication rejection remains pending.
+
+Next unblocked substantive step: Astra/high bounded offline design for transport
+and runtime orchestration under the reviewed Gate 3 handoff. Bind approved
+origins and durable denial history to attempts; reserve and account each
+purpose, absolute acquisition window and one-in-flight pacing; compose budget,
+store and clock receipts without implying historical admission. Do not start
+provider requests, G3-L, SHADOW/learner admission, protected authority, or
+financial execution. GEFS forward SHADOW remains owner/root gated; the newest
+commissioning evidence is only watchdog/manager status. Private FINAL-REVIEWED
+master SHA-256 matches its pin; queried demo/scanner/controller/execution units
+are inactive, protected authority paths absent. AxiomTrade was observed only
+for host resources; V10 was untouched. Disk about 4.0 GiB free, memory about
+867 MiB available. **No C/J/E/A boundary crossed: 91/200 (45.5%), formal
+1/50; NOT_READY_TO_FUND.**
+
 ## Gate 3 repair adjudicated; full combined-tree review passes — 2026-09-30 23:58 UTC
 
 Independent Astra/high [review](V11_R09_GATE3_INTEGRATION_REVIEW_e563e45.md),

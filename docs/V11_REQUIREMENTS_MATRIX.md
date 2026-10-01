@@ -1,5 +1,15 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Gate 3 offline integration recorded — 2026-10-01 00:02 UTC
+
+Independently reviewed `e563e45` is locally merged at `f11541c` / tree
+`accb47f9`. Current-main reconciliation added exactly its nine reviewed paths;
+the integrated affected Gate 3 suite passed 299 tests. This closes the local
+offline merge dependency only. Provider qualification, genuine launch evidence,
+G3-L, runtime-use proof, learner and forward SHADOW admission remain OPEN.
+No row gains C/J/E/A credit: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**. Publication remains held after prior automatic rejection.
+
 ## Gate 3 repair adjudicated; full combined-tree review passes — 2026-09-30 23:58 UTC
 
 Independent Astra/high [review](V11_R09_GATE3_INTEGRATION_REVIEW_e563e45.md),

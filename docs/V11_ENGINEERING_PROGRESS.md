@@ -1,5 +1,17 @@
 # Supplementary engineering estimate
 
+## Reviewed offline Gate 3 integration — 2026-10-01 00:02 UTC
+
+The independent combined-tree PASS for `e563e45` was reconciled with
+documentation-only newer main and merged locally as `f11541c` (tree
+`accb47f9`). Exactly nine reviewed paths were added, preserving all 1,001
+current-main files. Integrated focused tests: **299 passed**, two expected fork
+warnings; the independent full-lineage review previously passed 779 with 37
+skips. No publication or operational Gate 3 admission followed. The next work
+is bounded offline transport/runtime architecture under the reviewed handoff,
+with separate acceptance before implementation. GEFS forward SHADOW remains
+owner/root gated. **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Gate 3 repair adjudicated; full combined-tree review passes — 2026-09-30 23:58 UTC
 
 Independent Astra/high [review](V11_R09_GATE3_INTEGRATION_REVIEW_e563e45.md),
