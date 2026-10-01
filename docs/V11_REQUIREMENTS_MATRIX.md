@@ -1,5 +1,16 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Point-of-use candidate awaits exact review — 2026-10-01 21:42 UTC
+
+Unmerged `93cd43c` supplies a reproducible offline synthetic MEMFS call
+trace, 86 opened streams and 90 existence checks, with author-run zero
+byte/presence mismatches against the reviewed static installed-library
+inventory. It is **unreviewed** and does not close authenticated source/build
+lineage, provider/CCSDS qualification, G3-L identity, or forward SHADOW
+evidence. Independent exact-commit review and newer-main reconciliation are
+required. G3-L NO-GO; **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Decoder point-of-use recovery — 2026-10-01 21:34 UTC
 
 The isolated point-of-use worktree has two unfinished untracked files and no

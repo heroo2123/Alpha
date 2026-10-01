@@ -1,5 +1,34 @@
 # Alpha V11 work checkpoint
 
+## Decoder point-of-use candidate ready for independent review — 2026-10-01 21:42 UTC
+
+Recovered the two unfinished probe/shim files in their original isolated
+worktree and completed a bounded **offline synthetic** MEMFS point-of-use
+observation. Clean, unmerged candidate `93cd43c411de696dd575efc7038eca723ed1e41a`
+(tree `3bc648294df7db5e10b85208cc2cf101b9702c13`) contains only the
+probe, shim, report and full JSON observation. Its
+`/tmp/alpha-v11-gate3-decoder-pointofuse-20261001.terminal.json` binds the
+exact report/evidence hashes. The source was run at clean `95f0339` with
+core dumps disabled; both negative probes passed. The capture recorded 86
+MEMFS opens and 90 exists checks, with zero static-inventory byte/presence
+mismatches. The synthetic IFS ENS and AIFS ENS CCSDS template 5.42 fixtures
+still decoded to 290.0 K. These are **author observations**, not independent
+acceptance, source/build authentication, G3-L identity or provider permission.
+
+Next action is a different-model Astra/high **read-only exact-commit review**
+of `93cd43c` and its terminal, including independent reproduction of the
+shim's interposition, reported path/byte checks, negative controls, resource
+bounds and the report's limits. Do not merge until review accepts exact bytes
+and newer-main reconciliation succeeds. The separate clean inventory candidate
+`9600510` remains unreviewed and unmerged. No new forward SHADOW sample or
+release-suite result appeared. Main remains clean at `3f60584` before this
+checkpoint commit; no service or financial action occurred. Scanner/controller
+are inactive and disabled, protected V11 authority roots remain absent, and
+the private FINAL-REVIEWED master hash still matches
+`a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+G3-L remains **NO-GO**; no provider request. No C/J/E/A crossing:
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator recovery: decoder point-of-use work unfinished — 2026-10-01 21:34 UTC
 
 Main is clean at `118af13` (84 local commits ahead of origin). The accepted

@@ -1,5 +1,15 @@
 # Supplementary engineering estimate
 
+## Decoder point-of-use author candidate completed — 2026-10-01 21:42 UTC
+
+The original isolated probe/shim worktree now has clean unmerged `93cd43c`,
+an exact report/JSON and a matching author terminal. A bounded offline
+synthetic run at clean source `95f0339` observed 86 MEMFS opens, 90 exists
+calls, zero static byte/presence mismatches and expected 290.0 K decoder
+outputs. Different-model exact review is next. No G3-L, build provenance,
+provider or forward SHADOW qualification follows. No C/J/E/A crossing:
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Point-of-use investigation recovered unfinished — 2026-10-01 21:34 UTC
 
 The decoder point-of-use probe/shim in its isolated worktree is unfinished and
