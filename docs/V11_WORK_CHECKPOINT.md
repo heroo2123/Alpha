@@ -1,5 +1,31 @@
 # Alpha V11 work checkpoint
 
+## Coordinator recovery and A2/A3 handoff — 2026-10-01 22:24 UTC
+
+Main is clean at `93a1118` (92 local commits ahead of origin). The owner-authorized
+R1 correction `58a465f` is an ancestor; no repeat edit is needed. The sole A1
+point-of-use repair runner PID 1925151 remains live with its guarded 23:21 UTC
+queue, a clean `93cd43c` worktree and no new terminal. Do not duplicate it.
+The independent offline A2/A3 authenticated build lineage and complete
+dependency/provenance dossier specified in
+[identity acceptance criteria](V11_R09_GATE3_IDENTITY_ACCEPTANCE_20261001.md)
+is the next specialist task. It must distinguish authenticated originals from
+local observations, account for all 25 `eckitlib.libs` RECORD discrepancies,
+and leave missing originals and reproducible lock evidence explicit. No package
+installation, provider request or G3-L qualification is authorized.
+
+The separate clean `9600510` inventory transformation remains unreviewed and
+unmerged. SHADOW and Brain worktrees are clean; ECMWF `backfill_data/` remains
+untracked and preserved. No new commissioning file was found in the SHADOW
+worktree since the prior checkpoint. The accepted `6ec371e` full release result
+remains 5,460 passed / 13 skipped; no new suite was run. PAPER scanner,
+controller and demo are inactive/disabled, execution is inactive/masked,
+protected V11 authority roots are absent, and the FINAL-REVIEWED master SHA-256
+still equals `a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+Free disk is 2,200,264,704 bytes; available memory is 1,039,814,656 bytes.
+No V10, AxiomTrade, service, authority, financial or publication action.
+**G3-L NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND.**
+
 ## Gate 3 identity acceptance analysis completed — 2026-10-01 22:20 UTC
 
 Astra/high completed the escalated offline source/build/runtime analysis in
