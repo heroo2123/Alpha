@@ -1,5 +1,18 @@
 # Alpha V11 work checkpoint
 
+## Post-inventory worker transition — 2026-10-01 after 11:50 UTC
+
+After committing the restriction inventory as `3b37c11`, a fresh worktree
+check found the existing slice-3 worker had written untracked
+`tools/v11_r09_gate3_runtime.py` and `tests/test_v11_r09_gate3_runtime.py`;
+the existing provider-mapping worker had modified
+`tools/v11_r09_gate3_launch_v4.py` and its test file. Both branch HEADs remain
+at their original bases, both worker logs are empty, and neither terminal
+exists. These are live unfinished files owned by their respective workers;
+do not overwrite, reset, review as a final candidate, or duplicate them.
+Main remains clean at `3b37c11`, ten commits ahead of its tracking ref.
+No C/J/E/A change: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Offline ECMWF restriction chronology pinned — 2026-10-01 11:50 UTC
 
 Recovered main clean at `2fc26b9` (nine local commits ahead of tracking ref).
