@@ -1,5 +1,13 @@
 # Supplementary engineering estimate
 
+## Offline next-window expiry observed — 2026-10-01 19:22 UTC
+
+The decoder-build evidence worker is still live and has no finished candidate.
+The fresh offline October 2 G3-L screen remains nonlaunchable: 77 missing
+identities plus one expired review-before-window entry, with free disk below
+the 2 GiB floor. No C/J/E/A boundary crossed: **91/200 (45.5%), formal
+1/50; NOT_READY_TO_FUND**.
+
 ## Offline slice 3 merged; next evidence worker active — 2026-10-01 19:19 UTC
 
 Verified local merge `06bab60` integrates independently accepted `6340cb4`

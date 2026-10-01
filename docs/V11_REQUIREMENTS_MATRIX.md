@@ -1,5 +1,13 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Offline next-window expiry observed — 2026-10-01 19:22 UTC
+
+Fresh read-only G3-L screen: `launchable=false`, 77 missing identities and
+one expired review-before-window item; disk 1,491,283,968 bytes free, below
+the 2 GiB floor. Decoder observation worker remains live with no candidate
+terminal. G3-L NO-GO; no provider request or forward sample. **91/200
+(45.5%), formal 1/50; NOT_READY_TO_FUND** unchanged.
+
 ## Offline slice 3 merged; next evidence worker active — 2026-10-01 19:19 UTC
 
 Verified local merge `06bab60` integrates independently accepted `6340cb4`

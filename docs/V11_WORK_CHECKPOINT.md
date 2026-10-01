@@ -1,5 +1,27 @@
 # Alpha V11 work checkpoint
 
+## Passive recovery and next-window expiry — 2026-10-01 19:22 UTC
+
+Recovered clean main `11e2b08` and the sole live decoder-build observation
+worker (runner 1878904, child 1878912) in its clean isolated worktree at
+`06bab60`; no terminal or candidate commit exists yet. Preserve that worker
+and review its exact finished bytes with a different model before integration.
+The SHADOW and Brain worktrees are clean; ECMWF's untracked `backfill_data/`
+is preserved. No newer forward evidence was found.
+
+The fresh **offline** October 2 G3-L screen exits 2 with `launchable=false`,
+`BLOCKED_MISSING_REVIEWED_EVIDENCE`, 77 `MISSING` entries and one `EXPIRED`
+review-before-window entry (78 total). Its observed free disk was
+1,491,283,968 bytes, below the 2 GiB floor; available memory was 761,724,928
+bytes. The prospective window needs a new reviewed freeze; this screen is no
+launch approval. PAPER scanner, controller, demo and execution services were
+passively observed inactive; scanner disabled; protected authority roots
+absent. The immutable private master still hashes to
+`a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+No provider request, service change, V10/AxiomTrade action or financial action.
+No C/J/E/A boundary crossed: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Reviewed slice 3 merged; decoder-build evidence worker live — 2026-10-01 19:19 UTC
 
 Main advanced by verified fast-forward to local merge
