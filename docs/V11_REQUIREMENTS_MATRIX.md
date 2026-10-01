@@ -1,5 +1,16 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## A1 bounded observer accepted; G3-L unchanged — 2026-10-01 23:18 UTC
+
+Independent exact review of A1 `12a6e38` passed and its four observation
+artifacts were integrated as `e9b4cd0`, byte-identical to the reviewed files.
+The [report](V11_R09_GATE3_DECODER_POINTOFUSE_REVIEW_12a6e38.md) and
+[terminal](V11_R09_GATE3_DECODER_POINTOFUSE_REVIEW_12a6e38.json) establish
+only bounded offline MEMFS point-of-use observation. A4 and A7 are active;
+A8 remains paused. A2/A3 provenance, A5/A6 current-run pins, provider
+qualification, G3-L and forward SHADOW remain open. No C/J/E/A boundary
+crossed: **G3-L NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Live Gate 3 worker recovery — 2026-10-01 23:14 UTC
 
 Exact A1 `12a6e38` independent review is still running without a terminal;

@@ -1,5 +1,16 @@
 # Supplementary engineering estimate
 
+## A1 independent acceptance and A7 recovery — 2026-10-01 23:18 UTC
+
+The exact A1 `12a6e38` independent review completed `PASS` for its bounded
+offline observer scope. Its four reviewed files were integrated on newer main
+as `e9b4cd0`; the report and terminal are retained in `docs/`. The freed
+specialist slot was used to resume the preserved A7 decoder-resources worker;
+A4 remains active and A8 paused. This is observation-integrity progress, not
+source/build qualification, G3-L PASS or forward SHADOW evidence. No C/J/E/A
+boundary crossed: **G3-L NO-GO; 91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Live Gate 3 worker recovery — 2026-10-01 23:14 UTC
 
 The A1 exact reviewer and A4 runtime author remain the two active

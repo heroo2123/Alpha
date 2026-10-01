@@ -1,5 +1,35 @@
 # Alpha V11 work checkpoint
 
+## A1 accepted offline observer integrated; A7 resumed — 2026-10-01 23:18 UTC
+
+The independent Astra/high exact-commit review of A1 `12a6e38` finished with
+terminal `PASS` and no findings. Its [report](V11_R09_GATE3_DECODER_POINTOFUSE_REVIEW_12a6e38.md)
+and [machine terminal](V11_R09_GATE3_DECODER_POINTOFUSE_REVIEW_12a6e38.json)
+are retained. The reviewer reproduced 176 completed point-of-use calls,
+compared all 86 open dumps and 90 presence checks, verified identical
+synthetic outputs with and without instrumentation, and exercised negative
+trace/source/write-failure controls. This accepts only the bounded offline
+observation; upstream build provenance, provider semantics and G3-L remain open.
+
+Cherry-picking `12a6e38` onto newer main required add-vs-modify reconciliation:
+main had never contained the four candidate observation artifacts. The four
+exact reviewed files were added as `e9b4cd0`; their SHA-256 values match the
+review terminal. The independent report and terminal were copied into `docs/`
+without editing their contents. A4 remains the active runtime-verification
+author with uncommitted work. After verifying PID/PGID, SIGSTOP state, sole
+worktree and absent terminal, A7 process group 1933486 was SIGCONT-resumed in
+the slot freed by A1 review; A8 remains paused. A2/A3 `89f85ac` still awaits
+different-model exact review, and inventory `9600510` still needs five-P2
+repair. No duplicate worker was launched.
+
+The private FINAL-REVIEWED master retains SHA-256
+`a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+PAPER scanner/controller/execution units are inactive; protected V11
+authority roots remain absent. No provider request, G3-L PASS, qualifying
+forward SHADOW sample or C/J/E/A crossing occurred. No V10, AxiomTrade,
+financial, service, authority, private-master or remote-publication action.
+**G3-L NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator live recovery — 2026-10-01 23:14 UTC
 
 Main is clean at `d7aa0b5`; no newer commit has superseded the 23:04
