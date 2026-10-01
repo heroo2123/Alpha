@@ -16,19 +16,60 @@ from tools.v11_multimodel_panel import canonical
 from tools import v11_r09_gate3_launch as launch
 from tools import v11_r09_gate3_launch_v4 as launch_v4
 from tools.v11_r09_gate3_launch import LaunchContractError, SLOT_COUNT, _slot_inventory
-from tools.v11_r09_gate3_launch_v4 import OBSERVATION_PHASES, PURPOSES, validate_manifest_v4
+from tools.v11_r09_gate3_launch_v4 import (
+    OBSERVATION_PHASES, PURPOSES, _render_path, validate_manifest_v4,
+)
 
 
 def _git(repo, *args):
     return subprocess.check_output(['git', '-C', str(repo), *args]).decode().strip()
 
 
-def _endpoint_id(provider, origin, path_template, purpose):
-    return hashlib.sha256(canonical([provider, origin, path_template, purpose])).hexdigest()
+def _endpoint_id(provider, origin, path_spec, purpose):
+    return hashlib.sha256(canonical([provider, origin, path_spec, purpose])).hexdigest()
 
 
 def _control_domain_id(provider, origin):
     return hashlib.sha256(canonical([provider, origin])).hexdigest()
+
+
+def _lit(value):
+    return {'kind': 'LITERAL', 'value': value}
+
+
+def _val(kind):
+    return {'kind': kind, 'value': None}
+
+
+def gefs_field_spec():
+    """ge{c00|pNN}.t{HH}z.pgrb2a.0p50.f{HHH} under /gefs.{date}/{HH}/atmos/pgrb2ap5,
+    exactly as evidenced by polymarket_scanner/v11/gefs_sources.py field_request()."""
+    return [_lit('/gefs.'), _val('RUN_DATE_YYYYMMDD'), _lit('/'), _val('RUN_CYCLE_HH'),
+            _lit('/atmos/pgrb2ap5/ge'), _val('GEFS_MEMBER_SUFFIX'), _lit('.t'),
+            _val('RUN_CYCLE_HH'), _lit('z.pgrb2a.0p50.f'), _val('GEFS_HOUR_3PAD')]
+
+
+def ecmwf_field_spec(suffix='.grib2'):
+    """{date}/{HH}z/{model}/0p25/{stream}/{date}{HH}0000-{step}h-{stream}-{file_kind}{suffix},
+    exactly as evidenced by polymarket_scanner/v11/ecmwf_sources.py ECMWFRequest.url.
+    No member component anywhere: perturbed members share one object, selected
+    only by byte range (see ECMWFRequest.selectors / plan_ranges)."""
+    return [_lit('/'), _val('RUN_DATE_YYYYMMDD'), _lit('/'), _val('RUN_CYCLE_HHZ'),
+            _lit('/forecast/0p25/'), _val('ECMWF_STREAM'), _lit('/'),
+            _val('RUN_CYCLE_YYYYMMDDHH0000'), _lit('-'), _val('ECMWF_STEP_HOURS'),
+            _lit('h-'), _val('ECMWF_STREAM'), _lit('-'), _val('ECMWF_FILE_KIND'),
+            _lit(suffix)]
+
+
+def path_spec_for(provider, purpose):
+    if provider == 'GEFS':
+        return gefs_field_spec() if purpose == 'FIELD' else [
+            _lit('/gefs/'), _val('RUN_DATE_YYYYMMDD'), _lit('/'), _lit(purpose.lower())]
+    if purpose == 'INDEX':
+        return ecmwf_field_spec(suffix='.index')
+    if purpose == 'FIELD':
+        return ecmwf_field_spec()
+    return [_lit('/'), _val('RUN_DATE_YYYYMMDD'), _lit('/'), _lit(purpose.lower())]
 
 
 def candidate(tmp_path, monkeypatch):
@@ -97,7 +138,7 @@ def candidate(tmp_path, monkeypatch):
                    'licence': artifact, 'index_evidence': artifact,
                    'range_evidence': artifact, 'decoder_build': artifact,
                    'origin': f'https://{p.lower()}.example.invalid',
-                   'path_template': '/fixed/{run}/{member}/{hour}',
+                   'path_spec': path_spec_for(p, 'FIELD'),
                    'member_range': [0, 30 if p == 'GEFS' else 50],
                    'native_hours': list(range(0, 73, 6 if p == 'AIFS' else 3)),
                    'identity_pins': artifact,
@@ -111,7 +152,8 @@ def candidate(tmp_path, monkeypatch):
         source['control_domain'] = domain
         source['purpose_mappings'] = {
             purpose: {'origin': source['origin'],
-                      'path_template': source['path_template'],
+                      'path_spec': (source['path_spec'] if purpose == 'FIELD'
+                                    else path_spec_for(provider, purpose)),
                       'control_domain_id': domain['sha256'],
                       'mapping_evidence': review_artifact(provider + ':' + purpose + ':mapping'),
                       'validator': review_artifact(provider + ':' + purpose + ':validator'),
@@ -123,12 +165,12 @@ def candidate(tmp_path, monkeypatch):
         for purpose in PURPOSES:
             mapping = sources[provider]['purpose_mappings'][purpose]
             mapped_origin = mapping['origin']
-            template = mapping['path_template']
+            spec = mapping['path_spec']
             endpoints.append({
-                'endpoint_id': _endpoint_id(provider, mapped_origin, template, purpose),
+                'endpoint_id': _endpoint_id(provider, mapped_origin, spec, purpose),
                 'provider': provider, 'control_domain_id': mapping['control_domain_id'],
                 'origin': mapped_origin, 'method': 'GET', 'purpose': purpose,
-                'path_template': template, 'dossier': artifact,
+                'path_spec': spec, 'dossier': artifact,
                 'access_reference': mapping['mapping_evidence'],
                 'response_contract': mapping['response_contract'],
                 'parser_identity': mapping['validator']})
@@ -193,7 +235,7 @@ def candidate(tmp_path, monkeypatch):
                            'slots': slots},
         'network': {'origins': first_use_origins,
                     'methods': ['GET'],
-                    'path_templates': {p: sources[p]['path_template'] for p in runs},
+                    'path_specs': {p: sources[p]['path_spec'] for p in runs},
                     'purposes': list(PURPOSES),
                     'index_binding': 'ETAG_IF_RANGE',
                     'anonymous': True, 'redirects': False, 'cookies': False,
@@ -268,12 +310,16 @@ def candidate(tmp_path, monkeypatch):
 def request_for_slot(payload, slot_index, purpose, position, reservation, prerequisites):
     provider, run, member, hour = payload['runs_and_slots']['slots'][slot_index]
     source = payload['sources'][provider]
-    field_path = source['path_template'].format(run=run, member=member, hour=hour)
+    field_mapping = source['purpose_mappings']['FIELD']
+    field_path = _render_path(field_mapping['path_spec'], origin=field_mapping['origin'],
+                              provider=provider, run_utc=run, member=member, hour=hour)
     mapping = source['purpose_mappings'][purpose]
     index_mapping = source['purpose_mappings']['INDEX']
-    index_path = index_mapping['path_template'].format(run=run, member=member, hour=hour)
+    index_path = _render_path(index_mapping['path_spec'], origin=index_mapping['origin'],
+                              provider=provider, run_utc=run, member=member, hour=hour)
     object_mapping = source['purpose_mappings']['OBJECT_ID']
-    object_path = object_mapping['path_template'].format(run=run, member=member, hour=hour)
+    object_path = _render_path(object_mapping['path_spec'], origin=object_mapping['origin'],
+                               provider=provider, run_utc=run, member=member, hour=hour)
     object_id = hashlib.sha256(canonical([
         provider, source['origin'], field_path,
         source['purpose_mappings']['FIELD']['mapping_evidence']['sha256'],
@@ -283,8 +329,9 @@ def request_for_slot(payload, slot_index, purpose, position, reservation, prereq
         object_id, index_mapping['origin'], index_path,
         index_mapping['mapping_evidence']['sha256']])).hexdigest()
     cache_id = hashlib.sha256(canonical([object_id, index_id])).hexdigest()
-    endpoint_id = _endpoint_id(provider, mapping['origin'], mapping['path_template'], purpose)
-    path = mapping['path_template'].format(run=run, member=member, hour=hour)
+    endpoint_id = _endpoint_id(provider, mapping['origin'], mapping['path_spec'], purpose)
+    path = _render_path(mapping['path_spec'], origin=mapping['origin'],
+                        provider=provider, run_utc=run, member=member, hour=hour)
     return {'request_id': f'request_{position}', 'purpose': purpose,
             'slot_index': slot_index, 'provider': provider, 'origin': mapping['origin'],
             'path': path, 'object_id': object_id, 'index_id': index_id,
@@ -479,10 +526,10 @@ def _rebind_endpoints_and_requests(payload):
             mapping = source['purpose_mappings'][purpose]
             endpoints.append({
                 'endpoint_id': _endpoint_id(provider, mapping['origin'],
-                                            mapping['path_template'], purpose),
+                                            mapping['path_spec'], purpose),
                 'provider': provider, 'control_domain_id': mapping['control_domain_id'],
                 'origin': mapping['origin'], 'method': 'GET', 'purpose': purpose,
-                'path_template': mapping['path_template'], 'dossier': source['dossier'],
+                'path_spec': mapping['path_spec'], 'dossier': source['dossier'],
                 'access_reference': mapping['mapping_evidence'],
                 'response_contract': mapping['response_contract'],
                 'parser_identity': mapping['validator']})
@@ -499,10 +546,14 @@ def _rebind_endpoints_and_requests(payload):
 def test_explicit_separate_index_and_metadata_paths_and_related_origin_pass(tmp_path, monkeypatch):
     payload, repo, root, start = candidate(tmp_path, monkeypatch)
     source = payload['sources']['GEFS']
-    source['purpose_mappings']['INDEX']['path_template'] = '/index/{run}/{member}/{hour}.idx'
-    source['purpose_mappings']['OBJECT_ID']['path_template'] = '/object/{run}/{member}/{hour}.json'
+    source['purpose_mappings']['INDEX']['path_spec'] = [
+        _lit('/index/'), _val('RUN_DATE_YYYYMMDD'), _lit('/'), _val('RUN_CYCLE_HH'),
+        _lit('/ge'), _val('GEFS_MEMBER_SUFFIX'), _lit('.f'), _val('GEFS_HOUR_3PAD'), _lit('.idx')]
+    source['purpose_mappings']['OBJECT_ID']['path_spec'] = [
+        _lit('/object/'), _val('RUN_DATE_YYYYMMDD'), _lit('/'), _val('RUN_CYCLE_HH'),
+        _lit('/ge'), _val('GEFS_MEMBER_SUFFIX'), _lit('.f'), _val('GEFS_HOUR_3PAD'), _lit('.json')]
     source['purpose_mappings']['METADATA']['origin'] = 'https://official.example.invalid'
-    source['purpose_mappings']['METADATA']['path_template'] = '/metadata/event'
+    source['purpose_mappings']['METADATA']['path_spec'] = [_lit('/metadata/event')]
     _rebind_endpoints_and_requests(payload)
     assert payload['schedule']['requests'][0]['path'].endswith('.idx')
     assert payload['schedule']['requests'][2]['origin'] == 'https://official.example.invalid'
@@ -612,4 +663,196 @@ def test_v4_reviewed_design_binding_required_and_pinned(tmp_path, monkeypatch):
     payload['protocol']['reviewed_design'] = design
     design['report'] = payload['protocol']['reviews'][0]['report']
     with pytest.raises(LaunchContractError, match='DESIGN_REVIEW_PIN_MISMATCH'):
+        validate(payload, repo, root, start)
+
+
+# --- Typed path-component representation: provider-mapping correction ----
+# docs/V11_GATE3_LAUNCH_READINESS_AUDIT_20261001.md section 2 found that the
+# prior `{run}/{member}/{hour}`-format mechanism could not express real GEFS
+# control-vs-perturbed/padded naming or ECMWF's member-less multiplexed
+# perturbed-file paths. These tests pin the corrected renderer against the
+# exact layouts evidenced in polymarket_scanner/v11/gefs_sources.py
+# field_request() and polymarket_scanner/v11/ecmwf_sources.py
+# ECMWFRequest.url/selectors, and check the new rejection paths.
+
+GEFS_ORIGIN = 'https://gefs.example.invalid'
+IFS_ORIGIN = 'https://ifs.example.invalid'
+RUN_UTC = int(datetime(2027, 3, 1, 0, tzinfo=timezone.utc).timestamp())
+
+
+def test_gefs_field_path_uses_control_vs_perturbed_naming_and_padding():
+    spec = gefs_field_spec()
+    control = _render_path(spec, origin=GEFS_ORIGIN, provider='GEFS',
+                           run_utc=RUN_UTC, member=0, hour=3)
+    perturbed_5 = _render_path(spec, origin=GEFS_ORIGIN, provider='GEFS',
+                               run_utc=RUN_UTC, member=5, hour=3)
+    perturbed_30 = _render_path(spec, origin=GEFS_ORIGIN, provider='GEFS',
+                                run_utc=RUN_UTC, member=30, hour=72)
+    assert control == '/gefs.20270301/00/atmos/pgrb2ap5/gec00.t00z.pgrb2a.0p50.f003'
+    assert perturbed_5 == '/gefs.20270301/00/atmos/pgrb2ap5/gep05.t00z.pgrb2a.0p50.f003'
+    assert perturbed_30 == '/gefs.20270301/00/atmos/pgrb2ap5/gep30.t00z.pgrb2a.0p50.f072'
+    # Control and every distinct perturbed member/hour are genuinely distinct
+    # objects for GEFS (no multiplexing): each is its own file.
+    assert len({control, perturbed_5, perturbed_30}) == 3
+
+
+def test_ecmwf_field_path_distinguishes_control_but_multiplexes_perturbed_members():
+    run = datetime.fromtimestamp(RUN_UTC, timezone.utc)
+    prefix = f'/{run:%Y%m%d}/{run:%H}z/forecast/0p25/'
+    cycle = f'{run:%Y%m%d%H}0000'
+    spec = ecmwf_field_spec()
+    control = _render_path(spec, origin=IFS_ORIGIN, provider='IFS',
+                           run_utc=RUN_UTC, member=0, hour=3)
+    member_1 = _render_path(spec, origin=IFS_ORIGIN, provider='IFS',
+                            run_utc=RUN_UTC, member=1, hour=3)
+    member_50 = _render_path(spec, origin=IFS_ORIGIN, provider='IFS',
+                             run_utc=RUN_UTC, member=50, hour=3)
+    assert control == f'{prefix}oper/{cycle}-3h-oper-fc.grib2'
+    assert member_1 == f'{prefix}enfo/{cycle}-3h-enfo-ef.grib2'
+    # Every perturbed member (1..50) renders the identical path: the real
+    # adapter fetches one shared file per run/step and selects each member's
+    # bytes only via its own Range request against a shared index -- the
+    # multiplexed object identity the launch-readiness audit required.
+    assert member_1 == member_50
+    assert control != member_1
+    aifs_control = _render_path(spec, origin=IFS_ORIGIN, provider='AIFS',
+                                run_utc=RUN_UTC, member=0, hour=6)
+    aifs_perturbed = _render_path(spec, origin=IFS_ORIGIN, provider='AIFS',
+                                  run_utc=RUN_UTC, member=1, hour=6)
+    assert aifs_control == f'{prefix}enfo/{cycle}-6h-enfo-cf.grib2'
+    assert aifs_perturbed == f'{prefix}enfo/{cycle}-6h-enfo-pf.grib2'
+
+
+def test_ecmwf_index_path_is_explicit_sibling_not_derived_suffix():
+    field_path = _render_path(ecmwf_field_spec(), origin=IFS_ORIGIN, provider='IFS',
+                              run_utc=RUN_UTC, member=1, hour=3)
+    index_path = _render_path(ecmwf_field_spec(suffix='.index'), origin=IFS_ORIGIN,
+                              provider='IFS', run_utc=RUN_UTC, member=1, hour=3)
+    assert field_path.endswith('.grib2') and index_path.endswith('.index')
+    assert field_path[:-len('.grib2')] == index_path[:-len('.index')]
+
+
+def test_multiplexed_ecmwf_perturbed_members_share_object_identity_in_full_schedule(
+        tmp_path, monkeypatch):
+    """End-to-end: two different IFS perturbed-member FIELD requests at the
+    same run/hour legitimately share object_id/index_id/cache_id (and may
+    therefore share one set of overhead prerequisites), while keeping
+    distinct request_id/slot_index/byte range. This is the real-world
+    shared-file/distinct-Range-request shape, not a validator bug."""
+    payload, repo, root, start = candidate(tmp_path, monkeypatch)
+    slots = payload['runs_and_slots']['slots']
+    ifs_run = payload['runs_and_slots']['run_utc']['IFS']
+    idx_m1 = slots.index(['IFS', ifs_run, 1, 0])
+    idx_m2 = slots.index(['IFS', ifs_run, 2, 0])
+    payload['schedule']['attempt_slots'] = [0, idx_m1, idx_m2]
+    requests, position, overhead_by_slot = [], 0, {}
+    for slot, purpose, reservation in (
+            (0, 'INDEX', 3145728), (0, 'OBJECT_ID', 4096), (0, 'METADATA', 4096),
+            (idx_m1, 'INDEX', 3145728), (idx_m1, 'OBJECT_ID', 4096), (idx_m1, 'METADATA', 4096)):
+        req = request_for_slot(payload, slot, purpose, position, reservation, [])
+        requests.append(req)
+        overhead_by_slot.setdefault(slot, []).append(position)
+        position += 1
+    field0 = request_for_slot(payload, 0, 'FIELD', position, 2097152, overhead_by_slot[0])
+    requests.append(field0); position += 1
+    field_m1 = request_for_slot(payload, idx_m1, 'FIELD', position, 4194304,
+                                overhead_by_slot[idx_m1])
+    requests.append(field_m1); position += 1
+    field_m2 = request_for_slot(payload, idx_m2, 'FIELD', position, 4194304,
+                                overhead_by_slot[idx_m1])
+    requests.append(field_m2); position += 1
+    payload['schedule']['requests'] = requests
+    payload['schedule']['reservation_total_bytes'] = sum(
+        r['reservation_bytes'] for r in requests)
+    _freeze_runtime(payload)
+    count = len(requests)
+    graph_nodes, aggregates = count, 0
+    while graph_nodes > 1:
+        graph_nodes = (graph_nodes + 255) // 256
+        aggregates += graph_nodes
+    payload['runtime']['resource_bounds']['required_store_objects'] = 2 * count + aggregates
+    assert field_m1['object_id'] == field_m2['object_id']
+    assert field_m1['index_id'] == field_m2['index_id']
+    assert field_m1['cache_id'] == field_m2['cache_id']
+    assert field_m1['path'] == field_m2['path']
+    assert field_m1['request_id'] != field_m2['request_id']
+    assert field_m1['slot_index'] != field_m2['slot_index']
+    assert field_m1['object_id'] != field0['object_id']
+    assert len(validate(payload, repo, root, start)) == 64
+
+
+def test_gefs_only_kind_rejected_in_ecmwf_mapping(tmp_path, monkeypatch):
+    payload, repo, root, start = candidate(tmp_path, monkeypatch)
+    payload['sources']['IFS']['purpose_mappings']['FIELD']['path_spec'] = [
+        _lit('/x/'), _val('GEFS_MEMBER_SUFFIX')]
+    with pytest.raises(LaunchContractError, match='SOURCE_MAPPING_PATH'):
+        validate(payload, repo, root, start)
+
+
+def test_unknown_path_component_kind_rejected(tmp_path, monkeypatch):
+    payload, repo, root, start = candidate(tmp_path, monkeypatch)
+    payload['sources']['GEFS']['purpose_mappings']['FIELD']['path_spec'] = [
+        _lit('/x/'), {'kind': 'ARBITRARY_FORMAT_SUBSTITUTION', 'value': None}]
+    with pytest.raises(LaunchContractError, match='SOURCE_MAPPING_PATH'):
+        validate(payload, repo, root, start)
+
+
+def test_literal_component_cannot_encode_path_traversal(tmp_path, monkeypatch):
+    payload, repo, root, start = candidate(tmp_path, monkeypatch)
+    payload['sources']['GEFS']['purpose_mappings']['METADATA']['path_spec'] = [
+        _lit('/metadata/../secret')]
+    with pytest.raises(LaunchContractError, match='SOURCE_MAPPING_PATH'):
+        validate(payload, repo, root, start)
+
+
+def test_non_literal_component_cannot_carry_asserted_value(tmp_path, monkeypatch):
+    """A kind's rendering is always the fixed reviewed function, never a
+    caller-supplied override: a non-LITERAL component's 'value' must be null."""
+    payload, repo, root, start = candidate(tmp_path, monkeypatch)
+    payload['sources']['GEFS']['purpose_mappings']['FIELD']['path_spec'][1] = {
+        'kind': 'RUN_DATE_YYYYMMDD', 'value': '99999999'}
+    with pytest.raises(LaunchContractError, match='SOURCE_MAPPING_PATH'):
+        validate(payload, repo, root, start)
+
+
+def test_required_kind_count_enforced_for_evidenced_gefs_field_path(tmp_path, monkeypatch):
+    """GEFS FIELD must render both the directory and 't..z' cycle hour (two
+    RUN_CYCLE_HH occurrences); dropping one must not silently validate a
+    shorter, unevidenced layout."""
+    payload, repo, root, start = candidate(tmp_path, monkeypatch)
+    spec = payload['sources']['GEFS']['purpose_mappings']['FIELD']['path_spec']
+    payload['sources']['GEFS']['purpose_mappings']['FIELD']['path_spec'] = [
+        c for c in spec if c['kind'] != 'RUN_CYCLE_HH'] + [_val('RUN_CYCLE_HH')]
+    with pytest.raises(LaunchContractError, match='SOURCE_MAPPING_PATH_KIND_COUNT'):
+        validate(payload, repo, root, start)
+
+
+def test_required_kind_count_enforced_for_evidenced_ecmwf_field_path(tmp_path, monkeypatch):
+    """ECMWF FIELD must render the stream literal twice (directory and
+    filename); a mapping that only renders it once does not match the
+    evidenced layout and must refuse, not silently validate."""
+    payload, repo, root, start = candidate(tmp_path, monkeypatch)
+    spec = payload['sources']['IFS']['purpose_mappings']['FIELD']['path_spec']
+    trimmed, seen = [], False
+    for component in spec:
+        if component['kind'] == 'ECMWF_STREAM' and seen:
+            continue
+        if component['kind'] == 'ECMWF_STREAM':
+            seen = True
+        trimmed.append(component)
+    payload['sources']['IFS']['purpose_mappings']['FIELD']['path_spec'] = trimmed
+    with pytest.raises(LaunchContractError, match='SOURCE_MAPPING_PATH_KIND_COUNT'):
+        validate(payload, repo, root, start)
+
+
+def test_field_mapping_path_spec_must_match_source_top_level_spec(tmp_path, monkeypatch):
+    payload, repo, root, start = candidate(tmp_path, monkeypatch)
+    # Same evidenced kind multiset (so this fails on identity, not on the
+    # required-kind-count check), but a relabelled literal directory: proves
+    # the per-purpose FIELD mapping cannot silently diverge from the
+    # provider's own top-level path_spec.
+    diverged = list(gefs_field_spec())
+    diverged[0] = _lit('/gefs-mirror.')
+    payload['sources']['GEFS']['purpose_mappings']['FIELD']['path_spec'] = diverged
+    with pytest.raises(LaunchContractError, match='FIELD_SOURCE_MAPPING'):
         validate(payload, repo, root, start)
