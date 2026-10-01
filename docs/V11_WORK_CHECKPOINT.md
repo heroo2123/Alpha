@@ -1,5 +1,30 @@
 # Alpha V11 work checkpoint
 
+## A4 terminal recovered; independent review next — 2026-10-01 23:45 UTC
+
+Recovered the completed A4 outer terminal at
+`/tmp/alpha-v11-gate3-a4-runtime-verification-20261001.terminal.json`:
+exit 0, clean worktree, exact commit `ef53d61174e7c23e58ddf879d94918c0eafd58e1`
+and tree `d632c94475fd100e51c2417479ffd4fa054587f2`. The four-file
+offline verifier candidate reports 18 focused author-test passes and names
+bootstrap/native-loader limits; it explicitly leaves A4 open. `git diff
+--check HEAD^ HEAD` is clean. A fresh independent exact-commit review is
+the next eligible specialist task. A8 remains live in its sole worktree with
+three untracked candidate files; its log reports 193 adjacent passes before
+a further edit and rerun. Do not duplicate or overwrite it.
+
+Main was clean at `7011ef2` on recovery; owner-authorized R1 `58a465f` and
+accepted release `6ec371e` are ancestors. The accepted release result remains
+5,460 passed / 13 skipped; no new full suite was run. The private FINAL-REVIEWED
+master hash is unchanged at
+`a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+SHADOW and Brain readiness worktrees remain clean; ECMWF `backfill_data/`
+remains untracked and preserved. PAPER scanner/controller/execution units are
+inactive, scanner disabled, and protected V11 authority roots absent. Free
+disk is about 1.6 GiB and available memory about 776 MiB. No provider request,
+G3-L PASS, forward SHADOW sample or C/J/E/A crossing occurred: **G3-L NO-GO;
+91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## A4 candidate committed; runner finalization pending — 2026-10-01 23:43 UTC
 
 Recovered clean main `33d72bc` and the live A4/A8 process groups. A4's sole

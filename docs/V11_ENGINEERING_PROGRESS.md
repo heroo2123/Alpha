@@ -1,5 +1,15 @@
 # Supplementary engineering estimate
 
+## A4 completion recovered; A8 continues — 2026-10-01 23:45 UTC
+
+A4's outer terminal confirms a clean exact candidate at `ef53d61` (tree
+`d632c94`); its 18 passing tests are author evidence. Independent exact
+review is pending, and the candidate explicitly does not qualify A4. A8
+remains the sole active specialist, with three untracked candidate files and
+adjacent tests running. The prior 5,460-pass/13-skip release result remains
+accepted; no new full suite was run. **G3-L NO-GO; 91/200 (45.5%), formal
+1/50; NOT_READY_TO_FUND**.
+
 ## A4 candidate committed, A8 active — 2026-10-01 23:43 UTC
 
 A4's clean `ef53d61` offline verifier candidate reports 18 focused author

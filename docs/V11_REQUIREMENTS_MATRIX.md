@@ -1,5 +1,13 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## A4 author terminal recovered; qualification unchanged — 2026-10-01 23:45 UTC
+
+A4 `ef53d61` has a clean outer terminal and 18 focused author-test passes.
+Independent exact-commit review, accepted A2/A3 artifacts, and native loader
+integration are still required; A4 remains open. A8 is live with uncommitted
+work. No G3-L, forward SHADOW or C/J/E/A boundary changed: **G3-L NO-GO;
+91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## A4 offline candidate committed; acceptance unchanged — 2026-10-01 23:43 UTC
 
 A4 `ef53d61` is a clean four-file author candidate with 18 focused passes;
