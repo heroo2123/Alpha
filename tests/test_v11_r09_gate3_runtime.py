@@ -1620,20 +1620,29 @@ def test_invalid_receipt_clock_retains_denial_and_eager_bytes(tmp_path, bad_head
         assert shared.denials['d' * 64]['status'] == '503'
 
 
-@pytest.mark.parametrize('start_sample', [1, 2])
-@pytest.mark.parametrize('fault', [OSError, RuntimeError])
+@pytest.mark.parametrize('start_sample', [1, 2, 3, 5, 7, 9])
+@pytest.mark.parametrize('fault', [OSError, RuntimeError, ValueError, OverflowError])
 def test_coupled_clock_source_failure_preserves_restriction_and_bytes(tmp_path, fault, start_sample):
     """J1: ``Clock.evidence`` samples ``Clock.monotonic`` first, so a single
-    failing clock source backs both interface methods. Whichever onset hits
-    the failure first -- the first post-dispatch monotonic sample
-    (``start_sample=1``) or the header-receipt evidence call
-    (``start_sample=2``) -- recovery must still preserve the four
-    already-delivered eager bytes exactly once, record the observed HTTP
-    restriction with an explicit unresolved cause, retain the held
-    reservation/token, and re-raise the original failure -- identically for
-    OSError and RuntimeError, not only OSError.
+    failing clock source backs both interface methods. Whichever call the
+    failure first lands on -- the first post-dispatch monotonic sample
+    (``start_sample=1``), the header-receipt evidence call
+    (``start_sample=2``), or a later post-dispatch sample during the
+    decode/seal phases (``start_sample`` in 3, 5, 7, 9, preserved here as
+    controls showing those already-correct later call sites keep working
+    unchanged) -- recovery must still preserve the six already-delivered
+    eager bytes exactly once, record the observed HTTP restriction with an
+    explicit unresolved cause exactly once, retain the held
+    reservation/token across reopen, and re-raise the *original* failure
+    object -- identically for OSError, RuntimeError, ValueError and
+    OverflowError. ``LaunchContractError`` derives from ``ValueError``, so
+    catching that subclass alone does not catch ordinary ``ValueError``;
+    the boundary must match ``_postdispatch_monotonic``'s bare ``Exception``
+    catch at both the recovery receipt resample and the header-receipt
+    sample, not enumerate a finite list of expected source-fault types.
     """
     _dirs(tmp_path)
+    failures = []
 
     class CoupledClock(FakeClock):
         failed = False
@@ -1643,7 +1652,9 @@ def test_coupled_clock_source_failure_preserves_restriction_and_bytes(tmp_path, 
             if self.failed:
                 self.calls += 1
                 if self.calls >= start_sample:
-                    raise fault('COUPLED_CLOCK_SOURCE_UNAVAILABLE')
+                    exc = fault('COUPLED_CLOCK_SOURCE_UNAVAILABLE_' + str(self.calls))
+                    failures.append(exc)
+                    raise exc
             return super().monotonic()
 
         def evidence(self, phase):
@@ -1658,20 +1669,98 @@ def test_coupled_clock_source_failure_preserves_restriction_and_bytes(tmp_path, 
             clock.failed = True
             return stream
 
-    response = _ok_response(b'abcd', status=503, headers=(('Retry-After', '1200'),))
+    response = _ok_response(b'abcdef', chunks=(b'ab', b'cd', b'ef'), status=503,
+                             headers=(('Retry-After', '1200'),))
     with _acquire(tmp_path) as (shared, session, budget, store):
         runtime = _runtime(shared, session, budget, store,
             SyntheticExchange({'req-1': response}), clock=clock)
         runtime.transport = FailAfterDispatch(runtime.transport._exchange)
-        with pytest.raises(fault):
-            runtime.run_attempt(_request(reservation_bytes=4))
-        assert budget.received == 4 and budget.in_flight == 'req-1'
+        with pytest.raises(fault) as caught:
+            runtime.run_attempt(_request(reservation_bytes=6))
+        # The original failure object must survive recovery unreplaced, even
+        # though recovery itself resamples the same persistently-failing
+        # clock and so raises further (discarded) exception instances.
+        assert caught.value is failures[0]
+        assert budget.received == 6 and budget.in_flight == 'req-1'
+        assert sum(e['bytes'] for e in budget.events
+                   if e['op'] in ('chunk', 'eager_delivery', 'violation')) == 6
+        assert sum(e['op'] in ('denial_observed', 'restriction_unresolved')
+                   for e in shared.events) == 1
         assert shared.open_intent is not None and shared.open_intent['denial_recorded']
-        assert shared.denials['d' * 64]['cooldown_until'] is None
+        # Onsets 1-2 fail before receipt evidence exists, so the denial
+        # degrades to an explicit unresolved restriction (no cooldown).
+        # Onsets 3/5/7/9 fail only later, during decode/seal phases, after a
+        # normal denial record with a real Retry-After-derived cooldown
+        # already succeeded -- that later clock loss must not retroactively
+        # corrupt or discard the already-durable denial.
+        cooldown = shared.denials['d' * 64]['cooldown_until']
+        assert (cooldown is None) == (start_sample <= 2)
         assert session.attempt['state'] != 'TERMINAL'
+    for _ in range(2):
+        with _acquire(tmp_path) as (shared, session, budget, store):
+            assert budget.received == 6 and budget.in_flight == 'req-1'
+            assert shared.denials['d' * 64]['cooldown_until'] == cooldown
+            assert shared.inherited_open_request_id == 'req-1'
+            with pytest.raises(LaunchContractError):
+                budget.complete('req-1')
+
+
+@pytest.mark.parametrize('start_sample', [1, 2])
+def test_coupled_clock_source_failure_covers_arbitrary_exception_subclass(tmp_path, start_sample):
+    """J1: the repaired boundary must match ``Exception`` itself, not a
+    finite enumerated list -- including a direct ``Exception`` subclass
+    this test alone defines, which no product or review fixture could have
+    pre-enumerated. Both onsets must still conserve bytes/restriction
+    exactly once and re-raise the original object unreplaced.
+    """
+    _dirs(tmp_path)
+
+    class ProductSpecificClockFault(Exception):
+        pass
+
+    failures = []
+
+    class CoupledClock(FakeClock):
+        failed = False
+        calls = 0
+
+        def monotonic(self):
+            if self.failed:
+                self.calls += 1
+                if self.calls >= start_sample:
+                    exc = ProductSpecificClockFault('CUSTOM_SOURCE_FAILURE_' + str(self.calls))
+                    failures.append(exc)
+                    raise exc
+            return super().monotonic()
+
+        def evidence(self, phase):
+            self.monotonic()
+            return super().evidence(phase)
+
+    clock = CoupledClock(BOOT, utc=10, mono=10)
+
+    class FailAfterDispatch(SyntheticTransport):
+        def dispatch(self, request, **kwargs):
+            stream = super().dispatch(request, **kwargs)
+            clock.failed = True
+            return stream
+
+    response = _ok_response(b'abcdef', chunks=(b'ab', b'cd', b'ef'), status=503,
+                             headers=(('Retry-After', '1200'),))
     with _acquire(tmp_path) as (shared, session, budget, store):
-        assert budget.received == 4 and budget.in_flight == 'req-1'
-        assert shared.denials['d' * 64]['cooldown_until'] is None
+        runtime = _runtime(shared, session, budget, store,
+            SyntheticExchange({'req-1': response}), clock=clock)
+        runtime.transport = FailAfterDispatch(runtime.transport._exchange)
+        with pytest.raises(ProductSpecificClockFault) as caught:
+            runtime.run_attempt(_request(reservation_bytes=6))
+        assert caught.value is failures[0]
+        assert budget.received == 6 and budget.in_flight == 'req-1'
+        assert sum(e['bytes'] for e in budget.events
+                   if e['op'] in ('chunk', 'eager_delivery', 'violation')) == 6
+        assert sum(e['op'] in ('denial_observed', 'restriction_unresolved')
+                   for e in shared.events) == 1
+    with _acquire(tmp_path) as (shared, session, budget, store):
+        assert budget.received == 6 and budget.in_flight == 'req-1'
         assert shared.inherited_open_request_id == 'req-1'
         with pytest.raises(LaunchContractError):
             budget.complete('req-1')
