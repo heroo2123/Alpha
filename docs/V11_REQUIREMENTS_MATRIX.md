@@ -1,5 +1,14 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## H1–H6 author candidate; independent verdict pending — 2026-10-01 17:23 UTC
+
+Clean exact candidate `550305d` (tree `ca8245fe`) has 146 focused and 458
+Gate 3 family author-reported passes. A separate Astra/high review is live;
+H1–H6, G1–G4, F1–F7 and slice-2 carry-forward remain unaccepted pending its
+exact report/terminal. G3-L remains NO-GO; the offline next-window screen
+still lacks 77 pre-review identities. No C/J/E/A boundary crossed:
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Active H1–H6 test recovery, no acceptance — 2026-10-01 17:16 UTC
 
 The live slice-3 writer's focused runtime/ledger set now passes **135/135**
