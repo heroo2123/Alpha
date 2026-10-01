@@ -1,5 +1,30 @@
 # Alpha V11 work checkpoint
 
+## J1 candidate recovered; exact review required — 2026-10-01 18:43 UTC
+
+The sole Sonnet/high J1 writer finished with a matching clean terminal at
+`3a066a67ed11fb4fdef6ce8291aa33100d8b06a3` (tree `e11ebd74`, parent
+`8efb60a`). Its two-file diff adds `RuntimeError` recovery at both reviewed
+clock-failure onsets and four coupled-source regressions. Author evidence is
+4 focused, 87 runtime and 480 Gate 3 family passes, with the family run split
+by file after a shared basetemp exhausted disk; `git diff --check` passes.
+This is an unmerged author candidate, not acceptance. Obtain a fresh
+different-model exact-commit review, including independent J1 reproduction
+and slice-3 carry-forward probes, then reconcile any PASS with newer main
+`94cfa82` before integration.
+
+Only the completed prior `8efb60a` review's 1.6 GiB pytest family scratch was
+removed after checking its report, terminal and log remain. Root free space
+is now about 1.6 GiB, still below the 2 GiB launch floor. Main, SHADOW and
+Brain-readiness worktrees are clean; the ECMWF backfill worktree's untracked
+`backfill_data/` is preserved. PAPER scanner/controller/execution are inactive;
+scanner is disabled, and protected authority paths are absent. The October 2
+offline screen remains `launchable=false` with 77 missing pre-review identities.
+G3-L is **NO-GO**; no provider request or forward SHADOW sample occurred.
+No V10, AxiomTrade, service, authority, financial or private-master change was
+made. No C/J/E/A boundary crossed: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Live J1 repair and next-window audit — 2026-10-01 18:35 UTC
 
 Recovered clean main `264536a` (47 commits ahead of tracking). The sole

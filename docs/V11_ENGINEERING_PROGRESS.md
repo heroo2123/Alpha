@@ -1,5 +1,15 @@
 # Supplementary engineering estimate
 
+## J1 repair handoff — 2026-10-01 18:43 UTC
+
+The J1 writer completed clean candidate `3a066a6` with four new coupled
+clock-source cases and 480 author Gate 3 family passes. The candidate remains
+unmerged pending fresh different-model exact-commit review and reconciliation
+with newer main. Completed reviewer test scratch was removed while report and
+terminal were preserved; free disk recovered to about 1.6 GiB, still below
+the launch floor. G3-L remains NO-GO with 77 missing pre-review identities.
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND** unchanged.
+
 ## Live J1 recovery and offline no-go audit — 2026-10-01 18:35 UTC
 
 Main is clean at `264536a` before this documentation update. The J1 repair

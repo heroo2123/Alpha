@@ -1,5 +1,16 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## J1 author candidate ready for independent review — 2026-10-01 18:43 UTC
+
+Clean unmerged `3a066a6` repairs the coupled clock-source J1 onset in two
+runtime catch sites and adds four focused regression cases. Author Gate 3
+family evidence is 480 passed; no independent verdict exists for this commit.
+Exact-commit different-model review, newer-main reconciliation and G3-L remain
+open. The next-window screen still lacks 77 pre-review identities; root free
+space remains below the 2 GiB launch floor. No provider request, forward
+SHADOW sample or C/J/E/A boundary crossed: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Live J1 and offline source gate — 2026-10-01 18:35 UTC
 
 The sole J1 repair writer is live with no reviewable terminal or new commit.
