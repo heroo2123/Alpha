@@ -1,5 +1,26 @@
 # Alpha V11 work checkpoint
 
+## Live exact review and passive safety recovery — 2026-10-01 17:26 UTC
+
+Recovered actual main clean at `a030051` (41 commits ahead of tracking),
+the clean unmerged `550305d` H1–H6 candidate, and its sole live independent
+Astra/high reviewer (runner `1787909`) in the detached exact-commit checkout.
+No review report or terminal exists yet. The reviewer reran the 458-test Gate 3
+offline family successfully and is probing error/restart paths; this is not an
+acceptance verdict. Preserve its live test files and wait for a matching report
+and terminal before any integration or repair decision.
+
+The October 2 candidate-window screen remains nonlaunchable with 77 missing
+pre-review identities. G3-L is **NO-GO**; no provider request or forward
+SHADOW sample was observed. PAPER demo, scanner, controller and execution are
+inactive; demo/scanner/controller disabled and execution masked. Protected
+authority paths remain absent, and the FINAL-REVIEWED private master matches
+its pinned SHA-256. Root free space fell to about 1.6 GiB during reviewer tests,
+below the 2 GiB launch floor; available RAM was about 866 MiB plus 1.7 GiB
+free swap. No V10, AxiomTrade, service, authority, financial or private-master
+change was made. No C/J/E/A boundary crossed: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## H1–H6 candidate under exact independent review — 2026-10-01 17:23 UTC
 
 The sole Sol/high repair writer finished with a clean terminal

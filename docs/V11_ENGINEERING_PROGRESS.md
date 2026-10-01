@@ -1,5 +1,14 @@
 # Supplementary engineering estimate
 
+## Exact review in progress — 2026-10-01 17:26 UTC
+
+The clean unmerged `550305d` candidate has a live different-model exact
+review. The reviewer reran 458 offline Gate 3 tests successfully; report,
+terminal and independent probes are pending. Root free space fell to about
+1.6 GiB during its tests, below the launch floor. G3-L remains NO-GO with 77
+missing pre-review identities. **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND** unchanged.
+
 ## H1–H6 candidate review running — 2026-10-01 17:23 UTC
 
 Sol/high author completed clean candidate `550305d` (tree `ca8245fe`): four
