@@ -41,15 +41,23 @@ beyond its own stdout):
   Confirmed this is the accepted Alpha development venv (path match), not
   the review venv (which lacks ecCodes and would yield three
   `pytest.importorskip` skips instead of a real decode).
-- Python wrapper packages, each verified by recomputing SHA-256/size for
-  **every** file listed in its own `dist-info/RECORD` (not a broad
-  filesystem scan):
-  - `eccodes` 2.48.0 — 52 RECORD entries, 0 mismatches, 0 missing. Includes
-    the `gribapi` binding, which ships inside this same wheel.
-  - `eccodeslib` 2.49.0.30 — 69 RECORD entries, 0 mismatches, 0 missing.
-  - `eckitlib` 2.3.0.30 — 776 RECORD entries; **24 mismatches**, 0 missing
-    (see "Unresolved identities" below).
-  - `findlibs` 0.1.3 — 8 RECORD entries, 0 mismatches, 0 missing.
+- Python wrapper packages: every RECORD row that carries a hash was
+  independently recomputed (SHA-256 and size) and compared against that row
+  (not a broad filesystem scan). 27 RECORD rows across the four packages
+  carry no hash field at all (the RECORD file itself and compiled `.pyc`
+  entries, legitimately unhashed per PEP 376) and are therefore not attested
+  either way — this is not a claim that every listed file was hashed:
+  - `eccodes` 2.48.0 — 52 RECORD entries (21 unhashed/unattested), 0
+    mismatches among the 31 hashed rows, 0 missing. Includes the `gribapi`
+    binding, which ships inside this same wheel.
+  - `eccodeslib` 2.49.0.30 — 69 RECORD entries (2 unhashed/unattested), 0
+    mismatches among the 67 hashed rows, 0 missing.
+  - `eckitlib` 2.3.0.30 — 776 RECORD entries (2 unhashed/unattested);
+    **25 mismatches** among the 774 hashed rows, size deltas spanning
+    3,368–213,008 bytes (not uniform), 0 missing (see "Unresolved
+    identities" below).
+  - `findlibs` 0.1.3 — 8 RECORD entries (2 unhashed/unattested), 0
+    mismatches among the 6 hashed rows, 0 missing.
   - None of the four `dist-info` directories contain a `direct_url.json`, so
     the exact upstream wheel source URL/hash is not locally recoverable.
 - Native libraries actually loaded into the process during the bounded
@@ -65,10 +73,15 @@ beyond its own stdout):
   | `eccodeslib/lib64/libopenjp2.so.7` | 2,399,408 | `a8eecba4c05ed538...` | — |
   | `eccodeslib/lib64/libpng16.so.16` | 221,200 | `ebd1fa42daa29afd...` | — |
   | `eckitlib/lib64/libeckit.so` (+12 `libeckit_*.so`) | 3,342,929 (core) | `b6bdb025bde045d0...` | `26376b695159292f...` |
-  | `eckitlib.libs/*` (24 vendored third-party libs: curl, ssl, krb5, ldap, ssh, sqlite3, proj, etc.) | see JSON | see JSON | — |
+  | `eckitlib.libs/*` (25 vendored third-party libs: curl, ssl, krb5, ldap, ssh, sqlite3, proj, etc.) | see JSON | see JSON | — |
 
-  Full 42-entry table with every path, hash and size is in the JSON
-  companion's `loaded_native_libraries` array.
+  This 42-entry table (path, hash and size for each) is in the JSON
+  companion's `loaded_native_libraries` array. **It is a path-substring
+  filter over `/proc/self/maps`** (substrings `eccodes`, `eckit`, `libaec`,
+  `openjp2`, `libpng`), **not** an enumeration of every native shared object
+  this process has mapped — see "Unresolved identities" item 5 below for 36
+  additional loaded libraries (NumPy/OpenBLAS, CFFI, interpreter/system
+  libraries) that this filter excludes.
 
 ## Bounded offline capture method
 
@@ -84,6 +97,21 @@ PYTHONDONTWRITEBYTECODE=1 \
 Before importing `eccodes`, the probe script sets `RLIMIT_CPU=60s` and
 `RLIMIT_AS=512 MiB`, and replaces `socket.socket` with a subclass whose
 `__init__` always raises, then self-tests that the override is in effect.
+This Python-level replacement blocks only socket creation performed through
+that Python API; it does not block native syscalls issued directly by
+loaded C/C++ libraries (e.g. `libcurl` inside `libeckit.so`) and is not a
+process-level sandbox. The bytes captured for this document were
+independently reproduced under an additional, process-level network-denial
+containment applied before any `eccodes` import (a `libseccomp` deny filter
+over `socket`/`connect`/`bind`/`listen`/`accept`/`send*` syscalls, with
+native IPv4/IPv6 socket creation verified to return `EPERM`), mirroring the
+independent reviewer's own containment; that containment is additional
+repair/review-time scaffolding, not a production policy and not part of the
+committed probe script. Separately, a zero exit from this probe means only
+that it ran to completion and printed its observation; it does not mean the
+printed bytes were validated, accepted or benign, and the probe enforces no
+automated guard against this .md/.json pair drifting from a fresh rerun's
+output (see the probe's module docstring).
 Observed peak RSS was 88,484 KB and observed CPU time 0.88 s, both far
 inside the configured bounds; no temporary files were written and no
 provider byte was requested. It then imports `test_v11_grib_fields.grib`
@@ -129,17 +157,34 @@ an explicit open requirement, not a filled identity.
 
 ## Unresolved identities and remaining gaps
 
-1. **`eckitlib` vendored-library RECORD mismatch (24/776 entries).** Every
-   file under `eckitlib.libs/` (the auditwheel-bundled third-party runtime
-   libraries — libcurl, libssl, libgssapi_krb5, libldap, libssh, libsqlite3,
-   libproj and others) is larger on disk than its own `dist-info/RECORD`
-   declares, by 4,096–4,208 bytes in every case, with a correspondingly
-   different SHA-256. This is consistent with a post-packaging ELF patch
-   (e.g. an RPATH/section rewrite applied after RECORD was generated) but
-   this capture does not independently attribute the cause or recover the
-   original reference bytes. The core `eckit`/`eckit_*` libraries themselves
-   (under `eckitlib/lib64/`) and all of `eccodes`/`eccodeslib`/`findlibs`
-   matched their RECORD exactly. **Status: MISSING_EVIDENCE.**
+1. **`eckitlib` vendored-library RECORD mismatch (25/776 entries).** Every
+   mismatched file under `eckitlib.libs/` (the auditwheel-bundled
+   third-party runtime libraries — libcurl, libssl, libgssapi_krb5, libldap,
+   libssh, libsqlite3, libproj and others) is larger on disk than its own
+   `dist-info/RECORD` declares, with a correspondingly different SHA-256,
+   but the size deltas are **not uniform**: they range from 3,368 to
+   213,008 bytes. Per-file expected/observed hashes, sizes and deltas are
+   preserved in the JSON companion's `python_package_record_checks`
+   (`eckitlib` entry, `mismatched_entry_details`); no uniform
+   post-packaging-patch theory is supported by the captured bytes. The core
+   `eckit`/`eckit_*` libraries themselves (under `eckitlib/lib64/`) and all
+   of `eccodes`/`eccodeslib`/`findlibs` matched their RECORD exactly.
+
+   A separate, purely offline header/ZIP-directory scan of this host's
+   existing local pip-cache bodies (no network request; nothing fetched,
+   extracted or installed) found an exact-version `eckitlib` archive already
+   cached locally, 35,957,853 bytes, SHA-256
+   `71b4059a56d8b35d682b05b0929e848e34750bb4c9e8d7198aa6d0049171c984`
+   (JSON companion's `local_cached_wheel_comparison`). **All 25 installed
+   vendored payloads match that cached wheel's own payload bytes exactly;
+   all 25 also disagree with the cached wheel's own RECORD.** Whole-RECORD
+   files differ
+   between the cache and the installed venv, so the comparison is per-file,
+   not a whole-RECORD equality. This is local cached partial provenance
+   only: it is **not** independent upstream authentication and does **not**
+   establish a benign-patch verdict; the underlying cause and an
+   authenticated original-reference byte set remain unresolved. **Status:
+   MISSING_EVIDENCE.**
 2. **No wheel-origin provenance.** None of the four installed packages have
    a `direct_url.json`; the exact upstream wheel URL/hash that produced this
    venv cannot be confirmed from local metadata alone. **MISSING_EVIDENCE.**
@@ -150,25 +195,47 @@ an explicit open requirement, not a filled identity.
    requirements/poetry/pip-compile lock recording these exact four package
    versions; rebuilding an equivalent venv from the repository alone is not
    currently reproducible. **MISSING_EVIDENCE.**
-5. **Native dependency graph wider than the decode needs.** Merely importing
-   `eccodes` eagerly loads `eckitlib`, which pulls in `libcurl`, `libssl`,
-   `libgssapi_krb5`, `libldap`, `libssh`, `libsqlite3` and `libproj` even for
-   a purely local, in-memory decode with no network or database use. The
-   Python-level socket block in this capture only intercepts `socket.socket`;
-   it does not prove native code inside those libraries could not open a
-   raw file descriptor by other means. No network API of ecCodes/eckit was
-   invoked here, and host `/proc/self/maps` after the decode shows only
-   library mappings, not open socket file descriptors, but this is an
-   **observation for independent review**, not a sandboxing guarantee.
-6. Platform/ABI (`cpython-312`, Ubuntu 24.04.4, `x86_64`) and the bounded
-   peak RSS (88,484 KB) are recorded as diagnostics only; they are not
-   compared against any Gate 3 memory-floor acceptance threshold here —
-   that comparison, and a decoder peak-memory measurement under realistic
-   (non-synthetic) field sizes, remains a separate, later review task.
+5. **Native dependency graph wider than the decode needs, and the 42-entry
+   table is itself a filtered subset.** Merely importing `eccodes` eagerly
+   loads `eckitlib`, which pulls in `libcurl`, `libssl`, `libgssapi_krb5`,
+   `libldap`, `libssh`, `libsqlite3` and `libproj` even for a purely local,
+   in-memory decode with no network or database use. Separately, this
+   capture's 42-entry `loaded_native_libraries` table is only a
+   path-substring filter over `/proc/self/maps` (`eccodes`, `eckit`,
+   `libaec`, `openjp2`, `libpng`), not a complete native dependency graph of
+   the process: an independent pass over this same process identified 36
+   additional loaded shared objects outside that filter — NumPy/OpenBLAS,
+   the CFFI backend, Python stdlib extension modules, and system/libc
+   shared objects — plus, only under review/repair-time seccomp
+   containment, `libseccomp` itself, which is containment-only and never a
+   production dependency. None of those 36 are claimed here as production
+   decoder dependencies; a before/after loaded-library map would be needed
+   to separate genuine decoder dependencies from interpreter/test/reviewer
+   overhead. The Python-level socket block in this capture only intercepts
+   `socket.socket`; it does not prove native code inside those libraries
+   could not open a raw file descriptor by other means, and is not a
+   process-level sandbox. No network API of ecCodes/eckit was invoked here,
+   and host `/proc/self/maps` after the decode shows only library mappings,
+   not open socket file descriptors, but this is an **observation for
+   independent review**, not a sandboxing guarantee. **Status:
+   OBSERVATION_FOR_REVIEW.**
+6. **Realistic resource qualification not performed.** Platform/ABI
+   (`cpython-312`, Ubuntu 24.04.4, `x86_64`) and the bounded peak RSS
+   (88,484 KB this run; 88,452–88,484 KB across independent reproductions)
+   are recorded as diagnostics from a tiny bounded synthetic decode only
+   (one template-0 message plus two re-encoded CCSDS messages); they are
+   not compared against any Gate 3 memory-floor acceptance threshold here.
+   A decoder peak-memory measurement under realistic (non-synthetic) field
+   sizes, and its comparison against the G3-L resource floor, remains a
+   separate, later, independently-reviewed task. **Status:
+   MISSING_EVIDENCE.**
 
-None of the above six items are filled with fabricated values; each is
-explicit `null`/`MISSING_EVIDENCE` in the companion JSON's
-`unresolved_identities` array.
+None of the above six items are filled with fabricated values. Five are
+explicit `MISSING_EVIDENCE` in the companion JSON's `unresolved_identities`
+array; item 5 (native dependency graph / loaded-library subset) is explicit
+`OBSERVATION_FOR_REVIEW`, not `MISSING_EVIDENCE` — it records an observation
+for independent review, not an unresolved factual gap with no data at all.
+No item here is silently converted into acceptance.
 
 ## What this does and does not establish
 
@@ -192,20 +259,27 @@ It does **not** establish, and does not claim to establish:
 - Any section-pin or current-run evidence — item 2, untouched here.
 - Resource qualification against the G3-L 2 GiB/512 MiB floor, which is a
   window-specific, separately-reviewed measurement.
-- That the `eckitlib` RECORD mismatch is benign; it is reported exactly as
-  observed and left open for independent review.
+- That the `eckitlib` RECORD mismatch is benign. It is reported exactly as
+  observed and left open for independent review; the local cached-wheel
+  evidence above is partial local provenance, not independent upstream
+  authentication, and does not itself prove a benign cause.
+- A zero exit code from the probe script as proof that its printed bytes
+  were validated or accepted; see the capture-method note above and the
+  probe's own module docstring.
 
 ## Smallest next offline step
 
-Independently review (a) the 24-file `eckitlib.libs` RECORD mismatch against
-the original published wheel artifact (e.g. by downloading the exact
-`eckitlib==2.3.0.30` wheel in a separately authorized, reviewed environment
-and diffing bytes — not performed here, since this capture permits no
-provider/package-index network request) and (b) whether a MEMFS-disabled
-ecCodes build is available/required to make the embedded definitions/samples
-individually attestable. Both are prerequisites to item 3 of the prior
-assessment being closed; items 1, 2, 4 and 5 of that assessment remain
-separately open and unaffected by this inventory.
+Independently review (a) the 25-file `eckitlib.libs` RECORD mismatch against
+an authenticated, independently-sourced original wheel artifact — a local
+pip-cache scan already found an exact-version cached copy and compared it
+per-file (see "Unresolved identities" item 1 and the JSON companion's
+`local_cached_wheel_comparison`), but that cached copy is local-only
+evidence, not independent upstream authentication, and its own RECORD also
+disagrees with its payload, so the underlying cause remains open — and
+(b) whether a MEMFS-disabled ecCodes build is available/required to make the
+embedded definitions/samples individually attestable. Both are prerequisites
+to item 3 of the prior assessment being closed; items 1, 2, 4 and 5 of that
+assessment remain separately open and unaffected by this inventory.
 
 ## Acceptance tests still required before any integration credit
 

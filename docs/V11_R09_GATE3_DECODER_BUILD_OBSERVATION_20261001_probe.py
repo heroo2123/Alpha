@@ -2,19 +2,29 @@
 """Offline decoder-build byte inventory probe for Gate 3 item 3.
 
 UNREVIEWED_BUILD_OBSERVATION only. Not a qualification, acceptance or launch
-result. Makes no network connection (sockets are disabled below), writes no
-file to disk other than the report this script prints on stdout, and reads
-only the repository decoder sources, the named Python package RECORD files,
-and the native libraries they install. Run with the Alpha development venv
-interpreter, from the repository root, e.g.:
+result. A zero exit code means only that this probe ran to completion and
+printed its observation -- that observation can itself report RECORD
+mismatches, an unexpected venv or other discrepancies, and zero exit does
+not mean those bytes were validated, accepted or benign. This probe never
+reads its companion .md/.json and enforces no automated guard against those
+documents drifting from a fresh run's printed output; only a human/reviewer
+comparing stdout against the committed docs can catch that drift. A genuine
+read/import failure (missing file, unreadable RECORD, decode exception) is
+not caught here and still raises, exiting nonzero; only the "ran and
+observed" path always returns 0, regardless of what it observed.
+
+Writes no file to disk other than the report this script prints on stdout,
+and reads only the repository decoder sources, the named Python package
+RECORD files, and the native libraries they install. The socket.socket
+replacement below blocks only socket creation performed through that Python
+API; it does not block native syscalls issued directly by loaded C/C++
+libraries (e.g. libcurl inside libeckit.so), is not a process-level sandbox,
+and makes no claim about native network capability. Run with the Alpha
+development venv interpreter, from the repository root, e.g.:
 
     PYTHONDONTWRITEBYTECODE=1 \
       /home/alphaadmin/AlphaV11_Dev/venv/bin/python \
       docs/V11_R09_GATE3_DECODER_BUILD_OBSERVATION_20261001_probe.py
-
-Exits nonzero if the host venv path, RECORD hashes or repository blob hashes
-do not match what this report describes, so the companion .md/.json cannot
-silently drift from a reread of the actual installed build.
 """
 from __future__ import annotations
 
@@ -45,6 +55,9 @@ DIST_INFOS = [
     "findlibs-0.1.3.dist-info",
 ]
 
+# Path-substring filter over /proc/self/maps. This selects a subset, not a
+# complete native dependency graph: NumPy/OpenBLAS, CFFI, libc/libstdc++ and
+# other interpreter/system shared objects also load but are excluded here.
 NATIVE_LIB_SUBSTRINGS = (
     "eccodes", "eckit", "libaec", "openjp2", "libpng",
 )
