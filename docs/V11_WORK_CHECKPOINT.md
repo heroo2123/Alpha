@@ -1,5 +1,80 @@
 # Alpha V11 work checkpoint
 
+## Coordinator inspection of Sol/high V4 R1-R6 repair — R2 still incomplete, not merged — 2026-10-01 09:05 UTC
+
+Main was clean at `a2d04b2`, three commits ahead of its tracking ref. The
+routed Sol/high repair (checkpoint batch above) had already completed and
+committed in the same isolated worktree, unpublished:
+`/home/alphaadmin/AlphaV11_Gate3V4Slice1/Alpha` branch
+`r09-gate3-v4-slice1-20261001`, commit `f31305ef99e98fb2c79b6e1630466c1b644ee6ec`,
+tree `df25f167737a11f9634982b82192e2752962dc48`, parent `6e4c95b` (the exact
+candidate Astra/high rejected). No log identifying the executing model was
+present; the commit matches the routed scope and timing.
+
+Inspected the actual diff and ran the affected suite myself rather than
+trusting the commit message. `tests/test_v11_r09_gate3_launch.py` plus
+`tests/test_v11_r09_gate3_launch_v4.py`: **93 passed**, 7.47s, exit 0, using
+`/home/alphaadmin/alpha-review-test-venv/bin/python`. Read R3-R6
+(`tools/v11_r09_gate3_launch_v4.py`): endpoint/purpose-mapping separation,
+the `N*deadline+(N-1)*interval+processing+finalization` schedule formula,
+explicit `REPORT_RESERVE_BYTES`/`METADATA_MAX_BYTES` numeric bounds, and a
+pinned `reviewed_design` protocol reference were all added and match the
+findings' required shape on inspection. R1 (`tools/v11_r09_gate3_launch.py`
+`_replay`) now drains complete records from a read before checking the
+remaining unfinished-record length against `JOURNAL_RECORD_MAX_BYTES`
+instead of checking the whole accumulated buffer; this matches the required
+bounded per-record parsing.
+
+**R2 is only partially repaired and the candidate is still rejected.** The
+fix adds an in-memory `self.delivery_held` flag set in `consume()`'s
+exception handler and checked by `_healthy()`, which correctly blocks
+`complete()`/further reads within the same process after a post-delivery
+append refusal — the new tests
+(`test_byte_capacity_refusal_after_delivery_cannot_complete_or_refund`,
+`test_post_delivery_append_refusal_holds_every_kind`) cover exactly this and
+pass. But `delivery_held` is never written to the journal and is not
+reconstructed by `_replay()`/`_state()`, so a real process restart loses it.
+Wrote and ran an independent probe (not merely re-running the candidate's
+own tests) reproducing the exact scenario from the original R2 finding
+after a restart: reserve 10 bytes, force a capacity-refused `consume`
+leaving 3 uncertain bytes (`delivery_held=True` in-process, confirmed), close
+and reopen a fresh `DurableBudget` against the same directory (`delivery_held`
+is `False` again, as expected since nothing persists it), then call
+`complete('one')` on the reopened instance. It **succeeds**: reserved drops
+from 10 to 0 and `in_flight` clears, exactly the erasure-of-an-uncertain-
+reservation behavior R2 was written to prohibit, just requiring one restart
+to reach instead of zero. The repair's own restart tests only assert that a
+*new* `reserve()` is blocked (via the pre-existing `UNCERTAIN_REQUEST_HELD`
+check on non-null `in_flight`, unrelated to this fix) and never call
+`complete()` on the reopened instance, so this gap passes the existing suite
+undetected. The underlying difficulty is real: the append that would
+durably record the held state is the same capacity-constrained write the
+journal just refused, so persisting it needs either a separate small
+sentinel outside the byte-capped journal path or an explicit held-state
+record format with its own reserved headroom — not a one-line fix.
+
+Not merged. `git merge-tree --write-tree a2d04b2 f31305e` succeeds cleanly
+(prospective tree `2e6f48a236a34942810d7eb0ae6fc1b2274eea93`, touches only the
+four already-isolated files), so reconciliation is not the blocker; R2
+correctness is. Do not integrate this candidate, start slice 2, or treat
+R1-R6 as closed.
+
+Read-only recovery: private master hash recomputed directly and matches the
+pin `a0e16d9b...47659b4a`. No PAPER scanner, protected
+`/var/lib/alpha-v11` or `/etc/alpha-v11` model-authority path, execution, or
+service process is active. Disk ~3.8 GiB free, memory ~141 MiB free / ~1.1
+GiB available. V10 and AxiomTrade were not touched. No duplicate Gate 3
+worker was started. No C/J/E/A boundary crossed: **91/200 (45.5%), formal
+1/50; NOT_READY_TO_FUND**.
+
+Next unfinished action: repair R2's cross-restart persistence specifically
+(the held-reservation state must survive a fresh `DurableBudget` against the
+same journal directory, not merely block completion in the process that
+observed the refusal) in the same isolated worktree, appending a new commit
+on top of `f31305e` without altering R1/R3-R6. Re-run the affected suite plus
+a restart-then-complete regression test for this exact scenario, then obtain
+a fresh different-model exact-commit review before any integration attempt.
+
 ## Coordinator recovery and V4 repair failover — 2026-10-01 01:02 UTC
 
 Main was clean at `2be42dc`, two commits ahead of its tracking ref, before

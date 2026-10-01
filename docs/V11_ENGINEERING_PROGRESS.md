@@ -1,5 +1,19 @@
 # Supplementary engineering estimate
 
+## Coordinator inspection — V4 R1-R6 repair candidate R2 incomplete — 2026-10-01 09:05 UTC
+
+Inspected unpublished commit `f31305e` in the isolated V4 slice-1 worktree
+(routed Sol/high repair of Astra/high's six findings). R1/R3/R4/R5/R6 match
+their required shape and the affected suite passes 93/93, but R2's fix is
+in-memory only (`self.delivery_held`): a reopened `DurableBudget` against the
+same journal loses it, so `complete()` still erases an uncertain
+post-capacity-refusal reservation after one restart, reproduced directly with
+a standalone probe. Not merged; full reasoning in
+[checkpoint](V11_WORK_CHECKPOINT.md). Next action is a narrow durable-
+persistence fix for R2 only, then a fresh different-model review. No forward
+SHADOW sample, operational authority, or C/J/E/A credit was added: **91/200
+(45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator recovery — V4 repair route — 2026-10-01 01:02 UTC
 
 No V4 slice-1 repair is active or committed beyond rejected `6e4c95b`.

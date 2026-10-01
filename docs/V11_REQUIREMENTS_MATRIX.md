@@ -1,5 +1,17 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Coordinator inspection — V4 R1-R6 repair candidate R2 incomplete — 2026-10-01 09:05 UTC
+
+Routed Sol/high repair `f31305e` (worktree
+`/home/alphaadmin/AlphaV11_Gate3V4Slice1/Alpha`, parent `6e4c95b`) closes R1,
+R3, R4, R5, R6 on inspection; affected suite 93/93 passed. R2 (post-delivery
+capacity-refusal accounting) is only in-process, not durable: an independent
+restart probe reproduces `complete()` erasing an uncertain reservation after
+one process restart, the exact behavior R2 required to be fixed. Candidate
+remains unmerged and R09 Gate 3 V4 slice-1 remains OPEN. Full detail and
+reproduction: [checkpoint](V11_WORK_CHECKPOINT.md). No requirement status or
+C/J/E/A credit changed: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator recovery — V4 repair route — 2026-10-01 01:02 UTC
 
 The six P2 findings in the exact-candidate review below remain open. Candidate
