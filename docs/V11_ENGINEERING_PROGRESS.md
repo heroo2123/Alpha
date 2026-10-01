@@ -1,5 +1,21 @@
 # Supplementary engineering estimate
 
+## Decoder inventory exact review rejected; correction active — 2026-10-01 19:36 UTC
+
+Independent Astra/high [review](V11_R09_GATE3_DECODER_BUILD_REVIEW_20a42f7.md)
+at `f86b8cf` records CHANGES_REQUIRED on exact `20a42f7`: **25** RECORD
+mismatches, deltas **3,368–213,008 bytes**, false probe exit guarantees,
+partial loaded-dependency coverage and inconsistent unresolved lists.
+Repeated source/library/decode observations agree. All 25 vendored installed
+payloads match a local cached wheel that has the same internally inconsistent
+RECORD; upstream origin/benign cause remain unverified. No build qualification.
+One Sonnet/high repair worker (runner 1884618 / child 1884629) is active in
+the original isolated worktree; prefix `/tmp/alpha-v11-decoder-build-repair-20261001`.
+No candidate merge; fresh exact review and reconciliation follow correction.
+GEFS remains owner/root gated; no forward sample. G3-L NO-GO, 77 missing plus
+one expired item, disk below floor. **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND** unchanged.
+
 ## Decoder-build candidate ready for exact review — 2026-10-01 19:25 UTC
 
 The sole worker finished clean docs-only candidate `20a42f7`, with a matching

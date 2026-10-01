@@ -1,5 +1,57 @@
 # Alpha V11 work checkpoint
 
+## Decoder inventory review requires correction; sole repair worker live — 2026-10-01 19:36 UTC
+
+Independent Astra/high [exact review](V11_R09_GATE3_DECODER_BUILD_REVIEW_20a42f7.md)
+and [evidence](V11_R09_GATE3_DECODER_BUILD_REVIEW_20a42f7.json), committed at
+`f86b8cf`, reject candidate `20a42f713571824c36236a63eb8870f6478268f8`
+(tree `39a67d3`) for integration pending R1–R4 corrections. Two bounded offline
+runs reproduced both source hashes, 42 listed mapped-library hashes and the
+synthetic IFS/AIFS results. Independent CSV/hash verification found **25**
+eckitlib RECORD mismatches with size deltas **3,368–213,008 bytes**, correcting
+the author's false 24/~4-KiB account. The probe also returns zero despite
+identity discrepancies, contrary to its documented drift-rejection guarantee;
+its library inventory is partial and unresolved-list formats disagree.
+
+New offline evidence: all 25 installed vendored payloads exactly match an
+existing local cached wheel (SHA-256
+`71b4059a56d8b35d682b05b0929e848e34750bb4c9e8d7198aa6d0049171c984`),
+whose own RECORD has the same 25 discrepancies. This is partial local artifact
+provenance, **not authenticated upstream origin or a benign-patch finding**.
+No package was downloaded, extracted, installed or changed. MEMFS individual
+identities, complete build/lock/point-of-use identity and realistic resource
+qualification remain unresolved. Reviewer-only seccomp blocked native socket
+creation; this adds no production/launch qualification.
+
+Exactly one persistent Sonnet/high correction worker is live: runner
+**1884618**, child **1884629**, original isolated worktree
+`/tmp/alpha-v11-gate3-decoder-build-inventory-20261001`, starting clean at
+`20a42f7`. Prompt/runner/PIDs/log prefix:
+`/tmp/alpha-v11-decoder-build-repair-20261001`; terminal `.terminal.json`
+will record `GATE3_DECODER_BUILD_CORRECTION_READY_FOR_REVIEW` or
+`GATE3_DECODER_BUILD_CORRECTION_BLOCKED`, actual commit/tree/clean state.
+Scope is only the three existing observation artifacts and offline verification.
+Recover this process/terminal before acting; do not duplicate it. Fresh
+independent exact-commit review and newer-main reconciliation remain mandatory.
+The rejected original candidate is unmerged; its author and detached review
+worktrees/evidence are preserved. No remote publication.
+
+Passive recovery: SHADOW/Brain worktrees clean; ECMWF `backfill_data/` preserved.
+Commissioning newest writes are status/tmp files, no newer qualifying forward
+sample beyond the September 30 06:43 artifact. PAPER scanner/controller/demo
+inactive/disabled; weather execution masked/inactive; protected authority roots
+absent. Private FINAL-REVIEWED master still matches SHA-256
+`a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+Observed free disk ~1.27 GiB and available memory ~783 MiB before worker launch;
+these do not qualify launch. The prior accepted `6ec371e` release already
+resolved the old fill-markout failure (5,460 passes / 13 skips); no new failure
+was found and the stale diagnosis was not restarted. GEFS SHADOW remains
+owner/root gated; the independent IFS/AIFS offline correction is moving.
+G3-L remains **NO-GO**, latest screen 77 missing plus one expired item, disk
+below 2 GiB. No provider request, financial action, V10/AxiomTrade/service or
+authority change. No C/J/E/A crossing: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Decoder build observation candidate recovered — 2026-10-01 19:25 UTC
 
 The sole decoder-build worker finished normally. Its matching terminal reports
