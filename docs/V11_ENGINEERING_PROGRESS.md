@@ -1,5 +1,14 @@
 # Supplementary engineering estimate
 
+## Slice-3 repair finished; exact review required — 2026-10-01 14:40 UTC
+
+The sole writer committed clean two-file candidate `8e18553` (tree
+`32044de`) and produced a ready-for-review terminal. Its 439 Gate 3 passes
+were reported by the author, twice. F1–F7 are not independently accepted;
+the candidate is unmerged pending different-model exact-commit review and
+newer-main reconciliation. Disk free is about 468 MiB and G3-L remains
+NO-GO. **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND** unchanged.
+
 ## Post-window audit; slice-3 repair active — 2026-10-01 14:19 UTC
 
 Main is clean at `9e700d0`. The sole slice-3 F1–F7 writer is live with

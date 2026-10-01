@@ -1,5 +1,29 @@
 # Alpha V11 work checkpoint
 
+## Slice-3 F1–F7 repair candidate recovered — 2026-10-01 14:40 UTC
+
+The sole Sonnet/high repair worker exited normally at 14:36:29 UTC and left
+`GATE3_SLICE3_REPAIR2_READY_FOR_REVIEW`. Its isolated worktree is clean at
+`8e18553227522fa28e829ee66a32a8064f28c55f` (tree
+`32044de41265f22aadf3582781fc337b5afdfcfb`), parent `ef45d35`.
+The two-file runtime/test diff is 600 insertions and 75 deletions;
+`git diff --check` is clean. The author reports two runs of the Gate 3
+family, **439 passed** each, plus syntax checks; this is author evidence,
+not independent acceptance. A fresh different-model exact-commit review of
+F1–F7 and the full slice-3 obligations is next, followed by reconciliation
+with newer main only on PASS. Do not merge or request a provider meanwhile.
+
+Main is clean at `2166127`, 31 local commits ahead of tracking. The earlier
+R1 correction and offline G3-L prep are already integrated. The 14:00 UTC
+start passed without G3-L PASS or SHADOW capture. Scanner and controller
+remain inactive, scanner disabled, execution masked, protected authority
+paths absent, and the private FINAL-REVIEWED master hash still matches its
+pin. Root disk free has fallen to about **468 MiB**, below the launch
+resource floor; available RAM is about 829 MiB plus 1.5 GiB free swap.
+No provider, V10, AxiomTrade, service, authority or financial action was
+performed. No C/J/E/A boundary crossed: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Current Gate 3 and parallel Brain audit — 2026-10-01 14:19 UTC
 
 Reconciled actual main, worktrees, processes and safety state after the 14:16

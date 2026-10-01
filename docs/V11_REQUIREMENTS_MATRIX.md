@@ -1,5 +1,13 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Slice-3 candidate awaiting independent review — 2026-10-01 14:40 UTC
+
+The finished isolated F1–F7 repair is clean at `8e18553` (tree `32044de`),
+with 439 Gate 3 tests author-reported twice and a terminal marker. It has
+no independent exact-commit verdict and remains unmerged. G3-L stays NO-GO;
+disk free is about 468 MiB, below the launch floor. **91/200 (45.5%),
+formal 1/50; NOT_READY_TO_FUND** unchanged.
+
 ## Current post-window reconciliation — 2026-10-01 14:19 UTC
 
 The 14:00 UTC acquisition start passed without G3-L PASS or provider request.
