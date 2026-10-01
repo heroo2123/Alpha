@@ -36,6 +36,18 @@ PINNED_ADDENDUM_TREE = 'd37d7ad55a76902cae0536e6f4d21b9db6aeaa81'
 PINNED_ADDENDUM_DOC = 'a4a2a18e83a53359e3a46cdf7cbda6031c6afec74e5d497f2cd126b1ae7b943c'
 REQUIRED_REVIEW_NAMES = {'original_protocol', 'collector', 'provider_bound',
                          'gefs_ceiling', 'launch_addendum'}
+# Fixed journal replay/write caps (not constructor parameters): a manifest or
+# caller can never widen these by requesting a looser DurableBudget. They stop
+# an unbounded single-record allocation and cap total ledger growth
+# independently of the byte/request budget itself.
+JOURNAL_MAX_BYTES = 64 * 1024 ** 2
+JOURNAL_RECORD_MAX_BYTES = 64 * 1024
+JOURNAL_MAX_EVENTS = 131072
+JOURNAL_READ_CHUNK_BYTES = 64 * 1024
+# A held delivery must survive a restart. It cannot be recorded by the same
+# byte/record/event-capped journal append that just refused (that is exactly
+# why it is uncertain), so it gets its own small sentinel file instead.
+DELIVERY_HELD_MARKER = 'gate3.held'
 GROUPS = ('identity', 'code', 'protocol', 'storage', 'cohort', 'time',
           'sources', 'runs_and_slots', 'network', 'limits', 'schedule',
           'clocks_and_receipts', 'accounting')
@@ -693,6 +705,8 @@ class DurableBudget:
         self.dir_fd = self.lock_fd = self.fd = None
         self.failed = False
         self.uncertain_received_bytes = 0
+        self.delivery_held = False
+        self.inherited_in_flight = None
         try:
             self.dir_fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
             directory_stat = os.fstat(self.dir_fd)
@@ -729,6 +743,7 @@ class DurableBudget:
         self.boot_id = boot_id
         self.events = []
         self.prev = '0' * 64
+        self._journal_bytes = 0
         try:
             self._replay()
             if not self.events:
@@ -745,6 +760,13 @@ class DurableBudget:
                                'min_start_interval_seconds': min_start_interval_seconds,
                                'boot_id': boot_id}, 'JOURNAL_IDENTITY_MISMATCH')
             self._state()
+            # Design section 5: an attempt left open by a prior process is
+            # uncertain whatever stopped it (capacity refusal, write/fsync or
+            # identity fault, crash). No sentinel write is needed to prove that,
+            # so a full disk cannot lose it: never read for, or complete/refund,
+            # an inherited reservation.
+            self.inherited_in_flight = self.in_flight
+            self._load_delivery_held_marker()
         except BaseException:
             self.close()
             raise
@@ -761,6 +783,7 @@ class DurableBudget:
     def _healthy(self):
         self._require_owner()
         check(not self.failed, 'JOURNAL_DURABILITY_UNCERTAIN')
+        check(not self.delivery_held, 'JOURNAL_DELIVERY_UNCERTAIN')
         try:
             check(all(not stat.S_ISLNK(os.lstat(ancestor).st_mode)
                       for ancestor in (self.path, *self.path.parents)),
@@ -780,11 +803,40 @@ class DurableBudget:
         check(os.getpid() == self._owner_pid, 'JOURNAL_OWNER_PROCESS')
 
     def _replay(self):
+        """Bounded-reader replay: never allocate past the fixed journal caps.
+
+        Reads at most ``JOURNAL_READ_CHUNK_BYTES`` at a time and rejects
+        before accumulating an unterminated buffer past
+        ``JOURNAL_RECORD_MAX_BYTES`` or a total journal past
+        ``JOURNAL_MAX_BYTES``. A crafted or torn record with no newline can
+        therefore never force an unbounded single read or allocation.
+        """
+        size = os.fstat(self.fd).st_size
+        check(size <= JOURNAL_MAX_BYTES, 'JOURNAL_CAPACITY_EXCEEDED')
         with os.fdopen(os.dup(self.fd), 'rb') as reader:
             reader.seek(0)
-            for line in reader:
-                check(line.endswith(b'\n'), 'JOURNAL_TORN_RECORD')
-                record = parse_canonical(line[:-1])
+            total_bytes = 0
+            buf = b''
+            while True:
+                newline_at = buf.find(b'\n')
+                if newline_at == -1:
+                    check(len(buf) < JOURNAL_RECORD_MAX_BYTES, 'JOURNAL_RECORD_TOO_LARGE')
+                    chunk = reader.read(JOURNAL_READ_CHUNK_BYTES)
+                    if not chunk:
+                        check(len(buf) < JOURNAL_RECORD_MAX_BYTES, 'JOURNAL_RECORD_TOO_LARGE')
+                        check(not buf, 'JOURNAL_TORN_RECORD')
+                        break
+                    total_bytes += len(chunk)
+                    check(total_bytes <= JOURNAL_MAX_BYTES, 'JOURNAL_CAPACITY_EXCEEDED')
+                    buf += chunk
+                    # A read can contain many complete, individually valid records.
+                    # Check only the unfinished record after draining them below.
+                    continue
+                line = buf[:newline_at]
+                buf = buf[newline_at + 1:]
+                check(newline_at + 1 <= JOURNAL_RECORD_MAX_BYTES, 'JOURNAL_RECORD_TOO_LARGE')
+                check(len(self.events) < JOURNAL_MAX_EVENTS, 'JOURNAL_EVENT_CAPACITY')
+                record = parse_canonical(line)
                 exact(record, ('seq', 'prev', 'event', 'hash'), 'JOURNAL_RECORD_SCHEMA')
                 check(record['seq'] == len(self.events) and record['prev'] == self.prev,
                       'JOURNAL_SEQUENCE')
@@ -793,12 +845,22 @@ class DurableBudget:
                 check(record['hash'] == expected, 'JOURNAL_HASH')
                 self.prev = expected
                 self.events.append(record['event'])
+                if b'\n' not in buf:
+                    check(len(buf) < JOURNAL_RECORD_MAX_BYTES, 'JOURNAL_RECORD_TOO_LARGE')
+        self._journal_bytes = size
 
     def _append(self, event):
         self._healthy()
+        # Capacity exhaustion is a clean, deterministic, replayable refusal
+        # (same fixed caps every restart), never a durability failure: do not
+        # mark self.failed and do not write a byte past either cap.
+        check(len(self.events) < JOURNAL_MAX_EVENTS, 'JOURNAL_EVENT_CAPACITY')
         record = {'seq': len(self.events), 'prev': self.prev, 'event': event}
         record['hash'] = hashlib.sha256(canonical(record)).hexdigest()
         data = canonical(record) + b'\n'
+        check(len(data) <= JOURNAL_RECORD_MAX_BYTES, 'JOURNAL_RECORD_TOO_LARGE')
+        check(self._journal_bytes + len(data) <= JOURNAL_MAX_BYTES,
+              'JOURNAL_CAPACITY_EXCEEDED')
         try:
             written = os.write(self.fd, data)
             check(written == len(data), 'JOURNAL_SHORT_WRITE')
@@ -810,8 +872,68 @@ class DurableBudget:
                       str(exc) == 'JOURNAL_SHORT_WRITE' else
                       'JOURNAL_DURABILITY_UNCERTAIN')
             raise LaunchContractError(reason) from exc
+        self._journal_bytes += len(data)
         self.prev = record['hash']
         self.events.append(event)
+
+    def _mark_delivery_held(self, key):
+        """Durably persist an uncertain post-delivery hold outside the journal cap.
+
+        The journal append that would have recorded this chunk already failed
+        due to a fixed capacity cap; writing the hold into the same capped
+        journal could fail for the identical reason. ``gate3.held`` is a
+        separate, tiny, uncapped file so the hold is never lost to the same
+        refusal that created it, and survives a fresh restart.
+        """
+        if self.delivery_held:
+            return
+        record = canonical({'op': 'delivery_held', 'key': key}) + b'\n'
+        try:
+            fd = os.open(DELIVERY_HELD_MARKER, os.O_CREAT | os.O_EXCL | os.O_WRONLY |
+                        os.O_NOFOLLOW, 0o600, dir_fd=self.dir_fd)
+        except FileExistsError:
+            self.delivery_held = True
+            return
+        except BaseException:
+            # The hold cannot be proven durable on disk. Fail closed in this
+            # process too rather than leaving delivery_held false in memory.
+            self.failed = True
+            self.delivery_held = True
+            raise
+        try:
+            try:
+                written = os.write(fd, record)
+                check(written == len(record), 'JOURNAL_DELIVERY_HELD_MARKER_SHORT_WRITE')
+                os.fsync(fd)
+            finally:
+                os.close(fd)
+            os.fsync(self.dir_fd)
+        except BaseException:
+            self.failed = True
+            self.delivery_held = True
+            raise
+        self.delivery_held = True
+
+    def _load_delivery_held_marker(self):
+        """Restore a prior hold on a fresh open; never trusted from memory alone."""
+        try:
+            fd = os.open(DELIVERY_HELD_MARKER, os.O_RDONLY | os.O_NOFOLLOW,
+                        dir_fd=self.dir_fd)
+        except FileNotFoundError:
+            return
+        try:
+            self._check_file(DELIVERY_HELD_MARKER, fd)
+            size = os.fstat(fd).st_size
+            check(0 < size <= JOURNAL_RECORD_MAX_BYTES, 'JOURNAL_DELIVERY_HELD_MARKER')
+            data = os.pread(fd, size, 0)
+        finally:
+            os.close(fd)
+        check(data[-1:] == b'\n', 'JOURNAL_DELIVERY_HELD_MARKER')
+        record = parse_canonical(data[:-1])
+        exact(record, ('op', 'key'), 'JOURNAL_DELIVERY_HELD_MARKER')
+        check(record['op'] == 'delivery_held' and record['key'] == self.in_flight,
+              'JOURNAL_DELIVERY_HELD_MARKER')
+        self.delivery_held = True
 
     def _state(self):
         self.attempts = {}
@@ -883,6 +1005,7 @@ class DurableBudget:
     def next_read_limit(self, maximum_chunk):
         self._healthy()
         check(self.in_flight is not None and not self.violated, 'NO_ACTIVE_REQUEST')
+        check(self.in_flight != self.inherited_in_flight, 'UNCERTAIN_REQUEST_HELD')
         integer(maximum_chunk, 1, MAX_BYTES, 'READ_CHUNK_BOUND')
         attempt = self.attempts[self.in_flight]
         return min(maximum_chunk, attempt['reserved'] - attempt['received'],
@@ -907,14 +1030,26 @@ class DurableBudget:
             recorded = True
             self._state()
         except BaseException:
-            if not recorded:
+            if not recorded and body:
                 self.uncertain_received_bytes += len(body)
                 self.received += len(body)
+                # No receipt can prove these delivered bytes after an append
+                # refusal. Keep the durable reservation open across restart.
+                # A raw write/fsync durability fault (self.failed, set by
+                # _append's own except clause before this one runs) already
+                # blocks every further call in this process via _healthy()
+                # and is not this fixed-cap scenario: the journal bytes it
+                # wrote are not provably absent the way a refused-before-any-
+                # write capacity-cap record is, so it does not get the same
+                # cross-restart marker.
+                if not self.failed:
+                    self._mark_delivery_held(key)
             raise
 
     def complete(self, key):
         self._healthy()
         check(self.in_flight == key and not self.violated, 'NO_ACTIVE_REQUEST')
+        check(key != self.inherited_in_flight, 'UNCERTAIN_REQUEST_HELD')
         self._append({'op': 'complete', 'key': key})
         self._state()
 
