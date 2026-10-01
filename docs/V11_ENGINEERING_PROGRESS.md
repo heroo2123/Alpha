@@ -1,5 +1,21 @@
 # Supplementary engineering estimate
 
+## Gate 3 V4 slice (1) implemented — candidate awaiting independent review — 2026-10-01 00:24 UTC
+
+Implemented the routed next action: strict V4 schema/frozen purpose plan
+(`tools/v11_r09_gate3_launch_v4.py`, new) and a bounded-reader repair to
+`DurableBudget` (`tools/v11_r09_gate3_launch.py`), each with focused tests
+(19 + 7), in isolated worktree `/home/alphaadmin/AlphaV11_Gate3V4Slice1`
+on branch `r09-gate3-v4-slice1-20261001`, commit `6e4c95b`. Full detail in
+the matching [checkpoint entry](V11_WORK_CHECKPOINT.md). 290/290 Gate
+3-family tests pass in that worktree, no regressions. V3's own validator
+and tests are untouched; no transport/socket/credential/provider/G3-L/
+SHADOW code exists in this batch. This is a candidate only — per the
+design's own slice workflow it needs a different-model exact-commit
+review before integration into main, which remains at `12eace0`
+unchanged. No C/J/E/A boundary crossed: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Coordinator recovery and Gate 3 slice-1 route — 2026-10-01 00:19 UTC
 
 Main and its tracking ref match at `3d3aeb6`. The reviewed Gate 3 design is

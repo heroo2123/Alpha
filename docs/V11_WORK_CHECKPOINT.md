@@ -1,5 +1,105 @@
 # Alpha V11 work checkpoint
 
+## Gate 3 V4 slice (1) implemented — candidate awaiting independent review — 2026-10-01 00:24 UTC
+
+Routed Sonnet/high executed the next unblocked action named in the entry
+below: implementation of design section 7 slice (1) (strict V4 schema,
+frozen purpose plan, bounded `DurableBudget` replay) in a fresh isolated
+worktree, `/home/alphaadmin/AlphaV11_Gate3V4Slice1/Alpha` on branch
+`r09-gate3-v4-slice1-20261001`, committed at `6e4c95b` (parent `12eace0`,
+the same commit main is at). Before starting: confirmed no duplicate Gate 3
+slice/V4 worktree existed, scanner/V10 inactive, ~3.9 GiB disk and ~773 MiB
+memory available, held author `e563e45` and SHADOW `15e99bd` untouched.
+
+Two bounded, offline, synthetic-only changes, kept deliberately separate so
+each is independently reviewable:
+
+- `tools/v11_r09_gate3_launch.py` (repair to the existing reviewed module,
+  not new V4-gated code): `DurableBudget._replay` previously iterated
+  `for line in reader`, which can accumulate an unbounded single "line"
+  into memory before any size check runs — exactly the latent gap the
+  design document named ("replay currently lacks bounded journal
+  allocation"). Replaced with a bounded reader (<=64 KiB reads) that
+  rejects a torn/forged record before it grows past a new fixed
+  `JOURNAL_RECORD_MAX_BYTES` (64 KiB), and rejects before the total
+  on-disk journal exceeds a new fixed `JOURNAL_MAX_BYTES` (64 MiB,
+  checked up front from `fstat` size alone, so an oversized file is never
+  read). `_append` enforces the same two caps plus a new fixed
+  `JOURNAL_MAX_EVENTS` (131,072) on the write path, so many tiny chunks
+  consume event/record capacity even while byte allowance remains
+  (matches "Capacity exhaustion stops work even when body-byte allowance
+  remains"). Hitting a cap is treated as a clean, deterministic,
+  replayable hold — not a durability fault — so it does not set
+  `self.failed`; the same in-flight reservation simply stays stuck across
+  restarts until a separately reviewed resolution, consistent with the
+  design's existing "incomplete reservation blocks further requests
+  globally" rule. 7 new tests in `tests/test_v11_r09_gate3_launch.py`
+  cover: oversized single record rejected pre-write without poisoning the
+  budget; total-journal-bytes cap independent of `max_bytes`/`max_requests`
+  (and that replaying already-compliant history still succeeds — the cap
+  blocks new growth, not reading past data); event-count cap exhausted by
+  tiny chunks while byte budget remains, with the resulting stuck
+  in-flight hold reproduced identically on restart; a sparse multi-GiB
+  file rejected from size alone; an unterminated forged record rejected
+  before it can grow past the record cap.
+
+- `tools/v11_r09_gate3_launch_v4.py` (new): `R09_GATE3_LAUNCH_MANIFEST_V4`
+  schema implementing exactly the four closed-schema groups the design's
+  section-1 table named, nothing else. Duplicates (does not import or
+  call) V3's `validate_manifest` for every unchanged group — identity,
+  code, protocol, storage, cohort, time, runs_and_slots, limits,
+  accounting — so this slice cannot silently loosen, translate, or alias
+  V3; V3's own file and tests are untouched except for the budget repair
+  above. Changed groups: an ordered `network.endpoints` table (one entry
+  per provider x purpose, digest-derived `endpoint_id` so a caller cannot
+  assert an alias, `control_domain_id`, origin/path bound back to the
+  matching `sources` entry, dossier/access/response-contract/
+  parser-identity refs), with `network.origins` required to equal the
+  table's unique origins in first-use order (not the old fixed
+  per-provider order); each `schedule.requests` entry now carries an
+  `endpoint_id` bound to its own provider/purpose/origin and checked
+  disjoint from its object/index/cache identity; `clocks_and_receipts`
+  split into `preregistration` evidence refs vs. a declared four-phase
+  `observation_schema` (no slot for fabricated per-attempt
+  request_start/body_receipt/decode_complete/durable_seal refs, since
+  those don't exist before runtime); and a new closed `runtime` group
+  binding a recomputed schedule digest, denial/session/report-root
+  identity, `journal_bounds` that must equal the budget module's own
+  fixed constants exactly (a manifest can never claim a looser bound than
+  the code enforces), and a `purpose_plan` independently recomputed from
+  the actual schedule (never trusted from the manifest) so unused
+  overhead/field headroom in one purpose can never expand another. 19 new
+  tests in `tests/test_v11_r09_gate3_launch_v4.py` cover a valid
+  candidate; V3 schema literal rejected; endpoint-table coverage,
+  derivation, duplication, and origin-lookalike counterexamples; network
+  allowlist order; schedule endpoint-binding wrong-purpose and
+  identity-aliasing counterexamples; purpose-plan inflation and
+  cross-purpose-shuffle counterexamples; schedule-digest and
+  journal-bounds mismatch counterexamples; the four clock-schema
+  separation/uncertainty/cutoff counterexamples; missing runtime group;
+  and a malformed denial-history-head digest.
+
+Verification (foreground, in the isolated worktree):
+`tests/test_v11_r09_gate3_launch.py` + `_launch_v4.py` +
+`_offline_io.py` + `_restart_composition.py` + `_message_sizes.py` +
+`_collector.py` + `_store_v1.py` — **290 passed** (271 pre-existing + 19
+new), 0 failed, 0 regressions. `python3 -m py_compile` clean on all four
+touched/new files; `git diff --check` clean before commit.
+
+No transport, socket adapter, decoder, credential, provider request, G3-L,
+SHADOW/learner admission, or financial authority in this batch — exactly
+as the design's slice workflow requires. This commit is a **candidate**
+only: per the design's own section 7 ("Each slice gets focused tests,
+different-model exact-commit review and newer-main reconciliation before
+integration... No writer self-acceptance"), it must not be merged into
+main by this same model. Main itself is untouched this batch (still
+`12eace0`, matching its tracking ref). No C/J/E/A boundary crossed:
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**, unchanged. Next
+unfinished action: route a different model for the exact-commit review of
+`6e4c95b` in `/home/alphaadmin/AlphaV11_Gate3V4Slice1/Alpha`; only merge
+into main if that review is a clean PASS and main has not diverged in the
+interim.
+
 ## Coordinator recovery and Gate 3 slice-1 route — 2026-10-01 00:19 UTC
 
 Recovered clean main `3d3aeb6`, equal to its upstream tracking ref. The independent
