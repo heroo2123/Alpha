@@ -1,5 +1,13 @@
 # Supplementary engineering estimate
 
+## One persistent slice-3 repair worker active — 2026-10-01 12:14 UTC
+
+Committed the exact review/probes as `afe6b16` and verified one detached
+Sonnet/high worker alive in its own repair worktree at base `8e446fd`.
+It owns R1–R8 offline repairs; neither original candidate was changed or
+integrated. Fresh review and mapping review remain required. No real evidence
+or G3-L permission added; **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Slice-3 review completed; eight blocking findings — 2026-10-01 12:11 UTC
 
 Astra/high independently reviewed exact `8e446fd` and recorded

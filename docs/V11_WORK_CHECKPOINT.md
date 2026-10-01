@@ -1,5 +1,28 @@
 # Alpha V11 work checkpoint
 
+## One isolated slice-3 repair worker launched — 2026-10-01 12:14 UTC
+
+Independent review/evidence committed locally as `afe6b16`; exact candidate
+`8e446fd` remains unaccepted. Started exactly one Sonnet/high persistent repair
+worker in new worktree `/tmp/alpha-v11-gate3-v4-slice3-repair-20261001`, branch
+`r09-gate3-v4-slice3-repair-20261001`, based on `8e446fd`. Its task is the
+eight concrete review findings R1–R8, with synthetic adapters only and fresh
+review mandatory. Runner `1590679` and Claude child `1590680` were verified
+live after detachment; the log was empty and no terminal existed at that check.
+Prompt, runner, PID, child PID, launch log, worker log and terminal paths use
+that same worktree prefix with `.prompt.txt`, `.runner.py`, `.pid`,
+`.child.pid`, `.launch.log`, `.worker.log`, `.terminal.json` suffixes.
+Terminal markers are `GATE3_SLICE3_REPAIR_CANDIDATE_READY` or
+`GATE3_SLICE3_REPAIR_BLOCKED`; recover actual processes/worktree/logs before
+acting, never duplicate this writer. Original runtime/mapping worktrees stay
+preserved; mapping `15f054f` remains available for its separate review.
+
+No merge, push, provider request or launch occurred. Next coordinator step:
+recover this worker, advance the independent mapping review when resources
+permit, and review any finished repair at its exact commit before newer-main
+reconciliation. G3-L NO-GO; **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**, unchanged.
+
 ## Slice-3 exact-commit review: CHANGES_REQUIRED — 2026-10-01 12:11 UTC
 
 Astra/high completed the independent review of `9c3e748..8e446fd`, tree

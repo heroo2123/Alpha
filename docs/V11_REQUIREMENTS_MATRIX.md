@@ -1,5 +1,13 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Slice-3 repairs running in isolation — 2026-10-01 12:14 UTC
+
+Review `afe6b16` is durable. One Sonnet/high worker is repairing R1–R8 in
+`/tmp/alpha-v11-gate3-v4-slice3-repair-20261001`, based on `8e446fd`.
+No candidate acceptance, merge or evidence award; mapping review remains
+independent and pending. G3-L NO-GO. **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Slice-3 independent review requires repairs — 2026-10-01 12:11 UTC
 
 Exact runtime `8e446fd` reviewed **CHANGES_REQUIRED**: six P1 and two P2
