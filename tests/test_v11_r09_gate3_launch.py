@@ -809,7 +809,7 @@ def test_budget_rejects_event_count_past_fixed_cap(tmp_path, monkeypatch):
         assert budget.received == 2 and budget.uncertain_received_bytes == 1
         assert not budget.failed, 'capacity exhaustion is a clean refusal, not a durability fault'
         assert budget.in_flight == 'first'
-        with pytest.raises(LaunchContractError, match='JOURNAL_EVENT_CAPACITY'):
+        with pytest.raises(LaunchContractError, match='JOURNAL_DELIVERY_UNCERTAIN'):
             budget.complete('first')
     with DurableBudget(root, 'c' * 64, max_bytes=1024 ** 2) as budget:
         assert budget.in_flight == 'first' and budget.received == 1
@@ -850,3 +850,88 @@ def test_replay_rejects_unterminated_record_past_record_cap(tmp_path):
         fh.write(b'{' + b'x' * (launch.JOURNAL_RECORD_MAX_BYTES + 1))
     with pytest.raises(LaunchContractError, match='JOURNAL_RECORD_TOO_LARGE'):
         DurableBudget(root, 'e' * 64, max_bytes=1)
+
+
+def test_replay_many_valid_records_across_read_boundaries_and_short_reads(tmp_path, monkeypatch):
+    root = tmp_path / 'budget_many_records'
+    root.mkdir(mode=0o700)
+    with DurableBudget(root, '9' * 64, max_bytes=2000) as budget:
+        budget.reserve('one', 2000, started_monotonic=0)
+        for _ in range(700):
+            budget.consume('one', b'x')
+        budget.complete('one')
+    assert (root / 'gate3.jsonl').stat().st_size > 2 * launch.JOURNAL_READ_CHUNK_BYTES
+    monkeypatch.setattr(launch, 'JOURNAL_READ_CHUNK_BYTES', 7)
+    with DurableBudget(root, '9' * 64, max_bytes=2000) as reopened:
+        assert reopened.received == 700
+        assert reopened.in_flight is None
+        assert reopened.attempts['one']['finished']
+
+
+def test_replay_exact_newline_inclusive_record_cap(tmp_path, monkeypatch):
+    root = tmp_path / 'budget_exact_record'
+    root.mkdir(mode=0o700)
+    with DurableBudget(root, '8' * 64, max_bytes=1) as budget:
+        def encoded_size(key):
+            event = {'op': 'reserve', 'key': key, 'bytes': 1,
+                     'started_monotonic': 0}
+            record = {'seq': len(budget.events), 'prev': budget.prev, 'event': event}
+            record['hash'] = hashlib.sha256(canonical(record)).hexdigest()
+            return len(canonical(record) + b'\n')
+        key = 'k' * (launch.JOURNAL_RECORD_MAX_BYTES - encoded_size(''))
+        assert encoded_size(key) == launch.JOURNAL_RECORD_MAX_BYTES
+        budget.reserve(key, 1, started_monotonic=0)
+    monkeypatch.setattr(launch, 'JOURNAL_READ_CHUNK_BYTES', 31)
+    with DurableBudget(root, '8' * 64, max_bytes=1) as reopened:
+        assert reopened.in_flight == key
+
+
+def test_byte_capacity_refusal_after_delivery_cannot_complete_or_refund(tmp_path, monkeypatch):
+    root = tmp_path / 'budget_byte_refusal'
+    root.mkdir(mode=0o700)
+    with DurableBudget(root, '7' * 64, max_bytes=10) as budget:
+        budget.reserve('one', 10, started_monotonic=0)
+        cap = launch.JOURNAL_MAX_BYTES
+        complete_event = {'op': 'complete', 'key': 'one'}
+        record = {'seq': len(budget.events), 'prev': budget.prev, 'event': complete_event}
+        record['hash'] = hashlib.sha256(canonical(record)).hexdigest()
+        monkeypatch.setattr(launch, 'JOURNAL_MAX_BYTES',
+                            budget._journal_bytes + len(canonical(record) + b'\n'))
+        with pytest.raises(LaunchContractError, match='JOURNAL_CAPACITY_EXCEEDED'):
+            budget.consume('one', b'xyz')
+        assert budget.uncertain_received_bytes == 3
+        assert budget.reserved == 10 and budget.in_flight == 'one'
+        assert budget.delivery_held and not budget.failed
+        with pytest.raises(LaunchContractError, match='JOURNAL_DELIVERY_UNCERTAIN'):
+            budget.complete('one')
+        with pytest.raises(LaunchContractError, match='JOURNAL_DELIVERY_UNCERTAIN'):
+            budget.next_read_limit(1)
+        monkeypatch.setattr(launch, 'JOURNAL_MAX_BYTES', cap)
+    with DurableBudget(root, '7' * 64, max_bytes=10) as reopened:
+        assert reopened.reserved == 10 and reopened.in_flight == 'one'
+        assert reopened.received == 0  # no invented receipt bytes
+        with pytest.raises(LaunchContractError, match='UNCERTAIN_REQUEST_HELD'):
+            reopened.reserve('two', 1, started_monotonic=2)
+
+
+@pytest.mark.parametrize('boundary,overdelivery', [
+    ('record', False), ('event', False), ('record', True), ('event', True)])
+def test_post_delivery_append_refusal_holds_every_kind(tmp_path, monkeypatch,
+                                                       boundary, overdelivery):
+    root = tmp_path / ('budget_' + boundary + str(overdelivery))
+    root.mkdir(mode=0o700)
+    with DurableBudget(root, '6' * 64, max_bytes=1) as budget:
+        budget.reserve('one', 1, started_monotonic=0)
+        if boundary == 'event':
+            monkeypatch.setattr(launch, 'JOURNAL_MAX_EVENTS', len(budget.events))
+        else:
+            monkeypatch.setattr(launch, 'JOURNAL_RECORD_MAX_BYTES', 1)
+        with pytest.raises(LaunchContractError, match='JOURNAL_(EVENT_CAPACITY|RECORD_TOO_LARGE)'):
+            budget.consume('one', b'xx' if overdelivery else b'x')
+        assert budget.delivery_held and budget.in_flight == 'one'
+        with pytest.raises(LaunchContractError, match='JOURNAL_DELIVERY_UNCERTAIN'):
+            budget.complete('one')
+    monkeypatch.undo()
+    with DurableBudget(root, '6' * 64, max_bytes=1) as reopened:
+        assert reopened.in_flight == 'one' and reopened.reserved == 1
+        assert reopened.received == 0

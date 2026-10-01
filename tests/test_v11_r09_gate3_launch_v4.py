@@ -82,6 +82,14 @@ def candidate(tmp_path, monkeypatch):
     monkeypatch.setattr(launch, 'PINNED_ADDENDUM_DOC', artifact_sha)
     monkeypatch.setattr(launch_v4, 'PINNED_ORIGINAL_DOC', artifact_sha)
     monkeypatch.setattr(launch_v4, 'PINNED_ADDENDUM_DOC', artifact_sha)
+    design_refs = {key: review_artifact('design:' + key)
+                   for key in ('document', 'report', 'terminal')}
+    for constant, value in (('PINNED_DESIGN_COMMIT', commit),
+                            ('PINNED_DESIGN_TREE', tree),
+                            ('PINNED_DESIGN_DOC', design_refs['document']['sha256']),
+                            ('PINNED_DESIGN_REVIEW_REPORT', design_refs['report']['sha256']),
+                            ('PINNED_DESIGN_REVIEW_TERMINAL', design_refs['terminal']['sha256'])):
+        monkeypatch.setattr(launch_v4, constant, value)
     start = int(datetime(2027, 2, 28, 14, tzinfo=timezone.utc).timestamp())
     runs = {p: start - 14 * 3600 for p in ('GEFS', 'IFS', 'AIFS')}
     slots = _slot_inventory(runs)
@@ -98,18 +106,32 @@ def candidate(tmp_path, monkeypatch):
                    'publication_attestation': None,
                    'publication_absence_reason': 'not published in synthetic fixture'}
                for p in runs}
+    for provider, source in sources.items():
+        domain = review_artifact(provider + ':control-domain')
+        source['control_domain'] = domain
+        source['purpose_mappings'] = {
+            purpose: {'origin': source['origin'],
+                      'path_template': source['path_template'],
+                      'control_domain_id': domain['sha256'],
+                      'mapping_evidence': review_artifact(provider + ':' + purpose + ':mapping'),
+                      'validator': review_artifact(provider + ':' + purpose + ':validator'),
+                      'response_contract': review_artifact(provider + ':' + purpose + ':contract')}
+            for purpose in PURPOSES}
     endpoints = []
     for provider in ('GEFS', 'IFS', 'AIFS'):
         origin = sources[provider]['origin']
-        template = sources[provider]['path_template']
         for purpose in PURPOSES:
+            mapping = sources[provider]['purpose_mappings'][purpose]
+            mapped_origin = mapping['origin']
+            template = mapping['path_template']
             endpoints.append({
-                'endpoint_id': _endpoint_id(provider, origin, template, purpose),
-                'provider': provider, 'control_domain_id': _control_domain_id(provider, origin),
-                'origin': origin, 'method': 'GET', 'purpose': purpose,
+                'endpoint_id': _endpoint_id(provider, mapped_origin, template, purpose),
+                'provider': provider, 'control_domain_id': mapping['control_domain_id'],
+                'origin': mapped_origin, 'method': 'GET', 'purpose': purpose,
                 'path_template': template, 'dossier': artifact,
-                'access_reference': artifact, 'response_contract': artifact,
-                'parser_identity': artifact})
+                'access_reference': mapping['mapping_evidence'],
+                'response_contract': mapping['response_contract'],
+                'parser_identity': mapping['validator']})
     first_use_origins = []
     for entry in endpoints:
         if entry['origin'] not in first_use_origins:
@@ -129,11 +151,13 @@ def candidate(tmp_path, monkeypatch):
                      'reviews': [{'name': name,
                                   'report': review_artifact(name + ':report'),
                                   'terminal': review_artifact(name + ':terminal')}
-                                 for name in sorted(launch.REQUIRED_REVIEW_NAMES)]},
+                                 for name in sorted(launch.REQUIRED_REVIEW_NAMES)],
+                     'reviewed_design': {'commit_oid': commit, 'tree_oid': tree,
+                                         **design_refs}},
         'storage': {'root': str(root), 'owner_uid': os.getuid(), 'mode': 0o700,
                     'directory_dev': st.st_dev, 'directory_inode': st.st_ino,
                     'layout': 'OBJECTS_AND_APPEND_ONLY_LEDGER', 'exclusive_lock': True,
-                    'atomic_fsync_seal': True, 'report_reserve_bytes': 4096,
+                    'atomic_fsync_seal': True, 'report_reserve_bytes': launch_v4.REPORT_RESERVE_BYTES,
                     'no_reclamation': True},
         'cohort': {'station_id': 'SYNTHETIC_STATION', 'station_version': 'v1',
                    'latitude': 0.0, 'longitude': 0.0, 'timezone': 'UTC',
@@ -185,7 +209,7 @@ def candidate(tmp_path, monkeypatch):
                    'min_free_disk_bytes': 2 * 1024 ** 3,
                    'min_available_memory_bytes': 512 * 1024 ** 2,
                    'headers': 1024, 'metadata': 4096, 'decoded': 1024 ** 2,
-                   'report_storage': 4096},
+                   'report_storage': launch_v4.REPORT_RESERVE_BYTES},
         'schedule': {'slot_inventory_sha256': hashlib.sha256(canonical(slots)).hexdigest(),
                      'attempt_slots': [0],
                      'requests': [],
@@ -213,7 +237,24 @@ def candidate(tmp_path, monkeypatch):
                     'journal_bounds': {'max_bytes': launch.JOURNAL_MAX_BYTES,
                                        'record_max_bytes': launch.JOURNAL_RECORD_MAX_BYTES,
                                        'max_events': launch.JOURNAL_MAX_EVENTS},
-                    'clock_policy': artifact}}
+                    'clock_policy': artifact,
+                    'resource_bounds': {
+                        'session_journal_max_bytes': launch.JOURNAL_MAX_BYTES,
+                        'denial_journal_max_bytes': launch.JOURNAL_MAX_BYTES,
+                        'store_journal_max_bytes': launch.JOURNAL_MAX_BYTES,
+                        'journal_record_max_bytes': launch.JOURNAL_RECORD_MAX_BYTES,
+                        'session_journal_max_events': launch_v4.SESSION_JOURNAL_MAX_EVENTS,
+                        'denial_journal_max_events': launch_v4.SESSION_JOURNAL_MAX_EVENTS,
+                        'store_max_events': launch_v4.STORE_MAX_EVENTS,
+                        'store_object_max_bytes': launch_v4.STORE_OBJECT_MAX_BYTES,
+                        'store_max_objects': launch_v4.STORE_MAX_OBJECTS,
+                        'descriptor_max_bytes': 4096,
+                        'clock_record_max_bytes': 16384,
+                        'receipt_max_dependencies': 256,
+                        'max_body_chunks_per_request': 32,
+                        'report_reserve_bytes': launch_v4.REPORT_RESERVE_BYTES,
+                        'required_store_objects': 9,
+                        'local_storage_quota_bytes': 1024 ** 3}}}
     payload['schedule']['requests'] = [
         request_for_slot(payload, 0, purpose, position,
                          3145728 if purpose == 'INDEX' else
@@ -227,13 +268,25 @@ def candidate(tmp_path, monkeypatch):
 def request_for_slot(payload, slot_index, purpose, position, reservation, prerequisites):
     provider, run, member, hour = payload['runs_and_slots']['slots'][slot_index]
     source = payload['sources'][provider]
-    path = source['path_template'].format(run=run, member=member, hour=hour)
-    object_id = hashlib.sha256(canonical([provider, source['origin'], path])).hexdigest()
-    index_id = hashlib.sha256(canonical([object_id, 'INDEX'])).hexdigest()
+    field_path = source['path_template'].format(run=run, member=member, hour=hour)
+    mapping = source['purpose_mappings'][purpose]
+    index_mapping = source['purpose_mappings']['INDEX']
+    index_path = index_mapping['path_template'].format(run=run, member=member, hour=hour)
+    object_mapping = source['purpose_mappings']['OBJECT_ID']
+    object_path = object_mapping['path_template'].format(run=run, member=member, hour=hour)
+    object_id = hashlib.sha256(canonical([
+        provider, source['origin'], field_path,
+        source['purpose_mappings']['FIELD']['mapping_evidence']['sha256'],
+        object_mapping['origin'], object_path,
+        object_mapping['mapping_evidence']['sha256']])).hexdigest()
+    index_id = hashlib.sha256(canonical([
+        object_id, index_mapping['origin'], index_path,
+        index_mapping['mapping_evidence']['sha256']])).hexdigest()
     cache_id = hashlib.sha256(canonical([object_id, index_id])).hexdigest()
-    endpoint_id = _endpoint_id(provider, source['origin'], source['path_template'], purpose)
+    endpoint_id = _endpoint_id(provider, mapping['origin'], mapping['path_template'], purpose)
+    path = mapping['path_template'].format(run=run, member=member, hour=hour)
     return {'request_id': f'request_{position}', 'purpose': purpose,
-            'slot_index': slot_index, 'provider': provider, 'origin': source['origin'],
+            'slot_index': slot_index, 'provider': provider, 'origin': mapping['origin'],
             'path': path, 'object_id': object_id, 'index_id': index_id,
             'cache_id': cache_id, 'endpoint_id': endpoint_id,
             'range_start': 0 if purpose == 'FIELD' else None,
@@ -415,4 +468,148 @@ def test_denial_root_history_head_must_be_hex_digest(tmp_path, monkeypatch):
     payload, repo, root, start = candidate(tmp_path, monkeypatch)
     payload['runtime']['denial_root']['expected_history_head'] = 'not-a-digest'
     with pytest.raises(LaunchContractError, match='RUNTIME_DENIAL_HISTORY_HEAD'):
+        validate(payload, repo, root, start)
+
+
+def _rebind_endpoints_and_requests(payload):
+    """Build honest endpoint and request identities from changed source mappings."""
+    endpoints = []
+    for provider, source in payload['sources'].items():
+        for purpose in PURPOSES:
+            mapping = source['purpose_mappings'][purpose]
+            endpoints.append({
+                'endpoint_id': _endpoint_id(provider, mapping['origin'],
+                                            mapping['path_template'], purpose),
+                'provider': provider, 'control_domain_id': mapping['control_domain_id'],
+                'origin': mapping['origin'], 'method': 'GET', 'purpose': purpose,
+                'path_template': mapping['path_template'], 'dossier': source['dossier'],
+                'access_reference': mapping['mapping_evidence'],
+                'response_contract': mapping['response_contract'],
+                'parser_identity': mapping['validator']})
+    payload['network']['endpoints'] = endpoints
+    payload['network']['origins'] = list(dict.fromkeys(e['origin'] for e in endpoints))
+    requests = payload['schedule']['requests']
+    payload['schedule']['requests'] = [
+        request_for_slot(payload, request['slot_index'], request['purpose'], index,
+                         request['reservation_bytes'], request['prerequisites'])
+        for index, request in enumerate(requests)]
+    _freeze_runtime(payload)
+
+
+def test_explicit_separate_index_and_metadata_paths_and_related_origin_pass(tmp_path, monkeypatch):
+    payload, repo, root, start = candidate(tmp_path, monkeypatch)
+    source = payload['sources']['GEFS']
+    source['purpose_mappings']['INDEX']['path_template'] = '/index/{run}/{member}/{hour}.idx'
+    source['purpose_mappings']['OBJECT_ID']['path_template'] = '/object/{run}/{member}/{hour}.json'
+    source['purpose_mappings']['METADATA']['origin'] = 'https://official.example.invalid'
+    source['purpose_mappings']['METADATA']['path_template'] = '/metadata/event'
+    _rebind_endpoints_and_requests(payload)
+    assert payload['schedule']['requests'][0]['path'].endswith('.idx')
+    assert payload['schedule']['requests'][2]['origin'] == 'https://official.example.invalid'
+    assert payload['schedule']['requests'][3]['path'] != payload['schedule']['requests'][0]['path']
+    assert len(validate(payload, repo, root, start)) == 64
+
+
+def test_implicit_index_suffix_without_reviewed_mapping_refuses(tmp_path, monkeypatch):
+    payload, repo, root, start = candidate(tmp_path, monkeypatch)
+    payload['schedule']['requests'][0]['path'] += '.idx'
+    _freeze_runtime(payload)
+    with pytest.raises(LaunchContractError, match='SCHEDULE_OBJECT_BINDING'):
+        validate(payload, repo, root, start)
+
+
+def test_missing_or_substituted_purpose_mapping_refuses(tmp_path, monkeypatch):
+    payload, repo, root, start = candidate(tmp_path, monkeypatch)
+    payload['sources']['GEFS']['purpose_mappings'].pop('INDEX')
+    with pytest.raises(LaunchContractError, match='SOURCE_PURPOSE_MAPPINGS'):
+        validate(payload, repo, root, start)
+    (tmp_path / 'second').mkdir()
+    payload, repo, root, start = candidate(tmp_path / 'second', monkeypatch)
+    payload['sources']['GEFS']['purpose_mappings']['INDEX']['validator'] = (
+        payload['sources']['GEFS']['purpose_mappings']['FIELD']['validator'])
+    with pytest.raises(LaunchContractError, match='ENDPOINT_SOURCE_BINDING'):
+        validate(payload, repo, root, start)
+
+
+def test_unapproved_origin_or_wrong_control_domain_refuses(tmp_path, monkeypatch):
+    payload, repo, root, start = candidate(tmp_path, monkeypatch)
+    payload['network']['endpoints'][0]['origin'] = 'https://unmapped.example.invalid'
+    with pytest.raises(LaunchContractError, match='ENDPOINT_SOURCE_BINDING'):
+        validate(payload, repo, root, start)
+    (tmp_path / 'second').mkdir()
+    payload, repo, root, start = candidate(tmp_path / 'second', monkeypatch)
+    payload['network']['endpoints'][0]['control_domain_id'] = 'f' * 64
+    with pytest.raises(LaunchContractError, match='CONTROL_DOMAIN_DERIVATION'):
+        validate(payload, repo, root, start)
+
+
+@pytest.mark.parametrize('interval,feasible', [(2, 246), (40, 360)])
+def test_v4_conservative_post_close_timing_boundary(tmp_path, monkeypatch,
+                                                     interval, feasible):
+    payload, repo, root, start = candidate(tmp_path, monkeypatch)
+    payload['limits']['min_start_interval_seconds'] = interval
+    payload['limits']['max_elapsed_seconds'] = feasible
+    assert len(validate(payload, repo, root, start)) == 64
+    payload['limits']['max_elapsed_seconds'] = feasible - 1
+    with pytest.raises(LaunchContractError, match='SCHEDULE_TIME_FEASIBILITY'):
+        validate(payload, repo, root, start)
+
+
+def test_v4_report_reserve_and_storage_boundaries(tmp_path, monkeypatch):
+    payload, repo, root, start = candidate(tmp_path, monkeypatch)
+    assert len(validate(payload, repo, root, start)) == 64
+    payload['storage']['report_reserve_bytes'] -= 1
+    with pytest.raises(LaunchContractError, match='REPORT_RESERVE'):
+        validate(payload, repo, root, start)
+    payload['storage']['report_reserve_bytes'] += 1
+    payload['limits']['report_storage'] -= 1
+    with pytest.raises(LaunchContractError, match='REPORT_STORAGE_BOUND'):
+        validate(payload, repo, root, start)
+    payload['limits']['report_storage'] += 1
+    resources = payload['runtime']['resource_bounds']
+    required = (4 * launch.JOURNAL_MAX_BYTES +
+                payload['storage']['report_reserve_bytes'] +
+                resources['required_store_objects'] * launch_v4.STORE_OBJECT_MAX_BYTES +
+                payload['limits']['decoded'] +
+                payload['schedule']['reservation_total_bytes'])
+    resources['local_storage_quota_bytes'] = required
+    assert len(validate(payload, repo, root, start)) == 64
+    resources['local_storage_quota_bytes'] -= 1
+    with pytest.raises(LaunchContractError, match='RUNTIME_STORAGE_QUOTA'):
+        validate(payload, repo, root, start)
+
+
+def test_v4_metadata_header_and_resource_caps(tmp_path, monkeypatch):
+    payload, repo, root, start = candidate(tmp_path, monkeypatch)
+    payload['limits']['headers'] = 4096
+    assert len(validate(payload, repo, root, start)) == 64
+    payload['limits']['headers'] = 4097
+    with pytest.raises(LaunchContractError, match='HEADER_BOUND'):
+        validate(payload, repo, root, start)
+    payload['limits']['headers'] = 4096
+    payload['limits']['metadata'] = launch_v4.METADATA_MAX_BYTES + 1
+    with pytest.raises(LaunchContractError, match='METADATA_BOUND'):
+        validate(payload, repo, root, start)
+    payload['limits']['metadata'] = launch_v4.METADATA_MAX_BYTES
+    for request in payload['schedule']['requests']:
+        if request['purpose'] in ('OBJECT_ID', 'METADATA'):
+            request['reservation_bytes'] = launch_v4.METADATA_MAX_BYTES
+    payload['schedule']['reservation_total_bytes'] = sum(
+        r['reservation_bytes'] for r in payload['schedule']['requests'])
+    _freeze_runtime(payload)
+    assert len(validate(payload, repo, root, start)) == 64
+    payload['runtime']['resource_bounds']['session_journal_max_events'] += 1
+    with pytest.raises(LaunchContractError, match='RUNTIME_RESOURCE_BOUNDS'):
+        validate(payload, repo, root, start)
+
+
+def test_v4_reviewed_design_binding_required_and_pinned(tmp_path, monkeypatch):
+    payload, repo, root, start = candidate(tmp_path, monkeypatch)
+    assert len(validate(payload, repo, root, start)) == 64
+    design = payload['protocol'].pop('reviewed_design')
+    with pytest.raises(LaunchContractError, match='PROTOCOL_SCHEMA'):
+        validate(payload, repo, root, start)
+    payload['protocol']['reviewed_design'] = design
+    design['report'] = payload['protocol']['reviews'][0]['report']
+    with pytest.raises(LaunchContractError, match='DESIGN_REVIEW_PIN_MISMATCH'):
         validate(payload, repo, root, start)

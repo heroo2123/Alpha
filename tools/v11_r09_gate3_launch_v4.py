@@ -34,6 +34,17 @@ from tools.v11_r09_gate3_launch import (
 )
 
 SCHEMA = 'R09_GATE3_LAUNCH_MANIFEST_V4'
+PINNED_DESIGN_COMMIT = '7e132a02ae0fcceed5e3fea65f7b86bed4a92c23'
+PINNED_DESIGN_TREE = '89332f46dfc6b2111fe331fca54467cce96a3895'
+PINNED_DESIGN_DOC = '0b121fbc422208e2fa89e0b2f7362725cac60115ada966ed83b9d1ed15ac8e4a'
+PINNED_DESIGN_REVIEW_REPORT = 'f91c848b8626bae718d1c07c2a50194ae303e36f16fb2bc8a776b75cca0b942b'
+PINNED_DESIGN_REVIEW_TERMINAL = '3c583f854ab7f8eff7b36d83a2571b9aa80181664391d2469e12e30f10a0349c'
+REPORT_RESERVE_BYTES = 16 * 1024 ** 2
+METADATA_MAX_BYTES = 4 * 1024 ** 2
+SESSION_JOURNAL_MAX_EVENTS = 32768
+STORE_MAX_OBJECTS = 4096
+STORE_MAX_EVENTS = 10000
+STORE_OBJECT_MAX_BYTES = 4 * 1024 ** 2
 PURPOSES = ('FIELD', 'INDEX', 'OBJECT_ID', 'METADATA', 'PROBE')
 OBSERVATION_PHASES = ('request_start', 'body_receipt', 'decode_complete', 'durable_seal')
 GROUPS = ('identity', 'code', 'protocol', 'storage', 'cohort', 'time',
@@ -71,7 +82,7 @@ def validate_manifest_v4(raw, *, repo, object_root, now_utc):
     protocol = payload['protocol']
     exact(protocol, ('original_commit_oid', 'original_tree_oid', 'original_document',
                      'addendum_commit_oid', 'addendum_tree_oid', 'addendum_document',
-                     'reviews'), 'PROTOCOL_SCHEMA')
+                     'reviews', 'reviewed_design'), 'PROTOCOL_SCHEMA')
     check(type(protocol['reviews']) is list and len(protocol['reviews']) == 5,
           'PROTOCOL_REVIEWS_REQUIRED')
     for key in ('original_document', 'addendum_document'):
@@ -106,6 +117,23 @@ def validate_manifest_v4(raw, *, repo, object_root, now_utc):
            protocol['addendum_document']['sha256']) ==
           (PINNED_ADDENDUM_COMMIT, PINNED_ADDENDUM_TREE, PINNED_ADDENDUM_DOC),
           'PROTOCOL_PIN_MISMATCH')
+    design = protocol['reviewed_design']
+    exact(design, ('commit_oid', 'tree_oid', 'document', 'report', 'terminal'),
+          'DESIGN_REVIEW_SCHEMA')
+    for key in ('document', 'report', 'terminal'):
+        ref(design[key], 'DESIGN_REVIEW_REF')
+    check((design['commit_oid'], design['tree_oid'],
+           design['document']['sha256'], design['report']['sha256'],
+           design['terminal']['sha256']) ==
+          (PINNED_DESIGN_COMMIT, PINNED_DESIGN_TREE, PINNED_DESIGN_DOC,
+           PINNED_DESIGN_REVIEW_REPORT, PINNED_DESIGN_REVIEW_TERMINAL) and
+          _git(repo, 'cat-file', '-t', design['commit_oid']) == 'commit' and
+          _git(repo, 'rev-parse', design['commit_oid'] + '^{tree}') ==
+          design['tree_oid'] and
+          not ({design[k]['sha256'] for k in ('report', 'terminal')} &
+               (report_hashes | terminal_hashes)) and
+          design['report']['sha256'] != design['terminal']['sha256'],
+          'DESIGN_REVIEW_PIN_MISMATCH')
 
     storage = payload['storage']
     exact(storage, ('root', 'owner_uid', 'mode', 'directory_dev', 'directory_inode',
@@ -131,7 +159,7 @@ def validate_manifest_v4(raw, *, repo, object_root, now_utc):
     check(storage['mode'] == 0o700 and storage['layout'] == 'OBJECTS_AND_APPEND_ONLY_LEDGER' and
           storage['exclusive_lock'] is True and storage['atomic_fsync_seal'] is True and
           storage['no_reclamation'] is True, 'STORAGE_POLICY')
-    integer(storage['report_reserve_bytes'], 1, MAX_BYTES, 'REPORT_RESERVE')
+    integer(storage['report_reserve_bytes'], REPORT_RESERVE_BYTES, MAX_BYTES, 'REPORT_RESERVE')
 
     cohort = payload['cohort']
     exact(cohort, ('station_id', 'station_version', 'latitude', 'longitude', 'timezone',
@@ -207,7 +235,8 @@ def validate_manifest_v4(raw, *, repo, object_root, now_utc):
                        'range_evidence', 'decoder_build', 'origin', 'path_template',
                        'publication_attestation', 'publication_absence_reason',
                        'member_range', 'native_hours', 'identity_pins',
-                       'effective_run_start_utc', 'effective_run_end_utc'),
+                       'effective_run_start_utc', 'effective_run_end_utc',
+                       'control_domain', 'purpose_mappings'),
               'SOURCE_SCHEMA')
         for key in ('dossier', 'release_document', 'licence', 'index_evidence',
                     'range_evidence', 'decoder_build', 'identity_pins'):
@@ -224,6 +253,31 @@ def validate_manifest_v4(raw, *, repo, object_root, now_utc):
               type(source['effective_run_end_utc']) is int and
               source['effective_run_start_utc'] <= source['effective_run_end_utc'],
               'SOURCE_EFFECTIVE_INTERVAL')
+        ref(source['control_domain'], 'CONTROL_DOMAIN_REF')
+        mappings = source['purpose_mappings']
+        exact(mappings, PURPOSES, 'SOURCE_PURPOSE_MAPPINGS')
+        for purpose, mapping in mappings.items():
+            exact(mapping, ('origin', 'path_template', 'control_domain_id',
+                            'mapping_evidence', 'validator', 'response_contract'), 'SOURCE_MAPPING_SCHEMA')
+            for key in ('mapping_evidence', 'validator', 'response_contract'):
+                ref(mapping[key], 'SOURCE_MAPPING_REF')
+            check(mapping['control_domain_id'] == source['control_domain']['sha256'],
+                  'CONTROL_DOMAIN_BINDING')
+            mapping_template = mapping['path_template']
+            check(_public_https_origin(mapping['origin']) and
+                  type(mapping_template) is str and
+                  _canonical_request_path(mapping['origin'], mapping_template) and
+                  all(mapping_template.count(token) <= 1 for token in
+                      ('{run}', '{member}', '{hour}')) and
+                  '{' not in mapping_template.replace('{run}', '').replace(
+                      '{member}', '').replace('{hour}', '') and
+                  '}' not in mapping_template.replace('{run}', '').replace(
+                      '{member}', '').replace('{hour}', '') and
+                  re.fullmatch(r'[A-Za-z0-9_/{}/.-]+', mapping_template) is not None,
+                  'SOURCE_MAPPING_PATH')
+        check(mappings['FIELD']['origin'] == source['origin'] and
+              mappings['FIELD']['path_template'] == source['path_template'],
+              'FIELD_SOURCE_MAPPING')
         template = source['path_template']
         check(_public_https_origin(source['origin']) and
               type(source['path_template']) is str and
@@ -321,8 +375,13 @@ def validate_manifest_v4(raw, *, repo, object_root, now_utc):
         check(entry['provider'] in SLOTS and entry['purpose'] in PURPOSES and
               entry['method'] == 'GET', 'ENDPOINT_VALUE')
         source = sources[entry['provider']]
-        check(entry['origin'] == source['origin'] and
-              entry['path_template'] == source['path_template'],
+        mapping = source['purpose_mappings'][entry['purpose']]
+        check(entry['origin'] == mapping['origin'] and
+              entry['path_template'] == mapping['path_template'] and
+              entry['dossier'] == source['dossier'] and
+              entry['access_reference'] == mapping['mapping_evidence'] and
+              entry['parser_identity'] == mapping['validator'] and
+              entry['response_contract'] == mapping['response_contract'],
               'ENDPOINT_SOURCE_BINDING')
         expected_id = hashlib.sha256(canonical(
             [entry['provider'], entry['origin'], entry['path_template'],
@@ -330,8 +389,7 @@ def validate_manifest_v4(raw, *, repo, object_root, now_utc):
         check(entry['endpoint_id'] == expected_id and entry['endpoint_id'] not in endpoint_ids,
               'ENDPOINT_ID_DERIVATION')
         endpoint_ids.add(entry['endpoint_id'])
-        expected_domain = hashlib.sha256(canonical(
-            [entry['provider'], entry['origin']])).hexdigest()
+        expected_domain = mapping['control_domain_id']
         check(entry['control_domain_id'] == expected_domain, 'CONTROL_DOMAIN_DERIVATION')
         for key in ('dossier', 'access_reference', 'response_contract', 'parser_identity'):
             ref(entry[key], 'ENDPOINT_EVIDENCE_REF')
@@ -365,8 +423,11 @@ def validate_manifest_v4(raw, *, repo, object_root, now_utc):
     check(limits['min_free_disk_bytes'] >= 2 * 1024 ** 3 and
           limits['min_available_memory_bytes'] >= 512 * 1024 ** 2,
           'RESOURCE_MINIMUM')
-    for key in ('headers', 'metadata', 'decoded', 'report_storage'):
-        integer(limits[key], 1, MAX_BYTES, 'RESOURCE_BOUND')
+    integer(limits['headers'], 1, 4096, 'HEADER_BOUND')
+    integer(limits['metadata'], 1, METADATA_MAX_BYTES, 'METADATA_BOUND')
+    integer(limits['decoded'], 1, MAX_BYTES, 'DECODED_BOUND')
+    integer(limits['report_storage'], REPORT_RESERVE_BYTES, MAX_BYTES,
+            'REPORT_STORAGE_BOUND')
     check(limits['report_storage'] <= storage['report_reserve_bytes'],
           'REPORT_RESERVE_INSUFFICIENT')
 
@@ -414,12 +475,29 @@ def validate_manifest_v4(raw, *, repo, object_root, now_utc):
               'SCHEDULE_SLOT_BINDING')
         provider, run, member, hour = expected[index]
         source = sources[provider]
-        path = source['path_template'].format(run=run, member=member, hour=hour)
-        object_id = hashlib.sha256(canonical([provider, source['origin'], path])).hexdigest()
-        index_id = hashlib.sha256(canonical([object_id, 'INDEX'])).hexdigest()
+        field_path = source['path_template'].format(run=run, member=member, hour=hour)
+        mapping = source['purpose_mappings'][request['purpose']]
+        request_path = mapping['path_template'].format(
+            run=run, member=member, hour=hour)
+        index_mapping = source['purpose_mappings']['INDEX']
+        index_path = index_mapping['path_template'].format(
+            run=run, member=member, hour=hour)
+        object_mapping = source['purpose_mappings']['OBJECT_ID']
+        object_path = object_mapping['path_template'].format(
+            run=run, member=member, hour=hour)
+        object_id = hashlib.sha256(canonical([
+            provider, source['origin'], field_path,
+            source['purpose_mappings']['FIELD']['mapping_evidence']['sha256'],
+            object_mapping['origin'], object_path,
+            object_mapping['mapping_evidence']['sha256']])).hexdigest()
+        index_id = hashlib.sha256(canonical(
+            [object_id, index_mapping['origin'], index_path,
+             index_mapping['mapping_evidence']['sha256']])).hexdigest()
         cache_id = hashlib.sha256(canonical([object_id, index_id])).hexdigest()
-        check(request['provider'] == provider and request['origin'] == source['origin'] and
-              request['path'] == path and request['object_id'] == object_id and
+        check(request['provider'] == provider and
+              request['origin'] == mapping['origin'] and
+              request['path'] == request_path and
+              request['object_id'] == object_id and
               request['index_id'] == index_id and request['cache_id'] == cache_id,
               'SCHEDULE_OBJECT_BINDING')
         endpoint = endpoints_by_id.get(request['endpoint_id'])
@@ -437,7 +515,7 @@ def validate_manifest_v4(raw, *, repo, object_root, now_utc):
                    if i in prior_overhead} and
                   all(i in prior_overhead and
                       all(prior_overhead[i][k] == request[k] for k in
-                          ('provider', 'origin', 'path', 'object_id', 'index_id', 'cache_id'))
+                          ('provider', 'object_id', 'index_id', 'cache_id'))
                       for i in request['prerequisites']),
                   'FIELD_PREREQUISITES')
             minimum = limits['field_bytes'][provider]
@@ -475,9 +553,8 @@ def validate_manifest_v4(raw, *, repo, object_root, now_utc):
     integer(schedule['finalization_seconds'], 60, 10800,
             'SCHEDULE_FINALIZATION')
     count = len(schedule['requests'])
-    serial_seconds = ((count - 1) * max(limits['min_start_interval_seconds'],
-                                       limits['request_deadline_seconds']) +
-                      limits['request_deadline_seconds'] +
+    serial_seconds = (count * limits['request_deadline_seconds'] +
+                      (count - 1) * limits['min_start_interval_seconds'] +
                       schedule['processing_seconds'] + schedule['finalization_seconds'])
     check(serial_seconds <=
           limits['max_elapsed_seconds'], 'SCHEDULE_TIME_FEASIBILITY')
@@ -514,7 +591,8 @@ def validate_manifest_v4(raw, *, repo, object_root, now_utc):
 
     runtime = payload['runtime']
     exact(runtime, ('policy', 'schedule_digest', 'denial_root', 'session_root',
-                    'report_root', 'purpose_plan', 'journal_bounds', 'clock_policy'),
+                    'report_root', 'purpose_plan', 'journal_bounds', 'clock_policy',
+                    'resource_bounds'),
           'RUNTIME_SCHEMA')
     ref(runtime['policy'], 'RUNTIME_POLICY_REF')
     ref(runtime['clock_policy'], 'RUNTIME_CLOCK_POLICY_REF')
@@ -548,6 +626,53 @@ def validate_manifest_v4(raw, *, repo, object_root, now_utc):
     check(runtime['journal_bounds'] == {'max_bytes': JOURNAL_MAX_BYTES,
           'record_max_bytes': JOURNAL_RECORD_MAX_BYTES,
           'max_events': JOURNAL_MAX_EVENTS}, 'RUNTIME_JOURNAL_BOUNDS_MISMATCH')
+
+    resources = runtime['resource_bounds']
+    exact(resources, ('session_journal_max_bytes', 'denial_journal_max_bytes',
+                      'store_journal_max_bytes', 'journal_record_max_bytes',
+                      'session_journal_max_events', 'denial_journal_max_events',
+                      'store_max_events', 'store_object_max_bytes',
+                      'store_max_objects', 'descriptor_max_bytes',
+                      'clock_record_max_bytes', 'receipt_max_dependencies',
+                      'max_body_chunks_per_request', 'report_reserve_bytes', 'required_store_objects',
+                      'local_storage_quota_bytes'), 'RUNTIME_RESOURCE_SCHEMA')
+    graph_nodes = count
+    aggregates = 0
+    while graph_nodes > 1:
+        graph_nodes = (graph_nodes + 255) // 256
+        aggregates += graph_nodes
+    expected_objects = 2 * count + aggregates
+    fixed_resources = {
+        'session_journal_max_bytes': JOURNAL_MAX_BYTES,
+        'denial_journal_max_bytes': JOURNAL_MAX_BYTES,
+        'store_journal_max_bytes': JOURNAL_MAX_BYTES,
+        'journal_record_max_bytes': JOURNAL_RECORD_MAX_BYTES,
+        'session_journal_max_events': SESSION_JOURNAL_MAX_EVENTS,
+        'denial_journal_max_events': SESSION_JOURNAL_MAX_EVENTS,
+        'store_max_events': STORE_MAX_EVENTS,
+        'store_object_max_bytes': STORE_OBJECT_MAX_BYTES,
+        'store_max_objects': STORE_MAX_OBJECTS,
+        'descriptor_max_bytes': 4096,
+        'clock_record_max_bytes': 16384,
+        'receipt_max_dependencies': 256,
+        'max_body_chunks_per_request': 32,
+        'report_reserve_bytes': storage['report_reserve_bytes'],
+        'required_store_objects': expected_objects,
+    }
+    check(all(resources.get(k) == v and type(resources.get(k)) is int
+              for k, v in fixed_resources.items()), 'RUNTIME_RESOURCE_BOUNDS')
+    check(expected_objects <= STORE_MAX_OBJECTS and
+          count * 4 + 1 <= STORE_MAX_EVENTS and
+          count * 8 + 1 <= SESSION_JOURNAL_MAX_EVENTS and
+          count * (2 + resources['max_body_chunks_per_request']) + 1 <=
+          JOURNAL_MAX_EVENTS,
+          'RUNTIME_RESOURCE_EVENT_CAPACITY')
+    prospective_bytes = (4 * JOURNAL_MAX_BYTES +
+                         storage['report_reserve_bytes'] +
+                         expected_objects * STORE_OBJECT_MAX_BYTES +
+                         limits['decoded'] + total)
+    integer(resources['local_storage_quota_bytes'], prospective_bytes,
+            2 ** 63 - 1, 'RUNTIME_STORAGE_QUOTA')
 
     _resolve_refs(payload, root)
     return hashlib.sha256(raw).hexdigest()

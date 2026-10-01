@@ -701,6 +701,7 @@ class DurableBudget:
         self.dir_fd = self.lock_fd = self.fd = None
         self.failed = False
         self.uncertain_received_bytes = 0
+        self.delivery_held = False
         try:
             self.dir_fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
             directory_stat = os.fstat(self.dir_fd)
@@ -770,6 +771,7 @@ class DurableBudget:
     def _healthy(self):
         self._require_owner()
         check(not self.failed, 'JOURNAL_DURABILITY_UNCERTAIN')
+        check(not self.delivery_held, 'JOURNAL_DELIVERY_UNCERTAIN')
         try:
             check(all(not stat.S_ISLNK(os.lstat(ancestor).st_mode)
                       for ancestor in (self.path, *self.path.parents)),
@@ -806,18 +808,21 @@ class DurableBudget:
             while True:
                 newline_at = buf.find(b'\n')
                 if newline_at == -1:
+                    check(len(buf) < JOURNAL_RECORD_MAX_BYTES, 'JOURNAL_RECORD_TOO_LARGE')
                     chunk = reader.read(JOURNAL_READ_CHUNK_BYTES)
                     if not chunk:
+                        check(len(buf) < JOURNAL_RECORD_MAX_BYTES, 'JOURNAL_RECORD_TOO_LARGE')
                         check(not buf, 'JOURNAL_TORN_RECORD')
                         break
                     total_bytes += len(chunk)
                     check(total_bytes <= JOURNAL_MAX_BYTES, 'JOURNAL_CAPACITY_EXCEEDED')
                     buf += chunk
-                    check(len(buf) <= JOURNAL_RECORD_MAX_BYTES, 'JOURNAL_RECORD_TOO_LARGE')
+                    # A read can contain many complete, individually valid records.
+                    # Check only the unfinished record after draining them below.
                     continue
                 line = buf[:newline_at]
                 buf = buf[newline_at + 1:]
-                check(len(line) <= JOURNAL_RECORD_MAX_BYTES, 'JOURNAL_RECORD_TOO_LARGE')
+                check(newline_at + 1 <= JOURNAL_RECORD_MAX_BYTES, 'JOURNAL_RECORD_TOO_LARGE')
                 check(len(self.events) < JOURNAL_MAX_EVENTS, 'JOURNAL_EVENT_CAPACITY')
                 record = parse_canonical(line)
                 exact(record, ('seq', 'prev', 'event', 'hash'), 'JOURNAL_RECORD_SCHEMA')
@@ -828,6 +833,8 @@ class DurableBudget:
                 check(record['hash'] == expected, 'JOURNAL_HASH')
                 self.prev = expected
                 self.events.append(record['event'])
+                if b'\n' not in buf:
+                    check(len(buf) < JOURNAL_RECORD_MAX_BYTES, 'JOURNAL_RECORD_TOO_LARGE')
         self._journal_bytes = size
 
     def _append(self, event):
@@ -951,9 +958,12 @@ class DurableBudget:
             recorded = True
             self._state()
         except BaseException:
-            if not recorded:
+            if not recorded and body:
                 self.uncertain_received_bytes += len(body)
                 self.received += len(body)
+                # No receipt can prove these delivered bytes after an append
+                # refusal. Keep the durable reservation open across restart.
+                self.delivery_held = True
             raise
 
     def complete(self, key):
