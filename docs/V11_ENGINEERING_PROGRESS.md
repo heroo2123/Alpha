@@ -1,5 +1,16 @@
 # Supplementary engineering estimate
 
+## Offline slice 3 merged; next evidence worker active — 2026-10-01 19:19 UTC
+
+Verified local merge `06bab60` integrates independently accepted `6340cb4`
+with newer main. One persistent Sonnet/high decoder-build observation worker
+is active in `/tmp/alpha-v11-gate3-decoder-build-inventory-20261001`
+(runner 1878904 / child 1878912); terminal prefix
+`/tmp/alpha-v11-decoder-build-inventory-20261001`. Its scope is local artifact
+identity evidence only; exact independent review follows. G3-L remains NO-GO
+with 77 missing identities and insufficient disk. No real provider request or
+forward SHADOW sample. **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Slice 3 independently accepted and reconciled offline — 2026-10-01 19:17 UTC
 
 Exact `6340cb4` has independent Astra/high PASS for the injected RAW runtime:

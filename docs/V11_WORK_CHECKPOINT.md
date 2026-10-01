@@ -1,5 +1,39 @@
 # Alpha V11 work checkpoint
 
+## Reviewed slice 3 merged; decoder-build evidence worker live — 2026-10-01 19:19 UTC
+
+Main advanced by verified fast-forward to local merge
+`06bab60a5925df86d8ff82be8a9ed57fbf4a7ed7` (tree `ba30b72a`), combining
+newer main `b0111d5` with independently accepted `6340cb4`. The preceding
+entry and linked review/reconciliation records contain the exact tests and
+scope. Local publication only; no remote push or launch.
+
+Exactly one persistent Sonnet/high specialist is live: runner **1878904**,
+Claude child **1878912**, worktree
+`/tmp/alpha-v11-gate3-decoder-build-inventory-20261001`, branch
+`gate3-decoder-build-inventory-20261001`, starting at clean `06bab60`.
+Prompt, runner, PID and log prefix:
+`/tmp/alpha-v11-decoder-build-inventory-20261001`.
+Terminal will be `.terminal.json`, with
+`GATE3_DECODER_BUILD_OBSERVATION_READY_FOR_REVIEW` or
+`GATE3_DECODER_BUILD_OBSERVATION_BLOCKED` plus actual commit/tree/clean status.
+Recover its actual process/worktree/log before acting; do not duplicate it.
+
+Scope is the existing decoder assessment's exact build-evidence prerequisite:
+read-only observation of Alpha's already-installed ecCodes wrapper/native
+libraries/dependencies and embedded-data limitations, with reproducible local
+hash inventory and remaining qualification tests. At most three new dossier/
+manifest/reproduction files; no product or dependency changes, no CCSDS
+permission, no fabricated source pins or G3-L identities, no provider request.
+Use the existing `/home/alphaadmin/AlphaV11_Dev/venv`; no installation.
+The finished candidate requires different-model exact review before integration.
+
+Current G3-L remains **NO-GO**: 77 missing reviewed pre-review identities and
+about 1.4 GiB free disk (below 2 GiB floor); about 805 MiB memory available.
+GEFS forward commissioning remains owner/root gated; no new forward evidence.
+No C/J/E/A boundary crossed: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**. All standing safety boundaries remain in force.
+
 ## Slice 3 exact PASS and newer-main reconciliation — 2026-10-01 19:17 UTC
 
 Independent Astra/high [review](V11_R09_GATE3_V4_SLICE3_REVIEW_6340cb4.md)
