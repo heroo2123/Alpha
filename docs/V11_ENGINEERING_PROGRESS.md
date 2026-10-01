@@ -1,5 +1,14 @@
 # Supplementary engineering estimate
 
+## Offline Gate 3 capacity observation — 2026-10-01 23:22 UTC
+
+A fresh offline PRE_REVIEW screen increased the conservative proposed October 2
+subset from eight to 13 slots as available disk rose, but it still lacks 77
+reviewed identities and has one expired timing identity. A4 and A7 are live;
+A8 remains paused. The capacity observation does not authorize a provider
+request or satisfy G3-L. No C/J/E/A boundary crossed: **G3-L NO-GO;
+91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## A1 independent acceptance and A7 recovery — 2026-10-01 23:18 UTC
 
 The exact A1 `12a6e38` independent review completed `PASS` for its bounded

@@ -1,5 +1,35 @@
 # Alpha V11 work checkpoint
 
+## Offline Gate 3 capacity refreshed; A4/A7 continue — 2026-10-01 23:22 UTC
+
+Recovered clean main `6504cec` after the accepted A1 observer integration. The
+A4 runtime-verification runner (PGID 1933369) and A7 decoder-resources runner
+(PGID 1933486) are both live in their own worktrees with uncommitted author
+files and no terminal marker. A8 (PGID 1933615) remains SIGSTOP-paused and
+clean; it was not resumed while the two specialist slots are occupied. The
+clean A2/A3 candidate `89f85ac` still needs different-model exact review, and
+inventory `9600510` still needs its five reviewed P2 repairs. SHADOW and Brain
+readiness worktrees are clean; ECMWF `backfill_data/` is untracked and
+preserved. No newer SHADOW commissioning file was found.
+
+Refreshed the **offline-only** October 2 PRE_REVIEW screen from actual host
+resources. The retained `/tmp/alpha-v11-g3l-offline-screen-20261001-2322.json`
+has SHA-256 `475ca390f330194096d814270f131710c145f499c41d370dbc7e8c2e45d2b5f1`.
+With 3,216,945,152 free disk bytes and 780,902,400 available memory bytes,
+the conservative planner proposes 13 bounded slots. It exits 2 with
+`launchable=false`, 77 `MISSING` identities and one `EXPIRED` review-before-window
+identity. Capacity is only a planning observation; it grants no G3-L or provider
+permission. The prior accepted full release result remains 5,460 passed / 13
+skipped; no new suite was run.
+
+The private FINAL-REVIEWED master still hashes to
+`a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+PAPER scanner/controller/execution units are inactive and protected V11
+authority roots are absent. No provider request, financial, V10, AxiomTrade,
+service, authority, private-master or remote-publication action was performed.
+No G3-L PASS, qualifying forward SHADOW sample or C/J/E/A crossing occurred:
+**G3-L NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## A1 accepted offline observer integrated; A7 resumed — 2026-10-01 23:18 UTC
 
 The independent Astra/high exact-commit review of A1 `12a6e38` finished with

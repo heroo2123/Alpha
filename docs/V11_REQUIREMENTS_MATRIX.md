@@ -1,5 +1,14 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Offline resource screen refreshed — 2026-10-01 23:22 UTC
+
+The current October 2 PRE_REVIEW screen proposes 13 bounded slots from the
+observed disk and memory snapshot, while retaining 77 missing and one expired
+identity; it exits 2 with `launchable=false`. A4 and A7 remain live, A8 paused,
+and A2/A3 and inventory remain unaccepted. No source, G3-L, forward SHADOW or
+C/J/E/A acceptance changed: **G3-L NO-GO; 91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## A1 bounded observer accepted; G3-L unchanged — 2026-10-01 23:18 UTC
 
 Independent exact review of A1 `12a6e38` passed and its four observation
