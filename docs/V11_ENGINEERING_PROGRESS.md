@@ -1,5 +1,17 @@
 # Supplementary engineering estimate
 
+## Gate 3 V4 slice-2 repair b92a12e reviewed: CHANGES_REQUIRED — 2026-10-01 UTC
+
+The Opus exact-commit review confirms that all nine 39b80fa findings are
+closed. It found two regressions introduced by the repair: an inverted
+denial ordering check that rejects in-window denials, and a denied attempt
+that can reach SUCCESS. It also found that shared INTENT_CLOSED still lacks
+the closure evidence section 4 requires, and that ACCOUNTED is accepted after
+an overdelivery. Details are in
+`docs/V11_R09_GATE3_V4_SLICE2_REVIEW_b92a12e.md`. A second repair is routed to
+Sonnet/high. No C/J/E/A change: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND.**
+
 ## Gate 3 V4 slice 2 candidate 39b80fa reviewed: CHANGES_REQUIRED — 2026-10-01 UTC
 
 Opus exact-commit review found nine reproduced state-machine defects in the

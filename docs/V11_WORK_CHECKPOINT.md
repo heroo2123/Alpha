@@ -1,5 +1,26 @@
 # Alpha V11 work checkpoint
 
+## Opus exact-commit review of slice-2 repair b92a12e — CHANGES_REQUIRED — 2026-10-01 UTC
+
+Main clean at `ffe2d0d`, matching origin. Reviewed `71fc948..b92a12e`
+(tree `eb5ee70a`) in `/home/alphaadmin/AlphaV11_Gate3V4Slice2/Alpha` against
+design sections 3-6 and the 39b80fa findings. Candidate suite 49 passed.
+All nine original findings S1-S9 are closed (ported probes 0/9 reproduced).
+Verdict **CHANGES_REQUIRED**: [review](V11_R09_GATE3_V4_SLICE2_REVIEW_b92a12e.md),
+[probes](V11_R09_GATE3_V4_SLICE2_REVIEW_b92a12e_probes.py) (new 4/4
+reproduced), [terminal](V11_R09_GATE3_V4_SLICE2_REVIEW_b92a12e_terminal.json).
+Blocking: R1 the S7 ordering check (`receipt_upper_bound >= window_end`)
+rejects every in-window denial, after which the caller can close FAILED with
+the domain unblocked (regression); R2 a denied session attempt can still
+terminate SUCCESS (regression from S5); R3 shared INTENT_CLOSED binds no
+accounting head, delivered bytes or denial-history head, and accepts OK after
+a recorded denial (section 4 step 5). Smaller: R4 ACCOUNTED is accepted
+after an overdelivery. Not merged. The reviewer wrote no candidate code.
+Next: a Sonnet/high repair on top of `b92a12e` in the same worktree with
+regression tests that fail on `b92a12e`, then a fresh different-model
+exact-commit review. V10 untouched; nothing financial, credential, sudo or
+production. **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND.**
+
 ## Coordinator (Sonnet) Gate 3 V4 slice-2 repair: S1-S9 fixed, candidate, not merged — 2026-10-01 UTC
 
 Main was clean at `05af420`, matching its tracking ref. Picked up the exact
