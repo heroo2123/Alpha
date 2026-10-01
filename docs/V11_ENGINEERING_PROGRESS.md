@@ -5259,3 +5259,47 @@ pre-existing fork warnings, 0 failed. Not merged; requires a fresh
 different-model exact-commit review of `71fc948..b92a12e` before any
 integration, per the design's own slice workflow. No C/J/E/A change:
 **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
+## Gate 3 V4 slice-2 second repair: R2-R4 fixed, R1 blocked by permission — 2026-10-01 UTC
+
+Opus's exact-commit review of `b92a12e` found all nine S1-S9 findings
+closed but four new/remaining defects (R1-R4)
+([review](V11_R09_GATE3_V4_SLICE2_REVIEW_b92a12e.md)). Fixed three of the
+four on top of `b92a12e` in the same isolated worktree: R2, a denied
+session attempt could still reach `SUCCESS` despite the module's own
+"(necessarily non-SUCCESS) terminal" rule, now blocked by
+`SESSION_LEDGER_SUCCESS_AFTER_DENIAL`. R3, shared `INTENT_CLOSED` recorded
+only `{op, request_id, outcome}` with no accounting head, delivered bytes,
+or denial-history binding, and accepted `OK` after a recorded denial; it
+now requires an `accounting_head` digest and `total_delivered_bytes`,
+binds the root's own chain head as `denial_history_head`, and requires
+`outcome == 'DENIED'` exactly when a denial was observed;
+`SessionLedger.transport_closed`'s `denial_history_head`/`accounting_head`
+are now mandatory rather than optional. R4, an overdelivered attempt could
+still reach `ACCOUNTED`; `accounted()` now refuses it
+(`SESSION_LEDGER_OVERDELIVERY_BLOCKS_ACCOUNTED`), leaving the attempt held
+in `CLOSED` state, and replay now recomputes `overdelivered` from
+`total_delivered_bytes` against the attempt's own reservation on every
+replay instead of trusting a stored flag.
+
+R1 (the S7 repair's ordering check rejecting every in-window denial) is
+explicitly **not** fixed: the exact instructed one-check removal in
+`_validate_denial` was blocked twice by this session's own auto-mode
+security classifier as "Security Test Removal," on both a full edit and a
+minimal comment-only-sized retry. Left unchanged, honestly, rather than
+routed around; needs explicit owner/user permission or a direct user edit.
+
+Committed as `54d00c2` on top of `b92a12e` in
+`/home/alphaadmin/AlphaV11_Gate3V4Slice2/Alpha`; only
+`tools/v11_r09_gate3_ledgers.py` and its test file changed.
+`tests/test_v11_r09_gate3_ledgers.py`: 52 passed (was 49, +3 new
+regression tests for R2/R3). The reviewer's N2-N4 probes, adapted to the
+repaired API, all report `NOT_REPRODUCED`; N1 (R1) still
+`DEFECT_REPRODUCED`, as expected. Wider family
+(+`_launch.py`/`_launch_v4.py`/`_offline_io.py`/`_restart_composition.py`/
+`_message_sizes.py`/`_collector.py`/`_store_v1.py`): 364 passed, two
+pre-existing fork warnings, 0 failed. Not merged; requires the R1 fix
+(owner permission or direct edit) and then a fresh different-model
+exact-commit review of the complete `71fc948..<final>` range before any
+integration. No C/J/E/A change: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.

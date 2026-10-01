@@ -1,5 +1,74 @@
 # Alpha V11 work checkpoint
 
+## Coordinator (Sonnet) Gate 3 V4 slice-2 second repair: R2-R4 fixed, R1 blocked by permission — 2026-10-01 UTC
+
+Main clean at `39039b3`, matching origin. Picked up the exact next
+unfinished action named by the prior entry below (Opus's exact-commit
+review of `b92a12e`, verdict CHANGES_REQUIRED, four defects R1-R4): on top
+of `b92a12e` in the same isolated worktree
+(`/home/alphaadmin/AlphaV11_Gate3V4Slice2/Alpha`, branch
+`r09-gate3-v4-slice2-20261001`), fixed R2, R3 and R4, committed there as
+`54d00c2`. Only `tools/v11_r09_gate3_ledgers.py` and
+`tests/test_v11_r09_gate3_ledgers.py` changed.
+
+Fixes (full detail in the `54d00c2` commit message): R2 — `terminal()` now
+refuses `outcome='SUCCESS'` when `attempt['denial_observed']`
+(`SESSION_LEDGER_SUCCESS_AFTER_DENIAL`); a denied attempt is still
+closeable as FAILED. R3 — `SharedLedger.intent_closed` now requires an
+`accounting_head` digest and `total_delivered_bytes`, and records this
+root's own current chain head as `denial_history_head` (it already commits
+to every `denial_observed` event recorded for the intent); `outcome` must
+be `DENIED` exactly when a denial was observed, so `OK`/`FAILED` can no
+longer paper over a recorded denial
+(`SHARED_LEDGER_CLOSE_OUTCOME_DENIAL_MISMATCH`);
+`SessionLedger.transport_closed`'s `denial_history_head`/`accounting_head`
+are now mandatory, not optional. R4 — `accounted()` now refuses after an
+observed overdelivery (`SESSION_LEDGER_OVERDELIVERY_BLOCKS_ACCOUNTED`, not
+only at terminal SUCCESS); the attempt then stays held in `CLOSED` state,
+and the session is already poisoned. Replay now recomputes `overdelivered`
+from `total_delivered_bytes` vs. the attempt's own reservation on every
+replay, instead of trusting a stored flag through `event.get`.
+
+**R1 is explicitly NOT fixed.** The review's exact instructed edit —
+remove the wrong `receipt_upper_bound_utc >= window_end_utc` ordering
+check in `_validate_denial`, which rejects every in-window denial — was
+blocked twice by this session's own auto-mode security classifier as
+"Security Test Removal," including on a second, minimal comment-only-sized
+retry. Per this harness's own instructions on a denied action, did not
+attempt to reach the same outcome through another tool, path, or
+rewording; `SHARED_LEDGER_DENIAL_ORDER` and
+`test_shared_ledger_denial_rejects_receipt_bound_before_window_end` (which
+the review says "encodes the wrong rule") are unchanged from `b92a12e`.
+This needs either explicit owner/user permission for that specific edit,
+or the user making it directly; it is not a capability gap this worker can
+route around.
+
+Tests: `tests/test_v11_r09_gate3_ledgers.py` 52 passed (was 49; +3 new
+regression tests for R2/R3). Adapted the reviewer's N2-N4 probes to the
+repaired API directly (not committed, ad hoc verification only): all three
+now `NOT_REPRODUCED`. N1 (R1) still `DEFECT_REPRODUCED`, exactly as
+expected given the above. Wider family
+(+`_launch.py`/`_launch_v4.py`/`_offline_io.py`/`_restart_composition.py`/
+`_message_sizes.py`/`_collector.py`/`_store_v1.py`): 364 passed, the same
+two pre-existing fork warnings, 0 failed.
+
+Not merged. Still requires, in order: (1) explicit permission or a direct
+user edit for the R1 fix in `_validate_denial`, applied in the same
+worktree on top of `54d00c2`; (2) a fresh different-model exact-commit
+review of the complete `71fc948..<final>` range before any integration,
+per the design's own slice workflow. No C/J/E/A change: R2-R4 close review
+findings on an already-not-integrated candidate module, not an accepted
+Gate 3 V4 slice. V10 untouched; nothing financial, credential, sudo or
+production was requested or performed.
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND.**
+
+Next unfinished action: get explicit owner/user permission (or a direct
+user edit) for the one-check R1 removal in
+`tools/v11_r09_gate3_ledgers.py`'s `_validate_denial` in
+`/home/alphaadmin/AlphaV11_Gate3V4Slice2/Alpha`, then route a fresh
+different-model exact-commit review of the complete repaired range before
+any integration decision.
+
 ## Opus exact-commit review of slice-2 repair b92a12e — CHANGES_REQUIRED — 2026-10-01 UTC
 
 Main clean at `ffe2d0d`, matching origin. Reviewed `71fc948..b92a12e`
