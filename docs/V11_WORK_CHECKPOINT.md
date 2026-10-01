@@ -14403,3 +14403,81 @@ Verification (foreground): `tests/test_gefs_exact_day_live_schema_bundle_v2.py` 
 This closes only the named provenance/reproducibility prerequisite. It does **not** close R47: independent/owner review, root-owned model-authority installation, actual forward shadow evidence with a frozen sample target, calibration evidence, and execution-cost evidence all remain exactly as open as every prior batch found them. No new C/J/E/A credit: R47 is a hard aggregate acceptance gate on an actual accepted, owner-reviewed champion, which a provenance-quality fix to an already-non-eligible draft research candidate does not supply. **91/200 = 45.5% (~46%); formal 1/50 (2%)**, unchanged. NOT_READY_TO_FUND; V10 unchanged/DEFERRED (not touched). No alpha-dev access, deployment, service change, financial authority, sudo, credential, or real order was requested or performed. Only `tools/gefs_exact_day_live_schema_bundle_v2.py`, `tests/test_gefs_exact_day_live_schema_bundle_v2.py`, this checkpoint entry, `docs/V11_R47_EXACT_DAY_LIVE_SCHEMA_REBUILD.md`, and the matching `docs/V11_REQUIREMENTS_MATRIX.md`/`docs/V11_ENGINEERING_PROGRESS.md` R47 entries changed in the repository; the new private v2 artifact store and commissioning evidence manifest copy are outside the Git tree, exactly like every prior GEFS research artifact.
 
 Next unfinished action: unchanged from batch 37 — re-check `/home/alphaadmin/AlphaV11_Commissioning/evidence/` and `/home/alphaadmin/AlphaV11_BrainWork/` for a genuinely new (non-heartbeat) research-result, review, or owner-authorized artifact before repeating any R47/R09/R44/R46 analysis. The concrete remaining R47 blocker is unchanged and precise: an actual owner/independent review and installation decision into root-owned `/var/lib/alpha-v11/model-authority`, or an equivalent owner-reviewed acceptance, plus real forward shadow evidence against a frozen sample target — none of which is fabricable by this worker.
+
+## Supervisor batch 38 — 2026-10-01: R1 fix confirmed owner-blocked at the harness level (third attempt); PAPER scanner found stopped since the last checkpoint
+
+Resumed the open Gate 3 V4 slice-2 repair in
+`/home/alphaadmin/AlphaV11_Gate3V4Slice2/Alpha` (branch
+`r09-gate3-v4-slice2-20261001`, HEAD `54d00c2`, clean). Batch 37's prior
+Sonnet session recorded two blocked attempts to apply R1 (remove the
+inverted `SHARED_LEDGER_DENIAL_ORDER` ordering check in `_validate_denial`,
+per [the b92a12e review](V11_R09_GATE3_V4_SLICE2_REVIEW_b92a12e.md)'s exact
+instruction: "remove the ordering check and keep the finiteness checks").
+This batch, a separate coordinator invocation, independently re-verified the
+finding is real (re-read the review and the exact code at
+`tools/v11_r09_gate3_ledgers.py:473-477`: the check requires
+`receipt_upper_bound_utc >= window_end_utc`, but section 3's own normal case
+has the receipt bound *precede* the window end, so the check rejects every
+legitimate denial and silently disables the control-domain block it exists
+to enforce) and attempted the identical minimal edit (delete the five-line
+check + its comment, keep the two preceding finiteness `check()` calls
+unchanged). The edit was denied by the Claude Code auto-mode permission
+classifier, reason `Security Test Removal`, on the first and only attempt
+this batch made. Two further unrelated read-only Bash commands later in the
+same batch (a multi-directory `git log`/`status` loop, and a `dmesg`/syslog
+`grep` for OOM evidence) were also denied with the identical `Security Test
+Removal` reason despite touching no check/assert/test code, so the
+classifier's false-positive rate this batch was not confined to the
+R1 edit. Per the denial's own instructions, no attempt was made to retry
+the same outcome through another tool, encoding, or phrasing. This is now
+three independent, differently-timed attempts (two Sonnet, one this
+coordinator) all blocked identically: the R1 fix is a genuine
+**OWNER_ACTION_REQUIRED** item, not a reasoning-depth or model-choice
+problem — routing to a different model cannot clear a harness-level
+permission classifier. Exact unlock: the owner either (a) applies the
+five-line removal in `tools/v11_r09_gate3_ledgers.py` directly (delete the
+`# The receipt upper bound...` comment and the following
+`check(denial['receipt_upper_bound_utc'] >= denial['window_end_utc'], ...)`
+call, lines 473-477, nothing else) and replaces
+`test_shared_ledger_denial_rejects_receipt_bound_before_window_end` with a
+test matching the reviewer's spec (a denial with `receipt_upper_bound_utc`
+600 and `window_end_utc` 10800 is recorded and blocks until at least
+10800), or (b) grants this session an explicit permission rule for this
+narrow class of edit so a future invocation can apply it. R2-R4 remain
+fixed and untouched at `54d00c2`; nothing was merged or published.
+
+Separately, this batch's routine state inspection (CLAUDE.md's
+work-start recovery duty) found `alpha-weather-scanner.service` —
+the live PAPER scanner batch 37 recorded as `active (running)`, release
+`ac3b722b`, 21h uptime, 0 restarts — now `inactive (dead)` and `disabled`
+(`systemctl status`, read-only). The host has not rebooted since
+2026-09-17 (`uptime -s`), and a disabled+cleanly-dead unit with no
+restart-loop signature is consistent with a deliberate `systemctl
+stop`+`disable`, not a crash; this could not be confirmed further because
+this account still lacks `adm`/`systemd-journal` group membership (the
+same owner-gated R46 blocker already on record) and `journalctl`/`dmesg`
+access was denied/unavailable. No action was taken on the service: it is
+root-owned (`/etc/systemd/system/alpha-weather-scanner.service`, `User=
+alpha-scanner`), this account has no passwordless sudo (confirmed via
+`sudo -n true`, non-destructive check), and restarting a live scanner
+without knowing why it was stopped would risk overwriting an intentional
+owner action. Flagged here rather than acted on. If this stop was not
+owner-intended, it stalls Direction A's "genuine forward SHADOW evidence"
+accumulation until restarted.
+
+No code merged, no test run, no C/J/E/A change. `git status --short` at
+`/home/alphaadmin/AlphaV11_Dev/Alpha` clean before and after (only this
+checkpoint entry and the matching `docs/V11_ENGINEERING_PROGRESS.md` entry
+changed). **91/200 = 45.5% (~46%); formal 1/50 (2%)**, unchanged.
+NOT_READY_TO_FUND; V10 unchanged/not touched. No alpha-dev access,
+deployment, service change, financial authority, sudo, credential, or real
+order was requested or performed.
+
+Next unfinished action: (1) owner applies the R1 five-line removal (or
+grants the narrow permission) in the slice-2 worktree, then route a fresh
+different-model exact-commit review of the complete `71fc948..<final>`
+range before any integration; (2) owner confirms whether the PAPER scanner
+stop was intentional, and if not, restarts it; (3) absent either, re-check
+`/home/alphaadmin/AlphaV11_Commissioning/evidence/` and
+`/home/alphaadmin/AlphaV11_BrainWork/` for new non-heartbeat evidence per
+batch 37's standing instruction.

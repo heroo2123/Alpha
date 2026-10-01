@@ -5303,3 +5303,31 @@ pre-existing fork warnings, 0 failed. Not merged; requires the R1 fix
 exact-commit review of the complete `71fc948..<final>` range before any
 integration. No C/J/E/A change: **91/200 (45.5%), formal 1/50;
 NOT_READY_TO_FUND**.
+
+## Gate 3 V4 slice-2 R1: confirmed owner-blocked (third attempt); scanner stop found — 2026-10-01 UTC
+
+A separate coordinator invocation independently re-derived the R1 defect
+from the `b92a12e` review and the current code
+(`tools/v11_r09_gate3_ledgers.py:473-477`), confirmed it is real (the
+ordering check rejects the normal case where a denial's receipt bound
+precedes the window end, disabling the block it exists to create), and
+attempted the identical five-line removal. It was denied by the harness's
+own auto-mode classifier as `Security Test Removal`, the third
+consecutive identical denial across three separate attempts (two prior
+Sonnet, one this batch). Two further unrelated read-only commands this
+batch were also denied with the same reason, so this is a harness-level
+permission boundary, not a model-depth problem; no further routing or
+retry was attempted. Full detail and the exact unblock action (owner
+applies the 5-line removal, or grants a narrow permission rule) are in
+`docs/V11_WORK_CHECKPOINT.md` batch 38.
+
+The same batch's routine state check found `alpha-weather-scanner.service`
+(live PAPER scanner) `inactive (dead)`/`disabled`, versus batch 37's
+`active`, 21h-uptime record. Host uptime shows no reboot since
+2026-09-17, consistent with a deliberate stop rather than a crash; not
+confirmable further (no journal access, same R46 blocker) and not acted
+on (root-owned service, no sudo on this account). Flagged for owner
+confirmation; no change made.
+
+No code merged, no C/J/E/A change. **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
