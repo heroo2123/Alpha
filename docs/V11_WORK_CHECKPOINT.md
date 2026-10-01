@@ -1,5 +1,24 @@
 # Alpha V11 work checkpoint
 
+## Live recovery follow-up — host clock 2026-10-01 23:59 UTC
+
+Recovered clean main `8d1141a`, 109 commits ahead of origin. The A4 repair
+runner (PGID 1962223) and independent A2/A3 review runner (PGID 1962224)
+are both alive, with no terminal markers. A4 has uncommitted repair changes
+in its sole worktree; the detached A2/A3 review checkout is clean. Do not
+duplicate either lane, merge A4 `ef53d61`, or accept A2/A3 before the exact
+review finishes. A7 `e08858b` and A8 `7d5941c` remain clean candidates
+awaiting independent review; inventory `9600510` still needs five P2 repairs.
+
+The SHADOW and Brain readiness worktrees are clean; the ECMWF backfill's
+untracked `backfill_data/` is preserved. The private FINAL-REVIEWED master
+still hashes to `a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+PAPER scanner, V11 controller and execution units are inactive; the scanner
+is disabled and protected V11 authority roots are absent. Free disk is about
+1.5 GiB and available memory about 810 MiB. No provider request, G3-L PASS,
+forward SHADOW sample or C/J/E/A crossing occurred: **G3-L NO-GO;
+91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## A4 reviewed CHANGES_REQUIRED; A4 repair and A2/A3 review launched — 2026-10-02 00:05 UTC
 
 Independent Claude Opus exact-commit review of the Codex A4 candidate

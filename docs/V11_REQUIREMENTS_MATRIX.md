@@ -1,5 +1,16 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## A4 review rejected; repair and A2/A3 review live — 2026-10-01 23:58 UTC
+
+Independent exact-commit review of A4 `ef53d61` found six reproducible
+findings; A4 remains OPEN and the candidate is not integrated. Its repair
+runner is active in the original isolated worktree with uncommitted changes.
+The independent A2/A3 review of clean `89f85ac` is active separately.
+A8 `7d5941c` and A7 `e08858b` are clean author candidates awaiting exact
+review; inventory `9600510` still needs its five reviewed P2 repairs.
+No G3-L, forward SHADOW, or C/J/E/A boundary changed: **G3-L NO-GO;
+91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## A4 author terminal recovered; qualification unchanged — 2026-10-01 23:45 UTC
 
 A4 `ef53d61` has a clean outer terminal and 18 focused author-test passes.

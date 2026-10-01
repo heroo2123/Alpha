@@ -1,5 +1,15 @@
 # Supplementary engineering estimate
 
+## A4 rejection recovered; two specialist lanes active — 2026-10-01 23:58 UTC
+
+The independent A4 `ef53d61` review is CHANGES_REQUIRED on six reproduced
+findings. The A4 repair and A2/A3 `89f85ac` independent review are both live
+in distinct worktrees, without terminal markers. A7 and A8 await review;
+inventory repair remains queued. The accepted full release result remains
+5,460 passed / 13 skipped; no new full suite is claimed. No acceptance or
+C/J/E/A boundary crossed: **G3-L NO-GO; 91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## A4 completion recovered; A8 continues — 2026-10-01 23:45 UTC
 
 A4's outer terminal confirms a clean exact candidate at `ef53d61` (tree
