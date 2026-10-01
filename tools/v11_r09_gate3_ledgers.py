@@ -406,6 +406,9 @@ class SharedLedger(_HashChainJournal):
                 if init.get('boot_id') != boot_id:
                     self._boot_ok = False
             self.genesis_review_digest = self.events[0].get('genesis_review_digest')
+            # The constructor has verified this caller supplied current head
+            # before any runtime can append to this acquired root.
+            self.expected_history_head = expected_history_head
             self.boot_id = boot_id
             self.max_requests = max_requests
             self._state()
@@ -440,6 +443,16 @@ class SharedLedger(_HashChainJournal):
                 check(not self.open_intent['denial_recorded'],
                       'SHARED_LEDGER_DENIAL_ALREADY_RECORDED')
                 self._apply_denial(self.open_intent['control_domain_id'], event['denial'])
+                self.open_intent['denial_recorded'] = True
+            elif op == 'restriction_unresolved':
+                check(self.open_intent is not None and
+                      self.open_intent['request_id'] == event['request_id'] and
+                      not self.open_intent['denial_recorded'],
+                      'SHARED_LEDGER_RESTRICTION_WITHOUT_OPEN')
+                restriction = self._validate_restriction(event['restriction'])
+                self.denials[self.open_intent['control_domain_id']] = {
+                    'status': restriction['status'], 'reason': restriction['reason'],
+                    'cooldown_until': None}
                 self.open_intent['denial_recorded'] = True
             elif op == 'intent_closed':
                 check(self.open_intent is not None and
@@ -527,6 +540,40 @@ class SharedLedger(_HashChainJournal):
               'SHARED_LEDGER_DENIAL_RECEIPT_BOUND')
         return dict(denial)
 
+    @staticmethod
+    def _validate_restriction(restriction):
+        """An unresolved observation has its own strict schema. It never
+        asserts that an invalid or missing receipt clock was verified."""
+        exact(restriction, ('status', 'reason', 'origin', 'evidence_sha256',
+                           'evidence_raw_b64', 'evidence_missing_cause',
+                           'receipt_evidence_cause'),
+              'SHARED_LEDGER_RESTRICTION_SCHEMA')
+        check(restriction['status'] in ('401', '403', '429', '503', 'OTHER') and
+              type(restriction['reason']) is str and restriction['reason'] and
+              type(restriction['origin']) is str and
+              restriction['origin'].startswith('https://') and
+              type(restriction['receipt_evidence_cause']) is str and
+              0 < len(restriction['receipt_evidence_cause']) <= 512,
+              'SHARED_LEDGER_RESTRICTION_VALUE')
+        check((restriction['evidence_sha256'] is None) !=
+              (restriction['evidence_missing_cause'] is None),
+              'SHARED_LEDGER_RESTRICTION_EVIDENCE')
+        if restriction['evidence_sha256'] is not None:
+            digest(restriction['evidence_sha256'], 'SHARED_LEDGER_RESTRICTION_EVIDENCE')
+            try:
+                raw = base64.b64decode(restriction['evidence_raw_b64'], validate=True)
+            except (ValueError, TypeError) as exc:
+                raise LaunchContractError('SHARED_LEDGER_RESTRICTION_EVIDENCE') from exc
+            check(0 < len(raw) <= MAX_DENIAL_EVIDENCE_RAW_BYTES and
+                  hashlib.sha256(raw).hexdigest() == restriction['evidence_sha256'],
+                  'SHARED_LEDGER_RESTRICTION_EVIDENCE')
+        else:
+            check(restriction['evidence_raw_b64'] is None and
+                  type(restriction['evidence_missing_cause']) is str and
+                  restriction['evidence_missing_cause'],
+                  'SHARED_LEDGER_RESTRICTION_EVIDENCE')
+        return dict(restriction)
+
     def is_blocked(self, control_domain_id, *, now_utc):
         self._healthy()
         check(type(now_utc) in (int, float) and math.isfinite(now_utc),
@@ -585,6 +632,19 @@ class SharedLedger(_HashChainJournal):
             denial = self._validate_denial(denial)
             self._append({'op': 'denial_observed', 'request_id': request_id,
                           'denial': denial})
+            self._state()
+
+    def restriction_unresolved(self, request_id, *, restriction):
+        with self._guard():
+            self._healthy()
+            check(self.open_intent is not None and
+                  self.open_intent['request_id'] == request_id and
+                  request_id != self.inherited_open_request_id and
+                  not self.open_intent['denial_recorded'],
+                  'SHARED_LEDGER_RESTRICTION_WITHOUT_OPEN')
+            restriction = self._validate_restriction(restriction)
+            self._append({'op': 'restriction_unresolved', 'request_id': request_id,
+                          'restriction': restriction})
             self._state()
 
     def intent_closed(self, request_id, *, outcome, accounting_head=None,

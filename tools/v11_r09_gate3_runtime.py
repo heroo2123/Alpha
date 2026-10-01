@@ -429,6 +429,8 @@ class FrozenEvent:
     side: str
     primary_provider: str
     field_request_ids: tuple[str, ...]
+    requested_key: tuple[str, ...] | None = None
+    gate2_trial_key: tuple[str, ...] | None = None
 
     def __post_init__(self):
         check(type(self.event_id) is str and REQUEST_ID_RE.fullmatch(self.event_id) and
@@ -581,6 +583,13 @@ class FrozenPlan:
         check(self.window == expected_window and
               len(self.requests) == len(payload['schedule']['requests']),
               'RUNTIME_MANIFEST_WINDOW_OR_SCHEDULE_MISMATCH')
+        precedence_ref = payload['accounting']['terminal_precedence']
+        precedence_raw = (self.validation_object_root / 'objects' /
+                          precedence_ref['sha256']).read_bytes()
+        check(hashlib.sha256(precedence_raw).hexdigest() == precedence_ref['sha256'] and
+              len(precedence_raw) == precedence_ref['byte_length'] and
+              parse_canonical(precedence_raw) == list(self.terminal_precedence),
+              'RUNTIME_TERMINAL_PRECEDENCE_EVIDENCE')
         ids = [item['request_id'] for item in payload['schedule']['requests']]
         endpoints = {e['endpoint_id']: e for e in payload['network']['endpoints']}
         for request, item in zip(self.requests, payload['schedule']['requests']):
@@ -605,8 +614,17 @@ class FrozenPlan:
                   'RUNTIME_MANIFEST_REQUEST_PROJECTION')
             check(payload['runs_and_slots']['slots'][request.slot_index][0] ==
                   item['provider'], 'RUNTIME_MANIFEST_ORIGINAL_SLOT')
-        check({event.side for event in self.events} <=
-              set(payload['cohort']['events']), 'RUNTIME_MANIFEST_EVENT_COHORT')
+        cohort = payload['cohort']
+        check(tuple(event.side for event in self.events) == tuple(cohort['events']),
+              'RUNTIME_MANIFEST_EVENT_COHORT')
+        field_ids = tuple(request.request_id for request in self.requests
+                          if request.purpose == 'FIELD')
+        for event, key, trial in zip(self.events, cohort['requested_keys'],
+                                      cohort['gate2_trial_keys']):
+            check(event.requested_key == tuple(key) and
+                  event.gate2_trial_key == tuple(trial) and
+                  event.field_request_ids == field_ids,
+                  'RUNTIME_MANIFEST_EVENT_KEYS')
         context = parse_canonical(self.runtime_context_raw)
         exact(context, ('manifest_runtime_sha256', 'boot_id', 'shared_root',
             'session_root', 'budget_root', 'store_descriptor', 'report_root',
@@ -725,17 +743,40 @@ def _bounded_headers(response, *, max_header_bytes=4096):
 def _observable_retry_after(response):
     """Retain an unambiguous bounded restriction even if another header fails."""
     values = []
+    seen = 0
     if type(response.headers) is not tuple:
         return {}
     for pair in response.headers:
         if (type(pair) is tuple and len(pair) == 2 and
                 type(pair[0]) is str and pair[0].lower() == 'retry-after'):
+            seen += 1
             value = pair[1]
             if (type(value) is str and value.isascii() and
                     len(value.encode()) <= 1024 and '\r' not in value and
                     '\n' not in value):
                 values.append(value)
-    return {'retry-after': values[0]} if len(values) == 1 else {}
+    # Multiple values prove the restriction exists, while its expiry cannot
+    # be selected honestly. Keep the key and leave expiry unresolved.
+    return {'retry-after': values[0] if seen == 1 and len(values) == 1 else None} if seen else {}
+
+
+def _unresolved_restriction(status, response, origin, cause, header_cause=None):
+    raw = None
+    if header_cause is None:
+        try:
+            candidate = canonical({'status': response.status,
+                                   'headers': list(response.headers)})
+            if 0 < len(candidate) <= 8192:
+                raw = candidate
+        except (TypeError, ValueError):
+            pass
+    return {'status': status, 'reason': f'RUNTIME_DENIAL_HTTP_{response.status}',
+            'origin': origin,
+            'evidence_sha256': None if raw is None else hashlib.sha256(raw).hexdigest(),
+            'evidence_raw_b64': None if raw is None else base64.b64encode(raw).decode('ascii'),
+            'evidence_missing_cause': header_cause or
+                (None if raw is not None else 'RUNTIME_HEADER_EVIDENCE_UNAVAILABLE'),
+            'receipt_evidence_cause': cause[:512]}
 
 
 def _build_denial_record(status_str, response, *, window, receipt_evidence,
@@ -858,12 +899,16 @@ class GateRuntime:
             self.min_free_disk_bytes = MIN_FREE_DISK_BYTES
             self.min_available_memory_bytes = MIN_AVAILABLE_MEMORY_BYTES
             self.max_header_bytes = 4096
+            self.max_clock_age = store.context['max_clock_age']
         else:
             payload = plan.verify_validated_projection()
             limits = payload['limits']
             self.min_free_disk_bytes = limits['min_free_disk_bytes']
             self.min_available_memory_bytes = limits['min_available_memory_bytes']
             self.max_header_bytes = limits['headers']
+            self.max_clock_age = min(store.context['max_clock_age'],
+                payload['clocks_and_receipts']['preregistration']
+                    ['max_measurement_age_seconds'])
             check(budget.max_requests == limits['max_requests'] and
                   budget.max_bytes == limits['max_received_bytes'] and
                   budget.max_elapsed_seconds == limits['max_elapsed_seconds'] and
@@ -871,11 +916,17 @@ class GateRuntime:
                   limits['min_start_interval_seconds'] and
                   session.max_requests == shared.max_requests == limits['max_requests'] and
                   limits['report_storage'] == REPORT_RESERVE_BYTES and
-                  store.context['policy'] == payload['runtime']['policy']['sha256'],
+                  store.context['policy'] == payload['runtime']['policy']['sha256'] and
+                  store.context['max_clock_age'] <= payload['clocks_and_receipts']
+                      ['preregistration']['max_measurement_age_seconds'],
                   'RUNTIME_MANIFEST_ACCOUNTING_CONTEXT')
             history_head = payload['runtime']['denial_root']['expected_history_head']
-            check((len(shared.events) == 1 if history_head == '0' * 64 else
-                   history_head in _journal_event_hashes(shared.events)),
+            shared_heads = _journal_event_hashes(shared.events)
+            check(shared_heads and shared_heads[-1] == shared.prev and
+                  (shared.events[0].get('op') == 'init' if history_head == '0' * 64
+                   else history_head in shared_heads) and
+                  (len(shared.events) == 1 or
+                   shared.expected_history_head == shared.prev),
                   'RUNTIME_MANIFEST_DENIAL_LINEAGE')
         check(type(report_sink) is ReportSink and report_sink.dir_fd is not None and
               report_sink.reserved, 'RUNTIME_REPORT_RESERVE_REQUIRED')
@@ -1038,7 +1089,7 @@ class GateRuntime:
               reading.boot_id == self.session.boot_id and
               0 <= reading.measured_monotonic_seconds <= reading.monotonic_seconds and
               reading.monotonic_seconds - reading.measured_monotonic_seconds <=
-              self.store.context['max_clock_age'], 'RUNTIME_CLOCK_MEASUREMENT')
+              self.max_clock_age, 'RUNTIME_CLOCK_MEASUREMENT')
         check(0 <= reading.uncertainty_seconds <= self.window.uncertainty_cap_seconds,
               'RUNTIME_CLOCK_UNCERTAINTY_EXCEEDED')
         offset = reading.utc_seconds - reading.monotonic_seconds
@@ -1125,6 +1176,30 @@ class GateRuntime:
         except LaunchContractError as exc:
             add(str(exc))
         reading = evidence.reading
+        if (type(evidence.raw) is not bytes or not 0 < len(evidence.raw) <= 16384 or
+                hashlib.sha256(evidence.raw).hexdigest() != reading.evidence_sha256 or
+                evidence.method != self.store.context['clock_method']):
+            add('RUNTIME_CLOCK_EVIDENCE')
+        values = (reading.utc_seconds, reading.monotonic_seconds,
+                  reading.uncertainty_seconds, reading.measured_monotonic_seconds)
+        if (not all(type(v) in (int, float) and math.isfinite(v) for v in values) or
+                reading.boot_id != self.session.boot_id or
+                not 0 <= reading.measured_monotonic_seconds <= reading.monotonic_seconds or
+                reading.monotonic_seconds - reading.measured_monotonic_seconds >
+                    self.max_clock_age):
+            add('RUNTIME_CLOCK_MEASUREMENT')
+        if (all(type(v) in (int, float) and math.isfinite(v) for v in values) and
+                self.session.clock_offset_interval is not None):
+            offset = reading.utc_seconds - reading.monotonic_seconds
+            old_low, old_high = self.session.clock_offset_interval
+            if (offset + reading.uncertainty_seconds < old_low or
+                    offset - reading.uncertainty_seconds > old_high):
+                add('SESSION_LEDGER_CLOCK_STEP')
+        if (self.session.last_clock_monotonic is not None and
+                type(reading.monotonic_seconds) in (int, float) and
+                math.isfinite(reading.monotonic_seconds) and
+                reading.monotonic_seconds < self.session.last_clock_monotonic):
+            add('SESSION_LEDGER_CLOCK_REVERSAL')
         if (type(reading.utc_seconds) in (int, float) and
                 type(reading.uncertainty_seconds) in (int, float) and
                 math.isfinite(reading.utc_seconds) and
@@ -1133,7 +1208,7 @@ class GateRuntime:
                 add('RUNTIME_CLOCK_BEFORE_WINDOW_START')
             if reading.utc_seconds + reading.uncertainty_seconds >= self.window.acquisition_end_utc:
                 add('RUNTIME_CLOCK_AT_OR_AFTER_ACQUISITION_END')
-            if reading.uncertainty_seconds > self.window.uncertainty_cap_seconds:
+            if not 0 <= reading.uncertainty_seconds <= self.window.uncertainty_cap_seconds:
                 add('RUNTIME_CLOCK_UNCERTAINTY_EXCEEDED')
             try:
                 if self.shared.is_blocked(request.control_domain_id,
@@ -1146,6 +1221,8 @@ class GateRuntime:
                 math.isfinite(reading.monotonic_seconds) and
                 reading.monotonic_seconds >= self.session.elapsed_deadline_mono):
             add('RUNTIME_ELAPSED_DEADLINE')
+        precedence = {category: i for i, category in enumerate(self.plan.terminal_precedence)}
+        reason = min(reasons, key=lambda value: precedence[_reason_category(value)])
         self.session.attempt_intent(request.request_id, purpose=request.purpose,
             endpoint_id=request.endpoint_id, max_reservation_bytes=request.reservation_bytes,
             range_start=request.range_start, range_end=request.range_end,
@@ -1182,28 +1259,39 @@ class GateRuntime:
         except LaunchContractError as exc:
             headers = _observable_retry_after(response)
             evidence_missing_cause = f'RUNTIME_HEADER_VALIDATION_FAILED:{exc}'
-        new_receipt = receipt is None
-        if new_receipt:
-            receipt = self.clock.evidence('body_receipt')
-            try:
-                self._observe_local_clock(receipt)
-            except LaunchContractError:
-                # Invalid clock evidence remains raw denial evidence, not a
-                # validated sample or an excuse to erase delivered bytes.
-                pass
         denial_status = (_DENIAL_STATUSES.get(response.status)
                          if type(response.status) is int else None)
         if denial_status is None and 'retry-after' in headers:
             denial_status = 'OTHER'
         try:
-            if denial_status is not None and not denial_recorded:
-                record = _build_denial_record(denial_status, response,
-                    window=self.window, receipt_evidence=receipt,
-                    headers=headers, origin=request.origin,
-                    evidence_missing_cause=evidence_missing_cause)
-                self.shared.denial_observed(request.request_id, denial=record)
-                self.session.denial(request.request_id, reason=record['reason'],
-                                     shared_denial_event_hash=self.shared.prev)
+            clock_cause = None
+            if receipt is None:
+                try:
+                    receipt = self.clock.evidence('body_receipt')
+                except (LaunchContractError, OSError) as exc:
+                    clock_cause = f'RUNTIME_RECEIPT_CLOCK_UNAVAILABLE:{exc}'
+            if receipt is not None:
+                try:
+                    self._observe_local_clock(receipt)
+                except (LaunchContractError, OSError) as exc:
+                    clock_cause = f'RUNTIME_RECEIPT_CLOCK_INVALID:{exc}'
+            if denial_status is not None and not denial_recorded and not self.shared.open_intent['denial_recorded']:
+                if clock_cause is None:
+                    try:
+                        record = _build_denial_record(denial_status, response,
+                            window=self.window, receipt_evidence=receipt,
+                            headers=headers, origin=request.origin,
+                            evidence_missing_cause=evidence_missing_cause)
+                        self.shared.denial_observed(request.request_id, denial=record)
+                    except (LaunchContractError, OSError, ValueError) as exc:
+                        clock_cause = f'RUNTIME_DENIAL_EVIDENCE_OR_WRITE_FAILED:{exc}'
+                if clock_cause is not None and not self.shared.open_intent['denial_recorded']:
+                    self.shared.restriction_unresolved(request.request_id,
+                        restriction=_unresolved_restriction(denial_status, response,
+                            request.origin, clock_cause, evidence_missing_cause))
+                self.session.denial(request.request_id,
+                    reason=f'RUNTIME_DENIAL_HTTP_{response.status}',
+                    shared_denial_event_hash=self.shared.prev)
         finally:
             remaining = response.chunks[stream.index:]
             check(all(type(chunk) is bytes and chunk for chunk in remaining),
@@ -1308,7 +1396,11 @@ class GateRuntime:
             # cannot be trusted) before re-raising the original failure.
             self._account_prefetched_on_deadline(request, stream)
             raise
-        header_receipt = self.clock.evidence('body_receipt')
+        try:
+            header_receipt = self.clock.evidence('body_receipt')
+        except (LaunchContractError, OSError):
+            self._account_prefetched_on_deadline(request, stream)
+            raise
         try:
             self._enforce_window(header_receipt, body=True)
         except LaunchContractError:
@@ -1330,12 +1422,17 @@ class GateRuntime:
             denial_status = 'OTHER'
         denial_record = None
         if denial_status is not None:
-            denial_record = _build_denial_record(denial_status, response,
-                window=self.window, receipt_evidence=header_receipt,
-                headers=headers, origin=request.origin)
-            self.shared.denial_observed(request.request_id, denial=denial_record)
-            self.session.denial(request.request_id, reason=denial_record['reason'],
-                                 shared_denial_event_hash=self.shared.prev)
+            try:
+                denial_record = _build_denial_record(denial_status, response,
+                    window=self.window, receipt_evidence=header_receipt,
+                    headers=headers, origin=request.origin)
+                self.shared.denial_observed(request.request_id, denial=denial_record)
+                self.session.denial(request.request_id, reason=denial_record['reason'],
+                                     shared_denial_event_hash=self.shared.prev)
+            except (LaunchContractError, OSError, ValueError):
+                self._account_prefetched_on_deadline(request, stream,
+                    receipt=header_receipt)
+                raise
             retry_raw = headers.get('retry-after')
             if (retry_raw is not None and retry_raw.isascii() and
                     retry_raw.isdecimal() and
@@ -1468,7 +1565,7 @@ class GateRuntime:
         timely = True
         try:
             sequence = ClockSequence(boot_id=dispatch.reading.boot_id,
-                max_measurement_age_seconds=self.store.context['max_clock_age'])
+                max_measurement_age_seconds=self.max_clock_age)
             for evidence in receipt.clocks:
                 sequence.record(evidence.phase, evidence.reading)
             timely = sequence.causal_before(self.window.decision_lower_utc)
@@ -1707,6 +1804,8 @@ def build_terminal_report(*, plan: FrozenPlan, session: SessionLedger,
         if complete and all_provider:
             all_provider_ids.append(event.event_id)
         event_rows.append({'event_id': event.event_id, 'side': event.side,
+            'requested_key': event.requested_key,
+            'gate2_trial_key': event.gate2_trial_key,
             'primary_provider': event.primary_provider,
             'primary_outcomes': {r.request_id: outcomes[r.request_id]
                 for r in field_requests if r.provider == event.primary_provider},
@@ -1739,7 +1838,7 @@ def build_terminal_report(*, plan: FrozenPlan, session: SessionLedger,
             'requested_events': event_rows,
             'all_provider_intersection': {
                 'complete_event_ids': all_provider_ids,
-                'planned_event_count': sum(e['all_providers_planned'] for e in event_rows)}}
+                'planned_event_count': len(event_rows)}}
 
 
 class ReportSink:

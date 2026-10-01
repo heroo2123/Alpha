@@ -1524,11 +1524,18 @@ def test_frozen_plan_derives_from_validated_v4_manifest_bytes(tmp_path, monkeypa
         'store_policy': payload['runtime']['policy']['sha256'],
         'clock_method': 'synthetic', 'allowed_peer_ips': ['8.8.8.8']})
     extras = {rid: request_pins[rid] for rid in ids}
+    field_ids = tuple(r.request_id for r in expected_requests if r.purpose == 'FIELD')
+    primary = next(r.provider for r in expected_requests if r.purpose == 'FIELD')
+    events = tuple(FrozenEvent(f'event-{side.lower()}', side, primary, field_ids,
+        tuple(key), tuple(trial)) for side, key, trial in zip(
+            payload['cohort']['events'], payload['cohort']['requested_keys'],
+            payload['cohort']['gate2_trial_keys']))
     review_raw = canonical({'schema_version': 2, 'manifest_sha256': manifest_sha256,
         'window_sha256': hashlib.sha256(canonical(asdict(window))).hexdigest(),
         'request_schedule_sha256': hashlib.sha256(
             canonical([asdict(r) for r in expected_requests])).hexdigest(),
-        'event_schedule_sha256': hashlib.sha256(canonical([])).hexdigest(),
+        'event_schedule_sha256': hashlib.sha256(canonical(
+            [asdict(e) for e in events])).hexdigest(),
         'supplemental_pins_sha256': hashlib.sha256(canonical(extras)).hexdigest(),
         'terminal_precedence_sha256': hashlib.sha256(canonical(precedence)).hexdigest(),
         'runtime_context_sha256': hashlib.sha256(runtime_context_raw).hexdigest()})
@@ -1537,10 +1544,11 @@ def test_frozen_plan_derives_from_validated_v4_manifest_bytes(tmp_path, monkeypa
         now_utc=start - 4000, window=window, review_sha256=review_sha256,
         review_raw=review_raw, request_pins=request_pins,
         runtime_context_raw=runtime_context_raw,
-        terminal_precedence=precedence)
+        events=events, terminal_precedence=precedence)
     assert plan.manifest_sha256 == manifest_sha256
     assert [r.request_id for r in plan.requests] == ids
     assert plan.requests == tuple(expected_requests)
+    assert plan.events == events
     # F4: the FIELD request's prerequisites are exactly the manifest's own
     # validated INDEX/OBJECT_ID/METADATA overhead requests for that slot.
     field = next(r for r in plan.requests if r.purpose == 'FIELD')
