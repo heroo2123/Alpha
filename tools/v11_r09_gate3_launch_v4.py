@@ -98,21 +98,49 @@ ECMWF_PATH_KINDS = {'LITERAL', 'RUN_DATE_YYYYMMDD', 'RUN_CYCLE_HHZ',
                     'ECMWF_STREAM', 'ECMWF_FILE_KIND'}
 PROVIDER_PATH_KINDS = {'GEFS': GEFS_PATH_KINDS, 'IFS': ECMWF_PATH_KINDS,
                        'AIFS': ECMWF_PATH_KINDS}
-# Exact evidenced non-literal component multiset for the purposes this
-# repository has real provider code for: GEFS FIELD (gefs_sources.py) and
-# IFS/AIFS FIELD plus its '.index' sibling (ecmwf_sources.py). Deliberately
-# not extended to OBJECT_ID/METADATA/PROBE, where no real endpoint shape is
-# evidenced in this repository; those purposes still get the general
-# kind-vocabulary and renderability checks below, nothing stronger, so this
-# correction never claims an unevidenced path layout is verified.
-REQUIRED_PATH_KIND_COUNTS = {
-    'GEFS': {'FIELD': {'RUN_DATE_YYYYMMDD': 1, 'RUN_CYCLE_HH': 2,
-                        'GEFS_MEMBER_SUFFIX': 1, 'GEFS_HOUR_3PAD': 1}},
-    **{provider: {purpose: {'RUN_DATE_YYYYMMDD': 1, 'RUN_CYCLE_HHZ': 1,
-                             'RUN_CYCLE_YYYYMMDDHH0000': 1, 'ECMWF_STEP_HOURS': 1,
-                             'ECMWF_STREAM': 2, 'ECMWF_FILE_KIND': 1}
-                  for purpose in ('FIELD', 'INDEX')}
+def _lit(value):
+    return {'kind': 'LITERAL', 'value': value}
+
+
+def _val(kind):
+    return {'kind': kind, 'value': None}
+
+
+# Exact adapter-backed component order and literals. GEFS is the CGI
+# directory/file grammar, not evidence that the same string is a direct S3
+# object key or even a GET-only CGI request path. ECMWF includes BASE's
+# /forecasts prefix and the model directory, and INDEX is its .index sibling.
+GEFS_FIELD_SPEC = [
+    _lit('/gefs.'), _val('RUN_DATE_YYYYMMDD'), _lit('/'), _val('RUN_CYCLE_HH'),
+    _lit('/atmos/pgrb2ap5/ge'), _val('GEFS_MEMBER_SUFFIX'), _lit('.t'),
+    _val('RUN_CYCLE_HH'), _lit('z.pgrb2a.0p50.f'), _val('GEFS_HOUR_3PAD'),
+]
+
+
+def _ecmwf_spec(provider, suffix):
+    model = {'IFS': 'ifs', 'AIFS': 'aifs-ens'}[provider]
+    return [
+        _lit('/forecasts/'), _val('RUN_DATE_YYYYMMDD'), _lit('/'),
+        _val('RUN_CYCLE_HHZ'), _lit('/' + model + '/0p25/'),
+        _val('ECMWF_STREAM'), _lit('/'), _val('RUN_CYCLE_YYYYMMDDHH0000'),
+        _lit('-'), _val('ECMWF_STEP_HOURS'), _lit('h-'),
+        _val('ECMWF_STREAM'), _lit('-'), _val('ECMWF_FILE_KIND'), _lit(suffix),
+    ]
+
+
+EVIDENCED_PATH_SPECS = {
+    'GEFS': {'FIELD': GEFS_FIELD_SPEC},
+    **{provider: {'FIELD': _ecmwf_spec(provider, '.grib2'),
+                  'INDEX': _ecmwf_spec(provider, '.index')}
        for provider in ('IFS', 'AIFS')},
+}
+
+# Fixed placeholders are permitted only in a manifest explicitly marked as
+# a synthetic offline fixture. They assert no source or transport truth.
+SYNTHETIC_PLACEHOLDER_SPECS = {
+    provider: {purpose: [_lit('/synthetic/' + provider.lower() + '/' + purpose.lower())]
+               for purpose in PURPOSES if purpose not in evidenced}
+    for provider, evidenced in EVIDENCED_PATH_SPECS.items()
 }
 
 
@@ -157,15 +185,13 @@ def _validate_path_spec(spec, provider, reason):
             check(component['value'] is None, reason)
 
 
-def _check_required_kinds(spec, provider, purpose, reason):
-    required = REQUIRED_PATH_KIND_COUNTS.get(provider, {}).get(purpose)
-    if required is None:
-        return
-    counts = {}
-    for component in spec:
-        if component['kind'] != 'LITERAL':
-            counts[component['kind']] = counts.get(component['kind'], 0) + 1
-    check(counts == required, reason)
+def _check_mapping_spec(spec, provider, purpose, *, synthetic):
+    evidenced = EVIDENCED_PATH_SPECS[provider].get(purpose)
+    if evidenced is not None:
+        check(spec == evidenced, 'SOURCE_MAPPING_EXACT_PATH')
+    else:
+        check(synthetic and spec == SYNTHETIC_PLACEHOLDER_SPECS[provider][purpose],
+              'SOURCE_MAPPING_UNSUPPORTED')
 
 
 def _render_path(spec, *, origin, provider, run_utc, member, hour):
@@ -193,7 +219,7 @@ def validate_manifest_v4(raw, *, repo, object_root, now_utc):
     ident = payload['identity']
     exact(ident, ('schema', 'pilot_id', 'purpose', 'capture_mode', 'created_ref',
                   'financial_authority', 'promotion_authority', 'host_approved',
-                  'launch_authority'), 'IDENTITY_SCHEMA')
+                  'launch_authority', 'mapping_scope'), 'IDENTITY_SCHEMA')
     check(ident['schema'] == SCHEMA and ident['purpose'] == 'NONFINANCIAL_RESEARCH' and
           ident['capture_mode'] == 'BOUNDED_FEASIBILITY', 'IDENTITY_MODE')
     check(type(ident['pilot_id']) is str and
@@ -201,6 +227,11 @@ def validate_manifest_v4(raw, *, repo, object_root, now_utc):
           'test' not in ident['pilot_id'].lower(), 'PILOT_ID')
     check(all(ident[k] is False for k in ('financial_authority', 'promotion_authority',
           'host_approved', 'launch_authority')), 'SELF_AUTHORITY_FORBIDDEN')
+    check(ident['mapping_scope'] in ('SYNTHETIC_OFFLINE_ONLY', 'PROVIDER_REVIEW_REQUIRED'),
+          'MAPPING_SCOPE')
+    synthetic = ident['mapping_scope'] == 'SYNTHETIC_OFFLINE_ONLY'
+    if synthetic:
+        check(ident['pilot_id'].startswith('synthetic_'), 'SYNTHETIC_IDENTITY')
     ref(ident['created_ref'], 'CREATION_REF')
     _validate_code(payload['code'], repo)
 
@@ -394,9 +425,19 @@ def validate_manifest_v4(raw, *, repo, object_root, now_utc):
             check(mapping['control_domain_id'] == source['control_domain']['sha256'],
                   'CONTROL_DOMAIN_BINDING')
             check(_public_https_origin(mapping['origin']), 'SOURCE_MAPPING_PATH')
+            if synthetic:
+                check(mapping['origin'].endswith('.example.invalid'), 'SYNTHETIC_ORIGIN')
+            else:
+                # No reviewed GET-only contract exists for GEFS CGI or for
+                # OBJECT_ID/METADATA/PROBE. A digest reference supplied by the
+                # manifest cannot qualify one. A future provider review must
+                # introduce an exact independently anchored contract.
+                check(provider != 'GEFS' and purpose in ('FIELD', 'INDEX') and
+                      mapping['origin'] == 'https://data.ecmwf.int',
+                      'SOURCE_MAPPING_UNSUPPORTED')
             _validate_path_spec(mapping['path_spec'], provider, 'SOURCE_MAPPING_PATH')
-            _check_required_kinds(mapping['path_spec'], provider, purpose,
-                                  'SOURCE_MAPPING_PATH_KIND_COUNT')
+            _check_mapping_spec(mapping['path_spec'], provider, purpose,
+                                synthetic=synthetic)
             for sample_member in sample_members:
                 for sample_hour in sample_hours:
                     _render_path(mapping['path_spec'], origin=mapping['origin'],

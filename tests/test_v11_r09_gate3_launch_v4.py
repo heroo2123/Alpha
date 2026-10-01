@@ -19,6 +19,9 @@ from tools.v11_r09_gate3_launch import LaunchContractError, SLOT_COUNT, _slot_in
 from tools.v11_r09_gate3_launch_v4 import (
     OBSERVATION_PHASES, PURPOSES, _render_path, validate_manifest_v4,
 )
+from polymarket_scanner.v11.ecmwf_sources import BASE, ECMWFRequest
+from polymarket_scanner.v11.gefs_sources import validate_params
+from polymarket_scanner.v11.model_panel import SourceIdentity
 
 
 def _git(repo, *args):
@@ -49,13 +52,14 @@ def gefs_field_spec():
             _val('RUN_CYCLE_HH'), _lit('z.pgrb2a.0p50.f'), _val('GEFS_HOUR_3PAD')]
 
 
-def ecmwf_field_spec(suffix='.grib2'):
+def ecmwf_field_spec(provider, suffix='.grib2'):
     """{date}/{HH}z/{model}/0p25/{stream}/{date}{HH}0000-{step}h-{stream}-{file_kind}{suffix},
     exactly as evidenced by polymarket_scanner/v11/ecmwf_sources.py ECMWFRequest.url.
     No member component anywhere: perturbed members share one object, selected
     only by byte range (see ECMWFRequest.selectors / plan_ranges)."""
-    return [_lit('/'), _val('RUN_DATE_YYYYMMDD'), _lit('/'), _val('RUN_CYCLE_HHZ'),
-            _lit('/forecast/0p25/'), _val('ECMWF_STREAM'), _lit('/'),
+    model = {'IFS': 'ifs', 'AIFS': 'aifs-ens'}[provider]
+    return [_lit('/forecasts/'), _val('RUN_DATE_YYYYMMDD'), _lit('/'), _val('RUN_CYCLE_HHZ'),
+            _lit('/' + model + '/0p25/'), _val('ECMWF_STREAM'), _lit('/'),
             _val('RUN_CYCLE_YYYYMMDDHH0000'), _lit('-'), _val('ECMWF_STEP_HOURS'),
             _lit('h-'), _val('ECMWF_STREAM'), _lit('-'), _val('ECMWF_FILE_KIND'),
             _lit(suffix)]
@@ -64,12 +68,12 @@ def ecmwf_field_spec(suffix='.grib2'):
 def path_spec_for(provider, purpose):
     if provider == 'GEFS':
         return gefs_field_spec() if purpose == 'FIELD' else [
-            _lit('/gefs/'), _val('RUN_DATE_YYYYMMDD'), _lit('/'), _lit(purpose.lower())]
+            _lit('/synthetic/gefs/' + purpose.lower())]
     if purpose == 'INDEX':
-        return ecmwf_field_spec(suffix='.index')
+        return ecmwf_field_spec(provider, suffix='.index')
     if purpose == 'FIELD':
-        return ecmwf_field_spec()
-    return [_lit('/'), _val('RUN_DATE_YYYYMMDD'), _lit('/'), _lit(purpose.lower())]
+        return ecmwf_field_spec(provider)
+    return [_lit('/synthetic/' + provider.lower() + '/' + purpose.lower())]
 
 
 def candidate(tmp_path, monkeypatch):
@@ -184,7 +188,8 @@ def candidate(tmp_path, monkeypatch):
                      'pilot_id': 'synthetic_20270301', 'purpose': 'NONFINANCIAL_RESEARCH',
                      'capture_mode': 'BOUNDED_FEASIBILITY', 'created_ref': artifact,
                      'financial_authority': False, 'promotion_authority': False,
-                     'host_approved': False, 'launch_authority': False},
+                     'host_approved': False, 'launch_authority': False,
+                     'mapping_scope': 'SYNTHETIC_OFFLINE_ONLY'},
         'code': {'object_format': 'sha1', 'components': components,
                  'dependency_lock': artifact},
         'protocol': {'original_commit_oid': commit, 'original_tree_oid': tree,
@@ -543,7 +548,7 @@ def _rebind_endpoints_and_requests(payload):
     _freeze_runtime(payload)
 
 
-def test_explicit_separate_index_and_metadata_paths_and_related_origin_pass(tmp_path, monkeypatch):
+def test_unevidenced_index_and_metadata_paths_refuse_even_when_rebound(tmp_path, monkeypatch):
     payload, repo, root, start = candidate(tmp_path, monkeypatch)
     source = payload['sources']['GEFS']
     source['purpose_mappings']['INDEX']['path_spec'] = [
@@ -558,7 +563,8 @@ def test_explicit_separate_index_and_metadata_paths_and_related_origin_pass(tmp_
     assert payload['schedule']['requests'][0]['path'].endswith('.idx')
     assert payload['schedule']['requests'][2]['origin'] == 'https://official.example.invalid'
     assert payload['schedule']['requests'][3]['path'] != payload['schedule']['requests'][0]['path']
-    assert len(validate(payload, repo, root, start)) == 64
+    with pytest.raises(LaunchContractError, match='SOURCE_MAPPING_UNSUPPORTED'):
+        validate(payload, repo, root, start)
 
 
 def test_implicit_index_suffix_without_reviewed_mapping_refuses(tmp_path, monkeypatch):
@@ -698,9 +704,9 @@ def test_gefs_field_path_uses_control_vs_perturbed_naming_and_padding():
 
 def test_ecmwf_field_path_distinguishes_control_but_multiplexes_perturbed_members():
     run = datetime.fromtimestamp(RUN_UTC, timezone.utc)
-    prefix = f'/{run:%Y%m%d}/{run:%H}z/forecast/0p25/'
+    prefix = f'/forecasts/{run:%Y%m%d}/{run:%H}z/ifs/0p25/'
     cycle = f'{run:%Y%m%d%H}0000'
-    spec = ecmwf_field_spec()
+    spec = ecmwf_field_spec('IFS')
     control = _render_path(spec, origin=IFS_ORIGIN, provider='IFS',
                            run_utc=RUN_UTC, member=0, hour=3)
     member_1 = _render_path(spec, origin=IFS_ORIGIN, provider='IFS',
@@ -715,18 +721,20 @@ def test_ecmwf_field_path_distinguishes_control_but_multiplexes_perturbed_member
     # multiplexed object identity the launch-readiness audit required.
     assert member_1 == member_50
     assert control != member_1
-    aifs_control = _render_path(spec, origin=IFS_ORIGIN, provider='AIFS',
+    aifs_spec = ecmwf_field_spec('AIFS')
+    aifs_prefix = f'/forecasts/{run:%Y%m%d}/{run:%H}z/aifs-ens/0p25/'
+    aifs_control = _render_path(aifs_spec, origin=IFS_ORIGIN, provider='AIFS',
                                 run_utc=RUN_UTC, member=0, hour=6)
-    aifs_perturbed = _render_path(spec, origin=IFS_ORIGIN, provider='AIFS',
+    aifs_perturbed = _render_path(aifs_spec, origin=IFS_ORIGIN, provider='AIFS',
                                   run_utc=RUN_UTC, member=1, hour=6)
-    assert aifs_control == f'{prefix}enfo/{cycle}-6h-enfo-cf.grib2'
-    assert aifs_perturbed == f'{prefix}enfo/{cycle}-6h-enfo-pf.grib2'
+    assert aifs_control == f'{aifs_prefix}enfo/{cycle}-6h-enfo-cf.grib2'
+    assert aifs_perturbed == f'{aifs_prefix}enfo/{cycle}-6h-enfo-pf.grib2'
 
 
 def test_ecmwf_index_path_is_explicit_sibling_not_derived_suffix():
-    field_path = _render_path(ecmwf_field_spec(), origin=IFS_ORIGIN, provider='IFS',
+    field_path = _render_path(ecmwf_field_spec('IFS'), origin=IFS_ORIGIN, provider='IFS',
                               run_utc=RUN_UTC, member=1, hour=3)
-    index_path = _render_path(ecmwf_field_spec(suffix='.index'), origin=IFS_ORIGIN,
+    index_path = _render_path(ecmwf_field_spec('IFS', suffix='.index'), origin=IFS_ORIGIN,
                               provider='IFS', run_utc=RUN_UTC, member=1, hour=3)
     assert field_path.endswith('.grib2') and index_path.endswith('.index')
     assert field_path[:-len('.grib2')] == index_path[:-len('.index')]
@@ -778,6 +786,9 @@ def test_multiplexed_ecmwf_perturbed_members_share_object_identity_in_full_sched
     assert field_m1['request_id'] != field_m2['request_id']
     assert field_m1['slot_index'] != field_m2['slot_index']
     assert field_m1['object_id'] != field0['object_id']
+    field_m2['range_start'] = 4194304
+    field_m2['range_end'] = 8388607
+    _freeze_runtime(payload)
     assert len(validate(payload, repo, root, start)) == 64
 
 
@@ -823,7 +834,7 @@ def test_required_kind_count_enforced_for_evidenced_gefs_field_path(tmp_path, mo
     spec = payload['sources']['GEFS']['purpose_mappings']['FIELD']['path_spec']
     payload['sources']['GEFS']['purpose_mappings']['FIELD']['path_spec'] = [
         c for c in spec if c['kind'] != 'RUN_CYCLE_HH'] + [_val('RUN_CYCLE_HH')]
-    with pytest.raises(LaunchContractError, match='SOURCE_MAPPING_PATH_KIND_COUNT'):
+    with pytest.raises(LaunchContractError, match='SOURCE_MAPPING_EXACT_PATH'):
         validate(payload, repo, root, start)
 
 
@@ -841,7 +852,7 @@ def test_required_kind_count_enforced_for_evidenced_ecmwf_field_path(tmp_path, m
             seen = True
         trimmed.append(component)
     payload['sources']['IFS']['purpose_mappings']['FIELD']['path_spec'] = trimmed
-    with pytest.raises(LaunchContractError, match='SOURCE_MAPPING_PATH_KIND_COUNT'):
+    with pytest.raises(LaunchContractError, match='SOURCE_MAPPING_EXACT_PATH'):
         validate(payload, repo, root, start)
 
 
@@ -854,5 +865,90 @@ def test_field_mapping_path_spec_must_match_source_top_level_spec(tmp_path, monk
     diverged = list(gefs_field_spec())
     diverged[0] = _lit('/gefs-mirror.')
     payload['sources']['GEFS']['purpose_mappings']['FIELD']['path_spec'] = diverged
-    with pytest.raises(LaunchContractError, match='FIELD_SOURCE_MAPPING'):
+    with pytest.raises(LaunchContractError, match='SOURCE_MAPPING_EXACT_PATH'):
+        validate(payload, repo, root, start)
+
+
+@pytest.mark.parametrize('provider,member,hour', [
+    ('IFS', 0, 0), ('IFS', 1, 6), ('IFS', 50, 72),
+    ('AIFS', 0, 0), ('AIFS', 1, 6), ('AIFS', 50, 72),
+])
+def test_ecmwf_paths_match_actual_adapter(provider, member, hour):
+    source = SourceIdentity('ECMWF_' + provider + '_ENS', 'synthetic-v1',
+                            'ecmwf-open-data:0p25', '0' * 64)
+    request = ECMWFRequest(source, RUN_UTC, hour, member, '0' * 64)
+    field = _render_path(ecmwf_field_spec(provider), origin=IFS_ORIGIN,
+                         provider=provider, run_utc=RUN_UTC, member=member, hour=hour)
+    index = _render_path(ecmwf_field_spec(provider, '.index'), origin=IFS_ORIGIN,
+                         provider=provider, run_utc=RUN_UTC, member=member, hour=hour)
+    assert BASE + field.removeprefix('/forecasts') == request.url
+    assert BASE + index.removeprefix('/forecasts') == request.url[:-6] + '.index'
+
+
+@pytest.mark.parametrize('member,hour', [(0, 0), (5, 3), (30, 72)])
+def test_gefs_path_matches_adapter_query_grammar(member, hour):
+    path = _render_path(gefs_field_spec(), origin=GEFS_ORIGIN, provider='GEFS',
+                        run_utc=RUN_UTC, member=member, hour=hour)
+    directory, file = path.rsplit('/', 1)
+    validate_params({'dir': directory, 'file': file,
+                     'lev_2_m_above_ground': 'on', 'var_TMP': 'on',
+                     'subregion': '', 'leftlon': '0', 'rightlon': '0.5',
+                     'toplat': '0.5', 'bottomlat': '0'})
+
+
+@pytest.mark.parametrize('provider,purpose,position,value', [
+    ('GEFS', 'FIELD', 0, '/wrong.'),
+    ('IFS', 'FIELD', 4, '/aifs-ens/0p25/'),
+    ('IFS', 'INDEX', -1, '.grib2'),
+])
+def test_rebound_wrong_literals_model_or_index_suffix_refused(
+        tmp_path, monkeypatch, provider, purpose, position, value):
+    payload, repo, root, start = candidate(tmp_path, monkeypatch)
+    spec = payload['sources'][provider]['purpose_mappings'][purpose]['path_spec']
+    spec[position] = _lit(value)
+    if purpose == 'FIELD':
+        payload['sources'][provider]['path_spec'] = spec
+    _rebind_endpoints_and_requests(payload)
+    with pytest.raises(LaunchContractError, match='SOURCE_MAPPING_EXACT_PATH'):
+        validate(payload, repo, root, start)
+
+
+def test_rebound_component_order_refused(tmp_path, monkeypatch):
+    payload, repo, root, start = candidate(tmp_path, monkeypatch)
+    spec = payload['sources']['GEFS']['path_spec']
+    spec[1], spec[3] = spec[3], spec[1]
+    _rebind_endpoints_and_requests(payload)
+    with pytest.raises(LaunchContractError, match='SOURCE_MAPPING_EXACT_PATH'):
+        validate(payload, repo, root, start)
+
+
+@pytest.mark.parametrize('provider,purpose', [
+    ('GEFS', 'INDEX'), ('GEFS', 'OBJECT_ID'),
+    ('IFS', 'METADATA'), ('AIFS', 'PROBE'),
+])
+def test_unsupported_purpose_refused_after_rebinding(
+        tmp_path, monkeypatch, provider, purpose):
+    payload, repo, root, start = candidate(tmp_path, monkeypatch)
+    payload['sources'][provider]['purpose_mappings'][purpose]['path_spec'] = [
+        _lit('/unreviewed/' + purpose.lower())]
+    _rebind_endpoints_and_requests(payload)
+    with pytest.raises(LaunchContractError, match='SOURCE_MAPPING_UNSUPPORTED'):
+        validate(payload, repo, root, start)
+
+
+def test_guessed_gefs_s3_origin_refused_after_rebinding(tmp_path, monkeypatch):
+    payload, repo, root, start = candidate(tmp_path, monkeypatch)
+    source = payload['sources']['GEFS']
+    source['origin'] = 'https://noaa-gefs-pds.s3.amazonaws.com'
+    for mapping in source['purpose_mappings'].values():
+        mapping['origin'] = source['origin']
+    _rebind_endpoints_and_requests(payload)
+    with pytest.raises(LaunchContractError, match='SYNTHETIC_ORIGIN'):
+        validate(payload, repo, root, start)
+
+
+def test_real_scope_refuses_unsupported_contracts(tmp_path, monkeypatch):
+    payload, repo, root, start = candidate(tmp_path, monkeypatch)
+    payload['identity']['mapping_scope'] = 'PROVIDER_REVIEW_REQUIRED'
+    with pytest.raises(LaunchContractError, match='SOURCE_MAPPING_UNSUPPORTED'):
         validate(payload, repo, root, start)
