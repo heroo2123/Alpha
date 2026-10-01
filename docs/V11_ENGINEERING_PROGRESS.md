@@ -1,5 +1,15 @@
 # Supplementary engineering estimate
 
+## Live J1 repair and passive launch audit — 2026-10-01 18:57 UTC
+
+The single Sonnet/high repair worker is live, with an unfinished runtime diff
+and no new commit or terminal. The offline G3-L screen remains nonlaunchable
+with 77 missing reviewed identities; physical free disk is about 1.09 GiB,
+below the 2 GiB floor. Independent exact-commit review and newer-main
+reconciliation follow a tested candidate. No provider request or forward
+SHADOW evidence occurred. **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**
+unchanged.
+
 ## J1 review completed and next repair launched — 2026-10-01 18:53 UTC
 
 Independent exact review of `3a066a6` passed 480 Gate 3 family and 95 carried

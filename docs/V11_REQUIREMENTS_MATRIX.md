@@ -1,5 +1,15 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Live J1 repair; G3-L still NO-GO — 2026-10-01 18:57 UTC
+
+The sole J1 general-repair writer is live at `3a066a6` with unfinished runtime
+edits; there is no candidate terminal or acceptance verdict. The frozen
+October 2 offline screen still lacks 77 reviewed identities and has
+`launchable=false`. Free disk is below the 2 GiB launch floor. Exact-commit
+review, newer-main reconciliation, G3-L, provider/storage/time evidence and
+real IFS/AIFS admission remain open. No C/J/E/A boundary crossed:
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## J1 ordinary-exception gap independently reproduced — 2026-10-01 18:53 UTC
 
 Exact `3a066a6` review is **CHANGES_REQUIRED**: 480 family and 95 carried

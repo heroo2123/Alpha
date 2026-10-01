@@ -1,5 +1,28 @@
 # Alpha V11 work checkpoint
 
+## Live J1 repair and G3-L resource no-go — 2026-10-01 18:57 UTC
+
+Recovered clean main `e2fe247` and the sole live Sonnet/high J1 general-repair
+runner `1853223` with child `1853235` in the isolated slice-3 repair worktree.
+Its HEAD remains `3a066a6`; `tools/v11_r09_gate3_runtime.py` has an unfinished
+17-line working diff, with `git diff --check` clean. The worker's independent
+extra-probe artifacts are appearing, but its log is empty and no candidate
+commit or terminal exists. Preserve its worktree and wait for its tested exact
+commit before starting different-model review; do not duplicate the writer.
+
+The frozen October 2 offline prep JSON remains `launchable=false`, stage
+`PRE_REVIEW`, status `BLOCKED_MISSING_REVIEWED_EVIDENCE`, with 77 missing
+identities. Root free space is about 1.09 GiB during the worker's tests, below
+the 2 GiB launch floor; available memory is about 842 MiB plus 1.82 GiB free
+swap. G3-L is **NO-GO**; no provider request or forward SHADOW sample occurred.
+PAPER demo/scanner/controller/execution are inactive; scanner is disabled.
+Protected authority paths are absent. The private FINAL-REVIEWED master still
+matches SHA-256 `a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+SHADOW and Brain-readiness worktrees are clean; the ECMWF worktree's untracked
+`backfill_data/` remains preserved. No V10, AxiomTrade, service, authority,
+financial or private-master change was made. No C/J/E/A boundary crossed:
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## J1 exact review complete; general repair live — 2026-10-01 18:53 UTC
 
 Independent Astra/high review of clean unmerged `3a066a6` (tree `e11ebd74`)
