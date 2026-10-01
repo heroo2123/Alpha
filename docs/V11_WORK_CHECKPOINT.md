@@ -1,5 +1,30 @@
 # Alpha V11 work checkpoint
 
+## MEMFS exact review recovered after unexplained process exit — 2026-10-01 20:25 UTC
+
+The first replacement Astra/high review of clean, unmerged `8b0b32e` reached
+static ELF inspection but its runner/child exited without a report or terminal.
+Its `/tmp/alpha-v11-memfs-review-retry-8b0b32e.log` is incomplete evidence,
+not an acceptance or rejection. The candidate and detached exact review
+checkout remain clean. One replacement Astra/high reviewer has been detached
+in that **same** checkout: runner PID **1903396**, prompt/runner/log/report/
+terminal prefix `/tmp/alpha-v11-memfs-review-resume2-8b0b32e`. The runner
+and log were verified live; inspect its actual terminal and independent report
+before integration. Do not duplicate the review or merge the candidate yet.
+
+Main is clean at `5b3d8bd`, 76 local commits ahead of origin. SHADOW and Brain
+worktrees are clean; ECMWF `backfill_data/` remains preserved. No newer
+qualifying forward SHADOW artifact was found. PAPER scanner/controller and V11
+execution are inactive; scanner disabled, execution masked. Protected authority
+roots are absent. The private FINAL-REVIEWED master still hashes to
+`a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+Observed root free disk **1,360,408,576 bytes** (below the 2 GiB G3-L floor)
+and available memory **760,975,360 bytes**. The prior prospective G3-L screen
+still lacks 77 reviewed identities; no new launch screen or provider request
+was run. G3-L **NO-GO**. No V10, AxiomTrade, service, authority, financial or
+remote-publication action; no C/J/E/A crossing: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## MEMFS review infrastructure recovered; exact review in progress — 2026-10-01 20:14 UTC
 
 The initial detached Astra/high review of `8b0b32e` completed

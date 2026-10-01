@@ -1,5 +1,14 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## MEMFS exact review recovered after process exit — 2026-10-01 20:25 UTC
+
+The `8b0b32e` retry reached read-only ELF inspection but exited without a
+terminal verdict. One Astra/high replacement is live in the same clean exact
+checkout (runner 1903396; terminal prefix
+`/tmp/alpha-v11-memfs-review-resume2-8b0b32e`). Candidate remains unmerged
+and unqualified. G3-L NO-GO; no forward SHADOW sample or C/J/E/A boundary:
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## MEMFS review retry after sandbox failure — 2026-10-01 20:14 UTC
 
 The first exact reviewer returned `MEMFS_REVIEW_INCOMPLETE` before reading
