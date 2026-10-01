@@ -1,5 +1,28 @@
 # Alpha V11 work checkpoint
 
+## Passive Gate 3 recovery while decoder correction runs — 2026-10-01 19:39 UTC
+
+Recovered main clean at `3bf0544` and the same sole decoder correction worker
+(runner 1884618 / child 1884629) alive in its original isolated worktree at
+`20a42f7`. Its probe has an unfinished working diff; no terminal or corrected
+commit exists yet. Preserve it and obtain a fresh different-model exact-commit
+review after it finishes. No second Alpha writer was started while the host
+also runs another project's heavy tests.
+
+SHADOW and Brain worktrees remain clean; ECMWF's untracked `backfill_data/`
+is preserved. No commissioning write newer than the last checkpoint or new
+qualifying forward sample was found. PAPER scanner/controller/demo and V11
+execution services are inactive; scanner disabled and execution service not
+found. Protected `/etc/alpha-v11` and `/var/lib/alpha-v11` roots are absent.
+The private FINAL-REVIEWED master still hashes to
+`a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+Free disk is about 1.3 GiB, below the 2 GiB G3-L floor; available memory
+about 544 MiB, with another project's test process active. The prior offline
+screen remains 77 missing plus one expired item. G3-L **NO-GO**; no provider
+request, V10/AxiomTrade/service/authority/financial change, or remote
+publication. No C/J/E/A crossing: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Decoder inventory review requires correction; sole repair worker live — 2026-10-01 19:36 UTC
 
 Independent Astra/high [exact review](V11_R09_GATE3_DECODER_BUILD_REVIEW_20a42f7.md)

@@ -1,5 +1,13 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Passive recovery; decoder correction still live — 2026-10-01 19:39 UTC
+
+The sole correction worker remains live with an unfinished probe diff and no
+new exact commit or terminal. No new qualifying SHADOW evidence or C/J/E/A
+boundary. G3-L remains NO-GO: 77 missing plus one expired reviewed identity,
+and about 1.3 GiB free disk versus the 2 GiB floor. **91/200 (45.5%), formal
+1/50; NOT_READY_TO_FUND** unchanged.
+
 ## Decoder inventory exact review rejected; correction active — 2026-10-01 19:36 UTC
 
 Independent Astra/high [review](V11_R09_GATE3_DECODER_BUILD_REVIEW_20a42f7.md)

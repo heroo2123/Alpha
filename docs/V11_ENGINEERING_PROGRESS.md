@@ -1,5 +1,13 @@
 # Supplementary engineering estimate
 
+## Passive recovery; decoder correction still live — 2026-10-01 19:39 UTC
+
+The original isolated decoder correction worker remains active at `20a42f7`
+with an unfinished probe diff; no reviewed candidate exists yet. Host disk
+remains below the G3-L floor, and the prior offline screen has 77 missing plus
+one expired item. No new forward SHADOW sample or C/J/E/A boundary. **91/200
+(45.5%), formal 1/50; NOT_READY_TO_FUND** unchanged.
+
 ## Decoder inventory exact review rejected; correction active — 2026-10-01 19:36 UTC
 
 Independent Astra/high [review](V11_R09_GATE3_DECODER_BUILD_REVIEW_20a42f7.md)
