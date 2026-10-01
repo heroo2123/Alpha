@@ -1,0 +1,53 @@
+{
+  "a2_qualified": false,
+  "a3_qualified": false,
+  "artifacts": {
+    "docs/V11_R09_GATE3_A2A3_RETAINED_AUDIT_20261001.json": {
+      "bytes": 118802,
+      "sha256": "a1f45e671f79131dc5e796fbbc0ae9368e01b9df90c1b9d94f7f5288dbf7f9f6"
+    },
+    "docs/V11_R09_GATE3_A2A3_RETAINED_AUDIT_20261001.md": {
+      "bytes": 5167,
+      "sha256": "2cb25a65b177b9c1cc098734381d09a97e95c94c2cf82e1216ebbcae0b4bcb23"
+    },
+    "tools/v11_r09_gate3_a2a3_retained_audit.py": {
+      "bytes": 7562,
+      "sha256": "cde4beb485b230a9c82abbb59718613e724fd15618a461ba22d5dcd0ed582857"
+    }
+  },
+  "authenticated_original": false,
+  "cached_wheel_present_now": false,
+  "complete_dependency_lock": false,
+  "content_commit": "8198d7351a051ce2c792e6bb9ed5ab1ddddf8d4c",
+  "content_tree": "6363b29d20ab17b9330b4e2322ee378efe8c909c",
+  "financial_actions": 0,
+  "g3l": "NO-GO",
+  "independent_review": "PENDING",
+  "installed_package_mutations": 0,
+  "observed_utc": "2026-10-01T22:56:10.454482+00:00",
+  "package_installations": 0,
+  "provider_requests": 0,
+  "record_rewrites": 0,
+  "reproducible_installation_verified": false,
+  "schema": "ALPHA_V11_GATE3_A2A3_RETAINED_AUDIT_TERMINAL_V1",
+  "scope": "offline A2/A3 retained-byte corroboration only; independent review pending",
+  "service_changes": 0,
+  "targeted_offline_tests": [
+    {
+      "name": "audit rerun JSON equality excluding observed_utc",
+      "result": "PASS"
+    },
+    {
+      "name": "tampered historical RECORD SHA-256 rejected before output",
+      "result": "PASS"
+    },
+    {
+      "name": "25 discrepancies across 3 local copies; 78 ELF files and 305 static DT_NEEDED edges",
+      "result": "PASS"
+    },
+    {
+      "name": "Python compile and git diff --cached --check",
+      "result": "PASS"
+    }
+  ]
+}
