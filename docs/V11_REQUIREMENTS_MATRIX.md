@@ -1,5 +1,14 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## A1/A2 author candidates await independent acceptance — 2026-10-01 23:04 UTC
+
+Clean A1 `12a6e38` and A2/A3 `89f85ac` author candidates have terminal
+evidence only. An isolated Astra/high exact A1 review is live; A2/A3 awaits
+different-model review. A4 resumed as the second worker; A7/A8 remain paused.
+No A1 observer, A2/A3 provenance/build, G3-L, forward SHADOW or C/J/E/A
+acceptance is claimed: **G3-L NO-GO; 91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Gate 3 worker recovery — 2026-10-01 22:52 UTC
 
 The prior inventory-transform `CHANGES_REQUIRED` verdict remains authoritative.

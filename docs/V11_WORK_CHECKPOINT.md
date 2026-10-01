@@ -1,5 +1,38 @@
 # Alpha V11 work checkpoint
 
+## A1/A2 candidates recovered; A1 exact review launched — 2026-10-01 23:04 UTC
+
+The two active author runners completed cleanly with terminal markers. A1
+point-of-use repair is `12a6e3879e5618617e4abd1f39165add9253151a`
+(tree `01b05f82f7578f1a02b304f370d424c8f41f9758`), changing its four
+observation artifacts. Its author-run offline probe reports 86 MEMFS opens,
+90 existence checks, source verification before execution, checked trace
+completion and negative trace controls. These remain author claims until
+independent review. A2/A3 retained-artifact audit is clean at
+`89f85acdb973fb2c7cceafbcf3bb0cb1848c7ead` (tree
+`9ff38fb832c2b68836e81ccdc03eed409f36283b`); its two commits document
+three local copies of the same 25 unresolved RECORD discrepancies and 305
+static `DT_NEEDED` references. The cached wheel is now absent. This is local
+corroboration, not A2/A3 qualification or authenticated provenance.
+
+One independent Astra/high A1 reviewer, runner PID 1936885, is live in clean
+detached `/tmp/alpha-v11-pointofuse-review-12a6e38` at the exact A1 commit;
+its terminal prefix is `/tmp/alpha-v11-pointofuse-review-12a6e38`. Inspect
+its report, machine terminal and exact commit before any A1 integration.
+The A4 runtime worker process group 1933369 was verified and SIGCONT-resumed
+as the second active specialist. A7 group 1933486 and A8 group 1933615
+remain SIGSTOP-paused; verify identity and a free slot before resuming either.
+A2/A3 still needs different-model exact review before integration; do not
+duplicate the live A1 review. The inventory-transform five-P2 repair remains
+unstarted in its clean unmerged worktree.
+
+Main was clean at `a65f8bc` before this entry. At the 23:03 screen, free disk
+was 3,241,873,408 bytes and available memory 1,168,683,008 bytes. No new
+forward SHADOW file, provider request, G3-L PASS or C/J/E/A crossing was
+observed. No V10, AxiomTrade, financial, service, authority, private-master or
+remote-publication action. **G3-L NO-GO; 91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Gate 3 live-worker recovery and concurrency correction — 2026-10-01 22:52 UTC
 
 Recovered clean main `f7009ef` (97 commits ahead of origin), including the

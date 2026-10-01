@@ -1,5 +1,14 @@
 # Supplementary engineering estimate
 
+## A1/A2 author candidates and exact review — 2026-10-01 23:04 UTC
+
+Both active author workers completed clean isolated candidates. A1 `12a6e38`
+is in independent Astra/high exact review; A2/A3 `89f85ac` awaits the same
+independent acceptance step. A4 was resumed in the freed worker slot, while
+A7/A8 stay paused and preserved. Candidate tests and local artifact agreement
+do not qualify A2/A3 or G3-L. No forward SHADOW or C/J/E/A crossing:
+**G3-L NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Gate 3 worker recovery — 2026-10-01 22:52 UTC
 
 Recovered five newer isolated workers and preserved all work. A1 point-of-use
