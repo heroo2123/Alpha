@@ -105,11 +105,20 @@ REQUIRED = {
 }
 RUN_SPECIFIC = {f"sources.{p.lower()}_current_run_index_object_range" for p in PROVIDERS} | {
     "cohort.metadata_bytes_receipt", "schedule.run_candidate_readiness_evidence",
-    "storage.live_disk_memory_quota_measurement",
 }
+# Live disk/memory capacity is only meaningful as close as possible to the
+# acquisition window, not tied to any specific model run; it is window-scoped
+# only, with the tighter window freshness bound (not the looser run bound).
 WINDOW_SPECIFIC = {"clocks.calibration_sync_uncertainty", "clocks.host_boot_monotonic_identity",
                    "storage.live_disk_memory_quota_measurement"}
 ALL_IDS = tuple(f"{group}.{name}" for group, names in REQUIRED.items() for name in names)
+# The detached G3-L review report and its completed terminal are outputs of
+# reviewing an already-assembled package, not inputs to assembling it. They
+# must stay unresolved at the pre-review stage and are only required once the
+# separate, later final stage validates the completed review.
+FINAL_ONLY_IDS = ("review.detached_g3l_report", "review.detached_g3l_completed_terminal")
+PRE_REVIEW_IDS = tuple(i for i in ALL_IDS if i not in FINAL_ONLY_IDS)
+STAGES = ("PRE_REVIEW", "FINAL")
 
 
 def _parse_json(raw: bytes) -> dict:
@@ -350,8 +359,18 @@ def private_v4_null_template(target_date: str) -> dict:
 
 
 def check_inventory(inventory: dict, *, target_date: str, now_utc: int,
+                    stage: str = "PRE_REVIEW",
                     object_root: Path | None = None) -> list[dict]:
-    """Return machine-readable findings. Never returns launch permission."""
+    """Return machine-readable findings. Never returns launch permission.
+
+    PRE_REVIEW checks every identity except the two detached G3-L review
+    outputs, which must stay unresolved: the completed review has not
+    happened yet when a package is first assembled. FINAL additionally
+    requires those two outputs, once the detached review is complete; it
+    still never implies launch permission.
+    """
+    if stage not in STAGES:
+        raise ValueError("stage must be PRE_REVIEW or FINAL")
     if set(inventory) != {"schema", "launchable", "target_date", "evidence"} or (
         inventory.get("schema") != SCHEMA or inventory.get("launchable") is not False
         or inventory.get("target_date") != target_date or type(inventory.get("evidence")) is not dict
@@ -368,6 +387,11 @@ def check_inventory(inventory: dict, *, target_date: str, now_utc: int,
                          "reason": "review cannot finish before frozen acquisition start"})
     for item_id in ALL_IDS:
         item = evidence[item_id]
+        if stage == "PRE_REVIEW" and item_id in FINAL_ONLY_IDS:
+            if item is not None:
+                findings.append({"id": item_id, "state": "INVALID",
+                                 "reason": "detached review output supplied before the review stage"})
+            continue
         if item is None:
             findings.append({"id": item_id, "state": "MISSING", "reason": "unfilled evidence"})
             continue
@@ -465,9 +489,10 @@ def make_report(*, target_date: str, run_utc: int, free_disk: int,
         "freeze_checklist": freeze_checklist(target_date),
         "capacity_plan": plan(run_utc, free_disk, available_memory),
         "inventory_template": inventory,
+        "stage": "PRE_REVIEW",
         "missing_evidence": check_inventory(inventory, target_date=target_date,
-                                             now_utc=observed_utc),
-        "handoff": "Independent review must validate actual V4 canonical bytes with validate_manifest_v4 and a detached exact-digest G3-L terminal; this report cannot authorize capture.",
+                                             now_utc=observed_utc, stage="PRE_REVIEW"),
+        "handoff": "Independent review must validate actual V4 canonical bytes with validate_manifest_v4 and a detached exact-digest G3-L terminal; this report cannot authorize capture. The two detached-review evidence identities are deliberately unresolved here: they are outputs of that later review, checked only at the separate FINAL stage.",
     }
 
 
@@ -479,16 +504,24 @@ def main(argv=None) -> int:
     parser.add_argument("--observed-utc", type=int, required=True)
     parser.add_argument("--inventory", type=Path)
     parser.add_argument("--object-root", type=Path)
+    parser.add_argument("--stage", choices=("pre_review", "final"), default="pre_review",
+                        help="pre_review: input packet only, detached review outputs must stay "
+                             "unresolved. final: also requires the completed detached review "
+                             "outputs. Neither stage ever grants launch permission.")
     args = parser.parse_args(argv)
     checklist = freeze_checklist(args.target_date)
     if args.observed_utc <= 0:
         parser.error("observed-utc must be positive")
     if args.inventory:
+        stage = "PRE_REVIEW" if args.stage == "pre_review" else "FINAL"
+        success_status = ("ASSEMBLED_FOR_INDEPENDENT_REVIEW" if stage == "PRE_REVIEW"
+                          else "FINAL_REVIEWED_PACKAGE_NO_LAUNCH_AUTHORITY")
         inventory = _parse_json(args.inventory.read_bytes())
         findings = check_inventory(inventory, target_date=args.target_date,
-                                   now_utc=args.observed_utc, object_root=args.object_root)
-        result = {"schema": SCHEMA, "launchable": False,
-                  "status": "ASSEMBLED_FOR_INDEPENDENT_REVIEW" if not findings else "BLOCKED_EVIDENCE",
+                                   now_utc=args.observed_utc, stage=stage,
+                                   object_root=args.object_root)
+        result = {"schema": SCHEMA, "launchable": False, "stage": stage,
+                  "status": success_status if not findings else "BLOCKED_EVIDENCE",
                   "missing_evidence": findings}
     else:
         result = make_report(target_date=args.target_date,
@@ -497,7 +530,8 @@ def main(argv=None) -> int:
                              available_memory=args.available_memory_bytes,
                              observed_utc=args.observed_utc)
     print(json.dumps(result, sort_keys=True, separators=(",", ":")))
-    return 0 if result["status"] == "ASSEMBLED_FOR_INDEPENDENT_REVIEW" else 2
+    return 0 if result["status"] in ("ASSEMBLED_FOR_INDEPENDENT_REVIEW",
+                                     "FINAL_REVIEWED_PACKAGE_NO_LAUNCH_AUTHORITY") else 2
 
 
 if __name__ == "__main__":
