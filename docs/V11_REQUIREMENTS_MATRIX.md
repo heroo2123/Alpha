@@ -1,5 +1,13 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Static MEMFS worker recovery — 2026-10-01 20:07 UTC
+
+Main `4bffadf` is clean. The sole MEMFS worker remains live in its isolated
+worktree with an unfinished probe and no terminal or reviewable commit.
+Independent exact review remains next. No new SHADOW evidence or G3-L identity;
+the prospective screen still lacks 77 reviewed inputs and disk is below the
+2 GiB floor. **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND** unchanged.
+
 ## Corrected decoder observation accepted; MEMFS prerequisite active — 2026-10-01 20:02 UTC
 
 Independent Astra/high [review](V11_R09_GATE3_DECODER_BUILD_REVIEW_82e1619.md)

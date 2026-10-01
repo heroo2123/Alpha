@@ -1,5 +1,13 @@
 # Supplementary engineering estimate
 
+## Static MEMFS worker recovery — 2026-10-01 20:07 UTC
+
+The sole Alpha MEMFS writer remains live with one unfinished untracked probe;
+no candidate or independent review is ready. Main is clean at `4bffadf`.
+GEFS has no new forward SHADOW evidence; G3-L remains NO-GO with 77 missing
+pre-review identities and disk below its 2 GiB floor. No C/J/E/A boundary:
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND** unchanged.
+
 ## Corrected decoder observation accepted; MEMFS prerequisite active — 2026-10-01 20:02 UTC
 
 Independent Astra/high [review](V11_R09_GATE3_DECODER_BUILD_REVIEW_82e1619.md)
