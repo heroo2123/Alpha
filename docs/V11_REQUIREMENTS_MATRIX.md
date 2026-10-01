@@ -1,5 +1,15 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Offline Gate 3 mapping repair PASS and local integration — 2026-10-01 13:13 UTC
+
+Exact `23c11e0` passed independent Astra/high review: prior R1/R2 mapping
+defects closed, 58 focused tests and 13 independent probes. Conflict-free
+reconciliation with main `140f471` was merged as `98b5c26`; merged-main
+Gate 3 family **394 passed**. This accepts synthetic/offline path validation
+only. Real-provider purpose contracts and evidence remain absent, and slice-3
+repair is unfinished. G3-L NO-GO; **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Both Gate 3 repairs resumed after quota stops — 2026-10-01 12:35 UTC
 
 The original Sonnet runners stopped on the Claude session limit. Separate

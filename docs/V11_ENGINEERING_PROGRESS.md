@@ -1,5 +1,15 @@
 # Supplementary engineering estimate
 
+## Reviewed offline mapping repair integrated — 2026-10-01 13:13 UTC
+
+Independent Astra/high exact-commit review passed `23c11e0` for the two
+prior mapping defects (58 focused tests; 13 adversarial probes). Conflict-free
+newer-main reconciliation yielded local merge `98b5c26`; the merged Gate 3
+family passed 394 tests. The schema deliberately refuses real-provider
+manifests until separately reviewed contracts exist. Slice-3 repair remains
+unfinished and G3-L NO-GO. No C/J/E/A award: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Gate 3 quota-stop recovery — 2026-10-01 12:35 UTC
 
 Both Sonnet runners ended on a 13:20 UTC session-limit message. The slice-3

@@ -1,5 +1,29 @@
 # Alpha V11 work checkpoint
 
+## Provider mapping repair independently accepted and integrated — 2026-10-01 13:13 UTC
+
+Recovered the clean mapping repair candidate `23c11e0` (tree `979440fe`),
+based on `15f054f`. Independent Astra/high [exact-commit review](V11_R09_GATE3_V4_PROVIDER_MAPPING_REPAIR_REVIEW_23c11e0.md)
+and [terminal](V11_R09_GATE3_V4_PROVIDER_MAPPING_REPAIR_REVIEW_23c11e0_terminal.json)
+returned **PASS for offline mapping repair only**: 58 focused tests and 13
+adversarial probes (11 expected refusals, two positive controls). Prior R1/R2
+mapping findings are closed. Conflict-free `git merge-tree --write-tree
+140f471 23c11e0` yielded `55b2c450`; merged locally as `98b5c26`.
+The actual merged-main Gate 3 family passed **394/394**, with two existing
+fork warnings. Real-provider mappings remain deliberately refused pending
+separately reviewed contracts and source evidence; this merge grants no G3-L
+or network authority.
+
+The slice-3 R1–R8 repair worktree still has five unfinished modified files
+and no candidate commit. Its separate writer's edits were preserved. No
+provider request, SHADOW launch, push, service, V10, AxiomTrade, or private
+master action occurred. Scanner/controller inactive; execution masked;
+private FINAL-REVIEWED master still matches its SHA-256 pin. G3-L **NO-GO**;
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND** unchanged. Next: finish
+slice-3 repair, obtain different-model exact-commit review, then reconcile
+with this newer main. Genuine source, decoder, restriction, clock, storage,
+preflight and private exact-digest launch gates remain open.
+
 ## Both repair workers recovered after Claude session limit — 2026-10-01 12:35 UTC
 
 Actual process/terminal check supersedes the earlier live-worker entry: the

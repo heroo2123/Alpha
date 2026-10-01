@@ -1,0 +1,34 @@
+{
+  "verdict": "PASS",
+  "scope": "offline provider mapping repair only",
+  "base_commit": "15f054fb1eb622a07b57aef1c68d93804aa48664",
+  "candidate_commit": "23c11e059048257a284d514d3454b811b3866515",
+  "candidate_tree": "979440fec2daaf5e7802d0c3d5afad3639d3ab9d",
+  "candidate_worktree_clean": true,
+  "review_report": "/tmp/alpha-v11-mapping-review-23c11e0-astra-20261001.md",
+  "review_report_sha256": "d2a617ce9155b1b1614210510e04bfd09bdd27620236e6cfee6a2c74650bd1af",
+  "tests": {
+    "focused": {
+      "passed": 58,
+      "failed": 0,
+      "seconds": 5.9
+    },
+    "independent_probes": {
+      "total": 13,
+      "expected_refusals": 11,
+      "positive_controls": 2,
+      "unexpected_outcomes": 0
+    },
+    "diff_check": "PASS"
+  },
+  "prior_findings": {
+    "R1": "CLOSED",
+    "R2": "CLOSED"
+  },
+  "blocking_findings": [],
+  "provider_requests": 0,
+  "launch_authority": false,
+  "g3_l": "NO-GO",
+  "funding_status": "NOT_READY_TO_FUND",
+  "newer_main_reconciliation": "REQUIRED"
+}
