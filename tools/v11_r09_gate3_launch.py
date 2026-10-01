@@ -36,6 +36,14 @@ PINNED_ADDENDUM_TREE = 'd37d7ad55a76902cae0536e6f4d21b9db6aeaa81'
 PINNED_ADDENDUM_DOC = 'a4a2a18e83a53359e3a46cdf7cbda6031c6afec74e5d497f2cd126b1ae7b943c'
 REQUIRED_REVIEW_NAMES = {'original_protocol', 'collector', 'provider_bound',
                          'gefs_ceiling', 'launch_addendum'}
+# Fixed journal replay/write caps (not constructor parameters): a manifest or
+# caller can never widen these by requesting a looser DurableBudget. They stop
+# an unbounded single-record allocation and cap total ledger growth
+# independently of the byte/request budget itself.
+JOURNAL_MAX_BYTES = 64 * 1024 ** 2
+JOURNAL_RECORD_MAX_BYTES = 64 * 1024
+JOURNAL_MAX_EVENTS = 131072
+JOURNAL_READ_CHUNK_BYTES = 64 * 1024
 GROUPS = ('identity', 'code', 'protocol', 'storage', 'cohort', 'time',
           'sources', 'runs_and_slots', 'network', 'limits', 'schedule',
           'clocks_and_receipts', 'accounting')
@@ -729,6 +737,7 @@ class DurableBudget:
         self.boot_id = boot_id
         self.events = []
         self.prev = '0' * 64
+        self._journal_bytes = 0
         try:
             self._replay()
             if not self.events:
@@ -780,11 +789,37 @@ class DurableBudget:
         check(os.getpid() == self._owner_pid, 'JOURNAL_OWNER_PROCESS')
 
     def _replay(self):
+        """Bounded-reader replay: never allocate past the fixed journal caps.
+
+        Reads at most ``JOURNAL_READ_CHUNK_BYTES`` at a time and rejects
+        before accumulating an unterminated buffer past
+        ``JOURNAL_RECORD_MAX_BYTES`` or a total journal past
+        ``JOURNAL_MAX_BYTES``. A crafted or torn record with no newline can
+        therefore never force an unbounded single read or allocation.
+        """
+        size = os.fstat(self.fd).st_size
+        check(size <= JOURNAL_MAX_BYTES, 'JOURNAL_CAPACITY_EXCEEDED')
         with os.fdopen(os.dup(self.fd), 'rb') as reader:
             reader.seek(0)
-            for line in reader:
-                check(line.endswith(b'\n'), 'JOURNAL_TORN_RECORD')
-                record = parse_canonical(line[:-1])
+            total_bytes = 0
+            buf = b''
+            while True:
+                newline_at = buf.find(b'\n')
+                if newline_at == -1:
+                    chunk = reader.read(JOURNAL_READ_CHUNK_BYTES)
+                    if not chunk:
+                        check(not buf, 'JOURNAL_TORN_RECORD')
+                        break
+                    total_bytes += len(chunk)
+                    check(total_bytes <= JOURNAL_MAX_BYTES, 'JOURNAL_CAPACITY_EXCEEDED')
+                    buf += chunk
+                    check(len(buf) <= JOURNAL_RECORD_MAX_BYTES, 'JOURNAL_RECORD_TOO_LARGE')
+                    continue
+                line = buf[:newline_at]
+                buf = buf[newline_at + 1:]
+                check(len(line) <= JOURNAL_RECORD_MAX_BYTES, 'JOURNAL_RECORD_TOO_LARGE')
+                check(len(self.events) < JOURNAL_MAX_EVENTS, 'JOURNAL_EVENT_CAPACITY')
+                record = parse_canonical(line)
                 exact(record, ('seq', 'prev', 'event', 'hash'), 'JOURNAL_RECORD_SCHEMA')
                 check(record['seq'] == len(self.events) and record['prev'] == self.prev,
                       'JOURNAL_SEQUENCE')
@@ -793,12 +828,20 @@ class DurableBudget:
                 check(record['hash'] == expected, 'JOURNAL_HASH')
                 self.prev = expected
                 self.events.append(record['event'])
+        self._journal_bytes = size
 
     def _append(self, event):
         self._healthy()
+        # Capacity exhaustion is a clean, deterministic, replayable refusal
+        # (same fixed caps every restart), never a durability failure: do not
+        # mark self.failed and do not write a byte past either cap.
+        check(len(self.events) < JOURNAL_MAX_EVENTS, 'JOURNAL_EVENT_CAPACITY')
         record = {'seq': len(self.events), 'prev': self.prev, 'event': event}
         record['hash'] = hashlib.sha256(canonical(record)).hexdigest()
         data = canonical(record) + b'\n'
+        check(len(data) <= JOURNAL_RECORD_MAX_BYTES, 'JOURNAL_RECORD_TOO_LARGE')
+        check(self._journal_bytes + len(data) <= JOURNAL_MAX_BYTES,
+              'JOURNAL_CAPACITY_EXCEEDED')
         try:
             written = os.write(self.fd, data)
             check(written == len(data), 'JOURNAL_SHORT_WRITE')
@@ -810,6 +853,7 @@ class DurableBudget:
                       str(exc) == 'JOURNAL_SHORT_WRITE' else
                       'JOURNAL_DURABILITY_UNCERTAIN')
             raise LaunchContractError(reason) from exc
+        self._journal_bytes += len(data)
         self.prev = record['hash']
         self.events.append(event)
 
