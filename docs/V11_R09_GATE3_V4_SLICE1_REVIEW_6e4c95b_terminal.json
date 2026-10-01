@@ -1,0 +1,16 @@
+{
+  "schema": "ALPHA_V11_INDEPENDENT_REVIEW_TERMINAL_V1",
+  "completed_utc": "2026-10-01T00:48:05.199692+00:00",
+  "issuer": "Astra/high independent reviewer (synchronous; not an external driver)",
+  "status": "REVIEW_COMPLETE_CHANGES_REQUIRED",
+  "verdict": "CHANGES_REQUIRED",
+  "reviewed_commit": "6e4c95bb9fd0b1627c5bfc0e82f4ecbef92c85a5",
+  "reviewed_tree": "afc73013e6eb97a400fe193d2c9b839a9f4b97e4",
+  "report_path": "docs/V11_R09_GATE3_V4_SLICE1_REVIEW_6e4c95b.md",
+  "report_sha256": "b7770a638d3c4714f76490deada790f1cd69ed3480bb0e4f37ad49e63179064a",
+  "result_path": "docs/V11_R09_GATE3_V4_SLICE1_REVIEW_6e4c95b_result.json",
+  "result_sha256": "d5a18765aa9bae81e497830d091a25ed19ccf66de6c481b098e8a51b8ad3e0c3",
+  "integration_authorized": false,
+  "operational_authority": false,
+  "financial_authority": false
+}

@@ -1,0 +1,87 @@
+{
+  "schema": "ALPHA_V11_INDEPENDENT_REVIEW_RESULT_V1",
+  "completed_utc": "2026-10-01T00:48:05.199692+00:00",
+  "reviewer": "Astra/high",
+  "verdict": "CHANGES_REQUIRED",
+  "scope": "offline Gate 3 V4 slice 1 only",
+  "reviewed_commit": "6e4c95bb9fd0b1627c5bfc0e82f4ecbef92c85a5",
+  "reviewed_tree": "afc73013e6eb97a400fe193d2c9b839a9f4b97e4",
+  "main_reconciled_commit": "cb1d24c35e34983e08bce585fa6eda0f81d4704e",
+  "prospective_tree": "0af1380fb5b4a62796ab65ca0580268491fc5bdc",
+  "main_preservation_verified": true,
+  "candidate_blob_preservation_verified": true,
+  "integration_performed": false,
+  "publication_performed": false,
+  "findings": [
+    {
+      "id": "R1",
+      "severity": "P2",
+      "summary": "Compliant records crossing read-chunk boundary rejected"
+    },
+    {
+      "id": "R2",
+      "severity": "P2",
+      "summary": "Post-delivery capacity refusal can be completed and refunded"
+    },
+    {
+      "id": "R3",
+      "severity": "P2",
+      "summary": "Separate endpoint request paths and reviewed mappings cannot be represented"
+    },
+    {
+      "id": "R4",
+      "severity": "P2",
+      "summary": "V3 timing formula underestimates V4 post-close schedule"
+    },
+    {
+      "id": "R5",
+      "severity": "P2",
+      "summary": "V4 report and metadata numeric limits not enforced"
+    },
+    {
+      "id": "R6",
+      "severity": "P2",
+      "summary": "Required independent reviewed-design binding absent"
+    }
+  ],
+  "source_sha256": {
+    "tools/v11_r09_gate3_launch.py": "ef5ed6b0ec716aa6ad399f604f52b8c756ce13701f4f10403e36ae6b24a18a10",
+    "tools/v11_r09_gate3_launch_v4.py": "e3c1464d34ec95e067e3b96ca39f4ae6513e9f8f3e2b3580d77cce87941306df",
+    "tests/test_v11_r09_gate3_launch.py": "02d26cbd1c53ee4ac6c6247cf4a5885183f89e0451664f37ada57fde8bb5930e",
+    "tests/test_v11_r09_gate3_launch_v4.py": "089baff0053f8d677de1b4a3bd9d34c62ab863b8e8b0d46d0045e2c52d89f667"
+  },
+  "design_sha256": "0b121fbc422208e2fa89e0b2f7362725cac60115ada966ed83b9d1ed15ac8e4a",
+  "design_review_sha256": "f91c848b8626bae718d1c07c2a50194ae303e36f16fb2bc8a776b75cca0b942b",
+  "report_sha256": "b7770a638d3c4714f76490deada790f1cd69ed3480bb0e4f37ad49e63179064a",
+  "probes_sha256": "69e3bd9da538b0c9d9e2a4e55d65a4ecb60ff64a4b986417fe19e1a2bb7ad6e4",
+  "tests": [
+    {
+      "kind": "affected regression",
+      "passed": 290,
+      "failed": 0,
+      "warnings": 2,
+      "seconds": 9.01,
+      "exit_code": 0,
+      "log_path": "/tmp/alpha-v11-v4-review-6e4c95b/affected.log",
+      "log_sha256": "a32a52c08bfb309cb0c3e558f14e4132ff31afc5d294b92ac40085ed92861c80"
+    },
+    {
+      "kind": "diagnostic reproductions (7 defect assertions and 2 controls, not acceptance)",
+      "passed": 9,
+      "failed": 0,
+      "seconds": 1.37,
+      "exit_code": 0,
+      "log_path": "/tmp/alpha-v11-v4-review-6e4c95b/probes.log",
+      "log_sha256": "bb266e50a52a40cc72e03eab7edfe7386abfb534c52810d8a9e2c9be8dae998a"
+    }
+  ],
+  "runner": "/home/alphaadmin/alpha-review-test-venv/bin/python",
+  "test_cwd": "/home/alphaadmin/AlphaV11_Gate3V4Slice1/Alpha",
+  "v3_top_level_functions_ast_identical": 17,
+  "operational_authority": false,
+  "financial_authority": false,
+  "score": "91/200",
+  "formal_complete": "1/50",
+  "readiness": "NOT_READY_TO_FUND",
+  "next_action": "Repair R1-R6 in existing isolated author worktree, then fresh different-model exact-commit review before integration"
+}

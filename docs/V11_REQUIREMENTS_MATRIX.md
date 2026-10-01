@@ -1,5 +1,35 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Gate 3 V4 slice-1 independent review complete — CHANGES_REQUIRED — 2026-10-01
+
+Astra/high reviewed exact candidate `6e4c95b` / tree `afc73013` against the
+reviewed design, section 7. [Review](V11_R09_GATE3_V4_SLICE1_REVIEW_6e4c95b.md),
+[result](V11_R09_GATE3_V4_SLICE1_REVIEW_6e4c95b_result.json), and
+[reviewer completion record](V11_R09_GATE3_V4_SLICE1_REVIEW_6e4c95b_terminal.json)
+record **CHANGES_REQUIRED**, six P2 findings. Valid multi-chunk journals fail
+replay; a post-delivery byte-cap refusal can still complete/refund and erase
+uncertainty; V4 cannot express separate endpoint paths/mappings; its timing
+formula remains V3; report/metadata limits miss V4 bounds; the independent
+design-review binding is absent. Do not integrate or start slice 2.
+
+Fresh exact-candidate affected suite: **290 passed**, two existing fork warnings.
+Nine independent synthetic probes pass: seven reproduce defects, two are
+controls; these passes support rejection, not acceptance. All 17 V3 top-level
+functions are unchanged, but shared budget recovery/accounting needs repair.
+Prospective reconciliation with newer main `cb1d24c` is conflict-free, tree
+`0af1380f`, preserving all unaffected main and exact candidate blobs. No merge
+or publication performed. Author and held SHADOW worktrees remain untouched.
+
+Next unblocked action: Sonnet/high repair R1–R6 in the existing isolated
+`/home/alphaadmin/AlphaV11_Gate3V4Slice1/Alpha`, append commits and test, then
+fresh different-model exact-commit review/newer-main reconciliation. This
+review finished synchronously; no duplicate persistent worker was launched.
+Root/GEFS forward work stays gated. Master hash matches; scanner/controller/
+execution inactive, execution masked, protected authority absent; commissioning
+updates remain status-only. Accepted release `6ec371e` remains in main. V10
+and AxiomTrade untouched; prior publication hold retained. No C/J/E/A crossing:
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator recovery — 2026-10-01 00:39 UTC
 
 R09 Gate 3 V4 slice-1 candidate `6e4c95b` is clean and unmerged. Main's newer
