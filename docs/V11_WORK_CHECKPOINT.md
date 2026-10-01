@@ -1,5 +1,26 @@
 # Alpha V11 work checkpoint
 
+## Live Gate 3 recovery and A2/A3 artifact verification — 2026-10-01 23:26 UTC
+
+Recovered clean main `17d1f8a` and the exact A2/A3 worktree at
+`/tmp/alpha-v11-gate3-a2a3-provenance-20261001` (the earlier lookup used a
+different path). It is clean at `89f85ac`, tree `9ff38fb`; its three content
+artifacts match all SHA-256 values in the candidate terminal. This verifies
+retention only: the terminal explicitly says A2/A3 are unqualified and
+independent review is pending. No merge or qualification was claimed.
+
+A4 (PGID 1933369) and A7 (PGID 1933486) remain live in separate worktrees,
+both with uncommitted files and no terminal. A4 has 17 targeted author-test
+passes; A7's targeted run was still in progress. A8 (PGID 1933615) remains
+SIGSTOP-paused and clean. No new worker was launched or existing process
+signaled. The SHADOW and Brain readiness worktrees remain clean; ECMWF
+`backfill_data/` remains untracked and preserved. The private FINAL-REVIEWED
+master hash was unchanged; PAPER scanner/controller/execution units are
+inactive and protected V11 authority roots absent. Available memory was about
+508 MiB and free disk about 3.1 GiB. No provider request, G3-L PASS, forward
+SHADOW sample or C/J/E/A crossing: **G3-L NO-GO; 91/200 (45.5%), formal
+1/50; NOT_READY_TO_FUND**.
+
 ## Offline Gate 3 capacity refreshed; A4/A7 continue — 2026-10-01 23:22 UTC
 
 Recovered clean main `6504cec` after the accepted A1 observer integration. The

@@ -1,5 +1,13 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Retained A2/A3 candidate recovered — 2026-10-01 23:26 UTC
+
+The clean `89f85ac` candidate is present in its registered worktree, and its
+three artifact hashes match its terminal. Independent review is pending; A2/A3
+remain unqualified. A4/A7 remain live, A8 paused. No G3-L, forward SHADOW or
+C/J/E/A acceptance changed: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Offline resource screen refreshed — 2026-10-01 23:22 UTC
 
 The current October 2 PRE_REVIEW screen proposes 13 bounded slots from the

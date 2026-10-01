@@ -1,5 +1,13 @@
 # Supplementary engineering estimate
 
+## Gate 3 live recovery — 2026-10-01 23:26 UTC
+
+Verified the clean A2/A3 `89f85ac` worktree and terminal-bound artifact hashes;
+different-model exact review is still required. A4 has 17 targeted author-test
+passes without a terminal, A7's targeted tests are in progress, and A8 remains
+paused. No acceptance or C/J/E/A boundary crossed: **G3-L NO-GO;
+91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Offline Gate 3 capacity observation — 2026-10-01 23:22 UTC
 
 A fresh offline PRE_REVIEW screen increased the conservative proposed October 2
