@@ -1,5 +1,48 @@
 # Alpha V11 work checkpoint
 
+## J1 exact review complete; general repair live — 2026-10-01 18:53 UTC
+
+Independent Astra/high review of clean unmerged `3a066a6` (tree `e11ebd74`)
+is **CHANGES_REQUIRED**, with matching report and terminal under
+`/tmp/alpha-v11-slice3-review-3a066a6` (report SHA-256
+`0f0f75bfb519d1f9c909c3a36dee45d6bcd0a782b91f104af65ebbbaa7e48c45`).
+The reviewer independently passed 480 Gate 3 family tests and 95 carried
+probes, including the original OSError/RuntimeError J1 cases. Twenty-four
+fresh boundary cases yielded 20 passes and four failed acceptance assertions:
+coupled ValueError/OverflowError still loses the known restriction at first
+post-dispatch sampling and both restriction and six eager bytes at header
+receipt. First-onset recovery also replaces the original exception. Held
+reservations remain intact; this is observation loss, not an unsafe refund.
+I1/H2/G2/F2 remain blocked; I2 and I3 retain their prior scoped dispositions.
+
+Launched exactly one persistent Sonnet/high writer in the existing isolated
+`/tmp/alpha-v11-gate3-v4-slice3-repair-20261001` at `3a066a6`: runner
+PID `1853223`, Claude child `1853235`, evidence prefix
+`/tmp/alpha-v11-slice3-j1-general-repair-3a066a6`. Both were verified live;
+no candidate terminal exists yet. The handoff requires a consistent ordinary
+clock-exception boundary, original exception identity, custom Exception
+regressions, exact-once conservation and reopen, without swallowing process
+termination or broadening unrelated checks. Do not duplicate or edit that
+worktree. Recover its terminal, independently review the exact candidate,
+then reconcile with newer main only on PASS. Main was `c0b59ec` before this
+record; review checkout remains clean and unchanged.
+
+The reviewer ran family tests by file and removed only its own completed
+scratch; all logs/probe sources/snapshots remain. Root free space is about
+1.47 GiB, below the 2 GiB launch floor. The frozen next-window screen still
+lacks 77 pre-review identities; G3-L remains **NO-GO**, with no provider
+request or forward SHADOW sample. Actual PAPER scanner/demo/controller are
+inactive/disabled; execution is inactive/masked; protected authority paths
+are absent. SHADOW and Brain-readiness worktrees remain clean and ECMWF
+`backfill_data/` is preserved. Real IFS/AIFS admission remains Gate 3/4 gated.
+The older load-sensitive markout issue is already resolved by accepted
+release `6ec371e`, as the September 30 reconciliation records; do not reopen
+it from the stale initial handoff. Private FINAL-REVIEWED master hash still
+matches `a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+No V10/AxiomTrade/service/authority/financial/private-master change occurred.
+No C/J/E/A boundary crossed: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## J1 candidate recovered; exact review required — 2026-10-01 18:43 UTC
 
 The sole Sonnet/high J1 writer finished with a matching clean terminal at

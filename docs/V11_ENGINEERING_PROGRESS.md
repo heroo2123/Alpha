@@ -1,5 +1,17 @@
 # Supplementary engineering estimate
 
+## J1 review completed and next repair launched — 2026-10-01 18:53 UTC
+
+Independent exact review of `3a066a6` passed 480 Gate 3 family and 95 carried
+probes but failed four fresh ordinary-clock-exception acceptance cases.
+Verdict is CHANGES_REQUIRED; known restriction/byte evidence still disappears
+for ValueError/OverflowError at the two early onsets. A sole persistent
+Sonnet/high repair writer is live in the existing isolated worktree; fresh
+exact review and newer-main reconciliation follow its tested candidate.
+Only review-owned completed scratch was removed. Free disk is about 1.47 GiB,
+below the launch floor; G3-L NO-GO and 77 missing pre-review identities remain.
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND** unchanged.
+
 ## J1 repair handoff — 2026-10-01 18:43 UTC
 
 The J1 writer completed clean candidate `3a066a6` with four new coupled

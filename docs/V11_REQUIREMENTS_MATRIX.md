@@ -1,5 +1,18 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## J1 ordinary-exception gap independently reproduced — 2026-10-01 18:53 UTC
+
+Exact `3a066a6` review is **CHANGES_REQUIRED**: 480 family and 95 carried
+probes passed, but four of 24 fresh cases fail. Coupled ValueError/OverflowError
+still drops known restriction evidence and, at header receipt, six eager
+bytes; the first onset replaces the original exception. I1/H2/G2/F2 remain
+blocked despite closing the original RuntimeError cases. One Sonnet/high
+repair writer is live under `/tmp/alpha-v11-slice3-j1-general-repair-3a066a6`.
+Require its tested candidate, fresh exact review and newer-main reconciliation.
+G3-L is NO-GO; 77 pre-review identities and physical launch storage remain
+unqualified. No provider request, forward sample or real IFS/AIFS admission.
+No C/J/E/A boundary crossed: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## J1 author candidate ready for independent review — 2026-10-01 18:43 UTC
 
 Clean unmerged `3a066a6` repairs the coupled clock-source J1 onset in two
