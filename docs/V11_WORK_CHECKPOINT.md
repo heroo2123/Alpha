@@ -1,5 +1,29 @@
 # Alpha V11 work checkpoint
 
+## Live H1–H6 recovery; G3-L still NO-GO — 2026-10-01 17:12 UTC
+
+Recovered actual main clean at `22d9a91` (38 commits ahead of tracking).
+The sole H1–H6 Sol/high writer remains live (runner `1772979`, Codex
+`1772984`/`1772991`) in the existing slice-3 repair worktree at `6515233`.
+It has unfinished edits in `tools/v11_r09_gate3_ledgers.py` and
+`tools/v11_r09_gate3_runtime.py`; `git diff --check` passes, but no new
+candidate commit or terminal exists. Its log shows active manifest and
+restriction-accounting repairs. Preserve those bytes; the exact candidate,
+tests, fresh different-model review and newer-main reconciliation remain open.
+
+The October 1 fixed start was missed. The next-window offline screen still
+has 77 missing pre-review identities and `launchable=false`; no G3-L PASS,
+provider request or forward SHADOW sample was observed. The SHADOW and Brain
+readiness worktrees are clean; the ECMWF backfill worktree's untracked
+`backfill_data/` remains untouched. Scanner, controller and execution are
+inactive; scanner disabled; protected authority paths absent. The private
+FINAL-REVIEWED master still matches pinned SHA-256
+`a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+Root free space is about 1.9 GiB and available RAM about 883 MiB plus 1.7 GiB
+free swap; this passive snapshot does not qualify launch. No V10, AxiomTrade,
+service, authority, financial or private-master change was made. No C/J/E/A
+boundary crossed: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Exact slice-3 review failed; H1–H6 repair running — 2026-10-01 17:08 UTC
 
 Recovered the completed independent Astra/high exact-commit review of

@@ -1,5 +1,13 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Live H1–H6 repair recovery — 2026-10-01 17:12 UTC
+
+Actual writer is live with unfinished ledger/runtime edits at `6515233`;
+there is no new candidate terminal or independent verdict. G3-L remains
+NO-GO with 77 missing pre-review identities; no provider request or forward
+SHADOW sample. No C/J/E/A boundary crossed: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Slice-3 exact review requires repair — 2026-10-01 17:08 UTC
 
 Independent Astra/high exact review of `6515233` returned

@@ -1,6 +1,16 @@
-## Current reconciliation — 2026-10-01 14:19 UTC
+## Launch readiness and historical 14:19 reconciliation — 2026-10-01
 
 **G3-L remains NO-GO.** The fixed 14:00 UTC / 17:00 Kuwait acquisition start has passed without a completed exact-package G3-L PASS. No provider request or SHADOW capture is authorized. The 11:30 snapshot and its suggested checkpoints below are historical planning evidence, not current launch evidence; any later window needs newly dated bytes and its own complete review.
+
+**Current recovery, 2026-10-01 17:12 UTC.** Main is clean at `22d9a91`.
+Independent exact-commit review of slice-3 candidate `6515233` returned
+CHANGES_REQUIRED for H1–H6 after 447 passing family tests and 16 independent
+probes. One Sol/high writer is actively repairing it in the isolated worktree,
+with unfinished ledger/runtime edits and no new terminal. The nonlaunchable
+next-window screen still lists 77 missing pre-review identities. The older
+`ef45d35` and 11:30 statuses below are historical. No provider request or
+forward sample has occurred; exact review, runtime reconciliation and the
+whole source/restriction/clock/storage/private-package G3-L gate remain open.
 
 Main is clean at `9e700d0`, 30 commits ahead of its local tracking ref. The owner-authorized slice-2 R1 correction `58a465f` already passed independent exact-commit review and is integrated. The reviewed offline preparation repair `f03d2fd` is integrated as `144ae35`; its 2,713-row plan is deliberately nonlaunchable and still lists 77 missing pre-review identities. The slice-3 candidate `ef45d35` received **CHANGES_REQUIRED** for seven reproduced defects. One live Sonnet/high writer owns its isolated repair worktree; it has unfinished runtime edits and no reviewable new commit or terminal. Do not duplicate or merge that work.
 

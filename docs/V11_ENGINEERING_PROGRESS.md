@@ -1,5 +1,15 @@
 # Supplementary engineering estimate
 
+## Live H1–H6 worker recovery — 2026-10-01 17:12 UTC
+
+Main is clean at `22d9a91`; the sole Sol/high H1–H6 worker is active in its
+isolated worktree with unfinished ledger/runtime edits and no new terminal.
+The prior `6515233` exact review remains CHANGES_REQUIRED. Fresh exact-commit
+review and newer-main reconciliation are still required after a clean
+candidate. G3-L stays NO-GO with 77 missing pre-review identities, no provider
+request and no forward SHADOW sample. **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND** unchanged.
+
 ## Slice-3 exact review and repair handoff — 2026-10-01 17:08 UTC
 
 Independent Astra/high review of clean candidate `6515233` completed
