@@ -31,7 +31,7 @@ from tools.v11_r09_gate3_launch import (
     _canonical_request_path, _public_https_origin, check, digest, exact, integer,
     parse_canonical,
 )
-from tools.v11_r09_gate3_launch_v4 import PURPOSES
+from tools.v11_r09_gate3_launch_v4 import PURPOSES, validate_manifest_v4
 from tools.v11_r09_gate3_ledgers import LEDGER_MAX_BYTES, SessionLedger, SharedLedger
 from tools.v11_r09_gate3_store_v1 import MAX_JOURNAL as STORE_MAX_JOURNAL
 from tools.v11_r09_gate3_offline_io import (
@@ -53,6 +53,30 @@ MIN_AVAILABLE_MEMORY_BYTES = 512 * 1024 ** 2
 REQUEST_ID_RE = re.compile(r'[A-Za-z0-9_-]{1,80}')
 REPORT_RESERVE_BYTES = 16 * 1024 ** 2
 _DENIAL_STATUSES = {401: '401', 403: '403', 429: '429', 503: '503'}
+# tools/v11_r09_gate3_launch_v4.py's own fixed ``max_body_chunks_per_request``
+# runtime resource-bound constant (part of a manifest's validated,
+# never-caller-widened ``resource_bounds``): redefined here rather than
+# imported, consistent with this module's own ``MIN_FREE_DISK_BYTES`` above
+# and the module-family rationale in tools/v11_r09_gate3_ledgers.py's
+# docstring. Gate 3 V4 slice-3 repair (F7): the synthetic transport interface
+# itself never capped the number of chunks a fixture could return, so a
+# prospective capacity estimate built from this constant was previously
+# unenforced and therefore not actually conservative. It is now also checked
+# against every dispatched stream below, so the preflight bound is real.
+MAX_BODY_CHUNKS_PER_REQUEST = 32
+# F7: the worst-case (longest, successful) per-request session-ledger event
+# count: attempt_intent, budget_reserved, request_deadline_fixed,
+# dispatch_intent, transport_closed, accounted, object_witnessed, terminal,
+# capture_receipt (9), plus one ``clock_observed`` for each of the up to
+# eight original clock samples one successful attempt now takes (request
+# start x3 recheck samples, body_receipt, closure, and the three local
+# decode/seal phases bound into the durable intersection by F1's
+# ``_observe_local_clock``). 12 (the pre-repair estimate) already undercounted
+# the pre-F1 path (14); a fixed, generously rounded constant is used rather
+# than re-deriving the exact figure from the current implementation, so this
+# bound cannot silently track a future change in how many samples one
+# attempt happens to take.
+SESSION_EVENTS_PER_REQUEST = 20
 
 
 def _strong_etag(value):
@@ -68,10 +92,17 @@ def _strong_etag(value):
 
 class Transport(abc.ABC):
     """Injected transport boundary. A real adapter is explicit later work
-    (section 7); this module never imports or instantiates one."""
+    (section 7); this module never imports or instantiates one.
+
+    Gate 3 V4 slice-3 repair (F4): the boundary receives the whole frozen,
+    already-validated ``AttemptRequest`` -- not merely its ``request_id`` --
+    so an adapter is contractually bound to the exact immutable origin/path/
+    range/provider intent this runtime decided to dispatch, not just an
+    opaque label it could reinterpret against different request metadata.
+    """
 
     @abc.abstractmethod
-    def dispatch(self, request_id: str, *, deadline_monotonic: float,
+    def dispatch(self, request: 'AttemptRequest', *, deadline_monotonic: float,
                  remaining_seconds: float):
         raise NotImplementedError
 
@@ -111,10 +142,11 @@ class SyntheticTransport(Transport):
         check(type(exchange) is SyntheticExchange, 'RUNTIME_TRANSPORT_SHAPE')
         self._exchange = exchange
 
-    def dispatch(self, request_id, *, deadline_monotonic, remaining_seconds):
+    def dispatch(self, request, *, deadline_monotonic, remaining_seconds):
+        check(type(request) is AttemptRequest, 'RUNTIME_TRANSPORT_REQUEST_SHAPE')
         check(remaining_seconds > 0 and math.isfinite(deadline_monotonic),
               'RUNTIME_DISPATCH_DEADLINE')
-        return SyntheticResponseStream(self._exchange.take(request_id))
+        return SyntheticResponseStream(self._exchange.take(request.request_id))
 
 
 class Clock(abc.ABC):
@@ -233,7 +265,16 @@ class CapacityPlan:
     def for_requests(cls, requests):
         n = len(requests)
         body = sum(r.reservation_bytes for r in requests)
-        chunks = sum((r.reservation_bytes + 65535) // 65536 for r in requests)
+        # F7: a one-byte chunk is as admissible as a 64 KiB one on this
+        # synthetic interface, so the worst case per request is the *most*
+        # chunks it could possibly produce, not the fewest. That is bounded
+        # above both by the body itself (a chunk is never empty) and by the
+        # fixed, enforced ``MAX_BODY_CHUNKS_PER_REQUEST`` policy (checked
+        # against every dispatched stream in ``GateRuntime.run_attempt``),
+        # never by ``ceil(reservation / 65536)`` (which assumes maximum-size
+        # chunks and silently undercounts every smaller-chunked response).
+        chunks = sum(min(r.reservation_bytes, MAX_BODY_CHUNKS_PER_REQUEST)
+                     for r in requests)
         # Object plus temporary copy, budget/three store/12 session/four
         # shared records, a bounded descriptor, and the full report reserve.
         records = chunks + 3 * n
@@ -327,6 +368,13 @@ class AttemptRequest:
         check(self.slot_index is None or
               (type(self.slot_index) is int and 0 <= self.slot_index < SLOT_COUNT),
               'RUNTIME_REQUEST_SLOT_INDEX')
+        # F4/F5: a FIELD request with no original slot identity has no frozen
+        # denominator row to be charged to or counted against -- it can
+        # succeed and then silently vanish from the full 2,713-row report
+        # (every row reporting NEVER_ATTEMPTED) instead of ever appearing as
+        # ATTEMPTED/SUCCESS. Every FIELD request must bind its own slot.
+        check(self.purpose != 'FIELD' or self.slot_index is not None,
+              'RUNTIME_REQUEST_FIELD_REQUIRES_SLOT')
         check((self.range_start is None) == (self.range_end is None), 'RUNTIME_REQUEST_RANGE')
         if self.range_start is not None:
             integer(self.range_start, 0, MAX_BYTES, 'RUNTIME_REQUEST_RANGE')
@@ -450,6 +498,63 @@ class FrozenPlan:
             'requests': [asdict(r) for r in self.requests],
             'events': [asdict(e) for e in self.events]})).hexdigest()
 
+    @classmethod
+    def from_validated_manifest(cls, manifest_raw, *, repo, object_root, now_utc,
+                                window, review_sha256, review_raw, request_pins,
+                                events=()):
+        """The one sanctioned way to build a production ``FrozenPlan``: every
+        request is derived from the schedule/endpoint table of a manifest
+        that has itself just passed the full, independent
+        ``validate_manifest_v4`` review -- never from a caller-asserted
+        schedule merely claiming to match some opaque manifest digest (F4).
+
+        ``request_pins`` supplies the handful of per-request fields this
+        module has never claimed to validate and that the V4 manifest schema
+        does not itself carry -- ``expected_etag``, ``expected_object_bytes``,
+        ``source_pin``, ``decoder_pin``, ``clock_policy_sha256``,
+        ``validator_sha256``, ``dependency_commit_hashes`` -- keyed by
+        ``request_id`` (source/decoder qualification and real networking
+        remain separate, explicit later work, exactly as this module's
+        docstring already states).
+        """
+        manifest_sha256 = validate_manifest_v4(manifest_raw, repo=repo,
+            object_root=object_root, now_utc=now_utc)
+        payload = parse_canonical(manifest_raw)
+        schedule_requests = payload['schedule']['requests']
+        endpoints_by_id = {e['endpoint_id']: e for e in payload['network']['endpoints']}
+        ids = [item['request_id'] for item in schedule_requests]
+        check(type(request_pins) is dict and set(request_pins) == set(ids),
+              'RUNTIME_PLAN_PIN_SET')
+        requests = []
+        for item in schedule_requests:
+            endpoint = endpoints_by_id.get(item['endpoint_id'])
+            check(endpoint is not None and endpoint['provider'] == item['provider'] and
+                  endpoint['purpose'] == item['purpose'] and
+                  endpoint['origin'] == item['origin'], 'RUNTIME_PLAN_ENDPOINT_BINDING')
+            pins = request_pins[item['request_id']]
+            exact(pins, ('expected_etag', 'expected_object_bytes', 'source_pin',
+                         'decoder_pin', 'clock_policy_sha256', 'validator_sha256',
+                         'dependency_commit_hashes'), 'RUNTIME_PLAN_PIN_SCHEMA')
+            prerequisite_request_ids = tuple(ids[i] for i in item['prerequisites'])
+            requests.append(AttemptRequest(
+                request_id=item['request_id'], purpose=item['purpose'],
+                endpoint_id=item['endpoint_id'],
+                control_domain_id=endpoint['control_domain_id'],
+                origin=item['origin'], path=item['path'],
+                provider=item['provider'] if item['purpose'] == 'FIELD' else None,
+                slot_index=item['slot_index'],
+                range_start=item['range_start'], range_end=item['range_end'],
+                reservation_bytes=item['reservation_bytes'],
+                expected_etag=pins['expected_etag'],
+                expected_object_bytes=pins['expected_object_bytes'],
+                source_pin=pins['source_pin'], decoder_pin=pins['decoder_pin'],
+                clock_policy_sha256=pins['clock_policy_sha256'],
+                validator_sha256=pins['validator_sha256'],
+                dependency_commit_hashes=pins['dependency_commit_hashes'],
+                prerequisite_request_ids=prerequisite_request_ids))
+        return cls(manifest_sha256, review_sha256, window, tuple(requests),
+                  review_raw, events)
+
 
 def _bounded_headers(response):
     check(type(response) is OfflineResponse and type(response.status) is int and
@@ -473,30 +578,45 @@ def _bounded_headers(response):
 
 
 def _build_denial_record(status_str, response, *, window, receipt_evidence,
-                         headers, origin):
+                         headers, origin, evidence_missing_cause=None):
+    """Build one durable denial record.
+
+    F2: when the headers that would normally support the evidence/retry
+    computation could not themselves be trusted (bounded-shape validation
+    failed), ``evidence_missing_cause`` records *why* instead of fabricating
+    evidence from data already known to be malformed -- the status code
+    itself (never header-derived) is still known and still recorded, and
+    ``retry_after_seconds`` stays ``None`` (the safest, most conservative
+    cooldown: never resume early from an untrustworthy retry value).
+    """
     receipt_reading = receipt_evidence.reading
-    retry_raw = headers.get('retry-after')
     retry_after_seconds = None
-    if retry_raw is not None:
-        if retry_raw.isascii() and retry_raw.isdecimal():
-            retry_after_seconds = float(retry_raw)
-        else:
-            try:
-                parsed = email.utils.parsedate_to_datetime(retry_raw)
-                if parsed.tzinfo is not None:
-                    expiry = parsed.astimezone(datetime.timezone.utc).timestamp()
-                    retry_after_seconds = max(0.0, expiry -
-                        (receipt_reading.utc_seconds + receipt_reading.uncertainty_seconds))
-            except (TypeError, ValueError, OverflowError):
-                pass
-    evidence_raw = canonical({'status': response.status, 'headers': list(response.headers)})
+    evidence_sha256 = None
+    evidence_raw_b64 = None
+    if evidence_missing_cause is None:
+        retry_raw = headers.get('retry-after')
+        if retry_raw is not None:
+            if retry_raw.isascii() and retry_raw.isdecimal():
+                retry_after_seconds = float(retry_raw)
+            else:
+                try:
+                    parsed = email.utils.parsedate_to_datetime(retry_raw)
+                    if parsed.tzinfo is not None:
+                        expiry = parsed.astimezone(datetime.timezone.utc).timestamp()
+                        retry_after_seconds = max(0.0, expiry -
+                            (receipt_reading.utc_seconds + receipt_reading.uncertainty_seconds))
+                except (TypeError, ValueError, OverflowError):
+                    pass
+        evidence_raw = canonical({'status': response.status, 'headers': list(response.headers)})
+        evidence_sha256 = hashlib.sha256(evidence_raw).hexdigest()
+        evidence_raw_b64 = base64.b64encode(evidence_raw).decode('ascii')
     return {
         'status': status_str,
         'reason': f'RUNTIME_DENIAL_HTTP_{response.status}',
         'origin': origin,
-        'evidence_sha256': hashlib.sha256(evidence_raw).hexdigest(),
-        'evidence_raw_b64': base64.b64encode(evidence_raw).decode('ascii'),
-        'evidence_missing_cause': None,
+        'evidence_sha256': evidence_sha256,
+        'evidence_raw_b64': evidence_raw_b64,
+        'evidence_missing_cause': evidence_missing_cause,
         'receipt_clock_sha256': receipt_reading.evidence_sha256,
         'receipt_clock_raw_b64': base64.b64encode(receipt_evidence.raw).decode('ascii'),
         'retry_after_seconds': retry_after_seconds,
@@ -586,7 +706,12 @@ class GateRuntime:
         self.capacity = CapacityPlan.for_requests(remaining)
         check(manifest_sha256 == session.manifest == budget.manifest ==
               store.context['manifest'], 'RUNTIME_MANIFEST_CONTEXT_MISMATCH')
-        check(session.boot_id == budget.boot_id == store.boot_id,
+        # F4: the shared denial root is deliberately not bound to one
+        # caller manifest (it may legitimately be reused across jobs), but
+        # it must still be the *same boot* as the other three journals this
+        # runtime composes -- a shared root opened under a different boot
+        # was previously accepted outright.
+        check(shared.boot_id == session.boot_id == budget.boot_id == store.boot_id,
               'RUNTIME_BOOT_CONTEXT_MISMATCH')
         check(len(plan.requests) <= min(shared.max_requests, session.max_requests,
               budget.max_requests) and
@@ -603,9 +728,9 @@ class GateRuntime:
               self.capacity.store_events * 65536 + REPORT_RESERVE_BYTES <=
               STORE_MAX_JOURNAL and
               len(store.receipts) + len(remaining) <= 4096 and
-              len(session.events) + 12 * len(remaining) <= 32768 and
-              session._journal_bytes + 12 * len(remaining) * 65536 <=
-              LEDGER_MAX_BYTES and
+              len(session.events) + SESSION_EVENTS_PER_REQUEST * len(remaining) <= 32768 and
+              session._journal_bytes +
+              SESSION_EVENTS_PER_REQUEST * len(remaining) * 65536 <= LEDGER_MAX_BYTES and
               len(shared.events) + 4 * len(remaining) <= 32768 and
               shared._journal_bytes + 4 * len(remaining) * 65536 <=
               LEDGER_MAX_BYTES,
@@ -673,7 +798,14 @@ class GateRuntime:
         self.session.report_completed(report_sha256=result['sha256'])
         return result
 
-    def _enforce_window(self, evidence, *, body=False):
+    def _record_clock(self, evidence):
+        """Validate one clock sample and durably intersect it into the
+        session-wide offset interval. Every original sample this runtime
+        ever takes -- acquisition-window-gated or purely local -- goes
+        through this one path (F1: "Persist/check every original session
+        sample, including local decode and store seal, against the same
+        durable interval"). Returns the checked ``MeasuredClock`` reading.
+        """
         check(type(evidence) is ClockEvidence and type(evidence.reading) is MeasuredClock and
               type(evidence.raw) is bytes and 0 < len(evidence.raw) <= 16384 and
               hashlib.sha256(evidence.raw).hexdigest() == evidence.reading.evidence_sha256 and
@@ -694,6 +826,16 @@ class GateRuntime:
             offset_low=offset-reading.uncertainty_seconds,
             offset_high=offset+reading.uncertainty_seconds,
             raw=evidence.raw, evidence_sha256=reading.evidence_sha256)
+        return reading
+
+    def _enforce_window(self, evidence, *, body=False):
+        """Acquisition-window/elapsed-cap gating, layered on top of
+        ``_record_clock``'s clock-validity/intersection check (F1: these are
+        kept separate so legitimately late *local* work -- decode, seal --
+        can stay a diagnostic-only signal via ``_observe_local_clock`` below,
+        without ever skipping the durable intersection itself).
+        """
+        reading = self._record_clock(evidence)
         lower = reading.utc_seconds - reading.uncertainty_seconds
         upper = reading.utc_seconds + reading.uncertainty_seconds
         check(lower >= self.window.start_utc, 'RUNTIME_CLOCK_BEFORE_WINDOW_START')
@@ -705,6 +847,19 @@ class GateRuntime:
                 reading.monotonic_seconds + self.window.elapsed_cap_seconds)
         check(reading.monotonic_seconds < self.session.elapsed_deadline_mono,
               'RUNTIME_ELAPSED_DEADLINE')
+        return reading
+
+    def _observe_local_clock(self, evidence):
+        """Record a purely local post-transport sample (decode/seal, or a
+        best-effort recovery-path sample) into the same durable session
+        intersection as every acquisition-gated sample, without applying the
+        acquisition-window/elapsed-deadline gate itself. Local processing
+        time legitimately runs past those bounds (the existing ``timely``
+        diagnostic in ``run_attempt`` already handles that); it must never
+        be a reason to skip intersecting the sample into the durable clock
+        constraint the way the ungated store-phase evidence previously was.
+        """
+        return self._record_clock(evidence)
 
     def _dispatch_deadline(self, reading):
         offset_hi = self.session.clock_offset_interval[1]
@@ -747,28 +902,43 @@ class GateRuntime:
 
     def _account_prefetched_on_deadline(self, request, stream, *, receipt=None,
                                         denial_recorded=False):
-        """Charge eager bytes already returned by an expired dispatch.
+        """Charge eager bytes already returned by an expired dispatch, and
+        record any observable denial -- even when header or clock validation
+        itself fails (F2: "error paths discard observed denial and already
+        delivered body bytes"). This path never reads or closes the stream
+        and never releases the reservation; it must never itself raise for a
+        reason that would abandon that accounting (any genuine shape defect
+        in an already-delivered chunk is the one exception: that is a
+        transport-fixture contract violation, not a recoverable observation
+        gap).
 
-        This path never reads or closes the stream and never releases the
-        reservation. If bounded headers identify a denial, persist it before
-        any accounting event, exactly as in the normal response path.
+        Header-shape failure degrades to an explicit missing-evidence denial
+        cause (never silently dropped, never fabricated from untrusted
+        bytes); a clock sample that fails the acquisition-window/elapsed-cap
+        gate is still durably intersected into the session clock constraint
+        via ``_observe_local_clock`` and still used as receipt evidence --
+        only the *gate* is inapplicable here, since we are already on an
+        error/recovery path by construction.
         """
         response = stream.response
-        headers = _bounded_headers(response)
+        try:
+            headers = _bounded_headers(response)
+            evidence_missing_cause = None
+        except LaunchContractError as exc:
+            headers = {}
+            evidence_missing_cause = f'RUNTIME_HEADER_VALIDATION_FAILED:{exc}'
         if receipt is None:
             receipt = self.clock.evidence('body_receipt')
-            try:
-                self._enforce_window(receipt, body=True)
-            except LaunchContractError as exc:
-                if str(exc) != 'RUNTIME_CLOCK_AT_OR_AFTER_ACQUISITION_END':
-                    raise
+            self._observe_local_clock(receipt)
         denial_status = _DENIAL_STATUSES.get(response.status)
-        if denial_status is None and 'retry-after' in headers:
+        if (denial_status is None and evidence_missing_cause is None and
+                'retry-after' in headers):
             denial_status = 'OTHER'
         if denial_status is not None and not denial_recorded:
             record = _build_denial_record(denial_status, response,
                 window=self.window, receipt_evidence=receipt,
-                headers=headers, origin=request.origin)
+                headers=headers, origin=request.origin,
+                evidence_missing_cause=evidence_missing_cause)
             self.shared.denial_observed(request.request_id, denial=record)
             self.session.denial(request.request_id, reason=record['reason'],
                                  shared_denial_event_hash=self.shared.prev)
@@ -797,8 +967,12 @@ class GateRuntime:
             resolved_dependencies = self._resolve_prerequisites(request)
             _check_prospective_resources(self.resources, self.capacity)
             self._enforce_window(pre)
+            # F3: a cooldown has only provably expired once the *lower*
+            # (conservative) bound of our own current-time uncertainty has
+            # reached it; using the upper bound here would resume dispatch
+            # while the true current time could still be within the hold.
             check(not self.shared.is_blocked(request.control_domain_id,
-                  now_utc=pre.reading.utc_seconds + pre.reading.uncertainty_seconds),
+                  now_utc=pre.reading.utc_seconds - pre.reading.uncertainty_seconds),
                   'RUNTIME_CONTROL_DOMAIN_BLOCKED')
         except LaunchContractError as exc:
             return self._session_refuse(request, str(exc), pre)
@@ -811,7 +985,7 @@ class GateRuntime:
         self.shared.intent_open(request.request_id, purpose=request.purpose,
             endpoint_id=request.endpoint_id, control_domain_id=request.control_domain_id,
             manifest_sha256=self.manifest_sha256, max_reservation_bytes=request.reservation_bytes,
-            now_utc=pre.reading.utc_seconds)
+            now_utc=pre.reading.utc_seconds - pre.reading.uncertainty_seconds)
 
         # Step 2: reservation persists before transport.
         self.budget.reserve(request.request_id, request.reservation_bytes,
@@ -822,7 +996,7 @@ class GateRuntime:
         dispatch = self.clock.evidence('request_start')
         self._enforce_window(dispatch)
         check(not self.shared.is_blocked(request.control_domain_id,
-              now_utc=dispatch.reading.utc_seconds + dispatch.reading.uncertainty_seconds),
+              now_utc=dispatch.reading.utc_seconds - dispatch.reading.uncertainty_seconds),
               'RUNTIME_CONTROL_DOMAIN_BLOCKED')
         deadline_mono = self._dispatch_deadline(dispatch.reading)
         check(deadline_mono > dispatch.reading.monotonic_seconds,
@@ -851,23 +1025,39 @@ class GateRuntime:
                   self.session.last_closure_monotonic +
                   self.budget.min_start_interval_seconds,
                   'RUNTIME_POST_CLOSE_PACING')
-        stream = self.transport.dispatch(request.request_id,
+        stream = self.transport.dispatch(request,
             deadline_monotonic=deadline_mono,
             remaining_seconds=deadline_mono-actual_start)
         check(type(stream) is SyntheticResponseStream,
               'RUNTIME_TRANSPORT_STREAM_REQUIRED')
         response = stream.response
+        # F7: the eager synthetic boundary never capped how many chunks a
+        # fixture could return; enforce the same fixed worst-case chunk
+        # count the prospective ``CapacityPlan`` preflight assumed, so that
+        # assumption is actually true rather than merely hoped.
+        if len(response.chunks) > MAX_BODY_CHUNKS_PER_REQUEST:
+            self._account_prefetched_on_deadline(request, stream)
+            raise LaunchContractError('RUNTIME_CHUNK_COUNT_EXCEEDS_POLICY')
         if self.clock.monotonic() >= deadline_mono:
             self._account_prefetched_on_deadline(request, stream)
             raise LaunchContractError('RUNTIME_DISPATCH_DEADLINE')
-        headers = _bounded_headers(response)
+        try:
+            headers = _bounded_headers(response)
+        except LaunchContractError:
+            # F2: a header-shape failure must not itself discard the known
+            # denial/already-delivered-bytes observations -- account them
+            # (with an explicit missing-evidence cause, since the headers
+            # cannot be trusted) before re-raising the original failure.
+            self._account_prefetched_on_deadline(request, stream)
+            raise
         header_receipt = self.clock.evidence('body_receipt')
         try:
             self._enforce_window(header_receipt, body=True)
-        except LaunchContractError as exc:
-            if str(exc) == 'RUNTIME_CLOCK_AT_OR_AFTER_ACQUISITION_END':
-                self._account_prefetched_on_deadline(request, stream,
-                                                    receipt=header_receipt)
+        except LaunchContractError:
+            # F2: any clock-validity/window failure here -- not only the
+            # acquisition-end case -- must still account known bytes/denial.
+            self._account_prefetched_on_deadline(request, stream,
+                                                receipt=header_receipt)
             raise
         if (header_receipt.reading.monotonic_seconds > deadline_mono or
                 self.clock.monotonic() >= deadline_mono):
@@ -989,11 +1179,24 @@ class GateRuntime:
         provenance = ObjectProvenance('RAW', request.request_id, request.request_id,
             request.source_pin, request.decoder_pin, request.clock_policy_sha256,
             ())
+        # F1: these local decode/seal phases are the store-phase samples the
+        # durable session clock intersection previously never saw -- record
+        # each one (diagnostic-only gating, same as ``timely`` below) before
+        # it is handed to the store, so a later attempt's acquisition-gated
+        # evidence cannot silently contradict them.
         body_receipt = self.clock.evidence('body_receipt')
+        self._observe_local_clock(body_receipt)
         decode_complete = self.clock.evidence('decode_complete')
+        self._observe_local_clock(decode_complete)
         prefix = (dispatch, body_receipt, decode_complete)
+
+        def _record_seal_evidence():
+            evidence = self.clock.evidence('durable_seal')
+            self._observe_local_clock(evidence)
+            return evidence
+
         receipt = self.store.seal_with_provenance(verified_body, provenance, prefix,
-            lambda: self.clock.evidence('durable_seal'))
+            _record_seal_evidence)
         self.session.object_witnessed(request.request_id,
             store_receipt_commit_hash=receipt.commit_hash)
 
@@ -1131,8 +1334,15 @@ def build_terminal_report(*, plan: FrozenPlan, session: SessionLedger,
         else:
             check(capture['store_receipt_commit_hash'] is None,
                   'REPORT_STORE_RECEIPT_MISMATCH')
-    by_slot = {r.slot_index: r for r in plan.requests
-               if r.purpose == 'FIELD' and r.slot_index is not None}
+    # F5: every FIELD request must map exactly to its own frozen original
+    # slot -- ``AttemptRequest`` already requires a FIELD request to carry a
+    # non-``None`` slot and ``FrozenPlan`` already forbids two FIELD requests
+    # sharing one slot, so this is a durable re-proof of that mapping against
+    # the actual plan the report is built from, not a new rule.
+    all_field_requests = [r for r in plan.requests if r.purpose == 'FIELD']
+    by_slot = {r.slot_index: r for r in all_field_requests}
+    check(all(r.slot_index is not None for r in all_field_requests) and
+          len(by_slot) == len(all_field_requests), 'REPORT_FIELD_SLOT_COVERAGE')
     rows, counts = [], {}
     for slot in range(SLOT_COUNT):
         request = by_slot.get(slot)
@@ -1161,14 +1371,21 @@ def build_terminal_report(*, plan: FrozenPlan, session: SessionLedger,
             observed[event['key']] += event['bytes']
     for purpose in PURPOSES:
         requests = [r for r in plan.requests if r.purpose == purpose]
-        attempts = [r for r in requests if r.request_id in session.request_ids_ever]
-        known = sum(observed[r.request_id] for r in attempts
-                    if r.request_id in budget.attempts)
+        # F5: "attempted" means an actual durable budget reservation was
+        # made for this request -- a request the session refused before
+        # ever reserving (control-domain cooldown, elapsed deadline, a
+        # missing prerequisite) was never attempted against the provider,
+        # and must not inflate this count merely for having an
+        # ``attempt_intent``/``refuse`` pair in the session journal.
+        attempts = [r for r in requests if r.request_id in budget.attempts]
+        refused = [r for r in requests if session.attempt_history.get(
+            r.request_id, {}).get('outcome') == 'REFUSED']
+        known = sum(observed[r.request_id] for r in attempts)
         charged = sum((a['received'] if a['finished'] else a['reserved'])
                       for r in attempts if (a := budget.attempts.get(r.request_id)))
         per_purpose[purpose] = {'planned_count': len(requests),
             'planned_reservation_bytes': sum(r.reservation_bytes for r in requests),
-            'attempted_count': len(attempts),
+            'attempted_count': len(attempts), 'refused_count': len(refused),
             'completed_count': sum(bool(budget.attempts[r.request_id]['finished'])
                                    for r in attempts if r.request_id in budget.attempts),
             'known_delivered_bytes': known, 'charged_bytes': charged,
@@ -1216,7 +1433,11 @@ def build_terminal_report(*, plan: FrozenPlan, session: SessionLedger,
                 'charged_bytes': sum(p['charged_bytes'] for p in per_purpose.values()),
                 'outstanding_reserved_ceiling': sum(
                     p['outstanding_reserved_ceiling'] for p in per_purpose.values()),
-                'attempted_count': len(session.request_ids_ever)},
+                # F5: derive from actual budget reservations, not every
+                # session-journal intent (which also counts refusals that
+                # never reserved anything).
+                'attempted_count': sum(p['attempted_count'] for p in per_purpose.values()),
+                'refused_count': sum(p['refused_count'] for p in per_purpose.values())},
             'denial_lineage': {'shared_head': shared.prev,
                                'control_domains': shared.denials},
             'provider_trajectories': providers,
@@ -1275,10 +1496,37 @@ class ReportSink:
                     self.reserve_fd = os.open(self.RESERVE_FILE_NAME,
                         os.O_CREAT | os.O_EXCL | os.O_RDWR | os.O_NOFOLLOW,
                         0o600, dir_fd=self.dir_fd)
-                    os.posix_fallocate(self.reserve_fd, 0, REPORT_RESERVE_BYTES)
-                    os.fsync(self.reserve_fd)
-                    os.fsync(self.dir_fd)
                 fcntl.flock(self.reserve_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                # F6: a pre-existing reserve file's logical size and link
+                # count are never evidence that it was ever actually
+                # physically allocated (a sparse file with the right name
+                # can be reopened just as easily as a genuinely reserved
+                # one). Re-verify its identity under the lock -- it may have
+                # changed in the gap between the ``os.listdir``/``os.open``
+                # above and acquiring the lock -- then (re-)establish its
+                # physical allocation before trusting it as the mandatory
+                # acquisition prerequisite. A freshly created file is still
+                # size 0 at this point (``O_CREAT`` alone never allocates);
+                # ``posix_fallocate`` both extends and allocates it, and over
+                # a range that is already fully allocated it is a safe,
+                # idempotent no-op that never truncates or zeroes existing
+                # bytes -- so identity (never size) is checked first, then
+                # size and physical allocation are checked only afterward.
+                named = os.stat(self.RESERVE_FILE_NAME, dir_fd=self.dir_fd,
+                                follow_symlinks=False)
+                held = os.fstat(self.reserve_fd)
+                check((named.st_dev, named.st_ino) == (held.st_dev, held.st_ino) and
+                      stat.S_ISREG(held.st_mode) and held.st_uid == os.getuid() and
+                      stat.S_IMODE(held.st_mode) == 0o600 and held.st_nlink == 1 and
+                      held.st_size in (0, REPORT_RESERVE_BYTES),
+                      'REPORT_RESERVE_IDENTITY')
+                os.posix_fallocate(self.reserve_fd, 0, REPORT_RESERVE_BYTES)
+                os.fsync(self.reserve_fd)
+                os.fsync(self.dir_fd)
+                held = os.fstat(self.reserve_fd)
+                check(held.st_size == REPORT_RESERVE_BYTES and
+                      held.st_blocks * 512 >= REPORT_RESERVE_BYTES,
+                      'REPORT_RESERVE_NOT_PHYSICALLY_ALLOCATED')
                 self.reserved = True
             else:
                 raise LaunchContractError('REPORT_COMPLETION_ALREADY_PRESENT')

@@ -15,12 +15,13 @@ import pytest
 from tools.v11_r09_gate3_launch import DurableBudget, LaunchContractError
 from tools.v11_multimodel_panel import canonical
 from tools.v11_r09_gate3_ledgers import SessionLedger, SharedLedger
+from tools.v11_r09_gate3_launch_v4 import validate_manifest_v4
 from tools.v11_r09_gate3_offline_io import OfflineResponse, SyntheticExchange
 from tools.v11_r09_gate3_runtime import (
-    MIN_AVAILABLE_MEMORY_BYTES, MIN_FREE_DISK_BYTES, REPORT_RESERVE_BYTES,
-    SLOT_COUNT, AbsoluteWindow, AttemptRequest, FakeClock, FakeResourceProbe,
-    FrozenEvent, FrozenPlan, GateRuntime, ReportSink, SyntheticTransport, Transport,
-    acquire_runtime_journals, build_terminal_report,
+    MAX_BODY_CHUNKS_PER_REQUEST, MIN_AVAILABLE_MEMORY_BYTES, MIN_FREE_DISK_BYTES,
+    REPORT_RESERVE_BYTES, SLOT_COUNT, AbsoluteWindow, AttemptRequest, CapacityPlan,
+    FakeClock, FakeResourceProbe, FrozenEvent, FrozenPlan, GateRuntime, ReportSink,
+    SyntheticTransport, Transport, acquire_runtime_journals, build_terminal_report,
 )
 
 MANIFEST = 'a' * 64
@@ -988,9 +989,9 @@ def test_dispatch_deadline_expiry_holds_open_reservation(tmp_path):
     clock = _clock()
 
     class SlowTransport(SyntheticTransport):
-        def dispatch(self, request_id, *, deadline_monotonic, remaining_seconds):
+        def dispatch(self, request, *, deadline_monotonic, remaining_seconds):
             clock.advance(31)
-            return super().dispatch(request_id, deadline_monotonic=deadline_monotonic,
+            return super().dispatch(request, deadline_monotonic=deadline_monotonic,
                                     remaining_seconds=remaining_seconds)
 
     with _acquire(tmp_path) as (shared, session, budget, store):
@@ -1060,10 +1061,10 @@ def test_post_close_pacing_uses_actual_closure_after_slow_transport(tmp_path):
                                   'req-2': _ok_response(b'5678', etag='"obj-2"')})
 
     class SlowFirst(SyntheticTransport):
-        def dispatch(self, request_id, *, deadline_monotonic, remaining_seconds):
-            if request_id == 'req-1':
+        def dispatch(self, request, *, deadline_monotonic, remaining_seconds):
+            if request.request_id == 'req-1':
                 clock.advance(3)
-            return super().dispatch(request_id, deadline_monotonic=deadline_monotonic,
+            return super().dispatch(request, deadline_monotonic=deadline_monotonic,
                                     remaining_seconds=remaining_seconds)
 
     with _acquire(tmp_path) as (shared, session, budget, store):
@@ -1086,9 +1087,9 @@ def test_post_close_pacing_survives_same_boot_reopen(tmp_path):
                          endpoint_id='c' * 63 + '2'))
     clock = _clock()
     class SlowFirst(SyntheticTransport):
-        def dispatch(self, request_id, *, deadline_monotonic, remaining_seconds):
+        def dispatch(self, request, *, deadline_monotonic, remaining_seconds):
             clock.advance(3)
-            return super().dispatch(request_id, deadline_monotonic=deadline_monotonic,
+            return super().dispatch(request, deadline_monotonic=deadline_monotonic,
                                     remaining_seconds=remaining_seconds)
     with _acquire(tmp_path) as (shared, session, budget, store):
         runtime = _runtime(shared, session, budget, store,
@@ -1115,9 +1116,9 @@ def test_retry_after_on_200_uses_actual_header_receipt(tmp_path):
     exchange = SyntheticExchange({'req-1': response})
 
     class SlowHeaders(SyntheticTransport):
-        def dispatch(self, request_id, *, deadline_monotonic, remaining_seconds):
+        def dispatch(self, request, *, deadline_monotonic, remaining_seconds):
             clock.advance(20)
-            return super().dispatch(request_id, deadline_monotonic=deadline_monotonic,
+            return super().dispatch(request, deadline_monotonic=deadline_monotonic,
                                     remaining_seconds=remaining_seconds)
 
     with _acquire(tmp_path) as (shared, session, budget, store):
@@ -1245,3 +1246,279 @@ def test_incomplete_report_reason_is_bounded_before_write(tmp_path):
         with pytest.raises(LaunchContractError, match='REPORT_CAPACITY_EXCEEDED'):
             sink.persist_incomplete('x' * REPORT_RESERVE_BYTES)
         assert not (report_dir / ReportSink.INCOMPLETE_FILE_NAME).exists()
+
+
+# ---------------------------------------------------------------------------
+# Gate 3 V4 slice-3 repair 2 (F1-F7): independently reviewed CHANGES_REQUIRED
+# findings against commit ef45d35. Each test below exercises the exact
+# counterexample scenario from /tmp/alpha-v11-slice3-review-ef45d35-probes.py
+# but asserts the *repaired* behavior (that review's probes assert the
+# pre-repair defect and now fail against this candidate, which is the
+# expected outcome of the repair, not a regression).
+# ---------------------------------------------------------------------------
+
+def test_store_phase_clocks_join_session_intersection_and_catch_contradiction(tmp_path):
+    tmp_path = _dirs(tmp_path)
+
+    class ShiftSealClock(FakeClock):
+        count = 0
+
+        def evidence(self, phase):
+            self.count += 1
+            if self.count == 6:
+                self.set(utc=self.monotonic() + 0.08)
+            return super().evidence(phase)
+
+    clock = ShiftSealClock(BOOT, utc=10, mono=10, uncertainty=.05)
+    requests = (_request(reservation_bytes=4),
+                _request(request_id='req-2', reservation_bytes=4,
+                         endpoint_id='c' * 63 + '2'))
+    with _acquire(tmp_path) as (shared, session, budget, store):
+        rt = _runtime(shared, session, budget, store,
+            SyntheticExchange({'req-1': _ok_response(b'abcd'),
+                               'req-2': _ok_response(b'efgh')}),
+            clock=clock, requests=requests)
+        assert rt.run_attempt(requests[0])['outcome'] == 'SUCCESS'
+        # F1: the durable interval is now narrowed by the store-phase
+        # (body_receipt/decode_complete/durable_seal) samples too, not just
+        # the transport-phase ones -- it is no longer the wide (-.05, .05)
+        # the acquisition-gated samples alone would have left it at.
+        assert session.clock_offset_interval != (-.05, .05)
+        low, high = session.clock_offset_interval
+        assert low > -.05 and low <= high
+        clock.set(utc=11.92, mono=12, measured_mono=12)
+        result = rt.run_attempt(requests[1])
+        # The contradictory evidence is now caught at req-2's own pre-dispatch
+        # clock check (refused), instead of silently reaching a COMPLETE
+        # report with an empty global offset intersection.
+        assert result['outcome'] == 'REFUSED'
+        assert result['reason'] == 'SESSION_LEDGER_CLOCK_STEP'
+
+
+def test_elapsed_deadline_still_accounts_denial_and_prefetched_bytes(tmp_path):
+    tmp_path = _dirs(tmp_path)
+    clock = _clock()
+
+    class Slow(SyntheticTransport):
+        def dispatch(self, request, **kwargs):
+            clock.advance(2)
+            return super().dispatch(request, **kwargs)
+
+    response = _ok_response(b'abcd', status=503, headers=(('Retry-After', '1200'),))
+    with _acquire(tmp_path) as (shared, session, budget, store):
+        rt = _runtime(shared, session, budget, store, SyntheticExchange({'req-1': response}),
+            clock=clock, window=_window(elapsed_cap_seconds=1))
+        rt.transport = Slow(rt.transport._exchange)
+        with pytest.raises(LaunchContractError, match='RUNTIME_DISPATCH_DEADLINE'):
+            rt.run_attempt(_request(reservation_bytes=4))
+        # F2: the observed 503/Retry-After denial and the fully prefetched
+        # 4 bytes are both accounted even though the dispatch itself expired
+        # past the elapsed cap -- the hold (open intent, full reservation)
+        # is preserved, not released.
+        assert shared.denials and 'd' * 64 in shared.denials
+        assert budget.received == 4
+        assert shared.open_intent is not None and budget.in_flight == 'req-1'
+
+
+def test_bad_header_still_accounts_all_eager_overdelivery_bytes(tmp_path):
+    tmp_path = _dirs(tmp_path)
+    response = _ok_response(b'a' * 31, headers=(('ETag', '"duplicate"'),))
+    with _acquire(tmp_path) as (shared, session, budget, store):
+        rt = _runtime(shared, session, budget, store, SyntheticExchange({'req-1': response}))
+        with pytest.raises(LaunchContractError, match='RUNTIME_DUPLICATE_HEADER'):
+            rt.run_attempt(_request(reservation_bytes=10))
+        # F2: a malformed-header failure must not discard the fact that the
+        # eager synthetic boundary already delivered all 31 bytes against a
+        # 10-byte reservation -- the overdelivery is charged and flagged.
+        assert budget.received == 31 and budget.violated
+        assert budget.in_flight == 'req-1'
+
+
+def test_cooldown_resumption_uses_conservative_lower_bound(tmp_path):
+    from tools.v11_r09_gate3_runtime import _build_denial_record, _bounded_headers
+    tmp_path = _dirs(tmp_path)
+    window = _window(start_utc=900, acquisition_end_utc=2000, decision_lower_utc=2100)
+    requests = (_request(reservation_bytes=4),
+                _request(request_id='req-2', reservation_bytes=4,
+                         endpoint_id='c' * 63 + '2'))
+    with _acquire(tmp_path) as (shared, session, budget, store):
+        shared.intent_open('old-req', purpose='INDEX', endpoint_id='c' * 64,
+            control_domain_id='d' * 64, manifest_sha256='9' * 64,
+            max_reservation_bytes=4, now_utc=10)
+        response = _ok_response(b'bad!', status=503, headers=(('Retry-After', '5'),))
+        record = _build_denial_record('503', response, window=_window(),
+            receipt_evidence=_clock().evidence('body_receipt'),
+            headers=_bounded_headers(response), origin=ORIGIN)
+        shared.denial_observed('old-req', denial=record)
+        shared.intent_closed('old-req', outcome='DENIED', accounting_head='8' * 64,
+                             total_delivered_bytes=4)
+        assert shared.is_blocked('d' * 64, now_utc=999.95)
+        # Still within the hold even by the conservative lower bound: refused.
+        blocked_clock = _clock(utc=1000, mono=1000, uncertainty=.05)
+        rt = _runtime(shared, session, budget, store,
+            SyntheticExchange({'req-1': _ok_response(b'abcd')}),
+            clock=blocked_clock, window=window, requests=requests)
+        result = rt.run_attempt(requests[0])
+        assert result['outcome'] == 'REFUSED'
+        assert result['reason'] == 'RUNTIME_CONTROL_DOMAIN_BLOCKED'
+        rt.actual.report_sink.close()
+    with _acquire(tmp_path) as (shared, session, budget, store):
+        # Genuinely past the cooldown once the lower bound itself clears it.
+        resumed_clock = _clock(utc=1000.10, mono=1000.10, uncertainty=.05)
+        rt = _runtime(shared, session, budget, store,
+            SyntheticExchange({'req-2': _ok_response(b'abcd')}),
+            clock=resumed_clock, window=window, requests=requests)
+        assert rt.run_attempt(requests[1])['outcome'] == 'SUCCESS'
+
+
+def test_shared_journal_boot_mismatch_blocks_construction(tmp_path):
+    tmp_path = _dirs(tmp_path)
+    (tmp_path / 'alternate_shared').mkdir(mode=0o700)
+    with _acquire(tmp_path) as (_, session, budget, store):
+        with SharedLedger(tmp_path / 'alternate_shared', boot_id='different-boot',
+                          genesis_review_digest=GENESIS) as shared:
+            rt = _runtime(shared, session, budget, store,
+                SyntheticExchange({'req-1': _ok_response(b'abcd')}))
+            with pytest.raises(LaunchContractError, match='RUNTIME_BOOT_CONTEXT_MISMATCH'):
+                rt.run_attempt(_request(reservation_bytes=4))
+
+
+def test_transport_receives_bound_attempt_request_not_bare_id(tmp_path):
+    tmp_path = _dirs(tmp_path)
+    seen = []
+
+    class RecordingTransport(SyntheticTransport):
+        def dispatch(self, request, **kwargs):
+            seen.append(request)
+            return super().dispatch(request, **kwargs)
+
+    with _acquire(tmp_path) as (shared, session, budget, store):
+        rt = _runtime(shared, session, budget, store, SyntheticExchange({'req-1': _ok_response(b'abcd')}))
+        rt.transport = RecordingTransport(rt.transport._exchange)
+        request = _request(reservation_bytes=4)
+        assert rt.run_attempt(request)['outcome'] == 'SUCCESS'
+        assert len(seen) == 1 and seen[0] == request
+
+
+def test_field_request_without_slot_index_is_rejected():
+    with pytest.raises(LaunchContractError, match='RUNTIME_REQUEST_FIELD_REQUIRES_SLOT'):
+        _request(purpose='FIELD', provider='GEFS', slot_index=None,
+                 range_start=0, range_end=3, expected_object_bytes=4,
+                 reservation_bytes=4)
+
+
+def test_refused_request_does_not_inflate_attempted_or_denominator(tmp_path):
+    tmp_path = _dirs(tmp_path)
+    with _acquire(tmp_path) as journals:
+        rt = _runtime(*journals, SyntheticExchange({}), clock=_clock(utc=-1, mono=10))
+        assert rt.run_attempt(_request())['outcome'] == 'REFUSED'
+        report = build_terminal_report(plan=rt.plan, session=journals[1],
+            budget=journals[2], shared=journals[0], store=journals[3])
+        # F5: a refusal that never reached a budget reservation must not be
+        # counted as "attempted" anywhere in the report.
+        assert journals[2].count == 0
+        assert report['global_accounting']['attempted_count'] == 0
+        assert report['global_accounting']['refused_count'] == 1
+        assert report['per_purpose']['INDEX']['attempted_count'] == 0
+        assert report['per_purpose']['INDEX']['refused_count'] == 1
+
+
+def test_tiny_chunks_within_policy_cap_succeed_and_capacity_is_sufficient(tmp_path):
+    tmp_path = _dirs(tmp_path)
+    request = _request(reservation_bytes=32)
+    capacity = CapacityPlan.for_requests((request,))
+    with _acquire(tmp_path) as journals:
+        rt = _runtime(*journals,
+            SyntheticExchange({'req-1': _ok_response(b'a' * 32, chunks=(b'a',) * 32)}),
+            requests=(request,))
+        before = len(journals[2].events)
+        assert rt.run_attempt(request)['outcome'] == 'SUCCESS'
+        used = len(journals[2].events) - before
+        # F7: the frozen capacity estimate for a 32-byte request now assumes
+        # up to MAX_BODY_CHUNKS_PER_REQUEST (32) one-byte chunks, so the
+        # actual worst-case delivery this fixture exercises (32 chunk
+        # records + reserve + complete = 34) fits within the preflight
+        # estimate instead of silently exceeding it.
+        assert used == 34 <= capacity.budget_records
+
+
+def test_chunk_count_exceeding_policy_cap_is_rejected_with_hold_preserved(tmp_path):
+    tmp_path = _dirs(tmp_path)
+    body = b'a' * (MAX_BODY_CHUNKS_PER_REQUEST + 1)
+    response = _ok_response(body, chunks=(b'a',) * (MAX_BODY_CHUNKS_PER_REQUEST + 1))
+    with _acquire(tmp_path) as (shared, session, budget, store):
+        rt = _runtime(shared, session, budget, store, SyntheticExchange({'req-1': response}))
+        with pytest.raises(LaunchContractError, match='RUNTIME_CHUNK_COUNT_EXCEEDS_POLICY'):
+            rt.run_attempt(_request(reservation_bytes=len(body)))
+        assert shared.open_intent is not None and budget.in_flight == 'req-1'
+
+
+def test_sparse_report_reserve_reopen_establishes_physical_allocation(tmp_path):
+    directory = tmp_path / 'report'
+    directory.mkdir(mode=0o700)
+    reserve = directory / ReportSink.RESERVE_FILE_NAME
+    with reserve.open('wb') as stream:
+        stream.truncate(REPORT_RESERVE_BYTES)
+    reserve.chmod(0o600)
+    assert reserve.stat().st_blocks == 0
+    with ReportSink(directory) as sink:
+        assert sink.reserved
+        # F6: reopening a reserve file that was never actually physically
+        # allocated now establishes (and proves) that allocation before
+        # trusting it, instead of accepting a sparse file at face value.
+        assert reserve.stat().st_blocks * 512 >= REPORT_RESERVE_BYTES
+
+
+def test_frozen_plan_derives_from_validated_v4_manifest_bytes(tmp_path, monkeypatch):
+    from tests.test_v11_r09_gate3_launch_v4 import candidate
+    payload, repo, root, start = candidate(tmp_path, monkeypatch)
+    raw = canonical(payload)
+    manifest_sha256 = validate_manifest_v4(raw, repo=repo, object_root=root,
+                                           now_utc=start - 4000)
+    endpoints_by_id = {e['endpoint_id']: e for e in payload['network']['endpoints']}
+    schedule_requests = payload['schedule']['requests']
+    ids = [item['request_id'] for item in schedule_requests]
+    request_pins = {rid: {'expected_etag': ETAG, 'expected_object_bytes': None,
+        'source_pin': 'e' * 64, 'decoder_pin': 'f' * 64,
+        'clock_policy_sha256': '1' * 64, 'validator_sha256': None,
+        'dependency_commit_hashes': ()} for rid in ids}
+    expected_requests = []
+    for item in schedule_requests:
+        endpoint = endpoints_by_id[item['endpoint_id']]
+        pins = request_pins[item['request_id']]
+        expected_requests.append(AttemptRequest(
+            request_id=item['request_id'], purpose=item['purpose'],
+            endpoint_id=item['endpoint_id'],
+            control_domain_id=endpoint['control_domain_id'],
+            origin=item['origin'], path=item['path'],
+            provider=item['provider'] if item['purpose'] == 'FIELD' else None,
+            slot_index=item['slot_index'],
+            range_start=item['range_start'], range_end=item['range_end'],
+            reservation_bytes=item['reservation_bytes'],
+            expected_etag=pins['expected_etag'],
+            expected_object_bytes=pins['expected_object_bytes'],
+            source_pin=pins['source_pin'], decoder_pin=pins['decoder_pin'],
+            clock_policy_sha256=pins['clock_policy_sha256'],
+            validator_sha256=pins['validator_sha256'],
+            dependency_commit_hashes=pins['dependency_commit_hashes'],
+            prerequisite_request_ids=tuple(ids[i] for i in item['prerequisites'])))
+    window = _window(start_utc=0, acquisition_end_utc=2_000_000_000,
+                     decision_lower_utc=2_000_000_001)
+    review_raw = canonical({'schema_version': 1, 'manifest_sha256': manifest_sha256,
+        'window_sha256': hashlib.sha256(canonical(asdict(window))).hexdigest(),
+        'request_schedule_sha256': hashlib.sha256(
+            canonical([asdict(r) for r in expected_requests])).hexdigest(),
+        'event_schedule_sha256': hashlib.sha256(canonical([])).hexdigest()})
+    review_sha256 = hashlib.sha256(review_raw).hexdigest()
+    plan = FrozenPlan.from_validated_manifest(raw, repo=repo, object_root=root,
+        now_utc=start - 4000, window=window, review_sha256=review_sha256,
+        review_raw=review_raw, request_pins=request_pins)
+    assert plan.manifest_sha256 == manifest_sha256
+    assert [r.request_id for r in plan.requests] == ids
+    assert plan.requests == tuple(expected_requests)
+    # F4: the FIELD request's prerequisites are exactly the manifest's own
+    # validated INDEX/OBJECT_ID/METADATA overhead requests for that slot.
+    field = next(r for r in plan.requests if r.purpose == 'FIELD')
+    prereq_purposes = {r.purpose for r in plan.requests
+                       if r.request_id in field.prerequisite_request_ids}
+    assert prereq_purposes == {'INDEX', 'OBJECT_ID', 'METADATA'}
