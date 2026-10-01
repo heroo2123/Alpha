@@ -1,5 +1,34 @@
 # Alpha V11 work checkpoint
 
+## Gate 3 exact review and prep repair recovery — 2026-10-01 14:08 UTC
+
+Independent Astra/high [slice-3 exact-commit review](V11_R09_GATE3_V4_SLICE3_REVIEW_ef45d35.md)
+of `ef45d35` returned **CHANGES_REQUIRED** with seven blocking findings
+F1–F7: global clock intersection, denial/body error accounting, conservative
+cooldown expiry, validated V4 plan/journal binding, denominator and attempted
+counts, physical report reserve, and worst-case event capacity. It ran 186
+focused and 427 Gate 3 family tests plus nine defect-reproducing probes.
+R3 post-close pacing closed offline; the other R findings remain partial.
+The candidate stays unmerged. One Sonnet/high worker now owns the same clean
+slice-3 repair worktree for F1–F7, launched under
+`/tmp/alpha-v11-slice3-repair2-ef45d35` with a terminal marker.
+
+The prior offline prep repair runner exited with uncommitted edits and a
+`G3L_PREP_REPAIR_BLOCKED` terminal. I preserved those four files, inspected
+the changes, reran the focused prep/V4 set (**74 passed**), checked syntax and
+`git diff --check`, then committed clean candidate `f03d2fd` in that isolated
+worktree. It repairs the impossible dual scope and separates pre-review
+assembly from later detached review outputs while keeping `launchable=false`.
+An independent different-model exact-commit review is running; no merge or
+acceptance is claimed. The earlier `3241abf` remains rejected.
+
+The October 1 14:00 UTC acquisition start passed without G3-L PASS. No
+provider request, launch, SHADOW sample or financial action occurred.
+Source/decoder/restriction/clock/storage/private exact-package evidence
+remains open. PAPER scanner/controller remain inactive; protected authority
+absent. No C/J/E/A boundary crossed: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Gate 3 worker recovery and offline prep review — 2026-10-01 13:55 UTC
 
 Recovered clean slice-3 R1–R8 repair candidate `ef45d35` from its completed

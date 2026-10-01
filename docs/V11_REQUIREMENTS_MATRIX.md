@@ -1,5 +1,16 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Gate 3 slice-3 review and prep recovery — 2026-10-01 14:08 UTC
+
+Exact `ef45d35` is [CHANGES_REQUIRED](V11_R09_GATE3_V4_SLICE3_REVIEW_ef45d35.md)
+for seven reproduced runtime/accounting/capacity defects despite 427 Gate 3
+family passes. A sole isolated follow-up writer is running. Offline prep
+repair `f03d2fd` is clean and passed 74 focused/V4 tests after recovery; its
+new exact-commit review is pending. Neither is accepted or merged. The
+October 1 acquisition window missed G3-L PASS; no provider request or
+forward SHADOW evidence. **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND** unchanged.
+
 ## Gate 3 pending exact review and offline prep repair — 2026-10-01 13:55 UTC
 
 Slice-3 repair `ef45d35` is a clean offline candidate with 115 focused/427

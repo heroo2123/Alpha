@@ -1,0 +1,104 @@
+{
+  "schema_version": 1,
+  "review_type": "independent_exact_commit_offline",
+  "verdict": "CHANGES_REQUIRED",
+  "gate3_launch": "NO-GO",
+  "financial_status": "NOT_READY_TO_FUND",
+  "candidate_commit": "ef45d355f8d7e3a924564cdf9f5f2601c01a50f6",
+  "candidate_tree": "048551f28b5845d4197de3dae6c6be8a258993f3",
+  "base_commit": "8e446fd7ee74b3cba987dc6db56ce0a28ab5c959",
+  "candidate_worktree": "/tmp/alpha-v11-gate3-v4-slice3-repair-20261001",
+  "review_date_utc": "2026-10-01",
+  "tests": {
+    "focused": {
+      "passed": 186
+    },
+    "gate3_family": {
+      "passed": 427,
+      "warnings": 2
+    },
+    "independent_counterexamples": {
+      "passed": 9,
+      "pass_means": "defect reproduced"
+    },
+    "diff_check": "clean"
+  },
+  "prior_findings": {
+    "R1": "PARTIAL",
+    "R2": "PARTIAL",
+    "R3": "CLOSED_OFFLINE",
+    "R4": "PARTIAL",
+    "R5": "PARTIAL",
+    "R6": "PARTIAL",
+    "R7": "PARTIAL",
+    "R8": "PARTIAL"
+  },
+  "findings": [
+    {
+      "id": "F1",
+      "priority": "P1",
+      "title": "Store-phase clock observations bypass global durable intersection",
+      "prior": [
+        "R2"
+      ]
+    },
+    {
+      "id": "F2",
+      "priority": "P1",
+      "title": "Error paths lose denial observations and eager delivered bytes",
+      "prior": [
+        "R1",
+        "R4",
+        "R6"
+      ]
+    },
+    {
+      "id": "F3",
+      "priority": "P1",
+      "title": "Cooldown resumption uses nominal or upper UTC instead of lower bound",
+      "prior": [
+        "R4"
+      ]
+    },
+    {
+      "id": "F4",
+      "priority": "P1",
+      "title": "Plan is not bound to validated V4 bytes and shared boot is omitted",
+      "prior": [
+        "R2",
+        "R5"
+      ]
+    },
+    {
+      "id": "F5",
+      "priority": "P2",
+      "title": "FIELD denominator omission and inflated attempted accounting",
+      "prior": [
+        "R7"
+      ]
+    },
+    {
+      "id": "F6",
+      "priority": "P2",
+      "title": "Sparse reopened report reserve accepted without physical allocation",
+      "prior": [
+        "R7"
+      ]
+    },
+    {
+      "id": "F7",
+      "priority": "P2",
+      "title": "Optimistic chunk and session-event capacity estimates",
+      "prior": [
+        "R8"
+      ]
+    }
+  ],
+  "review_path": "/tmp/alpha-v11-slice3-review-ef45d35.md",
+  "review_sha256": "48d96f29cb9e5521cbefae5a37d3a37789b2e335dfac08010370aef62786e008",
+  "probes_path": "/tmp/alpha-v11-slice3-review-ef45d35-probes.py",
+  "probes_sha256": "104303c3530072d8f5aa33ec0b878213e2d3d1dfd16064b7eb76b4b676c579e7",
+  "candidate_modified": false,
+  "main_modified": false,
+  "provider_network_service_financial_actions": false
+}

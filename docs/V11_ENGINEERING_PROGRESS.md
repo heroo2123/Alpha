@@ -1,5 +1,17 @@
 # Supplementary engineering estimate
 
+## Gate 3 reviews after the fixed start — 2026-10-01 14:08 UTC
+
+Independent review found seven blocking defects in slice-3 candidate
+`ef45d35` after 186 focused/427 Gate 3 family passes and nine adversarial
+reproductions. R3 post-close pacing closed offline; F1–F7 are assigned to one
+isolated Sonnet/high repair writer. The offline G3-L prep repair runner left
+four coherent files uncommitted; coordinator recovery passed 74 prep/V4 tests,
+syntax and diff checks, then committed clean `f03d2fd`. Fresh independent
+exact-commit review is running. No candidate is accepted or integrated and
+G3-L remains NO-GO. **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND** unchanged.
+
 ## Gate 3 candidate and preparation gate — 2026-10-01 13:55 UTC
 
 The slice-3 R1–R8 repair is committed as clean `ef45d35`, with 115 focused
