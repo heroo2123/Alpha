@@ -1,5 +1,60 @@
 # Alpha V11 work checkpoint
 
+## Decoder point-of-use exact review: changes required; repair queued — 2026-10-01 21:55 UTC
+
+Independent Astra/high [review](V11_R09_GATE3_DECODER_POINTOFUSE_REVIEW_93cd43c.md)
+and [machine evidence](V11_R09_GATE3_DECODER_POINTOFUSE_REVIEW_93cd43c.json),
+committed at `afed89e`, bind exact clean unmerged
+`93cd43c411de696dd575efc7038eca723ed1e41a` / tree
+`3bc648294df7db5e10b85208cc2cf101b9702c13` to
+**POINTOFUSE_REVIEW_CHANGES_REQUIRED**. All four terminal hashes, 176 calls,
+86 raw byte comparisons, 90 presence comparisons, both negative controls,
+both synthetic 290.0 K outputs and actual child CPU/address-space limits were
+independently reproduced under inherited native network denial.
+
+Two P2 corrections remain: unchecked trace writes silently succeed on
+`/dev/full`, and replay with the last seven records removed still reports
+consistent; the claimed pre-use sibling source check actually executes after
+import/decode. P3 comments also overstate instrumentation transparency and
+network/build scope. No candidate merge or source/build/G3-L qualification.
+Raw reproducible review programs/results are retained under
+`/tmp/alpha-v11-pou-review-93cd43c` and bound in the committed review JSON.
+
+The first sole Sonnet/high repair attempt exited before editing with the
+provider message “session limit; resets 11:20pm (UTC)”. Its matching terminal
+`/tmp/alpha-v11-gate3-pointofuse-repair-93cd43c-20261001.terminal.json`
+records exit 1, unchanged clean candidate and no changed files. Runner/child
+have exited. This is a provider capacity block, not an implementation finding.
+No repeated request or provider-control bypass was attempted.
+
+Exactly one task-specific delayed repair runner is now verified live:
+PID **1925151**, prefix
+`/tmp/alpha-v11-gate3-pointofuse-repair-93cd43c-retry-2321`.
+Its `.queue.json` records **WAITING_FOR_PROVIDER_SESSION_RESET** until
+**2026-10-01 23:21 UTC**, after the stated reset; no implementation child is
+running yet. At that time it will invoke one Sonnet/high repair in the same
+isolated author worktree, only if HEAD is still `93cd43c` and clean. It may
+change only the four observation artifacts. It produces a `.terminal.json`
+with exact head/tree, scope, clean state, exit and log hash. **Do not duplicate
+this pending task**. Recover queue/process/terminal before acting. The future
+candidate requires fresh different-model exact review and newer-main
+reconciliation; the queue grants no acceptance or merge permission.
+
+Main was clean at review commit `afed89e` before this checkpoint. SHADOW and
+Brain worktrees remain clean; inventory candidate `9600510` remains separate,
+unreviewed and unmerged. Latest commissioning files are October 1 watchdog/
+status artifacts, not new qualifying forward evidence. The prior full release
+PASS at `6ec371e` and its log hash were reverified; no new suite was claimed.
+PAPER scanner/controller remain inactive/disabled; weather execution remains
+inactive/masked. Protected authority roots remain absent. The private
+FINAL-REVIEWED master hash remains
+`a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+Free disk is 2,209,280,000 bytes and available memory 1,128,710,144 bytes at this screen.
+The prior missing-reviewed-identity blockers remain; no new G3-L PASS,
+provider request, V10/AxiomTrade/service/authority/financial action or remote
+publication. No C/J/E/A crossing: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Decoder point-of-use candidate ready for independent review — 2026-10-01 21:42 UTC
 
 Recovered the two unfinished probe/shim files in their original isolated

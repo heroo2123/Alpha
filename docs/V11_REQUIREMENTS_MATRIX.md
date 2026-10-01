@@ -1,5 +1,18 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Point-of-use exact review requires correction; repair queued — 2026-10-01 21:55 UTC
+
+Astra/high [exact review](V11_R09_GATE3_DECODER_POINTOFUSE_REVIEW_93cd43c.md)
+at `afed89e` reproduces the clean `93cd43c` observation but requires trace
+write/completion integrity and source verification before execution; candidate
+remains unmerged. The first Sonnet repair made no edits and exited on the
+provider session limit. One guarded task-specific runner (PID 1925151, prefix
+`/tmp/alpha-v11-gate3-pointofuse-repair-93cd43c-retry-2321`) waits until
+23:21 UTC after the stated reset; **no implementation child yet**. Do not
+duplicate it. Corrected bytes require fresh exact review. No build/source,
+provider, G3-L or forward SHADOW qualification; **G3-L NO-GO**.
+No C/J/E/A crossing: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Point-of-use candidate awaits exact review — 2026-10-01 21:42 UTC
 
 Unmerged `93cd43c` supplies a reproducible offline synthetic MEMFS call
