@@ -813,7 +813,10 @@ def test_budget_rejects_event_count_past_fixed_cap(tmp_path, monkeypatch):
             budget.complete('first')
     with DurableBudget(root, 'c' * 64, max_bytes=1024 ** 2) as budget:
         assert budget.in_flight == 'first' and budget.received == 1
-        with pytest.raises(LaunchContractError, match='UNCERTAIN_REQUEST_HELD'):
+        assert budget.delivery_held and not budget.failed
+        with pytest.raises(LaunchContractError, match='JOURNAL_DELIVERY_UNCERTAIN'):
+            budget.complete('first')
+        with pytest.raises(LaunchContractError, match='JOURNAL_DELIVERY_UNCERTAIN'):
             budget.reserve('second', 1, started_monotonic=4)
 
 
@@ -910,7 +913,13 @@ def test_byte_capacity_refusal_after_delivery_cannot_complete_or_refund(tmp_path
     with DurableBudget(root, '7' * 64, max_bytes=10) as reopened:
         assert reopened.reserved == 10 and reopened.in_flight == 'one'
         assert reopened.received == 0  # no invented receipt bytes
-        with pytest.raises(LaunchContractError, match='UNCERTAIN_REQUEST_HELD'):
+        assert reopened.delivery_held and not reopened.failed
+        # The hold itself (not merely the unrelated in-flight check) must be
+        # what blocks a fresh process: a reopened budget still must not be
+        # able to complete/refund the uncertain reservation.
+        with pytest.raises(LaunchContractError, match='JOURNAL_DELIVERY_UNCERTAIN'):
+            reopened.complete('one')
+        with pytest.raises(LaunchContractError, match='JOURNAL_DELIVERY_UNCERTAIN'):
             reopened.reserve('two', 1, started_monotonic=2)
 
 
@@ -935,3 +944,55 @@ def test_post_delivery_append_refusal_holds_every_kind(tmp_path, monkeypatch,
     with DurableBudget(root, '6' * 64, max_bytes=1) as reopened:
         assert reopened.in_flight == 'one' and reopened.reserved == 1
         assert reopened.received == 0
+        assert reopened.delivery_held and not reopened.failed
+        with pytest.raises(LaunchContractError, match='JOURNAL_DELIVERY_UNCERTAIN'):
+            reopened.complete('one')
+
+
+def test_delivery_held_marker_absent_without_a_held_delivery(tmp_path):
+    root = tmp_path / 'budget_no_hold'
+    root.mkdir(mode=0o700)
+    with DurableBudget(root, '5' * 64, max_bytes=10) as budget:
+        budget.reserve('one', 10, started_monotonic=0)
+        budget.consume('one', b'xyz')
+        budget.complete('one')
+        assert not budget.delivery_held
+    assert not (root / launch.DELIVERY_HELD_MARKER).exists()
+    with DurableBudget(root, '5' * 64, max_bytes=10) as reopened:
+        assert not reopened.delivery_held and not reopened.failed
+        assert reopened.in_flight is None
+        reopened.reserve('two', 1, started_monotonic=10)  # not blocked
+
+
+def test_delivery_held_marker_restart_regression_matches_named_scenario(tmp_path, monkeypatch):
+    """Exact scenario named in the Gate 3 V4 R2 repair inspection: reserve 10
+    bytes, force a capacity-refused consume leaving 3 uncertain bytes, close
+    and reopen a fresh DurableBudget against the same directory, then call
+    complete('one') on the reopened instance. It must stay rejected."""
+    root = tmp_path / 'budget_restart_regression'
+    root.mkdir(mode=0o700)
+    with DurableBudget(root, '4' * 64, max_bytes=10) as budget:
+        budget.reserve('one', 10, started_monotonic=0)
+        monkeypatch.setattr(launch, 'JOURNAL_MAX_BYTES', budget._journal_bytes)
+        with pytest.raises(LaunchContractError, match='JOURNAL_CAPACITY_EXCEEDED'):
+            budget.consume('one', b'xyz')
+        assert budget.uncertain_received_bytes == 3 and budget.delivery_held
+        monkeypatch.undo()
+    with DurableBudget(root, '4' * 64, max_bytes=10) as reopened:
+        assert reopened.delivery_held
+        with pytest.raises(LaunchContractError, match='JOURNAL_DELIVERY_UNCERTAIN'):
+            reopened.complete('one')
+        assert reopened.reserved == 10 and reopened.in_flight == 'one'
+
+
+def test_delivery_held_marker_corruption_fails_closed(tmp_path):
+    root = tmp_path / 'budget_marker_corrupt'
+    root.mkdir(mode=0o700)
+    with DurableBudget(root, '3' * 64, max_bytes=10) as budget:
+        budget.reserve('one', 10, started_monotonic=0)
+    (root / launch.DELIVERY_HELD_MARKER).write_bytes(b'not canonical json\n')
+    (root / launch.DELIVERY_HELD_MARKER).chmod(0o600)
+    before = len(os.listdir('/proc/self/fd'))
+    with pytest.raises(LaunchContractError):
+        DurableBudget(root, '3' * 64, max_bytes=10)
+    assert len(os.listdir('/proc/self/fd')) == before

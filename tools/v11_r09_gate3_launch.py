@@ -44,6 +44,10 @@ JOURNAL_MAX_BYTES = 64 * 1024 ** 2
 JOURNAL_RECORD_MAX_BYTES = 64 * 1024
 JOURNAL_MAX_EVENTS = 131072
 JOURNAL_READ_CHUNK_BYTES = 64 * 1024
+# A held delivery must survive a restart. It cannot be recorded by the same
+# byte/record/event-capped journal append that just refused (that is exactly
+# why it is uncertain), so it gets its own small sentinel file instead.
+DELIVERY_HELD_MARKER = 'gate3.held'
 GROUPS = ('identity', 'code', 'protocol', 'storage', 'cohort', 'time',
           'sources', 'runs_and_slots', 'network', 'limits', 'schedule',
           'clocks_and_receipts', 'accounting')
@@ -755,6 +759,7 @@ class DurableBudget:
                                'min_start_interval_seconds': min_start_interval_seconds,
                                'boot_id': boot_id}, 'JOURNAL_IDENTITY_MISMATCH')
             self._state()
+            self._load_delivery_held_marker()
         except BaseException:
             self.close()
             raise
@@ -864,6 +869,65 @@ class DurableBudget:
         self.prev = record['hash']
         self.events.append(event)
 
+    def _mark_delivery_held(self, key):
+        """Durably persist an uncertain post-delivery hold outside the journal cap.
+
+        The journal append that would have recorded this chunk already failed
+        due to a fixed capacity cap; writing the hold into the same capped
+        journal could fail for the identical reason. ``gate3.held`` is a
+        separate, tiny, uncapped file so the hold is never lost to the same
+        refusal that created it, and survives a fresh restart.
+        """
+        if self.delivery_held:
+            return
+        record = canonical({'op': 'delivery_held', 'key': key}) + b'\n'
+        try:
+            fd = os.open(DELIVERY_HELD_MARKER, os.O_CREAT | os.O_EXCL | os.O_WRONLY |
+                        os.O_NOFOLLOW, 0o600, dir_fd=self.dir_fd)
+        except FileExistsError:
+            self.delivery_held = True
+            return
+        except BaseException:
+            # The hold cannot be proven durable on disk. Fail closed in this
+            # process too rather than leaving delivery_held false in memory.
+            self.failed = True
+            self.delivery_held = True
+            raise
+        try:
+            try:
+                written = os.write(fd, record)
+                check(written == len(record), 'JOURNAL_DELIVERY_HELD_MARKER_SHORT_WRITE')
+                os.fsync(fd)
+            finally:
+                os.close(fd)
+            os.fsync(self.dir_fd)
+        except BaseException:
+            self.failed = True
+            self.delivery_held = True
+            raise
+        self.delivery_held = True
+
+    def _load_delivery_held_marker(self):
+        """Restore a prior hold on a fresh open; never trusted from memory alone."""
+        try:
+            fd = os.open(DELIVERY_HELD_MARKER, os.O_RDONLY | os.O_NOFOLLOW,
+                        dir_fd=self.dir_fd)
+        except FileNotFoundError:
+            return
+        try:
+            self._check_file(DELIVERY_HELD_MARKER, fd)
+            size = os.fstat(fd).st_size
+            check(0 < size <= JOURNAL_RECORD_MAX_BYTES, 'JOURNAL_DELIVERY_HELD_MARKER')
+            data = os.pread(fd, size, 0)
+        finally:
+            os.close(fd)
+        check(data[-1:] == b'\n', 'JOURNAL_DELIVERY_HELD_MARKER')
+        record = parse_canonical(data[:-1])
+        exact(record, ('op', 'key'), 'JOURNAL_DELIVERY_HELD_MARKER')
+        check(record['op'] == 'delivery_held' and record['key'] == self.in_flight,
+              'JOURNAL_DELIVERY_HELD_MARKER')
+        self.delivery_held = True
+
     def _state(self):
         self.attempts = {}
         self.count = 0
@@ -963,7 +1027,15 @@ class DurableBudget:
                 self.received += len(body)
                 # No receipt can prove these delivered bytes after an append
                 # refusal. Keep the durable reservation open across restart.
-                self.delivery_held = True
+                # A raw write/fsync durability fault (self.failed, set by
+                # _append's own except clause before this one runs) already
+                # blocks every further call in this process via _healthy()
+                # and is not this fixed-cap scenario: the journal bytes it
+                # wrote are not provably absent the way a refused-before-any-
+                # write capacity-cap record is, so it does not get the same
+                # cross-restart marker.
+                if not self.failed:
+                    self._mark_delivery_held(key)
             raise
 
     def complete(self, key):
