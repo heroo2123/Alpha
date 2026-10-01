@@ -1,0 +1,946 @@
+{
+  "schema": "R09_GATE3_DECODER_BUILD_OBSERVATION_V1",
+  "status": "UNREVIEWED_BUILD_OBSERVATION",
+  "qualification_status": "NOT_QUALIFIED",
+  "g3l_status": "NO-GO",
+  "financial_authority": false,
+  "promotion_authority": false,
+  "host_authority": false,
+  "launch_authority": false,
+  "observed_utc": 1790882545,
+  "observation_locators": {
+    "repo_worktree": "/tmp/alpha-v11-gate3-decoder-build-inventory-20261001",
+    "repo_head_commit": "06bab60a5925df86d8ff82be8a9ed57fbf4a7ed7",
+    "repo_head_tree": "ba30b72a3a8f4763896e93fc6dd805098f009922",
+    "venv_executable": "/home/alphaadmin/AlphaV11_Dev/venv/bin/python",
+    "venv_matches_expected_AlphaV11_Dev_venv": true,
+    "reproduction_script": "docs/V11_R09_GATE3_DECODER_BUILD_OBSERVATION_20261001_probe.py",
+    "raw_probe_output_not_committed": "ephemeral stdout only; rerun the script to regenerate"
+  },
+  "interpreter_platform": {
+    "abi_tag": "cpython-312-x86_64-linux-gnu",
+    "executable": "/home/alphaadmin/AlphaV11_Dev/venv/bin/python",
+    "machine": "x86_64",
+    "platform": "Linux-6.8.0-137-generic-x86_64-with-glibc2.39",
+    "sys_platform_tag": "linux-x86_64",
+    "version": "3.12.3 (main, Aug 31 2026, 10:18:26) [GCC 13.3.0]"
+  },
+  "capture_controls": {
+    "socket_creation_blocked_in_python_layer": true,
+    "note": "Python-level socket.socket is blocked; this does not prove no native code in the loaded libraries (e.g. libcurl inside libeckit.so) could open a raw file descriptor. No network API of eccodes/eckit was invoked during this capture.",
+    "rlimit_cpu_seconds": 60,
+    "rlimit_address_space_bytes": 536870912,
+    "observed_ru_maxrss_kb": 88484,
+    "observed_cpu_seconds": 0.882,
+    "temp_disk_used_bytes": 0,
+    "provider_requests_made": 0
+  },
+  "decoder_sources": [
+    {
+      "byte_length": 12342,
+      "git_blob_sha1_HEAD": "2081e67006eb898c5ae7ee57501231deac7ce368",
+      "git_blob_sha1_worktree": "2081e67006eb898c5ae7ee57501231deac7ce368",
+      "matches_committed_HEAD": true,
+      "path": "polymarket_scanner/v11/ecmwf_grib.py",
+      "sha256": "224ae354c7c80ef2b8ff8206f5ebdaa428b86802eee316e1ae2f4d449c464a3c"
+    },
+    {
+      "byte_length": 22644,
+      "git_blob_sha1_HEAD": "d90bda29f5103999a1317839689610e6afb23e7f",
+      "git_blob_sha1_worktree": "d90bda29f5103999a1317839689610e6afb23e7f",
+      "matches_committed_HEAD": true,
+      "path": "tools/v11_r09_gate3_offline_io.py",
+      "sha256": "bca02a320402ca6c0f908cd035fecd08854012c25b744d8cc7436ca370c50235"
+    }
+  ],
+  "python_package_record_checks": [
+    {
+      "dist_info": "eccodes-2.48.0.dist-info",
+      "record_path": "/home/alphaadmin/AlphaV11_Dev/venv/lib/python3.12/site-packages/eccodes-2.48.0.dist-info/RECORD",
+      "entry_count": 52,
+      "attested_entry_count": 31,
+      "unattested_entry_count": 21,
+      "mismatched_entries": [],
+      "missing_entries": [],
+      "has_direct_url_json": false
+    },
+    {
+      "dist_info": "eccodeslib-2.49.0.30.dist-info",
+      "record_path": "/home/alphaadmin/AlphaV11_Dev/venv/lib/python3.12/site-packages/eccodeslib-2.49.0.30.dist-info/RECORD",
+      "entry_count": 69,
+      "attested_entry_count": 67,
+      "unattested_entry_count": 2,
+      "mismatched_entries": [],
+      "missing_entries": [],
+      "has_direct_url_json": false
+    },
+    {
+      "dist_info": "eckitlib-2.3.0.30.dist-info",
+      "record_path": "/home/alphaadmin/AlphaV11_Dev/venv/lib/python3.12/site-packages/eckitlib-2.3.0.30.dist-info/RECORD",
+      "entry_count": 776,
+      "attested_entry_count": 774,
+      "unattested_entry_count": 2,
+      "mismatched_entries": [
+        "eckitlib.libs/libbrotlicommon-6ce2a53c.so.1.0.6",
+        "eckitlib.libs/libbrotlidec-811d1be3.so.1.0.6",
+        "eckitlib.libs/libcom_err-730ca923.so.2.1",
+        "eckitlib.libs/libcrypt-52aca757.so.1.1.0",
+        "eckitlib.libs/libcrypto-a324fe28.so.1.1.1k",
+        "eckitlib.libs/libcurl-f8def1d0.so.4.5.0",
+        "eckitlib.libs/libgssapi_krb5-323bbd21.so.2.2",
+        "eckitlib.libs/libidn2-2f4a5893.so.0.3.6",
+        "eckitlib.libs/libk5crypto-9a74ff38.so.3.1",
+        "eckitlib.libs/libkeyutils-2777d33d.so.1.6",
+        "eckitlib.libs/libkrb5-a55300e8.so.3.3",
+        "eckitlib.libs/libkrb5support-e6594cfc.so.0.1",
+        "eckitlib.libs/liblber-2-d20824ef.4.so.2.10.9",
+        "eckitlib.libs/libldap-2-cea2a960.4.so.2.10.9",
+        "eckitlib.libs/liblz4-0414571a.so.1.10.0",
+        "eckitlib.libs/libnghttp2-39367a22.so.14.17.0",
+        "eckitlib.libs/libpcre2-8-516f4c9d.so.0.7.1",
+        "eckitlib.libs/libproj-e5164a33.so.25.9.8.1",
+        "eckitlib.libs/libpsl-99becdd3.so.5.3.1",
+        "eckitlib.libs/libsasl2-7de4d792.so.3.0.0",
+        "eckitlib.libs/libselinux-d0805dcb.so.1",
+        "eckitlib.libs/libsqlite3-1ec6053f.so.0.8.6",
+        "eckitlib.libs/libssh-05a03e26.so.4.8.7",
+        "eckitlib.libs/libssl-8248cfc9.so.1.1.1k",
+        "eckitlib.libs/libunistring-05abdd40.so.2.1.0"
+      ],
+      "mismatched_entry_count": 25,
+      "mismatched_entry_delta_bytes_range": [3368, 213008],
+      "mismatched_entry_details": [
+        {
+          "path": "eckitlib.libs/libbrotlicommon-6ce2a53c.so.1.0.6",
+          "record_sha256": "cf28b21a9be6cbb86e2a6f899561c2328f164bf240f57221e79aad40bb3c1810",
+          "observed_sha256": "fe96cbf4a28a76b235402965c216cd94f59ca8d65bd396c43934053be568ede9",
+          "record_bytes": 135913,
+          "observed_bytes": 140121,
+          "delta_bytes": 4208
+        },
+        {
+          "path": "eckitlib.libs/libbrotlidec-811d1be3.so.1.0.6",
+          "record_sha256": "02ee2a64252887008ab35a44dbe70804a2f51e6114befa055ec8d87499bf605f",
+          "observed_sha256": "2a03168da732f7698350da721cd4aefd97c618d94316c19dc61368720f1741ee",
+          "record_bytes": 66297,
+          "observed_bytes": 70409,
+          "delta_bytes": 4112
+        },
+        {
+          "path": "eckitlib.libs/libcom_err-730ca923.so.2.1",
+          "record_sha256": "558d6c4ed410bb944977f635057b41163aa516188f093330196660ceabbe2e84",
+          "observed_sha256": "03e47793911274035eb1cb51625d0a4856a5e4f8a024fa88fec52182f800dd9b",
+          "record_bytes": 21545,
+          "observed_bytes": 27449,
+          "delta_bytes": 5904
+        },
+        {
+          "path": "eckitlib.libs/libcrypt-52aca757.so.1.1.0",
+          "record_sha256": "465ea2047eed23f5f71b89507ec366f60a0e74d0b6f7021ffc8efb7158d01127",
+          "observed_sha256": "03d782bb9b5d24b673ac3099a478491cc4ee85ffbdfd9930b3f5b8cbdcf540f7",
+          "record_bytes": 140977,
+          "observed_bytes": 144441,
+          "delta_bytes": 3464
+        },
+        {
+          "path": "eckitlib.libs/libcrypto-a324fe28.so.1.1.1k",
+          "record_sha256": "a0f3596ad24657c5657908b709090a8facb3b93727d0181829daf80fd62ea859",
+          "observed_sha256": "8700265a5613dc2a3c0edf8e6a072b802299570dbcfb6f26d3dbd7090001b70b",
+          "record_bytes": 3215921,
+          "observed_bytes": 3309281,
+          "delta_bytes": 93360
+        },
+        {
+          "path": "eckitlib.libs/libcurl-f8def1d0.so.4.5.0",
+          "record_sha256": "32b5b95c4846e7730650d17bd433c6fd2d9190205100f0c73bcfcd4bd2659341",
+          "observed_sha256": "b348bd1845100fa4c9e6f6c599cc997190df574d39b60d22747a508a7b0290fc",
+          "record_bytes": 636377,
+          "observed_bytes": 648681,
+          "delta_bytes": 12304
+        },
+        {
+          "path": "eckitlib.libs/libgssapi_krb5-323bbd21.so.2.2",
+          "record_sha256": "7ade0ec22b7eecf2c51c88612a8f0cc11afc238a4dc156c30b9668ad82097acf",
+          "observed_sha256": "0f055f3a393745b0ecec793555acd6d647ed9f8346cc8eb0fc41ff0dea0b59a9",
+          "record_bytes": 390897,
+          "observed_bytes": 403201,
+          "delta_bytes": 12304
+        },
+        {
+          "path": "eckitlib.libs/libidn2-2f4a5893.so.0.3.6",
+          "record_sha256": "f2114c9f293d5447d0c6697c2d5685f2e4369b1af6ff0cefb730e788fa2d63ba",
+          "observed_sha256": "8f2d48169688822c20e2c2b5cb96b9d5150412d273326217b480bbfd8eeedaab",
+          "record_bytes": 144481,
+          "observed_bytes": 148593,
+          "delta_bytes": 4112
+        },
+        {
+          "path": "eckitlib.libs/libk5crypto-9a74ff38.so.3.1",
+          "record_sha256": "c202c7713325d10800d43f74bb5619f945b6f8c3154bc35dcf48ec986ab3aec1",
+          "observed_sha256": "909ee4fb3774a2c619978c1417cc7fbd99e52f4e747317b221472df7b5f317b8",
+          "record_bytes": 118289,
+          "observed_bytes": 122401,
+          "delta_bytes": 4112
+        },
+        {
+          "path": "eckitlib.libs/libkeyutils-2777d33d.so.1.6",
+          "record_sha256": "2f18e7ed5954c989ba03c6f824c0a9b68c1856283d1564eaf261308763e984ba",
+          "observed_sha256": "f0a4577f09f8ab08d515ae240b1fb2f87d2b1b287ec26654d04c5d9001ce86e0",
+          "record_bytes": 17929,
+          "observed_bytes": 22177,
+          "delta_bytes": 4248
+        },
+        {
+          "path": "eckitlib.libs/libkrb5-a55300e8.so.3.3",
+          "record_sha256": "a0a636ac91427563fe46ff90a039b8d78125f1b936fdcb022c3dcc426752e3ac",
+          "observed_sha256": "873df1adc5ec02fc51c8c0447d6a894c1ef8e32f3d2aa5e0368f6a39b9599dd8",
+          "record_bytes": 1047617,
+          "observed_bytes": 1068113,
+          "delta_bytes": 20496
+        },
+        {
+          "path": "eckitlib.libs/libkrb5support-e6594cfc.so.0.1",
+          "record_sha256": "dfcd92217780c12603f591d27539456e1ac2716e09f635cd6da96c611977eb1d",
+          "observed_sha256": "2f58d94e1d3852cd3c61ca773c867a7f8b4e4fa3cc66034f2c3395d612bbd83e",
+          "record_bytes": 89265,
+          "observed_bytes": 93377,
+          "delta_bytes": 4112
+        },
+        {
+          "path": "eckitlib.libs/liblber-2-d20824ef.4.so.2.10.9",
+          "record_sha256": "e86e226c61c7068fcf064166dda31b074d63f15b72f69af755e83d8847585365",
+          "observed_sha256": "cb7afc19abf75455849f8d68e19a32a687727731ffec6bc7d23eb53594dbe052",
+          "record_bytes": 73361,
+          "observed_bytes": 76729,
+          "delta_bytes": 3368
+        },
+        {
+          "path": "eckitlib.libs/libldap-2-cea2a960.4.so.2.10.9",
+          "record_sha256": "66e83aaf985dbae3f1e73747618a136f484a4327891554f9b7a7d8f9cf5c1cfd",
+          "observed_sha256": "a50c673a248097a0ab3e5d30f3302896c2efb1aa23c23f7b741791ec8e0d9c2a",
+          "record_bytes": 377241,
+          "observed_bytes": 393641,
+          "delta_bytes": 16400
+        },
+        {
+          "path": "eckitlib.libs/liblz4-0414571a.so.1.10.0",
+          "record_sha256": "23ba13a782df3794a385139f7261315bb9996555235f666211176b09abcdba18",
+          "observed_sha256": "11795d7a05d64a932689d8131456bb0bba75adf4962584922b62224c17fa1e12",
+          "record_bytes": 1790625,
+          "observed_bytes": 1798025,
+          "delta_bytes": 7400
+        },
+        {
+          "path": "eckitlib.libs/libnghttp2-39367a22.so.14.17.0",
+          "record_sha256": "9657d01252c12b5d2d8eed89da4ba30a81ccb900e7c42012021a169907d038ef",
+          "observed_sha256": "82f74595764ee98893a8913cea2dbd9baa4e96f77b93d3a0f8dcab83a49b64fd",
+          "record_bytes": 175025,
+          "observed_bytes": 182401,
+          "delta_bytes": 7376
+        },
+        {
+          "path": "eckitlib.libs/libpcre2-8-516f4c9d.so.0.7.1",
+          "record_sha256": "21c6e58d6fe82ae01596b0302b3f2ab516717e2d6c407fe22b13d2a0da73b265",
+          "observed_sha256": "ad47b948b9a1029d9626d97bc388d2c1bef9028adeab21d806ebfac744072b74",
+          "record_bytes": 547745,
+          "observed_bytes": 551697,
+          "delta_bytes": 3952
+        },
+        {
+          "path": "eckitlib.libs/libproj-e5164a33.so.25.9.8.1",
+          "record_sha256": "1ddafbb0fc808beba873c31c6f176b566bfdaf174aa71a6cfa7ab8ff0a08e5ae",
+          "observed_sha256": "20c363ed9abe34667f6082593b7c575beda6d5024cddee242ea5e6adceffe690",
+          "record_bytes": 90876161,
+          "observed_bytes": 91089169,
+          "delta_bytes": 213008
+        },
+        {
+          "path": "eckitlib.libs/libpsl-99becdd3.so.5.3.1",
+          "record_sha256": "f1b1f78f3e07673bfc30ed5258c4cc4ac64e6262be076ddcacce4404fa01c1cc",
+          "observed_sha256": "2f9c4fd90f1943141feee2a76ef768798f26259f7440937e9687295541ae4396",
+          "record_bytes": 82905,
+          "observed_bytes": 87017,
+          "delta_bytes": 4112
+        },
+        {
+          "path": "eckitlib.libs/libsasl2-7de4d792.so.3.0.0",
+          "record_sha256": "d702d083cb2a28a71d9a5928d15e4c970e1e509b37644b86f672ce6db858e6d6",
+          "observed_sha256": "2c3b5470cc0b52b3fe5e584e5fefcff7ffb39ef6122e96d773ad9ec9a4414545",
+          "record_bytes": 142865,
+          "observed_bytes": 146977,
+          "delta_bytes": 4112
+        },
+        {
+          "path": "eckitlib.libs/libselinux-d0805dcb.so.1",
+          "record_sha256": "4cc462e3478461726631fe12dcf3826dd4aeb1b65b98f4a05861a7cb1fbe3347",
+          "observed_sha256": "5f8bc7171430532724c7b80abd811e82df2aac2a2741199692509a258be5ec1c",
+          "record_bytes": 203297,
+          "observed_bytes": 211505,
+          "delta_bytes": 8208
+        },
+        {
+          "path": "eckitlib.libs/libsqlite3-1ec6053f.so.0.8.6",
+          "record_sha256": "d6c92fa9bc7e0ca2939a1be4138e9652c3950bb0606a3a558a1c34627846a819",
+          "observed_sha256": "4349a65d26347713feda5f0d66c0428edf2733a355fafad458263069b2c4f1eb",
+          "record_bytes": 1163393,
+          "observed_bytes": 1174137,
+          "delta_bytes": 10744
+        },
+        {
+          "path": "eckitlib.libs/libssh-05a03e26.so.4.8.7",
+          "record_sha256": "3427f3c12f594ecc4c7ce3d77ac108ea6e1e3701061c64a0fefaf75ab01e926b",
+          "observed_sha256": "62cdfcbe7b41771d10ce3f8bca415d847d317b2690963e246359e7f852dbcfee",
+          "record_bytes": 516577,
+          "observed_bytes": 532977,
+          "delta_bytes": 16400
+        },
+        {
+          "path": "eckitlib.libs/libssl-8248cfc9.so.1.1.1k",
+          "record_sha256": "58726c6bb8bc1cb483ec62f98ab8aefc668a950483ae9944d10912bbc9c16b36",
+          "observed_sha256": "1c21694c88fcef3ccd8de729f96c5fe7317469cdffd73427c1fc5e67303273d3",
+          "record_bytes": 687353,
+          "observed_bytes": 707849,
+          "delta_bytes": 20496
+        },
+        {
+          "path": "eckitlib.libs/libunistring-05abdd40.so.2.1.0",
+          "record_sha256": "2317d3dd5bb06bc4ed1201990cf34db52e4db7282aac9270bd781a57c2aedc75",
+          "observed_sha256": "ec2ffe19bad94adce53c07e66001bea145120eca51fe0dc009c352af5cde214f",
+          "record_bytes": 1826161,
+          "observed_bytes": 1841769,
+          "delta_bytes": 15608
+        }
+      ],
+      "missing_entries": [],
+      "has_direct_url_json": false
+    },
+    {
+      "dist_info": "findlibs-0.1.3.dist-info",
+      "record_path": "/home/alphaadmin/AlphaV11_Dev/venv/lib/python3.12/site-packages/findlibs-0.1.3.dist-info/RECORD",
+      "entry_count": 8,
+      "attested_entry_count": 6,
+      "unattested_entry_count": 2,
+      "mismatched_entries": [],
+      "missing_entries": [],
+      "has_direct_url_json": false
+    }
+  ],
+  "loaded_native_libraries": [
+    {
+      "byte_length": 131032,
+      "path": "/home/alphaadmin/AlphaV11_Dev/venv/lib/python3.12/site-packages/eccodeslib/lib64/libaec.so.0",
+      "resolvable": true,
+      "sha256": "df7cb2e645c02558ea503982bcb776ca0b05c63a559e8299f346b2bc5cb5f9c2"
+    },
+    {
+      "byte_length": 3330792,
+      "path": "/home/alphaadmin/AlphaV11_Dev/venv/lib/python3.12/site-packages/eccodeslib/lib64/libeccodes.so",
+      "resolvable": true,
+      "sha256": "1d6b8a3a8206cc439a3497dad4dc96370ed0b247798ac27e6c7bbd65cac4b87c"
+    },
+    {
+      "byte_length": 39767864,
+      "path": "/home/alphaadmin/AlphaV11_Dev/venv/lib/python3.12/site-packages/eccodeslib/lib64/libeccodes_memfs.so",
+      "resolvable": true,
+      "sha256": "f984057845fd0a569dd775907d4629b83b09434959436863790492aae32e5fb9"
+    },
+    {
+      "byte_length": 2399408,
+      "path": "/home/alphaadmin/AlphaV11_Dev/venv/lib/python3.12/site-packages/eccodeslib/lib64/libopenjp2.so.7",
+      "resolvable": true,
+      "sha256": "a8eecba4c05ed5380e512834455dfba6263235cf06262d52e7716b7016c9c9aa"
+    },
+    {
+      "byte_length": 221200,
+      "path": "/home/alphaadmin/AlphaV11_Dev/venv/lib/python3.12/site-packages/eccodeslib/lib64/libpng16.so.16",
+      "resolvable": true,
+      "sha256": "ebd1fa42daa29afd30ce54986cc28262efd2d0ce0a1372cd48634265be13a1af"
+    },
+    {
+      "byte_length": 140121,
+      "path": "/home/alphaadmin/AlphaV11_Dev/venv/lib/python3.12/site-packages/eckitlib.libs/libbrotlicommon-6ce2a53c.so.1.0.6",
+      "resolvable": true,
+      "sha256": "fe96cbf4a28a76b235402965c216cd94f59ca8d65bd396c43934053be568ede9"
+    },
+    {
+      "byte_length": 70409,
+      "path": "/home/alphaadmin/AlphaV11_Dev/venv/lib/python3.12/site-packages/eckitlib.libs/libbrotlidec-811d1be3.so.1.0.6",
+      "resolvable": true,
+      "sha256": "2a03168da732f7698350da721cd4aefd97c618d94316c19dc61368720f1741ee"
+    },
+    {
+      "byte_length": 27449,
+      "path": "/home/alphaadmin/AlphaV11_Dev/venv/lib/python3.12/site-packages/eckitlib.libs/libcom_err-730ca923.so.2.1",
+      "resolvable": true,
+      "sha256": "03e47793911274035eb1cb51625d0a4856a5e4f8a024fa88fec52182f800dd9b"
+    },
+    {
+      "byte_length": 144441,
+      "path": "/home/alphaadmin/AlphaV11_Dev/venv/lib/python3.12/site-packages/eckitlib.libs/libcrypt-52aca757.so.1.1.0",
+      "resolvable": true,
+      "sha256": "03d782bb9b5d24b673ac3099a478491cc4ee85ffbdfd9930b3f5b8cbdcf540f7"
+    },
+    {
+      "byte_length": 3309281,
+      "path": "/home/alphaadmin/AlphaV11_Dev/venv/lib/python3.12/site-packages/eckitlib.libs/libcrypto-a324fe28.so.1.1.1k",
+      "resolvable": true,
+      "sha256": "8700265a5613dc2a3c0edf8e6a072b802299570dbcfb6f26d3dbd7090001b70b"
+    },
+    {
+      "byte_length": 648681,
+      "path": "/home/alphaadmin/AlphaV11_Dev/venv/lib/python3.12/site-packages/eckitlib.libs/libcurl-f8def1d0.so.4.5.0",
+      "resolvable": true,
+      "sha256": "b348bd1845100fa4c9e6f6c599cc997190df574d39b60d22747a508a7b0290fc"
+    },
+    {
+      "byte_length": 403201,
+      "path": "/home/alphaadmin/AlphaV11_Dev/venv/lib/python3.12/site-packages/eckitlib.libs/libgssapi_krb5-323bbd21.so.2.2",
+      "resolvable": true,
+      "sha256": "0f055f3a393745b0ecec793555acd6d647ed9f8346cc8eb0fc41ff0dea0b59a9"
+    },
+    {
+      "byte_length": 148593,
+      "path": "/home/alphaadmin/AlphaV11_Dev/venv/lib/python3.12/site-packages/eckitlib.libs/libidn2-2f4a5893.so.0.3.6",
+      "resolvable": true,
+      "sha256": "8f2d48169688822c20e2c2b5cb96b9d5150412d273326217b480bbfd8eeedaab"
+    },
+    {
+      "byte_length": 122401,
+      "path": "/home/alphaadmin/AlphaV11_Dev/venv/lib/python3.12/site-packages/eckitlib.libs/libk5crypto-9a74ff38.so.3.1",
+      "resolvable": true,
+      "sha256": "909ee4fb3774a2c619978c1417cc7fbd99e52f4e747317b221472df7b5f317b8"
+    },
+    {
+      "byte_length": 22177,
+      "path": "/home/alphaadmin/AlphaV11_Dev/venv/lib/python3.12/site-packages/eckitlib.libs/libkeyutils-2777d33d.so.1.6",
+      "resolvable": true,
+      "sha256": "f0a4577f09f8ab08d515ae240b1fb2f87d2b1b287ec26654d04c5d9001ce86e0"
+    },
+    {
+      "byte_length": 1068113,
+      "path": "/home/alphaadmin/AlphaV11_Dev/venv/lib/python3.12/site-packages/eckitlib.libs/libkrb5-a55300e8.so.3.3",
+      "resolvable": true,
+      "sha256": "873df1adc5ec02fc51c8c0447d6a894c1ef8e32f3d2aa5e0368f6a39b9599dd8"
+    },
+    {
+      "byte_length": 93377,
+      "path": "/home/alphaadmin/AlphaV11_Dev/venv/lib/python3.12/site-packages/eckitlib.libs/libkrb5support-e6594cfc.so.0.1",
+      "resolvable": true,
+      "sha256": "2f58d94e1d3852cd3c61ca773c867a7f8b4e4fa3cc66034f2c3395d612bbd83e"
+    },
+    {
+      "byte_length": 76729,
+      "path": "/home/alphaadmin/AlphaV11_Dev/venv/lib/python3.12/site-packages/eckitlib.libs/liblber-2-d20824ef.4.so.2.10.9",
+      "resolvable": true,
+      "sha256": "cb7afc19abf75455849f8d68e19a32a687727731ffec6bc7d23eb53594dbe052"
+    },
+    {
+      "byte_length": 393641,
+      "path": "/home/alphaadmin/AlphaV11_Dev/venv/lib/python3.12/site-packages/eckitlib.libs/libldap-2-cea2a960.4.so.2.10.9",
+      "resolvable": true,
+      "sha256": "a50c673a248097a0ab3e5d30f3302896c2efb1aa23c23f7b741791ec8e0d9c2a"
+    },
+    {
+      "byte_length": 1798025,
+      "path": "/home/alphaadmin/AlphaV11_Dev/venv/lib/python3.12/site-packages/eckitlib.libs/liblz4-0414571a.so.1.10.0",
+      "resolvable": true,
+      "sha256": "11795d7a05d64a932689d8131456bb0bba75adf4962584922b62224c17fa1e12"
+    },
+    {
+      "byte_length": 182401,
+      "path": "/home/alphaadmin/AlphaV11_Dev/venv/lib/python3.12/site-packages/eckitlib.libs/libnghttp2-39367a22.so.14.17.0",
+      "resolvable": true,
+      "sha256": "82f74595764ee98893a8913cea2dbd9baa4e96f77b93d3a0f8dcab83a49b64fd"
+    },
+    {
+      "byte_length": 551697,
+      "path": "/home/alphaadmin/AlphaV11_Dev/venv/lib/python3.12/site-packages/eckitlib.libs/libpcre2-8-516f4c9d.so.0.7.1",
+      "resolvable": true,
+      "sha256": "ad47b948b9a1029d9626d97bc388d2c1bef9028adeab21d806ebfac744072b74"
+    },
+    {
+      "byte_length": 91089169,
+      "path": "/home/alphaadmin/AlphaV11_Dev/venv/lib/python3.12/site-packages/eckitlib.libs/libproj-e5164a33.so.25.9.8.1",
+      "resolvable": true,
+      "sha256": "20c363ed9abe34667f6082593b7c575beda6d5024cddee242ea5e6adceffe690"
+    },
+    {
+      "byte_length": 87017,
+      "path": "/home/alphaadmin/AlphaV11_Dev/venv/lib/python3.12/site-packages/eckitlib.libs/libpsl-99becdd3.so.5.3.1",
+      "resolvable": true,
+      "sha256": "2f9c4fd90f1943141feee2a76ef768798f26259f7440937e9687295541ae4396"
+    },
+    {
+      "byte_length": 146977,
+      "path": "/home/alphaadmin/AlphaV11_Dev/venv/lib/python3.12/site-packages/eckitlib.libs/libsasl2-7de4d792.so.3.0.0",
+      "resolvable": true,
+      "sha256": "2c3b5470cc0b52b3fe5e584e5fefcff7ffb39ef6122e96d773ad9ec9a4414545"
+    },
+    {
+      "byte_length": 211505,
+      "path": "/home/alphaadmin/AlphaV11_Dev/venv/lib/python3.12/site-packages/eckitlib.libs/libselinux-d0805dcb.so.1",
+      "resolvable": true,
+      "sha256": "5f8bc7171430532724c7b80abd811e82df2aac2a2741199692509a258be5ec1c"
+    },
+    {
+      "byte_length": 1174137,
+      "path": "/home/alphaadmin/AlphaV11_Dev/venv/lib/python3.12/site-packages/eckitlib.libs/libsqlite3-1ec6053f.so.0.8.6",
+      "resolvable": true,
+      "sha256": "4349a65d26347713feda5f0d66c0428edf2733a355fafad458263069b2c4f1eb"
+    },
+    {
+      "byte_length": 532977,
+      "path": "/home/alphaadmin/AlphaV11_Dev/venv/lib/python3.12/site-packages/eckitlib.libs/libssh-05a03e26.so.4.8.7",
+      "resolvable": true,
+      "sha256": "62cdfcbe7b41771d10ce3f8bca415d847d317b2690963e246359e7f852dbcfee"
+    },
+    {
+      "byte_length": 707849,
+      "path": "/home/alphaadmin/AlphaV11_Dev/venv/lib/python3.12/site-packages/eckitlib.libs/libssl-8248cfc9.so.1.1.1k",
+      "resolvable": true,
+      "sha256": "1c21694c88fcef3ccd8de729f96c5fe7317469cdffd73427c1fc5e67303273d3"
+    },
+    {
+      "byte_length": 1841769,
+      "path": "/home/alphaadmin/AlphaV11_Dev/venv/lib/python3.12/site-packages/eckitlib.libs/libunistring-05abdd40.so.2.1.0",
+      "resolvable": true,
+      "sha256": "ec2ffe19bad94adce53c07e66001bea145120eca51fe0dc009c352af5cde214f"
+    },
+    {
+      "byte_length": 3342929,
+      "path": "/home/alphaadmin/AlphaV11_Dev/venv/lib/python3.12/site-packages/eckitlib/lib64/libeckit.so",
+      "resolvable": true,
+      "sha256": "b6bdb025bde045d0b16473515159f8b40ec34e46fc070173eea2c4a82170ab46"
+    },
+    {
+      "byte_length": 407721,
+      "path": "/home/alphaadmin/AlphaV11_Dev/venv/lib/python3.12/site-packages/eckitlib/lib64/libeckit_codec.so",
+      "resolvable": true,
+      "sha256": "f535b05339c2f4efd98f4830bdca8105b9658494ec2146e867ca1f808c0fe484"
+    },
+    {
+      "byte_length": 140057,
+      "path": "/home/alphaadmin/AlphaV11_Dev/venv/lib/python3.12/site-packages/eckitlib/lib64/libeckit_distributed.so",
+      "resolvable": true,
+      "sha256": "e01d1c1566d6ca9cbcb15d8f46c7ec2dc5dbda5aa8289a1417e7789dde7b9aa0"
+    },
+    {
+      "byte_length": 2318153,
+      "path": "/home/alphaadmin/AlphaV11_Dev/venv/lib/python3.12/site-packages/eckitlib/lib64/libeckit_geo.so",
+      "resolvable": true,
+      "sha256": "2e3c539c4aca1a142822ab4a8def1cdbcf40a05fd93187b8b19197e7cacaffca"
+    },
+    {
+      "byte_length": 54937,
+      "path": "/home/alphaadmin/AlphaV11_Dev/venv/lib/python3.12/site-packages/eckitlib/lib64/libeckit_geometry.so",
+      "resolvable": true,
+      "sha256": "31bf5f95c6cb34571de4739c6c924cfa638be9f0a51198aa41446794ee9f503c"
+    },
+    {
+      "byte_length": 178297,
+      "path": "/home/alphaadmin/AlphaV11_Dev/venv/lib/python3.12/site-packages/eckitlib/lib64/libeckit_linalg.so",
+      "resolvable": true,
+      "sha256": "02579800266984ea46487a68eea659730e997e96c911f197b79dfb71e0402c57"
+    },
+    {
+      "byte_length": 46417,
+      "path": "/home/alphaadmin/AlphaV11_Dev/venv/lib/python3.12/site-packages/eckitlib/lib64/libeckit_maths.so",
+      "resolvable": true,
+      "sha256": "5f894cc2c51d23a3518aafd02f0fe0113e5fd2bd9cea54ae955f8ba2d42fa222"
+    },
+    {
+      "byte_length": 168817,
+      "path": "/home/alphaadmin/AlphaV11_Dev/venv/lib/python3.12/site-packages/eckitlib/lib64/libeckit_mpi.so",
+      "resolvable": true,
+      "sha256": "7fe72a8168b0dfe23fc05fb6919c606e94c9057ca0ffc5b02d48a65e9e700cca"
+    },
+    {
+      "byte_length": 113425,
+      "path": "/home/alphaadmin/AlphaV11_Dev/venv/lib/python3.12/site-packages/eckitlib/lib64/libeckit_option.so",
+      "resolvable": true,
+      "sha256": "d731b460d732df9fcc117d23b8280037d066671f742b56db46cf61e96f37c901"
+    },
+    {
+      "byte_length": 383449,
+      "path": "/home/alphaadmin/AlphaV11_Dev/venv/lib/python3.12/site-packages/eckitlib/lib64/libeckit_spec.so",
+      "resolvable": true,
+      "sha256": "e6cd3e027b79338c786f53be515858db8d1684a15757253adc6b0574deec9650"
+    },
+    {
+      "byte_length": 2411377,
+      "path": "/home/alphaadmin/AlphaV11_Dev/venv/lib/python3.12/site-packages/eckitlib/lib64/libeckit_sql.so",
+      "resolvable": true,
+      "sha256": "5e60a9292e81513870ff60d78ceb5c3c9d36140f9633153be0e51808f9c44031"
+    },
+    {
+      "byte_length": 228361,
+      "path": "/home/alphaadmin/AlphaV11_Dev/venv/lib/python3.12/site-packages/eckitlib/lib64/libeckit_web.so",
+      "resolvable": true,
+      "sha256": "14e71a2b1b9d91d2aac289beaa1a4de5925696bcbb92bbddb94ce9c140a0c88f"
+    }
+  ],
+  "synthetic_decode_probe": {
+    "ccsds_probe_outcomes": {
+      "ECMWF_AIFS_ENS": {
+        "ccsds_template_observed": 42,
+        "decoded_kelvin": 290.0,
+        "message_byte_length": 208
+      },
+      "ECMWF_IFS_ENS": {
+        "ccsds_template_observed": 42,
+        "decoded_kelvin": 290.0,
+        "message_byte_length": 205
+      }
+    },
+    "definition_path": "/MEMFS/definitions",
+    "eccodes_api_version": "2.49.0",
+    "eccodes_python_version": "2.49.0",
+    "samples_path": "/MEMFS/samples",
+    "simple_packing_probe_ok": true
+  },
+  "local_cached_wheel_comparison": {
+    "cache_locator": "/home/alphaadmin/.cache/pip/http-v2/d/b/5/c/1/db5c167b99b3920157e6ef8cd4747df3c0035c5ce559ce4fe109e10c.body",
+    "archive_sha256": "71b4059a56d8b35d682b05b0929e848e34750bb4c9e8d7198aa6d0049171c984",
+    "archive_bytes": 35957853,
+    "wheel_record_sha256": "8bd4ea0d46eb8cee32c22f20848aab5f63dace5693096eb5668717e725c9fe6e",
+    "installed_record_sha256": "fbff0d5c15a6a2ec52984aafd254e15549b5e79b30207999640d4b87c02c2bcf",
+    "installed_record_equals_cached_record": false,
+    "note": "Offline header/ZIP-directory scan of local pip-cache bodies found this exact-version eckitlib archive; nothing was fetched, extracted or installed. All 25 installed eckitlib.libs/ vendored files match this cached wheel payload exactly; all 25 cached payload files disagree with the wheel own RECORD. This is local cached partial provenance, not independent upstream authentication, and does not establish a benign-patch verdict.",
+    "vendored_entries": [
+      {
+        "path": "eckitlib.libs/libbrotlicommon-6ce2a53c.so.1.0.6",
+        "wheel_sha256": "fe96cbf4a28a76b235402965c216cd94f59ca8d65bd396c43934053be568ede9",
+        "wheel_bytes": 140121,
+        "installed_sha256": "fe96cbf4a28a76b235402965c216cd94f59ca8d65bd396c43934053be568ede9",
+        "installed_bytes": 140121,
+        "record_sha256": "cf28b21a9be6cbb86e2a6f899561c2328f164bf240f57221e79aad40bb3c1810",
+        "record_bytes": 135913,
+        "installed_equals_cached_wheel": true,
+        "cached_wheel_matches_own_record": false,
+        "record_row_unchanged": true
+      },
+      {
+        "path": "eckitlib.libs/libbrotlidec-811d1be3.so.1.0.6",
+        "wheel_sha256": "2a03168da732f7698350da721cd4aefd97c618d94316c19dc61368720f1741ee",
+        "wheel_bytes": 70409,
+        "installed_sha256": "2a03168da732f7698350da721cd4aefd97c618d94316c19dc61368720f1741ee",
+        "installed_bytes": 70409,
+        "record_sha256": "02ee2a64252887008ab35a44dbe70804a2f51e6114befa055ec8d87499bf605f",
+        "record_bytes": 66297,
+        "installed_equals_cached_wheel": true,
+        "cached_wheel_matches_own_record": false,
+        "record_row_unchanged": true
+      },
+      {
+        "path": "eckitlib.libs/libcom_err-730ca923.so.2.1",
+        "wheel_sha256": "03e47793911274035eb1cb51625d0a4856a5e4f8a024fa88fec52182f800dd9b",
+        "wheel_bytes": 27449,
+        "installed_sha256": "03e47793911274035eb1cb51625d0a4856a5e4f8a024fa88fec52182f800dd9b",
+        "installed_bytes": 27449,
+        "record_sha256": "558d6c4ed410bb944977f635057b41163aa516188f093330196660ceabbe2e84",
+        "record_bytes": 21545,
+        "installed_equals_cached_wheel": true,
+        "cached_wheel_matches_own_record": false,
+        "record_row_unchanged": true
+      },
+      {
+        "path": "eckitlib.libs/libcrypt-52aca757.so.1.1.0",
+        "wheel_sha256": "03d782bb9b5d24b673ac3099a478491cc4ee85ffbdfd9930b3f5b8cbdcf540f7",
+        "wheel_bytes": 144441,
+        "installed_sha256": "03d782bb9b5d24b673ac3099a478491cc4ee85ffbdfd9930b3f5b8cbdcf540f7",
+        "installed_bytes": 144441,
+        "record_sha256": "465ea2047eed23f5f71b89507ec366f60a0e74d0b6f7021ffc8efb7158d01127",
+        "record_bytes": 140977,
+        "installed_equals_cached_wheel": true,
+        "cached_wheel_matches_own_record": false,
+        "record_row_unchanged": true
+      },
+      {
+        "path": "eckitlib.libs/libcrypto-a324fe28.so.1.1.1k",
+        "wheel_sha256": "8700265a5613dc2a3c0edf8e6a072b802299570dbcfb6f26d3dbd7090001b70b",
+        "wheel_bytes": 3309281,
+        "installed_sha256": "8700265a5613dc2a3c0edf8e6a072b802299570dbcfb6f26d3dbd7090001b70b",
+        "installed_bytes": 3309281,
+        "record_sha256": "a0f3596ad24657c5657908b709090a8facb3b93727d0181829daf80fd62ea859",
+        "record_bytes": 3215921,
+        "installed_equals_cached_wheel": true,
+        "cached_wheel_matches_own_record": false,
+        "record_row_unchanged": true
+      },
+      {
+        "path": "eckitlib.libs/libcurl-f8def1d0.so.4.5.0",
+        "wheel_sha256": "b348bd1845100fa4c9e6f6c599cc997190df574d39b60d22747a508a7b0290fc",
+        "wheel_bytes": 648681,
+        "installed_sha256": "b348bd1845100fa4c9e6f6c599cc997190df574d39b60d22747a508a7b0290fc",
+        "installed_bytes": 648681,
+        "record_sha256": "32b5b95c4846e7730650d17bd433c6fd2d9190205100f0c73bcfcd4bd2659341",
+        "record_bytes": 636377,
+        "installed_equals_cached_wheel": true,
+        "cached_wheel_matches_own_record": false,
+        "record_row_unchanged": true
+      },
+      {
+        "path": "eckitlib.libs/libgssapi_krb5-323bbd21.so.2.2",
+        "wheel_sha256": "0f055f3a393745b0ecec793555acd6d647ed9f8346cc8eb0fc41ff0dea0b59a9",
+        "wheel_bytes": 403201,
+        "installed_sha256": "0f055f3a393745b0ecec793555acd6d647ed9f8346cc8eb0fc41ff0dea0b59a9",
+        "installed_bytes": 403201,
+        "record_sha256": "7ade0ec22b7eecf2c51c88612a8f0cc11afc238a4dc156c30b9668ad82097acf",
+        "record_bytes": 390897,
+        "installed_equals_cached_wheel": true,
+        "cached_wheel_matches_own_record": false,
+        "record_row_unchanged": true
+      },
+      {
+        "path": "eckitlib.libs/libidn2-2f4a5893.so.0.3.6",
+        "wheel_sha256": "8f2d48169688822c20e2c2b5cb96b9d5150412d273326217b480bbfd8eeedaab",
+        "wheel_bytes": 148593,
+        "installed_sha256": "8f2d48169688822c20e2c2b5cb96b9d5150412d273326217b480bbfd8eeedaab",
+        "installed_bytes": 148593,
+        "record_sha256": "f2114c9f293d5447d0c6697c2d5685f2e4369b1af6ff0cefb730e788fa2d63ba",
+        "record_bytes": 144481,
+        "installed_equals_cached_wheel": true,
+        "cached_wheel_matches_own_record": false,
+        "record_row_unchanged": true
+      },
+      {
+        "path": "eckitlib.libs/libk5crypto-9a74ff38.so.3.1",
+        "wheel_sha256": "909ee4fb3774a2c619978c1417cc7fbd99e52f4e747317b221472df7b5f317b8",
+        "wheel_bytes": 122401,
+        "installed_sha256": "909ee4fb3774a2c619978c1417cc7fbd99e52f4e747317b221472df7b5f317b8",
+        "installed_bytes": 122401,
+        "record_sha256": "c202c7713325d10800d43f74bb5619f945b6f8c3154bc35dcf48ec986ab3aec1",
+        "record_bytes": 118289,
+        "installed_equals_cached_wheel": true,
+        "cached_wheel_matches_own_record": false,
+        "record_row_unchanged": true
+      },
+      {
+        "path": "eckitlib.libs/libkeyutils-2777d33d.so.1.6",
+        "wheel_sha256": "f0a4577f09f8ab08d515ae240b1fb2f87d2b1b287ec26654d04c5d9001ce86e0",
+        "wheel_bytes": 22177,
+        "installed_sha256": "f0a4577f09f8ab08d515ae240b1fb2f87d2b1b287ec26654d04c5d9001ce86e0",
+        "installed_bytes": 22177,
+        "record_sha256": "2f18e7ed5954c989ba03c6f824c0a9b68c1856283d1564eaf261308763e984ba",
+        "record_bytes": 17929,
+        "installed_equals_cached_wheel": true,
+        "cached_wheel_matches_own_record": false,
+        "record_row_unchanged": true
+      },
+      {
+        "path": "eckitlib.libs/libkrb5-a55300e8.so.3.3",
+        "wheel_sha256": "873df1adc5ec02fc51c8c0447d6a894c1ef8e32f3d2aa5e0368f6a39b9599dd8",
+        "wheel_bytes": 1068113,
+        "installed_sha256": "873df1adc5ec02fc51c8c0447d6a894c1ef8e32f3d2aa5e0368f6a39b9599dd8",
+        "installed_bytes": 1068113,
+        "record_sha256": "a0a636ac91427563fe46ff90a039b8d78125f1b936fdcb022c3dcc426752e3ac",
+        "record_bytes": 1047617,
+        "installed_equals_cached_wheel": true,
+        "cached_wheel_matches_own_record": false,
+        "record_row_unchanged": true
+      },
+      {
+        "path": "eckitlib.libs/libkrb5support-e6594cfc.so.0.1",
+        "wheel_sha256": "2f58d94e1d3852cd3c61ca773c867a7f8b4e4fa3cc66034f2c3395d612bbd83e",
+        "wheel_bytes": 93377,
+        "installed_sha256": "2f58d94e1d3852cd3c61ca773c867a7f8b4e4fa3cc66034f2c3395d612bbd83e",
+        "installed_bytes": 93377,
+        "record_sha256": "dfcd92217780c12603f591d27539456e1ac2716e09f635cd6da96c611977eb1d",
+        "record_bytes": 89265,
+        "installed_equals_cached_wheel": true,
+        "cached_wheel_matches_own_record": false,
+        "record_row_unchanged": true
+      },
+      {
+        "path": "eckitlib.libs/liblber-2-d20824ef.4.so.2.10.9",
+        "wheel_sha256": "cb7afc19abf75455849f8d68e19a32a687727731ffec6bc7d23eb53594dbe052",
+        "wheel_bytes": 76729,
+        "installed_sha256": "cb7afc19abf75455849f8d68e19a32a687727731ffec6bc7d23eb53594dbe052",
+        "installed_bytes": 76729,
+        "record_sha256": "e86e226c61c7068fcf064166dda31b074d63f15b72f69af755e83d8847585365",
+        "record_bytes": 73361,
+        "installed_equals_cached_wheel": true,
+        "cached_wheel_matches_own_record": false,
+        "record_row_unchanged": true
+      },
+      {
+        "path": "eckitlib.libs/libldap-2-cea2a960.4.so.2.10.9",
+        "wheel_sha256": "a50c673a248097a0ab3e5d30f3302896c2efb1aa23c23f7b741791ec8e0d9c2a",
+        "wheel_bytes": 393641,
+        "installed_sha256": "a50c673a248097a0ab3e5d30f3302896c2efb1aa23c23f7b741791ec8e0d9c2a",
+        "installed_bytes": 393641,
+        "record_sha256": "66e83aaf985dbae3f1e73747618a136f484a4327891554f9b7a7d8f9cf5c1cfd",
+        "record_bytes": 377241,
+        "installed_equals_cached_wheel": true,
+        "cached_wheel_matches_own_record": false,
+        "record_row_unchanged": true
+      },
+      {
+        "path": "eckitlib.libs/liblz4-0414571a.so.1.10.0",
+        "wheel_sha256": "11795d7a05d64a932689d8131456bb0bba75adf4962584922b62224c17fa1e12",
+        "wheel_bytes": 1798025,
+        "installed_sha256": "11795d7a05d64a932689d8131456bb0bba75adf4962584922b62224c17fa1e12",
+        "installed_bytes": 1798025,
+        "record_sha256": "23ba13a782df3794a385139f7261315bb9996555235f666211176b09abcdba18",
+        "record_bytes": 1790625,
+        "installed_equals_cached_wheel": true,
+        "cached_wheel_matches_own_record": false,
+        "record_row_unchanged": true
+      },
+      {
+        "path": "eckitlib.libs/libnghttp2-39367a22.so.14.17.0",
+        "wheel_sha256": "82f74595764ee98893a8913cea2dbd9baa4e96f77b93d3a0f8dcab83a49b64fd",
+        "wheel_bytes": 182401,
+        "installed_sha256": "82f74595764ee98893a8913cea2dbd9baa4e96f77b93d3a0f8dcab83a49b64fd",
+        "installed_bytes": 182401,
+        "record_sha256": "9657d01252c12b5d2d8eed89da4ba30a81ccb900e7c42012021a169907d038ef",
+        "record_bytes": 175025,
+        "installed_equals_cached_wheel": true,
+        "cached_wheel_matches_own_record": false,
+        "record_row_unchanged": true
+      },
+      {
+        "path": "eckitlib.libs/libpcre2-8-516f4c9d.so.0.7.1",
+        "wheel_sha256": "ad47b948b9a1029d9626d97bc388d2c1bef9028adeab21d806ebfac744072b74",
+        "wheel_bytes": 551697,
+        "installed_sha256": "ad47b948b9a1029d9626d97bc388d2c1bef9028adeab21d806ebfac744072b74",
+        "installed_bytes": 551697,
+        "record_sha256": "21c6e58d6fe82ae01596b0302b3f2ab516717e2d6c407fe22b13d2a0da73b265",
+        "record_bytes": 547745,
+        "installed_equals_cached_wheel": true,
+        "cached_wheel_matches_own_record": false,
+        "record_row_unchanged": true
+      },
+      {
+        "path": "eckitlib.libs/libproj-e5164a33.so.25.9.8.1",
+        "wheel_sha256": "20c363ed9abe34667f6082593b7c575beda6d5024cddee242ea5e6adceffe690",
+        "wheel_bytes": 91089169,
+        "installed_sha256": "20c363ed9abe34667f6082593b7c575beda6d5024cddee242ea5e6adceffe690",
+        "installed_bytes": 91089169,
+        "record_sha256": "1ddafbb0fc808beba873c31c6f176b566bfdaf174aa71a6cfa7ab8ff0a08e5ae",
+        "record_bytes": 90876161,
+        "installed_equals_cached_wheel": true,
+        "cached_wheel_matches_own_record": false,
+        "record_row_unchanged": true
+      },
+      {
+        "path": "eckitlib.libs/libpsl-99becdd3.so.5.3.1",
+        "wheel_sha256": "2f9c4fd90f1943141feee2a76ef768798f26259f7440937e9687295541ae4396",
+        "wheel_bytes": 87017,
+        "installed_sha256": "2f9c4fd90f1943141feee2a76ef768798f26259f7440937e9687295541ae4396",
+        "installed_bytes": 87017,
+        "record_sha256": "f1b1f78f3e07673bfc30ed5258c4cc4ac64e6262be076ddcacce4404fa01c1cc",
+        "record_bytes": 82905,
+        "installed_equals_cached_wheel": true,
+        "cached_wheel_matches_own_record": false,
+        "record_row_unchanged": true
+      },
+      {
+        "path": "eckitlib.libs/libsasl2-7de4d792.so.3.0.0",
+        "wheel_sha256": "2c3b5470cc0b52b3fe5e584e5fefcff7ffb39ef6122e96d773ad9ec9a4414545",
+        "wheel_bytes": 146977,
+        "installed_sha256": "2c3b5470cc0b52b3fe5e584e5fefcff7ffb39ef6122e96d773ad9ec9a4414545",
+        "installed_bytes": 146977,
+        "record_sha256": "d702d083cb2a28a71d9a5928d15e4c970e1e509b37644b86f672ce6db858e6d6",
+        "record_bytes": 142865,
+        "installed_equals_cached_wheel": true,
+        "cached_wheel_matches_own_record": false,
+        "record_row_unchanged": true
+      },
+      {
+        "path": "eckitlib.libs/libselinux-d0805dcb.so.1",
+        "wheel_sha256": "5f8bc7171430532724c7b80abd811e82df2aac2a2741199692509a258be5ec1c",
+        "wheel_bytes": 211505,
+        "installed_sha256": "5f8bc7171430532724c7b80abd811e82df2aac2a2741199692509a258be5ec1c",
+        "installed_bytes": 211505,
+        "record_sha256": "4cc462e3478461726631fe12dcf3826dd4aeb1b65b98f4a05861a7cb1fbe3347",
+        "record_bytes": 203297,
+        "installed_equals_cached_wheel": true,
+        "cached_wheel_matches_own_record": false,
+        "record_row_unchanged": true
+      },
+      {
+        "path": "eckitlib.libs/libsqlite3-1ec6053f.so.0.8.6",
+        "wheel_sha256": "4349a65d26347713feda5f0d66c0428edf2733a355fafad458263069b2c4f1eb",
+        "wheel_bytes": 1174137,
+        "installed_sha256": "4349a65d26347713feda5f0d66c0428edf2733a355fafad458263069b2c4f1eb",
+        "installed_bytes": 1174137,
+        "record_sha256": "d6c92fa9bc7e0ca2939a1be4138e9652c3950bb0606a3a558a1c34627846a819",
+        "record_bytes": 1163393,
+        "installed_equals_cached_wheel": true,
+        "cached_wheel_matches_own_record": false,
+        "record_row_unchanged": true
+      },
+      {
+        "path": "eckitlib.libs/libssh-05a03e26.so.4.8.7",
+        "wheel_sha256": "62cdfcbe7b41771d10ce3f8bca415d847d317b2690963e246359e7f852dbcfee",
+        "wheel_bytes": 532977,
+        "installed_sha256": "62cdfcbe7b41771d10ce3f8bca415d847d317b2690963e246359e7f852dbcfee",
+        "installed_bytes": 532977,
+        "record_sha256": "3427f3c12f594ecc4c7ce3d77ac108ea6e1e3701061c64a0fefaf75ab01e926b",
+        "record_bytes": 516577,
+        "installed_equals_cached_wheel": true,
+        "cached_wheel_matches_own_record": false,
+        "record_row_unchanged": true
+      },
+      {
+        "path": "eckitlib.libs/libssl-8248cfc9.so.1.1.1k",
+        "wheel_sha256": "1c21694c88fcef3ccd8de729f96c5fe7317469cdffd73427c1fc5e67303273d3",
+        "wheel_bytes": 707849,
+        "installed_sha256": "1c21694c88fcef3ccd8de729f96c5fe7317469cdffd73427c1fc5e67303273d3",
+        "installed_bytes": 707849,
+        "record_sha256": "58726c6bb8bc1cb483ec62f98ab8aefc668a950483ae9944d10912bbc9c16b36",
+        "record_bytes": 687353,
+        "installed_equals_cached_wheel": true,
+        "cached_wheel_matches_own_record": false,
+        "record_row_unchanged": true
+      },
+      {
+        "path": "eckitlib.libs/libunistring-05abdd40.so.2.1.0",
+        "wheel_sha256": "ec2ffe19bad94adce53c07e66001bea145120eca51fe0dc009c352af5cde214f",
+        "wheel_bytes": 1841769,
+        "installed_sha256": "ec2ffe19bad94adce53c07e66001bea145120eca51fe0dc009c352af5cde214f",
+        "installed_bytes": 1841769,
+        "record_sha256": "2317d3dd5bb06bc4ed1201990cf34db52e4db7282aac9270bd781a57c2aedc75",
+        "record_bytes": 1826161,
+        "installed_equals_cached_wheel": true,
+        "cached_wheel_matches_own_record": false,
+        "record_row_unchanged": true
+      }
+    ],
+    "provenance_status": "LOCAL_CACHE_ONLY_NOT_INDEPENDENT_UPSTREAM_AUTHENTICATION"
+  },
+  "unresolved_identities": [
+    {
+      "id": "decoder_build.eckitlib_vendored_libs_record_mismatch",
+      "description": "25 of 776 eckitlib RECORD entries, all under eckitlib.libs/ (auditwheel-vendored third-party runtime libraries: libcurl, libssl, libgssapi_krb5, libldap, libproj, libsqlite3, libssh and others), have on-disk SHA-256/size that does not match the dist-info RECORD. Observed size deltas range 3,368-213,008 bytes and are not uniform; per-file expected/observed hashes, sizes and deltas are in python_package_record_checks[eckitlib].mismatched_entry_details. No uniform post-packaging patch theory is supported by the captured bytes. Separately, an offline local pip-cache scan (see local_cached_wheel_comparison) found that all 25 installed payloads exactly equal an already-cached exact-version eckitlib wheel, and that cached wheel's own RECORD also disagrees with those 25 payloads -- local cached partial provenance, not independent upstream authentication, and not a benign-patch verdict. The exact cause and an authenticated original-reference byte set remain unresolved.",
+      "status": "MISSING_EVIDENCE"
+    },
+    {
+      "id": "decoder_build.no_direct_url_provenance",
+      "description": "None of eccodes-2.48.0, eccodeslib-2.49.0.30, eckitlib-2.3.0.30 or findlibs-0.1.3 dist-info directories contain a direct_url.json, so the exact wheel source URL and upstream archive hash that produced this venv install cannot be independently confirmed from local metadata alone.",
+      "status": "MISSING_EVIDENCE"
+    },
+    {
+      "id": "decoder_build.memfs_definitions_samples_not_individually_attestable",
+      "description": "eccodes.codes_definition_path() and codes_samples_path() both resolve to /MEMFS/definitions and /MEMFS/samples, an in-memory filesystem compiled directly into libeccodes_memfs.so (39767864 bytes, SHA-256 f984057845fd0a56... recorded above and consistent with its RECORD entry). No discrete definitions/samples files exist on disk to hash individually; only the containing library's own hash is attested. This is a containing-binary hash, not a fabricated per-definition manifest. Resolving individual embedded definition/sample identities would require either an independently reviewed source build of ecCodes with --disable-memfs (producing discrete filesystem artifacts to hash) or an offline, reviewed extraction/enumeration tool run against this exact library build, neither of which exists yet.",
+      "status": "MISSING_EVIDENCE"
+    },
+    {
+      "id": "decoder_build.no_lockfile_reproducible_build",
+      "description": "The Alpha development venv has no checked-in lock file (e.g. requirements.txt/poetry.lock/pip-compile output) pinning eccodes/eccodeslib/eckitlib/findlibs versions; the repository's own requirements do not pin ecCodes (confirmed in the prior source assessment). Rebuilding an equivalent venv from the repository alone is not currently reproducible without this inventory.",
+      "status": "MISSING_EVIDENCE"
+    },
+    {
+      "id": "decoder_build.native_dependency_graph_wider_than_decode_need",
+      "description": "Importing eccodes in this venv eagerly loads eckitlib, which pulls in libcurl, libssl, libgssapi_krb5, libldap, libssh, libsqlite3 and libproj even for a purely local, in-memory GRIB decode with no network or database use. This expands the native attack/trust surface beyond what the Gate 3 decode path requires; independent review should assess whether a narrower ecCodes build (without eckit's networked backends) is available or required. Separately, loaded_native_libraries (42 entries) is itself only a path-substring filter over /proc/self/maps (substrings: eccodes, eckit, libaec, openjp2, libpng), not a complete native dependency graph of the process: an independent pass over this same process identified 36 additional loaded shared objects outside that filter, including NumPy/OpenBLAS (libscipy_openblas64_, libgfortran, libquadmath, numpy _multiarray_umath/_umath_linalg), the CFFI backend (_cffi_backend), Python stdlib dynload extension modules, system/libc shared objects (ld-linux, libc, libstdc++, libssl.so.3, libcrypto.so.3, libsqlite3.so.0.8.6, libz, libbz2, liblzma, libexpat, libffi, libgcc_s, libdl, libpthread, libresolv, librt), and -- only in a repair/review run with process-level network-denial containment -- libseccomp.so.2.5.5, which is containment-only and never a production dependency. None of the 36 are claimed here as production decoder dependencies; whether each is interpreter overhead, a NumPy/test-only load, or a genuine production dependency is unresolved and would require a before/after loaded-library map to distinguish.",
+      "status": "OBSERVATION_FOR_REVIEW"
+    },
+    {
+      "id": "decoder_build.realistic_resource_qualification_not_performed",
+      "description": "Observed peak RSS (~88,456-88,484 KB) and CPU time are diagnostics from a tiny bounded synthetic decode (one template-0 message plus two re-encoded CCSDS messages), not a realistic-field-size resource measurement, and are not compared here against any Gate 3 memory-floor acceptance threshold. A decoder peak-memory measurement under realistic (non-synthetic) field sizes, and its comparison against the G3-L resource floor, remains a separate, later, independently-reviewed task.",
+      "status": "MISSING_EVIDENCE"
+    }
+  ],
+  "disclaimer": "UNREVIEWED_BUILD_OBSERVATION / NOT_QUALIFIED. This is a build-byte inventory of the already-installed decoder dependencies, not a repeat of the Gate 3 decoder/source assessment and not a qualification or launch verdict. G3-L remains NO-GO. No provider request, concrete transport wiring or CCSDS enablement is authorized by this document. 91/200 formal 1/50 NOT_READY_TO_FUND."
+}
