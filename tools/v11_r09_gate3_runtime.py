@@ -900,6 +900,7 @@ class GateRuntime:
             self.min_available_memory_bytes = MIN_AVAILABLE_MEMORY_BYTES
             self.max_header_bytes = 4096
             self.max_clock_age = store.context['max_clock_age']
+            self.observation_cutoff_utc = window.decision_lower_utc
         else:
             payload = plan.verify_validated_projection()
             limits = payload['limits']
@@ -909,6 +910,9 @@ class GateRuntime:
             self.max_clock_age = min(store.context['max_clock_age'],
                 payload['clocks_and_receipts']['preregistration']
                     ['max_measurement_age_seconds'])
+            self.observation_cutoff_utc = min(
+                payload['clocks_and_receipts']['observation_schema']['cutoff_utc'],
+                window.decision_lower_utc)
             check(budget.max_requests == limits['max_requests'] and
                   budget.max_bytes == limits['max_received_bytes'] and
                   budget.max_elapsed_seconds == limits['max_elapsed_seconds'] and
@@ -1200,6 +1204,14 @@ class GateRuntime:
                 math.isfinite(reading.monotonic_seconds) and
                 reading.monotonic_seconds < self.session.last_clock_monotonic):
             add('SESSION_LEDGER_CLOCK_REVERSAL')
+        if (type(reading.uncertainty_seconds) in (int, float) and
+                math.isfinite(reading.uncertainty_seconds) and
+                not 0 <= reading.uncertainty_seconds <= self.window.uncertainty_cap_seconds):
+            add('RUNTIME_CLOCK_UNCERTAINTY_EXCEEDED')
+        permanent_restriction = self.shared.denials.get(request.control_domain_id)
+        if (permanent_restriction is not None and
+                permanent_restriction['cooldown_until'] is None):
+            add('RUNTIME_CONTROL_DOMAIN_BLOCKED')
         if (type(reading.utc_seconds) in (int, float) and
                 type(reading.uncertainty_seconds) in (int, float) and
                 math.isfinite(reading.utc_seconds) and
@@ -1208,8 +1220,6 @@ class GateRuntime:
                 add('RUNTIME_CLOCK_BEFORE_WINDOW_START')
             if reading.utc_seconds + reading.uncertainty_seconds >= self.window.acquisition_end_utc:
                 add('RUNTIME_CLOCK_AT_OR_AFTER_ACQUISITION_END')
-            if not 0 <= reading.uncertainty_seconds <= self.window.uncertainty_cap_seconds:
-                add('RUNTIME_CLOCK_UNCERTAINTY_EXCEEDED')
             try:
                 if self.shared.is_blocked(request.control_domain_id,
                         now_utc=reading.utc_seconds - reading.uncertainty_seconds):
@@ -1302,6 +1312,19 @@ class GateRuntime:
                 # eager fixture supplies more than 32 tiny chunks.
                 self.budget.record_eager_delivery(request.request_id, known_bytes)
 
+    def _postdispatch_monotonic(self, request, stream, *, receipt=None,
+                                denial_recorded=False):
+        """Preserve already delivered observations if the local clock fails."""
+        try:
+            value = self.clock.monotonic()
+            check(type(value) in (int, float) and math.isfinite(value),
+                  'RUNTIME_MONOTONIC_UNUSABLE')
+            return value
+        except Exception:
+            self._account_prefetched_on_deadline(request, stream, receipt=receipt,
+                                                denial_recorded=denial_recorded)
+            raise
+
     def run_attempt(self, request: AttemptRequest) -> dict:
         check(type(request) is AttemptRequest, 'RUNTIME_REQUEST_SHAPE')
         check(self.session.report_completed_sha256 is None,
@@ -1384,7 +1407,7 @@ class GateRuntime:
         if len(response.chunks) > MAX_BODY_CHUNKS_PER_REQUEST:
             self._account_prefetched_on_deadline(request, stream)
             raise LaunchContractError('RUNTIME_CHUNK_COUNT_EXCEEDS_POLICY')
-        if self.clock.monotonic() >= deadline_mono:
+        if self._postdispatch_monotonic(request, stream) >= deadline_mono:
             self._account_prefetched_on_deadline(request, stream)
             raise LaunchContractError('RUNTIME_DISPATCH_DEADLINE')
         try:
@@ -1410,7 +1433,8 @@ class GateRuntime:
                                                 receipt=header_receipt)
             raise
         if (header_receipt.reading.monotonic_seconds > deadline_mono or
-                self.clock.monotonic() >= deadline_mono):
+                self._postdispatch_monotonic(request, stream,
+                    receipt=header_receipt) >= deadline_mono):
             self._account_prefetched_on_deadline(request, stream,
                                                 receipt=header_receipt)
             raise LaunchContractError('RUNTIME_HEADER_DEADLINE')
@@ -1457,7 +1481,9 @@ class GateRuntime:
                         overdelivery_total_bytes=stream.prefetched_bytes-delivered,
                         permitted_bytes=0)
                     raise LaunchContractError('RUNTIME_NO_READ_ALLOWANCE')
-                remaining = deadline_mono-self.clock.monotonic()
+                remaining = deadline_mono-self._postdispatch_monotonic(
+                    request, stream, receipt=header_receipt,
+                    denial_recorded=denial_record is not None)
                 if remaining <= 0:
                     self._account_prefetched_on_deadline(request, stream,
                         receipt=header_receipt, denial_recorded=denial_record is not None)
@@ -1475,8 +1501,12 @@ class GateRuntime:
             delivered = stream.prefetched_bytes
             stream.index = len(response.chunks)
 
-        check(self.clock.monotonic() < deadline_mono, 'RUNTIME_BODY_DEADLINE')
-        known_closed = stream.close(remaining_seconds=deadline_mono-self.clock.monotonic())
+        check(self._postdispatch_monotonic(request, stream,
+            receipt=header_receipt, denial_recorded=denial_record is not None) <
+            deadline_mono, 'RUNTIME_BODY_DEADLINE')
+        known_closed = stream.close(remaining_seconds=deadline_mono-
+            self._postdispatch_monotonic(request, stream,
+                receipt=header_receipt, denial_recorded=denial_record is not None))
         closure = self.clock.evidence('body_receipt')
         self._enforce_window(closure, body=True)
         check(closure.reading.monotonic_seconds <= deadline_mono,
@@ -1568,7 +1598,7 @@ class GateRuntime:
                 max_measurement_age_seconds=self.max_clock_age)
             for evidence in receipt.clocks:
                 sequence.record(evidence.phase, evidence.reading)
-            timely = sequence.causal_before(self.window.decision_lower_utc)
+            timely = sequence.causal_before(self.observation_cutoff_utc)
         except LaunchContractError:
             # Diagnostic recomputation only: the object is already sealed and
             # witnessed above either way. A late/uncertain completion stays

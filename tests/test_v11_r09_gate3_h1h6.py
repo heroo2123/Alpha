@@ -14,7 +14,7 @@ from tools.v11_r09_gate3_offline_io import SyntheticExchange
 from tools.v11_r09_gate3_runtime import (
     AbsoluteWindow, AttemptRequest, FakeClock, FrozenEvent, FrozenPlan,
     GateRuntime, ReportSink, SyntheticTransport, acquire_runtime_journals,
-    build_terminal_report,
+    build_terminal_report, _bounded_headers, _build_denial_record,
 )
 
 
@@ -287,3 +287,112 @@ def test_h2_session_denial_write_failure_still_charges_delivered_bytes(tmp_path,
     with f._acquire(tmp_path) as (shared, session, budget, store):
         assert budget.received == 4 and budget.in_flight == 'req-1'
         assert shared.denials[f._request().control_domain_id]['status'] == '503'
+
+
+@pytest.mark.parametrize('mode', ('raises', 'nan', 'runtime_error'))
+@pytest.mark.parametrize('sample', (1, 2, 3, 4, 5))
+def test_postdispatch_monotonic_fault_retains_eager_denial(tmp_path, monkeypatch,
+                                                           mode, sample):
+    f._dirs(tmp_path)
+    clock = f._clock()
+    response = f._ok_response(b'abcd', status=503,
+                              headers=(('Retry-After', '1200'),))
+
+    class FaultAfterDispatch(SyntheticTransport):
+        def dispatch(self, request, **kwargs):
+            stream = super().dispatch(request, **kwargs)
+            original = clock.monotonic
+            calls = 0
+            def broken():
+                nonlocal calls
+                calls += 1
+                if calls == sample:
+                    if mode == 'raises':
+                        raise OSError('INJECTED_MONOTONIC_UNAVAILABLE')
+                    if mode == 'runtime_error':
+                        raise RuntimeError('INJECTED_MONOTONIC_FAILURE')
+                    return float('nan')
+                return original()
+            monkeypatch.setattr(clock, 'monotonic', broken)
+            return stream
+
+    with f._acquire(tmp_path) as (shared, session, budget, store):
+        rt = f._runtime(shared, session, budget, store,
+                        SyntheticExchange({'req-1': response}), clock=clock)
+        rt.transport = FaultAfterDispatch(rt.transport._exchange)
+        with pytest.raises((LaunchContractError, OSError, RuntimeError)):
+            rt.run_attempt(f._request(reservation_bytes=4))
+        assert budget.received == 4 and budget.in_flight == 'req-1'
+        assert shared.denials['d' * 64]['status'] == '503'
+        assert shared.is_blocked('d' * 64, now_utc=20)
+        rt.report_sink.close()
+    with f._acquire(tmp_path) as (shared, session, budget, store):
+        assert budget.received == 4 and budget.in_flight == 'req-1'
+        assert shared.denials['d' * 64]['status'] == '503'
+        assert shared.is_blocked('d' * 64, now_utc=20)
+
+
+def test_independent_uncertainty_reason_survives_unusable_utc(tmp_path):
+    f._dirs(tmp_path)
+    requests = (f._request(), f._request(request_id='req-2', purpose='FIELD',
+        provider='GEFS', slot_index=0, prerequisite_request_ids=('req-1',)))
+    with f._acquire(tmp_path) as (shared, session, budget, store):
+        rt = f._runtime(shared, session, budget, store, SyntheticExchange({}),
+            clock=f._clock(utc=float('nan'), uncertainty=2), requests=requests)
+        rt.run_attempt(requests[0])
+        result = rt.run_attempt(requests[1])
+        expected = {'RUNTIME_PREREQUISITE_MISSING', 'RUNTIME_CLOCK_MEASUREMENT',
+                    'RUNTIME_CLOCK_UNCERTAINTY_EXCEEDED'}
+        assert expected <= set(result['reasons'])
+        report = build_terminal_report(plan=rt.plan, session=session,
+            budget=budget, shared=shared, store=store)
+        assert expected <= set(report['rows'][0]['reasons'])
+        rt.report_sink.close()
+
+
+def test_permanent_denial_reason_survives_unusable_utc(tmp_path):
+    f._dirs(tmp_path)
+    request = f._request(purpose='FIELD', provider='GEFS', slot_index=0)
+    with f._acquire(tmp_path) as (shared, session, budget, store):
+        shared.intent_open('prior', purpose='INDEX', endpoint_id='c' * 64,
+            control_domain_id='d' * 64, manifest_sha256='9' * 64,
+            max_reservation_bytes=4, now_utc=10)
+        response = f._ok_response(b'bad!', status=401)
+        shared.denial_observed('prior', denial=_build_denial_record('401',
+            response, window=f._window(),
+            receipt_evidence=f._clock().evidence('body_receipt'),
+            headers=_bounded_headers(response), origin=f.ORIGIN))
+        shared.intent_closed('prior', outcome='DENIED',
+            accounting_head='8' * 64, total_delivered_bytes=4)
+        rt = f._runtime(shared, session, budget, store, SyntheticExchange({}),
+                        clock=f._clock(utc=float('nan')), requests=(request,))
+        result = rt.run_attempt(request)
+        assert {'RUNTIME_CLOCK_MEASUREMENT',
+                'RUNTIME_CONTROL_DOMAIN_BLOCKED'} <= set(result['reasons'])
+        report = build_terminal_report(plan=rt.plan, session=session,
+            budget=budget, shared=shared, store=store)
+        assert 'RUNTIME_CONTROL_DOMAIN_BLOCKED' in report['rows'][0]['reasons']
+        rt.report_sink.close()
+
+
+def test_validated_observation_cutoff_marks_late_seal_diagnostic(tmp_path, monkeypatch):
+    with _validated(tmp_path, monkeypatch) as (make, journals, sink, kw, dirs,
+                                              payload, start):
+        plan = make()
+        rt = _runtime(plan, journals, sink, start)
+
+        class LateLocalClock(FakeClock):
+            count = 0
+            def evidence(self, phase):
+                self.count += 1
+                if self.count == 6:
+                    self.set(utc=start + 13000, mono=13000, measured_mono=13000)
+                return super().evidence(phase)
+
+        rt.clock = LateLocalClock(f.BOOT, utc=start + 10, mono=10)
+        result = rt.run_attempt(plan.requests[0])
+        cutoff = payload['clocks_and_receipts']['observation_schema']['cutoff_utc']
+        receipt = next(iter(journals[3].receipts.values()))
+        assert cutoff == start + 12600 < receipt.clocks[-1].reading.utc_seconds
+        assert result['timely'] is False
+        assert result['reason'] == 'RUNTIME_SUCCESS_LATE_DIAGNOSTIC_ONLY'
