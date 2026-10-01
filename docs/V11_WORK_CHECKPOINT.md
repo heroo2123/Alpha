@@ -1,5 +1,26 @@
 # Alpha V11 work checkpoint
 
+## Coordinator recovery: decoder point-of-use work unfinished — 2026-10-01 21:34 UTC
+
+Main is clean at `118af13` (84 local commits ahead of origin). The accepted
+MEMFS static observation is already merged; no newer exact review or Gate 3
+launch approval appeared. Recovered isolated
+`/tmp/alpha-v11-gate3-decoder-pointofuse-20261001` at the same main commit
+with two untracked, unfinished probe/shim files and no terminal or separate
+live writer. Preserve those files and resume the decoder point-of-use/build
+identity investigation **in that worktree**; do not duplicate it or treat its
+claims as accepted. The separate inventory-transformation candidate `9600510`
+is clean, unreviewed and unmerged. No new qualifying forward SHADOW sample was
+found. The prior full release log records 5,460 passed / 13 skipped; no new
+suite claim was made. Scanner/controller and V11 execution are inactive;
+scanner disabled and protected authority roots absent. Root free disk is
+2,503,860,224 bytes, available memory 964,997,120 bytes. Private FINAL-REVIEWED
+master hash remains `a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+The prospective G3-L screen still lacks reviewed identities; **G3-L NO-GO**,
+no provider request. No V10, AxiomTrade, authority, financial, service or
+remote-publication action. No C/J/E/A crossing: **91/200 (45.5%), formal
+1/50; NOT_READY_TO_FUND**.
+
 ## MEMFS static observation accepted and locally integrated — 2026-10-01 21:02 UTC
 
 Recovered the independent Astra/high review from its actual matching

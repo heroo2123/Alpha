@@ -1,5 +1,13 @@
 # Supplementary engineering estimate
 
+## Point-of-use investigation recovered unfinished — 2026-10-01 21:34 UTC
+
+The decoder point-of-use probe/shim in its isolated worktree is unfinished and
+unreviewed; preserve and resume it there. The separate clean `9600510`
+inventory candidate awaits independent review. No G3-L or forward SHADOW
+qualification and no C/J/E/A crossing: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## MEMFS observation review closed; build identity still open — 2026-10-01 21:02 UTC
 
 Exact independent review accepted `cccc5d0` for bounded static observation,

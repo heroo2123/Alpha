@@ -1,5 +1,12 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Decoder point-of-use recovery — 2026-10-01 21:34 UTC
+
+The isolated point-of-use worktree has two unfinished untracked files and no
+reviewable terminal. `9600510` inventory transformation remains unreviewed.
+Neither supplies G3-L identity, source/build provenance, or forward SHADOW
+credit. G3-L NO-GO; **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Reviewed MEMFS observation integrated — 2026-10-01 21:02 UTC
 
 Independent [review](V11_R09_GATE3_MEMFS_STATIC_REVIEW_cccc5d0.md) and
