@@ -221,6 +221,10 @@ def _resolve_entries(data, segments, sections, dynsym, relocs, entries_base, n_e
         payload = data[payload_off:payload_off + sym_size]
         trailing_byte = data[payload_off + sym_size:payload_off + sym_size + 1]
         ends_with_embedded_nul = sym_size > 0 and payload.endswith(b"\x00")
+        trailing_zero_byte_count = 0
+        if ends_with_embedded_nul:
+            stripped = payload.rstrip(b"\x00")
+            trailing_zero_byte_count = len(payload) - len(stripped)
         results.append({
             "index": i,
             "path": path,
@@ -233,14 +237,12 @@ def _resolve_entries(data, segments, sections, dynsym, relocs, entries_base, n_e
             "sha256": hashlib.sha256(payload).hexdigest(),
             "trailing_byte_after_payload_is_nul": trailing_byte == b"\x00",
             "payload_itself_ends_with_embedded_nul": ends_with_embedded_nul,
-            "logical_content_length": (
-                sym_size - 1 if ends_with_embedded_nul else sym_size
-            ),
+            "trailing_zero_byte_count_within_payload": trailing_zero_byte_count,
         })
     return results, unresolved
 
 
-def _negative_probes(data, segments, dynsym, relocs, entries_base):
+def _negative_probes(data, segments, sections, dynsym, relocs, entries_base):
     probes = {}
 
     # 1. Out-of-range vaddr must be rejected, not silently mapped.
@@ -260,27 +262,32 @@ def _negative_probes(data, segments, dynsym, relocs, entries_base):
         probes["truncated_input_rejected"] = True
 
     # 3. An entry whose name-slot relocation type is corrupted to an
-    #    unexpected value (in a local dict copy only) must be flagged
-    #    ambiguous, not silently treated as a valid path pointer.
+    #    unexpected value (in a local dict copy only) must be rejected by
+    #    the actual resolver used for the real 7,073-entry resolution above
+    #    (_resolve_entries), not by a predicate that merely repeats that
+    #    function's own rejection condition. The real `relocs` dict is never
+    #    mutated; only this local copy is.
     corrupted = dict(relocs)
     real = corrupted[entries_base]
     corrupted[entries_base] = (99, real[1], real[2])
-    fake_sections = {"": None}
-    try:
-        off = _vaddr_to_off(segments, entries_base + 16)
-        struct.unpack_from("<Q", data, off)
-        name_reloc = corrupted.get(entries_base)
-        ambiguous_flagged = (
-            name_reloc is None or name_reloc[0] != R_X86_64_RELATIVE
-        )
-        probes["ambiguous_relocation_type_rejected"] = ambiguous_flagged
-    except Exception:
-        probes["ambiguous_relocation_type_rejected"] = True
+    probe_results, probe_unresolved = _resolve_entries(
+        data, segments, sections, dynsym, corrupted, entries_base, 1,
+    )
+    rejected = (
+        len(probe_results) == 0
+        and len(probe_unresolved) == 1
+        and probe_unresolved[0]["issue"] == "NAME_RELOC_UNEXPECTED"
+    )
+    probes["ambiguous_relocation_type_rejected"] = rejected
+    probes["ambiguous_relocation_type_resolver_result"] = probe_unresolved
 
     probes["note"] = (
         "All three probes operate on in-memory byte slices or dict copies "
         "only; none opened the target file for writing and none mutated "
-        "installed bytes."
+        "installed bytes. Probe 3 invokes the same _resolve_entries() "
+        "function used for the real 7,073-entry resolution, not a "
+        "duplicated predicate, and any unexpected exception propagates "
+        "rather than being treated as a successful rejection."
     )
     return probes
 
@@ -420,7 +427,7 @@ def main():
     ][:3]
 
     report["negative_probes"] = _negative_probes(
-        data, segments, dynsym, relocs, entries_sym["value"]
+        data, segments, sections, dynsym, relocs, entries_sym["value"]
     )
 
     report["full_entry_inventory"] = sorted(results, key=lambda r: r["path"])

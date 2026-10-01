@@ -18,7 +18,7 @@ promotion or host authority.
 
 Companion machine-readable artifact:
 [V11_R09_GATE3_MEMFS_STATIC_OBSERVATION_20261001.json](V11_R09_GATE3_MEMFS_STATIC_OBSERVATION_20261001.json)
-(3,915,590 bytes; full 7,073-entry inventory). Reproduction script (static,
+(4,020,820 bytes; full 7,073-entry inventory). Reproduction script (static,
 offline, read-only; never loads the native library, never calls any of its
 exported functions, writes no file besides its own stdout):
 [V11_R09_GATE3_MEMFS_STATIC_OBSERVATION_20261001_probe.py](V11_R09_GATE3_MEMFS_STATIC_OBSERVATION_20261001_probe.py).
@@ -124,24 +124,43 @@ table the library itself uses, not a partial or best-effort sample:
   slot). The prior observation's "thousands of exported OBJECT symbols"
   lead is therefore fully accounted for, not merely consistent with it.
 
-### Storage length vs. logical content length
+### Storage length and trailing-zero-byte observations
 
 - `trailing_byte_after_payload_is_nul` (the single file byte immediately
   **after** the declared symbol range, i.e. the start of whatever follows
-  in `.rodata`): true for 6,850 of 7,073 entries. This is almost always
-  the first byte of the *next* packed symbol happening to be `0x00` (e.g.
-  another file's leading `#` comment is not `0x00`, so this is not
-  universal) and is reported only as an observation; it is not part of any
-  entry's own payload.
+  in `.rodata`): true for 6,850 of 7,073 entries. Checking, for each of
+  those 6,850, whether that next byte is the start of the next entry's own
+  payload (by file offset) or lies in an unattributed gap before it: **all
+  6,850 lie in a gap before the next payload symbol begins — none is the
+  first byte of the next entry's own payload.** This is reported only as
+  an observation about adjacent bytes; it is not part of any entry's own
+  payload and does not change any payload's `symbol_size` or `sha256`.
 - `payload_itself_ends_with_embedded_nul` (the **last** byte of the
   payload, i.e. within the declared `size`, is itself `0x00`): true for
-  only 3 of 7,073 entries — `/MEMFS/samples/diag.tmpl` (120 bytes),
-  `/MEMFS/samples/sh_ml_grib1.tmpl` (10,200 bytes) and
-  `/MEMFS/samples/sh_pl_grib1.tmpl` (9,360 bytes). For those 3, this
-  document reports `logical_content_length = symbol_size - 1` separately
-  from `symbol_size`/storage length; for the other 7,070 entries the two
-  are equal and no NUL is stripped. No entry's logical length was ever
-  assumed equal to storage length without this explicit check.
+  only 3 of 7,073 entries — `/MEMFS/samples/diag.tmpl` (120 bytes, storage
+  length unchanged), `/MEMFS/samples/sh_ml_grib1.tmpl` (10,200 bytes,
+  storage length unchanged) and `/MEMFS/samples/sh_pl_grib1.tmpl` (9,360
+  bytes, storage length unchanged). A single trailing `0x00` byte does not
+  by itself establish a string terminator or any "logical content length"
+  shorter than the declared/table storage size — binary payloads can
+  legitimately end in `0x00` as real content. This document therefore does
+  **not** report a derived `logical_content_length` field. Instead, the
+  exact trailing run of `0x00` bytes within each payload was counted
+  directly: `/MEMFS/samples/diag.tmpl` has **44** trailing zero bytes,
+  `/MEMFS/samples/sh_ml_grib1.tmpl` has **106**, and
+  `/MEMFS/samples/sh_pl_grib1.tmpl` has **2** (JSON field
+  `trailing_zero_byte_count_within_payload`) — not one byte in any of the
+  three. For the two GRIB samples, the GRIB header's own encoded message
+  length fields are 10,094 and 9,358 bytes respectively; those are
+  **GRIB-header-declared lengths**, a different quantity from this
+  document's `symbol_size`/table storage byte length (10,200 and 9,360)
+  and must not be conflated with it — this document reports the latter
+  (the exact bytes compiled into the binary and hashed) as the authoritative
+  storage length, and reports the GRIB header fields only as a separate,
+  explicitly labeled observation. For the other 7,070 entries no payload
+  ends in `0x00` and no such distinction arises. Payload hashes
+  (`sha256`) are computed over the full declared `symbol_size` in every
+  case and are unaffected by any of this.
 - Payload sizes observed range from 12 bytes to 818,602 bytes across the
   7,073 entries (see the JSON `full_entry_inventory` for every value).
 
@@ -179,8 +198,8 @@ a negative search result, not silently dropped.
 ## Negative/bounds probes (in-memory only, no installed byte touched)
 
 All three ran inside the same bounded process (`RLIMIT_CPU=60s`,
-`RLIMIT_AS=256 MiB`; observed peak RSS 69,692 KiB, observed CPU 0.18 s,
-wall clock 0.16 s — all far inside bounds):
+`RLIMIT_AS=256 MiB`; observed peak RSS 69,736 KiB, observed CPU 0.21 s
+(0.14 s user + 0.06 s system), wall clock 0.25 s — all far inside bounds):
 
 1. **Out-of-range virtual address.** Calling the vaddr→file-offset
    translator with `0xFFFFFFFFFFFF` (not covered by any `PT_LOAD` segment)
@@ -194,9 +213,15 @@ wall clock 0.16 s — all far inside bounds):
 3. **Ambiguous relocation metadata.** Corrupting the first table entry's
    name-slot relocation type to an unrecognized value `99` in a local
    dictionary copy (the real `relocs` dict used for the actual 7,073-entry
-   resolution above is never mutated) causes that entry to be flagged
-   `NAME_RELOC_UNEXPECTED` rather than silently accepted as a valid path
-   pointer. **Rejected: true.**
+   resolution above is never mutated), then calling the **same
+   `_resolve_entries()` function used for the real 7,073-entry resolution**
+   (not a separate predicate that merely repeats its rejection condition)
+   on that one corrupted entry, produces zero resolved results and exactly
+   one unresolved entry flagged `NAME_RELOC_UNEXPECTED` — the actual
+   resolver rejects it rather than silently accepting it as a valid path
+   pointer, and any unrelated exception would propagate rather than being
+   counted as a successful rejection. **Rejected: true** (JSON field
+   `negative_probes.ambiguous_relocation_type_resolver_result`).
 
 ## What this does and does not establish
 
@@ -208,9 +233,12 @@ Establishes, with reproducible local, static, read-only commands:
   all 7,073 entries in that mechanism's own lookup table — full coverage
   of the table, not `SYMBOL_RANGE_OBSERVATION_ONLY` with a residual path
   gap.
-- An explicit, checked distinction between a table-declared size, a backing
-  symbol's size, and (for the 3 entries where they differ) a payload's
-  logical content length net of one embedded trailing NUL.
+- An explicit, checked distinction between a table-declared size and a
+  backing symbol's size (they agree for all 7,073 entries), and, for the 3
+  entries whose payload ends in `0x00`, an exact count of trailing zero
+  bytes within the declared payload (44, 106 and 2 respectively) reported
+  without inferring any unproven "logical content length" or terminator
+  semantics from a binary trailing zero.
 - An explicit, bounded, honestly-reported residual (112,589 of 38,243,609
   `.rodata` bytes) that this enumeration does not attribute to any path.
 - That out-of-range, truncated and relocation-ambiguous inputs are
@@ -238,6 +266,21 @@ Does **not** establish, and does not claim to establish:
 - Any G3-L identity, CCSDS permission, provider/launch/SHADOW/financial/
   promotion/host authority, or integration credit. This candidate remains
   unreviewed.
+- **General malformed-ELF robustness.** The three negative probes above
+  are bounded checks against this one pinned binary, not a general
+  malformed-ELF validator. This parser's helpers map a starting address
+  without validating that an entire range stays in-bounds, hard-code
+  `.rodata` as section index 13, permit a C-string read to run past its
+  containing segment's declared bounds, and silently overwrite a duplicate
+  relocation offset in `_parse_rela_dyn`'s dict rather than flagging the
+  collision. None of those conditions occur anywhere in this exact pinned
+  library (confirmed by the full-coverage resolution above, which found
+  zero unresolved/overlap/duplicate entries), so they do not affect this
+  observation's results, but a differently malformed ELF input could
+  reach them. This document makes no claim that the parser safely rejects
+  arbitrary malformed ELF files in general — only that it correctly and
+  verifiably resolves this one pinned, hash-checked binary, and correctly
+  rejects the three specific bounded perturbations tested above.
 
 ## Host resource observation (passive only)
 
