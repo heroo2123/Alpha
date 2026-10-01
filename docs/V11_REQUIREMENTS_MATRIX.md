@@ -1,5 +1,19 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## J1 blocks I1; repair writer live — 2026-10-01 18:28 UTC
+
+The exact independent review of unmerged `8efb60a` is
+`CHANGES_REQUIRED` (matching report and terminal). Its 476 family passes and
+95 independent probes found J1, a coupled clock-source failure that loses
+known HTTP restriction and sometimes eager-byte evidence. I2 and I3 closed
+in reviewed RAW-runtime scope; I1, H2's broader conservation and G2/F2
+remain blocked. One Sonnet/high writer is live in the clean isolated repair
+worktree under `/tmp/alpha-v11-slice3-j1-repair-8efb60a`. Fresh exact review,
+newer-main reconciliation and G3-L remain separate gates. The October 2
+offline screen still lacks 77 identities; no provider request or forward
+sample occurred. No C/J/E/A boundary crossed: **91/200 (45.5%), formal
+1/50; NOT_READY_TO_FUND**.
+
 ## I1–I3 repair is author-tested, independent verdict pending — 2026-10-01 17:46 UTC
 
 Unmerged exact candidate `8efb60a` (tree `29f6b78c`) repairs I1

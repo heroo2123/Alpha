@@ -1,5 +1,35 @@
 # Alpha V11 work checkpoint
 
+## J1 repair launched after exact review — 2026-10-01 18:28 UTC
+
+Recovered clean main `78ec926` (46 commits ahead of tracking) and clean,
+unmerged slice-3 candidate `8efb60a`. The independent Astra/high review
+completed with a matching `CHANGES_REQUIRED` terminal and report (report
+SHA-256 `61138fb4c92ccd8b87c84958d5498fb757ef7674a848acf46163912f988e0c37`).
+Its 476-test Gate 3 family and 95 independent probes found J1: a coupled
+`RuntimeError` clock-source failure can lose an observed HTTP restriction and,
+at header receipt, four known eager bytes. I2 and I3 closed in reviewed scope;
+I1 remains blocking. No integration or launch acceptance follows.
+
+Launched one persistent Sonnet/high J1 repair writer in the existing clean
+isolated slice-3 repair worktree at `8efb60a`: runner PID `1835359`, Claude
+child `1835364`, prefix `/tmp/alpha-v11-slice3-j1-repair-8efb60a`. The
+runner and child were verified live; its eventual terminal is required before
+any review or merge. Require fresh different-model exact-commit review and
+newer-main reconciliation after a clean tested candidate. The newer main
+change `78ec926` only refreshed the next-window no-go screen.
+
+G3-L remains **NO-GO**, with 77 missing pre-review identities and no provider
+request or forward SHADOW sample. Free disk was about 1.3 GiB, below the 2 GiB
+launch floor; memory available about 1.0 GiB with 1.7 GiB free swap. PAPER
+scanner/controller/execution were passively observed inactive; scanner is
+disabled and protected authority paths absent. The private FINAL-REVIEWED
+master still matches pinned SHA-256
+`a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+No V10, AxiomTrade, service, authority, financial or private-master change
+was made. No C/J/E/A boundary crossed: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## I1–I3 repair under exact independent review — 2026-10-01 17:46 UTC
 
 Recovered clean main `5223b6e` and the clean, unmerged slice-3 repair worktree.

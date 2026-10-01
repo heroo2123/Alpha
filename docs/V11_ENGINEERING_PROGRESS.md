@@ -1,5 +1,17 @@
 # Supplementary engineering estimate
 
+## J1 exact-review blocker under repair — 2026-10-01 18:28 UTC
+
+Independent Astra/high review of clean unmerged `8efb60a` completed
+`CHANGES_REQUIRED`: 476 Gate 3 family passes and 95 independent probes,
+including two coupled clock-source reproductions of J1. A single Sonnet/high
+repair writer is live in the existing isolated slice-3 worktree. Its
+candidate, tests, fresh different-model exact review and newer-main
+reconciliation remain pending. Root free disk is about 1.3 GiB, below the
+2 GiB launch floor. G3-L remains NO-GO, with 77 missing identities and no
+provider request or forward sample. **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND** unchanged.
+
 ## I1–I3 candidate sent to independent review — 2026-10-01 17:46 UTC
 
 Clean, unmerged `8efb60a` contains the three reviewed runtime repairs and
