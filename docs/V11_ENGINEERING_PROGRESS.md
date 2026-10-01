@@ -5136,3 +5136,25 @@ from the CGI-subregion decoder in every case, so the merged G3-I collector
 would refuse all real GEFS captures. Fail-closed, so no unsafe surface; fix
 routed for Sonnet/high implementation plus independent review. No C/J/E/A
 change: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
+## Gate 3 V4 slice-one R2 repair: durable cross-restart hold — 2026-10-01 09:40 UTC
+
+Repaired the one incomplete finding from the Gate 3 V4 slice-1 review
+(R2): `DurableBudget.delivery_held` was set only in memory, so a fresh
+process reopening the same journal after a post-delivery capacity-cap
+refusal could `complete()`/refund the uncertain reservation the flag was
+meant to block. Added a small sentinel file (`gate3.held`) outside the
+journal's own byte/record/event caps, written durably on a clean
+capacity-cap refusal and re-verified against the replayed `in_flight` key
+on every fresh open; explicitly excluded from the pre-existing, unrelated
+raw write/fsync durability-fault (`self.failed`) path, whose own restart
+behavior is unchanged. Committed as `328d164` on top of `f31305e` in the
+isolated `/home/alphaadmin/AlphaV11_Gate3V4Slice1/Alpha` worktree; only
+`tools/v11_r09_gate3_launch.py` and its test file changed, R1/R3-R6
+untouched. `tests/test_v11_r09_gate3_launch.py` + `_launch_v4.py`: 96
+passed; wider family (+`_offline_io.py`/`_restart_composition.py`/
+`_message_sizes.py`/`_collector.py`/`_store_v1.py`): 309 passed, two
+pre-existing fork warnings, 0 failed. Not merged; requires a fresh
+different-model exact-commit review before any integration, per the
+design's own slice workflow. No C/J/E/A change: **91/200 (45.5%), formal
+1/50; NOT_READY_TO_FUND**.

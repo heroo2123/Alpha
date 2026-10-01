@@ -2645,3 +2645,12 @@ that the merged GEFS 64 KiB field ceiling is wrong for the byte-range path
 (all 33,759 observed GEFS messages exceed it). G3-L stays OPEN pending the
 ceiling correction and its review; see [checkpoint](V11_WORK_CHECKPOINT.md).
 **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
+## Gate 3 V4 slice-one R2 repair candidate — 2026-10-01 09:40 UTC
+
+Candidate `328d164` (not merged) in
+`/home/alphaadmin/AlphaV11_Gate3V4Slice1/Alpha` fixes the one incomplete
+finding from the V4 slice-1 review (R2 cross-restart persistence of
+`delivery_held`); see [checkpoint](V11_WORK_CHECKPOINT.md) for the full
+root cause, fix and 309-passed verification. R1/R3-R6 are unaffected. No
+C/J/E/A change: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.

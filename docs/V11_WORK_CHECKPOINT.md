@@ -1,5 +1,98 @@
 # Alpha V11 work checkpoint
 
+## Coordinator (Sonnet) R2 cross-restart repair — candidate, not merged — 2026-10-01 09:40 UTC
+
+Main was clean at `e6bcaa8`, matching its tracking ref. Confirmed no
+duplicate Gate 3/V4 worker was running (`ps aux`) before starting; the only
+Alpha-related processes were the continuous-coordinator supervisor and this
+invocation. The isolated worktree
+`/home/alphaadmin/AlphaV11_Gate3V4Slice1/Alpha` was clean at `f31305e`.
+
+Performed the exact next unfinished action the prior inspection entry
+named: repaired R2's cross-restart persistence gap in the same worktree,
+appending one new commit `328d164` on top of `f31305e`, touching only
+`tools/v11_r09_gate3_launch.py` (the `DurableBudget` class) and its test
+file; R1/R3-R6 and `tools/v11_r09_gate3_launch_v4.py` are untouched.
+
+Root cause confirmed by reading the code directly before changing it:
+`consume()`'s exception handler set `self.delivery_held = True` only in
+memory; nothing wrote it to disk, and `_replay()`/`_state()` never
+reconstructed it, so a fresh `DurableBudget` against the same journal
+directory came back with `delivery_held=False` and let `complete()` erase
+an uncertain post-capacity-refusal reservation after one restart — exactly
+the prior entry's independent probe.
+
+Fix: a small sentinel file (`gate3.held`) outside the byte/record/event
+caps that gate the main journal (the whole problem is that the capped
+journal append that would record the hold is the same append that just got
+refused). It is written durably (`O_CREAT|O_EXCL`, `fsync`'d, directory
+`fsync`'d) only when the append failure was a clean, deterministic
+capacity-cap refusal (`self.failed` still `False`, matching the three
+capacity-cap checks in `_append` that run before its own try/except). A raw
+write/fsync durability fault (`self.failed=True`, set by `_append`'s own
+except clause) is deliberately excluded: it already blocks every further
+call in that process via `_healthy()`'s existing `self.failed` check, and
+`tests/test_v11_r09_gate3_launch.py::test_journal_failure_poison_and_restart`
+already covers its (unchanged, pre-existing, non-R2) restart behavior —
+first attempting this fix without that exclusion made the marker write
+itself collide with the test's fault injection (`os.write`/`os.fsync` are
+monkeypatched globally, not per-call) and masked the original exception
+with a different one, which is how the exclusion was found to be necessary
+rather than optional. On every fresh open, the marker (if present) is
+read back, identity/mode-checked the same way as the existing
+`gate3.lock`/`gate3.jsonl` files, and cross-checked that its recorded key
+equals the replayed `in_flight` key before trusting it — a mismatch fails
+closed as `JOURNAL_DELIVERY_HELD_MARKER` rather than being silently
+accepted or ignored.
+
+Updated the three existing tests that exercised this exact restart gap
+(`test_byte_capacity_refusal_after_delivery_cannot_complete_or_refund`,
+`test_post_delivery_append_refusal_holds_every_kind`,
+`test_budget_rejects_event_count_past_fixed_cap`) to assert the reopened
+budget keeps `delivery_held` and rejects `complete()`/`reserve()` with
+`JOURNAL_DELIVERY_UNCERTAIN`, not the looser `UNCERTAIN_REQUEST_HELD` they
+previously tolerated (the exact gap this batch closes). Added three new
+tests: the identical restart scenario the prior inspection entry's
+independent probe used (reserve 10, capacity-refused consume leaving 3
+uncertain bytes, close, reopen, `complete()` must still fail); a
+no-false-positive case (an ordinary reserve/consume/complete cycle across a
+restart must not become held, and a fresh request after it must not be
+blocked); and marker-corruption fail-closed (garbage `gate3.held` content
+blocks construction entirely rather than being ignored).
+
+Verification (foreground, `/home/alphaadmin/alpha-review-test-venv`):
+`tests/test_v11_r09_gate3_launch.py` + `_launch_v4.py`: **96 passed**. Wider
+family (adding `_offline_io.py`, `_restart_composition.py`,
+`_message_sizes.py`, `_collector.py`, `_store_v1.py`): **309 passed**, two
+pre-existing fork `DeprecationWarning`s, 0 failed, 0 skipped.
+`python3 -m py_compile` clean on both changed files; `git diff --check`
+clean before commit.
+
+Not merged. Per the design's own slice workflow ("different-model
+exact-commit review... no writer self-acceptance"), this candidate
+(`328d164`) requires a fresh review by a different model before any
+integration attempt, exactly like `6e4c95b` and `f31305e` before it. Do
+not integrate, start slice 2, or treat R1-R6 as closed before that review
+passes and newer-main reconciliation is re-checked (main may have moved
+since `e6bcaa8`).
+
+Read-only recovery: private master hash recomputed directly and matches
+the pin `a0e16d9b...47659b4a`. No PAPER scanner, protected
+`/var/lib/alpha-v11`/`/etc/alpha-v11` model-authority path, execution, or
+service process is active (`alpha-weather-scanner.service` inactive,
+`alpha-weather-execution.service` masked, confirmed directly via
+`systemctl status`). Disk ~3.8-3.9 GiB free, memory ~140-225 MiB free /
+~1.0-1.1 GiB available throughout. V10 and AxiomTrade were not touched. No
+duplicate Gate 3 worker was started. No C/J/E/A boundary crossed: **91/200
+(45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
+Next unfinished action: route an independent different-model exact-commit
+review of `328d164` in
+`/home/alphaadmin/AlphaV11_Gate3V4Slice1/Alpha` against the reviewed
+design section 7 and the R1-R6 findings this batch did not touch; only
+merge into main if that review is a clean PASS and main has not diverged
+in a conflicting way in the interim.
+
 ## Coordinator inspection of Sol/high V4 R1-R6 repair — R2 still incomplete, not merged — 2026-10-01 09:05 UTC
 
 Main was clean at `a2d04b2`, three commits ahead of its tracking ref. The
