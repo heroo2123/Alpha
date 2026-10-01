@@ -1,5 +1,17 @@
 # Supplementary engineering estimate
 
+## Post-window audit; slice-3 repair active — 2026-10-01 14:19 UTC
+
+Main is clean at `9e700d0`. The sole slice-3 F1–F7 writer is live with
+unfinished isolated edits. Reviewed offline G3-L prep is integrated but
+nonlaunchable, with 77 missing pre-review identities. The 14:00 UTC start
+passed without G3-L PASS, request or SHADOW capture. Parallel IFS/AIFS
+trajectory Gate 2 remains an offline mechanism with zero real admissions;
+source, clock, storage, cohort, restriction and exact-package evidence remain
+open. Safety and resource observations are recorded in the current
+[readiness audit](V11_GATE3_LAUNCH_READINESS_AUDIT_20261001.md). No C/J/E/A
+credit changed: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Offline G3-L prep repair merged — 2026-10-01 14:16 UTC
 
 Exact `f03d2fd` closed the two inventory workflow defects under independent

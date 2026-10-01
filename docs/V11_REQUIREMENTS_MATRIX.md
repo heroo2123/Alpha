@@ -1,5 +1,15 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Current post-window reconciliation — 2026-10-01 14:19 UTC
+
+The 14:00 UTC acquisition start passed without G3-L PASS or provider request.
+Reviewed offline prep is integrated but its 77 pre-review identities are
+missing; slice-3 F1–F7 repair has one live writer and no accepted candidate.
+R09 native-trajectory Gate 2 remains offline only, with zero real IFS/AIFS
+admissions. Current [readiness audit](V11_GATE3_LAUNCH_READINESS_AUDIT_20261001.md)
+supersedes its earlier 11:30 planning snapshot. No C/J/E/A boundary crossed:
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Offline G3-L prep accepted locally — 2026-10-01 14:16 UTC
 
 `f03d2fd` passed [independent exact-commit review](V11_R09_GATE3_G3L_PREP_REPAIR_REVIEW_f03d2fd.md)
