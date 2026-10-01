@@ -1,5 +1,49 @@
 # Alpha V11 work checkpoint
 
+## Coordinator recovery and parallel offline mapping launch — 2026-10-01 11:42 UTC
+
+Recovered clean main `f5f6cde`, locally seven commits ahead of its tracking
+ref. The previously launched slice-3 runner/Claude child (`1560999`/`1561000`)
+are still live in the clean isolated slice-3 worktree at `9c3e748`; its
+worker log is empty and there is no terminal result yet. Do not treat it as
+finished or start another slice-3 writer. The SHADOW commissioning worktree
+is clean at `15e99bd` and remains held by its recorded acceptance/authority
+gates. The prior accepted release and load-sensitive full-suite history are
+unchanged; no broad test was rerun for this orchestration-only batch.
+
+Read-only Gate 3 audit found an independent blocker that can advance alongside
+slice 3: V4's frozen string path template formats raw numeric run/member/hour,
+while the existing GEFS source uses formatted date/cycle and padded
+control/perturbed member/hour names, and ECMWF IFS/AIFS use date/cycle,
+control/perturbed stream/file-kind paths with IFS perturbed members sharing
+an ensemble object. Source mappings for separate purposes also need exact
+binding. Started one Sonnet/high offline implementation worker in isolated
+`/tmp/alpha-v11-gate3-v4-provider-mapping-20261001`, branch
+`r09-gate3-v4-provider-mapping-20261001`, clean base `f5f6cde`. Persistent
+runner/child PIDs `1562328`/`1562329`; prompt, log and terminal paths share
+that `/tmp/alpha-v11-gate3-v4-provider-mapping-20261001` prefix. Scope is
+synthetic schema/validator correction and tests only. It must not request
+providers, merge, launch G3-L or claim SHADOW. The first shell-scoped launch
+exited before the runner started; a detached retry is verified live, with only
+one mapping worker.
+
+Both candidate branches require separate exact-commit independent review and
+newer-main reconciliation. G3-L remains NO-GO: provider/source restrictions,
+decoder, exact-run evidence, private package, clock/storage proof and G3-L
+review remain open. No real network/provider request is authorized. PAPER
+scanner is inactive/disabled; weather execution is inactive/masked;
+protected model-authority paths are absent. Free disk 3.8 GiB; available
+memory 829 MiB plus 1.6 GiB free swap after launch. The FINAL-REVIEWED
+private master still hashes to its pinned `a0e16d9b...659b4a`; V10 and
+AxiomTrade were untouched. No C/J/E/A boundary crossed: **91/200 (45.5%),
+formal 1/50; NOT_READY_TO_FUND**.
+
+Next: recover both workers from actual processes, worktrees and logs. On
+candidate completion, inspect tests/diff and obtain different-model
+exact-commit review before considering integration. In parallel, prepare
+source/restriction and bounded preflight evidence offline; any provider
+preflight requires its own approved, reviewed package.
+
 ## Slice-3 offline worker launched after slice-2 integration — 2026-10-01 UTC
 
 Started exactly one persistent Sonnet/high implementation worker in isolated

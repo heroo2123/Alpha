@@ -1,5 +1,15 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Gate 3 offline mapping candidate in progress — 2026-10-01 11:42 UTC
+
+The slice-3 worker remains live. A separate isolated Sonnet/high worker is
+implementing the offline V4 provider-path/schema correction against the
+observed GEFS and ECMWF layout mismatch. Neither branch is accepted or
+integrated; exact-commit independent reviews, newer-main reconciliation,
+real-source/decoder/clock/storage evidence and G3-L remain open. No provider
+request or forward SHADOW evidence was added. **91/200 (45.5%), formal
+1/50; NOT_READY_TO_FUND**.
+
 ## Gate 3 V4 slice 2 accepted offline; G3-L still OPEN — 2026-10-01 UTC
 
 Owner-authorized R1 correction `58a465f` passed independent Opus/high

@@ -1,5 +1,14 @@
 # Supplementary engineering estimate
 
+## Parallel offline Gate 3 mapping work launched — 2026-10-01 11:42 UTC
+
+The isolated slice-3 worker is still active. A second specialized worker is
+live in an independent worktree to correct V4's inability to represent the
+existing GEFS and ECMWF path layouts. This is candidate engineering only;
+source qualification, different-model review, integration and G3-L have not
+occurred. No C/J/E/A boundary crossed: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Gate 3 V4 slice 2 integrated after independent PASS — 2026-10-01 UTC
 
 The exact `58a465f` owner-authorized R1 fix passed independent Opus/high
