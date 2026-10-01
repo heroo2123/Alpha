@@ -1,0 +1,32 @@
+[
+  {
+    "case": "baseline",
+    "result": "ACCEPTED",
+    "field_path": "/gefs.20270228/00/atmos/pgrb2ap5/gec00.t00z.pgrb2a.0p50.f000"
+  },
+  {
+    "case": "scrambled_gefs_layout",
+    "result": "ACCEPTED",
+    "field_path": "/wrong/000/00/c00/00/20270228"
+  },
+  {
+    "case": "ifs_uses_aifs_model_directory",
+    "result": "ACCEPTED",
+    "field_path": "/20270228/00z/aifs-ens/0p25/enfo/20270228000000-0h-enfo-ef.grib2"
+  },
+  {
+    "case": "ifs_index_is_grib_object",
+    "result": "ACCEPTED",
+    "field_path": "/20270228/00z/forecast/0p25/enfo/20270228000000-0h-enfo-ef.grib2"
+  },
+  {
+    "case": "unevidenced_object_metadata_probe",
+    "result": "ACCEPTED",
+    "field_path": "/gefs.20270228/00/atmos/pgrb2ap5/gec00.t00z.pgrb2a.0p50.f000"
+  },
+  {
+    "case": "guessed_gefs_s3",
+    "result": "ACCEPTED",
+    "field_path": "/gefs.20270228/00/atmos/pgrb2ap5/gec00.t00z.pgrb2a.0p50.f000"
+  }
+]

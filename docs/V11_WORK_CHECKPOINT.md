@@ -1,5 +1,49 @@
 # Alpha V11 work checkpoint
 
+## Provider mapping review CHANGES_REQUIRED; repair failover — 2026-10-01 12:34 UTC
+
+Independent Astra/high exact-commit review of `f5f6cde..15f054f` (tree
+`1a851c3`) returned **CHANGES_REQUIRED** with two P2 findings. [Report](V11_R09_GATE3_V4_PROVIDER_MAPPING_REVIEW_15f054f.md),
+[probes](V11_R09_GATE3_V4_PROVIDER_MAPPING_REVIEW_15f054f_probes.py) and
+[results](V11_R09_GATE3_V4_PROVIDER_MAPPING_REVIEW_15f054f_results.json) are
+preserved. The reviewer reran 39 focused tests and reproduced five accepted
+counterexamples: component counts permit altered provider/model/order/suffix
+paths, and unsupported purpose/origin mappings remain admissible. Shared
+ECMWF object identity works, but the existing purported distinct-range test
+uses identical ranges. Do not merge this candidate; repair and obtain a fresh
+different-model exact-commit review.
+
+Created isolated repair worktree `/tmp/alpha-v11-gate3-v4-mapping-repair-20261001`
+at `15f054f`. Its initial Sonnet/high runner exited before edits with a Claude
+session limit (resets 13:20 UTC); preserved terminal and log at the matching
+prefix. Assigned the same clean worktree to one Sol/high failover repair agent,
+with no concurrent writer there. The independent slice-3 R1–R8 Sonnet worker
+remains a separate live task. G3-L NO-GO; no provider request or source
+qualification. No C/J/E/A boundary crossed: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
+## Concurrent Gate 3 repair and mapping review recovered — 2026-10-01 12:25 UTC
+
+Recovered clean main `ff25f5c`, 14 local commits ahead of tracking. The
+existing slice-3 R1–R8 Sonnet/high repair runner/child (`1590679`/`1590680`)
+remain live in `/tmp/alpha-v11-gate3-v4-slice3-repair-20261001`; its ledger
+and launch files have unfinished edits and there is no terminal result. Preserve
+this single writer's work. Provider-mapping candidate `15f054f` remains clean
+and unmerged, with its `GATE3_MAPPING_CANDIDATE_READY` terminal. Started a
+separate Astra/high **read-only exact-commit review** of `f5f6cde..15f054f`
+against the V4 design, actual source adapters and launch audit. No verdict is
+claimed until that review finishes; newer-main reconciliation is still pending.
+
+The SHADOW commissioning and accepted release worktrees are clean. PAPER
+scanner and V11 controller are inactive; scanner disabled and protected
+model-authority paths absent. Disk is about 3.8 GiB free; memory about
+725 MiB available plus 1.5 GiB free swap. No provider request, G3-L launch,
+service action, V10 or AxiomTrade action occurred. G3-L remains NO-GO;
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND** unchanged. Next: finish
+mapping review, then repair or reconcile only if its exact-commit verdict
+permits; separately recover the live slice-3 worker and review its eventual
+candidate before integration.
+
 ## One isolated slice-3 repair worker launched — 2026-10-01 12:14 UTC
 
 Independent review/evidence committed locally as `afe6b16`; exact candidate

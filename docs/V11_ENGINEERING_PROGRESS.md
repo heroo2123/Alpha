@@ -1,5 +1,21 @@
 # Supplementary engineering estimate
 
+## Mapping candidate rejected; isolated repair underway — 2026-10-01 12:34 UTC
+
+Astra/high found two P2 gaps in `15f054f`, with five independent accepted
+counterexamples. Review/probes/results are preserved in docs. The first
+isolated Sonnet runner hit its session limit before editing; Sol/high failover
+owns that same clean mapping-repair worktree. Slice-3 repair remains separate.
+No integration, real evidence or C/J/E/A award: **91/200 (45.5%), formal
+1/50; NOT_READY_TO_FUND**.
+
+## Gate 3 independent review parallelism — 2026-10-01 12:25 UTC
+
+Recovered live slice-3 repair edits without touching its worktree and started
+the separate read-only Astra/high review of mapping candidate `15f054f`.
+Neither candidate is accepted or merged. G3-L remains NO-GO; no C/J/E/A
+boundary crossed: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## One persistent slice-3 repair worker active — 2026-10-01 12:14 UTC
 
 Committed the exact review/probes as `afe6b16` and verified one detached

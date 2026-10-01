@@ -1,5 +1,23 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Provider mapping review found two P2 gaps — 2026-10-01 12:34 UTC
+
+Exact candidate `15f054f` is [CHANGES_REQUIRED](V11_R09_GATE3_V4_PROVIDER_MAPPING_REVIEW_15f054f.md):
+rendered path grammar and unsupported purpose/origin refusal are incomplete.
+Five independent synthetic counterexamples were accepted despite 39 focused
+passes. One isolated repair task is active; fresh exact review and merge
+reconciliation remain required. G3-L NO-GO. **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
+## Mapping review running beside slice-3 repair — 2026-10-01 12:25 UTC
+
+An independent Astra/high exact-commit review of typed-path candidate
+`15f054f` is underway; it has no verdict or integration credit yet. The
+separate slice-3 R1–R8 repair worker is live with unfinished isolated edits.
+Both streams retain exact-review and newer-main reconciliation gates. No
+provider, G3-L or forward SHADOW evidence was added. **91/200 (45.5%),
+formal 1/50; NOT_READY_TO_FUND**.
+
 ## Slice-3 repairs running in isolation — 2026-10-01 12:14 UTC
 
 Review `afe6b16` is durable. One Sonnet/high worker is repairing R1–R8 in
