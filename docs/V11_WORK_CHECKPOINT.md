@@ -1,5 +1,39 @@
 # Alpha V11 work checkpoint
 
+## MEMFS static observation accepted and locally integrated — 2026-10-01 21:02 UTC
+
+Recovered the independent Astra/high review from its actual matching
+[report](V11_R09_GATE3_MEMFS_STATIC_REVIEW_cccc5d0.md) and
+[terminal](V11_R09_GATE3_MEMFS_STATIC_REVIEW_cccc5d0.json). It accepts exact
+`cccc5d0b0398ef153289d460916813a4c79c532c` (tree `5a5f5d0`) for
+bounded offline static observation only. The report SHA-256 matches the
+terminal (`b5c0edb8216765890b6fa8045650d5f7ed170d55bbf85ac8f485c42890cd6d0c`),
+the detached review checkout is clean, and all four prior corrections were
+independently reproduced. The reviewer checked all 7,073 entries and 14,153
+relocations. One low-severity wording imprecision remains in the observation
+Markdown; the pinned bytes themselves were separately checked.
+
+Reconciled against clean newer main `5ce3e04`. The merge staged exactly the
+three reviewed observation files, with no overlap or whitespace errors, and
+was committed locally as `34f19da` (parents `5ce3e04` and `cccc5d0`). This
+does **not** accept source/build provenance, runtime binding, CCSDS/provider
+capture, G3-L or forward SHADOW qualification. The private FINAL-REVIEWED
+master still hashes to
+`a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+Commissioning files newer than September 30 06:43 remain status/watchdog
+files; there is no new qualifying forward sample. PAPER scanner/controller
+and V11 execution remain inactive; scanner is disabled and protected authority
+roots absent. Root disk has 2,586,222,592 bytes free, now above the 2 GiB
+floor, and available memory 772,374,528 bytes. The last prospective G3-L
+screen still lacks 77 reviewed identities and one item was expired; no new
+reviewed freeze or G3-L PASS exists. No provider request was made. A separate
+isolated inventory-transformation worker finished clean `9600510` with 16
+targeted passes, but it is unreviewed and unmerged; preserve it. Next Gate 3
+prerequisite is offline decoder/build provenance and exact identity evidence.
+No V10, AxiomTrade, service, financial, authority or remote-publication
+action. No C/J/E/A boundary crossed: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## MEMFS repair completed; exact independent review live — 2026-10-01 20:55 UTC
 
 Recovered the sole Sonnet/high repair worker from its matching terminal:

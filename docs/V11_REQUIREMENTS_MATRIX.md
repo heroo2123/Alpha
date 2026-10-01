@@ -1,5 +1,15 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Reviewed MEMFS observation integrated — 2026-10-01 21:02 UTC
+
+Independent [review](V11_R09_GATE3_MEMFS_STATIC_REVIEW_cccc5d0.md) and
+[terminal](V11_R09_GATE3_MEMFS_STATIC_REVIEW_cccc5d0.json) accept exact
+`cccc5d0` for static observation only; local merge `34f19da` adds only its
+three reviewed files. Source/build identity, G3-L, CCSDS/provider and forward
+SHADOW remain unqualified. Disk is above 2 GiB at this screen, but the last
+prospective screen lacks 77 reviewed identities and one item was expired.
+G3-L **NO-GO**; **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## MEMFS repair awaits exact review — 2026-10-01 20:55 UTC
 
 Clean, unmerged `cccc5d0` repairs the prior MEMFS observation claims in three

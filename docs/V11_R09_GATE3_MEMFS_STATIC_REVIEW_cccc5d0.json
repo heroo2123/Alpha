@@ -1,0 +1,16 @@
+{
+  "schema": "ALPHA_V11_MEMFS_EXACT_REVIEW_TERMINAL_V1",
+  "started_utc": "2026-10-01T20:55:32.904769+00:00",
+  "completed_utc": "2026-10-01T21:01:46.707456+00:00",
+  "exit_code": 0,
+  "candidate": "cccc5d0b0398ef153289d460916813a4c79c532c",
+  "candidate_tree": "5a5f5d0fea1c103934947a2e56698c1d6f0f5226",
+  "review_worktree": "/tmp/alpha-v11-memfs-review-8b0b32e",
+  "review_worktree_clean": true,
+  "status": "MEMFS_REVIEW_ACCEPTED",
+  "report": "/tmp/alpha-v11-memfs-review-cccc5d0-20261001.report.md",
+  "report_sha256": "b5c0edb8216765890b6fa8045650d5f7ed170d55bbf85ac8f485c42890cd6d0c",
+  "error": null,
+  "g3l": "NO-GO",
+  "integration_authorized": false
+}

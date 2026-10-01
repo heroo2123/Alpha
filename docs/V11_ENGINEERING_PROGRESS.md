@@ -1,5 +1,14 @@
 # Supplementary engineering estimate
 
+## MEMFS observation review closed; build identity still open — 2026-10-01 21:02 UTC
+
+Exact independent review accepted `cccc5d0` for bounded static observation,
+and local merge `34f19da` preserves newer main. The 7,073-entry inventory
+does not prove authenticated source/build provenance, runtime binding, G3-L or
+forward SHADOW readiness. A separate clean inventory-transformation candidate
+`9600510` awaits review. No C/J/E/A crossing: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## MEMFS correction candidate in independent review — 2026-10-01 20:55 UTC
 
 The author repair ended cleanly at unmerged `cccc5d0` (tree `5a5f5d0`), with
