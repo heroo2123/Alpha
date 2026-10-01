@@ -1,5 +1,16 @@
 # Supplementary engineering estimate
 
+## Exact review still live; launch floor fails — 2026-10-01 17:31 UTC
+
+Clean candidate `550305d` remains unmerged while its sole Astra/high reviewer
+investigates edge cases. The 458-test family rerun and corrected 29-probe plus
+two exploratory probes passed, but no review verdict or terminal exists.
+Main is clean at `76adce7`; Gate 3 code and tests have diverged and require
+reconciliation after any PASS. Root free space is about 817 MiB, below the
+2 GiB launch floor. G3-L remains NO-GO with 77 missing pre-review identities
+and no forward sample. **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**
+unchanged.
+
 ## Exact review in progress — 2026-10-01 17:26 UTC
 
 The clean unmerged `550305d` candidate has a live different-model exact

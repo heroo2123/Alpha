@@ -1,5 +1,28 @@
 # Alpha V11 work checkpoint
 
+## Live exact review and disk no-go recovery — 2026-10-01 17:31 UTC
+
+Recovered clean main `76adce7` (42 commits ahead of tracking), clean unmerged
+slice-3 candidate `550305d`, and the sole live independent Astra/high reviewer
+(runner `1787909`) in its detached exact-commit checkout. No report or terminal
+exists yet. Its 458-test Gate 3 offline family rerun passed; a corrected
+29-probe run passed and two later exploratory probes passed. The reviewer is
+still investigating edge cases, so none of these interim results is a verdict.
+The candidate and main have diverged in Gate 3 code and tests; any eventual
+PASS requires explicit newer-main reconciliation before integration. Do not
+duplicate the live reviewer or modify its worktree.
+
+The next-window offline screen remains `launchable=false` with 77 missing
+pre-review identities, and G3-L is **NO-GO**. Root free space is about 817 MiB,
+below the 2 GiB launch floor; available RAM is about 880 MiB with 1.7 GiB
+free swap. PAPER demo/scanner/controller/execution are inactive, with the
+first three disabled and execution masked. Protected `/etc/alpha-v11` and
+`/var/lib/alpha-v11` remain absent; the FINAL-REVIEWED private master still
+matches pinned SHA-256 `a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+No provider request, forward SHADOW sample, V10/AxiomTrade/service/authority,
+financial or private-master change was made. No C/J/E/A boundary crossed:
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Live exact review and passive safety recovery — 2026-10-01 17:26 UTC
 
 Recovered actual main clean at `a030051` (41 commits ahead of tracking),

@@ -1,5 +1,15 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Live exact review, no new acceptance — 2026-10-01 17:31 UTC
+
+Clean candidate `550305d` remains under its sole independent Astra/high exact
+review. The reviewer has 458 Gate 3 family passes, 29 corrected probe passes,
+and two additional exploratory probe passes, but no report or terminal.
+H1–H6 and carried slice-3 obligations remain unaccepted; newer-main
+reconciliation is also required. G3-L stays NO-GO with 77 missing pre-review
+identities, insufficient current disk space, and no forward sample. No C/J/E/A
+boundary crossed: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Live H1–H6 exact review; no acceptance — 2026-10-01 17:26 UTC
 
 The independent Astra/high reviewer of clean `550305d` remains live. Its
