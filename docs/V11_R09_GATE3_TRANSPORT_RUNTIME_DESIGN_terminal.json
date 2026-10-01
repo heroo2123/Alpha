@@ -1,0 +1,35 @@
+{
+  "record_type": "AUTHOR_DESIGN_COMPLETION_NOT_INDEPENDENT_ACCEPTANCE",
+  "status": "DESIGN_COMPLETE_REVIEW_PENDING",
+  "author_model": "gpt-6-astra",
+  "author_effort": "high",
+  "completed_utc": "2026-10-01T00:10:30.503501+00:00",
+  "base_commit": "01dfd73b5e105f6a7bdc7f98d8e696075f02d7a6",
+  "document": "docs/V11_R09_GATE3_TRANSPORT_RUNTIME_DESIGN.md",
+  "document_sha256": "0b121fbc422208e2fa89e0b2f7362725cac60115ada966ed83b9d1ed15ac8e4a",
+  "source_sha256": {
+    "tools/v11_r09_gate3_launch.py": "bb49c3200f065f4a3b3d966967661b3b59fe02c834d3207a3fc01c1cd64ab50a",
+    "tools/v11_r09_gate3_collector.py": "44da155a7ce3f217aa1eb340b41416033968203fdc3eb57e52a96234a7089dbe",
+    "tools/v11_r09_gate3_offline_io.py": "bca02a320402ca6c0f908cd035fecd08854012c25b744d8cc7436ca370c50235",
+    "tools/v11_r09_gate3_store_v1.py": "cf65d164dba4a1937fc38a4cfa18cf686c53b248e97b15ac21d8a7d4bee0d636"
+  },
+  "validation": {
+    "local_references": "PASS",
+    "fixed_denominator": 2713,
+    "example_four_request_reserved_bytes": 13631488,
+    "example_serial_seconds": 246,
+    "example_uncertain_charge_bytes": 2098176,
+    "kind": "documentary/source compatibility and arithmetic checks only",
+    "executable_tests_run": false,
+    "independent_design_acceptance": false
+  },
+  "implementation_authorized_by_this_record": false,
+  "provider_requests_authorized": false,
+  "g3l_approved": false,
+  "shadow_admission": false,
+  "learner_admission": false,
+  "financial_authority": false,
+  "publication_authorized": false,
+  "score": "91/200",
+  "formal_complete": "1/50"
+}

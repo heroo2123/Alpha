@@ -1,5 +1,40 @@
 # Alpha V11 work checkpoint
 
+## Gate 3 transport/runtime design complete; independent review next — 2026-10-01
+
+Completed the routed Astra/high [offline transport/runtime design](V11_R09_GATE3_TRANSPORT_RUNTIME_DESIGN.md)
+and [author completion record](V11_R09_GATE3_TRANSPORT_RUNTIME_DESIGN_terminal.json)
+against clean `01dfd73`. This is **DESIGN_PENDING_INDEPENDENT_REVIEW**, not
+implementation or self-acceptance. The design exposes V3's same-path-for-all-
+purposes limitation and proposes a separate V4 contract; fixes no executable
+code yet. It specifies exact approved-endpoint requirements, cross-manifest
+shared denial history, durable intent/closure ordering, per-purpose/global
+accounting, absolute 14:00–17:00 acquisition, conservative post-close pacing,
+and budget/store/clock receipt composition with historical admission gated.
+Bounded replay, resource/report capacity, nested dependency limits and crash
+acceptance cases are explicit. Documentary links/source checks and arithmetic
+passed; no unchanged code suite or full release suite was rerun.
+
+Next unblocked step: different-model independent exact-commit design review,
+then bounded offline implementation only after acceptance. Route Sonnet/high
+for that substantive independent review, preserving all operational holds.
+No persistent worker was needed for the completed synchronous design and none
+was launched here; the router must start only one next reviewer. Review the
+proposed V4 change, denial/attempt crash ordering, conservative actual-start
+pacing, purpose accounting and receipt/time limits against integrated code.
+Do not implement or construct a private launch manifest in the review batch.
+
+Recovery confirmed no duplicate Gate 3 worker; held author `e563e45` and SHADOW
+`15e99bd` clean. New commissioning evidence remains status-only. Accepted release
+resolution `6ec371e` remains an ancestor; no stale failure reopened. Private
+master hash matches its pin; demo/scanner/controller inactive/disabled,
+execution inactive/masked, protected authority absent. Disk about 3.9 GiB free,
+memory about 860 MiB available. V10 untouched; AxiomTrade only passively observed
+for host resources. GEFS forward work remains owner/root gated. No provider
+requests, G3-L, SHADOW/learner, authority, financial or publication action;
+prior publication rejection remains pending. No C/J/E/A boundary crossed:
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Reviewed Gate 3 offline candidate integrated locally — 2026-10-01 00:02 UTC
 
 Recovered clean main `1eccdd3` and clean held author `e563e45`; no Gate 3
