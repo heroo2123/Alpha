@@ -1,5 +1,18 @@
 # Alpha V11 work checkpoint
 
+## Decoder boundary evidence integrated — 2026-10-01 13:23 UTC
+
+Recovered completed offline decoder assessment `e4c1fbe` from its clean isolated
+worktree. Its two-file diff adds only three synthetic refusal tests and an
+evidence checklist; no decoder or provider behavior changes. Independently
+reran the three new tests on the candidate and on merged main (3 passed each),
+checked the diff, and reconciled it conflict-free with newer main as local
+merge `02a095d`. CCSDS integration remains blocked on a frozen
+native build, independent current-run section pins, source dossiers and
+resource evidence. G3-L remains NO-GO; no provider request or C/J/E/A boundary
+crossed: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**. The slice-3
+repair and offline G3-L preparation retain their separate live writers.
+
 ## Concurrent coordinator reconciliation — 2026-10-01 13:16 UTC
 
 Recovered newer main `c7c5093`: an independent Astra/high review had already

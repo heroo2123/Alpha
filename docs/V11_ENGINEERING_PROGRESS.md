@@ -1,5 +1,13 @@
 # Supplementary engineering estimate
 
+## Offline decoder assessment integrated — 2026-10-01 13:23 UTC
+
+The completed two-file decoder assessment `e4c1fbe` adds three passing
+synthetic refusal tests and a concrete CCSDS qualification checklist. It
+changes no decoder behavior and supplies no real-source or G3-L qualification.
+The three tests passed on merged main; **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND** remains unchanged.
+
 ## Reviewed offline mapping repair integrated — 2026-10-01 13:13 UTC
 
 Independent Astra/high exact-commit review passed `23c11e0` for the two

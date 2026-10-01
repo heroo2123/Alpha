@@ -1,5 +1,13 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Decoder refusal evidence — 2026-10-01 13:23 UTC
+
+The offline decoder assessment and three synthetic CCSDS refusal tests from
+`e4c1fbe` are integrated locally; the three tests passed again on merged main.
+This documents the existing refusal boundary only. Native build, current-run
+section pins, source and resource evidence remain open. G3-L NO-GO;
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND** unchanged.
+
 ## Offline Gate 3 mapping repair PASS and local integration — 2026-10-01 13:13 UTC
 
 Exact `23c11e0` passed independent Astra/high review: prior R1/R2 mapping
