@@ -1,5 +1,35 @@
 # Alpha V11 work checkpoint
 
+## Slice-3 exact repair review: four obligations remain — 2026-10-01 14:52 UTC
+
+Independent Astra/high [exact-commit review](V11_R09_GATE3_V4_SLICE3_REVIEW_8e18553.md)
+of `8e18553227522fa28e829ee66a32a8064f28c55f` (tree `32044de`) is
+**CHANGES_REQUIRED**. Reviewer ran **439 Gate 3 tests** (two existing fork
+warnings) and **11 independent probes**: eight reproduce remaining defects,
+three confirm closed behavior. F1 store-clock intersection (including reopen),
+F3 conservative cooldown and F6 physical reserve are closed for the reviewed
+offline paths. G1–G4 remain: mandatory validated V4 time/context binding;
+error-path denial/eager-byte retention; frozen reason precedence/all reasons
+and consistent attempted IDs; bounded recovery accounting/capacity. The first
+review test run was invalidated by reviewer cleanup reusing fixture identities;
+the corrected harness passed all 439 without changing candidate code.
+
+The candidate remains clean and unmerged in its existing isolated worktree.
+No Alpha implementation worker was active at recovery. Next action is one
+Sonnet/high implementation handoff for G1–G4, then fresh independent exact-
+commit review and newer-main reconciliation. This checkpoint does not claim
+a worker has already been launched. Review, terminal, probes and bounded test
+cleanup harness are durable in docs. Main began this review clean at `e796fcc`.
+
+At 14:48 UTC, PAPER demo/scanner/controller and execution were inactive;
+demo/scanner/controller disabled, execution masked. Protected authority paths
+remain absent and private FINAL-REVIEWED master hash still matches its pin.
+Root free space was about 450 MiB (below launch floor), RAM available 750 MiB
+plus 1.5 GiB free swap. No provider, V10, AxiomTrade, service, authority,
+financial or remote publication changes. G3-L remains NO-GO; the 14:00 UTC
+window is missed, not re-dated. No C/J/E/A boundary crossed:
+**91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Slice-3 F1–F7 repair candidate recovered — 2026-10-01 14:40 UTC
 
 The sole Sonnet/high repair worker exited normally at 14:36:29 UTC and left

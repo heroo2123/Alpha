@@ -1,0 +1,95 @@
+{
+  "schema": "ALPHA_V11_SLICE3_EXACT_REVIEW_V1",
+  "completed_utc": "2026-10-01T14:53:09.524557+00:00",
+  "status": "GATE3_SLICE3_REVIEW_CHANGES_REQUIRED",
+  "verdict": "CHANGES_REQUIRED",
+  "reviewer": "Astra/high independent of Sonnet/high author",
+  "candidate": "8e18553227522fa28e829ee66a32a8064f28c55f",
+  "tree": "32044de41265f22aadf3582781fc337b5afdfcfb",
+  "parent": "ef45d355f8d7e3a924564cdf9f5f2601c01a50f6",
+  "main_at_review_start": "e796fcc",
+  "worktree": "/tmp/alpha-v11-gate3-v4-slice3-repair-20261001",
+  "candidate_modified": false,
+  "merged": false,
+  "g3l": "NO-GO",
+  "provider_network_service_financial_actions": false,
+  "tests": {
+    "gate3_family": {
+      "passed": 439,
+      "warnings": 2,
+      "seconds": 32.2
+    },
+    "independent_probes": {
+      "passed": 11,
+      "defect_reproductions": 8,
+      "closure_controls": 3,
+      "seconds": 1.23
+    },
+    "initial_family_run": {
+      "passed": 364,
+      "failed": 75,
+      "valid_candidate_evidence": false,
+      "cause": "Reviewer cleanup removed fixture directories, causing path/inode reuse; corrected and rerun.",
+      "log": "/tmp/alpha-v11-review-8e18553-family.log"
+    },
+    "diff_check": "clean",
+    "full_release_suite": "not rerun"
+  },
+  "prior_findings": {
+    "F1": "CLOSED_OFFLINE_REPORTED_PATH",
+    "F2": "PARTIAL_G2",
+    "F3": "CLOSED_OFFLINE",
+    "F4": "PARTIAL_G1",
+    "F5": "PARTIAL_G3",
+    "F6": "CLOSED_OFFLINE_REPORTED_PATH",
+    "F7": "PARTIAL_G4"
+  },
+  "findings": [
+    {
+      "id": "G1",
+      "priority": "P1",
+      "title": "Validated V4 binding remains optional and ignores frozen context"
+    },
+    {
+      "id": "G2",
+      "priority": "P1",
+      "title": "Error recovery still loses observed denials and eager bytes"
+    },
+    {
+      "id": "G3",
+      "priority": "P2",
+      "title": "Missing reason precedence/all reasons and inconsistent attempted IDs"
+    },
+    {
+      "id": "G4",
+      "priority": "P2",
+      "title": "Recovery chunk accounting exceeds admitted capacity"
+    }
+  ],
+  "evidence": [
+    {
+      "path": "/home/alphaadmin/AlphaV11_Dev/Alpha/docs/V11_R09_GATE3_V4_SLICE3_REVIEW_8e18553.md",
+      "sha256": "1c09572b38fb891be2cf6bcba8db062153541d296668426f34d255628f576279"
+    },
+    {
+      "path": "/home/alphaadmin/AlphaV11_Dev/Alpha/docs/V11_R09_GATE3_V4_SLICE3_REVIEW_8e18553_probes.py",
+      "sha256": "30fd1f20e3a18eaba341530050dfd1c32afa918e8df562919b368f9b03e9653e"
+    },
+    {
+      "path": "/home/alphaadmin/AlphaV11_Dev/Alpha/docs/V11_R09_GATE3_V4_SLICE3_REVIEW_8e18553_cleanup.py",
+      "sha256": "9b8b52e1d63e79183737124456bdfdfd64f39f2f5675e7927a2cda1a146a4a44"
+    },
+    {
+      "path": "/tmp/alpha-v11-review-8e18553-family2.log",
+      "sha256": "846e4422cf5866d5b2069be4a24fdbd7697c53533daa79b09e2556acbc788b7e"
+    },
+    {
+      "path": "/tmp/alpha-v11-review-8e18553-probes.log",
+      "sha256": "7d15fdc3744d42e4aa41e574c4c925739657042d067c00541bb5474f0e9e8b01"
+    }
+  ],
+  "next_action": "Route one Sonnet/high implementation worker for G1-G4 in the existing isolated worktree; fresh independent exact-commit review before reconciliation/merge.",
+  "score": "91/200",
+  "formal": "1/50",
+  "funding": "NOT_READY_TO_FUND"
+}

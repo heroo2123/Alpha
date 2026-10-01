@@ -1,5 +1,19 @@
 # Supplementary engineering estimate
 
+## Slice-3 second repair independently reviewed — 2026-10-01 14:52 UTC
+
+Independent Astra/high [review of exact `8e18553`](V11_R09_GATE3_V4_SLICE3_REVIEW_8e18553.md)
+is **CHANGES_REQUIRED** despite 439 family passes. Eleven independent probes
+include eight defect reproductions and three closure controls. Store-clock
+intersection/reopen, cooldown lower bounds and sparse-reserve allocation close
+the reported F1/F3/F6 paths. Four repair obligations remain (G1–G4): mandatory
+validated V4 context, lossless denial/body observations on errors, full reason
+reporting/consistent attempted IDs, and bounded recovery capacity. Review
+artifacts are durable; candidate is clean and unmerged. One Sonnet/high repair
+handoff is next, not a claimed launch. G3-L NO-GO, disk below launch floor,
+no provider/financial/service action. **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND** unchanged.
+
 ## Slice-3 repair finished; exact review required — 2026-10-01 14:40 UTC
 
 The sole writer committed clean two-file candidate `8e18553` (tree

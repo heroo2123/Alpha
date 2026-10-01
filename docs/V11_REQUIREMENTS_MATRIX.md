@@ -1,5 +1,16 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Slice-3 independent review remains CHANGES_REQUIRED — 2026-10-01 14:52 UTC
+
+Exact `8e18553` [review](V11_R09_GATE3_V4_SLICE3_REVIEW_8e18553.md): 439 family
+passes plus 11 independent probes (eight defect reproductions, three closure
+controls). F1/F3/F6 close for the reviewed offline paths; G1–G4 retain the
+validated-manifest/context, denial/body error accounting, report-reason and
+recovery-capacity obligations. Candidate unmerged; one implementation handoff
+is next, then fresh review/reconciliation. G3-L NO-GO, disk below launch floor,
+no real source/SHADOW evidence or acceptance credit. **91/200 (45.5%),
+formal 1/50; NOT_READY_TO_FUND** unchanged.
+
 ## Slice-3 candidate awaiting independent review — 2026-10-01 14:40 UTC
 
 The finished isolated F1–F7 repair is clean at `8e18553` (tree `32044de`),
