@@ -1,5 +1,34 @@
 # Alpha V11 work checkpoint
 
+## Inventory exact review recovered; repair required — 2026-10-01 22:49 UTC
+
+Recovered the completed independent Astra/high review of clean, unmerged
+`9600510` from `/tmp/alpha-v11-inventory-transform-review-9600510.terminal.json`
+and its SHA-bound Markdown report. The terminal says `CHANGES_REQUIRED`, with
+five reproduced P2 findings: later-page metadata incorrectly becomes COMPLETE;
+cross-side token aliases and mutable topology are accepted; JSON/decimal
+arithmetic loses precision, depends on ambient context and can crash on finite
+extremes; the no-symlink loader follows parent symlinks; and deeply nested
+small JSON escapes the bounded failure result. Targeted tests passed 16/16 and
+the reviewer's final adversarial probes passed 23/23 by demonstrating these
+defects. No candidate acceptance or merge is authorized. Repair the five
+findings in the existing inventory worktree, then obtain a fresh independent
+exact-commit review and reconcile against newer main.
+
+Main was clean at `6ce37ab` (96 commits ahead of origin) when recovered. The
+sole A1 point-of-use repair PID 1925151 remains live, queued until 23:21 UTC
+in clean `93cd43c`; no corrected terminal exists. SHADOW and Brain worktrees
+are clean; ECMWF `backfill_data/` remains untracked and preserved. No newer
+SHADOW commissioning file appeared after 22:30 UTC. PAPER scanner and V11
+controller/execution services are inactive, scanner disabled, and protected
+V11 authority roots absent. Observed free disk is 3,364,134,912 bytes and
+available memory 1,112,899,584 bytes. The separate Gate 3 A5/A6 audit's
+missing current-run pins and no-provider-before-G3-L bootstrap conflict remain;
+no provider request or G3-L PASS occurred. No V10, AxiomTrade, financial,
+service, authority, private-master or remote-publication action. No C/J/E/A
+crossing: **G3-L NO-GO; 91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## A5/A6 offline audit completed; bootstrap dependency explicit — 2026-10-01 22:45 UTC
 
 Completed the routed Astra/high [source/current-run audit](V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.md)

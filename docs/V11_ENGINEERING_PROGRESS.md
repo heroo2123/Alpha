@@ -1,5 +1,16 @@
 # Supplementary engineering estimate
 
+## Inventory review recovered — 2026-10-01 22:49 UTC
+
+The independent Astra/high review of `9600510` completed with five reproduced
+P2 defects and `CHANGES_REQUIRED`. Its 16 targeted passes and 23 adversarial
+passes do not establish acceptance because the adversarial assertions confirm
+the defects. The candidate is preserved in its clean isolated worktree for a
+bounded repair and fresh exact review; no merge or score credit follows. The
+sole A1 repair remains queued to 23:21 UTC, and Gate 3 source/current-run
+qualification remains blocked by missing pins. **G3-L NO-GO; 91/200 (45.5%),
+formal 1/50; NOT_READY_TO_FUND**.
+
 ## A5/A6 offline evidence audit completed — 2026-10-01 22:45 UTC
 
 Completed the escalated [source/current-run audit](V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.md)

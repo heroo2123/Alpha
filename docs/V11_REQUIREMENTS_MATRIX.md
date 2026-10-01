@@ -1,5 +1,16 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Inventory transform review correction — 2026-10-01 22:49 UTC
+
+Independent exact review of offline inventory candidate `9600510` finished
+`CHANGES_REQUIRED` with five P2 findings in completeness, topology, bounded
+arithmetic, symlink handling and JSON failure classification. The candidate
+remains clean and unmerged; its synthetic probes and API observations confer
+no transaction, inventory, G3-L or financial acceptance. A fresh repaired
+commit and exact independent review are required. A1 remains queued; A5/A6
+source/current-run pins remain missing. No C/J/E/A boundary changed:
+**G3-L NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## A5/A6 source and current-run audit — 2026-10-01 22:45 UTC
 
 The [offline audit](V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.md) verifies
