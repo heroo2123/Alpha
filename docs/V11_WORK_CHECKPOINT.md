@@ -1,5 +1,39 @@
 # Alpha V11 work checkpoint
 
+## A4 reviewed CHANGES_REQUIRED; A4 repair and A2/A3 review launched — 2026-10-02 00:05 UTC
+
+Independent Claude Opus exact-commit review of the Codex A4 candidate
+`ef53d61` (tree `d632c94`) is recorded at
+`docs/V11_R09_GATE3_A4_REVIEW_ef53d61.md` with its probes and terminal:
+**CHANGES_REQUIRED, A4 OPEN**. The 18 author tests reproduce. Six
+independent probes each reproduce a defect: restart under a different build
+is accepted unless the caller opts in (P1); git replace refs and the
+inherited `GIT_*` environment can spoof source-blob identity (P1); a lock
+with duplicate keys or non-canonical JSON can parse differently from the
+reviewed bytes (P2); pure-Python bootstrap modules are unbound, and the
+candidate document overstates this (P2); seccomp misses metadata-mutation
+syscalls (P3); `from X import Y` can fall back to unverified host modules
+(P3). `ef53d61` is not integrated.
+
+A8 finished cleanly at `7d5941c` (tree `1fe9271`; 194 targeted offline
+passes, author-reported). It is unmerged and its review is still pending.
+Both specialist slots were free, so I launched two lanes:
+- **A4 repair** (gpt-6-sol/high, PGID 1962223) in the A4 worktree from
+  `ef53d61`. Terminal: `/tmp/alpha-v11-gate3-a4-repair-ef53d61.terminal.json`.
+- **A2/A3 independent review** (gpt-6-astra/high, PGID 1962224) of the
+  sol-authored `89f85ac` in a detached read-only checkout at
+  `/tmp/alpha-v11-gate3-a2a3-review-89f85ac`. Outputs go to
+  `/tmp/alpha-v11-gate3-a2a3-review-89f85ac{.md,_terminal.json}`; the lane
+  terminal is `/tmp/alpha-v11-gate3-a2a3-review-89f85ac-lane.terminal.json`.
+
+Still queued: the A7 `e08858b` review, the A8 `7d5941c` review, and the five
+P2 repairs for inventory `9600510`. I did not push: local main stays ahead of
+remote, as in earlier checkpoints. The private master hash is unchanged.
+There are no PAPER/scanner units, and protected V11 authority roots are
+absent. Free disk is about 1.6 GiB and available memory about 710 MiB. No
+provider request, G3-L PASS, forward SHADOW sample or C/J/E/A crossing
+occurred: **G3-L NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## A4 terminal recovered; independent review next — 2026-10-01 23:45 UTC
 
 Recovered the completed A4 outer terminal at
