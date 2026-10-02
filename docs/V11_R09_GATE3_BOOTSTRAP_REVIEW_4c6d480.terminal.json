@@ -1,0 +1,18 @@
+{
+  "clean": true,
+  "completed_utc": "2026-10-02T06:01:42.432724+00:00",
+  "error": null,
+  "exit_code": 0,
+  "expected_head": "4c6d48059c38e6e0c34bd5a73acfd8b5a4a20be0",
+  "expected_tree": "9f0cfc90850949d750efc64ce3874f89a5ef0b76",
+  "g3l": "NO-GO",
+  "head": "4c6d48059c38e6e0c34bd5a73acfd8b5a4a20be0",
+  "launchable": false,
+  "pid": 2108972,
+  "report_sha256": "ad3449e5df97b6c2a4db89a63e9731345cfff59f6cb5fcf716e4fcec6ac7b964",
+  "review_scope": "ADJUDICATION_ONLY_NOT_G3L",
+  "schema": "ALPHA_V11_EXACT_BOOTSTRAP_REVIEW_TERMINAL_V1",
+  "terminal_marker": "G3L_BOOTSTRAP_REVIEW_PROCESS_FINISHED",
+  "tree": "9f0cfc90850949d750efc64ce3874f89a5ef0b76",
+  "verdict_sha256": "aff7529539620aee8948526e1894f3158621a04cf6524c6953cbfaf49c1a9e49"
+}

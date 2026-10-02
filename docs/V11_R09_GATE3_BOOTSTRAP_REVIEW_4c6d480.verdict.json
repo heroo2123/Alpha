@@ -1,0 +1,13 @@
+{
+  "candidate_commit": "4c6d48059c38e6e0c34bd5a73acfd8b5a4a20be0",
+  "candidate_tree": "9f0cfc90850949d750efc64ce3874f89a5ef0b76",
+  "findings": [],
+  "g3l": "NO-GO",
+  "launchable": false,
+  "owner_exception_granted": false,
+  "protocol_amended": false,
+  "report_sha256": "ad3449e5df97b6c2a4db89a63e9731345cfff59f6cb5fcf716e4fcec6ac7b964",
+  "schema": "ALPHA_V11_G3L_BOOTSTRAP_REVIEW_V1",
+  "scope": "ADJUDICATION_ONLY_NOT_G3L",
+  "verdict": "PASS_IN_SCOPE"
+}
