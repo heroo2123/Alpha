@@ -1,3 +1,7 @@
+## B1 draft remains unaccepted — 2026-10-02 04:33 UTC
+
+The sole B1 author has three uncommitted draft files but no complete terminal, commit or independent exact-commit review. Tool approval errors are under active author recovery. No A4 qualification or row acceptance follows from the draft. SHADOW and Brain readiness have no new forward evidence; disk remains below G3-L's 2 GiB floor. **A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## B1 retry active — 2026-10-02 04:20 UTC
 
 The sole scheduled B1 authoring retry is now running in clean pinned `1f993fb`; no complete candidate or terminal exists. Exact-commit independent review remains required. A2/A3 and A8 remain UNQUALIFIED, A4 OPEN, G3-L NO-GO; no C/J/E/A boundary crossed: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.

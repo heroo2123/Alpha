@@ -1,3 +1,7 @@
+## B1 draft recovered during active authoring — 2026-10-02 04:33 UTC
+
+The sole B1 Sonnet/high retry remains live and has created its checker, tests and scope document as uncommitted draft files. Verification commands encountered tool approval errors; no author terminal, commit, review or integration exists. Main and the SHADOW/Brain-readiness worktrees are clean, and there is no new forward artifact. The private master hash and inactive/masked execution safety state were rechecked; free disk remains below G3-L's 2 GiB floor. No C/J/E/A crossing: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## B1 retry active — 2026-10-02 04:20 UTC
 
 The existing B1 Sonnet/high retry entered active authoring after its provider reset. No candidate, terminal, independent review, new forward artifact or acceptance exists yet. Free disk remains below the G3-L floor. **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
