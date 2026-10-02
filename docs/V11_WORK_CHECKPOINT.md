@@ -1,3 +1,22 @@
+## Coordinator recovery — 2026-10-02 06:43 UTC
+
+Recovered clean main `36f3c16` after the 06:35 documentation-only checkpoint.
+No separate Alpha author, reviewer or test process is live. SHADOW and Brain
+worktrees remain clean; ECMWF's untracked `backfill_data/` is preserved, and no
+new forward artifact appeared in the checked paths. The protected FINAL-REVIEWED
+master still hashes to `a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+
+Rechecked the exact-reviewed bootstrap adjudication: section 3 still requires
+an explicit owner choice before any evidence-only preflight exception, and no
+qualifying offline current-run input is present. The accepted 5,460-pass/13-skip
+release remains historical; no new suite ran. PAPER units are inactive, scanner
+disabled, execution masked, and protected V11 authority roots absent. Disk free
+is about 827 MiB, below the 2 GiB G3-L floor; available memory is about 1.0 GiB.
+The previously deletion-rejected A8 fixture remains intact. No worker, provider
+request, service, authority, financial, V10, AxiomTrade or publication action
+was taken. No C/J/E/A boundary crossed: **A2/A3 UNQUALIFIED; A4 OPEN; A8
+UNQUALIFIED; G3-L NO-GO; 91/200, formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator recovery — 2026-10-02 06:35 UTC
 
 Recovered clean main `b2deaaf`; since the 06:31 checkpoint, only that prior
