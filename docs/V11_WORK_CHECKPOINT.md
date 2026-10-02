@@ -17765,3 +17765,9 @@ The accepted 5,460-pass/13-skip release stays historical; no new suite ran.
 No service, authority, financial, V10, AxiomTrade or publication action and no
 C/J/E/A crossing: **A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO;
 91/200, formal 1/50; NOT_READY_TO_FUND**.
+
+## Coordinator recovery — 2026-10-02 08:04 UTC
+
+Recovered clean main `b2393b0`; its only change after the 07:56 checkpoint is that documentation commit. No separate Alpha author, reviewer or pytest process is live. SHADOW and Brain-readiness worktrees are clean; ECMWF's untracked `backfill_data/` is preserved. No checked forward SHADOW or Brain evidence newer than the prior checkpoint appeared. The protected FINAL-REVIEWED master still hashes to `a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+
+Rechecked the accepted G3-L bootstrap section-3 decision and requested the owner's choice; no answer, exception or provider request is presumed. The reviewed reconciliation remains scope-limited and G3-L NO-GO. PAPER demo, scanner and controller are inactive; scanner and demo are disabled, weather execution is masked, and protected V11 authority roots are absent. Disk has about 801 MiB free, below the 2 GiB G3-L floor; about 1.0 GiB memory is available. Read-only capacity triage found the retained 1.5 GiB A8 fixture still dominates `/tmp`; its previously rejected deletion was not retried. No new release test, service, authority, financial, V10, AxiomTrade, provider or publication action was taken. No C/J/E/A boundary crossed: **A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO; 91/200, formal 1/50; NOT_READY_TO_FUND**.

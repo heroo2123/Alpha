@@ -6617,3 +6617,7 @@ G3-L floor. Presented the accepted bootstrap section-3 owner choice; no
 answer, exception, provider request or new release test is presumed. No
 C/J/E/A crossing: **91/200, formal 1/50; G3-L NO-GO;
 NOT_READY_TO_FUND**.
+
+## Coordinator recovery — 2026-10-02 08:04 UTC
+
+Recovered clean `b2393b0`, no independent Alpha worker or newer checked forward evidence. The protected master hash matches. PAPER units remain inactive, weather execution masked and protected authority roots absent; disk remains below G3-L's 2 GiB floor. Re-presented the reviewed bootstrap section-3 owner choice, with no answer or preflight authority presumed. No release rerun, service action or C/J/E/A crossing: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
