@@ -17,7 +17,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Mapping, Optional, Sequence
 
 SCHEMA = "R09_GATE3_EVIDENCE_PREFLIGHT_PACKAGE_CHECKER_V1"
@@ -63,6 +63,19 @@ FROZEN_REQUEST = {
     "query": None,
     "range": None,
     "request_body": None,
+    # Access/mapping are proposal-stage only; the protocol requires they be
+    # independently established by a separate reviewed prerequisite, never by
+    # this request record self-asserting a qualified/granted value.
+    "access_status": "UNQUALIFIED",
+    "mapping_status": "PROPOSED_UNQUALIFIED",
+}
+
+FROZEN_REQUEST_HEADERS = {
+    "Accept": "text/plain",
+    "Accept-Encoding": "identity",
+    "Connection": "close",
+    "Host": "noaa-gefs-pds.s3.amazonaws.com",
+    "User-Agent": "AlphaV11-EvidencePreflight/1",
 }
 
 FROZEN_WINDOW = {
@@ -80,6 +93,10 @@ FROZEN_RESPONSE_CONTRACT = {
     "grib_decode": False,
     "http_status": 200,
     "transfer_encoding": None,
+    # The parser implementation is absent until a separately reviewed
+    # implementation exists (protocol section 3); this status cannot change
+    # within this package's scope.
+    "parser_status": "ABSENT_REQUIRES_INDEPENDENT_IMPLEMENTATION_REVIEW",
 }
 
 FROZEN_LIMITS = {
@@ -317,9 +334,15 @@ class CheckResult:
     refusal_reasons: tuple
 
     def __post_init__(self) -> None:
-        assert self.outcome in ALLOWED_OUTCOMES
-        assert self.eligibility == ELIGIBILITY_LABEL
-        assert (self.outcome == OUTCOME_REFUSED) == bool(self.refusal_reasons)
+        # Unconditional (not `assert`, which Python -O strips): a third
+        # outcome value or an inconsistent reasons/outcome pairing must never
+        # be constructible, optimized interpreter or not.
+        if self.outcome not in ALLOWED_OUTCOMES:
+            raise ValueError(f"not an allowed outcome: {self.outcome!r}")
+        if self.eligibility != ELIGIBILITY_LABEL:
+            raise ValueError(f"not the fixed eligibility label: {self.eligibility!r}")
+        if (self.outcome == OUTCOME_REFUSED) != bool(self.refusal_reasons):
+            raise ValueError("refusal_reasons must be non-empty iff outcome is refused")
 
     def to_dict(self) -> dict:
         return {
@@ -344,13 +367,25 @@ def _check_closed(obj: Any, keys: frozenset, label: str, reasons: list) -> None:
 
 def _check_frozen_scalars(obj: Mapping, frozen: Mapping, label: str, reasons: list) -> None:
     for key, expected in frozen.items():
-        if obj.get(key) != expected:
+        actual = obj.get(key)
+        # Exact-type equality rejects bool-as-integer (True/1, False/0) and
+        # any other cross-type coincidental equality (protocol section 2).
+        if type(actual) is not type(expected) or actual != expected:
             reasons.append(f"CHANGED_FIELD:{label}.{key}")
+
+
+def _is_closed_string_set(v: Any, max_len: int = MAX_ARRAY) -> bool:
+    return (
+        isinstance(v, list)
+        and len(v) <= max_len
+        and all(isinstance(x, str) for x in v)
+        and len(v) == len(set(v))
+    )
 
 
 def _check_disallowed(obj: Mapping, reasons: list) -> None:
     disallowed = obj.get("disallowed")
-    if not isinstance(disallowed, list) or len(disallowed) > MAX_ARRAY:
+    if not _is_closed_string_set(disallowed):
         reasons.append("MALFORMED_DISALLOWED_LIST")
         return
     if set(disallowed) != FROZEN_DISALLOWED:
@@ -442,12 +477,17 @@ def _check_clock(obj: Mapping, clock: ClockObservation, reasons: list) -> bool:
     elif lower is None or upper is None:
         reasons.append("UNPARSEABLE_WINDOW")
         ok = False
-    elif measured < lower:
-        reasons.append("CLOCK_BEFORE_WINDOW_START")
-        ok = False
-    elif measured >= upper:
-        reasons.append("EXPIRED_WINDOW")
-        ok = False
+    else:
+        # Fold the clock's own stated uncertainty into the bound check: the
+        # true time could be anywhere in [measured-u, measured+u], so the
+        # window must hold for the whole interval, not just the point value.
+        margin = timedelta(seconds=max(clock.uncertainty_seconds, 0.0))
+        if measured - margin < lower:
+            reasons.append("CLOCK_BEFORE_WINDOW_START")
+            ok = False
+        if measured + margin >= upper:
+            reasons.append("EXPIRED_WINDOW")
+            ok = False
     return ok
 
 
@@ -465,6 +505,17 @@ def _check_execution_review(obj: Mapping, reasons: list) -> bool:
     return True
 
 
+def _is_restriction_record(v: Any) -> bool:
+    if not isinstance(v, dict) or "response" not in v:
+        return False
+    response = v.get("response")
+    return (
+        isinstance(response, dict)
+        and _is_int(response.get("status"))
+        and _parse_utc(response.get("received_at")) is not None
+    )
+
+
 def _check_restriction_domains(restrictions: Mapping, reasons: list) -> bool:
     domains = restrictions.get("known_control_domains")
     if not isinstance(domains, dict) or set(domains.keys()) != {"ECMWF", "GEFS"}:
@@ -472,11 +523,16 @@ def _check_restriction_domains(restrictions: Mapping, reasons: list) -> bool:
         return False
     ecmwf = domains.get("ECMWF")
     _check_closed(ecmwf, ECMWF_DOMAIN_KEYS, "known_control_domains.ECMWF", reasons)
-    if isinstance(ecmwf, dict) and ecmwf.get("status") != "HELD":
-        reasons.append("ECMWF_HOLD_NOT_RECOGNIZED")
+    ok = True
+    if isinstance(ecmwf, dict):
+        # A resumption away from HELD is only ever acceptable bound to its
+        # own independently reviewed resumption record (protocol section 4);
+        # HELD itself needs no additional evidence.
+        if ecmwf.get("status") != "HELD" and not _is_ref(ecmwf.get("resumption_review"), REF_KEYS_NO_REPO):
+            reasons.append("ECMWF_RESUMPTION_UNREVIEWED")
+            ok = False
     gefs = domains.get("GEFS")
     _check_closed(gefs, GEFS_DOMAIN_KEYS, "known_control_domains.GEFS", reasons)
-    ok = True
     if isinstance(gefs, dict):
         if gefs.get("scope_independence_review") is None:
             reasons.append("UNRESOLVED_GEFS_SCOPE")
@@ -495,6 +551,16 @@ def _check_restriction_domains(restrictions: Mapping, reasons: list) -> bool:
         ok = False
     if restrictions.get("execution_authority") is not False:
         reasons.append("FORBIDDEN_RESTRICTIONS_EXECUTION_AUTHORITY_PROMOTION")
+        ok = False
+    records = restrictions.get("records")
+    if not isinstance(records, list) or not (1 <= len(records) <= MAX_ARRAY) or \
+            not all(_is_restriction_record(r) for r in records):
+        reasons.append("MISSING_OR_MALFORMED_RESTRICTION_RECORDS")
+        ok = False
+    raw_refs = restrictions.get("raw_source_refs")
+    if not isinstance(raw_refs, list) or not (1 <= len(raw_refs) <= MAX_ARRAY) or \
+            not all(_is_ref(r, REF_KEYS_NO_REPO) for r in raw_refs):
+        reasons.append("MISSING_OR_MALFORMED_RAW_SOURCE_REFS")
         ok = False
     return ok
 
@@ -515,6 +581,8 @@ def _check_request(obj: Mapping, reasons: list) -> None:
         reasons.append("ATTEMPTED_FIELD_OR_NONINDEX_REQUEST")
     if req.get("method") == "HEAD":
         reasons.append("ATTEMPTED_HEAD_REQUEST")
+    if req.get("request_headers") != FROZEN_REQUEST_HEADERS:
+        reasons.append("CHANGED_REQUEST_HEADERS")
     origin = req.get("origin")
     if origin != FROZEN_REQUEST["origin"]:
         if isinstance(origin, str) and "ecmwf" in origin.lower():
@@ -530,30 +598,70 @@ def _check_request(obj: Mapping, reasons: list) -> None:
             reasons.append(f"CHANGED_REQUEST_FIELD:{key}")
 
 
+def _safe_parse(raw: bytes, label: str, reasons: list) -> Any:
+    try:
+        return strict_json_loads(raw)
+    except PreflightPackageCheckerError:
+        reasons.append(f"INVALID_JSON:{label}")
+        return None
+
+
+def _check_review_terminal(review_present: bool, review_terminal: Optional[Mapping], reasons: list) -> None:
+    if not review_present:
+        return
+    valid = (
+        isinstance(review_terminal, dict)
+        and review_terminal.get("exit_code") == 0
+        and review_terminal.get("error") is None
+        and review_terminal.get("initial_clean") is True
+        and review_terminal.get("verdict") == "EXECUTABLE_PREFLIGHT_PASS"
+    )
+    if not valid:
+        reasons.append("MISSING_OR_INVALID_REVIEW_TERMINAL")
+
+
+def _check_byte_ref(ref: Any, raw: bytes, reason: str, reasons: list) -> None:
+    if not isinstance(ref, dict):
+        reasons.append(reason)
+        return
+    if ref.get("sha256") != _sha256_hex(raw) or ref.get("byte_length") != len(raw):
+        reasons.append(reason)
+
+
 def check_evidence_preflight_package(
     *,
-    package: Mapping,
-    restrictions: Mapping,
-    binding: Mapping,
     package_raw: bytes,
     restrictions_raw: bytes,
+    binding_raw: bytes,
     protocol_raw: bytes,
     clock: ClockObservation,
     resources: ResourceObservation,
-    ledger: Optional[StateLedger] = None,
+    ledger: StateLedger,
+    review_terminal: Optional[Mapping] = None,
     restart_requested: bool = False,
 ) -> CheckResult:
     """Pure offline evaluation of one preflight package/restriction/binding
-    triple against the frozen P1 proposal. Never performs a request."""
+    triple against the frozen P1 proposal. Never performs a request.
+
+    Every mapping is parsed here, directly from its own raw bytes, so a
+    caller can never evaluate a mapping that does not actually correspond to
+    the hashed/hash-checked bytes. ``ledger`` must be the caller's actual
+    durable replay/reset history (an empty :class:`StateLedger` for a
+    genuinely fresh campaign); it has no implicit default so a real caller
+    cannot silently omit it and have every package look unreplayed.
+    """
 
     reasons: list = []
-    ledger = ledger or StateLedger()
+
+    package = _safe_parse(package_raw, "package", reasons)
+    restrictions = _safe_parse(restrictions_raw, "restrictions", reasons)
+    binding = _safe_parse(binding_raw, "binding", reasons)
+    if not isinstance(package, dict) or not isinstance(restrictions, dict) or not isinstance(binding, dict):
+        return CheckResult(SCHEMA, OUTCOME_REFUSED, ELIGIBILITY_LABEL, tuple(sorted(set(reasons))))
 
     _check_closed(package, PACKAGE_KEYS, "package", reasons)
     _check_closed(restrictions, RESTRICTIONS_KEYS, "restrictions", reasons)
     _check_closed(binding, BINDING_KEYS, "binding", reasons)
-    if not isinstance(package, dict) or not isinstance(restrictions, dict) or not isinstance(binding, dict):
-        return CheckResult(SCHEMA, OUTCOME_REFUSED, ELIGIBILITY_LABEL, tuple(sorted(set(reasons))))
 
     if restrictions.get("schema") != RESTRICTIONS_SCHEMA_NAME:
         reasons.append("UNSUPPORTED_RESTRICTIONS_SCHEMA_VERSION")
@@ -562,7 +670,8 @@ def check_evidence_preflight_package(
 
     _check_frozen_scalars(package, FROZEN_SCALARS, "package", reasons)
     _check_frozen_scalars(binding, FROZEN_BINDING_SCALARS, "binding", reasons)
-    if set(binding.get("allowed_review_verdicts") or []) != FROZEN_BINDING_VERDICTS:
+    verdicts = binding.get("allowed_review_verdicts")
+    if not _is_closed_string_set(verdicts) or set(verdicts) != FROZEN_BINDING_VERDICTS:
         reasons.append("CHANGED_FIELD:binding.allowed_review_verdicts")
 
     window = package.get("window")
@@ -593,24 +702,28 @@ def check_evidence_preflight_package(
     _check_prerequisites(package, reasons)
     _check_storage(package, resources, reasons)
     _check_clock(package, clock, reasons)
-    _check_execution_review(package, reasons)
+    review_present = _check_execution_review(package, reasons)
+    _check_review_terminal(review_present, review_terminal, reasons)
     _check_restriction_domains(restrictions, reasons)
 
-    # Changed/dirty private bytes.
+    # Request-level restriction_status must actually reflect the restriction
+    # inventory's own resolved GEFS status, not an independently-asserted
+    # value a package could drift away from it.
+    reqs_for_status = package.get("requests")
+    if isinstance(reqs_for_status, list) and len(reqs_for_status) == 1 and isinstance(reqs_for_status[0], dict):
+        gefs_domain = (restrictions.get("known_control_domains") or {}).get("GEFS") \
+            if isinstance(restrictions.get("known_control_domains"), dict) else None
+        gefs_status = gefs_domain.get("status") if isinstance(gefs_domain, dict) else None
+        if reqs_for_status[0].get("restriction_status") != gefs_status:
+            reasons.append("INCONSISTENT_REQUEST_RESTRICTION_STATUS")
+
+    # Changed/dirty private bytes; every declared byte reference must match
+    # both the hash and the declared length of the bytes actually supplied.
     restrictions_ref = package.get("restrictions_ref")
-    if _is_ref(restrictions_ref, REF_KEYS_NO_REPO):
-        if _sha256_hex(restrictions_raw) != restrictions_ref.get("sha256"):
-            reasons.append("CHANGED_PRIVATE_RESTRICTIONS_BYTES")
-    private_package_ref = binding.get("private_package")
-    if isinstance(private_package_ref, dict) and _sha256_hex(package_raw) != private_package_ref.get("sha256"):
-        reasons.append("CHANGED_PRIVATE_PACKAGE_BYTES")
-    private_restrictions_ref = binding.get("private_restrictions")
-    if isinstance(private_restrictions_ref, dict) and _sha256_hex(restrictions_raw) != \
-            private_restrictions_ref.get("sha256"):
-        reasons.append("CHANGED_PRIVATE_RESTRICTIONS_BYTES")
-    protocol_ref = binding.get("protocol")
-    if isinstance(protocol_ref, dict) and _sha256_hex(protocol_raw) != protocol_ref.get("sha256"):
-        reasons.append("CHANGED_PROTOCOL_BYTES")
+    _check_byte_ref(restrictions_ref, restrictions_raw, "CHANGED_PRIVATE_RESTRICTIONS_BYTES", reasons)
+    _check_byte_ref(binding.get("private_package"), package_raw, "CHANGED_PRIVATE_PACKAGE_BYTES", reasons)
+    _check_byte_ref(binding.get("private_restrictions"), restrictions_raw, "CHANGED_PRIVATE_RESTRICTIONS_BYTES", reasons)
+    _check_byte_ref(binding.get("protocol"), protocol_raw, "CHANGED_PROTOCOL_BYTES", reasons)
 
     # Replay / reset (state-machine) checks.
     campaign_id = package.get("campaign_id")

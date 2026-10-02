@@ -36,6 +36,13 @@ GOOD_RESOURCES = ResourceObservation(
     mem_available_bytes_after_reservation=600_000_000,
     physically_reserved_bytes=67_108_864,
 )
+GOOD_REVIEW_TERMINAL = {
+    "schema": "SYNTHETIC_REVIEW_TERMINAL_V1",
+    "exit_code": 0,
+    "error": None,
+    "initial_clean": True,
+    "verdict": "EXECUTABLE_PREFLIGHT_PASS",
+}
 
 
 def _sha(raw: bytes) -> str:
@@ -128,7 +135,9 @@ def _synthetic_package_raw() -> bytes:
                 "User-Agent": "AlphaV11-EvidencePreflight/1",
             },
             "request_id": "p1-gefs-2026100200-c00-f024-index",
-            "restriction_status": "BLOCKED_UNKNOWN_LINEAGE_AND_SCOPE",
+            # Must mirror the restriction inventory's own resolved GEFS
+            # status (checked cross-document), not an independent claim.
+            "restriction_status": "SCOPE_INDEPENDENCE_CONFIRMED",
         }],
         "response_contract": {
             "automatic_chained_request": False, "content_encoding": "identity",
@@ -179,8 +188,12 @@ def _synthetic_restrictions_raw() -> bytes:
                 "status": "SCOPE_INDEPENDENCE_CONFIRMED",
             },
         },
-        "raw_source_refs": [],
-        "records": [],
+        "raw_source_refs": [_synthetic_ref("raw-source-0")],
+        "records": [{
+            "capture": "synthetic-fixture",
+            "expiry_adjudication": None,
+            "response": {"status": 503, "received_at": "2026-09-30T07:48:13.707996+00:00"},
+        }],
         "schema": RESTRICTIONS_SCHEMA_NAME,
         "shared_history_head": _sha(b"synthetic-history-head"),
         "status": "RECONCILED_SYNTHETIC_FIXTURE",
@@ -240,12 +253,12 @@ def _synthetic_fixture():
 def _run(package_raw, restrictions_raw, protocol_raw, binding_raw, **kwargs):
     kwargs.setdefault("clock", GOOD_CLOCK)
     kwargs.setdefault("resources", GOOD_RESOURCES)
+    kwargs.setdefault("ledger", StateLedger(()))
+    kwargs.setdefault("review_terminal", GOOD_REVIEW_TERMINAL)
     return check_evidence_preflight_package(
-        package=strict_json_loads(package_raw),
-        restrictions=strict_json_loads(restrictions_raw),
-        binding=strict_json_loads(binding_raw),
         package_raw=package_raw,
         restrictions_raw=restrictions_raw,
+        binding_raw=binding_raw,
         protocol_raw=protocol_raw,
         **kwargs,
     )
@@ -390,14 +403,78 @@ def test_refuses_unresolved_restriction_history(mutate, expected_reason):
     assert expected_reason in result.refusal_reasons
 
 
-def test_refuses_ecmwf_hold_misrecorded_as_not_held():
+def test_refuses_ecmwf_resumption_claim_without_reviewed_resumption_record():
     package_raw, restrictions_raw, protocol_raw, binding_raw = _synthetic_fixture()
     restrictions = strict_json_loads(restrictions_raw)
     restrictions["known_control_domains"]["ECMWF"]["status"] = "RESUMED"
     mutated_raw = json.dumps(restrictions).encode()
     result = _run(package_raw, mutated_raw, protocol_raw, binding_raw)
     assert result.outcome == OUTCOME_REFUSED
-    assert "ECMWF_HOLD_NOT_RECOGNIZED" in result.refusal_reasons
+    assert "ECMWF_RESUMPTION_UNREVIEWED" in result.refusal_reasons
+
+
+def test_accepts_ecmwf_resumption_only_with_reviewed_resumption_record():
+    package_raw, restrictions_raw, protocol_raw, binding_raw = _synthetic_fixture()
+    restrictions = strict_json_loads(restrictions_raw)
+    restrictions["known_control_domains"]["ECMWF"]["status"] = "RESUMED"
+    restrictions["known_control_domains"]["ECMWF"]["resumption_review"] = _synthetic_ref("ecmwf-resumption")
+    mutated_raw = json.dumps(restrictions).encode()
+    result = _run(package_raw, mutated_raw, protocol_raw, binding_raw)
+    assert "ECMWF_RESUMPTION_UNREVIEWED" not in result.refusal_reasons
+
+
+def test_refuses_empty_restriction_records():
+    package_raw, restrictions_raw, protocol_raw, binding_raw = _synthetic_fixture()
+    restrictions = strict_json_loads(restrictions_raw)
+    restrictions["records"] = []
+    mutated_raw = json.dumps(restrictions).encode()
+    result = _run(package_raw, mutated_raw, protocol_raw, binding_raw)
+    assert result.outcome == OUTCOME_REFUSED
+    assert "MISSING_OR_MALFORMED_RESTRICTION_RECORDS" in result.refusal_reasons
+
+
+def test_refuses_empty_raw_source_refs():
+    package_raw, restrictions_raw, protocol_raw, binding_raw = _synthetic_fixture()
+    restrictions = strict_json_loads(restrictions_raw)
+    restrictions["raw_source_refs"] = []
+    mutated_raw = json.dumps(restrictions).encode()
+    result = _run(package_raw, mutated_raw, protocol_raw, binding_raw)
+    assert result.outcome == OUTCOME_REFUSED
+    assert "MISSING_OR_MALFORMED_RAW_SOURCE_REFS" in result.refusal_reasons
+
+
+def test_refuses_inconsistent_request_restriction_status():
+    package_raw, restrictions_raw, protocol_raw, binding_raw = _synthetic_fixture()
+    pkg = strict_json_loads(package_raw)
+    pkg["requests"][0]["restriction_status"] = "BLOCKED_UNKNOWN_LINEAGE_AND_SCOPE"
+    mutated_raw = json.dumps(pkg).encode()
+    result = _run(mutated_raw, restrictions_raw, protocol_raw, binding_raw)
+    assert result.outcome == OUTCOME_REFUSED
+    assert "INCONSISTENT_REQUEST_RESTRICTION_STATUS" in result.refusal_reasons
+
+
+def test_refuses_changed_request_headers():
+    package_raw, restrictions_raw, protocol_raw, binding_raw = _synthetic_fixture()
+    pkg = strict_json_loads(package_raw)
+    pkg["requests"][0]["request_headers"]["Range"] = "bytes=0-1"
+    mutated_raw = json.dumps(pkg).encode()
+    result = _run(mutated_raw, restrictions_raw, protocol_raw, binding_raw)
+    assert result.outcome == OUTCOME_REFUSED
+    assert "CHANGED_REQUEST_HEADERS" in result.refusal_reasons
+
+
+@pytest.mark.parametrize("key,value", [
+    ("access_status", "QUALIFIED"),
+    ("mapping_status", "QUALIFIED"),
+])
+def test_refuses_self_asserted_qualified_access_or_mapping(key, value):
+    package_raw, restrictions_raw, protocol_raw, binding_raw = _synthetic_fixture()
+    pkg = strict_json_loads(package_raw)
+    pkg["requests"][0][key] = value
+    mutated_raw = json.dumps(pkg).encode()
+    result = _run(mutated_raw, restrictions_raw, protocol_raw, binding_raw)
+    assert result.outcome == OUTCOME_REFUSED
+    assert f"CHANGED_REQUEST_FIELD:{key}" in result.refusal_reasons
 
 
 # -- Negative path: changed private bytes --------------------------------------
@@ -446,6 +523,38 @@ def test_refuses_mislabeled_execution_review_binding():
     result = _run(mutated_raw, restrictions_raw, protocol_raw, binding_raw)
     assert result.outcome == OUTCOME_REFUSED
     assert "INVALID_EXECUTION_REVIEW_BINDING" in result.refusal_reasons
+
+
+def test_refuses_missing_review_terminal_even_when_review_present_is_true():
+    package_raw, restrictions_raw, protocol_raw, binding_raw = _synthetic_fixture()
+    result = _run(package_raw, restrictions_raw, protocol_raw, binding_raw, review_terminal=None)
+    assert result.outcome == OUTCOME_REFUSED
+    assert "MISSING_OR_INVALID_REVIEW_TERMINAL" in result.refusal_reasons
+
+
+@pytest.mark.parametrize("broken_terminal", [
+    dict(GOOD_REVIEW_TERMINAL, exit_code=1),
+    dict(GOOD_REVIEW_TERMINAL, error="synthetic failure"),
+    dict(GOOD_REVIEW_TERMINAL, initial_clean=False),
+    dict(GOOD_REVIEW_TERMINAL, verdict="PASS_IN_SCOPE_DESIGN_BLOCKED_PACKAGE"),
+    {},
+])
+def test_refuses_invalid_review_terminal(broken_terminal):
+    package_raw, restrictions_raw, protocol_raw, binding_raw = _synthetic_fixture()
+    result = _run(package_raw, restrictions_raw, protocol_raw, binding_raw, review_terminal=broken_terminal)
+    assert result.outcome == OUTCOME_REFUSED
+    assert "MISSING_OR_INVALID_REVIEW_TERMINAL" in result.refusal_reasons
+
+
+def test_review_terminal_is_irrelevant_when_review_not_present():
+    package_raw, restrictions_raw, protocol_raw, binding_raw = _synthetic_fixture()
+    pkg = strict_json_loads(package_raw)
+    pkg["independent_execution_review"]["present"] = False
+    mutated_raw = json.dumps(pkg).encode()
+    result = _run(mutated_raw, restrictions_raw, protocol_raw, binding_raw, review_terminal=None)
+    assert result.outcome == OUTCOME_REFUSED
+    assert "MISSING_EXECUTION_REVIEW" in result.refusal_reasons
+    assert "MISSING_OR_INVALID_REVIEW_TERMINAL" not in result.refusal_reasons
 
 
 # -- Negative path: expired clock -----------------------------------------------
@@ -636,13 +745,65 @@ def test_refuses_binding_g3l_promotion():
 
 def test_check_result_schema_rejects_third_outcome_value():
     from tools.v11_gate3_evidence_preflight_checker import SCHEMA, CheckResult
-    with pytest.raises(AssertionError):
+    # A ValueError (not a bare `assert`) so this invariant survives Python -O.
+    with pytest.raises(ValueError):
         CheckResult(SCHEMA, "SOMETHING_ELSE", "DISCOVERY_ONLY_NOT_G3E", ())
 
 
 def test_check_result_schema_requires_reasons_iff_refused():
     from tools.v11_gate3_evidence_preflight_checker import SCHEMA, CheckResult
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError):
         CheckResult(SCHEMA, OUTCOME_SATISFIED, "DISCOVERY_ONLY_NOT_G3E", ("SOME_REASON",))
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError):
         CheckResult(SCHEMA, OUTCOME_REFUSED, "DISCOVERY_ONLY_NOT_G3E", ())
+
+
+# -- Regression: bool-as-integer and duplicate-safety (protocol section 2) -------
+
+@pytest.mark.parametrize("mutate", [
+    lambda pkg: pkg.__setitem__("qualification_credit", False),  # False == 0
+    lambda pkg: pkg["limits"].__setitem__("stage_attempts", True),  # True == 1
+])
+def test_refuses_bool_as_integer_masquerading_as_frozen_scalar(mutate):
+    package_raw, restrictions_raw, protocol_raw, binding_raw = _synthetic_fixture()
+    pkg = strict_json_loads(package_raw)
+    mutate(pkg)
+    mutated_raw = json.dumps(pkg).encode()
+    result = _run(mutated_raw, restrictions_raw, protocol_raw, binding_raw)
+    assert result.outcome == OUTCOME_REFUSED
+
+
+def test_refuses_duplicate_entries_in_disallowed_list():
+    package_raw, restrictions_raw, protocol_raw, binding_raw = _synthetic_fixture()
+    pkg = strict_json_loads(package_raw)
+    pkg["disallowed"].append("ECMWF")  # duplicate; set() would hide this
+    mutated_raw = json.dumps(pkg).encode()
+    result = _run(mutated_raw, restrictions_raw, protocol_raw, binding_raw)
+    assert result.outcome == OUTCOME_REFUSED
+    assert "MALFORMED_DISALLOWED_LIST" in result.refusal_reasons
+
+
+def test_checker_requires_an_explicit_ledger_argument():
+    package_raw, restrictions_raw, protocol_raw, binding_raw = _synthetic_fixture()
+    with pytest.raises(TypeError):
+        check_evidence_preflight_package(
+            package_raw=package_raw, restrictions_raw=restrictions_raw,
+            binding_raw=binding_raw, protocol_raw=protocol_raw,
+            clock=GOOD_CLOCK, resources=GOOD_RESOURCES,
+            review_terminal=GOOD_REVIEW_TERMINAL,
+        )
+
+
+def test_checker_refuses_a_mapping_not_derived_from_its_own_raw_bytes():
+    """The checker parses package/restrictions/binding itself from the raw
+    bytes it is given; a caller cannot make it evaluate bytes that differ
+    from what its hash checks are run against."""
+    package_raw, restrictions_raw, protocol_raw, binding_raw = _synthetic_fixture()
+    other_package_raw, _, _, _ = _synthetic_fixture()
+    pkg = strict_json_loads(other_package_raw)
+    pkg["capture_g3l"] = "GO"  # a forbidden promotion hidden in a "different" buffer
+    swapped_raw = json.dumps(pkg).encode()
+    result = _run(swapped_raw, restrictions_raw, protocol_raw, binding_raw)
+    assert result.outcome == OUTCOME_REFUSED
+    assert "CHANGED_FIELD:package.capture_g3l" in result.refusal_reasons
+    assert "CHANGED_PRIVATE_PACKAGE_BYTES" in result.refusal_reasons
