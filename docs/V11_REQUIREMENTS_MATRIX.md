@@ -1,5 +1,9 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## A7 review rejected; repair live — 2026-10-02 00:16 UTC
+
+Independent exact `e08858b` review found one P2 nested-cgroup admission defect and two P3 measurement/documentation defects. Exact review evidence is retained in `docs/V11_R09_GATE3_A7_REVIEW_e08858b*`; a sole isolated A7 repair worker is live beside the A4 reviewer. A7 remains OPEN/UNQUALIFIED and unmerged. No G3-L, forward SHADOW or C/J/E/A boundary changed: **G3-L NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## A4 repaired candidate under exact review — 2026-10-02 00:09 UTC
 
 A4 repair `28dd604` is a clean author candidate; its 27 focused and 578 file-by-file Gate 3 passes are author evidence. An independent Astra/high exact review is live, while the separate A7 review continues. A4 and A7 remain OPEN/UNQUALIFIED; no G3-L, forward SHADOW or C/J/E/A boundary changed: **G3-L NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.

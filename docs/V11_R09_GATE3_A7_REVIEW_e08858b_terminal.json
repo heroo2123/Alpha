@@ -1,0 +1,368 @@
+{
+  "artifacts": {
+    "probe": {
+      "bytes": 8652,
+      "path": "/tmp/alpha-v11-gate3-a7-review-e08858b-probes.py",
+      "sha256": "059634f04b91021b82b892f5ec3b238b02ac0122382fdbecf9ee1d7241361ba5"
+    },
+    "report": {
+      "bytes": 13412,
+      "path": "/tmp/alpha-v11-gate3-a7-review-e08858b.md",
+      "sha256": "b5b8f1e0a557631b39526a8496b03bcedbf18693c90c03535995af90052fa16a"
+    }
+  },
+  "author_role": "Sol",
+  "boundaries": {
+    "AxiomTrade": false,
+    "V10": false,
+    "candidate_modified": false,
+    "credentials": false,
+    "financial_authority": false,
+    "full_suite_run": false,
+    "launch_permission": false,
+    "live_execution_authority": false,
+    "main_modified": false,
+    "merge": false,
+    "network_provider_requests": 0,
+    "no_provider_request_before_G3_L_PASS": true,
+    "other_worktrees_modified": false,
+    "package_installation": false,
+    "push": false,
+    "root_authority": false,
+    "services": false
+  },
+  "bounds_validation_probe": {
+    "accepted": true,
+    "bounds": {
+      "cpu_seconds": 60,
+      "disk_headroom_bytes": 0,
+      "memory_bytes": 2147483648,
+      "memory_headroom_bytes": 0,
+      "output_bytes": 65536,
+      "wall_seconds": 90
+    },
+    "purpose": "Compare documented maxima/minima with accepted configuration",
+    "worker_started": false
+  },
+  "candidate": {
+    "base": "6ce37ab6ba8b93bafacdcb1597f53916d994eea7",
+    "checkout": "/tmp/alpha-v11-gate3-a7-review-e08858b",
+    "commit": "e08858b4f0e25d3b37f53a1779b16bc6ac5cc942",
+    "detached": true,
+    "diff_check_pass": true,
+    "final_clean": true,
+    "final_ignored_status": "",
+    "initial_clean": true,
+    "tree": "550ff4e02999a0d8e0611fe0f937b08c5a6accfe"
+  },
+  "completed_utc": "2026-10-02T00:14:12.979014+00:00",
+  "execution_completed": true,
+  "execution_notes": [
+    "Sandbox failed before commands; approved local execution used.",
+    "Tests disable Python bytecode/cache; subprocess wrapper adds -B to Python children.",
+    "Initial seven headroom refusals retained; focused retest after capacity recovered passed all 23.",
+    "All test scratch removed; only authorized report, terminal and probe retained."
+  ],
+  "findings": [
+    {
+      "blocking": true,
+      "file": "tools/v11_r09_gate3_a7_decoder.py",
+      "id": "F1",
+      "lines": [
+        125,
+        137
+      ],
+      "priority": "P2",
+      "title": "Nested and ancestor cgroup memory headroom ignored"
+    },
+    {
+      "blocking": false,
+      "file": "tools/v11_r09_gate3_a7_decoder.py",
+      "id": "F2",
+      "lines": [
+        244,
+        263
+      ],
+      "priority": "P3",
+      "title": "CPU measurement excludes child startup and teardown"
+    },
+    {
+      "blocking": false,
+      "file": "tools/v11_r09_gate3_a7_decoder.py",
+      "id": "F3",
+      "lines": [
+        51,
+        58
+      ],
+      "priority": "P3",
+      "title": "Documented maxima and required headroom are configurable defaults"
+    }
+  ],
+  "focused_adjacent_tests": {
+    "exit_code": 1,
+    "modifications": "Python children receive -B; pytest cache disabled",
+    "output": "F............F.F..FFFF.................................................. [ 39%]\n........................................................................ [ 79%]\n.....................................                                    [100%]\n=================================== FAILURES ===================================\n______________ test_synthetic_simple_field_runs_in_bounded_child _______________\n\n    def test_synthetic_simple_field_runs_in_bounded_child():\n        raw, identity, pins = fixture()\n>       result = invoke(raw, identity, pins)\n\ntests/test_v11_r09_gate3_a7_decoder.py:48: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \ntests/test_v11_r09_gate3_a7_decoder.py:42: in invoke\n    return a7.run(raw, request=identity, pins=pins, latitude=33.,\ntools/v11_r09_gate3_a7_decoder.py:189: in run\n    _require(_available_memory() >= bounds.memory_bytes + bounds.memory_headroom_bytes\n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n\ncondition = False, reason = 'A7_HOST_HEADROOM'\n\n    def _require(condition, reason):\n        if not condition:\n>           raise A7Refusal(reason)\nE           tools.v11_r09_gate3_a7_decoder.A7Refusal: A7_HOST_HEADROOM\n\ntools/v11_r09_gate3_a7_decoder.py:31: A7Refusal\n_____________ test_synthetic_ccsds_full_decode_and_exact_reencode ______________\n\n    def test_synthetic_ccsds_full_decode_and_exact_reencode():\n        raw, identity, pins = fixture(synthetic_ccsds())\n>       result = invoke(raw, identity, pins)\n\ntests/test_v11_r09_gate3_a7_decoder.py:110: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \ntests/test_v11_r09_gate3_a7_decoder.py:42: in invoke\n    return a7.run(raw, request=identity, pins=pins, latitude=33.,\ntools/v11_r09_gate3_a7_decoder.py:189: in run\n    _require(_available_memory() >= bounds.memory_bytes + bounds.memory_headroom_bytes\n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n\ncondition = False, reason = 'A7_HOST_HEADROOM'\n\n    def _require(condition, reason):\n        if not condition:\n>           raise A7Refusal(reason)\nE           tools.v11_r09_gate3_a7_decoder.A7Refusal: A7_HOST_HEADROOM\n\ntools/v11_r09_gate3_a7_decoder.py:31: A7Refusal\n___________ test_self_consistent_ccsds_truncation_and_native_absence ___________\n\nmonkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x77973e9b5eb0>\n\n    def test_self_consistent_ccsds_truncation_and_native_absence(monkeypatch):\n        raw = synthetic_ccsds()\n        s = sections(raw)\n        s[7] = u(6, 4) + s[7][4:6]\n        truncated = message(list(s.values()))\n        bad, identity, pins = fixture(truncated)\n        with pytest.raises(a7.A7Refusal, match='CCSDS_INTEGRITY'):\n>           invoke(bad, identity, pins)\n\ntests/test_v11_r09_gate3_a7_decoder.py:133: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \ntests/test_v11_r09_gate3_a7_decoder.py:42: in invoke\n    return a7.run(raw, request=identity, pins=pins, latitude=33.,\ntools/v11_r09_gate3_a7_decoder.py:189: in run\n    _require(_available_memory() >= bounds.memory_bytes + bounds.memory_headroom_bytes\n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n\ncondition = False, reason = 'A7_HOST_HEADROOM'\n\n    def _require(condition, reason):\n        if not condition:\n>           raise A7Refusal(reason)\nE           tools.v11_r09_gate3_a7_decoder.A7Refusal: A7_HOST_HEADROOM\n\ntools/v11_r09_gate3_a7_decoder.py:31: A7Refusal\n\nDuring handling of the above exception, another exception occurred:\n\nmonkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x77973e9b5eb0>\n\n    def test_self_consistent_ccsds_truncation_and_native_absence(monkeypatch):\n        raw = synthetic_ccsds()\n        s = sections(raw)\n        s[7] = u(6, 4) + s[7][4:6]\n        truncated = message(list(s.values()))\n        bad, identity, pins = fixture(truncated)\n>       with pytest.raises(a7.A7Refusal, match='CCSDS_INTEGRITY'):\nE       AssertionError: Regex pattern did not match.\nE        Regex: 'CCSDS_INTEGRITY'\nE        Input: 'A7_HOST_HEADROOM'\n\ntests/test_v11_r09_gate3_a7_decoder.py:132: AssertionError\n______________________ test_worker_start_failure_refuses _______________________\n\nmonkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x77973e9b7650>\n\n    def test_worker_start_failure_refuses(monkeypatch):\n        raw, identity, pins = fixture()\n        def unavailable(*args, **kwargs):\n            raise OSError('injected process failure')\n        monkeypatch.setattr(a7.subprocess, 'Popen', unavailable)\n        with pytest.raises(a7.A7Refusal, match='A7_PROCESS_START_FAILED'):\n>           invoke(raw, identity, pins)\n\ntests/test_v11_r09_gate3_a7_decoder.py:167: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \ntests/test_v11_r09_gate3_a7_decoder.py:42: in invoke\n    return a7.run(raw, request=identity, pins=pins, latitude=33.,\ntools/v11_r09_gate3_a7_decoder.py:189: in run\n    _require(_available_memory() >= bounds.memory_bytes + bounds.memory_headroom_bytes\n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n\ncondition = False, reason = 'A7_HOST_HEADROOM'\n\n    def _require(condition, reason):\n        if not condition:\n>           raise A7Refusal(reason)\nE           tools.v11_r09_gate3_a7_decoder.A7Refusal: A7_HOST_HEADROOM\n\ntools/v11_r09_gate3_a7_decoder.py:31: A7Refusal\n\nDuring handling of the above exception, another exception occurred:\n\nmonkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x77973e9b7650>\n\n    def test_worker_start_failure_refuses(monkeypatch):\n        raw, identity, pins = fixture()\n        def unavailable(*args, **kwargs):\n            raise OSError('injected process failure')\n        monkeypatch.setattr(a7.subprocess, 'Popen', unavailable)\n>       with pytest.raises(a7.A7Refusal, match='A7_PROCESS_START_FAILED'):\nE       AssertionError: Regex pattern did not match.\nE        Regex: 'A7_PROCESS_START_FAILED'\nE        Input: 'A7_HOST_HEADROOM'\n\ntests/test_v11_r09_gate3_a7_decoder.py:166: AssertionError\n_ test_child_process_limits_refuse_adversarial_worker[import time;time.sleep(30)-bounds0-A7_WALL_LIMIT] _\n\nmonkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x77973e9dd0d0>\nscript = 'import time;time.sleep(30)'\nbounds = Bounds(cpu_seconds=1, wall_seconds=2, memory_bytes=536870912, output_bytes=16384, memory_headroom_bytes=134217728, disk_headroom_bytes=16777216)\nreason = 'A7_WALL_LIMIT'\n\n    @pytest.mark.parametrize('script,bounds,reason', [\n        ('import time;time.sleep(30)', replace(a7.Bounds(), cpu_seconds=1,\n                                                wall_seconds=2), 'A7_WALL_LIMIT'),\n        ('while True: pass', replace(a7.Bounds(), cpu_seconds=1,\n                                      wall_seconds=4), 'A7_NATIVE_OR_RESOURCE_FAILURE'),\n        ('import os;os.write(1,b\"x\"*100000)',\n         replace(a7.Bounds(), output_bytes=1024), 'A7_OUTPUT_LIMIT'),\n        ('x=bytearray(300000000)', replace(a7.Bounds(), memory_bytes=128*1024**2),\n         'A7_NATIVE_OR_RESOURCE_FAILURE'),\n    ])\n    def test_child_process_limits_refuse_adversarial_worker(monkeypatch, script, bounds, reason):\n        raw, identity, pins = fixture()\n        real_popen = subprocess.Popen\n        def adversarial_popen(command, **kwargs):\n            return real_popen([sys.executable, '-I', '-c', script], **kwargs)\n        monkeypatch.setattr(a7.subprocess, 'Popen', adversarial_popen)\n        with pytest.raises(a7.A7Refusal, match=reason):\n>           invoke(raw, identity, pins, bounds=bounds)\n\ntests/test_v11_r09_gate3_a7_decoder.py:187: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \ntests/test_v11_r09_gate3_a7_decoder.py:42: in invoke\n    return a7.run(raw, request=identity, pins=pins, latitude=33.,\ntools/v11_r09_gate3_a7_decoder.py:189: in run\n    _require(_available_memory() >= bounds.memory_bytes + bounds.memory_headroom_bytes\n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n\ncondition = False, reason = 'A7_HOST_HEADROOM'\n\n    def _require(condition, reason):\n        if not condition:\n>           raise A7Refusal(reason)\nE           tools.v11_r09_gate3_a7_decoder.A7Refusal: A7_HOST_HEADROOM\n\ntools/v11_r09_gate3_a7_decoder.py:31: A7Refusal\n\nDuring handling of the above exception, another exception occurred:\n\nmonkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x77973e9dd0d0>\nscript = 'import time;time.sleep(30)'\nbounds = Bounds(cpu_seconds=1, wall_seconds=2, memory_bytes=536870912, output_bytes=16384, memory_headroom_bytes=134217728, disk_headroom_bytes=16777216)\nreason = 'A7_WALL_LIMIT'\n\n    @pytest.mark.parametrize('script,bounds,reason', [\n        ('import time;time.sleep(30)', replace(a7.Bounds(), cpu_seconds=1,\n                                                wall_seconds=2), 'A7_WALL_LIMIT'),\n        ('while True: pass', replace(a7.Bounds(), cpu_seconds=1,\n                                      wall_seconds=4), 'A7_NATIVE_OR_RESOURCE_FAILURE'),\n        ('import os;os.write(1,b\"x\"*100000)',\n         replace(a7.Bounds(), output_bytes=1024), 'A7_OUTPUT_LIMIT'),\n        ('x=bytearray(300000000)', replace(a7.Bounds(), memory_bytes=128*1024**2),\n         'A7_NATIVE_OR_RESOURCE_FAILURE'),\n    ])\n    def test_child_process_limits_refuse_adversarial_worker(monkeypatch, script, bounds, reason):\n        raw, identity, pins = fixture()\n        real_popen = subprocess.Popen\n        def adversarial_popen(command, **kwargs):\n            return real_popen([sys.executable, '-I', '-c', script], **kwargs)\n        monkeypatch.setattr(a7.subprocess, 'Popen', adversarial_popen)\n>       with pytest.raises(a7.A7Refusal, match=reason):\nE       AssertionError: Regex pattern did not match.\nE        Regex: 'A7_WALL_LIMIT'\nE        Input: 'A7_HOST_HEADROOM'\n\ntests/test_v11_r09_gate3_a7_decoder.py:186: AssertionError\n_ test_child_process_limits_refuse_adversarial_worker[while True: pass-bounds1-A7_NATIVE_OR_RESOURCE_FAILURE] _\n\nmonkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x77973e9b7980>\nscript = 'while True: pass'\nbounds = Bounds(cpu_seconds=1, wall_seconds=4, memory_bytes=536870912, output_bytes=16384, memory_headroom_bytes=134217728, disk_headroom_bytes=16777216)\nreason = 'A7_NATIVE_OR_RESOURCE_FAILURE'\n\n    @pytest.mark.parametrize('script,bounds,reason', [\n        ('import time;time.sleep(30)', replace(a7.Bounds(), cpu_seconds=1,\n                                                wall_seconds=2), 'A7_WALL_LIMIT'),\n        ('while True: pass', replace(a7.Bounds(), cpu_seconds=1,\n                                      wall_seconds=4), 'A7_NATIVE_OR_RESOURCE_FAILURE'),\n        ('import os;os.write(1,b\"x\"*100000)',\n         replace(a7.Bounds(), output_bytes=1024), 'A7_OUTPUT_LIMIT'),\n        ('x=bytearray(300000000)', replace(a7.Bounds(), memory_bytes=128*1024**2),\n         'A7_NATIVE_OR_RESOURCE_FAILURE'),\n    ])\n    def test_child_process_limits_refuse_adversarial_worker(monkeypatch, script, bounds, reason):\n        raw, identity, pins = fixture()\n        real_popen = subprocess.Popen\n        def adversarial_popen(command, **kwargs):\n            return real_popen([sys.executable, '-I', '-c', script], **kwargs)\n        monkeypatch.setattr(a7.subprocess, 'Popen', adversarial_popen)\n        with pytest.raises(a7.A7Refusal, match=reason):\n>           invoke(raw, identity, pins, bounds=bounds)\n\ntests/test_v11_r09_gate3_a7_decoder.py:187: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \ntests/test_v11_r09_gate3_a7_decoder.py:42: in invoke\n    return a7.run(raw, request=identity, pins=pins, latitude=33.,\ntools/v11_r09_gate3_a7_decoder.py:189: in run\n    _require(_available_memory() >= bounds.memory_bytes + bounds.memory_headroom_bytes\n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n\ncondition = False, reason = 'A7_HOST_HEADROOM'\n\n    def _require(condition, reason):\n        if not condition:\n>           raise A7Refusal(reason)\nE           tools.v11_r09_gate3_a7_decoder.A7Refusal: A7_HOST_HEADROOM\n\ntools/v11_r09_gate3_a7_decoder.py:31: A7Refusal\n\nDuring handling of the above exception, another exception occurred:\n\nmonkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x77973e9b7980>\nscript = 'while True: pass'\nbounds = Bounds(cpu_seconds=1, wall_seconds=4, memory_bytes=536870912, output_bytes=16384, memory_headroom_bytes=134217728, disk_headroom_bytes=16777216)\nreason = 'A7_NATIVE_OR_RESOURCE_FAILURE'\n\n    @pytest.mark.parametrize('script,bounds,reason', [\n        ('import time;time.sleep(30)', replace(a7.Bounds(), cpu_seconds=1,\n                                                wall_seconds=2), 'A7_WALL_LIMIT'),\n        ('while True: pass', replace(a7.Bounds(), cpu_seconds=1,\n                                      wall_seconds=4), 'A7_NATIVE_OR_RESOURCE_FAILURE'),\n        ('import os;os.write(1,b\"x\"*100000)',\n         replace(a7.Bounds(), output_bytes=1024), 'A7_OUTPUT_LIMIT'),\n        ('x=bytearray(300000000)', replace(a7.Bounds(), memory_bytes=128*1024**2),\n         'A7_NATIVE_OR_RESOURCE_FAILURE'),\n    ])\n    def test_child_process_limits_refuse_adversarial_worker(monkeypatch, script, bounds, reason):\n        raw, identity, pins = fixture()\n        real_popen = subprocess.Popen\n        def adversarial_popen(command, **kwargs):\n            return real_popen([sys.executable, '-I', '-c', script], **kwargs)\n        monkeypatch.setattr(a7.subprocess, 'Popen', adversarial_popen)\n>       with pytest.raises(a7.A7Refusal, match=reason):\nE       AssertionError: Regex pattern did not match.\nE        Regex: 'A7_NATIVE_OR_RESOURCE_FAILURE'\nE        Input: 'A7_HOST_HEADROOM'\n\ntests/test_v11_r09_gate3_a7_decoder.py:186: AssertionError\n_ test_child_process_limits_refuse_adversarial_worker[import os;os.write(1,b\"x\"*100000)-bounds2-A7_OUTPUT_LIMIT] _\n\nmonkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x77973e9a4110>\nscript = 'import os;os.write(1,b\"x\"*100000)'\nbounds = Bounds(cpu_seconds=15, wall_seconds=20, memory_bytes=536870912, output_bytes=1024, memory_headroom_bytes=134217728, disk_headroom_bytes=16777216)\nreason = 'A7_OUTPUT_LIMIT'\n\n    @pytest.mark.parametrize('script,bounds,reason', [\n        ('import time;time.sleep(30)', replace(a7.Bounds(), cpu_seconds=1,\n                                                wall_seconds=2), 'A7_WALL_LIMIT'),\n        ('while True: pass', replace(a7.Bounds(), cpu_seconds=1,\n                                      wall_seconds=4), 'A7_NATIVE_OR_RESOURCE_FAILURE'),\n        ('import os;os.write(1,b\"x\"*100000)',\n         replace(a7.Bounds(), output_bytes=1024), 'A7_OUTPUT_LIMIT'),\n        ('x=bytearray(300000000)', replace(a7.Bounds(), memory_bytes=128*1024**2),\n         'A7_NATIVE_OR_RESOURCE_FAILURE'),\n    ])\n    def test_child_process_limits_refuse_adversarial_worker(monkeypatch, script, bounds, reason):\n        raw, identity, pins = fixture()\n        real_popen = subprocess.Popen\n        def adversarial_popen(command, **kwargs):\n            return real_popen([sys.executable, '-I', '-c', script], **kwargs)\n        monkeypatch.setattr(a7.subprocess, 'Popen', adversarial_popen)\n        with pytest.raises(a7.A7Refusal, match=reason):\n>           invoke(raw, identity, pins, bounds=bounds)\n\ntests/test_v11_r09_gate3_a7_decoder.py:187: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \ntests/test_v11_r09_gate3_a7_decoder.py:42: in invoke\n    return a7.run(raw, request=identity, pins=pins, latitude=33.,\ntools/v11_r09_gate3_a7_decoder.py:189: in run\n    _require(_available_memory() >= bounds.memory_bytes + bounds.memory_headroom_bytes\n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n\ncondition = False, reason = 'A7_HOST_HEADROOM'\n\n    def _require(condition, reason):\n        if not condition:\n>           raise A7Refusal(reason)\nE           tools.v11_r09_gate3_a7_decoder.A7Refusal: A7_HOST_HEADROOM\n\ntools/v11_r09_gate3_a7_decoder.py:31: A7Refusal\n\nDuring handling of the above exception, another exception occurred:\n\nmonkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x77973e9a4110>\nscript = 'import os;os.write(1,b\"x\"*100000)'\nbounds = Bounds(cpu_seconds=15, wall_seconds=20, memory_bytes=536870912, output_bytes=1024, memory_headroom_bytes=134217728, disk_headroom_bytes=16777216)\nreason = 'A7_OUTPUT_LIMIT'\n\n    @pytest.mark.parametrize('script,bounds,reason', [\n        ('import time;time.sleep(30)', replace(a7.Bounds(), cpu_seconds=1,\n                                                wall_seconds=2), 'A7_WALL_LIMIT'),\n        ('while True: pass', replace(a7.Bounds(), cpu_seconds=1,\n                                      wall_seconds=4), 'A7_NATIVE_OR_RESOURCE_FAILURE'),\n        ('import os;os.write(1,b\"x\"*100000)',\n         replace(a7.Bounds(), output_bytes=1024), 'A7_OUTPUT_LIMIT'),\n        ('x=bytearray(300000000)', replace(a7.Bounds(), memory_bytes=128*1024**2),\n         'A7_NATIVE_OR_RESOURCE_FAILURE'),\n    ])\n    def test_child_process_limits_refuse_adversarial_worker(monkeypatch, script, bounds, reason):\n        raw, identity, pins = fixture()\n        real_popen = subprocess.Popen\n        def adversarial_popen(command, **kwargs):\n            return real_popen([sys.executable, '-I', '-c', script], **kwargs)\n        monkeypatch.setattr(a7.subprocess, 'Popen', adversarial_popen)\n>       with pytest.raises(a7.A7Refusal, match=reason):\nE       AssertionError: Regex pattern did not match.\nE        Regex: 'A7_OUTPUT_LIMIT'\nE        Input: 'A7_HOST_HEADROOM'\n\ntests/test_v11_r09_gate3_a7_decoder.py:186: AssertionError\n=========================== short test summary info ============================\nFAILED tests/test_v11_r09_gate3_a7_decoder.py::test_synthetic_simple_field_runs_in_bounded_child\nFAILED tests/test_v11_r09_gate3_a7_decoder.py::test_synthetic_ccsds_full_decode_and_exact_reencode\nFAILED tests/test_v11_r09_gate3_a7_decoder.py::test_self_consistent_ccsds_truncation_and_native_absence\nFAILED tests/test_v11_r09_gate3_a7_decoder.py::test_worker_start_failure_refuses\nFAILED tests/test_v11_r09_gate3_a7_decoder.py::test_child_process_limits_refuse_adversarial_worker[import time;time.sleep(30)-bounds0-A7_WALL_LIMIT]\nFAILED tests/test_v11_r09_gate3_a7_decoder.py::test_child_process_limits_refuse_adversarial_worker[while True: pass-bounds1-A7_NATIVE_OR_RESOURCE_FAILURE]\nFAILED tests/test_v11_r09_gate3_a7_decoder.py::test_child_process_limits_refuse_adversarial_worker[import os;os.write(1,b\"x\"*100000)-bounds2-A7_OUTPUT_LIMIT]\n7 failed, 174 passed in 11.30s\n",
+    "output_sha256": "502c8ca1494a72d0346f354ed7e6b33101b60c86eaa8a6c52e110beab47e82df",
+    "scratch_file_bytes_at_completion": 2286261,
+    "scratch_removed": true
+  },
+  "focused_retest": {
+    "exit_code": 0,
+    "modifications": "Python children receive -B; pytest cache disabled",
+    "output": ".......................                                                  [100%]\n23 passed in 9.16s\n",
+    "output_sha256": "c60b6102b0f7dac853df72d4bd569766da758234ae0b643ddcfac4afd991f52f",
+    "scratch_file_bytes_at_completion": 0,
+    "scratch_removed": true
+  },
+  "gates": {
+    "A2_A6": "OPEN_SEPARATE_PREREQUISITES",
+    "A7": "UNQUALIFIED",
+    "G3_L": "NO_GO",
+    "launchable": false
+  },
+  "independent_probes": {
+    "extra_refusals": {
+      "2": "ECMWF_PACKING_DECODER_UNAVAILABLE",
+      "255": "ECMWF_PACKING_DECODER_UNAVAILABLE",
+      "40": "ECMWF_PACKING_DECODER_UNAVAILABLE"
+    },
+    "forced_exact_reencode_mismatch": "ECMWF_CCSDS_INTEGRITY_FAILED",
+    "host_memory": {
+      "limits": {
+        "/sys/fs/cgroup/user.slice/memory.current": "1373806592",
+        "/sys/fs/cgroup/user.slice/memory.max": "max",
+        "/sys/fs/cgroup/user.slice/user-1000.slice/memory.current": "1373044736",
+        "/sys/fs/cgroup/user.slice/user-1000.slice/memory.max": "max",
+        "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/memory.current": "1363181568",
+        "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/memory.max": "max",
+        "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/tmux-spawn-707ea417-5645-4762-bdd9-cc9a8d0f0774.scope/memory.current": "871043072",
+        "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/tmux-spawn-707ea417-5645-4762-bdd9-cc9a8d0f0774.scope/memory.max": "max"
+      },
+      "proc_self_cgroup": "0::/user.slice/user-1000.slice/user@1000.service/tmux-spawn-707ea417-5645-4762-bdd9-cc9a8d0f0774.scope\n",
+      "runner_available": 750104576
+    },
+    "nested_cgroup_headroom": {
+      "actual_leaf_headroom": 67108864,
+      "default_required": 671088640,
+      "incorrectly_admits_default": true,
+      "reads": [
+        "/proc/meminfo"
+      ],
+      "reported_available": 8589934592
+    },
+    "preflight_without_native": {
+      "count": 4,
+      "indices": [
+        0
+      ],
+      "ni": 2,
+      "nj": 2,
+      "section_numbers": [
+        1,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "template": 42
+    },
+    "retained_field": {
+      "decoder_sha256": "a5fd93a02873a1082f45ac6674b08990cb54d0b1d95ca9b72e0b05d8885b03e4",
+      "eccodes": "2.49.0",
+      "interpreter": "/home/alphaadmin/AlphaV11_Dev/venv/bin/python",
+      "measurement": {
+        "cpu_seconds": 0.42971983199999997,
+        "evidence_class": "RETAINED_UNVERIFIED",
+        "max_rss_bytes": 93249536,
+        "output_bytes": 237,
+        "point": {
+          "grid_sha256": "6e8229bf09d191ccf7d719ef88dc9e848fe663cf45a91d0691b7e17815a03036",
+          "kelvin": 288.98785400390625,
+          "latitude": 33.75,
+          "longitude": -84.5
+        },
+        "profile": {
+          "count": 1038240,
+          "indices": [
+            324382
+          ],
+          "ni": 1440,
+          "nj": 721,
+          "section_numbers": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "template": 42
+        },
+        "wall_seconds": 0.7326322121080011
+      },
+      "native": {
+        "/home/alphaadmin/AlphaV11_Dev/venv/lib/python3.12/site-packages/eccodeslib/lib64/libeccodes.so": "1d6b8a3a8206cc439a3497dad4dc96370ed0b247798ac27e6c7bbd65cac4b87c",
+        "/home/alphaadmin/AlphaV11_Dev/venv/lib/python3.12/site-packages/eccodeslib/lib64/libeccodes_memfs.so": "f984057845fd0a569dd775907d4629b83b09434959436863790492aae32e5fb9"
+      },
+      "python": "3.12.3 (main, Aug 31 2026, 10:18:26) [GCC 13.3.0]",
+      "raw_bytes": 621131,
+      "raw_sha256": "42dcdd7b3d8f63c5353dcb2cbb91fc15a478d9cd92121ff8ad936d2b5be988e4",
+      "request": {
+        "dataset": "ecmwf-open-data:0p25",
+        "grib_signature_sha256": "de36950ba6dfe481553b3823e009497732e2f01cfcdbd61b318f9e66634d289b",
+        "initialized_at": 1790640000.0,
+        "member": 0,
+        "model": "aifs-ens",
+        "model_version": "UNVERIFIED_LOCAL_OBSERVATION",
+        "provider": "ECMWF_AIFS_ENS",
+        "release_evidence_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "step": 6
+      },
+      "scope": "RETAINED_UNVERIFIED; derived diagnostic pins are not A2-A6 evidence",
+      "total_child_cpu_seconds": 0.510312
+    },
+    "simple_ieee": [
+      {
+        "packing": 0,
+        "result": {
+          "cpu_seconds": 0.068873019,
+          "evidence_class": "SYNTHETIC",
+          "max_rss_bytes": 49942528,
+          "output_bytes": 215,
+          "point": {
+            "grid_sha256": "62f14a866b1f55d87b1117cd1ecc1f9b1b869bb3717627c4e629af80794550c7",
+            "kelvin": 290.0,
+            "latitude": 33.0,
+            "longitude": -84.0
+          },
+          "profile": {
+            "count": 4,
+            "indices": [
+              0
+            ],
+            "ni": 2,
+            "nj": 2,
+            "section_numbers": [
+              1,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "template": 0
+          },
+          "wall_seconds": 0.16967852297239006
+        }
+      },
+      {
+        "packing": 1,
+        "result": {
+          "cpu_seconds": 0.06676230699999999,
+          "evidence_class": "SYNTHETIC",
+          "max_rss_bytes": 49942528,
+          "output_bytes": 223,
+          "point": {
+            "grid_sha256": "62f14a866b1f55d87b1117cd1ecc1f9b1b869bb3717627c4e629af80794550c7",
+            "kelvin": 290.0,
+            "latitude": 33.0,
+            "longitude": -84.0
+          },
+          "profile": {
+            "count": 4,
+            "indices": [
+              0
+            ],
+            "ni": 2,
+            "nj": 2,
+            "section_numbers": [
+              1,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "template": 4
+          },
+          "wall_seconds": 0.1708926409482956
+        }
+      },
+      {
+        "packing": 2,
+        "result": {
+          "cpu_seconds": 0.06986668400000001,
+          "evidence_class": "SYNTHETIC",
+          "max_rss_bytes": 49950720,
+          "output_bytes": 223,
+          "point": {
+            "grid_sha256": "62f14a866b1f55d87b1117cd1ecc1f9b1b869bb3717627c4e629af80794550c7",
+            "kelvin": 290.0,
+            "latitude": 33.0,
+            "longitude": -84.0
+          },
+          "profile": {
+            "count": 4,
+            "indices": [
+              0
+            ],
+            "ni": 2,
+            "nj": 2,
+            "section_numbers": [
+              1,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "template": 4
+          },
+          "wall_seconds": 0.17183632403612137
+        }
+      }
+    ]
+  },
+  "inspected_inputs": [
+    {
+      "bytes": 16704,
+      "path": "/tmp/alpha-v11-gate3-a7-review-e08858b/docs/V11_R09_GATE3_IDENTITY_ACCEPTANCE_20261001.md",
+      "sha256": "db298d49301a686711a7d89e7456d95fcd34da8616970fa7f52374b91440aa9d"
+    },
+    {
+      "bytes": 5286,
+      "path": "/tmp/alpha-v11-gate3-a7-review-e08858b/docs/V11_R09_GATE3_A7_DECODER_RESOURCE_CANDIDATE_20261001.md",
+      "sha256": "68375c1f4d1d8075b94722e746f3061e1d3c1c01bf85ace5b1f925e29f325ffb"
+    },
+    {
+      "bytes": 12554,
+      "path": "/tmp/alpha-v11-gate3-a7-review-e08858b/tools/v11_r09_gate3_a7_decoder.py",
+      "sha256": "aceb1e3496666ebaf0380ec92feb6caba92191bc3821458e28e89ca7b36d7af6"
+    },
+    {
+      "bytes": 12889,
+      "path": "/tmp/alpha-v11-gate3-a7-review-e08858b/polymarket_scanner/v11/ecmwf_grib.py",
+      "sha256": "a5fd93a02873a1082f45ac6674b08990cb54d0b1d95ca9b72e0b05d8885b03e4"
+    },
+    {
+      "bytes": 8521,
+      "path": "/tmp/alpha-v11-gate3-a7-review-e08858b/tests/test_v11_r09_gate3_a7_decoder.py",
+      "sha256": "a3ae5eb39f2c36b159ff7329423011aad2059ba4b1f97b2e82a02b7288bf5eb3"
+    },
+    {
+      "bytes": 424,
+      "path": "/tmp/alpha-v11-gate3-a7-decoder-resources-20261001.terminal.json",
+      "sha256": "4e31eb8a2ec4e90d97d17f50cfd26de216f21e989aa80c77030cea2a86edea24"
+    },
+    {
+      "bytes": 174079,
+      "path": "/tmp/alpha-v11-gate3-a7-decoder-resources-20261001.log",
+      "sha256": "f8d13d5c07bf421fec21e66d413e8929c346ff0b49cd14e3d6840b6fb13c4802"
+    }
+  ],
+  "reviewer_role": "independent Astra/high",
+  "schema": "ALPHA_V11_GATE3_A7_INDEPENDENT_EXACT_COMMIT_REVIEW_V1",
+  "verdict": "CHANGES_REQUIRED"
+}

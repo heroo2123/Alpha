@@ -1,5 +1,13 @@
 # Alpha V11 work checkpoint
 
+## A7 exact review rejected; isolated repair launched — 2026-10-02 00:16 UTC
+
+Recovered completed independent Astra/high A7 review of exact `e08858b` (tree `550ff4e`) with a clean lane terminal and `CHANGES_REQUIRED` report. One P2 finding reproduces admission ignoring effective nested-cgroup memory limits; two P3 findings require accurate whole-child CPU measurement/labeling and alignment of documented resource limits with enforcement. The reviewer reproduced 158 adjacent passes in its first run; seven focused cases safely refused under transient host headroom, then all 23 focused cases passed on a separate retest. This is not a single clean 181-test run. The exact report, terminal and probes are retained in `docs/V11_R09_GATE3_A7_REVIEW_e08858b*`. A7 remains unqualified and unmerged.
+
+Started one Sol/high repair lane in the sole clean A7 author worktree `/tmp/alpha-v11-gate3-a7-decoder-resources-20261001`, PGID 1984689, with outer terminal `/tmp/alpha-v11-gate3-a7-repair-e08858b.terminal.json` and author evidence `/tmp/alpha-v11-gate3-a7-repair-e08858b.author.json`. The A4 exact reviewer PGID 1980587 is the second active specialist; its provisional terminal still says `IN_PROGRESS`, so do not infer a verdict or merge A4. A8 review and five-P2 inventory repair remain queued. No duplicate worker was launched.
+
+Main was clean at `a4d9d50` before retaining the A7 artifacts. The protected FINAL-REVIEWED master still hashes to `a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`. PAPER scanner/controller/execution units are inactive and the scanner disabled; protected V11 authority roots are absent. Disk is about 1.5 GiB free, below the G3-L 2 GiB floor. No provider request, G3-L PASS, forward SHADOW evidence or C/J/E/A crossing: **G3-L NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## A4 repair finished; exact review launched — 2026-10-02 00:09 UTC
 
 Recovered the clean A4 repair terminal: candidate `28dd60403bdc8e819e64e9dd60be0109669c4960`, tree `c5dfc479f083a8fdcfa1d897e69a927871a1b9ee`, from the sole A4 worktree. The four-file diff passes `git diff --check`. Its author terminal records 27 focused passes and 578 Gate 3 passes across 12 files run separately; the earlier shared-directory run had 26 disk-exhaustion reserve failures, so it is not counted as a clean shared run. The candidate and all six prior review findings require independent adjudication; A4 remains OPEN.
