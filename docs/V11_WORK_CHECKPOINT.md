@@ -18097,3 +18097,51 @@ Next unblocked work is protocol section 7's offline closed-schema checker and sy
 Recovered exact clean repair `fe854fc` / tree `3bc097f` and independently reviewed the complete checker, repair diff, tests and protocol. All 91 focused tests pass and the three prior findings are repaired. New retained socket/DNS-blocked synthetic probes nevertheless reproduce nine top-level JSON exceptions and 19 incorrect satisfied cases: malformed or held restriction evidence, incomplete type/bounds/finite validation, and malformed clocks/terminals. Verdict **CHANGES_REQUIRED**; candidate remains unmerged and unchanged. Report, machine verdict, 35-case reproduction and exact completion binding are in `V11_R09_GATE3_PREFLIGHT_CHECKER_REVIEW_fe854fc.*`; the original Astra process exit is pending this turn's completion in its actual parent log, not fabricated from a test exit. See `V11_R09_GATE3_PREFLIGHT_CHECKER_SYSTEMATIC_REPAIR_HANDOFF_20261002.md` for the next isolated implementation slice and required terminal seal.
 
 No duplicate Alpha worker was active. SHADOW/Brain trees remain clean; ECMWF untracked backfill and protected FINAL-REVIEWED master are preserved. Weather execution is inactive/masked; protected authority roots absent. About 2.85 GiB disk/632 MiB available memory limits further parallelism while Axiom consumes resources. The retained 5,460-pass/13-skip release already resolved the historic load/order fill-markout failure; no new full suite was run. Real preflight still refuses with 21 reasons including 12 null prerequisites; no provider request, dispatch, capture evidence, permission, date change or score crossing. Route the specified systematic repair to normal substantive implementation, then require different-model exact review before newer-main integration. **91/200, formal 1/50; A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO; NOT_READY_TO_FUND**.
+
+## Gate 3 checker systematic repair — 2026-10-02 11:25 UTC
+
+Executed the specified systematic repair of exact `fe854fc` in the same
+isolated worktree `/tmp/alpha-v11-gate3-preflight-checker-repair-20261002`,
+committed as `7164ca6`. Repaired all four Astra/high finding families:
+non-object JSON roots now refuse with a labeled `NOT_AN_OBJECT` reason
+instead of raising; restriction/GEFS evidence now requires well-formed
+references and an explicit admissible GEFS status (only
+`SCOPE_INDEPENDENCE_CONFIRMED`), closing the HELD/DENIED/UNKNOWN/empty and
+false-valued-proof holes while leaving ECMWF hold handling and scope
+prerequisites unchanged; the remaining declared package/binding fields
+(`author_model`, `blocking_reasons`, `unknown_outputs_not_required_as_inputs`,
+request `port` exact-type, storage `persistence_review`, restrictions
+`inventory_audit_ref`/`status`, binding `owner_instruction_record`/
+`missing_prerequisites`/`private_root`/`prepared_at_utc`/`source_inputs`/
+`raw_restriction_sources`) are now typed/bounded/shape-checked, raw JSON
+bytes are bounded before parsing, and numeric-exponent overflow (`1e999`)
+is rejected as nonfinite; clock/terminal observations now reject naive
+(non-offset) timestamps, non-boolean monotonic flags, and malformed
+terminal exit_code/error/required-key shapes.
+
+Added 30 focused regression tests reproducing the exact independent
+review cases; all 121 focused tests pass
+(`/home/alphaadmin/AlphaV11_Dev/venv/bin/python -m pytest
+tests/test_v11_gate3_evidence_preflight_checker.py -q -p no:cacheprovider`,
+0.73s, exit 0). Reran the independent reviewer's retained `.repro.py`
+against the repaired worktree: all 35 cases now behave correctly (zero
+exceptions, zero unexpected-satisfied outcomes besides the intended
+synthetic baseline). The real retained package still refuses, now with 22
+reasons (one additional genuine finding, `GEFS_STATUS_NOT_ADMISSIBLE`,
+beyond the prior 21), including all 12 null prerequisites; `git diff
+--check` passed and the repair worktree is clean at `7164ca6`.
+
+This repair is not yet integrated. It requires a fresh different-model
+exact-commit review, an original completed reviewer-process terminal, and
+newer-main reconciliation before any merge. No provider request, dispatch,
+capture evidence, permission, date change, or score crossing occurred;
+only normal substantive implementation routing was used, as the prior
+review authorized. SHADOW/Brain worktrees remain untouched; ECMWF
+untracked backfill and the protected FINAL-REVIEWED master are preserved.
+Weather execution remains inactive/masked; protected authority roots
+remain absent. Free disk was about 2.85 GiB and MemAvailable about 648
+MiB: below preferred 3 GiB/900 MiB, above the 2 GiB floor, so no
+additional parallel heavy worker was started. No V10/AxiomTrade,
+financial, service, authority, or remote-publication action, and no
+C/J/E/A boundary crossing: **91/200, formal 1/50; A2/A3 UNQUALIFIED; A4
+OPEN; A8 UNQUALIFIED; G3-L NO-GO; NOT_READY_TO_FUND**.

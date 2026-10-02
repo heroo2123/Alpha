@@ -4047,3 +4047,20 @@ Independent exact review of `b153560` returned sealed `CHANGES_REQUIRED` for two
 ## Gate 3 exact repair review — 2026-10-02 11:17 UTC
 
 Independent Astra/high review of clean `fe854fc` is **CHANGES_REQUIRED** despite 91 focused tests passing. Retained mutually bound synthetic inputs reproduce nine refusal-path exceptions and 19 false schema/policy satisfactions; a systematic isolated repair is next. Prior three fixes are confirmed. Actual package still refuses with 21 reasons/12 null prerequisites; original review-process completion seal is pending the parent's final return code. No merge, provider request, reviewed launch identity, capture slot or C/J/E/A crossing: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
+## Gate 3 checker repair after exact Astra review — 2026-10-02 11:25 UTC
+
+Repaired all four `CHANGES_REQUIRED` defect families from the independent
+Astra/high review of `fe854fc` in the isolated repair worktree, committed
+as `7164ca6`: non-object JSON root handling, held/malformed restriction
+and GEFS-status evidence, the remaining untyped/unbounded package/binding
+fields (plus raw-byte bounding and numeric-exponent-overflow rejection),
+and malformed clock/terminal observations. All 121 focused tests
+(91 original + 30 new regression cases) pass, and the reviewer's own
+35-case reproduction script now shows zero exceptions and zero
+false-satisfied outcomes. The real package still refuses (now 22 reasons,
+including all 12 null prerequisites). Not yet integrated: a fresh
+different-model exact-commit review and newer-main reconciliation remain
+required before merge. No provider request, capture slot, reviewed launch
+identity, or C/J/E/A crossing: **91/200, formal 1/50; G3-L NO-GO;
+NOT_READY_TO_FUND**.
