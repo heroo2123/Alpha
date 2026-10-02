@@ -1,5 +1,9 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Next-date G3-L local-only screen — 2026-10-02 03:30 UTC
+
+The 2026-10-03 PRE_REVIEW screen, retained at `/tmp/alpha-v11-g3l-offline-screen-20261003-20261002T0330.json` (SHA-256 `80bbd4dfaba228fbda970fe00e330b3c8acc8654e49367c1b95316189e88a722`), exits 2 with `BLOCKED_MISSING_REVIEWED_EVIDENCE`, `launchable=false`, 77 missing identities and zero of 2,713 attempt slots. The prospective review time has not expired, but free disk is 1,064,902,656 bytes below the 2 GiB floor before additional reservations. The sole B1 retry is alive and waiting in its clean isolated worktree; no candidate or exact review exists. No row acceptance or C/J/E/A score changes: **91/200 (45.5%), formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## G3-L current-window screen — 2026-10-02 03:25 UTC
 
 The local-only 2026-10-02 PRE_REVIEW screen exits 2: `BLOCKED_MISSING_REVIEWED_EVIDENCE`, `launchable=false`, zero of 2,713 attempt slots, 77 missing identities and an expired review-before-window identity. At observation, free disk was 1,084,329,984 bytes, 1,063,153,664 below the 2 GiB floor. B1's sole isolated retry runner remains alive awaiting its 04:20 UTC provider reset; no candidate or exact review exists. This changes no row acceptance or C/J/E/A score: **91/200 (45.5%), formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
