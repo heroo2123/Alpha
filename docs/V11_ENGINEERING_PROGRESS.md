@@ -6554,3 +6554,12 @@ Recovered the stopped Sonnet/high B1 author without discarding its three-file dr
 ## B1 review defect repair pinned — 2026-10-02 04:45 UTC
 
 The completed independent review of `d7789fd` returned `CHANGES_REQUIRED` with two P2 parser counterexamples. In the same isolated B1 worktree, repaired exponent overflow and oversized JSON integer rejection, added fixed-output regressions, and committed `d7b789c` (tree `554df0f`). Focused offline suite: 59 passed. A fresh independent full-B1 exact-commit review is live at `/tmp/alpha-v11-a4-b1-review-d7b789c`; acceptance and merge remain pending. No provider request, forward SHADOW evidence, release rerun, financial/authority/service action or C/J/E/A crossing. **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
+## Coordinator recovery — 2026-10-02 06:53 UTC
+
+Recovered clean `e4d0c99`, no separate worker or new forward evidence.
+Private FINAL-REVIEWED master hash matches; PAPER units remain inactive,
+execution masked, protected authority roots absent, and disk below the G3-L
+floor. The accepted section-3 owner choice was presented again; no exception,
+provider request, new release test or C/J/E/A crossing followed: **91/200,
+formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.

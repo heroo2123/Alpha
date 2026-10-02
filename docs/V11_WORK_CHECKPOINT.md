@@ -17635,3 +17635,20 @@ Recovered the completed independent Sol/high review of `d7789fd`: exit-0 clean t
 Repaired both findings in the existing isolated B1 worktree: finite float parsing rejects overflow, and JSON number parser `ValueError` becomes a structural parse rejection. Added two regression tests proving the result keeps `qualification=UNQUALIFIED`, `launchable=false`, `a4_pass=false`. Focused offline suite: **59 passed**; diff check clean. Committed only checker and tests as `d7b789c4e11eeac1fa85295b3dd3822e862799bd`, tree `554df0f5bd7065d8fb4a8ef96b3998226b4170e7`. The original untracked author record remains preserved.
 
 One persistent independent Sol/high full-B1 exact-commit reviewer is live: runner PID/PGID **2097723**, checkout `/tmp/alpha-v11-a4-b1-review-d7b789c`, output stem `/tmp/alpha-v11-a4-b1-review-d7b789c`. Recover its final response and complete hash-bound outer terminal before any integration. Main was clean at `aaa2f72` before this entry. SHADOW and Brain-readiness worktrees are clean; ECMWF `backfill_data/` is preserved. Private FINAL-REVIEWED master SHA-256 remains `a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`. PAPER demo/scanner/controller are inactive/disabled; weather execution inactive/masked; protected authority roots absent. Disk free about 959 MiB, below G3-L's 2 GiB floor; available memory about 885 MiB. No provider request, financial/service/authority action, remote publication, forward SHADOW sample or C/J/E/A crossing: **A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
+## Coordinator recovery — 2026-10-02 06:53 UTC
+
+Recovered clean main `e4d0c99`; its only change since 06:50 is the preceding
+documentation checkpoint. No separate Alpha author, reviewer or test process is
+live. SHADOW and Brain-readiness worktrees remain clean; ECMWF's untracked
+`backfill_data/` is preserved. No checked forward artifact newer than 06:50
+appeared. The protected FINAL-REVIEWED master SHA-256 remains
+`a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+PAPER units are inactive, execution masked, and protected V11 authority roots
+absent. Free disk is 861,425,664 bytes, below the 2 GiB G3-L floor; available
+memory is 1,119,997,952 bytes. The retained A8 fixture and review worktrees
+were left intact. Re-presented the accepted bootstrap packet's section-3 owner
+choice; no answer or preflight exception is presumed. No provider request,
+service, authority, V10, AxiomTrade, financial or publication action occurred.
+No C/J/E/A boundary crossed: **A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED;
+G3-L NO-GO; 91/200, formal 1/50; NOT_READY_TO_FUND**.
