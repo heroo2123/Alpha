@@ -1,0 +1,407 @@
+"""Start contract for the offline InventoryTransform SHADOW observer."""
+import ast
+import copy
+import fcntl
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+
+import pytest
+
+from polymarket_scanner.v11 import inventory_shadow as shadow
+from polymarket_scanner.v11 import inventory_shadow_start as start
+from polymarket_scanner.v11.structural_evidence import Limits
+
+
+REPO = Path(__file__).resolve().parents[1]
+MODULE = "polymarket_scanner.v11.inventory_shadow_start"
+FIXTURE = Path(__file__).parent / "fixtures" / "v11_inventory_transforms" / "singapore_20261003_api_observed.json"
+EVENT = "highest-temperature-in-singapore-on-october-3-2026"
+CHILD_ENV = {"PATH": os.defpath, "PYTHONDONTWRITEBYTECODE": "1"}
+
+
+def write_fixture(directory, name="a.json", mutate=None):
+    value = json.loads(FIXTURE.read_text())
+    if mutate is not None:
+        mutate(value)
+    directory.mkdir(exist_ok=True)
+    path = directory / name
+    path.write_text(json.dumps(value))
+    return path
+
+
+def unknown_coverage(value):
+    value["payload"] = {"data": [], "pagination": {"has_more": False, "next_cursor": 0}}
+    value["coverage"]["state"] = "UNKNOWN"
+
+
+def complete_coverage(value):
+    value["payload"] = {"data": [], "pagination": {"has_more": False, "next_cursor": None}}
+    value["source"]["parameters"] = [["start", "0"], ["end", "10"]]
+    value["source"]["window_start"] = 0
+    value["source"]["window_end"] = 10
+    value["coverage"]["state"] = "COMPLETE"
+
+
+def output_dir(tmp_path):
+    out = tmp_path / "out"
+    out.mkdir()
+    return out
+
+
+def without_created(summary):
+    value = copy.deepcopy(summary)
+    for item in value["artifacts"]:
+        del item["created"]
+    return value
+
+
+def child(*argv):
+    return subprocess.run([sys.executable, *argv], cwd=REPO, env=CHILD_ENV,
+                          capture_output=True, text=True, timeout=120)
+
+
+def test_start_command_emits_only_shadow_diagnostics_with_ambient_access_denied(tmp_path):
+    write_fixture(tmp_path / "in")
+    out = output_dir(tmp_path)
+    argv = ("-m", MODULE, "--input-dir", str(tmp_path / "in"), "--event", EVENT, "--output-dir", str(out))
+    first = child(*argv)
+    assert first.returncode == 0, first.stderr
+    summary = json.loads(first.stdout)
+    assert summary["version"] == start.START_VERSION
+    assert summary["activation"] == "OFFLINE_SHADOW_DIAGNOSTICS_ONLY"
+    assert summary["mode"] == "V11_SHADOW"
+    assert summary["financial_authority"] is summary["qualification"] is summary["transaction_level_proof"] is False
+    assert summary["account_effects"] == summary["order_effects"] == []
+    assert summary["evidence_class_counts"] == {"CHAIN_RECEIPT": 0}
+    (item,) = summary["artifacts"]
+    assert item["created"] is True and item["coverage"] == "INCOMPLETE"
+    assert item["artifact"] == start.artifact_name(item["source_file_sha256"], EVENT)
+    assert [p.name for p in out.iterdir()] == [item["artifact"]]
+    saved = (out / item["artifact"]).read_bytes()
+    report = json.loads(saved)
+    assert report["observation_id"] == item["observation_id"]
+    assert report["financial_authority"] is report["qualification"] is report["transaction_level_proof"] is False
+    assert report["account_effects"] == report["order_effects"] == []
+    assert report["evidence_class_counts"] == {"API_OBSERVED": 13, "CHAIN_RECEIPT": 0, "SYNTHETIC_PROOF": 0}
+    assert report["receipt_status"] == "NO_VERIFIED_RECEIPTS"
+    second = child(*argv)
+    assert second.returncode == 0, second.stderr
+    replay = json.loads(second.stdout)
+    assert replay["artifacts"][0]["created"] is False
+    assert without_created(replay) == without_created(summary)
+    assert [p.name for p in out.iterdir()] == [item["artifact"]]
+    assert (out / item["artifact"]).read_bytes() == saved
+
+
+def test_process_guard_denies_socket_dns_and_child_processes():
+    code = (
+        "import os, sys\n"
+        "from polymarket_scanner.v11 import inventory_shadow_start as start\n"
+        "start._deny_ambient_access()\n"
+        "import socket\n"
+        "probes = (lambda: socket.socket(), lambda: socket.getaddrinfo('localhost', 80),\n"
+        "          lambda: socket.gethostbyname('localhost'), lambda: os.system('true'))\n"
+        "for probe in probes:\n"
+        "    try:\n"
+        "        probe()\n"
+        "    except RuntimeError as exc:\n"
+        "        assert 'INVENTORY_SHADOW_AMBIENT_ACCESS_DENIED' in str(exc)\n"
+        "    else:\n"
+        "        sys.exit(3)\n"
+        "print('ALL_DENIED')\n"
+    )
+    result = child("-c", code)
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "ALL_DENIED"
+
+
+def test_process_entry_refuses_when_any_other_project_module_is_loaded(tmp_path):
+    path = write_fixture(tmp_path / "in")
+    out = output_dir(tmp_path)
+    code = (
+        "import sys, types\n"
+        "from polymarket_scanner.v11 import inventory_shadow_start as start\n"
+        "sys.modules['polymarket_scanner.weather_only_runtime'] = types.ModuleType('coupled')\n"
+        "raise SystemExit(start.guarded_main(sys.argv[1:]))\n"
+    )
+    result = child("-c", code, "--input", str(path), "--event", EVENT, "--output-dir", str(out))
+    assert result.returncode == 2
+    assert "MODULE_COUPLING_REFUSED" in result.stderr
+    assert list(out.iterdir()) == []
+
+
+def test_runner_imports_only_the_observer_and_stays_separate_from_weather_shadow(tmp_path):
+    tree = ast.parse(Path(start.__file__).read_text())
+    names = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            names.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            names.update([node.module] if node.module else [alias.name for alias in node.names])
+    assert names == {"__future__", "argparse", "fcntl", "hashlib", "json", "os", "pathlib", "re",
+                     "stat", "sys", "time", "inventory_shadow", "structural_evidence"}
+    path = write_fixture(tmp_path / "in")
+    before = {name for name in sys.modules if "weather" in name}
+    start.run(EVENT, output_dir(tmp_path), inputs=(path,))
+    assert {name for name in sys.modules if "weather" in name} == before
+
+
+def test_directory_batch_replay_is_deterministic_and_idempotent(tmp_path):
+    write_fixture(tmp_path / "in", "b.json")
+    write_fixture(tmp_path / "in", "a.json", unknown_coverage)
+    out = output_dir(tmp_path)
+    first = start.run(EVENT, out, input_dir=tmp_path / "in")
+    assert [item["coverage"] for item in first["artifacts"]] == ["UNKNOWN", "INCOMPLETE"]
+    assert all(item["created"] for item in first["artifacts"])
+    names = sorted(item["artifact"] for item in first["artifacts"])
+    assert len(set(names)) == 2 and sorted(p.name for p in out.iterdir()) == names
+    before = {name: ((out / name).read_bytes(), (out / name).stat().st_ino, (out / name).stat().st_mtime_ns)
+              for name in names}
+    second = start.run(EVENT, out, input_dir=tmp_path / "in")
+    assert not any(item["created"] for item in second["artifacts"])
+    assert without_created(second) == without_created(first)
+    assert sorted(p.name for p in out.iterdir()) == names
+    assert before == {name: ((out / name).read_bytes(), (out / name).stat().st_ino,
+                             (out / name).stat().st_mtime_ns) for name in names}
+    # The same bytes under another event occupy a different, equally stable identity.
+    other = start.run("another-event", out, input_dir=tmp_path / "in")
+    assert not set(item["artifact"] for item in other["artifacts"]) & set(names)
+
+
+def test_uncertainty_propagates_and_completeness_claims_refuse(tmp_path):
+    out = output_dir(tmp_path)
+    incomplete = write_fixture(tmp_path / "in", "incomplete.json")
+    unknown = write_fixture(tmp_path / "in", "unknown.json", unknown_coverage)
+    complete = write_fixture(tmp_path / "in", "complete.json", complete_coverage)
+    for path, state in ((incomplete, "INCOMPLETE"), (unknown, "UNKNOWN")):
+        with pytest.raises(shadow.ShadowInputError, match="COMPLETENESS_REQUIRED_BUT_" + state):
+            start.run(EVENT, out, inputs=(path,), require_complete=True)
+    with pytest.raises(shadow.ShadowInputError, match="COMPLETENESS_REQUIRED_BUT_"):
+        start.run(EVENT, out, inputs=(complete, unknown), require_complete=True)
+    assert list(out.iterdir()) == []
+    summary = start.run(EVENT, out, inputs=(incomplete, unknown))
+    assert [item["coverage"] for item in summary["artifacts"]] == ["INCOMPLETE", "UNKNOWN"]
+    for item in summary["artifacts"]:
+        report = json.loads((out / item["artifact"]).read_text())
+        assert report["coverage"] == report["reconciliation"]["coverage"] == item["coverage"]
+        assert "EVENT_WINDOW_COVERAGE_UNPROVEN" in report["reconciliation"]["discrepancies"]
+        assert report["qualification"] is False
+    proven = start.run(EVENT, out, inputs=(complete,), require_complete=True)
+    assert proven["qualification"] is proven["financial_authority"] is proven["transaction_level_proof"] is False
+    report = json.loads((out / proven["artifacts"][0]["artifact"]).read_text())
+    assert report["coverage"] == "COMPLETE" and report["qualification"] is False
+    assert "OPENING_INVENTORY_UNKNOWN" in report["reconciliation"]["unresolved"]
+    assert report["evidence_class_counts"]["CHAIN_RECEIPT"] == 0
+
+
+def _set(key, item):
+    def mutate(value):
+        value[key] = item
+    return mutate
+
+
+def _drop(key):
+    def mutate(value):
+        del value[key]
+    return mutate
+
+
+def _source(key, item):
+    def mutate(value):
+        value["source"][key] = item
+    return mutate
+
+
+def _declare_complete(value):
+    value["coverage"]["state"] = "COMPLETE"
+
+
+def _drop_route(value):
+    del value["source"]["route"]
+
+
+@pytest.mark.parametrize("mutate, code", [
+    (_set("evidence_class", "CHAIN_RECEIPT"), "API_OBSERVATION_CLASS_REQUIRED"),
+    (_set("evidence_class", "SYNTHETIC_PROOF"), "API_OBSERVATION_CLASS_REQUIRED"),
+    (_set("evidence_class", "OPERATOR_ASSERTED"), "API_OBSERVATION_CLASS_REQUIRED"),
+    (_set("chain_receipts", []), "UNSUPPORTED_FIXTURE_FIELD"),
+    (_set("chain_status", "CHAIN_VERIFIED"), "CHAIN_STATUS_UNSUPPORTED"),
+    (_drop("coverage"), "COVERAGE_DECLARATION_REQUIRED"),
+    (_declare_complete, "DECLARED_COVERAGE_MISMATCH"),
+    (_source("raw_sha256", None), "LINEAGE_RAW_HASH_REQUIRED"),
+    (_source("raw_sha256", "not-a-hash"), "SOURCE_INVALID"),
+    (_drop_route, "SOURCE_SCHEMA"),
+    (_drop("fixture_version"), "FIXTURE_VERSION_REQUIRED"),
+    (_set("fixture_version", 7), "FIXTURE_VERSION_REQUIRED"),
+    (_set("payload", []), "INPUT_SCHEMA"),
+])
+def test_malformed_or_unsupported_fixture_refuses_whole_batch_without_output(tmp_path, mutate, code):
+    write_fixture(tmp_path / "in", "a.json")
+    write_fixture(tmp_path / "in", "b.json", mutate)
+    out = output_dir(tmp_path)
+    with pytest.raises(shadow.ShadowInputError, match=code):
+        start.run(EVENT, out, input_dir=tmp_path / "in")
+    assert list(out.iterdir()) == []
+
+
+def test_symlink_nonregular_and_resource_cap_inputs_refuse(tmp_path, monkeypatch):
+    out = output_dir(tmp_path)
+    good = write_fixture(tmp_path / "good")
+    linked = tmp_path / "linked.json"
+    linked.symlink_to(good)
+    with pytest.raises(shadow.ShadowInputError, match="INPUT_NOT_REGULAR_FILE"):
+        start.run(EVENT, out, inputs=(linked,))
+    with pytest.raises(shadow.ShadowInputError, match="INPUT_NOT_REGULAR_FILE"):
+        start.run(EVENT, out, inputs=(tmp_path / "missing.json",))
+    with pytest.raises(shadow.ShadowInputError, match="INPUT_BYTE_LIMIT"):
+        start.run(EVENT, out, inputs=(good,), limits=Limits(max_bytes=10))
+    with pytest.raises(shadow.ShadowInputError, match="BATCH_INPUT_LIMIT"):
+        start.run(EVENT, out, inputs=(good,) * (start.MAX_BATCH_INPUTS + 1))
+    with pytest.raises(shadow.ShadowInputError, match="EMPTY_BATCH"):
+        start.run(EVENT, out)
+    with pytest.raises(shadow.ShadowInputError, match="INPUT_SELECTION_AMBIGUOUS"):
+        start.run(EVENT, out, inputs=(good,), input_dir=tmp_path / "good")
+
+    directory_link = tmp_path / "good-link"
+    directory_link.symlink_to(tmp_path / "good", target_is_directory=True)
+    with pytest.raises(shadow.ShadowInputError, match="INPUT_DIR_REFUSED"):
+        start.run(EVENT, out, input_dir=directory_link)
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    with pytest.raises(shadow.ShadowInputError, match="EMPTY_BATCH"):
+        start.run(EVENT, out, input_dir=empty)
+
+    def entry_symlink(directory):
+        (directory / "z.json").symlink_to(good)
+
+    def entry_fifo(directory):
+        os.mkfifo(directory / "z.json")
+
+    def entry_subdirectory(directory):
+        (directory / "z.json").mkdir()
+
+    def entry_other_suffix(directory):
+        (directory / "notes.txt").write_text("{}")
+
+    def entry_hidden(directory):
+        (directory / ".hidden.json").write_text("{}")
+
+    for index, plant in enumerate((entry_symlink, entry_fifo, entry_subdirectory,
+                                   entry_other_suffix, entry_hidden)):
+        directory = tmp_path / f"batch{index}"
+        write_fixture(directory)
+        plant(directory)
+        with pytest.raises(shadow.ShadowInputError, match="INPUT_DIR_ENTRY_REFUSED"):
+            start.run(EVENT, out, input_dir=directory)
+
+    crowded = tmp_path / "crowded"
+    crowded.mkdir()
+    for index in range(start.MAX_BATCH_INPUTS + 1):
+        (crowded / f"f{index:02d}.json").write_text("{}")
+    with pytest.raises(shadow.ShadowInputError, match="BATCH_INPUT_LIMIT"):
+        start.run(EVENT, out, input_dir=crowded)
+
+    monkeypatch.setattr(start, "MAX_RUN_SECONDS", -1.0)
+    with pytest.raises(shadow.ShadowInputError, match="RUN_TIME_LIMIT"):
+        start.run(EVENT, out, inputs=(good,))
+    assert list(out.iterdir()) == []
+
+
+def test_stale_tampered_or_foreign_output_refuses_start_and_is_never_replaced(tmp_path):
+    path = write_fixture(tmp_path / "in")
+    out = output_dir(tmp_path)
+    name = start.run(EVENT, out, inputs=(path,))["artifacts"][0]["artifact"]
+    artifact = out / name
+    original = artifact.read_bytes()
+    report = json.loads(original)
+
+    def refused(code):
+        with pytest.raises(shadow.ShadowInputError, match=code):
+            start.run(EVENT, out, inputs=(path,))
+
+    def encoded(value):
+        return (json.dumps(value, sort_keys=True, separators=(",", ":")) + "\n").encode("ascii")
+
+    artifact.write_bytes(original + b" ")
+    refused("OUTPUT_TAMPERED_OUTPUT_CONFLICT")
+    assert artifact.read_bytes() == original + b" "
+    artifact.write_bytes(encoded({**report, "qualification": True}))
+    refused("OUTPUT_TAMPERED_ARTIFACT_POLICY_REFUSED")
+    artifact.write_bytes(encoded({**report, "event_slug": "another-event"}))
+    refused("OUTPUT_IDENTITY_MISMATCH")
+    artifact.write_bytes(encoded({**report, "metrics": {**report["metrics"], "observed_purchases": 12}}))
+    refused("OUTPUT_TAMPERED_ARTIFACT_ID_MISMATCH")
+    artifact.write_bytes(encoded({**report, "version": "v11_inventory_transform_offline_shadow_v0"}))
+    refused("OUTPUT_STALE_VERSION")
+    assert json.loads(artifact.read_text())["version"].endswith("_v0")
+    artifact.write_bytes(b"{")
+    refused("OUTPUT_TAMPERED_INVALID_JSON")
+    artifact.unlink()
+
+    keep = tmp_path / "keep.json"
+    keep.write_bytes(original)
+    artifact.symlink_to(keep)
+    refused("OUTPUT_NOT_REGULAR")
+    artifact.unlink()
+    renamed = out / ("inventory-shadow-" + "0" * 64 + ".json")
+    renamed.write_bytes(original)
+    refused("OUTPUT_IDENTITY_MISMATCH")
+    renamed.unlink()
+    (out / ".inventory-shadow-0123456789abcdef01234567").write_bytes(original)
+    refused("OUTPUT_STALE_TEMPORARY")
+    (out / ".inventory-shadow-0123456789abcdef01234567").unlink()
+    (out / "weather-shadow.json").write_text("{}")
+    refused("OUTPUT_DIR_FOREIGN_ENTRY")
+    (out / "weather-shadow.json").unlink()
+    assert list(out.iterdir()) == []
+
+    artifact.write_bytes(original)
+    replay = start.run(EVENT, out, inputs=(path,))
+    assert replay["artifacts"][0]["created"] is False
+    assert artifact.read_bytes() == original
+
+
+def test_output_directory_identity_refusals(tmp_path, monkeypatch):
+    path = write_fixture(tmp_path / "in")
+    out = output_dir(tmp_path)
+
+    def refused(directory, code):
+        with pytest.raises(shadow.ShadowInputError, match=code):
+            start.run(EVENT, directory, inputs=(path,))
+
+    refused(tmp_path / "absent", "OUTPUT_DIR_REFUSED")
+    refused(path, "OUTPUT_DIR_REFUSED")
+    linked = tmp_path / "out-link"
+    linked.symlink_to(out, target_is_directory=True)
+    refused(linked, "OUTPUT_DIR_REFUSED")
+    out.chmod(0o775)
+    refused(out, "OUTPUT_DIR_NOT_PRIVATE")
+    out.chmod(0o700)
+    holder = os.open(out, os.O_RDONLY)
+    try:
+        fcntl.flock(holder, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        refused(out, "OUTPUT_DIR_BUSY")
+    finally:
+        os.close(holder)
+    monkeypatch.setattr(start.os, "geteuid", lambda: 0)
+    refused(out, "ROOT_REFUSED")
+    monkeypatch.undo()
+    assert list(out.iterdir()) == []
+    assert start.run(EVENT, out, inputs=(path,))["artifacts"][0]["created"] is True
+
+
+def test_cli_refusal_exits_two_without_output(tmp_path, capsys):
+    out = output_dir(tmp_path)
+    path = write_fixture(tmp_path / "in", mutate=_set("evidence_class", "CHAIN_RECEIPT"))
+    with pytest.raises(SystemExit) as exc:
+        start.main(["--input", str(path), "--event", EVENT, "--output-dir", str(out)])
+    assert exc.value.code == 2
+    assert "inventory shadow start refused: API_OBSERVATION_CLASS_REQUIRED" in capsys.readouterr().err
+    with pytest.raises(SystemExit) as exc:
+        start.main(["--input", str(path), "--input-dir", str(tmp_path / "in"),
+                    "--event", EVENT, "--output-dir", str(out)])
+    assert exc.value.code == 2
+    assert list(out.iterdir()) == []
