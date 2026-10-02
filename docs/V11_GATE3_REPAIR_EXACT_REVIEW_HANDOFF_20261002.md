@@ -2,6 +2,8 @@
 
 These two isolated repair candidates followed independent `CHANGES_REQUIRED` reviews of their respective parents. Both author runners exited 0, left clean worktrees, and have matching terminal log hashes. Host-side focused offline verification passed. Neither candidate has a new independent verdict or integration approval. The owner's previous destination-specific transfer authorization covered exact `947bf68` and `c9e3b8d`, not these new commits; new candidate review transfer is pending owner authorization.
 
+At 2026-10-02 23:25 UTC, clean detached exact-commit checkouts were staged locally at `/tmp/alpha-v11-gate3-fresh-readiness-review-976217d` and `/tmp/alpha-v11-g3l-hardening-review-741c6ae`. Their HEAD and tree hashes match the table below. No external review transfer, reviewer, verdict, merge, or provider request followed from staging.
+
 | Lane | Exact candidate / tree / parent | Host-side verification | Reconciliation against main `d8b3e2f` |
 | --- | --- | --- | --- |
 | Fresh-window readiness F1/F2 | `976217d94629d808806f9e97ddd86c1992637a4c` / `c75574b1f8f721da8a7ba509500a5726aa27bc54` / `947bf687822d0a42e9992adc3049091e677a41ed` | 563/563 planner and frozen-checker tests plain; 563/563 under `-O`; clean commit diff and worktree | Offline three-way probe showed no textual conflict; recheck against newer main after PASS. |

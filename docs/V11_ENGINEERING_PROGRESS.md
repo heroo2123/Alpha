@@ -1,3 +1,7 @@
+## Exact Gate 3 repair review checkouts staged — 2026-10-02 23:25 UTC
+
+Staged clean local detached checkouts for `976217d` and `741c6ae` with matching commit/tree IDs. Their terminal-bound author evidence and passing offline tests remain in the handoff. Candidate-specific external-review authorization and independent verdicts remain pending; no review transfer, merge, provider request, capture, SHADOW admission or score crossing occurred. **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Gate 3 repairs finished; exact review handoff prepared — 2026-10-02 23:17 UTC
 
 Completed isolated `976217d` and `741c6ae` with exit-0 author terminals, clean worktrees/diffs, and 563 plain plus 563 optimized fresh-readiness/checker tests and 37 G3-L audit/preparation tests. The [exact-candidate handoff](V11_GATE3_REPAIR_EXACT_REVIEW_HANDOFF_20261002.md) records hashes and reconciliation. New different-model reviews are held for candidate-specific transfer authorization; no merge or provider request occurred. **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
