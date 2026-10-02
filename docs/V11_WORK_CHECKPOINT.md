@@ -18642,3 +18642,51 @@ formal 1/50; A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO;
 NOT_READY_TO_FUND**. Next unfinished action: recover the Opus review-#3
 verdict on `c7ca919` before any decision to merge this repair chain toward
 main.
+
+## Coordinator: Opus review #3 returned CHANGES_REQUIRED (narrow, trustworthy this time), H-2 completed, review #4 launched — 2026-10-02 15:45 UTC
+
+Review #3 of `c7ca919` returned and, unlike review #2, correctly followed
+the strengthened anti-tampering instructions: it recorded literal
+`git log --oneline -3`/`git status --porcelain` before and after its own
+work and both were identical (clean, HEAD unchanged) — its "I modified
+nothing" claim was independently checkable and held up. **Verdict:
+CHANGES_REQUIRED, narrow.** It confirmed H-1/M-1/M-2/M-4 genuinely fixed
+(it deliberately broke each new `_state_consistent` check one at a time to
+prove none were dead code) and confirmed the M-3 doc-only resolution by
+independently reading `test_seal_deadline_60s_boundary` itself. It found
+H-2 incomplete (labeled N-1, Medium, blocking): the phase-consistency check
+I added covered `used_attempts`/`delivered_bytes` but not denials, so a
+sealed snapshot could still claim `RETAINED_UNQUALIFIED`/`RETAINED_INVALID`
+while carrying denials, or claim `DENIED_HELD` with none — a combination
+`step`'s `SEAL_ACK` branch (`"DENIED_HELD" if s.denials else
+"RETAINED_UNQUALIFIED" if ... else "RETAINED_INVALID"`) can never actually
+produce. It also flagged three Low (explicitly non-blocking) residuals, all
+requiring a hand-built `ModelState` bypassing every public entry point
+(not reachable from `run_synthetic`/`step`/`recover_synthetic` given real
+input): a `RETAINED_*` snapshot with `delivered_bytes=0`/`sequence=0` can
+still replay; a forged state with an implausible `start_us` can produce a
+negative elapsed time in `result()`; a forged state with unhashable
+`denials` raises instead of refusing. Plus two nits: an H-1 regression test
+re-checked the pre-retry state instead of the retry's own result, and a
+stale "not yet committed" doc sentence.
+
+Fixed the blocking item directly: extended `recover_synthetic`'s
+`phase_consistent` check so `DENIED_HELD` requires `bool(denials)` and
+`RETAINED_UNQUALIFIED`/`RETAINED_INVALID` require `not denials`; added a
+negative regression test (RETAINED_* with denials present is rejected) and
+a positive control (legitimate `DENIED_HELD`-with-denials still replays);
+fixed both nits. Left the three Low items as documented residuals per the
+reviewer's own severity call. Full suite: 185 passed plain and under `-O`;
+`py_compile` clean; reviewer's own probe script re-run clean. Committed as
+`a979eaf` in the isolated worktree only.
+
+Launched Opus review #4 of `a979eaf`, narrowly scoped to the H-2 completion
+fix, again requiring literal before/after `git log`/`status` in the final
+report. MemAvailable ~946 MiB, free disk 2.7 GiB, zero other heavy
+specialists running (no duplicate-worker collision this cycle) — within
+cap. No merge, provider request, capture, V10/AxiomTrade/financial/
+service/authority action, or C/J/E/A boundary crossed: **91/200, formal
+1/50; A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO;
+NOT_READY_TO_FUND**. Next unfinished action: recover the Opus review-#4
+verdict on `a979eaf` before any decision to merge this repair chain toward
+main.
