@@ -1,3 +1,7 @@
+## Authorized Gate 3 fresh-readiness exact review — 2026-10-02 22:51 UTC
+
+The owner's exact-candidate review authorization now covers `947bf68` and `c9e3b8d`. Independent Astra/high review of `947bf68` is live; its verdict is pending. `c9e3b8d` remains unreviewed and unmerged. The newer reviewed intake consistency guard is on main `2e95657`. Neither candidate fills a G3-L identity or changes acceptance: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Pending Gate 3 exact-review reconciliation — 2026-10-02 22:34 UTC
 
 [Exact-candidate handoff](V11_GATE3_PENDING_EXACT_REVIEWS_20261002.md) now binds `947bf68` and `c9e3b8d` to trees, file hashes, existing focused verification and newer-main merge probes. Both remain unreviewed and unmerged; no identity credit or acceptance crossing. **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.

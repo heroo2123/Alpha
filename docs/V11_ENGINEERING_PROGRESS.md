@@ -1,3 +1,7 @@
+## Gate 3 exact review resumed — 2026-10-02 22:51 UTC
+
+The owner authorized exact-byte external review of `947bf68` and `c9e3b8d`. Started a terminal-bound independent Astra/high review of the clean fresh-readiness repair `947bf68`; verdict pending. The G3-L hardening candidate awaits separate review. Current main `2e95657` includes the independently reviewed intake consistency guard. No merge of either pending candidate, provider request, capture, forward SHADOW or score crossing: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Gate 3 review handoff prepared — 2026-10-02 22:34 UTC
 
 Prepared [exact-byte local handoff](V11_GATE3_PENDING_EXACT_REVIEWS_20261002.md) for clean fresh-readiness `947bf68` and G3-L hardening `c9e3b8d`, including hashes and merge conflict analysis. Candidate-specific external-model authorization remains pending after automatic approval review rejected the `947bf68` transfer. No reviewer, merge, provider request, forward SHADOW or score crossing. **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
