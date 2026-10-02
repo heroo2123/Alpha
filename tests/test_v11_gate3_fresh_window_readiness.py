@@ -10,16 +10,20 @@ confer real execution authority, provider rights or G3-L credit.
 import copy
 import hashlib
 import json
+from collections.abc import Mapping as _ABCMapping
 
 import pytest
 
 from tools.v11_gate3_evidence_preflight_checker import (
     ClockObservation,
     NULLABLE_PREREQS,
+    OWNER_REF_KEYS,
     PREREQ_KEYS,
+    REF_KEYS_NO_REPO,
     ResourceObservation,
     RESTRICTIONS_SCHEMA_NAME,
     strict_json_loads,
+    WINDOW_KEYS,
 )
 from tools.v11_gate3_fresh_window_readiness import (
     ALLOWED_OUTCOMES,
@@ -30,6 +34,7 @@ from tools.v11_gate3_fresh_window_readiness import (
     OUTCOME_INCOMPLETE,
     OUTCOME_REFUSED,
     SCHEMA,
+    _bound_diagnostic_output,
     evaluate_fresh_window_readiness,
 )
 
@@ -798,10 +803,15 @@ class _CountingOversizedMapping(dict):
 
 
 def test_oversized_counting_proposed_window_is_refused_without_copy_or_iteration():
+    # A dict *subclass* -- even one that honestly reports an oversized
+    # length -- is refused on the exact-built-in-dict type boundary itself
+    # (Astra/high F1 re-review of 6af4633: a subclass's len()/keys()/
+    # __iter__ are all independently overridable, so a declared length can
+    # never be trusted). The guard never even reaches len().
     counting = _CountingOversizedMapping(100_000)
     result = _call(proposed_window=counting)
     assert result.outcome == OUTCOME_REFUSED
-    assert "TOO_MANY_KEYS:proposed_window" in result.refusal_reasons
+    assert "INVALID_PROPOSED_WINDOW_TYPE" in result.refusal_reasons
     assert counting.iter_calls == 0
     assert counting.keys_calls == 0
     assert counting.getitem_calls == 0
@@ -811,18 +821,23 @@ def test_oversized_counting_prerequisites_is_refused_without_copy_or_iteration()
     counting = _CountingOversizedMapping(100_000)
     result = _call(prerequisites=counting)
     assert result.outcome == OUTCOME_REFUSED
-    assert "TOO_MANY_KEYS:prerequisites" in result.refusal_reasons
+    assert "INVALID_PREREQUISITES_TYPE" in result.refusal_reasons
     assert counting.iter_calls == 0
     assert counting.keys_calls == 0
     assert counting.getitem_calls == 0
 
 
-def test_oversized_counting_storage_qualification_is_incomplete_without_copy_or_iteration():
+def test_oversized_counting_storage_qualification_is_refused_without_copy_or_iteration():
+    # Unlike proposed_window/prerequisites, storage_qualification's
+    # oversized-dict-subclass case used to surface as readiness-tier
+    # INCOMPLETE (via _unsafe_untrusted_submapping's own, now-removed,
+    # isinstance(..., Mapping) check). The exact-dict type boundary is a
+    # structural precondition, exactly like passing a non-mapping type, so
+    # it is now refused at the same structural tier as that case.
     counting = _CountingOversizedMapping(100_000)
     result = _call(storage_qualification=counting)
-    assert result.outcome == OUTCOME_INCOMPLETE
-    assert result.storage_ready is False
-    assert "TOO_MANY_KEYS:storage_qualification" in result.incompleteness_reasons
+    assert result.outcome == OUTCOME_REFUSED
+    assert "INVALID_STORAGE_QUALIFICATION_TYPE" in result.refusal_reasons
     assert counting.iter_calls == 0
     assert counting.keys_calls == 0
     assert counting.getitem_calls == 0
@@ -926,6 +941,190 @@ def test_ordinary_hundred_thousand_key_storage_persistence_review_is_incomplete(
     assert result.storage_ready is False
     assert "OVERSIZED_PREREQUISITE_REFERENCE:storage_qualification.persistence_review" in result.incompleteness_reasons
     assert "MISSING_STORAGE_PERSISTENCE_REVIEW" in result.incompleteness_reasons
+
+
+# -- Astra/high re-review of 6af4633 (commit 947bf68): adversarial
+# Mapping/dict-subclass regressions ---------------------------------------
+#
+# That review found the prior commit's len()-based cardinality guard
+# (F1/F2 above) trusted an overridable protocol: a Mapping or dict subclass
+# can report one length via len() while __iter__ yields a different number
+# of entries, or can expose a different key set via keys() than via
+# __iter__, so a declared-safe object could still drive unbounded work
+# (outer surfaces) or reach the frozen _is_ref's internal set(v.keys())
+# uncapped (the fourteen direct reference paths: all twelve nullable
+# prerequisite references, the owner reference, and
+# storage_qualification["persistence_review"]). These mirror the retained
+# review's own probe objects (/tmp/alpha-v11-947bf68-mapping-probes.py:
+# Underreported, SplitView, UnderreportedDict) and prove the repair is now
+# an exact-built-in-dict type boundary (type(v) is dict), not a len()
+# comparison: not one of these objects' overridable methods is ever called.
+
+class _UnderreportedMapping(_ABCMapping):
+    """Declares a small, schema-matching length via __len__ while __iter__
+    actually yields many more distinct, individually valid short-string
+    keys -- the retained review's ``Underreported`` probe object, which
+    previously drove full enumeration of every outer surface despite its
+    declared length matching the schema."""
+
+    def __init__(self, declared_len, real_len):
+        self._declared_len = declared_len
+        self._real_len = real_len
+        self.iter_calls = 0
+        self.getitem_calls = 0
+
+    def __len__(self):
+        return self._declared_len
+
+    def __iter__(self):
+        self.iter_calls += 1
+        for i in range(self._real_len):
+            yield f"k{i}"
+
+    def __getitem__(self, key):
+        self.getitem_calls += 1
+        raise KeyError(key)
+
+
+def test_underreported_mapping_proposed_window_is_refused_without_iteration():
+    obj = _UnderreportedMapping(len(WINDOW_KEYS), 100_000)
+    result = _call(proposed_window=obj)
+    assert result.outcome == OUTCOME_REFUSED
+    assert "INVALID_PROPOSED_WINDOW_TYPE" in result.refusal_reasons
+    assert obj.iter_calls == 0
+    assert obj.getitem_calls == 0
+
+
+def test_underreported_mapping_prerequisites_is_refused_without_iteration():
+    obj = _UnderreportedMapping(len(PREREQ_KEYS), 100_000)
+    result = _call(prerequisites=obj)
+    assert result.outcome == OUTCOME_REFUSED
+    assert "INVALID_PREREQUISITES_TYPE" in result.refusal_reasons
+    assert obj.iter_calls == 0
+    assert obj.getitem_calls == 0
+
+
+def test_underreported_mapping_storage_qualification_is_refused_without_iteration():
+    obj = _UnderreportedMapping(3, 100_000)
+    result = _call(storage_qualification=obj)
+    assert result.outcome == OUTCOME_REFUSED
+    assert "INVALID_STORAGE_QUALIFICATION_TYPE" in result.refusal_reasons
+    assert obj.iter_calls == 0
+    assert obj.getitem_calls == 0
+
+
+class _SplitViewMapping(_ABCMapping):
+    """``__len__`` and ``__iter__`` honestly report only the real,
+    schema-sized storage-qualification entries, but ``keys()`` -- the view
+    ``dict(mapping)`` actually consumes -- yields additional
+    private-sentinel entries. The retained review's ``SplitView`` probe
+    object: a guard that only inspects ``__iter__``/``len()`` never
+    notices the extra ``keys()``-only entries, so ``dict(storage_
+    qualification)`` would previously copy and echo them."""
+
+    def __init__(self, base, extra):
+        self._data = dict(base)
+        self._extra = extra
+        self.iter_calls = 0
+        self.keys_calls = 0
+
+    def __len__(self):
+        return len(self._data)
+
+    def __iter__(self):
+        self.iter_calls += 1
+        return iter(self._data)
+
+    def __getitem__(self, key):
+        return self._data[key]
+
+    def keys(self):
+        self.keys_calls += 1
+        yield from self._data
+        for i in range(self._extra):
+            yield f"REVIEW_PRIVATE_SENTINEL_{i}"
+
+
+def test_split_view_storage_qualification_is_refused_keys_view_never_consumed():
+    obj = _SplitViewMapping(GOOD_STORAGE_QUALIFICATION, 16_000)
+    result = _call(storage_qualification=obj)
+    assert result.outcome == OUTCOME_REFUSED
+    assert "INVALID_STORAGE_QUALIFICATION_TYPE" in result.refusal_reasons
+    assert obj.keys_calls == 0
+    assert obj.iter_calls == 0
+    encoded = json.dumps(result.to_dict())
+    assert "REVIEW_PRIVATE_SENTINEL" not in encoded
+    assert len(encoded.encode("utf-8")) < 1000
+
+
+class _LyingLenDict(dict):
+    """A real ``dict`` *subclass* whose only override is ``__len__``,
+    reporting a small schema-sized length while actually holding many real
+    entries -- the retained review's ``UnderreportedDict`` probe object.
+    Proves the guard in front of the frozen ``_is_ref`` (whose first step
+    is an unbounded ``set(v.keys())`` copy) is the exact-dict type check,
+    not a ``len()`` comparison: ``__len__`` here is never even called."""
+
+    def __init__(self, data, declared_len):
+        super().__init__(data)
+        self._declared_len = declared_len
+
+    def __len__(self):
+        raise AssertionError("len() must never be called on a non-exact-dict reference")
+
+
+def _lying_ref(declared_len, real_len=100_000):
+    return _LyingLenDict({f"extra_{i}": "x" for i in range(real_len)}, declared_len)
+
+
+@pytest.mark.parametrize("key", sorted(NULLABLE_PREREQS))
+def test_lying_len_dict_subclass_nullable_reference_is_incomplete_len_never_called(key):
+    prereqs = _full_prerequisites()
+    prereqs[key] = _lying_ref(declared_len=len(REF_KEYS_NO_REPO))
+    result = _call(prerequisites=prereqs)
+    assert result.outcome == OUTCOME_INCOMPLETE
+    assert f"MALFORMED_PREREQUISITE_REFERENCE:{key}" in result.incompleteness_reasons
+    assert key in result.missing_prerequisites
+
+
+def test_lying_len_dict_subclass_owner_reference_is_incomplete_len_never_called():
+    prereqs = _full_prerequisites()
+    prereqs["owner_directive_original_record"] = _lying_ref(declared_len=len(OWNER_REF_KEYS))
+    result = _call(prerequisites=prereqs)
+    assert result.outcome == OUTCOME_INCOMPLETE
+    assert "MALFORMED_PREREQUISITE_REFERENCE:owner_directive_original_record" in result.incompleteness_reasons
+    assert "owner_directive_original_record" in result.missing_prerequisites
+
+
+def test_lying_len_dict_subclass_persistence_review_is_incomplete_len_never_called():
+    storage_qualification = dict(
+        GOOD_STORAGE_QUALIFICATION,
+        persistence_review=_lying_ref(declared_len=len(REF_KEYS_NO_REPO)),
+    )
+    result = _call(storage_qualification=storage_qualification)
+    assert result.outcome == OUTCOME_INCOMPLETE
+    assert result.storage_ready is False
+    assert "OVERSIZED_PREREQUISITE_REFERENCE:storage_qualification.persistence_review" in result.incompleteness_reasons
+    assert "MISSING_STORAGE_PERSISTENCE_REVIEW" in result.incompleteness_reasons
+
+
+def test_bound_diagnostic_output_counts_json_serialization_overhead_not_bare_text():
+    # Many short, individually tiny, distinct reasons whose bare UTF-8 text
+    # sum stays under the frozen budget, but whose actual JSON-array
+    # serialization (quotes, commas, brackets) pushes past it -- the
+    # retained review's finding that summing only each reason's own text
+    # omits that overhead, so the 1,061,375-byte split-view probe output
+    # exceeded the 1,048,576-byte limit despite passing a bare-text sum.
+    reasons = [f"R{i:09d}" for i in range(100_000)]
+    bare_text_bytes = sum(len(r.encode("utf-8")) for r in reasons)
+    assert bare_text_bytes < 1_048_576
+    result = _bound_diagnostic_output(reasons)
+    assert result == ("DIAGNOSTIC_OUTPUT_BUDGET_EXCEEDED",)
+
+
+def test_bound_diagnostic_output_passes_through_ordinary_small_reason_sets():
+    result = _bound_diagnostic_output(["B_REASON", "A_REASON", "A_REASON"])
+    assert result == ("A_REASON", "B_REASON")
 
 
 # -- Result invariants ----------------------------------------------------

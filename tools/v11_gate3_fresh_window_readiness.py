@@ -86,10 +86,31 @@ Each of these three keeps ``PREPARATION_CANDIDATE_ALL_INPUTS_PRESENT_NOT_EXECUTA
 unreachable until a later, separately reviewed change actually establishes
 the missing policy or trust boundary; this module does not invent one just
 to make its own positive outcome reachable.
+
+Every mapping a caller supplies directly as a keyword argument
+(``proposed_window``, ``prerequisites``, ``storage_qualification``) and every
+direct reference reached through one of those (any of the twelve nullable
+prerequisite references, the owner reference, and
+``storage_qualification["persistence_review"]`` -- fourteen paths in total)
+must be an exact built-in ``dict`` (``type(v) is dict``), never a ``dict``
+subclass or another ``collections.abc.Mapping`` implementation. This is a
+deliberate, fail-closed supported-input boundary, not an incidental
+restriction: only for the exact built-in type are ``len()``, ``keys()`` and
+``__iter__`` guaranteed consistent with each other and with the object's
+real contents. Anything else can override one of those protocols (e.g.
+reporting a small ``len()`` while a different, unchecked view yields
+arbitrarily many additional entries) and would make a `len()`-based bound
+bypassable while still reaching an unbounded copy or the frozen checker's
+own unbounded ``_is_ref``/``_check_closed``. A caller holding an ordinary
+``dict`` is unaffected; anything else is refused generically (as a
+structural type problem for the three outer surfaces, as a malformed
+reference for the fourteen direct-reference paths), never silently
+accepted and never partially trusted.
 """
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from typing import Any, Mapping, Optional
 
@@ -201,16 +222,24 @@ def _is_exactly_false(v: Any) -> bool:
     return type(v) is bool and v is False
 
 
-def _oversized_reference(v: Any, keys: frozenset) -> bool:
-    """True if ``v`` is a dict strictly larger than its own reference
-    schema -- i.e. unconditionally invalid as that reference, since the
-    frozen ``_is_ref`` requires exact key-set equality (``set(v.keys()) ==
-    keys``). Refusing it on cardinality alone, via the cheap ``len()``
-    below, changes no accepted case and lets a caller avoid ever handing an
-    arbitrarily large dict to ``_is_ref``, whose first step would otherwise
-    be an unbounded ``set(v.keys())`` copy.
+def _unsafe_reference_candidate(v: Any, keys: frozenset) -> bool:
+    """True if ``v`` must be refused before ever being handed to the frozen
+    ``_is_ref``, whose first step is an unbounded ``set(v.keys())`` copy and
+    which itself only checks ``isinstance(v, dict)`` -- a check a ``dict``
+    *subclass* passes trivially while still being free to override
+    ``__len__``, ``keys()`` or ``__iter__`` so that a cheap ``len()`` guard
+    based on those overridable protocols no longer reflects the object's
+    real underlying storage (e.g. reporting length 3 while actually holding
+    100,000 entries). Requiring the exact built-in type (``type(v) is
+    dict``, not ``isinstance``) is what makes the ``len()`` comparison below
+    trustworthy: nothing can intercept ``len()``, ``keys()`` or ``__iter__``
+    for the exact ``dict`` type itself. Anything that is not an exact
+    ``dict``, or an exact ``dict`` strictly larger than its own reference
+    schema, is refused here -- the latter can never be a valid reference
+    anyway, since ``_is_ref`` requires exact key-set equality, so this
+    changes no accepted case.
     """
-    return isinstance(v, dict) and len(v) > len(keys)
+    return type(v) is not dict or len(v) > len(keys)
 
 
 def _has_unsafe_key(obj: Mapping, label: str, reasons: list) -> bool:
@@ -248,13 +277,22 @@ def _check_closed_bounded(obj: Any, keys: frozenset, label: str, reasons: list) 
     here, so cardinality and unsafe/unknown keys must be refused
     generically rather than iterated/echoed without bound.
 
-    ``obj`` is accepted and measured as the original ``Mapping`` the caller
+    ``obj`` is accepted and measured as the original object the caller
     supplied -- never a ``dict(obj)`` copy of it: ``len()`` is the only
     operation performed before the cardinality comparison below, so an
     oversized mapping is refused without first copying or fully iterating
-    its entries.
+    its entries. ``obj`` must additionally be an exact built-in ``dict``
+    (``type(obj) is dict``), not merely ``isinstance(obj, Mapping)``: for
+    anything else, ``len()``, ``keys()`` and ``__iter__`` are overridable
+    and can disagree with each other (a declared length that does not
+    match what iteration actually yields, or a ``keys()`` view that differs
+    from the ``__iter__`` view), which would make every guard below -- and
+    any later ``dict(obj)`` copy a caller of this function performs once it
+    returns cleanly -- bypassable. For an exact ``dict`` these cannot
+    diverge, so the ``len()`` check immediately below is actually
+    trustworthy.
     """
-    if not isinstance(obj, Mapping):
+    if type(obj) is not dict:
         reasons.append(f"NOT_AN_OBJECT:{label}")
         return
     if len(obj) > len(keys):
@@ -291,10 +329,14 @@ def _unsafe_untrusted_submapping(obj: Any, keys: frozenset, label: str, reasons:
     call.
 
     As with ``_check_closed_bounded``, ``obj`` is measured as the original
-    ``Mapping`` the caller supplied; cardinality is checked via ``len()``
-    before any copy or full iteration is performed.
+    object the caller supplied; cardinality is checked via ``len()`` before
+    any copy or full iteration is performed, and ``obj`` must be an exact
+    built-in ``dict`` (``type(obj) is dict``), not merely a ``Mapping``, for
+    the same reason: only for the exact type are ``len()``, ``keys()`` and
+    ``__iter__`` guaranteed not to diverge from each other or from the
+    object's real contents.
     """
-    if not isinstance(obj, Mapping):
+    if type(obj) is not dict:
         return False  # let the reused function itself report the type problem
     if len(obj) > len(keys):
         reasons.append(f"TOO_MANY_KEYS:{label}")
@@ -316,12 +358,12 @@ def _check_nested_domain_bounded(restrictions: Mapping, reasons: list) -> bool:
     must be refused generically here first, before that reused call.
     """
     domains = restrictions.get("known_control_domains")
-    if not isinstance(domains, dict):
+    if type(domains) is not dict:
         return True  # malformed-but-not-oversized; the reused checker reports this safely
     ok = True
     for domain_label, domain_keys in (("ECMWF", ECMWF_DOMAIN_KEYS), ("GEFS", GEFS_DOMAIN_KEYS)):
         sub = domains.get(domain_label)
-        if isinstance(sub, dict) and _unsafe_untrusted_submapping(
+        if type(sub) is dict and _unsafe_untrusted_submapping(
             sub, domain_keys, f"known_control_domains.{domain_label}", reasons
         ):
             ok = False
@@ -331,8 +373,8 @@ def _check_nested_domain_bounded(restrictions: Mapping, reasons: list) -> bool:
 def _bound_diagnostic_output(reasons: list) -> tuple:
     """Deduplicate and sort ``reasons`` as before, but additionally enforce
     the standing, already-reviewed ``diagnostic_output_bytes`` ceiling
-    (``FROZEN_LIMITS``) on their total serialized size, collapsing to one
-    fixed label if it is ever exceeded.
+    (``FROZEN_LIMITS``) on their *actual serialized* representation,
+    collapsing to one fixed label if it is ever exceeded.
 
     Every individual reason appended throughout this module is already
     bounded (schema-fixed label, or a generic marker that never embeds
@@ -340,12 +382,16 @@ def _bound_diagnostic_output(reasons: list) -> tuple:
     per-key reason is even considered -- so this is a final, defense-in-depth
     budget, not the mechanism redaction relies on. It must not depend on the
     raw-input byte cap: that cap bounds input, not the output this function
-    returns.
+    returns. The budget is measured against ``json.dumps`` of the actual
+    deduplicated list, not a bare sum of each reason's own UTF-8 length: the
+    latter omits the JSON array's quoting, comma and bracket overhead and
+    can under-count the bytes a caller serializing ``to_dict()`` actually
+    receives.
     """
     deduped = tuple(sorted(set(reasons)))
     budget = _limit_int(FROZEN_LIMITS, "diagnostic_output_bytes")
-    total_bytes = sum(len(reason.encode("utf-8")) for reason in deduped)
-    if total_bytes > budget:
+    serialized_bytes = len(json.dumps(list(deduped)).encode("utf-8"))
+    if serialized_bytes > budget:
         return ("DIAGNOSTIC_OUTPUT_BUDGET_EXCEEDED",)
     return deduped
 
@@ -438,10 +484,10 @@ def _check_clock_quality(clock: ClockObservation, limits: Mapping, now: Any, rea
 
 def evaluate_fresh_window_readiness(
     *,
-    proposed_window: Mapping[str, Any],
-    prerequisites: Mapping[str, Any],
+    proposed_window: dict,
+    prerequisites: dict,
     restrictions_raw: bytes,
-    storage_qualification: Optional[Mapping[str, Any]],
+    storage_qualification: Optional[dict],
     now_utc: str,
     clock: Optional[ClockObservation] = None,
     resources: Optional[ResourceObservation] = None,
@@ -460,6 +506,15 @@ def evaluate_fresh_window_readiness(
     no execution authority, provider right, or G3-L credit: it only means an
     actual exact-byte package for this window is now worth authoring and
     sending for its own required independent review.
+
+    ``proposed_window``, ``prerequisites`` and (if not ``None``)
+    ``storage_qualification`` must each be an exact built-in ``dict``
+    (``type(v) is dict``) -- a ``dict`` subclass or any other
+    ``collections.abc.Mapping`` implementation is refused as a structural
+    type problem, never partially trusted, because only the exact type
+    guarantees ``len()``, ``keys()`` and ``__iter__`` cannot have been
+    overridden to disagree with each other or with the object's real
+    contents.
     """
 
     refusal: list = []
@@ -467,12 +522,19 @@ def evaluate_fresh_window_readiness(
 
     # -- Structural / safety-tier checks (any one forces REFUSED) -----------
 
-    if not isinstance(proposed_window, Mapping):
+    # Each of these three mappings must be an exact built-in ``dict``, never
+    # a ``dict`` subclass or other ``Mapping`` implementation: only the
+    # exact type guarantees ``len()``/``keys()``/``__iter__`` cannot have
+    # been overridden to disagree with each other or with the object's real
+    # contents (see module docstring). ``type(...) is not dict`` therefore
+    # replaces the looser ``not isinstance(..., Mapping)`` check this
+    # candidate previously used.
+    if type(proposed_window) is not dict:
         refusal.append("INVALID_PROPOSED_WINDOW_TYPE")
     else:
         _check_closed_bounded(proposed_window, WINDOW_KEYS, "proposed_window", refusal)
 
-    if not isinstance(prerequisites, Mapping):
+    if type(prerequisites) is not dict:
         refusal.append("INVALID_PREREQUISITES_TYPE")
     else:
         _check_closed_bounded(prerequisites, PREREQ_KEYS, "prerequisites", refusal)
@@ -488,12 +550,12 @@ def evaluate_fresh_window_readiness(
         refusal.append("INVALID_CLOCK_OBSERVATION_TYPE")
     if resources is not None and type(resources) is not ResourceObservation:
         refusal.append("INVALID_RESOURCE_OBSERVATION_TYPE")
-    if storage_qualification is not None and not isinstance(storage_qualification, Mapping):
+    if storage_qualification is not None and type(storage_qualification) is not dict:
         refusal.append("INVALID_STORAGE_QUALIFICATION_TYPE")
 
     window_is_fresh = False
     dispatch_lo = expires_hi = None
-    if isinstance(proposed_window, Mapping) and not refusal:
+    if type(proposed_window) is dict and not refusal:
         roll_forward = proposed_window.get("automatic_roll_forward")
         if not _is_exactly_false(roll_forward):
             refusal.append("AUTOMATIC_ROLL_FORWARD_MUST_BE_FALSE")
@@ -564,17 +626,18 @@ def evaluate_fresh_window_readiness(
         if val is None:
             incomplete.append(f"NULL_PREREQUISITE:{key}")
             missing_prerequisites.append(key)
-        # Cardinality is checked first (cheap, via len()) so an
-        # arbitrarily large dict supplied as a direct reference is refused
-        # before _is_ref's internal set(val.keys()) can copy it (F2).
-        elif _oversized_reference(val, REF_KEYS_NO_REPO) or not _is_ref(val, REF_KEYS_NO_REPO):
+        # Type and cardinality are checked first (cheap, via type()/len())
+        # so neither a dict subclass that lies about its own length nor an
+        # arbitrarily large exact dict supplied as a direct reference ever
+        # reaches _is_ref's internal set(val.keys()) (F2).
+        elif _unsafe_reference_candidate(val, REF_KEYS_NO_REPO) or not _is_ref(val, REF_KEYS_NO_REPO):
             incomplete.append(f"MALFORMED_PREREQUISITE_REFERENCE:{key}")
             missing_prerequisites.append(key)
     owner_ref = prerequisites.get("owner_directive_original_record")
     if owner_ref is None:
         incomplete.append("NULL_PREREQUISITE:owner_directive_original_record")
         missing_prerequisites.append("owner_directive_original_record")
-    elif _oversized_reference(owner_ref, OWNER_REF_KEYS) or not _is_ref(owner_ref, OWNER_REF_KEYS) or \
+    elif _unsafe_reference_candidate(owner_ref, OWNER_REF_KEYS) or not _is_ref(owner_ref, OWNER_REF_KEYS) or \
             owner_ref.get("qualification") != "OWNER_INSTRUCTION_ONLY_NOT_PROVIDER_RIGHTS":
         incomplete.append("MALFORMED_PREREQUISITE_REFERENCE:owner_directive_original_record")
         missing_prerequisites.append("owner_directive_original_record")
@@ -609,14 +672,17 @@ def evaluate_fresh_window_readiness(
             sq_dict = dict(storage_qualification)
             # _check_storage internally calls the frozen _is_ref on
             # persistence_review, whose first step is an unbounded
-            # set(v.keys()) copy. Guard its cardinality here first and
-            # substitute a cheap sentinel if it is oversized, so that
-            # internal call never sees an arbitrarily large dict (F2); an
-            # oversized dict can never be a valid reference anyway (_is_ref
-            # requires exact key-set equality), so this changes no accepted
-            # case.
+            # set(v.keys()) copy, and which itself only checks
+            # isinstance(v, dict) -- a dict subclass that lies about its
+            # own length would pass that check trivially. Guard its type
+            # and cardinality here first and substitute a cheap sentinel if
+            # either is unsafe, so that internal call never sees anything
+            # but an exact, schema-sized dict or None (F2); an oversized or
+            # wrong-type value can never be a valid reference anyway
+            # (_is_ref requires an exact dict with exact key-set equality),
+            # so this changes no accepted case.
             persistence_review = sq_dict.get("persistence_review")
-            if _oversized_reference(persistence_review, REF_KEYS_NO_REPO):
+            if _unsafe_reference_candidate(persistence_review, REF_KEYS_NO_REPO):
                 storage_reasons.append(
                     "OVERSIZED_PREREQUISITE_REFERENCE:storage_qualification.persistence_review"
                 )

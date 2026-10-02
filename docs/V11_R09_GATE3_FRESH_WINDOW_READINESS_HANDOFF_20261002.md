@@ -40,8 +40,9 @@ narrow upstream check — nothing more.
 A new, self-contained module,
 `tools/v11_gate3_fresh_window_readiness.py`
 (`evaluate_fresh_window_readiness`), plus
-`tests/test_v11_gate3_fresh_window_readiness.py` (71 synthetic/offline
-tests, all passing, no execution restriction encountered in this session).
+`tests/test_v11_gate3_fresh_window_readiness.py` (91 synthetic/offline
+tests as of the latest repair revision below, all passing, no execution
+restriction encountered in this session).
 It takes, as explicit caller-supplied arguments:
 
 - a **proposed** fresh window (not yet a package, not yet reviewed);
@@ -207,8 +208,8 @@ depth independent of the raw-input byte cap.
 ## Verification run this session
 
 ```
-python -B -m pytest tests/test_v11_gate3_fresh_window_readiness.py tests/test_v11_gate3_evidence_preflight_checker.py -q   # 543 passed (71 planner + 472 checker, unmodified)
-python -O -B -m pytest tests/test_v11_gate3_fresh_window_readiness.py tests/test_v11_gate3_evidence_preflight_checker.py -q   # 543 passed, 1 unrelated pytest-config warning
+python -B -m pytest tests/test_v11_gate3_fresh_window_readiness.py tests/test_v11_gate3_evidence_preflight_checker.py -q   # 563 passed (91 planner + 472 checker, unmodified)
+python -O -B -m pytest tests/test_v11_gate3_fresh_window_readiness.py tests/test_v11_gate3_evidence_preflight_checker.py -q   # 563 passed, 1 unrelated pytest-config warning
 python -m py_compile tools/v11_gate3_fresh_window_readiness.py tests/test_v11_gate3_fresh_window_readiness.py tools/v11_gate3_evidence_preflight_checker.py   # clean
 git diff --check                                                        # clean
 ```
@@ -303,18 +304,105 @@ bounded. F2: a new local `_oversized_reference` helper checks
 `isinstance(v, dict) and len(v) > len(schema_keys)` — a dict that large
 can never be a valid reference regardless, since `_is_ref` requires exact
 key-set equality — and gates every direct reference before `_is_ref` runs:
-each of the eleven non-owner prerequisite references, the owner reference,
-and (since `_check_storage` itself is frozen and unmodifiable)
-`storage_qualification["persistence_review"]` is substituted with a cheap
-`None` sentinel first if oversized, so the frozen `_check_storage`/`_is_ref`
-call never receives the oversized dict. Both failure modes are now
-reproducibly structured outcomes rather than uncaught `MemoryError` under
-the review's exact bounded-subprocess probe (verified independently in
-this pass, plain and `-O`, for all three F1/F2 surfaces). 12 tests were
-added in this pass (71 total), including counting-`Mapping` regressions
-that assert zero `keys()`/`__iter__` calls occur on an oversized reference
-before refusal, proving the guard is driven by a single bounded `len()`
-check rather than any copy or key-set construction.
+each of the **twelve** non-owner (nullable) prerequisite references, the
+owner reference, and (since `_check_storage` itself is frozen and
+unmodifiable) `storage_qualification["persistence_review"]` is substituted
+with a cheap `None` sentinel first if oversized, so the frozen
+`_check_storage`/`_is_ref` call never receives the oversized dict. Both
+failure modes are now reproducibly structured outcomes rather than
+uncaught `MemoryError` under the review's exact bounded-subprocess probe
+(verified independently in this pass, plain and `-O`, for all three
+F1/F2 surfaces). 12 tests were added in this pass (71 total), including
+counting-`Mapping` regressions that assert zero `keys()`/`__iter__` calls
+occur on an oversized reference before refusal, proving the guard is
+driven by a single bounded `len()` check rather than any copy or key-set
+construction.
+
+**This `len()`-based guard was itself still incomplete** — see the next
+revision below, which closes the gap an independent re-review found in it.
+(The "eleven non-owner prerequisite references" count in an earlier
+revision of this document was also wrong — `NULLABLE_PREREQS` has twelve
+members, not eleven; corrected above and in the next section.)
+
+## Revision: closing the adversarial Mapping/dict-subclass gap (commit after `947bf68`)
+
+An independent Codex GPT-6 Astra/high exact-commit review of `947bf68`
+returned `CHANGES_REQUIRED` on F1/F2 again: the repair above bounded
+cardinality with a plain `len(obj) > len(keys)` comparison, but `len()`,
+`keys()` and `__iter__` are all independently overridable on anything that
+is not the exact built-in `dict` type. Three concrete counterexamples, all
+reproduced by the review's own retained probe script
+(`/tmp/alpha-v11-947bf68-mapping-probes.py`) and independently re-verified
+against this revision:
+
+- A `Mapping` reporting the schema's own length via `__len__` while
+  `__iter__` actually yields far more entries (100,001 total key yields
+  across the three outer surfaces in the review's probe) — the length
+  check passed, but `_has_unsafe_key`'s `for k in obj` still drove full,
+  schema-unbounded enumeration.
+- A storage-qualification `Mapping` whose `__len__`/`__iter__` honestly
+  report only the three real, schema-sized keys, but whose separate
+  `keys()` method — the view `dict(storage_qualification)` actually
+  consumes — yields additional private-sentinel entries. The guard
+  inspected `__iter__`; the later `dict(...)` copy used `keys()`; the two
+  disagreed. With 16,000 extra keys this produced 1,061,375 serialized
+  diagnostic bytes, over the 1,048,576-byte frozen limit, because
+  `_bound_diagnostic_output` summed only each reason's own UTF-8 length,
+  not the actual JSON-serialized output a caller receives.
+- A `dict` *subclass* (not a `Mapping`-only object) whose only override is
+  `__len__`, returning a small schema-sized number while actually holding
+  100,000 real entries, reaching every one of the fourteen direct
+  reference paths (all twelve nullable prerequisite references, the owner
+  reference, and `storage_qualification["persistence_review"]`) and the
+  frozen `_is_ref`'s internal `set(v.keys())` uncapped.
+
+This revision replaces the `len()`-based guard with an exact-built-in-dict
+type boundary: `proposed_window`, `prerequisites`, `storage_qualification`
+(the three caller-supplied outer surfaces) and every one of the fourteen
+direct reference values must satisfy `type(v) is dict` — not
+`isinstance(v, Mapping)`, which a `Mapping` ABC implementation or `dict`
+subclass also satisfies while remaining free to override `len()`,
+`keys()` or `__iter__`. Only the exact built-in type guarantees those
+three cannot diverge from each other or from the object's real contents,
+so a `len()` comparison performed on it is finally trustworthy, and no
+later `dict(...)`/`set(v.keys())` call ever sees anything the type check
+did not already certify. Anything else is refused generically — as a
+structural `INVALID_*_TYPE` problem for the three outer surfaces (the same
+bucket "not a mapping at all" already used), as a malformed/oversized
+reference for the fourteen direct paths — before `len()`, `keys()` or
+`__iter__` is ever invoked on it. `_bound_diagnostic_output` was also
+changed to bound `json.dumps(...)` of the actual deduplicated reason list,
+not a bare sum of each reason's own text, closing the serialization-
+overhead gap independently of the Mapping fix.
+
+Re-running the review's exact retained probe script
+(`/tmp/alpha-v11-947bf68-mapping-probes.py`, adapted only to point at this
+checkout) against this revision, in both plain and `-O` mode: all 40
+probes return a structured refusal/incompleteness outcome, zero probe
+objects are ever iterated or read (`__iter__`/`__getitem__`/`keys()` call
+counts stay at 0), no private sentinel is ever echoed, and the largest
+serialized result across every probe is 634 bytes. The review's separate
+low-memory subprocess harness (`/tmp/alpha-v11-947bf68-memory-cap.py`,
+same adaptation) was re-run for the outer surfaces (ordinary, underreported-
+length, and split-view objects) and for all fourteen direct reference
+paths (ordinary and underreported-length dict subclasses): every case
+returns a structured outcome, with zero `MemoryError`s, under the review's
+same tight address-space headroom. 20 new regression tests were added in
+this pass covering the retained review's `Underreported`, `SplitView` and
+`UnderreportedDict` probe objects against all three outer surfaces and all
+fourteen direct reference paths, plus a direct unit test proving
+`_bound_diagnostic_output` now bounds the actual JSON-serialized output
+rather than a bare text sum (91 total).
+
+One behavioral note: `storage_qualification` being a `dict` subclass (not
+merely "not a mapping at all") now surfaces as a structural `REFUSED`
+outcome (`INVALID_STORAGE_QUALIFICATION_TYPE`) rather than the readiness-
+tier `INCOMPLETE` outcome it previously reached via
+`_unsafe_untrusted_submapping`'s own (now-removed) `isinstance(...,
+Mapping)` check. This is a deliberate consistency fix, not a semantic
+regression: `proposed_window` and `prerequisites` already classified "not
+an acceptable object" as a structural refusal, and a `dict` subclass is
+exactly that kind of problem, not evidence that happens to be missing.
 
 ## Required before any further promotion
 
