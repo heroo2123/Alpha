@@ -1,5 +1,16 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## A2/A3 retained observation accepted in scope — 2026-10-02 00:04 UTC
+
+Independent exact review of `89f85ac` accepted its bounded offline retained
+observation; the four reviewed files and exact review artifacts are now on
+main. Original provenance, all 25 RECORD discrepancies and complete runtime
+closure remain unresolved, so A2/A3 are UNQUALIFIED. The fresh October 2
+offline PRE_REVIEW screen still has 77 missing identities, one expired timing
+identity and zero feasible slots at the observed disk level. A4 repair remains
+live; no G3-L, forward SHADOW or C/J/E/A boundary changed: **G3-L NO-GO;
+91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## A4 review rejected; repair and A2/A3 review live — 2026-10-01 23:58 UTC
 
 Independent exact-commit review of A4 `ef53d61` found six reproducible

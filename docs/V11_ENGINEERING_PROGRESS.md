@@ -1,5 +1,16 @@
 # Supplementary engineering estimate
 
+## A2/A3 exact review integrated; offline capacity constrained — 2026-10-02 00:04 UTC
+
+The independent `89f85ac` review passed for retained observations only, with
+13 probes. Its four candidate files and exact review evidence were integrated
+onto current main; A2/A3 remain unqualified. The fresh offline October 2
+screen proposes zero slots with 1.59 GiB free disk and still lacks 77 reviewed
+identities plus one timely review. A4 repair is active; A7/A8 reviews and
+inventory repair remain queued. The prior accepted 5,460-pass/13-skip release
+result is unchanged; no new full suite is claimed. **G3-L NO-GO; 91/200
+(45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## A4 rejection recovered; two specialist lanes active — 2026-10-01 23:58 UTC
 
 The independent A4 `ef53d61` review is CHANGES_REQUIRED on six reproduced

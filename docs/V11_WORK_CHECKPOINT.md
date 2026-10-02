@@ -1,5 +1,34 @@
 # Alpha V11 work checkpoint
 
+## A2/A3 retained observation reviewed and integrated — 2026-10-02 00:04 UTC
+
+The independent Astra/high exact-commit review of `89f85ac` (tree `9ff38fb`)
+finished `ACCEPT_IN_SCOPE`, with 13 independent probes including six adverse
+cases. It independently matched 75 retained payloads, 78 ELF files and 305
+static dependency references. The review accepts only the four-file offline
+observation; A2 and A3 remain **UNQUALIFIED** because original artifact
+provenance, the 25 RECORD discrepancies, and the complete runtime closure
+are unresolved. Reviewed candidate files were reconciled onto newer clean
+main as `a42dc99` and `cba536a`, then the exact review report, probe and
+terminal were retained without editing their bytes. No qualification or
+release boundary changed.
+
+A fresh offline-only October 2 PRE_REVIEW screen at
+`/tmp/alpha-v11-g3l-offline-screen-1790899432.json` (SHA-256
+`67a81ee07ad666b1065a3537611f2300bd2471ca5590a1ad68dc91e588993c63`)
+exited 2 with `launchable=false`: 77 missing evidence identities, one review
+that cannot finish before the frozen acquisition start, and zero proposed
+slots with 1,586,597,888 free disk bytes (below the 2 GiB floor). A4 repair
+remains live in its sole worktree; its broad Gate 3 family recorded 551 passes
+and 26 runtime reserve failures while pytest temporary files consumed roughly
+1.5 GiB. The worker removed only that completed test's temporary directory,
+restoring about 1.5 GiB free; its diagnostic and repair remain unfinished.
+Do not duplicate or interrupt it. A7 and A8 reviews and inventory repair
+remain queued. The private FINAL-REVIEWED master hash remains
+`a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+No provider request, G3-L PASS, forward SHADOW sample or C/J/E/A crossing:
+**G3-L NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Live recovery follow-up — host clock 2026-10-01 23:59 UTC
 
 Recovered clean main `8d1141a`, 109 commits ahead of origin. The A4 repair
