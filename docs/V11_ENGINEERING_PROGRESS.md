@@ -1,5 +1,11 @@
 # Supplementary engineering estimate
 
+## A4 bootstrap design independently accepted in scope — 2026-10-02 03:19 UTC
+
+Independent Sol/high exact review of `ae0c7726261f00bfa448c64a24f8b16f8f4d26d3` (tree `e10556db4ec35c0d431614248c7a7a5fbad91ffa`) finished clean with `PASS_IN_SCOPE` for **architecture and B1 plan only**. The report, machine verdict and exit-0 outer terminal are retained as `docs/V11_R09_GATE3_A4_BOOTSTRAP_DESIGN_REVIEW_ae0c772*`; changed-file hashes and checkout identity match. B1 may proceed as a bounded offline closure-specification checker that always emits `UNQUALIFIED`, `launchable=false`, `a4_pass=false`. Its raw JSON parser must reject duplicate keys and nonfinite values, and graph tests may show only declared-graph consistency, not real native completeness. B1 still needs exact implementation review.
+
+No backend was implemented or accepted; A2/A3 remain UNQUALIFIED, A4 OPEN, A8 UNQUALIFIED, and G3-L NO-GO. The PAPER scanner is inactive/disabled; V11 controller/execution units are inactive/not-found and protected authority roots absent. Host free disk remains about 1.1 GiB, below the 2 GiB G3-L floor. No provider request, service/authority change, financial action, forward SHADOW evidence or C/J/E/A boundary crossed: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## A4 bootstrap design completed; independent review live — 2026-10-02 03:16 UTC
 
 Completed the Astra/high architecture handoff as proposed design `ae0c7726261f00bfa448c64a24f8b16f8f4d26d3`, tree `e10556db4ec35c0d431614248c7a7a5fbad91ffa`. `docs/V11_R09_GATE3_A4_BOOTSTRAP_DESIGN_20261002.md/json` defines a fresh-process immutable runtime image, explicit externally trusted bootstrap, pre-constructor loader closure, actual mapping/MEMFS selection obligations, and staged offline implementation/review. It does not claim an available backend or accepted A2/A3. Verified document evidence hashes, local references and diff whitespace; no runtime change or new runtime/full-release test is claimed. The next implementation slice B1 is a bounded structural closure-specification checker with always-UNQUALIFIED/nonlaunchable output, pending independent design acceptance. B2–B4 retain genuine provenance, bootstrap/backend and native integration prerequisites.

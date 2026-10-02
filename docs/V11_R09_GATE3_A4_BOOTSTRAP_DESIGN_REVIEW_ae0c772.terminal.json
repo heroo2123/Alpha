@@ -1,0 +1,17 @@
+{
+  "clean": true,
+  "completed_utc": "2026-10-02T03:19:13.297008+00:00",
+  "error": null,
+  "exit_code": 0,
+  "financial_authority": false,
+  "head": "ae0c7726261f00bfa448c64a24f8b16f8f4d26d3",
+  "initial_head": "ae0c7726261f00bfa448c64a24f8b16f8f4d26d3",
+  "initial_tree": "e10556db4ec35c0d431614248c7a7a5fbad91ffa",
+  "lane": "a4-bootstrap-independent-design-review",
+  "live_execution_authority": false,
+  "pid": 2082825,
+  "schema": "ALPHA_V11_PARALLEL_GATE3_LANE_V1",
+  "tree": "e10556db4ec35c0d431614248c7a7a5fbad91ffa",
+  "uncommitted_status": "",
+  "verdict_sha256": "9f456bdb97cfe21d0a5e9dffef4e0a1a73395199f7ee3980517a80243c807b81"
+}
