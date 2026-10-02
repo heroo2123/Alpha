@@ -1,3 +1,7 @@
+## Coordinator exact-review handoff and reconciliation probe — 2026-10-02 22:34 UTC
+
+Recovered clean main `280e55b`, clean isolated `947bf68` and `c9e3b8d`, and no separate Alpha author/reviewer/PAPER/execution process. The authoritative FINAL-REVIEWED private master SHA-256 remains `a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`. Free disk is about 3.9 GiB; MemAvailable about 1.0 GiB. An offline three-way merge probe found no fresh-readiness conflict, but G3-L candidate checkpoint/matrix/progress docs overlap newer main and require preservation-aware reconciliation after review. Recorded exact commits, trees, file hashes, test evidence and merge plan in [pending exact reviews](V11_GATE3_PENDING_EXACT_REVIEWS_20261002.md). Requested candidate-specific external-model review authorization following automatic approval rejection for `947bf68`; no new transfer, reviewer, verdict, merge, provider request, capture, G3-L PASS, SHADOW, financial/V10/Axiom/authority action or C/J/E/A crossing. **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Coordinator fresh-readiness repair intake and review transfer hold — 2026-10-02 22:29 UTC
 
 Recovered the finished clean Sonnet/high F1/F2 repair as isolated commit

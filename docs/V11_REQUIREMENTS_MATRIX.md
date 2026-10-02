@@ -1,3 +1,7 @@
+## Pending Gate 3 exact-review reconciliation — 2026-10-02 22:34 UTC
+
+[Exact-candidate handoff](V11_GATE3_PENDING_EXACT_REVIEWS_20261002.md) now binds `947bf68` and `c9e3b8d` to trees, file hashes, existing focused verification and newer-main merge probes. Both remain unreviewed and unmerged; no identity credit or acceptance crossing. **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Fresh-readiness F1/F2 repair unreviewed — 2026-10-02 22:29 UTC
 
 Isolated `947bf68` passes 543 focused offline tests plain and under `-O`.
