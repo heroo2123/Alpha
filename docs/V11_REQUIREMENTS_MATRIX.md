@@ -1,3 +1,7 @@
+## Fresh-readiness F1/F2 still open — 2026-10-02 23:03 UTC
+
+Exact `947bf68` independent review is `CHANGES_REQUIRED`: adversarial outer Mapping and nested dict-subclass cardinality bypasses remain. Its original runner terminal is absent, so no review-process exit binding is inferred. A Sonnet/high repair is active in the isolated worktree; `c9e3b8d` G3-L hardening review continues separately. Neither candidate is accepted or merged and no identity is filled: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Parallel Gate 3 exact reviews — 2026-10-02 22:56 UTC
 
 Owner-authorized independent exact reviews of `947bf68` and `c9e3b8d` are live in separate detached worktrees. Neither has a verified verdict or terminal at this checkpoint; both candidates remain unmerged. The audit hardening fills no G3-L identity, and neither candidate changes the 77 missing PRE_REVIEW identities or the 503/503/429 holds. **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.

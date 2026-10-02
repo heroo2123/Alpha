@@ -1,0 +1,173 @@
+{
+  "schema": "ALPHA_V11_FRESH_READINESS_EXACT_COMMIT_REVIEW_V1",
+  "reviewer": "GPT-6 Astra/high independent reviewer",
+  "date_utc": "2026-10-02",
+  "checkout": "/tmp/alpha-v11-gate3-fresh-readiness-review-947bf68",
+  "commit": "947bf687822d0a42e9992adc3049091e677a41ed",
+  "tree": "448dc0b375f4111d74563e2c423158fa4addfbf2",
+  "base_commit": "6af46331a424f7abcb5167723bff3f31b835e969",
+  "identity_matches_expected": true,
+  "verdict": "CHANGES_REQUIRED",
+  "g3_l": "NO-GO",
+  "g3_l_statement": "G3-L NO-GO",
+  "scope": "Offline fresh-window-readiness planner candidate only; no executable preflight, provider/socket access, account/order action, funding, or gate authority approved.",
+  "findings": [
+    {
+      "id": "F1",
+      "prior_finding": "F1 / R1",
+      "severity": "medium",
+      "blocking": true,
+      "title": "Reported cardinality and validated iteration view do not bound later enumeration or storage normalization",
+      "locations": [
+        {
+          "file": "tools/v11_gate3_fresh_window_readiness.py",
+          "line": 226
+        },
+        {
+          "file": "tools/v11_gate3_fresh_window_readiness.py",
+          "line": 260
+        },
+        {
+          "file": "tools/v11_gate3_fresh_window_readiness.py",
+          "line": 299
+        },
+        {
+          "file": "tools/v11_gate3_fresh_window_readiness.py",
+          "line": 611
+        }
+      ],
+      "evidence": "Underreported Mapping traverses 100001 keys on every outer surface. Split iteration/keys views allow storage copy to allocate unboundedly and echo untrusted keys. 16000 extras produce 1061375 serialized bytes, above 1048576-byte limit. Controlled low-memory storage probe raises MemoryError in plain and -O.",
+      "required_change": "Enforce a trustworthy supported input representation before enumeration; reject unsupported custom objects or create one independently bounded validated snapshot. Never later consume an unchecked mapping view. Bound serialized diagnostics and add adversarial regression coverage."
+    },
+    {
+      "id": "F2",
+      "prior_finding": "F2 / R1",
+      "severity": "medium",
+      "blocking": true,
+      "title": "Nested dict subclasses bypass cardinality checks by overriding __len__",
+      "locations": [
+        {
+          "file": "tools/v11_gate3_fresh_window_readiness.py",
+          "line": 213
+        },
+        {
+          "file": "tools/v11_gate3_fresh_window_readiness.py",
+          "line": 570
+        },
+        {
+          "file": "tools/v11_gate3_fresh_window_readiness.py",
+          "line": 577
+        },
+        {
+          "file": "tools/v11_gate3_fresh_window_readiness.py",
+          "line": 621
+        },
+        {
+          "file": "tools/v11_gate3_evidence_preflight_checker.py",
+          "line": 332
+        }
+      ],
+      "evidence": "100000-entry dict subclass reporting length 3 reaches set(v.keys()) on all twelve nullable references, owner, and persistence. Evaluator peak approximately 6.30 MB; nullable/owner/persistence capped subprocesses raise MemoryError in both modes.",
+      "required_change": "Reject unsupported subclasses or hand the frozen checker only independently bounded validated reference snapshots; cover all fourteen direct reference paths."
+    }
+  ],
+  "repair_assessment": {
+    "F1": "PARTIAL_ORDINARY_DICT_AND_HONEST_MAPPING_REPAIRED_ADVERSARIAL_BOUNDARY_OPEN",
+    "F2": "PARTIAL_ORDINARY_DICT_REPAIRED_SUBCLASS_BOUNDARY_OPEN",
+    "R2": "CLOSED_IN_SCOPE_EXPLICIT_MISSING_POLICY_BLOCKER",
+    "R3": "CLOSED_IN_SCOPE_EXPLICIT_MISSING_MAGNITUDE_POLICY_BLOCKER",
+    "R4": "CLOSED_IN_SCOPE_EXPLICIT_MISSING_PROVENANCE_BLOCKER"
+  },
+  "tests": {
+    "python": "3.12.3",
+    "interpreter": "/home/alphaadmin/AlphaV11_Dev/venv/bin/python",
+    "focused_plain": {
+      "passed": 543,
+      "seconds": 6.4
+    },
+    "focused_optimized": {
+      "passed": 543,
+      "seconds": 6.09,
+      "warnings": 1,
+      "warning": "Assertions outside rewritten test modules/plugins disabled by -O"
+    },
+    "semantic_probes_per_mode": 106,
+    "semantic_expected_outcomes_passed": true,
+    "ordinary_allocation_probes_per_mode": 10,
+    "honest_traversal_probes_per_mode": 3,
+    "adversarial_mapping_probes_per_mode": 40,
+    "nested_reference_surfaces_per_size_per_mode": 14,
+    "memory_subprocess_cases": 20,
+    "ordinary_memory_cases_structured": 12,
+    "adversarial_memory_error_reproductions": 8,
+    "maximum_serialized_mapping_probe_bytes": 1061375,
+    "diagnostic_limit_bytes": 1048576,
+    "evaluation_audit_effect_events": [],
+    "diff_check_passed": true,
+    "final_checkout_clean": true,
+    "retained_private_binding_hashes_and_lengths_match": true
+  },
+  "limits": {
+    "semantic": {
+      "wall_seconds": 30,
+      "cpu_seconds": 20,
+      "address_space_bytes": 268435456
+    },
+    "mapping": {
+      "wall_seconds": 30,
+      "cpu_seconds": 10,
+      "address_space_bytes": 268435456
+    },
+    "memory_child": {
+      "wall_seconds": 15,
+      "cpu_seconds": 10,
+      "extra_address_space_bytes": 1048576
+    }
+  },
+  "prior_review": {
+    "report": "/tmp/alpha-v11-gate3-fresh-readiness-review-6af4633.review.md",
+    "verdict": "/tmp/alpha-v11-gate3-fresh-readiness-review-6af4633.verdict.json"
+  },
+  "evidence_files": [
+    {
+      "path": "/tmp/alpha-v11-947bf68-adverse.py",
+      "sha256": "612f7f31180f6d0359386b19fb18d2f610125b96d4827b5075bcfce483f06da9"
+    },
+    {
+      "path": "/tmp/alpha-v11-947bf68-adverse-plain.json",
+      "sha256": "3eca40d8f47b131d41e5674edf27f2f3cccfc3fc994cc05839ea613591c55661"
+    },
+    {
+      "path": "/tmp/alpha-v11-947bf68-adverse-opt.json",
+      "sha256": "73857011dc1654e8f9a7c8e8f51e46ab5a37ba12d39b0bf9773422ef60f87c73"
+    },
+    {
+      "path": "/tmp/alpha-v11-947bf68-mapping-probes.py",
+      "sha256": "e6e4a1472cffb2f9f3ce53441ca2fa9121304e5f08e85c98fa40d906ab6ea7ab"
+    },
+    {
+      "path": "/tmp/alpha-v11-947bf68-mapping-plain.json",
+      "sha256": "396afd3d3dd073566b94de345552b76b1711efd9b6ec560d45c7e2064243b297"
+    },
+    {
+      "path": "/tmp/alpha-v11-947bf68-mapping-opt.json",
+      "sha256": "e5d63e5ec58611df1df4e820c600a525bc5a2c3a479f25ae7edf7bd43e27bbf3"
+    },
+    {
+      "path": "/tmp/alpha-v11-947bf68-memory-cap.py",
+      "sha256": "75aad78225e8e2260f338e880d2a44b756db1acdcbaadf00832a71c34af3f6f2"
+    },
+    {
+      "path": "/tmp/alpha-v11-947bf68-memory-cap.json",
+      "sha256": "03a935841488098a7d68124e3402eec93ca540810887298e9ccf474beaa36177"
+    }
+  ],
+  "checkout_modified": false,
+  "private_evidence_modified": false,
+  "safety_gates_modified": false,
+  "provider_access_authorized": false,
+  "g3_l_approved": false,
+  "report": "/tmp/alpha-v11-gate3-fresh-readiness-review-947bf68.review.md",
+  "report_sha256": "e6f23bfeaf2f005c853ad3e211a74529c744aaf68b386a2198544c4005933dcb",
+  "terminal_marker": "FRESH_READINESS_REVIEW_CHANGES_REQUIRED"
+}
