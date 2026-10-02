@@ -1,3 +1,7 @@
+## Parallel Gate 3 exact reviews — 2026-10-02 22:56 UTC
+
+Owner-authorized independent exact reviews of `947bf68` and `c9e3b8d` are live in separate detached worktrees. Neither has a verified verdict or terminal at this checkpoint; both candidates remain unmerged. The audit hardening fills no G3-L identity, and neither candidate changes the 77 missing PRE_REVIEW identities or the 503/503/429 holds. **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Authorized Gate 3 fresh-readiness exact review — 2026-10-02 22:51 UTC
 
 The owner's exact-candidate review authorization now covers `947bf68` and `c9e3b8d`. Independent Astra/high review of `947bf68` is live; its verdict is pending. `c9e3b8d` remains unreviewed and unmerged. The newer reviewed intake consistency guard is on main `2e95657`. Neither candidate fills a G3-L identity or changes acceptance: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.

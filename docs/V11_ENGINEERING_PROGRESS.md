@@ -1,3 +1,7 @@
+## Parallel Gate 3 exact reviews launched — 2026-10-02 22:56 UTC
+
+Started the separate Astra/high exact-commit review of G3-L audit hardening `c9e3b8d` while the fresh-readiness `947bf68` review continues. Both use clean, isolated read-only checkouts and terminal-bound runners; both verdicts remain pending. No candidate merge, provider request, capture, SHADOW admission, or acceptance crossing: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Gate 3 exact review resumed — 2026-10-02 22:51 UTC
 
 The owner authorized exact-byte external review of `947bf68` and `c9e3b8d`. Started a terminal-bound independent Astra/high review of the clean fresh-readiness repair `947bf68`; verdict pending. The G3-L hardening candidate awaits separate review. Current main `2e95657` includes the independently reviewed intake consistency guard. No merge of either pending candidate, provider request, capture, forward SHADOW or score crossing: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
