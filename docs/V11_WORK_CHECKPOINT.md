@@ -19677,3 +19677,32 @@ pending owner decision.
 Recovered the completed Sol/high G3-L retained-identity audit candidate `131eb12` (tree `659ef4d`), clean in its isolated worktree. Its handoff and JSON report say 77 PRE_REVIEW identities remain missing before and after; six retained items have limited historical scope, one G3-P terminal was recovered, and none earns inventory credit. Current GateRuntime bytes differ from the historical slice-3 review. The candidate is unmerged and unreviewed. Independent host-side verification on a detached exact-commit checkout passed 20 focused offline tests, `git diff --check`, clean status, and JSON SHA-256 `357f3a2a31456175ad19c68807cd53019f2464de0c13ea7608d478b51f9b80e8`. Current main intake/launch tests passed 114/114.
 
 An attempted persistent Claude Opus/high exact-commit review launch was rejected **before execution** by automatic approval review: the destination-specific private-evidence export authorization covers candidate `27513d2` and its referenced evidence, not this new G3-L candidate. No reviewer process, verdict, or terminal exists; do not route its retained private artifacts to Codex or Claude without a new destination-specific authorization or a demonstrably low-risk permitted packet. The detached review checkout is preserved at `/tmp/alpha-v11-g3l-identity-review-131eb12`. Fresh-readiness repair remains live in its separate worktree; no duplicate worker was started. The protected FINAL-REVIEWED master still hashes to `a0e16d9b...b4a`; free disk is about 4.0 GiB, MemAvailable about 954 MiB, no Alpha PAPER/execution process was seen, and protected V11 authority roots remain absent. User unit state could not be queried. No provider request, capture, SHADOW, financial, V10, Axiom, authority, merge, or score crossing: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
+## G3-L identity audit hardening, F1 repaired — 2026-10-02 22:20 UTC
+
+Isolated worktree `/tmp/alpha-v11-g3l-audit-hardening-20261002`, base `main`
+`40bc64e`. Repaired `tools/v11_r09_gate3_g3l_identity_audit.py` per F1 of the
+independent `131eb12` review (`docs/V11_R09_GATE3_G3L_IDENTITY_AUDIT_REVIEW_131eb12.md`):
+replaced the hard-coded slice-3-only runtime-drift special case with a
+generic recheck that, for every PRE_REVIEW row, correlates its own cited
+terminal/reconciliation JSON against the reconciliation's
+`code_byte_observations` by reviewed-commit field, and folds in the current
+byte-freshness of every code file actually certified. The review's own
+probe scenario (simulated `tools/v11_r09_gate3_launch_v4.py` drift, which the
+pre-fix tool missed for `code.mapping_exact_commit_review`) is now a passing
+regression test, alongside a second independent-file-drift test proving the
+mechanism is not special-cased. Also made the two scoped F2 (before/after
+screen wording) and F3 (terminal marker/error check; bounded `_git_bytes`
+timeout via `git cat-file blob`) fixes the review authorized; its other two
+F3 nits (duplicate report ref, test-pins-live-drift) were left untouched as
+out of authorized scope. New snapshot
+`docs/V11_R09_GATE3_G3L_IDENTITY_AUDIT_HARDENING_20261002.json` (SHA-256
+`566eb4beb8e8c15f359c7af2205acc91e1bc9235ae0df54f5a5ea4cb23719b1b`)
+reproduces the same `6/1/70/0` category boundary, 77 MISSING, 0 credit,
+G3-L NO-GO as the frozen `131eb12` snapshot, which along with its review
+bundle remains untouched. 27 focused offline tests passed (20 pre-existing +
+7 new, `--basetemp=/tmp/g3l-audit-hardening-basetemp/bt`), `py_compile` and
+`git diff --check` clean. Candidate is isolated and unmerged; the separate
+fresh-readiness worktree and `main` were not touched. No provider request,
+capture, SHADOW, financial, V10, Axiom, authority, merge, or score crossing:
+**91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.

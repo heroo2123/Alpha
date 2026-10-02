@@ -26,6 +26,14 @@ ORIGINAL_REPORT = "docs/V11_R09_GATE3_PROTOCOL_REVIEW_117830a.md"
 ORIGINAL_TERMINAL_RECOVERY_COMMIT = "5a06629c34577c14c2fffd5ced1fda7bd62ab7f2"
 ORIGINAL_ID = "protocol.g3p_original_review_terminal"
 SLICE3_ID = "code.slice3_exact_commit_review"
+ORIGINAL_MARKER = "R09_GATE3_PROTOCOL_REVIEW_PASS"
+
+# Field names observed across this repo's exact-review terminal/reconciliation
+# schemas for "the code commit this record reviewed". Used to discover, for
+# any identity row, which `code_byte_observations` its own cited JSON
+# artifacts actually depend on -- rather than trusting a row's "artifacts"
+# list to already include the underlying source file.
+_COMMIT_FIELD_NAMES = ("head", "candidate_commit", "reviewed_commit", "commit", "candidate")
 
 RETAINED_SCOPED = "RETAINED_REVIEWED_LOCAL_SCOPE"
 OFFLINE = "DETERMINISTIC_OFFLINE_RECONCILIATION"
@@ -52,10 +60,14 @@ def _digest(data: bytes) -> str:
 
 
 def _git_bytes(repo: Path, commit: str, path: str) -> bytes:
-    proc = subprocess.run(
-        ["git", "show", f"{commit}:{path}"], cwd=repo,
-        stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False,
-    )
+    try:
+        proc = subprocess.run(
+            ["git", "cat-file", "blob", f"{commit}:{path}"], cwd=repo,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False,
+            timeout=30,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise ValueError(f"git read timed out: {commit}:{path}") from exc
     if proc.returncode:
         raise ValueError(f"missing Git evidence: {commit}:{path}")
     return proc.stdout
@@ -72,6 +84,33 @@ def _repo_ref(repo: Path, path: str, commit: str | None = None) -> dict:
         result["git_commit"] = commit
         result["matches_named_git_bytes"] = data == _git_bytes(repo, commit, path)
     return result
+
+
+def _code_observation_refs(repo: Path, artifact_paths: list[str], artifacts: dict,
+                           commit_to_paths: dict[str, set[str]]) -> list[dict]:
+    """Discover which `code_byte_observations` a row's own JSON artifacts cite.
+
+    A row's "artifacts" list is the reviewer's chosen evidence scope, but a
+    reviewed terminal/reconciliation JSON may certify a specific code commit
+    without that code file itself being listed. Every such JSON artifact is
+    re-read here for a recorded commit; any match against a known code
+    observation pulls that observation's current byte-freshness into the
+    row's own ref set, so drift in the underlying code is never missed.
+    """
+    extra = []
+    seen = set(artifact_paths)
+    for path in artifact_paths:
+        if not path.endswith(".json"):
+            continue
+        record = _json(repo / path)
+        for field in _COMMIT_FIELD_NAMES:
+            value = record.get(field)
+            if isinstance(value, str) and value in commit_to_paths:
+                for obs_path in sorted(commit_to_paths[value]):
+                    if obs_path not in seen:
+                        seen.add(obs_path)
+                        extra.append(artifacts[obs_path])
+    return extra
 
 
 def audit(repo: Path, *, target_date: str, now_utc: int,
@@ -119,11 +158,23 @@ def audit(repo: Path, *, target_date: str, now_utc: int,
                                live["sha256"] == claimed["sha256"] and
                                live["byte_length"] == claimed["byte_length"])}
 
+    observations = source["code_byte_observations"]
+    if not isinstance(observations, dict) or not observations:
+        raise ValueError("source reconciliation is missing code_byte_observations")
+    commit_to_paths: dict[str, set[str]] = {}
+    for name, obs in observations.items():
+        obs_path, obs_commit = obs.get("path"), obs.get("commit_oid")
+        if not isinstance(obs_path, str) or not isinstance(obs_commit, str) or obs_path not in artifacts:
+            raise ValueError(f"malformed code_byte_observation: {name}")
+        commit_to_paths.setdefault(obs_commit, set()).add(obs_path)
+
     terminal = _repo_ref(repo, ORIGINAL_TERMINAL, ORIGINAL_TERMINAL_RECOVERY_COMMIT)
     report = _repo_ref(repo, ORIGINAL_REPORT)
     terminal_data = _json(repo / ORIGINAL_TERMINAL)
     if (not terminal["matches_named_git_bytes"] or
         terminal_data.get("status") != "PASS" or terminal_data.get("exit") != 0 or
+        terminal_data.get("marker") != ORIGINAL_MARKER or
+        terminal_data.get("error") is not None or
         terminal_data.get("commit") != "117830a9b418cdf2a1b1f5146e074343623b8e3f" or
         terminal_data.get("tree") != "07c4d72fcafb4897896e27dfbcc415e7ab078ee9" or
         terminal_data.get("report_sha256") != report["sha256"] or
@@ -152,16 +203,21 @@ def audit(repo: Path, *, target_date: str, now_utc: int,
             category = OFFLINE
             refs.extend((report, terminal))
             disposition = "Recovered retained PASS terminal binds the exact G3-P report; package sealing and independent entry review remain pending."
-        elif identity == SLICE3_ID:
-            category = FUTURE
-            disposition = "Scoped slice-3 review survives, but current GateRuntime bytes differ from the reviewed baseline; current executable closure needs independent review."
-        elif old["material_status"] == "REUSABLE_SCOPED_ARTIFACTS" and all(
-                ref["current_matches_reviewed_bytes"] for ref in refs):
-            category = RETAINED_SCOPED
-            disposition = "Exact scoped historical material is retained; sealing and independent package-entry review remain pending."
         else:
-            category = FUTURE
-            disposition = old["remaining_obligation"]
+            refs += _code_observation_refs(repo, old["artifacts"], artifacts, commit_to_paths)
+            if old["material_status"] == "REUSABLE_SCOPED_ARTIFACTS" and all(
+                    ref["current_matches_reviewed_bytes"] for ref in refs):
+                category = RETAINED_SCOPED
+                disposition = "Exact scoped historical material is retained; sealing and independent package-entry review remain pending."
+            elif old["material_status"] == "REUSABLE_SCOPED_ARTIFACTS":
+                category = FUTURE
+                drifted = sorted(ref["path"] for ref in refs if not ref["current_matches_reviewed_bytes"])
+                disposition = ("Scoped review material is retained for its exact historical commit, but current "
+                               "bytes for " + ", ".join(drifted) + " differ from the reviewed baseline; current "
+                               "executable closure needs independent review.")
+            else:
+                category = FUTURE
+                disposition = old["remaining_obligation"]
         rows[identity] = {
             "category": category, "qualified_entry": None,
             "required_freshness": old["required_freshness"],
@@ -182,6 +238,9 @@ def audit(repo: Path, *, target_date: str, now_utc: int,
                                   "review_verdict": reviewed_verdict,
                                   "review_terminal": reviewed_terminal},
         "screen": {"missing_before": len(missing), "missing_after": len(missing),
+                   "screen_runs": 1,
+                   "before_after_note": ("missing_before and missing_after are the same single PRE_REVIEW "
+                                         "measurement; the audit fills no identity, so no second run occurs."),
                    "other_findings": [f for f in findings if f["state"] != "MISSING"],
                    "attempt_slots": len(screen["capacity_plan"]["attempt_slots"]),
                    "denominator": screen["capacity_plan"]["denominator"],
