@@ -133,6 +133,24 @@ def test_nonfinite_values_rejected(token):
         parse_strict(raw)
 
 
+def test_exponent_overflow_rejected_with_fixed_result():
+    raw = b'{"size_bytes": 1e400}'
+    with pytest.raises(ClosureSpecParseError, match="NONFINITE_VALUE_REJECTED"):
+        parse_strict(raw)
+    result = evaluate_proposal_bytes(raw)
+    assert result["accepted"] is False
+    _fixed_fields_present(result)
+
+
+def test_integer_digit_limit_rejected_with_fixed_result():
+    raw = b"1" * 4301
+    with pytest.raises(ClosureSpecParseError, match="JSON_NUMBER_REJECTED"):
+        parse_strict(raw)
+    result = evaluate_proposal_bytes(raw)
+    assert result["accepted"] is False
+    _fixed_fields_present(result)
+
+
 def test_oversized_raw_bytes_rejected():
     raw = b'{"pad": "' + b'x' * MAX_RAW_BYTES + b'"}'
     with pytest.raises(ClosureSpecParseError, match="RAW_INPUT_TOO_LARGE"):

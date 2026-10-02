@@ -23,6 +23,7 @@ no A8/G3-L conversion and no native execution.
 from __future__ import annotations
 
 import json
+import math
 import re
 import sys
 from typing import Any
@@ -73,6 +74,13 @@ def _fixed_fields() -> dict:
 
 def _reject_constant(token: str) -> float:
     raise ClosureSpecParseError(f"NONFINITE_VALUE_REJECTED:{token}")
+
+
+def _parse_finite_float(token: str) -> float:
+    value = float(token)
+    if not math.isfinite(value):
+        raise ClosureSpecParseError(f"NONFINITE_VALUE_REJECTED:{token}")
+    return value
 
 
 def _check_nesting_depth(text: str) -> None:
@@ -131,11 +139,15 @@ def parse_strict(raw: bytes) -> Any:
             text,
             object_pairs_hook=_dedupe_object_pairs,
             parse_constant=_reject_constant,
+            parse_float=_parse_finite_float,
         )
     except ClosureSpecParseError:
         raise
     except json.JSONDecodeError as exc:
         raise ClosureSpecParseError(f"JSON_SYNTAX_ERROR:{exc.msg}") from exc
+    except ValueError as exc:
+        # CPython's integer digit guard raises ValueError inside json.loads.
+        raise ClosureSpecParseError("JSON_NUMBER_REJECTED") from exc
 
 
 def _is_strict_int(value: Any) -> bool:
