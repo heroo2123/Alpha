@@ -282,6 +282,30 @@ def test_refuses_oversized_key_without_echoing_it():
     assert all(len(reason) < 1000 for reason in result.refusal_reasons)
 
 
+def test_lone_surrogate_key_is_refused_without_echoing_it():
+    # A lone UTF-16 surrogate code point is short (passes any length bound)
+    # but cannot be UTF-8 encoded; it must still be caught and must never
+    # be embedded verbatim into a reason string.
+    extra = dict(FRESH_WINDOW)
+    extra["\ud800"] = "y"
+    result = _call(proposed_window=extra)
+    assert result.outcome == OUTCOME_REFUSED
+    assert "OVERSIZED_OR_INVALID_KEY:proposed_window" in result.refusal_reasons
+    for reason in result.refusal_reasons:
+        reason.encode("utf-8")
+
+
+def test_oversized_storage_qualification_key_is_incomplete_not_echoed():
+    huge_key = "x" * 5_000_000
+    bad_storage = dict(GOOD_STORAGE_QUALIFICATION)
+    bad_storage[huge_key] = "y"
+    result = _call(storage_qualification=bad_storage)
+    assert result.outcome == OUTCOME_INCOMPLETE
+    assert result.storage_ready is False
+    assert "OVERSIZED_OR_INVALID_KEY:storage_qualification" in result.incompleteness_reasons
+    assert all(len(reason) < 1000 for reason in result.incompleteness_reasons)
+
+
 def test_refuses_restrictions_raw_wrong_type():
     result = _call(restrictions_raw="not-bytes")
     assert result.outcome == OUTCOME_REFUSED

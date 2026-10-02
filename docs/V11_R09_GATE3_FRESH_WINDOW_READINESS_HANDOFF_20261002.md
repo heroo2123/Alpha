@@ -40,7 +40,7 @@ narrow upstream check — nothing more.
 A new, self-contained module,
 `tools/v11_gate3_fresh_window_readiness.py`
 (`evaluate_fresh_window_readiness`), plus
-`tests/test_v11_gate3_fresh_window_readiness.py` (36 synthetic/offline
+`tests/test_v11_gate3_fresh_window_readiness.py` (43 synthetic/offline
 tests, all passing, no execution restriction encountered in this session).
 It takes, as explicit caller-supplied arguments:
 
@@ -70,10 +70,12 @@ outcomes, each with a closed, non-promotable label:
   key). Nothing downstream is evaluated once this fires.
 - `PREPARATION_INCOMPLETE_PREREQUISITES_MISSING` — the inputs are
   structurally sound but one or more of: a null/malformed prerequisite
-  reference, no clock observation supplied, an out-of-floor clock
-  (uncertainty/calibration age/window overlap), no storage
-  observation/qualification supplied, an under-floor physical storage
-  reservation, or a restriction-history record that does not demonstrate the
+  reference, no clock observation supplied, an out-of-floor clock (source,
+  monotonicity, uncertainty, calibration age, or disagreement between the
+  reading and the caller's own `now_utc` beyond the reading's own stated
+  uncertainty), no storage observation/qualification supplied, an
+  under-floor physical storage reservation, or a restriction-history record
+  that does not demonstrate the
   retained ECMWF holds / GEFS lineage block are both present and
   unmodified. This is the expected, honest result today: every real
   prerequisite in the committed binding is still null, so feeding that real
@@ -92,20 +94,37 @@ outcomes, each with a closed, non-promotable label:
 
 ## Why key logic is reused, not reimplemented
 
-The clock-uncertainty/window-overlap check (`_check_clock`, including the
-`Fraction`-based rounding that decides whether the measured clock's stated
-uncertainty interval still fits inside the proposed dispatch window) and the
-storage/resource floor check (`_check_storage`) are imported directly from
-`tools/v11_gate3_evidence_preflight_checker.py` and called against the
-*proposed* window/limits rather than copy-pasted. That module is **not
-modified** by this candidate (confirmed: `tests/test_v11_gate3_evidence_preflight_checker.py`
-still shows 472/472 passed, unmodified, after this candidate's tests ran in
-the same process). Re-deriving that arithmetic here would risk a second,
-silently-diverging copy of a safety-relevant interval comparison; reusing it
-is the smaller, more reviewable diff. The frozen resource/clock floors
-(`FROZEN_LIMITS`) and the frozen expired October 2 window (`FROZEN_WINDOW`,
-used only as the roll-forward comparison target) are likewise imported, not
-restated.
+The storage/resource floor check (`_check_storage`), the generic
+bounded-reference/string/closed-key validators, and the frozen
+resource/clock floors (`FROZEN_LIMITS`) are imported directly from
+`tools/v11_gate3_evidence_preflight_checker.py` rather than copy-pasted.
+That module is **not modified** by this candidate (confirmed:
+`tests/test_v11_gate3_evidence_preflight_checker.py` still shows 472/472
+passed, unmodified, after this candidate's tests ran in the same process).
+Re-deriving that arithmetic here would risk a second, silently-diverging
+copy of a safety-relevant comparison; reusing it is the smaller, more
+reviewable diff. The frozen expired October 2 window (`FROZEN_WINDOW`,
+used only as the roll-forward comparison target, including any window that
+*overlaps* it) is likewise imported and hard-bound internally -- it is not
+a parameter a caller can override.
+
+The one checker function deliberately **not** reused is `_check_clock`:
+that function enforces that the measured reading already sits inside the
+proposed dispatch window, which is a dispatch-time overlap check, not a
+preparation-time quality check, and would make an honest reading taken
+before a future window opens impossible to satisfy. This module's own
+`_check_clock_quality` instead checks the reading's method/quality (source,
+monotonicity, uncertainty, calibration age) plus that the reading agrees
+with the caller's own `now_utc` within the reading's own stated
+uncertainty -- that agreement check is what stops a forged/future-dated
+reading from substituting for an honest one now that window-containment is
+not required. Restriction bytes are now parsed through the checker's own
+`_safe_parse`/`MAX_RAW_BYTES` size cap rather than an unbounded
+`strict_json_loads` call, and every closed-key check in this module
+(`proposed_window`, `prerequisites`, `restrictions`,
+`storage_qualification`) goes through a local `_check_closed_bounded`
+wrapper that refuses an oversized or non-UTF-8-encodable key generically,
+before it could be echoed verbatim by the checker's own `_check_closed`.
 
 ## What this candidate is not
 
@@ -131,17 +150,39 @@ restated.
 ## Verification run this session
 
 ```
-python -m pytest tests/test_v11_gate3_fresh_window_readiness.py -q      # 36 passed
-python -O -m pytest tests/test_v11_gate3_fresh_window_readiness.py -q   # 36 passed, 1 unrelated pytest-config warning
+python -m pytest tests/test_v11_gate3_fresh_window_readiness.py -q      # 43 passed
+python -O -m pytest tests/test_v11_gate3_fresh_window_readiness.py -q   # 43 passed, 1 unrelated pytest-config warning
 python -m pytest tests/test_v11_gate3_evidence_preflight_checker.py -q  # 472 passed, unmodified file
 python -m py_compile tools/v11_gate3_fresh_window_readiness.py tests/test_v11_gate3_fresh_window_readiness.py   # clean
-git diff --cached --check                                               # clean
+git diff --check                                                        # clean
 ```
 
-(bounded `pytest --basetemp=/tmp/alpha-v11-gate3-fresh-readiness-basetemp`,
-removed after this run.) No socket, HTTP, DNS, decode, provider request,
-service/authority/financial/V10/AxiomTrade action, or SHADOW/Brain change
-occurred while building or testing this candidate.
+No socket, HTTP, DNS, decode, provider request, service/authority/
+financial/V10/AxiomTrade action, or SHADOW/Brain change occurred while
+building or testing this candidate.
+
+## Review and repair history
+
+The original candidate (`aa80818`, 36 tests) received an independent
+Opus review with verdict `CHANGES_REQUIRED`: the clock check reused the
+checker's dispatch-time window-overlap logic, making the `CANDIDATE`
+outcome reachable only via a clock reading dated after `now_utc` (a
+forged reading) and never via an honest one (F1, blocking); no size cap
+on `restrictions_raw` and unbounded key echoing into reason strings (F2);
+a caller-overridable `expired_window` parameter (F3); and exact-identity-
+only roll-forward detection (F4, strongly recommended). F1 and F3 were
+fixed in commit `5a33489`, along with the overlap half of F4 and part of
+F2 (the size cap and bounded keys for `proposed_window`/`prerequisites`/
+`restrictions`); a second independent Opus re-review of `5a33489` found
+F2 was not fully closed for `storage_qualification` (which reaches the
+checker's own unbounded `_check_closed` through `_check_storage`,
+including a short-but-UTF-8-unsafe lone-surrogate key that a length-only
+bound would miss) and that this document still described the old,
+superseded clock logic. Both are fixed in this revision: a
+`_has_unsafe_key` guard is applied to `storage_qualification` before
+`_check_storage` runs, and this document now describes
+`_check_clock_quality` and the bounded-key wrapper accurately. 7 tests
+were added across the two repair passes (43 total).
 
 ## Required before any further promotion
 

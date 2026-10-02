@@ -170,23 +170,45 @@ def _is_exactly_false(v: Any) -> bool:
     return type(v) is bool and v is False
 
 
+def _has_unsafe_key(obj: dict, label: str, reasons: list) -> bool:
+    """True (with a bounded, non-echoing reason appended) if any key of
+    ``obj`` is not a plain, size-bounded, UTF-8-encodable string.
+
+    Catches two independent problems an oversized-only length check would
+    miss: a key so large it would balloon a reason string that embeds it
+    verbatim, and a short-but-invalid key (e.g. a lone UTF-16 surrogate
+    code point, which ``len()`` happily accepts) that would later make the
+    result impossible to encode as UTF-8 regardless of its length.
+    """
+    for k in obj:
+        if not isinstance(k, str) or not _is_bounded_str(k, MAX_STR):
+            reasons.append(f"OVERSIZED_OR_INVALID_KEY:{label}")
+            return True
+        try:
+            k.encode("utf-8")
+        except UnicodeEncodeError:
+            reasons.append(f"OVERSIZED_OR_INVALID_KEY:{label}")
+            return True
+    return False
+
+
 def _check_closed_bounded(obj: Any, keys: frozenset, label: str, reasons: list) -> None:
-    """Like the checker's ``_check_closed``, but refuses before an oversized
-    caller-supplied key is embedded verbatim into a reason string.
+    """Like the checker's ``_check_closed``, but refuses before an unsafe
+    caller-supplied key (oversized or not UTF-8-encodable) is embedded
+    verbatim into a reason string.
 
     The checker's own ``_check_closed`` has no such bound because every one
     of its callers supplies schema-fixed keys already bounded elsewhere.
-    This module's ``proposed_window``, ``prerequisites`` and (post-parse)
-    ``restrictions`` mappings are not byte-capped before reaching here, so
-    an oversized key must be refused generically rather than echoed.
+    This module's ``proposed_window``, ``prerequisites``, (post-parse)
+    ``restrictions`` and ``storage_qualification`` mappings are not
+    byte-capped before reaching here, so an unsafe key must be refused
+    generically rather than echoed.
     """
     if not isinstance(obj, dict):
         reasons.append(f"NOT_AN_OBJECT:{label}")
         return
-    for k in obj:
-        if not isinstance(k, str) or not _is_bounded_str(k, MAX_STR):
-            reasons.append(f"OVERSIZED_OR_INVALID_KEY:{label}")
-            return
+    if _has_unsafe_key(obj, label, reasons):
+        return
     _check_closed(obj, keys, label, reasons)
 
 
@@ -395,11 +417,17 @@ def evaluate_fresh_window_readiness(
     if storage_qualification is None:
         storage_reasons.append("STORAGE_QUALIFICATION_NOT_SUPPLIED")
     if resources is not None and storage_qualification is not None:
-        _check_storage(
-            {"limits": dict(FROZEN_LIMITS), "storage_qualification": dict(storage_qualification)},
-            resources,
-            storage_reasons,
-        )
+        sq_dict = dict(storage_qualification)
+        # _check_storage below calls the checker's raw, unbounded
+        # _check_closed internally -- guard its keys here first so an
+        # oversized or UTF-8-unsafe key is refused generically instead of
+        # being echoed verbatim by that inner call.
+        if not _has_unsafe_key(sq_dict, "storage_qualification", storage_reasons):
+            _check_storage(
+                {"limits": dict(FROZEN_LIMITS), "storage_qualification": sq_dict},
+                resources,
+                storage_reasons,
+            )
     storage_ready = not storage_reasons
     incomplete.extend(storage_reasons)
 
