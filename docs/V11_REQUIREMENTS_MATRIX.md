@@ -4039,3 +4039,7 @@ First external review was `INCOMPLETE` after bwrap startup failure. Interactive 
 ## Gate 3 exact design review — 2026-10-02 10:17 UTC
 
 Final independent Sol/high original-process terminal is verified exit 0 with clean exact `27513d2`/tree `fcf1346d`, matching private-input and report/verdict/output hashes. Verdict `PASS_IN_SCOPE_DESIGN_BLOCKED_PACKAGE` accepts only the offline design. Implement section 7 checker and synthetic refusals next; obtain exact-commit different-model review. No provider request, preflight execution or qualification credit. Twelve prerequisites remain null; 77 G3-L identities and 2,713 capture slots remain unfilled. **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
+## Gate 3 offline checker repair — 2026-10-02 11:08 UTC
+
+Independent exact review of `b153560` returned sealed `CHANGES_REQUIRED` for two high checker defects and one low diagnostic omission. Isolated repair `fe854fc` passed 91 focused offline tests and awaits fresh different-model exact-commit review and newer-main reconciliation; it is not integrated or executable. The retained real package remains refused, with no provider request or capture/SHADOW qualification. G3-L still has 77 missing identities and zero of 2,713 slots. No C/J/E/A crossing: **91/200, formal 1/50; A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO; NOT_READY_TO_FUND**.

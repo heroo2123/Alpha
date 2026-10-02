@@ -6752,3 +6752,7 @@ Preserved the first external review's original-process `INCOMPLETE` terminal aft
 ## Gate 3 design review accepted — 2026-10-02 10:17 UTC
 
 Verified the final independent Sol/high runner terminal and all three output hashes for `27513d2`; verdict is `PASS_IN_SCOPE_DESIGN_BLOCKED_PACKAGE`. Reviewed design bytes already match main. The next substantive slice is the offline closed-schema checker with synthetic refusal/state-machine tests in an isolated worktree and subsequent different-model exact-commit review. No provider or capture work was launched; the package remains non-executable and G3-L **NO-GO**. **91/200, formal 1/50; NOT_READY_TO_FUND**.
+
+## Gate 3 checker review findings repaired — 2026-10-02 11:08 UTC
+
+Sealed the independent Sol/high `CHANGES_REQUIRED` review of `b153560` with clean exact checkout and matching report/verdict/terminal hashes. Repaired its two high defects (malformed array crash; malformed reference false satisfaction) and low missing-reservation diagnostic in a new isolated worktree as `fe854fc`, tree `3bc097f`; only checker and test files changed. The 91 focused offline tests pass. A different-model exact-commit PASS remains required before integration. No provider request, checker execution authority, forward SHADOW evidence, release rerun or score credit: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.

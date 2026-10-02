@@ -1,0 +1,45 @@
+{
+  "commit": "b15356039820154e25ea5b40a69393418e5e639d",
+  "tree": "a6613e36a428ac988423e17ded80ca33110cdd6c",
+  "parent": "cf012bd7127b548287892d8dbf56bbffaaef899c",
+  "author_model": "claude-sonnet-5",
+  "reviewer_model": "gpt-6",
+  "pytest_targeted_result": {
+    "command": "/home/alphaadmin/AlphaV11_Dev/venv/bin/python -m pytest tests/test_v11_gate3_evidence_preflight_checker.py -q",
+    "exit_code": 0,
+    "passed": 79,
+    "failed": 0,
+    "summary": "79 passed in 0.51s"
+  },
+  "pytest_collect_only_result": {
+    "command": "/home/alphaadmin/AlphaV11_Dev/venv/bin/python -m pytest tests/ -q --collect-only",
+    "exit_code": 0,
+    "collected": 6454,
+    "errors": 0,
+    "summary": "6454 tests collected in 34.88s; FastAPI on_event deprecation warnings"
+  },
+  "both_findings_verified_fixed": true,
+  "both_findings_verified_fixed_evidence": "Direct calls with measured_utc 0001-01-01T00:00:00+23:59 and 9999-12-31T23:59:59-23:59 refused via UNPARSEABLE_CLOCK without exception. For each of the three resource fields, NaN, infinity, -1, and a string refused via INVALID_RESOURCE_OBSERVATION. A string, bool, and negative int memory floor limit each refused via CHANGED_FIELD without exception.",
+  "no_behavior_change_for_valid_input": true,
+  "no_behavior_change_for_valid_input_evidence": "Direct evaluation of the real candidate package, restriction history, committed protocol, and binding with a finite 0.3-second clock observation and ordinary resources returned CHECKER_REFUSED_BEFORE_DISPATCH with the same 21 reasons; exact binding hashes and byte lengths matched.",
+  "new_logic_findings": [
+    {
+      "severity": "high",
+      "location": "tools/v11_gate3_evidence_preflight_checker.py:734-737",
+      "description": "A JSON number 1 in either package.directories or package.input_refs causes TypeError: 'int' object is not iterable during unguarded iteration, rather than a refusal. Reproduced with mutually consistent synthetic package/binding bytes."
+    },
+    {
+      "severity": "high",
+      "location": "tools/v11_gate3_evidence_preflight_checker.py:660-665,758-762",
+      "description": "Malformed binding.private_package reference bypasses schema validation. A float byte_length numerically equal to the integer length, or a missing path, returned CHECKER_SCHEMA_AND_POLICY_SATISFIED_NOT_EXECUTABLE with no refusal reasons in direct synthetic calls."
+    },
+    {
+      "severity": "low",
+      "location": "tools/v11_gate3_evidence_preflight_checker.py:447-466",
+      "description": "INVALID_RESOURCE_OBSERVATION early return suppresses independent NO_PHYSICAL_STORAGE_RESERVATION reason for a package with zero declared reserved bytes; direct call returned only INVALID_RESOURCE_OBSERVATION. Overall outcome remains refused."
+    }
+  ],
+  "verdict": "CHANGES_REQUIRED",
+  "report_sha256": "5c9521b775a37e3df3083c4b80686fa1522319abbdc049f5c8913d4a987d3664",
+  "checked_at_utc": "2026-10-02T11:06:33Z"
+}
