@@ -1,3 +1,25 @@
+## Coordinator recovery — 2026-10-02 06:35 UTC
+
+Recovered clean main `b2deaaf`; since the 06:31 checkpoint, only that prior
+documentation commit appeared. No separate Alpha author, reviewer or test process
+is live. SHADOW `15e99bd` and Brain-readiness `58b0b79` remain clean; ECMWF's
+untracked `backfill_data/` is preserved. No checked forward artifact or new
+terminal appeared. The protected FINAL-REVIEWED master still hashes to
+`a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+
+Rechecked the accepted bootstrap adjudication and the already-reviewed Gate 2
+trajectory contract: a second IFS/AIFS adapter would duplicate integrated work.
+The section-3 owner choice was requested again and remains pending; no preflight
+exception or provider request follows from that question. The accepted
+5,460-pass/13-skip release is historical; no new failure or rerun occurred.
+PAPER demo/scanner/controller are inactive, scanner disabled, and execution
+inactive/masked. Protected V11 authority roots are absent. Free disk is
+869,236,736 bytes against the 2 GiB G3-L floor; available memory is about
+1.1 GiB. The previously deletion-rejected A8 fixture remains intact. No V10,
+AxiomTrade, service, authority, financial, provider or publication action was
+taken. No C/J/E/A boundary crossed: **A2/A3 UNQUALIFIED; A4 OPEN; A8
+UNQUALIFIED; G3-L NO-GO; 91/200, formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator recovery — 2026-10-02 06:31 UTC
 
 Recovered clean main `ac9a04d`; the only change since 06:27 is the prior
