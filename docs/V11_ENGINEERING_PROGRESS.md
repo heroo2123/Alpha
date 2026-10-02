@@ -6729,3 +6729,14 @@ PASS, and all twelve prerequisites remain null. No checker, provider request,
 release rerun or C/J/E/A crossing followed. Free disk remains above G3-L's
 2 GiB floor but below preferred 3 GiB; memory is below the three-worker
 threshold. **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+## Coordinator capacity recovery — 2026-10-02 09:59 UTC
+
+Verified clean main `3b6797a`, unchanged protected master/preflight/history
+hashes, clean SHADOW/Brain trees, preserved ECMWF backfill and no separate
+Alpha worker or new forward artifact. Removed 16 inactive generated pytest
+scratch roots after open-file checks; free disk reached 3,226,304,512 bytes,
+above preferred 3 GiB. The protected A8 fixture, worktrees and retained
+evidence were preserved. Exact preflight design review remains blocked by the
+rejected private-evidence transfer; no PASS, checker, provider request, new
+release test or C/J/E/A crossing. **91/200, formal 1/50; G3-L NO-GO;
+NOT_READY_TO_FUND**.

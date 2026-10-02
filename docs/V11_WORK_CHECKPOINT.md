@@ -18034,3 +18034,34 @@ review and evidence gates remain closed. No V10/AxiomTrade intervention,
 deletion, service/authority/financial action, remote publication or C/J/E/A
 crossing: **91/200, formal 1/50; A2/A3 UNQUALIFIED; A4 OPEN; A8
 UNQUALIFIED; G3-L NO-GO; NOT_READY_TO_FUND**.
+## Coordinator capacity recovery — 2026-10-02 09:59 UTC
+
+Recovered clean main `3b6797a` after the 09:50 audit; its sole new commit was
+that audit's documentation. No separate Alpha author/reviewer/test worker,
+PAPER scanner, execution process or new checked forward SHADOW/Brain artifact
+appeared. SHADOW and Brain-readiness worktrees remain clean; ECMWF's untracked
+`backfill_data/` remains preserved. The private FINAL-REVIEWED master, preflight
+package and restriction history match SHA-256 prefixes `a0e16d9b`, `c7d1420f`
+and `fcf4c751`. The retained October 3 local-only G3-L report still matches
+`c1290c2a` and remains nonlaunchable with 77 missing identities and zero of
+2,713 slots.
+
+Restored preferred disk headroom by removing 16 inactive, re-creatable pytest
+scratch roots under `/tmp` after verifying their generated `test_*` contents,
+absence of matching test processes, and no open file/cwd under those roots.
+Free disk rose from 3,072,778,240 to 3,226,304,512 bytes, just above 3 GiB
+at 09:59 UTC; MemAvailable was 790,056 KiB, below the three-worker threshold.
+The protected 1.56 GB A8 fixture, retained original evidence/terminals,
+worktrees and unrelated project data were untouched. Source trees remain clean.
+
+Exact `27513d2` design review remains unstarted after automatic approval
+rejected external transfer of private package/provider evidence. The
+destination-specific owner question remains unanswered; no retry, alternate
+transfer, checker, provider request or date roll-forward occurred. The offline
+checker follows design PASS, and no independent writer task was established.
+The user service bus could not report unit state; no Alpha PAPER/execution
+process was seen and protected V11 authority roots remain absent. Historical
+5,460-pass/13-skip release was not rerun. No V10/AxiomTrade, financial,
+service, authority or remote-publication action. No C/J/E/A crossing:
+**91/200, formal 1/50; A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED;
+G3-L NO-GO; NOT_READY_TO_FUND**.
