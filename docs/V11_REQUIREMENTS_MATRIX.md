@@ -3626,3 +3626,7 @@ C/J/E/A change: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
 ## B1 exact-commit review pending — 2026-10-02 04:40 UTC
 
 The preserved B1 draft passed 57 focused offline tests and byte compilation, then became isolated commit `d7789fd` (tree `b57f71f`). One independent Sol/high exact-commit review is live at `/tmp/alpha-v11-a4-b1-review-d7789fd`; no verdict or integration is claimed. The checker always reports UNQUALIFIED/nonlaunchable by design and supplies no native closure or external provenance acceptance. No row status or C/J/E/A boundary changed: **A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
+## B1 parser repair awaiting exact review — 2026-10-02 04:45 UTC
+
+The independent review of `d7789fd` required changes for exponent overflow and uncaught integer-digit `ValueError`. Isolated repair `d7b789c` closes both observed reproductions and passes 59 focused offline tests; its fresh exact-commit review is active. B1 remains unaccepted and unmerged. A2/A3 remain UNQUALIFIED, A4 OPEN, A8 UNQUALIFIED and G3-L NO-GO. No C/J/E/A crossing: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
