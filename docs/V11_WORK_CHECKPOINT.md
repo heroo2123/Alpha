@@ -18811,3 +18811,62 @@ unchanged. Next unfinished action: recover the Opus review verdict on
 `0998743`; if APPROVED, reconcile against current main and merge; if
 CHANGES_REQUIRED, route the fix to the cheapest sufficient model and
 re-review before any integration.
+
+## Coordinator: Opus review APPROVED `0998743`; merged to main — 2026-10-02 16:20 UTC
+
+The independent Opus/high review returned, and its own integrity claim
+checks out: literal before/after `git log`/`git status`/`git rev-parse
+HEAD` all matched (clean, unchanged), so its "I modified nothing" claim is
+independently verifiable rather than trusted. It independently re-ran the
+65-test suite (0 failures), independently confirmed the three existing
+observer modules byte-identical via blob IDs and a `sha256sum` cross-check
+against the contract doc, compiled the new module under `-O` without
+touching the worktree, and ran the section-6 start command itself three
+times (first run `created:true`; replay `created:false` with unchanged
+inode/mtime; fresh output dir `created:true` with byte-identical content;
+`NETWORK_ATTEMPTS=0` throughout). It then adversarially probed: the
+audit-hook tripwire (found it does not cover `_posixsubprocess.fork_exec`
+or a raw `ctypes` `libc.socket()` call — neither reachable from the actual
+runner/observer code path, L1), the startup artifact verifier (accepts a
+forged-but-self-consistent artifact carrying extra unchecked keys like a
+fake `financial_authority_granted:true`, inherited from `write_artifact`'s
+key-set policy, L2), symlink/TOCTOU handling (output-dir rename-after-lock
+can redirect a write into an unvalidated dir with a same-uid racer, L5),
+coverage/`CHAIN_RECEIPT` fidelity (confirmed faithful, no acceptance path
+found), replay determinism (confirmed), bounds (the 1024-entry output cap
+can be overshot by one batch of 32 before the next run refuses, L6), and
+the post-run module-coupling check (detective-only, so a coupled run can
+still emit a success summary before exiting 2, L7). Two more Low
+labelling/doc-accuracy findings (L3, L4) and one concurrent-deletion edge
+case (L8) rounded out eight total — all explicitly non-blocking, none
+reachable without a same-uid concurrent adversary or deliberate
+native/C-level code, and none able to grant authority, admit a receipt, or
+reach the network. **Verdict: APPROVED** as a reviewed, still-dormant
+candidate integration record, with L1/L2/L3/L5 recommended as follow-ups
+before any future move beyond dormant status. Full review retained at
+`/tmp/alpha-v11-inventory-shadow-start-review-0998743.review.md`.
+
+Verified the merge-base (`3b7cb09`) is an ancestor of current main and
+that main's only change since then (`b370059`, a checkpoint-doc commit)
+touches a disjoint file. Performed the merge (`git merge --no-commit
+--no-ff` first to confirm a clean, conflict-free stage: exactly the 4
+expected files, 878 insertions, 0 existing file touched), re-ran the
+65-test suite in place on main (65 passed), and committed as `09b6e85`.
+Updated `docs/V11_REQUIREMENTS_MATRIX.md` with an honest entry: this
+closes the long-standing "observer remains dormant without its own start
+contract" gap, but remains integration-only — the observer has not been
+started anywhere, confers no SHADOW admission, qualification, transaction
+proof, or financial authority, and touches neither the weather Gate-3
+critical path nor G3-L. No score inflation: **91/200 (45.5%), formal
+1/50; A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO;
+NOT_READY_TO_FUND** — unchanged, as this is engineering/integration
+progress, not a formal requirement acceptance.
+
+Next unfinished action: the InventoryTransform SHADOW lane's next step is
+either (a) tracking the four recommended follow-up findings (L1/L2/L3/L5)
+as a small, independently-reviewable hardening slice, or (b) defining and
+reviewing the observer's actual "reviewed SHADOW start" activation
+decision (still separate from merely having a start-contract CLI) per the
+owner's multi-lane directive — neither is weather Gate-3 critical path.
+Weather (Lane A) remains externally blocked on the 77 missing
+provider-evidence identities; nothing new on that lane this cycle.

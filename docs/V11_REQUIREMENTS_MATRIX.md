@@ -4119,3 +4119,29 @@ the actual Gate-3 collector/launch flow or exercised against real
 provider/evidence data. No C/J/E/A boundary crossed: **91/200 (45.5%),
 formal 1/50; A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO;
 NOT_READY_TO_FUND**.
+
+## InventoryTransform SHADOW start contract reviewed and merged — 2026-10-02 16:20 UTC
+
+The InventoryTransform SHADOW observer's previously-missing start contract
+(`polymarket_scanner/v11/inventory_shadow_start.py`) is now on main at
+`09b6e85`, after one independent Opus/high review (different model than
+the Fable author) returned **APPROVED** with before/after `git log`/`git
+status` matching and an independently re-run test suite (65 passed). The
+reviewer adversarially probed the audit-hook ambient-access tripwire,
+symlink/TOCTOU handling, the artifact-verification temp-file window,
+`CHAIN_RECEIPT` acceptance, coverage fidelity and replay determinism; it
+found 8 Low, non-blocking findings (none reachable without a same-uid
+concurrent adversary or native/C-level code; none can grant authority,
+admit a receipt, or reach the network), recorded in
+`/tmp/alpha-v11-inventory-shadow-start-review-0998743.review.md`. Pure
+addition; the three existing observer modules remain byte-identical to
+the prior merge base.
+
+This closes the "observer remains dormant without its own start contract"
+gap noted at the 13:16 UTC entry above, but it is still an integration
+record only: the observer has not been started anywhere, confers no
+SHADOW admission, qualification, transaction-level proof, or financial
+authority, and this merge does not touch the weather Gate-3 critical path
+or G3-L. No C/J/E/A boundary crossed: **91/200 (45.5%), formal 1/50;
+A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO;
+NOT_READY_TO_FUND**.
