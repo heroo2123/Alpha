@@ -1,5 +1,9 @@
 # Supplementary engineering estimate
 
+## Live repair test recovery — 2026-10-02 02:23 UTC
+
+Recovered both still-running repairs and their current diffs without duplicating either lane. A8's broad author tests are blocked by temporary disk exhaustion and `REPORT_RESERVE_UNAVAILABLE`; none of those failed runs is counted as acceptance. Inventory reports preliminary 28 focused and 43 adjacent offline passes, but has no terminal. Protected master and inactive execution state are unchanged; no fresh SHADOW evidence exists. Disk is about 1.2 GiB free versus the G3-L 2 GiB floor. No provider request, G3-L PASS, release rerun or C/J/E/A crossing: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Live repair and capacity check — 2026-10-02 02:20 UTC
 
 Recovered the live A8 and inventory repair workers without duplication. A8 is testing three unfinished changed files; inventory has no committed candidate or terminal. The FINAL-REVIEWED master hash, SHADOW/Brain readiness worktrees and inactive V11 execution state match the prior checkpoint. A read-only audit found an older 1.5 GiB A8 pytest temp directory, but automatic approval review rejected its recursive deletion as insufficiently proven disposable, so it remains intact. Disk is about 1.2 GiB free, below G3-L's 2 GiB floor. No provider request, G3-L PASS, forward SHADOW evidence, release rerun or C/J/E/A crossing: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.

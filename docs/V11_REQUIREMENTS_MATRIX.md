@@ -1,5 +1,9 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Coordinator recovery — 2026-10-02 02:23 UTC
+
+Both isolated repairs remain live and unaccepted. A8's wider author reruns hit `REPORT_RESERVE_UNAVAILABLE` as test fixtures temporarily filled the disk; inventory has two unfinished files and preliminary 28 focused/43 adjacent passes. Neither has a final terminal or fresh exact review. G3-L remains below its 2 GiB disk floor, with no provider or forward SHADOW evidence. No C/J/E/A boundary changed: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator recovery — 2026-10-02 02:20 UTC
 
 Both bounded repairs remain live in separate worktrees with no final author or outer terminal. A8 has three unfinished files; inventory remains clean. No new exact review, merge, release run, provider or forward SHADOW evidence occurred. Disk capacity remains below the G3-L floor; automatic approval review rejected deletion of an older large pytest fixture directory, which was preserved. No C/J/E/A boundary changed: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
