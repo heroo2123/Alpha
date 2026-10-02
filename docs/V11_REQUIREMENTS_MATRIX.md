@@ -1,5 +1,9 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Coordinator storage triage — 2026-10-02 03:34 UTC
+
+The sole B1 retry runner remains live with a clean checkout until 04:20:10 UTC; no candidate or review exists. Read-only triage found a previously deletion-rejected 1.56 GB A8 pytest fixture tree, preserved. Free disk is 1,081,643,008 bytes, below the G3-L 2 GiB floor; the October 3 PRE_REVIEW screen still has 77 missing identities and zero attempt slots. No new forward SHADOW evidence or row acceptance: **91/200 (45.5%), formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Next-date G3-L local-only screen — 2026-10-02 03:30 UTC
 
 The 2026-10-03 PRE_REVIEW screen, retained at `/tmp/alpha-v11-g3l-offline-screen-20261003-20261002T0330.json` (SHA-256 `80bbd4dfaba228fbda970fe00e330b3c8acc8654e49367c1b95316189e88a722`), exits 2 with `BLOCKED_MISSING_REVIEWED_EVIDENCE`, `launchable=false`, 77 missing identities and zero of 2,713 attempt slots. The prospective review time has not expired, but free disk is 1,064,902,656 bytes below the 2 GiB floor before additional reservations. The sole B1 retry is alive and waiting in its clean isolated worktree; no candidate or exact review exists. No row acceptance or C/J/E/A score changes: **91/200 (45.5%), formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.

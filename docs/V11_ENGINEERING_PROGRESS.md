@@ -1,5 +1,9 @@
 # Supplementary engineering estimate
 
+## Coordinator recovery and storage triage — 2026-10-02 03:34 UTC
+
+The single B1 retry runner remains live in its clean isolated checkout, scheduled for 04:20:10 UTC. Read-only triage identified a 1.56 GB older A8 pytest fixture tree whose deletion was previously rejected by automatic review; it remains preserved. Free disk is 1,081,643,008 bytes, below the 2 GiB G3-L floor, and the October 3 offline screen still has 77 missing identities and zero slots. No new SHADOW/Brain evidence, provider request, release rerun or C/J/E/A boundary: **G3-L NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Next-date offline feasibility while B1 waits — 2026-10-02 03:30 UTC
 
 The documented local-only PRE_REVIEW planner for 2026-10-03 reports 77 missing evidence identities, zero of 2,713 feasible attempt slots and disk below the 2 GiB floor by 1,064,902,656 bytes; the next review window is still prospective. The output is retained at `/tmp/alpha-v11-g3l-offline-screen-20261003-20261002T0330.json`, SHA-256 `80bbd4dfaba228fbda970fe00e330b3c8acc8654e49367c1b95316189e88a722`. B1's single clean retry runner remains scheduled for 04:20:10 UTC. SHADOW and Brain worktrees are clean, with no new forward evidence. No provider or financial action, G3-L PASS or C/J/E/A crossing: **A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.

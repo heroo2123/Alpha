@@ -1,5 +1,11 @@
 # Alpha V11 work checkpoint
 
+## Coordinator recovery and storage triage — 2026-10-02 03:34 UTC
+
+Main is clean at `9e524b0`. The sole B1 retry runner PID/PGID 2084227 remains alive, waiting for 04:20:10 UTC; its isolated `1f993fb` checkout is clean with no retry log, terminal, author record or candidate. No duplicate writer or review was launched. SHADOW `15e99bd` and Brain readiness `58b0b79` are clean; ECMWF `backfill_data/` is preserved. No new forward artifact was found. The FINAL-REVIEWED private master still hashes to `a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+
+Read-only disk triage found `/tmp/alpha-v11-gate3-a8-prep-targeted` using about 1.56 GB, but an earlier automatic review rejected deletion of that older fixture tree; it remains intact. Free disk is 1,081,643,008 bytes, 1,065,840,640 bytes below the G3-L 2 GiB floor before extra quota/headroom. Available memory was about 867 MB. PAPER scanner is inactive/disabled; V11 controller and execution are inactive/not-found. The prior local-only October 3 screen remains nonlaunchable with 77 missing identities and zero attempt slots; no new provider request or G3-L run was made. The accepted 5,460-pass/13-skip release result remains historical, with no rerun. No service, authority, V10, AxiomTrade, financial or remote-publication action; no forward SHADOW evidence or C/J/E/A crossing. **A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator next-date offline G3-L screen — 2026-10-02 03:30 UTC
 
 Recovered clean main `5d8f31d` and the sole B1 retry runner PID/PGID 2084227, still waiting until 04:20:10 UTC in a clean `1f993fb` worktree. No retry log, terminal, author record or candidate exists. The SHADOW `15e99bd` and Brain-readiness `58b0b79` worktrees are clean; ECMWF `backfill_data/` remains untouched. There is no new forward commissioning evidence. The FINAL-REVIEWED private master still hashes to `a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
