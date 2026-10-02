@@ -103,7 +103,8 @@ unknown or missing keys are rejected. Required top-level fields:
   The referenced artifact must have `role=runtime` and `kind` in
   `python`/`native`. `loader_rules` is 1–64 bounded unique strings.
 - `data_selection_declaration`: `{data_artifact_ids, selection_rule}`. Every
-  referenced id must exist and have `kind=data`.
+  referenced id must exist and have `kind=data` and `role=runtime`, so selected
+  data remains subject to declared-graph reachability.
 
 Declared-graph reachability is computed from the validated dependency edges
 starting at `entrypoint_id`. Any declared `bootstrap`- or `runtime`-role

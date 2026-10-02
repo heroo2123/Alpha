@@ -96,6 +96,16 @@ def test_valid_proposal_is_structurally_accepted_but_never_qualified():
     _fixed_fields_present(result)
 
 
+def test_selected_data_cannot_use_unreachable_test_role():
+    doc = _valid_doc()
+    doc["artifacts"][3]["role"] = "test"
+    doc["dependencies"] = [edge for edge in doc["dependencies"] if edge["to"] != "data1"]
+    result = evaluate_proposal_bytes(_encode(doc))
+    assert result["accepted"] is False
+    assert "DATA_SELECTION_ARTIFACT_INVALID_ROLE:data1" in result["errors"]
+    _fixed_fields_present(result)
+
+
 def test_parse_rejection_still_carries_fixed_fields():
     result = evaluate_proposal_bytes(b"{")
     assert result["accepted"] is False

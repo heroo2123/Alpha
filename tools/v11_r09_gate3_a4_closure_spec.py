@@ -416,6 +416,8 @@ def _validate_data_selection(doc: dict, by_id: dict, errors: list):
                 continue
             if by_id[art_id]["kind"] != "data":
                 errors.append(f"DATA_SELECTION_ARTIFACT_INVALID_KIND:{art_id}")
+            if by_id[art_id]["role"] != "runtime":
+                errors.append(f"DATA_SELECTION_ARTIFACT_INVALID_ROLE:{art_id}")
     if not _is_bounded_string(decl["selection_rule"]):
         errors.append("INVALID_DATA_SELECTION_RULE")
 
