@@ -18742,3 +18742,72 @@ resource-constrained host, per standing testing policy). Next: verify no
 private inputs/credentials/databases/raw evidence are staged, then push
 this verified milestone to the existing V11 branch and confirm local/remote
 agreement.
+
+## Coordinator: recovered finished Fable InventoryTransform SHADOW start-contract worker, verified, committed, independent review launched — 2026-10-02 16:14 UTC
+
+Main repo clean at `3b7cb09`, local = remote. Per the owner's isolated-worktree
+continuity rule, inspected the Fable worker (PID `2288024`) that the prior
+cycle reported active in `/tmp/alpha-v11-inventory-shadow-start-contract-20261002`;
+it had exited with marker `INVENTORY_SHADOW_START_CONTRACT_BLOCKED` (denied
+Bash permission to run Python/pytest in its own sandbox), leaving a written
+but unexecuted candidate: `polymarket_scanner/v11/inventory_shadow_start.py`
+(a bounded one-shot CLI start wrapper around the existing dormant,
+already-reviewed InventoryTransform SHADOW observer), 23 new tests in
+`tests/test_v11_inventory_shadow_start.py`, and
+`docs/V11_INVENTORY_SHADOW_START_CONTRACT.md`. The worker's own report
+confirmed `inventory_shadow.py`/`structural_evidence.py`/`neg_risk_contract.py`
+were untouched (empty diff against `3b7cb09`) and asked the host coordinator
+to run the exact test command and commit only if it and `git diff --check`
+passed.
+
+Ran that command myself: 65 passed (23 new + 42 existing adjacent:
+`test_v11_inventory_shadow.py`, `test_v11_structural_evidence.py`,
+`test_v11_neg_risk_contract.py`). `git diff --check` was clean. Independently
+re-confirmed the three existing observer modules are byte-identical to
+`3b7cb09` via `git diff 3b7cb09 -- <those three paths>` (empty). Read the new
+`inventory_shadow_start.py` in full: bounded batch (<=32 inputs), an
+audit-hook tripwire denying `socket.*`/subprocess/fork events for the rest of
+the process, refusal if any other `polymarket_scanner` module is already
+loaded (weather-SHADOW coupling exclusion), root refusal before any
+filesystem mutation, content-identified output naming
+(`inventory-shadow-<sha256>.json`) with existing-artifact verification via
+the already-reviewed `write_artifact`, and a fixed-false/empty
+`financial_authority`/`qualification`/`transaction_level_proof`/
+`account_effects`/`order_effects` summary on every output. Committed as
+`0998743` in the isolated worktree only (branch
+`inventory-shadow-start-contract-20261002`) — nothing touched main.
+
+Created a fresh detached-HEAD worktree at `0998743`
+(`/tmp/alpha-v11-inventory-shadow-start-review-0998743`) and launched an
+independent Opus/high review (different model than the Fable author, per
+the owner's model-routing and review-separation rules), explicitly scoped to
+adversarially probe the audit-hook tripwire, symlink/TOCTOU handling in the
+batch/output-directory paths, the artifact-verification temp-file window the
+author itself flagged as the first thing to probe, `CHAIN_RECEIPT`/coverage
+fidelity, replay idempotence, and every stated bound — required to record
+literal before/after `git log`/`git status` so its no-modification claim is
+independently checkable. Still running.
+
+Resources at launch: MemAvailable ~1065 MiB, free disk 2.7 GiB (below the
+owner's preferred 3 GiB, above the 2 GiB G3-L floor), zero other heavy
+specialists running — one Opus reviewer is within the two-specialist cap for
+this headroom tier. Did not force a second speculative worker: the prior
+cycle (16:04–16:06 UTC) found Lane A (weather Gate-3) genuinely
+external-blocked (G3-L NO-GO, 77 missing provider-evidence identities, real
+package still refuses with 22 reasons — nothing further codable without
+owner/external evidence) and Lane C (Brain/R09) terminates in the same
+evidence wall without enough scoped confidence yet for a non-duplicate
+second specialist; nothing has changed since to alter either assessment in
+the last ~10 minutes.
+
+This candidate confers no SHADOW admission by itself — the observer stays
+dormant until its own reviewed start contract is independently approved and
+only then actually started against explicit local fixtures; code existing
+in an unmerged isolated worktree is not itself a scored boundary. No merge,
+provider request, capture, V10/AxiomTrade/financial/service/authority
+action, or C/J/E/A crossing: **91/200 (45.5%), formal 1/50; A2/A3
+UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO; NOT_READY_TO_FUND** —
+unchanged. Next unfinished action: recover the Opus review verdict on
+`0998743`; if APPROVED, reconcile against current main and merge; if
+CHANGES_REQUIRED, route the fix to the cheapest sufficient model and
+re-review before any integration.
