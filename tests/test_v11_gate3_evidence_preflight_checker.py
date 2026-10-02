@@ -720,6 +720,66 @@ def test_fractional_offset_refused_at_other_evidence_timestamps(field, expected_
     assert expected_reason in result.refusal_reasons
 
 
+@pytest.mark.parametrize("offset", [
+    "+00:60", "-00:60", "+00:61", "-00:61", "+00:99", "-00:99",
+    "+24:00", "-24:00",
+])
+@pytest.mark.parametrize("site,reason", [
+    ("clock", "UNPARSEABLE_CLOCK"),
+    ("prepared", "MALFORMED_BINDING_PREPARED_AT_UTC"),
+    ("receipt", "MISSING_OR_MALFORMED_RESTRICTION_RECORDS"),
+])
+def test_malformed_numeric_offset_components_refuse_at_every_evidence_site(offset, site, reason):
+    timestamp = "2026-10-02T10:05:00" + offset
+    if site == "clock":
+        result = _run(*_synthetic_fixture(), clock=dataclasses.replace(
+            GOOD_CLOCK, measured_utc=timestamp))
+    elif site == "prepared":
+        result = _run_rebound(binding_change=lambda b: b.__setitem__("prepared_at_utc", timestamp))
+    else:
+        def append_record(restrictions):
+            extra = copy.deepcopy(restrictions["records"][0])
+            extra["response"]["received_at"] = timestamp
+            extra["response"]["sha256"] = _sha(b"synthetic-offset-record")
+            restrictions["records"].append(extra)
+        result = _run_rebound(restrictions_change=append_record)
+    assert result.outcome == OUTCOME_REFUSED
+    assert reason in result.refusal_reasons
+
+
+@pytest.mark.parametrize("offset,local_time", [
+    ("+00:59", "11:04:00"), ("-00:59", "09:06:00"),
+])
+def test_valid_minute_59_offsets_preserve_safe_utc_clock(offset, local_time):
+    clock = dataclasses.replace(GOOD_CLOCK,
+                                measured_utc=f"2026-10-02T{local_time}{offset}")
+    assert _run(*_synthetic_fixture(), clock=clock).outcome == OUTCOME_SATISFIED
+    prepared = _run_rebound(binding_change=lambda b: b.__setitem__(
+        "prepared_at_utc", f"2026-10-02T{local_time}{offset}"))
+    assert prepared.outcome == OUTCOME_SATISFIED
+
+    def append_record(restrictions):
+        extra = copy.deepcopy(restrictions["records"][0])
+        extra["response"]["received_at"] = f"2026-10-02T{local_time}{offset}"
+        extra["response"]["sha256"] = _sha(b"synthetic-valid-offset-record")
+        restrictions["records"].append(extra)
+    assert _run_rebound(restrictions_change=append_record).outcome == OUTCOME_SATISFIED
+
+
+@pytest.mark.parametrize("measured,uncertainty", [
+    ("2026-10-02T11:00:00+00:60", 0),
+    ("2026-10-02T09:00:00-00:60", 0),
+    ("2026-10-02T11:00:00.300000+00:60", 0.3),
+    ("2026-10-02T12:29:59.699999-00:60", 0.3),
+])
+def test_malformed_offset_never_satisfies_frozen_window(measured, uncertainty):
+    clock = dataclasses.replace(GOOD_CLOCK, measured_utc=measured,
+                                uncertainty_seconds=uncertainty)
+    result = _run(*_synthetic_fixture(), clock=clock)
+    assert result.outcome == OUTCOME_REFUSED
+    assert "UNPARSEABLE_CLOCK" in result.refusal_reasons
+
+
 def test_refuses_nonmonotonic_clock():
     package_raw, restrictions_raw, protocol_raw, binding_raw = _synthetic_fixture()
     stepping_clock = ClockObservation("2026-10-02T10:05:00Z", 0.3, 10.0, False)

@@ -354,10 +354,13 @@ def _parse_utc(v: Any) -> Optional[datetime]:
     # fromisoformat silently truncates extra fractional digits and, on this
     # interpreter, discards fractional offsets whose whole seconds are zero.
     # Only accept an explicit time to microsecond precision and a Z or
-    # minute-resolution numeric offset, so the parsed UTC instant preserves
-    # every supplied timing component at the dispatch boundaries.
+    # bounded ASCII minute-resolution numeric offset. Python also normalizes
+    # malformed minutes such as +00:60 into another offset without error.
+    # Validate both offset components before parsing so every supplied timing
+    # component is preserved at the dispatch boundaries.
     if re.fullmatch(
-        r"\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:[.,]\d{1,6})?(?:Z|[+-]\d{2}:\d{2})",
+        r"[0-9]{4}-[0-9]{2}-[0-9]{2}[T ][0-9]{2}:[0-9]{2}:[0-9]{2}"
+        r"(?:[.,][0-9]{1,6})?(?:Z|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])",
         v,
     ) is None:
         return None
