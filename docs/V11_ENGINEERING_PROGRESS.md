@@ -1,3 +1,7 @@
+## Coordinator evidence triage — 2026-10-02 05:28 UTC
+
+Recovered clean main `580fdf2`; no separate worker is live and no new commissioning/Brain evidence appeared after 05:24. Classified the October 3 local-only G3-L report's 77 unfilled reviewed identities by evidence group, preserving the distinction between an unfilled manifest and absent source documents. Zero of 2,713 slots are feasible and disk remains below the 2 GiB floor. Reviewed R1 and Gate 2 remain integrated; the accepted 5,460-pass/13-skip release result is unchanged. No provider request, forward SHADOW sample, or C/J/E/A boundary crossing: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator recovery and gate check — 2026-10-02 05:24 UTC
 
 Verified clean main `8c6602c`, no separate Alpha worker, reviewed R1 and Gate 2 already on main, and no newer forward commissioning or BrainWork artifact. The current G3-L local-only report remains blocked by 77 missing reviewed identities and sub-2-GiB disk; SHADOW operation remains root/owner gated. The old fill-markout failure remains closed by the accepted 5,460-pass/13-skip release result. No provider, service, root authority, V10, AxiomTrade, financial or remote-publication action and no C/J/E/A crossing: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
