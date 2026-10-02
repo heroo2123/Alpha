@@ -1,5 +1,9 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## A2/A3 decision candidate; independent review live — 2026-10-02 03:49 UTC
+
+Candidate `fb3a804` records historical-provenance versus replacement qualification paths and a fully enumerated pending intake ledger: eight observed packages, 25 unresolved discrepancy rows, no filled authentication/acceptance slots. The fresh retained-byte audit matched existing evidence excluding its timestamp. Independent Sol/high exact-commit decision review is live at `/tmp/alpha-v11-a2a3-decision-review-fb3a804` (PID/PGID 2089379); acceptance is pending and could cover decision/intake scope only. B1 retry 2084227 remains separately alive until 04:20:10 UTC. No new authentic artifacts, reconstruction, runtime acceptance, forward SHADOW evidence or release run. Disk remains below 2 GiB; actual weather execution unit is inactive/masked. No C/J/E/A crossing: **A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## A2/A3 offline acceptance handoff — 2026-10-02 03:43 UTC
 
 `docs/V11_R09_GATE3_A2A3_NEXT_REVIEW_HANDOFF_20261002.md` scopes an Astra/high decision on missing authenticated originals, 25 `eckitlib` RECORD discrepancies and incomplete native/loader closure. It is a handoff, not evidence acceptance. The B1 retry is already live and must not be duplicated. G3-L remains nonlaunchable with 77 missing identities, zero slots and disk below 2 GiB. No row acceptance or C/J/E/A score change: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.

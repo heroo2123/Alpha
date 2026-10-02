@@ -1,5 +1,9 @@
 # Supplementary engineering estimate
 
+## A2/A3 decision candidate; independent review live — 2026-10-02 03:49 UTC
+
+Candidate `fb3a804` records historical-provenance versus replacement qualification paths and a fully enumerated pending intake ledger: eight observed packages, 25 unresolved discrepancy rows, no filled authentication/acceptance slots. The fresh retained-byte audit matched existing evidence excluding its timestamp. Independent Sol/high exact-commit decision review is live at `/tmp/alpha-v11-a2a3-decision-review-fb3a804` (PID/PGID 2089379); acceptance is pending and could cover decision/intake scope only. B1 retry 2084227 remains separately alive until 04:20:10 UTC. No new authentic artifacts, reconstruction, runtime acceptance, forward SHADOW evidence or release run. Disk remains below 2 GiB; actual weather execution unit is inactive/masked. No C/J/E/A crossing: **A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## A2/A3 offline acceptance handoff — 2026-10-02 03:43 UTC
 
 Recorded a separate Astra/high offline decision task for the contradictory A2/A3 retained artifact evidence while the existing B1 retry remains live. No new artifact authenticity, release test, forward SHADOW sample, provider request or C/J/E/A boundary is claimed. **A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.

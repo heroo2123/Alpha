@@ -1,0 +1,13 @@
+{
+  "pid": 2089379,
+  "pgid": 2089379,
+  "launched_utc": "2026-10-02T03:49:17.888554+00:00",
+  "worktree": "/tmp/alpha-v11-a2a3-decision-review-fb3a804",
+  "expected_head": "fb3a8047760bcdaf0a94be20afcea7d61a7c2785",
+  "expected_tree": "a09d184c91011e0fa8ee0d171f8b9edd4dc7ea68",
+  "model": "gpt-6-sol",
+  "effort": "high",
+  "scope": "DECISION_AND_PENDING_INTAKE_ONLY",
+  "terminal": "/tmp/alpha-v11-a2a3-decision-review-fb3a804.terminal.json",
+  "launchable": false
+}
