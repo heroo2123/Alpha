@@ -1,0 +1,19 @@
+{
+  "exit_code": 0,
+  "args": [
+    "-q",
+    "-p",
+    "no:cacheprovider",
+    "--basetemp",
+    "/tmp/a7-a749197-review-qqgj9wyd/pytest",
+    "tests/test_v11_r09_gate3_a7_decoder.py",
+    "tests/test_v11_model_panel.py",
+    "tests/test_v11_r09_gate3_offline_io.py"
+  ],
+  "log": "/tmp/alpha-v11-gate3-a7-review-a749197-tests.log",
+  "log_sha256": "d369c74235681b7241d81bfd4c2862da77a2751e4d72329f4fcafb55614c849f",
+  "scratch_bytes": 2286261,
+  "scratch_removed": true,
+  "interpreter": "/home/alphaadmin/AlphaV11_Dev/venv/bin/python",
+  "python": "3.12.3 (main, Aug 31 2026, 10:18:26) [GCC 13.3.0]"
+}

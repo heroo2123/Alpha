@@ -1,5 +1,9 @@
 # Alpha V11 work checkpoint
 
+## A7 reviewed offline candidate integrated — 2026-10-02
+
+Recovered the completed clean independent Sol/high exact review of A7 `a749197` (tree `41fc486`): `PASS_IN_SCOPE`, 202 independently rerun focused/adjacent offline passes, hash-bound probe/report/terminals, and no in-scope blocking finding. Retained the exact artifacts as `docs/V11_R09_GATE3_A7_REVIEW_a749197*`. Newer main had no version of the three candidate files, so they were added unchanged. Main initially failed 36 of 202 tests because it lacked the candidate's 12-line `ecmwf_grib.py` structural preflight entry point from the candidate branch. Reconciled that exact 12-line dependency without changing the existing decode path; all 202 focused/adjacent tests then passed on main in 17.86 s and `git diff --check` passed. The earlier failed run is disclosed, not counted as acceptance. A7 remains **UNQUALIFIED**: this code refuses real admission until complete effective cgroup visibility and retained evidence exist. A8 repair PGID 2015957 remains live in its sole worktree; A4 remains open after automatic review abort. No G3-L PASS, provider request, forward SHADOW evidence or C/J/E/A crossing: **G3-L NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Offline G3-L capacity and worker recovery — 2026-10-02 01:11 UTC
 
 Recovered clean main `2288036` (121 commits ahead of tracked origin). The independent A7 exact reviewer PGID 2014997 and sole A8 repair PGID 2015957 are both alive in their separate clean worktrees; neither has a final outer terminal. Do not duplicate, integrate, or qualify either lane before its exact evidence and newer-main reconciliation. A4 remains OPEN after its automatic-review abort. The SHADOW and Brain readiness worktrees remain clean; ECMWF's untracked `backfill_data/` is preserved.

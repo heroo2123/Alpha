@@ -1,5 +1,9 @@
 # Supplementary engineering estimate
 
+## A7 exact review reconciled onto main — 2026-10-02
+
+The independent `a749197` review passed its fail-closed offline A7 repair, with 202 independent focused/adjacent tests. Main needed the candidate branch's 12-line structural preflight entry point; the initial 36 failures resolved after that exact dependency was added, and 202 tests passed in 17.86 s on main. A8 repair continues separately. A7 remains unqualified and no launch, provider, SHADOW or C/J/E/A acceptance changed: **G3-L NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Current offline G3-L screen; two specialist lanes continue — 2026-10-02 01:11 UTC
 
 The local-only October 2 PRE_REVIEW screen exited 2 with 77 missing evidence identities, one expired review-timing identity and zero feasible slots at 1,378,430,976 free disk bytes. Its retained JSON SHA-256 is `ef5bf17941bd4d1da58b55f15f93308e74bcf907a384c5e2896532c35aee03a7`. Independent A7 exact review and A8 repair are still running separately; no new candidate verdict, release run, provider request or C/J/E/A crossing is claimed. **G3-L NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.

@@ -130,6 +130,15 @@ def decode_station(data, *, request, target):
 
 def decode_stations(data, *, request, targets):
     """Same strict field checks as decode_station, once for a bounded point batch."""
+    return _checked_stations(data, request=request, targets=targets, preflight_only=False)
+
+
+def preflight_stations(data, *, request, targets):
+    """Run every structural, source, grid and distance gate before native decode."""
+    return _checked_stations(data, request=request, targets=targets, preflight_only=True)
+
+
+def _checked_stations(data, *, request, targets, preflight_only):
     if not isinstance(targets, tuple) or not 1 <= len(targets) <= 1024:
         raise EvidenceError('ECMWF_TARGET_BATCH_BOUND')
     if any(not isinstance(target, (StationTarget, HistoricalPointTarget)) for target in targets):
@@ -238,6 +247,9 @@ def decode_stations(data, *, request, targets):
             raise EvidenceError('PANEL_GRID_DISTANCE_BOUND')
         selected_points.append((point, selected[1]*ni+selected[0]))
     indices = tuple(index for _, index in selected_points)
+    if preflight_only:
+        return dict(template=template, count=count, ni=ni, nj=nj,
+                    indices=indices, section_numbers=tuple(sorted(s)))
     values = (_ccsds_values(data, indices, count, ni, nj) if template == 42
               else [value(index) for index in indices])
     grid_sha = hashlib.sha256(grid).hexdigest()

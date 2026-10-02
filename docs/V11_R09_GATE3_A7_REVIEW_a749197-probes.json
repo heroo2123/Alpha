@@ -1,0 +1,33 @@
+{
+  "esrch_after_exit": {
+    "cpu_seconds": 0.013802,
+    "reason": "A7_WALL_LIMIT",
+    "returncode": 0,
+    "rss_kib": 38996,
+    "single_reap": true
+  },
+  "exited_before_kill": {
+    "cpu_seconds": 0.014495999999999998,
+    "reason": "A7_WALL_LIMIT",
+    "returncode": 0,
+    "rss_kib": 38996,
+    "single_reap": true
+  },
+  "namespace_root": {
+    "direct_refusal": "A7_HEADROOM_UNKNOWN",
+    "modeled_hidden_effective_bytes": 67108864,
+    "run_refusal": "A7_HEADROOM_UNKNOWN",
+    "visible_diagnostic_bytes": 8589934592,
+    "worker_started": false
+  },
+  "post_output_resources": {
+    "full_child_cpu_seconds": 0.191551,
+    "full_child_peak_rss_bytes": 77725696,
+    "independent_wait4_cpu_seconds": 0.191551,
+    "independent_wait4_peak_rss_bytes": 77725696
+  },
+  "startup_deadline": {
+    "child_usage_retained": true,
+    "reason": "A7_WALL_LIMIT"
+  }
+}

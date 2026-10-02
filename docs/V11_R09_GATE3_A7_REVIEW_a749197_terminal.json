@@ -1,0 +1,116 @@
+{
+  "artifacts": {
+    "author_json": {
+      "bytes": 20689,
+      "path": "/tmp/alpha-v11-gate3-a7-repair-313eeaf.author.json",
+      "sha256": "8969506717b6717093e2e622c500ebece717f280c91c55792cedc795d3a5b7be"
+    },
+    "author_outer_terminal": {
+      "bytes": 431,
+      "path": "/tmp/alpha-v11-gate3-a7-repair-313eeaf.terminal.json",
+      "sha256": "256c7ccd4ada93042d875548ac71f46e187c1c7d8ee7d6268ac97bd99773d185"
+    },
+    "probe_results": {
+      "bytes": 869,
+      "path": "/tmp/alpha-v11-gate3-a7-review-a749197-probes.json",
+      "sha256": "2d8b12d853e7e8f6ec192e95d5134766a20e9dddee14372109f738eb079d9ec6"
+    },
+    "probe_script": {
+      "bytes": 5929,
+      "path": "/tmp/alpha-v11-gate3-a7-review-a749197-probes.py",
+      "sha256": "7a19a0b6affe8e2881831617fa9dd67eee9dd8709a1c213b4e20f0c302751735"
+    },
+    "report": {
+      "bytes": 7224,
+      "path": "/tmp/alpha-v11-gate3-a7-review-a749197.md",
+      "sha256": "da906f244ed710acc0ed811c31500465f997a75b9393ef7d05a5901372b1c104"
+    },
+    "test_log": {
+      "bytes": 261,
+      "path": "/tmp/alpha-v11-gate3-a7-review-a749197-tests.log",
+      "sha256": "d369c74235681b7241d81bfd4c2862da77a2751e4d72329f4fcafb55614c849f"
+    },
+    "test_metadata": {
+      "bytes": 605,
+      "path": "/tmp/alpha-v11-gate3-a7-review-a749197-tests.json",
+      "sha256": "e7c7d8e13ca20e74c86cc46a5c3e27779c9eac806f6c5c581fcad678cf96a6d8"
+    }
+  },
+  "author_hash_verification": {
+    "absolute_inputs": 9,
+    "artifacts": 19,
+    "exact_files": 3,
+    "historical_parent_input": 1,
+    "mismatches": 0
+  },
+  "boundaries": {
+    "candidate_changed": false,
+    "credentials_changed": false,
+    "financial_actions": 0,
+    "main_changed": false,
+    "merge": false,
+    "provider_network_requests": 0,
+    "push": false,
+    "root_authority": false,
+    "services_changed": false
+  },
+  "candidate_commit": "a74919757f1ebad05f42d47e469894cd6746e712",
+  "candidate_files": [
+    {
+      "bytes": 11497,
+      "path": "/tmp/alpha-v11-gate3-a7-review-a749197/docs/V11_R09_GATE3_A7_DECODER_RESOURCE_CANDIDATE_20261001.md",
+      "sha256": "08c6d08836a2b080648e7fe40c82d9563dad2fef7f672a9bf0afc2c0a742447b"
+    },
+    {
+      "bytes": 20829,
+      "path": "/tmp/alpha-v11-gate3-a7-review-a749197/tests/test_v11_r09_gate3_a7_decoder.py",
+      "sha256": "eef5d7747a7bdc8b124dc2dca433e45e21136e9d891c93c3419f6ef1e9d8ace8"
+    },
+    {
+      "bytes": 17101,
+      "path": "/tmp/alpha-v11-gate3-a7-review-a749197/tools/v11_r09_gate3_a7_decoder.py",
+      "sha256": "38425ed5a02cdc0067216f513ba6a2bea0de83bc40c20566297c0b071243fb20"
+    }
+  ],
+  "candidate_tree": "41fc4867273a4fa4d6c5d35a981efa9336d75636",
+  "checkout": "/tmp/alpha-v11-gate3-a7-review-a749197",
+  "checkout_status": "",
+  "completed_utc": "2026-10-02T01:15:34.213013+00:00",
+  "gates": {
+    "A2_A6": "OPEN",
+    "A7": "UNQUALIFIED",
+    "G3_L": "NO_GO",
+    "launchable": false
+  },
+  "parent_commit": "313eeaffe9865ada9d0c28f102a8ed679c221323",
+  "prior_findings": {
+    "F1": "RESOLVED_IN_SCOPE",
+    "F2": "RESOLVED_IN_SCOPE",
+    "F3": "RESOLVED_IN_SCOPE"
+  },
+  "prior_probe": {
+    "bytes": 17141,
+    "path": "/home/alphaadmin/AlphaV11_Dev/Alpha/docs/V11_R09_GATE3_A7_REVIEW_313eeaf-probes.py",
+    "sha256": "0c07209c98eb2bd8bc587b14dc8262b2a35a4670860982ad8e419e86d95c8af7"
+  },
+  "prior_review": {
+    "bytes": 17203,
+    "path": "/home/alphaadmin/AlphaV11_Dev/Alpha/docs/V11_R09_GATE3_A7_REVIEW_313eeaf.md",
+    "sha256": "c57f502f0cd816ee830920471c038f9f21df253765cfe9171acc8bac022fb62a"
+  },
+  "prior_terminal": {
+    "bytes": 53624,
+    "path": "/home/alphaadmin/AlphaV11_Dev/Alpha/docs/V11_R09_GATE3_A7_REVIEW_313eeaf_terminal.json",
+    "sha256": "8f872f9c005920f2bcb84f448a5c4457307359b08a78f6ac7ee5f6ad24e75ffc"
+  },
+  "reviewer_role": "independent Sol/high",
+  "schema": "ALPHA_V11_GATE3_A7_INDEPENDENT_REVIEW_V1",
+  "test_result": {
+    "exit_code": 0,
+    "failed": 0,
+    "independent": true,
+    "passed": 202,
+    "skipped": 0
+  },
+  "verdict": "PASS_IN_SCOPE"
+}

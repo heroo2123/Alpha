@@ -1,5 +1,9 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## A7 offline candidate accepted in scope — 2026-10-02
+
+Independent exact review of `a749197` passed in scope with 202 rerun offline tests and bounded adverse probes. The three candidate files and their 12-line `ecmwf_grib.py` preflight dependency were reconciled onto newer main; the first main run failed on that missing dependency, and the corrected main run passed all 202 cases. Exact review artifacts are retained as `docs/V11_R09_GATE3_A7_REVIEW_a749197*`. This is offline preparation only: A7 remains UNQUALIFIED, A8 repair is live, and G3-L remains NO-GO. **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Offline October 2 G3-L screen remains blocked — 2026-10-02 01:11 UTC
 
 Fresh local-only PRE_REVIEW evidence (`/tmp/alpha-v11-g3l-offline-screen-1790903461.json`, SHA-256 `ef5bf17941bd4d1da58b55f15f93308e74bcf907a384c5e2896532c35aee03a7`) reports 77 missing identities, one expired review-timing identity, zero attempt slots, and 1,378,430,976 free disk bytes below the 2 GiB floor. A7 exact review and A8 repair remain live and unqualified. No G3-L, forward SHADOW or C/J/E/A boundary changed: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
