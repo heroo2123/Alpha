@@ -30,23 +30,44 @@ Deliberately reused rather than re-derived from
 ``tools/v11_gate3_evidence_preflight_checker.py`` (that module is not
 modified by this one): the frozen resource/clock/limit floors
 (``FROZEN_LIMITS``), the frozen expired October 2 window
-(``FROZEN_WINDOW``) used only for roll-forward detection, the prerequisite
-key sets, the generic bounded-reference/string/closed-key validators, and
-the already-reviewed clock-interval and storage-floor check functions.
-Re-implementing that arithmetic here (in particular the clock-uncertainty
-window-overlap rounding) would risk a silent behavioral drift between two
-copies of the same safety-critical comparison.
+(``FROZEN_WINDOW``) used only for roll-forward detection -- hard-bound
+internally and never caller-overridable, since an overridable comparison
+here would let the real expired window be laundered through as "fresh" --
+the prerequisite key sets, the generic bounded-reference/string/closed-key
+validators, and the already-reviewed storage-floor check function.
+Re-implementing that arithmetic here would risk a silent behavioral drift
+between two copies of the same safety-critical comparison.
+
+The one check deliberately *not* reused verbatim is the checker's
+``_check_clock``: that function also enforces that the measured reading
+already sits inside the proposed dispatch window, which is a dispatch-time
+window-*overlap* check, not a preparation-time clock-*quality* check, and
+requiring it here would make an honest reading taken before a future
+window opens impossible to satisfy (see ``_check_clock_quality`` below for
+the preparation-appropriate floor checks this module actually runs:
+source, monotonic-consistency, uncertainty, calibration-age, and agreement
+with the caller's own ``now_utc`` within the reading's stated uncertainty
+-- that last check is what stops a forged/future-dated clock reading from
+substituting for an honest one now that the window-overlap check is gone).
+
+Two independent-review follow-ups are deliberately out of scope for this
+pass and tracked rather than silently fixed: (1) a window duration/horizon
+ceiling -- there is no reviewed frozen constant for one, and inventing a
+new numeric safety threshold here would itself be the kind of unsupported
+value this module exists to avoid; and (2) binding reviewed-identity
+references to actual bytes, which would require filesystem I/O this module
+deliberately never performs. Both remain documented gaps, not fixes.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
 from typing import Any, Mapping, Optional
 
 from tools.v11_gate3_evidence_preflight_checker import (
     FROZEN_LIMITS,
     FROZEN_WINDOW,
+    MAX_STR,
     OWNER_REF_KEYS,
     PREREQ_KEYS,
     NULLABLE_PREREQS,
@@ -55,15 +76,16 @@ from tools.v11_gate3_evidence_preflight_checker import (
     RESTRICTIONS_KEYS,
     WINDOW_KEYS,
     ClockObservation,
-    PreflightPackageCheckerError,
     ResourceObservation,
     _check_closed,
-    _check_clock,
     _check_restriction_domains,
     _check_storage,
+    _is_bounded_str,
+    _is_finite_nonneg,
     _is_ref,
+    _limit_int,
     _parse_utc,
-    strict_json_loads,
+    _safe_parse,
 )
 
 SCHEMA = "R09_GATE3_FRESH_WINDOW_READINESS_V1"
@@ -98,6 +120,15 @@ class FreshWindowReadinessResult:
     def __post_init__(self) -> None:
         # Unconditional checks (not ``assert``, which ``python -O`` strips):
         # an inconsistent result must never be constructible either way.
+        if type(self.schema) is not str or self.schema != SCHEMA:
+            raise ValueError(f"not the fixed schema: {self.schema!r}")
+        for flag_name in (
+            "window_is_fresh", "clock_ready", "storage_ready",
+            "restriction_history_preserved",
+        ):
+            flag_value = getattr(self, flag_name)
+            if type(flag_value) is not bool:
+                raise ValueError(f"{flag_name} must be an exact bool, not {flag_value!r}")
         if self.outcome not in ALLOWED_OUTCOMES:
             raise ValueError(f"not an allowed outcome: {self.outcome!r}")
         if self.outcome in FORBIDDEN_OUTCOME_LABELS:
@@ -139,6 +170,89 @@ def _is_exactly_false(v: Any) -> bool:
     return type(v) is bool and v is False
 
 
+def _check_closed_bounded(obj: Any, keys: frozenset, label: str, reasons: list) -> None:
+    """Like the checker's ``_check_closed``, but refuses before an oversized
+    caller-supplied key is embedded verbatim into a reason string.
+
+    The checker's own ``_check_closed`` has no such bound because every one
+    of its callers supplies schema-fixed keys already bounded elsewhere.
+    This module's ``proposed_window``, ``prerequisites`` and (post-parse)
+    ``restrictions`` mappings are not byte-capped before reaching here, so
+    an oversized key must be refused generically rather than echoed.
+    """
+    if not isinstance(obj, dict):
+        reasons.append(f"NOT_AN_OBJECT:{label}")
+        return
+    for k in obj:
+        if not isinstance(k, str) or not _is_bounded_str(k, MAX_STR):
+            reasons.append(f"OVERSIZED_OR_INVALID_KEY:{label}")
+            return
+    _check_closed(obj, keys, label, reasons)
+
+
+def _check_clock_quality(clock: ClockObservation, limits: Mapping, now: Any, reasons: list) -> bool:
+    """Preparation-time clock-*quality* check.
+
+    This is deliberately **not** the checker's ``_check_clock``: that
+    function also enforces that ``measured_utc`` already sits inside the
+    proposed dispatch window (plus its uncertainty margin), which is a
+    dispatch-time overlap check -- appropriate once a window has actually
+    opened, meaningless before it has even started. Requiring it here would
+    make an honest reading (``measured_utc == now_utc``, taken before any
+    future window begins) impossible to satisfy, and the only way to pass
+    would be to supply a clock reading that is itself already in the future
+    relative to the caller's own ``now_utc`` -- i.e. a fabricated reading,
+    which this module's own docstring forbids inventing.
+
+    What *is* appropriate at preparation time, and is checked here, is
+    whether the clock observation itself meets the standing calibration
+    quality floors: an authorized local source, a monotonic-consistent
+    reading, bounded uncertainty, a non-stale calibration, a parseable
+    timestamp, and -- in place of the dispatch-time window-overlap check --
+    agreement between the reading and the caller's own ``now_utc`` within
+    the reading's own stated uncertainty. That last check is load-bearing:
+    without it, any clock reading that merely parses would pass regardless
+    of how far it diverges from the caller's claimed present moment, which
+    would let a forged/future-dated reading stand in for an honest one.
+    Whether the (now quality-checked) reading's timestamp falls inside some
+    future dispatch window is re-checked by the checker itself at actual
+    dispatch time.
+    """
+    ok = True
+    if type(clock) is not ClockObservation:
+        reasons.append("INVALID_CLOCK_OBSERVATION")
+        return False
+    if type(clock.source) is not str or clock.source != "LOCAL_AUTHORIZED_ONLY":
+        reasons.append("INVALID_CLOCK_SOURCE")
+        ok = False
+    if clock.monotonic_consistent is not True:
+        # Exact-type check: a truthy non-bool must never be accepted in
+        # place of the real boolean flag.
+        reasons.append("NONMONOTONIC_CLOCK")
+        ok = False
+    uncertainty_valid = _is_finite_nonneg(clock.uncertainty_seconds)
+    if not uncertainty_valid:
+        reasons.append("INVALID_CLOCK_UNCERTAINTY")
+        ok = False
+    elif clock.uncertainty_seconds > _limit_int(limits, "clock_uncertainty_seconds"):
+        reasons.append("EXCESSIVE_CLOCK_UNCERTAINTY")
+        ok = False
+    if not _is_finite_nonneg(clock.calibration_age_seconds):
+        reasons.append("INVALID_CALIBRATION_AGE")
+        ok = False
+    elif clock.calibration_age_seconds > _limit_int(limits, "clock_calibration_max_age_seconds"):
+        reasons.append("EXPIRED_CLOCK_CALIBRATION")
+        ok = False
+    measured = _parse_utc(clock.measured_utc)
+    if measured is None:
+        reasons.append("UNPARSEABLE_CLOCK")
+        ok = False
+    elif uncertainty_valid and abs((measured - now).total_seconds()) > clock.uncertainty_seconds:
+        reasons.append("CLOCK_DISAGREES_WITH_NOW_UTC")
+        ok = False
+    return ok
+
+
 def evaluate_fresh_window_readiness(
     *,
     proposed_window: Mapping[str, Any],
@@ -148,7 +262,6 @@ def evaluate_fresh_window_readiness(
     now_utc: str,
     clock: Optional[ClockObservation] = None,
     resources: Optional[ResourceObservation] = None,
-    expired_window: Mapping[str, Any] = FROZEN_WINDOW,
 ) -> FreshWindowReadinessResult:
     """Evaluate whether a *proposed* (not yet authored) fresh-date preflight
     window has its upstream preparation prerequisites in hand.
@@ -174,12 +287,12 @@ def evaluate_fresh_window_readiness(
     if not isinstance(proposed_window, Mapping):
         refusal.append("INVALID_PROPOSED_WINDOW_TYPE")
     else:
-        _check_closed(dict(proposed_window), WINDOW_KEYS, "proposed_window", refusal)
+        _check_closed_bounded(dict(proposed_window), WINDOW_KEYS, "proposed_window", refusal)
 
     if not isinstance(prerequisites, Mapping):
         refusal.append("INVALID_PREREQUISITES_TYPE")
     else:
-        _check_closed(dict(prerequisites), PREREQ_KEYS, "prerequisites", refusal)
+        _check_closed_bounded(dict(prerequisites), PREREQ_KEYS, "prerequisites", refusal)
 
     if type(restrictions_raw) is not bytes:
         refusal.append("INVALID_RESTRICTIONS_RAW_TYPE")
@@ -210,22 +323,27 @@ def evaluate_fresh_window_readiness(
         elif now is not None and dispatch_lo <= now:
             refusal.append("PROPOSED_WINDOW_NOT_IN_THE_FUTURE")
         else:
-            expired_lo = _parse_utc(dict(expired_window).get("dispatch_not_before_utc"))
-            expired_hi = _parse_utc(dict(expired_window).get("expires_utc"))
+            # Hard-bound to the module's own imported ``FROZEN_WINDOW``
+            # (the checker's one real, frozen, expired October 2 window).
+            # This is deliberately not a parameter: a caller-overridable
+            # comparison here would let the exact real expired window pass
+            # through as "fresh" simply by supplying a different
+            # ``expired_window`` (or bypass the check entirely via a
+            # malformed one), defeating the whole roll-forward refusal.
+            expired_lo = _parse_utc(FROZEN_WINDOW["dispatch_not_before_utc"])
+            expired_hi = _parse_utc(FROZEN_WINDOW["expires_utc"])
             if dispatch_lo == expired_lo and expires_hi == expired_hi:
                 refusal.append("IDENTICAL_TO_EXPIRED_WINDOW_SILENT_ROLL_FORWARD")
+            elif dispatch_lo < expired_hi and expires_hi > expired_lo:
+                # Not an exact match, but it overlaps the one real expired
+                # window -- still a roll-forward of the same proposal, just
+                # shifted rather than copied verbatim.
+                refusal.append("OVERLAPS_EXPIRED_WINDOW_SILENT_ROLL_FORWARD")
             else:
                 window_is_fresh = True
 
     if type(restrictions_raw) is bytes:
-        try:
-            restrictions = strict_json_loads(restrictions_raw)
-        except PreflightPackageCheckerError:
-            refusal.append("INVALID_RESTRICTIONS_JSON")
-            restrictions = None
-        if restrictions is not None and not isinstance(restrictions, dict):
-            refusal.append("RESTRICTIONS_NOT_AN_OBJECT")
-            restrictions = None
+        restrictions = _safe_parse(restrictions_raw, "restrictions", refusal)
     else:
         restrictions = None
 
@@ -267,7 +385,7 @@ def evaluate_fresh_window_readiness(
     if clock is None:
         clock_reasons.append("CLOCK_OBSERVATION_NOT_SUPPLIED")
     else:
-        _check_clock({"limits": dict(FROZEN_LIMITS), "window": dict(proposed_window)}, clock, clock_reasons)
+        _check_clock_quality(clock, FROZEN_LIMITS, now, clock_reasons)
     clock_ready = not clock_reasons
     incomplete.extend(clock_reasons)
 
@@ -289,7 +407,7 @@ def evaluate_fresh_window_readiness(
     if restrictions is None:
         restriction_reasons.append("RESTRICTIONS_UNAVAILABLE")
     else:
-        _check_closed(restrictions, RESTRICTIONS_KEYS, "restrictions", restriction_reasons)
+        _check_closed_bounded(restrictions, RESTRICTIONS_KEYS, "restrictions", restriction_reasons)
         if restrictions.get("schema") != RESTRICTIONS_SCHEMA_NAME:
             restriction_reasons.append("UNSUPPORTED_RESTRICTIONS_SCHEMA_VERSION")
         _check_restriction_domains(restrictions, restriction_reasons)

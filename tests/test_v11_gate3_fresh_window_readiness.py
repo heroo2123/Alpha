@@ -65,7 +65,7 @@ EXPIRED_WINDOW = {
 NOW_UTC = "2026-10-02T12:00:00Z"
 
 GOOD_CLOCK = ClockObservation(
-    measured_utc="2026-10-05T10:05:00Z",
+    measured_utc=NOW_UTC,
     uncertainty_seconds=0.3,
     calibration_age_seconds=10.0,
     monotonic_consistent=True,
@@ -174,6 +174,19 @@ def test_refuses_identical_expired_window_as_silent_roll_forward():
     assert "IDENTICAL_TO_EXPIRED_WINDOW_SILENT_ROLL_FORWARD" in result.refusal_reasons
 
 
+def test_refuses_window_overlapping_expired_window_as_roll_forward():
+    # Expired window expiry pushed one second later than the real frozen
+    # expiry, with a stale now_utc so "not in the future" doesn't fire
+    # first: still an overlap of the one real expired window.
+    overlapping = dict(
+        EXPIRED_WINDOW,
+        expires_utc="2026-10-02T13:30:01Z",
+    )
+    result = _call(proposed_window=overlapping, now_utc="2026-10-01T00:00:00Z")
+    assert result.outcome == OUTCOME_REFUSED
+    assert "OVERLAPS_EXPIRED_WINDOW_SILENT_ROLL_FORWARD" in result.refusal_reasons
+
+
 def test_refuses_window_not_in_the_future():
     past_window = {
         "automatic_roll_forward": False,
@@ -249,7 +262,24 @@ def test_refuses_missing_prerequisite_key():
 def test_refuses_invalid_restrictions_json():
     result = _call(restrictions_raw=b"{not json")
     assert result.outcome == OUTCOME_REFUSED
-    assert "INVALID_RESTRICTIONS_JSON" in result.refusal_reasons
+    assert "INVALID_JSON:restrictions" in result.refusal_reasons
+
+
+def test_refuses_oversized_restrictions_raw():
+    oversized = b"{" + b" " * 1_048_577 + b"}"
+    result = _call(restrictions_raw=oversized)
+    assert result.outcome == OUTCOME_REFUSED
+    assert "OVERSIZED_RAW_BYTES:restrictions" in result.refusal_reasons
+
+
+def test_refuses_oversized_key_without_echoing_it():
+    huge_key = "x" * 5_000_000
+    extra = dict(FRESH_WINDOW)
+    extra[huge_key] = "y"
+    result = _call(proposed_window=extra)
+    assert result.outcome == OUTCOME_REFUSED
+    assert "OVERSIZED_OR_INVALID_KEY:proposed_window" in result.refusal_reasons
+    assert all(len(reason) < 1000 for reason in result.refusal_reasons)
 
 
 def test_refuses_restrictions_raw_wrong_type():
@@ -312,6 +342,31 @@ def test_missing_resources_and_storage_qualification_is_incomplete():
     assert result.storage_ready is False
     assert "RESOURCE_OBSERVATION_NOT_SUPPLIED" in result.incompleteness_reasons
     assert "STORAGE_QUALIFICATION_NOT_SUPPLIED" in result.incompleteness_reasons
+
+
+def test_future_dated_clock_disagreeing_with_now_utc_is_incomplete():
+    forged_clock = ClockObservation(
+        measured_utc="2026-10-05T10:05:00Z",
+        uncertainty_seconds=0.3,
+        calibration_age_seconds=10.0,
+        monotonic_consistent=True,
+    )
+    result = _call(clock=forged_clock)
+    assert result.outcome == OUTCOME_INCOMPLETE
+    assert result.clock_ready is False
+    assert "CLOCK_DISAGREES_WITH_NOW_UTC" in result.incompleteness_reasons
+
+
+def test_honest_clock_within_uncertainty_of_now_utc_is_ready():
+    honest_clock = ClockObservation(
+        measured_utc=NOW_UTC,
+        uncertainty_seconds=0.3,
+        calibration_age_seconds=10.0,
+        monotonic_consistent=True,
+    )
+    result = _call(clock=honest_clock)
+    assert result.outcome == OUTCOME_CANDIDATE
+    assert result.clock_ready is True
 
 
 def test_insufficient_clock_uncertainty_is_incomplete():
