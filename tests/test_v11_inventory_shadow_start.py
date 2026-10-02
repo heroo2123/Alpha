@@ -118,6 +118,47 @@ def test_process_guard_denies_socket_dns_and_child_processes():
     assert result.stdout.strip() == "ALL_DENIED"
 
 
+def test_process_guard_denies_raw_subprocess_and_ctypes_socket_bypass():
+    code = (
+        "import sys\n"
+        "from polymarket_scanner.v11 import inventory_shadow_start as start\n"
+        "start._deny_ambient_access()\n"
+        "def fork_exec_probe():\n"
+        "    import _posixsubprocess\n"
+        "    return _posixsubprocess.fork_exec\n"
+        "def ctypes_socket_probe():\n"
+        "    import ctypes\n"
+        "    return ctypes.CDLL(None).socket(2, 1, 0)\n"
+        "for probe in (fork_exec_probe, ctypes_socket_probe):\n"
+        "    try:\n"
+        "        probe()\n"
+        "    except RuntimeError as exc:\n"
+        "        assert 'INVENTORY_SHADOW_AMBIENT_ACCESS_DENIED' in str(exc)\n"
+        "    else:\n"
+        "        sys.exit(3)\n"
+        "print('ALL_DENIED')\n"
+    )
+    result = child("-c", code)
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "ALL_DENIED"
+
+
+def test_process_entry_refuses_when_a_denied_module_is_already_loaded(tmp_path):
+    path = write_fixture(tmp_path / "in")
+    out = output_dir(tmp_path)
+    for module in sorted(start._DENIED_IMPORT_MODULES):
+        code = (
+            "import sys\n"
+            f"import {module}\n"
+            "from polymarket_scanner.v11 import inventory_shadow_start as start\n"
+            "raise SystemExit(start.guarded_main(sys.argv[1:]))\n"
+        )
+        result = child("-c", code, "--input", str(path), "--event", EVENT, "--output-dir", str(out))
+        assert result.returncode == 2, (module, result.stderr)
+        assert "DENIED_MODULE_PRELOADED" in result.stderr
+        assert list(out.iterdir()) == []
+
+
 def test_process_entry_refuses_when_any_other_project_module_is_loaded(tmp_path):
     path = write_fixture(tmp_path / "in")
     out = output_dir(tmp_path)
@@ -391,6 +432,37 @@ def test_output_directory_identity_refusals(tmp_path, monkeypatch):
     monkeypatch.undo()
     assert list(out.iterdir()) == []
     assert start.run(EVENT, out, inputs=(path,))["artifacts"][0]["created"] is True
+
+
+def test_output_directory_rename_after_validation_cannot_redirect_the_write(tmp_path, monkeypatch):
+    # Probe: a same-uid racer renames the already-validated, already-locked
+    # output directory aside and substitutes a new, world-writable directory
+    # at the same path between validation and write. The artifact must still
+    # land in the original, locked directory (reached through its open fd),
+    # never in the substitute, regardless of what the racer leaves there.
+    path = write_fixture(tmp_path / "in")
+    out = output_dir(tmp_path)
+    real_artifact_name = start.artifact_name
+    moved_aside = tmp_path / "out-moved-aside"
+    substitute = tmp_path / "out"
+    swapped = []
+
+    def swap_then_name(*args, **kwargs):
+        if not swapped:
+            swapped.append(True)
+            out.rename(moved_aside)
+            substitute.mkdir(mode=0o777)
+            (substitute / "attacker-marker.txt").write_text("ATTACKER_OWNED_DIRECTORY")
+        return real_artifact_name(*args, **kwargs)
+
+    monkeypatch.setattr(start, "artifact_name", swap_then_name)
+    summary = start.run(EVENT, out, inputs=(path,))
+    name = summary["artifacts"][0]["artifact"]
+    assert summary["artifacts"][0]["created"] is True
+    report = json.loads((moved_aside / name).read_text())
+    assert report["observation_id"] == summary["artifacts"][0]["observation_id"]
+    assert [p.name for p in moved_aside.iterdir()] == [name]
+    assert [p.name for p in substitute.iterdir()] == ["attacker-marker.txt"]
 
 
 def test_cli_refusal_exits_two_without_output(tmp_path, capsys):

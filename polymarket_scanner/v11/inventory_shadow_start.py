@@ -42,8 +42,12 @@ _ALLOWED_PROJECT_MODULES = frozenset({
 })
 _DENIED_AUDIT_EVENTS = frozenset({
     "subprocess.Popen", "os.system", "os.exec", "os.fork", "os.forkpty",
-    "os.posix_spawn", "os.spawn",
+    "os.posix_spawn", "os.spawn", "ctypes.dlopen", "ctypes.dlsym", "ctypes.dlsym/handle",
 })
+# _posixsubprocess.fork_exec() and a ctypes-obtained libc handle can each reach
+# a raw fork/exec or socket syscall without emitting any of the events above,
+# so the modules themselves are denied at import time instead.
+_DENIED_IMPORT_MODULES = frozenset({"_posixsubprocess", "ctypes", "_ctypes"})
 
 
 def artifact_name(source_file_sha256: str, event_slug: str) -> str:
@@ -164,7 +168,7 @@ def _verify_artifact(fd: int, output_dir: Path, name: str) -> None:
     # content identity, then compares canonical bytes with the existing file
     # and never replaces it.
     try:
-        created = shadow.write_artifact(Path(output_dir) / name, report)
+        created = shadow.write_artifact(Path(output_dir) / name, report, dir_fd=fd)
     except ShadowInputError as exc:
         raise ShadowInputError(f"OUTPUT_TAMPERED_{exc}") from exc
     except RecursionError as exc:
@@ -178,8 +182,10 @@ def run(event_slug: str, output_dir: Path, *, inputs: tuple[Path, ...] = (),
         limits: Limits = Limits()) -> dict:
     """Process one explicit batch and return the start summary, or refuse.
 
-    Every input is observed before anything is written, so a refused input
-    leaves the output directory unchanged.
+    Every input is observed before anything is written, so a first-pass
+    refusal leaves the output directory unchanged. Each input is re-read
+    immediately before its write, so a later refusal may leave earlier
+    artifacts of the batch in place.
     """
     start = time.monotonic()
 
@@ -225,7 +231,7 @@ def run(event_slug: str, output_dir: Path, *, inputs: tuple[Path, ...] = (),
             if report["observation_id"] != observation_id:
                 raise ShadowInputError("INPUT_CHANGED_DURING_START")
             name = artifact_name(report["source_file_sha256"], event_slug)
-            created = shadow.write_artifact(Path(output_dir) / name, report)
+            created = shadow.write_artifact(Path(output_dir) / name, report, dir_fd=fd)
             artifacts.append({"artifact": name, "source_file_sha256": report["source_file_sha256"],
                               "observation_id": observation_id, "coverage": report["coverage"],
                               "created": created})
@@ -266,7 +272,8 @@ def _deny_ambient_access() -> None:
     entry point. It is an in-process tripwire, not an OS sandbox.
     """
     def hook(event: str, args: tuple) -> None:
-        if event.startswith("socket.") or event in _DENIED_AUDIT_EVENTS:
+        if (event.startswith("socket.") or event in _DENIED_AUDIT_EVENTS
+                or (event == "import" and args and args[0] in _DENIED_IMPORT_MODULES)):
             raise RuntimeError("INVENTORY_SHADOW_AMBIENT_ACCESS_DENIED:" + event)
     sys.addaudithook(hook)
 
@@ -276,9 +283,17 @@ def _foreign_modules() -> list[str]:
                   if name.split(".")[0] == "polymarket_scanner" and name not in _ALLOWED_PROJECT_MODULES)
 
 
+def _preloaded_denied_modules() -> list[str]:
+    return sorted(name for name in _DENIED_IMPORT_MODULES if name in sys.modules)
+
+
 def guarded_main(argv: list[str] | None = None) -> int:
     """Process entry: deny ambient access, refuse any other project module."""
     _deny_ambient_access()
+    # The import hook never fires for a module loaded before it was installed.
+    if _preloaded_denied_modules():
+        sys.stderr.write("inventory shadow start refused: DENIED_MODULE_PRELOADED\n")
+        return 2
     if _foreign_modules():
         sys.stderr.write("inventory shadow start refused: MODULE_COUPLING_REFUSED\n")
         return 2

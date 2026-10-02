@@ -130,6 +130,28 @@ def test_malformed_oversized_and_conflicting_artifacts_refused(tmp_path):
         shadow.write_artifact(linked, report)
 
 
+def test_artifact_with_extra_key_or_non_int_count_is_rejected(tmp_path):
+    path, _ = fixture(tmp_path)
+    report = shadow.observe_file(path, EVENT)
+    output = tmp_path / "shadow.json"
+    forged = {**report, "financial_authority_granted": True}
+    with pytest.raises(shadow.ShadowInputError, match="ARTIFACT_POLICY_REFUSED"):
+        shadow.write_artifact(output, forged)
+    assert not output.exists()
+    other_forged = {**report, "qualified_strategy": "READY_TO_FUND"}
+    with pytest.raises(shadow.ShadowInputError, match="ARTIFACT_POLICY_REFUSED"):
+        shadow.write_artifact(output, other_forged)
+    assert not output.exists()
+    for planted in (True, 1.0, False):
+        forged_counts = copy.deepcopy(report)
+        forged_counts["evidence_class_counts"][shadow.EvidenceClass.CHAIN_RECEIPT.value] = planted
+        with pytest.raises(shadow.ShadowInputError, match="ARTIFACT_POLICY_REFUSED"):
+            shadow.write_artifact(output, forged_counts)
+        assert not output.exists()
+    assert shadow.write_artifact(output, report) is True
+    assert json.loads(output.read_text())["qualification"] is False
+
+
 def test_weather_shadow_not_imported_or_modified(tmp_path):
     import ast
 
