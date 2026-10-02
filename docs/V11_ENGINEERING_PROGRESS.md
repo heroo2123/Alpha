@@ -1,5 +1,9 @@
 # Supplementary engineering estimate
 
+## A7 review findings under repair; A8 review active — 2026-10-02 00:53 UTC
+
+The A4 author completed clean `6ed21e8` with 303 hash-verified reported offline passes; independent exact review stopped under automatic cybersecurity-content rejection before producing a valid verdict. A7 independent exact review of `313eeaf` found two P2 safety/accounting defects and one P3 RSS defect despite 192 independently reproduced passes; one Astra/high repair is active. A8 `7d5941c` is under independent Astra/high exact review. None is integrated or qualified; no release, G3-L, forward SHADOW or C/J/E/A crossing is claimed. **G3-L NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## A4 exact defects reproduced; A4 repair and A7 review live — 2026-10-02 00:38 UTC
 
 The clean independent A4 review of `28dd604` rejected the offline candidate after reproducing two gaps despite 27 focused and 551 bounded adjacent passes. A focused Sol/high repair is active in A4's sole author worktree. A7 repair `313eeaf` finished cleanly with 192 hash-verified author-reported focused/adjacent passes and is now under independent Astra/high exact review. Neither A4 nor A7 is integrated or qualified. No release, G3-L, forward SHADOW or C/J/E/A crossing is claimed. **G3-L NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.

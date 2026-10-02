@@ -1,0 +1,75 @@
+{
+  "schema": "ALPHA_V11_GATE3_A4_INDEPENDENT_REVIEW_V1",
+  "reviewer": "independent Astra/high",
+  "candidate_commit": "6ed21e8f451399773142c69c4f1422a4e6c394a5",
+  "candidate_tree": "ffa0934aedd37a419f50d87fae6550721330365a",
+  "parent": "28dd60403bdc8e819e64e9dd60be0109669c4960",
+  "initial_status": "",
+  "detached": true,
+  "uid": 1000,
+  "git_version": "git version 2.43.0",
+  "python_version": "Python 3.12.3",
+  "changed_file_sha256": {
+    "docs/V11_R09_GATE3_A4_RUNTIME_VERIFICATION_CANDIDATE_20261001.md": "4793281d071278c4d77daa3b9d90999d6810cc57aaae339bd9fb73b9fb7221d7",
+    "docs/V11_R09_GATE3_A4_RUNTIME_VERIFICATION_CANDIDATE_20261001_terminal.json": "2dd6db6321b45e16ebcc7d9273aa761970a0429aba4615c89a928ebd28c14e93",
+    "tests/test_v11_r09_gate3_a4_review_28dd604.py": "5e409b861fea2707d64c0dcd0b3b51dd915b65f54da87aa7bd2ba89b05661e7f",
+    "tests/test_v11_r09_gate3_a4_verify.py": "5948b1627c4d43b9b8d8a5a4f58a3600a3f9d10d28045ed3115ddcb370a984ab",
+    "tools/v11_r09_gate3_a4_verify.py": "913abee2e25d8aad1e71c8b299cc5f547b74c578fe1b3a5923ddfb40510eb0a4"
+  },
+  "candidate_hash_checks": {
+    "docs/V11_R09_GATE3_A4_RUNTIME_VERIFICATION_CANDIDATE_20261001.md": true,
+    "tests/test_v11_r09_gate3_a4_review_28dd604.py": true,
+    "tests/test_v11_r09_gate3_a4_verify.py": true,
+    "tools/v11_r09_gate3_a4_verify.py": true,
+    "candidate_terminal": true
+  },
+  "author_logs": {
+    "focus": {
+      "path": "/tmp/a4_author_28dd604_final2_focus_20261002.log",
+      "expected": "53831b4a17e266f52ab9d3417818c1535b92969841e68f9efdc62e273acc9ba0",
+      "actual": "53831b4a17e266f52ab9d3417818c1535b92969841e68f9efdc62e273acc9ba0",
+      "content": "..................................                                       [100%]\n34 passed in 22.96s\n",
+      "match": true
+    },
+    "h1h6": {
+      "path": "/tmp/a4_author_28dd604_final_h1h6_20261002.log",
+      "expected": "498ee628482751ed3e509be2bc57d8683e2bafe30a69462441fa2845c6a162bc",
+      "actual": "498ee628482751ed3e509be2bc57d8683e2bafe30a69462441fa2845c6a162bc",
+      "content": ".............................                                            [100%]\n29 passed in 6.97s\nREVIEW_MAX_SINGLE_TEST_ALLOCATED_BYTES=34631680\n",
+      "match": true
+    },
+    "review": {
+      "path": "/tmp/a4_author_28dd604_final_review_20261002.log",
+      "expected": "55f3fbcdca54caf632c6e27e062abc0d85a97dae644adc76a74c060753a131f6",
+      "actual": "55f3fbcdca54caf632c6e27e062abc0d85a97dae644adc76a74c060753a131f6",
+      "content": "......................                                                   [100%]\n22 passed in 6.64s\n",
+      "match": true
+    },
+    "runtime": {
+      "path": "/tmp/a4_author_28dd604_final_runtime_20261002.log",
+      "expected": "c8428f642c95a11bb64ac81191167ac099036c5a872fc6b950109d1c09507404",
+      "actual": "c8428f642c95a11bb64ac81191167ac099036c5a872fc6b950109d1c09507404",
+      "content": "........................................................................ [ 66%]\n.....................................                                    [100%]\n109 passed in 11.44s\nREVIEW_MAX_SINGLE_TEST_ALLOCATED_BYTES=67342336\n",
+      "match": true
+    },
+    "store": {
+      "path": "/tmp/a4_author_28dd604_final_store_20261002.log",
+      "expected": "907ecebd64383bf78b40f0dfd2f07e36cadf811472207ca70b1749f4aa2a7627",
+      "actual": "907ecebd64383bf78b40f0dfd2f07e36cadf811472207ca70b1749f4aa2a7627",
+      "content": "........................................................................ [ 66%]\n.....................................                                    [100%]\n=============================== warnings summary ===============================\ntests/test_v11_r09_gate3_store_v1.py::test_repaired_r6_inherited_call_rejects_before_blocking_on_mutex[read]\ntests/test_v11_r09_gate3_store_v1.py::test_repaired_r6_inherited_call_rejects_before_blocking_on_mutex[seal]\n  /tmp/alpha-v11-gate3-a4-runtime-verification-20261001/tests/test_v11_r09_gate3_store_v1.py:1050: DeprecationWarning: This process (pid=2000114) is multi-threaded, use of fork() may lead to deadlocks in the child.\n    pid = os.fork()\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n109 passed, 2 warnings in 4.09s\nREVIEW_MAX_SINGLE_TEST_ALLOCATED_BYTES=40960\n",
+      "match": true
+    }
+  },
+  "input_sha256": {
+    "/home/alphaadmin/AlphaV11_Dev/Alpha/docs/V11_R09_GATE3_A4_REVIEW_28dd604-lane.terminal.json": "73260cd32bdb1c2f88e08518b795d8b5ba7ec9ae6f47011cf28f3affaf1e53e4",
+    "/home/alphaadmin/AlphaV11_Dev/Alpha/docs/V11_R09_GATE3_A4_REVIEW_28dd604-probes.py": "50151af5354d5dc6d24a35f6c5088bac2ff58a371ba36c825b9d3f83b6b3b8da",
+    "/home/alphaadmin/AlphaV11_Dev/Alpha/docs/V11_R09_GATE3_A4_REVIEW_28dd604.md": "199f53ff5714c4c6378e6cc07e3afc1db7c4db4ff831137ec213db6dbc34e359",
+    "/home/alphaadmin/AlphaV11_Dev/Alpha/docs/V11_R09_GATE3_A4_REVIEW_28dd604_terminal.json": "8d3c198dc82c8fbeecdb00a231670cae65caf7c5b6e0452873fae1c0e09dd349",
+    "/home/alphaadmin/AlphaV11_Dev/Alpha/docs/V11_R09_GATE3_A4_REVIEW_ef53d61.md": "fb9e5894c80df8cad5fda980cba3dc3337465a77bb90a0e019d940f0698c4939",
+    "/home/alphaadmin/AlphaV11_Dev/Alpha/docs/V11_R09_GATE3_A4_REVIEW_ef53d61_probes.py": "3eaf57771d040373ed16f62aaf01f14e00e8c92df7ef9765513307af8b2b43cf",
+    "/home/alphaadmin/AlphaV11_Dev/Alpha/docs/V11_R09_GATE3_A4_REVIEW_ef53d61_terminal.json": "30e360b424330f688a87cf80461e8523e67d9c3f27265649d44c6f2d799fc236",
+    "/tmp/alpha-v11-gate3-a4-review-6ed21e8/docs/V11_R09_GATE3_IDENTITY_ACCEPTANCE_20261001.md": "db298d49301a686711a7d89e7456d95fcd34da8616970fa7f52374b91440aa9d",
+    "/tmp/alpha-v11-gate3-a4-repair-28dd604.author.json": "f3aea9f62b4648ef754f69aeb2f4e3b97d9c364a8b9e59135bd2fe6a42a77bec"
+  },
+  "tests": []
+}

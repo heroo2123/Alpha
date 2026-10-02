@@ -1,5 +1,9 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## A7 exact review rejected; A8 under review — 2026-10-02 00:53 UTC
+
+A4 repair `6ed21e8` is a clean author candidate with 303 hash-verified reported passes, but its independent exact review aborted under automatic cybersecurity-content review; no valid verdict or A4 acceptance exists. A7 exact `313eeaf` review is `CHANGES_REQUIRED` on hidden cgroup ancestry, timeout double-reap and RSS accounting; exact evidence is retained as `docs/V11_R09_GATE3_A7_REVIEW_313eeaf*` and a sole repair is live. A8 clean `7d5941c` offline-preparation candidate is under independent exact review. All A4/A7/A8 acceptance remains OPEN; no G3-L, forward SHADOW or C/J/E/A boundary changed: **G3-L NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## A4 review rejected; A7 repaired candidate under exact review — 2026-10-02 00:38 UTC
 
 Independent exact `28dd604` A4 review is `CHANGES_REQUIRED` on pre-refusal Git helper execution (P1) and late host-module fallback (P3); its exact evidence is retained as `docs/V11_R09_GATE3_A4_REVIEW_28dd604*`. One A4 repair author is active. Clean A7 repair `313eeaf` has 192 hash-verified author-reported focused/adjacent passes and is under independent exact review; A7 remains OPEN/UNQUALIFIED. A8 and inventory remain queued. No G3-L, forward SHADOW or C/J/E/A boundary changed: **G3-L NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.

@@ -1,0 +1,14 @@
+{
+  "candidate_modified": false,
+  "clean": true,
+  "completed_utc": "2026-10-02T00:47:17.435593+00:00",
+  "exit_code": 0,
+  "financial_authority": false,
+  "head": "313eeaffe9865ada9d0c28f102a8ed679c221323",
+  "initial_head": "313eeaffe9865ada9d0c28f102a8ed679c221323",
+  "lane": "a7-review",
+  "live_execution_authority": false,
+  "schema": "ALPHA_V11_PARALLEL_GATE3_LANE_V1",
+  "tree": "b57ed1f7c67dbecf3256b5ae538d8ec235de9651",
+  "uncommitted_status": ""
+}

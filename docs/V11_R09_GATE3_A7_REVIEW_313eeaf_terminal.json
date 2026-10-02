@@ -1,0 +1,1450 @@
+{
+  "artifacts": {
+    "probe": {
+      "bytes": 17141,
+      "path": "/tmp/alpha-v11-gate3-a7-review-313eeaf-probes.py",
+      "sha256": "0c07209c98eb2bd8bc587b14dc8262b2a35a4670860982ad8e419e86d95c8af7"
+    },
+    "report": {
+      "bytes": 17203,
+      "path": "/tmp/alpha-v11-gate3-a7-review-313eeaf.md",
+      "sha256": "c57f502f0cd816ee830920471c038f9f21df253765cfe9171acc8bac022fb62a"
+    }
+  },
+  "author_role": "Sol",
+  "boundaries": {
+    "AxiomTrade": false,
+    "V10": false,
+    "author_worktree_modified": false,
+    "candidate_modified": false,
+    "credentials": false,
+    "financial_action": false,
+    "full_suite_run": false,
+    "launch_permission": false,
+    "main_modified": false,
+    "merge": false,
+    "network_provider_requests": 0,
+    "package_installation": false,
+    "push": false,
+    "root_authority": false,
+    "services": false
+  },
+  "candidate": {
+    "base": "e08858b4f0e25d3b37f53a1779b16bc6ac5cc942",
+    "checkout": "/tmp/alpha-v11-gate3-a7-review-313eeaf",
+    "commit": "313eeaffe9865ada9d0c28f102a8ed679c221323",
+    "detached": true,
+    "diff_check_pass": true,
+    "final_clean": true,
+    "final_status_porcelain_including_ignored": "",
+    "initial_clean": true,
+    "tree": "b57ed1f7c67dbecf3256b5ae538d8ec235de9651"
+  },
+  "cgroup_probes": {
+    "actual_host": {
+      "available": {
+        "returned": 1076842496
+      },
+      "memavailable": [
+        "MemAvailable:    1051604 kB"
+      ],
+      "membership": "0::/user.slice/user-1000.slice/user@1000.service/tmux-spawn-707ea417-5645-4762-bdd9-cc9a8d0f0774.scope\n",
+      "mounts": [
+        "34 25 0:29 / /sys/fs/cgroup rw,nosuid,nodev,noexec,relatime shared:9 - cgroup2 cgroup2 rw,nsdelegate,memory_recursiveprot"
+      ]
+    },
+    "cases": {
+      "ambiguous_mount": {
+        "files": {
+          "/proc/meminfo": "MemAvailable: 8388608 kB\n",
+          "/proc/self/cgroup": "0::/team/leaf\n",
+          "/proc/self/mountinfo": "34 25 0:29 / /sys/fs/cgroup rw - cgroup2 cgroup2 rw\n34 25 0:29 / /sys/fs/cgroup rw - cgroup2 cgroup2 rw\n",
+          "/sys/fs/cgroup/memory.current": "0\n",
+          "/sys/fs/cgroup/memory.max": "max\n",
+          "/sys/fs/cgroup/team/leaf/memory.current": "0\n",
+          "/sys/fs/cgroup/team/leaf/memory.max": "max\n",
+          "/sys/fs/cgroup/team/memory.current": "0\n",
+          "/sys/fs/cgroup/team/memory.max": "max\n"
+        },
+        "reads": [
+          "/proc/meminfo",
+          "/proc/self/cgroup",
+          "/proc/self/mountinfo"
+        ],
+        "result": {
+          "exception": "A7Refusal",
+          "message": "A7_HEADROOM_UNKNOWN"
+        }
+      },
+      "ancestor": {
+        "files": {
+          "/proc/meminfo": "MemAvailable: 8388608 kB\n",
+          "/proc/self/cgroup": "0::/team/leaf\n",
+          "/proc/self/mountinfo": "34 25 0:29 / /sys/fs/cgroup rw - cgroup2 cgroup2 rw\n",
+          "/sys/fs/cgroup/memory.current": "0\n",
+          "/sys/fs/cgroup/memory.max": "max\n",
+          "/sys/fs/cgroup/team/leaf/memory.current": "0\n",
+          "/sys/fs/cgroup/team/leaf/memory.max": "max\n",
+          "/sys/fs/cgroup/team/memory.current": "201326592",
+          "/sys/fs/cgroup/team/memory.max": "268435456"
+        },
+        "reads": [
+          "/proc/meminfo",
+          "/proc/self/cgroup",
+          "/proc/self/mountinfo",
+          "/sys/fs/cgroup/team/leaf/memory.max",
+          "/sys/fs/cgroup/team/leaf/memory.current",
+          "/sys/fs/cgroup/team/memory.max",
+          "/sys/fs/cgroup/team/memory.current",
+          "/sys/fs/cgroup/memory.max",
+          "/sys/fs/cgroup/memory.current"
+        ],
+        "result": {
+          "returned": 67108864
+        }
+      },
+      "controllerless_global_root": {
+        "files": {
+          "/proc/meminfo": "MemAvailable: 8388608 kB\n",
+          "/proc/self/cgroup": "0::/team/leaf\n",
+          "/proc/self/mountinfo": "34 25 0:29 / /sys/fs/cgroup rw - cgroup2 cgroup2 rw\n",
+          "/sys/fs/cgroup/team/leaf/memory.current": "0\n",
+          "/sys/fs/cgroup/team/leaf/memory.max": "max\n",
+          "/sys/fs/cgroup/team/memory.current": "0\n",
+          "/sys/fs/cgroup/team/memory.max": "max\n"
+        },
+        "reads": [
+          "/proc/meminfo",
+          "/proc/self/cgroup",
+          "/proc/self/mountinfo",
+          "/sys/fs/cgroup/team/leaf/memory.max",
+          "/sys/fs/cgroup/team/leaf/memory.current",
+          "/sys/fs/cgroup/team/memory.max",
+          "/sys/fs/cgroup/team/memory.current",
+          "/sys/fs/cgroup/memory.max",
+          "/sys/fs/cgroup/memory.current"
+        ],
+        "result": {
+          "returned": 8589934592
+        }
+      },
+      "duplicate_membership": {
+        "files": {
+          "/proc/meminfo": "MemAvailable: 8388608 kB\n",
+          "/proc/self/cgroup": "0::/team/leaf\n0::/team\n",
+          "/proc/self/mountinfo": "34 25 0:29 / /sys/fs/cgroup rw - cgroup2 cgroup2 rw\n",
+          "/sys/fs/cgroup/memory.current": "0\n",
+          "/sys/fs/cgroup/memory.max": "max\n",
+          "/sys/fs/cgroup/team/leaf/memory.current": "0\n",
+          "/sys/fs/cgroup/team/leaf/memory.max": "max\n",
+          "/sys/fs/cgroup/team/memory.current": "0\n",
+          "/sys/fs/cgroup/team/memory.max": "max\n"
+        },
+        "reads": [
+          "/proc/meminfo",
+          "/proc/self/cgroup"
+        ],
+        "result": {
+          "exception": "A7Refusal",
+          "message": "A7_HEADROOM_UNKNOWN"
+        }
+      },
+      "escaped_mount_space": {
+        "files": {
+          "/proc/meminfo": "MemAvailable: 8388608 kB\n",
+          "/proc/self/cgroup": "0::/team/leaf\n",
+          "/proc/self/mountinfo": "34 25 0:29 / /sys/cgroup\\040test rw - cgroup2 cgroup2 rw\n",
+          "/sys/cgroup test/memory.current": "0\n",
+          "/sys/cgroup test/memory.max": "max\n",
+          "/sys/cgroup test/team/leaf/memory.current": "0\n",
+          "/sys/cgroup test/team/leaf/memory.max": "max\n",
+          "/sys/cgroup test/team/memory.current": "0\n",
+          "/sys/cgroup test/team/memory.max": "max\n"
+        },
+        "reads": [
+          "/proc/meminfo",
+          "/proc/self/cgroup",
+          "/proc/self/mountinfo",
+          "/sys/cgroup test/team/leaf/memory.max",
+          "/sys/cgroup test/team/leaf/memory.current",
+          "/sys/cgroup test/team/memory.max",
+          "/sys/cgroup test/team/memory.current",
+          "/sys/cgroup test/memory.max",
+          "/sys/cgroup test/memory.current"
+        ],
+        "result": {
+          "returned": 8589934592
+        }
+      },
+      "hidden_namespace_ancestor": {
+        "default_required": 671088640,
+        "expected_effective_available": 67108864,
+        "files": {
+          "/proc/meminfo": "MemAvailable: 8388608 kB\n",
+          "/proc/self/cgroup": "0::/\n",
+          "/proc/self/mountinfo": "34 25 0:29 / /sys/fs/cgroup rw - cgroup2 cgroup2 rw\n",
+          "/sys/fs/cgroup/memory.current": "0\n",
+          "/sys/fs/cgroup/memory.max": "max\n",
+          "/sys/fs/cgroup/team/leaf/memory.current": "0\n",
+          "/sys/fs/cgroup/team/leaf/memory.max": "max\n",
+          "/sys/fs/cgroup/team/memory.current": "0\n",
+          "/sys/fs/cgroup/team/memory.max": "max\n"
+        },
+        "incorrectly_admits_default": true,
+        "modeled_hidden_ancestor_current": 201326592,
+        "modeled_hidden_ancestor_limit": 268435456,
+        "reads": [
+          "/proc/meminfo",
+          "/proc/self/cgroup",
+          "/proc/self/mountinfo",
+          "/sys/fs/cgroup/memory.max",
+          "/sys/fs/cgroup/memory.current"
+        ],
+        "result": {
+          "returned": 8589934592
+        },
+        "scope": "Synthetic namespace-relative procfs/controller view; no namespace or cgroup changed, no worker launched."
+      },
+      "leaf": {
+        "files": {
+          "/proc/meminfo": "MemAvailable: 8388608 kB\n",
+          "/proc/self/cgroup": "0::/team/leaf\n",
+          "/proc/self/mountinfo": "34 25 0:29 / /sys/fs/cgroup rw - cgroup2 cgroup2 rw\n",
+          "/sys/fs/cgroup/memory.current": "0\n",
+          "/sys/fs/cgroup/memory.max": "max\n",
+          "/sys/fs/cgroup/team/leaf/memory.current": "201326592",
+          "/sys/fs/cgroup/team/leaf/memory.max": "268435456",
+          "/sys/fs/cgroup/team/memory.current": "0\n",
+          "/sys/fs/cgroup/team/memory.max": "max\n"
+        },
+        "reads": [
+          "/proc/meminfo",
+          "/proc/self/cgroup",
+          "/proc/self/mountinfo",
+          "/sys/fs/cgroup/team/leaf/memory.max",
+          "/sys/fs/cgroup/team/leaf/memory.current",
+          "/sys/fs/cgroup/team/memory.max",
+          "/sys/fs/cgroup/team/memory.current",
+          "/sys/fs/cgroup/memory.max",
+          "/sys/fs/cgroup/memory.current"
+        ],
+        "result": {
+          "returned": 67108864
+        }
+      },
+      "malformed:memory.current:''": {
+        "files": {
+          "/proc/meminfo": "MemAvailable: 8388608 kB\n",
+          "/proc/self/cgroup": "0::/team/leaf\n",
+          "/proc/self/mountinfo": "34 25 0:29 / /sys/fs/cgroup rw - cgroup2 cgroup2 rw\n",
+          "/sys/fs/cgroup/memory.current": "0\n",
+          "/sys/fs/cgroup/memory.max": "max\n",
+          "/sys/fs/cgroup/team/leaf/memory.current": "",
+          "/sys/fs/cgroup/team/leaf/memory.max": "max\n",
+          "/sys/fs/cgroup/team/memory.current": "0\n",
+          "/sys/fs/cgroup/team/memory.max": "max\n"
+        },
+        "reads": [
+          "/proc/meminfo",
+          "/proc/self/cgroup",
+          "/proc/self/mountinfo",
+          "/sys/fs/cgroup/team/leaf/memory.max",
+          "/sys/fs/cgroup/team/leaf/memory.current"
+        ],
+        "result": {
+          "exception": "A7Refusal",
+          "message": "A7_HEADROOM_UNKNOWN"
+        }
+      },
+      "malformed:memory.current:'-1'": {
+        "files": {
+          "/proc/meminfo": "MemAvailable: 8388608 kB\n",
+          "/proc/self/cgroup": "0::/team/leaf\n",
+          "/proc/self/mountinfo": "34 25 0:29 / /sys/fs/cgroup rw - cgroup2 cgroup2 rw\n",
+          "/sys/fs/cgroup/memory.current": "0\n",
+          "/sys/fs/cgroup/memory.max": "max\n",
+          "/sys/fs/cgroup/team/leaf/memory.current": "-1",
+          "/sys/fs/cgroup/team/leaf/memory.max": "max\n",
+          "/sys/fs/cgroup/team/memory.current": "0\n",
+          "/sys/fs/cgroup/team/memory.max": "max\n"
+        },
+        "reads": [
+          "/proc/meminfo",
+          "/proc/self/cgroup",
+          "/proc/self/mountinfo",
+          "/sys/fs/cgroup/team/leaf/memory.max",
+          "/sys/fs/cgroup/team/leaf/memory.current"
+        ],
+        "result": {
+          "exception": "A7Refusal",
+          "message": "A7_HEADROOM_UNKNOWN"
+        }
+      },
+      "malformed:memory.current:'1.5'": {
+        "files": {
+          "/proc/meminfo": "MemAvailable: 8388608 kB\n",
+          "/proc/self/cgroup": "0::/team/leaf\n",
+          "/proc/self/mountinfo": "34 25 0:29 / /sys/fs/cgroup rw - cgroup2 cgroup2 rw\n",
+          "/sys/fs/cgroup/memory.current": "0\n",
+          "/sys/fs/cgroup/memory.max": "max\n",
+          "/sys/fs/cgroup/team/leaf/memory.current": "1.5",
+          "/sys/fs/cgroup/team/leaf/memory.max": "max\n",
+          "/sys/fs/cgroup/team/memory.current": "0\n",
+          "/sys/fs/cgroup/team/memory.max": "max\n"
+        },
+        "reads": [
+          "/proc/meminfo",
+          "/proc/self/cgroup",
+          "/proc/self/mountinfo",
+          "/sys/fs/cgroup/team/leaf/memory.max",
+          "/sys/fs/cgroup/team/leaf/memory.current"
+        ],
+        "result": {
+          "exception": "A7Refusal",
+          "message": "A7_HEADROOM_UNKNOWN"
+        }
+      },
+      "malformed:memory.current:'garbage'": {
+        "files": {
+          "/proc/meminfo": "MemAvailable: 8388608 kB\n",
+          "/proc/self/cgroup": "0::/team/leaf\n",
+          "/proc/self/mountinfo": "34 25 0:29 / /sys/fs/cgroup rw - cgroup2 cgroup2 rw\n",
+          "/sys/fs/cgroup/memory.current": "0\n",
+          "/sys/fs/cgroup/memory.max": "max\n",
+          "/sys/fs/cgroup/team/leaf/memory.current": "garbage",
+          "/sys/fs/cgroup/team/leaf/memory.max": "max\n",
+          "/sys/fs/cgroup/team/memory.current": "0\n",
+          "/sys/fs/cgroup/team/memory.max": "max\n"
+        },
+        "reads": [
+          "/proc/meminfo",
+          "/proc/self/cgroup",
+          "/proc/self/mountinfo",
+          "/sys/fs/cgroup/team/leaf/memory.max",
+          "/sys/fs/cgroup/team/leaf/memory.current"
+        ],
+        "result": {
+          "exception": "A7Refusal",
+          "message": "A7_HEADROOM_UNKNOWN"
+        }
+      },
+      "malformed:memory.max:''": {
+        "files": {
+          "/proc/meminfo": "MemAvailable: 8388608 kB\n",
+          "/proc/self/cgroup": "0::/team/leaf\n",
+          "/proc/self/mountinfo": "34 25 0:29 / /sys/fs/cgroup rw - cgroup2 cgroup2 rw\n",
+          "/sys/fs/cgroup/memory.current": "0\n",
+          "/sys/fs/cgroup/memory.max": "max\n",
+          "/sys/fs/cgroup/team/leaf/memory.current": "0\n",
+          "/sys/fs/cgroup/team/leaf/memory.max": "",
+          "/sys/fs/cgroup/team/memory.current": "0\n",
+          "/sys/fs/cgroup/team/memory.max": "max\n"
+        },
+        "reads": [
+          "/proc/meminfo",
+          "/proc/self/cgroup",
+          "/proc/self/mountinfo",
+          "/sys/fs/cgroup/team/leaf/memory.max",
+          "/sys/fs/cgroup/team/leaf/memory.current"
+        ],
+        "result": {
+          "exception": "A7Refusal",
+          "message": "A7_HEADROOM_UNKNOWN"
+        }
+      },
+      "malformed:memory.max:'-1'": {
+        "files": {
+          "/proc/meminfo": "MemAvailable: 8388608 kB\n",
+          "/proc/self/cgroup": "0::/team/leaf\n",
+          "/proc/self/mountinfo": "34 25 0:29 / /sys/fs/cgroup rw - cgroup2 cgroup2 rw\n",
+          "/sys/fs/cgroup/memory.current": "0\n",
+          "/sys/fs/cgroup/memory.max": "max\n",
+          "/sys/fs/cgroup/team/leaf/memory.current": "0\n",
+          "/sys/fs/cgroup/team/leaf/memory.max": "-1",
+          "/sys/fs/cgroup/team/memory.current": "0\n",
+          "/sys/fs/cgroup/team/memory.max": "max\n"
+        },
+        "reads": [
+          "/proc/meminfo",
+          "/proc/self/cgroup",
+          "/proc/self/mountinfo",
+          "/sys/fs/cgroup/team/leaf/memory.max",
+          "/sys/fs/cgroup/team/leaf/memory.current"
+        ],
+        "result": {
+          "exception": "A7Refusal",
+          "message": "A7_HEADROOM_UNKNOWN"
+        }
+      },
+      "malformed:memory.max:'1.5'": {
+        "files": {
+          "/proc/meminfo": "MemAvailable: 8388608 kB\n",
+          "/proc/self/cgroup": "0::/team/leaf\n",
+          "/proc/self/mountinfo": "34 25 0:29 / /sys/fs/cgroup rw - cgroup2 cgroup2 rw\n",
+          "/sys/fs/cgroup/memory.current": "0\n",
+          "/sys/fs/cgroup/memory.max": "max\n",
+          "/sys/fs/cgroup/team/leaf/memory.current": "0\n",
+          "/sys/fs/cgroup/team/leaf/memory.max": "1.5",
+          "/sys/fs/cgroup/team/memory.current": "0\n",
+          "/sys/fs/cgroup/team/memory.max": "max\n"
+        },
+        "reads": [
+          "/proc/meminfo",
+          "/proc/self/cgroup",
+          "/proc/self/mountinfo",
+          "/sys/fs/cgroup/team/leaf/memory.max",
+          "/sys/fs/cgroup/team/leaf/memory.current"
+        ],
+        "result": {
+          "exception": "A7Refusal",
+          "message": "A7_HEADROOM_UNKNOWN"
+        }
+      },
+      "malformed:memory.max:'garbage'": {
+        "files": {
+          "/proc/meminfo": "MemAvailable: 8388608 kB\n",
+          "/proc/self/cgroup": "0::/team/leaf\n",
+          "/proc/self/mountinfo": "34 25 0:29 / /sys/fs/cgroup rw - cgroup2 cgroup2 rw\n",
+          "/sys/fs/cgroup/memory.current": "0\n",
+          "/sys/fs/cgroup/memory.max": "max\n",
+          "/sys/fs/cgroup/team/leaf/memory.current": "0\n",
+          "/sys/fs/cgroup/team/leaf/memory.max": "garbage",
+          "/sys/fs/cgroup/team/memory.current": "0\n",
+          "/sys/fs/cgroup/team/memory.max": "max\n"
+        },
+        "reads": [
+          "/proc/meminfo",
+          "/proc/self/cgroup",
+          "/proc/self/mountinfo",
+          "/sys/fs/cgroup/team/leaf/memory.max",
+          "/sys/fs/cgroup/team/leaf/memory.current"
+        ],
+        "result": {
+          "exception": "A7Refusal",
+          "message": "A7_HEADROOM_UNKNOWN"
+        }
+      },
+      "missing:/sys/fs/cgroup/memory.current": {
+        "files": {
+          "/proc/meminfo": "MemAvailable: 8388608 kB\n",
+          "/proc/self/cgroup": "0::/team/leaf\n",
+          "/proc/self/mountinfo": "34 25 0:29 / /sys/fs/cgroup rw - cgroup2 cgroup2 rw\n",
+          "/sys/fs/cgroup/memory.max": "max\n",
+          "/sys/fs/cgroup/team/leaf/memory.current": "0\n",
+          "/sys/fs/cgroup/team/leaf/memory.max": "max\n",
+          "/sys/fs/cgroup/team/memory.current": "0\n",
+          "/sys/fs/cgroup/team/memory.max": "max\n"
+        },
+        "reads": [
+          "/proc/meminfo",
+          "/proc/self/cgroup",
+          "/proc/self/mountinfo",
+          "/sys/fs/cgroup/team/leaf/memory.max",
+          "/sys/fs/cgroup/team/leaf/memory.current",
+          "/sys/fs/cgroup/team/memory.max",
+          "/sys/fs/cgroup/team/memory.current",
+          "/sys/fs/cgroup/memory.max",
+          "/sys/fs/cgroup/memory.current"
+        ],
+        "result": {
+          "exception": "A7Refusal",
+          "message": "A7_HEADROOM_UNKNOWN"
+        }
+      },
+      "missing:/sys/fs/cgroup/memory.max": {
+        "files": {
+          "/proc/meminfo": "MemAvailable: 8388608 kB\n",
+          "/proc/self/cgroup": "0::/team/leaf\n",
+          "/proc/self/mountinfo": "34 25 0:29 / /sys/fs/cgroup rw - cgroup2 cgroup2 rw\n",
+          "/sys/fs/cgroup/memory.current": "0\n",
+          "/sys/fs/cgroup/team/leaf/memory.current": "0\n",
+          "/sys/fs/cgroup/team/leaf/memory.max": "max\n",
+          "/sys/fs/cgroup/team/memory.current": "0\n",
+          "/sys/fs/cgroup/team/memory.max": "max\n"
+        },
+        "reads": [
+          "/proc/meminfo",
+          "/proc/self/cgroup",
+          "/proc/self/mountinfo",
+          "/sys/fs/cgroup/team/leaf/memory.max",
+          "/sys/fs/cgroup/team/leaf/memory.current",
+          "/sys/fs/cgroup/team/memory.max",
+          "/sys/fs/cgroup/team/memory.current",
+          "/sys/fs/cgroup/memory.max",
+          "/sys/fs/cgroup/memory.current"
+        ],
+        "result": {
+          "exception": "A7Refusal",
+          "message": "A7_HEADROOM_UNKNOWN"
+        }
+      },
+      "missing:/sys/fs/cgroup/team/leaf/memory.current": {
+        "files": {
+          "/proc/meminfo": "MemAvailable: 8388608 kB\n",
+          "/proc/self/cgroup": "0::/team/leaf\n",
+          "/proc/self/mountinfo": "34 25 0:29 / /sys/fs/cgroup rw - cgroup2 cgroup2 rw\n",
+          "/sys/fs/cgroup/memory.current": "0\n",
+          "/sys/fs/cgroup/memory.max": "max\n",
+          "/sys/fs/cgroup/team/leaf/memory.max": "max\n",
+          "/sys/fs/cgroup/team/memory.current": "0\n",
+          "/sys/fs/cgroup/team/memory.max": "max\n"
+        },
+        "reads": [
+          "/proc/meminfo",
+          "/proc/self/cgroup",
+          "/proc/self/mountinfo",
+          "/sys/fs/cgroup/team/leaf/memory.max",
+          "/sys/fs/cgroup/team/leaf/memory.current"
+        ],
+        "result": {
+          "exception": "A7Refusal",
+          "message": "A7_HEADROOM_UNKNOWN"
+        }
+      },
+      "missing:/sys/fs/cgroup/team/leaf/memory.max": {
+        "files": {
+          "/proc/meminfo": "MemAvailable: 8388608 kB\n",
+          "/proc/self/cgroup": "0::/team/leaf\n",
+          "/proc/self/mountinfo": "34 25 0:29 / /sys/fs/cgroup rw - cgroup2 cgroup2 rw\n",
+          "/sys/fs/cgroup/memory.current": "0\n",
+          "/sys/fs/cgroup/memory.max": "max\n",
+          "/sys/fs/cgroup/team/leaf/memory.current": "0\n",
+          "/sys/fs/cgroup/team/memory.current": "0\n",
+          "/sys/fs/cgroup/team/memory.max": "max\n"
+        },
+        "reads": [
+          "/proc/meminfo",
+          "/proc/self/cgroup",
+          "/proc/self/mountinfo",
+          "/sys/fs/cgroup/team/leaf/memory.max",
+          "/sys/fs/cgroup/team/leaf/memory.current"
+        ],
+        "result": {
+          "exception": "A7Refusal",
+          "message": "A7_HEADROOM_UNKNOWN"
+        }
+      },
+      "missing:/sys/fs/cgroup/team/memory.current": {
+        "files": {
+          "/proc/meminfo": "MemAvailable: 8388608 kB\n",
+          "/proc/self/cgroup": "0::/team/leaf\n",
+          "/proc/self/mountinfo": "34 25 0:29 / /sys/fs/cgroup rw - cgroup2 cgroup2 rw\n",
+          "/sys/fs/cgroup/memory.current": "0\n",
+          "/sys/fs/cgroup/memory.max": "max\n",
+          "/sys/fs/cgroup/team/leaf/memory.current": "0\n",
+          "/sys/fs/cgroup/team/leaf/memory.max": "max\n",
+          "/sys/fs/cgroup/team/memory.max": "max\n"
+        },
+        "reads": [
+          "/proc/meminfo",
+          "/proc/self/cgroup",
+          "/proc/self/mountinfo",
+          "/sys/fs/cgroup/team/leaf/memory.max",
+          "/sys/fs/cgroup/team/leaf/memory.current",
+          "/sys/fs/cgroup/team/memory.max",
+          "/sys/fs/cgroup/team/memory.current"
+        ],
+        "result": {
+          "exception": "A7Refusal",
+          "message": "A7_HEADROOM_UNKNOWN"
+        }
+      },
+      "missing:/sys/fs/cgroup/team/memory.max": {
+        "files": {
+          "/proc/meminfo": "MemAvailable: 8388608 kB\n",
+          "/proc/self/cgroup": "0::/team/leaf\n",
+          "/proc/self/mountinfo": "34 25 0:29 / /sys/fs/cgroup rw - cgroup2 cgroup2 rw\n",
+          "/sys/fs/cgroup/memory.current": "0\n",
+          "/sys/fs/cgroup/memory.max": "max\n",
+          "/sys/fs/cgroup/team/leaf/memory.current": "0\n",
+          "/sys/fs/cgroup/team/leaf/memory.max": "max\n",
+          "/sys/fs/cgroup/team/memory.current": "0\n"
+        },
+        "reads": [
+          "/proc/meminfo",
+          "/proc/self/cgroup",
+          "/proc/self/mountinfo",
+          "/sys/fs/cgroup/team/leaf/memory.max",
+          "/sys/fs/cgroup/team/leaf/memory.current",
+          "/sys/fs/cgroup/team/memory.max",
+          "/sys/fs/cgroup/team/memory.current"
+        ],
+        "result": {
+          "exception": "A7Refusal",
+          "message": "A7_HEADROOM_UNKNOWN"
+        }
+      },
+      "no_membership": {
+        "files": {
+          "/proc/meminfo": "MemAvailable: 8388608 kB\n",
+          "/proc/self/cgroup": "",
+          "/proc/self/mountinfo": "34 25 0:29 / /sys/fs/cgroup rw - cgroup2 cgroup2 rw\n",
+          "/sys/fs/cgroup/memory.current": "0\n",
+          "/sys/fs/cgroup/memory.max": "max\n",
+          "/sys/fs/cgroup/team/leaf/memory.current": "0\n",
+          "/sys/fs/cgroup/team/leaf/memory.max": "max\n",
+          "/sys/fs/cgroup/team/memory.current": "0\n",
+          "/sys/fs/cgroup/team/memory.max": "max\n"
+        },
+        "reads": [
+          "/proc/meminfo",
+          "/proc/self/cgroup"
+        ],
+        "result": {
+          "exception": "A7Refusal",
+          "message": "A7_HEADROOM_UNKNOWN"
+        }
+      },
+      "over_limit_clamped": {
+        "files": {
+          "/proc/meminfo": "MemAvailable: 8388608 kB\n",
+          "/proc/self/cgroup": "0::/team/leaf\n",
+          "/proc/self/mountinfo": "34 25 0:29 / /sys/fs/cgroup rw - cgroup2 cgroup2 rw\n",
+          "/sys/fs/cgroup/memory.current": "0\n",
+          "/sys/fs/cgroup/memory.max": "max\n",
+          "/sys/fs/cgroup/team/leaf/memory.current": "101",
+          "/sys/fs/cgroup/team/leaf/memory.max": "100",
+          "/sys/fs/cgroup/team/memory.current": "0\n",
+          "/sys/fs/cgroup/team/memory.max": "max\n"
+        },
+        "reads": [
+          "/proc/meminfo",
+          "/proc/self/cgroup",
+          "/proc/self/mountinfo",
+          "/sys/fs/cgroup/team/leaf/memory.max",
+          "/sys/fs/cgroup/team/leaf/memory.current",
+          "/sys/fs/cgroup/team/memory.max",
+          "/sys/fs/cgroup/team/memory.current",
+          "/sys/fs/cgroup/memory.max",
+          "/sys/fs/cgroup/memory.current"
+        ],
+        "result": {
+          "returned": 0
+        }
+      },
+      "root": {
+        "files": {
+          "/proc/meminfo": "MemAvailable: 8388608 kB\n",
+          "/proc/self/cgroup": "0::/team/leaf\n",
+          "/proc/self/mountinfo": "34 25 0:29 / /sys/fs/cgroup rw - cgroup2 cgroup2 rw\n",
+          "/sys/fs/cgroup/memory.current": "201326592",
+          "/sys/fs/cgroup/memory.max": "268435456",
+          "/sys/fs/cgroup/team/leaf/memory.current": "0\n",
+          "/sys/fs/cgroup/team/leaf/memory.max": "max\n",
+          "/sys/fs/cgroup/team/memory.current": "0\n",
+          "/sys/fs/cgroup/team/memory.max": "max\n"
+        },
+        "reads": [
+          "/proc/meminfo",
+          "/proc/self/cgroup",
+          "/proc/self/mountinfo",
+          "/sys/fs/cgroup/team/leaf/memory.max",
+          "/sys/fs/cgroup/team/leaf/memory.current",
+          "/sys/fs/cgroup/team/memory.max",
+          "/sys/fs/cgroup/team/memory.current",
+          "/sys/fs/cgroup/memory.max",
+          "/sys/fs/cgroup/memory.current"
+        ],
+        "result": {
+          "returned": 67108864
+        }
+      },
+      "subtree_mount": {
+        "files": {
+          "/proc/meminfo": "MemAvailable: 8388608 kB\n",
+          "/proc/self/cgroup": "0::/team/leaf\n",
+          "/proc/self/mountinfo": "34 25 0:29 /team /sys/fs/cgroup rw - cgroup2 cgroup2 rw\n",
+          "/sys/fs/cgroup/memory.current": "0\n",
+          "/sys/fs/cgroup/memory.max": "max\n",
+          "/sys/fs/cgroup/team/leaf/memory.current": "0\n",
+          "/sys/fs/cgroup/team/leaf/memory.max": "max\n",
+          "/sys/fs/cgroup/team/memory.current": "0\n",
+          "/sys/fs/cgroup/team/memory.max": "max\n"
+        },
+        "reads": [
+          "/proc/meminfo",
+          "/proc/self/cgroup",
+          "/proc/self/mountinfo"
+        ],
+        "result": {
+          "exception": "A7Refusal",
+          "message": "A7_HEADROOM_UNKNOWN"
+        }
+      },
+      "traversal": {
+        "files": {
+          "/proc/meminfo": "MemAvailable: 8388608 kB\n",
+          "/proc/self/cgroup": "0::/../team\n",
+          "/proc/self/mountinfo": "34 25 0:29 / /sys/fs/cgroup rw - cgroup2 cgroup2 rw\n",
+          "/sys/fs/cgroup/memory.current": "0\n",
+          "/sys/fs/cgroup/memory.max": "max\n",
+          "/sys/fs/cgroup/team/leaf/memory.current": "0\n",
+          "/sys/fs/cgroup/team/leaf/memory.max": "max\n",
+          "/sys/fs/cgroup/team/memory.current": "0\n",
+          "/sys/fs/cgroup/team/memory.max": "max\n"
+        },
+        "reads": [
+          "/proc/meminfo",
+          "/proc/self/cgroup"
+        ],
+        "result": {
+          "exception": "A7Refusal",
+          "message": "A7_HEADROOM_UNKNOWN"
+        }
+      },
+      "unlimited": {
+        "files": {
+          "/proc/meminfo": "MemAvailable: 8388608 kB\n",
+          "/proc/self/cgroup": "0::/team/leaf\n",
+          "/proc/self/mountinfo": "34 25 0:29 / /sys/fs/cgroup rw - cgroup2 cgroup2 rw\n",
+          "/sys/fs/cgroup/team/leaf/memory.current": "0\n",
+          "/sys/fs/cgroup/team/leaf/memory.max": "max\n",
+          "/sys/fs/cgroup/team/memory.current": "0\n",
+          "/sys/fs/cgroup/team/memory.max": "max\n"
+        },
+        "reads": [
+          "/proc/meminfo",
+          "/proc/self/cgroup",
+          "/proc/self/mountinfo",
+          "/sys/fs/cgroup/team/leaf/memory.max",
+          "/sys/fs/cgroup/team/leaf/memory.current",
+          "/sys/fs/cgroup/team/memory.max",
+          "/sys/fs/cgroup/team/memory.current",
+          "/sys/fs/cgroup/memory.max",
+          "/sys/fs/cgroup/memory.current"
+        ],
+        "result": {
+          "returned": 8589934592
+        }
+      },
+      "unreadable:/sys/fs/cgroup/memory.current": {
+        "files": {
+          "/proc/meminfo": "MemAvailable: 8388608 kB\n",
+          "/proc/self/cgroup": "0::/team/leaf\n",
+          "/proc/self/mountinfo": "34 25 0:29 / /sys/fs/cgroup rw - cgroup2 cgroup2 rw\n",
+          "/sys/fs/cgroup/memory.current": "0\n",
+          "/sys/fs/cgroup/memory.max": "max\n",
+          "/sys/fs/cgroup/team/leaf/memory.current": "0\n",
+          "/sys/fs/cgroup/team/leaf/memory.max": "max\n",
+          "/sys/fs/cgroup/team/memory.current": "0\n",
+          "/sys/fs/cgroup/team/memory.max": "max\n"
+        },
+        "reads": [
+          "/proc/meminfo",
+          "/proc/self/cgroup",
+          "/proc/self/mountinfo",
+          "/sys/fs/cgroup/team/leaf/memory.max",
+          "/sys/fs/cgroup/team/leaf/memory.current",
+          "/sys/fs/cgroup/team/memory.max",
+          "/sys/fs/cgroup/team/memory.current",
+          "/sys/fs/cgroup/memory.max",
+          "/sys/fs/cgroup/memory.current"
+        ],
+        "result": {
+          "exception": "A7Refusal",
+          "message": "A7_HEADROOM_UNKNOWN"
+        }
+      },
+      "unreadable:/sys/fs/cgroup/memory.max": {
+        "files": {
+          "/proc/meminfo": "MemAvailable: 8388608 kB\n",
+          "/proc/self/cgroup": "0::/team/leaf\n",
+          "/proc/self/mountinfo": "34 25 0:29 / /sys/fs/cgroup rw - cgroup2 cgroup2 rw\n",
+          "/sys/fs/cgroup/memory.current": "0\n",
+          "/sys/fs/cgroup/memory.max": "max\n",
+          "/sys/fs/cgroup/team/leaf/memory.current": "0\n",
+          "/sys/fs/cgroup/team/leaf/memory.max": "max\n",
+          "/sys/fs/cgroup/team/memory.current": "0\n",
+          "/sys/fs/cgroup/team/memory.max": "max\n"
+        },
+        "reads": [
+          "/proc/meminfo",
+          "/proc/self/cgroup",
+          "/proc/self/mountinfo",
+          "/sys/fs/cgroup/team/leaf/memory.max",
+          "/sys/fs/cgroup/team/leaf/memory.current",
+          "/sys/fs/cgroup/team/memory.max",
+          "/sys/fs/cgroup/team/memory.current",
+          "/sys/fs/cgroup/memory.max"
+        ],
+        "result": {
+          "exception": "A7Refusal",
+          "message": "A7_HEADROOM_UNKNOWN"
+        }
+      },
+      "unreadable:/sys/fs/cgroup/team/leaf/memory.current": {
+        "files": {
+          "/proc/meminfo": "MemAvailable: 8388608 kB\n",
+          "/proc/self/cgroup": "0::/team/leaf\n",
+          "/proc/self/mountinfo": "34 25 0:29 / /sys/fs/cgroup rw - cgroup2 cgroup2 rw\n",
+          "/sys/fs/cgroup/memory.current": "0\n",
+          "/sys/fs/cgroup/memory.max": "max\n",
+          "/sys/fs/cgroup/team/leaf/memory.current": "0\n",
+          "/sys/fs/cgroup/team/leaf/memory.max": "max\n",
+          "/sys/fs/cgroup/team/memory.current": "0\n",
+          "/sys/fs/cgroup/team/memory.max": "max\n"
+        },
+        "reads": [
+          "/proc/meminfo",
+          "/proc/self/cgroup",
+          "/proc/self/mountinfo",
+          "/sys/fs/cgroup/team/leaf/memory.max",
+          "/sys/fs/cgroup/team/leaf/memory.current"
+        ],
+        "result": {
+          "exception": "A7Refusal",
+          "message": "A7_HEADROOM_UNKNOWN"
+        }
+      },
+      "unreadable:/sys/fs/cgroup/team/leaf/memory.max": {
+        "files": {
+          "/proc/meminfo": "MemAvailable: 8388608 kB\n",
+          "/proc/self/cgroup": "0::/team/leaf\n",
+          "/proc/self/mountinfo": "34 25 0:29 / /sys/fs/cgroup rw - cgroup2 cgroup2 rw\n",
+          "/sys/fs/cgroup/memory.current": "0\n",
+          "/sys/fs/cgroup/memory.max": "max\n",
+          "/sys/fs/cgroup/team/leaf/memory.current": "0\n",
+          "/sys/fs/cgroup/team/leaf/memory.max": "max\n",
+          "/sys/fs/cgroup/team/memory.current": "0\n",
+          "/sys/fs/cgroup/team/memory.max": "max\n"
+        },
+        "reads": [
+          "/proc/meminfo",
+          "/proc/self/cgroup",
+          "/proc/self/mountinfo",
+          "/sys/fs/cgroup/team/leaf/memory.max"
+        ],
+        "result": {
+          "exception": "A7Refusal",
+          "message": "A7_HEADROOM_UNKNOWN"
+        }
+      },
+      "unreadable:/sys/fs/cgroup/team/memory.current": {
+        "files": {
+          "/proc/meminfo": "MemAvailable: 8388608 kB\n",
+          "/proc/self/cgroup": "0::/team/leaf\n",
+          "/proc/self/mountinfo": "34 25 0:29 / /sys/fs/cgroup rw - cgroup2 cgroup2 rw\n",
+          "/sys/fs/cgroup/memory.current": "0\n",
+          "/sys/fs/cgroup/memory.max": "max\n",
+          "/sys/fs/cgroup/team/leaf/memory.current": "0\n",
+          "/sys/fs/cgroup/team/leaf/memory.max": "max\n",
+          "/sys/fs/cgroup/team/memory.current": "0\n",
+          "/sys/fs/cgroup/team/memory.max": "max\n"
+        },
+        "reads": [
+          "/proc/meminfo",
+          "/proc/self/cgroup",
+          "/proc/self/mountinfo",
+          "/sys/fs/cgroup/team/leaf/memory.max",
+          "/sys/fs/cgroup/team/leaf/memory.current",
+          "/sys/fs/cgroup/team/memory.max",
+          "/sys/fs/cgroup/team/memory.current"
+        ],
+        "result": {
+          "exception": "A7Refusal",
+          "message": "A7_HEADROOM_UNKNOWN"
+        }
+      },
+      "unreadable:/sys/fs/cgroup/team/memory.max": {
+        "files": {
+          "/proc/meminfo": "MemAvailable: 8388608 kB\n",
+          "/proc/self/cgroup": "0::/team/leaf\n",
+          "/proc/self/mountinfo": "34 25 0:29 / /sys/fs/cgroup rw - cgroup2 cgroup2 rw\n",
+          "/sys/fs/cgroup/memory.current": "0\n",
+          "/sys/fs/cgroup/memory.max": "max\n",
+          "/sys/fs/cgroup/team/leaf/memory.current": "0\n",
+          "/sys/fs/cgroup/team/leaf/memory.max": "max\n",
+          "/sys/fs/cgroup/team/memory.current": "0\n",
+          "/sys/fs/cgroup/team/memory.max": "max\n"
+        },
+        "reads": [
+          "/proc/meminfo",
+          "/proc/self/cgroup",
+          "/proc/self/mountinfo",
+          "/sys/fs/cgroup/team/leaf/memory.max",
+          "/sys/fs/cgroup/team/leaf/memory.current",
+          "/sys/fs/cgroup/team/memory.max"
+        ],
+        "result": {
+          "exception": "A7Refusal",
+          "message": "A7_HEADROOM_UNKNOWN"
+        }
+      }
+    }
+  },
+  "completed_utc": "2026-10-02T00:46:49.035759+00:00",
+  "decoder_probes": {
+    "forced_reencode_mismatch": {
+      "exception": "EvidenceError",
+      "message": "ECMWF_CCSDS_INTEGRITY_FAILED"
+    },
+    "preflight_without_native": {
+      "count": 4,
+      "indices": [
+        0
+      ],
+      "ni": 2,
+      "nj": 2,
+      "section_numbers": [
+        1,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "template": 42
+    },
+    "retained": {
+      "decoder_sha256": "a5fd93a02873a1082f45ac6674b08990cb54d0b1d95ca9b72e0b05d8885b03e4",
+      "eccodes": "2.49.0",
+      "interpreter": "/home/alphaadmin/AlphaV11_Dev/venv/bin/python",
+      "measurement": {
+        "returned": {
+          "cpu_seconds": 0.519265,
+          "evidence_class": "RETAINED_UNVERIFIED",
+          "inner_cpu_seconds": 0.435130468,
+          "max_rss_bytes": 93188096,
+          "output_bytes": 235,
+          "point": {
+            "grid_sha256": "6e8229bf09d191ccf7d719ef88dc9e848fe663cf45a91d0691b7e17815a03036",
+            "kelvin": 288.98785400390625,
+            "latitude": 33.75,
+            "longitude": -84.5
+          },
+          "profile": {
+            "count": 1038240,
+            "indices": [
+              324382
+            ],
+            "ni": 1440,
+            "nj": 721,
+            "section_numbers": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "template": 42
+          },
+          "wall_seconds": 0.6655260829720646
+        }
+      },
+      "native": {
+        "/home/alphaadmin/AlphaV11_Dev/venv/lib/python3.12/site-packages/eccodeslib/lib64/libeccodes.so": "1d6b8a3a8206cc439a3497dad4dc96370ed0b247798ac27e6c7bbd65cac4b87c",
+        "/home/alphaadmin/AlphaV11_Dev/venv/lib/python3.12/site-packages/eccodeslib/lib64/libeccodes_memfs.so": "f984057845fd0a569dd775907d4629b83b09434959436863790492aae32e5fb9"
+      },
+      "python": "3.12.3 (main, Aug 31 2026, 10:18:26) [GCC 13.3.0]",
+      "raw_bytes": 621131,
+      "raw_sha256": "42dcdd7b3d8f63c5353dcb2cbb91fc15a478d9cd92121ff8ad936d2b5be988e4",
+      "request": {
+        "dataset": "ecmwf-open-data:0p25",
+        "grib_signature_sha256": "de36950ba6dfe481553b3823e009497732e2f01cfcdbd61b318f9e66634d289b",
+        "initialized_at": 1790640000.0,
+        "member": 0,
+        "model": "aifs-ens",
+        "model_version": "UNVERIFIED_LOCAL_OBSERVATION",
+        "provider": "ECMWF_AIFS_ENS",
+        "release_evidence_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "step": 6
+      },
+      "scope": "Diagnostic derived pins, RETAINED_UNVERIFIED; actual memory admission used, no qualification",
+      "total_child_cpu": 0.519265
+    },
+    "simple_ieee": {
+      "0": {
+        "returned": {
+          "cpu_seconds": 0.122622,
+          "evidence_class": "SYNTHETIC",
+          "inner_cpu_seconds": 0.06447487599999999,
+          "max_rss_bytes": 50536448,
+          "output_bytes": 229,
+          "point": {
+            "grid_sha256": "62f14a866b1f55d87b1117cd1ecc1f9b1b869bb3717627c4e629af80794550c7",
+            "kelvin": 290.0,
+            "latitude": 33.0,
+            "longitude": -84.0
+          },
+          "profile": {
+            "count": 4,
+            "indices": [
+              0
+            ],
+            "ni": 2,
+            "nj": 2,
+            "section_numbers": [
+              1,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "template": 0
+          },
+          "wall_seconds": 0.13789493893273175
+        }
+      },
+      "1": {
+        "returned": {
+          "cpu_seconds": 0.12268599999999999,
+          "evidence_class": "SYNTHETIC",
+          "inner_cpu_seconds": 0.064575742,
+          "max_rss_bytes": 50540544,
+          "output_bytes": 221,
+          "point": {
+            "grid_sha256": "62f14a866b1f55d87b1117cd1ecc1f9b1b869bb3717627c4e629af80794550c7",
+            "kelvin": 290.0,
+            "latitude": 33.0,
+            "longitude": -84.0
+          },
+          "profile": {
+            "count": 4,
+            "indices": [
+              0
+            ],
+            "ni": 2,
+            "nj": 2,
+            "section_numbers": [
+              1,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "template": 4
+          },
+          "wall_seconds": 0.12821401096880436
+        }
+      },
+      "2": {
+        "returned": {
+          "cpu_seconds": 0.125823,
+          "evidence_class": "SYNTHETIC",
+          "inner_cpu_seconds": 0.066283962,
+          "max_rss_bytes": 50540544,
+          "output_bytes": 221,
+          "point": {
+            "grid_sha256": "62f14a866b1f55d87b1117cd1ecc1f9b1b869bb3717627c4e629af80794550c7",
+            "kelvin": 290.0,
+            "latitude": 33.0,
+            "longitude": -84.0
+          },
+          "profile": {
+            "count": 4,
+            "indices": [
+              0
+            ],
+            "ni": 2,
+            "nj": 2,
+            "section_numbers": [
+              1,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "template": 4
+          },
+          "wall_seconds": 0.13856450514867902
+        }
+      }
+    },
+    "unknown_packing": {
+      "exception": "A7Refusal",
+      "message": "ECMWF_PACKING_DECODER_UNAVAILABLE"
+    }
+  },
+  "execution_completed": true,
+  "execution_notes": [
+    "Sandbox launcher failed before executing commands; approved ordinary-user local execution used.",
+    "Tests and probe processes disabled bytecode; pytest cache disabled. No candidate edits.",
+    "Only review-owned test scratch removed. A4 repair left untouched.",
+    "Defect probes assert reproduced failures; their zero exits do not indicate acceptance.",
+    "Namespace scenario is a synthetic visibility counterexample, not an actual host limit measurement."
+  ],
+  "final_disk_free_bytes": 1413435392,
+  "findings": [
+    {
+      "blocking": true,
+      "file": "tools/v11_r09_gate3_a7_decoder.py",
+      "id": "F1",
+      "lines": [
+        148,
+        163
+      ],
+      "priority": "P2",
+      "title": "Namespace root does not establish full effective cgroup visibility"
+    },
+    {
+      "blocking": true,
+      "file": "tools/v11_r09_gate3_a7_decoder.py",
+      "id": "F2",
+      "lines": [
+        202,
+        205
+      ],
+      "priority": "P2",
+      "title": "Timeout cleanup can double-reap and raise ChildProcessError"
+    },
+    {
+      "blocking": false,
+      "file": "tools/v11_r09_gate3_a7_decoder.py",
+      "id": "F3",
+      "lines": [
+        326,
+        330
+      ],
+      "priority": "P3",
+      "title": "RSS sample excludes serialization and teardown"
+    }
+  ],
+  "focused_adjacent_tests": {
+    "args": [
+      "-q",
+      "-p",
+      "no:cacheprovider",
+      "--basetemp",
+      "/tmp/a7-review-313eeaf-tests-g2bepdey/pytest",
+      "tests/test_v11_r09_gate3_a7_decoder.py",
+      "tests/test_v11_model_panel.py",
+      "tests/test_v11_r09_gate3_offline_io.py"
+    ],
+    "exit_code": 0,
+    "interpreter": "/home/alphaadmin/AlphaV11_Dev/venv/bin/python",
+    "modifications": "No candidate edits. Bytecode and pytest cache disabled; candidate itself uses -B.",
+    "output": "........................................................................ [ 37%]\n........................................................................ [ 75%]\n................................................                         [100%]\n192 passed in 13.46s\n",
+    "output_sha256": "57b34b19e11dcef5e106547d5684fb177e78d32aada22f741654d3252cfff0bf",
+    "python": "3.12.3 (main, Aug 31 2026, 10:18:26) [GCC 13.3.0]",
+    "scratch_file_bytes_at_completion": 2286261,
+    "scratch_removed": true
+  },
+  "followup_probes": {
+    "bounds_refusals": {
+      "cpu_seconds:0": {
+        "exception": "A7Refusal",
+        "message": "A7_BOUNDS"
+      },
+      "cpu_seconds:61": {
+        "exception": "A7Refusal",
+        "message": "A7_BOUNDS"
+      },
+      "cpu_seconds:True": {
+        "exception": "A7Refusal",
+        "message": "A7_BOUNDS"
+      },
+      "disk_headroom_bytes:-1": {
+        "exception": "A7Refusal",
+        "message": "A7_BOUNDS"
+      },
+      "disk_headroom_bytes:2147483649": {
+        "exception": "A7Refusal",
+        "message": "A7_BOUNDS"
+      },
+      "memory_bytes:134217727": {
+        "exception": "A7Refusal",
+        "message": "A7_BOUNDS"
+      },
+      "memory_bytes:2147483649": {
+        "exception": "A7Refusal",
+        "message": "A7_BOUNDS"
+      },
+      "memory_headroom_bytes:-1": {
+        "exception": "A7Refusal",
+        "message": "A7_BOUNDS"
+      },
+      "memory_headroom_bytes:2147483649": {
+        "exception": "A7Refusal",
+        "message": "A7_BOUNDS"
+      },
+      "output_bytes:1023": {
+        "exception": "A7Refusal",
+        "message": "A7_BOUNDS"
+      },
+      "output_bytes:65537": {
+        "exception": "A7Refusal",
+        "message": "A7_BOUNDS"
+      },
+      "wall_seconds:91": {
+        "exception": "A7Refusal",
+        "message": "A7_BOUNDS"
+      }
+    },
+    "disk_threshold": {
+      "-1": {
+        "exception": "A7Refusal",
+        "message": "A7_HOST_HEADROOM"
+      },
+      "0": {
+        "exception": "A7Refusal",
+        "message": "A7_PROCESS_START_FAILED"
+      }
+    },
+    "timeout_race_through_run": {
+      "child_returncodes": [
+        0
+      ],
+      "exception": "ChildProcessError",
+      "message": "[Errno 10] No child processes"
+    }
+  },
+  "gates": {
+    "A2_A6": "OPEN_SEPARATE_PREREQUISITES",
+    "A7": "UNQUALIFIED",
+    "G3_L": "NO_GO",
+    "launchable": false
+  },
+  "inventory": {
+    "author": {
+      "bytes": 2169,
+      "path": "/tmp/alpha-v11-gate3-a7-repair-e08858b.author.json",
+      "sha256": "03531f48945849fab7524f6868d86184546ac98acedadc512bfbaaba94027fff"
+    },
+    "author_identity_matches": true,
+    "author_test_log": {
+      "bytes": 260,
+      "matches_author": true,
+      "path": "/tmp/a7-repair-tests-final.log",
+      "sha256": "2625151810b19ed218c99061266a4d5ecb61dbd914dcb6df9d34cd367632d498",
+      "text": "........................................................................ [ 37%]\n........................................................................ [ 75%]\n................................................                         [100%]\n192 passed in 8.00s\n"
+    },
+    "base": "e08858b4f0e25d3b37f53a1779b16bc6ac5cc942",
+    "changed_files_match_author": true,
+    "checkout": "/tmp/alpha-v11-gate3-a7-review-313eeaf",
+    "commit": "313eeaffe9865ada9d0c28f102a8ed679c221323",
+    "copied_prior_report": {
+      "bytes": 13412,
+      "matches_prior_report": true,
+      "path": "/home/alphaadmin/AlphaV11_Dev/Alpha/docs/V11_R09_GATE3_A7_REVIEW_e08858b.md",
+      "sha256": "b5b8f1e0a557631b39526a8496b03bcedbf18693c90c03535995af90052fa16a"
+    },
+    "detached": true,
+    "diff_check": {
+      "args": [
+        "git",
+        "diff",
+        "--check",
+        "e08858b4f0e25d3b37f53a1779b16bc6ac5cc942",
+        "313eeaffe9865ada9d0c28f102a8ed679c221323"
+      ],
+      "returncode": 0,
+      "stderr": "",
+      "stdout": ""
+    },
+    "exact_files": [
+      {
+        "bytes": 7090,
+        "git_blob": "19c4839d212a8895721fd85291f389335bf752c4",
+        "matches_git_blob": true,
+        "path": "/tmp/alpha-v11-gate3-a7-review-313eeaf/docs/V11_R09_GATE3_A7_DECODER_RESOURCE_CANDIDATE_20261001.md",
+        "relative_path": "docs/V11_R09_GATE3_A7_DECODER_RESOURCE_CANDIDATE_20261001.md",
+        "sha256": "35a49751c400205065a70be3ebfe93131698f2024cd7ec60e49b621d2954ca3a"
+      },
+      {
+        "bytes": 14796,
+        "git_blob": "d4ed50cea74ef31b0b04c8c6ce05c5c2f170576f",
+        "matches_git_blob": true,
+        "path": "/tmp/alpha-v11-gate3-a7-review-313eeaf/tests/test_v11_r09_gate3_a7_decoder.py",
+        "relative_path": "tests/test_v11_r09_gate3_a7_decoder.py",
+        "sha256": "88088749b1a500ff76ae6a42f30e5bff4e1b3e1f7d03f270e729cb554c6374e2"
+      },
+      {
+        "bytes": 15651,
+        "git_blob": "0494fc1b06233ae9989c3c462c16d9ececf0dd56",
+        "matches_git_blob": true,
+        "path": "/tmp/alpha-v11-gate3-a7-review-313eeaf/tools/v11_r09_gate3_a7_decoder.py",
+        "relative_path": "tools/v11_r09_gate3_a7_decoder.py",
+        "sha256": "85b885ed8263f326f0b40d0f3e5b8081bfe6755c784c1aabf78b27cd92977d57"
+      },
+      {
+        "bytes": 16704,
+        "git_blob": "bcf28c8f63fdde52e0b89e4b69fe238b51dd1c47",
+        "matches_git_blob": true,
+        "path": "/tmp/alpha-v11-gate3-a7-review-313eeaf/docs/V11_R09_GATE3_IDENTITY_ACCEPTANCE_20261001.md",
+        "relative_path": "docs/V11_R09_GATE3_IDENTITY_ACCEPTANCE_20261001.md",
+        "sha256": "db298d49301a686711a7d89e7456d95fcd34da8616970fa7f52374b91440aa9d"
+      },
+      {
+        "bytes": 12889,
+        "git_blob": "e8249fed2a8020be121f6b34986628d7680faa00",
+        "matches_git_blob": true,
+        "path": "/tmp/alpha-v11-gate3-a7-review-313eeaf/polymarket_scanner/v11/ecmwf_grib.py",
+        "relative_path": "polymarket_scanner/v11/ecmwf_grib.py",
+        "sha256": "a5fd93a02873a1082f45ac6674b08990cb54d0b1d95ca9b72e0b05d8885b03e4"
+      }
+    ],
+    "local_reference_files": [
+      {
+        "bytes": 2662,
+        "path": "/usr/share/man/man7/cgroup_namespaces.7.gz",
+        "sha256": "471e8ed9d7a41c872540a53b48759431a950b3c1442287d37cd326c9ab483c8f"
+      },
+      {
+        "bytes": 88725,
+        "path": "/usr/lib/python3.12/subprocess.py",
+        "sha256": "baa9f9138d8d20df6284f67e7d2e790f847f65e2c5370de322d54cccd737f2d9"
+      },
+      {
+        "bytes": 17034,
+        "path": "/usr/share/man/man7/cgroups.7.gz",
+        "sha256": "1e17806de116a3134934ba5d4a2b84d5be90ed6e9a5dd6a29a718014f0566391"
+      }
+    ],
+    "parent": "e08858b4f0e25d3b37f53a1779b16bc6ac5cc942",
+    "prior_checks": [
+      {
+        "bytes": 8652,
+        "expected_sha256": "059634f04b91021b82b892f5ec3b238b02ac0122382fdbecf9ee1d7241361ba5",
+        "matches": true,
+        "path": "/tmp/alpha-v11-gate3-a7-review-e08858b-probes.py",
+        "sha256": "059634f04b91021b82b892f5ec3b238b02ac0122382fdbecf9ee1d7241361ba5"
+      },
+      {
+        "bytes": 13412,
+        "expected_sha256": "b5b8f1e0a557631b39526a8496b03bcedbf18693c90c03535995af90052fa16a",
+        "matches": true,
+        "path": "/tmp/alpha-v11-gate3-a7-review-e08858b.md",
+        "sha256": "b5b8f1e0a557631b39526a8496b03bcedbf18693c90c03535995af90052fa16a"
+      },
+      {
+        "bytes": 16704,
+        "expected_sha256": "db298d49301a686711a7d89e7456d95fcd34da8616970fa7f52374b91440aa9d",
+        "matches": true,
+        "path": "/tmp/alpha-v11-gate3-a7-review-e08858b/docs/V11_R09_GATE3_IDENTITY_ACCEPTANCE_20261001.md",
+        "sha256": "db298d49301a686711a7d89e7456d95fcd34da8616970fa7f52374b91440aa9d"
+      },
+      {
+        "bytes": 5286,
+        "expected_sha256": "68375c1f4d1d8075b94722e746f3061e1d3c1c01bf85ace5b1f925e29f325ffb",
+        "matches": true,
+        "path": "/tmp/alpha-v11-gate3-a7-review-e08858b/docs/V11_R09_GATE3_A7_DECODER_RESOURCE_CANDIDATE_20261001.md",
+        "sha256": "68375c1f4d1d8075b94722e746f3061e1d3c1c01bf85ace5b1f925e29f325ffb"
+      },
+      {
+        "bytes": 12554,
+        "expected_sha256": "aceb1e3496666ebaf0380ec92feb6caba92191bc3821458e28e89ca7b36d7af6",
+        "matches": true,
+        "path": "/tmp/alpha-v11-gate3-a7-review-e08858b/tools/v11_r09_gate3_a7_decoder.py",
+        "sha256": "aceb1e3496666ebaf0380ec92feb6caba92191bc3821458e28e89ca7b36d7af6"
+      },
+      {
+        "bytes": 12889,
+        "expected_sha256": "a5fd93a02873a1082f45ac6674b08990cb54d0b1d95ca9b72e0b05d8885b03e4",
+        "matches": true,
+        "path": "/tmp/alpha-v11-gate3-a7-review-e08858b/polymarket_scanner/v11/ecmwf_grib.py",
+        "sha256": "a5fd93a02873a1082f45ac6674b08990cb54d0b1d95ca9b72e0b05d8885b03e4"
+      },
+      {
+        "bytes": 8521,
+        "expected_sha256": "a3ae5eb39f2c36b159ff7329423011aad2059ba4b1f97b2e82a02b7288bf5eb3",
+        "matches": true,
+        "path": "/tmp/alpha-v11-gate3-a7-review-e08858b/tests/test_v11_r09_gate3_a7_decoder.py",
+        "sha256": "a3ae5eb39f2c36b159ff7329423011aad2059ba4b1f97b2e82a02b7288bf5eb3"
+      },
+      {
+        "bytes": 424,
+        "expected_sha256": "4e31eb8a2ec4e90d97d17f50cfd26de216f21e989aa80c77030cea2a86edea24",
+        "matches": true,
+        "path": "/tmp/alpha-v11-gate3-a7-decoder-resources-20261001.terminal.json",
+        "sha256": "4e31eb8a2ec4e90d97d17f50cfd26de216f21e989aa80c77030cea2a86edea24"
+      },
+      {
+        "bytes": 174079,
+        "expected_sha256": "f8d13d5c07bf421fec21e66d413e8929c346ff0b49cd14e3d6840b6fb13c4802",
+        "matches": true,
+        "path": "/tmp/alpha-v11-gate3-a7-decoder-resources-20261001.log",
+        "sha256": "f8d13d5c07bf421fec21e66d413e8929c346ff0b49cd14e3d6840b6fb13c4802"
+      }
+    ],
+    "prior_terminal": {
+      "bytes": 30817,
+      "path": "/tmp/alpha-v11-gate3-a7-review-e08858b_terminal.json",
+      "sha256": "967f16c6436b113ec027ea0b922a80c14621b588736fbbc880fc741114538dd7"
+    },
+    "status": "",
+    "tree": "b57ed1f7c67dbecf3256b5ae538d8ec235de9651"
+  },
+  "prior_findings": {
+    "cpu_interval": "Successful whole-child accounting repaired; timeout cleanup regression F2",
+    "documented_defaults": "Ranges/defaults repaired; adjacent RSS interval gap F3",
+    "nested_cgroup": "Visible hierarchy repaired; namespace-hidden ancestors unresolved (F1)"
+  },
+  "process_probes": {
+    "allowed_documented_extremes": {
+      "cpu_seconds": 60,
+      "disk_headroom_bytes": 0,
+      "memory_bytes": 2147483648,
+      "memory_headroom_bytes": 0,
+      "output_bytes": 65536,
+      "wall_seconds": 90
+    },
+    "exact_child_accounting": {
+      "sleeping_child_cpu": 0.013725999999999999,
+      "unrelated_child_returncode": 0
+    },
+    "rss_after_sample": {
+      "allocation_bytes": 50331648,
+      "injected": "48 MiB allocation during real worker JSON serialization after its RSS sample; child still under default address-space limit",
+      "measurement": {
+        "cpu_seconds": 0.16821999999999998,
+        "evidence_class": "SYNTHETIC",
+        "inner_cpu_seconds": 0.068496274,
+        "max_rss_bytes": 31547392,
+        "output_bytes": 221,
+        "point": {
+          "grid_sha256": "62f14a866b1f55d87b1117cd1ecc1f9b1b869bb3717627c4e629af80794550c7",
+          "kelvin": 290.0,
+          "latitude": 33.0,
+          "longitude": -84.0
+        },
+        "profile": {
+          "count": 4,
+          "indices": [
+            0
+          ],
+          "ni": 2,
+          "nj": 2,
+          "section_numbers": [
+            1,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "template": 0
+        },
+        "wall_seconds": 0.17869178601540625
+      },
+      "reaped_usage": [
+        {
+          "cpu_seconds": 0.16821999999999998,
+          "max_rss_bytes": 75550720,
+          "pid": 2002880
+        }
+      ]
+    },
+    "timeout_exit_race": {
+      "exception": "ChildProcessError",
+      "message": "[Errno 10] No child processes",
+      "returncode_after": 0
+    }
+  },
+  "reproducer_commands": [
+    "/home/alphaadmin/AlphaV11_Dev/venv/bin/python -B /tmp/alpha-v11-gate3-a7-review-313eeaf-probes.py inventory",
+    "/home/alphaadmin/AlphaV11_Dev/venv/bin/python -B /tmp/alpha-v11-gate3-a7-review-313eeaf-probes.py tests",
+    "/home/alphaadmin/AlphaV11_Dev/venv/bin/python -B /tmp/alpha-v11-gate3-a7-review-313eeaf-probes.py cgroups",
+    "/home/alphaadmin/AlphaV11_Dev/venv/bin/python -B /tmp/alpha-v11-gate3-a7-review-313eeaf-probes.py processes",
+    "/home/alphaadmin/AlphaV11_Dev/venv/bin/python -B /tmp/alpha-v11-gate3-a7-review-313eeaf-probes.py followups",
+    "/home/alphaadmin/AlphaV11_Dev/venv/bin/python -B /tmp/alpha-v11-gate3-a7-review-313eeaf-probes.py decoder"
+  ],
+  "reviewer_role": "independent Astra/high",
+  "schema": "ALPHA_V11_GATE3_A7_INDEPENDENT_REPAIR_REVIEW_V1",
+  "scratch_removed_verified": true,
+  "verdict": "CHANGES_REQUIRED"
+}
