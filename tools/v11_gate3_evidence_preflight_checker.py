@@ -34,9 +34,28 @@ ELIGIBILITY_LABEL = "DISCOVERY_ONLY_NOT_G3E"
 MAX_STR = 4096
 MAX_ARRAY = 64
 MAX_RAW_BYTES = 1_048_576
+MAX_REF_BYTES = 1_073_741_824
 SHA256_LEN = 64
 SHA256_ALPHABET = set("0123456789abcdef")
 GEFS_ADMISSIBLE_STATUSES = frozenset({"SCOPE_INDEPENDENCE_CONFIRMED"})
+ECMWF_STATUSES = frozenset({"HELD", "RESUMED"})
+HELD_ECMWF_MODELS = frozenset({"IFS", "AIFS"})
+HELD_ECMWF_ORIGINS = frozenset({
+    "https://ecmwf-forecasts.s3.eu-central-1.amazonaws.com",
+    "https://data.ecmwf.int",
+})
+GEFS_ORIGINS = frozenset({"https://noaa-gefs-pds.s3.amazonaws.com"})
+# The three imported denials are part of the cumulative held history, not a
+# replaceable sample. These response identities are also retained in the
+# public A5/A6 audit; later records may be appended without dropping them.
+RETAINED_DENIAL_DIGESTS = {
+    (503, "2026-09-30T07:48:13.707996+00:00", "7c21325b9a8c5d3b7f06bed411ae11e6fa6dcb490320671bd8e1d49a64956a28"):
+        "0248f8d2eca50e8793d432c17cbe4f4ab3c1f7f3dd485224a8764b853f9b825f",
+    (503, "2026-09-30T07:54:39.435641+00:00", "0986be0818f5c4e80bddac64bcd37d8f77da4c43acb380aaa7e4bcb677a51460"):
+        "d77cc0c632d3f49947379b4d8f9b820f918957ef637df1ecf425ae0404d2dd87",
+    (429, "2026-09-30T07:55:15.376499+00:00", "3850dfdbf4489250268b5f0740240a9f4445e7c5c29e1d03aa0c5446808d7507"):
+        "66b3d331c69330a8beace6cab76dbdd73a22a80fcc0bb31c95a69f43c700bcba",
+}
 
 # -- Frozen P1 proposal (protocol section 1/3/4/5) --------------------------
 
@@ -207,6 +226,12 @@ RESTRICTIONS_KEYS = frozenset({
 })
 ECMWF_DOMAIN_KEYS = frozenset({"models", "origins", "resumption_review", "status"})
 GEFS_DOMAIN_KEYS = frozenset({"origins", "scope_independence_review", "status"})
+RESTRICTION_RECORD_KEYS = frozenset({"capture", "expiry_adjudication", "response"})
+RESPONSE_CORE_KEYS = frozenset({"status", "received_at"})
+RESPONSE_EARLY_KEYS = RESPONSE_CORE_KEYS | {"headers", "sha256", "url"}
+RESPONSE_CAPTURE_KEYS = RESPONSE_CORE_KEYS | {
+    "bytes", "evidence_class", "headers", "path", "sha256", "source",
+}
 
 BINDING_KEYS = frozenset({
     "allowed_review_verdicts", "baseline_commit", "formal", "g3l",
@@ -285,9 +310,13 @@ def _is_ref(v: Any, keys: frozenset) -> bool:
         return False
     if not _is_sha256(v.get("sha256")):
         return False
-    if not (_is_int(v.get("byte_length")) and v["byte_length"] > 0):
+    if not (_is_int(v.get("byte_length")) and 0 < v["byte_length"] <= MAX_REF_BYTES):
         return False
     if not _is_bounded_str(v.get("path")):
+        return False
+    if "repository_path" in keys and not _is_bounded_str(v.get("repository_path")):
+        return False
+    if "qualification" in keys and not _is_bounded_str(v.get("qualification")):
         return False
     return True
 
@@ -297,7 +326,7 @@ def _is_ref_list(v: Any, keys: frozenset, max_len: int = MAX_ARRAY) -> bool:
 
 
 def _parse_utc(v: Any) -> Optional[datetime]:
-    if not isinstance(v, str):
+    if not _is_bounded_str(v):
         return None
     try:
         parsed = datetime.fromisoformat(v.replace("Z", "+00:00"))
@@ -404,9 +433,13 @@ def _is_closed_string_set(v: Any, max_len: int = MAX_ARRAY) -> bool:
     return (
         isinstance(v, list)
         and len(v) <= max_len
-        and all(isinstance(x, str) for x in v)
+        and all(_is_bounded_str(x) for x in v)
         and len(v) == len(set(v))
     )
+
+
+def _is_nonempty_string_set(v: Any) -> bool:
+    return _is_closed_string_set(v) and len(v) > 0
 
 
 def _check_disallowed(obj: Mapping, reasons: list) -> None:
@@ -472,7 +505,7 @@ def _check_storage(obj: Mapping, resources: ResourceObservation, reasons: list) 
     if not _is_int(reserved) or reserved < floor:
         reasons.append("NO_PHYSICAL_STORAGE_RESERVATION")
         ok = False
-    observations_valid = all(_is_finite_nonneg(value) for value in (
+    observations_valid = all(_is_int(value) and value >= 0 for value in (
         resources.free_disk_bytes_after_reservation,
         resources.mem_available_bytes_after_reservation,
         resources.physically_reserved_bytes,
@@ -498,6 +531,9 @@ def _check_clock(obj: Mapping, clock: ClockObservation, reasons: list) -> bool:
     limits = obj.get("limits") if isinstance(obj.get("limits"), dict) else {}
     window = obj.get("window") if isinstance(obj.get("window"), dict) else {}
     ok = True
+    if type(clock.source) is not str or clock.source != "LOCAL_AUTHORIZED_ONLY":
+        reasons.append("INVALID_CLOCK_SOURCE")
+        ok = False
     if clock.monotonic_consistent is not True:
         # Exact-type check: a truthy non-bool (e.g. the string "false") must
         # never be accepted in place of the real boolean flag.
@@ -568,14 +604,44 @@ def _check_execution_review(obj: Mapping, reasons: list) -> bool:
 
 
 def _is_restriction_record(v: Any) -> bool:
-    if not isinstance(v, dict) or "response" not in v:
+    if not isinstance(v, dict) or set(v) != RESTRICTION_RECORD_KEYS:
+        return False
+    if not _is_bounded_str(v.get("capture")):
+        return False
+    expiry = v.get("expiry_adjudication")
+    if expiry is not None and not _is_ref(expiry, REF_KEYS_NO_REPO):
         return False
     response = v.get("response")
+    if not isinstance(response, dict):
+        return False
+    keys = set(response)
+    if keys not in (RESPONSE_EARLY_KEYS, RESPONSE_CAPTURE_KEYS):
+        return False
+    status = response.get("status")
+    if not _is_int(status) or not 100 <= status <= 599 or _parse_utc(response.get("received_at")) is None:
+        return False
+    headers = response.get("headers")
+    if not isinstance(headers, dict) or len(headers) > MAX_ARRAY or not all(
+        _is_bounded_str(k) and _is_bounded_str(value)
+        for k, value in headers.items()
+    ) or not _is_sha256(response.get("sha256")):
+        return False
+    if keys == RESPONSE_EARLY_KEYS:
+        return _is_bounded_str(response.get("url"))
     return (
-        isinstance(response, dict)
-        and _is_int(response.get("status"))
-        and _parse_utc(response.get("received_at")) is not None
+        _is_int(response.get("bytes")) and response["bytes"] >= 0
+        and _is_bounded_str(response.get("evidence_class"))
+        and _is_bounded_str(response.get("path"))
+        and _is_bounded_str(response.get("source"))
     )
+
+
+def _retained_record_digest(record: dict) -> str:
+    # Expiry adjudication may later be attached by independent review; the
+    # original capture and response themselves remain immutable.
+    original = {"capture": record["capture"], "response": record["response"]}
+    canonical = json.dumps(original, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 def _check_restriction_domains(restrictions: Mapping, reasons: list) -> bool:
@@ -587,15 +653,35 @@ def _check_restriction_domains(restrictions: Mapping, reasons: list) -> bool:
     _check_closed(ecmwf, ECMWF_DOMAIN_KEYS, "known_control_domains.ECMWF", reasons)
     ok = True
     if isinstance(ecmwf, dict):
+        if not _is_nonempty_string_set(ecmwf.get("models")) or not \
+                HELD_ECMWF_MODELS <= set(ecmwf["models"]):
+            reasons.append("MALFORMED_ECMWF_MODELS_OR_HELD_SCOPE")
+            ok = False
+        if not _is_nonempty_string_set(ecmwf.get("origins")) or not \
+                HELD_ECMWF_ORIGINS <= set(ecmwf["origins"]):
+            reasons.append("MALFORMED_ECMWF_ORIGINS_OR_HELD_SCOPE")
+            ok = False
+        status = ecmwf.get("status")
+        if not _is_bounded_str(status) or status not in ECMWF_STATUSES:
+            reasons.append("MALFORMED_ECMWF_STATUS")
+            ok = False
+        resumption = ecmwf.get("resumption_review")
+        if resumption is not None and not _is_ref(resumption, REF_KEYS_NO_REPO):
+            reasons.append("MALFORMED_ECMWF_RESUMPTION_REVIEW")
+            ok = False
         # A resumption away from HELD is only ever acceptable bound to its
         # own independently reviewed resumption record (protocol section 4);
         # HELD itself needs no additional evidence.
-        if ecmwf.get("status") != "HELD" and not _is_ref(ecmwf.get("resumption_review"), REF_KEYS_NO_REPO):
+        if status != "HELD" and not _is_ref(resumption, REF_KEYS_NO_REPO):
             reasons.append("ECMWF_RESUMPTION_UNREVIEWED")
             ok = False
     gefs = domains.get("GEFS")
     _check_closed(gefs, GEFS_DOMAIN_KEYS, "known_control_domains.GEFS", reasons)
     if isinstance(gefs, dict):
+        if not _is_nonempty_string_set(gefs.get("origins")) or not \
+                GEFS_ORIGINS <= set(gefs["origins"]):
+            reasons.append("MALFORMED_GEFS_ORIGINS_OR_SCOPE")
+            ok = False
         if not _is_ref(gefs.get("scope_independence_review"), REF_KEYS_NO_REPO):
             reasons.append("UNRESOLVED_GEFS_SCOPE")
             ok = False
@@ -603,7 +689,7 @@ def _check_restriction_domains(restrictions: Mapping, reasons: list) -> bool:
         if gefs_status == "BLOCKED_UNKNOWN_LINEAGE_AND_SCOPE":
             reasons.append("GEFS_LINEAGE_UNRESOLVED")
             ok = False
-        if gefs_status not in GEFS_ADMISSIBLE_STATUSES:
+        if not _is_bounded_str(gefs_status) or gefs_status not in GEFS_ADMISSIBLE_STATUSES:
             # Equality between two documents' status strings (e.g. both HELD,
             # DENIED, UNKNOWN or empty) is not proof of an admissible state;
             # only the one explicitly reviewed confirmed status qualifies.
@@ -632,6 +718,19 @@ def _check_restriction_domains(restrictions: Mapping, reasons: list) -> bool:
             not all(_is_restriction_record(r) for r in records):
         reasons.append("MISSING_OR_MALFORMED_RESTRICTION_RECORDS")
         ok = False
+    else:
+        identities = [
+            (r["response"]["status"], r["response"]["received_at"], r["response"]["sha256"])
+            for r in records
+        ]
+        if len(identities) != len(set(identities)) or not set(RETAINED_DENIAL_DIGESTS) <= set(identities):
+            reasons.append("MISSING_OR_DUPLICATED_RETAINED_DENIAL")
+            ok = False
+        for record, identity in zip(records, identities):
+            if identity in RETAINED_DENIAL_DIGESTS and \
+                    _retained_record_digest(record) != RETAINED_DENIAL_DIGESTS[identity]:
+                reasons.append("TAMPERED_RETAINED_DENIAL")
+                ok = False
     raw_refs = restrictions.get("raw_source_refs")
     if not isinstance(raw_refs, list) or not (1 <= len(raw_refs) <= MAX_ARRAY) or \
             not all(_is_ref(r, REF_KEYS_NO_REPO) for r in raw_refs):

@@ -8,6 +8,7 @@ real execution authority, provider rights or G3-L credit.
 """
 
 import copy
+import dataclasses
 import hashlib
 import json
 
@@ -171,6 +172,10 @@ def _synthetic_package_raw() -> bytes:
 
 
 def _synthetic_restrictions_raw() -> bytes:
+    # Public A5/A6 audit carries the three actual retained denial descriptors.
+    # The surrounding approvals and binding identities remain synthetic.
+    with open("docs/V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.json", "rb") as source:
+        retained_records = strict_json_loads(source.read())["restrictions"]
     restrictions = {
         "complete_lineage_review": _synthetic_ref("lineage-review"),
         "execution_authority": False,
@@ -189,11 +194,7 @@ def _synthetic_restrictions_raw() -> bytes:
             },
         },
         "raw_source_refs": [_synthetic_ref("raw-source-0")],
-        "records": [{
-            "capture": "synthetic-fixture",
-            "expiry_adjudication": None,
-            "response": {"status": 503, "received_at": "2026-09-30T07:48:13.707996+00:00"},
-        }],
+        "records": retained_records,
         "schema": RESTRICTIONS_SCHEMA_NAME,
         "shared_history_head": _sha(b"synthetic-history-head"),
         "status": "RECONCILED_SYNTHETIC_FIXTURE",
@@ -1076,6 +1077,286 @@ def test_refuses_monotonic_consistent_truthy_string_not_bool():
 def test_rejects_json_exponent_overflow_as_nonfinite():
     with pytest.raises(PreflightPackageCheckerError):
         strict_json_loads(b'{"x": 1e999}')
+
+
+# -- Independent 7164ca6 findings: rebound, table-driven schema mutations --
+
+def _run_rebound(*, package_change=None, restrictions_change=None, binding_change=None,
+                 **observations):
+    """Recompute every affected byte reference after a semantic mutation."""
+    package_raw, restrictions_raw, protocol_raw, _ = _synthetic_fixture()
+    package = strict_json_loads(package_raw)
+    restrictions = strict_json_loads(restrictions_raw)
+    if restrictions_change is not None:
+        restrictions_change(restrictions)
+    restrictions_raw = json.dumps(restrictions).encode()
+    package["restrictions_ref"].update(
+        sha256=_sha(restrictions_raw), byte_length=len(restrictions_raw))
+    if package_change is not None:
+        package_change(package)
+    package_raw = json.dumps(package).encode()
+    binding = strict_json_loads(_synthetic_binding_raw(package_raw, restrictions_raw, protocol_raw))
+    if binding_change is not None:
+        binding_change(binding)
+    result = _run(package_raw, restrictions_raw, protocol_raw, json.dumps(binding).encode(),
+                  **observations)
+    assert result.eligibility == "DISCOVERY_ONLY_NOT_G3E"
+    return result
+
+
+BAD_JSON_VALUES = [None, False, True, 0, 0.0, [], {}, "", "x" * 4097]
+
+
+@pytest.mark.parametrize("status", BAD_JSON_VALUES + [["HELD"], {"state": "HELD"}])
+def test_gefs_status_always_refuses_cleanly_when_rebound(status):
+    result = _run_rebound(
+        restrictions_change=lambda r: r["known_control_domains"]["GEFS"].__setitem__("status", status),
+        package_change=lambda p: p["requests"][0].__setitem__("restriction_status", status),
+    )
+    assert result.outcome == OUTCOME_REFUSED
+    assert "GEFS_STATUS_NOT_ADMISSIBLE" in result.refusal_reasons
+    assert "CHANGED_PRIVATE_RESTRICTIONS_BYTES" not in result.refusal_reasons
+
+
+@pytest.mark.parametrize("domain,field,required", [
+    ("ECMWF", "models", "IFS"), ("ECMWF", "origins", "https://data.ecmwf.int"),
+    ("GEFS", "origins", "https://noaa-gefs-pds.s3.amazonaws.com"),
+])
+@pytest.mark.parametrize("value", BAD_JSON_VALUES + [["x"] * 65, ["x", "x"], ["x" * 4097], [""]])
+def test_domain_scope_shape_and_bounds(domain, field, required, value):
+    result = _run_rebound(restrictions_change=lambda r: r["known_control_domains"][domain].__setitem__(field, value))
+    assert result.outcome == OUTCOME_REFUSED
+    assert any(x.startswith(f"MALFORMED_{domain}_{field.upper()}") for x in result.refusal_reasons)
+    assert "CHANGED_PRIVATE_RESTRICTIONS_BYTES" not in result.refusal_reasons
+
+
+@pytest.mark.parametrize("domain,field,removed", [
+    ("ECMWF", "models", "IFS"), ("ECMWF", "models", "AIFS"),
+    ("ECMWF", "origins", "https://data.ecmwf.int"),
+    ("ECMWF", "origins", "https://ecmwf-forecasts.s3.eu-central-1.amazonaws.com"),
+    ("GEFS", "origins", "https://noaa-gefs-pds.s3.amazonaws.com"),
+])
+def test_known_held_scope_cannot_disappear(domain, field, removed):
+    result = _run_rebound(restrictions_change=lambda r: r["known_control_domains"][domain][field].remove(removed))
+    assert result.outcome == OUTCOME_REFUSED
+    assert any(x.startswith(f"MALFORMED_{domain}_{field.upper()}") for x in result.refusal_reasons)
+
+
+@pytest.mark.parametrize("status", BAD_JSON_VALUES + ["UNKNOWN", "DENIED", "HELD" * 1500])
+def test_ecmwf_status_must_be_supported_bounded_string_even_with_review(status):
+    def change(r):
+        r["known_control_domains"]["ECMWF"].update(
+            status=status, resumption_review=_synthetic_ref("resumption"))
+    result = _run_rebound(restrictions_change=change)
+    assert result.outcome == OUTCOME_REFUSED
+    assert "MALFORMED_ECMWF_STATUS" in result.refusal_reasons
+
+
+@pytest.mark.parametrize("domain,field,status", [
+    ("ECMWF", "resumption_review", "HELD"),
+    ("ECMWF", "resumption_review", "RESUMED"),
+    ("GEFS", "scope_independence_review", "SCOPE_INDEPENDENCE_CONFIRMED"),
+])
+@pytest.mark.parametrize("value", [False, 0, "", "x" * 4097, [], {}, {"path": "x"}])
+def test_domain_reference_shape(domain, field, status, value):
+    def change(r):
+        r["known_control_domains"][domain]["status"] = status
+        r["known_control_domains"][domain][field] = value
+    result = _run_rebound(restrictions_change=change)
+    assert result.outcome == OUTCOME_REFUSED
+    expected = "MALFORMED_ECMWF_RESUMPTION_REVIEW" if domain == "ECMWF" else "UNRESOLVED_GEFS_SCOPE"
+    assert expected in result.refusal_reasons
+
+
+@pytest.mark.parametrize("field", ["blocking_reasons", "unknown_outputs_not_required_as_inputs"])
+@pytest.mark.parametrize("member", BAD_JSON_VALUES + ["x"])
+def test_closed_string_set_elements_are_bounded(field, member):
+    if member == "x":
+        member = "x" * 4097
+    result = _run_rebound(package_change=lambda p: p.__setitem__(field, [member]))
+    assert result.outcome == OUTCOME_REFUSED
+    assert f"MALFORMED_{field.upper()}" in result.refusal_reasons
+    assert "CHANGED_PRIVATE_PACKAGE_BYTES" not in result.refusal_reasons
+
+
+@pytest.mark.parametrize("field", ["path", "repository_path", "sha256", "byte_length"])
+@pytest.mark.parametrize("value", BAD_JSON_VALUES)
+def test_every_binding_source_input_reference_member_is_checked(field, value):
+    def change(b):
+        b["source_inputs"] = [dict(_synthetic_ref("source"), repository_path="docs/source.md")]
+        b["source_inputs"][0][field] = value
+    result = _run_rebound(binding_change=change)
+    assert result.outcome == OUTCOME_REFUSED
+    assert "MALFORMED_BINDING_SOURCE_INPUTS" in result.refusal_reasons
+
+
+def test_well_shaped_binding_source_input_reference_is_accepted():
+    result = _run_rebound(binding_change=lambda b: b.__setitem__(
+        "source_inputs", [dict(_synthetic_ref("source"), repository_path="docs/source.md")]))
+    assert result.outcome == OUTCOME_SATISFIED
+
+
+def test_retained_denial_can_gain_well_shaped_expiry_review_without_losing_original():
+    result = _run_rebound(restrictions_change=lambda r: r["records"][0].__setitem__(
+        "expiry_adjudication", _synthetic_ref("expiry-review")))
+    assert result.outcome == OUTCOME_SATISFIED
+
+
+@pytest.mark.parametrize("change", [
+    lambda r: r["records"][0].pop("capture"),
+    lambda r: r["records"][0].pop("expiry_adjudication"),
+    lambda r: r["records"][0].__setitem__("unexpected", True),
+    lambda r: r["records"][0]["response"].__setitem__("unexpected", True),
+    lambda r: r["records"][0]["response"].pop("received_at"),
+    lambda r: r["records"][0]["response"].pop("status"),
+])
+def test_restriction_record_required_and_allowed_keys(change):
+    result = _run_rebound(restrictions_change=change)
+    assert result.outcome == OUTCOME_REFUSED
+    assert "MISSING_OR_MALFORMED_RESTRICTION_RECORDS" in result.refusal_reasons
+
+
+@pytest.mark.parametrize("field,value", [
+    ("capture", False), ("capture", ""), ("capture", "x" * 4097),
+    ("expiry_adjudication", False), ("expiry_adjudication", []),
+    ("expiry_adjudication", {"path": "x"}),
+    ("status", False), ("status", 0), ("status", -1), ("status", 99),
+    ("status", 600), ("status", 1000), ("status", 503.0),
+    ("received_at", "2026-10-02T10:05:00." + "0" * 4097 + "Z"),
+])
+def test_restriction_record_field_types_and_bounds(field, value):
+    def change(r):
+        target = r["records"][0] if field in ("capture", "expiry_adjudication") else r["records"][0]["response"]
+        target[field] = value
+    result = _run_rebound(restrictions_change=change)
+    assert result.outcome == OUTCOME_REFUSED
+    assert "MISSING_OR_MALFORMED_RESTRICTION_RECORDS" in result.refusal_reasons
+
+
+def test_complete_retained_response_variants_remain_supported():
+    real = strict_json_loads(open(f"{REAL_PRIVATE_ROOT}/restriction-history.json", "rb").read())
+    result = _run_rebound(restrictions_change=lambda r: r.__setitem__("records", real["records"]))
+    assert result.outcome == OUTCOME_SATISFIED
+
+
+@pytest.mark.parametrize("field,value", [
+    ("headers", []), ("headers", {"": "x"}), ("headers", {"x": ""}),
+    ("headers", {"x": "x" * 4097}), ("sha256", "x"), ("url", False),
+])
+def test_retained_early_response_members_are_validated(field, value):
+    real = strict_json_loads(open(f"{REAL_PRIVATE_ROOT}/restriction-history.json", "rb").read())
+    def change(r):
+        r["records"] = copy.deepcopy(real["records"])
+        r["records"][0]["response"][field] = value
+    result = _run_rebound(restrictions_change=change)
+    assert result.outcome == OUTCOME_REFUSED
+    assert "MISSING_OR_MALFORMED_RESTRICTION_RECORDS" in result.refusal_reasons
+
+
+@pytest.mark.parametrize("field,value", [
+    ("bytes", False), ("bytes", -1), ("evidence_class", []),
+    ("path", ""), ("source", "x" * 4097),
+])
+def test_retained_capture_response_members_are_validated(field, value):
+    real = strict_json_loads(open(f"{REAL_PRIVATE_ROOT}/restriction-history.json", "rb").read())
+    def change(r):
+        r["records"] = copy.deepcopy(real["records"])
+        r["records"][1]["response"][field] = value
+    result = _run_rebound(restrictions_change=change)
+    assert result.outcome == OUTCOME_REFUSED
+    assert "MISSING_OR_MALFORMED_RESTRICTION_RECORDS" in result.refusal_reasons
+
+
+@pytest.mark.parametrize("change", [
+    lambda r: r["records"].pop(0),
+    lambda r: r["records"].pop(1),
+    lambda r: r["records"].pop(2),
+    lambda r: r["records"].append(copy.deepcopy(r["records"][0])),
+    lambda r: r["records"][0]["response"].__setitem__("sha256", _sha(b"replacement")),
+])
+def test_rebound_inventory_cannot_drop_or_duplicate_imported_denials(change):
+    result = _run_rebound(restrictions_change=change)
+    assert result.outcome == OUTCOME_REFUSED
+    assert "MISSING_OR_DUPLICATED_RETAINED_DENIAL" in result.refusal_reasons
+    assert "CHANGED_PRIVATE_RESTRICTIONS_BYTES" not in result.refusal_reasons
+
+
+@pytest.mark.parametrize("change", [
+    lambda r: r["records"][0].__setitem__("capture", "renamed-capture"),
+    lambda r: r["records"][0]["response"]["headers"].__setitem__("server", "Modified"),
+    lambda r: r["records"][1]["response"].__setitem__("path", "/different-index"),
+])
+def test_rebound_inventory_cannot_rewrite_original_denial_metadata(change):
+    result = _run_rebound(restrictions_change=change)
+    assert result.outcome == OUTCOME_REFUSED
+    assert "TAMPERED_RETAINED_DENIAL" in result.refusal_reasons
+
+
+@pytest.mark.parametrize("field,value", [
+    ("byte_length", -1), ("byte_length", 0), ("byte_length", True),
+    ("byte_length", 1.0), ("byte_length", 10**500),
+    ("repository_path", ""), ("repository_path", "x" * 4097),
+])
+def test_binding_reference_numeric_and_path_edges(field, value):
+    def change(b):
+        b["source_inputs"] = [dict(_synthetic_ref("source"), repository_path="docs/source.md")]
+        b["source_inputs"][0][field] = value
+    result = _run_rebound(binding_change=change)
+    assert result.outcome == OUTCOME_REFUSED
+    assert "MALFORMED_BINDING_SOURCE_INPUTS" in result.refusal_reasons
+
+
+@pytest.mark.parametrize("raw", [
+    b'{"status": 503, "status": 429}',
+    b'{"response": {"status": 503, "status": 429}}',
+    b'{"x": NaN}', b'{"x": 1e999}', b'{"x": -1e999}',
+])
+def test_nested_duplicate_and_nonfinite_json_are_rejected(raw):
+    with pytest.raises(PreflightPackageCheckerError):
+        strict_json_loads(raw)
+
+
+@pytest.mark.parametrize("source", [None, False, [], {}, "", "x" * 4097, "UNREVIEWED_EXTERNAL_CLOCK"])
+def test_clock_source_cannot_change_to_unqualified_evidence(source):
+    result = _run_rebound(clock=dataclasses.replace(GOOD_CLOCK, source=source))
+    assert result.outcome == OUTCOME_REFUSED
+    assert "INVALID_CLOCK_SOURCE" in result.refusal_reasons
+
+
+@pytest.mark.parametrize("field", ["prepared_at_utc", "measured_utc", "received_at"])
+@pytest.mark.parametrize("value", [
+    "", "2026-10-02T10:05:00", "2026-10-02T10:05:00." + "0" * 4097 + "Z",
+    "0001-01-01T00:00:00+23:59", "9999-12-31T23:59:59-23:59",
+])
+def test_all_mutable_timestamp_sites_refuse_malformed_values(field, value):
+    if field == "prepared_at_utc":
+        result = _run_rebound(binding_change=lambda b: b.__setitem__(field, value))
+        reason = "MALFORMED_BINDING_PREPARED_AT_UTC"
+    elif field == "received_at":
+        result = _run_rebound(restrictions_change=lambda r: r["records"][0]["response"].__setitem__(field, value))
+        reason = "MISSING_OR_MALFORMED_RESTRICTION_RECORDS"
+    else:
+        result = _run_rebound(clock=dataclasses.replace(GOOD_CLOCK, measured_utc=value))
+        reason = "UNPARSEABLE_CLOCK"
+    assert result.outcome == OUTCOME_REFUSED
+    assert reason in result.refusal_reasons
+
+
+@pytest.mark.parametrize("field", ["prepared_at_utc", "measured_utc", "received_at"])
+def test_all_mutable_timestamp_sites_accept_valid_offset(field):
+    value = "2026-10-02T12:05:00+02:00"
+    if field == "prepared_at_utc":
+        result = _run_rebound(binding_change=lambda b: b.__setitem__(field, value))
+    elif field == "received_at":
+        def append_valid_offset_record(r):
+            extra = copy.deepcopy(r["records"][0])
+            extra["response"]["received_at"] = value
+            extra["response"]["sha256"] = _sha(b"synthetic-extra-response")
+            r["records"].append(extra)
+        result = _run_rebound(restrictions_change=append_valid_offset_record)
+    else:
+        result = _run_rebound(clock=dataclasses.replace(GOOD_CLOCK, measured_utc=value))
+    assert result.outcome == OUTCOME_SATISFIED
 
 
 def test_refuses_real_package_with_exponent_overflowing_author_model():
