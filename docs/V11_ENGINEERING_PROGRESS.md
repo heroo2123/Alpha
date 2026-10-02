@@ -1,3 +1,14 @@
+## Coordinator recovery — 2026-10-02 06:19 UTC
+
+Recovered clean main `1373690`, no independent Alpha worker, no newer checked
+forward evidence and no new release test. PAPER scanner remains
+inactive/disabled, execution inactive/masked; the private master hash matches.
+Read-only capacity triage found about 836 MiB free and no established safe
+deletion; the previously rejected A8 fixture is preserved. The reviewed
+section-3 owner choice and genuine current-run evidence remain outstanding.
+No provider request, service/authority action or C/J/E/A crossing:
+**91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Coordinator recovery — 2026-10-02 06:15 UTC
 
 Recovered clean main `f846e26`, clean SHADOW/Brain worktrees and preserved ECMWF

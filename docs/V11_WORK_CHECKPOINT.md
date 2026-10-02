@@ -1,3 +1,25 @@
+## Coordinator recovery — 2026-10-02 06:19 UTC
+
+Recovered clean main `1373690` (the 06:15 checkpoint only); no separate Alpha
+worker or pytest is live. No checked `evidence/`, `BrainWork/`, SHADOW,
+Brain-readiness or ECMWF file newer than 06:15 appeared. The protected
+FINAL-REVIEWED master remains SHA-256
+`a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+PAPER scanner is inactive/disabled, execution inactive/masked and the V11
+controller inactive. V10 and AxiomTrade were not changed or accessed.
+
+Capacity triage found 836 MiB free, below the 2 GiB G3-L floor. The older
+1.5 GiB A8 pytest fixture tree is still the dominant `/tmp` consumer; its
+deletion was previously rejected by automatic approval, so it remains intact.
+Other inspected space is retained worktrees, test/review evidence or unrelated
+projects; no safe capacity deletion was established. Available memory is about
+1.0 GiB. The exact-reviewed bootstrap packet's section-3 owner choice remains
+pending, and there is no qualifying current-run offline input. The proposed
+October 3 window remains proposal-only, with no provider request permitted
+before G3-L PASS. No writer was launched or gate changed: **A2/A3 UNQUALIFIED;
+A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO; 91/200, formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Coordinator recovery — 2026-10-02 06:15 UTC
 
 Main `f846e26` is clean and adds only the prior 06:11 checkpoint. No separate

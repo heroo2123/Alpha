@@ -1,3 +1,12 @@
+## Coordinator gate check — 2026-10-02 06:19 UTC
+
+Main `1373690` adds only the 06:15 checkpoint. No new qualifying current-run
+input or forward SHADOW artifact appeared. The reviewed bootstrap owner choice
+remains pending; disk has about 836 MiB free against the 2 GiB G3-L floor.
+The previously rejected A8 fixture deletion was not retried. No C/J/E/A
+boundary crossed: **A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO;
+91/200, formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator gate check — 2026-10-02 06:15 UTC
 
 Main `f846e26` adds only the prior checkpoint. No new qualifying current-run
