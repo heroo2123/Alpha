@@ -6583,3 +6583,6 @@ inactive, weather execution masked, protected authority roots absent, and disk
 below the G3-L floor. Re-presented the accepted bootstrap section-3 owner
 choice. No provider request, service action, release rerun or C/J/E/A crossing:
 **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+## Coordinator recovery — 2026-10-02 07:22 UTC
+
+Recovered clean `3384e9c`, with no independent worker or newer forward evidence. Refreshed the local-only October 3 G3-L screen: 77 missing identities, zero of 2,713 slots, free disk below the 2 GiB floor, `launchable=false`; the report hash is recorded in the checkpoint. Private master hash matches, PAPER units are inactive, execution masked, and protected authority roots absent. The reviewed bootstrap owner choice remains pending. No provider, service, authority, financial, V10, AxiomTrade or publication action; no C/J/E/A crossing: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.

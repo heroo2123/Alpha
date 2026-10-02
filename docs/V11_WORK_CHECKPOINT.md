@@ -17691,3 +17691,8 @@ V10/execution worker; neither V10 nor AxiomTrade was touched. Free disk is
 were preserved. No safe independent writer task or C/J/E/A boundary crossed:
 **A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO; 91/200,
 formal 1/50; NOT_READY_TO_FUND**.
+## Coordinator recovery — 2026-10-02 07:22 UTC
+
+Recovered clean main `3384e9c`; the only change since 07:08 was the preceding documentation commit. No separate Alpha author, reviewer, or test process is live. SHADOW and Brain-readiness worktrees are clean; ECMWF's untracked `backfill_data/` is preserved. The FINAL-REVIEWED private master still hashes to `a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`. PAPER units are inactive, scanner disabled, execution masked, and protected V11 authority roots absent.
+
+Ran the documented local-only G3-L PRE_REVIEW planner for proposed October 3. Its report `/tmp/alpha-v11-g3l-offline-screen-20261003-1790925687.json` hashes to `82832ff0e0b607fb7ad1a3c6b3f8c9d8eeb1fb348278f74beb42d5036e16e41d`; exit 2, `BLOCKED_MISSING_REVIEWED_EVIDENCE`, 77 missing identities, zero attempt slots of 2,713, `launchable=false`. Measured free disk 851,509,248 bytes, below the 2 GiB floor; available memory 1,073,152,000 bytes. Re-presented the accepted bootstrap section-3 owner choice; no answer or exception is presumed. The previously deletion-rejected A8 fixture remains intact. No provider request, service/authority/financial action, V10 or AxiomTrade change, remote publication, forward SHADOW sample or C/J/E/A crossing: **A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO; 91/200, formal 1/50; NOT_READY_TO_FUND**.
