@@ -18009,3 +18009,28 @@ Recovered clean main `d3c031a`; its sole new commit after the 09:03 checkpoint i
 The owner's 2026-10-02 acceleration directive now **authorizes preparation and independent exact-byte review** of the accepted bootstrap adjudication section-3 evidence-only preflight exception. It conditionally authorizes execution only after a completed independent PASS of a concrete protocol/code/private package that itself says the exact request is executable, with anonymous public access, no credentials or provider-control bypass, frozen origins/paths/ranges and cumulative request/body/time limits, and all restriction history carried forward. This supersedes the earlier checkpoint's pending choice about *preparation*; it does not grant present request authority. Section 3 still requires input/output separation, distinct later range review, ECMWF 503/429 hold adjudication, independent source expectations, receipt clocks, storage/resource controls and exact review. Route that high-impact protocol/acceptance design to Astra/high before implementation or request. Do not repeat the completed A2/A3 or B1 work.
 
 At 09:15 UTC free disk was 2,492,928,000 bytes, improved from about 789 MiB but below the owner's preferred 3 GiB and insufficient by itself to prove G3-L's post-allocation 2 GiB floor. MemAvailable was 922,017,792 bytes at that instant; resource headroom is volatile. The last October 3 local-only screen remains blocked with 77 missing identities and zero of 2,713 slots. No new tests, provider request, forward SHADOW sample, remote publication or C/J/E/A crossing: **A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO; 91/200, formal 1/50; NOT_READY_TO_FUND**.
+## Coordinator recovery — 2026-10-02 09:54 UTC
+
+Recovered clean main `99886c5`; its only change after 09:50 is the prior
+documentation checkpoint. No separate Alpha author, reviewer, pytest, PAPER
+scanner or execution process is live. SHADOW and Brain-readiness worktrees are
+clean, ECMWF's untracked backfill remains preserved, and no checked forward
+artifact appeared after 09:50. The FINAL-REVIEWED master, private preflight
+package and restriction history match SHA-256 `a0e16d9b`, `c7d1420f` and
+`fcf4c751` respectively. Protected `/etc/alpha-v11` and `/var/lib/alpha-v11`
+remain absent; the user service bus did not provide current unit states.
+
+Re-read the exact `27513d2` review handoff and protocol. The private-evidence
+transfer rejection still prevents an independent design review, and the
+destination-specific owner question remains unanswered. The handoff sequences
+the offline checker after design PASS; none was started. Twelve package
+prerequisites remain null, so neither the proposed 10:00–13:30 UTC index GET
+nor a date roll-forward is executable. No provider request or capture occurred.
+The last local-only G3-L screen remains blocked at 77 missing identities and
+zero of 2,713 slots. Free disk was 3,075,739,648 bytes, above the 2 GiB floor
+but below preferred 3 GiB; MemAvailable was 717,272 KiB, below the 900 MiB
+three-worker threshold. No safe independent writer was launched while the
+review and evidence gates remain closed. No V10/AxiomTrade intervention,
+deletion, service/authority/financial action, remote publication or C/J/E/A
+crossing: **91/200, formal 1/50; A2/A3 UNQUALIFIED; A4 OPEN; A8
+UNQUALIFIED; G3-L NO-GO; NOT_READY_TO_FUND**.
