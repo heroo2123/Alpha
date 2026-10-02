@@ -6563,3 +6563,11 @@ execution masked, protected authority roots absent, and disk below the G3-L
 floor. The accepted section-3 owner choice was presented again; no exception,
 provider request, new release test or C/J/E/A crossing followed: **91/200,
 formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+## Coordinator recovery — 2026-10-02 06:57 UTC
+
+Recovered clean main `e91d603`, no separate worker or newer checked forward
+evidence. Private FINAL-REVIEWED master hash matches; PAPER units remain
+inactive, weather execution masked, protected authority roots absent, and disk
+below the G3-L floor. Re-presented the accepted bootstrap section-3 owner
+choice. No provider request, service action, release rerun or C/J/E/A crossing:
+**91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
