@@ -1,5 +1,9 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Inventory transformation offline integration — 2026-10-02 02:43 UTC
+
+The four-commit offline inventory lineage through `3d44aa6` received independent Sol/high **PASS_IN_SCOPE** on the final exact repair and clean outer terminal. Six previously absent code/test/fixture files were added unchanged to newer main; 75 focused/adjacent main tests passed with zero socket attempts. Exact review and current-main evidence are retained as `docs/V11_INVENTORY_TRANSFORM_REVIEW_3d44aa6*`. This does not qualify inventory as genuine forward evidence or satisfy provider/storage/time acceptance. G3-L remains NO-GO under the disk floor; no C/J/E/A boundary crossed: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## A8 offline integration and inventory exact review — 2026-10-02 02:38 UTC
 
 A8 `4fdeabc` received independent Astra/high **PASS_IN_SCOPE**: 354 offline checks passed on the exact candidate, then the same 354 passed after additive reconciliation onto newer main. Both store health methods are bound and rechecked; prior and late-mutation refusals hold. Exact review/integration evidence is retained as `docs/V11_R09_GATE3_A8_REVIEW_4fdeabc*`. A8 remains UNQUALIFIED and G3-L NO-GO; real evidence/adapters/purpose contracts, A4 protection and the disk floor remain unmet. Inventory `3d44aa6` finished and is under one persistent independent Sol/high exact review (PGID 2064791), unmerged and unaccepted. No C/J/E/A boundary changed: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.

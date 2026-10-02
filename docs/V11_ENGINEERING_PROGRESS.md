@@ -1,5 +1,9 @@
 # Supplementary engineering estimate
 
+## Reviewed inventory integration — 2026-10-02 02:43 UTC
+
+Integrated six exact offline inventory files from the independently accepted `3d44aa6` lineage into clean newer main after confirming no path collision. Independent candidate tests passed 32 focused plus 43 adjacent with zero socket attempts; the same four files passed **75/75** on main with zero socket attempts. Review/report/terminal/probe/test logs are retained under `docs/V11_INVENTORY_TRANSFORM_REVIEW_3d44aa6*`. No broad release run or genuine provider/forward SHADOW evidence is claimed. G3-L remains NO-GO with disk below 2 GiB; no C/J/E/A crossing: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Reviewed A8 repair integrated; next exact review running — 2026-10-02 02:38 UTC
 
 Closed the A8 store-health identity finding through independent Astra/high review of `4fdeabc`, retaining source hashes, executable probes, report and terminals. All 354 candidate checks passed; all 354 passed again on newer main after adding the three unchanged reviewed files. The full runtime file succeeded with cleanup of only this review's completed test fixtures; no assertion/reservation was weakened. No full-release rerun or A8 qualification is claimed. Inventory `3d44aa6` has a clean author terminal and now has one independent persistent Sol/high review (PGID 2064791). Both tracks preserve their unfinished evidence and genuine commissioning gates. G3-L stays NO-GO with about 1.2 GiB free disk, no provider request and no new SHADOW evidence. No C/J/E/A crossing: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.

@@ -1,0 +1,93 @@
+{
+  "authority": {
+    "financial_authority": false,
+    "g3_l": "NO-GO",
+    "independent_acceptance": true,
+    "integration_performed": false,
+    "launch_authority": false,
+    "newer_main_reconciliation_required": true,
+    "offline_code_scope_only": true,
+    "score": "91/200 unchanged"
+  },
+  "changed_files": [
+    {
+      "git_blob": "93a62f068c8a152af74e8712542d356907c3ec5c",
+      "path": "polymarket_scanner/v11/structural_evidence.py",
+      "sha256": "e50afe579c0a8532fdf82bf646384d083da8f4840d8edac826a7dfc40c915c19"
+    },
+    {
+      "git_blob": "00ff11657e6f517e634e0fa201e178c5d3ee1c4e",
+      "path": "tests/test_v11_structural_evidence.py",
+      "sha256": "33a80ddaad4451cfa1e88fb79ddd2c4569b1e42ecd65fa1f125d939ac03a9415"
+    }
+  ],
+  "clean": true,
+  "detached": true,
+  "diff_check": "pass",
+  "exit_code": 0,
+  "head": "3d44aa6d78d80c3d4121f00e204a19cb54c9f3e4",
+  "parent": "16e984a63156f12252e2811f84b6106b1f84fac7",
+  "range": "16e984a63156f12252e2811f84b6106b1f84fac7..3d44aa6d78d80c3d4121f00e204a19cb54c9f3e4",
+  "report": {
+    "path": "/tmp/alpha-v11-inventory-transform-review-3d44aa6.md",
+    "sha256": "fb200350b4085fb84854074b3985abf801dd544a98ecd787ffd57a868856d0b6"
+  },
+  "residual_limits": [
+    "regular_file_rename_at_final_open_cannot_establish_preopen_path_identity",
+    "deadline_checks_are_cooperative_not_hard_realtime",
+    "offline_code_scope_only_no_broad_release_suite"
+  ],
+  "retained_artifacts": [
+    {
+      "kind": "probe",
+      "path": "/tmp/alpha-v11-inventory-transform-review-3d44aa6.probe.py",
+      "sha256": "d841bec624e0ab5b167b5e0b0db1b904d31be088041841994047da13d24d2e70"
+    },
+    {
+      "kind": "probe_log",
+      "path": "/tmp/alpha-v11-it-3d44aa6-review-probe.log",
+      "sha256": "9bb9883718e4ac4c10e34cd384e5c384af9d651ec69922e960c7028bcf787bc9"
+    },
+    {
+      "kind": "focused_log",
+      "path": "/tmp/alpha-v11-it-3d44aa6-review-focused.log",
+      "sha256": "7ffc2305ab1e33cb933d5acd79aa5668e6355ec31c7347ac7d84683c719b137c"
+    },
+    {
+      "kind": "adjacent_log",
+      "path": "/tmp/alpha-v11-it-3d44aa6-review-adjacent.log",
+      "sha256": "78cc4adce018dcdc2559097f70ed3de3b76a1e7c7c8538d554e772f4d7ad822a"
+    }
+  ],
+  "reviewer": "sole_independent",
+  "schema": "ALPHA_V11_INVENTORY_TRANSFORM_INDEPENDENT_REVIEW_V1",
+  "tree": "4cc2c6556ced619e69d021f0c20c47141b3500e5",
+  "verdict": "PASS_IN_SCOPE",
+  "verification": {
+    "adjacent": {
+      "log": "/tmp/alpha-v11-it-3d44aa6-review-adjacent.log",
+      "network_attempts": 0,
+      "result": "43 passed"
+    },
+    "focused": {
+      "log": "/tmp/alpha-v11-it-3d44aa6-review-focused.log",
+      "network_attempts": 0,
+      "result": "32 passed"
+    },
+    "independent_probe": {
+      "assertions": [
+        "empty_request_cursor_refused_activity_and_positions",
+        "fifo_final_open_prompt_refusal",
+        "malformed_and_duplicate_pagination_refused",
+        "all_component_nofollow",
+        "opened_inode_hash_consistency",
+        "byte_record_deadline_deep_json_bounds",
+        "token_alias_refused"
+      ],
+      "log": "/tmp/alpha-v11-it-3d44aa6-review-probe.log",
+      "network_attempts": 0,
+      "result": "pass"
+    }
+  },
+  "worktree": "/tmp/alpha-v11-inventory-transform-review-3d44aa6"
+}

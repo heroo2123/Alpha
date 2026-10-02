@@ -1,0 +1,41 @@
+{
+  "fixture_version": "V11-IT-001-RPC-ERROR-V1",
+  "evidence_class": "API_OBSERVED",
+  "chain_status": "CHAIN_UNVERIFIED",
+  "capture_time_utc": null,
+  "capture_time_basis": "UNKNOWN",
+  "coverage": "UNKNOWN",
+  "route_version": "JSON_RPC_RESPONSE_VERSION_UNKNOWN",
+  "request_parameters": "UNKNOWN",
+  "files": [
+    {
+      "name": "london_conversion_receipt.json",
+      "raw_sha256": "aa74e0b4e1fd175e34747b4576f81700535be802c5a56658b89962d8a42ebdb9",
+      "response": {
+        "jsonrpc": "2.0",
+        "error": {
+          "code": -32000,
+          "message": "upstream overloaded"
+        },
+        "id": 1
+      }
+    },
+    {
+      "name": "madrid_conversion_receipt.json",
+      "raw_sha256": "aa74e0b4e1fd175e34747b4576f81700535be802c5a56658b89962d8a42ebdb9",
+      "response": {
+        "jsonrpc": "2.0",
+        "error": {
+          "code": -32000,
+          "message": "upstream overloaded"
+        },
+        "id": 1
+      }
+    }
+  ],
+  "expected": {
+    "accepted_receipts": 0,
+    "cash_effects": 0,
+    "inventory_effects": 0
+  }
+}

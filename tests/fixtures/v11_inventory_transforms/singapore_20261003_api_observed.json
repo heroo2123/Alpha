@@ -1,0 +1,267 @@
+{
+  "fixture_version": "V11-IT-001-API-OBSERVED-V1",
+  "evidence_class": "API_OBSERVED",
+  "chain_status": "CHAIN_UNVERIFIED",
+  "source": {
+    "name": "saved activity_v2_page0.json",
+    "api_version": "DATA_API_V2_SAVED_RESPONSE",
+    "route": "/v2/activity",
+    "parameters": [
+      [
+        "request",
+        "UNKNOWN"
+      ],
+      [
+        "response.limit",
+        "1000"
+      ],
+      [
+        "response.offset",
+        "0"
+      ]
+    ],
+    "captured_at_utc": null,
+    "capture_time_basis": "UNKNOWN_API_CAPTURE; LOCAL_FILE_MTIME_2026-10-01T19:23:39Z",
+    "window_start": null,
+    "window_end": null,
+    "raw_sha256": "dec9803a1458df006afcd875c698342cf168005c03d3c1103bda95d1e48144b5",
+    "page_number": 0
+  },
+  "raw_source_file": "activity_v2_page0.json",
+  "coverage": {
+    "state": "INCOMPLETE",
+    "reason": "saved page zero has_more true; full requested window and subsequent pages unavailable",
+    "source_pagination": {
+      "limit": 1000,
+      "offset": 0,
+      "has_more": true,
+      "next_cursor": "eyJkYXRhIjp7InR5cGUiOiJhY3Rpdml0eSIsInBhcmFtcyI6eyJsIjoxMDAwLCJ0cyI6MTc5MDg1NzAxOSwic3EiOiI5NDc2NzkxOTAwMDg4MTc4NzAiLCJkIjoxMDAwfX0sInNpZyI6IjJhMzkzM2Y2NzlmMDI5NjEyMzFmMmQ2OWFiYTdiNjZkIn0"
+    }
+  },
+  "payload": {
+    "data": [
+      {
+        "timestamp": 1790874183,
+        "type": "MERGE",
+        "size": 5.0,
+        "usdc_size": 5.0,
+        "price": 0.0,
+        "condition_id": "0x9c6ba76f0d3e5334d5aef9671e67921b288ae1561eee34593ddaa9e13a37fa6c",
+        "transaction_hash": "0xdda2e179863754efa3f943bf09540a202669184eb058135cba62df544e596b3b",
+        "side": "",
+        "token_id": "",
+        "event_slug": "highest-temperature-in-singapore-on-october-3-2026",
+        "outcome_index": 999,
+        "outcome": "",
+        "title": "Will the highest temperature in Singapore be 28°C or below on October 3?"
+      },
+      {
+        "timestamp": 1790874164,
+        "type": "CONVERSION",
+        "size": 5.0,
+        "usdc_size": 45.0,
+        "price": 0.0,
+        "condition_id": "0x78fa1212a6caa6faf05f810170404665cd1a7a6d2a69a2b7293c92597f61f400",
+        "transaction_hash": "0x2162df8b1732cb9244c354db37b33d6381497cb6808bf8ac16c21c20ec530798",
+        "side": "",
+        "token_id": "",
+        "event_slug": "highest-temperature-in-singapore-on-october-3-2026",
+        "outcome_index": 999,
+        "outcome": "",
+        "title": "Highest temperature in Singapore on October 3?"
+      },
+      {
+        "timestamp": 1790874111,
+        "type": "TRADE",
+        "size": 5.0,
+        "usdc_size": 4.08847,
+        "price": 0.81,
+        "condition_id": "0x80ef2cfe502284ac86ceb11b57224a08adce510b47b62e971c4387d0f9f62130",
+        "transaction_hash": "0x7e2c72a2322bf54e8739cd75f2e6c5af0f6ba01fd2cfe720ebef13207ec20551",
+        "side": "BUY",
+        "token_id": "77158272760030210298164568051498335522804580295280242313637681623176463254355",
+        "event_slug": "highest-temperature-in-singapore-on-october-3-2026",
+        "outcome_index": 1,
+        "outcome": "No",
+        "title": "Will the highest temperature in Singapore be 32°C on October 3?"
+      },
+      {
+        "timestamp": 1790874111,
+        "type": "TRADE",
+        "size": 5.005,
+        "usdc_size": 4.990725,
+        "price": 0.997,
+        "condition_id": "0x3a2ea996930809f0390de05da1ef2c9d01029da6b65f07cb97be7f102adcd055",
+        "transaction_hash": "0xfbd1799bb63b4ddfa1d4041eaccc08c3cc8e887e43da576a48d1847c409aa57d",
+        "side": "BUY",
+        "token_id": "33872762387698771317693371973298115845915831883870086917797613235005029906834",
+        "event_slug": "highest-temperature-in-singapore-on-october-3-2026",
+        "outcome_index": 1,
+        "outcome": "No",
+        "title": "Will the highest temperature in Singapore be 29°C on October 3?"
+      },
+      {
+        "timestamp": 1790874111,
+        "type": "TRADE",
+        "size": 5.0,
+        "usdc_size": 4.65,
+        "price": 0.93,
+        "condition_id": "0xbd362f8008f7cfb2604c8fcb8d99af05527d50c5dd1329234fe9d8a25c15f278",
+        "transaction_hash": "0xbd5546f9e8c05aa6fe5fa8d00c607f6f33f8bdff1623a43383cbf7f6fe72017e",
+        "side": "BUY",
+        "token_id": "36767656481329940096100757510015100799893232480963007274290408074626412682343",
+        "event_slug": "highest-temperature-in-singapore-on-october-3-2026",
+        "outcome_index": 1,
+        "outcome": "No",
+        "title": "Will the highest temperature in Singapore be 31°C on October 3?"
+      },
+      {
+        "timestamp": 1790874111,
+        "type": "TRADE",
+        "size": 5.0,
+        "usdc_size": 4.99049,
+        "price": 0.998,
+        "condition_id": "0x006008e0a49d59692c0c53f4ad74db8e971f0f2b7bdfa57b774e4f317865533c",
+        "transaction_hash": "0x53feefdb57fe5fcce59906758d94324d10573671336a5fc9c460680d885e3fbb",
+        "side": "BUY",
+        "token_id": "103382485043952189675541535951666540034829545731504625250925602643691765956893",
+        "event_slug": "highest-temperature-in-singapore-on-october-3-2026",
+        "outcome_index": 1,
+        "outcome": "No",
+        "title": "Will the highest temperature in Singapore be 37°C on October 3?"
+      },
+      {
+        "timestamp": 1790874111,
+        "type": "TRADE",
+        "size": 5.005,
+        "usdc_size": 5.000235,
+        "price": 0.999,
+        "condition_id": "0x8a7c287b9071f36eed535b1da9b79b662d89d9df8f9bc3079ff09733f8ad08cf",
+        "transaction_hash": "0xe164c2623fc1b2e3e69a6b0b165af6043c294a83a446a2050072a04cd8f97e99",
+        "side": "BUY",
+        "token_id": "13656147115156288223681438111920471964089731315679762482451545770932331254518",
+        "event_slug": "highest-temperature-in-singapore-on-october-3-2026",
+        "outcome_index": 1,
+        "outcome": "No",
+        "title": "Will the highest temperature in Singapore be 38°C or higher on October 3?"
+      },
+      {
+        "timestamp": 1790874111,
+        "type": "TRADE",
+        "size": 5.005095,
+        "usdc_size": 4.905128,
+        "price": 0.978999999,
+        "condition_id": "0x7b0acb0799e5ab45bd8e8885b70e00804867f00779632c5adda5ec44ba656c1a",
+        "transaction_hash": "0xba52f4b4d5b2a1fbb99b98183975067f3d7d52a5dc5db51512e3b885cb486005",
+        "side": "BUY",
+        "token_id": "95780080256808157225036453597130716769237097896437017761227525837154297211987",
+        "event_slug": "highest-temperature-in-singapore-on-october-3-2026",
+        "outcome_index": 1,
+        "outcome": "No",
+        "title": "Will the highest temperature in Singapore be 35°C on October 3?"
+      },
+      {
+        "timestamp": 1790874111,
+        "type": "TRADE",
+        "size": 5.0,
+        "usdc_size": 4.08847,
+        "price": 0.81,
+        "condition_id": "0x8a8caf01d55e931fe7835ee22dcd62396bd8705d12d0f7518957c1f56654e294",
+        "transaction_hash": "0x4a6d6d1440f3e1ad8f69623d286460b328fb8ccec46e32cc6157342831590979",
+        "side": "BUY",
+        "token_id": "44795181203535322962410209401582813445128576303261466068718210644779645038132",
+        "event_slug": "highest-temperature-in-singapore-on-october-3-2026",
+        "outcome_index": 1,
+        "outcome": "No",
+        "title": "Will the highest temperature in Singapore be 34°C on October 3?"
+      },
+      {
+        "timestamp": 1790874111,
+        "type": "TRADE",
+        "size": 5.005,
+        "usdc_size": 5.000235,
+        "price": 0.999,
+        "condition_id": "0xaeedf23520cbb0ec0c6dcde45f6f061b45a7c39c3c4e76677ff0e688eb7427ac",
+        "transaction_hash": "0x3f6902015a3c06da7d766a0b7a1b5b15a552b6c25bb6fdadd833082294786fb3",
+        "side": "BUY",
+        "token_id": "1718211877346845938236231035803435546628673005690778976674120810085009418105",
+        "event_slug": "highest-temperature-in-singapore-on-october-3-2026",
+        "outcome_index": 1,
+        "outcome": "No",
+        "title": "Will the highest temperature in Singapore be 36°C on October 3?"
+      },
+      {
+        "timestamp": 1790874111,
+        "type": "TRADE",
+        "size": 5.0,
+        "usdc_size": 4.96673,
+        "price": 0.993,
+        "condition_id": "0x66e4ef82f37b114153259e95d7e83a7a19ce21d1d526357ba2104b9076933a13",
+        "transaction_hash": "0xbff3f75c286056d254bcf64688586692c7f8619766c7801da2a210a5128d56f2",
+        "side": "BUY",
+        "token_id": "109218276801718208080754145781251476389802954112071946884137785610526449739892",
+        "event_slug": "highest-temperature-in-singapore-on-october-3-2026",
+        "outcome_index": 1,
+        "outcome": "No",
+        "title": "Will the highest temperature in Singapore be 30°C on October 3?"
+      },
+      {
+        "timestamp": 1790874111,
+        "type": "TRADE",
+        "size": 5.0,
+        "usdc_size": 2.31187,
+        "price": 0.45,
+        "condition_id": "0xb060ebeb7f89c1e79c20267198235db94489e4c696479a52d6c6571e193d4d20",
+        "transaction_hash": "0x0ba4be4539f3c701e89b0934369946241c44c94cb8227d0bf85f253e50f5d5e4",
+        "side": "BUY",
+        "token_id": "10591433982068902806814858390312765137027312296045776022551710904705033666453",
+        "event_slug": "highest-temperature-in-singapore-on-october-3-2026",
+        "outcome_index": 1,
+        "outcome": "No",
+        "title": "Will the highest temperature in Singapore be 33°C on October 3?"
+      },
+      {
+        "timestamp": 1790874111,
+        "type": "TRADE",
+        "size": 5.005,
+        "usdc_size": 5.000235,
+        "price": 0.999,
+        "condition_id": "0x9c6ba76f0d3e5334d5aef9671e67921b288ae1561eee34593ddaa9e13a37fa6c",
+        "transaction_hash": "0xefdcddaae1b1c4942ddbd6e3157172897338ce1ad4d4fbef3d6c7029aa358b92",
+        "side": "BUY",
+        "token_id": "111306273064310852744557997622256725319908269240096839183083233783800550632307",
+        "event_slug": "highest-temperature-in-singapore-on-october-3-2026",
+        "outcome_index": 1,
+        "outcome": "No",
+        "title": "Will the highest temperature in Singapore be 28°C or below on October 3?"
+      }
+    ],
+    "pagination": {
+      "limit": 1000,
+      "offset": 0,
+      "has_more": true,
+      "next_cursor": "eyJkYXRhIjp7InR5cGUiOiJhY3Rpdml0eSIsInBhcmFtcyI6eyJsIjoxMDAwLCJ0cyI6MTc5MDg1NzAxOSwic3EiOiI5NDc2NzkxOTAwMDg4MTc4NzAiLCJkIjoxMDAwfX0sInNpZyI6IjJhMzkzM2Y2NzlmMDI5NjEyMzFmMmQ2OWFiYTdiNjZkIn0"
+    }
+  },
+  "expected": {
+    "purchase_count": 11,
+    "purchase_timestamp": 1790874111,
+    "conversion_timestamp": 1790874164,
+    "merge_timestamp": 1790874183,
+    "purchase_cash": "49.992588",
+    "conversion_cash": "45",
+    "merge_cash": "5",
+    "apparent_cash_difference": "0.007412",
+    "cash_price_discrepancy": "0.147630",
+    "purchase_excess_over_reference_total": "0.025095",
+    "account_effects": 0
+  },
+  "unresolved": [
+    "OPENING_INVENTORY_UNKNOWN",
+    "BASIS_UNKNOWN",
+    "FEES_UNKNOWN",
+    "CONVERSION_MASK_UNKNOWN",
+    "TRANSACTION_LINEAGE_UNKNOWN",
+    "DEPLOYED_ROUTE_UNKNOWN"
+  ]
+}
