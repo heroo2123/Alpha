@@ -1,5 +1,9 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Inventory P2 exact review active — 2026-10-02 01:46 UTC
+
+The clean four-file repair `f6c7c90` has a verified outer terminal and author-reported 24 targeted plus 43 adjacent offline passes. Independent Sol/high exact-commit review is active in an isolated checkout (PGID 2031746), so it is still unaccepted and unmerged. A8 repair remains live without final terminal. G3-L remains NO-GO with disk below 2 GiB and no new forward SHADOW evidence. No C/J/E/A boundary changed: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## A8 repair candidate pending terminal — 2026-10-02 01:42 UTC
 
 A8 author worktree committed `97290da` with three changed files, but its author record and outer terminal are still pending while the process remains live. Inventory P2 repair is active with two unfinished files. Neither has independent acceptance or integration. G3-L remains NO-GO; no C/J/E/A boundary changed: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.

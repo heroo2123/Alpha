@@ -1,5 +1,9 @@
 # Supplementary engineering estimate
 
+## Inventory repair under independent review — 2026-10-02 01:46 UTC
+
+Inventory P2 repair `f6c7c90` finished cleanly; 24 focused and 43 adjacent offline passes are author evidence only. A separate Sol/high exact reviewer is live at PGID 2031746, with machine/outer terminals required before acceptance or integration. A8 repair PGID 2015957 still lacks final author/outer terminals. Main had no code changes this invocation; G3-L remains NO-GO, disk below the 2 GiB floor, and no new provider or forward SHADOW evidence exists. No C/J/E/A crossing: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## A8 repair awaiting final evidence — 2026-10-02 01:42 UTC
 
 A8 committed `97290da` in its isolated author worktree and reported 201 targeted offline passes plus six expected-refusal controls in the live log. Its author record and outer terminal are not yet complete; independent exact-commit review and newer-main reconciliation remain required. Inventory repair remains live with two uncommitted files. Both specialist slots are occupied. No new release run, G3-L PASS, forward SHADOW evidence or C/J/E/A crossing is claimed: **G3-L NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
