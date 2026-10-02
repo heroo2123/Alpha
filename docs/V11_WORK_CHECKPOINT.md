@@ -1,3 +1,25 @@
+## Coordinator recovery — 2026-10-02 06:15 UTC
+
+Main `f846e26` is clean and adds only the prior 06:11 checkpoint. No separate
+Alpha writer, reviewer or pytest process is live; the coordinator itself is
+running under the persistent supervisor. SHADOW and Brain-readiness worktrees
+are clean, ECMWF `backfill_data/` is preserved, and no checked worktree,
+`evidence/` or `BrainWork/` file is newer than 06:11. The protected FINAL-REVIEWED
+master still matches SHA-256 `a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+Reviewed R1, Gate 2 and the bootstrap adjudication remain ancestors of main.
+
+PAPER scanner is inactive/disabled and weather execution inactive/masked;
+protected V11 authority roots are absent. Free disk is 878,034,944 bytes,
+below the 2 GiB G3-L floor; available memory is 1,138,704,384 bytes. The
+1.5 GiB older A8 pytest fixture tree remains intact because prior automatic
+approval rejected deletion; read-only reinspection found no new basis to
+discard it. The exact-reviewed bootstrap packet's section-3 owner decision
+remains pending, and no qualifying offline current-run input or forward SHADOW
+sample appeared. No provider, V10, AxiomTrade, service, authority, financial or
+publication action was taken. No C/J/E/A boundary crossed: **A2/A3 UNQUALIFIED;
+A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO; 91/200, formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Coordinator recovery — 2026-10-02 06:11 UTC
 
 Recovered clean main `569eb31`, one documentation-only commit after the 06:07

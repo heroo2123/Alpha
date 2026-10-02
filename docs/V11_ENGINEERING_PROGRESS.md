@@ -1,3 +1,14 @@
+## Coordinator recovery — 2026-10-02 06:15 UTC
+
+Recovered clean main `f846e26`, clean SHADOW/Brain worktrees and preserved ECMWF
+backfill; no independent worker, newer checked evidence or test result appeared.
+PAPER scanner is inactive/disabled, execution inactive/masked and protected
+authority roots absent. Disk remains below the G3-L floor. The older A8 pytest
+fixture tree was preserved under the prior automatic deletion rejection. The
+reviewed section-3 owner choice remains pending; no provider request or
+preflight exception was inferred. No C/J/E/A crossing: **91/200, formal 1/50;
+G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Coordinator recovery — 2026-10-02 06:11 UTC
 
 Recovered clean `569eb31` (prior owner-handoff documentation only), no separate
