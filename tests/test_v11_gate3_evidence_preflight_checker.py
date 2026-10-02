@@ -630,6 +630,38 @@ def test_refuses_insufficient_post_reservation_memory():
     assert "INSUFFICIENT_POST_RESERVATION_MEMORY" in result.refusal_reasons
 
 
+def test_refuses_extreme_offset_measured_utc_without_crashing():
+    # astimezone() on a near-datetime.MIN value with an extreme UTC offset
+    # can raise OverflowError inside datetime.fromisoformat(...).astimezone();
+    # _parse_utc must treat that as unparseable, never propagate.
+    package_raw, restrictions_raw, protocol_raw, binding_raw = _synthetic_fixture()
+    overflowing_clock = ClockObservation("0001-01-01T00:00:00+23:59", 0.3, 10.0, True)
+    result = _run(package_raw, restrictions_raw, protocol_raw, binding_raw, clock=overflowing_clock)
+    assert result.outcome == OUTCOME_REFUSED
+    assert "UNPARSEABLE_CLOCK" in result.refusal_reasons
+
+
+@pytest.mark.parametrize("bad_value", [float("nan"), float("inf"), -1, "3000000000", None])
+def test_refuses_invalid_resource_observation_without_crashing(bad_value):
+    package_raw, restrictions_raw, protocol_raw, binding_raw = _synthetic_fixture()
+    bad_resources = ResourceObservation(bad_value, 600_000_000, 67_108_864)
+    result = _run(package_raw, restrictions_raw, protocol_raw, binding_raw, resources=bad_resources)
+    assert result.outcome == OUTCOME_REFUSED
+    assert "INVALID_RESOURCE_OBSERVATION" in result.refusal_reasons
+
+
+def test_refuses_without_crashing_when_package_limit_is_wrong_type():
+    # A tampered non-numeric limit must not crash the comparison it feeds;
+    # it is already refused via the frozen-scalar type check regardless.
+    package_raw, restrictions_raw, protocol_raw, binding_raw = _synthetic_fixture()
+    pkg = strict_json_loads(package_raw)
+    pkg["limits"]["free_disk_floor_after_reservation_bytes"] = "not-a-number"
+    mutated_raw = json.dumps(pkg).encode()
+    result = _run(mutated_raw, restrictions_raw, protocol_raw, binding_raw)
+    assert result.outcome == OUTCOME_REFUSED
+    assert "CHANGED_FIELD:limits.free_disk_floor_after_reservation_bytes" in result.refusal_reasons
+
+
 def test_refuses_zero_physical_storage_reservation():
     package_raw, restrictions_raw, protocol_raw, binding_raw = _synthetic_fixture()
     pkg = strict_json_loads(package_raw)

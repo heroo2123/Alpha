@@ -285,7 +285,9 @@ def _parse_utc(v: Any) -> Optional[datetime]:
         return None
     try:
         return datetime.fromisoformat(v.replace("Z", "+00:00")).astimezone(timezone.utc)
-    except ValueError:
+    except (ValueError, OverflowError):
+        # OverflowError: astimezone() on a near-datetime.MIN/MAX value with an
+        # extreme UTC offset can overflow; treat it as unparseable, not fatal.
         return None
 
 
@@ -413,6 +415,20 @@ def _check_prerequisites(obj: Mapping, reasons: list) -> bool:
     return all_satisfied
 
 
+def _is_finite_nonneg(v: Any) -> bool:
+    return isinstance(v, (int, float)) and not isinstance(v, bool) and v == v and v not in (
+        float("inf"), float("-inf")) and v >= 0
+
+
+def _limit_int(limits: Mapping, key: str) -> int:
+    """Fetch a numeric limit, falling back to the frozen default if the
+    package's own value is not a plain int. A tampered limit is already
+    flagged elsewhere via _check_frozen_scalars; this only prevents a
+    non-numeric/boolean value from crashing a downstream comparison."""
+    v = limits.get(key)
+    return v if _is_int(v) else FROZEN_LIMITS[key]
+
+
 def _check_storage(obj: Mapping, resources: ResourceObservation, reasons: list) -> bool:
     sq = obj.get("storage_qualification")
     _check_closed(sq, STORAGE_QUALIFICATION_KEYS, "storage_qualification", reasons)
@@ -426,7 +442,17 @@ def _check_storage(obj: Mapping, resources: ResourceObservation, reasons: list) 
     if sq.get("live_ledger_created") is not True:
         reasons.append("MISSING_LIVE_LEDGER")
         ok = False
-    floor = limits.get("physical_storage_reservation_bytes", FROZEN_LIMITS["physical_storage_reservation_bytes"])
+
+    for value in (
+        resources.free_disk_bytes_after_reservation,
+        resources.mem_available_bytes_after_reservation,
+        resources.physically_reserved_bytes,
+    ):
+        if not _is_finite_nonneg(value):
+            reasons.append("INVALID_RESOURCE_OBSERVATION")
+            return False
+
+    floor = _limit_int(limits, "physical_storage_reservation_bytes")
     reserved = sq.get("physically_reserved_bytes")
     if not _is_int(reserved) or reserved < floor:
         reasons.append("NO_PHYSICAL_STORAGE_RESERVATION")
@@ -434,10 +460,8 @@ def _check_storage(obj: Mapping, resources: ResourceObservation, reasons: list) 
     elif reserved != resources.physically_reserved_bytes:
         reasons.append("INCONSISTENT_STORAGE_RESERVATION")
         ok = False
-    disk_floor = limits.get("free_disk_floor_after_reservation_bytes",
-                             FROZEN_LIMITS["free_disk_floor_after_reservation_bytes"])
-    mem_floor = limits.get("memory_floor_after_reservation_bytes",
-                            FROZEN_LIMITS["memory_floor_after_reservation_bytes"])
+    disk_floor = _limit_int(limits, "free_disk_floor_after_reservation_bytes")
+    mem_floor = _limit_int(limits, "memory_floor_after_reservation_bytes")
     if resources.free_disk_bytes_after_reservation < disk_floor:
         reasons.append("INSUFFICIENT_POST_RESERVATION_DISK")
         ok = False
@@ -445,11 +469,6 @@ def _check_storage(obj: Mapping, resources: ResourceObservation, reasons: list) 
         reasons.append("INSUFFICIENT_POST_RESERVATION_MEMORY")
         ok = False
     return ok
-
-
-def _is_finite_nonneg(v: Any) -> bool:
-    return isinstance(v, (int, float)) and not isinstance(v, bool) and v == v and v not in (
-        float("inf"), float("-inf")) and v >= 0
 
 
 def _check_clock(obj: Mapping, clock: ClockObservation, reasons: list) -> bool:
@@ -463,15 +482,13 @@ def _check_clock(obj: Mapping, clock: ClockObservation, reasons: list) -> bool:
     if not uncertainty_valid:
         reasons.append("INVALID_CLOCK_UNCERTAINTY")
         ok = False
-    elif clock.uncertainty_seconds > limits.get("clock_uncertainty_seconds",
-                                                 FROZEN_LIMITS["clock_uncertainty_seconds"]):
+    elif clock.uncertainty_seconds > _limit_int(limits, "clock_uncertainty_seconds"):
         reasons.append("EXCESSIVE_CLOCK_UNCERTAINTY")
         ok = False
     if not _is_finite_nonneg(clock.calibration_age_seconds):
         reasons.append("INVALID_CALIBRATION_AGE")
         ok = False
-    elif clock.calibration_age_seconds > limits.get("clock_calibration_max_age_seconds",
-                                                      FROZEN_LIMITS["clock_calibration_max_age_seconds"]):
+    elif clock.calibration_age_seconds > _limit_int(limits, "clock_calibration_max_age_seconds"):
         reasons.append("EXPIRED_CLOCK_CALIBRATION")
         ok = False
     measured = _parse_utc(clock.measured_utc)
