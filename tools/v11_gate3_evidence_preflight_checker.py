@@ -33,8 +33,10 @@ ELIGIBILITY_LABEL = "DISCOVERY_ONLY_NOT_G3E"
 
 MAX_STR = 4096
 MAX_ARRAY = 64
+MAX_RAW_BYTES = 1_048_576
 SHA256_LEN = 64
 SHA256_ALPHABET = set("0123456789abcdef")
+GEFS_ADMISSIBLE_STATUSES = frozenset({"SCOPE_INDEPENDENCE_CONFIRMED"})
 
 # -- Frozen P1 proposal (protocol section 1/3/4/5) --------------------------
 
@@ -236,11 +238,21 @@ def strict_json_loads(raw: bytes) -> Any:
     def _reject_nonfinite(token: str) -> float:
         raise PreflightPackageCheckerError(f"nonfinite JSON constant: {token}")
 
+    def _reject_overflowing_float(token: str) -> float:
+        value = float(token)
+        # A numeric literal (e.g. ``1e999``) can parse to +/-inf without ever
+        # reaching ``parse_constant``, which only sees the named literals
+        # ``NaN``/``Infinity``/``-Infinity``. Reject that case the same way.
+        if value != value or value in (float("inf"), float("-inf")):
+            raise PreflightPackageCheckerError(f"nonfinite JSON number literal: {token}")
+        return value
+
     try:
         return json.loads(
             raw,
             object_pairs_hook=_reject_dupes,
             parse_constant=_reject_nonfinite,
+            parse_float=_reject_overflowing_float,
         )
     except PreflightPackageCheckerError:
         raise
@@ -280,14 +292,26 @@ def _is_ref(v: Any, keys: frozenset) -> bool:
     return True
 
 
+def _is_ref_list(v: Any, keys: frozenset, max_len: int = MAX_ARRAY) -> bool:
+    return isinstance(v, list) and len(v) <= max_len and all(_is_ref(x, keys) for x in v)
+
+
 def _parse_utc(v: Any) -> Optional[datetime]:
     if not isinstance(v, str):
         return None
     try:
-        return datetime.fromisoformat(v.replace("Z", "+00:00")).astimezone(timezone.utc)
-    except (ValueError, OverflowError):
-        # OverflowError: astimezone() on a near-datetime.MIN/MAX value with an
-        # extreme UTC offset can overflow; treat it as unparseable, not fatal.
+        parsed = datetime.fromisoformat(v.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        # A naive timestamp (no explicit offset) must never be silently
+        # reinterpreted in the host's local timezone; refuse it instead.
+        return None
+    try:
+        return parsed.astimezone(timezone.utc)
+    except OverflowError:
+        # astimezone() on a near-datetime.MIN/MAX value with an extreme UTC
+        # offset can overflow; treat it as unparseable, not fatal.
         return None
 
 
@@ -436,7 +460,7 @@ def _check_storage(obj: Mapping, resources: ResourceObservation, reasons: list) 
     ok = True
     if not isinstance(sq, dict):
         return False
-    if sq.get("persistence_review") is None:
+    if not _is_ref(sq.get("persistence_review"), REF_KEYS_NO_REPO):
         reasons.append("MISSING_STORAGE_PERSISTENCE_REVIEW")
         ok = False
     if sq.get("live_ledger_created") is not True:
@@ -474,7 +498,9 @@ def _check_clock(obj: Mapping, clock: ClockObservation, reasons: list) -> bool:
     limits = obj.get("limits") if isinstance(obj.get("limits"), dict) else {}
     window = obj.get("window") if isinstance(obj.get("window"), dict) else {}
     ok = True
-    if not clock.monotonic_consistent:
+    if clock.monotonic_consistent is not True:
+        # Exact-type check: a truthy non-bool (e.g. the string "false") must
+        # never be accepted in place of the real boolean flag.
         reasons.append("NONMONOTONIC_CLOCK")
         ok = False
     uncertainty_valid = _is_finite_nonneg(clock.uncertainty_seconds)
@@ -570,20 +596,33 @@ def _check_restriction_domains(restrictions: Mapping, reasons: list) -> bool:
     gefs = domains.get("GEFS")
     _check_closed(gefs, GEFS_DOMAIN_KEYS, "known_control_domains.GEFS", reasons)
     if isinstance(gefs, dict):
-        if gefs.get("scope_independence_review") is None:
+        if not _is_ref(gefs.get("scope_independence_review"), REF_KEYS_NO_REPO):
             reasons.append("UNRESOLVED_GEFS_SCOPE")
             ok = False
-        if gefs.get("status") == "BLOCKED_UNKNOWN_LINEAGE_AND_SCOPE":
+        gefs_status = gefs.get("status")
+        if gefs_status == "BLOCKED_UNKNOWN_LINEAGE_AND_SCOPE":
             reasons.append("GEFS_LINEAGE_UNRESOLVED")
             ok = False
-    if restrictions.get("complete_lineage_review") is None:
+        if gefs_status not in GEFS_ADMISSIBLE_STATUSES:
+            # Equality between two documents' status strings (e.g. both HELD,
+            # DENIED, UNKNOWN or empty) is not proof of an admissible state;
+            # only the one explicitly reviewed confirmed status qualifies.
+            reasons.append("GEFS_STATUS_NOT_ADMISSIBLE")
+            ok = False
+    if not _is_ref(restrictions.get("complete_lineage_review"), REF_KEYS_NO_REPO):
         reasons.append("NULL_COMPLETE_LINEAGE_REVIEW")
         ok = False
-    if restrictions.get("shared_history_head") is None:
+    if not _is_sha256(restrictions.get("shared_history_head")):
         reasons.append("NULL_SHARED_HISTORY_HEAD")
         ok = False
-    if restrictions.get("unresolved_attempt_reconciliation") is None:
+    if not _is_ref(restrictions.get("unresolved_attempt_reconciliation"), REF_KEYS_NO_REPO):
         reasons.append("NULL_UNRESOLVED_ATTEMPT_RECONCILIATION")
+        ok = False
+    if not _is_ref(restrictions.get("inventory_audit_ref"), REF_KEYS_NO_REPO):
+        reasons.append("MISSING_OR_MALFORMED_INVENTORY_AUDIT_REF")
+        ok = False
+    if not _is_bounded_str(restrictions.get("status")):
+        reasons.append("MALFORMED_RESTRICTIONS_STATUS")
         ok = False
     if restrictions.get("execution_authority") is not False:
         reasons.append("FORBIDDEN_RESTRICTIONS_EXECUTION_AUTHORITY_PROMOTION")
@@ -630,24 +669,39 @@ def _check_request(obj: Mapping, reasons: list) -> None:
     for key, expected in FROZEN_REQUEST.items():
         if key in ("origin", "path"):
             continue
-        if req.get(key) != expected:
+        actual = req.get(key)
+        # Exact-type equality: ordinary ``!=`` would accept 443.0 == 443 or
+        # True == 1 in place of the real frozen scalar type.
+        if type(actual) is not type(expected) or actual != expected:
             reasons.append(f"CHANGED_REQUEST_FIELD:{key}")
 
 
 def _safe_parse(raw: bytes, label: str, reasons: list) -> Any:
+    if len(raw) > MAX_RAW_BYTES:
+        reasons.append(f"OVERSIZED_RAW_BYTES:{label}")
+        return None
     try:
-        return strict_json_loads(raw)
+        parsed = strict_json_loads(raw)
     except PreflightPackageCheckerError:
         reasons.append(f"INVALID_JSON:{label}")
         return None
+    if not isinstance(parsed, dict):
+        # Valid JSON of the wrong top-level type (null/array/number/...)
+        # must be refused with a labeled reason, never treated as a
+        # dict-shaped result with no finding to explain the refusal.
+        reasons.append(f"NOT_AN_OBJECT:{label}")
+        return None
+    return parsed
 
 
 def _check_review_terminal(review_present: bool, review_terminal: Optional[Mapping], reasons: list) -> None:
     if not review_present:
         return
+    required = {"exit_code", "error", "initial_clean", "verdict"}
     valid = (
         isinstance(review_terminal, dict)
-        and review_terminal.get("exit_code") == 0
+        and required <= set(review_terminal.keys())
+        and _is_int(review_terminal.get("exit_code")) and review_terminal.get("exit_code") == 0
         and review_terminal.get("error") is None
         and review_terminal.get("initial_clean") is True
         and review_terminal.get("verdict") == "EXECUTABLE_PREFLIGHT_PASS"
@@ -729,6 +783,27 @@ def check_evidence_preflight_package(
 
     _check_disallowed(package, reasons)
     _check_request(package, reasons)
+
+    if not _is_bounded_str(package.get("author_model")):
+        reasons.append("MALFORMED_AUTHOR_MODEL")
+    if not _is_closed_string_set(package.get("blocking_reasons")):
+        reasons.append("MALFORMED_BLOCKING_REASONS")
+    if not _is_closed_string_set(package.get("unknown_outputs_not_required_as_inputs")):
+        reasons.append("MALFORMED_UNKNOWN_OUTPUTS_NOT_REQUIRED_AS_INPUTS")
+
+    if not _is_ref(binding.get("owner_instruction_record"), REF_KEYS_NO_REPO):
+        reasons.append("MALFORMED_BINDING_OWNER_INSTRUCTION_RECORD")
+    missing_prereqs = binding.get("missing_prerequisites")
+    if not _is_closed_string_set(missing_prereqs) or not all(m in PREREQ_KEYS for m in missing_prereqs):
+        reasons.append("MALFORMED_BINDING_MISSING_PREREQUISITES")
+    if not _is_bounded_str(binding.get("private_root")):
+        reasons.append("MALFORMED_BINDING_PRIVATE_ROOT")
+    if _parse_utc(binding.get("prepared_at_utc")) is None:
+        reasons.append("MALFORMED_BINDING_PREPARED_AT_UTC")
+    if not _is_ref_list(binding.get("source_inputs"), REF_KEYS):
+        reasons.append("MALFORMED_BINDING_SOURCE_INPUTS")
+    if not _is_ref_list(binding.get("raw_restriction_sources"), REF_KEYS_NO_REPO):
+        reasons.append("MALFORMED_BINDING_RAW_RESTRICTION_SOURCES")
 
     directories = package.get("directories")
     if not isinstance(directories, list) or not 1 <= len(directories) <= MAX_ARRAY:

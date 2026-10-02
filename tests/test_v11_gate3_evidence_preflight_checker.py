@@ -907,6 +907,187 @@ def test_checker_requires_an_explicit_ledger_argument():
         )
 
 
+# -- Regression: independent Astra/high review of fe854fc (CHANGES_REQUIRED) ---
+# Each case below reproduces one of the four defect families from
+# docs/V11_R09_GATE3_PREFLIGHT_CHECKER_REVIEW_fe854fc.md: non-object JSON
+# roots, unresolved/held restriction evidence, an incomplete closed/bounded
+# schema, and malformed clock/terminal observations. Every one must refuse
+# cleanly (no raised exception, no satisfied outcome).
+
+@pytest.mark.parametrize("which,raw", [
+    ("package", b"null"), ("package", b"[]"), ("package", b"1"),
+    ("restrictions", b"null"), ("restrictions", b"[]"), ("restrictions", b"1"),
+    ("binding", b"null"), ("binding", b"[]"), ("binding", b"1"),
+])
+def test_refuses_non_object_json_root_without_raising(which, raw):
+    package_raw, restrictions_raw, protocol_raw, binding_raw = _synthetic_fixture()
+    args = {"package": package_raw, "restrictions": restrictions_raw, "binding": binding_raw}
+    args[which] = raw
+    result = _run(args["package"], args["restrictions"], protocol_raw, args["binding"])
+    assert result.outcome == OUTCOME_REFUSED
+    assert f"NOT_AN_OBJECT:{which}" in result.refusal_reasons
+
+
+def test_refuses_oversized_raw_bytes_without_raising():
+    package_raw, restrictions_raw, protocol_raw, binding_raw = _synthetic_fixture()
+    from tools.v11_gate3_evidence_preflight_checker import MAX_RAW_BYTES
+    oversized = package_raw + b" " * (MAX_RAW_BYTES + 1)
+    result = _run(oversized, restrictions_raw, protocol_raw, binding_raw)
+    assert result.outcome == OUTCOME_REFUSED
+    assert "OVERSIZED_RAW_BYTES:package" in result.refusal_reasons
+
+
+@pytest.mark.parametrize("key", [
+    "complete_lineage_review", "shared_history_head", "unresolved_attempt_reconciliation",
+])
+def test_refuses_false_valued_restriction_field_not_only_none(key):
+    package_raw, restrictions_raw, protocol_raw, binding_raw = _synthetic_fixture()
+    restrictions = strict_json_loads(restrictions_raw)
+    restrictions[key] = False
+    mutated_raw = json.dumps(restrictions).encode()
+    result = _run(package_raw, mutated_raw, protocol_raw, binding_raw)
+    assert result.outcome == OUTCOME_REFUSED
+
+
+def test_refuses_gefs_scope_review_false_not_only_none():
+    package_raw, restrictions_raw, protocol_raw, binding_raw = _synthetic_fixture()
+    restrictions = strict_json_loads(restrictions_raw)
+    restrictions["known_control_domains"]["GEFS"]["scope_independence_review"] = False
+    mutated_raw = json.dumps(restrictions).encode()
+    result = _run(package_raw, mutated_raw, protocol_raw, binding_raw)
+    assert result.outcome == OUTCOME_REFUSED
+    assert "UNRESOLVED_GEFS_SCOPE" in result.refusal_reasons
+
+
+@pytest.mark.parametrize("status", ["HELD", "DENIED", "UNKNOWN", ""])
+def test_refuses_gefs_status_matching_restriction_status_when_not_admissible(status):
+    package_raw, restrictions_raw, protocol_raw, _ = _synthetic_fixture()
+    pkg = strict_json_loads(package_raw)
+    pkg["requests"][0]["restriction_status"] = status
+    package_raw = json.dumps(pkg).encode()
+    restrictions = strict_json_loads(restrictions_raw)
+    restrictions["known_control_domains"]["GEFS"]["status"] = status
+    restrictions_raw = json.dumps(restrictions).encode()
+    pkg["restrictions_ref"] = {"byte_length": len(restrictions_raw), "path": "synthetic://restrictions",
+                                "sha256": _sha(restrictions_raw)}
+    package_raw = json.dumps(pkg).encode()
+    binding_raw = _synthetic_binding_raw(package_raw, restrictions_raw, _synthetic_protocol_raw())
+    result = _run(package_raw, restrictions_raw, _synthetic_protocol_raw(), binding_raw)
+    assert result.outcome == OUTCOME_REFUSED
+    assert "GEFS_STATUS_NOT_ADMISSIBLE" in result.refusal_reasons
+
+
+def test_refuses_persistence_review_false_not_only_none():
+    package_raw, restrictions_raw, protocol_raw, binding_raw = _synthetic_fixture()
+    pkg = strict_json_loads(package_raw)
+    pkg["storage_qualification"]["persistence_review"] = False
+    mutated_raw = json.dumps(pkg).encode()
+    result = _run(mutated_raw, restrictions_raw, protocol_raw, binding_raw)
+    assert result.outcome == OUTCOME_REFUSED
+    assert "MISSING_STORAGE_PERSISTENCE_REVIEW" in result.refusal_reasons
+
+
+def test_refuses_float_request_port_matching_int_value():
+    package_raw, restrictions_raw, protocol_raw, binding_raw = _synthetic_fixture()
+    pkg = strict_json_loads(package_raw)
+    pkg["requests"][0]["port"] = 443.0
+    mutated_raw = json.dumps(pkg).encode()
+    result = _run(mutated_raw, restrictions_raw, protocol_raw, binding_raw)
+    assert result.outcome == OUTCOME_REFUSED
+    assert "CHANGED_REQUEST_FIELD:port" in result.refusal_reasons
+
+
+def test_refuses_overlong_author_model():
+    package_raw, restrictions_raw, protocol_raw, binding_raw = _synthetic_fixture()
+    pkg = strict_json_loads(package_raw)
+    pkg["author_model"] = "x" * 4097
+    mutated_raw = json.dumps(pkg).encode()
+    result = _run(mutated_raw, restrictions_raw, protocol_raw, binding_raw)
+    assert result.outcome == OUTCOME_REFUSED
+    assert "MALFORMED_AUTHOR_MODEL" in result.refusal_reasons
+
+
+def test_refuses_non_list_blocking_reasons():
+    package_raw, restrictions_raw, protocol_raw, binding_raw = _synthetic_fixture()
+    pkg = strict_json_loads(package_raw)
+    pkg["blocking_reasons"] = False
+    mutated_raw = json.dumps(pkg).encode()
+    result = _run(mutated_raw, restrictions_raw, protocol_raw, binding_raw)
+    assert result.outcome == OUTCOME_REFUSED
+    assert "MALFORMED_BLOCKING_REASONS" in result.refusal_reasons
+
+
+def test_refuses_oversized_unknown_outputs_array():
+    package_raw, restrictions_raw, protocol_raw, binding_raw = _synthetic_fixture()
+    pkg = strict_json_loads(package_raw)
+    pkg["unknown_outputs_not_required_as_inputs"] = ["x"] * 65
+    mutated_raw = json.dumps(pkg).encode()
+    result = _run(mutated_raw, restrictions_raw, protocol_raw, binding_raw)
+    assert result.outcome == OUTCOME_REFUSED
+    assert "MALFORMED_UNKNOWN_OUTPUTS_NOT_REQUIRED_AS_INPUTS" in result.refusal_reasons
+
+
+def test_refuses_malformed_binding_source_inputs_ref():
+    package_raw, restrictions_raw, protocol_raw, binding_raw = _synthetic_fixture()
+    binding = strict_json_loads(binding_raw)
+    binding["source_inputs"] = [{"sha256": False}]
+    mutated_raw = json.dumps(binding).encode()
+    result = _run(package_raw, restrictions_raw, protocol_raw, mutated_raw)
+    assert result.outcome == OUTCOME_REFUSED
+    assert "MALFORMED_BINDING_SOURCE_INPUTS" in result.refusal_reasons
+
+
+def test_refuses_boolean_binding_owner_instruction_record():
+    package_raw, restrictions_raw, protocol_raw, binding_raw = _synthetic_fixture()
+    binding = strict_json_loads(binding_raw)
+    binding["owner_instruction_record"] = False
+    mutated_raw = json.dumps(binding).encode()
+    result = _run(package_raw, restrictions_raw, protocol_raw, mutated_raw)
+    assert result.outcome == OUTCOME_REFUSED
+    assert "MALFORMED_BINDING_OWNER_INSTRUCTION_RECORD" in result.refusal_reasons
+
+
+def test_refuses_terminal_false_exit_code_with_missing_error_key():
+    package_raw, restrictions_raw, protocol_raw, binding_raw = _synthetic_fixture()
+    term = dict(GOOD_REVIEW_TERMINAL)
+    term["exit_code"] = False
+    term.pop("error")
+    result = _run(package_raw, restrictions_raw, protocol_raw, binding_raw, review_terminal=term)
+    assert result.outcome == OUTCOME_REFUSED
+    assert "MISSING_OR_INVALID_REVIEW_TERMINAL" in result.refusal_reasons
+
+
+def test_refuses_naive_clock_without_timezone():
+    package_raw, restrictions_raw, protocol_raw, binding_raw = _synthetic_fixture()
+    naive_clock = ClockObservation("2026-10-02T10:05:00", 0.3, 10.0, True)
+    result = _run(package_raw, restrictions_raw, protocol_raw, binding_raw, clock=naive_clock)
+    assert result.outcome == OUTCOME_REFUSED
+    assert "UNPARSEABLE_CLOCK" in result.refusal_reasons
+
+
+def test_refuses_monotonic_consistent_truthy_string_not_bool():
+    package_raw, restrictions_raw, protocol_raw, binding_raw = _synthetic_fixture()
+    stringy_clock = ClockObservation("2026-10-02T10:05:00Z", 0.3, 10.0, "false")
+    result = _run(package_raw, restrictions_raw, protocol_raw, binding_raw, clock=stringy_clock)
+    assert result.outcome == OUTCOME_REFUSED
+    assert "NONMONOTONIC_CLOCK" in result.refusal_reasons
+
+
+def test_rejects_json_exponent_overflow_as_nonfinite():
+    with pytest.raises(PreflightPackageCheckerError):
+        strict_json_loads(b'{"x": 1e999}')
+
+
+def test_refuses_real_package_with_exponent_overflowing_author_model():
+    package_raw, restrictions_raw, protocol_raw, _ = _synthetic_fixture()
+    package_raw = package_raw.replace(
+        b'"author_model": "synthetic-test-fixture"', b'"author_model": 1e999')
+    binding_raw = _synthetic_binding_raw(package_raw, restrictions_raw, protocol_raw)
+    result = _run(package_raw, restrictions_raw, protocol_raw, binding_raw)
+    assert result.outcome == OUTCOME_REFUSED
+    assert "INVALID_JSON:package" in result.refusal_reasons
+
+
 def test_checker_refuses_a_mapping_not_derived_from_its_own_raw_bytes():
     """The checker parses package/restrictions/binding itself from the raw
     bytes it is given; a caller cannot make it evaluate bytes that differ
