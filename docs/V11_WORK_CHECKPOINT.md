@@ -1,3 +1,24 @@
+## Coordinator recovery — 2026-10-02 06:27 UTC
+
+Recovered clean main `2398b41`; its only change since the 06:23 recovery is
+the preceding checkpoint. The sole live Codex child belongs to this persistent
+coordinator; no separate Alpha author, reviewer or pytest process is live.
+SHADOW `15e99bd` and Brain-readiness `58b0b79` are clean, ECMWF's untracked
+`backfill_data/` is preserved, and no checked SHADOW, Brain or evidence file
+appeared after 06:23. The protected FINAL-REVIEWED master still hashes to
+`a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+
+The actual PAPER demo/scanner/controller units are inactive and disabled;
+weather execution is inactive and masked. Protected V11 authority roots are
+absent. Free disk is 873,250,816 bytes, below the 2 GiB G3-L floor; available
+memory is 1,126,391,808 bytes. The previously rejected A8 fixture deletion was
+not retried. The exact-reviewed bootstrap packet's section-3 owner choice was
+presented again; no answer or exception is presumed. No qualifying current-run
+offline input, provider request, forward SHADOW sample or new full-suite run
+appeared. No V10, AxiomTrade, service, authority, financial or publication
+action was taken. No C/J/E/A boundary crossed: **A2/A3 UNQUALIFIED; A4 OPEN;
+A8 UNQUALIFIED; G3-L NO-GO; 91/200, formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator recovery — 2026-10-02 06:23 UTC
 
 Recovered clean main `d76477e`; its only change since the 06:19 recovery was

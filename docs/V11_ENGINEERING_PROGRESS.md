@@ -1,3 +1,12 @@
+## Coordinator recovery — 2026-10-02 06:27 UTC
+
+Recovered clean main `2398b41`, no separate Alpha worker or newer checked
+forward evidence. The protected master hash matches, PAPER units are
+inactive/disabled, execution inactive/masked, and disk remains below G3-L's
+2 GiB floor. Re-presented the exact-reviewed bootstrap section-3 owner choice;
+no decision, exception or request is presumed. No C/J/E/A crossing:
+**91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Coordinator recovery — 2026-10-02 06:23 UTC
 
 Recovered clean `d76477e`, no independent Alpha worker or newer checked

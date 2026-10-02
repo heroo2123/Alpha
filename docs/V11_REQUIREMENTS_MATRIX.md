@@ -1,3 +1,12 @@
+## Coordinator gate check — 2026-10-02 06:27 UTC
+
+Clean main `2398b41` has no new qualifying current-run or forward SHADOW
+evidence. The reviewed section-3 owner choice was requested again and remains
+pending; no preflight authority follows from the request. Disk free is
+873,250,816 bytes against G3-L's 2 GiB floor. No C/J/E/A boundary crossed:
+**A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO; 91/200, formal
+1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator gate check — 2026-10-02 06:23 UTC
 
 Main `d76477e` adds only the prior checkpoint. No new qualifying current-run
