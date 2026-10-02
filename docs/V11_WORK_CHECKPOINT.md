@@ -1,3 +1,28 @@
+## G3-L bootstrap adjudication independent review launched — 2026-10-02 05:59 UTC
+
+Committed decision packet `4c6d48059c38e6e0c34bd5a73acfd8b5a4a20be0`, tree
+`9f0cfc90850949d750efc64ce3874f89a5ef0b76`; companion JSON SHA-256
+`5a2c0673ee78eb01bcf9ee664ced2151258b569bb2a8434a8e7fa74a07e0c80a`.
+Exactly one persistent Sol/high independent reviewer is active: runner PID
+**2108972**, child PID **2108980**, clean detached worktree
+`/tmp/alpha-v11-g3l-bootstrap-review-4c6d480`. Startup log confirms model/effort and checkout.
+Report/verdict/log/prompt/runner/terminal use that same path prefix. Expected
+outer marker is `G3L_BOOTSTRAP_REVIEW_PROCESS_FINISHED`; launch record is
+`docs/V11_R09_GATE3_BOOTSTRAP_REVIEW_4c6d480.launch.json`. No verdict yet.
+
+Recover actual process, report/verdict hashes, exit status, exact checkout and
+cleanliness before acceptance. PASS scope is **ADJUDICATION_ONLY_NOT_G3L**;
+it cannot authorize preflight, fill any reviewed input, amend a protocol, or
+supply the pending owner exception. Resolve findings against exact bytes and
+obtain fresh review if the candidate changes. Once accepted, use section 3's
+concrete owner/protocol decision or genuine offline intake; do not reroute the
+same general dependency investigation or duplicate this reviewer. GEFS SHADOW
+continues to require owner/root custody; neither path is advanced by a request.
+Post-checkout disk free was 886,620,160 bytes, below 2 GiB; available memory
+650,752,000 bytes. No provider/service/authority/financial action, forward
+sample, remote publication or C/J/E/A crossing: **A2/A3 UNQUALIFIED; A4 OPEN;
+A8 UNQUALIFIED; G3-L NO-GO; 91/200, formal 1/50; NOT_READY_TO_FUND**.
+
 ## G3-L dependency adjudication candidate — 2026-10-02 05:57 UTC
 
 Astra/high resolved the routed current-run/request-before-PASS dependency in

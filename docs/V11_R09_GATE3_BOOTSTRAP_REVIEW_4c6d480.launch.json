@@ -1,0 +1,17 @@
+{
+  "candidate": "4c6d48059c38e6e0c34bd5a73acfd8b5a4a20be0",
+  "effort": "high",
+  "g3l": "NO-GO",
+  "launchable": false,
+  "launched_utc": "2026-10-02T05:58:44.463161+00:00",
+  "model": "gpt-6-sol",
+  "pid": 2108972,
+  "prompt_sha256": "c2d14ccc0c79a45eebe61528bcc8a93a57f3c7c72d01b3fb3582ab489c7f8950",
+  "runner_sha256": "caff87875511c670a1cbaa8ed2d588e0bad94b4fb184d202e3336f6804eb8fdf",
+  "scope": "ADJUDICATION_ONLY_NOT_G3L",
+  "task": "g3l-bootstrap-adjudication-independent-review",
+  "terminal": "/tmp/alpha-v11-g3l-bootstrap-review-4c6d480.terminal.json",
+  "terminal_marker": "G3L_BOOTSTRAP_REVIEW_PROCESS_FINISHED",
+  "tree": "9f0cfc90850949d750efc64ce3874f89a5ef0b76",
+  "worktree": "/tmp/alpha-v11-g3l-bootstrap-review-4c6d480"
+}
