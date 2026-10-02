@@ -1,0 +1,10 @@
+{
+  "original_failed_terminal": "/tmp/alpha-v11-a4-b1-author-20261002.terminal.json",
+  "pgid": 2084227,
+  "pid": 2084227,
+  "provider_reset_epoch": 1790914800,
+  "schema": "ALPHA_V11_A4_B1_RETRY_LAUNCH_V1",
+  "stem": "/tmp/alpha-v11-a4-b1-author-20261002-retry",
+  "terminal_path": "/tmp/alpha-v11-a4-b1-author-20261002-retry.terminal.json",
+  "worktree": "/tmp/alpha-v11-a4-b1-closure-spec-20261002"
+}

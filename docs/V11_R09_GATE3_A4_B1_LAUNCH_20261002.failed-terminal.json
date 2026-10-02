@@ -1,0 +1,18 @@
+{
+  "a4_pass": false,
+  "author_record_exists": false,
+  "author_record_sha256": null,
+  "clean": true,
+  "completed_utc": "2026-10-02T03:21:02.362054+00:00",
+  "error": null,
+  "exit_code": 1,
+  "financial_authority": false,
+  "head": "1f993fbcb45ee79be943ae1a3873ba38bbca4991",
+  "independent_acceptance": false,
+  "initial_head": "1f993fbcb45ee79be943ae1a3873ba38bbca4991",
+  "launchable": false,
+  "qualification": "UNQUALIFIED",
+  "schema": "ALPHA_V11_A4_B1_AUTHOR_LANE_V1",
+  "tree": "e562333c9146862c192947533a84f4c6a6070068",
+  "uncommitted_status": ""
+}
