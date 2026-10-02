@@ -1,3 +1,7 @@
+## B1 reachability repair pinned for independent review — 2026-10-02 04:52 UTC
+
+The completed `d7b789c` review returned `CHANGES_REQUIRED` on a selected-data reachability bypass; its two earlier parser findings are closed. The isolated B1 author worktree now has candidate `8a3d47b` with runtime-role enforcement for selected data, a fixed-output regression, and a scope clarification. Focused offline tests: 60 passed. One independent Astra/high exact-commit reviewer is live at `/tmp/alpha-v11-a4-b1-review-8a3d47b`; acceptance and newer-main reconciliation remain pending. No provider request, forward SHADOW evidence, release rerun, financial/authority/service action or C/J/E/A crossing. **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## B1 draft recovered during active authoring — 2026-10-02 04:33 UTC
 
 The sole B1 Sonnet/high retry remains live and has created its checker, tests and scope document as uncommitted draft files. Verification commands encountered tool approval errors; no author terminal, commit, review or integration exists. Main and the SHADOW/Brain-readiness worktrees are clean, and there is no new forward artifact. The private master hash and inactive/masked execution safety state were rechecked; free disk remains below G3-L's 2 GiB floor. No C/J/E/A crossing: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.

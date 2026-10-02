@@ -1,3 +1,7 @@
+## B1 exact review reopened for data reachability — 2026-10-02 04:52 UTC
+
+Independent exact review of `d7b789c` closed the two parser P2s but found that selected data could use an unreachable `test` role. Candidate `8a3d47b` requires selected data to be `runtime` and passed 60 focused offline tests; independent Astra/high review is active. No B1 acceptance, A4 qualification or C/J/E/A boundary follows yet. **A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## B1 draft remains unaccepted — 2026-10-02 04:33 UTC
 
 The sole B1 author has three uncommitted draft files but no complete terminal, commit or independent exact-commit review. Tool approval errors are under active author recovery. No A4 qualification or row acceptance follows from the draft. SHADOW and Brain readiness have no new forward evidence; disk remains below G3-L's 2 GiB floor. **A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
