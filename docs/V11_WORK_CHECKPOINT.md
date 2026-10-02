@@ -1,3 +1,11 @@
+## Coordinator local-only Gate 3 screen — 2026-10-02 05:09 UTC
+
+Recovered clean main `059d04c` after the accepted B1 integration; no separate Alpha implementation/review worker or pytest process is live. SHADOW `15e99bd` and Brain-readiness `58b0b79` remain clean, and ECMWF `backfill_data/` remains untracked and preserved. The prior accepted 5,460-pass/13-skip release result remains historical; no new release run was made. The protected FINAL-REVIEWED master still hashes to `a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+
+Ran the documented **local-only** G3-L `PRE_REVIEW` screen for prospective target date 2026-10-03 after B1 integration. At Unix time `1790917766`, measured 948,232,192 free disk bytes and 884,600,832 available memory bytes. The report `/tmp/alpha-v11-g3l-offline-screen-20261003-1790917766.json` hashes to `73199b2e6f14c7ebb856fe49b96b8961e637890637954dca38c9413c59e2df08` and exited 2: `BLOCKED_MISSING_REVIEWED_EVIDENCE`, `launchable=false`, 77 missing pre-review identities, zero of 2,713 attempt slots. Free disk is 1,199,251,456 bytes below the 2 GiB floor before additional reservations. No provider request occurred. The previously deletion-rejected A8 fixture tree remains untouched.
+
+PAPER demo/scanner/controller are inactive/disabled and weather execution is inactive/masked; protected V11 authority roots are absent. No V10 or AxiomTrade change, service/authority/financial action, remote publication, forward SHADOW sample or C/J/E/A boundary crossing: **A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**. The next G3-L step requires genuine reviewed evidence and sufficient storage; the offline screen is not launch permission.
+
 ## B1 exact review accepted and reconciled — 2026-10-02 04:55 UTC
 
 Recovered the completed independent Astra/high review of exact `8a3d47bcdb52182bac541cf5554e096ac863631b` (tree `14a553cf65143bb44115a518435e20e946ee540a`). Its clean exit-0 terminal, matching review-output hash, three changed-file hashes, 60 focused passes, 1,185 mutation probes and 512-artifact graph probes support **PASS_IN_SCOPE for B1 structural checking only**. All three prior P2 counterexamples are closed. Retained the review, terminal and log as `docs/V11_R09_GATE3_A4_B1_REVIEW_8a3d47b*`.

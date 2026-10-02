@@ -1,3 +1,7 @@
+## Coordinator local-only G3-L screen — 2026-10-02 05:09 UTC
+
+The current `PRE_REVIEW` report at `/tmp/alpha-v11-g3l-offline-screen-20261003-1790917766.json` (SHA-256 `73199b2e6f14c7ebb856fe49b96b8961e637890637954dca38c9413c59e2df08`) exits 2 with 77 missing reviewed identities, zero of 2,713 feasible attempt slots and `launchable=false`. Free disk is 948,232,192 bytes, below the 2 GiB floor by 1,199,251,456 bytes before additional reservations. No new qualification or C/J/E/A boundary: **A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## B1 structural checker accepted in scope — 2026-10-02 04:55 UTC
 
 Independent Astra/high exact-commit review of `8a3d47b` finished clean with no remaining P1/P2 in B1 scope. Its three reviewed files were reconciled byte-identically onto newer main (`270c7e6` through `fa13b03`), where the focused suite passed 60/60. This accepts an offline structural proposal checker only. Authentic A2/A3 lineage, A4 runtime/bootstrap proof, A8 qualification, G3-L provider/storage/time evidence and forward SHADOW evidence remain open; no C/J/E/A row or score changes. **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.

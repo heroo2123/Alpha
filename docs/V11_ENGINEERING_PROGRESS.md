@@ -1,3 +1,7 @@
+## Coordinator local-only G3-L screen — 2026-10-02 05:09 UTC
+
+After accepted B1 integration, a fresh October 3 local-only `PRE_REVIEW` screen recorded 77 missing reviewed identities and zero of 2,713 feasible attempt slots. The report is `/tmp/alpha-v11-g3l-offline-screen-20261003-1790917766.json`, SHA-256 `73199b2e6f14c7ebb856fe49b96b8961e637890637954dca38c9413c59e2df08`; free disk is 948,232,192 bytes against the 2 GiB floor. No provider request, forward SHADOW evidence or C/J/E/A crossing: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## B1 exact review integrated — 2026-10-02 04:55 UTC
 
 Recovered the clean Astra/high review terminal for `8a3d47b`, retained its report and log, then reconciled the three reviewed commits onto newer main. All three file hashes match; integrated-main focused tests passed 60/60. The B1 checker remains permanently `UNQUALIFIED` and nonlaunchable. B2's authentic A2/A3 and trusted-bootstrap inputs remain missing; disk is below G3-L's 2 GiB floor. No provider, forward SHADOW, root authority or financial action and no C/J/E/A crossing: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
