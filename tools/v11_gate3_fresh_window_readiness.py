@@ -46,17 +46,46 @@ requiring it here would make an honest reading taken before a future
 window opens impossible to satisfy (see ``_check_clock_quality`` below for
 the preparation-appropriate floor checks this module actually runs:
 source, monotonic-consistency, uncertainty, calibration-age, and agreement
-with the caller's own ``now_utc`` within the reading's stated uncertainty
--- that last check is what stops a forged/future-dated clock reading from
-substituting for an honest one now that the window-overlap check is gone).
+with the caller's own ``now_utc`` within the reading's stated uncertainty).
+That agreement check only demonstrates *internal consistency* between two
+caller-supplied, freely editable values -- it does not, by itself, prove
+the reading is authentic or current: a consistently stale pair (e.g. both
+timestamps a day old) or a consistently future-forged pair passes it just
+as an honest pair does. See ``_check_clock_quality`` for why this remains
+an explicit, standing blocker rather than a claimed anti-forgery guarantee.
 
-Two independent-review follow-ups are deliberately out of scope for this
-pass and tracked rather than silently fixed: (1) a window duration/horizon
-ceiling -- there is no reviewed frozen constant for one, and inventing a
-new numeric safety threshold here would itself be the kind of unsupported
-value this module exists to avoid; and (2) binding reviewed-identity
-references to actual bytes, which would require filesystem I/O this module
-deliberately never performs. Both remain documented gaps, not fixes.
+Three independent-review findings remain explicit, standing blockers
+(reported as named incompleteness reasons, never silently treated as
+satisfied) rather than invented thresholds, because no reviewed policy or
+trust boundary for any of them currently exists anywhere in this
+repository's reviewed protocol or frozen limits:
+
+1. A window duration/horizon ceiling: there is no reviewed frozen constant
+   bounding how long a proposed window may span or how far into the future
+   it may start, so every structurally valid window -- including an
+   ordinary few-hour one -- reports ``NO_REVIEWED_WINDOW_DURATION_HORIZON_POLICY``
+   until a reviewed ceiling is added. Inventing a numeric threshold here
+   would itself be the kind of unsupported value this module exists to
+   avoid.
+2. A resource/reservation magnitude ceiling: the reused ``_check_storage``
+   enforces exact integer typing, standing floors, and reservation
+   agreement, but no reviewed upper bound on a plausible disk/memory/
+   reservation byte count exists, so every evaluated storage observation
+   additionally reports ``NO_REVIEWED_RESOURCE_MAGNITUDE_CEILING``, even an
+   entirely ordinary one, rather than silently accepting an
+   arbitrary-precision impossible integer as genuine.
+3. A trusted clock-observation provenance boundary: agreement with the
+   caller's own ``now_utc`` is consistency, not authentication, so every
+   evaluated clock observation additionally reports
+   ``NO_REVIEWED_CLOCK_PROVENANCE_BOUNDARY``. Binding the
+   ``clock_method_and_calibration_review`` prerequisite reference to actual
+   reviewed bytes would require filesystem I/O this module deliberately
+   never performs, and no other reviewed trust boundary exists today.
+
+Each of these three keeps ``PREPARATION_CANDIDATE_ALL_INPUTS_PRESENT_NOT_EXECUTABLE``
+unreachable until a later, separately reviewed change actually establishes
+the missing policy or trust boundary; this module does not invent one just
+to make its own positive outcome reachable.
 """
 
 from __future__ import annotations
@@ -65,8 +94,10 @@ from dataclasses import dataclass
 from typing import Any, Mapping, Optional
 
 from tools.v11_gate3_evidence_preflight_checker import (
+    ECMWF_DOMAIN_KEYS,
     FROZEN_LIMITS,
     FROZEN_WINDOW,
+    GEFS_DOMAIN_KEYS,
     MAX_STR,
     OWNER_REF_KEYS,
     PREREQ_KEYS,
@@ -74,10 +105,10 @@ from tools.v11_gate3_evidence_preflight_checker import (
     REF_KEYS_NO_REPO,
     RESTRICTIONS_SCHEMA_NAME,
     RESTRICTIONS_KEYS,
+    STORAGE_QUALIFICATION_KEYS,
     WINDOW_KEYS,
     ClockObservation,
     ResourceObservation,
-    _check_closed,
     _check_restriction_domains,
     _check_storage,
     _is_bounded_str,
@@ -193,23 +224,108 @@ def _has_unsafe_key(obj: dict, label: str, reasons: list) -> bool:
 
 
 def _check_closed_bounded(obj: Any, keys: frozenset, label: str, reasons: list) -> None:
-    """Like the checker's ``_check_closed``, but refuses before an unsafe
-    caller-supplied key (oversized or not UTF-8-encodable) is embedded
+    """Like the checker's ``_check_closed``, but bounds mapping cardinality
+    before doing any per-key work, and never embeds a caller-supplied key
+    (oversized, non-UTF-8-encodable, or simply not a recognized schema key)
     verbatim into a reason string.
 
     The checker's own ``_check_closed`` has no such bound because every one
     of its callers supplies schema-fixed keys already bounded elsewhere.
-    This module's ``proposed_window``, ``prerequisites``, (post-parse)
-    ``restrictions`` and ``storage_qualification`` mappings are not
-    byte-capped before reaching here, so an unsafe key must be refused
-    generically rather than echoed.
+    This module's ``proposed_window``, ``prerequisites`` and (post-parse)
+    ``restrictions`` mappings are not byte- or count-capped before reaching
+    here, so cardinality and unsafe/unknown keys must be refused
+    generically rather than iterated/echoed without bound.
     """
     if not isinstance(obj, dict):
         reasons.append(f"NOT_AN_OBJECT:{label}")
         return
+    if len(obj) > len(keys):
+        # The schema is closed: a conforming object can never hold more
+        # entries than its own fixed key set. Refuse on count alone, before
+        # touching a single key, so a caller cannot force unbounded
+        # aggregate work or output merely by supplying many admissible keys.
+        reasons.append(f"TOO_MANY_KEYS:{label}")
+        return
     if _has_unsafe_key(obj, label, reasons):
         return
-    _check_closed(obj, keys, label, reasons)
+    if any(k not in keys for k in obj):
+        # A caller-controlled key that is itself short, valid UTF-8 and
+        # within the ordinary length bound (so `_has_unsafe_key` above does
+        # not catch it) must still never be embedded verbatim in a reason
+        # string: it could just as easily be a short private sentinel value
+        # as an ordinary typo.
+        reasons.append(f"UNKNOWN_KEY:{label}")
+    for k in keys:
+        if k not in obj:
+            reasons.append(f"MISSING_KEY:{label}.{k}")
+
+
+def _unsafe_untrusted_submapping(obj: Any, keys: frozenset, label: str, reasons: list) -> bool:
+    """True (with a bounded, non-echoing reason appended) if ``obj`` must
+    not be handed to a reused (unmodifiable) closed-key checker function
+    that embeds raw unknown-key text verbatim and enforces no cardinality
+    bound of its own (the checker's own ``_check_closed``, reached
+    internally by ``_check_storage`` and ``_check_restriction_domains``).
+
+    Unlike ``_check_closed_bounded``, this does not also report missing
+    keys: callers use this purely as a go/no-go gate before delegating to a
+    reused function that will report missing keys itself once it is safe to
+    call.
+    """
+    if not isinstance(obj, dict):
+        return False  # let the reused function itself report the type problem
+    if len(obj) > len(keys):
+        reasons.append(f"TOO_MANY_KEYS:{label}")
+        return True
+    if _has_unsafe_key(obj, label, reasons):
+        return True
+    if any(k not in keys for k in obj):
+        reasons.append(f"UNKNOWN_KEY:{label}")
+        return True
+    return False
+
+
+def _check_nested_domain_bounded(restrictions: Mapping, reasons: list) -> bool:
+    """True only if both ``known_control_domains.ECMWF`` and ``.GEFS`` are
+    safe to pass into the reused ``_check_restriction_domains``, which
+    validates each with the checker's own unbounded, verbatim-echoing
+    ``_check_closed``. A caller-controlled nested key (oversized, unsafe, or
+    simply unknown but admissible-length, e.g. a short private sentinel)
+    must be refused generically here first, before that reused call.
+    """
+    domains = restrictions.get("known_control_domains")
+    if not isinstance(domains, dict):
+        return True  # malformed-but-not-oversized; the reused checker reports this safely
+    ok = True
+    for domain_label, domain_keys in (("ECMWF", ECMWF_DOMAIN_KEYS), ("GEFS", GEFS_DOMAIN_KEYS)):
+        sub = domains.get(domain_label)
+        if isinstance(sub, dict) and _unsafe_untrusted_submapping(
+            sub, domain_keys, f"known_control_domains.{domain_label}", reasons
+        ):
+            ok = False
+    return ok
+
+
+def _bound_diagnostic_output(reasons: list) -> tuple:
+    """Deduplicate and sort ``reasons`` as before, but additionally enforce
+    the standing, already-reviewed ``diagnostic_output_bytes`` ceiling
+    (``FROZEN_LIMITS``) on their total serialized size, collapsing to one
+    fixed label if it is ever exceeded.
+
+    Every individual reason appended throughout this module is already
+    bounded (schema-fixed label, or a generic marker that never embeds
+    caller-supplied text), and mapping cardinality is bounded before any
+    per-key reason is even considered -- so this is a final, defense-in-depth
+    budget, not the mechanism redaction relies on. It must not depend on the
+    raw-input byte cap: that cap bounds input, not the output this function
+    returns.
+    """
+    deduped = tuple(sorted(set(reasons)))
+    budget = _limit_int(FROZEN_LIMITS, "diagnostic_output_bytes")
+    total_bytes = sum(len(reason.encode("utf-8")) for reason in deduped)
+    if total_bytes > budget:
+        return ("DIAGNOSTIC_OUTPUT_BUDGET_EXCEEDED",)
+    return deduped
 
 
 def _check_clock_quality(clock: ClockObservation, limits: Mapping, now: Any, reasons: list) -> bool:
@@ -232,13 +348,29 @@ def _check_clock_quality(clock: ClockObservation, limits: Mapping, now: Any, rea
     reading, bounded uncertainty, a non-stale calibration, a parseable
     timestamp, and -- in place of the dispatch-time window-overlap check --
     agreement between the reading and the caller's own ``now_utc`` within
-    the reading's own stated uncertainty. That last check is load-bearing:
-    without it, any clock reading that merely parses would pass regardless
-    of how far it diverges from the caller's claimed present moment, which
-    would let a forged/future-dated reading stand in for an honest one.
-    Whether the (now quality-checked) reading's timestamp falls inside some
-    future dispatch window is re-checked by the checker itself at actual
-    dispatch time.
+    the reading's own stated uncertainty. That last check is load-bearing
+    for *consistency*: without it, any clock reading that merely parses
+    would pass regardless of how far it diverges from the caller's claimed
+    present moment. Whether the (now quality-checked) reading's timestamp
+    falls inside some future dispatch window is re-checked by the checker
+    itself at actual dispatch time.
+
+    Agreement is **not**, by itself, an anti-forgery guarantee: both
+    ``measured_utc`` and ``now_utc`` are plain caller-supplied values, so a
+    consistently stale pair (both timestamps hours or days old) or a
+    consistently future-forged pair satisfies every check above exactly as
+    an honest pair does -- nothing here reads a real clock, a provider, or
+    verified retained evidence to tell them apart. Establishing that would
+    require a reviewed trusted observation/provenance boundary (e.g.
+    binding the ``clock_method_and_calibration_review`` prerequisite
+    reference to actual reviewed bytes), which does not exist anywhere in
+    this repository's reviewed protocol today and would require filesystem
+    I/O this module deliberately never performs. Until it exists, this
+    function unconditionally reports that absence as a standing
+    ``NO_REVIEWED_CLOCK_PROVENANCE_BOUNDARY`` blocker alongside whatever
+    quality floors it also finds -- the contract here is internal
+    consistency of trusted-caller assertions only, never authenticity or
+    currentness.
     """
     ok = True
     if type(clock) is not ClockObservation:
@@ -272,7 +404,14 @@ def _check_clock_quality(clock: ClockObservation, limits: Mapping, now: Any, rea
     elif uncertainty_valid and abs((measured - now).total_seconds()) > clock.uncertainty_seconds:
         reasons.append("CLOCK_DISAGREES_WITH_NOW_UTC")
         ok = False
-    return ok
+    # No reviewed trusted observation/provenance boundary for a clock
+    # reading exists anywhere in this repository's reviewed protocol (see
+    # above): agreement between two freely editable caller-supplied values
+    # is consistency, not authenticity. Report that absence unconditionally
+    # rather than silently treating consistency alone as proof of a genuine,
+    # current reading.
+    reasons.append("NO_REVIEWED_CLOCK_PROVENANCE_BOUNDARY")
+    return False
 
 
 def evaluate_fresh_window_readiness(
@@ -362,7 +501,19 @@ def evaluate_fresh_window_readiness(
                 # shifted rather than copied verbatim.
                 refusal.append("OVERLAPS_EXPIRED_WINDOW_SILENT_ROLL_FORWARD")
             else:
-                window_is_fresh = True
+                # Ordering, future-check and expired-window overlap all
+                # passed. Calling this window "fresh" would also require a
+                # reviewed duration/horizon ceiling bounding how long it may
+                # span or how far into the future it may start; no such
+                # reviewed frozen constant exists anywhere in this
+                # repository's protocol or ``FROZEN_LIMITS`` (see module
+                # docstring). Report that absence as a standing,
+                # readiness-tier blocker -- not a structural refusal, since
+                # it is not a property of this specific window's values --
+                # rather than silently treating an unbounded duration or
+                # horizon as fresh. ``window_is_fresh`` intentionally stays
+                # ``False`` until a reviewed ceiling actually exists.
+                incomplete.append("NO_REVIEWED_WINDOW_DURATION_HORIZON_POLICY")
 
     if type(restrictions_raw) is bytes:
         restrictions = _safe_parse(restrictions_raw, "restrictions", refusal)
@@ -379,7 +530,7 @@ def evaluate_fresh_window_readiness(
             storage_ready=False,
             restriction_history_preserved=False,
             missing_prerequisites=(),
-            refusal_reasons=tuple(sorted(set(refusal))),
+            refusal_reasons=_bound_diagnostic_output(refusal),
             incompleteness_reasons=(),
         )
 
@@ -419,15 +570,28 @@ def evaluate_fresh_window_readiness(
     if resources is not None and storage_qualification is not None:
         sq_dict = dict(storage_qualification)
         # _check_storage below calls the checker's raw, unbounded
-        # _check_closed internally -- guard its keys here first so an
-        # oversized or UTF-8-unsafe key is refused generically instead of
-        # being echoed verbatim by that inner call.
-        if not _has_unsafe_key(sq_dict, "storage_qualification", storage_reasons):
+        # _check_closed internally -- guard cardinality and keys here first
+        # so an oversized mapping, an oversized/UTF-8-unsafe key, or a
+        # short-but-unknown (e.g. private sentinel) key is refused
+        # generically instead of being iterated/echoed verbatim by that
+        # inner call.
+        if not _unsafe_untrusted_submapping(
+            sq_dict, STORAGE_QUALIFICATION_KEYS, "storage_qualification", storage_reasons
+        ):
             _check_storage(
                 {"limits": dict(FROZEN_LIMITS), "storage_qualification": sq_dict},
                 resources,
                 storage_reasons,
             )
+            # _check_storage enforces exact integer typing, the standing
+            # floors, and reservation agreement, but no reviewed upper
+            # bound on a plausible disk/memory/reservation byte count
+            # exists anywhere in this repository's reviewed protocol or
+            # ``FROZEN_LIMITS`` (see module docstring). Report that absence
+            # unconditionally rather than silently accepting an
+            # arbitrary-precision impossible integer (e.g. 2**64) as a
+            # genuine observation.
+            storage_reasons.append("NO_REVIEWED_RESOURCE_MAGNITUDE_CEILING")
     storage_ready = not storage_reasons
     incomplete.extend(storage_reasons)
 
@@ -438,7 +602,14 @@ def evaluate_fresh_window_readiness(
         _check_closed_bounded(restrictions, RESTRICTIONS_KEYS, "restrictions", restriction_reasons)
         if restrictions.get("schema") != RESTRICTIONS_SCHEMA_NAME:
             restriction_reasons.append("UNSUPPORTED_RESTRICTIONS_SCHEMA_VERSION")
-        _check_restriction_domains(restrictions, restriction_reasons)
+        # _check_restriction_domains below validates the nested ECMWF/GEFS
+        # domain mappings with the checker's own unbounded, verbatim-echoing
+        # _check_closed internally -- guard those nested mappings here first,
+        # same as storage_qualification above, so an oversized/unsafe or
+        # short-but-unknown nested key is refused generically instead of
+        # being echoed verbatim by that inner call.
+        if _check_nested_domain_bounded(restrictions, restriction_reasons):
+            _check_restriction_domains(restrictions, restriction_reasons)
     restriction_history_preserved = not restriction_reasons
     incomplete.extend(restriction_reasons)
 
@@ -453,5 +624,5 @@ def evaluate_fresh_window_readiness(
         restriction_history_preserved=restriction_history_preserved,
         missing_prerequisites=tuple(sorted(set(missing_prerequisites))),
         refusal_reasons=(),
-        incompleteness_reasons=tuple(sorted(set(incomplete))),
+        incompleteness_reasons=_bound_diagnostic_output(incomplete),
     )

@@ -66,20 +66,22 @@ outcomes, each with a closed, non-promotable label:
   (malformed window, window not strictly in the future, window byte-for-byte
   identical to the known expired October 2 window — i.e. a silent
   roll-forward attempt —, `automatic_roll_forward` not exactly `False`,
-  wrong-typed input, unparseable restriction JSON, unknown/missing schema
-  key). Nothing downstream is evaluated once this fires.
+  wrong-typed input, unparseable restriction JSON, oversized/unsafe key, too
+  many keys for a closed schema, or a same-cardinality unknown key). Nothing
+  downstream is evaluated once this fires.
 - `PREPARATION_INCOMPLETE_PREREQUISITES_MISSING` — the inputs are
   structurally sound but one or more of: a null/malformed prerequisite
   reference, no clock observation supplied, an out-of-floor clock (source,
   monotonicity, uncertainty, calibration age, or disagreement between the
   reading and the caller's own `now_utc` beyond the reading's own stated
   uncertainty), no storage observation/qualification supplied, an
-  under-floor physical storage reservation, or a restriction-history record
-  that does not demonstrate the
-  retained ECMWF holds / GEFS lineage block are both present and
-  unmodified. This is the expected, honest result today: every real
-  prerequisite in the committed binding is still null, so feeding that real
-  state into this planner (see the test
+  under-floor or inconsistent physical storage reservation, a
+  restriction-history record that does not demonstrate the retained ECMWF
+  holds / GEFS lineage block are both present and unmodified, **or one of
+  three standing policy/trust-boundary gaps that this revision added and
+  that always fire today** (see below). This is the expected, honest result
+  today: every real prerequisite in the committed binding is still null, so
+  feeding that real state into this planner (see the test
   `test_real_binding_prerequisites_remain_incomplete_today`) reports all
   twelve missing, never a fabricated pass.
 - `PREPARATION_CANDIDATE_ALL_INPUTS_PRESENT_NOT_EXECUTABLE` — every
@@ -91,6 +93,50 @@ outcomes, each with a closed, non-promotable label:
   unless every one of `window_is_fresh`/`clock_ready`/`storage_ready`/
   `restriction_history_preserved` is true and `missing_prerequisites` is
   empty — not a status label a caller can spoof by only checking `outcome`.
+  **As of this revision this outcome is unreachable** — see "Three standing
+  blockers" below — until a later, separately reviewed change actually
+  establishes the missing policy or trust boundary.
+
+## Three standing blockers added by this revision (independent-review R2/R3/R4)
+
+An independent Codex GPT-6 Astra/high review of the prior candidate
+(`8dd8054`) found that, despite every other check passing, the planner could
+still report `window_is_fresh=True`/`clock_ready=True`/`storage_ready=True`
+for inputs that should not honestly be called ready: an unbounded window
+duration/horizon, an arbitrary-precision impossible resource integer (e.g.
+`2**64` bytes of disk), and a clock reading that is internally consistent
+with the caller's own `now_utc` but could just as easily be a stale or
+future-forged pair as an honest one. In each case, no reviewed numeric
+policy or trust boundary for the missing dimension exists anywhere in this
+repository's reviewed protocol or `FROZEN_LIMITS` today, and inventing one
+here would itself be exactly the kind of unsupported value this module
+exists to avoid.
+
+This revision therefore treats the **absence** of each reviewed
+policy/boundary as its own standing, honestly-named, always-firing
+incompleteness reason, rather than silently treating the unbounded case as
+ready:
+
+- `NO_REVIEWED_WINDOW_DURATION_HORIZON_POLICY` — fires for every
+  structurally valid window, including an entirely ordinary few-hour one
+  (`window_is_fresh` stays `False`).
+- `NO_REVIEWED_RESOURCE_MAGNITUDE_CEILING` — fires for every evaluated
+  storage observation, in addition to (not instead of) the standing floor,
+  exact-type and reservation-equality checks, which are unchanged
+  (`storage_ready` stays `False`).
+- `NO_REVIEWED_CLOCK_PROVENANCE_BOUNDARY` — fires for every evaluated clock
+  observation, in addition to (not instead of) the standing quality-floor
+  checks, which are unchanged (`clock_ready` stays `False`).
+
+The practical effect is that `PREPARATION_CANDIDATE_ALL_INPUTS_PRESENT_NOT_EXECUTABLE`
+cannot currently be produced by any input. That is the intended, honest
+result given today's actual reviewed-policy landscape, not a defect: this
+project consistently prefers an explicit blocker to an invented threshold
+(see `tools/v11_gate3_fresh_window_readiness.py` module docstring for the
+full reasoning on each of the three). Closing any one of them for real
+requires a separate, later, independently reviewed addition that actually
+defines the missing numeric ceiling or provenance boundary — not a change
+to this planner's own judgment.
 
 ## Why key logic is reused, not reimplemented
 
@@ -116,15 +162,26 @@ before a future window opens impossible to satisfy. This module's own
 `_check_clock_quality` instead checks the reading's method/quality (source,
 monotonicity, uncertainty, calibration age) plus that the reading agrees
 with the caller's own `now_utc` within the reading's own stated
-uncertainty -- that agreement check is what stops a forged/future-dated
-reading from substituting for an honest one now that window-containment is
-not required. Restriction bytes are now parsed through the checker's own
-`_safe_parse`/`MAX_RAW_BYTES` size cap rather than an unbounded
-`strict_json_loads` call, and every closed-key check in this module
-(`proposed_window`, `prerequisites`, `restrictions`,
-`storage_qualification`) goes through a local `_check_closed_bounded`
-wrapper that refuses an oversized or non-UTF-8-encodable key generically,
-before it could be echoed verbatim by the checker's own `_check_closed`.
+uncertainty -- that agreement check demonstrates internal *consistency*
+between two caller-supplied values, not authenticity (see "Three standing
+blockers" above: a matching stale or future-forged pair passes it exactly
+as an honest pair does, which is why `clock_ready` additionally always
+reports the standing `NO_REVIEWED_CLOCK_PROVENANCE_BOUNDARY` gap). Restriction
+bytes are parsed through the checker's own `_safe_parse`/`MAX_RAW_BYTES`
+size cap rather than an unbounded `strict_json_loads` call. Every closed-key
+check in this module (`proposed_window`, `prerequisites`, `restrictions`)
+goes through a local `_check_closed_bounded` wrapper that bounds mapping
+cardinality against the schema's own fixed key count before doing any
+per-key work, and never embeds a caller-supplied key -- oversized,
+non-UTF-8-encodable, or simply unrecognized (e.g. a short private
+sentinel) -- verbatim into a reason string; `storage_qualification` and the
+nested `known_control_domains.ECMWF`/`.GEFS` mappings go through the
+equivalent `_unsafe_untrusted_submapping` go/no-go guard before being
+handed to the checker's own unbounded, verbatim-echoing `_check_storage`/
+`_check_restriction_domains`. A final `_bound_diagnostic_output` step caps
+the total serialized size of every returned reason list against the
+already-reviewed `diagnostic_output_bytes` frozen limit, as defense in
+depth independent of the raw-input byte cap.
 
 ## What this candidate is not
 
@@ -150,10 +207,9 @@ before it could be echoed verbatim by the checker's own `_check_closed`.
 ## Verification run this session
 
 ```
-python -m pytest tests/test_v11_gate3_fresh_window_readiness.py -q      # 43 passed
-python -O -m pytest tests/test_v11_gate3_fresh_window_readiness.py -q   # 43 passed, 1 unrelated pytest-config warning
-python -m pytest tests/test_v11_gate3_evidence_preflight_checker.py -q  # 472 passed, unmodified file
-python -m py_compile tools/v11_gate3_fresh_window_readiness.py tests/test_v11_gate3_fresh_window_readiness.py   # clean
+python -B -m pytest tests/test_v11_gate3_fresh_window_readiness.py tests/test_v11_gate3_evidence_preflight_checker.py -q   # 531 passed (59 planner + 472 checker, unmodified)
+python -O -B -m pytest tests/test_v11_gate3_fresh_window_readiness.py tests/test_v11_gate3_evidence_preflight_checker.py -q   # 531 passed, 1 unrelated pytest-config warning
+python -m py_compile tools/v11_gate3_fresh_window_readiness.py tests/test_v11_gate3_fresh_window_readiness.py tools/v11_gate3_evidence_preflight_checker.py   # clean
 git diff --check                                                        # clean
 ```
 
@@ -178,11 +234,47 @@ F2 was not fully closed for `storage_qualification` (which reaches the
 checker's own unbounded `_check_closed` through `_check_storage`,
 including a short-but-UTF-8-unsafe lone-surrogate key that a length-only
 bound would miss) and that this document still described the old,
-superseded clock logic. Both are fixed in this revision: a
-`_has_unsafe_key` guard is applied to `storage_qualification` before
-`_check_storage` runs, and this document now describes
-`_check_clock_quality` and the bounded-key wrapper accurately. 7 tests
-were added across the two repair passes (43 total).
+superseded clock logic. Both were fixed in commit `8dd8054`: a
+`_has_unsafe_key` guard was applied to `storage_qualification` before
+`_check_storage` ran, and this document described `_check_clock_quality`
+and the bounded-key wrapper accurately as of that commit (43 tests).
+
+An independent Codex GPT-6 Astra/high exact-commit review of `8dd8054`
+found that revision's bounding was still incomplete and its freshness
+claims too broad, returning `CHANGES_REQUIRED` with four findings:
+mapping cardinality and nested `known_control_domains.ECMWF`/`.GEFS`/
+`storage_qualification` keys were still unbounded in aggregate work and
+output, and a short private-sentinel key could still be echoed if it
+replaced (rather than added to) an expected key (R1); no window
+duration/horizon ceiling existed, so a 100-year window, a `9999`-dated
+horizon, and a one-microsecond window all reported `window_is_fresh=True`
+(R2); disk/memory/reservation integers of `2**64` or `10**400` still
+passed every check (R3); and a clock reading that matches the caller's own
+`now_utc` but is itself stale or future-forged by hours, days, or
+millennia passed every quality floor exactly as an honest reading does,
+because agreement is consistency, not authenticity (R4).
+
+This revision fixes all four. R1: `_check_closed_bounded` now refuses on
+mapping cardinality alone (bounded by the schema's own fixed key count)
+before any per-key work, and a same-cardinality unknown key is reported
+generically (`UNKNOWN_KEY:<label>`, no key text) rather than individually
+echoed; the same bounding (`_unsafe_untrusted_submapping`,
+`_check_nested_domain_bounded`) now also gates `storage_qualification` and
+the nested ECMWF/GEFS mappings before they reach the checker's own
+unbounded `_check_closed`; a final `_bound_diagnostic_output` step caps
+total reason output against the already-reviewed `diagnostic_output_bytes`
+frozen limit. R2/R3/R4: rather than invent a numeric duration/horizon
+ceiling, resource magnitude ceiling, or clock-provenance boundary — none of
+which exists anywhere in this repository's reviewed protocol or
+`FROZEN_LIMITS` — each is now an explicit, always-firing, honestly-named
+incompleteness reason (`NO_REVIEWED_WINDOW_DURATION_HORIZON_POLICY`,
+`NO_REVIEWED_RESOURCE_MAGNITUDE_CEILING`,
+`NO_REVIEWED_CLOCK_PROVENANCE_BOUNDARY`; see "Three standing blockers"
+above). **This means `PREPARATION_CANDIDATE_ALL_INPUTS_PRESENT_NOT_EXECUTABLE`
+is not reachable by any input as of this revision** — an intentional,
+honest consequence of there being no reviewed policy for any of the three
+gaps today, not a regression in what this planner can detect. 16 tests
+were added in this pass (59 total).
 
 ## Required before any further promotion
 
@@ -195,3 +287,12 @@ twelve prerequisites it currently reports missing must be genuinely
 satisfied by real reviewed evidence before any real package is authored.
 This document does not request, imply, or schedule that evidence; it only
 builds the tool that will report honestly once it exists.
+
+Separately, and not requested or scheduled by this document either: before
+`PREPARATION_CANDIDATE_ALL_INPUTS_PRESENT_NOT_EXECUTABLE` can ever be
+produced again, a later, independently reviewed change must actually
+establish one or more of the three standing gaps above — a reviewed window
+duration/horizon ceiling, a reviewed resource/reservation magnitude
+ceiling, and a reviewed trusted clock-observation provenance boundary. This
+planner does not propose candidate values for any of them; doing so here
+would be exactly the invented-threshold problem this revision fixed.

@@ -138,18 +138,28 @@ def _call(**overrides):
 
 # -- Positive path -------------------------------------------------------
 
-def test_fully_satisfied_synthetic_inputs_are_candidate_not_executable():
+def test_fully_satisfied_synthetic_inputs_are_blocked_on_three_standing_gaps():
+    """Every structural/safety check passes and every prerequisite reference
+    is present, but ``PREPARATION_CANDIDATE_*`` remains unreachable: no
+    reviewed window duration/horizon ceiling, resource magnitude ceiling, or
+    clock provenance boundary exists anywhere in the standing protocol, so
+    each is reported as its own standing, honestly-named blocker rather than
+    silently treated as satisfied (independent-review findings R2/R3/R4)."""
     result = _call()
-    assert result.outcome == OUTCOME_CANDIDATE
+    assert result.outcome == OUTCOME_INCOMPLETE
     assert result.outcome in ALLOWED_OUTCOMES
     assert result.outcome not in FORBIDDEN_OUTCOME_LABELS
-    assert result.window_is_fresh is True
-    assert result.clock_ready is True
-    assert result.storage_ready is True
+    assert result.window_is_fresh is False
+    assert result.clock_ready is False
+    assert result.storage_ready is False
     assert result.restriction_history_preserved is True
     assert result.missing_prerequisites == ()
     assert result.refusal_reasons == ()
-    assert result.incompleteness_reasons == ()
+    assert set(result.incompleteness_reasons) == {
+        "NO_REVIEWED_WINDOW_DURATION_HORIZON_POLICY",
+        "NO_REVIEWED_RESOURCE_MAGNITUDE_CEILING",
+        "NO_REVIEWED_CLOCK_PROVENANCE_BOUNDARY",
+    }
     assert result.eligibility == ELIGIBILITY_LABEL
     assert result.schema == SCHEMA
 
@@ -157,7 +167,7 @@ def test_fully_satisfied_synthetic_inputs_are_candidate_not_executable():
 def test_result_to_dict_is_json_serializable():
     result = _call()
     encoded = json.dumps(result.to_dict())
-    assert "PREPARATION_CANDIDATE" in encoded
+    assert "PREPARATION_INCOMPLETE" in encoded
 
 
 def test_never_emits_a_forbidden_promotion_label():
@@ -229,11 +239,31 @@ def test_refuses_unparseable_now_utc():
     assert "UNPARSEABLE_NOW_UTC" in result.refusal_reasons
 
 
-def test_refuses_unknown_window_key():
+def test_refuses_too_many_keys_without_echoing_the_extra_window_key():
+    # The schema is closed (3 keys); one extra key is already more than the
+    # schema permits, so this is refused on cardinality alone before any
+    # per-key reason (echoing or otherwise) is even considered.
     extra = dict(FRESH_WINDOW, unexpected="x")
     result = _call(proposed_window=extra)
     assert result.outcome == OUTCOME_REFUSED
-    assert "UNKNOWN_KEY:proposed_window.unexpected" in result.refusal_reasons
+    assert "TOO_MANY_KEYS:proposed_window" in result.refusal_reasons
+    assert "unexpected" not in " ".join(result.refusal_reasons)
+
+
+def test_refuses_same_cardinality_unknown_window_key_without_echoing_it():
+    # Same key count as the schema (3), but one expected key is replaced by
+    # an unknown one: cardinality alone cannot catch this, so the unknown-key
+    # check must still refuse without ever embedding the caller's key text.
+    swapped = {
+        "dispatch_not_before_utc": FRESH_WINDOW["dispatch_not_before_utc"],
+        "expires_utc": FRESH_WINDOW["expires_utc"],
+        "PRIVATE_TOKEN_SENTINEL": False,
+    }
+    result = _call(proposed_window=swapped)
+    assert result.outcome == OUTCOME_REFUSED
+    assert "UNKNOWN_KEY:proposed_window" in result.refusal_reasons
+    assert "MISSING_KEY:proposed_window.automatic_roll_forward" in result.refusal_reasons
+    assert "PRIVATE_TOKEN_SENTINEL" not in " ".join(result.refusal_reasons)
 
 
 def test_refuses_missing_window_key():
@@ -243,12 +273,27 @@ def test_refuses_missing_window_key():
     assert "MISSING_KEY:proposed_window.expires_utc" in result.refusal_reasons
 
 
-def test_refuses_unknown_prerequisite_key():
+def test_refuses_too_many_keys_without_echoing_the_extra_prerequisite_key():
+    # The schema is closed (12 keys); one extra key already exceeds that,
+    # so this is refused on cardinality alone, before any per-key reason.
     prereqs = _full_prerequisites()
     prereqs["unexpected_extra_prereq"] = _ref("extra")
     result = _call(prerequisites=prereqs)
     assert result.outcome == OUTCOME_REFUSED
-    assert "UNKNOWN_KEY:prerequisites.unexpected_extra_prereq" in result.refusal_reasons
+    assert "TOO_MANY_KEYS:prerequisites" in result.refusal_reasons
+    assert "unexpected_extra_prereq" not in " ".join(result.refusal_reasons)
+
+
+def test_refuses_many_individually_admissible_extra_prerequisite_keys():
+    # 1,000 distinct, individually valid-length extra keys must still be
+    # refused on cardinality alone -- not iterated into 1,000 reasons.
+    prereqs = _full_prerequisites()
+    for i in range(1000):
+        prereqs[f"extra_admissible_key_{i}" * 20] = "x"
+    result = _call(prerequisites=prereqs)
+    assert result.outcome == OUTCOME_REFUSED
+    assert result.refusal_reasons == ("TOO_MANY_KEYS:prerequisites",)
+    assert sum(len(r.encode("utf-8")) for r in result.refusal_reasons) < 1000
 
 
 def test_refuses_missing_prerequisite_key():
@@ -273,9 +318,15 @@ def test_refuses_oversized_restrictions_raw():
 
 
 def test_refuses_oversized_key_without_echoing_it():
+    # Same cardinality as the schema (3 keys): one is replaced by a huge
+    # key, so this exercises the unsafe-key check specifically, not the
+    # cardinality check (covered separately above).
     huge_key = "x" * 5_000_000
-    extra = dict(FRESH_WINDOW)
-    extra[huge_key] = "y"
+    extra = {
+        "dispatch_not_before_utc": FRESH_WINDOW["dispatch_not_before_utc"],
+        "expires_utc": FRESH_WINDOW["expires_utc"],
+        huge_key: "y",
+    }
     result = _call(proposed_window=extra)
     assert result.outcome == OUTCOME_REFUSED
     assert "OVERSIZED_OR_INVALID_KEY:proposed_window" in result.refusal_reasons
@@ -285,9 +336,14 @@ def test_refuses_oversized_key_without_echoing_it():
 def test_lone_surrogate_key_is_refused_without_echoing_it():
     # A lone UTF-16 surrogate code point is short (passes any length bound)
     # but cannot be UTF-8 encoded; it must still be caught and must never
-    # be embedded verbatim into a reason string.
-    extra = dict(FRESH_WINDOW)
-    extra["\ud800"] = "y"
+    # be embedded verbatim into a reason string. Same cardinality as the
+    # schema (3 keys), so this exercises the unsafe-key check, not
+    # cardinality.
+    extra = {
+        "dispatch_not_before_utc": FRESH_WINDOW["dispatch_not_before_utc"],
+        "expires_utc": FRESH_WINDOW["expires_utc"],
+        "\ud800": "y",
+    }
     result = _call(proposed_window=extra)
     assert result.outcome == OUTCOME_REFUSED
     assert "OVERSIZED_OR_INVALID_KEY:proposed_window" in result.refusal_reasons
@@ -296,14 +352,38 @@ def test_lone_surrogate_key_is_refused_without_echoing_it():
 
 
 def test_oversized_storage_qualification_key_is_incomplete_not_echoed():
+    # Same cardinality as the schema (3 keys): one is replaced by a huge
+    # key, so this exercises the unsafe-key check specifically, not the
+    # cardinality check.
     huge_key = "x" * 5_000_000
     bad_storage = dict(GOOD_STORAGE_QUALIFICATION)
+    del bad_storage["live_ledger_created"]
     bad_storage[huge_key] = "y"
     result = _call(storage_qualification=bad_storage)
     assert result.outcome == OUTCOME_INCOMPLETE
     assert result.storage_ready is False
     assert "OVERSIZED_OR_INVALID_KEY:storage_qualification" in result.incompleteness_reasons
     assert all(len(reason) < 1000 for reason in result.incompleteness_reasons)
+
+
+def test_too_many_storage_qualification_keys_is_incomplete_not_echoed():
+    bad_storage = dict(GOOD_STORAGE_QUALIFICATION, PRIVATE_TOKEN_SENTINEL="x" * 4000)
+    result = _call(storage_qualification=bad_storage)
+    assert result.outcome == OUTCOME_INCOMPLETE
+    assert result.storage_ready is False
+    assert "TOO_MANY_KEYS:storage_qualification" in result.incompleteness_reasons
+    assert "PRIVATE_TOKEN_SENTINEL" not in " ".join(result.incompleteness_reasons)
+
+
+def test_same_cardinality_unknown_storage_qualification_key_not_echoed():
+    bad_storage = dict(GOOD_STORAGE_QUALIFICATION)
+    del bad_storage["live_ledger_created"]
+    bad_storage["PRIVATE_TOKEN_SENTINEL"] = True
+    result = _call(storage_qualification=bad_storage)
+    assert result.outcome == OUTCOME_INCOMPLETE
+    assert result.storage_ready is False
+    assert "UNKNOWN_KEY:storage_qualification" in result.incompleteness_reasons
+    assert "PRIVATE_TOKEN_SENTINEL" not in " ".join(result.incompleteness_reasons)
 
 
 def test_refuses_restrictions_raw_wrong_type():
@@ -381,7 +461,13 @@ def test_future_dated_clock_disagreeing_with_now_utc_is_incomplete():
     assert "CLOCK_DISAGREES_WITH_NOW_UTC" in result.incompleteness_reasons
 
 
-def test_honest_clock_within_uncertainty_of_now_utc_is_ready():
+def test_honest_clock_within_uncertainty_of_now_utc_clears_quality_floors_only():
+    """An honest, well-calibrated clock reading clears every quality floor
+    (source, monotonicity, uncertainty, calibration age, agreement with
+    ``now_utc``) -- none of those reasons appear -- but ``clock_ready``
+    still reports False: agreement alone is consistency, not a reviewed
+    provenance/authenticity guarantee (R4), so the standing
+    ``NO_REVIEWED_CLOCK_PROVENANCE_BOUNDARY`` blocker remains."""
     honest_clock = ClockObservation(
         measured_utc=NOW_UTC,
         uncertainty_seconds=0.3,
@@ -389,8 +475,19 @@ def test_honest_clock_within_uncertainty_of_now_utc_is_ready():
         monotonic_consistent=True,
     )
     result = _call(clock=honest_clock)
-    assert result.outcome == OUTCOME_CANDIDATE
-    assert result.clock_ready is True
+    assert result.outcome == OUTCOME_INCOMPLETE
+    assert result.clock_ready is False
+    assert result.incompleteness_reasons == (
+        "NO_REVIEWED_CLOCK_PROVENANCE_BOUNDARY",
+        "NO_REVIEWED_RESOURCE_MAGNITUDE_CEILING",
+        "NO_REVIEWED_WINDOW_DURATION_HORIZON_POLICY",
+    )
+    for unwanted in (
+        "INVALID_CLOCK_SOURCE", "NONMONOTONIC_CLOCK", "INVALID_CLOCK_UNCERTAINTY",
+        "EXCESSIVE_CLOCK_UNCERTAINTY", "INVALID_CALIBRATION_AGE",
+        "EXPIRED_CLOCK_CALIBRATION", "UNPARSEABLE_CLOCK", "CLOCK_DISAGREES_WITH_NOW_UTC",
+    ):
+        assert unwanted not in result.incompleteness_reasons
 
 
 def test_insufficient_clock_uncertainty_is_incomplete():
@@ -460,6 +557,200 @@ def test_missing_owner_directive_qualification_is_incomplete():
     result = _call(prerequisites=prereqs)
     assert result.outcome == OUTCOME_INCOMPLETE
     assert "MALFORMED_PREREQUISITE_REFERENCE:owner_directive_original_record" in result.incompleteness_reasons
+
+
+# -- R1: bounded/redacted diagnostics for nested restriction domains ------
+
+def _restrictions_with_ecmwf_override(**overrides) -> bytes:
+    restrictions = json.loads(_synthetic_restrictions_raw())
+    restrictions["known_control_domains"]["ECMWF"].update(overrides)
+    return json.dumps(restrictions).encode()
+
+
+def test_too_many_nested_ecmwf_domain_keys_is_incomplete_not_echoed():
+    raw = _restrictions_with_ecmwf_override(PRIVATE_TOKEN_SENTINEL="x" * 900_000)
+    result = _call(restrictions_raw=raw)
+    assert result.outcome == OUTCOME_INCOMPLETE
+    assert result.restriction_history_preserved is False
+    assert "TOO_MANY_KEYS:known_control_domains.ECMWF" in result.incompleteness_reasons
+    assert "PRIVATE_TOKEN_SENTINEL" not in " ".join(result.incompleteness_reasons)
+    assert "x" * 100 not in " ".join(result.incompleteness_reasons)
+    assert all(len(reason) < 1000 for reason in result.incompleteness_reasons)
+
+
+def test_same_cardinality_unknown_nested_gefs_domain_key_not_echoed():
+    restrictions = json.loads(_synthetic_restrictions_raw())
+    gefs = restrictions["known_control_domains"]["GEFS"]
+    del gefs["status"]
+    gefs["PRIVATE_TOKEN_SENTINEL"] = "x"
+    raw = json.dumps(restrictions).encode()
+    result = _call(restrictions_raw=raw)
+    assert result.outcome == OUTCOME_INCOMPLETE
+    assert result.restriction_history_preserved is False
+    assert "UNKNOWN_KEY:known_control_domains.GEFS" in result.incompleteness_reasons
+    assert "PRIVATE_TOKEN_SENTINEL" not in " ".join(result.incompleteness_reasons)
+
+
+def test_overall_diagnostic_output_is_bounded_across_many_simultaneous_issues():
+    # Stack cardinality violations across every bounded mapping at once;
+    # the aggregate serialized reason output must still stay far below the
+    # raw-input byte cap, confirming redaction does not rely on that cap.
+    extra_window = dict(FRESH_WINDOW, **{f"extra_{i}": "x" * 100 for i in range(50)})
+    prereqs = _full_prerequisites()
+    for i in range(50):
+        prereqs[f"extra_prereq_{i}" * 10] = "x" * 100
+    bad_storage = dict(GOOD_STORAGE_QUALIFICATION, **{f"extra_{i}": "x" * 100 for i in range(50)})
+    raw = _restrictions_with_ecmwf_override(**{f"extra_{i}": "x" * 100 for i in range(50)})
+    result = _call(
+        proposed_window=extra_window, prerequisites=prereqs,
+        storage_qualification=bad_storage, restrictions_raw=raw,
+    )
+    assert result.outcome == OUTCOME_REFUSED
+    total_bytes = sum(len(r.encode("utf-8")) for r in result.refusal_reasons)
+    assert total_bytes < 1_048_576
+    assert total_bytes < 10_000
+
+
+# -- R2: explicit duration/horizon policy, never an invented threshold ----
+
+def test_absurd_hundred_year_duration_is_blocked_same_as_ordinary_window():
+    result = _call(proposed_window={
+        "automatic_roll_forward": False,
+        "dispatch_not_before_utc": "2026-10-05T10:00:00Z",
+        "expires_utc": "2126-10-05T10:00:00Z",
+    })
+    assert result.outcome == OUTCOME_INCOMPLETE
+    assert result.window_is_fresh is False
+    assert "NO_REVIEWED_WINDOW_DURATION_HORIZON_POLICY" in result.incompleteness_reasons
+
+
+def test_extreme_future_horizon_is_blocked_same_as_ordinary_window():
+    result = _call(proposed_window={
+        "automatic_roll_forward": False,
+        "dispatch_not_before_utc": "9999-01-01T10:00:00Z",
+        "expires_utc": "9999-01-01T13:30:00Z",
+    })
+    assert result.outcome == OUTCOME_INCOMPLETE
+    assert result.window_is_fresh is False
+    assert "NO_REVIEWED_WINDOW_DURATION_HORIZON_POLICY" in result.incompleteness_reasons
+
+
+def test_one_microsecond_duration_is_blocked_same_as_ordinary_window():
+    result = _call(proposed_window={
+        "automatic_roll_forward": False,
+        "dispatch_not_before_utc": "2026-10-05T10:00:00Z",
+        "expires_utc": "2026-10-05T10:00:00.000001Z",
+    })
+    assert result.outcome == OUTCOME_INCOMPLETE
+    assert result.window_is_fresh is False
+    assert "NO_REVIEWED_WINDOW_DURATION_HORIZON_POLICY" in result.incompleteness_reasons
+
+
+def test_ordinary_duration_window_is_blocked_identically_proving_no_hidden_threshold():
+    # The FRESH_WINDOW fixture (3.5 hours, near-term) is as reasonable a
+    # window as this planner will ever see. It is blocked by the exact same
+    # named reason as the absurd cases above -- proving the gap is a
+    # genuine absence of reviewed policy, not a hidden threshold that
+    # merely exempts "normal-looking" windows.
+    result = _call()
+    assert result.window_is_fresh is False
+    assert "NO_REVIEWED_WINDOW_DURATION_HORIZON_POLICY" in result.incompleteness_reasons
+
+
+# -- R3: integer magnitude/plausibility, never an invented ceiling --------
+
+def test_resource_magnitude_boundary_values_all_blocked_identically():
+    for disk_bytes in (
+        2_147_483_648, 2_147_483_647 + 1, 2 ** 64, 10 ** 400,
+    ):
+        resources = ResourceObservation(
+            free_disk_bytes_after_reservation=disk_bytes,
+            mem_available_bytes_after_reservation=600_000_000,
+            physically_reserved_bytes=67_108_864,
+        )
+        result = _call(resources=resources)
+        assert result.storage_ready is False
+        assert "NO_REVIEWED_RESOURCE_MAGNITUDE_CEILING" in result.incompleteness_reasons
+
+
+def test_huge_reservation_still_requires_exact_equality_with_observation():
+    # The standing reservation-agreement check is preserved: a huge
+    # qualification reservation that does not match the resource
+    # observation's own huge reservation is still flagged distinctly,
+    # alongside (not instead of) the missing-ceiling blocker.
+    huge = 2 ** 64
+    storage_qualification = dict(GOOD_STORAGE_QUALIFICATION, physically_reserved_bytes=huge)
+    resources = ResourceObservation(
+        free_disk_bytes_after_reservation=3_300_000_000,
+        mem_available_bytes_after_reservation=600_000_000,
+        physically_reserved_bytes=huge + 1,
+    )
+    result = _call(storage_qualification=storage_qualification, resources=resources)
+    assert result.storage_ready is False
+    assert "INCONSISTENT_STORAGE_RESERVATION" in result.incompleteness_reasons
+    assert "NO_REVIEWED_RESOURCE_MAGNITUDE_CEILING" in result.incompleteness_reasons
+
+
+def test_huge_matching_reservation_passes_equality_but_still_blocked_on_ceiling():
+    # A huge reservation that *does* agree between both claims satisfies the
+    # standing equality/floor checks (no floor or equality reason fires),
+    # but the missing-ceiling blocker alone still prevents storage_ready.
+    huge = 2 ** 64
+    storage_qualification = dict(GOOD_STORAGE_QUALIFICATION, physically_reserved_bytes=huge)
+    resources = ResourceObservation(
+        free_disk_bytes_after_reservation=3_300_000_000,
+        mem_available_bytes_after_reservation=600_000_000,
+        physically_reserved_bytes=huge,
+    )
+    result = _call(storage_qualification=storage_qualification, resources=resources)
+    assert result.storage_ready is False
+    assert result.incompleteness_reasons == (
+        "NO_REVIEWED_CLOCK_PROVENANCE_BOUNDARY",
+        "NO_REVIEWED_RESOURCE_MAGNITUDE_CEILING",
+        "NO_REVIEWED_WINDOW_DURATION_HORIZON_POLICY",
+    )
+
+
+# -- R4: no trusted provenance boundary for a clock reading ---------------
+
+def test_matching_stale_clock_pair_cannot_make_an_expired_looking_window_fresh():
+    # Both now_utc and the clock's own measured_utc agree with each other
+    # (internally consistent) but are a full day stale relative to the
+    # actual review clock; the standing provenance blocker, not a silently
+    # granted freshness, is what prevents this from reading as ready.
+    stale_now = "2026-10-01T00:00:00Z"
+    stale_clock = ClockObservation(
+        measured_utc=stale_now,
+        uncertainty_seconds=0.3,
+        calibration_age_seconds=10.0,
+        monotonic_consistent=True,
+    )
+    result = _call(now_utc=stale_now, clock=stale_clock, proposed_window={
+        "automatic_roll_forward": False,
+        "dispatch_not_before_utc": "2026-10-02T13:30:00Z",
+        "expires_utc": "2026-10-02T17:00:00Z",
+    })
+    assert result.clock_ready is False
+    assert "NO_REVIEWED_CLOCK_PROVENANCE_BOUNDARY" in result.incompleteness_reasons
+    assert "CLOCK_DISAGREES_WITH_NOW_UTC" not in result.incompleteness_reasons
+
+
+def test_matching_future_forged_clock_pair_is_also_blocked_on_provenance():
+    future_now = "9999-01-01T00:00:00Z"
+    future_clock = ClockObservation(
+        measured_utc=future_now,
+        uncertainty_seconds=0.3,
+        calibration_age_seconds=10.0,
+        monotonic_consistent=True,
+    )
+    result = _call(now_utc=future_now, clock=future_clock, proposed_window={
+        "automatic_roll_forward": False,
+        "dispatch_not_before_utc": "9999-01-02T10:00:00Z",
+        "expires_utc": "9999-01-02T13:30:00Z",
+    })
+    assert result.clock_ready is False
+    assert "NO_REVIEWED_CLOCK_PROVENANCE_BOUNDARY" in result.incompleteness_reasons
+    assert "CLOCK_DISAGREES_WITH_NOW_UTC" not in result.incompleteness_reasons
 
 
 # -- Result invariants ----------------------------------------------------
