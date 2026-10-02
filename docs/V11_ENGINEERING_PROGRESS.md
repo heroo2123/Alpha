@@ -1,3 +1,13 @@
+## Coordinator recovery — 2026-10-02 06:11 UTC
+
+Recovered clean `569eb31` (prior owner-handoff documentation only), no separate
+Alpha worker, clean SHADOW/Brain worktrees, and preserved ECMWF backfill. No
+new checked forward artifact or release test result appeared. PAPER scanner is
+inactive/disabled, execution inactive/masked, protected authority roots absent,
+and disk below G3-L's 2 GiB floor. The reviewed section-3 owner choice remains
+pending; no preflight exception or G3-L permission was inferred. No C/J/E/A
+crossing: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Coordinator recovery — 2026-10-02 06:07 UTC
 
 Recovered clean main `8d71576`, clean SHADOW/Brain worktrees, preserved ECMWF

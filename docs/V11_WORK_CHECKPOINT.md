@@ -1,3 +1,24 @@
+## Coordinator recovery — 2026-10-02 06:11 UTC
+
+Recovered clean main `569eb31`, one documentation-only commit after the 06:07
+checkpoint. No separate Alpha implementation/review worker or pytest process is
+live. SHADOW `15e99bd` and Brain-readiness `58b0b79` remain clean; ECMWF's
+untracked `backfill_data/` is preserved. No SHADOW or Brain worktree file newer
+than 06:07 was found. The protected FINAL-REVIEWED master still hashes to
+`a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+Reviewed R1 and Gate 2 remain ancestors of main; the accepted release result is
+historical, with no new full-suite failure or rerun.
+
+PAPER scanner remains inactive/disabled; weather execution is inactive/masked.
+Protected V11 authority roots remain absent. Free disk is 879,996,928 bytes,
+below the 2 GiB G3-L floor; available memory is 1,122,840,576 bytes. The
+accepted bootstrap packet's section-3 owner choice remains pending. There is no
+new qualifying offline current-run input, safe provider request, independent
+writer task, or forward SHADOW sample. No V10, AxiomTrade, service, authority,
+financial or publication action was taken. No C/J/E/A boundary crossed:
+**A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO; 91/200, formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Coordinator recovery and owner decision request — 2026-10-02 06:07 UTC
 
 Recovered clean main `8d71576` (175 commits ahead of tracking) after the accepted
