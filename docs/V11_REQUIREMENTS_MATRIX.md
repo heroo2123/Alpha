@@ -1,5 +1,9 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## G3-L current-window screen — 2026-10-02 03:25 UTC
+
+The local-only 2026-10-02 PRE_REVIEW screen exits 2: `BLOCKED_MISSING_REVIEWED_EVIDENCE`, `launchable=false`, zero of 2,713 attempt slots, 77 missing identities and an expired review-before-window identity. At observation, free disk was 1,084,329,984 bytes, 1,063,153,664 below the 2 GiB floor. B1's sole isolated retry runner remains alive awaiting its 04:20 UTC provider reset; no candidate or exact review exists. This changes no row acceptance or C/J/E/A score: **91/200 (45.5%), formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## B1 isolated implementation retry scheduled — 2026-10-02 03:21 UTC
 
 After independent B1-plan acceptance at main `1f993fb`, created the clean isolated `/tmp/alpha-v11-a4-b1-closure-spec-20261002` worktree at that exact commit for the three-file offline B1 closure checker. The first Sonnet/high invocation stopped at the provider session limit before any edit (exit 1, no author record; failed terminal retained). A **single** replacement runner, PID/PGID **2084227**, is alive in the same clean worktree and waits for the provider's stated 04:20 UTC reset before retrying. Its stem is `/tmp/alpha-v11-a4-b1-author-20261002-retry`; expect `.log` and `.terminal.json` there and the author record at `/tmp/alpha-v11-a4-b1-author-20261002.author.json`. Failed terminal, retry launch/runner and exact prompt are retained as `docs/V11_R09_GATE3_A4_B1_LAUNCH_20261002*`. Do not start another B1 writer or infer completion from the sleeping runner. On completion verify exact candidate, author hashes and tests, then obtain independent exact-commit review before reconciliation with newer main. If the retry fails, recover the same worktree without discarding work.
