@@ -1,5 +1,9 @@
 # Supplementary engineering estimate
 
+## A8 review interruption recovered — 2026-10-02 02:03 UTC
+
+The pinned A8 recovery checkout is clean, but its reviewer ended before writing any verdict or outer terminal. A fresh Astra/high exact review is required; the author's 330 reported passes do not accept the candidate. Inventory still needs the two independently reproduced P2 repairs and another exact review. No integration, provider request, G3-L PASS, forward SHADOW evidence or C/J/E/A crossing occurred: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Inventory exact review and A8 recovery — 2026-10-02 01:56 UTC
 
 The independent Sol/high review rejected inventory repair `f6c7c90` after 67 offline rerun passes and adverse reproductions of IT-R1 and IT-R4. Review artifacts are retained as `docs/V11_INVENTORY_TRANSFORM_REVIEW_f6c7c90.*`; the candidate stays unmerged. The A8 reviewer stopped without a complete verdict and one recovery review is running in its same clean pinned checkout with a separate terminal stem. Neither candidate crosses an acceptance boundary. No provider request, G3-L PASS or forward SHADOW evidence; **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.

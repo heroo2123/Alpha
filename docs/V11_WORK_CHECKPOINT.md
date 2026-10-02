@@ -1,5 +1,11 @@
 # Alpha V11 work checkpoint
 
+## A8 recovery review stopped without verdict — 2026-10-02 02:03 UTC
+
+The sole A8 recovery reviewer in clean pinned checkout `/tmp/alpha-v11-gate3-a8-review-97290da` has stopped. Its log ended at 01:57 UTC during source/test inspection; no recovery report, machine verdict, outer terminal or live review process exists. The earlier outer terminal records only the initially incomplete checkout and is not an A8 verdict. Candidate `97290da` remains unmerged and unaccepted. Route a fresh Astra/high exact review of that clean commit/tree, preserving all prior logs and requiring a completed hash-bound report, machine verdict and outer terminal before any reconciliation with newer main. Do not infer a pass from the author's tests.
+
+Inventory `f6c7c90` remains clean and unmerged after its independent review reproduced IT-R1 malformed/duplicate pagination and IT-R4 checked-path/opened-file races. A bounded repair and new exact review are pending; no worker is live. Main is clean at `351dffd`. SHADOW and Brain readiness worktrees remain clean. PAPER scanner and V11 controller are inactive; protected V11 authority roots are absent. Disk remains about 1.3 GiB, below the 2 GiB G3-L floor. No provider request, G3-L PASS, forward SHADOW evidence or C/J/E/A crossing: **G3-L NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Inventory exact review rejected; A8 review recovered — 2026-10-02 01:56 UTC
 
 Recovered the completed clean Sol/high exact review of inventory candidate `f6c7c90` (tree `fc40edab`): `CHANGES_REQUIRED`, with two reproduced P2 gaps. IT-R1 still treats malformed cursors and duplicate request parameter keys as complete first-page proof; IT-R4 can read a swapped symlink or regular inode after path checks. IT-R2, IT-R3 and IT-R5 closed within the review scope. The reviewer independently reran 24 targeted and 43 adjacent offline tests with zero network attempts. Exact report, machine/lane terminals and probe are retained as `docs/V11_INVENTORY_TRANSFORM_REVIEW_f6c7c90.*`; the candidate remains unmerged. Repair of both open findings is the next inventory step.
