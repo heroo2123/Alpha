@@ -1,3 +1,14 @@
+## G3-L reconciliation candidate — 2026-10-02 05:37 UTC
+
+Exact-byte 79-row reconciliation prepared in `V11_R09_GATE3_G3L_RECONCILIATION_20261002.{md,json}`.
+Seven scoped reusable sets, 11 supporting sets, 18 missing selected-window sets,
+41 dependency-blocked sets and two later FINAL outputs; no qualified inventory
+entry filled. Verified 39 artifact bytes, seven component comparisons, three
+protocol pins and five report/terminal bindings. Independent exact review pending;
+no complete genuine private V4 manifest or G3-L permission. Current-run request
+authorization, real contracts/build/runtime and sub-floor disk remain blockers.
+No forward evidence or C/J/E/A crossing: **91/200, formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator evidence triage — 2026-10-02 05:28 UTC
 
 The October 3 local-only G3-L report still has 77 unfilled reviewed identities (10 code, 9 protocol, 8 cohort, 24 sources, 6 network, 6 storage, 4 clocks, 8 schedule, 2 detached final-review outputs) and zero of 2,713 feasible slots. Existing documents cannot be counted as reviewed manifest evidence without exact-byte reconciliation. Disk is about 901 MiB free against the 2 GiB floor; no new forward SHADOW or source-lineage evidence arrived. **A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.

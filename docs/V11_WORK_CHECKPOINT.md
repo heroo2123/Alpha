@@ -1,3 +1,29 @@
+## G3-L exact-byte reconciliation candidate — 2026-10-02 05:37 UTC
+
+Prepared `docs/V11_R09_GATE3_G3L_RECONCILIATION_20261002.{md,json}` against clean
+`24ac951`: all 77 PRE_REVIEW identities plus two FINAL outputs now have exact
+artifact/scope/blocker/role mappings. Candidate JSON SHA-256
+`fa089c078a43c18a52f7f685d449e98129bc37b0d1c946afd1155a6297a3eda6`;
+39 artifact Git/hash checks, seven component byte comparisons, three pinned
+protocol identities and five report/terminal hash pairs passed. Triage: seven
+reusable scoped sets, 11 supporting sets, 18 missing selected-window sets and
+41 dependency-blocked sets. These are not accepted/filled inventory entries;
+all 77 remain unassembled pending genuine evidence and independent package review.
+A complete private V4 package cannot honestly be produced: real-purpose refusal,
+A2/A3-A8 qualification, current-run authorization dependency and physical capacity
+remain open. Corrected the distinction between unprivileged capture storage/clock
+work and root-custodied SHADOW/bootstrap authority. No authority was installed.
+
+At 05:37:11 UTC, free disk was 942,608,384 bytes and available memory 818,126,848;
+planner zero of 2,713 slots. Null V4 negative control refused `PILOT_ID`; null
+PRE_REVIEW inventory returned 77 MISSING. Actual PAPER demo/scanner/controller
+inactive/disabled; execution inactive/masked. SHADOW/Brain unchanged, ECMWF
+backfill preserved, master hash unchanged. No release rerun, provider request,
+forward evidence, publication or C/J/E/A crossing. Reconciliation candidate
+requires independent different-model exact-commit review before acceptance;
+that review is not detached G3-L approval. **A2/A3 UNQUALIFIED; A4 OPEN; A8
+UNQUALIFIED; G3-L NO-GO; 91/200, formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator evidence triage — 2026-10-02 05:28 UTC
 
 Recovered clean main `580fdf2` (168 commits ahead of tracking), with no separate Alpha implementation/review worker or pytest process. Reviewed R1 `58a465f` and Gate 2 `1ab551d` remain ancestors; the accepted 5,460-pass/13-skip release result is historical, with no new full-suite run. SHADOW `15e99bd` and Brain-readiness `58b0b79` are clean, and neither they nor `evidence/`/`BrainWork/` gained a new file after the 05:24 checkpoint. ECMWF's untracked `backfill_data/`, the B1 author record, and the previously deletion-rejected A8 fixture remain preserved. The FINAL-REVIEWED private master still matches SHA-256 `a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
