@@ -1,5 +1,9 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Inventory review rejected; A8 review recovered — 2026-10-02 01:56 UTC
+
+Independent exact inventory review of `f6c7c90` finished `CHANGES_REQUIRED`: IT-R1 pagination proof and IT-R4 checked-path/opened-file identity remain P2 gaps; IT-R2/R3/R5 closed in scope. Exact artifacts are retained in `docs/V11_INVENTORY_TRANSFORM_REVIEW_f6c7c90.*`; no merge or qualification. A8 review stopped without a verdict and was recovered in its pinned clean checkout; it remains unaccepted. G3-L is NO-GO. **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## A8 exact review launched — 2026-10-02 01:52 UTC
 
 A8 repair `97290da` has a clean exact terminal and hash-matched author files and test logs, but remains unaccepted and unmerged. Independent Astra/high exact review is active in `/tmp/alpha-v11-gate3-a8-review-97290da`; inventory P2 `f6c7c90` remains under separate independent Sol/high review. Both are offline preparation only. G3-L remains NO-GO with disk below 2 GiB, missing identities and no new forward SHADOW evidence. No C/J/E/A boundary changed: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.

@@ -1,5 +1,9 @@
 # Supplementary engineering estimate
 
+## Inventory exact review and A8 recovery — 2026-10-02 01:56 UTC
+
+The independent Sol/high review rejected inventory repair `f6c7c90` after 67 offline rerun passes and adverse reproductions of IT-R1 and IT-R4. Review artifacts are retained as `docs/V11_INVENTORY_TRANSFORM_REVIEW_f6c7c90.*`; the candidate stays unmerged. The A8 reviewer stopped without a complete verdict and one recovery review is running in its same clean pinned checkout with a separate terminal stem. Neither candidate crosses an acceptance boundary. No provider request, G3-L PASS or forward SHADOW evidence; **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## A8 repair under independent review — 2026-10-02 01:52 UTC
 
 A8 `97290da` finished cleanly with verified author hashes and 330 author-reported offline passes, plus six expected refusals. Independent Astra/high exact review has started; inventory P2's separate exact review continues. Neither is accepted or integrated. G3-L remains NO-GO; no provider request, forward SHADOW evidence, release run or C/J/E/A crossing is claimed. **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.

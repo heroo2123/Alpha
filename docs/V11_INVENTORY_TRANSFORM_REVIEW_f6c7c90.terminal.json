@@ -1,0 +1,43 @@
+{
+  "authority": false,
+  "candidate_modified": false,
+  "clean_checkout": true,
+  "closed_findings": [
+    "IT-R2",
+    "IT-R3",
+    "IT-R5"
+  ],
+  "financial_authority": false,
+  "findings": [
+    {
+      "id": "IT-R1",
+      "severity": "P2",
+      "status": "OPEN"
+    },
+    {
+      "id": "IT-R4",
+      "severity": "P2",
+      "status": "OPEN"
+    }
+  ],
+  "head": "f6c7c903f1f4de907ac10bfd7d91e89418b6aea5",
+  "live_execution_authority": false,
+  "main_modified": false,
+  "original_candidate": "9600510c70a9302b75ff26432367be84ce43dd79",
+  "original_parent": "624f4bb32c166303c3b48181a1aac124fd60b547",
+  "probe_source": "/tmp/alpha-v11-inventory-transform-review-f6c7c90-probe.py",
+  "provider_access": false,
+  "report": "/tmp/alpha-v11-inventory-transform-review-f6c7c90.md",
+  "report_sha256": "210f1a652316e5afbbe68ff7f971da5ca681ec58b52ddaec595c735177b146b5",
+  "schema": "ALPHA_V11_OFFLINE_INVENTORY_TRANSFORM_REVIEW_V1",
+  "test_counts": {
+    "adjacent_passed": 43,
+    "failed": 0,
+    "network_attempts": 0,
+    "targeted_passed": 24,
+    "total_passed": 67
+  },
+  "tree": "fc40edabeb0f8d223250b3fcd31ba0890590dc0c",
+  "uncommitted_status": "",
+  "verdict": "CHANGES_REQUIRED"
+}

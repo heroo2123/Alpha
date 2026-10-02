@@ -1,0 +1,15 @@
+{
+  "clean": true,
+  "completed_utc": "2026-10-02T01:53:10.726106+00:00",
+  "exit_code": 0,
+  "financial_authority": false,
+  "head": "f6c7c903f1f4de907ac10bfd7d91e89418b6aea5",
+  "initial_head": "f6c7c903f1f4de907ac10bfd7d91e89418b6aea5",
+  "live_execution_authority": false,
+  "machine_terminal_exists": true,
+  "report_exists": true,
+  "report_sha256": "210f1a652316e5afbbe68ff7f971da5ca681ec58b52ddaec595c735177b146b5",
+  "schema": "ALPHA_V11_INVENTORY_EXACT_REVIEW_LANE_V1",
+  "tree": "fc40edabeb0f8d223250b3fcd31ba0890590dc0c",
+  "uncommitted_status": ""
+}
