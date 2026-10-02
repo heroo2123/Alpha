@@ -529,6 +529,9 @@ def _limit_int(limits: Mapping, key: str) -> int:
 def _check_storage(obj: Mapping, resources: ResourceObservation, reasons: list) -> bool:
     sq = obj.get("storage_qualification")
     _check_closed(sq, STORAGE_QUALIFICATION_KEYS, "storage_qualification", reasons)
+    if type(resources) is not ResourceObservation:
+        reasons.append("INVALID_RESOURCE_OBSERVATION")
+        return False
     limits = obj.get("limits") if isinstance(obj.get("limits"), dict) else {}
     ok = True
     if not isinstance(sq, dict):
@@ -568,6 +571,9 @@ def _check_storage(obj: Mapping, resources: ResourceObservation, reasons: list) 
 
 
 def _check_clock(obj: Mapping, clock: ClockObservation, reasons: list) -> bool:
+    if type(clock) is not ClockObservation:
+        reasons.append("INVALID_CLOCK_OBSERVATION")
+        return False
     limits = obj.get("limits") if isinstance(obj.get("limits"), dict) else {}
     window = obj.get("window") if isinstance(obj.get("window"), dict) else {}
     ok = True
@@ -881,6 +887,17 @@ def check_evidence_preflight_package(
     """
 
     reasons: list = []
+
+    # The public API accepts exact raw byte strings. In particular, json.loads
+    # also accepts decoded text, but that cannot be a supplied byte artifact
+    # with an unambiguous length/hash. Refuse all unsupported containers before
+    # len(), parsing or sha256 can reinterpret or crash on them.
+    for label, raw in (("package", package_raw), ("restrictions", restrictions_raw),
+                       ("binding", binding_raw), ("protocol", protocol_raw)):
+        if type(raw) is not bytes:
+            reasons.append(f"INVALID_RAW_BYTES:{label}")
+    if reasons:
+        return CheckResult(SCHEMA, OUTCOME_REFUSED, ELIGIBILITY_LABEL, tuple(reasons))
 
     package = _safe_parse(package_raw, "package", reasons)
     restrictions = _safe_parse(restrictions_raw, "restrictions", reasons)

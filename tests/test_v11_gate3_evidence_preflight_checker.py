@@ -1196,6 +1196,43 @@ def test_json_parser_refuses_lone_surrogate_scalar_values_and_keys(value):
         strict_json_loads(json.dumps({value: "safe"}).encode())
 
 
+@pytest.mark.parametrize("label,index", [
+    ("package", 0), ("restrictions", 1), ("protocol", 2), ("binding", 3),
+])
+@pytest.mark.parametrize("wrong", [None, False, 0, [], {}, "decoded"])
+def test_public_raw_inputs_require_exact_bytes(label, index, wrong):
+    fixture = list(_synthetic_fixture())
+    fixture[index] = fixture[index].decode() if wrong == "decoded" else wrong
+    result = _run(*fixture)
+    assert result.outcome == OUTCOME_REFUSED
+    assert f"INVALID_RAW_BYTES:{label}" in result.refusal_reasons
+
+
+@pytest.mark.parametrize("field,wrong,reason", [
+    ("clock", None, "INVALID_CLOCK_OBSERVATION"),
+    ("clock", {}, "INVALID_CLOCK_OBSERVATION"),
+    ("clock", False, "INVALID_CLOCK_OBSERVATION"),
+    ("resources", None, "INVALID_RESOURCE_OBSERVATION"),
+    ("resources", {}, "INVALID_RESOURCE_OBSERVATION"),
+    ("resources", False, "INVALID_RESOURCE_OBSERVATION"),
+])
+def test_public_observation_shape_refuses_synthetic_and_real_blocked_package(field, wrong, reason):
+    synthetic = _run(*_synthetic_fixture(), **{field: wrong})
+    assert synthetic.outcome == OUTCOME_REFUSED
+    assert reason in synthetic.refusal_reasons
+
+    real = (
+        open(f"{REAL_PRIVATE_ROOT}/package.json", "rb").read(),
+        open(f"{REAL_PRIVATE_ROOT}/restriction-history.json", "rb").read(),
+        open(REAL_PROTOCOL_PATH, "rb").read(),
+        open(REAL_BINDING_PATH, "rb").read(),
+    )
+    blocked = _run(*real, **{field: wrong})
+    assert blocked.outcome == OUTCOME_REFUSED
+    assert reason in blocked.refusal_reasons
+    assert "NULL_PREREQUISITE:accepted_protocol_design_review" in blocked.refusal_reasons
+
+
 BAD_JSON_VALUES = [None, False, True, 0, 0.0, [], {}, "", "x" * 4097]
 
 
