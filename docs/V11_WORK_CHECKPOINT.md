@@ -19088,3 +19088,86 @@ pointed off `/tmp`; if APPROVED, merge. Separately, diagnose the
 h1h6/full-suite collection-order pollution under `-O` as a bounded
 follow-up — it is pre-existing and not released-blocking for any merged
 change so far, but should not be left permanently unexplained.
+
+## InventoryTransform SHADOW hardening (L1/L2/L3/L5) and DENIED_MODULE_PRELOADED follow-up reviewed and merged — 2026-10-02 17:10 UTC
+
+Picked up the next unfinished action from the entry above. Found the
+isolated worktree (`/tmp/alpha-v11-inventory-shadow-hardening-20261002`)
+had a further uncommitted candidate stacked on top of the doc-repair
+`17e1386`: a `DENIED_MODULE_PRELOADED` check closing the L1 known-limit
+that the import-deny audit hook only fires on a module's *first* normal
+import, so a denied module (`ctypes`/`_ctypes`/`_posixsubprocess`) already
+in `sys.modules` before the hook installs was not caught. Its author
+session could not execute Python (sandbox denial), so the new test was
+unrun, as the doc itself stated. Host-ran the doc's own section 10 step 1
+verification before touching anything: `py_compile`-equivalent pytest
+collection, then `tests/test_v11_inventory_shadow_start.py
+tests/test_v11_inventory_shadow.py tests/test_v11_structural_evidence.py
+tests/test_v11_neg_risk_contract.py` — **69 passed** plain and **69
+passed** under `-O`, matching the doc's expected count exactly; `git diff
+--check` clean; confirmed by diff that the change touches only the three
+documented paths and that `structural_evidence.py`, `neg_risk_contract.py`,
+and `inventory_shadow.py` are untouched by this specific commit. Committed
+as `2d702c4`.
+
+Launched an independent Opus/high review (different model than the
+author) of the full unreviewed delta `09b6e85..2d702c4` — covering the
+`5601851` hardening (L1/L2/L5 fixes), the `17e1386` doc-repair, and the
+new `2d702c4` follow-up together, since none of the three had been
+independently reviewed yet. The reviewer independently re-ran the host
+verification (69/69 passed plain and under `-O`, `git diff --check`
+clean), replayed the section-6 start command three times on a fresh copy
+of the Singapore fixture (exit 0 every time; replay reports
+`created:false`; byte-identical artifact content across runs and a fresh
+output directory, matching the prior review's sha256; 13 `API_OBSERVED`,
+0 `CHAIN_RECEIPT`, coverage `INCOMPLETE`, all authority flags false), and
+confirmed `NETWORK_ATTEMPTS=0` under `strace` (the only socket calls were
+two failed local nscd connects Python itself makes at startup with `HOME`
+unset). Verdict: **APPROVED_WITH_FOLLOWUPS** — 3 Low, 3 informational,
+none blocking:
+
+- **L-A:** `_posixsubprocess` is a builtin on this Python build, so
+  loading it via `importlib.import_module`/`_imp.create_builtin` raises
+  no `import` audit event and evades the new preload check; the reviewer
+  demonstrated spawning a child process this way. Not reachable from the
+  actual runner/observer code path (neither uses `importlib`); the doc's
+  section 3/8 wording overstates the fix's coverage.
+- **L-B:** `cffi` (present in this venv, not imported by the runner or
+  observer) can reach a raw socket fd via `FFI().dlopen(None)` with no
+  audit event — same class as the original ctypes finding. Suggested
+  fix: add `_cffi_backend` to the denied-import set.
+- **L-C:** `OUTPUT_CHANGED_DURING_START` is undocumented; deleting an
+  artifact mid-verification causes the verifier to recreate then refuse
+  it, which section 4's "verification creates nothing" claim doesn't
+  cover.
+- Three informational items already honestly covered by the doc's own
+  section 8 (nested authority-like keys inside `metrics`/`rows`/`source`;
+  preload check is by-name-only; harmless local nscd socket calls).
+
+None of the six findings grant authority, qualification, or network
+reach, and none require a code change to stay honest — recorded as open,
+non-blocking follow-ups rather than silently fixed under time pressure.
+Merged `2d702c4` into main with `--no-ff` as `c722804`; the merge was
+conflict-free (5 files: the start-contract doc, `inventory_shadow.py`,
+`inventory_shadow_start.py`, and their two test files). Re-ran the
+identical four-file suite against main post-merge: 69 passed, `git diff
+--check` clean. Free disk was 3.0-4.6 GiB across this cycle, never below
+the 3 GiB preference; the weather Gate-3 attempt-runtime-wiring follow-up
+worker (PID `2344662`, `/tmp/alpha-v11-gate3-attempt-runtime-wiring-20261002`)
+ran the entire time as the other authorized heavy specialist and was not
+touched, duplicated, or slowed by this lane.
+
+The observer remains dormant: `qualification`, `financial_authority`, and
+`transaction_level_proof` stay `false` and `account_effects`/
+`order_effects` stay empty everywhere in the diff; this merge does not
+start the observer anywhere, does not touch weather Gate-3 or G3-L, and
+does not couple to weather SHADOW. No C/J/E/A boundary crossed: **91/200
+(45.5%), formal 1/50; A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L
+NO-GO; NOT_READY_TO_FUND** — unchanged.
+
+Next unfinished action: intake whichever of the two remaining active
+lanes finishes first — the weather Gate-3 attempt-runtime-wiring F1-F5
+follow-up worker (PID `2344662`), or a fresh look at the L-A/L-B/L-C
+follow-ups above as a bounded, independently-reviewable future slice.
+Separately, the h1h6/full-suite collection-order pollution under `-O`
+noted in the entry above remains open and unexplained.

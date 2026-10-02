@@ -4145,3 +4145,30 @@ authority, and this merge does not touch the weather Gate-3 critical path
 or G3-L. No C/J/E/A boundary crossed: **91/200 (45.5%), formal 1/50;
 A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO;
 NOT_READY_TO_FUND**.
+
+## InventoryTransform SHADOW start contract hardened (L1/L2/L5) and reviewed again — 2026-10-02 17:10 UTC
+
+The start contract's L1/L2/L3/L5 hardening (`5601851`), its doc-repair
+(`17e1386`), and a further `DENIED_MODULE_PRELOADED` follow-up (`2d702c4`,
+closing the remainder of the L1 known limit — a denied module already in
+`sys.modules` before the audit hook installs was not caught) are now on
+main at `c722804`, after one independent Opus/high review (different
+model than the author) of the full `09b6e85..2d702c4` delta returned
+**APPROVED_WITH_FOLLOWUPS**: 69/69 tests passing plain and under `-O`
+(independently re-run by the reviewer), `git diff --check` clean, the
+section-6 start command replayed 3x with byte-identical artifacts and
+`NETWORK_ATTEMPTS=0` under `strace`. Three Low, non-blocking findings:
+`_posixsubprocess` can still be loaded via `importlib`/`_imp` without
+tripping the hook (not reachable from the actual code path, since neither
+the runner nor observer uses `importlib`); `cffi` (present in the venv,
+unused by this code) can reach a raw socket with no audit event, same
+class as the original ctypes finding; `OUTPUT_CHANGED_DURING_START` is
+undocumented. None grant authority, qualification, or network reach;
+recorded as open follow-ups, not fixed here.
+
+Still an integration record only: the observer has not been started
+anywhere, confers no SHADOW admission, qualification, transaction-level
+proof, or financial authority, and this merge does not touch the weather
+Gate-3 critical path or G3-L. No C/J/E/A boundary crossed: **91/200
+(45.5%), formal 1/50; A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L
+NO-GO; NOT_READY_TO_FUND**.
