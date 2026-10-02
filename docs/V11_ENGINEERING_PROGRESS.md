@@ -1,3 +1,7 @@
+## Coordinator ledger diagnosis recovery — 2026-10-02 23:36 UTC
+
+Restarted the unexpectedly exited offline SharedLedger teardown diagnosis in its original clean isolated worktree. Runner `2585257` and Sonnet/high child `2585262` were live after launch. The two Gate-3 repair candidates remain separately review-held. No provider request, capture, SHADOW admission, or score crossing: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Coordinator weather test diagnosis — 2026-10-02 23:32 UTC
 
 Started one isolated Sonnet/high offline diagnosis of the recorded SharedLedger temporary-directory teardown failure (runner `2583598`; worktree `/tmp/alpha-v11-gate3-ledger-teardown-diagnosis-20261002`). The new `976217d` and `741c6ae` repairs remain review-held and unmerged. No provider request, capture, SHADOW admission or score crossing occurred. **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
