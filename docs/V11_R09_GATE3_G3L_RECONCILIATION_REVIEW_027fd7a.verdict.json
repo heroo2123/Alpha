@@ -1,0 +1,25 @@
+{
+  "candidate_commit": "027fd7a1ed82e403780473757cad1227ecc17115",
+  "candidate_tree": "bd4cde2eb36dfdc4ddc410f3e2349376eb612130",
+  "candidate_json_sha256": "fa089c078a43c18a52f7f685d449e98129bc37b0d1c946afd1155a6297a3eda6",
+  "status": "PASS_IN_SCOPE",
+  "findings": [],
+  "executed_checks": [
+    "exact HEAD/tree/baseline and five-file diff inspection",
+    "duplicate-key JSON parse; 77 PRE_REVIEW and two FINAL IDs; 79 Markdown index keys",
+    "all 79 supported scopes, remaining obligations, responsible roles, artifact refs, null qualified entries, and freshness classes inspected",
+    "classification counts 7 reusable, 11 support-only, 18 selected-window missing, 41 dependency-blocked",
+    "39 current and baseline Git artifact byte lengths and SHA-256 digests",
+    "seven historical code byte/tree/hash comparisons",
+    "three protocol commit/tree/hash pins and validator constants",
+    "five retained independent report/terminal digest bindings and scoped verdicts",
+    "real V4 SOURCE_MAPPING_UNSUPPORTED refusal and PILOT_ID first-refusal order inspected",
+    "A2/A3/A4/A7/A8 limits, three 503/429 restriction records, bootstrap dependency, capture-store/root custody distinction, observation-time and null authority claims inspected",
+    "git diff --check 24ac951..HEAD; checkout clean"
+  ],
+  "report_sha256": "b6a811fd66f96d738a98499139ea3d84d70c96aa042044b165123aab01b1fed4",
+  "g3l": "NO-GO",
+  "launchable": false,
+  "qualification_credit": 0,
+  "review_scope": "RECONCILIATION_ONLY_NOT_G3L"
+}

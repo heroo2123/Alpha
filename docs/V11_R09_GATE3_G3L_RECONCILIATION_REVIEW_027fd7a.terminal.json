@@ -1,0 +1,18 @@
+{
+  "clean": true,
+  "completed_utc": "2026-10-02T05:46:49.412766+00:00",
+  "error": null,
+  "exit_code": 0,
+  "expected_head": "027fd7a1ed82e403780473757cad1227ecc17115",
+  "expected_tree": "bd4cde2eb36dfdc4ddc410f3e2349376eb612130",
+  "g3l": "NO-GO",
+  "head": "027fd7a1ed82e403780473757cad1227ecc17115",
+  "launchable": false,
+  "pid": 2106606,
+  "report_sha256": "b6a811fd66f96d738a98499139ea3d84d70c96aa042044b165123aab01b1fed4",
+  "review_scope": "RECONCILIATION_ONLY_NOT_G3L",
+  "schema": "ALPHA_V11_EXACT_RECONCILIATION_REVIEW_TERMINAL_V1",
+  "terminal_marker": "G3L_RECONCILIATION_REVIEW_PROCESS_FINISHED",
+  "tree": "bd4cde2eb36dfdc4ddc410f3e2349376eb612130",
+  "verdict_sha256": "15d4c22494912746a11f24f7fa6717520d77a9e3c9685e8ba0660e557d7a4b8f"
+}

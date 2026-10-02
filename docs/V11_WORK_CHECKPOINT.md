@@ -1,3 +1,33 @@
+## G3-L reconciliation exact review accepted — 2026-10-02 05:47 UTC
+
+Recovered the completed independent Sol/high review of exact candidate
+`027fd7a1ed82e403780473757cad1227ecc17115` (tree
+`bd4cde2eb36dfdc4ddc410f3e2349376eb612130`). Its exit-0 terminal binds
+the clean checkout, `PASS_IN_SCOPE` verdict and report SHA-256
+`b6a811fd66f96d738a98499139ea3d84d70c96aa042044b165123aab01b1fed4`;
+the verdict SHA-256 is
+`15d4c22494912746a11f24f7fa6717520d77a9e3c9685e8ba0660e557d7a4b8f`.
+The reviewer independently checked all 79 identities, 39 artifact byte bindings,
+seven code comparisons, three protocol pins and five report/terminal bindings.
+Retained its report, verdict and terminal as
+`docs/V11_R09_GATE3_G3L_RECONCILIATION_REVIEW_027fd7a*`. This accepts the
+offline evidence map only; none of the 77 PRE_REVIEW identities is qualified and
+neither detached FINAL output is filled.
+
+Fresh passive recovery found clean main `b093ab9`, clean SHADOW and Brain
+worktrees, preserved untracked ECMWF `backfill_data/`, no new adjacent forward
+artifact, and no remaining reviewer process. The protected FINAL-REVIEWED master
+still hashes to `a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+PAPER scanner is inactive/disabled, execution inactive/masked, controller
+inactive/not-found; protected V11 authority roots remain absent. Free disk was
+914,530,304 bytes, below the 2 GiB G3-L floor, with 692,158,464 bytes available
+memory. No provider request, service/authority/financial action, remote
+publication or forward SHADOW sample occurred. The next architectural question
+is the accepted protocol's current-run evidence/request-before-PASS dependency;
+it needs an independent Astra/high resolution before any G3-L package or request.
+**A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO; 91/200, formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## G3-L reconciliation independent review launched — 2026-10-02 05:40 UTC
 
 Candidate `027fd7a1ed82e403780473757cad1227ecc17115` is committed on main.
