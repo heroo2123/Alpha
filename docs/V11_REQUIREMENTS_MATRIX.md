@@ -3882,3 +3882,7 @@ Main `792892f` adds the 07:22 local-only screen and coordinator notes. Its hashe
 ## Coordinator recovery — 2026-10-02 07:41 UTC
 
 Clean main `37484cd`; no new qualifying current-run evidence, forward SHADOW artifact or independent worker appeared. The October 3 PRE_REVIEW report remains verified and blocked (77 missing identities; zero of 2,713 slots). The reviewed bootstrap section-3 owner choice was presented and remains pending. Free disk is about 810 MiB, below G3-L's 2 GiB floor. No C/J/E/A boundary crossed: **A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO; 91/200, formal 1/50; NOT_READY_TO_FUND**.
+
+## Coordinator recovery — 2026-10-02 07:45 UTC
+
+Main `40e1f80` adds only the prior recovery record. R1 and accepted B1 remain integrated; no new current-run or forward evidence appeared. The October 3 PRE_REVIEW screen still has 77 missing identities and zero of 2,713 slots; disk free is about 807 MiB against the 2 GiB floor. The reviewed bootstrap owner decision is pending. No C/J/E/A boundary crossed: **A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO; 91/200, formal 1/50; NOT_READY_TO_FUND**.
