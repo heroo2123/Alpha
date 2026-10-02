@@ -1,5 +1,9 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## A8 repair candidate pending terminal — 2026-10-02 01:42 UTC
+
+A8 author worktree committed `97290da` with three changed files, but its author record and outer terminal are still pending while the process remains live. Inventory P2 repair is active with two unfinished files. Neither has independent acceptance or integration. G3-L remains NO-GO; no C/J/E/A boundary changed: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Gate 3 live recovery — 2026-10-02 01:37 UTC
 
 A8 and inventory P2 repairs remain live in separate worktrees without final terminals or accepted commits. The owner-authorized R1 ledger correction already on main passed a fresh 52/52 focused offline rerun. No G3-L launch evidence or C/J/E/A boundary changed: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.

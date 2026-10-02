@@ -1,5 +1,9 @@
 # Supplementary engineering estimate
 
+## A8 repair awaiting final evidence — 2026-10-02 01:42 UTC
+
+A8 committed `97290da` in its isolated author worktree and reported 201 targeted offline passes plus six expected-refusal controls in the live log. Its author record and outer terminal are not yet complete; independent exact-commit review and newer-main reconciliation remain required. Inventory repair remains live with two uncommitted files. Both specialist slots are occupied. No new release run, G3-L PASS, forward SHADOW evidence or C/J/E/A crossing is claimed: **G3-L NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Gate 3 current-main verification — 2026-10-02 01:37 UTC
 
 Recovered main `da4d32c` and both live repair processes; neither has a terminal or independent acceptance. Re-ran the current-main Gate 3 ledger suite after the owner-authorized R1 correction: 52 passed in 0.49 s. Protected master hash and nonfinancial safety state match the checkpoint. G3-L remains NO-GO with disk below 2 GiB and 77 missing evidence identities. No C/J/E/A change: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
