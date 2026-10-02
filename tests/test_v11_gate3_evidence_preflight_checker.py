@@ -817,6 +817,50 @@ def test_fresh_campaign_without_replay_is_not_refused_on_ledger_grounds():
     assert "CAMPAIGN_BUDGET_RESET_NOT_PERMITTED" not in result.refusal_reasons
 
 
+@pytest.mark.parametrize("entries", [
+    None, False, 0, 0.0, "", {}, [None], [{}], ["entry"],
+    [LedgerEntry("", "request")], [LedgerEntry("campaign", "")],
+    [LedgerEntry("x" * 257, "request")],
+    [LedgerEntry("campaign", "x" * 257)],
+    [LedgerEntry("campaign", "request", 0)],
+    [LedgerEntry("campaign", "request", None)],
+    [LedgerEntry("campaign", "request", "")],
+    [LedgerEntry("campaign", "request", [])],
+    [LedgerEntry("campaign", "request", {})],
+])
+def test_malformed_durable_ledger_refuses_without_looking_fresh(entries):
+    result = _run(*_synthetic_fixture(), ledger=StateLedger(entries))
+    assert result.outcome == OUTCOME_REFUSED
+    assert "MALFORMED_STATE_LEDGER" in result.refusal_reasons
+
+
+@pytest.mark.parametrize("attempted", [None, False, True, 0, 0.0, "", [], {}])
+def test_matching_ledger_attempted_requires_exact_boolean(attempted):
+    entry = LedgerEntry("alpha-v11-evidence-preflight-20261002",
+                        "p1-gefs-2026100200-c00-f024-index", attempted)
+    result = _run(*_synthetic_fixture(), ledger=StateLedger((entry,)))
+    if type(attempted) is bool:
+        assert "MALFORMED_STATE_LEDGER" not in result.refusal_reasons
+        assert ("REPLAYED_REQUEST_ID" in result.refusal_reasons) is attempted
+    else:
+        assert result.outcome == OUTCOME_REFUSED
+        assert "MALFORMED_STATE_LEDGER" in result.refusal_reasons
+
+
+@pytest.mark.parametrize("restart", [None, 0, 0.0, "", [], {}])
+def test_malformed_restart_flag_refuses_even_when_false_valued(restart):
+    result = _run(*_synthetic_fixture(), restart_requested=restart)
+    assert result.outcome == OUTCOME_REFUSED
+    assert "MALFORMED_RESTART_REQUESTED" in result.refusal_reasons
+
+
+def test_retained_ledger_view_has_explicit_size_bound():
+    entry = LedgerEntry("prior-campaign", "prior-request", False)
+    result = _run(*_synthetic_fixture(), ledger=StateLedger((entry,) * 4097))
+    assert result.outcome == OUTCOME_REFUSED
+    assert "MALFORMED_STATE_LEDGER" in result.refusal_reasons
+
+
 # -- Negative path: every forbidden attempt to promote outputs -------------------
 
 @pytest.mark.parametrize("mutate,expected_reason", [
@@ -1102,6 +1146,54 @@ def _run_rebound(*, package_change=None, restrictions_change=None, binding_chang
                   **observations)
     assert result.eligibility == "DISCOVERY_ONLY_NOT_G3E"
     return result
+
+
+@pytest.mark.parametrize("record_index,field", [
+    (0, "capture"), (1, "capture"), (2, "capture"),
+    (0, "header_key"), (0, "header_value"), (0, "url"),
+    (1, "header_key"), (1, "header_value"),
+    (1, "path"), (1, "source"), (1, "evidence_class"),
+])
+def test_rebound_retained_record_lone_surrogate_refuses_without_hash_crash(record_index, field):
+    def change(restrictions):
+        record = restrictions["records"][record_index]
+        response = record["response"]
+        if field == "capture":
+            record[field] = "\ud800"
+        elif field == "header_key":
+            response["headers"]["\ud800"] = "value"
+        elif field == "header_value":
+            response["headers"]["surrogate-test"] = "\udc00"
+        else:
+            response[field] = "\ud800"
+
+    result = _run_rebound(restrictions_change=change)
+    assert result.outcome == OUTCOME_REFUSED
+    assert "INVALID_JSON:restrictions" in result.refusal_reasons
+
+
+def test_rebound_real_package_shape_with_lone_surrogate_refuses():
+    package = strict_json_loads(open(f"{REAL_PRIVATE_ROOT}/package.json", "rb").read())
+    restrictions = strict_json_loads(open(f"{REAL_PRIVATE_ROOT}/restriction-history.json", "rb").read())
+    protocol_raw = open(REAL_PROTOCOL_PATH, "rb").read()
+    binding = strict_json_loads(open(REAL_BINDING_PATH, "rb").read())
+    restrictions["records"][0]["capture"] = "\ud800"
+    restrictions_raw = json.dumps(restrictions).encode()
+    package["restrictions_ref"].update(sha256=_sha(restrictions_raw), byte_length=len(restrictions_raw))
+    package_raw = json.dumps(package).encode()
+    binding["private_package"].update(sha256=_sha(package_raw), byte_length=len(package_raw))
+    binding["private_restrictions"].update(sha256=_sha(restrictions_raw), byte_length=len(restrictions_raw))
+    result = _run(package_raw, restrictions_raw, protocol_raw, json.dumps(binding).encode())
+    assert result.outcome == OUTCOME_REFUSED
+    assert "INVALID_JSON:restrictions" in result.refusal_reasons
+
+
+@pytest.mark.parametrize("value", ["\ud800", "\udc00", "safe\ud800tail"])
+def test_json_parser_refuses_lone_surrogate_scalar_values_and_keys(value):
+    with pytest.raises(PreflightPackageCheckerError, match="invalid Unicode scalar"):
+        strict_json_loads(json.dumps({"safe": value}).encode())
+    with pytest.raises(PreflightPackageCheckerError, match="invalid Unicode scalar"):
+        strict_json_loads(json.dumps({value: "safe"}).encode())
 
 
 BAD_JSON_VALUES = [None, False, True, 0, 0.0, [], {}, "", "x" * 4097]

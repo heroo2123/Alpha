@@ -35,6 +35,8 @@ MAX_STR = 4096
 MAX_ARRAY = 64
 MAX_RAW_BYTES = 1_048_576
 MAX_REF_BYTES = 1_073_741_824
+MAX_LEDGER_ENTRIES = 4096
+MAX_LEDGER_ID = 256
 SHA256_LEN = 64
 SHA256_ALPHABET = set("0123456789abcdef")
 GEFS_ADMISSIBLE_STATUSES = frozenset({"SCOPE_INDEPENDENCE_CONFIRMED"})
@@ -273,12 +275,28 @@ def strict_json_loads(raw: bytes) -> Any:
         return value
 
     try:
-        return json.loads(
+        parsed = json.loads(
             raw,
             object_pairs_hook=_reject_dupes,
             parse_constant=_reject_nonfinite,
             parse_float=_reject_overflowing_float,
         )
+        # JSON escape sequences can decode to lone UTF-16 surrogates. Those
+        # are not Unicode scalar values and cannot be encoded for the retained
+        # denial digest. Check every key and value before any policy path can
+        # canonicalize one; use an explicit stack for bounded nested input.
+        pending = [parsed]
+        while pending:
+            value = pending.pop()
+            if isinstance(value, str):
+                if any(0xD800 <= ord(char) <= 0xDFFF for char in value):
+                    raise PreflightPackageCheckerError("invalid Unicode scalar")
+            elif isinstance(value, dict):
+                pending.extend(value.keys())
+                pending.extend(value.values())
+            elif isinstance(value, list):
+                pending.extend(value)
+        return parsed
     except PreflightPackageCheckerError:
         raise
     except Exception as exc:  # noqa: BLE001 - surfaced as a single checker reason
@@ -294,7 +312,10 @@ def _is_bool(v: Any) -> bool:
 
 
 def _is_bounded_str(v: Any, max_len: int = MAX_STR) -> bool:
-    return isinstance(v, str) and 0 < len(v) <= max_len
+    return (
+        isinstance(v, str) and 0 < len(v) <= max_len
+        and not any(0xD800 <= ord(char) <= 0xDFFF for char in v)
+    )
 
 
 def _is_sha256(v: Any) -> bool:
@@ -379,6 +400,25 @@ class StateLedger:
 
     def has_campaign(self, campaign_id: str) -> bool:
         return any(e.campaign_id == campaign_id for e in self.entries)
+
+
+def _valid_ledger(ledger: Any) -> bool:
+    # The caller supplies durable history. A false-valued or malformed field
+    # must never be interpreted as an empty/fresh history. Bound the retained
+    # campaign view before searching it; a larger history needs an explicit
+    # reviewed retention/partition decision.
+    return (
+        type(ledger) is StateLedger
+        and type(ledger.entries) in (tuple, list)
+        and len(ledger.entries) <= MAX_LEDGER_ENTRIES
+        and all(
+            type(entry) is LedgerEntry
+            and _is_bounded_str(entry.campaign_id, MAX_LEDGER_ID)
+            and _is_bounded_str(entry.request_id, MAX_LEDGER_ID)
+            and _is_bool(entry.attempted)
+            for entry in ledger.entries
+        )
+    )
 
 
 @dataclass(frozen=True)
@@ -956,7 +996,13 @@ def check_evidence_preflight_package(
     reqs = package.get("requests")
     if isinstance(reqs, list) and len(reqs) == 1 and isinstance(reqs[0], dict):
         request_id = reqs[0].get("request_id")
-    if isinstance(campaign_id, str) and isinstance(request_id, str):
+    ledger_valid = _valid_ledger(ledger)
+    if not ledger_valid:
+        reasons.append("MALFORMED_STATE_LEDGER")
+    if not _is_bool(restart_requested):
+        reasons.append("MALFORMED_RESTART_REQUESTED")
+    if ledger_valid and _is_bool(restart_requested) and \
+            isinstance(campaign_id, str) and isinstance(request_id, str):
         if ledger.has_attempted(campaign_id, request_id):
             reasons.append("REPLAYED_REQUEST_ID")
         if restart_requested and ledger.has_campaign(campaign_id):
