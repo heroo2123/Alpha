@@ -18181,3 +18181,29 @@ Started exactly one persistent Astra/high Fast worker in isolated `/tmp/alpha-v1
 Recovered the completed Astra/high Fast next-slice worker, not a stale supervisor flag: original runner exit 0, clean `4fb39c2`/tree `416d919`, and matching last-output SHA-256 `32d8a3e`. Its sole 287-line public architecture/acceptance document passed local static checks and was cherry-picked without overlap onto newer main as `24100a5`. It plans a synthetic-only reservation, event and recovery model with twelve acceptance probe groups; it does not authorize a request. Started exactly one persistent Codex Sol/high Fast implementation author in isolated `/tmp/alpha-v11-gate3-preflight-attempt-model-20261002` from `24100a5`, runner PID `2220018`. Its sequential runner switches the same unfinished task to Claude Sonnet/high only on a Codex allowance failure; it does not start a parallel writer. Recover this runner and terminal before launching another author or reviewer. Exact different-model review of any clean candidate remains mandatory.
 
 Main and all inspected parallel worktrees were clean except the preserved ECMWF `backfill_data/`. The FINAL-REVIEWED private master still hashes `a0e16d9b`; protected V11 authority roots are absent. No Alpha PAPER scanner/execution process appeared; current user-unit states could not be queried because the user bus was unavailable. At launch free disk was 2,878,242,816 bytes (above the 2 GiB floor, below preferred 3 GiB) and MemAvailable about 1,041,428 KiB. The actual preflight package still has its 22 blockers; the frozen October 2 window cannot silently move. No provider request, capture, forward SHADOW evidence, financial/V10/Axiom service change, release rerun or C/J/E/A crossing: **91/200, formal 1/50; A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO; NOT_READY_TO_FUND**.
+
+## Coordinator failover confirmation — 2026-10-02 13:34 UTC
+
+Recovered clean main `7e4e148` (documentation-only since the 13:27 author
+launch) and inspected the live Gate 3 attempt-model author. Codex (PID
+2220018's child) hit its weekly usage limit mid-task at 13:30:18 UTC
+("You've hit your usage limit ... try again at Oct 8th, 2026 11:15 AM"),
+after successfully patching `tools/v11_gate3_preflight_attempt_model.py`
+but before the paired synthetic-case test file. The runner's own exhaustion
+match fired exactly as designed and it sequentially launched the Claude
+Sonnet/high fallback (PID 2221281) in the same unfinished worktree,
+preserving the Codex-written file and worktree state; no duplicate writer
+was started. At inspection the fallback process was alive (1.8% CPU, 230s
+elapsed, sleeping/multi-threaded) with no error; `--print` output is
+expected to stay empty until completion. This is the first real trigger of
+the 2026-10-02 Codex-to-Claude continuity directive and it behaved as
+specified.
+
+No other unrecovered worker terminal existed since the 13:27 entry. Free
+disk was 2.7 GiB and MemAvailable about 903 MiB, both below the thresholds
+for a third/second concurrent heavy specialist, so no additional worker was
+launched; starting one would risk slowing this critical-path author. No
+V10/AxiomTrade, financial, service, authority, or remote-publication
+action, and no C/J/E/A crossing: **91/200, formal 1/50; A2/A3 UNQUALIFIED;
+A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO; NOT_READY_TO_FUND**. Recover the
+fallback's terminal before any new author/review launch.
