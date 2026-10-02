@@ -1,0 +1,257 @@
+{
+  "artifacts": [
+    {
+      "anchors": [
+        {
+          "lines": [
+            28
+          ],
+          "text": "| G3-L launch |"
+        },
+        {
+          "lines": [
+            93
+          ],
+          "text": "Before any network acquisition"
+        },
+        {
+          "lines": [
+            123
+          ],
+          "text": "Preregistration,"
+        }
+      ],
+      "byte_length": 20041,
+      "path": "docs/V11_R09_GATE3_COLLECTION_PROTOCOL.md",
+      "sha256": "da3144c558134e7bd6a06b5c3f298740e86cee13be7c54a9932204362c269524"
+    },
+    {
+      "anchors": [
+        {
+          "lines": [
+            184
+          ],
+          "text": "If new live probes are necessary"
+        },
+        {
+          "lines": [
+            187
+          ],
+          "text": "no preliminary network permission"
+        }
+      ],
+      "byte_length": 17309,
+      "path": "docs/V11_R09_GATE3_LAUNCH_CONTRACT_ADJUDICATION.md",
+      "sha256": "a4a2a18e83a53359e3a46cdf7cbda6031c6afec74e5d497f2cd126b1ae7b943c"
+    },
+    {
+      "anchors": [
+        {
+          "lines": [
+            108
+          ],
+          "text": "Do not derive new ranges"
+        },
+        {
+          "lines": [
+            65,
+            111
+          ],
+          "text": "There is no"
+        }
+      ],
+      "byte_length": 28627,
+      "path": "docs/V11_R09_GATE3_TRANSPORT_RUNTIME_DESIGN.md",
+      "sha256": "0b121fbc422208e2fa89e0b2f7362725cac60115ada966ed83b9d1ed15ac8e4a"
+    },
+    {
+      "anchors": [
+        {
+          "lines": [
+            49
+          ],
+          "text": "| A6:"
+        },
+        {
+          "lines": [
+            143
+          ],
+          "text": "no real"
+        }
+      ],
+      "byte_length": 16704,
+      "path": "docs/V11_R09_GATE3_IDENTITY_ACCEPTANCE_20261001.md",
+      "sha256": "db298d49301a686711a7d89e7456d95fcd34da8616970fa7f52374b91440aa9d"
+    },
+    {
+      "anchors": [
+        {
+          "lines": [
+            101
+          ],
+          "text": "07:48:13.707996"
+        },
+        {
+          "lines": [
+            75,
+            76
+          ],
+          "text": "current-run pins"
+        }
+      ],
+      "byte_length": 11925,
+      "path": "docs/V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.md",
+      "sha256": "eb34a6940da19f77ce43dd543926ef6524773f963e2371bc4657466bb8933302"
+    },
+    {
+      "anchors": [
+        {
+          "lines": [
+            3
+          ],
+          "text": "PASS_IN_SCOPE"
+        },
+        {
+          "lines": [
+            15
+          ],
+          "text": "39 artifact"
+        }
+      ],
+      "byte_length": 5572,
+      "path": "docs/V11_R09_GATE3_G3L_RECONCILIATION_REVIEW_027fd7a.md",
+      "sha256": "b6a811fd66f96d738a98499139ea3d84d70c96aa042044b165123aab01b1fed4"
+    },
+    {
+      "anchors": [],
+      "byte_length": 66862,
+      "path": "docs/V11_R09_GATE3_G3L_RECONCILIATION_20261002.json",
+      "sha256": "fa089c078a43c18a52f7f685d449e98129bc37b0d1c946afd1155a6297a3eda6"
+    },
+    {
+      "anchors": [
+        {
+          "lines": [
+            106
+          ],
+          "text": "RUN_SPECIFIC ="
+        },
+        {
+          "lines": [
+            119
+          ],
+          "text": "FINAL_ONLY_IDS ="
+        },
+        {
+          "lines": [
+            457
+          ],
+          "text": "observed < run"
+        }
+      ],
+      "byte_length": 31205,
+      "path": "tools/v11_r09_gate3_g3l_prep.py",
+      "sha256": "a5051a65aa219d40f5ac67acf9ca6f1e72839eb1d988ae5d08b2ea0565e89481"
+    },
+    {
+      "anchors": [
+        {
+          "lines": [
+            194,
+            437
+          ],
+          "text": "'SOURCE_MAPPING_UNSUPPORTED'"
+        },
+        {
+          "lines": [
+            682
+          ],
+          "text": "integer(request['range_start']"
+        },
+        {
+          "lines": [
+            496
+          ],
+          "text": "item['ready_upper_utc'] <= lower"
+        }
+      ],
+      "byte_length": 47602,
+      "path": "tools/v11_r09_gate3_launch_v4.py",
+      "sha256": "a2fe4d99666ef744927cfba49de03726b3fc695a98e7836dc1f3642781cbe978"
+    },
+    {
+      "anchors": [
+        {
+          "lines": [
+            646
+          ],
+          "text": "def from_validated_manifest"
+        },
+        {
+          "lines": [
+            522,
+            539
+          ],
+          "text": "'supplemental_pins_sha256'"
+        }
+      ],
+      "byte_length": 110679,
+      "path": "tools/v11_r09_gate3_runtime.py",
+      "sha256": "3a45eb46f156a1bd17764bfe9fc3d73765418927bbc68fe14744a8fee411f9ed"
+    },
+    {
+      "anchors": [
+        {
+          "lines": [
+            3
+          ],
+          "text": "Pins must come from an independent frozen dossier"
+        },
+        {
+          "lines": [
+            241
+          ],
+          "text": "_sha(raw) == pins.raw_sha256"
+        },
+        {
+          "lines": [
+            253
+          ],
+          "text": "set(section_map) - {7}"
+        }
+      ],
+      "byte_length": 17101,
+      "path": "tools/v11_r09_gate3_a7_decoder.py",
+      "sha256": "38425ed5a02cdc0067216f513ba6a2bea0de83bc40c20566297c0b071243fb20"
+    }
+  ],
+  "baseline_commit": "52e0356c8c62910a15ff893e0815e88149071efe",
+  "baseline_tree": "067485e6aa853bd021e22f24d0b43f9d6d17de04",
+  "decision": "CURRENT_AUTHORITY_BLOCKED",
+  "document_sha256": "4c28e16704ab62093483033229036f5df8194c0790ed35ac9f61bf5dc2619c02",
+  "formal": "1/50",
+  "g3l": "NO-GO",
+  "launchable": false,
+  "network_authorized": false,
+  "observed_utc": "2026-10-02T05:57:18.506854+00:00",
+  "owner_decision": {
+    "options": [
+      "RETAIN_PROHIBITION_AND_ACCEPT_ONLY_QUALIFYING_OFFLINE_INTAKE",
+      "EXPLICITLY_SCOPE_A_SEPARATELY_REVIEWED_EVIDENCE_ONLY_PREFLIGHT_EXCEPTION"
+    ],
+    "selected": null,
+    "status": "PENDING_IF_NO_QUALIFYING_OFFLINE_INTAKE"
+  },
+  "protocol_amended": false,
+  "qualified_entries_added": 0,
+  "schema": "ALPHA_V11_G3L_BOOTSTRAP_ADJUDICATION_V1",
+  "scope": "ADJUDICATION_ONLY_NOT_G3L",
+  "score": "91/200",
+  "status": "CANDIDATE_PENDING_INDEPENDENT_REVIEW",
+  "verification": {
+    "all_clause_anchors_found": true,
+    "baseline_byte_comparisons": 11,
+    "production_code_changed": false,
+    "tests_rerun": false
+  }
+}

@@ -1,3 +1,16 @@
+## G3-L dependency adjudication candidate — 2026-10-02 05:57 UTC
+
+Astra/high resolved the routed current-run/request-before-PASS dependency in
+`V11_R09_GATE3_BOOTSTRAP_ADJUDICATION_20261002.{md,json}` against `52e0356`. No launch sequence is executable with
+current evidence and authority. The packet specifies conditional genuine offline
+intake and the precise owner/protocol decision needed for a separately bounded
+evidence-only preflight. It does not adopt an exception, amend a protocol or
+weaken V4/A6 checks. Eleven controlling files are bound to baseline Git bytes;
+independent exact-commit decision review is next. Do not repeat general bootstrap
+triage after that review; use the concrete decision/intake handoff. All 77 inputs
+remain unqualified, G3-L NO-GO; disk below 2 GiB. No provider request, forward
+SHADOW evidence or C/J/E/A crossing: **91/200, formal 1/50; NOT_READY_TO_FUND**.
+
 ## G3-L reconciliation exact review accepted — 2026-10-02 05:47 UTC
 
 Recovered the completed independent Sol/high review of exact candidate
