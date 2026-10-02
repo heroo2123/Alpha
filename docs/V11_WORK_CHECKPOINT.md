@@ -18207,3 +18207,45 @@ V10/AxiomTrade, financial, service, authority, or remote-publication
 action, and no C/J/E/A crossing: **91/200, formal 1/50; A2/A3 UNQUALIFIED;
 A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO; NOT_READY_TO_FUND**. Recover the
 fallback's terminal before any new author/review launch.
+
+## Attempt-model author completed; independent Opus review launched — 2026-10-02 14:43 UTC
+
+The persistent local coordinator process itself (not any Alpha worker) died
+sometime after the 13:38 planner cycle; its watchdog detected the gap and
+restarted it at 14:37:47, so this cycle is the first inspection of about an
+hour of unsupervised real work. In that gap the Claude Sonnet fallback
+author (continuing from the Codex partial state preserved at 13:34)
+finished the Gate 3 attempt-model candidate and committed it in the same
+isolated worktree as `b31bed0` (tree `662af78`, parent `24100a5`):
+`tools/v11_gate3_preflight_attempt_model.py`, the synthetic-case helper,
+a 1,069-line test suite, and the acceptance doc, 2,337 insertions / 0
+deletions, working tree clean. The commit carries no body beyond its
+subject line, unlike this task's earlier commits.
+
+Someone (outside this coordinator's own launches, recovered from the
+process's open file descriptors rather than a wrapper script) then started
+exactly one independent Opus/high reviewer (PID `2248611`, started 14:35)
+against that exact candidate, reading its prompt/log at
+`/tmp/alpha-v11-gate3-preflight-attempt-model-opus-review.{prompt,log}.txt`.
+Its scope matches the mandatory different-model exact-commit review
+contract: state-machine/terminal-immutability, exactly-once accounting,
+replay/reset, framing/clock boundaries, retained-denial preservation, and
+synthetic-only isolation, with an explicit instruction to confer no
+provider/execution authority and to end with
+`GATE3_ATTEMPT_MODEL_OPUS_REVIEW_COMPLETE`. At this inspection it was still
+alive (sleeping, 10 threads, ~5 minutes elapsed) with its log empty, i.e.
+no verdict yet; `--print` output is expected to stay empty until
+completion.
+
+MemAvailable was about 896 MiB and free disk about 2.7 GiB, with two
+Claude processes (this coordinator cycle and the Opus reviewer) already on
+the ~1.8 GiB host and swap already partly used — below the healthy
+threshold for a second/third concurrent heavy specialist, so no additional
+worker was launched this cycle; doing so would risk slowing the active
+review. InventoryTransform SHADOW (merged, dormant pending its own start
+contract) and the Brain readiness worktree were both unchanged and remain
+independently available once capacity allows. No merge, provider request,
+capture, forward SHADOW evidence, V10/AxiomTrade/financial/service action,
+or C/J/E/A crossing occurred: **91/200, formal 1/50; A2/A3 UNQUALIFIED; A4
+OPEN; A8 UNQUALIFIED; G3-L NO-GO; NOT_READY_TO_FUND**. Recover the Opus
+reviewer's terminal/verdict before any merge or new author/review launch.
