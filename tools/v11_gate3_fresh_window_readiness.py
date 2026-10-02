@@ -201,7 +201,19 @@ def _is_exactly_false(v: Any) -> bool:
     return type(v) is bool and v is False
 
 
-def _has_unsafe_key(obj: dict, label: str, reasons: list) -> bool:
+def _oversized_reference(v: Any, keys: frozenset) -> bool:
+    """True if ``v`` is a dict strictly larger than its own reference
+    schema -- i.e. unconditionally invalid as that reference, since the
+    frozen ``_is_ref`` requires exact key-set equality (``set(v.keys()) ==
+    keys``). Refusing it on cardinality alone, via the cheap ``len()``
+    below, changes no accepted case and lets a caller avoid ever handing an
+    arbitrarily large dict to ``_is_ref``, whose first step would otherwise
+    be an unbounded ``set(v.keys())`` copy.
+    """
+    return isinstance(v, dict) and len(v) > len(keys)
+
+
+def _has_unsafe_key(obj: Mapping, label: str, reasons: list) -> bool:
     """True (with a bounded, non-echoing reason appended) if any key of
     ``obj`` is not a plain, size-bounded, UTF-8-encodable string.
 
@@ -235,8 +247,14 @@ def _check_closed_bounded(obj: Any, keys: frozenset, label: str, reasons: list) 
     ``restrictions`` mappings are not byte- or count-capped before reaching
     here, so cardinality and unsafe/unknown keys must be refused
     generically rather than iterated/echoed without bound.
+
+    ``obj`` is accepted and measured as the original ``Mapping`` the caller
+    supplied -- never a ``dict(obj)`` copy of it: ``len()`` is the only
+    operation performed before the cardinality comparison below, so an
+    oversized mapping is refused without first copying or fully iterating
+    its entries.
     """
-    if not isinstance(obj, dict):
+    if not isinstance(obj, Mapping):
         reasons.append(f"NOT_AN_OBJECT:{label}")
         return
     if len(obj) > len(keys):
@@ -271,8 +289,12 @@ def _unsafe_untrusted_submapping(obj: Any, keys: frozenset, label: str, reasons:
     keys: callers use this purely as a go/no-go gate before delegating to a
     reused function that will report missing keys itself once it is safe to
     call.
+
+    As with ``_check_closed_bounded``, ``obj`` is measured as the original
+    ``Mapping`` the caller supplied; cardinality is checked via ``len()``
+    before any copy or full iteration is performed.
     """
-    if not isinstance(obj, dict):
+    if not isinstance(obj, Mapping):
         return False  # let the reused function itself report the type problem
     if len(obj) > len(keys):
         reasons.append(f"TOO_MANY_KEYS:{label}")
@@ -448,12 +470,12 @@ def evaluate_fresh_window_readiness(
     if not isinstance(proposed_window, Mapping):
         refusal.append("INVALID_PROPOSED_WINDOW_TYPE")
     else:
-        _check_closed_bounded(dict(proposed_window), WINDOW_KEYS, "proposed_window", refusal)
+        _check_closed_bounded(proposed_window, WINDOW_KEYS, "proposed_window", refusal)
 
     if not isinstance(prerequisites, Mapping):
         refusal.append("INVALID_PREREQUISITES_TYPE")
     else:
-        _check_closed_bounded(dict(prerequisites), PREREQ_KEYS, "prerequisites", refusal)
+        _check_closed_bounded(prerequisites, PREREQ_KEYS, "prerequisites", refusal)
 
     if type(restrictions_raw) is not bytes:
         refusal.append("INVALID_RESTRICTIONS_RAW_TYPE")
@@ -542,15 +564,18 @@ def evaluate_fresh_window_readiness(
         if val is None:
             incomplete.append(f"NULL_PREREQUISITE:{key}")
             missing_prerequisites.append(key)
-        elif not _is_ref(val, REF_KEYS_NO_REPO):
+        # Cardinality is checked first (cheap, via len()) so an
+        # arbitrarily large dict supplied as a direct reference is refused
+        # before _is_ref's internal set(val.keys()) can copy it (F2).
+        elif _oversized_reference(val, REF_KEYS_NO_REPO) or not _is_ref(val, REF_KEYS_NO_REPO):
             incomplete.append(f"MALFORMED_PREREQUISITE_REFERENCE:{key}")
             missing_prerequisites.append(key)
     owner_ref = prerequisites.get("owner_directive_original_record")
     if owner_ref is None:
         incomplete.append("NULL_PREREQUISITE:owner_directive_original_record")
         missing_prerequisites.append("owner_directive_original_record")
-    elif not _is_ref(owner_ref, OWNER_REF_KEYS) or owner_ref.get("qualification") != \
-            "OWNER_INSTRUCTION_ONLY_NOT_PROVIDER_RIGHTS":
+    elif _oversized_reference(owner_ref, OWNER_REF_KEYS) or not _is_ref(owner_ref, OWNER_REF_KEYS) or \
+            owner_ref.get("qualification") != "OWNER_INSTRUCTION_ONLY_NOT_PROVIDER_RIGHTS":
         incomplete.append("MALFORMED_PREREQUISITE_REFERENCE:owner_directive_original_record")
         missing_prerequisites.append("owner_directive_original_record")
 
@@ -568,16 +593,34 @@ def evaluate_fresh_window_readiness(
     if storage_qualification is None:
         storage_reasons.append("STORAGE_QUALIFICATION_NOT_SUPPLIED")
     if resources is not None and storage_qualification is not None:
-        sq_dict = dict(storage_qualification)
         # _check_storage below calls the checker's raw, unbounded
-        # _check_closed internally -- guard cardinality and keys here first
-        # so an oversized mapping, an oversized/UTF-8-unsafe key, or a
+        # _check_closed internally -- guard cardinality and keys on the
+        # original Mapping here first (before any dict() copy), so an
+        # oversized mapping, an oversized/UTF-8-unsafe key, or a
         # short-but-unknown (e.g. private sentinel) key is refused
-        # generically instead of being iterated/echoed verbatim by that
-        # inner call.
+        # generically instead of being copied/iterated/echoed verbatim by
+        # that inner call (F1).
         if not _unsafe_untrusted_submapping(
-            sq_dict, STORAGE_QUALIFICATION_KEYS, "storage_qualification", storage_reasons
+            storage_qualification, STORAGE_QUALIFICATION_KEYS, "storage_qualification", storage_reasons
         ):
+            # storage_qualification is now confirmed no larger than its own
+            # schema (<= len(STORAGE_QUALIFICATION_KEYS) entries), so this
+            # copy is bounded.
+            sq_dict = dict(storage_qualification)
+            # _check_storage internally calls the frozen _is_ref on
+            # persistence_review, whose first step is an unbounded
+            # set(v.keys()) copy. Guard its cardinality here first and
+            # substitute a cheap sentinel if it is oversized, so that
+            # internal call never sees an arbitrarily large dict (F2); an
+            # oversized dict can never be a valid reference anyway (_is_ref
+            # requires exact key-set equality), so this changes no accepted
+            # case.
+            persistence_review = sq_dict.get("persistence_review")
+            if _oversized_reference(persistence_review, REF_KEYS_NO_REPO):
+                storage_reasons.append(
+                    "OVERSIZED_PREREQUISITE_REFERENCE:storage_qualification.persistence_review"
+                )
+                sq_dict["persistence_review"] = None
             _check_storage(
                 {"limits": dict(FROZEN_LIMITS), "storage_qualification": sq_dict},
                 resources,

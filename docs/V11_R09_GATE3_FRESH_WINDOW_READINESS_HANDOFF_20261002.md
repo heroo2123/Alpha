@@ -40,7 +40,7 @@ narrow upstream check — nothing more.
 A new, self-contained module,
 `tools/v11_gate3_fresh_window_readiness.py`
 (`evaluate_fresh_window_readiness`), plus
-`tests/test_v11_gate3_fresh_window_readiness.py` (43 synthetic/offline
+`tests/test_v11_gate3_fresh_window_readiness.py` (71 synthetic/offline
 tests, all passing, no execution restriction encountered in this session).
 It takes, as explicit caller-supplied arguments:
 
@@ -207,8 +207,8 @@ depth independent of the raw-input byte cap.
 ## Verification run this session
 
 ```
-python -B -m pytest tests/test_v11_gate3_fresh_window_readiness.py tests/test_v11_gate3_evidence_preflight_checker.py -q   # 531 passed (59 planner + 472 checker, unmodified)
-python -O -B -m pytest tests/test_v11_gate3_fresh_window_readiness.py tests/test_v11_gate3_evidence_preflight_checker.py -q   # 531 passed, 1 unrelated pytest-config warning
+python -B -m pytest tests/test_v11_gate3_fresh_window_readiness.py tests/test_v11_gate3_evidence_preflight_checker.py -q   # 543 passed (71 planner + 472 checker, unmodified)
+python -O -B -m pytest tests/test_v11_gate3_fresh_window_readiness.py tests/test_v11_gate3_evidence_preflight_checker.py -q   # 543 passed, 1 unrelated pytest-config warning
 python -m py_compile tools/v11_gate3_fresh_window_readiness.py tests/test_v11_gate3_fresh_window_readiness.py tools/v11_gate3_evidence_preflight_checker.py   # clean
 git diff --check                                                        # clean
 ```
@@ -276,6 +276,46 @@ honest consequence of there being no reviewed policy for any of the three
 gaps today, not a regression in what this planner can detect. 16 tests
 were added in this pass (59 total).
 
+An independent Codex GPT-6 Astra/high exact-commit review of `6af4633`
+found R2/R3/R4 fully closed by the above, but returned `CHANGES_REQUIRED`
+on two new findings: `dict(proposed_window)`, `dict(prerequisites)`, and
+`dict(storage_qualification)` were materialized *before*
+`_check_closed_bounded`/`_unsafe_untrusted_submapping` ever measured their
+cardinality, so an oversized ordinary dict (no adversarial object needed)
+paid a full O(n) copy before being refused, and a bounded subprocess probe
+with an already-allocated 100,000-entry dictionary raised an uncaught
+`MemoryError` rather than a structured refusal (F1); and every direct
+prerequisite reference, the owner reference, and
+`storage_qualification["persistence_review"]` could independently be an
+arbitrarily large ordinary dict reaching the frozen checker's `_is_ref`,
+whose first step (`set(v.keys())`) has no cardinality bound of its own, so
+the same uncaught-`MemoryError` failure mode existed one layer deeper even
+when the outer mapping itself was schema-sized (F2).
+
+This revision fixes both without modifying the frozen checker. F1:
+`_check_closed_bounded` and `_unsafe_untrusted_submapping` now accept and
+measure the caller's original `Mapping` directly — `len(obj)` is the only
+operation performed before the cardinality comparison — and the three call
+sites (`proposed_window`, `prerequisites`, `storage_qualification`) no
+longer pre-copy with `dict(...)` before that comparison; a `dict(...)`
+copy only ever happens afterward, once cardinality is already confirmed
+bounded. F2: a new local `_oversized_reference` helper checks
+`isinstance(v, dict) and len(v) > len(schema_keys)` — a dict that large
+can never be a valid reference regardless, since `_is_ref` requires exact
+key-set equality — and gates every direct reference before `_is_ref` runs:
+each of the eleven non-owner prerequisite references, the owner reference,
+and (since `_check_storage` itself is frozen and unmodifiable)
+`storage_qualification["persistence_review"]` is substituted with a cheap
+`None` sentinel first if oversized, so the frozen `_check_storage`/`_is_ref`
+call never receives the oversized dict. Both failure modes are now
+reproducibly structured outcomes rather than uncaught `MemoryError` under
+the review's exact bounded-subprocess probe (verified independently in
+this pass, plain and `-O`, for all three F1/F2 surfaces). 12 tests were
+added in this pass (71 total), including counting-`Mapping` regressions
+that assert zero `keys()`/`__iter__` calls occur on an oversized reference
+before refusal, proving the guard is driven by a single bounded `len()`
+check rather than any copy or key-set construction.
+
 ## Required before any further promotion
 
 This is a candidate only. Before it is relied on for an actual dated
@@ -291,8 +331,11 @@ builds the tool that will report honestly once it exists.
 Separately, and not requested or scheduled by this document either: before
 `PREPARATION_CANDIDATE_ALL_INPUTS_PRESENT_NOT_EXECUTABLE` can ever be
 produced again, a later, independently reviewed change must actually
-establish one or more of the three standing gaps above — a reviewed window
+establish all three of the standing gaps above — a reviewed window
 duration/horizon ceiling, a reviewed resource/reservation magnitude
-ceiling, and a reviewed trusted clock-observation provenance boundary. This
+ceiling, and a reviewed trusted clock-observation provenance boundary —
+since `__post_init__` requires `window_is_fresh`/`clock_ready`/
+`storage_ready` to all be true simultaneously; establishing only one or two
+leaves the outcome unreachable via the remaining standing blocker(s). This
 planner does not propose candidate values for any of them; doing so here
 would be exactly the invented-threshold problem this revision fixed.

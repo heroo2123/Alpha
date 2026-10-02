@@ -753,6 +753,181 @@ def test_matching_future_forged_clock_pair_is_also_blocked_on_provenance():
     assert "CLOCK_DISAGREES_WITH_NOW_UTC" not in result.incompleteness_reasons
 
 
+# -- F1/F2: bounded pre-copy / pre-set-construction cardinality guards ----
+#
+# Independent Astra/high review of 6af4633 found that the outer closed-key
+# guard (_check_closed_bounded) and the nested reference guard (_is_ref via
+# _check_storage) ran only after dict(proposed_window)/dict(prerequisites)/
+# dict(storage_qualification) had already copied the whole caller-supplied
+# mapping, and that a nested direct reference (any prerequisite, or
+# storage_qualification["persistence_review"]) could still be an arbitrarily
+# large dict reaching the frozen _is_ref's internal set(v.keys()) unbounded.
+# These regressions prove both are now refused on a single len() comparison
+# alone, before any copy, full iteration, or key-set construction.
+
+class _CountingOversizedMapping(dict):
+    """A ``dict`` subclass that declares an arbitrarily large cardinality
+    via ``__len__`` while actually holding zero entries, and counts every
+    call to the iteration/lookup protocol a full copy or key-set
+    construction (``dict(obj)``, ``set(obj.keys())``, ``for k in obj``)
+    would use. If cardinality is checked (via ``len()``) before any of
+    those, every counter stays at 0 after the call returns.
+    """
+
+    def __init__(self, declared_len: int):
+        super().__init__()
+        self._declared_len = declared_len
+        self.iter_calls = 0
+        self.keys_calls = 0
+        self.getitem_calls = 0
+
+    def __len__(self):
+        return self._declared_len
+
+    def __iter__(self):
+        self.iter_calls += 1
+        return super().__iter__()
+
+    def keys(self):
+        self.keys_calls += 1
+        return super().keys()
+
+    def __getitem__(self, key):
+        self.getitem_calls += 1
+        return super().__getitem__(key)
+
+
+def test_oversized_counting_proposed_window_is_refused_without_copy_or_iteration():
+    counting = _CountingOversizedMapping(100_000)
+    result = _call(proposed_window=counting)
+    assert result.outcome == OUTCOME_REFUSED
+    assert "TOO_MANY_KEYS:proposed_window" in result.refusal_reasons
+    assert counting.iter_calls == 0
+    assert counting.keys_calls == 0
+    assert counting.getitem_calls == 0
+
+
+def test_oversized_counting_prerequisites_is_refused_without_copy_or_iteration():
+    counting = _CountingOversizedMapping(100_000)
+    result = _call(prerequisites=counting)
+    assert result.outcome == OUTCOME_REFUSED
+    assert "TOO_MANY_KEYS:prerequisites" in result.refusal_reasons
+    assert counting.iter_calls == 0
+    assert counting.keys_calls == 0
+    assert counting.getitem_calls == 0
+
+
+def test_oversized_counting_storage_qualification_is_incomplete_without_copy_or_iteration():
+    counting = _CountingOversizedMapping(100_000)
+    result = _call(storage_qualification=counting)
+    assert result.outcome == OUTCOME_INCOMPLETE
+    assert result.storage_ready is False
+    assert "TOO_MANY_KEYS:storage_qualification" in result.incompleteness_reasons
+    assert counting.iter_calls == 0
+    assert counting.keys_calls == 0
+    assert counting.getitem_calls == 0
+
+
+def test_ordinary_hundred_thousand_key_proposed_window_refused_with_bounded_output():
+    huge = dict(FRESH_WINDOW, **{f"extra_{i}": "x" for i in range(100_000)})
+    result = _call(proposed_window=huge)
+    assert result.outcome == OUTCOME_REFUSED
+    assert result.refusal_reasons == ("TOO_MANY_KEYS:proposed_window",)
+    assert sum(len(r.encode("utf-8")) for r in result.refusal_reasons) < 1000
+
+
+def test_ordinary_hundred_thousand_key_prerequisites_refused_with_bounded_output():
+    prereqs = _full_prerequisites()
+    for i in range(100_000):
+        prereqs[f"extra_{i}"] = "x"
+    result = _call(prerequisites=prereqs)
+    assert result.outcome == OUTCOME_REFUSED
+    assert result.refusal_reasons == ("TOO_MANY_KEYS:prerequisites",)
+    assert sum(len(r.encode("utf-8")) for r in result.refusal_reasons) < 1000
+
+
+def test_ordinary_hundred_thousand_key_storage_qualification_incomplete_with_bounded_output():
+    bad_storage = dict(GOOD_STORAGE_QUALIFICATION, **{f"extra_{i}": "x" for i in range(100_000)})
+    result = _call(storage_qualification=bad_storage)
+    assert result.outcome == OUTCOME_INCOMPLETE
+    assert result.storage_ready is False
+    assert "TOO_MANY_KEYS:storage_qualification" in result.incompleteness_reasons
+    assert "NO_REVIEWED_RESOURCE_MAGNITUDE_CEILING" not in result.incompleteness_reasons
+    assert sum(len(r.encode("utf-8")) for r in result.incompleteness_reasons) < 1000
+
+
+def test_oversized_counting_nested_prerequisite_reference_is_incomplete_without_key_set():
+    # A schema-sized prerequisite bundle (12 keys, none extra) whose single
+    # direct reference value is an arbitrarily large counting mapping: the
+    # outer _check_closed_bounded guard cannot catch this (prerequisites
+    # itself is not oversized), so the nested guard must.
+    counting = _CountingOversizedMapping(100_000)
+    prereqs = _full_prerequisites()
+    prereqs["runtime_implementation_review"] = counting
+    result = _call(prerequisites=prereqs)
+    assert result.outcome == OUTCOME_INCOMPLETE
+    assert "MALFORMED_PREREQUISITE_REFERENCE:runtime_implementation_review" in result.incompleteness_reasons
+    assert "runtime_implementation_review" in result.missing_prerequisites
+    # _is_ref's internal set(v.keys()) was never reached: keys()/__iter__
+    # were never called on the oversized reference.
+    assert counting.keys_calls == 0
+    assert counting.iter_calls == 0
+
+
+def test_oversized_counting_owner_reference_is_incomplete_without_key_set():
+    counting = _CountingOversizedMapping(100_000)
+    prereqs = _full_prerequisites()
+    prereqs["owner_directive_original_record"] = counting
+    result = _call(prerequisites=prereqs)
+    assert result.outcome == OUTCOME_INCOMPLETE
+    assert "MALFORMED_PREREQUISITE_REFERENCE:owner_directive_original_record" in result.incompleteness_reasons
+    assert "owner_directive_original_record" in result.missing_prerequisites
+    assert counting.keys_calls == 0
+    assert counting.iter_calls == 0
+
+
+def test_oversized_counting_storage_persistence_review_is_incomplete_without_key_set():
+    counting = _CountingOversizedMapping(100_000)
+    storage_qualification = dict(GOOD_STORAGE_QUALIFICATION, persistence_review=counting)
+    result = _call(storage_qualification=storage_qualification)
+    assert result.outcome == OUTCOME_INCOMPLETE
+    assert result.storage_ready is False
+    assert "OVERSIZED_PREREQUISITE_REFERENCE:storage_qualification.persistence_review" in result.incompleteness_reasons
+    assert "MISSING_STORAGE_PERSISTENCE_REVIEW" in result.incompleteness_reasons
+    assert counting.keys_calls == 0
+    assert counting.iter_calls == 0
+
+
+def test_ordinary_hundred_thousand_key_nested_prerequisite_reference_is_incomplete():
+    huge_ref = {f"extra_{i}": "x" for i in range(100_000)}
+    prereqs = _full_prerequisites()
+    prereqs["runtime_implementation_review"] = huge_ref
+    result = _call(prerequisites=prereqs)
+    assert result.outcome == OUTCOME_INCOMPLETE
+    assert "MALFORMED_PREREQUISITE_REFERENCE:runtime_implementation_review" in result.incompleteness_reasons
+    assert "runtime_implementation_review" in result.missing_prerequisites
+
+
+def test_ordinary_hundred_thousand_key_owner_reference_is_incomplete():
+    huge_ref = {f"extra_{i}": "x" for i in range(100_000)}
+    prereqs = _full_prerequisites()
+    prereqs["owner_directive_original_record"] = huge_ref
+    result = _call(prerequisites=prereqs)
+    assert result.outcome == OUTCOME_INCOMPLETE
+    assert "MALFORMED_PREREQUISITE_REFERENCE:owner_directive_original_record" in result.incompleteness_reasons
+    assert "owner_directive_original_record" in result.missing_prerequisites
+
+
+def test_ordinary_hundred_thousand_key_storage_persistence_review_is_incomplete():
+    huge_ref = {f"extra_{i}": "x" for i in range(100_000)}
+    storage_qualification = dict(GOOD_STORAGE_QUALIFICATION, persistence_review=huge_ref)
+    result = _call(storage_qualification=storage_qualification)
+    assert result.outcome == OUTCOME_INCOMPLETE
+    assert result.storage_ready is False
+    assert "OVERSIZED_PREREQUISITE_REFERENCE:storage_qualification.persistence_review" in result.incompleteness_reasons
+    assert "MISSING_STORAGE_PERSISTENCE_REVIEW" in result.incompleteness_reasons
+
+
 # -- Result invariants ----------------------------------------------------
 
 def test_result_rejects_inconsistent_refused_with_empty_reasons():
