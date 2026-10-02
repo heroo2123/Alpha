@@ -18249,3 +18249,54 @@ capture, forward SHADOW evidence, V10/AxiomTrade/financial/service action,
 or C/J/E/A crossing occurred: **91/200, formal 1/50; A2/A3 UNQUALIFIED; A4
 OPEN; A8 UNQUALIFIED; G3-L NO-GO; NOT_READY_TO_FUND**. Recover the Opus
 reviewer's terminal/verdict before any merge or new author/review launch.
+
+## Opus review of attempt-model recovered; repair launched — 2026-10-02 14:45 UTC
+
+Recovered clean main `a3f0edd` (unchanged since the 14:43 entry) and the
+independent Opus/high review of the Gate 3 attempt-model candidate `b31bed0`
+(tree `662af78`, parent `24100a5`): its process had already exited, log
+complete at `/tmp/alpha-v11-gate3-preflight-attempt-model-opus-review.log`,
+ending with its required marker. The reviewer disclosed it could not
+execute Python in its sandbox, so its findings are a static read, not an
+observed run; it is otherwise a detailed exact-commit review scoped
+correctly to this offline, no-authority slice.
+
+Verdict: **CHANGES_REQUIRED**, four high-severity findings (H1 fault-during-
+LOCKED wrongly zero-charges and forgets the intent; H2 bytes delivered past
+the body cap are under-reported with no poisoned flag; H3 `recover_synthetic`
+drops the attempt reservation, ignores phase/fingerprint binding, and skips
+the admission-time checkpoint checks; H4 clock-window failures are
+enforced during schema validation instead of becoming `UNCERTAIN_HELD` in
+the state machine, letting a caller retry with a backdated clock), plus
+nine medium findings (double-counted START, a history head that ignores
+event content, an unvalidated hand-built state accepted by `step`,
+mismatched deadline windows, no UTC/monotonic cross-check, an
+under-constrained `ModelResult`, non-terminal outcomes on early scripts,
+exceptions on malformed input, and a stale acceptance doc with wrong
+hashes/counts), three tests asserting the wrong behavior, and a tautological
+P07 test. No merge, capture, provider request, or score change is implied;
+G3-L stays NO-GO and this slice (even after a future PASS) grants no
+execution/provider/transport authority.
+
+Launched exactly one Claude Sonnet/high repair worker (no Codex attempt —
+the owner-reported weekly Codex allowance remains exhausted until Oct 8) in
+the same isolated worktree `/tmp/alpha-v11-gate3-preflight-attempt-model-20261002`
+on top of `b31bed0`, PID `2251890`, prompt/runner at
+`/tmp/alpha-v11-gate3-preflight-attempt-model-opus-repair-20261002.*`. Its
+task is to fix H1-H4 (mandatory) and M1-M9, correct the three wrong tests
+and the tautological P07 test, add the reviewer's R1-R15 regression probes
+passing under both plain and `-O` Python, regenerate the acceptance doc
+with real hashes/counts, and commit exactly one new commit on `b31bed0`
+with no provider/network/socket access and no score or authority claim.
+Recover its terminal/log before any merge, new author, or next review
+launch.
+
+No other Alpha worker process was found running at this inspection; disk
+was 2.7 GiB free (above the 2 GiB floor, below the preferred 3 GiB) and
+MemAvailable about 925 MiB after launch, so no second concurrent heavy
+specialist was started — InventoryTransform SHADOW (merged, dormant) and
+the Brain/IFS-AIFS lane remain independently available once capacity
+allows. No V10/AxiomTrade, financial, service, authority, or
+remote-publication action, and no C/J/E/A boundary crossed: **91/200,
+formal 1/50; A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO;
+NOT_READY_TO_FUND**.
