@@ -41,6 +41,12 @@ from tools.v11_r09_gate3_offline_io import (
     OfflineResponse, SyntheticExchange, VersionedImmutableObjectStore,
     verify_response,
 )
+from tools.v11_gate3_preflight_attempt_model import (
+    BODY_CAP as ATTEMPT_MODEL_BODY_CAP,
+    Checkpoint as AttemptCheckpoint,
+    SyntheticInputs as AttemptSyntheticInputs,
+    admit_synthetic as attempt_model_admit_synthetic,
+)
 
 # Design section 3: ">=2 GiB disk and >=512 MiB available memory after
 # prospective allocation, at startup, before each request and each
@@ -865,6 +871,58 @@ def acquire_runtime_journals(*, shared_dir, session_dir, budget_dir, store_root,
 
 
 # ---------------------------------------------------------------------------
+# Mandatory pre-dispatch gate onto the independently reviewed offline
+# attempt model (tools/v11_gate3_preflight_attempt_model.py).
+# ---------------------------------------------------------------------------
+
+class AttemptModelGuard:
+    """Binds one ``GateRuntime`` to the independently reviewed offline Gate 3
+    attempt model. Optional on ``GateRuntime`` -- every existing caller that
+    omits it is completely unaffected -- but once supplied, every
+    ``run_attempt`` call on that runtime instance is refused before Step 1
+    (the first durable session/shared mutation) unless the model admits.
+    It can only ever add a refusal on top of ``run_attempt``'s own existing
+    checks, never remove one: it is consulted inside the same pre-Step-1
+    ``try`` block as the prerequisite/capacity/window/control-domain checks,
+    and a refusal there is reported through the same ``_session_refuse``
+    path (durable, exactly-once, no-refund-ambiguity accounting unchanged).
+
+    The attempt model's own fixed contract (its ``PHASES``, its
+    ``WINDOW_LO``/``WINDOW_HI`` business window, its 3,145,728-byte/
+    60-second single stage reservation) represents exactly one bounded
+    pilot attempt, not an arbitrary ``AttemptRequest``. This guard is
+    therefore both single-shot -- ``admit_synthetic`` is consulted at most
+    once per guard instance; every call after the first refuses outright,
+    matching the pilot's documented zero-retry contract -- and
+    scope-checked: a request outside the model's ``INDEX``/``BODY_CAP``
+    contract shape refuses rather than silently skipping the gate.
+    """
+
+    def __init__(self, inputs: AttemptSyntheticInputs, checkpoint: AttemptCheckpoint):
+        check(type(inputs) is AttemptSyntheticInputs and type(checkpoint) is AttemptCheckpoint,
+              'RUNTIME_ATTEMPT_MODEL_GUARD_SHAPE')
+        self._inputs = inputs
+        self._checkpoint = checkpoint
+        self._consumed = False
+
+    def require_admission(self, request: 'AttemptRequest') -> None:
+        already_consumed, self._consumed = self._consumed, True
+        check(not already_consumed, 'RUNTIME_ATTEMPT_MODEL_ALREADY_CONSUMED')
+        check(request.purpose == 'INDEX' and
+              request.reservation_bytes <= ATTEMPT_MODEL_BODY_CAP,
+              'RUNTIME_ATTEMPT_MODEL_SCOPE_MISMATCH')
+        try:
+            admitted = attempt_model_admit_synthetic(self._inputs, self._checkpoint)
+            ok = admitted.phase == 'ADMITTED'
+        except ValueError:
+            # admit_synthetic raises only for a structurally invalid
+            # checkpoint; that is a refusal, not a crash this guard should
+            # ever propagate.
+            ok = False
+        check(ok, 'RUNTIME_ATTEMPT_MODEL_REFUSED')
+
+
+# ---------------------------------------------------------------------------
 # The per-attempt runtime driver.
 # ---------------------------------------------------------------------------
 
@@ -879,12 +937,15 @@ class GateRuntime:
                  transport: Transport, clock: Clock, resources: ResourceProbe,
                  window: AbsoluteWindow, allowed_peer_ips: tuple,
                  manifest_sha256: str, plan: FrozenPlan,
-                 expected_plan_sha256: str, report_sink: 'ReportSink'):
+                 expected_plan_sha256: str, report_sink: 'ReportSink',
+                 attempt_model: AttemptModelGuard | None = None):
         check(type(shared) is SharedLedger and type(session) is SessionLedger and
               type(budget) is DurableBudget and type(store) is VersionedImmutableObjectStore,
               'RUNTIME_COMPOSITION_SHAPE')
         check(isinstance(transport, Transport) and isinstance(clock, Clock) and
               isinstance(resources, ResourceProbe), 'RUNTIME_COMPOSITION_SHAPE')
+        check(attempt_model is None or type(attempt_model) is AttemptModelGuard,
+              'RUNTIME_COMPOSITION_SHAPE')
         check(type(window) is AbsoluteWindow, 'RUNTIME_COMPOSITION_SHAPE')
         check(type(allowed_peer_ips) is tuple and allowed_peer_ips, 'RUNTIME_PEER_IPS')
         digest(manifest_sha256, 'RUNTIME_MANIFEST_DIGEST')
@@ -951,6 +1012,7 @@ class GateRuntime:
                   'RUNTIME_REVIEWED_CONTEXT_MISMATCH')
         self.shared, self.session, self.budget, self.store = shared, session, budget, store
         self.transport, self.clock, self.resources = transport, clock, resources
+        self.attempt_model = attempt_model
         self.window = window
         self.allowed_peer_ips = allowed_peer_ips
         self.manifest_sha256 = manifest_sha256
@@ -1349,6 +1411,8 @@ class GateRuntime:
             check(not self.shared.is_blocked(request.control_domain_id,
                   now_utc=pre.reading.utc_seconds - pre.reading.uncertainty_seconds),
                   'RUNTIME_CONTROL_DOMAIN_BLOCKED')
+            if self.attempt_model is not None:
+                self.attempt_model.require_admission(request)
         except LaunchContractError as exc:
             return self._session_refuse(request, str(exc), pre)
 
