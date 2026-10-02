@@ -1,3 +1,18 @@
+## Sonnet/high audit: routed R09 trajectory-adapter task found already done — 2026-10-02
+
+Audited before implementing, as instructed. The R09 Gate 2 offline trajectory
+contract/admission validator was already built, independently reviewed PASS at
+`1ab551d` (`docs/V11_R09_GATE2_REVIEW_1ab551d.md`), and merged into current main
+(ancestor of HEAD `ff47acd`, 169 commits back, no later edits to the contract
+files). Reran `tests/test_v11_trajectory_contract.py tests/test_v11_multimodel_panel.py`
+on HEAD: **181 passed, 1 skipped in 29.08s**, matching the review's counts. Wrote
+no new code to avoid duplicating accepted work. The genuine next R09 step is the
+existing Gate 3 collection pipeline (`docs/V11_R09_GATE3_COLLECTION_PROTOCOL.md`),
+blocked on 77 missing reviewed identities and sub-2-GiB free disk (950,226,944
+bytes measured), plus G3-E needing real provider requests that are out of scope
+for this invocation. No C/J/E/A boundary crossed: **91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Coordinator R09 offline continuation — 2026-10-02
 
 Clean main `d0fbe58` retains the accepted 5,460-pass/13-skip release result and B1 structural checker. The local October 3 Gate 3 screen remains nonlaunchable (77 missing identities, zero slots, free disk below 2 GiB); SHADOW/Brain have no new forward artifact. Routed the next independent offline IFS/AIFS sampled-trajectory implementation under the reviewed R09 contract for Sonnet/high, followed by exact-commit independent review. No worker or provider request was started in this invocation. **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.

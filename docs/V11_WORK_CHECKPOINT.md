@@ -1,3 +1,42 @@
+## Sonnet/high audit: routed R09 gate-2 task was stale, already complete — 2026-10-02 (post 05:16 UTC)
+
+Routed as Sonnet/high to implement "the next bounded offline IFS/AIFS source-native
+sampled-trajectory adapter" per the 05:16 UTC handoff below. Before writing any code,
+audited the integrated tree per that handoff's own instruction ("audit current
+integrated code... against that decision" first). Found this work is **already
+implemented, independently reviewed PASS, and merged on this exact main**: the R09
+Gate 2 offline trajectory/capture contract and admission validator
+(`tools/v11_trajectory_contract.py`, `tests/test_v11_trajectory_contract.py`) was
+committed across `fed1cbe`, `2d116af`, `16c0756`, `a1e29fa`, `1ab551d`, with a fresh
+independent exact-commit PASS recorded in `docs/V11_R09_GATE2_REVIEW_1ab551d.md`
+(45/45 probes, 181 passed/1 skipped). `1ab551d` is a direct ancestor of current HEAD
+`ff47acd` (169 commits back); no file in `tools/v11_trajectory_contract.py`,
+`tests/test_v11_trajectory_contract.py` or `docs/V11_R09_DATA_CONTRACT_ADJUDICATION.md`
+has changed since that review. Reran the focused suite on current HEAD to confirm no
+regression: `tests/test_v11_trajectory_contract.py tests/test_v11_multimodel_panel.py`
+— **181 passed, 1 skipped in 29.08s**, matching the reviewed counts exactly.
+
+This means the 05:09/05:16 UTC entries below misidentified already-accepted gate-2
+work as the next unblocked task; that was a stale-record error, not newer work to
+preserve. Per the project's own Gate 3 collection-protocol doc
+(`docs/V11_R09_GATE3_COLLECTION_PROTOCOL.md`), the actual next step in the R09 data
+contract is **Gate 3 (prospective source/collection protocol: G3-P/G3-I/G3-L/G3-E)**,
+which is the same "Gate 3" family as the large existing `tools/v11_r09_gate3_*` /
+`docs/V11_R09_GATE3_*` body of work already in this tree (A2/A3 provenance, A4
+bootstrap/decoder closure, B1 closure checker, G3-L launch-manifest validator,
+etc.) — not a separate unimplemented adapter. That pipeline's current blocker,
+per the 05:09 UTC G3-L screen, is 77 missing reviewed identities and free disk
+below the 2 GiB floor (950,226,944 bytes free at this check), not missing
+trajectory-adapter code. G3-E (actual raw-byte collection) additionally requires
+real anonymous network requests, which are out of scope for this offline,
+no-provider-request invocation.
+
+No new implementation was written (writing one would duplicate already-reviewed,
+already-merged work). No code, test, or gate file was changed. No provider
+request, service/authority/financial action, V10/AxiomTrade change, forward
+SHADOW sample, or C/J/E/A boundary crossing occurred: **91/200 (45.5%), formal
+1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator recovery and next offline R09 handoff — 2026-10-02 05:16 UTC
 
 Recovered clean main `d0fbe58` (165 local commits ahead of tracking) after the 05:09 local-only G3-L screen. No separate Alpha implementation/review worker or pytest process is live. SHADOW `15e99bd` and Brain-readiness `58b0b79` are clean; ECMWF's untracked `backfill_data/` is preserved. No commissioning or BrainWork file newer than the prior screen was found. The FINAL-REVIEWED private master still hashes to `a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`. PAPER demo/scanner/controller are inactive/disabled and execution inactive/masked. Root free space is about 903 MiB, below the G3-L 2 GiB floor; available memory is about 772 MiB. The latest October 3 G3-L report remains nonlaunchable with 77 missing reviewed identities and zero feasible slots. The historical 5,460-pass/13-skip release acceptance remains the current release evidence; no new full suite was run.

@@ -1,3 +1,16 @@
+## Sonnet/high audit: R09 gate-2 trajectory adapter already accepted — 2026-10-02
+
+The routed "implement the R09 IFS/AIFS sampled-trajectory adapter" task was stale:
+that offline Gate 2 contract/validator is already implemented, independently
+reviewed PASS (`docs/V11_R09_GATE2_REVIEW_1ab551d.md`), and merged on current main
+(`1ab551d` is an ancestor of HEAD `ff47acd`). Reran its focused suite on HEAD:
+**181 passed, 1 skipped**, matching the review exactly — no regression, no change
+made. The real next R09 step is the already-underway Gate 3 collection pipeline
+(G3-P/G3-I/G3-L/G3-E; see `docs/V11_R09_GATE3_COLLECTION_PROTOCOL.md`), currently
+blocked by 77 missing reviewed identities and free disk below the 2 GiB floor, plus
+G3-E's requirement for real provider network requests (out of scope here). No
+C/J/E/A boundary crossed: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator R09 offline continuation — 2026-10-02
 
 Current local G3-L screen remains NO-GO with 77 missing reviewed identities, zero slots and disk below 2 GiB. Reviewed SHADOW/Brain code has no new forward evidence. The next unblocked R09 work is a source-native IFS/AIFS sampled-trajectory adapter and exact evidence binding under the accepted data contract; it requires implementation, affected tests and different-model exact-commit review before any real admission claim. No C/J/E/A boundary crossed: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
