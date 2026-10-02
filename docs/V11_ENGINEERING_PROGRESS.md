@@ -1,3 +1,13 @@
+## Coordinator recovery — 2026-10-02 06:23 UTC
+
+Recovered clean `d76477e`, no independent Alpha worker or newer checked
+SHADOW/Brain evidence. Private FINAL-REVIEWED master hash matches. PAPER
+scanner is inactive/disabled, weather execution inactive/masked, and disk
+below the G3-L floor. The accepted section-3 owner choice and genuine
+current-run evidence remain outstanding. No provider request, service or
+authority action, or C/J/E/A crossing: **91/200, formal 1/50; G3-L NO-GO;
+NOT_READY_TO_FUND**.
+
 ## Coordinator recovery — 2026-10-02 06:19 UTC
 
 Recovered clean main `1373690`, no independent Alpha worker, no newer checked

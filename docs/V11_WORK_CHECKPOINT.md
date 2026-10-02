@@ -1,3 +1,25 @@
+## Coordinator recovery — 2026-10-02 06:23 UTC
+
+Recovered clean main `d76477e`; its only change since the 06:19 recovery was
+the prior checkpoint. No separate Alpha writer, reviewer or pytest process is
+live. SHADOW `15e99bd` and Brain-readiness `58b0b79` remain clean, ECMWF's
+untracked `backfill_data/` is preserved, and no checked forward artifact or
+worker terminal appeared after 06:19. The protected FINAL-REVIEWED master
+still hashes to `a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+
+PAPER scanner and demo are inactive, scanner disabled, weather execution
+inactive/masked, and protected V11 authority roots absent. Free disk is
+874,229,760 bytes, below the 2 GiB G3-L floor; available memory is
+1,120,505,856 bytes. The older A8 fixture remains intact under the prior
+automatic deletion rejection. The accepted bootstrap packet's section-3 owner
+choice remains pending, and no qualifying offline current-run input appeared.
+The October 3 window remains proposal-only; no provider request is permitted
+before G3-L PASS. The accepted 5,460-pass/13-skip release result is historical,
+with no new failing or passing full-suite run. No V10, AxiomTrade, service,
+authority, financial, provider or publication action was taken. No C/J/E/A
+boundary crossed: **A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO;
+91/200, formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator recovery — 2026-10-02 06:19 UTC
 
 Recovered clean main `1373690` (the 06:15 checkpoint only); no separate Alpha
