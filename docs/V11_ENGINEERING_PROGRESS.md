@@ -6796,3 +6796,6 @@ Original-process-sealed Astra/high review of `739ca4d` returned **CHANGES_REQUIR
 ## Checker F10 timestamp grammar candidate — 2026-10-02 12:52 UTC
 
 Original-process-sealed Astra/high review of `0cf7660` returned **CHANGES_REQUIRED** for Python dropping fractional zero-whole-second UTC offsets; F9 passed. Committed isolated `5d9c148` to refuse unsupported fractional offsets before parsing. The 442 focused offline tests pass; different-model exact review is active. The real package and 503/503/429 restriction history remain blocked/unchanged. No integration, provider request, capture, SHADOW or score change. InventoryTransform SHADOW `2033b82` is queued for exact review. **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+## Checker F11 offset-range candidate — 2026-10-02 13:01 UTC
+
+Original-process-sealed Astra/high review of `5d9c148` returned **CHANGES_REQUIRED** for malformed HH:MM offsets silently normalized by Python; F10 passed. Committed isolated `92024e9` with ASCII hour/minute range checks before parsing. The 472 focused offline tests pass; a different-model exact review is active. The real package and 503/503/429 restriction history remain blocked/unchanged. No integration, provider request, capture, SHADOW or score change; InventoryTransform SHADOW `2033b82` remains queued. **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.

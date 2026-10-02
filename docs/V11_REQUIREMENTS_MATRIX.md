@@ -4080,3 +4080,6 @@ Sealed exact `739ca4d` checker review is **CHANGES_REQUIRED** for sub-microsecon
 ## Checker F10 timestamp-offset review gate — 2026-10-02 12:52 UTC
 
 Sealed exact `0cf7660` review is **CHANGES_REQUIRED** for silent fractional-offset normalization at the preflight window edges; F9 is closed. Isolated `5d9c148` explicit timestamp grammar passes 442 focused tests and is under fresh independent exact-commit review. It is unmerged, offline and non-executable. InventoryTransform SHADOW `2033b82` remains unreviewed/unintegrated. No new reviewed launch identity, capture, forward evidence or C/J/E/A boundary: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+## Checker F11 offset-range review gate — 2026-10-02 13:01 UTC
+
+Sealed exact `5d9c148` review is **CHANGES_REQUIRED** for malformed numeric offset minutes normalized by Python; F10 is closed. Isolated `92024e9` bounded ASCII offset grammar passes 472 focused tests and is under fresh independent exact-commit review. It remains offline, unmerged and non-executable. InventoryTransform SHADOW `2033b82` remains unreviewed/unintegrated. Twelve preflight prerequisites remain null; no provider request or capture evidence. No C/J/E/A crossing: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
