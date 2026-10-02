@@ -3894,3 +3894,13 @@ its PASS covers offline synthetic collector work only. Three G3-I historical
 completion records, current-run evidence, owner bootstrap choice and storage
 headroom remain open. **A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED;
 G3-L NO-GO; 91/200, formal 1/50; NOT_READY_TO_FUND**.
+## Coordinator gate check — 2026-10-02 07:56 UTC
+
+Main `5a06629` adds only the recovered original G3-P review terminal since
+the previous recovery. The three remaining named historical G3-I review
+terminals were not established in a bounded search. The local-only October 3
+screen remains 77 missing inputs, zero of 2,713 slots, `launchable=false`;
+free disk is about 803 MiB against G3-L's 2 GiB floor. The reviewed bootstrap
+section-3 owner choice remains pending. No C/J/E/A boundary crossed:
+**A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO; 91/200,
+formal 1/50; NOT_READY_TO_FUND**.

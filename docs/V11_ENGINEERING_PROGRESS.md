@@ -6606,3 +6606,14 @@ match the historical independent review. The accepted reconciliation packet
 remains unchanged; three other historical G3-I terminals remain unverified.
 No release test, provider request, forward SHADOW sample or C/J/E/A crossing:
 **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+## Coordinator recovery — 2026-10-02 07:56 UTC
+
+Recovered clean `5a06629` and the G3-P review terminal already retained on
+main. No separate worker or newer forward SHADOW/Brain evidence appeared.
+The remaining three historical G3-I completion terminals were not established
+in a bounded search. Private FINAL-REVIEWED master hash matches; PAPER units
+are inactive, execution masked, authority roots absent and disk below the
+G3-L floor. Presented the accepted bootstrap section-3 owner choice; no
+answer, exception, provider request or new release test is presumed. No
+C/J/E/A crossing: **91/200, formal 1/50; G3-L NO-GO;
+NOT_READY_TO_FUND**.

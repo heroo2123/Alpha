@@ -17736,3 +17736,32 @@ current-run evidence remain outstanding. No provider, service, authority,
 financial, V10, AxiomTrade or publication action; no C/J/E/A crossing:
 **A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO; 91/200,
 formal 1/50; NOT_READY_TO_FUND**.
+## Coordinator recovery — 2026-10-02 07:56 UTC
+
+Recovered clean main `5a06629`; commits since the 07:45 recovery are its
+documentation checkpoint and the restored original G3-P review terminal.
+No separate Alpha author, reviewer or pytest
+process is live. SHADOW and Brain-readiness worktrees are clean; ECMWF's
+untracked `backfill_data/` is preserved, with no newer checked forward file.
+The protected FINAL-REVIEWED master SHA-256 remains
+`a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+
+Boundedly searched retained top-level review terminals and named historical
+review references for the remaining G3-I collector, GEFS-ceiling and
+provider-bound completion records. Their reports remain available, but no
+separate completed terminal was established; do not synthesize one or change
+the accepted reconciliation packet's scope. The October 3 local-only screen
+still has 77 missing inputs, zero of 2,713 slots and `launchable=false`.
+PAPER demo/scanner/controller and weather execution units are inactive;
+scanner is disabled, execution masked and protected V11 authority roots absent.
+Disk free is about 803 MiB, below G3-L's 2 GiB floor; available memory is
+about 1.2 GiB. Capacity triage found no safely disposable 1.3 GiB: the large
+A8 fixture has a prior automatic deletion rejection and remains intact.
+
+Presented the accepted bootstrap adjudication's section-3 owner choice again;
+no answer, exception or provider request is presumed. No worker was launched
+because that choice and authentic current-run evidence remain prerequisites.
+The accepted 5,460-pass/13-skip release stays historical; no new suite ran.
+No service, authority, financial, V10, AxiomTrade or publication action and no
+C/J/E/A crossing: **A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO;
+91/200, formal 1/50; NOT_READY_TO_FUND**.
