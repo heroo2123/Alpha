@@ -1,0 +1,12 @@
+{
+  "clean": true,
+  "completed_utc": "2026-10-02T02:56:05.180282+00:00",
+  "completion_kind": "direct_coordinator_adjudication",
+  "earlier_aborted_reviewer_exit_claimed": false,
+  "head": "6ed21e8f451399773142c69c4f1422a4e6c394a5",
+  "schema": "ALPHA_V11_DIRECT_COORDINATOR_REVIEW_COMPLETION_V1",
+  "status": "COMPLETE",
+  "terminal_sha256": "565072d02d6fc03101642238142cfdbc06142a8ad0a6d71b4ca920e5b041f11f",
+  "tree": "ffa0934aedd37a419f50d87fae6550721330365a",
+  "verdict": "CHANGES_REQUIRED"
+}

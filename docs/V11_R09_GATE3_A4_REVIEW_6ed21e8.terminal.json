@@ -1,0 +1,73 @@
+{
+  "artifact_sha256": {
+    "docs/V11_R09_GATE3_A4_REVIEW_6ed21e8-adjacent-initial.log": "7b13540434ca871f5ff5f8a7968f0b3720b7b5a604571205384df77bef7e1347",
+    "docs/V11_R09_GATE3_A4_REVIEW_6ed21e8-adjacent.log": "b88106f40b8d85e9f7840a67bbea08d5069ae81d1e8ee097a14b5a1a4d3d059e",
+    "docs/V11_R09_GATE3_A4_REVIEW_6ed21e8-focused.log": "ac139fffc8a32529d262bb7119c5f53e925378d63fa8279f0c3a4dc57ed0f518",
+    "docs/V11_R09_GATE3_A4_REVIEW_6ed21e8-probes-initial.log": "5d49b6d40bfcb58af34c7c8b5ea73a1b040187789909218b980916babb11f097",
+    "docs/V11_R09_GATE3_A4_REVIEW_6ed21e8-probes-line-assertion-failed.log": "f083eeeac4d06323186975750fc171e2267e040a317f997dc3736c6f60242b94",
+    "docs/V11_R09_GATE3_A4_REVIEW_6ed21e8-probes.log": "22c004ddc4aef5e5e097c7f502b1f8b9436e0d964fe3bfab974b09eb721ee47d",
+    "docs/V11_R09_GATE3_A4_REVIEW_6ed21e8-probes.py": "6bd58d9d789fe155b8ac1ae21d30be7af2780aed7c4621725ecb133e3f0d424e",
+    "docs/V11_R09_GATE3_A4_REVIEW_6ed21e8-runner-initial.py": "0ba4e21e5589f1ac3ccc76ba8c1718b4092c5e27986c8387fc0f27036c496af9",
+    "docs/V11_R09_GATE3_A4_REVIEW_6ed21e8-runner.py": "84d9fbce6bba585e38d2ac5606db0d65f8351e56a9ea597c1b66fea05830aeb0",
+    "docs/V11_R09_GATE3_A4_REVIEW_6ed21e8.md": "5ea0ba7db15262a6979b5df79bd4370f26828041b1d59a65863298617085b51c"
+  },
+  "candidate_clean": true,
+  "candidate_commit": "6ed21e8f451399773142c69c4f1422a4e6c394a5",
+  "candidate_file_sha256": {
+    "docs/V11_R09_GATE3_A4_RUNTIME_VERIFICATION_CANDIDATE_20261001.md": "4793281d071278c4d77daa3b9d90999d6810cc57aaae339bd9fb73b9fb7221d7",
+    "docs/V11_R09_GATE3_A4_RUNTIME_VERIFICATION_CANDIDATE_20261001_terminal.json": "2dd6db6321b45e16ebcc7d9273aa761970a0429aba4615c89a928ebd28c14e93",
+    "tests/test_v11_r09_gate3_a4_review_28dd604.py": "5e409b861fea2707d64c0dcd0b3b51dd915b65f54da87aa7bd2ba89b05661e7f",
+    "tests/test_v11_r09_gate3_a4_verify.py": "5948b1627c4d43b9b8d8a5a4f58a3600a3f9d10d28045ed3115ddcb370a984ab",
+    "tools/v11_r09_gate3_a4_verify.py": "913abee2e25d8aad1e71c8b299cc5f547b74c578fe1b3a5923ddfb40510eb0a4"
+  },
+  "candidate_tree": "ffa0934aedd37a419f50d87fae6550721330365a",
+  "completed_utc": "2026-10-02T02:56:05.180282+00:00",
+  "findings": [
+    {
+      "file": "tools/v11_r09_gate3_a4_verify.py",
+      "id": "R3",
+      "line": 115,
+      "priority": "P2",
+      "summary": "FIFO alternate blocks read-open before refusal"
+    }
+  ],
+  "parent": "28dd60403bdc8e819e64e9dd60be0109669c4960",
+  "prior_findings": {
+    "R1": "CLOSED_IN_SCOPE",
+    "R2": "CLOSED_IN_SCOPE"
+  },
+  "reviewer": {
+    "candidate_author_model": "Sol",
+    "effort": "high",
+    "model": "Astra",
+    "role": "independent reviewer"
+  },
+  "schema": "ALPHA_V11_GATE3_A4_INDEPENDENT_REVIEW_V1",
+  "scope": {
+    "a4_qualified": false,
+    "financial_authority": false,
+    "full_release_run": false,
+    "g3l_pass": false,
+    "merged": false,
+    "offline_only": true
+  },
+  "status": "COMPLETE",
+  "tests": {
+    "adjacent_passed": 254,
+    "defect_reproductions": 1,
+    "focused_passed": 56,
+    "independent_controls_passed": 6,
+    "initial_adjacent": {
+      "cause": "review harness spawn re-entry and completed-fixture descriptor retention",
+      "failed": 13,
+      "passed": 241
+    },
+    "initial_strict_probe": {
+      "cause": "incorrect line assertion 110 instead of 115",
+      "failed": 1,
+      "passed": 6
+    },
+    "observed_python_socket_audit_attempts": 0
+  },
+  "verdict": "CHANGES_REQUIRED"
+}

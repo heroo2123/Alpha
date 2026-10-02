@@ -1,0 +1,24 @@
+{
+  "author": "Astra/high coordinator; Sonnet rate-limited before any edits",
+  "changed_file_sha256": {
+    "docs/V11_R09_GATE3_A4_RUNTIME_VERIFICATION_CANDIDATE_20261001.md": "463ee7d74e50b541da57fffc5a2ca92c16df9820633d9952da9ea7e9141762f2",
+    "tests/test_v11_r09_gate3_a4_verify.py": "2e2693222ff44f1e9621fede368ff758035af9e006a5a3538b4939f1f98bc14d",
+    "tools/v11_r09_gate3_a4_verify.py": "3a122d1433231ad789779a1bc85e6e7d4ba5ee39f9b699e5674407974ab57f28"
+  },
+  "clean": true,
+  "completed_utc": "2026-10-02T02:59:50.129616+00:00",
+  "g3l_pass": false,
+  "head": "95541daed694db55e2e5d1fc460d94404395645b",
+  "independent_acceptance": false,
+  "parent": "6ed21e8f451399773142c69c4f1422a4e6c394a5",
+  "requires_fresh_independent_exact_commit_review": true,
+  "schema": "ALPHA_V11_A4_R3_COORDINATOR_AUTHOR_V1",
+  "tests": {
+    "command": "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/tmp/alpha-v11-gate3-a4-runtime-verification-20261001 timeout 120 /home/alphaadmin/AlphaV11_Dev/venv/bin/python /tmp/a4-r3-coordinator-author-runner.py tests/test_v11_r09_gate3_a4_verify.py tests/test_v11_r09_gate3_a4_review_28dd604.py",
+    "log": "/tmp/a4-r3-coordinator-author-tests.log",
+    "log_sha256": "6369b62486185262fe793d9cb84f14fb3141feeaf22af49cea53106a93d5b46c",
+    "passed": 57,
+    "python_socket_audit_attempts": 0
+  },
+  "tree": "a20045e26db8e16ccb3aa74e574e80defb8de7eb"
+}

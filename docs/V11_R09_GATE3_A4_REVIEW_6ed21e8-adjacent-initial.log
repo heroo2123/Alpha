@@ -1,0 +1,812 @@
+........................................................................ [ 28%]
+.....................................................FFFFFFFFFFFF.....F. [ 56%]
+........................................................................ [ 85%]
+......................................                                   [100%]
+=================================== FAILURES ===================================
+_ test_coupled_clock_source_failure_preserves_restriction_and_bytes[OverflowError-1] _
+
+tmp_path = PosixPath('/tmp/a4-6ed21e8-adjudication-15y0mh8b/test_coupled_clock_source_fail18')
+fault = <class 'OverflowError'>, start_sample = 1
+
+    @pytest.mark.parametrize('start_sample', [1, 2, 3, 5, 7, 9])
+    @pytest.mark.parametrize('fault', [OSError, RuntimeError, ValueError, OverflowError])
+    def test_coupled_clock_source_failure_preserves_restriction_and_bytes(tmp_path, fault, start_sample):
+        """J1: ``Clock.evidence`` samples ``Clock.monotonic`` first, so a single
+        failing clock source backs both interface methods. Whichever call the
+        failure first lands on -- the first post-dispatch monotonic sample
+        (``start_sample=1``), the header-receipt evidence call
+        (``start_sample=2``), or a later post-dispatch sample during the
+        decode/seal phases (``start_sample`` in 3, 5, 7, 9, preserved here as
+        controls showing those already-correct later call sites keep working
+        unchanged) -- recovery must still preserve the six already-delivered
+        eager bytes exactly once, record the observed HTTP restriction with an
+        explicit unresolved cause exactly once, retain the held
+        reservation/token across reopen, and re-raise the *original* failure
+        object -- identically for OSError, RuntimeError, ValueError and
+        OverflowError. ``LaunchContractError`` derives from ``ValueError``, so
+        catching that subclass alone does not catch ordinary ``ValueError``;
+        the boundary must match ``_postdispatch_monotonic``'s bare ``Exception``
+        catch at both the recovery receipt resample and the header-receipt
+        sample, not enumerate a finite list of expected source-fault types.
+        """
+        _dirs(tmp_path)
+        failures = []
+    
+        class CoupledClock(FakeClock):
+            failed = False
+            calls = 0
+    
+            def monotonic(self):
+                if self.failed:
+                    self.calls += 1
+                    if self.calls >= start_sample:
+                        exc = fault('COUPLED_CLOCK_SOURCE_UNAVAILABLE_' + str(self.calls))
+                        failures.append(exc)
+                        raise exc
+                return super().monotonic()
+    
+            def evidence(self, phase):
+                self.monotonic()
+                return super().evidence(phase)
+    
+        clock = CoupledClock(BOOT, utc=10, mono=10)
+    
+        class FailAfterDispatch(SyntheticTransport):
+            def dispatch(self, request, **kwargs):
+                stream = super().dispatch(request, **kwargs)
+                clock.failed = True
+                return stream
+    
+        response = _ok_response(b'abcdef', chunks=(b'ab', b'cd', b'ef'), status=503,
+                                 headers=(('Retry-After', '1200'),))
+        with _acquire(tmp_path) as (shared, session, budget, store):
+            runtime = _runtime(shared, session, budget, store,
+                SyntheticExchange({'req-1': response}), clock=clock)
+            runtime.transport = FailAfterDispatch(runtime.transport._exchange)
+            with pytest.raises(fault) as caught:
+>               runtime.run_attempt(_request(reservation_bytes=6))
+
+tests/test_v11_r09_gate3_runtime.py:1679: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_v11_r09_gate3_runtime.py:167: in run_attempt
+    self._initialize((request,))
+tests/test_v11_r09_gate3_runtime.py:174: in _initialize
+    sink = ReportSink(report_dir)
+tools/v11_r09_gate3_runtime.py:1915: in __init__
+    check(fs.f_bavail * fs.f_frsize >= REPORT_RESERVE_BYTES,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ok = False, reason = 'REPORT_RESERVE_UNAVAILABLE'
+
+    def check(ok, reason):
+        if not ok:
+>           raise LaunchContractError(reason)
+E           tools.v11_r09_gate3_launch.LaunchContractError: REPORT_RESERVE_UNAVAILABLE
+
+tools/v11_r09_gate3_launch.py:63: LaunchContractError
+_ test_coupled_clock_source_failure_preserves_restriction_and_bytes[OverflowError-2] _
+
+tmp_path = PosixPath('/tmp/a4-6ed21e8-adjudication-15y0mh8b/test_coupled_clock_source_fail19')
+fault = <class 'OverflowError'>, start_sample = 2
+
+    @pytest.mark.parametrize('start_sample', [1, 2, 3, 5, 7, 9])
+    @pytest.mark.parametrize('fault', [OSError, RuntimeError, ValueError, OverflowError])
+    def test_coupled_clock_source_failure_preserves_restriction_and_bytes(tmp_path, fault, start_sample):
+        """J1: ``Clock.evidence`` samples ``Clock.monotonic`` first, so a single
+        failing clock source backs both interface methods. Whichever call the
+        failure first lands on -- the first post-dispatch monotonic sample
+        (``start_sample=1``), the header-receipt evidence call
+        (``start_sample=2``), or a later post-dispatch sample during the
+        decode/seal phases (``start_sample`` in 3, 5, 7, 9, preserved here as
+        controls showing those already-correct later call sites keep working
+        unchanged) -- recovery must still preserve the six already-delivered
+        eager bytes exactly once, record the observed HTTP restriction with an
+        explicit unresolved cause exactly once, retain the held
+        reservation/token across reopen, and re-raise the *original* failure
+        object -- identically for OSError, RuntimeError, ValueError and
+        OverflowError. ``LaunchContractError`` derives from ``ValueError``, so
+        catching that subclass alone does not catch ordinary ``ValueError``;
+        the boundary must match ``_postdispatch_monotonic``'s bare ``Exception``
+        catch at both the recovery receipt resample and the header-receipt
+        sample, not enumerate a finite list of expected source-fault types.
+        """
+        _dirs(tmp_path)
+        failures = []
+    
+        class CoupledClock(FakeClock):
+            failed = False
+            calls = 0
+    
+            def monotonic(self):
+                if self.failed:
+                    self.calls += 1
+                    if self.calls >= start_sample:
+                        exc = fault('COUPLED_CLOCK_SOURCE_UNAVAILABLE_' + str(self.calls))
+                        failures.append(exc)
+                        raise exc
+                return super().monotonic()
+    
+            def evidence(self, phase):
+                self.monotonic()
+                return super().evidence(phase)
+    
+        clock = CoupledClock(BOOT, utc=10, mono=10)
+    
+        class FailAfterDispatch(SyntheticTransport):
+            def dispatch(self, request, **kwargs):
+                stream = super().dispatch(request, **kwargs)
+                clock.failed = True
+                return stream
+    
+        response = _ok_response(b'abcdef', chunks=(b'ab', b'cd', b'ef'), status=503,
+                                 headers=(('Retry-After', '1200'),))
+        with _acquire(tmp_path) as (shared, session, budget, store):
+            runtime = _runtime(shared, session, budget, store,
+                SyntheticExchange({'req-1': response}), clock=clock)
+            runtime.transport = FailAfterDispatch(runtime.transport._exchange)
+            with pytest.raises(fault) as caught:
+>               runtime.run_attempt(_request(reservation_bytes=6))
+
+tests/test_v11_r09_gate3_runtime.py:1679: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_v11_r09_gate3_runtime.py:167: in run_attempt
+    self._initialize((request,))
+tests/test_v11_r09_gate3_runtime.py:174: in _initialize
+    sink = ReportSink(report_dir)
+tools/v11_r09_gate3_runtime.py:1915: in __init__
+    check(fs.f_bavail * fs.f_frsize >= REPORT_RESERVE_BYTES,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ok = False, reason = 'REPORT_RESERVE_UNAVAILABLE'
+
+    def check(ok, reason):
+        if not ok:
+>           raise LaunchContractError(reason)
+E           tools.v11_r09_gate3_launch.LaunchContractError: REPORT_RESERVE_UNAVAILABLE
+
+tools/v11_r09_gate3_launch.py:63: LaunchContractError
+_ test_coupled_clock_source_failure_preserves_restriction_and_bytes[OverflowError-3] _
+
+tmp_path = PosixPath('/tmp/a4-6ed21e8-adjudication-15y0mh8b/test_coupled_clock_source_fail20')
+fault = <class 'OverflowError'>, start_sample = 3
+
+    @pytest.mark.parametrize('start_sample', [1, 2, 3, 5, 7, 9])
+    @pytest.mark.parametrize('fault', [OSError, RuntimeError, ValueError, OverflowError])
+    def test_coupled_clock_source_failure_preserves_restriction_and_bytes(tmp_path, fault, start_sample):
+        """J1: ``Clock.evidence`` samples ``Clock.monotonic`` first, so a single
+        failing clock source backs both interface methods. Whichever call the
+        failure first lands on -- the first post-dispatch monotonic sample
+        (``start_sample=1``), the header-receipt evidence call
+        (``start_sample=2``), or a later post-dispatch sample during the
+        decode/seal phases (``start_sample`` in 3, 5, 7, 9, preserved here as
+        controls showing those already-correct later call sites keep working
+        unchanged) -- recovery must still preserve the six already-delivered
+        eager bytes exactly once, record the observed HTTP restriction with an
+        explicit unresolved cause exactly once, retain the held
+        reservation/token across reopen, and re-raise the *original* failure
+        object -- identically for OSError, RuntimeError, ValueError and
+        OverflowError. ``LaunchContractError`` derives from ``ValueError``, so
+        catching that subclass alone does not catch ordinary ``ValueError``;
+        the boundary must match ``_postdispatch_monotonic``'s bare ``Exception``
+        catch at both the recovery receipt resample and the header-receipt
+        sample, not enumerate a finite list of expected source-fault types.
+        """
+        _dirs(tmp_path)
+        failures = []
+    
+        class CoupledClock(FakeClock):
+            failed = False
+            calls = 0
+    
+            def monotonic(self):
+                if self.failed:
+                    self.calls += 1
+                    if self.calls >= start_sample:
+                        exc = fault('COUPLED_CLOCK_SOURCE_UNAVAILABLE_' + str(self.calls))
+                        failures.append(exc)
+                        raise exc
+                return super().monotonic()
+    
+            def evidence(self, phase):
+                self.monotonic()
+                return super().evidence(phase)
+    
+        clock = CoupledClock(BOOT, utc=10, mono=10)
+    
+        class FailAfterDispatch(SyntheticTransport):
+            def dispatch(self, request, **kwargs):
+                stream = super().dispatch(request, **kwargs)
+                clock.failed = True
+                return stream
+    
+        response = _ok_response(b'abcdef', chunks=(b'ab', b'cd', b'ef'), status=503,
+                                 headers=(('Retry-After', '1200'),))
+        with _acquire(tmp_path) as (shared, session, budget, store):
+            runtime = _runtime(shared, session, budget, store,
+                SyntheticExchange({'req-1': response}), clock=clock)
+            runtime.transport = FailAfterDispatch(runtime.transport._exchange)
+            with pytest.raises(fault) as caught:
+>               runtime.run_attempt(_request(reservation_bytes=6))
+
+tests/test_v11_r09_gate3_runtime.py:1679: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_v11_r09_gate3_runtime.py:167: in run_attempt
+    self._initialize((request,))
+tests/test_v11_r09_gate3_runtime.py:174: in _initialize
+    sink = ReportSink(report_dir)
+tools/v11_r09_gate3_runtime.py:1915: in __init__
+    check(fs.f_bavail * fs.f_frsize >= REPORT_RESERVE_BYTES,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ok = False, reason = 'REPORT_RESERVE_UNAVAILABLE'
+
+    def check(ok, reason):
+        if not ok:
+>           raise LaunchContractError(reason)
+E           tools.v11_r09_gate3_launch.LaunchContractError: REPORT_RESERVE_UNAVAILABLE
+
+tools/v11_r09_gate3_launch.py:63: LaunchContractError
+_ test_coupled_clock_source_failure_preserves_restriction_and_bytes[OverflowError-5] _
+
+tmp_path = PosixPath('/tmp/a4-6ed21e8-adjudication-15y0mh8b/test_coupled_clock_source_fail21')
+fault = <class 'OverflowError'>, start_sample = 5
+
+    @pytest.mark.parametrize('start_sample', [1, 2, 3, 5, 7, 9])
+    @pytest.mark.parametrize('fault', [OSError, RuntimeError, ValueError, OverflowError])
+    def test_coupled_clock_source_failure_preserves_restriction_and_bytes(tmp_path, fault, start_sample):
+        """J1: ``Clock.evidence`` samples ``Clock.monotonic`` first, so a single
+        failing clock source backs both interface methods. Whichever call the
+        failure first lands on -- the first post-dispatch monotonic sample
+        (``start_sample=1``), the header-receipt evidence call
+        (``start_sample=2``), or a later post-dispatch sample during the
+        decode/seal phases (``start_sample`` in 3, 5, 7, 9, preserved here as
+        controls showing those already-correct later call sites keep working
+        unchanged) -- recovery must still preserve the six already-delivered
+        eager bytes exactly once, record the observed HTTP restriction with an
+        explicit unresolved cause exactly once, retain the held
+        reservation/token across reopen, and re-raise the *original* failure
+        object -- identically for OSError, RuntimeError, ValueError and
+        OverflowError. ``LaunchContractError`` derives from ``ValueError``, so
+        catching that subclass alone does not catch ordinary ``ValueError``;
+        the boundary must match ``_postdispatch_monotonic``'s bare ``Exception``
+        catch at both the recovery receipt resample and the header-receipt
+        sample, not enumerate a finite list of expected source-fault types.
+        """
+        _dirs(tmp_path)
+        failures = []
+    
+        class CoupledClock(FakeClock):
+            failed = False
+            calls = 0
+    
+            def monotonic(self):
+                if self.failed:
+                    self.calls += 1
+                    if self.calls >= start_sample:
+                        exc = fault('COUPLED_CLOCK_SOURCE_UNAVAILABLE_' + str(self.calls))
+                        failures.append(exc)
+                        raise exc
+                return super().monotonic()
+    
+            def evidence(self, phase):
+                self.monotonic()
+                return super().evidence(phase)
+    
+        clock = CoupledClock(BOOT, utc=10, mono=10)
+    
+        class FailAfterDispatch(SyntheticTransport):
+            def dispatch(self, request, **kwargs):
+                stream = super().dispatch(request, **kwargs)
+                clock.failed = True
+                return stream
+    
+        response = _ok_response(b'abcdef', chunks=(b'ab', b'cd', b'ef'), status=503,
+                                 headers=(('Retry-After', '1200'),))
+        with _acquire(tmp_path) as (shared, session, budget, store):
+            runtime = _runtime(shared, session, budget, store,
+                SyntheticExchange({'req-1': response}), clock=clock)
+            runtime.transport = FailAfterDispatch(runtime.transport._exchange)
+            with pytest.raises(fault) as caught:
+>               runtime.run_attempt(_request(reservation_bytes=6))
+
+tests/test_v11_r09_gate3_runtime.py:1679: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_v11_r09_gate3_runtime.py:167: in run_attempt
+    self._initialize((request,))
+tests/test_v11_r09_gate3_runtime.py:174: in _initialize
+    sink = ReportSink(report_dir)
+tools/v11_r09_gate3_runtime.py:1915: in __init__
+    check(fs.f_bavail * fs.f_frsize >= REPORT_RESERVE_BYTES,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ok = False, reason = 'REPORT_RESERVE_UNAVAILABLE'
+
+    def check(ok, reason):
+        if not ok:
+>           raise LaunchContractError(reason)
+E           tools.v11_r09_gate3_launch.LaunchContractError: REPORT_RESERVE_UNAVAILABLE
+
+tools/v11_r09_gate3_launch.py:63: LaunchContractError
+_ test_coupled_clock_source_failure_preserves_restriction_and_bytes[OverflowError-7] _
+
+tmp_path = PosixPath('/tmp/a4-6ed21e8-adjudication-15y0mh8b/test_coupled_clock_source_fail22')
+fault = <class 'OverflowError'>, start_sample = 7
+
+    @pytest.mark.parametrize('start_sample', [1, 2, 3, 5, 7, 9])
+    @pytest.mark.parametrize('fault', [OSError, RuntimeError, ValueError, OverflowError])
+    def test_coupled_clock_source_failure_preserves_restriction_and_bytes(tmp_path, fault, start_sample):
+        """J1: ``Clock.evidence`` samples ``Clock.monotonic`` first, so a single
+        failing clock source backs both interface methods. Whichever call the
+        failure first lands on -- the first post-dispatch monotonic sample
+        (``start_sample=1``), the header-receipt evidence call
+        (``start_sample=2``), or a later post-dispatch sample during the
+        decode/seal phases (``start_sample`` in 3, 5, 7, 9, preserved here as
+        controls showing those already-correct later call sites keep working
+        unchanged) -- recovery must still preserve the six already-delivered
+        eager bytes exactly once, record the observed HTTP restriction with an
+        explicit unresolved cause exactly once, retain the held
+        reservation/token across reopen, and re-raise the *original* failure
+        object -- identically for OSError, RuntimeError, ValueError and
+        OverflowError. ``LaunchContractError`` derives from ``ValueError``, so
+        catching that subclass alone does not catch ordinary ``ValueError``;
+        the boundary must match ``_postdispatch_monotonic``'s bare ``Exception``
+        catch at both the recovery receipt resample and the header-receipt
+        sample, not enumerate a finite list of expected source-fault types.
+        """
+        _dirs(tmp_path)
+        failures = []
+    
+        class CoupledClock(FakeClock):
+            failed = False
+            calls = 0
+    
+            def monotonic(self):
+                if self.failed:
+                    self.calls += 1
+                    if self.calls >= start_sample:
+                        exc = fault('COUPLED_CLOCK_SOURCE_UNAVAILABLE_' + str(self.calls))
+                        failures.append(exc)
+                        raise exc
+                return super().monotonic()
+    
+            def evidence(self, phase):
+                self.monotonic()
+                return super().evidence(phase)
+    
+        clock = CoupledClock(BOOT, utc=10, mono=10)
+    
+        class FailAfterDispatch(SyntheticTransport):
+            def dispatch(self, request, **kwargs):
+                stream = super().dispatch(request, **kwargs)
+                clock.failed = True
+                return stream
+    
+        response = _ok_response(b'abcdef', chunks=(b'ab', b'cd', b'ef'), status=503,
+                                 headers=(('Retry-After', '1200'),))
+        with _acquire(tmp_path) as (shared, session, budget, store):
+            runtime = _runtime(shared, session, budget, store,
+                SyntheticExchange({'req-1': response}), clock=clock)
+            runtime.transport = FailAfterDispatch(runtime.transport._exchange)
+            with pytest.raises(fault) as caught:
+>               runtime.run_attempt(_request(reservation_bytes=6))
+
+tests/test_v11_r09_gate3_runtime.py:1679: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_v11_r09_gate3_runtime.py:167: in run_attempt
+    self._initialize((request,))
+tests/test_v11_r09_gate3_runtime.py:174: in _initialize
+    sink = ReportSink(report_dir)
+tools/v11_r09_gate3_runtime.py:1915: in __init__
+    check(fs.f_bavail * fs.f_frsize >= REPORT_RESERVE_BYTES,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ok = False, reason = 'REPORT_RESERVE_UNAVAILABLE'
+
+    def check(ok, reason):
+        if not ok:
+>           raise LaunchContractError(reason)
+E           tools.v11_r09_gate3_launch.LaunchContractError: REPORT_RESERVE_UNAVAILABLE
+
+tools/v11_r09_gate3_launch.py:63: LaunchContractError
+_ test_coupled_clock_source_failure_preserves_restriction_and_bytes[OverflowError-9] _
+
+tmp_path = PosixPath('/tmp/a4-6ed21e8-adjudication-15y0mh8b/test_coupled_clock_source_fail23')
+fault = <class 'OverflowError'>, start_sample = 9
+
+    @pytest.mark.parametrize('start_sample', [1, 2, 3, 5, 7, 9])
+    @pytest.mark.parametrize('fault', [OSError, RuntimeError, ValueError, OverflowError])
+    def test_coupled_clock_source_failure_preserves_restriction_and_bytes(tmp_path, fault, start_sample):
+        """J1: ``Clock.evidence`` samples ``Clock.monotonic`` first, so a single
+        failing clock source backs both interface methods. Whichever call the
+        failure first lands on -- the first post-dispatch monotonic sample
+        (``start_sample=1``), the header-receipt evidence call
+        (``start_sample=2``), or a later post-dispatch sample during the
+        decode/seal phases (``start_sample`` in 3, 5, 7, 9, preserved here as
+        controls showing those already-correct later call sites keep working
+        unchanged) -- recovery must still preserve the six already-delivered
+        eager bytes exactly once, record the observed HTTP restriction with an
+        explicit unresolved cause exactly once, retain the held
+        reservation/token across reopen, and re-raise the *original* failure
+        object -- identically for OSError, RuntimeError, ValueError and
+        OverflowError. ``LaunchContractError`` derives from ``ValueError``, so
+        catching that subclass alone does not catch ordinary ``ValueError``;
+        the boundary must match ``_postdispatch_monotonic``'s bare ``Exception``
+        catch at both the recovery receipt resample and the header-receipt
+        sample, not enumerate a finite list of expected source-fault types.
+        """
+        _dirs(tmp_path)
+        failures = []
+    
+        class CoupledClock(FakeClock):
+            failed = False
+            calls = 0
+    
+            def monotonic(self):
+                if self.failed:
+                    self.calls += 1
+                    if self.calls >= start_sample:
+                        exc = fault('COUPLED_CLOCK_SOURCE_UNAVAILABLE_' + str(self.calls))
+                        failures.append(exc)
+                        raise exc
+                return super().monotonic()
+    
+            def evidence(self, phase):
+                self.monotonic()
+                return super().evidence(phase)
+    
+        clock = CoupledClock(BOOT, utc=10, mono=10)
+    
+        class FailAfterDispatch(SyntheticTransport):
+            def dispatch(self, request, **kwargs):
+                stream = super().dispatch(request, **kwargs)
+                clock.failed = True
+                return stream
+    
+        response = _ok_response(b'abcdef', chunks=(b'ab', b'cd', b'ef'), status=503,
+                                 headers=(('Retry-After', '1200'),))
+        with _acquire(tmp_path) as (shared, session, budget, store):
+            runtime = _runtime(shared, session, budget, store,
+                SyntheticExchange({'req-1': response}), clock=clock)
+            runtime.transport = FailAfterDispatch(runtime.transport._exchange)
+            with pytest.raises(fault) as caught:
+>               runtime.run_attempt(_request(reservation_bytes=6))
+
+tests/test_v11_r09_gate3_runtime.py:1679: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_v11_r09_gate3_runtime.py:167: in run_attempt
+    self._initialize((request,))
+tests/test_v11_r09_gate3_runtime.py:174: in _initialize
+    sink = ReportSink(report_dir)
+tools/v11_r09_gate3_runtime.py:1915: in __init__
+    check(fs.f_bavail * fs.f_frsize >= REPORT_RESERVE_BYTES,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ok = False, reason = 'REPORT_RESERVE_UNAVAILABLE'
+
+    def check(ok, reason):
+        if not ok:
+>           raise LaunchContractError(reason)
+E           tools.v11_r09_gate3_launch.LaunchContractError: REPORT_RESERVE_UNAVAILABLE
+
+tools/v11_r09_gate3_launch.py:63: LaunchContractError
+___ test_coupled_clock_source_failure_covers_arbitrary_exception_subclass[1] ___
+
+tmp_path = PosixPath('/tmp/a4-6ed21e8-adjudication-15y0mh8b/test_coupled_clock_source_fail24')
+start_sample = 1
+
+    @pytest.mark.parametrize('start_sample', [1, 2])
+    def test_coupled_clock_source_failure_covers_arbitrary_exception_subclass(tmp_path, start_sample):
+        """J1: the repaired boundary must match ``Exception`` itself, not a
+        finite enumerated list -- including a direct ``Exception`` subclass
+        this test alone defines, which no product or review fixture could have
+        pre-enumerated. Both onsets must still conserve bytes/restriction
+        exactly once and re-raise the original object unreplaced.
+        """
+        _dirs(tmp_path)
+    
+        class ProductSpecificClockFault(Exception):
+            pass
+    
+        failures = []
+    
+        class CoupledClock(FakeClock):
+            failed = False
+            calls = 0
+    
+            def monotonic(self):
+                if self.failed:
+                    self.calls += 1
+                    if self.calls >= start_sample:
+                        exc = ProductSpecificClockFault('CUSTOM_SOURCE_FAILURE_' + str(self.calls))
+                        failures.append(exc)
+                        raise exc
+                return super().monotonic()
+    
+            def evidence(self, phase):
+                self.monotonic()
+                return super().evidence(phase)
+    
+        clock = CoupledClock(BOOT, utc=10, mono=10)
+    
+        class FailAfterDispatch(SyntheticTransport):
+            def dispatch(self, request, **kwargs):
+                stream = super().dispatch(request, **kwargs)
+                clock.failed = True
+                return stream
+    
+        response = _ok_response(b'abcdef', chunks=(b'ab', b'cd', b'ef'), status=503,
+                                 headers=(('Retry-After', '1200'),))
+        with _acquire(tmp_path) as (shared, session, budget, store):
+            runtime = _runtime(shared, session, budget, store,
+                SyntheticExchange({'req-1': response}), clock=clock)
+            runtime.transport = FailAfterDispatch(runtime.transport._exchange)
+            with pytest.raises(ProductSpecificClockFault) as caught:
+>               runtime.run_attempt(_request(reservation_bytes=6))
+
+tests/test_v11_r09_gate3_runtime.py:1755: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_v11_r09_gate3_runtime.py:167: in run_attempt
+    self._initialize((request,))
+tests/test_v11_r09_gate3_runtime.py:174: in _initialize
+    sink = ReportSink(report_dir)
+tools/v11_r09_gate3_runtime.py:1915: in __init__
+    check(fs.f_bavail * fs.f_frsize >= REPORT_RESERVE_BYTES,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ok = False, reason = 'REPORT_RESERVE_UNAVAILABLE'
+
+    def check(ok, reason):
+        if not ok:
+>           raise LaunchContractError(reason)
+E           tools.v11_r09_gate3_launch.LaunchContractError: REPORT_RESERVE_UNAVAILABLE
+
+tools/v11_r09_gate3_launch.py:63: LaunchContractError
+___ test_coupled_clock_source_failure_covers_arbitrary_exception_subclass[2] ___
+
+tmp_path = PosixPath('/tmp/a4-6ed21e8-adjudication-15y0mh8b/test_coupled_clock_source_fail25')
+start_sample = 2
+
+    @pytest.mark.parametrize('start_sample', [1, 2])
+    def test_coupled_clock_source_failure_covers_arbitrary_exception_subclass(tmp_path, start_sample):
+        """J1: the repaired boundary must match ``Exception`` itself, not a
+        finite enumerated list -- including a direct ``Exception`` subclass
+        this test alone defines, which no product or review fixture could have
+        pre-enumerated. Both onsets must still conserve bytes/restriction
+        exactly once and re-raise the original object unreplaced.
+        """
+        _dirs(tmp_path)
+    
+        class ProductSpecificClockFault(Exception):
+            pass
+    
+        failures = []
+    
+        class CoupledClock(FakeClock):
+            failed = False
+            calls = 0
+    
+            def monotonic(self):
+                if self.failed:
+                    self.calls += 1
+                    if self.calls >= start_sample:
+                        exc = ProductSpecificClockFault('CUSTOM_SOURCE_FAILURE_' + str(self.calls))
+                        failures.append(exc)
+                        raise exc
+                return super().monotonic()
+    
+            def evidence(self, phase):
+                self.monotonic()
+                return super().evidence(phase)
+    
+        clock = CoupledClock(BOOT, utc=10, mono=10)
+    
+        class FailAfterDispatch(SyntheticTransport):
+            def dispatch(self, request, **kwargs):
+                stream = super().dispatch(request, **kwargs)
+                clock.failed = True
+                return stream
+    
+        response = _ok_response(b'abcdef', chunks=(b'ab', b'cd', b'ef'), status=503,
+                                 headers=(('Retry-After', '1200'),))
+        with _acquire(tmp_path) as (shared, session, budget, store):
+            runtime = _runtime(shared, session, budget, store,
+                SyntheticExchange({'req-1': response}), clock=clock)
+            runtime.transport = FailAfterDispatch(runtime.transport._exchange)
+            with pytest.raises(ProductSpecificClockFault) as caught:
+>               runtime.run_attempt(_request(reservation_bytes=6))
+
+tests/test_v11_r09_gate3_runtime.py:1755: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_v11_r09_gate3_runtime.py:167: in run_attempt
+    self._initialize((request,))
+tests/test_v11_r09_gate3_runtime.py:174: in _initialize
+    sink = ReportSink(report_dir)
+tools/v11_r09_gate3_runtime.py:1915: in __init__
+    check(fs.f_bavail * fs.f_frsize >= REPORT_RESERVE_BYTES,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ok = False, reason = 'REPORT_RESERVE_UNAVAILABLE'
+
+    def check(ok, reason):
+        if not ok:
+>           raise LaunchContractError(reason)
+E           tools.v11_r09_gate3_launch.LaunchContractError: REPORT_RESERVE_UNAVAILABLE
+
+tools/v11_r09_gate3_launch.py:63: LaunchContractError
+____ test_header_error_retains_other_retry_after_and_overflow_is_unresolved ____
+
+tmp_path = PosixPath('/tmp/a4-6ed21e8-adjudication-15y0mh8b/test_header_error_retains_othe0')
+
+    def test_header_error_retains_other_retry_after_and_overflow_is_unresolved(tmp_path):
+        for index, (status, headers, expected) in enumerate((
+            (200, (('Retry-After', '1200'), ('ETag', '"duplicate"')), 'OTHER'),
+            (503, (('Retry-After', '9' * 400),), '503'))):
+            root = tmp_path / str(index)
+            root.mkdir(mode=0o700)
+            _dirs(root)
+            response = _ok_response(b'abcd', status=status, headers=headers)
+            with _acquire(root) as (shared, session, budget, store):
+                runtime = _runtime(shared, session, budget, store,
+                                   SyntheticExchange({'req-1': response}))
+                with pytest.raises(LaunchContractError):
+                    runtime.run_attempt(_request(reservation_bytes=4))
+>               assert budget.received == 4 and budget.in_flight == 'req-1'
+E               assert (0 == 4)
+E                +  where 0 = <tools.v11_r09_gate3_launch.DurableBudget object at 0x7f7a9e1e59d0>.received
+
+tests/test_v11_r09_gate3_runtime.py:1782: AssertionError
+________ test_report_uses_reserved_ids_and_frozen_all_reason_precedence ________
+
+tmp_path = PosixPath('/tmp/a4-6ed21e8-adjudication-15y0mh8b/test_report_uses_reserved_ids_0')
+
+    def test_report_uses_reserved_ids_and_frozen_all_reason_precedence(tmp_path):
+        _dirs(tmp_path)
+        requests = (_request(), _request(request_id='req-2', purpose='FIELD',
+            provider='GEFS', slot_index=0, range_start=0, range_end=3,
+            expected_object_bytes=4, reservation_bytes=4,
+            prerequisite_request_ids=('req-1',)))
+        with _acquire(tmp_path) as (shared, session, budget, store):
+>           runtime = _runtime(shared, session, budget, store,
+                SyntheticExchange({}), clock=_clock(utc=-1, mono=10), requests=requests)
+
+tests/test_v11_r09_gate3_runtime.py:1795: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_v11_r09_gate3_runtime.py:181: in _runtime
+    return _PlannedRuntime(shared, session, budget, store, exchange, clock,
+tests/test_v11_r09_gate3_runtime.py:145: in __init__
+    self._initialize(requests)
+tests/test_v11_r09_gate3_runtime.py:174: in _initialize
+    sink = ReportSink(report_dir)
+tools/v11_r09_gate3_runtime.py:1915: in __init__
+    check(fs.f_bavail * fs.f_frsize >= REPORT_RESERVE_BYTES,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ok = False, reason = 'REPORT_RESERVE_UNAVAILABLE'
+
+    def check(ok, reason):
+        if not ok:
+>           raise LaunchContractError(reason)
+E           tools.v11_r09_gate3_launch.LaunchContractError: REPORT_RESERVE_UNAVAILABLE
+
+tools/v11_r09_gate3_launch.py:63: LaunchContractError
+_____ test_eager_many_chunks_uses_one_bounded_record_and_retains_all_bytes _____
+
+tmp_path = PosixPath('/tmp/a4-6ed21e8-adjudication-15y0mh8b/test_eager_many_chunks_uses_on0')
+
+    def test_eager_many_chunks_uses_one_bounded_record_and_retains_all_bytes(tmp_path):
+        _dirs(tmp_path)
+        request = _request(reservation_bytes=64)
+        capacity = CapacityPlan.for_requests((request,))
+        response = _ok_response(b'a' * 64, chunks=(b'a',) * 64)
+        with _acquire(tmp_path) as (shared, session, budget, store):
+>           runtime = _runtime(shared, session, budget, store,
+                SyntheticExchange({'req-1': response}), requests=(request,))
+
+tests/test_v11_r09_gate3_runtime.py:1817: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_v11_r09_gate3_runtime.py:181: in _runtime
+    return _PlannedRuntime(shared, session, budget, store, exchange, clock,
+tests/test_v11_r09_gate3_runtime.py:145: in __init__
+    self._initialize(requests)
+tests/test_v11_r09_gate3_runtime.py:174: in _initialize
+    sink = ReportSink(report_dir)
+tools/v11_r09_gate3_runtime.py:1915: in __init__
+    check(fs.f_bavail * fs.f_frsize >= REPORT_RESERVE_BYTES,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ok = False, reason = 'REPORT_RESERVE_UNAVAILABLE'
+
+    def check(ok, reason):
+        if not ok:
+>           raise LaunchContractError(reason)
+E           tools.v11_r09_gate3_launch.LaunchContractError: REPORT_RESERVE_UNAVAILABLE
+
+tools/v11_r09_gate3_launch.py:63: LaunchContractError
+______ test_capacity_envelope_covers_normal_denial_violation_and_recovery ______
+
+tmp_path = PosixPath('/tmp/a4-6ed21e8-adjudication-15y0mh8b/test_capacity_envelope_covers_0')
+
+    def test_capacity_envelope_covers_normal_denial_violation_and_recovery(tmp_path):
+        responses = (
+            (_ok_response(b'abcd'), 4, False),
+            (_ok_response(b'abcd', status=503,
+                          headers=(('Retry-After', '1200'),)), 4, False),
+            (_ok_response(b'abcde'), 5, True),
+            (_ok_response(b'abcd', headers=(('ETag', '"duplicate"'),)), 4, True),
+        )
+        request = _request(reservation_bytes=4)
+        capacity = CapacityPlan.for_requests((request,))
+        for index, (response, known, held) in enumerate(responses):
+            root = tmp_path / str(index)
+            root.mkdir(mode=0o700)
+            _dirs(root)
+            with _acquire(root) as (shared, session, budget, store):
+>               runtime = _runtime(shared, session, budget, store,
+                    SyntheticExchange({'req-1': response}), requests=(request,))
+
+tests/test_v11_r09_gate3_runtime.py:1849: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_v11_r09_gate3_runtime.py:181: in _runtime
+    return _PlannedRuntime(shared, session, budget, store, exchange, clock,
+tests/test_v11_r09_gate3_runtime.py:145: in __init__
+    self._initialize(requests)
+tests/test_v11_r09_gate3_runtime.py:174: in _initialize
+    sink = ReportSink(report_dir)
+tools/v11_r09_gate3_runtime.py:1915: in __init__
+    check(fs.f_bavail * fs.f_frsize >= REPORT_RESERVE_BYTES,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ok = False, reason = 'REPORT_RESERVE_UNAVAILABLE'
+
+    def check(ok, reason):
+        if not ok:
+>           raise LaunchContractError(reason)
+E           tools.v11_r09_gate3_launch.LaunchContractError: REPORT_RESERVE_UNAVAILABLE
+
+tools/v11_r09_gate3_launch.py:63: LaunchContractError
+___________ test_exclusive_process_lock_and_fork_child_cannot_unlock ___________
+
+tmp_path = PosixPath('/tmp/a4-6ed21e8-adjudication-15y0mh8b/test_exclusive_process_lock_an0')
+
+    def test_exclusive_process_lock_and_fork_child_cannot_unlock(tmp_path):
+        root = root_at(tmp_path)
+        with open_store(root) as store:
+            with pytest.raises(BlockingIOError):
+                open_store(root)
+            receiver, sender = multiprocessing.get_context('spawn').Pipe(False)
+            child = multiprocessing.get_context('spawn').Process(target=_compete,
+                                                                args=(root, sender))
+            child.start()
+            try:
+>               assert receiver.poll(5) and receiver.recv() == 'blocked'
+E               assert (False)
+E                +  where False = poll(5)
+E                +    where poll = <multiprocessing.connection.Connection object at 0x7f7a9e193140>.poll
+
+tests/test_v11_r09_gate3_store_v1.py:140: AssertionError
+----------------------------- Captured stdout call -----------------------------
+FFFFFFFFFF
+=============================== warnings summary ===============================
+tests/test_v11_r09_gate3_store_v1.py::test_repaired_r6_inherited_call_rejects_before_blocking_on_mutex[read]
+tests/test_v11_r09_gate3_store_v1.py::test_repaired_r6_inherited_call_rejects_before_blocking_on_mutex[seal]
+  /tmp/alpha-v11-gate3-a4-review-6ed21e8/tests/test_v11_r09_gate3_store_v1.py:1050: DeprecationWarning: This process (pid=2071265) is multi-threaded, use of fork() may lead to deadlocks in the child.
+    pid = os.fork()
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_v11_r09_gate3_runtime.py::test_coupled_clock_source_failure_preserves_restriction_and_bytes[OverflowError-1]
+FAILED tests/test_v11_r09_gate3_runtime.py::test_coupled_clock_source_failure_preserves_restriction_and_bytes[OverflowError-2]
+FAILED tests/test_v11_r09_gate3_runtime.py::test_coupled_clock_source_failure_preserves_restriction_and_bytes[OverflowError-3]
+FAILED tests/test_v11_r09_gate3_runtime.py::test_coupled_clock_source_failure_preserves_restriction_and_bytes[OverflowError-5]
+FAILED tests/test_v11_r09_gate3_runtime.py::test_coupled_clock_source_failure_preserves_restriction_and_bytes[OverflowError-7]
+FAILED tests/test_v11_r09_gate3_runtime.py::test_coupled_clock_source_failure_preserves_restriction_and_bytes[OverflowError-9]
+FAILED tests/test_v11_r09_gate3_runtime.py::test_coupled_clock_source_failure_covers_arbitrary_exception_subclass[1]
+FAILED tests/test_v11_r09_gate3_runtime.py::test_coupled_clock_source_failure_covers_arbitrary_exception_subclass[2]
+FAILED tests/test_v11_r09_gate3_runtime.py::test_header_error_retains_other_retry_after_and_overflow_is_unresolved
+FAILED tests/test_v11_r09_gate3_runtime.py::test_report_uses_reserved_ids_and_frozen_all_reason_precedence
+FAILED tests/test_v11_r09_gate3_runtime.py::test_eager_many_chunks_uses_one_bounded_record_and_retains_all_bytes
+FAILED tests/test_v11_r09_gate3_runtime.py::test_capacity_envelope_covers_normal_denial_violation_and_recovery
+FAILED tests/test_v11_r09_gate3_store_v1.py::test_exclusive_process_lock_and_fork_child_cannot_unlock
+13 failed, 241 passed, 2 warnings in 34.26s
+REVIEW_MAX_SINGLE_TEST_ALLOCATED_BYTES=34631680
+PYTHON_SOCKET_AUDIT_ATTEMPTS=0

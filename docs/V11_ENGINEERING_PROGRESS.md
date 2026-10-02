@@ -1,5 +1,20 @@
 # Supplementary engineering estimate
 
+## A4 refusal repair and exact review — 2026-10-02 03:01 UTC
+
+Independent Astra/high adjudication of `6ed21e8` completed CHANGES_REQUIRED:
+R1/R2 closed in scope; P2 R3 FIFO alternate open blocks before refusal. Exact
+review artifacts are retained as `docs/V11_R09_GATE3_A4_REVIEW_6ed21e8*`:
+56 focused + 254 adjacent passes, six new controls and one defect reproduction;
+initial harness failures are disclosed. Sonnet hit its session limit before
+edits. The coordinator committed narrow R3 repair `95541da` in the preserved
+author worktree, with 57 focused author passes. One independent Sol/high
+reviewer is live at PGID 2075358 in `/tmp/alpha-v11-gate3-a4-r3-review-95541da`;
+`.verdict.json` and outer `.terminal.json` are required before newer-main
+reconciliation. A4 remains OPEN and the repair is unmerged. Disk remains below
+2 GiB; no new release, weather-provider, forward SHADOW or C/J/E/A evidence:
+**G3-L NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Gate 3 review handoff after inventory integration — 2026-10-02 02:47 UTC
 
 Recovered no live Alpha worker and clean main `5744dfa`. Verified the preserved A4 `6ed21e8` candidate worktree and the prior reviewer log, which ended in automatic cybersecurity-content rejection without a verdict. An independent exact-commit A4 adjudication is the next critical-path task; A4 remains OPEN and unmerged. SHADOW/Brain worktrees are clean, while disk remains below the 2 GiB G3-L floor. No new release, provider, forward SHADOW or C/J/E/A evidence: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.

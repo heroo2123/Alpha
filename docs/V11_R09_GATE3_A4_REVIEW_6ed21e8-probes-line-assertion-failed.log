@@ -1,0 +1,32 @@
+...F...                                                                  [100%]
+=================================== FAILURES ===================================
+______________ test_gap_fifo_alternate_blocks_instead_of_refusing ______________
+
+source = PosixPath('/tmp/a4-6ed21e8-adjudication-dnxcd87g/test_gap_fifo_alternate_blocks0/source')
+
+    def test_gap_fifo_alternate_blocks_instead_of_refusing(source):
+        path,pin=_write_lock(source)
+        os.mkfifo(source/'.git/objects/info/alternates',0o600)
+        blocked=[]
+        def deadline(signum,frame):
+            blocked.append((frame.f_code.co_name, frame.f_lineno))
+            raise ReviewDeadline('review-only one-second timeout')
+        previous=signal.signal(signal.SIGALRM,deadline)
+        signal.setitimer(signal.ITIMER_REAL,1.0)
+        try:
+            # This deliberately asserts the defect, not acceptance.
+            with pytest.raises(ReviewDeadline):
+                v.open_verified(path,expected_lock_sha256=pin)
+>           assert blocked == [('_isolated_git_store',110)], blocked
+E           AssertionError: [('_isolated_git_store', 115)]
+E           assert [('_isolated_git_store', 115)] == [('_isolated_git_store', 110)]
+E             
+E             At index 0 diff: ('_isolated_git_store', 115) != ('_isolated_git_store', 110)
+E             Use -v to get more diff
+
+../test_a4_6ed21e8_adjudication.py:36: AssertionError
+=========================== short test summary info ============================
+FAILED ::test_gap_fifo_alternate_blocks_instead_of_refusing - AssertionError:...
+1 failed, 6 passed in 4.25s
+REVIEW_MAX_SINGLE_TEST_ALLOCATED_BYTES=421888
+PYTHON_SOCKET_AUDIT_ATTEMPTS=0

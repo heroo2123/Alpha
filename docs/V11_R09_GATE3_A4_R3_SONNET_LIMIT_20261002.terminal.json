@@ -1,0 +1,15 @@
+{
+  "author_record_exists": false,
+  "clean": true,
+  "completed_utc": "2026-10-02T02:57:26.407546+00:00",
+  "exit_code": 1,
+  "financial_authority": false,
+  "head": "6ed21e8f451399773142c69c4f1422a4e6c394a5",
+  "independent_acceptance": false,
+  "initial_head": "6ed21e8f451399773142c69c4f1422a4e6c394a5",
+  "initial_tree": "ffa0934aedd37a419f50d87fae6550721330365a",
+  "live_execution_authority": false,
+  "schema": "ALPHA_V11_A4_R3_OFFLINE_REPAIR_LANE_V1",
+  "tree": "ffa0934aedd37a419f50d87fae6550721330365a",
+  "uncommitted_status": ""
+}

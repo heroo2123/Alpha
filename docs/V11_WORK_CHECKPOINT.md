@@ -1,5 +1,52 @@
 # Alpha V11 work checkpoint
 
+## A4 adjudication completed; R3 repair under independent review — 2026-10-02 03:01 UTC
+
+Completed the previously interrupted independent Astra/high exact review of
+`6ed21e8f451399773142c69c4f1422a4e6c394a5`, tree
+`ffa0934aedd37a419f50d87fae6550721330365a`: **CHANGES_REQUIRED**. Prior R1/R2
+are closed in scope, but new P2 R3 reproduces a blocking FIFO open at the Git
+alternate-refusal path. Exact report, machine/direct-completion terminals,
+probes and all logs are retained as `docs/V11_R09_GATE3_A4_REVIEW_6ed21e8*`;
+the earlier ABORTED evidence remains unchanged. Independent results are 56
+focused + 254 adjacent passes, six new refusal controls and one deliberate
+defect reproduction, with zero observed Python socket-audit attempts. Initial
+review-harness failures (wrong line assertion; missing multiprocessing guard
+and completed-fixture descriptor retention) are disclosed and retained; the
+corrected unchanged adjacent suite passes. No new broad release run is claimed.
+
+The sole attempted Sonnet repair exited 1 before edits because its session
+limit resets at 04:20 UTC; its clean unchanged terminal is retained. The
+coordinator then made the narrow three-file R3 correction in the preserved
+clean author worktree `/tmp/alpha-v11-gate3-a4-runtime-verification-20261001`:
+commit `95541daed694db55e2e5d1fc460d94404395645b`, tree
+`a20045e26db8e16ccb3aa74e574e80defb8de7eb`. It adds nonblocking alternate open
+and a bounded FIFO refusal regression. **57 focused author tests pass** with
+zero observed Python socket attempts; author record/log/runner are retained
+as `docs/V11_R09_GATE3_A4_R3_AUTHOR_95541da*`. These do not accept the repair.
+
+Exactly one persistent **independent Sol/high reviewer** is now live, PGID
+**2075358**, in clean detached `/tmp/alpha-v11-gate3-a4-r3-review-95541da`.
+Runner/log/report stem is the same absolute path; required machine verdict
+is `.verdict.json`, outer terminal `.terminal.json`. Do not duplicate it or
+merge before a complete exact verdict and reconciliation with newer main.
+The prior candidate is unmerged; A4 remains OPEN even if the narrow R3 repair
+passes, pending genuine A2/A3/bootstrap/native/decoder evidence.
+
+Main was clean at `5570145` on entry. SHADOW `15e99bd` and Brain-readiness
+`58b0b79` remain clean; ECMWF `backfill_data/` remains preserved. No newer
+commissioning file was found in the bounded commissioning-directory check.
+The FINAL-REVIEWED master still matches SHA-256
+`a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+Scanner/controller inactive and disabled; execution inactive and masked;
+protected authority roots absent. At review launch the host had
+1,143,005,184 free disk bytes and about 737 MiB available memory. Disk remains
+below the 2 GiB G3-L floor. No V10/AxiomTrade, financial, weather-provider,
+root-authority, service, remote publication, G3-L PASS or forward SHADOW
+action occurred. The accepted release result remains 5,460 passed/13 skipped.
+No C/J/E/A boundary crossed: **G3-L NO-GO; 91/200 (45.5%), formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Coordinator recovery and next Gate 3 review — 2026-10-02 02:47 UTC
 
 Recovered clean main `5744dfa` after the reviewed inventory integration; no Alpha worker or pytest process is live. The SHADOW `15e99bd` and Brain-readiness `58b0b79` worktrees are clean; ECMWF's untracked `backfill_data/` is preserved. No newer commissioning artifact was found. The earlier accepted full-release result remains 5,460 passed / 13 skipped; the load-sensitive fill-markout issue is historical, with no new broad release run.
