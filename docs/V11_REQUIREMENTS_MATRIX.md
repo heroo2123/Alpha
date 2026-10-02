@@ -4231,3 +4231,35 @@ tool. The frozen `131eb12` review bundle and its reviewed JSON remain
 untouched as the historical record of the pre-fix tool. No qualified
 inventory entry, provider request, capture, dispatch, or score crossing:
 **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
+## G3-L identity audit hardening, R1/R2 repaired — 2026-10-02 23:30 UTC
+
+A second independent exact-commit review of the F1 repair above (candidate
+`c9e3b8d`, OpenAI GPT-6 Astra/high,
+`/tmp/alpha-v11-g3l-hardening-review-c9e3b8d.review.md`) returned
+`CHANGES_REQUIRED`: R1, malformed/unresolvable/missing `code_byte_observations`
+entries silently dropped out of dependency coverage instead of being
+refused; R2, the dependency byte baseline came from the artifact dict's
+recorded commit, not the observation's own `commit_oid`/`sha256`/`tree_oid`,
+so rebinding the artifact's baseline (or substituting the observation's
+path onto another tracked file) could mask real drift. Repaired both in
+`tools/v11_r09_gate3_g3l_identity_audit.py`: `code_byte_observations` must
+now contain exactly the fixed 7-name set or the audit refuses; each
+observation's commit must resolve in Git with a matching tree, and its own
+blob must hash to its recorded `sha256`, before it is used; the dependency
+ref returned to a row is now anchored to the observation's own verified
+commit, not the artifact's. Also corrected the nonblocking R3 handoff
+wording (three correlated identities, not two; slice-3 gained both ledger
+and runtime refs, not just a reworded obligation). 10 new regression tests
+reproduce the reviewer's own adverse probes against the repaired tool; all
+previously-silent false `RETAINED` cases now either fail closed or
+correctly report `FUTURE`. The classification boundary is unchanged —
+`6/1/70/0`, 77 missing, 0 credit, G3-L NO-GO — though the regenerated
+candidate snapshot's bytes changed (two rows' `source_refs` now show the
+observation's own commit/tree instead of the artifact's); new SHA-256
+`2d60e266ce1467c3acf84fc4e631491fe8f4473c6faf60a2b064cbc7161e12c4`, 187,952
+bytes. 37 focused offline tests passed (27 prior + 10 new), `git diff
+--check` clean. The frozen `131eb12` bundle, the private FINAL-REVIEWED
+master, and the independent `c9e3b8d` review's own evidence are untouched.
+No qualified inventory entry, provider request, capture, dispatch, or score
+crossing: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.

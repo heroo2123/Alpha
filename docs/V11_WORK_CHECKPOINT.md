@@ -19706,3 +19706,31 @@ bundle remains untouched. 27 focused offline tests passed (20 pre-existing +
 fresh-readiness worktree and `main` were not touched. No provider request,
 capture, SHADOW, financial, V10, Axiom, authority, merge, or score crossing:
 **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
+## G3-L identity audit hardening, R1/R2 repaired — 2026-10-02 23:30 UTC
+
+Second independent exact-commit review of `c9e3b8d` (OpenAI GPT-6
+Astra/high) returned `CHANGES_REQUIRED`: R1, an empty/invalid/nonexistent
+`commit_oid`, or a whole missing observation entry, silently dropped out of
+dependency coverage instead of being refused; R2, the dependency baseline
+was read from the artifact dict's `git_commit`, not the observation's own
+`commit_oid`/`sha256`/`tree_oid`, so a rebound artifact baseline or a
+path-substituted observation could mask real drift. Repaired in
+`tools/v11_r09_gate3_g3l_identity_audit.py`: `code_byte_observations` must
+now match a fixed 7-name set exactly; each observation's commit/tree is
+resolved and verified via Git, and its blob hash checked, before use;
+dependency refs are now anchored to the observation's own verified
+commit/hash, never the artifact dict's. Also fixed the review's nonblocking
+R3 handoff wording (three correlated identities, not two; slice-3 gained
+both ledger and runtime refs). 10 new regression tests reproduce the
+reviewer's own adverse probes; all previously-silent false `RETAINED`
+cases now fail closed or correctly report `FUTURE`. Same `6/1/70/0`, 77
+missing, 0 credit, G3-L NO-GO boundary; regenerated candidate snapshot
+`docs/V11_R09_GATE3_G3L_IDENTITY_AUDIT_HARDENING_20261002.json` now 187,952
+bytes, SHA-256 `2d60e266ce1467c3acf84fc4e631491fe8f4473c6faf60a2b064cbc7161e12c4`
+(prior pre-repair hash `566eb4be...` documented, not silently overwritten).
+37 focused offline tests passed (27 prior + 10 new), bounded `--basetemp`,
+`git diff --check` clean. Frozen `131eb12` bundle, private FINAL-REVIEWED
+master, and the independent `c9e3b8d` review's own evidence are untouched.
+No provider request, capture, SHADOW, financial, V10, Axiom, authority,
+merge, or score crossing: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.

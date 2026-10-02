@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import subprocess
 from pathlib import Path
 
@@ -34,6 +35,20 @@ ORIGINAL_MARKER = "R09_GATE3_PROTOCOL_REVIEW_PASS"
 # artifacts actually depend on -- rather than trusting a row's "artifacts"
 # list to already include the underlying source file.
 _COMMIT_FIELD_NAMES = ("head", "candidate_commit", "reviewed_commit", "commit", "candidate")
+
+# The reconciliation's fixed, known set of code_byte_observations. A row can
+# only be retained on the strength of a dependency check that actually ran;
+# an observation silently dropped from this set (rather than refused) would
+# let that dependency's drift go unchecked. The set is a hardening-tool
+# constant, not reconciliation data, so removing or renaming an entry in the
+# input cannot shrink what is required.
+CODE_BYTE_OBSERVATION_NAMES = frozenset({
+    "a7_decoder", "a8_preparation", "collector", "injected_runtime",
+    "launch_validator", "ledgers", "offline_decoder_and_clock_types",
+})
+
+_COMMIT_OID_RE = re.compile(r"^[0-9a-f]{40}$")
+_SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
 RETAINED_SCOPED = "RETAINED_REVIEWED_LOCAL_SCOPE"
 OFFLINE = "DETERMINISTIC_OFFLINE_RECONCILIATION"
@@ -73,6 +88,21 @@ def _git_bytes(repo: Path, commit: str, path: str) -> bytes:
     return proc.stdout
 
 
+def _git_tree_oid(repo: Path, commit: str) -> str:
+    try:
+        proc = subprocess.run(
+            ["git", "rev-parse", "--verify", f"{commit}^{{tree}}"], cwd=repo,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False,
+            timeout=30,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise ValueError(f"git read timed out: {commit}^{{tree}}") from exc
+    tree = proc.stdout.decode().strip()
+    if proc.returncode or not _COMMIT_OID_RE.match(tree):
+        raise ValueError(f"unresolvable commit: {commit}")
+    return tree
+
+
 def _repo_ref(repo: Path, path: str, commit: str | None = None) -> dict:
     relative = Path(path)
     if relative.is_absolute() or ".." in relative.parts or not (repo / relative).is_file():
@@ -86,7 +116,7 @@ def _repo_ref(repo: Path, path: str, commit: str | None = None) -> dict:
     return result
 
 
-def _code_observation_refs(repo: Path, artifact_paths: list[str], artifacts: dict,
+def _code_observation_refs(repo: Path, artifact_paths: list[str], observation_refs: dict,
                            commit_to_paths: dict[str, set[str]]) -> list[dict]:
     """Discover which `code_byte_observations` a row's own JSON artifacts cite.
 
@@ -94,8 +124,9 @@ def _code_observation_refs(repo: Path, artifact_paths: list[str], artifacts: dic
     reviewed terminal/reconciliation JSON may certify a specific code commit
     without that code file itself being listed. Every such JSON artifact is
     re-read here for a recorded commit; any match against a known code
-    observation pulls that observation's current byte-freshness into the
-    row's own ref set, so drift in the underlying code is never missed.
+    observation pulls that observation's own verified byte baseline (not the
+    artifact dict's, which may be bound to a different commit) into the row's
+    own ref set, so drift in the underlying code is never missed.
     """
     extra = []
     seen = set(artifact_paths)
@@ -109,7 +140,7 @@ def _code_observation_refs(repo: Path, artifact_paths: list[str], artifacts: dic
                 for obs_path in sorted(commit_to_paths[value]):
                     if obs_path not in seen:
                         seen.add(obs_path)
-                        extra.append(artifacts[obs_path])
+                        extra.append(observation_refs[obs_path])
     return extra
 
 
@@ -159,13 +190,38 @@ def audit(repo: Path, *, target_date: str, now_utc: int,
                                live["byte_length"] == claimed["byte_length"])}
 
     observations = source["code_byte_observations"]
-    if not isinstance(observations, dict) or not observations:
-        raise ValueError("source reconciliation is missing code_byte_observations")
+    if not isinstance(observations, dict) or set(observations) != CODE_BYTE_OBSERVATION_NAMES:
+        raise ValueError("source reconciliation code_byte_observations is missing or incomplete")
     commit_to_paths: dict[str, set[str]] = {}
-    for name, obs in observations.items():
-        obs_path, obs_commit = obs.get("path"), obs.get("commit_oid")
-        if not isinstance(obs_path, str) or not isinstance(obs_commit, str) or obs_path not in artifacts:
+    observation_refs: dict[str, dict] = {}
+    for name, obs in sorted(observations.items()):
+        if not isinstance(obs, dict):
             raise ValueError(f"malformed code_byte_observation: {name}")
+        obs_path, obs_commit, obs_sha256, obs_tree = (
+            obs.get("path"), obs.get("commit_oid"), obs.get("sha256"), obs.get("tree_oid"))
+        if (not isinstance(obs_path, str) or obs_path not in artifacts or
+                not isinstance(obs_commit, str) or not _COMMIT_OID_RE.match(obs_commit) or
+                not isinstance(obs_sha256, str) or not _SHA256_RE.match(obs_sha256) or
+                not isinstance(obs_tree, str) or not _COMMIT_OID_RE.match(obs_tree)):
+            raise ValueError(f"malformed code_byte_observation: {name}")
+        # Resolve and verify the baseline at the observation's own commit --
+        # never at the (possibly different) commit the artifact dict records.
+        if _git_tree_oid(repo, obs_commit) != obs_tree:
+            raise ValueError(f"code_byte_observation commit/tree mismatch: {name}")
+        blob = _git_bytes(repo, obs_commit, obs_path)
+        if _digest(blob) != obs_sha256:
+            raise ValueError(f"code_byte_observation baseline mismatch: {name}")
+        live = artifacts[obs_path]
+        observation_refs[obs_path] = {
+            "path": obs_path, "git_commit": obs_commit, "sha256": obs_sha256,
+            "tree_oid": obs_tree, "byte_length": len(blob),
+            "historical_git_bytes_verified": True,
+            "review_status": "CODE_BYTE_OBSERVATION_BYTES_ONLY",
+            "current_sha256": live["current_sha256"],
+            "current_byte_length": live["current_byte_length"],
+            "current_matches_reviewed_bytes": (
+                live["current_sha256"] == obs_sha256 and live["current_byte_length"] == len(blob)),
+        }
         commit_to_paths.setdefault(obs_commit, set()).add(obs_path)
 
     terminal = _repo_ref(repo, ORIGINAL_TERMINAL, ORIGINAL_TERMINAL_RECOVERY_COMMIT)
@@ -204,7 +260,7 @@ def audit(repo: Path, *, target_date: str, now_utc: int,
             refs.extend((report, terminal))
             disposition = "Recovered retained PASS terminal binds the exact G3-P report; package sealing and independent entry review remain pending."
         else:
-            refs += _code_observation_refs(repo, old["artifacts"], artifacts, commit_to_paths)
+            refs += _code_observation_refs(repo, old["artifacts"], observation_refs, commit_to_paths)
             if old["material_status"] == "REUSABLE_SCOPED_ARTIFACTS" and all(
                     ref["current_matches_reviewed_bytes"] for ref in refs):
                 category = RETAINED_SCOPED

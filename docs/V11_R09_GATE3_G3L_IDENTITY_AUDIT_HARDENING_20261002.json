@@ -872,12 +872,12 @@
           "current_byte_length": 47602,
           "current_matches_reviewed_bytes": true,
           "current_sha256": "a2fe4d99666ef744927cfba49de03726b3fc695a98e7836dc1f3642781cbe978",
-          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "git_commit": "23c11e059048257a284d514d3454b811b3866515",
           "historical_git_bytes_verified": true,
-          "media_type": "text/plain",
           "path": "tools/v11_r09_gate3_launch_v4.py",
-          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
-          "sha256": "a2fe4d99666ef744927cfba49de03726b3fc695a98e7836dc1f3642781cbe978"
+          "review_status": "CODE_BYTE_OBSERVATION_BYTES_ONLY",
+          "sha256": "a2fe4d99666ef744927cfba49de03726b3fc695a98e7836dc1f3642781cbe978",
+          "tree_oid": "979440fec2daaf5e7802d0c3d5afad3639d3ab9d"
         }
       ]
     },
@@ -976,24 +976,24 @@
           "current_byte_length": 69644,
           "current_matches_reviewed_bytes": true,
           "current_sha256": "a049e7bc1026e7a24a18c8b67c10964b53317c77db42e428714752934558fac4",
-          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "git_commit": "6340cb455eebae374039c9bae23cd806681dacb0",
           "historical_git_bytes_verified": true,
-          "media_type": "text/plain",
           "path": "tools/v11_r09_gate3_ledgers.py",
-          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
-          "sha256": "a049e7bc1026e7a24a18c8b67c10964b53317c77db42e428714752934558fac4"
+          "review_status": "CODE_BYTE_OBSERVATION_BYTES_ONLY",
+          "sha256": "a049e7bc1026e7a24a18c8b67c10964b53317c77db42e428714752934558fac4",
+          "tree_oid": "b452ba91072bb78146ef6f4140f5ad41898aed28"
         },
         {
           "byte_length": 110679,
           "current_byte_length": 120122,
           "current_matches_reviewed_bytes": false,
           "current_sha256": "276d9779b1bcf1a6ca0b59b284d47ebd1540600c0280c57669ee6a6c589fcd3c",
-          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "git_commit": "6340cb455eebae374039c9bae23cd806681dacb0",
           "historical_git_bytes_verified": true,
-          "media_type": "text/plain",
           "path": "tools/v11_r09_gate3_runtime.py",
-          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
-          "sha256": "3a45eb46f156a1bd17764bfe9fc3d73765418927bbc68fe14744a8fee411f9ed"
+          "review_status": "CODE_BYTE_OBSERVATION_BYTES_ONLY",
+          "sha256": "3a45eb46f156a1bd17764bfe9fc3d73765418927bbc68fe14744a8fee411f9ed",
+          "tree_oid": "b452ba91072bb78146ef6f4140f5ad41898aed28"
         }
       ]
     },
