@@ -1,3 +1,10 @@
+## G3-L audit hardening candidate pending independent review — 2026-10-02 22:25 UTC
+
+Isolated `c9e3b8d` passes 27 focused offline tests, but its original runner
+terminal is missing and different-model exact review is pending. It fills no
+PRE_REVIEW identity and changes no acceptance boundary: **91/200, formal 1/50;
+G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## G3-L rerun drift repair in progress — 2026-10-02 22:12 UTC
 
 A separate isolated Sonnet/high worker is repairing the audit-index rerun

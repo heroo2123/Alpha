@@ -1,3 +1,11 @@
+## G3-L audit hardening intake — 2026-10-02 22:25 UTC
+
+Recovered clean isolated `c9e3b8d` and verified 27/27 focused offline tests.
+The author log has a ready marker, while the runner terminal is absent;
+exact different-model review and integration are pending. Fresh-readiness
+F1/F2 repair remains live separately. **91/200, formal 1/50; G3-L NO-GO;
+NOT_READY_TO_FUND**.
+
 ## G3-L audit hardening lane — 2026-10-02 22:12 UTC
 
 Launched an isolated Sonnet/high author for the independently found audit

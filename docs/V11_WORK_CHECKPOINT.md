@@ -1,3 +1,22 @@
+## Coordinator G3-L hardening intake — 2026-10-02 22:25 UTC
+
+Recovered clean isolated Sonnet/high candidate `c9e3b8d` (tree `e1579a4`)
+from `/tmp/alpha-v11-g3l-audit-hardening-20261002`. Its author log ends
+`G3L_AUDIT_HARDENING_READY c9e3b8d...` (SHA-256 `8dd40ae7...32134cc4f5e`);
+the runner's separate `.terminal.json` is absent, so original-process exit
+and terminal binding are **unverified**. Host-side focused offline tests pass
+27/27; the seven new cases cover generic code drift, malformed observations,
+terminal marker/error and timeout. The historical `131eb12` review bundle
+is preserved. This new candidate is unmerged and lacks different-model
+exact-commit review. Destination-specific authorization for transmitting this
+new candidate and referenced retained evidence was requested; no review
+transfer or PASS is presumed. Fresh-readiness F1/F2 repair remains live in
+its original worktree (Claude PID 2555691); do not duplicate it. Disk free
+4,133,351,424 bytes and MemAvailable 966,000 KiB. No provider request,
+capture, G3-L PASS, forward SHADOW, service/authority/V10/Axiom/financial
+action or C/J/E/A crossing: **91/200, formal 1/50; G3-L NO-GO;
+NOT_READY_TO_FUND**.
+
 ## G3-L audit hardening worker launched — 2026-10-02 22:12 UTC
 
 After exact `131eb12` audit-index integration and 20 passing post-merge offline
