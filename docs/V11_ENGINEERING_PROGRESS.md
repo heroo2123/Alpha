@@ -1,3 +1,7 @@
+## Coordinator latest-main reconciliation probe — 2026-10-02 23:53 UTC
+
+Ran non-destructive offline merge probes against clean `06ba476`: fresh-readiness `976217d` has no textual conflict; G3-L `741c6ae` overlaps only the three chronological status docs. Confirmed clean exact checkouts and candidate diffs. The reviewed ledger fixture repair remains merged. Both new weather candidates remain unreviewed and unmerged pending candidate-specific authorization; no provider request, capture, SHADOW admission, or score crossing: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Coordinator offline ledger fixture isolation — 2026-10-02 23:48 UTC
 
 Recovered the twice-exited diagnosis worker without discarding its clean isolated worktree. Fixed synthetic fixture head caches that survived deleted/reused pytest temporary paths; committed `05d2c25`, received independent Astra/high in-session exact-commit PASS_IN_SCOPE, merged locally as `bc9994c`, and passed 197 focused offline tests after merge. The separate Gate 3 fresh-readiness and G3-L repair commits remain review-held. No provider request, capture, SHADOW admission or score crossing: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
