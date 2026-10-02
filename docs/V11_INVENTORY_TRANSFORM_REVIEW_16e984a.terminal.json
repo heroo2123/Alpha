@@ -1,0 +1,14 @@
+{
+  "schema": "ALPHA_V11_INVENTORY_EXACT_REVIEW_V1",
+  "reviewer": "independent Sol/high coordinator",
+  "candidate_head": "16e984a63156f12252e2811f84b6106b1f84fac7",
+  "candidate_tree": "18bce4af93da8b7e2996d9f794982182ef875056",
+  "candidate_parent": "f6c7c903f1f4de907ac10bfd7d91e89418b6aea5",
+  "verdict": "CHANGES_REQUIRED",
+  "findings": ["IT-R1_EMPTY_REQUEST_CURSOR_FALSE_COMPLETE", "IT-R4_FIFO_OPEN_BYPASSES_DEADLINE"],
+  "focused_passed": 28,
+  "adjacent_passed": 43,
+  "network_attempts": 0,
+  "financial_authority": false,
+  "accepted_for_merge": false
+}
