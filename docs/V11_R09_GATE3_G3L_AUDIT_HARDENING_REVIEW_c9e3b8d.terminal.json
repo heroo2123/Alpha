@@ -1,0 +1,17 @@
+{
+  "clean": true,
+  "completed_utc": "2026-10-02T23:05:57.634872+00:00",
+  "error": null,
+  "exit_code": 0,
+  "expected_head": "c9e3b8d",
+  "expected_tree": "e1579a404b047a53cad54838702eb6d7f122b709",
+  "g3l": "NO-GO",
+  "head": "c9e3b8dff0b9a2aa22836a8006c31f522653e523",
+  "pid": 2566864,
+  "report_sha256": "4262cc114fe2f9846e7586e863b6f073c3de950f8dfc0bbee4b448be2c094cc4",
+  "review_scope": "OFFLINE_G3L_AUDIT_ONLY_NOT_LAUNCH_AUTHORITY",
+  "schema": "ALPHA_V11_G3L_HARDENING_EXACT_REVIEW_TERMINAL_V1",
+  "terminal_marker": "G3L_HARDENING_REVIEW_PROCESS_FINISHED",
+  "tree": "e1579a404b047a53cad54838702eb6d7f122b709",
+  "verdict_sha256": "bada2b70c1a9cbd6f8dcec95a42599b730129fcb7c151ea7c90a363dfae2a758"
+}

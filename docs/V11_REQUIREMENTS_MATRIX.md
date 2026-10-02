@@ -1,3 +1,7 @@
+## G3-L audit hardening R1/R2 open — 2026-10-02 23:07 UTC
+
+Sealed independent exact review of `c9e3b8d` is `CHANGES_REQUIRED` for malformed/incomplete observation coverage and mismatched observation byte baselines; a Sonnet/high repair is active. The exact committed snapshot remains 77 missing identities, zero qualification, G3-L NO-GO. Fresh-readiness `947bf68` is also under separate F1/F2 repair after its failed review. Neither is merged or changes C/J/E/A acceptance: **91/200, formal 1/50; NOT_READY_TO_FUND**.
+
 ## Fresh-readiness F1/F2 still open — 2026-10-02 23:03 UTC
 
 Exact `947bf68` independent review is `CHANGES_REQUIRED`: adversarial outer Mapping and nested dict-subclass cardinality bypasses remain. Its original runner terminal is absent, so no review-process exit binding is inferred. A Sonnet/high repair is active in the isolated worktree; `c9e3b8d` G3-L hardening review continues separately. Neither candidate is accepted or merged and no identity is filled: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.

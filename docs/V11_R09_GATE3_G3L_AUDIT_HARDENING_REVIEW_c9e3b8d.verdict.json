@@ -1,0 +1,137 @@
+{
+  "author": "Claude Sonnet/high",
+  "base_commit": "40bc64e9e226b2a8b7c874f6ba03d848d79e6c3f",
+  "candidate_commit": "c9e3b8dff0b9a2aa22836a8006c31f522653e523",
+  "candidate_json": "docs/V11_R09_GATE3_G3L_IDENTITY_AUDIT_HARDENING_20261002.json",
+  "candidate_json_byte_length": 187907,
+  "candidate_json_sha256": "566eb4beb8e8c15f359c7af2205acc91e1bc9235ae0df54f5a5ea4cb23719b1b",
+  "candidate_tree": "e1579a404b047a53cad54838702eb6d7f122b709",
+  "completed_utc": "2026-10-02T23:05:43.087718+00:00",
+  "final_only_unassembled": 2,
+  "finding_scope_note": "R1/R2 are generic hardening defects demonstrated with synthetic hash-rebound in-memory inputs, not original hash-chain bypasses or errors in the exact committed snapshot.",
+  "findings": [
+    {
+      "blocking": true,
+      "detail": "commit_oid is validated only as str. Empty, invalid, or nonexistent commits enter commit_to_paths and never correlate. A simulated validator drift then leaves code.mapping_exact_commit_review RETAINED without a code dependency. Removing only injected_runtime from a nonempty observation map promotes the already-drifted slice-3 row to RETAINED. Reject malformed/unresolvable observations and require complete reviewed dependency coverage before retaining a code review.",
+      "id": "R1",
+      "lines": [
+        161,
+        169
+      ],
+      "path": "tools/v11_r09_gate3_g3l_identity_audit.py",
+      "probe_keys": [
+        "observation_commit_''",
+        "observation_commit_'not-a-commit'",
+        "observation_commit_'0000000000000000000000000000000000000000'",
+        "missing_runtime_observation"
+      ],
+      "severity": "P2",
+      "title": "Unresolved or incomplete observations silently remove required dependency checks"
+    },
+    {
+      "blocking": true,
+      "detail": "The selected dependency is artifacts[obs_path], verified at artifacts[path].git_commit, not at obs.commit_oid. Observation sha256/tree_oid are ignored. Rebinding the runtime artifact to valid current HEAD bytes while retaining its older observation and review terminal falsely retains slice-3. Swapping the validator observation path to the existing ledgers path similarly retains a drifted validator. Verify each observation path at its own commit/tree/hash and compare current bytes to that baseline; preserve commit/path identity in dependency references.",
+      "id": "R2",
+      "lines": [
+        108,
+        112
+      ],
+      "path": "tools/v11_r09_gate3_g3l_identity_audit.py",
+      "probe_keys": [
+        "artifact_at_newer_commit_than_observation",
+        "observation_path_tools/v11_r09_gate3_ledgers.py",
+        "observation_wrong_sha256",
+        "observation_wrong_tree"
+      ],
+      "severity": "P2",
+      "title": "Observation commit is used for correlation but not for the byte baseline"
+    },
+    {
+      "blocking": false,
+      "detail": "code.launch_validator_commit_tree also cites the mapping terminal candidate_commit, making three correlated identities. It already directly lists validator source and remains FUTURE, so this has no classification impact. The snapshot also adds ledger and runtime source_refs to slice-3, beyond its stated remaining_obligation change. Correct the handoff.",
+      "id": "R3",
+      "lines": [
+        35,
+        48
+      ],
+      "path": "docs/V11_R09_GATE3_G3L_IDENTITY_AUDIT_HARDENING_20261002.md",
+      "severity": "P3",
+      "title": "Handoff overstates its exhaustive correlation and difference checks"
+    }
+  ],
+  "formal_complete": "1/50",
+  "frozen_snapshot_correct": true,
+  "funding_status": "NOT_READY_TO_FUND",
+  "g3l": "NO-GO",
+  "launchable": false,
+  "not_authorized": [
+    "G3-L PASS",
+    "inventory qualification",
+    "private V4 manifest approval",
+    "current GateRuntime acceptance",
+    "503/503/429 resumption",
+    "provider request",
+    "capture or dispatch",
+    "funding or orders",
+    "V10 or AxiomTrade action",
+    "merge or publication"
+  ],
+  "pre_review_missing": 77,
+  "qualification_credit": 0,
+  "report": "/tmp/alpha-v11-g3l-hardening-review-c9e3b8d.review.md",
+  "report_sha256": "4262cc114fe2f9846e7586e863b6f073c3de950f8dfc0bbee4b448be2c094cc4",
+  "review_scope": "OFFLINE_AUDIT_HARDENING_ONLY_NOT_G3L",
+  "reviewer": "OpenAI GPT-6 Astra/high, independent",
+  "schema": "ALPHA_V11_G3L_IDENTITY_AUDIT_HARDENING_REVIEW_VERDICT_V1",
+  "score": "91/200",
+  "terminal_marker": "G3L_HARDENING_REVIEW_CHANGES_REQUIRED",
+  "test_evidence": [
+    {
+      "path": "/tmp/c9e3b8d-review-probes.py",
+      "sha256": "00f72a25d7233e7be1f509bdf2372f677e24adf959a987c363a6eda657094575"
+    },
+    {
+      "path": "/tmp/c9e3b8d-review-probes.json",
+      "sha256": "5e07d87a654532c5356c1f4fc5104c26201d15158e8f7b0b08c59c2fec5217fc"
+    },
+    {
+      "path": "/tmp/c9e3b8d-review-extra.py",
+      "sha256": "fe50ee9d46c63665bb8304f02bd50145e5818816b2a421aabd0883f2fb7dddfb"
+    },
+    {
+      "path": "/tmp/c9e3b8d-review-extra.json",
+      "sha256": "437e8034967118d73fb8aac9479969f29952f7bed3c51db23b6b61ffd4163d83"
+    }
+  ],
+  "verdict": "CHANGES_REQUIRED",
+  "verified": {
+    "artifact_git_and_current_comparisons": 39,
+    "category_counts": {
+      "DETERMINISTIC_OFFLINE_RECONCILIATION": 1,
+      "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT": 70,
+      "INVALID_STALE_OR_DUPLICATE_REQUIREMENT": 0,
+      "RETAINED_REVIEWED_LOCAL_SCOPE": 6
+    },
+    "clean_after": true,
+    "clean_before": true,
+    "detached": true,
+    "diff_check": "PASS",
+    "focused_tests": {
+      "checkout_bytecode_and_cache_disabled": true,
+      "failed": 0,
+      "outer_timeout_seconds": 120,
+      "passed": 27,
+      "pytest_plugin_autoload_disabled": true,
+      "seconds": 1.92
+    },
+    "git_timeout_handling": "PASS_MOCKED_TIMEOUT_30_SECONDS",
+    "historical_snapshot_and_review_bundle_unchanged": true,
+    "independent_probe_result_entries": 53,
+    "observation_git_hash_and_tree_checks": 7,
+    "only_current_observation_drift": "injected_runtime",
+    "restrictions_503_503_429_held": true,
+    "single_screen_calls": 1,
+    "snapshot_byte_identical": true,
+    "terminal_marker_error_checks": "PASS"
+  }
+}

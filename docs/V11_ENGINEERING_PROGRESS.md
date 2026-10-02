@@ -1,3 +1,7 @@
+## G3-L exact review sealed and repair routed — 2026-10-02 23:07 UTC
+
+Astra/high exact `c9e3b8d` review has an exit-0 terminal with matching report/verdict hashes and `CHANGES_REQUIRED` for two generic drift-check defects. A separate Sonnet/high repair author runs in the clean G3-L audit worktree while the fresh-readiness repair continues. No integration, provider request, capture, SHADOW or score crossing: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Fresh-readiness failed review routed to repair — 2026-10-02 23:03 UTC
 
 The Astra/high exact `947bf68` report/verdict are retained with `CHANGES_REQUIRED` for F1/F2 adversarial Mapping and dict-subclass bounds. The original launcher terminal is missing; a separate Sonnet/high repair author now runs in the existing isolated worktree. The G3-L hardening exact review is still live. No merge, provider request, capture, SHADOW or acceptance crossing: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
