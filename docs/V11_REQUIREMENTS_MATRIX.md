@@ -1,5 +1,9 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Live worker observation — 2026-10-02 00:58 UTC
+
+A7 repair and A8 independent exact review are both live in separate worktrees, with no final terminal or acceptance; A7 has three uncommitted repair files and A8's current synthetic probe run reports 16 passes. A4's automatic-review abort still leaves A4 OPEN. Main and SHADOW/Brain readiness are clean. The G3-L disk floor is unmet at about 1.4 GiB free; no provider or forward SHADOW evidence changed. **G3-L NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## A7 exact review rejected; A8 under review — 2026-10-02 00:53 UTC
 
 A4 repair `6ed21e8` is a clean author candidate with 303 hash-verified reported passes, but its independent exact review aborted under automatic cybersecurity-content review; no valid verdict or A4 acceptance exists. A7 exact `313eeaf` review is `CHANGES_REQUIRED` on hidden cgroup ancestry, timeout double-reap and RSS accounting; exact evidence is retained as `docs/V11_R09_GATE3_A7_REVIEW_313eeaf*` and a sole repair is live. A8 clean `7d5941c` offline-preparation candidate is under independent exact review. All A4/A7/A8 acceptance remains OPEN; no G3-L, forward SHADOW or C/J/E/A boundary changed: **G3-L NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.

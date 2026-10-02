@@ -1,5 +1,9 @@
 # Supplementary engineering estimate
 
+## Live recovery observation — 2026-10-02 00:58 UTC
+
+The existing A7 repair and A8 exact-review workers remain live; neither has produced its final terminal. A8 has 16 passing synthetic probes, which do not establish acceptance. A4 remains unqualified after automatic review rejection. No new release run, G3-L PASS, forward SHADOW evidence, or C/J/E/A crossing is claimed. **G3-L NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## A7 review findings under repair; A8 review active — 2026-10-02 00:53 UTC
 
 The A4 author completed clean `6ed21e8` with 303 hash-verified reported offline passes; independent exact review stopped under automatic cybersecurity-content rejection before producing a valid verdict. A7 independent exact review of `313eeaf` found two P2 safety/accounting defects and one P3 RSS defect despite 192 independently reproduced passes; one Astra/high repair is active. A8 `7d5941c` is under independent Astra/high exact review. None is integrated or qualified; no release, G3-L, forward SHADOW or C/J/E/A crossing is claimed. **G3-L NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
