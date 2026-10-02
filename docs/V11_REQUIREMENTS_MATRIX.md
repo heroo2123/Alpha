@@ -1,5 +1,9 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Offline October 2 G3-L screen remains blocked — 2026-10-02 01:11 UTC
+
+Fresh local-only PRE_REVIEW evidence (`/tmp/alpha-v11-g3l-offline-screen-1790903461.json`, SHA-256 `ef5bf17941bd4d1da58b55f15f93308e74bcf907a384c5e2896532c35aee03a7`) reports 77 missing identities, one expired review-timing identity, zero attempt slots, and 1,378,430,976 free disk bytes below the 2 GiB floor. A7 exact review and A8 repair remain live and unqualified. No G3-L, forward SHADOW or C/J/E/A boundary changed: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## A8 checking defects under repair — 2026-10-02 01:07 UTC
 
 Independent exact A8 `7d5941c` review is `CHANGES_REQUIRED` on two reproduced P2 method/context identity defects; exact evidence is retained as `docs/V11_R09_GATE3_A8_REVIEW_7d5941c*`. The sole A8 repair is live alongside independent exact A7 review of `a749197`. Neither candidate is integrated or qualified; no G3-L, forward SHADOW or C/J/E/A boundary changed: **G3-L NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.

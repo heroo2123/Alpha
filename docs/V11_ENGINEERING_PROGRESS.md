@@ -1,5 +1,9 @@
 # Supplementary engineering estimate
 
+## Current offline G3-L screen; two specialist lanes continue — 2026-10-02 01:11 UTC
+
+The local-only October 2 PRE_REVIEW screen exited 2 with 77 missing evidence identities, one expired review-timing identity and zero feasible slots at 1,378,430,976 free disk bytes. Its retained JSON SHA-256 is `ef5bf17941bd4d1da58b55f15f93308e74bcf907a384c5e2896532c35aee03a7`. Independent A7 exact review and A8 repair are still running separately; no new candidate verdict, release run, provider request or C/J/E/A crossing is claimed. **G3-L NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## A8 repair and A7 exact review live — 2026-10-02 01:07 UTC
 
 The independent A8 `7d5941c` review reproduced 329 bounded focused/adjacent/probe passes and rejected two P2 checker defects. Its exact evidence is retained, and one Sol/high repair is live in the A8 author worktree. The A7 `a749197` exact review is active separately. Neither is merged or qualified; no new release run or C/J/E/A crossing is claimed. **G3-L NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
