@@ -19272,3 +19272,92 @@ evidence preparation) and start whichever is genuinely unblocked next.
 Separately, the N1-N9 follow-ups and the `SHARED_LEDGER_LINEAGE_HEAD_
 MISMATCH` teardown finding remain open, bounded, non-blocking candidates
 for a future independently-reviewed slice.
+
+## Gate 3 real-evidence intake through the checker (collector/launch wiring lane) -- unreviewed candidate, 2026-10-02 20:0x UTC
+
+Worked the "decompose the remaining Gate-3 critical path" directive above
+in isolated worktree `/tmp/alpha-v11-gate3-postguard-prereqs-20261002`
+(branch `gate3-postguard-prereqs-20261002`, from main `5bc5321`). Of the
+listed candidate lanes, picked collector/launch wiring: every prior
+evaluation of the real retained evidence-preflight `package.json`/
+`restriction-history.json` was either a historical snapshot recorded once
+by hand (the "22 blockers" result at `2026-10-02T13:18:53Z`, see
+`V11_R09_GATE3_PREFLIGHT_NEXT_SLICE_HANDOFF_20261002.md`) or exercised
+against hand-written synthetic stand-in bytes
+(`tests/v11_gate3_preflight_synthetic_cases.py`); nothing read the actual
+retained private bytes at their own bound path and fed them, with a fresh
+honest current clock/resource measurement, into the already-reviewed
+checker.
+
+Initially planned to route the real bytes through the merged offline
+attempt model (`AttemptModelGuard`/`admit_synthetic`) instead, reasoning
+that its `mode="SYNTHETIC_ONLY"` marker is "a type/scope boundary, not an
+authenticity credential" per that model's own acceptance doc. Building and
+testing against that plan found this is only half true:
+`admit_synthetic`'s `_walk_synthetic_paths` also refuses outright
+(`NON_SYNTHETIC_PATH_OR_INVALID_JSON`) the instant any parsed `"path"`/
+`"private_root"` key is not `synthetic://`-prefixed, and the real retained
+`package.json` genuinely contains such a key
+(`prerequisites.owner_directive_original_record.path`) -- so that route
+always short-circuits to one uninformative reason before the richer
+checker evaluation ever runs. Confirmed empirically with a test that
+reproduces the identical package shape through both layers and asserts
+the contrast directly, rather than discarding the finding. Correctly
+pivoted (before committing anything) to the checker layer
+(`check_evidence_preflight_package`) instead, which has no such
+restriction and was already independently reviewed against this exact
+real package.
+
+Added `tools/v11_gate3_evidence_preflight_real_intake.py` (read-only,
+offline: reads the public binding's own disclosed private-package/
+private-restrictions/protocol references, verifies each file's actual
+bytes against the binding's own declared SHA-256/length before use, takes
+an honest current clock reading with an explicit documented
+"not-qualified" uncertainty/calibration-age sentinel rather than a
+fabricated passing value, takes an honest current disk/memory measurement
+with `physically_reserved_bytes=0`, and calls the real checker directly)
+plus `tests/test_v11_gate3_evidence_preflight_real_intake.py` (20 tests,
+every fixture synthetic or `tmp_path`-local; the real private root is
+never opened by the test suite, matching the attempt model's own
+established convention).
+
+Ran the new suite (20 passed), a targeted regression (that file plus the
+checker/attempt-model/runtime-wiring suites: 697 passed plain and under
+`-O`, `--basetemp` off `/tmp`), and a wider regression (every
+`test_v11_r09_gate3_*.py`/`test_v11_gate3_*.py` file: 1433 passed, 2
+pre-existing unrelated warnings). `git diff --check` clean (two new files
+only). Then actually ran the new tool against the real retained evidence
+at `/home/alphaadmin/AlphaV11_Gate3EvidencePreflight/20261002-gefs-index-
+v1/` under `strace -f -e trace=network,connect` with `HOME=/nonexistent`:
+zero network/socket/connect trace lines, exit 0. Real outcome:
+`CHECKER_REFUSED_BEFORE_DISPATCH`, 26 reasons -- the previously-documented
+22 plus four new honest ones (`CLOCK_BEFORE_WINDOW_START`,
+`EXCESSIVE_CLOCK_UNCERTAINTY`, `EXPIRED_CLOCK_CALIBRATION`,
+`EXPIRED_WINDOW`) the earlier 13:18 UTC snapshot could not yet show because
+the frozen window had not yet expired at that time. Output retained
+verbatim (reason codes/booleans only, no raw private content) at
+`docs/V11_R09_GATE3_EVIDENCE_PREFLIGHT_REAL_INTAKE_20261002.output.json`;
+full writeup at
+`docs/V11_R09_GATE3_EVIDENCE_PREFLIGHT_REAL_INTAKE_ACCEPTANCE_20261002.md`.
+Deleted the disposable `--basetemp` scratch immediately after; free disk
+recovered to 4.6 GiB.
+
+No network, subprocess, decode, transport, SHADOW admission,
+qualification or authority change; no edit to the checker, attempt model,
+`GateRuntime`/`AttemptModelGuard`, V10, AxiomTrade or any existing test.
+The frozen evidence-preflight campaign/window/package bytes are read-only
+to this slice. This is an **unreviewed candidate pending independent
+exact-commit review** -- not yet merged toward main. No score or gate
+crosses: **91/200 (45.5%), formal 1/50; A2/A3 UNQUALIFIED; A4 OPEN; A8
+UNQUALIFIED; G3-L NO-GO; NOT_READY_TO_FUND** -- unchanged.
+
+Next unfinished action: obtain an independent (different-model)
+exact-commit review of this candidate, covering at minimum the byte-
+verification refusal-before-use ordering, the honest-sentinel clock/
+resource claims, and the `_walk_synthetic_paths` contrast finding
+(re-derive it independently, don't just trust this writeup). If approved,
+merge toward main. Separately, the remaining candidate lanes from the
+prior entry (a real clock-calibration recorder build, a real physical
+storage reservation mechanism, fresh-date package preparation, G3-L
+identity/retained-restriction reconciliation) remain open and are not
+advanced by this batch.
