@@ -1,5 +1,9 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## A4 repaired candidate under exact review — 2026-10-02 00:09 UTC
+
+A4 repair `28dd604` is a clean author candidate; its 27 focused and 578 file-by-file Gate 3 passes are author evidence. An independent Astra/high exact review is live, while the separate A7 review continues. A4 and A7 remain OPEN/UNQUALIFIED; no G3-L, forward SHADOW or C/J/E/A boundary changed: **G3-L NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## A7 exact review live — 2026-10-02 00:06 UTC
 
 The clean `e08858b` offline A7 candidate is under independent exact-commit

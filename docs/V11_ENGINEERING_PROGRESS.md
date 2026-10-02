@@ -1,5 +1,9 @@
 # Supplementary engineering estimate
 
+## A4 repair reviewed next; A7 review continues — 2026-10-02 00:09 UTC
+
+The A4 author finished clean `28dd604` after 27 focused and 578 file-by-file Gate 3 passes; its earlier shared-directory run failed 26 runtime reservations during disk exhaustion. Independent Astra/high exact review is now live beside the A7 reviewer. No reviewer verdict, release run, A4/A7 qualification or C/J/E/A crossing is claimed. **G3-L NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## A7 independent review launched — 2026-10-02 00:06 UTC
 
 An isolated Astra/high review runner is live at PGID 1977249 on exact A7

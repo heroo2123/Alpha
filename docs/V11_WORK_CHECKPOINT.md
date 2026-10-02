@@ -1,5 +1,13 @@
 # Alpha V11 work checkpoint
 
+## A4 repair finished; exact review launched — 2026-10-02 00:09 UTC
+
+Recovered the clean A4 repair terminal: candidate `28dd60403bdc8e819e64e9dd60be0109669c4960`, tree `c5dfc479f083a8fdcfa1d897e69a927871a1b9ee`, from the sole A4 worktree. The four-file diff passes `git diff --check`. Its author terminal records 27 focused passes and 578 Gate 3 passes across 12 files run separately; the earlier shared-directory run had 26 disk-exhaustion reserve failures, so it is not counted as a clean shared run. The candidate and all six prior review findings require independent adjudication; A4 remains OPEN.
+
+Launched one independent Astra/high exact-commit review in clean detached `/tmp/alpha-v11-gate3-a4-review-28dd604`, runner PGID 1980587. Its report and verdict are `/tmp/alpha-v11-gate3-a4-review-28dd604{.md,_terminal.json}`; lane terminal is `/tmp/alpha-v11-gate3-a4-review-28dd604-lane.terminal.json`. The A7 exact reviewer PGID 1977249 remains live in its separate checkout. Do not duplicate either or merge their candidates before exact review and reconciliation with newer main. A8 review and five-P2 inventory repair remain queued.
+
+Main was clean at `9081270` before this checkpoint. The private FINAL-REVIEWED master SHA-256 remains `a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`. PAPER scanner, V11 controller and execution units remain inactive; scanner disabled; protected V11 authority roots absent. Disk has about 1.4 GiB free and G3-L's 2 GiB floor is unmet. No provider request, G3-L PASS, forward SHADOW evidence or C/J/E/A crossing: **G3-L NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## A7 exact review launched in freed specialist slot — 2026-10-02 00:06 UTC
 
 After integrating the accepted A2/A3 observation, verified clean detached A7
