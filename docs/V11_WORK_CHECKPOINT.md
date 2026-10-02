@@ -1,3 +1,9 @@
+## Coordinator recovery — 2026-10-02 09:50 UTC
+
+Recovered clean main `027d3af`; its only change after the 09:47 audit is that audit's documentation commit. No separate Alpha author, reviewer, pytest, PAPER scanner or execution process is live. SHADOW and Brain-readiness worktrees remain clean, ECMWF's untracked backfill is preserved, and no checked forward artifact appeared. The FINAL-REVIEWED master, private preflight package and restriction history still match SHA-256 `a0e16d9b`, `c7d1420f` and `fcf4c751` respectively.
+
+Rechecked the exact `27513d2` handoff: the independent review transfer was rejected by automatic approval review, no reviewer terminal/PASS or executable preflight exists, and the destination-specific owner question remains unanswered. The October 2 request window cannot advance without a newly reviewed package. No checker was launched ahead of the required design PASS and no provider request was made. Read-only capacity triage found about 3.078 GB free (above the 2 GiB G3-L floor, below preferred 3 GiB) and about 790 MiB MemAvailable. The large `/tmp` A8 fixture is protected; the visible npm cache is in use by another process and the remaining identified caches are too small to reach 3 GiB safely. No deletion or unrelated service action was taken. The last local-only G3-L screen remains 77 missing identities, zero of 2,713 slots, `launchable=false`. No C/J/E/A crossing: **91/200, formal 1/50; A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Coordinator gate audit — 2026-10-02 09:47 UTC
 
 Recovered clean main `3b9e8d8`; the only change after 09:43 is the prior
