@@ -1,3 +1,7 @@
+## Coordinator offline ledger fixture isolation — 2026-10-02 23:48 UTC
+
+Recovered the twice-exited diagnosis worker without discarding its clean isolated worktree. Fixed synthetic fixture head caches that survived deleted/reused pytest temporary paths; committed `05d2c25`, received independent Astra/high in-session exact-commit PASS_IN_SCOPE, merged locally as `bc9994c`, and passed 197 focused offline tests after merge. The separate Gate 3 fresh-readiness and G3-L repair commits remain review-held. No provider request, capture, SHADOW admission or score crossing: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Coordinator ledger diagnosis recovery — 2026-10-02 23:36 UTC
 
 Restarted the unexpectedly exited offline SharedLedger teardown diagnosis in its original clean isolated worktree. Runner `2585257` and Sonnet/high child `2585262` were live after launch. The two Gate-3 repair candidates remain separately review-held. No provider request, capture, SHADOW admission, or score crossing: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
