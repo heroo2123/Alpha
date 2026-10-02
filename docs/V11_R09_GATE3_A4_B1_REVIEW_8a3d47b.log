@@ -1,0 +1,3205 @@
+OpenAI Codex v0.157.1
+--------
+workdir: /tmp/alpha-v11-a4-b1-review-8a3d47b
+model: gpt-6-astra
+provider: openai
+approval: on-request
+sandbox: workspace-write [workdir, /tmp, $TMPDIR]
+reasoning effort: high
+reasoning summaries: none
+session id: 01a0faf4-3e70-70c2-8258-36e7a2e7d2c0
+--------
+user
+Independent exact-commit B1 acceptance review. Read only. Checkout: /tmp/alpha-v11-a4-b1-review-8a3d47b. Candidate HEAD 8a3d47bcdb52182bac541cf5554e096ac863631b, tree 14a553cf65143bb44115a518435e20e946ee540a. Original B1 author was Claude Sonnet; two subsequent coordinator repairs are pinned. You are the independent Astra/high reviewer of the complete three-file B1 candidate.
+
+Read docs/V11_R09_GATE3_A4_BOOTSTRAP_DESIGN_20261002.md and its independent design review, and both previous review findings in /tmp/alpha-v11-a4-b1-review-d7789fd.last.txt and /tmp/alpha-v11-a4-b1-review-d7b789c.last.txt. Verify all three P2 counterexamples are closed: exponent overflow, oversized JSON integer, and selected data with test role and no dependency edge. Review complete code, tests and scope document for any other concrete bypass of bounded parsing, schema/graph/path/hash rules and unconditional UNQUALIFIED/launchable=false/a4_pass=false. Run focused offline suite using /home/alphaadmin/AlphaV11_ECMWFBackfill/Alpha/.venv/bin/python. Do not write checkout or git state. No provider/network requests, credentials, service/authority changes or financial action.
+
+Final response must start exactly PASS_IN_SCOPE, CHANGES_REQUIRED, or REVIEW_INCOMPLETE. State HEAD/tree, changed-file hashes, tests and any P1/P2 with minimal reproduction. B1 PASS is only structural; never A2/A3 qualification, A4 PASS or G3-L PASS.
+
+warning: Codex could not find bubblewrap on PATH. Install bubblewrap with your OS package manager. See the sandbox prerequisites: https://developers.openai.com/codex/concepts/sandboxing#prerequisites. Codex will use the bundled bubblewrap in the meantime.
+codex
+I’ll verify the pinned commit and tree, read the design and prior findings, then inspect the full candidate and run the focused suite offline without writing to the checkout or git state.
+exec
+/bin/bash -lc 'pwd && git status --short && git rev-parse HEAD HEAD''^{tree} && rg --files -g '"'AGENTS.md' -g '*B1*' -g '*b1*' -g '*A4*' -g '*a4*' -g '*DESIGN*' -g '*review*'" in /tmp/alpha-v11-a4-b1-review-8a3d47b
+ succeeded in 0ms:
+/tmp/alpha-v11-a4-b1-review-8a3d47b
+8a3d47bcdb52182bac541cf5554e096ac863631b
+14a553cf65143bb44115a518435e20e946ee540a
+tests/test_weather_production_review_regressions.py
+tests/test_weather_gpt6_b1_b6_exact_followup.py
+tests/test_v11_r09_gate3_a4_review_28dd604.py
+tests/test_v11_r09_gate3_a4_verify.py
+tests/test_weather_final_review_fixes_v9.py
+tests/test_weather_post_final_review_corrective.py
+tests/test_weather_gpt6_exact_b1_b6_regressions.py
+tests/test_frozen_production_review.py
+tests/test_production_frozen_fee_review.py
+tests/test_weather_independent_review_corrective.py
+tests/test_v11_r09_gate3_a4_closure_spec.py
+tools/v11_r09_gate3_a4_verify.py
+tools/v11_r09_gate3_a4_closure_spec.py
+docs/V11_R09_GATE3_STORE_RESTART_DESIGN_7b5a235_terminal.json
+docs/V11_R09_GATE3_A4_REVIEW_6ed21e8-adjacent.log
+docs/V11_R09_GATE3_A4_R3_REVIEW_95541da-probes.py
+docs/V11_R09_GATE3_A4_REVIEW_6ed21e8-probes.py
+docs/V11_R09_GATE3_A4_BOOTSTRAP_DESIGN_REVIEW_ae0c772.md
+docs/V11_R09_GATE3_A4_CLOSURE_SPEC_SCOPE_20261002.md
+docs/V11_R09_GATE3_A4_R3_REVIEW_95541da-main-focused.log
+docs/V11_R09_GATE3_V4_SLICE2_REVIEW_58a465f.md
+docs/V11_R09_GATE3_DECODER_BUILD_REVIEW_20a42f7_wheel.py
+docs/V11_R09_GATE3_A4_R3_REVIEW_95541da.terminal.json
+docs/V11_R09_GATE3_A4_RUNTIME_VERIFICATION_CANDIDATE_20261001.md
+docs/V11_R09_GATE3_A4_REVIEW_28dd604.md
+docs/V11_R09_GATE3_A4_R3_REVIEW_95541da-runner.py
+docs/V11_R09_GATE3_A4_REVIEW_ef53d61.md
+docs/V11_R09_GATE3_A4_REVIEW_6ed21e8-probes-initial.log
+docs/V11_R09_GATE3_TRANSPORT_RUNTIME_DESIGN_terminal.json
+docs/V11_R09_GATE3_A4_REVIEW_6ed21e8.lane.json
+docs/V11_R09_GATE3_A4_R3_REVIEW_95541da-adjacent.log
+docs/V11_R09_GATE3_A4_REVIEW_6ed21e8-runner-initial.py
+docs/V11_R09_GATE3_A4_R3_AUTHOR_95541da-runner.py
+docs/V11_R09_GATE3_A4_R3_REVIEW_95541da-probes.sh
+docs/V11_R09_GATE3_A4_R3_SONNET_LIMIT_20261002.terminal.json
+docs/V11_R09_GATE3_A4_REVIEW_ef53d61_terminal.json
+docs/V11_R09_GATE3_DECODER_BUILD_REVIEW_20a42f7_runner.py
+docs/V11_R09_GATE3_A4_REVIEW_6ed21e8-focused.log
+docs/V11_R09_GATE3_A4_BOOTSTRAP_DESIGN_20261002.md
+docs/V11_R09_GATE3_DECODER_BUILD_REVIEW_20a42f7_contract.py
+docs/V11_R09_GATE3_DECODER_BUILD_REVIEW_20a42f7.md
+docs/V11_R09_GATE3_A4_REVIEW_ef53d61_probes.py
+docs/V11_R09_GATE3_A4_REVIEW_6ed21e8-probes.log
+docs/V11_R09_GATE3_A4_BOOTSTRAP_DESIGN_REVIEW_ae0c772.verdict.json
+docs/V11_R09_GATE3_A4_REVIEW_28dd604_terminal.json
+docs/V11_R09_GATE3_A4_BOOTSTRAP_DESIGN_REVIEW_ae0c772.terminal.json
+docs/V11_R09_GATE3_A4_REVIEW_28dd604-probes.py
+docs/V11_R09_GATE3_A4_REVIEW_6ed21e8.md
+docs/V11_R09_GATE3_A4_R3_REVIEW_95541da.verdict.json
+docs/V11_R09_GATE3_A4_REVIEW_6ed21e8-ABORTED_partial_terminal.json
+docs/V11_R09_GATE3_A4_REVIEW_6ed21e8-ABORTED_lane.terminal.json
+docs/V11_R09_GATE3_A4_RUNTIME_VERIFICATION_CANDIDATE_20261001_terminal.json
+docs/V11_R09_GATE3_A4_REVIEW_6ed21e8-probes-line-assertion-failed.log
+docs/V11_R09_GATE3_STORE_RESTART_DESIGN_7b5a235.md
+docs/V11_R09_GATE3_A4_REVIEW_6ed21e8-runner.py
+docs/V11_R09_GATE3_A4_R3_REVIEW_95541da.md
+docs/V11_R09_GATE3_A4_R3_AUTHOR_95541da.json
+docs/V11_R09_GATE3_DECODER_BUILD_REVIEW_20a42f7.json
+docs/V11_R09_GATE3_A4_BOOTSTRAP_DESIGN_20261002.json
+docs/V11_R09_GATE3_A4_R3_AUTHOR_95541da-tests.log
+docs/V11_R09_GATE3_A4_R3_REVIEW_95541da-focused.log
+docs/V11_R09_GATE3_A4_R3_REVIEW_95541da-main-runner.py
+docs/V11_R09_GATE3_A4_R3_REVIEW_95541da-main-adjacent.log
+docs/V11_R09_GATE3_A4_REVIEW_6ed21e8-adjacent-initial.log
+docs/V11_R09_GATE3_A4_R3_REVIEW_95541da-probes.log
+docs/V11_R09_GATE3_A4_REVIEW_6ed21e8-ABORTED.log
+docs/V11_R09_GATE3_A4_REVIEW_28dd604-lane.terminal.json
+docs/V11_R09_GATE3_A4_REVIEW_6ed21e8.terminal.json
+docs/V11_R09_GATE3_V4_SLICE2_REVIEW_58a465f_probes.py
+docs/V11_R09_GATE3_TRANSPORT_RUNTIME_DESIGN.md
+polymarket_scanner/weather_only_independent_review_corrective.py
+polymarket_scanner/weather_only_independent_review_corrective_v3.py
+polymarket_scanner/weather_only_independent_review_corrective_v2.py
+
+exec
+/bin/bash -lc 'cat /tmp/alpha-v11-a4-b1-review-d7789fd.last.txt /tmp/alpha-v11-a4-b1-review-d7b789c.last.txt' in /tmp/alpha-v11-a4-b1-review-8a3d47b
+ succeeded in 0ms:
+CHANGES_REQUIRED
+
+Verified HEAD `d7789fd149754f17dc8023d86a89694be5dbca5c` and tree `b57f71fa663f71984adf8a0b0ac9b62973dcb890`. The worktree is clean. Changed-file SHA-256 hashes:
+
+| File | SHA-256 |
+| --- | --- |
+| [scope document](/tmp/alpha-v11-a4-b1-review-d7789fd/docs/V11_R09_GATE3_A4_CLOSURE_SPEC_SCOPE_20261002.md) | `adfe9785f6801e47b3f5c57090c547abca8e07ed4572191ab99ae74e3d948fc1` |
+| [tests](/tmp/alpha-v11-a4-b1-review-d7789fd/tests/test_v11_r09_gate3_a4_closure_spec.py) | `67716ab9cb37b1d0b816fa2dd94a6f3683550a345a6e22d547aa4bd3eb59bcc3` |
+| [checker](/tmp/alpha-v11-a4-b1-review-d7789fd/tools/v11_r09_gate3_a4_closure_spec.py) | `4ddf549aa478becb49d174e678feb21fa1416fd7e8c8d8b3aa401e486b718e94` |
+
+**P2 — Nonfinite exponent escapes strict parsing.** [The parser](/tmp/alpha-v11-a4-b1-review-d7789fd/tools/v11_r09_gate3_a4_closure_spec.py:130) rejects `NaN` and `Infinity` literals, but `parse_strict(b"1e400")` returns Python `inf`. This breaks the design review’s raw nonfinite rejection requirement.
+
+**P2 — A bounded JSON integer escapes the result path.** With the requested Python interpreter, `evaluate_proposal_bytes(b"1" * 4301)` raises an uncaught `ValueError` from `json.loads`. The caller receives no result carrying the required `qualification="UNQUALIFIED"`, `launchable=false`, and `a4_pass=false` fields. The CLI likewise has no JSON rejection output for this input.
+
+The focused offline suite passed **57 tests**; `git diff --check` passed. Structural schema, declared graph, path, and hash collision checks otherwise matched the B1 scope I reviewed. I found no runtime load, provider request, credential, service, financial action, or evidence acceptance path. These checks establish only B1 structural behavior: they do not qualify A2/A3, grant A4 PASS, or make G3-L PASS. No files or git state were changed.CHANGES_REQUIRED
+
+**P2 — Selected data can bypass declared graph reachability.** [The checker](/tmp/alpha-v11-a4-b1-review-d7b789c/tools/v11_r09_gate3_a4_closure_spec.py:397) accepts a data selection based on `kind=data`, while the [reachability check](/tmp/alpha-v11-a4-b1-review-d7b789c/tools/v11_r09_gate3_a4_closure_spec.py:493) exempts every `test` role artifact. Minimal reproduction using the suite’s valid fixture: change `data1`’s role to `test` and remove the `libnative → data1` edge. `evaluate_proposal_bytes` returns `accepted: true`, `errors: []`, although the selected data is unreachable. Selected closure data should require a runtime role or otherwise be covered by reachability.
+
+The two prior P2s **are closed**: `1e400` and a 4,301-digit JSON integer both produce parse rejection results with `qualification="UNQUALIFIED"`, `launchable=false`, and `a4_pass=false`. The CLI emits those fields for both inputs.
+
+HEAD `d7b789c4e11eeac1fa85295b3dd3822e862799bd`; tree `554df0f5bd7065d8fb4a8ef96b3998226b4170e7`. Changed-file SHA-256:
+
+| File | SHA-256 |
+| --- | --- |
+| [Scope document](/tmp/alpha-v11-a4-b1-review-d7b789c/docs/V11_R09_GATE3_A4_CLOSURE_SPEC_SCOPE_20261002.md) | `adfe9785f6801e47b3f5c57090c547abca8e07ed4572191ab99ae74e3d948fc1` |
+| [Tests](/tmp/alpha-v11-a4-b1-review-d7b789c/tests/test_v11_r09_gate3_a4_closure_spec.py) | `bf1f620c12baac605b9c8f6d0e9e76bb369f7d9eb143cb22bd2e7b3660c8bbcc` |
+| [Checker](/tmp/alpha-v11-a4-b1-review-d7b789c/tools/v11_r09_gate3_a4_closure_spec.py) | `b21f0df6f4a3386d1d1b94328cedbd69edf076367fc7b2f2e3ab39f474c0e470` |
+
+The focused offline suite passed **59 tests**; `git diff --check` passed and the checkout remained clean. This review covers B1 structural behavior only. It does not qualify A2/A3, grant A4 PASS, or make G3-L PASS.
+exec
+/bin/bash -lc 'for f in /AGENTS.md /tmp/AGENTS.md /tmp/alpha-v11-a4-b1-review-8a3d47b/AGENTS.md; do if test -f "$f"; then cat "$f"; fi; done
+ git log -5 --oneline
+ git diff --stat HEAD~3 HEAD
+ rg --files --hidden -g AGENTS.md -g '"'"'! .git'"'" in /tmp/alpha-v11-a4-b1-review-8a3d47b
+exec
+/bin/bash -lc 'cat docs/V11_R09_GATE3_A4_BOOTSTRAP_DESIGN_20261002.md docs/V11_R09_GATE3_A4_BOOTSTRAP_DESIGN_REVIEW_ae0c772.md docs/V11_R09_GATE3_A4_CLOSURE_SPEC_SCOPE_20261002.md' in /tmp/alpha-v11-a4-b1-review-8a3d47b
+exec
+/bin/bash -lc 'cat tools/v11_r09_gate3_a4_closure_spec.py' in /tmp/alpha-v11-a4-b1-review-8a3d47b
+exec
+/bin/bash -lc 'cat tests/test_v11_r09_gate3_a4_closure_spec.py' in /tmp/alpha-v11-a4-b1-review-8a3d47b
+ exited 1 in 0ms:
+8a3d47b Require selected A4 closure data to be reachable runtime artifact
+d7b789c Reject nonfinite exponents and oversized JSON integers in A4 B1 checker
+d7789fd Add offline A4 bootstrap closure specification checker
+1f993fb Retain independent A4 bootstrap design review
+2857a72 Checkpoint A4 bootstrap design and sole independent review
+ ...V11_R09_GATE3_A4_CLOSURE_SPEC_SCOPE_20261002.md | 124 +++++
+ tests/test_v11_r09_gate3_a4_closure_spec.py        | 574 +++++++++++++++++++++
+ tools/v11_r09_gate3_a4_closure_spec.py             | 539 +++++++++++++++++++
+ 3 files changed, 1237 insertions(+)
+
+ succeeded in 0ms:
+"""Offline A4 Gate 3 bootstrap closure-specification structural checker (B1 slice).
+
+Pure bounded, in-process JSON structural validation of a proposed native/bootstrap
+closure specification. This is an engineering-proposal checker only: it never
+reads or discovers filesystem state, spawns a process, loads native code, imports
+anything from a proposed runtime image, or contacts a provider/network. A result
+that is structurally valid shows only that the submitted proposal is internally
+self-consistent by its own declarations -- never that the described artifacts
+exist, match real bytes, or form a complete transitive native closure. Declared
+graph reachability is self-declared-graph consistency only; a dangling or
+unreachable entry in a hostile fixture, or a correct reachable synthetic one,
+says nothing about real native completeness. Every result returned by this
+module, including parse rejections and a structurally complete synthetic
+proposal, unconditionally carries qualification="UNQUALIFIED", launchable=False
+and a4_pass=False. See
+docs/V11_R09_GATE3_A4_BOOTSTRAP_DESIGN_20261002.md and
+docs/V11_R09_GATE3_A4_CLOSURE_SPEC_SCOPE_20261002.md for the governing design,
+independent review scope and B1 boundaries. This module performs no production
+lock acceptance, no acceptance-token issuance, no auto-filled genuine evidence,
+no A8/G3-L conversion and no native execution.
+"""
+
+from __future__ import annotations
+
+import json
+import math
+import re
+import sys
+from typing import Any
+
+SCHEMA_ID = "ALPHA_V11_A4_CLOSURE_SPEC_V1"
+
+MAX_RAW_BYTES = 262_144          # 256 KiB bound on the raw proposal byte string.
+MAX_JSON_DEPTH = 16              # Bound on container nesting, checked pre-parse.
+MAX_STRING_LEN = 512
+MAX_ARTIFACTS = 512
+MAX_DEPENDENCIES = 4096
+MAX_LIST_LEN = 512
+MAX_ARTIFACT_SIZE = 2 ** 40      # 1 TiB per-artifact bound; keeps sums in-range.
+# Strictly below MAX_ARTIFACTS * MAX_ARTIFACT_SIZE (2**49) so the bound below
+# is actually reachable and enforced, not dead arithmetic.
+MAX_TOTAL_SIZE = 2 ** 45
+
+_ID_RE = re.compile(r"\A[A-Za-z0-9_.-]{1,128}\Z")
+_HASH_RE = re.compile(r"\A[0-9a-f]{64}\Z")
+_STAGE_RE = re.compile(r"\AS[0-6]\Z")
+_ROLES = ("bootstrap", "runtime", "test")
+_KINDS = ("python", "native", "data")
+_EVIDENCE_CATEGORIES = ("A2", "A3", "MEMFS")
+
+_TOP_KEYS = frozenset({
+    "schema", "entrypoint_id", "artifacts", "dependencies",
+    "unresolved_obligations", "evidence_refs", "bootstrap_declaration",
+    "interpreter_loader_declaration", "data_selection_declaration",
+})
+_ARTIFACT_KEYS = frozenset({"id", "path", "role", "kind", "sha256", "size_bytes"})
+_DEPENDENCY_KEYS = frozenset({"from", "to"})
+_EVIDENCE_KEYS = frozenset({"category", "locator", "sha256"})
+_BOOTSTRAP_KEYS = frozenset({"entry_artifact_id", "trust_anchor", "stages"})
+_LOADER_KEYS = frozenset({"interpreter_artifact_id", "loader_rules"})
+_DATA_KEYS = frozenset({"data_artifact_ids", "selection_rule"})
+
+
+class ClosureSpecParseError(ValueError):
+    """Raised only for raw-byte rejection: oversize, invalid UTF-8, nesting
+    depth, duplicate object keys or nonfinite numeric literals. Structural
+    content problems never raise; they are collected into the result instead.
+    """
+
+
+def _fixed_fields() -> dict:
+    return {"qualification": "UNQUALIFIED", "launchable": False, "a4_pass": False}
+
+
+def _reject_constant(token: str) -> float:
+    raise ClosureSpecParseError(f"NONFINITE_VALUE_REJECTED:{token}")
+
+
+def _parse_finite_float(token: str) -> float:
+    value = float(token)
+    if not math.isfinite(value):
+        raise ClosureSpecParseError(f"NONFINITE_VALUE_REJECTED:{token}")
+    return value
+
+
+def _check_nesting_depth(text: str) -> None:
+    depth = 0
+    in_string = False
+    escape = False
+    for ch in text:
+        if in_string:
+            if escape:
+                escape = False
+            elif ch == "\\":
+                escape = True
+            elif ch == '"':
+                in_string = False
+            continue
+        if ch == '"':
+            in_string = True
+        elif ch in "{[":
+            depth += 1
+            if depth > MAX_JSON_DEPTH:
+                raise ClosureSpecParseError("JSON_NESTING_DEPTH_EXCEEDED")
+        elif ch in "}]":
+            depth -= 1
+    if in_string:
+        raise ClosureSpecParseError("JSON_UNTERMINATED_STRING")
+
+
+def _dedupe_object_pairs(pairs: list) -> dict:
+    seen: dict = {}
+    for key, value in pairs:
+        if key in seen:
+            raise ClosureSpecParseError(f"DUPLICATE_KEY_REJECTED:{key}")
+        seen[key] = value
+    return seen
+
+
+def parse_strict(raw: bytes) -> Any:
+    """Parse bounded raw JSON bytes with strict duplicate-key and nonfinite
+    rejection, before any structural validation runs. Raises
+    ClosureSpecParseError on any violation; never returns a partially accepted
+    document.
+    """
+    if not isinstance(raw, (bytes, bytearray)):
+        raise ClosureSpecParseError("RAW_INPUT_NOT_BYTES")
+    if len(raw) == 0:
+        raise ClosureSpecParseError("RAW_INPUT_EMPTY")
+    if len(raw) > MAX_RAW_BYTES:
+        raise ClosureSpecParseError("RAW_INPUT_TOO_LARGE")
+    try:
+        text = raw.decode("utf-8", errors="strict")
+    except UnicodeDecodeError as exc:
+        raise ClosureSpecParseError("RAW_INPUT_NOT_UTF8") from exc
+    _check_nesting_depth(text)
+    try:
+        return json.loads(
+            text,
+            object_pairs_hook=_dedupe_object_pairs,
+            parse_constant=_reject_constant,
+            parse_float=_parse_finite_float,
+        )
+    except ClosureSpecParseError:
+        raise
+    except json.JSONDecodeError as exc:
+        raise ClosureSpecParseError(f"JSON_SYNTAX_ERROR:{exc.msg}") from exc
+    except ValueError as exc:
+        # CPython's integer digit guard raises ValueError inside json.loads.
+        raise ClosureSpecParseError("JSON_NUMBER_REJECTED") from exc
+
+
+def _is_strict_int(value: Any) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def _is_bounded_string(value: Any) -> bool:
+    if not isinstance(value, str):
+        return False
+    if not (1 <= len(value) <= MAX_STRING_LEN):
+        return False
+    if "\x00" in value:
+        return False
+    return True
+
+
+def _check_exact_keys(obj: Any, expected: frozenset, where: str, errors: list) -> bool:
+    if not isinstance(obj, dict):
+        errors.append(f"NOT_AN_OBJECT:{where}")
+        return False
+    actual = frozenset(obj.keys())
+    missing = expected - actual
+    extra = actual - expected
+    ok = True
+    for key in sorted(missing):
+        errors.append(f"MISSING_KEY:{where}.{key}")
+        ok = False
+    for key in sorted(extra):
+        errors.append(f"UNKNOWN_KEY:{where}.{key}")
+        ok = False
+    return ok
+
+
+def _check_path(path: str) -> bool:
+    if not _is_bounded_string(path):
+        return False
+    if path.startswith("/") or path.startswith("\\"):
+        return False
+    if "\x00" in path:
+        return False
+    segments = path.split("/")
+    if any(seg in ("", ".", "..") for seg in segments):
+        return False
+    return True
+
+
+def _validate_artifacts(doc: dict, errors: list):
+    artifacts = doc.get("artifacts")
+    if not isinstance(artifacts, list) or not (1 <= len(artifacts) <= MAX_ARTIFACTS):
+        errors.append("ARTIFACTS_BOUNDS_VIOLATION")
+        return {}, 0
+    by_id: dict = {}
+    seen_paths: dict = {}
+    seen_hash_size: dict = {}
+    total_size = 0
+    for index, artifact in enumerate(artifacts):
+        where = f"artifacts[{index}]"
+        if not _check_exact_keys(artifact, _ARTIFACT_KEYS, where, errors):
+            continue
+        art_id = artifact["id"]
+        path = artifact["path"]
+        role = artifact["role"]
+        kind = artifact["kind"]
+        sha256 = artifact["sha256"]
+        size_bytes = artifact["size_bytes"]
+        valid = True
+        if not (isinstance(art_id, str) and _ID_RE.match(art_id)):
+            errors.append(f"INVALID_ARTIFACT_ID:{where}")
+            valid = False
+        if not _check_path(path):
+            errors.append(f"INVALID_ARTIFACT_PATH:{where}")
+            valid = False
+        if role not in _ROLES:
+            errors.append(f"INVALID_ARTIFACT_ROLE:{where}")
+            valid = False
+        if kind not in _KINDS:
+            errors.append(f"INVALID_ARTIFACT_KIND:{where}")
+            valid = False
+        if not (isinstance(sha256, str) and _HASH_RE.match(sha256)):
+            errors.append(f"INVALID_ARTIFACT_HASH:{where}")
+            valid = False
+        if not _is_strict_int(size_bytes) or not (0 <= size_bytes <= MAX_ARTIFACT_SIZE):
+            errors.append(f"INVALID_ARTIFACT_SIZE:{where}")
+            valid = False
+        if not valid:
+            continue
+        if art_id in by_id:
+            errors.append(f"DUPLICATE_ARTIFACT_ID:{art_id}")
+            continue
+        if path in seen_paths:
+            errors.append(f"DUPLICATE_ARTIFACT_PATH:{path}")
+            continue
+        hash_size_key = (sha256, size_bytes)
+        if hash_size_key in seen_hash_size:
+            errors.append(
+                f"HASH_ALIAS_COLLISION:{art_id}~{seen_hash_size[hash_size_key]}"
+            )
+            continue
+        total_size += size_bytes
+        if total_size > MAX_TOTAL_SIZE:
+            errors.append("ARITHMETIC_BOUND_EXCEEDED:total_artifact_size")
+            return by_id, total_size
+        seen_paths[path] = art_id
+        seen_hash_size[hash_size_key] = art_id
+        by_id[art_id] = {"role": role, "kind": kind}
+    return by_id, total_size
+
+
+def _validate_dependencies(doc: dict, by_id: dict, errors: list):
+    dependencies = doc.get("dependencies")
+    if not isinstance(dependencies, list) or len(dependencies) > MAX_DEPENDENCIES:
+        errors.append("DEPENDENCIES_BOUNDS_VIOLATION")
+        return []
+    edges = []
+    seen_edges = set()
+    for index, dep in enumerate(dependencies):
+        where = f"dependencies[{index}]"
+        if not _check_exact_keys(dep, _DEPENDENCY_KEYS, where, errors):
+            continue
+        src, dst = dep["from"], dep["to"]
+        if not (isinstance(src, str) and isinstance(dst, str)):
+            errors.append(f"INVALID_DEPENDENCY_ENDPOINT_TYPE:{where}")
+            continue
+        if src not in by_id or dst not in by_id:
+            errors.append(f"DANGLING_DEPENDENCY_ENDPOINT:{src}->{dst}")
+            continue
+        if src == dst:
+            errors.append(f"SELF_DEPENDENCY_INVALID:{src}")
+            continue
+        edge = (src, dst)
+        if edge in seen_edges:
+            errors.append(f"DUPLICATE_DEPENDENCY_EDGE:{src}->{dst}")
+            continue
+        seen_edges.add(edge)
+        edges.append(edge)
+    return edges
+
+
+def _reachable_from(entrypoint_id: str, edges: list) -> set:
+    adjacency: dict = {}
+    for src, dst in edges:
+        adjacency.setdefault(src, []).append(dst)
+    visited = set()
+    stack = [entrypoint_id]
+    while stack:
+        node = stack.pop()
+        if node in visited:
+            continue
+        visited.add(node)
+        for neighbor in adjacency.get(node, ()):
+            if neighbor not in visited:
+                stack.append(neighbor)
+    return visited
+
+
+def _has_cycle(edges: list) -> bool:
+    adjacency: dict = {}
+    for src, dst in edges:
+        adjacency.setdefault(src, []).append(dst)
+    WHITE, GRAY, BLACK = 0, 1, 2
+    color: dict = {}
+
+    def visit(node: str) -> bool:
+        color[node] = GRAY
+        for neighbor in adjacency.get(node, ()):
+            state = color.get(neighbor, WHITE)
+            if state == GRAY:
+                return True
+            if state == WHITE and visit(neighbor):
+                return True
+        color[node] = BLACK
+        return False
+
+    for node in list(adjacency.keys()):
+        if color.get(node, WHITE) == WHITE:
+            if visit(node):
+                return True
+    return False
+
+
+def _validate_entrypoint(doc: dict, by_id: dict, errors: list):
+    entrypoint_id = doc.get("entrypoint_id")
+    if not isinstance(entrypoint_id, str) or not _ID_RE.match(entrypoint_id):
+        errors.append("INVALID_ENTRYPOINT_ID")
+        return None
+    if entrypoint_id not in by_id:
+        errors.append(f"DANGLING_ENTRYPOINT:{entrypoint_id}")
+        return None
+    if by_id[entrypoint_id]["role"] != "bootstrap":
+        errors.append("ENTRYPOINT_NOT_BOOTSTRAP_ROLE")
+        return None
+    return entrypoint_id
+
+
+def _validate_bootstrap_declaration(doc: dict, by_id: dict, entrypoint_id, errors: list):
+    decl = doc.get("bootstrap_declaration")
+    if not _check_exact_keys(decl, _BOOTSTRAP_KEYS, "bootstrap_declaration", errors):
+        return
+    entry_ref = decl["entry_artifact_id"]
+    if entrypoint_id is not None and entry_ref != entrypoint_id:
+        errors.append("BOOTSTRAP_ENTRY_MISMATCH")
+    elif not (isinstance(entry_ref, str) and entry_ref in by_id):
+        errors.append("DANGLING_BOOTSTRAP_ENTRY_REF")
+    if not _is_bounded_string(decl["trust_anchor"]):
+        errors.append("INVALID_BOOTSTRAP_TRUST_ANCHOR")
+    stages = decl["stages"]
+    if not isinstance(stages, list) or not (1 <= len(stages) <= 7):
+        errors.append("BOOTSTRAP_STAGES_BOUNDS_VIOLATION")
+        return
+    seen = set()
+    for stage in stages:
+        if not (isinstance(stage, str) and _STAGE_RE.match(stage)):
+            errors.append(f"INVALID_BOOTSTRAP_STAGE:{stage!r}")
+            continue
+        if stage in seen:
+            errors.append(f"DUPLICATE_BOOTSTRAP_STAGE:{stage}")
+            continue
+        seen.add(stage)
+
+
+def _validate_loader_declaration(doc: dict, by_id: dict, errors: list):
+    decl = doc.get("interpreter_loader_declaration")
+    if not _check_exact_keys(decl, _LOADER_KEYS, "interpreter_loader_declaration", errors):
+        return
+    interp_ref = decl["interpreter_artifact_id"]
+    if not (isinstance(interp_ref, str) and interp_ref in by_id):
+        errors.append("DANGLING_INTERPRETER_REF")
+    else:
+        entry = by_id[interp_ref]
+        if entry["role"] != "runtime" or entry["kind"] not in ("python", "native"):
+            errors.append("INTERPRETER_ARTIFACT_INVALID_ROLE_OR_KIND")
+    rules = decl["loader_rules"]
+    if not isinstance(rules, list) or not (1 <= len(rules) <= 64):
+        errors.append("LOADER_RULES_BOUNDS_VIOLATION")
+        return
+    seen = set()
+    for rule in rules:
+        if not _is_bounded_string(rule):
+            errors.append("INVALID_LOADER_RULE")
+            continue
+        if rule in seen:
+            errors.append(f"DUPLICATE_LOADER_RULE:{rule}")
+            continue
+        seen.add(rule)
+
+
+def _validate_data_selection(doc: dict, by_id: dict, errors: list):
+    decl = doc.get("data_selection_declaration")
+    if not _check_exact_keys(decl, _DATA_KEYS, "data_selection_declaration", errors):
+        return
+    ids = decl["data_artifact_ids"]
+    if not isinstance(ids, list) or not (1 <= len(ids) <= MAX_LIST_LEN):
+        errors.append("DATA_SELECTION_BOUNDS_VIOLATION")
+    else:
+        seen = set()
+        for art_id in ids:
+            if not isinstance(art_id, str):
+                errors.append("INVALID_DATA_SELECTION_REF_TYPE")
+                continue
+            if art_id in seen:
+                errors.append(f"DUPLICATE_DATA_SELECTION_REF:{art_id}")
+                continue
+            seen.add(art_id)
+            if art_id not in by_id:
+                errors.append(f"DANGLING_DATA_SELECTION_REF:{art_id}")
+                continue
+            if by_id[art_id]["kind"] != "data":
+                errors.append(f"DATA_SELECTION_ARTIFACT_INVALID_KIND:{art_id}")
+            if by_id[art_id]["role"] != "runtime":
+                errors.append(f"DATA_SELECTION_ARTIFACT_INVALID_ROLE:{art_id}")
+    if not _is_bounded_string(decl["selection_rule"]):
+        errors.append("INVALID_DATA_SELECTION_RULE")
+
+
+def _validate_unresolved_obligations(doc: dict, errors: list):
+    obligations = doc.get("unresolved_obligations")
+    if not isinstance(obligations, list) or not (1 <= len(obligations) <= MAX_LIST_LEN):
+        errors.append("UNRESOLVED_OBLIGATIONS_BOUNDS_VIOLATION")
+        return
+    seen = set()
+    for item in obligations:
+        if not _is_bounded_string(item):
+            errors.append("INVALID_UNRESOLVED_OBLIGATION")
+            continue
+        if item in seen:
+            errors.append("DUPLICATE_UNRESOLVED_OBLIGATION")
+            continue
+        seen.add(item)
+
+
+def _validate_evidence_refs(doc: dict, errors: list):
+    refs = doc.get("evidence_refs")
+    if not isinstance(refs, list) or not (1 <= len(refs) <= MAX_LIST_LEN):
+        errors.append("EVIDENCE_REFS_BOUNDS_VIOLATION")
+        return
+    categories_present = set()
+    for index, ref in enumerate(refs):
+        where = f"evidence_refs[{index}]"
+        if not _check_exact_keys(ref, _EVIDENCE_KEYS, where, errors):
+            continue
+        category = ref["category"]
+        locator = ref["locator"]
+        sha256 = ref["sha256"]
+        if category not in _EVIDENCE_CATEGORIES:
+            errors.append(f"INVALID_EVIDENCE_CATEGORY:{where}")
+            continue
+        if not _is_bounded_string(locator):
+            errors.append(f"INVALID_EVIDENCE_LOCATOR:{where}")
+            continue
+        if sha256 is not None and not (isinstance(sha256, str) and _HASH_RE.match(sha256)):
+            errors.append(f"INVALID_EVIDENCE_HASH:{where}")
+            continue
+        categories_present.add(category)
+    for category in _EVIDENCE_CATEGORIES:
+        if category not in categories_present:
+            errors.append(f"MISSING_EVIDENCE_REF_CATEGORY:{category}")
+
+
+def validate_structure(doc: Any) -> dict:
+    """Run the bounded structural checks on an already strictly-parsed document.
+
+    Never raises; all problems are collected into the returned result's
+    ``errors`` list. ``accepted`` is True only when the proposal is self-
+    consistent by its own declarations -- this is never evidence that the
+    described native/bootstrap closure is real, complete or reachable.
+    """
+    errors: list = []
+    if not isinstance(doc, dict):
+        errors.append("TOP_LEVEL_NOT_AN_OBJECT")
+        return {"accepted": False, "errors": errors, **_fixed_fields()}
+    _check_exact_keys(doc, _TOP_KEYS, "proposal", errors)
+    if doc.get("schema") != SCHEMA_ID:
+        errors.append("SCHEMA_MISMATCH")
+
+    by_id, _total_size = _validate_artifacts(doc, errors)
+    edges = _validate_dependencies(doc, by_id, errors)
+    entrypoint_id = _validate_entrypoint(doc, by_id, errors)
+    _validate_bootstrap_declaration(doc, by_id, entrypoint_id, errors)
+    _validate_loader_declaration(doc, by_id, errors)
+    _validate_data_selection(doc, by_id, errors)
+    _validate_unresolved_obligations(doc, errors)
+    _validate_evidence_refs(doc, errors)
+
+    cycles_detected = False
+    unreachable: list = []
+    if entrypoint_id is not None:
+        reachable = _reachable_from(entrypoint_id, edges)
+        cycles_detected = _has_cycle(edges)
+        for art_id, info in by_id.items():
+            if info["role"] in ("bootstrap", "runtime") and art_id not in reachable:
+                unreachable.append(art_id)
+        for art_id in sorted(unreachable):
+            errors.append(f"UNREACHABLE_DECLARED_ARTIFACT:{art_id}")
+
+    result = {
+        "accepted": len(errors) == 0,
+        "errors": sorted(errors),
+        "artifact_count": len(by_id),
+        "dependency_count": len(edges),
+        "cycles_detected": cycles_detected,
+        "unreachable_declared": sorted(unreachable),
+    }
+    result.update(_fixed_fields())
+    return result
+
+
+def evaluate_proposal_bytes(raw: bytes) -> dict:
+    """Entry point: strictly parse bounded raw JSON bytes, then run bounded
+    structural validation. Always returns a result dict carrying
+    qualification="UNQUALIFIED", launchable=False and a4_pass=False, whether
+    the raw bytes were rejected at parse time or the parsed document was
+    structurally validated.
+    """
+    try:
+        doc = parse_strict(raw)
+    except ClosureSpecParseError as exc:
+        return {"accepted": False, "errors": [str(exc)], **_fixed_fields()}
+    return validate_structure(doc)
+
+
+def main(argv: list) -> int:
+    raw = sys.stdin.buffer.read(MAX_RAW_BYTES + 1)
+    result = evaluate_proposal_bytes(raw)
+    print(json.dumps(result, sort_keys=True, separators=(",", ":")))
+    return 0 if result["accepted"] else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv[1:]))
+
+ succeeded in 0ms:
+# A4 pre-import bootstrap and native decoder closure design
+
+Status: **proposed architecture; independent review pending**. Authored in the
+Astra/high handoff on main `6235b6d`, 2026-10-02. This resolves the next design
+choice; it does not accept A2/A3, supply a trusted launcher, or grant A4 PASS.
+G3-L remains NO-GO. No runtime code or existing gate is changed.
+
+## Evidence and decision
+
+The [identity acceptance criteria](V11_R09_GATE3_IDENTITY_ACCEPTANCE_20261001.md)
+remain controlling. [R3 review](V11_R09_GATE3_A4_R3_REVIEW_95541da.md) accepts
+the narrow alternate-FIFO repair, not a positive native execution boundary.
+The [current verifier](../tools/v11_r09_gate3_a4_verify.py) begins after Python
+and its imports have executed; `run()` forks that process and prohibits new
+opens. Snapshotting native files does not cause the loader to use them.
+Its bootstrap file/map rechecks cannot establish pre-load authenticity.
+The existing A7 subprocess and A8 method checks do not repair that gap.
+
+Select a **fresh-process, closed immutable runtime image** as the target
+architecture. Do not extend the inherited Python child with ad hoc `dlopen`
+permissions or claim that preloading, source rehashing, `LD_PRELOAD` observation,
+`RTLD_NOW`, file-descriptor names, or a maps sample alone satisfies A4.
+The selected architecture is conditional on a separately reviewed bootstrap
+and confinement backend. No such backend is accepted or installed here.
+
+A2/A3 is a hard dependency of qualified execution, but not of writing an
+offline closure specification or testing its structural refusals with explicit
+synthetic fixtures. The [retained audit](V11_R09_GATE3_A2A3_RETAINED_AUDIT_20261001.md)
+still lacks authenticated originals, reconstruction, and explanations for 25
+RECORD discrepancies. Its 78 observed libraries/305 edges are candidates to
+classify, not an exhaustive runtime lock. The missing cached wheel stays
+missing. Static MEMFS acceptance applies only to its exact containing binary.
+
+## Trust starts outside the process being verified
+
+T0 is the already-authorized host kernel and an independently authenticated,
+reviewed bootstrap launcher with protected identity/custody and a trusted
+external run/lock/review pin. Root or kernel compromise and a malicious custody
+operator are outside this proposed A4 substitution boundary. Mutable artifacts,
+search paths, environment, unexpected dependencies and accidental or concurrent
+replacement are inside it. The threat model and custody assumptions require
+independent acceptance; they are not newly installed authority.
+
+Prefer a small, statically linked T0 launcher with no runtime plugins or
+helper subprocesses. Static linkage is a design constraint, not evidence of
+trust: its source, compiler/linker closure, build outputs, embedded code/data,
+launch mechanism, exact executable bytes and custody still need acceptance.
+If any dynamically loaded bootstrap dependency is necessary, it too needs an
+external pre-execution guarantee; a post-start self-hash is insufficient.
+The launcher's own authenticated invocation is the explicit trust anchor,
+not a recursive claim that Python verifies Python before Python starts.
+
+The current coordinator, shell, Git command and Python observation tools are
+engineering tools, not this accepted T0. Prepare Git commit/tree/blob proofs
+offline; pin independently reviewed proof bytes into the eventual lock. Do not
+invoke an unqualified Git executable and loader from the qualified launch path.
+A new proof verifier would itself belong to the reviewed T0 closure.
+No creation under `/etc/alpha-v11` or `/var/lib/alpha-v11`, setuid helper,
+service change, host-policy relaxation or privileged installation is authorized.
+If a safe backend cannot operate under existing policy, refuse and retain the
+external prerequisite. The observed bwrap loopback failure is not permission
+to bypass confinement or proof about every namespace capability on this host.
+
+## Required launch sequence (future implementation)
+
+| Stage | Required invariant before advancing |
+| --- | --- |
+| S0: external acceptance | Trusted custody supplies run identity, first-lock pin, exact A2/A3 review pins, T0 identity and the accepted backend policy. No candidate-supplied `ACCEPTED` string authenticates these. Same-run restart must preserve the original lock; missing/replaced history refuses. |
+| S1: capture | T0 validates a bounded canonical lock and reviewed Git proof bundle, opens only declared regular inputs without following undeclared links, copies and hashes the actual captured bytes, and seals them before executable use. Bound bytes/count/depth/time and descriptor use; FIFO/device/oversize/truncation/duplicate inputs refuse. No import, native inspection by execution, constructor or decoder runs here. |
+| S2: isolate | Construct a private closed root from those sealed objects, including the exact ELF interpreter path, Python, stdlib/extensions, complete native/data closure and explicit symlink aliases. No mutable backing alias, host root fallback, inherited directory/file/socket descriptor, host `/proc` escape, network, or executable writable scratch. Scrub environment before exec. Establish resource bounds, parent-death handling and complete process-tree termination. Failure refuses before S3. |
+| S3: fresh exec | Start the pinned interpreter from the immutable image. The kernel's ELF interpreter and every loader search candidate must resolve inside that image to accepted bytes. This is a fresh exec, not fork-only inheritance of host Python modules. Loader initializers/IFUNCs/constructors already fall under the closed image guarantee. |
+| S4: Python/decoder init | Only locked startup modules, extensions, imports and explicit lazy dependencies are reachable. Disable implicit user/site/cwd/bytecode/plugin discovery unless individually frozen and reviewed. Initialize the reviewed decoder adapter and fixed definitions/sample policy. No late fallback to host-installed packages or data. |
+| S5: bounded decode | Receive only bounded data over the reviewed input channel; retain A5/A6 pins and A7 pre-native checks, source/packing restrictions and resource accounting. All code and data remain bound through use. The decoder has no transport, credential, order or storage-authority capability. |
+| S6: finalize | Validate bounded typed output, child exit and complete parent-owned evidence; timeout/crash/incomplete accounting/map or selection mismatch refuses. Reap the complete child tree and durably seal the report before use. A result is not G3-L or SHADOW permission. |
+
+Candidate S2 backend: a private mount namespace containing only read-only views
+of fully sealed file objects and a minimal reviewed scratch/input/output layout.
+This is a backend specification, not a claim that the host currently supports
+it. Directory topology, mounts, executable memory policy, process inspection,
+remaining descriptors, auxiliary kernel mappings and permitted syscalls must be
+reviewed and tested. A read-only bind of a mutable host file or chmod alone is
+not adequate; every backing file needs immutable captured bytes. Host symlink
+resolution is not the runtime alias policy. If namespace creation or required
+protections are unavailable, terminate; no automatic weaker fallback.
+
+The accepted backend must prevent execution/mapping outside the locked closure,
+including undeclared lazy loads and writable-file executable mappings, before
+their first instruction. Account explicitly for vDSO/kernel-provided mappings,
+relocations, Python bytecode compilation, generated CFFI trampolines and other
+anonymous executable memory. Any needed exception must have a bounded reviewed
+mechanism and provenance; do not silently permit arbitrary W+X or JIT/plugin
+code. Protect the child against unintended same-user process injection under
+the accepted host threat model. These are open proof obligations, not controls
+provided by the current focused seccomp test filter.
+
+## Lock and loader/data binding
+
+The future lock binds the exact entrypoint Git commit/tree/source proof,
+A2/A3 evidence and detached review hashes, T0/backend identity, interpreter/ABI,
+full Python/native/data artifact set, path aliases, environment allowlist and
+values, loader resolution rules, resource limits and the MEMFS policy. Include
+artifact kind, byte length, SHA-256, provenance reference and dependency edges.
+Separate reviewer/test overhead with reasons; do not omit an artifact simply
+because one successful trace did not load it.
+
+Native closure covers `PT_INTERP`, startup and transitive `DT_NEEDED`, symbol
+versions/ABI, explicit `dlopen`/extension/plugin targets and reachable lazy
+loads. Model exact SONAME/path resolution, RPATH/RUNPATH, loader cache/default
+paths and CPU/hwcaps alternatives; omit/disable or individually pin each search
+source. An edge's basename matching one historical mapping is insufficient.
+The selected image admits only accepted alternatives. Extra/ambiguous/missing
+resolutions refuse. Trace observations corroborate reachability but do not
+prove it exhaustively. Changes require a new lock and independent review.
+
+Enforcement precedes constructors because all reachable executable backing
+bytes are confined to the captured image before exec, not because a later
+`/proc/maps` comparison can undo an initializer. Parent-owned map/loader evidence
+must bind device/inode or sealed-object identity, file offsets, executable
+ranges and hashes to the image. Account for load/unload events over the full
+lifetime; an unexplained transient mapping is a failure. Never compare relocated
+memory blindly with the unrelocated file. Backend integration review must show
+both prevention and accurate observation, using safe constructor sentinels.
+
+For the currently observed MEMFS binary, bind containing SHA-256
+`f984057845fd0a569dd775907d4629b83b09434959436863790492aae32e5fb9`, size
+39,767,864, the exact accepted 7,073-entry inventory and its separate review.
+Bind table path, symbol, offset, storage length and range hash for definitions,
+samples and IFS samples. Verify whole containing bytes plus inventory identity
+before loading; validate range arithmetic against that exact object. Preserve
+storage-length semantics and the 112,589-byte unattributed `.rodata` residual;
+whole-binary identity binds residual bytes but does not authenticate their origin.
+A different build must regenerate and review the inventory.
+
+Freeze ecCodes context/API configuration, definition/sample search order and
+all `ECCODES_*`/legacy overrides that could affect selection. A locked library
+with mutable external definitions is not a bound decoder. Either expose only
+the accepted MEMFS namespace or individually lock every permitted external
+file and its precedence. Record actual opens/existence lookups and selected
+ranges with parent-verified completion; undeclared fallback refuses before
+consuming its bytes. Existing static enumeration and A1 interposition are
+supporting evidence, not the sole enforcement. Original upstream definitions,
+provider semantics and source authenticity remain A2/A5 obligations.
+
+## Bounded offline implementation and review path
+
+**B1, next implementable slice: closure-specification checker, no launcher.**
+After independent design review, add only
+`tools/v11_r09_gate3_a4_closure_spec.py`,
+`tests/test_v11_r09_gate3_a4_closure_spec.py`, and its scope document. Pure bounded
+in-memory JSON validation; no filesystem discovery, Git process, native load,
+imports from the proposed image, provider access or change to existing A4/A7/A8.
+Input is explicitly an engineering proposal, never a production lock.
+
+Define one strict versioned canonical schema with unique artifact IDs/paths,
+exact dependency endpoints, distinct classified bootstrap/runtime/test roles,
+explicit unresolved obligations and references to A2/A3/MEMFS evidence. Bound
+input bytes, collection lengths, nesting, strings and integer ranges; reject
+duplicate keys, nonfinite/bool-as-integer values, path traversal, invalid hashes,
+ambiguous aliases/targets and arithmetic overflow. Resolve declared graph
+reachability from the entrypoint; allow legitimate native dependency cycles
+with visited-node tracking. Graph consistency cannot establish completeness.
+Require bootstrap, interpreter/loader and data-selection declarations, but
+label them assertions pending evidence. Review pins have shape only at B1.
+
+Output deterministically lists structural errors and unresolved obligations.
+Every output, including a structurally complete synthetic proposal, must state
+`qualification=UNQUALIFIED`, `launchable=false`, `a4_pass=false`. No conversion
+to A8/G3-L identities, no acceptance-token producer, and no auto-filled genuine
+references. Positive tests mean structurally valid proposal only. Test missing
+transitive edges, duplicate/alias collisions, cycles, absent bootstrap/data
+rules, wrong inventory/library binding, fake acceptance labels and bounded
+malformed input. This avoids another synthetic runtime presented as progress
+on native execution. B1 reduces interface ambiguity; it crosses no C/J/E/A gate.
+
+**B2, blocked qualification input:** accepted authentic A2 lineage, complete A3
+reconstruction and explicit trusted bootstrap custody/backend capability.
+Independent review must bind exact artifacts. Retained installed equality is
+not a substitute. No package download/install or root authority work is assigned.
+
+**B3, separately assigned backend feasibility and enforcement:** only after
+accepted design and a fixed candidate build, implement a standalone T0/S1–S3
+prototype and synthetic benign constructor controls in an isolated worktree.
+First review is on exact source/build/TCB and capability feasibility; a second
+exact integration review must prove the table above before actual decoder use.
+Unavailable backend features stop the slice. Do not reuse current fork-only
+results as pre-import proof. Do not start B3 in this handoff.
+
+**B4, native/decoder integration:** after B2/B3 acceptance, bind actual runtime
+mappings and MEMFS selection, integrate A7 checks without widening permitted
+packings, and test retained real fields with adequate host resources. Run an
+independent exact-commit review, then reconcile with newer main and repeat
+relevant integration tests. Reconciliation invalidating reviewed bytes needs
+fresh review. A8 and G3-L still require their own real evidence and acceptance.
+
+## Acceptance counterexamples and stop conditions
+
+| Counterexample | Required observation in B3/B4 |
+| --- | --- |
+| Changed Python wrapper/stdlib/extension or preloaded module | No unverified import/initializer; fresh exec cannot inherit the host module |
+| Changed native dependency, interpreter, loader, MEMFS or data file | Refusal before any changed constructor/import/data consumption |
+| Same path replaced by symlink, rename, hardlink or in-place write between capture/use | Substituted bytes never execute; record refusal when required identity changes; immutable captured bytes remain the only possible source |
+| Loader environment/cache/hwcaps/SONAME collision or missing transitive edge | No host fallback or unexpected resolution; sentinel never executes |
+| Undeclared late `dlopen`, extension, external definition or sample override | Refusal before code/data use, not merely post-decode mismatch |
+| Transient mapping or omitted/failed observation suffix | Fail complete evidence; prevention must independently have held |
+| Changed first-lock record/restart lock, invented replacement run | Existing trusted run custody refuses substitution; candidate cannot reset history |
+| Insufficient space/memory, blocked namespace, child hang/crash, large output | Refuse/reap under bounded resources; no filter relaxation or incomplete success |
+| Valid synthetic closure plus fabricated `ACCEPTED` records | Never A2/A3/A4 PASS or launchable; exact independent provenance review still required |
+
+A2/A3 remain UNQUALIFIED, A4 OPEN, A8 UNQUALIFIED. Disk is below the 2 GiB
+G3-L floor; the owner rule forbids real network/provider requests before G3-L
+PASS. This design cannot resolve current-run acquisition circularity or grant
+an exception. Root-custodied forward SHADOW and multi-model Brain admission
+remain separate. No financial/V10/AxiomTrade action, new release test result,
+forward evidence, score increase or remote publication is claimed.
+# Independent A4 bootstrap architecture and B1 plan review
+
+**PASS_IN_SCOPE — ARCHITECTURE_AND_B1_PLAN_ONLY.** Reviewed detached commit `ae0c7726261f00bfa448c64a24f8b16f8f4d26d3`, tree `e10556db4ec35c0d431614248c7a7a5fbad91ffa`, against parent `6235b6d4b2c126e2d1f4f049fe89ad93e2743b9c`. The change adds exactly the bootstrap design Markdown and JSON. This is acceptance of a conditional architecture and a bounded offline structural checker plan. A4 remains OPEN; A2/A3 and A8 remain UNQUALIFIED; G3-L remains NO-GO. No launcher, confinement backend, provenance acceptance, decoder execution, or launch authority is established.
+
+## Assessment
+
+The design closes the architectural choice without circular self-verification. T0 is placed outside the runtime being checked, with independent custody and a trusted external run/lock/review pin. It expressly treats a statically linked launcher, its build and invocation, and any dynamic bootstrap dependency as future acceptance work. The current verifier is correctly described: `VerifiedInputs` runs inside an already imported Python process, checks `/proc/self/maps` and bootstrap files, uses an ordinary Git executable during verification, and `run()` forks that process before a focused file-open-denial filter. Those controls cannot authenticate code that executed before them or constrain every native mapping.
+
+The proposed S1–S4 order captures and seals actual regular-file bytes, constructs a closed image, then makes a fresh exec whose ELF interpreter, loader resolution, Python imports and constructors are inside the accepted image. It distinguishes prevention before first instruction from later map evidence. Native closure includes `PT_INTERP`, transitive `DT_NEEDED`, explicit and lazy loads, SONAME and search rules, and CPU alternatives. It requires full-lifetime mapping accounting, including transient mappings, while identifying anonymous executable memory and same-user injection as backend proof obligations. A private mount namespace is a candidate, not a proven host capability; the observed bwrap loopback failure supports neither backend availability nor relaxed confinement.
+
+The MEMFS binding is appropriately exact: containing SHA-256 `f984057845fd0a569dd775907d4629b83b09434959436863790492aae32e5fb9`, 39,767,864 bytes, the accepted 7,073-entry inventory, storage-length semantics, and the 112,589-byte residual. The design requires context/search precedence and actual selected ranges through use. Static enumeration and historical traces are supporting observations only. The retained A2/A3 audit still lacks authenticated originals, reconstruction, and adjudication of 25 RECORD discrepancies; its 78 mappings/305 edges are candidates, not a complete lock. The design preserves that dependency. A7's current `run()` also starts a Python worker subprocess from `sys.executable`; B4 must bring that child exec and its temporary data paths within the same reviewed closure or replace the adapter under exact review. The proposal's process-tree, fresh-exec and B4 integration requirements cover this as future work.
+
+Restart custody is not self-minted: S0 requires external original-lock history and refuses a replacement or missing first-lock record. B3 requires separate feasibility and exact integration reviews before actual decoder use. B4 follows accepted B2/B3, binds real runtime maps and data selection, and receives another exact review. A7's pre-native checks and packing restrictions survive integration; A8 and G3-L have separate real-evidence requirements. No current-run acquisition circularity is resolved here.
+
+B1 may proceed offline. It is a versioned, bounded engineering-proposal checker only, with all outputs `qualification=UNQUALIFIED`, `launchable=false`, `a4_pass=false`. It cannot be a production lock, launch token, provenance acceptance, or A2/A3/A4 PASS. There is no blocking ambiguity within that limited scope. The following clarifications should be made in B1's schema/tests so implementation remains faithful to the design:
+
+| Severity | Location | Reason | Remedy |
+| --- | --- | --- | --- |
+| LOW | `docs/V11_R09_GATE3_A4_BOOTSTRAP_DESIGN_20261002.md:149` | “In-memory JSON validation” does not name the API boundary. Duplicate keys cannot be detected after a normal JSON object is constructed. | Take bounded raw JSON bytes as input and reject duplicate keys and nonfinite values during strict parsing before structural validation. |
+| LOW | `docs/V11_R09_GATE3_A4_BOOTSTRAP_DESIGN_20261002.md:170` | A self-declared graph cannot reveal a truly omitted native transitive edge. “Missing transitive edges” could be misread as completeness evidence despite line 161. | Test dangling declared endpoints, unreachable declarations, and synthetic known-edge fixtures; label undisclosed real edges an unresolved A2/A3/B3/B4 obligation. Never derive qualification from B1 graph success. |
+
+Neither clarification blocks B1 because the adjacent byte-bound/duplicate-key rules and explicit graph-completeness limit already constrain the implementation. Any B1 candidate still needs its own exact implementation review. B2/B3/B4 need later exact build, provenance, capability and integration reviews; this design review accepts none of their evidence.
+
+## Checks performed
+
+- Verified HEAD, tree, parent, two-path diff, clean checkout and `git diff --check`.
+- Verified SHA-256 of changed Markdown `e891558a5184ea36790e904a41b27eaac328fbe12b5ca3d44c212c261d411223` and JSON `09cabdc820cff0b57f67c3abda8890efac92b179fb5b5d6f97b3a1bacbfa3652`.
+- Independently checked every path, byte size and SHA-256 in the design JSON's nine-file manifest; checked all local Markdown links in the design and controlling identity criteria.
+- Read the required checkpoint, requirements and engineering-progress heads, the controlling identity criteria, retained A2/A3 audit, accepted A4 R3 and MEMFS static reviews, and targeted current A4/A7/A8 source. Did not repeat suites or enumerate MEMFS entries.
+- Used approved read-only shell escalation after the wrapper failed configuring loopback. No decoder import, native load, build/install, namespace experiment, provider/network request, service/authority/financial action or repository edit occurred. Only the two requested review artifacts were written outside the checkout.
+
+Final checkout status: clean. No A4/G3-L qualification or C/J/E/A gate crossing is claimed.
+
+A4_BOOTSTRAP_DESIGN_REVIEW_COMPLETE
+# B1 closure-specification checker: scope and limits
+
+Status: **offline engineering-proposal checker; independent implementation
+review pending**. Authored on main `1f993fb`, 2026-10-02, as the B1 slice
+authorized by
+[the A4 bootstrap design](V11_R09_GATE3_A4_BOOTSTRAP_DESIGN_20261002.md) after
+its independent
+[architecture-and-B1-plan review](V11_R09_GATE3_A4_BOOTSTRAP_DESIGN_REVIEW_ae0c772.md)
+(`PASS_IN_SCOPE`, `docs/V11_R09_GATE3_A4_BOOTSTRAP_DESIGN_REVIEW_ae0c772.verdict.json`).
+That review qualified only the architecture and this plan, explicitly not A4
+itself. This document is the scope boundary for
+`tools/v11_r09_gate3_a4_closure_spec.py` and
+`tests/test_v11_r09_gate3_a4_closure_spec.py`; it does not re-litigate the
+design, does not accept A2/A3, and does not grant A4 PASS.
+
+## What this checker is
+
+A pure, bounded, in-process structural validator for one kind of input: a
+single bounded raw JSON byte string describing a proposed bootstrap/native
+closure (the artifacts, their dependency graph, declared bootstrap/loader/
+data-selection rules, unresolved obligations and A2/A3/MEMFS evidence
+references). It has no filesystem discovery, no subprocess, no native load, no
+import from any proposed runtime image, and no provider/network access. Given
+the same bytes it always returns the same result.
+
+It directly addresses both LOW findings from the design review:
+
+- Raw bytes, not an already-constructed object, are the input. `parse_strict`
+  rejects duplicate object keys and nonfinite numeric literals (`NaN`,
+  `Infinity`, `-Infinity`) during parsing, before any structural check runs,
+  so duplicate keys cannot silently collapse and infinities/NaN cannot reach
+  a bound comparison.
+- Declared-graph reachability (`validate_structure`'s dependency-graph walk)
+  is tested, and documented, as self-declared-graph consistency only. Tests
+  with dangling endpoints, unreachable declarations, and synthetic known-edge
+  fixtures (including a deliberate benign cycle) probe the checker's own
+  refusals. None of them, including a fully accepted synthetic proposal,
+  establish that a real native transitive closure is complete.
+
+## What it is not, and never produces
+
+- Not a production lock, not an acceptance-token producer, not an A8/G3-L
+  converter, and not a native-execution path. It does not run, fork, `dlopen`,
+  or import any artifact it is told about.
+- Not evidence toward A2/A3. The `evidence_refs` field accepts `A2`/`A3`/
+  `MEMFS` references by shape only (category, a bounded locator string, and an
+  optional SHA-256-shaped pointer) — the checker never opens, hashes, or
+  otherwise verifies the referenced document.
+- Every result — a parse-time rejection, a structurally invalid proposal, or
+  a structurally complete synthetic proposal — unconditionally carries
+  `qualification="UNQUALIFIED"`, `launchable=False`, `a4_pass=False`. There is
+  no code path that produces any other value for these three fields.
+
+## Bounds enforced
+
+Raw input is capped at 256 KiB; container nesting at 16 (checked by a
+bracket-depth pre-scan before the JSON parser runs, so a pathological deeply
+nested document cannot reach the recursive parser at all); strings at 512
+UTF-8 characters with no NUL byte; up to 512 artifacts, 4096 dependency edges,
+and 512 entries in any other bounded list. Per-artifact size is capped at
+2**40 bytes and the declared total across all artifacts at 2**45 bytes — kept
+strictly below `512 * 2**40` so the total-size bound is actually reachable
+within the artifact-count bound, rather than being unreachable dead logic.
+Integers are checked with `isinstance(x, int) and not isinstance(x, bool)` so
+a JSON `true`/`false` can never satisfy an integer field.
+
+## Schema (`ALPHA_V11_A4_CLOSURE_SPEC_V1`)
+
+The top-level object and every nested object use an exact, closed key set;
+unknown or missing keys are rejected. Required top-level fields:
+
+- `schema`: must equal `ALPHA_V11_A4_CLOSURE_SPEC_V1`.
+- `entrypoint_id`: must reference a declared artifact whose `role` is
+  `bootstrap`.
+- `artifacts`: 1–512 entries, each `{id, path, role, kind, sha256,
+  size_bytes}`. `id` is a bounded token; `path` must be relative with no `..`
+  or empty segments (traversal refused) and no leading `/`; `role` is one of
+  `bootstrap`/`runtime`/`test`; `kind` is one of `python`/`native`/`data`;
+  `sha256` must be 64 lowercase hex characters (format only — never checked
+  against real bytes); `size_bytes` is a bounded non-negative integer.
+  Artifact `id` and `path` must each be unique; two artifacts sharing the
+  same `(sha256, size_bytes)` pair are rejected as an ambiguous hash-alias
+  collision, since B1 does not model legitimate content deduplication.
+- `dependencies`: up to 4096 `{from, to}` edges between declared artifact
+  ids. Dangling endpoints, self-loops, and exact duplicate edges are
+  rejected. Genuine multi-node native cycles (e.g. two libraries that depend
+  on each other) are accepted and reported via `cycles_detected`, not
+  treated as errors.
+- `unresolved_obligations`: 1–512 bounded non-empty strings, deduplicated —
+  a proposal must explicitly name what remains unresolved; it cannot declare
+  zero.
+- `evidence_refs`: 1–512 entries, each `{category, locator, sha256}` with
+  `category` in `A2`/`A3`/`MEMFS`. At least one reference in each of the
+  three categories is required. `sha256`, if not `null`, must be
+  hash-shaped.
+- `bootstrap_declaration`: `{entry_artifact_id, trust_anchor, stages}`.
+  `entry_artifact_id` must equal the top-level `entrypoint_id`. `stages` is
+  1–7 unique values drawn from `S0`–`S6`, naming stages from the design's
+  [required launch sequence](V11_R09_GATE3_A4_BOOTSTRAP_DESIGN_20261002.md#required-launch-sequence-future-implementation)
+  as labels only — declaring a stage name asserts nothing about it being
+  implemented or reviewed.
+- `interpreter_loader_declaration`: `{interpreter_artifact_id, loader_rules}`.
+  The referenced artifact must have `role=runtime` and `kind` in
+  `python`/`native`. `loader_rules` is 1–64 bounded unique strings.
+- `data_selection_declaration`: `{data_artifact_ids, selection_rule}`. Every
+  referenced id must exist and have `kind=data` and `role=runtime`, so selected
+  data remains subject to declared-graph reachability.
+
+Declared-graph reachability is computed from the validated dependency edges
+starting at `entrypoint_id`. Any declared `bootstrap`- or `runtime`-role
+artifact not reachable in that graph is rejected as
+`UNREACHABLE_DECLARED_ARTIFACT`; `test`-role artifacts are exempt, since a
+test harness is not part of the enforced bootstrap/native closure. This
+reachability check, and every other check in this module, is graph/shape
+consistency against the submitted bytes only.
+
+## Relationship to B2–B4
+
+This slice resolves none of the open items the design assigns to later
+slices: accepted A2 lineage and A3 reconstruction (B2), a reviewed trusted
+bootstrap/backend build and capability feasibility (B3), or actual runtime
+mappings, MEMFS selection and A7 integration under independent exact review
+(B4). A2/A3 remain UNQUALIFIED, A4 remains OPEN, A8 remains UNQUALIFIED, and
+G3-L remains NO-GO. No existing A4/A7/A8 file is modified by this change.
+
+ succeeded in 0ms:
+"""Tests for the bounded offline A4 closure-specification structural checker.
+
+These tests establish only that the checker enforces its own declared bounds
+and self-declared-graph consistency rules on synthetic fixtures. A positive
+(``accepted: True``) result in any test here is a structurally valid synthetic
+proposal, never evidence of a real, complete or reachable native/bootstrap
+closure. Fixtures with dangling endpoints, unreachable declarations or known
+synthetic edges probe the checker's refusals; they do not imply, and must not
+be read as implying, real transitive closure completeness.
+"""
+
+import copy
+import json
+
+import pytest
+
+from tools.v11_r09_gate3_a4_closure_spec import (
+    MAX_ARTIFACTS,
+    MAX_JSON_DEPTH,
+    MAX_RAW_BYTES,
+    SCHEMA_ID,
+    ClosureSpecParseError,
+    evaluate_proposal_bytes,
+    parse_strict,
+    validate_structure,
+)
+
+
+def _artifact(art_id, path, role, kind, fill, size):
+    return {"id": art_id, "path": path, "role": role, "kind": kind,
+            "sha256": fill * 64, "size_bytes": size}
+
+
+def _valid_doc():
+    return {
+        "schema": SCHEMA_ID,
+        "entrypoint_id": "boot",
+        "artifacts": [
+            _artifact("boot", "bootstrap/launcher", "bootstrap", "native", "a", 100),
+            _artifact("interp", "runtime/python", "runtime", "python", "b", 200),
+            _artifact("libnative", "runtime/libnative.so", "runtime", "native", "c", 300),
+            _artifact("data1", "data/defs.bin", "runtime", "data", "d", 400),
+            _artifact("test1", "tests/test_harness.py", "test", "python", "e", 50),
+        ],
+        "dependencies": [
+            {"from": "boot", "to": "interp"},
+            {"from": "interp", "to": "libnative"},
+            {"from": "libnative", "to": "data1"},
+        ],
+        "unresolved_obligations": [
+            "A2 lineage not authenticated",
+            "A3 reconstruction incomplete",
+        ],
+        "evidence_refs": [
+            {"category": "A2", "locator": "docs/V11_R09_GATE3_A2A3_RETAINED_AUDIT_20261001.md", "sha256": None},
+            {"category": "A3", "locator": "docs/V11_R09_GATE3_A2A3_RETAINED_AUDIT_20261001.md", "sha256": None},
+            {"category": "MEMFS", "locator": "docs/V11_R09_GATE3_MEMFS_STATIC_OBSERVATION_20261001.json", "sha256": None},
+        ],
+        "bootstrap_declaration": {
+            "entry_artifact_id": "boot",
+            "trust_anchor": "external T0 custody pending independent review",
+            "stages": ["S0", "S1"],
+        },
+        "interpreter_loader_declaration": {
+            "interpreter_artifact_id": "interp",
+            "loader_rules": ["lock interpreter search path"],
+        },
+        "data_selection_declaration": {
+            "data_artifact_ids": ["data1"],
+            "selection_rule": "bind exact MEMFS range table",
+        },
+    }
+
+
+def _encode(doc):
+    return json.dumps(doc).encode("utf-8")
+
+
+def _fixed_fields_present(result):
+    assert result["qualification"] == "UNQUALIFIED"
+    assert result["launchable"] is False
+    assert result["a4_pass"] is False
+
+
+# ---------------------------------------------------------------------------
+# Fixed-output invariants
+# ---------------------------------------------------------------------------
+
+def test_valid_proposal_is_structurally_accepted_but_never_qualified():
+    result = evaluate_proposal_bytes(_encode(_valid_doc()))
+    assert result["accepted"] is True
+    assert result["errors"] == []
+    assert result["artifact_count"] == 5
+    assert result["cycles_detected"] is False
+    assert result["unreachable_declared"] == []
+    _fixed_fields_present(result)
+
+
+def test_selected_data_cannot_use_unreachable_test_role():
+    doc = _valid_doc()
+    doc["artifacts"][3]["role"] = "test"
+    doc["dependencies"] = [edge for edge in doc["dependencies"] if edge["to"] != "data1"]
+    result = evaluate_proposal_bytes(_encode(doc))
+    assert result["accepted"] is False
+    assert "DATA_SELECTION_ARTIFACT_INVALID_ROLE:data1" in result["errors"]
+    _fixed_fields_present(result)
+
+
+def test_parse_rejection_still_carries_fixed_fields():
+    result = evaluate_proposal_bytes(b"{")
+    assert result["accepted"] is False
+    _fixed_fields_present(result)
+
+
+def test_structural_rejection_still_carries_fixed_fields():
+    doc = _valid_doc()
+    del doc["artifacts"][0]
+    result = evaluate_proposal_bytes(_encode(doc))
+    assert result["accepted"] is False
+    _fixed_fields_present(result)
+
+
+# ---------------------------------------------------------------------------
+# Raw-byte parse stage: duplicate keys, nonfinite, bounds
+# ---------------------------------------------------------------------------
+
+def test_duplicate_key_rejected_before_structural_validation():
+    raw = b'{"schema": "X", "schema": "Y"}'
+    with pytest.raises(ClosureSpecParseError, match="DUPLICATE_KEY_REJECTED"):
+        parse_strict(raw)
+
+
+def test_nested_duplicate_key_rejected():
+    raw = b'{"a": {"x": 1, "x": 2}}'
+    with pytest.raises(ClosureSpecParseError, match="DUPLICATE_KEY_REJECTED"):
+        parse_strict(raw)
+
+
+@pytest.mark.parametrize("token", [b"NaN", b"Infinity", b"-Infinity"])
+def test_nonfinite_values_rejected(token):
+    raw = b'{"size_bytes": ' + token + b'}'
+    with pytest.raises(ClosureSpecParseError, match="NONFINITE_VALUE_REJECTED"):
+        parse_strict(raw)
+
+
+def test_exponent_overflow_rejected_with_fixed_result():
+    raw = b'{"size_bytes": 1e400}'
+    with pytest.raises(ClosureSpecParseError, match="NONFINITE_VALUE_REJECTED"):
+        parse_strict(raw)
+    result = evaluate_proposal_bytes(raw)
+    assert result["accepted"] is False
+    _fixed_fields_present(result)
+
+
+def test_integer_digit_limit_rejected_with_fixed_result():
+    raw = b"1" * 4301
+    with pytest.raises(ClosureSpecParseError, match="JSON_NUMBER_REJECTED"):
+        parse_strict(raw)
+    result = evaluate_proposal_bytes(raw)
+    assert result["accepted"] is False
+    _fixed_fields_present(result)
+
+
+def test_oversized_raw_bytes_rejected():
+    raw = b'{"pad": "' + b'x' * MAX_RAW_BYTES + b'"}'
+    with pytest.raises(ClosureSpecParseError, match="RAW_INPUT_TOO_LARGE"):
+        parse_strict(raw)
+
+
+def test_empty_raw_bytes_rejected():
+    with pytest.raises(ClosureSpecParseError, match="RAW_INPUT_EMPTY"):
+        parse_strict(b"")
+
+
+def test_invalid_utf8_rejected():
+    with pytest.raises(ClosureSpecParseError, match="RAW_INPUT_NOT_UTF8"):
+        parse_strict(b"\xff\xfe\x00")
+
+
+def test_excess_nesting_depth_rejected():
+    raw = b"[" * (MAX_JSON_DEPTH + 1) + b"]" * (MAX_JSON_DEPTH + 1)
+    with pytest.raises(ClosureSpecParseError, match="JSON_NESTING_DEPTH_EXCEEDED"):
+        parse_strict(raw)
+
+
+def test_nesting_depth_at_bound_is_allowed():
+    raw = b"[" * MAX_JSON_DEPTH + b"]" * MAX_JSON_DEPTH
+    assert parse_strict(raw) is not None
+
+
+def test_malformed_json_syntax_rejected():
+    with pytest.raises(ClosureSpecParseError, match="JSON_SYNTAX_ERROR"):
+        parse_strict(b"{not json}")
+
+
+def test_non_bytes_input_rejected():
+    with pytest.raises(ClosureSpecParseError, match="RAW_INPUT_NOT_BYTES"):
+        parse_strict("not bytes")
+
+
+# ---------------------------------------------------------------------------
+# Top-level schema shape
+# ---------------------------------------------------------------------------
+
+def test_unknown_top_level_key_rejected():
+    doc = _valid_doc()
+    doc["extra_field"] = "nope"
+    result = validate_structure(doc)
+    assert any("UNKNOWN_KEY:proposal.extra_field" in e for e in result["errors"])
+    assert result["accepted"] is False
+
+
+def test_missing_top_level_key_rejected():
+    doc = _valid_doc()
+    del doc["unresolved_obligations"]
+    result = validate_structure(doc)
+    assert any("MISSING_KEY:proposal.unresolved_obligations" in e for e in result["errors"])
+
+
+def test_schema_mismatch_rejected():
+    doc = _valid_doc()
+    doc["schema"] = "WRONG_SCHEMA_V1"
+    result = validate_structure(doc)
+    assert "SCHEMA_MISMATCH" in result["errors"]
+
+
+def test_top_level_not_object_rejected():
+    result = validate_structure(["not", "an", "object"])
+    assert result["errors"] == ["TOP_LEVEL_NOT_AN_OBJECT"]
+    assert result["accepted"] is False
+
+
+# ---------------------------------------------------------------------------
+# Artifacts: ids, paths, roles, kinds, hashes, sizes, uniqueness
+# ---------------------------------------------------------------------------
+
+def test_bool_as_integer_size_rejected():
+    doc = _valid_doc()
+    doc["artifacts"][0]["size_bytes"] = True
+    result = validate_structure(doc)
+    assert any("INVALID_ARTIFACT_SIZE" in e for e in result["errors"])
+
+
+def test_negative_size_rejected():
+    doc = _valid_doc()
+    doc["artifacts"][0]["size_bytes"] = -1
+    result = validate_structure(doc)
+    assert any("INVALID_ARTIFACT_SIZE" in e for e in result["errors"])
+
+
+def test_path_traversal_rejected():
+    doc = _valid_doc()
+    doc["artifacts"][0]["path"] = "../etc/passwd"
+    result = validate_structure(doc)
+    assert any("INVALID_ARTIFACT_PATH" in e for e in result["errors"])
+
+
+def test_absolute_path_rejected():
+    doc = _valid_doc()
+    doc["artifacts"][0]["path"] = "/etc/passwd"
+    result = validate_structure(doc)
+    assert any("INVALID_ARTIFACT_PATH" in e for e in result["errors"])
+
+
+def test_duplicate_artifact_id_rejected():
+    doc = _valid_doc()
+    clone = copy.deepcopy(doc["artifacts"][1])
+    clone["path"] = "runtime/other-path"
+    clone["sha256"] = "f" * 64
+    doc["artifacts"].append(clone)  # id "interp" repeated
+    result = validate_structure(doc)
+    assert any("DUPLICATE_ARTIFACT_ID:interp" in e for e in result["errors"])
+
+
+def test_duplicate_artifact_path_rejected():
+    doc = _valid_doc()
+    clone = copy.deepcopy(doc["artifacts"][1])
+    clone["id"] = "interp2"
+    clone["sha256"] = "f" * 64
+    doc["artifacts"].append(clone)  # same path as "interp"
+    result = validate_structure(doc)
+    assert any("DUPLICATE_ARTIFACT_PATH" in e for e in result["errors"])
+
+
+def test_hash_alias_collision_rejected():
+    doc = _valid_doc()
+    clone = copy.deepcopy(doc["artifacts"][1])
+    clone["id"] = "interp2"
+    clone["path"] = "runtime/python-alias"
+    # Same sha256 and size as "interp": ambiguous alias target.
+    doc["artifacts"].append(clone)
+    result = validate_structure(doc)
+    assert any("HASH_ALIAS_COLLISION" in e for e in result["errors"])
+
+
+def test_invalid_hash_format_rejected():
+    doc = _valid_doc()
+    doc["artifacts"][0]["sha256"] = "not-a-hash"
+    result = validate_structure(doc)
+    assert any("INVALID_ARTIFACT_HASH" in e for e in result["errors"])
+
+
+def test_invalid_role_rejected():
+    doc = _valid_doc()
+    doc["artifacts"][0]["role"] = "launcher"
+    result = validate_structure(doc)
+    assert any("INVALID_ARTIFACT_ROLE" in e for e in result["errors"])
+
+
+def test_invalid_kind_rejected():
+    doc = _valid_doc()
+    doc["artifacts"][0]["kind"] = "binary"
+    result = validate_structure(doc)
+    assert any("INVALID_ARTIFACT_KIND" in e for e in result["errors"])
+
+
+def test_artifact_unknown_key_rejected():
+    doc = _valid_doc()
+    doc["artifacts"][0]["extra"] = "nope"
+    result = validate_structure(doc)
+    assert any("UNKNOWN_KEY:artifacts[0].extra" in e for e in result["errors"])
+
+
+def test_empty_artifacts_rejected():
+    doc = _valid_doc()
+    doc["artifacts"] = []
+    result = validate_structure(doc)
+    assert "ARTIFACTS_BOUNDS_VIOLATION" in result["errors"]
+
+
+def test_too_many_artifacts_rejected():
+    doc = _valid_doc()
+    doc["artifacts"] = [
+        _artifact(f"a{i}", f"p/{i}", "test", "python", "a", 1)
+        for i in range(MAX_ARTIFACTS + 1)
+    ]
+    result = validate_structure(doc)
+    assert "ARTIFACTS_BOUNDS_VIOLATION" in result["errors"]
+
+
+# ---------------------------------------------------------------------------
+# Dependencies: dangling endpoints, self-loops, duplicates
+# ---------------------------------------------------------------------------
+
+def test_dangling_dependency_endpoint_rejected():
+    doc = _valid_doc()
+    doc["dependencies"].append({"from": "boot", "to": "ghost"})
+    result = validate_structure(doc)
+    assert any("DANGLING_DEPENDENCY_ENDPOINT:boot->ghost" in e for e in result["errors"])
+
+
+def test_self_dependency_rejected():
+    doc = _valid_doc()
+    doc["dependencies"].append({"from": "boot", "to": "boot"})
+    result = validate_structure(doc)
+    assert any("SELF_DEPENDENCY_INVALID:boot" in e for e in result["errors"])
+
+
+def test_duplicate_dependency_edge_rejected():
+    doc = _valid_doc()
+    doc["dependencies"].append({"from": "boot", "to": "interp"})
+    result = validate_structure(doc)
+    assert any("DUPLICATE_DEPENDENCY_EDGE:boot->interp" in e for e in result["errors"])
+
+
+def test_dependency_unknown_key_rejected():
+    doc = _valid_doc()
+    doc["dependencies"][0]["weight"] = 1
+    result = validate_structure(doc)
+    assert any("UNKNOWN_KEY:dependencies[0].weight" in e for e in result["errors"])
+
+
+# ---------------------------------------------------------------------------
+# Declared-graph reachability: unreachable declarations, legitimate cycles
+# ---------------------------------------------------------------------------
+
+def test_unreachable_declared_runtime_artifact_rejected():
+    doc = _valid_doc()
+    doc["artifacts"].append(_artifact("orphan", "runtime/orphan.so", "runtime", "native", "9", 10))
+    # No dependency edge reaches "orphan" from the entrypoint.
+    result = validate_structure(doc)
+    assert any("UNREACHABLE_DECLARED_ARTIFACT:orphan" in e for e in result["errors"])
+    assert "orphan" in result["unreachable_declared"]
+
+
+def test_unreachable_test_role_artifact_is_exempt():
+    # "test1" in the base fixture is declared but intentionally never
+    # reachable from the entrypoint; test-role artifacts are harnesses,
+    # not part of the enforced native/bootstrap closure.
+    result = validate_structure(_valid_doc())
+    assert result["accepted"] is True
+    assert "test1" not in result["unreachable_declared"]
+
+
+def test_legitimate_native_cycle_is_accepted_not_flagged():
+    doc = _valid_doc()
+    doc["artifacts"].append(_artifact("libA", "runtime/libA.so", "runtime", "native", "1", 10))
+    doc["artifacts"].append(_artifact("libB", "runtime/libB.so", "runtime", "native", "2", 10))
+    doc["dependencies"].append({"from": "libnative", "to": "libA"})
+    doc["dependencies"].append({"from": "libA", "to": "libB"})
+    doc["dependencies"].append({"from": "libB", "to": "libA"})
+    result = validate_structure(doc)
+    # Cycle is structurally legitimate: no error, but it is surfaced for review.
+    assert result["accepted"] is True
+    assert result["cycles_detected"] is True
+    assert result["unreachable_declared"] == []
+
+
+def test_dangling_entrypoint_rejected():
+    doc = _valid_doc()
+    doc["entrypoint_id"] = "ghost"
+    result = validate_structure(doc)
+    assert any("DANGLING_ENTRYPOINT:ghost" in e for e in result["errors"])
+
+
+def test_entrypoint_must_be_bootstrap_role():
+    doc = _valid_doc()
+    doc["entrypoint_id"] = "interp"
+    result = validate_structure(doc)
+    assert "ENTRYPOINT_NOT_BOOTSTRAP_ROLE" in result["errors"]
+
+
+# ---------------------------------------------------------------------------
+# Bootstrap / interpreter-loader / data-selection declarations
+# ---------------------------------------------------------------------------
+
+def test_bootstrap_declaration_required():
+    doc = _valid_doc()
+    del doc["bootstrap_declaration"]
+    result = validate_structure(doc)
+    assert any("MISSING_KEY:proposal.bootstrap_declaration" in e for e in result["errors"])
+
+
+def test_bootstrap_entry_mismatch_rejected():
+    doc = _valid_doc()
+    doc["bootstrap_declaration"]["entry_artifact_id"] = "interp"
+    result = validate_structure(doc)
+    assert "BOOTSTRAP_ENTRY_MISMATCH" in result["errors"]
+
+
+def test_invalid_bootstrap_stage_rejected():
+    doc = _valid_doc()
+    doc["bootstrap_declaration"]["stages"] = ["S0", "S9"]
+    result = validate_structure(doc)
+    assert any("INVALID_BOOTSTRAP_STAGE" in e for e in result["errors"])
+
+
+def test_duplicate_bootstrap_stage_rejected():
+    doc = _valid_doc()
+    doc["bootstrap_declaration"]["stages"] = ["S0", "S0"]
+    result = validate_structure(doc)
+    assert any("DUPLICATE_BOOTSTRAP_STAGE:S0" in e for e in result["errors"])
+
+
+def test_interpreter_loader_declaration_required():
+    doc = _valid_doc()
+    del doc["interpreter_loader_declaration"]
+    result = validate_structure(doc)
+    assert any("MISSING_KEY:proposal.interpreter_loader_declaration" in e for e in result["errors"])
+
+
+def test_interpreter_artifact_wrong_role_rejected():
+    doc = _valid_doc()
+    doc["interpreter_loader_declaration"]["interpreter_artifact_id"] = "data1"
+    result = validate_structure(doc)
+    assert "INTERPRETER_ARTIFACT_INVALID_ROLE_OR_KIND" in result["errors"]
+
+
+def test_data_selection_wrong_kind_rejected():
+    doc = _valid_doc()
+    doc["data_selection_declaration"]["data_artifact_ids"] = ["interp"]
+    result = validate_structure(doc)
+    assert any("DATA_SELECTION_ARTIFACT_INVALID_KIND:interp" in e for e in result["errors"])
+
+
+def test_data_selection_dangling_ref_rejected():
+    doc = _valid_doc()
+    doc["data_selection_declaration"]["data_artifact_ids"] = ["ghost"]
+    result = validate_structure(doc)
+    assert any("DANGLING_DATA_SELECTION_REF:ghost" in e for e in result["errors"])
+
+
+# ---------------------------------------------------------------------------
+# Unresolved obligations and A2/A3/MEMFS evidence references (shape only)
+# ---------------------------------------------------------------------------
+
+def test_empty_unresolved_obligations_rejected():
+    doc = _valid_doc()
+    doc["unresolved_obligations"] = []
+    result = validate_structure(doc)
+    assert "UNRESOLVED_OBLIGATIONS_BOUNDS_VIOLATION" in result["errors"]
+
+
+def test_duplicate_unresolved_obligation_rejected():
+    doc = _valid_doc()
+    doc["unresolved_obligations"] = ["same", "same"]
+    result = validate_structure(doc)
+    assert "DUPLICATE_UNRESOLVED_OBLIGATION" in result["errors"]
+
+
+def test_missing_evidence_category_rejected():
+    doc = _valid_doc()
+    doc["evidence_refs"] = [e for e in doc["evidence_refs"] if e["category"] != "MEMFS"]
+    result = validate_structure(doc)
+    assert "MISSING_EVIDENCE_REF_CATEGORY:MEMFS" in result["errors"]
+
+
+def test_evidence_ref_shape_only_no_fetch():
+    # An evidence reference with a plausible-looking hash is accepted purely
+    # by shape; the checker never opens or verifies the referenced document.
+    doc = _valid_doc()
+    doc["evidence_refs"][0]["sha256"] = "0" * 64
+    result = validate_structure(doc)
+    assert result["accepted"] is True
+
+
+def test_invalid_evidence_hash_rejected():
+    doc = _valid_doc()
+    doc["evidence_refs"][0]["sha256"] = "short"
+    result = validate_structure(doc)
+    assert any("INVALID_EVIDENCE_HASH" in e for e in result["errors"])
+
+
+def test_invalid_evidence_category_rejected():
+    doc = _valid_doc()
+    doc["evidence_refs"][0]["category"] = "A9"
+    result = validate_structure(doc)
+    assert any("INVALID_EVIDENCE_CATEGORY" in e for e in result["errors"])
+
+
+# ---------------------------------------------------------------------------
+# Arithmetic bound
+# ---------------------------------------------------------------------------
+
+def test_total_size_arithmetic_bound_exceeded_rejected():
+    from tools.v11_r09_gate3_a4_closure_spec import MAX_ARTIFACT_SIZE, MAX_TOTAL_SIZE
+
+    doc = _valid_doc()
+    needed = MAX_TOTAL_SIZE // MAX_ARTIFACT_SIZE + 2
+    assert needed < MAX_ARTIFACTS - len(doc["artifacts"])
+    for i in range(needed):
+        # Each bulk artifact needs a distinct hash; a repeated hash+size pair
+        # would be rejected as a hash-alias collision before the running
+        # total ever grows large enough to exercise the arithmetic bound.
+        doc["artifacts"].append({
+            "id": f"bulk{i}", "path": f"bulk/{i}", "role": "test", "kind": "python",
+            "sha256": f"{i:064x}", "size_bytes": MAX_ARTIFACT_SIZE,
+        })
+    result = validate_structure(doc)
+    assert any("ARITHMETIC_BOUND_EXCEEDED" in e for e in result["errors"])
+
+
+# ---------------------------------------------------------------------------
+# CLI smoke test
+# ---------------------------------------------------------------------------
+
+def test_cli_main_reports_accepted_proposal(capsys):
+    import io
+
+    from tools.v11_r09_gate3_a4_closure_spec import main
+
+    raw = _encode(_valid_doc())
+    import sys as _sys
+    old_stdin = _sys.stdin
+    _sys.stdin = io.TextIOWrapper(io.BytesIO(raw))
+    try:
+        rc = main([])
+    finally:
+        _sys.stdin = old_stdin
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+    assert rc == 0
+    assert payload["accepted"] is True
+    _fixed_fields_present(payload)
+
+exec
+/bin/bash -lc "nl -ba tools/v11_r09_gate3_a4_closure_spec.py | sed -n '1,280p'" in /tmp/alpha-v11-a4-b1-review-8a3d47b
+ succeeded in 0ms:
+     1	"""Offline A4 Gate 3 bootstrap closure-specification structural checker (B1 slice).
+     2	
+     3	Pure bounded, in-process JSON structural validation of a proposed native/bootstrap
+     4	closure specification. This is an engineering-proposal checker only: it never
+     5	reads or discovers filesystem state, spawns a process, loads native code, imports
+     6	anything from a proposed runtime image, or contacts a provider/network. A result
+     7	that is structurally valid shows only that the submitted proposal is internally
+     8	self-consistent by its own declarations -- never that the described artifacts
+     9	exist, match real bytes, or form a complete transitive native closure. Declared
+    10	graph reachability is self-declared-graph consistency only; a dangling or
+    11	unreachable entry in a hostile fixture, or a correct reachable synthetic one,
+    12	says nothing about real native completeness. Every result returned by this
+    13	module, including parse rejections and a structurally complete synthetic
+    14	proposal, unconditionally carries qualification="UNQUALIFIED", launchable=False
+    15	and a4_pass=False. See
+    16	docs/V11_R09_GATE3_A4_BOOTSTRAP_DESIGN_20261002.md and
+    17	docs/V11_R09_GATE3_A4_CLOSURE_SPEC_SCOPE_20261002.md for the governing design,
+    18	independent review scope and B1 boundaries. This module performs no production
+    19	lock acceptance, no acceptance-token issuance, no auto-filled genuine evidence,
+    20	no A8/G3-L conversion and no native execution.
+    21	"""
+    22	
+    23	from __future__ import annotations
+    24	
+    25	import json
+    26	import math
+    27	import re
+    28	import sys
+    29	from typing import Any
+    30	
+    31	SCHEMA_ID = "ALPHA_V11_A4_CLOSURE_SPEC_V1"
+    32	
+    33	MAX_RAW_BYTES = 262_144          # 256 KiB bound on the raw proposal byte string.
+    34	MAX_JSON_DEPTH = 16              # Bound on container nesting, checked pre-parse.
+    35	MAX_STRING_LEN = 512
+    36	MAX_ARTIFACTS = 512
+    37	MAX_DEPENDENCIES = 4096
+    38	MAX_LIST_LEN = 512
+    39	MAX_ARTIFACT_SIZE = 2 ** 40      # 1 TiB per-artifact bound; keeps sums in-range.
+    40	# Strictly below MAX_ARTIFACTS * MAX_ARTIFACT_SIZE (2**49) so the bound below
+    41	# is actually reachable and enforced, not dead arithmetic.
+    42	MAX_TOTAL_SIZE = 2 ** 45
+    43	
+    44	_ID_RE = re.compile(r"\A[A-Za-z0-9_.-]{1,128}\Z")
+    45	_HASH_RE = re.compile(r"\A[0-9a-f]{64}\Z")
+    46	_STAGE_RE = re.compile(r"\AS[0-6]\Z")
+    47	_ROLES = ("bootstrap", "runtime", "test")
+    48	_KINDS = ("python", "native", "data")
+    49	_EVIDENCE_CATEGORIES = ("A2", "A3", "MEMFS")
+    50	
+    51	_TOP_KEYS = frozenset({
+    52	    "schema", "entrypoint_id", "artifacts", "dependencies",
+    53	    "unresolved_obligations", "evidence_refs", "bootstrap_declaration",
+    54	    "interpreter_loader_declaration", "data_selection_declaration",
+    55	})
+    56	_ARTIFACT_KEYS = frozenset({"id", "path", "role", "kind", "sha256", "size_bytes"})
+    57	_DEPENDENCY_KEYS = frozenset({"from", "to"})
+    58	_EVIDENCE_KEYS = frozenset({"category", "locator", "sha256"})
+    59	_BOOTSTRAP_KEYS = frozenset({"entry_artifact_id", "trust_anchor", "stages"})
+    60	_LOADER_KEYS = frozenset({"interpreter_artifact_id", "loader_rules"})
+    61	_DATA_KEYS = frozenset({"data_artifact_ids", "selection_rule"})
+    62	
+    63	
+    64	class ClosureSpecParseError(ValueError):
+    65	    """Raised only for raw-byte rejection: oversize, invalid UTF-8, nesting
+    66	    depth, duplicate object keys or nonfinite numeric literals. Structural
+    67	    content problems never raise; they are collected into the result instead.
+    68	    """
+    69	
+    70	
+    71	def _fixed_fields() -> dict:
+    72	    return {"qualification": "UNQUALIFIED", "launchable": False, "a4_pass": False}
+    73	
+    74	
+    75	def _reject_constant(token: str) -> float:
+    76	    raise ClosureSpecParseError(f"NONFINITE_VALUE_REJECTED:{token}")
+    77	
+    78	
+    79	def _parse_finite_float(token: str) -> float:
+    80	    value = float(token)
+    81	    if not math.isfinite(value):
+    82	        raise ClosureSpecParseError(f"NONFINITE_VALUE_REJECTED:{token}")
+    83	    return value
+    84	
+    85	
+    86	def _check_nesting_depth(text: str) -> None:
+    87	    depth = 0
+    88	    in_string = False
+    89	    escape = False
+    90	    for ch in text:
+    91	        if in_string:
+    92	            if escape:
+    93	                escape = False
+    94	            elif ch == "\\":
+    95	                escape = True
+    96	            elif ch == '"':
+    97	                in_string = False
+    98	            continue
+    99	        if ch == '"':
+   100	            in_string = True
+   101	        elif ch in "{[":
+   102	            depth += 1
+   103	            if depth > MAX_JSON_DEPTH:
+   104	                raise ClosureSpecParseError("JSON_NESTING_DEPTH_EXCEEDED")
+   105	        elif ch in "}]":
+   106	            depth -= 1
+   107	    if in_string:
+   108	        raise ClosureSpecParseError("JSON_UNTERMINATED_STRING")
+   109	
+   110	
+   111	def _dedupe_object_pairs(pairs: list) -> dict:
+   112	    seen: dict = {}
+   113	    for key, value in pairs:
+   114	        if key in seen:
+   115	            raise ClosureSpecParseError(f"DUPLICATE_KEY_REJECTED:{key}")
+   116	        seen[key] = value
+   117	    return seen
+   118	
+   119	
+   120	def parse_strict(raw: bytes) -> Any:
+   121	    """Parse bounded raw JSON bytes with strict duplicate-key and nonfinite
+   122	    rejection, before any structural validation runs. Raises
+   123	    ClosureSpecParseError on any violation; never returns a partially accepted
+   124	    document.
+   125	    """
+   126	    if not isinstance(raw, (bytes, bytearray)):
+   127	        raise ClosureSpecParseError("RAW_INPUT_NOT_BYTES")
+   128	    if len(raw) == 0:
+   129	        raise ClosureSpecParseError("RAW_INPUT_EMPTY")
+   130	    if len(raw) > MAX_RAW_BYTES:
+   131	        raise ClosureSpecParseError("RAW_INPUT_TOO_LARGE")
+   132	    try:
+   133	        text = raw.decode("utf-8", errors="strict")
+   134	    except UnicodeDecodeError as exc:
+   135	        raise ClosureSpecParseError("RAW_INPUT_NOT_UTF8") from exc
+   136	    _check_nesting_depth(text)
+   137	    try:
+   138	        return json.loads(
+   139	            text,
+   140	            object_pairs_hook=_dedupe_object_pairs,
+   141	            parse_constant=_reject_constant,
+   142	            parse_float=_parse_finite_float,
+   143	        )
+   144	    except ClosureSpecParseError:
+   145	        raise
+   146	    except json.JSONDecodeError as exc:
+   147	        raise ClosureSpecParseError(f"JSON_SYNTAX_ERROR:{exc.msg}") from exc
+   148	    except ValueError as exc:
+   149	        # CPython's integer digit guard raises ValueError inside json.loads.
+   150	        raise ClosureSpecParseError("JSON_NUMBER_REJECTED") from exc
+   151	
+   152	
+   153	def _is_strict_int(value: Any) -> bool:
+   154	    return isinstance(value, int) and not isinstance(value, bool)
+   155	
+   156	
+   157	def _is_bounded_string(value: Any) -> bool:
+   158	    if not isinstance(value, str):
+   159	        return False
+   160	    if not (1 <= len(value) <= MAX_STRING_LEN):
+   161	        return False
+   162	    if "\x00" in value:
+   163	        return False
+   164	    return True
+   165	
+   166	
+   167	def _check_exact_keys(obj: Any, expected: frozenset, where: str, errors: list) -> bool:
+   168	    if not isinstance(obj, dict):
+   169	        errors.append(f"NOT_AN_OBJECT:{where}")
+   170	        return False
+   171	    actual = frozenset(obj.keys())
+   172	    missing = expected - actual
+   173	    extra = actual - expected
+   174	    ok = True
+   175	    for key in sorted(missing):
+   176	        errors.append(f"MISSING_KEY:{where}.{key}")
+   177	        ok = False
+   178	    for key in sorted(extra):
+   179	        errors.append(f"UNKNOWN_KEY:{where}.{key}")
+   180	        ok = False
+   181	    return ok
+   182	
+   183	
+   184	def _check_path(path: str) -> bool:
+   185	    if not _is_bounded_string(path):
+   186	        return False
+   187	    if path.startswith("/") or path.startswith("\\"):
+   188	        return False
+   189	    if "\x00" in path:
+   190	        return False
+   191	    segments = path.split("/")
+   192	    if any(seg in ("", ".", "..") for seg in segments):
+   193	        return False
+   194	    return True
+   195	
+   196	
+   197	def _validate_artifacts(doc: dict, errors: list):
+   198	    artifacts = doc.get("artifacts")
+   199	    if not isinstance(artifacts, list) or not (1 <= len(artifacts) <= MAX_ARTIFACTS):
+   200	        errors.append("ARTIFACTS_BOUNDS_VIOLATION")
+   201	        return {}, 0
+   202	    by_id: dict = {}
+   203	    seen_paths: dict = {}
+   204	    seen_hash_size: dict = {}
+   205	    total_size = 0
+   206	    for index, artifact in enumerate(artifacts):
+   207	        where = f"artifacts[{index}]"
+   208	        if not _check_exact_keys(artifact, _ARTIFACT_KEYS, where, errors):
+   209	            continue
+   210	        art_id = artifact["id"]
+   211	        path = artifact["path"]
+   212	        role = artifact["role"]
+   213	        kind = artifact["kind"]
+   214	        sha256 = artifact["sha256"]
+   215	        size_bytes = artifact["size_bytes"]
+   216	        valid = True
+   217	        if not (isinstance(art_id, str) and _ID_RE.match(art_id)):
+   218	            errors.append(f"INVALID_ARTIFACT_ID:{where}")
+   219	            valid = False
+   220	        if not _check_path(path):
+   221	            errors.append(f"INVALID_ARTIFACT_PATH:{where}")
+   222	            valid = False
+   223	        if role not in _ROLES:
+   224	            errors.append(f"INVALID_ARTIFACT_ROLE:{where}")
+   225	            valid = False
+   226	        if kind not in _KINDS:
+   227	            errors.append(f"INVALID_ARTIFACT_KIND:{where}")
+   228	            valid = False
+   229	        if not (isinstance(sha256, str) and _HASH_RE.match(sha256)):
+   230	            errors.append(f"INVALID_ARTIFACT_HASH:{where}")
+   231	            valid = False
+   232	        if not _is_strict_int(size_bytes) or not (0 <= size_bytes <= MAX_ARTIFACT_SIZE):
+   233	            errors.append(f"INVALID_ARTIFACT_SIZE:{where}")
+   234	            valid = False
+   235	        if not valid:
+   236	            continue
+   237	        if art_id in by_id:
+   238	            errors.append(f"DUPLICATE_ARTIFACT_ID:{art_id}")
+   239	            continue
+   240	        if path in seen_paths:
+   241	            errors.append(f"DUPLICATE_ARTIFACT_PATH:{path}")
+   242	            continue
+   243	        hash_size_key = (sha256, size_bytes)
+   244	        if hash_size_key in seen_hash_size:
+   245	            errors.append(
+   246	                f"HASH_ALIAS_COLLISION:{art_id}~{seen_hash_size[hash_size_key]}"
+   247	            )
+   248	            continue
+   249	        total_size += size_bytes
+   250	        if total_size > MAX_TOTAL_SIZE:
+   251	            errors.append("ARITHMETIC_BOUND_EXCEEDED:total_artifact_size")
+   252	            return by_id, total_size
+   253	        seen_paths[path] = art_id
+   254	        seen_hash_size[hash_size_key] = art_id
+   255	        by_id[art_id] = {"role": role, "kind": kind}
+   256	    return by_id, total_size
+   257	
+   258	
+   259	def _validate_dependencies(doc: dict, by_id: dict, errors: list):
+   260	    dependencies = doc.get("dependencies")
+   261	    if not isinstance(dependencies, list) or len(dependencies) > MAX_DEPENDENCIES:
+   262	        errors.append("DEPENDENCIES_BOUNDS_VIOLATION")
+   263	        return []
+   264	    edges = []
+   265	    seen_edges = set()
+   266	    for index, dep in enumerate(dependencies):
+   267	        where = f"dependencies[{index}]"
+   268	        if not _check_exact_keys(dep, _DEPENDENCY_KEYS, where, errors):
+   269	            continue
+   270	        src, dst = dep["from"], dep["to"]
+   271	        if not (isinstance(src, str) and isinstance(dst, str)):
+   272	            errors.append(f"INVALID_DEPENDENCY_ENDPOINT_TYPE:{where}")
+   273	            continue
+   274	        if src not in by_id or dst not in by_id:
+   275	            errors.append(f"DANGLING_DEPENDENCY_ENDPOINT:{src}->{dst}")
+   276	            continue
+   277	        if src == dst:
+   278	            errors.append(f"SELF_DEPENDENCY_INVALID:{src}")
+   279	            continue
+   280	        edge = (src, dst)
+
+exec
+/bin/bash -lc "nl -ba tools/v11_r09_gate3_a4_closure_spec.py | sed -n '280,560p'
+cat docs/V11_R09_GATE3_A4_BOOTSTRAP_DESIGN_REVIEW_ae0c772.md docs/V11_R09_GATE3_A4_CLOSURE_SPEC_SCOPE_20261002.md" in /tmp/alpha-v11-a4-b1-review-8a3d47b
+ succeeded in 0ms:
+   280	        edge = (src, dst)
+   281	        if edge in seen_edges:
+   282	            errors.append(f"DUPLICATE_DEPENDENCY_EDGE:{src}->{dst}")
+   283	            continue
+   284	        seen_edges.add(edge)
+   285	        edges.append(edge)
+   286	    return edges
+   287	
+   288	
+   289	def _reachable_from(entrypoint_id: str, edges: list) -> set:
+   290	    adjacency: dict = {}
+   291	    for src, dst in edges:
+   292	        adjacency.setdefault(src, []).append(dst)
+   293	    visited = set()
+   294	    stack = [entrypoint_id]
+   295	    while stack:
+   296	        node = stack.pop()
+   297	        if node in visited:
+   298	            continue
+   299	        visited.add(node)
+   300	        for neighbor in adjacency.get(node, ()):
+   301	            if neighbor not in visited:
+   302	                stack.append(neighbor)
+   303	    return visited
+   304	
+   305	
+   306	def _has_cycle(edges: list) -> bool:
+   307	    adjacency: dict = {}
+   308	    for src, dst in edges:
+   309	        adjacency.setdefault(src, []).append(dst)
+   310	    WHITE, GRAY, BLACK = 0, 1, 2
+   311	    color: dict = {}
+   312	
+   313	    def visit(node: str) -> bool:
+   314	        color[node] = GRAY
+   315	        for neighbor in adjacency.get(node, ()):
+   316	            state = color.get(neighbor, WHITE)
+   317	            if state == GRAY:
+   318	                return True
+   319	            if state == WHITE and visit(neighbor):
+   320	                return True
+   321	        color[node] = BLACK
+   322	        return False
+   323	
+   324	    for node in list(adjacency.keys()):
+   325	        if color.get(node, WHITE) == WHITE:
+   326	            if visit(node):
+   327	                return True
+   328	    return False
+   329	
+   330	
+   331	def _validate_entrypoint(doc: dict, by_id: dict, errors: list):
+   332	    entrypoint_id = doc.get("entrypoint_id")
+   333	    if not isinstance(entrypoint_id, str) or not _ID_RE.match(entrypoint_id):
+   334	        errors.append("INVALID_ENTRYPOINT_ID")
+   335	        return None
+   336	    if entrypoint_id not in by_id:
+   337	        errors.append(f"DANGLING_ENTRYPOINT:{entrypoint_id}")
+   338	        return None
+   339	    if by_id[entrypoint_id]["role"] != "bootstrap":
+   340	        errors.append("ENTRYPOINT_NOT_BOOTSTRAP_ROLE")
+   341	        return None
+   342	    return entrypoint_id
+   343	
+   344	
+   345	def _validate_bootstrap_declaration(doc: dict, by_id: dict, entrypoint_id, errors: list):
+   346	    decl = doc.get("bootstrap_declaration")
+   347	    if not _check_exact_keys(decl, _BOOTSTRAP_KEYS, "bootstrap_declaration", errors):
+   348	        return
+   349	    entry_ref = decl["entry_artifact_id"]
+   350	    if entrypoint_id is not None and entry_ref != entrypoint_id:
+   351	        errors.append("BOOTSTRAP_ENTRY_MISMATCH")
+   352	    elif not (isinstance(entry_ref, str) and entry_ref in by_id):
+   353	        errors.append("DANGLING_BOOTSTRAP_ENTRY_REF")
+   354	    if not _is_bounded_string(decl["trust_anchor"]):
+   355	        errors.append("INVALID_BOOTSTRAP_TRUST_ANCHOR")
+   356	    stages = decl["stages"]
+   357	    if not isinstance(stages, list) or not (1 <= len(stages) <= 7):
+   358	        errors.append("BOOTSTRAP_STAGES_BOUNDS_VIOLATION")
+   359	        return
+   360	    seen = set()
+   361	    for stage in stages:
+   362	        if not (isinstance(stage, str) and _STAGE_RE.match(stage)):
+   363	            errors.append(f"INVALID_BOOTSTRAP_STAGE:{stage!r}")
+   364	            continue
+   365	        if stage in seen:
+   366	            errors.append(f"DUPLICATE_BOOTSTRAP_STAGE:{stage}")
+   367	            continue
+   368	        seen.add(stage)
+   369	
+   370	
+   371	def _validate_loader_declaration(doc: dict, by_id: dict, errors: list):
+   372	    decl = doc.get("interpreter_loader_declaration")
+   373	    if not _check_exact_keys(decl, _LOADER_KEYS, "interpreter_loader_declaration", errors):
+   374	        return
+   375	    interp_ref = decl["interpreter_artifact_id"]
+   376	    if not (isinstance(interp_ref, str) and interp_ref in by_id):
+   377	        errors.append("DANGLING_INTERPRETER_REF")
+   378	    else:
+   379	        entry = by_id[interp_ref]
+   380	        if entry["role"] != "runtime" or entry["kind"] not in ("python", "native"):
+   381	            errors.append("INTERPRETER_ARTIFACT_INVALID_ROLE_OR_KIND")
+   382	    rules = decl["loader_rules"]
+   383	    if not isinstance(rules, list) or not (1 <= len(rules) <= 64):
+   384	        errors.append("LOADER_RULES_BOUNDS_VIOLATION")
+   385	        return
+   386	    seen = set()
+   387	    for rule in rules:
+   388	        if not _is_bounded_string(rule):
+   389	            errors.append("INVALID_LOADER_RULE")
+   390	            continue
+   391	        if rule in seen:
+   392	            errors.append(f"DUPLICATE_LOADER_RULE:{rule}")
+   393	            continue
+   394	        seen.add(rule)
+   395	
+   396	
+   397	def _validate_data_selection(doc: dict, by_id: dict, errors: list):
+   398	    decl = doc.get("data_selection_declaration")
+   399	    if not _check_exact_keys(decl, _DATA_KEYS, "data_selection_declaration", errors):
+   400	        return
+   401	    ids = decl["data_artifact_ids"]
+   402	    if not isinstance(ids, list) or not (1 <= len(ids) <= MAX_LIST_LEN):
+   403	        errors.append("DATA_SELECTION_BOUNDS_VIOLATION")
+   404	    else:
+   405	        seen = set()
+   406	        for art_id in ids:
+   407	            if not isinstance(art_id, str):
+   408	                errors.append("INVALID_DATA_SELECTION_REF_TYPE")
+   409	                continue
+   410	            if art_id in seen:
+   411	                errors.append(f"DUPLICATE_DATA_SELECTION_REF:{art_id}")
+   412	                continue
+   413	            seen.add(art_id)
+   414	            if art_id not in by_id:
+   415	                errors.append(f"DANGLING_DATA_SELECTION_REF:{art_id}")
+   416	                continue
+   417	            if by_id[art_id]["kind"] != "data":
+   418	                errors.append(f"DATA_SELECTION_ARTIFACT_INVALID_KIND:{art_id}")
+   419	            if by_id[art_id]["role"] != "runtime":
+   420	                errors.append(f"DATA_SELECTION_ARTIFACT_INVALID_ROLE:{art_id}")
+   421	    if not _is_bounded_string(decl["selection_rule"]):
+   422	        errors.append("INVALID_DATA_SELECTION_RULE")
+   423	
+   424	
+   425	def _validate_unresolved_obligations(doc: dict, errors: list):
+   426	    obligations = doc.get("unresolved_obligations")
+   427	    if not isinstance(obligations, list) or not (1 <= len(obligations) <= MAX_LIST_LEN):
+   428	        errors.append("UNRESOLVED_OBLIGATIONS_BOUNDS_VIOLATION")
+   429	        return
+   430	    seen = set()
+   431	    for item in obligations:
+   432	        if not _is_bounded_string(item):
+   433	            errors.append("INVALID_UNRESOLVED_OBLIGATION")
+   434	            continue
+   435	        if item in seen:
+   436	            errors.append("DUPLICATE_UNRESOLVED_OBLIGATION")
+   437	            continue
+   438	        seen.add(item)
+   439	
+   440	
+   441	def _validate_evidence_refs(doc: dict, errors: list):
+   442	    refs = doc.get("evidence_refs")
+   443	    if not isinstance(refs, list) or not (1 <= len(refs) <= MAX_LIST_LEN):
+   444	        errors.append("EVIDENCE_REFS_BOUNDS_VIOLATION")
+   445	        return
+   446	    categories_present = set()
+   447	    for index, ref in enumerate(refs):
+   448	        where = f"evidence_refs[{index}]"
+   449	        if not _check_exact_keys(ref, _EVIDENCE_KEYS, where, errors):
+   450	            continue
+   451	        category = ref["category"]
+   452	        locator = ref["locator"]
+   453	        sha256 = ref["sha256"]
+   454	        if category not in _EVIDENCE_CATEGORIES:
+   455	            errors.append(f"INVALID_EVIDENCE_CATEGORY:{where}")
+   456	            continue
+   457	        if not _is_bounded_string(locator):
+   458	            errors.append(f"INVALID_EVIDENCE_LOCATOR:{where}")
+   459	            continue
+   460	        if sha256 is not None and not (isinstance(sha256, str) and _HASH_RE.match(sha256)):
+   461	            errors.append(f"INVALID_EVIDENCE_HASH:{where}")
+   462	            continue
+   463	        categories_present.add(category)
+   464	    for category in _EVIDENCE_CATEGORIES:
+   465	        if category not in categories_present:
+   466	            errors.append(f"MISSING_EVIDENCE_REF_CATEGORY:{category}")
+   467	
+   468	
+   469	def validate_structure(doc: Any) -> dict:
+   470	    """Run the bounded structural checks on an already strictly-parsed document.
+   471	
+   472	    Never raises; all problems are collected into the returned result's
+   473	    ``errors`` list. ``accepted`` is True only when the proposal is self-
+   474	    consistent by its own declarations -- this is never evidence that the
+   475	    described native/bootstrap closure is real, complete or reachable.
+   476	    """
+   477	    errors: list = []
+   478	    if not isinstance(doc, dict):
+   479	        errors.append("TOP_LEVEL_NOT_AN_OBJECT")
+   480	        return {"accepted": False, "errors": errors, **_fixed_fields()}
+   481	    _check_exact_keys(doc, _TOP_KEYS, "proposal", errors)
+   482	    if doc.get("schema") != SCHEMA_ID:
+   483	        errors.append("SCHEMA_MISMATCH")
+   484	
+   485	    by_id, _total_size = _validate_artifacts(doc, errors)
+   486	    edges = _validate_dependencies(doc, by_id, errors)
+   487	    entrypoint_id = _validate_entrypoint(doc, by_id, errors)
+   488	    _validate_bootstrap_declaration(doc, by_id, entrypoint_id, errors)
+   489	    _validate_loader_declaration(doc, by_id, errors)
+   490	    _validate_data_selection(doc, by_id, errors)
+   491	    _validate_unresolved_obligations(doc, errors)
+   492	    _validate_evidence_refs(doc, errors)
+   493	
+   494	    cycles_detected = False
+   495	    unreachable: list = []
+   496	    if entrypoint_id is not None:
+   497	        reachable = _reachable_from(entrypoint_id, edges)
+   498	        cycles_detected = _has_cycle(edges)
+   499	        for art_id, info in by_id.items():
+   500	            if info["role"] in ("bootstrap", "runtime") and art_id not in reachable:
+   501	                unreachable.append(art_id)
+   502	        for art_id in sorted(unreachable):
+   503	            errors.append(f"UNREACHABLE_DECLARED_ARTIFACT:{art_id}")
+   504	
+   505	    result = {
+   506	        "accepted": len(errors) == 0,
+   507	        "errors": sorted(errors),
+   508	        "artifact_count": len(by_id),
+   509	        "dependency_count": len(edges),
+   510	        "cycles_detected": cycles_detected,
+   511	        "unreachable_declared": sorted(unreachable),
+   512	    }
+   513	    result.update(_fixed_fields())
+   514	    return result
+   515	
+   516	
+   517	def evaluate_proposal_bytes(raw: bytes) -> dict:
+   518	    """Entry point: strictly parse bounded raw JSON bytes, then run bounded
+   519	    structural validation. Always returns a result dict carrying
+   520	    qualification="UNQUALIFIED", launchable=False and a4_pass=False, whether
+   521	    the raw bytes were rejected at parse time or the parsed document was
+   522	    structurally validated.
+   523	    """
+   524	    try:
+   525	        doc = parse_strict(raw)
+   526	    except ClosureSpecParseError as exc:
+   527	        return {"accepted": False, "errors": [str(exc)], **_fixed_fields()}
+   528	    return validate_structure(doc)
+   529	
+   530	
+   531	def main(argv: list) -> int:
+   532	    raw = sys.stdin.buffer.read(MAX_RAW_BYTES + 1)
+   533	    result = evaluate_proposal_bytes(raw)
+   534	    print(json.dumps(result, sort_keys=True, separators=(",", ":")))
+   535	    return 0 if result["accepted"] else 1
+   536	
+   537	
+   538	if __name__ == "__main__":
+   539	    raise SystemExit(main(sys.argv[1:]))
+# Independent A4 bootstrap architecture and B1 plan review
+
+**PASS_IN_SCOPE — ARCHITECTURE_AND_B1_PLAN_ONLY.** Reviewed detached commit `ae0c7726261f00bfa448c64a24f8b16f8f4d26d3`, tree `e10556db4ec35c0d431614248c7a7a5fbad91ffa`, against parent `6235b6d4b2c126e2d1f4f049fe89ad93e2743b9c`. The change adds exactly the bootstrap design Markdown and JSON. This is acceptance of a conditional architecture and a bounded offline structural checker plan. A4 remains OPEN; A2/A3 and A8 remain UNQUALIFIED; G3-L remains NO-GO. No launcher, confinement backend, provenance acceptance, decoder execution, or launch authority is established.
+
+## Assessment
+
+The design closes the architectural choice without circular self-verification. T0 is placed outside the runtime being checked, with independent custody and a trusted external run/lock/review pin. It expressly treats a statically linked launcher, its build and invocation, and any dynamic bootstrap dependency as future acceptance work. The current verifier is correctly described: `VerifiedInputs` runs inside an already imported Python process, checks `/proc/self/maps` and bootstrap files, uses an ordinary Git executable during verification, and `run()` forks that process before a focused file-open-denial filter. Those controls cannot authenticate code that executed before them or constrain every native mapping.
+
+The proposed S1–S4 order captures and seals actual regular-file bytes, constructs a closed image, then makes a fresh exec whose ELF interpreter, loader resolution, Python imports and constructors are inside the accepted image. It distinguishes prevention before first instruction from later map evidence. Native closure includes `PT_INTERP`, transitive `DT_NEEDED`, explicit and lazy loads, SONAME and search rules, and CPU alternatives. It requires full-lifetime mapping accounting, including transient mappings, while identifying anonymous executable memory and same-user injection as backend proof obligations. A private mount namespace is a candidate, not a proven host capability; the observed bwrap loopback failure supports neither backend availability nor relaxed confinement.
+
+The MEMFS binding is appropriately exact: containing SHA-256 `f984057845fd0a569dd775907d4629b83b09434959436863790492aae32e5fb9`, 39,767,864 bytes, the accepted 7,073-entry inventory, storage-length semantics, and the 112,589-byte residual. The design requires context/search precedence and actual selected ranges through use. Static enumeration and historical traces are supporting observations only. The retained A2/A3 audit still lacks authenticated originals, reconstruction, and adjudication of 25 RECORD discrepancies; its 78 mappings/305 edges are candidates, not a complete lock. The design preserves that dependency. A7's current `run()` also starts a Python worker subprocess from `sys.executable`; B4 must bring that child exec and its temporary data paths within the same reviewed closure or replace the adapter under exact review. The proposal's process-tree, fresh-exec and B4 integration requirements cover this as future work.
+
+Restart custody is not self-minted: S0 requires external original-lock history and refuses a replacement or missing first-lock record. B3 requires separate feasibility and exact integration reviews before actual decoder use. B4 follows accepted B2/B3, binds real runtime maps and data selection, and receives another exact review. A7's pre-native checks and packing restrictions survive integration; A8 and G3-L have separate real-evidence requirements. No current-run acquisition circularity is resolved here.
+
+B1 may proceed offline. It is a versioned, bounded engineering-proposal checker only, with all outputs `qualification=UNQUALIFIED`, `launchable=false`, `a4_pass=false`. It cannot be a production lock, launch token, provenance acceptance, or A2/A3/A4 PASS. There is no blocking ambiguity within that limited scope. The following clarifications should be made in B1's schema/tests so implementation remains faithful to the design:
+
+| Severity | Location | Reason | Remedy |
+| --- | --- | --- | --- |
+| LOW | `docs/V11_R09_GATE3_A4_BOOTSTRAP_DESIGN_20261002.md:149` | “In-memory JSON validation” does not name the API boundary. Duplicate keys cannot be detected after a normal JSON object is constructed. | Take bounded raw JSON bytes as input and reject duplicate keys and nonfinite values during strict parsing before structural validation. |
+| LOW | `docs/V11_R09_GATE3_A4_BOOTSTRAP_DESIGN_20261002.md:170` | A self-declared graph cannot reveal a truly omitted native transitive edge. “Missing transitive edges” could be misread as completeness evidence despite line 161. | Test dangling declared endpoints, unreachable declarations, and synthetic known-edge fixtures; label undisclosed real edges an unresolved A2/A3/B3/B4 obligation. Never derive qualification from B1 graph success. |
+
+Neither clarification blocks B1 because the adjacent byte-bound/duplicate-key rules and explicit graph-completeness limit already constrain the implementation. Any B1 candidate still needs its own exact implementation review. B2/B3/B4 need later exact build, provenance, capability and integration reviews; this design review accepts none of their evidence.
+
+## Checks performed
+
+- Verified HEAD, tree, parent, two-path diff, clean checkout and `git diff --check`.
+- Verified SHA-256 of changed Markdown `e891558a5184ea36790e904a41b27eaac328fbe12b5ca3d44c212c261d411223` and JSON `09cabdc820cff0b57f67c3abda8890efac92b179fb5b5d6f97b3a1bacbfa3652`.
+- Independently checked every path, byte size and SHA-256 in the design JSON's nine-file manifest; checked all local Markdown links in the design and controlling identity criteria.
+- Read the required checkpoint, requirements and engineering-progress heads, the controlling identity criteria, retained A2/A3 audit, accepted A4 R3 and MEMFS static reviews, and targeted current A4/A7/A8 source. Did not repeat suites or enumerate MEMFS entries.
+- Used approved read-only shell escalation after the wrapper failed configuring loopback. No decoder import, native load, build/install, namespace experiment, provider/network request, service/authority/financial action or repository edit occurred. Only the two requested review artifacts were written outside the checkout.
+
+Final checkout status: clean. No A4/G3-L qualification or C/J/E/A gate crossing is claimed.
+
+A4_BOOTSTRAP_DESIGN_REVIEW_COMPLETE
+# B1 closure-specification checker: scope and limits
+
+Status: **offline engineering-proposal checker; independent implementation
+review pending**. Authored on main `1f993fb`, 2026-10-02, as the B1 slice
+authorized by
+[the A4 bootstrap design](V11_R09_GATE3_A4_BOOTSTRAP_DESIGN_20261002.md) after
+its independent
+[architecture-and-B1-plan review](V11_R09_GATE3_A4_BOOTSTRAP_DESIGN_REVIEW_ae0c772.md)
+(`PASS_IN_SCOPE`, `docs/V11_R09_GATE3_A4_BOOTSTRAP_DESIGN_REVIEW_ae0c772.verdict.json`).
+That review qualified only the architecture and this plan, explicitly not A4
+itself. This document is the scope boundary for
+`tools/v11_r09_gate3_a4_closure_spec.py` and
+`tests/test_v11_r09_gate3_a4_closure_spec.py`; it does not re-litigate the
+design, does not accept A2/A3, and does not grant A4 PASS.
+
+## What this checker is
+
+A pure, bounded, in-process structural validator for one kind of input: a
+single bounded raw JSON byte string describing a proposed bootstrap/native
+closure (the artifacts, their dependency graph, declared bootstrap/loader/
+data-selection rules, unresolved obligations and A2/A3/MEMFS evidence
+references). It has no filesystem discovery, no subprocess, no native load, no
+import from any proposed runtime image, and no provider/network access. Given
+the same bytes it always returns the same result.
+
+It directly addresses both LOW findings from the design review:
+
+- Raw bytes, not an already-constructed object, are the input. `parse_strict`
+  rejects duplicate object keys and nonfinite numeric literals (`NaN`,
+  `Infinity`, `-Infinity`) during parsing, before any structural check runs,
+  so duplicate keys cannot silently collapse and infinities/NaN cannot reach
+  a bound comparison.
+- Declared-graph reachability (`validate_structure`'s dependency-graph walk)
+  is tested, and documented, as self-declared-graph consistency only. Tests
+  with dangling endpoints, unreachable declarations, and synthetic known-edge
+  fixtures (including a deliberate benign cycle) probe the checker's own
+  refusals. None of them, including a fully accepted synthetic proposal,
+  establish that a real native transitive closure is complete.
+
+## What it is not, and never produces
+
+- Not a production lock, not an acceptance-token producer, not an A8/G3-L
+  converter, and not a native-execution path. It does not run, fork, `dlopen`,
+  or import any artifact it is told about.
+- Not evidence toward A2/A3. The `evidence_refs` field accepts `A2`/`A3`/
+  `MEMFS` references by shape only (category, a bounded locator string, and an
+  optional SHA-256-shaped pointer) — the checker never opens, hashes, or
+  otherwise verifies the referenced document.
+- Every result — a parse-time rejection, a structurally invalid proposal, or
+  a structurally complete synthetic proposal — unconditionally carries
+  `qualification="UNQUALIFIED"`, `launchable=False`, `a4_pass=False`. There is
+  no code path that produces any other value for these three fields.
+
+## Bounds enforced
+
+Raw input is capped at 256 KiB; container nesting at 16 (checked by a
+bracket-depth pre-scan before the JSON parser runs, so a pathological deeply
+nested document cannot reach the recursive parser at all); strings at 512
+UTF-8 characters with no NUL byte; up to 512 artifacts, 4096 dependency edges,
+and 512 entries in any other bounded list. Per-artifact size is capped at
+2**40 bytes and the declared total across all artifacts at 2**45 bytes — kept
+strictly below `512 * 2**40` so the total-size bound is actually reachable
+within the artifact-count bound, rather than being unreachable dead logic.
+Integers are checked with `isinstance(x, int) and not isinstance(x, bool)` so
+a JSON `true`/`false` can never satisfy an integer field.
+
+## Schema (`ALPHA_V11_A4_CLOSURE_SPEC_V1`)
+
+The top-level object and every nested object use an exact, closed key set;
+unknown or missing keys are rejected. Required top-level fields:
+
+- `schema`: must equal `ALPHA_V11_A4_CLOSURE_SPEC_V1`.
+- `entrypoint_id`: must reference a declared artifact whose `role` is
+  `bootstrap`.
+- `artifacts`: 1–512 entries, each `{id, path, role, kind, sha256,
+  size_bytes}`. `id` is a bounded token; `path` must be relative with no `..`
+  or empty segments (traversal refused) and no leading `/`; `role` is one of
+  `bootstrap`/`runtime`/`test`; `kind` is one of `python`/`native`/`data`;
+  `sha256` must be 64 lowercase hex characters (format only — never checked
+  against real bytes); `size_bytes` is a bounded non-negative integer.
+  Artifact `id` and `path` must each be unique; two artifacts sharing the
+  same `(sha256, size_bytes)` pair are rejected as an ambiguous hash-alias
+  collision, since B1 does not model legitimate content deduplication.
+- `dependencies`: up to 4096 `{from, to}` edges between declared artifact
+  ids. Dangling endpoints, self-loops, and exact duplicate edges are
+  rejected. Genuine multi-node native cycles (e.g. two libraries that depend
+  on each other) are accepted and reported via `cycles_detected`, not
+  treated as errors.
+- `unresolved_obligations`: 1–512 bounded non-empty strings, deduplicated —
+  a proposal must explicitly name what remains unresolved; it cannot declare
+  zero.
+- `evidence_refs`: 1–512 entries, each `{category, locator, sha256}` with
+  `category` in `A2`/`A3`/`MEMFS`. At least one reference in each of the
+  three categories is required. `sha256`, if not `null`, must be
+  hash-shaped.
+- `bootstrap_declaration`: `{entry_artifact_id, trust_anchor, stages}`.
+  `entry_artifact_id` must equal the top-level `entrypoint_id`. `stages` is
+  1–7 unique values drawn from `S0`–`S6`, naming stages from the design's
+  [required launch sequence](V11_R09_GATE3_A4_BOOTSTRAP_DESIGN_20261002.md#required-launch-sequence-future-implementation)
+  as labels only — declaring a stage name asserts nothing about it being
+  implemented or reviewed.
+- `interpreter_loader_declaration`: `{interpreter_artifact_id, loader_rules}`.
+  The referenced artifact must have `role=runtime` and `kind` in
+  `python`/`native`. `loader_rules` is 1–64 bounded unique strings.
+- `data_selection_declaration`: `{data_artifact_ids, selection_rule}`. Every
+  referenced id must exist and have `kind=data` and `role=runtime`, so selected
+  data remains subject to declared-graph reachability.
+
+Declared-graph reachability is computed from the validated dependency edges
+starting at `entrypoint_id`. Any declared `bootstrap`- or `runtime`-role
+artifact not reachable in that graph is rejected as
+`UNREACHABLE_DECLARED_ARTIFACT`; `test`-role artifacts are exempt, since a
+test harness is not part of the enforced bootstrap/native closure. This
+reachability check, and every other check in this module, is graph/shape
+consistency against the submitted bytes only.
+
+## Relationship to B2–B4
+
+This slice resolves none of the open items the design assigns to later
+slices: accepted A2 lineage and A3 reconstruction (B2), a reviewed trusted
+bootstrap/backend build and capability feasibility (B3), or actual runtime
+mappings, MEMFS selection and A7 integration under independent exact review
+(B4). A2/A3 remain UNQUALIFIED, A4 remains OPEN, A8 remains UNQUALIFIED, and
+G3-L remains NO-GO. No existing A4/A7/A8 file is modified by this change.
+
+codex
+The commit and tree match the requested pins, and the three prior findings have targeted fixes and regression tests. I’m checking malformed inputs and declared graph/path consistency beyond those regressions; the code and scope document preserve the structural-only qualification boundary.
+exec
+/bin/bash -lc 'PYTHONDONTWRITEBYTECODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 /home/alphaadmin/AlphaV11_ECMWFBackfill/Alpha/.venv/bin/python -B -m pytest -q -p no:cacheprovider tests/test_v11_r09_gate3_a4_closure_spec.py' in /tmp/alpha-v11-a4-b1-review-8a3d47b
+exec
+/bin/bash -lc 'cat tests/test_v11_r09_gate3_a4_closure_spec.py
+sha256sum docs/V11_R09_GATE3_A4_CLOSURE_SPEC_SCOPE_20261002.md tests/test_v11_r09_gate3_a4_closure_spec.py tools/v11_r09_gate3_a4_closure_spec.py
+git diff --check HEAD~3 HEAD
+git diff HEAD~2 HEAD -- tools/v11_r09_gate3_a4_closure_spec.py tests/test_v11_r09_gate3_a4_closure_spec.py docs/V11_R09_GATE3_A4_CLOSURE_SPEC_SCOPE_20261002.md' in /tmp/alpha-v11-a4-b1-review-8a3d47b
+ succeeded in 679ms:
+............................................................             [100%]
+60 passed in 0.34s
+
+ succeeded in 0ms:
+"""Tests for the bounded offline A4 closure-specification structural checker.
+
+These tests establish only that the checker enforces its own declared bounds
+and self-declared-graph consistency rules on synthetic fixtures. A positive
+(``accepted: True``) result in any test here is a structurally valid synthetic
+proposal, never evidence of a real, complete or reachable native/bootstrap
+closure. Fixtures with dangling endpoints, unreachable declarations or known
+synthetic edges probe the checker's refusals; they do not imply, and must not
+be read as implying, real transitive closure completeness.
+"""
+
+import copy
+import json
+
+import pytest
+
+from tools.v11_r09_gate3_a4_closure_spec import (
+    MAX_ARTIFACTS,
+    MAX_JSON_DEPTH,
+    MAX_RAW_BYTES,
+    SCHEMA_ID,
+    ClosureSpecParseError,
+    evaluate_proposal_bytes,
+    parse_strict,
+    validate_structure,
+)
+
+
+def _artifact(art_id, path, role, kind, fill, size):
+    return {"id": art_id, "path": path, "role": role, "kind": kind,
+            "sha256": fill * 64, "size_bytes": size}
+
+
+def _valid_doc():
+    return {
+        "schema": SCHEMA_ID,
+        "entrypoint_id": "boot",
+        "artifacts": [
+            _artifact("boot", "bootstrap/launcher", "bootstrap", "native", "a", 100),
+            _artifact("interp", "runtime/python", "runtime", "python", "b", 200),
+            _artifact("libnative", "runtime/libnative.so", "runtime", "native", "c", 300),
+            _artifact("data1", "data/defs.bin", "runtime", "data", "d", 400),
+            _artifact("test1", "tests/test_harness.py", "test", "python", "e", 50),
+        ],
+        "dependencies": [
+            {"from": "boot", "to": "interp"},
+            {"from": "interp", "to": "libnative"},
+            {"from": "libnative", "to": "data1"},
+        ],
+        "unresolved_obligations": [
+            "A2 lineage not authenticated",
+            "A3 reconstruction incomplete",
+        ],
+        "evidence_refs": [
+            {"category": "A2", "locator": "docs/V11_R09_GATE3_A2A3_RETAINED_AUDIT_20261001.md", "sha256": None},
+            {"category": "A3", "locator": "docs/V11_R09_GATE3_A2A3_RETAINED_AUDIT_20261001.md", "sha256": None},
+            {"category": "MEMFS", "locator": "docs/V11_R09_GATE3_MEMFS_STATIC_OBSERVATION_20261001.json", "sha256": None},
+        ],
+        "bootstrap_declaration": {
+            "entry_artifact_id": "boot",
+            "trust_anchor": "external T0 custody pending independent review",
+            "stages": ["S0", "S1"],
+        },
+        "interpreter_loader_declaration": {
+            "interpreter_artifact_id": "interp",
+            "loader_rules": ["lock interpreter search path"],
+        },
+        "data_selection_declaration": {
+            "data_artifact_ids": ["data1"],
+            "selection_rule": "bind exact MEMFS range table",
+        },
+    }
+
+
+def _encode(doc):
+    return json.dumps(doc).encode("utf-8")
+
+
+def _fixed_fields_present(result):
+    assert result["qualification"] == "UNQUALIFIED"
+    assert result["launchable"] is False
+    assert result["a4_pass"] is False
+
+
+# ---------------------------------------------------------------------------
+# Fixed-output invariants
+# ---------------------------------------------------------------------------
+
+def test_valid_proposal_is_structurally_accepted_but_never_qualified():
+    result = evaluate_proposal_bytes(_encode(_valid_doc()))
+    assert result["accepted"] is True
+    assert result["errors"] == []
+    assert result["artifact_count"] == 5
+    assert result["cycles_detected"] is False
+    assert result["unreachable_declared"] == []
+    _fixed_fields_present(result)
+
+
+def test_selected_data_cannot_use_unreachable_test_role():
+    doc = _valid_doc()
+    doc["artifacts"][3]["role"] = "test"
+    doc["dependencies"] = [edge for edge in doc["dependencies"] if edge["to"] != "data1"]
+    result = evaluate_proposal_bytes(_encode(doc))
+    assert result["accepted"] is False
+    assert "DATA_SELECTION_ARTIFACT_INVALID_ROLE:data1" in result["errors"]
+    _fixed_fields_present(result)
+
+
+def test_parse_rejection_still_carries_fixed_fields():
+    result = evaluate_proposal_bytes(b"{")
+    assert result["accepted"] is False
+    _fixed_fields_present(result)
+
+
+def test_structural_rejection_still_carries_fixed_fields():
+    doc = _valid_doc()
+    del doc["artifacts"][0]
+    result = evaluate_proposal_bytes(_encode(doc))
+    assert result["accepted"] is False
+    _fixed_fields_present(result)
+
+
+# ---------------------------------------------------------------------------
+# Raw-byte parse stage: duplicate keys, nonfinite, bounds
+# ---------------------------------------------------------------------------
+
+def test_duplicate_key_rejected_before_structural_validation():
+    raw = b'{"schema": "X", "schema": "Y"}'
+    with pytest.raises(ClosureSpecParseError, match="DUPLICATE_KEY_REJECTED"):
+        parse_strict(raw)
+
+
+def test_nested_duplicate_key_rejected():
+    raw = b'{"a": {"x": 1, "x": 2}}'
+    with pytest.raises(ClosureSpecParseError, match="DUPLICATE_KEY_REJECTED"):
+        parse_strict(raw)
+
+
+@pytest.mark.parametrize("token", [b"NaN", b"Infinity", b"-Infinity"])
+def test_nonfinite_values_rejected(token):
+    raw = b'{"size_bytes": ' + token + b'}'
+    with pytest.raises(ClosureSpecParseError, match="NONFINITE_VALUE_REJECTED"):
+        parse_strict(raw)
+
+
+def test_exponent_overflow_rejected_with_fixed_result():
+    raw = b'{"size_bytes": 1e400}'
+    with pytest.raises(ClosureSpecParseError, match="NONFINITE_VALUE_REJECTED"):
+        parse_strict(raw)
+    result = evaluate_proposal_bytes(raw)
+    assert result["accepted"] is False
+    _fixed_fields_present(result)
+
+
+def test_integer_digit_limit_rejected_with_fixed_result():
+    raw = b"1" * 4301
+    with pytest.raises(ClosureSpecParseError, match="JSON_NUMBER_REJECTED"):
+        parse_strict(raw)
+    result = evaluate_proposal_bytes(raw)
+    assert result["accepted"] is False
+    _fixed_fields_present(result)
+
+
+def test_oversized_raw_bytes_rejected():
+    raw = b'{"pad": "' + b'x' * MAX_RAW_BYTES + b'"}'
+    with pytest.raises(ClosureSpecParseError, match="RAW_INPUT_TOO_LARGE"):
+        parse_strict(raw)
+
+
+def test_empty_raw_bytes_rejected():
+    with pytest.raises(ClosureSpecParseError, match="RAW_INPUT_EMPTY"):
+        parse_strict(b"")
+
+
+def test_invalid_utf8_rejected():
+    with pytest.raises(ClosureSpecParseError, match="RAW_INPUT_NOT_UTF8"):
+        parse_strict(b"\xff\xfe\x00")
+
+
+def test_excess_nesting_depth_rejected():
+    raw = b"[" * (MAX_JSON_DEPTH + 1) + b"]" * (MAX_JSON_DEPTH + 1)
+    with pytest.raises(ClosureSpecParseError, match="JSON_NESTING_DEPTH_EXCEEDED"):
+        parse_strict(raw)
+
+
+def test_nesting_depth_at_bound_is_allowed():
+    raw = b"[" * MAX_JSON_DEPTH + b"]" * MAX_JSON_DEPTH
+    assert parse_strict(raw) is not None
+
+
+def test_malformed_json_syntax_rejected():
+    with pytest.raises(ClosureSpecParseError, match="JSON_SYNTAX_ERROR"):
+        parse_strict(b"{not json}")
+
+
+def test_non_bytes_input_rejected():
+    with pytest.raises(ClosureSpecParseError, match="RAW_INPUT_NOT_BYTES"):
+        parse_strict("not bytes")
+
+
+# ---------------------------------------------------------------------------
+# Top-level schema shape
+# ---------------------------------------------------------------------------
+
+def test_unknown_top_level_key_rejected():
+    doc = _valid_doc()
+    doc["extra_field"] = "nope"
+    result = validate_structure(doc)
+    assert any("UNKNOWN_KEY:proposal.extra_field" in e for e in result["errors"])
+    assert result["accepted"] is False
+
+
+def test_missing_top_level_key_rejected():
+    doc = _valid_doc()
+    del doc["unresolved_obligations"]
+    result = validate_structure(doc)
+    assert any("MISSING_KEY:proposal.unresolved_obligations" in e for e in result["errors"])
+
+
+def test_schema_mismatch_rejected():
+    doc = _valid_doc()
+    doc["schema"] = "WRONG_SCHEMA_V1"
+    result = validate_structure(doc)
+    assert "SCHEMA_MISMATCH" in result["errors"]
+
+
+def test_top_level_not_object_rejected():
+    result = validate_structure(["not", "an", "object"])
+    assert result["errors"] == ["TOP_LEVEL_NOT_AN_OBJECT"]
+    assert result["accepted"] is False
+
+
+# ---------------------------------------------------------------------------
+# Artifacts: ids, paths, roles, kinds, hashes, sizes, uniqueness
+# ---------------------------------------------------------------------------
+
+def test_bool_as_integer_size_rejected():
+    doc = _valid_doc()
+    doc["artifacts"][0]["size_bytes"] = True
+    result = validate_structure(doc)
+    assert any("INVALID_ARTIFACT_SIZE" in e for e in result["errors"])
+
+
+def test_negative_size_rejected():
+    doc = _valid_doc()
+    doc["artifacts"][0]["size_bytes"] = -1
+    result = validate_structure(doc)
+    assert any("INVALID_ARTIFACT_SIZE" in e for e in result["errors"])
+
+
+def test_path_traversal_rejected():
+    doc = _valid_doc()
+    doc["artifacts"][0]["path"] = "../etc/passwd"
+    result = validate_structure(doc)
+    assert any("INVALID_ARTIFACT_PATH" in e for e in result["errors"])
+
+
+def test_absolute_path_rejected():
+    doc = _valid_doc()
+    doc["artifacts"][0]["path"] = "/etc/passwd"
+    result = validate_structure(doc)
+    assert any("INVALID_ARTIFACT_PATH" in e for e in result["errors"])
+
+
+def test_duplicate_artifact_id_rejected():
+    doc = _valid_doc()
+    clone = copy.deepcopy(doc["artifacts"][1])
+    clone["path"] = "runtime/other-path"
+    clone["sha256"] = "f" * 64
+    doc["artifacts"].append(clone)  # id "interp" repeated
+    result = validate_structure(doc)
+    assert any("DUPLICATE_ARTIFACT_ID:interp" in e for e in result["errors"])
+
+
+def test_duplicate_artifact_path_rejected():
+    doc = _valid_doc()
+    clone = copy.deepcopy(doc["artifacts"][1])
+    clone["id"] = "interp2"
+    clone["sha256"] = "f" * 64
+    doc["artifacts"].append(clone)  # same path as "interp"
+    result = validate_structure(doc)
+    assert any("DUPLICATE_ARTIFACT_PATH" in e for e in result["errors"])
+
+
+def test_hash_alias_collision_rejected():
+    doc = _valid_doc()
+    clone = copy.deepcopy(doc["artifacts"][1])
+    clone["id"] = "interp2"
+    clone["path"] = "runtime/python-alias"
+    # Same sha256 and size as "interp": ambiguous alias target.
+    doc["artifacts"].append(clone)
+    result = validate_structure(doc)
+    assert any("HASH_ALIAS_COLLISION" in e for e in result["errors"])
+
+
+def test_invalid_hash_format_rejected():
+    doc = _valid_doc()
+    doc["artifacts"][0]["sha256"] = "not-a-hash"
+    result = validate_structure(doc)
+    assert any("INVALID_ARTIFACT_HASH" in e for e in result["errors"])
+
+
+def test_invalid_role_rejected():
+    doc = _valid_doc()
+    doc["artifacts"][0]["role"] = "launcher"
+    result = validate_structure(doc)
+    assert any("INVALID_ARTIFACT_ROLE" in e for e in result["errors"])
+
+
+def test_invalid_kind_rejected():
+    doc = _valid_doc()
+    doc["artifacts"][0]["kind"] = "binary"
+    result = validate_structure(doc)
+    assert any("INVALID_ARTIFACT_KIND" in e for e in result["errors"])
+
+
+def test_artifact_unknown_key_rejected():
+    doc = _valid_doc()
+    doc["artifacts"][0]["extra"] = "nope"
+    result = validate_structure(doc)
+    assert any("UNKNOWN_KEY:artifacts[0].extra" in e for e in result["errors"])
+
+
+def test_empty_artifacts_rejected():
+    doc = _valid_doc()
+    doc["artifacts"] = []
+    result = validate_structure(doc)
+    assert "ARTIFACTS_BOUNDS_VIOLATION" in result["errors"]
+
+
+def test_too_many_artifacts_rejected():
+    doc = _valid_doc()
+    doc["artifacts"] = [
+        _artifact(f"a{i}", f"p/{i}", "test", "python", "a", 1)
+        for i in range(MAX_ARTIFACTS + 1)
+    ]
+    result = validate_structure(doc)
+    assert "ARTIFACTS_BOUNDS_VIOLATION" in result["errors"]
+
+
+# ---------------------------------------------------------------------------
+# Dependencies: dangling endpoints, self-loops, duplicates
+# ---------------------------------------------------------------------------
+
+def test_dangling_dependency_endpoint_rejected():
+    doc = _valid_doc()
+    doc["dependencies"].append({"from": "boot", "to": "ghost"})
+    result = validate_structure(doc)
+    assert any("DANGLING_DEPENDENCY_ENDPOINT:boot->ghost" in e for e in result["errors"])
+
+
+def test_self_dependency_rejected():
+    doc = _valid_doc()
+    doc["dependencies"].append({"from": "boot", "to": "boot"})
+    result = validate_structure(doc)
+    assert any("SELF_DEPENDENCY_INVALID:boot" in e for e in result["errors"])
+
+
+def test_duplicate_dependency_edge_rejected():
+    doc = _valid_doc()
+    doc["dependencies"].append({"from": "boot", "to": "interp"})
+    result = validate_structure(doc)
+    assert any("DUPLICATE_DEPENDENCY_EDGE:boot->interp" in e for e in result["errors"])
+
+
+def test_dependency_unknown_key_rejected():
+    doc = _valid_doc()
+    doc["dependencies"][0]["weight"] = 1
+    result = validate_structure(doc)
+    assert any("UNKNOWN_KEY:dependencies[0].weight" in e for e in result["errors"])
+
+
+# ---------------------------------------------------------------------------
+# Declared-graph reachability: unreachable declarations, legitimate cycles
+# ---------------------------------------------------------------------------
+
+def test_unreachable_declared_runtime_artifact_rejected():
+    doc = _valid_doc()
+    doc["artifacts"].append(_artifact("orphan", "runtime/orphan.so", "runtime", "native", "9", 10))
+    # No dependency edge reaches "orphan" from the entrypoint.
+    result = validate_structure(doc)
+    assert any("UNREACHABLE_DECLARED_ARTIFACT:orphan" in e for e in result["errors"])
+    assert "orphan" in result["unreachable_declared"]
+
+
+def test_unreachable_test_role_artifact_is_exempt():
+    # "test1" in the base fixture is declared but intentionally never
+    # reachable from the entrypoint; test-role artifacts are harnesses,
+    # not part of the enforced native/bootstrap closure.
+    result = validate_structure(_valid_doc())
+    assert result["accepted"] is True
+    assert "test1" not in result["unreachable_declared"]
+
+
+def test_legitimate_native_cycle_is_accepted_not_flagged():
+    doc = _valid_doc()
+    doc["artifacts"].append(_artifact("libA", "runtime/libA.so", "runtime", "native", "1", 10))
+    doc["artifacts"].append(_artifact("libB", "runtime/libB.so", "runtime", "native", "2", 10))
+    doc["dependencies"].append({"from": "libnative", "to": "libA"})
+    doc["dependencies"].append({"from": "libA", "to": "libB"})
+    doc["dependencies"].append({"from": "libB", "to": "libA"})
+    result = validate_structure(doc)
+    # Cycle is structurally legitimate: no error, but it is surfaced for review.
+    assert result["accepted"] is True
+    assert result["cycles_detected"] is True
+    assert result["unreachable_declared"] == []
+
+
+def test_dangling_entrypoint_rejected():
+    doc = _valid_doc()
+    doc["entrypoint_id"] = "ghost"
+    result = validate_structure(doc)
+    assert any("DANGLING_ENTRYPOINT:ghost" in e for e in result["errors"])
+
+
+def test_entrypoint_must_be_bootstrap_role():
+    doc = _valid_doc()
+    doc["entrypoint_id"] = "interp"
+    result = validate_structure(doc)
+    assert "ENTRYPOINT_NOT_BOOTSTRAP_ROLE" in result["errors"]
+
+
+# ---------------------------------------------------------------------------
+# Bootstrap / interpreter-loader / data-selection declarations
+# ---------------------------------------------------------------------------
+
+def test_bootstrap_declaration_required():
+    doc = _valid_doc()
+    del doc["bootstrap_declaration"]
+    result = validate_structure(doc)
+    assert any("MISSING_KEY:proposal.bootstrap_declaration" in e for e in result["errors"])
+
+
+def test_bootstrap_entry_mismatch_rejected():
+    doc = _valid_doc()
+    doc["bootstrap_declaration"]["entry_artifact_id"] = "interp"
+    result = validate_structure(doc)
+    assert "BOOTSTRAP_ENTRY_MISMATCH" in result["errors"]
+
+
+def test_invalid_bootstrap_stage_rejected():
+    doc = _valid_doc()
+    doc["bootstrap_declaration"]["stages"] = ["S0", "S9"]
+    result = validate_structure(doc)
+    assert any("INVALID_BOOTSTRAP_STAGE" in e for e in result["errors"])
+
+
+def test_duplicate_bootstrap_stage_rejected():
+    doc = _valid_doc()
+    doc["bootstrap_declaration"]["stages"] = ["S0", "S0"]
+    result = validate_structure(doc)
+    assert any("DUPLICATE_BOOTSTRAP_STAGE:S0" in e for e in result["errors"])
+
+
+def test_interpreter_loader_declaration_required():
+    doc = _valid_doc()
+    del doc["interpreter_loader_declaration"]
+    result = validate_structure(doc)
+    assert any("MISSING_KEY:proposal.interpreter_loader_declaration" in e for e in result["errors"])
+
+
+def test_interpreter_artifact_wrong_role_rejected():
+    doc = _valid_doc()
+    doc["interpreter_loader_declaration"]["interpreter_artifact_id"] = "data1"
+    result = validate_structure(doc)
+    assert "INTERPRETER_ARTIFACT_INVALID_ROLE_OR_KIND" in result["errors"]
+
+
+def test_data_selection_wrong_kind_rejected():
+    doc = _valid_doc()
+    doc["data_selection_declaration"]["data_artifact_ids"] = ["interp"]
+    result = validate_structure(doc)
+    assert any("DATA_SELECTION_ARTIFACT_INVALID_KIND:interp" in e for e in result["errors"])
+
+
+def test_data_selection_dangling_ref_rejected():
+    doc = _valid_doc()
+    doc["data_selection_declaration"]["data_artifact_ids"] = ["ghost"]
+    result = validate_structure(doc)
+    assert any("DANGLING_DATA_SELECTION_REF:ghost" in e for e in result["errors"])
+
+
+# ---------------------------------------------------------------------------
+# Unresolved obligations and A2/A3/MEMFS evidence references (shape only)
+# ---------------------------------------------------------------------------
+
+def test_empty_unresolved_obligations_rejected():
+    doc = _valid_doc()
+    doc["unresolved_obligations"] = []
+    result = validate_structure(doc)
+    assert "UNRESOLVED_OBLIGATIONS_BOUNDS_VIOLATION" in result["errors"]
+
+
+def test_duplicate_unresolved_obligation_rejected():
+    doc = _valid_doc()
+    doc["unresolved_obligations"] = ["same", "same"]
+    result = validate_structure(doc)
+    assert "DUPLICATE_UNRESOLVED_OBLIGATION" in result["errors"]
+
+
+def test_missing_evidence_category_rejected():
+    doc = _valid_doc()
+    doc["evidence_refs"] = [e for e in doc["evidence_refs"] if e["category"] != "MEMFS"]
+    result = validate_structure(doc)
+    assert "MISSING_EVIDENCE_REF_CATEGORY:MEMFS" in result["errors"]
+
+
+def test_evidence_ref_shape_only_no_fetch():
+    # An evidence reference with a plausible-looking hash is accepted purely
+    # by shape; the checker never opens or verifies the referenced document.
+    doc = _valid_doc()
+    doc["evidence_refs"][0]["sha256"] = "0" * 64
+    result = validate_structure(doc)
+    assert result["accepted"] is True
+
+
+def test_invalid_evidence_hash_rejected():
+    doc = _valid_doc()
+    doc["evidence_refs"][0]["sha256"] = "short"
+    result = validate_structure(doc)
+    assert any("INVALID_EVIDENCE_HASH" in e for e in result["errors"])
+
+
+def test_invalid_evidence_category_rejected():
+    doc = _valid_doc()
+    doc["evidence_refs"][0]["category"] = "A9"
+    result = validate_structure(doc)
+    assert any("INVALID_EVIDENCE_CATEGORY" in e for e in result["errors"])
+
+
+# ---------------------------------------------------------------------------
+# Arithmetic bound
+# ---------------------------------------------------------------------------
+
+def test_total_size_arithmetic_bound_exceeded_rejected():
+    from tools.v11_r09_gate3_a4_closure_spec import MAX_ARTIFACT_SIZE, MAX_TOTAL_SIZE
+
+    doc = _valid_doc()
+    needed = MAX_TOTAL_SIZE // MAX_ARTIFACT_SIZE + 2
+    assert needed < MAX_ARTIFACTS - len(doc["artifacts"])
+    for i in range(needed):
+        # Each bulk artifact needs a distinct hash; a repeated hash+size pair
+        # would be rejected as a hash-alias collision before the running
+        # total ever grows large enough to exercise the arithmetic bound.
+        doc["artifacts"].append({
+            "id": f"bulk{i}", "path": f"bulk/{i}", "role": "test", "kind": "python",
+            "sha256": f"{i:064x}", "size_bytes": MAX_ARTIFACT_SIZE,
+        })
+    result = validate_structure(doc)
+    assert any("ARITHMETIC_BOUND_EXCEEDED" in e for e in result["errors"])
+
+
+# ---------------------------------------------------------------------------
+# CLI smoke test
+# ---------------------------------------------------------------------------
+
+def test_cli_main_reports_accepted_proposal(capsys):
+    import io
+
+    from tools.v11_r09_gate3_a4_closure_spec import main
+
+    raw = _encode(_valid_doc())
+    import sys as _sys
+    old_stdin = _sys.stdin
+    _sys.stdin = io.TextIOWrapper(io.BytesIO(raw))
+    try:
+        rc = main([])
+    finally:
+        _sys.stdin = old_stdin
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+    assert rc == 0
+    assert payload["accepted"] is True
+    _fixed_fields_present(payload)
+04448e24d94db4d58c00dbd620a0ce067ef75793e41a253f98dfcf777a7363f3  docs/V11_R09_GATE3_A4_CLOSURE_SPEC_SCOPE_20261002.md
+799100c4bb7e465e04ab01075547dc3dcc65e292ff0a3bd2ac901220d0eec7ba  tests/test_v11_r09_gate3_a4_closure_spec.py
+af5eb195548a746f73dcf8fe2e36b49db6dfadf29b16148817c2d02bde251a64  tools/v11_r09_gate3_a4_closure_spec.py
+diff --git a/docs/V11_R09_GATE3_A4_CLOSURE_SPEC_SCOPE_20261002.md b/docs/V11_R09_GATE3_A4_CLOSURE_SPEC_SCOPE_20261002.md
+index aa6163f..dd2d496 100644
+--- a/docs/V11_R09_GATE3_A4_CLOSURE_SPEC_SCOPE_20261002.md
++++ b/docs/V11_R09_GATE3_A4_CLOSURE_SPEC_SCOPE_20261002.md
+@@ -103,7 +103,8 @@ unknown or missing keys are rejected. Required top-level fields:
+   The referenced artifact must have `role=runtime` and `kind` in
+   `python`/`native`. `loader_rules` is 1–64 bounded unique strings.
+ - `data_selection_declaration`: `{data_artifact_ids, selection_rule}`. Every
+-  referenced id must exist and have `kind=data`.
++  referenced id must exist and have `kind=data` and `role=runtime`, so selected
++  data remains subject to declared-graph reachability.
+ 
+ Declared-graph reachability is computed from the validated dependency edges
+ starting at `entrypoint_id`. Any declared `bootstrap`- or `runtime`-role
+diff --git a/tests/test_v11_r09_gate3_a4_closure_spec.py b/tests/test_v11_r09_gate3_a4_closure_spec.py
+index 1d108fd..cef78e7 100644
+--- a/tests/test_v11_r09_gate3_a4_closure_spec.py
++++ b/tests/test_v11_r09_gate3_a4_closure_spec.py
+@@ -96,6 +96,16 @@ def test_valid_proposal_is_structurally_accepted_but_never_qualified():
+     _fixed_fields_present(result)
+ 
+ 
++def test_selected_data_cannot_use_unreachable_test_role():
++    doc = _valid_doc()
++    doc["artifacts"][3]["role"] = "test"
++    doc["dependencies"] = [edge for edge in doc["dependencies"] if edge["to"] != "data1"]
++    result = evaluate_proposal_bytes(_encode(doc))
++    assert result["accepted"] is False
++    assert "DATA_SELECTION_ARTIFACT_INVALID_ROLE:data1" in result["errors"]
++    _fixed_fields_present(result)
++
++
+ def test_parse_rejection_still_carries_fixed_fields():
+     result = evaluate_proposal_bytes(b"{")
+     assert result["accepted"] is False
+@@ -133,6 +143,24 @@ def test_nonfinite_values_rejected(token):
+         parse_strict(raw)
+ 
+ 
++def test_exponent_overflow_rejected_with_fixed_result():
++    raw = b'{"size_bytes": 1e400}'
++    with pytest.raises(ClosureSpecParseError, match="NONFINITE_VALUE_REJECTED"):
++        parse_strict(raw)
++    result = evaluate_proposal_bytes(raw)
++    assert result["accepted"] is False
++    _fixed_fields_present(result)
++
++
++def test_integer_digit_limit_rejected_with_fixed_result():
++    raw = b"1" * 4301
++    with pytest.raises(ClosureSpecParseError, match="JSON_NUMBER_REJECTED"):
++        parse_strict(raw)
++    result = evaluate_proposal_bytes(raw)
++    assert result["accepted"] is False
++    _fixed_fields_present(result)
++
++
+ def test_oversized_raw_bytes_rejected():
+     raw = b'{"pad": "' + b'x' * MAX_RAW_BYTES + b'"}'
+     with pytest.raises(ClosureSpecParseError, match="RAW_INPUT_TOO_LARGE"):
+diff --git a/tools/v11_r09_gate3_a4_closure_spec.py b/tools/v11_r09_gate3_a4_closure_spec.py
+index 1327d37..4e175bd 100644
+--- a/tools/v11_r09_gate3_a4_closure_spec.py
++++ b/tools/v11_r09_gate3_a4_closure_spec.py
+@@ -23,6 +23,7 @@ no A8/G3-L conversion and no native execution.
+ from __future__ import annotations
+ 
+ import json
++import math
+ import re
+ import sys
+ from typing import Any
+@@ -75,6 +76,13 @@ def _reject_constant(token: str) -> float:
+     raise ClosureSpecParseError(f"NONFINITE_VALUE_REJECTED:{token}")
+ 
+ 
++def _parse_finite_float(token: str) -> float:
++    value = float(token)
++    if not math.isfinite(value):
++        raise ClosureSpecParseError(f"NONFINITE_VALUE_REJECTED:{token}")
++    return value
++
++
+ def _check_nesting_depth(text: str) -> None:
+     depth = 0
+     in_string = False
+@@ -131,11 +139,15 @@ def parse_strict(raw: bytes) -> Any:
+             text,
+             object_pairs_hook=_dedupe_object_pairs,
+             parse_constant=_reject_constant,
++            parse_float=_parse_finite_float,
+         )
+     except ClosureSpecParseError:
+         raise
+     except json.JSONDecodeError as exc:
+         raise ClosureSpecParseError(f"JSON_SYNTAX_ERROR:{exc.msg}") from exc
++    except ValueError as exc:
++        # CPython's integer digit guard raises ValueError inside json.loads.
++        raise ClosureSpecParseError("JSON_NUMBER_REJECTED") from exc
+ 
+ 
+ def _is_strict_int(value: Any) -> bool:
+@@ -404,6 +416,8 @@ def _validate_data_selection(doc: dict, by_id: dict, errors: list):
+                 continue
+             if by_id[art_id]["kind"] != "data":
+                 errors.append(f"DATA_SELECTION_ARTIFACT_INVALID_KIND:{art_id}")
++            if by_id[art_id]["role"] != "runtime":
++                errors.append(f"DATA_SELECTION_ARTIFACT_INVALID_ROLE:{art_id}")
+     if not _is_bounded_string(decl["selection_rule"]):
+         errors.append("INVALID_DATA_SELECTION_RULE")
+ 
+
+exec
+/bin/bash -lc "PYTHONDONTWRITEBYTECODE=1 /home/alphaadmin/AlphaV11_ECMWFBackfill/Alpha/.venv/bin/python -B - <<'PY'
+import copy, io, json, runpy, subprocess, sys
+from tools import v11_r09_gate3_a4_closure_spec as c
+fixture = runpy.run_path('tests/test_v11_r09_gate3_a4_closure_spec.py')['_valid_doc']
+def fixed(r):
+    assert r['qualification'] == 'UNQUALIFIED' and r['launchable'] is False and r['a4_pass'] is False, r
+
+def check(raw):
+    r = c.evaluate_proposal_bytes(raw)
+    fixed(r)
+    assert r == c.evaluate_proposal_bytes(raw)
+    json.dumps(r, allow_nan=False)
+    return r
+
+prior = [('exponent', b'1e400'), ('integer', b'1' * 4301)]
+d = fixture(); d['artifacts'][3]['role'] = 'test'; d['dependencies'].pop()
+prior.append(('selected_test_without_edge', json.dumps(d).encode()))
+for name, raw in prior:
+    r = check(raw); assert not r['accepted']
+    p = subprocess.run([sys.executable, '-B', 'tools/v11_r09_gate3_a4_closure_spec.py'], input=raw, capture_output=True, timeout=5)
+    assert p.returncode == 1 and not p.stderr, (name, p.returncode, p.stderr)
+    assert json.loads(p.stdout) == r
+    print(name, r)
+
+base = fixture()
+paths = []
+def walk(obj, prefix=()):
+    paths.append(prefix)
+    if isinstance(obj, dict):
+        for k,v in obj.items(): walk(v, prefix + (k,))
+    elif isinstance(obj, list):
+        for i,v in enumerate(obj): walk(v, prefix + (i,))
+walk(base)
+values = [None, True, False, 0, -1, 2**40+1, 1.0, '', 'x'*513, '\\x00', '\\ud800', [], {}, [[], {}], {'x': []}]
+count = 0
+for path in paths:
+    for value in values:
+        d = copy.deepcopy(base)
+        if not path: d = value
+        else:
+            obj = d
+            for key in path[:-1]: obj = obj[key]
+            obj[path[-1]] = value
+        check(json.dumps(d).encode()); count += 1
+print('typed field mutations with deterministic fixed results:', count)
+
+for token in [b'-1e400', b'1.0e9999', b'NaN', b'Infinity', b'-Infinity', b'1'*4301, b'['*17+b']'*17, b'{\"x\":1,\"\\\\u0078\":2}', b'\\xff', b'x'*(c.MAX_RAW_BYTES+1)]:
+    assert not check(token)['accepted']
+for key, value in [('qualification','ACCEPTED'), ('launchable',True), ('a4_pass',True), ('accepted',True)]:
+    d=fixture(); d[key]=value
+    assert not check(json.dumps(d).encode())['accepted']
+for role in ['bootstrap','runtime','test']:
+    d=fixture(); d['artifacts'][3]['role']=role; d['dependencies'].pop()
+    assert not check(json.dumps(d).encode())['accepted']
+for path in ['/etc/passwd','../x','a/../b','a/./b','a//b','a/','\\\\x','a\\x00b']:
+    d=fixture(); d['artifacts'][1]['path']=path
+    assert not check(json.dumps(d).encode())['accepted']
+# Longest permitted declared graph: cycle traversal must stay within Python's stack.
+d=fixture(); last='data1'
+for i in range(c.MAX_ARTIFACTS-len(d['artifacts'])):
+    ident=f'n{i}'
+    d['artifacts'].append({'id':ident,'path':f'runtime/{ident}','role':'runtime','kind':'native','sha256':f'{i:064x}','size_bytes':1})
+    d['dependencies'].append({'from':last,'to':ident}); last=ident
+raw=json.dumps(d).encode(); r=check(raw)
+assert len(raw)<=c.MAX_RAW_BYTES and r['accepted'] and not r['cycles_detected'], r
+print('512-artifact chain accepted:', len(raw), 'bytes')
+d['dependencies'].append({'from':last,'to':'boot'})
+r=check(json.dumps(d).encode()); assert r['accepted'] and r['cycles_detected']
+print('512-artifact graph cycle accepted; all additional refusal/invariant probes passed')
+PY" in /tmp/alpha-v11-a4-b1-review-8a3d47b
+ succeeded in 1515ms:
+exponent {'accepted': False, 'errors': ['NONFINITE_VALUE_REJECTED:1e400'], 'qualification': 'UNQUALIFIED', 'launchable': False, 'a4_pass': False}
+integer {'accepted': False, 'errors': ['JSON_NUMBER_REJECTED'], 'qualification': 'UNQUALIFIED', 'launchable': False, 'a4_pass': False}
+selected_test_without_edge {'accepted': False, 'errors': ['DATA_SELECTION_ARTIFACT_INVALID_ROLE:data1'], 'artifact_count': 5, 'dependency_count': 2, 'cycles_detected': False, 'unreachable_declared': [], 'qualification': 'UNQUALIFIED', 'launchable': False, 'a4_pass': False}
+typed field mutations with deterministic fixed results: 1185
+512-artifact chain accepted: 104908 bytes
+512-artifact graph cycle accepted; all additional refusal/invariant probes passed
+
+codex
+All 60 focused tests passed. Independent probes also confirmed that all three prior counterexamples are rejected by both the API and CLI, with the required fixed fields. Another 1,185 field mutations and maximum-size graph probes returned deterministic results without exceptions. I found no additional P1/P2 issue within the documented B1 scope; I’m verifying the final checkout state and file hashes.
+exec
+/bin/bash -lc 'GIT_OPTIONAL_LOCKS=0 git status --porcelain=v1
+GIT_OPTIONAL_LOCKS=0 git diff --exit-code HEAD
+GIT_OPTIONAL_LOCKS=0 git diff --check HEAD~3 HEAD
+GIT_OPTIONAL_LOCKS=0 git rev-parse HEAD HEAD''^{tree}
+sha256sum docs/V11_R09_GATE3_A4_CLOSURE_SPEC_SCOPE_20261002.md tests/test_v11_r09_gate3_a4_closure_spec.py tools/v11_r09_gate3_a4_closure_spec.py' in /tmp/alpha-v11-a4-b1-review-8a3d47b
+ succeeded in 0ms:
+8a3d47bcdb52182bac541cf5554e096ac863631b
+14a553cf65143bb44115a518435e20e946ee540a
+04448e24d94db4d58c00dbd620a0ce067ef75793e41a253f98dfcf777a7363f3  docs/V11_R09_GATE3_A4_CLOSURE_SPEC_SCOPE_20261002.md
+799100c4bb7e465e04ab01075547dc3dcc65e292ff0a3bd2ac901220d0eec7ba  tests/test_v11_r09_gate3_a4_closure_spec.py
+af5eb195548a746f73dcf8fe2e36b49db6dfadf29b16148817c2d02bde251a64  tools/v11_r09_gate3_a4_closure_spec.py
+
+codex
+PASS_IN_SCOPE
+
+Reviewed the complete three-file candidate, governing design, independent design review, and both prior findings. No remaining P1/P2 found within B1 scope.
+
+- HEAD: `8a3d47bcdb52182bac541cf5554e096ac863631b`
+- Tree: `14a553cf65143bb44115a518435e20e946ee540a`
+
+All three prior P2 counterexamples are closed, independently verified through API and CLI:
+
+- `b"1e400"` → `NONFINITE_VALUE_REJECTED`
+- `b"1" * 4301` → `JSON_NUMBER_REJECTED`
+- Fixture `data1.role="test"` with its dependency edge removed → `DATA_SELECTION_ARTIFACT_INVALID_ROLE:data1`
+
+Every result retained `qualification="UNQUALIFIED"`, `launchable=false`, and `a4_pass=false`.
+
+Validation: **60 focused tests passed** using the requested interpreter; 1,185 independent field mutations, 512-artifact chain/cycle probes, and additional parsing/path/qualification-spoofing checks passed. `git diff --check` passed; checkout remained clean.
+
+Changed-file SHA-256:
+
+| File | SHA-256 |
+|---|---|
+| [Scope document](/tmp/alpha-v11-a4-b1-review-8a3d47b/docs/V11_R09_GATE3_A4_CLOSURE_SPEC_SCOPE_20261002.md) | `04448e24d94db4d58c00dbd620a0ce067ef75793e41a253f98dfcf777a7363f3` |
+| [Tests](/tmp/alpha-v11-a4-b1-review-8a3d47b/tests/test_v11_r09_gate3_a4_closure_spec.py) | `799100c4bb7e465e04ab01075547dc3dcc65e292ff0a3bd2ac901220d0eec7ba` |
+| [Checker](/tmp/alpha-v11-a4-b1-review-8a3d47b/tools/v11_r09_gate3_a4_closure_spec.py) | `af5eb195548a746f73dcf8fe2e36b49db6dfadf29b16148817c2d02bde251a64` |
+
+Read-only, offline review; no prohibited actions performed. **B1 acceptance is structural only: no A2/A3 qualification, A4 PASS, or G3-L PASS.**
+tokens used
+51,624
+PASS_IN_SCOPE
+
+Reviewed the complete three-file candidate, governing design, independent design review, and both prior findings. No remaining P1/P2 found within B1 scope.
+
+- HEAD: `8a3d47bcdb52182bac541cf5554e096ac863631b`
+- Tree: `14a553cf65143bb44115a518435e20e946ee540a`
+
+All three prior P2 counterexamples are closed, independently verified through API and CLI:
+
+- `b"1e400"` → `NONFINITE_VALUE_REJECTED`
+- `b"1" * 4301` → `JSON_NUMBER_REJECTED`
+- Fixture `data1.role="test"` with its dependency edge removed → `DATA_SELECTION_ARTIFACT_INVALID_ROLE:data1`
+
+Every result retained `qualification="UNQUALIFIED"`, `launchable=false`, and `a4_pass=false`.
+
+Validation: **60 focused tests passed** using the requested interpreter; 1,185 independent field mutations, 512-artifact chain/cycle probes, and additional parsing/path/qualification-spoofing checks passed. `git diff --check` passed; checkout remained clean.
+
+Changed-file SHA-256:
+
+| File | SHA-256 |
+|---|---|
+| [Scope document](/tmp/alpha-v11-a4-b1-review-8a3d47b/docs/V11_R09_GATE3_A4_CLOSURE_SPEC_SCOPE_20261002.md) | `04448e24d94db4d58c00dbd620a0ce067ef75793e41a253f98dfcf777a7363f3` |
+| [Tests](/tmp/alpha-v11-a4-b1-review-8a3d47b/tests/test_v11_r09_gate3_a4_closure_spec.py) | `799100c4bb7e465e04ab01075547dc3dcc65e292ff0a3bd2ac901220d0eec7ba` |
+| [Checker](/tmp/alpha-v11-a4-b1-review-8a3d47b/tools/v11_r09_gate3_a4_closure_spec.py) | `af5eb195548a746f73dcf8fe2e36b49db6dfadf29b16148817c2d02bde251a64` |
+
+Read-only, offline review; no prohibited actions performed. **B1 acceptance is structural only: no A2/A3 qualification, A4 PASS, or G3-L PASS.**

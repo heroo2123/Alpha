@@ -1,3 +1,7 @@
+## B1 exact review integrated — 2026-10-02 04:55 UTC
+
+Recovered the clean Astra/high review terminal for `8a3d47b`, retained its report and log, then reconciled the three reviewed commits onto newer main. All three file hashes match; integrated-main focused tests passed 60/60. The B1 checker remains permanently `UNQUALIFIED` and nonlaunchable. B2's authentic A2/A3 and trusted-bootstrap inputs remain missing; disk is below G3-L's 2 GiB floor. No provider, forward SHADOW, root authority or financial action and no C/J/E/A crossing: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## B1 reachability repair pinned for independent review — 2026-10-02 04:52 UTC
 
 The completed `d7b789c` review returned `CHANGES_REQUIRED` on a selected-data reachability bypass; its two earlier parser findings are closed. The isolated B1 author worktree now has candidate `8a3d47b` with runtime-role enforcement for selected data, a fixed-output regression, and a scope clarification. Focused offline tests: 60 passed. One independent Astra/high exact-commit reviewer is live at `/tmp/alpha-v11-a4-b1-review-8a3d47b`; acceptance and newer-main reconciliation remain pending. No provider request, forward SHADOW evidence, release rerun, financial/authority/service action or C/J/E/A crossing. **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.

@@ -1,3 +1,7 @@
+## B1 structural checker accepted in scope — 2026-10-02 04:55 UTC
+
+Independent Astra/high exact-commit review of `8a3d47b` finished clean with no remaining P1/P2 in B1 scope. Its three reviewed files were reconciled byte-identically onto newer main (`270c7e6` through `fa13b03`), where the focused suite passed 60/60. This accepts an offline structural proposal checker only. Authentic A2/A3 lineage, A4 runtime/bootstrap proof, A8 qualification, G3-L provider/storage/time evidence and forward SHADOW evidence remain open; no C/J/E/A row or score changes. **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## B1 exact review reopened for data reachability — 2026-10-02 04:52 UTC
 
 Independent exact review of `d7b789c` closed the two parser P2s but found that selected data could use an unreachable `test` role. Candidate `8a3d47b` requires selected data to be `runtime` and passed 60 focused offline tests; independent Astra/high review is active. No B1 acceptance, A4 qualification or C/J/E/A boundary follows yet. **A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
