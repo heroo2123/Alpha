@@ -48,6 +48,7 @@ from tools.v11_gate3_preflight_attempt_model import (
     SyntheticInputs as AttemptSyntheticInputs,
     admit_synthetic as attempt_model_admit_synthetic,
 )
+from tools.v11_gate3_evidence_intake_guard import EvidenceIntakeGuard
 from tools.v11_gate3_evidence_preflight_checker import (
     FROZEN_REQUEST as _ATTEMPT_MODEL_FROZEN_REQUEST,
 )
@@ -1005,13 +1006,16 @@ class GateRuntime:
                  window: AbsoluteWindow, allowed_peer_ips: tuple,
                  manifest_sha256: str, plan: FrozenPlan,
                  expected_plan_sha256: str, report_sink: 'ReportSink',
-                 attempt_model: AttemptModelGuard | None = None):
+                 attempt_model: AttemptModelGuard | None = None,
+                 evidence_intake: EvidenceIntakeGuard | None = None):
         check(type(shared) is SharedLedger and type(session) is SessionLedger and
               type(budget) is DurableBudget and type(store) is VersionedImmutableObjectStore,
               'RUNTIME_COMPOSITION_SHAPE')
         check(isinstance(transport, Transport) and isinstance(clock, Clock) and
               isinstance(resources, ResourceProbe), 'RUNTIME_COMPOSITION_SHAPE')
         check(attempt_model is None or type(attempt_model) is AttemptModelGuard,
+              'RUNTIME_COMPOSITION_SHAPE')
+        check(evidence_intake is None or type(evidence_intake) is EvidenceIntakeGuard,
               'RUNTIME_COMPOSITION_SHAPE')
         check(type(window) is AbsoluteWindow, 'RUNTIME_COMPOSITION_SHAPE')
         check(type(allowed_peer_ips) is tuple and allowed_peer_ips, 'RUNTIME_PEER_IPS')
@@ -1080,6 +1084,7 @@ class GateRuntime:
         self.shared, self.session, self.budget, self.store = shared, session, budget, store
         self.transport, self.clock, self.resources = transport, clock, resources
         self.attempt_model = attempt_model
+        self.evidence_intake = evidence_intake
         self.window = window
         self.allowed_peer_ips = allowed_peer_ips
         self.manifest_sha256 = manifest_sha256
@@ -1485,6 +1490,8 @@ class GateRuntime:
 
         pre = self.clock.evidence('request_start')
         try:
+            if self.evidence_intake is not None:
+                self.evidence_intake.require_admission()
             resolved_dependencies = self._resolve_prerequisites(request)
             self._check_capacity_resources()
             self._enforce_window(pre)
