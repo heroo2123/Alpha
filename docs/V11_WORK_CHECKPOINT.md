@@ -1,5 +1,11 @@
 # Alpha V11 work checkpoint
 
+## A4 R3 exact review integrated offline — 2026-10-02 03:09 UTC
+
+Recovered the live independent Sol/high reviewer rather than duplicating it. Its clean exit-0 outer terminal and hash-bound exact verdict on `95541daed694db55e2e5d1fc460d94404395645b` (tree `a20045e26db8e16ccb3aa74e574e80defb8de7eb`) are **PASS_IN_SCOPE** for the R3 FIFO-alternate refusal only. It independently passed 64 focused tests, 254 adjacent tests and seven standalone probes (the seven repeat within focused), with zero observed Python socket attempts. The report, verdict, terminal, probes, runner and logs are retained as `docs/V11_R09_GATE3_A4_R3_REVIEW_95541da*`.
+
+Reconciled against clean newer main `8688b6b`: the five candidate A4 files were absent, so only those exact files were added, preserving newer main. Candidate code/test/document hashes match the exact verdict. On the integrated main tree, 57 focused and 254 adjacent offline tests passed with zero observed Python socket attempts; main runner and logs are retained beside the review. No broad release rerun is claimed. The next A4 critical path is a separate Astra/high architecture and acceptance design for pre-import/bootstrap and native loader/decoder closure bound to an accepted A2/A3 lock and MEMFS inventory; the current library cannot establish those positive claims. A4 remains **OPEN**, A2/A3 and A8 remain **UNQUALIFIED**, and G3-L remains **NO-GO** with about 1.1 GiB disk free versus the 2 GiB floor. SHADOW and Brain readiness worktrees have no new commissioning evidence; ECMWF `backfill_data/` is preserved. The FINAL-REVIEWED master still matches SHA-256 `a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`. PAPER scanner/controller/execution units are inactive; scanner disabled; protected V11 authority roots absent. No provider request, V10/AxiomTrade or financial action, remote publication, forward SHADOW evidence, or C/J/E/A boundary crossing: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## A4 adjudication completed; R3 repair under independent review — 2026-10-02 03:01 UTC
 
 Completed the previously interrupted independent Astra/high exact review of

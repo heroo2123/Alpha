@@ -1,0 +1,128 @@
+{
+  "a4_verdict": "UNREVIEWED_A4_OPEN",
+  "candidate_file_sha256": {
+    "docs/V11_R09_GATE3_A4_RUNTIME_VERIFICATION_CANDIDATE_20261001.md": "4793281d071278c4d77daa3b9d90999d6810cc57aaae339bd9fb73b9fb7221d7",
+    "tests/test_v11_r09_gate3_a4_review_28dd604.py": "5e409b861fea2707d64c0dcd0b3b51dd915b65f54da87aa7bd2ba89b05661e7f",
+    "tests/test_v11_r09_gate3_a4_verify.py": "5948b1627c4d43b9b8d8a5a4f58a3600a3f9d10d28045ed3115ddcb370a984ab",
+    "tools/v11_r09_gate3_a4_verify.py": "913abee2e25d8aad1e71c8b299cc5f547b74c578fe1b3a5923ddfb40510eb0a4"
+  },
+  "g3l": "NO-GO",
+  "git_version_on_host": "git version 2.43.0",
+  "initial_nonfinal_validation": "Initial isolated Git store lacked refs directory; 26 focused failures and 7 passes. Added refs/heads, then passed 33 focused tests. Final focused suite has 34 passes after alternate refusal test.",
+  "limitations": "Author tests do not provide independent exact-commit acceptance or A2/A3 build provenance, pre-import bootstrap/native-loader proof, real decoder/MEMFS binding, A5 source semantics, or A6 current-run evidence.",
+  "observed_utc": "2026-10-02T00:37:41.981446+00:00",
+  "parent_commit": "28dd60403bdc8e819e64e9dd60be0109669c4960",
+  "parent_tree": "c5dfc479f083a8fdcfa1d897e69a927871a1b9ee",
+  "review_inputs": {
+    "a4_acceptance_sha256": "db298d49301a686711a7d89e7456d95fcd34da8616970fa7f52374b91440aa9d",
+    "previous_ef53d61_review_sha256": "fb9e5894c80df8cad5fda980cba3dc3337465a77bb90a0e019d940f0698c4939",
+    "r1_r2_original_probes_sha256": "50151af5354d5dc6d24a35f6c5088bac2ff58a371ba36c825b9d3f83b6b3b8da",
+    "r1_r2_review_sha256": "199f53ff5714c4c6378e6cc07e3afc1db7c4db4ff831137ec213db6dbc34e359"
+  },
+  "schema": "ALPHA_V11_GATE3_A4_CANDIDATE_TERMINAL_V2",
+  "scope": "Offline local author verification only; no provider request, network endpoint, service, order, or live launch.",
+  "verification": {
+    "focus": {
+      "command": [
+        "/home/alphaadmin/AlphaV11_Dev/venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "--tb=short",
+        "-p",
+        "no:cacheprovider",
+        "--rootdir=.",
+        "--basetemp=/tmp/a4_author_28dd604_final2_focus_20261002",
+        "tests/test_v11_r09_gate3_a4_verify.py"
+      ],
+      "cwd": "/tmp/alpha-v11-gate3-a4-runtime-verification-20261001",
+      "exit_code": 0,
+      "log": "/tmp/a4_author_28dd604_final2_focus_20261002.log",
+      "log_sha256": "53831b4a17e266f52ab9d3417818c1535b92969841e68f9efdc62e273acc9ba0",
+      "tail": [
+        "..................................                                       [100%]",
+        "34 passed in 22.96s"
+      ]
+    },
+    "h1h6": {
+      "command": [
+        "/home/alphaadmin/AlphaV11_Dev/venv/bin/python",
+        "tests/test_v11_r09_gate3_a4_review_28dd604.py",
+        "--adjacent-child",
+        "/tmp/a4_author_28dd604_final_h1h6_20261002",
+        "tests/test_v11_r09_gate3_h1h6.py"
+      ],
+      "cwd": "/tmp/alpha-v11-gate3-a4-runtime-verification-20261001",
+      "exit_code": 0,
+      "log": "/tmp/a4_author_28dd604_final_h1h6_20261002.log",
+      "log_sha256": "498ee628482751ed3e509be2bc57d8683e2bafe30a69462441fa2845c6a162bc",
+      "tail": [
+        ".............................                                            [100%]",
+        "29 passed in 6.97s",
+        "REVIEW_MAX_SINGLE_TEST_ALLOCATED_BYTES=34631680"
+      ]
+    },
+    "review": {
+      "command": [
+        "/home/alphaadmin/AlphaV11_Dev/venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "--tb=short",
+        "-p",
+        "no:cacheprovider",
+        "--rootdir=.",
+        "--basetemp=/tmp/a4_author_28dd604_final_review_20261002",
+        "tests/test_v11_r09_gate3_a4_review_28dd604.py"
+      ],
+      "cwd": "/tmp/alpha-v11-gate3-a4-runtime-verification-20261001",
+      "exit_code": 0,
+      "log": "/tmp/a4_author_28dd604_final_review_20261002.log",
+      "log_sha256": "55f3fbcdca54caf632c6e27e062abc0d85a97dae644adc76a74c060753a131f6",
+      "tail": [
+        "......................                                                   [100%]",
+        "22 passed in 6.64s"
+      ]
+    },
+    "runtime": {
+      "command": [
+        "/home/alphaadmin/AlphaV11_Dev/venv/bin/python",
+        "tests/test_v11_r09_gate3_a4_review_28dd604.py",
+        "--adjacent-child",
+        "/tmp/a4_author_28dd604_final_runtime_20261002",
+        "tests/test_v11_r09_gate3_runtime.py"
+      ],
+      "cwd": "/tmp/alpha-v11-gate3-a4-runtime-verification-20261001",
+      "exit_code": 0,
+      "log": "/tmp/a4_author_28dd604_final_runtime_20261002.log",
+      "log_sha256": "c8428f642c95a11bb64ac81191167ac099036c5a872fc6b950109d1c09507404",
+      "tail": [
+        "........................................................................ [ 66%]",
+        ".....................................                                    [100%]",
+        "109 passed in 11.44s",
+        "REVIEW_MAX_SINGLE_TEST_ALLOCATED_BYTES=67342336"
+      ]
+    },
+    "store": {
+      "command": [
+        "/home/alphaadmin/AlphaV11_Dev/venv/bin/python",
+        "tests/test_v11_r09_gate3_a4_review_28dd604.py",
+        "--adjacent-child",
+        "/tmp/a4_author_28dd604_final_store_20261002",
+        "tests/test_v11_r09_gate3_store_v1.py"
+      ],
+      "cwd": "/tmp/alpha-v11-gate3-a4-runtime-verification-20261001",
+      "exit_code": 0,
+      "log": "/tmp/a4_author_28dd604_final_store_20261002.log",
+      "log_sha256": "907ecebd64383bf78b40f0dfd2f07e36cadf811472207ca70b1749f4aa2a7627",
+      "tail": [
+        "    pid = os.fork()",
+        "",
+        "-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html",
+        "109 passed, 2 warnings in 4.09s",
+        "REVIEW_MAX_SINGLE_TEST_ALLOCATED_BYTES=40960"
+      ]
+    }
+  },
+  "verification_total": "303 passed across five bounded processes; store emits two fork/thread deprecation warnings"
+}

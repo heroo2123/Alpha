@@ -1,0 +1,99 @@
+{
+  "a4_status": "OPEN",
+  "artifact_paths": {
+    "adjacent_log": "/tmp/alpha-v11-gate3-a4-r3-review-95541da-adjacent.log",
+    "author_manifest": "/tmp/a4-r3-coordinator.author.json",
+    "executable_probe_launcher": "/tmp/alpha-v11-gate3-a4-r3-review-95541da-probes.sh",
+    "focused_log": "/tmp/alpha-v11-gate3-a4-r3-review-95541da-focused.log",
+    "independent_probes": "/tmp/alpha-v11-gate3-a4-r3-review-95541da-probes.py",
+    "prior_review_probes": "/home/alphaadmin/AlphaV11_Dev/Alpha/docs/V11_R09_GATE3_A4_REVIEW_6ed21e8-probes.py",
+    "prior_review_report": "/home/alphaadmin/AlphaV11_Dev/Alpha/docs/V11_R09_GATE3_A4_REVIEW_6ed21e8.md",
+    "prior_review_terminal": "/home/alphaadmin/AlphaV11_Dev/Alpha/docs/V11_R09_GATE3_A4_REVIEW_6ed21e8.terminal.json",
+    "probe_log": "/tmp/alpha-v11-gate3-a4-r3-review-95541da-probes.log",
+    "report": "/tmp/alpha-v11-gate3-a4-r3-review-95541da.md",
+    "runner": "/tmp/alpha-v11-gate3-a4-r3-review-95541da-runner.py"
+  },
+  "artifact_sha256": {
+    "adjacent_log": "a53f2639bddb2c308b13710a7a1415cfae73b88dfa5c1a2bb7e3251794ddb333",
+    "author_manifest": "7e773d6be5164c8dbad5fa77a8fef4e39bb42b7482edee00506009fd06cbc294",
+    "executable_probe_launcher": "4b044f615dd1919dd4d4f814a3444e05afdf589ed4cf602df5666304f224fed8",
+    "focused_log": "3cb7deab87f4a005672bb649c6d237a82615a6d0fb53285727072e5864130e6c",
+    "independent_probes": "fa1066f0555635f64e1dbba4ab2aaa48d526eb273598429fd5ab8617b026d90f",
+    "prior_review_probes": "6bd58d9d789fe155b8ac1ae21d30be7af2780aed7c4621725ecb133e3f0d424e",
+    "prior_review_report": "5ea0ba7db15262a6979b5df79bd4370f26828041b1d59a65863298617085b51c",
+    "prior_review_terminal": "565072d02d6fc03101642238142cfdbc06142a8ad0a6d71b4ca920e5b041f11f",
+    "probe_log": "bc8caa94ecbabf97ef47422829f17414c2efea1f60f335033b234b285bcfb825",
+    "report": "85c42c6e0b831661f16f67f238a3cfe87f85a7e3b49dd66687a8cd4f9a7bdebc",
+    "runner": "89fce932012c43fcee4efbd5cf6e032825579e88e5f0b009740b06d7831c61c2"
+  },
+  "candidate": {
+    "changed_file_sha256": {
+      "docs/V11_R09_GATE3_A4_RUNTIME_VERIFICATION_CANDIDATE_20261001.md": "463ee7d74e50b541da57fffc5a2ca92c16df9820633d9952da9ea7e9141762f2",
+      "tests/test_v11_r09_gate3_a4_verify.py": "2e2693222ff44f1e9621fede368ff758035af9e006a5a3538b4939f1f98bc14d",
+      "tools/v11_r09_gate3_a4_verify.py": "3a122d1433231ad789779a1bc85e6e7d4ba5ee39f9b699e5674407974ab57f28"
+    },
+    "changed_paths": [
+      "docs/V11_R09_GATE3_A4_RUNTIME_VERIFICATION_CANDIDATE_20261001.md",
+      "tests/test_v11_r09_gate3_a4_verify.py",
+      "tools/v11_r09_gate3_a4_verify.py"
+    ],
+    "clean_before_and_after": true,
+    "commit": "95541daed694db55e2e5d1fc460d94404395645b",
+    "diff_check_passed": true,
+    "parent": "6ed21e8f451399773142c69c4f1422a4e6c394a5",
+    "tree": "a20045e26db8e16ccb3aa74e574e80defb8de7eb"
+  },
+  "completed_utc": "2026-10-02T03:06:04.508823+00:00",
+  "g3l_status": "NO_GO",
+  "independent_tests": [
+    {
+      "command": "timeout 120 env PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/tmp/alpha-v11-gate3-a4-r3-review-95541da /home/alphaadmin/AlphaV11_Dev/venv/bin/python /tmp/alpha-v11-gate3-a4-r3-review-95541da-runner.py tests/test_v11_r09_gate3_a4_verify.py tests/test_v11_r09_gate3_a4_review_28dd604.py /tmp/alpha-v11-gate3-a4-r3-review-95541da-probes.py",
+      "failed": 0,
+      "log_key": "focused_log",
+      "name": "focused",
+      "passed": 64,
+      "python_socket_audit_attempts": 0
+    },
+    {
+      "command": "timeout 150 env PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/tmp/alpha-v11-gate3-a4-r3-review-95541da /home/alphaadmin/AlphaV11_Dev/venv/bin/python /tmp/alpha-v11-gate3-a4-r3-review-95541da-runner.py tests/test_v11_r09_gate3_h1h6.py tests/test_v11_r09_gate3_runtime.py tests/test_v11_r09_gate3_store_v1.py tests/test_v11_r09_gate3_restart_composition.py",
+      "failed": 0,
+      "log_key": "adjacent_log",
+      "name": "adjacent",
+      "passed": 254,
+      "python_socket_audit_attempts": 0,
+      "warnings": 2
+    },
+    {
+      "command": "/tmp/alpha-v11-gate3-a4-r3-review-95541da-probes.sh",
+      "failed": 0,
+      "log_key": "probe_log",
+      "name": "standalone_probes",
+      "passed": 7,
+      "python_socket_audit_attempts": 0,
+      "repeats_tests_within_focused": true
+    }
+  ],
+  "limitations": [
+    "R3 pass covers tested local alternate file forms and bounded offline verifier behavior.",
+    "Python socket audit is process-local, not a system-wide network trace.",
+    "A4 remains open pending accepted lock/build/bootstrap/native decoder/MEMFS/current-run evidence."
+  ],
+  "r3": "CLOSED_IN_SCOPE",
+  "reviewer": {
+    "effort": "high",
+    "model": "Sol",
+    "role": "sole independent exact-commit reviewer"
+  },
+  "schema": "ALPHA_V11_GATE3_A4_R3_INDEPENDENT_REVIEW_V1",
+  "scope": {
+    "accepted_build_bootstrap_native_decoder_current_run_evidence": false,
+    "cjea_score_crossing": false,
+    "financial_authority": false,
+    "full_release_run": false,
+    "merged": false,
+    "offline_synthetic_only": true,
+    "provider_request": false,
+    "published": false
+  },
+  "verdict": "PASS_IN_SCOPE"
+}

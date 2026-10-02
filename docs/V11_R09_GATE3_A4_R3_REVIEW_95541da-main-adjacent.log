@@ -1,0 +1,15 @@
+........................................................................ [ 28%]
+........................................................................ [ 56%]
+........................................................................ [ 85%]
+......................................                                   [100%]
+=============================== warnings summary ===============================
+tests/test_v11_r09_gate3_store_v1.py::test_repaired_r6_inherited_call_rejects_before_blocking_on_mutex[read]
+tests/test_v11_r09_gate3_store_v1.py::test_repaired_r6_inherited_call_rejects_before_blocking_on_mutex[seal]
+  /home/alphaadmin/AlphaV11_Dev/Alpha/tests/test_v11_r09_gate3_store_v1.py:1050: DeprecationWarning: This process (pid=2081437) is multi-threaded, use of fork() may lead to deadlocks in the child.
+    pid = os.fork()
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+254 passed, 2 warnings in 21.86s
+REVIEW_MAX_SINGLE_TEST_ALLOCATED_BYTES=67338240
+CLOSED_COMPLETED_FIXTURE_FDS=174
+PYTHON_SOCKET_AUDIT_ATTEMPTS=0
