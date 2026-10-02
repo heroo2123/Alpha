@@ -1,3 +1,7 @@
+## Gate 3 repairs finished; exact review handoff prepared — 2026-10-02 23:17 UTC
+
+Completed isolated `976217d` and `741c6ae` with exit-0 author terminals, clean worktrees/diffs, and 563 plain plus 563 optimized fresh-readiness/checker tests and 37 G3-L audit/preparation tests. The [exact-candidate handoff](V11_GATE3_REPAIR_EXACT_REVIEW_HANDOFF_20261002.md) records hashes and reconciliation. New different-model reviews are held for candidate-specific transfer authorization; no merge or provider request occurred. **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Coordinator live-worker recovery — 2026-10-02 23:15 UTC
 
 Both weather repair workers remain live in their original isolated worktrees, with code/tests in progress and clean `git diff --check` output. Neither has a final commit, terminal, or independent PASS. MemAvailable is below 900 MiB, so no third heavy specialist was started. No integration, provider request, capture, SHADOW, or score crossing: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
