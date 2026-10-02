@@ -1,0 +1,65 @@
+{
+  "a4_pass": false,
+  "base_commit": "6235b6d4b2c126e2d1f4f049fe89ad93e2743b9c",
+  "checks": {
+    "active_alpha_worker_on_entry": false,
+    "brain_worktree_clean": true,
+    "controller": "inactive/not-found",
+    "disk_available_bytes_at_recovery": 1140641792,
+    "ecmwf_backfill_untracked_preserved": true,
+    "execution": "inactive/not-found",
+    "main_initially_clean": true,
+    "memory_available_mib_at_recovery": 863,
+    "private_master_sha256": "a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a",
+    "protected_authority_roots": "absent",
+    "scanner": "inactive/disabled",
+    "shadow_worktree_clean": true
+  },
+  "files": {
+    "docs/V11_R09_GATE3_A2A3_RETAINED_AUDIT_20261001.md": {
+      "sha256": "2cb25a65b177b9c1cc098734381d09a97e95c94c2cf82e1216ebbcae0b4bcb23",
+      "size": 5167
+    },
+    "docs/V11_R09_GATE3_A4_BOOTSTRAP_DESIGN_20261002.md": {
+      "sha256": "e891558a5184ea36790e904a41b27eaac328fbe12b5ca3d44c212c261d411223",
+      "size": 16386
+    },
+    "docs/V11_R09_GATE3_A4_R3_REVIEW_95541da.md": {
+      "sha256": "85c42c6e0b831661f16f67f238a3cfe87f85a7e3b49dd66687a8cd4f9a7bdebc",
+      "size": 5469
+    },
+    "docs/V11_R09_GATE3_IDENTITY_ACCEPTANCE_20261001.md": {
+      "sha256": "db298d49301a686711a7d89e7456d95fcd34da8616970fa7f52374b91440aa9d",
+      "size": 16704
+    },
+    "docs/V11_R09_GATE3_MEMFS_STATIC_OBSERVATION_20261001.json": {
+      "sha256": "622a3b8ccced0f43301b2b9273e2094d90ee55153d1045d254641ecb3b44a5d5",
+      "size": 4020820
+    },
+    "docs/V11_R09_GATE3_MEMFS_STATIC_REVIEW_cccc5d0.md": {
+      "sha256": "b5c0edb8216765890b6fa8045650d5f7ed170d55bbf85ac8f485c42890cd6d0c",
+      "size": 5173
+    },
+    "tools/v11_r09_gate3_a4_verify.py": {
+      "sha256": "3a122d1433231ad789779a1bc85e6e7d4ba5ee39f9b699e5674407974ab57f28",
+      "size": 36677
+    },
+    "tools/v11_r09_gate3_a7_decoder.py": {
+      "sha256": "38425ed5a02cdc0067216f513ba6a2bea0de83bc40c20566297c0b071243fb20",
+      "size": 17101
+    },
+    "tools/v11_r09_gate3_a8_composition.py": {
+      "sha256": "7daaa970dbcaf34e6d1bed927f36e575dc54adab0fe33e17670bdf9b340a763f",
+      "size": 24385
+    }
+  },
+  "formal": "1/50",
+  "launchable": false,
+  "next_slice": "Independent exact design review, then B1 closure specification checker only",
+  "observed_utc": "2026-10-02T03:14:12.945787+00:00",
+  "qualification": "UNQUALIFIED",
+  "schema": "ALPHA_V11_A4_BOOTSTRAP_DESIGN_EVIDENCE_V1",
+  "score": "91/200",
+  "status": "PROPOSED_INDEPENDENT_REVIEW_PENDING",
+  "validation": "Document/reference consistency only; no new runtime or release test claim"
+}
