@@ -4068,3 +4068,6 @@ NOT_READY_TO_FUND**.
 ## Gate 3 checker exact-review update — 2026-10-02 11:52 UTC
 
 Exact `7164ca6` received a sealed Astra/high **CHANGES_REQUIRED** review. Four reproduced validation gaps remain; the checker is unmerged and grants no preflight authority. The retained package still refuses with 22 reasons. InventoryTransform SHADOW author is independently active. No new reviewed identity, capture, forward evidence or C/J/E/A boundary: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**. See `V11_R09_GATE3_PREFLIGHT_CHECKER_REVIEW_7164ca6_HANDOFF_20261002.md`.
+## Checker and InventoryTransform SHADOW review gate — 2026-10-02 12:22 UTC
+
+Exact `f88e7e7` checker review is sealed **CHANGES_REQUIRED** for Unicode digest exceptions and malformed replay/reset acceptance. Isolated repair `f643cdd` passes 392 focused offline tests and is under independent exact-commit review; it remains unmerged and cannot authorize a provider request. The real retained package remains refused. InventoryTransform SHADOW candidate `b04cc7b` has a **CHANGES_REQUIRED** malformed-input finding; isolated `2033b82` repair passes 42 focused/adjacent tests and awaits independent review. Neither candidate grants SHADOW admission, capture or transaction qualification. No new reviewed identities or C/J/E/A crossing: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
