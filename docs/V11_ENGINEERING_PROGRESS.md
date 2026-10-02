@@ -1,3 +1,7 @@
+## Coordinator live-worker recovery — 2026-10-02 23:15 UTC
+
+Both weather repair workers remain live in their original isolated worktrees, with code/tests in progress and clean `git diff --check` output. Neither has a final commit, terminal, or independent PASS. MemAvailable is below 900 MiB, so no third heavy specialist was started. No integration, provider request, capture, SHADOW, or score crossing: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## G3-L exact review sealed and repair routed — 2026-10-02 23:07 UTC
 
 Astra/high exact `c9e3b8d` review has an exit-0 terminal with matching report/verdict hashes and `CHANGES_REQUIRED` for two generic drift-check defects. A separate Sonnet/high repair author runs in the clean G3-L audit worktree while the fresh-readiness repair continues. No integration, provider request, capture, SHADOW or score crossing: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.

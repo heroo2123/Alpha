@@ -1,3 +1,7 @@
+## Two Gate 3 repairs remain in progress — 2026-10-02 23:15 UTC
+
+Fresh-readiness F1/F2 and G3-L audit R1/R2 have live, separate repair workers with uncommitted changes and no completion terminals or new independent verdicts. The 77 missing PRE_REVIEW identities and provider holds remain; no acceptance boundary crossed: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## G3-L audit hardening R1/R2 open — 2026-10-02 23:07 UTC
 
 Sealed independent exact review of `c9e3b8d` is `CHANGES_REQUIRED` for malformed/incomplete observation coverage and mismatched observation byte baselines; a Sonnet/high repair is active. The exact committed snapshot remains 77 missing identities, zero qualification, G3-L NO-GO. Fresh-readiness `947bf68` is also under separate F1/F2 repair after its failed review. Neither is merged or changes C/J/E/A acceptance: **91/200, formal 1/50; NOT_READY_TO_FUND**.
