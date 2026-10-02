@@ -652,6 +652,45 @@ def test_refuses_absurdly_large_finite_clock_uncertainty_without_crashing(huge_u
     assert "CLOCK_UNCERTAINTY_MARGIN_OVERFLOW" in result.refusal_reasons
 
 
+@pytest.mark.parametrize("measured,uncertainty,reason", [
+    ("2026-10-02T10:00:00Z", 1e-12, "CLOCK_BEFORE_WINDOW_START"),
+    ("2026-10-02T10:00:00Z", 1e-7, "CLOCK_BEFORE_WINDOW_START"),
+    ("2026-10-02T10:00:00.300000Z", 0.3000004, "CLOCK_BEFORE_WINDOW_START"),
+    ("2026-10-02T10:00:00.000001Z", 1.01e-6, "CLOCK_BEFORE_WINDOW_START"),
+    ("2026-10-02T13:29:59.999999Z", 1e-12, "EXPIRED_WINDOW"),
+    ("2026-10-02T13:29:59.999999Z", 1e-6, "EXPIRED_WINDOW"),
+])
+def test_fractional_microsecond_uncertainty_never_rounds_inward(measured, uncertainty, reason):
+    clock = dataclasses.replace(GOOD_CLOCK, measured_utc=measured,
+                                uncertainty_seconds=uncertainty)
+    result = _run(*_synthetic_fixture(), clock=clock)
+    assert result.outcome == OUTCOME_REFUSED
+    assert reason in result.refusal_reasons
+
+
+@pytest.mark.parametrize("measured,uncertainty", [
+    ("2026-10-02T10:00:00.000001Z", 1e-12),
+    ("2026-10-02T13:29:59.999998Z", 1e-12),
+    ("2026-10-02T10:05:00Z", 0.3),
+])
+def test_clock_interval_safely_inside_window_remains_satisfied(measured, uncertainty):
+    clock = dataclasses.replace(GOOD_CLOCK, measured_utc=measured,
+                                uncertainty_seconds=uncertainty)
+    assert _run(*_synthetic_fixture(), clock=clock).outcome == OUTCOME_SATISFIED
+
+
+@pytest.mark.parametrize("measured", [
+    "2026-10-02T10:00:00.0000001Z",
+    "2026-10-02T13:29:59.9999999Z",
+    "2026-10-02T10:00:00+00:00:00.0000001",
+])
+def test_clock_refuses_timestamp_precision_it_cannot_represent(measured):
+    clock = dataclasses.replace(GOOD_CLOCK, measured_utc=measured)
+    result = _run(*_synthetic_fixture(), clock=clock)
+    assert result.outcome == OUTCOME_REFUSED
+    assert "UNPARSEABLE_CLOCK" in result.refusal_reasons
+
+
 def test_refuses_nonmonotonic_clock():
     package_raw, restrictions_raw, protocol_raw, binding_raw = _synthetic_fixture()
     stepping_clock = ClockObservation("2026-10-02T10:05:00Z", 0.3, 10.0, False)

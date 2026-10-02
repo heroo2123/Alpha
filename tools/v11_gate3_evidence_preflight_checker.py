@@ -16,6 +16,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+from fractions import Fraction
+import re
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Any, Mapping, Optional, Sequence
@@ -349,6 +351,11 @@ def _is_ref_list(v: Any, keys: frozenset, max_len: int = MAX_ARRAY) -> bool:
 def _parse_utc(v: Any) -> Optional[datetime]:
     if not _is_bounded_str(v):
         return None
+    # fromisoformat silently truncates sub-microsecond timestamp digits.
+    # Reject that unsupported precision rather than narrowing a dispatch
+    # interval at either window boundary (including fractional offsets).
+    if re.search(r"[.,]\d{7,}", v):
+        return None
     try:
         parsed = datetime.fromisoformat(v.replace("Z", "+00:00"))
     except ValueError:
@@ -611,15 +618,17 @@ def _check_clock(obj: Mapping, clock: ClockObservation, reasons: list) -> bool:
         # Fold the clock's own stated uncertainty into the bound check: the
         # true time could be anywhere in [measured-u, measured+u], so the
         # window must hold for the whole interval, not just the point value.
-        # A non-finite/invalid uncertainty is already refused above via
-        # INVALID_CLOCK_UNCERTAINTY; use a zero margin rather than feeding a
-        # NaN/infinite value into timedelta (which would raise). A finite but
-        # absurdly large uncertainty is already refused via
-        # EXCESSIVE_CLOCK_UNCERTAINTY but can still overflow datetime
-        # arithmetic (timedelta/datetime only span a few thousand years), so
-        # that arithmetic is bounded by an explicit refusal, never a raise.
+        # timedelta(seconds=float) rounds to microseconds and can round
+        # *inward*, accepting an interval that begins just before the window.
+        # Convert the exact represented numeric value to microseconds and
+        # round *outward* to the next supported timestamp tick. This can
+        # conservatively refuse a sub-microsecond-safe edge; it cannot erase
+        # stated uncertainty. Invalid values use zero here because they are
+        # already refused above. Oversized values retain an explicit refusal.
         try:
-            margin = timedelta(seconds=clock.uncertainty_seconds if uncertainty_valid else 0.0)
+            ticks = Fraction(clock.uncertainty_seconds if uncertainty_valid else 0) * 1_000_000
+            rounded_up_us = (ticks.numerator + ticks.denominator - 1) // ticks.denominator
+            margin = timedelta(microseconds=rounded_up_us)
             before_window = measured - margin < lower
             after_window = measured + margin >= upper
         except OverflowError:
