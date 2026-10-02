@@ -1,0 +1,429 @@
+{
+  "a4": "OPEN",
+  "acceptance_criteria": {
+    "path": "/tmp/alpha-v11-gate3-a4-review-28dd604/docs/V11_R09_GATE3_IDENTITY_ACCEPTANCE_20261001.md",
+    "sha256": "db298d49301a686711a7d89e7456d95fcd34da8616970fa7f52374b91440aa9d"
+  },
+  "author_evidence": {
+    "all_claimed_file_hashes_match": true,
+    "all_claimed_log_hashes_match": true,
+    "interpretation": "Retained shared-directory log reports 26 REPORT_RESERVE_UNAVAILABLE failures and 551 passes. The resource explanation is consistent with that log and fresh-space reruns, but no clean shared-directory result is claimed.",
+    "logs": {
+      "a4_module": {
+        "exit_code": 0,
+        "log_path": "/tmp/a4_repair_module_test.log",
+        "log_sha256": "41f38be1b095c72b37e890f3a2736a9c173eecd21a1fd47311cec4ffde123757",
+        "observed_sha256": "41f38be1b095c72b37e890f3a2736a9c173eecd21a1fd47311cec4ffde123757",
+        "result": "27 passed"
+      },
+      "file_by_file_family": {
+        "exit_code": 0,
+        "log_path": "/tmp/a4_repair_gate3_batched.log",
+        "log_sha256": "e250248b3386a9a24747dbc630f9ddfb118d62b3e0777b4e0d8a865476f5ff6c",
+        "observed_sha256": "e250248b3386a9a24747dbc630f9ddfb118d62b3e0777b4e0d8a865476f5ff6c",
+        "result": "578 passed across 12 files; 0 failing files"
+      },
+      "runtime_with_fresh_space": {
+        "exit_code": 0,
+        "log_path": "/tmp/a4_repair_runtime_test.log",
+        "log_sha256": "8ada1bc9a450802c6815d088aaabc692fc573911920f1004d2d7bd5749e5ce17",
+        "observed_sha256": "8ada1bc9a450802c6815d088aaabc692fc573911920f1004d2d7bd5749e5ce17",
+        "result": "109 passed"
+      },
+      "shared_directory_family": {
+        "exit_code": 1,
+        "log_path": "/tmp/a4_repair_gate3_family_test.log",
+        "log_sha256": "54da3981b60d1b90fe8e5dbbfd01e9de13c74a01fcfe79cf0582f872e8e417b5",
+        "observed_sha256": "54da3981b60d1b90fe8e5dbbfd01e9de13c74a01fcfe79cf0582f872e8e417b5",
+        "result": "551 passed, 26 failed due to REPORT_RESERVE_UNAVAILABLE after disk exhaustion"
+      }
+    },
+    "shared_directory_clean_pass": false
+  },
+  "base_commit": "ef53d61174e7c23e58ddf879d94918c0eafd58e1",
+  "candidate_commit": "28dd60403bdc8e819e64e9dd60be0109669c4960",
+  "candidate_file_identities": {
+    "docs/V11_R09_GATE3_A4_RUNTIME_VERIFICATION_CANDIDATE_20261001.md": {
+      "sha256": "f58e9a2bce920060c6948dcc3da45cf66ae3d3fedca6bf715d056011607ee527",
+      "size": 7019
+    },
+    "tests/test_v11_r09_gate3_a4_verify.py": {
+      "sha256": "6d9fa19da0236d44be2f819878e416e7fc8cbf7aadc1fb94a51be5807f99dac0",
+      "size": 18946
+    },
+    "tools/v11_r09_gate3_a4_verify.py": {
+      "sha256": "7e81adec799bba4a66e4cfa734f31a415b2fe9c2893d4f8a962a252b19670faa",
+      "size": 33210
+    }
+  },
+  "candidate_modified": false,
+  "candidate_terminal": {
+    "path": "/tmp/alpha-v11-gate3-a4-review-28dd604/docs/V11_R09_GATE3_A4_RUNTIME_VERIFICATION_CANDIDATE_20261001_terminal.json",
+    "sha256": "9d1992ac468789df6fb4f6821c3e9f45ea445b8649c2fd2a1a3cf390f3d7af79"
+  },
+  "candidate_tree": "c5dfc479f083a8fdcfa1d897e69a927871a1b9ee",
+  "candidate_worktree": "/tmp/alpha-v11-gate3-a4-review-28dd604",
+  "detached": true,
+  "final_git_checks": {
+    "detached": true,
+    "diff_check_exit": 0,
+    "head": "28dd60403bdc8e819e64e9dd60be0109669c4960",
+    "status": "",
+    "tree": "c5dfc479f083a8fdcfa1d897e69a927871a1b9ee"
+  },
+  "findings": [
+    {
+      "id": "R1",
+      "lines": [
+        35,
+        37,
+        70,
+        81,
+        299
+      ],
+      "observed": "GIT_IDENTITY_UNAVAILABLE raised, but temporary marker already created by unpinned /usr/bin/touch through Git ext transport.",
+      "path": "tools/v11_r09_gate3_a4_verify.py",
+      "priority": "P1",
+      "probe": "test_gap_git_local_promisor_executes_unlocked_helper",
+      "required_change": "Ensure Git object queries cannot fetch, consult attacker-controlled transport configuration, or launch unverified helpers before refusal. Missing commit/tree/blob must refuse without side effects. Use a reviewed isolated object/config boundary and/or enforced helper/network confinement; regression-test the exact local promisor probe.",
+      "title": "Repository-local Git promisor config executes unpinned helper before refusal"
+    },
+    {
+      "id": "R2",
+      "lines": [
+        321,
+        323,
+        500,
+        516,
+        555,
+        569,
+        623,
+        637
+      ],
+      "observed": "After open_verified, add fileless pkg.ghost with an unpinned function; check_all and run accept, locked from pkg import ghost calls it and returns 616.",
+      "path": "tools/v11_r09_gate3_a4_verify.py",
+      "priority": "P3",
+      "probe": "test_gap_late_host_submodule_fallback",
+      "required_change": "Validate or scrub host namespace in the forked child before locked execution and make unresolved from-imports refuse before CPython can consult host sys.modules. Rechecking only Python paths is insufficient.",
+      "title": "Post-open fileless host submodule bypasses one-time collision guard"
+    }
+  ],
+  "g3l": "NO-GO",
+  "harness_notes": [
+    "Initial bootstrap same-byte unlink/recreate control did not refuse; replacement was made deterministic by retaining the old inode. Final changed-byte, distinct-inode replacement, addition, and removal controls pass. This is not evidence of a changed-byte bootstrap execution bypass.",
+    "Initial cleanup removed numbered tmp_path directories, permitting pytest to reuse paths cached by the runtime test helper. This caused 18 SHARED_LEDGER_LINEAGE_HEAD_MISMATCH failures. Retaining empty numbered directories fixed the review harness; all 29 h1h6 tests and remaining files passed. Initial output retained under review_harness_initial_failures.",
+    "Default sandbox wrapper failed before command execution with bwrap loopback RTM_NEWADDR Operation not permitted. Local commands ran with approved sandbox override as uid 1000, without root or service authority."
+  ],
+  "main_modified_by_review": false,
+  "observed_utc": "2026-10-02T00:22:44.415690+00:00",
+  "prior_findings": {
+    "F1": "Original refusal repaired and reproduced in a fresh interpreter; relies on independent run identity/path and protected durable record custody.",
+    "F2": "Original blob replacement and inherited GIT_* spoofing repaired; commit replacement ignored. Adjacent repository-local config execution remains R1.",
+    "F3": "Canonical bytes, nested/top duplicate keys, BOM/whitespace, NaN/Infinity/-Infinity refuse.",
+    "F4": "Loaded Python path/device/inode/content set detects tested changes; remains after-load file evidence, not in-memory/pre-import qualification.",
+    "F5": "Original metadata probe repaired; 24 listed metadata and cross-process syscall probes return EPERM. Focused restriction only.",
+    "F6": "Construction-time host collisions refuse; late fileless host collision remains R2."
+  },
+  "prior_review": {
+    "location_note": "Absent from candidate tree; read from main worktree without modification. Report and probe hashes verified against its terminal.",
+    "path": "/home/alphaadmin/AlphaV11_Dev/Alpha/docs/V11_R09_GATE3_A4_REVIEW_ef53d61.md",
+    "probes_path": "/home/alphaadmin/AlphaV11_Dev/Alpha/docs/V11_R09_GATE3_A4_REVIEW_ef53d61_probes.py",
+    "probes_sha256": "3eaf57771d040373ed16f62aaf01f14e00e8c92df7ef9765513307af8b2b43cf",
+    "sha256": "fb9e5894c80df8cad5fda980cba3dc3337465a77bb90a0e019d940f0698c4939",
+    "terminal_path": "/home/alphaadmin/AlphaV11_Dev/Alpha/docs/V11_R09_GATE3_A4_REVIEW_ef53d61_terminal.json",
+    "terminal_sha256": "30e360b424330f688a87cf80461e8523e67d9c3f27265649d44c6f2d799fc236"
+  },
+  "probes": {
+    "path": "/tmp/alpha-v11-gate3-a4-review-28dd604-probes.py",
+    "sha256": "50151af5354d5dc6d24a35f6c5088bac2ff58a371ba36c825b9d3f83b6b3b8da",
+    "size": 10947
+  },
+  "remaining_prerequisites": {
+    "A2": "Authenticated original artifact provenance, exact build recipe/toolchain/options/patches/platform/ABI, and individual accepted explanations for all 25 eckitlib.libs RECORD discrepancies tied to loaded payloads.",
+    "A3": "Accepted complete reproducible lock, separately reconstructed unprivileged from pinned artifacts; interpreter/Python wrappers/transitives/CFFI/NumPy as used, native loader/dependency closure, definitions/samples, environment/search rules, all source/output hashes; separately reviewed translator to this candidate schema.",
+    "A4": "Reviewed exact entrypoint and transitive executable commit/tree/SHA256; verification before all import/dlopen/constructors/decode including bootstrap and Git helper closure; actual mappings and ecCodes definition/sample/MEMFS selection bound through use to accepted A2/A3/static bytes; immutable snapshots or reviewed race prevention; required refusal matrix; durable independently identified run/build custody. No native decode or such loader integration is implemented here.",
+    "A5": "Retained original operational release/provenance/access/licence/restriction evidence separately for GEFS/IFS/AIFS, effective intervals and exact model/member/control/purpose/grid/packing/GRIB semantic pins checked against real retained headers and range evidence.",
+    "A6": "Genuine current-run readiness within frozen age rule; exact index/row/object size/ETag/range identity; independently frozen section hashes; separate request-start/body-receipt/decode-complete/durable-seal bounds. Missing current-run evidence stays null; no network exception inferred.",
+    "launch": "A7 realistic decoder/resource evidence and A8 concrete composition plus remaining inventory, PRE_REVIEW, independent exact canonical G3-L review/terminal and FINAL remain separate. G3-L NO-GO.",
+    "repair": "Resolve R1 and R2; fresh independent exact-commit re-review before accepting repaired offline component."
+  },
+  "report": {
+    "path": "/tmp/alpha-v11-gate3-a4-review-28dd604.md",
+    "sha256": "199f53ff5714c4c6378e6cc07e3afc1db7c4db4ff831137ec213db6dbc34e359",
+    "size": 14263
+  },
+  "resource_policy": {
+    "free_disk_at_completion_bytes": 1543925760,
+    "maximum_observed_single_test_allocated_bytes": 67342336,
+    "no_large_native_or_provider_fixtures": true,
+    "per_process_timeout_seconds": 90,
+    "review_floor_before_each_adjacent_file_bytes": 402653184,
+    "temporary_directories": "Unique /tmp/a4-28dd604-* directories, automatically removed; no existing scratch or A7 artifacts removed. Fresh basetemp for each process. Adjacent tmp_path contents removed after full fixture teardown, retaining empty directories to preserve numbering."
+  },
+  "reviewer": {
+    "author_model": "Sol",
+    "model": "Astra",
+    "reasoning_effort": "high",
+    "role": "independent exact-commit reviewer"
+  },
+  "schema": "ALPHA_V11_GATE3_A4_INDEPENDENT_REPAIR_REVIEW_V1",
+  "scope": {
+    "a7_lane_artifacts_touched": false,
+    "credential_access": false,
+    "financial_action": false,
+    "git_helper_probe": "Local ext::/usr/bin/touch of a temporary marker only; no network endpoint.",
+    "merge_or_push": false,
+    "network_or_provider_request": false,
+    "offline_only": true,
+    "root_authority": false,
+    "services": false,
+    "v10_or_axiomtrade_action": false
+  },
+  "status": "COMPLETE",
+  "test_summary": {
+    "adjacent_counts": {
+      "tests/test_v11_r09_gate3_collector.py": 49,
+      "tests/test_v11_r09_gate3_g3l_prep.py": 16,
+      "tests/test_v11_r09_gate3_h1h6.py": 29,
+      "tests/test_v11_r09_gate3_launch.py": 71,
+      "tests/test_v11_r09_gate3_launch_v4.py": 58,
+      "tests/test_v11_r09_gate3_ledgers.py": 52,
+      "tests/test_v11_r09_gate3_message_sizes.py": 3,
+      "tests/test_v11_r09_gate3_offline_io.py": 48,
+      "tests/test_v11_r09_gate3_restart_composition.py": 7,
+      "tests/test_v11_r09_gate3_runtime.py": 109,
+      "tests/test_v11_r09_gate3_store_v1.py": 109
+    },
+    "bounded_adjacent_passed": 551,
+    "candidate_focused_passed": 27,
+    "independent_controls_passed": 20,
+    "independent_gap_reproductions": 2,
+    "shared_directory_family_run": false,
+    "store_warnings": 2,
+    "total_candidate_family_passed": 578
+  },
+  "tests": {
+    "bounded_adjacent": {
+      "tests/test_v11_r09_gate3_collector.py": {
+        "command": [
+          "/home/alphaadmin/AlphaV11_Dev/venv/bin/python",
+          "/tmp/alpha-v11-gate3-a4-review-28dd604-probes.py",
+          "--adjacent-child",
+          "/tmp/a4-28dd604-adjacent-oa7qi7gp/pytest",
+          "tests/test_v11_r09_gate3_collector.py"
+        ],
+        "exit_code": 0,
+        "output": ".................................................                        [100%]\n49 passed in 0.84s\nREVIEW_MAX_SINGLE_TEST_ALLOCATED_BYTES=0\n",
+        "output_sha256": "c4d1997d0b2ceaf6bebdd5deaff1d68339f4b4b006c24a31be19be4d494d35d9",
+        "seconds": 1.5947096347808838
+      },
+      "tests/test_v11_r09_gate3_g3l_prep.py": {
+        "command": [
+          "/home/alphaadmin/AlphaV11_Dev/venv/bin/python",
+          "/tmp/alpha-v11-gate3-a4-review-28dd604-probes.py",
+          "--adjacent-child",
+          "/tmp/a4-28dd604-adjacent-8pjgmhvh/pytest",
+          "tests/test_v11_r09_gate3_g3l_prep.py"
+        ],
+        "exit_code": 0,
+        "output": "................                                                         [100%]\n16 passed in 0.97s\nREVIEW_MAX_SINGLE_TEST_ALLOCATED_BYTES=45056\n",
+        "output_sha256": "4f5cee76b2de7056459477def068ebde1348f52d7988708e9107a1640b4e766d",
+        "seconds": 1.5806286334991455
+      },
+      "tests/test_v11_r09_gate3_h1h6.py": {
+        "command": [
+          "/home/alphaadmin/AlphaV11_Dev/venv/bin/python",
+          "/tmp/alpha-v11-gate3-a4-review-28dd604-probes.py",
+          "--adjacent-child",
+          "/tmp/a4-28dd604-adjacent-oo4_eevg/pytest",
+          "tests/test_v11_r09_gate3_h1h6.py"
+        ],
+        "exit_code": 0,
+        "output": ".............................                                            [100%]\n29 passed in 4.19s\nREVIEW_MAX_SINGLE_TEST_ALLOCATED_BYTES=34631680\n",
+        "output_sha256": "ffca6a496459c39c4c40201b9b35bfdf7921f3e783be3a0b0a9c931d9751056e",
+        "seconds": 4.537206172943115
+      },
+      "tests/test_v11_r09_gate3_launch.py": {
+        "command": [
+          "/home/alphaadmin/AlphaV11_Dev/venv/bin/python",
+          "/tmp/alpha-v11-gate3-a4-review-28dd604-probes.py",
+          "--adjacent-child",
+          "/tmp/a4-28dd604-adjacent-tp3tofz8/pytest",
+          "tests/test_v11_r09_gate3_launch.py"
+        ],
+        "exit_code": 0,
+        "output": ".......................................................................  [100%]\n71 passed in 5.55s\nREVIEW_MAX_SINGLE_TEST_ALLOCATED_BYTES=528384\n",
+        "output_sha256": "e709fd1655d8ede63cb0794d2b8b5f556f0ffe557b2a48ae4dd97898dee5894e",
+        "seconds": 5.839874267578125
+      },
+      "tests/test_v11_r09_gate3_launch_v4.py": {
+        "command": [
+          "/home/alphaadmin/AlphaV11_Dev/venv/bin/python",
+          "/tmp/alpha-v11-gate3-a4-review-28dd604-probes.py",
+          "--adjacent-child",
+          "/tmp/a4-28dd604-adjacent-rczm3a9b/pytest",
+          "tests/test_v11_r09_gate3_launch_v4.py"
+        ],
+        "exit_code": 0,
+        "output": "..........................................................               [100%]\n58 passed in 7.81s\nREVIEW_MAX_SINGLE_TEST_ALLOCATED_BYTES=962560\n",
+        "output_sha256": "66fed7aa676903efe51a199e3058b551646a71010775aba074dc3d4cefb833a0",
+        "seconds": 8.436481714248657
+      },
+      "tests/test_v11_r09_gate3_ledgers.py": {
+        "command": [
+          "/home/alphaadmin/AlphaV11_Dev/venv/bin/python",
+          "/tmp/alpha-v11-gate3-a4-review-28dd604-probes.py",
+          "--adjacent-child",
+          "/tmp/a4-28dd604-adjacent-oozdc56v/pytest",
+          "tests/test_v11_r09_gate3_ledgers.py"
+        ],
+        "exit_code": 0,
+        "output": "....................................................                     [100%]\n52 passed in 0.96s\nREVIEW_MAX_SINGLE_TEST_ALLOCATED_BYTES=12288\n",
+        "output_sha256": "a62ff1bddaad987bbeca4902eba6d0c9ea6d4e35084041d557ac72a01bf97131",
+        "seconds": 1.6279215812683105
+      },
+      "tests/test_v11_r09_gate3_message_sizes.py": {
+        "command": [
+          "/home/alphaadmin/AlphaV11_Dev/venv/bin/python",
+          "/tmp/alpha-v11-gate3-a4-review-28dd604-probes.py",
+          "--adjacent-child",
+          "/tmp/a4-28dd604-adjacent-pootr4zh/pytest",
+          "tests/test_v11_r09_gate3_message_sizes.py"
+        ],
+        "exit_code": 0,
+        "output": "...                                                                      [100%]\n3 passed in 0.39s\nREVIEW_MAX_SINGLE_TEST_ALLOCATED_BYTES=28672\n",
+        "output_sha256": "5f2bd0bddc7dcb34ddd78db9f0f2ae8fea431cc5a31893efdc7408acecfa06c3",
+        "seconds": 1.016495704650879
+      },
+      "tests/test_v11_r09_gate3_offline_io.py": {
+        "command": [
+          "/home/alphaadmin/AlphaV11_Dev/venv/bin/python",
+          "/tmp/alpha-v11-gate3-a4-review-28dd604-probes.py",
+          "--adjacent-child",
+          "/tmp/a4-28dd604-adjacent-hxmbsagz/pytest",
+          "tests/test_v11_r09_gate3_offline_io.py"
+        ],
+        "exit_code": 0,
+        "output": "................................................                         [100%]\n48 passed in 1.60s\nREVIEW_MAX_SINGLE_TEST_ALLOCATED_BYTES=20480\n",
+        "output_sha256": "7a5e8789b258218dad47cbc87fe0a83c9f472ec0630b203a9e0e21bce4c4dff6",
+        "seconds": 2.2736740112304688
+      },
+      "tests/test_v11_r09_gate3_restart_composition.py": {
+        "command": [
+          "/home/alphaadmin/AlphaV11_Dev/venv/bin/python",
+          "/tmp/alpha-v11-gate3-a4-review-28dd604-probes.py",
+          "--adjacent-child",
+          "/tmp/a4-28dd604-adjacent-13lalp7q/pytest",
+          "tests/test_v11_r09_gate3_restart_composition.py"
+        ],
+        "exit_code": 0,
+        "output": ".......                                                                  [100%]\n7 passed in 0.77s\nREVIEW_MAX_SINGLE_TEST_ALLOCATED_BYTES=36864\n",
+        "output_sha256": "8cff57e0eeaa5d123ef3512a03dc8782f97e3358988ab1d4b76662b15b9c1842",
+        "seconds": 1.3077762126922607
+      },
+      "tests/test_v11_r09_gate3_runtime.py": {
+        "command": [
+          "/home/alphaadmin/AlphaV11_Dev/venv/bin/python",
+          "/tmp/alpha-v11-gate3-a4-review-28dd604-probes.py",
+          "--adjacent-child",
+          "/tmp/a4-28dd604-adjacent-yw1nqj3f/pytest",
+          "tests/test_v11_r09_gate3_runtime.py"
+        ],
+        "exit_code": 0,
+        "output": "........................................................................ [ 66%]\n.....................................                                    [100%]\n109 passed in 19.98s\nREVIEW_MAX_SINGLE_TEST_ALLOCATED_BYTES=67342336\n",
+        "output_sha256": "681e80f304a6a7bdc848b26c7b7e1512dc4e74de7812330d72614b0e1f4fa8fe",
+        "seconds": 21.429901599884033
+      },
+      "tests/test_v11_r09_gate3_store_v1.py": {
+        "command": [
+          "/home/alphaadmin/AlphaV11_Dev/venv/bin/python",
+          "/tmp/alpha-v11-gate3-a4-review-28dd604-probes.py",
+          "--adjacent-child",
+          "/tmp/a4-28dd604-adjacent-zywb3036/pytest",
+          "tests/test_v11_r09_gate3_store_v1.py"
+        ],
+        "exit_code": 0,
+        "output": "........................................................................ [ 66%]\n.....................................                                    [100%]\n=============================== warnings summary ===============================\ntests/test_v11_r09_gate3_store_v1.py::test_repaired_r6_inherited_call_rejects_before_blocking_on_mutex[read]\ntests/test_v11_r09_gate3_store_v1.py::test_repaired_r6_inherited_call_rejects_before_blocking_on_mutex[seal]\n  /tmp/alpha-v11-gate3-a4-review-28dd604/tests/test_v11_r09_gate3_store_v1.py:1050: DeprecationWarning: This process (pid=1991642) is multi-threaded, use of fork() may lead to deadlocks in the child.\n    pid = os.fork()\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n109 passed, 2 warnings in 6.72s\nREVIEW_MAX_SINGLE_TEST_ALLOCATED_BYTES=40960\n",
+        "output_sha256": "6ee2a27e4d507fa2c8736c1d58395d7512fefd982530a856b2f7211ab50df8fe",
+        "seconds": 7.904767036437988
+      }
+    },
+    "focused": {
+      "command": [
+        "/home/alphaadmin/AlphaV11_Dev/venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "--rootdir=.",
+        "--basetemp=/tmp/a4-28dd604-focused-qezjyxoo/pytest",
+        "tests/test_v11_r09_gate3_a4_verify.py"
+      ],
+      "exit_code": 0,
+      "output": "...........................                                              [100%]\n27 passed in 15.55s\n",
+      "output_sha256": "91b0f1d6e43a5866609ac67d28457f4b3ee5f5387c3d512e1d0b164c54167440",
+      "seconds": 15.86075735092163
+    },
+    "independent_probes_final": {
+      "command": [
+        "/home/alphaadmin/AlphaV11_Dev/venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "--rootdir=.",
+        "--basetemp=/tmp/a4-28dd604-finalprobes-fu_zm51l/pytest",
+        "/tmp/alpha-v11-gate3-a4-review-28dd604-probes.py"
+      ],
+      "controls_passed": 20,
+      "environment_additions": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONPATH": "/tmp/alpha-v11-gate3-a4-review-28dd604"
+      },
+      "exit_code": 0,
+      "gap_reproductions_passed": 2,
+      "output": "......................                                                   [100%]\n22 passed in 22.15s\n",
+      "output_sha256": "d90a742d8ba0223eb1b6221e488518e369498cea9fc0e43ee619c0664935634d",
+      "probe_sha256": "50151af5354d5dc6d24a35f6c5088bac2ff58a371ba36c825b9d3f83b6b3b8da",
+      "seconds": 23.63713026046753
+    },
+    "independent_probes_initial": {
+      "command": [
+        "/home/alphaadmin/AlphaV11_Dev/venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "--rootdir=.",
+        "--basetemp=/tmp/a4-28dd604-probes-om_10pby/pytest",
+        "/tmp/alpha-v11-gate3-a4-review-28dd604-probes.py"
+      ],
+      "environment_additions": {
+        "PYTHONPATH": "/tmp/alpha-v11-gate3-a4-review-28dd604"
+      },
+      "exit_code": 1,
+      "output": "..............F.......                                                   [100%]\n=================================== FAILURES ===================================\n__________________ test_python_bootstrap_changes[replacement] __________________\n\nsource = PosixPath('/tmp/a4-28dd604-probes-om_10pby/pytest/test_python_bootstrap_changes_1/source')\ntmp_path = PosixPath('/tmp/a4-28dd604-probes-om_10pby/pytest/test_python_bootstrap_changes_1')\ncase = 'replacement'\n\n    @pytest.mark.parametrize('case', ['changed', 'replacement', 'added', 'removed'])\n    def test_python_bootstrap_changes(source, tmp_path, case):\n        name = 'a4_independent_bootstrap'\n        p = tmp_path / (name + '.py')\n        p.write_text('VALUE=1\\n')\n        sys.path.insert(0, str(tmp_path))\n        try:\n            if case != 'added': importlib.import_module(name)\n            path, pin = _write_lock(source)\n            with v.open_verified(path, expected_lock_sha256=pin) as s:\n                if case == 'changed': p.write_text('VALUE=2\\n')\n                elif case == 'replacement': p.unlink(); p.write_text('VALUE=1\\n')\n                elif case == 'added': importlib.import_module(name)\n                else: sys.modules.pop(name)\n>               with pytest.raises(v.VerificationError, match='BOOTSTRAP_FILES_CHANGED'):\nE               Failed: DID NOT RAISE <class 'tools.v11_r09_gate3_a4_verify.VerificationError'>\n\n../alpha-v11-gate3-a4-review-28dd604-probes.py:132: Failed\n=========================== short test summary info ============================\nFAILED ::test_python_bootstrap_changes[replacement] - Failed: DID NOT RAISE <...\n1 failed, 21 passed in 13.26s\n",
+      "output_sha256": "7a338b4de08261cc5c21cab2cee0add42e54e40081e03bcf94d5012be2f71cdb",
+      "seconds": 13.83493685722351
+    },
+    "review_harness_initial_failures": {
+      "tests/test_v11_r09_gate3_h1h6.py": {
+        "command": [
+          "/home/alphaadmin/AlphaV11_Dev/venv/bin/python",
+          "/tmp/alpha-v11-gate3-a4-review-28dd604-probes.py",
+          "--adjacent-child",
+          "/tmp/a4-28dd604-adjacent-cf5kwm6d/pytest",
+          "tests/test_v11_r09_gate3_h1h6.py"
+        ],
+        "exit_code": 1,
+        "output": ".....FFFF...FFFFFFFFFFFFFF...                                            [100%]\n=================================== FAILURES ===================================\n____ test_h2_error_paths_retain_eager_bytes_and_restrictions[clock_raises] _____\n\ntmp_path = PosixPath('/tmp/a4-28dd604-adjacent-cf5kwm6d/pytest/test_h2_error_paths_retain_eag0')\nmonkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7629a7ca9670>\nmode = 'clock_raises'\n\n    @pytest.mark.parametrize('mode', ['clock_nan', 'clock_raises', 'clock_bad_digest',\n                                      'duplicate_retry', 'denial_write'])\n    def test_h2_error_paths_retain_eager_bytes_and_restrictions(tmp_path, monkeypatch, mode):\n        f._dirs(tmp_path)\n        clock = f._clock()\n        headers = (('Retry-After', '1200'),)\n        status = 503\n        if mode == 'duplicate_retry':\n            status = 200\n            headers += (('Retry-After', '1300'),)\n        response = f._ok_response(b'abcd', status=status, headers=headers)\n        class TransportWithFault(SyntheticTransport):\n            def dispatch(self, request, **kwargs):\n                result = super().dispatch(request, **kwargs)\n                if mode == 'clock_nan':\n                    clock.set(utc=float('nan'))\n                if mode == 'clock_raises':\n                    def broken(phase):\n                        raise LaunchContractError('INJECTED_CLOCK_UNAVAILABLE')\n                    monkeypatch.setattr(clock, 'evidence', broken)\n                if mode == 'clock_bad_digest':\n                    original = clock.evidence\n                    def invalid(phase):\n                        ev = original(phase)\n                        return replace(ev, reading=replace(ev.reading,\n                            evidence_sha256='0' * 64))\n                    monkeypatch.setattr(clock, 'evidence', invalid)\n                return result\n>       with f._acquire(tmp_path) as (shared, session, budget, store):\n\ntests/test_v11_r09_gate3_h1h6.py:228: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n/usr/lib/python3.12/contextlib.py:137: in __enter__\n    return next(self.gen)\ntests/test_v11_r09_gate3_runtime.py:71: in _acquire\n    with acquire_runtime_journals(\n/usr/lib/python3.12/contextlib.py:137: in __enter__\n    return next(self.gen)\ntools/v11_r09_gate3_runtime.py:842: in acquire_runtime_journals\n    shared = SharedLedger(shared_dir, **shared_kwargs)\ntools/v11_r09_gate3_ledgers.py:379: in __init__\n    check(expected_history_head is None,\n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n\nok = False, reason = 'SHARED_LEDGER_LINEAGE_HEAD_MISMATCH'\n\n    def check(ok, reason):\n        if not ok:\n>           raise LaunchContractError(reason)\nE           tools.v11_r09_gate3_launch.LaunchContractError: SHARED_LEDGER_LINEAGE_HEAD_MISMATCH\n\ntools/v11_r09_gate3_launch.py:63: LaunchContractError\n__ test_h2_error_paths_retain_eager_bytes_and_restrictions[clock_bad_digest] ___\n\ntmp_path = PosixPath('/tmp/a4-28dd604-adjacent-cf5kwm6d/pytest/test_h2_error_paths_retain_eag0')\nmonkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7629a7ca9d00>\nmode = 'clock_bad_digest'\n\n    @pytest.mark.parametrize('mode', ['clock_nan', 'clock_raises', 'clock_bad_digest',\n                                      'duplicate_retry', 'denial_write'])\n    def test_h2_error_paths_retain_eager_bytes_and_restrictions(tmp_path, monkeypatch, mode):\n        f._dirs(tmp_path)\n        clock = f._clock()\n        headers = (('Retry-After', '1200'),)\n        status = 503\n        if mode == 'duplicate_retry':\n            status = 200\n            headers += (('Retry-After', '1300'),)\n        response = f._ok_response(b'abcd', status=status, headers=headers)\n        class TransportWithFault(SyntheticTransport):\n            def dispatch(self, request, **kwargs):\n                result = super().dispatch(request, **kwargs)\n                if mode == 'clock_nan':\n                    clock.set(utc=float('nan'))\n                if mode == 'clock_raises':\n                    def broken(phase):\n                        raise LaunchContractError('INJECTED_CLOCK_UNAVAILABLE')\n                    monkeypatch.setattr(clock, 'evidence', broken)\n                if mode == 'clock_bad_digest':\n                    original = clock.evidence\n                    def invalid(phase):\n                        ev = original(phase)\n                        return replace(ev, reading=replace(ev.reading,\n                            evidence_sha256='0' * 64))\n                    monkeypatch.setattr(clock, 'evidence', invalid)\n                return result\n>       with f._acquire(tmp_path) as (shared, session, budget, store):\n\ntests/test_v11_r09_gate3_h1h6.py:228: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n/usr/lib/python3.12/contextlib.py:137: in __enter__\n    return next(self.gen)\ntests/test_v11_r09_gate3_runtime.py:71: in _acquire\n    with acquire_runtime_journals(\n/usr/lib/python3.12/contextlib.py:137: in __enter__\n    return next(self.gen)\ntools/v11_r09_gate3_runtime.py:842: in acquire_runtime_journals\n    shared = SharedLedger(shared_dir, **shared_kwargs)\ntools/v11_r09_gate3_ledgers.py:379: in __init__\n    check(expected_history_head is None,\n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n\nok = False, reason = 'SHARED_LEDGER_LINEAGE_HEAD_MISMATCH'\n\n    def check(ok, reason):\n        if not ok:\n>           raise LaunchContractError(reason)\nE           tools.v11_r09_gate3_launch.LaunchContractError: SHARED_LEDGER_LINEAGE_HEAD_MISMATCH\n\ntools/v11_r09_gate3_launch.py:63: LaunchContractError\n___ test_h2_error_paths_retain_eager_bytes_and_restrictions[duplicate_retry] ___\n\ntmp_path = PosixPath('/tmp/a4-28dd604-adjacent-cf5kwm6d/pytest/test_h2_error_paths_retain_eag0')\nmonkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7629a7ca8530>\nmode = 'duplicate_retry'\n\n    @pytest.mark.parametrize('mode', ['clock_nan', 'clock_raises', 'clock_bad_digest',\n                                      'duplicate_retry', 'denial_write'])\n    def test_h2_error_paths_retain_eager_bytes_and_restrictions(tmp_path, monkeypatch, mode):\n        f._dirs(tmp_path)\n        clock = f._clock()\n        headers = (('Retry-After', '1200'),)\n        status = 503\n        if mode == 'duplicate_retry':\n            status = 200\n            headers += (('Retry-After', '1300'),)\n        response = f._ok_response(b'abcd', status=status, headers=headers)\n        class TransportWithFault(SyntheticTransport):\n            def dispatch(self, request, **kwargs):\n                result = super().dispatch(request, **kwargs)\n                if mode == 'clock_nan':\n                    clock.set(utc=float('nan'))\n                if mode == 'clock_raises':\n                    def broken(phase):\n                        raise LaunchContractError('INJECTED_CLOCK_UNAVAILABLE')\n                    monkeypatch.setattr(clock, 'evidence', broken)\n                if mode == 'clock_bad_digest':\n                    original = clock.evidence\n                    def invalid(phase):\n                        ev = original(phase)\n                        return replace(ev, reading=replace(ev.reading,\n                            evidence_sha256='0' * 64))\n                    monkeypatch.setattr(clock, 'evidence', invalid)\n                return result\n>       with f._acquire(tmp_path) as (shared, session, budget, store):\n\ntests/test_v11_r09_gate3_h1h6.py:228: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n/usr/lib/python3.12/contextlib.py:137: in __enter__\n    return next(self.gen)\ntests/test_v11_r09_gate3_runtime.py:71: in _acquire\n    with acquire_runtime_journals(\n/usr/lib/python3.12/contextlib.py:137: in __enter__\n    return next(self.gen)\ntools/v11_r09_gate3_runtime.py:842: in acquire_runtime_journals\n    shared = SharedLedger(shared_dir, **shared_kwargs)\ntools/v11_r09_gate3_ledgers.py:379: in __init__\n    check(expected_history_head is None,\n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n\nok = False, reason = 'SHARED_LEDGER_LINEAGE_HEAD_MISMATCH'\n\n    def check(ok, reason):\n        if not ok:\n>           raise LaunchContractError(reason)\nE           tools.v11_r09_gate3_launch.LaunchContractError: SHARED_LEDGER_LINEAGE_HEAD_MISMATCH\n\ntools/v11_r09_gate3_launch.py:63: LaunchContractError\n____ test_h2_error_paths_retain_eager_bytes_and_restrictions[denial_write] _____\n\ntmp_path = PosixPath('/tmp/a4-28dd604-adjacent-cf5kwm6d/pytest/test_h2_error_paths_retain_eag0')\nmonkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7629a7cabd70>\nmode = 'denial_write'\n\n    @pytest.mark.parametrize('mode', ['clock_nan', 'clock_raises', 'clock_bad_digest',\n                                      'duplicate_retry', 'denial_write'])\n    def test_h2_error_paths_retain_eager_bytes_and_restrictions(tmp_path, monkeypatch, mode):\n        f._dirs(tmp_path)\n        clock = f._clock()\n        headers = (('Retry-After', '1200'),)\n        status = 503\n        if mode == 'duplicate_retry':\n            status = 200\n            headers += (('Retry-After', '1300'),)\n        response = f._ok_response(b'abcd', status=status, headers=headers)\n        class TransportWithFault(SyntheticTransport):\n            def dispatch(self, request, **kwargs):\n                result = super().dispatch(request, **kwargs)\n                if mode == 'clock_nan':\n                    clock.set(utc=float('nan'))\n                if mode == 'clock_raises':\n                    def broken(phase):\n                        raise LaunchContractError('INJECTED_CLOCK_UNAVAILABLE')\n                    monkeypatch.setattr(clock, 'evidence', broken)\n                if mode == 'clock_bad_digest':\n                    original = clock.evidence\n                    def invalid(phase):\n                        ev = original(phase)\n                        return replace(ev, reading=replace(ev.reading,\n                            evidence_sha256='0' * 64))\n                    monkeypatch.setattr(clock, 'evidence', invalid)\n                return result\n>       with f._acquire(tmp_path) as (shared, session, budget, store):\n\ntests/test_v11_r09_gate3_h1h6.py:228: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n/usr/lib/python3.12/contextlib.py:137: in __enter__\n    return next(self.gen)\ntests/test_v11_r09_gate3_runtime.py:71: in _acquire\n    with acquire_runtime_journals(\n/usr/lib/python3.12/contextlib.py:137: in __enter__\n    return next(self.gen)\ntools/v11_r09_gate3_runtime.py:842: in acquire_runtime_journals\n    shared = SharedLedger(shared_dir, **shared_kwargs)\ntools/v11_r09_gate3_ledgers.py:379: in __init__\n    check(expected_history_head is None,\n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n\nok = False, reason = 'SHARED_LEDGER_LINEAGE_HEAD_MISMATCH'\n\n    def check(ok, reason):\n        if not ok:\n>           raise LaunchContractError(reason)\nE           tools.v11_r09_gate3_launch.LaunchContractError: SHARED_LEDGER_LINEAGE_HEAD_MISMATCH\n\ntools/v11_r09_gate3_launch.py:63: LaunchContractError\n________ test_postdispatch_monotonic_fault_retains_eager_denial[1-nan] _________\n\ntmp_path = PosixPath('/tmp/a4-28dd604-adjacent-cf5kwm6d/pytest/test_postdispatch_monotonic_fa0')\nmonkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7629a7cc0c80>\nmode = 'nan', sample = 1\n\n    @pytest.mark.parametrize('mode', ('raises', 'nan', 'runtime_error'))\n    @pytest.mark.parametrize('sample', (1, 2, 3, 4, 5))\n    def test_postdispatch_monotonic_fault_retains_eager_denial(tmp_path, monkeypatch,\n                                                               mode, sample):\n        f._dirs(tmp_path)\n        clock = f._clock()\n        response = f._ok_response(b'abcd', status=503,\n                                  headers=(('Retry-After', '1200'),))\n    \n        class FaultAfterDispatch(SyntheticTransport):\n            def dispatch(self, request, **kwargs):\n                stream = super().dispatch(request, **kwargs)\n                original = clock.monotonic\n                calls = 0\n                def broken():\n                    nonlocal calls\n                    calls += 1\n                    if calls == sample:\n                        if mode == 'raises':\n                            raise OSError('INJECTED_MONOTONIC_UNAVAILABLE')\n                        if mode == 'runtime_error':\n                            raise RuntimeError('INJECTED_MONOTONIC_FAILURE')\n                        return float('nan')\n                    return original()\n                monkeypatch.setattr(clock, 'monotonic', broken)\n                return stream\n    \n>       with f._acquire(tmp_path) as (shared, session, budget, store):\n\ntests/test_v11_r09_gate3_h1h6.py:319: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n/usr/lib/python3.12/contextlib.py:137: in __enter__\n    return next(self.gen)\ntests/test_v11_r09_gate3_runtime.py:71: in _acquire\n    with acquire_runtime_journals(\n/usr/lib/python3.12/contextlib.py:137: in __enter__\n    return next(self.gen)\ntools/v11_r09_gate3_runtime.py:842: in acquire_runtime_journals\n    shared = SharedLedger(shared_dir, **shared_kwargs)\ntools/v11_r09_gate3_ledgers.py:379: in __init__\n    check(expected_history_head is None,\n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n\nok = False, reason = 'SHARED_LEDGER_LINEAGE_HEAD_MISMATCH'\n\n    def check(ok, reason):\n        if not ok:\n>           raise LaunchContractError(reason)\nE           tools.v11_r09_gate3_launch.LaunchContractError: SHARED_LEDGER_LINEAGE_HEAD_MISMATCH\n\ntools/v11_r09_gate3_launch.py:63: LaunchContractError\n___ test_postdispatch_monotonic_fault_retains_eager_denial[1-runtime_error] ____\n\ntmp_path = PosixPath('/tmp/a4-28dd604-adjacent-cf5kwm6d/pytest/test_postdispatch_monotonic_fa0')\nmonkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7629a7cc3a70>\nmode = 'runtime_error', sample = 1\n\n    @pytest.mark.parametrize('mode', ('raises', 'nan', 'runtime_error'))\n    @pytest.mark.parametrize('sample', (1, 2, 3, 4, 5))\n    def test_postdispatch_monotonic_fault_retains_eager_denial(tmp_path, monkeypatch,\n                                                               mode, sample):\n        f._dirs(tmp_path)\n        clock = f._clock()\n        response = f._ok_response(b'abcd', status=503,\n                                  headers=(('Retry-After', '1200'),))\n    \n        class FaultAfterDispatch(SyntheticTransport):\n            def dispatch(self, request, **kwargs):\n                stream = super().dispatch(request, **kwargs)\n                original = clock.monotonic\n                calls = 0\n                def broken():\n                    nonlocal calls\n                    calls += 1\n                    if calls == sample:\n                        if mode == 'raises':\n                            raise OSError('INJECTED_MONOTONIC_UNAVAILABLE')\n                        if mode == 'runtime_error':\n                            raise RuntimeError('INJECTED_MONOTONIC_FAILURE')\n                        return float('nan')\n                    return original()\n                monkeypatch.setattr(clock, 'monotonic', broken)\n                return stream\n    \n>       with f._acquire(tmp_path) as (shared, session, budget, store):\n\ntests/test_v11_r09_gate3_h1h6.py:319: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n/usr/lib/python3.12/contextlib.py:137: in __enter__\n    return next(self.gen)\ntests/test_v11_r09_gate3_runtime.py:71: in _acquire\n    with acquire_runtime_journals(\n/usr/lib/python3.12/contextlib.py:137: in __enter__\n    return next(self.gen)\ntools/v11_r09_gate3_runtime.py:842: in acquire_runtime_journals\n    shared = SharedLedger(shared_dir, **shared_kwargs)\ntools/v11_r09_gate3_ledgers.py:379: in __init__\n    check(expected_history_head is None,\n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n\nok = False, reason = 'SHARED_LEDGER_LINEAGE_HEAD_MISMATCH'\n\n    def check(ok, reason):\n        if not ok:\n>           raise LaunchContractError(reason)\nE           tools.v11_r09_gate3_launch.LaunchContractError: SHARED_LEDGER_LINEAGE_HEAD_MISMATCH\n\ntools/v11_r09_gate3_launch.py:63: LaunchContractError\n_______ test_postdispatch_monotonic_fault_retains_eager_denial[2-raises] _______\n\ntmp_path = PosixPath('/tmp/a4-28dd604-adjacent-cf5kwm6d/pytest/test_postdispatch_monotonic_fa0')\nmonkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7629a7fb87d0>\nmode = 'raises', sample = 2\n\n    @pytest.mark.parametrize('mode', ('raises', 'nan', 'runtime_error'))\n    @pytest.mark.parametrize('sample', (1, 2, 3, 4, 5))\n    def test_postdispatch_monotonic_fault_retains_eager_denial(tmp_path, monkeypatch,\n                                                               mode, sample):\n        f._dirs(tmp_path)\n        clock = f._clock()\n        response = f._ok_response(b'abcd', status=503,\n                                  headers=(('Retry-After', '1200'),))\n    \n        class FaultAfterDispatch(SyntheticTransport):\n            def dispatch(self, request, **kwargs):\n                stream = super().dispatch(request, **kwargs)\n                original = clock.monotonic\n                calls = 0\n                def broken():\n                    nonlocal calls\n                    calls += 1\n                    if calls == sample:\n                        if mode == 'raises':\n                            raise OSError('INJECTED_MONOTONIC_UNAVAILABLE')\n                        if mode == 'runtime_error':\n                            raise RuntimeError('INJECTED_MONOTONIC_FAILURE')\n                        return float('nan')\n                    return original()\n                monkeypatch.setattr(clock, 'monotonic', broken)\n                return stream\n    \n>       with f._acquire(tmp_path) as (shared, session, budget, store):\n\ntests/test_v11_r09_gate3_h1h6.py:319: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n/usr/lib/python3.12/contextlib.py:137: in __enter__\n    return next(self.gen)\ntests/test_v11_r09_gate3_runtime.py:71: in _acquire\n    with acquire_runtime_journals(\n/usr/lib/python3.12/contextlib.py:137: in __enter__\n    return next(self.gen)\ntools/v11_r09_gate3_runtime.py:842: in acquire_runtime_journals\n    shared = SharedLedger(shared_dir, **shared_kwargs)\ntools/v11_r09_gate3_ledgers.py:379: in __init__\n    check(expected_history_head is None,\n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n\nok = False, reason = 'SHARED_LEDGER_LINEAGE_HEAD_MISMATCH'\n\n    def check(ok, reason):\n        if not ok:\n>           raise LaunchContractError(reason)\nE           tools.v11_r09_gate3_launch.LaunchContractError: SHARED_LEDGER_LINEAGE_HEAD_MISMATCH\n\ntools/v11_r09_gate3_launch.py:63: LaunchContractError\n________ test_postdispatch_monotonic_fault_retains_eager_denial[2-nan] _________\n\ntmp_path = PosixPath('/tmp/a4-28dd604-adjacent-cf5kwm6d/pytest/test_postdispatch_monotonic_fa0')\nmonkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7629a7cc13d0>\nmode = 'nan', sample = 2\n\n    @pytest.mark.parametrize('mode', ('raises', 'nan', 'runtime_error'))\n    @pytest.mark.parametrize('sample', (1, 2, 3, 4, 5))\n    def test_postdispatch_monotonic_fault_retains_eager_denial(tmp_path, monkeypatch,\n                                                               mode, sample):\n        f._dirs(tmp_path)\n        clock = f._clock()\n        response = f._ok_response(b'abcd', status=503,\n                                  headers=(('Retry-After', '1200'),))\n    \n        class FaultAfterDispatch(SyntheticTransport):\n            def dispatch(self, request, **kwargs):\n                stream = super().dispatch(request, **kwargs)\n                original = clock.monotonic\n                calls = 0\n                def broken():\n                    nonlocal calls\n                    calls += 1\n                    if calls == sample:\n                        if mode == 'raises':\n                            raise OSError('INJECTED_MONOTONIC_UNAVAILABLE')\n                        if mode == 'runtime_error':\n                            raise RuntimeError('INJECTED_MONOTONIC_FAILURE')\n                        return float('nan')\n                    return original()\n                monkeypatch.setattr(clock, 'monotonic', broken)\n                return stream\n    \n>       with f._acquire(tmp_path) as (shared, session, budget, store):\n\ntests/test_v11_r09_gate3_h1h6.py:319: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n/usr/lib/python3.12/contextlib.py:137: in __enter__\n    return next(self.gen)\ntests/test_v11_r09_gate3_runtime.py:71: in _acquire\n    with acquire_runtime_journals(\n/usr/lib/python3.12/contextlib.py:137: in __enter__\n    return next(self.gen)\ntools/v11_r09_gate3_runtime.py:842: in acquire_runtime_journals\n    shared = SharedLedger(shared_dir, **shared_kwargs)\ntools/v11_r09_gate3_ledgers.py:379: in __init__\n    check(expected_history_head is None,\n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n\nok = False, reason = 'SHARED_LEDGER_LINEAGE_HEAD_MISMATCH'\n\n    def check(ok, reason):\n        if not ok:\n>           raise LaunchContractError(reason)\nE           tools.v11_r09_gate3_launch.LaunchContractError: SHARED_LEDGER_LINEAGE_HEAD_MISMATCH\n\ntools/v11_r09_gate3_launch.py:63: LaunchContractError\n___ test_postdispatch_monotonic_fault_retains_eager_denial[2-runtime_error] ____\n\ntmp_path = PosixPath('/tmp/a4-28dd604-adjacent-cf5kwm6d/pytest/test_postdispatch_monotonic_fa0')\nmonkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7629a7a64800>\nmode = 'runtime_error', sample = 2\n\n    @pytest.mark.parametrize('mode', ('raises', 'nan', 'runtime_error'))\n    @pytest.mark.parametrize('sample', (1, 2, 3, 4, 5))\n    def test_postdispatch_monotonic_fault_retains_eager_denial(tmp_path, monkeypatch,\n                                                               mode, sample):\n        f._dirs(tmp_path)\n        clock = f._clock()\n        response = f._ok_response(b'abcd', status=503,\n                                  headers=(('Retry-After', '1200'),))\n    \n        class FaultAfterDispatch(SyntheticTransport):\n            def dispatch(self, request, **kwargs):\n                stream = super().dispatch(request, **kwargs)\n                original = clock.monotonic\n                calls = 0\n                def broken():\n                    nonlocal calls\n                    calls += 1\n                    if calls == sample:\n                        if mode == 'raises':\n                            raise OSError('INJECTED_MONOTONIC_UNAVAILABLE')\n                        if mode == 'runtime_error':\n                            raise RuntimeError('INJECTED_MONOTONIC_FAILURE')\n                        return float('nan')\n                    return original()\n                monkeypatch.setattr(clock, 'monotonic', broken)\n                return stream\n    \n>       with f._acquire(tmp_path) as (shared, session, budget, store):\n\ntests/test_v11_r09_gate3_h1h6.py:319: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n/usr/lib/python3.12/contextlib.py:137: in __enter__\n    return next(self.gen)\ntests/test_v11_r09_gate3_runtime.py:71: in _acquire\n    with acquire_runtime_journals(\n/usr/lib/python3.12/contextlib.py:137: in __enter__\n    return next(self.gen)\ntools/v11_r09_gate3_runtime.py:842: in acquire_runtime_journals\n    shared = SharedLedger(shared_dir, **shared_kwargs)\ntools/v11_r09_gate3_ledgers.py:379: in __init__\n    check(expected_history_head is None,\n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n\nok = False, reason = 'SHARED_LEDGER_LINEAGE_HEAD_MISMATCH'\n\n    def check(ok, reason):\n        if not ok:\n>           raise LaunchContractError(reason)\nE           tools.v11_r09_gate3_launch.LaunchContractError: SHARED_LEDGER_LINEAGE_HEAD_MISMATCH\n\ntools/v11_r09_gate3_launch.py:63: LaunchContractError\n_______ test_postdispatch_monotonic_fault_retains_eager_denial[3-raises] _______\n\ntmp_path = PosixPath('/tmp/a4-28dd604-adjacent-cf5kwm6d/pytest/test_postdispatch_monotonic_fa0')\nmonkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7629a7cc0950>\nmode = 'raises', sample = 3\n\n    @pytest.mark.parametrize('mode', ('raises', 'nan', 'runtime_error'))\n    @pytest.mark.parametrize('sample', (1, 2, 3, 4, 5))\n    def test_postdispatch_monotonic_fault_retains_eager_denial(tmp_path, monkeypatch,\n                                                               mode, sample):\n        f._dirs(tmp_path)\n        clock = f._clock()\n        response = f._ok_response(b'abcd', status=503,\n                                  headers=(('Retry-After', '1200'),))\n    \n        class FaultAfterDispatch(SyntheticTransport):\n            def dispatch(self, request, **kwargs):\n                stream = super().dispatch(request, **kwargs)\n                original = clock.monotonic\n                calls = 0\n                def broken():\n                    nonlocal calls\n                    calls += 1\n                    if calls == sample:\n                        if mode == 'raises':\n                            raise OSError('INJECTED_MONOTONIC_UNAVAILABLE')\n                        if mode == 'runtime_error':\n                            raise RuntimeError('INJECTED_MONOTONIC_FAILURE')\n                        return float('nan')\n                    return original()\n                monkeypatch.setattr(clock, 'monotonic', broken)\n                return stream\n    \n>       with f._acquire(tmp_path) as (shared, session, budget, store):\n\ntests/test_v11_r09_gate3_h1h6.py:319: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n/usr/lib/python3.12/contextlib.py:137: in __enter__\n    return next(self.gen)\ntests/test_v11_r09_gate3_runtime.py:71: in _acquire\n    with acquire_runtime_journals(\n/usr/lib/python3.12/contextlib.py:137: in __enter__\n    return next(self.gen)\ntools/v11_r09_gate3_runtime.py:842: in acquire_runtime_journals\n    shared = SharedLedger(shared_dir, **shared_kwargs)\ntools/v11_r09_gate3_ledgers.py:379: in __init__\n    check(expected_history_head is None,\n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n\nok = False, reason = 'SHARED_LEDGER_LINEAGE_HEAD_MISMATCH'\n\n    def check(ok, reason):\n        if not ok:\n>           raise LaunchContractError(reason)\nE           tools.v11_r09_gate3_launch.LaunchContractError: SHARED_LEDGER_LINEAGE_HEAD_MISMATCH\n\ntools/v11_r09_gate3_launch.py:63: LaunchContractError\n________ test_postdispatch_monotonic_fault_retains_eager_denial[3-nan] _________\n\ntmp_path = PosixPath('/tmp/a4-28dd604-adjacent-cf5kwm6d/pytest/test_postdispatch_monotonic_fa0')\nmonkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7629a7a65040>\nmode = 'nan', sample = 3\n\n    @pytest.mark.parametrize('mode', ('raises', 'nan', 'runtime_error'))\n    @pytest.mark.parametrize('sample', (1, 2, 3, 4, 5))\n    def test_postdispatch_monotonic_fault_retains_eager_denial(tmp_path, monkeypatch,\n                                                               mode, sample):\n        f._dirs(tmp_path)\n        clock = f._clock()\n        response = f._ok_response(b'abcd', status=503,\n                                  headers=(('Retry-After', '1200'),))\n    \n        class FaultAfterDispatch(SyntheticTransport):\n            def dispatch(self, request, **kwargs):\n                stream = super().dispatch(request, **kwargs)\n                original = clock.monotonic\n                calls = 0\n                def broken():\n                    nonlocal calls\n                    calls += 1\n                    if calls == sample:\n                        if mode == 'raises':\n                            raise OSError('INJECTED_MONOTONIC_UNAVAILABLE')\n                        if mode == 'runtime_error':\n                            raise RuntimeError('INJECTED_MONOTONIC_FAILURE')\n                        return float('nan')\n                    return original()\n                monkeypatch.setattr(clock, 'monotonic', broken)\n                return stream\n    \n>       with f._acquire(tmp_path) as (shared, session, budget, store):\n\ntests/test_v11_r09_gate3_h1h6.py:319: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n/usr/lib/python3.12/contextlib.py:137: in __enter__\n    return next(self.gen)\ntests/test_v11_r09_gate3_runtime.py:71: in _acquire\n    with acquire_runtime_journals(\n/usr/lib/python3.12/contextlib.py:137: in __enter__\n    return next(self.gen)\ntools/v11_r09_gate3_runtime.py:842: in acquire_runtime_journals\n    shared = SharedLedger(shared_dir, **shared_kwargs)\ntools/v11_r09_gate3_ledgers.py:379: in __init__\n    check(expected_history_head is None,\n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n\nok = False, reason = 'SHARED_LEDGER_LINEAGE_HEAD_MISMATCH'\n\n    def check(ok, reason):\n        if not ok:\n>           raise LaunchContractError(reason)\nE           tools.v11_r09_gate3_launch.LaunchContractError: SHARED_LEDGER_LINEAGE_HEAD_MISMATCH\n\ntools/v11_r09_gate3_launch.py:63: LaunchContractError\n___ test_postdispatch_monotonic_fault_retains_eager_denial[3-runtime_error] ____\n\ntmp_path = PosixPath('/tmp/a4-28dd604-adjacent-cf5kwm6d/pytest/test_postdispatch_monotonic_fa0')\nmonkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7629a7a64e90>\nmode = 'runtime_error', sample = 3\n\n    @pytest.mark.parametrize('mode', ('raises', 'nan', 'runtime_error'))\n    @pytest.mark.parametrize('sample', (1, 2, 3, 4, 5))\n    def test_postdispatch_monotonic_fault_retains_eager_denial(tmp_path, monkeypatch,\n                                                               mode, sample):\n        f._dirs(tmp_path)\n        clock = f._clock()\n        response = f._ok_response(b'abcd', status=503,\n                                  headers=(('Retry-After', '1200'),))\n    \n        class FaultAfterDispatch(SyntheticTransport):\n            def dispatch(self, request, **kwargs):\n                stream = super().dispatch(request, **kwargs)\n                original = clock.monotonic\n                calls = 0\n                def broken():\n                    nonlocal calls\n                    calls += 1\n                    if calls == sample:\n                        if mode == 'raises':\n                            raise OSError('INJECTED_MONOTONIC_UNAVAILABLE')\n                        if mode == 'runtime_error':\n                            raise RuntimeError('INJECTED_MONOTONIC_FAILURE')\n                        return float('nan')\n                    return original()\n                monkeypatch.setattr(clock, 'monotonic', broken)\n                return stream\n    \n>       with f._acquire(tmp_path) as (shared, session, budget, store):\n\ntests/test_v11_r09_gate3_h1h6.py:319: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n/usr/lib/python3.12/contextlib.py:137: in __enter__\n    return next(self.gen)\ntests/test_v11_r09_gate3_runtime.py:71: in _acquire\n    with acquire_runtime_journals(\n/usr/lib/python3.12/contextlib.py:137: in __enter__\n    return next(self.gen)\ntools/v11_r09_gate3_runtime.py:842: in acquire_runtime_journals\n    shared = SharedLedger(shared_dir, **shared_kwargs)\ntools/v11_r09_gate3_ledgers.py:379: in __init__\n    check(expected_history_head is None,\n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n\nok = False, reason = 'SHARED_LEDGER_LINEAGE_HEAD_MISMATCH'\n\n    def check(ok, reason):\n        if not ok:\n>           raise LaunchContractError(reason)\nE           tools.v11_r09_gate3_launch.LaunchContractError: SHARED_LEDGER_LINEAGE_HEAD_MISMATCH\n\ntools/v11_r09_gate3_launch.py:63: LaunchContractError\n_______ test_postdispatch_monotonic_fault_retains_eager_denial[4-raises] _______\n\ntmp_path = PosixPath('/tmp/a4-28dd604-adjacent-cf5kwm6d/pytest/test_postdispatch_monotonic_fa0')\nmonkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7629a7a89670>\nmode = 'raises', sample = 4\n\n    @pytest.mark.parametrize('mode', ('raises', 'nan', 'runtime_error'))\n    @pytest.mark.parametrize('sample', (1, 2, 3, 4, 5))\n    def test_postdispatch_monotonic_fault_retains_eager_denial(tmp_path, monkeypatch,\n                                                               mode, sample):\n        f._dirs(tmp_path)\n        clock = f._clock()\n        response = f._ok_response(b'abcd', status=503,\n                                  headers=(('Retry-After', '1200'),))\n    \n        class FaultAfterDispatch(SyntheticTransport):\n            def dispatch(self, request, **kwargs):\n                stream = super().dispatch(request, **kwargs)\n                original = clock.monotonic\n                calls = 0\n                def broken():\n                    nonlocal calls\n                    calls += 1\n                    if calls == sample:\n                        if mode == 'raises':\n                            raise OSError('INJECTED_MONOTONIC_UNAVAILABLE')\n                        if mode == 'runtime_error':\n                            raise RuntimeError('INJECTED_MONOTONIC_FAILURE')\n                        return float('nan')\n                    return original()\n                monkeypatch.setattr(clock, 'monotonic', broken)\n                return stream\n    \n>       with f._acquire(tmp_path) as (shared, session, budget, store):\n\ntests/test_v11_r09_gate3_h1h6.py:319: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n/usr/lib/python3.12/contextlib.py:137: in __enter__\n    return next(self.gen)\ntests/test_v11_r09_gate3_runtime.py:71: in _acquire\n    with acquire_runtime_journals(\n/usr/lib/python3.12/contextlib.py:137: in __enter__\n    return next(self.gen)\ntools/v11_r09_gate3_runtime.py:842: in acquire_runtime_journals\n    shared = SharedLedger(shared_dir, **shared_kwargs)\ntools/v11_r09_gate3_ledgers.py:379: in __init__\n    check(expected_history_head is None,\n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n\nok = False, reason = 'SHARED_LEDGER_LINEAGE_HEAD_MISMATCH'\n\n    def check(ok, reason):\n        if not ok:\n>           raise LaunchContractError(reason)\nE           tools.v11_r09_gate3_launch.LaunchContractError: SHARED_LEDGER_LINEAGE_HEAD_MISMATCH\n\ntools/v11_r09_gate3_launch.py:63: LaunchContractError\n________ test_postdispatch_monotonic_fault_retains_eager_denial[4-nan] _________\n\ntmp_path = PosixPath('/tmp/a4-28dd604-adjacent-cf5kwm6d/pytest/test_postdispatch_monotonic_fa0')\nmonkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7629a7a64710>\nmode = 'nan', sample = 4\n\n    @pytest.mark.parametrize('mode', ('raises', 'nan', 'runtime_error'))\n    @pytest.mark.parametrize('sample', (1, 2, 3, 4, 5))\n    def test_postdispatch_monotonic_fault_retains_eager_denial(tmp_path, monkeypatch,\n                                                               mode, sample):\n        f._dirs(tmp_path)\n        clock = f._clock()\n        response = f._ok_response(b'abcd', status=503,\n                                  headers=(('Retry-After', '1200'),))\n    \n        class FaultAfterDispatch(SyntheticTransport):\n            def dispatch(self, request, **kwargs):\n                stream = super().dispatch(request, **kwargs)\n                original = clock.monotonic\n                calls = 0\n                def broken():\n                    nonlocal calls\n                    calls += 1\n                    if calls == sample:\n                        if mode == 'raises':\n                            raise OSError('INJECTED_MONOTONIC_UNAVAILABLE')\n                        if mode == 'runtime_error':\n                            raise RuntimeError('INJECTED_MONOTONIC_FAILURE')\n                        return float('nan')\n                    return original()\n                monkeypatch.setattr(clock, 'monotonic', broken)\n                return stream\n    \n>       with f._acquire(tmp_path) as (shared, session, budget, store):\n\ntests/test_v11_r09_gate3_h1h6.py:319: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n/usr/lib/python3.12/contextlib.py:137: in __enter__\n    return next(self.gen)\ntests/test_v11_r09_gate3_runtime.py:71: in _acquire\n    with acquire_runtime_journals(\n/usr/lib/python3.12/contextlib.py:137: in __enter__\n    return next(self.gen)\ntools/v11_r09_gate3_runtime.py:842: in acquire_runtime_journals\n    shared = SharedLedger(shared_dir, **shared_kwargs)\ntools/v11_r09_gate3_ledgers.py:379: in __init__\n    check(expected_history_head is None,\n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n\nok = False, reason = 'SHARED_LEDGER_LINEAGE_HEAD_MISMATCH'\n\n    def check(ok, reason):\n        if not ok:\n>           raise LaunchContractError(reason)\nE           tools.v11_r09_gate3_launch.LaunchContractError: SHARED_LEDGER_LINEAGE_HEAD_MISMATCH\n\ntools/v11_r09_gate3_launch.py:63: LaunchContractError\n___ test_postdispatch_monotonic_fault_retains_eager_denial[4-runtime_error] ____\n\ntmp_path = PosixPath('/tmp/a4-28dd604-adjacent-cf5kwm6d/pytest/test_postdispatch_monotonic_fa0')\nmonkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7629a7a88860>\nmode = 'runtime_error', sample = 4\n\n    @pytest.mark.parametrize('mode', ('raises', 'nan', 'runtime_error'))\n    @pytest.mark.parametrize('sample', (1, 2, 3, 4, 5))\n    def test_postdispatch_monotonic_fault_retains_eager_denial(tmp_path, monkeypatch,\n                                                               mode, sample):\n        f._dirs(tmp_path)\n        clock = f._clock()\n        response = f._ok_response(b'abcd', status=503,\n                                  headers=(('Retry-After', '1200'),))\n    \n        class FaultAfterDispatch(SyntheticTransport):\n            def dispatch(self, request, **kwargs):\n                stream = super().dispatch(request, **kwargs)\n                original = clock.monotonic\n                calls = 0\n                def broken():\n                    nonlocal calls\n                    calls += 1\n                    if calls == sample:\n                        if mode == 'raises':\n                            raise OSError('INJECTED_MONOTONIC_UNAVAILABLE')\n                        if mode == 'runtime_error':\n                            raise RuntimeError('INJECTED_MONOTONIC_FAILURE')\n                        return float('nan')\n                    return original()\n                monkeypatch.setattr(clock, 'monotonic', broken)\n                return stream\n    \n>       with f._acquire(tmp_path) as (shared, session, budget, store):\n\ntests/test_v11_r09_gate3_h1h6.py:319: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n/usr/lib/python3.12/contextlib.py:137: in __enter__\n    return next(self.gen)\ntests/test_v11_r09_gate3_runtime.py:71: in _acquire\n    with acquire_runtime_journals(\n/usr/lib/python3.12/contextlib.py:137: in __enter__\n    return next(self.gen)\ntools/v11_r09_gate3_runtime.py:842: in acquire_runtime_journals\n    shared = SharedLedger(shared_dir, **shared_kwargs)\ntools/v11_r09_gate3_ledgers.py:379: in __init__\n    check(expected_history_head is None,\n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n\nok = False, reason = 'SHARED_LEDGER_LINEAGE_HEAD_MISMATCH'\n\n    def check(ok, reason):\n        if not ok:\n>           raise LaunchContractError(reason)\nE           tools.v11_r09_gate3_launch.LaunchContractError: SHARED_LEDGER_LINEAGE_HEAD_MISMATCH\n\ntools/v11_r09_gate3_launch.py:63: LaunchContractError\n_______ test_postdispatch_monotonic_fault_retains_eager_denial[5-raises] _______\n\ntmp_path = PosixPath('/tmp/a4-28dd604-adjacent-cf5kwm6d/pytest/test_postdispatch_monotonic_fa0')\nmonkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7629a7a89e80>\nmode = 'raises', sample = 5\n\n    @pytest.mark.parametrize('mode', ('raises', 'nan', 'runtime_error'))\n    @pytest.mark.parametrize('sample', (1, 2, 3, 4, 5))\n    def test_postdispatch_monotonic_fault_retains_eager_denial(tmp_path, monkeypatch,\n                                                               mode, sample):\n        f._dirs(tmp_path)\n        clock = f._clock()\n        response = f._ok_response(b'abcd', status=503,\n                                  headers=(('Retry-After', '1200'),))\n    \n        class FaultAfterDispatch(SyntheticTransport):\n            def dispatch(self, request, **kwargs):\n                stream = super().dispatch(request, **kwargs)\n                original = clock.monotonic\n                calls = 0\n                def broken():\n                    nonlocal calls\n                    calls += 1\n                    if calls == sample:\n                        if mode == 'raises':\n                            raise OSError('INJECTED_MONOTONIC_UNAVAILABLE')\n                        if mode == 'runtime_error':\n                            raise RuntimeError('INJECTED_MONOTONIC_FAILURE')\n                        return float('nan')\n                    return original()\n                monkeypatch.setattr(clock, 'monotonic', broken)\n                return stream\n    \n>       with f._acquire(tmp_path) as (shared, session, budget, store):\n\ntests/test_v11_r09_gate3_h1h6.py:319: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n/usr/lib/python3.12/contextlib.py:137: in __enter__\n    return next(self.gen)\ntests/test_v11_r09_gate3_runtime.py:71: in _acquire\n    with acquire_runtime_journals(\n/usr/lib/python3.12/contextlib.py:137: in __enter__\n    return next(self.gen)\ntools/v11_r09_gate3_runtime.py:842: in acquire_runtime_journals\n    shared = SharedLedger(shared_dir, **shared_kwargs)\ntools/v11_r09_gate3_ledgers.py:379: in __init__\n    check(expected_history_head is None,\n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n\nok = False, reason = 'SHARED_LEDGER_LINEAGE_HEAD_MISMATCH'\n\n    def check(ok, reason):\n        if not ok:\n>           raise LaunchContractError(reason)\nE           tools.v11_r09_gate3_launch.LaunchContractError: SHARED_LEDGER_LINEAGE_HEAD_MISMATCH\n\ntools/v11_r09_gate3_launch.py:63: LaunchContractError\n________ test_postdispatch_monotonic_fault_retains_eager_denial[5-nan] _________\n\ntmp_path = PosixPath('/tmp/a4-28dd604-adjacent-cf5kwm6d/pytest/test_postdispatch_monotonic_fa0')\nmonkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7629a7a2d1f0>\nmode = 'nan', sample = 5\n\n    @pytest.mark.parametrize('mode', ('raises', 'nan', 'runtime_error'))\n    @pytest.mark.parametrize('sample', (1, 2, 3, 4, 5))\n    def test_postdispatch_monotonic_fault_retains_eager_denial(tmp_path, monkeypatch,\n                                                               mode, sample):\n        f._dirs(tmp_path)\n        clock = f._clock()\n        response = f._ok_response(b'abcd', status=503,\n                                  headers=(('Retry-After', '1200'),))\n    \n        class FaultAfterDispatch(SyntheticTransport):\n            def dispatch(self, request, **kwargs):\n                stream = super().dispatch(request, **kwargs)\n                original = clock.monotonic\n                calls = 0\n                def broken():\n                    nonlocal calls\n                    calls += 1\n                    if calls == sample:\n                        if mode == 'raises':\n                            raise OSError('INJECTED_MONOTONIC_UNAVAILABLE')\n                        if mode == 'runtime_error':\n                            raise RuntimeError('INJECTED_MONOTONIC_FAILURE')\n                        return float('nan')\n                    return original()\n                monkeypatch.setattr(clock, 'monotonic', broken)\n                return stream\n    \n>       with f._acquire(tmp_path) as (shared, session, budget, store):\n\ntests/test_v11_r09_gate3_h1h6.py:319: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n/usr/lib/python3.12/contextlib.py:137: in __enter__\n    return next(self.gen)\ntests/test_v11_r09_gate3_runtime.py:71: in _acquire\n    with acquire_runtime_journals(\n/usr/lib/python3.12/contextlib.py:137: in __enter__\n    return next(self.gen)\ntools/v11_r09_gate3_runtime.py:842: in acquire_runtime_journals\n    shared = SharedLedger(shared_dir, **shared_kwargs)\ntools/v11_r09_gate3_ledgers.py:379: in __init__\n    check(expected_history_head is None,\n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n\nok = False, reason = 'SHARED_LEDGER_LINEAGE_HEAD_MISMATCH'\n\n    def check(ok, reason):\n        if not ok:\n>           raise LaunchContractError(reason)\nE           tools.v11_r09_gate3_launch.LaunchContractError: SHARED_LEDGER_LINEAGE_HEAD_MISMATCH\n\ntools/v11_r09_gate3_launch.py:63: LaunchContractError\n___ test_postdispatch_monotonic_fault_retains_eager_denial[5-runtime_error] ____\n\ntmp_path = PosixPath('/tmp/a4-28dd604-adjacent-cf5kwm6d/pytest/test_postdispatch_monotonic_fa0')\nmonkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7629a7a8a4b0>\nmode = 'runtime_error', sample = 5\n\n    @pytest.mark.parametrize('mode', ('raises', 'nan', 'runtime_error'))\n    @pytest.mark.parametrize('sample', (1, 2, 3, 4, 5))\n    def test_postdispatch_monotonic_fault_retains_eager_denial(tmp_path, monkeypatch,\n                                                               mode, sample):\n        f._dirs(tmp_path)\n        clock = f._clock()\n        response = f._ok_response(b'abcd', status=503,\n                                  headers=(('Retry-After', '1200'),))\n    \n        class FaultAfterDispatch(SyntheticTransport):\n            def dispatch(self, request, **kwargs):\n                stream = super().dispatch(request, **kwargs)\n                original = clock.monotonic\n                calls = 0\n                def broken():\n                    nonlocal calls\n                    calls += 1\n                    if calls == sample:\n                        if mode == 'raises':\n                            raise OSError('INJECTED_MONOTONIC_UNAVAILABLE')\n                        if mode == 'runtime_error':\n                            raise RuntimeError('INJECTED_MONOTONIC_FAILURE')\n                        return float('nan')\n                    return original()\n                monkeypatch.setattr(clock, 'monotonic', broken)\n                return stream\n    \n>       with f._acquire(tmp_path) as (shared, session, budget, store):\n\ntests/test_v11_r09_gate3_h1h6.py:319: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n/usr/lib/python3.12/contextlib.py:137: in __enter__\n    return next(self.gen)\ntests/test_v11_r09_gate3_runtime.py:71: in _acquire\n    with acquire_runtime_journals(\n/usr/lib/python3.12/contextlib.py:137: in __enter__\n    return next(self.gen)\ntools/v11_r09_gate3_runtime.py:842: in acquire_runtime_journals\n    shared = SharedLedger(shared_dir, **shared_kwargs)\ntools/v11_r09_gate3_ledgers.py:379: in __init__\n    check(expected_history_head is None,\n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n\nok = False, reason = 'SHARED_LEDGER_LINEAGE_HEAD_MISMATCH'\n\n    def check(ok, reason):\n        if not ok:\n>           raise LaunchContractError(reason)\nE           tools.v11_r09_gate3_launch.LaunchContractError: SHARED_LEDGER_LINEAGE_HEAD_MISMATCH\n\ntools/v11_r09_gate3_launch.py:63: LaunchContractError\n=========================== short test summary info ============================\nFAILED tests/test_v11_r09_gate3_h1h6.py::test_h2_error_paths_retain_eager_bytes_and_restrictions[clock_raises]\nFAILED tests/test_v11_r09_gate3_h1h6.py::test_h2_error_paths_retain_eager_bytes_and_restrictions[clock_bad_digest]\nFAILED tests/test_v11_r09_gate3_h1h6.py::test_h2_error_paths_retain_eager_bytes_and_restrictions[duplicate_retry]\nFAILED tests/test_v11_r09_gate3_h1h6.py::test_h2_error_paths_retain_eager_bytes_and_restrictions[denial_write]\nFAILED tests/test_v11_r09_gate3_h1h6.py::test_postdispatch_monotonic_fault_retains_eager_denial[1-nan]\nFAILED tests/test_v11_r09_gate3_h1h6.py::test_postdispatch_monotonic_fault_retains_eager_denial[1-runtime_error]\nFAILED tests/test_v11_r09_gate3_h1h6.py::test_postdispatch_monotonic_fault_retains_eager_denial[2-raises]\nFAILED tests/test_v11_r09_gate3_h1h6.py::test_postdispatch_monotonic_fault_retains_eager_denial[2-nan]\nFAILED tests/test_v11_r09_gate3_h1h6.py::test_postdispatch_monotonic_fault_retains_eager_denial[2-runtime_error]\nFAILED tests/test_v11_r09_gate3_h1h6.py::test_postdispatch_monotonic_fault_retains_eager_denial[3-raises]\nFAILED tests/test_v11_r09_gate3_h1h6.py::test_postdispatch_monotonic_fault_retains_eager_denial[3-nan]\nFAILED tests/test_v11_r09_gate3_h1h6.py::test_postdispatch_monotonic_fault_retains_eager_denial[3-runtime_error]\nFAILED tests/test_v11_r09_gate3_h1h6.py::test_postdispatch_monotonic_fault_retains_eager_denial[4-raises]\nFAILED tests/test_v11_r09_gate3_h1h6.py::test_postdispatch_monotonic_fault_retains_eager_denial[4-nan]\nFAILED tests/test_v11_r09_gate3_h1h6.py::test_postdispatch_monotonic_fault_retains_eager_denial[4-runtime_error]\nFAILED tests/test_v11_r09_gate3_h1h6.py::test_postdispatch_monotonic_fault_retains_eager_denial[5-raises]\nFAILED tests/test_v11_r09_gate3_h1h6.py::test_postdispatch_monotonic_fault_retains_eager_denial[5-nan]\nFAILED tests/test_v11_r09_gate3_h1h6.py::test_postdispatch_monotonic_fault_retains_eager_denial[5-runtime_error]\n18 failed, 11 passed in 11.51s\nREVIEW_MAX_SINGLE_TEST_ALLOCATED_BYTES=34631680\n",
+        "output_sha256": "ff4d141d3cc03b45059593a669f51cc2ce842042f4552372552ee6f785455bd0",
+        "seconds": 12.219820737838745
+      }
+    }
+  },
+  "verdict": "CHANGES_REQUIRED"
+}

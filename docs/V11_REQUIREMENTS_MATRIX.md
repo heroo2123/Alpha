@@ -1,5 +1,9 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## A4 review rejected; A7 repaired candidate under exact review — 2026-10-02 00:38 UTC
+
+Independent exact `28dd604` A4 review is `CHANGES_REQUIRED` on pre-refusal Git helper execution (P1) and late host-module fallback (P3); its exact evidence is retained as `docs/V11_R09_GATE3_A4_REVIEW_28dd604*`. One A4 repair author is active. Clean A7 repair `313eeaf` has 192 hash-verified author-reported focused/adjacent passes and is under independent exact review; A7 remains OPEN/UNQUALIFIED. A8 and inventory remain queued. No G3-L, forward SHADOW or C/J/E/A boundary changed: **G3-L NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## A7 review rejected; repair live — 2026-10-02 00:16 UTC
 
 Independent exact `e08858b` review found one P2 nested-cgroup admission defect and two P3 measurement/documentation defects. Exact review evidence is retained in `docs/V11_R09_GATE3_A7_REVIEW_e08858b*`; a sole isolated A7 repair worker is live beside the A4 reviewer. A7 remains OPEN/UNQUALIFIED and unmerged. No G3-L, forward SHADOW or C/J/E/A boundary changed: **G3-L NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
