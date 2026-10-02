@@ -19361,3 +19361,52 @@ prior entry (a real clock-calibration recorder build, a real physical
 storage reservation mechanism, fresh-date package preparation, G3-L
 identity/retained-restriction reconciliation) remain open and are not
 advanced by this batch.
+
+## Gate 3 real-evidence intake reviewed and merged (781c000) — 2026-10-02 20:1x-20:2x UTC
+
+Recovered a fully-prepared but never-launched review brief for `781c000`
+at `/tmp/alpha-v11-gate3-postguard-review-781c000` (prompt written, run
+log empty, no verdict) and dispatched an independent Opus review in that
+existing read-only detached worktree. **Verdict: APPROVED_WITH_FOLLOWUPS**,
+no blocking findings. The reviewer traced every file the tool touches
+(the binding JSON, the two private retained files it names, the repo
+protocol copy, `/proc/meminfo`, disk-free on `/`, and the current clock)
+and confirmed zero network/socket calls via `strace -f -e
+trace=network,connect` against the real retained bytes; independently
+re-hashed all three retained files and matched the binding; confirmed the
+hardcoded 86400s clock-uncertainty/calibration-age sentinels make a
+passing result structurally impossible on any package; confirmed
+unmodified reuse of `check_evidence_preflight_package` with `git diff
+--stat 5bc5321 781c000` showing none of the six off-limits shared files
+touched; independently re-derived the `_walk_synthetic_paths`
+non-`synthetic://` refusal against the real package's 22 path keys; and
+reran the new test file itself (20/20 plain, 20/20 under `-O`) plus
+`py_compile` and `git diff --check`, both clean. Four non-blocking
+follow-ups (L1 hardcoded `monotonic_consistent`; L2 disk measured on `/`
+rather than `private_root`'s filesystem, same disk today so harmless; L3
+unbounded read before the size cap is checked; L4 an assertion that can
+never fail) plus four informational notes, the most load-bearing being
+that this tool is a standalone status reporter with no collector/launch
+module calling it yet, so it is correctly **not** credited as formal (J)
+integration.
+
+Merged `781c000` into `weather-v11-profitability-upgrade-2026-09-23` with
+`--no-ff` (conflict-free, 5 files, 908 insertions) and reran the two
+directly-relevant focused test files on the merged tree:
+`tools/v11_gate3_evidence_preflight_real_intake.py` 492 combined passed
+plain, 492 passed under `-O`; `py_compile` and `git diff --check 5bc5321
+HEAD` both clean. The real retained package remains refused (22
+pre-existing reasons plus the four honest clock/window reasons already
+documented in the candidate's own entry above); no network, provider
+request, SHADOW admission, credential use, or score/gate change follows.
+L1-L4 and the four informational items remain open, non-blocking,
+bounded candidates for a future slice. **91/200 (45.5%), formal 1/50;
+A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO; NOT_READY_TO_FUND**
+— unchanged.
+
+Next unfinished action: continue the parallel fresh-date preflight
+preparation / clock-calibration / storage-reservation-readiness lane
+already in flight in a separate isolated worktree, and intake it (review
+then merge, or record a `NO_SAFE_SLICE` outcome) once it completes.
+Separately, L1-L4 above and the open items noted in the attempt-guard
+entry remain bounded, non-blocking future-slice candidates.
