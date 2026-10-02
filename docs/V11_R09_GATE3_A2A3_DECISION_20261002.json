@@ -1,0 +1,559 @@
+{
+  "a2": "UNQUALIFIED",
+  "a3": "UNQUALIFIED",
+  "a4": "OPEN",
+  "a8": "UNQUALIFIED",
+  "authenticated_toolchain_ref": null,
+  "authored_route": "ASTRA_HIGH",
+  "base_commit": "3878fa9ee312b6d1fe45705bbba0821aa0656c0c",
+  "complete_closure_ref": null,
+  "definitions_samples_lineage_ref": null,
+  "evidence": [
+    {
+      "bytes": 16704,
+      "path": "docs/V11_R09_GATE3_IDENTITY_ACCEPTANCE_20261001.md",
+      "sha256": "db298d49301a686711a7d89e7456d95fcd34da8616970fa7f52374b91440aa9d"
+    },
+    {
+      "bytes": 48895,
+      "path": "docs/V11_R09_GATE3_A2A3_OFFLINE_DOSSIER_20261001.json",
+      "sha256": "55cedb8d459884e909076db6c97bcddaa375b5fe69276aaf4583beb6f19b7883"
+    },
+    {
+      "bytes": 118802,
+      "path": "docs/V11_R09_GATE3_A2A3_RETAINED_AUDIT_20261001.json",
+      "sha256": "a1f45e671f79131dc5e796fbbc0ae9368e01b9df90c1b9d94f7f5288dbf7f9f6"
+    },
+    {
+      "bytes": 8560,
+      "path": "docs/V11_R09_GATE3_A2A3_RETAINED_REVIEW_89f85ac.md",
+      "sha256": "b6f7b62a22a819e8f0b82342b81de10e2a13443338c774d7f5c684890c4103c8"
+    },
+    {
+      "bytes": 5650,
+      "path": "docs/V11_R09_GATE3_A2A3_RETAINED_REVIEW_89f85ac_terminal.json",
+      "sha256": "1e946356feb8824548e023e7a439d49fa69e1d54d0a7ff0a5f7a3362f8dd1355"
+    },
+    {
+      "bytes": 16386,
+      "path": "docs/V11_R09_GATE3_A4_BOOTSTRAP_DESIGN_20261002.md",
+      "sha256": "e891558a5184ea36790e904a41b27eaac328fbe12b5ca3d44c212c261d411223"
+    },
+    {
+      "bytes": 11803,
+      "path": "docs/V11_R09_GATE3_A2A3_DECISION_20261002.md",
+      "sha256": "524d72c7b8ee5a032708682935a9aa9246d5cc80bd187d04851321d54a421978"
+    }
+  ],
+  "fresh_audit": {
+    "bytes": 118802,
+    "decoder_imported": false,
+    "equal_to_retained_excluding": [
+      "observed_utc"
+    ],
+    "exit_code": 0,
+    "observed_utc": "2026-10-02T03:45:53.258545+00:00",
+    "path": "/tmp/alpha-v11-a2a3-decision-rerun-20261002.json",
+    "sha256": "82f6e27da20d0008368bb88f488078f3c4bdbcc15756cbe6f4ef957c65ffe1a7"
+  },
+  "g3l": "NO-GO",
+  "historical_wheel": {
+    "authenticated_original_ref": null,
+    "exhaustive_absence_proved": false,
+    "expected_bytes": 35957853,
+    "expected_sha256": "71b4059a56d8b35d682b05b0929e848e34750bb4c9e8d7198aa6d0049171c984",
+    "historical_locator": "/home/alphaadmin/.cache/pip/http-v2/d/b/5/c/1/db5c167b99b3920157e6ef8cd4747df3c0035c5ce559ce4fe109e10c.body",
+    "present_at_locator": false
+  },
+  "independent_a2a3_review_ref": null,
+  "independent_decision_review_ref": null,
+  "interpreter_observation": {
+    "abi": "cpython-312-x86_64-linux-gnu",
+    "bytes": 8020928,
+    "observed_executable": "/home/alphaadmin/AlphaV11_Dev/venv/bin/python",
+    "resolved_path": "/usr/bin/python3.12",
+    "sha256": "e50d468e8b0adfb05733f5b87b3cff34829c4a8c1aea50c865aa8bdfe4bb150f"
+  },
+  "launchable": false,
+  "package_installations": 0,
+  "packages": [
+    {
+      "build_provenance_ref": null,
+      "independent_authentication_ref": null,
+      "independent_review_ref": null,
+      "metadata_sha256": "cd993fce77a7010ffb132e1a8b41fd9bd5771d449c5bca6e0ae8168aa5fea17c",
+      "name": "eccodes",
+      "observed_version": "2.48.0",
+      "original_artifact_ref": null,
+      "record_sha256": "a702bb02fd549be984ba313b9ca210381dea608857b1f6f85975874a891d3bdf",
+      "unhashed_record_rows": 21
+    },
+    {
+      "build_provenance_ref": null,
+      "independent_authentication_ref": null,
+      "independent_review_ref": null,
+      "metadata_sha256": "ce2f43a17fb1084317169fc0ab8f1a210f5db1dc2998079716e9ca07b522f7a2",
+      "name": "eccodeslib",
+      "observed_version": "2.49.0.30",
+      "original_artifact_ref": null,
+      "record_sha256": "3bae818c7baa6873c130792e7b57d0de4ced96e4d16689a8df6f527667e87397",
+      "unhashed_record_rows": 2
+    },
+    {
+      "build_provenance_ref": null,
+      "independent_authentication_ref": null,
+      "independent_review_ref": null,
+      "metadata_sha256": "650320c88e0e580f848ae0479ac2addfc7e414cc8b49f808b75cfadbaf18ec13",
+      "name": "eckitlib",
+      "observed_version": "2.3.0.30",
+      "original_artifact_ref": null,
+      "record_sha256": "fbff0d5c15a6a2ec52984aafd254e15549b5e79b30207999640d4b87c02c2bcf",
+      "unhashed_record_rows": 2
+    },
+    {
+      "build_provenance_ref": null,
+      "independent_authentication_ref": null,
+      "independent_review_ref": null,
+      "metadata_sha256": "a82c3e05c05dbe56a85e025c2bab1651ce5c5b7f74d6101d45d754eb54da1633",
+      "name": "findlibs",
+      "observed_version": "0.1.3",
+      "original_artifact_ref": null,
+      "record_sha256": "681b1430abcace0f2c35d809064778a13ee8ace67bdccb3160c352e2bb6e4a28",
+      "unhashed_record_rows": 2
+    },
+    {
+      "build_provenance_ref": null,
+      "independent_authentication_ref": null,
+      "independent_review_ref": null,
+      "metadata_sha256": "451a9b8028000588e66b0b415587b6aef0bbc51a96d8e8a0cba0dc23acf64f99",
+      "name": "numpy",
+      "observed_version": "2.5.3",
+      "original_artifact_ref": null,
+      "record_sha256": "a3bc9b5a9da3ecb2c00c267bd1ee76270b6beb4887b794df250fed2add802a1d",
+      "unhashed_record_rows": 408
+    },
+    {
+      "build_provenance_ref": null,
+      "independent_authentication_ref": null,
+      "independent_review_ref": null,
+      "metadata_sha256": "4cd40e690f23bf37cbcad34efd6758e062df1df07c86833f7e3ce95bf1fa38cc",
+      "name": "attrs",
+      "observed_version": "26.1.0",
+      "original_artifact_ref": null,
+      "record_sha256": "a5151f0461f45abf44fdc57c2ccdb73151bb54a0abfd22133f7ea7ad48f8dc23",
+      "unhashed_record_rows": 20
+    },
+    {
+      "build_provenance_ref": null,
+      "independent_authentication_ref": null,
+      "independent_review_ref": null,
+      "metadata_sha256": "558bafb9093a8e790175d9ecff9688382981d744877dad86fd6770db0f4dc918",
+      "name": "cffi",
+      "observed_version": "2.1.1",
+      "original_artifact_ref": null,
+      "record_sha256": "c86194b0b3c19552cad4731d2d19481359ea44af7256e19743a4c1b5b72613ef",
+      "unhashed_record_rows": 21
+    },
+    {
+      "build_provenance_ref": null,
+      "independent_authentication_ref": null,
+      "independent_review_ref": null,
+      "metadata_sha256": "f547a60b0ab54cc2f242213d1f87960ad80df7dd5dfeb98d17a444d48bfb6b93",
+      "name": "pycparser",
+      "observed_version": "3.0",
+      "original_artifact_ref": null,
+      "record_sha256": "2cfa55ddc9e41745c714874107384803e14799e60143250d5ef37f7c0e25adfa",
+      "unhashed_record_rows": 8
+    }
+  ],
+  "permitted_future_paths": [
+    "H_HISTORICAL_BYTES_WITH_CAUSAL_PROVENANCE",
+    "R_SEPARATE_AUTHENTICATED_REPLACEMENT_WITH_NEW_EVIDENCE"
+  ],
+  "provider_requests": 0,
+  "qualification": "UNQUALIFIED",
+  "qualification_credit": 0,
+  "reconstruction_attempted": false,
+  "reconstruction_terminal_ref": null,
+  "record_discrepancies": [
+    {
+      "authenticated_stage_records_ref": null,
+      "causal_explanation_ref": null,
+      "historical_disposition": "UNRESOLVED_DO_NOT_QUALIFY",
+      "independent_authentication_ref": null,
+      "independent_per_file_review_ref": null,
+      "observed_payload": {
+        "bytes": 140121,
+        "sha256": "fe96cbf4a28a76b235402965c216cd94f59ca8d65bd396c43934053be568ede9"
+      },
+      "original_artifact_ref": null,
+      "path": "eckitlib.libs/libbrotlicommon-6ce2a53c.so.1.0.6",
+      "record_bytes": 135913,
+      "record_sha256": "cf28b21a9be6cbb86e2a6f899561c2328f164bf240f57221e79aad40bb3c1810"
+    },
+    {
+      "authenticated_stage_records_ref": null,
+      "causal_explanation_ref": null,
+      "historical_disposition": "UNRESOLVED_DO_NOT_QUALIFY",
+      "independent_authentication_ref": null,
+      "independent_per_file_review_ref": null,
+      "observed_payload": {
+        "bytes": 70409,
+        "sha256": "2a03168da732f7698350da721cd4aefd97c618d94316c19dc61368720f1741ee"
+      },
+      "original_artifact_ref": null,
+      "path": "eckitlib.libs/libbrotlidec-811d1be3.so.1.0.6",
+      "record_bytes": 66297,
+      "record_sha256": "02ee2a64252887008ab35a44dbe70804a2f51e6114befa055ec8d87499bf605f"
+    },
+    {
+      "authenticated_stage_records_ref": null,
+      "causal_explanation_ref": null,
+      "historical_disposition": "UNRESOLVED_DO_NOT_QUALIFY",
+      "independent_authentication_ref": null,
+      "independent_per_file_review_ref": null,
+      "observed_payload": {
+        "bytes": 27449,
+        "sha256": "03e47793911274035eb1cb51625d0a4856a5e4f8a024fa88fec52182f800dd9b"
+      },
+      "original_artifact_ref": null,
+      "path": "eckitlib.libs/libcom_err-730ca923.so.2.1",
+      "record_bytes": 21545,
+      "record_sha256": "558d6c4ed410bb944977f635057b41163aa516188f093330196660ceabbe2e84"
+    },
+    {
+      "authenticated_stage_records_ref": null,
+      "causal_explanation_ref": null,
+      "historical_disposition": "UNRESOLVED_DO_NOT_QUALIFY",
+      "independent_authentication_ref": null,
+      "independent_per_file_review_ref": null,
+      "observed_payload": {
+        "bytes": 144441,
+        "sha256": "03d782bb9b5d24b673ac3099a478491cc4ee85ffbdfd9930b3f5b8cbdcf540f7"
+      },
+      "original_artifact_ref": null,
+      "path": "eckitlib.libs/libcrypt-52aca757.so.1.1.0",
+      "record_bytes": 140977,
+      "record_sha256": "465ea2047eed23f5f71b89507ec366f60a0e74d0b6f7021ffc8efb7158d01127"
+    },
+    {
+      "authenticated_stage_records_ref": null,
+      "causal_explanation_ref": null,
+      "historical_disposition": "UNRESOLVED_DO_NOT_QUALIFY",
+      "independent_authentication_ref": null,
+      "independent_per_file_review_ref": null,
+      "observed_payload": {
+        "bytes": 3309281,
+        "sha256": "8700265a5613dc2a3c0edf8e6a072b802299570dbcfb6f26d3dbd7090001b70b"
+      },
+      "original_artifact_ref": null,
+      "path": "eckitlib.libs/libcrypto-a324fe28.so.1.1.1k",
+      "record_bytes": 3215921,
+      "record_sha256": "a0f3596ad24657c5657908b709090a8facb3b93727d0181829daf80fd62ea859"
+    },
+    {
+      "authenticated_stage_records_ref": null,
+      "causal_explanation_ref": null,
+      "historical_disposition": "UNRESOLVED_DO_NOT_QUALIFY",
+      "independent_authentication_ref": null,
+      "independent_per_file_review_ref": null,
+      "observed_payload": {
+        "bytes": 648681,
+        "sha256": "b348bd1845100fa4c9e6f6c599cc997190df574d39b60d22747a508a7b0290fc"
+      },
+      "original_artifact_ref": null,
+      "path": "eckitlib.libs/libcurl-f8def1d0.so.4.5.0",
+      "record_bytes": 636377,
+      "record_sha256": "32b5b95c4846e7730650d17bd433c6fd2d9190205100f0c73bcfcd4bd2659341"
+    },
+    {
+      "authenticated_stage_records_ref": null,
+      "causal_explanation_ref": null,
+      "historical_disposition": "UNRESOLVED_DO_NOT_QUALIFY",
+      "independent_authentication_ref": null,
+      "independent_per_file_review_ref": null,
+      "observed_payload": {
+        "bytes": 403201,
+        "sha256": "0f055f3a393745b0ecec793555acd6d647ed9f8346cc8eb0fc41ff0dea0b59a9"
+      },
+      "original_artifact_ref": null,
+      "path": "eckitlib.libs/libgssapi_krb5-323bbd21.so.2.2",
+      "record_bytes": 390897,
+      "record_sha256": "7ade0ec22b7eecf2c51c88612a8f0cc11afc238a4dc156c30b9668ad82097acf"
+    },
+    {
+      "authenticated_stage_records_ref": null,
+      "causal_explanation_ref": null,
+      "historical_disposition": "UNRESOLVED_DO_NOT_QUALIFY",
+      "independent_authentication_ref": null,
+      "independent_per_file_review_ref": null,
+      "observed_payload": {
+        "bytes": 148593,
+        "sha256": "8f2d48169688822c20e2c2b5cb96b9d5150412d273326217b480bbfd8eeedaab"
+      },
+      "original_artifact_ref": null,
+      "path": "eckitlib.libs/libidn2-2f4a5893.so.0.3.6",
+      "record_bytes": 144481,
+      "record_sha256": "f2114c9f293d5447d0c6697c2d5685f2e4369b1af6ff0cefb730e788fa2d63ba"
+    },
+    {
+      "authenticated_stage_records_ref": null,
+      "causal_explanation_ref": null,
+      "historical_disposition": "UNRESOLVED_DO_NOT_QUALIFY",
+      "independent_authentication_ref": null,
+      "independent_per_file_review_ref": null,
+      "observed_payload": {
+        "bytes": 122401,
+        "sha256": "909ee4fb3774a2c619978c1417cc7fbd99e52f4e747317b221472df7b5f317b8"
+      },
+      "original_artifact_ref": null,
+      "path": "eckitlib.libs/libk5crypto-9a74ff38.so.3.1",
+      "record_bytes": 118289,
+      "record_sha256": "c202c7713325d10800d43f74bb5619f945b6f8c3154bc35dcf48ec986ab3aec1"
+    },
+    {
+      "authenticated_stage_records_ref": null,
+      "causal_explanation_ref": null,
+      "historical_disposition": "UNRESOLVED_DO_NOT_QUALIFY",
+      "independent_authentication_ref": null,
+      "independent_per_file_review_ref": null,
+      "observed_payload": {
+        "bytes": 22177,
+        "sha256": "f0a4577f09f8ab08d515ae240b1fb2f87d2b1b287ec26654d04c5d9001ce86e0"
+      },
+      "original_artifact_ref": null,
+      "path": "eckitlib.libs/libkeyutils-2777d33d.so.1.6",
+      "record_bytes": 17929,
+      "record_sha256": "2f18e7ed5954c989ba03c6f824c0a9b68c1856283d1564eaf261308763e984ba"
+    },
+    {
+      "authenticated_stage_records_ref": null,
+      "causal_explanation_ref": null,
+      "historical_disposition": "UNRESOLVED_DO_NOT_QUALIFY",
+      "independent_authentication_ref": null,
+      "independent_per_file_review_ref": null,
+      "observed_payload": {
+        "bytes": 1068113,
+        "sha256": "873df1adc5ec02fc51c8c0447d6a894c1ef8e32f3d2aa5e0368f6a39b9599dd8"
+      },
+      "original_artifact_ref": null,
+      "path": "eckitlib.libs/libkrb5-a55300e8.so.3.3",
+      "record_bytes": 1047617,
+      "record_sha256": "a0a636ac91427563fe46ff90a039b8d78125f1b936fdcb022c3dcc426752e3ac"
+    },
+    {
+      "authenticated_stage_records_ref": null,
+      "causal_explanation_ref": null,
+      "historical_disposition": "UNRESOLVED_DO_NOT_QUALIFY",
+      "independent_authentication_ref": null,
+      "independent_per_file_review_ref": null,
+      "observed_payload": {
+        "bytes": 93377,
+        "sha256": "2f58d94e1d3852cd3c61ca773c867a7f8b4e4fa3cc66034f2c3395d612bbd83e"
+      },
+      "original_artifact_ref": null,
+      "path": "eckitlib.libs/libkrb5support-e6594cfc.so.0.1",
+      "record_bytes": 89265,
+      "record_sha256": "dfcd92217780c12603f591d27539456e1ac2716e09f635cd6da96c611977eb1d"
+    },
+    {
+      "authenticated_stage_records_ref": null,
+      "causal_explanation_ref": null,
+      "historical_disposition": "UNRESOLVED_DO_NOT_QUALIFY",
+      "independent_authentication_ref": null,
+      "independent_per_file_review_ref": null,
+      "observed_payload": {
+        "bytes": 76729,
+        "sha256": "cb7afc19abf75455849f8d68e19a32a687727731ffec6bc7d23eb53594dbe052"
+      },
+      "original_artifact_ref": null,
+      "path": "eckitlib.libs/liblber-2-d20824ef.4.so.2.10.9",
+      "record_bytes": 73361,
+      "record_sha256": "e86e226c61c7068fcf064166dda31b074d63f15b72f69af755e83d8847585365"
+    },
+    {
+      "authenticated_stage_records_ref": null,
+      "causal_explanation_ref": null,
+      "historical_disposition": "UNRESOLVED_DO_NOT_QUALIFY",
+      "independent_authentication_ref": null,
+      "independent_per_file_review_ref": null,
+      "observed_payload": {
+        "bytes": 393641,
+        "sha256": "a50c673a248097a0ab3e5d30f3302896c2efb1aa23c23f7b741791ec8e0d9c2a"
+      },
+      "original_artifact_ref": null,
+      "path": "eckitlib.libs/libldap-2-cea2a960.4.so.2.10.9",
+      "record_bytes": 377241,
+      "record_sha256": "66e83aaf985dbae3f1e73747618a136f484a4327891554f9b7a7d8f9cf5c1cfd"
+    },
+    {
+      "authenticated_stage_records_ref": null,
+      "causal_explanation_ref": null,
+      "historical_disposition": "UNRESOLVED_DO_NOT_QUALIFY",
+      "independent_authentication_ref": null,
+      "independent_per_file_review_ref": null,
+      "observed_payload": {
+        "bytes": 1798025,
+        "sha256": "11795d7a05d64a932689d8131456bb0bba75adf4962584922b62224c17fa1e12"
+      },
+      "original_artifact_ref": null,
+      "path": "eckitlib.libs/liblz4-0414571a.so.1.10.0",
+      "record_bytes": 1790625,
+      "record_sha256": "23ba13a782df3794a385139f7261315bb9996555235f666211176b09abcdba18"
+    },
+    {
+      "authenticated_stage_records_ref": null,
+      "causal_explanation_ref": null,
+      "historical_disposition": "UNRESOLVED_DO_NOT_QUALIFY",
+      "independent_authentication_ref": null,
+      "independent_per_file_review_ref": null,
+      "observed_payload": {
+        "bytes": 182401,
+        "sha256": "82f74595764ee98893a8913cea2dbd9baa4e96f77b93d3a0f8dcab83a49b64fd"
+      },
+      "original_artifact_ref": null,
+      "path": "eckitlib.libs/libnghttp2-39367a22.so.14.17.0",
+      "record_bytes": 175025,
+      "record_sha256": "9657d01252c12b5d2d8eed89da4ba30a81ccb900e7c42012021a169907d038ef"
+    },
+    {
+      "authenticated_stage_records_ref": null,
+      "causal_explanation_ref": null,
+      "historical_disposition": "UNRESOLVED_DO_NOT_QUALIFY",
+      "independent_authentication_ref": null,
+      "independent_per_file_review_ref": null,
+      "observed_payload": {
+        "bytes": 551697,
+        "sha256": "ad47b948b9a1029d9626d97bc388d2c1bef9028adeab21d806ebfac744072b74"
+      },
+      "original_artifact_ref": null,
+      "path": "eckitlib.libs/libpcre2-8-516f4c9d.so.0.7.1",
+      "record_bytes": 547745,
+      "record_sha256": "21c6e58d6fe82ae01596b0302b3f2ab516717e2d6c407fe22b13d2a0da73b265"
+    },
+    {
+      "authenticated_stage_records_ref": null,
+      "causal_explanation_ref": null,
+      "historical_disposition": "UNRESOLVED_DO_NOT_QUALIFY",
+      "independent_authentication_ref": null,
+      "independent_per_file_review_ref": null,
+      "observed_payload": {
+        "bytes": 91089169,
+        "sha256": "20c363ed9abe34667f6082593b7c575beda6d5024cddee242ea5e6adceffe690"
+      },
+      "original_artifact_ref": null,
+      "path": "eckitlib.libs/libproj-e5164a33.so.25.9.8.1",
+      "record_bytes": 90876161,
+      "record_sha256": "1ddafbb0fc808beba873c31c6f176b566bfdaf174aa71a6cfa7ab8ff0a08e5ae"
+    },
+    {
+      "authenticated_stage_records_ref": null,
+      "causal_explanation_ref": null,
+      "historical_disposition": "UNRESOLVED_DO_NOT_QUALIFY",
+      "independent_authentication_ref": null,
+      "independent_per_file_review_ref": null,
+      "observed_payload": {
+        "bytes": 87017,
+        "sha256": "2f9c4fd90f1943141feee2a76ef768798f26259f7440937e9687295541ae4396"
+      },
+      "original_artifact_ref": null,
+      "path": "eckitlib.libs/libpsl-99becdd3.so.5.3.1",
+      "record_bytes": 82905,
+      "record_sha256": "f1b1f78f3e07673bfc30ed5258c4cc4ac64e6262be076ddcacce4404fa01c1cc"
+    },
+    {
+      "authenticated_stage_records_ref": null,
+      "causal_explanation_ref": null,
+      "historical_disposition": "UNRESOLVED_DO_NOT_QUALIFY",
+      "independent_authentication_ref": null,
+      "independent_per_file_review_ref": null,
+      "observed_payload": {
+        "bytes": 146977,
+        "sha256": "2c3b5470cc0b52b3fe5e584e5fefcff7ffb39ef6122e96d773ad9ec9a4414545"
+      },
+      "original_artifact_ref": null,
+      "path": "eckitlib.libs/libsasl2-7de4d792.so.3.0.0",
+      "record_bytes": 142865,
+      "record_sha256": "d702d083cb2a28a71d9a5928d15e4c970e1e509b37644b86f672ce6db858e6d6"
+    },
+    {
+      "authenticated_stage_records_ref": null,
+      "causal_explanation_ref": null,
+      "historical_disposition": "UNRESOLVED_DO_NOT_QUALIFY",
+      "independent_authentication_ref": null,
+      "independent_per_file_review_ref": null,
+      "observed_payload": {
+        "bytes": 211505,
+        "sha256": "5f8bc7171430532724c7b80abd811e82df2aac2a2741199692509a258be5ec1c"
+      },
+      "original_artifact_ref": null,
+      "path": "eckitlib.libs/libselinux-d0805dcb.so.1",
+      "record_bytes": 203297,
+      "record_sha256": "4cc462e3478461726631fe12dcf3826dd4aeb1b65b98f4a05861a7cb1fbe3347"
+    },
+    {
+      "authenticated_stage_records_ref": null,
+      "causal_explanation_ref": null,
+      "historical_disposition": "UNRESOLVED_DO_NOT_QUALIFY",
+      "independent_authentication_ref": null,
+      "independent_per_file_review_ref": null,
+      "observed_payload": {
+        "bytes": 1174137,
+        "sha256": "4349a65d26347713feda5f0d66c0428edf2733a355fafad458263069b2c4f1eb"
+      },
+      "original_artifact_ref": null,
+      "path": "eckitlib.libs/libsqlite3-1ec6053f.so.0.8.6",
+      "record_bytes": 1163393,
+      "record_sha256": "d6c92fa9bc7e0ca2939a1be4138e9652c3950bb0606a3a558a1c34627846a819"
+    },
+    {
+      "authenticated_stage_records_ref": null,
+      "causal_explanation_ref": null,
+      "historical_disposition": "UNRESOLVED_DO_NOT_QUALIFY",
+      "independent_authentication_ref": null,
+      "independent_per_file_review_ref": null,
+      "observed_payload": {
+        "bytes": 532977,
+        "sha256": "62cdfcbe7b41771d10ce3f8bca415d847d317b2690963e246359e7f852dbcfee"
+      },
+      "original_artifact_ref": null,
+      "path": "eckitlib.libs/libssh-05a03e26.so.4.8.7",
+      "record_bytes": 516577,
+      "record_sha256": "3427f3c12f594ecc4c7ce3d77ac108ea6e1e3701061c64a0fefaf75ab01e926b"
+    },
+    {
+      "authenticated_stage_records_ref": null,
+      "causal_explanation_ref": null,
+      "historical_disposition": "UNRESOLVED_DO_NOT_QUALIFY",
+      "independent_authentication_ref": null,
+      "independent_per_file_review_ref": null,
+      "observed_payload": {
+        "bytes": 707849,
+        "sha256": "1c21694c88fcef3ccd8de729f96c5fe7317469cdffd73427c1fc5e67303273d3"
+      },
+      "original_artifact_ref": null,
+      "path": "eckitlib.libs/libssl-8248cfc9.so.1.1.1k",
+      "record_bytes": 687353,
+      "record_sha256": "58726c6bb8bc1cb483ec62f98ab8aefc668a950483ae9944d10912bbc9c16b36"
+    },
+    {
+      "authenticated_stage_records_ref": null,
+      "causal_explanation_ref": null,
+      "historical_disposition": "UNRESOLVED_DO_NOT_QUALIFY",
+      "independent_authentication_ref": null,
+      "independent_per_file_review_ref": null,
+      "observed_payload": {
+        "bytes": 1841769,
+        "sha256": "ec2ffe19bad94adce53c07e66001bea145120eca51fe0dc009c352af5cde214f"
+      },
+      "original_artifact_ref": null,
+      "path": "eckitlib.libs/libunistring-05abdd40.so.2.1.0",
+      "record_bytes": 1826161,
+      "record_sha256": "2317d3dd5bb06bc4ed1201990cf34db52e4db7282aac9270bd781a57c2aedc75"
+    }
+  ],
+  "record_rewrites": 0,
+  "schema": "ALPHA_V11_A2A3_PENDING_INTAKE_V1",
+  "scope": "PROPOSED_DECISION_AND_PENDING_INTAKE_ONLY",
+  "selected_qualification_path": null
+}
