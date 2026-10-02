@@ -1,3 +1,11 @@
+## Fresh-window readiness exact review pending — 2026-10-02 22:08 UTC
+
+Sonnet repair `6af4633` is clean and in independent Astra/high review; the
+separate `131eb12` G3-L audit remains in independent Opus/high review. Neither
+candidate is merged or accepted. The 77 missing PRE_REVIEW identities remain
+unfilled; no C/J/E/A credit: **91/200, formal 1/50; G3-L NO-GO;
+NOT_READY_TO_FUND**.
+
 ## G3-L audit review pending — 2026-10-02 22:05 UTC
 
 Exact audit candidate `131eb12` is undergoing owner-authorized independent

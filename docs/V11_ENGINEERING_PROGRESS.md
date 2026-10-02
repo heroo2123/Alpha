@@ -1,3 +1,12 @@
+## Fresh-readiness R1-R4 candidate review — 2026-10-02 22:08 UTC
+
+Recovered clean isolated `6af4633` after the author exited and launched its
+different-model Astra/high exact-commit review. The author handoff reports 531
+plain and optimized focused/adjacent offline passes; independent verdict is
+pending. The G3-L retained-identity audit has a separate Opus/high review in
+flight. No integration, provider request, capture, SHADOW admission or score
+crossing: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Parallel weather prerequisite work — 2026-10-02 22:05 UTC
 
 Started a bounded independent exact-commit Opus/high review of the clean
