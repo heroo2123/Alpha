@@ -1,3 +1,28 @@
+## G3-L reconciliation independent review launched — 2026-10-02 05:40 UTC
+
+Candidate `027fd7a1ed82e403780473757cad1227ecc17115` is committed on main.
+Exactly one persistent different-model Sol/high reviewer is live: runner PID
+`2106606`, initial child PID `2106614`, clean detached worktree
+`/tmp/alpha-v11-g3l-reconciliation-review-027fd7a`. Its prompt, log, review,
+verdict, runner and terminal use that same prefix; expected completion artifact
+is `/tmp/alpha-v11-g3l-reconciliation-review-027fd7a.terminal.json` with marker
+`G3L_RECONCILIATION_REVIEW_PROCESS_FINISHED`. Launch record retained as
+`docs/V11_R09_GATE3_G3L_RECONCILIATION_REVIEW_027fd7a.launch.json`.
+The initial runner syntax check caught a template substitution error before any
+worker started; fixed locally and syntax-checked, then launched once. Actual
+Codex startup confirms `gpt-6-sol`, high effort and the exact checkout. No
+verdict exists yet; do not duplicate this task or treat launch as acceptance.
+
+Review scope is the 79-row evidence reconciliation only, never G3-L approval.
+Next invocation must inspect actual process/log, exact report/verdict hashes,
+exit status and checkout identity/cleanliness. Resolve any findings and require
+fresh exact review for changed candidate bytes. If accepted, retain the scoped
+verdict and continue bounded historical-terminal recovery/missing-evidence intake;
+no provider request or real adapter launch follows. Post-checkout free disk was
+915,841,024 bytes, still below the 2 GiB floor. No score or evidence admission:
+**A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO; 91/200, formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## G3-L exact-byte reconciliation candidate — 2026-10-02 05:37 UTC
 
 Prepared `docs/V11_R09_GATE3_G3L_RECONCILIATION_20261002.{md,json}` against clean

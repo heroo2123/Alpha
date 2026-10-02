@@ -1,0 +1,12 @@
+{
+  "candidate": "027fd7a1ed82e403780473757cad1227ecc17115",
+  "effort": "high",
+  "g3l": "NO-GO",
+  "launchable": false,
+  "launched_utc": "2026-10-02T05:40:47.635587+00:00",
+  "model": "gpt-6-sol",
+  "pid": 2106606,
+  "task": "g3l-reconciliation-independent-review",
+  "terminal": "/tmp/alpha-v11-g3l-reconciliation-review-027fd7a.terminal.json",
+  "worktree": "/tmp/alpha-v11-g3l-reconciliation-review-027fd7a"
+}

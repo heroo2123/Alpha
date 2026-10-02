@@ -1,3 +1,12 @@
+## G3-L reconciliation review active — 2026-10-02 05:40 UTC
+
+Committed reconciliation candidate `027fd7a`; one persistent independent
+Sol/high reviewer is live in `/tmp/alpha-v11-g3l-reconciliation-review-027fd7a`
+(runner PID 2106606). Recover its `.terminal.json`, `.verdict.json`, `.review.md`
+and `.log` before acting; no acceptance yet. This is reconciliation-only review,
+not detached G3-L approval. No qualified identity, forward evidence or C/J/E/A
+crossing: **G3-L NO-GO; 91/200, formal 1/50; NOT_READY_TO_FUND**.
+
 ## G3-L reconciliation candidate — 2026-10-02 05:37 UTC
 
 Exact-byte 79-row reconciliation prepared in `V11_R09_GATE3_G3L_RECONCILIATION_20261002.{md,json}`.
