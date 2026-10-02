@@ -1,3 +1,11 @@
+## Coordinator recovery — 2026-10-02 09:40 UTC
+
+Recovered clean main `b066a24`; the sole newer commit since 09:36 records that prior checkpoint. The only live Alpha Codex process is this persistent coordinator invocation; no separate author, reviewer, pytest, PAPER scanner or execution worker appeared. SHADOW and Brain-readiness worktrees are clean; ECMWF backfill data remains untracked and preserved. Exact preflight review tree is clean, and the protected FINAL-REVIEWED master remains SHA-256 `a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+
+Rechecked the exact `27513d2` handoff and protocol: design and private package remain prepared but non-executable. Automatic approval review previously rejected transfer of the private package/provider evidence to an external Codex reviewer; the destination-specific owner question remains pending. No independent PASS, executable package, provider request or capture evidence exists. The frozen 10:00–13:30 UTC proposal cannot silently roll forward. The offline checker is sequenced after design PASS, so no duplicate implementation or worker was launched.
+
+Disk free was 3,087,376,384 bytes, above the 2 GiB G3-L floor but below preferred 3 GiB; MemAvailable was 824,628 KiB, so the three-worker override does not apply. Examined `/tmp` and recent pytest scratch: the 1.56 GB A8 fixture remains protected, while the only newly identified pytest root was under 242 KB; no further safe material cleanup was established. Protected V11 authority roots are absent; the user service bus again did not answer current unit states. No newer qualifying forward evidence or release test appeared. No V10, AxiomTrade, financial, provider, authority, service, deletion or publication action. No C/J/E/A crossing: **91/200, formal 1/50; A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Coordinator recovery and bounded space cleanup — 2026-10-02 09:36 UTC
 
 Recovered clean main `d816f0f` after the 09:31 handoff; the only intervening
