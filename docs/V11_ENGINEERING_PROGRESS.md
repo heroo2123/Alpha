@@ -1,5 +1,9 @@
 # Supplementary engineering estimate
 
+## A8 repair under independent review — 2026-10-02 01:52 UTC
+
+A8 `97290da` finished cleanly with verified author hashes and 330 author-reported offline passes, plus six expected refusals. Independent Astra/high exact review has started; inventory P2's separate exact review continues. Neither is accepted or integrated. G3-L remains NO-GO; no provider request, forward SHADOW evidence, release run or C/J/E/A crossing is claimed. **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Inventory repair under independent review — 2026-10-02 01:46 UTC
 
 Inventory P2 repair `f6c7c90` finished cleanly; 24 focused and 43 adjacent offline passes are author evidence only. A separate Sol/high exact reviewer is live at PGID 2031746, with machine/outer terminals required before acceptance or integration. A8 repair PGID 2015957 still lacks final author/outer terminals. Main had no code changes this invocation; G3-L remains NO-GO, disk below the 2 GiB floor, and no new provider or forward SHADOW evidence exists. No C/J/E/A crossing: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
