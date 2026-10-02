@@ -1,0 +1,3636 @@
+{
+  "artifacts": {
+    "config/v11/r09_gate3_observed_message_sizes_20260930.json": {
+      "byte_length": 2671,
+      "current_byte_length": 2671,
+      "current_matches_reviewed_bytes": true,
+      "current_sha256": "efefd2396c35ac672e18094d611c7a956b709f7deeabb99d1e3e2f1831211eeb",
+      "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+      "historical_git_bytes_verified": true,
+      "media_type": "application/json",
+      "path": "config/v11/r09_gate3_observed_message_sizes_20260930.json",
+      "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+      "sha256": "efefd2396c35ac672e18094d611c7a956b709f7deeabb99d1e3e2f1831211eeb"
+    },
+    "docs/V11_R09_GATE3_A2A3_DECISION_20261002.json": {
+      "byte_length": 22339,
+      "current_byte_length": 22339,
+      "current_matches_reviewed_bytes": true,
+      "current_sha256": "627028d8467101665a9755a8d609f2c1a22f65ab31d1c2daf38c10bb2f7f4892",
+      "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+      "historical_git_bytes_verified": true,
+      "media_type": "application/json",
+      "path": "docs/V11_R09_GATE3_A2A3_DECISION_20261002.json",
+      "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+      "sha256": "627028d8467101665a9755a8d609f2c1a22f65ab31d1c2daf38c10bb2f7f4892"
+    },
+    "docs/V11_R09_GATE3_A2A3_DECISION_20261002.md": {
+      "byte_length": 11803,
+      "current_byte_length": 11803,
+      "current_matches_reviewed_bytes": true,
+      "current_sha256": "524d72c7b8ee5a032708682935a9aa9246d5cc80bd187d04851321d54a421978",
+      "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+      "historical_git_bytes_verified": true,
+      "media_type": "text/plain",
+      "path": "docs/V11_R09_GATE3_A2A3_DECISION_20261002.md",
+      "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+      "sha256": "524d72c7b8ee5a032708682935a9aa9246d5cc80bd187d04851321d54a421978"
+    },
+    "docs/V11_R09_GATE3_A2A3_DECISION_REVIEW_fb3a804.review.md": {
+      "byte_length": 4792,
+      "current_byte_length": 4792,
+      "current_matches_reviewed_bytes": true,
+      "current_sha256": "6f1c94ca29043638587f2b12d0a31a9add6f9d115d3709b22ab562b15a0747cd",
+      "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+      "historical_git_bytes_verified": true,
+      "media_type": "text/plain",
+      "path": "docs/V11_R09_GATE3_A2A3_DECISION_REVIEW_fb3a804.review.md",
+      "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+      "sha256": "6f1c94ca29043638587f2b12d0a31a9add6f9d115d3709b22ab562b15a0747cd"
+    },
+    "docs/V11_R09_GATE3_A4_B1_REVIEW_8a3d47b.md": {
+      "byte_length": 1620,
+      "current_byte_length": 1620,
+      "current_matches_reviewed_bytes": true,
+      "current_sha256": "ce0648476330ec16059ffc9af616f4fb0021f61da50662cdc0c53111f7380313",
+      "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+      "historical_git_bytes_verified": true,
+      "media_type": "text/plain",
+      "path": "docs/V11_R09_GATE3_A4_B1_REVIEW_8a3d47b.md",
+      "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+      "sha256": "ce0648476330ec16059ffc9af616f4fb0021f61da50662cdc0c53111f7380313"
+    },
+    "docs/V11_R09_GATE3_A4_BOOTSTRAP_DESIGN_20261002.md": {
+      "byte_length": 16386,
+      "current_byte_length": 16386,
+      "current_matches_reviewed_bytes": true,
+      "current_sha256": "e891558a5184ea36790e904a41b27eaac328fbe12b5ca3d44c212c261d411223",
+      "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+      "historical_git_bytes_verified": true,
+      "media_type": "text/plain",
+      "path": "docs/V11_R09_GATE3_A4_BOOTSTRAP_DESIGN_20261002.md",
+      "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+      "sha256": "e891558a5184ea36790e904a41b27eaac328fbe12b5ca3d44c212c261d411223"
+    },
+    "docs/V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.json": {
+      "byte_length": 59867,
+      "current_byte_length": 59867,
+      "current_matches_reviewed_bytes": true,
+      "current_sha256": "1535356757b1ed2cc9069378deb51dae3e4e3b829b58ddf157c54e1d213513fa",
+      "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+      "historical_git_bytes_verified": true,
+      "media_type": "application/json",
+      "path": "docs/V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.json",
+      "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+      "sha256": "1535356757b1ed2cc9069378deb51dae3e4e3b829b58ddf157c54e1d213513fa"
+    },
+    "docs/V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.md": {
+      "byte_length": 11925,
+      "current_byte_length": 11925,
+      "current_matches_reviewed_bytes": true,
+      "current_sha256": "eb34a6940da19f77ce43dd543926ef6524773f963e2371bc4657466bb8933302",
+      "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+      "historical_git_bytes_verified": true,
+      "media_type": "text/plain",
+      "path": "docs/V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.md",
+      "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+      "sha256": "eb34a6940da19f77ce43dd543926ef6524773f963e2371bc4657466bb8933302"
+    },
+    "docs/V11_R09_GATE3_A7_REVIEW_a749197.md": {
+      "byte_length": 7224,
+      "current_byte_length": 7224,
+      "current_matches_reviewed_bytes": true,
+      "current_sha256": "da906f244ed710acc0ed811c31500465f997a75b9393ef7d05a5901372b1c104",
+      "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+      "historical_git_bytes_verified": true,
+      "media_type": "text/plain",
+      "path": "docs/V11_R09_GATE3_A7_REVIEW_a749197.md",
+      "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+      "sha256": "da906f244ed710acc0ed811c31500465f997a75b9393ef7d05a5901372b1c104"
+    },
+    "docs/V11_R09_GATE3_A8_REVIEW_4fdeabc.md": {
+      "byte_length": 5044,
+      "current_byte_length": 5044,
+      "current_matches_reviewed_bytes": true,
+      "current_sha256": "5c6820e40553b0e8796527b4c1b57aeab5d46e20dd55a01595abef17c893ec17",
+      "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+      "historical_git_bytes_verified": true,
+      "media_type": "text/plain",
+      "path": "docs/V11_R09_GATE3_A8_REVIEW_4fdeabc.md",
+      "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+      "sha256": "5c6820e40553b0e8796527b4c1b57aeab5d46e20dd55a01595abef17c893ec17"
+    },
+    "docs/V11_R09_GATE3_COLLECTION_PROTOCOL.md": {
+      "byte_length": 20041,
+      "current_byte_length": 20041,
+      "current_matches_reviewed_bytes": true,
+      "current_sha256": "da3144c558134e7bd6a06b5c3f298740e86cee13be7c54a9932204362c269524",
+      "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+      "historical_git_bytes_verified": true,
+      "media_type": "text/plain",
+      "path": "docs/V11_R09_GATE3_COLLECTION_PROTOCOL.md",
+      "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+      "sha256": "da3144c558134e7bd6a06b5c3f298740e86cee13be7c54a9932204362c269524"
+    },
+    "docs/V11_R09_GATE3_COLLECTOR_REVIEW_3e6a872.md": {
+      "byte_length": 8085,
+      "current_byte_length": 8085,
+      "current_matches_reviewed_bytes": true,
+      "current_sha256": "18485546b1e37320870720cc3cd39eecd35673a9bd9e8ad295eb6f735bef869c",
+      "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+      "historical_git_bytes_verified": true,
+      "media_type": "text/plain",
+      "path": "docs/V11_R09_GATE3_COLLECTOR_REVIEW_3e6a872.md",
+      "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+      "sha256": "18485546b1e37320870720cc3cd39eecd35673a9bd9e8ad295eb6f735bef869c"
+    },
+    "docs/V11_R09_GATE3_COMPOSITION_REVIEW_0b7209d.md": {
+      "byte_length": 6084,
+      "current_byte_length": 6084,
+      "current_matches_reviewed_bytes": true,
+      "current_sha256": "b1e7952ce4c3789cbdda43a5ff72eb022308312e0a4bd4061d4da66534a47517",
+      "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+      "historical_git_bytes_verified": true,
+      "media_type": "text/plain",
+      "path": "docs/V11_R09_GATE3_COMPOSITION_REVIEW_0b7209d.md",
+      "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+      "sha256": "b1e7952ce4c3789cbdda43a5ff72eb022308312e0a4bd4061d4da66534a47517"
+    },
+    "docs/V11_R09_GATE3_COMPOSITION_REVIEW_0b7209d_terminal.json": {
+      "byte_length": 2210,
+      "current_byte_length": 2210,
+      "current_matches_reviewed_bytes": true,
+      "current_sha256": "60fc42e27f5d62a2b37dc4dce5c3e774955220f9f86ca412376e1b2675a6c78e",
+      "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+      "historical_git_bytes_verified": true,
+      "media_type": "application/json",
+      "path": "docs/V11_R09_GATE3_COMPOSITION_REVIEW_0b7209d_terminal.json",
+      "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+      "sha256": "60fc42e27f5d62a2b37dc4dce5c3e774955220f9f86ca412376e1b2675a6c78e"
+    },
+    "docs/V11_R09_GATE3_G3L_OFFLINE_PREP.md": {
+      "byte_length": 7983,
+      "current_byte_length": 7983,
+      "current_matches_reviewed_bytes": true,
+      "current_sha256": "015b4d04f770cae1174e59c68413b507f6ed1fc71510cd104630580c27f7a965",
+      "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+      "historical_git_bytes_verified": true,
+      "media_type": "text/plain",
+      "path": "docs/V11_R09_GATE3_G3L_OFFLINE_PREP.md",
+      "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+      "sha256": "015b4d04f770cae1174e59c68413b507f6ed1fc71510cd104630580c27f7a965"
+    },
+    "docs/V11_R09_GATE3_G3L_PREP_REPAIR_REVIEW_f03d2fd.md": {
+      "byte_length": 5560,
+      "current_byte_length": 5560,
+      "current_matches_reviewed_bytes": true,
+      "current_sha256": "d4235cfb6eee606ac5dfe361c80b05b27852f3ab4af3ca58a39e6acb951e5568",
+      "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+      "historical_git_bytes_verified": true,
+      "media_type": "text/plain",
+      "path": "docs/V11_R09_GATE3_G3L_PREP_REPAIR_REVIEW_f03d2fd.md",
+      "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+      "sha256": "d4235cfb6eee606ac5dfe361c80b05b27852f3ab4af3ca58a39e6acb951e5568"
+    },
+    "docs/V11_R09_GATE3_GEFS_CEILING_REVIEW_95e07fa.md": {
+      "byte_length": 2626,
+      "current_byte_length": 2626,
+      "current_matches_reviewed_bytes": true,
+      "current_sha256": "1a8ad08aa3e4b86bb49e98cfd05b77b4e59a4327678143c8d6fe008feeecd685",
+      "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+      "historical_git_bytes_verified": true,
+      "media_type": "text/plain",
+      "path": "docs/V11_R09_GATE3_GEFS_CEILING_REVIEW_95e07fa.md",
+      "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+      "sha256": "1a8ad08aa3e4b86bb49e98cfd05b77b4e59a4327678143c8d6fe008feeecd685"
+    },
+    "docs/V11_R09_GATE3_IDENTITY_ACCEPTANCE_20261001.md": {
+      "byte_length": 16704,
+      "current_byte_length": 16704,
+      "current_matches_reviewed_bytes": true,
+      "current_sha256": "db298d49301a686711a7d89e7456d95fcd34da8616970fa7f52374b91440aa9d",
+      "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+      "historical_git_bytes_verified": true,
+      "media_type": "text/plain",
+      "path": "docs/V11_R09_GATE3_IDENTITY_ACCEPTANCE_20261001.md",
+      "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+      "sha256": "db298d49301a686711a7d89e7456d95fcd34da8616970fa7f52374b91440aa9d"
+    },
+    "docs/V11_R09_GATE3_LAUNCH_CONTRACT_ADJUDICATION.md": {
+      "byte_length": 17309,
+      "current_byte_length": 17309,
+      "current_matches_reviewed_bytes": true,
+      "current_sha256": "a4a2a18e83a53359e3a46cdf7cbda6031c6afec74e5d497f2cd126b1ae7b943c",
+      "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+      "historical_git_bytes_verified": true,
+      "media_type": "text/plain",
+      "path": "docs/V11_R09_GATE3_LAUNCH_CONTRACT_ADJUDICATION.md",
+      "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+      "sha256": "a4a2a18e83a53359e3a46cdf7cbda6031c6afec74e5d497f2cd126b1ae7b943c"
+    },
+    "docs/V11_R09_GATE3_LAUNCH_CONTRACT_REVIEW_14c2413.md": {
+      "byte_length": 4126,
+      "current_byte_length": 4126,
+      "current_matches_reviewed_bytes": true,
+      "current_sha256": "bbcc15132afdc2fa4b06cc1031d29d9d9468f1bc19f23a8f0f4a65bb4350225e",
+      "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+      "historical_git_bytes_verified": true,
+      "media_type": "text/plain",
+      "path": "docs/V11_R09_GATE3_LAUNCH_CONTRACT_REVIEW_14c2413.md",
+      "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+      "sha256": "bbcc15132afdc2fa4b06cc1031d29d9d9468f1bc19f23a8f0f4a65bb4350225e"
+    },
+    "docs/V11_R09_GATE3_LAUNCH_CONTRACT_REVIEW_14c2413_terminal.json": {
+      "byte_length": 737,
+      "current_byte_length": 737,
+      "current_matches_reviewed_bytes": true,
+      "current_sha256": "e35cde38f6205fe8675023e413c149ea2d949e412696e9d309d09fec597edb44",
+      "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+      "historical_git_bytes_verified": true,
+      "media_type": "application/json",
+      "path": "docs/V11_R09_GATE3_LAUNCH_CONTRACT_REVIEW_14c2413_terminal.json",
+      "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+      "sha256": "e35cde38f6205fe8675023e413c149ea2d949e412696e9d309d09fec597edb44"
+    },
+    "docs/V11_R09_GATE3_PROTOCOL_REVIEW_117830a.md": {
+      "byte_length": 13657,
+      "current_byte_length": 13657,
+      "current_matches_reviewed_bytes": true,
+      "current_sha256": "7d2bda2034257784f8de8ae75f7c502fe9a3003e97bde154638b95e0b53050b4",
+      "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+      "historical_git_bytes_verified": true,
+      "media_type": "text/plain",
+      "path": "docs/V11_R09_GATE3_PROTOCOL_REVIEW_117830a.md",
+      "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+      "sha256": "7d2bda2034257784f8de8ae75f7c502fe9a3003e97bde154638b95e0b53050b4"
+    },
+    "docs/V11_R09_GATE3_STORE_RESTART_REVIEW_74bd122.md": {
+      "byte_length": 9349,
+      "current_byte_length": 9349,
+      "current_matches_reviewed_bytes": true,
+      "current_sha256": "ede79ed4504c22dffa4d69e501ddc93b5956478ffb3f496a94b4893f73b8ed59",
+      "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+      "historical_git_bytes_verified": true,
+      "media_type": "text/plain",
+      "path": "docs/V11_R09_GATE3_STORE_RESTART_REVIEW_74bd122.md",
+      "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+      "sha256": "ede79ed4504c22dffa4d69e501ddc93b5956478ffb3f496a94b4893f73b8ed59"
+    },
+    "docs/V11_R09_GATE3_TRANSPORT_RUNTIME_DESIGN.md": {
+      "byte_length": 28627,
+      "current_byte_length": 28627,
+      "current_matches_reviewed_bytes": true,
+      "current_sha256": "0b121fbc422208e2fa89e0b2f7362725cac60115ada966ed83b9d1ed15ac8e4a",
+      "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+      "historical_git_bytes_verified": true,
+      "media_type": "text/plain",
+      "path": "docs/V11_R09_GATE3_TRANSPORT_RUNTIME_DESIGN.md",
+      "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+      "sha256": "0b121fbc422208e2fa89e0b2f7362725cac60115ada966ed83b9d1ed15ac8e4a"
+    },
+    "docs/V11_R09_GATE3_TRANSPORT_RUNTIME_REVIEW_7e132a0.md": {
+      "byte_length": 11482,
+      "current_byte_length": 11482,
+      "current_matches_reviewed_bytes": true,
+      "current_sha256": "f91c848b8626bae718d1c07c2a50194ae303e36f16fb2bc8a776b75cca0b942b",
+      "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+      "historical_git_bytes_verified": true,
+      "media_type": "text/plain",
+      "path": "docs/V11_R09_GATE3_TRANSPORT_RUNTIME_REVIEW_7e132a0.md",
+      "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+      "sha256": "f91c848b8626bae718d1c07c2a50194ae303e36f16fb2bc8a776b75cca0b942b"
+    },
+    "docs/V11_R09_GATE3_TRANSPORT_RUNTIME_REVIEW_7e132a0_terminal.json": {
+      "byte_length": 2500,
+      "current_byte_length": 2500,
+      "current_matches_reviewed_bytes": true,
+      "current_sha256": "3c583f854ab7f8eff7b36d83a2571b9aa80181664391d2469e12e30f10a0349c",
+      "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+      "historical_git_bytes_verified": true,
+      "media_type": "application/json",
+      "path": "docs/V11_R09_GATE3_TRANSPORT_RUNTIME_REVIEW_7e132a0_terminal.json",
+      "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+      "sha256": "3c583f854ab7f8eff7b36d83a2571b9aa80181664391d2469e12e30f10a0349c"
+    },
+    "docs/V11_R09_GATE3_V4_PROVIDER_MAPPING_REPAIR_REVIEW_23c11e0.md": {
+      "byte_length": 5115,
+      "current_byte_length": 5115,
+      "current_matches_reviewed_bytes": true,
+      "current_sha256": "d2a617ce9155b1b1614210510e04bfd09bdd27620236e6cfee6a2c74650bd1af",
+      "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+      "historical_git_bytes_verified": true,
+      "media_type": "text/plain",
+      "path": "docs/V11_R09_GATE3_V4_PROVIDER_MAPPING_REPAIR_REVIEW_23c11e0.md",
+      "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+      "sha256": "d2a617ce9155b1b1614210510e04bfd09bdd27620236e6cfee6a2c74650bd1af"
+    },
+    "docs/V11_R09_GATE3_V4_PROVIDER_MAPPING_REPAIR_REVIEW_23c11e0_terminal.json": {
+      "byte_length": 998,
+      "current_byte_length": 998,
+      "current_matches_reviewed_bytes": true,
+      "current_sha256": "11e4060e71bb5e0fb423408438054688c0a1d93983178047d38d1de3598a567f",
+      "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+      "historical_git_bytes_verified": true,
+      "media_type": "application/json",
+      "path": "docs/V11_R09_GATE3_V4_PROVIDER_MAPPING_REPAIR_REVIEW_23c11e0_terminal.json",
+      "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+      "sha256": "11e4060e71bb5e0fb423408438054688c0a1d93983178047d38d1de3598a567f"
+    },
+    "docs/V11_R09_GATE3_V4_SLICE3_RECONCILIATION_6340cb4.json": {
+      "byte_length": 8356,
+      "current_byte_length": 8356,
+      "current_matches_reviewed_bytes": true,
+      "current_sha256": "20cf138696dda4fa09161de3d52bcf4d75d37ac4ac6dc8a2148d025c227caa92",
+      "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+      "historical_git_bytes_verified": true,
+      "media_type": "application/json",
+      "path": "docs/V11_R09_GATE3_V4_SLICE3_RECONCILIATION_6340cb4.json",
+      "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+      "sha256": "20cf138696dda4fa09161de3d52bcf4d75d37ac4ac6dc8a2148d025c227caa92"
+    },
+    "docs/V11_R09_GATE3_V4_SLICE3_REVIEW_6340cb4.md": {
+      "byte_length": 6004,
+      "current_byte_length": 6004,
+      "current_matches_reviewed_bytes": true,
+      "current_sha256": "00aba02cf47317578d598aed02bc742dcad434f058babea9387dc44ed52b4855",
+      "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+      "historical_git_bytes_verified": true,
+      "media_type": "text/plain",
+      "path": "docs/V11_R09_GATE3_V4_SLICE3_REVIEW_6340cb4.md",
+      "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+      "sha256": "00aba02cf47317578d598aed02bc742dcad434f058babea9387dc44ed52b4855"
+    },
+    "docs/V11_R09_GATE3_V4_SLICE3_REVIEW_6340cb4_terminal.json": {
+      "byte_length": 9009,
+      "current_byte_length": 9009,
+      "current_matches_reviewed_bytes": true,
+      "current_sha256": "dfe1e041bd9592f24cdf9b8ee5e7427b1431498cd19591968934334fe2071816",
+      "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+      "historical_git_bytes_verified": true,
+      "media_type": "application/json",
+      "path": "docs/V11_R09_GATE3_V4_SLICE3_REVIEW_6340cb4_terminal.json",
+      "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+      "sha256": "dfe1e041bd9592f24cdf9b8ee5e7427b1431498cd19591968934334fe2071816"
+    },
+    "tools/v11_r09_gate3_a7_decoder.py": {
+      "byte_length": 17101,
+      "current_byte_length": 17101,
+      "current_matches_reviewed_bytes": true,
+      "current_sha256": "38425ed5a02cdc0067216f513ba6a2bea0de83bc40c20566297c0b071243fb20",
+      "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+      "historical_git_bytes_verified": true,
+      "media_type": "text/plain",
+      "path": "tools/v11_r09_gate3_a7_decoder.py",
+      "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+      "sha256": "38425ed5a02cdc0067216f513ba6a2bea0de83bc40c20566297c0b071243fb20"
+    },
+    "tools/v11_r09_gate3_a8_composition.py": {
+      "byte_length": 24385,
+      "current_byte_length": 24385,
+      "current_matches_reviewed_bytes": true,
+      "current_sha256": "7daaa970dbcaf34e6d1bed927f36e575dc54adab0fe33e17670bdf9b340a763f",
+      "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+      "historical_git_bytes_verified": true,
+      "media_type": "text/plain",
+      "path": "tools/v11_r09_gate3_a8_composition.py",
+      "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+      "sha256": "7daaa970dbcaf34e6d1bed927f36e575dc54adab0fe33e17670bdf9b340a763f"
+    },
+    "tools/v11_r09_gate3_collector.py": {
+      "byte_length": 39633,
+      "current_byte_length": 39633,
+      "current_matches_reviewed_bytes": true,
+      "current_sha256": "44da155a7ce3f217aa1eb340b41416033968203fdc3eb57e52a96234a7089dbe",
+      "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+      "historical_git_bytes_verified": true,
+      "media_type": "text/plain",
+      "path": "tools/v11_r09_gate3_collector.py",
+      "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+      "sha256": "44da155a7ce3f217aa1eb340b41416033968203fdc3eb57e52a96234a7089dbe"
+    },
+    "tools/v11_r09_gate3_g3l_prep.py": {
+      "byte_length": 31205,
+      "current_byte_length": 31205,
+      "current_matches_reviewed_bytes": true,
+      "current_sha256": "a5051a65aa219d40f5ac67acf9ca6f1e72839eb1d988ae5d08b2ea0565e89481",
+      "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+      "historical_git_bytes_verified": true,
+      "media_type": "text/plain",
+      "path": "tools/v11_r09_gate3_g3l_prep.py",
+      "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+      "sha256": "a5051a65aa219d40f5ac67acf9ca6f1e72839eb1d988ae5d08b2ea0565e89481"
+    },
+    "tools/v11_r09_gate3_launch_v4.py": {
+      "byte_length": 47602,
+      "current_byte_length": 47602,
+      "current_matches_reviewed_bytes": true,
+      "current_sha256": "a2fe4d99666ef744927cfba49de03726b3fc695a98e7836dc1f3642781cbe978",
+      "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+      "historical_git_bytes_verified": true,
+      "media_type": "text/plain",
+      "path": "tools/v11_r09_gate3_launch_v4.py",
+      "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+      "sha256": "a2fe4d99666ef744927cfba49de03726b3fc695a98e7836dc1f3642781cbe978"
+    },
+    "tools/v11_r09_gate3_ledgers.py": {
+      "byte_length": 69644,
+      "current_byte_length": 69644,
+      "current_matches_reviewed_bytes": true,
+      "current_sha256": "a049e7bc1026e7a24a18c8b67c10964b53317c77db42e428714752934558fac4",
+      "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+      "historical_git_bytes_verified": true,
+      "media_type": "text/plain",
+      "path": "tools/v11_r09_gate3_ledgers.py",
+      "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+      "sha256": "a049e7bc1026e7a24a18c8b67c10964b53317c77db42e428714752934558fac4"
+    },
+    "tools/v11_r09_gate3_offline_io.py": {
+      "byte_length": 22644,
+      "current_byte_length": 22644,
+      "current_matches_reviewed_bytes": true,
+      "current_sha256": "bca02a320402ca6c0f908cd035fecd08854012c25b744d8cc7436ca370c50235",
+      "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+      "historical_git_bytes_verified": true,
+      "media_type": "text/plain",
+      "path": "tools/v11_r09_gate3_offline_io.py",
+      "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+      "sha256": "bca02a320402ca6c0f908cd035fecd08854012c25b744d8cc7436ca370c50235"
+    },
+    "tools/v11_r09_gate3_runtime.py": {
+      "byte_length": 110679,
+      "current_byte_length": 120122,
+      "current_matches_reviewed_bytes": false,
+      "current_sha256": "276d9779b1bcf1a6ca0b59b284d47ebd1540600c0280c57669ee6a6c589fcd3c",
+      "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+      "historical_git_bytes_verified": true,
+      "media_type": "text/plain",
+      "path": "tools/v11_r09_gate3_runtime.py",
+      "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+      "sha256": "3a45eb46f156a1bd17764bfe9fc3d73765418927bbc68fe14744a8fee411f9ed"
+    }
+  },
+  "category_counts": {
+    "DETERMINISTIC_OFFLINE_RECONCILIATION": 1,
+    "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT": 70,
+    "INVALID_STALE_OR_DUPLICATE_REQUIREMENT": 0,
+    "RETAINED_REVIEWED_LOCAL_SCOPE": 6
+  },
+  "final_only_unassembled": [
+    "review.detached_g3l_report",
+    "review.detached_g3l_completed_terminal"
+  ],
+  "g3l": "NO-GO",
+  "identities": {
+    "clocks.calibration_sync_uncertainty": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "MISSING_SELECTED_WINDOW",
+      "qualified_entry": null,
+      "remaining_obligation": "Retain raw fresh calibration/synchronization evidence proving <=1 second bounds for the window.",
+      "required_freshness": "WINDOW",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": [
+        {
+          "byte_length": 28627,
+          "current_byte_length": 28627,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "0b121fbc422208e2fa89e0b2f7362725cac60115ada966ed83b9d1ed15ac8e4a",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_TRANSPORT_RUNTIME_DESIGN.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "0b121fbc422208e2fa89e0b2f7362725cac60115ada966ed83b9d1ed15ac8e4a"
+        },
+        {
+          "byte_length": 110679,
+          "current_byte_length": 120122,
+          "current_matches_reviewed_bytes": false,
+          "current_sha256": "276d9779b1bcf1a6ca0b59b284d47ebd1540600c0280c57669ee6a6c589fcd3c",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "tools/v11_r09_gate3_runtime.py",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "3a45eb46f156a1bd17764bfe9fc3d73765418927bbc68fe14744a8fee411f9ed"
+        }
+      ]
+    },
+    "clocks.host_boot_monotonic_identity": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "MISSING_SELECTED_WINDOW",
+      "qualified_entry": null,
+      "remaining_obligation": "Retain host/boot/monotonic mapping and genuine contemporaneous observations; ordinary wall-clock snapshot is insufficient.",
+      "required_freshness": "WINDOW",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": [
+        {
+          "byte_length": 28627,
+          "current_byte_length": 28627,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "0b121fbc422208e2fa89e0b2f7362725cac60115ada966ed83b9d1ed15ac8e4a",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_TRANSPORT_RUNTIME_DESIGN.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "0b121fbc422208e2fa89e0b2f7362725cac60115ada966ed83b9d1ed15ac8e4a"
+        },
+        {
+          "byte_length": 110679,
+          "current_byte_length": 120122,
+          "current_matches_reviewed_bytes": false,
+          "current_sha256": "276d9779b1bcf1a6ca0b59b284d47ebd1540600c0280c57669ee6a6c589fcd3c",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "tools/v11_r09_gate3_runtime.py",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "3a45eb46f156a1bd17764bfe9fc3d73765418927bbc68fe14744a8fee411f9ed"
+        }
+      ]
+    },
+    "clocks.measurement_age_policy": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "MISSING_SELECTED_WINDOW",
+      "qualified_entry": null,
+      "remaining_obligation": "Bind actual recorder and independent age-policy enforcement review; synthetic policy behavior alone is insufficient.",
+      "required_freshness": "STATIC_OR_EXPLICIT_SCOPE",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": [
+        {
+          "byte_length": 28627,
+          "current_byte_length": 28627,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "0b121fbc422208e2fa89e0b2f7362725cac60115ada966ed83b9d1ed15ac8e4a",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_TRANSPORT_RUNTIME_DESIGN.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "0b121fbc422208e2fa89e0b2f7362725cac60115ada966ed83b9d1ed15ac8e4a"
+        },
+        {
+          "byte_length": 110679,
+          "current_byte_length": 120122,
+          "current_matches_reviewed_bytes": false,
+          "current_sha256": "276d9779b1bcf1a6ca0b59b284d47ebd1540600c0280c57669ee6a6c589fcd3c",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "tools/v11_r09_gate3_runtime.py",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "3a45eb46f156a1bd17764bfe9fc3d73765418927bbc68fe14744a8fee411f9ed"
+        }
+      ]
+    },
+    "clocks.unprivileged_recorder_build_method": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "MISSING_SELECTED_WINDOW",
+      "qualified_entry": null,
+      "remaining_obligation": "Provide reviewed concrete recorder/build, synchronization method and receipt generation; ClockSequence/FakeClock are not real recorder evidence.",
+      "required_freshness": "STATIC_OR_EXPLICIT_SCOPE",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": [
+        {
+          "byte_length": 28627,
+          "current_byte_length": 28627,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "0b121fbc422208e2fa89e0b2f7362725cac60115ada966ed83b9d1ed15ac8e4a",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_TRANSPORT_RUNTIME_DESIGN.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "0b121fbc422208e2fa89e0b2f7362725cac60115ada966ed83b9d1ed15ac8e4a"
+        },
+        {
+          "byte_length": 110679,
+          "current_byte_length": 120122,
+          "current_matches_reviewed_bytes": false,
+          "current_sha256": "276d9779b1bcf1a6ca0b59b284d47ebd1540600c0280c57669ee6a6c589fcd3c",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "tools/v11_r09_gate3_runtime.py",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "3a45eb46f156a1bd17764bfe9fc3d73765418927bbc68fe14744a8fee411f9ed"
+        }
+      ]
+    },
+    "code.clock_recorder_commit_tree": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "BLOCKED_DEPENDENCY",
+      "qualified_entry": null,
+      "remaining_obligation": "Identify and independently review a concrete real clock_recorder adapter/build; do not use synthetic transport or FakeClock.",
+      "required_freshness": "STATIC_OR_EXPLICIT_SCOPE",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": [
+        {
+          "byte_length": 110679,
+          "current_byte_length": 120122,
+          "current_matches_reviewed_bytes": false,
+          "current_sha256": "276d9779b1bcf1a6ca0b59b284d47ebd1540600c0280c57669ee6a6c589fcd3c",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "tools/v11_r09_gate3_runtime.py",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "3a45eb46f156a1bd17764bfe9fc3d73765418927bbc68fe14744a8fee411f9ed"
+        },
+        {
+          "byte_length": 22644,
+          "current_byte_length": 22644,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "bca02a320402ca6c0f908cd035fecd08854012c25b744d8cc7436ca370c50235",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "tools/v11_r09_gate3_offline_io.py",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "bca02a320402ca6c0f908cd035fecd08854012c25b744d8cc7436ca370c50235"
+        },
+        {
+          "byte_length": 11482,
+          "current_byte_length": 11482,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "f91c848b8626bae718d1c07c2a50194ae303e36f16fb2bc8a776b75cca0b942b",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_TRANSPORT_RUNTIME_REVIEW_7e132a0.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "f91c848b8626bae718d1c07c2a50194ae303e36f16fb2bc8a776b75cca0b942b"
+        }
+      ]
+    },
+    "code.collector_commit_tree": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "SUPPORT_ONLY",
+      "qualified_entry": null,
+      "remaining_obligation": "Bind actual final collector role and reconciled executable closure; standalone ceiling completion terminal not located.",
+      "required_freshness": "STATIC_OR_EXPLICIT_SCOPE",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": [
+        {
+          "byte_length": 39633,
+          "current_byte_length": 39633,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "44da155a7ce3f217aa1eb340b41416033968203fdc3eb57e52a96234a7089dbe",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "tools/v11_r09_gate3_collector.py",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "44da155a7ce3f217aa1eb340b41416033968203fdc3eb57e52a96234a7089dbe"
+        },
+        {
+          "byte_length": 2626,
+          "current_byte_length": 2626,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "1a8ad08aa3e4b86bb49e98cfd05b77b4e59a4327678143c8d6fe008feeecd685",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_GEFS_CEILING_REVIEW_95e07fa.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "1a8ad08aa3e4b86bb49e98cfd05b77b4e59a4327678143c8d6fe008feeecd685"
+        }
+      ]
+    },
+    "code.decoder_commit_tree": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "BLOCKED_DEPENDENCY",
+      "qualified_entry": null,
+      "remaining_obligation": "Authenticated A2/A3, A4 pre-load/use lock, A5/A6 semantics, measured representative A7 resources and integrated decoder review.",
+      "required_freshness": "STATIC_OR_EXPLICIT_SCOPE",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": [
+        {
+          "byte_length": 22644,
+          "current_byte_length": 22644,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "bca02a320402ca6c0f908cd035fecd08854012c25b744d8cc7436ca370c50235",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "tools/v11_r09_gate3_offline_io.py",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "bca02a320402ca6c0f908cd035fecd08854012c25b744d8cc7436ca370c50235"
+        },
+        {
+          "byte_length": 17101,
+          "current_byte_length": 17101,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "38425ed5a02cdc0067216f513ba6a2bea0de83bc40c20566297c0b071243fb20",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "tools/v11_r09_gate3_a7_decoder.py",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "38425ed5a02cdc0067216f513ba6a2bea0de83bc40c20566297c0b071243fb20"
+        },
+        {
+          "byte_length": 7224,
+          "current_byte_length": 7224,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "da906f244ed710acc0ed811c31500465f997a75b9393ef7d05a5901372b1c104",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_A7_REVIEW_a749197.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "da906f244ed710acc0ed811c31500465f997a75b9393ef7d05a5901372b1c104"
+        }
+      ]
+    },
+    "code.dependency_build_lock": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "BLOCKED_DEPENDENCY",
+      "qualified_entry": null,
+      "remaining_obligation": "Supplier-authenticated originals or separately chosen replacement; per-file verdicts for 25 RECORD discrepancies; full reproducible interpreter/native/data closure.",
+      "required_freshness": "STATIC_OR_EXPLICIT_SCOPE",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": [
+        {
+          "byte_length": 11803,
+          "current_byte_length": 11803,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "524d72c7b8ee5a032708682935a9aa9246d5cc80bd187d04851321d54a421978",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_A2A3_DECISION_20261002.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "524d72c7b8ee5a032708682935a9aa9246d5cc80bd187d04851321d54a421978"
+        },
+        {
+          "byte_length": 22339,
+          "current_byte_length": 22339,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "627028d8467101665a9755a8d609f2c1a22f65ab31d1c2daf38c10bb2f7f4892",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "application/json",
+          "path": "docs/V11_R09_GATE3_A2A3_DECISION_20261002.json",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "627028d8467101665a9755a8d609f2c1a22f65ab31d1c2daf38c10bb2f7f4892"
+        },
+        {
+          "byte_length": 4792,
+          "current_byte_length": 4792,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "6f1c94ca29043638587f2b12d0a31a9add6f9d115d3709b22ab562b15a0747cd",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_A2A3_DECISION_REVIEW_fb3a804.review.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "6f1c94ca29043638587f2b12d0a31a9add6f9d115d3709b22ab562b15a0747cd"
+        }
+      ]
+    },
+    "code.launch_validator_commit_tree": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "SUPPORT_ONLY",
+      "qualified_entry": null,
+      "remaining_obligation": "Final executable reconciliation and independently qualified real-purpose contracts; current validator refuses real mappings.",
+      "required_freshness": "STATIC_OR_EXPLICIT_SCOPE",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": [
+        {
+          "byte_length": 47602,
+          "current_byte_length": 47602,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "a2fe4d99666ef744927cfba49de03726b3fc695a98e7836dc1f3642781cbe978",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "tools/v11_r09_gate3_launch_v4.py",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "a2fe4d99666ef744927cfba49de03726b3fc695a98e7836dc1f3642781cbe978"
+        },
+        {
+          "byte_length": 5115,
+          "current_byte_length": 5115,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "d2a617ce9155b1b1614210510e04bfd09bdd27620236e6cfee6a2c74650bd1af",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_V4_PROVIDER_MAPPING_REPAIR_REVIEW_23c11e0.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "d2a617ce9155b1b1614210510e04bfd09bdd27620236e6cfee6a2c74650bd1af"
+        },
+        {
+          "byte_length": 998,
+          "current_byte_length": 998,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "11e4060e71bb5e0fb423408438054688c0a1d93983178047d38d1de3598a567f",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "application/json",
+          "path": "docs/V11_R09_GATE3_V4_PROVIDER_MAPPING_REPAIR_REVIEW_23c11e0_terminal.json",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "11e4060e71bb5e0fb423408438054688c0a1d93983178047d38d1de3598a567f"
+        }
+      ]
+    },
+    "code.mapping_exact_commit_review": {
+      "category": "RETAINED_REVIEWED_LOCAL_SCOPE",
+      "prior_material_status": "REUSABLE_SCOPED_ARTIFACTS",
+      "qualified_entry": null,
+      "remaining_obligation": "Exact scoped historical material is retained; sealing and independent package-entry review remain pending.",
+      "required_freshness": "STATIC_OR_EXPLICIT_SCOPE",
+      "review_status": "SCOPED_HISTORICAL_ONLY",
+      "source_refs": [
+        {
+          "byte_length": 5115,
+          "current_byte_length": 5115,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "d2a617ce9155b1b1614210510e04bfd09bdd27620236e6cfee6a2c74650bd1af",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_V4_PROVIDER_MAPPING_REPAIR_REVIEW_23c11e0.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "d2a617ce9155b1b1614210510e04bfd09bdd27620236e6cfee6a2c74650bd1af"
+        },
+        {
+          "byte_length": 998,
+          "current_byte_length": 998,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "11e4060e71bb5e0fb423408438054688c0a1d93983178047d38d1de3598a567f",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "application/json",
+          "path": "docs/V11_R09_GATE3_V4_PROVIDER_MAPPING_REPAIR_REVIEW_23c11e0_terminal.json",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "11e4060e71bb5e0fb423408438054688c0a1d93983178047d38d1de3598a567f"
+        }
+      ]
+    },
+    "code.runtime_entrypoint_review": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "BLOCKED_DEPENDENCY",
+      "qualified_entry": null,
+      "remaining_obligation": "Trusted bootstrap custody/backend capability, pre-import native verification and full real A8 integration. No self-installation of authority.",
+      "required_freshness": "STATIC_OR_EXPLICIT_SCOPE",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": [
+        {
+          "byte_length": 16386,
+          "current_byte_length": 16386,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "e891558a5184ea36790e904a41b27eaac328fbe12b5ca3d44c212c261d411223",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_A4_BOOTSTRAP_DESIGN_20261002.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "e891558a5184ea36790e904a41b27eaac328fbe12b5ca3d44c212c261d411223"
+        },
+        {
+          "byte_length": 1620,
+          "current_byte_length": 1620,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "ce0648476330ec16059ffc9af616f4fb0021f61da50662cdc0c53111f7380313",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_A4_B1_REVIEW_8a3d47b.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "ce0648476330ec16059ffc9af616f4fb0021f61da50662cdc0c53111f7380313"
+        },
+        {
+          "byte_length": 5044,
+          "current_byte_length": 5044,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "5c6820e40553b0e8796527b4c1b57aeab5d46e20dd55a01595abef17c893ec17",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_A8_REVIEW_4fdeabc.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "5c6820e40553b0e8796527b4c1b57aeab5d46e20dd55a01595abef17c893ec17"
+        }
+      ]
+    },
+    "code.slice3_exact_commit_review": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "REUSABLE_SCOPED_ARTIFACTS",
+      "qualified_entry": null,
+      "remaining_obligation": "Scoped slice-3 review survives, but current GateRuntime bytes differ from the reviewed baseline; current executable closure needs independent review.",
+      "required_freshness": "STATIC_OR_EXPLICIT_SCOPE",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": [
+        {
+          "byte_length": 6004,
+          "current_byte_length": 6004,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "00aba02cf47317578d598aed02bc742dcad434f058babea9387dc44ed52b4855",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_V4_SLICE3_REVIEW_6340cb4.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "00aba02cf47317578d598aed02bc742dcad434f058babea9387dc44ed52b4855"
+        },
+        {
+          "byte_length": 9009,
+          "current_byte_length": 9009,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "dfe1e041bd9592f24cdf9b8ee5e7427b1431498cd19591968934334fe2071816",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "application/json",
+          "path": "docs/V11_R09_GATE3_V4_SLICE3_REVIEW_6340cb4_terminal.json",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "dfe1e041bd9592f24cdf9b8ee5e7427b1431498cd19591968934334fe2071816"
+        },
+        {
+          "byte_length": 8356,
+          "current_byte_length": 8356,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "20cf138696dda4fa09161de3d52bcf4d75d37ac4ac6dc8a2148d025c227caa92",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "application/json",
+          "path": "docs/V11_R09_GATE3_V4_SLICE3_RECONCILIATION_6340cb4.json",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "20cf138696dda4fa09161de3d52bcf4d75d37ac4ac6dc8a2148d025c227caa92"
+        }
+      ]
+    },
+    "code.source_file_hashes": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "SUPPORT_ONLY",
+      "qualified_entry": null,
+      "remaining_obligation": "Final complete runtime/transitive source closure and detached review; seven observations are not an exhaustive lock.",
+      "required_freshness": "STATIC_OR_EXPLICIT_SCOPE",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": [
+        {
+          "byte_length": 39633,
+          "current_byte_length": 39633,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "44da155a7ce3f217aa1eb340b41416033968203fdc3eb57e52a96234a7089dbe",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "tools/v11_r09_gate3_collector.py",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "44da155a7ce3f217aa1eb340b41416033968203fdc3eb57e52a96234a7089dbe"
+        },
+        {
+          "byte_length": 47602,
+          "current_byte_length": 47602,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "a2fe4d99666ef744927cfba49de03726b3fc695a98e7836dc1f3642781cbe978",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "tools/v11_r09_gate3_launch_v4.py",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "a2fe4d99666ef744927cfba49de03726b3fc695a98e7836dc1f3642781cbe978"
+        },
+        {
+          "byte_length": 110679,
+          "current_byte_length": 120122,
+          "current_matches_reviewed_bytes": false,
+          "current_sha256": "276d9779b1bcf1a6ca0b59b284d47ebd1540600c0280c57669ee6a6c589fcd3c",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "tools/v11_r09_gate3_runtime.py",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "3a45eb46f156a1bd17764bfe9fc3d73765418927bbc68fe14744a8fee411f9ed"
+        },
+        {
+          "byte_length": 69644,
+          "current_byte_length": 69644,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "a049e7bc1026e7a24a18c8b67c10964b53317c77db42e428714752934558fac4",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "tools/v11_r09_gate3_ledgers.py",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "a049e7bc1026e7a24a18c8b67c10964b53317c77db42e428714752934558fac4"
+        },
+        {
+          "byte_length": 22644,
+          "current_byte_length": 22644,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "bca02a320402ca6c0f908cd035fecd08854012c25b744d8cc7436ca370c50235",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "tools/v11_r09_gate3_offline_io.py",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "bca02a320402ca6c0f908cd035fecd08854012c25b744d8cc7436ca370c50235"
+        },
+        {
+          "byte_length": 17101,
+          "current_byte_length": 17101,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "38425ed5a02cdc0067216f513ba6a2bea0de83bc40c20566297c0b071243fb20",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "tools/v11_r09_gate3_a7_decoder.py",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "38425ed5a02cdc0067216f513ba6a2bea0de83bc40c20566297c0b071243fb20"
+        },
+        {
+          "byte_length": 24385,
+          "current_byte_length": 24385,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "7daaa970dbcaf34e6d1bed927f36e575dc54adab0fe33e17670bdf9b340a763f",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "tools/v11_r09_gate3_a8_composition.py",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "7daaa970dbcaf34e6d1bed927f36e575dc54adab0fe33e17670bdf9b340a763f"
+        }
+      ]
+    },
+    "code.transport_commit_tree": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "BLOCKED_DEPENDENCY",
+      "qualified_entry": null,
+      "remaining_obligation": "Identify and independently review a concrete real transport adapter/build; do not use synthetic transport or FakeClock.",
+      "required_freshness": "STATIC_OR_EXPLICIT_SCOPE",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": [
+        {
+          "byte_length": 110679,
+          "current_byte_length": 120122,
+          "current_matches_reviewed_bytes": false,
+          "current_sha256": "276d9779b1bcf1a6ca0b59b284d47ebd1540600c0280c57669ee6a6c589fcd3c",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "tools/v11_r09_gate3_runtime.py",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "3a45eb46f156a1bd17764bfe9fc3d73765418927bbc68fe14744a8fee411f9ed"
+        },
+        {
+          "byte_length": 22644,
+          "current_byte_length": 22644,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "bca02a320402ca6c0f908cd035fecd08854012c25b744d8cc7436ca370c50235",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "tools/v11_r09_gate3_offline_io.py",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "bca02a320402ca6c0f908cd035fecd08854012c25b744d8cc7436ca370c50235"
+        },
+        {
+          "byte_length": 11482,
+          "current_byte_length": 11482,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "f91c848b8626bae718d1c07c2a50194ae303e36f16fb2bc8a776b75cca0b942b",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_TRANSPORT_RUNTIME_REVIEW_7e132a0.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "f91c848b8626bae718d1c07c2a50194ae303e36f16fb2bc8a776b75cca0b942b"
+        }
+      ]
+    },
+    "cohort.high_low_event_ids": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "MISSING_SELECTED_WINDOW",
+      "qualified_entry": null,
+      "remaining_obligation": "Select one or both official HIGH/LOW events and retain exact IDs.",
+      "required_freshness": "STATIC_OR_EXPLICIT_SCOPE",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": [
+        {
+          "byte_length": 20041,
+          "current_byte_length": 20041,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "da3144c558134e7bd6a06b5c3f298740e86cee13be7c54a9932204362c269524",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_COLLECTION_PROTOCOL.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "da3144c558134e7bd6a06b5c3f298740e86cee13be7c54a9932204362c269524"
+        },
+        {
+          "byte_length": 17309,
+          "current_byte_length": 17309,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "a4a2a18e83a53359e3a46cdf7cbda6031c6afec74e5d497f2cd126b1ae7b943c",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_LAUNCH_CONTRACT_ADJUDICATION.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "a4a2a18e83a53359e3a46cdf7cbda6031c6afec74e5d497f2cd126b1ae7b943c"
+        }
+      ]
+    },
+    "cohort.metadata_bytes_receipt": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "MISSING_SELECTED_WINDOW",
+      "qualified_entry": null,
+      "remaining_obligation": "Supply genuine selected-run contemporaneous metadata and original receipt.",
+      "required_freshness": "RUN",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": [
+        {
+          "byte_length": 20041,
+          "current_byte_length": 20041,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "da3144c558134e7bd6a06b5c3f298740e86cee13be7c54a9932204362c269524",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_COLLECTION_PROTOCOL.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "da3144c558134e7bd6a06b5c3f298740e86cee13be7c54a9932204362c269524"
+        },
+        {
+          "byte_length": 17309,
+          "current_byte_length": 17309,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "a4a2a18e83a53359e3a46cdf7cbda6031c6afec74e5d497f2cd126b1ae7b943c",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_LAUNCH_CONTRACT_ADJUDICATION.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "a4a2a18e83a53359e3a46cdf7cbda6031c6afec74e5d497f2cd126b1ae7b943c"
+        }
+      ]
+    },
+    "cohort.official_rule_rounding_buckets": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "MISSING_SELECTED_WINDOW",
+      "qualified_entry": null,
+      "remaining_obligation": "Retain official rules, Celsius rounding and complete buckets with review.",
+      "required_freshness": "STATIC_OR_EXPLICIT_SCOPE",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": [
+        {
+          "byte_length": 20041,
+          "current_byte_length": 20041,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "da3144c558134e7bd6a06b5c3f298740e86cee13be7c54a9932204362c269524",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_COLLECTION_PROTOCOL.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "da3144c558134e7bd6a06b5c3f298740e86cee13be7c54a9932204362c269524"
+        },
+        {
+          "byte_length": 17309,
+          "current_byte_length": 17309,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "a4a2a18e83a53359e3a46cdf7cbda6031c6afec74e5d497f2cd126b1ae7b943c",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_LAUNCH_CONTRACT_ADJUDICATION.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "a4a2a18e83a53359e3a46cdf7cbda6031c6afec74e5d497f2cd126b1ae7b943c"
+        }
+      ]
+    },
+    "cohort.pre_weather_selection_rationale": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "MISSING_SELECTED_WINDOW",
+      "qualified_entry": null,
+      "remaining_obligation": "Record actual prospective selection before relevant forecast/label inspection; do not backdate.",
+      "required_freshness": "STATIC_OR_EXPLICIT_SCOPE",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": [
+        {
+          "byte_length": 20041,
+          "current_byte_length": 20041,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "da3144c558134e7bd6a06b5c3f298740e86cee13be7c54a9932204362c269524",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_COLLECTION_PROTOCOL.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "da3144c558134e7bd6a06b5c3f298740e86cee13be7c54a9932204362c269524"
+        },
+        {
+          "byte_length": 17309,
+          "current_byte_length": 17309,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "a4a2a18e83a53359e3a46cdf7cbda6031c6afec74e5d497f2cd126b1ae7b943c",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_LAUNCH_CONTRACT_ADJUDICATION.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "a4a2a18e83a53359e3a46cdf7cbda6031c6afec74e5d497f2cd126b1ae7b943c"
+        }
+      ]
+    },
+    "cohort.requested_gate2_key_mapping": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "MISSING_SELECTED_WINDOW",
+      "qualified_entry": null,
+      "remaining_obligation": "Freeze requested keys and exact Gate-2 key mapping for the chosen cohort.",
+      "required_freshness": "STATIC_OR_EXPLICIT_SCOPE",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": [
+        {
+          "byte_length": 20041,
+          "current_byte_length": 20041,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "da3144c558134e7bd6a06b5c3f298740e86cee13be7c54a9932204362c269524",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_COLLECTION_PROTOCOL.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "da3144c558134e7bd6a06b5c3f298740e86cee13be7c54a9932204362c269524"
+        },
+        {
+          "byte_length": 17309,
+          "current_byte_length": 17309,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "a4a2a18e83a53359e3a46cdf7cbda6031c6afec74e5d497f2cd126b1ae7b943c",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_LAUNCH_CONTRACT_ADJUDICATION.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "a4a2a18e83a53359e3a46cdf7cbda6031c6afec74e5d497f2cd126b1ae7b943c"
+        }
+      ]
+    },
+    "cohort.settlement_source": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "MISSING_SELECTED_WINDOW",
+      "qualified_entry": null,
+      "remaining_obligation": "Retain exact official settlement source references with review.",
+      "required_freshness": "STATIC_OR_EXPLICIT_SCOPE",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": [
+        {
+          "byte_length": 20041,
+          "current_byte_length": 20041,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "da3144c558134e7bd6a06b5c3f298740e86cee13be7c54a9932204362c269524",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_COLLECTION_PROTOCOL.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "da3144c558134e7bd6a06b5c3f298740e86cee13be7c54a9932204362c269524"
+        },
+        {
+          "byte_length": 17309,
+          "current_byte_length": 17309,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "a4a2a18e83a53359e3a46cdf7cbda6031c6afec74e5d497f2cd126b1ae7b943c",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_LAUNCH_CONTRACT_ADJUDICATION.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "a4a2a18e83a53359e3a46cdf7cbda6031c6afec74e5d497f2cd126b1ae7b943c"
+        }
+      ]
+    },
+    "cohort.station_version_coordinates_timezone": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "MISSING_SELECTED_WINDOW",
+      "qualified_entry": null,
+      "remaining_obligation": "Freeze one station/version, exact coordinates and IANA timezone for the prospective local day.",
+      "required_freshness": "STATIC_OR_EXPLICIT_SCOPE",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": [
+        {
+          "byte_length": 20041,
+          "current_byte_length": 20041,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "da3144c558134e7bd6a06b5c3f298740e86cee13be7c54a9932204362c269524",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_COLLECTION_PROTOCOL.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "da3144c558134e7bd6a06b5c3f298740e86cee13be7c54a9932204362c269524"
+        },
+        {
+          "byte_length": 17309,
+          "current_byte_length": 17309,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "a4a2a18e83a53359e3a46cdf7cbda6031c6afec74e5d497f2cd126b1ae7b943c",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_LAUNCH_CONTRACT_ADJUDICATION.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "a4a2a18e83a53359e3a46cdf7cbda6031c6afec74e5d497f2cd126b1ae7b943c"
+        }
+      ]
+    },
+    "cohort.tzdata_bytes": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "MISSING_SELECTED_WINDOW",
+      "qualified_entry": null,
+      "remaining_obligation": "Retain exact selected zone bytes and independently verify local-day start after decision.",
+      "required_freshness": "STATIC_OR_EXPLICIT_SCOPE",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": [
+        {
+          "byte_length": 20041,
+          "current_byte_length": 20041,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "da3144c558134e7bd6a06b5c3f298740e86cee13be7c54a9932204362c269524",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_COLLECTION_PROTOCOL.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "da3144c558134e7bd6a06b5c3f298740e86cee13be7c54a9932204362c269524"
+        },
+        {
+          "byte_length": 17309,
+          "current_byte_length": 17309,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "a4a2a18e83a53359e3a46cdf7cbda6031c6afec74e5d497f2cd126b1ae7b943c",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_LAUNCH_CONTRACT_ADJUDICATION.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "a4a2a18e83a53359e3a46cdf7cbda6031c6afec74e5d497f2cd126b1ae7b943c"
+        }
+      ]
+    },
+    "network.anonymous_no_retry_credential_policy": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "BLOCKED_DEPENDENCY",
+      "qualified_entry": null,
+      "remaining_obligation": "Policy is available; bind and review actual adapter enforcement of no cookies/netrc/proxies/credentials/redirects/retries.",
+      "required_freshness": "STATIC_OR_EXPLICIT_SCOPE",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": [
+        {
+          "byte_length": 20041,
+          "current_byte_length": 20041,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "da3144c558134e7bd6a06b5c3f298740e86cee13be7c54a9932204362c269524",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_COLLECTION_PROTOCOL.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "da3144c558134e7bd6a06b5c3f298740e86cee13be7c54a9932204362c269524"
+        },
+        {
+          "byte_length": 17309,
+          "current_byte_length": 17309,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "a4a2a18e83a53359e3a46cdf7cbda6031c6afec74e5d497f2cd126b1ae7b943c",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_LAUNCH_CONTRACT_ADJUDICATION.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "a4a2a18e83a53359e3a46cdf7cbda6031c6afec74e5d497f2cd126b1ae7b943c"
+        },
+        {
+          "byte_length": 28627,
+          "current_byte_length": 28627,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "0b121fbc422208e2fa89e0b2f7362725cac60115ada966ed83b9d1ed15ac8e4a",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_TRANSPORT_RUNTIME_DESIGN.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "0b121fbc422208e2fa89e0b2f7362725cac60115ada966ed83b9d1ed15ac8e4a"
+        }
+      ]
+    },
+    "network.dns_tls_build_peer_policy": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "BLOCKED_DEPENDENCY",
+      "qualified_entry": null,
+      "remaining_obligation": "Qualify concrete anonymous transport DNS/TLS/build/peer enforcement and evidence; design is insufficient.",
+      "required_freshness": "STATIC_OR_EXPLICIT_SCOPE",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": [
+        {
+          "byte_length": 28627,
+          "current_byte_length": 28627,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "0b121fbc422208e2fa89e0b2f7362725cac60115ada966ed83b9d1ed15ac8e4a",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_TRANSPORT_RUNTIME_DESIGN.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "0b121fbc422208e2fa89e0b2f7362725cac60115ada966ed83b9d1ed15ac8e4a"
+        },
+        {
+          "byte_length": 17309,
+          "current_byte_length": 17309,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "a4a2a18e83a53359e3a46cdf7cbda6031c6afec74e5d497f2cd126b1ae7b943c",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_LAUNCH_CONTRACT_ADJUDICATION.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "a4a2a18e83a53359e3a46cdf7cbda6031c6afec74e5d497f2cd126b1ae7b943c"
+        }
+      ]
+    },
+    "network.ecmwf_503_429_expiry_resumption_review": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "BLOCKED_DEPENDENCY",
+      "qualified_entry": null,
+      "remaining_obligation": "Independent expiry/resumption adjudication for September 30 07:48:13 and 07:54:39 S3 503s and 07:55:15 public 429; no retained Retry-After.",
+      "required_freshness": "STATIC_OR_EXPLICIT_SCOPE",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": [
+        {
+          "byte_length": 11925,
+          "current_byte_length": 11925,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "eb34a6940da19f77ce43dd543926ef6524773f963e2371bc4657466bb8933302",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "eb34a6940da19f77ce43dd543926ef6524773f963e2371bc4657466bb8933302"
+        },
+        {
+          "byte_length": 59867,
+          "current_byte_length": 59867,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "1535356757b1ed2cc9069378deb51dae3e4e3b829b58ddf157c54e1d213513fa",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "application/json",
+          "path": "docs/V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.json",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "1535356757b1ed2cc9069378deb51dae3e4e3b829b58ddf157c54e1d213513fa"
+        }
+      ]
+    },
+    "network.exact_origin_path_purpose_allowlist": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "BLOCKED_DEPENDENCY",
+      "qualified_entry": null,
+      "remaining_obligation": "Bind actual reviewed origins/paths/purposes; mandatory real-purpose support is deliberately absent.",
+      "required_freshness": "STATIC_OR_EXPLICIT_SCOPE",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": [
+        {
+          "byte_length": 5115,
+          "current_byte_length": 5115,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "d2a617ce9155b1b1614210510e04bfd09bdd27620236e6cfee6a2c74650bd1af",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_V4_PROVIDER_MAPPING_REPAIR_REVIEW_23c11e0.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "d2a617ce9155b1b1614210510e04bfd09bdd27620236e6cfee6a2c74650bd1af"
+        },
+        {
+          "byte_length": 47602,
+          "current_byte_length": 47602,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "a2fe4d99666ef744927cfba49de03726b3fc695a98e7836dc1f3642781cbe978",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "tools/v11_r09_gate3_launch_v4.py",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "a2fe4d99666ef744927cfba49de03726b3fc695a98e7836dc1f3642781cbe978"
+        }
+      ]
+    },
+    "network.preflight_approval_receipts_if_used": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "BLOCKED_DEPENDENCY",
+      "qualified_entry": null,
+      "remaining_obligation": "Owner no-request-before-G3-L rule blocks acquiring missing pins. Supply authentic pre-existing evidence or resolve separately with owner/protocol; do not invent approval or mark not-used to waive missing pins.",
+      "required_freshness": "STATIC_OR_EXPLICIT_SCOPE",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": [
+        {
+          "byte_length": 17309,
+          "current_byte_length": 17309,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "a4a2a18e83a53359e3a46cdf7cbda6031c6afec74e5d497f2cd126b1ae7b943c",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_LAUNCH_CONTRACT_ADJUDICATION.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "a4a2a18e83a53359e3a46cdf7cbda6031c6afec74e5d497f2cd126b1ae7b943c"
+        },
+        {
+          "byte_length": 11925,
+          "current_byte_length": 11925,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "eb34a6940da19f77ce43dd543926ef6524773f963e2371bc4657466bb8933302",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "eb34a6940da19f77ce43dd543926ef6524773f963e2371bc4657466bb8933302"
+        }
+      ]
+    },
+    "network.restriction_domain_lineage": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "BLOCKED_DEPENDENCY",
+      "qualified_entry": null,
+      "remaining_obligation": "Retain complete control-domain denial lineage including both S3 503s and public-origin 429; later success does not erase holds.",
+      "required_freshness": "STATIC_OR_EXPLICIT_SCOPE",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": [
+        {
+          "byte_length": 11925,
+          "current_byte_length": 11925,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "eb34a6940da19f77ce43dd543926ef6524773f963e2371bc4657466bb8933302",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "eb34a6940da19f77ce43dd543926ef6524773f963e2371bc4657466bb8933302"
+        },
+        {
+          "byte_length": 59867,
+          "current_byte_length": 59867,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "1535356757b1ed2cc9069378deb51dae3e4e3b829b58ddf157c54e1d213513fa",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "application/json",
+          "path": "docs/V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.json",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "1535356757b1ed2cc9069378deb51dae3e4e3b829b58ddf157c54e1d213513fa"
+        }
+      ]
+    },
+    "protocol.g3i_collector_review_terminal": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "SUPPORT_ONLY",
+      "qualified_entry": null,
+      "remaining_obligation": "Recover completed terminal; reconcile subsequent provider-bound/GEFS changes; no new terminal minted.",
+      "required_freshness": "STATIC_OR_EXPLICIT_SCOPE",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": [
+        {
+          "byte_length": 8085,
+          "current_byte_length": 8085,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "18485546b1e37320870720cc3cd39eecd35673a9bd9e8ad295eb6f735bef869c",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_COLLECTOR_REVIEW_3e6a872.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "18485546b1e37320870720cc3cd39eecd35673a9bd9e8ad295eb6f735bef869c"
+        }
+      ]
+    },
+    "protocol.g3i_composition_review_terminal": {
+      "category": "RETAINED_REVIEWED_LOCAL_SCOPE",
+      "prior_material_status": "REUSABLE_SCOPED_ARTIFACTS",
+      "qualified_entry": null,
+      "remaining_obligation": "Exact scoped historical material is retained; sealing and independent package-entry review remain pending.",
+      "required_freshness": "STATIC_OR_EXPLICIT_SCOPE",
+      "review_status": "SCOPED_HISTORICAL_ONLY",
+      "source_refs": [
+        {
+          "byte_length": 6084,
+          "current_byte_length": 6084,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "b1e7952ce4c3789cbdda43a5ff72eb022308312e0a4bd4061d4da66534a47517",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_COMPOSITION_REVIEW_0b7209d.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "b1e7952ce4c3789cbdda43a5ff72eb022308312e0a4bd4061d4da66534a47517"
+        },
+        {
+          "byte_length": 2210,
+          "current_byte_length": 2210,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "60fc42e27f5d62a2b37dc4dce5c3e774955220f9f86ca412376e1b2675a6c78e",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "application/json",
+          "path": "docs/V11_R09_GATE3_COMPOSITION_REVIEW_0b7209d_terminal.json",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "60fc42e27f5d62a2b37dc4dce5c3e774955220f9f86ca412376e1b2675a6c78e"
+        }
+      ]
+    },
+    "protocol.g3i_gefs_ceiling_review_terminal": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "SUPPORT_ONLY",
+      "qualified_entry": null,
+      "remaining_obligation": "Recover separate completed terminal; reconcile changed historical protocol assumptions at package review.",
+      "required_freshness": "STATIC_OR_EXPLICIT_SCOPE",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": [
+        {
+          "byte_length": 2626,
+          "current_byte_length": 2626,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "1a8ad08aa3e4b86bb49e98cfd05b77b4e59a4327678143c8d6fe008feeecd685",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_GEFS_CEILING_REVIEW_95e07fa.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "1a8ad08aa3e4b86bb49e98cfd05b77b4e59a4327678143c8d6fe008feeecd685"
+        }
+      ]
+    },
+    "protocol.g3i_provider_bound_review_terminal": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "SUPPORT_ONLY",
+      "qualified_entry": null,
+      "remaining_obligation": "Recover separate completion evidence or request fresh scoped independent review; historical 64 KiB bound superseded by 95e07fa for full fields.",
+      "required_freshness": "STATIC_OR_EXPLICIT_SCOPE",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": []
+    },
+    "protocol.g3p_addendum_commit_tree_document": {
+      "category": "RETAINED_REVIEWED_LOCAL_SCOPE",
+      "prior_material_status": "REUSABLE_SCOPED_ARTIFACTS",
+      "qualified_entry": null,
+      "remaining_obligation": "Exact scoped historical material is retained; sealing and independent package-entry review remain pending.",
+      "required_freshness": "STATIC_OR_EXPLICIT_SCOPE",
+      "review_status": "SCOPED_HISTORICAL_ONLY",
+      "source_refs": [
+        {
+          "byte_length": 17309,
+          "current_byte_length": 17309,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "a4a2a18e83a53359e3a46cdf7cbda6031c6afec74e5d497f2cd126b1ae7b943c",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_LAUNCH_CONTRACT_ADJUDICATION.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "a4a2a18e83a53359e3a46cdf7cbda6031c6afec74e5d497f2cd126b1ae7b943c"
+        },
+        {
+          "byte_length": 4126,
+          "current_byte_length": 4126,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "bbcc15132afdc2fa4b06cc1031d29d9d9468f1bc19f23a8f0f4a65bb4350225e",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_LAUNCH_CONTRACT_REVIEW_14c2413.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "bbcc15132afdc2fa4b06cc1031d29d9d9468f1bc19f23a8f0f4a65bb4350225e"
+        },
+        {
+          "byte_length": 737,
+          "current_byte_length": 737,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "e35cde38f6205fe8675023e413c149ea2d949e412696e9d309d09fec597edb44",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "application/json",
+          "path": "docs/V11_R09_GATE3_LAUNCH_CONTRACT_REVIEW_14c2413_terminal.json",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "e35cde38f6205fe8675023e413c149ea2d949e412696e9d309d09fec597edb44"
+        }
+      ]
+    },
+    "protocol.g3p_addendum_review_terminal": {
+      "category": "RETAINED_REVIEWED_LOCAL_SCOPE",
+      "prior_material_status": "REUSABLE_SCOPED_ARTIFACTS",
+      "qualified_entry": null,
+      "remaining_obligation": "Exact scoped historical material is retained; sealing and independent package-entry review remain pending.",
+      "required_freshness": "STATIC_OR_EXPLICIT_SCOPE",
+      "review_status": "SCOPED_HISTORICAL_ONLY",
+      "source_refs": [
+        {
+          "byte_length": 737,
+          "current_byte_length": 737,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "e35cde38f6205fe8675023e413c149ea2d949e412696e9d309d09fec597edb44",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "application/json",
+          "path": "docs/V11_R09_GATE3_LAUNCH_CONTRACT_REVIEW_14c2413_terminal.json",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "e35cde38f6205fe8675023e413c149ea2d949e412696e9d309d09fec597edb44"
+        },
+        {
+          "byte_length": 4126,
+          "current_byte_length": 4126,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "bbcc15132afdc2fa4b06cc1031d29d9d9468f1bc19f23a8f0f4a65bb4350225e",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_LAUNCH_CONTRACT_REVIEW_14c2413.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "bbcc15132afdc2fa4b06cc1031d29d9d9468f1bc19f23a8f0f4a65bb4350225e"
+        }
+      ]
+    },
+    "protocol.g3p_original_commit_tree_document": {
+      "category": "RETAINED_REVIEWED_LOCAL_SCOPE",
+      "prior_material_status": "REUSABLE_SCOPED_ARTIFACTS",
+      "qualified_entry": null,
+      "remaining_obligation": "Exact scoped historical material is retained; sealing and independent package-entry review remain pending.",
+      "required_freshness": "STATIC_OR_EXPLICIT_SCOPE",
+      "review_status": "SCOPED_HISTORICAL_ONLY",
+      "source_refs": [
+        {
+          "byte_length": 20041,
+          "current_byte_length": 20041,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "da3144c558134e7bd6a06b5c3f298740e86cee13be7c54a9932204362c269524",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_COLLECTION_PROTOCOL.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "da3144c558134e7bd6a06b5c3f298740e86cee13be7c54a9932204362c269524"
+        },
+        {
+          "byte_length": 13657,
+          "current_byte_length": 13657,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "7d2bda2034257784f8de8ae75f7c502fe9a3003e97bde154638b95e0b53050b4",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_PROTOCOL_REVIEW_117830a.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "7d2bda2034257784f8de8ae75f7c502fe9a3003e97bde154638b95e0b53050b4"
+        }
+      ]
+    },
+    "protocol.g3p_original_review_terminal": {
+      "category": "DETERMINISTIC_OFFLINE_RECONCILIATION",
+      "prior_material_status": "SUPPORT_ONLY",
+      "qualified_entry": null,
+      "remaining_obligation": "Recovered retained PASS terminal binds the exact G3-P report; package sealing and independent entry review remain pending.",
+      "required_freshness": "STATIC_OR_EXPLICIT_SCOPE",
+      "review_status": "SCOPED_HISTORICAL_ONLY",
+      "source_refs": [
+        {
+          "byte_length": 13657,
+          "current_byte_length": 13657,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "7d2bda2034257784f8de8ae75f7c502fe9a3003e97bde154638b95e0b53050b4",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_PROTOCOL_REVIEW_117830a.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "7d2bda2034257784f8de8ae75f7c502fe9a3003e97bde154638b95e0b53050b4"
+        },
+        {
+          "byte_length": 13657,
+          "path": "docs/V11_R09_GATE3_PROTOCOL_REVIEW_117830a.md",
+          "review_status": "PASS_G3P_PROTOCOL_ONLY",
+          "sha256": "7d2bda2034257784f8de8ae75f7c502fe9a3003e97bde154638b95e0b53050b4"
+        },
+        {
+          "byte_length": 383,
+          "git_commit": "5a06629c34577c14c2fffd5ced1fda7bd62ab7f2",
+          "matches_named_git_bytes": true,
+          "path": "docs/V11_R09_GATE3_PROTOCOL_REVIEW_117830a_terminal.json",
+          "review_status": "PASS_G3P_PROTOCOL_ONLY",
+          "sha256": "414aef99c0576a0e96b86aa9244ad1ca4ffe4b02f161c69e0193f78498d3db22"
+        }
+      ]
+    },
+    "protocol.transport_design_review_terminal": {
+      "category": "RETAINED_REVIEWED_LOCAL_SCOPE",
+      "prior_material_status": "REUSABLE_SCOPED_ARTIFACTS",
+      "qualified_entry": null,
+      "remaining_obligation": "Exact scoped historical material is retained; sealing and independent package-entry review remain pending.",
+      "required_freshness": "STATIC_OR_EXPLICIT_SCOPE",
+      "review_status": "SCOPED_HISTORICAL_ONLY",
+      "source_refs": [
+        {
+          "byte_length": 28627,
+          "current_byte_length": 28627,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "0b121fbc422208e2fa89e0b2f7362725cac60115ada966ed83b9d1ed15ac8e4a",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_TRANSPORT_RUNTIME_DESIGN.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "0b121fbc422208e2fa89e0b2f7362725cac60115ada966ed83b9d1ed15ac8e4a"
+        },
+        {
+          "byte_length": 11482,
+          "current_byte_length": 11482,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "f91c848b8626bae718d1c07c2a50194ae303e36f16fb2bc8a776b75cca0b942b",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_TRANSPORT_RUNTIME_REVIEW_7e132a0.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "f91c848b8626bae718d1c07c2a50194ae303e36f16fb2bc8a776b75cca0b942b"
+        },
+        {
+          "byte_length": 2500,
+          "current_byte_length": 2500,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "3c583f854ab7f8eff7b36d83a2571b9aa80181664391d2469e12e30f10a0349c",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "application/json",
+          "path": "docs/V11_R09_GATE3_TRANSPORT_RUNTIME_REVIEW_7e132a0_terminal.json",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "3c583f854ab7f8eff7b36d83a2571b9aa80181664391d2469e12e30f10a0349c"
+        }
+      ]
+    },
+    "review.private_v4_manifest_canonical_bytes": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "BLOCKED_DEPENDENCY",
+      "qualified_entry": null,
+      "remaining_obligation": "Assemble actual canonical private bytes only after prerequisites; validate_manifest_v4 and separate exact-digest G3-L review remain mandatory. Reconciliation candidate and null template hashes are not manifest identities.",
+      "required_freshness": "STATIC_OR_EXPLICIT_SCOPE",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": [
+        {
+          "byte_length": 16704,
+          "current_byte_length": 16704,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "db298d49301a686711a7d89e7456d95fcd34da8616970fa7f52374b91440aa9d",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_IDENTITY_ACCEPTANCE_20261001.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "db298d49301a686711a7d89e7456d95fcd34da8616970fa7f52374b91440aa9d"
+        },
+        {
+          "byte_length": 7983,
+          "current_byte_length": 7983,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "015b4d04f770cae1174e59c68413b507f6ed1fc71510cd104630580c27f7a965",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_G3L_OFFLINE_PREP.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "015b4d04f770cae1174e59c68413b507f6ed1fc71510cd104630580c27f7a965"
+        }
+      ]
+    },
+    "review.private_v4_manifest_digest": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "BLOCKED_DEPENDENCY",
+      "qualified_entry": null,
+      "remaining_obligation": "Assemble actual canonical private bytes only after prerequisites; validate_manifest_v4 and separate exact-digest G3-L review remain mandatory. Reconciliation candidate and null template hashes are not manifest identities.",
+      "required_freshness": "STATIC_OR_EXPLICIT_SCOPE",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": [
+        {
+          "byte_length": 16704,
+          "current_byte_length": 16704,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "db298d49301a686711a7d89e7456d95fcd34da8616970fa7f52374b91440aa9d",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_IDENTITY_ACCEPTANCE_20261001.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "db298d49301a686711a7d89e7456d95fcd34da8616970fa7f52374b91440aa9d"
+        },
+        {
+          "byte_length": 7983,
+          "current_byte_length": 7983,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "015b4d04f770cae1174e59c68413b507f6ed1fc71510cd104630580c27f7a965",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_G3L_OFFLINE_PREP.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "015b4d04f770cae1174e59c68413b507f6ed1fc71510cd104630580c27f7a965"
+        }
+      ]
+    },
+    "schedule.four_phase_receipt_schema": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "SUPPORT_ONLY",
+      "qualified_entry": null,
+      "remaining_obligation": "Bind reviewed request_start/body_receipt/decode_complete/durable_seal schema to genuine recorder/runtime; no fabricated receipts.",
+      "required_freshness": "STATIC_OR_EXPLICIT_SCOPE",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": [
+        {
+          "byte_length": 28627,
+          "current_byte_length": 28627,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "0b121fbc422208e2fa89e0b2f7362725cac60115ada966ed83b9d1ed15ac8e4a",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_TRANSPORT_RUNTIME_DESIGN.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "0b121fbc422208e2fa89e0b2f7362725cac60115ada966ed83b9d1ed15ac8e4a"
+        },
+        {
+          "byte_length": 6004,
+          "current_byte_length": 6004,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "00aba02cf47317578d598aed02bc742dcad434f058babea9387dc44ed52b4855",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_V4_SLICE3_REVIEW_6340cb4.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "00aba02cf47317578d598aed02bc742dcad434f058babea9387dc44ed52b4855"
+        }
+      ]
+    },
+    "schedule.full_2713_slot_inventory_digest": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "SUPPORT_ONLY",
+      "qualified_entry": null,
+      "remaining_obligation": "Freeze actual run/cohort and seal/review generated 2,713 rows; proposal denominator is independently reproducible, not selected-run readiness.",
+      "required_freshness": "STATIC_OR_EXPLICIT_SCOPE",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": [
+        {
+          "byte_length": 31205,
+          "current_byte_length": 31205,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "a5051a65aa219d40f5ac67acf9ca6f1e72839eb1d988ae5d08b2ea0565e89481",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "tools/v11_r09_gate3_g3l_prep.py",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "a5051a65aa219d40f5ac67acf9ca6f1e72839eb1d988ae5d08b2ea0565e89481"
+        },
+        {
+          "byte_length": 5560,
+          "current_byte_length": 5560,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "d4235cfb6eee606ac5dfe361c80b05b27852f3ab4af3ca58a39e6acb951e5568",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_G3L_PREP_REPAIR_REVIEW_f03d2fd.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "d4235cfb6eee606ac5dfe361c80b05b27852f3ab4af3ca58a39e6acb951e5568"
+        }
+      ]
+    },
+    "schedule.observed_size_evidence_review": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "SUPPORT_ONLY",
+      "qualified_entry": null,
+      "remaining_obligation": "Historical retained size review supports estimates only; review representativeness for exact source/path/run and conservative quotas.",
+      "required_freshness": "STATIC_OR_EXPLICIT_SCOPE",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": [
+        {
+          "byte_length": 2671,
+          "current_byte_length": 2671,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "efefd2396c35ac672e18094d611c7a956b709f7deeabb99d1e3e2f1831211eeb",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "application/json",
+          "path": "config/v11/r09_gate3_observed_message_sizes_20260930.json",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "efefd2396c35ac672e18094d611c7a956b709f7deeabb99d1e3e2f1831211eeb"
+        },
+        {
+          "byte_length": 2626,
+          "current_byte_length": 2626,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "1a8ad08aa3e4b86bb49e98cfd05b77b4e59a4327678143c8d6fe008feeecd685",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_GEFS_CEILING_REVIEW_95e07fa.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "1a8ad08aa3e4b86bb49e98cfd05b77b4e59a4327678143c8d6fe008feeecd685"
+        }
+      ]
+    },
+    "schedule.ordered_subset_request_paths_ranges": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "BLOCKED_DEPENDENCY",
+      "qualified_entry": null,
+      "remaining_obligation": "Freeze exact real paths/ranges and deterministic ordered subset only after contracts/current-run pins/capacity exist.",
+      "required_freshness": "STATIC_OR_EXPLICIT_SCOPE",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": [
+        {
+          "byte_length": 5115,
+          "current_byte_length": 5115,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "d2a617ce9155b1b1614210510e04bfd09bdd27620236e6cfee6a2c74650bd1af",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_V4_PROVIDER_MAPPING_REPAIR_REVIEW_23c11e0.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "d2a617ce9155b1b1614210510e04bfd09bdd27620236e6cfee6a2c74650bd1af"
+        },
+        {
+          "byte_length": 11925,
+          "current_byte_length": 11925,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "eb34a6940da19f77ce43dd543926ef6524773f963e2371bc4657466bb8933302",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "eb34a6940da19f77ce43dd543926ef6524773f963e2371bc4657466bb8933302"
+        }
+      ]
+    },
+    "schedule.purpose_reservations_and_resource_quota": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "BLOCKED_DEPENDENCY",
+      "qualified_entry": null,
+      "remaining_obligation": "Exact purpose totals and physical quotas from reviewed schedule; current planner has zero feasible slots.",
+      "required_freshness": "STATIC_OR_EXPLICIT_SCOPE",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": [
+        {
+          "byte_length": 7983,
+          "current_byte_length": 7983,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "015b4d04f770cae1174e59c68413b507f6ed1fc71510cd104630580c27f7a965",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_G3L_OFFLINE_PREP.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "015b4d04f770cae1174e59c68413b507f6ed1fc71510cd104630580c27f7a965"
+        },
+        {
+          "byte_length": 28627,
+          "current_byte_length": 28627,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "0b121fbc422208e2fa89e0b2f7362725cac60115ada966ed83b9d1ed15ac8e4a",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_TRANSPORT_RUNTIME_DESIGN.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "0b121fbc422208e2fa89e0b2f7362725cac60115ada966ed83b9d1ed15ac8e4a"
+        }
+      ]
+    },
+    "schedule.run_candidate_readiness_evidence": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "BLOCKED_DEPENDENCY",
+      "qualified_entry": null,
+      "remaining_obligation": "Genuine LATEST_COMPLETE_READY evidence for October 2 00Z proposal; no retained eligible evidence.",
+      "required_freshness": "RUN",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": [
+        {
+          "byte_length": 11925,
+          "current_byte_length": 11925,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "eb34a6940da19f77ce43dd543926ef6524773f963e2371bc4657466bb8933302",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "eb34a6940da19f77ce43dd543926ef6524773f963e2371bc4657466bb8933302"
+        }
+      ]
+    },
+    "schedule.shared_index_object_cache_binding": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "BLOCKED_DEPENDENCY",
+      "qualified_entry": null,
+      "remaining_obligation": "Bind actual shared ECMWF object/index/strong-validator/cache identities; grammar and synthetic sharing tests are insufficient.",
+      "required_freshness": "STATIC_OR_EXPLICIT_SCOPE",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": [
+        {
+          "byte_length": 5115,
+          "current_byte_length": 5115,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "d2a617ce9155b1b1614210510e04bfd09bdd27620236e6cfee6a2c74650bd1af",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_V4_PROVIDER_MAPPING_REPAIR_REVIEW_23c11e0.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "d2a617ce9155b1b1614210510e04bfd09bdd27620236e6cfee6a2c74650bd1af"
+        },
+        {
+          "byte_length": 11925,
+          "current_byte_length": 11925,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "eb34a6940da19f77ce43dd543926ef6524773f963e2371bc4657466bb8933302",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "eb34a6940da19f77ce43dd543926ef6524773f963e2371bc4657466bb8933302"
+        }
+      ]
+    },
+    "schedule.terminal_reason_precedence": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "SUPPORT_ONLY",
+      "qualified_entry": null,
+      "remaining_obligation": "Review and bind unchanged policy to actual final runtime/report projection; planned reasons are not observed acquisition terminals.",
+      "required_freshness": "STATIC_OR_EXPLICIT_SCOPE",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": [
+        {
+          "byte_length": 20041,
+          "current_byte_length": 20041,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "da3144c558134e7bd6a06b5c3f298740e86cee13be7c54a9932204362c269524",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_COLLECTION_PROTOCOL.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "da3144c558134e7bd6a06b5c3f298740e86cee13be7c54a9932204362c269524"
+        },
+        {
+          "byte_length": 17309,
+          "current_byte_length": 17309,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "a4a2a18e83a53359e3a46cdf7cbda6031c6afec74e5d497f2cd126b1ae7b943c",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_LAUNCH_CONTRACT_ADJUDICATION.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "a4a2a18e83a53359e3a46cdf7cbda6031c6afec74e5d497f2cd126b1ae7b943c"
+        },
+        {
+          "byte_length": 6004,
+          "current_byte_length": 6004,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "00aba02cf47317578d598aed02bc742dcad434f058babea9387dc44ed52b4855",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_V4_SLICE3_REVIEW_6340cb4.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "00aba02cf47317578d598aed02bc742dcad434f058babea9387dc44ed52b4855"
+        }
+      ]
+    },
+    "sources.aifs_control_perturbed_mapping": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "BLOCKED_DEPENDENCY",
+      "qualified_entry": null,
+      "remaining_obligation": "Operationally attested control/perturbed semantics; adapter grammar alone is insufficient.",
+      "required_freshness": "STATIC_OR_EXPLICIT_SCOPE",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": [
+        {
+          "byte_length": 11925,
+          "current_byte_length": 11925,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "eb34a6940da19f77ce43dd543926ef6524773f963e2371bc4657466bb8933302",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "eb34a6940da19f77ce43dd543926ef6524773f963e2371bc4657466bb8933302"
+        },
+        {
+          "byte_length": 59867,
+          "current_byte_length": 59867,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "1535356757b1ed2cc9069378deb51dae3e4e3b829b58ddf157c54e1d213513fa",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "application/json",
+          "path": "docs/V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.json",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "1535356757b1ed2cc9069378deb51dae3e4e3b829b58ddf157c54e1d213513fa"
+        },
+        {
+          "byte_length": 5115,
+          "current_byte_length": 5115,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "d2a617ce9155b1b1614210510e04bfd09bdd27620236e6cfee6a2c74650bd1af",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_V4_PROVIDER_MAPPING_REPAIR_REVIEW_23c11e0.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "d2a617ce9155b1b1614210510e04bfd09bdd27620236e6cfee6a2c74650bd1af"
+        }
+      ]
+    },
+    "sources.aifs_current_run_index_object_range": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "BLOCKED_DEPENDENCY",
+      "qualified_entry": null,
+      "remaining_obligation": "Exact eligible run readiness, original index/object/strong-validator/range identity and causal receipts. Historical September 29 fields do not qualify.",
+      "required_freshness": "RUN",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": [
+        {
+          "byte_length": 11925,
+          "current_byte_length": 11925,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "eb34a6940da19f77ce43dd543926ef6524773f963e2371bc4657466bb8933302",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "eb34a6940da19f77ce43dd543926ef6524773f963e2371bc4657466bb8933302"
+        },
+        {
+          "byte_length": 59867,
+          "current_byte_length": 59867,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "1535356757b1ed2cc9069378deb51dae3e4e3b829b58ddf157c54e1d213513fa",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "application/json",
+          "path": "docs/V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.json",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "1535356757b1ed2cc9069378deb51dae3e4e3b829b58ddf157c54e1d213513fa"
+        },
+        {
+          "byte_length": 5115,
+          "current_byte_length": 5115,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "d2a617ce9155b1b1614210510e04bfd09bdd27620236e6cfee6a2c74650bd1af",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_V4_PROVIDER_MAPPING_REPAIR_REVIEW_23c11e0.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "d2a617ce9155b1b1614210510e04bfd09bdd27620236e6cfee6a2c74650bd1af"
+        }
+      ]
+    },
+    "sources.aifs_grib_identity_decoder_build": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "BLOCKED_DEPENDENCY",
+      "qualified_entry": null,
+      "remaining_obligation": "Independent real header/source pins plus qualified A2-A7 decoder/build; observed section hashes are not pre-acquisition pins.",
+      "required_freshness": "STATIC_OR_EXPLICIT_SCOPE",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": [
+        {
+          "byte_length": 11925,
+          "current_byte_length": 11925,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "eb34a6940da19f77ce43dd543926ef6524773f963e2371bc4657466bb8933302",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "eb34a6940da19f77ce43dd543926ef6524773f963e2371bc4657466bb8933302"
+        },
+        {
+          "byte_length": 59867,
+          "current_byte_length": 59867,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "1535356757b1ed2cc9069378deb51dae3e4e3b829b58ddf157c54e1d213513fa",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "application/json",
+          "path": "docs/V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.json",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "1535356757b1ed2cc9069378deb51dae3e4e3b829b58ddf157c54e1d213513fa"
+        },
+        {
+          "byte_length": 5115,
+          "current_byte_length": 5115,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "d2a617ce9155b1b1614210510e04bfd09bdd27620236e6cfee6a2c74650bd1af",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_V4_PROVIDER_MAPPING_REPAIR_REVIEW_23c11e0.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "d2a617ce9155b1b1614210510e04bfd09bdd27620236e6cfee6a2c74650bd1af"
+        }
+      ]
+    },
+    "sources.aifs_licence_anonymous_access": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "BLOCKED_DEPENDENCY",
+      "qualified_entry": null,
+      "remaining_obligation": "Genuine licence/access evidence and unresolved provider restriction adjudication.",
+      "required_freshness": "STATIC_OR_EXPLICIT_SCOPE",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": [
+        {
+          "byte_length": 11925,
+          "current_byte_length": 11925,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "eb34a6940da19f77ce43dd543926ef6524773f963e2371bc4657466bb8933302",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "eb34a6940da19f77ce43dd543926ef6524773f963e2371bc4657466bb8933302"
+        },
+        {
+          "byte_length": 59867,
+          "current_byte_length": 59867,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "1535356757b1ed2cc9069378deb51dae3e4e3b829b58ddf157c54e1d213513fa",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "application/json",
+          "path": "docs/V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.json",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "1535356757b1ed2cc9069378deb51dae3e4e3b829b58ddf157c54e1d213513fa"
+        },
+        {
+          "byte_length": 5115,
+          "current_byte_length": 5115,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "d2a617ce9155b1b1614210510e04bfd09bdd27620236e6cfee6a2c74650bd1af",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_V4_PROVIDER_MAPPING_REPAIR_REVIEW_23c11e0.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "d2a617ce9155b1b1614210510e04bfd09bdd27620236e6cfee6a2c74650bd1af"
+        }
+      ]
+    },
+    "sources.aifs_operational_release_dossier": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "BLOCKED_DEPENDENCY",
+      "qualified_entry": null,
+      "remaining_obligation": "Original operational release bytes, effective interval and independent semantic comparison for this provider.",
+      "required_freshness": "STATIC_OR_EXPLICIT_SCOPE",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": [
+        {
+          "byte_length": 11925,
+          "current_byte_length": 11925,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "eb34a6940da19f77ce43dd543926ef6524773f963e2371bc4657466bb8933302",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "eb34a6940da19f77ce43dd543926ef6524773f963e2371bc4657466bb8933302"
+        },
+        {
+          "byte_length": 59867,
+          "current_byte_length": 59867,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "1535356757b1ed2cc9069378deb51dae3e4e3b829b58ddf157c54e1d213513fa",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "application/json",
+          "path": "docs/V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.json",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "1535356757b1ed2cc9069378deb51dae3e4e3b829b58ddf157c54e1d213513fa"
+        },
+        {
+          "byte_length": 5115,
+          "current_byte_length": 5115,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "d2a617ce9155b1b1614210510e04bfd09bdd27620236e6cfee6a2c74650bd1af",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_V4_PROVIDER_MAPPING_REPAIR_REVIEW_23c11e0.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "d2a617ce9155b1b1614210510e04bfd09bdd27620236e6cfee6a2c74650bd1af"
+        }
+      ]
+    },
+    "sources.aifs_publication_attestation_or_absence_reason": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "BLOCKED_DEPENDENCY",
+      "qualified_entry": null,
+      "remaining_obligation": "Genuine publication attestation OR a reviewed explicit absence reason; never fabricate a timestamp.",
+      "required_freshness": "STATIC_OR_EXPLICIT_SCOPE",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": [
+        {
+          "byte_length": 11925,
+          "current_byte_length": 11925,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "eb34a6940da19f77ce43dd543926ef6524773f963e2371bc4657466bb8933302",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "eb34a6940da19f77ce43dd543926ef6524773f963e2371bc4657466bb8933302"
+        },
+        {
+          "byte_length": 59867,
+          "current_byte_length": 59867,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "1535356757b1ed2cc9069378deb51dae3e4e3b829b58ddf157c54e1d213513fa",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "application/json",
+          "path": "docs/V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.json",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "1535356757b1ed2cc9069378deb51dae3e4e3b829b58ddf157c54e1d213513fa"
+        },
+        {
+          "byte_length": 5115,
+          "current_byte_length": 5115,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "d2a617ce9155b1b1614210510e04bfd09bdd27620236e6cfee6a2c74650bd1af",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_V4_PROVIDER_MAPPING_REPAIR_REVIEW_23c11e0.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "d2a617ce9155b1b1614210510e04bfd09bdd27620236e6cfee6a2c74650bd1af"
+        }
+      ]
+    },
+    "sources.aifs_purpose_endpoint_contracts": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "BLOCKED_DEPENDENCY",
+      "qualified_entry": null,
+      "remaining_obligation": "All five reviewed real-purpose contracts and separately reviewed implementation; mandatory unsupported purposes currently refuse.",
+      "required_freshness": "STATIC_OR_EXPLICIT_SCOPE",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": [
+        {
+          "byte_length": 11925,
+          "current_byte_length": 11925,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "eb34a6940da19f77ce43dd543926ef6524773f963e2371bc4657466bb8933302",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "eb34a6940da19f77ce43dd543926ef6524773f963e2371bc4657466bb8933302"
+        },
+        {
+          "byte_length": 59867,
+          "current_byte_length": 59867,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "1535356757b1ed2cc9069378deb51dae3e4e3b829b58ddf157c54e1d213513fa",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "application/json",
+          "path": "docs/V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.json",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "1535356757b1ed2cc9069378deb51dae3e4e3b829b58ddf157c54e1d213513fa"
+        },
+        {
+          "byte_length": 5115,
+          "current_byte_length": 5115,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "d2a617ce9155b1b1614210510e04bfd09bdd27620236e6cfee6a2c74650bd1af",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_V4_PROVIDER_MAPPING_REPAIR_REVIEW_23c11e0.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "d2a617ce9155b1b1614210510e04bfd09bdd27620236e6cfee6a2c74650bd1af"
+        }
+      ]
+    },
+    "sources.aifs_release_document_retrieval": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "BLOCKED_DEPENDENCY",
+      "qualified_entry": null,
+      "remaining_obligation": "Original document retrieval provenance and receipt; links/comments do not supply bytes.",
+      "required_freshness": "STATIC_OR_EXPLICIT_SCOPE",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": [
+        {
+          "byte_length": 11925,
+          "current_byte_length": 11925,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "eb34a6940da19f77ce43dd543926ef6524773f963e2371bc4657466bb8933302",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "eb34a6940da19f77ce43dd543926ef6524773f963e2371bc4657466bb8933302"
+        },
+        {
+          "byte_length": 59867,
+          "current_byte_length": 59867,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "1535356757b1ed2cc9069378deb51dae3e4e3b829b58ddf157c54e1d213513fa",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "application/json",
+          "path": "docs/V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.json",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "1535356757b1ed2cc9069378deb51dae3e4e3b829b58ddf157c54e1d213513fa"
+        },
+        {
+          "byte_length": 5115,
+          "current_byte_length": 5115,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "d2a617ce9155b1b1614210510e04bfd09bdd27620236e6cfee6a2c74650bd1af",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_V4_PROVIDER_MAPPING_REPAIR_REVIEW_23c11e0.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "d2a617ce9155b1b1614210510e04bfd09bdd27620236e6cfee6a2c74650bd1af"
+        }
+      ]
+    },
+    "sources.gefs_control_perturbed_mapping": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "BLOCKED_DEPENDENCY",
+      "qualified_entry": null,
+      "remaining_obligation": "Operationally attested control/perturbed semantics; adapter grammar alone is insufficient.",
+      "required_freshness": "STATIC_OR_EXPLICIT_SCOPE",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": [
+        {
+          "byte_length": 11925,
+          "current_byte_length": 11925,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "eb34a6940da19f77ce43dd543926ef6524773f963e2371bc4657466bb8933302",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "eb34a6940da19f77ce43dd543926ef6524773f963e2371bc4657466bb8933302"
+        },
+        {
+          "byte_length": 59867,
+          "current_byte_length": 59867,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "1535356757b1ed2cc9069378deb51dae3e4e3b829b58ddf157c54e1d213513fa",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "application/json",
+          "path": "docs/V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.json",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "1535356757b1ed2cc9069378deb51dae3e4e3b829b58ddf157c54e1d213513fa"
+        },
+        {
+          "byte_length": 5115,
+          "current_byte_length": 5115,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "d2a617ce9155b1b1614210510e04bfd09bdd27620236e6cfee6a2c74650bd1af",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_V4_PROVIDER_MAPPING_REPAIR_REVIEW_23c11e0.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "d2a617ce9155b1b1614210510e04bfd09bdd27620236e6cfee6a2c74650bd1af"
+        }
+      ]
+    },
+    "sources.gefs_current_run_index_object_range": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "BLOCKED_DEPENDENCY",
+      "qualified_entry": null,
+      "remaining_obligation": "Exact eligible run readiness, original index/object/strong-validator/range identity and causal receipts. Historical September 29 fields do not qualify.",
+      "required_freshness": "RUN",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": [
+        {
+          "byte_length": 11925,
+          "current_byte_length": 11925,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "eb34a6940da19f77ce43dd543926ef6524773f963e2371bc4657466bb8933302",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "eb34a6940da19f77ce43dd543926ef6524773f963e2371bc4657466bb8933302"
+        },
+        {
+          "byte_length": 59867,
+          "current_byte_length": 59867,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "1535356757b1ed2cc9069378deb51dae3e4e3b829b58ddf157c54e1d213513fa",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "application/json",
+          "path": "docs/V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.json",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "1535356757b1ed2cc9069378deb51dae3e4e3b829b58ddf157c54e1d213513fa"
+        },
+        {
+          "byte_length": 5115,
+          "current_byte_length": 5115,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "d2a617ce9155b1b1614210510e04bfd09bdd27620236e6cfee6a2c74650bd1af",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_V4_PROVIDER_MAPPING_REPAIR_REVIEW_23c11e0.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "d2a617ce9155b1b1614210510e04bfd09bdd27620236e6cfee6a2c74650bd1af"
+        }
+      ]
+    },
+    "sources.gefs_grib_identity_decoder_build": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "BLOCKED_DEPENDENCY",
+      "qualified_entry": null,
+      "remaining_obligation": "Independent real header/source pins plus qualified A2-A7 decoder/build; observed section hashes are not pre-acquisition pins.",
+      "required_freshness": "STATIC_OR_EXPLICIT_SCOPE",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": [
+        {
+          "byte_length": 11925,
+          "current_byte_length": 11925,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "eb34a6940da19f77ce43dd543926ef6524773f963e2371bc4657466bb8933302",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "eb34a6940da19f77ce43dd543926ef6524773f963e2371bc4657466bb8933302"
+        },
+        {
+          "byte_length": 59867,
+          "current_byte_length": 59867,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "1535356757b1ed2cc9069378deb51dae3e4e3b829b58ddf157c54e1d213513fa",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "application/json",
+          "path": "docs/V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.json",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "1535356757b1ed2cc9069378deb51dae3e4e3b829b58ddf157c54e1d213513fa"
+        },
+        {
+          "byte_length": 5115,
+          "current_byte_length": 5115,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "d2a617ce9155b1b1614210510e04bfd09bdd27620236e6cfee6a2c74650bd1af",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_V4_PROVIDER_MAPPING_REPAIR_REVIEW_23c11e0.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "d2a617ce9155b1b1614210510e04bfd09bdd27620236e6cfee6a2c74650bd1af"
+        }
+      ]
+    },
+    "sources.gefs_licence_anonymous_access": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "BLOCKED_DEPENDENCY",
+      "qualified_entry": null,
+      "remaining_obligation": "Genuine licence/access evidence and unresolved provider restriction adjudication.",
+      "required_freshness": "STATIC_OR_EXPLICIT_SCOPE",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": [
+        {
+          "byte_length": 11925,
+          "current_byte_length": 11925,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "eb34a6940da19f77ce43dd543926ef6524773f963e2371bc4657466bb8933302",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "eb34a6940da19f77ce43dd543926ef6524773f963e2371bc4657466bb8933302"
+        },
+        {
+          "byte_length": 59867,
+          "current_byte_length": 59867,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "1535356757b1ed2cc9069378deb51dae3e4e3b829b58ddf157c54e1d213513fa",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "application/json",
+          "path": "docs/V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.json",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "1535356757b1ed2cc9069378deb51dae3e4e3b829b58ddf157c54e1d213513fa"
+        },
+        {
+          "byte_length": 5115,
+          "current_byte_length": 5115,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "d2a617ce9155b1b1614210510e04bfd09bdd27620236e6cfee6a2c74650bd1af",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_V4_PROVIDER_MAPPING_REPAIR_REVIEW_23c11e0.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "d2a617ce9155b1b1614210510e04bfd09bdd27620236e6cfee6a2c74650bd1af"
+        }
+      ]
+    },
+    "sources.gefs_operational_release_dossier": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "BLOCKED_DEPENDENCY",
+      "qualified_entry": null,
+      "remaining_obligation": "Original operational release bytes, effective interval and independent semantic comparison for this provider.",
+      "required_freshness": "STATIC_OR_EXPLICIT_SCOPE",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": [
+        {
+          "byte_length": 11925,
+          "current_byte_length": 11925,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "eb34a6940da19f77ce43dd543926ef6524773f963e2371bc4657466bb8933302",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "eb34a6940da19f77ce43dd543926ef6524773f963e2371bc4657466bb8933302"
+        },
+        {
+          "byte_length": 59867,
+          "current_byte_length": 59867,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "1535356757b1ed2cc9069378deb51dae3e4e3b829b58ddf157c54e1d213513fa",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "application/json",
+          "path": "docs/V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.json",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "1535356757b1ed2cc9069378deb51dae3e4e3b829b58ddf157c54e1d213513fa"
+        },
+        {
+          "byte_length": 5115,
+          "current_byte_length": 5115,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "d2a617ce9155b1b1614210510e04bfd09bdd27620236e6cfee6a2c74650bd1af",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_V4_PROVIDER_MAPPING_REPAIR_REVIEW_23c11e0.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "d2a617ce9155b1b1614210510e04bfd09bdd27620236e6cfee6a2c74650bd1af"
+        }
+      ]
+    },
+    "sources.gefs_publication_attestation_or_absence_reason": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "BLOCKED_DEPENDENCY",
+      "qualified_entry": null,
+      "remaining_obligation": "Genuine publication attestation OR a reviewed explicit absence reason; never fabricate a timestamp.",
+      "required_freshness": "STATIC_OR_EXPLICIT_SCOPE",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": [
+        {
+          "byte_length": 11925,
+          "current_byte_length": 11925,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "eb34a6940da19f77ce43dd543926ef6524773f963e2371bc4657466bb8933302",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "eb34a6940da19f77ce43dd543926ef6524773f963e2371bc4657466bb8933302"
+        },
+        {
+          "byte_length": 59867,
+          "current_byte_length": 59867,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "1535356757b1ed2cc9069378deb51dae3e4e3b829b58ddf157c54e1d213513fa",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "application/json",
+          "path": "docs/V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.json",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "1535356757b1ed2cc9069378deb51dae3e4e3b829b58ddf157c54e1d213513fa"
+        },
+        {
+          "byte_length": 5115,
+          "current_byte_length": 5115,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "d2a617ce9155b1b1614210510e04bfd09bdd27620236e6cfee6a2c74650bd1af",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_V4_PROVIDER_MAPPING_REPAIR_REVIEW_23c11e0.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "d2a617ce9155b1b1614210510e04bfd09bdd27620236e6cfee6a2c74650bd1af"
+        }
+      ]
+    },
+    "sources.gefs_purpose_endpoint_contracts": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "BLOCKED_DEPENDENCY",
+      "qualified_entry": null,
+      "remaining_obligation": "All five reviewed real-purpose contracts and separately reviewed implementation; mandatory unsupported purposes currently refuse.",
+      "required_freshness": "STATIC_OR_EXPLICIT_SCOPE",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": [
+        {
+          "byte_length": 11925,
+          "current_byte_length": 11925,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "eb34a6940da19f77ce43dd543926ef6524773f963e2371bc4657466bb8933302",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "eb34a6940da19f77ce43dd543926ef6524773f963e2371bc4657466bb8933302"
+        },
+        {
+          "byte_length": 59867,
+          "current_byte_length": 59867,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "1535356757b1ed2cc9069378deb51dae3e4e3b829b58ddf157c54e1d213513fa",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "application/json",
+          "path": "docs/V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.json",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "1535356757b1ed2cc9069378deb51dae3e4e3b829b58ddf157c54e1d213513fa"
+        },
+        {
+          "byte_length": 5115,
+          "current_byte_length": 5115,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "d2a617ce9155b1b1614210510e04bfd09bdd27620236e6cfee6a2c74650bd1af",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_V4_PROVIDER_MAPPING_REPAIR_REVIEW_23c11e0.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "d2a617ce9155b1b1614210510e04bfd09bdd27620236e6cfee6a2c74650bd1af"
+        }
+      ]
+    },
+    "sources.gefs_release_document_retrieval": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "BLOCKED_DEPENDENCY",
+      "qualified_entry": null,
+      "remaining_obligation": "Original document retrieval provenance and receipt; links/comments do not supply bytes.",
+      "required_freshness": "STATIC_OR_EXPLICIT_SCOPE",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": [
+        {
+          "byte_length": 11925,
+          "current_byte_length": 11925,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "eb34a6940da19f77ce43dd543926ef6524773f963e2371bc4657466bb8933302",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "eb34a6940da19f77ce43dd543926ef6524773f963e2371bc4657466bb8933302"
+        },
+        {
+          "byte_length": 59867,
+          "current_byte_length": 59867,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "1535356757b1ed2cc9069378deb51dae3e4e3b829b58ddf157c54e1d213513fa",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "application/json",
+          "path": "docs/V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.json",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "1535356757b1ed2cc9069378deb51dae3e4e3b829b58ddf157c54e1d213513fa"
+        },
+        {
+          "byte_length": 5115,
+          "current_byte_length": 5115,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "d2a617ce9155b1b1614210510e04bfd09bdd27620236e6cfee6a2c74650bd1af",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_V4_PROVIDER_MAPPING_REPAIR_REVIEW_23c11e0.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "d2a617ce9155b1b1614210510e04bfd09bdd27620236e6cfee6a2c74650bd1af"
+        }
+      ]
+    },
+    "sources.ifs_control_perturbed_mapping": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "BLOCKED_DEPENDENCY",
+      "qualified_entry": null,
+      "remaining_obligation": "Operationally attested control/perturbed semantics; adapter grammar alone is insufficient.",
+      "required_freshness": "STATIC_OR_EXPLICIT_SCOPE",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": [
+        {
+          "byte_length": 11925,
+          "current_byte_length": 11925,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "eb34a6940da19f77ce43dd543926ef6524773f963e2371bc4657466bb8933302",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "eb34a6940da19f77ce43dd543926ef6524773f963e2371bc4657466bb8933302"
+        },
+        {
+          "byte_length": 59867,
+          "current_byte_length": 59867,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "1535356757b1ed2cc9069378deb51dae3e4e3b829b58ddf157c54e1d213513fa",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "application/json",
+          "path": "docs/V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.json",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "1535356757b1ed2cc9069378deb51dae3e4e3b829b58ddf157c54e1d213513fa"
+        },
+        {
+          "byte_length": 5115,
+          "current_byte_length": 5115,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "d2a617ce9155b1b1614210510e04bfd09bdd27620236e6cfee6a2c74650bd1af",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_V4_PROVIDER_MAPPING_REPAIR_REVIEW_23c11e0.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "d2a617ce9155b1b1614210510e04bfd09bdd27620236e6cfee6a2c74650bd1af"
+        }
+      ]
+    },
+    "sources.ifs_current_run_index_object_range": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "BLOCKED_DEPENDENCY",
+      "qualified_entry": null,
+      "remaining_obligation": "Exact eligible run readiness, original index/object/strong-validator/range identity and causal receipts. Historical September 29 fields do not qualify.",
+      "required_freshness": "RUN",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": [
+        {
+          "byte_length": 11925,
+          "current_byte_length": 11925,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "eb34a6940da19f77ce43dd543926ef6524773f963e2371bc4657466bb8933302",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "eb34a6940da19f77ce43dd543926ef6524773f963e2371bc4657466bb8933302"
+        },
+        {
+          "byte_length": 59867,
+          "current_byte_length": 59867,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "1535356757b1ed2cc9069378deb51dae3e4e3b829b58ddf157c54e1d213513fa",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "application/json",
+          "path": "docs/V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.json",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "1535356757b1ed2cc9069378deb51dae3e4e3b829b58ddf157c54e1d213513fa"
+        },
+        {
+          "byte_length": 5115,
+          "current_byte_length": 5115,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "d2a617ce9155b1b1614210510e04bfd09bdd27620236e6cfee6a2c74650bd1af",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_V4_PROVIDER_MAPPING_REPAIR_REVIEW_23c11e0.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "d2a617ce9155b1b1614210510e04bfd09bdd27620236e6cfee6a2c74650bd1af"
+        }
+      ]
+    },
+    "sources.ifs_grib_identity_decoder_build": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "BLOCKED_DEPENDENCY",
+      "qualified_entry": null,
+      "remaining_obligation": "Independent real header/source pins plus qualified A2-A7 decoder/build; observed section hashes are not pre-acquisition pins.",
+      "required_freshness": "STATIC_OR_EXPLICIT_SCOPE",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": [
+        {
+          "byte_length": 11925,
+          "current_byte_length": 11925,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "eb34a6940da19f77ce43dd543926ef6524773f963e2371bc4657466bb8933302",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "eb34a6940da19f77ce43dd543926ef6524773f963e2371bc4657466bb8933302"
+        },
+        {
+          "byte_length": 59867,
+          "current_byte_length": 59867,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "1535356757b1ed2cc9069378deb51dae3e4e3b829b58ddf157c54e1d213513fa",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "application/json",
+          "path": "docs/V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.json",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "1535356757b1ed2cc9069378deb51dae3e4e3b829b58ddf157c54e1d213513fa"
+        },
+        {
+          "byte_length": 5115,
+          "current_byte_length": 5115,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "d2a617ce9155b1b1614210510e04bfd09bdd27620236e6cfee6a2c74650bd1af",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_V4_PROVIDER_MAPPING_REPAIR_REVIEW_23c11e0.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "d2a617ce9155b1b1614210510e04bfd09bdd27620236e6cfee6a2c74650bd1af"
+        }
+      ]
+    },
+    "sources.ifs_licence_anonymous_access": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "BLOCKED_DEPENDENCY",
+      "qualified_entry": null,
+      "remaining_obligation": "Genuine licence/access evidence and unresolved provider restriction adjudication.",
+      "required_freshness": "STATIC_OR_EXPLICIT_SCOPE",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": [
+        {
+          "byte_length": 11925,
+          "current_byte_length": 11925,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "eb34a6940da19f77ce43dd543926ef6524773f963e2371bc4657466bb8933302",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "eb34a6940da19f77ce43dd543926ef6524773f963e2371bc4657466bb8933302"
+        },
+        {
+          "byte_length": 59867,
+          "current_byte_length": 59867,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "1535356757b1ed2cc9069378deb51dae3e4e3b829b58ddf157c54e1d213513fa",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "application/json",
+          "path": "docs/V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.json",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "1535356757b1ed2cc9069378deb51dae3e4e3b829b58ddf157c54e1d213513fa"
+        },
+        {
+          "byte_length": 5115,
+          "current_byte_length": 5115,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "d2a617ce9155b1b1614210510e04bfd09bdd27620236e6cfee6a2c74650bd1af",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_V4_PROVIDER_MAPPING_REPAIR_REVIEW_23c11e0.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "d2a617ce9155b1b1614210510e04bfd09bdd27620236e6cfee6a2c74650bd1af"
+        }
+      ]
+    },
+    "sources.ifs_operational_release_dossier": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "BLOCKED_DEPENDENCY",
+      "qualified_entry": null,
+      "remaining_obligation": "Original operational release bytes, effective interval and independent semantic comparison for this provider.",
+      "required_freshness": "STATIC_OR_EXPLICIT_SCOPE",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": [
+        {
+          "byte_length": 11925,
+          "current_byte_length": 11925,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "eb34a6940da19f77ce43dd543926ef6524773f963e2371bc4657466bb8933302",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "eb34a6940da19f77ce43dd543926ef6524773f963e2371bc4657466bb8933302"
+        },
+        {
+          "byte_length": 59867,
+          "current_byte_length": 59867,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "1535356757b1ed2cc9069378deb51dae3e4e3b829b58ddf157c54e1d213513fa",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "application/json",
+          "path": "docs/V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.json",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "1535356757b1ed2cc9069378deb51dae3e4e3b829b58ddf157c54e1d213513fa"
+        },
+        {
+          "byte_length": 5115,
+          "current_byte_length": 5115,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "d2a617ce9155b1b1614210510e04bfd09bdd27620236e6cfee6a2c74650bd1af",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_V4_PROVIDER_MAPPING_REPAIR_REVIEW_23c11e0.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "d2a617ce9155b1b1614210510e04bfd09bdd27620236e6cfee6a2c74650bd1af"
+        }
+      ]
+    },
+    "sources.ifs_publication_attestation_or_absence_reason": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "BLOCKED_DEPENDENCY",
+      "qualified_entry": null,
+      "remaining_obligation": "Genuine publication attestation OR a reviewed explicit absence reason; never fabricate a timestamp.",
+      "required_freshness": "STATIC_OR_EXPLICIT_SCOPE",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": [
+        {
+          "byte_length": 11925,
+          "current_byte_length": 11925,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "eb34a6940da19f77ce43dd543926ef6524773f963e2371bc4657466bb8933302",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "eb34a6940da19f77ce43dd543926ef6524773f963e2371bc4657466bb8933302"
+        },
+        {
+          "byte_length": 59867,
+          "current_byte_length": 59867,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "1535356757b1ed2cc9069378deb51dae3e4e3b829b58ddf157c54e1d213513fa",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "application/json",
+          "path": "docs/V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.json",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "1535356757b1ed2cc9069378deb51dae3e4e3b829b58ddf157c54e1d213513fa"
+        },
+        {
+          "byte_length": 5115,
+          "current_byte_length": 5115,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "d2a617ce9155b1b1614210510e04bfd09bdd27620236e6cfee6a2c74650bd1af",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_V4_PROVIDER_MAPPING_REPAIR_REVIEW_23c11e0.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "d2a617ce9155b1b1614210510e04bfd09bdd27620236e6cfee6a2c74650bd1af"
+        }
+      ]
+    },
+    "sources.ifs_purpose_endpoint_contracts": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "BLOCKED_DEPENDENCY",
+      "qualified_entry": null,
+      "remaining_obligation": "All five reviewed real-purpose contracts and separately reviewed implementation; mandatory unsupported purposes currently refuse.",
+      "required_freshness": "STATIC_OR_EXPLICIT_SCOPE",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": [
+        {
+          "byte_length": 11925,
+          "current_byte_length": 11925,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "eb34a6940da19f77ce43dd543926ef6524773f963e2371bc4657466bb8933302",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "eb34a6940da19f77ce43dd543926ef6524773f963e2371bc4657466bb8933302"
+        },
+        {
+          "byte_length": 59867,
+          "current_byte_length": 59867,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "1535356757b1ed2cc9069378deb51dae3e4e3b829b58ddf157c54e1d213513fa",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "application/json",
+          "path": "docs/V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.json",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "1535356757b1ed2cc9069378deb51dae3e4e3b829b58ddf157c54e1d213513fa"
+        },
+        {
+          "byte_length": 5115,
+          "current_byte_length": 5115,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "d2a617ce9155b1b1614210510e04bfd09bdd27620236e6cfee6a2c74650bd1af",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_V4_PROVIDER_MAPPING_REPAIR_REVIEW_23c11e0.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "d2a617ce9155b1b1614210510e04bfd09bdd27620236e6cfee6a2c74650bd1af"
+        }
+      ]
+    },
+    "sources.ifs_release_document_retrieval": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "BLOCKED_DEPENDENCY",
+      "qualified_entry": null,
+      "remaining_obligation": "Original document retrieval provenance and receipt; links/comments do not supply bytes.",
+      "required_freshness": "STATIC_OR_EXPLICIT_SCOPE",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": [
+        {
+          "byte_length": 11925,
+          "current_byte_length": 11925,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "eb34a6940da19f77ce43dd543926ef6524773f963e2371bc4657466bb8933302",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "eb34a6940da19f77ce43dd543926ef6524773f963e2371bc4657466bb8933302"
+        },
+        {
+          "byte_length": 59867,
+          "current_byte_length": 59867,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "1535356757b1ed2cc9069378deb51dae3e4e3b829b58ddf157c54e1d213513fa",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "application/json",
+          "path": "docs/V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.json",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "1535356757b1ed2cc9069378deb51dae3e4e3b829b58ddf157c54e1d213513fa"
+        },
+        {
+          "byte_length": 5115,
+          "current_byte_length": 5115,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "d2a617ce9155b1b1614210510e04bfd09bdd27620236e6cfee6a2c74650bd1af",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_V4_PROVIDER_MAPPING_REPAIR_REVIEW_23c11e0.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "d2a617ce9155b1b1614210510e04bfd09bdd27620236e6cfee6a2c74650bd1af"
+        }
+      ]
+    },
+    "storage.denial_root_history_head": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "MISSING_SELECTED_WINDOW",
+      "qualified_entry": null,
+      "remaining_obligation": "Bind authentic retained denial descriptor/history head and genesis; never reset held lineage.",
+      "required_freshness": "STATIC_OR_EXPLICIT_SCOPE",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": [
+        {
+          "byte_length": 17309,
+          "current_byte_length": 17309,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "a4a2a18e83a53359e3a46cdf7cbda6031c6afec74e5d497f2cd126b1ae7b943c",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_LAUNCH_CONTRACT_ADJUDICATION.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "a4a2a18e83a53359e3a46cdf7cbda6031c6afec74e5d497f2cd126b1ae7b943c"
+        },
+        {
+          "byte_length": 28627,
+          "current_byte_length": 28627,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "0b121fbc422208e2fa89e0b2f7362725cac60115ada966ed83b9d1ed15ac8e4a",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_TRANSPORT_RUNTIME_DESIGN.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "0b121fbc422208e2fa89e0b2f7362725cac60115ada966ed83b9d1ed15ac8e4a"
+        },
+        {
+          "byte_length": 9349,
+          "current_byte_length": 9349,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "ede79ed4504c22dffa4d69e501ddc93b5956478ffb3f496a94b4893f73b8ed59",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_STORE_RESTART_REVIEW_74bd122.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "ede79ed4504c22dffa4d69e501ddc93b5956478ffb3f496a94b4893f73b8ed59"
+        }
+      ]
+    },
+    "storage.exclusive_lock_atomic_seal_qualification": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "MISSING_SELECTED_WINDOW",
+      "qualified_entry": null,
+      "remaining_obligation": "Verify actual store lock, atomic fsync/seal and recovery on selected filesystem; synthetic engineering PASS is insufficient.",
+      "required_freshness": "STATIC_OR_EXPLICIT_SCOPE",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": [
+        {
+          "byte_length": 17309,
+          "current_byte_length": 17309,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "a4a2a18e83a53359e3a46cdf7cbda6031c6afec74e5d497f2cd126b1ae7b943c",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_LAUNCH_CONTRACT_ADJUDICATION.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "a4a2a18e83a53359e3a46cdf7cbda6031c6afec74e5d497f2cd126b1ae7b943c"
+        },
+        {
+          "byte_length": 28627,
+          "current_byte_length": 28627,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "0b121fbc422208e2fa89e0b2f7362725cac60115ada966ed83b9d1ed15ac8e4a",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_TRANSPORT_RUNTIME_DESIGN.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "0b121fbc422208e2fa89e0b2f7362725cac60115ada966ed83b9d1ed15ac8e4a"
+        },
+        {
+          "byte_length": 9349,
+          "current_byte_length": 9349,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "ede79ed4504c22dffa4d69e501ddc93b5956478ffb3f496a94b4893f73b8ed59",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_STORE_RESTART_REVIEW_74bd122.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "ede79ed4504c22dffa4d69e501ddc93b5956478ffb3f496a94b4893f73b8ed59"
+        }
+      ]
+    },
+    "storage.live_disk_memory_quota_measurement": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "MISSING_SELECTED_WINDOW",
+      "qualified_entry": null,
+      "remaining_obligation": "Fresh window-scoped measurements and physical reservation leaving 2 GiB disk/512 MiB memory floors after allocation; current disk fails even bare floor.",
+      "required_freshness": "WINDOW",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": [
+        {
+          "byte_length": 17309,
+          "current_byte_length": 17309,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "a4a2a18e83a53359e3a46cdf7cbda6031c6afec74e5d497f2cd126b1ae7b943c",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_LAUNCH_CONTRACT_ADJUDICATION.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "a4a2a18e83a53359e3a46cdf7cbda6031c6afec74e5d497f2cd126b1ae7b943c"
+        },
+        {
+          "byte_length": 28627,
+          "current_byte_length": 28627,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "0b121fbc422208e2fa89e0b2f7362725cac60115ada966ed83b9d1ed15ac8e4a",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_TRANSPORT_RUNTIME_DESIGN.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "0b121fbc422208e2fa89e0b2f7362725cac60115ada966ed83b9d1ed15ac8e4a"
+        },
+        {
+          "byte_length": 9349,
+          "current_byte_length": 9349,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "ede79ed4504c22dffa4d69e501ddc93b5956478ffb3f496a94b4893f73b8ed59",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_STORE_RESTART_REVIEW_74bd122.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "ede79ed4504c22dffa4d69e501ddc93b5956478ffb3f496a94b4893f73b8ed59"
+        }
+      ]
+    },
+    "storage.physical_persistence_review": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "MISSING_SELECTED_WINDOW",
+      "qualified_entry": null,
+      "remaining_obligation": "Independent selected-filesystem persistence qualification; no inference of power-loss durability from unit tests.",
+      "required_freshness": "STATIC_OR_EXPLICIT_SCOPE",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": [
+        {
+          "byte_length": 17309,
+          "current_byte_length": 17309,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "a4a2a18e83a53359e3a46cdf7cbda6031c6afec74e5d497f2cd126b1ae7b943c",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_LAUNCH_CONTRACT_ADJUDICATION.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "a4a2a18e83a53359e3a46cdf7cbda6031c6afec74e5d497f2cd126b1ae7b943c"
+        },
+        {
+          "byte_length": 28627,
+          "current_byte_length": 28627,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "0b121fbc422208e2fa89e0b2f7362725cac60115ada966ed83b9d1ed15ac8e4a",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_TRANSPORT_RUNTIME_DESIGN.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "0b121fbc422208e2fa89e0b2f7362725cac60115ada966ed83b9d1ed15ac8e4a"
+        },
+        {
+          "byte_length": 9349,
+          "current_byte_length": 9349,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "ede79ed4504c22dffa4d69e501ddc93b5956478ffb3f496a94b4893f73b8ed59",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_STORE_RESTART_REVIEW_74bd122.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "ede79ed4504c22dffa4d69e501ddc93b5956478ffb3f496a94b4893f73b8ed59"
+        }
+      ]
+    },
+    "storage.private_root_owner_mode_dev_inode": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "MISSING_SELECTED_WINDOW",
+      "qualified_entry": null,
+      "remaining_obligation": "Choose a separate unprivileged private capture store (not authority roots, protected inputs, repo or /tmp candidate artifacts); qualify actual owner/mode/device/inode.",
+      "required_freshness": "STATIC_OR_EXPLICIT_SCOPE",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": [
+        {
+          "byte_length": 17309,
+          "current_byte_length": 17309,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "a4a2a18e83a53359e3a46cdf7cbda6031c6afec74e5d497f2cd126b1ae7b943c",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_LAUNCH_CONTRACT_ADJUDICATION.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "a4a2a18e83a53359e3a46cdf7cbda6031c6afec74e5d497f2cd126b1ae7b943c"
+        },
+        {
+          "byte_length": 28627,
+          "current_byte_length": 28627,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "0b121fbc422208e2fa89e0b2f7362725cac60115ada966ed83b9d1ed15ac8e4a",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_TRANSPORT_RUNTIME_DESIGN.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "0b121fbc422208e2fa89e0b2f7362725cac60115ada966ed83b9d1ed15ac8e4a"
+        },
+        {
+          "byte_length": 9349,
+          "current_byte_length": 9349,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "ede79ed4504c22dffa4d69e501ddc93b5956478ffb3f496a94b4893f73b8ed59",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_STORE_RESTART_REVIEW_74bd122.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "ede79ed4504c22dffa4d69e501ddc93b5956478ffb3f496a94b4893f73b8ed59"
+        }
+      ]
+    },
+    "storage.session_report_root_identities": {
+      "category": "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT",
+      "prior_material_status": "MISSING_SELECTED_WINDOW",
+      "qualified_entry": null,
+      "remaining_obligation": "Bind actual session/report descriptors, exclusive custody and physical report reservation.",
+      "required_freshness": "STATIC_OR_EXPLICIT_SCOPE",
+      "review_status": "NOT_QUALIFIED",
+      "source_refs": [
+        {
+          "byte_length": 17309,
+          "current_byte_length": 17309,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "a4a2a18e83a53359e3a46cdf7cbda6031c6afec74e5d497f2cd126b1ae7b943c",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_LAUNCH_CONTRACT_ADJUDICATION.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "a4a2a18e83a53359e3a46cdf7cbda6031c6afec74e5d497f2cd126b1ae7b943c"
+        },
+        {
+          "byte_length": 28627,
+          "current_byte_length": 28627,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "0b121fbc422208e2fa89e0b2f7362725cac60115ada966ed83b9d1ed15ac8e4a",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_TRANSPORT_RUNTIME_DESIGN.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "0b121fbc422208e2fa89e0b2f7362725cac60115ada966ed83b9d1ed15ac8e4a"
+        },
+        {
+          "byte_length": 9349,
+          "current_byte_length": 9349,
+          "current_matches_reviewed_bytes": true,
+          "current_sha256": "ede79ed4504c22dffa4d69e501ddc93b5956478ffb3f496a94b4893f73b8ed59",
+          "git_commit": "24ac951704ba06d295b28a2b80ca6acdf197329d",
+          "historical_git_bytes_verified": true,
+          "media_type": "text/plain",
+          "path": "docs/V11_R09_GATE3_STORE_RESTART_REVIEW_74bd122.md",
+          "review_status": "PRIOR_RECONCILIATION_PASS_IN_SCOPE_BYTES_ONLY",
+          "sha256": "ede79ed4504c22dffa4d69e501ddc93b5956478ffb3f496a94b4893f73b8ed59"
+        }
+      ]
+    }
+  },
+  "launchable": false,
+  "observed_utc": 1790977445,
+  "qualification_credit": 0,
+  "restriction_rule": "503/503/429 lineage remains a hold; later 200s and elapsed time are not resumption evidence.",
+  "schema": "R09_GATE3_G3L_LOCAL_IDENTITY_AUDIT_V1",
+  "screen": {
+    "attempt_slots": 38,
+    "denominator": 2713,
+    "missing_after": 77,
+    "missing_before": 77,
+    "other_findings": [],
+    "resource_snapshot": {
+      "available_memory_bytes": 1052667904,
+      "free_disk_bytes": 4396154880
+    }
+  },
+  "source_reconciliation": {
+    "byte_length": 66862,
+    "path": "docs/V11_R09_GATE3_G3L_RECONCILIATION_20261002.json",
+    "review_report": {
+      "byte_length": 5572,
+      "path": "docs/V11_R09_GATE3_G3L_RECONCILIATION_REVIEW_027fd7a.md",
+      "review_status": "PASS_IN_SCOPE_RECONCILIATION_ONLY_NOT_G3L",
+      "sha256": "b6a811fd66f96d738a98499139ea3d84d70c96aa042044b165123aab01b1fed4"
+    },
+    "review_terminal": {
+      "byte_length": 759,
+      "path": "docs/V11_R09_GATE3_G3L_RECONCILIATION_REVIEW_027fd7a.terminal.json",
+      "review_status": "PASS_IN_SCOPE_RECONCILIATION_ONLY_NOT_G3L",
+      "sha256": "6ba3a34a7679130409a966560ad7313227bb749d6b0ffa1a13b10d109850b11f"
+    },
+    "review_verdict": {
+      "byte_length": 1525,
+      "path": "docs/V11_R09_GATE3_G3L_RECONCILIATION_REVIEW_027fd7a.verdict.json",
+      "review_status": "PASS_IN_SCOPE_RECONCILIATION_ONLY_NOT_G3L",
+      "sha256": "15d4c22494912746a11f24f7fa6717520d77a9e3c9685e8ba0660e557d7a4b8f"
+    },
+    "sha256": "fa089c078a43c18a52f7f685d449e98129bc37b0d1c946afd1155a6297a3eda6"
+  },
+  "target_date_proposal": "2026-10-04"
+}
