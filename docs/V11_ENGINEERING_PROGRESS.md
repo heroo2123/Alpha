@@ -1,3 +1,7 @@
+## Coordinator B1 wait recovery — 2026-10-02 04:01 UTC
+
+Reverified clean main `8d2df7d`, live B1 retry PID/PGID 2084227 waiting in clean `1f993fb`, and absence of a B1 candidate/terminal. SHADOW and Brain-readiness worktrees are clean; ECMWF `backfill_data/` remains preserved. The private FINAL-REVIEWED master hash is unchanged. PAPER demo/scanner/controller are inactive/disabled and execution is inactive/masked; protected V11 authority roots are absent. Disk free is about 998 MiB, below G3-L's 2 GiB floor. No new provider, release or forward SHADOW evidence, and no C/J/E/A crossing. Next is B1 exact-commit review after its completed author terminal. **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## A2/A3 offline decision review accepted in scope — 2026-10-02 03:53 UTC
 
 Recovered the completed independent Sol/high review of exact `fb3a804` (tree `a09d184c91011e0fa8ee0d171f8b9edd4dc7ea68`): **PASS_IN_SCOPE for the decision and pending intake only**. The reviewer verified all eight observed packages, 25 discrepancy rows, seven evidence references and the fresh audit; the report hash matches the machine verdict, which matches the clean exit-0 outer terminal. Retained the report, verdict, terminal and log as `docs/V11_R09_GATE3_A2A3_DECISION_REVIEW_fb3a804*`. The candidate was already on newer main; its two file hashes still match the reviewed commit, so no merge was needed. No original or replacement provenance was accepted. A2/A3 remain UNQUALIFIED, A4 OPEN, A8 UNQUALIFIED and G3-L NO-GO.
