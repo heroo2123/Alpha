@@ -1,5 +1,9 @@
 # Supplementary engineering estimate
 
+## Parallel bounded offline repairs — 2026-10-02 02:16 UTC
+
+Recovered the live A8 repair (PGID 2042011) and started one separate Sonnet/high inventory IT-R1/IT-R4 repair (PGID 2043602) in its clean isolated worktree. Both require completed author and outer terminals, then different-model exact review before any main reconciliation. Current SHADOW and Brain readiness worktrees are clean; protected master hash and inactive execution safety state are unchanged. Disk is about 1.1 GiB free, below G3-L's 2 GiB floor; no provider request, G3-L PASS, forward SHADOW evidence, release rerun or C/J/E/A crossing occurred: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## A8 review completed and next repair active — 2026-10-02 02:12 UTC
 
 The interrupted exact A8 review is now complete: independent Astra/high verdict **CHANGES_REQUIRED** on one remaining P2 unchecked store-health method. Reruns produced 335 passes and six expected refusals; four passes are adverse reproductions, not acceptance. One Sonnet/high repair is active in the same isolated author worktree, with a required outer terminal and future exact independent review. Candidate remains unmerged. No release run, provider request, G3-L PASS, forward SHADOW evidence or C/J/E/A crossing: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.

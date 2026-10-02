@@ -1,5 +1,9 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Coordinator recovery — 2026-10-02 02:16 UTC
+
+Two distinct bounded offline workers now run: A8 store-health identity repair (PGID 2042011) and inventory IT-R1/IT-R4 repair (PGID 2043602). Both are unmerged and require clean outer terminals, author evidence, fresh different-model exact review and newer-main reconciliation. The prior 5,460-pass/13-skip release result stands; no new release run or qualifying forward evidence occurred. G3-L remains NO-GO with about 1.1 GiB disk free versus its 2 GiB floor and missing provider/storage/time evidence. No C/J/E/A boundary crossed: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## A8 exact review rejects unchecked health call — 2026-10-02 02:12 UTC
 
 Completed independent `97290da` review is **CHANGES_REQUIRED**: original six adverse cases now refuse, but storage `_usable` is invoked without source/code identity binding, allowing four reproduced helper-level adverse cases. Exact report, machine verdict, honest finalization outer terminal and tests are retained in `docs/V11_R09_GATE3_A8_REVIEW_97290da*`. One Sonnet/high bounded repair runs in the existing isolated author worktree (PGID 2042011); fresh independent review remains mandatory. A8 is unmerged/UNQUALIFIED; inventory IT-R1/IT-R4 remain open. G3-L stays NO-GO; no provider or forward SHADOW evidence and no C/J/E/A change. **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
