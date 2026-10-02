@@ -1,5 +1,9 @@
 # Supplementary engineering estimate
 
+## Offline inventory repair running beside A8 — 2026-10-02 01:34 UTC
+
+Started one isolated Sonnet/high implementation lane for all five independently reviewed inventory-transform P2 findings at `9600510`. It has no final terminal or accepted commit; a fresh exact review is required. The A8 repair continues in its sole worktree. Main remains clean at `278e83b` before this documentation update; the offline G3-L screen still has zero feasible slots and disk below its floor. No provider, forward SHADOW or C/J/E/A acceptance changed: **G3-L NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## A7 exact review reconciled onto main — 2026-10-02
 
 The independent `a749197` review passed its fail-closed offline A7 repair, with 202 independent focused/adjacent tests. Main needed the candidate branch's 12-line structural preflight entry point; the initial 36 failures resolved after that exact dependency was added, and 202 tests passed in 17.86 s on main. A8 repair continues separately. A7 remains unqualified and no launch, provider, SHADOW or C/J/E/A acceptance changed: **G3-L NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.

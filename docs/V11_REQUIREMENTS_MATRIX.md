@@ -1,5 +1,9 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Offline inventory P2 repair active — 2026-10-02 01:34 UTC
+
+The `9600510` inventory transform remains unmerged and `CHANGES_REQUIRED` on five P2 findings. One Sonnet/high repair is live in isolated `/tmp/alpha-v11-inventory-transform-p2-repair-20261002`; no final candidate, terminal or independent acceptance exists. A8 repair remains live separately. These are offline preparation only; G3-L remains NO-GO and no C/J/E/A boundary changed: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## A7 offline candidate accepted in scope — 2026-10-02
 
 Independent exact review of `a749197` passed in scope with 202 rerun offline tests and bounded adverse probes. The three candidate files and their 12-line `ecmwf_grib.py` preflight dependency were reconciled onto newer main; the first main run failed on that missing dependency, and the corrected main run passed all 202 cases. Exact review artifacts are retained as `docs/V11_R09_GATE3_A7_REVIEW_a749197*`. This is offline preparation only: A7 remains UNQUALIFIED, A8 repair is live, and G3-L remains NO-GO. **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
