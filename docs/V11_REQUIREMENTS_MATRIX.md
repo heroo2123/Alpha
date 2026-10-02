@@ -1,5 +1,9 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Gate 3 live recovery — 2026-10-02 01:37 UTC
+
+A8 and inventory P2 repairs remain live in separate worktrees without final terminals or accepted commits. The owner-authorized R1 ledger correction already on main passed a fresh 52/52 focused offline rerun. No G3-L launch evidence or C/J/E/A boundary changed: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Offline inventory P2 repair active — 2026-10-02 01:34 UTC
 
 The `9600510` inventory transform remains unmerged and `CHANGES_REQUIRED` on five P2 findings. One Sonnet/high repair is live in isolated `/tmp/alpha-v11-inventory-transform-p2-repair-20261002`; no final candidate, terminal or independent acceptance exists. A8 repair remains live separately. These are offline preparation only; G3-L remains NO-GO and no C/J/E/A boundary changed: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.

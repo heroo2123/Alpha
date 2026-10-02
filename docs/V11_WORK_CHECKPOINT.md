@@ -1,5 +1,11 @@
 # Alpha V11 work checkpoint
 
+## Live Gate 3 recovery and R1 regression check — 2026-10-02 01:37 UTC
+
+Current main is clean at `da4d32c` (124 commits ahead of tracked origin). The sole A8 repair (PGID 2015957) and independent inventory P2 repair (PGID 2025718) remain live in separate worktrees; neither has a final outer terminal or accepted candidate. A8 has three unfinished changed files; inventory has no changed files yet. Do not duplicate, merge, or qualify either lane before its exact evidence and independent review. The owner-authorized R1 correction is already on main; the current main Gate 3 ledger suite passed **52/52** offline tests at this checkpoint. This is a focused rerun, not a new release-suite result.
+
+The FINAL-REVIEWED private master hash remains `a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`. SHADOW and Brain readiness worktrees are clean; ECMWF's untracked `backfill_data/` is preserved. PAPER scanner and V11 controller are inactive, scanner disabled, protected V11 authority roots absent. Disk is about 1.3 GiB free, below the 2 GiB G3-L floor. The latest offline screen still has 77 missing identities and zero feasible slots. No provider request, G3-L PASS, forward SHADOW evidence, or C/J/E/A crossing: **G3-L NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Independent offline inventory repair launched — 2026-10-02 01:34 UTC
 
 Recovered clean main `278e83b` (123 commits ahead of its tracked remote) after the reviewed A7 offline candidate was integrated. The sole A8 repair PGID 2015957 remains live with three uncommitted files in its original worktree; no final terminal or exact review of that repair exists. The reviewed inventory candidate `9600510` remains unmerged after five P2 findings. Started one independent Sonnet/high implementation worker, PGID 2025718, in new isolated `/tmp/alpha-v11-inventory-transform-p2-repair-20261002` at that exact candidate. Its terminal is `/tmp/alpha-v11-inventory-transform-p2-repair-20261002.terminal.json`; no terminal exists yet. The repair is offline saved-data parsing and synthetic mechanics only and will require exact independent review before integration. Do not duplicate either active lane.

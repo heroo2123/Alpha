@@ -1,5 +1,9 @@
 # Supplementary engineering estimate
 
+## Gate 3 current-main verification — 2026-10-02 01:37 UTC
+
+Recovered main `da4d32c` and both live repair processes; neither has a terminal or independent acceptance. Re-ran the current-main Gate 3 ledger suite after the owner-authorized R1 correction: 52 passed in 0.49 s. Protected master hash and nonfinancial safety state match the checkpoint. G3-L remains NO-GO with disk below 2 GiB and 77 missing evidence identities. No C/J/E/A change: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Offline inventory repair running beside A8 — 2026-10-02 01:34 UTC
 
 Started one isolated Sonnet/high implementation lane for all five independently reviewed inventory-transform P2 findings at `9600510`. It has no final terminal or accepted commit; a fresh exact review is required. The A8 repair continues in its sole worktree. Main remains clean at `278e83b` before this documentation update; the offline G3-L screen still has zero feasible slots and disk below its floor. No provider, forward SHADOW or C/J/E/A acceptance changed: **G3-L NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
