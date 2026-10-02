@@ -3945,3 +3945,6 @@ Clean main `2aca275` adds only the prior checkpoint. The hash-bound October 3 lo
 ## Coordinator gate check — 2026-10-02 08:15 UTC
 
 Main `3b459a5` adds only the prior checkpoint. No new current-run input, forward evidence or verified historical G3-I terminal appeared. G3-L remains `launchable=false`; free disk is 833,912,832 bytes against its 2 GiB floor. The reviewed bootstrap owner choice is pending. No C/J/E/A boundary crossed: **A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO; 91/200, formal 1/50; NOT_READY_TO_FUND**.
+## Owner preflight preparation direction — 2026-10-02 09:16 UTC
+
+The owner now authorizes preparation and independent exact-byte review of the narrow, nonfinancial evidence-only preflight exception described in the accepted bootstrap adjudication. Execution remains conditional on a completed PASS for the concrete protocol/code/private package, its own executable verdict and every anonymous-access, provider-rights, restriction-history and cumulative-bound condition. No present provider request or G3-L PASS follows. The October 3 local-only screen still lacks 77 reviewed identities; no C/J/E/A boundary crossed: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
