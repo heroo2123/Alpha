@@ -44,8 +44,12 @@ from tools.v11_r09_gate3_offline_io import (
 from tools.v11_gate3_preflight_attempt_model import (
     BODY_CAP as ATTEMPT_MODEL_BODY_CAP,
     Checkpoint as AttemptCheckpoint,
+    ModelState as AttemptModelState,
     SyntheticInputs as AttemptSyntheticInputs,
     admit_synthetic as attempt_model_admit_synthetic,
+)
+from tools.v11_gate3_evidence_preflight_checker import (
+    FROZEN_REQUEST as _ATTEMPT_MODEL_FROZEN_REQUEST,
 )
 
 # Design section 3: ">=2 GiB disk and >=512 MiB available memory after
@@ -85,6 +89,15 @@ MAX_BODY_CHUNKS_PER_REQUEST = 32
 # bound cannot silently track a future change in how many samples one
 # attempt happens to take.
 SESSION_EVENTS_PER_REQUEST = 20
+# F2: the exact origin/path the attempt model's own admission fingerprint is
+# bound to (``P1_GEFS_INDEX``/``GET``, tools/v11_gate3_preflight_attempt_model.py's
+# ``admit_synthetic``) -- the one reviewed pilot request this guard may ever
+# cover. Imported from the evidence preflight checker's own frozen scalars
+# (the single source of truth for this pilot's identity) rather than
+# re-literalled here, so a change to the reviewed pilot scope cannot silently
+# desync from what this guard actually enforces.
+_ATTEMPT_MODEL_PILOT_ORIGIN = _ATTEMPT_MODEL_FROZEN_REQUEST['origin']
+_ATTEMPT_MODEL_PILOT_PATH = _ATTEMPT_MODEL_FROZEN_REQUEST['path']
 
 
 def _strong_etag(value):
@@ -871,31 +884,68 @@ def acquire_runtime_journals(*, shared_dir, session_dir, budget_dir, store_root,
 
 
 # ---------------------------------------------------------------------------
-# Mandatory pre-dispatch gate onto the independently reviewed offline
-# attempt model (tools/v11_gate3_preflight_attempt_model.py).
+# Optional pre-dispatch gate onto the independently reviewed offline attempt
+# model (tools/v11_gate3_preflight_attempt_model.py). Opt-in only -- see
+# ``AttemptModelGuard`` below; nothing here is mandatory for any existing or
+# future ``GateRuntime`` caller that omits ``attempt_model``.
 # ---------------------------------------------------------------------------
 
 class AttemptModelGuard:
     """Binds one ``GateRuntime`` to the independently reviewed offline Gate 3
-    attempt model. Optional on ``GateRuntime`` -- every existing caller that
-    omits it is completely unaffected -- but once supplied, every
-    ``run_attempt`` call on that runtime instance is refused before Step 1
-    (the first durable session/shared mutation) unless the model admits.
-    It can only ever add a refusal on top of ``run_attempt``'s own existing
-    checks, never remove one: it is consulted inside the same pre-Step-1
-    ``try`` block as the prerequisite/capacity/window/control-domain checks,
-    and a refusal there is reported through the same ``_session_refuse``
-    path (durable, exactly-once, no-refund-ambiguity accounting unchanged).
+    attempt model, for the one bounded single-pilot-request plan that model
+    was actually reviewed against. Optional on ``GateRuntime`` -- every
+    existing caller that omits it is completely unaffected -- but once
+    supplied, ``run_attempt``'s one call for that plan's one request is
+    refused before Step 1 (the first durable session/shared mutation) unless
+    the model admits. It can only ever add a refusal on top of
+    ``run_attempt``'s own existing checks, never remove one: it is consulted
+    inside the same pre-Step-1 ``try`` block as the prerequisite/capacity/
+    window/control-domain checks, and a refusal there is reported through the
+    same ``_session_refuse`` path (durable, exactly-once, no-refund-ambiguity
+    accounting unchanged).
 
     The attempt model's own fixed contract (its ``PHASES``, its
     ``WINDOW_LO``/``WINDOW_HI`` business window, its 3,145,728-byte/
-    60-second single stage reservation) represents exactly one bounded
-    pilot attempt, not an arbitrary ``AttemptRequest``. This guard is
-    therefore both single-shot -- ``admit_synthetic`` is consulted at most
-    once per guard instance; every call after the first refuses outright,
-    matching the pilot's documented zero-retry contract -- and
-    scope-checked: a request outside the model's ``INDEX``/``BODY_CAP``
-    contract shape refuses rather than silently skipping the gate.
+    60-second single stage reservation, and its fingerprint's literal
+    ``P1_GEFS_INDEX``/``GET`` binding) represents exactly one bounded pilot
+    attempt against one fixed origin/path, not an arbitrary
+    ``AttemptRequest`` and not a generic per-request policy engine for
+    ``GateRuntime``'s up-to-3,600-request ``FrozenPlan``. Composition
+    therefore refuses outright (``GateRuntime.__init__``, F1/F2) unless the
+    plan this guard is bound to is itself a synthetic fixture with exactly
+    one not-yet-attempted ``INDEX`` request at the model's own reviewed
+    origin/path (``tools.v11_gate3_evidence_preflight_checker.FROZEN_REQUEST``);
+    a misconfigured guard can never be attached to -- and so can never
+    silently consume -- a real multi-request plan row. ``require_admission``
+    re-checks that same scope against the exact request it is handed, as
+    defense in depth against a future caller that stops routing it through
+    ``GateRuntime``.
+
+    Single-shot: ``admit_synthetic`` is consulted at most once per guard
+    instance (in-process -- every call after the first refuses outright,
+    matching the pilot's documented zero-retry contract), *and* at most once
+    per durable session history -- ``require_admission`` also refuses if the
+    exact request it is handed already appears in the session ledger's own
+    durable ``attempt_history`` (populated by the existing, already-reviewed
+    ``refuse``/``accounted``/terminal path, replayed on every reopen; no new
+    journal). Because F1 binds this guard to a plan with exactly one request,
+    that request's ``request_id`` *is* this pilot's stable admission
+    identity, so no separate fingerprint record needs to be invented: a
+    ``GateRuntime``/``AttemptModelGuard`` pair reconstructed after a restart
+    against the *same* still-durable session directory cannot get a second,
+    silently-fresh admission for the same pilot slot, even though the
+    in-memory ``_consumed`` flag on the newly-constructed guard starts out
+    ``False``.
+
+    Documented residual: this durability is scoped to *session-directory
+    reuse*. A reconstruction against a genuinely fresh session directory (no
+    durable record of the prior attempt anywhere this guard can see) cannot
+    be distinguished from a first attempt by this guard alone -- the
+    checkpoint's own ``used_attempts``/``outstanding_attempts`` counters
+    remain the ultimate source of truth for whether the real external pilot
+    slot was already consumed, and supplying those honestly across any such
+    reconstruction remains the caller's responsibility, exactly as it is for
+    ``admit_synthetic`` itself.
     """
 
     def __init__(self, inputs: AttemptSyntheticInputs, checkpoint: AttemptCheckpoint):
@@ -905,19 +955,36 @@ class AttemptModelGuard:
         self._checkpoint = checkpoint
         self._consumed = False
 
-    def require_admission(self, request: 'AttemptRequest') -> None:
+    def require_admission(self, request: 'AttemptRequest', *, session: SessionLedger) -> None:
+        check(type(session) is SessionLedger, 'RUNTIME_ATTEMPT_MODEL_GUARD_SHAPE')
+        # F3: durable across a guard/runtime reconstruction that reopens the
+        # same session directory -- checked before touching the in-process
+        # flag below, and before ever consulting the model.
+        durably_consumed = request.request_id in session.attempt_history
         already_consumed, self._consumed = self._consumed, True
-        check(not already_consumed, 'RUNTIME_ATTEMPT_MODEL_ALREADY_CONSUMED')
+        check(not already_consumed and not durably_consumed,
+              'RUNTIME_ATTEMPT_MODEL_ALREADY_CONSUMED')
+        # F2: bound to the exact reviewed P1_GEFS_INDEX/GET scope, not merely
+        # the request's coarse ``purpose`` label.
         check(request.purpose == 'INDEX' and
-              request.reservation_bytes <= ATTEMPT_MODEL_BODY_CAP,
+              request.reservation_bytes <= ATTEMPT_MODEL_BODY_CAP and
+              request.origin == _ATTEMPT_MODEL_PILOT_ORIGIN and
+              request.path == _ATTEMPT_MODEL_PILOT_PATH,
               'RUNTIME_ATTEMPT_MODEL_SCOPE_MISMATCH')
         try:
             admitted = attempt_model_admit_synthetic(self._inputs, self._checkpoint)
-            ok = admitted.phase == 'ADMITTED'
+            # F4: only a genuine ``ModelState`` in the one admitting phase
+            # counts; a same-shaped-but-wrong-type object (which
+            # ``admit_synthetic`` itself can never actually return, but a
+            # future refactor of this guard's call site could still pass
+            # through here) must never be treated as an admission.
+            ok = type(admitted) is AttemptModelState and admitted.phase == 'ADMITTED'
         except ValueError:
             # admit_synthetic raises only for a structurally invalid
             # checkpoint; that is a refusal, not a crash this guard should
-            # ever propagate.
+            # ever propagate. Any other exception type is a genuine
+            # programming-contract violation elsewhere and must still
+            # propagate rather than be silently treated as a refusal.
             ok = False
         check(ok, 'RUNTIME_ATTEMPT_MODEL_REFUSED')
 
@@ -1026,6 +1093,23 @@ class GateRuntime:
         remaining_ids = {r.request_id for r in remaining}
         remaining_events = tuple(e for e in plan.events
                                  if any(rid in remaining_ids for rid in e.field_request_ids))
+        if attempt_model is not None:
+            # F1/F2: a guard may only ever be bound to the exact single
+            # bounded pilot shape the offline attempt model was reviewed
+            # against -- a synthetic-fixture plan with exactly one
+            # not-yet-attempted INDEX request at the model's own reviewed
+            # P1_GEFS_INDEX/GET origin/path. This is checked against
+            # ``remaining`` (not ``plan.requests``), so a runtime
+            # reconstructed mid-plan after a partial prior run is judged by
+            # what is actually left to attempt, never by the plan's original
+            # full shape. Refuses composition outright rather than letting a
+            # misconfigured guard silently consume more than the one real
+            # plan row it was reviewed for.
+            check(plan.synthetic_fixture and len(remaining) == 1 and
+                  remaining[0].purpose == 'INDEX' and
+                  remaining[0].origin == _ATTEMPT_MODEL_PILOT_ORIGIN and
+                  remaining[0].path == _ATTEMPT_MODEL_PILOT_PATH,
+                  'RUNTIME_ATTEMPT_MODEL_PLAN_SCOPE')
         self.capacity = CapacityPlan.for_requests(remaining, remaining_events)
         check(manifest_sha256 == session.manifest == budget.manifest ==
               store.context['manifest'], 'RUNTIME_MANIFEST_CONTEXT_MISMATCH')
@@ -1412,7 +1496,7 @@ class GateRuntime:
                   now_utc=pre.reading.utc_seconds - pre.reading.uncertainty_seconds),
                   'RUNTIME_CONTROL_DOMAIN_BLOCKED')
             if self.attempt_model is not None:
-                self.attempt_model.require_admission(request)
+                self.attempt_model.require_admission(request, session=self.session)
         except LaunchContractError as exc:
             return self._session_refuse(request, str(exc), pre)
 
