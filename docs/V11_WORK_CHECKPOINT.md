@@ -18870,3 +18870,53 @@ decision (still separate from merely having a start-contract CLI) per the
 owner's multi-lane directive — neither is weather Gate-3 critical path.
 Weather (Lane A) remains externally blocked on the 77 missing
 provider-evidence identities; nothing new on that lane this cycle.
+
+## Coordinator: launched InventoryTransform hardening worker (L1/L2/L3/L5) — 2026-10-02 16:27 UTC
+
+Recovered clean main `69ae1fc`, local = remote. No separate Alpha author,
+reviewer, pytest, PAPER scanner or execution process was live beyond this
+coordinator invocation itself (the two `claude` processes visible in `ps`
+at PIDs `2296252`/`2296839` are this session's own launcher/worker pair, not
+a duplicate). All eleven previously-tracked dirty worktrees are unchanged
+review/stale-scratch artifacts already accounted for in the 15:11 sweep;
+nothing new to recover.
+
+Weather (Lane A) remains externally blocked on the 77 missing
+provider-evidence identities — no new codable step without owner/external
+evidence. Brain/R09 (Lane C) remains at the same evidence wall with no new
+scoped confidence for a non-duplicate specialist. InventoryTransform (Lane
+B) had an unblocked, non-weather, non-sensitive-surface next step: the
+Opus review of `0998743` (now merged at `69ae1fc`) recommended L1 (audit-hook
+`_posixsubprocess`/`ctypes` gap), L2 (artifact verifier accepts forged extra
+keys), L3 (doc section 6 refusal-code accuracy) and L5 (output-dir TOCTOU
+via rename-after-lock) as follow-ups before any future move beyond dormant
+status.
+
+Created isolated worktree `/tmp/alpha-v11-inventory-shadow-hardening-20261002`
+(branch `inventory-shadow-hardening-l1l2l3l5-20261002`, from main `69ae1fc`)
+and launched a Sonnet/high background worker (PID `2297353`, confirmed
+running with `cwd` inside that worktree) scoped exactly to fixing L1/L2/L3/L5
+in `polymarket_scanner/v11/inventory_shadow_start.py` and
+`polymarket_scanner/v11/inventory_shadow.py` plus their tests and the one
+doc section, with explicit instructions: read the retained review
+(`/tmp/alpha-v11-inventory-shadow-start-review-0998743.review.md`) and both
+source files before changing anything, touch nothing outside this scope or
+outside the isolated worktree, add no network/socket/subprocess calls, run
+the full adjacent test suite plain and under `-O` plus `py_compile`, commit
+in the isolated worktree only (no push, no touch to main), and report exact
+before/after `git log`/`git status` plus the exact commit hash so a reviewer
+can independently check the no-scope-creep claim. Full prompt retained at
+`/tmp/alpha-v11-inventory-shadow-hardening-20261002.prompt.txt`; log at
+`/tmp/alpha-v11-inventory-shadow-hardening-20261002.log`.
+
+Resources at launch: MemAvailable ~934 MiB, free disk ~2.73 GiB (above the
+2 GiB G3-L floor, below the preferred 3 GiB — "less headroom" tier, so the
+two-heavy-specialist cap applies), zero other heavy specialists running —
+one worker is within cap. This candidate confers no SHADOW admission,
+qualification or authority change by itself; the observer remains dormant.
+No merge, provider request, capture, V10/AxiomTrade/financial/service/
+authority action, or C/J/E/A boundary crossed: **91/200 (45.5%), formal
+1/50; A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO;
+NOT_READY_TO_FUND** — unchanged. Next unfinished action: recover the
+hardening worker's terminal/report and diff, then launch an independent
+different-model review of its commit before any merge toward main.
