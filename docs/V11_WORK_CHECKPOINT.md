@@ -18690,3 +18690,55 @@ service/authority action, or C/J/E/A boundary crossed: **91/200, formal
 NOT_READY_TO_FUND**. Next unfinished action: recover the Opus review-#4
 verdict on `a979eaf` before any decision to merge this repair chain toward
 main.
+
+## Coordinator: Opus review #4 APPROVED `a979eaf`; merged to main — 2026-10-02 15:53 UTC
+
+Review #4 returned **APPROVED** for `a979eaf` and, like review #3, proved
+its own no-modification claim with literal, matching before/after
+`git log`/`git status`. It independently re-ran all 185 tests (plain and
+`-O`), traced the H-2 completion fix's denials logic against `step`'s
+`SEAL_ACK` branch, drove 484 live happy-path runs (including ones with
+checkpoint holds) to confirm no false positives, enumerated forged
+phase/charge/denial combinations to confirm nothing harmful is accepted,
+and mutation-tested the two new regression tests (each half of the new
+check, and an over-strict variant, is independently caught). It flagged one
+Informational and one Low non-blocking note (an unreachable-but-harmless
+acceptance shape, and a test-coverage gap for checkpoint-holds specifically
+— current code is correct, just under-tested against that one angle) and
+confirmed the three earlier Low residuals remain acceptable to leave (with
+one correction: residual (a) is reachable via `recover_synthetic`'s normal
+JSON input, not only a hand-built state — still non-blocking since it never
+under-charges).
+
+With an APPROVED independent review in hand, verified the merge-base
+(`24100a5`) is already an ancestor of current main and that main has zero
+modifications to any of the four files this branch touches since that
+point (pure addition, no possible conflict). Performed the merge
+(`git merge --no-commit --no-ff` first to confirm a clean, conflict-free
+stage), ran the new suite in place on main (185 passed) plus the full
+Gate-3 test family as a scoped integration check (22 files,
+`test_v11_r09_gate3_*`/`test_v11_gate3_evidence_preflight_checker`/related
+preflight tests: 1233 passed, 7 failed). Confirmed the 7 failures are
+pre-existing and unrelated by stashing the merge out and re-running the
+same file: identical 7 failures with or without this change
+(`test_production_preflight_completion.py`, a host-disk-space gate —
+`STORAGE_CAPACITY_OPENING_STOP` — tripping on this host's actual 2.7 GiB
+free disk, nothing to do with the attempt model). Committed the merge as
+`0d5d859` on main. Updated `docs/V11_REQUIREMENTS_MATRIX.md` with an
+honest entry: this is integration progress toward A4, not a formal
+requirement acceptance — the model stays synthetic-only
+(`execution_authority`/`provider_authority`/`capture_authority` fixed
+`False`, `qualification_credit` fixed `0`), confers no G3-L determination,
+and is not yet wired into the actual Gate-3 collector/launch flow. No
+score inflation: **91/200 (45.5%), formal 1/50; A2/A3 UNQUALIFIED; A4
+OPEN; A8 UNQUALIFIED; G3-L NO-GO; NOT_READY_TO_FUND** — unchanged, as this
+engineering milestone does not itself cross a numbered C/J/E/A boundary.
+
+Did not run the full 388-file repository suite for this merge (the
+unrelated-failure diagnosis above already isolated the only observed
+failures to a known, pre-existing, environment-dependent file; re-running
+everything would not add evidence proportional to the cost on this
+resource-constrained host, per standing testing policy). Next: verify no
+private inputs/credentials/databases/raw evidence are staged, then push
+this verified milestone to the existing V11 branch and confirm local/remote
+agreement.

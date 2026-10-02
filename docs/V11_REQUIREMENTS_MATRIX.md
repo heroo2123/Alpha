@@ -4090,3 +4090,32 @@ The exact `92024e9` offline Gate 3 package checker and `2033b82` InventoryTransf
 ## Gate 3 offline model planning — 2026-10-02 13:27 UTC
 
 Integrated the completed Astra/high public synthetic attempt-model handoff `4fb39c2` on newer main as `24100a5`; one isolated Sol/high Fast author is building its twelve offline acceptance probe groups. This is a planning/implementation slice only; the retained package still refuses with 22 blockers, its frozen October 2 request window cannot be changed silently, and no physical custody, provider right, capture or forward SHADOW evidence appeared. The InventoryTransform observer stays dormant. No C/J/E/A crossing: **91/200, formal 1/50; A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO; NOT_READY_TO_FUND**.
+
+## Coordinator: Gate 3 offline attempt model merged to main after four independent review rounds — 2026-10-02 15:5x UTC
+
+`tools/v11_gate3_preflight_attempt_model.py` (the synthetic-only P1 attempt
+reducer feeding the A4 Gate-3 critical path: reservation/settlement/fault
+semantics for a future weather-data preflight attempt) is now on main at
+`0d5d859`, after two authored candidates and four independent Opus review
+rounds (full chronology in `docs/V11_WORK_CHECKPOINT.md` and
+`docs/V11_R09_GATE3_PREFLIGHT_ATTEMPT_MODEL_ACCEPTANCE.md`): review #1
+(`b31bed0`) CHANGES_REQUIRED; coordinator fix; review #2 (`4bfdf3d`)
+CHANGES_REQUIRED (plus a caught-and-documented reviewer integrity
+violation); coordinator fix; review #3 (`c7ca919`) CHANGES_REQUIRED,
+narrow; coordinator fix; review #4 (`a979eaf`) **APPROVED** (185 tests
+independently re-run, 484-case differential fuzzing against the live state
+machine, mutation-tested regression coverage). Pure addition, zero existing
+file modified; verified against current main with the full Gate 3 test
+family plus the new suite (1233 passed; 7 pre-existing, unrelated
+host-disk-space failures in `test_production_preflight_completion.py`
+confirmed identical with the merge stashed out).
+
+This is engineering/integration progress toward A4, not a formal
+requirement acceptance by itself: the model is synthetic-only with
+`execution_authority`/`provider_authority`/`capture_authority` fixed
+`False` and `qualification_credit` fixed `0` on every result (enforced by
+`__post_init__`), confers no G3-L determination, and is not yet wired into
+the actual Gate-3 collector/launch flow or exercised against real
+provider/evidence data. No C/J/E/A boundary crossed: **91/200 (45.5%),
+formal 1/50; A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO;
+NOT_READY_TO_FUND**.

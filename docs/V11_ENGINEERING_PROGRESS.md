@@ -6806,3 +6806,18 @@ Independent Astra/high Fast exact-commit PASS_IN_SCOPE reviews of `92024e9` and 
 ## Gate 3 next offline model underway — 2026-10-02 13:27 UTC
 
 Verified the completed Astra/high architecture handoff at clean `4fb39c2`, original worker exit 0, and integrated its sole documentation artifact on newer main as `24100a5`. Launched one isolated persistent Sol/high Fast author for the pure synthetic attempt/recovery model and twelve public-only probe groups; its runner retains actual exit and switches sequentially to Claude Sonnet/high only if Codex allowance is exhausted. Candidate implementation, tests, exact different-model review and integration are pending. No real dispatch, provider request, capture, forward SHADOW evidence or C/J/E/A crossing: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
+## Gate 3 offline attempt model merged to main after four independent review rounds — 2026-10-02 15:53 UTC
+
+`tools/v11_gate3_preflight_attempt_model.py` and its 185-test suite landed
+on main (`0d5d859`) after two authored candidates and four independent
+Opus review rounds, the last returning APPROVED (differential fuzzing
+against 484 live runs plus mutation-tested regression coverage; full
+chronology in `docs/V11_WORK_CHECKPOINT.md`). Pure addition verified
+conflict-free against current main; scoped Gate-3 integration test family
+(22 files) plus the new suite: 1233 passed, 7 pre-existing host-disk-space
+failures confirmed unrelated. Synthetic-only, zero execution/provider/
+capture authority, not yet wired into the real Gate-3 collector/launch
+flow — engineering progress toward A4, not a formal acceptance. No score
+inflation: **91/200 (45.5%), formal 1/50; A4 OPEN; G3-L NO-GO;
+NOT_READY_TO_FUND**.
