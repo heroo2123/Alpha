@@ -1,0 +1,195 @@
+{
+  "all_retained_execution_logs_sha256": {
+    "/tmp/alpha-v11-gate3-a8-review-7d5941c-adjacent-bound.log": "4371ea711621353cd0ca13dcffb6576024cb0b0153a26d544b076c793dc96a66",
+    "/tmp/alpha-v11-gate3-a8-review-7d5941c-adjacent.log": "b6e7f377c0d53a44cca17f5a90021bf2171a4b6ef3ed4d6ffb47723527ab70bf",
+    "/tmp/alpha-v11-gate3-a8-review-7d5941c-author-final.log": "de086a421b6b25b727b51a2edfeeeab4bb81c56380500968b4a439ccbe913652",
+    "/tmp/alpha-v11-gate3-a8-review-7d5941c-author-rerun.log": "012b8e15adf3d4f28ed60db41263070c218143a543078b87662c4d5171e25e44",
+    "/tmp/alpha-v11-gate3-a8-review-7d5941c-author.log": "1ac73faf81e74a100f9cff1aee840c62735f6078ae46556b38b4db1f753ecfcd",
+    "/tmp/alpha-v11-gate3-a8-review-7d5941c-lane.launch.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "/tmp/alpha-v11-gate3-a8-review-7d5941c-lane.log": "720809095e3b2bfaf40e682fac25b1616d776c093359937dd669d8718345bc58",
+    "/tmp/alpha-v11-gate3-a8-review-7d5941c-probes-bound.log": "e6211d3bf1b1d929322bf620d1bfafbc88947f9499c894a079fe9f0bac3316a9",
+    "/tmp/alpha-v11-gate3-a8-review-7d5941c-probes-final.log": "d17ae3791864e2925573a63c005acc9df04e5dc419474d421b5e0d825a311736",
+    "/tmp/alpha-v11-gate3-a8-review-7d5941c-probes.log": "17d74fdebca05200c5066629e23cd8950ce0728a8cbc2acf6fc50a34ca58aed2"
+  },
+  "author_file_hash_verification": {
+    "docs/V11_R09_GATE3_A8_COMPOSITION_PREP_20261001.md": {
+      "actual": "b6715c91303d2726c0eb5e4b370dfff80faefe198606ab371518ace509e8dc7b",
+      "expected": "b6715c91303d2726c0eb5e4b370dfff80faefe198606ab371518ace509e8dc7b",
+      "matches": true
+    },
+    "tests/test_v11_r09_gate3_a8_composition.py": {
+      "actual": "d6e21348ca242349e42ebe1e2aee26640151b5122723d4dbf48ec4906d099b70",
+      "expected": "d6e21348ca242349e42ebe1e2aee26640151b5122723d4dbf48ec4906d099b70",
+      "matches": true
+    },
+    "tools/v11_r09_gate3_a8_composition.py": {
+      "actual": "42c0a5d5926e2f9dabc83a0bde28ce18ab892bec9ac751b00842a7dddbb8af9c",
+      "expected": "42c0a5d5926e2f9dabc83a0bde28ce18ab892bec9ac751b00842a7dddbb8af9c",
+      "matches": true
+    }
+  },
+  "author_terminal": {
+    "path": "/tmp/alpha-v11-gate3-a8-review-7d5941c/docs/V11_R09_GATE3_A8_COMPOSITION_PREP_20261001_terminal.json",
+    "sha256": "be1caa7ea3cd4419937bddd2f42f29f6be6be963e1f5a5ed1e6254b805254cc2"
+  },
+  "boundaries": {
+    "a1_a7_acceptance": false,
+    "a8_acceptance": false,
+    "authority": "Hash and typed status bindings do not authenticate provenance or reviewer independence",
+    "candidate_or_main_changed": false,
+    "financial_action": false,
+    "g3l_acceptance": false,
+    "merge_or_push": false,
+    "provider_or_network_request": false,
+    "real_v4_package_accepted": false,
+    "scratch_cleanup": "only review-owned completed test paths and their descriptors",
+    "services_root_authority_credentials_changed": false,
+    "v10_or_axiomtrade_action": false
+  },
+  "candidate": {
+    "candidate_files_equal_committed_blobs": true,
+    "changed_files": [
+      "docs/V11_R09_GATE3_A8_COMPOSITION_PREP_20261001.md",
+      "docs/V11_R09_GATE3_A8_COMPOSITION_PREP_20261001_terminal.json",
+      "tests/test_v11_r09_gate3_a8_composition.py",
+      "tools/v11_r09_gate3_a8_composition.py"
+    ],
+    "commit_oid": "7d5941cdae0f4f74383a86969b4bfd968c304d98",
+    "detached": true,
+    "diff_check_exit_code": 0,
+    "final_clean": true,
+    "initial_clean": true,
+    "parent_commit_oid": "6ce37ab6ba8b93bafacdcb1597f53916d994eea7",
+    "tree_oid": "1fe9271848e8f1b7e9a6fabd86094a635f882378",
+    "worktree": "/tmp/alpha-v11-gate3-a8-review-7d5941c"
+  },
+  "final_free_disk_bytes": 1264517120,
+  "final_runs": [
+    {
+      "basetemp": "/tmp/a8-7d5941c-author-zsdne25r",
+      "cleanup": {
+        "closed_completed_test_scratch_fds": 172,
+        "minimum_observed_free_bytes_at_teardown": 1321447424
+      },
+      "command": "PYTHONDONTWRITEBYTECODE=1 /home/alphaadmin/AlphaV11_Dev/venv/bin/python /tmp/alpha-v11-gate3-a8-review-7d5941c-probes.py --author",
+      "exit_code": 0,
+      "failed": 0,
+      "log": "/tmp/alpha-v11-gate3-a8-review-7d5941c-author-final.log",
+      "log_sha256": "de086a421b6b25b727b51a2edfeeeab4bb81c56380500968b4a439ccbe913652",
+      "name": "targeted",
+      "passed": 194,
+      "summary": "194 passed in 27.51s"
+    },
+    {
+      "basetemp": "/tmp/a8-7d5941c-adjacent-yw1ogj79",
+      "cleanup": {
+        "closed_completed_test_scratch_fds": 0,
+        "minimum_observed_free_bytes_at_teardown": 1383493632
+      },
+      "command": "PYTHONDONTWRITEBYTECODE=1 /home/alphaadmin/AlphaV11_Dev/venv/bin/python /tmp/alpha-v11-gate3-a8-review-7d5941c-probes.py --adjacent",
+      "exit_code": 0,
+      "failed": 0,
+      "log": "/tmp/alpha-v11-gate3-a8-review-7d5941c-adjacent-bound.log",
+      "log_sha256": "4371ea711621353cd0ca13dcffb6576024cb0b0153a26d544b076c793dc96a66",
+      "name": "adjacent",
+      "passed": 116,
+      "summary": "116 passed, 2 warnings in 6.97s"
+    },
+    {
+      "basetemp": "/tmp/a8-7d5941c-probes-gr21vk21",
+      "cleanup": {
+        "closed_completed_test_scratch_fds": 0,
+        "minimum_observed_free_bytes_at_teardown": 1386971136
+      },
+      "command": "PYTHONDONTWRITEBYTECODE=1 /home/alphaadmin/AlphaV11_Dev/venv/bin/python /tmp/alpha-v11-gate3-a8-review-7d5941c-probes.py",
+      "exit_code": 0,
+      "failed": 0,
+      "log": "/tmp/alpha-v11-gate3-a8-review-7d5941c-probes-bound.log",
+      "log_sha256": "e6211d3bf1b1d929322bf620d1bfafbc88947f9499c894a079fe9f0bac3316a9",
+      "name": "independent",
+      "passed": 19,
+      "summary": "19 passed in 10.98s"
+    }
+  ],
+  "final_test_total": 329,
+  "findings": [
+    {
+      "id": "F1",
+      "locations": [
+        "tools/v11_r09_gate3_a8_composition.py:117",
+        "tools/v11_r09_gate3_a8_composition.py:121",
+        "tools/v11_r09_gate3_a8_composition.py:394"
+      ],
+      "priority": "P2",
+      "reproductions": [
+        "test_f1_foreign_class_method_is_accepted_as_pinned_source",
+        "test_f1_changed_method_code_survives_composition_recheck"
+      ],
+      "scope": "Real component helper plus isolated recheck comparison; no real V4 acceptance claimed",
+      "title": "Pinned source does not bind loaded class method; in-place method code change survives recheck"
+    },
+    {
+      "id": "F2",
+      "locations": [
+        "tools/v11_r09_gate3_a8_composition.py:235",
+        "tools/v11_r09_gate3_a8_composition.py:248",
+        "tools/v11_r09_gate3_a8_composition.py:258"
+      ],
+      "priority": "P2",
+      "reproductions": [
+        "test_f2_changed_live_context_still_passes[clock_method]",
+        "test_f2_changed_live_context_still_passes[descriptor]",
+        "test_f2_changed_live_context_still_passes[policy]",
+        "test_f2_changed_live_context_still_passes[failed_store]"
+      ],
+      "scope": "Unmodified context helper with actual disposable store and explicit synthetic clock/resource fixtures",
+      "title": "Live clock method and store descriptor/policy are not reconciled with reviewed runtime context"
+    }
+  ],
+  "g3l": "NO_GO",
+  "limitations": [
+    "Current real mappings remain deliberately unavailable; no end-to-end real positive case exists",
+    "F1 recheck probe isolates the comparison using a validation shim; helper findings do not bypass unchanged V4",
+    "F2 uses synthetic clock/resource inputs at the context helper; not a real adapter acceptance test",
+    "No release-wide test suite, real provider request, real decoder/resource qualification or A7 repair interference",
+    "Sampled disk headroom is not continuous peak measurement or launch capacity evidence"
+  ],
+  "observed_utc": "2026-10-02T01:05:34.478888+00:00",
+  "preliminary_attempts": [
+    {
+      "classification": "review harness path reuse caused cached fixture ledger-head mismatches",
+      "failed": 28,
+      "log": "/tmp/alpha-v11-gate3-a8-review-7d5941c-author.log",
+      "passed": 166
+    },
+    {
+      "classification": "unclosed completed-test report descriptors retained unlinked reserves; REPORT_RESERVE_UNAVAILABLE",
+      "failed": 1,
+      "log": "/tmp/alpha-v11-gate3-a8-review-7d5941c-author-rerun.log",
+      "passed": 193
+    },
+    {
+      "classification": "Final cleanup preserves unique path markers and closes only completed-test scratch descriptors; final product test bodies unchanged"
+    }
+  ],
+  "prior_review_inputs_sha256": {
+    "docs/V11_R09_GATE3_COMPOSITION_REVIEW_0b7209d.md": "b1e7952ce4c3789cbdda43a5ff72eb022308312e0a4bd4061d4da66534a47517",
+    "docs/V11_R09_GATE3_G3L_PREP_REPAIR_REVIEW_f03d2fd.md": "d4235cfb6eee606ac5dfe361c80b05b27852f3ab4af3ca58a39e6acb951e5568",
+    "docs/V11_R09_GATE3_G3L_PREP_REVIEW_3241abf.md": "4d272938499199cd76b82fb156498cd704ab49f780615170ec1acba39db581c8",
+    "docs/V11_R09_GATE3_IDENTITY_ACCEPTANCE_20261001.md": "db298d49301a686711a7d89e7456d95fcd34da8616970fa7f52374b91440aa9d",
+    "docs/V11_R09_GATE3_V4_PROVIDER_MAPPING_REPAIR_REVIEW_23c11e0.md": "d2a617ce9155b1b1614210510e04bfd09bdd27620236e6cfee6a2c74650bd1af",
+    "docs/V11_R09_GATE3_V4_PROVIDER_MAPPING_REVIEW_15f054f.md": "0b64edc10167e95cfcaab77208a93dfa428e25c3ef28249010fc5d88668ba9af",
+    "docs/V11_R09_GATE3_V4_SLICE3_REVIEW_6340cb4.md": "00aba02cf47317578d598aed02bc742dcad434f058babea9387dc44ed52b4855"
+  },
+  "probe": {
+    "path": "/tmp/alpha-v11-gate3-a8-review-7d5941c-probes.py",
+    "sha256": "07be197274dae19df41886e4d40ae1bca55782b1b135edfe106da817a73e2210"
+  },
+  "report": {
+    "path": "/tmp/alpha-v11-gate3-a8-review-7d5941c.md",
+    "sha256": "d7691ccf274264a8eb19eb0805148d78789c7924b1a5b9c75c47160f3227643e"
+  },
+  "reviewer": "independent Astra/high",
+  "schema": "R09_GATE3_A8_INDEPENDENT_OFFLINE_REVIEW_TERMINAL_V1",
+  "verdict": "CHANGES_REQUIRED"
+}

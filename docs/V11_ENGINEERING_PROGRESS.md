@@ -1,5 +1,9 @@
 # Supplementary engineering estimate
 
+## A8 repair and A7 exact review live — 2026-10-02 01:07 UTC
+
+The independent A8 `7d5941c` review reproduced 329 bounded focused/adjacent/probe passes and rejected two P2 checker defects. Its exact evidence is retained, and one Sol/high repair is live in the A8 author worktree. The A7 `a749197` exact review is active separately. Neither is merged or qualified; no new release run or C/J/E/A crossing is claimed. **G3-L NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## A7 exact review launched — 2026-10-02 01:03 UTC
 
 A7 repair `a749197` completed cleanly with 202 author-reported focused/adjacent passes and is under independent Sol/high exact-commit review. A8's independent Astra/high review is still finalizing its `CHANGES_REQUIRED` evidence. Both specialist slots are occupied; no release run or C/J/E/A crossing is claimed. **G3-L NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.

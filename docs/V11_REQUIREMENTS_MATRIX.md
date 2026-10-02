@@ -1,5 +1,9 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## A8 checking defects under repair — 2026-10-02 01:07 UTC
+
+Independent exact A8 `7d5941c` review is `CHANGES_REQUIRED` on two reproduced P2 method/context identity defects; exact evidence is retained as `docs/V11_R09_GATE3_A8_REVIEW_7d5941c*`. The sole A8 repair is live alongside independent exact A7 review of `a749197`. Neither candidate is integrated or qualified; no G3-L, forward SHADOW or C/J/E/A boundary changed: **G3-L NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## A7 clean repair under cross-model review — 2026-10-02 01:03 UTC
 
 A7 repair `a749197` is a clean three-file author candidate with 202 reported offline passes; independent Sol/high exact review is live. The A8 exact reviewer is also live and has indicated two checking gaps, pending its final hash-bound report and terminal. A4 remains OPEN after automatic review rejection. No A7/A8 integration or qualification, G3-L PASS, forward SHADOW evidence or C/J/E/A boundary changed: **G3-L NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
