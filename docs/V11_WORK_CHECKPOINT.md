@@ -1,3 +1,48 @@
+## Coordinator audit: repair worker still live, full worktree sweep finds no actionable gap — 2026-10-02 15:11 UTC
+
+Recovered clean main `3234203` (unchanged since the 14:56 entry, 254 commits
+ahead of `origin/weather-v11-profitability-upgrade-2026-09-23`, nothing to
+push this cycle beyond this audit). The Gate 3 attempt-model Sonnet/high
+repair worker (bash runner PID `2251890`, Claude PID `2251898`, worktree
+`/tmp/alpha-v11-gate3-preflight-attempt-model-20261002` on top of `b31bed0`,
+repairing the Opus-reviewed `CHANGES_REQUIRED` findings) was still alive at
+~1480s elapsed with uncommitted edits to
+`tools/v11_gate3_preflight_attempt_model.py` and
+`tests/test_v11_gate3_preflight_attempt_model.py`; all four launcher
+log/lock files still empty as expected mid-run (`--print` stays silent
+until completion). Normal in-progress behavior; did not duplicate or
+interrupt it.
+
+Ran a full `git worktree list` sweep (55 worktrees) with `git status
+--porcelain` on every one, beyond the subset checked in recent prior
+cycles. Eleven showed local changes. Five (`AlphaV11_Gate3IntegrationReview_0b7209d`
+at `d2dbbe0`, and the `a746331`/`928401a`/`3e6a872`/`de8c7bc` review
+worktrees) sit on commits already confirmed ancestors of current main via
+`git merge-base --is-ancestor`; their dirty files are stale leftover
+doc/staging artifacts from already-integrated work, not unfinished tasks.
+Three (`AlphaV11_ECMWFBackfill` at `009a88c`, `AlphaV11_GEFSCompat` at
+`c77a3e9`, `AlphaV11_R47Shadow` at `38f0029`) are not ancestors of main but
+carry only untracked scratch (builder logs/prompts, one data directory),
+no modified tracked files — old superseded attempts whose work reached
+main via a different integrated lineage; left untouched, nothing to
+commit or review. `AlphaV11_DeterministicBundle` similarly has only
+untracked builder-log/prompt scratch plus two never-committed tool/test
+files from an abandoned run whose outcome (`5e8e34f`) is already an
+ancestor of main. The live repair worktree is the only one with
+genuinely in-progress tracked-file changes.
+
+MemAvailable was 859-893 MiB across the sweep (below the 900 MiB
+parallelism threshold) and free disk held at 2.7 GiB (above the 2 GiB
+floor, below the 3 GiB preference), with one heavy specialist (the repair
+worker) plus this coordinator cycle already on the ~1.8 GiB host — at the
+owner's two-process cap for low-memory conditions, so no additional
+worker was launched. No code change, merge, provider request, capture,
+V10/AxiomTrade/financial/service/authority action, or C/J/E/A boundary
+crossed: **91/200, formal 1/50; A2/A3 UNQUALIFIED; A4 OPEN; A8
+UNQUALIFIED; G3-L NO-GO; NOT_READY_TO_FUND**. Recover the attempt-model
+repair worker's terminal/log before any merge, new author, or next
+review launch.
+
 ## Gate 3 checker review repair prepared — 2026-10-02 11:08 UTC
 
 Recovered actual clean main `db2cf57` and an active exact-commit Sol/high checker reviewer at `b153560`; did not duplicate it. Its sealed exit-0 different-model verdict is `CHANGES_REQUIRED` with two high findings (malformed package array crash and malformed byte-reference false satisfaction) and one low diagnostic omission. Retained the exact report, verdict and terminal in `docs/V11_R09_GATE3_PREFLIGHT_CHECKER_REVIEW_b153560.*`; terminal report/verdict hashes match. Repaired all three in new isolated `/tmp/alpha-v11-gate3-preflight-checker-repair-20261002` at `fe854fc` (tree `3bc097f`), with 91 focused offline tests passing and clean diff. The candidate is **not merged or accepted**; [exact-review handoff](V11_R09_GATE3_PREFLIGHT_CHECKER_REPAIR_HANDOFF_20261002.md) requires a fresh different-model PASS and newer-main reconciliation.
