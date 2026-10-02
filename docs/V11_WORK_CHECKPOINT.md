@@ -1,3 +1,25 @@
+## Coordinator recovery — 2026-10-02 06:47 UTC
+
+Recovered clean main `bfb5507`; its sole change since the prior durable
+checkpoint is that 06:43 documentation commit. No separate Alpha author,
+reviewer or test process is live. SHADOW `15e99bd` and Brain-readiness
+`58b0b79` are clean; ECMWF's untracked `backfill_data/` is preserved. No
+checked worktree, `evidence/` or `BrainWork/` file newer than 06:43 appeared.
+The protected FINAL-REVIEWED master still hashes to
+`a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+
+Re-read the exact-reviewed bootstrap packet's section 3. Its explicit owner
+choice remains pending; the existing acceleration and R1 authorization do not
+grant a preflight exception. No qualifying current-run offline input appeared.
+The accepted 5,460-pass/13-skip release remains historical; no new suite ran.
+Actual PAPER demo, scanner and controller units are inactive/disabled, and
+weather execution is inactive/masked. Protected V11 authority roots are absent.
+Free disk is 865,251,328 bytes, below the 2 GiB G3-L floor; available memory
+is 1,085,997,056 bytes. The previously deletion-rejected A8 fixture remains
+intact. No provider request, service, authority, financial, V10, AxiomTrade or
+publication action was taken. No C/J/E/A boundary crossed: **A2/A3
+UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO; 91/200, formal 1/50;
+NOT_READY_TO_FUND**.
 ## Coordinator recovery — 2026-10-02 06:43 UTC
 
 Recovered clean main `36f3c16` after the 06:35 documentation-only checkpoint.
