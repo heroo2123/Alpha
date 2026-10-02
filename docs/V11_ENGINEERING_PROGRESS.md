@@ -1,5 +1,9 @@
 # Supplementary engineering estimate
 
+## Live repair and capacity check — 2026-10-02 02:20 UTC
+
+Recovered the live A8 and inventory repair workers without duplication. A8 is testing three unfinished changed files; inventory has no committed candidate or terminal. The FINAL-REVIEWED master hash, SHADOW/Brain readiness worktrees and inactive V11 execution state match the prior checkpoint. A read-only audit found an older 1.5 GiB A8 pytest temp directory, but automatic approval review rejected its recursive deletion as insufficiently proven disposable, so it remains intact. Disk is about 1.2 GiB free, below G3-L's 2 GiB floor. No provider request, G3-L PASS, forward SHADOW evidence, release rerun or C/J/E/A crossing: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Parallel bounded offline repairs — 2026-10-02 02:16 UTC
 
 Recovered the live A8 repair (PGID 2042011) and started one separate Sonnet/high inventory IT-R1/IT-R4 repair (PGID 2043602) in its clean isolated worktree. Both require completed author and outer terminals, then different-model exact review before any main reconciliation. Current SHADOW and Brain readiness worktrees are clean; protected master hash and inactive execution safety state are unchanged. Disk is about 1.1 GiB free, below G3-L's 2 GiB floor; no provider request, G3-L PASS, forward SHADOW evidence, release rerun or C/J/E/A crossing occurred: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.

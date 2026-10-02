@@ -1,5 +1,11 @@
 # Alpha V11 work checkpoint
 
+## Live repair recovery and disk-capacity audit — 2026-10-02 02:20 UTC
+
+Recovered clean main `90ff640` and both existing offline repair processes: A8 PGID 2042011 remains live with three uncommitted files and is running adjacent tests; inventory PGID 2043602 remains live in its separate clean worktree. Neither has an outer terminal or author record, so no exact review or merge was started. The SHADOW and Brain readiness worktrees are clean; no new commissioning file was found. The private FINAL-REVIEWED master still hashes to `a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`. PAPER scanner and controller are inactive, scanner disabled, and V11 execution inactive/masked; protected V11 authority roots remain absent. The accepted 5,460-pass/13-skip release result is unchanged.
+
+Read-only disk audit found `/tmp/alpha-v11-gate3-a8-prep-targeted` using about 1.5 GiB of October 1 generated pytest fixtures, with no file newer than 02:00 UTC, no open files reported by `lsof +D`, and no reference in the current A8 runner/prompt/log. Automatic approval review rejected recursive deletion because these checks did not establish the fixtures are disposable or completed work. The directory was preserved; do not bypass this rejection. Disk remains about 1.2 GiB free, below the G3-L 2 GiB floor, and available memory was about 449 MiB. No provider request, G3-L PASS, forward SHADOW evidence or C/J/E/A crossing: **G3-L NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Inventory IT-R1/IT-R4 repair launched beside live A8 — 2026-10-02 02:16 UTC
 
 Recovered clean main `2600af6` and verified the existing A8 Sonnet/high repair remains live in its sole clean author worktree (PGID 2042011); it has no final author/outer terminal yet. Rechecked inventory `f6c7c90` as clean and unmerged, with independent `CHANGES_REQUIRED` findings IT-R1 malformed/duplicate pagination and IT-R4 checked-path/opened-file races. Started one separate Sonnet/high bounded **offline** inventory repair in that existing worktree, PGID **2043602**, stem `/tmp/alpha-v11-inventory-transform-r1r4-20261002`; its outer `.terminal.json` and `.author.json` are required before any fresh different-model exact-commit review. Neither lane may be duplicated, self-accepted, merged or used for qualification on author tests alone.

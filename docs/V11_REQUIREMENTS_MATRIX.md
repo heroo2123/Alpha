@@ -1,5 +1,9 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Coordinator recovery — 2026-10-02 02:20 UTC
+
+Both bounded repairs remain live in separate worktrees with no final author or outer terminal. A8 has three unfinished files; inventory remains clean. No new exact review, merge, release run, provider or forward SHADOW evidence occurred. Disk capacity remains below the G3-L floor; automatic approval review rejected deletion of an older large pytest fixture directory, which was preserved. No C/J/E/A boundary changed: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator recovery — 2026-10-02 02:16 UTC
 
 Two distinct bounded offline workers now run: A8 store-health identity repair (PGID 2042011) and inventory IT-R1/IT-R4 repair (PGID 2043602). Both are unmerged and require clean outer terminals, author evidence, fresh different-model exact review and newer-main reconciliation. The prior 5,460-pass/13-skip release result stands; no new release run or qualifying forward evidence occurred. G3-L remains NO-GO with about 1.1 GiB disk free versus its 2 GiB floor and missing provider/storage/time evidence. No C/J/E/A boundary crossed: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
