@@ -1,0 +1,48 @@
+{
+  "author_model": "gpt-6-sol/high",
+  "candidate_commit": "fe854fc5486d4ea24eda442308034b150feeaeda",
+  "candidate_parent": "b15356039820154e25ea5b40a69393418e5e639d",
+  "candidate_tree": "3bc097f7859553c2fc3e2e3f300d44b00ff0e733",
+  "candidate_unchanged": true,
+  "completion_note": "Original Astra reviewer still running; parent will record real return code after final response. Do not substitute test/harness exit codes.",
+  "exception_cases": 9,
+  "execution_authority_granted": false,
+  "findings": [
+    {
+      "id": "R1",
+      "severity": "HIGH",
+      "summary": "Non-object JSON roots raise instead of refusing"
+    },
+    {
+      "id": "R2",
+      "severity": "HIGH",
+      "summary": "Malformed proofs and held/unknown GEFS states can satisfy"
+    },
+    {
+      "id": "R3",
+      "severity": "MEDIUM",
+      "summary": "Incomplete closed typed bounded schema; overflowing exponent accepted"
+    },
+    {
+      "id": "R4",
+      "severity": "MEDIUM",
+      "summary": "Malformed clock and terminal observations can satisfy"
+    }
+  ],
+  "focused_test_exit_code": 0,
+  "focused_tests_passed": 91,
+  "formal": "1/50",
+  "g3l": "NO-GO",
+  "independent_cases": 35,
+  "integration_authorized": false,
+  "original_reviewer_process_exit_code": null,
+  "provider_request_authorized": false,
+  "real_package_refusal_reason_count": 21,
+  "reviewer_model": "gpt-6-astra/high/fast",
+  "reviewer_model_source": "actual /proc/2187417/cmdline",
+  "schema": "ALPHA_V11_OFFLINE_CHECKER_REVIEW_VERDICT_V1",
+  "scope": "COMPLETE_OFFLINE_CHECKER_AND_FE854FC_REPAIR",
+  "score": "91/200",
+  "unexpected_satisfied_cases": 19,
+  "verdict": "CHANGES_REQUIRED"
+}

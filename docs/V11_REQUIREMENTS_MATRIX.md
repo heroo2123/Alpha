@@ -4043,3 +4043,7 @@ Final independent Sol/high original-process terminal is verified exit 0 with cle
 ## Gate 3 offline checker repair — 2026-10-02 11:08 UTC
 
 Independent exact review of `b153560` returned sealed `CHANGES_REQUIRED` for two high checker defects and one low diagnostic omission. Isolated repair `fe854fc` passed 91 focused offline tests and awaits fresh different-model exact-commit review and newer-main reconciliation; it is not integrated or executable. The retained real package remains refused, with no provider request or capture/SHADOW qualification. G3-L still has 77 missing identities and zero of 2,713 slots. No C/J/E/A crossing: **91/200, formal 1/50; A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO; NOT_READY_TO_FUND**.
+
+## Gate 3 exact repair review — 2026-10-02 11:17 UTC
+
+Independent Astra/high review of clean `fe854fc` is **CHANGES_REQUIRED** despite 91 focused tests passing. Retained mutually bound synthetic inputs reproduce nine refusal-path exceptions and 19 false schema/policy satisfactions; a systematic isolated repair is next. Prior three fixes are confirmed. Actual package still refuses with 21 reasons/12 null prerequisites; original review-process completion seal is pending the parent's final return code. No merge, provider request, reviewed launch identity, capture slot or C/J/E/A crossing: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.

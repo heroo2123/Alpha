@@ -1,0 +1,214 @@
+{
+  "candidate": "fe854fc5486d4ea24eda442308034b150feeaeda",
+  "socket_and_dns": "patched to raise",
+  "cases": [
+    {
+      "case": "synthetic baseline",
+      "outcome": "CHECKER_SCHEMA_AND_POLICY_SATISFIED_NOT_EXECUTABLE",
+      "reasons": []
+    },
+    {
+      "case": "package top-level null",
+      "exception": "ValueError",
+      "message": "refusal_reasons must be non-empty iff outcome is refused"
+    },
+    {
+      "case": "package top-level []",
+      "exception": "ValueError",
+      "message": "refusal_reasons must be non-empty iff outcome is refused"
+    },
+    {
+      "case": "package top-level 1",
+      "exception": "ValueError",
+      "message": "refusal_reasons must be non-empty iff outcome is refused"
+    },
+    {
+      "case": "restrictions top-level null",
+      "exception": "ValueError",
+      "message": "refusal_reasons must be non-empty iff outcome is refused"
+    },
+    {
+      "case": "restrictions top-level []",
+      "exception": "ValueError",
+      "message": "refusal_reasons must be non-empty iff outcome is refused"
+    },
+    {
+      "case": "restrictions top-level 1",
+      "exception": "ValueError",
+      "message": "refusal_reasons must be non-empty iff outcome is refused"
+    },
+    {
+      "case": "binding top-level null",
+      "exception": "ValueError",
+      "message": "refusal_reasons must be non-empty iff outcome is refused"
+    },
+    {
+      "case": "binding top-level []",
+      "exception": "ValueError",
+      "message": "refusal_reasons must be non-empty iff outcome is refused"
+    },
+    {
+      "case": "binding top-level 1",
+      "exception": "ValueError",
+      "message": "refusal_reasons must be non-empty iff outcome is refused"
+    },
+    {
+      "case": "prior repair directories=1",
+      "outcome": "CHECKER_REFUSED_BEFORE_DISPATCH",
+      "reasons": [
+        "MALFORMED_DIRECTORIES"
+      ]
+    },
+    {
+      "case": "prior repair input_refs=1",
+      "outcome": "CHECKER_REFUSED_BEFORE_DISPATCH",
+      "reasons": [
+        "MALFORMED_INPUT_REFS"
+      ]
+    },
+    {
+      "case": "prior repair private_package float length",
+      "outcome": "CHECKER_REFUSED_BEFORE_DISPATCH",
+      "reasons": [
+        "CHANGED_PRIVATE_PACKAGE_BYTES"
+      ]
+    },
+    {
+      "case": "prior repair private_package missing path",
+      "outcome": "CHECKER_REFUSED_BEFORE_DISPATCH",
+      "reasons": [
+        "CHANGED_PRIVATE_PACKAGE_BYTES"
+      ]
+    },
+    {
+      "case": "prior repair missing storage diagnostic",
+      "outcome": "CHECKER_REFUSED_BEFORE_DISPATCH",
+      "reasons": [
+        "INVALID_RESOURCE_OBSERVATION",
+        "NO_PHYSICAL_STORAGE_RESERVATION"
+      ]
+    },
+    {
+      "case": "restriction complete_lineage_review=false",
+      "outcome": "CHECKER_SCHEMA_AND_POLICY_SATISFIED_NOT_EXECUTABLE",
+      "reasons": []
+    },
+    {
+      "case": "restriction shared_history_head=false",
+      "outcome": "CHECKER_SCHEMA_AND_POLICY_SATISFIED_NOT_EXECUTABLE",
+      "reasons": []
+    },
+    {
+      "case": "restriction unresolved_attempt_reconciliation=false",
+      "outcome": "CHECKER_SCHEMA_AND_POLICY_SATISFIED_NOT_EXECUTABLE",
+      "reasons": []
+    },
+    {
+      "case": "GEFS scope review=false",
+      "outcome": "CHECKER_SCHEMA_AND_POLICY_SATISFIED_NOT_EXECUTABLE",
+      "reasons": []
+    },
+    {
+      "case": "GEFS status 'HELD'",
+      "outcome": "CHECKER_SCHEMA_AND_POLICY_SATISFIED_NOT_EXECUTABLE",
+      "reasons": []
+    },
+    {
+      "case": "GEFS status 'DENIED'",
+      "outcome": "CHECKER_SCHEMA_AND_POLICY_SATISFIED_NOT_EXECUTABLE",
+      "reasons": []
+    },
+    {
+      "case": "GEFS status 'UNKNOWN'",
+      "outcome": "CHECKER_SCHEMA_AND_POLICY_SATISFIED_NOT_EXECUTABLE",
+      "reasons": []
+    },
+    {
+      "case": "GEFS status ''",
+      "outcome": "CHECKER_SCHEMA_AND_POLICY_SATISFIED_NOT_EXECUTABLE",
+      "reasons": []
+    },
+    {
+      "case": "persistence_review=false",
+      "outcome": "CHECKER_SCHEMA_AND_POLICY_SATISFIED_NOT_EXECUTABLE",
+      "reasons": []
+    },
+    {
+      "case": "request port float",
+      "outcome": "CHECKER_SCHEMA_AND_POLICY_SATISFIED_NOT_EXECUTABLE",
+      "reasons": []
+    },
+    {
+      "case": "author_model overlong",
+      "outcome": "CHECKER_SCHEMA_AND_POLICY_SATISFIED_NOT_EXECUTABLE",
+      "reasons": []
+    },
+    {
+      "case": "blocking_reasons not list",
+      "outcome": "CHECKER_SCHEMA_AND_POLICY_SATISFIED_NOT_EXECUTABLE",
+      "reasons": []
+    },
+    {
+      "case": "unknown_outputs array65",
+      "outcome": "CHECKER_SCHEMA_AND_POLICY_SATISFIED_NOT_EXECUTABLE",
+      "reasons": []
+    },
+    {
+      "case": "binding source_inputs malformed ref",
+      "outcome": "CHECKER_SCHEMA_AND_POLICY_SATISFIED_NOT_EXECUTABLE",
+      "reasons": []
+    },
+    {
+      "case": "binding owner_instruction_record=false",
+      "outcome": "CHECKER_SCHEMA_AND_POLICY_SATISFIED_NOT_EXECUTABLE",
+      "reasons": []
+    },
+    {
+      "case": "terminal exit_code=false and missing error",
+      "outcome": "CHECKER_SCHEMA_AND_POLICY_SATISFIED_NOT_EXECUTABLE",
+      "reasons": []
+    },
+    {
+      "case": "clock naive time",
+      "outcome": "CHECKER_SCHEMA_AND_POLICY_SATISFIED_NOT_EXECUTABLE",
+      "reasons": []
+    },
+    {
+      "case": "clock monotonic string false",
+      "outcome": "CHECKER_SCHEMA_AND_POLICY_SATISFIED_NOT_EXECUTABLE",
+      "reasons": []
+    },
+    {
+      "case": "JSON exponent overflow 1e999",
+      "outcome": "CHECKER_SCHEMA_AND_POLICY_SATISFIED_NOT_EXECUTABLE",
+      "reasons": []
+    },
+    {
+      "case": "real retained package with synthetic in-window observations",
+      "outcome": "CHECKER_REFUSED_BEFORE_DISPATCH",
+      "reasons": [
+        "GEFS_LINEAGE_UNRESOLVED",
+        "MISSING_EXECUTION_REVIEW",
+        "MISSING_LIVE_LEDGER",
+        "MISSING_STORAGE_PERSISTENCE_REVIEW",
+        "NO_PHYSICAL_STORAGE_RESERVATION",
+        "NULL_COMPLETE_LINEAGE_REVIEW",
+        "NULL_PREREQUISITE:accepted_protocol_design_review",
+        "NULL_PREREQUISITE:anonymous_access_and_exact_path_review",
+        "NULL_PREREQUISITE:clock_method_and_calibration_review",
+        "NULL_PREREQUISITE:complete_restriction_and_control_domain_review",
+        "NULL_PREREQUISITE:dns_tls_trust_and_bounded_transport_review",
+        "NULL_PREREQUISITE:independently_retained_history_head",
+        "NULL_PREREQUISITE:index_parser_semantics_review",
+        "NULL_PREREQUISITE:post_reservation_resource_enforcement_review",
+        "NULL_PREREQUISITE:private_storage_persistence_lock_and_reservation_review",
+        "NULL_PREREQUISITE:runtime_implementation_review",
+        "NULL_PREREQUISITE:runtime_source_and_transitive_build_lock",
+        "NULL_PREREQUISITE:shared_lineage_and_unfinished_intent_reconciliation",
+        "NULL_SHARED_HISTORY_HEAD",
+        "NULL_UNRESOLVED_ATTEMPT_RECONCILIATION",
+        "UNRESOLVED_GEFS_SCOPE"
+      ]
+    }
+  ]
+}

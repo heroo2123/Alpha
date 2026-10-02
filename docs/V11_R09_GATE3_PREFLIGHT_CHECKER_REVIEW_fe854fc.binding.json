@@ -1,0 +1,39 @@
+{
+  "artifacts": {
+    "V11_R09_GATE3_PREFLIGHT_CHECKER_REVIEW_fe854fc.md": {
+      "byte_length": 8375,
+      "sha256": "a151aa367df2b408c9c00fd6f7d9eb1e91eee2c72c3b19034a0a69bb2fc79460"
+    },
+    "V11_R09_GATE3_PREFLIGHT_CHECKER_REVIEW_fe854fc.repro.json": {
+      "byte_length": 6858,
+      "sha256": "18a35c9ac7f7233f0812723fcedc8aac8b37f53ac7d19dc04a6c6489ffcfb2c4"
+    },
+    "V11_R09_GATE3_PREFLIGHT_CHECKER_REVIEW_fe854fc.repro.py": {
+      "byte_length": 5019,
+      "sha256": "9582f99ba6711fbf492a52d4b67df8c9ccf0a47725cebdff0ca1bd22c861c88d"
+    },
+    "V11_R09_GATE3_PREFLIGHT_CHECKER_REVIEW_fe854fc.verdict.json": {
+      "byte_length": 1654,
+      "sha256": "cfe551d0b63ebe106bdcbd33e5d427d705170c04c44e2fcdb5f9b81d3834868d"
+    }
+  },
+  "candidate_commit": "fe854fc5486d4ea24eda442308034b150feeaeda",
+  "candidate_parent": "b15356039820154e25ea5b40a69393418e5e639d",
+  "candidate_tree": "3bc097f7859553c2fc3e2e3f300d44b00ff0e733",
+  "candidate_worktree": "/tmp/alpha-v11-gate3-preflight-checker-repair-20261002",
+  "capturing_coordinator_pid": 2162895,
+  "final_review_snapshot_clean": true,
+  "initial_clean": true,
+  "integration_authorized": false,
+  "original_process_terminal_status": "PENDING_PARENT_COMPLETION",
+  "parent_returncode_log": "/home/alphaadmin/AlphaV11_ContinuousCoordinator/coordinator.log",
+  "provider_request_authorized": false,
+  "recorded_utc": "2026-10-02T11:17:40.119759+00:00",
+  "required_parent_record": "route_end route=ASTRA_HIGH rc=0",
+  "required_parent_record_log": "planner-20261002T110242Z-2-astra_high.log",
+  "reviewer_final_output": "/home/alphaadmin/AlphaV11_ContinuousCoordinator/last-2-astra_high.txt",
+  "reviewer_parent_pid": 2187410,
+  "reviewer_pid": 2187417,
+  "reviewer_runlog": "/home/alphaadmin/AlphaV11_ContinuousCoordinator/planner-20261002T110242Z-2-astra_high.log",
+  "schema": "ALPHA_V11_REVIEW_COMPLETION_BINDING_V1"
+}
