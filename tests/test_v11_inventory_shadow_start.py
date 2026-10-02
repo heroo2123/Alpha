@@ -143,6 +143,22 @@ def test_process_guard_denies_raw_subprocess_and_ctypes_socket_bypass():
     assert result.stdout.strip() == "ALL_DENIED"
 
 
+def test_process_entry_refuses_when_a_denied_module_is_already_loaded(tmp_path):
+    path = write_fixture(tmp_path / "in")
+    out = output_dir(tmp_path)
+    for module in sorted(start._DENIED_IMPORT_MODULES):
+        code = (
+            "import sys\n"
+            f"import {module}\n"
+            "from polymarket_scanner.v11 import inventory_shadow_start as start\n"
+            "raise SystemExit(start.guarded_main(sys.argv[1:]))\n"
+        )
+        result = child("-c", code, "--input", str(path), "--event", EVENT, "--output-dir", str(out))
+        assert result.returncode == 2, (module, result.stderr)
+        assert "DENIED_MODULE_PRELOADED" in result.stderr
+        assert list(out.iterdir()) == []
+
+
 def test_process_entry_refuses_when_any_other_project_module_is_loaded(tmp_path):
     path = write_fixture(tmp_path / "in")
     out = output_dir(tmp_path)
