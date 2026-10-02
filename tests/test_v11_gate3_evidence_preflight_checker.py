@@ -503,6 +503,53 @@ def test_refuses_changed_protocol_bytes_vs_binding():
     assert "CHANGED_PROTOCOL_BYTES" in result.refusal_reasons
 
 
+@pytest.mark.parametrize("field,value,reason", [
+    ("directories", 1, "MALFORMED_DIRECTORIES"),
+    ("directories", [], "MALFORMED_DIRECTORIES"),
+    ("directories", [1], "MALFORMED_DIRECTORY:0"),
+    ("input_refs", 1, "MALFORMED_INPUT_REFS"),
+    ("input_refs", [], "MALFORMED_INPUT_REFS"),
+    ("input_refs", [1], "MALFORMED_INPUT_REF:0"),
+])
+def test_refuses_malformed_package_arrays_without_raising(field, value, reason):
+    package_raw, restrictions_raw, protocol_raw, _ = _synthetic_fixture()
+    pkg = strict_json_loads(package_raw)
+    pkg[field] = value
+    package_raw = json.dumps(pkg).encode()
+    binding_raw = _synthetic_binding_raw(package_raw, restrictions_raw, protocol_raw)
+    result = _run(package_raw, restrictions_raw, protocol_raw, binding_raw)
+    assert result.outcome == OUTCOME_REFUSED
+    assert reason in result.refusal_reasons
+
+
+@pytest.mark.parametrize("field,mutation,reason", [
+    ("private_package", lambda r: r.__setitem__("byte_length", float(r["byte_length"])),
+     "CHANGED_PRIVATE_PACKAGE_BYTES"),
+    ("private_package", lambda r: r.pop("path"), "CHANGED_PRIVATE_PACKAGE_BYTES"),
+    ("private_restrictions", lambda r: r.__setitem__("extra", 1),
+     "CHANGED_PRIVATE_RESTRICTIONS_BYTES"),
+    ("protocol", lambda r: r.__setitem__("sha256", True), "CHANGED_PROTOCOL_BYTES"),
+])
+def test_refuses_malformed_binding_byte_reference(field, mutation, reason):
+    package_raw, restrictions_raw, protocol_raw, binding_raw = _synthetic_fixture()
+    binding = strict_json_loads(binding_raw)
+    mutation(binding[field])
+    result = _run(package_raw, restrictions_raw, protocol_raw, json.dumps(binding).encode())
+    assert result.outcome == OUTCOME_REFUSED
+    assert reason in result.refusal_reasons
+
+
+def test_refuses_malformed_package_restrictions_reference_with_consistent_binding():
+    package_raw, restrictions_raw, protocol_raw, _ = _synthetic_fixture()
+    pkg = strict_json_loads(package_raw)
+    pkg["restrictions_ref"].pop("path")
+    package_raw = json.dumps(pkg).encode()
+    binding_raw = _synthetic_binding_raw(package_raw, restrictions_raw, protocol_raw)
+    result = _run(package_raw, restrictions_raw, protocol_raw, binding_raw)
+    assert result.outcome == OUTCOME_REFUSED
+    assert "CHANGED_PRIVATE_RESTRICTIONS_BYTES" in result.refusal_reasons
+
+
 # -- Negative path: missing review/terminal ------------------------------------
 
 def test_refuses_missing_independent_execution_review():
@@ -670,6 +717,19 @@ def test_refuses_zero_physical_storage_reservation():
     no_reservation = ResourceObservation(3_300_000_000, 600_000_000, 0)
     result = _run(mutated_raw, restrictions_raw, protocol_raw, binding_raw, resources=no_reservation)
     assert result.outcome == OUTCOME_REFUSED
+    assert "NO_PHYSICAL_STORAGE_RESERVATION" in result.refusal_reasons
+
+
+def test_invalid_resource_still_reports_independent_missing_reservation():
+    package_raw, restrictions_raw, protocol_raw, _ = _synthetic_fixture()
+    pkg = strict_json_loads(package_raw)
+    pkg["storage_qualification"]["physically_reserved_bytes"] = 0
+    package_raw = json.dumps(pkg).encode()
+    binding_raw = _synthetic_binding_raw(package_raw, restrictions_raw, protocol_raw)
+    resources = ResourceObservation(float("nan"), 0, 0)
+    result = _run(package_raw, restrictions_raw, protocol_raw, binding_raw, resources=resources)
+    assert result.outcome == OUTCOME_REFUSED
+    assert "INVALID_RESOURCE_OBSERVATION" in result.refusal_reasons
     assert "NO_PHYSICAL_STORAGE_RESERVATION" in result.refusal_reasons
 
 

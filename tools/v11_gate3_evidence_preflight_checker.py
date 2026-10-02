@@ -443,21 +443,20 @@ def _check_storage(obj: Mapping, resources: ResourceObservation, reasons: list) 
         reasons.append("MISSING_LIVE_LEDGER")
         ok = False
 
-    for value in (
-        resources.free_disk_bytes_after_reservation,
-        resources.mem_available_bytes_after_reservation,
-        resources.physically_reserved_bytes,
-    ):
-        if not _is_finite_nonneg(value):
-            reasons.append("INVALID_RESOURCE_OBSERVATION")
-            return False
-
     floor = _limit_int(limits, "physical_storage_reservation_bytes")
     reserved = sq.get("physically_reserved_bytes")
     if not _is_int(reserved) or reserved < floor:
         reasons.append("NO_PHYSICAL_STORAGE_RESERVATION")
         ok = False
-    elif reserved != resources.physically_reserved_bytes:
+    observations_valid = all(_is_finite_nonneg(value) for value in (
+        resources.free_disk_bytes_after_reservation,
+        resources.mem_available_bytes_after_reservation,
+        resources.physically_reserved_bytes,
+    ))
+    if not observations_valid:
+        reasons.append("INVALID_RESOURCE_OBSERVATION")
+        return False
+    if _is_int(reserved) and reserved >= floor and reserved != resources.physically_reserved_bytes:
         reasons.append("INCONSISTENT_STORAGE_RESERVATION")
         ok = False
     disk_floor = _limit_int(limits, "free_disk_floor_after_reservation_bytes")
@@ -658,7 +657,7 @@ def _check_review_terminal(review_present: bool, review_terminal: Optional[Mappi
 
 
 def _check_byte_ref(ref: Any, raw: bytes, reason: str, reasons: list) -> None:
-    if not isinstance(ref, dict):
+    if not _is_ref(ref, REF_KEYS_NO_REPO):
         reasons.append(reason)
         return
     if ref.get("sha256") != _sha256_hex(raw) or ref.get("byte_length") != len(raw):
@@ -731,10 +730,25 @@ def check_evidence_preflight_package(
     _check_disallowed(package, reasons)
     _check_request(package, reasons)
 
-    for i, d in enumerate(package.get("directories") or []):
-        _check_closed(d, DIRECTORY_KEYS, f"directories[{i}]", reasons)
-    for i, r in enumerate(package.get("input_refs") or []):
-        _check_closed(r, REF_KEYS, f"input_refs[{i}]", reasons)
+    directories = package.get("directories")
+    if not isinstance(directories, list) or not 1 <= len(directories) <= MAX_ARRAY:
+        reasons.append("MALFORMED_DIRECTORIES")
+    else:
+        for i, d in enumerate(directories):
+            _check_closed(d, DIRECTORY_KEYS, f"directories[{i}]", reasons)
+            if not isinstance(d, dict) or not all(
+                _is_int(d.get(k)) and d[k] >= 0 for k in ("device", "inode", "uid")
+            ) or not all(_is_bounded_str(d.get(k)) for k in ("mode", "path")) or \
+                    d.get("qualification") != "OBSERVATION_ONLY":
+                reasons.append(f"MALFORMED_DIRECTORY:{i}")
+    input_refs = package.get("input_refs")
+    if not isinstance(input_refs, list) or not 1 <= len(input_refs) <= MAX_ARRAY:
+        reasons.append("MALFORMED_INPUT_REFS")
+    else:
+        for i, ref in enumerate(input_refs):
+            _check_closed(ref, REF_KEYS, f"input_refs[{i}]", reasons)
+            if not _is_ref(ref, REF_KEYS) or not _is_bounded_str(ref.get("repository_path")):
+                reasons.append(f"MALFORMED_INPUT_REF:{i}")
 
     _check_prerequisites(package, reasons)
     _check_storage(package, resources, reasons)
