@@ -1,0 +1,63 @@
+{
+  "acceptance_note": "Not an acceptance by itself; requires the completed original reviewer-process record.",
+  "candidate_commit": "131eb127f0f7d82beae95fdb024f2de7eb38807a",
+  "candidate_json": "docs/V11_R09_GATE3_G3L_IDENTITY_AUDIT_20261002.json",
+  "candidate_json_sha256": "357f3a2a31456175ad19c68807cd53019f2464de0c13ea7608d478b51f9b80e8",
+  "candidate_tree": "659ef4d8b787f19ddd96e8b815d925b281774691",
+  "final_only_unassembled": 2,
+  "findings": [
+    {
+      "blocking": false,
+      "id": "F1",
+      "severity": "P3",
+      "summary": "Tool does not re-check code_byte_observations; slice-3 downgrade is hard-coded by ID, so launch_v4.py drift would leave code.mapping_exact_commit_review RETAINED on rerun (probe-confirmed). Committed JSON correct today."
+    },
+    {
+      "blocking": false,
+      "id": "F2",
+      "severity": "P3",
+      "summary": "screen.missing_after is the same measurement as missing_before; handoff 'before/after' wording implies two runs."
+    },
+    {
+      "blocking": false,
+      "id": "F3",
+      "severity": "nit",
+      "summary": "Terminal check ignores marker/error; duplicate G3-P report ref in original row; git show without timeout (prefer git cat-file blob); test pins live runtime drift set."
+    }
+  ],
+  "g3l": "NO-GO",
+  "launchable": false,
+  "not_authorized": [
+    "G3-L PASS",
+    "qualified inventory entry",
+    "private V4 manifest",
+    "current GateRuntime review",
+    "503/503/429 resumption",
+    "provider request",
+    "capture/dispatch",
+    "funding/orders",
+    "V10/AxiomTrade action"
+  ],
+  "pre_review_missing": 77,
+  "qualification_credit": 0,
+  "report": "/tmp/alpha-v11-g3l-identity-review-131eb12.review.md",
+  "report_sha256": "293bf105fea985caedddbf50dcff49377bdd272ef73f9fc1ab95adce981c3e12",
+  "review_scope": "AUDIT_INDEX_ONLY_NOT_G3L",
+  "reviewer": "Claude Opus 5.5 (high), independent",
+  "schema": "ALPHA_V11_G3L_IDENTITY_AUDIT_REVIEW_VERDICT_V1",
+  "verdict": "PASS_IN_SCOPE",
+  "verified": {
+    "category_counts": {
+      "DETERMINISTIC_OFFLINE_RECONCILIATION": 1,
+      "FUTURE_EVIDENCE_REVIEW_OR_EXTERNAL_RIGHT": 70,
+      "INVALID_STALE_OR_DUPLICATE_REQUIREMENT": 0,
+      "RETAINED_REVIEWED_LOCAL_SCOPE": 6
+    },
+    "code_byte_observations_rechecked": "7/7 git-valid; only injected_runtime drifted",
+    "exact_reproduction": true,
+    "focused_tests": "20 passed (/tmp basetemp, offline)",
+    "git_and_current_byte_comparisons": "39/39 correct; 1 drift: tools/v11_r09_gate3_runtime.py 110679/3a45eb46 -> 120122/276d9779",
+    "recovered_g3p_terminal_binding": true,
+    "restrictions_503_503_429_held": true
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "clean": true,
+  "completed_utc": "2026-10-02T22:09:01.075862+00:00",
+  "error": null,
+  "exit_code": 0,
+  "expected_head": "131eb127f0f7d82beae95fdb024f2de7eb38807a",
+  "expected_tree": "659ef4d8b787f19ddd96e8b815d925b281774691",
+  "g3l": "NO-GO",
+  "head": "131eb127f0f7d82beae95fdb024f2de7eb38807a",
+  "pid": 2548714,
+  "report_sha256": "293bf105fea985caedddbf50dcff49377bdd272ef73f9fc1ab95adce981c3e12",
+  "review_scope": "AUDIT_INDEX_ONLY_NOT_G3L",
+  "schema": "ALPHA_V11_G3L_IDENTITY_EXACT_REVIEW_TERMINAL_V1",
+  "terminal_marker": "G3L_IDENTITY_REVIEW_PROCESS_FINISHED",
+  "tree": "659ef4d8b787f19ddd96e8b815d925b281774691",
+  "verdict_sha256": "1e9186fecb5be4f043cfa4655176e18ce03e72577dba341c6b0975f8f0e9f2bb"
+}

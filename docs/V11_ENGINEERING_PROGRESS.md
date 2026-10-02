@@ -1,3 +1,12 @@
+## G3-L audit integration — 2026-10-02 22:11 UTC
+
+Integrated the independently reviewed `131eb12` retained-identity audit on
+newer main; 20/20 offline post-merge tests pass. Retained the exact Opus/high
+report, verdict and original-process terminal. A P3 future-rerun drift finding
+requires a separate hardening candidate and review. No G3-L qualification,
+provider request, capture or score crossing: **91/200, formal 1/50; G3-L
+NO-GO; NOT_READY_TO_FUND**.
+
 ## Fresh-readiness R1-R4 candidate review — 2026-10-02 22:08 UTC
 
 Recovered clean isolated `6af4633` after the author exited and launched its

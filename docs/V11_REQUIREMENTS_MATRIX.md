@@ -1,3 +1,11 @@
+## G3-L audit index accepted in scope — 2026-10-02 22:11 UTC
+
+Exact `131eb12` received independently sealed `PASS_IN_SCOPE` for the
+reconciliation index and is merged. This closes no G3-L inventory identity:
+77 PRE_REVIEW identities remain missing, all qualified entries null, and
+provider holds remain. Fresh-readiness `6af4633` is still under exact review.
+**91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Fresh-window readiness exact review pending — 2026-10-02 22:08 UTC
 
 Sonnet repair `6af4633` is clean and in independent Astra/high review; the
