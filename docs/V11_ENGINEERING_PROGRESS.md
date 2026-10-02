@@ -1,3 +1,12 @@
+## Coordinator recovery — 2026-10-02 06:31 UTC
+
+Recovered clean `ac9a04d`, no separate Alpha worker or newer checked forward
+evidence. The protected master hash matches; PAPER units remain inactive,
+execution masked, protected authority roots absent, and disk below the G3-L
+floor. The exact-reviewed bootstrap section-3 owner choice remains pending;
+no exception, provider request, test or service action followed. No C/J/E/A
+crossing: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Coordinator recovery — 2026-10-02 06:27 UTC
 
 Recovered clean main `2398b41`, no separate Alpha worker or newer checked

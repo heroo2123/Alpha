@@ -1,3 +1,23 @@
+## Coordinator recovery — 2026-10-02 06:31 UTC
+
+Recovered clean main `ac9a04d`; the only change since 06:27 is the prior
+coordinator record. No separate Alpha author, reviewer or pytest process is
+live. SHADOW `15e99bd` and Brain-readiness `58b0b79` remain clean; ECMWF's
+untracked `backfill_data/` is preserved. No checked SHADOW, Brain or evidence
+file appeared after 06:27. The protected FINAL-REVIEWED master still hashes to
+`a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+
+Re-read the accepted G3-L bootstrap packet's section 3: its owner decision is
+still pending, and no preflight exception or provider request is authorized.
+PAPER scanner/demo/controller are inactive, scanner disabled, and weather
+execution inactive/masked; protected V11 authority roots are absent. Free disk
+is 872,357,888 bytes, below G3-L's 2 GiB floor; available memory is
+1,117,118,464 bytes. The prior automatic rejection of A8 fixture deletion was
+respected. No test, provider, service, authority, V10, AxiomTrade, financial or
+publication action was taken. No C/J/E/A boundary crossed: **A2/A3
+UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO; 91/200, formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## Coordinator recovery — 2026-10-02 06:27 UTC
 
 Recovered clean main `2398b41`; its only change since the 06:23 recovery is
