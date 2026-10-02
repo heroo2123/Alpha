@@ -19475,3 +19475,53 @@ otherwise route the repair and re-review); if either review agent is
 again cut short by the background-wait ceiling, recover and complete it
 directly in the foreground rather than re-delegating, per the same
 pattern used for the repair above.
+
+## Gate 3 intake-launch wiring reviewed and merged (70ef1a1) — 2026-10-02 21:2x UTC
+
+Independent Opus review of `70ef1a1` landed: **APPROVED_WITH_FOLLOWUPS**.
+The reviewer probed the actual code directly (not just the tests):
+confirmed the new `require_admission()` call is genuinely the first
+statement in `GateRuntime.run_attempt`'s pre-Step-1 try block; a runtime
+built without `evidence_intake` is byte-for-byte unaffected; a satisfied
+guard only lets `run_attempt` proceed to the next existing gate (an
+otherwise-failing window/resource/frozen-plan check still refuses, with
+zero `transport.dispatch` calls observed); the evidence-intake guard and
+a bound `AttemptModelGuard` are each independently authoritative in both
+directions, and a refusing intake guard leaves the attempt-model guard
+unconsumed; the composition-level type check refuses a wrong-typed value
+including a subclass; no authority/network/subprocess/write path exists
+anywhere in the new code; `from_real_intake` runs the real checker fresh
+every call and its own tests use only `tmp_path`/synthetic bytes; the
+real intake's committed output file is byte-identical before and after.
+Reproduced every claimed test count exactly: 23/23 plain and under `-O`,
+829 in the targeted combined regression, 1456 in the wider family plain
+and under `-O`; `git diff --check` and `py_compile` clean.
+
+One medium, non-blocking follow-up: `EvidenceIntakeRecord.from_report`
+does not cross-check `outcome`/`schema`/`eligibility` against `satisfied`,
+so an internally-garbled-but-`satisfied=True` report would still be
+admitted, contradicting the handoff's "any tampered report fails closed"
+claim as stated. Not blocking because the real intake always produces an
+internally consistent report and no real (non-synthetic) caller exists
+yet -- worst case today equals leaving the guard unset -- but it must be
+closed before any real caller is built. One low follow-up: the handoff's
+"before any durable session mutation" wording is imprecise (a refusal
+still writes durable session events; only the shared/budget ledgers are
+untouched), and one test name describes a gate ordering that isn't quite
+accurate.
+
+Merged into `weather-v11-profitability-upgrade-2026-09-23` with `--no-ff`
+(clean, 4 files, 797 insertions) on top of `a7ff0f0`. Reran the targeted
+combined regression on the merged tree: **829 passed**; `git diff --check
+57b6fd1 HEAD` and `py_compile` on the three touched files both clean. No
+network, provider request, SHADOW admission, credential use, or score
+change: the real retained package remains refused exactly as before, and
+this wiring itself would now block any real attempt from reaching Step 1
+until that package's prerequisites are genuinely satisfied. **91/200
+(45.5%), formal 1/50; A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L
+NO-GO; NOT_READY_TO_FUND** -- unchanged.
+
+Next unfinished action: close the medium follow-up
+(`EvidenceIntakeRecord.from_report` outcome/schema/eligibility
+cross-check) before any real caller is built; separately, continue the
+fresh-window-readiness re-review lane (still in flight as of this entry).
