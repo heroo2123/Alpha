@@ -1,5 +1,9 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## B1 review preparation — 2026-10-02 03:38 UTC
+
+The sole B1 retry remains live and has no candidate or implementation verdict. `docs/V11_R09_GATE3_A4_B1_REVIEW_PREP_20261002.md` records exact-commit review criteria derived from the accepted design; it supplies no A4 qualification. The October 3 G3-L local screen remains nonlaunchable with 77 missing identities and zero slots, and free disk remains below 2 GiB. No row acceptance or C/J/E/A score changed: **91/200 (45.5%), formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Coordinator storage triage — 2026-10-02 03:34 UTC
 
 The sole B1 retry runner remains live with a clean checkout until 04:20:10 UTC; no candidate or review exists. Read-only triage found a previously deletion-rejected 1.56 GB A8 pytest fixture tree, preserved. Free disk is 1,081,643,008 bytes, below the G3-L 2 GiB floor; the October 3 PRE_REVIEW screen still has 77 missing identities and zero attempt slots. No new forward SHADOW evidence or row acceptance: **91/200 (45.5%), formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
