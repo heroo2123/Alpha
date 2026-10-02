@@ -1,5 +1,9 @@
 # Supplementary engineering estimate
 
+## A8 review completed and next repair active — 2026-10-02 02:12 UTC
+
+The interrupted exact A8 review is now complete: independent Astra/high verdict **CHANGES_REQUIRED** on one remaining P2 unchecked store-health method. Reruns produced 335 passes and six expected refusals; four passes are adverse reproductions, not acceptance. One Sonnet/high repair is active in the same isolated author worktree, with a required outer terminal and future exact independent review. Candidate remains unmerged. No release run, provider request, G3-L PASS, forward SHADOW evidence or C/J/E/A crossing: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## A8 review interruption recovered — 2026-10-02 02:03 UTC
 
 The pinned A8 recovery checkout is clean, but its reviewer ended before writing any verdict or outer terminal. A fresh Astra/high exact review is required; the author's 330 reported passes do not accept the candidate. Inventory still needs the two independently reproduced P2 repairs and another exact review. No integration, provider request, G3-L PASS, forward SHADOW evidence or C/J/E/A crossing occurred: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.

@@ -1,0 +1,8 @@
+REVIEW_BASETEMP=/tmp/a8-exact-97290da-author-vauscu09
+REVIEW_PROBE_SHA256=d611490c4f4e4ceaf3b71d7afd69a7aea5a4d47db37f0e2fbec524f06f009be6
+........................................................................ [ 35%]
+........................................................................ [ 71%]
+.........................................................                [100%]REVIEW_CLEANUP={"closed_completed_test_scratch_fds": 172, "minimum_observed_free_bytes_at_teardown": 1079201792}
+
+201 passed in 20.46s
+REVIEW_EXIT_CODE=0

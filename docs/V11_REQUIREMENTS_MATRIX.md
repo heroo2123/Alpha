@@ -1,5 +1,9 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## A8 exact review rejects unchecked health call — 2026-10-02 02:12 UTC
+
+Completed independent `97290da` review is **CHANGES_REQUIRED**: original six adverse cases now refuse, but storage `_usable` is invoked without source/code identity binding, allowing four reproduced helper-level adverse cases. Exact report, machine verdict, honest finalization outer terminal and tests are retained in `docs/V11_R09_GATE3_A8_REVIEW_97290da*`. One Sonnet/high bounded repair runs in the existing isolated author worktree (PGID 2042011); fresh independent review remains mandatory. A8 is unmerged/UNQUALIFIED; inventory IT-R1/IT-R4 remain open. G3-L stays NO-GO; no provider or forward SHADOW evidence and no C/J/E/A change. **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## A8 exact review still missing — 2026-10-02 02:03 UTC
 
 The A8 `97290da` recovery reviewer stopped without report or terminal; its clean candidate remains unaccepted and unmerged pending a completed independent exact review and newer-main reconciliation. Inventory `f6c7c90` remains `CHANGES_REQUIRED` on IT-R1 and IT-R4, with no live repair worker. G3-L remains NO-GO; no provider or forward SHADOW evidence and no C/J/E/A boundary change. **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.

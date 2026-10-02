@@ -1,0 +1,62 @@
+{
+  "a8_qualified": false,
+  "authority": false,
+  "base_commit": "7d5941cdae0f4f74383a86969b4bfd968c304d98",
+  "candidate_file_sha256": {
+    "docs/V11_R09_GATE3_A8_COMPOSITION_PREP_20261001.md": "f927e3f96893ccab76306d03c0f374f968a0a2a29fd4c342d26b5bc9cbd22ff3",
+    "tests/test_v11_r09_gate3_a8_composition.py": "0a9519151eb510f9654565955a732869e2d501e579f839742132bd1deba65756",
+    "tools/v11_r09_gate3_a8_composition.py": "12b627ea1f0d7f272108821437e1779033113f4aa2051c28466792f204453e99"
+  },
+  "clean_checkout": true,
+  "completed_utc": "2026-10-02T02:09:36.619463+00:00",
+  "financial_authority": false,
+  "findings": [
+    {
+      "id": "R1",
+      "locations": [
+        "tools/v11_r09_gate3_a8_composition.py:168",
+        "tools/v11_r09_gate3_a8_composition.py:305"
+      ],
+      "reproductions": 4,
+      "severity": "P2",
+      "summary": "Store _usable health callable is invoked but not source-bound or retained in adapter identity"
+    }
+  ],
+  "g3l": "NO_GO",
+  "head": "97290da33a03d71908a35bcf1b4dcc4477f44e30",
+  "input_artifacts": {
+    "/tmp/alpha-v11-gate3-a8-repair-7d5941c.author.json": "94e933d1b4ddc71a9351968511bd93ec35c7bfdeea405c6e4408bdebbbfed025",
+    "/tmp/alpha-v11-gate3-a8-repair-7d5941c.terminal.json": "0720f67e877218e2752eed37dc2c6a58279c96b7b3778bc22a6be56f722d319f",
+    "/tmp/alpha-v11-gate3-a8-review-7d5941c.md": "d7691ccf274264a8eb19eb0805148d78789c7924b1a5b9c75c47160f3227643e",
+    "/tmp/alpha-v11-gate3-a8-review-97290da-recovery.log": "be91ab8f7c84af19a604d474dea0307a1f19f1eafd696db31a0983d6cca62f78",
+    "/tmp/alpha-v11-gate3-a8-review-97290da.lane.json": "4b7a2c3a92091c70bfdd598dc6e5082635809b241ac5a7566aebc4e8bbe1cc4a",
+    "/tmp/alpha-v11-gate3-a8-review-97290da.log": "1df4aaf30c43203edefc60c9846601053d63e209a1d48199f8997f8db18e7f74"
+  },
+  "live_execution_authority": false,
+  "logs": {
+    "/tmp/alpha-v11-gate3-a8-review-97290da-final-adjacent.log": "6e66a86dfc464dc53cf91adb4a2c812d303e23af92127ad8a6cf62420cbf71d0",
+    "/tmp/alpha-v11-gate3-a8-review-97290da-final-probes.log": "a79371d263aa80336f48a1903f69e14e12b6ab35774562103d3e2a2fc2800357",
+    "/tmp/alpha-v11-gate3-a8-review-97290da-final-targeted.log": "17b8f900d656c427c7119c6c24372cf1ac0666e1d143246a3c06827873b4b546"
+  },
+  "merge_accepted": false,
+  "probe": {
+    "path": "/tmp/alpha-v11-gate3-a8-review-97290da-final-probes.py",
+    "sha256": "d611490c4f4e4ceaf3b71d7afd69a7aea5a4d47db37f0e2fbec524f06f009be6"
+  },
+  "report": {
+    "path": "/tmp/alpha-v11-gate3-a8-review-97290da-final.md",
+    "sha256": "4b2cca450b56955aea47d7cfa93dfe78100e1c520edc4f9ffee16fd475149af2"
+  },
+  "reviewer": "Astra/high independent coordinator review of Sol/high author",
+  "schema": "ALPHA_V11_A8_EXACT_REVIEW_V2",
+  "tests": {
+    "adjacent_passed": 116,
+    "probe_passed": 18,
+    "strict_expected_refusals": 6,
+    "targeted_passed": 201,
+    "total_passed": 335,
+    "unexpected_failures": 0
+  },
+  "tree": "e304b941aa76ef16799d8d354586e1060da3ed56",
+  "verdict": "CHANGES_REQUIRED"
+}

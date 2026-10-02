@@ -1,0 +1,17 @@
+{
+  "clean": true,
+  "completed_utc": "2026-10-02T02:10:26.375337+00:00",
+  "exit_code": 0,
+  "finalizer_log_sha256": "fff12bf79a0f6c420ee8e6303ca4c3be7de17fa1e9ba5fdfada5fcd4acd62dbe",
+  "finalizer_sha256": "3893e72f08e73855419db834f70066ec4ffc05a767937e43b31e9f5ab0488f88",
+  "financial_authority": false,
+  "head": "97290da33a03d71908a35bcf1b4dcc4477f44e30",
+  "interrupted_review_process_completion_claimed": false,
+  "live_execution_authority": false,
+  "machine_terminal_sha256": "13d9d7c05f580cfc5a04de8ca671add2e7359705efc209c6e12abe4c6f1e37ce",
+  "outer_kind": "coordinator_report_finalization_subprocess",
+  "report_sha256": "4b2cca450b56955aea47d7cfa93dfe78100e1c520edc4f9ffee16fd475149af2",
+  "schema": "ALPHA_V11_A8_EXACT_REVIEW_LANE_V2",
+  "tree": "e304b941aa76ef16799d8d354586e1060da3ed56",
+  "verdict": "CHANGES_REQUIRED"
+}
