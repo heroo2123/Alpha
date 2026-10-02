@@ -1,5 +1,9 @@
 # Supplementary engineering estimate
 
+## A7 exact review launched — 2026-10-02 01:03 UTC
+
+A7 repair `a749197` completed cleanly with 202 author-reported focused/adjacent passes and is under independent Sol/high exact-commit review. A8's independent Astra/high review is still finalizing its `CHANGES_REQUIRED` evidence. Both specialist slots are occupied; no release run or C/J/E/A crossing is claimed. **G3-L NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Live recovery observation — 2026-10-02 00:58 UTC
 
 The existing A7 repair and A8 exact-review workers remain live; neither has produced its final terminal. A8 has 16 passing synthetic probes, which do not establish acceptance. A4 remains unqualified after automatic review rejection. No new release run, G3-L PASS, forward SHADOW evidence, or C/J/E/A crossing is claimed. **G3-L NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.

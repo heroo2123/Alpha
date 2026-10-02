@@ -1,5 +1,9 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## A7 clean repair under cross-model review — 2026-10-02 01:03 UTC
+
+A7 repair `a749197` is a clean three-file author candidate with 202 reported offline passes; independent Sol/high exact review is live. The A8 exact reviewer is also live and has indicated two checking gaps, pending its final hash-bound report and terminal. A4 remains OPEN after automatic review rejection. No A7/A8 integration or qualification, G3-L PASS, forward SHADOW evidence or C/J/E/A boundary changed: **G3-L NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Live worker observation — 2026-10-02 00:58 UTC
 
 A7 repair and A8 independent exact review are both live in separate worktrees, with no final terminal or acceptance; A7 has three uncommitted repair files and A8's current synthetic probe run reports 16 passes. A4's automatic-review abort still leaves A4 OPEN. Main and SHADOW/Brain readiness are clean. The G3-L disk floor is unmet at about 1.4 GiB free; no provider or forward SHADOW evidence changed. **G3-L NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
