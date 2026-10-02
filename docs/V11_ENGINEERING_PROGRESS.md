@@ -1,3 +1,17 @@
+## Evidence-only preflight prepared — 2026-10-02 09:31 UTC
+
+Candidate `27513d2` now supplies the separate protocol and concrete private
+GEFS index proposal, with twelve missing prerequisites and all three ECMWF
+holds preserved. Twenty artifact references and eight private directory
+identities verified offline; no request, qualification or capture credit.
+Independent Sol/high launch was rejected before execution by automatic approval
+review for private-evidence transfer to OpenAI; a destination-specific owner
+question is pending. No reviewer/terminal exists. Preserve the clean sparse
+review tree and follow the [exact handoff](V11_R09_GATE3_EVIDENCE_PREFLIGHT_REVIEW_HANDOFF_20261002.md),
+then the scoped offline checker after design PASS. No current provider approval,
+new release run or C/J/E/A crossing: **91/200, formal 1/50; G3-L NO-GO;
+A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; NOT_READY_TO_FUND**.
+
 ## Coordinator recovery — 2026-10-02 09:03 UTC
 
 Verified clean `e9859e1`, unchanged private FINAL-REVIEWED master hash, clean SHADOW/Brain-readiness worktrees, preserved ECMWF backfill data, and no new Alpha worker or forward artifact. Re-read the accepted bootstrap section-3 owner decision and presented its choice; a response is pending. No Alpha PAPER/execution process is live; protected authority roots are absent; disk remains below G3-L's 2 GiB floor. The user service bus did not permit a fresh unit-state query. No provider, service, authority, financial, V10, AxiomTrade, or publication action; no new release run or C/J/E/A crossing: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.

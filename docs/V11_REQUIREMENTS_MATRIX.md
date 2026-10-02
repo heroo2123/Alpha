@@ -1,3 +1,17 @@
+## Evidence-only preflight prepared — 2026-10-02 09:31 UTC
+
+Candidate `27513d2` now supplies the separate protocol and concrete private
+GEFS index proposal, with twelve missing prerequisites and all three ECMWF
+holds preserved. Twenty artifact references and eight private directory
+identities verified offline; no request, qualification or capture credit.
+Independent Sol/high launch was rejected before execution by automatic approval
+review for private-evidence transfer to OpenAI; a destination-specific owner
+question is pending. No reviewer/terminal exists. Preserve the clean sparse
+review tree and follow the [exact handoff](V11_R09_GATE3_EVIDENCE_PREFLIGHT_REVIEW_HANDOFF_20261002.md),
+then the scoped offline checker after design PASS. No current provider approval,
+new release run or C/J/E/A crossing: **91/200, formal 1/50; G3-L NO-GO;
+A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; NOT_READY_TO_FUND**.
+
 ## Coordinator gate check — 2026-10-02 09:03 UTC
 
 Clean main `e9859e1` adds only the preceding checkpoint. No new qualifying current-run or forward SHADOW evidence appeared. The accepted bootstrap section-3 owner choice was presented and remains pending; the October 3 local-only screen still has 77 missing identities, zero of 2,713 slots, and `launchable=false`. About 789 MiB free disk remains below G3-L's 2 GiB floor. No C/J/E/A crossing: **A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO; 91/200, formal 1/50; NOT_READY_TO_FUND**.
