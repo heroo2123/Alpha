@@ -1,5 +1,9 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Coordinator recovery — 2026-10-02 02:29 UTC
+
+Inventory `16e984a` received an independent exact Sol/high **CHANGES_REQUIRED** verdict after 71 offline rerun passes: empty request cursor still falsely proves `COMPLETE`, and FIFO open can block beyond the loader deadline. Exact review/probe/terminal are retained on main; one bounded Sonnet/high repair is live in the inventory worktree (PGID 2058888). A8 repair `4fdeabc` finished cleanly with author-only tests and awaits independent Astra/high exact review and newer-main reconciliation. Neither is merged or qualified. G3-L disk remains below 2 GiB, and no provider or forward SHADOW evidence exists. No C/J/E/A boundary changed: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator recovery — 2026-10-02 02:23 UTC
 
 Both isolated repairs remain live and unaccepted. A8's wider author reruns hit `REPORT_RESERVE_UNAVAILABLE` as test fixtures temporarily filled the disk; inventory has two unfinished files and preliminary 28 focused/43 adjacent passes. Neither has a final terminal or fresh exact review. G3-L remains below its 2 GiB disk floor, with no provider or forward SHADOW evidence. No C/J/E/A boundary changed: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.

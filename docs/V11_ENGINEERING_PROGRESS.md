@@ -1,5 +1,9 @@
 # Supplementary engineering estimate
 
+## Inventory review and A8 handoff — 2026-10-02 02:29 UTC
+
+Independent exact review of inventory `16e984a` found two reproduced P2 defects despite 28 focused and 43 adjacent offline passes with zero network attempts. Review evidence is retained; a new bounded Sonnet/high repair is active in its existing worktree (PGID 2058888). A8 `4fdeabc` has a clean terminal and hash-matched author record, but its offline passes are preliminary; it needs separate Astra/high exact review before integration. SHADOW/Brain readiness, protected master and inactive execution state remain unchanged. Disk is about 1.2 GiB free versus the G3-L 2 GiB floor. No release rerun, provider request, G3-L PASS, forward SHADOW evidence or C/J/E/A crossing: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Live repair test recovery — 2026-10-02 02:23 UTC
 
 Recovered both still-running repairs and their current diffs without duplicating either lane. A8's broad author tests are blocked by temporary disk exhaustion and `REPORT_RESERVE_UNAVAILABLE`; none of those failed runs is counted as acceptance. Inventory reports preliminary 28 focused and 43 adjacent offline passes, but has no terminal. Protected master and inactive execution state are unchanged; no fresh SHADOW evidence exists. Disk is about 1.2 GiB free versus the G3-L 2 GiB floor. No provider request, G3-L PASS, release rerun or C/J/E/A crossing: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
