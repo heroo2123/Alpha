@@ -160,3 +160,35 @@ def test_cli_replays_identical_artifact_without_socket_or_credential_access(tmp_
     first = output.read_bytes()
     assert shadow.main(["--input", str(path), "--event", EVENT, "--output", str(output)]) == 0
     assert output.read_bytes() == first
+
+
+@pytest.mark.parametrize("field", ["captured_at_utc", "side", "token_id"])
+def test_cli_refuses_nested_metadata_without_output(tmp_path, field, capsys):
+    path, value = fixture(tmp_path)
+    nested = "metadata"
+    for _ in range(600):
+        nested = [nested]
+    if field == "captured_at_utc":
+        value["source"][field] = nested
+    else:
+        value["payload"]["data"][0][field] = nested
+    path.write_text(json.dumps(value))
+    output = tmp_path / "shadow.json"
+    with pytest.raises(SystemExit) as exc:
+        shadow.main(["--input", str(path), "--event", EVENT, "--output", str(output)])
+    assert exc.value.code == 2
+    assert "refused" in capsys.readouterr().err
+    assert not output.exists()
+
+
+def test_cli_refuses_directory_and_overflowing_decimal_without_output(tmp_path):
+    output = tmp_path / "shadow.json"
+    with pytest.raises(SystemExit) as exc:
+        shadow.main(["--input", str(tmp_path), "--event", EVENT, "--output", str(output)])
+    assert exc.value.code == 2
+    path = tmp_path / "overflow.json"
+    path.write_text('{"x":1e99999999999999999999999}')
+    with pytest.raises(SystemExit) as exc:
+        shadow.main(["--input", str(path), "--event", EVENT, "--output", str(output)])
+    assert exc.value.code == 2
+    assert not output.exists()

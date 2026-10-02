@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import asdict
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 import hashlib
 import json
 import os
@@ -40,6 +40,9 @@ def _source(value: object) -> Source:
     if (not isinstance(parameters, list) or len(parameters) > 64
             or any(not isinstance(p, list) or len(p) != 2 for p in parameters)):
         raise ShadowInputError("SOURCE_PARAMETERS_BOUND")
+    captured = value["captured_at_utc"]
+    if captured is not None and (type(captured) is not str or len(captured) > 256):
+        raise ShadowInputError("SOURCE_CAPTURE_TIME_INVALID")
     try:
         return Source(**{**value, "parameters": tuple(tuple(p) for p in parameters)})
     except (TypeError, ValueError) as exc:
@@ -104,12 +107,23 @@ def _synthetic(value: object) -> dict:
 
 def observe_file(path: Path, event_slug: str, limits: Limits = Limits()) -> dict:
     """Normalize a saved API page and produce one deterministic SHADOW report."""
+    try:
+        return _observe_file(path, event_slug, limits)
+    except RecursionError as exc:
+        # A JSON document can be shallow enough to parse yet contain metadata
+        # deep enough to exhaust dataclass/report serialization. Refuse it.
+        raise ShadowInputError("INPUT_NESTING_BOUND") from exc
+
+
+def _observe_file(path: Path, event_slug: str, limits: Limits) -> dict:
     if not isinstance(event_slug, str) or not 1 <= len(event_slug) <= 256 or any(ord(c) < 32 for c in event_slug):
         raise ShadowInputError("EVENT_SLUG_INVALID")
     try:
         loaded = load_offline_json(Path(path), limits)
-    except (TypeError, ValueError) as exc:
+    except (TypeError, ValueError, OSError) as exc:
         raise ShadowInputError("INPUT_PATH_INVALID") from exc
+    except InvalidOperation as exc:
+        raise ShadowInputError("INPUT_INVALID_JSON") from exc
     if loaded.payload is None:
         raise ShadowInputError("INPUT_" + (loaded.discrepancy or "UNKNOWN"))
     fixture = loaded.payload
@@ -125,6 +139,10 @@ def observe_file(path: Path, event_slug: str, limits: Limits = Limits()) -> dict
             raise ShadowInputError("DECLARED_COVERAGE_MISMATCH")
     if any(row.evidence_class is not EvidenceClass.API_OBSERVED for row in batch.rows):
         raise ShadowInputError("ROW_EVIDENCE_CLASS_INVALID")
+    if any(isinstance(row, Activity) and any(
+            field is not None and (type(field) is not str or len(field) > 4096)
+            for field in (row.side, row.token_id)) for row in batch.rows):
+        raise ShadowInputError("ROW_METADATA_INVALID")
     result = reconcile_event_window(batch, event_slug)
     rows = [asdict(row) for row in batch.rows if isinstance(row, Activity) and row.event_slug == event_slug]
     synthetic = []
