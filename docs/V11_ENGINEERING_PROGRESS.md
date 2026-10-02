@@ -1,5 +1,9 @@
 # Supplementary engineering estimate
 
+## Reviewed A8 repair integrated; next exact review running — 2026-10-02 02:38 UTC
+
+Closed the A8 store-health identity finding through independent Astra/high review of `4fdeabc`, retaining source hashes, executable probes, report and terminals. All 354 candidate checks passed; all 354 passed again on newer main after adding the three unchanged reviewed files. The full runtime file succeeded with cleanup of only this review's completed test fixtures; no assertion/reservation was weakened. No full-release rerun or A8 qualification is claimed. Inventory `3d44aa6` has a clean author terminal and now has one independent persistent Sol/high review (PGID 2064791). Both tracks preserve their unfinished evidence and genuine commissioning gates. G3-L stays NO-GO with about 1.2 GiB free disk, no provider request and no new SHADOW evidence. No C/J/E/A crossing: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Inventory review and A8 handoff — 2026-10-02 02:29 UTC
 
 Independent exact review of inventory `16e984a` found two reproduced P2 defects despite 28 focused and 43 adjacent offline passes with zero network attempts. Review evidence is retained; a new bounded Sonnet/high repair is active in its existing worktree (PGID 2058888). A8 `4fdeabc` has a clean terminal and hash-matched author record, but its offline passes are preliminary; it needs separate Astra/high exact review before integration. SHADOW/Brain readiness, protected master and inactive execution state remain unchanged. Disk is about 1.2 GiB free versus the G3-L 2 GiB floor. No release rerun, provider request, G3-L PASS, forward SHADOW evidence or C/J/E/A crossing: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.

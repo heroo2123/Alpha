@@ -1,0 +1,37 @@
+{
+  "schema": "ALPHA_V11_A8_OFFLINE_INTEGRATION_VERIFICATION_V1",
+  "observed_utc": "2026-10-02 02:38 UTC",
+  "base_main": "351ca6f",
+  "accepted_candidate": "4fdeabce2dcde72f41727dc43cff53b48b7c8b08",
+  "candidate_tree": "eab7c70e1928918529acf4e7998029725e118863",
+  "strategy": "add exactly three absent candidate files; all eight direct tools imports already match; preserve newer main",
+  "integrated_file_sha256": {
+    "tools/v11_r09_gate3_a8_composition.py": "7daaa970dbcaf34e6d1bed927f36e575dc54adab0fe33e17670bdf9b340a763f",
+    "tests/test_v11_r09_gate3_a8_composition.py": "5e2eafd69475d9de9d4afd893f9fc260972cf0a33ad619201f539c370ff56995",
+    "docs/V11_R09_GATE3_A8_COMPOSITION_PREP_20261001.md": "87c19340796872271bcc3f7d581fe45b9f2aa6ebf6762f61ffef7f13bd3183d4"
+  },
+  "logs": {
+    "docs/V11_R09_GATE3_A8_REVIEW_4fdeabc-main-author.log": {
+      "sha256": "63ec3ac4189b67703651a94b062f3406ceeb26ece0a4c7f1db542d84b60a03c1",
+      "passed": 207,
+      "exit_code": 0
+    },
+    "docs/V11_R09_GATE3_A8_REVIEW_4fdeabc-main-adjacent.log": {
+      "sha256": "8e18e11e526733ef3c99a8318c1556df7223dbb8bb05b4ef21df379b222f03a1",
+      "passed": 116,
+      "exit_code": 0
+    },
+    "docs/V11_R09_GATE3_A8_REVIEW_4fdeabc-main-probes.log": {
+      "sha256": "d18f27dc5e3b02e16e77a98078e6c396bc01e4188e6dfa581b7049fc862aa814",
+      "passed": 31,
+      "exit_code": 0
+    }
+  },
+  "total_passed": 354,
+  "failed": 0,
+  "xfailed": 0,
+  "network_attempts": 0,
+  "g3l": "NO_GO",
+  "a8_qualified": false,
+  "release_rerun": false
+}

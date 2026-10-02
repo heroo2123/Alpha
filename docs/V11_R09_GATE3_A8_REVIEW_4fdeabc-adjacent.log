@@ -1,0 +1,14 @@
+REVIEW_BASETEMP=/tmp/a8-exact-4fdeabc-adjacent-0x7ps1lz
+REVIEW_PROBE_SHA256=54abda194701a3105dd439b4fa405d22b30f7a28e17d76826e9ddfa09c285743
+........................................................................ [ 62%]
+............................................                             [100%]REVIEW_CLEANUP={"network_attempts": [], "closed_completed_test_scratch_fds": 0, "minimum_observed_free_bytes_at_teardown": 1225764864}
+
+=============================== warnings summary ===============================
+tests/test_v11_r09_gate3_store_v1.py::test_repaired_r6_inherited_call_rejects_before_blocking_on_mutex[read]
+tests/test_v11_r09_gate3_store_v1.py::test_repaired_r6_inherited_call_rejects_before_blocking_on_mutex[seal]
+  /tmp/alpha-v11-gate3-a8-review-4fdeabc/tests/test_v11_r09_gate3_store_v1.py:1050: DeprecationWarning: This process (pid=2062063) is multi-threaded, use of fork() may lead to deadlocks in the child.
+    pid = os.fork()
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+116 passed, 2 warnings in 5.60s
+REVIEW_EXIT_CODE=0

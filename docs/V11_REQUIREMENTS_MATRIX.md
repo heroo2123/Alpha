@@ -1,5 +1,9 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## A8 offline integration and inventory exact review — 2026-10-02 02:38 UTC
+
+A8 `4fdeabc` received independent Astra/high **PASS_IN_SCOPE**: 354 offline checks passed on the exact candidate, then the same 354 passed after additive reconciliation onto newer main. Both store health methods are bound and rechecked; prior and late-mutation refusals hold. Exact review/integration evidence is retained as `docs/V11_R09_GATE3_A8_REVIEW_4fdeabc*`. A8 remains UNQUALIFIED and G3-L NO-GO; real evidence/adapters/purpose contracts, A4 protection and the disk floor remain unmet. Inventory `3d44aa6` finished and is under one persistent independent Sol/high exact review (PGID 2064791), unmerged and unaccepted. No C/J/E/A boundary changed: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator recovery — 2026-10-02 02:29 UTC
 
 Inventory `16e984a` received an independent exact Sol/high **CHANGES_REQUIRED** verdict after 71 offline rerun passes: empty request cursor still falsely proves `COMPLETE`, and FIFO open can block beyond the loader deadline. Exact review/probe/terminal are retained on main; one bounded Sonnet/high repair is live in the inventory worktree (PGID 2058888). A8 repair `4fdeabc` finished cleanly with author-only tests and awaits independent Astra/high exact review and newer-main reconciliation. Neither is merged or qualified. G3-L disk remains below 2 GiB, and no provider or forward SHADOW evidence exists. No C/J/E/A boundary changed: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.

@@ -1,0 +1,37 @@
+{
+  "schema": "ALPHA_V11_A8_EXACT_REPAIR_REVIEW_V1",
+  "verdict": "PASS_IN_SCOPE",
+  "reviewer": "Astra/high",
+  "author": "Sonnet/high",
+  "completed_utc": "2026-10-02T02:35:48.830528+00:00",
+  "commit_oid": "4fdeabce2dcde72f41727dc43cff53b48b7c8b08",
+  "tree_oid": "eab7c70e1928918529acf4e7998029725e118863",
+  "base_commit_oid": "97290da33a03d71908a35bcf1b4dcc4477f44e30",
+  "clean": true,
+  "candidate_file_sha256": {
+    "tools/v11_r09_gate3_a8_composition.py": "7daaa970dbcaf34e6d1bed927f36e575dc54adab0fe33e17670bdf9b340a763f",
+    "tests/test_v11_r09_gate3_a8_composition.py": "5e2eafd69475d9de9d4afd893f9fc260972cf0a33ad619201f539c370ff56995",
+    "docs/V11_R09_GATE3_A8_COMPOSITION_PREP_20261001.md": "87c19340796872271bcc3f7d581fe45b9f2aa6ebf6762f61ffef7f13bd3183d4"
+  },
+  "report_sha256": "5c6820e40553b0e8796527b4c1b57aeab5d46e20dd55a01595abef17c893ec17",
+  "artifacts": {
+    "docs/V11_R09_GATE3_A8_REVIEW_4fdeabc-probes.py": "54abda194701a3105dd439b4fa405d22b30f7a28e17d76826e9ddfa09c285743",
+    "docs/V11_R09_GATE3_A8_REVIEW_4fdeabc-author.log": "c6b4aa3a916613726b72de899ea1191577941235175c002357604bd3a8bac802",
+    "docs/V11_R09_GATE3_A8_REVIEW_4fdeabc-adjacent.log": "7053ede897ae9ad7171ba64f8a31f0e8a3b20c482c874ef72df65a1396db1997",
+    "docs/V11_R09_GATE3_A8_REVIEW_4fdeabc-probes.log": "f0c24b206552f4898f34925b32473d751245fa8c977f065f7777c250c751836f"
+  },
+  "tests": {
+    "author": 207,
+    "adjacent": 116,
+    "probes": 31,
+    "total_passed": 354,
+    "failed": 0,
+    "xfailed": 0,
+    "network_attempts": 0
+  },
+  "finding_R1": "CLOSED_IN_SCOPE",
+  "a8_qualified": false,
+  "g3l": "NO_GO",
+  "financial_authority": false,
+  "release_rerun": false
+}

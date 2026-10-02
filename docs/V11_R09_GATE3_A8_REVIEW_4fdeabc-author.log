@@ -1,0 +1,8 @@
+REVIEW_BASETEMP=/tmp/a8-exact-4fdeabc-author-pzykav7l
+REVIEW_PROBE_SHA256=54abda194701a3105dd439b4fa405d22b30f7a28e17d76826e9ddfa09c285743
+........................................................................ [ 34%]
+........................................................................ [ 69%]
+...............................................................          [100%]REVIEW_CLEANUP={"network_attempts": [], "closed_completed_test_scratch_fds": 172, "minimum_observed_free_bytes_at_teardown": 1159659520}
+
+207 passed in 31.20s
+REVIEW_EXIT_CODE=0
