@@ -18999,3 +18999,92 @@ re-review before any integration. Weather (`7ef7d5d`, once merged) still
 only adds an opt-in guard — it does not itself unblock G3-L's 77 missing
 provider-evidence identities, which remains the real critical-path
 blocker with no new codable step this cycle.
+
+## Coordinator: recovered both pending reviews, merged APPROVED weather guard, repaired CHANGES_REQUIRED InventoryTransform doc — 2026-10-02 16:5x UTC
+
+Recovered clean main `1b67b3b`, local = remote, nothing uncommitted. Two
+reviews launched last cycle had both finished: InventoryTransform
+hardening (`5601851`) came back `CHANGES_REQUIRED`; weather
+attempt-runtime-wiring (`7ef7d5d`) came back `APPROVED` gated on host-side
+test execution the reviewer's own sandboxed session could not run (same
+`/tmp` ENOSPC this file already documents).
+
+**Weather (`7ef7d5d`), merged.** Confirmed `69ae1fc` (the review's parent)
+is an ancestor of current HEAD with no intervening change to the touched
+files, so no reconciliation was needed. Host-ran the reviewer's required
+F0 commands directly: `py_compile` clean on both files; the four
+originally-listed test files plus the two the reviewer flagged as missing
+(`tests/test_v11_gate3_evidence_preflight_checker.py`,
+`tests/test_v11_r09_gate3_a8_composition.py`) — **829 passed** plain.
+Under `-O` in the same file order, 102 failures appeared, all in
+`tests/test_v11_r09_gate3_h1h6.py` — none in the new wiring file or in any
+file the merge touches. Bisected rather than accepting or dismissing the
+failure: h1h6 alone (29 passed), every single pairing of h1h6 with each
+other file, and the original first three files together all pass clean
+under `-O`; only the full six-file set, collected in the original order,
+reproduces it. Running the identical six files with h1h6 moved to the end
+of the list passes all **829 under `-O`** too. This is collection-order
+pollution across files unrelated to this merge's diff, not a regression —
+consistent with this file's standing, already-documented "load/order-
+sensitive" full-suite fragility. Recorded here rather than silently
+reordering past it permanently: diagnosing the actual shared state behind
+it is a separate, bounded follow-up, not a blocker for this additive,
+opt-in, default-`None` merge. `git diff --check` was clean on the merge.
+Merged with `--no-ff` as `261dbb6`, recording the review verdict, the host
+verification, and the open F1-F6 follow-ups (none blocking: the guard is
+unused by any non-test caller, so F1-F3's scope gaps describe the current
+guard's limits, not an active defect).
+
+**InventoryTransform (`5601851`), doc-repaired, not yet re-reviewed.** The
+reviewer's own sandbox hit the same `/tmp` ENOSPC and could only review by
+reading code (no diff, no tests, no prior-review file); its one blocking
+finding was real regardless: `docs/V11_INVENTORY_SHADOW_START_CONTRACT.md`
+still claimed `inventory_shadow.py` "is unchanged" and required its diff
+against the original contract to be empty, while the L2/L5 hardening
+genuinely changes `write_artifact`'s schema check and adds a `dir_fd`
+write path. Verified the doc's other claims against the actual diff
+(`git diff 0998743 5601851`) before editing: confirmed exactly which files
+changed, confirmed the two-pass re-read in `inventory_shadow_start.py`
+really can raise an input-caused or `RUN_TIME_LIMIT` refusal after earlier
+artifacts in the same batch were already written (traced `run()` at
+`inventory_shadow_start.py:219-235` directly rather than trusting the
+reviewer's unverified claim), and counted the actual new tests (2 in the
+start file, bringing it to 25; 1 in the observer test file) rather than
+reusing the stale "23 new test cases" figure, which describes the
+original `0998743` contract, not this hardening delta. Corrected the
+unchanged/changed claim, scope list, acceptance-criteria diff/path checks,
+mid-batch refusal list, and known-limits section accordingly; left the
+review's remaining non-blocking LOW items (import-hook coverage gap,
+ctypes test specificity) as open follow-ups rather than code changes.
+Committed as `17e1386` in the existing isolated worktree
+(`/tmp/alpha-v11-inventory-shadow-hardening-20261002`), doc-only, no code
+or test change, so the already-host-verified 68-pass result for `5601851`
+still applies unchanged. **Not merged**: needs a fresh different-model
+review now that the doc matches the code and disk has headroom to let the
+reviewer actually run its own verification this time.
+
+**Disk emergency recurred and was resolved a second time this cycle:**
+running the weather F0 pytest commands with `--basetemp` under
+`/home/alphaadmin` (moved off `/tmp` per the reviewer's own F0 instruction)
+consumed about 2.4 GiB of scratch across a plain and an `-O` run,
+collapsing free disk on `/` to 7 MiB mid-cycle. Found and deleted only
+that scratch (`/home/alphaadmin/pytest-scratch`, created this cycle, no
+live process attached) immediately after the runs it belonged to
+completed; the protected 1.5 GiB A8 fixture at
+`/tmp/alpha-v11-gate3-a8-prep-targeted` was untouched. Free disk recovered
+to 2.5 GiB. Future cycles should expect multi-file pytest runs on this
+suite to need roughly this much scratch and clean up promptly rather than
+stacking multiple basetemps.
+
+No provider request, capture, V10/AxiomTrade/financial/service/authority
+action. The weather merge closes a review loop on an opt-in guard; it does
+not touch G3-L's 77 missing provider-evidence identities, so no C/J/E/A
+boundary crossed: **91/200 (45.5%), formal 1/50; A2/A3 UNQUALIFIED; A4
+OPEN; A8 UNQUALIFIED; G3-L NO-GO; NOT_READY_TO_FUND** — unchanged.
+
+Next unfinished action: launch a fresh independent (different-model)
+review of InventoryTransform doc-repair `17e1386` with a `--basetemp`
+pointed off `/tmp`; if APPROVED, merge. Separately, diagnose the
+h1h6/full-suite collection-order pollution under `-O` as a bounded
+follow-up — it is pre-existing and not released-blocking for any merged
+change so far, but should not be left permanently unexplained.
