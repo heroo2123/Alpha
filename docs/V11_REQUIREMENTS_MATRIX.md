@@ -1,5 +1,9 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## Coordinator Gate 3 recovery — 2026-10-02 02:47 UTC
+
+Reviewed inventory integration is on clean main `5744dfa`. A4 `6ed21e8` remains clean, unmerged and without a completed independent verdict because the prior review was automatically rejected. A4 is the next exact-commit review handoff; no A4, G3-L, provider or forward SHADOW acceptance is inferred. Disk is below the G3-L floor. **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Inventory transformation offline integration — 2026-10-02 02:43 UTC
 
 The four-commit offline inventory lineage through `3d44aa6` received independent Sol/high **PASS_IN_SCOPE** on the final exact repair and clean outer terminal. Six previously absent code/test/fixture files were added unchanged to newer main; 75 focused/adjacent main tests passed with zero socket attempts. Exact review and current-main evidence are retained as `docs/V11_INVENTORY_TRANSFORM_REVIEW_3d44aa6*`. This does not qualify inventory as genuine forward evidence or satisfy provider/storage/time acceptance. G3-L remains NO-GO under the disk floor; no C/J/E/A boundary crossed: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.

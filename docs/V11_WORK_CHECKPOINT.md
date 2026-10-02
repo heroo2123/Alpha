@@ -1,5 +1,13 @@
 # Alpha V11 work checkpoint
 
+## Coordinator recovery and next Gate 3 review — 2026-10-02 02:47 UTC
+
+Recovered clean main `5744dfa` after the reviewed inventory integration; no Alpha worker or pytest process is live. The SHADOW `15e99bd` and Brain-readiness `58b0b79` worktrees are clean; ECMWF's untracked `backfill_data/` is preserved. No newer commissioning artifact was found. The earlier accepted full-release result remains 5,460 passed / 13 skipped; the load-sensitive fill-markout issue is historical, with no new broad release run.
+
+The next Gate 3 critical-path candidate is A4 `6ed21e8` (tree `ffa0934aedd37a419f50d87fae6550721330365a`), clean in its original isolated worktree with `git diff --check` clean. Its previous independent Astra/high review stopped after an automatic cybersecurity-content rejection; the retained log ends without a final report or verdict. Do not infer acceptance from its hash checks or prior author tests. Route a narrowly scoped independent Astra/high exact-commit adjudication using the preserved clean checkout and prior review evidence; if automatic review rejects the same work again, retain the block and do not bypass it. A4 remains OPEN and unmerged.
+
+The private FINAL-REVIEWED master still matches SHA-256 `a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`. PAPER scanner/controller/execution units are inactive; scanner disabled. Disk is about 995 MiB free, below the 2 GiB G3-L floor; memory available about 497 MiB. No provider request, financial action, V10/AxiomTrade intervention, G3-L PASS, forward SHADOW evidence or C/J/E/A crossing: **G3-L NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Inventory exact review integrated on main — 2026-10-02 02:43 UTC
 
 Independent Sol/high exact review of clean `3d44aa6` (tree `4cc2c6556ced619e69d021f0c20c47141b3500e5`) completed **PASS_IN_SCOPE** with a clean exit-0 outer terminal. The review independently passed 32 focused and 43 adjacent offline tests with zero socket audit attempts and probed explicit empty request cursor refusal, prompt FIFO refusal, pagination, no-follow path traversal, opened-inode hash consistency and bounds. Report, machine/outer terminals, probe and logs are retained as `docs/V11_INVENTORY_TRANSFORM_REVIEW_3d44aa6*`.
