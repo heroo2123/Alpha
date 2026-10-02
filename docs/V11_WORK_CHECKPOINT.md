@@ -18339,3 +18339,43 @@ financial/service/authority action, or C/J/E/A boundary crossed: **91/200,
 formal 1/50; A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO;
 NOT_READY_TO_FUND**. Recover the attempt-model repair worker's
 terminal/log before any merge, new author, or next review launch.
+
+## Coordinator audit: repair worker still live, no stall, no new launch — 2026-10-02 14:56 UTC
+
+Recovered clean main `b5f1264` (unchanged since the 14:48 entry). The Gate 3
+attempt-model Opus-repair worker launched at 14:45 (bash runner PID
+`2251890`, Claude Sonnet/high PID `2251898`, worktree
+`/tmp/alpha-v11-gate3-preflight-attempt-model-20261002` on top of
+`b31bed0`) was still alive at inspection: ~632s elapsed, sleeping/multi-
+threaded, all four `.log`/`.lock`/`.launcher.log` files still empty as
+expected mid-run, worktree still clean at `b31bed0` with no commit yet.
+This is normal in-progress behavior, not a stall; did not duplicate or
+interrupt it.
+
+Swept every other tracked worktree (`AlphaV11_InventoryShadow`,
+`AlphaV11_Gate3PreflightChecker/Alpha`, `AlphaV11_Agent2/Alpha`,
+`AlphaV11_BrainReadiness/Alpha`, `AlphaV11_Gate3V4Slice1/Alpha`,
+`AlphaV11_Gate3V4Slice2/Alpha`) for uncommitted or awaiting-intake state:
+all clean, nothing actionable. Confirmed no V10 systemd units exist
+(passive check only, no V10 action taken) and no PAPER scanner process is
+currently running (expected — forward SHADOW evidence collection stays
+gated behind G3-L PASS, so this is not an outstanding gap).
+
+MemAvailable was about 926 MiB and free disk 2.7 GiB (above the 2 GiB
+floor, below the 3 GiB preference) with one heavy specialist plus this
+coordinator cycle already on the ~1.8 GiB host and swap at 509 MiB —
+below the healthy threshold for a second concurrent heavy specialist per
+the owner's parallelism directive, so none was launched; doing so would
+risk slowing the active critical-path repair. Checked `/tmp/alpha-v11-*`
+scratch for disposable cleanup: the single largest item,
+`/tmp/alpha-v11-gate3-a8-prep-targeted` (1.5G), is the explicitly
+protected A8 fixture and was left untouched; the remaining scratch dirs
+are retained review/audit artifacts from completed candidates and were
+also left in place since disk remains above the 2 GiB floor and deleting
+them risks losing audit trail for a few hundred MB of marginal gain — not
+judged worth the risk this cycle. No code change, merge, provider request,
+capture, V10/AxiomTrade/financial/service/authority action, or C/J/E/A
+boundary crossed: **91/200, formal 1/50; A2/A3 UNQUALIFIED; A4 OPEN; A8
+UNQUALIFIED; G3-L NO-GO; NOT_READY_TO_FUND**. Recover the attempt-model
+repair worker's terminal/log before any merge, new author, or next review
+launch.
