@@ -25,6 +25,13 @@ from .structural_evidence import (
 
 VERSION = "v11_inventory_transform_offline_shadow_v1"
 MAX_ARTIFACT_BYTES = 4_000_000
+_ARTIFACT_KEYS = frozenset({
+    "version", "mode", "financial_authority", "qualification", "transaction_level_proof",
+    "source_file_sha256", "source", "event_slug", "evidence_class", "coverage", "chain_status",
+    "rows", "metrics", "reconciliation", "synthetic_proofs", "evidence_class_counts",
+    "receipt_status", "account_effects", "order_effects", "observation_id",
+})
+_EVIDENCE_CLASS_COUNT_KEYS = frozenset(c.value for c in EvidenceClass)
 
 
 class ShadowInputError(ValueError):
@@ -183,9 +190,16 @@ def _observe_file(path: Path, event_slug: str, limits: Limits) -> dict:
     return report
 
 
-def write_artifact(path: Path, report: dict) -> bool:
-    """Create once, or verify an identical existing artifact. Never replace it."""
-    if (not isinstance(report, dict) or report.get("version") != VERSION
+def write_artifact(path: Path, report: dict, *, dir_fd: int | None = None) -> bool:
+    """Create once, or verify an identical existing artifact. Never replace it.
+
+    When ``dir_fd`` is given, the write happens through that already-opened,
+    already-validated output directory descriptor instead of re-walking
+    ``path`` by name, so a same-uid rename of the validated directory after
+    validation cannot redirect the write to a substituted location.
+    """
+    if (not isinstance(report, dict) or set(report) != _ARTIFACT_KEYS
+            or report.get("version") != VERSION
             or report.get("mode") != "V11_SHADOW"
             or any(report.get(key) is not False for key in
                    ("financial_authority", "qualification", "transaction_level_proof"))
@@ -199,6 +213,8 @@ def write_artifact(path: Path, report: dict) -> bool:
             or report["reconciliation"].get("coverage") != report["coverage"]
             or report["reconciliation"].get("evidence_class") != EvidenceClass.API_OBSERVED.value
             or not isinstance(report.get("evidence_class_counts"), dict)
+            or set(report["evidence_class_counts"]) != _EVIDENCE_CLASS_COUNT_KEYS
+            or any(type(value) is not int for value in report["evidence_class_counts"].values())
             or report["evidence_class_counts"].get(EvidenceClass.CHAIN_RECEIPT.value) != 0
             or report["reconciliation"].get("account_effects") != []
             or not isinstance(report.get("rows"), list)
@@ -221,14 +237,24 @@ def write_artifact(path: Path, report: dict) -> bool:
     path = Path(path)
     if not path.name or path.name in (".", ".."):
         raise ShadowInputError("OUTPUT_PATH_INVALID")
-    absolute = path if path.is_absolute() else Path.cwd() / path
-    parts = absolute.parts
+    if dir_fd is not None:
+        try:
+            directory = os.dup(dir_fd)
+        except OSError as exc:
+            raise ShadowInputError("OUTPUT_IO_REFUSED") from exc
+        name = path.name
+        remaining_components: tuple[str, ...] = ()
+    else:
+        absolute = path if path.is_absolute() else Path.cwd() / path
+        parts = absolute.parts
+        try:
+            directory = os.open(parts[0], os.O_RDONLY | os.O_DIRECTORY)
+        except OSError as exc:
+            raise ShadowInputError("OUTPUT_IO_REFUSED") from exc
+        name = parts[-1]
+        remaining_components = parts[1:-1]
     try:
-        directory = os.open(parts[0], os.O_RDONLY | os.O_DIRECTORY)
-    except OSError as exc:
-        raise ShadowInputError("OUTPUT_IO_REFUSED") from exc
-    try:
-        for component in parts[1:-1]:
+        for component in remaining_components:
             next_dir = os.open(component, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=directory)
             os.close(directory)
             directory = next_dir
@@ -240,12 +266,12 @@ def write_artifact(path: Path, report: dict) -> bool:
                 stream.flush()
                 os.fsync(stream.fileno())
             try:
-                os.link(temporary, parts[-1], src_dir_fd=directory, dst_dir_fd=directory,
+                os.link(temporary, name, src_dir_fd=directory, dst_dir_fd=directory,
                         follow_symlinks=False)
                 os.fsync(directory)
                 return True
             except FileExistsError:
-                existing_fd = os.open(parts[-1], os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK,
+                existing_fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK,
                                       dir_fd=directory)
                 with os.fdopen(existing_fd, "rb") as stream:
                     if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):

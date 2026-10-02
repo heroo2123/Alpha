@@ -111,7 +111,7 @@ env -i PATH=/usr/bin:/bin PYTHONDONTWRITEBYTECODE=1 \
 
 Use `--input FILE` (repeatable) instead of `--input-dir` for single fixtures. Add `--require-complete` when a downstream reader would need window completeness. Exit `0`: all inputs processed, summary on stdout. Exit `2`: refused. Any other exit (including the `timeout` kill at 180 s or a tripped audit hook) is a failure to investigate, not a result. Do not run it under `sudo`, a unit file, cron, or `nohup`.
 
-One event per invocation. A refusal after the write phase has begun (only `INPUT_CHANGED_DURING_START` or an output I/O error can occur there) may leave earlier artifacts of the batch in place; each is complete, valid, and replayable.
+One event per invocation. A refusal after the write phase has begun may leave earlier artifacts of the batch in place; each is complete, valid, and replayable. Reachable there, mid-batch: `INPUT_CHANGED_DURING_START` and an output I/O error (`OUTPUT_IO_REFUSED`, `OUTPUT_NOT_REGULAR`, `OUTPUT_CONFLICT`). Two further codes are refusals of a *later* invocation caused by this run's own successful writes, not of the write phase itself: `OUTPUT_DIR_ENTRY_LIMIT` can retroactively trip a subsequent start once this batch's own artifacts push the output directory over the entry cap (independent review finding L6); `MODULE_COUPLING_DETECTED_AFTER_RUN` can fire after a run that already wrote successfully, if another project module was loaded during it (independent review finding L7). Both are detective-only, fail-closed checks by design, not write-time guards; neither's behaviour changes here.
 
 ## 7. Tests
 
