@@ -1,3 +1,12 @@
+## Coordinator recovery — 2026-10-02 06:50 UTC
+
+Recovered clean main `3ff4a57`, no separate worker or newer checked forward
+evidence. Private master hash matches; PAPER units remain inactive, execution
+masked, authority roots absent and disk below G3-L's floor. The reviewed
+bootstrap section-3 owner choice remains pending. No provider request, service
+action, release rerun or C/J/E/A crossing: **91/200, formal 1/50; G3-L NO-GO;
+NOT_READY_TO_FUND**.
+
 ## Coordinator recovery — 2026-10-02 06:47 UTC
 
 Recovered clean main `bfb5507`, no separate Alpha worker or newer checked

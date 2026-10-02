@@ -1,3 +1,19 @@
+## Coordinator recovery — 2026-10-02 06:50 UTC
+
+Recovered clean main `3ff4a57`; its only change since 06:47 is the prior
+documentation checkpoint. No separate Alpha worker/test process or newer checked
+forward artifact appeared. SHADOW and Brain-readiness trees are clean; ECMWF's
+untracked `backfill_data/` is preserved. The private FINAL-REVIEWED master hash
+still matches `a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+PAPER units remain inactive, execution masked and protected V11 authority roots
+absent. Disk has 863,371,264 bytes free, below the 2 GiB G3-L floor; memory
+available is 1,123,147,776 bytes. Capacity inspection found the retained 1.5 GiB
+A8 fixture and review/evidence worktrees, but no safe large deletion. The exact-
+reviewed bootstrap section-3 owner decision remains pending; no preflight
+exception or provider request is authorized. No C/J/E/A boundary crossed:
+**A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO; 91/200,
+formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator recovery — 2026-10-02 06:47 UTC
 
 Recovered clean main `bfb5507`; its sole change since the prior durable
