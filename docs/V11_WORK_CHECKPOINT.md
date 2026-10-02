@@ -18456,3 +18456,76 @@ service/authority action, or C/J/E/A boundary crossed: **91/200, formal
 1/50; A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO;
 NOT_READY_TO_FUND**. Recover the attempt-model repair worker's
 terminal/log before any merge, new author, or next review launch.
+
+## Coordinator recovery: attempt-model repair worker's terminal recovered, real bug found and fixed, independent review launched — 2026-10-02 15:17 UTC
+
+Recovered the Sonnet/high Opus-repair worker launched at 14:45 (bash runner
+`2251890`, Claude Sonnet/high `2251898`): it finished at 15:13:25 (exit 0)
+and, exactly as instructed, left its repair **uncommitted** in
+`/tmp/alpha-v11-gate3-preflight-attempt-model-20261002` on top of `b31bed0`
+because its sandbox denied all code execution (`python3 -m pytest`,
+`python3 -c`, `py_compile` all refused as "no approval surface"), so it
+could only hand-trace its H1-H4/M1-M9 fixes against the prior Opus
+CHANGES_REQUIRED review, not run them.
+
+This coordinator session has unrestricted Bash, so I ran the suite myself
+against that exact uncommitted tree using the project's existing `venv`
+(`/home/alphaadmin/AlphaV11_Dev/venv`, pytest 8.3.3):
+`tests/test_v11_gate3_preflight_attempt_model.py` → **170 passed, 3
+failed** (`TestP10PhysicalReservation::test_physically_reserved_bytes_boundary`,
+`test_free_disk_floor_boundary`, `test_memory_floor_boundary`, each
+rejecting one-byte-below-floor values that were instead being accepted).
+Root cause: the repair's new `_resources()` physical-floor helper
+(`tools/v11_gate3_preflight_attempt_model.py`, checking
+`physically_reserved_bytes >= 67_108_864`,
+`free_disk_bytes_after_reservation >= 2_147_483_648`,
+`mem_available_bytes_after_reservation >= 536_870_912`) was correctly
+written but never called anywhere — dead code — so `_event_valid` never
+actually checked a START event's `resources` field, and any physical-floor
+violation was structurally accepted instead of refused. This is the same
+"correctly-written-but-unwired safety check" bug class worth watching for
+elsewhere in this and future gate3 candidates.
+
+Fixed with one added check in `_event_valid`'s existing
+`tag in ("START", "BODY", "CLOSE_ACK", "SEAL_ACK")` block, immediately
+after the existing clock-window check (same pre-dispatch/structural-refusal
+rationale already documented there): `if tag == "START" and not
+_resources(event["resources"]): return False`. Re-ran after the fix:
+plain pytest → **173 passed**; `python -O -m pytest` → **173 passed** (one
+unrelated pytest-config warning); `python -m py_compile` on all three
+changed files → clean. Confirmed no other file in the repo imports this
+module or its shared `tests/v11_gate3_preflight_synthetic_cases.py`
+fixture, so the fix is self-contained. Updated the acceptance doc with an
+honest "Coordinator verification" section describing exactly this, then
+committed the fixed, now-test-passing repair as `4bfdf3d` **in that same
+isolated worktree only** — nothing touched main, nothing pushed, nothing
+merged.
+
+Per the standing independent-review-separation rule (the prior Opus review
+covered `b31bed0`, not this round's changes, and I am the same model tier
+as the repair's original author even though I did the test run and bugfix
+myself), launched one background Opus/high reviewer (general-purpose agent,
+read-only, explicit no-commit/no-merge/no-push instruction) against exact
+commit `4bfdf3d`, asked to re-trace every H1-H4/M1-M9 claim, specifically
+hunt for the same unwired-check bug class elsewhere in the diff, run the
+suite itself, and write findings to
+`/tmp/alpha-v11-gate3-preflight-attempt-model-review-4bfdf3d.{review.md,verdict.json}`.
+Swept all other tracked worktrees
+(`AlphaV11_InventoryShadow`, `AlphaV11_BrainReadiness/Alpha`,
+`AlphaV11_Gate3PreflightChecker/Alpha`, `AlphaV11_Gate3V4Slice1/Alpha`,
+`AlphaV11_Gate3V4Slice2/Alpha`, `AlphaV11_Agent2/Alpha`): all clean, and
+all of their current heads except `3d44aa6` (confirmed stale/already
+superseded by `5744dfa`, no action) and `b31bed0` (this exact repair
+chain) are already ancestors of main — no other pending merge or dirty
+state found in lane B or C. No PAPER scanner process running (expected,
+G3-L gated) and no V10 systemd units found (passive check only). MemAvailable
+was ~1.0 GiB and free disk 2.7 GiB with zero heavy specialists running
+before this cycle's one Opus review launch — within the two-specialist cap.
+
+No merge, provider request, capture, V10/AxiomTrade/financial/service/
+authority action, or C/J/E/A boundary crossed yet (fixing and committing a
+bug in an isolated, unmerged side-branch is not itself a scored boundary):
+**91/200, formal 1/50; A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L
+NO-GO; NOT_READY_TO_FUND**. Next unfinished action: recover the Opus
+reviewer's verdict on `4bfdf3d` before any decision to merge this repair
+chain toward main.
