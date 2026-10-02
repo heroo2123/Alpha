@@ -1,0 +1,22 @@
+{
+  "completed_utc": "2026-10-02T13:14:39.700383+00:00",
+  "execution_authority": false,
+  "exit_code": 0,
+  "final": {
+    "head": "92024e95b6afb73d592f1fb981a0a2e5b9cf2c30",
+    "status": "",
+    "tree": "361b5aab75bf115d9c5d60abf26c95822e3bb36f"
+  },
+  "g3l": "NO-GO",
+  "initial": {
+    "head": "92024e95b6afb73d592f1fb981a0a2e5b9cf2c30",
+    "status": "",
+    "tree": "361b5aab75bf115d9c5d60abf26c95822e3bb36f"
+  },
+  "last_output_sha256": "2c999a9088e4f099d8f35e93c1fa148bed1342b4cefad03709c916f27ef19172",
+  "provider_request_authorized": false,
+  "report_sha256": "e7d9810d9d79971378769943c6e10adebf830411261bd3e039988a02bb68e1c4",
+  "reviewer_model": "gpt-6-astra/high/fast",
+  "schema": "ALPHA_V11_GATE3_PREFLIGHT_CHECKER_92024E9_REVIEW_TERMINAL_V1",
+  "verdict_sha256": "dd490fc786e1aca6eded66792f45fa1534e5756c78d58c5e5f62801203d056a3"
+}

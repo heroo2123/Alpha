@@ -6799,3 +6799,6 @@ Original-process-sealed Astra/high review of `0cf7660` returned **CHANGES_REQUIR
 ## Checker F11 offset-range candidate — 2026-10-02 13:01 UTC
 
 Original-process-sealed Astra/high review of `5d9c148` returned **CHANGES_REQUIRED** for malformed HH:MM offsets silently normalized by Python; F10 passed. Committed isolated `92024e9` with ASCII hour/minute range checks before parsing. The 472 focused offline tests pass; a different-model exact review is active. The real package and 503/503/429 restriction history remain blocked/unchanged. No integration, provider request, capture, SHADOW or score change; InventoryTransform SHADOW `2033b82` remains queued. **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+## Reviewed Gate 3 checker and InventoryTransform observer integrated — 2026-10-02 13:16 UTC
+
+Independent Astra/high Fast exact-commit PASS_IN_SCOPE reviews of `92024e9` and `2033b82` are sealed with exit-0 terminals and matching report/verdict hashes. Both reviewed branches merged cleanly on newer main; merged-tree tests pass (472 checker, 85 Inventory/adjacent). The InventoryTransform observer is local-file-only and dormant, with no provider/account/order effects. The checker still refuses the actual package with 22 blockers; no request, transport authority, capture or score change follows. **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.

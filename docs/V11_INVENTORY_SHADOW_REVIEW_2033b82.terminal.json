@@ -1,0 +1,21 @@
+{
+  "completed_utc": "2026-10-02T13:13:57.977819+00:00",
+  "exit_code": 0,
+  "final": {
+    "head": "2033b8235d7f1e25c799fd504f42353752d6d463",
+    "status": "",
+    "tree": "8f0acf25d3dcdfe80d9a38999d003731a777bc85"
+  },
+  "financial_authority": false,
+  "initial": {
+    "head": "2033b8235d7f1e25c799fd504f42353752d6d463",
+    "status": "",
+    "tree": "8f0acf25d3dcdfe80d9a38999d003731a777bc85"
+  },
+  "last_output_sha256": "381f791aafca67315f26cd208d75286e7ff6167e2face01b4c82c6793a0bf59a",
+  "qualification": false,
+  "report_sha256": "4a47731c534f6aad271303adff659fc48a24a32b725c137b8e12585b4f9dd2e0",
+  "reviewer_model": "gpt-6-astra/high/fast",
+  "schema": "ALPHA_V11_INVENTORY_SHADOW_2033B82_REVIEW_TERMINAL_V1",
+  "verdict_sha256": "882c214bdb11bd6e1c46830cf4476722e09205d63734eac3134181b98cb45183"
+}

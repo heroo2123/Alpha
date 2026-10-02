@@ -1,0 +1,288 @@
+{
+  "schema": "ALPHA_V11_INVENTORY_SHADOW_EXACT_COMMIT_REVIEW_V1",
+  "verdict": "PASS_IN_SCOPE",
+  "commit": "2033b8235d7f1e25c799fd504f42353752d6d463",
+  "tree": "8f0acf25d3dcdfe80d9a38999d003731a777bc85",
+  "parent": "b04cc7b69b213ad3b199625de024d57ece933e9c",
+  "reviewed_at_utc": "2026-10-02T13:13:53.162672+00:00",
+  "reviewer": {
+    "independent_session": true,
+    "requested_model": "gpt-6-astra",
+    "requested_reasoning_effort": "high",
+    "requested_service": "Fast",
+    "backend_configuration_independently_verified": false
+  },
+  "worktree": "/home/alphaadmin/AlphaV11_InventoryShadow",
+  "clean": true,
+  "clean_before": true,
+  "clean_after": true,
+  "status_porcelain": "",
+  "diff_check": "PASS",
+  "qualification": false,
+  "financial_authority": false,
+  "transaction_level_proof": false,
+  "integration_performed": false,
+  "repository_modified": false,
+  "prior_evidence_modified": false,
+  "findings": [],
+  "closed_findings": [
+    {
+      "id": "IS-R1",
+      "result": "CLOSED_IN_SCOPE",
+      "fresh_cli_exit_code": 2,
+      "artifact_created": false,
+      "fields": [
+        "captured_at_utc",
+        "side",
+        "token_id"
+      ]
+    }
+  ],
+  "changed_files": [
+    {
+      "path": "polymarket_scanner/v11/inventory_shadow.py",
+      "git_blob": "b1935f6aee2f130c3f54c22bfe9f2adc20555e90",
+      "sha256": "d04496f4bc1edcbd35a0f1ecf96fa482def9414dd555d8e85afcb26b2ba77b75"
+    },
+    {
+      "path": "tests/test_v11_inventory_shadow.py",
+      "git_blob": "a246e4cc33e1d5256c2a4aa55c334e15bf3ad74a",
+      "sha256": "ef5730cc2a15502ebb0de33f969b0a068cf1fa3f980d1c0209381c18755170a6"
+    }
+  ],
+  "tests": [
+    {
+      "name": "focused",
+      "passed": 42,
+      "failed": 0,
+      "network_attempts": 0,
+      "files": [
+        "tests/test_v11_inventory_shadow.py",
+        "tests/test_v11_structural_evidence.py",
+        "tests/test_v11_neg_risk_contract.py"
+      ],
+      "log": "/tmp/alpha-v11-inventory-shadow-review-2033b82-evidence/focused.log"
+    },
+    {
+      "name": "adjacent",
+      "passed": 43,
+      "failed": 0,
+      "network_attempts": 0,
+      "files": [
+        "tests/test_v11_scenario_risk.py",
+        "tests/test_v11_evidence_foundation.py"
+      ],
+      "log": "/tmp/alpha-v11-inventory-shadow-review-2033b82-evidence/adjacent.log"
+    }
+  ],
+  "accepted_regression_probe": {
+    "result": "PASS",
+    "log": "/tmp/alpha-v11-inventory-shadow-review-2033b82-evidence/accepted-regression.log",
+    "network_attempts": 0
+  },
+  "regression_probes": [
+    {
+      "probe": "baseline_decimal_context_hash_and_inode_stability",
+      "result": "PASS",
+      "detail": {
+        "observation_id": "533ae8bd8df563ae8a0dbdc817b66fc909af7dce3a0cbe00ff7460577130b37a",
+        "artifact_sha256": "55fb1c34ccf168806b65bd6f4a582a21edb094445e6eaf5c557bb61ef4feb728"
+      },
+      "seconds": 0.01833
+    },
+    {
+      "probe": "concurrent_create_once_and_cleanup",
+      "result": "PASS",
+      "detail": [
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "seconds": 0.020867
+    },
+    {
+      "probe": "input_output_symlink_fifo_directory_missing_refusals",
+      "result": "PASS",
+      "detail": {
+        "input_symlink": "INPUT_NOT_REGULAR_FILE",
+        "input_ancestor": "INPUT_NOT_REGULAR_FILE",
+        "input_parent_traversal": "INPUT_NOT_REGULAR_FILE",
+        "input_fifo": "INPUT_NOT_REGULAR_FILE",
+        "input_directory": "INPUT_PATH_INVALID",
+        "input_missing": "INPUT_NOT_REGULAR_FILE",
+        "output_symlink": "OUTPUT_IO_REFUSED",
+        "output_ancestor": "OUTPUT_IO_REFUSED",
+        "output_fifo": "OUTPUT_NOT_REGULAR",
+        "output_directory": "OUTPUT_IO_REFUSED"
+      },
+      "seconds": 0.014777
+    },
+    {
+      "probe": "coverage_uncertainty_and_complete_still_unqualified",
+      "result": "PASS",
+      "detail": [
+        "0",
+        "False",
+        "",
+        [
+          [
+            "cursor",
+            ""
+          ]
+        ],
+        [
+          [
+            "offset",
+            "100"
+          ],
+          [
+            "offset",
+            "0"
+          ]
+        ],
+        [
+          [
+            "start",
+            "0"
+          ]
+        ]
+      ],
+      "seconds": 0.017596
+    },
+    {
+      "probe": "bytes_records_deadline_deep_json_encoding_output_bounds",
+      "result": "PASS",
+      "detail": [
+        "INPUT_BYTE_LIMIT",
+        "INPUT_TIME_LIMIT",
+        "INPUT_INVALID_JSON",
+        "INPUT_INVALID_JSON",
+        "ARTIFACT_BYTE_LIMIT"
+      ],
+      "seconds": 0.105731
+    },
+    {
+      "probe": "synthetic_isolation_and_bounds",
+      "result": "PASS",
+      "detail": "synthetic separate; deployed, alias, bool, excessive inventory refused",
+      "seconds": 0.024705
+    },
+    {
+      "probe": "artifact_policy_rehashed_forgery_id_and_conflict_refusals",
+      "result": "PASS",
+      "detail": 9,
+      "seconds": 0.017889
+    },
+    {
+      "probe": "cli_no_ambient_environment_or_weather_imports",
+      "result": "PASS",
+      "detail": {
+        "new_forbidden_imports": [],
+        "account_effects": [],
+        "order_effects": [],
+        "chain_receipt_count": 0
+      },
+      "seconds": 0.017547
+    },
+    {
+      "probe": "malformed_600_level_captured_at_utc_controlled_refusal",
+      "result": "PASS",
+      "detail": "2",
+      "seconds": 0.003463
+    },
+    {
+      "probe": "malformed_600_level_token_id_controlled_refusal",
+      "result": "PASS",
+      "detail": "2",
+      "seconds": 0.003289
+    },
+    {
+      "probe": "malformed_600_level_side_controlled_refusal",
+      "result": "PASS",
+      "detail": "2",
+      "seconds": 0.005366
+    },
+    {
+      "probe": "oversized_decimal_exponent_controlled_refusal",
+      "result": "PASS",
+      "detail": "INPUT_INVALID_JSON",
+      "seconds": 0.000181
+    }
+  ],
+  "independent_probes": {
+    "cases": 448,
+    "controlled_refusals": 179,
+    "bounded_diagnostics": 269,
+    "unexpected_exceptions": 0,
+    "fresh_process_replay_sha256": "55fb1c34ccf168806b65bd6f4a582a21edb094445e6eaf5c557bb61ef4feb728",
+    "forbidden_imports": []
+  },
+  "independent_probe_details": "/tmp/alpha-v11-inventory-shadow-review-2033b82-evidence/independent.json",
+  "boundaries": {
+    "local_file_only": "PASS_IN_EXERCISED_SCOPE",
+    "network_provider_access": false,
+    "account_order_collateral_effects": false,
+    "evidence_class_and_coverage": "PASS_IN_EXERCISED_SCOPE",
+    "deterministic_idempotent_replay": "PASS_IN_EXERCISED_SCOPE",
+    "malformed_input_handling": "PASS_IN_EXERCISED_SCOPE",
+    "weather_shadow_separation": "PASS_IN_EXERCISED_SCOPE"
+  },
+  "inherited_limitations": [
+    "Cooperative timing checks are not hard filesystem deadlines",
+    "Regular-file replacement at open does not establish pre-open pathname identity",
+    "Malformed raw rows can yield bounded incomplete diagnostics; falsy optional row metadata can normalize to null",
+    "Offline review only; no broad release suite"
+  ],
+  "retained_artifacts": [
+    {
+      "path": "/tmp/alpha-v11-inventory-shadow-review-2033b82-evidence/accepted-regression.log",
+      "sha256": "d80e71faf21625c14717ad0dae647ce5c837048a2ac3a904a709906c80c071c6"
+    },
+    {
+      "path": "/tmp/alpha-v11-inventory-shadow-review-2033b82-evidence/adjacent.log",
+      "sha256": "ad6b14d46654a019a4dd0ed8e9f24fe1521c398414449d82bdc1695258885ea9"
+    },
+    {
+      "path": "/tmp/alpha-v11-inventory-shadow-review-2033b82-evidence/focused.log",
+      "sha256": "a6d3d92cdfb8410268336a4d14292fef4948f40ce81109721bfcf530f0215f9a"
+    },
+    {
+      "path": "/tmp/alpha-v11-inventory-shadow-review-2033b82-evidence/independent.json",
+      "sha256": "fa1f051a546f1a156725768945244fc58d9b3f3e18bc6dc64541803d04e244ec"
+    },
+    {
+      "path": "/tmp/alpha-v11-inventory-shadow-review-2033b82-evidence/independent.log",
+      "sha256": "b43b76b921fe19a3f96b8e6a84398685466bf3e3a014171838b228beeca15fd3"
+    },
+    {
+      "path": "/tmp/alpha-v11-inventory-shadow-review-2033b82-evidence/independent.py",
+      "sha256": "d3a58c3a98eed3d939af5754167af42964f264d8a55db0edeb9bf9beeb5c7b13"
+    },
+    {
+      "path": "/tmp/alpha-v11-inventory-shadow-review-2033b82-evidence/probes.json",
+      "sha256": "f88fd2fe5ed98b6cec437a152110605f1e2b718ce79e8bfdd06decccb9d9eb3c"
+    },
+    {
+      "path": "/tmp/alpha-v11-inventory-shadow-review-2033b82-evidence/regression-probes.log",
+      "sha256": "1f81ca1959f517d59d77114921b1fefbcbecb608dccff491b662e074644ba023"
+    },
+    {
+      "path": "/tmp/alpha-v11-inventory-shadow-review-2033b82-evidence/regression-probes.py",
+      "sha256": "0467f1e120fa15f771369f04bf0b5cdec0b49752ef2e62759aff8a1d98256b75"
+    },
+    {
+      "path": "/tmp/alpha-v11-inventory-shadow-review-2033b82-evidence/runner.py",
+      "sha256": "e8dc45d2326564741908a4ecd2659c381e6e2569fe36a6b1f372a1a73d6145bd"
+    }
+  ],
+  "report": {
+    "path": "/tmp/alpha-v11-inventory-shadow-review-2033b82.review.md",
+    "sha256": "4a47731c534f6aad271303adff659fc48a24a32b725c137b8e12585b4f9dd2e0"
+  },
+  "completion_marker": "INVENTORY_SHADOW_2033B82_REVIEW_COMPLETE"
+}

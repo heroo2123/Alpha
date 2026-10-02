@@ -4083,3 +4083,6 @@ Sealed exact `0cf7660` review is **CHANGES_REQUIRED** for silent fractional-offs
 ## Checker F11 offset-range review gate — 2026-10-02 13:01 UTC
 
 Sealed exact `5d9c148` review is **CHANGES_REQUIRED** for malformed numeric offset minutes normalized by Python; F10 is closed. Isolated `92024e9` bounded ASCII offset grammar passes 472 focused tests and is under fresh independent exact-commit review. It remains offline, unmerged and non-executable. InventoryTransform SHADOW `2033b82` remains unreviewed/unintegrated. Twelve preflight prerequisites remain null; no provider request or capture evidence. No C/J/E/A crossing: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+## Two-lane reviewed code integration — 2026-10-02 13:16 UTC
+
+The exact `92024e9` offline Gate 3 package checker and `2033b82` InventoryTransform SHADOW observer passed independent Astra/high Fast exact-commit review and were reconciled into main. Post-merge focused/adjacent tests: checker 472 passed; observer 85 passed. Review terminals and verdicts are retained. The real preflight package remains refused with 22 blockers, no transport or provider authority, and the observer remains dormant without its own start contract. No capture, forward SHADOW, qualification or C/J/E/A crossing: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
