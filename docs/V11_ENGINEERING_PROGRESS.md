@@ -1,3 +1,9 @@
+## A2/A3 offline decision review accepted in scope — 2026-10-02 03:53 UTC
+
+Recovered the completed independent Sol/high review of exact `fb3a804` (tree `a09d184c91011e0fa8ee0d171f8b9edd4dc7ea68`): **PASS_IN_SCOPE for the decision and pending intake only**. The reviewer verified all eight observed packages, 25 discrepancy rows, seven evidence references and the fresh audit; the report hash matches the machine verdict, which matches the clean exit-0 outer terminal. Retained the report, verdict, terminal and log as `docs/V11_R09_GATE3_A2A3_DECISION_REVIEW_fb3a804*`. The candidate was already on newer main; its two file hashes still match the reviewed commit, so no merge was needed. No original or replacement provenance was accepted. A2/A3 remain UNQUALIFIED, A4 OPEN, A8 UNQUALIFIED and G3-L NO-GO.
+
+The only other active Alpha worker is the B1 retry PID 2084227, waiting until 04:20:10 UTC in clean `1f993fb`; no B1 candidate or terminal exists. SHADOW and Brain-readiness worktrees are clean; ECMWF `backfill_data/` is preserved. PAPER scanner/controller/demo are inactive and disabled; execution is inactive/masked. Protected authority roots remain absent. Free disk is about 1.0 GiB, below G3-L's 2 GiB floor; available memory about 707 MiB. No provider request, financial/service/authority action, remote publication, forward SHADOW sample, new release rerun or C/J/E/A boundary crossing. **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 # Supplementary engineering estimate
 
 ## A2/A3 decision candidate; independent review live — 2026-10-02 03:49 UTC

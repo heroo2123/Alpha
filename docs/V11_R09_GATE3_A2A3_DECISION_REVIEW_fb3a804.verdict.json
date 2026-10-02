@@ -1,0 +1,40 @@
+{
+  "a2": "UNQUALIFIED",
+  "a3": "UNQUALIFIED",
+  "a4": "OPEN",
+  "a8": "UNQUALIFIED",
+  "candidate_commit": "fb3a8047760bcdaf0a94be20afcea7d61a7c2785",
+  "candidate_files": {
+    "docs/V11_R09_GATE3_A2A3_DECISION_20261002.json": {
+      "bytes": 22339,
+      "sha256": "627028d8467101665a9755a8d609f2c1a22f65ab31d1c2daf38c10bb2f7f4892"
+    },
+    "docs/V11_R09_GATE3_A2A3_DECISION_20261002.md": {
+      "bytes": 11803,
+      "sha256": "524d72c7b8ee5a032708682935a9aa9246d5cc80bd187d04851321d54a421978"
+    }
+  },
+  "candidate_parent": "3878fa9ee312b6d1fe45705bbba0821aa0656c0c",
+  "candidate_tree": "a09d184c91011e0fa8ee0d171f8b9edd4dc7ea68",
+  "checks_performed": [
+    "read required checkpoint/matrix/progress heads first",
+    "compared controlling identity acceptance, retained audit/review, A4 design/review and A2/A3 handoff",
+    "verified exact commit/tree/parent and two-file scope",
+    "verified seven referenced file hashes and lengths",
+    "compared all eight package entries with accepted dossier JSON",
+    "compared all 25 discrepancy paths and recorded/observed hashes and sizes with dossier and three retained-audit copies",
+    "verified 484 unhashed row total and null external acceptance references",
+    "verified named fresh audit hash/length and equality excluding only observed_utc",
+    "git diff --check HEAD^ HEAD; final checkout clean"
+  ],
+  "final_clean_status": "clean",
+  "findings": [],
+  "g3l": "NO-GO",
+  "launchable": false,
+  "qualification": "UNQUALIFIED",
+  "qualification_credit": 0,
+  "report_sha256": "6f1c94ca29043638587f2b12d0a31a9add6f9d115d3709b22ab562b15a0747cd",
+  "reviewer_model": "gpt-6-sol/high",
+  "scope": "DECISION_AND_PENDING_INTAKE_ONLY",
+  "verdict": "PASS_IN_SCOPE"
+}

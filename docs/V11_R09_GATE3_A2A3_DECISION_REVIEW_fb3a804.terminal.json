@@ -1,0 +1,17 @@
+{
+  "clean": true,
+  "completed_utc": "2026-10-02T03:52:18.452113+00:00",
+  "error": null,
+  "exit_code": 0,
+  "financial_authority": false,
+  "head": "fb3a8047760bcdaf0a94be20afcea7d61a7c2785",
+  "initial_head": "fb3a8047760bcdaf0a94be20afcea7d61a7c2785",
+  "initial_tree": "a09d184c91011e0fa8ee0d171f8b9edd4dc7ea68",
+  "lane": "a2a3-decision-independent-review",
+  "live_execution_authority": false,
+  "pid": 2089379,
+  "schema": "ALPHA_V11_PARALLEL_GATE3_LANE_V1",
+  "tree": "a09d184c91011e0fa8ee0d171f8b9edd4dc7ea68",
+  "uncommitted_status": "",
+  "verdict_sha256": "5a2b69e4e6b1ddb191af98f16a36c58cefcc79030a5dd056638c6085bd3f20f6"
+}
