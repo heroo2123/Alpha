@@ -1,3 +1,35 @@
+## A2/A3 stale escalation resolved — 2026-10-02 08:47 UTC
+
+The 08:20 route repeated work already completed at 03:52 and accepted at 03:53.
+Recovered exact candidate `fb3a8047760bcdaf0a94be20afcea7d61a7c2785` on main
+`38a5a74` and independently checked ancestry/tree, unchanged Markdown/JSON bytes,
+all seven evidence hashes/lengths, report-to-verdict-to-clean-exit-0-terminal
+bindings, eight pending packages, 25 unresolved discrepancies and 484 unhashed
+rows. The retained Sol/high verdict is **PASS_IN_SCOPE for decision/intake only**;
+this reconciliation creates no new independent qualification review. Marked
+`V11_R09_GATE3_A2A3_NEXT_REVIEW_HANDOFF_20261002.md` resolved and retained its
+original text as history. Do not reroute the same question or duplicate B1,
+which was already reviewed and integrated at 04:55. Use the accepted decision's
+E1–E6 intake obligations; reopen only on new authentic input, a concrete
+contradiction, or explicit scoped owner/protocol direction. No further provenance
+implementation is justified by these unchanged retained bytes.
+
+No separate author/reviewer/test process or new commissioning/BrainWork artifact
+since 08:20 was found. SHADOW and Brain-readiness worktrees are clean; ECMWF's
+untracked `backfill_data/` is preserved. PAPER demo/scanner/controller are
+inactive/disabled; execution is inactive/masked. Protected authority paths remain
+absent and the private FINAL-REVIEWED master matches
+`a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+Observed free disk was 830,767,104 bytes against the 2 GiB floor; available memory
+1,100,414,976 bytes. No deletion, provider request, service/authority change,
+V10/AxiomTrade intervention, financial action, worker launch or remote publication.
+Historical release remains 5,460 passed/13 skipped; no new suite was necessary
+for this documentation repair. Exact-byte assertions passed; no decoder ran.
+The accepted bootstrap owner choice and external provenance remain pending;
+GEFS forward SHADOW remains custody/evidence gated. No C/J/E/A crossing:
+**A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO; 91/200,
+formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator recovery and A2/A3 route — 2026-10-02 08:20 UTC
 
 Recovered clean main `a61553a`, whose new commits since the 08:15 checkpoint are documentation only. No separate Alpha writer, reviewer, or pytest process is live. SHADOW and Brain-readiness worktrees are clean; ECMWF's untracked `backfill_data/` is preserved. No checked forward SHADOW/Brain artifact newer than 08:15 appeared. The private FINAL-REVIEWED master still hashes to `a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.

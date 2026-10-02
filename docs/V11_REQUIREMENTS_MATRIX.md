@@ -1,3 +1,14 @@
+## A2/A3 routing repair — 2026-10-02 08:47 UTC
+
+The 08:20 escalation was stale: exact `fb3a804` already has a completed Sol/high
+PASS_IN_SCOPE for decision/intake only. Fresh ancestry, current-byte, seven-evidence
+and report/verdict/terminal hash checks passed. Marked the original handoff
+resolved without changing reviewed artifacts; E1–E6 authentication/closure and
+reconstruction obligations remain external prerequisites. No duplicate worker,
+provider request or forward SHADOW sample; disk remains below 2 GiB. No C/J/E/A
+crossing: **A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO;
+91/200, formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator gate check — 2026-10-02 08:20 UTC
 
 Clean main `a61553a`; no new qualified current-run or forward SHADOW evidence. The October 3 local-only screen remains blocked with 77 missing identities and zero of 2,713 slots. Free disk is 831,848,448 bytes versus the 2 GiB G3-L floor. The exact-reviewed bootstrap section-3 owner choice is pending. Routed the independent offline A2/A3 evidence decision under the existing handoff; it grants no qualification. **A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO; 91/200, formal 1/50; NOT_READY_TO_FUND**.

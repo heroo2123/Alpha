@@ -1,3 +1,14 @@
+## A2/A3 routing repair — 2026-10-02 08:47 UTC
+
+The 08:20 escalation was stale: exact `fb3a804` already has a completed Sol/high
+PASS_IN_SCOPE for decision/intake only. Fresh ancestry, current-byte, seven-evidence
+and report/verdict/terminal hash checks passed. Marked the original handoff
+resolved without changing reviewed artifacts; E1–E6 authentication/closure and
+reconstruction obligations remain external prerequisites. No duplicate worker,
+provider request or forward SHADOW sample; disk remains below 2 GiB. No C/J/E/A
+crossing: **A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO;
+91/200, formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator recovery — 2026-10-02 08:20 UTC
 
 Recovered clean `a61553a`, no separate worker or newer checked forward evidence. Protected master hash matches; PAPER scanner and execution remain inactive, execution masked, authority roots absent, and free disk below G3-L's 2 GiB floor. No safe large deletion was established. Routed the existing offline A2/A3 architecture handoff to Astra/high while the reviewed bootstrap owner choice remains pending. No provider request, release rerun, service action or C/J/E/A crossing: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
