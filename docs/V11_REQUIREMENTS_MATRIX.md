@@ -1,3 +1,7 @@
+## B1 retry active — 2026-10-02 04:20 UTC
+
+The sole scheduled B1 authoring retry is now running in clean pinned `1f993fb`; no complete candidate or terminal exists. Exact-commit independent review remains required. A2/A3 and A8 remain UNQUALIFIED, A4 OPEN, G3-L NO-GO; no C/J/E/A boundary crossed: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator B1 review gate — 2026-10-02 04:11 UTC
 
 The sole B1 retry worker is alive in a clean pinned worktree until 04:20:10 UTC; no candidate or complete terminal exists. Exact-commit review remains the next gate. The previously accepted A2/A3 decision covers only pending intake, and the October 3 G3-L local screen still has 77 missing identities, zero slots and disk below the 2 GiB floor. No row acceptance or C/J/E/A score changes: **A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.

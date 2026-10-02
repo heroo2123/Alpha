@@ -1,3 +1,7 @@
+## B1 retry active — 2026-10-02 04:20 UTC
+
+The existing B1 Sonnet/high retry entered active authoring after its provider reset. No candidate, terminal, independent review, new forward artifact or acceptance exists yet. Free disk remains below the G3-L floor. **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator B1 review gate — 2026-10-02 04:11 UTC
 
 Recovered the sole live B1 retry in clean `1f993fb`; it has no candidate or terminal and waits until 04:20:10 UTC. Main `55c1980` is clean. SHADOW and Brain readiness have no new forward artifact. The protected master hash is unchanged, PAPER units remain inactive, weather execution is masked, and disk remains below G3-L's 2 GiB floor. No new release result, provider request or C/J/E/A crossing. The next step is exact-commit review after B1's complete author terminal: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
