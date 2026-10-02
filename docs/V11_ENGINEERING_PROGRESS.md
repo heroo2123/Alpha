@@ -1,3 +1,11 @@
+## G3-L audit hardening lane — 2026-10-02 22:12 UTC
+
+Launched an isolated Sonnet/high author for the independently found audit
+rerun drift issue while the Astra/high fresh-readiness exact review continues.
+No candidate or acceptance is yet claimed. Host resources permit only these
+two heavy specialists at present. **91/200, formal 1/50; G3-L NO-GO;
+NOT_READY_TO_FUND**.
+
 ## G3-L audit integration — 2026-10-02 22:11 UTC
 
 Integrated the independently reviewed `131eb12` retained-identity audit on

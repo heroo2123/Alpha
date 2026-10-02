@@ -1,3 +1,10 @@
+## G3-L rerun drift repair in progress — 2026-10-02 22:12 UTC
+
+A separate isolated Sonnet/high worker is repairing the audit-index rerun
+drift finding from the accepted `131eb12` review. The fresh-readiness exact
+review remains active. No identity is filled by either task; **91/200,
+formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## G3-L audit index accepted in scope — 2026-10-02 22:11 UTC
 
 Exact `131eb12` received independently sealed `PASS_IN_SCOPE` for the
