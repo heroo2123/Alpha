@@ -19171,3 +19171,104 @@ follow-up worker (PID `2344662`), or a fresh look at the L-A/L-B/L-C
 follow-ups above as a bounded, independently-reviewable future slice.
 Separately, the h1h6/full-suite collection-order pollution under `-O`
 noted in the entry above remains open and unexplained.
+
+## Weather Gate-3 attempt-guard hardening (9a844b1) reviewed via Codex-to-Claude failover and merged; h1h6 collection-order diagnosis: could not reproduce — 2026-10-02 19:2x-19:4x UTC
+
+Recovered clean main `5394d19`, local = remote, nothing uncommitted. The
+`2344662` follow-up worker referenced above had already exited, leaving a
+clean committed candidate `9a844b1` ("Harden Gate 3 attempt guard runtime
+binding") on branch `gate3-attempt-runtime-wiring-20261002`, on top of the
+already-merged `7ef7d5d`/`261dbb6`. Its assigned Codex review had already
+been dispatched but had silently stalled: `/tmp/alpha-v11-gate3-attempt-
+runtime-review-9a844b1.log` contained only `You've hit your session limit
+· resets 7:20pm (UTC)`, no verdict. Per the owner's Codex-to-Claude
+continuity directive, failed this exact review over to Claude rather than
+waiting on Codex or asking the owner.
+
+**Weather review, APPROVED, merged.** Launched an Opus/high Claude review
+(different model than whichever system authored `9a844b1`) in the existing
+detached-HEAD worktree `/tmp/alpha-v11-gate3-attempt-runtime-review-
+9a844b1`, read-only, with the full original review brief (plan-binding,
+no-fake-ledger-equivalence, restart/single-shot durability, fail-closed
+error paths, exact `ModelState` typing, `attempt_model=None` no-op). It
+independently reran the six-file suite itself (839 passed plain, 839 under
+`-O`, one unrelated pytest `-O`-assert-mode warning; confirmed test
+asserts still execute via a throwaway failing assert), confirmed
+`py_compile` and `git diff --check 7ef7d5d 9a844b1` clean, and verified
+each of the ten review points against the real `run_attempt` path with
+throwaway scripts plus direct code reading. Verdict: **APPROVED**, no
+blocking findings; nine non-blocking follow-ups (N1-N9) recorded in
+`/tmp/alpha-v11-gate3-attempt-runtime-review-9a844b1.claude-opus.log`,
+the most notable being the guard's restart-check only inspecting finished
+attempts (unreachable through the actual runtime) and the admission
+fingerprint not being durably recorded (relevant before any non-synthetic
+use, not before). Confirmed `7ef7d5d` (merge-base) is an ancestor of
+current HEAD with no intervening change to either touched file, so no
+reconciliation was needed. Host-reran the same six-file suite myself after
+merging: 839 passed plain, 839 passed under `-O`, `py_compile` clean,
+`git diff --check` clean. Merged `--no-ff` as `b2a8cf9`.
+
+**Separate pre-existing issue surfaced, not caused by this merge:** the
+reviewer found that aggressive per-test temp-directory deletion (as
+pytest's own teardown does) makes 25 tests fail with
+`SHARED_LEDGER_LINEAGE_HEAD_MISMATCH`, both plain and under `-O` — but
+confirmed the identical 25 fail the same way at parent `7ef7d5d` too, so
+this commit did not cause it. Recorded as open, non-blocking, and possibly
+related to the collection-order item below; not investigated further this
+cycle.
+
+**h1h6/full-suite collection-order pollution: attempted diagnosis, could
+not reproduce.** In parallel, launched a Sonnet/high Claude worker in a
+fresh isolated worktree (`/tmp/alpha-v11-h1h6-order-diagnosis-20261002`,
+branch `h1h6-order-diagnosis-20261002`, from main `5394d19`) to reproduce,
+bisect, and if safe, fix this file's standing "open and unexplained" item.
+It ran the documented six-file set in the documented order six independent
+times (four normal, two with `__pycache__` wiped and
+`PYTHONDONTWRITEBYTECODE=1`), using a `--basetemp` off `/tmp`: **829
+passed, 0 failed, every time, plain and under `-O`** — the previously
+documented 102-failure result did not reproduce at all. It confirmed no
+randomizing plugin is installed (ruling out hash-seed flakiness) and that
+the only commits between the original observation and current main touch
+InventoryTransform files the six weather tests do not import. It then
+checked every hypothesis in its brief directly against source rather than
+guessing: zero bare `assert`-as-invariant usage in production code (the
+real guard helper `check()` in `tools/v11_r09_gate3_launch.py:61-63` is an
+ordinary function, unaffected by `-O`), zero module-level
+cache/`lru_cache`/global state, only function-scoped `monkeypatch`
+(auto-reverted) plus identical session-scoped fixtures regardless of
+order, and `FakeResourceProbe` injection means real host memory pressure
+cannot reach that path. Correctly treated "diagnosed only, no reproduction,
+no fix" as the honest outcome rather than fabricating or guessing a fix
+for a failure it could not observe. Full evidence at
+`/tmp/alpha-v11-h1h6-order-diagnosis-20261002.report.md`. Its leading,
+explicitly-labeled-unverified hypothesis is that the original observation
+was a transient environmental artifact (stale bytecode or a disk-pressure-
+induced fixture write failure during that specific prior host session)
+rather than a persistent code defect. Nothing was committed; the worktree
+was clean and identical to main, so it was removed after this entry was
+recorded. This item is now downgraded from "open and unexplained" to
+"could not reproduce as of `5394d19`; may resurface under disk/memory
+pressure — the reviewer's independent `SHARED_LEDGER_LINEAGE_HEAD_MISMATCH`
+finding above is a plausible related lead if it recurs."
+
+Resources throughout: MemAvailable ranged ~943 MiB-1.1 GiB, free disk
+4.5-4.6 GiB, two heavy specialists running concurrently (within the
+healthy-headroom three-specialist cap, no Axiom contention). No merge
+conflicts, no provider/network/financial/V10/AxiomTrade action, no
+SHADOW admission, qualification, or authority change. This hardening
+closes the remaining F1-F5 follow-ups on the opt-in, default-`None`
+`AttemptModelGuard` wiring — it still does not touch G3-L's 77 missing
+provider-evidence identities, so no C/J/E/A boundary crossed: **91/200
+(45.5%), formal 1/50; A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L
+NO-GO; NOT_READY_TO_FUND** — unchanged.
+
+Next unfinished action: per the post-attempt-model acceleration
+directive, decompose the remaining Gate-3 critical path into independent
+prerequisite lanes not blocked on unfinished bytes (collector/launch
+wiring, fresh-date package preparation, clock/calibration readiness,
+storage/resource reservation readiness, anonymous provider-access/path/
+lineage review, retained-restriction reconciliation, G3-L identity/
+evidence preparation) and start whichever is genuinely unblocked next.
+Separately, the N1-N9 follow-ups and the `SHARED_LEDGER_LINEAGE_HEAD_
+MISMATCH` teardown finding remain open, bounded, non-blocking candidates
+for a future independently-reviewed slice.
