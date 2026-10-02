@@ -6319,3 +6319,6 @@ confirmation; no change made.
 
 No code merged, no C/J/E/A change. **91/200 (45.5%), formal 1/50;
 NOT_READY_TO_FUND**.
+## B1 candidate pinned for independent review — 2026-10-02 04:40 UTC
+
+Recovered the stopped Sonnet/high B1 author without discarding its three-file draft. The author could not run tests or commit because its tool session required unavailable approvals. The coordinator verified file hashes, ran 57 focused offline tests and byte compilation, and committed the three files as isolated `d7789fd`. One persistent Sol/high exact-commit reviewer is live at `/tmp/alpha-v11-a4-b1-review-d7789fd`; acceptance and merge remain pending. No provider request, forward SHADOW evidence, release rerun, financial/authority/service action or C/J/E/A crossing. **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.

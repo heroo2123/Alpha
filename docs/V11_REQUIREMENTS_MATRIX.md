@@ -3623,3 +3623,6 @@ finding from the V4 slice-1 review (R2 cross-restart persistence of
 `delivery_held`); see [checkpoint](V11_WORK_CHECKPOINT.md) for the full
 root cause, fix and 309-passed verification. R1/R3-R6 are unaffected. No
 C/J/E/A change: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+## B1 exact-commit review pending — 2026-10-02 04:40 UTC
+
+The preserved B1 draft passed 57 focused offline tests and byte compilation, then became isolated commit `d7789fd` (tree `b57f71f`). One independent Sol/high exact-commit review is live at `/tmp/alpha-v11-a4-b1-review-d7789fd`; no verdict or integration is claimed. The checker always reports UNQUALIFIED/nonlaunchable by design and supplies no native closure or external provenance acceptance. No row status or C/J/E/A boundary changed: **A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO; 91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
