@@ -18300,3 +18300,42 @@ allows. No V10/AxiomTrade, financial, service, authority, or
 remote-publication action, and no C/J/E/A boundary crossed: **91/200,
 formal 1/50; A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO;
 NOT_READY_TO_FUND**.
+
+## Coordinator audit: InventoryTransform P2 repair confirmed redundant — 2026-10-02 14:48 UTC
+
+Recovered clean main `0d6ab0a` (unchanged since the 14:45 entry) and the
+live Gate 3 attempt-model Opus-repair worker (PID `2251890`/`2251898`,
+same worktree, now about 4 minutes elapsed, empty log as expected, clean
+worktree) — did not duplicate it.
+
+Separately inspected the InventoryTransform *evidence* lineage
+(`9600510`→`f6c7c90`→`16e984a`→`3d44aa6`, distinct from the already-merged
+SHADOW observer lineage `b04cc7b`/`2033b82`). Its newest repair `3d44aa6`
+(tree `4cc2c65`) has a sealed, original-process `PASS_IN_SCOPE` independent
+review (`/tmp/alpha-v11-inventory-transform-review-3d44aa6.*`, exit 0,
+clean tree, matching report/verdict hashes, 32 focused + 43 adjacent tests,
+zero network attempts) fixing IT-R1 (empty-cursor pagination false-COMPLETE)
+and IT-R4 (FIFO final-open hang) in `structural_evidence.py`. Byte-for-byte
+diff against current main shows `structural_evidence.py`,
+`neg_risk_contract.py`, both test files, and both JSON fixtures are
+**already identical** on main — this content reached main via a different,
+earlier commit (`5744dfa`, "Integrate independently reviewed offline
+inventory transforms"). The `3d44aa6` worktree/review is therefore stale:
+no merge is needed and none was performed. No code change, review launch,
+or integration occurred as a result.
+
+Confirmed the Brain readiness lineage (`58b0b79`) is already an ancestor
+of main — no pending Brain merge either. With MemAvailable at 905 MiB
+(just above the 900 MiB floor) and free disk 2.7 GiB (below the 3 GiB
+preferred threshold) on a host already running one heavy specialist plus
+this coordinator cycle, and swap already at 510 MiB, starting a second
+heavy Claude process was judged likely to slow the active weather
+critical-path repair rather than add genuine parallel throughput, so none
+was launched this cycle. InventoryTransform SHADOW observer remains merged
+and dormant pending its own reviewed start contract; no unblocked
+independent implementation task was found ready to launch in lane B or C.
+No provider request, capture, forward SHADOW evidence, V10/AxiomTrade/
+financial/service/authority action, or C/J/E/A boundary crossed: **91/200,
+formal 1/50; A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO;
+NOT_READY_TO_FUND**. Recover the attempt-model repair worker's
+terminal/log before any merge, new author, or next review launch.
