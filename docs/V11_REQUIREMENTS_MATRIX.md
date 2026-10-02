@@ -1,3 +1,5 @@
+At 2026-10-02 23:32 UTC, `976217d` and `741c6ae` remain locally verified but unreviewed new repair candidates; their exact external reviews need candidate-specific transfer authorization. An independent offline weather SharedLedger teardown diagnosis is live in an isolated worktree; it grants no Gate 3 or acceptance credit. **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 Fresh-readiness `976217d` and G3-L audit `741c6ae` have clean local detached exact-commit review checkouts staged as of 2026-10-02 23:25 UTC. Different-model exact reviews remain pending candidate-specific transfer authorization; neither candidate is merged or qualified. **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
 
 ## Two Gate 3 repair candidates await independent review — 2026-10-02 23:17 UTC

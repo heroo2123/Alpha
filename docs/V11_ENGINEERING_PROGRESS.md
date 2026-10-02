@@ -1,3 +1,7 @@
+## Coordinator weather test diagnosis — 2026-10-02 23:32 UTC
+
+Started one isolated Sonnet/high offline diagnosis of the recorded SharedLedger temporary-directory teardown failure (runner `2583598`; worktree `/tmp/alpha-v11-gate3-ledger-teardown-diagnosis-20261002`). The new `976217d` and `741c6ae` repairs remain review-held and unmerged. No provider request, capture, SHADOW admission or score crossing occurred. **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Exact Gate 3 repair review checkouts staged — 2026-10-02 23:25 UTC
 
 Staged clean local detached checkouts for `976217d` and `741c6ae` with matching commit/tree IDs. Their terminal-bound author evidence and passing offline tests remain in the handoff. Candidate-specific external-review authorization and independent verdicts remain pending; no review transfer, merge, provider request, capture, SHADOW admission or score crossing occurred. **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
