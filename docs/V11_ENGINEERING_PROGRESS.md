@@ -1,3 +1,14 @@
+## Coordinator recovery — 2026-10-02 06:07 UTC
+
+Recovered clean main `8d71576`, clean SHADOW/Brain worktrees, preserved ECMWF
+backfill, no separate worker and no new checked forward artifact. The protected
+FINAL-REVIEWED master hash matches. PAPER/scanner/controller and execution are
+inactive; disk remains below the G3-L floor. Asked the owner for the accepted
+bootstrap packet's precise section-3 decision; no exception, request, new
+writer or G3-L approval followed. Reviewed R1, Gate 2 and accepted release
+remain ancestors, with no new full-suite result. No C/J/E/A crossing:
+**91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## G3-L bootstrap adjudication exact review accepted — 2026-10-02 06:03 UTC
 
 Recovered the completed independent Sol/high review of exact `4c6d480` with

@@ -1,3 +1,30 @@
+## Coordinator recovery and owner decision request — 2026-10-02 06:07 UTC
+
+Recovered clean main `8d71576` (175 commits ahead of tracking) after the accepted
+bootstrap adjudication review. No separate Alpha worker or pytest process is live;
+the only Codex process belongs to this coordinator invocation. SHADOW
+`15e99bd` and Brain-readiness `58b0b79` remain clean, and ECMWF's untracked
+`backfill_data/` is preserved. No file newer than the 06:03 checkpoint appeared
+in the checked SHADOW, Brain, ECMWF, `evidence/` or `BrainWork/` paths. The
+protected FINAL-REVIEWED master still hashes to
+`a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+The owner-authorized R1, reviewed Gate 2, and accepted release commit remain
+ancestors of main; no new full-suite run or fill-markout failure occurred.
+
+Actual PAPER demo/scanner/controller and weather execution units are inactive;
+the first three are disabled and execution is masked. Protected V11 authority
+roots remain absent. Disk free is 881,975,296 bytes, below G3-L's 2 GiB floor;
+available memory is 1,172,480,000 bytes. No new owner decision or qualifying
+offline current-run evidence was present. Presented the accepted packet's
+section-3 choice to the owner: retain the no-request-before-PASS rule and await
+qualifying offline evidence, or allow preparation of a separately reviewed,
+evidence-only exception proposal. The question itself grants no exception or
+provider request. No writer was launched because scope and authority remain
+undecided. V10 was not changed; AxiomTrade was not accessed. No provider,
+service, authority, financial, publication or forward SHADOW action, and no
+C/J/E/A crossing: **A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO;
+91/200, formal 1/50; NOT_READY_TO_FUND**.
+
 ## G3-L bootstrap adjudication exact review accepted — 2026-10-02 06:03 UTC
 
 Recovered the completed independent Sol/high review of exact candidate

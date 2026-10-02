@@ -1,3 +1,13 @@
+## Coordinator gate check — 2026-10-02 06:07 UTC
+
+Clean main `8d71576` retains the exact-reviewed bootstrap adjudication, with no
+new current-run or forward SHADOW evidence and no active independent worker.
+The owner decision under section 3 was requested and remains pending; this does
+not authorize preflight or fill a reviewed input. Disk free is 881,975,296 bytes
+against the 2 GiB G3-L floor. No C/J/E/A boundary crossed: **A2/A3 UNQUALIFIED;
+A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO; 91/200, formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## G3-L bootstrap adjudication exact review accepted — 2026-10-02 06:03 UTC
 
 Independent exact-commit Sol/high review of `4c6d480` returned a clean,
