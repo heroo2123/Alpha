@@ -583,6 +583,15 @@ def test_refuses_excessive_clock_uncertainty():
     assert "EXCESSIVE_CLOCK_UNCERTAINTY" in result.refusal_reasons
 
 
+@pytest.mark.parametrize("bad_uncertainty", [float("nan"), float("inf"), float("-inf"), -1.0])
+def test_refuses_nonfinite_or_negative_clock_uncertainty_without_crashing(bad_uncertainty):
+    package_raw, restrictions_raw, protocol_raw, binding_raw = _synthetic_fixture()
+    bad_clock = ClockObservation("2026-10-02T10:05:00Z", bad_uncertainty, 10.0, True)
+    result = _run(package_raw, restrictions_raw, protocol_raw, binding_raw, clock=bad_clock)
+    assert result.outcome == OUTCOME_REFUSED
+    assert "INVALID_CLOCK_UNCERTAINTY" in result.refusal_reasons
+
+
 def test_refuses_nonmonotonic_clock():
     package_raw, restrictions_raw, protocol_raw, binding_raw = _synthetic_fixture()
     stepping_clock = ClockObservation("2026-10-02T10:05:00Z", 0.3, 10.0, False)

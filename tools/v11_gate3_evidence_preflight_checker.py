@@ -447,6 +447,11 @@ def _check_storage(obj: Mapping, resources: ResourceObservation, reasons: list) 
     return ok
 
 
+def _is_finite_nonneg(v: Any) -> bool:
+    return isinstance(v, (int, float)) and not isinstance(v, bool) and v == v and v not in (
+        float("inf"), float("-inf")) and v >= 0
+
+
 def _check_clock(obj: Mapping, clock: ClockObservation, reasons: list) -> bool:
     limits = obj.get("limits") if isinstance(obj.get("limits"), dict) else {}
     window = obj.get("window") if isinstance(obj.get("window"), dict) else {}
@@ -454,14 +459,15 @@ def _check_clock(obj: Mapping, clock: ClockObservation, reasons: list) -> bool:
     if not clock.monotonic_consistent:
         reasons.append("NONMONOTONIC_CLOCK")
         ok = False
-    if not (clock.uncertainty_seconds == clock.uncertainty_seconds) or clock.uncertainty_seconds < 0:
+    uncertainty_valid = _is_finite_nonneg(clock.uncertainty_seconds)
+    if not uncertainty_valid:
         reasons.append("INVALID_CLOCK_UNCERTAINTY")
         ok = False
     elif clock.uncertainty_seconds > limits.get("clock_uncertainty_seconds",
                                                  FROZEN_LIMITS["clock_uncertainty_seconds"]):
         reasons.append("EXCESSIVE_CLOCK_UNCERTAINTY")
         ok = False
-    if not (clock.calibration_age_seconds == clock.calibration_age_seconds) or clock.calibration_age_seconds < 0:
+    if not _is_finite_nonneg(clock.calibration_age_seconds):
         reasons.append("INVALID_CALIBRATION_AGE")
         ok = False
     elif clock.calibration_age_seconds > limits.get("clock_calibration_max_age_seconds",
@@ -481,7 +487,10 @@ def _check_clock(obj: Mapping, clock: ClockObservation, reasons: list) -> bool:
         # Fold the clock's own stated uncertainty into the bound check: the
         # true time could be anywhere in [measured-u, measured+u], so the
         # window must hold for the whole interval, not just the point value.
-        margin = timedelta(seconds=max(clock.uncertainty_seconds, 0.0))
+        # A non-finite/invalid uncertainty is already refused above via
+        # INVALID_CLOCK_UNCERTAINTY; use a zero margin rather than feeding a
+        # NaN/infinite value into timedelta (which would raise).
+        margin = timedelta(seconds=clock.uncertainty_seconds if uncertainty_valid else 0.0)
         if measured - margin < lower:
             reasons.append("CLOCK_BEFORE_WINDOW_START")
             ok = False
