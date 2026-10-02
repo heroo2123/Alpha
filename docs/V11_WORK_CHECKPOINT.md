@@ -1,3 +1,29 @@
+## Coordinator recovery — 2026-10-02 08:57 UTC
+
+Recovered clean main `87a95f9`; the only change since the 08:47 checkpoint is
+its documentation commit closing the stale A2/A3 route. The persistent
+coordinator is live, but no separate Alpha author, reviewer, or pytest worker
+is active. SHADOW and Brain-readiness worktrees remain clean; ECMWF's untracked
+`backfill_data/` is preserved. No checked worktree file newer than 08:47 or
+new forward SHADOW/Brain evidence appeared. The private FINAL-REVIEWED master
+still hashes to `a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+
+Re-read the accepted bootstrap adjudication's section 3. Its explicit owner
+choice remains pending; no evidence-only preflight exception or provider request
+is authorized. The October 3 local-only screen remains blocked at 77 unfilled
+reviewed identities and zero of 2,713 slots. Free disk is about 793 MiB,
+below G3-L's 2 GiB floor; available memory is about 1.0 GiB. Weather execution
+is inactive, protected V11 authority roots are absent, and no Alpha PAPER or
+execution process is live. The user service bus was unavailable, so unit enable
+states were not reverified. Historical 5,460-pass/13-skip release evidence was
+not rerun. No worker was launched because the next substantive paths depend on
+authentic external evidence, protected storage/capacity, or the owner choice;
+the reviewed Gate 2/B1/A2-A3 decision work is already integrated. No deletion,
+provider request, service/authority change, V10/AxiomTrade intervention,
+financial action, remote publication, or C/J/E/A crossing: **A2/A3 UNQUALIFIED;
+A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO; 91/200, formal 1/50;
+NOT_READY_TO_FUND**.
+
 ## A2/A3 stale escalation resolved — 2026-10-02 08:47 UTC
 
 The 08:20 route repeated work already completed at 03:52 and accepted at 03:53.

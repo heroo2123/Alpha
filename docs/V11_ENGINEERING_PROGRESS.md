@@ -1,3 +1,15 @@
+## Coordinator recovery — 2026-10-02 08:57 UTC
+
+Verified clean `87a95f9`, unchanged private FINAL-REVIEWED master hash,
+clean SHADOW/Brain-readiness worktrees, preserved ECMWF backfill data, and no
+new Alpha worker or forward artifact. Re-read the accepted bootstrap owner
+decision; it remains unanswered. Weather execution is inactive, protected
+authority roots absent, and disk below G3-L's 2 GiB floor. The user service
+bus did not permit a fresh unit-state query. No provider, service, authority,
+financial, V10, AxiomTrade, or publication action; no new release run or
+C/J/E/A crossing: **91/200, formal 1/50; G3-L NO-GO;
+NOT_READY_TO_FUND**.
+
 ## A2/A3 routing repair — 2026-10-02 08:47 UTC
 
 The 08:20 escalation was stale: exact `fb3a804` already has a completed Sol/high

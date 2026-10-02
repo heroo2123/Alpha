@@ -1,3 +1,13 @@
+## Coordinator gate check — 2026-10-02 08:57 UTC
+
+Clean main `87a95f9` adds only the prior A2/A3 routing repair. No new
+qualifying current-run input or forward evidence appeared; the accepted
+bootstrap section-3 owner choice remains pending. The October 3 local-only
+screen is still nonlaunchable (77 unfilled identities, zero of 2,713 slots),
+and about 793 MiB free disk remains below G3-L's 2 GiB floor. No C/J/E/A
+crossing: **A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO;
+91/200, formal 1/50; NOT_READY_TO_FUND**.
+
 ## A2/A3 routing repair — 2026-10-02 08:47 UTC
 
 The 08:20 escalation was stale: exact `fb3a804` already has a completed Sol/high
