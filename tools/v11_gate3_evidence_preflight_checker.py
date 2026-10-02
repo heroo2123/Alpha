@@ -351,10 +351,15 @@ def _is_ref_list(v: Any, keys: frozenset, max_len: int = MAX_ARRAY) -> bool:
 def _parse_utc(v: Any) -> Optional[datetime]:
     if not _is_bounded_str(v):
         return None
-    # fromisoformat silently truncates sub-microsecond timestamp digits.
-    # Reject that unsupported precision rather than narrowing a dispatch
-    # interval at either window boundary (including fractional offsets).
-    if re.search(r"[.,]\d{7,}", v):
+    # fromisoformat silently truncates extra fractional digits and, on this
+    # interpreter, discards fractional offsets whose whole seconds are zero.
+    # Only accept an explicit time to microsecond precision and a Z or
+    # minute-resolution numeric offset, so the parsed UTC instant preserves
+    # every supplied timing component at the dispatch boundaries.
+    if re.fullmatch(
+        r"\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:[.,]\d{1,6})?(?:Z|[+-]\d{2}:\d{2})",
+        v,
+    ) is None:
         return None
     try:
         parsed = datetime.fromisoformat(v.replace("Z", "+00:00"))

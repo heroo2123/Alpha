@@ -691,6 +691,35 @@ def test_clock_refuses_timestamp_precision_it_cannot_represent(measured):
     assert "UNPARSEABLE_CLOCK" in result.refusal_reasons
 
 
+@pytest.mark.parametrize("measured,uncertainty", [
+    ("2026-10-02T10:00:00+00:00:00.000001", 0),
+    ("2026-10-02T13:29:59.999999-00:00:00.000001", 0),
+    ("2026-10-02T10:00:00.300000+00:00:00.9", 0.3),
+    ("2026-10-02T13:29:59.699999-00:00:00.9", 0.3),
+])
+def test_fractional_offset_cannot_shift_frozen_window_silently(measured, uncertainty):
+    clock = dataclasses.replace(GOOD_CLOCK, measured_utc=measured,
+                                uncertainty_seconds=uncertainty)
+    result = _run(*_synthetic_fixture(), clock=clock)
+    assert result.outcome == OUTCOME_REFUSED
+    assert "UNPARSEABLE_CLOCK" in result.refusal_reasons
+
+
+@pytest.mark.parametrize("field,expected_reason", [
+    ("prepared_at_utc", "MALFORMED_BINDING_PREPARED_AT_UTC"),
+    ("received_at", "MISSING_OR_MALFORMED_RESTRICTION_RECORDS"),
+])
+@pytest.mark.parametrize("offset", ["+00:00:00.000001", "-00:00:00.9"])
+def test_fractional_offset_refused_at_other_evidence_timestamps(field, expected_reason, offset):
+    timestamp = "2026-10-02T10:05:00" + offset
+    if field == "prepared_at_utc":
+        result = _run_rebound(binding_change=lambda b: b.__setitem__(field, timestamp))
+    else:
+        result = _run_rebound(restrictions_change=lambda r: r["records"][0]["response"].__setitem__(field, timestamp))
+    assert result.outcome == OUTCOME_REFUSED
+    assert expected_reason in result.refusal_reasons
+
+
 def test_refuses_nonmonotonic_clock():
     package_raw, restrictions_raw, protocol_raw, binding_raw = _synthetic_fixture()
     stepping_clock = ClockObservation("2026-10-02T10:05:00Z", 0.3, 10.0, False)
