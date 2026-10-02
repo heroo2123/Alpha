@@ -1,0 +1,147 @@
+{
+  "allowed_review_verdicts": [
+    "PASS_IN_SCOPE_DESIGN_BLOCKED_PACKAGE",
+    "CHANGES_REQUIRED"
+  ],
+  "baseline_commit": "74075b524b0301fdd13a45d03d9c42876564a9d3",
+  "formal": "1/50",
+  "g3l": "NO_GO",
+  "intended_review_scope": "DESIGN_AND_EXACT_BLOCKED_PRIVATE_PACKAGE_NOT_EXECUTION",
+  "missing_prerequisites": [
+    "accepted_protocol_design_review",
+    "anonymous_access_and_exact_path_review",
+    "complete_restriction_and_control_domain_review",
+    "shared_lineage_and_unfinished_intent_reconciliation",
+    "independently_retained_history_head",
+    "runtime_source_and_transitive_build_lock",
+    "runtime_implementation_review",
+    "dns_tls_trust_and_bounded_transport_review",
+    "index_parser_semantics_review",
+    "clock_method_and_calibration_review",
+    "private_storage_persistence_lock_and_reservation_review",
+    "post_reservation_resource_enforcement_review"
+  ],
+  "native_decode_calls": 0,
+  "owner_instruction_record": {
+    "byte_length": 1441,
+    "path": "/home/alphaadmin/AlphaV11_Gate3EvidencePreflight/20261002-gefs-index-v1/inputs/OWNER_PREFLIGHT_DIRECTIVE_20261002.txt",
+    "sha256": "af19ffc98b171e5381f9ae1e8d01d0fc93ad29ae4992a59f7260e437dc1a38b3"
+  },
+  "prepared_at_utc": "2026-10-02T09:25:30.001040+00:00",
+  "private_package": {
+    "byte_length": 11480,
+    "path": "/home/alphaadmin/AlphaV11_Gate3EvidencePreflight/20261002-gefs-index-v1/package.json",
+    "sha256": "c7d1420fa4e539810f181c244d57b260ced5dc075b0eb9a11351be5f345e2ab8"
+  },
+  "private_restrictions": {
+    "byte_length": 4133,
+    "path": "/home/alphaadmin/AlphaV11_Gate3EvidencePreflight/20261002-gefs-index-v1/restriction-history.json",
+    "sha256": "fcf4c751a9d591c09e397afd6633efa8a4a6f70312d037d6b64c619579d55636"
+  },
+  "private_root": "/home/alphaadmin/AlphaV11_Gate3EvidencePreflight/20261002-gefs-index-v1",
+  "protocol": {
+    "byte_length": 20274,
+    "path": "/home/alphaadmin/AlphaV11_Dev/Alpha/docs/V11_R09_GATE3_EVIDENCE_PREFLIGHT_PROTOCOL_20261002.md",
+    "sha256": "ae59812fa58ec41895b87408f0ea175988ae6d20a1f4d5dabcd96a01c2dd3a68"
+  },
+  "provider_requests": 0,
+  "qualification_credit": 0,
+  "raw_restriction_sources": [
+    {
+      "byte_length": 632,
+      "path": "/home/alphaadmin/AlphaV11_R09Extrema/Alpha/private-evidence/r09-extrema/aws-retry.json",
+      "sha256": "de578a0c51a8811d5bd5c84dcef4e6ece3969b3f631cd43585240c24176b6e19"
+    },
+    {
+      "byte_length": 278,
+      "path": "/home/alphaadmin/AlphaV11_R09Extrema/Alpha/private-evidence/r09-extrema/aws-retry-body",
+      "sha256": "7c21325b9a8c5d3b7f06bed411ae11e6fa6dcb490320671bd8e1d49a64956a28"
+    },
+    {
+      "byte_length": 20811,
+      "path": "/home/alphaadmin/AlphaV11_R09Extrema/Alpha/private-evidence/r09-extrema/capture-v1/capture.json",
+      "sha256": "443b4ad67c8ef71e80db2ec4eca6047032509495fc4ed39311f3913609d69806"
+    },
+    {
+      "byte_length": 278,
+      "path": "/home/alphaadmin/AlphaV11_R09Extrema/Alpha/private-evidence/r09-extrema/capture-v1/objects/0986be0818f5c4e80bddac64bcd37d8f77da4c43acb380aaa7e4bcb677a51460",
+      "sha256": "0986be0818f5c4e80bddac64bcd37d8f77da4c43acb380aaa7e4bcb677a51460"
+    },
+    {
+      "byte_length": 17,
+      "path": "/home/alphaadmin/AlphaV11_R09Extrema/Alpha/private-evidence/r09-extrema/capture-v1/objects/3850dfdbf4489250268b5f0740240a9f4445e7c5c29e1d03aa0c5446808d7507",
+      "sha256": "3850dfdbf4489250268b5f0740240a9f4445e7c5c29e1d03aa0c5446808d7507"
+    }
+  ],
+  "schema": "ALPHA_V11_EVIDENCE_PREFLIGHT_BINDING_V1",
+  "score": "91/200",
+  "source_inputs": [
+    {
+      "byte_length": 11880,
+      "path": "/home/alphaadmin/AlphaV11_Gate3EvidencePreflight/20261002-gefs-index-v1/inputs/V11_R09_GATE3_BOOTSTRAP_ADJUDICATION_20261002.md",
+      "repository_path": "docs/V11_R09_GATE3_BOOTSTRAP_ADJUDICATION_20261002.md",
+      "sha256": "4c28e16704ab62093483033229036f5df8194c0790ed35ac9f61bf5dc2619c02"
+    },
+    {
+      "byte_length": 5408,
+      "path": "/home/alphaadmin/AlphaV11_Gate3EvidencePreflight/20261002-gefs-index-v1/inputs/V11_R09_GATE3_BOOTSTRAP_REVIEW_4c6d480.md",
+      "repository_path": "docs/V11_R09_GATE3_BOOTSTRAP_REVIEW_4c6d480.md",
+      "sha256": "ad3449e5df97b6c2a4db89a63e9731345cfff59f6cb5fcf716e4fcec6ac7b964"
+    },
+    {
+      "byte_length": 747,
+      "path": "/home/alphaadmin/AlphaV11_Gate3EvidencePreflight/20261002-gefs-index-v1/inputs/V11_R09_GATE3_BOOTSTRAP_REVIEW_4c6d480.terminal.json",
+      "repository_path": "docs/V11_R09_GATE3_BOOTSTRAP_REVIEW_4c6d480.terminal.json",
+      "sha256": "34a57b94dbdbce633ff7942613baebaea98047177dfde9728f4f50757ae021ce"
+    },
+    {
+      "byte_length": 11925,
+      "path": "/home/alphaadmin/AlphaV11_Gate3EvidencePreflight/20261002-gefs-index-v1/inputs/V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.md",
+      "repository_path": "docs/V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.md",
+      "sha256": "eb34a6940da19f77ce43dd543926ef6524773f963e2371bc4657466bb8933302"
+    },
+    {
+      "byte_length": 59867,
+      "path": "/home/alphaadmin/AlphaV11_Gate3EvidencePreflight/20261002-gefs-index-v1/inputs/V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.json",
+      "repository_path": "docs/V11_R09_GATE3_A5A6_OFFLINE_AUDIT_20261001.json",
+      "sha256": "1535356757b1ed2cc9069378deb51dae3e4e3b829b58ddf157c54e1d213513fa"
+    },
+    {
+      "byte_length": 5115,
+      "path": "/home/alphaadmin/AlphaV11_Gate3EvidencePreflight/20261002-gefs-index-v1/inputs/V11_R09_GATE3_V4_PROVIDER_MAPPING_REPAIR_REVIEW_23c11e0.md",
+      "repository_path": "docs/V11_R09_GATE3_V4_PROVIDER_MAPPING_REPAIR_REVIEW_23c11e0.md",
+      "sha256": "d2a617ce9155b1b1614210510e04bfd09bdd27620236e6cfee6a2c74650bd1af"
+    },
+    {
+      "byte_length": 20041,
+      "path": "/home/alphaadmin/AlphaV11_Gate3EvidencePreflight/20261002-gefs-index-v1/inputs/V11_R09_GATE3_COLLECTION_PROTOCOL.md",
+      "repository_path": "docs/V11_R09_GATE3_COLLECTION_PROTOCOL.md",
+      "sha256": "da3144c558134e7bd6a06b5c3f298740e86cee13be7c54a9932204362c269524"
+    },
+    {
+      "byte_length": 17309,
+      "path": "/home/alphaadmin/AlphaV11_Gate3EvidencePreflight/20261002-gefs-index-v1/inputs/V11_R09_GATE3_LAUNCH_CONTRACT_ADJUDICATION.md",
+      "repository_path": "docs/V11_R09_GATE3_LAUNCH_CONTRACT_ADJUDICATION.md",
+      "sha256": "a4a2a18e83a53359e3a46cdf7cbda6031c6afec74e5d497f2cd126b1ae7b943c"
+    },
+    {
+      "byte_length": 28627,
+      "path": "/home/alphaadmin/AlphaV11_Gate3EvidencePreflight/20261002-gefs-index-v1/inputs/V11_R09_GATE3_TRANSPORT_RUNTIME_DESIGN.md",
+      "repository_path": "docs/V11_R09_GATE3_TRANSPORT_RUNTIME_DESIGN.md",
+      "sha256": "0b121fbc422208e2fa89e0b2f7362725cac60115ada966ed83b9d1ed15ac8e4a"
+    },
+    {
+      "byte_length": 16704,
+      "path": "/home/alphaadmin/AlphaV11_Gate3EvidencePreflight/20261002-gefs-index-v1/inputs/V11_R09_GATE3_IDENTITY_ACCEPTANCE_20261001.md",
+      "repository_path": "docs/V11_R09_GATE3_IDENTITY_ACCEPTANCE_20261001.md",
+      "sha256": "db298d49301a686711a7d89e7456d95fcd34da8616970fa7f52374b91440aa9d"
+    },
+    {
+      "byte_length": 20274,
+      "path": "/home/alphaadmin/AlphaV11_Gate3EvidencePreflight/20261002-gefs-index-v1/inputs/V11_R09_GATE3_EVIDENCE_PREFLIGHT_PROTOCOL_20261002.md",
+      "repository_path": "docs/V11_R09_GATE3_EVIDENCE_PREFLIGHT_PROTOCOL_20261002.md",
+      "sha256": "ae59812fa58ec41895b87408f0ea175988ae6d20a1f4d5dabcd96a01c2dd3a68"
+    }
+  ],
+  "status": "CANDIDATE_DESIGN_AND_BLOCKED_PACKAGE"
+}
