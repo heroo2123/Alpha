@@ -1,3 +1,13 @@
+## Coordinator gate check — 2026-10-02 09:36 UTC
+
+Exact preflight candidate `27513d2` remains blocked before independent review
+by the rejected private-evidence transfer; the owner question is pending. Five
+verified inactive, re-creatable mapping pytest scratch directories were removed,
+leaving 3,087,794,176 bytes free, above the 2 GiB floor but below preferred
+3 GiB. No new qualifying input, forward SHADOW evidence or C/J/E/A boundary:
+**91/200, formal 1/50; G3-L NO-GO; A2/A3 UNQUALIFIED; A4 OPEN;
+A8 UNQUALIFIED; NOT_READY_TO_FUND**.
+
 ## Evidence-only preflight prepared — 2026-10-02 09:31 UTC
 
 Candidate `27513d2` now supplies the separate protocol and concrete private

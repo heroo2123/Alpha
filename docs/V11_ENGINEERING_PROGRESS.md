@@ -1,3 +1,15 @@
+## Coordinator recovery — 2026-10-02 09:36 UTC
+
+Recovered clean `d816f0f` and no independent Alpha worker or new forward
+artifact. Preserved the blocked exact preflight review boundary: no private
+transfer approval, design PASS, implementation, provider request or capture
+credit. Removed only five inactive mapping pytest scratch directories after
+checking open files (138,256,384 bytes pre-removal `du` allocation); protected A8 fixture and
+retained evidence remain intact. Free disk is 3,087,794,176 bytes and
+MemAvailable 971,972 KiB. No service, authority, financial, V10, AxiomTrade or
+publication action; no C/J/E/A crossing: **91/200, formal 1/50; G3-L NO-GO;
+NOT_READY_TO_FUND**.
+
 ## Evidence-only preflight prepared — 2026-10-02 09:31 UTC
 
 Candidate `27513d2` now supplies the separate protocol and concrete private

@@ -1,3 +1,30 @@
+## Coordinator recovery and bounded space cleanup — 2026-10-02 09:36 UTC
+
+Recovered clean main `d816f0f` after the 09:31 handoff; the only intervening
+commit recorded that handoff. No separate Alpha author, reviewer, test worker or
+new checked SHADOW/Brain artifact is live. SHADOW and Brain-readiness trees are
+clean; ECMWF's untracked backfill data is preserved. The private FINAL-REVIEWED
+master still hashes to `a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+
+The exact `27513d2` preflight design/package remains prepared and non-executable.
+Automatic approval review rejected the private-evidence transfer for independent
+Codex review; the destination-specific owner question remains pending. No review
+PASS, checker, executable package, provider request or new qualification is
+claimed. The frozen 10:00–13:30 UTC proposal cannot be rolled forward silently.
+
+Removed 138,256,384 bytes (pre-removal `du` allocation) from five October 1 mapping `pytest --basetemp`
+directories after checking that no pytest/Alpha worker or open file used them.
+Retained review reports/terminals, worktrees, original evidence and the protected
+1.5 GiB A8 fixture. Observed free disk rose from 2,950,172,672 to 3,087,794,176 bytes:
+above the 2 GiB G3-L floor, still below the preferred 3 GiB. MemAvailable was
+971,972 KiB at 09:36 UTC. The user service bus could not provide a current unit
+query; no Alpha PAPER or execution process appeared, and protected V11 authority
+roots remain absent. Historical 5,460-pass/13-skip release remains accepted; no
+new test was needed for scratch cleanup. No V10, AxiomTrade, service, authority,
+financial or publication action. No C/J/E/A crossing: **91/200, formal 1/50;
+A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO;
+NOT_READY_TO_FUND**.
+
 ## Evidence preflight candidate prepared; review transfer blocked — 2026-10-02 09:31 UTC
 
 Astra/high completed the routed bootstrap design task as exact candidate
