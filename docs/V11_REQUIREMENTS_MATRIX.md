@@ -3886,3 +3886,11 @@ Clean main `37484cd`; no new qualifying current-run evidence, forward SHADOW art
 ## Coordinator recovery — 2026-10-02 07:45 UTC
 
 Main `40e1f80` adds only the prior recovery record. R1 and accepted B1 remain integrated; no new current-run or forward evidence appeared. The October 3 PRE_REVIEW screen still has 77 missing identities and zero of 2,713 slots; disk free is about 807 MiB against the 2 GiB floor. The reviewed bootstrap owner decision is pending. No C/J/E/A boundary crossed: **A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO; 91/200, formal 1/50; NOT_READY_TO_FUND**.
+## Coordinator gate check — 2026-10-02 07:51 UTC
+
+Recovered and byte-bound the original G3-P review terminal for `117830a`.
+This supplies one historical completion record, not a G3-L qualified input:
+its PASS covers offline synthetic collector work only. Three G3-I historical
+completion records, current-run evidence, owner bootstrap choice and storage
+headroom remain open. **A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED;
+G3-L NO-GO; 91/200, formal 1/50; NOT_READY_TO_FUND**.

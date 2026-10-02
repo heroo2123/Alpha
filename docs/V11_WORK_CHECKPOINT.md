@@ -17714,3 +17714,25 @@ Revalidated the October 3 local-only PRE_REVIEW report hash `82832ff0e0b607fb7ad
 Recovered clean main `40e1f80`; its sole change after the previous recovery is that documentation commit. No separate Alpha worker or pytest is live. SHADOW and Brain-readiness trees are clean; ECMWF's untracked `backfill_data/` remains preserved. No commissioning or BrainWork file newer than 07:41 appeared. The FINAL-REVIEWED private master still matches SHA-256 `a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
 
 Verified that reviewed R1 `58a465f` and B1's accepted, reconciled bytes are already on main. The old load/order-sensitive fill-markout failure was resolved by the accepted 5,460-pass/13-skip release run; no newer full-suite result is claimed. The October 3 local-only G3-L screen remains blocked with 77 missing reviewed identities and zero of 2,713 attempt slots. PAPER demo/scanner/controller and weather execution units are inactive, scanner disabled and execution masked; protected V11 authority roots remain absent. Disk has about 807 MiB free against G3-L's 2 GiB floor; available memory is about 1.1 GiB. The prior deletion-rejected A8 fixture remains intact. The accepted bootstrap section-3 owner decision remains pending, so no provider request or preflight exception was made. No safe independent writer task emerged from the checked state. No service, authority, financial, V10, AxiomTrade or publication action and no C/J/E/A crossing: **A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO; 91/200, formal 1/50; NOT_READY_TO_FUND**.
+
+## Coordinator recovery — 2026-10-02 07:51 UTC
+
+Recovered the original G3-P independent review terminal from the retained
+`/tmp/alpha-v11-r09-gate3-protocol-review-117830a` review directory and
+preserved its bytes as `docs/V11_R09_GATE3_PROTOCOL_REVIEW_117830a_terminal.json`.
+It records exit 0 and `R09_GATE3_PROTOCOL_REVIEW_PASS` for exact commit
+`117830a`/tree `07c4d72`, and its report SHA-256 matches the retained review
+in `docs/` (`7d2bda20...e0b53050b4`). This closes only the missing historical
+completion-record recovery for `protocol.g3p_original_review_terminal`;
+it grants offline synthetic collector scope only. The other three named
+historical G3-I completion records were not found in the bounded search and
+remain open. The accepted exact-byte reconciliation packet was left unchanged.
+
+Main was clean at `8f5e6d6` before this recovery; no separate Alpha worker or
+new forward evidence appeared. PAPER units remain inactive, execution masked,
+protected V11 authority roots absent, and free disk was 843,960,320 bytes,
+below G3-L's 2 GiB floor. The reviewed bootstrap section-3 owner decision and
+current-run evidence remain outstanding. No provider, service, authority,
+financial, V10, AxiomTrade or publication action; no C/J/E/A crossing:
+**A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO; 91/200,
+formal 1/50; NOT_READY_TO_FUND**.
