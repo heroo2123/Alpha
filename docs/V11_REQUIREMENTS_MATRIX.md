@@ -1,5 +1,9 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## A2/A3 offline acceptance handoff — 2026-10-02 03:43 UTC
+
+`docs/V11_R09_GATE3_A2A3_NEXT_REVIEW_HANDOFF_20261002.md` scopes an Astra/high decision on missing authenticated originals, 25 `eckitlib` RECORD discrepancies and incomplete native/loader closure. It is a handoff, not evidence acceptance. The B1 retry is already live and must not be duplicated. G3-L remains nonlaunchable with 77 missing identities, zero slots and disk below 2 GiB. No row acceptance or C/J/E/A score change: **91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## B1 review preparation — 2026-10-02 03:38 UTC
 
 The sole B1 retry remains live and has no candidate or implementation verdict. `docs/V11_R09_GATE3_A4_B1_REVIEW_PREP_20261002.md` records exact-commit review criteria derived from the accepted design; it supplies no A4 qualification. The October 3 G3-L local screen remains nonlaunchable with 77 missing identities and zero slots, and free disk remains below 2 GiB. No row acceptance or C/J/E/A score changed: **91/200 (45.5%), formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
