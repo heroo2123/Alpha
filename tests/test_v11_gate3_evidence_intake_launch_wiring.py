@@ -388,6 +388,24 @@ def test_from_report_rejects_wrong_intake_schema():
         EvidenceIntakeRecord.from_report(report)
 
 
+@pytest.mark.parametrize('key,value', [
+    ('schema', 'OTHER_CHECKER_SCHEMA'),
+    ('eligibility', 'G3E_ELIGIBLE'),
+    ('outcome', 'CHECKER_REFUSED_BEFORE_DISPATCH'),
+])
+def test_from_report_rejects_inconsistent_satisfied_claim(key, value):
+    report = _report(**{key: value})
+    with pytest.raises(LaunchContractError, match='EVIDENCE_INTAKE_REPORT_CONSISTENCY'):
+        EvidenceIntakeRecord.from_report(report)
+
+
+def test_from_report_rejects_refused_claim_with_satisfied_outcome():
+    report = _report(satisfied=False, outcome='CHECKER_SCHEMA_AND_POLICY_SATISFIED_NOT_EXECUTABLE',
+                     refusal_reasons=['CLOCK_UNAVAILABLE'])
+    with pytest.raises(LaunchContractError, match='EVIDENCE_INTAKE_REPORT_CONSISTENCY'):
+        EvidenceIntakeRecord.from_report(report)
+
+
 def test_record_rejects_satisfied_true_with_nonempty_refusal_reasons():
     with pytest.raises(LaunchContractError, match='EVIDENCE_INTAKE_RECORD_CONSISTENCY'):
         EvidenceIntakeRecord(satisfied=True, outcome='x', refusal_reasons=('SOMETHING',),

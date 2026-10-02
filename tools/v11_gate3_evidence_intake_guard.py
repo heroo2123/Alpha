@@ -26,6 +26,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from tools.v11_gate3_evidence_preflight_checker import (
+    ELIGIBILITY_LABEL, OUTCOME_REFUSED, OUTCOME_SATISFIED,
+    SCHEMA as CHECKER_SCHEMA,
+)
 from tools.v11_gate3_evidence_preflight_real_intake import (
     SCHEMA as REAL_INTAKE_SCHEMA,
     run_real_evidence_intake,
@@ -90,6 +94,11 @@ class EvidenceIntakeRecord:
               report['provider_authority'] is False and
               report['capture_authority'] is False,
               'EVIDENCE_INTAKE_REPORT_AUTHORITY_FORBIDDEN')
+        check(report['schema'] == CHECKER_SCHEMA and
+              report['eligibility'] == ELIGIBILITY_LABEL and
+              report['outcome'] == (OUTCOME_SATISFIED if report['satisfied'] is True
+                                    else OUTCOME_REFUSED),
+              'EVIDENCE_INTAKE_REPORT_CONSISTENCY')
         check(type(report['refusal_reasons']) is list, 'EVIDENCE_INTAKE_REPORT_SCHEMA')
         return cls(satisfied=report['satisfied'], outcome=report['outcome'],
                     refusal_reasons=tuple(report['refusal_reasons']),
