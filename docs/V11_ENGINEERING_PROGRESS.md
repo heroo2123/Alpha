@@ -6907,3 +6907,11 @@ Fresh-readiness `947bf68` and G3-L hardening `c9e3b8d` remain separately
 review-held after the automatic private-transfer rejection. No provider
 request, capture, SHADOW admission or score crossing: **91/200, formal 1/50;
 G3-L NO-GO; NOT_READY_TO_FUND**.
+## Reviewed intake guard consistency integrated — 2026-10-02 22:46 UTC
+
+Independent Astra/high exact-commit review of `4789494` returned PASS, with
+27 focused tests and an independent 1,296-combination matrix. Preserved the
+review record and merged the candidate at `a93913e`; 47 post-merge focused
+offline tests pass plain and `-O`. The separate fresh-readiness/G3-L review
+holds remain; no provider request, capture, SHADOW or acceptance crossing:
+**91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.

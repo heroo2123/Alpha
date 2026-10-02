@@ -4248,3 +4248,11 @@ It is unmerged and awaiting different-model exact review; it fills no G3-L
 identity and grants no dispatch or provider authority. The older `947bf68`
 and `c9e3b8d` reviews remain pending. **91/200, formal 1/50; G3-L NO-GO;
 NOT_READY_TO_FUND**.
+## Intake-report consistency integrated — 2026-10-02 22:46 UTC
+
+Different-model Astra/high exact review of `4789494` passed; the offline
+fail-closed intake-report consistency repair is merged locally at `a93913e`.
+Post-merge focused tests pass 47/47 plain and optimized. It supplies no G3-L
+identity, provider authority, capture evidence or SHADOW admission; `947bf68`
+and `c9e3b8d` still await their own independent exact reviews. **91/200,
+formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.

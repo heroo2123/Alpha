@@ -19759,3 +19759,18 @@ V11 authority roots are absent, the user service bus is unavailable, free
 disk was about 4.09 GB and MemAvailable about 1.12 GB. No provider request,
 capture, SHADOW, V10/Axiom/financial/authority action or C/J/E/A crossing:
 **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+## Coordinator intake-guard review and integration — 2026-10-02 22:46 UTC
+
+Independent Codex Astra/high read-only review of exact `4789494` (tree
+`0ad02fd`) returned **PASS** with no required changes. It confirmed the exact
+two-file diff, ran 27 focused tests, and independently checked 1,296 report
+combinations (only the two valid forms admitted) without reading retained
+private evidence or making a provider request. The verdict is preserved in
+[the exact review record](V11_R09_GATE3_INTAKE_REPORT_CONSISTENCY_REVIEW_4789494.md).
+Merged into newer local main at `a93913e` after retaining the review; 47
+focused offline post-merge tests pass plain and under `-O`. The optional
+intake guard now rejects inconsistent schema, eligibility and outcome claims
+before guard construction. The separately held `947bf68` fresh-readiness and
+`c9e3b8d` G3-L hardening candidates remain unreviewed/unmerged. No new
+provider request, capture, forward SHADOW or C/J/E/A crossing: **91/200,
+formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
