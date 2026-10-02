@@ -489,14 +489,25 @@ def _check_clock(obj: Mapping, clock: ClockObservation, reasons: list) -> bool:
         # window must hold for the whole interval, not just the point value.
         # A non-finite/invalid uncertainty is already refused above via
         # INVALID_CLOCK_UNCERTAINTY; use a zero margin rather than feeding a
-        # NaN/infinite value into timedelta (which would raise).
-        margin = timedelta(seconds=clock.uncertainty_seconds if uncertainty_valid else 0.0)
-        if measured - margin < lower:
-            reasons.append("CLOCK_BEFORE_WINDOW_START")
+        # NaN/infinite value into timedelta (which would raise). A finite but
+        # absurdly large uncertainty is already refused via
+        # EXCESSIVE_CLOCK_UNCERTAINTY but can still overflow datetime
+        # arithmetic (timedelta/datetime only span a few thousand years), so
+        # that arithmetic is bounded by an explicit refusal, never a raise.
+        try:
+            margin = timedelta(seconds=clock.uncertainty_seconds if uncertainty_valid else 0.0)
+            before_window = measured - margin < lower
+            after_window = measured + margin >= upper
+        except OverflowError:
+            reasons.append("CLOCK_UNCERTAINTY_MARGIN_OVERFLOW")
             ok = False
-        if measured + margin >= upper:
-            reasons.append("EXPIRED_WINDOW")
-            ok = False
+        else:
+            if before_window:
+                reasons.append("CLOCK_BEFORE_WINDOW_START")
+                ok = False
+            if after_window:
+                reasons.append("EXPIRED_WINDOW")
+                ok = False
     return ok
 
 

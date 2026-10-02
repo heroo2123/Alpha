@@ -592,6 +592,18 @@ def test_refuses_nonfinite_or_negative_clock_uncertainty_without_crashing(bad_un
     assert "INVALID_CLOCK_UNCERTAINTY" in result.refusal_reasons
 
 
+@pytest.mark.parametrize("huge_uncertainty", [1e12, 1e100])
+def test_refuses_absurdly_large_finite_clock_uncertainty_without_crashing(huge_uncertainty):
+    # Finite and nonnegative (so it passes _is_finite_nonneg), but far larger
+    # than timedelta/datetime arithmetic can represent without overflowing.
+    package_raw, restrictions_raw, protocol_raw, binding_raw = _synthetic_fixture()
+    huge_clock = ClockObservation("2026-10-02T10:05:00Z", huge_uncertainty, 10.0, True)
+    result = _run(package_raw, restrictions_raw, protocol_raw, binding_raw, clock=huge_clock)
+    assert result.outcome == OUTCOME_REFUSED
+    assert "EXCESSIVE_CLOCK_UNCERTAINTY" in result.refusal_reasons
+    assert "CLOCK_UNCERTAINTY_MARGIN_OVERFLOW" in result.refusal_reasons
+
+
 def test_refuses_nonmonotonic_clock():
     package_raw, restrictions_raw, protocol_raw, binding_raw = _synthetic_fixture()
     stepping_clock = ClockObservation("2026-10-02T10:05:00Z", 0.3, 10.0, False)
