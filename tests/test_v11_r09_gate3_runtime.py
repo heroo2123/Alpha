@@ -47,6 +47,14 @@ _SESSION_HEADS = {}
 _STORE_DESCRIPTORS = {}
 
 
+@pytest.fixture(autouse=True)
+def _reset_fixture_lineage_between_tests():
+    """Paths may be reused after pytest removes a prior test's tmp_path."""
+    _SHARED_HEADS.clear()
+    _SESSION_HEADS.clear()
+    _STORE_DESCRIPTORS.clear()
+
+
 @contextlib.contextmanager
 def _acquire(tmp_path, *, max_bytes=1 << 20, boot_id=BOOT):
     """Reacquiring the same ``tmp_path`` a second time automatically supplies

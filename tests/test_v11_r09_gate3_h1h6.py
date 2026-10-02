@@ -24,6 +24,9 @@ def _sha(raw):
 
 @pytest.fixture(autouse=True)
 def _offline(monkeypatch):
+    f._SHARED_HEADS.clear()
+    f._SESSION_HEADS.clear()
+    f._STORE_DESCRIPTORS.clear()
     def deny(*args, **kwargs):
         raise AssertionError('offline regression prohibits sockets')
     monkeypatch.setattr(socket.socket, 'connect', deny)
