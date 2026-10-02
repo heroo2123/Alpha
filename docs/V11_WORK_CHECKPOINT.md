@@ -18920,3 +18920,82 @@ authority action, or C/J/E/A boundary crossed: **91/200 (45.5%), formal
 NOT_READY_TO_FUND** — unchanged. Next unfinished action: recover the
 hardening worker's terminal/report and diff, then launch an independent
 different-model review of its commit before any merge toward main.
+
+## Coordinator: recovered two sandbox-blocked workers (weather + InventoryTransform), launched both reviews, resolved a disk emergency — 2026-10-02 16:4x UTC
+
+Recovered clean main `69dd3e6`, local = remote, nothing uncommitted. Found
+the host's own persistent supervisor (`/home/alphaadmin/AlphaV11_ContinuousCoordinator/coordinator.py`,
+separate long-running process) had a tracked weather-lane worker (PID
+`2296252`, worktree `/tmp/alpha-v11-gate3-attempt-runtime-wiring-20261002`,
+task: wire the reviewed offline Gate-3 attempt model into the real
+`GateRuntime.run_attempt` entrypoint) that had already exited by the time
+this cycle inspected it. Both that worker and the already-tracked
+InventoryTransform hardening worker (`/tmp/alpha-v11-inventory-shadow-hardening-20261002`,
+L1/L2/L3/L5 fixes) hit the identical sandbox restriction documented
+elsewhere in this file: `python3`/`pytest`/`git add`/`git commit` were all
+denied, so each left a fully-described, uncommitted working-tree diff with
+an explicit request for host-side verification instead of silently
+failing or fabricating a result.
+
+For both: read the full diff, confirmed scope matched exactly what was
+asked (weather: additive-only `AttemptModelGuard` on `GateRuntime`, opt-in
+via a new parameter defaulting to `None`, zero behavior change for
+existing callers; InventoryTransform: exactly the four L1/L2/L3/L5
+findings from the prior Opus review of `0998743`, nothing else).
+Host-compiled both (`py_compile` clean, `git diff --check` clean for the
+weather diff). Ran the project's existing `/home/alphaadmin/AlphaV11_Dev/venv`
+pytest, plain and under `-O`:
+- Weather: `tests/test_v11_gate3_attempt_runtime_wiring.py tests/test_v11_r09_gate3_runtime.py tests/test_v11_r09_gate3_h1h6.py tests/test_v11_gate3_preflight_attempt_model.py` — **333 passed**.
+- InventoryTransform: `tests/test_v11_inventory_shadow_start.py tests/test_v11_inventory_shadow.py tests/test_v11_structural_evidence.py tests/test_v11_neg_risk_contract.py` — **68 passed**, both plain and `-O` (confirming the new L1 import-deny hook does not false-positive on stdlib internals, the author's one flagged residual risk).
+
+Committed each on the blocked worker's behalf, in its own isolated
+worktree only (no push, no touch to main): weather as `7ef7d5d` on branch
+`gate3-attempt-runtime-wiring-20261002`; InventoryTransform as `5601851`
+on branch `inventory-shadow-hardening-l1l2l3l5-20261002`. Neither commit
+grants provider/execution/capture authority, admits a SHADOW receipt, or
+touches account/order/collateral state.
+
+Created two fresh detached-HEAD review worktrees
+(`/tmp/alpha-v11-gate3-attempt-runtime-review-7ef7d5d`,
+`/tmp/alpha-v11-inventory-shadow-hardening-review-5601851`) and launched
+two independent Opus/high reviews in parallel (different model than the
+Sonnet author, per the owner's review-separation rule), each scoped to
+adversarially re-verify every claim above rather than trust the author's
+report, and each required to record its own literal before/after
+`git log`/`git status` so its no-modification claim is independently
+checkable. Both still running. This is within the two-heavy-specialist
+cap for this headroom tier (MemAvailable dropped to ~779 MiB by launch
+time; disk recovered as below).
+
+**Disk emergency, found and resolved this cycle:** shortly after the two
+reviews started, free disk on `/` collapsed from ~2.6 GiB to 2.4 MiB —
+close enough to zero that the harness's own background-task plumbing
+failed with ENOSPC. Investigated immediately rather than guessing:
+`/tmp/pytest-of-alphaadmin` (2.5 GiB, four numbered run directories all
+timestamped within the current cycle, `lsof` confirmed no live process
+held any of it open) was the cause — ordinary disposable pytest scratch
+from the host-side test verifications run this cycle, not evidence,
+worktree, or review material. The other large `/tmp` consumer,
+`/tmp/alpha-v11-gate3-a8-prep-targeted` (1.5 GiB), matches this file's
+repeatedly-documented "protected A8 fixture" whose deletion a prior
+automatic review already rejected — left untouched. Deleted only the
+pytest scratch; free disk recovered to **2.5 GiB**, back above the 2 GiB
+G3-L floor. No authoritative repo, worktree, review artifact, retained
+terminal, or the protected A8 fixture was touched.
+
+No merge, provider request, capture, V10/AxiomTrade/financial/service/
+authority action, or C/J/E/A boundary crossed this cycle: **91/200
+(45.5%), formal 1/50; A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L
+NO-GO; NOT_READY_TO_FUND** — unchanged. Both candidates are reviewed-
+pending, isolated-worktree-only engineering progress, not an acceptance
+boundary.
+
+Next unfinished action: recover both Opus review verdicts
+(`/tmp/alpha-v11-gate3-attempt-runtime-review-7ef7d5d.log`,
+`/tmp/alpha-v11-inventory-shadow-hardening-review-5601851.log`); for each,
+if APPROVED, reconcile against current main and merge; if
+CHANGES_REQUIRED, route the fix to the cheapest sufficient model and
+re-review before any integration. Weather (`7ef7d5d`, once merged) still
+only adds an opt-in guard — it does not itself unblock G3-L's 77 missing
+provider-evidence identities, which remains the real critical-path
+blocker with no new codable step this cycle.
