@@ -4074,3 +4074,6 @@ Exact `f88e7e7` checker review is sealed **CHANGES_REQUIRED** for Unicode digest
 ## Checker public-input exact review — 2026-10-02 12:30 UTC
 
 Sealed exact `f643cdd` review is **CHANGES_REQUIRED** for malformed observation/raw argument exceptions and one unsupported decoded-binding satisfaction; prior F5/F6 are closed. Isolated `739ca4d` repair passes 422 focused tests and is under fresh independent review. It remains unmerged, offline and non-executable. InventoryTransform SHADOW `2033b82` remains unintegrated pending its own review. No new reviewed identity, capture, forward SHADOW qualification or C/J/E/A boundary: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+## Checker F9 clock-boundary review gate — 2026-10-02 12:39 UTC
+
+Sealed exact `739ca4d` checker review is **CHANGES_REQUIRED** for sub-microsecond uncertainty rounded inward at the preflight dispatch start; F7/F8 are closed. Isolated `0cf7660` outward-rounding and timestamp-precision repair passes 434 focused tests and is under fresh independent exact-commit review. It remains offline, unmerged and non-executable. InventoryTransform SHADOW `2033b82` remains unreviewed/unintegrated. No reviewed launch identity, provider/capture evidence, forward SHADOW qualification or C/J/E/A crossing: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
