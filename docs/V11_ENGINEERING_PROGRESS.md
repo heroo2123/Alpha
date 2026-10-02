@@ -1,3 +1,14 @@
+## Coordinator fresh-readiness intake — 2026-10-02 22:29 UTC
+
+Recovered clean `947bf68` F1/F2 repair and verified 543/543 focused offline
+tests in both normal and optimized mode. Exact different-model review launch
+was rejected by automatic approval review before execution because its
+destination-specific authorization does not cover this candidate. Preserved
+the detached checkout and prior review; no merge, provider request, capture,
+SHADOW admission or score crossing. The independent G3-L hardening candidate
+`c9e3b8d` remains review-held. **91/200, formal 1/50; G3-L NO-GO;
+NOT_READY_TO_FUND**.
+
 ## G3-L audit hardening intake — 2026-10-02 22:25 UTC
 
 Recovered clean isolated `c9e3b8d` and verified 27/27 focused offline tests.
