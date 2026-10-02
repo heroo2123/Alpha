@@ -19410,3 +19410,68 @@ already in flight in a separate isolated worktree, and intake it (review
 then merge, or record a `NO_SAFE_SLICE` outcome) once it completes.
 Separately, L1-L4 above and the open items noted in the attempt-guard
 entry remain bounded, non-blocking future-slice candidates.
+
+## Recovered interrupted fresh-readiness repair; two reviews launched — 2026-10-02 20:55-21:21 UTC
+
+The prior coordinator cycle's two background specialists (a Sonnet repair
+of the F1-F4 findings against `aa80818`, and an Opus review of the
+just-finished `70ef1a1` intake-launch-wiring candidate) were both killed
+by the CLI's background-task wait ceiling (`Background tasks still
+running after 600s; terminating`) before either produced a usable
+artifact: the repair worktree
+(`/tmp/alpha-v11-gate3-fresh-readiness-20261002`) was left with an
+uncommitted, partially-fixed `tools/v11_gate3_fresh_window_readiness.py`,
+and no review artifact exists yet for `70ef1a1`.
+
+Inspected the partial repair directly (not via a background agent, to
+avoid the same termination risk) against the preserved review findings at
+`/tmp/alpha-v11-gate3-fresh-readiness-review-aa80818.opus.log`: it had
+replaced the dispatch-time window-overlap clock check with a
+quality-only check (part of F1) and hard-bound `expired_window` (F3), but
+had NOT added the required clock-vs-`now_utc` agreement check (the other
+half of F1 -- meaning a forged/future-dated clock reading would still
+pass trivially), had not size-capped `restrictions_raw` or bounded
+echoed unknown-key reasons (F2), and had not added overlap-based
+roll-forward refusal (F4, strongly recommended). Completed the repair
+directly: `_check_clock_quality` now also refuses when
+`|clock.measured_utc - now_utc| > clock.uncertainty_seconds`; a new
+`_check_closed_bounded` wrapper refuses (without echoing) any oversized
+caller-supplied key before delegating to the checker's own
+`_check_closed`; `restrictions_raw` is now parsed through the checker's
+own `_safe_parse`/`MAX_RAW_BYTES`; and roll-forward refusal now covers any
+overlap with the frozen expired window, not just exact identity.
+Documented, rather than fixed, the two follow-ups that would require
+inventing an unreviewed numeric constant (a window-duration ceiling) or
+adding filesystem I/O this module deliberately avoids (binding
+reviewed-identity references to actual bytes). Added 5 new tests
+(honest-clock-reaches-candidate, forged-future-clock-rejected,
+stale-now-plus-overlap-rejected, oversized-raw-bytes-refused,
+oversized-key-refused-without-echo); **41/41 pass plain and under `-O`**;
+the unrelated checker suite **472/472** unaffected; manually reproduced
+the original review's A1/A2/A4 and F2/F3 probes against the fixed code.
+Committed as `5a33489` in the same worktree, branch
+`gate3-fresh-readiness-20261002` (two files, repair only -- no change to
+the checker or any other module).
+
+Since this repair was authored by the same model now acting as
+coordinator, and no review artifact survived for `70ef1a1` either,
+launched two independent Opus reviews in parallel (resource headroom:
+~1.0 GiB MemAvailable, 4.5 GiB disk free, both above the two-specialist
+floor): a first review of `70ef1a1` (intake-launch pre-dispatch wiring),
+and a re-review of `5a33489` against the original `aa80818` findings.
+Both run in isolated throwaway clones, writing full logs plus a
+summary/verdict file to `/tmp/alpha-v11-gate3-intake-launch-review-
+70ef1a1.{opus,run}.log` and `/tmp/alpha-v11-gate3-fresh-readiness-review-
+5a33489.{opus,run}.log` respectively, so partial progress survives even
+if either is interrupted again before finishing. No network, provider
+request, SHADOW admission, or score/gate change this cycle: **91/200
+(45.5%), formal 1/50; A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L
+NO-GO; NOT_READY_TO_FUND** -- unchanged, both candidates still
+unreviewed-or-pending-merge.
+
+Next unfinished action: intake both review verdicts once they land (merge
+toward main if APPROVED/APPROVED_WITH_FOLLOWUPS with no blocking finding,
+otherwise route the repair and re-review); if either review agent is
+again cut short by the background-wait ceiling, recover and complete it
+directly in the foreground rather than re-delegating, per the same
+pattern used for the repair above.
