@@ -1,5 +1,13 @@
 # V11 requirement-to-code/test/evidence matrix
 
+## A7 exact review live — 2026-10-02 00:06 UTC
+
+The clean `e08858b` offline A7 candidate is under independent exact-commit
+Astra/high review in a detached checkout. A4 repair remains the other active
+specialist. Neither candidate is accepted or integrated; A2/A3 retained
+observations are accepted only in their narrow scope. **G3-L NO-GO;
+91/200 (45.5%), formal 1/50; NOT_READY_TO_FUND**.
+
 ## A2/A3 retained observation accepted in scope — 2026-10-02 00:04 UTC
 
 Independent exact review of `89f85ac` accepted its bounded offline retained

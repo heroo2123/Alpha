@@ -1,5 +1,19 @@
 # Alpha V11 work checkpoint
 
+## A7 exact review launched in freed specialist slot — 2026-10-02 00:06 UTC
+
+After integrating the accepted A2/A3 observation, verified clean detached A7
+candidate `e08858b` (tree `550ff4e`) and launched one independent Astra/high
+read-only reviewer in `/tmp/alpha-v11-gate3-a7-review-e08858b`. Runner PGID
+1977249 is live; its terminal will be
+`/tmp/alpha-v11-gate3-a7-review-e08858b-lane.terminal.json` and its
+verdict/report will use the same stem without `-lane`. A4 repair PGID 1962223
+is the other active specialist. Do not duplicate, merge or qualify A7 until
+its exact review finishes. Current main is clean at `d62518a`, 113 commits
+ahead of origin; no push attempted. Disk has recovered to about 1.5 GiB free,
+below the offline G3-L 2 GiB floor. **G3-L NO-GO; 91/200 (45.5%),
+formal 1/50; NOT_READY_TO_FUND**.
+
 ## A2/A3 retained observation reviewed and integrated — 2026-10-02 00:04 UTC
 
 The independent Astra/high exact-commit review of `89f85ac` (tree `9ff38fb`)

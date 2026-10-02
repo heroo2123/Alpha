@@ -1,5 +1,12 @@
 # Supplementary engineering estimate
 
+## A7 independent review launched — 2026-10-02 00:06 UTC
+
+An isolated Astra/high review runner is live at PGID 1977249 on exact A7
+`e08858b`; A4 repair remains live at PGID 1962223. No A7 acceptance or
+new release test result is claimed. **G3-L NO-GO; 91/200 (45.5%), formal
+1/50; NOT_READY_TO_FUND**.
+
 ## A2/A3 exact review integrated; offline capacity constrained — 2026-10-02 00:04 UTC
 
 The independent `89f85ac` review passed for retained observations only, with
