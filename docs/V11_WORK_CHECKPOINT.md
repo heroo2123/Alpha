@@ -19614,3 +19614,12 @@ capture, SHADOW admission, service/authority/financial/V10/AxiomTrade
 action or C/J/E/A crossing: **91/200 (45.5%), formal 1/50; A2/A3
 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO;
 NOT_READY_TO_FUND**.
+
+Publication check at 21:39 UTC: `git push origin
+weather-v11-profitability-upgrade-2026-09-23` was rejected before
+execution by automatic approval review. A subsequent read-only `gh repo
+view` identified `heroo2123/Alpha` as **public**, despite local admin
+permission; the owner has not explicitly authorized public publication
+of these private Alpha contents. No push or indirect retry was made.
+Local Gate-3 work and exact reviews continue; publication is a separate
+pending owner decision.
