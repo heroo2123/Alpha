@@ -1,3 +1,14 @@
+## Coordinator local-only G3-L rescreen — 2026-10-02 09:43 UTC
+
+Ran the offline October 3 planner after disk recovered above 2 GiB. Retained
+`/tmp/alpha-v11-g3l-offline-screen-20261003-1790934231.json` (SHA-256
+`c1290c2a8d419eb17b50909df77c93f9eb1e0ba363963716454b613ba2bce8f3`):
+exit 2, 77 missing reviewed identities, zero of 2,713 slots, nonlaunchable.
+Sampled memory was below 512 MiB. No separate Alpha worker, independent
+preflight PASS, provider request, release rerun, forward SHADOW evidence or
+C/J/E/A crossing. Private master and unfinished work were preserved;
+**91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Coordinator recovery — 2026-10-02 09:40 UTC
 
 Recovered clean `b066a24`, clean SHADOW/Brain and exact preflight review trees, preserved ECMWF backfill and unchanged private FINAL-REVIEWED master. No separate Alpha worker, new forward evidence, design PASS, executable package or provider request. The independent review transfer remains rejected by automatic approval review pending destination-specific owner authorization; no workaround was attempted. Capacity inspection found no further safe material cleanup; disk was about 3.087 GB free, above the 2 GiB G3-L floor. Current user unit states were unavailable from the service bus. No release rerun, V10/AxiomTrade, financial, service, authority or publication action; **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.

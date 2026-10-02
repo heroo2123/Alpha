@@ -1,3 +1,36 @@
+## Coordinator local-only G3-L rescreen — 2026-10-02 09:43 UTC
+
+Recovered clean main `af36bdc`; its sole new commit since 09:40 records that
+checkpoint. No separate Alpha worker, reviewer, test process, PAPER scanner or
+execution process appeared. SHADOW and Brain-readiness trees are clean;
+ECMWF's untracked `backfill_data/` is preserved. The private FINAL-REVIEWED
+master remains SHA-256
+`a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
+
+Because disk crossed the G3-L 2 GiB floor since the retained screen, ran the
+documented **local-only** `PRE_REVIEW` planner for October 3. Its report
+`/tmp/alpha-v11-g3l-offline-screen-20261003-1790934231.json` has SHA-256
+`c1290c2a8d419eb17b50909df77c93f9eb1e0ba363963716454b613ba2bce8f3`;
+exit 2, `BLOCKED_MISSING_REVIEWED_EVIDENCE`, `launchable=false`, 77 missing
+identities and zero of 2,713 attempt slots. The sampled free disk was
+3,085,619,200 bytes, above the 2 GiB floor but below preferred 3 GiB;
+MemAvailable was 515,330,048 bytes, below the planner's 512 MiB floor.
+The report is an offline screen only and supplies no capture evidence or
+launch authority. The protected 1.56 GB A8 fixture and retained terminals
+remain untouched.
+
+Exact preflight candidate `27513d2` remains non-executable: automatic approval
+review rejected external Codex transfer of its private package/provider
+evidence, and the destination-specific owner question remains pending. No
+independent PASS, executable package, provider request or capture evidence.
+The frozen 10:00–13:30 UTC proposal cannot roll forward silently. No
+independent writer was launched; the offline checker follows design PASS.
+Protected V11 authority roots are absent; the user service bus did not answer
+current unit-state queries. No release rerun, V10/AxiomTrade intervention,
+financial, service, authority, deletion or publication action. No C/J/E/A
+crossing: **91/200, formal 1/50; A2/A3 UNQUALIFIED; A4 OPEN; A8
+UNQUALIFIED; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Coordinator recovery — 2026-10-02 09:40 UTC
 
 Recovered clean main `b066a24`; the sole newer commit since 09:36 records that prior checkpoint. The only live Alpha Codex process is this persistent coordinator invocation; no separate author, reviewer, pytest, PAPER scanner or execution worker appeared. SHADOW and Brain-readiness worktrees are clean; ECMWF backfill data remains untracked and preserved. Exact preflight review tree is clean, and the protected FINAL-REVIEWED master remains SHA-256 `a0e16d9bd7344c943a54a16a53c6757662363d93642f6e5cb7953cd047659b4a`.
