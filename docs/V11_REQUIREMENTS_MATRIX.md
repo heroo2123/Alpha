@@ -4172,3 +4172,15 @@ proof, or financial authority, and this merge does not touch the weather
 Gate-3 critical path or G3-L. No C/J/E/A boundary crossed: **91/200
 (45.5%), formal 1/50; A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L
 NO-GO; NOT_READY_TO_FUND**.
+
+## Gate 3 current boundary — 2026-10-02 21:38 UTC
+
+Reviewed real-evidence intake and intake-to-launch pre-dispatch wiring are
+on main. Fresh-window readiness at `8dd8054` awaits its live exact-commit
+independent review; a separate G3-L worker is reconciling retained local
+identities without treating missing capture as present evidence. Inactive
+pytest scratch cleanup raised free disk above 3 GiB, but storage capacity
+alone does not fill the 77 missing identities or authorize a provider
+request. No new C/J/E/A boundary crossed: **91/200 (45.5%), formal 1/50;
+A2/A3 UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO;
+NOT_READY_TO_FUND**.

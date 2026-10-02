@@ -6821,3 +6821,15 @@ capture authority, not yet wired into the real Gate-3 collector/launch
 flow — engineering progress toward A4, not a formal acceptance. No score
 inflation: **91/200 (45.5%), formal 1/50; A4 OPEN; G3-L NO-GO;
 NOT_READY_TO_FUND**.
+
+## Gate 3 weather lanes and disk recovery — 2026-10-02 21:38 UTC
+
+Main `376477e` contains independently reviewed real-evidence intake and
+pre-dispatch launch wiring. Exact `8dd8054` fresh-window readiness is in
+independent Astra/high review, and a separate Sol/high specialist is
+reconciling retained G3-L evidence in its isolated worktree. Both remain
+unfinished; no readiness merge or identity credit is claimed. Removed a
+verified inactive 1.5 GiB pytest scratch directory, restoring 4.40 GB
+free disk without touching the protected A8 fixture or retained evidence.
+No provider request, capture, forward SHADOW operation or C/J/E/A crossing:
+**91/200 (45.5%), formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.

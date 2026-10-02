@@ -19586,3 +19586,31 @@ raises anything new), merge toward main, rerun the focused suite on the
 merged tree, and record it here. The disk-cleanup opportunity above
 remains open for the owner or a session with an approval surface; it is
 not required for G3-L (2.7 GiB free is still above the 2 GiB floor).
+
+## Coordinator recovery and capacity repair — 2026-10-02 21:38 UTC
+
+Recovered clean main `376477e` (the latest commit only records the F2
+handoff). Exact-commit Astra/high review of `8dd8054` is live in
+`/tmp/alpha-v11-gate3-fresh-readiness-review-8dd8054`; the separate
+Sol/high G3-L retained-evidence reconciliation is live in
+`/tmp/alpha-v11-gate3-g3l-evidence-reconciliation-20261002`. Both
+worktrees are clean as of this audit and neither output/verdict exists yet.
+Do not duplicate either task or merge readiness before the exact review.
+
+Verified `/tmp/alpha-v11-gate3-a8-prep-targeted` was 1.5 GiB of inactive
+pytest `--basetemp` scratch with no open file or process holder (empty
+`lsof +D` and `fuser -v`), then deleted only that directory under the
+owner's disposable-scratch authorization. Free disk increased from
+2,842,206,208 to 4,399,726,592 bytes, above the preferred 3 GiB and
+the G3-L 2 GiB floor. The separate protected A8 fixture, retained
+evidence/terminals, worktrees and private FINAL-REVIEWED master were not
+touched; the master still hashes to `a0e16d9b...b4a`.
+
+MemAvailable was 877 MiB after cleanup, below the 900 MiB third-worker
+threshold. No third heavy specialist was launched. No Alpha PAPER scanner
+or execution process appeared; the user unit bus could not be queried,
+and protected V11 authority roots remain absent. No provider request,
+capture, SHADOW admission, service/authority/financial/V10/AxiomTrade
+action or C/J/E/A crossing: **91/200 (45.5%), formal 1/50; A2/A3
+UNQUALIFIED; A4 OPEN; A8 UNQUALIFIED; G3-L NO-GO;
+NOT_READY_TO_FUND**.
