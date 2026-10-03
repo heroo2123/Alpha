@@ -5048,3 +5048,6 @@ Independent exact review passed clean `48194a8`; conflict-free local merge `3956
 ## 2026-10-03 22:06 UTC frozen weather candidates
 
 The clean offline transport-stream `9d0e9a1` and FC1 clock-order `a06fb90` successors are under separate different-model exact reviews. Author tests and a read-only RAW decoder handoff map add no accepted qualification or identity credit; wait for exact PASS, reconciliation and post-merge tests before integration. **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
+## Offline RAW decoder handoff active — 2026-10-03 22:14 UTC
+
+A separate isolated Sol/high writer is implementing only a synthetic/offline RAW receipt-to-decoder binding from frozen main `cafc3e1`. Exact reviews of `9d0e9a1` transport and `a06fb90` FC1 remain live without sealed verdicts. The new lane grants no accepted real transport, storage, decoder, provider right, G3-L identity, capture, or SHADOW qualification; require clean tests, independent exact review and reconciliation before integration. **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
