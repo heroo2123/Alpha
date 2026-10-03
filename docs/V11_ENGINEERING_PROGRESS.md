@@ -1,3 +1,7 @@
+## Coordinator source-binding reproduction — 2026-10-03 05:57 UTC
+
+Reproduced 10/10 source SHA-256 and byte-length bindings for held production-mapping design `1dad476` against clean newer main `d9d121c`; current-main V4 tests passed 58/58. Preserved all eight unmerged candidates and their authorization hold, with no review transfer, provider request, merge, capture, forward SHADOW or score crossing: **91/200, formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator reconciliation — 2026-10-03 05:42 UTC
 
 Ran non-destructive current-main merge-tree probes for all eight exact-review-held Gate 3 candidates. Seven are conflict-free; `741c6ae` needs later chronological status-document reconciliation. Preserved all candidate and older dirty worktrees, the protected FINAL-REVIEWED master, and the existing review hold. No code integration, provider request, G3-L PASS, forward SHADOW or score crossing: **91/200, formal 1/50; NOT_READY_TO_FUND**.

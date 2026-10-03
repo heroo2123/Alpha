@@ -1,3 +1,7 @@
+## Current-source binding verification — 2026-10-03 05:57 UTC
+
+Against clean main `d9d121c91dd7d938c0a0584049b3ee2028bf0005`, independently recomputed SHA-256 and byte length for all ten tracked sources in `1dad476`'s frozen `.sources.json`; all ten match and none drifted from its `9c5783c` baseline. Reproduced 58/58 focused V4 tests with the Alpha venv. This is local preparation for exact review, not an independent different-model verdict, acceptance of V5, permission to transfer private candidate bytes, provider access, or integration. The eight-candidate queue below remains held.
+
 # Gate 3 pending exact reviews — 2026-10-03 03:38 UTC
 
 ## Current-main non-destructive reconciliation — 2026-10-03 05:42 UTC

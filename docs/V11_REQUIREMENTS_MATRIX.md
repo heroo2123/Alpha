@@ -1,3 +1,7 @@
+## Current-source mapping review preparation — 2026-10-03 05:57 UTC
+
+All ten source bytes/lengths pinned by unmerged `1dad476` still match current main `d9d121c`; focused V4 tests pass 58/58. The design remains an unaccepted proposal in the eight-candidate exact-review queue. V4's production mapping blocker and 77 missing G3-L identities remain; no provider rights, SHADOW admission or C/J/E/A credit changed: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Candidate reconciliation — 2026-10-03 05:42 UTC
 
 Seven of eight pending Gate 3 candidates have conflict-free non-destructive merge-tree probes against clean main `f9e38ef`; `741c6ae` conflicts only in three chronological status documents. All still need candidate-specific authorized different-model exact PASS before integration. No provider right, G3-L identity, SHADOW admission or C/J/E/A boundary changed: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
