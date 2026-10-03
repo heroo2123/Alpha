@@ -4,7 +4,9 @@ This checks an existing successful Gate-3 attempt. It never dispatches, decodes,
 creates pins, or treats replayed store acknowledgement as current custody.
 """
 from dataclasses import asdict
+import base64
 import hashlib
+import json
 
 from tools.v11_multimodel_panel import canonical
 from tools.v11_r09_gate3_a7_decoder import A7Refusal, Pins, source_bytes
@@ -28,6 +30,24 @@ def _heads(journal):
     hashes = _journal_event_hashes(journal.events)
     _require(bool(hashes) and hashes[-1] == journal.prev, 'BINDING_JOURNAL_HEAD')
     return hashes
+
+
+def _healthy_journals(session, shared, budget, store):
+    """Recheck the live owners and pinned pathnames at each release boundary."""
+    try:
+        session._healthy()
+        shared._healthy()
+        budget._healthy()
+        store._usable()
+    except (LaunchContractError, OSError, TypeError, ValueError) as exc:
+        raise RawBindingRefusal('BINDING_CUSTODY') from exc
+
+
+def _one(events, operation, identity, value):
+    matches = [(event, head) for event, head in events
+               if event.get('op') == operation and event.get(identity) == value]
+    _require(len(matches) == 1, 'BINDING_JOURNAL_LINK')
+    return matches[0]
 
 
 def read_raw_for_a7(*, runtime: GateRuntime, request: AttemptRequest,
@@ -65,9 +85,11 @@ def read_raw_for_a7(*, runtime: GateRuntime, request: AttemptRequest,
              store.context['manifest'] == runtime.manifest_sha256 and
              not session.overdelivery_poisoned,
              'BINDING_CUSTODY')
+    _healthy_journals(session, shared, budget, store)
     session_hashes = _heads(session)
     shared_hashes = _heads(shared)
     budget_hashes = _heads(budget)
+    custody_heads = (session.prev, shared.prev, budget.prev, store._head)
     rid = request.request_id
     attempt = session.attempt_history.get(rid)
     capture = session.capture_receipts.get(rid)
@@ -76,14 +98,109 @@ def read_raw_for_a7(*, runtime: GateRuntime, request: AttemptRequest,
              attempt.get('outcome') == 'SUCCESS' and
              attempt.get('purpose') == request.purpose and
              attempt.get('max_reservation_bytes') == request.reservation_bytes and
-             not attempt.get('denial_observed') and
-             not attempt.get('overdelivered') and type(capture) is dict and
+             attempt.get('denial_observed') is False and
+             attempt.get('overdelivered') is False and type(capture) is dict and
              type(budget_attempt) is dict and
              budget_attempt.get('reserved') == request.reservation_bytes and
              budget_attempt.get('finished') is True and
+             type(budget_attempt.get('received')) is int and
              budget_attempt.get('received') == attempt.get('total_delivered_bytes') and
              not budget.violated,
              'BINDING_SUCCESS_CAPTURE')
+
+    session_events = list(zip(session.events, session_hashes))
+    shared_events = list(zip(shared.events, shared_hashes))
+    budget_events = list(zip(budget.events, budget_hashes))
+    reserved, reserved_head = _one(budget_events, 'reserve', 'key', rid)
+    budget_reserved, _ = _one(session_events, 'budget_reserved', 'request_id', rid)
+    shared_open, _ = _one(shared_events, 'intent_open', 'request_id', rid)
+    transport_closed, _ = _one(session_events, 'transport_closed', 'request_id', rid)
+    accounted, _ = _one(session_events, 'accounted', 'request_id', rid)
+    completion, completion_head = _one(budget_events, 'complete', 'key', rid)
+    shared_close, _ = _one(shared_events, 'intent_closed', 'request_id', rid)
+    completion_index = next(i for i, (event, _) in enumerate(budget_events)
+                            if event is completion)
+    shared_close_index = next(i for i, (event, _) in enumerate(shared_events)
+                              if event is shared_close)
+    _require(completion_index > 0 and shared_close_index > 0,
+             'BINDING_CLOSURE')
+    accounting_head = budget_events[completion_index - 1][1]
+    denial_head = shared_events[shared_close_index - 1][1]
+    try:
+        encoded = transport_closed['closure_evidence_raw_b64']
+        raw_closure = base64.b64decode(encoded, validate=True)
+        closure = json.loads(raw_closure)
+    except (KeyError, ValueError, TypeError) as exc:
+        raise RawBindingRefusal('BINDING_CLOSURE') from exc
+    _require(type(closure) is dict, 'BINDING_CLOSURE')
+    _require(set(closure) == {'adapter', 'known_closed', 'status', 'headers',
+              'prefetched_bytes', 'delivered_bytes', 'chunks_consumed',
+              'chunk_count', 'deadline_monotonic', 'closure_clock_sha256'} and
+             canonical(closure) == raw_closure and
+             hashlib.sha256(raw_closure).hexdigest() ==
+                 transport_closed.get('closure_evidence_sha256'),
+             'BINDING_CLOSURE')
+    header_pairs = closure['headers']
+    _require(type(header_pairs) is list and
+             all(type(pair) is list and len(pair) == 2 and
+                 all(type(item) is str for item in pair) for pair in header_pairs),
+             'BINDING_CLOSURE')
+    headers = {name.lower(): value for name, value in header_pairs}
+    _require(len(headers) == len(header_pairs), 'BINDING_CLOSURE')
+    delivered = attempt['total_delivered_bytes']
+    accounted_bytes = sum(event['bytes'] for event, _ in budget_events
+                          if event.get('key') == rid and
+                          event.get('op') in ('chunk', 'eager_delivery'))
+    _require(type(delivered) is int and delivered > 0 and
+             accounted_bytes == delivered and
+             not any(event.get('key') == rid and event.get('op') == 'violation'
+                     for event, _ in budget_events) and
+             not any(event.get('request_id') == rid and event.get('op') == 'denial'
+                     for event, _ in session_events) and
+             reserved.get('bytes') == request.reservation_bytes and
+             budget_reserved.get('reserve_event_hash') == reserved_head and
+             attempt.get('reserve_event_hash') == reserved_head and
+             shared_open.get('purpose') == request.purpose and
+             shared_open.get('endpoint_id') == request.endpoint_id and
+             shared_open.get('control_domain_id') == request.control_domain_id and
+             shared_open.get('manifest_sha256') == runtime.manifest_sha256 and
+             shared_open.get('max_reservation_bytes') == request.reservation_bytes and
+             transport_closed.get('outcome') == 'OK' and
+             shared_close.get('outcome') == 'OK' and
+             transport_closed.get('total_delivered_bytes') == delivered and
+             shared_close.get('total_delivered_bytes') == delivered and
+             closure.get('adapter') == 'SyntheticResponseStream' and
+             closure.get('known_closed') is True and
+             closure.get('status') == 206 and
+             headers.get('content-length') == str(delivered) and
+             headers.get('etag') == request.expected_etag and
+             headers.get('content-range') ==
+                 f'bytes {request.range_start}-{request.range_end}/'
+                 f'{request.expected_object_bytes}' and
+             headers.get('content-encoding', 'identity').lower() == 'identity' and
+             'transfer-encoding' not in headers and
+             type(closure.get('delivered_bytes')) is int and
+             closure['delivered_bytes'] == delivered and
+             type(closure.get('prefetched_bytes')) is int and
+             closure['prefetched_bytes'] == delivered and
+             type(closure.get('chunks_consumed')) is int and
+             type(closure.get('chunk_count')) is int and
+             closure['chunks_consumed'] == closure['chunk_count'] and
+             closure['chunk_count'] > 0 and
+             closure.get('deadline_monotonic') == attempt.get('deadline_monotonic') and
+             type(capture.get('clock_evidence_sha256')) is list and
+             closure.get('closure_clock_sha256') in capture['clock_evidence_sha256'] and
+             transport_closed.get('closure_monotonic') == attempt.get('closure_monotonic') and
+             transport_closed.get('closure_evidence_sha256') ==
+                 attempt.get('closure_evidence_sha256') and
+             transport_closed.get('denial_history_head') == denial_head and
+             shared_close.get('denial_history_head') == denial_head and
+             transport_closed.get('accounting_head') == accounting_head and
+             shared_close.get('accounting_head') == accounting_head and
+             accounted.get('completion_event_hash') == completion_head and
+             attempt.get('completion_event_hash') == completion_head and
+             completion.get('key') == rid,
+             'BINDING_CLOSURE')
 
     intents = [event for event in session.events
                if event.get('op') == 'attempt_intent' and event.get('request_id') == rid]
@@ -172,4 +289,10 @@ def read_raw_for_a7(*, runtime: GateRuntime, request: AttemptRequest,
     _require(type(raw) is bytes and len(raw) == receipt.length and
              hashlib.sha256(raw).hexdigest() == receipt.object_sha256,
              'BINDING_RAW_BYTES')
+    _healthy_journals(session, shared, budget, store)
+    _require((session.prev, shared.prev, budget.prev, store._head) == custody_heads and
+             _heads(session) == session_hashes and
+             _heads(shared) == shared_hashes and
+             _heads(budget) == budget_hashes,
+             'BINDING_CUSTODY_CHANGED')
     return raw
