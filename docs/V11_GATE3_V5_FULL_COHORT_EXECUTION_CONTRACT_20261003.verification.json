@@ -1,0 +1,1921 @@
+{
+  "author_checks": {
+    "arithmetic_and_source_check_count": 65,
+    "checks": [
+      "denominator",
+      "cadence_loss",
+      "roles",
+      "full_caps",
+      "legacy_time",
+      "legacy_objects",
+      "legacy_events",
+      "common_cap",
+      "time_floor_1",
+      "time_floor_2",
+      "witness_time",
+      "witness_body",
+      "witness_objects",
+      "witness_event_limits",
+      "witness_byte_limits",
+      "session_H17_boundary",
+      "session_byte_H17_boundary",
+      "session_headroom",
+      "budget_byte_boundary",
+      "time_boundary",
+      "physical_count_boundary",
+      "store_event_boundary",
+      "journal_byte_boundary",
+      "read_4MiB",
+      "support_chunk_boundaries",
+      "event_aggregation",
+      "external_edge_headroom",
+      "conditional_overhead",
+      "A7_default_wall",
+      "identity_map_count",
+      "future_matrix_closed",
+      "source_pin:docs/V11_GATE3_V5_EVIDENCE_ROLE_CONTRACT_20261003.md",
+      "source_pin:docs/V11_GATE3_V5_EVIDENCE_ROLE_CONTRACT_20261003.sources.json",
+      "source_pin:docs/V11_GATE3_V5_EVIDENCE_ROLE_CONTRACT_20261003.verification.json",
+      "source_pin:docs/V11_GATE3_V5_FEASIBILITY_20261003.md",
+      "source_pin:docs/V11_GATE3_V5_FEASIBILITY_20261003.arithmetic.json",
+      "source_pin:docs/V11_WORK_CHECKPOINT.md",
+      "source_pin:docs/V11_R09_GATE3_COLLECTION_PROTOCOL.md",
+      "source_pin:docs/V11_R09_GATE3_LAUNCH_CONTRACT_ADJUDICATION.md",
+      "source_pin:docs/V11_GATE3_RESOURCE_RESERVATION_DESIGN_20261003.md",
+      "source_pin:docs/V11_GATE3_VALIDATED_PLAN_EXPORT_DESIGN_20261003.md",
+      "source_pin:docs/V11_GATE3_HOST_RESOURCE_FEASIBILITY_20261003.md",
+      "source_pin:docs/V11_BRAIN_IFS_AIFS_NATIVE_ADAPTER_FINDINGS_20261003.md",
+      "source_pin:config/v11/r09_gate3_observed_message_sizes_20260930.json",
+      "source_pin:tools/v11_r09_gate3_launch.py",
+      "source_pin:tools/v11_r09_gate3_launch_v4.py",
+      "source_pin:tools/v11_r09_gate3_runtime.py",
+      "source_pin:tools/v11_r09_gate3_store_v1.py",
+      "source_pin:tools/v11_r09_gate3_ledgers.py",
+      "source_pin:tools/v11_r09_gate3_a7_decoder.py",
+      "source_pin:tools/v11_r09_gate3_collector.py",
+      "source_pin:tools/v11_gate3_v5_feasibility_arithmetic.py",
+      "source_pin:tools/v11_gate3_offline_resource_budget.py",
+      "source_pin:tools/v11_gate3_validated_plan_export_offline.py",
+      "source_pin:tools/v11_r09_gate3_a8_composition.py",
+      "source_pin:tools/v11_r09_gate3_g3l_identity_audit.py",
+      "source_pin:polymarket_scanner/v11/ecmwf_sources.py",
+      "source_pin:polymarket_scanner/v11/ecmwf_grib.py",
+      "source_pin:polymarket_scanner/v11/gefs_sources.py",
+      "reviewed_blob_unchanged:docs/V11_GATE3_V5_EVIDENCE_ROLE_CONTRACT_20261003.md",
+      "reviewed_blob_unchanged:docs/V11_GATE3_V5_EVIDENCE_ROLE_CONTRACT_20261003.sources.json",
+      "reviewed_blob_unchanged:docs/V11_GATE3_V5_EVIDENCE_ROLE_CONTRACT_20261003.verification.json",
+      "reviewed_blob_unchanged:docs/V11_GATE3_V5_FEASIBILITY_20261003.md",
+      "reviewed_blob_unchanged:docs/V11_GATE3_V5_FEASIBILITY_20261003.arithmetic.json",
+      "reviewed_blob_unchanged:tools/v11_gate3_v5_feasibility_arithmetic.py"
+    ],
+    "future_matrix_executed": false,
+    "limitations": "Arithmetic witnesses are independent necessary capacity checks, not a constructed all-gates-passing fixture. FC23 remains required.",
+    "normal_and_optimized_required": true,
+    "predecessor_replay": "32/32 existing checks in each mode on a temporary public-byte reconstruction of the original baseline; no repinning",
+    "script_location": "Temporary author-only /tmp/v5_fc_doc_check.py; not an installed tool or production checker. Reproduce all arithmetic from this JSON and contract equations; source pins from immutable git show."
+  },
+  "baseline_commit": "910b841471050b637c90dddd8443d214a131995d",
+  "candidate_contract": {
+    "byte_length": 35650,
+    "sha256": "b414cfe4f20ccb8acb853f6b6dbdba9392da2979e3c511af39626c176f983638"
+  },
+  "future_matrix": [
+    {
+      "execution_status": "FUTURE_NOT_RUN",
+      "id": "FC01",
+      "mutations": [
+        {
+          "change": "unknown key",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "SCHEMA"
+        },
+        {
+          "change": "missing key",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "SCHEMA"
+        },
+        {
+          "change": "duplicate key",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "CANONICAL"
+        },
+        {
+          "change": "noncanonical bytes",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "CANONICAL"
+        },
+        {
+          "change": "V4/V5/FC1 mixed schema",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "SCHEMA"
+        },
+        {
+          "change": "bool instead of integer",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "SCHEMA"
+        },
+        {
+          "change": "integer overflow",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "BOUNDS"
+        }
+      ],
+      "owner": "schema/projection",
+      "positive_control": "Exact closed FC1 schema and complete round-trip projection; synthetic entrypoint only",
+      "positive_expected_outcome": "PASS_SYNTHETIC_BOUNDARY_ONLY_NO_PRODUCTION_AUTHORITY",
+      "preserve_on_refusal": "All 2713 rows, original reasons, received/uncertain debits, original evidence and denial history; no new dispatch after terminal violation.",
+      "scope": "SYNTHETIC_NONPRODUCTION_ONLY"
+    },
+    {
+      "execution_status": "FUTURE_NOT_RUN",
+      "id": "FC02",
+      "mutations": [
+        {
+          "change": "omit IFS hour 3",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "APPLICABILITY"
+        },
+        {
+          "change": "six-hour IFS subset loses 612",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "APPLICABILITY"
+        },
+        {
+          "change": "duplicate member",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "APPLICABILITY"
+        },
+        {
+          "change": "reorder slot",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "APPLICABILITY"
+        },
+        {
+          "change": "replace missing with interpolation",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "APPLICABILITY"
+        },
+        {
+          "change": "drop failed row",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "APPLICABILITY"
+        }
+      ],
+      "owner": "slot/native bridge",
+      "positive_control": "All 775 GEFS + 1275 IFS + 663 AIFS ordered slots, 8139 role cells",
+      "positive_expected_outcome": "PASS_SYNTHETIC_BOUNDARY_ONLY_NO_PRODUCTION_AUTHORITY",
+      "preserve_on_refusal": "All 2713 rows, original reasons, received/uncertain debits, original evidence and denial history; no new dispatch after terminal violation.",
+      "scope": "SYNTHETIC_NONPRODUCTION_ONLY"
+    },
+    {
+      "execution_status": "FUTURE_NOT_RUN",
+      "id": "FC03",
+      "mutations": [
+        {
+          "change": "duplicate raw downloads for HIGH/LOW",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "PROJECTION"
+        },
+        {
+          "change": "omit event/provider pair",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "PROJECTION"
+        },
+        {
+          "change": "alter requested key",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "PROJECTION"
+        },
+        {
+          "change": "RAW-only marked eligible",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "PROJECTION"
+        }
+      ],
+      "owner": "event/report",
+      "positive_control": "One event then two events over identical raw request set; 2713/5426 links and 3/6 provider expansions",
+      "positive_expected_outcome": "PASS_SYNTHETIC_BOUNDARY_ONLY_NO_PRODUCTION_AUTHORITY",
+      "preserve_on_refusal": "All 2713 rows, original reasons, received/uncertain debits, original evidence and denial history; no new dispatch after terminal violation.",
+      "scope": "SYNTHETIC_NONPRODUCTION_ONLY"
+    },
+    {
+      "execution_status": "FUTURE_NOT_RUN",
+      "id": "FC04",
+      "mutations": [
+        {
+          "change": "full 2/4 MiB caps",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "BUDGET"
+        },
+        {
+          "change": "B+G_rx at 1 GiB+1",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "BUDGET"
+        },
+        {
+          "change": "range exceeds provider cap by 1",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "BUDGET"
+        },
+        {
+          "change": "reserve selected length below frozen full cap",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "BUDGET"
+        },
+        {
+          "change": "reuse released slack",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "BUDGET"
+        },
+        {
+          "change": "4415-request conditional overhead example",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "BUDGET"
+        }
+      ],
+      "owner": "byte admission",
+      "positive_control": "Frozen synthetic 256 KiB provider caps; full-cap sum plus 64 KiB abort reserve fits",
+      "positive_expected_outcome": "PASS_SYNTHETIC_BOUNDARY_ONLY_NO_PRODUCTION_AUTHORITY",
+      "preserve_on_refusal": "All 2713 rows, original reasons, received/uncertain debits, original evidence and denial history; no new dispatch after terminal violation.",
+      "scope": "SYNTHETIC_NONPRODUCTION_ONLY"
+    },
+    {
+      "execution_status": "FUTURE_NOT_RUN",
+      "id": "FC05",
+      "mutations": [
+        {
+          "change": "one ms over elapsed cap",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "BUDGET"
+        },
+        {
+          "change": "start gap 1999ms",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "CLOCK"
+        },
+        {
+          "change": "two in flight",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "BUDGET"
+        },
+        {
+          "change": "abort lag outside deadline",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "BUDGET"
+        },
+        {
+          "change": "count 17-18 UTC as extra time",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "CLOCK"
+        },
+        {
+          "change": "unbounded jitter",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "BUDGET"
+        }
+      ],
+      "owner": "scheduler",
+      "positive_control": "Start-to-start 2s deadline profile totals 9586s; integer-ms equality at 10800000 accepted",
+      "positive_expected_outcome": "PASS_SYNTHETIC_BOUNDARY_ONLY_NO_PRODUCTION_AUTHORITY",
+      "preserve_on_refusal": "All 2713 rows, original reasons, received/uncertain debits, original evidence and denial history; no new dispatch after terminal violation.",
+      "scope": "SYNTHETIC_NONPRODUCTION_ONLY"
+    },
+    {
+      "execution_status": "FUTURE_NOT_RUN",
+      "id": "FC06",
+      "mutations": [
+        {
+          "change": "P floor minus 1ms",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "BUDGET"
+        },
+        {
+          "change": "Z floor minus 1ms",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "BUDGET"
+        },
+        {
+          "change": "omit fsync",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "BUDGET"
+        },
+        {
+          "change": "double-book sequential worker as overlap",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "BUDGET"
+        },
+        {
+          "change": "A7 default 38760s decode envelope",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "BUDGET"
+        },
+        {
+          "change": "missing successful-path bound",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "BUDGET"
+        }
+      ],
+      "owner": "local cost",
+      "positive_control": "All setup/hash/fsync/decoder/replay/finalize phases bounded and charged once; P>=2713s,Z>=60s",
+      "positive_expected_outcome": "PASS_SYNTHETIC_BOUNDARY_ONLY_NO_PRODUCTION_AUTHORITY",
+      "preserve_on_refusal": "All 2713 rows, original reasons, received/uncertain debits, original evidence and denial history; no new dispatch after terminal violation.",
+      "scope": "SYNTHETIC_NONPRODUCTION_ONLY"
+    },
+    {
+      "execution_status": "FUTURE_NOT_RUN",
+      "id": "FC07",
+      "mutations": [
+        {
+          "change": "4097 physical names",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "BUDGET"
+        },
+        {
+          "change": "second simultaneous temp",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "BUDGET"
+        },
+        {
+          "change": "unaccounted imported chunk",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "BUDGET"
+        },
+        {
+          "change": "unaccounted decoded output",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "BUDGET"
+        },
+        {
+          "change": "assume per-raw temp remains forever then ignore its bytes",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "BUDGET"
+        }
+      ],
+      "owner": "store allocations",
+      "positive_control": "2803 final objects, one active temporary, 2804 peak; limits equality accepted",
+      "positive_expected_outcome": "PASS_SYNTHETIC_BOUNDARY_ONLY_NO_PRODUCTION_AUTHORITY",
+      "preserve_on_refusal": "All 2713 rows, original reasons, received/uncertain debits, original evidence and denial history; no new dispatch after terminal violation.",
+      "scope": "SYNTHETIC_NONPRODUCTION_ONLY"
+    },
+    {
+      "execution_status": "FUTURE_NOT_RUN",
+      "id": "FC08",
+      "mutations": [
+        {
+          "change": "gap",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "DEPENDENCY"
+        },
+        {
+          "change": "overlap",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "DEPENDENCY"
+        },
+        {
+          "change": "reordered chunk",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "DEPENDENCY"
+        },
+        {
+          "change": "extra tail",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "BOUNDS"
+        },
+        {
+          "change": "wrong length",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "SOURCE_PIN"
+        },
+        {
+          "change": "wrong digest",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "SOURCE_PIN"
+        },
+        {
+          "change": "recursive catalog",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "SCHEMA"
+        },
+        {
+          "change": "segment a forecast message for eligibility",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "APPLICABILITY"
+        }
+      ],
+      "owner": "support segmentation",
+      "positive_control": "Lengths 1,4MiB,4MiB+1,1GiB yield 1,1,2,256 chunks; whole and chunk hashes verified",
+      "positive_expected_outcome": "PASS_SYNTHETIC_BOUNDARY_ONLY_NO_PRODUCTION_AUTHORITY",
+      "preserve_on_refusal": "All 2713 rows, original reasons, received/uncertain debits, original evidence and denial history; no new dispatch after terminal violation.",
+      "scope": "SYNTHETIC_NONPRODUCTION_ONLY"
+    },
+    {
+      "execution_status": "FUTURE_NOT_RUN",
+      "id": "FC09",
+      "mutations": [
+        {
+          "change": "concatenate 1GiB in memory",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "BOUNDS"
+        },
+        {
+          "change": "compressed opaque expansion",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "BOUNDS"
+        },
+        {
+          "change": "depth 17",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "BOUNDS"
+        },
+        {
+          "change": "array 3601",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "BOUNDS"
+        },
+        {
+          "change": "node 500001",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "BOUNDS"
+        },
+        {
+          "change": "string 4097 decoded bytes",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "BOUNDS"
+        },
+        {
+          "change": "dangling final codepoint",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "CANONICAL"
+        }
+      ],
+      "owner": "streaming parser",
+      "positive_control": "Canonical artifact crossing chunk and UTF-8 boundaries within <=1MiB buffer and original parser limits",
+      "positive_expected_outcome": "PASS_SYNTHETIC_BOUNDARY_ONLY_NO_PRODUCTION_AUTHORITY",
+      "preserve_on_refusal": "All 2713 rows, original reasons, received/uncertain debits, original evidence and denial history; no new dispatch after terminal violation.",
+      "scope": "SYNTHETIC_NONPRODUCTION_ONLY"
+    },
+    {
+      "execution_status": "FUTURE_NOT_RUN",
+      "id": "FC10",
+      "mutations": [
+        {
+          "change": "257 direct dependencies",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "BOUNDS"
+        },
+        {
+          "change": "16385 graph edges",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "BOUNDS"
+        },
+        {
+          "change": "8193 external edges",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "BOUNDS"
+        },
+        {
+          "change": "4097 referenced artifacts",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "BOUNDS"
+        },
+        {
+          "change": "hide semantic edge by packing",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "DEPENDENCY"
+        },
+        {
+          "change": "cycle",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "DEPENDENCY"
+        },
+        {
+          "change": "duplicate/dangling role scope",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "DEPENDENCY"
+        }
+      ],
+      "owner": "graph/fanout",
+      "positive_control": "12 nodes/event, 24 for two; exact semantic and representation closure independently counted",
+      "positive_expected_outcome": "PASS_SYNTHETIC_BOUNDARY_ONLY_NO_PRODUCTION_AUTHORITY",
+      "preserve_on_refusal": "All 2713 rows, original reasons, received/uncertain debits, original evidence and denial history; no new dispatch after terminal violation.",
+      "scope": "SYNTHETIC_NONPRODUCTION_ONLY"
+    },
+    {
+      "execution_status": "FUTURE_NOT_RUN",
+      "id": "FC11",
+      "mutations": [
+        {
+          "change": "64MiB+1 journal bytes",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "BUDGET"
+        },
+        {
+          "change": "10001 store events",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "BUDGET"
+        },
+        {
+          "change": "32769 session events",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "BUDGET"
+        },
+        {
+          "change": "32769 denial events",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "BUDGET"
+        },
+        {
+          "change": "131073 budget events",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "BUDGET"
+        },
+        {
+          "change": "65537-byte record",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "BUDGET"
+        },
+        {
+          "change": "reset counts at segment boundary",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "BUDGET"
+        }
+      ],
+      "owner": "journal admission",
+      "positive_control": "Witness four journals fit; existing+remaining counters exactly recomputed",
+      "positive_expected_outcome": "PASS_SYNTHETIC_BOUNDARY_ONLY_NO_PRODUCTION_AUTHORITY",
+      "preserve_on_refusal": "All 2713 rows, original reasons, received/uncertain debits, original evidence and denial history; no new dispatch after terminal violation.",
+      "scope": "SYNTHETIC_NONPRODUCTION_ONLY"
+    },
+    {
+      "execution_status": "FUTURE_NOT_RUN",
+      "id": "FC12",
+      "mutations": [
+        {
+          "change": "maximum escaped string exceeds certificate",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "BOUNDS"
+        },
+        {
+          "change": "max-width sequence integer exceeds certificate",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "BOUNDS"
+        },
+        {
+          "change": "drop original clock bytes to fit",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "CUSTODY"
+        },
+        {
+          "change": "omit newline/framing",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "BOUNDS"
+        },
+        {
+          "change": "unproved dependency indirection",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "DEPENDENCY"
+        }
+      ],
+      "owner": "typed serializers",
+      "positive_control": "Exact bounded framed serialization, escaping, full clocks/provenance; store 8192/8192/1024 profile is explicitly tested",
+      "positive_expected_outcome": "PASS_SYNTHETIC_BOUNDARY_ONLY_NO_PRODUCTION_AUTHORITY",
+      "preserve_on_refusal": "All 2713 rows, original reasons, received/uncertain debits, original evidence and denial history; no new dispatch after terminal violation.",
+      "scope": "SYNTHETIC_NONPRODUCTION_ONLY"
+    },
+    {
+      "execution_status": "FUTURE_NOT_RUN",
+      "id": "FC13",
+      "mutations": [
+        {
+          "change": "success before witness",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "DEPENDENCY"
+        },
+        {
+          "change": "terminal before close",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "DEPENDENCY"
+        },
+        {
+          "change": "denial made terminal before accounting",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "DEPENDENCY"
+        },
+        {
+          "change": "13th per-request session record",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "BUDGET"
+        },
+        {
+          "change": "repeat clock callback appends unboundedly",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "BUDGET"
+        },
+        {
+          "change": "clear denial by changing root",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "RIGHTS_LINEAGE"
+        }
+      ],
+      "owner": "ledger transitions",
+      "positive_control": "Reserve->dispatch->close->known-account->witness->receipt->terminal preserves original reasons",
+      "positive_expected_outcome": "PASS_SYNTHETIC_BOUNDARY_ONLY_NO_PRODUCTION_AUTHORITY",
+      "preserve_on_refusal": "All 2713 rows, original reasons, received/uncertain debits, original evidence and denial history; no new dispatch after terminal violation.",
+      "scope": "SYNTHETIC_NONPRODUCTION_ONLY"
+    },
+    {
+      "execution_status": "FUTURE_NOT_RUN",
+      "id": "FC14",
+      "mutations": [
+        {
+          "change": "crash lowers uncertain debit",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "CUSTODY"
+        },
+        {
+          "change": "unbounded eager delivery",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "BUDGET"
+        },
+        {
+          "change": "reuse abort allowance after violation",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "BUDGET"
+        },
+        {
+          "change": "release before known close",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "BUDGET"
+        },
+        {
+          "change": "ignore failed-body bytes",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "BUDGET"
+        },
+        {
+          "change": "continue after overdelivery",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "BUDGET"
+        }
+      ],
+      "owner": "received-byte accounting",
+      "positive_control": "Durable full cap before dispatch; volatile every-byte count; known close then durable actual total",
+      "positive_expected_outcome": "PASS_SYNTHETIC_BOUNDARY_ONLY_NO_PRODUCTION_AUTHORITY",
+      "preserve_on_refusal": "All 2713 rows, original reasons, received/uncertain debits, original evidence and denial history; no new dispatch after terminal violation.",
+      "scope": "SYNTHETIC_NONPRODUCTION_ONLY"
+    },
+    {
+      "execution_status": "FUTURE_NOT_RUN",
+      "id": "FC15",
+      "mutations": [
+        {
+          "change": "wrong control template",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "APPLICABILITY"
+        },
+        {
+          "change": "missing perturbed number",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "APPLICABILITY"
+        },
+        {
+          "change": "duplicate native selector",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "APPLICABILITY"
+        },
+        {
+          "change": "changed run/grid/level/parameter",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "APPLICABILITY"
+        },
+        {
+          "change": "GEFS CGI200 substituted",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "APPLICABILITY"
+        },
+        {
+          "change": "17GiB parser allowance overrides 1GiB offset cap",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "BOUNDS"
+        },
+        {
+          "change": "batch >51 members or >16MiB",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "BOUNDS"
+        }
+      ],
+      "owner": "native source integration",
+      "positive_control": "Separate IFS 3h/AIFS 6h bridge; IFS oper/fc and enfo/ef with pf selectors; exact 206 GRIB identity",
+      "positive_expected_outcome": "PASS_SYNTHETIC_BOUNDARY_ONLY_NO_PRODUCTION_AUTHORITY",
+      "preserve_on_refusal": "All 2713 rows, original reasons, received/uncertain debits, original evidence and denial history; no new dispatch after terminal violation.",
+      "scope": "SYNTHETIC_NONPRODUCTION_ONLY"
+    },
+    {
+      "execution_status": "FUTURE_NOT_RUN",
+      "id": "FC16",
+      "mutations": [
+        {
+          "change": "65th read when frozen k=64",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "BOUNDS"
+        },
+        {
+          "change": "zero-progress non-EOF",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "BOUNDS"
+        },
+        {
+          "change": "wrong Content-Range",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "DEPENDENCY"
+        },
+        {
+          "change": "200 for range",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "DEPENDENCY"
+        },
+        {
+          "change": "wrong ETag",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "DEPENDENCY"
+        },
+        {
+          "change": "compressed HTTP",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "DEPENDENCY"
+        },
+        {
+          "change": "extra body byte",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "BUDGET"
+        },
+        {
+          "change": "read after cancellation",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "BOUNDS"
+        }
+      ],
+      "owner": "stream transport",
+      "positive_control": "4MiB exact success in 64 full reads; positive short reads within frozen call limit",
+      "positive_expected_outcome": "PASS_SYNTHETIC_BOUNDARY_ONLY_NO_PRODUCTION_AUTHORITY",
+      "preserve_on_refusal": "All 2713 rows, original reasons, received/uncertain debits, original evidence and denial history; no new dispatch after terminal violation.",
+      "scope": "SYNTHETIC_NONPRODUCTION_ONLY"
+    },
+    {
+      "execution_status": "FUTURE_NOT_RUN",
+      "id": "FC17",
+      "mutations": [
+        {
+          "change": "crash after reserve",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "CUSTODY"
+        },
+        {
+          "change": "crash after dispatch-intent",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "CUSTODY"
+        },
+        {
+          "change": "crash after headers/denial",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "CUSTODY"
+        },
+        {
+          "change": "crash during body",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "CUSTODY"
+        },
+        {
+          "change": "crash after close before accounting",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "CUSTODY"
+        },
+        {
+          "change": "crash after PREPARE",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "CUSTODY"
+        },
+        {
+          "change": "crash after bytes fsync",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "CUSTODY"
+        },
+        {
+          "change": "crash after link before dir fsync",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "CUSTODY"
+        },
+        {
+          "change": "crash after unlink before dir fsync",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "CUSTODY"
+        },
+        {
+          "change": "crash after COMMIT before acknowledgement",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "CUSTODY"
+        },
+        {
+          "change": "crash during report seal",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "CUSTODY"
+        }
+      ],
+      "owner": "crash/restart",
+      "positive_control": "Read-only replay of every prefix; only closed clean same-boot state may progress with one reserved reopen",
+      "positive_expected_outcome": "PASS_SYNTHETIC_BOUNDARY_ONLY_NO_PRODUCTION_AUTHORITY",
+      "preserve_on_refusal": "All 2713 rows, original reasons, received/uncertain debits, original evidence and denial history; no new dispatch after terminal violation.",
+      "scope": "SYNTHETIC_NONPRODUCTION_ONLY"
+    },
+    {
+      "execution_status": "FUTURE_NOT_RUN",
+      "id": "FC18",
+      "mutations": [
+        {
+          "change": "torn journal",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "CUSTODY"
+        },
+        {
+          "change": "rolled-back head",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "CUSTODY"
+        },
+        {
+          "change": "foreign boot",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "CUSTODY"
+        },
+        {
+          "change": "symlink/FIFO/alias swap",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "CUSTODY"
+        },
+        {
+          "change": "existing occupancy omitted",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "BUDGET"
+        },
+        {
+          "change": "third append-capable open",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "CUSTODY"
+        },
+        {
+          "change": "unknown foreign demand",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "BUDGET"
+        },
+        {
+          "change": "hidden cgroup ancestor",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "BUDGET"
+        },
+        {
+          "change": "fake sparse reserve",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "BUDGET"
+        },
+        {
+          "change": "expired clock/resource custody",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "CUSTODY"
+        }
+      ],
+      "owner": "custody and host",
+      "positive_control": "Authenticated head, exact namespace, boot and same counters; resources held through use with all ancestors",
+      "positive_expected_outcome": "PASS_SYNTHETIC_BOUNDARY_ONLY_NO_PRODUCTION_AUTHORITY",
+      "preserve_on_refusal": "All 2713 rows, original reasons, received/uncertain debits, original evidence and denial history; no new dispatch after terminal violation.",
+      "scope": "SYNTHETIC_NONPRODUCTION_ONLY"
+    },
+    {
+      "execution_status": "FUTURE_NOT_RUN",
+      "id": "FC19",
+      "mutations": [
+        {
+          "change": "future proof backdated",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "CLOCK"
+        },
+        {
+          "change": "wrong object/index coherence",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "DEPENDENCY"
+        },
+        {
+          "change": "metadata weather release substituted for official cohort",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "APPLICABILITY"
+        },
+        {
+          "change": "scope missing one slot",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "APPLICABILITY"
+        },
+        {
+          "change": "expired rights",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "RIGHTS_LINEAGE"
+        },
+        {
+          "change": "failed confirmation switched to offline",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "DEPENDENCY"
+        },
+        {
+          "change": "unknown parser or capability",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "TRUST"
+        }
+      ],
+      "owner": "role evidence",
+      "positive_control": "Three independently interpreted scoped pre-freeze proofs per FIELD; optional earlier charged confirmation",
+      "positive_expected_outcome": "PASS_SYNTHETIC_BOUNDARY_ONLY_NO_PRODUCTION_AUTHORITY",
+      "preserve_on_refusal": "All 2713 rows, original reasons, received/uncertain debits, original evidence and denial history; no new dispatch after terminal violation.",
+      "scope": "SYNTHETIC_NONPRODUCTION_ONLY"
+    },
+    {
+      "execution_status": "FUTURE_NOT_RUN",
+      "id": "FC20",
+      "mutations": [
+        {
+          "change": "self-pin",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "TRUST"
+        },
+        {
+          "change": "same producer/reviewer credential",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "TRUST"
+        },
+        {
+          "change": "stale revocation head",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "TRUST"
+        },
+        {
+          "change": "modified cost plan after review",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "SOURCE_PIN"
+        },
+        {
+          "change": "omitted event_policy_review",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "SCHEMA"
+        },
+        {
+          "change": "manifest/projection byte drift",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "PROJECTION"
+        },
+        {
+          "change": "synthetic export accepted as production",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "TRUST"
+        }
+      ],
+      "owner": "trust/export",
+      "positive_control": "Exact seven input roles, complete execution-profile refs and authenticated synthetic trust emulator isolated from production",
+      "positive_expected_outcome": "PASS_SYNTHETIC_BOUNDARY_ONLY_NO_PRODUCTION_AUTHORITY",
+      "preserve_on_refusal": "All 2713 rows, original reasons, received/uncertain debits, original evidence and denial history; no new dispatch after terminal violation.",
+      "scope": "SYNTHETIC_NONPRODUCTION_ONLY"
+    },
+    {
+      "execution_status": "FUTURE_NOT_RUN",
+      "id": "FC21",
+      "mutations": [
+        {
+          "change": "rename away V4 obligation",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "PROJECTION"
+        },
+        {
+          "change": "mark missing identity complete",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "TRUST"
+        },
+        {
+          "change": "skip A1 or A2-A8",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "PROJECTION"
+        },
+        {
+          "change": "claim G3-L PASS from arithmetic",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "TRUST"
+        },
+        {
+          "change": "claim G3-E without actual-byte replay",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "TRUST"
+        }
+      ],
+      "owner": "acceptance mapping",
+      "positive_control": "Exact equality with all 79 inherited identity rows and H1-H6 zero-credit holds",
+      "positive_expected_outcome": "PASS_SYNTHETIC_BOUNDARY_ONLY_NO_PRODUCTION_AUTHORITY",
+      "preserve_on_refusal": "All 2713 rows, original reasons, received/uncertain debits, original evidence and denial history; no new dispatch after terminal violation.",
+      "scope": "SYNTHETIC_NONPRODUCTION_ONLY"
+    },
+    {
+      "execution_status": "FUTURE_NOT_RUN",
+      "id": "FC22",
+      "mutations": [
+        {
+          "change": "expired proposed date silently rolled",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "CLOCK"
+        },
+        {
+          "change": "metadata receipt at acquisition start",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "CLOCK"
+        },
+        {
+          "change": "feature-seal upper after decision lower",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "CLOCK"
+        },
+        {
+          "change": "clock uncertainty >1s",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "CLOCK"
+        },
+        {
+          "change": "missing restriction expiry",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "RIGHTS_LINEAGE"
+        },
+        {
+          "change": "alternate origin evades 503/429",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "RIGHTS_LINEAGE"
+        },
+        {
+          "change": "retry after 401/403",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "RIGHTS_LINEAGE"
+        },
+        {
+          "change": "credentials or redirect",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "RIGHTS_LINEAGE"
+        }
+      ],
+      "owner": "cutoffs and restrictions",
+      "positive_control": "Whole-interval pre-review/metadata/receipt/feature seal valid, global restrictions retained",
+      "positive_expected_outcome": "PASS_SYNTHETIC_BOUNDARY_ONLY_NO_PRODUCTION_AUTHORITY",
+      "preserve_on_refusal": "All 2713 rows, original reasons, received/uncertain debits, original evidence and denial history; no new dispatch after terminal violation.",
+      "scope": "SYNTHETIC_NONPRODUCTION_ONLY"
+    },
+    {
+      "execution_status": "FUTURE_NOT_RUN",
+      "id": "FC23",
+      "mutations": [
+        {
+          "change": "individually fitting profiles whose combined graph exceeds bound",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "BUDGET"
+        },
+        {
+          "change": "assume witness I=64 without artifacts",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "DEPENDENCY"
+        },
+        {
+          "change": "zero missing cost",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "BUDGET"
+        },
+        {
+          "change": "reuse old report as current qualification",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "TRUST"
+        },
+        {
+          "change": "subset presented as full cohort",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "APPLICABILITY"
+        }
+      ],
+      "owner": "composed profile",
+      "positive_control": "Independently constructed synthetic complete graph and allocation/cost fixture; all inequalities and all original gates tested together",
+      "positive_expected_outcome": "PASS_SYNTHETIC_BOUNDARY_ONLY_NO_PRODUCTION_AUTHORITY",
+      "preserve_on_refusal": "All 2713 rows, original reasons, received/uncertain debits, original evidence and denial history; no new dispatch after terminal violation.",
+      "scope": "SYNTHETIC_NONPRODUCTION_ONLY"
+    },
+    {
+      "execution_status": "FUTURE_NOT_RUN",
+      "id": "FC24",
+      "mutations": [
+        {
+          "change": "network call",
+          "expected_outcome": "HARNESS_CONTAINMENT_FAILURE",
+          "expected_stage": "BOUNDS"
+        },
+        {
+          "change": "protected/private path read",
+          "expected_outcome": "HARNESS_CONTAINMENT_FAILURE",
+          "expected_stage": "BOUNDS"
+        },
+        {
+          "change": "credential read",
+          "expected_outcome": "HARNESS_CONTAINMENT_FAILURE",
+          "expected_stage": "BOUNDS"
+        },
+        {
+          "change": "service operation",
+          "expected_outcome": "HARNESS_CONTAINMENT_FAILURE",
+          "expected_stage": "BOUNDS"
+        },
+        {
+          "change": "accepted-production schema emitted",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "TRUST"
+        },
+        {
+          "change": "reason row dropped on refusal",
+          "expected_outcome": "REFUSE_NO_CREDIT",
+          "expected_stage": "PROJECTION"
+        }
+      ],
+      "owner": "containment/replay",
+      "positive_control": "All FC cases deterministic in normal/optimized modes with no-I/O tripwires and bounded refusal reports",
+      "positive_expected_outcome": "PASS_SYNTHETIC_BOUNDARY_ONLY_NO_PRODUCTION_AUTHORITY",
+      "preserve_on_refusal": "All 2713 rows, original reasons, received/uncertain debits, original evidence and denial history; no new dispatch after terminal violation.",
+      "scope": "SYNTHETIC_NONPRODUCTION_ONLY"
+    }
+  ],
+  "inherited_g3l_preservation": [
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "code.collector_commit_tree",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "code and A2/A3/A4/A8 reviewed V5 build closure"
+    },
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "code.launch_validator_commit_tree",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "code and A2/A3/A4/A8 reviewed V5 build closure"
+    },
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "code.transport_commit_tree",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "code and A2/A3/A4/A8 reviewed V5 build closure"
+    },
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "code.decoder_commit_tree",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "code and A2/A3/A4/A8 reviewed V5 build closure"
+    },
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "code.clock_recorder_commit_tree",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "code and A2/A3/A4/A8 reviewed V5 build closure"
+    },
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "code.source_file_hashes",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "code and A2/A3/A4/A8 reviewed V5 build closure"
+    },
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "code.dependency_build_lock",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "code and A2/A3/A4/A8 reviewed V5 build closure"
+    },
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "code.runtime_entrypoint_review",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "code and A2/A3/A4/A8 reviewed V5 build closure"
+    },
+    {
+      "disposition": "HOLD_EXPLICIT_EQUIVALENCE_AND_NEW_EXACT_REVIEW",
+      "evidence": null,
+      "identity": "code.slice3_exact_commit_review",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "code and A2/A3/A4/A8 reviewed V5 build closure"
+    },
+    {
+      "disposition": "HOLD_EXPLICIT_EQUIVALENCE_AND_NEW_EXACT_REVIEW",
+      "evidence": null,
+      "identity": "code.mapping_exact_commit_review",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "code and A2/A3/A4/A8 reviewed V5 build closure"
+    },
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "protocol.g3p_original_commit_tree_document",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "historical protocol pins plus separately accepted v5_amendment"
+    },
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "protocol.g3p_original_review_terminal",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "historical protocol pins plus separately accepted v5_amendment"
+    },
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "protocol.g3p_addendum_commit_tree_document",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "historical protocol pins plus separately accepted v5_amendment"
+    },
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "protocol.g3p_addendum_review_terminal",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "historical protocol pins plus separately accepted v5_amendment"
+    },
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "protocol.g3i_collector_review_terminal",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "historical protocol pins plus separately accepted v5_amendment"
+    },
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "protocol.g3i_provider_bound_review_terminal",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "historical protocol pins plus separately accepted v5_amendment"
+    },
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "protocol.g3i_gefs_ceiling_review_terminal",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "historical protocol pins plus separately accepted v5_amendment"
+    },
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "protocol.transport_design_review_terminal",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "historical protocol pins plus separately accepted v5_amendment"
+    },
+    {
+      "disposition": "HOLD_EXPLICIT_EQUIVALENCE_AND_NEW_EXACT_REVIEW",
+      "evidence": null,
+      "identity": "protocol.g3i_composition_review_terminal",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "historical protocol pins plus separately accepted v5_amendment"
+    },
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "cohort.station_version_coordinates_timezone",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "cohort/events and COHORT_METADATA"
+    },
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "cohort.tzdata_bytes",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "cohort/events and COHORT_METADATA"
+    },
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "cohort.pre_weather_selection_rationale",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "cohort/events and COHORT_METADATA"
+    },
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "cohort.high_low_event_ids",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "cohort/events and COHORT_METADATA"
+    },
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "cohort.official_rule_rounding_buckets",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "cohort/events and COHORT_METADATA"
+    },
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "cohort.settlement_source",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "cohort/events and COHORT_METADATA"
+    },
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "cohort.metadata_bytes_receipt",
+      "qualification_credit": 0,
+      "scope": "run",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "cohort/events and COHORT_METADATA"
+    },
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "cohort.requested_gate2_key_mapping",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "cohort/events and COHORT_METADATA"
+    },
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "sources.gefs_operational_release_dossier",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "sources and role/capability semantic enrollment"
+    },
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "sources.gefs_release_document_retrieval",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "sources and role/capability semantic enrollment"
+    },
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "sources.gefs_licence_anonymous_access",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "sources and role/capability semantic enrollment"
+    },
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "sources.gefs_control_perturbed_mapping",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "sources and role/capability semantic enrollment"
+    },
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "sources.gefs_grib_identity_decoder_build",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "sources and role/capability semantic enrollment"
+    },
+    {
+      "disposition": "HOLD_EXPLICIT_EQUIVALENCE_AND_NEW_EXACT_REVIEW",
+      "evidence": null,
+      "identity": "sources.gefs_purpose_endpoint_contracts",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "sources and role/capability semantic enrollment"
+    },
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "sources.gefs_current_run_index_object_range",
+      "qualification_credit": 0,
+      "scope": "run",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "sources and role/capability semantic enrollment"
+    },
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "sources.gefs_publication_attestation_or_absence_reason",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "sources and role/capability semantic enrollment"
+    },
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "sources.ifs_operational_release_dossier",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "sources and role/capability semantic enrollment"
+    },
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "sources.ifs_release_document_retrieval",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "sources and role/capability semantic enrollment"
+    },
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "sources.ifs_licence_anonymous_access",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "sources and role/capability semantic enrollment"
+    },
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "sources.ifs_control_perturbed_mapping",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "sources and role/capability semantic enrollment"
+    },
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "sources.ifs_grib_identity_decoder_build",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "sources and role/capability semantic enrollment"
+    },
+    {
+      "disposition": "HOLD_EXPLICIT_EQUIVALENCE_AND_NEW_EXACT_REVIEW",
+      "evidence": null,
+      "identity": "sources.ifs_purpose_endpoint_contracts",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "sources and role/capability semantic enrollment"
+    },
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "sources.ifs_current_run_index_object_range",
+      "qualification_credit": 0,
+      "scope": "run",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "sources and role/capability semantic enrollment"
+    },
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "sources.ifs_publication_attestation_or_absence_reason",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "sources and role/capability semantic enrollment"
+    },
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "sources.aifs_operational_release_dossier",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "sources and role/capability semantic enrollment"
+    },
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "sources.aifs_release_document_retrieval",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "sources and role/capability semantic enrollment"
+    },
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "sources.aifs_licence_anonymous_access",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "sources and role/capability semantic enrollment"
+    },
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "sources.aifs_control_perturbed_mapping",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "sources and role/capability semantic enrollment"
+    },
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "sources.aifs_grib_identity_decoder_build",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "sources and role/capability semantic enrollment"
+    },
+    {
+      "disposition": "HOLD_EXPLICIT_EQUIVALENCE_AND_NEW_EXACT_REVIEW",
+      "evidence": null,
+      "identity": "sources.aifs_purpose_endpoint_contracts",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "sources and role/capability semantic enrollment"
+    },
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "sources.aifs_current_run_index_object_range",
+      "qualification_credit": 0,
+      "scope": "run",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "sources and role/capability semantic enrollment"
+    },
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "sources.aifs_publication_attestation_or_absence_reason",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "sources and role/capability semantic enrollment"
+    },
+    {
+      "disposition": "HOLD_EXPLICIT_EQUIVALENCE_AND_NEW_EXACT_REVIEW",
+      "evidence": null,
+      "identity": "network.exact_origin_path_purpose_allowlist",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "network.capabilities plus authenticated restriction lineage"
+    },
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "network.dns_tls_build_peer_policy",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "network.capabilities plus authenticated restriction lineage"
+    },
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "network.anonymous_no_retry_credential_policy",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "network.capabilities plus authenticated restriction lineage"
+    },
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "network.restriction_domain_lineage",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "network.capabilities plus authenticated restriction lineage"
+    },
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "network.ecmwf_503_429_expiry_resumption_review",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "network.capabilities plus authenticated restriction lineage"
+    },
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "network.preflight_approval_receipts_if_used",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "network.capabilities plus authenticated restriction lineage"
+    },
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "storage.private_root_owner_mode_dev_inode",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "storage/runtime context, proof custody and physical reservations"
+    },
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "storage.denial_root_history_head",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "storage/runtime context, proof custody and physical reservations"
+    },
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "storage.session_report_root_identities",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "storage/runtime context, proof custody and physical reservations"
+    },
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "storage.exclusive_lock_atomic_seal_qualification",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "storage/runtime context, proof custody and physical reservations"
+    },
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "storage.physical_persistence_review",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "storage/runtime context, proof custody and physical reservations"
+    },
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "storage.live_disk_memory_quota_measurement",
+      "qualification_credit": 0,
+      "scope": "window",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "storage/runtime context, proof custody and physical reservations"
+    },
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "clocks.unprivileged_recorder_build_method",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "clocks_and_receipts and original through-use clock evidence"
+    },
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "clocks.calibration_sync_uncertainty",
+      "qualification_credit": 0,
+      "scope": "window",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "clocks_and_receipts and original through-use clock evidence"
+    },
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "clocks.host_boot_monotonic_identity",
+      "qualification_credit": 0,
+      "scope": "window",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "clocks_and_receipts and original through-use clock evidence"
+    },
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "clocks.measurement_age_policy",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "clocks_and_receipts and original through-use clock evidence"
+    },
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "schedule.run_candidate_readiness_evidence",
+      "qualification_credit": 0,
+      "scope": "run",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "runs_and_slots/schedule/evidence_roles/local_budget and full replay"
+    },
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "schedule.full_2713_slot_inventory_digest",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "runs_and_slots/schedule/evidence_roles/local_budget and full replay"
+    },
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "schedule.ordered_subset_request_paths_ranges",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "runs_and_slots/schedule/evidence_roles/local_budget and full replay"
+    },
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "schedule.shared_index_object_cache_binding",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "runs_and_slots/schedule/evidence_roles/local_budget and full replay"
+    },
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "schedule.purpose_reservations_and_resource_quota",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "runs_and_slots/schedule/evidence_roles/local_budget and full replay"
+    },
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "schedule.terminal_reason_precedence",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "runs_and_slots/schedule/evidence_roles/local_budget and full replay"
+    },
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "schedule.four_phase_receipt_schema",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "runs_and_slots/schedule/evidence_roles/local_budget and full replay"
+    },
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "schedule.observed_size_evidence_review",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "runs_and_slots/schedule/evidence_roles/local_budget and full replay"
+    },
+    {
+      "disposition": "HOLD_EXPLICIT_EQUIVALENCE_AND_NEW_EXACT_REVIEW",
+      "evidence": null,
+      "identity": "review.private_v4_manifest_canonical_bytes",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "separate exact V5 package review; historical obligations retained"
+    },
+    {
+      "disposition": "HOLD_EXPLICIT_EQUIVALENCE_AND_NEW_EXACT_REVIEW",
+      "evidence": null,
+      "identity": "review.private_v4_manifest_digest",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "PRE_REVIEW",
+      "successor_obligation": "separate exact V5 package review; historical obligations retained"
+    },
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "review.detached_g3l_report",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "FINAL",
+      "successor_obligation": "separate exact V5 package review; historical obligations retained"
+    },
+    {
+      "disposition": "PRESERVE_OBLIGATION_RECHECK_CHANGED_DEPENDENCIES",
+      "evidence": null,
+      "identity": "review.detached_g3l_completed_terminal",
+      "qualification_credit": 0,
+      "scope": "accepted_static",
+      "stage": "FINAL",
+      "successor_obligation": "separate exact V5 package review; historical obligations retained"
+    }
+  ],
+  "qualification_credit": 0,
+  "schema": "G3_V5_FC_DOCUMENT_VERIFICATION_1",
+  "scope": "DOCUMENTATION_AND_PUBLIC_GIT_ARITHMETIC_ONLY",
+  "status": "PROPOSED_BLOCKED",
+  "structural_witness": {
+    "abort_allowance_bytes": 65536,
+    "aggregate_objects": 24,
+    "body_plus_abort_bytes": 711262208,
+    "body_reservation_bytes": 711196672,
+    "clock_guard_ms": 10000,
+    "deadline_ms": 2000,
+    "decoded_objects": 2,
+    "elapsed_bound_ms": 9586000,
+    "event_links": 5426,
+    "events": 2,
+    "existing_objects": 0,
+    "fields": 2713,
+    "final_objects": 2803,
+    "finalization_ms": 60000,
+    "import_objects": 64,
+    "jitter_ms": 590000,
+    "journal_bytes": {
+      "budget": 11116544,
+      "denial": 44466176,
+      "session": 66682880,
+      "store": 65575936
+    },
+    "journal_events": {
+      "budget": 10856,
+      "denial": 10856,
+      "session": 32560,
+      "store": 8413
+    },
+    "kind": "STRUCTURAL_ARITHMETIC_ONLY_NOT_COMPOSED_QUALIFICATION",
+    "local_wall_ms": 3500000,
+    "overhead_requests": 0,
+    "peak_objects": 2804,
+    "provider_caps_bytes": {
+      "AIFS": 262144,
+      "GEFS": 262144,
+      "IFS": 262144
+    },
+    "providers": {
+      "AIFS": 663,
+      "GEFS": 775,
+      "IFS": 1275
+    },
+    "qualification_credit": 0,
+    "request_count": 2713,
+    "roles": 8139,
+    "spacing_ms": 2000,
+    "unproved": [
+      "real provider sizes",
+      "real complete evidence graph",
+      "tighter serializer profiles",
+      "successful native decode costs",
+      "host allocation/lifetime capacity",
+      "external authentication and custody"
+    ]
+  }
+}
