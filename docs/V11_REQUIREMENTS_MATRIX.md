@@ -4441,3 +4441,6 @@ Reproduced **563/563** focused fresh-window/checker tests on unmerged `976217d`.
 ## Coordinator R47 and Gate 3 hold reconciliation — 2026-10-03 06:42 UTC
 
 The preserved September 30 untracked R47 deterministic-builder draft is superseded by committed generator/test `937c968` on main; it is retained, not a new candidate or review PASS. No fresh bounded commissioning/backfill evidence appeared. Current Gate 3 children `976217d` and `02dc668` still require their own authorized different-model exact PASS before integration; parent CHANGES_REQUIRED reviews do not qualify them. The last G3-L screen remains 77 missing identities. No provider right, capture, forward SHADOW or C/J/E/A boundary changed: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+## Current-main offline Gate 3 verification — 2026-10-03 06:53 UTC
+
+Focused G3-L/preparation, real-intake and launch-V4 tests pass 98/98 on clean main `d0bc720`. Both current repair children are clean; `976217d` has a conflict-free merge probe and `02dc668` conflicts only in the three chronological status documents. Neither has candidate-specific authorized different-model PASS or is integrated. The 77 missing identities remain unqualified; no provider request, genuine capture, SHADOW admission or score change: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
