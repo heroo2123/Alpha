@@ -7609,3 +7609,7 @@ Independent Sol/high exact review passed clean documentation-only `36482c0` afte
 ## V5 IFS second exact review and repair — 2026-10-03 18:42 UTC
 
 The sealed different-model review of clean `2fbb807` returned **CHANGES_REQUIRED** with two reproduced P1 boundary failures: ECMWF proxy dispatch and pre-refusal `ObservationPump` runtime effects on supplied synthetic V5 requests. Retained verdict and terminal hashes are in the checkpoint. One Sol/high repair worker is live in the original isolated author worktree, with a terminal marker path; no duplicate writer. Do not merge before clean successor tests, different-model exact PASS, reconciliation and post-merge checks. No provider request, qualified capture, forward SHADOW or acceptance crossing: **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
+
+## V5 IFS second repair exact review active — 2026-10-03 18:51 UTC
+
+Clean `7cff90a` / tree `0713b1045eadc461517d15f198ce67974e0a894a` repairs the two P1 boundary findings; author-reported 388 passed/1 skipped per Python mode with zero socket audit events. Different-model Astra/high exact review is live in detached `/tmp/alpha-v11-gate3-v5-ifs-cadence-review-7cff90a`; no verdict or merge. Disk is above the 2 GiB floor. No provider request, qualification, capture or forward SHADOW: **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.

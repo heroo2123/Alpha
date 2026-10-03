@@ -4874,3 +4874,7 @@ Exact IFS three-hour candidate `53163d7` received **CHANGES_REQUIRED** for V5 ge
 ## V5 IFS second repair active — 2026-10-03 18:42 UTC
 
 Independent Astra/high exact review of `2fbb807` sealed **CHANGES_REQUIRED**: ECMWF proxy admission can reach a mock GET, and outer `ObservationPump` can cause synthetic paper-runtime effects before V5 refusal. One isolated Sol/high offline repair is active; candidate is unmerged. Require successor tests, independent exact PASS, reconciliation and post-merge checks. No provider request, qualification or forward SHADOW; 77 G3-L identities remain missing. **91/200, formal 1/50; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
+
+## V5 IFS second repair exact review active — 2026-10-03 18:51 UTC
+
+Clean `7cff90a` / tree `0713b1045eadc461517d15f198ce67974e0a894a` repairs the two P1 boundary findings; author-reported 388 passed/1 skipped per Python mode with zero socket audit events. Different-model Astra/high exact review is live in detached `/tmp/alpha-v11-gate3-v5-ifs-cadence-review-7cff90a`; no verdict or merge. Disk is above the 2 GiB floor. No provider request, qualification, capture or forward SHADOW: **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
