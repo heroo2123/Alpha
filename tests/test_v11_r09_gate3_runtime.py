@@ -683,6 +683,51 @@ def test_malformed_snapshot_retains_returned_byte_lower_bound(tmp_path, prefetch
         assert budget.received == 4 and budget.in_flight == 'req-1'
 
 
+@pytest.mark.parametrize('mode,prior,prefetched', (
+    ('underreport', False, 0),
+    ('underreport', True, 0),
+    ('raises', False, 0),
+    ('underreport', False, 4),
+    ('raises', False, 4),
+))
+def test_returned_bytes_survive_bad_progress_and_restart(
+        tmp_path, mode, prior, prefetched):
+    tmp_path = _dirs(tmp_path)
+    response = _ok_response(b'abcd', status=503,
+                            headers=(('Retry-After', '1200'),))
+
+    class BadProgress(ScriptedResponseStream):
+        def snapshot(self):
+            state = super().snapshot()
+            if self._cursor < (2 if prior else 1):
+                return state
+            if mode == 'raises':
+                raise RuntimeError('snapshot unavailable after return')
+            # Valid cumulative fields, but they omit the latest read.
+            previous = 2 if prior else prefetched
+            return replace(state, delivered_bytes=previous,
+                           read_bytes=2 if prior else 0)
+
+    chunks = (b'ab', b'cd') if prior else (b'abcd',)
+    stream = BadProgress(response, chunks, prefetched=prefetched)
+    with _acquire(tmp_path) as (shared, session, budget, store):
+        runtime = _scripted_runtime(shared, session, budget, store, response, stream)
+        with pytest.raises((RuntimeError if mode == 'raises' else LaunchContractError),
+                           match=('snapshot unavailable' if mode == 'raises' else
+                                  'RUNTIME_STREAM_PROGRESS')):
+            runtime.run_attempt(_request(reservation_bytes=4))
+        assert budget.received == 4 and budget.uncertain_received_bytes == 0
+        assert budget.in_flight == 'req-1' and shared.open_intent is not None
+        assert shared.denials['d' * 64]['status'] == '503'
+        assert not any(event['op'] == 'transport_closed' for event in session.events)
+    with _acquire(tmp_path) as (shared, session, budget, store):
+        assert budget.received == 4 and budget.uncertain_received_bytes == 0
+        assert budget.inherited_in_flight == 'req-1'
+        assert shared.is_blocked('d' * 64, now_utc=20)
+        with pytest.raises(LaunchContractError):
+            budget.complete('req-1')
+
+
 def test_overdelivery_poisons_session_and_blocks_further_attempts(tmp_path):
     tmp_path = _dirs(tmp_path)
     big = b'X' * 50

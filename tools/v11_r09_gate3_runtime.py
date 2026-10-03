@@ -1782,7 +1782,9 @@ class GateRuntime:
                 raise
             try:
                 state = accounting.observe()
-            except LaunchContractError:
+            except Exception:
+                # The read has already returned bytes. A missing or invalid
+                # snapshot cannot erase that independent lower bound.
                 accounting.charge_returned_lower_bound(
                     self.budget, request.request_id, before, chunk)
                 raise
@@ -1798,8 +1800,10 @@ class GateRuntime:
                     state.read_bytes == before.read_bytes + len(chunk) and
                     state.read_count == before.read_count + 1 and
                     state.delivered_bytes - accounting.charged_bytes >= len(chunk)):
-                self._account_prefetched_on_deadline(request, stream, accounting,
-                    receipt=header_receipt, denial_recorded=denial_record is not None)
+                # This snapshot is structurally valid but contradicts the
+                # returned body. Do not charge its cumulative counters.
+                accounting.charge_returned_lower_bound(
+                    self.budget, request.request_id, before, chunk)
                 raise LaunchContractError('RUNTIME_STREAM_PROGRESS')
             if (state.read_count > MAX_BODY_CHUNKS_PER_REQUEST or
                     state.known_chunk_count is not None and
