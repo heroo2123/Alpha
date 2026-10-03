@@ -1,3 +1,7 @@
+## Gate-3 map handoff recovered — 2026-10-03 21:43 UTC
+
+Read-only qualification mapper sealed exit 0 at clean `d06dec5`; its retained handoff names an offline bounded transport-stream interface and no-socket adverse tests. FC1 exact review and G3-L real-caller implementation are still live. Current memory reserve supports those two specialist lanes, with the transport slice ready for the next safe slot after overlap check. No provider request, qualification, forward SHADOW, or acceptance crossing: **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; NOT_READY_TO_FUND**.
+
 ## Three distinct weather lanes at the live reserve — 2026-10-03 21:39 UTC
 
 The FC1 exact reviewer, offline G3-L real-caller writer, and a separate read-only next-qualification mapper are live in distinct worktrees. The third lane uses recovered disk/memory headroom and cannot edit either active candidate. No verdict, merge beyond `afbbad7`, provider request, G3-L PASS or forward SHADOW. **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; NOT_READY_TO_FUND**.

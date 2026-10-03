@@ -1,3 +1,7 @@
+## Gate-3 downstream qualification map sealed — 2026-10-03 21:43 UTC
+
+The clean read-only mapper identified a bounded offline transport-stream interface and no-socket refusal tests as the next independent implementation slice. It ran no tests and grants no real transport, provider, G3-L identity, capture, or SHADOW credit. FC1 exact review and offline real-caller authoring remain active. **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Next Gate-3 qualification slice under read-only mapping — 2026-10-03 21:39 UTC
 
 A third isolated read-only lane is mapping the next real transport/clock/storage/decoder/launch prerequisite while FC1 exact review and offline real-caller authoring continue. Mapping confers no accepted real-path evidence or G3-L identity credit. **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
