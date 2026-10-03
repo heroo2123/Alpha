@@ -5044,3 +5044,7 @@ Three distinct weather specialists remain live: exact review of `48194a8`, FC1 c
 ## 2026-10-03 22:01 UTC offline caller boundary
 
 Independent exact review passed clean `48194a8`; conflict-free local merge `3956ca1` imported its two reviewed files, and post-merge focused tests passed 42/42. The new caller composes fresh real-intake guards with synthetic offline attempt transport; no real-path qualification, provider request, capture, G3-L identity or C/J/E/A boundary follows. FC1 author checks and transport-stream writer remain active, with a separate read-only storage/decoder qualification map launched from current main. **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
+
+## 2026-10-03 22:06 UTC frozen weather candidates
+
+The clean offline transport-stream `9d0e9a1` and FC1 clock-order `a06fb90` successors are under separate different-model exact reviews. Author tests and a read-only RAW decoder handoff map add no accepted qualification or identity credit; wait for exact PASS, reconciliation and post-merge tests before integration. **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
