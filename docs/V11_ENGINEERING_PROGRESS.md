@@ -1,3 +1,7 @@
+## Three distinct weather lanes at the live reserve — 2026-10-03 21:39 UTC
+
+The FC1 exact reviewer, offline G3-L real-caller writer, and a separate read-only next-qualification mapper are live in distinct worktrees. The third lane uses recovered disk/memory headroom and cannot edit either active candidate. No verdict, merge beyond `afbbad7`, provider request, G3-L PASS or forward SHADOW. **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; NOT_READY_TO_FUND**.
+
 ## Intake repair merged; two independent weather lanes active — 2026-10-03 21:36 UTC
 
 Exact `383412e` received independent Astra/high PASS_IN_SCOPE for the direct-constructor repair and merged locally as `afbbad7`; focused merged-main intake tests passed 32/32 in both Python modes. The detailed verdict and one non-reproduced runtime-test anomaly remain in the retained `.out`. FC1 clean successor `6ddcd9d` is under different-model exact review; a separate Sol/high writer has started the mapped offline real-caller composition from reviewed main. Only verified inactive synthetic test fixtures were reclaimed to restore >3 GiB free disk. No provider request, G3-L PASS, identity credit, qualified capture or forward SHADOW. **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; NOT_READY_TO_FUND**.

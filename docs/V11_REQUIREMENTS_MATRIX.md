@@ -1,3 +1,7 @@
+## Next Gate-3 qualification slice under read-only mapping — 2026-10-03 21:39 UTC
+
+A third isolated read-only lane is mapping the next real transport/clock/storage/decoder/launch prerequisite while FC1 exact review and offline real-caller authoring continue. Mapping confers no accepted real-path evidence or G3-L identity credit. **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Intake consistency reviewed and integrated; qualification still open — 2026-10-03 21:36 UTC
 
 Different-model exact review passed the `383412e` direct intake-record consistency repair, and local merge `afbbad7` passes 32 focused post-merge tests per Python mode. This closes the reviewed code P2 only; current runtime/real-caller qualification, all 77 G3-L PRE_REVIEW identities, provider rights and SHADOW admission remain open. FC1 `6ddcd9d` is under independent exact review, while a separate isolated writer builds offline real-caller composition. **91/200, formal 1/50; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
