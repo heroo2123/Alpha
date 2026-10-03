@@ -1,3 +1,7 @@
+## FC1 live merge preflight — 2026-10-03 20:04 UTC
+
+Exact `274b8b4` remains under independent Sol/high review, while a separate Astra/high author prepares the proposed interface amendment. The candidate diff passes whitespace and read-only current-main merge-tree checks; neither review verdict nor amendment candidate exists. No FC1, G3-L, provider, capture or SHADOW acceptance credit: **91/200, formal 1/50; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## FC1 step-7 preparation intake — 2026-10-03 20:01 UTC
 
 Read-only composition handoff sealed exit 0; it identifies exact reviewed-step dependency joins and FC01–FC24 plus inherited regression mapping, without tests or acceptance. Step-2 exact review and a separate proposed interface amendment remain live. No G3-L evidence credit or SHADOW admission: **91/200, formal 1/50; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
