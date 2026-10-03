@@ -1,3 +1,7 @@
+## Resource schedule binding prerequisite launched — 2026-10-03 13:52 UTC
+
+One persistent isolated Sol/high worker is investigating a pure offline binding of resource-budget events to the validated V4 schedule. Its worktree, process and retained terminal path are recorded in the checkpoint. No candidate, review, merge, host resource receipt, provider request, forward SHADOW or C/J/E/A crossing is claimed: **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Reviewed offline clock checkpoint merged — 2026-10-03 13:47 UTC
 
 Independent exact review of clean `be3d7c8` returned `PASS_IN_SCOPE` and sealed exit 0. Local merge `9e6f39d` retains all three reviewed blobs; focused post-merge tests pass 56/56 in normal and optimized Python. The new comparison is only a bounded offline diagnostic over caller-supplied bytes. Real independent checkpoint custody, clock/reference and resource qualification, executable provider package, G3-L identities and genuine forward SHADOW remain open. No provider request, V10/Axiom/financial action or C/J/E/A crossing: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
