@@ -4,6 +4,7 @@ import hashlib
 import json
 import socket
 import subprocess
+from copy import deepcopy
 
 import pytest
 
@@ -152,6 +153,69 @@ def rebind_manifest(raw, manifest):
     raw['plan_review'] = canonical(review)
 
 
+def rebind_schedule(raw, manifest, pins):
+    """Recompute every caller-controlled digest touched by a schedule edit."""
+    schedule = manifest['schedule']
+    requests = schedule['requests']
+    endpoints = {e['endpoint_id']: e for e in manifest['network']['endpoints']}
+    totals = {p: {'requests': 0, 'reservation_bytes': 0}
+              for p in ('FIELD', 'INDEX', 'OBJECT_ID', 'METADATA', 'PROBE')}
+    projections = []
+    field_ids = []
+    for request in requests:
+        purpose = request['purpose']
+        endpoint = endpoints[request['endpoint_id']]
+        source = manifest['sources'][request['provider']]
+        supplemental = pins[request['request_id']]
+        totals[purpose]['requests'] += 1
+        totals[purpose]['reservation_bytes'] += request['reservation_bytes']
+        if purpose == 'FIELD':
+            field_ids.append(request['request_id'])
+        projections.append({
+            'request_id': request['request_id'], 'purpose': purpose,
+            'endpoint_id': request['endpoint_id'],
+            'control_domain_id': endpoint['control_domain_id'],
+            'origin': request['origin'], 'path': request['path'],
+            'provider': request['provider'] if purpose == 'FIELD' else None,
+            'slot_index': request['slot_index'],
+            'range_start': request['range_start'],
+            'range_end': request['range_end'],
+            'reservation_bytes': request['reservation_bytes'],
+            'expected_etag': supplemental['expected_etag'],
+            'expected_object_bytes': supplemental['expected_object_bytes'],
+            'source_pin': source['dossier']['sha256'],
+            'decoder_pin': source['decoder_build']['sha256'],
+            'clock_policy_sha256': manifest['runtime']['clock_policy']['sha256'],
+            'validator_sha256': endpoint['parser_identity']['sha256'],
+            'dependency_commit_hashes': supplemental['dependency_commit_hashes'],
+            'prerequisite_request_ids':
+                [requests[i]['request_id'] for i in request['prerequisites']]})
+    manifest['runtime']['purpose_plan'] = totals
+    schedule['reservation_total_bytes'] = sum(
+        request['reservation_bytes'] for request in requests)
+    schedule['slot_inventory_sha256'] = digest(manifest['runs_and_slots']['slots'])
+    context = json.loads(raw['runtime_context'])
+    context['manifest_runtime_sha256'] = digest(manifest['runtime'])
+    raw['runtime_context'] = canonical(context)
+    raw['supplemental_pins'] = canonical(pins)
+    rebind_manifest(raw, manifest)
+    policy = json.loads(raw['event_policy'])
+    events = [
+        {'event_id': key[1], 'side': side,
+         'primary_provider': entry['primary_provider'],
+         'field_request_ids': field_ids, 'requested_key': key,
+         'gate2_trial_key': trial}
+        for side, key, trial, entry in zip(
+            manifest['cohort']['events'], manifest['cohort']['requested_keys'],
+            manifest['cohort']['gate2_trial_keys'], policy['entries'])]
+    review = json.loads(raw['plan_review'])
+    review['request_schedule_sha256'] = digest(projections)
+    review['event_schedule_sha256'] = digest(events)
+    review['supplemental_pins_sha256'] = digest(pins)
+    review['runtime_context_sha256'] = digest(context)
+    raw['plan_review'] = canonical(review)
+
+
 def test_replay_and_all_seven_roles():
     raw = inputs()
     first = inspect_supplied_inputs(raw)
@@ -283,3 +347,68 @@ def test_policy_provider_substitution_refused_after_self_rehash():
     review['event_policy_sha256'] = digest(policy)
     raw['event_policy_review'] = canonical(review)
     refuse(raw, 'VPE_EVENT_IDENTITY')
+
+
+def test_duplicate_field_slot_refused_after_full_rehash():
+    raw = inputs()
+    manifest = json.loads(raw['manifest'])
+    pins = json.loads(raw['supplemental_pins'])
+    second = deepcopy(manifest['schedule']['requests'][0])
+    second['request_id'] = 'field_2'
+    manifest['schedule']['requests'].append(second)
+    manifest['schedule']['attempt_slots'] = [0, 0]
+    pins['field_2'] = deepcopy(pins['field_1'])
+    rebind_schedule(raw, manifest, pins)
+    refuse(raw, 'VPE_SCHEDULE_COMPLETENESS')
+
+
+@pytest.mark.parametrize('mutate', [
+    lambda m: m['runs_and_slots']['slots'][0].__setitem__(2, False),
+    lambda m: m['runs_and_slots']['slots'][0].__setitem__(2, 0.0),
+    lambda m: m['schedule'].update(full_denominator=2713.0),
+    lambda m: m['schedule'].update(full_denominator=True),
+    lambda m: m['schedule'].update(attempt_slots=[False]),
+    lambda m: m['schedule'].update(attempt_slots=[0.0]),
+])
+def test_slot_types_refused_after_full_rehash(mutate):
+    raw = inputs()
+    manifest = json.loads(raw['manifest'])
+    mutate(manifest)
+    rebind_schedule(raw, manifest, json.loads(raw['supplemental_pins']))
+    refuse(raw, 'VPE_SCHEDULE_COMPLETENESS')
+
+
+@pytest.mark.parametrize('external_count,refused', [(255, False), (256, True)])
+def test_combined_dependency_limit_after_full_rehash(external_count, refused):
+    raw = inputs()
+    manifest = json.loads(raw['manifest'])
+    pins = json.loads(raw['supplemental_pins'])
+    field = manifest['schedule']['requests'][0]
+    index = deepcopy(field)
+    index.update(request_id='index_0', purpose='INDEX',
+                 endpoint_id=manifest['network']['endpoints'][1]['endpoint_id'],
+                 range_start=None, range_end=None)
+    manifest['schedule']['requests'].insert(0, index)
+    field['prerequisites'] = [0]
+    pins['index_0'] = deepcopy(pins['field_1'])
+    pins['field_1']['dependency_commit_hashes'] = [
+        f'{i:064x}' for i in range(external_count)]
+    rebind_schedule(raw, manifest, pins)
+    if refused:
+        refuse(raw, 'VPE_SCHEDULE_COMPLETENESS')
+    else:
+        assert len(inspect_supplied_inputs(raw).event_identities) == 2
+
+
+@pytest.mark.parametrize('mutate', [
+    lambda m: m.update(identity=[]),
+    lambda m: m.update(identity=None),
+    lambda m: m.update(schedule=[]),
+    lambda m: m['network']['endpoints'].__setitem__(0, []),
+])
+def test_malformed_nested_shapes_refuse_after_self_rehash(mutate):
+    raw = inputs()
+    manifest = json.loads(raw['manifest'])
+    mutate(manifest)
+    rebind_manifest(raw, manifest)
+    refuse(raw, 'VPE_SCHEMA')

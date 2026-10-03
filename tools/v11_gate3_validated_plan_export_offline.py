@@ -181,7 +181,7 @@ def inspect_supplied_inputs(raw_by_role):
         return _inspect_supplied_inputs(raw_by_role)
     except ExportRefusal:
         raise
-    except (KeyError, IndexError, TypeError, ValueError, OverflowError,
+    except (AttributeError, KeyError, IndexError, TypeError, ValueError, OverflowError,
             RecursionError) as exc:
         raise ExportRefusal('VPE_SCHEMA') from exc
 
@@ -200,7 +200,8 @@ def _inspect_supplied_inputs(raw_by_role):
     _exact(manifest, ('identity', 'code', 'protocol', 'storage', 'cohort', 'time',
                       'sources', 'runs_and_slots', 'network', 'limits', 'schedule',
                       'clocks_and_receipts', 'accounting', 'runtime'))
-    _need(manifest['identity'].get('schema') == 'R09_GATE3_LAUNCH_MANIFEST_V4',
+    _need(type(manifest['identity']) is dict and
+          manifest['identity'].get('schema') == 'R09_GATE3_LAUNCH_MANIFEST_V4',
           'VPE_SCHEMA')
     _exact(review, ('schema_version', 'manifest_sha256', 'window_sha256',
                     'request_schedule_sha256', 'event_schedule_sha256',
@@ -274,9 +275,19 @@ def _inspect_supplied_inputs(raw_by_role):
           'VPE_SCHEDULE_COMPLETENESS')
     slots = runs['slots']
     _need(type(slots) is list and len(slots) == SLOT_COUNT and
+          all(type(slot) is list and len(slot) == 4 and
+              all(type(slot[i]) is int for i in (1, 2, 3))
+              for slot in slots) and
           slots == _slot_inventory(runs['run_utc']) and
+          type(schedule['full_denominator']) is int and
           schedule['full_denominator'] == SLOT_COUNT and
           schedule['slot_inventory_sha256'] == hashlib.sha256(canonical(slots)).hexdigest(),
+          'VPE_SCHEDULE_COMPLETENESS')
+    attempt_slots = schedule['attempt_slots']
+    _need(type(attempt_slots) is list and
+          all(type(slot) is int and 0 <= slot < SLOT_COUNT
+              for slot in attempt_slots) and
+          len(set(attempt_slots)) == len(attempt_slots),
           'VPE_SCHEDULE_COMPLETENESS')
     projected_requests = []
     dependency_total = prerequisite_total = 0
@@ -316,6 +327,9 @@ def _inspect_supplied_inputs(raw_by_role):
               len(set(supplemental['dependency_commit_hashes'])) ==
               len(supplemental['dependency_commit_hashes']),
               'VPE_PROJECTION_MISMATCH')
+        _need(len(request['prerequisites']) +
+              len(supplemental['dependency_commit_hashes']) <= 256,
+              'VPE_SCHEDULE_COMPLETENESS')
         dependency_total += len(supplemental['dependency_commit_hashes'])
         _need(dependency_total <= 8192, 'VPE_INPUT_BOUNDS')
         _need(type(request['reservation_bytes']) is int and
@@ -324,6 +338,8 @@ def _inspect_supplied_inputs(raw_by_role):
         totals[purpose]['requests'] += 1
         totals[purpose]['reservation_bytes'] += request['reservation_bytes']
         if purpose == 'FIELD':
+            _need(request['slot_index'] not in field_slots,
+                  'VPE_SCHEDULE_COMPLETENESS')
             field_started = True
             field_ids.append(rid)
             field_slots.append(request['slot_index'])
@@ -348,7 +364,7 @@ def _inspect_supplied_inputs(raw_by_role):
             'dependency_commit_hashes': supplemental['dependency_commit_hashes'],
             'prerequisite_request_ids': [ids[i] for i in request['prerequisites']]})
     _need(set(pins) == set(ids) and
-          field_slots == schedule['attempt_slots'] and
+          field_slots == attempt_slots and
           sum(v['reservation_bytes'] for v in totals.values()) ==
           schedule['reservation_total_bytes'] and
           totals == manifest['runtime']['purpose_plan'],

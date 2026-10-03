@@ -12,7 +12,9 @@ input roles.
 bytes for those seven roles, rejects missing/extra roles, caps each buffer and
 the aggregate, preflights JSON nesting/tokens, checks canonical encoding and
 closed boundary records, and returns a frozen **untrusted** byte snapshot. It
-derives the entire 2,713-slot denominator, ordered request/slot/purpose and
+checks the exact-integer 2,713-slot denominator and inventory members, unique
+FIELD slots, exact-integer attempt slots, and the combined 256-per-request
+prerequisite/external-hash ceiling. It derives ordered request/slot/purpose and
 event-key/provider/field-list projections, checks the three plan-review
 projection hashes, and hashes the complete schedule and seven-role input
 bundle. Every event identity includes the copied cohort and time fields in
@@ -45,8 +47,10 @@ G3-E, SHADOW, and C/J/E/A credit remain gated.
 
 Focused tests use synthetic bytes. They cover deterministic replay, seven-role
 closure, malformed/canonical/bounded JSON, omitted and substituted events and
-schedule rows, rehashed caller-controlled policy/manifest changes, spoofed pin
-objects, false flags, and a socket-connect tripwire. The adjacent V4 validator
-and offline resource suites run with the new tests in normal and optimized
+schedule rows, fully rehashed duplicate/boolean/float slot and combined
+256/257-dependency cases, malformed nested shapes, rehashed caller-controlled
+policy/manifest changes, spoofed pin objects, false flags, and a socket-connect
+tripwire. The adjacent V4 validator and offline resource suites run with the
+new tests in normal and optimized
 Python. This candidate still requires different-model exact review before
 any integration; it is not self-approved.
