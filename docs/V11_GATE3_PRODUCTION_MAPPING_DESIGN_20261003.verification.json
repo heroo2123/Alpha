@@ -1,0 +1,138 @@
+{
+  "schema": "ALPHA_SOURCE_ONLY_DESIGN_VERIFICATION_V1",
+  "baseline_commit": "9c5783cb1f84c3538f1dd4d97263f920b7438632",
+  "source_binding_count": 10,
+  "anchor_count": 34,
+  "pure_probe_method": "AST extraction of literal specs and four pure helpers; evaluate exact production predicate for all 15 pairs using ECMWF origin. Not full manifest validation or endpoint qualification.",
+  "predicate": "provider != 'GEFS' and purpose in ('FIELD', 'INDEX') and (mapping['origin'] == 'https://data.ecmwf.int')",
+  "results": [
+    {
+      "provider": "GEFS",
+      "purpose": "FIELD",
+      "synthetic_spec_pass": true,
+      "nonsynthetic_spec_pass": true,
+      "production_origin_predicate_pass": false,
+      "combined": false
+    },
+    {
+      "provider": "GEFS",
+      "purpose": "INDEX",
+      "synthetic_spec_pass": true,
+      "nonsynthetic_spec_pass": false,
+      "production_origin_predicate_pass": false,
+      "combined": false
+    },
+    {
+      "provider": "GEFS",
+      "purpose": "OBJECT_ID",
+      "synthetic_spec_pass": true,
+      "nonsynthetic_spec_pass": false,
+      "production_origin_predicate_pass": false,
+      "combined": false
+    },
+    {
+      "provider": "GEFS",
+      "purpose": "METADATA",
+      "synthetic_spec_pass": true,
+      "nonsynthetic_spec_pass": false,
+      "production_origin_predicate_pass": false,
+      "combined": false
+    },
+    {
+      "provider": "GEFS",
+      "purpose": "PROBE",
+      "synthetic_spec_pass": true,
+      "nonsynthetic_spec_pass": false,
+      "production_origin_predicate_pass": false,
+      "combined": false
+    },
+    {
+      "provider": "IFS",
+      "purpose": "FIELD",
+      "synthetic_spec_pass": true,
+      "nonsynthetic_spec_pass": true,
+      "production_origin_predicate_pass": true,
+      "combined": true
+    },
+    {
+      "provider": "IFS",
+      "purpose": "INDEX",
+      "synthetic_spec_pass": true,
+      "nonsynthetic_spec_pass": true,
+      "production_origin_predicate_pass": true,
+      "combined": true
+    },
+    {
+      "provider": "IFS",
+      "purpose": "OBJECT_ID",
+      "synthetic_spec_pass": true,
+      "nonsynthetic_spec_pass": false,
+      "production_origin_predicate_pass": false,
+      "combined": false
+    },
+    {
+      "provider": "IFS",
+      "purpose": "METADATA",
+      "synthetic_spec_pass": true,
+      "nonsynthetic_spec_pass": false,
+      "production_origin_predicate_pass": false,
+      "combined": false
+    },
+    {
+      "provider": "IFS",
+      "purpose": "PROBE",
+      "synthetic_spec_pass": true,
+      "nonsynthetic_spec_pass": false,
+      "production_origin_predicate_pass": false,
+      "combined": false
+    },
+    {
+      "provider": "AIFS",
+      "purpose": "FIELD",
+      "synthetic_spec_pass": true,
+      "nonsynthetic_spec_pass": true,
+      "production_origin_predicate_pass": true,
+      "combined": true
+    },
+    {
+      "provider": "AIFS",
+      "purpose": "INDEX",
+      "synthetic_spec_pass": true,
+      "nonsynthetic_spec_pass": true,
+      "production_origin_predicate_pass": true,
+      "combined": true
+    },
+    {
+      "provider": "AIFS",
+      "purpose": "OBJECT_ID",
+      "synthetic_spec_pass": true,
+      "nonsynthetic_spec_pass": false,
+      "production_origin_predicate_pass": false,
+      "combined": false
+    },
+    {
+      "provider": "AIFS",
+      "purpose": "METADATA",
+      "synthetic_spec_pass": true,
+      "nonsynthetic_spec_pass": false,
+      "production_origin_predicate_pass": false,
+      "combined": false
+    },
+    {
+      "provider": "AIFS",
+      "purpose": "PROBE",
+      "synthetic_spec_pass": true,
+      "nonsynthetic_spec_pass": false,
+      "production_origin_predicate_pass": false,
+      "combined": false
+    }
+  ],
+  "focused_tests": {
+    "command": "PYTHONDONTWRITEBYTECODE=1 /home/alphaadmin/AlphaV11_Dev/venv/bin/python -m pytest -q -p no:cacheprovider tests/test_v11_r09_gate3_launch_v4.py --basetemp=/tmp/alpha-v11-production-mapping-design-pytest-20261003",
+    "passed": 58,
+    "elapsed_seconds": 5.61,
+    "exit_code": 0
+  },
+  "independent_review": false,
+  "provider_requests": 0
+}
