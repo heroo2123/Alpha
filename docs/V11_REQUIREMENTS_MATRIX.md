@@ -1,3 +1,7 @@
+## Three frozen Gate-3 exact reviews active — 2026-10-03 22:55 UTC
+
+Clean author candidates RAW binding `cea7461` and offline allocation/lifetime `e0354e8` entered separate different-model Astra/high exact reviews; transport `f1e85ba` review remains live. All author test counts are provisional until independent verdicts. The allocation model explicitly remains UNQUALIFIED and supplies no physical host evidence. No provider request, G3-L identity credit, capture or SHADOW admission: **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## G3-L identity mapper sealed with zero qualified rows — 2026-10-03 22:53 UTC
 
 A clean frozen-main read-only mapper confirmed all 77 PRE_REVIEW identities remain unqualified and identified a later cross-component synthetic refusal test, dependent on the current three candidate lanes. It grants no real evidence, provider right, G3-L PASS or SHADOW admission: **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; NOT_READY_TO_FUND**.

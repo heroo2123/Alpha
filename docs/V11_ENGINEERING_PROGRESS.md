@@ -1,3 +1,7 @@
+## RAW and allocation candidates sealed; three reviews live — 2026-10-03 22:55 UTC
+
+RAW binding `cea7461` and offline allocation/lifetime `e0354e8` each sealed clean exit-0 author terminals with focused normal/optimized no-socket tests and entered distinct Astra/high frozen exact reviews. Transport `f1e85ba` exact review continues independently. No PASS or local integration is claimed; review verdicts, reconciliation and post-merge tests remain gates. No provider request, G3-L PASS, physical qualification, forward SHADOW or acceptance crossing: **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; NOT_READY_TO_FUND**.
+
 ## G3-L identity map complete, three specialist lanes active — 2026-10-03 22:53 UTC
 
 Read-only mapper sealed clean at frozen `1194ed8`, confirming zero qualified entries across 77 PRE_REVIEW identities. It proposes a later no-socket cross-component regression once the RAW binding, transport and allocation slices are reviewed and integrated. RAW repair, transport `f1e85ba` exact review and allocation model writer remain live. No provider request, qualification, forward SHADOW or score crossing: **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; NOT_READY_TO_FUND**.
