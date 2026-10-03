@@ -7542,3 +7542,6 @@ Clean successors `67fa86a` (export input closure) and `3e3ddbf` (resource inode 
 ## Coordinator offline resource repair integrated — 2026-10-03 15:59 UTC
 
 The `3e3ddbf` resource inode-alias successor received independent **PASS_IN_SCOPE** and merged locally as `2664336`, preserving its reviewed three-file slice. Post-merge focused tests passed 35/35 in both Python modes. This advances only offline refusal semantics; no real custody, provider request, G3-L PASS, eligible capture, forward SHADOW or acceptance crossing occurred. Export successor `67fa86a` remains under independent exact review. **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
+## Reviewed offline export prerequisite integrated — 2026-10-03 16:08 UTC
+
+Independent exact review passed clean `67fa86a`; conflict-free local merge `2ba7d16` retains its reviewed three-file slice. Post-merge focused offline tests passed 28 export, 49 V4 and 14 resource cases in normal and optimized Python. This is bounded untrusted input handling only; accepted production export, authenticated pins, host qualification, provider rights, 77 G3-L identities and genuine forward SHADOW remain unresolved. No provider request or acceptance crossing: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.

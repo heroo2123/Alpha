@@ -4809,3 +4809,6 @@ Offline export successor `67fa86a` and resource successor `3e3ddbf` are clean, u
 ## Offline Gate 3 resource refusal model integrated — 2026-10-03 15:59 UTC
 
 Independent Sol/high exact review of `3e3ddbf` passed in scope, and local merge `2664336` preserved all three reviewed blobs. Post-merge resource tests passed 35/35 in normal and optimized Python. This is supplied-byte synthetic refusal coverage only; real host storage reservation/custody, G3-L identity evidence, provider access and SHADOW admission remain unqualified. **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**. Export successor `67fa86a` remains under independent exact review.
+## Offline export prerequisite reviewed and integrated — 2026-10-03 16:08 UTC
+
+The `67fa86a` supplied-byte export prerequisite received independent `PASS_IN_SCOPE` and merged locally as `2ba7d16` with all reviewed blobs preserved. Merged-main focused offline tests passed 91/91 in each Python mode. The accepted-export interface still refuses; production mapping, authenticated pins, operational custody and all 77 missing G3-L identities remain unqualified. **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
