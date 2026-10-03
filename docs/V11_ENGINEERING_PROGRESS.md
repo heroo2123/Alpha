@@ -1,3 +1,7 @@
+## Real-caller handoff sealed and active scratch pressure contained — 2026-10-03 21:27 UTC
+
+The read-only real-caller map finished cleanly and identified an offline fail-closed runtime composition slice with no provider access. The FC1 successor writer and independent `383412e` G3-L reviewer remain live. Active review test artifacts drove disk below the 2 GiB floor; verified inactive, re-creatable FC1 test scratch was removed, returning free disk to about 2,044 MiB. Hold a new worker until the reserve is stable or additional safe headroom exists. No review verdict, merge, provider request, qualified capture or forward SHADOW. **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Three distinct weather specialist lanes — 2026-10-03 21:23 UTC
 
 FC1 repair, G3-L `383412e` independent exact review and a separate read-only real-caller/test map are live in distinct worktrees. The third lane uses recovered host headroom and cannot modify either active candidate. Post-launch disk free about 4,184 MiB and MemAvailable about 640 MiB; no fourth launch is safe. No verdict, merge, provider request, G3-L PASS or forward SHADOW. **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; NOT_READY_TO_FUND**.

@@ -1,3 +1,7 @@
+## Real-caller mapping completed; qualification unchanged — 2026-10-03 21:27 UTC
+
+The frozen `f45f321` read-only mapping handoff is sealed and identifies a missing non-test `GateRuntime` caller plus the offline launch-composition/test slice. This is implementation preparation only: `code.runtime_entrypoint_review`, real launch qualification and all 77 G3-L PRE_REVIEW identities remain open. The `383412e` independent exact review and FC1 successor repair are still active; no verdict or integration credit. **91/200, formal 1/50; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Parallel real-caller mapping — 2026-10-03 21:23 UTC
 
 A separate read-only frozen-main worker maps the missing Gate-3 real caller and no-socket tests while G3-L `383412e` receives independent exact review and FC1 remains under repair. Mapping alone creates no code, qualified identity or SHADOW admission. **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
