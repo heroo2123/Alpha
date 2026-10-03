@@ -1,3 +1,7 @@
+## Exact G3-L child manifest updated — 2026-10-03 06:27 UTC
+
+Replaced superseded `741c6ae` in the local review manifest with clean child `02dc668`, preserving direct-parent and cumulative-review-base identities. Verified eight exact checkouts and 25 file hashes; the child passes 22/22 focused offline tests. Candidate-specific review authorization and different-model PASS remain absent, so no integration, provider request, capture, SHADOW or score crossing followed: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## G3-L commit-object provenance repair — 2026-10-03 06:21 UTC
 
 Reproduced the tree-as-commit observation flaw in held `741c6ae` and sealed isolated child `02dc668` with an exact Git object-type check and regression. Tests pass 22/22 in normal and optimized Python; detached exact checkout is clean. The new child needs candidate-specific authorized different-model exact review before any integration. No evidence identity, provider request, SHADOW admission, or score crossing: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.

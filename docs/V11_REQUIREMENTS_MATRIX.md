@@ -1,3 +1,7 @@
+## Exact G3-L child review identity — 2026-10-03 06:27 UTC
+
+The local exact-review manifest now binds current child `02dc668` and its seven-file cumulative diff from `c9e3b8d`; all eight candidate checkouts and 25 blob hashes verify, and the child passes 22 focused offline tests. This grants no independent PASS, identity credit, provider authority or acceptance crossing. The 77 missing identities and G3-L NO-GO remain: **91/200, formal 1/50; NOT_READY_TO_FUND**.
+
 ## G3-L provenance child — 2026-10-03 06:21 UTC
 
 Local probe showed held `741c6ae` accepted a tree OID as an observation commit. Isolated child `02dc668` refuses non-commit Git objects; 22 focused tests pass in normal and optimized Python. It remains unreviewed and unmerged, supersedes `741c6ae` for exact review, and fills no identity. **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.

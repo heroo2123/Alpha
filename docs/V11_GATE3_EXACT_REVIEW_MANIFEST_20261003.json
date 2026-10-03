@@ -29,8 +29,9 @@
     },
     {
       "checkout_clean": true,
-      "commit": "741c6aea5c33105c6f087603168700bed829dc9b",
-      "exact_checkout": "/tmp/alpha-v11-g3l-hardening-review-741c6ae",
+      "commit": "02dc6687cdef45d48eaa82420dae60cd431fbd82",
+      "exact_checkout": "/tmp/alpha-v11-g3l-hardening-review-02dc668",
+      "file_scope": "cumulative changed paths from review_base to commit; parent is the direct Git parent",
       "files": [
         {
           "blob_oid": "92876812aa87b2bf4cd0fbfbf019a178b8b55513",
@@ -63,20 +64,21 @@
           "sha256": "49d614201f2c9cdf46c6735569aef5c05b14ec2ff172ca958eac29df66b141a9"
         },
         {
-          "blob_oid": "e72be998df82d6683c6b4a0343f897ada70d5544",
-          "bytes": 14137,
+          "blob_oid": "d62a39add308ac82741b956c8309c66175de259d",
+          "bytes": 14598,
           "path": "tests/test_v11_r09_gate3_g3l_identity_audit.py",
-          "sha256": "c8dc0124c66681e532e3bca4f19dd5240f114cfe636d97f388221bd612b25509"
+          "sha256": "cc7d405a94c426e8e1187780416986cf406d4695132b9ee5b239fc8fc5a70434"
         },
         {
-          "blob_oid": "6801012d17a9523a1953a9b5ac5f069842d586ee",
-          "bytes": 17096,
+          "blob_oid": "b36d49f73372a56653627aab58eb3a45bad9adf2",
+          "bytes": 17418,
           "path": "tools/v11_r09_gate3_g3l_identity_audit.py",
-          "sha256": "ef8e85a91409f5f3170533bfbafd1491d555537fa402523e39a82afb5f41da67"
+          "sha256": "f5264cc20970c5f321af9e69f6123927af692136b4465be96af36603219fb7ac"
         }
       ],
-      "parent": "c9e3b8dff0b9a2aa22836a8006c31f522653e523",
-      "tree": "f75fd31f04071be4c2a457ba670f83142f8fe04b"
+      "parent": "741c6aea5c33105c6f087603168700bed829dc9b",
+      "review_base": "c9e3b8dff0b9a2aa22836a8006c31f522653e523",
+      "tree": "c2510fb672248aa8da9aff654f440628e5cc0f93"
     },
     {
       "checkout_clean": true,
@@ -223,7 +225,7 @@
       "tree": "442058a68781c9089ad98262ba77fca2fda10d40"
     }
   ],
-  "generated_utc": "2026-10-03T06:03:30Z",
+  "generated_utc": "2026-10-03T06:26:04Z",
   "schema": "alpha-v11-gate3-local-exact-review-manifest-v1",
   "scope": "local integrity preparation only; no external transfer, review verdict, or launch authority"
 }
