@@ -1,3 +1,7 @@
+## Three independent weather lanes at current reserve — 2026-10-03 22:37 UTC
+
+The two frozen exact reviewers (`7fc9223` RAW binding and `60ac120` transport successor) remain live without verdicts. A clean read-only physical-store readiness mapper was launched in isolated `/tmp/alpha-v11-g3l-physical-store-readiness-map-20261003` at `51ee655`; retained prompt, runner and terminal paths are bound in the checkpoint. Post-launch free disk about 4,676 MiB and MemAvailable about 696 MiB support these three lanes, with no fourth launch reserve at the sample. No provider request, storage qualification, G3-L PASS, eligible capture, forward SHADOW or acceptance crossing: **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; NOT_READY_TO_FUND**.
+
 ## Real-caller candidate entered independent exact review — 2026-10-03 21:52 UTC
 
 The clean offline real-caller candidate `48194a8` sealed with author-reported 170 focused tests per Python mode and passed whitespace checks. A different-model Astra/high reviewer is live against its frozen exact bytes. Separate transport-stream and FC1 clock-order repair workers remain live; three lanes occupy the current memory reserve. No review verdict, integration, provider request, G3-L PASS, forward SHADOW or acceptance crossing: **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; NOT_READY_TO_FUND**.
