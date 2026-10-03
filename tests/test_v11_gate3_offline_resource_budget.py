@@ -1,16 +1,34 @@
 """Synthetic arithmetic checks for the proposal-only Gate 3 calculator."""
 
+import ast
 import copy
+import hashlib
+import os
 import socket
+import subprocess
+import tempfile
 import tracemalloc
 import unittest
+from datetime import datetime, timezone
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
+from zoneinfo import TZPATH
 
-from tools.v11_r09_gate3_launch import DurableBudget
+from tools.v11_multimodel_panel import canonical
+from tools import v11_r09_gate3_launch as launch
+from tools import v11_r09_gate3_launch_v4 as launch_v4
+from tools.v11_r09_gate3_launch import (
+    DurableBudget, LaunchContractError, SLOT_COUNT, _slot_inventory,
+)
+from tools.v11_r09_gate3_launch_v4 import OBSERVATION_PHASES, PURPOSES, _render_path
 from tools.v11_r09_gate3_runtime import CapacityPlan
 from tools.v11_r09_gate3_runtime import SyntheticTransport
-from tools.v11_gate3_offline_resource_budget import calculate_offline_resource_budget
+from tools import v11_gate3_offline_resource_budget as budget
+from tools.v11_gate3_offline_resource_budget import (
+    calculate_offline_resource_budget,
+    calculate_validated_v4_offline_resource_budget,
+)
 
 
 def fixture():
@@ -323,3 +341,163 @@ class OfflineResourceBudgetTests(unittest.TestCase):
 
     def test_subclass_hooks(self):
         test_subclass_hooks_cannot_shrink_event_capacity()
+
+
+def _synthetic_v4_candidate():
+    """Load only the synthetic builder from the V4 tests, with no provider imports."""
+    path = Path(__file__).with_name('test_v11_r09_gate3_launch_v4.py')
+    source = ast.parse(path.read_text())
+    names = {'_git', '_endpoint_id', '_control_domain_id', '_lit', '_val',
+             'gefs_field_spec', 'ecmwf_field_spec', 'path_spec_for', 'candidate',
+             'request_for_slot', '_freeze_runtime'}
+    definitions = [node for node in source.body
+                   if isinstance(node, ast.FunctionDef) and node.name in names]
+    if {node.name for node in definitions} != names:
+        raise AssertionError('synthetic V4 fixture builder changed')
+    namespace = dict(hashlib=hashlib, os=os, subprocess=subprocess, Path=Path,
+                     datetime=datetime, timezone=timezone, TZPATH=TZPATH,
+                     canonical=canonical, launch=launch, launch_v4=launch_v4,
+                     _slot_inventory=_slot_inventory, SLOT_COUNT=SLOT_COUNT,
+                     PURPOSES=PURPOSES, OBSERVATION_PHASES=OBSERVATION_PHASES,
+                     _render_path=_render_path)
+    exec(compile(ast.Module(body=definitions, type_ignores=[]), str(path), 'exec'),
+         namespace)
+    return namespace['candidate']
+
+
+class _FixturePatches:
+    def __init__(self):
+        self.patchers = []
+
+    def setattr(self, target, name, value):
+        active = patch.object(target, name, value)
+        active.start()
+        self.patchers.append(active)
+
+    def undo(self):
+        for active in reversed(self.patchers):
+            active.stop()
+
+
+class ValidatedBytesResourceBudgetTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.temporary = tempfile.TemporaryDirectory(prefix='synthetic-v4-budget-')
+        cls.fixture_patches = _FixturePatches()
+        try:
+            candidate = _synthetic_v4_candidate()
+            cls.payload, cls.repo, cls.root, start = candidate(
+                Path(cls.temporary.name), cls.fixture_patches)
+            cls.now_utc = start - 4000
+            cls.raw = canonical(cls.payload)
+            cls.plan = {
+                'mode': 'OFFLINE_PROPOSAL',
+                'requests': [
+                    {key: row[key] for key in
+                     ('request_id', 'purpose', 'reservation_bytes')}
+                    for row in cls.payload['schedule']['requests']],
+                'events': [
+                    {'field_request_ids': [row['request_id'] for row in
+                                           cls.payload['schedule']['requests']
+                                           if row['purpose'] == 'FIELD']}
+                    for _ in cls.payload['cohort']['events']],
+            }
+        except Exception:
+            cls.fixture_patches.undo()
+            cls.temporary.cleanup()
+            raise
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.fixture_patches.undo()
+        cls.temporary.cleanup()
+
+    def estimate(self, raw=None, plan=None):
+        return calculate_validated_v4_offline_resource_budget(
+            self.raw if raw is None else raw,
+            copy.deepcopy(self.plan) if plan is None else plan,
+            repo=self.repo, object_root=self.root, now_utc=self.now_utc)
+
+    def test_valid_fixture_exact_digest_and_zero_authority(self):
+        validator = budget.validate_manifest_v4
+        parser = budget.parse_canonical
+        with (patch.object(socket, 'socket', side_effect=AssertionError('socket opened')),
+              patch.object(DurableBudget, 'reserve',
+                           side_effect=AssertionError('account changed')),
+              patch.object(SyntheticTransport, 'dispatch',
+                           side_effect=AssertionError('provider dispatched')),
+              patch.object(budget, 'validate_manifest_v4', wraps=validator) as validated,
+              patch.object(budget, 'parse_canonical', wraps=parser) as parsed):
+            result = self.estimate()
+        validated.assert_called_once_with(
+            self.raw, repo=self.repo, object_root=self.root, now_utc=self.now_utc)
+        parsed.assert_called_once_with(self.raw)
+        self.assertEqual(result['validated_manifest_sha256'],
+                         hashlib.sha256(self.raw).hexdigest())
+        self.assertEqual(result['manifest_validation'], 'V4_VALIDATED_EXACT_BYTES')
+        self.assertEqual(result['event_binding'],
+                         'MATCHES_VALIDATED_V4_MANIFEST_FIELD_EXPANSION')
+        self.assertIs(result['capacity_covers_frozen_schedule'], True)
+        self.assertIs(result['execution_authority'], False)
+        self.assertIs(result['provider_authority'], False)
+        self.assertIs(result['resource_qualification'], False)
+        self.assertEqual(result['qualification_credit'], 0)
+        self.assertEqual(result['g3l'], 'NO_GO')
+        self.assertEqual(result['existing_occupancy'], 'UNKNOWN')
+        self.assertEqual(result['live_host_resources'], 'UNKNOWN')
+
+    def test_noncanonical_and_failed_v4_validation_refuse(self):
+        with self.assertRaises(LaunchContractError):
+            self.estimate(raw=self.raw + b' ')
+        invalid = copy.deepcopy(self.payload)
+        invalid['identity']['launch_authority'] = True
+        with self.assertRaisesRegex(LaunchContractError, 'SELF_AUTHORITY_FORBIDDEN'):
+            self.estimate(raw=canonical(invalid))
+
+    def test_mismatched_plan_refuses_and_mutation_cannot_change_snapshot(self):
+        plan = copy.deepcopy(self.plan)
+        plan['requests'][0]['reservation_bytes'] += 1
+        with self.assertRaises(ValueError):
+            self.estimate(plan=plan)
+        plan = copy.deepcopy(self.plan)
+        plan['events'][0]['field_request_ids'] = []
+        with self.assertRaises(ValueError):
+            self.estimate(plan=plan)
+
+        plan = copy.deepcopy(self.plan)
+        original = budget.validate_manifest_v4
+
+        def mutate_after_validation(raw, **context):
+            result = original(raw, **context)
+            plan['events'].clear()
+            plan['requests'].clear()
+            return result
+
+        with patch.object(budget, 'validate_manifest_v4', mutate_after_validation):
+            result = self.estimate(plan=plan)
+        self.assertEqual(plan['events'], [])
+        self.assertIs(result['capacity_covers_frozen_schedule'], True)
+        self.assertEqual(result['purpose_budgets']['FIELD']['requests'], 1)
+
+    def test_validator_digest_must_bind_exact_input_bytes(self):
+        original = budget.validate_manifest_v4
+
+        def wrong_digest(raw, **context):
+            original(raw, **context)
+            return '0' * 64
+
+        with patch.object(budget, 'validate_manifest_v4', wrong_digest):
+            with self.assertRaisesRegex(ValueError, 'digest differs'):
+                self.estimate()
+
+    def test_bounded_refusal_precedes_validator(self):
+        with patch.object(budget, 'validate_manifest_v4',
+                          side_effect=AssertionError('validator called')):
+            with self.assertRaises(ValueError):
+                self.estimate(raw=b' ' * (32 * 1024**2 + 1))
+            with self.assertRaises(ValueError):
+                self.estimate(raw=bytearray(self.raw))
+            plan = copy.deepcopy(self.plan)
+            plan['events'][0]['field_request_ids'] = ['request_3'] * 8193
+            with self.assertRaises(ValueError):
+                self.estimate(plan=plan)

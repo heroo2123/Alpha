@@ -1,16 +1,20 @@
-"""Pure Gate 3 V4 resource proposal for an already validated manifest.
+"""Offline Gate 3 V4 resource proposals, including an exact-byte entrypoint.
 
-The caller must validate the complete canonical manifest with
-``validate_manifest_v4`` separately. This module neither performs that
-filesystem based validation nor treats a caller's payload as approval.
-It models fresh journal headroom; existing occupancy and delivered bytes are
-unknown. Nothing here acquires resources or changes runtime admission.
+``calculate_offline_resource_budget`` retains its external V4 validation
+precondition. ``calculate_validated_v4_offline_resource_budget`` validates the
+supplied canonical bytes itself. Both model fresh journal headroom; existing
+occupancy and delivered bytes are unknown. Neither acquires resources or
+changes runtime admission.
 """
 
 from __future__ import annotations
 
+import hashlib
+
 from tools.v11_r09_gate3_launch import FIELD_LIMITS, MAX_BYTES
-from tools.v11_r09_gate3_launch_v4 import PURPOSES, SCHEMA
+from tools.v11_r09_gate3_launch_v4 import (
+    PURPOSES, SCHEMA, parse_canonical, validate_manifest_v4,
+)
 
 MAX_INT = 2**63 - 1
 MAX_REQUESTS = 3600
@@ -244,3 +248,74 @@ def calculate_offline_resource_budget(manifest, frozen_plan):
         return _calculate(manifest, frozen_plan)
     except (KeyError, TypeError, AttributeError, OverflowError) as exc:
         raise ValueError('malformed V4 resource proposal') from exc
+
+
+def _snapshot_narrow_plan(plan):
+    """Copy only bounded, built-in capacity fields before V4 validation."""
+    _mapping(plan, ('mode', 'requests', 'events'))
+    if type(plan['mode']) is not str or plan['mode'] != 'OFFLINE_PROPOSAL':
+        raise ValueError('unsupported mode')
+    requests, events = plan['requests'], plan['events']
+    if (type(requests) is not list or not 0 < len(requests) <= MAX_REQUESTS or
+            type(events) is not list or len(events) > MAX_EVENTS):
+        raise ValueError('unbounded narrow plan')
+    # Fixed-size slices also bound a list grown while this snapshot is made.
+    requests = requests[:MAX_REQUESTS + 1]
+    events = events[:MAX_EVENTS + 1]
+    if not 0 < len(requests) <= MAX_REQUESTS or len(events) > MAX_EVENTS:
+        raise ValueError('unbounded narrow plan')
+    copied_requests = []
+    for request in requests:
+        _mapping(request, ('request_id', 'purpose', 'reservation_bytes'))
+        rid = request['request_id']
+        purpose = request['purpose']
+        size = request['reservation_bytes']
+        if (type(rid) is not str or not 1 <= len(rid) <= 80 or
+                type(purpose) is not str or purpose not in PURPOSES or
+                type(size) is not int or not 1 <= size <= MAX_BYTES):
+            raise ValueError('malformed narrow request')
+        copied_requests.append({'request_id': rid, 'purpose': purpose,
+                                'reservation_bytes': size})
+    copied_events = []
+    links = 0
+    for event in events:
+        _mapping(event, ('field_request_ids',))
+        members = event['field_request_ids']
+        if (type(members) is not list or
+                len(members) > MAX_EVENT_LINKS - links):
+            raise ValueError('unbounded narrow event')
+        copied_members = members[:MAX_EVENT_LINKS - links + 1]
+        if len(copied_members) > MAX_EVENT_LINKS - links:
+            raise ValueError('unbounded narrow event')
+        if any(type(member) is not str or not 1 <= len(member) <= 80
+               for member in copied_members):
+            raise ValueError('malformed narrow event')
+        copied_events.append({'field_request_ids': copied_members})
+        links += len(copied_members)
+    return {'mode': 'OFFLINE_PROPOSAL', 'requests': copied_requests,
+            'events': copied_events}
+
+
+def calculate_validated_v4_offline_resource_budget(
+        raw_manifest, frozen_plan, *, repo, object_root, now_utc):
+    """Validate exact canonical V4 bytes, then report a bounded paper estimate.
+
+    The narrow plan is copied before validation and must match the validated
+    schedule's ordered request projection and complete FIELD event expansion.
+    ``now_utc`` is caller supplied; this function never probes a host clock.
+    A successful result grants no execution, provider, or resource authority.
+    """
+    if type(raw_manifest) is not bytes or len(raw_manifest) > 32 * 1024**2:
+        raise ValueError('bounded exact manifest bytes required')
+    plan = _snapshot_narrow_plan(frozen_plan)
+    reported_digest = validate_manifest_v4(
+        raw_manifest, repo=repo, object_root=object_root, now_utc=now_utc)
+    exact_digest = hashlib.sha256(raw_manifest).hexdigest()
+    if type(reported_digest) is not str or reported_digest != exact_digest:
+        raise ValueError('V4 validator digest differs from exact manifest bytes')
+    manifest = parse_canonical(raw_manifest)
+    result = calculate_offline_resource_budget(manifest, plan)
+    result['validated_manifest_sha256'] = exact_digest
+    result['manifest_validation'] = 'V4_VALIDATED_EXACT_BYTES'
+    result['event_binding'] = 'MATCHES_VALIDATED_V4_MANIFEST_FIELD_EXPANSION'
+    return result
