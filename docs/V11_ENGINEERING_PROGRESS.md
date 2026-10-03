@@ -7088,3 +7088,7 @@ Verified 68/68 focused readiness, G3-L, and intake/launch tests on clean main `d
 ## Coordinator current Gate 3 handoff — 2026-10-03 03:47 UTC
 
 Preserved the four review-held exact candidates and recorded a current restart sequence in [the offline handoff](V11_GATE3_CURRENT_REVIEW_HOLD_20261003.md). Main remains clean, the FINAL-REVIEWED master hash matches, resource floors hold, and no separate specialist or new forward evidence was found. The latest current-main focused tests passed 68/68; G3-L remains 77/77 identities missing. No external review, provider request, clock/resource qualification, SHADOW admission or score crossing: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
+## Coordinator exact-byte preservation check — 2026-10-03 03:52 UTC
+
+Verified all four pending exact-review checkouts against recorded full HEAD and tree IDs, clean status, and `git diff --check HEAD^ HEAD`; no candidate changed. Rechecked the protected FINAL-REVIEWED master hash, absent authority roots, disk/memory thresholds, bounded evidence age, and process state. The automatic approval rejection of external transfer for the newer candidates remains unresolved; no review retry or integration occurred. The latest 68/68 current-main tests and 77/77 missing G3-L identities remain the operative offline results. No provider request, forward SHADOW or score crossing: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
