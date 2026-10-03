@@ -5051,3 +5051,7 @@ The clean offline transport-stream `9d0e9a1` and FC1 clock-order `a06fb90` succe
 ## Offline RAW decoder handoff active — 2026-10-03 22:14 UTC
 
 A separate isolated Sol/high writer is implementing only a synthetic/offline RAW receipt-to-decoder binding from frozen main `cafc3e1`. Exact reviews of `9d0e9a1` transport and `a06fb90` FC1 remain live without sealed verdicts. The new lane grants no accepted real transport, storage, decoder, provider right, G3-L identity, capture, or SHADOW qualification; require clean tests, independent exact review and reconciliation before integration. **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
+
+## 2026-10-03 22:27 UTC offline handoff review
+
+Clean `7fc9223` RAW receipt-to-A7 handoff entered different-model Astra/high exact review with retained prompt/runner/output/final/terminal; no verdict or integration yet. Transport `9d0e9a1` required changes and its isolated successor writer remains live. FC1 successor reached reviewed local merge `9eb650c`; operational qualification is unchanged. **91/200, formal 1/50; 77 missing G3-L identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.

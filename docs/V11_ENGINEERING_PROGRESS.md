@@ -7786,3 +7786,7 @@ Sealed clean Sol/high transport-stream `9d0e9a1` and FC1 clock-order `a06fb90` c
 ## Third isolated Gate-3 offline lane launched — 2026-10-03 22:14 UTC
 
 The two frozen Astra/high exact reviewers remain live for transport `9d0e9a1` and FC1 `a06fb90`. Recovered resource headroom supported one distinct Sol/high sole writer for the offline RAW receipt-to-decoder handoff in `/tmp/alpha-v11-g3l-raw-decoder-binding-20261003` at `cafc3e1`, with retained runner and terminal marker recorded in the checkpoint. No exact verdict, merge, provider request, G3-L PASS, forward SHADOW or C/J/E/A boundary crossing is claimed. **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; NOT_READY_TO_FUND**.
+
+## 2026-10-03 22:27 UTC Gate-3 lane recycling
+
+The sealed Sol/high offline RAW decoder binding `7fc9223` is under independent Astra/high exact review in detached `/tmp/alpha-v11-g3l-raw-decoder-review-7fc9223`, tmux `alpha-g3l-raw-decoder-review-7fc9223`, with a terminal marker. Transport review of `9d0e9a1` found four reproducible defects; its separate successor repair remains live. Reviewed FC1 successor was merged locally as `9eb650c`; ongoing post-merge verification and later reviewer intake must be reconciled before further claims. No provider request, G3-L PASS, qualified capture, forward SHADOW or score crossing: **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; NOT_READY_TO_FUND**.
