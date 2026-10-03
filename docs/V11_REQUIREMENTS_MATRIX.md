@@ -1,3 +1,7 @@
+## Three exact reviews live; conflict-free preflights only — 2026-10-03 23:02 UTC
+
+Transport `f1e85ba`, RAW binding `cea7461`, and offline allocation/lifetime `e0354e8` remain under separate frozen exact reviews without sealed verdicts. Their clean author worktrees and conflict-free current-main merge-tree probes prepare later reconciliation; adverse reviewer controls are still being adjudicated. No G3-L identity, physical qualification, provider authority, capture or SHADOW credit: **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Three frozen Gate-3 exact reviews active — 2026-10-03 22:55 UTC
 
 Clean author candidates RAW binding `cea7461` and offline allocation/lifetime `e0354e8` entered separate different-model Astra/high exact reviews; transport `f1e85ba` review remains live. All author test counts are provisional until independent verdicts. The allocation model explicitly remains UNQUALIFIED and supplies no physical host evidence. No provider request, G3-L identity credit, capture or SHADOW admission: **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
