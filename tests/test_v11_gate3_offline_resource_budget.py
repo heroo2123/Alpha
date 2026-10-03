@@ -23,6 +23,7 @@ def fixture():
     quota = 4 * 64 * 1024**2 + 16 * 1024**2 + 5 * 4194304 + 64 * 1024**2 + 8
     manifest = {
         'identity': {'schema': 'R09_GATE3_LAUNCH_MANIFEST_V4'},
+        'cohort': {'events': ['HIGH']},
         'limits': {'max_requests': 3600, 'max_received_bytes': 100,
                    'max_elapsed_seconds': 10800, 'request_deadline_seconds': 30,
                    'min_start_interval_seconds': 2, 'decoded': 64 * 1024**2},
@@ -65,8 +66,9 @@ def test_arithmetic_parity_and_separate_unknown_budgets():
         (SimpleNamespace(reservation_bytes=3), SimpleNamespace(reservation_bytes=5)),
         (SimpleNamespace(field_request_ids=('field',)),))
     check.assertEqual(result['runtime_capacity'], vars(expected))
-    check.assertEqual(result['event_binding'], 'UNVERIFIED_CALLER_SUPPLIED')
-    check.assertIs(result['capacity_covers_frozen_schedule'], False)
+    check.assertEqual(result['event_binding'],
+                      'MATCHES_SUPPLIED_V4_MANIFEST_FIELD_EXPANSION')
+    check.assertIs(result['capacity_covers_frozen_schedule'], True)
     check.assertEqual(result['purpose_budgets']['INDEX'],
                       {'requests': 1, 'reservation_bytes': 3})
     check.assertEqual(result['purpose_budgets']['PROBE'],
@@ -135,41 +137,95 @@ def test_runtime_journal_ceiling_is_visible_and_never_admission():
     manifest, plan = fixture()
     n = 60
     rows = [{'request_id': f'index-{i}', 'purpose': 'INDEX',
-             'reservation_bytes': 3} for i in range(n)]
+             'reservation_bytes': 3} for i in range(n - 1)] + [
+             {'request_id': 'field', 'purpose': 'FIELD', 'provider': 'GEFS',
+              'reservation_bytes': 5}]
     manifest['schedule']['requests'] = rows
-    manifest['schedule']['reservation_total_bytes'] = 3 * n
-    manifest['limits']['max_received_bytes'] = 3 * n
+    body = 3 * (n - 1) + 5
+    manifest['schedule']['reservation_total_bytes'] = body
+    manifest['limits']['max_received_bytes'] = body
     manifest['runtime']['purpose_plan']['INDEX'] = {
-        'requests': n, 'reservation_bytes': 3 * n}
+        'requests': n - 1, 'reservation_bytes': 3 * (n - 1)}
     manifest['runtime']['purpose_plan']['FIELD'] = {
-        'requests': 0, 'reservation_bytes': 0}
+        'requests': 1, 'reservation_bytes': 5}
     objects = 2 * n + 1
     bounds = manifest['runtime']['resource_bounds']
     bounds['required_store_objects'] = objects
     bounds['local_storage_quota_bytes'] = (
         4 * 64 * 1024**2 + 16 * 1024**2 + objects * 4194304 +
-        64 * 1024**2 + 3 * n)
-    plan['requests'] = rows
-    plan['events'] = []
+        64 * 1024**2 + body)
+    plan['requests'] = [
+        {k: row[k] for k in ('request_id', 'purpose', 'reservation_bytes')}
+        for row in rows]
     result = calculate_offline_resource_budget(manifest, plan)
     check.assertFalse(result['fresh_ceiling_checks']['session_journal_bytes'])
     check.assertIs(result['resource_qualification'], False)
     check.assertEqual(result['g3l'], 'NO_GO')
 
 
-def test_omitted_event_remains_explicitly_unbound():
+def test_omitted_event_is_refused():
     check = unittest.TestCase()
     manifest, plan = fixture()
-    baseline = calculate_offline_resource_budget(manifest, plan)
     plan['events'] = []
-    omitted = calculate_offline_resource_budget(manifest, plan)
-    check.assertLess(omitted['runtime_capacity']['disk_bytes'],
-                     baseline['runtime_capacity']['disk_bytes'])
-    for result in (baseline, omitted):
-        check.assertEqual(result['event_binding'], 'UNVERIFIED_CALLER_SUPPLIED')
-        check.assertIs(result['capacity_covers_frozen_schedule'], False)
-        check.assertIs(result['resource_qualification'], False)
-        check.assertEqual(result['g3l'], 'NO_GO')
+    with check.assertRaises(ValueError):
+        calculate_offline_resource_budget(manifest, plan)
+
+
+def two_field_fixture():
+    manifest, plan = fixture()
+    second = {'request_id': 'field-2', 'purpose': 'FIELD', 'provider': 'GEFS',
+              'reservation_bytes': 7}
+    manifest['schedule']['requests'].append(second)
+    plan['requests'].append({k: second[k] for k in
+                             ('request_id', 'purpose', 'reservation_bytes')})
+    manifest['schedule']['reservation_total_bytes'] += 7
+    manifest['limits']['max_received_bytes'] += 7
+    manifest['runtime']['purpose_plan']['FIELD'] = {
+        'requests': 2, 'reservation_bytes': 12}
+    bounds = manifest['runtime']['resource_bounds']
+    bounds['required_store_objects'] = 7
+    bounds['local_storage_quota_bytes'] += 2 * 4194304 + 7
+    plan['events'][0]['field_request_ids'].append('field-2')
+    manifest['cohort']['events'].append('LOW')
+    plan['events'].append({'field_request_ids': ['field', 'field-2']})
+    return manifest, plan
+
+
+def test_exact_event_expansion_refuses_mutations():
+    check = unittest.TestCase()
+    manifest, plan = two_field_fixture()
+    result = calculate_offline_resource_budget(manifest, plan)
+    check.assertEqual(result['event_binding'],
+                      'MATCHES_SUPPLIED_V4_MANIFEST_FIELD_EXPANSION')
+    check.assertIs(result['capacity_covers_frozen_schedule'], True)
+    expected = CapacityPlan.for_requests(
+        tuple(SimpleNamespace(reservation_bytes=r['reservation_bytes'])
+              for r in plan['requests']),
+        tuple(SimpleNamespace(field_request_ids=tuple(e['field_request_ids']))
+              for e in plan['events']))
+    check.assertEqual(result['runtime_capacity'], vars(expected))
+    cases = (
+        lambda p: p['events'].pop(),                         # omitted event
+        lambda p: p['events'][0]['field_request_ids'].pop(),  # omitted member
+        lambda p: p['events'][0]['field_request_ids'].reverse(),
+        lambda p: p['events'][0]['field_request_ids'].__setitem__(1, 'field'),
+        lambda p: p['events'][0]['field_request_ids'].__setitem__(1, 'unknown'),
+        lambda p: p['events'][0].update(field_request_ids=('field', 'field-2')),
+        lambda p: p['events'][0].update(field_request_ids=['field', 1]),
+        lambda p: p['events'][0].update(extra='unbound'),
+        lambda p: p['events'].append({'field_request_ids': ['field', 'field-2']}),
+    )
+    for mutate in cases:
+        candidate = copy.deepcopy(plan)
+        mutate(candidate)
+        with check.subTest(mutate=mutate), check.assertRaises(ValueError):
+            calculate_offline_resource_budget(manifest, candidate)
+    for bad in ([], ['HIGH', 'HIGH'], ['HIGH', 'LOW', 'HIGH'],
+                ['HIGH', 1], 'HIGH'):
+        candidate = copy.deepcopy(manifest)
+        candidate['cohort']['events'] = bad
+        with check.subTest(cohort=bad), check.assertRaises(ValueError):
+            calculate_offline_resource_budget(candidate, plan)
 
 
 def test_oversized_mapping_refuses_before_copying_keys():
@@ -212,7 +268,10 @@ class OfflineResourceBudgetTests(unittest.TestCase):
         test_runtime_journal_ceiling_is_visible_and_never_admission()
 
     def test_event_binding(self):
-        test_omitted_event_remains_explicitly_unbound()
+        test_omitted_event_is_refused()
+
+    def test_exact_event_expansion(self):
+        test_exact_event_expansion_refuses_mutations()
 
     def test_oversized_mapping(self):
         test_oversized_mapping_refuses_before_copying_keys()
