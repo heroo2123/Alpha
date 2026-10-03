@@ -1,3 +1,7 @@
+## Offline export candidate under independent exact review — 2026-10-03 15:37 UTC
+
+Clean `6ca5bb9` adds only an untrusted seven-role supplied-byte export input and fail-closed consumer prerequisite. Author tests report 96/96 per Python mode; different-model Astra/high exact review is active. The separate resource-custody refusal-model worker remains live. Neither grants authenticated production pins, actual resource/clock qualification, provider authority, identity credit or SHADOW admission. **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Live offline weather prerequisites — 2026-10-03 15:32 UTC
 
 Validated-plan export and resource-custody refusal-model workers remain active in separate worktrees with uncommitted source/tests and no terminal verdict. The export worker reports 91/91 focused tests per Python mode, pending candidate and independent review. Neither grants authenticated pins, host reservation, provider authority, G3-L credit, or SHADOW admission. **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.

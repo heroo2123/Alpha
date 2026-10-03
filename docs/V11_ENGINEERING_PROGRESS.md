@@ -1,3 +1,7 @@
+## Coordinator export review dispatch — 2026-10-03 15:37 UTC
+
+Recovered completed clean `6ca5bb9` with author terminal exit 0 and 96/96 focused tests per Python mode. Launched a different-model exact Astra/high review in isolated detached checkout; retained bindings are in the checkpoint. The resource-custody worker continues separately. No verdict, integration, provider request, G3-L PASS, forward SHADOW or score crossing. Disk free 2.84 GB, MemAvailable about 863 MiB. **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Coordinator recovery — 2026-10-03 15:32 UTC
 
 Recovered both live isolated weather workers rather than launching duplicates. Their work is uncommitted and awaits finished candidates and exact review; validated-plan export author reports 91 focused tests passing in normal and optimized Python. Current main is clean at `08a54e2`; disk free 2.87 GB and MemAvailable about 873 MB limit additional heavy work. Checked execution units inactive; PAPER user bus unavailable; protected FINAL-REVIEWED master hash unchanged. No provider request, G3-L PASS, qualified host resources, capture, forward SHADOW or acceptance crossing. **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
