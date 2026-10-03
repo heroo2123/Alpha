@@ -4535,3 +4535,7 @@ Clean unmerged child `84849e4` repairs the recorded G3-L binding findings; its 1
 ## Live repair reviews and integration hold — 2026-10-03 09:21 UTC
 
 Current clean repairs `5419a4e` and `84849e4` are under separate live exact review with no verdict yet. Candidate-specific private-transfer authorization remains unresolved, so no review PASS or integration credit is claimed. Current-main textual reconciliation is clean for the fresh-readiness repair and conflicts only in chronological status documents for G3-L. The 77 PRE_REVIEW identities and zero qualified slots remain; **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
+## Current Gate 3 review defects — 2026-10-03 09:29 UTC
+
+Exact reviews of `5419a4e` and `84849e4` ended CHANGES_REQUIRED. Fresh-readiness caller leaf/metatype safety and G3-L Git replace-ref anchoring are under repair by two active isolated workers. Neither defect is accepted or merged; descendant review-transfer authorization remains unresolved. The 77 missing identities, zero qualified slots and **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND** remain unchanged.

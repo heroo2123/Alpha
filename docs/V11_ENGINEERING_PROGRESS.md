@@ -7309,3 +7309,7 @@ The second isolated repair worker finished clean `84849e4` (tree `489b610`), wit
 ## Coordinator live-review reconciliation — 2026-10-03 09:21 UTC
 
 Verified clean main `340a0e4`, two active exact repair reviews, protected-master hash, inactive V10/V11 execution units, absent protected V11 authority roots, and resource headroom above the 2 GiB disk floor. Non-destructive merge probes show only chronological-document conflicts for `84849e4`; `5419a4e` merges textually. No final review verdict, candidate-specific transfer authorization, merge, provider request, genuine forward capture, or C/J/E/A crossing is claimed. **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
+
+## Coordinator active defect repairs — 2026-10-03 09:29 UTC
+
+Inspected completed CHANGES_REQUIRED reviews for `5419a4e` and `84849e4`. Two separate active isolated Sol/high repairs now address persistence/clock metatype dispatch and Git replace-ref anchor binding. Fresh repair has two dirty files; G3-L repair has two dirty files; both are live, so their work was preserved and no additional heavy specialist was started at about 857 MiB MemAvailable. Main `00478bf` is clean before this documentation update. Protected master hash matches; disk has 4.2 GiB free. No authorized independent PASS, merge, provider request, forward capture, or acceptance crossing: **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
