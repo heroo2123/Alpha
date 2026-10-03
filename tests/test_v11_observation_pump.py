@@ -8,6 +8,9 @@ from polymarket_scanner.v11.collection import PublicCollector,SourceRequest
 from polymarket_scanner.v11.observation_runtime import ObservationRuntime,ScheduledCollector
 from polymarket_scanner.v11.observation_pump import ObservationPump,KEY,VERSION
 from polymarket_scanner.v11.evidence import EvidenceError,digest
+from polymarket_scanner.v11.ecmwf_sources import V5IFSRequest
+from polymarket_scanner.v11.model_panel import SourceIdentity
+import polymarket_scanner.v11.observation_pump as pump_module
 from test_v11_paper_coordinator import rig,coordinator,proposal
 from test_v11_paper_runtime import assembled
 from test_v11_weather_sources import request as madis_request
@@ -105,3 +108,100 @@ def test_same_pump_identifier_cannot_change_source_request(rig,monkeypatch):
             with pytest.raises(EvidenceError,match='REPLAY_CONFLICT'):
                 await pump.cycle('one',(replace(sources(rig)[0],revision='changed'),sources(rig)[1]),**kwargs(rig))
     asyncio.run(run())
+
+
+@pytest.mark.parametrize('case', ('plain', 'subclass', 'spoof', 'proxy', 'malformed',
+                                  'mixed_first', 'mixed_last'))
+@pytest.mark.parametrize('backward_clock', (False, True))
+def test_pump_refuses_entire_bad_batch_before_runtime_or_paper_effects(rig, monkeypatch, case, backward_clock):
+    class V5Subclass(V5IFSRequest):
+        pass
+
+    class SpoofedV5(V5Subclass):
+        @property
+        def __class__(self):
+            return SourceRequest
+
+    class Proxy:
+        def __init__(self, inner):
+            self.inner = inner
+
+        @property
+        def __class__(self):
+            return SourceRequest
+
+        def __getattr__(self, name):
+            return getattr(self.inner, name)
+
+    source = SourceIdentity('ECMWF_IFS_ENS', 'test-release-v1', 'ecmwf-open-data:0p25', 'c'*64)
+    v5 = V5IFSRequest(source, 1790553600, 3, 0, 'a'*64)
+    valid = sources(rig)[0]
+    malformed = replace(valid)
+    object.__setattr__(malformed, 'url', 'https://example.invalid/book')
+    bad = {'plain': v5, 'subclass': V5Subclass(source, 1790553600, 3, 0, 'a'*64),
+           'spoof': SpoofedV5(source, 1790553600, 3, 0, 'a'*64),
+           'proxy': Proxy(v5), 'malformed': malformed}.get(case, v5)
+    batch = (valid, bad) if case == 'mixed_last' else (bad, valid) if case == 'mixed_first' else (bad,)
+    expected = ('PUBLIC_GET_ENDPOINT_NOT_REVIEWED' if case == 'malformed' else
+                'SOURCE_REQUEST_REQUIRED' if case == 'proxy' else 'V5_IFS_OFFLINE_ONLY')
+
+    c = coordinator(rig)
+    p = proposal(rig, units='2')
+    c.coordinate('reserve', (p,))
+    rt = assembled(rig, monkeypatch, census=False)
+    if backward_clock:
+        rig['now'][0] -= 10
+        rig['mono'][0] += 1
+    account_before = c.snapshot()
+    runtime_before = rig['store'].records(kind='RUNTIME_STATUS')
+    calls = []
+
+    def forbidden(name):
+        def fail(*args, **kwargs):
+            calls.append(name)
+            raise AssertionError(name)
+        return fail
+
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(forbidden('transport'))) as client:
+            observer = ObservationRuntime(ScheduledCollector(PublicCollector(rig['store'], client)))
+            pump = ObservationPump(observer, rt)
+            with monkeypatch.context() as patch:
+                for name in ('clock', 'get', 'latest', 'audit', 'safety_audit'):
+                    patch.setattr(rig['store'], name, forbidden('store.'+name))
+                patch.setattr(rt, 'tick', forbidden('runtime.tick'))
+                patch.setattr(pump_module.os, 'open', forbidden('lock'))
+                with pytest.raises(EvidenceError, match='^'+expected+'$'):
+                    await pump.cycle('refused', batch, **kwargs(rig))
+
+    asyncio.run(run())
+    assert calls == []
+    assert rig['store'].records(kind='RUNTIME_STATUS') == runtime_before
+    assert c.snapshot() == account_before
+    assert not (rig['store'].path.with_name(rig['store'].path.name+'.pump.lock')).exists()
+
+
+def test_pump_validates_before_runtime_config_or_store_lookup():
+    calls = []
+
+    class Store:
+        def __getattr__(self, name):
+            calls.append('store.'+name)
+            raise AssertionError(name)
+
+    class Runtime:
+        def __init__(self, store):
+            self.store = store
+
+        @property
+        def config(self):
+            calls.append('runtime.config')
+            raise AssertionError('config')
+
+    store = Store()
+    pump = ObservationPump(type('Observer', (), {'store': store})(), Runtime(store))
+    source = SourceIdentity('ECMWF_IFS_ENS', 'test-release-v1', 'ecmwf-open-data:0p25', 'c'*64)
+    bad = V5IFSRequest(source, 1790553600, 3, 0, 'a'*64)
+    with pytest.raises(EvidenceError, match='^V5_IFS_OFFLINE_ONLY$'):
+        asyncio.run(pump.cycle('refused', (bad,), station_by_event={}, strategies=('fixture',)))
+    assert calls == []

@@ -8,6 +8,7 @@ import fcntl
 import os
 
 from .evidence import EvidenceError, digest, identity
+from .collection import validate_source_requests
 from .runtime_health import KEY as HEALTH_KEY
 
 
@@ -31,6 +32,7 @@ class ObservationPump:
         identity(cycle_id, maximum=80)
         if type(requests) is not tuple or not 1 <= len(requests) <= 16:
             raise EvidenceError('OBSERVATION_PUMP_REQUEST_BOUND')
+        validate_source_requests(requests)
         request_sha = digest(dict(cycle_id=cycle_id, requests=[asdict(r) for r in requests],
             station_by_event=station_by_event, strategies=strategies, required_providers_by_strategy=required_providers_by_strategy,
             runtime_config=self.runtime.config))

@@ -8,7 +8,7 @@ from dataclasses import asdict, dataclass
 
 from .audit_reports import AuditPolicy, AuditScheduler, AuditWorker
 from .book_inputs import BookPolicy
-from .candidate_runner import CandidatePolicy, CandidateRunner, ObservationBatch
+from .candidate_runner import CandidatePolicy, CandidateRunner, ObservationBatch, validate_observation_batch
 from .census_worker import CensusPlan, CensusPolicy, CensusWorker
 from .collection import PublicCollector
 from .discovery import DiscoveryPolicy, MarketDiscovery
@@ -232,6 +232,7 @@ class CandidatePlan:
         if any(type(l) is MakerLane and maker_inputs.get(e.route.event_id)!=l.inputs for e in self.events for l in e.lanes):
             raise EvidenceError('CANDIDATE_MAKER_LANE_REQUIRES_SHARED_TELEMETRY')
         if self.observation is not None:
+            validate_observation_batch(self.observation)
             routes={e.route.event_id:e.route for e in self.events}
             if (not {r.event_id for r in self.observation.requests} <= routes.keys()
                     or any(e not in routes or routes[e].station!=station for e,station in self.observation.station_by_event)):
@@ -320,6 +321,13 @@ def assemble_candidate(store,client,plan,*,generation):
     All protected source/model and actual clock gates are evaluated at runtime.
     """
     if not isinstance(plan,CandidatePlan):raise EvidenceError('CANDIDATE_PLAN_REQUIRED')
+    if plan.observation is not None:
+        validate_observation_batch(plan.observation)
+        routes={e.route.event_id:e.route for e in plan.events}
+        if (not {r.event_id for r in plan.observation.requests} <= routes.keys()
+                or any(e not in routes or routes[e].station!=station
+                       for e,station in plan.observation.station_by_event)):
+            raise EvidenceError('CANDIDATE_OBSERVATION_ROUTE_MISMATCH')
     identity(generation)
     scheduled=ScheduledCollector(PublicCollector(store,client))
     coordinator=PaperCoordinator(store,policy=plan.account,correlation=plan.correlation,limits=plan.limits,

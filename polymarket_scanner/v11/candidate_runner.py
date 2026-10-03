@@ -13,6 +13,7 @@ import time
 
 from .audit_reports import AuditWorker
 from .census_worker import CensusWorker
+from .collection import validate_source_requests
 from .discovery import MarketDiscovery
 from .evidence import EvidenceError, canonical, digest, finite, identity
 from .observation_pump import ObservationPump
@@ -61,10 +62,8 @@ class ObservationBatch:
     required_providers_by_strategy: tuple[tuple[str,tuple[str,...]], ...]
 
     def __post_init__(self):
-        from .collection import SourceRequest
-        if (type(self.requests) is not tuple or not 1 <= len(self.requests) <= 16
-                or any(not isinstance(r,SourceRequest) for r in self.requests)
-                or type(self.station_by_event) is not tuple or not 1 <= len(self.station_by_event) <= 16
+        validate_source_requests(self.requests)
+        if (type(self.station_by_event) is not tuple or not 1 <= len(self.station_by_event) <= 16
                 or any(type(x) is not tuple or len(x)!=2 for x in self.station_by_event)
                 or len(dict(self.station_by_event))!=len(self.station_by_event)
                 or type(self.strategies) is not tuple or not 1 <= len(self.strategies) <= 16
@@ -85,8 +84,16 @@ class ObservationBatch:
                     or not set(needed)<=providers):raise EvidenceError('CANDIDATE_OBSERVATION_SCOPE')
 
 
+def validate_observation_batch(batch):
+    """Recheck the complete stored plan before candidate work can have effects."""
+    if type(batch) is not ObservationBatch:
+        raise EvidenceError('CANDIDATE_OBSERVATION_PLAN_BOUND')
+    ObservationBatch.__post_init__(batch)
+
+
 class CandidateRunner:
     def __init__(self,runtime,policy,*,census,discovery,audits,observation=None,observation_batch=None,maker_telemetry=None,pws_quality=None,forecasts=None,gefs=None,preparations=None,drift=None,operator_commands=None):
+        if observation_batch is not None:validate_observation_batch(observation_batch)
         if (not isinstance(runtime,PaperRuntime) or not isinstance(policy,CandidatePolicy)
                 or not isinstance(census,CensusWorker) or not isinstance(discovery,MarketDiscovery)
                 or not isinstance(audits,AuditWorker)):
@@ -107,6 +114,7 @@ class CandidateRunner:
         self.runtime,self.policy,self.store=runtime,policy,runtime.store
         self.census,self.discovery,self.audits=census,discovery,audits
         self.observation,self.observation_batch=observation,observation_batch
+        self._observation_config=digest(asdict(observation_batch)) if observation_batch is not None else None
         self.maker_telemetry=maker_telemetry
         if pws_quality is not None and (not isinstance(pws_quality,PWSQualityWorker)
                 or pws_quality.health is not runtime.health or not pws_quality.plans.keys()<=runtime.queue.routes.keys()
@@ -161,6 +169,15 @@ class CandidateRunner:
         self._continuation_config=digest({k:v for k,v in config.items()
             if k not in {'policy','operator_commands'}})
 
+    def _admit_observation_batch(self):
+        batch=self.observation_batch
+        if (self.observation is None)!=(batch is None) or (batch is None)!=(self._observation_config is None):
+            raise EvidenceError('CANDIDATE_OBSERVATION_SCOPE')
+        if batch is not None:
+            validate_observation_batch(batch)
+            if digest(asdict(batch))!=self._observation_config:
+                raise EvidenceError('CANDIDATE_OBSERVATION_PLAN_CHANGED_REVIEW_REQUIRED')
+
     def _get(self,key):
         try:return self.store.get(key)
         except EvidenceError as exc:
@@ -200,6 +217,7 @@ class CandidateRunner:
         rewritten. This is caller-authorized local consistency, not independent
         approval, deployment acceptance or increased financial authority.
         """
+        self._admit_observation_batch()
         if (not isinstance(reason,str) or not reason.strip() or len(reason)>200
                 or len(reason.splitlines())!=1 or any(ord(c)<32 or ord(c)==127 for c in reason)):
             raise EvidenceError('CANDIDATE_CONFIGURATION_REVIEW_REASON_INVALID')
@@ -255,6 +273,7 @@ class CandidateRunner:
                 and 0 <= self.store.clock()-row['body']['recorded_at'] < self.runtime.health.policy.maximum_sample_age_seconds)
 
     async def _job(self,job):
+        self._admit_observation_batch()
         kind,key=job['kind'],job['id']
         if kind=='CENSUS':return await self.census.step(key)
         if kind=='DISCOVERY':
@@ -279,6 +298,7 @@ class CandidateRunner:
 
     async def run(self,run_id):
         """One finite invocation. Its completed identity never renews any work."""
+        self._admit_observation_batch()
         identity(run_id,maximum=80);final='candidate-run:'+digest(run_id)
         previous=self._get(final)
         if previous:
@@ -292,6 +312,7 @@ class CandidateRunner:
         finally:os.close(fd)
 
     async def _run(self,run_id,final):
+        self._admit_observation_batch()
         head=self._head();state=deepcopy(head['body']['details']['state']) if head else dict(
             sequence=0,next_kind=0,active=None,discovery_not_before=0.)
         self._progress(run_id,state,outcome='RUN_STARTED')

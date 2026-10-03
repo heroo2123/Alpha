@@ -20,6 +20,7 @@ MAX_INDEX_BYTES = 3 * 1024 * 1024
 MAX_INDEX_ROWS = 12000
 MAX_FIELD_BYTES = MAX_RAW_BYTES
 MAX_TOTAL_BYTES = 16 * 1024 * 1024
+MAX_V5_TIMESTAMP = 253402300799  # 9999-12-31 23:59:59 UTC
 
 
 @dataclass(frozen=True)
@@ -85,15 +86,67 @@ class ECMWFRequest:
                     url=self.url, selectors=self.selectors, grib_signature_sha256=self.grib_signature_sha256)
 
 
+@dataclass(frozen=True)
+class V5IFSRequest(ECMWFRequest):
+    """Offline V5 IFS 0..72 h request representation; no dispatch authority.
+
+    Integer-valued floats remain accepted here for compatibility with the
+    existing request API; a V5 manifest's UTC timestamp has an integer schema.
+    """
+
+    def __post_init__(self):
+        if (type(self.source) is not SourceIdentity
+                or self.source.provider != 'ECMWF_IFS_ENS'
+                or self.source.model != 'ifs'
+                or self.source.dataset != 'ecmwf-open-data:0p25'):
+            raise EvidenceError('V5_IFS_SOURCE_IDENTITY')
+        timestamp = self.initialized_at
+        if (type(timestamp) not in (int, float) or not 0 < timestamp <= MAX_V5_TIMESTAMP
+                or timestamp % 1):
+            raise EvidenceError('V5_IFS_INITIALIZATION_CYCLE')
+        try:
+            run = datetime.fromtimestamp(timestamp, timezone.utc)
+        except (ValueError, OverflowError, OSError) as exc:
+            raise EvidenceError('V5_IFS_INITIALIZATION_CYCLE') from exc
+        if run.hour not in (0, 6, 12, 18) or run.minute or run.second:
+            raise EvidenceError('V5_IFS_INITIALIZATION_CYCLE')
+        if type(self.step) is not int or not 0 <= self.step <= 72 or self.step % 3:
+            raise EvidenceError('V5_IFS_STEP_BOUND')
+        if type(self.member) is not int or not 0 <= self.member <= 50:
+            raise EvidenceError('V5_IFS_MEMBER_BOUND')
+        sha(self.grib_signature_sha256)
+
+    @property
+    def identity(self):
+        return dict(adapter='alpha_v11_ecmwf_ifs_v5_offline_1', source=asdict(self.source),
+                    url=self.url, selectors=self.selectors, grib_signature_sha256=self.grib_signature_sha256)
+
+
 def access_state(request, *, now, historical=False):
-    if type(historical) is not bool or not isinstance(request, ECMWFRequest):
-        raise EvidenceError('ECMWF_ACCESS_REQUEST_INVALID')
+    _admit_public_request(request, historical=historical)
     if historical:
         return 'EXTERNAL_ACCESS_REQUIRED'
     age = finite(now) - request.initialized_at
     if age < 0 or age >= 72*3600:
         return 'NOT_AVAILABLE'
     return 'PUBLIC_PULL_ELIGIBLE'  # Eligibility does not assert the object exists.
+
+
+def _admit_public_request(request, *, historical=False):
+    """Recheck the concrete six-hour request before any public dispatch effects."""
+    if isinstance(request, V5IFSRequest):
+        raise EvidenceError('V5_IFS_OFFLINE_ONLY')
+    if type(historical) is not bool or type(request) is not ECMWFRequest:
+        raise EvidenceError('ECMWF_ACCESS_REQUEST_INVALID')
+    # Frozen dataclasses can still be changed with object.__setattr__. The
+    # source and request must satisfy their original reviewed constructors.
+    if type(request.source) is not SourceIdentity:
+        raise EvidenceError('ECMWF_ACCESS_REQUEST_INVALID')
+    try:
+        SourceIdentity.__post_init__(request.source)
+        ECMWFRequest.__post_init__(request)
+    except (TypeError, ValueError, OverflowError, OSError) as exc:
+        raise EvidenceError('ECMWF_ACCESS_REQUEST_INVALID') from exc
 
 
 @dataclass(frozen=True)
@@ -197,6 +250,7 @@ class ECMWFCollector:
             return bytes(data)
 
     async def collect(self, request, target, record_id, *, historical=False):
+        _admit_public_request(request, historical=historical)
         state = access_state(request, now=self.store.clock(), historical=historical)
         if state != 'PUBLIC_PULL_ELIGIBLE': return dict(state=state, raw_id=None, financial_authority=False)
         try:
