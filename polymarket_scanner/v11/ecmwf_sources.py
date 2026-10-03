@@ -85,7 +85,34 @@ class ECMWFRequest:
                     url=self.url, selectors=self.selectors, grib_signature_sha256=self.grib_signature_sha256)
 
 
+@dataclass(frozen=True)
+class V5IFSRequest(ECMWFRequest):
+    """Offline V5 IFS 0..72 h request representation; no dispatch authority."""
+
+    def __post_init__(self):
+        if (type(self.source) is not SourceIdentity
+                or self.source.provider != 'ECMWF_IFS_ENS'
+                or self.source.model != 'ifs'
+                or self.source.dataset != 'ecmwf-open-data:0p25'):
+            raise EvidenceError('V5_IFS_SOURCE_IDENTITY')
+        run = datetime.fromtimestamp(finite(self.initialized_at), timezone.utc)
+        if run.hour not in (0, 6, 12, 18) or run.minute or run.second or self.initialized_at % 1:
+            raise EvidenceError('V5_IFS_INITIALIZATION_CYCLE')
+        if type(self.step) is not int or not 0 <= self.step <= 72 or self.step % 3:
+            raise EvidenceError('V5_IFS_STEP_BOUND')
+        if type(self.member) is not int or not 0 <= self.member <= 50:
+            raise EvidenceError('V5_IFS_MEMBER_BOUND')
+        sha(self.grib_signature_sha256)
+
+    @property
+    def identity(self):
+        return dict(adapter='alpha_v11_ecmwf_ifs_v5_offline_1', source=asdict(self.source),
+                    url=self.url, selectors=self.selectors, grib_signature_sha256=self.grib_signature_sha256)
+
+
 def access_state(request, *, now, historical=False):
+    if isinstance(request, V5IFSRequest):
+        raise EvidenceError('V5_IFS_OFFLINE_ONLY')
     if type(historical) is not bool or not isinstance(request, ECMWFRequest):
         raise EvidenceError('ECMWF_ACCESS_REQUEST_INVALID')
     if historical:
