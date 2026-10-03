@@ -377,6 +377,57 @@ class FC1Tests(unittest.TestCase):
         self.refuse('CLOCK', fc.check_synthetic_timing_trace, t,
                     tuple(changed), tuple(delayed_permission))
 
+    def test_IA1_wide_start_bracket_preserves_cross_request_clock_order(self):
+        plan = self.timing()
+        plan['deadline_ms'][1] = 3000
+        plan['start_bound_ms'][1] = 2100  # Larger than the 2000 ms spacing.
+        for phase in plan['phase_bounds']:
+            if phase['id'] in ('START_BOUND_TOTAL', 'DISPATCH_BOUND_TOTAL'):
+                phase['wall_ms'] += 2050
+            elif phase['id'] == 'jitter':
+                phase['wall_ms'] -= 4100
+        timing = fc.TimingPlan.read(fc.canonical(plan))
+        self.assertEqual(timing.elapsed_ms(), 9587000)
+
+        def clock(ms):
+            return dict(schema='G3_V5_FC1_ORIGINAL_CLOCK_IA1', boot_id='boot',
+                        monotonic_ms=ms, offset_lower_ms=0, offset_upper_ms=0,
+                        measured_utc_ms=ms)
+
+        permissions = tuple(i*2050 for i in range(fc.FIELDS))
+        bounds = [dict(schema='G3_V5_FC1_START_BOUND_IA1', request_id='f'+str(i),
+                       context_sha256='1'*64, boot_id='boot',
+                       lower_clock=clock(permission), upper_clock=clock(permission+50),
+                       lower_ms=permission, actual_start_ms=permission+25,
+                       upper_ms=permission+50, closed_ms=permission+1025,
+                       deadline_origin_ms=permission, dispatch_persisted_ms=permission,
+                       deadline_fixed_ms=permission+2000,
+                       boundary_identity='FIRST_TRANSPORT_ACTIVITY',
+                       durable_close=True, receipt_complete=True)
+                  for i, permission in enumerate(permissions)]
+        bounds[0]['closed_ms'] = 525
+        bounds[1]['closed_ms'] = 2575
+        bounds[1]['deadline_fixed_ms'] = 3000
+        bounds[1]['deadline_origin_ms'] = 0
+
+        # Prior custody closes at 525; a broad, ordered bracket remains valid.
+        bounds[1]['lower_ms'] = bounds[1]['dispatch_persisted_ms'] = 525
+        bounds[1]['lower_clock'] = clock(525)
+        fc.check_synthetic_timing_trace(timing, tuple(bounds), permissions)
+
+        # The same valid plan previously admitted original samples 0, 50, 0, 2100.
+        reversed_bounds = deepcopy(bounds)
+        reversed_bounds[1]['lower_ms'] = reversed_bounds[1]['dispatch_persisted_ms'] = 0
+        reversed_bounds[1]['lower_clock'] = clock(0)
+        self.refuse('CLOCK', fc.check_synthetic_timing_trace,
+                    timing, tuple(reversed_bounds), permissions)
+
+        # Sampling after close cannot redeem an intent persisted before it.
+        preclose_intent = deepcopy(bounds)
+        preclose_intent[1]['dispatch_persisted_ms'] = 524
+        self.refuse('CLOCK', fc.check_synthetic_timing_trace,
+                    timing, tuple(preclose_intent), permissions)
+
     def test_IA1_terminal_receipt_custody_adverse(self):
         context = '1'*64
         terminal = dict(schema='G3_V5_FC1_SESSION_IA1', type='TERMINAL',

@@ -540,6 +540,9 @@ def check_synthetic_timing_trace(timing, bounds, permission_lower_ms):
         if previous is not None:
             need(b['boot_id'] == previous['boot_id'] and
                  b['context_sha256'] == previous['context_sha256'], 'CLOCK')
+            # The next intent and original lower sample follow the previous
+            # durable close, even when a_i exceeds the spacing allowance.
+            need(previous['closed_ms'] <= b['dispatch_persisted_ms'], 'CLOCK')
             need(permission >= previous['closed_ms'], 'BUDGET')
             need(permission >= total((previous['upper_ms'], timing.spacing_ms)), 'CLOCK')
         previous = b
