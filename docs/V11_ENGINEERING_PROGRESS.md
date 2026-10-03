@@ -7276,3 +7276,7 @@ Verified clean main `5428f1a`, protected-master SHA-256, inactive V10/V11 system
 ## Coordinator review-hold recovery — 2026-10-03 08:22 UTC
 
 Verified clean main `fe7c165`, exact clean repair checkouts `976217d` and `3411097`, protected-master integrity, 4.4 GiB free disk and about 1.07 GiB MemAvailable. The pending eight-candidate queue has no new independent exact PASS; parent authorizations do not cover the weather repair children. No new forward artifact or C/J/E/A crossing: **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
+
+## Coordinator preserved-work reconciliation — 2026-10-03 08:28 UTC
+
+Recovered clean main `ebd26f6`, no live specialist, and eleven preserved older dirty worktrees. A file comparison showed their historical Gate 3 launch/offline-IO bytes precede the newer committed main versions; the old deterministic builder remains untouched. The eight exact candidates still await candidate-specific authorized different-model review, with weather repair children `976217d` and `3411097` first. No provider request, capture, forward SHADOW, or score crossing occurred: **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.

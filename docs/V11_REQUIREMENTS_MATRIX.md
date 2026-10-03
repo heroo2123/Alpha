@@ -4502,3 +4502,7 @@ On clean main `5428f1a`, held `976217d` is textually merge-compatible; held `341
 ## Coordinator exact-review recovery — 2026-10-03 08:22 UTC
 
 Clean main `fe7c165`, both exact weather repair checkouts, the protected master hash, execution-unit inactivity, and host resource floors were reverified. Eight current candidates remain review-held; no candidate-specific independent PASS, G3-L identity, eligible G3-E capture, or C/J/E/A boundary appeared. The 77 PRE_REVIEW identities remain missing and the score stays **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
+## Coordinator preserved-work reconciliation — 2026-10-03 08:28 UTC
+
+No acceptance boundary crossed. Eleven old dirty worktrees were inspected and preserved; the historical Gate 3 launch/offline-IO files were compared with current main. No live writer or new qualifying evidence emerged. All eight current Gate 3 candidates remain unmerged, including weather repair children `976217d` and `3411097`, whose parent review authorizations and CHANGES_REQUIRED verdicts do not give the children an independent PASS. The 77 PRE_REVIEW identities remain missing: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
