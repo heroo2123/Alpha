@@ -7698,3 +7698,7 @@ Two actual specialists continue in separate worktrees: the Sol/high FC1 IA1 step
 ## 2026-10-03 20:41 UTC weather continuity
 
 Two distinct specialists remain live: the FC1 step-2 IA1 repair writer and the read-only G3-I closure reviewer. FC1 has 10/10 IA1 document checks per Python mode while broader tests run; G3-I has 175/175 tests per mode and provisional reproduced budget/input defects, awaiting a sealed verdict. No candidate integration or score credit is claimed. Disk is 5,573 MiB free; 662 MiB MemAvailable supports the existing two lanes under the adaptive reserve. Next: intake each terminal and immediately recycle its lane into exact review or repair. **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
+
+## 2026-10-03 20:43 UTC review intake and lane recycling
+
+G3-I read-only exact review sealed exit-0 **CHANGES_REQUIRED** for five reproduced offline collector/sizing defects. One isolated Sol/high repair writer was launched; require a clean tested successor and different-model exact review. FC1 IA1 repair remains live, with 447 inherited regressions passing per Python mode and focused failures being diagnosed. Completed inactive pytest scratch was removed after handle verification to restore the disk reserve. No provider request, G3-L PASS, capture, SHADOW operation or score crossing: **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; NOT_READY_TO_FUND**.
