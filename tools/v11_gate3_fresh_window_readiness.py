@@ -106,6 +106,8 @@ own unbounded ``_is_ref``/``_check_closed``. A caller holding an ordinary
 structural type problem for the three outer surfaces, as a malformed
 reference for the fourteen direct-reference paths), never silently
 accepted and never partially trusted.
+Keys and reference leaves must also have exact built-in types before any
+checker operation can invoke their string protocols.
 """
 
 from __future__ import annotations
@@ -234,12 +236,33 @@ def _unsafe_reference_candidate(v: Any, keys: frozenset) -> bool:
     dict``, not ``isinstance``) is what makes the ``len()`` comparison below
     trustworthy: nothing can intercept ``len()``, ``keys()`` or ``__iter__``
     for the exact ``dict`` type itself. Anything that is not an exact
-    ``dict``, or an exact ``dict`` strictly larger than its own reference
-    schema, is refused here -- the latter can never be a valid reference
-    anyway, since ``_is_ref`` requires exact key-set equality, so this
-    changes no accepted case.
+    ``dict``, exceeds its reference schema, or has a subclass key or leaf
+    is refused here. None can be a valid reference under the frozen schema.
     """
-    return type(v) is not dict or len(v) > len(keys)
+    if type(v) is not dict or len(v) > len(keys):
+        return True
+    # Exact dict iteration is bounded above by the reference schema. Reject
+    # subclass keys before dict lookup or the frozen checker's set(v.keys()),
+    # and reject subclass leaves before its len/iter/equality operations.
+    for key, value in v.items():
+        if type(key) is not str or not _is_bounded_str(key, MAX_STR):
+            return True
+        if key == "byte_length":
+            if type(value) is not int:
+                return True
+        elif key in keys:
+            if type(value) is not str:
+                return True
+    return False
+
+
+def _unsafe_persistence_reference(v: Any) -> bool:
+    """Only dict-shaped candidates need shielding from frozen ``_is_ref``.
+
+    That checker safely rejects None, missing and scalar values itself, with
+    its usual MISSING_KEY/MISSING_STORAGE_PERSISTENCE_REVIEW diagnostics.
+    """
+    return isinstance(v, dict) and _unsafe_reference_candidate(v, REF_KEYS_NO_REPO)
 
 
 def _has_unsafe_key(obj: Mapping, label: str, reasons: list) -> bool:
@@ -253,7 +276,7 @@ def _has_unsafe_key(obj: Mapping, label: str, reasons: list) -> bool:
     result impossible to encode as UTF-8 regardless of its length.
     """
     for k in obj:
-        if not isinstance(k, str) or not _is_bounded_str(k, MAX_STR):
+        if type(k) is not str or not _is_bounded_str(k, MAX_STR):
             reasons.append(f"OVERSIZED_OR_INVALID_KEY:{label}")
             return True
         try:
@@ -452,20 +475,26 @@ def _check_clock_quality(clock: ClockObservation, limits: Mapping, now: Any, rea
         # place of the real boolean flag.
         reasons.append("NONMONOTONIC_CLOCK")
         ok = False
-    uncertainty_valid = _is_finite_nonneg(clock.uncertainty_seconds)
+    uncertainty_valid = (
+        type(clock.uncertainty_seconds) in (int, float)
+        and _is_finite_nonneg(clock.uncertainty_seconds)
+    )
     if not uncertainty_valid:
         reasons.append("INVALID_CLOCK_UNCERTAINTY")
         ok = False
     elif clock.uncertainty_seconds > _limit_int(limits, "clock_uncertainty_seconds"):
         reasons.append("EXCESSIVE_CLOCK_UNCERTAINTY")
         ok = False
-    if not _is_finite_nonneg(clock.calibration_age_seconds):
+    if (
+        type(clock.calibration_age_seconds) not in (int, float)
+        or not _is_finite_nonneg(clock.calibration_age_seconds)
+    ):
         reasons.append("INVALID_CALIBRATION_AGE")
         ok = False
     elif clock.calibration_age_seconds > _limit_int(limits, "clock_calibration_max_age_seconds"):
         reasons.append("EXPIRED_CLOCK_CALIBRATION")
         ok = False
-    measured = _parse_utc(clock.measured_utc)
+    measured = _parse_utc(clock.measured_utc) if type(clock.measured_utc) is str else None
     if measured is None:
         reasons.append("UNPARSEABLE_CLOCK")
         ok = False
@@ -542,7 +571,7 @@ def evaluate_fresh_window_readiness(
     if type(restrictions_raw) is not bytes:
         refusal.append("INVALID_RESTRICTIONS_RAW_TYPE")
 
-    now = _parse_utc(now_utc)
+    now = _parse_utc(now_utc) if type(now_utc) is str else None
     if now is None:
         refusal.append("UNPARSEABLE_NOW_UTC")
 
@@ -559,8 +588,10 @@ def evaluate_fresh_window_readiness(
         roll_forward = proposed_window.get("automatic_roll_forward")
         if not _is_exactly_false(roll_forward):
             refusal.append("AUTOMATIC_ROLL_FORWARD_MUST_BE_FALSE")
-        dispatch_lo = _parse_utc(proposed_window.get("dispatch_not_before_utc"))
-        expires_hi = _parse_utc(proposed_window.get("expires_utc"))
+        dispatch_raw = proposed_window.get("dispatch_not_before_utc")
+        expires_raw = proposed_window.get("expires_utc")
+        dispatch_lo = _parse_utc(dispatch_raw) if type(dispatch_raw) is str else None
+        expires_hi = _parse_utc(expires_raw) if type(expires_raw) is str else None
         if dispatch_lo is None or expires_hi is None:
             refusal.append("UNPARSEABLE_PROPOSED_WINDOW")
         elif dispatch_lo >= expires_hi:
@@ -675,17 +706,19 @@ def evaluate_fresh_window_readiness(
             # set(v.keys()) copy, and which itself only checks
             # isinstance(v, dict) -- a dict subclass that lies about its
             # own length would pass that check trivially. Guard its type
-            # and cardinality here first and substitute a cheap sentinel if
-            # either is unsafe, so that internal call never sees anything
-            # but an exact, schema-sized dict or None (F2); an oversized or
-            # wrong-type value can never be a valid reference anyway
-            # (_is_ref requires an exact dict with exact key-set equality),
-            # so this changes no accepted case.
+            # and cardinality and exact leaf types here first, substituting
+            # a cheap sentinel only for unsafe dict-shaped candidates. The
+            # frozen checker receives missing, None and scalar values as-is
+            # so it can report its own precise diagnostics.
             persistence_review = sq_dict.get("persistence_review")
-            if _unsafe_reference_candidate(persistence_review, REF_KEYS_NO_REPO):
-                storage_reasons.append(
-                    "OVERSIZED_PREREQUISITE_REFERENCE:storage_qualification.persistence_review"
+            if _unsafe_persistence_reference(persistence_review):
+                label = (
+                    "OVERSIZED_PREREQUISITE_REFERENCE"
+                    if type(persistence_review) is not dict
+                    or len(persistence_review) > len(REF_KEYS_NO_REPO)
+                    else "MALFORMED_PREREQUISITE_REFERENCE"
                 )
+                storage_reasons.append(f"{label}:storage_qualification.persistence_review")
                 sq_dict["persistence_review"] = None
             _check_storage(
                 {"limits": dict(FROZEN_LIMITS), "storage_qualification": sq_dict},

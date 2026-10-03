@@ -11,6 +11,7 @@ import copy
 import hashlib
 import json
 from collections.abc import Mapping as _ABCMapping
+from dataclasses import replace
 
 import pytest
 
@@ -1106,6 +1107,123 @@ def test_lying_len_dict_subclass_persistence_review_is_incomplete_len_never_call
     assert result.storage_ready is False
     assert "OVERSIZED_PREREQUISITE_REFERENCE:storage_qualification.persistence_review" in result.incompleteness_reasons
     assert "MISSING_STORAGE_PERSISTENCE_REVIEW" in result.incompleteness_reasons
+
+
+class _HostileText(str):
+    def __len__(self):
+        raise AssertionError("subclass length invoked")
+
+    def __iter__(self):
+        raise AssertionError("subclass iteration invoked")
+
+    def __eq__(self, other):
+        raise AssertionError("subclass equality invoked")
+
+    def __ne__(self, other):
+        raise AssertionError("subclass inequality invoked")
+
+    def encode(self, *args, **kwargs):
+        raise AssertionError("subclass encoding invoked")
+
+    def replace(self, *args, **kwargs):
+        raise AssertionError("subclass replacement invoked")
+
+    __hash__ = str.__hash__
+
+
+@pytest.mark.parametrize("surface", ("proposed_window", "prerequisites", "storage_qualification"))
+def test_hostile_outer_key_is_refused_without_calling_string_protocols(surface):
+    obj = dict({
+        "proposed_window": FRESH_WINDOW,
+        "prerequisites": _full_prerequisites(),
+        "storage_qualification": GOOD_STORAGE_QUALIFICATION,
+    }[surface])
+    del obj[next(iter(obj))]
+    obj[_HostileText("REVIEW_PRIVATE_SENTINEL")] = None
+    result = _call(**{surface: obj})
+    reasons = result.refusal_reasons if surface != "storage_qualification" else result.incompleteness_reasons
+    assert "OVERSIZED_OR_INVALID_KEY:" + surface in reasons
+    assert "REVIEW_PRIVATE_SENTINEL" not in json.dumps(result.to_dict())
+
+
+@pytest.mark.parametrize("path", sorted(PREREQ_KEYS) + ["storage_qualification.persistence_review"])
+@pytest.mark.parametrize("field", ("sha256", "byte_length", "path"))
+def test_hostile_reference_leaf_is_rejected_on_every_reference_path(path, field):
+    prereqs = _full_prerequisites()
+    storage = copy.deepcopy(GOOD_STORAGE_QUALIFICATION)
+    if path.startswith("storage_qualification."):
+        ref = storage["persistence_review"]
+    else:
+        ref = prereqs[path]
+    ref[field] = _HostileText("REVIEW_PRIVATE_SENTINEL")
+    result = _call(prerequisites=prereqs, storage_qualification=storage)
+    assert result.outcome == OUTCOME_INCOMPLETE
+    if path.startswith("storage_qualification."):
+        assert "MALFORMED_PREREQUISITE_REFERENCE:" + path in result.incompleteness_reasons
+        assert "MISSING_STORAGE_PERSISTENCE_REVIEW" in result.incompleteness_reasons
+    else:
+        assert path in result.missing_prerequisites
+        assert "MALFORMED_PREREQUISITE_REFERENCE:" + path in result.incompleteness_reasons
+    assert "REVIEW_PRIVATE_SENTINEL" not in json.dumps(result.to_dict())
+
+
+def test_hostile_reference_key_and_owner_qualification_are_rejected():
+    prereqs = _full_prerequisites()
+    owner = prereqs["owner_directive_original_record"]
+    del owner["path"]
+    owner[_HostileText("path")] = "synthetic://owner-directive"
+    result = _call(prerequisites=prereqs)
+    assert "owner_directive_original_record" in result.missing_prerequisites
+    prereqs = _full_prerequisites()
+    prereqs["owner_directive_original_record"]["qualification"] = _HostileText("PROVIDER_RIGHTS_GRANTED")
+    result = _call(prerequisites=prereqs)
+    assert "owner_directive_original_record" in result.missing_prerequisites
+
+
+@pytest.mark.parametrize("field", ("dispatch_not_before_utc", "expires_utc"))
+def test_hostile_window_timestamp_is_unparseable_without_string_protocols(field):
+    window = dict(FRESH_WINDOW)
+    window[field] = _HostileText(window[field])
+    result = _call(proposed_window=window)
+    assert result.outcome == OUTCOME_REFUSED
+    assert "UNPARSEABLE_PROPOSED_WINDOW" in result.refusal_reasons
+
+
+def test_hostile_now_and_clock_fields_are_rejected_without_protocols():
+    result = _call(now_utc=_HostileText(NOW_UTC))
+    assert result.outcome == OUTCOME_REFUSED
+    assert "UNPARSEABLE_NOW_UTC" in result.refusal_reasons
+    for field, value, reason in (
+        ("measured_utc", _HostileText(NOW_UTC), "UNPARSEABLE_CLOCK"),
+        ("source", _HostileText("LOCAL_AUTHORIZED_ONLY"), "INVALID_CLOCK_SOURCE"),
+        ("uncertainty_seconds", 0.3, "INVALID_CLOCK_UNCERTAINTY"),
+        ("calibration_age_seconds", 10.0, "INVALID_CALIBRATION_AGE"),
+    ):
+        if field.endswith("seconds"):
+            class HostileNumber(float):
+                def __eq__(self, other):
+                    raise AssertionError("number equality invoked")
+            value = HostileNumber(value)
+        result = _call(clock=replace(GOOD_CLOCK, **{field: value}))
+        assert reason in result.incompleteness_reasons
+
+
+@pytest.mark.parametrize("value", (None, "review", 7, []))
+def test_scalar_persistence_review_keeps_checker_diagnostic(value):
+    storage = dict(GOOD_STORAGE_QUALIFICATION, persistence_review=value)
+    result = _call(storage_qualification=storage)
+    assert "MISSING_STORAGE_PERSISTENCE_REVIEW" in result.incompleteness_reasons
+    assert not any("PREREQUISITE_REFERENCE:storage_qualification.persistence_review" in x
+                   for x in result.incompleteness_reasons)
+
+
+def test_missing_persistence_review_keeps_missing_key_diagnostic():
+    storage = dict(GOOD_STORAGE_QUALIFICATION)
+    del storage["persistence_review"]
+    result = _call(storage_qualification=storage)
+    assert "MISSING_KEY:storage_qualification.persistence_review" in result.incompleteness_reasons
+    assert "MISSING_STORAGE_PERSISTENCE_REVIEW" in result.incompleteness_reasons
+    assert "OVERSIZED_PREREQUISITE_REFERENCE:storage_qualification.persistence_review" not in result.incompleteness_reasons
 
 
 def test_bound_diagnostic_output_counts_json_serialization_overhead_not_bare_text():
