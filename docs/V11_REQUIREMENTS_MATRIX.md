@@ -4841,3 +4841,7 @@ Launched exactly one persistent Codex Sol/high SAFE NONFINANCIAL worker in isola
 ## Current G3-L proposal timing expired — 2026-10-03 17:17 UTC
 
 Current-main offline audit `/tmp/alpha-v11-g3l-audit-current-main-20261003-1717.json` (SHA-256 `b7f3d202357f4d23dc075b71c64a90788e521c9cc92427586d8111dfd880db57`) reports the proposed 2026-10-04 `time.review_before_window` **EXPIRED** and zero hypothetical attempt slots. The 77 identity gaps remain 6 retained scope / 1 offline reconciliation / 70 future; qualification credit zero, `launchable=false`, G3-L NO-GO. Fresh dating requires a new reviewed package. No provider request, SHADOW admission or score crossing: **91/200, formal 1/50; NOT_READY_TO_FUND**.
+
+## V5 historical replay exact review active — 2026-10-03 17:20 UTC
+
+Clean offline candidate `986f642` (tree `5083dc4`) is under different-model Astra/high exact review in a detached checkout; bindings and terminal paths are in the checkpoint. It has no independent verdict or merge and cannot qualify V5, repair the expired Gate-3 date, fill the 77 identities, or authorize provider/SHADOW activity. **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.

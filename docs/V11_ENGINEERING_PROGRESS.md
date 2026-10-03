@@ -7574,3 +7574,7 @@ Launched exactly one persistent Codex Sol/high SAFE NONFINANCIAL worker in isola
 ## Current-main G3-L timing check — 2026-10-03 17:17 UTC
 
 Read-only offline audit `/tmp/alpha-v11-g3l-audit-current-main-20261003-1717.json` (SHA-256 `b7f3d202357f4d23dc075b71c64a90788e521c9cc92427586d8111dfd880db57`) finds the proposed 2026-10-04 review-before-window condition **EXPIRED**: zero hypothetical attempt slots, 77 missing identities and no qualification credit. A fresh date requires a newly prepared and independently reviewed package. The isolated V5 historical-replay repair is still live and unmerged. No provider request, capture or forward SHADOW: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
+## V5 baseline replay exact review dispatched — 2026-10-03 17:20 UTC
+
+Author candidate `986f642` is clean with exit-0 terminal and author-reported normal/optimized offline tests; a separate Astra/high reviewer is live in the exact detached checkout. See checkpoint for commit/tree, hashes and runner. No independent verdict or merge yet. Current G3-L audit has an expired proposed window and 77 missing identities. No provider request or SHADOW operation: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
