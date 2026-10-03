@@ -2,8 +2,9 @@
   "candidates": [
     {
       "checkout_clean": true,
-      "commit": "976217d94629d808806f9e97ddd86c1992637a4c",
-      "exact_checkout": "/tmp/alpha-v11-gate3-fresh-readiness-review-976217d",
+      "commit": "5419a4e943a0106beb0f1920c5961b23fb0e880a",
+      "exact_checkout": "/tmp/alpha-v11-gate3-fresh-readiness-review-5419a4e",
+      "file_scope": "cumulative changed paths from review_base to commit; parent is the direct Git parent",
       "files": [
         {
           "blob_oid": "59fbde7082fca7d5c6027fd8f040bffb6f31480c",
@@ -12,25 +13,26 @@
           "sha256": "b06ca6804c2dfad51ec9e3a7c7a685347758ef1e7c699701d6337deab8ac084d"
         },
         {
-          "blob_oid": "84fe2291df05bf5d98aab329ccd941a9f13092bd",
-          "bytes": 51611,
+          "blob_oid": "50ee9d16323619c3b792c85643aafcd97bcb3471",
+          "bytes": 57006,
           "path": "tests/test_v11_gate3_fresh_window_readiness.py",
-          "sha256": "826011b70543c97293ad49d3b98661d9f2aea4206e62eb0b1e56212f574a52ee"
+          "sha256": "621759ba5201f2c8d493920dc25d831a1f98061e322f569675622d47dd7635bb"
         },
         {
-          "blob_oid": "5fb650217460eeb9881e391ecce7d9efee2a6be4",
-          "bytes": 38245,
+          "blob_oid": "8879f4399ac933e3ef61c78202658131d2449e25",
+          "bytes": 39688,
           "path": "tools/v11_gate3_fresh_window_readiness.py",
-          "sha256": "2de0ed91c8182917952ea519cd3e8128b0e438ab99f8da0144283675640fca8c"
+          "sha256": "a74238f3546149de4d9808ef107884fec0746c3d228815045449ba7f26402939"
         }
       ],
-      "parent": "947bf687822d0a42e9992adc3049091e677a41ed",
-      "tree": "c75574b1f8f721da8a7ba509500a5726aa27bc54"
+      "parent": "976217d94629d808806f9e97ddd86c1992637a4c",
+      "review_base": "947bf687822d0a42e9992adc3049091e677a41ed",
+      "tree": "fd1dbf9622c758ce433019bf42d6010df4779d88"
     },
     {
       "checkout_clean": true,
-      "commit": "3411097e702281e223f2ca8a3f9eaaf573cfcadf",
-      "exact_checkout": "/tmp/alpha-v11-g3l-hardening-review-3411097",
+      "commit": "84849e4d64eaab987ba224823fe1c1437c8a7a68",
+      "exact_checkout": "/tmp/alpha-v11-g3l-binding-review-84849e4",
       "file_scope": "cumulative changed paths from review_base to commit; parent is the direct Git parent",
       "files": [
         {
@@ -40,16 +42,22 @@
           "sha256": "4ce43d6c7dfc78a91afced8427344ef993189a0a03208d7137c5c3b716074a36"
         },
         {
+          "blob_oid": "89125aa77603155af431dfff59a5fbf286d580e6",
+          "bytes": 6393,
+          "path": "docs/V11_R09_GATE3_G3L_IDENTITY_AUDIT_HANDOFF_20261002.md",
+          "sha256": "ebd3236f5852f99a5433dd6eb09dabbb443da70c8043aac4ef2c9c4a330bab48"
+        },
+        {
           "blob_oid": "607d9f45ccae225008b46f72d0bf7d819a7b5c0c",
           "bytes": 187952,
           "path": "docs/V11_R09_GATE3_G3L_IDENTITY_AUDIT_HARDENING_20261002.json",
           "sha256": "2d60e266ce1467c3acf84fc4e631491fe8f4473c6faf60a2b064cbc7161e12c4"
         },
         {
-          "blob_oid": "eb4a7633ad45bc0bf3db0e2103d4de1cc147837b",
-          "bytes": 12891,
+          "blob_oid": "7f0829f4871ef6c2d1cfea6e2e624b37fa744fbd",
+          "bytes": 14400,
           "path": "docs/V11_R09_GATE3_G3L_IDENTITY_AUDIT_HARDENING_20261002.md",
-          "sha256": "17b8065eabfb6aaeb24c33218e167933c1ff6c1b5c8ea92e11deaa44440c6500"
+          "sha256": "712f9fb3096c7d46a09f0031fcaa26bc4209916f6ac8ebff04ef138716d53511"
         },
         {
           "blob_oid": "239b2ed656c582b5f72dd732dfcd57295d8427a1",
@@ -64,21 +72,27 @@
           "sha256": "49d614201f2c9cdf46c6735569aef5c05b14ec2ff172ca958eac29df66b141a9"
         },
         {
-          "blob_oid": "22266135797d66ce845bb7e7a9188b9e2a37a63f",
-          "bytes": 16077,
-          "path": "tests/test_v11_r09_gate3_g3l_identity_audit.py",
-          "sha256": "f6ef8fdfebf5a6ae54d9bed0143d0824300581da572533e0b1e564e5f5f7107e"
+          "blob_oid": "822e77becee81e187ff6ac1141e78ef1fa1af906",
+          "bytes": 8004,
+          "path": "tests/test_v11_r09_gate3_g3l_binding.py",
+          "sha256": "978abc6267bcb1e33f0a3cda681bccf37413229071ef4450278b97da0f26af6f"
         },
         {
-          "blob_oid": "56be343383771a7be18fef925297190094409d8e",
-          "bytes": 19780,
+          "blob_oid": "c9cd3e90a2d75bc17bf546904ca51850309102d4",
+          "bytes": 15919,
+          "path": "tests/test_v11_r09_gate3_g3l_identity_audit.py",
+          "sha256": "f6494288475ddbe1054a04913d9677a32c1f4037ea97313544e5050e77155d27"
+        },
+        {
+          "blob_oid": "ec5e4eb338f920b1de5012f8732b77b6aafb5f98",
+          "bytes": 25726,
           "path": "tools/v11_r09_gate3_g3l_identity_audit.py",
-          "sha256": "b04634a9910f3e6a501a59ec9893929041ca8a0afdf052ee42e039e4f2594fb7"
+          "sha256": "52178827ecc7a0808e9c45033d8b75f8e7e43690e28009de2635ad322b6c7b4e"
         }
       ],
-      "parent": "02dc6687cdef45d48eaa82420dae60cd431fbd82",
+      "parent": "3411097e702281e223f2ca8a3f9eaaf573cfcadf",
       "review_base": "c9e3b8dff0b9a2aa22836a8006c31f522653e523",
-      "tree": "e6e3a3236c77befb455d867c5e05c1ebf0a2c421"
+      "tree": "489b6108f9fdac58f2f9035d8c6a09ce8e16f9c0"
     },
     {
       "checkout_clean": true,
@@ -225,7 +239,7 @@
       "tree": "442058a68781c9089ad98262ba77fca2fda10d40"
     }
   ],
-  "generated_utc": "2026-10-03T07:36:09Z",
+  "generated_utc": "2026-10-03T09:15:00Z",
   "schema": "alpha-v11-gate3-local-exact-review-manifest-v1",
   "scope": "local integrity preparation only; no external transfer, review verdict, or launch authority"
 }
