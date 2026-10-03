@@ -1,0 +1,21 @@
+{
+  "authority": {
+    "execution": false,
+    "g3l": "NO_GO",
+    "provider_request": false,
+    "qualification_credit": 0,
+    "resource_qualification": false
+  },
+  "baseline": "e7cd874aaf9355f901c6e5834b17ae613cbe757b",
+  "effort": "high",
+  "launched_utc": "2026-10-03T04:02:39.572943+00:00",
+  "model": "gpt-6-sol",
+  "model_pid": 2697282,
+  "prompt_sha256": "9d1fd7e5ffefa308fb946bde8eefeb2f64aab899ac75812fb4881a47ebf20f01",
+  "runner_pid": 2697277,
+  "runner_sha256": "f65b2b49e5a14b9ff0c2bc66c28a610bf2d7c472101e3f4441ab355c18632462",
+  "schema": "ALPHA_V11_OFFLINE_RESOURCE_BUDGET_LAUNCH_V1",
+  "service_mode": "normal",
+  "terminal_path": "/tmp/alpha-v11-gate3-offline-resource-budget-20261003.terminal.json",
+  "worktree": "/tmp/alpha-v11-gate3-offline-resource-budget-20261003"
+}
