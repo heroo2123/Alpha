@@ -165,7 +165,11 @@ class FixtureStore:
         self.close()
 
     def close(self):
+        # A vanished parent thread may own the inherited mutex. Refuse before
+        # acquiring it; never unlock the shared open file description in a child.
+        self._check_pid()
         with self._mutex:
+            self._check_pid()
             for attr in ("_root", "_anchor"):
                 fd = getattr(self, attr)
                 setattr(self, attr, -1)
@@ -173,8 +177,16 @@ class FixtureStore:
                     os.close(fd)
             self._poisoned = True
 
+    def _check_pid(self):
+        # The creator PID is immutable. A fork in another thread cannot change
+        # this caller's PID between this guard and mutex acquisition. Reentrant
+        # fork from a signal handler/callback inside a method is unsupported.
+        if self._pid != os.getpid():
+            _fail("STORE_CLOSED_OR_FORKED")
+
     def _check(self):
-        if self._pid != os.getpid() or self._root < 0:
+        self._check_pid()
+        if self._root < 0:
             _fail("STORE_CLOSED_OR_FORKED")
         _private(os.fstat(self._anchor), directory=True)
         root = os.fstat(self._root)
@@ -344,6 +356,7 @@ class FixtureStore:
                     recovery_gaps="UNKNOWN", event_time="SUPPLIED_FIXTURE_ONLY")
 
     def replay(self):
+        self._check_pid()
         with self._mutex:
             try:
                 return self._replay()
@@ -351,6 +364,7 @@ class FixtureStore:
                 raise CustodyError("STORE_READ_FAILED", errno=error.errno) from None
 
     def _before_write(self):
+        self._check_pid()
         if self._poisoned or not self._writer or self._sealed:
             _fail("STORE_NOT_WRITABLE")
         report = self._replay()
@@ -359,6 +373,7 @@ class FixtureStore:
             _fail("STORE_CHANGED")
 
     def append(self, raw):
+        self._check_pid()
         with self._mutex:
             try:
                 self._before_write()
@@ -389,6 +404,7 @@ class FixtureStore:
                     external_checkpoint_present=False)
 
     def finish(self):
+        self._check_pid()
         with self._mutex:
             try:
                 self._before_write()

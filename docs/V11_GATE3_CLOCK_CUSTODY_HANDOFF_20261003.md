@@ -1,10 +1,12 @@
 # Gate 3 standalone offline fixture custody and replay candidate
 
 Status: **UNREVIEWED IMPLEMENTATION CANDIDATE; CUSTODY_UNQUALIFIED.**
-Base: `c20677b95a337bf4c8b7d29ff7409384c9a23406`.
+Repair base: `16230c29444f634e6cf513156744fb25689a1dd3`, tree
+`4f67d16fabcb279c47b1789ccfd9d40f7eee19e5`.
+Original slice base: `c20677b95a337bf4c8b7d29ff7409384c9a23406`.
 Author: sole Codex Astra/high specialist, 2026-10-03.
 
-This adds only `tools/v11_gate3_clock_custody.py`,
+This successor modifies only `tools/v11_gate3_clock_custody.py`,
 `tests/test_v11_gate3_clock_custody.py`, and this handoff. Existing reviewed
 recorder/parser files, production callers, and coordinator-owned status
 files are unchanged. No native recorder was compiled or executed. No
@@ -98,8 +100,33 @@ No `realpath`-then-open or arbitrary nested path traversal is used.
 
 An exclusive nonblocking `flock` is held on the **directory inode** for the
 entire handle lifetime, including replay handles. There is no replaceable
-lock-file pathname. A per-handle mutex serializes methods; use after fork
-refuses by process identity. Cooperating duplicate handles refuse.
+lock-file pathname. A per-handle mutex serializes methods. Calls begun in a
+forked child to `replay`, `append`, `finish`, or `close` refuse with
+`STORE_CLOSED_OR_FORKED` **before acquiring that mutex**, including when a
+different parent thread held it at fork. Cooperating duplicate handles refuse.
+
+The immutable creator PID is checked before locking, with PID checks retained
+inside the locked paths. A fork in a different thread does not change the PID
+of a caller already between the check and lock: that caller continues only
+in the parent; new child calls encounter the pre-lock refusal. This design
+does not register `os.register_at_fork` callbacks or reset inherited mutexes:
+the child needs no usable mutex because inherited handles remain unusable,
+and no global per-handle callback registration/lifetime management is needed.
+Fork from a reentrant signal handler or callback **inside an active custody
+method**, then continuing that interrupted method in the child, is unsupported;
+the pre-lock guard is not an atomic barrier against such a fork. This is not
+a general guarantee that arbitrary Python code is safe after multithreaded
+fork, nor a wall-time guarantee against scheduler/runtime/kernel stalls.
+
+Child `close` also refuses; it does not alter handle state, close descriptors,
+or issue `LOCK_UN`. The inherited root descriptor references the parent's
+same open file description, so explicitly unlocking it would release the
+parent's flock. Refusal leaves the parent's retained description and lock
+untouched. The child retains its descriptor references until exit/exec;
+consequently a surviving child can prolong the lock even after the parent
+closes. No automatic child cleanup or descriptor-reuse policy is supplied.
+Parent close remains idempotent. Private fields/direct syscalls are outside
+the API contract; this does not isolate hostile code in either process.
 
 Publication creates fixed `.pending` exclusively, writes with bounded
 progress, verifies bytes, fsyncs the object, hardlinks to its final name
@@ -170,10 +197,31 @@ review; the author does not approve or merge it.
 
 ## Validation
 
-- `python3 -B tests/test_v11_gate3_clock_custody.py`: **30/30 passed**.
-- `python3 -O -B tests/test_v11_gate3_clock_custody.py`: **30/30 passed**.
+- `python3 -B tests/test_v11_gate3_clock_custody.py`: **34/34 passed**.
+- `python3 -O -B tests/test_v11_gate3_clock_custody.py`: **34/34 passed**.
 - `python3 -B tests/test_v11_gate3_clock_dossier.py`: **73/73 passed**.
 - `python3 -O -B tests/test_v11_gate3_clock_dossier.py`: **73/73 passed**.
+- `git diff --check`: passed.
+
+The independent Sol/high exact review of the repair base returned
+**CHANGES_REQUIRED**: the original pre-refusal mutex acquisition deadlocked
+after fork, contradicting the prior handoff claim. The review artifacts in
+`.review-input/16230c2/` remain unmodified and uncommitted. This successor
+requires a new independent exact-SHA/tree review; prior review results do
+not approve this repair.
+
+Four separate fork regressions hold the mutex in another parent thread for
+the child's lifetime. Each exercises one of replay/append/finish/close, then
+close and a repeated call, requiring the exact fork refusal without state,
+descriptor or flock changes. A two-second child alarm and five-second parent
+watchdog bound failures; cleanup kills/reaps an overdue child and releases/
+joins the parent holder. Tests compare retained file bytes, check that an
+independent open still cannot acquire the parent's flock, and require normal
+parent replay/append/finish/idempotent close and subsequent reopen. Loading
+the original committed module only in memory made all four regressions fail
+with SIGALRM as expected; the worktree implementation was not replaced.
+Watchdog timing is test supervision only, not clock evidence. Python's
+multithreaded-fork deprecation warning is expected for this deliberate fixture.
 
 The new tests use unittest assertions that remain active under optimization.
 They cover aliases/exact types, directory permissions, symlinks/hardlinks/
@@ -188,6 +236,7 @@ or provider module is imported. These synthetic faults are not a physical
 power-loss or malicious-kernel durability test.
 
 All scratch roots are worktree-local and removed by the test harness; no
-other worktree/evidence is touched. Git candidate diff hygiene and clean
-post-commit status are checked separately; exact candidate SHA/tree are
-reported in the final handoff to avoid self-referential Git identifiers.
+other worktree/evidence is touched. Git candidate diff hygiene and post-commit
+status (only the preserved untracked review artifacts) are checked separately;
+exact candidate SHA/tree are reported in the final handoff to avoid
+self-referential Git identifiers.

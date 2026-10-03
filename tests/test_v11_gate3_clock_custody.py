@@ -9,10 +9,12 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import signal
 import socket
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import unittest
 from unittest.mock import patch
@@ -142,6 +144,108 @@ class CustodyTests(unittest.TestCase):
         s.close()
         reopened = self.store(create=False)
         self.refusal(lambda: reopened.append(RAW), "STORE_NOT_WRITABLE")
+
+    def _fork_with_held_mutex(self, method):
+        s = self.store()
+        s.append(RAW)
+        root = self.anchor / "store"
+        before = {p.name: p.read_bytes() for p in root.iterdir()}
+        state = (s._root, s._anchor, s._count, s._head, s._total, s._poisoned, s._sealed)
+        held, release = threading.Event(), threading.Event()
+
+        def hold_mutex():
+            with s._mutex:
+                held.set()
+                release.wait()
+
+        holder = threading.Thread(target=hold_mutex, daemon=True)
+        read_fd, write_fd = os.pipe()
+        child = None
+        try:
+            holder.start()
+            self.assertTrue(held.wait(2), "parent thread did not acquire mutex")
+            child = os.fork()
+            if child == 0:
+                # Independent child and parent watchdogs bound a regression even
+                # if the inherited mutex can never be acquired. No native probe.
+                signal.signal(signal.SIGALRM, signal.SIG_DFL)
+                signal.alarm(2)
+                result, status = b"ok", 0
+                try:
+                    self.assertTrue(s._mutex.locked())
+                    callback = (lambda: s.append(b"child must not persist")) if method == "append" else getattr(s, method)
+                    with patch.object(c.os, "close", side_effect=AssertionError("child closed descriptor")), \
+                            patch.object(c.fcntl, "flock", side_effect=AssertionError("child changed flock")):
+                        self.refusal(callback, "STORE_CLOSED_OR_FORKED")
+                        self.refusal(s.close, "STORE_CLOSED_OR_FORKED")
+                        self.refusal(callback, "STORE_CLOSED_OR_FORKED")
+                    self.assertEqual((s._root, s._anchor, s._count, s._head, s._total,
+                                      s._poisoned, s._sealed), state)
+                    os.fstat(s._root)
+                    os.fstat(s._anchor)
+                except BaseException as error:
+                    result, status = repr(error).encode("utf-8")[:2048], 1
+                try:
+                    os.write(write_fd, result)
+                finally:
+                    os._exit(status)
+
+            os.close(write_fd)
+            write_fd = -1
+            # Keep the parent's mutex held until the child has exited. A parent
+            # release cannot rescue the child's separate copy of a held lock.
+            deadline = time.monotonic() + 5
+            while True:
+                waited, status = os.waitpid(child, os.WNOHANG)
+                if waited == child:
+                    child = None
+                    break
+                if time.monotonic() >= deadline:
+                    self.fail("forked child exceeded parent watchdog")
+                time.sleep(0.01)
+            self.assertTrue(os.WIFEXITED(status), f"child terminated: {status}")
+            result = os.read(read_fd, 2048)
+            self.assertEqual(os.WEXITSTATUS(status), 0, result)
+            self.assertEqual(result, b"ok")
+        finally:
+            if child is not None and child > 0:
+                os.kill(child, signal.SIGKILL)
+                os.waitpid(child, 0)
+            release.set()
+            if holder.ident is not None:
+                holder.join(timeout=2)
+            os.close(read_fd)
+            if write_fd >= 0:
+                os.close(write_fd)
+        self.assertFalse(holder.is_alive(), "parent mutex holder did not stop")
+        self.assertEqual({p.name: p.read_bytes() for p in root.iterdir()}, before)
+        self.assertEqual((s._root, s._anchor, s._count, s._head, s._total,
+                          s._poisoned, s._sealed), state)
+        # A child LOCK_UN on the inherited open file description would let this
+        # independent open succeed, even though the parent still retains its fd.
+        self.refusal(lambda: self.store(create=False), "STORE_OPEN_FAILED")
+        self.assertEqual(s.replay()["count"], 1)
+        s.append(b"parent continues")
+        s.finish()
+        report = s.replay()
+        self.assertEqual(report["count"], 2)
+        self.assertEqual(report["records"][1]["raw_bytes"], b"parent continues")
+        self.assertTrue(report["terminal_present"])
+        s.close()
+        s.close()
+        self.assertEqual(self.store(create=False).replay(), report)
+
+    def test_fork_held_mutex_child_replay_refused(self):
+        self._fork_with_held_mutex("replay")
+
+    def test_fork_held_mutex_child_append_refused(self):
+        self._fork_with_held_mutex("append")
+
+    def test_fork_held_mutex_child_finish_refused(self):
+        self._fork_with_held_mutex("finish")
+
+    def test_fork_held_mutex_child_close_refused(self):
+        self._fork_with_held_mutex("close")
 
     def test_root_substitution_refused(self):
         s = self.store()
