@@ -1,3 +1,7 @@
+## G3-L identity map complete, three specialist lanes active — 2026-10-03 22:53 UTC
+
+Read-only mapper sealed clean at frozen `1194ed8`, confirming zero qualified entries across 77 PRE_REVIEW identities. It proposes a later no-socket cross-component regression once the RAW binding, transport and allocation slices are reviewed and integrated. RAW repair, transport `f1e85ba` exact review and allocation model writer remain live. No provider request, qualification, forward SHADOW or score crossing: **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; NOT_READY_TO_FUND**.
+
 ## Transport F4 candidate entered exact re-review — 2026-10-03 22:52 UTC
 
 Clean Sol/high `f1e85ba` sealed exit 0, passed whitespace checks and author-reported 13 adverse plus 129 runtime tests per Python mode. A separate Astra/high exact read-only reviewer is live against that frozen commit. Three other distinct Gate-3 lanes remain live: RAW binding repair, offline allocation model and G3-L identity mapping. Require reviewer PASS, newer-main reconciliation and focused post-merge tests before integration. No provider request, G3-L PASS, physical qualification, forward SHADOW or acceptance crossing: **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; NOT_READY_TO_FUND**.

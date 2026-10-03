@@ -1,3 +1,7 @@
+## G3-L identity mapper sealed with zero qualified rows — 2026-10-03 22:53 UTC
+
+A clean frozen-main read-only mapper confirmed all 77 PRE_REVIEW identities remain unqualified and identified a later cross-component synthetic refusal test, dependent on the current three candidate lanes. It grants no real evidence, provider right, G3-L PASS or SHADOW admission: **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; NOT_READY_TO_FUND**.
+
 ## Transport F4 clean successor under independent exact review — 2026-10-03 22:52 UTC
 
 Clean `f1e85ba` addresses the prior returned-byte F4 finding and has author-reported offline tests, but is under separate Astra/high exact review. No PASS or merge follows from author tests. RAW binding repair, offline allocation model and read-only G3-L identity mapping continue. No provider request, physical qualification, G3-L identity credit or SHADOW admission: **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
