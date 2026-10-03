@@ -1,3 +1,7 @@
+## G3-L commit-object provenance repair — 2026-10-03 06:21 UTC
+
+Reproduced the tree-as-commit observation flaw in held `741c6ae` and sealed isolated child `02dc668` with an exact Git object-type check and regression. Tests pass 22/22 in normal and optimized Python; detached exact checkout is clean. The new child needs candidate-specific authorized different-model exact review before any integration. No evidence identity, provider request, SHADOW admission, or score crossing: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Coordinator source-binding reproduction — 2026-10-03 05:57 UTC
 
 Reproduced 10/10 source SHA-256 and byte-length bindings for held production-mapping design `1dad476` against clean newer main `d9d121c`; current-main V4 tests passed 58/58. Preserved all eight unmerged candidates and their authorization hold, with no review transfer, provider request, merge, capture, forward SHADOW or score crossing: **91/200, formal 1/50; NOT_READY_TO_FUND**.

@@ -1,3 +1,7 @@
+## G3-L provenance child — 2026-10-03 06:21 UTC
+
+Local probe showed held `741c6ae` accepted a tree OID as an observation commit. Isolated child `02dc668` refuses non-commit Git objects; 22 focused tests pass in normal and optimized Python. It remains unreviewed and unmerged, supersedes `741c6ae` for exact review, and fills no identity. **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Current-source mapping review preparation — 2026-10-03 05:57 UTC
 
 All ten source bytes/lengths pinned by unmerged `1dad476` still match current main `d9d121c`; focused V4 tests pass 58/58. The design remains an unaccepted proposal in the eight-candidate exact-review queue. V4's production mapping blocker and 77 missing G3-L identities remain; no provider rights, SHADOW admission or C/J/E/A credit changed: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
