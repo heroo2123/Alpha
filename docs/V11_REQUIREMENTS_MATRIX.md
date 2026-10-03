@@ -4517,3 +4517,7 @@ All eight held Gate 3 candidates were probed against clean main `00c4ca4` withou
 ## Offline exact-packet verification — 2026-10-03 08:44 UTC
 
 Current eight-candidate local manifest passes the new offline integrity verifier, including HEAD/tree/parent, clean checkout, changed-path scope, and 25 listed blob/length/SHA-256 bindings. Three local tamper probes refuse. This grants no candidate-specific transfer authorization, independent exact PASS, G3-L identity, SHADOW admission, or C/J/E/A credit. Weather repairs `976217d` and `3411097` remain held: **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
+
+## Live repair-review provenance hold — 2026-10-03 08:49 UTC
+
+Two exact repair-child review processes are live, but no completed verdict or matching destination-specific owner authorization for `976217d` and `3411097` is established in the supplied record. Their parent permissions do not by themselves authorize the new bytes. The integrity-only packet verifier passes; this grants no independent PASS, reviewed identity, provider right, or launch credit. **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
