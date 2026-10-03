@@ -336,6 +336,47 @@ class FC1Tests(unittest.TestCase):
         changed[1]['upper_clock']['boot_id'] = 'reboot'
         self.refuse('CLOCK', fc.check_synthetic_timing_trace, t, tuple(changed), tuple(permissions))
 
+        # Replayed same-boot records must retain one intersection across the
+        # whole session, including records that preceded a later reopen.
+        changed = deepcopy(bounds)
+        for sample in ('lower_clock', 'upper_clock'):
+            changed[1][sample]['offset_lower_ms'] = 1000000
+            changed[1][sample]['offset_upper_ms'] = 1000000
+            changed[1][sample]['measured_utc_ms'] += 1000000
+        self.refuse('CLOCK', fc.check_synthetic_timing_trace, t, tuple(changed), tuple(permissions))
+
+        # Adjacent intersections can each be nonempty while the cumulative
+        # intersection becomes empty at a later replayed request.
+        changed = deepcopy(bounds)
+        for row, low, high in ((0, 0, 2), (1, 1, 3), (2, 3, 4)):
+            for sample in ('lower_clock', 'upper_clock'):
+                changed[row][sample]['offset_lower_ms'] = low
+                changed[row][sample]['offset_upper_ms'] = high
+                changed[row][sample]['measured_utc_ms'] += low
+        self.refuse('CLOCK', fc.check_synthetic_timing_trace, t, tuple(changed), tuple(permissions))
+
+        # The lower clock itself must precede permission. Moving both clock
+        # records coherently cannot hide delayed dispatch inside a 50 ms bracket.
+        changed = deepcopy(bounds)
+        changed[-1]['lower_ms'] += 900
+        changed[-1]['actual_start_ms'] += 900
+        changed[-1]['upper_ms'] += 900
+        changed[-1]['closed_ms'] += 900
+        for sample, advance in (('lower_clock', 900), ('upper_clock', 900)):
+            changed[-1][sample]['monotonic_ms'] += advance
+            changed[-1][sample]['measured_utc_ms'] += advance
+        self.refuse('CLOCK', fc.check_synthetic_timing_trace, t, tuple(changed), tuple(permissions))
+
+        # A small gate delay is inside the bracket; intent persistence after
+        # the original lower sample is not a valid preauthorization bracket.
+        delayed_permission = list(permissions)
+        delayed_permission[1] += 10
+        fc.check_synthetic_timing_trace(t, tuple(bounds), tuple(delayed_permission))
+        changed = deepcopy(bounds)
+        changed[1]['dispatch_persisted_ms'] += 5
+        self.refuse('CLOCK', fc.check_synthetic_timing_trace, t,
+                    tuple(changed), tuple(delayed_permission))
+
     def test_IA1_terminal_receipt_custody_adverse(self):
         context = '1'*64
         terminal = dict(schema='G3_V5_FC1_SESSION_IA1', type='TERMINAL',
@@ -367,6 +408,15 @@ class FC1Tests(unittest.TestCase):
         self.assertFalse(check((fc.canonical(failed),), (), 'f0', context).complete)
         invalid = dict(terminal, accounted=False)
         self.refuse('CUSTODY', check, (fc.canonical(invalid),), (), 'f0', context)
+        refused = dict(terminal, outcome='REFUSED', closed=False, accounted=False,
+                       witnessed=False, overdelivery=True)
+        refused_raw = fc.canonical(refused)
+        refused_head = fc.digest(refused_raw)
+        refused_receipt = dict(receipt, outcome='REFUSED', prior_hash=refused_head,
+                               session_terminal_head=refused_head)
+        receipt_raw = fc.canonical(refused_receipt)
+        self.refuse('CUSTODY', check, (refused_raw, receipt_raw),
+                    (refused_head, fc.digest(receipt_raw)), 'f0', context)
 
     def test_IA1_counted_eof_and_all_byte_paths(self):
         def read(kind='DATA', body=65536, maximum=65536, eager=0, queued=0, late=0,
@@ -405,6 +455,9 @@ class FC1Tests(unittest.TestCase):
         retained = inspect(cap, cap, 65, payload+(eof,), True, True,
                            prior_uncertain_debit=cap+65536)
         self.assertEqual(retained.debit_bytes, cap+65536)
+        self.assertTrue(retained.eof)
+        self.assertFalse(retained.complete)
+        self.assertTrue(retained.poisoned)
 
     def test_IA1_cost_certificate_and_versions(self):
         h = self.profile['stream_review']['sha256']

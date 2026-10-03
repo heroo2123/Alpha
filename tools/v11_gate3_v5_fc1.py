@@ -494,6 +494,7 @@ def check_synthetic_timing_trace(timing, bounds, permission_lower_ms):
          type(permission_lower_ms) is tuple)
     need(len(bounds) == len(permission_lower_ms) == len(timing.deadline_ms), 'BUDGET')
     previous = None
+    offset_lower = offset_upper = None
     for i, (b, permission, deadline, allowance) in enumerate(zip(
             bounds, permission_lower_ms, timing.deadline_ms, timing.start_bound_ms)):
         exact(b, ('schema', 'request_id', 'context_sha256', 'boot_id', 'lower_clock',
@@ -516,17 +517,24 @@ def check_synthetic_timing_trace(timing, bounds, permission_lower_ms):
                  clock['monotonic_ms'] == sample and
                  total((clock['monotonic_ms'], clock['offset_lower_ms'])) <= clock['measured_utc_ms'] <=
                  total((clock['monotonic_ms'], clock['offset_upper_ms'])), 'CLOCK')
-        need(max(b['lower_clock']['offset_lower_ms'], b['upper_clock']['offset_lower_ms']) <=
-             min(b['lower_clock']['offset_upper_ms'], b['upper_clock']['offset_upper_ms']), 'CLOCK')
+        for name in ('lower_clock', 'upper_clock'):
+            clock = b[name]
+            offset_lower = (clock['offset_lower_ms'] if offset_lower is None else
+                            max(offset_lower, clock['offset_lower_ms']))
+            offset_upper = (clock['offset_upper_ms'] if offset_upper is None else
+                            min(offset_upper, clock['offset_upper_ms']))
+            need(offset_lower <= offset_upper, 'CLOCK')
         for name in ('lower_ms', 'actual_start_ms', 'upper_ms', 'closed_ms',
                      'deadline_origin_ms', 'deadline_fixed_ms', 'dispatch_persisted_ms'):
             integer(b[name])
         integer(permission)
         need(type(b['durable_close']) is bool and type(b['receipt_complete']) is bool)
         need(b['durable_close'] and b['receipt_complete'], 'CUSTODY')
-        need(permission <= b['lower_ms'] <= b['actual_start_ms'] <= b['upper_ms'] <= b['closed_ms'], 'CLOCK')
+        need(b['lower_ms'] <= permission <= b['actual_start_ms'] <=
+             b['upper_ms'] <= b['closed_ms'], 'CLOCK')
         need(b['upper_ms'] - b['lower_ms'] <= allowance, 'CLOCK')
-        need(b['deadline_origin_ms'] <= b['dispatch_persisted_ms'] <= permission, 'CLOCK')
+        need(b['deadline_origin_ms'] <= b['dispatch_persisted_ms'] <=
+             b['lower_ms'] <= permission, 'CLOCK')
         need(b['closed_ms'] <= b['deadline_fixed_ms'] and
              b['deadline_fixed_ms'] <= total((b['deadline_origin_ms'], deadline)), 'BUDGET')
         if previous is not None:
@@ -577,7 +585,7 @@ def check_synthetic_capture_custody(records, acknowledged_heads, request_id, con
         need(terminal['closed'] and terminal['accounted'] and not terminal['overdelivery'], 'CUSTODY')
     else:
         need(not terminal['closed'] and not terminal['accounted'] and
-             not terminal['witnessed'], 'CUSTODY')
+             not terminal['witnessed'] and not terminal['overdelivery'], 'CUSTODY')
     terminal_head = digest(records[0])
     if len(records) == 1:
         return CaptureCustody(outcome, terminal_head, None, False)
@@ -622,7 +630,9 @@ def check_synthetic_stream_trace(cap, expected_bytes, k, reads, close_confirmed,
     need(type(reads) is tuple and type(close_confirmed) is bool and
          type(account_durable) is bool and type(canceled) is bool)
     count = received = payload = 0
-    eof = poisoned = stopped = False
+    eof = stopped = False
+    # An inherited uncertain attempt remains held even if later reads look clean.
+    poisoned = prior_uncertain_debit != 0
     for read in reads:
         exact(read, ('kind', 'requested_max', 'body_bytes', 'eager_bytes',
                      'queued_bytes', 'late_bytes', 'framing_complete', 'queue_exhausted'))
