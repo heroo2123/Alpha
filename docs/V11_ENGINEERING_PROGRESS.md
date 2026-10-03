@@ -1,3 +1,7 @@
+## Coordinator independent event-binding design — 2026-10-03 04:50 UTC
+
+Verified the current resource-budget child `9d80dd9` remains exact-review-held and the protected FINAL-REVIEWED master hash matches. Started one isolated Astra/high public-code-only worker from `337cb4e` to design a bounded binding between a validated frozen V4 event schedule and offline resource estimates, with no provider, runtime or acceptance authority. Runner/model `2715401`/`2715407` are live; result and different-model review are pending. All five existing candidates remain unmerged. No provider request, real resource qualification, G3-L PASS, forward SHADOW or score crossing: **91/200, formal 1/50; NOT_READY_TO_FUND**.
+
 ## Coordinator exact resource-child verification — 2026-10-03 04:45 UTC
 
 Verified current offline resource-budget child `9d80dd9` and its detached exact checkout are clean at the same commit/tree. Five focused synthetic tests pass under normal and optimized Python, and the child diff passes `git diff --check`. Updated the exact-review queue to preserve parent `0df1a95` while naming the child as the current candidate. Four other Gate 3 candidates remain review-held; no candidate-specific authorized different-model PASS, merge, provider request, genuine evidence, or acceptance crossing followed. **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
