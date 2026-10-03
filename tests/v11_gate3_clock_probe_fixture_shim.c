@@ -1,0 +1,166 @@
+/* Test-only LD_PRELOAD fixture shim for v11_gate3_clock_probe.
+ *
+ * Intercepts every syscall wrapper the probe calls (clock_gettime,
+ * clock_getres, adjtimex, readlink, open for the boot_id path) and returns
+ * fixed, environment-selected fixture values instead of the real host
+ * state. The probe binary under this preload therefore never samples the
+ * real clock, boot_id or namespace -- every one of its external reads is
+ * intercepted here. This file is test fixture code only; it is never
+ * linked into the production probe and installs no interception when the
+ * probe runs normally.
+ *
+ * Fixture selection: ALPHA_V11_CLOCK_FIXTURE selects a named scenario
+ * ("OK", "MONO_FAIL", "ADJTIMEX_FAIL", "ADJTIMEX_ERROR_STATUS",
+ * "BOOT_ID_MISMATCH", "NS_FAIL", "OVERLONG_BOOT_ID"). Each scenario is a
+ * fixed, deterministic set of fake return values -- nothing here reads a
+ * real clock or device.
+ */
+#define _GNU_SOURCE
+#include <dlfcn.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <stdarg.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <sys/timex.h>
+#include <time.h>
+#include <unistd.h>
+
+static const char *scenario(void) {
+    const char *s = getenv("ALPHA_V11_CLOCK_FIXTURE");
+    return s ? s : "OK";
+}
+
+static int streq(const char *a, const char *b) { return strcmp(a, b) == 0; }
+
+int clock_gettime(clockid_t id, struct timespec *tp) {
+    const char *sc = scenario();
+    if (streq(sc, "MONO_FAIL") && id == CLOCK_MONOTONIC) {
+        errno = ENOSYS;
+        return -1;
+    }
+    /* MONOTONIC, MONOTONIC_RAW and BOOTTIME share a single incrementing call
+     * sequence rather than independent per-clock counters: the real probe
+     * reads them in a fixed nested order (monotonic before, raw before,
+     * boottime before, ... boottime after, raw after, monotonic after), and
+     * a correct fixture must keep raw/boottime values strictly inside the
+     * surrounding monotonic bracket, exactly like genuine same-family
+     * hardware-timer-backed clocks would. */
+    static long shared_calls = 0;
+    const long step_ns = 1000;
+    switch (id) {
+        case CLOCK_REALTIME:
+            tp->tv_sec = 2000000000; /* fixed fixture epoch seconds */
+            tp->tv_nsec = 123456000;
+            return 0;
+        case CLOCK_MONOTONIC:
+        case CLOCK_MONOTONIC_RAW:
+        case CLOCK_BOOTTIME: {
+            long seq = shared_calls++;
+            tp->tv_sec = 1000;
+            tp->tv_nsec = step_ns * seq;
+            return 0;
+        }
+        default:
+            errno = EINVAL;
+            return -1;
+    }
+}
+
+int clock_getres(clockid_t id, struct timespec *res) {
+    (void)id;
+    res->tv_sec = 0;
+    res->tv_nsec = 1;
+    return 0;
+}
+
+int adjtimex(struct timex *buf) {
+    const char *sc = scenario();
+    if (streq(sc, "ADJTIMEX_FAIL")) {
+        errno = EPERM;
+        return -1;
+    }
+    memset(buf, 0, sizeof(*buf));
+    buf->modes = 0;
+    buf->offset = 12;
+    buf->freq = 34;
+    buf->maxerror = 56;
+    buf->esterror = 78;
+    buf->status = 0;
+    buf->constant = 1;
+    buf->precision = 1;
+    buf->tolerance = 32768000;
+    buf->time.tv_sec = 2000000000;
+    buf->time.tv_usec = 123;
+    buf->tick = 10000;
+    if (streq(sc, "ADJTIMEX_ERROR_STATUS")) {
+        return TIME_ERROR;
+    }
+    return TIME_OK;
+}
+
+ssize_t readlink(const char *path, char *buf, size_t bufsz) {
+    const char *sc = scenario();
+    if (streq(sc, "NS_FAIL") && strstr(path, "/ns/") != NULL) {
+        errno = ENOENT;
+        return -1;
+    }
+    const char *value = NULL;
+    if (strstr(path, "/ns/time") != NULL) value = "time:[4026531834]";
+    else if (strstr(path, "/ns/pid") != NULL) value = "pid:[4026531836]";
+    if (value == NULL) {
+        static ssize_t (*real_readlink)(const char *, char *, size_t) = NULL;
+        if (!real_readlink) real_readlink = dlsym(RTLD_NEXT, "readlink");
+        return real_readlink(path, buf, bufsz);
+    }
+    size_t n = strlen(value);
+    if (n >= bufsz) { errno = ENAMETOOLONG; return -1; }
+    memcpy(buf, value, n);
+    return (ssize_t)n;
+}
+
+static int fake_boot_id_fd = -1;
+
+int open(const char *path, int flags, ...) {
+    mode_t mode = 0;
+    if (flags & O_CREAT) {
+        va_list ap;
+        va_start(ap, flags);
+        mode = (mode_t)va_arg(ap, int);
+        va_end(ap);
+    }
+    if (streq(path, "/proc/sys/kernel/random/boot_id")) {
+        const char *sc = scenario();
+        if (streq(sc, "BOOT_ID_FAIL")) {
+            errno = ENOENT;
+            return -1;
+        }
+        const char *value = "fixture-boot-id-0001\n";
+        if (streq(sc, "BOOT_ID_MISMATCH")) {
+            static int call = 0;
+            value = (call == 0) ? "fixture-boot-id-before\n" : "fixture-boot-id-after\n";
+            call++;
+        }
+        if (streq(sc, "OVERLONG_BOOT_ID")) {
+            static char big[4096];
+            memset(big, 'A', sizeof(big) - 1);
+            big[sizeof(big) - 1] = '\n';
+            int fd = memfd_create("boot_id_fixture", 0);
+            ssize_t n = write(fd, big, sizeof(big));
+            (void)n;
+            lseek(fd, 0, SEEK_SET);
+            return fd;
+        }
+        int fd = memfd_create("boot_id_fixture", 0);
+        ssize_t n = write(fd, value, strlen(value));
+        (void)n;
+        lseek(fd, 0, SEEK_SET);
+        fake_boot_id_fd = fd;
+        return fd;
+    }
+    static int (*real_open)(const char *, int, ...) = NULL;
+    if (!real_open) real_open = dlsym(RTLD_NEXT, "open");
+    return real_open(path, flags, mode);
+}
