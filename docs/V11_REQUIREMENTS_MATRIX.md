@@ -1,3 +1,7 @@
+## G3-L repair counterexample replay — 2026-10-03 07:03 UTC
+
+The retained 53-case parent-review harness exited 0 against clean unmerged `02dc668`. The original malformed/incomplete observation cases refuse, and a newer artifact baseline cannot promote the drifted slice-3 row: it remains FUTURE with zero qualification. Result SHA-256 `426e35539ed13cdf2de686acb29c679c4cce0308705b7606f12d746d5621ace5`. This local check grants no independent PASS or G3-L identity. Exact child reviews remain authorization-held: **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Repair-child review hold — 2026-10-03 06:57 UTC
 
 Current main `224f24d` has 98/98 focused Gate 3 tests recorded. Requested review-only authorization for exact unmerged children `976217d` and `02dc668`; the parent review authorizations and CHANGES_REQUIRED verdicts do not approve these bytes. The October 4 local-only screen still has 77 missing reviewed identities and zero qualified slots. **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.

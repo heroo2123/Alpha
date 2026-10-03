@@ -1,3 +1,7 @@
+## Coordinator local G3-L repair probe — 2026-10-03 07:03 UTC
+
+Reused the retained parent-review adversarial harness against exact unmerged G3-L child `02dc668`: 53 cases completed, original R1 malformed/missing observations refused, and R2's newer-artifact-baseline probe kept slice 3 FUTURE with zero credit. Script/result hashes are recorded in the checkpoint. No candidate-specific independent PASS or merge followed; the fresh-readiness child `976217d` also remains review-held. No provider request, forward SHADOW or score crossing: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Coordinator review authorization requested — 2026-10-03 06:57 UTC
 
 Recovered clean main `224f24d`, clean weather repair children `976217d` and `02dc668`, and no new bounded forward artifact or separate Alpha specialist. Requested candidate-specific review-only authorization for these children; no approval or independent PASS is presumed. The protected master hash matches, the October 4 offline G3-L screen remains 77 missing identities and zero qualified slots, and no provider request or SHADOW admission occurred. **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
