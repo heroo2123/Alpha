@@ -1,3 +1,7 @@
+## Three distinct weather specialist lanes — 2026-10-03 21:23 UTC
+
+FC1 repair, G3-L `383412e` independent exact review and a separate read-only real-caller/test map are live in distinct worktrees. The third lane uses recovered host headroom and cannot modify either active candidate. Post-launch disk free about 4,184 MiB and MemAvailable about 640 MiB; no fourth launch is safe. No verdict, merge, provider request, G3-L PASS or forward SHADOW. **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; NOT_READY_TO_FUND**.
+
 ## G3-L intake exact review launched — 2026-10-03 21:21 UTC
 
 Recovered the exit-0 G3-L writer terminal and clean `383412e` two-file candidate, verified its tree and whitespace, and launched a different-model Astra/high exact review against frozen bytes. The separate FC1 repair continues. After review dispatch, disk free was about 4,219 MiB and MemAvailable about 811 MiB, so two specialist lanes fill the live reserve. No reviewer verdict, merge, provider request, G3-L PASS or forward SHADOW. **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; NOT_READY_TO_FUND**.

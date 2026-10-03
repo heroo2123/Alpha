@@ -1,3 +1,7 @@
+## Parallel real-caller mapping — 2026-10-03 21:23 UTC
+
+A separate read-only frozen-main worker maps the missing Gate-3 real caller and no-socket tests while G3-L `383412e` receives independent exact review and FC1 remains under repair. Mapping alone creates no code, qualified identity or SHADOW admission. **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## G3-L intake repair under exact review — 2026-10-03 21:21 UTC
 
 Clean offline intake-consistency candidate `383412e` sealed with author-reported focused tests and entered independent Astra/high exact review in a frozen checkout. No reviewer verdict, integration, G3-L identity credit or SHADOW authority follows yet. FC1 step-2 IA1 successor remains under isolated repair. **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
