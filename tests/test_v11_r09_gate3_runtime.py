@@ -595,6 +595,94 @@ def test_contract_stream_bytes_delivered_during_close_are_charged_and_held(tmp_p
         assert shared.open_intent is not None
 
 
+def test_claimed_close_with_contradictory_framing_keeps_reservation(tmp_path):
+    tmp_path = _dirs(tmp_path)
+    response = _ok_response(b'abcd')
+    stream = ScriptedResponseStream(response, (b'ab',))
+    requests = (_request(reservation_bytes=4),
+                _request(request_id='req-2', reservation_bytes=4, slot_index=6))
+    with _acquire(tmp_path) as (shared, session, budget, store):
+        exchange = SyntheticExchange({'req-1': response,
+                                      'req-2': _ok_response(b'next')})
+        runtime = _runtime(shared, session, budget, store, exchange,
+                           requests=requests)
+        runtime.transport = ScriptedTransport(exchange, stream)
+        with pytest.raises(LaunchContractError, match='RUNTIME_CLOSURE_UNPROVEN'):
+            runtime.run_attempt(requests[0])
+        assert budget.received == 2 and budget.in_flight == 'req-1'
+        assert shared.open_intent is not None
+        assert not any(event['op'] == 'transport_closed' for event in session.events)
+    with _acquire(tmp_path) as (shared, session, budget, store):
+        assert budget.received == 2 and budget.in_flight == 'req-1'
+        assert shared.open_intent is not None
+        assert budget.inherited_in_flight == 'req-1'
+
+
+@pytest.mark.parametrize('close_raises', (False, True))
+def test_post_violation_close_delivery_is_durable(tmp_path, close_raises):
+    tmp_path = _dirs(tmp_path)
+    response = _ok_response(b'abcde')
+
+    class LateDelivery(ScriptedResponseStream):
+        def close(self, **kwargs):
+            self._delivered += 1
+            if close_raises:
+                raise RuntimeError('close failed after delivery')
+            return super().close(**kwargs)
+
+    stream = LateDelivery(response, (b'abcde',))
+    with _acquire(tmp_path) as (shared, session, budget, store):
+        runtime = _scripted_runtime(shared, session, budget, store, response, stream)
+        with pytest.raises((RuntimeError if close_raises else LaunchContractError),
+                           match=('close failed' if close_raises else
+                                  'RUNTIME_UNACCOUNTED_CLOSURE_BYTES')):
+            runtime.run_attempt(_request(reservation_bytes=4))
+        assert budget.received == 6 and budget.uncertain_received_bytes == 0
+        assert budget.violated and budget.in_flight == 'req-1'
+        assert shared.open_intent is not None
+    with _acquire(tmp_path) as (shared, session, budget, store):
+        assert budget.received == 6 and budget.violated
+        assert budget.in_flight == 'req-1' and shared.open_intent is not None
+
+
+def test_large_valid_prefetch_counter_records_full_violation(tmp_path):
+    tmp_path = _dirs(tmp_path)
+    response = _ok_response(b'a')
+    observed = (1 << 30) + 1
+    stream = ScriptedResponseStream(response, (b'a',), prefetched=observed)
+    with _acquire(tmp_path) as (shared, session, budget, store):
+        runtime = _scripted_runtime(shared, session, budget, store, response, stream)
+        with pytest.raises(LaunchContractError, match='RUNTIME_CLOSURE_UNPROVEN'):
+            runtime.run_attempt(_request(reservation_bytes=4))
+        assert budget.received == observed and budget.violated
+        assert budget.uncertain_received_bytes == 0
+        assert budget.in_flight == 'req-1' and shared.open_intent is not None
+    with _acquire(tmp_path) as (shared, session, budget, store):
+        assert budget.received == observed and budget.violated
+        assert budget.in_flight == 'req-1'
+
+
+@pytest.mark.parametrize('prefetched', (0, 4))
+def test_malformed_snapshot_retains_returned_byte_lower_bound(tmp_path, prefetched):
+    tmp_path = _dirs(tmp_path)
+    response = _ok_response(b'abcd')
+
+    class BadProgress(ScriptedResponseStream):
+        def snapshot(self):
+            state = super().snapshot()
+            return replace(state, read_count=-1) if self._cursor else state
+
+    stream = BadProgress(response, (b'abcd',), prefetched=prefetched)
+    with _acquire(tmp_path) as (shared, session, budget, store):
+        runtime = _scripted_runtime(shared, session, budget, store, response, stream)
+        with pytest.raises(LaunchContractError, match='RUNTIME_STREAM_PROGRESS'):
+            runtime.run_attempt(_request(reservation_bytes=4))
+        assert budget.received == 4 and budget.uncertain_received_bytes == 0
+        assert budget.in_flight == 'req-1' and shared.open_intent is not None
+    with _acquire(tmp_path) as (shared, session, budget, store):
+        assert budget.received == 4 and budget.in_flight == 'req-1'
+
+
 def test_overdelivery_poisons_session_and_blocks_further_attempts(tmp_path):
     tmp_path = _dirs(tmp_path)
     big = b'X' * 50

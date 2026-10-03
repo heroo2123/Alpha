@@ -1080,12 +1080,15 @@ class DurableBudget:
         recorded = False
         try:
             self._healthy()
-            check(key != self.inherited_in_flight and not self.violated,
-                  'UNCERTAIN_REQUEST_HELD')
+            check(key != self.inherited_in_flight, 'UNCERTAIN_REQUEST_HELD')
             remaining = min(self.attempts[key]['reserved'] -
                             self.attempts[key]['received'],
                             self.max_bytes - self.received)
-            operation = 'eager_delivery' if known_bytes <= remaining else 'violation'
+            # Once a violation is durable, further observed bytes still need
+            # durable accounting. The violated budget remains poisoned and its
+            # reservation cannot be completed or released.
+            operation = ('eager_delivery' if self.violated or known_bytes <= remaining
+                         else 'violation')
             self._append({'op': operation, 'key': key, 'bytes': known_bytes})
             recorded = True
             self._state()

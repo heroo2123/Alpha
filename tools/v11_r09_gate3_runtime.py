@@ -269,6 +269,19 @@ class _StreamAccounting:
             self.charged_bytes = state.delivered_bytes
         return state
 
+    def charge_returned_lower_bound(self, budget, request_id, before, chunk):
+        """Preserve bytes returned by read when its new snapshot is invalid.
+
+        Previously reported prefetch may contain the return value, so only
+        the increase in the independent lower bound is charged.
+        """
+        if type(chunk) is bytes and chunk:
+            lower_bound = max(before.delivered_bytes, before.read_bytes + len(chunk))
+            outstanding = lower_bound - self.charged_bytes
+            if outstanding > 0:
+                budget.record_eager_delivery(request_id, outstanding)
+                self.charged_bytes = lower_bound
+
 
 class SyntheticTransport(Transport):
     """Offline-only transport: exact request IDs map to preloaded fixture
@@ -1767,7 +1780,12 @@ class GateRuntime:
                 self._account_prefetched_on_deadline(request, stream, accounting,
                     receipt=header_receipt, denial_recorded=denial_record is not None)
                 raise
-            state = accounting.observe()
+            try:
+                state = accounting.observe()
+            except LaunchContractError:
+                accounting.charge_returned_lower_bound(
+                    self.budget, request.request_id, before, chunk)
+                raise
             if chunk is None:
                 if not (state.eof_confirmed and
                         state.read_bytes == before.read_bytes and
@@ -1789,6 +1807,13 @@ class GateRuntime:
                 self._account_prefetched_on_deadline(request, stream, accounting,
                     receipt=header_receipt, denial_recorded=denial_record is not None)
                 raise LaunchContractError('RUNTIME_CHUNK_COUNT_EXCEEDS_POLICY')
+            if state.delivered_bytes - accounting.charged_bytes > MAX_BYTES:
+                # consume's bounded chunk interface cannot represent this
+                # valid cumulative stream counter. Journal the full observed
+                # boundary through the aggregate accounting interface.
+                accounting.charge_unread(self.budget, request.request_id)
+                overdelivered = True
+                break
             try:
                 self.budget.consume(request.request_id, chunk,
                     overdelivery_total_bytes=state.delivered_bytes-accounting.charged_bytes,
@@ -1819,21 +1844,20 @@ class GateRuntime:
                     receipt=header_receipt, denial_recorded=denial_record is not None),
                 discard_prefetched=overdelivered)
         except Exception:
-            if not overdelivered:
-                self._account_prefetched_on_deadline(request, stream, accounting,
-                    receipt=header_receipt, denial_recorded=denial_record is not None)
+            self._account_prefetched_on_deadline(request, stream, accounting,
+                receipt=header_receipt, denial_recorded=denial_record is not None)
             raise
         state = accounting.observe()
         if state.delivered_bytes != accounting.charged_bytes:
-            if not overdelivered:
-                self._account_prefetched_on_deadline(request, stream, accounting,
-                    receipt=header_receipt, denial_recorded=denial_record is not None)
+            self._account_prefetched_on_deadline(request, stream, accounting,
+                receipt=header_receipt, denial_recorded=denial_record is not None)
             raise LaunchContractError('RUNTIME_UNACCOUNTED_CLOSURE_BYTES')
         closure = self.clock.evidence('body_receipt')
         self._enforce_window(closure, body=True)
         check(closure.reading.monotonic_seconds <= deadline_mono,
               'RUNTIME_CLOSE_DEADLINE')
-        check(known_closed is True and state.eof_confirmed,
+        check(known_closed is True and state.eof_confirmed and
+              headers.get('content-length') == str(state.delivered_bytes),
               'RUNTIME_CLOSURE_UNPROVEN')
         delivered = state.delivered_bytes
         closure_evidence_raw = canonical({
