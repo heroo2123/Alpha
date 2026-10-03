@@ -167,3 +167,54 @@ def test_ecmwf_collector_refuses_v5_before_clock_callback():
         asyncio.run(ECMWFCollector(store, transport=transport).collect(request(), None, 'synthetic'))
     if calls:
         raise AssertionError('refused V5 request invoked callback or transport')
+
+
+def test_ecmwf_admission_refuses_concrete_and_spoofed_requests_before_effects():
+    class V5Subclass(V5IFSRequest):
+        pass
+
+    class LegacySubclass(ECMWFRequest):
+        pass
+
+    class Proxy:
+        def __init__(self, inner):
+            self.inner = inner
+
+        @property
+        def __class__(self):
+            return ECMWFRequest
+
+        def __getattr__(self, name):
+            return getattr(self.inner, name)
+
+    valid = ECMWFRequest(IFS, RUN, 6, 0, 'a'*64)
+    changed_step = replace(valid)
+    object.__setattr__(changed_step, 'step', 3)
+    changed_source = replace(valid)
+    object.__setattr__(changed_source, 'source', replace(IFS, dataset='wrong'))
+    changed_signature = replace(valid)
+    object.__setattr__(changed_signature, 'grib_signature_sha256', 'bad')
+    changed_time = replace(valid)
+    object.__setattr__(changed_time, 'initialized_at', 10**400)
+    bad_requests = (request(), V5Subclass(IFS, RUN, 3, 0, 'a'*64),
+                    Proxy(request()), LegacySubclass(IFS, RUN, 6, 0, 'a'*64),
+                    changed_step, changed_source, changed_signature, changed_time)
+    calls = []
+    store = SimpleNamespace(clock=lambda: (calls.append('clock'), RUN+3600)[1])
+    transport = httpx.MockTransport(lambda req: (calls.append('transport'), httpx.Response(404))[1])
+
+    for bad in bad_requests:
+        with pytest.raises(EvidenceError):
+            access_state(bad, now=RUN+3600)
+        with pytest.raises(EvidenceError):
+            asyncio.run(ECMWFCollector(store, transport=transport).collect(bad, None, 'synthetic'))
+        if calls:
+            raise AssertionError(f'refused {type(bad).__name__} reached clock or transport')
+
+    with pytest.raises(EvidenceError, match='^ECMWF_ACCESS_REQUEST_INVALID$'):
+        asyncio.run(ECMWFCollector(store, transport=transport).collect(valid, None, 'synthetic', historical=1))
+    assert not calls
+    assert access_state(valid, now=RUN+3600) == 'PUBLIC_PULL_ELIGIBLE'
+    assert access_state(valid, now=RUN+3600, historical=True) == 'EXTERNAL_ACCESS_REQUIRED'
+    assert asyncio.run(ECMWFCollector(store, transport=transport).collect(valid, None, 'synthetic'))['state'] == 'NOT_AVAILABLE'
+    assert calls == ['clock', 'transport']

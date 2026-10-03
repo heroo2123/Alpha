@@ -123,16 +123,30 @@ class V5IFSRequest(ECMWFRequest):
 
 
 def access_state(request, *, now, historical=False):
-    if isinstance(request, V5IFSRequest):
-        raise EvidenceError('V5_IFS_OFFLINE_ONLY')
-    if type(historical) is not bool or not isinstance(request, ECMWFRequest):
-        raise EvidenceError('ECMWF_ACCESS_REQUEST_INVALID')
+    _admit_public_request(request, historical=historical)
     if historical:
         return 'EXTERNAL_ACCESS_REQUIRED'
     age = finite(now) - request.initialized_at
     if age < 0 or age >= 72*3600:
         return 'NOT_AVAILABLE'
     return 'PUBLIC_PULL_ELIGIBLE'  # Eligibility does not assert the object exists.
+
+
+def _admit_public_request(request, *, historical=False):
+    """Recheck the concrete six-hour request before any public dispatch effects."""
+    if isinstance(request, V5IFSRequest):
+        raise EvidenceError('V5_IFS_OFFLINE_ONLY')
+    if type(historical) is not bool or type(request) is not ECMWFRequest:
+        raise EvidenceError('ECMWF_ACCESS_REQUEST_INVALID')
+    # Frozen dataclasses can still be changed with object.__setattr__. The
+    # source and request must satisfy their original reviewed constructors.
+    if type(request.source) is not SourceIdentity:
+        raise EvidenceError('ECMWF_ACCESS_REQUEST_INVALID')
+    try:
+        SourceIdentity.__post_init__(request.source)
+        ECMWFRequest.__post_init__(request)
+    except (TypeError, ValueError, OverflowError, OSError) as exc:
+        raise EvidenceError('ECMWF_ACCESS_REQUEST_INVALID') from exc
 
 
 @dataclass(frozen=True)
@@ -236,8 +250,7 @@ class ECMWFCollector:
             return bytes(data)
 
     async def collect(self, request, target, record_id, *, historical=False):
-        if isinstance(request, V5IFSRequest):
-            raise EvidenceError('V5_IFS_OFFLINE_ONLY')
+        _admit_public_request(request, historical=historical)
         state = access_state(request, now=self.store.clock(), historical=historical)
         if state != 'PUBLIC_PULL_ELIGIBLE': return dict(state=state, raw_id=None, financial_authority=False)
         try:
