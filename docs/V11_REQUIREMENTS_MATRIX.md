@@ -4333,3 +4333,5 @@ At 2026-10-03 02:29 UTC, documentation-only clock-method candidate `9fbaf8c` is 
 ## Clock-method F1 review repair — 2026-10-03 02:39 UTC
 
 The public-only clock-method design `9fbaf8c` received independent **CHANGES_REQUIRED** for missing pre-acquisition metadata-receipt ordering. Narrow isolated repair `9759ecf` is clean and under different-model exact review; it is not integrated or a real clock qualification. Earlier `976217d` and `741c6ae` weather repairs remain held for candidate-specific exact PASS. No Gate 3 acceptance or C/J/E/A crossing: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
+At 2026-10-03 02:45 UTC, the public-only clock acquisition/custody method handoff `9759ecf` received independent exact PASS_IN_SCOPE_PROPOSED_OFFLINE_DESIGN and was merged locally as `4273425`. This is documentation-only. Passive recorder/verifier implementation, real UTC reference, host/build/custody qualification, provider rights, G3-L evidence and genuine forward SHADOW remain open. Held `976217d` and `741c6ae` repairs remain unreviewed/unmerged. **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
