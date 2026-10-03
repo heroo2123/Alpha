@@ -1,3 +1,7 @@
+## Reviewed G3-I offline repair integrated — 2026-10-03 21:04 UTC
+
+Exact `ef7b470` received independent **PASS_IN_SCOPE** and merged locally as `be8274e`; 219 focused post-merge tests pass per Python mode. This closes the five offline collector/sizing repair findings only. Current-runtime and FC1 reviews remain live; all 77 G3-L PRE_REVIEW identities are still unqualified. **91/200, formal 1/50; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Live review reconciliation preflight — 2026-10-03 21:00 UTC
 
 G3-I `ef7b470` and FC1 `b1edf2a` each have a clean offline current-main merge-tree preflight, but their independent exact reviews are still live and unsealed. Current-runtime `cb3236a` is also under independent review. No acceptance or G3-L identity credit follows from a preflight. All 77 PRE_REVIEW identities remain unqualified; **91/200, formal 1/50; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.

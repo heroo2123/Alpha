@@ -1,3 +1,7 @@
+## G3-I offline repair merged and verified — 2026-10-03 21:04 UTC
+
+Independent Astra/high exact `PASS_IN_SCOPE` for `ef7b470` preceded local merge `be8274e`. Merged-main focused tests pass 219/219 in normal and optimized Python. Runtime and FC1 exact reviews continue; disk reserve prevents adding a third specialist while their scratch is active. No provider request, qualification, forward SHADOW or score crossing: **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Three live exact reviews; current-main preflight complete — 2026-10-03 21:00 UTC
 
 The G3-I, FC1 IA1 and current-runtime reviewers remain active in separate frozen checkouts with no sealed verdict. G3-I and FC1 candidate diffs pass whitespace checks and both reconcile cleanly to main in offline merge-tree probes. Available memory currently supports these three specialists only. Next action is immediate verdict intake, any required repair/re-review, and safe local integration after PASS. No provider request, forward SHADOW or score crossing: **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
