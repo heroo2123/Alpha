@@ -1,3 +1,7 @@
+## Runtime review intake and offline repair launched — 2026-10-03 21:13 UTC
+
+Sealed Astra/high current-runtime exact review returned CHANGES_REQUIRED on a reproduced direct-constructor intake consistency gap. The review's 914 focused tests per Python mode do not close it. Inactive re-creatable pytest scratch was removed after open-handle verification, restoring about 4.2 GiB free disk. One isolated Sol/high writer now repairs only the offline gap, while the independent FC1 exact reviewer continues. Require clean successor, tests, different-model exact PASS and merge reconciliation. No provider request, G3-L PASS, qualified capture, forward SHADOW or C/J/E/A crossing: **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; NOT_READY_TO_FUND**.
+
 ## G3-I offline repair merged and verified — 2026-10-03 21:04 UTC
 
 Independent Astra/high exact `PASS_IN_SCOPE` for `ef7b470` preceded local merge `be8274e`. Merged-main focused tests pass 219/219 in normal and optimized Python. Runtime and FC1 exact reviews continue; disk reserve prevents adding a third specialist while their scratch is active. No provider request, qualification, forward SHADOW or score crossing: **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.

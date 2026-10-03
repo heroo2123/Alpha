@@ -1,3 +1,7 @@
+## Current-runtime admission finding and repair lane — 2026-10-03 21:13 UTC
+
+Exact current-runtime review at `cb3236a` sealed **CHANGES_REQUIRED**: direct intake-record construction can present `satisfied=True` with a refusal/arbitrary outcome and reach synthetic dispatch. No `code.runtime_entrypoint_review` or `code.slice3_exact_commit_review` credit follows. An isolated offline repair is active and must pass independent different-model exact review before integration. All 77 G3-L PRE_REVIEW identities remain unqualified; **91/200, formal 1/50; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Reviewed G3-I offline repair integrated — 2026-10-03 21:04 UTC
 
 Exact `ef7b470` received independent **PASS_IN_SCOPE** and merged locally as `be8274e`; 219 focused post-merge tests pass per Python mode. This closes the five offline collector/sizing repair findings only. Current-runtime and FC1 reviews remain live; all 77 G3-L PRE_REVIEW identities are still unqualified. **91/200, formal 1/50; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
