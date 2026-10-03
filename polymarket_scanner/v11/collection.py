@@ -87,6 +87,21 @@ class SourceRequest:
                 raise EvidenceError("MADIS_AUXILIARY_PWS_ONLY")
 
 
+def validate_source_requests(requests: tuple[SourceRequest, ...]) -> None:
+    """Admit only reviewed public requests before any scheduling or GET."""
+    if type(requests) is not tuple or not 1 <= len(requests) <= 16:
+        raise EvidenceError("COLLECTOR_CYCLE_LIMIT")
+    from .ecmwf_sources import V5IFSRequest
+    for request in requests:
+        if isinstance(request, V5IFSRequest):
+            raise EvidenceError("V5_IFS_OFFLINE_ONLY")
+        if type(request) is not SourceRequest:
+            raise EvidenceError("SOURCE_REQUEST_REQUIRED")
+        # Recheck the reviewed endpoint even if a frozen instance was altered
+        # with object.__setattr__ after construction.
+        SourceRequest.__post_init__(request)
+
+
 class PublicCollector:
     def __init__(self, store: EvidenceStore, client: httpx.AsyncClient, *,
                  attempts: int = 2, max_response_bytes: int = 768 * 1024,
@@ -112,8 +127,7 @@ class PublicCollector:
 
     async def cycle(self, cycle_id: str, requests: tuple[SourceRequest, ...]) -> dict:
         identity(cycle_id, maximum=80)
-        if not 1 <= len(requests) <= 16:
-            raise EvidenceError("COLLECTOR_CYCLE_LIMIT")
+        validate_source_requests(requests)
         results = []
         deadline = time.monotonic() + self.cycle_seconds
         blocked_hosts = {}

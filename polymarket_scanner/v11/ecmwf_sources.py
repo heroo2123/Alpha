@@ -20,6 +20,7 @@ MAX_INDEX_BYTES = 3 * 1024 * 1024
 MAX_INDEX_ROWS = 12000
 MAX_FIELD_BYTES = MAX_RAW_BYTES
 MAX_TOTAL_BYTES = 16 * 1024 * 1024
+MAX_V5_TIMESTAMP = 253402300799  # 9999-12-31 23:59:59 UTC
 
 
 @dataclass(frozen=True)
@@ -87,7 +88,11 @@ class ECMWFRequest:
 
 @dataclass(frozen=True)
 class V5IFSRequest(ECMWFRequest):
-    """Offline V5 IFS 0..72 h request representation; no dispatch authority."""
+    """Offline V5 IFS 0..72 h request representation; no dispatch authority.
+
+    Integer-valued floats remain accepted here for compatibility with the
+    existing request API; a V5 manifest's UTC timestamp has an integer schema.
+    """
 
     def __post_init__(self):
         if (type(self.source) is not SourceIdentity
@@ -95,8 +100,15 @@ class V5IFSRequest(ECMWFRequest):
                 or self.source.model != 'ifs'
                 or self.source.dataset != 'ecmwf-open-data:0p25'):
             raise EvidenceError('V5_IFS_SOURCE_IDENTITY')
-        run = datetime.fromtimestamp(finite(self.initialized_at), timezone.utc)
-        if run.hour not in (0, 6, 12, 18) or run.minute or run.second or self.initialized_at % 1:
+        timestamp = self.initialized_at
+        if (type(timestamp) not in (int, float) or not 0 < timestamp <= MAX_V5_TIMESTAMP
+                or timestamp % 1):
+            raise EvidenceError('V5_IFS_INITIALIZATION_CYCLE')
+        try:
+            run = datetime.fromtimestamp(timestamp, timezone.utc)
+        except (ValueError, OverflowError, OSError) as exc:
+            raise EvidenceError('V5_IFS_INITIALIZATION_CYCLE') from exc
+        if run.hour not in (0, 6, 12, 18) or run.minute or run.second:
             raise EvidenceError('V5_IFS_INITIALIZATION_CYCLE')
         if type(self.step) is not int or not 0 <= self.step <= 72 or self.step % 3:
             raise EvidenceError('V5_IFS_STEP_BOUND')
@@ -224,6 +236,8 @@ class ECMWFCollector:
             return bytes(data)
 
     async def collect(self, request, target, record_id, *, historical=False):
+        if isinstance(request, V5IFSRequest):
+            raise EvidenceError('V5_IFS_OFFLINE_ONLY')
         state = access_state(request, now=self.store.clock(), historical=historical)
         if state != 'PUBLIC_PULL_ELIGIBLE': return dict(state=state, raw_id=None, financial_authority=False)
         try:

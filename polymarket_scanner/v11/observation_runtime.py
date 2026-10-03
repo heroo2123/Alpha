@@ -10,7 +10,7 @@ import fcntl
 import os
 from urllib.parse import urlsplit
 
-from .collection import PublicCollector, SourceRequest
+from .collection import PublicCollector, SourceRequest, validate_source_requests
 from .evidence import EvidenceError, EvidenceStore, finite, identity
 from .rules import history
 from .weather_sources import normalize_weather_capture
@@ -28,8 +28,7 @@ class ScheduledCollector:
 
     async def cycle(self, cycle_id: str, requests: tuple[SourceRequest, ...]) -> dict:
         identity(cycle_id, maximum=80)
-        if not 1 <= len(requests) <= 16:
-            raise EvidenceError("COLLECTOR_CYCLE_LIMIT")
+        validate_source_requests(requests)
         lock = self.store.path.with_name(self.store.path.name+".collector.lock")
         fd = os.open(lock, os.O_CREAT | os.O_WRONLY | os.O_NOFOLLOW, 0o600)
         try:
@@ -42,10 +41,9 @@ class ScheduledCollector:
             os.close(fd)
 
     async def _cycle(self, cycle_id, requests):
+        validate_source_requests(requests)
         grouped = defaultdict(list)
         for request in requests:
-            if not isinstance(request,SourceRequest):
-                raise EvidenceError("SOURCE_REQUEST_REQUIRED")
             grouped[urlsplit(request.url).hostname].append(request)
         if len(grouped.get('nomads.ncep.noaa.gov',()))>1:
             raise EvidenceError('GEFS_ONE_REQUEST_PER_SCHEDULED_STEP')
@@ -103,6 +101,7 @@ class ObservationRuntime:
     async def cycle(self, cycle_id: str, requests: tuple[SourceRequest, ...], *,
                     station_by_event: dict[str,str], strategies: tuple[str,...],
                     required_providers_by_strategy: dict[str,tuple[str,...]] | None=None) -> dict:
+        validate_source_requests(requests)
         if not strategies or len(strategies)>16 or len(set(strategies)) != len(strategies):
             raise EvidenceError("OBSERVATION_STRATEGY_BOUND")
         for strategy in strategies:
