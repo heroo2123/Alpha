@@ -1,3 +1,7 @@
+## FC1 IA1 candidate review dispatched — 2026-10-03 20:18 UTC
+
+Clean `86662ab` / tree `4a29d7e` finished with an exit-0 author terminal and passed whitespace checks. A different-model exact review is live in detached `/tmp/alpha-v11-gate3-v5-fc1-ia1-review-86662ab`; its retained prompt/output/final/terminal bindings are in the checkpoint. The G3-L identity inventory worker remains live separately. No independent verdict, integration, provider request, G3-L PASS, forward SHADOW or score crossing: **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## FC1 handoff intake and G3-L inventory — 2026-10-03 20:16 UTC
 
 Two read-only FC1 handoffs finished exit 0 and mapped the three step-2 repair seams plus inherited regression suite. The interface-amendment author is still live; a separate read-only G3-L evidence inventory now runs with retained terminal marker. Two specialist lanes fit current host reserve. No amendment review PASS, step-2 merge, provider request, G3-L PASS, forward SHADOW or score crossing. **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.

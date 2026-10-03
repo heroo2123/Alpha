@@ -1,3 +1,7 @@
+## FC1 IA1 exact review active — 2026-10-03 20:18 UTC
+
+The proposed five-file amendment is frozen at `86662ab` and under independent Sol/high exact review in a separate checkout. Its terminal-before-receipt, actual-start pacing and counted EOF choices remain proposed until that review passes. The G3-L identity inventory continues read-only in parallel. Step-2 freeze and downstream FC1 acceptance remain held; no provider, G3-L or SHADOW credit. **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## FC1 handoffs and independent G3-L inventory — 2026-10-03 20:16 UTC
 
 The read-only step-2 repair and inherited-regression maps finished clean with no tests or acceptance. The separate versioned interface-amendment author remains live and uncommitted. A distinct read-only G3-L identity/evidence inventory is live in an isolated checkout; it cannot create identity evidence or authorize provider contact. Require frozen amendment, independent exact review, successor step-2 repair/re-review, then reconciliation. **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
