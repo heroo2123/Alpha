@@ -1,3 +1,7 @@
+## RAW binding P2 repair and physical proof remain open — 2026-10-03 22:42 UTC
+
+Exact `7fc9223` received independent **CHANGES_REQUIRED** for custody-lifecycle and contradictory/unknown closure evidence despite passing focused tests. An isolated offline repair is active and must receive different-model exact re-review before integration. The read-only physical-store mapper sealed and a separate current-main proof-gap verifier is active; neither grants host storage qualification. Transport `60ac120` exact review remains live. No provider request, G3-L identity credit, capture or SHADOW admission: **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Physical-store prerequisite under read-only mapping — 2026-10-03 22:37 UTC
 
 A third isolated read-only mapper is live at frozen main `51ee655` while exact reviews of RAW binding `7fc9223` and transport successor `60ac120` continue. It may identify a later offline slice but supplies no physical reservation, selected-window measurement, accepted receipt, G3-L identity or SHADOW admission. **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
