@@ -241,6 +241,17 @@ def test_well_formed_but_unresolvable_observation_commit_refuses(monkeypatch):
         subject.audit(REPO, **ARGS)
 
 
+def test_observation_tree_object_cannot_masquerade_as_commit(monkeypatch):
+    # A tree can resolve through Git's ^{tree} syntax and serve path bytes,
+    # but it cannot establish the claimed commit provenance.
+    _with_mutated_observation(
+        monkeypatch, "launch_validator",
+        lambda obs: obs.__setitem__("commit_oid", obs["tree_oid"]),
+    )
+    with pytest.raises(ValueError, match="unresolvable commit"):
+        subject.audit(REPO, **ARGS)
+
+
 def test_missing_individual_observation_refuses(monkeypatch):
     # R1: dropping one whole observation (not just a field within it) must
     # fail closed instead of silently narrowing dependency coverage.

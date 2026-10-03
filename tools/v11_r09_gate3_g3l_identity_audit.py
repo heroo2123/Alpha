@@ -90,6 +90,13 @@ def _git_bytes(repo: Path, commit: str, path: str) -> bytes:
 
 def _git_tree_oid(repo: Path, commit: str) -> str:
     try:
+        kind = subprocess.run(
+            ["git", "cat-file", "-t", commit], cwd=repo,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False,
+            timeout=30,
+        )
+        if kind.returncode or kind.stdout.strip() != b"commit":
+            raise ValueError(f"unresolvable commit: {commit}")
         proc = subprocess.run(
             ["git", "rev-parse", "--verify", f"{commit}^{{tree}}"], cwd=repo,
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False,
