@@ -1,3 +1,7 @@
+## Coordinator detached Brain worker recovery — 2026-10-03 00:11 UTC
+
+Recovered clean main `3b44fea` and clean weather repair commits `976217d` and `741c6ae`. The prior Brain worker had exited with an empty log, no terminal and no worktree change. Resumed the same bounded offline task in its existing isolated worktree via detached runner; PID `2596304` and Sonnet child `2596305` were live. Weather reviews remain held for authorization specific to the new repair commits; no merge, provider request, forward SHADOW, real trajectory admission, or score crossing. **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Coordinator offline worker recovery — 2026-10-03 00:08 UTC
 
 Verified clean main `2790ee3`, clean held weather repairs `976217d` and `741c6ae`, unchanged protected FINAL-REVIEWED master, and no newer SHADOW/backfill evidence. The offline Brain/IFS-AIFS worker exited without a terminal or changes, so the same isolated task was restarted through a persistent PTY; runner/Sonnet `2595390`/`2595392` were live at verification. Weather exact repair reviews remain authorization-held and unmerged. No provider request, G3-L PASS, SHADOW admission, or score crossing: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
