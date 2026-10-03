@@ -1,3 +1,7 @@
+## Gate-3 exact review disposition — 2026-10-03 23:08 UTC
+
+Allocation `e0354e8` and transport `f1e85ba` received **CHANGES_REQUIRED** with reproduced offline defects; separate isolated successor repairs are live and require clean tested commits, different-model exact re-review, reconciliation and post-merge checks. RAW `cea7461` has no verdict because Codex tool policy stopped its first reviewer and Claude allowance stopped the fallback; a fresh frozen Codex Astra review is live. No identity, physical storage, provider, capture or SHADOW qualification credit: **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Three exact reviews live; conflict-free preflights only — 2026-10-03 23:02 UTC
 
 Transport `f1e85ba`, RAW binding `cea7461`, and offline allocation/lifetime `e0354e8` remain under separate frozen exact reviews without sealed verdicts. Their clean author worktrees and conflict-free current-main merge-tree probes prepare later reconciliation; adverse reviewer controls are still being adjudicated. No G3-L identity, physical qualification, provider authority, capture or SHADOW credit: **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.

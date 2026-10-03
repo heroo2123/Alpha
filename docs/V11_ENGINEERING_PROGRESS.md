@@ -1,3 +1,7 @@
+## Gate-3 review intake and repair continuity — 2026-10-03 23:08 UTC
+
+Independent exact reviews rejected allocation `e0354e8` for three P2 defects and transport `f1e85ba` for six malformed-read regressions; one isolated Sol/high repair writer now owns each original worktree. RAW `cea7461` remains unapproved after a Codex tool-policy refusal and Claude weekly-limit failure; one frozen Astra/high adjudication is live. Retained review reports, runner prompts and terminal markers are recorded in the checkpoint. Main remains clean; no merge, provider request, G3-L PASS, physical qualification, forward SHADOW or acceptance crossing: **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; NOT_READY_TO_FUND**.
+
 ## Frozen review continuity and merge preflight — 2026-10-03 23:02 UTC
 
 Three weather exact reviewers are live for clean transport `f1e85ba`, RAW `cea7461`, and offline allocation `e0354e8`; no terminal or verdict has sealed. Candidate whitespace and current-main merge-tree checks pass without conflicts. Review logs contain adverse failures/counterexamples that still require final independent adjudication. No merge, provider request, physical qualification, G3-L PASS, forward SHADOW or acceptance crossing: **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; NOT_READY_TO_FUND**.
