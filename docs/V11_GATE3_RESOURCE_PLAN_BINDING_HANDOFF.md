@@ -21,7 +21,10 @@ already validated manifest bytes.
 
 The offline calculator now refuses an event count different from the cohort,
 or any missing, extra, reordered, duplicated, substituted, or malformed FIELD
-member. It retains the existing request/order, cardinality, link, numeric and
+member. It rejects protocol dictionary-key and mode subclasses before their
+comparison hooks can mutate the caller's event list, and computes against a
+bounded snapshot of the supplied event collection and member lists. It retains
+the existing request/order, cardinality, link, numeric and
 resource caps. On success `event_binding` is
 `MATCHES_SUPPLIED_V4_MANIFEST_FIELD_EXPANSION` and
 `capacity_covers_frozen_schedule=true` means only that its event-dependent

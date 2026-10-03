@@ -254,6 +254,35 @@ def test_oversized_mapping_refuses_before_copying_keys():
     unittest.TestCase().assertLess(peak, 64 * 1024)
 
 
+def test_subclass_hooks_cannot_shrink_event_capacity():
+    check = unittest.TestCase()
+    manifest, plan = two_field_fixture()
+
+    class MutatingKey(str):
+        __hash__ = str.__hash__
+
+        def __eq__(self, other):
+            plan['events'].pop()
+            return str.__eq__(self, other)
+
+    key = MutatingKey('field_request_ids')
+    plan['events'][0] = {key: ['field', 'field-2']}
+    with check.assertRaises(ValueError):
+        calculate_offline_resource_budget(manifest, plan)
+    check.assertEqual(len(plan['events']), 2)
+
+    manifest, plan = two_field_fixture()
+
+    class MutatingMode(str):
+        def __eq__(self, other):
+            plan['events'].pop()
+            return str.__eq__(self, other)
+
+    plan['mode'] = MutatingMode('OFFLINE_PROPOSAL')
+    with check.assertRaises(ValueError):
+        calculate_offline_resource_budget(manifest, plan)
+    check.assertEqual(len(plan['events']), 2)
+
 class OfflineResourceBudgetTests(unittest.TestCase):
     def test_parity(self):
         test_arithmetic_parity_and_separate_unknown_budgets()
@@ -275,3 +304,6 @@ class OfflineResourceBudgetTests(unittest.TestCase):
 
     def test_oversized_mapping(self):
         test_oversized_mapping_refuses_before_copying_keys()
+
+    def test_subclass_hooks(self):
+        test_subclass_hooks_cannot_shrink_event_capacity()

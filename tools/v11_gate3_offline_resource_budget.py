@@ -29,7 +29,9 @@ def _number(value, low=0, high=MAX_INT):
 
 
 def _mapping(value, keys):
-    if type(value) is not dict or len(value) != len(keys) or set(value) != set(keys):
+    if (type(value) is not dict or len(value) != len(keys) or
+            any(type(key) is not str for key in value) or
+            set(value) != set(keys)):
         raise ValueError('unexpected proposal shape')
     return value
 
@@ -48,7 +50,7 @@ def _calculate(manifest, frozen_plan):
     if type(manifest) is not dict or type(frozen_plan) is not dict:
         raise ValueError('mapping required')
     _mapping(frozen_plan, ('mode', 'requests', 'events'))
-    if frozen_plan['mode'] != 'OFFLINE_PROPOSAL':
+    if type(frozen_plan['mode']) is not str or frozen_plan['mode'] != 'OFFLINE_PROPOSAL':
         raise ValueError('unsupported mode')
     try:
         identity = manifest['identity']
@@ -74,6 +76,9 @@ def _calculate(manifest, frozen_plan):
             type(purpose_plan) is not dict or len(purpose_plan) != len(PURPOSES) or
             set(purpose_plan) != set(PURPOSES)):
         raise ValueError('unbounded or mismatched V4 projection')
+    # Work from one bounded event-list snapshot. The caller's mutable list
+    # cannot change the number of capacity nodes after the shape check.
+    events = tuple(events)
 
     maximum_requests = _number(limits['max_requests'], 1, MAX_REQUESTS)
     maximum_bytes = _number(limits['max_received_bytes'], 1, MAX_BYTES)
@@ -143,7 +148,10 @@ def _calculate(manifest, frozen_plan):
     for event in events:
         _mapping(event, ('field_request_ids',))
         members = event['field_request_ids']
-        if (type(members) is not list or len(members) != len(field_ids) or
+        if type(members) is not list:
+            raise ValueError('frozen event differs from V4 field expansion')
+        members = tuple(members)
+        if (len(members) != len(field_ids) or
                 len(members) > MAX_EVENT_LINKS - links or
                 any(type(rid) is not str or rid != expected
                     for rid, expected in zip(members, field_ids))):
