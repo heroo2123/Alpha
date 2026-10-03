@@ -1,5 +1,32 @@
 # Gate 3 pending exact reviews — 2026-10-03 03:38 UTC
 
+## Current queue reconciliation — 2026-10-03 05:30 UTC
+
+All eight current candidates below are locally clean and unmerged. Their author
+worktrees have no uncommitted files; each full commit/tree pair was rechecked
+against Git. The earlier authorization for `947bf68` and `c9e3b8d` applies to
+those parent bytes only. The newer candidates have no independent PASS, and
+external exact review remains held pending the single destination-specific
+authorization requested for these eight exact commits and only their referenced
+retained Alpha evidence.
+
+| Priority | Candidate commit | Tree | Review purpose |
+| --- | --- | --- | --- |
+| 1 | `976217d94629d808806f9e97ddd86c1992637a4c` | `c75574b1f8f721da8a7ba509500a5726aa27bc54` | Fresh-window F1/F2 repair |
+| 2 | `741c6aea5c33105c6f087603168700bed829dc9b` | `f75fd31f04071be4c2a457ba670f83142f8fe04b` | G3-L R1/R2 repair |
+| 3 | `5667acb6a0c491a54e7ece810210379f5726addc` | `280fd6fe24fbb1cac8dcab20f8e2682a6685a10b` | Passive clock recorder |
+| 4 | `5faedb81d9e0a862e3eaef673f1e5a5c12a928c5` | `5d70de288817da6ca6fc317b5b00126d5b894530` | Resource reservation design |
+| 5 | `9d80dd988339315b376744e2de8d148b21c08323` | `d12e0daa87e303a02658d7c634db55e7c6caac11` | Conditional offline resource budget; supersedes `0df1a95` for review |
+| 6 | `3d414b3707b4052a14a6f49162fbbbfa8e809711` | `474a6f1f003a67a69eab4a094863eebf8afb927a` | Frozen-event binding design |
+| 7 | `988f544a2432a5bea024d5a0e17784fb14ae5166` | `b0dd2b4779201e8f23bec9d5f299e4d63a4c1bd5` | Validated-plan export design |
+| 8 | `1dad476cf8df19b9eee7f92578104f133823085d` | `442058a68781c9089ad98262ba77fca2fda10d40` | Production provider-mapping architecture |
+
+Review order is a priority, not a dependency: independent authorized reviews
+may run concurrently within host resource limits. The source-level V4 production
+mapping blocker and all 77 missing G3-L identities remain. No review transfer,
+provider request, qualification, integration, capture, or forward SHADOW follows
+from this queue reconciliation.
+
 ## Local exact staging update — 2026-10-03 05:27 UTC
 
 Production-mapping candidate `1dad476cf8df19b9eee7f92578104f133823085d` is now staged at clean detached `/tmp/alpha-v11-gate3-production-mapping-review-1dad476`. Its tree is `442058a68781c9089ad98262ba77fca2fda10d40`, and design SHA-256 is `20c5d72dd4ac9f235b8964998ff608420333349f44e428cd29e12901e7583525`; both match the author packet. The exact patch passes `git diff --check`; current-main V4 tests pass 58/58 using `/home/alphaadmin/AlphaV11_Dev/venv/bin/python`. This is local review preparation only. No candidate-specific external-transfer authorization, independent verdict, acceptance, or integration is inferred.
