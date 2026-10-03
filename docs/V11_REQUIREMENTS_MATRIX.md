@@ -4545,3 +4545,6 @@ Clean fresh-readiness child `297ad8f` is staged for exact review; host-focused t
 ## Coordinator G3-L Git-anchor repair intake — 2026-10-03 09:35 UTC
 
 Clean G3-L child `2afef9b` is staged for exact review; host-focused tests pass **67/67**. Both weather repairs remain unmerged pending candidate-specific authorized independent PASS. No qualifying evidence or boundary crossing: **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
+## Coordinator child-review authorization hold — 2026-10-03 09:38 UTC
+
+Stopped two exact-review processes for new descendants `297ad8f` and `2afef9b` because the recorded owner transfer authorization names only ancestor commits. Partial logs have no verdict; both clean candidates remain staged and unmerged pending destination-specific authorization and independent PASS. **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
