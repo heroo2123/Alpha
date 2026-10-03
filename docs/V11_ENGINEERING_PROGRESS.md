@@ -1,3 +1,7 @@
+## Validated-byte resource entrypoint under exact review — 2026-10-03 14:42 UTC
+
+Clean isolated candidate `d6c59b4` adds an offline exact-V4-byte validation wrapper for the resource estimate. Author tests report 14/14 in normal and optimized Python; a different-model Astra/high exact review is live in `/tmp/alpha-v11-gate3-validated-budget-review-d6c59b4`. It is unapproved and unmerged. No host resource/clock qualification, provider request, identity credit or SHADOW admission: **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Offline resource binding integrated; validated-byte follow-up active — 2026-10-03 14:30 UTC
 
 The clean `4273456` resource-binding successor passed independent exact Astra/high review and merged locally as `6bea4c5`; imported blobs match the reviewed candidate and 9/9 post-merge tests pass in each Python mode. One persistent isolated Sol/high worker is building a fail-closed offline entrypoint that validates exact V4 manifest bytes before capacity comparison. Its worktree and retained terminal are recorded in the checkpoint. No new candidate, provider request, host qualification, eligible capture, forward SHADOW or score crossing: **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
