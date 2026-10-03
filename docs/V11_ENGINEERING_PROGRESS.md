@@ -1,3 +1,7 @@
+## V5 IFS successor and independent review — 2026-10-03 19:25 UTC
+
+The isolated Sol/high author sealed clean `610ee4a` / tree `6e914139` after 244 passed/1 skipped in each Python mode with sockets blocked; the author reported early refusal of all four prior late-effect reproductions. A different-model Astra/high exact reviewer is active in a clean detached checkout. Separate FC1 offline schema author is active. No verdict or merge is claimed. Main is clean, checked V10/V11 units inactive, disk above 2 GiB but below preferred 3 GiB, and the host's two heavy slots are occupied. No provider request, qualified capture, forward SHADOW or score crossing: **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## V5 IFS repair continuity — 2026-10-03 19:14 UTC
 
 Recovered the sole live isolated Sol/high repair worker for the `7cff90a` P1 outer admission finding. Its new regression suite passes 24/24 in normal and optimized Python, and the retained old exploit probe is refused earlier at batch construction. The broader focused suite is running; no clean successor or independent review verdict exists yet. Main remains clean, V10/V11 execution units inactive, and no score or Gate 3 boundary crossed: **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
