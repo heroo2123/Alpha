@@ -4815,3 +4815,7 @@ The `67fa86a` supplied-byte export prerequisite received independent `PASS_IN_SC
 ## Gate 3 V5 proposal still in authoring — 2026-10-03 16:12 UTC
 
 The isolated source-bound V5 evidence-role proposal author is live with no candidate or independent verdict yet. The merged offline resource/export prerequisites add no operational qualification or identity credit. Current boundary remains **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
+
+## Reviewed V5 proposal integrated — 2026-10-03 16:42 UTC
+
+Independent exact review passed documentation candidate `1c0e2d0` in scope; local merge `03c1055` preserves the three reviewed blobs and both JSON companions parse. It proposes 2,713 mandatory slot obligations and preserves 79 identity rows, but is still `PROPOSED_BLOCKED`: the full cap envelope exceeds the retained receipt limit and no executable V5, production enrollment, provider rights or operational evidence exists. **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
