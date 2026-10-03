@@ -7120,3 +7120,7 @@ Recorded a conflict-free, non-destructive merge-tree result for `0df1a95` agains
 ## Coordinator five-candidate hold reconciliation — 2026-10-03 04:28 UTC
 
 Verified clean main `53ee848`, five clean exact review checkouts with matching commit/tree identities, unchanged protected FINAL-REVIEWED master hash, absent protected authority roots, no bounded new forward evidence and adequate disk/memory. Updated the current handoff to include the fifth candidate and the original runner-terminal uncertainty. Candidate-specific external exact-review authorization and different-model PASS remain absent for all five; no transfer retry or integration was made. The latest current-main offline screen remains 68/68 tests and 77/77 missing G3-L identities. No provider request, genuine forward SHADOW or C/J/E/A crossing: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
+## Coordinator local resource-budget probe — 2026-10-03 04:34 UTC
+
+Reproduced a candidate-local event omission in unmerged `0df1a95`: its two-request fixture's one field event can be removed while the calculator still returns an offline report with an 8,585,216-byte lower disk estimate. The candidate remains unchanged; this is local pre-review evidence in [the probe record](V11_GATE3_RESOURCE_BUDGET_LOCAL_PROBE_20261003.md), not an independent exact verdict. Five held candidates still need candidate-specific authorized different-model review. No provider request, real resource qualification, G3-L PASS, forward SHADOW or score crossing: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.

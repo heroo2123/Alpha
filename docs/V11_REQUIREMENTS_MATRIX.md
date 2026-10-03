@@ -4362,3 +4362,5 @@ At 2026-10-03 04:19 UTC, exact offline resource-budget candidate `0df1a95` and i
 At 2026-10-03 04:22 UTC, the fifth offline resource-budget candidate `0df1a95` had a clean non-destructive merge probe against main `483b38b`. Its exact review remains authorization-held; no candidate was integrated or qualified. **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
 
 At 2026-10-03 04:28 UTC, all five held exact review checkouts remained clean with matching commit/tree identities; the current handoff was updated for the fifth candidate. No candidate-specific authorized different-model PASS, real evidence identity, provider right or C/J/E/A boundary exists. **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
+At 2026-10-03 04:34 UTC, a local synthetic probe of held offline resource candidate `0df1a95` found an event-list binding gap that can understate its disk estimate by 8,585,216 bytes on its own fixture. This is a repair target, not an independent verdict or qualification. All five exact candidates remain unmerged and review-held; **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
