@@ -1,3 +1,7 @@
+## Coordinator exact-packet integrity — 2026-10-03 07:52 UTC
+
+All eight current review checkouts and 25 manifest file blobs reverified locally against their commit/tree/hash bindings. Review-only authorization for these exact bytes is requested but not yet received; no independent PASS, merge, G3-L identity, SHADOW admission, or score change: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Coordinator current G3-L child and observer handoff — 2026-10-03 07:46 UTC
 
 Exact unmerged child `3411097` passes 46/46 focused G3-L audit/preparation tests in its detached checkout. The InventoryTransform observer guide now accurately points to its reviewed, integrated but dormant start contract. Neither fact fills the 77 missing G3-L identities or qualifies weather/transaction SHADOW: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**. Both weather repair children still require candidate-specific authorized independent exact PASS before integration.
