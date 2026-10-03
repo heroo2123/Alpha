@@ -1,3 +1,11 @@
+## 2026-10-03 23:19 UTC Gate-3 successor disposition
+
+RAW `cea7461` received independent **CHANGES_REQUIRED** for four P2 custody/closure defects; a sole isolated repair is live. Clean transport successor `5a0ce21` and allocation successor `91d3b00` are under separate frozen different-model exact reviews. The synthetic composition test plan is sealed for later use after PASS and integration, without qualification. **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
+
+## 2026-10-03 23:16 UTC allocation successor review
+
+Clean allocation repair `91d3b00` has author tests only and is under different-model exact review. Transport repair, RAW adjudication and a distinct read-only cross-component test planner occupy the other three weather lanes. No physical/provider/identity qualification or SHADOW admission follows. **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Gate-3 exact review disposition — 2026-10-03 23:08 UTC
 
 Allocation `e0354e8` and transport `f1e85ba` received **CHANGES_REQUIRED** with reproduced offline defects; separate isolated successor repairs are live and require clean tested commits, different-model exact re-review, reconciliation and post-merge checks. RAW `cea7461` has no verdict because Codex tool policy stopped its first reviewer and Claude allowance stopped the fallback; a fresh frozen Codex Astra review is live. No identity, physical storage, provider, capture or SHADOW qualification credit: **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.

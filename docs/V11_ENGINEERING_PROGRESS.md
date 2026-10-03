@@ -1,3 +1,11 @@
+## 2026-10-03 23:19 UTC RAW repair and dual exact reviews
+
+Independent RAW `cea7461` adjudication sealed CHANGES_REQUIRED with four reproduced P2 defects and one Sol/high successor repair now runs in its original isolated worktree. Transport successor `5a0ce21` sealed clean with author tests and entered different-model exact review. Allocation `91d3b00` exact review remains live. A separate read-only test planner sealed a concrete synthetic no-socket composition plan for post-integration. No merge, provider request, G3-L PASS, physical qualification, capture, forward SHADOW or acceptance crossing: **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; NOT_READY_TO_FUND**.
+
+## 2026-10-03 23:16 UTC allocation repair intake and review
+
+Clean `91d3b00` closes the author's scoped allocation changes and enters a frozen different-model Astra/high exact review; its 20 normal and 20 optimized focused tests are author evidence pending the verdict. The separate transport repair, RAW exact adjudication and read-only cross-component test planner continue in isolated worktrees. Current-main merge-tree preflight for allocation succeeded without merge. No provider request, G3-L PASS, physical qualification, capture, forward SHADOW or acceptance crossing: **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; NOT_READY_TO_FUND**.
+
 ## Gate-3 review intake and repair continuity — 2026-10-03 23:08 UTC
 
 Independent exact reviews rejected allocation `e0354e8` for three P2 defects and transport `f1e85ba` for six malformed-read regressions; one isolated Sol/high repair writer now owns each original worktree. RAW `cea7461` remains unapproved after a Codex tool-policy refusal and Claude weekly-limit failure; one frozen Astra/high adjudication is live. Retained review reports, runner prompts and terminal markers are recorded in the checkpoint. Main remains clean; no merge, provider request, G3-L PASS, physical qualification, forward SHADOW or acceptance crossing: **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; NOT_READY_TO_FUND**.
