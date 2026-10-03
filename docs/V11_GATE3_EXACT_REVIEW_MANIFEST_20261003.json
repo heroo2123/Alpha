@@ -1,0 +1,229 @@
+{
+  "candidates": [
+    {
+      "checkout_clean": true,
+      "commit": "976217d94629d808806f9e97ddd86c1992637a4c",
+      "exact_checkout": "/tmp/alpha-v11-gate3-fresh-readiness-review-976217d",
+      "files": [
+        {
+          "blob_oid": "59fbde7082fca7d5c6027fd8f040bffb6f31480c",
+          "bytes": 26659,
+          "path": "docs/V11_R09_GATE3_FRESH_WINDOW_READINESS_HANDOFF_20261002.md",
+          "sha256": "b06ca6804c2dfad51ec9e3a7c7a685347758ef1e7c699701d6337deab8ac084d"
+        },
+        {
+          "blob_oid": "84fe2291df05bf5d98aab329ccd941a9f13092bd",
+          "bytes": 51611,
+          "path": "tests/test_v11_gate3_fresh_window_readiness.py",
+          "sha256": "826011b70543c97293ad49d3b98661d9f2aea4206e62eb0b1e56212f574a52ee"
+        },
+        {
+          "blob_oid": "5fb650217460eeb9881e391ecce7d9efee2a6be4",
+          "bytes": 38245,
+          "path": "tools/v11_gate3_fresh_window_readiness.py",
+          "sha256": "2de0ed91c8182917952ea519cd3e8128b0e438ab99f8da0144283675640fca8c"
+        }
+      ],
+      "parent": "947bf687822d0a42e9992adc3049091e677a41ed",
+      "tree": "c75574b1f8f721da8a7ba509500a5726aa27bc54"
+    },
+    {
+      "checkout_clean": true,
+      "commit": "741c6aea5c33105c6f087603168700bed829dc9b",
+      "exact_checkout": "/tmp/alpha-v11-g3l-hardening-review-741c6ae",
+      "files": [
+        {
+          "blob_oid": "92876812aa87b2bf4cd0fbfbf019a178b8b55513",
+          "bytes": 483182,
+          "path": "docs/V11_ENGINEERING_PROGRESS.md",
+          "sha256": "4ce43d6c7dfc78a91afced8427344ef993189a0a03208d7137c5c3b716074a36"
+        },
+        {
+          "blob_oid": "607d9f45ccae225008b46f72d0bf7d819a7b5c0c",
+          "bytes": 187952,
+          "path": "docs/V11_R09_GATE3_G3L_IDENTITY_AUDIT_HARDENING_20261002.json",
+          "sha256": "2d60e266ce1467c3acf84fc4e631491fe8f4473c6faf60a2b064cbc7161e12c4"
+        },
+        {
+          "blob_oid": "eb4a7633ad45bc0bf3db0e2103d4de1cc147837b",
+          "bytes": 12891,
+          "path": "docs/V11_R09_GATE3_G3L_IDENTITY_AUDIT_HARDENING_20261002.md",
+          "sha256": "17b8065eabfb6aaeb24c33218e167933c1ff6c1b5c8ea92e11deaa44440c6500"
+        },
+        {
+          "blob_oid": "239b2ed656c582b5f72dd732dfcd57295d8427a1",
+          "bytes": 404507,
+          "path": "docs/V11_REQUIREMENTS_MATRIX.md",
+          "sha256": "af89868e842ecc8500cf641dc0a14d5561314df473b70395003677e9eec115e3"
+        },
+        {
+          "blob_oid": "0b274c1f4ea17e5509d6cfd6a11f024abe8af40a",
+          "bytes": 1405981,
+          "path": "docs/V11_WORK_CHECKPOINT.md",
+          "sha256": "49d614201f2c9cdf46c6735569aef5c05b14ec2ff172ca958eac29df66b141a9"
+        },
+        {
+          "blob_oid": "e72be998df82d6683c6b4a0343f897ada70d5544",
+          "bytes": 14137,
+          "path": "tests/test_v11_r09_gate3_g3l_identity_audit.py",
+          "sha256": "c8dc0124c66681e532e3bca4f19dd5240f114cfe636d97f388221bd612b25509"
+        },
+        {
+          "blob_oid": "6801012d17a9523a1953a9b5ac5f069842d586ee",
+          "bytes": 17096,
+          "path": "tools/v11_r09_gate3_g3l_identity_audit.py",
+          "sha256": "ef8e85a91409f5f3170533bfbafd1491d555537fa402523e39a82afb5f41da67"
+        }
+      ],
+      "parent": "c9e3b8dff0b9a2aa22836a8006c31f522653e523",
+      "tree": "f75fd31f04071be4c2a457ba670f83142f8fe04b"
+    },
+    {
+      "checkout_clean": true,
+      "commit": "5667acb6a0c491a54e7ece810210379f5726addc",
+      "exact_checkout": "/tmp/alpha-v11-gate3-clock-recorder-review-5667acb",
+      "files": [
+        {
+          "blob_oid": "c51c457e25830c2d10364355ab2c7d53c8a0231a",
+          "bytes": 14729,
+          "path": "docs/V11_GATE3_CLOCK_RECORDER_IMPLEMENTATION_HANDOFF_20261003.md",
+          "sha256": "c0d304382b38fbf2e2b743b984afcbbd24f57fbfc2bc96695ec76c5de7078fb7"
+        },
+        {
+          "blob_oid": "768d10aa741b9213fbc7da1bfc09ec3469989bbe",
+          "bytes": 22844,
+          "path": "tests/test_v11_gate3_clock_dossier.py",
+          "sha256": "d8c757d4f2427863bd5d189609f837a0bb9ebe17a379c60115e65fce01b44134"
+        },
+        {
+          "blob_oid": "7480d5bb080e29eba83d224fa80516b07a823a7b",
+          "bytes": 6734,
+          "path": "tests/test_v11_gate3_clock_probe_native.py",
+          "sha256": "a2e1ac4434e67770b7038ce0c3b3f9118bd5d230a74f0e474c24bb12c340ee54"
+        },
+        {
+          "blob_oid": "8ba6a853a578b4fe95e53fd211a011eabf26436a",
+          "bytes": 5500,
+          "path": "tests/v11_gate3_clock_probe_fixture_shim.c",
+          "sha256": "a8425d420c7084bf2529a8e994bbcfd93ee32358f81999aa92e7e2b91c6e4b36"
+        },
+        {
+          "blob_oid": "8887578516b5e76dd53e340199af2b67245b568f",
+          "bytes": 21132,
+          "path": "tools/v11_gate3_clock_dossier.py",
+          "sha256": "357835e9e213fe891677a167ede63ae5c7ed1df4ceb186d25fba40ac6ef4a82a"
+        },
+        {
+          "blob_oid": "9c5a9485ed59af90f88ace539dd3cc642f078df1",
+          "bytes": 13938,
+          "path": "tools/v11_gate3_clock_probe.c",
+          "sha256": "7704cba8f34c149c83bb88b07c144b4501e034db60f7b864c236b9c5e86f5b4c"
+        }
+      ],
+      "parent": "e5073a44d264145c4a4997ba40c723104ba4f7d1",
+      "tree": "280fd6fe24fbb1cac8dcab20f8e2682a6685a10b"
+    },
+    {
+      "checkout_clean": true,
+      "commit": "5faedb81d9e0a862e3eaef673f1e5a5c12a928c5",
+      "exact_checkout": "/tmp/alpha-v11-gate3-resource-design-review-5faedb8",
+      "files": [
+        {
+          "blob_oid": "fae21694b3de7996db1227f31a0a35cd55b46088",
+          "bytes": 50535,
+          "path": "docs/V11_GATE3_RESOURCE_RESERVATION_DESIGN_20261003.md",
+          "sha256": "600ff646fd0ab60f912fe0b0d752b3008d24dbc80c5623056b4ced4e244ba6ff"
+        }
+      ],
+      "parent": "cf0d88fe732efab4e1c3ed69d67019771c58eb72",
+      "tree": "5d70de288817da6ca6fc317b5b00126d5b894530"
+    },
+    {
+      "checkout_clean": true,
+      "commit": "9d80dd988339315b376744e2de8d148b21c08323",
+      "exact_checkout": "/tmp/alpha-v11-gate3-offline-resource-budget-review-9d80dd9",
+      "files": [
+        {
+          "blob_oid": "d113ae5064f88855ac745c84c54546dd3f70bedc",
+          "bytes": 1857,
+          "path": "docs/V11_GATE3_OFFLINE_RESOURCE_BUDGET_HANDOFF.md",
+          "sha256": "35ea1e13f94bcf5a99ea786617e8b93bfab7d5ee8b8e9c215925dea47b883678"
+        },
+        {
+          "blob_oid": "60e27da1f1850527fbf5a404f8e146eba1e7251b",
+          "bytes": 9353,
+          "path": "tests/test_v11_gate3_offline_resource_budget.py",
+          "sha256": "e815299a52053ea49e96d842a2f26d845361728a81e4fd9e2ac6d9540678eaa4"
+        },
+        {
+          "blob_oid": "2d682890f31c4b971e4a9f394f244e7e77d7b372",
+          "bytes": 10690,
+          "path": "tools/v11_gate3_offline_resource_budget.py",
+          "sha256": "737f19bd5793aafd7f3c8d5c3c9cc5344c82270857c7df9bb4ad5f51f3bdd0e8"
+        }
+      ],
+      "parent": "0df1a950993641c9e09961805d4bfe2a5894e6fd",
+      "tree": "d12e0daa87e303a02658d7c634db55e7c6caac11"
+    },
+    {
+      "checkout_clean": true,
+      "commit": "3d414b3707b4052a14a6f49162fbbbfa8e809711",
+      "exact_checkout": "/tmp/alpha-v11-gate3-frozen-event-binding-review-3d414b3",
+      "files": [
+        {
+          "blob_oid": "58d14a18bc104232d4419d9e39205eb10c1b72ee",
+          "bytes": 14424,
+          "path": "docs/V11_GATE3_FROZEN_EVENT_BINDING_DESIGN_20261003.md",
+          "sha256": "b01bf346b866254679af743909f4193445cd15dc67928ff5ab093b69252be8d3"
+        }
+      ],
+      "parent": "337cb4e8090c410a7322adc183379821013c9932",
+      "tree": "474a6f1f003a67a69eab4a094863eebf8afb927a"
+    },
+    {
+      "checkout_clean": true,
+      "commit": "988f544a2432a5bea024d5a0e17784fb14ae5166",
+      "exact_checkout": "/tmp/alpha-v11-gate3-validated-plan-export-review-988f544",
+      "files": [
+        {
+          "blob_oid": "37379034aee93365d77b5bb21e2d242c8018de1a",
+          "bytes": 45779,
+          "path": "docs/V11_GATE3_VALIDATED_PLAN_EXPORT_DESIGN_20261003.md",
+          "sha256": "d62af7c0ce34425b43a7f0f1f96b6def95300d52ef0d82c4643b835ba55a9060"
+        }
+      ],
+      "parent": "b2129df92961b8916e970fed46d0f3fac2bf700c",
+      "tree": "b0dd2b4779201e8f23bec9d5f299e4d63a4c1bd5"
+    },
+    {
+      "checkout_clean": true,
+      "commit": "1dad476cf8df19b9eee7f92578104f133823085d",
+      "exact_checkout": "/tmp/alpha-v11-gate3-production-mapping-review-1dad476",
+      "files": [
+        {
+          "blob_oid": "a0f9857d8e46579d5b1818de7c0146e82bda43d2",
+          "bytes": 17526,
+          "path": "docs/V11_GATE3_PRODUCTION_MAPPING_DESIGN_20261003.md",
+          "sha256": "20c5d72dd4ac9f235b8964998ff608420333349f44e428cd29e12901e7583525"
+        },
+        {
+          "blob_oid": "80353243804802f9078a39db254f27bc5d7dd167",
+          "bytes": 6326,
+          "path": "docs/V11_GATE3_PRODUCTION_MAPPING_DESIGN_20261003.sources.json",
+          "sha256": "ca8af3cc79a54fbd7d3503cbfdd13484404075a9643dc8184f99dd217fd831aa"
+        },
+        {
+          "blob_oid": "423ddeffea6be8586383d978a3ec31423de241d0",
+          "bytes": 4089,
+          "path": "docs/V11_GATE3_PRODUCTION_MAPPING_DESIGN_20261003.verification.json",
+          "sha256": "25313fbd31ad22eb1ca20402cff7f0fffa7a62b103cae30f98c6fb6e877b28dd"
+        }
+      ],
+      "parent": "9c5783cb1f84c3538f1dd4d97263f920b7438632",
+      "tree": "442058a68781c9089ad98262ba77fca2fda10d40"
+    }
+  ],
+  "generated_utc": "2026-10-03T06:03:30Z",
+  "schema": "alpha-v11-gate3-local-exact-review-manifest-v1",
+  "scope": "local integrity preparation only; no external transfer, review verdict, or launch authority"
+}
