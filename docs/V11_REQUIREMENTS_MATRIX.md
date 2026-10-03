@@ -4709,3 +4709,6 @@ Started exactly one independent Codex Sol/high exact-commit review in clean deta
 ## Clock-custody exact review boundary — 2026-10-03 13:05 UTC
 
 Independent Sol/high exact review of offline candidate `16230c2` returned **CHANGES_REQUIRED** for inherited-mutex after-fork deadlock; the original candidate remains unmerged. One Astra/high repair is live in its preserved isolated worktree with exact retained review artifacts and a terminal marker. No operational clock/custody evidence, provider request, capture, SHADOW admission, identity credit or acceptance crossing: **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
+## Clock-custody repair successor under exact review — 2026-10-03 13:15 UTC
+
+The inherited-mutex after-fork defect from independent `16230c2` CHANGES_REQUIRED has a clean, three-file offline repair successor `7c307b2`. Author custody 34/34 and dossier 73/73 tests pass in both Python modes; independent different-model exact review is now live, with binding recorded in the checkpoint. No PASS, integration or operational custody qualification is claimed. The 77 missing identities remain unresolved: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
