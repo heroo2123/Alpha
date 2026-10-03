@@ -4812,3 +4812,6 @@ Independent Sol/high exact review of `3e3ddbf` passed in scope, and local merge 
 ## Offline export prerequisite reviewed and integrated — 2026-10-03 16:08 UTC
 
 The `67fa86a` supplied-byte export prerequisite received independent `PASS_IN_SCOPE` and merged locally as `2ba7d16` with all reviewed blobs preserved. Merged-main focused offline tests passed 91/91 in each Python mode. The accepted-export interface still refuses; production mapping, authenticated pins, operational custody and all 77 missing G3-L identities remain unqualified. **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+## Gate 3 V5 proposal still in authoring — 2026-10-03 16:12 UTC
+
+The isolated source-bound V5 evidence-role proposal author is live with no candidate or independent verdict yet. The merged offline resource/export prerequisites add no operational qualification or identity credit. Current boundary remains **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
