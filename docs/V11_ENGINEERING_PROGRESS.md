@@ -1,3 +1,7 @@
+## Offline readiness-boundary design accepted in scope — 2026-10-03 00:52 UTC
+
+Resolved the routed public-byte architecture task, repaired independent findings, and integrated the exact `13a9f78` proposed offline design plus its Sol/high review as documentation-only `faca37b`. All five source bindings and reviewed design hash match after integration. Started one isolated normal-mode Codex Sol/high validator author (runner/child 2606088/2606096), with retained [launch metadata](V11_GATE3_READINESS_BOUNDARY_IMPLEMENTATION_LAUNCH_20261003.json) and completion terminal pending. No held repair/private evidence transfer, runtime integration, provider request, real observation qualification or score crossing: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Coordinator offline Gate 3 verification — 2026-10-03 00:33 UTC
 
 Recovered clean main and both clean isolated repair commits. Current-main offline intake/launch tests pass 105/105; exact repair trees and the private FINAL-REVIEWED master hash still match the retained handoff. Requested review-only authorization for the two new repaired commits; no response, independent verdict, merge, provider request, capture, or forward SHADOW is claimed. **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.

@@ -1,0 +1,22 @@
+{
+  "baseline_commit": "faca37bf77f68d328564fa6208fd7e918f9f5cbf",
+  "effort": "high",
+  "execution_authority": false,
+  "expected_completion_marker": "READINESS_BOUNDARY_CANDIDATE_READY",
+  "fast_mode": false,
+  "g3l": "NO_GO",
+  "log": "/tmp/alpha-v11-gate3-readiness-boundary-implementation-20261003.codex.log",
+  "model": "gpt-6-sol",
+  "prompt_sha256": "349cb7aa8bd14f80625925fa2ddff1c0c28fe5f7a9e6299e11184d5ed2f12379",
+  "provider": "codex",
+  "qualification_credit": 0,
+  "reviewed_design_commit": "13a9f785537c9ebb4842290f1d5aa23b37e1bfa7",
+  "runner_pid": 2606088,
+  "runner_sha256": "f8896a53e7f021b2c5fd02da3848cd6b56359621b9c32697445ee85882459c59",
+  "schema": "ALPHA_V11_PUBLIC_READINESS_BOUNDARY_WORKER_LAUNCH_V1",
+  "started_utc": "2026-10-03T00:52:10.954234+00:00",
+  "terminal": "/tmp/alpha-v11-gate3-readiness-boundary-implementation-20261003.terminal.json",
+  "verification": "runner and child present in /proc; initial model work logged; no completion terminal yet",
+  "verified_child_pid": 2606096,
+  "worktree": "/tmp/alpha-v11-gate3-readiness-boundary-implementation-20261003"
+}
