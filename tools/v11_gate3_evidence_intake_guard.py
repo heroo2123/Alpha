@@ -12,13 +12,13 @@ reporter with no caller. This module is the smallest wiring that makes a
 report from that intake a real, enforced prerequisite: optional on
 ``GateRuntime`` (every existing caller that omits it is completely
 unaffected), but once supplied, every ``run_attempt`` call refuses before
-Step 1 (the first durable session/shared mutation, and therefore before any
-transport dispatch) unless the bound record's own ``satisfied`` is
-``True``. It can only ever ADD a refusal on top of ``run_attempt``'s own
+shared intent, budget reservation, or transport dispatch unless the bound
+record's own ``satisfied`` is ``True``. The refusal is recorded in the
+session. It can only ever ADD a refusal on top of ``run_attempt``'s own
 existing checks (prerequisites, resources, window, control-domain hold, and
-any bound ``AttemptModelGuard``) -- it never replaces or loosens one, and it
-grants no execution/provider/capture authority of its own: those stay
-hardcoded ``False`` on every record this module can construct.
+any bound ``AttemptModelGuard``) -- it never replaces or loosens one. Report
+authority flags must be ``False``; records have no authority fields and grant
+no execution, provider, or capture authority.
 
 No network, no subprocess, no filesystem write anywhere in this module.
 """
@@ -50,11 +50,11 @@ _REPORT_KEYS = frozenset({
 class EvidenceIntakeRecord:
     """Immutable, validated snapshot of one real-evidence-intake report.
 
-    Built only from ``EvidenceIntakeRecord.from_report`` (the real report
-    dict shape ``build_report`` produces, or a synthetic test report sharing
-    that exact shape) -- never re-reads evidence and never re-runs the
-    checker itself. The caller is responsible for producing a fresh report
-    before building this record; this module never caches or re-fetches one.
+    ``from_report`` validates the full report dict shape; direct construction
+    enforces the record's own schema, outcome, and refusal consistency. This
+    record never re-reads evidence or re-runs the checker. The caller is
+    responsible for producing a fresh report before building this record;
+    this module never caches or re-fetches one.
     """
     satisfied: bool
     outcome: str
@@ -78,6 +78,8 @@ class EvidenceIntakeRecord:
         # claiming both/neither is internally inconsistent and must never be
         # treated as admissible.
         check(self.satisfied == (not self.refusal_reasons),
+              'EVIDENCE_INTAKE_RECORD_CONSISTENCY')
+        check(self.outcome == (OUTCOME_SATISFIED if self.satisfied else OUTCOME_REFUSED),
               'EVIDENCE_INTAKE_RECORD_CONSISTENCY')
 
     @classmethod

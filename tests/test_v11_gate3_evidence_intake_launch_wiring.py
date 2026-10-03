@@ -18,8 +18,8 @@ provider-authority boundary anywhere:
     to the next existing gate -- it is not itself a dispatch bypass, and an
     earlier-failing gate (window) still blocks it;
   * a guard bound to an UNSATISFIED record blocks ``run_attempt`` before
-    any durable session/shared/budget mutation and before transport is ever
-    reached;
+    shared intent, budget reservation, or transport dispatch; the session
+    records the refusal;
   * the evidence-intake gate and a bound ``AttemptModelGuard`` are each
     independently authoritative: either one refusing blocks dispatch
     regardless of what the other would have decided;
@@ -53,7 +53,9 @@ from tools.v11_r09_gate3_runtime import (
     SyntheticTransport, acquire_runtime_journals,
 )
 from tools.v11_gate3_evidence_intake_guard import EvidenceIntakeRecord
-from tools.v11_gate3_evidence_preflight_checker import FROZEN_REQUEST
+from tools.v11_gate3_evidence_preflight_checker import (
+    FROZEN_REQUEST, OUTCOME_REFUSED, OUTCOME_SATISFIED,
+)
 from tools.v11_gate3_evidence_preflight_real_intake import (
     SCHEMA as REAL_INTAKE_SCHEMA, build_report, evaluate_real_evidence,
 )
@@ -242,10 +244,10 @@ def test_satisfied_intake_does_not_bypass_an_earlier_failing_gate(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# An unsatisfied record blocks dispatch before any durable mutation.
+# An unsatisfied record blocks dispatch and shared/budget mutation.
 # ---------------------------------------------------------------------------
 
-def test_unsatisfied_intake_blocks_before_any_durable_mutation(tmp_path):
+def test_unsatisfied_intake_blocks_before_shared_or_budget_mutation(tmp_path):
     tmp_path = _dirs(tmp_path)
     exchange = SyntheticExchange({})  # .take() would raise: dispatch must never be reached
     guard = EvidenceIntakeGuard(_unsatisfied_record())
@@ -268,23 +270,30 @@ def test_unsatisfied_intake_blocks_before_any_durable_mutation(tmp_path):
 # Composed with AttemptModelGuard: each gate is independently authoritative.
 # ---------------------------------------------------------------------------
 
-def test_unsatisfied_intake_blocks_even_when_attempt_model_would_admit(tmp_path):
+@pytest.mark.parametrize('invalid_outcome', [OUTCOME_REFUSED, 'ARBITRARY_OUTCOME'])
+def test_unsatisfied_intake_blocks_even_when_attempt_model_would_admit(
+        tmp_path, invalid_outcome):
     tmp_path = _dirs(tmp_path)
     from tests.v11_gate3_preflight_synthetic_cases import genesis_checkpoint, good_inputs
     exchange = SyntheticExchange({})  # .take() would raise: dispatch must never be reached
     attempt_guard = AttemptModelGuard(good_inputs(), genesis_checkpoint())
+    # These direct records used to claim satisfaction and reach synthetic
+    # dispatch despite a contradictory checker outcome.
+    with pytest.raises(LaunchContractError, match='EVIDENCE_INTAKE_RECORD_CONSISTENCY'):
+        _satisfied_record(outcome=invalid_outcome)
     evidence_guard = EvidenceIntakeGuard(_unsatisfied_record())
     with _acquire(tmp_path) as (shared, session, budget, store):
         runtime = _build_runtime(shared, session, budget, store, tmp_path,
             requests=(_pilot_request(),), exchange=exchange,
             attempt_model=attempt_guard, evidence_intake=evidence_guard)
         outcome = runtime.run_attempt(_pilot_request())
-        assert outcome['outcome'] == 'REFUSED'
-        assert 'RUNTIME_EVIDENCE_INTAKE_NOT_SATISFIED' in outcome['reasons']
+        if (outcome['outcome'] != 'REFUSED' or
+                'RUNTIME_EVIDENCE_INTAKE_NOT_SATISFIED' not in outcome['reasons']):
+            pytest.fail(f'expected intake refusal, got {outcome!r}')
         # The evidence-intake refusal is checked first, so the attempt-model
         # guard (which would otherwise have admitted) is never even consumed.
-        assert attempt_guard._consumed is False
-        assert budget.count == 0
+        if attempt_guard._consumed or budget.count != 0 or exchange._used:
+            pytest.fail('refused intake reached attempt guard, budget, or synthetic dispatch')
 
 
 def test_attempt_model_still_refuses_even_when_evidence_intake_satisfied(tmp_path):
@@ -416,6 +425,21 @@ def test_record_rejects_satisfied_false_with_empty_refusal_reasons():
     with pytest.raises(LaunchContractError, match='EVIDENCE_INTAKE_RECORD_CONSISTENCY'):
         EvidenceIntakeRecord(satisfied=False, outcome='x', refusal_reasons=(),
                              intake_schema=REAL_INTAKE_SCHEMA, generated_at_utc=GENERATED_AT)
+
+
+@pytest.mark.parametrize('satisfied,outcome,refusal_reasons', [
+    (True, OUTCOME_REFUSED, ()),
+    (True, 'ARBITRARY_OUTCOME', ()),
+    (False, OUTCOME_SATISFIED, ('CLOCK_UNAVAILABLE',)),
+    (False, 'ARBITRARY_OUTCOME', ('CLOCK_UNAVAILABLE',)),
+])
+def test_direct_record_rejects_outcome_satisfied_disagreement(
+        satisfied, outcome, refusal_reasons):
+    with pytest.raises(LaunchContractError, match='EVIDENCE_INTAKE_RECORD_CONSISTENCY'):
+        EvidenceIntakeRecord(satisfied=satisfied, outcome=outcome,
+                             refusal_reasons=refusal_reasons,
+                             intake_schema=REAL_INTAKE_SCHEMA,
+                             generated_at_utc=GENERATED_AT)
 
 
 def test_record_rejects_non_bool_satisfied():
