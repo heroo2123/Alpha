@@ -7028,3 +7028,7 @@ Confirmed the existing exact `5cb4f66` reviewer is live and its clean worktree a
 ## Exact readiness repair review failed; next repair launched — 2026-10-03 01:49 UTC
 
 Sealed clean exact `5cb4f66` Astra/high review as CHANGES_REQUIRED, with report/verdict/terminal hashes in the checkpoint. F2-R independently reproduces a backward sample smuggled through an overlapping bridge; earlier F1/F3 are repaired. Started one persistent Sonnet/high author at the same clean isolated `5cb4f66` worktree (runner/author 2628691/2628698) to repair both retained-history counterexamples, test plain and optimized, and commit a new candidate. Different-model exact review and newer-main reconciliation remain pending. No integration, provider request, capture, clock qualification, SHADOW admission or score crossing: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
+
+## Coordinator F2-R intake and exact review — 2026-10-03 01:56 UTC
+
+Recovered terminal-bound clean Sonnet repair `5b11449` and handoff `5986edf`. Host-side focused tests pass 21/21 plain and optimized, and candidate diff passes `git diff --check`. Started one independent Astra/high exact-commit review of public code `5b11449` in a clean detached checkout, runner/reviewer 2633017/2633024; verdict pending. No merge, real clock qualification, provider request, capture, forward SHADOW or score crossing: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
