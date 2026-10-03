@@ -1,7 +1,8 @@
 """Public, offline arithmetic only; no project imports, transport or admission.
 
-Run with --check to reproduce the committed source pins and results. --write
-regenerates only the companion JSON for a new independently reviewed candidate.
+Run with --check for strict current-source verification, or --replay-baseline
+to reproduce the reviewed report from its fixed historical Git commit/tree.
+The reviewed companion is read-only in both modes.
 Source expressions are interpreted with a tiny arithmetic AST evaluator, never
 executed/imported. Checks use exceptions so optimized Python preserves them.
 """
@@ -10,11 +11,14 @@ import ast
 import hashlib
 import json
 import operator
+import os
 from pathlib import Path
+import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
 REPORT = ROOT / "docs/V11_GATE3_V5_FEASIBILITY_20261003.arithmetic.json"
 BASELINE = "e73fb9b66c0cf2591c0b8017925c764aac6cff1e"
+BASELINE_TREE = "8afe7a24c6e437b0b6345a1fadc08e136797a2c1"
 SOURCE_PATHS = (
     "docs/V11_WORK_CHECKPOINT.md",
     "docs/V11_REQUIREMENTS_MATRIX.md",
@@ -85,8 +89,78 @@ def serial(n, fields, deadline=1, spacing=2):
     return n * deadline + (n - 1) * spacing + max(60, fields) + 60
 
 
-def build():
-    raw = {p: (ROOT / p).read_bytes() for p in SOURCE_PATHS}
+def git_object(kind, oid):
+    """Read an object by full ID and independently verify its raw Git digest.
+
+    Git environment overrides are discarded. Replacement refs and grafted
+    ancestry cannot supply a different object under the requested identity.
+    """
+    if kind not in ("commit", "tree", "blob") or len(oid) != 40 or any(
+            c not in "0123456789abcdef" for c in oid):
+        raise ValueError("invalid Git object request")
+    env = {"PATH": os.defpath, "LC_ALL": "C", "GIT_NO_REPLACE_OBJECTS": "1",
+           "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull}
+    result = subprocess.run(["git", "-C", str(ROOT), "cat-file", kind, oid],
+                            env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                            check=False)
+    if result.returncode:
+        raise ValueError(f"missing or unreadable baseline {kind} object: {oid}")
+    data = result.stdout
+    digest = hashlib.sha1(f"{kind} {len(data)}\0".encode() + data).hexdigest()
+    if digest != oid:
+        raise ValueError(f"baseline {kind} object hash mismatch: {oid}")
+    return data
+
+
+def tree_entries(data):
+    entries = {}
+    offset = 0
+    while offset < len(data):
+        space = data.find(b" ", offset)
+        nul = data.find(b"\0", space + 1)
+        if space < 0 or nul < 0 or nul + 21 > len(data):
+            raise ValueError("malformed baseline tree")
+        mode = data[offset:space]
+        name = data[space + 1:nul]
+        if not name or b"/" in name or name in (b".", b"..") or name in entries:
+            raise ValueError("invalid baseline tree entry")
+        entries[name] = (mode, data[nul + 1:nul + 21].hex())
+        offset = nul + 21
+    return entries
+
+
+def baseline_sources():
+    commit = git_object("commit", BASELINE)
+    header = commit.split(b"\n\n", 1)[0]
+    trees = [line[5:].decode("ascii") for line in header.split(b"\n")
+             if line.startswith(b"tree ")]
+    if trees != [BASELINE_TREE]:
+        raise ValueError("declared baseline commit/tree mismatch")
+    cache = {}
+
+    def entries(oid):
+        if oid not in cache:
+            cache[oid] = tree_entries(git_object("tree", oid))
+        return cache[oid]
+
+    raw = {}
+    for path in SOURCE_PATHS:
+        parts = path.encode("ascii").split(b"/")
+        tree = BASELINE_TREE
+        for part in parts[:-1]:
+            mode, tree = entries(tree)[part]
+            if mode != b"40000":
+                raise ValueError(f"non-tree baseline path: {path}")
+        mode, blob = entries(tree)[parts[-1]]
+        if mode not in (b"100644", b"100755"):
+            raise ValueError(f"non-regular baseline source: {path}")
+        raw[path] = git_object("blob", blob)
+    return raw
+
+
+def build(raw=None):
+    if raw is None:
+        raw = {p: (ROOT / p).read_bytes() for p in SOURCE_PATHS}
     trees = {p: ast.parse(b) for p, b in raw.items() if p.endswith(".py")}
     launch = trees["tools/v11_r09_gate3_launch.py"]
     v4 = trees["tools/v11_r09_gate3_launch_v4.py"]
@@ -156,7 +230,7 @@ def build():
     equal("session event ceiling fails", 20 * n + 1 > 32768, True)
     return {
         "schema": "G3_V5_FEASIBILITY_ARITHMETIC_1", "baseline_commit": BASELINE,
-        "baseline_tree": "8afe7a24c6e437b0b6345a1fadc08e136797a2c1",
+        "baseline_tree": BASELINE_TREE,
         "verdict": "FULL_COHORT_BLOCKED_UNDER_RETAINED_RESERVATIONS",
         "authority": False, "qualification_credit": 0,
         "source_pins": [{"path": p, "sha256": hashlib.sha256(b).hexdigest(), "byte_length": len(b)}
@@ -190,13 +264,11 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--check", action="store_true")
-    mode.add_argument("--write", action="store_true")
+    mode.add_argument("--replay-baseline", action="store_true")
     args = parser.parse_args()
-    report = build()
+    report = build(baseline_sources() if args.replay_baseline else None)
     encoded = json.dumps(report, sort_keys=True, indent=2, allow_nan=False) + "\n"
-    if args.write:
-        REPORT.write_text(encoded, encoding="utf-8")
-    elif REPORT.read_text(encoding="utf-8") != encoded:
+    if REPORT.read_text(encoding="utf-8") != encoded:
         raise ValueError("source pins or arithmetic report differ; independent review required")
     print(f"PASS: {len(report['checks_passed'])} arithmetic/source checks; "
           f"{len(SOURCE_PATHS)} public source pins; full cohort BLOCKED; no authority")
