@@ -1,3 +1,7 @@
+## Preserved GEFS test reconciliation — 2026-10-03 08:38 UTC
+
+The older untracked GEFS draft test was inspected and preserved; current main already carries a broader committed 21-case v2 suite for the renamed builder, with newer provenance checks. This resolves no weather Gate 3 identity or review boundary. Eight current Gate 3 candidates remain unmerged; repair children `976217d` and `3411097` still need candidate-specific authorized independent exact PASS. **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Coordinator live-state recovery — 2026-10-03 08:02 UTC
 
 Clean main `0aa67ae`, no new forward artifact or independent PASS, and eight exact candidates still review-held. The 77 PRE_REVIEW identities remain missing; Brain Gate 4 still awaits eligible G3-E captures. No C/J/E/A boundary crossed: **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.

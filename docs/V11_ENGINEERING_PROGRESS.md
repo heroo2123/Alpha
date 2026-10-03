@@ -1,3 +1,7 @@
+## Preserved GEFS test reconciliation — 2026-10-03 08:38 UTC
+
+Read-only AST and diff inspection reconciled the older untracked 14-case GEFS builder draft test against main's committed 21-case v2 suite. All older dirty worktrees remain preserved. Clean main `77252a3` and all eight exact Gate 3 candidates remain unmerged; no independent exact PASS, new evidence, provider request, capture, forward SHADOW or score crossing occurred. **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Coordinator live-state recovery — 2026-10-03 08:02 UTC
 
 Recovered clean main `0aa67ae`, preserved all older dirty worktrees and clean exact-review checkouts, and observed no separate Alpha specialist or new SHADOW/PAPER evidence. The authoritative master hash and host resource floors hold; V10/V11 system execution units are inactive, while PAPER user-unit state remains unverified because the bus is unavailable. The eight Gate 3 candidates still require their own authorized independent exact PASS before integration. Brain's real feature bridge awaits eligible G3-E captures. No provider request, capture, forward SHADOW, or C/J/E/A crossing: **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
