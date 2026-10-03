@@ -37,6 +37,15 @@ REVIEWED_TREE = "bd4cde2eb36dfdc4ddc410f3e2349376eb612130"
 MAPPING_COMMIT = "23c11e059048257a284d514d3454b811b3866515"
 SLICE3_COMMIT = "6340cb455eebae374039c9bae23cd806681dacb0"
 
+# Immutable bytes accepted by the scoped reconciliation review. These pins
+# are independent of the local Git object database and its replace refs.
+TRUST_ROOT_BYTES = {
+    RECONCILIATION: (66862, "fa089c078a43c18a52f7f685d449e98129bc37b0d1c946afd1155a6297a3eda6"),
+    REVIEW: (1525, "15d4c22494912746a11f24f7fa6717520d77a9e3c9685e8ba0660e557d7a4b8f"),
+    REVIEW_REPORT: (5572, "b6a811fd66f96d738a98499139ea3d84d70c96aa042044b165123aab01b1fed4"),
+    REVIEW_TERMINAL: (759, "6ba3a34a7679130409a966560ad7313227bb749d6b0ffa1a13b10d109850b11f"),
+}
+
 # Field names observed across this repo's exact-review terminal/reconciliation
 # schemas for "the code commit this record reviewed". Used to discover, for
 # any identity row, which `code_byte_observations` its own cited JSON
@@ -182,7 +191,7 @@ def _evidence_bytes(repo: Path, path: str, cache: dict[str, bytes]) -> bytes:
 def _git_bytes(repo: Path, commit: str, path: str) -> bytes:
     try:
         proc = subprocess.run(
-            ["git", "cat-file", "blob", f"{commit}:{path}"], cwd=repo,
+            ["git", "--no-replace-objects", "cat-file", "blob", f"{commit}:{path}"], cwd=repo,
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False,
             timeout=30,
         )
@@ -196,14 +205,14 @@ def _git_bytes(repo: Path, commit: str, path: str) -> bytes:
 def _git_tree_oid(repo: Path, commit: str) -> str:
     try:
         kind = subprocess.run(
-            ["git", "cat-file", "-t", commit], cwd=repo,
+            ["git", "--no-replace-objects", "cat-file", "-t", commit], cwd=repo,
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False,
             timeout=30,
         )
         if kind.returncode or kind.stdout.strip() != b"commit":
             raise ValueError(f"unresolvable commit: {commit}")
         proc = subprocess.run(
-            ["git", "rev-parse", "--verify", f"{commit}^{{tree}}"], cwd=repo,
+            ["git", "--no-replace-objects", "rev-parse", "--verify", f"{commit}^{{tree}}"], cwd=repo,
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False,
             timeout=30,
         )
@@ -221,8 +230,10 @@ def _validate_artifact_commit(repo: Path, commit: object, path: str) -> None:
     _git_tree_oid(repo, commit)
     try:
         ancestor = subprocess.run(
-            ["git", "merge-base", "--is-ancestor", commit, RECONCILIATION_COMMIT],
-            cwd=repo, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False, timeout=30,
+            ["git", "--no-replace-objects", "merge-base", "--is-ancestor", commit,
+             RECONCILIATION_COMMIT],
+            cwd=repo, env={**os.environ, "GIT_GRAFT_FILE": os.devnull},
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False, timeout=30,
         )
     except subprocess.TimeoutExpired as exc:
         raise ValueError(f"git ancestry check timed out: {commit}") from exc
@@ -293,6 +304,14 @@ def _require_code_dependencies(identity: str, code_refs: list[dict]) -> None:
         raise ValueError(f"code dependency coverage changed: {identity}")
 
 
+def _pinned_trust_root(repo: Path, path: str, cache: dict[str, bytes]) -> bytes:
+    data = _evidence_bytes(repo, path, cache)
+    length, sha256 = TRUST_ROOT_BYTES[path]
+    if len(data) != length or _digest(data) != sha256:
+        raise ValueError(f"reviewed trust-root bytes changed: {path}")
+    return data
+
+
 def audit(repo: Path, *, target_date: str, now_utc: int,
           free_disk_bytes: int, available_memory_bytes: int) -> dict:
     repo = repo.resolve()
@@ -309,12 +328,12 @@ def _audit(repo: Path, *, target_date: str, now_utc: int,
            free_disk_bytes: int, available_memory_bytes: int) -> dict:
     repo = repo.resolve()
     cache = _ACTIVE_EVIDENCE.get()[1]
-    source_bytes = _evidence_bytes(repo, RECONCILIATION, cache)
+    source_bytes = _pinned_trust_root(repo, RECONCILIATION, cache)
     if source_bytes != _git_bytes(repo, RECONCILIATION_COMMIT, RECONCILIATION):
         raise ValueError("reconciliation differs from reviewed Git bytes")
     source = _json(repo / RECONCILIATION)
     for path in (REVIEW, REVIEW_REPORT, REVIEW_TERMINAL):
-        if _evidence_bytes(repo, path, cache) != _git_bytes(repo, REVIEW_RETENTION_COMMIT, path):
+        if _pinned_trust_root(repo, path, cache) != _git_bytes(repo, REVIEW_RETENTION_COMMIT, path):
             raise ValueError(f"review bundle differs from retained Git bytes: {path}")
     verdict = _json(repo / REVIEW)
     reviewed_report = _repo_ref(repo, REVIEW_REPORT)

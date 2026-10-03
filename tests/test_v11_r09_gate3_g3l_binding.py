@@ -57,7 +57,7 @@ def source_overlay(monkeypatch, mutation):
 ])
 def test_rebound_or_aliased_source_cannot_cross_git_root(monkeypatch, mutation):
     source_overlay(monkeypatch, mutation)
-    with pytest.raises(ValueError, match="reconciliation differs from reviewed Git bytes"):
+    with pytest.raises(ValueError, match="reviewed trust-root bytes changed"):
         audit_tool.audit(REPO, **ARGS)
 
 
@@ -74,7 +74,7 @@ def test_retained_review_bundle_requires_exact_git_bytes(monkeypatch, path):
         return real(repo, rel, cache)
 
     monkeypatch.setattr(audit_tool, "_evidence_bytes", read)
-    with pytest.raises(ValueError, match="review bundle differs from retained Git bytes"):
+    with pytest.raises(ValueError, match="reviewed trust-root bytes changed"):
         audit_tool.audit(REPO, **ARGS)
 
 
@@ -167,3 +167,74 @@ def test_one_read_cache_binds_parsed_and_hashed_bytes_after_swap(tmp_path):
     require(json.loads(data) == {"first": True}, "parsed bytes changed after swap")
     require(audit_tool._digest(data) == hashlib.sha256(first).hexdigest(),
             "hashed bytes changed after swap")
+
+
+def test_local_git_replace_rebind_cannot_retain_drifted_slice3(tmp_path):
+    # Reproduce the review's four-object attack with real replace refs in an
+    # isolated local clone. No monkeypatch can hide a missed Git call here.
+    clone = tmp_path / "clone"
+    subprocess.run(["git", "clone", "--shared", "--quiet", str(REPO), str(clone)],
+                   check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+    def local_git(*args, data=None):
+        return subprocess.run(["git", *args], cwd=clone, input=data, check=True,
+                              stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout
+
+    def replace_path(commit, path, changed):
+        old = local_git("--no-replace-objects", "rev-parse", f"{commit}:{path}").decode().strip()
+        new = local_git("hash-object", "-w", "--stdin", data=changed).decode().strip()
+        local_git("replace", "-f", old, new)
+        require(local_git("cat-file", "blob", f"{commit}:{path}") == changed,
+                f"replace ref did not rebind {path}")
+        require(local_git("--no-replace-objects", "cat-file", "blob",
+                          f"{commit}:{path}") != changed,
+                f"historical bytes unexpectedly changed for {path}")
+
+    runtime_path = audit_tool.CODE_BYTE_OBSERVATION_PATHS["injected_runtime"]
+    runtime = (clone / runtime_path).read_bytes()
+    replace_path(audit_tool.SLICE3_COMMIT, runtime_path, runtime)
+    # A replacement by itself must not poison the historical baseline.
+    before_rebind = audit_tool.audit(clone, **ARGS)
+    require(before_rebind["identities"][audit_tool.SLICE3_ID]["category"] == audit_tool.FUTURE,
+            "replaced historical runtime changed slice-3 classification")
+
+    reconciliation = json.loads((clone / audit_tool.RECONCILIATION).read_bytes())
+    runtime_hash = hashlib.sha256(runtime).hexdigest()
+    reconciliation["code_byte_observations"]["injected_runtime"]["sha256"] = runtime_hash
+    reconciliation["artifacts"][runtime_path].update(
+        sha256=runtime_hash, byte_length=len(runtime))
+    rebound_source = (json.dumps(reconciliation, indent=2, sort_keys=True) + "\n").encode()
+    (clone / audit_tool.RECONCILIATION).write_bytes(rebound_source)
+    replace_path(audit_tool.RECONCILIATION_COMMIT, audit_tool.RECONCILIATION,
+                 rebound_source)
+
+    verdict = json.loads((clone / audit_tool.REVIEW).read_bytes())
+    verdict["candidate_json_sha256"] = hashlib.sha256(rebound_source).hexdigest()
+    rebound_verdict = (json.dumps(verdict, indent=2, sort_keys=True) + "\n").encode()
+    (clone / audit_tool.REVIEW).write_bytes(rebound_verdict)
+    replace_path(audit_tool.REVIEW_RETENTION_COMMIT, audit_tool.REVIEW,
+                 rebound_verdict)
+
+    terminal = json.loads((clone / audit_tool.REVIEW_TERMINAL).read_bytes())
+    terminal["verdict_sha256"] = hashlib.sha256(rebound_verdict).hexdigest()
+    rebound_terminal = (json.dumps(terminal, indent=2, sort_keys=True) + "\n").encode()
+    (clone / audit_tool.REVIEW_TERMINAL).write_bytes(rebound_terminal)
+    replace_path(audit_tool.REVIEW_RETENTION_COMMIT, audit_tool.REVIEW_TERMINAL,
+                 rebound_terminal)
+
+    require(len(local_git("for-each-ref", "--format=%(refname)", "refs/replace").splitlines()) == 4,
+            "attack did not install all four replace refs")
+    with pytest.raises(ValueError, match="reviewed trust-root bytes changed"):
+        audit_tool.audit(clone, **ARGS)
+
+
+def test_local_graft_cannot_rebind_artifact_ancestry(tmp_path):
+    clone = tmp_path / "clone"
+    subprocess.run(["git", "clone", "--shared", "--quiet", str(REPO), str(clone)],
+                   check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=clone, check=True,
+                          stdout=subprocess.PIPE).stdout.decode().strip()
+    grafts = clone / ".git/info/grafts"
+    grafts.write_text(f"{audit_tool.RECONCILIATION_COMMIT} {head}\n")
+    with pytest.raises(ValueError, match="not a reviewed ancestor"):
+        audit_tool._validate_artifact_commit(clone, head, "docs/example.md")

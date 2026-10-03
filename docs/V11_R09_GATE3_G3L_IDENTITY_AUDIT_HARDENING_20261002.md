@@ -199,8 +199,9 @@ proposal only; no date or cohort is approved.
 ## Tests and checks
 
 `tests/test_v11_r09_gate3_g3l_identity_audit.py` and
-`tests/test_v11_r09_gate3_g3l_prep.py`: **65 passed** after the binding repair
-(including `tests/test_v11_r09_gate3_g3l_binding.py`), in normal mode,
+`tests/test_v11_r09_gate3_g3l_prep.py` and
+`tests/test_v11_r09_gate3_g3l_binding.py`: **65 passed** after the binding repair,
+in normal mode,
 offline, with explicit
 `--basetemp=/tmp/<bounded>`, `-p no:cacheprovider`, `PYTHONDONTWRITEBYTECODE=1`.
 `python3 -m py_compile` clean on all changed files. `git diff --check` clean.
@@ -238,3 +239,16 @@ runtime, ledgers and launch V4 suites pass 219 tests in normal mode. The
 category boundary remains 6/1/70/0, G3-L NO-GO and
 credit 0. The machine snapshot above remains a historical output of the
 earlier candidate; it does not claim a new independent review.
+
+## Git trust-root repair after exact review of `84849e4`
+
+The four reviewed reconciliation/review files now have tool-owned SHA-256 and
+byte-length pins, checked on the cached, read-once bytes before JSON parsing.
+Historical Git reads and commit/tree resolution use `--no-replace-objects`;
+the ancestry check also ignores local grafts. A disposable-clone regression
+installs the review's four real replace refs and rewrites the three working
+documents to bind the drifted runtime. The audit refuses the edited trust
+root. With only the historical runtime blob replaced, it continues to report
+slice-3 as FUTURE. A graft cannot turn a descendant into an accepted ancestor.
+These checks do not add G3-L qualification or change the 6/1/70/0 boundary,
+NO-GO disposition, or credit 0.
