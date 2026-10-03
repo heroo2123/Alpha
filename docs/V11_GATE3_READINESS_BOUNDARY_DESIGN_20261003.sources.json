@@ -1,0 +1,33 @@
+{
+  "schema": "ALPHA_V11_READINESS_BOUNDARY_DESIGN_SOURCES_V1",
+  "baseline_commit": "b8493f0fc2aa174bcdc21d0b91e43230fe1a2855",
+  "scope": "REPOSITORY_PROTOCOL_AND_CODE_ONLY",
+  "execution_authority": false,
+  "sources": [
+    {
+      "path": "docs/V11_R09_GATE3_EVIDENCE_PREFLIGHT_PROTOCOL_20261002.md",
+      "byte_length": 20274,
+      "sha256": "ae59812fa58ec41895b87408f0ea175988ae6d20a1f4d5dabcd96a01c2dd3a68"
+    },
+    {
+      "path": "docs/V11_R09_GATE3_COLLECTION_PROTOCOL.md",
+      "byte_length": 20041,
+      "sha256": "da3144c558134e7bd6a06b5c3f298740e86cee13be7c54a9932204362c269524"
+    },
+    {
+      "path": "tools/v11_gate3_evidence_preflight_checker.py",
+      "byte_length": 45681,
+      "sha256": "6df49d57b6807d1b6d47075520d45c493f33550baaee1317d416e4d2d6347355"
+    },
+    {
+      "path": "tools/v11_r09_gate3_g3l_prep.py",
+      "byte_length": 31205,
+      "sha256": "a5051a65aa219d40f5ac67acf9ca6f1e72839eb1d988ae5d08b2ea0565e89481"
+    },
+    {
+      "path": "tools/v11_gate3_preflight_attempt_model.py",
+      "byte_length": 42781,
+      "sha256": "4734e9a1386e5cb96a73fa3ba8959977f9756026d1adace2b985ba3cd388a463"
+    }
+  ]
+}
