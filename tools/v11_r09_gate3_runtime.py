@@ -270,17 +270,18 @@ class _StreamAccounting:
         return state
 
     def charge_returned_lower_bound(self, budget, request_id, before, chunk):
-        """Preserve bytes returned by read when its new snapshot is invalid.
+        """Preserve accepted delivery when a read return or snapshot is invalid.
 
-        Previously reported prefetch may contain the return value, so only
-        the increase in the independent lower bound is charged.
+        Previously reported prefetch may contain the return value. Extend the
+        accepted bound only for exact nonempty bytes, then charge its increase.
         """
+        lower_bound = before.delivered_bytes
         if type(chunk) is bytes and chunk:
-            lower_bound = max(before.delivered_bytes, before.read_bytes + len(chunk))
-            outstanding = lower_bound - self.charged_bytes
-            if outstanding > 0:
-                budget.record_eager_delivery(request_id, outstanding)
-                self.charged_bytes = lower_bound
+            lower_bound = max(lower_bound, before.read_bytes + len(chunk))
+        outstanding = lower_bound - self.charged_bytes
+        if outstanding > 0:
+            budget.record_eager_delivery(request_id, outstanding)
+            self.charged_bytes = lower_bound
 
 
 class SyntheticTransport(Transport):
