@@ -87,7 +87,10 @@ Capture mode continues to derive the existing 14:00/17:00/18:00 schedule and
 `evaluation_utc < capture_start_utc` and
 `capture_end_utc - evaluation_utc <= 86,400 seconds` (horizon equality allowed;
 start equality refused), where start/end are exactly the derived 14:00/17:00
-values. Require derived run <= evaluation as in P1. Do not apply P1's 3.5-hour
+values. Require derived run <= evaluation as in P1. The 24-hour capture
+horizon is redundant under these same-day constraints (actual horizon <=17
+hours); retaining it documents a common ceiling, not an independently reachable
+acceptance edge. Do not apply P1's 3.5-hour
 window or invent a new capture cadence. These *proposed* evaluation predicates
 cannot replace maximum run age, local-day/DST rules, prerequisite receipt/review
 cutoffs or exact-manifest review. Refer to the existing planner
@@ -234,7 +237,9 @@ Focused tests must include:
    start==evaluation, inverted interval, expired window, UTC day boundaries,
    00Z mismatch, future run, leap/naive/offset/precision and datetime overflow.
    Capture must exercise the fixed 14:00/17:00 schedule, evaluation/start
-   equality refusal, horizon equality and one-microsecond excess; missing or
+   equality refusal, evaluation at the 00Z run and just before it. The 24-hour
+   equality/excess tests belong to P1; they cannot be otherwise-valid capture
+   cases under the same-day run predicate. Missing or
    mismatched evaluation monotonic/host/boot context must refuse.
 2. Exact disk/memory floor and one-byte deficit, target-only shortfall,
    signed-64 ceiling and overflow sum, bool/subclass/10,000-digit integers,
