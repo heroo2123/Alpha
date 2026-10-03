@@ -7601,3 +7601,7 @@ Main `be598e8` is clean. The `53163d7` IFS exact reviewer and separate full-coho
 ## V5 IFS repair and full-cohort review active — 2026-10-03 18:20 UTC
 
 Independent exact review of `53163d7` found a mockable generic V5 GET path and timestamp refusal defects; a single Sol/high repair worker is active in its original isolated worktree. Separately, finished clean documentation candidate `36482c0` is under Sol/high exact review in a detached checkout. Both require PASS, reconciliation and post-merge checks. No provider request, qualification, SHADOW operation or score crossing: **91/200, formal 1/50; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
+
+## Reviewed V5 full-cohort contract integrated; IFS repair in exact review — 2026-10-03 18:29 UTC
+
+Independent Sol/high exact review passed clean documentation-only `36482c0` after 28 source pins and 230 offline checks per Python mode. Conflict-free merge `920148e` imported the exact three reviewed blobs; JSON and whitespace checks pass. Clean IFS repair `2fbb807` has author-reported 372 passed/1 skipped per mode and an active independent Astra/high exact review in detached `/tmp/alpha-v11-gate3-v5-ifs-cadence-review-2fbb807`. It remains unmerged until PASS, reconciliation and post-merge checks. Disk remains above the 2 GiB floor; checked V10/V11 units inactive and no PAPER/SHADOW/Axiom worker observed. No provider request, qualification, capture, forward SHADOW or acceptance crossing: **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
