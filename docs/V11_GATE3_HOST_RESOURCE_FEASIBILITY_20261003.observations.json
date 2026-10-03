@@ -17,11 +17,9 @@
     "kind": "PASSIVE_OBSERVATION_NOT_RESERVATION",
     "uid": 1000,
     "gid": 1000,
-    "pid": 3209541,
-    "ppid": 3209540,
     "uname": [
       "Linux",
-      "alpha-dev",
+      "[hostname omitted]",
       "6.8.0-137-generic",
       "#137-Ubuntu SMP PREEMPT_DYNAMIC Fri Jul 17 20:28:23 UTC 2026",
       "x86_64"
@@ -114,7 +112,6 @@
       "/proc/self/limits": "Limit                     Soft Limit           Hard Limit           Units     \nMax cpu time              unlimited            unlimited            seconds   \nMax file size             unlimited            unlimited            bytes     \nMax data size             unlimited            unlimited            bytes     \nMax stack size            8388608              unlimited            bytes     \nMax core file size        0                    unlimited            bytes     \nMax resident set          unlimited            unlimited            bytes     \nMax processes             7093                 7093                 processes \nMax open files            1048576              1048576              files     \nMax locked memory         243146752            243146752            bytes     \nMax address space         unlimited            unlimited            bytes     \nMax file locks            unlimited            unlimited            locks     \nMax pending signals       7093                 7093                 signals   \nMax msgqueue size         819200               819200               bytes     \nMax nice priority         0                    0                    \nMax realtime priority     0                    0                    \nMax realtime timeout      unlimited            unlimited            us",
       "/proc/sys/vm/overcommit_memory": "0",
       "/proc/sys/vm/overcommit_ratio": "50",
-      "/proc/sys/kernel/random/boot_id": "4ff7b3b7-5ff6-47f3-99bc-6407d828d00c",
       "meminfo_selected": {
         "MemTotal": "1899584 kB",
         "MemFree": "373824 kB",
@@ -241,10 +238,10 @@
       "getcap": "/usr/sbin/getcap"
     },
     "namespaces": {
-      "self/mnt": "mnt:[4026531841]",
-      "self/cgroup": "cgroup:[4026531835]",
-      "self/pid": "pid:[4026531836]",
-      "self/user": "user:[4026531837]",
+      "self/mnt": "[identifier omitted; readlink succeeded]",
+      "self/cgroup": "[identifier omitted; readlink succeeded]",
+      "self/pid": "[identifier omitted; readlink succeeded]",
+      "self/user": "[identifier omitted; readlink succeeded]",
       "1/mnt": "[Errno 13] Permission denied: '/proc/1/ns/mnt'",
       "1/cgroup": "[Errno 13] Permission denied: '/proc/1/ns/cgroup'",
       "1/pid": "[Errno 13] Permission denied: '/proc/1/ns/pid'",
@@ -295,41 +292,30 @@
     "process_excerpt_top5": [
       {
         "uid": 1000,
-        "pid": 3204243,
-        "ppid": 3204231,
         "comm": "codex",
         "rss_KiB": 198708
       },
       {
         "uid": 1000,
-        "pid": 2962010,
-        "ppid": 1871212,
         "comm": "node",
         "rss_KiB": 101400
       },
       {
         "uid": 1000,
-        "pid": 1871212,
-        "ppid": 1871211,
         "comm": "node",
         "rss_KiB": 86644
       },
       {
         "uid": 1000,
-        "pid": 3204361,
-        "ppid": 3204243,
         "comm": "node",
         "rss_KiB": 80656
       },
       {
         "uid": 1000,
-        "pid": 3204231,
-        "ppid": 3204230,
         "comm": "node",
         "rss_KiB": 53348
       }
     ],
-    "other_visible_consumers": "Top-20 output also included root multipathd, fail2ban-server, systemd, fwupd and other UIDs' services; no process arguments, environments, files, or provider evidence inspected.",
     "scope": "Bounded sample only; neither complete inventory nor proof that any service is active/inactive in an execution role."
   },
   "source_bindings": {

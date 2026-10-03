@@ -82,8 +82,8 @@ arguments/environments, `findmnt -T` on this worktree, and `lsblk` metadata.
 
 | Domain/fact | Observed value | What this establishes and does not establish |
 | --- | --- | --- |
-| Observer | UID/GID 1000; Linux `alpha-dev`, `6.8.0-137-generic`, x86_64; effective/permitted/ambient capabilities zero | Non-root observation process, not privilege or deployment authority for a future custodian. |
-| `/`, `/tmp`, this worktree | Same device 64770 (`253:2`), ext4 `/dev/vda2`, mount ID 30, root `/`, `rw,relatime`; no separate `/tmp` mount | These inspected paths share one visible capacity pool. Future selected private roots and nested mounts are not established. |
+| Observer | UID/GID 1000; Linux `6.8.0-137-generic`, x86_64; effective/permitted/ambient capabilities zero | Non-root observation process, not privilege or deployment authority for a future custodian. |
+| `/`, `/tmp`, this worktree | Same observed device 64770 (`253:2`) and filesystem capacity counters; the selected root mount has ID 30, ext4 `/dev/vda2`, root `/`, `rw,relatime`, and `findmnt -T` resolved this worktree to `/` | These paths share the sampled capacity pool. The `/tmp` mount ID and absence of a bind mount were not established. Future selected private roots and nested mounts are not established. |
 | Root filesystem availability | `f_frsize=4096`, `f_bavail=750408`: **3,073,671,168 bytes**; `f_bfree=979351`: 4,011,421,696 bytes; free/available inodes 827,584 | Use user-available bytes. The 937,750,528-byte difference is not capacity this user may spend or a qualified free-floor reserve. Inode count is a sample, not inode custody. |
 | Block-device view | `vda` 21,474,836,480 bytes; `vda2` 21,472,722,432 bytes | Virtual block device view only; hypervisor backing, thin provisioning, failure/persistence behavior remain UNKNOWN. |
 | Directory modes | `/tmp` root-owned 01777; worktree UID 1000 mode 0775 | Neither is an eligible 0700 Gate-3 state root. No new root was created. V4 also forbids its store inside the repository. |
@@ -111,9 +111,8 @@ not itself grant this UID a reservation. OOM counters are cumulative samples;
 they do not date an event or identify its victim. No cgroup limit/protection was
 changed. A future process might have different ancestry.
 
-Self namespace IDs: mount `4026531841`, cgroup `4026531835`, PID `4026531836`,
-user `4026531837`; boot ID `4ff7b3b7-5ff6-47f3-99bc-6407d828d00c`.
-`/proc/1/cgroup` exposed `/init.scope`, but all four `/proc/1/ns/*` readlinks
+Self namespace readlinks succeeded; their identifiers are omitted from this public
+assessment. `/proc/1/cgroup` exposed `/init.scope`, but all four `/proc/1/ns/*` readlinks
 returned permission denied. Even equality with visible PID 1 would not prove
 absence of hidden ancestors; these facts do not qualify the complete host view.
 No alternate-namespace or elevated inspection was attempted.
@@ -125,8 +124,8 @@ memory limit is below 512 MiB and the default A7 640 MiB envelope. Locking a
 smaller working set would still consume available memory, not preserve the free
 host floor or bound other consumers; no `mlock`/page-touch test was performed.
 
-B's top-20 process sample includes same-UID Codex/Node processes (largest RSS
-198,708 KiB), root services and other UIDs. RSS is not a peak, a disjoint sum or
+B's retained process excerpt includes five same-UID Codex/Node processes (largest RSS
+198,708 KiB). RSS is not a peak, a disjoint sum or
 a commitment. This is positive evidence of shared consumers, not a complete
 inventory. No process arguments, credentials, other worktree files, retained
 provider evidence or service configuration were inspected. No conclusion about
@@ -228,7 +227,7 @@ unlinking a dummy reserve and racing to allocate new files cannot transfer custo
 
 **Free-floor and memory custody are not proved achievable with the demonstrated
 non-privileged controls.** Cooperative flock/lease/accounting only fences its
-participants; same-UID unrelated work and other UIDs/root services can consume
+participants; same-UID unrelated work and unbounded foreign consumers can consume
 disk/memory between checks. A reserve file for the 2 GiB floor would occupy free
 space rather than preserve it. User quotas, even if available, ordinarily cap
 usage rather than guarantee a free floor against every other writer. A monitor
