@@ -1,19 +1,31 @@
 # Gate 3 readiness boundary implementation handoff
 
-Status: **PROPOSED OFFLINE CANDIDATE**. No package was executed or qualified.
-The independent design review permits only an offline proposal tool. A
-different-model review of the exact code commit is still required before
-integration; the design review did not approve this implementation or a live
+Status: **PROPOSED OFFLINE CANDIDATE, POST-REVIEW REPAIR**. No package was
+executed or qualified. The independent design review permits only an
+offline proposal tool. The independent exact-commit review of candidate
+981bbf9cbf283027c8bf5f570eedbd74a1392c78 (Codex Astra/high, 2026-10-03,
+report SHA-256 86e0201b1ae070d6ea83fac551a268ec3a13f68bd2086ce30688a701065cb73c)
+returned verdict **CHANGES_REQUIRED** with three blocking findings (F1, F2,
+F3); see "Repair of independent exact-commit review findings" below. A
+further different-model review of the new exact repair commit is still
+required before integration; neither the design review nor the first
+exact-commit review approved this or any implementation for a live
 admission policy.
 
 ## Exact code identity and scope
 
-- Code and test commit: 91514ce35eee486ff3dfa0916cdd9f693be7d7e6.
-- Code and test tree: 57e1a127b3999687186e184e2141044e73459837.
+- Reviewed candidate commit: 981bbf9cbf283027c8bf5f570eedbd74a1392c78, tree
+  11abaa9d11ee7b39c4dc9fdd469b33585cdf0acc (unchanged by this repair).
+- Repair commit: e1ff168fe091c31262b3f0ea0b514c54a3d81be4, tree
+  ec5fe6795ceb688e32882fefc37ff00423aabc08, parent
+  981bbf9cbf283027c8bf5f570eedbd74a1392c78.
+- Prior code and test commit: 91514ce35eee486ff3dfa0916cdd9f693be7d7e6, tree
+  57e1a127b3999687186e184e2141044e73459837.
 - Starting implementation worktree HEAD: faca37bf77f68d328564fa6208fd7e918f9f5cbf.
 - Changed code: tools/v11_gate3_readiness_boundaries.py and
-  tests/test_v11_gate3_readiness_boundaries.py. This handoff is a separate
-  documentation commit so it can cite the exact code commit and tree.
+  tests/test_v11_gate3_readiness_boundaries.py. This handoff update is a
+  separate documentation commit so it can cite the exact repair commit and
+  tree alongside the reviewed candidate it repairs.
 - No existing checker, planner, caller, frozen constant or date binding was
   changed. The validator imports only hashlib, json, re and datetime. It
   has no file, socket, subprocess, provider, service or wall-clock access.
@@ -45,9 +57,13 @@ end, width strictly greater than 60 seconds and at most 12,600 seconds, end
 at most 86,400 seconds after evaluation, exact 00Z run on the start UTC date,
 and run no later than evaluation. The 86,400-second horizon is **new proposed
 planning policy**, not the capture run-age rule or proof of release. The
-canonical proposal SHA-256 changes when its window changes. Campaign and
-restriction lineage IDs remain in the digest and report, so a date change
-cannot reset accounting or a hold.
+canonical proposal SHA-256 changes when its window changes. The validator
+is stateless: it preserves whatever campaign_id and restriction_lineage_id
+the caller supplies, echoing them unchanged into the digest and report. It
+cannot verify external campaign/lineage continuity, prove a prior accepted
+ledger, or detect a caller substituting fresh IDs; it has no mechanism to
+reset, release or otherwise affect external accounting or a hold, but it
+also cannot confirm that none occurred outside this proposal.
 
 Capture requires exactly target_local_date, campaign_id and
 restriction_lineage_id; p1 and resources must be null. The validator
@@ -159,6 +175,92 @@ shifted-date input and confirms its changed-date refusals. Other existing
 checker tests were excluded because their fixture helpers read an audit file
 or private package outside this task's allowed inputs. No full suite or
 private package test is claimed.
+
+## Repair of independent exact-commit review findings
+
+The independent exact-commit review of candidate 981bbf9 (report SHA-256
+86e0201b1ae070d6ea83fac551a268ec3a13f68bd2086ce30688a701065cb73c, verdict
+CHANGES_REQUIRED, scope PUBLIC_REPOSITORY_OFFLINE_ONLY, qualification_credit=0,
+g3l=NO_GO, all authority flags false) found three blocking P2 defects. Repair
+commit e1ff168fe091c31262b3f0ea0b514c54a3d81be4 (tree
+ec5fe6795ceb688e32882fefc37ff00423aabc08) addresses each without weakening
+any aggregate/depth/node bound and without widening qualification:
+
+- **F1** (oversized built-in strings/keys allocated before refusal, and a
+  48 MiB value under a 96 MiB RLIMIT_AS raised an uncaught MemoryError out of
+  `validate`): `_bounded_tree` now checks each exact string/key's character
+  length (an O(1) attribute read) before calling `.encode("utf-8")`, so an
+  oversized string refuses `INPUT_BOUNDS` before any proportional allocation.
+  The independent review's exact stdlib-only RLIMIT_AS reproducer now returns
+  `['INPUT_BOUNDS']` instead of `MemoryError escapes validate`. New tests
+  cover an oversized built-in value and key with a tracemalloc-bounded
+  allocation assertion, a multibyte string within the character ceiling but
+  over the UTF-8 byte ceiling, and a subprocess-based allocation-sensitive
+  regression reproducing the review's exact RLIMIT_AS scenario.
+- **F2** (the backward-step check compared only adjacent samples, so a
+  wholly backward interval from the retained original calibration anchor was
+  accepted as `PROPOSAL_VALID_NOT_EXECUTABLE` unless the caller duplicated
+  the anchor as a sequence-0 sample): the per-sample backward-step comparison
+  now seeds `previous_utc`/`previous_uncertainty` from the original anchor's
+  `utc_us`/`uncertainty_us` instead of `None`, so the first sample is checked
+  against the anchor directly. The independent review's exact reproducer now
+  returns `PROPOSAL_REFUSED`/`['CLOCK_STEP']` on the first call, without
+  needing the anchor duplicated as a sample. No drift envelope was invented;
+  unsupported forward/cumulative drift remains blocked and
+  `clock_qualification` stays false. New tests cover a direct
+  first-sample-before-anchor refusal and an interval-overlap boundary (an
+  anchor-touching sample is accepted; one microsecond further back refuses).
+- **F3** (the build declaration reused `_reference`, whose shared 4,096-byte
+  string ceiling caps decoded `bytes_hex` at 2,048 bytes, so a correct
+  declaration of this module's own real source, 20,946 bytes after this
+  repair, returned `INPUT_BOUNDS`, and a digest/length-only declaration
+  without `bytes_hex` returned `BUILD_BINDING`): `declared_build_ref` now
+  validates against a new, separately bounded, closed `_build_declaration`
+  schema requiring exactly `sha256` and `byte_length` with no `bytes_hex`
+  field. A caller can now declare the actual SHA-256 and byte length of a
+  real source of any representable size. This remains explicitly unattested
+  metadata: `BUILD_UNATTESTED` stays in blockers on every result regardless
+  of whether a declaration is present, well-formed, or forged, and the
+  validator never hashes its own loaded bytes to check the declaration
+  against them; a separately reviewed runner must still bind actual loaded
+  module bytes before any real admission. New tests cover the actual current
+  source bytes, the legacy `bytes_hex`-bearing shape (now refused with
+  `BUILD_BINDING`), syntactically valid but unverifiable ("forged") metadata,
+  malformed metadata (bad digest case/length, out-of-range byte_length), and
+  an absent declaration.
+
+The review's non-blocking note (N1) on handoff lines 48-50 is also corrected
+above: the validator preserves whatever campaign_id/restriction_lineage_id
+the caller supplies, but it is stateless and cannot verify external
+campaign/lineage continuity, a prior accepted ledger, or that no release or
+accounting reset happened outside this proposal.
+
+Repair test record, same isolated worktree and interpreter as above:
+
+1. `-m pytest -q tests/test_v11_gate3_readiness_boundaries.py`: **19 passed**
+   (11 prior plus 8 new regressions for F1/F2/F3).
+2. `-O -m pytest -q tests/test_v11_gate3_readiness_boundaries.py`: **19
+   passed**, with the same expected pytest optimized-mode warning.
+3. The same five pre-existing `tests/test_v11_gate3_evidence_preflight_checker.py`
+   node IDs cited above: **11 passed** in both plain and `-O` modes,
+   confirming no regression in the unrelated frozen checker.
+
+Repair source bindings: `tools/v11_gate3_readiness_boundaries.py` is now
+20,946 bytes, SHA-256
+7b974fa5ab72e638853ff0be45eef67f77a83c52454ab9a2ce563008c0cce3de.
+`tests/test_v11_gate3_readiness_boundaries.py` is now 23,695 bytes, SHA-256
+ef4911c38b9c36a272222f2bbfad7afe9c4d97b5cc871123a770ac2d8cc3c483.
+
+Limitations unchanged by this repair: no package was installed; no service,
+provider or network request ran; only the two files above were edited; no
+private Alpha evidence, held repair branches, credentials, V10, Axiom or
+root authority were read; every result path still carries
+`execution_authority=false`, `capture_eligibility=false`,
+`qualification_credit=0`, `g3l=NO_GO` and `clock_qualification=false`. This
+repair does not itself constitute review approval: a different-model
+exact-commit review of e1ff168 remains required before any offline
+integration, and the design review's scope limits (section 5 of the design)
+still apply unchanged.
 
 ## Public source bindings and remaining gates
 
