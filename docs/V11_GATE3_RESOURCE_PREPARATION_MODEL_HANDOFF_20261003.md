@@ -12,11 +12,11 @@ final handoff, avoiding a self-referential commit identifier here.
 
 ## Delivered scope
 
-Three new files only:
+Three scoped files only (original addition and subsequent repair):
 
 - `tools/v11_gate3_resource_preparation_model.py`: pure bounded byte parser and
   immutable refusal result; fixed syscall-result script, no syscall implementation.
-- `tests/test_v11_gate3_resource_preparation_model.py`: 20 test methods, including
+- `tests/test_v11_gate3_resource_preparation_model.py`: 21 test methods, including
   adverse tables and 100 repeated identical replays.
 - This handoff.
 
@@ -92,7 +92,9 @@ facts refuse. Supplied tokens are not independent durable checkpoints.
 
 ## Fixed simulated preparation and refusal order
 
-1. Parse/bind all bytes and arithmetic; fence predecessor and reconcile history.
+1. Parse/bind all bytes and arithmetic; require pairwise-distinct root directory,
+   report file and emergency file inode tokens before any simulated event; fence
+   predecessor and reconcile history.
 2. Check scope and full prospective floors before any mutating event.
 3. Require already supplied exclusive KEEP_SIZE emergency backing for four 4 KiB
    records (intent, partial acquisition, refusal, recovery), retained ownership,
@@ -108,7 +110,11 @@ facts refuse. Supplied tokens are not independent durable checkpoints.
 
 Every failure is terminal. No retry, recursive allocation to log failure, or
 fallback constructor exists. A syscall result saying success with the wrong count,
-logical size, backing or identity still refuses. Short writes, allocation failures,
+logical size, backing or identity relative to its expected script role refuses.
+Root/report/emergency inode-role aliases also refuse as `INPUT_INVALID` before
+simulation, even when every event identity matches the aliased supplied role.
+These checks compare supplied tokens; they do not authenticate real inode identity.
+Short writes, allocation failures,
 all fsync failures, link failure, missing suffixes and extra/reordered operations
 stay `UNCERTAIN_HELD`. A complete script is only
 `SYNTHETIC_REFUSAL_PERSISTED_HELD`, still UNQUALIFIED/NO_GO with false authority.
@@ -124,15 +130,46 @@ Denominator is always 2,713; no slot receives credit or becomes eligible.
 
 ## Validation and retained evidence
 
-**34 distinct tests passed in each of normal and optimized Python:** 20 new model
-tests plus all 14 existing offline-budget tests. Reproduction from this checkout:
+The original candidate passed **34 distinct tests in each Python mode** (20 model
+and 14 offline-budget tests). Its retained evidence below describes that original
+candidate, not the repaired code. The repair passes **35 distinct tests in each
+mode** (21 model and 14 offline-budget tests). Exact repair validation commands:
 
 ```sh
 PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=. python3 -B -m unittest discover -s tests -p 'test_v11_gate3_*resource*.py' -v
 PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=. python3 -O -B -m unittest discover -s tests -p 'test_v11_gate3_*resource*.py' -v
 ```
 
-The retained runner loads exactly those two modules. An initial runner redundantly
+Repair results: normal Python exited 0, `Ran 35 tests in 0.645s`, `OK`;
+optimized Python exited 0, `Ran 35 tests in 0.631s`, `OK`.
+`git diff --check` exited 0 with no output.
+
+The repair addresses only the independent **CHANGES_REQUIRED** finding for
+`1fc8b18e9b2acaed6f56dc0ee3973adfcb7041ce`, tree
+`1fccb56f3f3435310a346a88de7aca9abdcaf7c2`. Before editing, HEAD and tree matched
+those values and `git status --porcelain=v1` was empty on branch
+`gate3-resource-custody-offline-20261003`. The review final and retained output
+were read from `/tmp/alpha-v11-resource-custody-review-1fc8b18.final` and
+`/tmp/alpha-v11-resource-custody-review-1fc8b18.out`.
+
+The new regression supplies matching event identities for report/root,
+emergency/root, report/emergency and all-three aliases. Before the model repair,
+each command below exited 1 with `Ran 1 test`, `FAILED (failures=2)`: specifically
+the report/root and emergency/root subtests accepted the impossible trace.
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=.:tests python3 -B -m unittest test_v11_gate3_resource_preparation_model.PreparationTests.test_inode_roles_must_be_pairwise_distinct_with_matching_events -v
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=.:tests python3 -O -B -m unittest test_v11_gate3_resource_preparation_model.PreparationTests.test_inode_roles_must_be_pairwise_distinct_with_matching_events -v
+```
+
+The repaired suite requires `INPUT_INVALID` / `UNCERTAIN_HELD`, an empty trace,
+zero verified report bytes, unknown claims retained, zero release and all authority
+false for every alias. Existing complete-trace and post-allocation-loss regressions
+continue to verify the 16 MiB simulated hold. The existing after-state identity
+check still requires the root to match its before-state before persisted-held
+completion. No runtime or native custody qualification is implied.
+
+The original retained runner loads exactly those two modules. An initial runner redundantly
 called nine function helpers already wrapped by the existing budget TestCase;
 its 43-invocation logs are preserved as `*.duplicate-discovery.log`. Corrected
 34-distinct-test logs are the results cited here.

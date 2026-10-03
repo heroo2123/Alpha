@@ -97,6 +97,32 @@ class PreparationTests(unittest.TestCase):
             r.status = 'QUALIFIED'
         self.assertFalse(hasattr(r, '__dict__'))
 
+    def test_inode_roles_must_be_pairwise_distinct_with_matching_events(self):
+        for alias in ('report_root', 'emergency_root', 'report_emergency', 'all_root'):
+            with self.subTest(alias=alias):
+                p, s = fixture()
+                root = s['before']['root']
+                report = s['report_identity']
+                emergency = s['emergency']['identity']
+                if alias in ('report_root', 'all_root'):
+                    s['report_identity'] = root
+                if alias in ('emergency_root', 'all_root'):
+                    s['emergency']['identity'] = root
+                if alias == 'report_emergency':
+                    s['report_identity'] = emergency
+                replacements = {report: s['report_identity'],
+                                emergency: s['emergency']['identity']}
+                # Keep every event consistent with its supplied inode role so
+                # rejection cannot come from a mismatched syscall identity.
+                for event in s['events']:
+                    event['identity'] = replacements.get(event['identity'], event['identity'])
+                r = self.run_model(p, s)
+                self.assertEqual(r.reason, 'INPUT_INVALID')
+                self.assertEqual(r.state, 'UNCERTAIN_HELD')
+                self.assertEqual(r.trace, ())
+                self.assertEqual(r.held_report_bytes, 0)
+                self.assertEqual(r.accounting, 'NO_RELEASE_UNKNOWN_CLAIMS_RETAINED')
+
     def test_exact_floor_minus_one_and_stricter_manifest_floors(self):
         for key in ('free_disk_bytes', 'available_memory_bytes', 'quota_headroom_bytes',
                     'pool_headroom_bytes', 'free_inodes', 'ancestor_headroom_bytes'):

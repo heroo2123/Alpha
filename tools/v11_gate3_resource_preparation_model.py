@@ -276,7 +276,8 @@ def _evaluate(projection_raw, scenario_raw, expected):
     after = _record(Domain, s['after'])
     emergency = _record(Emergency, s['emergency'])
     report_identity = _text(s['report_identity'])
-    _require(report_identity != emergency.identity)
+    # Directory fsync and the two writable files require distinct inode roles.
+    _require(len({before.root, report_identity, emergency.identity}) == 3)
     events = s['events']
     _require(type(events) is list and len(events) <= MAX_EVENTS)
     events = tuple(_record(SyscallResult, e) for e in events)
