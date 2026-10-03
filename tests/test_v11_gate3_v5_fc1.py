@@ -31,10 +31,23 @@ def fixture(events=2, confirmation=False):
         artifacts[fc.digest(raw)] = raw
         return syn.reference(raw)
 
+    source_refs = []
+    for name, size, sha in syn.CONTRACT_PINS:
+        raw = (ROOT/'docs'/name).read_bytes()
+        if len(raw) != size or fc.digest(raw) != sha:
+            raise ValueError('contract source pin mismatch: ' + name)
+        artifacts[sha] = raw
+        source_refs.append(dict(sha256=sha, byte_length=size,
+                                media_type='text/markdown' if name.endswith('.md') else 'application/json'))
+
     build = put({'schema': 'SYNTHETIC_BUILD', 'dependencies': [], 'code': 'offline-fixture'})
-    reviews = [put({'schema': 'G3_V5_FC1_SYNTHETIC_COST_CERTIFICATE_1', 'owner': owner,
+    reviews = [put({'schema': 'G3_V5_FC1_SYNTHETIC_COST_CERTIFICATE_1_IA1', 'owner': owner,
                     'phases': list(syn.PHASES), 'successful_path': True,
-                    'build': build, 'dependencies': []})
+                    'build': build, 'dependencies': source_refs if owner == 'scheduler' else [],
+                    'interface': ('G3_V5_FC1_START_BOUND_IA1' if owner == 'scheduler' else
+                                  'G3_V5_FC1_CAPTURE_RECEIPT_IA1' if owner == 'ledger' else
+                                  'G3_V5_FC1_COUNTED_EOF_STREAM_IA1' if owner == 'stream' else None),
+                    'max_read_calls_at_4mib': 65 if owner == 'stream' else None})
                for owner in ('scheduler', 'store', 'ledger', 'stream', 'native')]
     run = 1788480000  # synthetic fixed 00Z; no current-run assertion
     run -= run % 86400
@@ -50,7 +63,7 @@ def fixture(events=2, confirmation=False):
     for provider in fc.PROVIDERS:
         for role in fc.ROLES:
             proofs[provider, role] = put({
-                'schema': 'G3_V5_FC1_SYNTHETIC_ROLE_FACT_1', 'role': role,
+                'schema': 'G3_V5_FC1_SYNTHETIC_ROLE_FACT_1_IA1', 'role': role,
                 'slots': [i for i, s in enumerate(slots) if s[0] == provider],
                 'cohort': fc.digest(fc.canonical(slots)),
                 'object_id': fc.digest(provider.encode()), 'index_id': fc.digest((provider+'index').encode()),
@@ -60,14 +73,14 @@ def fixture(events=2, confirmation=False):
                 'source_kind': 'OFFICIAL_COHORT' if role == fc.ROLES[2] else 'NATIVE'})
     requests = [dict(id='f'+str(i), purpose='FIELD', slot=i, provider=s[0],
                      cap=262144, reservation=262144, start=0, end=262143,
-                     deadline_ms=2000, read_calls=4, object_id=fc.digest(s[0].encode()),
+                     deadline_ms=2000, read_calls=5, object_id=fc.digest(s[0].encode()),
                      index_id=fc.digest((s[0]+'index').encode())) for i, s in enumerate(slots)]
     ids = [r['id'] for r in requests]
     roles = [{'field_id': r['id'], **{role: {'proof': proofs[r['provider'], role],
                'mode': 'SEALED_OFFLINE', 'confirmation': None} for role in fc.ROLES}} for r in requests]
     if confirmation:
         overhead = {**requests[0], 'id': 'confirm_index', 'purpose': 'INDEX',
-                    'cap': 512, 'reservation': 512, 'start': None, 'end': None, 'read_calls': 1}
+                    'cap': 512, 'reservation': 512, 'start': None, 'end': None, 'read_calls': 2}
         requests.insert(0, overhead)
         for row in roles[:775]:
             row[fc.ROLES[0]].update(mode='SCHEDULED_CONFIRMATION', confirmation='confirm_index')
@@ -75,10 +88,14 @@ def fixture(events=2, confirmation=False):
                        requested_key=['station', kind.lower(), 'rule', '2026-10-04', 'daily_'+kind.lower()+'_temperature'],
                        trial_key=['station', kind.lower(), '2026-10-04'], field_ids=ids[:],
                        providers=list(fc.PROVIDERS), eligible=False) for kind in ('HIGH', 'LOW')[:events]]
-    phases = [dict(id=name, owner='LOCAL' if i < 13 else fc.OWNERS[i-12],
-                   wall_ms=(3500000-12 if i == 0 else 1) if i < 13 else (60000, 590000, 10000)[i-13],
+    phases = [dict(id=name, owner='LOCAL' if i < 13 else ('FINALIZATION' if name == 'finalize' else
+                   'CLOCK_GUARD' if name == 'clock_guard' else 'JITTER'),
+                   wall_ms=(3500000-12 if i == 0 else 1) if i < 13 else
+                   (60000 if name == 'finalize' else 590000-100*len(requests) if name == 'jitter' else
+                    50*len(requests) if name in ('START_BOUND_TOTAL', 'DISPATCH_BOUND_TOTAL') else 10000),
                    cpu_ms=1 if i < 13 else 0, review=reviews[0]) for i, name in enumerate(syn.PHASES)]
-    timing = dict(schema='G3_V5_TIMING_PLAN_1', deadline_ms=[2000]*len(requests),
+    timing = dict(schema='G3_V5_TIMING_PLAN_1_IA1', deadline_ms=[2000]*len(requests),
+                  start_bound_ms=[50]*len(requests),
                   spacing_ms=2000, local_wall_ms=3500000, local_cpu_ms=13,
                   finalization_ms=60000, jitter_ms=590000, clock_guard_ms=10000, phase_bounds=phases)
     nodes = [dict(id=r['id'], dependencies=[], external=([proofs[r['provider'], role]['sha256'] for role in fc.ROLES] if r['purpose'] == 'FIELD' else [])) for r in requests]
@@ -97,7 +114,9 @@ def fixture(events=2, confirmation=False):
         name = 'decoded_'+str(i)
         nodes.append(dict(id=name, dependencies=[], external=[]))
         objects.append(dict(id=name, kind='DECODED', bytes=4096, existing=False))
-    support_refs = [syn.reference(raw) for raw in artifacts.values()]
+    source_by_hash = {ref['sha256']: ref for ref in source_refs}
+    support_refs = [source_by_hash.get(fc.digest(raw), syn.reference(raw))
+                    for raw in artifacts.values()]
     for i, ref in enumerate(support_refs):
         name = 'import_'+str(i)
         nodes.append(dict(id=name, dependencies=[], external=[]))
@@ -109,7 +128,7 @@ def fixture(events=2, confirmation=False):
                              types=[dict(type=t, max_bytes=(1024 if kind == 'store' and t in ('FAILURE_ANNOTATION', 'LIFECYCLE') else width),
                                          max_remaining=4 if t == 'LIFECYCLE' else (len(objects) if kind == 'store' else len(requests)),
                                          review=reviews[2]) for t in types]))
-    record = dict(schema='G3_V5_RECORD_PLAN_1', journals=journals)
+    record = dict(schema='G3_V5_RECORD_PLAN_1_IA1', journals=journals)
     parsed_record = fc.RecordPlan.read(fc.canonical(record))
     imported = sum(r['byte_length'] for r in support_refs)
     needs = dict(raw=sum(r['cap'] for r in requests), temp=4*fc.MIB, imports=imported, source_copies=16*fc.MIB,
@@ -119,26 +138,27 @@ def fixture(events=2, confirmation=False):
                  parser=fc.MIB, indexes=fc.MIB, state=fc.MIB)
     needs.update({j.kind+'_journal': j.bounds()[1] for j in parsed_record.journals})
     allocations = [dict(id=k, domain=fc.digest(('memory' if k in ('snapshots', 'decoder_parent', 'decoder_child', 'stream_buffer', 'parser', 'indexes', 'state') else 'disk').encode()),
-                        bytes=v, first_phase=0, last_phase=15, review=reviews[1]) for k, v in needs.items()]
-    closure = dict(schema='G3_V5_FC1_SYNTHETIC_CLOSURE_1', nodes=nodes, artifacts=support_refs,
+                        bytes=v, first_phase=0, last_phase=len(syn.PHASES)-1, review=reviews[1]) for k, v in needs.items()]
+    closure = dict(schema='G3_V5_FC1_SYNTHETIC_CLOSURE_1_IA1', nodes=nodes, artifacts=support_refs,
                    required_allocations=[{k: a[k] for k in ('id', 'domain', 'bytes')} for a in allocations])
     allocation = dict(schema='G3_V5_ALLOCATION_PLAN_1', objects=objects, allocations=allocations, closure=put(closure))
     profile = dict(schema=fc.PROFILE, cost_model=fc.COST_MODEL,
                    **dict(zip(('scheduler_review', 'store_review', 'ledger_review', 'stream_review', 'native_review'), reviews)),
                    allocation_plan=put(allocation), record_plan=put(record), timing_plan=put(timing))
-    manifest = dict(schema='G3_V5_FC1_SYNTHETIC_MANIFEST_1', runs=runs, slots=slots,
+    manifest = dict(schema='G3_V5_FC1_SYNTHETIC_MANIFEST_1_IA1', runs=runs, slots=slots,
                     requests=requests, provider_caps=dict.fromkeys(fc.PROVIDERS, 262144),
                     events=event_rows, roles=roles, execution_profile=profile, abort_bytes=65536,
                     clock=clock, preservation=dict(identities=IDENTITIES, missing=77, gates=list(syn.GATES),
                                                    credit=0, g3l='NO_GO', g3e='GATED'))
     values = dict(manifest=manifest,
-                  plan_review=dict(schema='G3_V5_FC1_SYNTHETIC_REVIEW_1', manifest_sha256='', profile_sha256='',
-                                   producer='fixture_producer', reviewer='fixture_reviewer', checkpoint='fixture_current'),
-                  supplemental_pins=dict(schema='G3_V5_FC1_SYNTHETIC_PINS_1', roles_sha256='', requests_sha256=''),
-                  runtime_context=dict(schema='G3_V5_FC1_SYNTHETIC_CONTEXT_1', profile_sha256='', build=build),
+                  plan_review=dict(schema='G3_V5_FC1_SYNTHETIC_REVIEW_1_IA1', manifest_sha256='', profile_sha256='',
+                                   producer='fixture_producer', reviewer='fixture_reviewer', checkpoint='fixture_current',
+                                   contract_sources=source_refs),
+                  supplemental_pins=dict(schema='G3_V5_FC1_SYNTHETIC_PINS_1_IA1', roles_sha256='', requests_sha256=''),
+                  runtime_context=dict(schema='G3_V5_FC1_SYNTHETIC_CONTEXT_1_IA1', profile_sha256='', build=build),
                   terminal_precedence=['PREREQUISITE', 'CLOCK', 'RESOURCE', 'DENIAL', 'VALIDATION', 'SUCCESS', 'UNSCHEDULED'],
-                  event_policy=dict(schema='G3_V5_FC1_SYNTHETIC_EVENTS_1', events_sha256=''),
-                  event_policy_review=dict(schema='G3_V5_FC1_SYNTHETIC_EVENT_REVIEW_1', policy_sha256=''))
+                  event_policy=dict(schema='G3_V5_FC1_SYNTHETIC_EVENTS_1_IA1', events_sha256=''),
+                  event_policy_review=dict(schema='G3_V5_FC1_SYNTHETIC_EVENT_REVIEW_1_IA1', policy_sha256=''))
     return seal(values), artifacts
 
 
@@ -236,7 +256,7 @@ class FC1Tests(unittest.TestCase):
             m['provider_caps'] = dict(GEFS=2*fc.MIB, IFS=4*fc.MIB, AIFS=4*fc.MIB)
             for r in m['requests']:
                 r['cap'] = r['reservation'] = m['provider_caps'][r['provider']]
-                r['read_calls'] = 64
+                r['read_calls'] = 65
         self.mutate(full, 'BUDGET')
         self.mutate(lambda v: v['manifest'].update(abort_bytes=fc.GIB-711196672+1), 'BUDGET')
         self.mutate(lambda v: v['manifest']['requests'][0].update(end=262144), 'BUDGET')
@@ -268,18 +288,138 @@ class FC1Tests(unittest.TestCase):
         self.refuse('BUDGET', fc.TimingPlan.read, fc.canonical(t))
         self.assertEqual((2713-1)*2000+1000+2713000+60000, 8198000)
         self.assertEqual(20*1938, 38760)
+        self.assertEqual(sum(t['deadline_ms'])+(2713-1)*2000+3500000+60000+590000+10000,
+                         15010000)  # inherited close-plus-spacing diagnostic
+        self.assertEqual(10800000-fc.TimingPlan.read(fc.canonical(self.timing())).elapsed_ms(),
+                         1214000)
 
     def test_FC05_trace_checks_without_scheduler(self):
         t = fc.TimingPlan.read(fc.canonical(self.timing()))
-        starts = tuple(i*2000 for i in range(2713))
-        closed = tuple(i*2000+1000 for i in range(2713))
-        fc.check_synthetic_timing_trace(t, starts, closed)
-        shifted = list(starts); shifted[1] -= 1
-        self.refuse('CLOCK', fc.check_synthetic_timing_trace, t, tuple(shifted), closed)
-        shifted[1] = 999
-        self.refuse('BUDGET', fc.check_synthetic_timing_trace, t, tuple(shifted), closed)
-        lagged = list(closed); lagged[0] = 2001
-        self.refuse('BUDGET', fc.check_synthetic_timing_trace, t, starts, tuple(lagged))
+        def clock(ms):
+            return dict(schema='G3_V5_FC1_ORIGINAL_CLOCK_IA1', boot_id='boot',
+                        monotonic_ms=ms, offset_lower_ms=0, offset_upper_ms=0,
+                        measured_utc_ms=ms)
+        bounds = []
+        permissions = []
+        for i in range(2713):
+            permission = i*2050
+            permissions.append(permission)
+            bounds.append(dict(schema='G3_V5_FC1_START_BOUND_IA1', request_id='f'+str(i),
+                               context_sha256='1'*64, boot_id='boot',
+                               lower_clock=clock(permission), upper_clock=clock(permission+50),
+                               lower_ms=permission, actual_start_ms=permission+25,
+                               upper_ms=permission+50, closed_ms=permission+1025,
+                               deadline_origin_ms=permission, dispatch_persisted_ms=permission,
+                               deadline_fixed_ms=permission+2000,
+                               boundary_identity='FIRST_TRANSPORT_ACTIVITY',
+                               durable_close=True, receipt_complete=True))
+        fc.check_synthetic_timing_trace(t, tuple(bounds), tuple(permissions))
+        self.refuse('SCHEMA', fc.check_synthetic_timing_trace, t,
+                    tuple(i*2000 for i in range(2713)), tuple(i*2000+1000 for i in range(2713)))
+        changed = deepcopy(bounds); changed[1]['lower_ms'] += 1
+        self.refuse('CLOCK', fc.check_synthetic_timing_trace, t, tuple(changed), tuple(permissions))
+        changed = deepcopy(bounds); changed[1]['durable_close'] = False
+        self.refuse('CUSTODY', fc.check_synthetic_timing_trace, t, tuple(changed), tuple(permissions))
+        changed = deepcopy(bounds); changed[1]['upper_ms'] += 1
+        self.refuse('CLOCK', fc.check_synthetic_timing_trace, t, tuple(changed), tuple(permissions))
+        changed = deepcopy(bounds); changed[0]['closed_ms'] = 2001
+        self.refuse('BUDGET', fc.check_synthetic_timing_trace, t, tuple(changed), tuple(permissions))
+        delayed = list(permissions); delayed[1] -= 1
+        changed = deepcopy(bounds); changed[1]['dispatch_persisted_ms'] = delayed[1]
+        changed[1]['deadline_origin_ms'] = delayed[1]
+        changed[1]['deadline_fixed_ms'] = delayed[1]+2000
+        self.refuse('CLOCK', fc.check_synthetic_timing_trace, t, tuple(changed), tuple(delayed))
+        changed = deepcopy(bounds); changed[1]['deadline_origin_ms'] -= 1000
+        self.refuse('BUDGET', fc.check_synthetic_timing_trace, t, tuple(changed), tuple(permissions))
+        changed = deepcopy(bounds); changed[1]['boot_id'] = 'reboot'
+        changed[1]['lower_clock']['boot_id'] = 'reboot'
+        changed[1]['upper_clock']['boot_id'] = 'reboot'
+        self.refuse('CLOCK', fc.check_synthetic_timing_trace, t, tuple(changed), tuple(permissions))
+
+    def test_IA1_terminal_receipt_custody_adverse(self):
+        context = '1'*64
+        terminal = dict(schema='G3_V5_FC1_SESSION_IA1', type='TERMINAL',
+                        request_id='f0', context_sha256=context, outcome='SUCCESS',
+                        prior_hash='2'*64, closed=True, accounted=True, witnessed=True,
+                        denied=False, overdelivery=False, intent_recorded=True)
+        raw_terminal = fc.canonical(terminal)
+        head = fc.digest(raw_terminal)
+        receipt = dict(schema='G3_V5_FC1_CAPTURE_RECEIPT_IA1', type='CAPTURE_RECEIPT',
+                       request_id='f0', context_sha256=context, outcome='SUCCESS',
+                       prior_hash=head, session_terminal_head=head, store_head='3'*64,
+                       budget_head='4'*64, denial_head='5'*64, shared_head='6'*64)
+        raw_receipt = fc.canonical(receipt)
+        receipt_head = fc.digest(raw_receipt)
+        check = fc.check_synthetic_capture_custody
+        self.assertFalse(check((), (), 'f0', context).complete)
+        self.assertFalse(check((raw_terminal,), (head,), 'f0', context).complete)
+        self.assertFalse(check((raw_terminal, raw_receipt), (head,), 'f0', context).complete)
+        self.assertFalse(check((raw_terminal, raw_receipt), (receipt_head,), 'f0', context).complete)
+        self.assertTrue(check((raw_terminal, raw_receipt), (head, receipt_head), 'f0', context).complete)
+        self.refuse('CUSTODY', check, (raw_terminal, raw_receipt, raw_receipt),
+                    (head, receipt_head), 'f0', context)
+        for key, value in (('session_terminal_head', '0'*64), ('outcome', 'FAILED'),
+                           ('request_id', 'f1'), ('prior_hash', '0'*64)):
+            changed = dict(receipt, **{key: value})
+            self.refuse('DEPENDENCY', check, (raw_terminal, fc.canonical(changed)),
+                        (head, fc.digest(fc.canonical(changed))), 'f0', context)
+        failed = dict(terminal, witnessed=False, outcome='FAILED')
+        self.assertFalse(check((fc.canonical(failed),), (), 'f0', context).complete)
+        invalid = dict(terminal, accounted=False)
+        self.refuse('CUSTODY', check, (fc.canonical(invalid),), (), 'f0', context)
+
+    def test_IA1_counted_eof_and_all_byte_paths(self):
+        def read(kind='DATA', body=65536, maximum=65536, eager=0, queued=0, late=0,
+                 framed=False, exhausted=False):
+            return dict(kind=kind, requested_max=maximum, body_bytes=body,
+                        eager_bytes=eager, queued_bytes=queued, late_bytes=late,
+                        framing_complete=framed, queue_exhausted=exhausted)
+        cap = 4*fc.MIB
+        payload = tuple(read() for _ in range(64))
+        eof = read('EOF', 0, 1, framed=True, exhausted=True)
+        inspect = fc.check_synthetic_stream_trace
+        self.refuse('BUDGET', inspect, cap, cap, 64, payload, True, True)
+        self.assertFalse(inspect(cap, cap, 65, payload, True, True).complete)
+        good = inspect(cap, cap, 65, payload+(eof,), True, True)
+        self.assertEqual((good.read_calls, good.received_bytes, good.eof, good.complete),
+                         (65, cap, True, True))
+        self.assertTrue(inspect(cap, cap, 65, payload+(eof,), False, False).debit_bytes == cap+65536)
+        for tail in (read('EOF', 0, 1, queued=1, framed=True, exhausted=False),
+                     read('DATA', 1, 1), read('EMPTY', 0, 1),
+                     read('ERROR', 0, 1, late=7)):
+            result = inspect(cap, cap, 65, payload+(tail,), True, True)
+            self.assertFalse(result.complete)
+            self.assertEqual(result.received_bytes, cap+tail['body_bytes']+
+                             tail['eager_bytes']+tail['queued_bytes']+tail['late_bytes'])
+        extra = inspect(cap, cap, 65, payload+(eof, read('DATA', 1, 1)), True, True)
+        self.assertTrue(extra.poisoned)
+        self.assertEqual((extra.read_calls, extra.received_bytes), (66, cap+1))
+        short = tuple(read(body=1) for _ in range(65))
+        self.assertFalse(inspect(cap, cap, 65, short, True, True).complete)
+        eager = inspect(cap, cap, 65, (read(body=65536, eager=cap),), False, False)
+        self.assertTrue(eager.poisoned)
+        self.assertEqual(eager.received_bytes, cap+65536)
+        excess = inspect(cap, cap, 65, (read(body=65536, eager=cap+1),), False, False)
+        self.assertEqual((excess.received_bytes, excess.debit_bytes),
+                         (cap+65537, cap+65537))
+        retained = inspect(cap, cap, 65, payload+(eof,), True, True,
+                           prior_uncertain_debit=cap+65536)
+        self.assertEqual(retained.debit_bytes, cap+65536)
+
+    def test_IA1_cost_certificate_and_versions(self):
+        h = self.profile['stream_review']['sha256']
+        self.artifact_mutation(h, lambda c: c.update(max_read_calls_at_4mib=64), 'BUDGET')
+        h = self.profile['scheduler_review']['sha256']
+        self.artifact_mutation(h, lambda c: c.update(interface=None), 'BUDGET')
+        t = self.timing()
+        t['start_bound_ms'][0] += 1
+        self.refuse('BUDGET', fc.TimingPlan.read, fc.canonical(t))
+        t = self.timing(); t.pop('start_bound_ms')
+        self.refuse('SCHEMA', fc.TimingPlan.read, fc.canonical(t))
+        t = self.timing(); t['schema'] = 'G3_V5_TIMING_PLAN_1'
+        self.refuse('SCHEMA', fc.TimingPlan.read, fc.canonical(t))
+        self.mutate(lambda v: v['plan_review']['contract_sources'][0].update(sha256='0'*64),
+                    'SOURCE_PIN')
 
     def test_FC19_role_mutations(self):
         # Pin-preserving corruption refuses SOURCE_PIN before interpretation.
@@ -322,8 +462,8 @@ class FC1Tests(unittest.TestCase):
 
     def test_FC23_coupled_closure_and_legacy(self):
         with no_io(): snap = syn.inspect_synthetic(self.inputs, self.artifacts)
-        self.assertEqual(snap.costs.final_objects, 2754)
-        self.assertEqual(snap.costs.peak_objects, 2755)
+        self.assertEqual(snap.costs.final_objects, 2761)
+        self.assertEqual(snap.costs.peak_objects, 2762)
         self.assertEqual(dict((k, (e, b)) for k, e, b in snap.costs.journal_bounds)['session'], (32560, 66682880))
         legacy = dict(snap.costs.legacy)
         self.assertEqual(legacy['v4_objects'], 5438)
@@ -361,7 +501,13 @@ class FC1Tests(unittest.TestCase):
         # DAG closure: support -> closure -> allocation -> manifest/profile.
         for _ in range(4):
             for h, old in tuple(artifacts.items()):
-                new = fc.canonical(replace(json.loads(old)))
+                if h in {sha for _, _, sha in syn.CONTRACT_PINS}:
+                    continue  # Reviewed public documents are exact opaque pins.
+                try:
+                    document = json.loads(old)
+                except (ValueError, UnicodeError):
+                    continue  # Pinned markdown is opaque supplied evidence.
+                new = fc.canonical(replace(document))
                 if new != old:
                     replacements[h] = syn.reference(new)
                     artifacts.pop(h)

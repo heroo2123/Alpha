@@ -3,7 +3,9 @@
 Candidate for independent exact commit/tree review. No integration, execution,
 provider enrollment, host qualification or acceptance authority. The merged
 [execution contract](V11_GATE3_V5_FULL_COHORT_EXECUTION_CONTRACT_20261003.md)
-and its source/verification companions remain unchanged.
+and the separately reviewed [IA1 amendment](V11_GATE3_V5_FC1_INTERFACE_AMENDMENT_1_20261003.md)
+with their companions remain unchanged. This successor uses IA1 identities;
+original FC1 schema bytes refuse.
 
 ## Interfaces and boundary
 
@@ -23,7 +25,8 @@ lifecycle belong to step 3. The allocation reader retains the inherited 3,600
 array ceiling as well as checking the 4,096 physical-object bound.
 
 `derive_costs` derives full-cap bytes plus the one global abort allowance,
-start-to-start timing with local/finalization/jitter/clock costs, physical-object
+conditional IA1 actual-start timing with two charged copies of the start-bound
+sum and local/finalization/other-jitter/clock costs, physical-object
 peak with one temporary, new store events, existing-plus-remaining journal
 counts/bytes, and conservative allocation-domain sums. Unqualified lifetimes
 receive no overlap/alias credit. It performs no physical allocation or host
@@ -58,6 +61,33 @@ stays 77; H1–H6, A1–A8, G3-L and G3-E remain gates. Fresh-plan refusal diagn
 always retain 2,713 rows and 8,139 MISSING cells. They do not replace runtime
 receipts, original reasons, debits, or historical evidence.
 
+The synthetic fixture pins the original contract and IA1 document plus both
+companion sets and IA1 schema bytes by SHA-256 and length. Its cost/build
+references remain synthetic and grant no independent trust.
+
+The IA1 record vocabulary places TERMINAL before CAPTURE_RECEIPT within the
+same twelve-record bound. Pure supplied-byte replay binds the receipt's
+`session_terminal_head` to the actual terminal hash and checks identity,
+context, outcome and declared acknowledgement. Missing or unacknowledged
+receipt leaves custody incomplete; duplicates and wrong heads refuse. The
+acknowledgement set is test input, not store durability proof.
+
+The timing plan adds `start_bound_ms` per request and two JITTER entries,
+`START_BOUND_TOTAL` and `DISPATCH_BOUND_TOTAL`, each equal to its checked sum.
+The supplied trace check requires original-clock fields around the declared
+first transport activity, a bounded bracket, immutable predispatch deadline,
+confirmed close and receipt custody, and next permission no earlier than the
+previous upper bound plus spacing. It cannot prove transport-build ordering,
+clock authenticity or fsync. Inherited close-plus-spacing consumers stay intact.
+
+The selected read bound is `ceil(cap/65536)+1 <= k <= min(cap+1,65536)`:
+4 MiB needs 64 payload calls and a 65th counted EOF probe. The pure trace
+charges all supplied reads and data/eager/queued/late bytes before evaluating
+success, retains the full cap plus global abort allowance on uncertain
+accounting, and poisons extra calls, missing EOF, excess and adapter violations.
+Only an exact qualified adapter can expose hidden buffering and all error,
+cancel and close paths.
+
 ## Focused matrix coverage
 
 | Cases | Implemented step-2 checks |
@@ -66,7 +96,8 @@ receipts, original reasons, debits, or historical evidence.
 | FC02 | Full provider/member/native-hour order, 612-point IFS subset loss, duplicate/omitted/reordered rows |
 | FC03 | One/two events sharing 2,713 FIELDs; all event/provider pairs; original keys; no RAW eligibility |
 | FC04 | Full frozen caps, selected ranges, global abort reserve, byte equality/+1 and attempt ceiling |
-| FC05–06 | Recurrence/equality/+1, whole-second deadlines, P/Z floors, phase completeness, successful/failure costs, no zero jitter, sequential CPU bounds; pure supplied trace checks for spacing, overlap and abort lag |
+| FC05–06 | IA1 recurrence/equality/+1, start-bound double charge, whole-second deadlines, P/Z floors, phase completeness, successful/failure costs, no zero jitter, sequential CPU bounds; pure supplied trace checks for brackets, spacing, delay, close and abort lag |
+| FC13/16–18 | Pure adverse terminal/receipt replay and counted stream traces, including EOF, missing durability, wrong heads, k+1, short reads and charged overdelivery; integrated store/adapter cases remain future work |
 | FC19 | Scoped synthetic role facts, object/index coherence, official metadata role, original-time/rights bounds, frozen confirmation modes and unknown interpreter refusal |
 | FC20 | Seven input roles, exact byte bindings, isolated producer/reviewer fixture identities, stale/self-pin refusal, unconditional production trust refusal |
 | FC21 | Literal 79-row map equality, 77 missing, all holds/gates, no G3-L/G3-E credit |
@@ -86,9 +117,10 @@ unconstructed I=64 witness.
 ## Verification commands
 
 ```sh
-python3 -m unittest tests.test_v11_gate3_v5_fc1 -v
-python3 -O -m unittest tests.test_v11_gate3_v5_fc1 -v
-python -m pytest -q tests/test_v11_r09_gate3_launch_v4.py tests/test_v11_gate3_validated_plan_export_offline.py tests/test_v11_gate3_v5_feasibility_replay.py
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -p 'test_v11_gate3_v5_fc1.py'
+PYTHONDONTWRITEBYTECODE=1 python3 -O -m unittest discover -s tests -p 'test_v11_gate3_v5_fc1.py'
+PYTHONDONTWRITEBYTECODE=1 python3 tests/verify_v11_fc1_ia1_documents.py
+PYTHONDONTWRITEBYTECODE=1 python3 -O tests/verify_v11_fc1_ia1_documents.py
 ```
 
 The unittest assertions remain active under `-O`; production refusals use
@@ -97,12 +129,8 @@ companions before activating supplied-byte containment. No protected/private
 master, credentials, provider, service, network, native decoder or host allocator
 is accessed. Independent exact review is required before integration.
 
-Author results on this candidate: 18 focused unittest methods PASS in normal
-Python (227.721 s) and 18 PASS under `-O` (223.963 s), including their finite
-mutation subcases. The selected unchanged legacy regressions passed 98 tests in
-normal Python and 98 under `-O`; optimized pytest emitted its expected warning
-about assertions outside rewritten test modules. The new suite uses unittest
-assertions and explicit refusal exceptions in both modes. All 28 historical
-source-manifest SHA-256/length pins replayed against their original Git commits;
-the execution-contract hash/length companion binding also matched. Staged diff
-whitespace checks passed. These are author checks, not independent acceptance.
+The new suite uses unittest assertions and explicit refusal exceptions in both
+modes. The IA1 checker independently replays the reviewed document source pins.
+Verification results for this successor are retained in the
+[repair verification log](V11_GATE3_V5_FC1_STEP2_IA1_REPAIR_VERIFICATION_20261003.md)
+and reported with the exact commit/tree for independent review.

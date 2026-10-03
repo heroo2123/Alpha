@@ -19,9 +19,21 @@ GATES = ('H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'A1', 'A2', 'A3', 'A4', 'A5',
          'A6', 'A7', 'A8', 'G3-L', 'G3-E')
 PHASES = ('setup', 'parse_hash', 'import_verify', 'reservation', 'clock', 'fsync',
           'raw_seal', 'decode_success', 'decode_failure', 'graph', 'replay',
-          'snapshots', 'recovery', 'finalize', 'jitter', 'clock_guard')
+          'snapshots', 'recovery', 'finalize', 'jitter', 'START_BOUND_TOTAL',
+          'DISPATCH_BOUND_TOTAL', 'clock_guard')
 # Canonical exact inherited map, not just a caller-provided set/count.
 PRESERVATION_SHA256 = 'a4db64a5c41675866d093ac94fb26f7dda450f26ad8c3e9c84b3368b7bb31a4a'
+# Exact public contract bytes. Paths are fixture labels; the parser uses only
+# supplied bytes and these digest/length pins, never opens the paths.
+CONTRACT_PINS = (
+    ('V11_GATE3_V5_FULL_COHORT_EXECUTION_CONTRACT_20261003.md', 35650, 'b414cfe4f20ccb8acb853f6b6dbdba9392da2979e3c511af39626c176f983638'),
+    ('V11_GATE3_V5_FULL_COHORT_EXECUTION_CONTRACT_20261003.sources.json', 9463, '1666141b4a33373fd21739e5be77d072b5643a6fb02ae33f6b64990dd6279e4a'),
+    ('V11_GATE3_V5_FULL_COHORT_EXECUTION_CONTRACT_20261003.verification.json', 72503, 'd56b54aaa7168558f4d745c8e907584a4b5fab570388c92e8538c7a540bbe554'),
+    ('V11_GATE3_V5_FC1_INTERFACE_AMENDMENT_1_20261003.md', 19116, '280d182f87cc2f0adde49a3fa878e64b9a61794b370f53591d5647d03f9a1f99'),
+    ('V11_GATE3_V5_FC1_INTERFACE_AMENDMENT_1_20261003.sources.json', 12747, '9e45724e6545fb34e9b29baa23b48c60cd5b6989b992670c8d07df4fe8926407'),
+    ('V11_GATE3_V5_FC1_INTERFACE_AMENDMENT_1_20261003.verification.json', 83494, '32face6f7c00d5ec109aa2132d490b0b1ecd7d460e3061d8fd2bd1a5adb53836'),
+    ('V11_GATE3_V5_FC1_INTERFACE_AMENDMENT_1_20261003.schema.json', 21544, 'f40be7f5b447d4f83c02a3a55cf22cb32f3107b4cd32a1bee7888a34668d1426'),
+)
 
 
 @dataclass(frozen=True)
@@ -116,7 +128,7 @@ def _inspect(input_bytes, artifact_bytes):
     manifest, review, pins, context, precedence, policy, policy_review = values
     exact(manifest, ('schema', 'runs', 'slots', 'requests', 'provider_caps', 'events',
                      'roles', 'execution_profile', 'abort_bytes', 'clock', 'preservation'))
-    need(manifest['schema'] == 'G3_V5_FC1_SYNTHETIC_MANIFEST_1')
+    need(manifest['schema'] == 'G3_V5_FC1_SYNTHETIC_MANIFEST_1_IA1')
     profile = ExecutionProfile.read(canonical(manifest['execution_profile']))
     resolved = {}
 
@@ -124,7 +136,7 @@ def _inspect(input_bytes, artifact_bytes):
         need(ref.sha256 in artifacts, 'DEPENDENCY')
         raw = artifacts[ref.sha256]
         ref.verify(raw)
-        need(ref.media_type == 'application/json')
+        need(ref.media_type in ('application/json', 'text/markdown'))
         resolved[ref.sha256] = ref
         return raw
 
@@ -134,12 +146,22 @@ def _inspect(input_bytes, artifact_bytes):
     timing = TimingPlan.read(plans[7])
     # Reviews are synthetic exact bytes, with no credential/trust authority.
     certs = [parse(r) for r in plans[:5]]
+    expected_sources = tuple(Ref(sha, size, 'text/markdown' if name.endswith('.md') else
+                                 'application/json') for name, size, sha in CONTRACT_PINS)
     for cert, owner in zip(certs, ('scheduler', 'store', 'ledger', 'stream', 'native')):
-        exact(cert, ('schema', 'owner', 'phases', 'successful_path', 'build', 'dependencies'))
-        need(cert['schema'] == 'G3_V5_FC1_SYNTHETIC_COST_CERTIFICATE_1' and cert['owner'] == owner, 'TRUST')
+        exact(cert, ('schema', 'owner', 'phases', 'successful_path', 'build', 'dependencies',
+                     'interface', 'max_read_calls_at_4mib'))
+        need(cert['schema'] == 'G3_V5_FC1_SYNTHETIC_COST_CERTIFICATE_1_IA1' and cert['owner'] == owner, 'TRUST')
         need(cert['successful_path'] is True and cert['phases'] == list(PHASES), 'BUDGET')
+        interface = {'scheduler': 'G3_V5_FC1_START_BOUND_IA1',
+                     'ledger': 'G3_V5_FC1_CAPTURE_RECEIPT_IA1',
+                     'stream': 'G3_V5_FC1_COUNTED_EOF_STREAM_IA1'}.get(owner)
+        need(cert['interface'] == interface and
+             cert['max_read_calls_at_4mib'] == (65 if owner == 'stream' else None), 'BUDGET')
         for ref in [cert['build'], *cert['dependencies']]:
             resolve(Ref.read(ref))
+    need(tuple(Ref.read(ref) for ref in certs[0]['dependencies']) == expected_sources,
+         'SOURCE_PIN')
     need(tuple(p.id for p in timing.phase_bounds) == PHASES, 'BUDGET')
     for p in timing.phase_bounds:
         need(p.wall_ms > 0, 'BUDGET')
@@ -186,7 +208,7 @@ def _inspect(input_bytes, artifact_bytes):
         else:
             need(not field_ids and r['start'] is None and r['end'] is None, 'APPLICABILITY')
             need(r['cap'] <= (3*MIB if r['purpose'] == 'INDEX' else 4*MIB), 'BUDGET')
-        integer(r['read_calls'], (r['cap']+65535)//65536, min(r['cap']+1, 65536), 'BUDGET')
+        integer(r['read_calls'], (r['cap']+65535)//65536+1, min(r['cap']+1, 65536), 'BUDGET')
         caps.append(r['cap'])
         purpose_plan[r['purpose']][0] += 1
         purpose_plan[r['purpose']][1] += r['cap']
@@ -229,7 +251,7 @@ def _inspect(input_bytes, artifact_bytes):
             exact(proof, ('schema', 'role', 'slots', 'cohort', 'object_id', 'index_id',
                           'observed_upper_ms', 'valid_from_ms', 'valid_until_ms',
                           'rights_until_ms', 'parser', 'source_kind'))
-            need(proof['schema'] == 'G3_V5_FC1_SYNTHETIC_ROLE_FACT_1')
+            need(proof['schema'] == 'G3_V5_FC1_SYNTHETIC_ROLE_FACT_1_IA1')
             need(proof['role'] == role and index in proof['slots'], 'APPLICABILITY')
             need(proof['slots'] == sorted(set(proof['slots'])) and
                  all(type(i) is int and 0 <= i < FIELDS for i in proof['slots']), 'APPLICABILITY')
@@ -264,7 +286,7 @@ def _inspect(input_bytes, artifact_bytes):
     _clock(manifest['clock'], costs.elapsed_ms)
     closure = parse(resolve(allocation.closure))
     exact(closure, ('schema', 'nodes', 'artifacts', 'required_allocations'))
-    need(closure['schema'] == 'G3_V5_FC1_SYNTHETIC_CLOSURE_1')
+    need(closure['schema'] == 'G3_V5_FC1_SYNTHETIC_CLOSURE_1_IA1')
     # Every physical object has a node, and every semantic edge survives packing.
     nodes = closure['nodes']
     need(type(nodes) is list and len(nodes) == len(allocation.objects), 'DEPENDENCY')
@@ -353,25 +375,28 @@ def _inspect(input_bytes, artifact_bytes):
         need(r['domain'] == a.domain and r['bytes'] == a.bytes and a.bytes >= minimums[a.id], 'BUDGET')
 
     # Seven exact input roles bind original events, role modes and the profile.
-    exact(review, ('schema', 'manifest_sha256', 'profile_sha256', 'producer', 'reviewer', 'checkpoint'))
-    need(review['schema'] == 'G3_V5_FC1_SYNTHETIC_REVIEW_1')
+    exact(review, ('schema', 'manifest_sha256', 'profile_sha256', 'producer', 'reviewer',
+                   'checkpoint', 'contract_sources'))
+    need(review['schema'] == 'G3_V5_FC1_SYNTHETIC_REVIEW_1_IA1')
     need(review['producer'] == 'fixture_producer' and review['reviewer'] == 'fixture_reviewer' and
          review['checkpoint'] == 'fixture_current', 'TRUST')
     need(review['manifest_sha256'] == digest(raws[0]), 'PROJECTION')
     need(review['profile_sha256'] == digest(profile.raw), 'SOURCE_PIN')
+    need(tuple(Ref.read(ref) for ref in review['contract_sources']) == expected_sources,
+         'SOURCE_PIN')
     exact(pins, ('schema', 'roles_sha256', 'requests_sha256'))
-    need(pins['schema'] == 'G3_V5_FC1_SYNTHETIC_PINS_1')
+    need(pins['schema'] == 'G3_V5_FC1_SYNTHETIC_PINS_1_IA1')
     need(pins['roles_sha256'] == digest(canonical(roles)), 'DEPENDENCY')
     need(pins['requests_sha256'] == digest(canonical(requests)), 'PROJECTION')
     exact(context, ('schema', 'profile_sha256', 'build'))
-    need(context['schema'] == 'G3_V5_FC1_SYNTHETIC_CONTEXT_1')
+    need(context['schema'] == 'G3_V5_FC1_SYNTHETIC_CONTEXT_1_IA1')
     need(context['profile_sha256'] == digest(profile.raw) and context['build'] == certs[0]['build'], 'SOURCE_PIN')
     need(precedence == ['PREREQUISITE', 'CLOCK', 'RESOURCE', 'DENIAL', 'VALIDATION', 'SUCCESS', 'UNSCHEDULED'], 'PROJECTION')
     exact(policy, ('schema', 'events_sha256'))
-    need(policy['schema'] == 'G3_V5_FC1_SYNTHETIC_EVENTS_1')
+    need(policy['schema'] == 'G3_V5_FC1_SYNTHETIC_EVENTS_1_IA1')
     need(policy['events_sha256'] == digest(canonical(events)), 'PROJECTION')
     exact(policy_review, ('schema', 'policy_sha256'))
-    need(policy_review['schema'] == 'G3_V5_FC1_SYNTHETIC_EVENT_REVIEW_1')
+    need(policy_review['schema'] == 'G3_V5_FC1_SYNTHETIC_EVENT_REVIEW_1_IA1')
     need(policy_review['policy_sha256'] == digest(raws[5]), 'PROJECTION')
     projection = canonical({'schema': SYNTHETIC, 'input_refs': {k: reference(v) for k, v in zip(INPUT_ROLES, raws)},
                             'manifest': manifest, 'purpose_plan': purpose_plan,

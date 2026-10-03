@@ -20,15 +20,15 @@ PROVIDERS = ('GEFS', 'IFS', 'AIFS')
 PURPOSES = ('FIELD', 'INDEX', 'OBJECT_ID', 'METADATA', 'PROBE')
 INPUT_ROLES = ('manifest', 'plan_review', 'supplemental_pins', 'runtime_context',
                'terminal_precedence', 'event_policy', 'event_policy_review')
-PROFILE = 'G3_V5_FULL_COHORT_EXECUTION_1'
-COST_MODEL = 'G3_V5_FULL_COHORT_COST_1'
-MANIFEST = 'R09_GATE3_LAUNCH_MANIFEST_V5_FC1'
-PROJECTION = 'G3_V5_PROJECTION_1_FC1'
-EXPORT = 'G3_V5_EXPORT_1_FC1'
-CUSTODY = 'G3_V5_EXPORT_CUSTODY_1_FC1'
-REVIEW = 'G3_V5_EXPORT_REVIEW_1_FC1'
-TRUSTED_PINS = 'G3_V5_EXPORT_TRUSTED_PINS_1_FC1'
-SYNTHETIC = 'G3_V5_FC1_SYNTHETIC_PROJECTION_1'
+PROFILE = 'G3_V5_FULL_COHORT_EXECUTION_1_IA1'
+COST_MODEL = 'G3_V5_FULL_COHORT_COST_1_IA1'
+MANIFEST = 'R09_GATE3_LAUNCH_MANIFEST_V5_FC1_IA1'
+PROJECTION = 'G3_V5_PROJECTION_1_FC1_IA1'
+EXPORT = 'G3_V5_EXPORT_1_FC1_IA1'
+CUSTODY = 'G3_V5_EXPORT_CUSTODY_1_FC1_IA1'
+REVIEW = 'G3_V5_EXPORT_REVIEW_1_FC1_IA1'
+TRUSTED_PINS = 'G3_V5_EXPORT_TRUSTED_PINS_1_FC1_IA1'
+SYNTHETIC = 'G3_V5_FC1_SYNTHETIC_PROJECTION_1_IA1'
 OWNERS = ('LOCAL', 'FINALIZATION', 'JITTER', 'CLOCK_GUARD')
 JOURNALS = ('budget', 'session', 'denial', 'store')
 EVENT_LIMITS = (131072, 32768, 32768, 10000)
@@ -37,8 +37,8 @@ EVENT_LIMITS = (131072, 32768, 32768, 10000)
 RECORD_TYPES = (
     ('RESERVE', 'KNOWN_ACCOUNT', 'TERMINAL', 'FAILURE_ANNOTATION', 'LIFECYCLE'),
     ('INTENT', 'BUDGET_RESERVED', 'DEADLINE_FIXED', 'DISPATCH_INTENT', 'DENIAL',
-     'TRANSPORT_CLOSED', 'ACCOUNTED', 'OBJECT_WITNESSED', 'CAPTURE_RECEIPT',
-     'TERMINAL', 'CLOCK_CHECK', 'FAILURE_ANNOTATION', 'LIFECYCLE'),
+     'TRANSPORT_CLOSED', 'ACCOUNTED', 'OBJECT_WITNESSED', 'TERMINAL',
+     'CAPTURE_RECEIPT', 'CLOCK_CHECK', 'FAILURE_ANNOTATION', 'LIFECYCLE'),
     ('INTENT_OPEN', 'DENIAL', 'RESTRICTION_UNRESOLVED', 'INTENT_CLOSE', 'LIFECYCLE'),
     ('PREPARE', 'COMMIT', 'FAILURE_ANNOTATION', 'LIFECYCLE'),
 )
@@ -194,6 +194,7 @@ class Phase:
 @dataclass(frozen=True)
 class TimingPlan:
     deadline_ms: tuple[int, ...]
+    start_bound_ms: tuple[int, ...]
     spacing_ms: int
     local_wall_ms: int
     local_cpu_ms: int
@@ -206,14 +207,16 @@ class TimingPlan:
     @classmethod
     def read(cls, raw):
         v = parse(raw)
-        keys = ('deadline_ms', 'spacing_ms', 'local_wall_ms', 'local_cpu_ms',
+        keys = ('deadline_ms', 'start_bound_ms', 'spacing_ms', 'local_wall_ms', 'local_cpu_ms',
                 'finalization_ms', 'jitter_ms', 'clock_guard_ms', 'phase_bounds')
         exact(v, ('schema',) + keys)
-        need(v['schema'] == 'G3_V5_TIMING_PLAN_1')
+        need(v['schema'] == 'G3_V5_TIMING_PLAN_1_IA1')
         need(type(v['deadline_ms']) is list and 0 < len(v['deadline_ms']) <= 3600)
         deadlines = tuple(integer(d, 1000, 30000) for d in v['deadline_ms'])
+        need(type(v['start_bound_ms']) is list and len(v['start_bound_ms']) == len(deadlines), 'BUDGET')
+        bounds = tuple(integer(a) for a in v['start_bound_ms'])
         need(all(d % 1000 == 0 for d in deadlines))
-        for key in keys[1:-1]:
+        for key in keys[2:-1]:
             integer(v[key])
         need(v['spacing_ms'] >= 2000, 'CLOCK')
         need(v['local_wall_ms'] >= 1000*FIELDS and v['finalization_ms'] >= 60000 and
@@ -232,7 +235,13 @@ class TimingPlan:
         for owner, key in zip(OWNERS, ('local_wall_ms', 'finalization_ms', 'jitter_ms', 'clock_guard_ms')):
             need(total(p.wall_ms for p in phases if p.owner == owner) == v[key], 'BUDGET')
         need(total(p.cpu_ms for p in phases if p.owner == 'LOCAL') == v['local_cpu_ms'], 'BUDGET')
-        return cls(deadlines, *(v[k] for k in keys[1:-1]), tuple(phases), raw)
+        a = total(bounds)
+        for phase_id in ('START_BOUND_TOTAL', 'DISPATCH_BOUND_TOTAL'):
+            selected = [p for p in phases if p.id == phase_id]
+            need(len(selected) == 1 and selected[0].owner == 'JITTER' and
+                 selected[0].wall_ms == a and selected[0].cpu_ms == 0, 'BUDGET')
+        need(total((a, a)) <= v['jitter_ms'], 'BUDGET')
+        return cls(deadlines, bounds, *(v[k] for k in keys[2:-1]), tuple(phases), raw)
 
     def elapsed_ms(self):
         return total((*[max(self.spacing_ms, d) for d in self.deadline_ms[:-1]],
@@ -328,7 +337,7 @@ class RecordPlan:
     def read(cls, raw):
         v = parse(raw)
         exact(v, ('schema', 'journals'))
-        need(v['schema'] == 'G3_V5_RECORD_PLAN_1' and type(v['journals']) is list)
+        need(v['schema'] == 'G3_V5_RECORD_PLAN_1_IA1' and type(v['journals']) is list)
         need(len(v['journals']) == 4)
         journals = []
         for j, kind, names in zip(v['journals'], JOURNALS, RECORD_TYPES):
@@ -475,19 +484,179 @@ def consume_accepted_fc1(*args, **kwargs):
     raise Refusal('TRUST')
 
 
-def check_synthetic_timing_trace(timing, starts_ms, closed_ms):
-    """Check supplied synthetic observations; does not run a scheduler/clock.
+def check_synthetic_timing_trace(timing, bounds, permission_lower_ms):
+    """Necessary IA1 arithmetic on supplied observations, never producer proof.
 
-    Closed includes abort/cancellation/socket-close lag. The total local-work
-    certificate and absolute cutoffs are separate necessary checks.
+    A real producer must prove and durably record the actual transport boundary.
+    These caller supplied records cannot authenticate a clock, fsync or adapter.
     """
-    need(type(timing) is TimingPlan and type(starts_ms) is tuple and type(closed_ms) is tuple)
-    need(len(starts_ms) == len(closed_ms) == len(timing.deadline_ms), 'BUDGET')
-    for i, (start, closed, deadline) in enumerate(zip(starts_ms, closed_ms, timing.deadline_ms)):
-        integer(start)
-        integer(closed)
-        need(start <= closed <= total((start, deadline)), 'BUDGET')
-        if i:
-            need(start >= closed_ms[i-1], 'BUDGET')
-            need(start - starts_ms[i-1] >= timing.spacing_ms, 'CLOCK')
-    need(closed_ms[-1]-starts_ms[0] <= 10800000, 'CLOCK')
+    need(type(timing) is TimingPlan and type(bounds) is tuple and
+         type(permission_lower_ms) is tuple)
+    need(len(bounds) == len(permission_lower_ms) == len(timing.deadline_ms), 'BUDGET')
+    previous = None
+    for i, (b, permission, deadline, allowance) in enumerate(zip(
+            bounds, permission_lower_ms, timing.deadline_ms, timing.start_bound_ms)):
+        exact(b, ('schema', 'request_id', 'context_sha256', 'boot_id', 'lower_clock',
+                  'upper_clock', 'lower_ms', 'actual_start_ms', 'upper_ms',
+                  'closed_ms', 'deadline_origin_ms', 'deadline_fixed_ms',
+                  'dispatch_persisted_ms', 'boundary_identity',
+                  'durable_close', 'receipt_complete'))
+        need(b['schema'] == 'G3_V5_FC1_START_BOUND_IA1')
+        need(b['boundary_identity'] == 'FIRST_TRANSPORT_ACTIVITY')
+        ident(b['request_id']); ident(b['boot_id']); hash_value(b['context_sha256'])
+        for name, sample in (('lower_clock', b['lower_ms']), ('upper_clock', b['upper_ms'])):
+            clock = b[name]
+            exact(clock, ('schema', 'boot_id', 'monotonic_ms', 'offset_lower_ms',
+                          'offset_upper_ms', 'measured_utc_ms'))
+            need(clock['schema'] == 'G3_V5_FC1_ORIGINAL_CLOCK_IA1' and
+                 clock['boot_id'] == b['boot_id'])
+            integer(clock['monotonic_ms']); integer(clock['offset_lower_ms'])
+            integer(clock['offset_upper_ms']); integer(clock['measured_utc_ms'])
+            need(clock['offset_lower_ms'] <= clock['offset_upper_ms'] and
+                 clock['monotonic_ms'] == sample and
+                 total((clock['monotonic_ms'], clock['offset_lower_ms'])) <= clock['measured_utc_ms'] <=
+                 total((clock['monotonic_ms'], clock['offset_upper_ms'])), 'CLOCK')
+        need(max(b['lower_clock']['offset_lower_ms'], b['upper_clock']['offset_lower_ms']) <=
+             min(b['lower_clock']['offset_upper_ms'], b['upper_clock']['offset_upper_ms']), 'CLOCK')
+        for name in ('lower_ms', 'actual_start_ms', 'upper_ms', 'closed_ms',
+                     'deadline_origin_ms', 'deadline_fixed_ms', 'dispatch_persisted_ms'):
+            integer(b[name])
+        integer(permission)
+        need(type(b['durable_close']) is bool and type(b['receipt_complete']) is bool)
+        need(b['durable_close'] and b['receipt_complete'], 'CUSTODY')
+        need(permission <= b['lower_ms'] <= b['actual_start_ms'] <= b['upper_ms'] <= b['closed_ms'], 'CLOCK')
+        need(b['upper_ms'] - b['lower_ms'] <= allowance, 'CLOCK')
+        need(b['deadline_origin_ms'] <= b['dispatch_persisted_ms'] <= permission, 'CLOCK')
+        need(b['closed_ms'] <= b['deadline_fixed_ms'] and
+             b['deadline_fixed_ms'] <= total((b['deadline_origin_ms'], deadline)), 'BUDGET')
+        if previous is not None:
+            need(b['boot_id'] == previous['boot_id'] and
+                 b['context_sha256'] == previous['context_sha256'], 'CLOCK')
+            need(permission >= previous['closed_ms'], 'BUDGET')
+            need(permission >= total((previous['upper_ms'], timing.spacing_ms)), 'CLOCK')
+        previous = b
+    need(bounds[-1]['closed_ms'] - bounds[0]['actual_start_ms'] <= 10800000, 'CLOCK')
+
+
+@dataclass(frozen=True)
+class CaptureCustody:
+    outcome: str | None
+    terminal_head: str | None
+    receipt_head: str | None
+    complete: bool
+
+
+def check_synthetic_capture_custody(records, acknowledged_heads, request_id, context_sha256):
+    """Replay a supplied IA1 pair; absent or unknown durability keeps custody held.
+
+    The acknowledgement set is an untrusted synthetic input, not store proof.
+    """
+    need(type(records) is tuple and type(acknowledged_heads) is tuple)
+    need(len(records) <= 2, 'CUSTODY')
+    ident(request_id); hash_value(context_sha256)
+    for head in acknowledged_heads: hash_value(head)
+    need(len(set(acknowledged_heads)) == len(acknowledged_heads), 'CUSTODY')
+    if not records:
+        return CaptureCustody(None, None, None, False)
+    terminal = parse(records[0], 65536)
+    exact(terminal, ('schema', 'type', 'request_id', 'context_sha256', 'outcome',
+                     'prior_hash', 'closed', 'accounted', 'witnessed', 'denied',
+                     'overdelivery', 'intent_recorded'))
+    need(terminal['schema'] == 'G3_V5_FC1_SESSION_IA1' and terminal['type'] == 'TERMINAL')
+    need(terminal['request_id'] == request_id and terminal['context_sha256'] == context_sha256, 'DEPENDENCY')
+    hash_value(terminal['prior_hash'])
+    outcome = terminal['outcome']
+    need(outcome in ('SUCCESS', 'FAILED', 'REFUSED'))
+    for name in ('closed', 'accounted', 'witnessed', 'denied', 'overdelivery', 'intent_recorded'):
+        need(type(terminal[name]) is bool)
+    need(terminal['intent_recorded'], 'CUSTODY')
+    if outcome == 'SUCCESS':
+        need(terminal['closed'] and terminal['accounted'] and terminal['witnessed'] and
+             not terminal['denied'] and not terminal['overdelivery'], 'CUSTODY')
+    elif outcome == 'FAILED':
+        need(terminal['closed'] and terminal['accounted'] and not terminal['overdelivery'], 'CUSTODY')
+    else:
+        need(not terminal['closed'] and not terminal['accounted'] and
+             not terminal['witnessed'], 'CUSTODY')
+    terminal_head = digest(records[0])
+    if len(records) == 1:
+        return CaptureCustody(outcome, terminal_head, None, False)
+    receipt = parse(records[1], 65536)
+    exact(receipt, ('schema', 'type', 'request_id', 'context_sha256', 'outcome',
+                    'prior_hash', 'session_terminal_head', 'store_head', 'budget_head',
+                    'denial_head', 'shared_head'))
+    need(receipt['schema'] == 'G3_V5_FC1_CAPTURE_RECEIPT_IA1' and
+         receipt['type'] == 'CAPTURE_RECEIPT')
+    need(receipt['request_id'] == request_id and receipt['context_sha256'] == context_sha256 and
+         receipt['outcome'] == outcome, 'DEPENDENCY')
+    for name in ('prior_hash', 'session_terminal_head', 'store_head', 'budget_head',
+                 'denial_head', 'shared_head'):
+        hash_value(receipt[name])
+    need(receipt['prior_hash'] == terminal_head and
+         receipt['session_terminal_head'] == terminal_head, 'DEPENDENCY')
+    receipt_head = digest(records[1])
+    return CaptureCustody(outcome, terminal_head, receipt_head,
+                          terminal_head in acknowledged_heads and receipt_head in acknowledged_heads)
+
+
+@dataclass(frozen=True)
+class StreamTrace:
+    read_calls: int
+    received_bytes: int
+    eof: bool
+    complete: bool
+    poisoned: bool
+    debit_bytes: int
+
+
+def check_synthetic_stream_trace(cap, expected_bytes, k, reads, close_confirmed,
+                                 account_durable, canceled=False, prior_uncertain_debit=0):
+    """Account every supplied read/queue/late observation without clipping excess.
+
+    A real adapter must expose these observations; this pure check cannot do so.
+    """
+    integer(cap, 1, 4*MIB); integer(expected_bytes, 1, cap)
+    integer(k, (cap + 65535)//65536 + 1, min(cap + 1, 65536), 'BUDGET')
+    integer(prior_uncertain_debit)
+    need(prior_uncertain_debit == 0 or prior_uncertain_debit >= cap+65536, 'BUDGET')
+    need(type(reads) is tuple and type(close_confirmed) is bool and
+         type(account_durable) is bool and type(canceled) is bool)
+    count = received = payload = 0
+    eof = poisoned = stopped = False
+    for read in reads:
+        exact(read, ('kind', 'requested_max', 'body_bytes', 'eager_bytes',
+                     'queued_bytes', 'late_bytes', 'framing_complete', 'queue_exhausted'))
+        need(read['kind'] in ('DATA', 'EOF', 'EMPTY', 'ERROR'))
+        for name in ('requested_max', 'body_bytes', 'eager_bytes', 'queued_bytes', 'late_bytes'):
+            integer(read[name])
+        need(type(read['framing_complete']) is bool and type(read['queue_exhausted']) is bool)
+        count += 1  # charged before interpretation, including errors and EOF
+        received = total((received, read['body_bytes'], read['eager_bytes'],
+                          read['queued_bytes'], read['late_bytes']))
+        if count > k or stopped or canceled:
+            poisoned = True
+        maximum = 1 if payload == expected_bytes else min(65536, expected_bytes - payload)
+        if not 1 <= read['requested_max'] <= maximum:
+            poisoned = True
+        if read['body_bytes'] > read['requested_max'] or read['eager_bytes'] or read['queued_bytes'] or read['late_bytes']:
+            poisoned = True
+        if read['kind'] == 'DATA':
+            if read['body_bytes'] == 0: poisoned = True
+            payload = total((payload, read['body_bytes']))
+            if payload > expected_bytes: poisoned = True
+        elif read['kind'] == 'EOF':
+            if read['body_bytes'] or payload != expected_bytes or not read['framing_complete'] or not read['queue_exhausted']:
+                poisoned = True
+            else:
+                eof = True
+            stopped = True
+        else:
+            poisoned = True
+            stopped = True
+        if received > cap + 65536:
+            poisoned = True
+    complete = eof and close_confirmed and account_durable and not poisoned
+    # Uncertain accounting retains the full reservation and one global G_rx.
+    debit = max(prior_uncertain_debit, received if close_confirmed and account_durable
+                else max(received, total((cap, 65536))))
+    return StreamTrace(count, received, eof, complete, poisoned, debit)
