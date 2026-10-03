@@ -2,6 +2,7 @@
 
 from dataclasses import replace
 import copy
+import tracemalloc
 import unittest
 
 from tools.v11_gate3_offline_allocation_lifetime import (
@@ -113,14 +114,107 @@ class AllocationLifetimeTests(unittest.TestCase):
             reconcile(budget, rows,
                       [replace(disk, peak_inodes_ceiling=disk.peak_inodes_ceiling - 1),
                        domains[1]], snapshot=5)
-        # All rows survive the snapshot, but sequential future intervals need
-        # only their actual concurrent peak, not the sum of all disk rows.
+        # Ordinary uncovered rows may use half-open lifetime accounting;
+        # the full V4 and runtime envelopes remain concurrent.
         for index, row in enumerate(rows):
-            if row.domain == 'disk':
-                rows[index] = replace(row, start=6 + index, end=7 + index,
-                                      outstanding_at=6 + index)
+            if row.domain == 'disk' and row.category not in ('v4_envelope',
+                                                              'runtime_envelope'):
+                rows[index] = replace(row, start=11 + index, end=12 + index,
+                                      outstanding_at=11 + index)
         result = reconcile(budget, rows, domains, snapshot=5)
-        self.assertEqual(result['lifetime_peaks']['disk']['bytes'], 100)
+        self.assertEqual(result['lifetime_peaks']['disk']['bytes'], 180)
+
+    def test_sequential_envelope_fragments_cannot_cover_capacity(self):
+        budget, rows, _ = fixture()
+        fragmented = []
+        for index, row in enumerate(rows):
+            if row.category in ('v4_envelope', 'runtime_envelope',
+                                'parent_child_memory'):
+                base = {'v4_envelope': 20, 'runtime_envelope': 40,
+                        'parent_child_memory': 60}[row.category]
+                size = row.maximum_bytes // 10
+                for part in range(10):
+                    start = base + part
+                    fragmented.append(replace(
+                        row, backing_claim=f'{row.backing_claim}-{part}',
+                        start=start, end=start + 1, maximum_bytes=size,
+                        outstanding_bytes=size, outstanding_at=start))
+            else:
+                start = 100 + index
+                fragmented.append(replace(row, start=start, end=start + 1,
+                                          outstanding_at=start))
+        domains = [Domain('disk', 'DISK', 'disk-pool', 10, 1),
+                   Domain('memory', 'MEMORY', 'memory-pool', 6, 0)]
+        with self.assertRaisesRegex(ValueError, 'budget envelope'):
+            reconcile(budget, fragmented, domains, snapshot=5)
+
+    def test_whole_envelopes_must_overlap_without_phase_proof(self):
+        budget, rows, domains = fixture()
+        rows[0] = replace(rows[0], start=10, end=11, outstanding_at=10)
+        rows[1] = replace(rows[1], start=11, end=12, outstanding_at=11)
+        with self.assertRaisesRegex(ValueError, 'budget envelope'):
+            reconcile(budget, rows, domains, snapshot=5)
+
+    def test_concurrent_envelope_parts_cover_capacity(self):
+        budget, rows, domains = fixture()
+        domains[0] = replace(domains[0],
+                             peak_inodes_ceiling=domains[0].peak_inodes_ceiling + 2)
+        for index, row in reversed(tuple(enumerate(rows))):
+            if row.category in ('v4_envelope', 'runtime_envelope',
+                                'parent_child_memory'):
+                part = row.maximum_bytes // 2
+                rows[index:index + 1] = [
+                    replace(row, backing_claim=f'{row.backing_claim}-{suffix}',
+                            maximum_bytes=part, outstanding_bytes=part,
+                            maximum_inodes=1 if row.domain == 'disk' else 0,
+                            outstanding_inodes=1 if row.domain == 'disk' else 0)
+                    for suffix in (0, 1)]
+        result = reconcile(budget, rows, domains, snapshot=5)
+        self.assertEqual(result['status'], 'UNQUALIFIED')
+        self.assertEqual(result['lifetime_peaks']['disk']['bytes'],
+                         domains[0].peak_bytes_ceiling)
+
+    def test_excess_freshness_keys_refused_before_copy(self):
+        budget, rows, domains = fixture()
+        budget['fresh_ceiling_checks'].update(
+            {f'extra_{i}': True for i in range(32768)})
+        tracemalloc.start()
+        try:
+            with self.assertRaises(ValueError):
+                reconcile(budget, rows, domains, snapshot=5)
+            _, peak = tracemalloc.get_traced_memory()
+        finally:
+            tracemalloc.stop()
+        self.assertLess(peak, 256_000)
+
+    def test_marker_and_medium_subclasses_refused_without_hooks(self):
+        class Hooked(str):
+            calls = 0
+            __hash__ = str.__hash__
+
+            def __ne__(self, other):
+                type(self).calls += 1
+                return False
+
+            def __eq__(self, other):
+                type(self).calls += 1
+                return True
+
+        budget, rows, domains = fixture()
+        budget['mode'] = Hooked('NOT_AN_OFFLINE_PROPOSAL')
+        with self.assertRaises(ValueError):
+            reconcile(budget, rows, domains, snapshot=5)
+        self.assertEqual(Hooked.calls, 0)
+        budget, rows, domains = fixture()
+        domains[0] = replace(domains[0], medium=Hooked('DISK'))
+        with self.assertRaises(ValueError):
+            reconcile(budget, rows, domains, snapshot=5)
+        self.assertEqual(Hooked.calls, 0)
+        budget, rows, domains = fixture()
+        budget[Hooked('extra')] = True
+        with self.assertRaises(ValueError):
+            reconcile(budget, rows, domains, snapshot=5)
+        self.assertEqual(Hooked.calls, 0)
 
     def test_invalid_budget_or_arithmetic_has_no_result(self):
         budget, rows, domains = fixture()

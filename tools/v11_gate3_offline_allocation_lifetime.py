@@ -87,27 +87,45 @@ def _add(a, b):
     return _uint(value)
 
 
+def _plain_keys(mapping, limit):
+    if type(mapping) is not dict or len(mapping) > limit:
+        raise ValueError('bounded plain mapping required')
+    for key in mapping:
+        if type(key) is not str:
+            raise ValueError('plain mapping keys required')
+
+
+def _marker(mapping, key, expected):
+    value = mapping[key]
+    if type(value) is not str or value != expected:
+        raise ValueError('unqualified validated budget required')
+
+
 def _budget(budget):
-    if type(budget) is not dict:
-        raise ValueError('validated budget mapping required')
+    _plain_keys(budget, 64)
     try:
         capacity = budget['runtime_capacity']
         checks = budget['fresh_ceiling_checks']
-        if (budget['mode'] != 'OFFLINE_PROPOSAL' or
-                budget['manifest_validation'] != 'V4_VALIDATED_EXACT_BYTES' or
-                budget['event_binding'] != 'MATCHES_VALIDATED_V4_MANIFEST_FIELD_EXPANSION' or
-                budget['capacity_covers_frozen_schedule'] is not True or
+        _plain_keys(capacity, 16)
+        # Refuse excess freshness keys before copying or traversing them.
+        if type(checks) is not dict or len(checks) != len(FRESH_CHECKS):
+            raise ValueError('unqualified validated budget required')
+        for key, value in checks.items():
+            if type(key) is not str or key not in FRESH_CHECKS or value is not True:
+                raise ValueError('unqualified validated budget required')
+        _marker(budget, 'mode', 'OFFLINE_PROPOSAL')
+        _marker(budget, 'manifest_validation', 'V4_VALIDATED_EXACT_BYTES')
+        _marker(budget, 'event_binding',
+                'MATCHES_VALIDATED_V4_MANIFEST_FIELD_EXPANSION')
+        _marker(budget, 'g3l', 'NO_GO')
+        _marker(budget, 'existing_occupancy', 'UNKNOWN')
+        _marker(budget, 'live_host_resources', 'UNKNOWN')
+        if (budget['capacity_covers_frozen_schedule'] is not True or
                 budget['resource_qualification'] is not False or
                 budget['execution_authority'] is not False or
                 budget['provider_authority'] is not False or
-                budget['g3l'] != 'NO_GO' or
                 type(budget['qualification_credit']) is not int or
-                budget['qualification_credit'] != 0 or
-                budget['existing_occupancy'] != 'UNKNOWN' or
-                budget['live_host_resources'] != 'UNKNOWN' or
-                type(capacity) is not dict or type(checks) is not dict or
-                set(checks) != FRESH_CHECKS or
-                any(value is not True for value in checks.values())):
+                budget['qualification_credit'] != 0):
             raise ValueError('unqualified validated budget required')
         digest = budget['validated_manifest_sha256']
         if (type(digest) is not str or len(digest) != 64 or
@@ -143,6 +161,7 @@ def reconcile(budget, obligations, domains, *, snapshot):
             raise ValueError('domain record required')
         name, pool = _text(domain.name), _text(domain.pool)
         if (name in domain_by_name or pool in pools or
+                type(domain.medium) is not str or
                 domain.medium not in ('DISK', 'MEMORY')):
             raise ValueError('duplicate or invalid backing pool')
         _uint(domain.peak_bytes_ceiling)
@@ -152,7 +171,7 @@ def reconcile(budget, obligations, domains, *, snapshot):
 
     categories = set()
     claims = set()
-    totals = {'V4': 0, 'RUNTIME': 0, 'RUNTIME_MEMORY': 0}
+    envelopes = {'V4': [], 'RUNTIME': [], 'RUNTIME_MEMORY': []}
     events = {name: [] for name in domain_by_name}
     outstanding = {name: {'bytes': 0, 'inodes': 0} for name in domain_by_name}
     for row in obligations:
@@ -194,8 +213,9 @@ def reconcile(budget, obligations, domains, *, snapshot):
             raise ValueError('materialized after snapshot')
         if has_outstanding and not max(start, snap + 1) <= _uint(row.outstanding_at) < end:
             raise ValueError('outstanding allocation precedes snapshot or release')
-        if component in totals:
-            totals[component] = _add(totals[component], maximum_bytes)
+        if component in envelopes:
+            envelopes[component].extend(((start, 1, maximum_bytes),
+                                         (end, -1, maximum_bytes)))
         events[row.domain].extend(((start, 1, maximum_bytes, maximum_inodes),
                                    (end, -1, maximum_bytes, maximum_inodes)))
         outstanding[row.domain]['bytes'] = _add(
@@ -204,8 +224,19 @@ def reconcile(budget, obligations, domains, *, snapshot):
             outstanding[row.domain]['inodes'], outstanding_inodes)
     if categories != set(REQUIRED):
         raise ValueError('missing allocation categories')
-    if (totals['V4'] < v4 or totals['RUNTIME'] < runtime_disk or
-            totals['RUNTIME_MEMORY'] < runtime_memory):
+    # All three whole envelopes must coexist somewhere in the asserted plan.
+    # Sequential fragments cannot turn cumulative throughput into capacity.
+    live = dict.fromkeys(envelopes, 0)
+    envelope_events = sorted((time, direction, component, size)
+                             for component, component_events in envelopes.items()
+                             for time, direction, size in component_events)
+    covered = False
+    for _, direction, component, size in envelope_events:
+        live[component] = _uint(live[component] + direction * size)
+        if (live['V4'] >= v4 and live['RUNTIME'] >= runtime_disk and
+                live['RUNTIME_MEMORY'] >= runtime_memory):
+            covered = True
+    if not covered or any(live.values()):
         raise ValueError('validated budget envelope not covered')
     peaks = {}
     for name, domain in domain_by_name.items():
