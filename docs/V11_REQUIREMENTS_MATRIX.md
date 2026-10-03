@@ -1,3 +1,7 @@
+## V5 live workers — 2026-10-03 19:34 UTC
+
+The `610ee4a` independent exact review and separate FC1 schema author remain live. A passing optimized core test suite and conflict-free read-only merge probe are preparation only; no sealed review verdict, merge, identity credit, provider authority or SHADOW admission exists. **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## V5 live review preflight — 2026-10-03 19:29 UTC
 
 `610ee4a` is conflict-free against current main by read-only merge-tree probe, but its independent exact review remains live without a verdict. FC1 schemas remain unfinished in a separate isolated author worktree. Neither grants V5 acceptance, G3-L identity credit, provider authority or SHADOW admission. **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.

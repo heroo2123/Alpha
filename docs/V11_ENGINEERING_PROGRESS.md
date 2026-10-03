@@ -1,3 +1,7 @@
+## V5 continuity — 2026-10-03 19:34 UTC
+
+Main `f9c1cd6` is clean. The `610ee4a` exact reviewer continues offline verification; its optimized core suite reports 388 passed/1 skipped with zero socket events, but no final verdict. FC1 schema author continues with two uncommitted files. Current-main merge-tree and candidate whitespace preflights pass. V10/V11 execution units are inactive, protected master hash is unchanged, free disk is 2,411 MiB, and no PAPER/SHADOW/scanner process was observed. No provider request, eligible capture, forward SHADOW or score crossing: **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
+
 ## Live V5 merge preflight — 2026-10-03 19:29 UTC
 
 Current main `81ebac3` is clean. The isolated `610ee4a` exact reviewer and separate FC1 schema author are both active; no terminal or verdict exists. A read-only `610ee4a` merge-tree probe and diff whitespace check pass; integration awaits independent PASS and post-merge tests. Disk remains above the 2 GiB floor, memory below the 900 MiB third-worker threshold, V10/V11 execution units inactive, and the protected master hash unchanged. No provider request, eligible capture, forward SHADOW or score crossing: **91/200, formal 1/50; 77 missing identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
