@@ -4864,3 +4864,7 @@ Clean candidate `53163d7` represents the required three-hour IFS slots offline a
 ## Live V5 weather audit — 2026-10-03 18:10 UTC
 
 Offline IFS candidate `53163d7` remains under live independent exact review; the separate full-cohort execution contract is still being authored in its isolated worktree. Neither has a verdict or integration. Protected master checksum and inactive V10/V11 execution units were rechecked; no PAPER/SHADOW process or new commissioning file was observed. Disk remains above 2 GiB. The proposed Gate-3 date is expired, 77 G3-L identities are missing, and qualification credit is zero. **91/200, formal 1/50; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
+
+## V5 offline weather review continuity — 2026-10-03 18:20 UTC
+
+Exact IFS three-hour candidate `53163d7` received **CHANGES_REQUIRED** for V5 generic dispatch bypass and timestamp refusal. An isolated repair is active; no IFS admission credit. Clean documentation-only full-cohort contract `36482c0` is under independent exact review. Neither candidate is integrated. **91/200, formal 1/50; 77 missing G3-L identities; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.

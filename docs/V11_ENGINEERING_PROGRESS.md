@@ -7597,3 +7597,7 @@ The clean offline IFS three-hour candidate `53163d7` has author-reported 170 foc
 ## Live V5 weather audit — 2026-10-03 18:10 UTC
 
 Main `be598e8` is clean. The `53163d7` IFS exact reviewer and separate full-cohort contract author remain live in isolated worktrees, with no final verdict or terminal marker. The IFS candidate's two-file diff passes whitespace checks; no merge is authorized yet. Protected master hash matches, V10/V11 execution units remain inactive, no PAPER/SHADOW process was observed, and disk remains above the 2 GiB floor. Preserve both tasks and intake their candidates when complete. No provider request, qualified capture, forward SHADOW or acceptance crossing: **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
+
+## V5 IFS repair and full-cohort review active — 2026-10-03 18:20 UTC
+
+Independent exact review of `53163d7` found a mockable generic V5 GET path and timestamp refusal defects; a single Sol/high repair worker is active in its original isolated worktree. Separately, finished clean documentation candidate `36482c0` is under Sol/high exact review in a detached checkout. Both require PASS, reconciliation and post-merge checks. No provider request, qualification, SHADOW operation or score crossing: **91/200, formal 1/50; V5 PROPOSED_BLOCKED; G3-L NO-GO; NOT_READY_TO_FUND**.
