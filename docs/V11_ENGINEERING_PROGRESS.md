@@ -7582,3 +7582,6 @@ Author candidate `986f642` is clean with exit-0 terminal and author-reported nor
 ## V5 baseline replay repair underway — 2026-10-03 17:32 UTC
 
 Exact `986f642` Astra/high review sealed CHANGES_REQUIRED with three reproduced defects and one inherited arithmetic resource risk. A single Sol/high repair worker is live in the original isolated author worktree; retained review and runner bindings are in the checkpoint. The candidate is unmerged pending repair, tests, independent exact re-review and reconciliation. No provider request, eligible capture, forward SHADOW or acceptance crossing: **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
+## V5 replay successor review launched — 2026-10-03 17:46 UTC
+
+The isolated Sol/high repair ended with clean `13324e6` and author-reported 12/12 focused tests plus 32 arithmetic checks/22 pins in normal and optimized Python. A separate exact Astra/high reviewer is live with retained prompt, runner and terminal bindings in the checkpoint. Await its verdict before reconciliation or merge. No provider request, forward SHADOW or acceptance crossing: **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.

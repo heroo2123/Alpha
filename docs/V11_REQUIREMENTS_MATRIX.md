@@ -4849,3 +4849,6 @@ Clean offline candidate `986f642` (tree `5083dc4`) is under different-model Astr
 ## V5 historical replay repair active — 2026-10-03 17:32 UTC
 
 Independent exact review of `986f642` returned **CHANGES_REQUIRED** for Git helper execution, unbounded object read, and report newline byte acceptance; it also exposed an inherited current-source arithmetic resource risk. One isolated Sol/high repair worker is live in the original author worktree. No PASS, merge, V5 amendment, G3-L identity credit, provider authority or SHADOW admission follows. **91/200, formal 1/50; 77 missing identities; G3-L NO-GO; NOT_READY_TO_FUND**.
+## V5 replay repair exact review active — 2026-10-03 17:46 UTC
+
+Clean successor `13324e6` addresses the prior review findings and is under different-model Astra/high exact review in a detached checkout. Author tests are not an independent PASS; no merge or operational qualification is claimed. V5 remains **PROPOSED_BLOCKED** with a full-cohort resource contradiction. The proposed Gate-3 date expired and 77 G3-L identities remain missing. **91/200, formal 1/50; G3-L NO-GO; NOT_READY_TO_FUND**.
